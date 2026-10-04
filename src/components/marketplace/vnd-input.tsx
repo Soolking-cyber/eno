@@ -24,7 +24,7 @@ const chip = 'relative rounded-full bg-tint px-2.5 py-1 text-xs font-semibold te
  * "= 12 triệu đồng" readability helper. Emits a digits-only string.
  */
 export function VndInput({
-  value, onChange, presets, placeholder, autoFocus, id, className, invalid,
+  value, onChange, presets, placeholder, autoFocus, id, className, invalid, unit,
   maxFactor = 1_000_000_000,
   'aria-label': ariaLabel, 'aria-describedby': describedBy, 'aria-required': ariaRequired,
 }: {
@@ -50,6 +50,12 @@ export function VndInput({
    * the ladder at triệu. Defaults to the full ladder (mark-sold-sheet keeps it).
    */
   maxFactor?: 1_000_000 | 1_000_000_000
+  /**
+   * The period the amount is quoted per, already translated ('/ tháng', '/ ngày'…), shown INSIDE the
+   * field right after the "đ". It used to sit beside this whole component in the caller's flex row,
+   * which centred it on the input + helper line + chip row together — about 45px below the digits.
+   */
+  unit?: string
 }) {
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang) // grouping follows the viewer's language (vi: dots)
@@ -70,10 +76,15 @@ export function VndInput({
   // Keyboard users are unaffected: Tab still focuses the chips, Enter/Space still activate
   // them (both go through keydown, not mousedown).
   const holdFocus = (e: React.MouseEvent) => e.preventDefault()
+  // The period is DRAWN inside the field, and a drawing is not announced: its span gets an id derived
+  // from the field's own (no useId — this component stays hook-free apart from useLanguage, its tests
+  // call it as a plain function) and joins aria-describedby, so a screen reader hears "/ ngày" too.
+  const unitId = unit && id ? `${id}-unit` : undefined
+  const describedByAll = [describedBy, unitId].filter(Boolean).join(' ') || undefined
 
   return (
     <div className={className}>
-      <div className="relative">
+      <div className="relative" data-vnd-field="">
         <Input
           id={id}
           variant="filled"
@@ -87,31 +98,36 @@ export function VndInput({
           // is for the sighted; aria-invalid is for everyone else. Both, or neither.
           aria-invalid={invalid || undefined}
           aria-label={ariaLabel}
-          aria-describedby={describedBy}
+          aria-describedby={describedByAll}
           aria-required={ariaRequired || undefined}
-          // pr-20 is LOAD-BEARING: it reserves the room for the Clear button AND the "đ"
-          // suffix span below — without it the digits run under them.
-          className={cn('py-2.5 pl-3.5 pr-20 text-lg font-bold tabular-nums focus:ring-brand/20', invalid && 'ring-2 ring-destructive/60')}
+          // pr-20 / pr-32 are LOAD-BEARING: they reserve the room for the Clear button AND the "đ"
+          // suffix (plus the period, when there is one) — without it the digits run under them.
+          className={cn('py-2.5 pl-3.5 text-lg font-bold tabular-nums focus:ring-brand/20', unit ? 'pr-32' : 'pr-20', invalid && 'ring-2 ring-destructive/60')}
         />
-        {/* Clear lives IN the field, like every search box: as a fourth chip it wrapped the unit row
-            onto a second line in the wizard's narrow price column. Same focus-hold as the chips. */}
-        {digits ? (
-          <IconButton
-            size="xs"
-            type="button"
-            aria-label={tr('Clear price', 'Xoá giá')}
-            onMouseDown={holdFocus}
-            // Focus goes BACK to the field: this button unmounts the moment the amount is empty, so a
-            // keyboard user who pressed it would otherwise be dropped onto <body>. Found through the
-            // DOM, not a ref — the component stays hook-free apart from useLanguage (its tests call
-            // it as a plain function).
-            onClick={(e) => { const field = e.currentTarget.parentElement?.querySelector('input'); set(''); field?.focus() }}
-            className="absolute right-9 top-1/2 -translate-y-1/2 text-ink-4 transition-colors hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </IconButton>
-        ) : null}
-        <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-ink-4">đ</span>
+        {/* The right-hand adornments, laid out as ONE row so a longer suffix ("đ / tháng") pushes
+            Clear left instead of running under it. pointer-events-none so a tap on the suffix still
+            lands in the input; Clear opts back in. */}
+        <div className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center gap-3">
+          {/* Clear lives IN the field, like every search box: as a fourth chip it wrapped the unit row
+              onto a second line in the wizard's narrow price column. Same focus-hold as the chips. */}
+          {digits ? (
+            <IconButton
+              size="xs"
+              type="button"
+              aria-label={tr('Clear price', 'Xoá giá')}
+              onMouseDown={holdFocus}
+              // Focus goes BACK to the field: this button unmounts the moment the amount is empty, so a
+              // keyboard user who pressed it would otherwise be dropped onto <body>. Found through the
+              // DOM, not a ref — the component stays hook-free apart from useLanguage (its tests call
+              // it as a plain function, with a bare event: hence the optional call).
+              onClick={(e) => { const field = e.currentTarget.closest?.('[data-vnd-field]')?.querySelector('input'); set(''); field?.focus() }}
+              className="pointer-events-auto text-ink-4 transition-colors hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </IconButton>
+          ) : null}
+          <span className="flex items-baseline gap-1 text-sm font-bold text-ink-4"><span>đ</span>{unit ? <span id={unitId} className="font-semibold">{unit}</span> : null}</span>
+        </div>
       </div>
 
       {/* Readability helper — reserves its line so the chips don't jump */}

@@ -28,7 +28,7 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
   }
 }
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
-import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, isPostableSubcategory, isPostableCategory, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType } from '@/lib/taxonomy'
+import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, withoutDisallowedVisaAttrs } from '@/lib/taxonomy'
 import { syndicateListingIfPublic } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
@@ -481,7 +481,10 @@ export async function updateListingCore(
       price: true, createdAt: true, sellerId: true, previousPrice: true, priceDropAt: true, lowestNotifiedPrice: true, priceDropNotifiedAt: true, urgentUntil: true,
       // A job's pay: its price is re-derived from the salary on every edit, and it never takes offers.
       negotiable: true, salaryM: true, affiliateUrl: true, priceUnit: true,
-      seller: { select: { trustTier: true } }, category: { select: { slug: true, name: true, nameVi: true } },
+      // A rent row's unit is re-stamped only when its `rentalPeriod` attribute changes (below).
+      attributes: true,
+      // officialPartner: an official partner's listing may carry e-visa product attributes (O-34, below).
+      seller: { select: { trustTier: true, officialPartner: true } }, category: { select: { slug: true, name: true, nameVi: true } },
       status: true,
     },
   })
@@ -687,7 +690,10 @@ export async function updateListingCore(
   // otherwise the stored one.
   if (body.attributes !== undefined) {
     data.attributes = await withDerivedAttributes(
-      sanitizeAttributes(body.attributes),
+      // ⛔ O-34, THE SERVER HALF (eno.vn): a listing whose seller is not an official partner keeps the
+      // e-visa product attributes it ALREADY carries but cannot gain one — the wizard does not offer
+      // them, and a direct API call must not add them either. VietKite (a partner) is untouched.
+      withoutDisallowedVisaAttrs(sanitizeAttributes(body.attributes), { officialPartner: current.seller.officialPartner, existing: current.attributes }),
       current.sellerId,
       current.category.slug,
       (data.subcategorySlug as string | null | undefined) ?? current.subcategorySlug,
@@ -730,18 +736,30 @@ export async function updateListingCore(
     data.salaryM = salaryMFromPrice(body.price, current.category.slug)
   }
 
-  // ⚠️ THE UNIT FOLLOWS THE INTENT ACROSS THE JOB BOUNDARY. listingMoneyFor is otherwise never called
-  // on edit (it would re-stamp a vehicle rental's 'VND/day' to monthly), but a post switched INTO the
-  // job intent (Wanted → Job) kept its bare 'VND', so its derived salary printed without "/ month"; one
-  // switched OUT kept 'VND/month' on a budget. Only a crossing of the job boundary re-stamps it — the
-  // jobs category offers no 'rent', so no rental period can be touched here.
+  // ⚠️ THE UNIT FOLLOWS THE INTENT ACROSS THE JOB BOUNDARY AND THE RENT BOUNDARY, AND A RENT ROW'S
+  // PERIOD WHEN IT MOVES. listingMoneyFor is otherwise never called on edit (a save that leaves the
+  // period alone must not re-stamp a vehicle rental's 'VND/day'), but a post switched INTO the job
+  // intent (Wanted → Job) kept its bare 'VND', so its derived salary printed without "/ month"; one
+  // switched OUT kept 'VND/month' on a budget. The rent boundary is the same mistake in Rentals: a daily
+  // rental switched to "Cần thuê" kept 'VND/day' on a budget, and the reverse kept a bare 'VND' on a
+  // rent. The third trigger: a rent row whose `rentalPeriod` attribute this edit changes ("Theo tháng"
+  // → "Theo ngày") takes the unit of the period it will have — compared NORMALISED (rentalPeriodOf), so
+  // 'long-term' ↔ 'monthly' is no change. The jobs category offers no 'rent', so the job and rent
+  // triggers never meet.
   if (nextType !== current.listingType && !salaryPaid && paysSalary(current.listingType)) {
     // OUT of the job intent: a Wanted post carries no salary, and a hiring-urgency run is not a sale's.
     data.salaryM = null
     if (current.urgentUntil && current.urgentUntil.getTime() > Date.now() && data.urgentUntil === undefined) data.urgentUntil = new Date()
   }
-  if (nextType !== current.listingType && salaryPaid !== paysSalary(current.listingType)) {
-    data.priceUnit = listingMoneyFor({ categorySlug: current.category.slug, subcategorySlug: current.subcategorySlug, listingType: nextType }).priceUnit
+  const nextPeriod = rentalPeriodOf(data.attributes !== undefined ? data.attributes : current.attributes)
+  const periodMoved = nextType === 'rent' && data.attributes !== undefined && nextPeriod !== rentalPeriodOf(current.attributes)
+  // RENT ↔ ANYTHING ELSE moves the unit too, both ways: a daily rental switched to "Cần thuê" (Wanted)
+  // states a BUDGET, so it must not keep 'VND/day', and a Wanted switched to Rent must not keep a bare
+  // 'VND'. Only a category that offers 'rent' can make the switch (nextType is validated against it).
+  const rentCrossed = (nextType === 'rent') !== (current.listingType === 'rent')
+  const jobCrossed = nextType !== current.listingType && salaryPaid !== paysSalary(current.listingType)
+  if (jobCrossed || rentCrossed || periodMoved) {
+    data.priceUnit = listingMoneyFor({ categorySlug: current.category.slug, subcategorySlug: current.subcategorySlug, listingType: nextType, rentalPeriod: nextPeriod }).priceUnit
   }
 
   // ⛔ A JOB'S PRICE IS ITS SALARY — re-derived from the salary it will have (this edit's, else the
@@ -1086,12 +1104,25 @@ export async function createListingCore(input: {
   // rent/job, per-service for a service). Derived in one place so create and the taxonomy
   // can't drift; `money.currency` is typed as the literal '₫', so tsc, not a reviewer,
   // guarantees the row below is written in đồng.
-  const money = listingMoneyFor({ categorySlug, subcategorySlug, listingType })
+  // ⚠️ THE RENT PERIOD IS READ FROM THE SANITIZED ATTRIBUTES, BEFORE THE STAMP. The wizard's "Kỳ thuê"
+  // chip used to be stored and ignored: every rent post was stamped monthly, so a scooter at
+  // 150.000 đ a day printed "150.000 đ / tháng". rentalPeriodOf normalises 'long-term' → monthly and
+  // anything unknown → null (= monthly), so the unit can never read "VND/undefined".
+  const sanitized = sanitizeAttributes(body.attributes)
+  // ⛔ O-34, THE SERVER HALF (eno.vn): an ordinary seller's NEW post carries no e-visa product
+  // attributes — the wizard does not ask for them (askableFacetsFor), and a direct API call must not get
+  // them in either. An official partner (VietKite) keeps them. The seller's flag is read only when such
+  // a key was actually sent (the stripped value then differs), so an ordinary create costs no query.
+  const forNonPartner = withoutDisallowedVisaAttrs(sanitized, { officialPartner: false })
+  const cleanAttributes = forNonPartner === sanitized || (await db.seller.findUnique({ where: { id: seller.id }, select: { officialPartner: true } }))?.officialPartner
+    ? sanitized
+    : forNonPartner
+  const money = listingMoneyFor({ categorySlug, subcategorySlug, listingType, rentalPeriod: rentalPeriodOf(cleanAttributes) })
   const priceUnit = money.priceUnit
   // Whitelisted, stringly-typed attribute facets (taxonomy values), then the DERIVED ones
   // (providerType from the account) layered on top so a client value can never win.
   const attributes = await withDerivedAttributes(
-    sanitizeAttributes(body.attributes),
+    cleanAttributes,
     seller.id,
     categorySlug,
     subcategorySlug,

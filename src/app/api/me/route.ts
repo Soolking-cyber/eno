@@ -17,7 +17,7 @@ export const dynamic = 'force-dynamic'
 export async function GET() {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ user: null })
-  const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, name: true, phone: true } })
+  const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, name: true, phone: true, officialPartner: true } })
   // Public @handles (user + shop) for the settings editors and share UI.
   const handles = await db.handle.findMany({
     where: { OR: [{ profileId: profile.id }, ...(seller ? [{ sellerId: seller.id }] : [])] },
@@ -57,8 +57,9 @@ export async function GET() {
       shopHandle,
       shopUrl,
       sellerId: seller?.id ?? null,
-      // Storefront contact for "post as" prefill.
-      seller: seller ? { name: seller.name, phone: seller.phone } : null,
+      // Storefront contact for "post as" prefill. `officialPartner` (a public badge already shown on
+      // the storefront) tells the post wizard to keep the e-visa product chips (askableFacetsFor, O-34).
+      seller: seller ? { name: seller.name, phone: seller.phone, officialPartner: seller.officialPartner } : null,
     },
   })
 }

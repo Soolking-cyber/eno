@@ -16,6 +16,9 @@ import { STROKE_UI } from '@/lib/icon-tokens'
 import { ENFORCEMENT } from '@/lib/enforcement-machine'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { CloseButton } from '@/components/ui/close-button'
+import { Chip } from '@/components/ui/chip'
+import { Alert } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { FieldControl } from '@/components/ui/field'
@@ -32,14 +35,14 @@ import { trackPostListing } from '@/lib/analytics'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { isNativeShell } from '@/lib/native-browser'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
-import { postableSubcategoriesFor, isPostableSubcategory, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor } from '@/lib/taxonomy'
+import { postableSubcategoriesFor, isPostableSubcategory, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, VISA_PRODUCT_FACET_KEYS } from '@/lib/taxonomy'
 import { RangeSpecInput } from './range-spec-input'
 import { usePostMedia } from '@/hooks/use-post-media'
-import { PublishButton, PublishLabel, Section, Field, Chips, Preview } from './post-wizard-parts'
+import { PublishButton, PublishLabel, Section, Field, Chips, Preview, DraftNotice } from './post-wizard-parts'
 import { MediaSection, PriceSection, SalarySection, LocationSection, ContactSection, PostSuccess } from './post-wizard-sections'
 import { publishSteps } from './post-wizard-steps'
-import { rangeColumnsPayload } from './post-wizard-payload'
-import { categoryChangeLosesAnswers, categoryChangeReset } from './post-wizard-category'
+import { brandModelPayload, draftHasContent, rangeColumnsPayload } from './post-wizard-payload'
+import { categoryChangeLosesAnswers, categoryChangeReset, orderPostCategories, subcategoryChangeReset } from './post-wizard-category'
 import { postCopyFor } from '@/lib/post-copy'
 import { clearDraftPhotos, draftPhotosEpoch, loadDraftPhotos, saveDraftPhotos } from '@/lib/post-draft-photos'
 import { scrollBehavior } from '@/lib/reduced-motion'
@@ -47,23 +50,52 @@ import { scrollBehavior } from '@/lib/reduced-motion'
 const TITLE_MAX = 140
 const DESC_MAX = 5000
 
+// ── Resume after sign-in (sell-04) — see `publishIntentAt` in the component. ──
+/** How long a Publish that met the sign-in gate may still be resumed. Twice the draft's TTL is moot
+ *  (the draft would be gone first); it bounds the case of a draft kept alive by typing. */
+const PUBLISH_INTENT_TTL_MS = 30 * 60_000
+/** How long the account's contact (/api/me) may take before the form stops waiting for it. */
+const ME_TIMEOUT_MS = 10_000
+/** `/post?resume=publish` — the `next` the sign-in dialog returns to. The only load that may honour
+ *  a stored intent; read once on mount, then removed from the address bar. */
+const RESUME_PARAM = 'resume'
+const RESUME_PUBLISH = 'publish'
+function setResumeParam(on: boolean) {
+  try {
+    const u = new URL(window.location.href)
+    if (u.searchParams.has(RESUME_PARAM) === on) return
+    if (on) u.searchParams.set(RESUME_PARAM, RESUME_PUBLISH)
+    else u.searchParams.delete(RESUME_PARAM)
+    // Next's own history state is passed through: the App Router keeps its tree key there.
+    window.history.replaceState(window.history.state, '', `${u.pathname}${u.search}${u.hash}`)
+  } catch { /* no history API — the draft flag alone cannot publish, so nothing is lost */ }
+}
+const stripResumeParam = () => setResumeParam(false)
+/** Drop the intent from the STORED draft right now — for exits that unmount before autosave runs. */
+function dropStoredPublishIntent() {
+  try {
+    const d = JSON.parse(localStorage.getItem('eno-listing-draft') || 'null')
+    if (d && d.publishIntent) { delete d.publishIntent; localStorage.setItem('eno-listing-draft', JSON.stringify(d)) }
+  } catch { /* storage refused — the TTL still retires it */ }
+}
+
 // Rentable items live in a sale category (Vehicles/Property) OR the dedicated Rentals
-// category. Choosing "For rent" moves a sale item into Rentals (and back), mapping the
-// subcategory across — so AI's default-to-sale classification is one tap from rental.
+// category. Choosing "For rent" moves a sale item into Rentals, mapping the subcategory
+// across — so AI's default-to-sale classification is one tap from rental.
+// ⚠️ ONE WAY ONLY (sell-07, 2026-10-04). The toggle used to show in Rentals too, where "Bán" re-filed
+// the post into Vehicles or Property — two shelves no browse surface links any more
+// (retired-categories.ts UNLINKED_CATEGORIES), so a rental tapped into "sale" vanished from view. In
+// Rentals the toggle is gone; a seller who meant to SELL changes the category (the "Selling, not
+// renting?" line under the summary opens the grid), which is the one obvious step and never a hidden
+// shelf.
 const RENTABLE_SALE_CATS = new Set(['vehicles', 'property'])
 const SALE_TO_RENT: Record<string, Record<string, string>> = {
   vehicles: { motorbike: 'motorbike-rental', car: 'car-rental', bicycle: 'bicycle-rental', 'ebike-scooter': 'ebike-rental' },
   property: { apartment: 'apartment-rental', house: 'house-rental', 'room-shared': 'room-rental' },
 }
-const RENT_TO_SALE: Record<string, { category: string; sub: string }> = {
-  'motorbike-rental': { category: 'vehicles', sub: 'motorbike' },
-  'car-rental': { category: 'vehicles', sub: 'car' },
-  'bicycle-rental': { category: 'vehicles', sub: 'bicycle' },
-  'ebike-rental': { category: 'vehicles', sub: 'ebike-scooter' },
-  'apartment-rental': { category: 'property', sub: 'apartment' },
-  'house-rental': { category: 'property', sub: 'house' },
-  'room-rental': { category: 'property', sub: 'room-shared' },
-}
+// The rentals whose brand means something (a Honda, a VinFast). An apartment has no brand, so the
+// Brand field stays off for the rest of Rentals.
+const VEHICLE_RENTAL_SUBS = new Set(['motorbike-rental', 'car-rental', 'bicycle-rental', 'ebike-rental'])
 
 // Data to PREFILL the wizard for editing an existing listing (Manage listings → Edit).
 // Same shape the wizard collects, so editing is literally "post again" with values set.
@@ -81,6 +113,8 @@ export type ListingEditData = {
   brand: string | null
   model: string | null
   attributes: Record<string, string>
+  /** Listing.priceUnit as stored ('VND/day'…) — what buyers see; the rent period chip opens on it. */
+  priceUnit?: string | null
   year: number | null
   mileageKm: number | null
   engineL: number | null
@@ -99,6 +133,23 @@ export type ListingEditData = {
 }
 
 // Seed the range-facet state (keyed by facet key) from the listing's dedicated columns.
+/**
+ * The attribute chips an EDIT opens with. ⚠️ A RENT ROW'S PERIOD CHIP FOLLOWS THE STORED UNIT when the
+ * two disagree, because the stored unit is what buyers see: rows posted before the chip counted were
+ * stamped 'VND/month' whatever it said, so a "Theo ngày" chip would open the form on "/ ngày" over a
+ * price every card prints "/ tháng"; and an imported 'VND/day' row with no chip would open on "/ tháng"
+ * and invite a ×30 "correction". Opening on the stored period shows the truth; changing the chip then
+ * re-stamps the unit as designed (core/listings.ts updateListingCore). 'long-term' stays as it is — it
+ * already reads monthly.
+ */
+function initAttrsFromEdit(edit?: ListingEditData): Record<string, string> {
+  if (!edit) return {}
+  const attrs = { ...edit.attributes }
+  const stored = edit.listingType === 'rent' ? rentalPeriodOfUnit(edit.priceUnit) : null
+  if (stored && stored !== rentalPeriodOf(attrs)) attrs.rentalPeriod = stored
+  return attrs
+}
+
 function initRangesFromEdit(edit?: ListingEditData): Record<string, number | null> {
   if (!edit) return {}
   const out: Record<string, number | null> = {}
@@ -135,7 +186,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // (Since the photo draft moved into IndexedDB the redirect brings the photos back too, within the
   // draft's TTL and wherever the browser allows IndexedDB — but never a video, which is not kept.)
   const aiGateNote = t('Trợ giúp AI miễn phí khi có tài khoản. Mẹo: đăng nhập bằng mã qua email để giữ ảnh trên trang này.', 'AI help is free with an account. Tip: sign in with an email code to keep your photos on this page.')
-  const publishGateNote = t('Bước cuối: đăng nhập để đăng tin. Mẹo: đăng nhập bằng mã qua email để giữ ảnh trên trang này.', 'Last step: sign in to publish. Tip: sign in with an email code to keep your photos on this page.')
+  // sell-14: the email carries a LINK by default and a CODE only when "Use a code" is chosen
+  // (api/auth/email-link sends one or the other, never both), so the tip names that choice rather than
+  // promising a code that is not in the inbox. Until O-33 ships this is the advice that keeps the tab.
+  const publishGateNote = t('Bước cuối: đăng nhập để đăng tin. Mẹo: chọn “Dùng mã qua email” rồi nhập mã ngay tại đây (đừng mở liên kết ở tab khác) để giữ ảnh.', 'Last step: sign in to publish. Tip: choose “Use a code” and type the code right here (do not open a link in another tab) to keep your photos.')
 
   // ✨ Autofill category/subcategory/type/condition/title from the cover photo.
   const autofillFromPhoto = async () => {
@@ -227,7 +281,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [categorySlug, setCategorySlug] = useState(edit?.categorySlug ?? '')
   const [subcategorySlug, setSubcategorySlug] = useState(edit?.subcategorySlug ?? '')
   const [listingType, setListingType] = useState(edit?.listingType ?? 'sell')
-  const [attrs, setAttrs] = useState<Record<string, string>>(edit?.attributes ?? {})
+  const [attrs, setAttrs] = useState<Record<string, string>>(() => initAttrsFromEdit(edit))
   // Precise numeric specs (range facets: year/mileage/engine) → keyed by facet key.
   const [ranges, setRanges] = useState<Record<string, number | null>>(() => initRangesFromEdit(edit))
   const [title, setTitle] = useState(edit?.title ?? '')
@@ -251,6 +305,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // Category picker collapse (W-CATWIPE): once chosen, the 16-chip grid folds into a one-line summary
   // with a Change button, so the next question is in view instead of seven rows further down.
   const [catExpanded, setCatExpanded] = useState(false)
+  // "More…" in the category grid: the shelves no browse surface links (orderPostCategories) stay postable
+  // but wait behind one chip.
+  const [moreCatsOpen, setMoreCatsOpen] = useState(false)
+  // The subcategory suggestion the seller waved away (×) — not offered again for that slug.
+  const [dismissedSuggestion, setDismissedSuggestion] = useState('')
   const changeCatRef = useRef<HTMLButtonElement>(null)
   const [areaOpen, setAreaOpen] = useState(false)
   const areaBtnRef = useRef<HTMLButtonElement>(null)
@@ -328,7 +387,31 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [postingAs, setPostingAs] = useState<string | null>(null)
-  const [meLoaded, setMeLoaded] = useState(false)
+  // Whose account the contact fields above were filled for (the /api/me effect). See the note there.
+  const contactOwner = useRef<string | null | undefined>(undefined)
+  // An official partner (VietKite, GMBR) keeps the e-visa product chips on a new post (O-34).
+  const [officialPartner, setOfficialPartner] = useState(false)
+  // ⚠️ "LOADED" IS PER USER, NOT ONCE PER MOUNT. A guest's /api/me answers `{ user: null }` and used to
+  // flip a plain boolean true for good — so after an in-dialog sign-in the form believed the profile
+  // had arrived while name and phone were still '' for a round trip, and a Publish tap in that window
+  // jumped onto a shimmering Contact section. Stamped with the user it answered for, it is true only
+  // when that answer is about whoever is signed in NOW.
+  // `known`: the account actually ANSWERED. False after a timeout or a failed read — the profile then
+  // counts as loaded with an UNKNOWN contact (see the /api/me effect).
+  const [me, setMe] = useState<{ for: string | null; known: boolean } | undefined>(undefined)
+  const meLoaded = me !== undefined && me.for === (user?.id ?? null)
+  const meKnown = meLoaded && me?.known === true
+  /**
+   * RESUME AFTER SIGN-IN (sell-04). Set when Publish meets the guest gate; written into the
+   * 'eno-listing-draft' JSON by the autosave below, because a ref cannot survive the full-page Google
+   * round trip (/auth/google/start). ⛔ IT NEVER PUBLISHES BY ITSELF: it only offers a one-tap
+   * "Publish now" (auto-submit is owner decision C26), and it is honoured only when it is under
+   * PUBLISH_INTENT_TTL_MS old AND the page load is a sign-in return (`?resume=publish`, the `next` the
+   * gate hands the sign-in dialog) — or, within one mount, an in-dialog sign-in. Cleared on success,
+   * Exit, Discard, the moment its banner is used, when the sign-in dialog is CLOSED without signing in
+   * (SignInContext.onDismiss), and at PUBLISH_INTENT_TTL_MS within this page load too (a timer below).
+   */
+  const [publishIntentAt, setPublishIntentAt] = useState<number | null>(null)
 
   // `data-post-done` on <html> while the SUCCESS screen is up. header.tsx hides its orange Post button
   // on the post flow's own pages from the pathname, at render time, so the server HTML already omits it
@@ -371,6 +454,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // said "Draft restored" and never asked for them again. Dropped once the seller has any photo.
   // A draft saved before `photoCount` existed carries 0 here: it is asked once, as it always was.
   const lostPhotoCount = useRef(0)
+  // The moving-sale description "List another item" carried over (postAnother) — context, not a draft
+  // until the seller changes something (draftHasContent).
+  const carriedDescription = useRef('')
+  // The inline "Draft restored" notice (DraftNotice) — set once the photo half of a restore has settled.
+  const [draftNotice, setDraftNotice] = useState<{ photosKept: number; askPhotos: boolean } | null>(null)
   useEffect(() => {
     if (edit) { draftHydrated.current = true; return }
     let restoredId = ''
@@ -402,8 +490,15 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         if (d.province) setProvince(d.province)
         if (d.ward) setWard(d.ward)
         if (d.nearby) setNearby(d.nearby)
+        // The resume intent rides with the draft, but only a sign-in RETURN may honour it, and never a
+        // stale one. Anything else is dropped (the next autosave writes the draft without it).
+        const at = d.publishIntent?.at
+        const resuming = new URLSearchParams(window.location.search).get(RESUME_PARAM) === RESUME_PUBLISH
+        if (resuming && typeof at === 'number' && Date.now() - at >= 0 && Date.now() - at < PUBLISH_INTENT_TTL_MS) setPublishIntentAt(at)
       }
     } catch {}
+    // `?resume=publish` has done its job once read: a later reload of this tab is not a sign-in return.
+    stripResumeParam()
     draftId.current = restoredId || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
     draftHydrated.current = true
     if (!restoring) {
@@ -413,17 +508,15 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       setPhotosHydrated(true)
       return
     }
-    // The toast waits for the photos so it can say which of the two happened, once — and it only
+    // The notice waits for the photos so it can say which of the two happened, once — and it only
     // asks for photos back when the draft had some (`photoCount`; a draft saved before that field
-    // existed is assumed to have had them, which is what this toast always said).
+    // existed is assumed to have had them, which is what the old toast always said).
     let live = true
     const restored = restoredId ? loadDraftPhotos(restoredId) : Promise.resolve(null)
     void restored.then((ph) => {
       if (!live) return
       if (ph?.length) media.restorePhotos(ph)
-      toast.success(ph?.length || !hadPhotos
-        ? t('Đã khôi phục bản nháp', 'Draft restored')
-        : t('Đã khôi phục bản nháp — thêm lại ảnh nhé', 'Draft restored — re-add your photos'))
+      setDraftNotice({ photosKept: Math.min(ph?.length ?? 0, 6), askPhotos: !ph?.length && hadPhotos })
     }).finally(() => { if (live) setPhotosHydrated(true) })
     return () => { live = false }
     // `media` and `t` are deliberately not dependencies: this runs once per mount, like the text
@@ -445,17 +538,24 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     return () => clearTimeout(id)
   }, [edit, photos, photosHydrated, submitted])
   useEffect(() => {
-    if (edit || !draftHydrated.current) return
+    // ⚠️ NOT ONCE PUBLISHED. Success removes the draft and clears `publishIntentAt` in the same pass,
+    // and that change re-runs this effect while title/description/price are still in state — without
+    // this guard it wrote the published listing straight back as a "draft" (a seller who tapped the
+    // ordinary Publish button after a sign-in return got it restored on the next /post).
+    if (edit || submitted || !draftHydrated.current) return
     try {
-      // Only typed work is worth keeping — clicking around the form isn't.
-      if (!title.trim() && !description.trim() && !price) {
+      // Only typed work is worth keeping — clicking around the form isn't, and neither is the moving-sale
+      // context "List another item" carried over (post-wizard-payload.ts draftHasContent).
+      if (!draftHasContent({ title, description, price }, carriedDescription.current)) {
         localStorage.removeItem('eno-listing-draft')
         return
       }
       if (photos.length) lostPhotoCount.current = 0
-      localStorage.setItem('eno-listing-draft', JSON.stringify({ savedAt: Date.now(), draftId: draftId.current, photoCount: photos.length || lostPhotoCount.current, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, urgent, condition, brand, model, province, ward, nearby }))
+      // `publishIntent` is PART OF THE SHAPE, not a one-off write beside it: this effect rewrites the
+      // whole draft on every keystroke, and a flag written anywhere else would be gone by the next one.
+      localStorage.setItem('eno-listing-draft', JSON.stringify({ savedAt: Date.now(), draftId: draftId.current, photoCount: photos.length || lostPhotoCount.current, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, urgent, condition, brand, model, province, ward, nearby, ...(publishIntentAt ? { publishIntent: { at: publishIntentAt } } : {}) }))
     } catch {}
-  }, [edit, photos.length, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, urgent, condition, brand, model, province, ward, nearby])
+  }, [edit, submitted, photos.length, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, urgent, condition, brand, model, province, ward, nearby, publishIntentAt])
 
   // Contact name + phone come from the ACCOUNT (not re-typed per post — a number is
   // unique per account). If the account is missing either, we prompt them to add it
@@ -465,7 +565,27 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // (once while loading, again when `user` resolved) racing the real one.
     if (authLoading) return
     const ctrl = new AbortController()
+    const forId = user?.id ?? null
+    // ⛔ AN ACCOUNT SWITCH EMPTIES THE CONTACT FIRST (review, 2026-10-04). The fields hold whoever
+    // answered last: had A's details loaded and B then signed in (or out), a failed or timed-out read for
+    // B left A's name and phone in the form — and Publish would send them under B. They belong to one
+    // account (`contactOwner`) and are cleared the moment the signed-in id changes, before B's answer;
+    // the profile's "loaded/known" state is already stamped per user (`me`). A re-run for the SAME id
+    // (a token refresh) keeps what the seller typed.
+    if (contactOwner.current !== forId) {
+      contactOwner.current = forId
+      setContactName(''); setContactPhone(''); setPostingAs(null); setOfficialPartner(false)
+    }
+    // ⏱ NEVER WAIT FOREVER (review, 2026-10-04): a hung /api/me kept Publish on "Loading your details…"
+    // with no way out. After ME_TIMEOUT_MS the read is abandoned and the profile counts as loaded with an
+    // UNKNOWN contact: a new post falls back to the ordinary missing-field path (the seller types name and
+    // phone), and an edit is not held up at all (its contact gate waits for a real answer — `checks`).
+    let timedOut = false
+    const timer = setTimeout(() => { timedOut = true; ctrl.abort() }, ME_TIMEOUT_MS)
     fetch('/api/me', { signal: ctrl.signal }).then((r) => r.json()).then((d) => {
+      // An answer that lands after its read was abandoned, or for an account that is no longer the signed-in
+      // one, is about nobody here: it must not fill the next account's contact (commit-gate review 2026-10-04).
+      if (ctrl.signal.aborted || contactOwner.current !== forId) return
       const u = d.user
       if (u) {
         // publicSafeName masks an account name that IS contact info (an email typed into
@@ -475,12 +595,17 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         setContactName(publicSafeName(u.seller?.name || u.displayName || ''))
         setContactPhone(u.seller?.phone || u.phone || '')
         if (u.accountType === 'business') setPostingAs(u.businessName || u.seller?.name || null)
+        setOfficialPartner(u.seller?.officialPartner === true)
       }
-      setMeLoaded(true)
-    }).catch(() => { if (!ctrl.signal.aborted) setMeLoaded(true) })
+      setMe({ for: forId, known: true })
+    })
+      // A failed read, or the timeout's own abort, is "loaded, contact unknown". An abort from the cleanup
+      // (the user changed, the form unmounted) is not an answer about anyone, so it records nothing.
+      .catch(() => { if (timedOut || !ctrl.signal.aborted) setMe({ for: forId, known: false }) })
+      .finally(() => clearTimeout(timer))
     // re-runs when a guest signs in mid-wizard (draft-first posting) so the
     // account's name/phone land without a reload.
-    return () => ctrl.abort()
+    return () => { clearTimeout(timer); ctrl.abort() }
   }, [user, authLoading])
 
   // Top brands for the Brand combobox (suggestions only — free text creates new brands).
@@ -572,10 +697,16 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // askableFacetsFor, not facetsFor: a DERIVED facet (providerType) is computed from the
   // account server-side, so asking would be redundant — and lets a seller contradict their
   // own registration by ticking "Individual" on a business account. Browse still filters on it.
-  const catFacets = askableFacetsFor(categorySlug, subcategorySlug)
+  // On the marketplace edition a non-partner is not asked the e-visa product chips (O-34) — on an edit,
+  // only one the listing already carries stays. The server stores by the same rule (visaProductKeyAllowed).
+  // `edit.attributes`, not the live `attrs`: what the LISTING has, not what this form has typed.
+  const catFacets = askableFacetsFor(categorySlug, subcategorySlug, { newPost: !edit, officialPartner, existing: edit?.attributes })
   const hasCondition = catFacets.some((f) => f.key === 'condition')
   const attrFacets = catFacets.filter((f) => f.key !== 'condition')
-  const showBrand = categoryHasBrand(categorySlug)
+  // In Rentals only a vehicle rental has a brand; an apartment asked for one read as a broken form.
+  const brandShownFor = (sub: string) => categoryHasBrand(categorySlug) && (categorySlug !== 'rentals' || VEHICLE_RENTAL_SUBS.has(sub))
+  const vehicleRental = categorySlug === 'rentals' && VEHICLE_RENTAL_SUBS.has(subcategorySlug)
+  const showBrand = brandShownFor(subcategorySlug)
   // ⛔ A JOB IS PAID A SALARY, NOT PRICED (owner, 2026-10-01; taxonomy.ts paysSalary). Its Salary
   // facet leaves Specifics and becomes the pay section in Price's place; there is no price, no
   // ×1,000 chips and no Negotiable/Fixed, the server derives the stored price from the salary and
@@ -590,7 +721,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // defaults rentable items to a sale category; one tap flips the WHOLE category to
   // Rentals (mapping the subcategory), so "this is actually a rental" just works.
   const intent: 'sell' | 'rent' = categorySlug === 'rentals' ? 'rent' : 'sell'
-  const showRentToggle = !edit && (categorySlug === 'rentals' || RENTABLE_SALE_CATS.has(categorySlug))
+  // Sale categories only — see the note on SALE_TO_RENT: in Rentals "Bán" led to an unlinked shelf.
+  const showRentToggle = !edit && RENTABLE_SALE_CATS.has(categorySlug)
   // ⚠️ PICKING A CATEGORY IS DESTRUCTIVE AND COSTS ONE TAP — so it is undoable. Both pickers below
   // wipe the subcategory-specific answers (facets differ per category), and before this a seller who
   // had filled Phones › Used › 128GB and brushed "Home" lost all of it with no way back. The toast
@@ -624,20 +756,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const answeredSpecifics = !!(condition || Object.values(attrs).some(Boolean) || Object.values(ranges).some((v) => v != null))
 
   const switchIntent = (to: 'sell' | 'rent') => {
-    if (to === intent) return
-    // The subcategory maps across (motorbike ↔ motorbike-rental); only an unmappable one is lost.
-    const mappedSub = to === 'rent' ? SALE_TO_RENT[categorySlug]?.[subcategorySlug] : RENT_TO_SALE[subcategorySlug]?.sub
+    // Only sale → rent exists (the toggle is not shown in Rentals); 'sell' is the state it is already in.
+    if (to === intent || to !== 'rent') return
+    // The subcategory maps across (motorbike → motorbike-rental); only an unmappable one is lost.
+    const mappedSub = SALE_TO_RENT[categorySlug]?.[subcategorySlug]
     if (answeredSpecifics || (subcategorySlug && !mappedSub)) offerCategoryUndo()
-    if (to === 'rent') {
-      setSubcategorySlug(SALE_TO_RENT[categorySlug]?.[subcategorySlug] ?? '')
-      setCategorySlug('rentals')
-      setListingType('rent')
-    } else {
-      const map = RENT_TO_SALE[subcategorySlug]
-      setCategorySlug(map?.category ?? 'property') // stays/homestays w/o a sale twin → Property
-      setSubcategorySlug(map?.sub ?? '')
-      setListingType('sell')
-    }
+    setSubcategorySlug(mappedSub ?? '')
+    setCategorySlug('rentals')
+    setListingType('rent')
     // Facets differ across sale ↔ rentals → reset attribute/range/condition state.
     setAttrs({}); setRanges({}); setCondition('')
   }
@@ -671,11 +797,30 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     setCatExpanded(false)
     focusCategoryChange()
   }
+  /**
+   * THE ONE SUBCATEGORY CHANGE — the subcategory chips and the "Gợi ý: …?" suggestion both come through
+   * here, so accepting a suggestion cannot keep answers the picker would have dropped. Answers the new
+   * shelf does not ask (or whose value it does not offer) go, with the category change's Undo when one
+   * was really given (post-wizard-category.ts subcategoryChangeReset); answers it asks too stay.
+   * Un-picking (next = '') drops nothing: the seller is about to pick again, and that pick decides.
+   */
+  const chooseSubcategory = (next: string) => {
+    if (next === subcategorySlug) return
+    if (next) {
+      const reset = subcategoryChangeReset({ categorySlug, attrs, ranges, condition, brand, model }, next, { brandShown: brandShownFor(next) })
+      if (reset.lost) offerCategoryUndo()
+      setAttrs(reset.attrs); setRanges(reset.ranges); setCondition(reset.condition); setBrand(reset.brand); setModel(reset.model)
+    }
+    setSubcategorySlug(next)
+  }
 
   const phoneOk = contactPhone.replace(/\D/g, '').length >= 9
   // Draft-first posting: anyone can fill the wizard; auth is asked at Publish
   // (and for the AI buttons, which burn paid credits).
   const isGuest = !authLoading && !user
+  // Signed in, but the account's name/phone have not arrived: Publish waits (see submit()) — at most
+  // ME_TIMEOUT_MS. Never on an EDIT: its contact is the storefront's, already on the listing.
+  const profileLoading = !edit && !!user && !meLoaded
   const district = ward?.name || province?.name || ''
   const areaLabel = ward ? `${ward.name}${province ? `, ${province.name}` : ''}` : province ? province.name : (nearby ? t('Vị trí của bạn', 'Your location') : '')
   const hasLocation = !!(province || ward || nearby)
@@ -684,7 +829,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // (listingMoneyFor in @/lib/taxonomy); this is only its translated shorthand.
   // Currency is not a variable here — every listing is composed and stored in ₫.
   // No "/ service" suffix — the published card does not show one either (see price.tsx, 2026-09-13).
-  const priceUnit = listingType === 'rent' || listingType === 'job' ? t('/ tháng', '/ month') : ''
+  // A RENT price follows the seller's own "Kỳ thuê" chip, normalised exactly as the server stamps it
+  // (rentalPeriodOf: 'long-term' and no answer both read monthly), so the field never says "/ tháng"
+  // over a price the listing will store per day. Literal t() calls — gen-ui-strings harvests them.
+  const rentPeriod = listingType === 'rent' ? rentalPeriodOf(attrs) : null
+  const priceUnit = rentPeriod === 'hourly' ? t('/ giờ', '/ hour')
+    : rentPeriod === 'daily' ? t('/ ngày', '/ day')
+      : rentPeriod === 'weekly' ? t('/ tuần', '/ week')
+        : listingType === 'rent' || listingType === 'job' ? t('/ tháng', '/ month') : ''
   /**
    * ⚠️ ON A `wanted` POST THE AMOUNT IS A BUDGET, NOT AN ASK — the poster is the BUYER, which is
    * the one intent that reverses the direction of a listing. Heading it "Price" asks someone what
@@ -733,7 +885,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // sign-in that submit() triggers — don't block the button on it here.
     isGuest
       ? { key: 'signin', ok: true, label: t('Đăng nhập để đăng tin', 'Sign in to publish') }
-      : { key: 'contact', ok: contactName.trim().length >= 2 && phoneOk, label: t('Thêm tên & SĐT của bạn', 'Add your name & phone') },
+      // ⚠️ AN EDIT IS NEVER HELD BEHIND /api/me: its contact is already the storefront's, and the edit
+      // route ignores an empty phone. Only once the account has actually ANSWERED does a missing name
+      // or phone block a save, exactly as before.
+      : { key: 'contact', ok: (!!edit && !meKnown) || (contactName.trim().length >= 2 && phoneOk), label: t('Thêm tên & SĐT của bạn', 'Add your name & phone') },
   ]
   const missing = checks.filter((c) => !c.ok)
   const canSubmit = missing.length === 0 && !submitting
@@ -748,6 +903,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     minPhotos,
     missingFacetLabels: attrFacets.filter((f) => isRequiredFacet(f) && !attrs[f.key]).map((f) => tr(f.label, f.labelVi)),
     showContact: !authLoading && !isGuest && meLoaded,
+    contactMissing: { name: contactName.trim().length < 2, phone: !phoneOk },
     t,
   })
   const pendingSteps = steps.filter((s) => !s.ok)
@@ -818,6 +974,80 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     if (target) scrollToField(target)
   }
 
+  // ── Resume after sign-in: the seller pressed Publish as a guest and is now back, signed in, with
+  // the account's details loaded. Ready → a one-tap "Publish now" banner (never an auto-submit, C26).
+  // Phone missing → the form goes to the phone field once and says why, instead of a silent stop.
+  const resumeReady = !edit && !submitted && publishIntentAt !== null && !!user && meLoaded
+  const resumeCanPublish = resumeReady && missing.length === 0 && !submitting
+  const resumeNeedsPhone = resumeReady && !phoneOk
+  const resumePhoneShown = useRef(false)
+  useEffect(() => {
+    if (!resumeNeedsPhone || resumePhoneShown.current) return
+    resumePhoneShown.current = true
+    // After the paint that mounted the phone input (it replaces the Contact shimmer in this render).
+    requestAnimationFrame(() => scrollToField('contactPhone'))
+  }, [resumeNeedsPhone])
+  // ⏱ THE INTENT EXPIRES IN THIS PAGE LOAD TOO, on the clock the restore path uses. A Publish that met
+  // the gate here and was followed, much later, by an in-dialog sign-in would otherwise still offer
+  // "Publish now"; at PUBLISH_INTENT_TTL_MS the intent is dropped (state, stored draft, address), which
+  // is what takes resumeReady false. A timer, not a Date.now() in render: render stays pure, and the
+  // banner's own tap re-checks the age, so a timer delayed by a throttled background tab cannot publish
+  // a stale one either. Module helpers only, so the effect needs no function dependency.
+  useEffect(() => {
+    if (publishIntentAt === null) return
+    const id = setTimeout(() => {
+      setPublishIntentAt(null)
+      dropStoredPublishIntent()
+      stripResumeParam()
+    }, Math.max(0, publishIntentAt + PUBLISH_INTENT_TTL_MS - Date.now()))
+    return () => clearTimeout(id)
+  }, [publishIntentAt])
+  /** Leaving the flow without publishing: the intent goes (state AND the stored draft, since an
+   *  unmount can beat the autosave), the draft itself stays for the TTL. */
+  const dropPublishIntent = () => { setPublishIntentAt(null); dropStoredPublishIntent(); stripResumeParam() }
+  /** "Discard" on the restored-draft notice: an empty form, an empty draft (both halves), no intent. */
+  const discardDraft = () => {
+    try { localStorage.removeItem('eno-listing-draft') } catch {}
+    void clearDraftPhotos()
+    dropPublishIntent()
+    lostPhotoCount.current = 0
+    carriedDescription.current = ''
+    draftId.current = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+    for (const p of photos) if (p.url.startsWith('blob:')) URL.revokeObjectURL(p.url)
+    media.setPhotos([])
+    media.removeVideo()
+    setCategorySlug(''); setSubcategorySlug(''); setListingType('sell'); setAttrs({}); setRanges({})
+    setTitle(''); setDescription(''); setPrice(''); setNegotiable(true); setUrgent(false)
+    setCondition(''); setBrand(''); setModel(''); setProvince(null); setWard(null); setNearby(null)
+    setCatExpanded(false); setTouched({}); setAttempted(false); setError(''); setErrorAction(null)
+    setDraftNotice(null)
+  }
+  /**
+   * "List another item" on the success screen. KEEPS what belongs to the SELLER — the area (and pin),
+   * contact, the price type — and, in a moving sale, the category and its description (the sale's
+   * context: pickup window, why everything goes). CLEARS what belongs to the ITEM: photos, video,
+   * title, price, specifics, brand, and the category everywhere else.
+   */
+  const postAnother = () => {
+    const movingSale = categorySlug === 'moving-sale'
+    for (const p of photos) if (p.url.startsWith('blob:')) URL.revokeObjectURL(p.url)
+    media.setPhotos([])
+    media.removeVideo()
+    lostPhotoCount.current = 0
+    draftId.current = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+    const reset = categoryChangeReset(movingSale ? categorySlug : '')
+    setCategorySlug(reset.categorySlug); setSubcategorySlug(reset.subcategorySlug); setAttrs(reset.attrs); setRanges(reset.ranges)
+    setCondition(reset.condition); setBrand(reset.brand); setModel(reset.model); setListingType(movingSale ? reset.listingType : 'sell')
+    setTitle(''); setPrice(''); setUrgent(false)
+    if (!movingSale) setDescription('')
+    // Kept context, not a draft: the autosave waits until the seller changes something.
+    carriedDescription.current = movingSale ? description : ''
+    setCatExpanded(false); setTouched({}); setAttempted(false); setError(''); setErrorAction(null)
+    setCreatedId(null); setFirstListing(false); setPublishIntentAt(null); setDraftNotice(null)
+    setSubmitted(false)
+    window.scrollTo({ top: 0, behavior: scrollBehavior() })
+  }
+
   // ⚠️ EVERY EARLY RETURN BELOW IS A PUBLISH THAT NEVER REACHES THE SERVER, so /api/listings'
   // own counter cannot see it and the funnel would read "0 refused" no matter how many sellers
   // gave up here. Fire-and-forget, never awaited, errors swallowed: counting an abandonment must
@@ -847,6 +1077,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
   const submit = async () => {
     if (submittingRef.current || submitting) return
+    // Signed in, profile not here yet: the Publish button shows "Loading your details…" and a tap does
+    // nothing. It used to fall through to scrollToMissing() and land on a still-shimmering Contact
+    // section with no message (the wart the note below describes).
+    if (profileLoading) return
     // ⚠️ CLEARED HERE, BEFORE THE CLIENT CHECKS — not only once the request starts. Every early
     // return below calls setError without touching errorAction, so a retry after an identity refusal
     // that then failed a client check (banned words, contact info) showed the new error beside a
@@ -866,8 +1100,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       // ⚠️ THE CHECK ITSELF IS DELIBERATELY LEFT ALONE. Gating `ok` on meLoaded would let submit()
       // proceed with an empty phone and be rejected by the server for invalid_input — a round trip
       // and a worse message, in exchange for nothing. Blocking here is correct; only the counting
-      // was wrong. (The pre-existing wart that the scroll lands on a still-shimmering Contact
-      // section with no error text is untouched by this diff and worth fixing separately.)
+      // was wrong. (The wart where the scroll landed on a still-shimmering Contact section with
+      // no error text is fixed above: while the signed-in profile loads, a tap returns before here.)
       const contactStillLoading = !meLoaded && missing.length === 1 && missing[0].key === 'contact'
       if (!contactStillLoading) countAttempt('client_missing_fields')
       setAttempted(true); scrollToMissing(); return
@@ -907,7 +1141,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       // onboarding bounce used to destroy photos (1298c088), and nothing else can tell us
       // whether that fix helped.
       countAttempt('client_signin_required')
-      openSignIn({ note: publishGateNote })
+      // Remember that Publish was pressed — in the draft (autosave writes it) and in the address the
+      // dialog sends the visitor back to, so a Google round trip comes back to a one-tap "Publish now".
+      setPublishIntentAt(Date.now())
+      setResumeParam(true)
+      // Closed WITHOUT signing in (×, Esc, the backdrop): that Publish is abandoned, so a later and
+      // unrelated sign-in — the AI gate, the header — must not come back offering "Publish now".
+      openSignIn({ note: publishGateNote, onDismiss: dropPublishIntent })
       return
     }
     submittingRef.current = true
@@ -924,7 +1164,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         categorySlug,
         subcategorySlug: subcategorySlug || null,
         listingType,
-        attributes: Object.fromEntries(Object.entries(attrs).filter(([, v]) => v)),
+        // An e-visa product chip the form did not ASK (a non-partner's new post on eno.vn, O-34) is not
+        // sent either: an AI fill or a draft saved before the rule can still hold one, invisibly.
+        attributes: Object.fromEntries(Object.entries(attrs).filter(([k, v]) => v && !(VISA_PRODUCT_FACET_KEYS.has(k) && !catFacets.some((f) => f.key === k)))),
         // Precise numeric specs → dedicated columns (year/mileageKm/engineL/salaryM). A spec cleared on
         // an edit is sent as null, and a JOB'S SALARY is sent on every edit — the rules and why are in
         // post-wizard-payload.ts.
@@ -939,15 +1181,19 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         // ⛔ NO PRICE ON A JOB: the server derives it from salaryM and would ignore one anyway (paysSalary).
         ...(salaryPaid ? {} : { price: Number(price) }),
         negotiable: salaryPaid ? false : negotiable,
-        urgent,
+        // A NEW rental never goes out urgent — the row is hidden for it, and a restored draft or an AI
+        // fill must not carry an invisible "Bán gấp" through. An edit keeps what the listing has.
+        urgent: !edit && listingType === 'rent' ? false : urgent,
         district: district || null,
         city: province?.name || null,
         location: ward?.name || province?.name || null,
         lat: nearby?.lat ?? null,
         lng: nearby?.lng ?? null,
         condition: hasCondition ? condition || null : null,
-        brand: showBrand ? brand.trim() || null : null,
-        model: showBrand ? model.trim() || null : null,
+        // ⛔ Never `brand: null` for a field the seller cannot see on an EDIT that kept its subcategory —
+        // an apartment rental hides Brand, and a null would clear the brand the listing already has —
+        // but an edit that MOVED it to a brandless subcategory clears it (post-wizard-payload.ts).
+        ...brandModelPayload({ showBrand, brand, model, edit: !!edit, subcategoryChanged: !!edit && (subcategorySlug || null) !== (edit.subcategorySlug || null) }),
         images: imageUrls,
         video: videoUrl,
         contactName: contactName.trim(),
@@ -970,6 +1216,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       trackPostListing({ id: created.id, title: title.trim(), price: salaryPaid ? 0 : Number(price), currency: 'VND', category: cat?.name || categorySlug, district: district || undefined })
       try { localStorage.removeItem('eno-listing-draft') } catch {}
       void clearDraftPhotos()
+      // Published — by the resume banner or the ordinary button alike: the intent is spent, and
+      // `?resume=publish` leaves the address (a reload of the success screen is not a sign-in return).
+      setPublishIntentAt(null)
+      stripResumeParam()
       // First-ever publish gets a distinct celebration moment on the success
       // screen (device-local flag — celebration-grade accuracy is fine).
       try {
@@ -1091,15 +1341,24 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       setSubmitting(false)
     }
   }
+  /** "Đăng tin ngay" on the resume banner. The intent is consumed first (so the banner cannot fire
+   *  twice), and its AGE is checked at the tap — an intent past PUBLISH_INTENT_TTL_MS publishes
+   *  nothing, even if the expiry timer has not run yet (a throttled background tab). */
+  const publishFromResume = () => {
+    const fresh = publishIntentAt !== null && Date.now() - publishIntentAt < PUBLISH_INTENT_TTL_MS
+    dropPublishIntent()
+    if (fresh) void submit()
+  }
 
   if (submitted) {
-    return <PostSuccess firstListing={firstListing} createdId={createdId} title={title} price={salaryPaid ? '' : price} job={salaryPaid} t={t} />
+    return <PostSuccess firstListing={firstListing} createdId={createdId} title={title} price={salaryPaid ? '' : price} job={salaryPaid} onPostAnother={embedded ? undefined : postAnother} t={t} />
   }
 
   const publishButtonProps = {
     onSubmit: submit,
     canSubmit,
     submitting,
+    loadingProfile: profileLoading,
     edit: !!edit,
     missingCount: badgeCount,
     t,
@@ -1108,11 +1367,25 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // The category grid shows until something is chosen, then folds into a summary row. AI autofill and a
   // restored draft set the category too, so they land folded as well.
   const showCatGrid = !categorySlug || catExpanded
+  // Curated order, unlinked shelves behind "More…" (post-wizard-category.ts). A category already chosen
+  // from behind it (or by AI / a restored draft) keeps the whole list open, so the chosen chip shows.
+  const { primary: primaryCats, more: moreCats } = orderPostCategories(categories)
+  const showMoreCats = moreCatsOpen || moreCats.some((c) => c.slug === categorySlug)
+  const gridCats = showMoreCats ? [...primaryCats, ...moreCats] : primaryCats
   const chosenSub = subOptions.find((s) => s.slug === subcategorySlug)
   // A string, not JSX: the "›" separator is not translatable copy, and as a variable it is not a
   // JSX literal either (react/jsx-no-literals).
   const categorySummary = cat ? (chosenSub ? `${tr(cat.name, cat.nameVi)} › ${tr(chosenSub.name, chosenSub.nameVi)}` : tr(cat.name, cat.nameVi)) : categorySlug
-  const copy = postCopyFor(categorySlug)
+  const copy = postCopyFor(categorySlug, subcategorySlug)
+  // "Suggestion: Phones?" under the title (sell-11): the keyword match the server already uses when a
+  // post arrives with no subcategory, offered while the seller can still see it. Only a subcategory the
+  // picker offers (subOptions — edition-aware), never the one already chosen, never one dismissed.
+  const suggestedSlug = categorySlug && title.trim().length >= 3 ? suggestSubcategory(categorySlug, title) : undefined
+  const subSuggestion = suggestedSlug && suggestedSlug !== subcategorySlug && suggestedSlug !== dismissedSuggestion
+    ? subOptions.find((s) => s.slug === suggestedSlug)
+    : undefined
+  // A variable, not a JSX template literal (react/jsx-no-literals) — the name is the taxonomy's own.
+  const subSuggestionLabel = subSuggestion ? `${t('Gợi ý', 'Suggestion')}: ${tr(subSuggestion.name, subSuggestion.nameVi)}?` : ''
 
   // No bottom padding guess on the form root any more. It used to reserve a hardcoded 14rem for the
   // mobile publish bar — "coupled with nothing", in its own words, and re-guessed three times as the
@@ -1124,7 +1397,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           HTTP load of the live site — blank screen, full document teardown. The draft is
           already autosaved to localStorage, so a soft nav loses nothing. */}
       {!embedded && (
-        <Link href="/" className="relative inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer tap-44">
+        <Link href="/" onClick={dropPublishIntent} className="relative inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer tap-44">
           <ChevronLeft className="h-4 w-4" /> {t('Thoát', 'Exit')}
         </Link>
       )}
@@ -1147,14 +1420,29 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         {t('Điền các mục bên dưới', 'Fill in the sections below')}
         {' — '}
         <span className="hidden lg:inline">{t('bản xem trước cập nhật ngay.', 'your preview updates live.')}</span>
-        <span className="lg:hidden">{t('bạn có thể xem lại trước khi đăng.', 'you can check everything before it goes live.')}</span>
+        <span className="lg:hidden">{t('kiểm tra lại các mục trước khi đăng.', 'check each section before you publish.')}</span>
       </p>
+      {draftNotice && (
+        <div className="mt-4">
+          <DraftNotice photosKept={draftNotice.photosKept} askPhotos={draftNotice.askPhotos} onDiscard={discardDraft} onDismiss={() => setDraftNotice(null)} t={t} />
+        </div>
+      )}
+      {/* Back from sign-in with a complete form: one tap publishes it. ui/alert (the canon's callout),
+          role="status" so a screen reader hears it arrive without the urgency of the primitive's default
+          role="alert"; the button consumes the intent before it submits. */}
+      {resumeCanPublish && (
+        <Alert role="status" tone="success" appearance="flat" size="md" icon={<Check className="h-4 w-4" />} title={t('Đã đăng nhập', 'You are signed in')} className="mt-4 max-w-xl">
+          <Button variant="cta" size="sm" type="button" className="mt-1.5" onClick={publishFromResume}>
+            {t('Đăng tin ngay', 'Publish now')}
+          </Button>
+        </Alert>
+      )}
 
       <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_19rem]">
         {/* ── FORM ── */}
         <div className="min-w-0 space-y-10">
           {/* Photos (+ optional video) — moved verbatim to post-wizard-sections.tsx */}
-          <MediaSection media={media} errPhoto={err.photo} minPhotos={minPhotos} aiEnabled={aiEnabled} aiBusy={aiBusy} autofillFromPhoto={autofillFromPhoto} isGuest={isGuest} t={t} />
+          <MediaSection media={media} errPhoto={err.photo} minPhotos={minPhotos} aiEnabled={aiEnabled} aiBusy={aiBusy} autofillFromPhoto={autofillFromPhoto} isGuest={isGuest} categorySlug={categorySlug} subcategorySlug={subcategorySlug} t={t} />
 
           {/* Category & type */}
           <Section id="pw-category" title={t('Danh mục', 'Category')} hint={salaryPaid ? t('Chọn đúng danh mục để ứng viên dễ tìm thấy.', 'Pick the right category so candidates find you.') : t('Chọn đúng danh mục để người mua dễ tìm thấy.', 'Pick the right category so buyers find you.')}>
@@ -1201,6 +1489,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               // The chosen category (and subcategory), folded: the same frozen-pill idea as edit mode,
               // plus the one control that reopens the grid. The glyph is FILLED on the same rule as the
               // edit pill — it shows a category that IS chosen.
+              <>
               <div className="flex max-w-md items-center gap-2 rounded-xl bg-tint px-3.5 py-2.5">
                 {cat && <CategoryIcon name={cat.icon} stroke={STROKE_UI} selected className="h-4 w-4 shrink-0 text-body" />}
                 <span id="pw-category-summary" className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{categorySummary}</span>
@@ -1218,6 +1507,23 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   {t('Đổi', 'Change')}
                 </Button>
               </div>
+              {/* Rentals has no sale/rent toggle any more (see SALE_TO_RENT), so the way back to SELLING
+                  is named, one tap, and lands on the category grid — never on an unlinked shelf. */}
+              {categorySlug === 'rentals' && (
+                <p className="mt-2 text-xs text-ink-4">
+                  {t('Muốn bán thay vì cho thuê?', 'Selling, not renting?')}{' '}
+                  <Button
+                    variant="bare"
+                    size="none"
+                    type="button"
+                    onClick={() => { setCatExpanded(true); focusChosenCategory() }}
+                    className="relative font-bold text-accent-foreground hover:underline cursor-pointer tap-44"
+                  >
+                    {t('Chọn danh mục khác', 'Pick another category')}
+                  </Button>
+                </p>
+              )}
+              </>
             ) : (
               <>
                 {/* Chip grid = a RADIO GROUP: pick exactly one category. It used to be a
@@ -1257,13 +1563,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     // 8px outside a pill's curve clipped visually into the first chip's cap.
                     className={cn('flex flex-wrap gap-2 rounded-2xl transition-colors', err.category && '-mx-2 -mt-2 p-2 ring-2 ring-destructive/60')}
                 >
-                  {categories.map((c) => (
+                  {gridCats.map((c) => (
                     <Button
                       key={c.id}
                       variant="bare"
                       size="none"
                       type="button"
                       aria-pressed={categorySlug === c.slug}
+                      data-cat-slug={c.slug}
                       onClick={() => chooseCategory(c.slug)}
                       // Same target recipe as <Chips> (post-wizard-parts): py-2.5 draws 40px, tap-44
                       // adds 2px each way — inside the row's 8px gap, so no chip reaches another.
@@ -1291,6 +1598,25 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                       {tr(c.name, c.nameVi)}
                     </Button>
                   ))}
+                  {!showMoreCats && moreCats.length > 0 && (
+                    // Not a category — a disclosure. aria-expanded, not aria-pressed, and no glyph. It
+                    // unmounts once used, so focus moves to the first chip it revealed instead of
+                    // dropping a keyboard user onto <body>.
+                    <Button
+                      variant="bare"
+                      size="none"
+                      type="button"
+                      aria-expanded={false}
+                      onClick={() => {
+                        const first = moreCats[0].slug
+                        setMoreCatsOpen(true)
+                        requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-category-grid] [data-cat-slug="${first}"]`)?.focus({ preventScroll: true }))
+                      }}
+                      className="relative gap-1.5 rounded-full bg-tint px-4 py-2.5 text-sm font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground tap-44"
+                    >
+                      {t('Khác…', 'More…')}
+                    </Button>
+                  )}
                 </div>
                 {err.category && <p id="pw-category-error" role="alert" className="mt-2 text-xs font-semibold text-destructive">{t('Chọn một danh mục', 'Pick a category')}</p>}
               </>
@@ -1298,7 +1624,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
             {categorySlug && typeOptions.length > 1 && (
               <Field group label={t('Loại tin', 'Listing type')}>
-                <Chips options={LISTING_TYPES.filter((lt) => typeOptions.includes(lt.value)).map((lt) => ({ value: lt.value, label: tr(lt.label, lt.labelVi), icon: lt.icon }))} value={listingType} onPick={setListingType} />
+                {/* In Rentals a Wanted post is someone LOOKING TO RENT — "Cần mua" there read as buying the flat. */}
+                <Chips options={LISTING_TYPES.filter((lt) => typeOptions.includes(lt.value)).map((lt) => ({ value: lt.value, label: categorySlug === 'rentals' && lt.value === 'wanted' ? t('Cần thuê', 'Looking to rent') : tr(lt.label, lt.labelVi), icon: lt.icon }))} value={listingType} onPick={setListingType} />
               </Field>
             )}
             {/* Once a subcategory is picked it joins the category summary above, and its chips fold
@@ -1312,7 +1639,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   value={subcategorySlug}
                   onPick={(v) => {
                     const next = v === subcategorySlug ? '' : v
-                    setSubcategorySlug(next)
+                    chooseSubcategory(next)
                     // A pick folds the chips into the summary, so focus follows to its Change button
                     // (the chip that held it is about to unmount). Un-picking keeps the chips open.
                     if (next) { setCatExpanded(false); focusCategoryChange() }
@@ -1343,7 +1670,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     <ComboboxInput
                       autoComplete="off"
                       maxLength={40}
-                      placeholder={t('VD: Apple, Samsung, Honda', 'e.g. Apple, Samsung, Honda')}
+                      placeholder={vehicleRental ? t('VD: Honda, Yamaha, VinFast', 'e.g. Honda, Yamaha, VinFast') : t('VD: Apple, Samsung, Honda', 'e.g. Apple, Samsung, Honda')}
                       className="px-4 placeholder:text-ink-4"
                     />
                     <ComboboxClear aria-label={t('Xoá thương hiệu', 'Clear brand')} />
@@ -1428,6 +1755,29 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 }
               />
             </Field>
+            {subSuggestion && (
+              // gap-3, not gap-1: the ✕ is a 28px button with a 44px hit area (8px past each side), so
+              // anything under 8px let a tap meant for "dismiss" land on the suggestion, and the reverse.
+              <div className="flex items-center gap-3">
+                {/* ui/chip, an ACTION chip (no `pressed`): tapping it applies the suggestion. 28px tall,
+                    so `tap-44` (with `relative`, see globals.css) gives it the 44px target. */}
+                {/* Accepting takes the picker's own path (chooseSubcategory: stale specifics go, with Undo),
+                    and the chip then unmounts — so focus returns to the title it was suggested from. */}
+                <Chip
+                  size="xs"
+                  tone="neutral"
+                  className="relative tap-44"
+                  onClick={() => {
+                    chooseSubcategory(subSuggestion.slug)
+                    requestAnimationFrame(() => document.getElementById('pw-title')?.focus({ preventScroll: true }))
+                  }}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  {subSuggestionLabel}
+                </Chip>
+                <CloseButton size="xs" label={t('Bỏ qua gợi ý', 'Dismiss suggestion')} onClick={() => setDismissedSuggestion(subSuggestion.slug)} />
+              </div>
+            )}
             {/* `pw-description` stays on the WRAPPER — it is the scroll anchor, and other
                 code may look it up. Only the title's id lives on its control. */}
             <Field
@@ -1494,7 +1844,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             <Section title={t('Thông số', 'Specifics')}>
               {hasCondition && (
                 <Field group id="pw-condition" label={t('Tình trạng', 'Condition')} error={err.condition ? t('Hãy chọn tình trạng', 'Pick the condition') : undefined}>
-                  <Chips options={[{ value: 'new', label: t('Mới', 'New') }, { value: 'used', label: t('Đã dùng', 'Used') }]} value={condition} onPick={setCondition} />
+                  {/* The taxonomy's own labels (sell-09): the stored value 'new' covers "like new" too, and
+                      browse already names it "Mới / Như mới" — a bare "Mới" here pushed a barely-used item
+                      into "Đã dùng". A graded scale is owner decision C6. */}
+                  <Chips options={(catFacets.find((f) => f.key === 'condition') ?? CONDITION_FACET).options.map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))} value={condition} onPick={setCondition} />
                 </Field>
               )}
               {/* REQUIRED FACETS FIRST, then the optional ones marked "(optional)". Taxonomy order put
@@ -1552,6 +1905,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
              * at a stated price with no offers and no urgency, which is exactly the shape wanted.
              */
             fixedPriceOnly={categorySlug === 'services' || listingType === 'wanted'}
+            // A rental is not a sale in a hurry: no "Bán gấp" row (sell-13). Offers stay open.
+            // ⚠️ EXCEPT ON AN EDIT OF A RENTAL THAT IS URGENT NOW (switched on before this rule): hiding
+            // the row there left no way to end the run, since the edit resends `urgent` unchanged.
+            hideUrgent={listingType === 'rent' && !edit?.urgent}
             // The tỷ (×1.000.000.000) chip only where a price in the billions is plausible — a car,
             // a house, a wholesale lot, or before a category says otherwise. On a phone it was one
             // mistap from a 1,000× price.
@@ -1585,6 +1942,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             errContactName={err.contactName}
             errContactPhone={err.contactPhone}
             audience={salaryPaid ? 'candidates' : 'buyers'}
+            resumePhonePrompt={resumeNeedsPhone}
             t={t}
           />
 
@@ -1676,7 +2034,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         label={edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing')}
         // Not `render`: `disabled` flips while the seller watches, and the primitive's own note
         // says to take the plain path for exactly that.
-        primary={{ label: <PublishLabel submitting={submitting} edit={!!edit} missingCount={badgeCount} t={t} />, onClick: submit, disabled: submitting }}
+        primary={{ label: <PublishLabel submitting={submitting} loadingProfile={profileLoading} edit={!!edit} missingCount={badgeCount} t={t} />, onClick: submit, disabled: submitting, loading: profileLoading }}
         above={attempted && pendingSteps.length > 0 ? (
           // ⚠️ ONE ROW: the label beside a horizontal scroller, never `flex-wrap`. The row's height is
           // constant however many items are outstanding, and nothing is ever clipped mid-word

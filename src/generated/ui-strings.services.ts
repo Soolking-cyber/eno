@@ -146,7 +146,6 @@ export const UI_STRINGS_SERVICES: string[] = [
   "It may have been deleted, or it belongs to another account.",
   "Just remove it",
   "Keep application",
-  "Keep it",
   "Keep it after all",
   "Keep it, or change it",
   "Keep this and continue",

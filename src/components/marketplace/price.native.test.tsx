@@ -64,6 +64,16 @@ describe('<Price native>', () => {
     expect(text(<Price native dual={false} price={15_000_000} currency="₫" priceUnit="VND/month" />)).toBe('15,000,000 đ / month')
   })
 
+  it('prints the hour, day and week a human rental is now stamped with (A5, 2026-10-04), card and detail alike', () => {
+    expect(text(<Price native dual={false} price={60_000} currency="₫" priceUnit="VND/hour" />)).toBe('60,000 đ / hour')
+    cleanup()
+    expect(text(<Price native dual={false} price={150_000} currency="₫" priceUnit="VND/day" />)).toBe('150,000 đ / day')
+    cleanup()
+    expect(text(<Price native dual={false} price={900_000} currency="₫" priceUnit="VND/week" />)).toBe('900,000 đ / week')
+    cleanup()
+    expect(text(<Price price={900_000} currency="₫" priceUnit="VND/week" dual={false} />)).toBe('900,000 đ / week')
+  })
+
   it('never shows "/ service" (owner, 2026-09-13) — on native or detail prices', () => {
     expect(text(<Price native dual={false} price={3_030_000} currency="₫" priceUnit="VND/service" />)).toBe('3,030,000 đ')
     cleanup()

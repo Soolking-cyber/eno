@@ -50,6 +50,14 @@ const VI_UNIT: Record<string, string> = { month: 'tháng', hour: 'giờ', week: 
  * as "0 đ" and a paid one as "45.000.000 đ" with no period, which reads as a price tag on a job.
  */
 export function priceLine(l: Pick<SyndicationInput, 'price' | 'currency' | 'listingType' | 'priceUnit'>): string {
+  // ⚠️ A RENT CARRIES ITS PERIOD (A5, 2026-10-04): human rentals are now stamped per hour, day or week
+  // as well as per month, and "150.000 đ" for a scooter by the day reads as a sale price. No unit
+  // stored (a bare 'VND') → no period claimed.
+  if (l.listingType === 'rent') {
+    const unit = priceUnitSuffix(l.priceUnit)
+    const money = formatMoneyFull(l.price, l.currency, 'vi')
+    return unit ? `${money} / ${VI_UNIT[unit] ?? unit}` : money
+  }
   if (l.listingType !== 'job') return formatMoneyFull(l.price, l.currency, 'vi')
   if (!(l.price > 0)) return 'Lương: thỏa thuận'
   const unit = priceUnitSuffix(l.priceUnit) ?? 'month'

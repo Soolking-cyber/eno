@@ -16,6 +16,8 @@ export const metadata: Metadata = { title: `Post a listing | ${SITE_NAME}`, robo
 // auth-gated + rate-limited, and the wizard never fires them for guests.
 export default async function PostPage() {
   // Teachers are written by the teacher form, never the post wizard (NON_POSTING_CATEGORIES).
+  // ⚠️ The name order is only a stable INPUT: the wizard shows them in the curated post order, unlinked
+  // shelves behind "More…" (post-wizard-category.ts orderPostCategories, sell-06).
   const categories = (await db.category.findMany({ orderBy: { name: 'asc' } })).filter((c) => isPostableCategory(c.slug))
   const serialized: SerializedCategory[] = categories.map(serializeCategoryBasic)
 

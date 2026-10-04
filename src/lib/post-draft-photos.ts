@@ -26,6 +26,13 @@
  * the saves in flight before it deletes, and a save refuses to write once the epoch it was started
  * (or scheduled — see draftPhotosEpoch) under is gone.
  *
+ * ⛔ BYTES, NOT BLOBS (2026-10-04). WebKit's ephemeral IndexedDB — Safari Private Browsing, and every
+ * in-app browser that runs on a non-persistent data store — refuses to store a Blob (put() throws
+ * DataCloneError / "BlobURLs are not yet supported"), so every private-tab seller lost their photos
+ * on the Google round trip while the text came back. ArrayBuffers clone everywhere, so each photo is
+ * stored as `{ buf, name, type }` and rebuilt with `new File([buf], name, { type })`. A set saved as
+ * Blobs by an older build still loads (the `file` field) until its TTL runs out.
+ *
  * ⛔ FAILS SOFT, ALWAYS. Every function resolves — never rejects, never throws — and resolves to
  * "nothing" when IndexedDB is missing (old WebViews, some in-app browsers), refused (private
  * windows), blocked, or out of quota. A photo draft is a convenience; losing it must never break
@@ -39,10 +46,23 @@ const KEY = 'photos'
 /** What the wizard hands over: its photo entries, reduced to what survives structured clone. */
 export type DraftPhotoIn = { file: File; original?: File; square?: boolean }
 
+type StoredPhoto = {
+  /** The photo's bytes (current builds). */
+  buf?: ArrayBuffer
+  /** LEGACY: a set saved before 2026-10-04 holds a Blob here instead. Read, never written. */
+  file?: Blob
+  name: string
+  type: string
+  original?: ArrayBuffer | Blob
+  originalName?: string
+  originalType?: string
+  square?: boolean
+}
+
 type Stored = {
   draftId: string
   savedAt: number
-  photos: { file: Blob; name: string; type: string; original?: Blob; originalName?: string; square?: boolean }[]
+  photos: StoredPhoto[]
 }
 
 /**
@@ -102,12 +122,46 @@ function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => 
   }))
 }
 
+/**
+ * The bytes already read, per File. ⛔ READ EACH PHOTO ONCE, NOT ON EVERY SAVE: the save is debounced
+ * after every crop, reorder or add and stores the whole set, so re-reading six phone originals (~12MB
+ * each) each time put ~150MB of fresh buffers on a low-end Android per tap. A crop makes a NEW File, so
+ * only the file that changed is read again. The PROMISE is cached, so two overlapping saves share one
+ * read; a read that fails is forgotten, so the next save can try again. A WeakMap: a photo the seller
+ * removed takes its bytes with it. The buffer is only ever structured-CLONED by put(), never
+ * transferred, so one cached copy serves every save.
+ */
+const bytesCache = new WeakMap<Blob, Promise<ArrayBuffer>>()
+
+/**
+ * A Blob's bytes, read at most once (bytesCache). `Blob.arrayBuffer()` only arrived in Safari 14 —
+ * older WebKit (in-app browsers on an old iOS) lacks it, and calling it there threw, so the save fell
+ * into its catch and kept nothing. A Response reads any Blob on every engine that has fetch.
+ */
+function bytesOf(blob: Blob): Promise<ArrayBuffer> {
+  const cached = bytesCache.get(blob)
+  if (cached) return cached
+  const read = typeof blob.arrayBuffer === 'function' ? blob.arrayBuffer() : new Response(blob).arrayBuffer()
+  bytesCache.set(blob, read)
+  read.catch(() => { if (bytesCache.get(blob) === read) bytesCache.delete(blob) })
+  return read
+}
+
 /** A saved set older than this is discarded (and deleted) on load, whatever the text draft says. */
 export const PHOTO_TTL_MS = 24 * 60 * 60_000
 
 /** Bumped by every clear. A save carries the epoch it belongs to and never writes under a newer one. */
 let epoch = 0
 const inFlight = new Set<Promise<unknown>>()
+/**
+ * ⛔ THE LATEST SAVE WINS, NOT THE LAST ONE TO FINISH. A save reads every photo's bytes BEFORE it
+ * opens its transaction, so two overlapping saves (a crop, then a reorder) race: the older one, slower
+ * to read, could commit after the newer and put stale photos back. The epoch above cannot see that —
+ * both saves share it; it only fences off a CLEAR. Each save takes the next number when it is called,
+ * and writes only while it is still the newest (checked after the reads and again inside the
+ * transaction, just before the put).
+ */
+let saveSeq = 0
 
 /**
  * The current clear-epoch. A caller that DEFERS a save (the wizard's debounce) reads it when it
@@ -124,25 +178,33 @@ export function draftPhotosEpoch(): number {
 export function saveDraftPhotos(draftId: string, photos: DraftPhotoIn[], since: number = epoch): Promise<void> {
   if (since !== epoch) return Promise.resolve()
   if (!photos.length) return clearDraftPhotos()
-  const value: Stored = {
-    draftId,
-    savedAt: Date.now(),
-    photos: photos.map((p) => ({
-      file: p.file,
-      name: p.file.name,
-      type: p.file.type,
-      original: p.original,
-      originalName: p.original?.name,
-      square: p.square,
-    })),
-  }
-  // The epoch is re-checked once the database is open: a clear during the open skips the write
-  // (withStore's catch turns the throw into a soft no-op). A clear after the put has started waits
-  // for this promise, then deletes.
-  const write = withStore('readwrite', (s) => {
-    if (since !== epoch) throw new Error('cleared')
-    return s.put(value, KEY)
-  }).then(() => undefined)
+  const seq = ++saveSeq
+  const current = () => since === epoch && seq === saveSeq
+  // The epoch AND the sequence are re-checked after the bytes are read and again once the database is
+  // open: a clear — or a newer save — during either skips the write (withStore's catch turns the throw
+  // into a soft no-op). A clear after the put has started waits for this promise, then deletes.
+  const write = (async () => {
+    let stored: StoredPhoto[]
+    try {
+      stored = await Promise.all(photos.map(async (p) => ({
+        buf: await bytesOf(p.file),
+        name: p.file.name,
+        type: p.file.type,
+        original: p.original ? await bytesOf(p.original) : undefined,
+        originalName: p.original?.name,
+        originalType: p.original?.type,
+        square: p.square,
+      })))
+    } catch {
+      return // an unreadable File (revoked, evicted) — nothing to keep, and never a rejection
+    }
+    if (!current()) return
+    const value: Stored = { draftId, savedAt: Date.now(), photos: stored }
+    await withStore('readwrite', (s) => {
+      if (!current()) throw new Error('cleared or superseded')
+      return s.put(value, KEY)
+    })
+  })()
   inFlight.add(write)
   void write.finally(() => inFlight.delete(write))
   return write
@@ -162,13 +224,20 @@ export async function loadDraftPhotos(draftId: string): Promise<DraftPhotoIn[] |
     return null
   }
   const out: DraftPhotoIn[] = []
-  for (const p of stored.photos) {
-    if (!(p?.file instanceof Blob)) continue
-    out.push({
-      file: new File([p.file], p.name || 'photo.jpg', { type: p.type || p.file.type }),
-      original: p.original instanceof Blob ? new File([p.original], p.originalName || p.name || 'photo.jpg', { type: p.original.type || p.type }) : undefined,
-      square: p.square,
-    })
+  try {
+    for (const p of stored.photos) {
+      // Bytes (current) or a Blob (a set an older build saved); anything else is skipped.
+      const main = p?.buf instanceof ArrayBuffer ? p.buf : p?.file instanceof Blob ? p.file : null
+      if (!main) continue
+      const orig = p.original instanceof ArrayBuffer || p.original instanceof Blob ? p.original : null
+      out.push({
+        file: new File([main], p.name || 'photo.jpg', { type: p.type || (main instanceof Blob ? main.type : '') }),
+        original: orig ? new File([orig], p.originalName || p.name || 'photo.jpg', { type: p.originalType || (orig instanceof Blob ? orig.type : '') || p.type }) : undefined,
+        square: p.square,
+      })
+    }
+  } catch {
+    return null // a File constructor missing or refusing (very old WebViews) — fail soft
   }
   return out.length ? out : null
 }

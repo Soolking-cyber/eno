@@ -159,6 +159,12 @@ export interface StickyActionBarAction {
    */
   render?: React.ReactElement<Record<string, unknown>>
   disabled?: boolean
+  /**
+   * The action is busy (an async step it waits on): ui/button's `loading` — spinner over the kept
+   * label, `aria-busy`, the tap refused without dropping focus. The plain path only; ignored with
+   * `render` (a link has no busy state, as ui/button says).
+   */
+  loading?: boolean
   /** Accessible name, when the visible label is not one (an icon-led or truncated label). */
   ariaLabel?: string
   /** Native button type. Defaults to `'button'` so a bar inside a <form> never submits it. */
@@ -305,6 +311,7 @@ function BarAction({
       size="lg"
       className={className}
       disabled={action.disabled}
+      loading={action.loading}
       aria-label={action.ariaLabel}
       onClick={action.onClick}
       data-action={marker}

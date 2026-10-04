@@ -27,3 +27,35 @@ export function rangeColumnsPayload(
       .map((f) => [f.range.column, ranges[f.key] ?? null]),
   )
 }
+
+/**
+ * Brand + model as a post-wizard submit sends them. Pure, so the edit rules below are tested.
+ *
+ * ⛔ A HIDDEN FIELD IS NOT SENT ON AN EDIT THAT KEPT ITS SUBCATEGORY. Rentals is a brand category on
+ * the server (categoryHasBrand('rentals'), core/listings.ts updateListingCore), but the wizard shows
+ * the Brand field only for a VEHICLE rental (A5, 2026-10-04) — so an edit of an apartment that sent
+ * `brand: null` would CLEAR the brand it already had and move its brand count. The edit path is sparse
+ * (an omitted key is left alone), so a field the seller cannot see is omitted, never nulled.
+ * ⛔ …BUT AN EDIT THAT MOVED THE LISTING TO A SUBCATEGORY WITHOUT ONE CLEARS IT. A scooter rental
+ * re-filed as an apartment: the form already dropped the brand (subcategoryChangeReset), and omitting
+ * it would leave "Honda" on the apartment server-side. `subcategoryChanged` = the subcategory differs
+ * from the one the listing was STORED with.
+ * A NEW post sends null for a hidden field: nothing is stored to lose, and a brand typed under a
+ * vehicle subcategory and then hidden by a switch to an apartment must not travel with the post.
+ */
+export function brandModelPayload(i: { showBrand: boolean; brand: string; model: string; edit: boolean; subcategoryChanged?: boolean }): { brand?: string | null; model?: string | null } {
+  if (i.showBrand) return { brand: i.brand.trim() || null, model: i.model.trim() || null }
+  return !i.edit || i.subcategoryChanged ? { brand: null, model: null } : {}
+}
+
+/**
+ * Whether the form holds work worth keeping as a DRAFT (the autosave) — typed work only: a title, a
+ * price, or a description the seller wrote. Clicking around the form is not a draft.
+ * ⚠️ `carriedDescription` — the moving-sale context "List another item" carries into the next item
+ * (pickup window, why everything goes) is NOT typed work on its own. Counted as content, it was saved
+ * the instant the success screen closed, under a fresh draftId, so a seller who simply left came back
+ * to "Draft restored" over an empty item. It counts again the moment the seller types anything.
+ */
+export function draftHasContent(f: { title: string; description: string; price: string }, carriedDescription = ''): boolean {
+  return !!(f.title.trim() || f.price || (f.description.trim() && f.description !== carriedDescription))
+}

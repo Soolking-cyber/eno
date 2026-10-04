@@ -138,8 +138,77 @@ export function isRequiredFacet(f: FacetDef): boolean {
  *  so asking would be redundant at best and contradictory at worst (a seller could tick
  *  "Individual" on a registered business account). They stay in facetsFor() because
  *  browse still filters on them. */
-export function askableFacetsFor(categorySlug: string, subcategorySlug?: string | null): FacetDef[] {
-  return facetsFor(categorySlug, subcategorySlug).filter((f) => !f.derived)
+export function askableFacetsFor(
+  categorySlug: string,
+  subcategorySlug?: string | null,
+  opts: {
+    /** A NEW post (true) or an edit (false). Omitted = today's behaviour, every facet. */
+    newPost?: boolean
+    /** The poster's seller is an official partner (Seller.officialPartner — VietKite, GMBR). */
+    officialPartner?: boolean
+    /** On an EDIT: the attributes the listing already has — an e-visa chip it carries stays askable. */
+    existing?: Record<string, unknown> | null
+    /** Defaults to the build's edition; a parameter so the test can pin both. */
+    marketplace?: boolean
+  } = {},
+): FacetDef[] {
+  const facets = facetsFor(categorySlug, subcategorySlug).filter((f) => !f.derived)
+  if (opts.newPost === undefined) return facets
+  // O-34 (marketplace edition): an ordinary seller is not asked e-visa product chips — the licensed sàn
+  // does not invite visa products. An OFFICIAL PARTNER keeps them (the partner's visa desk, dm-flow,
+  // reads both from VietKite's listings), and an EDIT keeps any one the listing already carries. The
+  // server applies the same rule to what it stores (visaProductKeyAllowed, core/listings.ts).
+  const existing = opts.newPost ? null : opts.existing
+  return facets.filter((f) => visaProductKeyAllowed(f.key, { officialPartner: opts.officialPartner, existing, marketplace: opts.marketplace }))
+}
+
+/** The two facets that describe an e-visa PRODUCT (services/visa-legal). See askableFacetsFor. */
+export const VISA_PRODUCT_FACET_KEYS: ReadonlySet<string> = new Set(['visaEntryType', 'visaSpeed'])
+
+/** A listing's attributes as a plain object — the JSON string a row stores, or the object a client
+ *  sends; null when it is neither (absent, junk, an array). A fresh object for a string input. */
+function attributeBag(attributes: unknown): Record<string, unknown> | null {
+  let bag: unknown = attributes
+  if (typeof bag === 'string') {
+    try { bag = JSON.parse(bag) } catch { return null }
+  }
+  return bag && typeof bag === 'object' && !Array.isArray(bag) ? (bag as Record<string, unknown>) : null
+}
+
+/**
+ * O-34 — MAY A LISTING CARRY THIS E-VISA PRODUCT ATTRIBUTE? The ONE rule behind the wizard's chips
+ * (askableFacetsFor) and the server's writes (core/listings.ts createListingCore + updateListingCore),
+ * so a direct API call cannot do what the form does not offer:
+ *   · not an e-visa product key, or the services edition (eno.forum) → yes;
+ *   · an official partner's listing (VietKite, GMBR) → yes — dm-flow reads both from VietKite's rows;
+ *   · anyone else on eno.vn → only a key the listing ALREADY carries (an edit never strips one), never
+ *     a new one. Both facets are `optional`, so dropping them can never fail a publish.
+ */
+export function visaProductKeyAllowed(
+  key: string,
+  opts: { officialPartner?: boolean; existing?: unknown; marketplace?: boolean },
+): boolean {
+  if (!VISA_PRODUCT_FACET_KEYS.has(key)) return true
+  if (!(opts.marketplace ?? IS_MARKETPLACE) || opts.officialPartner) return true
+  const had = attributeBag(opts.existing)?.[key]
+  return typeof had === 'string' && had !== ''
+}
+
+/**
+ * The attributes JSON (as sanitizeAttributes produced it) minus the e-visa product keys this listing
+ * may not carry (visaProductKeyAllowed). The SAME string when nothing is dropped — callers compare by
+ * identity to learn whether anything was — and null when nothing is left.
+ */
+export function withoutDisallowedVisaAttrs(
+  json: string | null,
+  opts: { officialPartner?: boolean; existing?: unknown; marketplace?: boolean },
+): string | null {
+  const bag = attributeBag(json)
+  if (!bag) return json
+  const drop = [...VISA_PRODUCT_FACET_KEYS].filter((k) => k in bag && !visaProductKeyAllowed(k, opts))
+  if (!drop.length) return json
+  for (const k of drop) delete bag[k]
+  return Object.keys(bag).length ? JSON.stringify(bag) : null
 }
 
 // Newest selectable model year — current year + 1 (dealers list next-year models).
@@ -264,6 +333,39 @@ export const VISA_SUBCATEGORY_SLUG = 'visa-legal'
  *  also holds work-permit, tax and legal listings from ordinary sellers. */
 export function isVisaProductSlot(categorySlug: string, subcategorySlug?: string | null): boolean {
   return categorySlug === VISA_CATEGORY_SLUG && subcategorySlug === VISA_SUBCATEGORY_SLUG
+}
+
+/**
+ * O-34 (owner, 2026-09-30), done narrowly: on the MARKETPLACE edition `services/visa-legal` is NAMED
+ * "Legal & permits" / "Giấy tờ & pháp lý" — the licensed sàn TMĐT does not advertise a visa service in
+ * its own chrome. ⚠️ A NAME ONLY: the slug, browse, search (the `visa` keyword stays), VietKite's
+ * listings and storefront are untouched — VietKite's visa results on eno.vn are INTENDED (owner
+ * 2026-08-13). The TAXONOMY entry reads this when the build is the marketplace, so every display of
+ * the name (post picker, browse chips, breadcrumbs, PDP, /api/categories) follows from one place.
+ * `name` literals on purpose — scripts/gen-ui-strings.mjs harvests `name: '…'` from this file.
+ */
+export const MARKETPLACE_SUBCAT_LABELS: Readonly<Record<string, { name: string; nameVi: string }>> = {
+  [`${VISA_CATEGORY_SLUG}/${VISA_SUBCATEGORY_SLUG}`]: { name: 'Legal & permits', nameVi: 'Giấy tờ & pháp lý' },
+}
+
+/**
+ * O-34, the same chrome rule for the CATEGORY descriptions: the marketplace edition says what these two
+ * shelves hold without the visa wording their canonical descriptions carry ("Visa & legal, …", "…, and
+ * visa runs"). eno.forum keeps the canonical text.
+ * ⚠️ READ THROUGH categoryDescriptionFor(), NEVER BAKED INTO TAXONOMY. Unlike the subcategory names,
+ * `description` is DATA: scripts/sync-categories.ts writes it into Category.description in the ONE
+ * database both editions share, so an edition-dependent value there would flip with whichever env last
+ * ran the sync. TAXONOMY keeps the canonical text; each edition applies its own at read time.
+ */
+export const MARKETPLACE_CATEGORY_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  services: 'Language lessons, legal & permits, cleaning, moving, repairs, beauty, fitness, photography, childcare & more.',
+  'tickets-travel': 'Event tickets, tours & experiences, and transport.',
+}
+
+/** The description this edition shows for a category: the marketplace's own where it has one
+ *  (MARKETPLACE_CATEGORY_DESCRIPTIONS), else the canonical one (TAXONOMY / Category.description). */
+export function categoryDescriptionFor(slug: string, canonical: string | null | undefined, marketplace: boolean = IS_MARKETPLACE): string | null {
+  return (marketplace ? MARKETPLACE_CATEGORY_DESCRIPTIONS[slug] : undefined) ?? canonical ?? null
 }
 
 /**
@@ -1295,7 +1397,8 @@ export const TAXONOMY: CategoryDef[] = [
     description: 'Visa & legal, language lessons, cleaning, moving, repairs, beauty, fitness, photography, childcare & more.',
     types: ['service', 'wanted'],
     subcategories: [
-      { slug: 'visa-legal', name: 'Visa', nameVi: 'Visa', icon: 'Stamp', keywords: ['visa', 'work permit', 'legal', 'tax', 'permit', 'giấy tờ', 'thuế', 'pháp lý'] },
+      // The marketplace edition names it "Legal & permits" (MARKETPLACE_SUBCAT_LABELS, O-34).
+      { slug: 'visa-legal', ...(IS_MARKETPLACE ? MARKETPLACE_SUBCAT_LABELS['services/visa-legal'] : { name: 'Visa', nameVi: 'Visa' }), icon: 'Stamp', keywords: ['visa', 'work permit', 'legal', 'tax', 'permit', 'giấy tờ', 'thuế', 'pháp lý'] },
       { slug: 'language-lessons', name: 'Languages', nameVi: 'Ngoại ngữ', icon: 'Languages', keywords: ['vietnamese lesson', 'english class', 'language', 'học tiếng việt', 'dạy tiếng', 'ngoại ngữ'] },
       { slug: 'coworking', name: 'Coworking', nameVi: 'Coworking', icon: 'LampDesk', keywords: ['coworking', 'co-working', 'hot desk', 'day pass', 'dedicated desk', 'shared office', 'workspace', 'không gian làm việc chung', 'văn phòng chia sẻ'] },
       { slug: 'airport-transfer', name: 'Airport', nameVi: 'Sân bay', icon: 'PlaneTakeoff', keywords: ['airport transfer', 'airport pickup', 'private transfer', 'driver', 'car with driver', 'đưa đón sân bay', 'tài xế', 'thuê xe có tài'] },
@@ -1555,8 +1658,9 @@ export function subcategoriesFor(categorySlug: string): SubcatDef[] {
  * `category/subcategory`. Owner, 2026-09-30 (O-34, "do what's recommended"): a visa run is a
  * visa service, which the licensed sàn TMĐT does not offer, so eno.vn stops inviting new ones.
  * ⚠️ POSTING ONLY. The subcategory stays in TAXONOMY — browse, search, facets, storefronts and
- * every existing row are untouched, and eno.forum still offers it. This is deliberately not a
- * relabel of services/visa-legal (VietKite's own category) and hides nobody's listings.
+ * every existing row are untouched, and eno.forum still offers it. services/visa-legal (VietKite's
+ * own category) is NOT hidden — it is only renamed on this edition (MARKETPLACE_SUBCAT_LABELS) — and
+ * nobody's listings are hidden.
  */
 export const POST_HIDDEN_ON_MARKETPLACE: ReadonlySet<string> = new Set(['tickets-travel/visa-runs'])
 
@@ -1578,9 +1682,14 @@ export function isPostableSubcategory(
 export function postableSubcategoriesFor(
   categorySlug: string, keep?: string | null, marketplace: boolean = IS_MARKETPLACE,
 ): SubcatDef[] {
-  return subcategoriesFor(categorySlug).filter(
-    (s) => s.slug === keep || isPostableSubcategory(categorySlug, s.slug, marketplace),
-  )
+  return subcategoriesFor(categorySlug)
+    .filter((s) => s.slug === keep || isPostableSubcategory(categorySlug, s.slug, marketplace))
+    // The edition's display name (MARKETPLACE_SUBCAT_LABELS). TAXONOMY already carries it on a
+    // marketplace build; applying it here too is what lets the test pin the marketplace picker.
+    .map((s) => {
+      const relabel = marketplace ? MARKETPLACE_SUBCAT_LABELS[`${categorySlug}/${s.slug}`] : undefined
+      return relabel ? { ...s, ...relabel } : s
+    })
 }
 
 // Facets for a category, narrowed to a subcategory when given. A facet with
@@ -1649,15 +1758,21 @@ export function listingMoneyFor(input: {
   subcategorySlug?: string | null
   listingType?: string | null
   /**
-   * The period a RENT price is quoted per. Omitted means monthly — every human post and every
-   * property importer omits it, so their unit is unchanged. Only the vehicle-rental importer passes
-   * it (scripts/import-vehicle-rentals.ts): a self-drive car is priced per DAY, and storing that
-   * figure as 'VND/month' would print "850,000 đ / month" on a car that costs that per day.
+   * The period a RENT price is quoted per. Omitted (or null) means monthly — the property importers
+   * omit it. Two writers pass it: the vehicle-rental importer (scripts/import-vehicle-rentals.ts — a
+   * self-drive car is priced per DAY, and storing that figure as 'VND/month' would print
+   * "850,000 đ / month" on a car that costs that per day), and createListingCore, which reads the
+   * seller's "Kỳ thuê" chip from the posted attributes, so "Theo ngày" stores 'VND/day' rather than
+   * the old unconditional monthly.
    * ⚠️ IGNORED for every listingType but 'rent' — a job's unit is its own business (job-listing.ts).
+   * ⚠️ A value read from ATTRIBUTES goes through rentalPeriodOf() first ('long-term' → monthly, junk
+   * → null): RENT_UNIT has no 'long-term' key, and an unmapped period would stamp "VND/undefined".
    * ⚠️ THE EDIT PATH CALLS THIS ONLY WHEN THE INTENT CROSSES THE JOB BOUNDARY (core/listings.ts
    * updateListingCore — Wanted → Job takes 'VND/month', Job → Wanted takes 'VND'; the jobs category
-   * offers no 'rent'), so a stored 'VND/day' cannot be re-stamped to monthly by a later save. Keep it
-   * that way, or persist the period. (listings.currency.test.ts holds the guard.)
+   * offers no 'rent'), WHEN IT CROSSES THE RENT BOUNDARY (Rent → Wanted takes 'VND', Wanted → Rent the
+   * unit of its period), OR WHEN A RENT ROW'S `rentalPeriod` ATTRIBUTE ACTUALLY CHANGES — and then from
+   * the period the row will have. A save that leaves the intent and the period alone never re-stamps,
+   * so a stored 'VND/day' cannot drift to monthly. (listings.currency.test.ts holds the guard.)
    */
   rentalPeriod?: RentalPeriod | null
 }): ListingMoney {
@@ -1789,6 +1904,29 @@ const RENT_UNIT: Record<RentalPeriod, 'hour' | 'day' | 'week' | 'month'> = {
 }
 
 /**
+ * The period a rent price is quoted per, read from a listing's `rentalPeriod` attribute (the JSON
+ * string a row stores, or the object a client sends). The ONE normaliser both write paths use before
+ * stamping a unit: 'long-term' is a chip, not a unit, so it reads as 'monthly'; anything else that is
+ * not a RENT_UNIT key (absent, junk, a stale value) reads as null — never "VND/undefined".
+ */
+export function rentalPeriodOf(attributes: unknown): RentalPeriod | null {
+  const v = attributeBag(attributes)?.rentalPeriod
+  if (v === 'long-term') return 'monthly'
+  return typeof v === 'string' && Object.hasOwn(RENT_UNIT, v) ? (v as RentalPeriod) : null
+}
+
+/**
+ * The period a STORED rent unit says ('VND/day' → 'daily'), or null for a bare 'VND', a non-rent unit
+ * or junk — the reverse of RENT_UNIT. The edit form reads it because the stored unit is what buyers
+ * see: a row stamped 'VND/month' before the period chip counted must open saying "/ tháng", not the
+ * "/ ngày" its forgotten chip would suggest (post-wizard.tsx initAttrsFromEdit).
+ */
+export function rentalPeriodOfUnit(priceUnit: string | null | undefined): RentalPeriod | null {
+  const unit = typeof priceUnit === 'string' ? priceUnit.replace(/^VND\//, '') : ''
+  return (Object.keys(RENT_UNIT) as RentalPeriod[]).find((p) => RENT_UNIT[p] === unit) ?? null
+}
+
+/**
  * Display-only fields. Never facets — they have no option list — and never machine-translated on
  * the PDP: `author`/`publisher` are NAMES (translating a person is the bug this list exists for),
  * and `sizes` is the merchant's own size run verbatim ("S–XXL", "US 7–12", "5-6 YRS"), which is a
@@ -1797,6 +1935,19 @@ const RENT_UNIT: Record<RentalPeriod, 'hour' | 'day' | 'week' | 'month'> = {
  * the chips decline to model.
  */
 export const FREE_TEXT_ATTRIBUTES = ['author', 'publisher', 'sizes'] as const
+
+/** The book shelves of books-stationery — where FREE_TEXT_ATTRIBUTES belong (freeTextAttributesFor). */
+export const BOOK_SUBCATEGORIES: ReadonlySet<string> = new Set(['literature', 'self-help-business', 'childrens-books', 'textbooks-exam', 'languages-dictionaries', 'comics-manga', 'books-other'])
+
+/**
+ * The FREE_TEXT_ATTRIBUTES a placement carries: all of them on a book shelf, none anywhere else. The ONE
+ * rule for "where do these keys belong" — listing-enrich writes them only there, and the post wizard
+ * keeps one across a subcategory change only when the new shelf carries it (subcategoryChangeReset): a
+ * hidden author left on a re-filed listing would still publish, invisibly to the seller who moved it.
+ */
+export function freeTextAttributesFor(categorySlug: string, subcategorySlug: string | null | undefined): readonly string[] {
+  return categorySlug === 'books-stationery' && !!subcategorySlug && BOOK_SUBCATEGORIES.has(subcategorySlug) ? FREE_TEXT_ATTRIBUTES : []
+}
 
 /**
  * A job listing's text facts (scripts/import-jobs.ts writes them; the PDP Details renders them with

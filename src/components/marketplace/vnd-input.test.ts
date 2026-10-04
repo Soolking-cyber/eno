@@ -120,6 +120,25 @@ describe('VndInput — the field is đồng and says so', () => {
     expect(markup()).not.toContain('$')
   })
 
+  it('shows the period INSIDE the field, after the đ, and makes room for it', () => {
+    const html = markup('150000', { unit: '/ ngày' })
+    expect(html).toMatch(/<span>đ<\/span><span[^>]*>\/ ngày<\/span>/)
+    expect(html).toContain('pr-32')
+    expect(markup()).toContain('pr-20')
+    expect(markup()).not.toContain('/ ')
+  })
+
+  it('announces the period: its span joins the field’s aria-describedby', () => {
+    const html = markup('150000', { unit: '/ ngày', id: 'pw-price-input' })
+    expect(html).toContain('id="pw-price-input-unit"')
+    expect(html).toContain('aria-describedby="pw-price-input-unit"')
+    // Beside an error id, not instead of it.
+    expect(markup('150000', { unit: '/ ngày', id: 'pw-price-input', 'aria-describedby': 'pw-price-error' })).toContain('aria-describedby="pw-price-error pw-price-input-unit"')
+    // No period, no extra id: the caller's description is passed through untouched.
+    expect(markup('150000', { id: 'pw-price-input', 'aria-describedby': 'pw-price-error' })).toContain('aria-describedby="pw-price-error"')
+    expect(markup('150000', { id: 'pw-price-input' })).not.toContain('aria-describedby')
+  })
+
   it('reads the amount out in đồng units', () => {
     expect(markup('12000000')).toContain('= 12 triệu đ')
   })

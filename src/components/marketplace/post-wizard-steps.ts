@@ -58,6 +58,8 @@ export function publishSteps(i: {
   missingFacetLabels: string[]
   /** False while auth or the profile is loading, and for a guest. */
   showContact: boolean
+  /** Which half of the contact gate is unmet, so the step names it. Omitted = both (the old wording). */
+  contactMissing?: { name: boolean; phone: boolean }
   t: (vi: string, en: string) => string
 }): PublishStep[] {
   const { checks, t } = i
@@ -126,7 +128,16 @@ export function publishSteps(i: {
   }
 
   if (gate.has('contact') && i.showContact) {
-    steps.push({ key: 'contact', ok: ok('contact'), name: t('Liên hệ', 'Contact'), todo: t('Thêm tên & SĐT của bạn', 'Add your name & phone'), target: 'contact' })
+    // Worded from what is ACTUALLY missing: "Add your name & phone" over a form whose only gap was the
+    // phone sent the seller looking for a name field that was already filled. A phone-only gap jumps
+    // straight to the phone input (`pw-contactPhone`), not the section heading.
+    const m = i.contactMissing ?? { name: true, phone: true }
+    const todo = m.name && !m.phone
+      ? t('Thêm tên của bạn', 'Add your name')
+      : m.phone && !m.name
+        ? t('Thêm số điện thoại', 'Add your phone number')
+        : t('Thêm tên & SĐT của bạn', 'Add your name & phone')
+    steps.push({ key: 'contact', ok: ok('contact'), name: t('Liên hệ', 'Contact'), todo, target: m.phone && !m.name ? 'contactPhone' : 'contact' })
   }
 
   for (const c of checks) {

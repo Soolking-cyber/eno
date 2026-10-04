@@ -3,7 +3,7 @@ import { listedAt } from './stale'
 import { displayPriceUnit } from './price-unit'
 import { isUnratedStorefront, partnerShown } from './linked-seller'
 import { isCommissionLink } from './affiliate-commission'
-import { takesOffers } from './taxonomy'
+import { categoryDescriptionFor, takesOffers } from './taxonomy'
 import type { SerializedListing, SerializedListingCard, SerializedCategory, CategoryColor } from './types'
 
 export function safeParse<T>(value: string | null, fallback: T): T {
@@ -299,7 +299,9 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
 export function serializeCategoryBasic(c: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string; description: string | null }): SerializedCategory {
   return {
     id: c.id, name: c.name, nameVi: c.nameVi, slug: c.slug, icon: c.icon,
-    color: c.color as SerializedCategory['color'], description: c.description, verifiedCount: 0,
+    // The edition's own wording (O-34: no visa wording in the marketplace's chrome — taxonomy.ts
+    // MARKETPLACE_CATEGORY_DESCRIPTIONS); the shared database keeps the canonical text.
+    color: c.color as SerializedCategory['color'], description: categoryDescriptionFor(c.slug, c.description), verifiedCount: 0,
   }
 }
 

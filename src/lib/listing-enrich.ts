@@ -15,7 +15,7 @@
  * brand/technical terms, and the language of each slot. Ordinary descriptive prose it cannot verify — that is held by
  * the prompt, the pilot review, and the fact that every write is backed up and reversible.
  */
-import { CATEGORY_BY_SLUG, categoryHasBrand, facetsFor, FREE_TEXT_ATTRIBUTES, subcategoriesFor, VISA_CATEGORY_SLUG } from './taxonomy'
+import { CATEGORY_BY_SLUG, categoryHasBrand, facetsFor, FREE_TEXT_ATTRIBUTES, freeTextAttributesFor, subcategoriesFor, VISA_CATEGORY_SLUG } from './taxonomy'
 import { inferBrand } from './brand-infer'
 import { brandSlugify, normalizeBrand } from './brand-normalize'
 import { MODEL_CASE } from './feed-model'
@@ -41,7 +41,6 @@ export const ENRICH_TARGET_CATEGORIES = [
 ] as const
 
 
-const BOOK_SUBCATEGORIES = new Set(['literature', 'self-help-business', 'childrens-books', 'textbooks-exam', 'languages-dictionaries', 'comics-manga', 'books-other'])
 
 export type EnrichInput = {
   id: string
@@ -516,9 +515,9 @@ function allowedAttributes(category: string, subcategory: string | null): Map<st
   for (const f of facetsFor(category, subcategory)) {
     if (f.options?.length) out.set(f.key, new Set(f.options.map((o) => o.value)))
   }
-  if (category === 'books-stationery' && subcategory && BOOK_SUBCATEGORIES.has(subcategory)) {
-    for (const k of FREE_TEXT_ATTRIBUTES) out.set(k, null)
-  }
+  // The book text fields, on the shelves that carry them — taxonomy.ts freeTextAttributesFor, the rule
+  // the post wizard applies too (so a re-filed listing cannot keep an author its new shelf does not show).
+  for (const k of freeTextAttributesFor(category, subcategory)) out.set(k, null)
   return out
 }
 

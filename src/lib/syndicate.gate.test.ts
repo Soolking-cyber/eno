@@ -79,6 +79,14 @@ describe('the caption\'s money line — a JOB is posted as a salary, never as a 
     expect(priceLine({ price: 12_000_000, currency: '₫', listingType: 'job', priceUnit: 'VND' })).toBe('Lương: 12.000.000 đ / tháng')
   })
 
+  it('a RENT carries its period — per hour, day, week or month — and a bare VND claims none', () => {
+    expect(priceLine({ price: 150_000, currency: '₫', listingType: 'rent', priceUnit: 'VND/day' })).toBe('150.000 đ / ngày')
+    expect(priceLine({ price: 60_000, currency: '₫', listingType: 'rent', priceUnit: 'VND/hour' })).toBe('60.000 đ / giờ')
+    expect(priceLine({ price: 900_000, currency: '₫', listingType: 'rent', priceUnit: 'VND/week' })).toBe('900.000 đ / tuần')
+    expect(priceLine({ price: 8_000_000, currency: '₫', listingType: 'rent', priceUnit: 'VND/month' })).toBe('8.000.000 đ / tháng')
+    expect(priceLine({ price: 8_000_000, currency: '₫', listingType: 'rent', priceUnit: 'VND' })).toBe('8.000.000 đ')
+  })
+
   it('CONTROL: everything else keeps the plain price', () => {
     expect(priceLine({ price: 12_000_000, currency: '₫', listingType: 'sell', priceUnit: 'VND' })).toBe('12.000.000 đ')
     expect(priceLine({ price: 12_000_000, currency: '₫' })).toBe('12.000.000 đ')

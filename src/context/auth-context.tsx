@@ -77,6 +77,14 @@ export type SignInContext = {
    */
   note?: string
   /**
+   * Closed by the visitor WITHOUT signing in — the ×, Esc or the backdrop (the dialog's own
+   * onOpenChange). Never on a successful sign-in: that closes the dialog from onAuthStateChange, which
+   * does not go through onOpenChange. Unlike `prompt.onDismiss` it changes nothing about the
+   * presentation. The post wizard drops its "resume Publish" intent here, so a later, unrelated
+   * sign-in (the AI gate, the header) does not come back offering "Publish now".
+   */
+  onDismiss?: () => void
+  /**
    * THE "JOIN ENO" PROMPT (signup-prompt.tsx) OPENING THIS POPUP IN ITS JOIN PRESENTATION — a "Join
    * eno — it's free" title, what an account unlocks, Google first with email one tap away, and the ×.
    * ⛔ IT IS THIS POPUP, NOT A SECOND ONE (owner, 2026-08-28: "only 1 popup dont use other than
@@ -714,7 +722,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
            * `openSignIn(ctx)` writes it (null when none) and `eno:require-signin` clears it.
            * A close the VISITOR made (×, Esc, backdrop) is the prompt's dismissal.
            */
-          onOpenChange={(o) => { setSignInOpen(o); if (!o) signInCtx?.prompt?.onDismiss?.() }}
+          onOpenChange={(o) => { setSignInOpen(o); if (!o) { signInCtx?.prompt?.onDismiss?.(); signInCtx?.onDismiss?.() } }}
           listingTitle={signInCtx?.listingTitle}
           listingImage={signInCtx?.listingImage}
           sellerName={signInCtx?.sellerName}

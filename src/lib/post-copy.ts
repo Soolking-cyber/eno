@@ -124,7 +124,51 @@ const POST_COPY: Record<string, Partial<PostCopy>> = {
   },
 }
 
-/** The examples for a category — DEFAULT's for none, or for a slug this table does not name. */
-export function postCopyFor(categorySlug: string | null | undefined): PostCopy {
-  return { ...DEFAULT, ...(categorySlug ? POST_COPY[categorySlug] : undefined) }
+/**
+ * Per-SUBCATEGORY overrides, keyed `category/subcategory`, layered over the category's entry. Rentals
+ * is the case that needs it: its category example is an apartment, and a seller renting out a scooter
+ * was shown "2-bedroom apartment, pool" (sell-13).
+ */
+const SUBCAT_COPY: Record<string, Partial<PostCopy>> = {
+  'rentals/motorbike-rental': {
+    title: 'e.g. Honda Vision 2022 for rent — helmet included',
+    titleVi: 'VD: Cho thuê Honda Vision 2022 — kèm mũ bảo hiểm',
+    hint: 'Daily or monthly price, deposit, papers needed, delivery. No phone numbers.',
+    hintVi: 'Giá theo ngày hoặc tháng, tiền cọc, giấy tờ cần có, giao xe. Đừng ghi số điện thoại.',
+    model: 'e.g. Vision, Air Blade, Lead',
+    modelVi: 'VD: Vision, Air Blade, Lead',
+  },
+  'rentals/car-rental': {
+    title: 'e.g. Toyota Vios 2021 self-drive, 5 seats',
+    titleVi: 'VD: Toyota Vios 2021 tự lái, 5 chỗ',
+    hint: 'Daily price, deposit, licence needed, km limit, delivery. No phone numbers.',
+    hintVi: 'Giá theo ngày, tiền cọc, bằng lái cần có, giới hạn km, giao xe. Đừng ghi số điện thoại.',
+    model: 'e.g. Vios, Xpander, VF 5',
+    modelVi: 'VD: Vios, Xpander, VF 5',
+  },
+  'rentals/bicycle-rental': {
+    title: 'e.g. City bike for rent, with lock',
+    titleVi: 'VD: Cho thuê xe đạp đi phố, kèm khoá',
+    hint: 'Price per day or week, deposit, pickup point. No phone numbers.',
+    hintVi: 'Giá theo ngày hoặc tuần, tiền cọc, điểm nhận xe. Đừng ghi số điện thoại.',
+    model: 'e.g. the model name on the frame',
+    modelVi: 'VD: tên mẫu ghi trên khung xe',
+  },
+  'rentals/ebike-rental': {
+    title: 'e.g. VinFast Evo200 e-scooter for rent — charger included',
+    titleVi: 'VD: Cho thuê xe máy điện VinFast Evo200 — kèm sạc',
+    hint: 'Price per day or month, range per charge, deposit, delivery. No phone numbers.',
+    hintVi: 'Giá theo ngày hoặc tháng, quãng đường mỗi lần sạc, tiền cọc, giao xe. Đừng ghi số điện thoại.',
+    model: 'e.g. Evo200, Feliz',
+    modelVi: 'VD: Evo200, Feliz',
+  },
+}
+
+/** The examples for a category (and subcategory) — DEFAULT's for none, or for a slug no table names. */
+export function postCopyFor(categorySlug: string | null | undefined, subcategorySlug?: string | null): PostCopy {
+  return {
+    ...DEFAULT,
+    ...(categorySlug ? POST_COPY[categorySlug] : undefined),
+    ...(categorySlug && subcategorySlug ? SUBCAT_COPY[`${categorySlug}/${subcategorySlug}`] : undefined),
+  }
 }

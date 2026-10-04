@@ -122,6 +122,101 @@ describe('post-draft-photos — one draft, one photo set', () => {
     expect(back?.map((p) => p.square)).toEqual([true, false])
   })
 
+  it('stores BYTES, never a Blob — WebKit private mode cannot clone a Blob into IndexedDB', async () => {
+    const idb = fakeIndexedDB()
+    vi.stubGlobal('indexedDB', idb)
+    await saveDraftPhotos('d1', [{ file: photo('a.jpg'), original: photo('a-full.jpg') }])
+    const saved = idb.store.get('photos') as { photos: Record<string, unknown>[] }
+    expect(saved.photos[0].buf).toBeInstanceOf(ArrayBuffer)
+    expect(saved.photos[0].original).toBeInstanceOf(ArrayBuffer)
+    for (const v of Object.values(saved.photos[0])) expect(v).not.toBeInstanceOf(Blob)
+    expect(saved.photos[0]).toMatchObject({ name: 'a.jpg', type: 'image/jpeg', originalName: 'a-full.jpg', originalType: 'image/jpeg' })
+    const back = await loadDraftPhotos('d1')
+    expect(back?.[0].file.size).toBe(3)
+    expect(back?.[0].original?.type).toBe('image/jpeg')
+  })
+
+  it('⛔ two OVERLAPPING saves: the newer one wins even when the older one finishes reading last', async () => {
+    const idb = fakeIndexedDB()
+    vi.stubGlobal('indexedDB', idb)
+    // The older save's photo is slow to read (a big original, a busy phone)…
+    const slow = photo('older.jpg')
+    Object.defineProperty(slow, 'arrayBuffer', { value: () => new Promise<ArrayBuffer>((r) => setTimeout(() => r(new Uint8Array([9]).buffer), 40)) })
+    const older = saveDraftPhotos('d1', [{ file: slow }])
+    // …and the newer save, called after it, reads fast and commits first.
+    const newer = saveDraftPhotos('d1', [{ file: photo('newer.jpg') }, { file: photo('second.jpg') }])
+    await Promise.all([older, newer])
+    expect((await loadDraftPhotos('d1'))?.map((p) => p.file.name)).toEqual(['newer.jpg', 'second.jpg'])
+  })
+
+  it('…and a newer save that starts while an older one is already inside its transaction still lands last', async () => {
+    const idb = fakeIndexedDB({ putDelayMs: 30 })
+    vi.stubGlobal('indexedDB', idb)
+    const first = saveDraftPhotos('d1', [{ file: photo('first.jpg') }])
+    await new Promise((r) => setTimeout(r, 10)) // the first save's put is now in flight
+    const second = saveDraftPhotos('d1', [{ file: photo('second.jpg') }])
+    await Promise.all([first, second])
+    expect((await loadDraftPhotos('d1'))?.map((p) => p.file.name)).toEqual(['second.jpg'])
+  })
+
+  it('⛔ reads each photo ONCE: a second save with the same files re-reads nothing, a changed file only itself', async () => {
+    const idb = fakeIndexedDB()
+    vi.stubGlobal('indexedDB', idb)
+    const a = photo('a.jpg')
+    const aFull = photo('a-full.jpg')
+    const b = photo('b.jpg')
+    const reads = [vi.spyOn(a, 'arrayBuffer'), vi.spyOn(aFull, 'arrayBuffer'), vi.spyOn(b, 'arrayBuffer')]
+    await saveDraftPhotos('d1', [{ file: a, original: aFull }, { file: b }])
+    await saveDraftPhotos('d1', [{ file: b }, { file: a, original: aFull }]) // a reorder: same Files
+    expect(reads.map((r) => r.mock.calls.length)).toEqual([1, 1, 1])
+    // A crop makes a NEW File: only that one is read again.
+    const cropped = photo('a-cropped.jpg')
+    const croppedRead = vi.spyOn(cropped, 'arrayBuffer')
+    await saveDraftPhotos('d1', [{ file: cropped, original: aFull }, { file: b }])
+    expect(croppedRead).toHaveBeenCalledTimes(1)
+    expect(reads.map((r) => r.mock.calls.length)).toEqual([1, 1, 1])
+    // …and what is stored is still the Private-Safari-safe bytes, in the newest order.
+    const saved = idb.store.get('photos') as { photos: { buf: ArrayBuffer; name: string }[] }
+    expect(saved.photos.map((p) => p.name)).toEqual(['a-cropped.jpg', 'b.jpg'])
+    expect(saved.photos[0].buf).toBeInstanceOf(ArrayBuffer)
+  })
+
+  it('a read that FAILS is not cached — the next save reads the file again', async () => {
+    const idb = fakeIndexedDB()
+    vi.stubGlobal('indexedDB', idb)
+    const flaky = photo('flaky.jpg')
+    let attempts = 0
+    const real = flaky.arrayBuffer.bind(flaky)
+    Object.defineProperty(flaky, 'arrayBuffer', { value: () => (++attempts === 1 ? Promise.reject(new Error('NotReadableError')) : real()) })
+    await saveDraftPhotos('d1', [{ file: flaky }])
+    expect(idb.store.get('photos')).toBeUndefined()
+    await saveDraftPhotos('d1', [{ file: flaky }])
+    expect(attempts).toBe(2)
+    expect((idb.store.get('photos') as { photos: unknown[] }).photos).toHaveLength(1)
+  })
+
+  it('reads the bytes without Blob.arrayBuffer() (Safari < 14) — through a Response', async () => {
+    const idb = fakeIndexedDB()
+    vi.stubGlobal('indexedDB', idb)
+    const old = photo('old-webkit.jpg')
+    // An engine that predates Blob.arrayBuffer(): the own property shadows the prototype method.
+    Object.defineProperty(old, 'arrayBuffer', { value: undefined })
+    await saveDraftPhotos('d1', [{ file: old }])
+    const saved = idb.store.get('photos') as { photos: { buf: ArrayBuffer }[] }
+    expect(saved.photos[0].buf).toBeInstanceOf(ArrayBuffer)
+    expect(saved.photos[0].buf.byteLength).toBe(3)
+    expect((await loadDraftPhotos('d1'))?.[0].file.name).toBe('old-webkit.jpg')
+  })
+
+  it('still restores a set an older build saved as Blobs', async () => {
+    const idb = fakeIndexedDB()
+    vi.stubGlobal('indexedDB', idb)
+    idb.store.set('photos', { draftId: 'd1', savedAt: Date.now(), photos: [{ file: photo('old.jpg'), name: 'old.jpg', type: 'image/jpeg' }] })
+    const back = await loadDraftPhotos('d1')
+    expect(back?.map((p) => p.file.name)).toEqual(['old.jpg'])
+    expect(back?.[0].file).toBeInstanceOf(File)
+  })
+
   it('never hands back photos saved for ANOTHER draft — and deletes them', async () => {
     const idb = fakeIndexedDB()
     vi.stubGlobal('indexedDB', idb)

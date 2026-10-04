@@ -2,6 +2,7 @@ import { DeskResolutionError, marketplaceListingScope } from '@/lib/edition-scop
 import 'server-only'
 import { db } from './db'
 import type { SerializedCategory } from './types'
+import { categoryDescriptionFor } from './taxonomy'
 
 // Demand weighting: a contact (revealed number / message intent) is worth far more
 // than a passive view; a save sits in between. At launch everything is 0, so the
@@ -117,7 +118,8 @@ export async function getCategoriesByDemand(): Promise<SerializedCategory[]> {
         slug: c.slug,
         icon: c.icon,
         color: c.color as SerializedCategory['color'],
-        description: c.description,
+        // The edition's own wording (taxonomy.ts categoryDescriptionFor, O-34).
+        description: categoryDescriptionFor(c.slug, c.description),
         verifiedCount: c._count.listings,
         demand: score.get(c.id) ?? 0,
       }))

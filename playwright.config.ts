@@ -51,6 +51,15 @@ const guestProjects: Project[] = [
   { name: 'guest-mobile', use: { ...devices['Pixel 5'], ...guestUse, baseURL: GUEST_BASE }, testMatch: /guest\/.*\.spec\.ts/ },
 ]
 
+// Ephemeral WebKit (= Safari Private Browsing's storage rules) for the ONE spec that needs it: the post
+// draft's photos in IndexedDB (e2e/guest/post-draft-photos-webkit.spec.ts). ⚠️ REGISTERED ONLY WITH
+// E2E_WEBKIT=1 (`npm run e2e:webkit`), so no existing run — `e2e:guest`, a bare `playwright test`, the
+// /ship passes — starts needing a WebKit download. In the Chromium guest projects that spec self-skips.
+// (`--host-resolver-rules` is a Chromium flag, so guestUse is not spread here.)
+const webkitProjects: Project[] = process.env.E2E_WEBKIT
+  ? [{ name: 'guest-webkit-private', use: { ...devices['iPhone 13'], baseURL: GUEST_BASE }, testMatch: /guest\/post-draft-photos-webkit\.spec\.ts/ }]
+  : []
+
 // Authed projects only exist when a preview base is configured. Each depends on the `setup`
 // project, which produces the role storageState; we only wire storageState if it was created.
 const authedProjects: Project[] = AUTHED_BASE
@@ -113,5 +122,5 @@ export default defineConfig({
     actionTimeout: 10_000,
     navigationTimeout: 20_000,
   },
-  projects: [...guestProjects, ...authedProjects, ...ciProjects],
+  projects: [...guestProjects, ...webkitProjects, ...authedProjects, ...ciProjects],
 })

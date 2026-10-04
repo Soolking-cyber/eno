@@ -39,7 +39,7 @@ export default async function EditListingPage({ params }: Props) {
       select: {
         id: true, sellerId: true, title: true, description: true, price: true, negotiable: true, urgentUntil: true,
         categoryId: true, subcategorySlug: true, listingType: true, condition: true,
-        brandSlug: true, model: true, attributes: true,
+        brandSlug: true, model: true, attributes: true, priceUnit: true,
         year: true, mileageKm: true, engineL: true, engineCc: true, areaM2: true, salaryM: true,
         district: true, city: true, lat: true, lng: true, images: true, video: true, status: true,
         category: { select: { slug: true } },
@@ -76,6 +76,8 @@ export default async function EditListingPage({ params }: Props) {
     brand: brandName,
     model: showBrand ? listing.model : null,
     attributes: safeParse<Record<string, string>>(listing.attributes, {}),
+    // The stored unit is what buyers see — a rent edit opens its period chip on it (initAttrsFromEdit).
+    priceUnit: listing.priceUnit,
     year: listing.year,
     mileageKm: listing.mileageKm,
     engineL: listing.engineL,

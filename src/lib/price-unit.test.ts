@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { displayPriceUnit, priceUnitSuffix, UNIT_CODES } from './price-unit'
+import { VI_OVERRIDES } from '@/generated/vi-overrides'
 import { serializeListingCard } from './serialize'
 
 /** `<Price>`'s inline parse at price.tsx:87-88 (176c0d63), verbatim: the expression the helper replaced. */
@@ -27,6 +28,17 @@ describe('priceUnitSuffix', () => {
     expect(priceUnitSuffix('month')).toBe('month')
     expect(priceUnitSuffix('VND/service')).toBeNull()
     expect(priceUnitSuffix('VND/kg')).toBe('kg')
+  })
+
+  it('reads every rent period a listing can now be stamped with — and Vietnamese has a word for each', () => {
+    // A5 (2026-10-04): human rentals are stamped per hour, day, week or month (taxonomy.ts listingMoneyFor).
+    // <Price> prints `/ ${useTr(suffix)}`, and in Vietnamese useTr reads the curated dictionary.
+    const vi: Record<string, string> = { hour: 'giờ', day: 'ngày', week: 'tuần', month: 'tháng' }
+    for (const [suffix, word] of Object.entries(vi)) {
+      expect(priceUnitSuffix(`VND/${suffix}`)).toBe(suffix)
+      expect(UNIT_CODES.get(suffix), suffix).toBeDefined()
+      expect(VI_OVERRIDES[suffix], suffix).toBe(word)
+    }
   })
 
   it('treats a missing column as no unit', () => {

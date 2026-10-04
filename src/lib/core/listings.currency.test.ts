@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { listingMoneyFor, TAXONOMY, isVisaProductSlot, VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '../taxonomy'
+import { listingMoneyFor, rentalPeriodOf, rentalPeriodOfUnit, TAXONOMY, isVisaProductSlot, VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '../taxonomy'
 
 /**
  * ⚠️ EVERY LISTING ON eno IS STORED IN ĐỒNG — INCLUDING E-VISA PRODUCTS.
@@ -90,10 +90,43 @@ describe('listingMoneyFor — ₫ for EVERY category × subcategory × intent', 
     for (const t of ['sell', 'wanted', 'free', 'event', '']) expect(unit(t)).toBe('VND')
     expect(listingMoneyFor({ categorySlug: 'vehicles', subcategorySlug: 'car' }).priceUnit).toBe('VND')
   })
+
+  it('quotes a rent price per the rental period the seller picked', () => {
+    const rent = (attrs: unknown) => listingMoneyFor({ categorySlug: 'rentals', subcategorySlug: 'motorbike-rental', listingType: 'rent', rentalPeriod: rentalPeriodOf(attrs) }).priceUnit
+    expect(rent({ rentalPeriod: 'hourly' })).toBe('VND/hour')
+    expect(rent({ rentalPeriod: 'daily' })).toBe('VND/day')
+    expect(rent('{"rentalPeriod":"weekly"}')).toBe('VND/week')
+    expect(rent({ rentalPeriod: 'monthly' })).toBe('VND/month')
+    // 'long-term' is a chip, not a unit — it must never become "VND/undefined".
+    expect(rent({ rentalPeriod: 'long-term' })).toBe('VND/month')
+    for (const junk of [null, undefined, '', 'not json', '[]', { rentalPeriod: 'yearly' }, { rentalPeriod: 'constructor' }, { rentalPeriod: 7 }, {}]) {
+      expect(rentalPeriodOf(junk), JSON.stringify(junk)).toBeNull()
+      expect(rent(junk)).toBe('VND/month')
+    }
+    // The period is ignored for every intent but rent.
+    expect(listingMoneyFor({ categorySlug: 'rentals', listingType: 'sell', rentalPeriod: 'daily' }).priceUnit).toBe('VND')
+  })
+
+  it('reads a STORED unit back into its period — the round trip the edit form opens on', () => {
+    for (const p of ['hourly', 'daily', 'weekly', 'monthly'] as const) {
+      expect(rentalPeriodOfUnit(listingMoneyFor({ categorySlug: 'rentals', listingType: 'rent', rentalPeriod: p }).priceUnit)).toBe(p)
+    }
+    for (const junk of ['VND', 'VND/service', 'VND/kg', '', null, undefined, 'VND/toString']) expect(rentalPeriodOfUnit(junk), String(junk)).toBeNull()
+  })
 })
 
 describe('createListingCore — stamps ₫, and can stamp nothing else', () => {
   const create = bodyOf('createListingCore')
+
+  it('stamps the rent unit from the SANITIZED rentalPeriod, read before the stamp', () => {
+    const sanitize = create.indexOf('sanitizeAttributes(body.attributes)')
+    const clean = create.indexOf('const cleanAttributes =')
+    const stamp = create.indexOf('const money = listingMoneyFor(')
+    expect(sanitize).toBeGreaterThan(-1)
+    expect(clean).toBeGreaterThan(sanitize)
+    expect(stamp).toBeGreaterThan(clean)
+    expect(create.slice(stamp, create.indexOf('\n', stamp))).toContain('rentalPeriod: rentalPeriodOf(cleanAttributes)')
+  })
 
   it('takes the currency from listingMoneyFor, which is typed to the literal ₫', () => {
     expect(create).toMatch(/const money = listingMoneyFor\(/)
@@ -122,18 +155,24 @@ describe('updateListingCore — never touches the currency', () => {
     expect(update).not.toMatch(/^\s*currency:/m)
   })
 
-  it('writes `priceUnit` ONLY when the intent crosses the job boundary, and only from listingMoneyFor', () => {
+  it('writes `priceUnit` ONLY on a job- or rent-boundary crossing or a changed rent period, and only from listingMoneyFor', () => {
     // ⚠️ The unit is otherwise never re-stamped on edit: a vehicle rental's stored 'VND/day' must not
-    // come back monthly from a later save (taxonomy.ts listingMoneyFor). The one exception (review,
-    // 2026-10-01): a post switched into a JOB (Wanted → Job) kept its bare 'VND', so its salary printed
-    // without "/ month" — that switch re-stamps it, and the reverse takes it back. The jobs category
-    // offers no 'rent', so no rental period is reachable from this guard.
+    // come back monthly from a later save (taxonomy.ts listingMoneyFor). Three exceptions: a post switched
+    // into a JOB (Wanted → Job) kept its bare 'VND', so its salary printed without "/ month" — that
+    // switch re-stamps it, and the reverse takes it back (review, 2026-10-01); a switch across RENT
+    // (Rent → "Cần thuê" kept 'VND/day' on a budget, Wanted → Rent kept a bare 'VND'); and a RENT row
+    // whose `rentalPeriod` attribute this edit actually changes takes the unit of its new period (A5).
+    // The behaviour itself is pinned against the real function in listings.sell-rules.test.ts.
     const writes = update.match(/data\.priceUnit\s*=/g) ?? []
     expect(writes).toHaveLength(1)
     const at = update.indexOf('data.priceUnit =')
     const guard = update.lastIndexOf('if (', at)
-    expect(update.slice(guard, at)).toMatch(/^if \(nextType !== current\.listingType && salaryPaid !== paysSalary\(current\.listingType\)\) \{\s*$/)
-    expect(update.slice(at, update.indexOf('\n', at))).toMatch(/= listingMoneyFor\(\{[^}]*listingType: nextType \}\)\.priceUnit$/)
+    expect(update.slice(guard, at)).toMatch(/^if \(jobCrossed \|\| rentCrossed \|\| periodMoved\) \{\s*$/)
+    expect(update.slice(at, update.indexOf('\n', at))).toMatch(/= listingMoneyFor\(\{[^}]*listingType: nextType, rentalPeriod: nextPeriod \}\)\.priceUnit$/)
+    expect(update).toMatch(/const jobCrossed = nextType !== current\.listingType && salaryPaid !== paysSalary\(current\.listingType\)$/m)
+    expect(update).toMatch(/const rentCrossed = \(nextType === 'rent'\) !== \(current\.listingType === 'rent'\)$/m)
+    // periodMoved: a RENT row, an edit that sends attributes, and a NORMALISED period that differs.
+    expect(update).toMatch(/const periodMoved = nextType === 'rent' && data\.attributes !== undefined && nextPeriod !== rentalPeriodOf\(current\.attributes\)$/m)
     expect(update).not.toMatch(/^\s*priceUnit:/m)
   })
 

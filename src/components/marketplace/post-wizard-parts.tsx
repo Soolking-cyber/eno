@@ -10,6 +10,18 @@ import { Cog, Ellipsis, ImagePlus } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { STROKE_DISPLAY, STROKE_UI } from '@/lib/icon-tokens'
 import { Button } from '@/components/ui/button'
+import { Alert } from '@/components/ui/alert'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import {
   Field as UiField,
   FieldLabel,
@@ -23,11 +35,80 @@ import { CategoryIcon } from './category-icons'
 import { CategoryGlyphArt } from './category-glyph'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
+/**
+ * "Draft restored" — INLINE, at the top of the form (si-10). It used to be a toast, which on a phone
+ * landed mid-screen over the "Add photos" tile — the very tile it was asking the seller to tap — and
+ * offered no way to start over. Here it says what came back (the photo half included), and "Discard"
+ * empties the form. Kept generic so the "Continue your draft?" card (C5) can reuse it.
+ * ui/alert (the canon's callout), flat tint, `role="status"`: it reports what came back, it is not an
+ * error — the primitive defaults to role="alert", and props override it.
+ * ⚠️ "DISCARD" ASKS FIRST. It wipes the text AND the photos kept on this device, one tap away from
+ * "Keep" — so it opens ui/alert-dialog, the canon's destructive confirm, rather than acting at once.
+ */
+export function DraftNotice({
+  photosKept,
+  askPhotos,
+  onDiscard,
+  onDismiss,
+  t,
+}: {
+  /** Photos brought back from IndexedDB with the text. */
+  photosKept: number
+  /** The draft had photos and none came back (private window, quota, another device): ask for them. */
+  askPhotos: boolean
+  onDiscard: () => void
+  onDismiss: () => void
+  t: (vi: string, en: string) => string
+}) {
+  // The count sits OUTSIDE t() (gen-ui-strings harvests literal pairs only), and the line is built as a
+  // variable, not a JSX template literal (react/jsx-no-literals).
+  const keptLine = `${t('Ảnh đã giữ lại', 'Photos kept')}: ${photosKept}`
+  return (
+    <Alert role="status" appearance="flat" size="md" className="max-w-xl" title={t('Đã khôi phục bản nháp', 'Draft restored')}>
+      {/* Spans, not <p>: the alert body puts a 16px gap after every <p> that is not its last child. */}
+      {askPhotos ? (
+        <span className="block text-xs">{t('Ảnh không được giữ lại — thêm lại ảnh nhé', 'Your photos were not kept — please add them again')}</span>
+      ) : photosKept > 0 ? (
+        <span className="block text-xs">{keptLine}</span>
+      ) : null}
+      <span className="mt-1.5 flex flex-wrap items-center gap-x-6 gap-y-1">
+        <AlertDialog>
+          <AlertDialogTrigger
+            render={
+              <Button variant="bare" size="none" type="button" className="relative text-sm font-bold text-accent-foreground hover:underline cursor-pointer tap-44">
+                {t('Bỏ nháp', 'Discard')}
+              </Button>
+            }
+          />
+          <AlertDialogContent size="sm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t('Bỏ bản nháp này?', 'Discard this draft?')}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t('Nội dung và ảnh bạn đã nhập sẽ bị xoá khỏi thiết bị này.', 'The text and photos you entered will be removed from this device.')}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t('Giữ lại', 'Keep it')}</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" className="font-bold" onClick={onDiscard}>
+                {t('Bỏ nháp', 'Discard')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        <Button variant="bare" size="none" type="button" onClick={onDismiss} className="relative text-sm font-semibold text-body hover:text-foreground cursor-pointer tap-44">
+          {t('Giữ', 'Keep')}
+        </Button>
+      </span>
+    </Alert>
+  )
+}
+
 export function PublishButton({
   className,
   onSubmit,
   canSubmit,
   submitting,
+  loadingProfile = false,
   edit,
   missingCount,
   t,
@@ -36,6 +117,8 @@ export function PublishButton({
   onSubmit: () => void
   canSubmit: boolean
   submitting: boolean
+  /** Signed in, account details still loading — the label says so and the wizard ignores the tap. */
+  loadingProfile?: boolean
   edit: boolean
   missingCount: number
   t: (vi: string, en: string) => string
@@ -46,6 +129,9 @@ export function PublishButton({
       // NOT disabled when fields are missing — a click then reveals what's left
       // (disabled submit hides the reason). Only blocked mid-submit.
       disabled={submitting}
+      // Signed in, account details still loading: ui/button's busy state (spinner over the kept label,
+      // aria-busy, the tap refused without dropping focus) — the canon's, never a hand-built spinner.
+      loading={loadingProfile}
       // ⛔ NO `aria-disabled={!canSubmit}` — it was a lie, and once `opacity-70` went it was the
       // only remaining one. The control IS actionable with fields outstanding: that is the whole
       // design, a tap runs scrollToMissing and reveals what is left. `aria-disabled` told assistive
@@ -61,7 +147,7 @@ export function PublishButton({
       // without lying about whether the control works.
       className={cn('w-full rounded-xl px-7 py-3 text-sm transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer', className)}
     >
-      <PublishLabel submitting={submitting} edit={edit} missingCount={missingCount} t={t} />
+      <PublishLabel submitting={submitting} loadingProfile={loadingProfile} edit={edit} missingCount={missingCount} t={t} />
     </Button>
   )
 }
@@ -70,16 +156,22 @@ export function PublishButton({
  *  own button) and the desktop <PublishButton> say exactly the same thing. */
 export function PublishLabel({
   submitting,
+  loadingProfile = false,
   edit,
   missingCount,
   t,
 }: {
   submitting: boolean
+  loadingProfile?: boolean
   edit: boolean
   missingCount: number
   t: (vi: string, en: string) => string
 }) {
   if (submitting) return <>{edit ? t('Đang lưu…', 'Saving…') : t('Đang đăng…', 'Posting…')}</>
+  // Right after sign-in, before /api/me lands: no count (it is not final yet) and no promise of a publish.
+  // Text only — the button that carries this label is in its `loading` state then (PublishButton, the
+  // mobile bar's primary), which draws the spinner and keeps this as the accessible name.
+  if (loadingProfile) return <>{t('Đang tải thông tin…', 'Loading your details…')}</>
   return (
     // ⚠️ THE LABEL IS ALWAYS A VERB. It used to read "6 left to finish" — a COUNT where the
     // primary action belongs, so the button stopped naming what it does at the exact moment

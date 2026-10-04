@@ -35,6 +35,7 @@
     "verify:local": "node scripts/check-all.mjs http://localhost:3000",
     "e2e": "playwright test",
     "e2e:guest": "playwright test --project=guest-desktop --project=guest-mobile",
+    "e2e:webkit": "E2E_WEBKIT=1 playwright test --project=guest-webkit-private",
     "e2e:seed": "node --env-file=.env scripts/e2e-seed.mjs",
     "e2e:cleanup": "node --env-file=.env scripts/e2e-cleanup.mjs",
     "e2e:authed": "node --env-file=.env node_modules/.bin/playwright test --project=setup --project=seller --project=admin",

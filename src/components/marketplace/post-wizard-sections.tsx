@@ -23,6 +23,7 @@ import { captureNativePhoto, nativePhotoCaptureAvailable } from '@/lib/native-ph
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { CloseButton } from '@/components/ui/close-button'
+import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
 import { FieldControl } from '@/components/ui/field'
@@ -39,6 +40,24 @@ import { SquareCropDialog } from './square-crop-dialog'
 
 type T = (vi: string, en: string) => string
 
+/**
+ * THE SHOTS A BUYER ASKS FOR, per shelf (sell-15 / the research shot list) — shown as hint chips under
+ * the photo grid. HINTS ONLY: nothing here gates Publish or is checked. Literal t() pairs on purpose
+ * (gen-ui-strings harvests literals only). Null where we have no list worth showing.
+ */
+export function shotListFor(categorySlug: string | undefined, subcategorySlug: string | undefined, t: T): string[] | null {
+  if (categorySlug === 'electronics' && subcategorySlug === 'phones-tablets') {
+    return [t('Mặt trước, màn hình bật', 'Front, screen on'), t('Mặt sau và các cạnh', 'Back and edges'), t('Màn hình tình trạng pin', 'Battery health screen'), t('Hộp và phụ kiện kèm theo', 'Box and what comes with it')]
+  }
+  if (categorySlug === 'furniture-appliances' && ['sofa-seating', 'tables-desks', 'beds-mattresses', 'storage'].includes(subcategorySlug ?? '')) {
+    return [t('Toàn bộ món đồ', 'The whole piece'), t('Cận cảnh chất liệu', 'Close-up of the material'), t('Vết xước hoặc hao mòn', 'Any marks or wear'), t('Thước đo kích thước', 'A tape measure for size')]
+  }
+  if ((categorySlug === 'vehicles' && subcategorySlug === 'motorbike') || (categorySlug === 'rentals' && subcategorySlug === 'motorbike-rental')) {
+    return [t('Hai bên xe', 'Both sides'), t('Đồng hồ số km', 'Odometer'), t('Lốp và phanh', 'Tyres and brakes'), t('Động cơ', 'Engine')]
+  }
+  return null
+}
+
 /* Photos (+ optional video) — everything media lives in the usePostMedia bundle. */
 export function MediaSection({
   media,
@@ -48,6 +67,8 @@ export function MediaSection({
   aiBusy,
   autofillFromPhoto,
   isGuest,
+  categorySlug,
+  subcategorySlug,
   t,
 }: {
   media: PostMedia
@@ -59,6 +80,9 @@ export function MediaSection({
   autofillFromPhoto: () => void
   /** A signed-out seller: the Autofill button says up front that AI needs an account. */
   isGuest: boolean
+  /** The chosen shelf: '' until picked — the hint stays neutral until then, and the shot list follows it. */
+  categorySlug?: string
+  subcategorySlug?: string
   t: T
 }) {
   const { photos, setPhotos, addPhotos, applySquareCrop, keepFullPhoto, movePhoto, bindPhoto, draggingPhoto, converting, video, videoBusy, addVideo, removeVideo } = media
@@ -130,7 +154,12 @@ export function MediaSection({
     <Section
       id="pw-photo"
       title={t('Ảnh', 'Photos')}
-      hint={minPhotos === 0
+      hint={!categorySlug
+        // ⚠️ NEUTRAL UNTIL A CATEGORY IS CHOSEN (sell-08): the minimum IS the category's (jobs 0,
+        // services 1, goods 3), so "At least 3 photos" before the pick told a job poster or a tutor
+        // something false on the very first screen.
+        ? t('Tối đa 6 ảnh. Ảnh đầu là ảnh bìa. Số ảnh tối thiểu tuỳ danh mục bạn chọn bên dưới.', 'Up to 6 photos. The first is your cover. The minimum depends on the category you pick below.')
+        : minPhotos === 0
         // Jobs (publish-guard.ts minPhotosFor = 0): nothing to photograph, so nothing is required —
         // a logo or the workplace is what an employer actually has.
         ? t('Không bắt buộc — logo công ty hoặc ảnh nơi làm việc, tối đa 6. Ảnh đầu là ảnh bìa.', 'Optional — a company logo or a photo of the workplace, up to 6. The first is your cover.')
@@ -333,7 +362,18 @@ export function MediaSection({
       {errPhoto && <p id="pw-photo-error" role="alert" className="mt-2 text-xs font-semibold text-destructive">{minPhotos === 1 ? t('Thêm ít nhất 1 ảnh', 'Add at least 1 photo') : t('Thêm ít nhất 3 ảnh từ các góc khác nhau', 'Add at least 3 photos from different angles')}</p>}
       {/* Media hint covers the video square in the grid above. No "on hover": the card clip
           autoplays once the card settles in view, on every device (listing-card's CardVideo). */}
-      <p id="pw-photo-hint" className="mt-1.5 text-xs text-ink-4">{t('Ảnh đầu là ảnh bìa. Video (tùy chọn) tự phát trên thẻ tin đăng và trong mục Video.', 'First photo is your cover. A video (optional) plays on your listing card and in the Video tab.')}</p>
+      {/* The cover sentence lives in the section hint above; it was said twice (sell-15). */}
+      <p id="pw-photo-hint" className="mt-1.5 text-xs text-ink-4">{t('Video (tùy chọn) tự phát trên thẻ tin đăng và trong mục Video.', 'A video (optional) plays on your listing card and in the Video tab.')}</p>
+      {(() => {
+        const shots = shotListFor(categorySlug, subcategorySlug, t)
+        // Static pills (ui/badge), not buttons: a suggestion of what to photograph, never a checklist.
+        return shots ? (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-semibold text-ink-4">{t('Gợi ý ảnh nên chụp', 'Shots buyers look for')}</span>
+            {shots.map((s) => <Badge key={s}>{s}</Badge>)}
+          </div>
+        ) : null
+      })()}
       {aiEnabled && photos.length > 0 && (
         <Button
           type="button"
@@ -378,10 +418,13 @@ export function PriceSection({
   priceHeading,
   priceHint,
   maxFactor,
+  hideUrgent,
   t,
 }: {
   /** Services sell at a stated price: no offers, no urgency (owner, 2026-07-22). */
   fixedPriceOnly?: boolean
+  /** No "Bán gấp" row — a RENTAL is not a sale in a hurry (sell-13). Offers stay. */
+  hideUrgent?: boolean
   price: string
   setPrice: (v: string) => void
   touch: (k: string) => void
@@ -424,9 +467,9 @@ export function PriceSection({
               aria-describedby={priceErr ? 'pw-price-error' : undefined}
               aria-required
               maxFactor={maxFactor}
+              unit={priceUnit || undefined}
             />
           </div>
-          {priceUnit && <span className="shrink-0 text-sm font-semibold text-ink-4">{priceUnit}</span>}
         </div>
         {priceHint && <p className="mt-1 text-xs text-ink-4">{priceHint}</p>}
         {priceErr && <p id="pw-price-error" role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{priceErr}</p>}
@@ -485,7 +528,7 @@ export function PriceSection({
             it 22px down between pointerdown and click. On the bare 44×24 switch that lost the click
             (measured: the click landed on the row, the switch stayed off); a 60px row still catches
             it. Phrasing content only inside a label, hence spans rather than <p>/<div>. */}
-        {!fixedPriceOnly && (
+        {!fixedPriceOnly && !hideUrgent && (
           <UrgentRow
             checked={urgent}
             onChange={(next) => { setUrgent(next); if (next) setNegotiable(true) }}
@@ -682,6 +725,7 @@ export function ContactSection({
   errContactName,
   errContactPhone,
   audience = 'buyers',
+  resumePhonePrompt = false,
   t,
 }: {
   meLoaded: boolean
@@ -696,6 +740,8 @@ export function ContactSection({
   errContactPhone: boolean
   /** Who messages this poster: buyers, or — on a job — candidates (owner, 2026-10-01). */
   audience?: 'buyers' | 'candidates'
+  /** Back from the sign-in Publish asked for, and the account has no phone: say that it is the last step. */
+  resumePhonePrompt?: boolean
   t: T
 }) {
   const candidates = audience === 'candidates'
@@ -712,9 +758,12 @@ export function ContactSection({
         <div className="h-5 w-56 rounded-lg shimmer" />
       ) : isGuest ? (
         // Draft-first guests: contact comes from the account they'll sign in
-        // with at Publish — no fields to type here.
+        // with at Publish — no fields to type here. It used to promise the NUMBER came from the account
+        // too, and most new accounts have none, so the phone question arrived as a surprise after sign-in.
         <p className="text-sm text-muted-foreground">
-          {t('Tên và số điện thoại lấy từ tài khoản của bạn khi đăng nhập lúc đăng tin.', 'Your name & number come from your account when you sign in at publish.')}
+          {candidates
+            ? t('Tên lấy từ tài khoản khi bạn đăng nhập lúc đăng tin. Nếu tài khoản chưa có số điện thoại, bạn sẽ thêm ở đây — ứng viên không thấy số này.', 'Your name comes from your account when you sign in at publish. If the account has no phone number, you add one here — candidates never see it.')
+            : t('Tên lấy từ tài khoản khi bạn đăng nhập lúc đăng tin. Nếu tài khoản chưa có số điện thoại, bạn sẽ thêm ở đây — người mua không thấy số này.', 'Your name comes from your account when you sign in at publish. If the account has no phone number, you add one here — buyers never see it.')}
         </p>
       ) : (
         <div className="space-y-3">
@@ -759,10 +808,22 @@ export function ContactSection({
               </Button>
             </div>
           ) : (
-            <Field label={t('Số điện thoại', 'Phone number')} hint={candidates ? t('Ứng viên không thấy số cho đến khi bạn trả lời.', 'Candidates never see it until you reply.') : t('Người mua không thấy số cho đến khi bạn trả lời.', 'Buyers never see it until you reply.')} error={errContactPhone ? t('Thêm số điện thoại hợp lệ', 'Add a valid phone number') : undefined}>
+            <Field
+              label={t('Số điện thoại', 'Phone number')}
+              hint={resumePhonePrompt
+                ? (candidates
+                    ? t('Thêm số điện thoại để hoàn tất — ứng viên không thấy số này', 'Add a phone number to finish — candidates never see it')
+                    : t('Thêm số điện thoại để hoàn tất — người mua không thấy số này', 'Add a phone number to finish — buyers never see it'))
+                : candidates ? t('Ứng viên không thấy số cho đến khi bạn trả lời.', 'Candidates never see it until you reply.') : t('Người mua không thấy số cho đến khi bạn trả lời.', 'Buyers never see it until you reply.')}
+              error={errContactPhone ? t('Thêm số điện thoại hợp lệ', 'Add a valid phone number') : undefined}
+            >
+              {/* id: the wizard's `pw-<key>` jump target (scrollToField('contactPhone')) — the resume
+                  flow focuses this field when the account came back without a number. */}
               <FieldControl
+                id="pw-contactPhone"
                 render={
                   <Input
+                    id="pw-contactPhone"
                     type="tel"
                     inputMode="tel"
                     // This is the seller's OWN number, exactly like profile-editor / business-profile-editor
@@ -798,6 +859,7 @@ export function PostSuccess({
   title,
   price,
   job = false,
+  onPostAnother,
   t,
 }: {
   firstListing: boolean
@@ -806,6 +868,9 @@ export function PostSuccess({
   price: string
   /** A job post: candidates, not buyers, will message the poster. */
   job?: boolean
+  /** "List another item" — the wizard keeps the area, contact, price type (and a moving sale) and
+   *  clears the item itself. Absent → no button (an embedded wizard has its own next step). */
+  onPostAnother?: () => void
   t: T
 }) {
   return (
@@ -834,6 +899,13 @@ export function PostSuccess({
             price={Number(price) || undefined}
             currency="₫"
           />
+        )}
+        {/* The moving-sale seller has a houseful to list: the next item starts from where this one
+            left off instead of from an empty form (research, step 1). */}
+        {onPostAnother && (
+          <Button variant="outline" size="none" type="button" onClick={onPostAnother} className="px-6 py-2.5">
+            {job ? t('Đăng tin tiếp theo', 'Post another job') : t('Đăng món tiếp theo', 'List another item')}
+          </Button>
         )}
       </div>
       <Link href="/dashboard" className="text-sm font-semibold text-accent-foreground hover:underline">

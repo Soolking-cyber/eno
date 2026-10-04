@@ -86,6 +86,17 @@ describe('StickyActionBar keeps the action reachable', () => {
     expect(onSecondary).not.toHaveBeenCalled()
   })
 
+  it('a loading action is busy: ui/button’s spinner, aria-busy, the tap refused, the label still its name', async () => {
+    const user = userEvent.setup()
+    const onPrimary = vi.fn()
+    render(<StickyActionBar primary={{ label: 'Publish listing', onClick: onPrimary, loading: true }} />)
+    const publish = screen.getByRole('button', { name: 'Publish listing' })
+    expect(publish.getAttribute('aria-busy')).toBe('true')
+    expect(publish.hasAttribute('data-loading')).toBe(true)
+    await user.click(publish)
+    expect(onPrimary).not.toHaveBeenCalled()
+  })
+
   it('defaults the button type so a bar inside a form cannot submit it', () => {
     render(<StickyActionBar primary={{ label: 'Chat' }} />)
     expect(screen.getByRole('button', { name: 'Chat' }).getAttribute('type')).toBe('button')

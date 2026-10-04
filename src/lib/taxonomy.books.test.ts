@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CATEGORY_BY_SLUG, facetsFor, migrateLegacyCategoryParams, subcategoriesFor } from './taxonomy'
+import { BOOK_SUBCATEGORIES, CATEGORY_BY_SLUG, facetsFor, FREE_TEXT_ATTRIBUTES, freeTextAttributesFor, migrateLegacyCategoryParams, subcategoriesFor } from './taxonomy'
 
 // The Books aisle (2026-09-13): books left `hobbies-sports` for a category of their own.
 
@@ -35,5 +35,22 @@ describe('migrateLegacyCategoryParams', () => {
   it('leaves any other link untouched, as the same object', () => {
     const params = new URLSearchParams('category=hobbies-sports&subcategory=fitness')
     expect(migrateLegacyCategoryParams(params)).toBe(params)
+  })
+})
+
+// Where the free-text book facts (author, publisher, sizes) belong — the ONE rule enrichment writes by
+// and the post wizard keeps them by across a subcategory change (subcategoryChangeReset).
+describe('freeTextAttributesFor', () => {
+  it('names every book shelf, and only real book shelves (not stationery)', () => {
+    const shelves = subcategoriesFor('books-stationery').map((s) => s.slug)
+    for (const sub of BOOK_SUBCATEGORIES) expect(shelves, sub).toContain(sub)
+    expect(BOOK_SUBCATEGORIES.has('stationery-office')).toBe(false)
+  })
+
+  it('carries the free-text facts on a book shelf and nowhere else', () => {
+    expect(freeTextAttributesFor('books-stationery', 'literature')).toEqual(FREE_TEXT_ATTRIBUTES)
+    expect(freeTextAttributesFor('books-stationery', 'stationery-office')).toEqual([])
+    expect(freeTextAttributesFor('books-stationery', null)).toEqual([])
+    expect(freeTextAttributesFor('electronics', 'phones-tablets')).toEqual([])
   })
 })

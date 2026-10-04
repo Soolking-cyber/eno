@@ -65,6 +65,7 @@ function stepsFor(f: Form, who: Who = 'guest', checks = checksFor(f, who)) {
     minPhotos: minPhotosFor(f.categorySlug),
     missingFacetLabels: facets.filter((x) => isRequiredFacet(x) && !f.attrs[x.key]).map((x) => x.label),
     showContact: who === 'member',
+    contactMissing: { name: f.contactName.trim().length < 2, phone: f.phone.replace(/\D/g, '').length < 9 },
     t,
   })
 }
@@ -130,9 +131,20 @@ describe('publishSteps — guests and the loading window', () => {
     expect(stepsFor({ ...EMPTY, contactName: 'Minh', phone: '0901234567' }, 'member').at(-1)).toMatchObject({ key: 'contact', ok: true })
   })
 
+  it('names the half of the contact that is actually missing', () => {
+    expect(stepsFor({ ...EMPTY, contactName: 'Minh' }, 'member').at(-1)).toMatchObject({ key: 'contact', ok: false, todo: 'Add your phone number', target: 'contactPhone' })
+    expect(stepsFor({ ...EMPTY, phone: '0901234567' }, 'member').at(-1)).toMatchObject({ key: 'contact', ok: false, todo: 'Add your name', target: 'contact' })
+    // Without the hint (an older caller) the step keeps the both-halves wording.
+    const legacy = publishSteps({ checks: [{ key: 'contact', ok: false, label: 'contact' }], photos: 0, minPhotos: 0, missingFacetLabels: [], showContact: true, t })
+    expect(legacy[0]).toMatchObject({ todo: 'Add your name & phone', target: 'contact' })
+  })
+
   it('every target is a pw-<key> the wizard renders', () => {
-    const targets = new Set(stepsFor({ ...EMPTY, categorySlug: 'electronics', subcategorySlug: 'phones-tablets' }, 'member').map((s) => s.target))
-    for (const target of targets) expect(['photo', 'category', 'title', 'description', 'condition', 'details', 'price', 'location', 'contact']).toContain(target)
+    const targets = new Set([
+      ...stepsFor({ ...EMPTY, categorySlug: 'electronics', subcategorySlug: 'phones-tablets' }, 'member').map((s) => s.target),
+      ...stepsFor({ ...EMPTY, contactName: 'Minh' }, 'member').map((s) => s.target),
+    ])
+    for (const target of targets) expect(['photo', 'category', 'title', 'description', 'condition', 'details', 'price', 'location', 'contact', 'contactPhone']).toContain(target)
   })
 })
 

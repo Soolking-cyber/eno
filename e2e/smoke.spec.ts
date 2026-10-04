@@ -90,8 +90,12 @@ test.describe.serial('Golden path · seller posts → buyer finds & chats → se
     // Wait until all three previews mount (each carries a "Remove photo" control).
     await expect(seller.getByRole('button', { name: /Remove photo|Xóa ảnh/i })).toHaveCount(3, { timeout: 20_000 })
 
-    // Category — pick one with no extra required facets so the flow stays deterministic.
-    await seller.getByRole('group', { name: /^Category|Danh mục/i }).getByRole('button', { name: /^(Community|Cộng đồng)/i }).click()
+    // Category — pick one with no extra required facets so the flow stays deterministic. Community is an
+    // unlinked shelf, so since sell-06 (2026-10-04) it waits behind "More…" in the post picker
+    // (post-wizard-category.ts orderPostCategories) — open that first.
+    const categoryGroup = seller.getByRole('group', { name: /^Category|Danh mục/i })
+    await categoryGroup.getByRole('button', { name: /^(More…|Khác…)$/ }).click()
+    await categoryGroup.getByRole('button', { name: /^(Community|Cộng đồng)/i }).click()
 
     // Title / description / price.
     await seller.locator('#pw-title').fill(TITLE)

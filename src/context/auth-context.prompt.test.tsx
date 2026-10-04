@@ -38,6 +38,7 @@ import { AuthProvider, useAuth } from './auth-context'
 
 const onDismiss = vi.fn()
 const onMethod = vi.fn()
+const onPlainDismiss = vi.fn()
 
 function Probe() {
   const { openSignIn } = useAuth()
@@ -45,6 +46,7 @@ function Probe() {
     <>
       <button type="button" onClick={() => openSignIn({ prompt: { onDismiss, onMethod } })}>join</button>
       <button type="button" onClick={() => openSignIn()}>plain</button>
+      <button type="button" onClick={() => openSignIn({ note: 'Last step: sign in to publish.', onDismiss: onPlainDismiss })}>gate</button>
     </>
   )
 }
@@ -54,6 +56,7 @@ const popup = () => screen.getByTestId('popup')
 beforeEach(() => {
   onDismiss.mockReset()
   onMethod.mockReset()
+  onPlainDismiss.mockReset()
   render(<AuthProvider><Probe /></AuthProvider>)
 })
 afterEach(() => cleanup())
@@ -88,5 +91,27 @@ describe('AuthProvider — the join presentation of the one popup', () => {
     await act(async () => { window.dispatchEvent(new CustomEvent('eno:require-signin')) })
     expect(popup().dataset.open).toBe('yes')
     expect(popup().dataset.join).toBe('no')
+  })
+})
+
+// The plain popup's own dismissal hook (SignInContext.onDismiss) — what the post wizard uses to drop its
+// "resume Publish" intent when the visitor closes the gate without signing in. It must not switch the
+// popup to the join presentation, and it must not outlive its own ask.
+describe('AuthProvider — onDismiss on a plain sign-in', () => {
+  it('⛔ reports a close the visitor makes, once, without the join presentation', async () => {
+    await click('gate')
+    expect(popup().dataset.open).toBe('yes')
+    expect(popup().dataset.join).toBe('no')
+    await click('visitor closes')
+    expect(onPlainDismiss).toHaveBeenCalledTimes(1)
+    expect(onDismiss).not.toHaveBeenCalled()
+  })
+
+  it('⚠️ belongs to its own ask — the next, unrelated open does not report to it', async () => {
+    await click('gate')
+    await click('visitor closes')
+    await click('plain')
+    await click('visitor closes')
+    expect(onPlainDismiss).toHaveBeenCalledTimes(1)
   })
 })
