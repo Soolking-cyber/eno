@@ -210,7 +210,7 @@ export function PaymentLureWarning({ kind }: { kind: PaymentLureKind }) {
         {kind === 'rental'
           ? tr(
               'Only pay a deposit after you have viewed the place in person and seen the papers.',
-              'Chỉ đặt cọc sau khi đã xem nhà tận nơi và có giấy tờ.',
+              'Chỉ đặt cọc sau khi đã xem nhà tận nơi và xem giấy tờ.',
             )
           : kind === 'job'
             ? tr(
@@ -219,7 +219,7 @@ export function PaymentLureWarning({ kind }: { kind: PaymentLureKind }) {
               )
             : tr(
                 'Meet, inspect, then pay — eno never asks for an OTP code.',
-                'Gặp mặt, kiểm tra rồi mới trả tiền — eno không bao giờ yêu cầu mã OTP.',
+                'Gặp trực tiếp, kiểm tra hàng rồi mới trả tiền — eno không bao giờ yêu cầu bạn cung cấp mã OTP.',
               )}
       </span>
     </Alert>

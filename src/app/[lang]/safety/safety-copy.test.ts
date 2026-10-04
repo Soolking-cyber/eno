@@ -211,7 +211,7 @@ const CS3_ADVICE: [string, string][] = [
   ['Tell someone where you’re going', 'Báo cho người thân biết bạn đi đâu'],
   [
     'Share the meeting place and time with a friend or family member, and bring them along for higher-value items. There’s real safety in not arriving alone.',
-    'Chia sẻ địa điểm và thời gian gặp với bạn bè hoặc người nhà, và rủ họ đi cùng khi mua món đồ giá trị cao. Không đến một mình sẽ an toàn hơn hẳn.',
+    'Chia sẻ địa điểm và thời gian gặp với bạn bè hoặc người nhà, và rủ họ đi cùng khi giao dịch món đồ giá trị cao. Không đến một mình sẽ an toàn hơn hẳn.',
   ],
   ['Inspect fully before any money moves', 'Kiểm tra kỹ trước khi trả bất kỳ khoản tiền nào'],
   [
@@ -232,7 +232,7 @@ const CS3_ADVICE: [string, string][] = [
   ['A price too good to be true', 'Giá rẻ đến khó tin'],
   [
     'If it’s dramatically cheaper than everything comparable, assume it’s bait — for a fake sale, a stolen item, or an account that vanishes the moment you pay.',
-    'Nếu rẻ hơn hẳn mọi món tương tự, hãy coi đó là mồi nhử — cho một vụ bán hàng giả, một món đồ trộm cắp, hoặc một tài khoản biến mất ngay khi bạn trả tiền.',
+    'Nếu rẻ hơn hẳn mọi món tương tự, hãy coi đó là mồi nhử — một vụ mua bán giả, một món đồ bị đánh cắp, hoặc một tài khoản biến mất ngay khi bạn trả tiền.',
   ],
   ['Pressure and urgency', 'Hối thúc và gây áp lực'],
   [
@@ -244,10 +244,10 @@ const CS3_ADVICE: [string, string][] = [
     'A seller who refuses to meet in public and wants money up front for delivery is a risk you don’t need to take. Walk away.',
     'Người bán từ chối gặp ở nơi công cộng và đòi tiền trước để giao hàng là rủi ro bạn không cần chấp nhận. Hãy bỏ qua.',
   ],
-  ['“I’m abroad — I’ll courier it to you”', '“Tôi đang ở nước ngoài — tôi sẽ gửi chuyển phát cho bạn”'],
+  ['“I’m abroad — I’ll courier it to you”', '“Tôi đang ở nước ngoài — sẽ gửi chuyển phát nhanh cho bạn”'],
   [
     'The standard rental and vehicle scam: the “owner” is overseas, the price is excellent, and all you have to do is transfer a deposit so the keys or the bike can be sent. Nothing ever arrives. If the person cannot meet you, there is no deal.',
-    'Chiêu lừa quen thuộc khi thuê nhà và mua xe: “chủ” đang ở nước ngoài, giá rất hời, và bạn chỉ cần chuyển tiền cọc để họ gửi chìa khóa hoặc chiếc xe. Không bao giờ có gì được gửi đến. Nếu người đó không thể gặp bạn, thì không có giao dịch nào cả.',
+    'Chiêu lừa quen thuộc khi thuê nhà, thuê hoặc mua xe: “chủ” đang ở nước ngoài, giá rất hời, và bạn chỉ cần chuyển tiền cọc để họ gửi chìa khóa hoặc chiếc xe. Rồi chẳng có gì được gửi đến cả. Nếu người đó không thể gặp bạn, thì không có giao dịch nào cả.',
   ],
   ['“Read me the code”', '“Đọc mã cho tôi”'],
   [
@@ -267,7 +267,7 @@ const CS3_ADVICE: [string, string][] = [
   ['If money was lost, act fast', 'Nếu đã mất tiền, hãy hành động ngay'],
   [
     'Contact your bank immediately to try to reverse or freeze the transfer, and report the fraud to your local police (in Vietnam, the nearest công an phường).',
-    'Liên hệ ngay với ngân hàng để thử hoàn lại hoặc phong tỏa khoản chuyển khoản, và trình báo vụ lừa đảo với công an phường gần nhất.',
+    'Liên hệ ngay với ngân hàng để đề nghị hoàn lại hoặc phong tỏa giao dịch chuyển tiền, và trình báo vụ lừa đảo với công an phường gần nhất.',
   ],
   ['Reach eno support', 'Liên hệ bộ phận hỗ trợ của eno'],
 ]

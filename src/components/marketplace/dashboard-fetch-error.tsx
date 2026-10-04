@@ -116,7 +116,7 @@ export function DashboardFetchError({ error, onRetry, next, authSubtitle, failed
     return (
       <EmptyState
         icon={LogIn}
-        title={tr('Your session has expired', 'Phiên đăng nhập đã hết hạn')}
+        title={tr('Your session has expired', 'Phiên đăng nhập hết hạn')}
         subtitle={authSubtitle}
         action={<Button variant="cta" onClick={() => void signInAgain()}>{tr('Sign in', 'Đăng nhập')}</Button>}
       />

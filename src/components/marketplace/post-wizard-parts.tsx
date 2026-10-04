@@ -76,13 +76,13 @@ export function DraftNotice({
           <AlertDialogTrigger
             render={
               <Button variant="bare" size="none" type="button" className="relative text-sm font-bold text-accent-foreground hover:underline cursor-pointer tap-44">
-                {t('Bỏ nháp', 'Discard')}
+                {t('Xoá bản nháp', 'Discard')}
               </Button>
             }
           />
           <AlertDialogContent size="sm">
             <AlertDialogHeader>
-              <AlertDialogTitle>{t('Bỏ bản nháp này?', 'Discard this draft?')}</AlertDialogTitle>
+              <AlertDialogTitle>{t('Xoá bản nháp này?', 'Discard this draft?')}</AlertDialogTitle>
               <AlertDialogDescription>
                 {t('Nội dung và ảnh bạn đã nhập sẽ bị xoá khỏi thiết bị này.', 'The text and photos you entered will be removed from this device.')}
               </AlertDialogDescription>
@@ -90,13 +90,13 @@ export function DraftNotice({
             <AlertDialogFooter>
               <AlertDialogCancel>{t('Giữ lại', 'Keep it')}</AlertDialogCancel>
               <AlertDialogAction variant="destructive" className="font-bold" onClick={onDiscard}>
-                {t('Bỏ nháp', 'Discard')}
+                {t('Xoá bản nháp', 'Discard')}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
         <Button variant="bare" size="none" type="button" onClick={onDismiss} className="relative text-sm font-semibold text-body hover:text-foreground cursor-pointer tap-44">
-          {t('Giữ', 'Keep')}
+          {t('Giữ bản nháp', 'Keep')}
         </Button>
       </span>
     </Alert>

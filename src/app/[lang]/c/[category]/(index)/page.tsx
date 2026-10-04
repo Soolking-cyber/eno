@@ -285,7 +285,7 @@ export default async function CategoryPage({ params }: Props) {
         </div>
       )}
 
-      {/* /c/jobs: "Theo thành phố / By city" with counts, the jobs page's "By area" (rentals-11) — only
+      {/* /c/jobs: "Theo tỉnh/thành / By city" with counts, the jobs page's "By area" (rentals-11) — only
           with two cities or more, where there is a choice to make. */}
       {jobCities.length > 1 && <JobCityChips cities={jobCities} />}
 
@@ -375,7 +375,7 @@ export default async function CategoryPage({ params }: Props) {
             ? <Bilingual en="No teacher profiles here yet — be the first." vi="Chưa có hồ sơ giáo viên nào — hãy là người đầu tiên." />
             : <Tr text="No listings here yet — be the first to post one." />}
           subtitle={isTeachers
-            ? <Bilingual en="Create a free profile, and schools and companies hiring teachers can message you on eno." vi="Tạo hồ sơ miễn phí để các trường học và công ty đang tuyển giáo viên nhắn tin cho bạn trên eno." />
+            ? <Bilingual en="Create a free profile, and schools and companies hiring teachers can message you on eno." vi="Tạo hồ sơ miễn phí để các trường học và công ty đang tuyển giáo viên có thể nhắn tin cho bạn trên eno." />
             : <Tr text="Your listing goes live in minutes and reaches buyers across Vietnam." />}
           action={
             <div className="flex max-w-2xl flex-col items-center gap-6">

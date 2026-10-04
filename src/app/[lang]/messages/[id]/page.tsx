@@ -2249,7 +2249,7 @@ export default function ThreadPage() {
                   <AlertDialogHeader>
                     {/* A replacer FUNCTION: a string replacement would read `$&` / `$$` in a seller's title as patterns. */}
                     <AlertDialogTitle>{tr('Mark "{title}" as sold?', 'Đánh dấu "{title}" là đã bán?').replace('{title}', () => stripTitle)}</AlertDialogTitle>
-                    <AlertDialogDescription>{tr('It comes off sale for buyers. You can relist it from My listings.', 'Tin sẽ ngừng bán với người mua. Bạn có thể đăng lại trong Tin của tôi.')}</AlertDialogDescription>
+                    <AlertDialogDescription>{tr('It will no longer be for sale. You can relist it from My listings.', 'Tin sẽ không còn được rao bán. Bạn có thể đăng lại trong Tin của tôi.')}</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>{tr('Cancel', 'Hủy')}</AlertDialogCancel>

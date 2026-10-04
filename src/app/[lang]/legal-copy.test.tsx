@@ -435,7 +435,7 @@ describe('/legal/ranking', () => {
     expect(en).not.toContain('items for sale that give no condition')
     expect(en).toContain('vehicle rentals linked from rental platforms and shops')
     const vi = text(await ranking('vi'))
-    expect(vi).toContain('hoặc là tên của mục mà tin được đăng; tiếp theo là các tin cần đến danh mục của tin để khớp một trong các từ')
+    expect(vi).toContain('hoặc là tên của mục mà tin được đăng, sẽ được xếp trước; tiếp theo là các tin cần đến danh mục của tin để khớp một trong các từ')
     expect(vi).toContain('không được dùng để tìm trong nội dung tin và không lọc theo tình trạng')
     expect(vi).toContain('kết quả là các món hàng đang được đăng bán')
     expect(vi).toContain('tin cho thuê xe dẫn từ các nền tảng, cửa hàng cho thuê xe')

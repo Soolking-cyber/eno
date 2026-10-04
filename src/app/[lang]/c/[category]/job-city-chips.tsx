@@ -16,7 +16,7 @@ import type { JobCity } from './job-cities'
 const PENDING_AREA_KEY = 'eno:pending-area'
 
 /**
- * /c/jobs "Theo thành phố / By city" chips with their counts (rentals-11), shaped like rentals' "By area"
+ * /c/jobs "Theo tỉnh/thành / By city" chips with their counts (rentals-11), shaped like rentals' "By area"
  * row: one swipe row on a phone, wrapping from sm, each chip a real `<a>` into the jobs explorer in the
  * reader's language (`/vi?category=jobs` on a Vietnamese page — localizedHref, A1-LANG).
  *
@@ -25,7 +25,7 @@ const PENDING_AREA_KEY = 'eno:pending-area'
  * for its next explorer — and opens every job, which is still the right page. rel="nofollow" +
  * prefetch={false} like every explorer link on /c (it canonicalises to `/`).
  * ⚠️ NAVIGATING CHIPS ARE `chipVariants()` ON A <Link> (the canon's interactive chip; a link is not a
- * toggle — ui/chip.tsx), and the "Theo thành phố: / By city:" label names their group for a screen reader.
+ * toggle — ui/chip.tsx), and the "Theo tỉnh/thành: / By city:" label names their group for a screen reader.
  */
 export function JobCityChips({ cities }: { cities: JobCity[] }) {
   const { tr, lang } = useLanguage()
@@ -37,7 +37,7 @@ export function JobCityChips({ cities }: { cities: JobCity[] }) {
   const labelId = useId()
   return (
     <div role="group" aria-labelledby={labelId} className="scrollbar-none mt-3 flex flex-nowrap items-center gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain py-1 sm:mt-6 sm:flex-wrap sm:overflow-visible sm:py-0">
-      <span id={labelId} className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4">{tr('By city:', 'Theo thành phố:')}</span>
+      <span id={labelId} className="shrink-0 whitespace-nowrap text-xs font-semibold text-ink-4">{tr('By city:', 'Theo tỉnh/thành:')}</span>
       {cities.map((c) => (
         <Link
           key={c.geo.code}

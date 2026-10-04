@@ -50,7 +50,7 @@ export function shotListFor(categorySlug: string | undefined, subcategorySlug: s
     return [t('Mặt trước, màn hình bật', 'Front, screen on'), t('Mặt sau và các cạnh', 'Back and edges'), t('Màn hình tình trạng pin', 'Battery health screen'), t('Hộp và phụ kiện kèm theo', 'Box and what comes with it')]
   }
   if (categorySlug === 'furniture-appliances' && ['sofa-seating', 'tables-desks', 'beds-mattresses', 'storage'].includes(subcategorySlug ?? '')) {
-    return [t('Toàn bộ món đồ', 'The whole piece'), t('Cận cảnh chất liệu', 'Close-up of the material'), t('Vết xước hoặc hao mòn', 'Any marks or wear'), t('Thước đo kích thước', 'A tape measure for size')]
+    return [t('Toàn bộ món đồ', 'The whole piece'), t('Cận cảnh chất liệu', 'Close-up of the material'), t('Vết xước hoặc hao mòn', 'Any marks or wear'), t('Kèm thước đo kích thước', 'A tape measure for size')]
   }
   if ((categorySlug === 'vehicles' && subcategorySlug === 'motorbike') || (categorySlug === 'rentals' && subcategorySlug === 'motorbike-rental')) {
     return [t('Hai bên xe', 'Both sides'), t('Đồng hồ số km', 'Odometer'), t('Lốp và phanh', 'Tyres and brakes'), t('Động cơ', 'Engine')]
@@ -762,8 +762,8 @@ export function ContactSection({
         // too, and most new accounts have none, so the phone question arrived as a surprise after sign-in.
         <p className="text-sm text-muted-foreground">
           {candidates
-            ? t('Tên lấy từ tài khoản khi bạn đăng nhập lúc đăng tin. Nếu tài khoản chưa có số điện thoại, bạn sẽ thêm ở đây — ứng viên không thấy số này.', 'Your name comes from your account when you sign in at publish. If the account has no phone number, you add one here — candidates never see it.')
-            : t('Tên lấy từ tài khoản khi bạn đăng nhập lúc đăng tin. Nếu tài khoản chưa có số điện thoại, bạn sẽ thêm ở đây — người mua không thấy số này.', 'Your name comes from your account when you sign in at publish. If the account has no phone number, you add one here — buyers never see it.')}
+            ? t('Tên được lấy từ tài khoản của bạn khi đăng nhập lúc đăng tin. Nếu tài khoản chưa có số điện thoại, bạn sẽ thêm số ở đây — ứng viên chỉ thấy số này sau khi bạn trả lời.', 'Your name comes from your account when you sign in at publish. If the account has no phone number, you add one here — candidates only see it after you reply.')
+            : t('Tên được lấy từ tài khoản của bạn khi đăng nhập lúc đăng tin. Nếu tài khoản chưa có số điện thoại, bạn sẽ thêm số ở đây — người mua chỉ thấy số này sau khi bạn trả lời.', 'Your name comes from your account when you sign in at publish. If the account has no phone number, you add one here — buyers only see it after you reply.')}
         </p>
       ) : (
         <div className="space-y-3">
@@ -812,8 +812,8 @@ export function ContactSection({
               label={t('Số điện thoại', 'Phone number')}
               hint={resumePhonePrompt
                 ? (candidates
-                    ? t('Thêm số điện thoại để hoàn tất — ứng viên không thấy số này', 'Add a phone number to finish — candidates never see it')
-                    : t('Thêm số điện thoại để hoàn tất — người mua không thấy số này', 'Add a phone number to finish — buyers never see it'))
+                    ? t('Thêm số điện thoại để hoàn tất — ứng viên chỉ thấy số này sau khi bạn trả lời', 'Add a phone number to finish — candidates only see it after you reply')
+                    : t('Thêm số điện thoại để hoàn tất — người mua chỉ thấy số này sau khi bạn trả lời', 'Add a phone number to finish — buyers only see it after you reply'))
                 : candidates ? t('Ứng viên không thấy số cho đến khi bạn trả lời.', 'Candidates never see it until you reply.') : t('Người mua không thấy số cho đến khi bạn trả lời.', 'Buyers never see it until you reply.')}
               error={errContactPhone ? t('Thêm số điện thoại hợp lệ', 'Add a valid phone number') : undefined}
             >

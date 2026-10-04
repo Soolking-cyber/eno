@@ -47,7 +47,7 @@ describe('jobCityChips — city groups to province chips', () => {
   })
 })
 
-describe('JobCityChips — "Theo thành phố / By city"', () => {
+describe('JobCityChips — "Theo tỉnh/thành / By city"', () => {
   const cities = jobCityChips([{ city: 'Hồ Chí Minh', count: 9 }, { city: 'Hà Nội', count: 6 }])
 
   beforeEach(() => { sessionStorage.clear(); LANG = 'en' })
@@ -56,7 +56,7 @@ describe('JobCityChips — "Theo thành phố / By city"', () => {
   it('Vietnamese: the /vi jobs explorer, the label and the counts', () => {
     LANG = 'vi'
     render(<JobCityChips cities={cities} />)
-    const group = screen.getByRole('group', { name: 'Theo thành phố:' })
+    const group = screen.getByRole('group', { name: 'Theo tỉnh/thành:' })
     expect(within(group).getAllByRole('link')).toHaveLength(2)
     const hn = screen.getByRole('link', { name: /Hà Nội/ })
     expect(hn.className).toMatch(/\brounded-full\b/) // chipVariants on a <Link> — the canon's navigating chip

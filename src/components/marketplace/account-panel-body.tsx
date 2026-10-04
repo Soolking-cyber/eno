@@ -461,7 +461,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
                 <LogIn className="size-5" />
               </span>
               <span className={cn('min-w-0 max-w-[180px] flex-1 overflow-hidden transition-[opacity,translate] ease-out', expanded ? 'lg:translate-x-0 lg:opacity-100 lg:duration-150 lg:delay-50' : 'lg:-translate-x-1 lg:opacity-0 lg:duration-100')}>
-                <span className="block truncate text-sm font-bold text-foreground">{tr('Your session has expired', 'Phiên đăng nhập đã hết hạn')}</span>
+                <span className="block truncate text-sm font-bold text-foreground">{tr('Your session has expired', 'Phiên đăng nhập hết hạn')}</span>
                 <span className="block truncate text-xs font-semibold text-accent-foreground">{tr('Sign in', 'Đăng nhập')}</span>
               </span>
             </Button>

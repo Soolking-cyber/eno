@@ -1420,7 +1420,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         {t('Điền các mục bên dưới', 'Fill in the sections below')}
         {' — '}
         <span className="hidden lg:inline">{t('bản xem trước cập nhật ngay.', 'your preview updates live.')}</span>
-        <span className="lg:hidden">{t('kiểm tra lại các mục trước khi đăng.', 'check each section before you publish.')}</span>
+        <span className="lg:hidden">{t('kiểm tra lại từng mục trước khi đăng.', 'check each section before you publish.')}</span>
       </p>
       {draftNotice && (
         <div className="mt-4">

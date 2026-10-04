@@ -147,7 +147,7 @@ const meeting: Tip[] = [
     { en: 'Tell someone where you’re going', vi: 'Báo cho người thân biết bạn đi đâu' },
     {
       en: 'Share the meeting place and time with a friend or family member, and bring them along for higher-value items. There’s real safety in not arriving alone.',
-      vi: 'Chia sẻ địa điểm và thời gian gặp với bạn bè hoặc người nhà, và rủ họ đi cùng khi mua món đồ giá trị cao. Không đến một mình sẽ an toàn hơn hẳn.',
+      vi: 'Chia sẻ địa điểm và thời gian gặp với bạn bè hoặc người nhà, và rủ họ đi cùng khi giao dịch món đồ giá trị cao. Không đến một mình sẽ an toàn hơn hẳn.',
     }],
   [SearchCheck,
     { en: 'Inspect fully before any money moves', vi: 'Kiểm tra kỹ trước khi trả bất kỳ khoản tiền nào' },
@@ -183,7 +183,7 @@ const redFlags: Tip[] = [
     { en: 'A price too good to be true', vi: 'Giá rẻ đến khó tin' },
     {
       en: 'If it’s dramatically cheaper than everything comparable, assume it’s bait — for a fake sale, a stolen item, or an account that vanishes the moment you pay.',
-      vi: 'Nếu rẻ hơn hẳn mọi món tương tự, hãy coi đó là mồi nhử — cho một vụ bán hàng giả, một món đồ trộm cắp, hoặc một tài khoản biến mất ngay khi bạn trả tiền.',
+      vi: 'Nếu rẻ hơn hẳn mọi món tương tự, hãy coi đó là mồi nhử — một vụ mua bán giả, một món đồ bị đánh cắp, hoặc một tài khoản biến mất ngay khi bạn trả tiền.',
     }],
   [AlertTriangle,
     { en: 'Pressure and urgency', vi: 'Hối thúc và gây áp lực' },
@@ -198,10 +198,10 @@ const redFlags: Tip[] = [
       vi: 'Người bán từ chối gặp ở nơi công cộng và đòi tiền trước để giao hàng là rủi ro bạn không cần chấp nhận. Hãy bỏ qua.',
     }],
   [AlertTriangle,
-    { en: '“I’m abroad — I’ll courier it to you”', vi: '“Tôi đang ở nước ngoài — tôi sẽ gửi chuyển phát cho bạn”' },
+    { en: '“I’m abroad — I’ll courier it to you”', vi: '“Tôi đang ở nước ngoài — sẽ gửi chuyển phát nhanh cho bạn”' },
     {
       en: 'The standard rental and vehicle scam: the “owner” is overseas, the price is excellent, and all you have to do is transfer a deposit so the keys or the bike can be sent. Nothing ever arrives. If the person cannot meet you, there is no deal.',
-      vi: 'Chiêu lừa quen thuộc khi thuê nhà và mua xe: “chủ” đang ở nước ngoài, giá rất hời, và bạn chỉ cần chuyển tiền cọc để họ gửi chìa khóa hoặc chiếc xe. Không bao giờ có gì được gửi đến. Nếu người đó không thể gặp bạn, thì không có giao dịch nào cả.',
+      vi: 'Chiêu lừa quen thuộc khi thuê nhà, thuê hoặc mua xe: “chủ” đang ở nước ngoài, giá rất hời, và bạn chỉ cần chuyển tiền cọc để họ gửi chìa khóa hoặc chiếc xe. Rồi chẳng có gì được gửi đến cả. Nếu người đó không thể gặp bạn, thì không có giao dịch nào cả.',
     }],
   [AlertTriangle,
     { en: '“Read me the code”', vi: '“Đọc mã cho tôi”' },
@@ -313,7 +313,7 @@ const recovery: [title: Copy, body: Copy][] = [
     { en: 'If money was lost, act fast', vi: 'Nếu đã mất tiền, hãy hành động ngay' },
     {
       en: 'Contact your bank immediately to try to reverse or freeze the transfer, and report the fraud to your local police (in Vietnam, the nearest công an phường).',
-      vi: 'Liên hệ ngay với ngân hàng để thử hoàn lại hoặc phong tỏa khoản chuyển khoản, và trình báo vụ lừa đảo với công an phường gần nhất.',
+      vi: 'Liên hệ ngay với ngân hàng để đề nghị hoàn lại hoặc phong tỏa giao dịch chuyển tiền, và trình báo vụ lừa đảo với công an phường gần nhất.',
     }],
   [
     { en: 'Reach eno support', vi: 'Liên hệ bộ phận hỗ trợ của eno' },
