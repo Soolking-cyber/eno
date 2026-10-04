@@ -7,8 +7,8 @@ import { schoolForJob } from '@/lib/schools/queries'
  * On a job page: "What teachers say about <school>" when the ad's employer is a school in the directory
  * (2026-10-04). A server component; renders nothing when there is no match or the read fails.
  */
-export async function SchoolLinkForJob({ employer, sellerId, className }: { employer: unknown; sellerId: string; className?: string }) {
-  const school = await schoolForJob(employer, sellerId)
+export async function SchoolLinkForJob({ employer, sellerId, city, className }: { employer: unknown; sellerId: string; city: string | null; className?: string }) {
+  const school = await schoolForJob(employer, sellerId, { city })
   if (!school) return null
   return (
     <p className={className}>

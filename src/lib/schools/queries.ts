@@ -7,6 +7,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { LISTING_CARD_SELECT, serializeListingCard, safeParse } from '@/lib/serialize'
 import { ELIGIBLE_ACCOUNT_AGE_DAYS, REQUIRE_PHONE, type SchoolKind, type GoodTag, type BadTag, isGoodTag, isBadTag } from './constants'
 import { compareSchools, isGenericEmployer, normEmployer, summarisePay, type PaySummary, type SchoolSort } from './logic'
+import { inHcmc, jobSchoolId, type JobPlace } from './job-match'
 
 /**
  * Server reads for /schools. Every public number is computed HERE at read time from the rows, with the
@@ -121,9 +122,9 @@ async function jobsCategoryId(): Promise<string | null> {
 }
 
 /**
- * Live job listings → school ids, by EXACT normalised employer against the alias table, plus any job
- * posted by the school's own linked shop. Active jobs are a few hundred rows; one scan per request is
- * cheaper and more truthful than a materialised table that has to follow every import.
+ * Live job listings → school ids (job-match.ts jobSchoolId: the school's own linked shop anywhere, else an
+ * EXACT normalised employer against the alias table for a job in HCMC). Active jobs are a few hundred rows;
+ * one scan per request is cheaper and more truthful than a materialised table that has to follow every import.
  */
 async function jobsBySchool(schools: { id: string; sellerId: string | null }[]): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>()
@@ -132,7 +133,7 @@ async function jobsBySchool(schools: { id: string; sellerId: string | null }[]):
   const [jobs, aliases] = await Promise.all([
     db.listing.findMany({
       where: await scopedListingWhere({ categoryId: catId, status: 'active', verified: true }),
-      select: { id: true, attributes: true, sellerId: true },
+      select: { id: true, attributes: true, sellerId: true, city: true },
       orderBy: { postedAt: 'desc' },
       // Live jobs were 25 on 2026-10-04; the cap only bounds a pathological import.
       take: 5000,
@@ -143,8 +144,7 @@ async function jobsBySchool(schools: { id: string; sellerId: string | null }[]):
   const bySeller = new Map(schools.filter((s) => s.sellerId).map((s) => [s.sellerId as string, s.id]))
   for (const j of jobs) {
     const employer = safeParse<Record<string, unknown>>(j.attributes, {})?.employer
-    const key = typeof employer === 'string' ? normEmployer(employer) : ''
-    const sid = bySeller.get(j.sellerId) ?? (key && !isGenericEmployer(key) ? byAlias.get(key) : undefined)
+    const sid = jobSchoolId({ employer, sellerId: j.sellerId, city: j.city }, bySeller, byAlias)
     if (sid) out.set(sid, [...(out.get(sid) ?? []), j.id])
   }
   return out
@@ -363,14 +363,20 @@ export function writeEligibility(p: { accountType: string | null; enforcementSta
  * ⛔ NEVER THROWS: it runs inside the listing page, the site's most-visited render, and a missing table
  * or a slow read must cost the link, not the page.
  */
-export async function schoolForJob(employer: unknown, sellerId: string): Promise<{ slug: string; name: string } | null> {
+export async function schoolForJob(employer: unknown, sellerId: string, place: JobPlace): Promise<{ slug: string; name: string } | null> {
   try {
-    const bySeller = await db.school.findFirst({ where: { sellerId, status: 'active' }, select: { slug: true, name: true } })
-    if (bySeller) return bySeller
-    const alias = typeof employer === 'string' ? normEmployer(employer) : ''
-    if (isGenericEmployer(alias)) return null
-    const hit = await db.schoolAlias.findUnique({ where: { alias }, select: { school: { select: { slug: true, name: true, status: true } } } })
-    return hit && hit.school.status === 'active' ? { slug: hit.school.slug, name: hit.school.name } : null
+    // jobSchoolId's first rule, answered before the alias read so a failed or slow alias lookup can never
+    // cost a school its own shop's job (diff review): the school's linked shop counts wherever the job is.
+    const own = await db.school.findFirst({ where: { sellerId, status: 'active' }, select: { slug: true, name: true } })
+    if (own) return own
+    const key = typeof employer === 'string' ? normEmployer(employer) : ''
+    // Read the alias only when the rule could accept it — not for a generic name or a job outside HCMC.
+    const named = key && !isGenericEmployer(key) && inHcmc(place)
+      ? await db.schoolAlias.findUnique({ where: { alias: key }, select: { school: { select: { id: true, slug: true, name: true, status: true } } } })
+      : null
+    const hit = named?.school.status === 'active' ? named.school : null
+    // The rest of the SAME rule as jobsBySchool (job-match.ts): HCMC only, never a generic name.
+    return hit && jobSchoolId({ employer, sellerId, ...place }, new Map(), new Map([[key, hit.id]])) === hit.id ? { slug: hit.slug, name: hit.name } : null
   } catch {
     return null
   }

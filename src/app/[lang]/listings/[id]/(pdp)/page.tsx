@@ -1296,7 +1296,7 @@ export default async function ListingPage({ params }: Props) {
                 MARKETPLACE ONLY, like the footer link and the sitemap: on eno.forum it would promote
                 the forum's duplicate copy of the directory. */}
             {!IS_SERVICES && listing.listingType === 'job' && (
-              <SchoolLinkForJob employer={listing.attributes?.employer} sellerId={listing.sellerId} className="order-12 flex items-start gap-2 text-sm" />
+              <SchoolLinkForJob employer={listing.attributes?.employer} sellerId={listing.sellerId} city={listing.city} className="order-12 flex items-start gap-2 text-sm" />
             )}
             {safetyNote && (
               <p className="order-12 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
