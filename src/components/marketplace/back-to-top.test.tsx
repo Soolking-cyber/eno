@@ -286,6 +286,18 @@ describe('BackToTop — yields to the opt-in values and to the footer', () => {
     expect(yielded(support())).toBe(true)
   })
 
+  it('a FULL-WIDTH [data-fab-avoid] value (the PDP H1, the market-price range) is yielded to — never risen above like a CTA bar (pdp-01, si-11)', () => {
+    const main = document.createElement('main')
+    document.body.prepend(main)
+    // The same box as the CTA above, which lifts the cluster 72px: as a value, it only takes the yield.
+    placed('h1', main, { left: 12, right: 378, top: 700, bottom: 748 }).setAttribute('data-fab-avoid', '')
+    render(<BackToTop />)
+    layOut()
+    rest()
+    expect(column().style.translate).toBe('')
+    expect(yielded(support())).toBe(true)
+  })
+
   it('a footer link under the mark yields it — #app-footer is page content, not chrome', () => {
     const footer = document.createElement('footer')
     footer.id = 'app-footer'

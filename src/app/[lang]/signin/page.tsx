@@ -48,7 +48,9 @@ function SignInPageInner() {
        field and a reveal toggle), and a vertically centred column re-centres on every change, so the
        logo and the h1 jumped ~95px when the visitor chose "Use a password" (measured at 390x844). A top
        anchor keeps everything above the form still; `max(3rem, 10dvh)` keeps the plain, airy frame. */
-    <div className="flex min-h-screen w-full flex-col items-center justify-start px-6 pb-12 pt-[max(3rem,10dvh)]">
+    /* `<main id="main" tabIndex={-1}>` (quality-12): the skip link targets #main on every page, and this one
+       had no main landmark at all — the skip link went nowhere and a screen reader found no main region. */
+    <main id="main" tabIndex={-1} className="flex min-h-screen w-full flex-col items-center justify-start px-6 pb-12 pt-[max(3rem,10dvh)]">
       <div className="w-full max-w-sm">
         <Link href="/" className="mb-8 flex justify-center">
           {/* `?v=` is a content stamp that earns this file `max-age=31536000, immutable`
@@ -75,7 +77,7 @@ function SignInPageInner() {
           {COMPANY.name} · {COMPANY.address} · {tr('Business reg. no.', 'GCN ĐKDN số')}: {COMPANY.erc} · {COMPANY.email}
         </p>
       </div>
-    </div>
+    </main>
   )
 }
 

@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { RelativeTime } from './relative-time'
 import { useLanguage, useTr } from '@/context/language-context'
 import { VI_PASSAGE_LABEL, detectContentLang, looksVietnamese, mayBeVietnamese, readsAsVietnamese } from '@/lib/detect-lang'
 import { trCache, translateText } from '@/lib/i18n/mt-client'
 import { formatRichText } from '@/components/marketplace/rich-text'
+import { Button } from '@/components/ui/button'
 
 /**
  * Client-side localized listing title — mirrors the card: Vietnamese uses the
@@ -124,12 +125,124 @@ export function useLocalized(
   i18n?: Record<string, string> | null,
   column: LocalizedColumn = 'title',
 ): string {
+  return useLocalizedSource(text, vi, i18n, column).out
+}
+
+/**
+ * useLocalized, plus WHETHER what it returned is a machine translation (pdp-05): an embedded `i18n`
+ * value or a useTr / useMachineEn answer, rather than the author's own text or the authored `vi`
+ * column. That is the reader's cue to see the original — Facebook, Shopee and Airbnb all say so.
+ * ⚠️ "Different from both columns" is the test, not "came from the embed": the embed for a reader
+ * whose language the text is already in IS the text, and a translation that came back unchanged is
+ * not one.
+ */
+export function useLocalizedSource(
+  text: string,
+  vi?: string | null,
+  i18n?: Record<string, string> | null,
+  column: LocalizedColumn = 'title',
+): { out: string; machine: boolean; asked: string } {
   const { lang } = useLanguage()
   const plan = localizedPlan(text, vi, i18n, lang, column)
   // useTr is a hook → always called; '' is a no-op, so we skip translation when embedded.
   const translated = useTr(plan.tr)
   const mtEn = useMachineEn(plan.en)
-  return plan.embedded || (lang === 'en' ? mtEn : translated) || text
+  const served = plan.embedded || (lang === 'en' ? mtEn : translated)
+  // `asked`: the text a CLIENT translation was requested for ('' when none) — what useNoteReserve waits on.
+  return { out: served || text, machine: !!served && served !== text && served !== vi, asked: lang === 'en' ? plan.en : plan.tr }
+}
+
+/**
+ * Should the note's line be HELD (MachineTranslationReserve)? While the client translation of `asked` is
+ * out, the note may still arrive. Only the PDP's H1 and description ask — never a card or a location
+ * (useLocalized), which show no note.
+ * ⚠️ Not for a Vietnamese-looking text and a Vietnamese reader: translateText answers that one with itself
+ * at once, so no note can follow.
+ */
+function useNoteReserve(asked: string, machine: boolean): boolean {
+  const { lang } = useLanguage()
+  const awaiting = useAwaitingTranslation(asked && !(lang === 'vi' && looksVietnamese(asked)) ? asked : '', lang)
+  return !machine && awaiting
+}
+
+/**
+ * Is a client translation of `text` still out? True from the server render until the batch that carries
+ * it answers (or fails).
+ * ⚠️ It rides the SAME batcher call useTr / useMachineEn make, in the same 60ms window, so the request
+ * carries the text once (mt-client flush dedupes); a cached answer is no request at all. Both answers land
+ * from one flush, so React renders the note and drops the reserve in ONE commit — no frame without either.
+ */
+function useAwaitingTranslation(text: string, lang: Parameters<typeof translateText>[1]): boolean {
+  const key = `${lang} ${text}`
+  const [answered, setAnswered] = useState<string | null>(null)
+  useEffect(() => {
+    if (!text || trCache.get(key) != null) { setAnswered(key); return }
+    let off = false
+    translateText(text, lang).then(() => { if (!off) setAnswered(key) })
+    return () => { off = true }
+  }, [text, lang, key])
+  return !!text && answered !== key
+}
+
+/** The language an ORIGINAL is in, for its `lang` attribute: what the script says, else English when the
+ *  reader's language is not (an unmarked Latin text a non-English reader got translated is English). */
+function originalLang(text: string, lang: string): string | undefined {
+  return detectContentLang(text) ?? (lang === 'en' ? undefined : 'en')
+}
+
+/**
+ * "Translated · See original" — under a machine-translated H1 and above a machine-translated
+ * description (pdp-05 / auth-10 / quality-09), the messenger's pattern (messages/[id]/page.tsx, "Xem
+ * bản gốc" under a translated bubble). The toggle is the reader's; nothing is stored.
+ * ⚠️ A `ui/button` link, not a bare <button>: Base UI is the house library. `relative tap-44` — the
+ * line is 12px text, and tap-44's ::before needs a positioned host (globals.css).
+ * ⚠️ NO `aria-pressed`: the LABEL says the state ("See original" ↔ "See translation"), as the
+ * messenger's does. A toggle that changes its label AND reports pressed reads "See translation, pressed"
+ * — two answers to one question (WAI-ARIA APG: a toggle's label must not change with its state).
+ */
+export function MachineTranslationNote({ original, onToggle, className }: { original: boolean; onToggle: () => void; className?: string }) {
+  const { tr } = useLanguage()
+  return (
+    <p className={`text-xs text-muted-foreground${className ? ` ${className}` : ''}`}>
+      {tr('Translated', 'Đã dịch tự động')}
+      {' · '}
+      <Button variant="link" size="none" onClick={onToggle} className="relative tap-44 text-xs font-semibold text-accent-foreground">
+        {original ? tr('See translation', 'Xem bản dịch') : tr('See original', 'Xem bản gốc')}
+      </Button>
+    </p>
+  )
+}
+
+/**
+ * ⛔ THE NOTE'S LINE IS HELD WHILE A CLIENT TRANSLATION IS OUT (review, 2026-10-04). With no embedded
+ * translation the note can only appear once /api/translate answers — after hydration — and arriving it
+ * pushed the first screen down ~24px under a reader already looking at it. This is the same text-xs line,
+ * invisible and out of the accessibility tree, in the server HTML too; the note takes its place. If the
+ * answer comes back unchanged (nothing was translated) the line goes, as the note would never have come.
+ */
+function MachineTranslationReserve() {
+  return <p aria-hidden data-mt-reserve="" className="invisible text-xs">{'\u00a0'}</p>
+}
+
+/**
+ * The PDP's single H1, localized, with the "Translated · See original" line under it when the title on
+ * screen is a machine translation. The original is marked with its own `lang`.
+ * `data-fab-avoid`: the support bubble yields over the end of the title (si-11; back-to-top.tsx).
+ */
+export function LocalizedTitleHeading({ title, titleVi, i18n, className }: { title: string; titleVi: string | null; i18n?: Record<string, string> | null; className?: string }) {
+  const { lang } = useLanguage()
+  const { out, machine, asked } = useLocalizedSource(title, titleVi, i18n)
+  const reserve = useNoteReserve(asked, machine)
+  const [original, setOriginal] = useState(false)
+  const showOriginal = machine && original
+  const shown = showOriginal ? title : out
+  const cl = showOriginal ? originalLang(title, lang) : detectContentLang(shown)
+  return (
+    <>
+      <h1 data-fab-avoid className={className}>{cl && cl !== lang ? <span lang={cl}>{shown}</span> : shown}</h1>
+      {machine ? <MachineTranslationNote original={original} onToggle={() => setOriginal((o) => !o)} /> : reserve ? <MachineTranslationReserve /> : null}
+    </>
+  )
 }
 
 // Client translate INTO English for cache-miss non-EN content (the embed covers warmed content;
@@ -240,16 +353,47 @@ function sharedWordShare(text: string, other: string): number {
 
 /** Localized listing description rendered with light markdown (bullets / bold / paragraphs). */
 export function ListingDescription({ text, vi, i18n, className }: { text: string; vi?: string | null; i18n?: Record<string, string> | null; className?: string }) {
-  const { lang } = useLanguage()
+  const { lang, tr } = useLanguage()
   // ⚠️ `vi` WAS HARDCODED null HERE while the heading passed titleVi through the same hook — so a
   // listing stored in two languages showed its title correctly and its description always in the
   // primary one. The slot existed; nothing was filling it.
-  const out = useLocalized(text, ownDescriptionVi(text, vi), i18n, 'description')
-  const cl = detectContentLang(out)
+  const { out, machine, asked } = useLocalizedSource(text, ownDescriptionVi(text, vi), i18n, 'description')
+  const reserve = useNoteReserve(asked, machine)
+  const [original, setOriginal] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const id = useId()
+  const showOriginal = machine && original
+  const shown = showOriginal ? text : out
+  const cl = showOriginal ? originalLang(text, lang) : detectContentLang(shown)
+  /**
+   * ⛔ A LONG DESCRIPTION IS CLAMPED TO 8 LINES BELOW md, WITH "See more" (pdp-04 part A). A 2,000-character
+   * import pushed Details, the seller and the map a dozen screens down on a phone. The full text stays in
+   * the SSR DOM — clamped by CSS only, so crawlers, find-in-page and screen readers still get all of it —
+   * and from md up nothing is clamped and the button does not exist (`md:hidden`, `max-md:` clamp).
+   * ⚠️ HAND-ROLLED, NOT Base UI Collapsible: its Panel HIDES the closed content outright, and a clamp has
+   * to SHOW the first eight lines. The trigger is still a ui/button with aria-expanded + aria-controls.
+   */
+  // Long by characters, OR by lines: twenty short lines under 600 characters still run far past 8 on a phone.
+  const clampable = shown.length > DESCRIPTION_CLAMP_CHARS || shown.split('\n').length > DESCRIPTION_CLAMP_LINES
   // `allow-select`: keep the description selectable/copyable in the native app, where chrome
   // selection is disabled (globals.css html.native). Content text is the exception users need.
-  return <div lang={cl && cl !== lang ? cl : undefined} className={`allow-select${className ? ` ${className}` : ''}`}>{formatRichText(out)}</div>
+  return (
+    <>
+      {machine ? <MachineTranslationNote original={original} onToggle={() => setOriginal((o) => !o)} /> : reserve ? <MachineTranslationReserve /> : null}
+      <div id={id} lang={cl && cl !== lang ? cl : undefined} className={`allow-select${className ? ` ${className}` : ''}${clampable && !expanded ? ' max-md:line-clamp-8' : ''}`}>{formatRichText(shown)}</div>
+      {clampable && (
+        <Button variant="link" size="none" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded((e) => !e)} className="relative tap-44 w-fit text-sm font-semibold text-accent-foreground md:hidden">
+          {expanded ? tr('See less', 'Thu gọn') : tr('See more', 'Xem thêm')}
+        </Button>
+      )}
+    </>
+  )
 }
+
+/** Past this many characters a description is clamped below md (~8 lines at the phone measure). */
+export const DESCRIPTION_CLAMP_CHARS = 600
+/** …or past this many written lines, whatever their length (the clamp itself is 8 rendered lines). */
+export const DESCRIPTION_CLAMP_LINES = 8
 
 /** Relative "x ago" in the active language (client — keeps the page cacheable).
  *  Hydration-stable: see RelativeTime — the clock is never read before mount. */

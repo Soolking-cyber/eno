@@ -41,10 +41,11 @@ import { RecentlyViewedRail } from '@/components/marketplace/recently-viewed-rai
 import { CATEGORY_COLOR_CLASSES } from '@/lib/types'
 import { Price } from '@/components/marketplace/price'
 import { Bilingual } from '@/components/marketplace/bilingual'
+import { FacetValue, facetValueStartsRaw } from './facet-value'
 import { minPhotosFor } from '@/lib/publish-guard'
 import { priceUnitSuffix } from '@/lib/price-unit'
 import { Tr } from '@/context/language-context'
-import { LocalizedTitle, LocalizedText, ListingDescription, PostedAgo } from '@/components/marketplace/listing-content'
+import { LocalizedTitle, LocalizedTitleHeading, LocalizedText, ListingDescription, PostedAgo } from '@/components/marketplace/listing-content'
 import { hideRepeatedFacts } from '@/components/marketplace/rich-text'
 import { CalendarDay } from '@/components/marketplace/calendar-day'
 import { cachedTranslations } from '@/lib/translate'
@@ -249,13 +250,20 @@ export default async function ListingPage({ params }: Props) {
   // it names what sold and keeps the shopper moving (seller's other stock + category).
   if (rawListing.status === 'sold') {
     const sold = serializeListing(rawListing)
-    const moreFromSeller = await sameSellerListings(sold.sellerId, sold.id, 10)
+    // The title's pre-warmed translations ride along, as on the live PDP below: the sold item is named in
+    // the reader's language in the server HTML (A10-SOLD), not machine-translated after paint.
+    const [moreFromSeller, soldI18n] = await Promise.all([
+      sameSellerListings(sold.sellerId, sold.id, 10),
+      cachedTranslations([sold.title]),
+    ])
     return (
       <SoldListing
         listing={sold}
         moreFromSeller={moreFromSeller}
         sellerName={rawListing.seller.name}
         sellerHref={`/sellers/${sold.sellerId}`}
+        lang={pageVariant}
+        titleI18n={soldI18n[sold.title] ?? null}
       />
     )
   }
@@ -276,7 +284,7 @@ export default async function ListingPage({ params }: Props) {
     )
   }
   // The listing's SOURCE title (as posted) for the JSON-LD and the share text. The <title> and the share
-  // cards follow the variant (generateMetadata, V2b); the visible H1 localizes via <LocalizedTitle>.
+  // cards follow the variant (generateMetadata, V2b); the visible H1 localizes via <LocalizedTitleHeading>.
   const displayTitle = listing.title
   const displayDesc = listing.description
   // Is this one of the visa desk's products? Decides whether "contact the seller" opens an
@@ -469,7 +477,9 @@ export default async function ListingPage({ params }: Props) {
   // "2,015"), which is exactly what a grouping formatter would do to it.
   const numericSpecs: { label: string; value: ReactNode }[] = []
   if (listing.year != null) numericSpecs.push({ label: 'Year', value: String(listing.year) })
-  if (listing.mileageKm != null) numericSpecs.push({ label: 'Mileage', value: <><CountValue value={listing.mileageKm} /> km</> })
+  // Mileage only where it is a fact about a VEHICLE (pdp-08): a helmet or a tyre in Vehicles › Parts
+  // printed "Mileage 0 km" as a chip under its title, and a 0 says nothing on any listing.
+  if (listing.mileageKm != null && listing.mileageKm > 0 && rawListing.subcategorySlug !== 'parts-gear') numericSpecs.push({ label: 'Mileage', value: <><CountValue value={listing.mileageKm} /> km</> })
   if (listing.engineL != null) numericSpecs.push({ label: 'Engine', value: `${listing.engineL} L` })
   // A motorbike's displacement is stored in cc (the filterable `engineCc` range column), and was never
   // shown anywhere on the page it filters to. Only when there is no litre figure — one engine, one chip.
@@ -485,6 +495,10 @@ export default async function ListingPage({ params }: Props) {
   if (rawListing.subcategorySlug === 'esim') hiddenAttrs.add('serviceLocation')
   if (affiliateUrl) hiddenAttrs.add('providerType')
   if (listing.attributes?.network != null && listing.attributes.network === listing.attributes.carrier) hiddenAttrs.add('network')
+  // A linked job's "Source" fact (JOB_TEXT_ATTRIBUTES.source) when Seller information below already has a
+  // Source row (pdp-09): the same "Nguồn" twice, one section above the other. SellerInfo's row stays —
+  // it is the Decree 248 statement of who the reader deals with.
+  if (sellerInfo?.kind === 'source' && sellerInfo.source.trim()) hiddenAttrs.add('source')
   const detailAttrs = attrs.filter(([k]) => !hiddenAttrs.has(k))
   const showDetails = detailAttrs.length > 0 || numericSpecs.length > 0 || detailOnlySpecs.length > 0
   // The Details rows this page renders, by the name rich-text.tsx gives each (the spec label lower-cased,
@@ -611,6 +625,10 @@ export default async function ListingPage({ params }: Props) {
    * ⛔ An e-visa page keeps the line it had on BOTH editions — visa copy is held for the owner (above).
    */
   const tr = (en: string, vi: string) => <Bilingual en={en} vi={vi} />
+  // ⚠️ A LINKED job (affiliateUrl) KEEPS this line, though pdp-09 proposed dropping it as a repeat of
+  // the SafetyStrip above. It is not one: the 'affiliate-job' strip says only "never pay money to get a
+  // job"; this line adds training fees and deposits, and the ID-documents advice appears NOWHERE else on
+  // the page (review, 2026-10-04). Only the Details 'Nguồn' row was a true repeat, and it is gone.
   const safetyNote = listing.listingType === 'job'
     ? <Tr text="Never pay a fee, a deposit or for training to get a job, and don't send copies of your ID documents before you have checked the employer." />
     : affiliateUrl ? null
@@ -931,8 +949,12 @@ export default async function ListingPage({ params }: Props) {
 
                 {/* Title — the single H1, 18px/700 (owner, 2026-09-30, P-HIER). At font-medium it read as
                     body copy under the price and the page had no heading. Bold at 18px it is a heading
-                    and still sits far below the 30px price, so price-first holds. */}
-                <h1 className="text-lg font-bold leading-snug text-foreground"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></h1>
+                    and still sits far below the 30px price, so price-first holds.
+                    `data-fab-avoid` on the H1 (inside LocalizedTitleHeading) and on every meta item below: the
+                    support bubble rests over the end of the title and the posted time on first paint (si-11,
+                    real iOS) — it now yields there (back-to-top.tsx OBSTACLES; a wide value is yielded to,
+                    never risen above). A machine-translated title gets "Translated · See original" under it. */}
+                <LocalizedTitleHeading className="text-lg font-bold leading-snug text-foreground" title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} />
 
                 {/* Metadata — ONE tightly-packed subdued row: brand · condition · specs · location ·
                     posted · social proof; flex-wrap spills to a second row only when it must.
@@ -942,32 +964,32 @@ export default async function ListingPage({ params }: Props) {
                     the column gap is what separates them — nothing is left to strand. */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-muted-foreground">
                   {brand && (
-                    <Badge size="md" interactive render={<Link href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`} prefetch={false} />} className="w-fit gap-1.5 font-semibold text-foreground">
+                    <Badge size="md" interactive render={<Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} />} className="w-fit gap-1.5 font-semibold text-foreground">
                       <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
                       {brand.name}
                     </Badge>
                   )}
                   {listing.condition && (
-                    <Badge size="md" className="font-semibold text-foreground">
+                    <Badge data-fab-avoid size="md" className="font-semibold text-foreground">
                       <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} />
                     </Badge>
                   )}
                   {numericSpecs.map((s) => (
-                    <Badge key={s.label} size="md" className="font-semibold text-foreground">
+                    <Badge key={s.label} data-fab-avoid size="md" className="font-semibold text-foreground">
                       <span className="text-ink-4"><Tr text={s.label} /></span> {s.value}
                     </Badge>
                   ))}
-                  <span className="inline-flex min-w-0 items-center gap-1">
+                  <span data-fab-avoid className="inline-flex min-w-0 items-center gap-1">
                     <MapPin className="h-4 w-4 shrink-0 text-ink-4" />
                     <span className="truncate"><LocalizedText text={listing.location} i18n={i18n[listing.location]} /></span>
                   </span>
                   {showPosted && (
-                    <span className="inline-flex shrink-0 items-center gap-1">
+                    <span data-fab-avoid className="inline-flex shrink-0 items-center gap-1">
                       <Clock className="h-4 w-4 shrink-0 text-ink-4" />
                       <span><Tr text="Posted" /> <PostedAgo iso={listing.postedAt} /></span>
                     </span>
                   )}
-                  {showProof && <span className="flex shrink-0 items-center gap-3 text-xs">{socialProof}</span>}
+                  {showProof && <span data-fab-avoid className="flex shrink-0 items-center gap-3 text-xs">{socialProof}</span>}
                 </div>
               </div>
 
@@ -1020,6 +1042,7 @@ export default async function ListingPage({ params }: Props) {
                         job={isJob}
                         applyBy={jobApplyBy}
                         provenance={provenance ? <ImportProvenance kind={provenance.kind} site={provenance.site} iso={provenance.iso} href={affiliateUrl} /> : null}
+                        lang={pageVariant}
                       />
                     </JobApplyGuard>
                   : isVisaProduct
@@ -1047,6 +1070,8 @@ export default async function ListingPage({ params }: Props) {
                   : <ContactComposer
                       listingId={listing.id}
                       listingTitle={displayTitle}
+                      listingTitleVi={listing.titleVi}
+                      listingTitleI18n={i18n[listing.title]}
                       listingImage={listing.images[0] ?? null}
                       sellerName={listing.seller.name}
                       price={listing.price}
@@ -1200,20 +1225,15 @@ export default async function ListingPage({ params }: Props) {
                     {detailAttrs.map(([k, v]) => {
                       // A job's text facts carry their own label and are shown verbatim (JOB_TEXT_ATTRIBUTES).
                       const jobText = listing.listingType === 'job' ? JOB_TEXT_ATTRIBUTES[k] : undefined
-                      // On a job, a facet key/value gets the taxonomy's own words ("Type: Full-time", not "Jobtype:
-                      // Fulltime"). Scoped to jobs on purpose: every other category keeps its Details exactly as before.
-                      // ⚠️ And to Services › eSIM: its values are SLUGS ("validity: 30-days", "dailyData:
-                      // 1-5gb") that only read right through their option label ("Validity: 30 days").
-                      const labelled = listing.listingType === 'job' || rawListing.subcategorySlug === 'esim'
-                      // ⚠️ THE LABEL, THOUGH, IS THE TAXONOMY'S FOR EVERY CATEGORY, IN BOTH LANGUAGES — the
+                      // ⚠️ THE LABEL AND THE VALUE ARE THE TAXONOMY'S FOR EVERY CATEGORY, IN BOTH LANGUAGES — the
                       // facet row carries its own labelVi ("Phòng ngủ"), and a raw key through <Tr> found
                       // Vietnamese only where the UI dictionary held that exact casing: it has "Bedrooms", not
                       // "bedrooms", so a vi rental PDP printed "bedrooms", "bathrooms" (prod, 2026-09-29).
-                      // VALUES stay scoped as above (./details-labels.test.tsx).
+                      // VALUES followed on 2026-10-04 (pdp-02): a vi car hire said "Daily", "Delivered to you",
+                      // "Automatic" in the server HTML, because only jobs and eSIM went through the option pair.
+                      // <FacetValue> maps each stored value through the facet (./details-labels.test.tsx).
                       const labelFacet = !jobText ? attrFacets.find((f) => f.key === k) : undefined
-                      const facet = labelled ? labelFacet : undefined
-                      const option = facet?.options?.find((o) => o.value === String(v))
-                      const value = String(v)
+                      const value = Array.isArray(v) ? v.map(String).join(', ') : String(v)
                       // ⚠️ SENTENCE CASE, NOT CSS `capitalize`. Taxonomy and job labels are already written in
                       // sentence case ('Apply by', 'eSIM', 'Full-time'), and `capitalize` title-cased every
                       // word of them into 'Apply By', 'ESIM', 'Full-Time'. Only a RAW key or value (stored
@@ -1234,8 +1254,8 @@ export default async function ListingPage({ params }: Props) {
                           ? <dd data-fab-avoid className="text-right font-medium text-foreground"><CalendarDay value={value} /></dd>
                           : jobText || (FREE_TEXT_ATTRIBUTES as readonly string[]).includes(k)
                           ? <dd data-fab-avoid className="text-right font-medium text-foreground">{value}</dd>
-                          : option
-                          ? <dd data-fab-avoid className="text-right font-medium text-foreground"><Bilingual en={option.label} vi={option.labelVi} /></dd>
+                          : labelFacet
+                          ? <dd data-fab-avoid className={cn('text-right font-medium text-foreground', facetValueStartsRaw(labelFacet, v) && 'first-letter:uppercase')}><FacetValue facet={labelFacet} value={v} pageLang={pageVariant} /></dd>
                           : <dd data-fab-avoid className="text-right font-medium text-foreground first-letter:uppercase"><Tr text={value} /></dd>}
                       </div>
                       )

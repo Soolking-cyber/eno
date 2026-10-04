@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { LanguageProvider } from '@/context/language-context'
 import { VI_OVERRIDES } from '@/generated/vi-overrides'
+import { EMAIL_TYPO_PAUSE_MS } from '@/lib/email-typo'
 
 // ── THE sign-in popup in its join presentation — what the "Join eno" prompt opens ─────────────────
 // ⛔ It is the one popup (owner, 2026-08-28: "only 1 popup"), so the Google button under test is
@@ -195,14 +196,108 @@ describe('Join eno — the frame', () => {
 })
 
 describe('the ordinary sign-in popup is unchanged', () => {
-  it('no prompt: the site title, the email form at once, no fold', async () => {
+  it('no prompt: "Log in or sign up", the email form at once, no fold', async () => {
     render(
       <LanguageProvider initialLang="en" initialViDict={VI_DICT}>
         <SignInDialog open onOpenChange={onOpenChange} />
       </LanguageProvider>,
     )
-    expect(screen.getByRole('dialog', { name: /^Sign in to eno\./ })).toBeTruthy()
+    // The generic title names no site since auth-04 (2026-10-04): one form both signs in and signs up.
+    expect(screen.getByRole('dialog', { name: 'Log in or sign up' })).toBeTruthy()
     expect(screen.getByRole('textbox', { name: 'Email' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^Use email instead$/ })).toBeNull()
+  })
+})
+
+/**
+ * auth-06 (2026-10-04): the email field's checks, in the real form (src/lib/email-typo.ts holds the pure
+ * rules). ⚠️ The typo fix waits for a pause in typing — every Gmail address is 'gmail.co' one keystroke
+ * before it is done, so a per-keystroke check flashed "@gmail.com?" at nearly everyone.
+ */
+describe('the email checks', () => {
+  function popup() {
+    render(
+      <LanguageProvider initialLang="en" initialViDict={VI_DICT}>
+        <SignInDialog open onOpenChange={onOpenChange} />
+      </LanguageProvider>,
+    )
+    return {
+      field: screen.getByRole('textbox', { name: 'Email' }) as HTMLInputElement,
+      send: screen.getByRole('button', { name: /Send magic link/ }) as HTMLButtonElement,
+    }
+  }
+  const type = (field: HTMLInputElement, value: string) => fireEvent.change(field, { target: { value } })
+  const wait = (ms: number) => act(async () => { vi.advanceTimersByTime(ms) })
+
+  it('Send waits for a complete address — a "." after the "@", not just the "@"', async () => {
+    const { field, send } = popup()
+    await arm()
+    type(field, 'an@gmail')
+    expect(send.disabled).toBe(true)
+    type(field, 'an@gmail.com')
+    expect(send.disabled).toBe(false)
+  })
+
+  const suggestion = () => document.querySelector<HTMLElement>('[data-email-suggestion]')
+  const status = () => document.querySelector<HTMLElement>('[data-email-suggestion-status]')!
+
+  it('a domain typo is offered only once typing pauses, a tap takes it, and an address on its way to gmail.com never sees it', async () => {
+    const { field } = popup()
+    await arm()
+    type(field, 'an@gmail.co')
+    await wait(150) // a typist's next keystroke
+    expect(suggestion()).toBeNull()
+    type(field, 'an@gmail.com')
+    await wait(EMAIL_TYPO_PAUSE_MS + 50)
+    expect(suggestion()).toBeNull()
+
+    type(field, 'an@gmial.com')
+    expect(suggestion()).toBeNull()
+    await wait(EMAIL_TYPO_PAUSE_MS + 50)
+    expect(suggestion()!.textContent).toMatch(/^Did you mean\s*@gmail\.com\s*\?$/)
+    fireEvent.click(screen.getByRole('button', { name: '@gmail.com' }))
+    expect(field.value).toBe('an@gmail.com')
+    expect(suggestion()).toBeNull()
+  })
+
+  /**
+   * ⛔ NO LAYOUT MOVEMENT (review, 2026-10-04): the suggestion takes the switch row's already-reserved line
+   * — it replaces the switches inside the SAME element and adds no sibling — and it is announced through
+   * an always-mounted polite live region, not by appearing.
+   */
+  it('takes the reserved switch row’s line instead of adding one, and is announced by a live region mounted beforehand', async () => {
+    const { field } = popup()
+    await arm()
+    type(field, 'an@gmial.co') // complete, with an "@": the row is shown, the switches in it
+    const row = screen.getByRole('button', { name: 'Use a password' }).parentElement!
+    const container = row.parentElement!
+    const siblings = container.children.length
+    expect(status()).toBeTruthy()
+    expect(status().getAttribute('role')).toBe('status')
+    expect(status().getAttribute('aria-live')).toBe('polite')
+    expect(status().textContent).toBe('')
+    expect(row.contains(status())).toBe(true)
+
+    type(field, 'an@gmial.com')
+    await wait(EMAIL_TYPO_PAUSE_MS + 50)
+    expect(row.contains(suggestion())).toBe(true)
+    expect(container.children.length).toBe(siblings)
+    expect(screen.queryByRole('button', { name: 'Use a password' })).toBeNull()
+    expect(status().textContent).toBe('Did you mean @gmail.com?')
+  })
+
+  it('"Dismiss" brings the switches back and stops asking for that address — a real domain is never a dead end', async () => {
+    const { field } = popup()
+    await arm()
+    type(field, 'an@gmial.com')
+    await wait(EMAIL_TYPO_PAUSE_MS + 50)
+    expect(suggestion()).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(suggestion()).toBeNull()
+    expect(screen.getByRole('button', { name: 'Use a password' })).toBeTruthy()
+    expect(status().textContent).toBe('')
+    await wait(EMAIL_TYPO_PAUSE_MS + 50)
+    expect(suggestion()).toBeNull()
+    expect(field.value).toBe('an@gmial.com')
   })
 })

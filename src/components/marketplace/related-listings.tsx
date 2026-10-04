@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ListingCard } from './listing-card'
+import { ListingCardSkeleton } from './listing-card-skeleton'
 import { categoryBrowsePath } from '@/lib/retired-categories'
-import { Shelf, RAIL_CARD_W } from './shelf'
+import { Shelf, RAIL_CARD_W, RAIL_SKELETON_COUNT } from './shelf'
 import { useLanguage } from '@/context/language-context'
+import { localizedHref } from '@/lib/lang-pinned'
+import { variantOfLanguage } from '@/lib/lang-variant'
 import { useNearViewport } from '@/hooks/use-near-viewport'
 import type { SerializedListingCard } from '@/lib/types'
 
@@ -27,8 +30,9 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
   variant?: 'pdp' | 'sold'
 }) {
   const router = useRouter()
-  const { tr } = useLanguage()
-  const [items, setItems] = useState<SerializedListingCard[]>([])
+  const { tr, lang } = useLanguage()
+  // null = not answered yet (the sold page holds the rail's place until then — see below).
+  const [items, setItems] = useState<SerializedListingCard[] | null>(null)
   const { ref, near } = useNearViewport<HTMLDivElement>()
 
   /**
@@ -75,18 +79,44 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
     return () => { off = true }
   }, [near, categorySlug, subcategorySlug, brandSlug, listingId, excludeSellerId])
 
+  const title = variant === 'sold' ? tr('Similar items still available', 'Tin tương tự vẫn còn bán') : tr('More like this', 'Tin tương tự')
+  /* The sold page's rail sits right under the sold item on a phone (sold-listing.tsx): mt-12 there kept
+     the first card under the tab bar. */
+  const sectionClassName = variant === 'sold' ? 'mt-4 sm:mt-12' : 'mt-12'
+  // "See all" keeps a Vietnamese reader in Vietnamese, like the sold page's own "Browse this category" and
+  // the PDP's brand chip: a bare '/c/…' or '/?category=…' can be an English-pinned pilot path (lang-pinned.ts).
+  const seeAllHref = localizedHref(categoryBrowsePath(categorySlug), variantOfLanguage(lang))
+
+  /**
+   * ⛔ ON THE SOLD PAGE THE RAIL'S PLACE IS HELD WHILE IT LOADS. Below sm it is the first thing under the
+   * sold item, ABOVE the seller · category · Home buttons (sold-listing.tsx), so a rail arriving from
+   * nothing pushed those buttons a whole card height down, under a thumb already on its way to one.
+   * The placeholder is the loaded shelf's own shape (title, ListingCardSkeleton at RAIL_CARD_W) and it
+   * is in the SSR HTML. An empty answer still collapses to nothing — rare, the last pass is the whole
+   * category. The PDP's rail is below the fold and keeps its zero-size sentinel.
+   */
+  if (items === null && variant === 'sold') {
+    return (
+      <div ref={ref} data-related-loading="">
+        <Shelf title={title} seeAllHref={seeAllHref} sectionClassName={sectionClassName}>
+          {Array.from({ length: RAIL_SKELETON_COUNT }).map((_, i) => <ListingCardSkeleton key={i} className={RAIL_CARD_W} />)}
+        </Shelf>
+      </div>
+    )
+  }
+
   // Sentinel: the observer needs a node in the layout before there is data. Out of flow
   // (absolute, zero-size) so it can never earn spacing from a space-y/gap parent; IO still
   // fires on zero-area targets at threshold 0. NOT `hidden` — that never intersects.
-  if (items.length === 0) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
+  if (!items || items.length === 0) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
 
   return (
     // Shelf's SECTION_TITLE already carries the app-wide text-lg font-semibold header tier;
     // the See-all into the category page gives every PDP shelf the same header + See-all shape.
     <Shelf
-      title={variant === 'sold' ? tr('Similar items still available', 'Tin tương tự vẫn còn bán') : tr('More like this', 'Tin tương tự')}
-      seeAllHref={categoryBrowsePath(categorySlug)}
-      sectionClassName="mt-12"
+      title={title}
+      seeAllHref={seeAllHref}
+      sectionClassName={sectionClassName}
       watch={items.length}
     >
       {items.map((l) => (

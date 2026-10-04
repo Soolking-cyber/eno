@@ -70,6 +70,15 @@ describe('SafetyStrip — vehicle hire is not a home (2026-10-01)', () => {
     expect(en).toContain('Driving a hired car or motorbike yourself')
   })
 
+  it('Vehicles › Parts is goods: the goods line, not papers-and-chassis (pdp-08); a car keeps the papers line', () => {
+    const parts = both(() => text(renderToString(<SafetyStrip categorySlug="vehicles" subcategorySlug="parts-gear" />)))
+    expect(parts.en).toContain('Meet, inspect, then pay.')
+    expect(parts.vi).toContain('Gặp trực tiếp, kiểm tra hàng rồi mới trả tiền.')
+    expect(parts.en).not.toContain('chassis')
+    expect(text(renderToString(<SafetyStrip categorySlug="vehicles" subcategorySlug="car" />))).toContain('Check the papers match the chassis before paying')
+    expect(text(renderToString(<SafetyStrip categorySlug="vehicles" />))).toContain('Check the papers match the chassis before paying')
+  })
+
   it('an apartment is unchanged — the housing line, no licence line', () => {
     expect(strip('apartment-rental', 'affiliate-rental')).toContain('See the place and meet the landlord or agent before you pay anything.')
     expect(strip('apartment-rental', 'affiliate-rental')).not.toContain('valid licence')
@@ -109,6 +118,16 @@ describe('linked ticket and code copy names the seller or the operator, never a 
     expect(en).toContain('Sign in on the VinWonders website and enter the code at the payment step.')
     expect(vi).toContain('Đăng nhập trên website VinWonders và nhập mã tại bước thanh toán.')
     for (const t of [en, vi]) expect(t).not.toMatch(/partner site|trang đối tác/i)
+  })
+})
+
+describe('AffiliateBooking — the QR code’s accessible name follows the page (quality-12, 2026-10-04)', () => {
+  const qrLabel = (props: Record<string, unknown>) => renderToString(<AffiliateBooking url="https://shorten.asia/Abc" partnerName="Vin$&Wonders" listingId="l1" booking {...props} />).match(/<svg[^>]*aria-label="([^"]*)"/)?.[1]
+  it('Vietnamese on a vi page, English otherwise — and a `$` in the name prints as typed', () => {
+    expect(qrLabel({ lang: 'vi' })).toBe('Mã QR để đặt trên Vin$&amp;Wonders')
+    expect(qrLabel({})).toBe('QR code to book on Vin$&amp;Wonders')
+    expect(qrLabel({ lang: 'vi', job: true })).toBe('Mã QR để mở tin tuyển dụng trên Vin$&amp;Wonders')
+    expect(qrLabel({ lang: 'vi', rental: true, booking: false })).toBe('Mã QR để mở tin cho thuê trên Vin$&amp;Wonders')
   })
 })
 

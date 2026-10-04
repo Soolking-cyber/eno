@@ -86,3 +86,50 @@ describe('PDP description — rows Details already shows are hidden', () => {
     expect(PAGE).toMatch(/<ListingDescription [^>]*className=\{`max-w-prose [^`]*\$\{repeatedFacts\}`\}/)
   })
 })
+
+/**
+ * A3-PDP (2026-10-04) — the page-level halves, pinned on the source (the page is a server component with a
+ * database behind it; the client halves are rendered in their own tests).
+ */
+describe('PDP — no repeated rows, no vehicle facts on parts, the brand chip keeps the reader’s language', () => {
+  it('a linked job KEEPS the bottom safety note: its ID-documents advice is nowhere else on the page (pdp-09, adjusted in review)', () => {
+    // The first branch is every job, linked or not — no `affiliateUrl ? null` ahead of it.
+    // ⚠️ Split so the gen-ui-strings harvester (which reads test files too) never sees a JSX Tr literal here.
+    const JOB_LINE = 'Never pay a fee, a deposit or for training to get a job, and don\'t send copies of your ID documents before you have checked the employer.'
+    expect(NOTE.startsWith("const safetyNote = listing.listingType === 'job'\n")).toBe(true)
+    expect(NOTE.split('\n')[1].trim()).toBe('? <Tr' + ' text="' + JOB_LINE + '" />')
+    expect(NOTE).not.toContain("listing.listingType === 'job' && affiliateUrl ? null")
+  })
+
+  it('the Details "Source" fact is hidden when Seller information shows a Source row (pdp-09)', () => {
+    expect(PAGE).toContain("if (sellerInfo?.kind === 'source' && sellerInfo.source.trim()) hiddenAttrs.add('source')")
+    // …and SellerInfo itself still renders (the Decree 248 row stays).
+    expect(PAGE).toContain('{sellerInfo && <SellerInfo info={sellerInfo} className="order-8" />}')
+  })
+
+  it('mileage is a vehicle fact: only above 0 km and never on Vehicles › Parts (pdp-08)', () => {
+    expect(PAGE).toMatch(/if \(listing\.mileageKm != null && listing\.mileageKm > 0 && rawListing\.subcategorySlug !== 'parts-gear'\) numericSpecs\.push\(\{ label: 'Mileage'/)
+  })
+
+  it('the brand chip goes through localizedHref, like the breadcrumb (disc-missed)', () => {
+    expect(PAGE).toContain('render={<Link href={localizedHref(`/?brand=${encodeURIComponent(listing.brandSlug!)}`, pageVariant)} prefetch={false} />}')
+  })
+
+  it('the H1, the market price and every meta item opt into the support bubble’s yield (pdp-01, si-11)', () => {
+    expect(PAGE).toContain('<LocalizedTitleHeading className="text-lg font-bold leading-snug text-foreground"')
+    // The one H1 is LocalizedTitleHeading's (the only `<h1` left in the page is the layout comment).
+    expect(PAGE.match(/<h1[\s>]/g) ?? []).toHaveLength(1)
+    expect(PAGE.match(/<LocalizedTitleHeading className=/g)).toHaveLength(1)
+    expect(PAGE).toContain('<span data-fab-avoid className="inline-flex shrink-0 items-center gap-1">')
+    expect(PAGE).toContain('<span data-fab-avoid className="inline-flex min-w-0 items-center gap-1">')
+    expect(PAGE).toContain('<Badge data-fab-avoid size="md" className="font-semibold text-foreground">')
+    const MARKET = readFileSync(join(process.cwd(), 'src/components/marketplace/market-price.tsx'), 'utf8')
+    expect(MARKET.match(/(?<!`)data-fab-avoid(?!`)/g)).toHaveLength(2) // the verdict and the range (not the comment)
+    const CONTENT = readFileSync(join(process.cwd(), 'src/components/marketplace/listing-content.tsx'), 'utf8')
+    expect(CONTENT).toContain('<h1 data-fab-avoid className={className}>')
+  })
+
+  it('the sign-in sheet gets the title the H1 shows (pdp-05)', () => {
+    expect(PAGE).toMatch(/listingTitle=\{displayTitle\}\s*listingTitleVi=\{listing\.titleVi\}\s*listingTitleI18n=\{i18n\[listing\.title\]\}/)
+  })
+})

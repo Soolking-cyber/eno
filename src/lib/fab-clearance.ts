@@ -107,6 +107,15 @@ const overlaps = (a: Box, b: Box) => a.left < b.right && a.right > b.left && a.t
 export type ClearancePlan = { rise: number; standDown: boolean; yielded: boolean[] }
 
 /**
+ * An obstacle box. `yieldOnly` marks a `[data-fab-avoid]` VALUE (text a reader has to see, not a
+ * control): it is never a bar, however wide. A full-width H1 or price-range line read as a bar would
+ * LIFT the cluster above it — onto the price or the gallery, covering something else — when all it asks
+ * is that the mark get out of the way: the one control on it yields (fades, takes no pointer) and
+ * nothing moves (pdp-01 / si-11, 2026-10-04).
+ */
+export type Obstacle = Box & { yieldOnly?: boolean }
+
+/**
  * What the visible floating controls do at rest (see the header for why it is shaped this way).
  * `parts` are the controls' boxes at their RESTING place; `obstacles` are page controls already grown to
  * the tap floor. Returns the rise (px) above the resting place, whether the whole cluster stands down
@@ -114,7 +123,7 @@ export type ClearancePlan = { rise: number; standDown: boolean; yielded: boolean
  * under it. Yielding is judged on the tap boxes themselves, with no extra air: two 44px targets that
  * only touch share no pixel a finger could mean for both.
  */
-export function planClearance(parts: readonly Box[], obstacles: readonly Box[], viewportWidth: number, maxLift: number): ClearancePlan {
+export function planClearance(parts: readonly Box[], obstacles: readonly Obstacle[], viewportWidth: number, maxLift: number): ClearancePlan {
   if (!parts.length) return { rise: 0, standDown: false, yielded: [] }
   const union: Box = {
     top: Math.min(...parts.map((p) => p.top)),
@@ -122,7 +131,7 @@ export function planClearance(parts: readonly Box[], obstacles: readonly Box[], 
     left: Math.min(...parts.map((p) => p.left)),
     right: Math.max(...parts.map((p) => p.right)),
   }
-  const isWide = (o: Box) => o.right - o.left >= Math.min(WIDE_SHARE * viewportWidth, WIDE_MIN_PX)
+  const isWide = (o: Obstacle) => !o.yieldOnly && o.right - o.left >= Math.min(WIDE_SHARE * viewportWidth, WIDE_MIN_PX)
   const rise = clearanceLift(union, obstacles.filter(isWide), maxLift)
   if (rise === null) return { rise: 0, standDown: true, yielded: parts.map(() => true) }
   const small = obstacles.filter((o) => !isWide(o))

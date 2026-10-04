@@ -14,7 +14,7 @@ import { isPostFlowPath } from '@/lib/post-flow-path'
 import { RentalCheckPill } from '@/components/marketplace/rental-check-pill'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
-import { MAX_OBSTACLE_HEIGHT, nextScrollDirection, planClearance, tapBox, YIELDED, type Box, type ClearancePlan, type ScrollDir } from '@/lib/fab-clearance'
+import { MAX_OBSTACLE_HEIGHT, nextScrollDirection, planClearance, tapBox, YIELDED, type Box, type ClearancePlan, type Obstacle, type ScrollDir } from '@/lib/fab-clearance'
 
 /** The chevron stays away until the reader is this far down — near the top there is nothing to go back to. */
 const CHEVRON_AFTER_Y = 700
@@ -31,7 +31,8 @@ const MAX_LIFT_SHARE = 0.4
  *  ⚠️ `[data-fab-avoid]` is an OPT-IN for a small NON-interactive value a reader has to see (the PDP's
  *  Details values sit flush right, exactly under the mark). Text is otherwise never an obstacle — a
  *  mark that yielded to every paragraph would be hidden on every feed. The yield itself is unchanged:
- *  fade + no pointer, still focusable (YIELDED in src/lib/fab-clearance.ts). */
+ *  fade + no pointer, still focusable (YIELDED in src/lib/fab-clearance.ts) — and only ever a yield: a
+ *  wide value (the PDP's H1) is never a bar the cluster rises above (`yieldOnly`). */
 const OBSTACLES = 'main button, main a[href], main [role="button"], main input, main select, main textarea, main [data-fab-avoid], #app-footer a[href], #app-footer button'
 
 type Plan = { rise: number; standDown: boolean; chevron: boolean; support: boolean }
@@ -190,7 +191,7 @@ export function BackToTop() {
         right: Math.max(...boxes.map((b) => b.right)),
       }
       const vh = window.innerHeight
-      const obstacles: Box[] = []
+      const obstacles: Obstacle[] = []
       for (const el of Array.from(document.querySelectorAll<HTMLElement>(OBSTACLES))) {
         const r = el.getBoundingClientRect()
         // < 4px is an `sr-only` control (1x1, clipped) — nothing a finger can see or mean.
@@ -207,7 +208,8 @@ export function BackToTop() {
         if (cv && !cv.call(el, { opacityProperty: true, visibilityProperty: true, checkOpacity: true, checkVisibilityCSS: true })) continue
         const cs = getComputedStyle(el)
         if (cs.visibility === 'hidden' || cs.opacity === '0' || cs.pointerEvents === 'none') continue
-        obstacles.push(tapBox(r))
+        // A `[data-fab-avoid]` value is yielded to, never risen above, however wide (fab-clearance.ts Obstacle).
+        obstacles.push({ ...tapBox(r), yieldOnly: el.hasAttribute('data-fab-avoid') })
       }
       const next: ClearancePlan = planClearance(boxes, obstacles, window.innerWidth, vh * MAX_LIFT_SHARE)
       const at = (el: HTMLElement | null) => (el ? shown.indexOf(el) : -1)

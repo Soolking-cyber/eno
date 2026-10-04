@@ -30,7 +30,10 @@ export function MarketPrice({ price, band }: { price: number; band: Band }) {
     <div>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold text-muted-foreground">{tr('Market price', 'Giá thị trường')}</span>
+        {/* `data-fab-avoid` on the verdict and the range: the support bubble rested over 'Giá phổ biến'
+            on first paint (pdp-01) — it yields to them now (back-to-top.tsx OBSTACLES). */}
         <span
+          data-fab-avoid
           className={cn(
             'text-2xs font-bold',
             pos === 'low' ? 'text-success' : pos === 'high' ? 'text-warning' : 'text-muted-foreground',
@@ -39,7 +42,7 @@ export function MarketPrice({ price, band }: { price: number; band: Band }) {
           {label}
         </span>
       </div>
-      <div className="mt-1 text-sm font-bold text-foreground tabular-nums">
+      <div data-fab-avoid className="mt-1 text-sm font-bold text-foreground tabular-nums">
         {compactPrice(band.p25, loc)}
         <span className="font-normal text-ink-4"> – </span>
         {compactPrice(band.p75, loc)}

@@ -16,7 +16,8 @@ const LICENSED_VEHICLE_HIRE = ['car-rental', 'motorbike-rental']
 export function SafetyStrip({ categorySlug, subcategorySlug = null, action, protections, className, variant }: { categorySlug: string; /**
    * The listing's subcategory. Only VEHICLE HIRE inside `rentals` reads it (2026-10-01): a car or a
    * motorbike is not a home, so the housing lines ("meet the landlord or agent", "hold a place") are
-   * swapped for vehicle ones, and a car or motorbike adds the driving-licence line.
+   * swapped for vehicle ones, and a car or motorbike adds the driving-licence line. And Vehicles › Parts
+   * (2026-10-04): parts and gear take the goods line, not the papers-and-chassis one.
    */ subcategorySlug?: string | null; action?: React.ReactNode; /** The reports-and-disputes row (ProtectionsRow), folded in as the quiet second line — see the note at its render. */ protections?: React.ReactNode; className?: string; /**
    * ⛔ A VARIANT, FOR LISTINGS WHERE THE CATEGORY COPY WOULD BE A FALSE PROMISE. The default advice
    * below is written for an eno seller you meet: "Meet, inspect, then pay". On a PARTNER affiliate
@@ -101,7 +102,9 @@ export function SafetyStrip({ categorySlug, subcategorySlug = null, action, prot
           'Đừng bao giờ trả phí hay đặt cọc để được nhận việc — eno không bao giờ yêu cầu. Hãy gặp nhà tuyển dụng tại nơi làm việc trước khi bắt đầu.',
         )
       // A seller's OWN vehicle-hire listing gets the vehicles line, not the "hold a place" housing one.
-      : categorySlug === 'vehicles' || vehicleHire
+      // ⚠️ NOT Vehicles › Parts (pdp-08): a helmet or a tyre has no papers or chassis number to check —
+      // it is goods, and gets the goods line below ("Meet, inspect, then pay").
+      : (categorySlug === 'vehicles' && subcategorySlug !== 'parts-gear') || vehicleHire
       ? tr(
           'Check the papers match the chassis before paying — and never pay a deposit through a link.',
           'Kiểm tra giấy tờ trùng số khung, số máy trước khi trả tiền — và đừng bao giờ đặt cọc qua đường link.',

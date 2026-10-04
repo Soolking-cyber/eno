@@ -38,6 +38,7 @@ export function AffiliateBooking({
   job = false,
   applyBy = null,
   provenance = null,
+  lang = 'en',
 }: {
   url: string
   partnerName: string
@@ -71,6 +72,8 @@ export function AffiliateBooking({
    * which sellers are imports; null on every other listing.
    */
   provenance?: React.ReactNode
+  /** The page variant ('vi' | 'en') — only for the QR's accessible name, an SVG attribute string (below). */
+  lang?: string
 }) {
   // ⛔ https ONLY — see safeAffiliateUrl. A stored `javascript:` value would otherwise be a
   // stored-XSS sink, and this link leads to a payment page so `http:` is refused as well.
@@ -83,7 +86,19 @@ export function AffiliateBooking({
   // <Bilingual> because this component renders on the server. No vi-overrides entry is needed.
   const tr = (en: string, vi: string, values?: Record<string, string>) => <Bilingual en={en} vi={vi} values={values} />
 
-  const qr = affiliateQrSvg(safeUrl, { title: job ? `QR code to open the job posting on ${partnerName}` : rental ? `QR code to open the rental on ${partnerName}` : `QR code to book on ${partnerName}` })
+  // ⚠️ THE QR's NAME IS A STRING INSIDE INLINE SVG MARKUP, so it cannot be a <Bilingual> node: a literal
+  // pair picked by the page's variant, harvested by gen-ui-strings like every other two-literal t() call
+  // (quality-12 — it was English on every Vietnamese page). split/join for {site}, so a `$` in a name
+  // prints as typed. ⚠️ Never write a t() call with two quoted literals in a COMMENT here: the harvester
+  // reads comments too, and one such example put the words "en" and "vi" into ui-strings.ts.
+  const t = (en: string, vi: string) => (lang === 'vi' ? vi : en).split('{site}').join(partnerName)
+  const qr = affiliateQrSvg(safeUrl, {
+    title: job
+      ? t('QR code to open the job posting on {site}', 'Mã QR để mở tin tuyển dụng trên {site}')
+      : rental
+        ? t('QR code to open the rental on {site}', 'Mã QR để mở tin cho thuê trên {site}')
+        : t('QR code to book on {site}', 'Mã QR để đặt trên {site}'),
+  })
   // The product this link was minted for, when the campaign is one measured not to deep-link.
   const productStep = embeddedProductUrl(safeUrl)
   // Can this link earn eno a commission? Decides the disclosure at the end of this box (2026-10-01).

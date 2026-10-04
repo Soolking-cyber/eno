@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import * as React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { renderToString } from 'react-dom/server'
 
 import { LanguageProvider } from '@/context/language-context'
 import { detectContentLang } from '@/lib/detect-lang'
-import { ListingDescription, LocalizedTitle, RichText, localizedPlan, ownDescriptionVi, useLocalized, type LocalizedColumn } from './listing-content'
+import { DESCRIPTION_CLAMP_CHARS, DESCRIPTION_CLAMP_LINES, ListingDescription, LocalizedTitle, LocalizedTitleHeading, RichText, localizedPlan, ownDescriptionVi, useLocalized, type LocalizedColumn } from './listing-content'
 
 /**
  * THE LIGHT-MARKDOWN FORMATTER, which now renders BOTH listing descriptions and storefront bios.
@@ -217,7 +218,8 @@ describe('ListingDescription / LocalizedTitle for a Vietnamese reader', () => {
 
   it('⛔ a descriptionVi copied from the English source gives way to the cached Vietnamese translation', () => {
     const { container } = renderVi(<ListingDescription text={EN_DESC} vi={EN_DESC} i18n={{ vi: VI_MT }} />)
-    expect(container.textContent).toBe(VI_MT)
+    // The description itself — a machine translation now carries the "Đã dịch tự động" line above it.
+    expect(container.querySelector('.allow-select')!.textContent).toBe(VI_MT)
   })
 
   it('…and with nothing cached, to the client machine translation — not the English copy', async () => {
@@ -321,7 +323,7 @@ describe('useLocalized — an English slot that names a Vietnamese place', () =>
     const viCopy = 'Hãng sản xuất: Màn hình Dell · Mẫu: P2723D · Kích thước màn hình: 27 inch · Độ phân giải: QHD (2560 x 1440)'
     const en = 'Manufacturer: Dell monitor · Model: P2723D · Screen size: 27 inch · Resolution: QHD (2560 x 1440)'
     const { container } = renderIn('en', <ListingDescription text={src} vi={viCopy} i18n={{ en }} />)
-    expect(container.textContent).toBe(en)
+    expect(container.querySelector('.allow-select')!.textContent).toBe(en)
   })
 
   it('an English reader of Vietnamese titles with nothing embedded: ONE request, each text once', async () => {
@@ -472,5 +474,146 @@ describe("localizedPlan — 'description': the English slot and the reader's sid
   it('TITLES are unchanged: one exclusive letter still decides, and the English slot needs it', () => {
     expect(localizedPlan(USED_PHONE, null, null, 'en', 'title')).toEqual({ embedded: USED_PHONE, tr: '', en: '' })
     expect(localizedPlan(ENO_COFFEE, null, { vi: ENO_COFFEE_VI }, 'vi', 'title').embedded).toBe(ENO_COFFEE)
+  })
+})
+
+/**
+ * ⛔ A MACHINE TRANSLATION SAYS SO, AND THE ORIGINAL IS ONE TAP AWAY (pdp-05 / auth-10 / quality-09).
+ * A vi PDP showed 'Đánh giá về Eyebrow Shaping & Grooming Kit' — a mistranslation of the English
+ * 'Complete…' — with nothing on the page to say it was translated or to show the seller's words.
+ */
+describe('"Translated · See original" under a machine-translated H1 and above the description', () => {
+  function renderLang(lang: 'vi' | 'en', node: React.ReactNode) {
+    Object.defineProperty(navigator, 'languages', { configurable: true, get: () => (lang === 'vi' ? ['vi-VN', 'vi'] : ['en-US', 'en']) })
+    return render(<LanguageProvider initialLang={lang} initialViDict={{}}>{node}</LanguageProvider>)
+  }
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, 'languages')
+    vi.unstubAllGlobals()
+  })
+  const EN_TITLE = 'Complete Eyebrow Shaping & Grooming Kit'
+  const VI_MT_TITLE = 'Bộ dụng cụ tỉa lông mày hoàn chỉnh'
+
+  it('an embedded machine translation of the title: the note shows, and "See original" swaps in the source marked lang="en"', () => {
+    const { container } = renderLang('vi', <LocalizedTitleHeading title={EN_TITLE} titleVi={null} i18n={{ vi: VI_MT_TITLE }} />)
+    const h1 = container.querySelector('h1')!
+    expect(h1.textContent).toBe(VI_MT_TITLE)
+    expect(h1.hasAttribute('data-fab-avoid')).toBe(true)
+    expect(screen.getByText(/Đã dịch tự động/)).toBeTruthy()
+    const toggle = screen.getByRole('button', { name: 'Xem bản gốc' })
+    // The label carries the state (as in the messenger) — no aria-pressed beside a label that changes.
+    expect(toggle.hasAttribute('aria-pressed')).toBe(false)
+    toggle.click()
+    return Promise.resolve().then(async () => {
+      await screen.findByRole('button', { name: 'Xem bản dịch' })
+      expect(h1.textContent).toBe(EN_TITLE)
+      expect(h1.querySelector('[lang="en"]')!.textContent).toBe(EN_TITLE)
+    })
+  })
+
+  it('no note when the reader gets the author’s own words: the authored titleVi, or the source in their language', () => {
+    const a = renderLang('vi', <LocalizedTitleHeading title={EN_TITLE} titleVi="Bộ tỉa lông mày" i18n={{ vi: VI_MT_TITLE }} />)
+    expect(a.container.querySelector('h1')!.textContent).toBe('Bộ tỉa lông mày')
+    expect(a.queryByText(/Đã dịch tự động/)).toBeNull()
+    cleanup()
+    const b = renderLang('en', <LocalizedTitleHeading title={EN_TITLE} titleVi={null} i18n={{ vi: VI_MT_TITLE }} />)
+    expect(b.container.querySelector('h1')!.textContent).toBe(EN_TITLE)
+    expect(b.queryByText(/Translated/)).toBeNull()
+  })
+
+  it('the description gets the same note above it; its own descriptionVi gets none', () => {
+    const a = renderLang('vi', <ListingDescription text={EN_DESC} vi={null} i18n={{ vi: VI_MT }} />)
+    expect(a.getByRole('button', { name: 'Xem bản gốc' })).toBeTruthy()
+    cleanup()
+    const b = renderLang('vi', <ListingDescription text={EN_DESC} vi={VI_OWN} i18n={{ vi: VI_MT }} />)
+    expect(b.queryByRole('button', { name: 'Xem bản gốc' })).toBeNull()
+  })
+
+  /**
+   * ⛔ THE NOTE'S LINE IS HELD WHILE A CLIENT TRANSLATION IS OUT (review, 2026-10-04): with nothing embedded,
+   * the note arrived after hydration and pushed the first screen down ~24px. ⚠️ Each case uses its own text:
+   * the translation cache is module state and would answer a repeated one at once.
+   */
+  const ssrVi = (node: React.ReactNode) => renderToString(<LanguageProvider initialLang="vi" initialViDict={{}}>{node}</LanguageProvider>)
+
+  it('nothing embedded: the line is held from the server render until the answer lands, then the note takes it — in one commit', async () => {
+    const title = 'Garmin Venu 3 smartwatch, boxed'
+    const ssr = ssrVi(<LocalizedTitleHeading title={title} titleVi={null} />)
+    expect(ssr).toContain('data-mt-reserve')
+    expect(ssr).not.toContain('Đã dịch tự động')
+
+    let answer!: (r: Response) => void
+    const fetchMock = vi.fn(() => new Promise<Response>((r) => { answer = r }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { container } = renderLang('vi', <LocalizedTitleHeading title={title} titleVi={null} />)
+    const reserve = () => container.querySelector('[data-mt-reserve]')
+    expect(reserve()).not.toBeNull()
+    expect(reserve()!.getAttribute('aria-hidden')).toBe('true')
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1)) // one batch, the text once
+    expect(JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body))).toEqual({ texts: [title], target: 'vi' })
+    expect(reserve()).not.toBeNull()
+    await act(async () => { answer(new Response(JSON.stringify({ translations: ['Đồng hồ Garmin Venu 3, còn hộp'] }), { status: 200 })) })
+    await screen.findByText(/Đã dịch tự động/)
+    expect(reserve()).toBeNull()
+  })
+
+  it('an answer that comes back unchanged releases the line — no note, nothing held', async () => {
+    const title = 'Kindle Paperwhite 5 signature edition'
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ translations: [title] }), { status: 200 })))
+    const { container } = renderLang('vi', <LocalizedTitleHeading title={title} titleVi={null} />)
+    expect(container.querySelector('[data-mt-reserve]')).not.toBeNull()
+    await waitFor(() => expect(container.querySelector('[data-mt-reserve]')).toBeNull())
+    expect(screen.queryByText(/Đã dịch tự động/)).toBeNull()
+  })
+
+  it('nothing is held where no note can come: an embedded translation, the author’s own words, a Vietnamese title for a Vietnamese reader', () => {
+    expect(ssrVi(<LocalizedTitleHeading title="Sony WH-1000XM5 headphones" titleVi={null} i18n={{ vi: 'Tai nghe Sony WH-1000XM5' }} />)).not.toContain('data-mt-reserve')
+    expect(ssrVi(<LocalizedTitleHeading title="Sony WH-1000XM4 headphones" titleVi="Tai nghe Sony WH-1000XM4" />)).not.toContain('data-mt-reserve')
+    // translateText answers a Vietnamese-looking text for a Vietnamese reader with itself, at once.
+    expect(ssrVi(<LocalizedTitleHeading title="Bán xe máy cũ giá rẻ" titleVi={null} />)).not.toContain('data-mt-reserve')
+    expect(renderToString(<LanguageProvider initialLang="en"><LocalizedTitleHeading title="Dyson V12 vacuum" titleVi={null} /></LanguageProvider>)).not.toContain('data-mt-reserve')
+  })
+
+  it('the description holds its note’s line the same way', () => {
+    expect(ssrVi(<ListingDescription text="A barely used standing desk, 120 x 60 cm, motor works perfectly." vi={null} />)).toContain('data-mt-reserve')
+  })
+})
+
+/**
+ * ⛔ A LONG DESCRIPTION IS CLAMPED TO 8 LINES BELOW md, AND THE WHOLE TEXT STAYS IN THE DOM (pdp-04 A).
+ */
+describe('ListingDescription — "See more" on a long description', () => {
+  const LONG = Array.from({ length: 30 }, (_, i) => `Line ${i + 1} of a long import description with plenty of words.`).join('\n')
+
+  it('over the threshold: clamped below md, full text in the DOM, a See more button wired with aria-expanded/controls', () => {
+    expect(LONG.length).toBeGreaterThan(DESCRIPTION_CLAMP_CHARS)
+    const { container } = render(<LanguageProvider initialLang="en"><ListingDescription text={LONG} /></LanguageProvider>)
+    const body = container.querySelector('.allow-select')!
+    expect(body.className).toContain('max-md:line-clamp-8')
+    expect(body.textContent).toContain('Line 30 of a long import description')
+    const btn = screen.getByRole('button', { name: 'See more' })
+    expect(btn.getAttribute('aria-expanded')).toBe('false')
+    expect(btn.getAttribute('aria-controls')).toBe(body.id)
+    expect(btn.className).toContain('md:hidden')
+    btn.click()
+    return screen.findByRole('button', { name: 'See less' }).then((less) => {
+      expect(less.getAttribute('aria-expanded')).toBe('true')
+      expect(body.className).not.toContain('line-clamp')
+    })
+  })
+
+  it('many short lines under the character threshold are clamped too (by line count)', () => {
+    const SHORT_LINES = Array.from({ length: 20 }, (_, i) => `Item ${i + 1}`).join('\n')
+    expect(SHORT_LINES.length).toBeLessThan(DESCRIPTION_CLAMP_CHARS)
+    expect(SHORT_LINES.split('\n').length).toBeGreaterThan(DESCRIPTION_CLAMP_LINES)
+    const { container } = render(<LanguageProvider initialLang="en"><ListingDescription text={SHORT_LINES} /></LanguageProvider>)
+    expect(container.querySelector('.allow-select')!.className).toContain('max-md:line-clamp-8')
+    expect(screen.getByRole('button', { name: 'See more' })).toBeTruthy()
+  })
+
+  it('a short description is never clamped and has no button', () => {
+    const { container } = render(<LanguageProvider initialLang="en"><ListingDescription text="A short note." /></LanguageProvider>)
+    expect(container.querySelector('.allow-select')!.className).not.toContain('line-clamp')
+    expect(screen.queryByRole('button')).toBeNull()
   })
 })

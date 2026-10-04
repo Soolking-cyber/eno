@@ -597,8 +597,17 @@ export const TAXONOMY: CategoryDef[] = [
       // it from the source's own bathroom count (roomAttributes).
       { key: 'bathrooms', label: 'Bathrooms', labelVi: 'Số toilet', kind: 'toggle', optional: true,
         subcats: ['apartment-rental', 'house-rental', 'room-rental'], options: ROOM_COUNT_OPTIONS },
+      // ONE key, TWO facets, because a car and a bike name their gearbox differently in Vietnamese:
+      // a car is 'Số tự động' / 'Số sàn' (as Vehicles › Car says it), a bike 'Xe ga' / 'Côn tay'. The
+      // stored values are the same, so filters, importers and the chip counts are unchanged; the
+      // `subcats` lists are disjoint, so facetsFor() never returns both.
       { key: 'transmission', label: 'Transmission', labelVi: 'Hộp số', kind: 'toggle',
-        subcats: ['motorbike-rental', 'car-rental'], options: [
+        subcats: ['car-rental'], options: [
+        { value: 'automatic', label: 'Automatic', labelVi: 'Số tự động' },
+        { value: 'manual', label: 'Manual', labelVi: 'Số sàn' },
+      ] },
+      { key: 'transmission', label: 'Transmission', labelVi: 'Hộp số', kind: 'toggle',
+        subcats: ['motorbike-rental'], options: [
         { value: 'automatic', label: 'Automatic', labelVi: 'Tự động / Xe ga' },
         { value: 'manual', label: 'Manual', labelVi: 'Số / Côn tay' },
       ] },

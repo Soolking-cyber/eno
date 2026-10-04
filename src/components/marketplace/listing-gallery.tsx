@@ -666,7 +666,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                         variant="bare"
                         size="none"
                         onClick={() => setSel(s2)}
-                        aria-label={`${title} — photo ${i + 1}`}
+                        aria-label={tr('Photo {n} of {total}', 'Ảnh {n}/{total}').replace('{n}', String(i + 1)).replace('{total}', String(images.length))}
                         className={cn('relative h-20 w-20 overflow-hidden rounded-lg border-2 transition-colors cursor-pointer active:scale-100', sel === s2 ? 'border-brand' : 'border-transparent hover:border-line-strong')}
                       >
                         <Image src={img} alt="" fill sizes="80px" quality={60} unoptimized={isMockImageUrl(img) || undefined} className="object-cover" />
@@ -1032,7 +1032,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                     variant="bare"
                     size="none"
                     onClick={(e) => { e.stopPropagation(); goTo(i) }}
-                    aria-label={`${title} — photo ${i + 1}`}
+                    aria-label={tr('Photo {n} of {total}', 'Ảnh {n}/{total}').replace('{n}', String(i + 1)).replace('{total}', String(images.length))}
                     aria-current={i === idx ? 'true' : undefined}
                     className={cn(
                       'relative h-12 w-12 shrink-0 overflow-hidden rounded-lg transition-opacity duration-150 cursor-pointer active:scale-100',

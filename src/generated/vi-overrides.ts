@@ -1259,8 +1259,6 @@ export const VI_OVERRIDES: Record<string, string> = {
   "Sign in": "Đăng nhập",
   "Sign in to add details to your report.": "Đăng nhập để bổ sung chi tiết cho báo cáo của bạn.",
   "Sign in to appeal a decision on your account.": "Đăng nhập để khiếu nại quyết định về tài khoản của bạn.",
-  "Sign in to eno.forum": "Đăng nhập vào eno.forum",
-  "Sign in to eno.vn": "Đăng nhập eno.vn",
   "Sign in to make an offer": "Đăng nhập để trả giá",
   "Sign in to publish": "Đăng nhập để đăng tin",
   "Sign in to see your dispute cases.": "Đăng nhập để xem các vụ khiếu nại của bạn.",

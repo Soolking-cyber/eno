@@ -3,7 +3,6 @@
 import type { ElementType } from 'react'
 import Image from 'next/image'
 import { useLanguage } from '@/context/language-context'
-import { IS_SERVICES } from '@/lib/edition'
 import { SignInForm } from '@/components/marketplace/sign-in-form'
 import { Bell, MessageCircle, Tag } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
@@ -100,7 +99,9 @@ export function SignInCard({
   return (
     <div className={cn('w-full', className)}>
       {listingTitle ? (
-        <div className="flex items-center gap-3 text-left">
+        // `pr-8`: the dialog's close button sits in the top-right corner, and at 360px a two-line title ran
+        // under it (auth-05). The generic title below keeps the same clearance with `px-8`, like `join`.
+        <div className="flex items-center gap-3 pr-8 text-left">
           {listingImage && (
             <Image src={listingImage} alt="" width={48} height={48} className="h-12 w-12 shrink-0 rounded-lg object-cover" />
           )}
@@ -114,17 +115,16 @@ export function SignInCard({
           </div>
         </div>
       ) : (
-        <Title className="block text-center text-lg font-bold text-foreground">
+        <Title className="block px-8 text-center text-lg font-bold text-foreground">
           {/*
-            ⛔ TWO LITERAL tr() CALLS BEHIND THE EDITION TERNARY, NEVER `tr(\`Sign in to ${SITE_NAME}\`)`.
-            This card is rendered by BOTH editions, and the string it replaced said "eno.vn"
-            unconditionally — so every eno.forum visitor was invited to sign in to the other site.
-            A reviewer caught it. The interpolated spelling would fix the branding and break the
-            translation: `scripts/gen-ui-strings.mjs` harvests string LITERALS and silently skips a
-            template expression, so it would ship untranslated to every other language. The ternary
-            goes OUTSIDE tr(), which is also what footer.tsx spells out for the same reason.
+            ⛔ "LOG IN OR SIGN UP", NOT "SIGN IN TO eno.vn" (auth-04, 2026-10-04). A first-time visitor read
+            "Sign in" as "for people who already have an account" and looked for a separate sign-up; this one
+            form does both (Google or an email link makes the account on first use). The phrase is what
+            Facebook, Airbnb and Chợ Tốt put on the same single popup. It names no site, so it is ONE literal
+            on both editions — the edition ternary it replaced existed only because the old string named
+            "eno.vn" (a template `Sign in to ${SITE_NAME}` would have skipped gen-ui-strings' literal harvest).
           */}
-          {IS_SERVICES ? tr('Sign in to eno.forum', 'Đăng nhập eno.forum') : tr('Sign in to eno.vn', 'Đăng nhập eno.vn')}
+          {tr('Log in or sign up', 'Đăng nhập hoặc đăng ký')}
         </Title>
       )}
       {/* The generic header's context line, only when a caller supplied one. */}

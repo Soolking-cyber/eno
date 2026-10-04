@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Mail, Phone, Loader2, ExternalLink, Eye, EyeOff } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
@@ -15,6 +15,7 @@ import { isNativeApp, nativeGoogleSignIn } from '@/lib/native-auth'
 import { googleFirstPartyEnabled } from '@/lib/google-identity'
 import { useTurnstile } from './turnstile'
 import { canonicalEmail } from '@/lib/email-alias'
+import { EMAIL_TYPO_PAUSE_MS, emailLooksComplete, suggestEmailDomain, webmailFor, withEmailDomain } from '@/lib/email-typo'
 import { isVietnamesePhone, normalizePhoneForRouting } from '@/lib/phone'
 import { clearStalePkceCookies } from '@/lib/auth-pkce'
 import { AUTH_USES_REQUEST_ORIGIN } from '@/lib/auth-origin'
@@ -232,6 +233,18 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
    */
   const [autoCode, setAutoCode] = useState(false)
   const lastSubmitted = useRef('')
+  // A popular-domain typo in a complete address ('gmial.com' → 'gmail.com'), offered under the CTA (auth-06).
+  // ⚠️ ONLY ONCE TYPING PAUSES (EMAIL_TYPO_PAUSE_MS): every Gmail address is 'gmail.co' one keystroke before
+  // it is done, and a per-keystroke check flashed "@gmail.com?" at nearly everyone. Any keystroke hides it
+  // at once (`settledEmail === email`), so a stale suggestion never sits under a newer address.
+  const [settledEmail, setSettledEmail] = useState('')
+  useEffect(() => {
+    const id = window.setTimeout(() => setSettledEmail(email), EMAIL_TYPO_PAUSE_MS)
+    return () => window.clearTimeout(id)
+  }, [email])
+  // The address whose suggestion the visitor dismissed: their domain is real, and we stop asking for it.
+  const [typoDismissedFor, setTypoDismissedFor] = useState('')
+  const suggestedDomain = settledEmail === email && typoDismissedFor !== email ? suggestEmailDomain(email) : null
   // Google blocks OAuth inside in-app browsers / iOS PWAs (403 disallowed_useragent).
   // Detect that client-side and hand off to the real browser instead of dead-ending.
   // ⚠️ EXCEPT in the native Capacitor app: its WebView UA also contains "wv" (so googleOauthBlocked
@@ -1030,6 +1043,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
   }
 
   if (stage === 'sent') {
+    const webmail = webmailFor(email)
     return (
       // className FIRST so this stage's text-center beats the page's text-left
       // (tailwind-merge: last conflicting class wins).
@@ -1044,6 +1058,16 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
         <p className="mt-4 text-lg font-bold text-foreground">{t('Check your email', 'Kiểm tra email của bạn')}</p>
         <p className="mt-1.5 text-sm text-muted-foreground">{t('We sent a magic link to', 'Chúng tôi đã gửi liên kết đăng nhập tới')}</p>
         <p className="text-sm font-semibold text-foreground">{email}</p>
+        {/* "Open Gmail" / "Open Outlook" by the address's domain (auth-06): one tap to the inbox the link
+            went to, instead of leaving the visitor to find it. A new tab, so this screen (and resend) stays. */}
+        {webmail && (
+          <Button asChild variant="outline" size="sm" className="mt-3 gap-1.5 font-semibold">
+            <a href={webmail.url} target="_blank" rel="noopener noreferrer">
+              {webmail.name === 'Gmail' ? t('Open Gmail', 'Mở Gmail') : t('Open Outlook', 'Mở Outlook')}
+              <ExternalLink className="size-3.5" aria-hidden />
+            </a>
+          </Button>
+        )}
         <p className="mt-3 text-xs text-muted-foreground">
           {t("Didn't get it? Check spam, or", 'Không thấy email? Kiểm tra spam, hoặc')}{' '}
           {/* text-xs: the base is text-sm and this button lives in a text-xs <p> — without it the label jumps 12→14px. disabled:opacity-100 cancels the base's disabled:opacity-50 so it doesn't double-dim against disabled:text-ink-4. */}
@@ -1187,7 +1211,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
               {/* Enter submits, and the on-screen keyboard's return key SAYS so (enterKeyHint) —
                   identical to the phone field below. The guard mirrors the button's `disabled`
                   exactly, so Enter can never fire a send the button itself would refuse. */}
-              <Input type="email" inputMode="email" autoComplete="email" enterKeyHint="send" aria-label={tr('Email')} value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !loading && email.includes('@')) sendEmail() }} placeholder="you@email.com" />
+              <Input type="email" inputMode="email" autoComplete="email" enterKeyHint="send" aria-label={tr('Email')} value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !loading && emailLooksComplete(email)) sendEmail() }} placeholder="you@email.com" />
               {/* onMouseDown+preventDefault holds the email field's focus through the tap. On the
                   native code path this is a focus TRANSFER into the code strip inside one keyboard
                   session — the same invariant the phone "Send code" button documents. Never
@@ -1196,7 +1220,9 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
                   onboarding included), NOT the base's opacity fade: cta's white-on-brand at 40%
                   opacity was white on ~brand-200 — far below AA and still reading as tappable.
                   A flat gray field is unmistakably inert; disabled:opacity-100 cancels the base. */}
-              <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
+              {/* ⚠️ ENABLED ON A COMPLETE ADDRESS, NOT ON AN "@" (auth-06): "an@gmail" was sendable and simply
+                  never arrived. emailLooksComplete wants a '.' after the '@' — the Enter guard above is the same test. */}
+              <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendEmail} disabled={loading || !emailLooksComplete(email)} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {emailCode ? t('Send code', 'Gửi mã') : t('Send magic link', 'Gửi liên kết đăng nhập')}
               </Button>
               {/* DELIVERY TOGGLE — link vs code, chosen by the visitor.
@@ -1224,8 +1250,31 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
                   when the toggle was its own row that flip unmounted a line and moved the CTA (measured
                   on an in-app UA at 390: 546px → 541px, CLS 0.0068). Inside one row it only shortens
                   that row, which stays one line either way, so nothing below it moves. */}
+              {/* ⛔ "DID YOU MEAN @gmail.com?" TAKES THIS SAME RESERVED LINE — it never adds one (auth-06, review
+                  2026-10-04). Shown under the CTA in normal flow, it arrived ~700ms after typing stopped and
+                  pushed the legal line down and re-centred the dialog, moving the CTA ~12px under a thumb
+                  already on its way to it. While a suggestion stands, the row's switches give way to it (one
+                  text-xs line either way); "Dismiss" — or taking the fix, or any keystroke — brings them back,
+                  so a visitor whose real domain we flagged is never cut off from "Use a password".
+                  `announce` is the always-mounted polite live region a screen reader hears it through. */}
               <SecondarySwitchRow
                 show={email.includes('@')}
+                announce={suggestedDomain ? `${t('Did you mean', 'Bạn muốn nhập')} @${suggestedDomain}?` : ''}
+                replaceWith={suggestedDomain ? (
+                  <>
+                    <span data-email-suggestion="" className="text-xs text-muted-foreground">
+                      {t('Did you mean', 'Bạn muốn nhập')}{' '}
+                      <Button variant="bare" size="none" onMouseDown={(e) => e.preventDefault()} onClick={() => setEmail(withEmailDomain(email, suggestedDomain))} className="relative tap-44 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer">
+                        @{suggestedDomain}
+                      </Button>
+                      ?
+                    </span>
+                    <span aria-hidden className="text-xs text-ink-4">·</span>
+                    <Button variant="bare" size="none" onMouseDown={(e) => e.preventDefault()} onClick={() => setTypoDismissedFor(email)} className="relative tap-44 text-xs font-semibold text-muted-foreground hover:text-accent-foreground hover:underline cursor-pointer">
+                      {t('Dismiss', 'Bỏ qua')}
+                    </Button>
+                  </>
+                ) : null}
                 items={[
                   {
                     key: 'deliver',
@@ -1465,10 +1514,20 @@ function SecondarySwitch({ show, onClick, label, disabled }: { show: boolean; on
  * half the reserved space of two. A `hidden` item is left out rather than made invisible — the row is
  * one line either way, so leaving an item out moves nothing (see the call site).
  */
-function SecondarySwitchRow({ show, items }: { show: boolean; items: { key: string; label: string; onClick: () => void; disabled?: boolean; hidden?: boolean }[] }) {
+function SecondarySwitchRow({ show, items, replaceWith = null, announce = '' }: {
+  show: boolean
+  items: { key: string; label: string; onClick: () => void; disabled?: boolean; hidden?: boolean }[]
+  /** One text-xs line shown INSTEAD of the switches (the email-typo suggestion), in the line already reserved. */
+  replaceWith?: ReactNode
+  /** Read out by the always-mounted polite live region below; '' says nothing. */
+  announce?: string
+}) {
   return (
-    <div className={cn('flex flex-wrap items-center justify-center gap-x-2 gap-y-1 pt-0.5 text-center', !show && 'invisible pointer-events-none')} aria-hidden={!show}>
-      {items.filter((i) => !i.hidden).map((i, idx) => (
+    <div className={cn('relative flex flex-wrap items-center justify-center gap-x-2 gap-y-1 pt-0.5 text-center', !show && 'invisible pointer-events-none')} aria-hidden={!show}>
+      {/* ⚠️ MOUNTED BEFORE THERE IS ANYTHING TO SAY — a live region only announces CHANGES to a region that
+          already exists. Absolute (sr-only), so it takes no flex slot and no gap. */}
+      <p role="status" aria-live="polite" data-email-suggestion-status="" className="sr-only">{announce}</p>
+      {replaceWith ?? items.filter((i) => !i.hidden).map((i, idx) => (
         <Fragment key={i.key}>
           {idx > 0 && <span aria-hidden className="text-xs text-ink-4">·</span>}
           <Button

@@ -8,6 +8,7 @@ import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { EnoSlider } from './eno-slider'
 import { OfferPartiesNote } from './chat-safety-note'
+import { useLocalized } from './listing-content'
 import { Button } from '@/components/ui/button'
 import { stashCompose } from '@/lib/quick-contact'
 import { hapticTap, hapticConfirm } from '@/lib/haptics'
@@ -26,11 +27,18 @@ export { COMPOSE_KEY } from '@/lib/quick-contact' // re-export: the key + writer
  * background and swaps to the real thread. "Redirect first, load in background."
  */
 export function ContactComposer({
-  listingId, listingTitle, listingImage, sellerName, price, currency, negotiable = true,
+  listingId, listingTitle, listingTitleVi = null, listingTitleI18n = null, listingImage, sellerName, price, currency, negotiable = true,
   intent = 'buy', sellerIsPartner = false,
 }: {
   listingId: string
   listingTitle?: string
+  /**
+   * The title's authored Vietnamese column and its embedded translations, so the sign-in sheet names
+   * the listing in the words the H1 above it uses (pdp-05): it printed the SOURCE title — English on a
+   * Vietnamese page — under a Vietnamese H1. Same hook as the H1 (useLocalized), so the two agree.
+   */
+  listingTitleVi?: string | null
+  listingTitleI18n?: Record<string, string> | null
   listingImage?: string | null
   sellerName?: string
   price?: number
@@ -64,6 +72,7 @@ export function ContactComposer({
 }) {
   const { user, loading, openSignIn } = useAuth()
   const { lang, tr } = useLanguage()
+  const shownTitle = useLocalized(listingTitle ?? '', listingTitleVi, listingTitleI18n) || listingTitle
   const locale = moneyLocale(lang) // offer amounts follow the viewer's language
   const router = useRouter()
   // The offer is ALWAYS open on a negotiable listing (user decisions 2026-07-14): the
@@ -110,7 +119,7 @@ export function ContactComposer({
     if (!user) {
       if (loading) { pendingRef.current = opts; return }
       setBusy(false) // the sign-in dialog is the answer; the buyer stays here and may retry
-      openSignIn({ listingTitle, listingImage, sellerName })
+      openSignIn({ listingTitle: shownTitle, listingImage, sellerName })
       return
     }
     const offerAmount = opts.offerAmount ?? null
@@ -292,7 +301,7 @@ export function ContactComposer({
           type="button"
           variant="bare"
           size="none"
-          onClick={() => openSignIn({ listingTitle, listingImage, sellerName })}
+          onClick={() => openSignIn({ listingTitle: shownTitle, listingImage, sellerName })}
           // `active:scale-100` dropped — see the note on chatButton above.
           // `min-h-11` for the same reason as chatButton above — this measured 366×40 too, and
           // it is the second-most-important action on the page.

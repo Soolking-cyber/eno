@@ -86,6 +86,23 @@ describe('planClearance — lift above a BAR, yield to a SMALL control, never mo
     const bars = Array.from({ length: 8 }, (_, i) => tapBox({ left: 12, right: 378, top: 700 - i * 60, bottom: 748 - i * 60 }))
     expect(planClearance([support], bars, 390, 300)).toEqual({ rise: 0, standDown: true, yielded: [true] })
   })
+  it('a PDP value marked [data-fab-avoid] (full-width H1, the market-price verdict, the posted time) is YIELDED to, never risen above', () => {
+    // pdp-01 / si-11: on first paint the bubble rested over the end of the H1 and 'Giá phổ biến'. Read
+    // as a bar, the 366px-wide title would lift the cluster above it — onto the price or the gallery.
+    const h1 = { ...tapBox({ left: 12, right: 378, top: 716, bottom: 768 }), yieldOnly: true }
+    expect(planClearance([chevron, support], [h1], 390, 300)).toEqual({ rise: 0, standDown: false, yielded: [false, true] })
+    // The same box WITHOUT the marker is a bar, exactly as before (the CTA rule is unchanged).
+    expect(planClearance([chevron, support], [{ ...h1, yieldOnly: false }], 390, 300).rise).toBeGreaterThan(0)
+    // The 360px Android phone and the iOS 18.4 viewport (390x654, bubble higher up): the same yield.
+    const supportShort: Box = { left: 300, right: 344, top: 530, bottom: 574 }
+    const verdict = { ...tapBox({ left: 290, right: 350, top: 540, bottom: 556 }), yieldOnly: true }
+    expect(planClearance([supportShort], [verdict], 360, 260)).toEqual({ rise: 0, standDown: false, yielded: [true] })
+  })
+  it('a [data-fab-avoid] value still yields after the cluster rose above a real bar', () => {
+    const cta = tapBox({ left: 12, right: 378, top: 700, bottom: 748 }) // rise 72 → support at 648–692
+    const posted = { ...tapBox({ left: 250, right: 378, top: 660, bottom: 680 }), yieldOnly: true }
+    expect(planClearance([support], [cta, posted], 390, 300)).toEqual({ rise: 72, standDown: false, yielded: [true] })
+  })
   it('nothing visible, nothing to plan', () => {
     expect(planClearance([], [heartAt(746)], 390, 300)).toEqual({ rise: 0, standDown: false, yielded: [] })
   })
