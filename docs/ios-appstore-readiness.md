@@ -1,5 +1,13 @@
 # iOS native app — App Store readiness plan (2026-07-20)
 
+> ⛔ **THIS DOCUMENT DESCRIBES THE SHELVED SwiftUI APP (`apps/ios`), NOT THE APP THAT SHIPS.** The owner
+> shelved the native rewrites ("only through Capacitor; native we do later"). The iOS app headed for the
+> App Store is the Capacitor shell at the repo root (`ios/`, `capacitor.config.ts`) — the same shell as the
+> Android app on Google Play — and its runbook is **`docs/ios-appstore-release.md`**.
+> Kept for its Apple-portal history: team `S4VCY6N8QR` is the owner's FREE personal team, and a free team
+> could not register `vn.eno.app`. The bundle id `vn.eno.ios` below belongs to this shelved app; nothing
+> here is a step to follow for the Capacitor release.
+
 Owner ran a 13-item App Store audit of the SwiftUI app (`apps/ios`). This is the
 verified, lane-split execution plan. Verification pass: 6 read-only agents cross-
 checked every claim against current code (workflow `ios-appstore-readiness-plan`).
