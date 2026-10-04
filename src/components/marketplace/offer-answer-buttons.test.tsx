@@ -76,3 +76,17 @@ describe('behaviour', () => {
     expect(screen.getByRole('button', { name: 'Decline' })).toBeTruthy()
   })
 })
+
+describe('canAccept — a thread closed by a block (App Store gate `ugc-safety`)', () => {
+  it('drops Accept (the server refuses it) and keeps Decline, so the card can always be cleared', () => {
+    const p = renderRow({ canAccept: false, canCounter: false })
+    expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Decline' }))
+    expect(p.onDecline).toHaveBeenCalled()
+  })
+
+  it('defaults to showing Accept, exactly as before', () => {
+    renderRow()
+    expect(screen.getByRole('button', { name: 'Accept' })).toBeTruthy()
+  })
+})

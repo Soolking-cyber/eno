@@ -263,7 +263,7 @@ export type NicheApiErrorCode =
   | 'recipient_unreachable'
   | 'reference_listing'                 // api/conversations — an outbound-link (affiliateUrl) listing has nobody to message
   | 'blocked'                           // api/conversations(+/[id]/messages, /offer) — one party blocked the other (ugc-safety gate)
-  | 'blocking_unavailable'              // api/blocks — the ugc-safety gate is off
+  | 'blocking_unavailable'              // api/blocks — the ugc-safety gate is off (404), or no signing secret for an unblock handle (503)
   | 'cannot_block_staff'                // api/blocks — the eno team (desk owner) cannot be blocked
   | 'reference_mismatch'
   | 'refinement_limit'

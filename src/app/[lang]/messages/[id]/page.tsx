@@ -33,6 +33,7 @@ import { Input } from '@/components/ui/input'
 import { EnoSlider } from '@/components/ui/slider'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { BlockUserButton } from '@/components/marketplace/block-user-button'
+import { ClosedThreadBanner } from '@/components/marketplace/closed-thread-banner'
 import { TrustMeta } from '@/components/marketplace/trust-meta'
 import { QuickReplyChips, MarkSoldPrompt, chipContext } from '@/components/marketplace/quick-reply-chips'
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
@@ -329,6 +330,13 @@ type Thread = {
   notificationsCleared?: number
   /** A thread about a teacher profile (2026-09-30); optional — pending stubs and cached threads omit it. */
   teacher?: { shared: boolean; live?: boolean } | null
+  /**
+   * App Store gate `ugc-safety`: the thread is CLOSED by a block between its two people — 'you_blocked'
+   * (I blocked them; the banner offers the way back) or 'blocked' (the other side did). Absent while the
+   * gate is off, on every open thread, and on a cached/pending thread (treated as open — the server still
+   * refuses a send, and the next load() closes it).
+   */
+  closed?: 'you_blocked' | 'blocked' | null
   counterpart: {
     name: string
     avatarColor: string
@@ -597,6 +605,14 @@ export default function ThreadPage() {
   // forces the text input AND makes submitOffer read offerInput — otherwise the seeded counter
   // amount is shown/sent as nothing and Send silently fires "% off asking" instead.
   const [counterMode, setCounterMode] = useState(false)
+  // App Store gate `ugc-safety`: a thread that CLOSES (a block, seen on any poll) disarms the offer composer —
+  // offer mode is a moment, not a draft, and must not spring back armed if the thread reopens. The typed
+  // text and an armed quote are the user's own draft and stay (codex, gate round 2).
+  const threadClosed = thread?.closed
+  useEffect(() => {
+    if (!threadClosed) return
+    setShowOffer(false); setCounterMode(false); setOfferInput('')
+  }, [threadClosed])
   const [contact, setContact] = useState<{ phone: string; telHref: string; zaloHref: string } | null>(null)
   const [revealing, setRevealing] = useState(false)
   // The item strip's 'Đã bán' (inbox-03): its confirm dialog, and the POST in flight — one tap, one request.
@@ -1166,6 +1182,8 @@ export default function ThreadPage() {
           sendReplyTargets.current.delete(tempId)
           setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
           toast.error(tr('You can no longer message this person.', 'Bạn không thể nhắn tin cho người này nữa.'))
+          // The thread payload now says `closed` — reload so the banner replaces the composer at once.
+          void load()
         } else {
           markFailed(tempId)
         }
@@ -1216,6 +1234,8 @@ export default function ThreadPage() {
         err === 'partner_chat_only' ? tr('This is an official eno partner — they handle everything here in chat.', 'Đây là đối tác chính thức của eno — mọi trao đổi đều diễn ra tại đây.')
         : err === 'no_contact' ? tr("This seller hasn't added a phone number yet.", 'Người bán chưa thêm số điện thoại.')
         : err === 'reply_required' ? tr('You can request contact once the seller replies.', 'Bạn có thể xin liên hệ sau khi người bán trả lời.')
+        // App Store gate `ugc-safety`: a block closes the reveal too. Names the conversation, never the person.
+        : err === 'blocked' ? tr('This conversation is closed — contact details are no longer available here.', 'Cuộc trò chuyện này đã đóng — thông tin liên hệ không còn hiển thị ở đây.')
         : err === 'rate_limited' ? tr('Too many requests — please try again shortly.', 'Quá nhiều yêu cầu — vui lòng thử lại sau.')
         : err === 'auth_required' ? tr('Please sign in to request contact.', 'Vui lòng đăng nhập để xin liên hệ.')
         : tr('Could not get contact — please try again.', 'Không lấy được liên hệ — vui lòng thử lại.'),
@@ -1253,7 +1273,19 @@ export default function ThreadPage() {
         // temps onto fresh server data, which would duplicate the offer card.
         setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
         await load(); refreshUnread(); refreshConvos()
-      } else { setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t)); toast.error(tr('Offer not sent — please try again.', 'Chưa gửi được đề nghị — vui lòng thử lại.')) }
+      } else {
+        setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+        // App Store gate `ugc-safety`: a block is not a blip — "try again" could never succeed. Say the
+        // thread is closed (never who closed it) and reload so the banner replaces the composer.
+        const code = res.status === 403 ? ((await res.json().catch(() => null)) as { error?: string } | null)?.error : undefined
+        if (code === 'blocked') {
+          lastOfferSend.current = null
+          toast.error(tr('This conversation is closed — offers can’t be sent here.', 'Cuộc trò chuyện này đã đóng — không thể gửi đề nghị ở đây.'))
+          void load()
+        } else {
+          toast.error(tr('Offer not sent — please try again.', 'Chưa gửi được đề nghị — vui lòng thử lại.'))
+        }
+      }
     } catch {
       setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t)); toast.error(tr('Offer not sent — please try again.', 'Chưa gửi được đề nghị — vui lòng thử lại.'))
     }
@@ -2169,7 +2201,7 @@ export default function ThreadPage() {
             {/* Block (App Store gate `ugc-safety`, renders nothing while it is off). Only on a thread with a
                 listing, and not on the e-Visa / trip desk — the other side there is the eno team, which the
                 API refuses to block anyway (cannot_block_staff). */}
-            {thread?.listing && thread.kind !== 'visa' && thread.kind !== 'itinerary' && <BlockUserButton conversationId={thread.id} name={thread.counterpart.name} className="shrink-0" onBlocked={() => router.push('/messages')} />}
+            {thread?.listing && thread.kind !== 'visa' && thread.kind !== 'itinerary' && thread.closed !== 'you_blocked' && <BlockUserButton conversationId={thread.id} name={thread.counterpart.name} className="shrink-0" onBlocked={() => router.push('/messages')} />}
           </div>
 
           {/* THE ITEM STRIP (inbox-03; the gates are documented where they are computed, above). Hidden on a
@@ -2315,12 +2347,16 @@ export default function ThreadPage() {
               details replace the product strip — never "Request number", which any reply unlocked.
               ⚠️ The product strip needs `teacher === null` (a FRESH payload saying "not a teacher
               thread"): a cached or pending thread has no `teacher` field and must show neither. */}
-          {thread && thread.listing && thread.teacher && (
-            <TeacherThreadStrip conversationId={thread.id} iAmTeacher={!!thread.iAmSeller} shared={thread.teacher.shared} live={thread.teacher.live !== false} shareSignal={(thread.messages ?? []).filter((m) => /^(📇|🔒)/.test(m.body ?? '')).length} />
+          {/* A CLOSED thread (ugc-safety block) offers no contact strip: the server refuses the reveal, a new
+              share and the shared-details read, and the banner below already says why. ⚠️ EXCEPT THE
+              TEACHER'S OWN STRIP — "Stop sharing" must stay reachable while the block stands (the server still
+              accepts an unshare), or a share made before the block would quietly come back with an unblock. */}
+          {thread && thread.listing && thread.teacher && (!thread.closed || thread.iAmSeller) && (
+            <TeacherThreadStrip conversationId={thread.id} iAmTeacher={!!thread.iAmSeller} shared={thread.teacher.shared} live={thread.teacher.live !== false} shareSignal={(thread.messages ?? []).filter((m) => /^(📇|🔒)/.test(m.body ?? '')).length} closed={!!thread.closed} />
           )}
           {/* The REQUEST button itself now lives in the item strip above (stripContact); this row keeps the
               two states that need a row — the revealed number, and the hint before the seller replies. */}
-          {thread && thread.listing && thread.teacher === null && !thread.iAmSeller && (contact || !thread.sellerIsPartner) && (contact || !thread.messages.some((m) => !m.mine)) && (
+          {thread && thread.listing && thread.teacher === null && !thread.iAmSeller && !thread.closed && (contact || !thread.sellerIsPartner) && (contact || !thread.messages.some((m) => !m.mine)) && (
             <div className="flex items-center gap-2 border-t border-border bg-background px-4 py-2">
               {contact ? (
                 <>
@@ -2677,9 +2713,15 @@ export default function ThreadPage() {
                          `undefined !== false` → true, so a support thread would offer to counter
                          an offer against a product that does not exist. */
                       <OfferAnswerButtons
+                        // A CLOSED thread (ugc-safety) offers no Accept: the server refuses it (403 blocked).
+                        // Decline stays, so a pending card can always be cleared.
+                        canAccept={!thread?.closed}
                         onAccept={() => actOffer(m, 'accept')}
                         onDecline={() => actOffer(m, 'decline')}
-                        canCounter={!!thread?.listing && thread.listing.negotiable !== false}
+                        // …and not on a thread CLOSED by a block (ugc-safety): a counter is a new offer the
+                        // server refuses, and the composer it arms is replaced by the banner. Accept is refused
+                        // with its own copy; Decline still works, so a card can always be cleared.
+                        canCounter={!!thread?.listing && thread.listing.negotiable !== false && !thread.closed}
                         onCounter={() => { setOfferInput(groupVnd(String(m.offerAmount ?? 0), locale)); setCounterMode(true); setShowOffer(true) }}
                       />
                     )}
@@ -3024,7 +3066,7 @@ export default function ThreadPage() {
               Seller row and nothing on the client could tell them apart. */}
           {/* `thread.listing &&` is implied by `kind === 'listing'` (the server derives that kind
               FROM the anchor listing) but the compiler cannot see it — and stating it is free. */}
-          {thread && !visaInfo && thread.kind === 'listing' && thread.listing && (
+          {thread && !visaInfo && thread.kind === 'listing' && thread.listing && !thread.closed && (
             <QuickReplyChips
               isSeller={!!thread.iAmSeller}
               // A job thread is an employer and a candidate: hiring replies, not "Price is firm".
@@ -3058,7 +3100,7 @@ export default function ThreadPage() {
             * reply and then switching to an offer would otherwise leave a chip promising something
             * the send cannot honour. Switching modes drops the quote (see toggleOffer).
             */}
-          {replyTo && !showOffer && (
+          {replyTo && !showOffer && !thread?.closed && (
             <div className="flex items-center gap-2 bg-tint px-4 py-1.5">
               {/* Same mark as the quoted strip inside a bubble — see the note there on why the
                   left stripe is gone. */}
@@ -3102,11 +3144,16 @@ export default function ThreadPage() {
 
           {/* The buyer composing an offer reads that eno is not a party to it (2026-10-01). A LABEL above the bar, outside
               it: nothing inside the composer row moves, and ChatSendButton's focus-hold is untouched. */}
-          {showOffer && thread?.iAmSeller === false && <OfferPartiesNote className="bg-background px-4 pt-2" />}
+          {showOffer && thread?.iAmSeller === false && !thread.closed && <OfferPartiesNote className="bg-background px-4 pt-2" />}
 
           {/* Composer — the Tag toggle flips this same bar between a message field
               and the offer-amount field (no separate input bar). In offer mode the
               field shows an inline +000 chip and Send submits the offer. */}
+          {/* App Store gate `ugc-safety`: a thread CLOSED by a block shows why instead of a composer whose
+              every send the server refuses (follow-up 2 of 0a470ed98). The Report button stays in the
+              header, and the dialog instance above stays mounted. Never set while the gate is off. */}
+          {thread?.closed && <ClosedThreadBanner closed={thread.closed} />}
+          {!thread?.closed && (
           <div className="chat-composer flex items-end gap-2 bg-background px-4 pt-3 pb-3">
             {/* Offer control only on negotiable listings — a fixed-price seller takes
                 no offers (buyers just ask availability + buy). Undefined = older cached
@@ -3221,6 +3268,7 @@ export default function ThreadPage() {
               />
             )}
           </div>
+          )}
           </div>
         </div>
       )}

@@ -12,7 +12,13 @@ import { FileText, Phone } from '@/components/ui/icons'
 
 type Contact = { phone: string | null; email: string | null; hasCv: boolean }
 
-export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedProp, live = true, shareSignal }: { conversationId: string; iAmTeacher: boolean; shared: boolean; live?: boolean; shareSignal: number }) {
+/**
+ * `closed` — the thread is CLOSED by a block (App Store gate `ugc-safety`). The page then mounts the strip
+ * for the TEACHER only, and only so a share made before the block can be WITHDRAWN: the strip shows "Stop
+ * sharing" while a share stands and nothing otherwise — a Share button there could only be refused
+ * (codex, gate round 3).
+ */
+export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedProp, live = true, shareSignal, closed = false }: { conversationId: string; iAmTeacher: boolean; shared: boolean; live?: boolean; shareSignal: number; closed?: boolean }) {
   const { tr } = useLanguage()
   const [shared, setShared] = useState(sharedProp)
   const [busy, setBusy] = useState(false)
@@ -53,16 +59,29 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
     try {
       const r = await fetch('/api/teachers/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversationId, share: next }) })
       if (r.ok) setShared(next)
-      else setError((await r.json().catch(() => ({}))).error === 'profile_hidden' ? tr('Show your profile again before sharing your contact details.', 'Hãy hiển thị lại hồ sơ trước khi chia sẻ thông tin liên hệ.') : tr('Could not update sharing. Please try again.', 'Không cập nhật được. Vui lòng thử lại.'))
+      else {
+        const code = (await r.json().catch(() => ({}))).error
+        setError(code === 'profile_hidden'
+          ? tr('Show your profile again before sharing your contact details.', 'Hãy hiển thị lại hồ sơ trước khi chia sẻ thông tin liên hệ.')
+          // App Store gate `ugc-safety`: a block refuses a new share (the thread shows it is closed too).
+          // Names the conversation, never the person.
+          : code === 'blocked'
+            ? tr('This conversation is closed — contact details can’t be shared here.', 'Cuộc trò chuyện này đã đóng — không thể chia sẻ thông tin liên hệ ở đây.')
+            : tr('Could not update sharing. Please try again.', 'Không cập nhật được. Vui lòng thử lại.'))
+      }
     } finally { setBusy(false) }
   }
+
+  if (closed && (!iAmTeacher || !shared)) return null
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-t border-border bg-background px-4 py-2">
       {iAmTeacher ? (
         shared ? (
           <>
-            <p className="text-2xs text-body">{live ? tr('This school can see your phone, email and CV.', 'Trường này xem được số điện thoại, email và CV của bạn.') : tr('Paused while your profile is hidden — the school sees nothing until it is visible again.', 'Tạm dừng khi hồ sơ bị ẩn — trường không xem được gì cho đến khi hồ sơ hiển thị lại.')}</p>
+            <p className="text-2xs text-body">{closed
+              ? tr('Your details are still shared, but this school can’t see them while the conversation is closed.', 'Thông tin của bạn vẫn đang được chia sẻ, nhưng trường không xem được khi cuộc trò chuyện đang đóng.')
+              : live ? tr('This school can see your phone, email and CV.', 'Trường này xem được số điện thoại, email và CV của bạn.') : tr('Paused while your profile is hidden — the school sees nothing until it is visible again.', 'Tạm dừng khi hồ sơ bị ẩn — trường không xem được gì cho đến khi hồ sơ hiển thị lại.')}</p>
             <Button variant="ghost" size="sm" onClick={() => toggle(false)} loading={busy}>{tr('Stop sharing', 'Ngừng chia sẻ')}</Button>
           </>
         ) : (

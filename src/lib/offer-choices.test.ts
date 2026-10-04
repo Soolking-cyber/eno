@@ -63,6 +63,13 @@ describe('offerActFailedCopy', () => {
     expect(offerActFailedCopy('decline', undefined, tr)).toBe('Could not decline the offer — please try again.')
   })
 
+  it('a block (ugc-safety) says the conversation is closed — for an accept only, never naming a person', () => {
+    expect(offerActFailedCopy('accept', 'blocked', tr)).toBe('This conversation is closed, so the offer was not accepted.')
+    // The route never refuses a DECLINE for a block, so a decline never reads as "closed".
+    expect(offerActFailedCopy('decline', 'blocked', tr)).toBe('Could not decline the offer — please try again.')
+    expect(offerActFailedCopy('accept', 'blocked', (_en, vi) => vi)).toBe('Cuộc trò chuyện này đã đóng nên đề nghị chưa được chấp nhận.')
+  })
+
   it('ships Vietnamese for every line (no English fallback in a vi thread)', () => {
     const vi = (_en: string, v: string) => v
     for (const code of ['listing_unavailable', 'not_actionable', undefined]) {

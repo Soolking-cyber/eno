@@ -6,7 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
 import { useLanguage } from '@/context/language-context'
 
-type Blocked = { profileId: string; name: string; avatarUrl: string | null; avatarColor: string | null; blockedAt: string }
+/**
+ * One row of GET /api/blocks. `handle` is an opaque, blocker-bound HMAC (src/lib/user-blocks.ts) — the
+ * list never carries the blocked person's profile id. Null only when the server has no signing secret,
+ * in which case that row cannot be unblocked from here.
+ */
+type Blocked = { handle: string | null; name: string; avatarUrl: string | null; avatarColor: string | null; blockedAt: string }
 
 /**
  * Settings → Privacy → "Blocked users": everyone this account blocked, each with Unblock (App Store
@@ -33,16 +38,25 @@ export function BlockedUsers() {
   }, [])
   useEffect(() => { void load() }, [load])
 
-  const unblock = async (profileId: string) => {
-    setBusy(profileId); setUnblockError('')
+  const unblock = async (handle: string) => {
+    setBusy(handle); setUnblockError('')
     try {
       const res = await fetch('/api/blocks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileId, blocked: false }),
+        body: JSON.stringify({ handle, blocked: false }),
       })
+      // 404 = this handle is not (any longer) one of the caller's blocks — undone elsewhere, or minted
+      // under a rotated key. Re-read the list rather than pretend, and say so (codex + opus, gate round 1).
+      if (res.status === 404) {
+        setUnblockError(tr('This list was out of date and has been refreshed — please try again.', 'Danh sách đã cũ và vừa được làm mới — vui lòng thử lại.'))
+        // AWAITED, so the row stays busy until the fresh list replaces it — no second tap on a handle
+        // already known to be stale (codex, gate round 3).
+        await load()
+        return
+      }
       if (!res.ok) throw new Error(String(res.status))
-      setList((l) => (l ?? []).filter((b) => b.profileId !== profileId))
+      setList((l) => (l ?? []).filter((b) => b.handle !== handle))
     } catch {
       setUnblockError(tr('Could not unblock right now — please try again.', 'Chưa bỏ chặn được — vui lòng thử lại.'))
     } finally {
@@ -65,12 +79,17 @@ export function BlockedUsers() {
   return (
     <>
     {unblockError && <p role="alert" className="mb-2 text-sm text-destructive">{unblockError}</p>}
+    {/* A row with no handle: the server has no signing secret, so it cannot verify an unblock. Say so rather
+        than show a button that does nothing (codex + opus, gate round 1). */}
+    {list.some((b) => !b.handle) && (
+      <p className="mb-2 text-sm text-muted-foreground">{tr('Unblocking is unavailable right now. Please try again later.', 'Hiện chưa thể bỏ chặn. Vui lòng thử lại sau.')}</p>
+    )}
     <ul className="divide-y divide-border">
-      {list.map((b) => (
-        <li key={b.profileId} className="flex items-center gap-3 py-2.5">
+      {list.map((b, i) => (
+        <li key={b.handle ?? `row-${i}`} className="flex items-center gap-3 py-2.5">
           <Avatar name={b.name} url={b.avatarUrl} color={b.avatarColor} size="sm" />
           <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{b.name}</span>
-          <Button variant="outline" size="sm" loading={busy === b.profileId} onClick={() => void unblock(b.profileId)}>
+          <Button variant="outline" size="sm" disabled={!b.handle} loading={!!b.handle && busy === b.handle} onClick={() => { if (b.handle) void unblock(b.handle) }}>
             {tr('Unblock', 'Bỏ chặn')}
           </Button>
         </li>

@@ -184,3 +184,22 @@ describe('the contact chip — the reveal while it is still a button', () => {
     expect(gates(buyer({ teacher: undefined })).contact).toBe(false)
   })
 })
+
+describe('⛔ a thread CLOSED by a block (App Store gate `ugc-safety`) — no offer, no contact', () => {
+  it('the server refuses both there, so the strip offers neither', () => {
+    for (const closed of ['you_blocked', 'blocked']) {
+      const g = gates(buyer({ closed }))
+      expect(g.offer).toBe(false)
+      expect(g.contact).toBe(false)
+      expect(g.strip).toBe(true) // the item itself still shows
+    }
+  })
+
+  it('absent or null (the gate off, or an open thread) changes nothing', () => {
+    for (const closed of [undefined, null]) {
+      const g = gates(buyer({ closed }))
+      expect(g.offer).toBe(true)
+      expect(g.contact).toBe(true)
+    }
+  })
+})

@@ -50,6 +50,8 @@ export type StripThread = {
   /** `null` = the server says this is NOT a teacher thread; absent = a cached payload that predates it. */
   teacher?: unknown
   sellerIsPartner?: boolean
+  /** App Store gate `ugc-safety`: set when a block CLOSED the thread (absent while the gate is off). */
+  closed?: string | null
   listing: { negotiable?: boolean; status?: string; listingType?: string | null } | null
   messages: readonly { mine: boolean }[]
 }
@@ -91,6 +93,8 @@ export type StripGates = {
  * and price cannot reach eno.vn through this strip today. This keeps it true by construction should either
  * of those configurations change (legal boundary: no visa / itinerary product surface on eno.vn).
  * `productThreadStrip` = the services edition, where the desks are legitimate.
+ * ⛔ A thread CLOSED BY A BLOCK (`closed`, App Store gate `ugc-safety`) offers neither `offer` nor `contact`:
+ * the server refuses both there, and the closed banner replaces the composer. Absent while the gate is off.
  */
 export function threadStripGates(
   thread: StripThread | null | undefined,
@@ -100,10 +104,11 @@ export function threadStripGates(
   const strip = !!listing && (productThreadStrip || thread?.kind === 'listing')
   const listingLive = !listing?.status || listing.status === 'active'
   const negotiable = !!listing && listing.negotiable !== false
-  const offer = strip && negotiable && !thread?.iAmSeller && listingLive
+  const closed = !!thread?.closed
+  const offer = strip && negotiable && !thread?.iAmSeller && listingLive && !closed
   const sold = strip && !!thread?.iAmSeller && thread.kind === 'listing' && listing?.status === 'active' &&
     listing.listingType !== 'job' && listing.listingType !== TEACHER_LISTING_TYPE
-  const contact = strip && !!thread && thread.teacher === null && !thread.iAmSeller && !contactRevealed &&
+  const contact = strip && !!thread && !closed && thread.teacher === null && !thread.iAmSeller && !contactRevealed &&
     !thread.sellerIsPartner && thread.messages.some((m) => !m.mine)
   const composerTag = negotiable && (showOffer || (listingLive && !offer))
   return { strip, listingLive, offer, sold, contact, composerTag }

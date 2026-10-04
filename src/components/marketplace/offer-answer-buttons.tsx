@@ -32,8 +32,13 @@ import { useLanguage } from '@/context/language-context'
  * "Trả giá". `flex-wrap` stays as the fallback: below ~340px (a 320px phone) the three no longer fit,
  * and Counter drops to its own line instead of pushing out of the card — a single-row grid had no such
  * escape. The 12px gap is the owner's floor above, on both axes.
+ *
+ * `canAccept` (default true) is off on a thread CLOSED by a block (App Store gate `ugc-safety`): the server
+ * refuses the accept, so the button would be a guaranteed error. Decline always stays — a pending card must
+ * always be clearable.
  */
-export function OfferAnswerButtons({ onAccept, onDecline, onCounter, canCounter }: {
+export function OfferAnswerButtons({ onAccept, onDecline, onCounter, canCounter, canAccept = true }: {
+  canAccept?: boolean
   onAccept: () => void
   onDecline: () => void
   onCounter: () => void
@@ -42,7 +47,7 @@ export function OfferAnswerButtons({ onAccept, onDecline, onCounter, canCounter 
   const { tr } = useLanguage()
   return (
     <div className="mt-2 flex flex-wrap gap-3">
-      <Button variant="cta" size="none" onClick={onAccept} className="min-h-11 grow rounded-xl px-1 text-sm cursor-pointer">{tr('Accept', 'Chấp nhận')}</Button>
+      {canAccept && <Button variant="cta" size="none" onClick={onAccept} className="min-h-11 grow rounded-xl px-1 text-sm cursor-pointer">{tr('Accept', 'Chấp nhận')}</Button>}
       {/* hover:text-body is LOAD-BEARING: ghost injects hover:text-accent-foreground,
           and text-body is a COLOUR — without the re-assert the label flips colour on hover. */}
       <Button variant="ghost" size="none" onClick={onDecline} className="min-h-11 grow rounded-xl px-1 text-sm font-bold text-body hover:bg-muted hover:text-body cursor-pointer">{tr('Decline', 'Từ chối')}</Button>
