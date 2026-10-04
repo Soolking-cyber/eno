@@ -107,8 +107,17 @@ struct DeepLinkRouterTests {
 
     @Test func universalLinks() {
         #expect(route("https://eno.vn/listings/abc123") == .listing("abc123"))
-        #expect(route("https://eno.vn/c/vehicles") == .category("vehicles"))
+        #expect(route("https://eno.vn/c/electronics") == .category("electronics"))
         #expect(route("https://eno.vn/brands/honda") == .brand("honda"))
+    }
+
+    // ⚠️ A /c/<slug> LINK OPENS THE WEB CATEGORY PAGE (FeedView: `.category` → WebTabView("/c/<slug>")),
+    // NOT A NATIVE SCREEN — so the web's own redirects apply inside it: /c/vehicles 308s to
+    // /motorbike-rental-ho-chi-minh-city (src/lib/retired-categories.ts), an own-host navigation the web
+    // view allows. The router passes the slug through rather than copying the web's redirect table,
+    // which would drift the day the web changes it.
+    @Test func retiredCategoryLinkStillRoutesToTheWebPage() {
+        #expect(route("https://eno.vn/c/vehicles") == .category("vehicles"))
     }
 
     @Test func customScheme() {
@@ -121,6 +130,34 @@ struct DeepLinkRouterTests {
         #expect(route("https://eno.vn/") == nil)                // no target
         #expect(route("https://eno.vn/listings") == nil)        // missing id
         #expect(route("https://eno.vn/random/thing") == nil)    // unknown head
+    }
+}
+
+struct CategoriesTests {
+    private let retired: Set<String> = ["vehicles", "pets", "books-stationery", "hobbies-sports"]
+
+    // The browse grids drop the shelves the web retired from navigation (2026-10-03, the web's
+    // RETIRED_NAV_CATEGORIES)…
+    @Test func browseOmitsRetiredShelves() {
+        #expect(Categories.retiredFromBrowse == retired)
+        #expect(Categories.browse.map(\.slug) == Categories.all.map(\.slug).filter { !retired.contains($0) })
+        #expect(!Categories.browse.contains { retired.contains($0.slug) })
+        #expect(Categories.browse.contains { $0.slug == "electronics" })
+    }
+
+    // …but the Quick-find rail keeps a retired shelf while it is the active filter, as the web rail does.
+    @Test func railKeepsAnActiveRetiredShelf() {
+        #expect(Categories.browse(keeping: "vehicles").contains { $0.slug == "vehicles" })
+        #expect(!Categories.browse(keeping: "vehicles").contains { $0.slug == "pets" })
+        #expect(Categories.browse(keeping: nil).map(\.slug) == Categories.browse.map(\.slug))
+        #expect(Categories.browse(keeping: "electronics").map(\.slug) == Categories.browse.map(\.slug))
+    }
+
+    // …and posting and lookups keep them: the web keeps these shelves postable.
+    @Test func retiredShelvesStayPostableAndResolvable() {
+        #expect(Categories.bySlug("vehicles")?.slug == "vehicles")
+        #expect(Categories.all.contains { $0.slug == "hobbies-sports" })
+        #expect(Categories.all.contains { $0.slug == "pets" })
     }
 }
 

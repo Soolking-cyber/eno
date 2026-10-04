@@ -43,6 +43,27 @@ enum Categories {
         AppCategory(slug: "food-drink", symbol: "fork.knife", en: "Food", vi: "Ẩm thực", color: brand),
     ]
 
+    // ⛔ SHELVES THE WEB NO LONGER OFFERS IN BROWSE NAVIGATION (second-hand focus, owner 2026-10-03;
+    // src/lib/retired-categories.ts RETIRED_NAV_CATEGORIES). Hiding the new-goods catalogues left them
+    // all but empty, so the web's category rail, footer and shortcuts dropped them — while this app's
+    // grids still led with Vehicles. books-stationery has never been in `all`; it is listed so the set
+    // reads exactly like the web's.
+    static let retiredFromBrowse: Set<String> = ["vehicles", "pets", "books-stationery", "hobbies-sports"]
+
+    // The categories the BROWSE surfaces offer: the home grid, the Quick-find rail and the search
+    // screen's "Popular" chips. ⚠️ `all` STAYS THE FULL LIST, ON PURPOSE: the web keeps these shelves
+    // POSTABLE and their listings visible, so the Post picker and `bySlug` (a listing's category chip)
+    // still read `all` — dropping them there would stop a seller posting a bike and blank the category
+    // of every bike already listed.
+    static let browse: [AppCategory] = all.filter { !retiredFromBrowse.contains($0.slug) }
+
+    // The Quick-find rail's tiles: `browse`, plus a retired shelf while it is the ACTIVE filter — the web
+    // rail's own rule ("unless active"). A saved search can re-open `category=vehicles`; without its tile
+    // the feed would stay filtered with nothing on screen showing it (commit-gate review). `all`'s order.
+    static func browse(keeping active: String?) -> [AppCategory] {
+        all.filter { !retiredFromBrowse.contains($0.slug) || $0.slug == active }
+    }
+
     static func bySlug(_ slug: String) -> AppCategory? {
         all.first { $0.slug == slug }
     }

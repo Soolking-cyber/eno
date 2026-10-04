@@ -101,7 +101,7 @@ fun QuickFindBar(vm: FeedViewModel, onActiveChange: (Boolean) -> Unit = {}, bran
         // ── category rail ──
         val catState = rememberLazyListState()
         LaunchedEffect(category) {
-            category?.let { c -> catState.animateScrollToItem((Categories.all.indexOfFirst { it.slug == c } + 1).coerceAtLeast(0)) }
+            category?.let { c -> catState.animateScrollToItem((Categories.browseKeeping(c).indexOfFirst { it.slug == c } + 1).coerceAtLeast(0)) }
         }
         LazyRow(state = catState, horizontalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(horizontal = 12.dp)) {
             item {
@@ -110,7 +110,9 @@ fun QuickFindBar(vm: FeedViewModel, onActiveChange: (Boolean) -> Unit = {}, bran
                     vm.category = null; vm.subcategory = null; vm.brand = null; vm.model = null
                 }
             }
-            items(Categories.all, key = { it.slug }) { cat ->
+            // Browse shelves only — the retired ones are out, as on the web, unless one is the active filter
+            // (Categories.browseKeeping).
+            items(Categories.browseKeeping(category), key = { it.slug }) { cat ->
                 Row {
                     Tile(name = cat.name, active = category == cat.slug, icon = LucideIcons.forCategory(cat.slug)) {
                         val next = if (category == cat.slug) null else cat.slug

@@ -426,4 +426,18 @@ object Categories {
         AppCategory("tickets-travel", "Travel", "Du lịch"),
         AppCategory("food-drink", "Food", "Ẩm thực"),
     )
+
+    // ⛔ SHELVES THE WEB NO LONGER OFFERS IN BROWSE NAVIGATION (second-hand focus, owner 2026-10-03;
+    // src/lib/retired-categories.ts RETIRED_NAV_CATEGORIES). books-stationery has never been in `all`; it
+    // is listed so the set reads exactly like the web's.
+    val retiredFromBrowse = setOf("vehicles", "pets", "books-stationery", "hobbies-sports")
+
+    // What the Quick-find rail offers. ⚠️ `all` STAYS THE FULL LIST, ON PURPOSE: the web keeps these
+    // shelves POSTABLE, so the Post picker and the home-rail lookup still read `all` (mirror of
+    // apps/ios Categories.swift `browse`).
+    val browse: List<AppCategory> = all.filterNot { it.slug in retiredFromBrowse }
+
+    // The Quick-find rail's tiles: `browse`, plus a retired shelf while it is the ACTIVE filter — the web
+    // rail's own rule ("unless active"), so an active filter always has a tile showing it. `all`'s order.
+    fun browseKeeping(active: String?): List<AppCategory> = all.filter { it.slug !in retiredFromBrowse || it.slug == active }
 }

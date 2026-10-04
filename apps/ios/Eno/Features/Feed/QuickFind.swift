@@ -87,7 +87,9 @@ struct QuickFindBar: View {
                         feed.category = nil; feed.subcategory = nil; feed.brand = nil; feed.model = nil
                     }
                     .id("cat-all")
-                    ForEach(Categories.all) { cat in
+                    // Browse shelves only — the retired ones are out, as on the web, unless one is the active
+                    // filter (a saved search can re-open it), which keeps its tile (Categories.browse(keeping:)).
+                    ForEach(Categories.browse(keeping: feed.category)) { cat in
                         tile(name: cat.name, symbol: cat.symbol, active: feed.category == cat.slug) {
                             if feed.category == cat.slug { clearAll() }
                             else { clearAll(); feed.category = cat.slug }

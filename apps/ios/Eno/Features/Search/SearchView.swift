@@ -140,7 +140,8 @@ struct SearchView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     eyebrow("chart.line.uptrend.xyaxis", L10n.tr("Popular", "Phổ biến"))
                     FlowLayout(spacing: 6) {
-                        ForEach(Array(Categories.all.prefix(8))) { cat in
+                        // Browse shelves only (Categories.browse) — "Popular" must not lead with a retired one.
+                        ForEach(Array(Categories.browse.prefix(8))) { cat in
                             // NavigationLink owns the tap, so it wraps the chip VISUAL —
                             // nesting EnoChip's own Button here would break tap + VoiceOver.
                             NavigationLink(value: cat) { EnoChipLabel(cat.name) }

@@ -216,7 +216,8 @@ struct FeedView: View {
             // scrolling row of category tiles, and the second row cost ~96pt of the first screen
             // for tiles the same swipe reaches anyway (owner, comparing the two side by side).
             LazyHGrid(rows: [GridItem(.fixed(84), spacing: EnoSpacing.s3)], spacing: EnoSpacing.s3) {
-                ForEach(Categories.all) { cat in
+                // Browse shelves only — the retired ones are out, as on the web (Categories.browse).
+                ForEach(Categories.browse) { cat in
                     NavigationLink(value: cat) {
                         // Web parity (FINN-style grid, listings-explorer.tsx): a
                         // monochrome icon + bold label, NO colored tile — every

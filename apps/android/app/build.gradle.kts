@@ -60,4 +60,6 @@ dependencies {
     // ExoPlayer for the PDP video-first gallery page (#22, poster = first image).
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
+    // JVM unit tests (app/src/test) — pure Core logic only, no device: `./gradlew :app:testDebugUnitTest`.
+    testImplementation("junit:junit:4.13.2")
 }
