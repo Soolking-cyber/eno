@@ -11,6 +11,7 @@ import { RentalsHeading } from '../category-text'
 import { CategoryLedeBlock } from './category-lede-block'
 import { LEDE_PLACEMENT } from './lede-placement'
 import { VI_PILOT, localizedHref } from '@/lib/lang-pinned'
+import { SITE_NAME } from '@/lib/edition'
 import { LangPilotSwitch } from '@/components/marketplace/lang-pilot-switch'
 import { LangSuggestionBanner } from '@/components/marketplace/lang-suggestion-banner'
 
@@ -77,7 +78,9 @@ export default async function CategoryIndexLayout({
             <BreadcrumbItem>
               {/* Base UI render prop (never asChild) — keeps the Next.js client-side nav. */}
               {/* `relative tap-44`: a 44px touch target around the short crumb, no layout change (home-06). */}
-              <BreadcrumbLink render={<Link href={localizedHref('/', lang)} />} className="relative tap-44 hover:text-accent-foreground"><Tr text="Home" ctx="page" /></BreadcrumbLink>
+              {/* ⛔ THE ROOT IS SITE_NAME, NOT "Home" (NAV-10): on /c/furniture-appliances in English the trail
+                  read "Home / Home". The JSON-LD's root name follows it (crumbNames, category-copy.ts). */}
+              <BreadcrumbLink render={<Link href={localizedHref('/', lang)} />} className="relative tap-44 hover:text-accent-foreground">{SITE_NAME}</BreadcrumbLink>
             </BreadcrumbItem>
             {/* Literal "/" separator, and the colour stays pinned to --line-strong: the
                 primitive's default is a chevron in text-muted-foreground. */}

@@ -21,6 +21,7 @@ import {
   type RentalsFacts,
   type RentalsHeadline,
 } from './category-copy'
+import { SITE_NAME } from '@/lib/edition'
 
 /**
  * ⛔ EVERY CLAIM IS GATED ON A COUNT. These pin the gates rather than the prose: "Ho Chi Minh City"
@@ -442,9 +443,24 @@ describe('district metadata claims (V2, CS-3)', () => {
 
 describe('crumbNames (V2-7, V2-11, V2-12)', () => {
   it('equals the visible crumbs in each language', () => {
-    expect(crumbNames({ name: 'Rentals', nameVi: 'Cho thuê' }, 'vi')).toEqual({ home: 'Trang chủ', category: 'Cho thuê' })
-    expect(crumbNames({ name: 'Rentals', nameVi: 'Cho thuê' }, 'en')).toEqual({ home: 'Home', category: 'Rentals' })
+    expect(crumbNames({ name: 'Rentals', nameVi: 'Cho thuê' }, 'vi')).toEqual({ home: SITE_NAME, category: 'Cho thuê' })
+    expect(crumbNames({ name: 'Rentals', nameVi: 'Cho thuê' }, 'en')).toEqual({ home: SITE_NAME, category: 'Rentals' })
     expect(crumbNames({ name: 'Misc', nameVi: '' }, 'vi').category).toBe('Misc')
+  })
+
+  it('NAV-10: the root is the site, never "Home" — the category named Home made the trail "Home / Home"', () => {
+    const home = { name: 'Home', nameVi: 'Nhà cửa' }
+    expect(crumbNames(home, 'en', 'eno.vn')).toEqual({ home: 'eno.vn', category: 'Home' })
+    expect(crumbNames(home, 'vi', 'eno.vn')).toEqual({ home: 'eno.vn', category: 'Nhà cửa' })
+    // eno.forum's trail names eno.forum (vitest builds the services edition).
+    expect(crumbNames(home, 'en').home).toBe('eno.forum')
+    // The visible root crumb on both pages is the same constant, not the "Home" UI string.
+    const read = (f: string) => readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]', f), 'utf8')
+    for (const f of ['(index)/layout.tsx', '[district]/page.tsx']) {
+      const s = read(f)
+      expect(s, f).toMatch(/<BreadcrumbLink render=\{<Link href=\{localizedHref\('\/', lang\)\} \/>\} className="[^"]*">\{SITE_NAME\}<\/BreadcrumbLink>/)
+      expect(s, f).not.toContain('<Tr text="Home" />')
+    }
   })
 
   it('both pages build their JSON-LD crumbs from it (source contract)', () => {

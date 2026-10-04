@@ -1,4 +1,5 @@
 import type { DistrictChip } from '@/lib/district-canonical'
+import { SITE_NAME } from '@/lib/edition'
 import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
 import { HOME_RENTAL_SUBCATS } from '@/lib/rental-homes'
 import { formatInteger } from '@/lib/vnd'
@@ -287,12 +288,19 @@ export function categoryMetadata(
 
 /**
  * The JSON-LD BreadcrumbList names of a category and a district page, in the page's language, equal to
- * the visible crumbs: "Home" / "Trang chủ" (`<Tr text="Home" />`) and the category's own name
+ * the visible crumbs: the site's own name (`{SITE_NAME}`) and the category's own name
  * (`<Bilingual en={cat.name} vi={cat.nameVi || cat.name} />`). SEO wave B, V2 (CS-3 V2-7, V2-11, V2-12):
  * the Vietnamese rendering read Home / Rentals / Quận 1.
+ * ⛔ THE ROOT IS THE SITE'S NAME, NOT "Home" / "Trang chủ" (NAV-10, UX3 2026-10-05): the category
+ * furniture-appliances is called "Home" in English, so its trail read "Home / Home". `siteName` defaults
+ * to this build's SITE_NAME — eno.forum's crumbs must not name eno.vn.
  */
-export function crumbNames(cat: { name: string; nameVi?: string | null }, lang: PageLang): { home: string; category: string } {
-  return lang === 'vi' ? { home: 'Trang chủ', category: cat.nameVi || cat.name } : { home: 'Home', category: cat.name }
+export function crumbNames(
+  cat: { name: string; nameVi?: string | null },
+  lang: PageLang,
+  siteName: string = SITE_NAME,
+): { home: string; category: string } {
+  return { home: siteName, category: lang === 'vi' ? cat.nameVi || cat.name : cat.name }
 }
 
 /**

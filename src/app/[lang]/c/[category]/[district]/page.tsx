@@ -364,7 +364,8 @@ export default async function CategoryDistrictPage({ params }: Props) {
           <BreadcrumbList>
             <BreadcrumbItem>
               {/* Base UI render prop (never asChild) — keeps the Next.js client-side nav. */}
-              <BreadcrumbLink render={<Link href={localizedHref('/', lang)} />} className="hover:text-accent-foreground"><Tr text="Home" ctx="page" /></BreadcrumbLink>
+              {/* The root is SITE_NAME, as on the category page and in this page's JSON-LD (crumbNames) — NAV-10. */}
+              <BreadcrumbLink render={<Link href={localizedHref('/', lang)} />} className="hover:text-accent-foreground">{SITE_NAME}</BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
             <BreadcrumbItem>

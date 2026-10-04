@@ -1,6 +1,7 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
-import { categoryBrowsePath, isRetiredNavCategory } from '@/lib/retired-categories'
+import { categoryBrowsePath } from '@/lib/retired-categories'
+import { pdpBreadcrumbLd, subcategoryCrumb } from '@/lib/pdp-breadcrumb'
 import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, facetsFor, isVisaProductSlot, salaryPriceFor } from '@/lib/taxonomy'
 import { TeacherProfileView } from '@/components/teachers/teacher-profile-view'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
@@ -582,26 +583,30 @@ export default async function ListingPage({ params }: Props) {
       })
     : null
 
-  // Breadcrumb rich result: Home › Category › Listing.
-  const breadcrumbLd = {
-    '@context': 'https://schema.org/',
-    '@type': 'BreadcrumbList',
-    /**
-     * ⛔ A RETIRED SHELF HAS NO CATEGORY CRUMB IN THE MARKUP (review, 2026-10-03): its browse link is the
-     * explorer filtered to it (`/?category=…`, retired-categories.ts), which canonicalises to `/` — a
-     * BreadcrumbList item whose canonical is another page. The visible crumb still links it for people.
-     */
-    'itemListElement': (isRetiredNavCategory(rawListing.category.slug)
-      ? [
-          { '@type': 'ListItem', 'name': 'eno.vn', 'item': hostUrl },
-          { '@type': 'ListItem', 'name': displayTitle, 'item': canonicalUrl },
-        ]
-      : [
-          { '@type': 'ListItem', 'name': 'eno.vn', 'item': hostUrl },
-          { '@type': 'ListItem', 'name': listing.category.name, 'item': `${hostUrl}/c/${rawListing.category.slug}` },
-          { '@type': 'ListItem', 'name': displayTitle, 'item': canonicalUrl },
-        ]).map((item, i) => ({ ...item, 'position': i + 1 })),
-  }
+  // The trail — site › category › subcategory › listing — and its rich result, from ONE model so the two
+  // stay in step (NAV-10; src/lib/pdp-breadcrumb.ts). The subcategory crumb is a vehicle hire listing's
+  // hub (marketplace only, like every hub link) or the explorer filtered to category + subcategory.
+  const subcategory = subcategoryCrumb(
+    { categorySlug: rawListing.category.slug, subcategorySlug: rawListing.subcategorySlug, city: listing.city },
+    pageVariant,
+    !IS_SERVICES,
+  )
+  /**
+   * ⛔ A RETIRED SHELF HAS NO CATEGORY CRUMB IN THE MARKUP (review, 2026-10-03): its browse link is the
+   * explorer filtered to it (`/?category=…`, retired-categories.ts), which canonicalises to `/` — a
+   * BreadcrumbList item whose canonical is another page. The visible crumb still links it for people. The
+   * same holds for an explorer subcategory crumb; a hub crumb is a real page and is kept (pdpBreadcrumbLd).
+   * The root is SITE_NAME, not a literal "eno.vn" — this page renders on eno.forum too.
+   */
+  const breadcrumbLd = pdpBreadcrumbLd({
+    hostUrl,
+    siteName: SITE_NAME,
+    lang: pageVariant,
+    category: { slug: rawListing.category.slug, name: listing.category.name, nameVi: listing.category.nameVi },
+    subcategory,
+    title: displayTitle,
+    canonicalUrl,
+  })
 
   const ldJson = (o: object) => JSON.stringify(o).replace(/</g, '\\u003c')
 
@@ -735,8 +740,8 @@ export default async function ListingPage({ params }: Props) {
             (which shows up to 1023px). Side by side, both sit in the first screen. */}
         <div className="flex flex-col gap-6 md:grid md:grid-cols-12 md:gap-x-6 md:gap-y-6 lg:gap-x-10 lg:gap-y-8">
 
-          {/* 1 — Breadcrumb (subdued, full width). Leaf crumb hidden on mobile (it duplicates
-              the H1); the BreadcrumbList JSON-LD still carries all 3 levels. */}
+          {/* 1 — Breadcrumb (subdued, full width): site / category / subcategory / title. Leaf crumb
+              hidden on mobile (it duplicates the H1); the BreadcrumbList JSON-LD still carries it. */}
           {/* ⚠️ `order-7` ON MOBILE — BELOW THE CTA, NOT ABOVE THE PHOTO. MEASURED, NOT PREFERRED.
               On a 390x844 phone the fixed tab bar takes the bottom 72px, so the usable fold is 772px.
               Everything above the gallery used to cost 270px of that — 35% of the fold spent before a
@@ -756,7 +761,7 @@ export default async function ListingPage({ params }: Props) {
               order with no third number to find.
               ⚠️ `lg:order-1` keeps it FIRST on desktop, where it sits full-width above the grid and
               the fold problem does not exist. And the BreadcrumbList JSON-LD is emitted separately, so
-              the position here is presentation only — Google still gets all three levels. */}
+              the position here is presentation only — Google still gets every level. */}
           {/* ⚠️ `-my-3 py-3`: the crumbs below were 39x17 and 49x17 with no press state, and their
               `tap-44` hit areas need 44px of room — but `truncate` makes this nav `overflow:hidden`,
               which would clip them back to the 20px line. The padding gives the clip box its 44px and
@@ -764,12 +769,23 @@ export default async function ListingPage({ params }: Props) {
           {/* The landmark's name follows the visitor's language (ui/localized-nav); `data-crumb-trail` is what
               globals.css hides in the native app — never the label, which is no longer English everywhere. */}
           <LocalizedNav label="Breadcrumb" labelVi="Đường dẫn" data-crumb-trail="" className="order-7 -my-3 truncate py-3 text-sm text-muted-foreground md:order-1 md:col-span-12">
-            {/* prefetch={false} on both crumbs: they sit above the fold on every PDP, so auto
-                prefetch fires two extra RSC requests per listing view for links most visitors
+            {/* prefetch={false} on every crumb: they sit above the fold on every PDP, so auto
+                prefetch fires extra RSC requests per listing view for links most visitors
                 never take (the way back is the tab bar or the browser's back button). */}
-            <Link href={localizedHref('/', pageVariant)} prefetch={false} className="relative tap-44 transition-colors hover:text-accent-foreground active:opacity-60"><Tr text="Home" ctx="page" /></Link>
+            {/* ⛔ THE ROOT IS SITE_NAME (NAV-10): "Home" collided with the category named Home ("Home / Home /
+                …" on every English furniture listing), and a literal would name eno.vn on eno.forum. */}
+            <Link href={localizedHref('/', pageVariant)} prefetch={false} className="relative tap-44 transition-colors hover:text-accent-foreground active:opacity-60">{SITE_NAME}</Link>
             <span className="mx-1.5 text-line-strong">/</span>
             <Link href={localizedHref(categoryBrowsePath(rawListing.category.slug), pageVariant)} prefetch={false} className="relative tap-44 transition-colors hover:text-accent-foreground active:opacity-60"><Bilingual en={listing.category.name} vi={listing.category.nameVi || listing.category.name} /></Link>
+            {/* The subcategory (NAV-10): a car or motorbike hire listing in HCMC goes up to its hub, anything
+                else to the explorer filtered to category + subcategory — `nofollow` there, like every explorer
+                link on /c (it canonicalises to `/`); the hub is a page to rank, so it is followed. */}
+            {subcategory && (
+              <>
+                <span className="mx-1.5 text-line-strong">/</span>
+                <Link href={localizedHref(subcategory.href, pageVariant)} prefetch={false} rel={subcategory.hub ? undefined : 'nofollow'} className="relative tap-44 transition-colors hover:text-accent-foreground active:opacity-60"><Bilingual en={subcategory.name} vi={subcategory.nameVi || subcategory.name} /></Link>
+              </>
+            )}
             <span className="mx-1.5 hidden text-line-strong md:inline">/</span>
             <span className="hidden font-medium text-foreground md:inline"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></span>
           </LocalizedNav>
@@ -825,10 +841,18 @@ export default async function ListingPage({ params }: Props) {
 
           {/* RIGHT COLUMN (md col-6, lg col-5): the "buy box", sticky at lg. It comes FIRST in the DOM
               (so the H1, price, seller and contact controls lead the reading / tab order — the media +
-              copy column follows); `md:order-3` still paints it on the RIGHT from md, and `md:order-2`
-              on the LEFT column below paints the media on the left. `contents` on phones so its
-              children join the single order flow. */}
-          <div className="contents md:order-3 md:col-span-6 md:block lg:col-span-5">
+              copy column follows); it paints on the RIGHT from md, the LEFT column below on the left.
+              `contents` on phones so its children join the single order flow.
+              ⛔ ITS CELL IS NAMED, NOT LEFT TO `order` (FAST-10, 2026-10-05). With only `md:order-3`
+              the cell was decided by auto-placement, and auto-placement only sees what the parser has
+              reached: while the HTML streams, the buy box is the one column in the grid, so it took
+              the first free cell — the LEFT one (x≈112 at 1440px) — and jumped to the right (x≈845)
+              the moment the media column below was parsed. CLS 0.19–0.24 on 7 of 8 desktop cold loads,
+              the cause of the site's one failing field metric (desktop CLS p75 0.23). `col-start` +
+              `row-start` (row 2: the breadcrumb owns row 1) put it in its final cell on the first
+              paint, wherever the parser is. The `order-*` classes stay — DOM order, and therefore
+              reading and tab order, is unchanged. */}
+          <div className="contents md:order-3 md:col-span-6 md:col-start-7 md:row-start-2 md:block lg:col-span-5 lg:col-start-8">
             {/* ⚠️ STICKY STAYS lg-ONLY. At 768-1023 and in landscape the buy box (strip, reviews) is
                 taller than the viewport, and a sticky column would park its lower half out of reach. */}
             <div className="contents md:flex md:flex-col md:gap-4 md:border-l md:border-border/70 md:pl-6 lg:sticky lg:top-24 lg:pl-10">
@@ -1172,9 +1196,10 @@ export default async function ListingPage({ params }: Props) {
           </div>
 
           {/* LEFT COLUMN (md col-6, lg col-7): gallery → description/details → map → safety note. It
-              follows the buy box in the DOM (reading order) but `md:order-2` paints it on the LEFT from
-              md; `contents` on phones flattens these into the shared order space. */}
-          <div className="contents md:order-2 md:col-span-6 md:flex md:flex-col md:gap-6 lg:col-span-7 lg:gap-8">
+              follows the buy box in the DOM (reading order) but paints on the LEFT from md, in the cell
+              it names (`md:col-start-1 md:row-start-2` — FAST-10, see the buy box above); `contents` on
+              phones flattens these into the shared order space. */}
+          <div className="contents md:order-2 md:col-span-6 md:col-start-1 md:row-start-2 md:flex md:flex-col md:gap-6 lg:col-span-7 lg:gap-8">
             {/* Shop-on-top (Shopee): storefront link above the media, DESKTOP/TABLET. order-1 so it
                 leads the left column from md (above the gallery); hidden below md (mobile twin above). */}
             <div className="order-1 hidden md:block">

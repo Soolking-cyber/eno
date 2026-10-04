@@ -41,7 +41,10 @@ export type VehicleHubData = {
   kind: VehicleHubKind
   total: number
   cohorts: Cohort[]
-  /** Cars: the four cohort counts a renter filters by. Bikes: automatic/manual × day/month. */
+  /**
+   * Cars: the cohort counts a renter filters by, plus one tally per `seats` value (seats-4 … seats-9plus,
+   * for the filter row's chips). Bikes: automatic/manual × day/month.
+   */
   counts: Record<string, number>
   districts: { district: string; count: number }[]
   /**
@@ -91,7 +94,9 @@ export const loadVehicleHub = cache(async (kind: VehicleHubKind): Promise<Vehicl
   const counts: Record<string, number> = {}
   if (kind === 'car') {
     counts['seats-4-5'] = rows.filter((r) => seatsOf(r) === '4' || seatsOf(r) === '5').length
-    counts['seats-7'] = rows.filter((r) => seatsOf(r) === '7').length
+    // One tally per `seats` facet value — the filter row under the lede offers a chip only where its
+    // tally is above 0 (NAV-9, src/lib/vehicle-hub-chips.ts). `seats-7` is the cohort the prose prints too.
+    for (const s of ['4', '5', '7', '9plus'] as const) counts[`seats-${s}`] = rows.filter((r) => seatsOf(r) === s).length
     counts.vinfast = rows.filter(isVinFast).length
   } else {
     for (const p of ['daily', 'monthly'] as const) {

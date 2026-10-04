@@ -158,6 +158,13 @@ export type ArticleContent = {
    * The label is in the article's language, like its prose.
    */
   cta?: { href: string; label: string; nofollow?: boolean; repeatAtEnd?: boolean }
+  /**
+   * A row of controls directly under the lede — the vehicle hubs' Filters · Map · type chips (NAV-9,
+   * vehicle-hub-filter-row.tsx), as the district hubs carry theirs under the lede (A13). It renders before
+   * `cta` and the disclosure: a reader who came for the inventory gets the way in before the fine print.
+   * The node brings its own top margin.
+   */
+  ledeRow?: React.ReactNode
 }
 
 /** The prose column. Two of them only when `railAfter` puts the page-width rail between the sections. */
@@ -393,6 +400,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
           <time dateTime={modified}>{formatArticleDate(modified, articleLang)}</time> · {SITE_NAME}
         </p>
         <p className="mt-4 max-w-3xl text-base leading-relaxed text-body">{content.intro}</p>
+        {content.ledeRow}
         {content.cta && <ArticleCta cta={content.cta} className="mt-6" />}
 
         {content.disclosure && (

@@ -11,6 +11,9 @@ import { localizedHref } from '@/lib/lang-pinned'
 import { BAND_MIN, RANGE_MIN, hcmcIsoDate, linkState, referenceSources, type LinkState, type PriceSummary } from '@/lib/vehicle-hub-stats'
 import type { VehicleHubData, VehicleHubKind } from '@/lib/vehicle-hubs'
 import { hubBooking, hubDisclosure, hubIntro, type HubCopyInput } from '@/lib/vehicle-hub-copy'
+import { VEHICLE_HUB_SLUGS, VEHICLE_HUB_SUBCAT } from '@/lib/vehicle-hub-slugs'
+import { hubTypeChips } from '@/lib/vehicle-hub-chips'
+import { VehicleHubFilterRow } from './vehicle-hub-filter-row'
 
 /**
  * THE HCMC VEHICLE-HIRE HUBS — four URLs, one component: {car, motorbike} × {en, vi}.
@@ -40,13 +43,12 @@ import { hubBooking, hubDisclosure, hubIntro, type HubCopyInput } from '@/lib/ve
 
 type Lang = 'en' | 'vi'
 
-const SUB: Record<VehicleHubKind, string> = { car: 'car-rental', motorbike: 'motorbike-rental' }
+const SUB = VEHICLE_HUB_SUBCAT
 const explorer = (kind: VehicleHubKind, extra = '') => `/?category=rentals&subcategory=${SUB[kind]}${extra}`
 
-export const VEHICLE_HUB_SLUGS: Record<VehicleHubKind, Record<Lang, string>> = {
-  car: { en: 'car-rental-ho-chi-minh-city', vi: 'thue-xe-tu-lai-tphcm' },
-  motorbike: { en: 'motorbike-rental-ho-chi-minh-city', vi: 'thue-xe-may-tphcm' },
-}
+// The slugs live in src/lib/vehicle-hub-slugs.ts since NAV-10 (the listing page's breadcrumb links a hub
+// without importing this renderer); re-exported so the four route files keep their import.
+export { VEHICLE_HUB_SLUGS } from '@/lib/vehicle-hub-slugs'
 
 const count = (n: number, lang: Lang) => new Intl.NumberFormat(lang === 'vi' ? 'vi-VN' : 'en-US').format(n)
 const money = (n: number, lang: Lang) => formatMoneyFull(n, '₫', lang)
@@ -368,6 +370,7 @@ export function vehicleHubContent(data: VehicleHubData, lang: Lang, published: s
   const copy = hubCopy(data, lang)
   const intro = hubIntro(copy)
   const disclosure = hubDisclosure(copy)
+  const { facet, types } = hubTypeChips(data)
 
   return {
     eyebrow: isCar ? (vi ? 'Thuê xe tự lái · TP.HCM' : 'Car hire · Ho Chi Minh City') : (vi ? 'Thuê xe máy · TP.HCM' : 'Motorbike hire · Ho Chi Minh City'),
@@ -375,6 +378,9 @@ export function vehicleHubContent(data: VehicleHubData, lang: Lang, published: s
       ? vi ? 'Thuê xe tự lái TP.HCM: giá thuê theo ngày theo từng loại xe' : 'Car rental in Ho Chi Minh City: self-drive cars and what a day costs'
       : vi ? 'Thuê xe máy Sài Gòn: xe ga, xe số, thuê theo ngày hoặc theo tháng' : 'Motorbike rental in Ho Chi Minh City: scooters by the day or the month',
     intro,
+    // NAV-9: Filters · Map · type chips under the lede, the way the district hubs have them (A13). Not on an
+    // empty hub — with nothing live there is nothing to filter, and the page is noindex until stock returns.
+    ...(data.total > 0 ? { ledeRow: <VehicleHubFilterRow kind={data.kind} facet={facet} types={types} lang={lang} /> } : {}),
     canonical: `/${slug}`,
     published,
     // Ho Chi Minh City's calendar day, the same clock the printed "most recent change" uses (review, 2026-09-29).
