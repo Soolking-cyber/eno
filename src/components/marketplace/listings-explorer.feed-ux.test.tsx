@@ -25,6 +25,11 @@ import { installFakeIntersectionObserver } from '@/test/fake-intersection-observ
 // src/test/fake-intersection-observer.ts. Same budget as listings-explorer.back-nav-filter.test.tsx,
 // for this file only (vitest isolates files). Still bounded: a wait that never comes true fails at
 // 5 s, a hung test at 30 s.
+// ⛔ BUT A 5 s WAIT OUTLASTS SOME OF THE EXPLORER'S OWN TIMER FALLBACKS, which make the same thing true
+// without the behaviour under test: the Back restore's 1.5 s release of the history entry, and the
+// E-SSR mask's 12 s ceiling. A wait whose condition such a timer can reach must wait on something only
+// the real path produces, or run with that timer disarmed (see the Back and E-SSR tests) — never just
+// on the end state.
 configure({ asyncUtilTimeout: 5_000 })
 vi.setConfig({ testTimeout: 30_000 })
 
@@ -37,7 +42,17 @@ const h = vi.hoisted(() => {
   const facet: { props: Record<string, unknown> | null } = { props: null }
   /** What `usePathname()` answers — the PUBLIC path in a browser, the INTERNAL `/en…` in a prerender. */
   const nav = { pathname: '/' }
-  return { router, language, auth, facet, nav }
+  /** Every back-nav restore the explorer ran, as the `runRestore` wrapper below saw it. */
+  const restores: {
+    anchorId: string | null
+    /** Did the loop ever find that card in the DOM? */
+    found: boolean
+    /** The entry's `history.scrollRestoration` when the loop started, and either side of its own `onDone`. */
+    modeAtStart?: string
+    modeBeforeDone?: string
+    modeAfterDone?: string
+  }[] = []
+  return { router, language, auth, facet, nav, restores }
 })
 
 vi.mock('next/navigation', () => ({
@@ -92,6 +107,30 @@ vi.mock('./recently-viewed-rail', () => ({ RecentlyViewedRail: () => null }))
 vi.mock('./business-rail', () => ({ BusinessRail: () => null }))
 vi.mock('./trending-searches', () => ({ TrendingSearches: () => null }))
 vi.mock('./ai-concierge', () => ({ AISearchButton: () => null }))
+// The back-nav restore runs the REAL loop. The wrapper only records what it did, so the Back test can
+// tell the restore's own release of the history entry from the explorer's 1.5 s safety net, which
+// releases it on a timer whether anything was restored or not.
+vi.mock('./feed-restore', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./feed-restore')>()
+  const scrollMode = () => (window.history as { scrollRestoration?: string }).scrollRestoration
+  const runRestore: typeof real.runRestore = (target, env, onDone) => {
+    const run: (typeof h.restores)[number] = { anchorId: target.anchorId, found: false, modeAtStart: scrollMode() }
+    h.restores.push(run)
+    return real.runRestore(target, {
+      ...env,
+      anchorTopOf: (id) => {
+        const top = env.anchorTopOf(id)
+        if (top != null) run.found = true
+        return top
+      },
+    }, () => {
+      run.modeBeforeDone = scrollMode()
+      onDone()
+      run.modeAfterDone = scrollMode()
+    })
+  }
+  return { ...real, runRestore }
+})
 
 import { ListingsExplorer, __resetExplorerCommittedForTests } from './listings-explorer'
 import { SITE_NAME } from '@/lib/edition'
@@ -192,6 +231,7 @@ beforeEach(() => {
   viewport.desktop = false
   h.facet.props = null
   h.nav.pathname = '/'
+  h.restores.length = 0
   catalogue = Array.from({ length: 30 }, (_, i) => row(`r${i}`))
   sessionStorage.clear()
   installDomStubs()
@@ -387,9 +427,21 @@ describe('Back from a listing: the browser\'s own scroll restoration is held off
     act(() => { screen.getAllByTestId('card')[5].click() })
     first.unmount()          // → /listings/<id>
     expect(mode()).toBe('manual')
+    expect(h.restores).toEqual([]) // a cold mount has nothing to restore
     mount(client)            // ← Back: the snapshot is consumed and the restore runs
     await waitFor(() => expect(sessionStorage.getItem('eno:feed-snap')).toBeNull())
-    await waitFor(() => expect(mode()).toBe('auto'))
+    // ⛔ WAIT FOR THE RESTORE TO FINISH, NEVER FOR THE MODE. The explorer also hands 'auto' back after
+    // 1.5 s when a snapshot has not matched the feed (listings-explorer.tsx, `releaseFeedEntry` on a
+    // timer), and the 5 s wait outlasts that, so `waitFor(mode() === 'auto')` passed with the restore
+    // broken. Only the restore's own `onDone` fills `modeAfterDone`.
+    await waitFor(() => expect(h.restores[0]?.modeAfterDone).toBeDefined())
+    // One restore, aligned on the tapped card, which it found in the DOM; the entry stayed 'manual'
+    // until the restore's `onDone` and was 'auto' as soon as that returned. Not a race with the 1.5 s
+    // timer, however slow the frames: it releases only while `pendingSnapRef` is set, and the match
+    // clears that inside the Back mount's own commit (the restore has already started when
+    // `mount()` returns).
+    expect(h.restores).toEqual([{ anchorId: 'r5', found: true, modeAtStart: 'manual', modeBeforeDone: 'manual', modeAfterDone: 'auto' }])
+    expect(mode()).toBe('auto')
   })
 })
 
@@ -770,9 +822,22 @@ describe('a cold directed deep link waits for its own answer behind the mask (E-
   afterEach(() => { document.documentElement.removeAttribute('data-explorer-directed') })
 
   it('holds the mask and blocks taps on the seed until the answer lands', async () => {
+    // ⛔ THE MASK'S 12 s CEILING IS DISARMED HERE, SO ONLY THE ANSWER CAN LIFT IT. The explorer also lifts
+    // the mask on a timer, answer or not (listings-explorer.tsx, `setAwaitingUrlAnswer(false), 12_000`),
+    // and two of this file's 5 s waits in a row can reach it, so a lift by that timer would pass this
+    // test with the answer path broken. Picked out by its delay AND its callback (the `next/dynamic` probe
+    // above reads a function's source the same way); every other timer runs as normal.
+    const realSetTimeout = globalThis.setTimeout
+    const ceilings: number[] = []
+    const timers = vi.spyOn(globalThis, 'setTimeout').mockImplementation(((fn: (...a: unknown[]) => void, ms?: number, ...rest: unknown[]) => {
+      if (ms === 12_000 && String(fn).includes('setAwaitingUrlAnswer')) { ceilings.push(ms); return realSetTimeout(() => {}, 0) }
+      return realSetTimeout(fn, ms, ...rest)
+    }) as unknown as typeof setTimeout)
     const release = holdAll()
     const v = await hydrateAt('/?q=phone', true)
     try {
+      // The ceiling was armed, and disarmed: if its delay ever changes, this fails rather than letting the timer back in.
+      expect(ceilings).toHaveLength(1)
       expect(v.errors).toEqual([])
       await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('q') === 'phone')).toBe(true))
       expect(document.documentElement.hasAttribute('data-explorer-directed')).toBe(true)
@@ -792,6 +857,7 @@ describe('a cold directed deep link waits for its own answer behind the mask (E-
       await waitFor(() => expect(v.container.querySelector('.feed-grid')!.parentElement!.parentElement!.hasAttribute('inert')).toBe(false))
     } finally {
       v.unmount()
+      timers.mockRestore() // (the file's afterEach restores it too, should hydrateAt itself throw)
     }
   })
 
