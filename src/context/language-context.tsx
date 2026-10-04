@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useMemo, useEffect, useLayo
 import { detectContentLang } from '@/lib/detect-lang'
 import { LANGUAGES, type Language } from '@/lib/i18n/langs'
 import { TR_OVERRIDES } from '@/lib/i18n/glossary'
+import { safeTemplate } from '@/lib/i18n/placeholders'
 import { EN, STATIC } from '@/lib/i18n/static-dicts'
 import {
   hashStrings,
@@ -536,7 +537,9 @@ function LanguageProviderInner({
     if (override) return override
     const ck = `${lang} ${en}`
     const hit = trCache.get(ck)
-    if (hit != null) return hit
+    // A cached machine translation whose {placeholders} no longer match the English is repaired or
+    // replaced by the English (safeTemplate) — a caller's `.replace('{n}', …)` must never print "{н}".
+    if (hit != null) return safeTemplate(hit, en)
     // Machine translation is a browser fetch; during SSR there is nothing to fetch from.
     if (typeof window !== 'undefined' && !trInflight.has(ck)) {
       trInflight.add(ck)
@@ -597,7 +600,7 @@ export function useTr(text: string | null | undefined, ctx?: string): string {
       // Curated glossary wins over the MT cache — same precedence as tr(). Without
       // this, <Tr>-rendered category tiles kept serving a stale WRONG cache row
       // (ru "Свойства" for Property) that the glossary couldn't override.
-      : ctxOverride?.[lang] ?? TR_OVERRIDES[safe]?.[lang] ?? trCache.get(cacheKey) ?? safe,
+      : ctxOverride?.[lang] ?? TR_OVERRIDES[safe]?.[lang] ?? safeTemplate(trCache.get(cacheKey) ?? safe, safe),
   )
 
   useEffect(() => {
@@ -611,7 +614,7 @@ export function useTr(text: string | null | undefined, ctx?: string): string {
         if (c) return
         const hv = viDict[safe]
         if (hv != null) setVal(hv)
-        else translateText(safe, lang).then((t2) => { if (!c) setVal(t2) })
+        else translateText(safe, lang).then((t2) => { if (!c) setVal(safeTemplate(t2, safe)) })
       }
       loadViOverrides().then(settle, settle)
       return () => { c = true }
@@ -622,9 +625,9 @@ export function useTr(text: string | null | undefined, ctx?: string): string {
     if (override) { setVal(override); return }
     const ck = `${lang} ${safe}`
     const hit = trCache.get(ck)
-    if (hit != null) { setVal(hit); return }
+    if (hit != null) { setVal(safeTemplate(hit, safe)); return }
     let cancelled = false
-    translateText(safe, lang).then((tr) => { if (!cancelled) setVal(tr) })
+    translateText(safe, lang).then((tr) => { if (!cancelled) setVal(safeTemplate(tr, safe)) })
     return () => { cancelled = true }
   }, [safe, lang, ctx])
 

@@ -364,6 +364,9 @@ const density = (lang?: string) => (lang ? DENSITY[lang] : undefined) ?? LATIN_D
 const BAND_LOW = 0.45
 const BAND_HIGH = 2.5
 
+// Full-width braces count: restorePlaceholders names `｛0｝` back too.
+const numberedPlaceholders = (x: string) => [...x.matchAll(/[{｛]\s*(\d+)\s*[}｝]/g)].map((m) => m[1]).sort().join(',')
+
 export function gateTranslation(src: string, hyp: string, target?: string, source?: string): MtReject | null {
   if (!hyp || !hyp.trim()) return 'empty'
 
@@ -376,6 +379,11 @@ export function gateTranslation(src: string, hyp: string, target?: string, sourc
 
   // Every model code must still be there, verbatim (modulo a space at a digit↔letter seam).
   if (codesIn(src).some((c) => !keepsCode(hyp, c))) return 'entity-loss'
+
+  // Every numbered placeholder — how translateBatch sends a template's {price} (src/lib/i18n/placeholders.ts)
+  // — must come back exactly as often as it went: a template that lost its {0} cannot be filled, and a
+  // rejection here hands the string to the paid provider instead of caching it broken.
+  if (numberedPlaceholders(src) !== numberedPlaceholders(hyp)) return 'entity-loss'
 
   const expected = density(target) / density(source)
   const ratio = hyp.length / Math.max(src.length, 1)

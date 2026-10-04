@@ -539,3 +539,18 @@ describe('gateTranslation — the last review round', () => {
     expect(gateTranslation('Giá 1.500,50 đồng', 'Price 2,500.50 dong', 'en', 'vi')).toBe('entity-loss')
   })
 })
+
+/**
+ * A template reaches the engine with NUMBERED placeholders (translateBatch, src/lib/i18n/placeholders.ts).
+ * The reject case is a real row from the Translation cache, measured 2026-10-05 (the engine that wrote it
+ * is not recorded): zh-Hans "{n} available" → "可用", the count gone.
+ */
+describe('gateTranslation — numbered placeholders are entities', () => {
+  it('rejects a translation that lost its {0}', () => {
+    expect(gateTranslation('{0} available', '可用', 'zh-Hans', 'en')).toBe('entity-loss')
+  })
+  it('passes one that kept it, wherever the language puts it', () => {
+    expect(gateTranslation('{0} available', '{0} 可用', 'zh-Hans', 'en')).toBeNull()
+    expect(gateTranslation('{0} says you bought {1} for {2}.', 'Продавец говорит, что вы купили {1} за {2}. {0}', 'ru', 'en')).toBeNull()
+  })
+})

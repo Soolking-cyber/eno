@@ -246,6 +246,41 @@ describe('translateBatch · a cached translation beats the skip', () => {
   })
 })
 
+describe('translateBatch · {placeholders} survive the engine', () => {
+  const sha = async (t: string) => (await import('crypto')).createHash('sha1').update(t).digest('hex')
+  const TPL = 'Offer {price}, cash'
+
+  it('sends {price} as {0} and caches the NAMED template under the named source', async () => {
+    const out = await translateBatch([TPL], 'ru', { source: 'warm' })
+    const sent = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    expect(sent).toEqual([{ Text: 'Offer {0}, cash' }])
+    expect(out).toEqual([`${PREFIX}${TPL}`])
+    expect(state.upserts).toEqual([{ hash: await sha(TPL), target: 'ru', value: `${PREFIX}${TPL}` }])
+  })
+
+  it('serves a cached broken template as is on a live request — no re-billing loop', async () => {
+    state.rows.push({ hash: await sha(TPL), target: 'ru', value: 'Предложение {цена}, наличные' })
+    const out = await translateBatch([TPL], 'ru', { source: 'api' })
+    expect(out).toEqual(['Предложение {цена}, наличные'])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('re-translates and overwrites a broken template when the warm cron asks (refreshBrokenTemplates)', async () => {
+    state.rows.push({ hash: await sha(TPL), target: 'ru', value: 'Предложение {цена}, наличные' })
+    const out = await translateBatch([TPL], 'ru', { source: 'warm-cron', refreshBrokenTemplates: true })
+    expect(out).toEqual([`${PREFIX}${TPL}`])
+    // Same key as the broken row (so the upsert overwrites it), named placeholder back in the value.
+    expect(state.upserts).toEqual([{ hash: await sha(TPL), target: 'ru', value: `${PREFIX}${TPL}` }])
+  })
+
+  it('leaves an intact cached template alone even when asked to refresh', async () => {
+    state.rows.push({ hash: await sha(TPL), target: 'ru', value: 'Предложите {price}, наличные' })
+    const out = await translateBatch([TPL], 'ru', { source: 'warm-cron', refreshBrokenTemplates: true })
+    expect(out).toEqual(['Предложите {price}, наличные'])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
 describe('translateBatch · skipWrite still holds', () => {
   it('translates private text but persists nothing', async () => {
     const out = await translateBatch([EN], 'vi', { skipWrite: true, source: 'chat' })

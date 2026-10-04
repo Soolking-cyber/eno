@@ -3,6 +3,7 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
 import { translateBatch, LANGS, type Lang } from '@/lib/translate'
 import { UI_STRINGS } from '@/generated/ui-strings'
+import { templateIntact } from '@/lib/i18n/placeholders'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -62,6 +63,13 @@ export async function GET(req: Request) {
   const LISTING_WARM_LANGS = new Set<Lang>(['vi', 'zh-Hans', 'ko', 'ja', 'ru'])
   const uiCorpus = Array.from(new Set(UI_STRINGS))
   const uiHashes = uiCorpus.map(sha1)
+  // The UI templates ("Offer {price}, cash"): a cached row whose {placeholders} an engine renamed or
+  // dropped is no translation the UI can use (src/lib/i18n/placeholders.ts), so it counts as missing and
+  // is re-translated — with numbered placeholders now — and overwritten. One attempt per run, at most.
+  // ⚠️ A template BOTH engines keep breaking is retried every night: bounded by that template's length per
+  // run, and measured 0 of 105 numbered probes across the nine languages (the box model's gate also
+  // rejects a lost {0} now, so a miss there falls through to Azure).
+  const templateBySha = new Map(uiCorpus.filter((s) => /\{[A-Za-z_][A-Za-z0-9_]*\}/.test(s)).map((s) => [sha1(s), s]))
 
   // Listing text (title/description/location of recent active listings). Recent window + row
   // cap keep the sweep bounded on a big catalog; older listings age out of relevance anyway.
@@ -86,15 +94,28 @@ export async function GET(req: Request) {
     const have = new Set(
       (await db.translation.findMany({ where: { target: lang, hash: { in: hashes } }, select: { hash: true } })).map((r) => r.hash),
     )
-    const missing = corpus.filter((s, i) => !have.has(hashes[i]))
+    const broken = new Set(
+      templateBySha.size === 0
+        ? []
+        : (await db.translation.findMany({ where: { target: lang, hash: { in: [...templateBySha.keys()] } }, select: { hash: true, value: true } }))
+            .filter((r) => !templateIntact(r.value, templateBySha.get(r.hash)!))
+            .map((r) => r.hash),
+    )
+    // Broken templates FIRST: a big uncached backlog must not push them past the per-run cap below.
+    const missing = [
+      ...corpus.filter((s, i) => broken.has(hashes[i])),
+      ...corpus.filter((s, i) => !have.has(hashes[i]) && !broken.has(hashes[i])),
+    ]
     let healed = 0
     if (missing.length > 0) {
       // translateBatch writes rows to the DB itself; a hard provider failure maps
       // to source-text passthrough WITHOUT a DB write, so a failed day simply
       // retries tomorrow. Cap per run to bound provider spend.
       const chunkTexts = missing.slice(0, 1500)
-      const out = await translateBatch(chunkTexts, lang, { source: 'warm-cron' }) // ordered, index-aligned
-      healed = chunkTexts.reduce((n, t, i) => (out[i] && out[i] !== t ? n + 1 : n), 0)
+      const out = await translateBatch(chunkTexts, lang, { source: 'warm-cron', refreshBrokenTemplates: true }) // ordered, index-aligned
+      // Healed = a translation that differs from the source AND carries its placeholders: a re-translated
+      // template that came back broken again is not reported as healed.
+      healed = chunkTexts.reduce((n, t, i) => (out[i] && out[i] !== t && templateIntact(out[i], t) ? n + 1 : n), 0)
     }
     report[lang] = { missing: missing.length, healed }
   }

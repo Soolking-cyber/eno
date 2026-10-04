@@ -26,6 +26,12 @@ export const TR_OVERRIDES: Record<string, Partial<Record<Language, string>>> = {
   // scripts/glossary-data.json: those rows seed the Translation table keyed by the English source, and
   // `Home@page` is not a string anything sends to the translator.
   'Home@page': { 'zh-Hans': '首页', ko: '홈', ja: 'ホーム', ru: 'Главная', km: 'ទំព័រដើម', ms: 'Laman Utama', th: 'หน้าแรก', fr: 'Accueil', hi: 'होम' },
+  // ── Templates the engine reduced to a bare number (measured 2026-10-05 with numbered placeholders: km
+  // "{n} available" → "{n}", "{total} listing." and "{total} listings." → "{total}"). Client-only like
+  // `Home@page`: only the client renders these templates in a machine-translated language.
+  '{n} available': { km: 'មាន {n}' },
+  '{total} listing.': { km: 'បញ្ជីចំនួន {total}។' },
+  '{total} listings.': { km: 'បញ្ជីចំនួន {total}។' },
   // ── Category tiles (DB Category.name → <Tr>) — bare words MT reliably mis-senses ──
   Vehicles: { 'zh-Hans': '交通工具', ko: '차량', ja: '乗り物', ru: 'Транспорт', km: 'យានយន្ត', ms: 'Kenderaan', th: 'ยานพาหนะ', fr: 'Véhicules', hi: 'वाहन' },
   Rentals: { 'zh-Hans': '租赁', ko: '렌탈·임대', ja: 'レンタル・賃貸', ru: 'Аренда', km: 'ជួល', ms: 'Sewaan', th: 'ให้เช่า', fr: 'Locations', hi: 'किराये पर' },

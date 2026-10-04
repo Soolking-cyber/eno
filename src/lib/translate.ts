@@ -5,6 +5,7 @@ import { detectContentLang, longestUndiacritickedRun } from './detect-lang'
 import { LANGS, type Lang } from './i18n/langs'
 import { rateLimit } from '@/lib/ratelimit'
 import { INTERACTIVE_TIMEOUT_MS, localMtConfigured, localTranslate } from './mt-local'
+import { numberPlaceholders, restorePlaceholders, templateIntact } from './i18n/placeholders'
 
 // Supported-language roster: canonical definition lives in the isomorphic
 // @/lib/i18n/langs; re-exported here so existing importers keep working.
@@ -417,6 +418,9 @@ export async function translateBatch(
   target: Lang,
   opts?: {
     cachedOnly?: boolean
+    /** Re-translate a cached template whose {placeholders} no longer match its source. The warm cron
+     *  only: on a live request a deterministic engine would be re-billed for the same wrong answer. */
+    refreshBrokenTemplates?: boolean
     /**
      * EPHEMERAL mode: translate, but do NOT write the result into the shared `Translation`
      * table. Reads still hit it (a cache hit costs nothing and reveals nothing).
@@ -474,8 +478,14 @@ export async function translateBatch(
   const misses: string[] = []
   for (const t of uniq) {
     const hit = cachedByHash.get(hash(t))
-    if (hit != null) out.set(t, hit)
-    else if (alreadyInTarget(t, target)) out.set(t, t)
+    // refreshBrokenTemplates (the nightly warm cron only): a cached TEMPLATE whose {placeholders} an
+    // engine renamed or dropped is re-translated, numbered this time, and overwritten — bounded to one
+    // attempt per cron run, never on a live request.
+    const brokenHit = hit != null && !!opts?.refreshBrokenTemplates && !templateIntact(hit, t)
+    if (hit != null && !brokenHit) out.set(t, hit)
+    // A broken row is re-translated, never passed through as "already in the target" — that would serve
+    // the source and write nothing, and the row would stay broken forever.
+    else if (!brokenHit && alreadyInTarget(t, target)) out.set(t, t)
     else misses.push(t)
   }
 
@@ -511,7 +521,11 @@ export async function translateBatch(
         // caller whose volume is trivial and whose latency IS the product, so the trade that
         // makes sense for 90M characters of catalogue is backwards here. It still falls back to
         // local if the paid provider is missing or failing, because slow beats silent.
-        const translated = await translateChunk(chunk, target, billed, LATENCY_CRITICAL.has(opts?.source ?? ''))
+        // `{price}` goes to the engine as `{0}` and is named back below (src/lib/i18n/placeholders.ts): engines
+        // translate a named placeholder like a word, and a template that lost its placeholder falls back
+        // to English for every reader of that language.
+        const sendable = chunk.map(numberPlaceholders)
+        const translated = await translateChunk(sendable.map((s) => s.text), target, billed, LATENCY_CRITICAL.has(opts?.source ?? ''))
         // A response with a DIFFERENT length than the request is misaligned — pairing
         // translated[i] with chunk[i] would cache wrong translations forever (audit).
         if (!translated || translated.values.length !== chunk.length) {
@@ -526,7 +540,8 @@ export async function translateBatch(
               out.set(src, src)
               return
             }
-            const value = translated.values[i]
+            const raw = translated.values[i]
+            const value = raw == null ? raw : restorePlaceholders(raw, sendable[i].names)
             // ⛔ A NULL IS "NO TRANSLATION", NOT "TRANSLATES TO ITSELF". The box model's gate
             // refuses output it believes is a hallucination, and if no paid provider answered
             // either, the honest result is untranslated source — served, but NEVER cached.
