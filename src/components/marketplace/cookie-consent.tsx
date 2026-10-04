@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useLanguage } from '@/context/language-context'
@@ -81,6 +81,39 @@ function PurposeRow({ title, desc, checked, onChange, locked = false }: { title:
         className="mt-0.5"
       />
     </div>
+  )
+}
+
+/**
+ * ⛔ ONE BLOCK PER SENTENCE, SO THE BAR IS NEVER THE PAGE'S "LARGEST CONTENTFUL PAINT" (UX3 speed audit,
+ * 2026-10-05: Chromium phone lab 390×844, CPU 4×, 5 cold loads per page, prod and preview alike). LCP counts a text candidate per BLOCK element, and the
+ * first-layer sentence was one paragraph of 39,672 px² on a 390 px phone — bigger than the largest card photo
+ * (32,041 px²) — painted 4 s in (SHOW_AFTER_MS). So on every first visit the phone LCP was this bar at 6.5–7.0 s
+ * instead of the photo at ~1.5 s, on /, /c/*, /post and search (8.2 s on storefronts), in the lab and in PSI.
+ * Split at sentence ends (. ? ! and 。？！ — a language without them, e.g. Thai, stays one block), each block is
+ * smaller than a card photo, and the photo stays the LCP where the page has one (verified in the UX3 preview).
+ * ⚠️ THE WORDS AND THE tr() STRINGS ARE UNCHANGED — the split happens on the translated text at render, so the
+ * copy fingerprint (and CONSENT_COPY_VERSION) is untouched and no sentence is reworded or resized (text-sm
+ * stays: "cut words — never the size"). The only visible change: each sentence starts on its own line.
+ */
+function SentenceBlocks({ text, tail }: { text: string; tail?: ReactNode }) {
+  // ⛔ NO LOOKBEHIND (codex + opus, gate 2026-10-05): a `(?<=…)` regex literal is a SyntaxError when the chunk is
+  // PARSED on iOS Safari < 16.4, and this file shares the root-layout chunk with the tab bar — one old iPhone
+  // would lose the consent bar and the navigation together. Match sentences forward instead.
+  const parts = (text.match(/[^.?!。？！]+[.?!。？！]+|[^.?!。？！]+$/g) ?? [text]).map((p) => p.trim()).filter(Boolean)
+  // An empty translation must never take the Privacy Policy link with it (opus, gate): the link always renders.
+  if (!parts.length) return tail ? <span className="block">{tail}</span> : null
+  return (
+    <>
+      {parts.map((sentence, i) => (
+        <span key={i} className="block">
+          {sentence}
+          {/* The space a sentence break had, kept: screen readers and textContent read "choose. Change", and a
+              trailing space at the end of a block line paints nothing. */}
+          {i < parts.length - 1 ? ' ' : tail ? <>{' '}{tail}</> : null}
+        </span>
+      ))}
+    </>
   )
 }
 
@@ -675,7 +708,8 @@ export function CookieConsent() {
                 * matched its cached translation. The space before the link is JSX.
                 */}
               <p className="mt-1 text-sm leading-snug text-muted-foreground">
-                {isNative
+                <SentenceBlocks
+                  text={isNative
                   ? tr(
                       'Can we use your app activity for listing suggestions? It’s sensitive personal data under Vietnamese law, so it’s off until you choose. Change anytime in Cookie settings. Analytics and advertising are always off in the app.',
                       'Bạn cho phép eno dùng hoạt động trong ứng dụng để gợi ý tin đăng không? Theo luật Việt Nam, đây là dữ liệu cá nhân nhạy cảm, nên mục này tắt đến khi bạn chọn. Đổi bất cứ lúc nào trong Cài đặt cookie. Phân tích và quảng cáo luôn tắt trong ứng dụng.',
@@ -684,8 +718,8 @@ export function CookieConsent() {
                       'Can we use cookies for listing suggestions, analytics (Google Analytics) and ad measurement (Meta, Google)? Your activity is sensitive personal data under Vietnamese law, so all stay off until you choose. Change anytime in Cookie settings.',
                       'Bạn cho phép eno dùng cookie để gợi ý tin đăng, phân tích (Google Analytics) và đo lường quảng cáo (Meta, Google) không? Theo luật Việt Nam, hoạt động của bạn là dữ liệu cá nhân nhạy cảm, nên tất cả đều tắt đến khi bạn chọn. Đổi bất cứ lúc nào trong Cài đặt cookie.',
                     )}
-                {' '}
-                <Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</Link>
+                  tail={<Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</Link>}
+                />
               </p>
               </div>
               {/**
