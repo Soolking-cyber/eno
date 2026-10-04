@@ -10,6 +10,7 @@ import { NotificationsProvider } from "@/context/notifications-context";
 import { FavoritesProvider } from "@/context/favorites-context";
 import { QueryProvider } from "@/components/marketplace/query-provider";
 import { MobileNav } from "@/components/marketplace/mobile-nav";
+import { NavProgress } from "@/components/ui/nav-progress";
 import { BottomNavSpacer } from "@/components/marketplace/bottom-nav-spacer";
 import { KeyboardViewportSync } from "@/components/marketplace/keyboard-viewport-sync";
 import { BackToTop } from "@/components/marketplace/back-to-top";
@@ -106,6 +107,11 @@ export function Providers({
                     <BottomNavSpacer />
                     <KeyboardViewportSync />
                     <MobileNav />
+                    {/* The app-wide navigation progress bar (FAST-2): a thin top line for a client navigation
+                        still pending after 400ms — fast ones show nothing. Here because this layout never
+                        unmounts, so one instance sees every navigation. Needs no provider; renders null when
+                        idle (and on the server). See ui/nav-progress.tsx. */}
+                    <NavProgress />
                     {/* ⛔ THE LAZY-LOADED <AmbientChrome> BOUNDARY THAT USED TO WRAP THESE IS GONE.
                         Owner, 2026-08-13: "lazyload whats not important" — and this WAS the honest
                         attempt at it: the cookie banner, the install hint, the save-signup sheet,

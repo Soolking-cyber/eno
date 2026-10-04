@@ -3961,6 +3961,56 @@ html[data-has-recents] .recents-row {
   .rail-beam::after { display: none; }
 }
 
+/* ── THE NAVIGATION PROGRESS BAR (FAST-2, UX3 2026-10-05) ─────────────────────────────────────────
+   One thin bar at the top of the viewport (ui/nav-progress.tsx, mounted once) for a client navigation
+   that is STILL pending after 400ms. The element exists for the whole pending window; this block decides
+   when it is SEEN:
+   · `nav-progress-in` holds it at opacity 0 for 400ms — the `both` fill keeps the 0 DURING the delay — so
+     a navigation that commits sooner unmounts it before it was ever visible: fast taps show nothing
+     (Next's "debounced hint"). Card → listing measured 0.45–0.75s at 1x CPU, 1.4–2.4s at 4x.
+   · the indicator then sweeps left → right on a loop: the wait has no known length, and moving feedback
+     is what people tolerate ~3x longer (NN/g, progress indicators).
+   · `nav-progress-out` fades it at 15s, whatever the router does: a navigation that never settles (a
+     download, a hard navigation the reader stopped) must not leave a bar looping forever. Later in the
+     list, so once it starts it wins over the finished fade-in. */
+.nav-progress {
+  animation:
+    nav-progress-in 160ms ease-out 400ms both,
+    nav-progress-out 240ms ease-in 15s forwards;
+}
+.nav-progress-bar {
+  animation: nav-progress-sweep 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes nav-progress-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes nav-progress-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes nav-progress-sweep {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(250%); }
+}
+/* ⚠️ REDUCED MOTION: the global kill switch shortens the two fades but keeps their DELAYS, so the bar still
+   appears only for a slow navigation — and it would freeze the sweep mid-travel, a stopped dash that reads
+   as a glitch rather than as loading. "A loader is not decoration" (the `.animate-spin` rule in the kill
+   switch): it stays alive without moving — the indicator fills the bar and pulses in opacity
+   (`reduced-motion-pulse`, declared in that same media block). */
+@media (prefers-reduced-motion: reduce) {
+  .nav-progress-bar {
+    width: 100% !important;
+    transform: none !important;
+    animation: reduced-motion-pulse 1.6s ease-in-out infinite !important;
+  }
+}
+/* Forced colors drop authored backgrounds, which would erase the bar; the indicator takes the system
+   Highlight colour instead (canon §3b: a state carried only by a fill restates itself in system colours). */
+@media (forced-colors: active) {
+  .nav-progress-bar { forced-color-adjust: none; background-color: Highlight; }
+}
+
 @property --i-back-opacity {
   syntax: '<number>';
   inherits: true;
