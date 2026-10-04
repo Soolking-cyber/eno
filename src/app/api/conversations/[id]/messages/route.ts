@@ -6,6 +6,7 @@ import { messagingGate } from '@/lib/enforcement'
 import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
 import { logError } from '@/lib/log'
 import { ApiError, route } from '@/lib/api/handler'
+import { isBlockedBetween } from '@/lib/user-blocks'
 import { after } from 'next/server'
 import { getAdmin } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
@@ -125,6 +126,10 @@ export const POST = route(
      */
     const iAmSupport = !iAmBuyer && !iAmSeller && convo.sellerId === SUPPORT_SELLER_ID && !!(await getAdmin())
     if (!iAmBuyer && !iAmSeller && !iAmSupport) { await release(); throw new ApiError('forbidden', 403) }
+    // ⚠️ App Store gate `ugc-safety` (R3): neither side of a block can write into the thread. With the
+    // gate off isBlockedBetween answers false WITHOUT a query — this is the hot send path admin.ts
+    // warns about. A support operator is not a party to a block (the desk has no profile).
+    if (!iAmSupport && await isBlockedBetween(convo.buyerProfileId, convo.sellerProfileId)) { await release(); throw new ApiError('blocked', 403) }
 
     // Fixed-price listing → offers are off. The UI hides the offer control, so this is
     // the abuse/stale-tab path: reject the offer. Only a BUYER spamming offers is abuse

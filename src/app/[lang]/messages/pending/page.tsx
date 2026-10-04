@@ -56,6 +56,8 @@ export default function PendingComposePage() {
             : error === 'teacher_thread_cap' ? tr('You have reached today’s limit for new chats. Please try again tomorrow.', 'Bạn đã đạt giới hạn cuộc trò chuyện mới hôm nay. Vui lòng thử lại vào ngày mai.')
             : error === 'business_only' ? tr('Only school and company accounts can message teachers.', 'Chỉ tài khoản trường học hoặc công ty mới nhắn tin được cho giáo viên.')
             : error === 'probation_conversation_cap' ? tr('New accounts can start up to 15 chats a day — please try again tomorrow.', 'Tài khoản mới có thể bắt đầu tối đa 15 cuộc trò chuyện mỗi ngày — hãy thử lại vào ngày mai.')
+            // App Store gate `ugc-safety` (R3) — only ever answered while the gate is on.
+            : error === 'blocked' ? tr('You can’t message this seller.', 'Bạn không thể nhắn tin cho người bán này.')
             : tr('Could not send. Try again.', 'Không gửi được. Thử lại.'))
           // Re-stash the draft before bouncing (audit P2): removeItem ran up front,
           // so without this a transient failure silently DISCARDED the typed message

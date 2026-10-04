@@ -262,6 +262,9 @@ export type NicheApiErrorCode =
   | 'quote_expired'
   | 'recipient_unreachable'
   | 'reference_listing'                 // api/conversations — an outbound-link (affiliateUrl) listing has nobody to message
+  | 'blocked'                           // api/conversations(+/[id]/messages, /offer) — one party blocked the other (ugc-safety gate)
+  | 'blocking_unavailable'              // api/blocks — the ugc-safety gate is off
+  | 'cannot_block_staff'                // api/blocks — the eno team (desk owner) cannot be blocked
   | 'reference_mismatch'
   | 'refinement_limit'
   | 'reply_required'
@@ -654,6 +657,9 @@ const ALL = [
   'reason_required',
   'recipient_unreachable',
   'reference_listing',
+  'blocked',
+  'blocking_unavailable',
+  'cannot_block_staff',
   'refinement_limit',
   'reply_required',
   'report_cooldown',

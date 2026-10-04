@@ -28,6 +28,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { EnoSlider } from '@/components/ui/slider'
 import { ReportButton } from '@/components/marketplace/report-button'
+import { BlockUserButton } from '@/components/marketplace/block-user-button'
 import { TrustMeta } from '@/components/marketplace/trust-meta'
 import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-reply-chips'
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
@@ -1076,7 +1077,18 @@ export default function ThreadPage() {
         })
         refreshUnread(); refreshConvos()
       } else {
-        markFailed(tempId)
+        // App Store gate `ugc-safety` (R3): a block is not a network blip. "Tap to retry" could never
+        // succeed, so the bubble goes and the reason is said (codex, review). Never fires while the gate
+        // is off — the route cannot answer `blocked` then.
+        const code = res.status === 403 ? ((await res.json().catch(() => null)) as { error?: string } | null)?.error : undefined
+        if (code === 'blocked') {
+          sendClientIds.current.delete(tempId)
+          sendReplyTargets.current.delete(tempId)
+          setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+          toast.error(tr('You can no longer message this person.', 'Bạn không thể nhắn tin cho người này nữa.'))
+        } else {
+          markFailed(tempId)
+        }
       }
     } catch {
       markFailed(tempId)
@@ -1996,6 +2008,10 @@ export default function ThreadPage() {
             {/* Report this conversation (harassment / scam in chat) — the report links
                 the thread so an admin can read the exchange. */}
             {thread && <ReportButton conversationId={thread.id} className="shrink-0" />}
+            {/* Block (App Store gate `ugc-safety`, renders nothing while it is off). Only on a thread with a
+                listing, and not on the e-Visa / trip desk — the other side there is the eno team, which the
+                API refuses to block anyway (cannot_block_staff). */}
+            {thread?.listing && thread.kind !== 'visa' && thread.kind !== 'itinerary' && <BlockUserButton conversationId={thread.id} name={thread.counterpart.name} className="shrink-0" onBlocked={() => router.push('/messages')} />}
           </div>
 
           {/* Live-translation toggle — shown ONLY when the two participants' app languages

@@ -19,6 +19,7 @@ import { Tr } from '@/context/language-context'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { RichText } from '@/components/marketplace/listing-content'
 import { ReportButton } from '@/components/marketplace/report-button'
+import { BlockUserButton } from '@/components/marketplace/block-user-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
 import { ShareButton } from '@/components/marketplace/share-button'
 import { shopShareUrl } from '@/lib/storefront'
@@ -469,7 +470,12 @@ export async function SellerStorefront({ id }: { id: string }) {
                 )}
                 {/* Report rides the END of this line. It is a rare, secondary action — as its
                     own red block under the CTA it read as loud as "Chat now". */}
-                <span className="ml-auto"><ReportButton sellerId={seller.id} /></span>
+                <span className="ml-auto flex items-center">
+                  <ReportButton sellerId={seller.id} />
+                  {/* Block (App Store gate `ugc-safety`; renders nothing while it is off) — only on a shop
+                      a PERSON runs. An imported, ownerless shop has nobody to block. */}
+                  {seller.ownerId && <BlockUserButton sellerId={seller.id} name={seller.name} />}
+                </span>
               </div>
             )}
             {/* ⚠️ A <div>, NOT THE <p> THIS WAS. RichText emits <p>/<ul> blocks, and a block inside

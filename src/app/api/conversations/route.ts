@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
+import { blockedConversationIds, isBlockedBetween } from '@/lib/user-blocks'
 import { insertMessage, type SerializedMessage } from '@/lib/messages'
 import { sendPushToProfile } from '@/lib/push'
 import { rateLimit } from '@/lib/ratelimit'
@@ -101,6 +102,10 @@ export const POST = route(
   if (listing.seller.ownerId && listing.seller.ownerId === profile.id) {
     throw new ApiError('own_listing', 400)
   }
+
+  // ⚠️ App Store gate `ugc-safety` (R3): no new thread between two people when either blocked the
+  // other. Off ⇒ isBlockedBetween answers false with no query.
+  if (await isBlockedBetween(profile.id, listing.seller.ownerId)) throw new ApiError('blocked', 403)
 
   /**
    * ⛔ ONLY A BUSINESS ACCOUNT MAY MESSAGE A TEACHER (owner, 2026-09-30) — schools and companies, not
@@ -570,6 +575,9 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
    * turns the list on. The desk needs no scope of its own: `SUPPORT_SELLER_ID` is build-scoped, so
    * it IS this edition's desk by construction and cannot name the other one's.
    */
+  // App Store gate `ugc-safety` (R3): threads with someone this user blocked leave the inbox — excluded
+  // by id IN THE WHERE, so the 100-row page is not shrunk after the fact. Off ⇒ [] with no query.
+  const hiddenByBlock = await blockedConversationIds(meId)
   const rows = await db.conversation.findMany({
     where: {
       OR: [
@@ -577,6 +585,7 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
         { sellerProfileId: meId, ...sellerScope },
         ...(isSupportOperator ? [{ sellerId: SUPPORT_SELLER_ID }] : []),
       ],
+      ...(hiddenByBlock.length ? { id: { notIn: hiddenByBlock } } : {}),
     },
     orderBy: { lastMessageAt: 'desc' },
     take: 100,
