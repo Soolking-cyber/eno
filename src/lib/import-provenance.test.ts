@@ -146,8 +146,11 @@ describe('provenanceParts: the approved words (CS-2 P1-1 to P1-6), in both langu
     expect(at('import-date', 'Source : {site} · importé le {date_fr}')).toBe('Source: Nhatot.com · imported to eno on 12 Sep 2026')
     expect(at('source-date', 'Quelle : · am {date}')).toBe('Source: Nhatot.com · posted there on 12 Sep 2026')
     expect(at('retail', 'Quelle : Webseite')).toBe("Source: Nhatot.com's website")
-    // A translation that kept both placeholders is used as it is, wherever it puts them.
-    expect(at('source-date', 'Le {date}, sur {site}')).toBe('Le 12 Sep 2026, sur Nhatot.com')
+    // A translation that kept both placeholders is used as it is, wherever it puts them — and its day is
+    // in the reader's own month names (an English fallback above keeps an English date).
+    expect(at('source-date', 'Le {date}, sur {site}')).toMatch(/^Le 12\s+sept\.?\s+2026, sur Nhatot\.com$/)
+    // The translation not here yet: tr() hands back the English template, so the date is English too.
+    expect(at('source-date', 'Source: {site} · posted there on {date}')).toBe('Source: Nhatot.com · posted there on 12 Sep 2026')
   })
 
   it('a storefront name with replacement patterns in it is printed as typed', () => {

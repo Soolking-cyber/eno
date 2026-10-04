@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { LocalizedDate } from '@/components/marketplace/localized-date'
 import { pageShare } from '@/lib/site-identity'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -150,14 +151,22 @@ export default async function HcmcRentIndexPage({ params }: { params: Promise<{ 
   const lookup = await loadRentIndex()
   const index = lookup.known ? lookup.index : null
   /**
-   * ⚠️ A DATE IN HO CHI MINH CITY TIME, FROM THE SNAPSHOT — not from the render, and not a clock time.
-   * This is a server component, so no hydration can disagree with it; the date is the snapshot's, so
-   * the page and the CSV name the same day.
+   * ⚠️ A DATE IN HO CHI MINH CITY TIME, FROM THE SNAPSHOT — not from the render, and not a clock time — so
+   * the page and the CSV name the same day. Both language forms are formatted HERE, on the server, and
+   * handed to a client leaf that only picks one: the nine machine-translated languages (never server-
+   * rendered) get their own month name there, while en and vi print exactly these strings, so hydration
+   * cannot disagree with them.
    */
+  const snapshotOpts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }
   const snapshot = index
-    ? new Date(index.computedAt).toLocaleDateString(lang === 'vi' ? 'vi-VN' : 'en-GB', {
-        day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh',
-      })
+    ? (
+        <LocalizedDate
+          iso={index.computedAt /* already ISO (rent-index.ts); never re-serialised: toISOString() throws on a bad date */}
+          options={snapshotOpts}
+          enText={new Date(index.computedAt).toLocaleDateString('en-GB', snapshotOpts)}
+          viText={new Date(index.computedAt).toLocaleDateString('vi-VN', snapshotOpts)}
+        />
+      )
     : null
   /**
    * ⚠️ THE CITATION AND THE LINK SNIPPET ARE ENGLISH ON BOTH LANGUAGES — they are pasted into other

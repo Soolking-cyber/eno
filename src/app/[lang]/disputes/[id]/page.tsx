@@ -9,6 +9,7 @@ import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock, ImagePlus, Info, Loa
 import { ICON_SIZE, STROKE_DISPLAY, STROKE_MARK } from '@/lib/icon-tokens'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { deviceOrIntlLocale } from '@/lib/i18n/langs'
 import { compressImageFile } from '@/lib/normalize-image'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
@@ -83,7 +84,7 @@ function useCountdown(iso: string | null): string | null {
 export default function DisputeRoomPage() {
   const { id } = useParams<{ id: string }>()
   const { user, loading } = useAuth()
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const t = (en: string, vi: string) => tr(en, vi)
 
   const [data, setData] = useState<CaseData | null>(null)
@@ -337,7 +338,7 @@ export default function DisputeRoomPage() {
                       <Badge size="md" className="px-3 py-1 font-semibold text-body whitespace-normal">
                         {item.kind === 'decision' ? (decisionCopy(data).text + (item.body ? ` — ${item.body}` : '')) : item.body}
                       </Badge>
-                      <p className="mt-0.5 text-3xs text-ink-4">{new Date(item.at).toLocaleString()}</p>
+                      <p className="mt-0.5 text-3xs text-ink-4">{new Date(item.at).toLocaleString(deviceOrIntlLocale(lang))}</p>
                     </div>
                   )
                 }
@@ -369,7 +370,7 @@ export default function DisputeRoomPage() {
                         </div>
                       )}
                     </div>
-                    <span className="mt-0.5 px-1 text-3xs text-ink-4">{who} · {new Date(item.at).toLocaleString()}</span>
+                    <span className="mt-0.5 px-1 text-3xs text-ink-4">{who} · {new Date(item.at).toLocaleString(deviceOrIntlLocale(lang))}</span>
                   </div>
                 )
               })}

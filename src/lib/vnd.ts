@@ -1,3 +1,4 @@
+import { intlLocale, isMtLanguage } from '@/lib/i18n/langs'
 // Money formatting. Across the app we show the FULL grouped amount everywhere
 // (cards, detail, input, offers) — but the SEPARATORS follow the viewer's
 // language. Vietnamese convention is the exact reverse of English: DOT for
@@ -131,9 +132,16 @@ export function formatRating(n: number, locale: MoneyLocale = 'en'): string {
 }
 
 /** Readable helper under the price input: "12 million đ" / "12 triệu đ".
- *  Accepts the full UI language (any non-vi value behaves as en). */
+ *  en and vi are hand-written; the nine machine-translated languages spell the magnitude in their own
+ *  words through Intl's long compact notation ("12 миллионов đ", "1200万 đ", "1.2 करोड़ đ") — the English
+ *  "million" used to be the one untranslated word under the price box. */
 export function vndWords(n: number, lang: string): string {
   if (!n) return ''
+  if (isMtLanguage(lang) && n >= 1_000) {
+    try {
+      return `${new Intl.NumberFormat(intlLocale(lang), { notation: 'compact', compactDisplay: 'long', maximumFractionDigits: 1 } /* en's one decimal (short()) */).format(n)} đ`
+    } catch { /* fall through to English */ }
+  }
   const locale = moneyLocale(lang)
   const vi = locale === 'vi'
   let val: number

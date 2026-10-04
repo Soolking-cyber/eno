@@ -1,3 +1,4 @@
+import { intlLocale, isMtLanguage } from '@/lib/i18n/langs'
 // ── THE OFFER STATE MACHINE ──────────────────────────────────────────────────────
 //
 // Pure. No Prisma, no `server-only`, no `Date.now()` inside a decision — every function
@@ -338,11 +339,23 @@ export function applyOfferAction(
  * beside three enabled controls — a card contradicting itself for up to 59 seconds, which reads
  * as a bug rather than as urgency. Under a minute the honest rendering is the phrase.
  *
- * Only 'en' and 'vi' are rendered, matching formatTravel's idiom: every other language folds to
- * 'en' through moneyLocale(), the same way the rest of the app's units already behave.
+ * en and vi are hand-written; the nine machine-translated languages get Intl's own unit words ("2 ч
+ * 5 мин", "< 1 分"), the same move formatTravel makes — they used to fold to the English "2h 5m".
  */
-export function formatOfferTimeLeft(ms: number, lang: 'en' | 'vi'): string | null {
+export function formatOfferTimeLeft(ms: number, lang: string): string | null {
   if (!Number.isFinite(ms)) return null
+  if (isMtLanguage(lang)) {
+    try {
+      const loc = intlLocale(lang)
+      const unit = (n: number, u: string) => new Intl.NumberFormat(loc, { style: 'unit', unit: u, unitDisplay: 'short' }).format(n)
+      const mins = Math.max(0, Math.floor(ms / 60_000))
+      const h = Math.floor(mins / 60), m = mins % 60
+      if (ms <= 0) return unit(0, 'minute')
+      if (h <= 0 && m <= 0) return `< ${unit(1, 'minute')}`
+      if (h <= 0) return unit(m, 'minute')
+      return m ? `${unit(h, 'hour')} ${unit(m, 'minute')}` : unit(h, 'hour')
+    } catch { /* an engine without unit formatting falls through to English */ }
+  }
   if (ms <= 0) return lang === 'vi' ? '0 phút' : '0m'
   const totalMinutes = Math.floor(ms / 60_000)
   const h = Math.floor(totalMinutes / 60)

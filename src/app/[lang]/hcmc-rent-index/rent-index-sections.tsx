@@ -317,7 +317,7 @@ function ExclusionLabel({ k }: { k: ExclusionReason }) {
  * The rules, rendered from the constants that apply them. `index` is null when the figures could not
  * be read: the method still renders — it is true either way — and only the counts disappear.
  */
-export function Methodology({ index, locale, snapshot }: { index: RentIndex | null; locale: MoneyLocale; snapshot: string | null }) {
+export function Methodology({ index, locale, snapshot }: { index: RentIndex | null; locale: MoneyLocale; snapshot: ReactNode | null }) {
   return (
     <section className="mt-12 max-w-3xl" aria-labelledby="method">
       <h2 id="method" className="h-section text-foreground mb-3"><Tr text="How the index is calculated" /></h2>

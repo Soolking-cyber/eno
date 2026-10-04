@@ -56,7 +56,6 @@ export function MapTravel({
   compact?: boolean
 }) {
   const { lang, tr } = useLanguage()
-  const l = lang === 'vi' ? 'vi' : 'en'
 
   // Estimate text only — the Google Maps directions button is a separate FAB
   // (<MapsDirectionsButton>) the caller floats in the card's bottom-right corner.
@@ -65,7 +64,7 @@ export function MapTravel({
     if (!est) {
       return <span className="text-2xs text-ink-4">{tr('Too far to estimate', 'Quá xa để ước tính')}</span>
     }
-    const { dist, time } = formatTravel(est, l)
+    const { dist, time } = formatTravel(est, lang)
     return (
       <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${compact ? 'text-2xs' : 'text-xs'} text-muted-foreground`}>
         <Navigation className="h-3.5 w-3.5 shrink-0 text-accent-foreground" />

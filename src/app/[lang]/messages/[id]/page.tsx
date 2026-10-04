@@ -11,6 +11,7 @@ import { useAuth } from '@/context/auth-context'
 import { cn } from '@/lib/utils'
 import { contactLinksFor, extractPhoneNumber } from '@/lib/phone'
 import { useLanguage } from '@/context/language-context'
+import { intlLocale } from '@/lib/i18n/langs'
 import { useChat } from '@/context/chat-context'
 import { useNotifications } from '@/context/notifications-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
@@ -2366,7 +2367,7 @@ export default function ThreadPage() {
               const dk = dayKey(m.createdAt)
               const dayText = dk === new Date().toDateString() ? tr('Today', 'Hôm nay')
                 : dk === new Date(Date.now() - 864e5).toDateString() ? tr('Yesterday', 'Hôm qua')
-                : new Date(m.createdAt).toLocaleDateString(locale === 'vi' ? 'vi-VN' : 'en-US', { month: 'short', day: 'numeric' })
+                : new Date(m.createdAt).toLocaleDateString(intlLocale(lang), { month: 'short', day: 'numeric' })
               const askPct = m.kind === 'offer' && thread?.listing?.price && m.offerAmount ? Math.round((m.offerAmount / thread.listing.price) * 100) : null
               // KIND DISPATCH. Each structured kind parses its own metaJson and refuses to
               // render as a live prompt off a blob it cannot read (the server already
@@ -2414,7 +2415,7 @@ export default function ThreadPage() {
               ) : m.mine && m.pending ? (
                 <><Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {tr('Sending…', 'Đang gửi…')}</>
               ) : (
-                <>{fmtTime(m.createdAt)}</>
+                <>{fmtTime(m.createdAt, lang)}</>
               )
 
               /**

@@ -46,7 +46,25 @@ export const LANGS: Lang[] = LANGUAGES.map((l) => l.code)
 const INTL_LOCALE: Record<string, string> = {
   'zh-Hans': 'zh-CN', ko: 'ko-KR', ja: 'ja-JP', ru: 'ru-RU', km: 'km-KH', ms: 'ms-MY', th: 'th-TH', fr: 'fr-FR', hi: 'hi-IN',
 }
+/**
+ * One of the nine machine-translated languages — the ONLY values the date / unit helpers (calendar-day,
+ * dates, travel, offers, vnd) format with Intl. en, vi and anything that is not a site language ('',
+ * 'en-GB', a stored device locale) keep the hand-written en / vi forms those helpers always printed.
+ */
+export function isMtLanguage(lang: string | null | undefined): boolean {
+  return lang != null && Object.prototype.hasOwnProperty.call(INTL_LOCALE, lang)
+}
+
 export function intlLocale(lang: string | null | undefined, en = 'en-US', vi = 'vi-VN'): string {
   if (lang === 'vi') return vi
   return (lang && INTL_LOCALE[lang]) || en
+}
+
+/**
+ * For a call site that used the DEVICE locale (`toLocaleDateString()` with no argument): en and vi keep
+ * exactly that (undefined), so an English reader on an en-GB phone still reads 05/10/2026 rather than a
+ * US 10/5/2026 on a dispute deadline; the nine machine-translated languages get their own locale.
+ */
+export function deviceOrIntlLocale(lang: string | null | undefined): string | undefined {
+  return isMtLanguage(lang) ? intlLocale(lang) : undefined
 }

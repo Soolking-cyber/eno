@@ -254,7 +254,7 @@ export function HelpThreadClient({
             <>
               <span aria-hidden> · </span>
               {tr('Updated', 'Cập nhật')}{' '}
-              <time dateTime={modifiedAt}>{formatArticleDate(modifiedAt, lang === 'vi' ? 'vi' : 'en')}</time>
+              <time dateTime={modifiedAt}>{formatArticleDate(modifiedAt, lang)}</time>
             </>
           )
         ) : (

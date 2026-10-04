@@ -6,6 +6,7 @@ import { CalendarDays, Download, Loader2, Pencil, Trash2, TriangleAlert } from '
 import { toast } from 'sonner'
 import { subtleToast } from '@/lib/subtle-toast'
 import { useLanguage } from '@/context/language-context'
+import { intlLocale } from '@/lib/i18n/langs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -191,7 +192,7 @@ export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?
 
   const city = trip.destinationId ? CITY_NAMES[trip.destinationId] : undefined
   const destination = city ? (vi ? city[1] : city[0]) : (trip.destinationId ?? '').replace(/[-_]/g, ' ')
-  const updated = new Date(trip.updatedAt).toLocaleDateString(vi ? 'vi-VN' : 'en-GB', {
+  const updated = new Date(trip.updatedAt).toLocaleDateString(intlLocale(lang, 'en-GB'), {
     day: 'numeric',
     month: 'short',
     year: 'numeric',

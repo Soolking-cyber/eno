@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Clock, Loader2, Stamp } from '@/components/ui/icons'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { intlLocale } from '@/lib/i18n/langs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -267,7 +268,7 @@ export function useVisaCatalogue(enabled: boolean): CatalogueState {
  *  so they are shown in that zone and labelled as such rather than silently re-zoned. */
 function hcmClock(iso: string, lang: string): string {
   try {
-    return new Intl.DateTimeFormat(lang === 'vi' ? 'vi-VN' : 'en-GB', {
+    return new Intl.DateTimeFormat(intlLocale(lang, 'en-GB'), {
       timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
     }).format(new Date(iso))
   } catch {
@@ -310,7 +311,7 @@ export function VisaProductRow({ product, now, disabled, onPick }: {
     >
       <span className="flex items-start justify-between gap-3">
         <span className="text-sm font-bold text-foreground">
-          {lang === 'vi' ? spec.labelVi : spec.label}
+          {tr(spec.label, spec.labelVi)}
         </span>
         <span className="shrink-0 text-sm font-bold text-foreground">
           {formatMoneyFull(product.priceVnd, '₫', locale)}

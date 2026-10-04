@@ -311,7 +311,7 @@ export function StopRefineDialog({ itineraryId, target, onClose, onRemove, onApp
                     {suggestion.travelMinutes > 0 && (
                       <span className="inline-flex items-center gap-1">
                         <Footprints className="h-3 w-3" aria-hidden />
-                        {formatTravel({ straightKm: 0, roadKm: 0, minutes: suggestion.travelMinutes }, lang === 'vi' ? 'vi' : 'en').time}
+                        {formatTravel({ straightKm: 0, roadKm: 0, minutes: suggestion.travelMinutes }, lang).time}
                       </span>
                     )}
                     {suggestion.estimatedCostVnd > 0 && (

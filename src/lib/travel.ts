@@ -7,6 +7,7 @@
 // (different country / intercontinental), so we never show a nonsense "drive to Europe".
 
 import { haversineKm } from '@/lib/geo'
+import { intlLocale, isMtLanguage } from '@/lib/i18n/langs'
 
 export type LatLng = { lat: number; lng: number }
 
@@ -27,8 +28,27 @@ export function estimateTravel(from: LatLng, to: LatLng): TravelEstimate | null 
   return { straightKm: straight, roadKm, minutes }
 }
 
-/** Localised "4,2 km" / "13 phút" strings (vi uses a comma decimal). */
-export function formatTravel(e: TravelEstimate, lang: 'en' | 'vi'): { dist: string; time: string } {
+/**
+ * Localised "4,2 km" / "13 phút" strings (vi uses a comma decimal). en and vi are hand-written; the nine
+ * machine-translated languages get Intl's own unit words ("13 мин", "13 分"), which used to be the
+ * English "min" / "h" for all of them.
+ */
+export function formatTravel(e: TravelEstimate, lang: string): { dist: string; time: string } {
+  if (isMtLanguage(lang)) {
+    try {
+      const loc = intlLocale(lang)
+      // `digits` is exact (min = max), so 4 km reads "4.0 km" in every language, as it does in en and vi.
+      const unit = (n: number, u: string, digits = 0) =>
+        new Intl.NumberFormat(loc, { style: 'unit', unit: u, unitDisplay: 'short', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n)
+      const km = e.roadKm
+      const dist = unit(km < 10 ? Math.round(km * 10) / 10 : Math.round(km), 'kilometer', km < 10 ? 1 : 0)
+      const m = e.minutes
+      const h = Math.floor(m / 60)
+      const rem = m % 60
+      const time = m < 60 ? unit(m, 'minute') : rem ? `${unit(h, 'hour')} ${unit(rem, 'minute')}` : unit(h, 'hour')
+      return { dist, time }
+    } catch { /* an engine without unit formatting falls through to English */ }
+  }
   const km = e.roadKm
   const distNum = km < 10 ? km.toFixed(1) : Math.round(km).toString()
   const dist = `${lang === 'vi' ? distNum.replace('.', ',') : distNum} km`

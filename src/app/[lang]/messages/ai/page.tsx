@@ -180,7 +180,7 @@ export default function AiThreadPage() {
                 ))}
               </div>
             )}
-            <span className="mt-0.5 px-1 text-3xs text-ink-4">{fmtTime(m.createdAt)}</span>
+            <span className="mt-0.5 px-1 text-3xs text-ink-4">{fmtTime(m.createdAt, lang)}</span>
           </div>
         ))}
         {loading && (

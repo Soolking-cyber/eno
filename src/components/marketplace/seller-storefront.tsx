@@ -1,6 +1,7 @@
 import { isSellerHiddenHere, scopedListingWhere } from '@/lib/edition-scope'
 import { SITE_NAME } from '@/lib/edition'
 import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
+import { CalendarDay } from '@/components/marketplace/calendar-day'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
@@ -550,7 +551,7 @@ export async function SellerStorefront({ id }: { id: string }) {
                           <Star key={n} className={n <= Math.round(r.rating) ? 'h-3.5 w-3.5 fill-rating text-rating' : 'h-3.5 w-3.5 text-line-strong'} aria-hidden />
                         ))}
                       </span>
-                      <time dateTime={r.createdAt}>{new Date(r.createdAt).toLocaleDateString()}</time>
+                      <CalendarDay value={r.createdAt} />
                     </span>
                   </div>
                   <p className="mt-2 text-sm leading-relaxed text-body"><Tr text={r.text} /></p>

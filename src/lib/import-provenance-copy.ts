@@ -93,7 +93,10 @@ export function provenanceParts(
   const at = sentence.indexOf('{date}')
   return {
     before: fill(sentence.slice(0, at), site),
-    date: formatCalendarDay(p.iso, lang),
+    // The day follows the SENTENCE's language: a translation that kept its placeholders gets the reader's
+    // month names, and an English sentence — a fallback, or the source still showing while the
+    // translation is on its way — keeps an English date rather than a mixed line.
+    date: formatCalendarDay(p.iso, sentence === en ? 'en' : lang),
     dateTime: `${day.y}-${pad2(day.m)}-${pad2(day.d)}`,
     after: fill(sentence.slice(at + '{date}'.length), site),
     link: tr('original ad', 'tin gốc'),

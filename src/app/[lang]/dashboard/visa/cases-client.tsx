@@ -9,6 +9,7 @@ import { subtleToast } from '@/lib/subtle-toast'
 import { useAuth } from '@/context/auth-context'
 import { useDashboard } from '@/hooks/use-dashboard'
 import { useLanguage } from '@/context/language-context'
+import { deviceOrIntlLocale, intlLocale } from '@/lib/i18n/langs'
 import type { VisaPayload } from '@/lib/visa/schema'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -172,7 +173,7 @@ const fullNameOf = (item: VisaApplication) => {
 }
 const dobOf = (item: VisaApplication) => (item.payload?.dateOfBirth || '').trim() || null
 // The date shown per row: the submission (paid) date once submitted, else the case's start date.
-const caseDate = (item: VisaApplication) => new Date(item.paidAt || item.createdAt).toLocaleDateString()
+const caseDate = (item: VisaApplication, lang: string) => new Date(item.paidAt || item.createdAt).toLocaleDateString(deviceOrIntlLocale(lang))
 
 // ── The delivery promise (Phase 4) ──────────────────────────────────────────────────
 // Shown ONLY while the case is with the DESK and the fee is PAID (external review: a
@@ -182,7 +183,7 @@ const ETA_STATUSES = new Set(['ready_for_review', 'under_review', 'ready_to_subm
 
 /** "Mon, 27 Jul, 08:45" on the Vietnamese wall clock, whatever zone the viewer is in. */
 const hcmPromise = (instant: Date, lang: string) =>
-  new Intl.DateTimeFormat(lang === 'vi' ? 'vi-VN' : 'en-GB', {
+  new Intl.DateTimeFormat(intlLocale(lang, 'en-GB'), {
     timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
   }).format(instant)
 
@@ -329,7 +330,7 @@ function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, now, lang
       <p className="mt-1 text-xs leading-relaxed text-body">{copy.detail}</p>
       <CaseEta item={item} now={now} lang={lang} tr={tr} />
       <p className="mt-1.5 text-xs text-ink-4">
-        {tr('Updated', 'Cập nhật')} {new Date(item.updatedAt).toLocaleDateString()} · {item.documents.length} {tr('documents', 'tài liệu')}
+        {tr('Updated', 'Cập nhật')} {new Date(item.updatedAt).toLocaleDateString(deviceOrIntlLocale(lang))} · {item.documents.length} {tr('documents', 'tài liệu')}
         {isDetail && <> · {tr('details below', 'chi tiết bên dưới')}</>}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -834,7 +835,7 @@ export function VisaCasesClient({ threads, embedded = false }: {
                     <TableCell><VisaTypeLabel item={item} tr={tr} /> {!item.selectedEntryType && !item.selectedSpeed && <span className="text-ink-4">—</span>}</TableCell>
                     <TableCell className="font-semibold text-foreground">{fullNameOf(item) ?? <span className="font-normal text-ink-4">—</span>}</TableCell>
                     <TableCell className="whitespace-nowrap text-body">{dobOf(item) ?? '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap text-body">{caseDate(item)}</TableCell>
+                    <TableCell className="whitespace-nowrap text-body">{caseDate(item, lang)}</TableCell>
                     <TableCell className="whitespace-nowrap">
                       <span className="inline-flex items-center gap-1.5">
                         <Badge variant={chip?.variant ?? 'neutral'}>{chip ? tr(chip.en, chip.vi) : item.status}</Badge>
@@ -965,7 +966,7 @@ export function VisaCasesClient({ threads, embedded = false }: {
                   {milestones.map(({ e, m }) => (
                     <li key={e.id} className="flex items-start justify-between gap-4 pl-3">
                       <span className="text-sm font-medium text-foreground">{tr(m.en, m.vi)}</span>
-                      <time className="shrink-0 text-xs text-ink-4">{new Date(e.createdAt).toLocaleDateString()}</time>
+                      <time className="shrink-0 text-xs text-ink-4">{new Date(e.createdAt).toLocaleDateString(deviceOrIntlLocale(lang))}</time>
                     </li>
                   ))}
                 </ol>

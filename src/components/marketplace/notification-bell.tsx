@@ -186,7 +186,7 @@ export function NotificationBell() {
                           {!n.read && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-accent-foreground" />}
                           <span className="truncate">{n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.type === 'price_drop' ? tr('Price drop', 'Giảm giá') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : <Tr text={n.title} />}</span>
                         </span>
-                        <span className="shrink-0 text-3xs text-ink-4">{timeAgo(n.createdAt, lang === 'vi' ? 'vi' : 'en')}</span>
+                        <span className="shrink-0 text-3xs text-ink-4">{timeAgo(n.createdAt, lang)}</span>
                       </div>
                       {n.body && <p className={cn('text-xs', n.type === 'system' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate', n.read ? 'text-muted-foreground' : 'text-body')}><Tr text={n.body} /></p>}
                     </div>

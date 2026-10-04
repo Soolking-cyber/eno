@@ -26,7 +26,7 @@ import { scrollBehavior } from '@/lib/reduced-motion'
  * that depends solely on `minutes`, so the distance fields are irrelevant here.
  */
 const travelTime = (minutes: number, lang: string): string =>
-  formatTravel({ straightKm: 0, roadKm: 0, minutes }, lang === 'vi' ? 'vi' : 'en').time
+  formatTravel({ straightKm: 0, roadKm: 0, minutes }, lang).time
 
 /**
  * The SAME teardrop as the map pin, small and inline.

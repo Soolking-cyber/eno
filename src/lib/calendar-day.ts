@@ -1,3 +1,4 @@
+import { intlLocale, isMtLanguage } from '@/lib/i18n/langs'
 /**
  * A CALENDAR DAY, WRITTEN THE WAY A READER IN THAT LANGUAGE WRITES IT — '8 Oct 2026' / '8/10/2026'.
  *
@@ -28,13 +29,52 @@ export function vnCalendarDay(v: string): { y: number; m: number; d: number } | 
   return { y: x.getUTCFullYear(), m: x.getUTCMonth() + 1, d: x.getUTCDate() }
 }
 
-/** '8 Oct 2026' (en and every machine-translated language) · '8/10/2026' (vi). Without a year:
- *  '8 Oct' / '8/10'. A value that is not a date comes back unchanged. */
+/** The UTC-midnight instant of a calendar day, or null for a day that does not exist (31 February):
+ *  Date.UTC would quietly roll it into March, and an Intl branch must never print a different day than
+ *  the en / vi forms of the same value. */
+export function realUtcDay(p: { y: number; m: number; d: number }): number | null {
+  // setUTCFullYear, not Date.UTC: Date.UTC reads a year 0–99 as 1900–1999. The day must round-trip whole.
+  const x = new Date(0)
+  x.setUTCFullYear(p.y, p.m - 1, p.d)
+  return x.getUTCFullYear() === p.y && x.getUTCMonth() === p.m - 1 && x.getUTCDate() === p.d ? x.getTime() : null
+}
+
+/** '8 Oct 2026' (en) · '8/10/2026' (vi) · the reader's own month names in the nine machine-translated
+ *  languages ('8 окт. 2026 г.', '2026年10月8日'), which printed the English abbreviation until 2026-10-04.
+ *  Without a year: '8 Oct' / '8/10'. A value that is not a date comes back unchanged.
+ *  ⚠️ Still clock-free and zone-free: the Vietnam calendar day is pinned at UTC midnight and formatted in
+ *  UTC, so server and browser print the same characters (and those languages only render client-side). */
 export function formatCalendarDay(v: string, lang: string, o: { year?: boolean } = {}): string {
   const p = vnCalendarDay(v)
   if (!p) return v
   const withYear = o.year ?? true
+  const mt = isMtLanguage(lang)
+  const t = mt ? realUtcDay(p) : null
+  // A day that does not exist (31 February) comes back unchanged, like any other value that is not a
+  // date — never re-dated by Intl, never dressed up as a real English date for a French reader.
+  if (mt && t == null) return v
+  if (t != null) {
+    try {
+      return new Intl.DateTimeFormat(intlLocale(lang), withYear
+        ? { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }
+        : { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(t)
+    } catch { /* fall through to the English form */ }
+  }
   return lang === 'vi'
     ? (withYear ? `${p.d}/${p.m}/${p.y}` : `${p.d}/${p.m}`)
     : (withYear ? `${p.d} ${EN_MONTHS[p.m - 1]} ${p.y}` : `${p.d} ${EN_MONTHS[p.m - 1]}`)
+}
+
+/**
+ * A plain calendar date ('2026-10-01') with the month spelled out in a machine-translated language
+ * ('1 октября 2026 г.', '2026年10月1日'). Zone-free like formatCalendarDay. en / vi callers keep their own
+ * hand-written forms; this is for the nine others, and falls back to the ISO string if Intl refuses.
+ */
+export function longCalendarDate(iso: string, lang: string): string {
+  const p = vnCalendarDay(iso)
+  const t = p ? realUtcDay(p) : null
+  if (t == null) return iso
+  try {
+    return new Intl.DateTimeFormat(intlLocale(lang), { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(t)
+  } catch { return iso }
 }

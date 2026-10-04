@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/icons'
 import { IS_SERVICES } from '@/lib/edition'
 import { useLanguage } from '@/context/language-context'
+import { intlLocale } from '@/lib/i18n/langs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -2248,7 +2249,7 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
   // `expectedReadyIso` is computed per request in the thread payload by the same pure function.
   const closedReadyIso = closed ? product?.expectedReadyIso ?? null : null
   const closedReadyAt = closedReadyIso
-    ? new Date(closedReadyIso).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    ? new Date(closedReadyIso).toLocaleString(intlLocale(lang), { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     : null
   // ⚠️ NO HONEST PROMISE ⇒ NO SALE. If the desk is closed and the server could not compute a
   // ready instant (an unknown tier, or a closure run longer than the calendar covers), we are

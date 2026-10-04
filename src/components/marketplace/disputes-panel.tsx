@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { Scale, ChevronRight } from '@/components/ui/icons'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { deviceOrIntlLocale } from '@/lib/i18n/langs'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -54,7 +55,7 @@ function timeLeft(iso: string | null): string | null {
 
 export function DisputesPanel({ compact = false }: { compact?: boolean }) {
   const { user, loading } = useAuth()
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const t = (en: string, vi: string) => tr(en, vi)
 
   const [cases, setCases] = useState<DisputeCaseRow[] | null>(null)
@@ -159,7 +160,7 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
                       {t(en, vi)}{c.listing ? ` · ${c.listing.title}` : ''}
                     </p>
                     <p className="text-xs text-ink-4">
-                      {new Date(c.createdAt).toLocaleDateString()} · {c.messageCount > 0 ? `${c.messageCount} ${t('messages', 'tin nhắn')}` : t('no messages yet', 'chưa có tin nhắn')}
+                      {new Date(c.createdAt).toLocaleDateString(deviceOrIntlLocale(lang))} · {c.messageCount > 0 ? `${c.messageCount} ${t('messages', 'tin nhắn')}` : t('no messages yet', 'chưa có tin nhắn')}
                     </p>
                   </div>
                   <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" />

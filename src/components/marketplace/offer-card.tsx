@@ -180,7 +180,7 @@ export function OfferCard({
   const clock = now ?? (deadline != null ? deadline - 1 : 0)
 
   const state = effectiveOfferStatus(facts, clock)
-  const timeLeft = formatOfferTimeLeft(offerTimeLeftMs(facts, clock), locale)
+  const timeLeft = formatOfferTimeLeft(offerTimeLeftMs(facts, clock), lang)
   const soon = isOfferExpiringSoon(facts, clock)
 
   const money = formatMoneyFull(amount, '₫', locale)
