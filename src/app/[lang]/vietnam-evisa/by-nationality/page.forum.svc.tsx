@@ -41,6 +41,8 @@ const CONTENT: SeoContent = {
   categorySlug: VISA_CATEGORY_SLUG,
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   cta: 'See e-visa options',
+  // App Store gate `ios-hide-visa` (D5 = b): information only in the iOS app — no CTA, no grid (seo-landing.tsx).
+  appInfoOnly: true,
   sections: [
     {
       title: 'Everyone can apply',

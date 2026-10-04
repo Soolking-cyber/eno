@@ -2138,6 +2138,15 @@ html.native-ios .ios-app-hidden {
 html.native .native-app-hidden {
   display: none;
 }
+/* `ios-hide-visa` (D5 = b) needs the OPPOSITE hook too: a line that exists ONLY in the iOS app ("…available at
+   www.eno.forum in a web browser"), on ISR pages whose HTML the edge cache shares between the app and the web — so
+   the server cannot leave it out per user agent. Same contract as above: emitted only while the gate is on.
+   ⚠️ `:not(.native-ios)`, NOT `.ios-app-only { display: none }` + a native-ios restore: the element keeps its own
+   display (flex, block…) in the app. Unlayered like the two rules above, so it beats a layered utility such as
+   `flex` on the same node off the app. */
+html:not(.native-ios) .ios-app-only {
+  display: none;
+}
 /* iOS taps the status bar to scroll to top (MainViewController sets scrollsToTop),
    so the floating back-to-top chevron is redundant there — hide ONLY the chevron;
    the co-located Help "?" stays. Android has no status-bar-tap equivalent and

@@ -76,7 +76,10 @@ import { SellerInfo } from '@/components/marketplace/seller-info'
 import { buildSellerInfo } from '@/lib/seller-info'
 import { approximateArea, hasRealCoords } from '@/lib/geo'
 import { isVehicleHireReference } from '@/lib/rental-places'
-import { VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
+import { VisaInAppNote, VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
+import { IosAppHidden } from '@/components/marketplace/ios-app-hidden'
+import { appReviewGate } from '@/lib/app-review-gates'
+import { isEVisaProductListing } from '@/lib/evisa-listing'
 import { isVisaShopListing } from '@/lib/visa-shop'
 // The one switch that means "this deployment runs the visa chat" — see the gate on isVisaProduct.
 import { ITINERARY_THREADS_ENABLED, VISA_THREADS_ENABLED } from '@/lib/thread-kind'
@@ -622,6 +625,15 @@ export default async function ListingPage({ params }: Props) {
   // 2026-09-29) render with ContactComposer — isVisaProduct is false there — and would switch lines too.
   const visaCopyHeld = isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug)
   /**
+   * ⚠️ APP STORE GATE `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — off by default, and then `false` here and the
+   * page is byte-identical. On, an e-Visa product — the desk's, or a partner's (isEVisaProductListing: the visa slot plus
+   * an e-Visa chip; work-permit/legal listings in the same slot are untouched) — offers no way to apply in the iOS app:
+   * the start button or the chat that takes the order is wrapped in `ios-app-hidden`, and an `ios-app-only` line says
+   * where applying happens. CSS, not the user agent, because this page is ISR and the edge cache shares its HTML between
+   * the app and the web; the disclosure above it (who we are not, the official portal) stays on both.
+   */
+  const iosHideContact = appReviewGate('ios-hide-visa') && (isVisaProduct || isEVisaProductListing({ categorySlug: catSlug, subcategorySlug: rawListing.subcategorySlug, attributes: listing.attributes }))
+  /**
    * ⚠️ THE SITE THAT "NEVER ASKS" IS THE ONE THE READER IS ON. These lines said "eno.vn" on both
    * editions, so eno.forum's PDP named the other site (review, 2026-09-29). Two literal copies behind
    * the edition ternary, never `${SITE_NAME}` inside the copy: gen-ui-strings harvests LITERALS only
@@ -1097,9 +1109,9 @@ export default async function ListingPage({ params }: Props) {
                         could start the order without the disclaimer ever being on screen, which is
                         the same failure as hiding it (codex, on the diff, 2026-09-10).
                       */}
-                      <VisaStart listingId={listing.id} className="mt-4 w-full" />
+                      <IosAppHidden when={iosHideContact}><VisaStart listingId={listing.id} className="mt-4 w-full" /></IosAppHidden>
                     </>
-                  : <ContactComposer
+                  : <IosAppHidden when={iosHideContact}><ContactComposer
                       listingId={listing.id}
                       listingTitle={displayTitle}
                       listingTitleVi={listing.titleVi}
@@ -1118,7 +1130,8 @@ export default async function ListingPage({ params }: Props) {
                       intent={isTripProduct ? 'plan' : 'buy'}
                       /* A partner shares no number (phoneForSeller) — the footnote must not offer one. */
                       sellerIsPartner={listing.seller.officialPartner}
-                    />}
+                    /></IosAppHidden>}
+                {iosHideContact && <VisaInAppNote kind="apply" className="ios-app-only mt-4" />}
                 {/* The availability check (owner, 2026-09-25): add this rental to the basket the eno team
                     checks for free. Under whichever contact block rendered above — a partner rental still
                     gets the check. `status === 'active'` is already true here (sold returned early), and

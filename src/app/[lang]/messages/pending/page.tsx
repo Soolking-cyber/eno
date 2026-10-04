@@ -51,6 +51,10 @@ export default function PendingComposePage() {
           const { error } = await res.json().catch(() => ({}))
           toast.error(
             error === 'own_listing' ? tr("That's your own listing.", 'Đây là tin của chính bạn.')
+            // App Store gate `ios-hide-visa` (D5 = b) — only ever answered to the iOS app while the gate is on. NEUTRAL on
+            // purpose: this page is shared with eno.vn, so no e-Visa word may sit in it; the listing page it bounces to
+            // below carries the full sentence (VisaInAppNote).
+            : error === 'ios_app_unavailable' ? tr('This can’t be done in the app — the listing page says where.', 'Không thể thực hiện việc này trong ứng dụng — trang tin đăng có hướng dẫn nơi thực hiện.')
             // Enforcement gates (trust Phase 2) — specific, calm copy over a generic failure.
             : error === 'account_suspended' ? tr('Your account is suspended — messaging is paused while we review it. Details are in your dashboard.', 'Tài khoản của bạn đang tạm ngưng — nhắn tin tạm dừng trong khi chúng tôi xem xét. Xem chi tiết trong trang quản lý.')
             : error === 'teacher_thread_cap' ? tr('You have reached today’s limit for new chats. Please try again tomorrow.', 'Bạn đã đạt giới hạn cuộc trò chuyện mới hôm nay. Vui lòng thử lại vào ngày mai.')

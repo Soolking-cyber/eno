@@ -9,6 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
+import { useIosHideVisa } from '@/hooks/use-ios-hide-visa'
+import { IosVerifyElsewhereNote } from './ios-browser-only-note'
 
 // The seller's own "get verified" surface (mounts under the business profile editor).
 // One badge, granted after >=2 channels: the tax-registry check (Channel 1, automatic,
@@ -55,6 +57,12 @@ const ERROR_COPY: Record<string, [string, string]> = {
 
 export function BusinessVerificationPanel({ showPersonSteps = true }: { showPersonSteps?: boolean } = {}) {
   const { tr } = useLanguage()
+  /**
+   * App Store gate `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — off by default. On, the iOS app keeps the
+   * status lines but not the uploads: "Business / ID document" takes a person's CCCD or passport image as readily as
+   * a licence, so it is identity-document capture by another name (and the API refuses it from the app anyway).
+   */
+  const uploadsElsewhere = useIosHideVisa()
   const [view, setView] = useState<CaseView>(null)
   const [live, setLive] = useState<LiveView>('unverified')
   /**
@@ -307,7 +315,8 @@ export function BusinessVerificationPanel({ showPersonSteps = true }: { showPers
                       'Một cá nhân có danh tính phải đứng sau gian hàng doanh nghiệp. Việc này mất vài phút và chỉ cần làm một lần.',
                     )}
               </p>
-              {!personVerified && (
+              {!personVerified && uploadsElsewhere && <IosVerifyElsewhereNote kind="identity" className="mt-2" />}
+              {!personVerified && !uploadsElsewhere && (
                 <Button variant="cta" size="sm" asChild className="mt-2">
                   <a href="/dashboard/account/verify">{tr('Verify yourself', 'Xác minh bản thân')}</a>
                 </Button>
@@ -363,6 +372,7 @@ export function BusinessVerificationPanel({ showPersonSteps = true }: { showPers
             </p>
           )}
 
+          {uploadsElsewhere ? <IosVerifyElsewhereNote kind="business" className="mt-3" /> : (<>
           <div className="mt-3 flex flex-wrap gap-2">
             <input ref={idInput} type="file" accept="image/jpeg,image/png,application/pdf" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload('identity', f); e.target.value = '' }} />
             <input ref={bankInput} type="file" accept="image/jpeg,image/png,application/pdf" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload('bank', f); e.target.value = '' }} />
@@ -388,6 +398,7 @@ export function BusinessVerificationPanel({ showPersonSteps = true }: { showPers
               {tr('Submit for verification', 'Gửi để xác minh')}
             </Button>
           </div>
+          </>)}
         </>
       )}
     </div>

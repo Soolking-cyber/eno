@@ -31,9 +31,11 @@ export function ServicesFallback() {
 }
 
 /** Trips first (the broader service); e-Visa cases behind it. Both mounted content-only. */
-export function ServicesClient({ planListingId, threads }: {
+export function ServicesClient({ planListingId, threads, hideVisa = false }: {
   planListingId: string | null
   threads: Record<string, string>
+  /** App Store gate `ios-hide-visa` — the SERVER decided this is the iOS app with the gate on (page.svc.tsx). */
+  hideVisa?: boolean
 }) {
   const { tr } = useLanguage()
   return (
@@ -42,7 +44,7 @@ export function ServicesClient({ planListingId, threads }: {
       fallbackHref="/dashboard/listings"
       tabs={[
         { value: 'trips', label: tr('My Trips', 'Chuyến đi'), content: <TripsClient planListingId={planListingId} embedded /> },
-        { value: 'evisa', label: tr('e-Visa', 'E-Visa'), content: <VisaCasesClient threads={threads} embedded /> },
+        ...(hideVisa ? [] : [{ value: 'evisa', label: tr('e-Visa', 'E-Visa'), content: <VisaCasesClient threads={threads} embedded /> }]),
       ]}
     />
   )

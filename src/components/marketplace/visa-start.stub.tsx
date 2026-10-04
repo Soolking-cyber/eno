@@ -103,3 +103,8 @@ export function VisaStartPicker(_props: { className?: string; onStarted?: () => 
 export function VisaStart(_props: { listingId: string; label?: string; className?: string }) {
   return null
 }
+
+/** Renders nothing — the iOS-app "apply in a web browser" line (App Store gate `ios-hide-visa`) is e-Visa copy. */
+export function VisaInAppNote(_props: { kind: 'apply' | 'page' | 'step' | 'thread'; className?: string }) {
+  return null
+}

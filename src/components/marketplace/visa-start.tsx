@@ -24,6 +24,8 @@ import {
 // submissionGate (NOT the raw submissionWindow) so the client live-tick agrees with the server:
 // standard + day tiers always open, hour tiers close on weekends/holidays. eta.ts is client-safe.
 import { submissionGate } from '@/lib/visa/eta'
+import { useIosHideVisa } from '@/hooks/use-ios-hide-visa'
+import { IosBrowserOnlyNote } from './ios-browser-only-note'
 
 // ── ONE TAP → the e-Visa desk, inside a chat ──────────────────────────────────────
 //
@@ -375,7 +377,12 @@ export function VisaProductRow({ product, now, disabled, onPick }: {
  * The desk's whole catalogue, as a list of one-tap starts. Embeddable on its own (a
  * storefront panel) or inside <VisaStart />'s dialog.
  */
-export function VisaStartPicker({ className, onStarted }: { className?: string; onStarted?: () => void }) {
+export function VisaStartPicker(props: { className?: string; onStarted?: () => void }) {
+  // App Store gate `ios-hide-visa` — see VisaStart below.
+  return useIosHideVisa() ? null : <VisaStartPickerList {...props} />
+}
+
+function VisaStartPickerList({ className, onStarted }: { className?: string; onStarted?: () => void }) {
   const { tr } = useLanguage()
   const { user, loading, openSignIn } = useAuth()
   const state = useVisaCatalogue(!!user)
@@ -469,7 +476,17 @@ export function VisaStartPicker({ className, onStarted }: { className?: string; 
  * not in a dialog here. (The old no-listing dialog picker is gone on purpose; the inline
  * <VisaStartPicker> remains only for the storefront panel until Phase 3 removes it.)
  */
-export function VisaStart({ listingId, label, className }: {
+export function VisaStart(props: { listingId?: string; label?: string; className?: string }) {
+  /**
+   * ⚠️ APP STORE GATE `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — off by default, and then this is exactly the
+   * button below. On, in the iOS app NOTHING renders: every place that mounts a start (the PDP, the cases tab) is
+   * hidden or says where to apply instead, and this is the guard for one that forgets. The PDP's server HTML is
+   * shared with the web, so it also wraps this in the `ios-app-hidden` hook for the first frame.
+   */
+  return useIosHideVisa() ? null : <VisaStartButton {...props} />
+}
+
+function VisaStartButton({ listingId, label, className }: {
   listingId?: string
   label?: string
   className?: string
@@ -522,4 +539,22 @@ export function VisaStart({ listingId, label, className }: {
         : tr('Start an e-Visa in chat', 'Bắt đầu e-Visa qua chat'))}
     </Button>
   )
+}
+
+/**
+ * APP STORE GATE `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — what the iOS app says where an e-Visa would have
+ * been applied for: "…available at www.eno.forum in a web browser". The CALLER decides when it shows (an ISR page wraps
+ * it in the `ios-app-only` hook; the chat thread asks useIosHideVisa), so this renders unconditionally.
+ * ⛔ IT LIVES HERE, IN THE ALIASED MODULE, BECAUSE ITS WORDS ARE e-VISA VOCABULARY. Shared callers (the PDP, SeoLanding,
+ * the chat thread) compile on eno.vn too; there the stub renders nothing and no sentence ships, and gen-ui-strings
+ * files these strings in the services catalogue. "www.eno.forum" is literal because only eno.forum hosts the desk.
+ */
+export function VisaInAppNote({ kind, className }: { kind: 'apply' | 'page' | 'step' | 'thread'; className?: string }) {
+  const { tr } = useLanguage()
+  const text =
+    kind === 'apply' ? tr('e-Visa applications are available at www.eno.forum in a web browser.', 'Bạn có thể nộp hồ sơ e-Visa tại www.eno.forum trên trình duyệt web.')
+    : kind === 'page' ? tr('In the app this page is for information only. e-Visa applications are available at www.eno.forum in a web browser.', 'Trong ứng dụng, trang này chỉ để cung cấp thông tin. Bạn có thể nộp hồ sơ e-Visa tại www.eno.forum trên trình duyệt web.')
+    : kind === 'step' ? tr('This e-Visa step is available at www.eno.forum in a web browser.', 'Bước e-Visa này có tại www.eno.forum trên trình duyệt web.')
+    : tr('This e-Visa application continues at www.eno.forum in a web browser. You can still read the conversation here.', 'Hồ sơ e-Visa này được tiếp tục tại www.eno.forum trên trình duyệt web. Bạn vẫn có thể xem cuộc trò chuyện tại đây.')
+  return <IosBrowserOnlyNote text={text} className={className} />
 }
