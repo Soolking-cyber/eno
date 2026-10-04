@@ -39,9 +39,13 @@ Branch `build/ios-appstore-prep` (pushed, not merged, not deployed) carries:
 | `52c17e4d8` | Web — block users (Guideline 1.2) behind the `ugc-safety` gate (OFF) |
 | `f361c7c8a` | App Store screenshot pipeline from the simulator (6/6 certified 2026-10-04 on the final scripts) |
 | (this doc's commit) | this runbook; `docs/ios-appstore-readiness.md` marked as the shelved app |
+| `32e6e0895` | Web — chat translation asks before it sends (`app-ai-notice`, R8/D14, OFF) — branch `build/ios-appstore-prep-b` |
+| `23ca17e31` | Web — no e-Visa application or ID capture in the iOS app (`ios-hide-visa`, D5 = b, OFF) — branch `build/ios-appstore-prep-b` |
 
 ⚠️ **THE BRANCH IS NOT ON main.** Merge it (and, for the web half, deploy on the owner's word) before the
 first signed archive, or the archive will not carry the shell fixes.
+⚠️ **`build/ios-appstore-prep-b` (R8, D5) too.** Until it is merged, `app-ai-notice` and `ios-hide-visa` are
+unknown tokens, and a build with either in `NEXT_PUBLIC_APP_REVIEW_GATES` fails (`next.config.ts` refuses them).
 
 ---
 
@@ -55,7 +59,7 @@ first signed archive, or the archive will not carry the shell fixes.
   `NSPrivacyAccessedAPICategoryFileTimestamp` with the library's reasons `C617.1` + `3B52.1`.
 - **Privacy manifest = the live site's collection inside the app** — 17 linked types, none tracking,
   plus CSP violation reports as not-linked diagnostics. It mirrors Appendix B; change both together.
-  `SensitiveInfo` carries a note: remove it in the release that hides visa + eKYC (D5).
+  `SensitiveInfo` carries a note: remove it in the release that hides visa + eKYC (D5 — the `ios-hide-visa` gate).
 - **Quick actions no longer open Safari.** `AppDelegate.swift` built Post / Messages / Saved on
   `https://eno.vn`, which is not in `allowNavigation` since the app moved to the forum, so Capacitor
   handed it to Safari — onto the edition with the "not yet launched" banner. It now mirrors Android
@@ -84,6 +88,8 @@ changes on either site or in either app. A misspelled token fails the build (`ne
 | `app-no-gtm` | R11 | both apps: no Google Tag Manager container | — |
 | `site-brand-copy` | R7 | eno.forum names itself where copy hard-codes eno.vn; English /privacy stops quoting the Vietnamese placeholder | — |
 | `ugc-safety` | R3 | both sites + apps: Block beside Report (chat header, a person's storefront), unblock in Settings → Privacy; a block refuses new threads, messages, offer accepts, the phone reveal and teacher contact shares both ways, hides the threads from the blocker's inbox and badge, and tells moderators via `/admin/feedback` | — |
+| `app-ai-notice` | R8 | both apps: the first time a chat has something to translate, a one-time notice — "To translate your chats, messages are sent to Microsoft (Azure AI Translator)…" — with "Turn off translation" / "OK"; ONE answer for all chats on that account and device. NOTHING is requested until it is answered; "off" stops every CHAT translation request that person's app makes (no strip, no request — interface and listing text still translate as before); Settings → Preferences → Chat translation shows OFF until permission is given and turns it back on. The notification bell stops machine-translating an offer's note until "OK". Kept on the device (`chat-tr:consent:<profile>`) — no server-side translation preference exists (§6), so what a person SENDS still follows the other person's setting, and the notice says so. ⚠️ Keys on `EnoNativeApp`, so it also changes the live Android app (P10a) | D14 |
+| `ios-hide-visa` | D5 | iOS app only: no e-Visa application and no identity/business-document capture. `/dashboard/visa` → Services (no e-Visa tab), `/dashboard/account/verify` → the verification hub (status kept, "Verify yourself" replaced); an e-Visa product page — the desk's or a partner's (visa slot + an e-Visa chip) — hides "Apply in chat" / the chat box; the `/vietnam-evisa` family loses its CTA and listing grid (information only; `/services-for-expats-vietnam` keeps its grid — it is every service, and its e-Visa cards lead to gated product pages); an e-Visa chat thread — the desk's, or one about a partner's e-Visa product — is read-only for the applicant (the seller side keeps its composer; each desk card that takes a step becomes one line, a finished e-Visa stays downloadable, no composer, nothing posted on open); the camera never opens for KYC; the business panel takes no upload. Each place says the step is available at www.eno.forum in a web browser (plain text — a link would reopen it in the app). Backstop: the proxy refuses iOS-app writes (not DELETE) to `/api/visa/applications/**`, `/api/visa/cards/**`, `/api/seller/identity/**`, `/api/seller/verification/**`; `POST /api/conversations` refuses an e-Visa product and the send route refuses the applicant's message into an e-Visa thread (403 `ios_app_unavailable`) | D5 = b |
 
 Push is gated per platform now: `NEXT_PUBLIC_NATIVE_PUSH_IOS` / `NEXT_PUBLIC_NATIVE_PUSH_ANDROID`
 (`src/lib/native-push-flags.ts`). The old shared `NEXT_PUBLIC_NATIVE_PUSH` is no longer read — it was
@@ -114,6 +120,16 @@ should be on before submission).
 ⚠️ Set the SAME line in both env files (after the marketplace-edition check in the prerequisite above) — the two editions share one database, so a block made on one
 site and not enforced on the other would break the promise the Block dialog makes. Before
 `ugc-safety` goes on, settle the follow-ups listed in §6.
+
+**The two newer tokens (built 2026-10-05, branch `build/ios-appstore-prep-b`; NOT in the local verification
+below):** append `,ios-hide-visa` in Step 1 when D5 = b — it changes only the iOS app. Order matters: the gate
+goes live by a WEB deploy, the privacy manifest only with a binary, so switch the gate on FIRST, then submit the
+binary whose `PrivacyInfo.xcprivacy` drops `SensitiveInfo` with App Privacy answered without "Sensitive Info"
+(Appendix B) — and never switch the gate off afterwards without a new submission (the shipped declarations would
+be false). Append `,app-ai-notice` with Step 2: like `app-signin-tidy` it keys on `EnoNativeApp`, so it also
+changes the Android app on Google Play — check its notice in the P10a pass. The same line in both env files is
+safe: no e-Visa copy can render on eno.vn (it lives in the aliased visa module, a stub there), and the iOS app
+loads only eno.forum.
 
 Verify each one in the TestFlight build (P10), and on the web that nothing moved (desktop Chrome on
 `/signin` still shows "Continue with Google"; the form renders client-side, so curl cannot see it).
@@ -146,10 +162,14 @@ with the gates OFF (the CI recipe) — see §2.
 
 ### Not built in bucket 1, and why
 
-- **R5 report + word filter on help comments and reviews, R8 translation notice** — see §6. These are
+- **R5 report + word filter on help comments and reviews** — see §6. These are
   product features with owner-level choices in them, not switches. (R3, blocking, IS built — §1.)
-- **D5 = hide visa + eKYC in the iOS app** — not built. Hiding the identity check also blocks a seller
-  in the iOS app from the KYC the publish gate can require, so the scope is the owner's call first.
+- **R8 translation notice and D5 = hide visa + eKYC — built since, both OFF** (`app-ai-notice`, `ios-hide-visa`,
+  table above). The open question this bullet used to carry — an iOS seller the publish gate asks to verify —
+  is answered in the app: the verification hub says the check is done at www.eno.forum in a web browser. The
+  publish-time identity gate is marketplace-only today (`identityGateEnforced`, account-state.ts), so on
+  eno.forum nothing asks yet. If it is ever enforced there, an iOS seller has to verify in a browser before
+  publishing — part of D5 = b's cost, to weigh then.
 
 ---
 
@@ -401,6 +421,15 @@ account can no longer send there, the thread leaves the inbox and badge, the not
 `/admin/feedback`, Unblock in Settings → Privacy restores it. ⚠️ A Google-created account must be able to sign in with an emailed code
 on iOS (`ios-hide-google`) — try one before submitting.
 
+With `app-ai-notice` (iOS AND Android, two accounts whose app languages differ): opening the chat shows the
+notice and Safari → Develop → Network shows NO `/api/messages/translate` request until OK, and an offer's note
+in the notification bell is shown as written (no `/api/translate` request for it); "Turn off translation"
+removes the strip and sends nothing; Settings → Preferences → Chat translation turns it back on. With
+`ios-hide-visa` (iOS only): Services has no e-Visa tab; `/dashboard/account/verify` lands on
+`/dashboard/verification`, which says verification is done at www.eno.forum and opens no camera; an e-Visa product page (VietKite's or the desk's) shows the line instead of
+"Apply in chat" / the chat box; `/vietnam-evisa` shows no CTA or grid; an existing e-Visa chat is read-only for
+the applicant (the partner's own account keeps its composer); the same screens on the Android app are unchanged.
+
 **P11. Reviewer account (OWNER-APPROVED prod write).** Reuse `play-review@eno.forum` after a read-only
 check that it is still partner-flagged (password sign-in is partner-gated), else add `--for=apple` to
 `scripts/register-play-reviewer.mjs`. Seed one listing and one conversation. The owner pastes the
@@ -416,8 +445,11 @@ release **Manual**.
 ✔ No missing-field warnings; "Add for Review" is enabled.
 
 **P13. Submit — only after BOTH gate steps are deployed and verified (all five tokens of §1, incl. `app-no-gtm` after P10a; P10), `ugc-safety` is live once the §6 follow-ups are settled (Guideline 1.2 expects blocking), and D5 is settled.** Before pasting the review notes, confirm `support@eno.forum` receives mail (Play lists the same address). If the account
-is an Individual (D1's fallback), the visa application and eKYC must not show in the iOS app (5.1.1(ix)),
-and that hiding is NOT built yet (§1). The App Privacy answers
+is an Individual (D1's fallback), the visa application and eKYC must not show in the iOS app (5.1.1(ix)) —
+that is `ios-hide-visa` (built, OFF; §1), and with it on, App Privacy "Sensitive Info" and the binary's
+`PrivacyInfo.xcprivacy` `SensitiveInfo` entry go in the SAME release (Appendix B). The "five tokens" above
+predate R8 and D5: `app-ai-notice` (D14, the 5.1.2(i) prompt) must be live and checked in P10 too, and with
+D5 = b so must `ios-hide-visa` and `ios-hide-wallet` (D7). The App Privacy answers
 ("no tracking", Payment Info = payout account only) and the screenshots describe the app WITH the gates
 on; today GTM loads in the app and the wallet shows, so submitting first would put false answers in
 front of the reviewer. On rejection, answer in Resolution Center with the native-feature list and the fix per
@@ -445,8 +477,11 @@ storefront listings.
 - **D4 Category: Shopping, secondary Lifestyle** (Travel only if e-Visa leads).
 - **D5 Services / e-Visa surface in the iOS app.** (a) ship as on Android (needs D1 = an eligible
   Organization + review notes naming VietKite) or (b) hide the visa application, eKYC and wallet on
-  native-ios, keep the information pages. **(b) unless D1 produces an eligible Organization** — and
-  decide what an iOS seller does about KYC (not built; see §1). Never re-enable server-side after approval.
+  native-ios, keep the information pages. **(b) unless D1 produces an eligible Organization.** (b) is
+  BUILT, OFF: visa + eKYC as `ios-hide-visa` (§1), the wallet as `ios-hide-wallet` (D7) — both must be on. An
+  iOS seller asked to verify is told it is done at www.eno.forum in a web browser. It also closes a PARTNER's e-Visa product to in-app chat (VietKite: 14 active `visa-legal`
+  listings on eno.forum, measured 2026-10-05 — its chat is where it takes the application); the listings
+  stay visible in browse — hiding them too is the owner's call. Never re-enable server-side after approval.
 - **D6 iPhone-only for v1: yes** (done; iPad support can be added later, never removed).
 - **D7 Wallet: hide in the iOS app for v1** (`ios-hide-wallet`). The "Test environment / Add 10 test USD"
   button must never reach a reviewer either way.
@@ -461,7 +496,8 @@ storefront listings.
 - **D12 Age rating: Advertising Yes, Social Media No, override to 18+.**
 - **D13 Linked listings lead the feed (4.2.2).** **Lead with first-party content in screenshots and notes,
   keep the feed for v1**, revisit if 4.2.2 is cited.
-- **D14 Chat auto-translation (5.1.2(i)): a one-time notice with an opt-out** (R8, not built — §6).
+- **D14 Chat auto-translation (5.1.2(i)): a one-time notice with an opt-out** (R8, built as `app-ai-notice`,
+  OFF — §1, §6). Both apps, not only iOS (the token's `app-` prefix; Play's disclosure duty is the same).
 - **D15 Version 1.0.2** (done). **D16 One iOS app only** — never a second near-identical eno.vn app (4.3(a)).
 - **NEW — which gates to switch on, and when.** The table in §1 is ready; switching is a prod env write
   plus a deploy, and the screenshots are re-captured after it.
@@ -492,10 +528,55 @@ Settle before switching `ugc-safety` on (reviewer findings recorded in the commi
   help comments.** The report half is mechanical (`/api/forum/reports` exists; reviews need a report
   target). The filter changes what every user can send on both sites — owner sets how strict and what
   happens to a hit (refuse, hold, or flag). Ship behind a new token.
-- **R8 — chat auto-translation notice (5.1.2(i), D14).** Chat messages go to Azure translation with no
-  prompt. A one-time notice with an opt-out in the iOS app, behind an `app-ai-notice` token.
+- (R8 is built — see "R8 and D5 — built" below.)
 - ⚠️ Until R5 ships, the USER-GENERATED CONTENT paragraph of the review notes must not claim a word
   filter or reporting on reviews and help comments.
+
+**R8 and D5 — built (branch `build/ios-appstore-prep-b`), OFF.** Tokens `app-ai-notice` and `ios-hide-visa`
+(§1 table; `src/lib/chat-translation-consent.ts`, `src/lib/ios-hide-visa.ts`). Choices worth knowing:
+- **R8 asks in BOTH apps.** Chat messages go to Microsoft Azure AI Translator (`translateBatch` asks it
+  first for chat; the self-hosted box model is the fallback). The gate stops the REQUEST, not just the
+  result: `useChatTranslation` is the only caller of `POST /api/messages/translate`, and it sends nothing
+  until "OK". The answer lives on the DEVICE (`chat-tr:consent:<profile>`), because no server-side
+  translation preference exists — per-user prefs are Profile columns, and a new column needs the DDL flow
+  in CLAUDE.md before any deploy (a Prisma column ahead of its DDL breaks every Profile read). So a new
+  device asks again; a Profile column + route is the follow-up if the owner wants it to follow the account.
+  "Turn off translation" stops THIS user's requests; the other person's own setting still decides whether
+  what this user sends is translated for them — the notice and the Settings row say so (codex + opus, review:
+  a promise to stop more would be false). Making the opt-out cover a person's OWN messages needs the server to
+  know it: a Profile column (DDL flow first, CLAUDE.md), read by `POST /api/messages/translate` to skip an
+  opted-out sender's rows — the follow-up if the owner wants it.
+- **One answer for every chat in the app** (this account on this device — the web and another phone do not
+  know it, and the notice says "in this app"), shown the first time a chat has an incoming message to
+  translate; before that the "Translate messages" strip is not shown ticked. A change in Settings applies to a
+  thread that is already open. Settings shows OFF until permission is given (a switch that said ON before anyone
+  was asked claimed a consent that did not exist). With the gate on, eno.forum's /privacy adds that the apps
+  ask before chats are first translated. The notification bell renders an offer's note through `<Tr>`, i.e.
+  machine-translates it via `/api/translate`; under the gate it shows the note as written until "OK".
+  ⚠️ Pre-existing, with the gate
+  OFF and on the web: that `<Tr>` path sends offer notes (private chat text) to Microsoft and stores the
+  result in the SHARED translation cache — worth fixing for everyone (render user-authored notification text
+  without `<Tr>`, or through the private chat endpoint).
+- **D5 hides the APPLICATION, not the topic.** Kept in the iOS app: `/vietnam-evisa/official-process`,
+  `/moving-to-vietnam`, `/first-month-in-vietnam`, the non-government disclosure on every e-Visa page, the
+  verification hub's status, a read-only view of an existing e-Visa chat. Gone: every start/continue/pay
+  step, the KYC camera, the business-document upload (its "Business / ID document" takes a person's ID).
+- **Partner e-Visa products count.** An e-Visa product = the visa slot (`services/visa-legal`) plus an
+  e-Visa chip (`visaEntryType`/`visaSpeed`; `src/lib/evisa-listing.ts`) — VietKite's 14 live listings
+  carry both. Work-permit / tax / legal listings in the same slot are untouched. The listings still show in
+  browse and search in the iOS app; only contacting them is closed there (owner's call to hide them too).
+- **A partner thread begun on the web** is read-only for the applicant in the iOS app too: the thread payload
+  carries `eVisaProduct` for the applicant in the iOS app with the gate on, and the page treats it like a desk
+  thread.
+- **The send route enforces the read-only thread:** `POST /api/conversations/[id]/messages` refuses the
+  APPLICANT's write from the iOS app into an e-Visa thread (bound to an application, a desk product, or a
+  partner's e-Visa product), failing closed if it cannot classify the thread. The SELLER side — the partner
+  answering, or the desk — keeps an ordinary thread and composer in the app.
+- The backstop lets DELETE through (removing one's own draft or document captures nothing). Its route list is
+  `src/lib/ios-hide-visa-api.ts`, imported only by the proxy and empty on the marketplace build, so no e-Visa
+  route name enters a client chunk; the send route's thread check is `src/lib/ios-hide-visa-server.ts`.
+- `/services-for-expats-vietnam` keeps its CTA and grid in the app: they are every service, not only
+  e-Visa, and its e-Visa cards lead to product pages that are gated.
 
 ---
 
@@ -584,7 +665,7 @@ eno is not a government agency and is not affiliated with, endorsed by or acting
 **App Review notes** — the base block states only what is live today; append each add-on below it only
 when its condition is true at submission (§6 lists what is built, what is gated, and what is not built).
 ⛔ Not before D5 is settled: today the app shows the visa desk, which the base block does not mention. With
-D5 = a add the e-VISA add-on; with D5 = b the notes are truthful only once the hiding is built and live.
+D5 = a add the e-VISA add-on; with D5 = b the notes are truthful only once `ios-hide-visa` (built, OFF) is live.
 
 ```
 WHAT THE APP IS
@@ -630,7 +711,7 @@ advertising are forced off for the `EnoNativeApp` user agent in `src/lib/consent
 | Contact Info | Name, Email Address, Phone Number, Physical Address | App Functionality |
 | Financial Info | **Payment Info** (a seller's payout bank account number) | App Functionality |
 | Location | Precise (map, "near me", lat/lng at 3 decimals), Coarse | App Functionality |
-| Sensitive Info | religion (visa form), biometric (eKYC face) — **only while visa/eKYC show (D5)**; the binary's `PrivacyInfo.xcprivacy` declares it too, so drop BOTH in the same release that hides them | App Functionality |
+| Sensitive Info | religion (visa form), biometric (eKYC face) — **only while visa/eKYC show (D5)**; the binary's `PrivacyInfo.xcprivacy` declares it too, so drop BOTH in the same release that switches `ios-hide-visa` on | App Functionality |
 | User Content | Emails or Text Messages (chat), Photos or Videos, Customer Support, Other User Content (listings, reviews, help posts) | App Functionality |
 | Search History | Search History | App Functionality, Analytics (first-party) |
 | Identifiers | User ID | App Functionality |
