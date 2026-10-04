@@ -2,15 +2,19 @@ import type { Language } from './langs'
 
 // Authored UI strings. en is the source of truth; vi is hand-authored.
 // ko / ru / zh are machine-translated on demand from `en` (cached).
+//
+// ⛔ NO CLAIM KEYS (owner 2026-10-04). This file carried "Verified Classifieds", "eno.vn — Your Trusted
+// Vietnam Network.", "Guaranteed real prices and real photos.", "Verified Listing" / "Verified Seller" and
+// "…so listings stay honest" (with their Vietnamese) under keys nothing called — measured that day, the
+// one t() call in the app is t('header.postBtn'). Never rendered, but both dictionaries ship in the client
+// bundle (language-context.tsx imports them), so they were published claims all the same; they were
+// deleted, not reworded. A key added back here must have a caller and must be true.
 export const EN: Record<string, string> = {
-  'header.verified': 'Verified Classifieds',
   'header.browse': 'Browse',
   'header.listings': 'Listings',
   'header.postBtn': 'Free Post',
   'header.toastTitle': 'Post a listing',
   'header.toastDesc': 'Your listing is live. We run automated checks on every post.',
-  'hero.title': 'eno.vn — Your Trusted Vietnam Network.',
-  'hero.desc': 'Search and list furniture sales, motorbike & room rentals, jobs, and services. Guaranteed real prices and real photos.',
   // ⚠️ NO VISA TERM HERE, IN EITHER LANGUAGE. eno.vn is a licensed sàn TMĐT and is not licensed to
   // offer visa services; the placeholder is the first sentence a visitor reads, so "visa help" was
   // the most-read unlicensed-service mention on the site. Removed from BOTH editions on purpose —
@@ -19,7 +23,6 @@ export const EN: Record<string, string> = {
   'hero.searchPlaceholder': 'Search motorbikes, apartments, sofa sales, room rentals in Hanoi, HCM, Da Nang...',
   'hero.searchBtn': 'Search',
   'categories.title': 'Browse by Category',
-  'categories.desc': 'Find verified listings across key categories',
   'categories.all': 'All Categories',
   'explorer.title': 'Listings',
   'explorer.allVietnam': 'All Vietnam',
@@ -32,7 +35,6 @@ export const EN: Record<string, string> = {
   'explorer.fabFilter': 'Filters',
   'filter.status': 'Status',
   'filter.all': 'All',
-  'filter.verifiedOnly': 'Verified Only',
   'filter.city': 'City',
   'filter.condition': 'Condition',
   'filter.new': 'New',
@@ -47,18 +49,13 @@ export const EN: Record<string, string> = {
   'filter.apply': 'Apply Filters',
   'filter.reset': 'Reset',
   'card.featured': 'Featured',
-  'card.verified': 'Verified',
   'card.calling': 'Calling...',
   'card.copyPhone': 'Copy Phone',
   'detail.close': 'Close',
   'detail.postedOn': 'Posted on',
   'detail.location': 'Location',
   'detail.condition': 'Condition',
-  'detail.verificationStatus': 'Verification Status',
-  'detail.verifiedListing': 'Verified Listing',
-  'detail.verifiedListingDesc': 'Every seller has a public trust score, and buyers can report problems — so listings stay honest.',
   'detail.sellerInfo': 'Seller Info',
-  'detail.verifiedSeller': 'Verified Seller',
   'detail.memberSince': 'Member since',
   'detail.responseRate': 'Response rate',
   'detail.responseTime': 'Response time',
@@ -68,26 +65,21 @@ export const EN: Record<string, string> = {
   'footer.about': 'About Us',
   'footer.terms': 'Terms of Use',
   'footer.contact': 'Contact',
-  'footer.subtitle': '— Your Trusted Vietnam Network.',
   'footer.rights': 'All rights reserved.',
   'footer.builtWith': 'Built with',
   'footer.inSaigon': 'in Saigon',
 }
 
 export const VI: Record<string, string> = {
-  'header.verified': 'Chợ rao vặt xác thực',
   'header.browse': 'Danh mục',
   'header.listings': 'Tin đăng',
   'header.postBtn': 'Đăng tin miễn phí',
   'header.toastTitle': 'Đăng tin mới',
   'header.toastDesc': 'Tin của bạn đã hiển thị. Chúng tôi tự động kiểm tra mọi tin đăng.',
-  'hero.title': 'eno.vn — Mạng lưới kết nối tin cậy tại Việt Nam',
-  'hero.desc': 'Tìm kiếm và đăng tin thanh lý đồ đạc, thuê phòng, xe máy, việc làm và dịch vụ. Cam kết giá thật, hình ảnh thật.',
   // Mirrors the English above — see the note there. "visa ở Hà Nội" removed.
   'hero.searchPlaceholder': 'Tìm xe máy, căn hộ, sofa thanh lý, thuê phòng ở Hà Nội, HCM, Đà Nẵng...',
   'hero.searchBtn': 'Tìm kiếm',
   'categories.title': 'Duyệt theo danh mục',
-  'categories.desc': 'Tìm các tin đăng đã được xác thực theo từng danh mục',
   'categories.all': 'Tất cả danh mục',
   'explorer.title': 'Tin đăng',
   'explorer.allVietnam': 'Toàn quốc',
@@ -100,7 +92,6 @@ export const VI: Record<string, string> = {
   'explorer.fabFilter': 'Bộ lọc',
   'filter.status': 'Trạng thái',
   'filter.all': 'Tất cả',
-  'filter.verifiedOnly': 'Chỉ tin xác thực',
   'filter.city': 'Thành phố',
   'filter.condition': 'Tình trạng',
   'filter.new': 'Mới',
@@ -115,18 +106,13 @@ export const VI: Record<string, string> = {
   'filter.apply': 'Áp dụng bộ lọc',
   'filter.reset': 'Xóa bộ lọc',
   'card.featured': 'Nổi bật',
-  'card.verified': 'Xác thực',
   'card.calling': 'Đang gọi...',
   'card.copyPhone': 'Sao chép số',
   'detail.close': 'Đóng',
   'detail.postedOn': 'Đăng ngày',
   'detail.location': 'Địa điểm',
   'detail.condition': 'Tình trạng',
-  'detail.verificationStatus': 'Trạng thái kiểm duyệt',
-  'detail.verifiedListing': 'Tin đăng đã xác thực',
-  'detail.verifiedListingDesc': 'Mỗi người bán có điểm uy tín công khai, và người mua có thể báo cáo vấn đề — giúp tin đăng luôn trung thực.',
   'detail.sellerInfo': 'Thông tin người bán',
-  'detail.verifiedSeller': 'Người bán đã xác thực',
   'detail.memberSince': 'Tham gia từ',
   'detail.responseRate': 'Tỷ lệ phản hồi',
   'detail.responseTime': 'Thời gian phản hồi',
@@ -136,7 +122,6 @@ export const VI: Record<string, string> = {
   'footer.about': 'Về chúng tôi',
   'footer.terms': 'Điều khoản sử dụng',
   'footer.contact': 'Liên hệ',
-  'footer.subtitle': '— Mạng lưới kết nối tin cậy tại Việt Nam',
   'footer.rights': 'Tất cả quyền được bảo lưu.',
   'footer.builtWith': 'Xây dựng bằng',
   'footer.inSaigon': 'tại Sài Gòn',

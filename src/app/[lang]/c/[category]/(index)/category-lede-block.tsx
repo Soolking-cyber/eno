@@ -19,9 +19,9 @@ import { ClampedLede } from '../clamped-lede'
  *
  * Measured lede — max-w-prose (65ch) keeps the reading measure inside the craft floor's 65–75ch band;
  * max-w-2xl ran ~80ch at text-base.
- * ⚠️ Rentals replaces CategoryLede, whose "every listing comes from a seller with a public trust score"
- * is not true of stock linked from other portals; every other category passes its linked tier, and
- * CategoryLede keeps that sentence only where the tier is 'none'.
+ * ⚠️ Rentals replaces CategoryLede with its own D-f wording; every other category passes its linked
+ * tier, and CategoryLede closes on the report sentence only where the tier is 'none' (a linked tier
+ * says where the listings open instead).
  */
 export async function CategoryLedeBlock({ slug }: { slug: string }) {
   const loaded = await loadCategory(slug)

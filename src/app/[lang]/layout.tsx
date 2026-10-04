@@ -221,10 +221,13 @@ const OG_IMAGE = { ...SHARE_CARD, alt: SHARE_CARD_ALT };
  * POSTING_IS_FREE (src/lib/site-identity.ts), which cites the legal clauses it rests on.
  * ⛔ NOT "THE COMMUNITY KEEPS LISTINGS HONEST" (SEO wave B, V2; CS-3 claim 7, owner 2026-10-01): an outcome
  * no code measures. What the code does is let a signed-in member report a listing (api/report/route.ts).
+ * ⛔ AND NO TRUST-SCORE CLAUSE (owner 2026-10-04): "sellers who post here build public trust scores" left
+ * out the official partners, who show a partner badge instead. The sentence is the owner's approved
+ * report sentence, verbatim — the same one the category pages close on (category-copy.ts REPORT_SENTENCE).
  */
 const SITE_DESCRIPTION = IS_SERVICES
   ? SERVICES_SITE_DESCRIPTION
-  : `${SITE_NAME} is a ${POSTING_IS_FREE ? "free " : ""}classifieds marketplace for expats, internationals and locals in Vietnam. Find rentals, jobs, furniture, electronics and more — sellers who post here build public trust scores and members can report any listing.`;
+  : `${SITE_NAME} is a ${POSTING_IS_FREE ? "free " : ""}classifieds marketplace for expats, internationals and locals in Vietnam. Find rentals, jobs, furniture, electronics and more. Members can report any listing that breaks the rules.`;
 
 /** The short form, for the OG and Twitter cards. */
 const SITE_TAGLINE = IS_SERVICES ? SERVICES_SITE_TAGLINE : MARKETPLACE_TAGLINE;
@@ -314,7 +317,6 @@ export const metadata: Metadata = {
     "expat marketplace Vietnam",
     "Vietnam expats",
     "Viet Kieu",
-    "trusted marketplace",
     "housing Vietnam expats",
     "motorbike rental Saigon",
     "house rental Thao Dien",

@@ -28,8 +28,11 @@ const d = (n: number) => formatMoneyFull(n, '₫', 'en')
  * ⚠️ WHY WE CAN WIN THIS QUERY AND A BLOG CANNOT. Every competing page says "document everything and
  * be polite". The two things here that are not available elsewhere are (a) real replacement prices
  * from the live secondhand market, so a deduction can be PRICED instead of argued about, and (b) the
- * machinery — a public trust score, a dispute centre, a report system — which is infrastructure we
- * actually ship rather than a promise. Both are checkable, which is the whole standard for this page.
+ * machinery — a report system and a dispute centre — which is infrastructure we actually ship rather
+ * than a promise. Both are checkable, which is the whole standard for this page.
+ * ⛔ NOT "Every seller on this site carries a public, evidence-based trust score" (owner 2026-10-04): a
+ * rental linked from another listing site shows no score, and nearly every rental here is one. The
+ * reporting sentence is the owner's approved one, verbatim (category-copy.ts REPORT_SENTENCE).
  *
  * ⚠️ THE PRICE BANDS ARE MEASURED, NOT ILLUSTRATIVE (eno.vn/api/listings, 2026-09-23, n=300 sampled
  * from 3,201 live used furniture/appliance listings, ~all Ho Chi Minh City). They are ASKING prices
@@ -325,10 +328,8 @@ const CONTENT: ArticleContent = {
               have leverage you do not and an interest in the building&apos;s reputation.
             </li>
             <li>
-              <strong>If the rental came through a listing here, use the machinery.</strong> Every seller
-              on this site carries a public, evidence-based{' '}
-              <HereLink href="/trust">trust score</HereLink>, a bad listing can be reported from the
-              listing itself, and a case can be opened in the{' '}
+              <strong>If the rental came through a listing here, use the machinery.</strong> Members can
+              report any listing that breaks the rules. A case can also be opened in the{' '}
               <HereLink href="/disputes">dispute centre</HereLink>, which puts your evidence in front of
               an administrator rather than in front of the other party — a respondent never sees the
               other side&apos;s evidence. The{' '}

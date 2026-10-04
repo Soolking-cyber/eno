@@ -83,10 +83,11 @@ export const STORED_VALUE_KEYS = [
 /**
  * ⚠️ THE t() DICTIONARIES ARE SOURCE, BUT THEIR VALUES ARE NOT LOOKUPS HERE. `t(key)` resolves through
  * STATIC[lang][key] (src/lib/i18n/static-dicts.ts) and never consults VI_OVERRIDES, so an English
- * VALUE in that file is no reason to keep a dictionary entry. It matters because that file still
- * carries retired claims as values ('Guaranteed real prices and real photos.', 'Your Trusted Vietnam
+ * VALUE in that file is no reason to keep a dictionary entry. It mattered because that file carried
+ * retired claims as values ('Guaranteed real prices and real photos.', 'Your Trusted Vietnam
  * Network.') under keys nothing calls — measured 2026-10-04, only t('header.postBtn') is used — and
- * counting them as uses would keep those claims in this chunk too.
+ * counting them as uses would have kept those claims in this chunk too. (The claim keys themselves
+ * were deleted from static-dicts.ts the same day; the rule stays for whatever that file holds next.)
  */
 const NOT_A_LOOKUP = new Set(['src/lib/i18n/static-dicts.ts'])
 

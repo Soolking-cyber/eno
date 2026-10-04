@@ -12,15 +12,26 @@ import { LANDING_TARGET } from './landing-target'
 // copy on the pages built to convert search traffic is not (astra).
 export const revalidate = 3600
 
+/*
+ * ⛔ NO TRUST-SCORE OR "CAUGHT FAST" CLAIM ON THIS PAGE (owner 2026-10-04). It said "Every eno.vn seller
+ * has a public trust score and bad listings get reported, so the price and condition are real" and
+ * "Fewer bait prices, fewer fake photos": an official partner shows a partner badge instead of a score,
+ * an ownerless storefront shows none, nothing measures fewer fakes, and "eno.vn" was printed by
+ * eno.forum about itself. Each is now the owner's approved report sentence, verbatim (category-copy.ts
+ * REPORT_SENTENCE): the listing page always carries the Report button, and the report route takes it
+ * from any signed-in member. The route 308s to the motorbike-rental hub on both editions
+ * (src/lib/retired-categories.ts), but this file still compiles into both builds, so its copy is held
+ * to the same standard.
+ */
 const BASE_METADATA: Metadata = {
   title: `Motorbikes for Sale & Rent in Vietnam | ${SITE_NAME}`,
   description:
-    'Buy or rent motorbikes in Vietnam — Honda, Yamaha, automatic and manual, monthly rentals and used bikes for sale in Ho Chi Minh City. Every eno.vn seller has a public trust score and bad listings get reported.',
+    'Buy or rent motorbikes in Vietnam — Honda, Yamaha, automatic and manual, monthly rentals and used bikes for sale in Ho Chi Minh City. Members can report any listing that breaks the rules.',
   alternates: { canonical: '/motorbikes-for-sale-vietnam' },
   ...pageShare({
     title: `Motorbikes for Sale & Rent in Vietnam | ${SITE_NAME}`,
     description:
-      'Motorbikes to buy or rent in Vietnam — Honda, Yamaha, automatic & manual. Fewer bait prices, fewer fake photos.',
+      'Motorbikes to buy or rent in Vietnam — Honda, Yamaha, automatic & manual. Members can report any listing that breaks the rules.',
   }),
 }
 
@@ -28,7 +39,7 @@ const CONTENT: SeoContent = {
   eyebrow: 'Motorbikes · Vietnam',
   h1: 'Motorbikes for Sale & Rent in Vietnam',
   intro:
-    'Get on the road fast. Buy or rent motorbikes in Vietnam — automatic scooters and manual bikes from Honda, Yamaha and more, with monthly rentals and used bikes for sale across Ho Chi Minh City. Every eno.vn seller has a public trust score and bad listings get reported, so the price and condition are real.',
+    'Get on the road fast. Buy or rent motorbikes in Vietnam — automatic scooters and manual bikes from Honda, Yamaha and more, with monthly rentals and used bikes for sale across Ho Chi Minh City. Members can report any listing that breaks the rules.',
   // ⚠️ `vehicles`, not `motorbike-rentals` — that slug does not exist, so both CTAs landed on the
   // not-found boundary and the listing strip was permanently empty. It was also the wrong INTENT
   // even had it resolved: this page is "motorbikes FOR SALE", and the taxonomy puts all rent
@@ -59,7 +70,7 @@ const CONTENT: SeoContent = {
     },
     {
       title: 'Know what you’re getting',
-      body: 'Bike scams and misleading photos are common. On eno.vn every seller has a public trust score and buyers can report bad listings, so problem sellers get caught fast, and you can message the owner or shop in-app to arrange a test ride before paying.',
+      body: 'Bike scams and misleading photos are common. Members can report any listing that breaks the rules. You can also message the owner or shop in-app to arrange a test ride before paying.',
     },
   ],
   faqs: [
@@ -72,8 +83,8 @@ const CONTENT: SeoContent = {
       a: 'Automatic scooters (e.g. Honda Air Blade, Vision) are easiest for city traffic. Manual or semi-auto bikes suit experienced riders and longer trips.',
     },
     {
-      q: 'How does eno.vn keep bikes and prices trustworthy?',
-      a: 'Every seller has a public trust score and buyers can report bad listings, so bait prices and recycled photos get caught and penalized. Always arrange a test ride through in-app chat before you pay.',
+      q: 'What if a listing looks wrong?',
+      a: 'Members can report any listing that breaks the rules. Always arrange a test ride through in-app chat before you pay.',
     },
   ],
 }

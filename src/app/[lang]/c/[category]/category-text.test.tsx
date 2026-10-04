@@ -5,7 +5,7 @@ import { cleanup } from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
 import { LanguageProvider } from '@/context/language-context'
 import { guidesForCategory } from '@/lib/category-guides'
-import { CATEGORY_LINKED_SENTENCE, DISTRICT_RENTALS_H1, RENTALS_H1, RENTALS_LINKED_SENTENCE, categoryMetadata, homeFacts, rentalKinds, type RentalsHeadline } from './category-copy'
+import { CATEGORY_LINKED_SENTENCE, DISTRICT_RENTALS_H1, RENTALS_H1, RENTALS_LINKED_SENTENCE, REPORT_SENTENCE, TEACHERS_CONTACT_SENTENCE, categoryMetadata, districtLinkedSentence, districtMetadata, homeFacts, rentalKinds, type RentalsHeadline } from './category-copy'
 import { CategoryLede } from '@/components/marketplace/category-lede'
 import { CategoryGuides, DistrictHeading, DistrictLede, OtherRentalsLink, PlaceName, RentalsDistrictHeading, RentalsDistricts, RentalsHeading, RentalsLede, rentalsLinkedLede } from './category-text'
 import { readFileSync } from 'node:fs'
@@ -104,12 +104,13 @@ describe('RentalsLede', () => {
     expect(text('en', <DistrictLede total={1} {...canGio} categorySlug="electronics" name="Electronics" linked="all" />)).toBe(
       '1 electronics listing in Can Gio District. It links to its original listing on a source site.',
     )
-    // A single own-stock listing is not "each from a seller" / "Mỗi tin đều".
+    // Own stock: the report sentence speaks of "any listing", not of "each" one, so 1 reads as well as 2
+    // (owner 2026-10-04 retired the trust-score claim; CS-3 claim 3 the bait-price tail, 2026-10-01).
     expect(text('en', <DistrictLede total={1} {...canGio} linked="none" />)).toBe(
-      '1 place for rent in Can Gio District, from a seller with a public trust score — fewer fakes, fewer bait prices.',
+      '1 place for rent in Can Gio District. Members can report any listing that breaks the rules.',
     )
     expect(text('vi', <DistrictLede total={1} {...canGio} linked="none" />)).toBe(
-      '1 tin cho thuê tại Huyện Cần Giờ. Tin này đến từ người bán có điểm uy tín công khai — ít hàng giả, ít giá mồi hơn.',
+      '1 tin cho thuê tại Huyện Cần Giờ. Thành viên có thể báo cáo bất kỳ tin vi phạm nào.',
     )
     // Two is still plural.
     expect(text('en', <DistrictLede total={2} {...canGio} linked="all" />)).toMatch(/^2 places for rent in Can Gio District\. Every listing links/)
@@ -156,14 +157,68 @@ describe('district page copy', () => {
     expect(text('en', <PlaceName {...place} />)).toBe('District 2 (Thu Duc)')
   })
 
-  it('replaces the trust sentence with the linked one when the scope is linked', () => {
+  it('replaces the report sentence with the linked one when the scope is linked', () => {
     const lede = (lang: 'en' | 'vi', linked: 'all' | 'none') =>
       text(lang, <DistrictLede total={3741} name="Rentals" nameVi="Cho thuê" categorySlug="rentals" place={place} linked={linked} />)
     // D-f (SEO wave B, D1): the neutral sentence, CS-2 D1-14.
     expect(lede('en', 'all')).toBe('3,741 places for rent in District 2 (Thu Duc). Every listing links to its original ad on another listing site.')
     expect(lede('vi', 'all')).toBe('3.741 tin cho thuê tại Quận 2 (Thủ Đức). Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.')
     expect(lede('en', 'all')).not.toMatch(/trust/)
-    expect(lede('en', 'none')).toMatch(/each from a seller with a public trust score/)
+    expect(lede('en', 'none')).toBe(`3,741 places for rent in District 2 (Thu Duc). ${REPORT_SENTENCE.en}`)
+    expect(lede('vi', 'none')).toBe(`3.741 tin cho thuê tại Quận 2 (Thủ Đức). ${REPORT_SENTENCE.vi}`)
+  })
+
+  /**
+   * ⛔ OWNER DECISION 2026-10-04: no trust-score claim on these pages — "Every seller has a public trust
+   * score" was untrue where official partners (badge instead) and ownerless storefronts (no score) hold
+   * the shelf. Every tail here must be the description's own sentence — the same category-copy.ts
+   * source — in both languages, so the page and its meta cannot say two things. Teachers are the one
+   * deliberate exception, pinned two tests down: the description has no tail at all (CS-3 V2-9b,
+   * approved), the page the /c/teachers lede's contact sentence.
+   */
+  it('ends on the district description\'s own tail, for every category, tier and count, in both languages', () => {
+    const at = { place: { en: 'District 1', vi: 'Quận 1' }, inHcmc: false }
+    const cats = [
+      { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' },
+      { slug: 'jobs', name: 'Jobs', nameVi: 'Việc làm' },
+      { slug: 'services', name: 'Services', nameVi: 'Dịch vụ' },
+      { slug: 'vehicles', name: 'Vehicles', nameVi: 'Xe cộ' },
+    ]
+    for (const cat of cats) for (const linked of ['none', 'all', 'most', 'some'] as const) for (const total of [1, 30]) {
+      if (total === 1 && linked !== 'none' && linked !== 'all') continue // at 1 the tier can only be all/none (linkedTier)
+      for (const lang of ['en', 'vi'] as const) {
+        const page = text(lang, <DistrictLede total={total} name={cat.name} nameVi={cat.nameVi} categorySlug={cat.slug} place={at.place} linked={linked} />)
+        const meta = districtMetadata({ ...at, category: cat, total, linked }, lang, 'eno.vn').description
+        const tail = linked === 'none' ? REPORT_SENTENCE[lang] : districtLinkedSentence(linked, cat.slug, lang, total)
+        expect(page.slice(-tail.length - 2), `${cat.slug} ${linked} ${total} ${lang}`).toBe(`. ${tail}`)
+        expect(meta.slice(-tail.length - 2), `${cat.slug} ${linked} ${total} ${lang}`).toBe(`. ${tail}`)
+        expect(`${page} ${meta}`).not.toMatch(/trust score|uy tín|tin xấu|fewer fakes|bait|giá mồi|hàng giả|partner|đối tác/i)
+      }
+    }
+  })
+
+  it('jobs say "a job site" on the page, as in their description (CS-3 claim 4)', () => {
+    const jobs = { name: 'Jobs', nameVi: 'Việc làm', categorySlug: 'jobs', place: { en: 'District 1', vi: 'Quận 1' } }
+    expect(text('en', <DistrictLede total={30} {...jobs} linked="all" />)).toBe('30 jobs listings in District 1. Every one links to its original listing on a job site.')
+    expect(text('vi', <DistrictLede total={30} {...jobs} linked="most" />)).toBe('30 tin việc làm tại Quận 1. Phần lớn dẫn tới tin gốc trên trang tuyển dụng.')
+    expect(text('en', <DistrictLede total={1} {...jobs} linked="all" />)).toBe('1 jobs listing in District 1. It links to its original listing on a job site.')
+    expect(text('en', <DistrictLede total={30} {...jobs} linked="some" />)).not.toMatch(/source site/)
+  })
+
+  it('teachers carry the /c/teachers lede\'s contact sentence, never the listings one (CS-3 claim 6)', () => {
+    const t = { name: 'Teachers', nameVi: 'Giáo viên', categorySlug: 'teachers', place: { en: 'District 1', vi: 'Quận 1' } }
+    expect(text('en', <DistrictLede total={14} {...t} linked="none" />)).toBe(`14 teachers listings in District 1. ${TEACHERS_CONTACT_SENTENCE.en}`)
+    expect(text('vi', <DistrictLede total={14} {...t} linked="none" />)).toBe(`14 tin giáo viên tại Quận 1. ${TEACHERS_CONTACT_SENTENCE.vi}`)
+    // The description beside it keeps CS-3 V2-9b's approved shape — the count and nothing after it.
+    const meta = (lang: 'en' | 'vi') =>
+      districtMetadata({ place: t.place, inHcmc: false, category: { slug: 'teachers', name: 'Teachers', nameVi: 'Giáo viên' }, total: 14, linked: 'none' }, lang, 'eno.vn').description
+    expect(meta('en')).toBe('14 teachers listings in District 1.')
+    expect(meta('vi')).toBe('14 tin giáo viên tại Quận 1.')
+    for (const lang of ['en', 'vi'] as const) {
+      expect(text(lang, <DistrictLede total={1} {...t} linked="none" />)).not.toMatch(/trust|uy tín|report|báo cáo|fewer fakes|giá mồi/i)
+      // Word for word the /c/teachers lede's own sentence (category-lede.tsx).
+      expect(text(lang, <CategoryLede name="Teachers" nameVi="Giáo viên" slug="teachers" />)).toContain(TEACHERS_CONTACT_SENTENCE[lang])
+    }
   })
 
   it('keeps "listings" wording for categories other than rentals', () => {
@@ -197,7 +252,7 @@ describe('CategoryGuides', () => {
   })
 })
 
-describe('CategoryLede — the trust sentence only over stock posted here', () => {
+describe('CategoryLede — the report sentence only where nothing is linked', () => {
   const cat = { name: 'Electronics', nameVi: 'Đồ điện tử', slug: 'electronics' }
 
   it.each(['all', 'most', 'some'] as const)('%s linked: renders exactly CATEGORY_LINKED_SENTENCE, no trust claim', (tier) => {
@@ -208,10 +263,15 @@ describe('CategoryLede — the trust sentence only over stock posted here', () =
     }
   })
 
-  it('keeps the old trust sentence where nothing is linked (and by default)', () => {
-    expect(text('en', <CategoryLede {...cat} linked="none" />)).toMatch(/public trust score/)
-    expect(text('en', <CategoryLede {...cat} />)).toMatch(/public trust score/)
-    expect(text('vi', <CategoryLede {...cat} />)).toMatch(/điểm uy tín công khai/)
+  // Owner 2026-10-04: the description's REPORT_SENTENCE — no trust-score claim, no bait-price comparison
+  // (CS-3 claim 3) and no "on eno.vn" (eno.forum printed it about itself).
+  it('renders exactly REPORT_SENTENCE where nothing is linked (and by default)', () => {
+    for (const lang of ['en', 'vi'] as const) {
+      expect(text(lang, <CategoryLede {...cat} linked="none" />)).toBe(REPORT_SENTENCE[lang])
+      expect(text(lang, <CategoryLede {...cat} />)).toBe(REPORT_SENTENCE[lang])
+      expect(categoryMetadata(cat, 'none', 'eno.vn', lang).description.endsWith(` ${REPORT_SENTENCE[lang]}`)).toBe(true)
+      expect(text(lang, <CategoryLede {...cat} total={12} />)).not.toMatch(/trust|uy tín|tin xấu|fewer fakes|bait|giá mồi|hàng giả|eno\.vn/i)
+    }
   })
 
   it('jobs keeps its own linked-postings sentence whatever the tier', () => {
@@ -229,11 +289,12 @@ describe('categoryMetadata — every non-rentals category', () => {
     }
   })
 
-  // SEO wave B, V2 (CS-3 claims 2 and 3, owner 2026-10-01): no "— Trusted listings", no bait-price comparison.
-  it('keeps the trust sentence, without "Trusted" or the comparison, when nothing is linked', () => {
+  // SEO wave B, V2 (CS-3 claims 2 and 3, owner 2026-10-01): no "— Trusted listings", no bait-price
+  // comparison; owner 2026-10-04: the report sentence, not the trust-score claim.
+  it('ends on the report sentence, without "Trusted" or any trust claim, when nothing is linked', () => {
     expect(categoryMetadata({ slug: 'sports', name: 'Sports' }, 'none', 'eno.vn')).toEqual({
       title: 'Sports in Vietnam | eno.vn',
-      description: 'Browse sports for expats in Vietnam. Every seller has a public trust score and bad listings get reported.',
+      description: 'Browse sports for expats in Vietnam. Members can report any listing that breaks the rules.',
     })
   })
 })
@@ -278,6 +339,39 @@ describe('RentIndexLink', () => {
       const { el, text: t } = await render('services', lang)
       expect(el.querySelector('a[href^="/hcmc-rent-index"]')).toBeNull()
       expect(t).toBe('')
+    }
+  })
+})
+
+describe('CategoryLede on /c/jobs — the site\'s own name', () => {
+  /** Same re-import as RentIndexLink above: the edition is read once at import. */
+  async function jobsLede(edition: 'marketplace' | 'services', lang: 'en' | 'vi') {
+    vi.resetModules()
+    vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', edition)
+    try {
+      const ctx = await import('@/context/language-context')
+      const { CategoryLede: Lede } = await import('@/components/marketplace/category-lede')
+      const el = document.createElement('div')
+      el.innerHTML = renderToString(
+        <ctx.LanguageProvider initialLang={lang} initialViDict={{}}>
+          <Lede name="Jobs" nameVi="Việc làm" slug="jobs" linked="all" />
+        </ctx.LanguageProvider>,
+      )
+      return (el.textContent ?? '').replace(/\s+/g, ' ').trim()
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  }
+
+  // eno.forum printed "eno.vn does not handle applications" about itself.
+  it('names eno.vn on the marketplace and eno.forum on the forum, in both languages', async () => {
+    for (const lang of ['en', 'vi'] as const) {
+      const vn = await jobsLede('marketplace', lang)
+      const forum = await jobsLede('services', lang)
+      expect(vn).toContain(lang === 'vi' ? 'eno.vn không xử lý hồ sơ' : 'eno.vn does not handle applications')
+      expect(forum).toContain(lang === 'vi' ? 'eno.forum không xử lý hồ sơ' : 'eno.forum does not handle applications')
+      expect(forum).not.toContain('eno.vn')
+      expect(forum.replace('eno.forum', 'eno.vn')).toBe(vn) // the same sentence, the name swapped
     }
   })
 })

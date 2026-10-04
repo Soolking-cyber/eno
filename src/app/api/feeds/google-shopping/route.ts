@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { LISTING_FEED_SELECT, serializeFeedListing } from '@/lib/serialize'
 import { NextResponse } from 'next/server'
 import { plainSnippet } from '@/lib/strip-md'
+import { SITE_NAME } from '@/lib/edition'
 import {
   feedCategories, feedListingTypes, isMockImages, feedExcluded, feedAuthError, feedCacheHeaders,
   feedStock, gpcFor, feedIdentifiers, feedApparel, isApparel,
@@ -115,12 +116,15 @@ export async function GET(req: Request) {
 
     const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
+    // ⛔ NO "Your Trusted Vietnam Network" / "Trusted classifieds" (owner 2026-10-04, retiring unbacked
+    // trust claims — this channel text reaches Merchant Center), and the deployment's own name rather
+    // than a typed "eno.vn".
     let xml = `<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
   <channel>
-    <title>eno.vn — Your Trusted Vietnam Network.</title>
+    <title>${escapeXml(SITE_NAME)}</title>
     <link>${hostUrl}</link>
-    <description>Trusted classifieds listings for expats. Moving sales, rentals, jobs and more.</description>
+    <description>Classifieds listings for expats. Moving sales, rentals, jobs and more.</description>
     <language>vi-vn</language>
 `
 

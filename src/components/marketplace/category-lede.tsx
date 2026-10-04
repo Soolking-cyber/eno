@@ -1,8 +1,8 @@
 'use client'
 
-import { Tr, useLanguage } from '@/context/language-context'
+import { useLanguage } from '@/context/language-context'
 import Link from 'next/link'
-import { SITE_NAME } from '@/lib/edition'
+import { IS_SERVICES } from '@/lib/edition'
 import { Bilingual } from './bilingual'
 import { formatCountFull, joinList } from '@/app/[lang]/c/[category]/category-copy'
 
@@ -15,14 +15,12 @@ import { formatCountFull, joinList } from '@/app/[lang]/c/[category]/category-co
  * where the stock came from before what it was. Every number is a live count (`total`, and the
  * busiest subcategories from loadTopSubcategories), so it claims only what the counts support.
  *
- * ⛔ A CLIENT COMPONENT SO IT CANNOT END UP IN THE OTHER LANGUAGE FROM THE REST OF THE PAGE. The
- * Vietnamese sentence cannot be built from the three `<Tr>` fragments the English one uses — "Every"
- * + name + rest has no Vietnamese word order — so it is written out whole. As server text it could not
- * follow a client-side language change, which happens whenever a visitor's choice cannot be persisted
- * (cookies blocked): English labels around a Vietnamese sentence (a reviewer's catch). Reading the
- * language from context instead means the sentence always matches the page.
+ * ⛔ A CLIENT COMPONENT SO IT CANNOT END UP IN THE OTHER LANGUAGE FROM THE REST OF THE PAGE. As server
+ * text it could not follow a client-side language change, which happens whenever a visitor's choice
+ * cannot be persisted (cookies blocked): English labels around a Vietnamese sentence (a reviewer's
+ * catch). Reading the language from context instead means the sentence always matches the page.
  *
- * ⚠️ THE ENGLISH BRANCH KEEPS THE FRAGMENTS, because the nine machine-translated languages render from
+ * ⚠️ EVERY ENGLISH STRING IS A LITERAL `tr()`, because the nine machine-translated languages render from
  * the English variant and their dictionaries are keyed on those exact strings.
  */
 export function CategoryLede({
@@ -50,7 +48,7 @@ export function CategoryLede({
           <CountSentence name={name} nameVi={nameVi} total={total} top={top} />{' '}
         </>
       )}
-      <Provenance name={name} nameVi={nameVi} slug={slug} linked={linked} />
+      <Provenance slug={slug} linked={linked} />
     </>
   )
 }
@@ -67,8 +65,7 @@ function CountSentence({ name, nameVi, total, top }: { name: string; nameVi: str
   const n = (v: number) => formatCountFull(v, lang)
   if (lang === 'vi') {
     const parts = top.map((t) => `${t.nameVi} (${n(t.count)})`)
-    // The category lower-cased mid-sentence, as the trust sentence below and districtMetadata write it
-    // ("tin đăng điện tử"); the subcategories keep their label case (acronyms: "SIM", "TV").
+    // The category lower-cased mid-sentence, as districtMetadata writes it ("tin đăng điện tử"); the subcategories keep their label case (acronyms: "SIM", "TV").
     return <>{`${n(total)} tin đăng ${nameVi.toLowerCase()}${parts.length ? `, gồm ${joinList(parts, 'vi')}` : ''}.`}</>
   }
   return (
@@ -90,9 +87,9 @@ function CountSentence({ name, nameVi, total, top }: { name: string; nameVi: str
   )
 }
 
-/** The second sentence: where the stock comes from, or — only where none of it is linked — the trust claim. */
-function Provenance({ name, nameVi, slug, linked }: { name: string; nameVi: string; slug?: string; linked: 'all' | 'most' | 'some' | 'none' }) {
-  const { lang, tr } = useLanguage()
+/** The second sentence: where the stock comes from, or — only where none of it is linked — the report sentence. */
+function Provenance({ slug, linked }: { slug?: string; linked: 'all' | 'most' | 'some' | 'none' }) {
+  const { tr } = useLanguage()
   /**
    * ⛔ NOT THE TRUST CLAIM ON JOBS. Most jobs are LINKED postings (scripts/import-jobs.ts) whose "seller"
    * is the job board and whom eno.vn never vetted — "every listing comes from a seller with a public
@@ -107,27 +104,40 @@ function Provenance({ name, nameVi, slug, linked }: { name: string; nameVi: stri
       </>
     )
   }
+  /**
+   * ⛔ THE SITE'S OWN NAME, PER EDITION — TWO LITERAL tr() PAIRS BEHIND THE TERNARY, never
+   * `tr(\`${SITE_NAME} does not…\`)`: eno.forum printed "eno.vn does not handle applications" about
+   * itself, and gen-ui-strings harvests literals only (footer.tsx and sign-in-card.tsx spell out the
+   * same trap). The eno.forum pair is the eno.vn pair with the name swapped, word for word.
+   */
   if (slug === 'jobs') {
-    return <>{tr('Most jobs here link to the original posting, where you apply. eno.vn does not handle applications and never charges a fee — never pay to get a job.', 'Phần lớn việc làm ở đây dẫn link tới tin tuyển dụng gốc, nơi bạn ứng tuyển. eno.vn không xử lý hồ sơ và không bao giờ thu phí — đừng bao giờ trả tiền để có việc làm.')}</>
+    return (
+      <>
+        {IS_SERVICES
+          ? tr('Most jobs here link to the original posting, where you apply. eno.forum does not handle applications and never charges a fee — never pay to get a job.', 'Phần lớn việc làm ở đây dẫn link tới tin tuyển dụng gốc, nơi bạn ứng tuyển. eno.forum không xử lý hồ sơ và không bao giờ thu phí — đừng bao giờ trả tiền để có việc làm.')
+          : tr('Most jobs here link to the original posting, where you apply. eno.vn does not handle applications and never charges a fee — never pay to get a job.', 'Phần lớn việc làm ở đây dẫn link tới tin tuyển dụng gốc, nơi bạn ứng tuyển. eno.vn không xử lý hồ sơ và không bao giờ thu phí — đừng bao giờ trả tiền để có việc làm.')}
+      </>
+    )
   }
   /**
    * ⛔ NOR ON A SHELF THAT LINKS OUT. Electronics and furniture printed "every listing comes from a
    * seller with a public trust score" over stock in which every sampled row (100/100, 2026-09-27)
    * opens on a source shop — the score belongs to listings posted here, not to a copied one. The
-   * page counts the linked rows at render and passes the tier; the trust sentence below survives only
-   * where that count is zero. The pairs equal CATEGORY_LINKED_SENTENCE (category-copy.ts).
+   * page counts the linked rows at render and passes the tier; the report sentence below closes only
+   * the tier where that count is zero. The pairs equal CATEGORY_LINKED_SENTENCE (category-copy.ts).
    * ⛔ "A SOURCE SITE", NOT "A PARTNER SITE" (2026-10-01): "partner" now means a signed agreement
    * (partner-badge.tsx), which none of these shops has — CATEGORY_LINKED_SENTENCE has the note.
    */
   if (linked === 'all') return <>{tr('Every listing here links to its original on a source site.', 'Mỗi tin ở đây đều dẫn tới tin gốc trên trang nguồn.')}</>
   if (linked === 'most') return <>{tr('Most listings here link to their original on a source site.', 'Phần lớn tin ở đây dẫn tới tin gốc trên trang nguồn.')}</>
   if (linked === 'some') return <>{tr('Some listings here link to their original on a source site.', 'Một số tin ở đây dẫn tới tin gốc trên trang nguồn.')}</>
-  if (lang === 'vi') {
-    return <>{`Mỗi tin đăng ${nameVi.toLowerCase()} trên ${SITE_NAME} đều đến từ người bán có điểm uy tín công khai, và tin xấu sẽ bị báo cáo — ít hàng giả, ít giá mồi hơn.`}</>
-  }
-  return (
-    <>
-      <Tr text="Every" /> <Tr text={name.toLowerCase()} /> <Tr text="listing on eno.vn comes from a seller with a public trust score, and bad listings get reported — fewer fakes, fewer bait prices." />
-    </>
-  )
+  /**
+   * ⛔ NO TRUST-SCORE CLAIM (owner 2026-10-04): "every listing comes from a seller with a public trust
+   * score" was untrue wherever an official partner (partner badge instead) or an ownerless storefront
+   * (no score) holds the shelf, and "— fewer fakes, fewer bait prices" is a comparison no code measures
+   * (CS-3 claim 3). The pair is REPORT_SENTENCE (category-copy.ts), the category and district
+   * descriptions' own sentence — the test holds the two equal. It also drops the English "on eno.vn",
+   * which eno.forum printed about itself.
+   */
+  return <>{tr('Members can report any listing that breaks the rules.', 'Thành viên có thể báo cáo bất kỳ tin vi phạm nào.')}</>
 }

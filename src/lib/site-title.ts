@@ -15,6 +15,9 @@ export const SITE_TITLE = `${SITE_NAME} — ${POSTING_IS_FREE ? 'free ' : ''}cla
 /**
  * The marketplace's short self-description, for the OG and Twitter cards. ⛔ NOT "the community keeps
  * listings honest" (CS-3 claim 7): an outcome no code measures; a signed-in member can report a listing.
+ * ⛔ NOR "sellers who post here build trust scores" (owner 2026-10-04): official partners show a partner
+ * badge instead. It closes on the owner's approved report sentence, verbatim (category-copy.ts
+ * REPORT_SENTENCE), as the layout's SITE_DESCRIPTION does.
  * eno.forum's line is SERVICES_SITE_TAGLINE (edition-services-copy.ts), chosen in the layout.
  */
-export const MARKETPLACE_TAGLINE = `${POSTING_IS_FREE ? 'Free classifieds' : 'Classifieds'} for expats, internationals and locals in Vietnam. Rentals, jobs, furniture, electronics and more — sellers who post here build trust scores and members can report any listing.`
+export const MARKETPLACE_TAGLINE = `${POSTING_IS_FREE ? 'Free classifieds' : 'Classifieds'} for expats, internationals and locals in Vietnam. Rentals, jobs, furniture, electronics and more. Members can report any listing that breaks the rules.`

@@ -202,10 +202,10 @@ describe('districtMetadata', () => {
     expect(m.description).toBe('3.741 tin cho thuê tại Quận 2 (Thủ Đức), TP. Hồ Chí Minh. Mỗi tin đều dẫn tới tin gốc trên một trang đăng tin khác.')
   })
 
-  it('keeps the trust sentence only where nothing in scope is linked', () => {
+  it('closes on the report sentence only where nothing in scope is linked', () => {
     const own = districtMetadata({ ...base, category: { slug: 'services', name: 'Services', nameVi: 'Dịch vụ' }, place: { en: 'Binh Trung', vi: 'Bình Trưng' }, inHcmc: false, total: 3, linked: 'none' }, 'en', 'eno.vn')
     expect(own.title).toBe('Services in Binh Trung | eno.vn')
-    expect(own.description).toMatch(/public trust score/)
+    expect(own.description).toBe('3 services listings in Binh Trung. Members can report any listing that breaks the rules.')
     const linked = districtMetadata({ ...base, category: { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' }, linked: 'most' }, 'en', 'eno.vn')
     expect(linked.description).toMatch(/Most link to their original listing on a source site\.$/)
     expect(linked.description).not.toMatch(/trust/)
@@ -323,23 +323,24 @@ describe('categoryMetadata in both languages (V2, CS-3)', () => {
     }
   })
 
-  it('no "Trusted" and no "fewer fakes" in any title or description, either language (claims 2, 3)', () => {
+  it('no "Trusted", no trust-score claim and no "fewer fakes" in any title or description, either language (claims 2, 3; owner 2026-10-04)', () => {
     for (const slug of ['furniture-appliances', 'jobs', 'teachers', 'rentals', 'electronics']) {
       for (const tier of ['none', 'all', 'most', 'some'] as const) {
         for (const lang of ['en', 'vi'] as const) {
           const m = categoryMetadata({ ...furniture, slug }, tier, 'eno.vn', lang)
-          expect(`${m.title} ${m.description}`).not.toMatch(/trusted|fewer fakes|bait|giá mồi|hàng giả|partner|đối tác/i)
+          expect(`${m.title} ${m.description}`).not.toMatch(/trusted|trust score|uy tín|tin xấu|fewer fakes|bait|giá mồi|hàng giả|partner|đối tác/i)
         }
       }
     }
   })
 
-  it('tier none: browse lead plus the trust sentence (V2-5)', () => {
+  // Owner decision 2026-10-04 — the approved wording, verbatim in both languages.
+  it('tier none: browse lead plus the report sentence (V2-5)', () => {
     expect(categoryMetadata(furniture, 'none', 'eno.vn', 'vi').description).toBe(
-      'Xem tin nhà cửa tại Việt Nam. Mỗi người bán đều có điểm uy tín công khai, và tin xấu sẽ bị báo cáo.',
+      'Xem tin nhà cửa tại Việt Nam. Thành viên có thể báo cáo bất kỳ tin vi phạm nào.',
     )
     expect(categoryMetadata(furniture, 'none', 'eno.vn', 'en').description).toBe(
-      'Browse home for expats in Vietnam. Every seller has a public trust score and bad listings get reported.',
+      'Browse home for expats in Vietnam. Members can report any listing that breaks the rules.',
     )
   })
 
@@ -402,9 +403,10 @@ describe('categoryMetadata in both languages (V2, CS-3)', () => {
 describe('district metadata claims (V2, CS-3)', () => {
   const at = { place: { en: 'District 1', vi: 'Quận 1' }, inHcmc: true }
 
-  it('no bait-price comparison on the English trust tail (claim 3)', () => {
-    const own = districtMetadata({ ...at, category: { slug: 'services', name: 'Services', nameVi: 'Dịch vụ' }, total: 12, linked: 'none' }, 'en', 'eno.vn')
-    expect(own.description).toBe('12 services listings in District 1, Ho Chi Minh City. Every seller has a public trust score and bad listings get reported.')
+  it('the report sentence, no trust-score claim and no bait-price comparison (claim 3; owner 2026-10-04)', () => {
+    const own = (lang: 'en' | 'vi') => districtMetadata({ ...at, category: { slug: 'services', name: 'Services', nameVi: 'Dịch vụ' }, total: 12, linked: 'none' }, lang, 'eno.vn')
+    expect(own('en').description).toBe('12 services listings in District 1, Ho Chi Minh City. Members can report any listing that breaks the rules.')
+    expect(own('vi').description).toBe('12 tin dịch vụ tại Quận 1, TP. Hồ Chí Minh. Thành viên có thể báo cáo bất kỳ tin vi phạm nào.')
   })
 
   it('teachers carry no seller-trust tail in either language (V2-9b)', () => {
@@ -428,8 +430,13 @@ describe('district metadata claims (V2, CS-3)', () => {
     expect(m.description).toMatch(/^12 tin misc tại Quận 1/)
   })
 
-  it('the on-page lede sentence keeps its own noun (districtLinkedSentence without the override)', () => {
-    expect(districtLinkedSentence('all', 'jobs', 'en', 30)).toBe('Every one links to its original listing on a source site.')
+  // One noun per category for the description and the on-page lede: jobs say "a job site" everywhere;
+  // retail keeps "a source site"; nothing says "partner".
+  it('districtLinkedSentence names a job site for jobs and a source site elsewhere', () => {
+    expect(districtLinkedSentence('all', 'jobs', 'en', 30)).toBe('Every one links to its original listing on a job site.')
+    expect(districtLinkedSentence('all', 'jobs', 'vi', 30)).toBe('Tất cả đều dẫn tới tin gốc trên trang tuyển dụng.')
+    expect(districtLinkedSentence('all', 'electronics', 'en', 30)).toBe('Every one links to its original listing on a source site.')
+    expect(districtLinkedSentence('some', 'electronics', 'vi', 30)).toBe('Một số tin dẫn tới tin gốc trên trang nguồn.')
   })
 })
 

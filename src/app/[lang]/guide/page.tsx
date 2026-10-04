@@ -16,8 +16,13 @@ export const metadata: Metadata = withShare({
 // Ordered steps carry their sequence in a tint number chip — the same treatment as
 // /safety's "If something goes wrong" list and /about's trust steps, so the whole
 // content family speaks one visual language for "do this, then this".
+// ⛔ NO "EVERY SELLER WHO POSTS HERE HAS A PUBLIC TRUST SCORE" (owner 2026-10-04): an official partner
+// shows its partner badge instead. Where these bodies spoke of it they now carry the owner's approved
+// report sentence, verbatim (category-copy.ts REPORT_SENTENCE). "Falls when a report against them is
+// confirmed": the Conduct term is a sum over ADMIN-CONFIRMED reports (src/lib/trust-math.ts) — an
+// unconfirmed report moves nothing, which "falls when buyers report problems" got wrong.
 const BUYER_STEPS: { title: string; body: string }[] = [
-  { title: 'Search & filter', body: 'Browse by category, area and price. Every seller who posts here has a public trust score, so you can see who’s reliable at a glance; a linked listing names the site it comes from instead.' },
+  { title: 'Search & filter', body: 'Browse by category, area and price; a linked listing names the site it comes from. Members can report any listing that breaks the rules.' },
   { title: 'Message or make an offer', body: 'Tap Message to chat in-app, or Make an offer to send a price. The seller can accept or counter.' },
   { title: 'Meet & inspect', body: 'Agree a public meeting spot, check the item in person, and only pay once you’re happy.' },
 ]
@@ -46,7 +51,7 @@ const FEATURES: { Icon: typeof Search | FeatureGlyph; id?: string; title: string
   // ⛔ NOT "PHONE VERIFIED, AT LEAST ONE REAL PHOTO" (2026-10-01): no phone check runs on a post, and the
   // photo minimum is three for most categories (one for services) — assertPublishable / minPhotosFor in
   // src/lib/publish-guard.ts. Trust scores belong to sellers who post here, not to linked listings.
-  { Icon: BadgeCheck, id: 'verification', title: 'Trust & reputation', body: 'Listings posted here publish instantly after automated checks (no banned items, no contact details in the text, and enough real photos — three for most categories, one for services). Every seller who posts here has a public trust score that rises with good service and falls when buyers report problems — the blue Trusted and gold Exceptional badges are earned, not given. A score is a signal, not a guarantee; always inspect before you pay.' },
+  { Icon: BadgeCheck, id: 'verification', title: 'Trust & reputation', body: 'Listings posted here publish instantly after automated checks (no banned items, no contact details in the text, and enough real photos — three for most categories, one for services). Members can report any listing that breaks the rules. A seller’s trust score rises with good service and falls when a report against them is confirmed — the blue Trusted and gold Exceptional badges are earned, not given. A score is a signal, not a guarantee; always inspect before you pay.' },
   { Icon: Tag, title: 'Messaging & offers', body: 'All contact happens in-app: tap Message to chat, or Make an offer to send a price the seller can accept or counter. Phone/Zalo is exchanged inside the chat, never published on the listing — which keeps spam out.' },
   { Icon: Bell, title: 'Notifications', body: 'The bell at the top-right alerts you to new messages and offers in real time, on desktop and mobile. Each notification links straight to the conversation.' },
   { Icon: Heart, title: 'Saving listings', body: 'Tap the heart on any card or listing to save it. Your saved items live in the Saved tab — handy for comparing places or items before you decide.' },

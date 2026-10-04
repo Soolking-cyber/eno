@@ -41,7 +41,7 @@ export const revalidate = 604800 // 7d — static SEO copy; weekly regen is plen
 const CONTENT: SeoContent = {
   eyebrow: 'Services · Vietnam',
   h1: 'Services for Expats in Vietnam',
-  intro: `One service category is genuinely live here today: Vietnam e-visa applications, at every processing speed from standard to one-hour express. Each combination is its own listing with its own price, so you can compare before you talk to anyone. The e-visa services are provided by a licensed Vietnamese travel company — ${SITE_NAME} is the platform that lists them, not the provider — and every provider on the site carries a public trust score.`,
+  intro: `One service category is genuinely live here today: Vietnam e-visa applications, at every processing speed from standard to one-hour express. Each combination is its own listing with its own price, so you can compare before you talk to anyone. The e-visa services are provided by a licensed Vietnamese travel company — ${SITE_NAME} is the platform that lists them, not the provider. Members can report any listing that breaks the rules.`,
   /**
    * ⛔ ABOVE THE FOLD AND OUTSIDE `.web-only` — the Play rejection in one line. The disclaimer this
    * page already had lived in `sections`, which SeoLanding hides in the native build, so the app
@@ -108,15 +108,21 @@ const CONTENT: SeoContent = {
   ],
 }
 
+/*
+ * ⛔ NOT "a public trust score behind every provider" / "every provider on the site carries a public trust
+ * score" (owner 2026-10-04): the e-visa provider is an official partner, which shows the partner badge
+ * INSTEAD of a score (listing-card.tsx, pdp-shop-link.tsx), so the claim was false of the one provider this
+ * page sells. The owner's approved report sentence, verbatim (category-copy.ts REPORT_SENTENCE), in its place.
+ */
 export const metadata: Metadata = {
   title: `Services for Expats in Vietnam — e-Visa Applications | ${SITE_NAME}`,
   description:
-    'Services for expats in Vietnam: Vietnam e-visa applications, single and multiple entry, from standard to 1-hour express, each priced on its own listing. Provided by a licensed Vietnamese travel partner, with a public trust score behind every provider.',
+    'Services for expats in Vietnam: Vietnam e-visa applications, single and multiple entry, from standard to 1-hour express, each priced on its own listing. Provided by a licensed Vietnamese travel partner. Members can report any listing that breaks the rules.',
   alternates: { canonical: '/services-for-expats-vietnam' },
   ...pageShare({
     title: `Services for Expats in Vietnam — e-Visa Applications | ${SITE_NAME}`,
     description:
-      'Vietnam e-visas priced up front and provided by a licensed travel partner, with a public trust score behind every provider.',
+      'Vietnam e-visas priced up front and provided by a licensed travel partner. Members can report any listing that breaks the rules.',
   }),
 }
 

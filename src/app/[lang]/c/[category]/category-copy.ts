@@ -15,8 +15,9 @@ import { formatInteger } from '@/lib/vnd'
  *
  * ⚠️ NO "TRUSTED" OVER LINKED STOCK. The old title was "Rentals in Vietnam — Trusted listings" and
  * the lede promised every listing came from a seller with a public trust score, over a category in
- * which every sampled row is an import from another portal. A trust sentence is kept only where the
- * count says nothing on the page is linked.
+ * which every sampled row is an import from another portal. No page here claims a trust score at all
+ * any more (owner, 2026-10-04 — REPORT_SENTENCE); the closing sentence of a tier with nothing linked
+ * is the report sentence, and a linked tier says where its listings open instead.
  */
 
 export type PageLang = 'en' | 'vi'
@@ -190,22 +191,32 @@ export const RENTALS_H1: Record<RentalsHeadline, Record<PageLang, string>> = {
 /* ── every other category ─────────────────────────────────────────────────────────────────────── */
 
 /**
- * The trust sentence a category or district description ends on while nothing in it is linked.
- * ⛔ NO "— fewer fakes, fewer bait prices" (SEO wave B, V2; CS-3 claim 3, owner 2026-10-01): a comparison
- * no code measures. What stays is what the code makes true — every `Seller` row carries a public
- * `trustScore` (trust-score.tsx), and signed-in members can report a listing (api/report/route.ts).
- * The Vietnamese is the district description's existing sentence, word for word.
+ * The sentence a category or district description — and its on-page lede — ends on while nothing in
+ * scope is linked. Owner decision 2026-10-04, approved wording in both languages, verbatim.
+ * TRUE BY CODE: every listing page renders the Report button whatever the listing is — posted here,
+ * linked, a partner's (listings/[id]/(pdp)/page.tsx, SafetyStrip `action`) — and api/report/route.ts
+ * takes a report from any signed-in member (`auth: 'profile'`).
+ * ⛔ NOT "Every seller has a public trust score and bad listings get reported." / "Mỗi người bán đều có
+ * điểm uy tín công khai, và tin xấu sẽ bị báo cáo." (batch 3, retired 2026-10-04): an official partner
+ * shows its partner badge instead of a score, and an ownerless storefront shows none at all
+ * (src/lib/linked-seller.ts, cardHidesTrust) — which is most of what some unlinked shelves hold — and
+ * "tin xấu" reads as "bad news". ⛔ Nor "— fewer fakes, fewer bait prices" (CS-3 claim 3, 2026-10-01):
+ * a comparison no code measures.
+ * ONE VALUE FOR THE META AND THE PAGE: CategoryLede (category-lede.tsx) and DistrictLede
+ * (category-text.tsx) render it as literal `tr()` text for the string harvester, and their tests hold
+ * both languages equal to this map.
  */
-export const TRUST_SENTENCE: Record<PageLang, string> = {
-  en: 'Every seller has a public trust score and bad listings get reported.',
-  vi: 'Mỗi người bán đều có điểm uy tín công khai, và tin xấu sẽ bị báo cáo.',
+export const REPORT_SENTENCE: Record<PageLang, string> = {
+  en: 'Members can report any listing that breaks the rules.',
+  vi: 'Thành viên có thể báo cáo bất kỳ tin vi phạm nào.',
 }
 
 /**
  * ⛔ JOBS ARE LINKED FROM JOB SITES (SEO wave B, V2; CS-3 V2-8, approved 2026-10-01). The linked jobs come
  * from job boards and employers' own careers sites (`JOB_BOARDS`, src/lib/job-listing.ts) — "a job site"
- * covers both. Used by the META descriptions only (categoryMetadata, districtMetadata); the on-page
- * district lede keeps `sourceNoun`'s wording, which V2 does not touch (category-text.tsx).
+ * covers both. The category description uses these; every district surface — the description and the
+ * on-page lede alike — takes the same noun through `sourceNoun` (the lede said "a source site" while the
+ * description beside it said "a job site").
  */
 export const JOBS_LINKED_SENTENCE: Record<Exclude<LinkedTier, 'none'>, Record<PageLang, string>> = {
   all: { en: 'Every listing here links to its original on a job site.', vi: 'Mỗi tin ở đây đều dẫn tới tin gốc trên trang tuyển dụng.' },
@@ -226,6 +237,23 @@ const TEACHERS_DESCRIPTION: Record<PageLang, string> = {
 }
 
 /**
+ * What a /c/teachers/<district> lede says after its count, where any other category states
+ * REPORT_SENTENCE (owner 2026-09-30: teachers are people, not listings; CS-3 claim 6). It is the
+ * /c/teachers lede's own second sentence, word for word in both languages (category-lede.tsx — the
+ * test holds the two together). True by code: only a business account may open a thread with a
+ * teacher (api/conversations/route.ts, "ONLY A BUSINESS ACCOUNT MAY MESSAGE A TEACHER"), and the
+ * phone, email and CV reach that thread only after the teacher taps Share in it
+ * (src/lib/teachers/share.ts).
+ * ⚠️ THE PAGE ONLY. The district DESCRIPTION keeps no tail for teachers (CS-3 V2-9b, approved as "the
+ * count, nothing after it"), so here — and only here — the lede says more than the meta; it says
+ * nothing the meta contradicts. category-text.test.tsx pins both shapes.
+ */
+export const TEACHERS_CONTACT_SENTENCE: Record<PageLang, string> = {
+  en: 'Schools and companies can message a teacher; their phone, email and CV are shared only when the teacher chooses to.',
+  vi: 'Trường học và công ty có thể nhắn tin cho giáo viên; số điện thoại, email và CV chỉ được chia sẻ khi giáo viên đồng ý.',
+}
+
+/**
  * `<title>` + meta description for /c/<category> when it is not rentals with a cached headline, in the
  * page's language (SEO wave B, V2; copy sheet CS-3, approved by the owner 2026-10-01).
  *
@@ -233,11 +261,11 @@ const TEACHERS_DESCRIPTION: Record<PageLang, string> = {
  * and on /c/teachers it called people "listings". Every tier now reads "{name} in Vietnam | eno.vn" —
  * the linked tiers' title, which is also the page's own H1 ("{nameVi} ở Việt Nam" in Vietnamese,
  * `(index)/layout.tsx`).
- * ⛔ THE TRUST SENTENCE ONLY WHERE NOTHING IS LINKED. Electronics and furniture carried it over shelves in
- * which every sampled row (100/100, 2026-09-27) links out to a source shop; a trust score says nothing
- * about a listing copied from another site. Linked tiers say where the listing opens instead: retail
- * "a source site", jobs "a job site", rentals D-f's sentence (this branch runs for /c/rentals when the
- * cached headline is null, CS-3 V2-10 — never "partner").
+ * ⛔ THE CLOSING SENTENCE FOLLOWS THE LINKED TIER. Nothing linked: REPORT_SENTENCE (it replaced the
+ * trust-score claim, which electronics and furniture once carried over shelves in which every sampled
+ * row — 100/100, 2026-09-27 — links out to a source shop). Linked tiers say where the listing opens
+ * instead: retail "a source site", jobs "a job site", rentals D-f's sentence (this branch runs for
+ * /c/rentals when the cached headline is null, CS-3 V2-10 — never "partner").
  */
 export function categoryMetadata(
   cat: { slug: string; name: string; nameVi?: string | null },
@@ -250,7 +278,7 @@ export function categoryMetadata(
   if (cat.slug === 'teachers') return { title, description: TEACHERS_DESCRIPTION[lang] }
   const lead = lang === 'vi' ? `Xem tin ${name.toLowerCase()} tại Việt Nam.` : `Browse ${name.toLowerCase()} for expats in Vietnam.`
   const tail =
-    linked === 'none' ? TRUST_SENTENCE[lang]
+    linked === 'none' ? REPORT_SENTENCE[lang]
     : cat.slug === 'rentals' ? RENTALS_LINKED_SENTENCE[linked][lang]
     : cat.slug === 'jobs' ? JOBS_LINKED_SENTENCE[linked][lang]
     : CATEGORY_LINKED_SENTENCE[linked][lang]
@@ -268,7 +296,7 @@ export function crumbNames(cat: { name: string; nameVi?: string | null }, lang: 
 }
 
 /**
- * The sentence that replaces the trust claim on a category whose stock is linked. Also rendered by
+ * The sentence that closes a category description whose stock is linked. Also rendered by
  * CategoryLede (src/components/marketplace/category-lede.tsx) as literal `tr()` pairs — the tests in
  * category-text.test.tsx and category-lede.test.tsx keep the two identical.
  * ⛔ "A SOURCE SITE", NOT "A PARTNER SITE" (2026-10-01). Since the owner's decision that day the word
@@ -433,15 +461,17 @@ export type DistrictFacts = {
 
 /**
  * What the linked rows are linked FROM. Rentals: another listing site (D-f — no partnership is
- * claimed); retail and everything else: a source site. ⛔ NEVER "a partner site" (2026-10-01), when
- * "partner" came to mean a signed agreement and the affiliate stores lost the badge: the job boards and
- * shop catalogues we import from are not partners — "partner" is reserved for the signed-agreement
- * Official partner badge (/partners; see CATEGORY_LINKED_SENTENCE).
+ * claimed); jobs: a job site (CS-3 V2-8, JOBS_NOUN); retail and everything else: a source site.
+ * ⛔ NEVER "a partner site" (2026-10-01), when "partner" came to mean a signed agreement and the
+ * affiliate stores lost the badge: the job boards and shop catalogues we import from are not partners —
+ * "partner" is reserved for the signed-agreement Official partner badge (/partners; see
+ * CATEGORY_LINKED_SENTENCE).
+ * ONE NOUN PER CATEGORY for the district description and the district lede, so the two cannot drift.
  */
 export function sourceNoun(categorySlug: string): { en: string; vi: string } {
-  return categorySlug === 'rentals'
-    ? { en: 'another listing site', vi: 'một trang đăng tin khác' }
-    : { en: 'a source site', vi: 'trang nguồn' }
+  if (categorySlug === 'rentals') return { en: 'another listing site', vi: 'một trang đăng tin khác' }
+  if (categorySlug === 'jobs') return JOBS_NOUN
+  return { en: 'a source site', vi: 'trang nguồn' }
 }
 
 /**
@@ -454,11 +484,10 @@ export function districtLinkedSentence(
   categorySlug: string,
   lang: PageLang,
   total: number,
-  noun: { en: string; vi: string } = sourceNoun(categorySlug),
 ): string {
   // Rentals: D-f's own sentences (CS-2 D1-14…17), not the retail frame with a swapped noun.
   if (categorySlug === 'rentals') return rentalsLinkedSentence(tier, total, lang)
-  const p = noun[lang]
+  const p = sourceNoun(categorySlug)[lang]
   if (total === 1) return lang === 'vi' ? `Tin này dẫn tới tin gốc trên ${p}.` : `It links to its original listing on ${p}.`
   if (lang === 'vi') {
     return { all: `Tất cả đều dẫn tới tin gốc trên ${p}.`, most: `Phần lớn dẫn tới tin gốc trên ${p}.`, some: `Một số tin dẫn tới tin gốc trên ${p}.` }[tier]
@@ -492,14 +521,14 @@ export function districtMetadata(f: DistrictFacts, lang: PageLang, siteName: str
   const city = f.inHcmc ? `, ${HCMC_NAME[lang]}` : ''
   const n = formatCountFull(f.total, lang)
   /**
-   * The tail after the count. Nothing linked: the trust sentence (TRUST_SENTENCE — CS-3 claim 3 took
-   * "— fewer fakes, fewer bait prices" off the English), except on teachers, which gets none at all
-   * (CS-3 V2-9b: people, not listings). Linked: where the listings open, with jobs naming "a job site"
-   * here in the meta description (CS-3 V2-8d).
+   * The tail after the count. Nothing linked: REPORT_SENTENCE — the on-page DistrictLede's own tail
+   * (category-text.tsx; the test holds the two equal) — except on teachers, which gets none at all
+   * (CS-3 V2-9b: people, not listings; the lede states TEACHERS_CONTACT_SENTENCE there). Linked: where
+   * the listings open, jobs naming "a job site" (CS-3 V2-8d, through sourceNoun).
    */
   const districtTail = (l: PageLang): string =>
-    f.linked === 'none' ? (f.category.slug === 'teachers' ? '' : TRUST_SENTENCE[l])
-    : districtLinkedSentence(f.linked, f.category.slug, l, f.total, f.category.slug === 'jobs' ? JOBS_NOUN : undefined)
+    f.linked === 'none' ? (f.category.slug === 'teachers' ? '' : REPORT_SENTENCE[l])
+    : districtLinkedSentence(f.linked, f.category.slug, l, f.total)
   const withTail = (head: string, tail: string) => (tail ? `${head} ${tail}` : head)
   if (lang === 'vi') {
     // A row with no Vietnamese name falls back to the English one, as the visible H1, the breadcrumb and

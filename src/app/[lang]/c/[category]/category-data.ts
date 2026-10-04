@@ -74,7 +74,7 @@ const HCMC_PROVINCE = (vnUnits as { code: string; nameEn: string }[]).find((u) =
  * How many of the category's live listings link out to the portal or shop they came from
  * (`affiliateUrl` set — the card's `isPartnerBooking` test). Rentals reads it through
  * loadRentalsFacts; every other category reads it to decide whether its lede and meta description
- * may keep the "every seller has a public trust score" sentence (category-copy.ts).
+ * close on the report sentence or say where the listings open (category-copy.ts linkedTier).
  */
 export const loadLinkedCount = cache(async (categoryId: string): Promise<number> =>
   db.listing.count({ where: await scopedListingWhere({ ...live(categoryId), affiliateUrl: { not: null } }, { teachers: true }) }),

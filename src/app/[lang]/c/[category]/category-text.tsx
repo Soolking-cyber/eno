@@ -9,6 +9,8 @@ import type { CategoryGuide } from '@/lib/category-guides'
 import {
   HCMC_NAME,
   RENTALS_PLACE_LABEL,
+  REPORT_SENTENCE,
+  TEACHERS_CONTACT_SENTENCE,
   districtLinkedSentence,
   formatCountFull,
   joinList,
@@ -323,8 +325,9 @@ export function OtherRentalsLink({ n, href }: { n: number; href: string }) {
 }
 
 /**
- * /c/<category>/<district> lede. The trust sentence survives only where nothing in scope is linked:
- * a public trust score says nothing about a listing imported from another portal.
+ * /c/<category>/<district> lede. Where nothing in scope is linked it closes on REPORT_SENTENCE — the
+ * district description's own tail (category-copy.ts districtMetadata), so page and meta say one thing —
+ * and teachers on TEACHERS_CONTACT_SENTENCE; a linked scope says where its listings open instead.
  *
  * ⚠️ SINGULAR AT EXACTLY 1, in the tail as well as the count: /c/rentals/can-gio (one rental,
  * 2026-09-27) read "1 place for rent in Can Gio District. Every one links…" (VI "Tất cả đều…").
@@ -374,11 +377,14 @@ export function DistrictLede({
     if (lang === 'vi') return <>{`${n} tin cho thuê tại ${place.vi}. ${rentalsLinkedLede(linked, total === 1, tr)}`}{cross}</>
     return <>{n} {what} {place.en}. {rentalsLinkedLede(linked, total === 1, tr)}{cross}</>
   }
+  // ⛔ TEACHERS ARE PEOPLE, NOT LISTINGS (owner 2026-09-30): the /c/teachers lede's contact sentence,
+  // never the listings sentence (TEACHERS_CONTACT_SENTENCE; CS-3 claim 6).
+  const teachers = categorySlug === 'teachers'
   if (lang === 'vi') {
     const tail =
       linked !== 'none' ? districtLinkedSentence(linked, categorySlug, 'vi', total)
-      : total === 1 ? 'Tin này đến từ người bán có điểm uy tín công khai — ít hàng giả, ít giá mồi hơn.'
-      : 'Mỗi tin đều đến từ người bán có điểm uy tín công khai — ít hàng giả, ít giá mồi hơn.'
+      : teachers ? TEACHERS_CONTACT_SENTENCE.vi
+      : REPORT_SENTENCE.vi
     return <>{`${n} tin ${nameVi.toLowerCase()} tại ${place.vi}. ${tail}`}{cross}</>
   }
   // "3,741 rentals listings" read as a typo; rentals are counted as places, as /c/rentals does.
@@ -389,24 +395,32 @@ export function DistrictLede({
       <Tr text={name.toLowerCase()} /> {total === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="in" />
     </>
   )
+  // Literal tr() per sentence so the harvester can pre-translate each; the tests hold every one equal to
+  // its category-copy.ts counterpart (REPORT_SENTENCE, TEACHERS_CONTACT_SENTENCE, sourceNoun).
+  // ⛔ NO TRUST-SCORE CLAIM AND NO "— fewer fakes, fewer bait prices" (owner 2026-10-04; CS-3 claim 3):
+  // REPORT_SENTENCE has the reasons.
   if (linked === 'none') {
     return (
       <>
-        {n} {what} {place.en},{' '}
-        {total === 1 ? (
-          <Tr text="from a seller with a public trust score — fewer fakes, fewer bait prices." />
-        ) : (
-          <Tr text="each from a seller with a public trust score — fewer fakes, fewer bait prices." />
-        )}
+        {n} {what} {place.en}.{' '}
+        {teachers
+          ? tr('Schools and companies can message a teacher; their phone, email and CV are shared only when the teacher chooses to.')
+          : tr('Members can report any listing that breaks the rules.')}
         {cross}
       </>
     )
   }
-  // Literal tr() per form so the harvester can pre-translate each. At 1 the tier is always "all".
-  // Rentals never reach here while linked (D-f's own sentences, above).
-  // "a source site", not "a partner site" (2026-10-01) — category-copy.ts sourceNoun has the reason.
+  // At 1 the tier is always "all". Rentals never reach here while linked (D-f's own sentences, above).
+  // Never "a partner site" (2026-10-01) — category-copy.ts sourceNoun has the reason; jobs name "a job
+  // site" (CS-3 V2-8), as their district description does.
   const tail =
-    total === 1 ? tr('It links to its original listing on a source site.')
+    categorySlug === 'jobs' ? (
+      total === 1 ? tr('It links to its original listing on a job site.')
+      : linked === 'all' ? tr('Every one links to its original listing on a job site.')
+      : linked === 'most' ? tr('Most link to their original listing on a job site.')
+      : tr('Some link to their original listing on a job site.')
+    )
+    : total === 1 ? tr('It links to its original listing on a source site.')
     : linked === 'all' ? tr('Every one links to its original listing on a source site.')
     : linked === 'most' ? tr('Most link to their original listing on a source site.')
     : tr('Some link to their original listing on a source site.')

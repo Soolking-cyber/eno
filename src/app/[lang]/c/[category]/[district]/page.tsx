@@ -158,10 +158,9 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
       orderBy: { _count: { district: 'desc' } },
     }),
     /**
-     * ⚠️ HOW MUCH OF THIS SCOPE IS LINKED FROM ANOTHER PORTAL — it decides whether the page may keep
-     * its "each from a seller with a public trust score" sentence (category-copy.ts). Every rental in
-     * the 2026-09-27 supply sample (1,510 listings across categories) was an import, and a trust
-     * score says nothing about a listing copied from another portal.
+     * ⚠️ HOW MUCH OF THIS SCOPE IS LINKED FROM ANOTHER PORTAL — it decides whether the lede and the
+     * description close on the report sentence or say where the listings open (category-copy.ts).
+     * Every rental in the 2026-09-27 supply sample (1,510 listings across categories) was an import.
      */
     // edition-lint-allow: `where` is `{ AND: [base, scope] }`, base = scopedListingWhere(..., { teachers: true }) above.
     // By subcategory, so the homes' own tier comes from the same read (the homes lede speaks of them).

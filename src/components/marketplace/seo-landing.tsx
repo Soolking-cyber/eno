@@ -37,8 +37,10 @@ type SeoContentFields = {
    * clicked — first, right under a table built to leave such prices out (review, 2026-10-03).
    */
   order?: 'recent'
-  /** false = no "every seller has a public trust score" strip — untrue where the rail is linked
-   *  postings whose "seller" is a job board eno.vn never rated. */
+  /** false = no report strip. It was turned off where the strip said "every seller has a public trust
+   *  score" over linked postings whose "seller" is a job board eno.vn never rated; since 2026-10-04 the
+   *  strip carries the report sentence instead, which is true there too — the pages that set false
+   *  keep it off, unchanged. */
   trustStrip?: boolean
   categorySlug: string
   /**
@@ -336,9 +338,10 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
             the SEO-landing family shares their statement-header close. */}
         <div className="mt-8 border-t border-border" aria-hidden />
 
-        {/* Real verified listings (crawlable internal links) */}
+        {/* Live listings (crawlable internal links). ⛔ The default heading was "Trusted listings" — the
+            claim CS-3 (claim 2) took off every category title: nothing on the site verifies a listing. */}
         {listings.length > 0 && (
-          <SeoListingGrid listings={listings} title={content.railTitle ?? 'Trusted listings'} cta={content.cta} links={content.browseLinks} href={browseHref} />
+          <SeoListingGrid listings={listings} title={content.railTitle ?? 'Listed now'} cta={content.cta} links={content.browseLinks} href={browseHref} />
         )}
 
         {/* Editorial / keyword sections — wide container, readable measure.
@@ -389,13 +392,16 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
           <span className="flex h-5 w-5 shrink-0 text-accent-foreground">
             <ShieldCheck className="h-5 w-5" />
           </span>
-          {/* ⚠️ SITE_NAME, NOT "eno.vn". This component renders on BOTH deployments, so the literal
-              had eno.forum's e-visa pages attributing their trust model to the licensed marketplace
-              — the same defect class as the Organization JSON-LD and the sitewide meta description,
-              in visible copy this time. The trust score is a per-deployment claim about the site the
-              reader is on. */}
+          {/* ⛔ NOT "Every {SITE_NAME} seller has a public trust score, and buyers can report bad listings —
+              so fakes and bait prices get caught fast" (owner 2026-10-04): an official partner shows a
+              partner badge instead of a score, an ownerless storefront shows none, and "caught fast" is
+              an outcome no code measures. The sentence is the owner's approved one, verbatim
+              (category-copy.ts REPORT_SENTENCE) — true of every listing on either deployment: the
+              listing page always carries the Report button (listings/[id]/(pdp)/page.tsx), and the
+              report route takes it from any signed-in member (api/report/route.ts). It names no site,
+              so it cannot name the wrong one (this strip renders on eno.forum's e-visa pages too). */}
           <p className="text-sm leading-relaxed text-body">
-            Every {SITE_NAME} seller has a public trust score, and buyers can report bad listings — so fakes and bait prices get caught fast.{' '}
+            Members can report any listing that breaks the rules.{' '}
             <Link href="/trust" className="font-semibold text-accent-foreground hover:underline">See how trust works</Link>.
           </p>
         </div>

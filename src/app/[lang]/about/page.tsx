@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import Link from 'next/link'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { Tr } from '@/context/language-context'
@@ -226,21 +226,28 @@ const OPERATOR_LINE = OPERATOR_REGISTERED
 
 // Ordered steps use the family's one step treatment — a tint number chip beside the
 // heading (see /guide and /safety's recovery list). The sequence is the information.
-const STEPS = [
+// `text` is one <Tr> per sentence, so a sentence with curated Vietnamese (vi-overrides.ts) renders it
+// whatever its neighbours have.
+const STEPS: { title: string; text: string[] }[] = [
   {
     title: 'Listing submitted',
-    text: 'A seller posts an item with photos, price and location.',
+    text: ['A seller posts an item with photos, price and location.'],
   },
   {
     title: 'Automated checks',
     // ⛔ NOT "PHONE VERIFIED" (2026-10-01): no phone check runs on a post. What does run is
     // assertPublishable (src/lib/publish-guard.ts): banned words, contact details in the text, the
     // per-category photo minimum and a location.
-    text: 'Every post runs automated checks — no banned items, no contact details hidden in the text, and enough real photos to show what is being offered.',
+    text: ['Every post runs automated checks — no banned items, no contact details hidden in the text, and enough real photos to show what is being offered.'],
   },
   {
     title: 'It goes live instantly',
-    text: 'Listings publish right away. Sellers build a public trust score and buyers can report problems — so fakes and bait prices do not last.',
+    // ⛔ NOT "Sellers build a public trust score and buyers can report problems — so fakes and bait prices
+    // do not last" (owner 2026-10-04): official partners show a partner badge instead of a score, and
+    // "do not last" is an outcome no code measures. The second sentence is the owner's approved report
+    // sentence, verbatim (category-copy.ts REPORT_SENTENCE): every listing page carries the Report
+    // button, and a signed-in member's report reaches the admin queue (api/report/route.ts).
+    text: ['Listings publish right away.', 'Members can report any listing that breaks the rules.'],
   },
 ]
 
@@ -501,7 +508,12 @@ export default async function AboutPage() {
                     <Tr text={s.title} />
                   </h3>
                   <p className="mt-1 text-sm leading-relaxed text-body">
-                    <Tr text={s.text} />
+                    {s.text.map((t, j) => (
+                      <Fragment key={j}>
+                        {j > 0 && ' '}
+                        <Tr text={t} />
+                      </Fragment>
+                    ))}
                   </p>
                 </div>
               </div>

@@ -92,7 +92,7 @@ const CONTENT: SeoContent = {
     {
       title: 'Buying from a Vietnamese supplier, safely',
       body:
-        `Green coffee is bought on samples and paperwork, not on photographs. Ask for a pre-shipment sample against the spec you were quoted, and agree who arbitrates if the shipment misses it. On ${SITE_NAME} every seller carries a public trust score, buyers can report a listing, and the conversation stays in-app — so there is a record of what was promised. That is not a substitute for a contract on a container-sized order; it is a way to find out who is worth writing one with.`,
+        `Green coffee is bought on samples and paperwork, not on photographs. Ask for a pre-shipment sample against the spec you were quoted, and agree who arbitrates if the shipment misses it. Members can report any listing that breaks the rules. On ${SITE_NAME} the conversation stays in-app, so there is a record of what was promised. That is not a substitute for a contract on a container-sized order; it is a way to find out who is worth writing one with.`,
     },
   ],
   related: [
