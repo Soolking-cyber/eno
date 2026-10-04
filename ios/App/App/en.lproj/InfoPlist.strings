@@ -1,0 +1,17 @@
+/*
+  English strings for Info.plist. The base values in Info.plist are English too (development region
+  en), so this file mostly pins them; vi.lproj carries the Vietnamese. Mirrors the Android shell:
+  android/app/src/main/res/values-en/strings.xml (shortcuts) — iOS has no system-supplied
+  permission text, so the usage descriptions live here as well.
+
+  Home-screen quick-action titles are looked up by their Info.plist VALUE as the key.
+*/
+"CFBundleDisplayName" = "eno";
+"NSCameraUsageDescription" = "eno uses the camera so you can photograph and film the items you're listing, and photograph your ID document and a selfie when you verify your identity.";
+"NSPhotoLibraryUsageDescription" = "eno accesses your photo library so you can add photos and videos to your listings.";
+"NSPhotoLibraryAddUsageDescription" = "eno saves photos to your library when you choose to.";
+"NSMicrophoneUsageDescription" = "eno uses the microphone when you record a listing video.";
+"NSLocationWhenInUseUsageDescription" = "eno uses your location to find listings near you and suggest your area when you post.";
+"Post" = "Post";
+"Messages" = "Messages";
+"Saved" = "Saved";

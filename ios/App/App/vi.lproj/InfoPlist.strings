@@ -1,0 +1,15 @@
+/*
+  Vietnamese strings for Info.plist. Mirrors the Android shell's default (Vietnamese) resources:
+  android/app/src/main/res/values/strings.xml (shortcut_post / shortcut_messages / shortcut_saved).
+
+  Home-screen quick-action titles are looked up by their Info.plist VALUE as the key.
+*/
+"CFBundleDisplayName" = "eno";
+"NSCameraUsageDescription" = "eno dùng máy ảnh để bạn chụp ảnh, quay video món đồ mình đăng bán, và chụp giấy tờ tùy thân cùng ảnh chân dung khi xác minh danh tính.";
+"NSPhotoLibraryUsageDescription" = "eno truy cập thư viện ảnh để bạn chọn ảnh và video cho tin đăng.";
+"NSPhotoLibraryAddUsageDescription" = "eno lưu ảnh vào thư viện khi bạn chọn tải về.";
+"NSMicrophoneUsageDescription" = "eno dùng micro khi bạn quay video cho tin đăng.";
+"NSLocationWhenInUseUsageDescription" = "eno dùng vị trí của bạn để tìm tin đăng gần bạn và gợi ý khu vực khi đăng tin.";
+"Post" = "Đăng tin";
+"Messages" = "Tin nhắn";
+"Saved" = "Tin đã lưu";

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  ⛔ DORMANT — NOT WIRED INTO THE XCODE PROJECT, ON PURPOSE.
+
+  These capabilities exist only on a PAID Apple Developer team. The project still carries the free
+  personal team (S4VCY6N8QR), and a free team cannot provision Associated Domains, Push or Sign in
+  with Apple: the moment CODE_SIGN_ENTITLEMENTS points at this file, every signed dev build fails
+  provisioning. Unsigned builds (CODE_SIGNING_ALLOWED=NO, the simulator recipe) ignore entitlements
+  entirely, so wiring it early would prove nothing either.
+
+  Activation is step P4 of docs/ios-appstore-release.md, once the paid account exists:
+    1. cp App.entitlements.template App.entitlements (same folder);
+    2. add App.entitlements to the App group in project.pbxproj (the App folder is NOT a
+       synchronized group — add the PBXFileReference and the group child by hand, no build phase);
+    3. set CODE_SIGN_ENTITLEMENTS = App/App.entitlements in BOTH target configurations;
+    4. archive with -allowProvisioningUpdates and check:
+       codesign -d --entitlements :- <archive>/Products/Applications/App.app
+
+  The hosts mirror the Android App Links filter (android/app/src/main/AndroidManifest.xml):
+  both forum hosts plus eno.vn, whose PATHS open on the app's own origin (AppDelegate
+  onAppOrigin). www.eno.vn is deliberately absent — it 308s to the apex, and Apple requires the
+  association file to be served without a redirect. Each host must serve
+  /.well-known/apple-app-site-association (src/app/api/well-known/aasa/route.ts), which answers 404
+  until APPLE_TEAM_ID is set on the box (step P7).
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:www.eno.forum</string>
+		<string>applinks:eno.forum</string>
+		<string>applinks:eno.vn</string>
+	</array>
+	<!-- Xcode rewrites this to `production` when the archive is exported for App Store Connect. -->
+	<key>aps-environment</key>
+	<string>development</string>
+	<!--
+	  Sign in with Apple — ONLY if owner decision D2 puts it in v1 (step P9). Leaving it out costs
+	  nothing; enabling the capability on the App ID does no harm either way.
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+	-->
+</dict>
+</plist>
