@@ -125,10 +125,13 @@ test.describe('Guest · homepage', () => {
   test('renders category navigation', async ({ page }) => {
     // Since E-TILES (2026-09-29) the tiles are crawlable LINKS (a plain click still filters in place),
     // scoped to the rail so the footer's Explore links cannot satisfy it. "Property" was renamed Rentals.
+    // Since the second-hand focus (2026-10-03) Vehicles is a retired shelf: never a tile, although production
+    // still holds a few live vehicle rows. Substring match, so an extra or reordered query param cannot hide it.
     const rail = page.getByRole('group', { name: /^Categories$/ })
     await expect(rail.getByRole('link', { name: /Electronics/ }).first()).toBeVisible()
-    await expect(rail.getByRole('link', { name: /Vehicles/ }).first()).toBeVisible()
     await expect(rail.getByRole('link', { name: /Rentals/ }).first()).toBeVisible()
+    await expect(rail.locator('a[href*="category=vehicles"], a[href*="/c/vehicles"]')).toHaveCount(0)
+    await expect(rail.getByRole('link', { name: /\bVehicles\b/i })).toHaveCount(0)
   })
 
   test('shows home rails', async ({ page }) => {
