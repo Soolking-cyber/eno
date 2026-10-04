@@ -19,8 +19,13 @@ import { categoryExists } from './load-category'
  * payload carries `NEXT_HTTP_ERROR_FALLBACK;404` either way, so Next always threw correctly and
  * only the status had already gone out.
  *
- * ⚠️ THE SKELETON NOW LIVES IN `(index)/loading.tsx` (2026-09-27), beside the category page, so it no
- * longer wraps `[district]` as well — see the note at the top of `(index)/page.tsx`. This layout still
+ * ⚠️ AND SINCE UX3 FAST-8 (2026-10-05) THERE IS NO `(index)/loading.tsx` AT ALL: the boundary kept the grid in
+ * `<div hidden id="S:0">` until a reveal script ~400–500 KB into the HTML (phone LCP +0.5–0.6 s: measured A/B,
+ * Chromium 390×844, CPU 4×, the same live HTML with only the boundary inlined). The guard below still runs first; with no boundary the status is never
+ * sent early in any case. The "CLS of 0" the skeleton bought is re-measured in the UX3 preview, not assumed.
+ *
+ * ⚠️ (HISTORY) THE SKELETON LIVED IN `(index)/loading.tsx` from 2026-09-27 until UX3 FAST-8 removed it, beside the
+ * category page, so it no longer wrapped `[district]` as well — see the note at the top of `(index)/page.tsx`. This layout still
  * sits above both and still guards both: an unknown category is a 404 under either URL shape.
  *
  * ⛔ IT RENDERS NOTHING, AND THE CATEGORY PAGE'S HEADER AND H1 MUST NOT MOVE HERE. They moved out of

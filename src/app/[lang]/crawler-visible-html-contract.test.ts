@@ -77,7 +77,14 @@ describe('the listing page renders its content inline, visible to crawlers', () 
 })
 
 /**
- * ⛔ THE CATEGORY PAGE KEEPS ITS SKELETON FOR THE GRID, SO ITS HEADER, BREADCRUMB AND H1 RENDER ABOVE IT
+ * ⛔ SINCE UX3 FAST-8 (2026-10-05) THE CATEGORY PAGE — AND THE HOME PAGE — HAVE NO LOADING BOUNDARY AT ALL.
+ * The hybrid below kept the heading out of the boundary but left the GRID in `<div hidden id="S:0">`: hidden
+ * from every crawler that reads HTML, and unpainted for every visitor until the parser reached the reveal
+ * script 356–495 KB into the page. Measured A/B on a phone profile (same live HTML, only the boundary
+ * inlined): LCP 1,556 → 1,020 ms on / and 1,720 → 1,148 ms on /c/rentals (−34%), LCP = FCP
+ * (Chromium 390×844, CPU 4×, 9 Mbps/150 ms, 3–5 runs per page, calm machine). The `(index)/layout.tsx` contract below still holds; the tests that
+ * read the skeleton now assert it is gone. History of the hybrid, kept for why the layout looks as it does:
+ * THE CATEGORY PAGE KEPT ITS SKELETON FOR THE GRID, SO ITS HEADER, BREADCRUMB AND H1 RENDER ABOVE IT
  * (SEO wave B, H1b; the owner's hybrid). `(index)/loading.tsx` wraps only `(index)/page.tsx`, which React
  * outlines into `<div hidden id="S:0">` by the rule above; `(index)/layout.tsx` sits above that boundary
  * (a loading file never wraps the layout in its own folder), so what it renders is in place in the first
@@ -91,15 +98,15 @@ describe('the listing page renders its content inline, visible to crawlers', () 
 const IDX = 'c/[category]/(index)'
 const src = (file: string) => code(readFileSync(join(APP, file), 'utf8'))
 
-describe('the category page renders its header, breadcrumb and H1 above its loading boundary', () => {
-  /** From `src/app` down to the `(index)` layout: a `loading.*` here would wrap the heading too. */
-  it.each(['..', '', 'c', 'c/[category]'])('no loading boundary at src/app/[lang]/%s', (dir) => {
+describe('the category page renders its header, breadcrumb, H1 and grid inline', () => {
+  /** From `src/app` down to the `(index)` group itself: a `loading.*` at any of them hides the heading or the grid. */
+  it.each(['..', '', 'c', 'c/[category]', IDX])('no loading boundary at src/app/[lang]/%s', (dir) => {
     const found = readdirSync(join(APP, dir)).filter((f) => /^loading\./.test(f))
     expect(found, `${dir}/${found[0]} would move the category H1 into <div hidden> for every crawler`).toEqual([])
   })
 
   it('the files are where they are asserted to be (a wrong path would pass vacuously)', () => {
-    for (const f of ['layout.tsx', 'page.tsx', 'loading.tsx', 'category-lede-block.tsx', 'lede-placement.ts']) {
+    for (const f of ['layout.tsx', 'page.tsx', 'category-lede-block.tsx', 'lede-placement.ts']) {
       expect(existsSync(join(APP, IDX, f)), f).toBe(true)
     }
   })
@@ -130,11 +137,10 @@ describe('the category page renders its header, breadcrumb and H1 above its load
     const at = (file: string) => src(file).match(/(?:LEDE_PLACEMENT === '(?:page|layout)' && )?<CategoryLedeBlock\b/g) ?? []
     expect(at(`${IDX}/layout.tsx`)).toEqual(["LEDE_PLACEMENT === 'layout' && <CategoryLedeBlock"])
     expect(at(`${IDX}/page.tsx`)).toEqual(["LEDE_PLACEMENT === 'page' && <CategoryLedeBlock"])
-    expect(src(`${IDX}/loading.tsx`)).toMatch(/LEDE_PLACEMENT === 'page' && \(/)
     expect(src(`${IDX}/lede-placement.ts`)).toMatch(/^export const LEDE_PLACEMENT = '(?:page|layout)' as 'page' \| 'layout'$/m)
   })
 
-  it.each([`${IDX}/page.tsx`, `${IDX}/loading.tsx`])('%s renders no second header, <main>, H1 or footer', (file) => {
+  it.each([`${IDX}/page.tsx`])('%s renders no second header, <main>, H1 or footer', (file) => {
     const s = src(file)
     for (const re of [/<Header\b/, /<Footer\b/, /<h1\b/, /<main\b/, /id="main"/]) expect(s).not.toMatch(re)
   })
@@ -175,14 +181,19 @@ describe('the category page renders its header, breadcrumb and H1 above its load
  */
 const HOME = '(home)'
 
-describe('the home page renders its header, <main> and one H1 above its loading boundary', () => {
-  it.each(['..', ''])('no loading boundary at src/app/[lang]/%s', (dir) => {
+/**
+ * ⛔ AND NO LOADING BOUNDARY UNDER IT EITHER (UX3 FAST-8, 2026-10-05): `(home)/loading.tsx` put the whole feed —
+ * the LCP photo included — in `<div hidden id="S:0">` until the reveal script ran ~356 KB into the HTML (see the
+ * category block above for the measured A/B).
+ */
+describe('the home page renders its header, <main>, one H1 and its feed inline', () => {
+  it.each(['..', '', HOME])('no loading boundary at src/app/[lang]/%s', (dir) => {
     const found = readdirSync(join(APP, dir)).filter((f) => /^loading\./.test(f))
-    expect(found, `${dir}/${found[0]} would move the home H1 into <div hidden> for every crawler`).toEqual([])
+    expect(found, `${dir}/${found[0]} would move the home H1 or feed into <div hidden> for every crawler`).toEqual([])
   })
 
   it('the files are where they are asserted to be (a wrong path would pass vacuously)', () => {
-    for (const f of ['layout.tsx', 'page.tsx', 'loading.tsx']) expect(existsSync(join(APP, HOME, f)), f).toBe(true)
+    for (const f of ['layout.tsx', 'page.tsx']) expect(existsSync(join(APP, HOME, f)), f).toBe(true)
     expect(existsSync(join(APP, 's/[handle]/page.tsx'))).toBe(true)
   })
 
@@ -203,11 +214,6 @@ describe('the home page renders its header, <main> and one H1 above its loading 
     for (const re of [/<Header\b/, /<Footer\b/, /<h1\b/, /<main\b/, /id="main"/]) expect(s).not.toMatch(re)
     // Up to the element's own `/>`, not the first `>`: a prop holding an arrow function contains one.
     expect(s).toMatch(/<ListingsExplorer\b(?:(?!\/>)[\s\S])*\bsiteHeading=\{false\}/)
-  })
-
-  it('(home)/loading.tsx renders no header, <main>, H1 or footer', () => {
-    const s = src(`${HOME}/loading.tsx`)
-    for (const re of [/<Header\b/, /<Footer\b/, /<h1\b/, /<main\b/, /id="main"/]) expect(s).not.toMatch(re)
   })
 
   /** `/s/[handle]` passes no `siteHeading`: the prop's default is off under a seller scope, and the shop's SellerCard owns the H1 (ST-HEADER). */

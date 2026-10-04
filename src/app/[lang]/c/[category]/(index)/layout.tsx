@@ -15,7 +15,9 @@ import { LangPilotSwitch } from '@/components/marketplace/lang-pilot-switch'
 import { LangSuggestionBanner } from '@/components/marketplace/lang-suggestion-banner'
 
 /**
- * ⛔ THE CATEGORY PAGE'S HEADER, BREADCRUMB, H1 AND LEDE RENDER HERE, ABOVE `(index)/loading.tsx`, SO
+ * ⚠️ UX3 FAST-8 (2026-10-05): `(index)/loading.tsx` is gone, so the grid renders inline too (crawler contract
+ * test). What follows is why the heading lives in this layout, which still holds.
+ * ⛔ THE CATEGORY PAGE'S HEADER, BREADCRUMB, H1 AND LEDE RENDER HERE — above where `(index)/loading.tsx` was until UX3 FAST-8 — SO
  * THAT CRAWLERS CAN READ THEM. A loading file wraps its page in a Suspense boundary, and React moves a
  * finished boundary over 500 B into `<div hidden id="S:0">` at the end of the body whenever the shell's
  * bytes plus the boundary's pass 12,800 B — always, on this page, cached HTML and bots included (the

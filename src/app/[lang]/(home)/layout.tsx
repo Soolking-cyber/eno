@@ -14,7 +14,9 @@ import { LangSuggestionBanner } from '@/components/marketplace/lang-suggestion-b
 const PILOTED = VI_PILOT.live.includes('/')
 
 /**
- * ⛔ THE HOME PAGE'S HEADER, `<main>` AND H1 RENDER HERE, ABOVE `(home)/loading.tsx`, SO THAT CRAWLERS
+ * ⚠️ UX3 FAST-8 (2026-10-05): `(home)/loading.tsx` is gone — the feed and its LCP photo render inline, not in
+ * `<div hidden id="S:0">` (phone LCP 1,556 → 1,020 ms, measured A/B). The note below is why the heading lives here.
+ * ⛔ THE HOME PAGE'S HEADER, `<main>` AND H1 RENDER HERE — above where `(home)/loading.tsx` was until UX3 FAST-8 — SO THAT CRAWLERS
  * CAN READ THEM. A loading file wraps its page in a Suspense boundary, and React moves a finished
  * boundary over 500 B into `<div hidden id="S:0">` at the end of the body whenever the shell's bytes plus
  * the boundary's pass 12,800 B — always, on this page, cached HTML and bots included (the rule and its

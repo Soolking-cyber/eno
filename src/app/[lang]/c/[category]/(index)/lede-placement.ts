@@ -4,7 +4,8 @@
  * them can disagree with the code:
  * - 'page': `CategoryLedeBlock` renders first in `(index)/page.tsx`, below the loading boundary, so for
  *   anything that reads the HTML without JavaScript it is hidden with the grid in
- *   `<div hidden id="S:0">`; `(index)/loading.tsx` draws the lede bars in its place.
+ *   `<div hidden id="S:0">`; `(index)/loading.tsx` drew the lede bars in its place. (HISTORY: since UX3 FAST-8,
+ *   2026-10-05, there is no `(index)/loading.tsx`, so 'page' would now render inline as well.)
  * - 'layout': it renders under the H1 in `(index)/layout.tsx`, above the boundary, visible to crawlers;
  *   the shell then waits on the block's COUNTs on a cold render and on every category-to-category
  *   navigation, and the skeleton drops the lede bars.

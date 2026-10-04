@@ -25,8 +25,8 @@ describe('/c/<category>/<district> status contract', () => {
     }
   })
 
-  it('the category page keeps its skeleton, in the (index) group beside it', () => {
-    expect(existsSync(join(APP, 'c/[category]/(index)/loading.tsx'))).toBe(true)
+  it('the category page renders inline (no skeleton since UX3 FAST-8), from the (index) group beside it', () => {
+    expect(existsSync(join(APP, 'c/[category]/(index)/loading.tsx'))).toBe(false)
     expect(existsSync(join(APP, 'c/[category]/(index)/page.tsx'))).toBe(true)
     // Two pages for one route is a build error; a stray copy left behind would be one.
     expect(existsSync(join(APP, 'c/[category]/page.tsx'))).toBe(false)
