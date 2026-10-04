@@ -181,6 +181,13 @@ export const LISTING_CARD_SELECT = {
   affiliateUrl: true,
   /** <Price> labels a price-0 JOB "Salary: see details" instead of "Free" — it needs the type. */
   listingType: true,
+  /**
+   * ⚠️ READ FOR ONE STRING AND NEVER SHIPPED WHOLE: a job card's `jobType` (the jobs `jobtype` facet),
+   * which its price slot prints instead of "Salary: see details" (rentals-09). Measured 2026-10-04 over
+   * every active listing: 55 bytes average, 222 max — under a seventh of `images`, which every card
+   * already reads. Every other listing's attributes stop here.
+   */
+  attributes: true,
   category: { select: { id: true, name: true, nameVi: true, slug: true, icon: true, color: true } },
   // `ownerId` is read for ONE boolean (`unrated`, src/lib/linked-seller.ts) and never leaves the server:
   // it is a real person's account UUID on every storefront a human owns.
@@ -200,10 +207,18 @@ type ListingCardRow = {
   model: string | null; condition: string | null; marketPosition: string | null; verified: boolean; postedAt: Date; createdAt: Date; savedCount: number; contactCount: number
   affiliateUrl: string | null
   listingType?: string
+  /** Raw attributes JSON — read for a job's `jobtype` only. Optional: a hand-built row without it shows today's label. */
+  attributes?: string | null
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
   /** `ownerId` REQUIRED, so a card query that forgets it fails to compile instead of showing every
    *  ownerless storefront's default 100 as a trust chip. */
   seller: { trustScore: number; officialPartner: boolean; ownerId: string | null; owner?: { accountType: string | null } | null }
+}
+
+/** A job's `jobtype` facet value from its attributes JSON, or null — a short slug, never the whole object. */
+function cardJobType(attributes: string | null | undefined): string | null {
+  const v = safeParse<Record<string, unknown> | null>(attributes ?? null, null)?.jobtype
+  return typeof v === 'string' && v.length <= 32 ? v : null
 }
 
 export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
@@ -235,6 +250,8 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     // The commission-bearing subset (the card's "Ad" marker) — computed here so the link never ships.
     isSponsored: isCommissionLink(l.affiliateUrl),
     listingType: l.listingType,
+    // Only a job carries it, so no other card's payload grows (see LISTING_CARD_SELECT.attributes).
+    ...(l.listingType === 'job' ? { jobType: cardJobType(l.attributes) } : {}),
     currency: l.currency,
     negotiable: takesOffers(l), // never on a job — see serializeListing
     prevPrice: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price),

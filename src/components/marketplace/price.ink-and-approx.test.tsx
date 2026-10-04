@@ -80,3 +80,64 @@ describe('<Price> "≈" slot', () => {
     expect(el.style.visibility).toBe('hidden')
   })
 })
+
+// rentals-09 (2026-10-04): a CARD hands a price-0 job its type · city; every other surface leaves it out.
+describe('<Price> jobMeta (card only)', () => {
+  it('a string replaces the salary label, in the same body ink', () => {
+    const el = root(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" jobMeta="Full-time · Hanoi" className="text-base" />)
+    expect(el.textContent?.replace(/\s+/g, ' ')).toBe('Full-time · Hanoi')
+    expect(el.className.split(' ')).toEqual(expect.arrayContaining(['text-body', 'font-semibold', 'text-base']))
+    expect(el.className).not.toMatch(/\btext-muted-foreground\b/)
+  })
+
+  it('null keeps today\'s label, in muted ink', () => {
+    const el = root(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" linked jobMeta={null} />)
+    expect(el.textContent).toBe('Salary: see details')
+    expect(el.className).toMatch(/\btext-muted-foreground\b/)
+    expect(el.className).not.toMatch(/\btext-body\b/)
+  })
+
+  it('left out, nothing changes; and it never touches a job with a figure or a teacher profile', () => {
+    expect(root(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" />).className).not.toMatch(/\btext-muted-foreground\b/)
+    cleanup()
+    expect(root(<Price native price={250_000} currency="₫" priceUnit="VND" listingType="job" jobMeta="Full-time · Hanoi" />).textContent).toContain('250,000')
+    cleanup()
+    expect(root(<Price native price={0} currency="₫" priceUnit="VND" listingType="teacher" jobMeta="Full-time" />).textContent).toBe('Teacher profile')
+  })
+})
+
+// Review fix (2026-10-04): an employer's OWN price-0 job keeps "Salary: negotiable" — the type would drop it.
+describe('<Price> jobMeta never replaces "negotiable"', () => {
+  it("an employer's own job (linked={false}) keeps its label and its ink, whatever jobMeta holds", () => {
+    const el = root(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" linked={false} jobMeta="Full-time · Hanoi" />)
+    expect(el.textContent).toBe('Salary: negotiable')
+    expect(el.className).toMatch(/\btext-body\b/)
+    expect(el.className).not.toMatch(/\btext-muted-foreground\b/)
+    cleanup()
+    const none = root(<Price native price={0} currency="₫" priceUnit="VND/month" listingType="job" linked={false} jobMeta={null} />)
+    expect(none.textContent).toBe('Salary: negotiable')
+    expect(none.className).not.toMatch(/\btext-muted-foreground\b/)
+  })
+})
+
+// Review fix (2026-10-04): the support mark's yield opt-in sits on the FIGURE, never the root or the row —
+// a root holding a large rent's estimate measured 242–260px, which fab-clearance.ts reads as a bar.
+describe('<Price> fabAvoid (card only)', () => {
+  it('marks the amount and its unit, not the root and not the "≈ $" estimate', () => {
+    const el = root(<Price native fabAvoid price={9_000_000} currency="₫" priceUnit="VND/month" />)
+    expect(el.hasAttribute('data-fab-avoid')).toBe(false)
+    const marked = el.querySelectorAll('[data-fab-avoid]')
+    expect(marked).toHaveLength(1)
+    expect(marked[0].textContent?.replace(/\s+/g, ' ')).toBe('9,000,000 đ / month')
+    expect(el.textContent).toContain('≈') // the estimate is still there, just outside the mark
+  })
+
+  it('marks nothing without the prop, so every other surface renders as before', () => {
+    expect(root(<Price native price={9_000_000} currency="₫" priceUnit="VND/month" />).querySelector('[data-fab-avoid]')).toBeNull()
+  })
+
+  it("marks a linked job's type · city slot too", () => {
+    const el = root(<Price native fabAvoid price={0} currency="₫" priceUnit="VND/month" listingType="job" linked jobMeta="Full-time · Hanoi" />)
+    expect(el.querySelector('[data-fab-avoid]')!.textContent?.replace(/\s+/g, ' ')).toBe('Full-time · Hanoi')
+  })
+})

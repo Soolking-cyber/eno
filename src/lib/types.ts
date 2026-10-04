@@ -62,6 +62,10 @@ export type SerializedListingCard = {
   isSponsored?: boolean
   /** Listing.listingType ('sell' | 'rent' | 'job' | …) — <Price> labels a price-0 job. Optional: some card builders predate it. */
   listingType?: string
+  /** A JOB's `jobtype` facet value ('fulltime', 'parttime', …), projected from its attributes by
+   *  serializeListingCard; absent on every other listing. The card's price slot prints it with the city
+   *  instead of "Salary: see details" (src/lib/card-title.ts jobCardMeta). */
+  jobType?: string | null
   // Active price-drop anchor (server-normalized): the struck-through "was" price
   // while the drop badge is live (3 days — see DROP.BADGE_MS in src/lib/price-drop.ts),
   // else null. Server-computed 30-day-min reference — never a seller-entered number.

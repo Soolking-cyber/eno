@@ -201,6 +201,31 @@ describe('Footer links', () => {
     )
   })
 
+  // quality-01 (2026-10-04): the Shortcuts "Map" link went to the English-pinned plain `/` on a Vietnamese page.
+  it('the Map link keeps a Vietnamese reader in Vietnamese (localizedHref)', async () => {
+    const vi = await renderFooter('marketplace', 'vi')
+    expect(vi.hrefs).toContain('/vi?view=map')
+    expect(vi.hrefs).not.toContain('/?view=map')
+    cleanup()
+    const en = await renderFooter('marketplace', 'en')
+    expect(en.hrefs).toContain('/?view=map')
+  })
+
+  // quality-11 (2026-10-04): the legal row's links are 44px tall on a phone by REAL height — never tap-44,
+  // whose hit areas would overlap between the wrapped rows (globals.css, "PREFER NOT NEEDING IT").
+  it('the legal row links are 44px tall below sm, with no tap-44 pseudo-element', async () => {
+    const { container } = await renderFooter('marketplace', 'en')
+    // `/regulations` is also in the About column, so the row is found from `/terms`, which is only here.
+    const row = container.querySelector('a[href="/terms"]')!.parentElement!
+    expect(row.className).toContain('max-sm:gap-y-0')
+    const links = [...row.querySelectorAll('a')]
+    expect(links.map((a) => a.getAttribute('href'))).toEqual(['/terms', '/privacy', '/regulations', '/returns', '/account-deletion'])
+    for (const a of links) {
+      expect(a.className, a.getAttribute('href')!).toContain('max-sm:min-h-11')
+      expect(a.className, a.getAttribute('href')!).not.toMatch(/\btap-4/)
+    }
+  })
+
   // ⛔ O-04 (owner-approved 2026-09-29): no dashed "App Store · coming soon" chip while there is no link.
   it('shows a store only when it has a link — no "coming soon" chip', async () => {
     for (const lang of ['en', 'vi'] as const) {

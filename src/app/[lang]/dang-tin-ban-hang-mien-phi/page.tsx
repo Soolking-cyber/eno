@@ -4,6 +4,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { LiveCounts } from '@/components/marketplace/live-count'
+import { localizedHref } from '@/lib/lang-pinned'
 
 /**
  * ĐĂNG TIN BÁN HÀNG MIỄN PHÍ — the marketplace's own seller-acquisition guide, in Vietnamese.
@@ -53,6 +54,13 @@ const CONTENT: ArticleContent = {
   canonical: `/${SLUG}`,
   ...guideDates(SLUG),
   lang: 'vi',
+  /**
+   * A11-SEO-CTA (sell-05): a seller's guide that never offered the button. The one brand CTA under the lede
+   * and again after the last section — the reader who has just read the rules is the one ready to post.
+   */
+  // Through localizedHref like every guide CTA (ArticleContent.cta: the href arrives localized) — `/post` is not a
+  // piloted /vi twin today, so this is the plain path; it follows the page the day it becomes one.
+  cta: { href: localizedHref('/post', 'vi'), label: 'Đăng tin miễn phí', repeatAtEnd: true },
   sections: [
     {
       id: 'mien-phi-o-day-nghia-la-gi',

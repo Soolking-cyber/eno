@@ -81,6 +81,10 @@ const ON_ARRIVAL = [
   // The header's search panel: every glyph added to it rides the core file (W2-SEARCHPANEL-ICONS).
   'src/components/marketplace/search-suggest.tsx',
   'src/components/marketplace/trending-searches.tsx',
+  // quality-06 (2026-10-04): the home shelf header, the /c Filters control and the explorer facet bar.
+  'src/components/marketplace/business-rail.tsx',
+  'src/app/[lang]/c/[category]/category-filters-link.tsx',
+  'src/components/marketplace/facet-bar.tsx',
 ]
 
 function iconImports(file: string): string[] {
@@ -104,5 +108,9 @@ describe('glyphs painted on arrival stay in the core sprite', () => {
 
   it('carries the three glyphs that pulled the deferred sprite onto /, /c/rentals and the partner PDP', () => {
     expect(CRITICAL_GLYPHS).toEqual(expect.arrayContaining(['ClipboardCheck', 'Check', 'ArrowUpRight']))
+  })
+
+  it('carries the two glyphs that pulled it onto / (Award) and every /c page (SlidersHorizontal)', () => {
+    expect(CRITICAL_GLYPHS).toEqual(expect.arrayContaining(['Award', 'SlidersHorizontal']))
   })
 })

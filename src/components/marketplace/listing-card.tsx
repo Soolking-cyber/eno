@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, memo } from 'react'
+import { useEffect, useId, useState, useRef, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { Heart, Building2, MapPin, MessageCircle, Tag, Play, ArrowRight } from '@/components/ui/icons'
@@ -27,6 +27,9 @@ import { isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
 import { isHcmc } from '@/lib/city-short'
+import { cardTitle, jobCardMeta } from '@/lib/card-title'
+import { localizedHref } from '@/lib/lang-pinned'
+import { variantOfLanguage } from '@/lib/lang-variant'
 // PostedAgo (not a bare timeAgo() call) so the card's relative time is the SAME string the PDP
 // prints — it derives its label from useLanguage at render time, which is the repo's existing
 // answer to relative time on a cached page (the PDP renders it inside the ISR'd listing route,
@@ -120,6 +123,30 @@ function ListingCardImpl({
   const images = listing.images
   const displayTitle = useLocalized(listing.title, listing.titleVi, listing.titleI18n)
   /**
+   * ⚠️ THE VISIBLE ONE-LINE TITLE — and therefore also the card link's accessible name (WCAG 2.5.3 Label in
+   * Name: a voice-control user says what they SEE, so the name must contain the visible text; commit-gate review
+   * 2026-10-04). `displayTitle` stays the full title everywhere else: the h3's `title`, the photo alt and the
+   * sign-in context. An importer's
+   * "Cho thuê Căn hộ / Chung cư …" spent the whole line on boilerplate (48 of 48 VI rental cards); a
+   * sale listing's "[Like New] …" / "[HCM] …" tag only repeats the info line's condition or city. The
+   * rules — importer templates by seller id only; a goods tag only from an allowlist, and only when the
+   * info line already says it — live in src/lib/card-title.ts.
+   */
+  const lineTitle = cardTitle({
+    title: displayTitle,
+    lang,
+    sellerId: listing.sellerId,
+    categorySlug: listing.category?.slug,
+    listingType: listing.listingType,
+    // What the info line below prints — a bracket tag is only dropped when it repeats one of these.
+    condition: listing.condition,
+    location: listing.location,
+  })
+  // A SHORTENED line names the link (WCAG 2.5.3, above); the FULL title rides along as its description, so a
+  // screen-reader user still hears the seller's whole title (commit-gate review 2026-10-04).
+  const fullTitleId = useId()
+  const titleShortened = lineTitle !== displayTitle
+  /**
    * ⚠️ ABBREVIATED ON THE CARD ONLY, AND ONLY FOR THE ONE CITY THAT NEEDS IT. Measured on the feed:
    * below `sm` this row renders just "New · Hồ Chí Minh", which needs 96px and had 67px at 320px
    * and 87px at 360px — so the city lost its tail ("New · Hồ C…"). 9,726 of 9,773 live listings
@@ -169,7 +196,29 @@ function ListingCardImpl({
   // parent that owns the map is on-screen (the explorer, its home rails) it passes
   // onLocate for an in-page focus; everywhere else (PDP related/recently-viewed,
   // AI results) we deep-link to the home map focused on this listing via ?focus=.
-  const locate = onLocate ?? ((l: SerializedListingCard) => router.push(`/?focus=${l.id}`))
+  // ⚠️ THROUGH localizedHref, so a Vietnamese reader lands on the `/vi` twin of the map rather than the
+  // English-pinned plain `/` (A1's leak class) — `/vi?focus=…` today (`/` is piloted); the identity on
+  // eno.forum, which never pilots.
+  const locate = onLocate ?? ((l: SerializedListingCard) => router.push(localizedHref(`/?focus=${l.id}`, variantOfLanguage(lang))))
+  /**
+   * ⚠️ "SHOW ON MAP" ONLY WHERE A PLACE IS THE POINT, AND ONLY WITH A PIN TO SHOW (quality-13). On a
+   * phone case or a sofa the map answers nothing the city in the info line has not, and a listing with
+   * no coordinates has no pin — the button used to open a map focused on nothing. Rentals (homes and
+   * vehicle hire), services and jobs are where the buyer goes to the place.
+   */
+  const canLocate = listing.lat != null && listing.lng != null && ['rentals', 'services', 'jobs'].includes(listing.category?.slug ?? '')
+  /**
+   * A price-0 job's price slot: type · city, or null (no type → today's label, muted). Only computed for one.
+   * ⚠️ ONLY WHEN THE PAYLOAD CARRIES THE PROJECTION. `jobType` comes from serializeListingCard; a card built
+   * from a full listing (the trending / for-you rails, serializeListing) or a recently-viewed card stored on
+   * the device before it existed has no such key — that is "not known", not "no type", so it keeps today's
+   * label in today's ink rather than greying a job that may well have a type.
+   */
+  // ⛔ A LINKED job only (`isPartnerBooking`): an employer's own job keeps "Lương: thỏa thuận" — <Price>
+  // ignores jobMeta there too (price.tsx `jobMeta`); not computing it also keeps its label untruncated.
+  const jobMeta = listing.listingType === 'job' && listing.price === 0 && listing.isPartnerBooking !== false && listing.jobType !== undefined
+    ? jobCardMeta(listing.jobType, listing.city, lang, tr)
+    : undefined
   // Video-on-card: <CardVideo> autoplays the clip (muted, looping, cover-first fade-in) once
   // the card settles in the viewport — mobile finally sees video without hover. The hover
   // flag just makes desktop start INSTANTLY instead of waiting for the settle beat.
@@ -336,7 +385,8 @@ function ListingCardImpl({
           through to the real href → open-in-new-tab, which a div role=button never allowed. */}
       <a
         href={`/listings/${listing.id}`}
-        aria-label={displayTitle}
+        aria-label={lineTitle}
+        aria-describedby={titleShortened ? fullTitleId : undefined}
         data-card-link
         draggable={false}
         onClick={(e) => {
@@ -885,7 +935,7 @@ function ListingCardImpl({
               </IconButton>
             </Tooltip>
           )}
-          {quickOffer === null && (
+          {quickOffer === null && canLocate && (
             <Tooltip content={tr('Show on map', 'Xem trên bản đồ')} side="top">
               <IconButton
                 size="sm"
@@ -1063,7 +1113,15 @@ function ListingCardImpl({
           day: "approximate price in usd disappeared add it back after d price". */}
       <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2">
         {/* PRIMARY — price. `flex-wrap` so a struck "was" price takes its own line, complete,
-            instead of being clipped mid-number beside a price that already fills the row. */}
+            instead of being clipped mid-number beside a price that already fills the row.
+            ⛔ THE "≈ $" ESTIMATE STAYS ON EVERY WIDTH — owner, 2026-09-13 ("approximate price in usd
+            disappeared add it back"). UX program 2 tried hiding it on narrow per-unit rows to keep rents on
+            one line (quality-08); that reversed this instruction and was withdrawn at the commit gate
+            (2026-10-04). A rent may wrap at its unit; two truthful lines beat a hidden estimate.
+            ⛔ NO `data-fab-avoid` ON THIS ROW: it is full width, and fab-clearance.ts reads an obstacle
+            ≥ min(60% of the viewport, 240px) as a BAR — on a tablet or desktop row the support cluster
+            would RISE instead of fading, the hop the 09-25 yield model removed. The figures carry it
+            instead (`fabAvoid` on each <Price>; see price.tsx). */}
         <span className="flex flex-wrap items-baseline gap-x-1.5">
           {/* ⚠️ "from" ONLY ON A PARTNER TICKET, and it is not decoration: the number we hold is the
               LOWEST adult ticket, while the price the visitor actually pays is set at the partner's
@@ -1087,9 +1145,24 @@ function ListingCardImpl({
               still wrap: a struck "was" price (0 of 36 feed cards carried one) and a long rent or
               property price with its unit — neither category had live cards to measure.
               ⚠️ RENTALS HAVE BEEN MEASURED SINCE (2026-09-29): 48 of 48 rental cards on /c/rentals
-              wrap to two lines at 390px ("… đ / month" then "≈ $…"), one line from sm up. The
-              skeleton still reserves one; see listing-card-skeleton.tsx for why that is held. */}
-          <Price native price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-base leading-tight sm:text-lg" listingType={listing.listingType} linked={listing.isPartnerBooking} />
+              wrap to two lines at 390px ("… đ / month" then "≈ $…"), one line from sm up. The estimate
+              stays (owner, 2026-09-13 — see the row note above), so that wrap stays too. The skeleton
+              still reserves one; see listing-card-skeleton.tsx for why that is held. */}
+          {/* `jobMeta`: a price-0 LINKED job prints its type and city here instead of "Lương: xem chi
+              tiết" (rentals-09) — truncating, so the row stays one line and the card keeps its height.
+              `fabAvoid`: the floating support mark fades over the figure rather than covering it
+              (home-03; the owner's 09-25 yield model) — on the figure, never the full-width row. */}
+          <Price
+            native
+            fabAvoid
+            price={listing.price}
+            currency={listing.currency}
+            priceUnit={listing.priceUnit}
+            className={cn('text-base leading-tight sm:text-lg', jobMeta && 'min-w-0 truncate')}
+            listingType={listing.listingType}
+            linked={listing.isPartnerBooking}
+            jobMeta={jobMeta}
+          />
           {/* Struck-through "was" anchor — server-computed 30-day-min reference, present
               whenever the listing HAS a live drop.
               ⚠️ IT IS NO LONGER TIED TO THE DROP BADGE, AND MUST NOT BE RE-TIED TO IT. The badge
@@ -1101,18 +1174,24 @@ function ListingCardImpl({
               ⛔ `native`, NEVER `dual={false}`: đồng leads, so a USD viewer can never be left with a
               USD-only struck price (ND 340/2025).
               `approxClassName="text-3xs"`: <Price>'s ≈ is a fixed 12px now, which would print the
-              estimate LARGER than the 11px figure it follows. */}
+              estimate LARGER than the 11px figure it follows.
+              `fabAvoid`: being the only place the drop is stated (above), it is a value the support
+              mark must not cover either. */}
           {hasDrop && (
-            <Price native price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" className="whitespace-nowrap text-2xs font-medium text-ink-4 line-through" approxClassName="text-3xs" />
+            <Price native fabAvoid price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" className="whitespace-nowrap text-2xs font-medium text-ink-4 line-through" approxClassName="text-3xs" />
           )}
         </span>
 
         {/* SECONDARY — title, ONE line. `truncate` rather than `line-clamp-1`: a single-line clamp
             still reserves the second line's leading in some engines, and one line is the spec. The
-            full title is the card's accessible name via the h3 and is on the PDP. */}
+            full title is the h3's `title`, the card link's accessible name, and on the PDP; the line
+            itself prints the card-title.ts shortening (`lineTitle`). */}
         <h3 title={displayTitle} className="truncate text-sm font-medium leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">
-          {displayTitle}
+          {lineTitle}
         </h3>
+        {/* `hidden`, not sr-only: aria-describedby still reads a hidden element's text, and hidden keeps it out of the
+            browse-mode reading flow (sr-only would read the title a second time after the h3). */}
+        {titleShortened && <span id={fullTitleId} hidden>{displayTitle}</span>}
 
         {/* TERTIARY — one subdued metadata line: condition · area · posted-ago · brand/model
             truncate on the left; business + trust cluster (shrink-0) on the right. Everything on

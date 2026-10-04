@@ -4,6 +4,10 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuideAlternates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { LiveCounts } from '@/components/marketplace/live-count'
+import { localizedHref } from '@/lib/lang-pinned'
+
+/** The used-furniture feed — the CTA and the rail's browse link share it (A11-SEO-CTA). */
+const USED_FURNITURE_EN = localizedHref('/?category=furniture-appliances&condition=used', 'en')
 import { formatInteger, formatMoneyFull } from '@/lib/vnd'
 
 /**
@@ -54,6 +58,23 @@ const CONTENT: ArticleContent = {
   ...guideDates(SLUG),
   lang: 'en',
   alternate: { lang: 'vi', href: '/thanh-ly-do-gia-dung-cu-tphcm' },
+  /**
+   * A11-SEO-CTA (disc-04): GSC has this guide at position 13–20 for "second hand furniture" (field-03), and
+   * the reader who lands on it came to buy — so the browse button sits under the lede and the live used
+   * stock right after the price table, not 6,000px down. One target for both, so the button, the rail
+   * and the rail's own browse link agree (seo-landing-href.ts). The page is English-pinned, hence 'en'.
+   */
+  cta: { href: USED_FURNITURE_EN, label: 'Browse used furniture', nofollow: true },
+  rail: {
+    target: { categorySlug: 'furniture-appliances', condition: 'used', order: 'recent' },
+    title: 'Used furniture and appliances for sale now',
+    cta: 'Browse all used furniture',
+    // The same /?category=… URL as the CTA above, so the same link props: not followed, not prefetched.
+    // The SAME URL as the CTA (an explicit href, so the rail's link and the button agree exactly — the target-
+    // derived URL would add the rail's own sort), and the same link props: not followed, not prefetched.
+    browseLink: { href: USED_FURNITURE_EN, rel: 'nofollow', prefetch: false },
+  },
+  railAfter: 'what-it-costs',
   sections: [
     {
       id: 'what-it-costs',

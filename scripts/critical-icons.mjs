@@ -99,6 +99,17 @@ export const CRITICAL_GLYPHS = [
    * glyph added to a card or the chrome fails a test instead of a profile.
    */
   'ClipboardCheck', 'Check', 'ArrowUpRight',
+  /**
+   * ⛔ RE-DERIVED 2026-10-04 (quality-06, UX program 2): the deferred sprite was back on two of the
+   * busiest documents, each for ONE glyph again.
+   *  · `Award` — the "Outstanding businesses" shelf header on the home page (business-rail.tsx).
+   *  · `SlidersHorizontal` — the Filters control on every /c/<category> page
+   *    (c/[category]/category-filters-link.tsx) and the explorer's facet bar (facet-bar.tsx).
+   * Each pulled the ~188 KB `glyphs-rest.svg` for itself. All three files are now in the guard's
+   * ON_ARRIVAL list (src/lib/critical-glyphs.guard.test.ts), so the next deferred glyph added to them
+   * fails a test.
+   */
+  'Award', 'SlidersHorizontal',
 ]
 
 /** Measured so a later reader can tell whether the split still earns its complexity. */
@@ -148,5 +159,18 @@ export const CRITICAL_MEASUREMENT = {
     restTransferBytes: 192_891,
     coreBytesRawBefore: 112_847,
     coreBytesRawAfter: 117_151,
+  },
+  /**
+   * ⚠️ THE 2026-10-04 PASS (quality-06, UX program 2) — `Award` (home) and `SlidersHorizontal` (/c, the
+   * explorer facet bar). `restRefsBefore` is the quality-06 audit's finding; the core sizes are measured
+   * on the regenerated file (the four symbols, both weights, are 7,798 B of it — Award 3,874 + 1,390,
+   * SlidersHorizontal 1,459 + 1,075). gzip at level 9: 35,266 → 37,644 B on every page, against the
+   * deferred file's ~192 KB on the pages that paid it.
+   */
+  reDerived2026_10_04: {
+    routes: ['/', '/c/<category>'],
+    restRefsBefore: { home: ['Award'], category: ['SlidersHorizontal'] },
+    coreBytesRawBefore: 117_151,
+    coreBytesRawAfter: 124_949,
   },
 }

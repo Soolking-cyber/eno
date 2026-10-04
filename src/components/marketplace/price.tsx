@@ -28,6 +28,30 @@ type Props = {
    * neutral "see details", which is true of both.
    */
   linked?: boolean
+  /**
+   * CARD ONLY (rentals-09): what a price-0 JOB prints instead of the salary label — "Toàn thời gian ·
+   * Hà Nội" (src/lib/card-title.ts jobCardMeta). A string replaces the label, in the same ink; `null`
+   * means the card looked and found no job type, so today's label stays, in muted ink. Left out
+   * (every other surface: rows, map, suggestions — and a card whose payload has no `jobType` key)
+   * nothing changes. Ignored on anything but a LINKED job at 0.
+   * ⛔ NEVER ON AN EMPLOYER'S OWN JOB (`linked === false`). Its label is "Salary: negotiable" — a fact
+   * about the pay that the type would drop, and on a phone the slot truncates, so even "Full-time ·
+   * negotiable" would lose the one word that matters. The plan's target is the linked board's
+   * uninformative "Salary: see details" only.
+   */
+  jobMeta?: string | null
+  /**
+   * CARD ONLY: mark the FIGURE — the amount and its unit — as `data-fab-avoid`, so the floating support
+   * mark fades over it instead of covering it (back-to-top.tsx, the owner's 09-25 yield model).
+   * ⚠️ THE FIGURE, NOT THE ROOT AND NOT THE CARD'S ROW. fab-clearance.ts reads any obstacle at least
+   * min(60% of the viewport, 240px) wide as a BAR and RAISES the cluster over it instead of fading it.
+   * The card's price row is full width (it is the "≈ $" container), and this root also holds the
+   * estimate: measured with the real face, a large rent's root is 242–260px at 18px ("45.000.000 đ /
+   * tháng ≈ $1,731"), and a wrapped one spans its whole 240–263px tablet row — a bar either way. The
+   * figure alone is 202px at most (a nine-figure rent, 18px), so it is always a small obstacle. The
+   * wrapper is an inline span, so the line breaks exactly as before; without the prop nothing renders.
+   */
+  fabAvoid?: boolean
   currency: string
   priceUnit: string
   compact?: boolean
@@ -89,7 +113,12 @@ type Props = {
  *  number of digits wide. */
 const FX_RESERVE_RATES = { USD: 1 / 26_000 }
 
-export function Price({ price, currency, priceUnit, compact = false, dual = true, unit: showUnit = true, native = false, className, approxClassName, listingType, linked }: Props) {
+/** `fabAvoid`'s wrapper — a fragment without it, so every other surface renders exactly as before. */
+function FigureRun({ fabAvoid, children }: { fabAvoid?: boolean; children: React.ReactNode }) {
+  return fabAvoid ? <span data-fab-avoid="">{children}</span> : <>{children}</>
+}
+
+export function Price({ price, currency, priceUnit, compact = false, dual = true, unit: showUnit = true, native = false, className, approxClassName, listingType, linked, jobMeta, fabAvoid }: Props) {
   void compact // amounts are always shown in full now
   const { lang, tr } = useLanguage()
   const { currency: displayCur, rates, ratesPending, format } = useCurrency()
@@ -122,9 +151,12 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   // card skeleton, is unchanged. "Free" keeps the price ink: it IS the price.
   // A teacher profile reads like a job's salary line (plain, no price weight) — it is a person, not a price.
   const noFigure = isFree && (listingType === 'job' || listingType === 'teacher')
+  // A LINKED job only — an employer's own job keeps "Salary: negotiable" (see `jobMeta`).
+  const jobSlot = noFigure && listingType === 'job' && linked !== false && jobMeta !== undefined
   const amount = isFree
     // A teacher profile (2026-09-30) has no price: it is a person, never "Free".
     ? (listingType === 'teacher' ? tr('Teacher profile', 'Hồ sơ giáo viên')
+      : jobSlot && jobMeta ? jobMeta
       : noFigure ? (linked === false ? tr('Salary: negotiable', 'Lương: thỏa thuận') : tr('Salary: see details', 'Lương: xem chi tiết'))
       : tr('Free', 'Miễn phí'))
     : currency === '₫' && !native ? format(price, locale) : formatMoneyFull(price, currency, locale)
@@ -254,7 +286,7 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
  *   wrapper — that is the case that would flip red silently, so re-run the grep before adding a
  *   twelfth.
  */
-    <span className={cn('tabular-nums font-bold text-price', noFigure && 'font-semibold text-body', className)}>
+    <span className={cn('tabular-nums font-bold text-price', noFigure && 'font-semibold text-body', jobSlot && !jobMeta && 'text-muted-foreground', className)}>
       {/**
         * ⛔ THE AMOUNT AND ITS UNIT ARE ONE UNBREAKABLE RUN. Without this the price broke between
         * the number and the currency word on EVERY phone width — measured on the home feed, 12 of
@@ -291,6 +323,7 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
           ⚠️ SPLIT AT THE LAST SPACE, not the first: "103,000,000 VND" and the vi form
           "12.000.000 đ" both put the currency last, and a thousands separator is never a space in
           either locale. */}
+      <FigureRun fabAvoid={fabAvoid}>
       {(() => {
         const cut = amount.lastIndexOf(' ')
         if (cut < 0) return <span className="whitespace-nowrap">{amount}</span>
@@ -324,6 +357,7 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
           <span className="whitespace-nowrap">{suffix}</span>
         </span>
       )}
+      </FigureRun>
       {/* ⛔ A ZERO-WIDTH BREAK OPPORTUNITY, AND WITHOUT IT THIS ROW CANNOT WRAP AT ALL. Both spans
           carry `whitespace-nowrap` and JSX strips the newline between them, so there is no text
           node here — and two adjacent inline boxes with no intervening whitespace offer the line

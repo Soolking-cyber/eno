@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { ArrowUpRight, ChevronRight, Info } from '@/components/ui/icons'
+import { ArrowRight, ArrowUpRight, ChevronRight, Info } from '@/components/ui/icons'
+import { Button } from '@/components/ui/button'
 import { Rows, Row } from '@/components/ui/rows'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { organizationId } from '@/lib/site-identity'
@@ -9,7 +10,7 @@ import { formatArticleDate } from '@/lib/dates'
 import { Header } from './header'
 import { Footer } from './footer'
 import { keepReading } from './seo-article-related'
-import { SeoListingRail, type SeoRailTarget } from './seo-listing-rail'
+import { SeoListingRail, type SeoBrowseLinkProps, type SeoRailTarget } from './seo-listing-rail'
 import { phoneGuideRail } from '@/lib/phone-guides-rail'
 /**
  * ⚠️ `@/components/marketplace/cross-site-promo`, NOT `./cross-site-promo`, AND THE DIFFERENCE IS
@@ -137,8 +138,55 @@ export type ArticleContent = {
    * just explained how to use (C-GUIDES-CTA). Same query and markup as the SEO landing pages'
    * (seo-listing-rail.tsx); it renders only with at least four listings, so a thin or failed query
    * leaves the article ending as it always did. Strings are in the article's language, like its prose.
+   * `browseLink`: props for the rail's own browse link — a page whose `cta` points at the same narrowed
+   * feed passes the CTA's (`rel: 'nofollow'`, `prefetch: false`) so the two links agree.
    */
-  rail?: { target: SeoRailTarget; title: string; cta: string }
+  rail?: { target: SeoRailTarget; title: string; cta: string; browseLink?: SeoBrowseLinkProps }
+  /**
+   * Render `rail` right after THIS section (by id) instead of after the last one — for a guide whose
+   * reader came for the inventory, so it is in view before the long read (A11-SEO-CTA: the secondhand
+   * furniture hub ranks 13–20 for "second hand furniture", field-03). Unknown id → the default place.
+   */
+  railAfter?: string
+  /**
+   * The ONE brand CTA (`<Button variant="cta">`) directly under the lede, and with `repeatAtEnd` again
+   * after the last section — the article explains, the button acts (A11-SEO-CTA, disc-04 / sell-05).
+   * ⚠️ `href` ARRIVES LOCALIZED: the page knows its own fixed language and passes it through
+   * localizedHref, so a Vietnamese guide never links into the English-pinned plain `/`.
+   * `nofollow` for a browse link — a query string on the self-canonical `/` is not a page to rank.
+   * `prefetch={false}` always: a guide is read for minutes, and a prefetched feed is wasted bytes.
+   * The label is in the article's language, like its prose.
+   */
+  cta?: { href: string; label: string; nofollow?: boolean; repeatAtEnd?: boolean }
+}
+
+/** The prose column. Two of them only when `railAfter` puts the page-width rail between the sections. */
+function ArticleSections({ sections, className }: { sections: ArticleSection[]; className: string }) {
+  return (
+    <div className={`max-w-3xl space-y-10 ${className}`}>
+      {sections.map((s) => (
+        // `scroll-mt` so the sticky header does not sit on top of the heading after a jump.
+        // h-title (20→24px) over 16px prose, not the 18px dense-UI step (C-TYPO).
+        <section key={s.id} id={s.id} className="scroll-mt-24">
+          <h2 className="h-title mb-3 text-foreground">{s.title}</h2>
+          {s.body}
+        </section>
+      ))}
+    </div>
+  )
+}
+
+function ArticleCta({ cta, className }: { cta: NonNullable<ArticleContent['cta']>; className: string }) {
+  return (
+    <div className={className}>
+      {/* Sizing on the BUTTON, not the <Link>: a class on an asChild child is concatenated, not merged (CLAUDE.md). */}
+      <Button asChild variant="cta" size="none" className="gap-1.5 px-5 py-2.5 text-sm font-semibold">
+        <Link href={cta.href} prefetch={false} rel={cta.nofollow ? 'nofollow' : undefined}>
+          {cta.label} <ArrowRight className="h-4 w-4" />
+        </Link>
+      </Button>
+    </div>
+  )
 }
 
 /**
@@ -281,6 +329,11 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
   // related first, plus alphabetical neighbours so no sibling is left without an inbound card).
   const related = keepReading(content.related, { canonical: content.canonical, h1: content.h1 })
   const rail = content.rail ?? phoneGuideRail(content.canonical)
+  // `railAfter` splits the prose column in two — the sections up to and including the named one, the
+  // rail at the page width, then the rest. No rail, no `railAfter` or an unknown id: one column, rail last.
+  const railAt = rail && content.railAfter ? content.sections.findIndex((s) => s.id === content.railAfter) : -1
+  const leadSections = railAt >= 0 ? content.sections.slice(0, railAt + 1) : content.sections
+  const restSections = railAt >= 0 ? content.sections.slice(railAt + 1) : []
 
   /**
    * ⚠️ THE PUBLISHER IS THIS DEPLOYMENT, DERIVED FROM ITS OWN ORIGIN. It is the same defect the
@@ -343,6 +396,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
           <time dateTime={modified}>{formatArticleDate(modified, articleLang)}</time> · {SITE_NAME}
         </p>
         <p className="mt-4 max-w-3xl text-base leading-relaxed text-body">{content.intro}</p>
+        {content.cta && <ArticleCta cta={content.cta} className="mt-6" />}
 
         {content.disclosure && (
           // Lines and a tinted panel rather than a shouty callout: this is a statement of who is
@@ -371,22 +425,18 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
           </nav>
         )}
 
-        <div className="mt-10 max-w-3xl space-y-10">
-          {content.sections.map((s) => (
-            // `scroll-mt` so the sticky header does not sit on top of the heading after a jump.
-            // h-title (20→24px) over 16px prose, not the 18px dense-UI step (C-TYPO).
-            <section key={s.id} id={s.id} className="scroll-mt-24">
-              <h2 className="h-title mb-3 text-foreground">{s.title}</h2>
-              {s.body}
-            </section>
-          ))}
-        </div>
+        <ArticleSections sections={leadSections} className="mt-10" />
 
         {/* Full width, not the 3xl prose column: in 768px the grid's four cards were ~180px and every
             price broke onto two lines, against the owner's one-line card price (2026-09-13). At the
             page width the cards are the SEO landing pages' own size. */}
-        {/* A phone guide gets the second-hand phones rail by default (phone-guides-rail.ts, 2026-10-03). */}
+        {/* A phone guide gets the second-hand phones rail by default (phone-guides-rail.ts, 2026-10-03).
+            With `railAfter` it sits right after that section and the rest of the prose follows it. */}
         {rail && <SeoListingRail {...rail} className="mt-14" heading="h-title" />}
+
+        {restSections.length > 0 && <ArticleSections sections={restSections} className="mt-14" />}
+
+        {content.cta?.repeatAtEnd && <ArticleCta cta={content.cta} className="mt-10" />}
 
         {related.length > 0 && (
           <section className="mt-14 max-w-3xl">

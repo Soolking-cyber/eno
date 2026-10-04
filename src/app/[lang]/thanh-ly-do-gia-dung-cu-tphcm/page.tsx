@@ -4,6 +4,10 @@ import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuideAlternates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 import { LiveCounts } from '@/components/marketplace/live-count'
+import { localizedHref } from '@/lib/lang-pinned'
+
+/** The used-furniture feed in Vietnamese — the CTA and the rail's browse link share it (A11-SEO-CTA). */
+const USED_FURNITURE_VI = localizedHref('/?category=furniture-appliances&condition=used', 'vi')
 
 /**
  * THANH LÝ ĐỒ GIA DỤNG CŨ TP.HCM — the Vietnamese half of the secondhand-furniture pair.
@@ -43,6 +47,21 @@ const CONTENT: ArticleContent = {
   ...guideDates(SLUG),
   lang: 'vi',
   alternate: { lang: 'en', href: '/secondhand-furniture-ho-chi-minh-city' },
+  /**
+   * A11-SEO-CTA (disc-04) — the twin of the English hub's button and rail (see that page). The page is
+   * Vietnamese-pinned, so the browse link goes through localizedHref('…', 'vi'): the `/vi` feed, never the
+   * English-pinned plain `/`.
+   */
+  cta: { href: USED_FURNITURE_VI, label: 'Xem đồ gia dụng cũ đang bán', nofollow: true },
+  rail: {
+    target: { categorySlug: 'furniture-appliances', condition: 'used', order: 'recent' },
+    title: 'Đồ nội thất và gia dụng cũ đang bán',
+    cta: 'Xem tất cả đồ gia dụng cũ',
+    // The SAME localized URL as the CTA above (an explicit href — the target-derived one would be the
+    // English-pinned plain `/`), so the same link props too: not followed, not prefetched.
+    browseLink: { href: USED_FURNITURE_VI, rel: 'nofollow', prefetch: false },
+  },
+  railAfter: 'gia-that-tung-mon',
   sections: [
     {
       id: 'gia-that-tung-mon',

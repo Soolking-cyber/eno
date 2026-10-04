@@ -43,6 +43,16 @@ export type SeoRailTarget = SeoLandingTarget & SeoBrowseTarget & {
 type RailListing = ReturnType<typeof serializeListing>
 
 /**
+ * The rail's browse link as the page wants it followed. A guide whose own CTA already points at the same
+ * narrowed feed URL passes the CTA's props here (`rel: 'nofollow'`, `prefetch: false` — a query string
+ * on the self-canonical `/` is not a page to rank, and a guide is read for minutes, so a prefetched feed
+ * is wasted bytes), so the button and the rail's link agree. Left out, Next's defaults apply, as before.
+ * `href` overrides the target-derived URL — a language-pinned guide passes its own localized URL so the rail's
+ * link lands where its CTA does (a Vietnamese guide → the `/vi` feed, never the English-pinned plain `/`).
+ */
+export type SeoBrowseLinkProps = { rel?: string; prefetch?: boolean; href?: string }
+
+/**
  * The rail's rows. `known` is false when the query did not return — an outage, or no database at
  * build time — which is NOT the same state as an empty result: SeoLanding's "nothing to browse yet"
  * branch must only ever show for the second (see its `hasNoInventory` note).
@@ -104,6 +114,7 @@ export function SeoListingGrid({
   links,
   className,
   heading = 'h-section',
+  browseLink,
 }: {
   listings: RailListing[]
   title: string
@@ -118,6 +129,8 @@ export function SeoListingGrid({
   className?: string
   /** The heading step of the page it sits in: the landing pages' h2s are h-section, a guide's h-title. */
   heading?: 'h-section' | 'h-title'
+  /** Link props for the browse link over `href` (see SeoBrowseLinkProps). */
+  browseLink?: SeoBrowseLinkProps
 }) {
   return (
     <section className={cn('mt-12', className)}>
@@ -166,6 +179,8 @@ export function SeoListingGrid({
       ) : cta ? (
         <Link
           href={href}
+          rel={browseLink?.rel}
+          prefetch={browseLink?.prefetch}
           className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
         >
           {cta} <ArrowRight className="h-4 w-4" />
@@ -190,6 +205,7 @@ export async function SeoListingRail({
   minCount = 4,
   className,
   heading,
+  browseLink,
 }: {
   target: SeoRailTarget
   title: string
@@ -197,8 +213,9 @@ export async function SeoListingRail({
   minCount?: number
   className?: string
   heading?: 'h-section' | 'h-title'
+  browseLink?: SeoBrowseLinkProps
 }) {
   const { listings } = await loadSeoRail(target)
   if (listings.length < minCount) return null
-  return <SeoListingGrid listings={listings} title={title} cta={cta} href={seoBrowseHref(target)} className={className} heading={heading} />
+  return <SeoListingGrid listings={listings} title={title} cta={cta} href={browseLink?.href ?? seoBrowseHref(target)} className={className} heading={heading} browseLink={browseLink} />
 }

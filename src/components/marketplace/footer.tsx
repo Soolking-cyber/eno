@@ -134,6 +134,9 @@ const SOCIAL_ICON: Record<Social['key'], (p: { className?: string }) => React.Re
  * of a page whose sticky bar is measured against it). A wrapper, so the body's hooks never run
  * conditionally.
  */
+/** A legal-row link: 44px tall below sm by real height (see the row's note), unchanged from sm up. */
+const LEGAL_LINK = 'transition-colors hover:text-accent-foreground max-sm:inline-flex max-sm:min-h-11 max-sm:items-center'
+
 export function Footer() {
   const pathname = usePathname()
   if (isPostFlowPath(pathname)) return null
@@ -204,7 +207,9 @@ function FooterBody() {
       links: [
         { label: tr('Post a listing', 'Đăng tin'), href: '/post' },
         { label: tr('Saved listings', 'Tin đã lưu'), href: '/saved' },
-        { label: tr('Map', 'Bản đồ'), href: '/?view=map' },
+        // Through localizedHref like the Explore links (quality-01): a Vietnamese reader's map is the `/vi`
+        // twin, never the English-pinned plain `/`. On eno.forum, which never pilots, it is the identity.
+        { label: tr('Map', 'Bản đồ'), href: localizedHref('/?view=map', variantOfLanguage(lang)) },
         { label: tr('Browse by brand', 'Duyệt theo thương hiệu'), href: '/brands' },
       ],
     },
@@ -556,7 +561,14 @@ function FooterBody() {
               (Base UI renders one), so the outline stays h2 → h3 at every width.
               ⚠️ The phone hairlines are the ITEM's own `border-b` (the primitive's, last one dropped),
               not `divide-y` on the root: the item's `sm:border-b-0` would otherwise have to be a bare
-              `border-b-0`, and a plain utility outranks divide-y's `:where()` rule, so the lines vanish. */}
+              `border-b-0`, and a plain utility outranks divide-y's `:where()` rule, so the lines vanish.
+              ⚠️ STILL BASE UI, AND MEASURED BEFORE BEING KEPT (UX program 2, A12 item 1, 2026-10-04). Mounting
+              the five panels — which a client navigation does, because route files render this footer — reads
+              getComputedStyle once per panel (Base UI 1.6 useCollapsiblePanel detects the animation type in
+              a layout effect, unconditionally) and scrollHeight never; the candidate fix (keepMounted, no
+              height transition, CSS only) measured the same five reads and zero. So no CSS or prop change
+              here removes the read, and native <details name> is out (no `name` before iOS 17.2, and it
+              would make these `multiple` groups exclusive). Re-measure before swapping the primitive. */}
           <Accordion multiple className="col-span-2 sm:contents">
             {/* Explore — crawlable internal links to every /c/{slug} category landing that has
                 listings (SEO internal linking; the empty ones are FOOTER_HIDDEN_CATEGORIES, above).
@@ -753,23 +765,29 @@ function FooterBody() {
           <FooterPreferences />
         </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 lg:justify-end">
-            <a href="/terms" className="transition-colors hover:text-accent-foreground">{tr('Terms', 'Điều khoản')}</a>
-            <a href="/privacy" className="transition-colors hover:text-accent-foreground">{tr('Privacy', 'Quyền riêng tư')}</a>
-            <a href="/regulations" className="transition-colors hover:text-accent-foreground">{tr('Regulations', 'Quy chế')}</a>
+          {/* ⚠️ 44px ROWS ON A TOUCH-WIDTH SCREEN BY REAL HEIGHT, NOT `tap-44` (quality-11). These were bare
+              16px text links that wrap to two or three rows on a phone, 8px apart — a `tap-44` hit area on
+              each would overlap the row above by 20px, so a tap between rows would land on whichever link
+              painted last (globals.css: "PREFER NOT NEEDING IT"). `max-sm:min-h-11` with no row gap is the
+              Explore/columns pattern above (D-TAP): rows 44px apart, no overlap, no pseudo-element. From sm
+              up the row is unchanged. */}
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 max-sm:gap-y-0 lg:justify-end">
+            <a href="/terms" className={LEGAL_LINK}>{tr('Terms', 'Điều khoản')}</a>
+            <a href="/privacy" className={LEGAL_LINK}>{tr('Privacy', 'Quyền riêng tư')}</a>
+            <a href="/regulations" className={LEGAL_LINK}>{tr('Regulations', 'Quy chế')}</a>
             {/* ⚠️ IN THE LEGAL ROW ON EVERY PAGE, AND NOT ONLY FOR TIDINESS. Google Merchant Center
                 verifies a store partly by FINDING the return policy on the site, and a page nothing
                 links to is a page a crawler cannot report — the same failure /developers had in the
                 2026-08-23 audit. It is also what a buyer looks for before paying a stranger. */}
-            <a href="/returns" className="transition-colors hover:text-accent-foreground">{tr('Returns', 'Đổi trả')}</a>
+            <a href="/returns" className={LEGAL_LINK}>{tr('Returns', 'Đổi trả')}</a>
             {/* ⚠️ REACHABLE WITHOUT SIGNING IN, AND THAT IS THE POINT. Google Play's Data safety
                 form requires a public URL where account + data deletion can be requested by someone
                 who has not installed the app and is not logged in — uninstalling must not be the
                 only way out. The real control lives behind auth in Settings; this is the doorway to
                 it, and a link in the footer is what makes it findable rather than merely existing. */}
-            <a href="/account-deletion" className="transition-colors hover:text-accent-foreground">{tr('Delete account', 'Xoá tài khoản')}</a>
+            <a href="/account-deletion" className={LEGAL_LINK}>{tr('Delete account', 'Xoá tài khoản')}</a>
             {/* Consent withdrawal entry point — reopens the cookie banner (PDPL). */}
-            <Button type="button" variant="bare" size="none" onClick={() => window.dispatchEvent(new CustomEvent('eno:open-consent'))} className="cursor-pointer text-xs font-normal transition-colors hover:text-accent-foreground">{tr('Cookie settings', 'Cài đặt cookie')}</Button>
+            <Button type="button" variant="bare" size="none" onClick={() => window.dispatchEvent(new CustomEvent('eno:open-consent'))} className="cursor-pointer text-xs font-normal transition-colors hover:text-accent-foreground max-sm:min-h-11">{tr('Cookie settings', 'Cài đặt cookie')}</Button>
           </div>
         </div>
       </div>
