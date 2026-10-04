@@ -1,0 +1,1348 @@
+{
+  "a-chau-english": {
+    "website": "https://achauenglish.edu.vn",
+    "url": "https://achauenglish.edu.vn/upload/hinhanh/logo-giam-kich-thuoc-1509.png",
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "abc-english": {
+    "website": "http://abcenglish.edu.vn",
+    "url": "http://abcenglish.edu.vn/upload/photo/logo-6240.png",
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ama-american-academy": {
+    "website": "https://ama.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ames-english": {
+    "website": "https://ames.edu.vn",
+    "url": null,
+    "selector": "img[alt='Hệ thống Anh Ngữ AMES']",
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "anh-ngu-au-chau-eres": {
+    "website": "https://auchauschool.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "anh-ngu-viet-uc": {
+    "website": "https://ielts.com.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "anne-hill-international-school": {
+    "website": "https://annehill.school/",
+    "url": null,
+    "selector": null,
+    "use": "icon",
+    "crop": null,
+    "bg": null
+  },
+  "apollo-english": {
+    "website": "https://apollo.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "apu-american-international-school": {
+    "website": "https://apu.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "asian-international-school": {
+    "website": "https://www.asianschool.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "askademy": {
+    "website": "https://askademy.com",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "aurora-international-school-of-the-arts": {
+    "website": "https://www.auroraschool.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "australian-international-school-saigon": {
+    "website": "https://www.aisvietnam.com/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "axcela-vietnam": {
+    "website": "https://axcelavietnam.com",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "bamboo-school": {
+    "website": "https://bambooschool.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "blue-ridge-international-school-system": {
+    "website": "https://bris.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "british-council": {
+    "website": "https://www.britishcouncil.vn",
+    "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/British_Council_logo_2020.svg/1280px-British_Council_logo_2020.svg.png",
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "british-english-club": {
+    "website": "https://britishenglishclub.com",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "british-international-school-ho-chi-minh-city": {
+    "website": "https://www.nordangliaeducation.com/bis-hcmc",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "british-vietnamese-international-school-ho-chi-minh-city": {
+    "website": "https://www.nordangliaeducation.com/bvis-hcmc",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "byan-teach": {
+    "website": "https://byan.com.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "cae-leaders": {
+    "website": "https://caeleaders.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "cali-english": {
+    "website": "https://anhngucali.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "compass-education": {
+    "website": "https://compass.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "curioo-vietnam": {
+    "website": "https://curioo.edu.vn",
+    "url": null,
+    "selector": "a.wordmark > span",
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "dtp-education-solutions": {
+    "website": "https://dtp-education.com/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "duong-minh-foreign-language-center": {
+    "website": "https://duongminh.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "e-maison-international-pre-school": {
+    "website": "https://e-maison.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "eastern-international-university": {
+    "website": "https://eiu.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ecorp-english": {
+    "website": "https://ecorp.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "einstein-school-hcm": {
+    "website": "https://esh.edu.vn/",
+    "url": "https://d24rsy7fvs79n4.cloudfront.net/esh.edu.vn/20260521123417_6044_1779341657.446.webp",
+    "selector": null,
+    "use": null,
+    "crop": {
+      "left": 0,
+      "top": 0,
+      "width": 0.49,
+      "height": 1
+    },
+    "bg": "#840b55"
+  },
+  "eiv-education": {
+    "website": "https://eiv.edu.vn/",
+    "url": "https://eiv.edu.vn/wp-content/uploads/2024/04/logo-web2.png",
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "emasi-international-bilingual-schools": {
+    "website": "https://www.emasi.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "emg-education": {
+    "website": "https://emg.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "english-the-universe": {
+    "website": "https://etu.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "european-international-school-ho-chi-minh-city": {
+    "website": "https://www.eishcmc.com/",
+    "url": "https://d24d7vsshzrslo.cloudfront.net/sites/school73/files/2023-06/EIS_Logo_colour_v2.svg",
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "focus-learning": {
+    "website": "https://focus.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "fosco-international-school": {
+    "website": "https://fis.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "fpt-university": {
+    "website": "https://daihoc.fpt.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "french-international-school-boule-and-billes": {
+    "website": "https://bouleetbilles.net/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "fulbright-university-vietnam": {
+    "website": "https://fulbright.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "geb-english-center": {
+    "website": "https://geb.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "gee-o-english": {
+    "website": "https://gee-o.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "gela-education": {
+    "website": "https://gela.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "greenwich-vietnam": {
+    "website": "https://greenwich.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "hawaii-education": {
+    "website": "https://hawaii.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "hei-schools-saigon-central": {
+    "website": "https://www.heisaigoncentral.com/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ho-chi-minh-city-university-of-economics-and-finance": {
+    "website": "https://www.uef.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ho-chi-minh-city-university-of-foreign-languages-and-information-technology": {
+    "website": "https://huflit.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ho-chi-minh-city-university-of-technology-vnu-hcm": {
+    "website": "https://hcmut.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "hoa-sen-university": {
+    "website": "https://www.hoasen.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "hong-bang-international-university": {
+    "website": "https://hiu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "horizon-international-bilingual-school": {
+    "website": "https://www.horizon.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "hutech-university": {
+    "website": "https://www.hutech.edu.vn/",
+    "url": "https://www.hutech.edu.vn/images/logo.png",
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "i-can-read-vietnam": {
+    "website": "https://icanread.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": "favicon",
+    "crop": null,
+    "bg": null
+  },
+  "i-clc-inter-continental-language-center": {
+    "website": "https://i-clc.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ielts-city": {
+    "website": "https://ieltscity.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ies-education": {
+    "website": "https://iesc.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ies-international-english-school": {
+    "website": "https://iesvietnam.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ila-vietnam": {
+    "website": "https://ila.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ilearn-english": {
+    "website": "https://www.ilearnenglish.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ili-english-center": {
+    "website": "https://ili.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ins-english": {
+    "website": "https://insenglish.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "international-german-school-ho-chi-minh-city": {
+    "website": "https://igs-hcmc.org/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "international-montessori-academy": {
+    "website": "https://imacademy.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": "icon",
+    "crop": null,
+    "bg": null
+  },
+  "international-school-ho-chi-minh-city": {
+    "website": "https://www.ishcmc.com/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "international-school-ho-chi-minh-city-american-academy": {
+    "website": "https://www.aavn.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "international-schools-of-north-america-saigon-south-campus": {
+    "website": "https://sna.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": "icon",
+    "crop": null,
+    "bg": null
+  },
+  "international-university-vietnam-national-university-ho-chi-minh-city": {
+    "website": "https://hcmiu.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ise-i-study-english": {
+    "website": "https://ise.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "jaxtina-english-center": {
+    "website": "https://jaxtina.com",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "jolo-english": {
+    "website": "https://jolo.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "kapla-creative-american-english": {
+    "website": "https://kapla.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "kids-club-saigon": {
+    "website": "https://www.kidsclubsaigon.com/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "kidzone-bilingual-preschool": {
+    "website": "https://kidzone.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "kinder-academy-preschool": {
+    "website": "https://kinderacademy.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "kinderland-international-preschool-vietnam": {
+    "website": "https://kinderlandvietnam.com/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "korean-international-school-hcmc": {
+    "website": "http://kshcm.net/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ktdc-ielts": {
+    "website": "https://ktdcgroup.com/",
+    "url": null,
+    "selector": null,
+    "use": "icon",
+    "crop": null,
+    "bg": null
+  },
+  "la-petite-ecole-ho-chi-minh": {
+    "website": "https://www.lpehochiminh.com/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "latelier-an-phu": {
+    "website": "https://www.latelier-anphu.com",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "lda-language-development-academy": {
+    "website": "https://lda.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "lead-english": {
+    "website": "https://leadenglish.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "lets-learn-english-centre": {
+    "website": "https://anhngu.ledc.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "little-ems-preschool": {
+    "website": "https://littleems.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": "icon",
+    "crop": null,
+    "bg": null
+  },
+  "little-genius-international-kindergarten": {
+    "website": "https://lgkids.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "lycee-francais-international-marguerite-duras": {
+    "website": "https://lfiduras.com/",
+    "url": "https://lfiduras.com/lfiduras/wp-content/uploads/2022/06/Double_Logos-site_1200.gif",
+    "selector": null,
+    "use": null,
+    "crop": {
+      "left": 0,
+      "top": 0,
+      "width": 0.3,
+      "height": 1
+    },
+    "bg": null
+  },
+  "major-academy": {
+    "website": "https://majoracademy.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "maple-bear-vietnam": {
+    "website": "https://maplebearvietnam.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "master-kids": {
+    "website": "https://anhngusieunhi.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "newsky": {
+    "website": "https://newsky.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "nguyen-tat-thanh-university": {
+    "website": "https://ntt.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ocean-edu": {
+    "website": "https://ocean.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ola-academy": {
+    "website": "https://www.ola-academy.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "optimus-education": {
+    "website": "https://optimus.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "outeref": {
+    "website": "https://outeref.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "pennsylvania-american-international-school": {
+    "website": "https://pennschool.edu.vn/en/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "pmp-english": {
+    "website": "https://pmpenglish.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": "icon",
+    "crop": null,
+    "bg": null
+  },
+  "poly-english-vietnam": {
+    "website": "https://www.polyvietnam.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "power-english": {
+    "website": "https://powerenglish.edu.vn/",
+    "url": "https://powerenglish.edu.vn/data/img/2022/04/PEC-all-blue-300x95.png.webp",
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "princeton-academy-premier": {
+    "website": "https://www.princetonphumyhung.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "readingstar-english-center": {
+    "website": "https://readingstar.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "renaissance-international-school-saigon": {
+    "website": "https://renaissance.edu.vn/",
+    "url": "https://renaissance.edu.vn/wp-content/uploads/2024/03/logo.png",
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "res-english": {
+    "website": "https://res.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "rmit-university-vietnam": {
+    "website": "https://www.rmit.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "royal-english-school": {
+    "website": "https://royalschool.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "royal-school": {
+    "website": "https://royal.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "saigon-aston-international-english-center": {
+    "website": "https://aston.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "saigon-international-college": {
+    "website": "https://sic.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "saigon-international-university": {
+    "website": "https://siu.edu.vn/",
+    "url": "https://siu.edu.vn/wp-content/uploads/2022/11/logo-siu-1.png",
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "saigon-south-international-school": {
+    "website": "https://www.ssis.edu.vn/",
+    "url": "https://www.ssis.edu.vn/uploaded/themes/default_22/images/SSIS_Main_logo_horiz.png",
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": "#0f2a4f"
+  },
+  "saint-ange-french-international-school": {
+    "website": "https://saintangeschool.com/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "sakura-montessori-international-school": {
+    "website": "https://sakuramontessori.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "sap-education": {
+    "website": "https://sap.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "scotch-ags": {
+    "website": "https://scotch-ags.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "seameo-retrac": {
+    "website": "https://www.vnseameo.org/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "sedbergh-vietnam": {
+    "website": "https://sedbergh.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "simple-english": {
+    "website": "https://simpleenglish.com.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "singapore-international-school-saigon-south": {
+    "website": "https://saigonsouth.sis.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "smartkids-international-kindergarten": {
+    "website": "https://www.smartkidsinfo.com/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "summit-education": {
+    "website": "https://summit.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "super-youth": {
+    "website": "https://superyouth.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "swinburne-vietnam": {
+    "website": "https://swinburne-vn.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "sylvan-learning-vietnam": {
+    "website": "https://sylvanlearning.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "taipei-school-in-ho-chi-minh-city": {
+    "website": "https://www.tshcmc.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "talent-english-center": {
+    "website": "https://talent.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "talkfirst": {
+    "website": "https://talkfirst.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "tesla-education": {
+    "website": "https://tesla.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "the-abc-international-school": {
+    "website": "https://www.theabcis.com/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "the-american-school": {
+    "website": "https://www.tas.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "the-canadian-international-school": {
+    "website": "https://cis.edu.vn/en",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "the-international-school": {
+    "website": "https://tis.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "the-japanese-school-in-ho-chi-minh-city": {
+    "website": "https://jschoolhcmc.com/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "the-london-school": {
+    "website": "https://londonschool.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "the-montessori-international-school-of-vietnam": {
+    "website": "https://montessori.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "the-western-australian-international-school-system": {
+    "website": "https://wass.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "tieng-anh-nghe-noi": {
+    "website": "https://tienganhnghenoi.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ton-duc-thang-university": {
+    "website": "https://www.tdtu.edu.vn/",
+    "url": "https://www.tdtu.edu.vn/sites/www/files/logo_2.png",
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": "#ffffff"
+  },
+  "travelbud": {
+    "website": "https://travelbud.com/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "tri-minh-esc": {
+    "website": "https://triminhesc.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "triangle-english-school": {
+    "website": "https://triangle-english.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "ucla-english-academy": {
+    "website": "https://www.uclaacademy.com",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "uk-academy-binh-thanh": {
+    "website": "https://binhthanh.uka.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": "favicon",
+    "crop": null,
+    "bg": null
+  },
+  "university-of-economics-ho-chi-minh-city": {
+    "website": "https://ueh.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "us-vietnam-talent-international-school": {
+    "website": "https://utschool.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "van-lang-university": {
+    "website": "https://www.vlu.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "vea-english-center": {
+    "website": "https://vietaumy.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "via-english-academy": {
+    "website": "https://viaenglish.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "victoria-school": {
+    "website": "https://victoriaschool.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "viet-nam-tinh-hoa-the-futures-school": {
+    "website": "https://vietnamtinhhoa.edu.vn/",
+    "url": "https://vietnamtinhhoa.edu.vn/wp-content/uploads/003.-VNTH-Logo-PNG-1.png",
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "vietmyenglish": {
+    "website": "https://vietmyenglish.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "vietnam-finland-international-school": {
+    "website": "https://vfis.tdtu.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "vietnam-teaching-jobs": {
+    "website": "https://vietnamteachingjobs.com/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "vietnamese-american-school-system": {
+    "website": "https://www.vass.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "vinalearn-english": {
+    "website": "https://www.vinalearn.com/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "vinschool": {
+    "website": "https://vinschool.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "vus-the-english-center": {
+    "website": "https://vus.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": "favicon",
+    "crop": null,
+    "bg": null
+  },
+  "vusg-viet-my-sai-gon": {
+    "website": "https://vietmysaigon.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "wall-street-english": {
+    "website": "https://wallstreetenglish.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "wellspring-saigon-international-bilingual-school": {
+    "website": "https://wellspring.edu.vn/co-so/wellspring-saigon",
+    "url": null,
+    "selector": "img.header_d-logo",
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "wellspring-saigon-south": {
+    "website": "https://wellspring.edu.vn/co-so/wellspring-saigon-south",
+    "url": null,
+    "selector": "img.header_d-logo",
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "weset-english-center": {
+    "website": "https://weset.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "western-sydney-university-vietnam": {
+    "website": "https://westernsydney.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "wewin-education": {
+    "website": "https://wewin.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "wider-world": {
+    "website": "https://widerworld.edu.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "yola": {
+    "website": "https://yola.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  },
+  "zim-academy": {
+    "website": "https://zim.vn",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": null,
+    "bg": null
+  }
+}

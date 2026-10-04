@@ -327,8 +327,11 @@ const acceptsMarkdown = () => [
 // public/brand/ is unstamped). It used to reach phones through /_next/image with the optimizer's
 // 30-day max-age; served as a file it got max-age=0 → Cloudflare's 4h floor. install-hint.tsx stamps
 // it and src/lib/asset-stamps.test.ts pins the stamp to both files' bytes.
+// ⚠️ `schools/logos/.*` JOINED ON 2026-10-05 with the /schools logo tiles: every reference is built from
+// src/generated/school-logos.ts, whose per-school stamp hashes both files (scripts/build-school-logos.mjs), and
+// src/lib/schools/logos.test.ts pins each stamp to the bytes on disk.
 const STAMPABLE_STATIC =
-  "/:path(banners/.*|mascots/.*|icons/categories/.*|icons/services/.*|icons/nav/.*|icons/ui/.*|logo-mark\\.svg|logo-dotvn\\.svg|watermark\\.svg|vietkite-logo\\.png|brand/app-icon-120\\.avif|brand/app-icon-120\\.webp)";
+  "/:path(banners/.*|mascots/.*|icons/categories/.*|icons/services/.*|icons/nav/.*|icons/ui/.*|schools/logos/.*|logo-mark\\.svg|logo-dotvn\\.svg|watermark\\.svg|vietkite-logo\\.png|brand/app-icon-120\\.avif|brand/app-icon-120\\.webp)";
 
 const nextConfig: NextConfig = {
   pageExtensions: PAGE_EXTENSIONS,

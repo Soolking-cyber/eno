@@ -40,15 +40,15 @@ const ITEMS: { h: { en: string; vi: string }; p: { en: string; vi: string } }[] 
   {
     h: { en: 'Open jobs', vi: 'Việc đang tuyển' },
     p: {
-      en: 'Open jobs are live job listings on {site} whose employer name matches the school. Each one shows the name it was posted under.',
-      vi: 'Việc đang tuyển là các tin tuyển dụng đang hiển thị trên {site} có tên nhà tuyển dụng trùng với trường. Mỗi tin đều ghi tên được dùng khi đăng.',
+      en: 'Open jobs are live job listings in Ho Chi Minh City on {site} whose employer name matches the school, plus any job the school posts from its own account. Each one shows the name it was posted under.',
+      vi: 'Việc đang tuyển là các tin tuyển dụng tại TP. Hồ Chí Minh đang hiển thị trên {site} có tên nhà tuyển dụng trùng với trường, cùng mọi tin trường tự đăng từ tài khoản của mình. Mỗi tin đều ghi tên được dùng khi đăng.',
     },
   },
   {
     h: { en: 'Schools can reply', vi: 'Trường có thể phản hồi' },
     p: {
-      en: 'A school can reply to a review or ask for a correction from its page ("Is this your school?"). Reports never remove a review automatically; a moderator decides. Reviews are the opinions of individual teachers, not of {site}.',
-      vi: 'Trường có thể phản hồi một đánh giá hoặc yêu cầu đính chính ngay trên trang của mình ("Đây là trường của bạn?"). Báo cáo không bao giờ tự động gỡ đánh giá; kiểm duyệt viên sẽ quyết định. Đánh giá là ý kiến của từng giáo viên, không phải của {site}.',
+      en: 'A school can reply to a review or ask for a correction from its page ("Is this your school?"). Reports never remove a review automatically; a moderator decides. Reviews are the opinions of individual teachers, not of {site}. Each logo belongs to its school and is shown only to identify it; {site} is not affiliated with the schools listed.',
+      vi: 'Trường có thể phản hồi một đánh giá hoặc yêu cầu đính chính ngay trên trang của mình ("Đây là trường của bạn?"). Báo cáo không bao giờ tự động gỡ đánh giá; kiểm duyệt viên sẽ quyết định. Đánh giá là ý kiến của từng giáo viên, không phải của {site}. Mỗi logo thuộc về trường tương ứng và chỉ dùng để nhận diện trường; {site} không liên kết với các trường trong danh sách.',
     },
   },
 ]

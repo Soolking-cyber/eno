@@ -17,7 +17,7 @@ import { compareSchools, isSchoolSort, normEmployer, positivePct, type SchoolSor
 import type { SchoolListRow } from '@/lib/schools/queries'
 import { SchoolLiveProvider, useSchoolLive } from './school-live'
 import { VoteControl } from './vote-control'
-import { KindLabel, PayRange, PCT_MIN_VOTES, SchoolMonogram } from './school-bits'
+import { KindLabel, PayRange, PCT_MIN_VOTES, SchoolLogo } from './school-bits'
 
 type BoardRow = SchoolListRow
 
@@ -186,7 +186,7 @@ function BoardRowItem({ row, rank }: { row: BoardRow; rank: number | null }) {
         <VoteControl schoolId={row.id} schoolName={row.name} />
       </div>
       <div className="flex min-w-0 flex-1 items-start gap-3 py-1">
-        <SchoolMonogram name={row.name} kind={row.kind} />
+        <SchoolLogo slug={row.slug} logo={row.logo} name={row.name} kind={row.kind} />
         <div className="min-w-0 flex-1">
           <p className="flex items-baseline gap-2">
             {rank !== null && <span className="text-xs font-semibold tabular-nums text-muted-foreground">#{rank}</span>}

@@ -1,0 +1,123 @@
+{
+  "_note": "Per-school decisions for scripts/harvest-school-logos.mjs, each from a look at the site (2026-10-05). selector = the exact logo element (it may be a text wordmark); url = the school's own logo file (or, where its site refuses every automated request, the logo it registers on Wikidata, rendered to PNG by Wikimedia); crop = fractions of the image to keep; use 'icon' = the site's square app icon is the logo; 'favicon' = the site refuses automated browsers, so its icon via Google's favicon service (kept only at >= 64px); 'none' = no logo could be found that is the school's own, so the page shows the monogram.",
+  "ames-english": {
+    "selector": "img[alt='Hệ thống Anh Ngữ AMES']",
+    "wait": 6000
+  },
+  "wellspring-saigon-international-bilingual-school": {
+    "selector": "img.header_d-logo",
+    "wait": 6000
+  },
+  "wellspring-saigon-south": {
+    "selector": "img.header_d-logo",
+    "wait": 6000
+  },
+  "hutech-university": {
+    "url": "https://www.hutech.edu.vn/images/logo.png"
+  },
+  "abc-english": {
+    "url": "http://abcenglish.edu.vn/upload/photo/logo-6240.png",
+    "why": "the homepage script fails before the logo renders; this is its own logo file — over http because the site serves no https (checked 2026-10-05), and the tile was checked by eye"
+  },
+  "eiv-education": {
+    "url": "https://eiv.edu.vn/wp-content/uploads/2024/04/logo-web2.png"
+  },
+  "renaissance-international-school-saigon": {
+    "url": "https://renaissance.edu.vn/wp-content/uploads/2024/03/logo.png"
+  },
+  "power-english": {
+    "url": "https://powerenglish.edu.vn/data/img/2022/04/PEC-all-blue-300x95.png.webp"
+  },
+  "viet-nam-tinh-hoa-the-futures-school": {
+    "url": "https://vietnamtinhhoa.edu.vn/wp-content/uploads/003.-VNTH-Logo-PNG-1.png",
+    "why": "the logo its own JSON-LD declares; the header image is a strip of partner logos"
+  },
+  "a-chau-english": {
+    "url": "https://achauenglish.edu.vn/upload/hinhanh/logo-giam-kich-thuoc-1509.png",
+    "why": "the header capture picked up a stray mark; this is the site's own logo file"
+  },
+  "lycee-francais-international-marguerite-duras": {
+    "url": "https://lfiduras.com/lfiduras/wp-content/uploads/2022/06/Double_Logos-site_1200.gif",
+    "crop": {
+      "left": 0,
+      "top": 0,
+      "width": 0.3,
+      "height": 1
+    }
+  },
+  "anne-hill-international-school": {
+    "use": "icon"
+  },
+  "international-montessori-academy": {
+    "use": "icon"
+  },
+  "international-schools-of-north-america-saigon-south-campus": {
+    "use": "icon"
+  },
+  "little-ems-preschool": {
+    "use": "icon"
+  },
+  "pmp-english": {
+    "use": "icon"
+  },
+  "ktdc-ielts": {
+    "use": "icon"
+  },
+  "saigon-south-international-school": {
+    "url": "https://www.ssis.edu.vn/uploaded/themes/default_22/images/SSIS_Main_logo_horiz.png",
+    "why": "the logo its own JSON-LD declares; the header logo is not an image the picker can see; the file is the white logo, so it sits on SSIS navy",
+    "bg": "#0f2a4f"
+  },
+  "vietnam-australia-international-school": {
+    "use": "none",
+    "why": "vas.edu.vn answers 403 to every automated request and its favicon is 16px"
+  },
+  "british-council": {
+    "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/British_Council_logo_2020.svg/1280px-British_Council_logo_2020.svg.png",
+    "why": "britishcouncil.vn and .org refuse the connection (HTTP/2 reset); this is the logo Wikidata Q45433 lists (P154), public domain on Commons"
+  },
+  "gems-english-center": {
+    "use": "none",
+    "why": "the site (last updated 2017) shows no logo"
+  },
+  "uk-academy-binh-thanh": {
+    "use": "favicon",
+    "why": "no logo image the picker can find; its icon is the UK Academy crest"
+  },
+  "curioo-vietnam": {
+    "selector": "a.wordmark > span",
+    "why": "the logo is a text wordmark"
+  },
+  "vus-the-english-center": {
+    "use": "favicon",
+    "why": "vus.edu.vn answers 401/502 to automated requests; its 256px icon is the VUS mark"
+  },
+  "i-can-read-vietnam": {
+    "use": "favicon",
+    "why": "the homepage never settles for a capture; its icon is the I Can Read mark"
+  },
+  "ton-duc-thang-university": {
+    "url": "https://www.tdtu.edu.vn/sites/www/files/logo_2.png",
+    "why": "the header capture came out dimmed under a pop-up backdrop; this is the site's own large logo; white tile on purpose: the mark sits in its own white disc",
+    "bg": "#ffffff"
+  },
+  "einstein-school-hcm": {
+    "url": "https://d24rsy7fvs79n4.cloudfront.net/esh.edu.vn/20260521123417_6044_1779341657.446.webp",
+    "crop": {
+      "left": 0,
+      "top": 0,
+      "width": 0.49,
+      "height": 1
+    },
+    "bg": "#840b55",
+    "why": "the header image pairs the ESH logo with a Cognia accreditation badge — kept: the ESH half, on the header's plum"
+  },
+  "saigon-international-university": {
+    "url": "https://siu.edu.vn/wp-content/uploads/2022/11/logo-siu-1.png",
+    "why": "the header shows a small white-text variant; this is the full-colour logo from the same site"
+  },
+  "european-international-school-ho-chi-minh-city": {
+    "url": "https://d24d7vsshzrslo.cloudfront.net/sites/school73/files/2023-06/EIS_Logo_colour_v2.svg",
+    "why": "the header capture is the white logo over a photo; this is the colour version the site also serves (an SVG, drawn to PNG)"
+  }
+}

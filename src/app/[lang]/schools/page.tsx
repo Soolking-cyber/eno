@@ -7,6 +7,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SchoolsBoard } from '@/components/schools/schools-board'
 import { SchoolsMethodology } from '@/components/schools/schools-methodology'
+import { SchoolsSidebar } from '@/components/schools/schools-sidebar'
 import { listAllSchools } from '@/lib/schools/queries'
 import { HCMC_AREAS } from '@/lib/schools/constants'
 
@@ -35,26 +36,38 @@ export const metadata: Metadata = {
   ...pageShare({ title: TITLE, description: DESCRIPTION, url: PATH }),
 }
 
-export default async function SchoolsPage() {
+export default async function SchoolsPage({ params }: { params: Promise<{ lang: string }> }) {
+  const { lang } = await params
   const rows = await listAllSchools()
   const present = new Set(rows.flatMap((r) => r.districts))
   const areas = HCMC_AREAS.filter((a) => present.has(a))
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-4xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-8 pb-16">
-        <h1 className="h-display text-foreground"><Bilingual en="Saigon schools, ranked by teachers" vi="Trường học ở Sài Gòn, do giáo viên xếp hạng" /></h1>
-        <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
-          <Bilingual
-            en="English centres, international and bilingual schools and teacher recruiters in Ho Chi Minh City. Teachers who worked or interviewed there vote them up or down and say what is good and bad, so the next teacher knows what to expect: pay, hours, management and how contracts really work."
-            vi="Trung tâm tiếng Anh, trường quốc tế, trường song ngữ và đơn vị tuyển dụng giáo viên tại TP. Hồ Chí Minh. Giáo viên từng làm việc hoặc phỏng vấn ở đó bình chọn lên hoặc xuống và chia sẻ điểm tốt, điểm chưa tốt, để giáo viên đến sau biết trước: lương, giờ dạy, cách quản lý và hợp đồng thực tế ra sao."
-          />
-        </p>
-        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-          <a href="#how-it-works" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="How the ranking works" vi="Cách xếp hạng hoạt động" /></a>
-          <Link href="/c/jobs" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Browse all jobs" vi="Xem mọi việc làm" /></Link>
-        </p>
-        <SchoolsBoard rows={rows} areas={areas} />
+      {/* The header's own container (max-w-7xl and its gutters), so the page spans from the logo to the last
+          header button on desktop (owner, 2026-10-05); the sidebar takes the width the list does not need. */}
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 pb-16 pt-8 sm:px-6 lg:px-8">
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start lg:gap-10 xl:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="min-w-0">
+            <h1 className="h-display text-foreground"><Bilingual en="Saigon schools, ranked by teachers" vi="Trường học ở Sài Gòn, do giáo viên xếp hạng" /></h1>
+            <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
+              <Bilingual
+                en="English centres, international and bilingual schools and teacher recruiters in Ho Chi Minh City. Teachers who worked or interviewed there vote them up or down and say what is good and bad, so the next teacher knows what to expect: pay, hours, management and how contracts really work."
+                vi="Trung tâm tiếng Anh, trường quốc tế, trường song ngữ và đơn vị tuyển dụng giáo viên tại TP. Hồ Chí Minh. Giáo viên từng làm việc hoặc phỏng vấn ở đó bình chọn lên hoặc xuống và chia sẻ điểm tốt, điểm chưa tốt, để giáo viên đến sau biết trước: lương, giờ dạy, cách quản lý và hợp đồng thực tế ra sao."
+              />
+            </p>
+            <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+              <a href="#how-it-works" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="How the ranking works" vi="Cách xếp hạng hoạt động" /></a>
+              <Link href="/c/jobs" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Browse all jobs" vi="Xem mọi việc làm" /></Link>
+            </p>
+            <SchoolsBoard rows={rows} areas={areas} />
+          </div>
+          {/* Not sticky: the three cards are taller than a 1440×900 laptop's viewport, and a pinned column
+              would hide its own last card until the 172-row list ends (diff review). */}
+          <aside className="mt-10 lg:mt-0">
+            <SchoolsSidebar rows={rows} lang={lang} />
+          </aside>
+        </div>
         <SchoolsMethodology />
       </main>
       <Footer />

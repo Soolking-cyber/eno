@@ -16,7 +16,7 @@ import { SchoolScore } from '@/components/schools/school-stats'
 import { SchoolReviews } from '@/components/schools/school-reviews'
 import { SchoolJobs } from '@/components/schools/school-jobs'
 import { SchoolClaim } from '@/components/schools/school-claim'
-import { KindLabel, PayRange, SchoolMonogram } from '@/components/schools/school-bits'
+import { KindLabel, PayRange, SchoolLogo } from '@/components/schools/school-bits'
 import { getSchoolPage, type SchoolPage } from '@/lib/schools/queries'
 import { KIND_LABEL, PAY_MAX_AGE_YEARS, PAY_MIN_REPORTS, TAG_LABEL } from '@/lib/schools/constants'
 
@@ -82,7 +82,9 @@ export default async function SchoolPageRoute({ params }: Props) {
         <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(node).replace(/</g, '\\u003c') }} />
       ))}
       <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-16">
+      {/* The header's own container, so the page spans from the logo to the last header button on desktop
+          (owner, 2026-10-05). */}
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 pb-16 pt-6 sm:px-6 lg:px-8">
         <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
           <Link href="/schools" className="hover:underline"><Bilingual en="Schools ranked by teachers" vi="Trường do giáo viên xếp hạng" /></Link>
           <span aria-hidden> / </span>
@@ -91,8 +93,8 @@ export default async function SchoolPageRoute({ params }: Props) {
 
         <SchoolLiveProvider schoolIds={[school.id]} reviewIds={page.reviews.map((r) => r.id)} initial={{ [school.id]: { up: page.up, down: page.down } }}>
           <header className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex min-w-0 items-start gap-4">
-              <SchoolMonogram name={school.name} kind={school.kind} size="lg" />
+            <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center">
+              <SchoolLogo slug={school.slug} logo={school.logo} name={school.name} kind={school.kind} size="lg" />
               <div className="min-w-0">
                 <h1 className="h-title text-foreground">{school.name}</h1>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -102,16 +104,6 @@ export default async function SchoolPageRoute({ params }: Props) {
                     <> <Bilingual en="+{n} more areas" vi="+{n} khu vực khác" values={{ n: String(school.districts.length - 3) }} /></>
                   )}
                 </p>
-                {(host || school.curricula.length > 0) && (
-                  <p className="mt-2 flex flex-wrap items-center gap-1.5">
-                    {school.curricula.map((c) => <Badge key={c} variant="outline">{c}</Badge>)}
-                    {host && (
-                      <a href={school.website!} target="_blank" rel="nofollow noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline">
-                        {host} <ExternalLink aria-hidden className="size-3.5" />
-                      </a>
-                    )}
-                  </p>
-                )}
               </div>
             </div>
             <div className="shrink-0">
@@ -130,47 +122,98 @@ export default async function SchoolPageRoute({ params }: Props) {
             {page.jobs.length > 0 && (
               <Button variant="outline" asChild>
                 <a href="#jobs">
-                  <Bilingual en="{n} open jobs" vi="{n} việc đang tuyển" values={{ n: formatInteger(page.jobs.length, loc) }} />
+                  {page.jobs.length === 1
+                    ? <Bilingual en="1 open job" vi="1 việc đang tuyển" />
+                    : <Bilingual en="{n} open jobs" vi="{n} việc đang tuyển" values={{ n: formatInteger(page.jobs.length, loc) }} />}
                 </a>
               </Button>
             )}
             <SchoolClaim schoolId={school.id} schoolName={school.name} />
           </div>
 
-          <PaySection pay={page.pay} />
-          <TagSection good={page.goodTags} bad={page.badTags} reviews={page.reviews.length} />
+          {/* The facts first in the DOM, so on a phone pay comes before the reviews; on desktop they are the
+              right-hand column, beside what teachers wrote. */}
+          <div className="mt-10 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-10">
+            <aside className="flex flex-col gap-6 lg:col-start-2 lg:row-start-1">
+              <PaySection pay={page.pay} />
+              <AboutCard school={school} host={host} />
+            </aside>
+            <div className="mt-10 flex min-w-0 flex-col gap-10 lg:col-start-1 lg:row-start-1 lg:mt-0">
+              <TagSection good={page.goodTags} bad={page.badTags} reviews={page.reviews.length} />
 
-          <section aria-labelledby="reviews-h" className="mt-10">
-            <h2 id="reviews-h" className="text-lg font-bold text-foreground sm:text-xl">
-              <Bilingual en="Reviews from teachers ({n})" vi="Đánh giá từ giáo viên ({n})" values={{ n: formatInteger(page.reviews.length, loc) }} />
-            </h2>
-            <div className="mt-4">
-              <SchoolReviews reviews={page.reviews} slug={school.slug} schoolName={school.name} />
+              <section aria-labelledby="reviews-h">
+                <h2 id="reviews-h" className="text-lg font-bold text-foreground sm:text-xl">
+                  <Bilingual en="Reviews from teachers ({n})" vi="Đánh giá từ giáo viên ({n})" values={{ n: formatInteger(page.reviews.length, loc) }} />
+                </h2>
+                <div className="mt-4">
+                  <SchoolReviews reviews={page.reviews} slug={school.slug} schoolName={school.name} />
+                </div>
+              </section>
+
+              <section id="jobs" aria-labelledby="jobs-h" className="scroll-mt-24">
+                <h2 id="jobs-h" className="text-lg font-bold text-foreground sm:text-xl">
+                  <Bilingual en="Open jobs ({n})" vi="Việc đang tuyển ({n})" values={{ n: formatInteger(page.jobs.length, loc) }} />
+                </h2>
+                {page.jobs.length ? (
+                  <div className="mt-4"><SchoolJobs jobs={page.jobs} /></div>
+                ) : (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    <Bilingual en="No open jobs listed right now." vi="Hiện chưa có tin tuyển dụng." />{' '}
+                    <Link href="/c/jobs" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Browse all jobs" vi="Xem mọi việc làm" /></Link>
+                  </p>
+                )}
+              </section>
+
+              <p className="text-sm text-muted-foreground">
+                <Bilingual en="Reviews are the opinions of individual teachers, checked by a moderator before they appear." vi="Đánh giá là ý kiến của từng giáo viên, được kiểm duyệt trước khi hiển thị." />{' '}
+                {school.logo && (
+                  <><Bilingual en="The logo belongs to the school and is shown only to identify it; {site} is not affiliated with it." vi="Logo thuộc về trường và chỉ dùng để nhận diện trường; {site} không liên kết với trường." values={{ site: SITE_NAME }} />{' '}</>
+                )}
+                <Link href="/schools#how-it-works" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="How the ranking works" vi="Cách xếp hạng hoạt động" /></Link>
+              </p>
             </div>
-          </section>
+          </div>
         </SchoolLiveProvider>
-
-        <section id="jobs" aria-labelledby="jobs-h" className="mt-10 scroll-mt-24">
-          <h2 id="jobs-h" className="text-lg font-bold text-foreground sm:text-xl">
-            <Bilingual en="Open jobs ({n})" vi="Việc đang tuyển ({n})" values={{ n: formatInteger(page.jobs.length, loc) }} />
-          </h2>
-          {page.jobs.length ? (
-            <div className="mt-4"><SchoolJobs jobs={page.jobs} /></div>
-          ) : (
-            <p className="mt-2 text-sm text-muted-foreground">
-              <Bilingual en="No open jobs listed right now." vi="Hiện chưa có tin tuyển dụng." />{' '}
-              <Link href="/c/jobs" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Browse all jobs" vi="Xem mọi việc làm" /></Link>
-            </p>
-          )}
-        </section>
-
-        <p className="mt-10 text-sm text-muted-foreground">
-          <Bilingual en="Reviews are the opinions of individual teachers, checked by a moderator before they appear." vi="Đánh giá là ý kiến của từng giáo viên, được kiểm duyệt trước khi hiển thị." />{' '}
-          <Link href="/schools#how-it-works" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="How the ranking works" vi="Cách xếp hạng hoạt động" /></Link>
-        </p>
       </main>
       <Footer />
     </div>
+  )
+}
+
+/** The directory facts in full: every area (the header names three), the curricula and the school's own site. */
+function AboutCard({ school, host }: { school: SchoolPage['school']; host: string | null }) {
+  return (
+    <section aria-labelledby="about-h" className="rounded-2xl bg-card p-4 ring-1 ring-border">
+      <h2 id="about-h" className="text-sm font-semibold text-muted-foreground"><Bilingual en="About" vi="Thông tin" /></h2>
+      <dl className="mt-3 flex flex-col gap-3 text-sm">
+        <div>
+          <dt className="text-xs text-muted-foreground"><Bilingual en="Type" vi="Loại" /></dt>
+          <dd className="mt-0.5 text-foreground"><KindLabel kind={school.kind} /></dd>
+        </div>
+        {school.districts.length > 0 && (
+          <div>
+            <dt className="text-xs text-muted-foreground"><Bilingual en="Areas" vi="Khu vực" /></dt>
+            <dd className="mt-0.5 text-foreground">{school.districts.join(', ')}</dd>
+          </div>
+        )}
+        {school.curricula.length > 0 && (
+          <div>
+            <dt className="text-xs text-muted-foreground"><Bilingual en="Curricula" vi="Chương trình" /></dt>
+            <dd className="mt-1 flex flex-wrap gap-1.5">{school.curricula.map((c) => <Badge key={c} variant="outline">{c}</Badge>)}</dd>
+          </div>
+        )}
+        {host && (
+          <div>
+            <dt className="text-xs text-muted-foreground"><Bilingual en="Website" vi="Trang web" /></dt>
+            <dd className="mt-0.5">
+              <a href={school.website!} target="_blank" rel="nofollow noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
+                {host} <ExternalLink aria-hidden className="size-3.5" />
+              </a>
+            </dd>
+          </div>
+        )}
+      </dl>
+    </section>
   )
 }
 
@@ -187,7 +230,7 @@ function PaySection({ pay }: { pay: SchoolPage['pay'] }) {
   // ⚠️ `pay` holds ONLY the periods that cleared the floor (queries.ts publicPay): below it the page says
   // nothing period-specific, so it never reveals that a lone reviewer reported pay, or which kind.
   return (
-    <section aria-labelledby="pay-h" className="mt-10">
+    <section aria-labelledby="pay-h">
       <h2 id="pay-h" className="text-lg font-bold text-foreground sm:text-xl"><Bilingual en="Pay reported by teachers" vi="Mức lương giáo viên báo cáo" /></h2>
       {pay.length === 0 ? (
         <p className="mt-2 max-w-prose text-sm leading-relaxed text-body">
@@ -198,7 +241,7 @@ function PaySection({ pay }: { pay: SchoolPage['pay'] }) {
           />
         </p>
       ) : (
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
           {pay.map((p) => (
             <div key={p.period} className="rounded-2xl bg-card p-4 ring-1 ring-border">
               <p className="text-sm font-semibold text-muted-foreground">
@@ -232,7 +275,7 @@ function TagRow({ tag, n, of, tone }: { tag: keyof typeof TAG_LABEL; n: number; 
 function TagSection({ good, bad, reviews }: { good: SchoolPage['goodTags']; bad: SchoolPage['badTags']; reviews: number }) {
   if (!good.length && !bad.length) return null
   return (
-    <section aria-labelledby="tags-h" className="mt-10">
+    <section aria-labelledby="tags-h">
       <h2 id="tags-h" className="text-lg font-bold text-foreground sm:text-xl"><Bilingual en="What teachers say" vi="Giáo viên nói gì" /></h2>
       <div className="mt-3 grid gap-6 sm:grid-cols-2">
         {good.length > 0 && (

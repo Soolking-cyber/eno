@@ -8,6 +8,7 @@ import { LISTING_CARD_SELECT, serializeListingCard, safeParse } from '@/lib/seri
 import { ELIGIBLE_ACCOUNT_AGE_DAYS, REQUIRE_PHONE, type SchoolKind, type GoodTag, type BadTag, isGoodTag, isBadTag } from './constants'
 import { compareSchools, isGenericEmployer, normEmployer, summarisePay, type PaySummary, type SchoolSort } from './logic'
 import { inHcmc, jobSchoolId, type JobPlace } from './job-match'
+import { schoolLogo } from './logos'
 
 /**
  * Server reads for /schools. Every public number is computed HERE at read time from the rows, with the
@@ -154,6 +155,8 @@ async function jobsBySchool(schools: { id: string; sellerId: string | null }[]):
 
 export type SchoolListRow = {
   id: string; slug: string; name: string; kind: SchoolKind; districts: string[]; aliases: string[]
+  /** The logo tile's content stamp (logos.ts), or null: draw the monogram. */
+  logo: string | null
   up: number; down: number; reviews: number; jobs: number; pay: PublicPay[]
 }
 
@@ -175,7 +178,7 @@ export async function listSchools(opts: { kind?: SchoolKind | null; area?: strin
   const ids = filtered.map((s) => s.id)
   const [votes, reviews, pay, jobs] = await Promise.all([eligibleVotes(ids), publishedReviewCounts(ids), payReports(ids), jobsBySchool(filtered)])
   const rows: SchoolListRow[] = filtered.map((s) => ({
-    id: s.id, slug: s.slug, name: s.name, kind: s.kind as SchoolKind, districts: s.districts, aliases: s.aliases.map((a) => a.alias),
+    id: s.id, slug: s.slug, name: s.name, kind: s.kind as SchoolKind, districts: s.districts, aliases: s.aliases.map((a) => a.alias), logo: schoolLogo(s.slug),
     up: votes.get(s.id)?.up ?? 0, down: votes.get(s.id)?.down ?? 0,
     reviews: reviews.get(s.id) ?? 0, jobs: jobs.get(s.id)?.length ?? 0, pay: pay.get(s.id) ?? [],
   }))
@@ -246,7 +249,7 @@ async function loadSchoolPage(slug: string) {
     employer: (() => { const e = safeParse<Record<string, unknown>>(j.attributes, {})?.employer; return typeof e === 'string' ? e : null })(),
   }))
   return {
-    school: { ...school, kind: school.kind as SchoolKind },
+    school: { ...school, kind: school.kind as SchoolKind, logo: schoolLogo(school.slug) },
     up: votes.get(school.id)?.up ?? 0,
     down: votes.get(school.id)?.down ?? 0,
     pay: pay.get(school.id) ?? [],
