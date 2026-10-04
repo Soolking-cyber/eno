@@ -216,7 +216,7 @@ jobs:
       # RACE_DB_TESTS and refuse any host that is not loopback, so they can only ever run here.
       - name: Concurrency probes (real database)
         # + the /schools read-time eligibility SQL (src/lib/schools/queries.ts), which only a real database can check.
-        run: npx vitest run src/lib/core/business-verification-race.probe.test.ts src/lib/schools/queries.probe.test.ts
+        run: npx vitest run src/lib/core/business-verification-race.probe.test.ts src/lib/schools/queries.probe.test.ts src/app/api/schools/schools-routes.probe.test.ts
         env:
           RACE_DB_TESTS: '1'
 

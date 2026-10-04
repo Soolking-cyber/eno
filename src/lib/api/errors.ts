@@ -89,6 +89,13 @@ export type SharedApiErrorCode =
  * `window_closed`), mixed with the `invalid_*` sprawl described above.
  */
 export type NicheApiErrorCode =
+  // The /api/schools routes (2026-10-04): who may vote or review, and why a review was refused
+  | 'business_account'
+  | 'phone_required'
+  | 'links_not_allowed'
+  | 'pay_out_of_range'
+  | 'stint_required'
+  | 'review_changed_reload'
   | 'admin_takeover'
   | 'already_appealed'
   | 'already_generating'
@@ -501,6 +508,12 @@ export function apiErrorCode(body: unknown): ApiErrorCode | null {
  * to the type but not here fails to compile.
  */
 const ALL = [
+  'business_account',
+  'phone_required',
+  'links_not_allowed',
+  'pay_out_of_range',
+  'stint_required',
+  'review_changed_reload',
   'Forbidden',
   'Unauthorized',
   'account_restricted',
