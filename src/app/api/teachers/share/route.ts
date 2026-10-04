@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { insertMessage } from '@/lib/messages'
 import { teacherThread } from '@/lib/teachers/share'
 import { conversationGate } from '@/lib/enforcement'
+import { isBlockedBetween } from '@/lib/user-blocks'
 
 export const runtime = 'nodejs'
 
@@ -21,6 +22,8 @@ export const POST = route(
     if ((await conversationGate(profile.id))?.error === 'account_suspended') throw new ApiError('account_suspended', 403)
     // Sharing from a hidden or pulled profile would announce details the recruiter cannot get.
     if (share && !t.profileLive) throw new ApiError('profile_hidden', 409)
+    // App Store gate `ugc-safety` (R3): no contact handover across a block (unsharing still works).
+    if (share && await isBlockedBetween(t.convo.buyerProfileId, t.convo.sellerProfileId)) throw new ApiError('blocked', 403)
     // ⚠️ AGAINST THE TEACHER'S OWN CHOICE (`shareOn`), NOT `shared`: on a hidden profile `shared` is
     // false, so "Stop sharing" was a no-op there and the share came back on un-hide (Opus, gate 09-30).
     if (share === t.shareOn) return { ok: true, shared: t.shareOn }

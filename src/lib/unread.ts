@@ -4,6 +4,7 @@ import { editionSellerScope } from '@/lib/edition-scope'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { notificationScope } from '@/lib/notification-scope'
 import { IS_MARKETPLACE } from '@/lib/edition'
+import { blockedConversationIds } from '@/lib/user-blocks'
 
 /**
  * ONE definition of "how many things is this person waiting on", so the app-icon badge, the header
@@ -114,9 +115,14 @@ export async function conversationUnread(
    * branch (conversations/route.ts) — never through the viewer's own seller role.
    */
   const notTheDesk = { sellerId: { not: SUPPORT_SELLER_ID } }
+  // App Store gate `ugc-safety` (R3): threads the inbox hides because of a block must not keep counting
+  // here, or the badge shows unread messages the user can no longer open (opus, review). Same id list
+  // the inbox excludes, so badge and list still agree. Off ⇒ [] with no query, and `{}` adds nothing.
+  const hiddenByBlock = await blockedConversationIds(profileId)
+  const notBlocked = hiddenByBlock.length ? { id: { notIn: hiddenByBlock } } : {}
   const [asBuyer, asSeller, asSupport] = await Promise.all([
-    db.conversation.aggregate({ where: { AND: [{ buyerProfileId: profileId }, notDesk, liveForBuyer()] }, _sum: { buyerUnread: true } }),
-    db.conversation.aggregate({ where: { AND: [{ sellerProfileId: profileId }, notTheDesk, notDesk, liveForSeller()] }, _sum: { sellerUnread: true } }),
+    db.conversation.aggregate({ where: { AND: [{ buyerProfileId: profileId }, notDesk, notBlocked, liveForBuyer()] }, _sum: { buyerUnread: true } }),
+    db.conversation.aggregate({ where: { AND: [{ sellerProfileId: profileId }, notTheDesk, notDesk, notBlocked, liveForSeller()] }, _sum: { sellerUnread: true } }),
     /**
      * ⛔ NO EDITION SCOPE ON THIS ONE, AND IT MUST MATCH THE LIST EXACTLY. Two drafts got this wrong
      * in opposite directions and two reviewers caught the pair disagreeing:

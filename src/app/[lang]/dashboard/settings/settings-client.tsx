@@ -21,6 +21,8 @@ import { SetPasswordForm } from '@/components/marketplace/set-password-form'
 import { AccountTypeSwitcher } from '@/components/marketplace/account-type-switcher'
 import { ReminderSettings } from '@/components/marketplace/reminder-settings'
 import { DeleteAccount } from '@/components/marketplace/delete-account'
+import { BlockedUsers } from '@/components/marketplace/blocked-users'
+import { appReviewGate } from '@/lib/app-review-gates'
 import { SectionHeader } from '@/components/marketplace/section-header'
 
 /** /dashboard/settings — the full account settings, one section per area (identical set
@@ -219,6 +221,10 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
                 <Cookie className="h-4 w-4" /> {tr('Cookie settings', 'Cài đặt cookie')}
               </Button>
             </SettingsGroup>
+          )}
+          {/* App Store gate `ugc-safety` (R3): the place to undo a block. Off ⇒ not rendered. */}
+          {section === 'privacy' && appReviewGate('ugc-safety') && (
+            <SettingsGroup caption={tr('Blocked users', 'Người dùng đã chặn')}><BlockedUsers /></SettingsGroup>
           )}
         </div>
       )}

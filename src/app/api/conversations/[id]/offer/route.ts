@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { actOnOffer } from '@/lib/messages'
 import { messagingGate } from '@/lib/enforcement'
 import { ApiError, route } from '@/lib/api/handler'
+import { isBlockedBetween } from '@/lib/user-blocks'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -63,6 +64,11 @@ export const POST = route(
     if (!convo.listing) throw new ApiError('listing_unavailable', 409)
     if (action === 'accept' && convo.listing.status !== 'active') {
       throw new ApiError('listing_unavailable', 409)
+    }
+    // App Store gate `ugc-safety` (R3): no deal across a block. DECLINE still works, for the same reason
+    // as above — a pending card must always be clearable. Off ⇒ no query.
+    if (action === 'accept' && await isBlockedBetween(convo.buyerProfileId, convo.sellerProfileId)) {
+      throw new ApiError('blocked', 403)
     }
 
     const ok = await actOnOffer(

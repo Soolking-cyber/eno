@@ -19,6 +19,9 @@
  * | app-no-gtm       | R11  | both apps: no Google Tag Manager container                               | —        |
  * | site-brand-copy  | R7   | web + apps, eno.forum: its own name where copy hard-codes eno.vn; an     | —        |
  * |                  |      | English /privacy sentence for the not-yet-registered operator            |          |
+ * | ugc-safety       | R3   | web + apps, both sites: block a user (chat header, storefront), unblock  | —        |
+ * |                  |      | in settings; a block refuses new threads/messages/offers both ways and   |          |
+ * |                  |      | tells moderators (src/lib/user-blocks.ts)                                |          |
  *
  * ⚠️ "iOS app" = the Capacitor shell on iOS: `window.Capacitor.getPlatform() === 'ios'` on the client,
  * the `EnoNativeApp` user-agent token plus an iOS device string on the server. "Both apps" = the
@@ -35,7 +38,7 @@
  */
 const NATIVE_UA_RE = /EnoNativeApp|EnoNativeTabs/
 
-export const APP_REVIEW_GATES = ['ios-hide-google', 'ios-hide-wallet', 'app-signin-tidy', 'app-no-gtm', 'site-brand-copy'] as const
+export const APP_REVIEW_GATES = ['ios-hide-google', 'ios-hide-wallet', 'app-signin-tidy', 'app-no-gtm', 'site-brand-copy', 'ugc-safety'] as const
 export type AppReviewGate = (typeof APP_REVIEW_GATES)[number]
 
 /** Parse the comma list; unknown tokens are ignored (a typo turns nothing on). */

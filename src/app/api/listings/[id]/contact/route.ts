@@ -1,4 +1,5 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
+import { isBlockedBetween } from '@/lib/user-blocks'
 import { NextResponse, after } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import crypto from 'crypto'
@@ -111,7 +112,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // the licensed marketplace. The existing !verified check below already turns null into the 404.
   const listing = await db.listing.findFirst({
     where: await scopedListingWhere({ id }),
-    select: { id: true, verified: true, seller: { select: { id: true, phone: true, officialPartner: true } } },
+    select: { id: true, verified: true, seller: { select: { id: true, ownerId: true, phone: true, officialPartner: true } } },
   })
   // Only verified (public) listings expose contact — never pending/hidden ones.
   if (!listing || !listing.verified) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -158,6 +159,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     ? await db.message.findFirst({ where: { conversationId: convo.id, senderProfileId: { not: user.id } }, select: { id: true } })
     : null
   if (!sellerReplied) return NextResponse.json({ error: 'reply_required' }, { status: 403 })
+  // App Store gate `ugc-safety` (R3): a block also closes the phone/Zalo reveal — otherwise the blocked
+  // side could step around the chat block with a call. Off ⇒ no query.
+  if (await isBlockedBetween(user.id, listing.seller.ownerId)) return NextResponse.json({ error: 'blocked' }, { status: 403 })
 
   // Only the seller's REAL stored phone — never a synthetic/fallback number.
   // Pass the seller WHOLE. Handing over `{ phone }` alone is what the required `officialPartner`
