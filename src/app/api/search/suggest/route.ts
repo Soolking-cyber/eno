@@ -13,6 +13,7 @@ import { parseSearchQuery } from '@/lib/text-relevance'
 import { diversifyRail } from '@/lib/feed-diversity'
 import { displayPriceUnit } from '@/lib/price-unit'
 import { UNLINKED_CATEGORIES } from '@/lib/retired-categories'
+import { liveBrandCounts } from '@/lib/live-brands'
 import { RANK_SELECT, rankCandidates, relevanceOrder } from '@/app/api/listings/keyword-rank'
 import type { Prisma } from '@/generated/prisma/client'
 import { ENTITY_GRACE_MS, brandWhere, lineCandidates, lineStats, pickScope, rankBrands, scopeGroups, settledWithin, type ScopeGroup } from './suggest-entities'
@@ -117,7 +118,29 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
    */
   const linesP = Promise.all(lineCandidates(q).map((c) => lineStats(c).then((s) => (s ? { ...c, ...s } : null), () => null)))
   const groupsP = scopeGroups(suggestWhere).catch((): ScopeGroup[] => [])
-  const [listings, allCategories, brands] = await Promise.all([
+  /**
+   * The "Brands" group — brands with LIVE listings whose matching key STARTS with the typed key
+   * ("hon" → Honda), most-listed first. ⛔ A PREFIX, NOT A SUBSTRING (suggest-entities.ts brandWhere):
+   * "iph" used to offer "Qui Phúc" and "ren" "Serenys". ⛔ LIVE, NOT `listingCount` (src/lib/live-brands.ts,
+   * memoized for a minute): every match is read and ranked in JS — the matches are bounded by the live
+   * set (brands with a live row, not the catalogue), and a `take` before the ranking could cut the brand
+   * that should lead.
+   * ⚠️ OPTIONAL, LIKE THE ENTITY ROWS ABOVE, AND FOR THE SAME REASON (commit-gate review): the live set is
+   * a grouped read over listings, and once a minute per process it misses its memo. Started
+   * here so it overlaps the reads below, and awaited with the same grace — a slow read holds the dropdown
+   * by at most ENTITY_GRACE_MS, skips the chips on that keystroke and fills the memo for the next. A
+   * failed read (either one) drops the chips, never the response.
+   */
+  const brandsP: Promise<{ slug: string; name: string; normalized: string }[]> = brandKey.length >= 2
+    ? liveBrandCounts()
+        .then(async (live) => rankBrands(
+          await db.brand.findMany({ where: brandWhere(brandKey, [...live.keys()]), select: { slug: true, name: true, normalized: true } }),
+          brandKey,
+          live,
+        ))
+        .catch((e: unknown) => { console.error('[suggest] brand chips read failed — no brand chips', e); return [] })
+    : Promise.resolve([])
+  const [listings, allCategories] = await Promise.all([
     /**
      * ⛔ THE FEED'S SAFETY NET, HERE TOO (resolveFeedFilters in feed-query.ts): a district reading that
      * suggests nothing while the plain words would ("Hồi ức Phú Nhuận", a book) falls back to the
@@ -131,21 +154,11 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
     // accent-insensitive listing search (and one fewer DB round-trip per keystroke).
     // `id` too: the line and scope rows are grouped by categoryId and name the category by slug.
     db.category.findMany({ select: { id: true, slug: true, name: true, nameVi: true } }),
-    /**
-     * The "Brands" group — brands with live listings whose matching key STARTS with the typed key
-     * ("hon" → Honda), most-listed first. ⛔ A PREFIX, NOT A SUBSTRING (suggest-entities.ts brandWhere):
-     * "iph" used to offer "Qui Phúc" and "ren" "Serenys". Six fetched so the prefix hits can be put
-     * first in JS before the two shown.
-     */
-    brandKey.length >= 2
-      ? db.brand
-          .findMany({ where: brandWhere(brandKey), orderBy: { listingCount: 'desc' }, take: 6, select: { slug: true, name: true, normalized: true, listingCount: true } })
-          .then((rows) => rankBrands(rows, brandKey))
-      : Promise.resolve([]),
   ])
-  const [lines, groups] = await Promise.all([
+  const [lines, groups, brands] = await Promise.all([
     settledWithin(linesP, ENTITY_GRACE_MS, []),
     settledWithin(groupsP, ENTITY_GRACE_MS, []),
+    settledWithin(brandsP, ENTITY_GRACE_MS, []),
   ])
 
   // ⛔ A retired or empty shelf is not suggested (second-hand focus, 2026-10-03): the header routes a category

@@ -147,8 +147,8 @@ async function restore() {
   console.log(`${APPLY ? 'RESTORED' : 'DRY RUN'}: ${restored} rows ${APPLY ? 'restored' : 'would be restored'}, ${skipped} left alone (changed since, or the write never landed)${torn ? `, ${torn} torn last lines ignored` : ''}`)
   if (APPLY && touchedBrands.size) console.log(`recounted ${await recountBrands(touchedBrands)} brands`)
   // ⚠️ BRANDS THE PASS ADDED ARE NOT REMOVED BY A RESTORE, deliberately. They are real makers the gate proved from the
-  // titles, and a brand with no listings is already invisible — the directory and search suggestions only show brands
-  // with listingCount > 0 (brands/page.tsx, api/search/suggest). Tracking "who created it" across crashes and shared
+  // titles, and a brand with no listings is already invisible — every buyer-facing brand list shows only brands with
+  // LIVE listings (src/lib/live-brands.ts: brands/page.tsx, api/brands, api/search/suggest). Tracking "who created it" across crashes and shared
   // brands proved more fragile than the harmless row it would delete (four review rounds).
   if (APPLY && restored) console.log('\nNEXT: purge the listing ISR tags (scripts/purge-isr-listings.mjs) and Cloudflare (purge_everything on both zones).')
 }

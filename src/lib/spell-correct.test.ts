@@ -5,14 +5,24 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * found 3,439). The vocabulary is the real bundle — product lines, taxonomy, synonyms — plus a mocked
  * live-brand read.
  */
-const brands = vi.fn(async () => [{ normalized: 'louisvuitton' }, { normalized: 'samyang' }])
-vi.mock('./db', () => ({ db: { brand: { findMany: () => brands() } } }))
+// The brand table as the read sees it: honours the `slug: { in }` the vocabulary asks for, so a brand
+// with nothing live (casio here) cannot leak into the corrections.
+const BRANDS = [
+  { slug: 'louis-vuitton', normalized: 'louisvuitton' },
+  { slug: 'samyang', normalized: 'samyang' },
+  { slug: 'casio', normalized: 'casio' },
+]
+const brands = vi.fn(async (args: { where: { slug: { in: string[] } } }) => BRANDS.filter((b) => args.where.slug.in.includes(b.slug)).map(({ normalized }) => ({ normalized })))
+vi.mock('./db', () => ({ db: { brand: { findMany: (a: { where: { slug: { in: string[] } } }) => brands(a) } } }))
+const live = vi.fn(async () => new Map([['louis-vuitton', 3], ['samyang', 1]]))
+vi.mock('./live-brands', () => ({ liveBrandCounts: () => live() }))
 
-const { correctQuery, correctTokens, osaDistance, staticVocab, __resetVocabCache } = await import('./spell-correct')
+const { buildVocab, correctQuery, correctTokens, osaDistance, staticVocab, __resetVocabCache } = await import('./spell-correct')
 
 beforeEach(() => {
   __resetVocabCache()
   brands.mockClear()
+  live.mockClear()
 })
 
 describe('osaDistance', () => {
@@ -49,6 +59,22 @@ describe('correctQuery', () => {
     expect(await correctQuery('louisvuiton')).toBe('louisvuitton')
     await correctQuery('iphnoe')
     expect(brands).toHaveBeenCalledTimes(1)
+  })
+
+  it('a brand with no LIVE listing is not a correction target, however it was once counted', async () => {
+    // casio is in the brand table but has nothing live, so its word never enters the vocabulary.
+    const vocab = await buildVocab()
+    expect(vocab.has('louisvuitton')).toBe(true)
+    expect(vocab.has('casio')).toBe(false)
+    expect(brands.mock.calls[0][0].where).toMatchObject({ status: 'active', slug: { in: ['louis-vuitton', 'samyang'] } })
+  })
+
+  it('a failed live-brand read degrades to the bundled words too', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    live.mockImplementationOnce(async () => { throw new Error('down') })
+    expect(await correctQuery('iphnoe')).toBe('iphone')
+    expect(await correctQuery('louisvuiton')).toBe('louisvuitton') // the next call reads again
+    err.mockRestore()
   })
 
   it('a failed brand read degrades to the bundled words and is not cached', async () => {

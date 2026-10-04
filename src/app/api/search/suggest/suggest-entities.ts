@@ -42,19 +42,23 @@ export const ENTITY_MIN = 3
  * ⚠️ THE 5 IS ABOUT SYLLABLES. A 3-4 character key is a fragment of a word and lives inside
  * unrelated names ("iph" in "quiphuc", "ren" in "serenys"); by five characters an infix is almost
  * always the brand itself spelled with a prefix ("vuitton" → "louisvuitton").
+ * ⛔ ONLY BRANDS WITH LIVE LISTINGS (`liveSlugs`, src/lib/live-brands.ts) — a chip opens `/?brand=<slug>`,
+ * so a brand with nothing live is a chip into an empty feed. This read `listingCount > 0`, a counter that a
+ * sale or a hide never lowers, so a brand sold out since the last recount kept its chip.
  */
-export function brandWhere(brandKey: string): Prisma.BrandWhereInput {
+export function brandWhere(brandKey: string, liveSlugs: readonly string[]): Prisma.BrandWhereInput {
   return {
     status: 'active',
-    listingCount: { gt: 0 },
+    slug: { in: [...liveSlugs] },
     OR: [{ normalized: { startsWith: brandKey } }, ...(brandKey.length >= 5 ? [{ normalized: { contains: brandKey } }] : [])],
   }
 }
 
-/** Prefix hits first, then the most-listed — the two the chip group shows. */
-export function rankBrands<B extends { normalized: string; listingCount: number }>(rows: readonly B[], brandKey: string, take = 2): B[] {
+/** Prefix hits first, then the most live listings — the two the chip group shows. */
+export function rankBrands<B extends { slug: string; normalized: string }>(rows: readonly B[], brandKey: string, live: ReadonlyMap<string, number>, take = 2): B[] {
   const prefix = (b: B) => (b.normalized.startsWith(brandKey) ? 0 : 1)
-  return [...rows].sort((a, b) => prefix(a) - prefix(b) || b.listingCount - a.listingCount).slice(0, take)
+  const count = (b: B) => live.get(b.slug) ?? 0
+  return [...rows].sort((a, b) => prefix(a) - prefix(b) || count(b) - count(a)).slice(0, take)
 }
 
 // ── Product lines ─────────────────────────────────────────────────────────────────────────────

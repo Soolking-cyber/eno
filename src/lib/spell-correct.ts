@@ -13,6 +13,7 @@ import 'server-only'
  * 6; and the explorer offers "Search instead for …" (the response's `correctedQuery`).
  */
 import { db } from './db'
+import { liveBrandCounts } from './live-brands'
 import { fold } from './fold'
 import { MODEL_LINEAGE } from '@/generated/model-lineage'
 import { TAXONOMY } from './taxonomy'
@@ -110,11 +111,14 @@ let vocabCache: { at: number; vocab: Promise<Vocab> } | null = null
  * The full vocabulary: the static words plus every active brand with live listings (`normalized`,
  * e.g. "louisvuitton"), priority 1. Memoized for 10 minutes, the in-flight promise included. A failed
  * brand read degrades to the static words and is not cached.
+ * ⛔ "LIVE" IS src/lib/live-brands.ts, NOT `listingCount > 0`: a correction steers a zero-result search
+ * onto a brand, and the counter keeps a brand whose rows were sold or hidden since the last recount —
+ * a correction into another empty result.
  */
 export function buildVocab(): Promise<Vocab> {
   if (vocabCache && Date.now() - vocabCache.at < VOCAB_TTL) return vocabCache.vocab
-  const vocab = db.brand
-    .findMany({ where: { status: 'active', listingCount: { gt: 0 } }, select: { normalized: true } })
+  const vocab = liveBrandCounts()
+    .then((live) => db.brand.findMany({ where: { status: 'active', slug: { in: [...live.keys()] } }, select: { normalized: true } }))
     .then((brands) => {
       const v = staticVocab()
       for (const b of brands) for (const w of wordsOf(b.normalized)) if (!v.has(w)) v.set(w, 1)

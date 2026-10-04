@@ -8,25 +8,33 @@ import { ENTITY_MIN, SCOPE_SHARE, brandWhere, isStatementTimeout, lineCandidates
 
 describe('brands match at the START of the name', () => {
   it('"iph" no longer offers Qui Phúc, "ren" no longer Serenys: under five characters it is a prefix only', () => {
-    expect(brandWhere('iph').OR).toEqual([{ normalized: { startsWith: 'iph' } }])
-    expect(brandWhere('ren').OR).toEqual([{ normalized: { startsWith: 'ren' } }])
+    expect(brandWhere('iph', []).OR).toEqual([{ normalized: { startsWith: 'iph' } }])
+    expect(brandWhere('ren', []).OR).toEqual([{ normalized: { startsWith: 'ren' } }])
   })
 
   it('from five characters an infix is almost always the brand itself ("vuitton" → Louis Vuitton), so it is allowed back', () => {
-    expect(brandWhere('vuitton').OR).toEqual([{ normalized: { startsWith: 'vuitton' } }, { normalized: { contains: 'vuitton' } }])
+    expect(brandWhere('vuitton', []).OR).toEqual([{ normalized: { startsWith: 'vuitton' } }, { normalized: { contains: 'vuitton' } }])
   })
 
-  it('only live brands', () => {
-    expect(brandWhere('sam')).toMatchObject({ status: 'active', listingCount: { gt: 0 } })
+  it('only brands with LIVE listings — the live set, never the stored `listingCount` (a sale never lowers it)', () => {
+    const where = brandWhere('sam', ['samsung', 'samyang'])
+    expect(where).toMatchObject({ status: 'active', slug: { in: ['samsung', 'samyang'] } })
+    expect(where).not.toHaveProperty('listingCount')
+    // Nothing live → nothing can match, rather than every brand.
+    expect(brandWhere('sam', [])).toMatchObject({ slug: { in: [] } })
   })
 
-  it('prefix hits lead, then the most-listed; two shown', () => {
+  it('prefix hits lead, then the most LIVE listings; two shown', () => {
     const rows = [
-      { normalized: 'louisvuitton', listingCount: 900 },
-      { normalized: 'vuittonvintage', listingCount: 3 },
-      { normalized: 'vuitton', listingCount: 40 },
+      { slug: 'louis-vuitton', normalized: 'louisvuitton' },
+      { slug: 'vuitton-vintage', normalized: 'vuittonvintage' },
+      { slug: 'vuitton', normalized: 'vuitton' },
     ]
-    expect(rankBrands(rows, 'vuitton').map((b) => b.normalized)).toEqual(['vuitton', 'vuittonvintage'])
+    const live = new Map([['louis-vuitton', 900], ['vuitton-vintage', 3], ['vuitton', 40]])
+    expect(rankBrands(rows, 'vuitton', live).map((b) => b.normalized)).toEqual(['vuitton', 'vuittonvintage'])
+    // The live count decides between two prefix hits, whatever the stored counter once said.
+    const two = [{ slug: 'samyang', normalized: 'samyang' }, { slug: 'samsung', normalized: 'samsung' }]
+    expect(rankBrands(two, 'sam', new Map([['samyang', 2], ['samsung', 50]])).map((b) => b.slug)).toEqual(['samsung', 'samyang'])
   })
 })
 

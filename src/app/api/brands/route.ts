@@ -7,12 +7,20 @@ import { route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 
-// Brand catalogue read — powers the post-wizard datalist, the brand directory, AND
-// the search-page brand rail.
-//  - `?q=`        accent-insensitive match on the normalized key (datalist).
-//  - `?category=` brands that actually have LIVE listings in that category, ranked
-//                 by how many — this is what the rail shows (category-contextual).
-//  - neither      the most-listed brands overall (directory).
+// Brand catalogue read — powers the post-wizard datalist AND the search-page brand rail.
+//  - `?category=<slug>` brands that actually have LIVE listings in that category, ranked
+//                 by demand — this is what the rail shows (category-contextual).
+//  - `?category=all` the rail on "All": every brand with LIVE listings, most-listed first.
+//  - neither      the CATALOGUE (the post wizard's suggestions; `?q=` matches the normalized key).
+//
+// ⛔ ONLY THE CATALOGUE BRANCH READS `Brand.listingCount`, AND ONLY TO ORDER IT. `category=all` used to
+// share that branch — the most-listed brands by the stored counter — so the rail on "All" offered brands
+// with nothing live: curated ones at 0 whenever fewer than `limit` brands had stock, and any brand whose
+// rows were sold or hidden since the last recount (the counter is never decremented for either — see
+// src/lib/live-brands.ts). It now groups the live rows like every other category, so a tile is a brand
+// the feed beside it can actually show, inside the same edition and storefront scope. The catalogue
+// keeps every active brand on purpose: a seller naming the brand of a NEW listing is exactly when an
+// empty curated brand's spelling helps, and nothing there is advertised to a buyer.
 // Each brand includes `iconPath` (resolved server-side so simple-icons never ships
 // to the client). Public, lightly cached.
 //
@@ -40,12 +48,15 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
 
   let rows: { slug: string; name: string; iconSlug: string | null; logoPath: string | null; count: number }[]
 
-  if (category && category !== 'all') {
+  if (category) {
     // Brands present in this category's (and, when set, subcategory's) live
     // listings (rail context), ranked by live DEMAND (views + weighted contacts)
     // so the most-wanted brands lead; falls back to listing count when there's
     // no traffic yet. Subcategory scoping keeps the hierarchy honest: Bicycle
     // must not offer Toyota just because both live under Vehicles.
+    // `all` drops the category (and any subcategory) and ranks by COUNT instead — the "most-listed
+    // overall" order the explorer's "All" rail has always promised (listings-explorer.tsx).
+    const all = category === 'all'
     const grouped = await db.listing.groupBy({
       by: ['brandSlug'],
       // ⚠️ A LATENT LEAK, not a live one — held shut today only by the seeded desk rows having a
@@ -55,8 +66,8 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
         verified: true,
         status: 'active',
         brandSlug: { not: null },
-        category: { slug: category },
-        ...(subcategory && subcategory !== 'all' ? { subcategorySlug: subcategory } : {}),
+        ...(all ? {} : { category: { slug: category } }),
+        ...(!all && subcategory && subcategory !== 'all' ? { subcategorySlug: subcategory } : {}),
         /**
          * STOREFRONT SCOPE — `?seller=<id>`, sent by a shop's own subdomain. Owner, 2026-08-30:
          * *"storefronts dont show brands"*.
@@ -90,7 +101,7 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
     })
     rows = brandRows
       .map((b) => ({ ...b, count: stat.get(b.slug)?.count ?? 0, demand: stat.get(b.slug)?.demand ?? 0 }))
-      .sort((a, b) => b.demand - a.demand || b.count - a.count || a.name.localeCompare(b.name))
+      .sort((a, b) => (all ? 0 : b.demand - a.demand) || b.count - a.count || a.name.localeCompare(b.name))
       .slice(0, limit)
       .map(({ demand: _d, ...b }) => b)
   } else {

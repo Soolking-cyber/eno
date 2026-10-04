@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { db } from '@/lib/db'
 import { brandIconPath } from '@/lib/brand-icons'
 import { brandLogoUrl } from '@/lib/brand-logo-url'
+import { listedBrands, liveBrandCounts } from '@/lib/live-brands'
 
 export const metadata: Metadata = {
   title: `Brands | ${SITE_NAME}`,
@@ -24,26 +25,29 @@ export const metadata: Metadata = {
 export const revalidate = 21600 // 6h — fewer ISR writes; the catalogue grows slowly
 
 export default async function BrandsPage() {
-  // Active brands that actually have listings, most-listed first. Resolve each
-  // brand's monotone logo server-side so simple-icons never reaches the client.
-  // Defensive: only a genuinely missing catalogue table (pre-migration build, Prisma
-  // P2021) falls back to empty. Transient DB errors RETHROW so ISR keeps serving the
-  // last good HTML instead of caching a false "No brands" page for 6h.
-  // Curated brands (the seeded top-100, `curatedAt` set) always show — a real
-  // brand wall from day one — plus any organic brand that has live listings.
-  // Brands with inventory rank first; the rest of the catalogue follows by name.
-  const brands = await db.brand.findMany({
-    where: { status: 'active', OR: [{ curatedAt: { not: null } }, { listingCount: { gt: 0 } }] },
-    select: { slug: true, name: true, iconSlug: true, logoPath: true, listingCount: true },
-    orderBy: [{ listingCount: 'desc' }, { name: 'asc' }],
-    // Headroom well beyond the curated set (~100) + organic brands, so the 0-listing
-    // curated brands (which sort last) are never truncated. Revisit with keyset
-    // pagination if the catalogue ever approaches this.
-    take: 1000,
-  }).catch((error: unknown) => {
-    if ((error as { code?: string })?.code === 'P2021') return []
-    throw error
-  })
+  // Brands with LIVE listings only, most-listed first, each with the count `/?brand=<slug>` returns
+  // (src/lib/live-brands.ts). Resolve each brand's monotone logo server-side so simple-icons never
+  // reaches the client.
+  // ⛔ CURATION NO LONGER BUYS A TILE. This page used to add every curated brand (`curatedAt` set, the
+  // seeded top-100) as a day-one brand wall, with an "Explore" label where a count would be. After the
+  // new-goods catalogues were hidden that was 66 tiles — Casio, Adidas, Audi, BMW, Chanel… — each opening
+  // an empty explorer (verify, 2026-10-04). Curation still supplies the logo and the aliases; a curated
+  // brand reappears here by itself once one of its listings is live.
+  // Defensive: only a genuinely missing table (pre-migration build, Prisma P2021) falls back to empty.
+  // Transient DB errors RETHROW so ISR keeps serving the last good HTML instead of caching a false
+  // "No brands" page for 6h.
+  const brands = await liveBrandCounts()
+    .then(async (live) => listedBrands(
+      await db.brand.findMany({
+        where: { status: 'active', slug: { in: [...live.keys()] } },
+        select: { slug: true, name: true, iconSlug: true, logoPath: true },
+      }),
+      live,
+    ))
+    .catch((error: unknown) => {
+      if ((error as { code?: string })?.code === 'P2021') return []
+      throw error
+    })
   /* ⛔ `iconUrl` KEEPS 648 kB OF INLINE SVG OUT OF THIS PAGE. A curated logo is a full `<svg>` that
      BrandLogo would otherwise percent-encode into a `data:` URI per instance — measured 2026-09-20:
      176 of them, 28% of a 2.27 MB page. Served from /api/brand-logo instead, it is fetched once and
@@ -115,13 +119,7 @@ export default async function BrandsPage() {
                 <BrandLogo name={b.name} iconPath={b.iconUrl ? null : b.iconPath} iconUrl={b.iconUrl} size={44} />
                 <span className="line-clamp-1 text-sm font-semibold text-foreground">{b.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {b.listingCount > 0 ? (
-                    <>
-                      {b.listingCount} {b.listingCount === 1 ? <Tr text="listing" /> : <Tr text="listings" />}
-                    </>
-                  ) : (
-                    <Tr text="Explore" />
-                  )}
+                  {b.count} {b.count === 1 ? <Tr text="listing" /> : <Tr text="listings" />}
                 </span>
               </Link>
             ))}

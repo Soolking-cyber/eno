@@ -4,8 +4,12 @@
  * ⚠️ WHY THIS EXISTS: the count is only ever INCREMENTED (src/lib/brand.ts `bumpBrandCount`, on publish)
  * and nothing decrements it — not a sale, not a hide, not a removal. After the second-hand focus hid the
  * new-goods catalogues (2026-10-03), 314 brands still showed a positive count with nothing live behind
- * them (Σ 15,438 counted vs 3,371 live, measured), and `/brands` and the search suggestions filter on
+ * them (Σ 15,438 counted vs 3,371 live, measured), and `/brands` and the search suggestions filtered on
  * `listingCount > 0` — so they advertised brands with nothing to show.
+ * ⚠️ SINCE 2026-10-04 NO BUYER-FACING SURFACE READS THIS COUNT — /brands, the brand rail, the typeahead
+ * and the spell-corrector decide from live rows (src/lib/live-brands.ts), because a recount is true only
+ * until the next sale. The count now only orders the post wizard's catalogue and the admin console, so a
+ * recount is housekeeping for those two, not a visibility fix.
  *
  * ⛔ THE DEFINITION IS THE ADMIN MERGE'S OWN (src/app/api/admin/brands/route.ts): verified AND active
  * listings carrying the brand slug. One definition, so a merge and a recount can never disagree.

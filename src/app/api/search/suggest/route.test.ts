@@ -35,6 +35,7 @@ vi.mock('@/lib/api/handler', () => ({
 
 const { GET } = await import('./route')
 const { __resetSuggestEntityCaches } = await import('./suggest-entities')
+const { __resetLiveBrandCounts } = await import('@/lib/live-brands')
 const { districtScopeForSlug } = await import('@/lib/district-slug')
 const { textClauses, wordStart } = await import('@/lib/search-match')
 
@@ -58,6 +59,7 @@ beforeEach(() => {
   brandFindMany.mockImplementation(async () => [])
   brandFindUnique.mockImplementation(async () => null)
   __resetSuggestEntityCaches()
+  __resetLiveBrandCounts()
 })
 
 describe('suggest — a district in the query', () => {
@@ -177,10 +179,35 @@ describe('suggest — brands, product lines and the scoped row', () => {
     categories.mockImplementation(async () => CATS)
     brandFindUnique.mockImplementation(async () => ({ name: 'Apple', status: 'active' }))
     await suggest('iphone')
-    const lineCall = groupBy.mock.calls.find((c) => c[0].by.length === 1)![0]
+    const lineCall = groupBy.mock.calls.find((c) => c[0].by.length === 1 && c[0].by[0] === 'categoryId')![0]
     const { buildFeedFilters } = await import('@/app/api/listings/feed-query')
     const { where } = await buildFeedFilters(new URLSearchParams({ brand: 'apple', line: 'iPhone' }))
     expect(lineCall.where).toEqual(where)
+  })
+
+  it('brand chips come from the LIVE brands only, ranked by their live count — never by the stored listingCount', async () => {
+    categories.mockImplementation(async () => CATS)
+    groupBy.mockImplementation(async (a: any) => (a.by[0] === 'brandSlug'
+      ? [{ brandSlug: 'samyang', _count: { _all: 2 } }, { brandSlug: 'samsung', _count: { _all: 50 } }, { brandSlug: null, _count: { _all: 7 } }]
+      : []))
+    // The table holds a curated brand with nothing live too; the read must not ask for it.
+    brandFindMany.mockImplementation(async (a: any) => [
+      { slug: 'samyang', name: 'Samyang', normalized: 'samyang' },
+      { slug: 'samsung', name: 'Samsung', normalized: 'samsung' },
+      { slug: 'samsonite', name: 'Samsonite', normalized: 'samsonite' },
+    ].filter((b) => a.where.slug.in.includes(b.slug)))
+    const body = await (await suggest('sam')).json()
+    const where = brandFindMany.mock.calls[0][0].where
+    expect(where.slug.in.sort()).toEqual(['samsung', 'samyang'])
+    expect(where).not.toHaveProperty('listingCount')
+    expect(body.brands).toEqual([{ slug: 'samsung', name: 'Samsung' }, { slug: 'samyang', name: 'Samyang' }])
+    // The live read IS the feed's where (the real builder /api/listings reads, no parameters) + "has a brand"
+    // — so a chip's brand is one the click on it can show.
+    const liveCall = groupBy.mock.calls.find((c) => c[0].by[0] === 'brandSlug')![0]
+    const { buildFeedFilters } = await import('@/app/api/listings/feed-query')
+    const feed = (await buildFeedFilters(new URLSearchParams())).where
+    expect(liveCall.where).toEqual({ AND: [feed, { brandSlug: { not: null } }] })
+    expect(JSON.stringify(feed)).toContain('"verified":true')
   })
 
   it('a hidden brand, or a line with fewer than three live rows, is not a row', async () => {
@@ -215,11 +242,16 @@ describe('suggest — brands, product lines and the scoped row', () => {
     categories.mockImplementation(async () => CATS)
     groupBy.mockImplementation(async () => { throw new Error('db down') })
     brandFindUnique.mockImplementation(async () => ({ name: 'Apple', status: 'active' }))
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     const res = await suggest('iphone')
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.lines).toEqual([])
     expect(body.scope).toBeNull()
+    // The live-brand read is a grouped read too: it drops the brand chips, not the dropdown.
+    expect(body.brands).toEqual([])
+    expect(brandFindMany).not.toHaveBeenCalled()
+    err.mockRestore()
   })
 
   it('⛔ a SLOW aisle count holds the dropdown for the grace at most: the row is skipped this time and served from the memo next time', async () => {
@@ -242,6 +274,39 @@ describe('suggest — brands, product lines and the scoped row', () => {
     expect(second.scope?.count).toBe(802)
     // One grouped read for both requests: the late answer filled the memo.
     expect(groupBy.mock.calls.filter((c) => c[0].by.length === 2)).toHaveLength(1)
+  })
+
+  it('⛔ a SLOW live-brand read holds the dropdown for the grace at most: no chips this time, chips from the memo next time', async () => {
+    categories.mockImplementation(async () => CATS)
+    let release!: () => void
+    const gate = new Promise<void>((r) => { release = r })
+    groupBy.mockImplementation(async (a: any) => {
+      if (a.by[0] !== 'brandSlug') return []
+      await gate
+      return [{ brandSlug: 'samsung', _count: { _all: 50 } }]
+    })
+    brandFindMany.mockImplementation(async (a: any) => [{ slug: 'samsung', name: 'Samsung', normalized: 'samsung' }].filter((b) => a.where.slug.in.includes(b.slug)))
+    const t0 = Date.now()
+    const first = await (await suggest('sam')).json()
+    expect(Date.now() - t0).toBeLessThan(1500)
+    expect(first.brands).toEqual([])
+    release()
+    await new Promise((r) => setTimeout(r, 0))
+    const second = await (await suggest('sam')).json()
+    expect(second.brands).toEqual([{ slug: 'samsung', name: 'Samsung' }])
+    // One grouped read for both requests: the late answer filled the memo.
+    expect(groupBy.mock.calls.filter((c) => c[0].by[0] === 'brandSlug')).toHaveLength(1)
+  })
+
+  it('a failed BRAND TABLE read drops the chips too, never the dropdown', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    categories.mockImplementation(async () => CATS)
+    groupBy.mockImplementation(async (a: any) => (a.by[0] === 'brandSlug' ? [{ brandSlug: 'samsung', _count: { _all: 5 } }] : []))
+    brandFindMany.mockImplementation(async () => { throw new Error('brand table down') })
+    const res = await suggest('sam')
+    expect(res.status).toBe(200)
+    expect((await res.json()).brands).toEqual([])
+    err.mockRestore()
   })
 
   /**
