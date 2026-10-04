@@ -294,7 +294,9 @@ function sourceLangFor(text: string): { lang: string; detected: boolean } {
  * queue behind import chunks (opus). Background warming is deliberately absent: waiting is
  * exactly what it should do rather than pay.
  */
-const LATENCY_CRITICAL = new Set(['chat', 'api'])
+// 'concierge': a reply someone is waiting on, like chat — the paid provider first, the box model only as
+// the (time-boxed) fallback.
+const LATENCY_CRITICAL = new Set(['chat', 'api', 'concierge'])
 
 /**
  * One paid attempt across the configured providers.

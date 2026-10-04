@@ -5,7 +5,7 @@ import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { LegalLanguageNote } from '@/components/legal/legal-language-note'
-import { AMENDED } from '@/lib/compliance/legal-amendment'
+import { AMENDED, LEGAL_AMENDMENT } from '@/lib/compliance/legal-amendment'
 import { CROSS_SITE_REL } from '@/lib/cross-site-links'
 import { PROHIBITED_SERVICES_CROSSLINK, PROHIBITED_SERVICES_SECTION } from '@/lib/prohibited-services-copy'
 
@@ -192,7 +192,7 @@ export default async function ProhibitedPage({ params }: { params: Promise<{ lan
       meta={
         <>
           <p className="mt-3 text-sm text-ink-4">
-            <Bilingual en="Part of the Operating Regulations · Last updated: {date}" vi="Một phần của Quy chế hoạt động · Cập nhật lần cuối: {date}" values={{ date: vi ? AMENDED.publishedVi : AMENDED.publishedEn }} />
+            <Bilingual en="Part of the Operating Regulations · Last updated: {date}" vi="Một phần của Quy chế hoạt động · Cập nhật lần cuối: {date}" values={{ date: vi ? AMENDED.publishedVi : AMENDED.publishedEn }} datesIso={{ date: LEGAL_AMENDMENT.published }} />
           </p>
           <LegalLanguageNote />
         </>

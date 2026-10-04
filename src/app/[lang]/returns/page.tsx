@@ -15,7 +15,7 @@ import { linkifyLegal } from '@/components/marketplace/legal-linkify'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { LegalLanguageNote } from '@/components/legal/legal-language-note'
 import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
-import { AMENDED } from '@/lib/compliance/legal-amendment'
+import { AMENDED, LEGAL_AMENDMENT } from '@/lib/compliance/legal-amendment'
 
 // ── Returns and exchanges ───────────────────────────────────────────────────────────────
 //
@@ -252,6 +252,7 @@ export default async function ReturnsPage({ params }: { params: Promise<{ lang: 
               en="In force from {date} · Applies to purchases in Vietnam"
               vi="Có hiệu lực từ ngày {date} · Áp dụng cho giao dịch tại Việt Nam"
               values={{ date: vi ? AMENDED.inForceVi : AMENDED.inForceEn }}
+              datesIso={{ date: LEGAL_AMENDMENT.inForce }}
             />
           </p>
           <LegalLanguageNote />

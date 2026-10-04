@@ -16,6 +16,9 @@ const NUMERIC_SPEC_KEYS = new Set(['ram', 'storage', 'caseSize', 'screenSize', '
 import { conciergeSearch, vertexConfigured } from '@/lib/vertex-search'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
 import { matchBrand } from '@/lib/brand'
+import { safeTemplate } from '@/lib/i18n/placeholders'
+import { translateBatch } from '@/lib/translate'
+import { isLanguage, languageName, type Language } from '@/lib/languages'
 import { WORD_BOUNDARY } from '@/lib/search-match'
 import type { Prisma } from '@/generated/prisma/client'
 
@@ -120,7 +123,7 @@ function heuristicUnderstand(text: string): Understood {
 // One Gemini call = the concierge's brain: intent + a natural reply + structured
 // search params resolved from the WHOLE conversation ("cheapest one" after "i need a
 // computer" → "computer"; a new topic replaces the old).
-async function understand(messages: Msg[], cats: { slug: string }[], lang: 'en' | 'vi'): Promise<Understood> {
+async function understand(messages: Msg[], cats: { slug: string }[], lang: 'en' | 'vi', replyIn: string = lang === 'vi' ? 'Vietnamese' : 'English'): Promise<Understood> {
   const lastUser = [...messages].reverse().find((m) => m.role === 'user')!
   const fallback = heuristicUnderstand(lastUser.content)
   // The free chat guard fires regardless of Gemini availability/budget.
@@ -132,7 +135,7 @@ async function understand(messages: Msg[], cats: { slug: string }[], lang: 'en' 
   const budget = await rateLimit('ai-concierge-gemini', 'global', 5000, '1 d', { strict: true })
   if (!budget.success) return fallback
   const transcript = messages.slice(-8).map((m) => `${m.role === 'user' ? 'Buyer' : 'Assistant'}: ${m.content}`).join('\n')
-  const prompt = `You are "eno AI", the friendly shopping assistant of eno.vn — Vietnam's marketplace for the international community. A buyer is chatting with you. Decide what their LAST message needs and answer in ${lang === 'vi' ? 'Vietnamese' : 'English'}.
+  const prompt = `You are "eno AI", the friendly shopping assistant of eno.vn — Vietnam's marketplace for the international community. A buyer is chatting with you. Decide what their LAST message needs and answer in ${replyIn}.
 
 intent:
 - "chat" — greeting, small talk, thanks, questions about you or the site, or anything that is NOT a product request. Write a warm, short reply (1-2 sentences, at most 1 emoji). If they seem lost, give ONE concrete example of what they can ask.
@@ -512,16 +515,58 @@ export async function POST(req: NextRequest) {
   let body: { messages?: Msg[]; lang?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
   const lang = body.lang === 'vi' ? 'vi' : 'en'
+  /**
+   * ⚠️ THE READER'S OWN LANGUAGE, NOT JUST en/vi. The model writes its reply in whatever language it is
+   * told, so the nine machine-translated UI languages get a native answer instead of English. The fixed
+   * replies below are authored in English and Vietnamese only; for the other nine they are translated on
+   * the way out (`canned`, `localizeFree`). `lang` (en/vi) still drives the money words and the heuristics.
+   */
+  const uiLang: Language = isLanguage(body.lang) ? body.lang : lang
+  /**
+   * A canned reply in the reader's language. en and vi are authored; for the nine others the English
+   * TEMPLATE is translated — with `{q}` standing in for the buyer's own words, which are filled in
+   * afterwards, so the translator never sees (or rewrites) what they typed, and the template is cached
+   * once per language instead of once per search. A translation that lost the placeholder falls back to
+   * the English line.
+   */
+  // A slow translator must never hold the reply: past this, the reader gets the English. The call itself
+  // is not cancelled (translateBatch takes no signal): a canned template still lands in the cache for the
+  // next reader, and an ephemeral one is bounded by this route's own per-user limit.
+  const within = async <T,>(p: Promise<T>, fallback: T): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([p, new Promise<T>((resolve) => { timer = setTimeout(() => resolve(fallback), 4000) })])
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+  const canned = async (en: string, vi: string, values: Record<string, string> = {}): Promise<string> => {
+    const fill = (t: string) => t.replace(/\{(\w+)\}/g, (m, k: string) => (Object.prototype.hasOwnProperty.call(values, k) ? values[k] : m))
+    if (uiLang === 'vi') return fill(vi)
+    if (uiLang === 'en') return fill(en)
+    const [t] = await within(translateBatch([en], uiLang, { source: 'concierge' }).catch(() => [en]), [en])
+    // Same rule as the client's tr(): same placeholders → as is; one renamed ({вопрос}) → repaired; else English.
+    return fill(safeTemplate(t || en, en))
+  }
+  // Free text this route did not write (a search provider's answer): translated as-is, EPHEMERAL —
+  // nothing that quotes a buyer is written to the shared cache.
+  const localizeFree = async (text: string): Promise<string> => {
+    // Vietnamese too: this answer is the search provider's English, not an authored en/vi pair.
+    if (!text || uiLang === 'en') return text
+    const [out] = await within(translateBatch([text], uiLang, { skipWrite: true, source: 'concierge' }).catch(() => [text]), [text])
+    return out || text
+  }
   const messages = (body.messages || []).filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string').slice(-12)
   if (![...messages].some((m) => m.role === 'user')) return NextResponse.json({ error: 'bad_request' }, { status: 400 })
 
   // Understand the turn: intent + natural reply + structured search params.
   const cats = (await db.category.findMany({ select: { slug: true } })).filter((c) => isPostableCategory(c.slug))
-  const u = await understand(messages, cats, lang)
+  const u = await understand(messages, cats, lang, languageName(uiLang))
 
   // Conversation, not commerce: reply warmly, show nothing for sale. Free.
   if (u.intent === 'chat') {
-    return NextResponse.json({ reply: u.reply || chatReply(lang), listings: [], source: 'chat' })
+    // A model reply is already in `uiLang`; the canned one is not.
+    return NextResponse.json({ reply: u.reply || (await canned(chatReply('en'), chatReply('vi'))), listings: [], source: 'chat' })
   }
 
   // Resolve the brand word through the catalogue (typo-tolerant, read-only). Also try
@@ -619,18 +664,22 @@ export async function POST(req: NextRequest) {
     // Relaxed rung = we did NOT find the exact ask — say so instead of pretending
     // ("iphone 16 pro max" → closest iPhones, never a silent pile of iPads).
     if (relaxed) {
-      reply = lang === 'vi'
-        ? `Chưa có đúng "${query}" — đây là những món gần nhất đang bán:`
-        : `No exact match for "${query}" right now — here are the closest ones live:`
-    } else if (!reply) {
-      reply = u.reply || (lang === 'vi' ? 'Đây là vài lựa chọn phù hợp:' : 'Here are some good matches:')
+      reply = await canned('No exact match for "{q}" right now — here are the closest ones live:', 'Chưa có đúng "{q}" — đây là những món gần nhất đang bán:', { q: query })
+    } else if (reply) {
+      reply = await localizeFree(reply) // a search provider's own answer (Vertex), English
+    } else {
+      reply = u.reply || (await canned('Here are some good matches:', 'Đây là vài lựa chọn phù hợp:'))
     }
   } else {
     // Honest empty: name what was searched so the buyer knows we understood them.
     const what = [brandSlug, ...keywords(query).filter((t) => !brandSlug || !brandSlug.includes(t))].filter(Boolean).join(' ') || query
-    reply = lang === 'vi'
-      ? `Hiện chưa có "${what}" nào đang bán — tin mới lên liên tục, bạn thử mô tả khác hoặc quay lại sau nhé.`
-      : `Nothing matching "${what}" is live right now — new listings land all the time, so try different wording or check back soon.`
+    reply = await canned(
+      'Nothing matching "{q}" is live right now — new listings land all the time, so try different wording or check back soon.',
+      'Hiện chưa có "{q}" nào đang bán — tin mới lên liên tục, bạn thử mô tả khác hoặc quay lại sau nhé.',
+      { q: what },
+    )
   }
+  // Every reply above is already in the reader's language: the model writes in it, and the canned and
+  // provider sentences were localized where they were chosen.
   return NextResponse.json({ reply, listings, source })
 }

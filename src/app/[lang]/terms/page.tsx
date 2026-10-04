@@ -24,7 +24,7 @@ import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, TOS_PREVIOUS_VERSION, TOS_VE
 import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
 import { CROSS_SITE_REL, MARKETPLACE_HOME } from '@/lib/cross-site-links'
 import { TERMS_SERVICES_COPY } from '@/lib/terms-services-copy'
-import { AMENDED } from '@/lib/compliance/legal-amendment'
+import { AMENDED, LEGAL_AMENDMENT } from '@/lib/compliance/legal-amendment'
 import { V1, V1_PATHS, archivedPath } from '@/lib/compliance/legal-archive'
 
 // ── Terms of Service — ONE file, rendered by BOTH deployments ───────────────────────────
@@ -389,7 +389,7 @@ export default async function TermsPage({ params }: { params: Promise<{ lang: st
                 promises "the version of these Terms in force is shown at the top of this page", and
                 during a notice window the two differ (tosVersionInForce, src/lib/site-legal.ts). The
                 dated change note lives in the `changes` section. */}
-            <Bilingual en="Last updated: {date}" vi="Cập nhật lần cuối: {date}" values={{ date: vi ? AMENDED.publishedVi : AMENDED.publishedEn }} /> · <Tr text="Version" /> {inForce}
+            <Bilingual en="Last updated: {date}" vi="Cập nhật lần cuối: {date}" values={{ date: vi ? AMENDED.publishedVi : AMENDED.publishedEn }} datesIso={{ date: LEGAL_AMENDMENT.published }} /> · <Tr text="Version" /> {inForce}
           </p>
           {inForce !== TOS_VERSION ? (
             // Says which text binds TODAY: the body below is the newer version, published but not yet
@@ -405,6 +405,7 @@ export default async function TermsPage({ params }: { params: Promise<{ lang: st
                   published: vi ? AMENDED.publishedVi : AMENDED.publishedEn,
                   inForce: vi ? AMENDED.inForceVi : AMENDED.inForceEn,
                 }}
+                datesIso={{ published: LEGAL_AMENDMENT.published, inForce: LEGAL_AMENDMENT.inForce }}
               />{' '}
               <a href={archivedPath('terms', TOS_PREVIOUS_VERSION)} className="font-semibold text-accent-foreground hover:underline">
                 <Bilingual en="Read version {prev}" vi="Xem phiên bản {prev}" values={{ prev: TOS_PREVIOUS_VERSION }} />
