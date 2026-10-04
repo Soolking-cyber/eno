@@ -21,3 +21,18 @@
 export function hasNoInventory(queryReturned: boolean, count: number): boolean {
   return queryReturned && count === 0
 }
+
+/**
+ * The rail's rows for a page — or none, WITHOUT a query, when the page has switched its rail off
+ * (`SeoContent.rail === false`).
+ *
+ * ⚠️ OFF IS NOT EMPTY, SO `known` IS FALSE. A rail is switched off by a page that has already said why
+ * nothing can be listed — a phone not yet on sale in Vietnam (the iPhone Duo before 23 October, see
+ * iphone-18-vietnam/model-landing.tsx). Reading that as "we looked and found nothing" would take
+ * `hasNoInventory`'s branch: "Be the first to list one", an invitation to list a second-hand unit of a
+ * phone nobody can own yet — the mislabelled pre-order the rail is switched off to keep out. So the
+ * page keeps its ordinary CTA and shows no rail.
+ */
+export function railFor<L>(content: { rail?: false }, load: () => Promise<{ listings: L[]; known: boolean }>): Promise<{ listings: L[]; known: boolean }> {
+  return content.rail === false ? Promise.resolve({ listings: [], known: false }) : load()
+}

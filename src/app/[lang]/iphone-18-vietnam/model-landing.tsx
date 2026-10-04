@@ -5,6 +5,7 @@ import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landin
 import { lowestPrices, type PriceRow } from './lowest-prices'
 import { AffiliateNote, PriceTable, showAffiliateNote } from './price-table'
 import { modelProductLd } from './model-product-ld'
+import { onSaleYet } from './price-guard'
 import { pageShare } from '@/lib/site-identity'
 
 /**
@@ -65,8 +66,11 @@ const ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
  */
 const floorOf = (rows: PriceRow[]) => [...rows].sort((a, b) => a.price - b.price)[0] ?? null
 
-/** `known` false = the price read failed: Apple's price only, no claim that nothing is listed (review). */
-export function modelContent(cfg: ModelPageConfig, rows: PriceRow[], known = true): SeoContent {
+/**
+ * `known` false = the price read failed: Apple's price only, no claim that nothing is listed (review).
+ * `now` decides whether the model is on sale in Vietnam yet (price-guard.ts `onSaleYet`).
+ */
+export function modelContent(cfg: ModelPageConfig, rows: PriceRow[], known = true, now: Date = new Date()): SeoContent {
   const floor = floorOf(rows)
   const product = modelProductLd(cfg, rows)
   /**
@@ -108,6 +112,15 @@ export function modelContent(cfg: ModelPageConfig, rows: PriceRow[], known = tru
     condition: 'used',
     // ⚠️ ONE model, so the page's own rail cannot show a sibling variant the copy never mentions.
     models: [cfg.model],
+    /**
+     * ⛔ NO RAIL BEFORE THE MODEL IS ON SALE IN VIETNAM — THE SAME GATE AS THE TABLE AND THE Product.
+     * lowest-prices.ts drops every row of a model `onSaleYet` says is not on sale, so the table is empty,
+     * the JSON-LD carries no Product, and the intro says no second-hand shop lists one. The rail is a
+     * second, ungated query (any used row of `cfg.model`), so before 23 October a mislabelled pre-order
+     * "used iPhone Duo" would sit under "Trusted listings" directly beneath that sentence (verify,
+     * 2026-10-04). ISR (`revalidate = 3600`) brings the rail back within the hour after the date.
+     */
+    ...(onSaleYet(cfg.model, now) ? {} : { rail: false as const }),
     // Newest first, not cheapest first — see `order` on SeoContent.
     order: 'recent',
     browseQuery: cfg.browseQuery,

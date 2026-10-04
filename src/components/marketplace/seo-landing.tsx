@@ -13,7 +13,7 @@ import { Rows, Row } from '@/components/ui/rows'
 import { Header } from './header'
 import { Footer } from './footer'
 import { seoBrowseHref } from './seo-landing-href'
-import { hasNoInventory } from './seo-landing-inventory'
+import { hasNoInventory, railFor } from './seo-landing-inventory'
 // The rail's query and markup live in seo-listing-rail.tsx, shared with the long-form guides.
 import { loadSeoRail, SeoListingGrid } from './seo-listing-rail'
 
@@ -31,6 +31,12 @@ type SeoContentFields = {
   /** Heading of the live listing rail; default "Trusted listings". A page whose rail is mostly LINKED
    *  postings eno.vn has not vetted (jobs) must not call them trusted. */
   railTitle?: string
+  /**
+   * false = NO listing rail and no rail query, for a page whose own copy says nothing can be listed yet
+   * (a phone before its Vietnamese on-sale date — model-landing.tsx). The CTA is unchanged; the "be the
+   * first to list one" empty state is NOT shown (seo-landing-inventory.ts `railFor`).
+   */
+  rail?: false
   /**
    * `recent` — the rail lists featured-then-newest, not cheapest-first (seo-listing-rail.tsx). For a page
    * that quotes prices: a price-sorted rail would put the cheapest listing — a typo, or a lure priced to be
@@ -181,7 +187,7 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
   // transient build failure as "nobody has listed one" would put "Be the first to list one" on a
   // page with a hundred listings until the next ISR regen, a week later. `known` is set only after
   // the query genuinely returns, so an outage falls back to today's behaviour.
-  const { listings, known: inventoryKnown } = await loadSeoRail(content)
+  const { listings, known: inventoryKnown } = await railFor(content, () => loadSeoRail(content))
   const browseHref = seoBrowseHref(content)
 
   // Nothing to browse, and we know it rather than merely failing to look. The predicate lives in
