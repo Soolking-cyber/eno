@@ -6,12 +6,19 @@ import { ContentPage, ContentSection } from '@/components/marketplace/content-pa
 import { PartnerBadge } from '@/components/marketplace/partner-badge'
 import { Bilingual } from '@/components/marketplace/bilingual'
 
-export const metadata: Metadata = withShare({
+// Both link-preview cards come from withShare() and stay ENGLISH on both variants (see /safety).
+const METADATA: Metadata = withShare({
   title: `Official partners — ${SITE_NAME}`,
   description:
     'What the Official partner badge means on eno: a company that has signed an agreement with eno. Every other shop whose catalogue appears here is a Linked shop — what that means for buyers, and how commissions are disclosed.',
   alternates: { canonical: '/partners' },
 })
+
+// The <title> follows the `[lang]` variant the proxy served (B5-HELP-VI, as /safety does).
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
+  const { lang } = await params
+  return lang === 'vi' ? { ...METADATA, title: `Đối tác chính thức — ${SITE_NAME}` } : METADATA
+}
 
 /**
  * THE EXPLAINER BEHIND THE PARTNER BADGE — the /trust of partnerships, and built the same

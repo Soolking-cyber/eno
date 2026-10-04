@@ -80,6 +80,10 @@ export async function generateMetadata({ params }: { params: Promise<{ lang: str
 // passes, so every tip still renders at one size and one weight.
 type TipGlyph = (props: { className?: string; strokeWidth?: number }) => React.ReactNode
 type Tip = [icon: IconComponent | TipGlyph, title: Copy, body: Copy]
+// ⛔ EVERY MARKETPLACE TIP BELOW IS AN AUTHORED `{ en, vi }` PAIR (B5-HELP-VI, auth-02, 2026-10-04): as plain
+// strings the advice tips went through <Tr>, had no curated Vietnamese, and reached the vi server HTML in
+// English. content-page-vi-contract.test.ts fails on a plain-string slot in any `Tip[]` array. Only
+// `servicesTips` stays `Copy`: its strings come from the aliased services module (eno.forum only).
 
 // ⚠️ SOLAR'S shield-check, NOT THE HAND-DRAWN eno SEAL (owner, 2026-08-13, pointing at this exact
 // glyph on this page: "sill old icons … use solar"). The wrapper that used to sit here rendered
@@ -108,8 +112,12 @@ const before: Tip[] = [
       en: 'Check the seller’s Trust score — how it works is explained below. A high score is a good sign, not a promise. Be extra careful with a brand-new account selling something valuable far below market.',
       vi: 'Hãy xem điểm uy tín của người bán — cách tính điểm được giải thích ở phần dưới. Điểm cao là dấu hiệu tốt chứ không phải lời cam kết. Hãy đặc biệt thận trọng với tài khoản mới lập bán món đồ giá trị với giá rẻ hơn hẳn thị trường.',
     }],
-  [Images, 'Read the whole listing',
-    'Check the photos actually match the item and description. Ask for extra photos or a short video of the things that matter — the serial number, the odometer, the room in daylight. Vague answers or recycled stock photos are a warning sign.'],
+  [Images,
+    { en: 'Read the whole listing', vi: 'Đọc kỹ toàn bộ tin đăng' },
+    {
+      en: 'Check the photos actually match the item and description. Ask for extra photos or a short video of the things that matter — the serial number, the odometer, the room in daylight. Vague answers or recycled stock photos are a warning sign.',
+      vi: 'Kiểm tra xem ảnh có thật sự khớp với món hàng và phần mô tả không. Hãy xin thêm ảnh hoặc một video ngắn về những điểm quan trọng — số sê-ri, đồng hồ công-tơ-mét, căn phòng lúc ban ngày. Câu trả lời mập mờ hoặc ảnh mạng dùng lại là dấu hiệu cảnh báo.',
+    }],
   // "…no way for us to help" off-platform was not true: a report needs no chat, and its evidence can be
   // screenshots (api/report/route.ts; dispute photos, dispute.ts DISPUTE_IMAGES_MAX). What is lost is
   // the record our team can read (admin/conversation/[id]/page.tsx).
@@ -119,42 +127,94 @@ const before: Tip[] = [
       en: 'Message through eno so there’s a record of exactly what was agreed. If a seller rushes you onto Zalo, Messenger or Telegram before the basics are settled, slow down — off-platform there’s no record for our team to check.',
       vi: 'Nhắn tin qua eno để có bản lưu chính xác những gì hai bên đã thỏa thuận. Nếu người bán hối thúc bạn chuyển sang Zalo, Messenger hay Telegram khi chưa thống nhất những điều cơ bản, hãy chậm lại — ngoài eno sẽ không có bản lưu nào để đội ngũ của chúng tôi kiểm tra.',
     }],
-  [ClipboardCheck, 'Agree the details in writing',
-    'Before you travel, confirm the final price, the condition, what’s included, and the exact time and public place to meet. A seller who won’t commit to specifics in writing may not be serious.'],
+  [ClipboardCheck,
+    { en: 'Agree the details in writing', vi: 'Thỏa thuận chi tiết bằng văn bản' },
+    {
+      en: 'Before you travel, confirm the final price, the condition, what’s included, and the exact time and public place to meet. A seller who won’t commit to specifics in writing may not be serious.',
+      vi: 'Trước khi đi, hãy xác nhận giá cuối cùng, tình trạng món hàng, những gì đi kèm, cùng thời gian và địa điểm công cộng cụ thể để gặp. Người bán không chịu xác nhận rõ ràng bằng văn bản có thể không thật lòng muốn bán.',
+    }],
 ]
 
 // The handover itself — where money and goods change hands.
 const meeting: Tip[] = [
-  [Sun, 'Meet in a busy public place, in daylight',
-    'A crowded café, a shopping mall, or a bank lobby is ideal — somewhere with people and cameras. Avoid alleys, private homes, and late-night handovers. For a room or vehicle you must view on-site, don’t go alone.'],
-  [Users, 'Tell someone where you’re going',
-    'Share the meeting place and time with a friend or family member, and bring them along for higher-value items. There’s real safety in not arriving alone.'],
-  [SearchCheck, 'Inspect fully before any money moves',
-    'Test it properly: power on electronics and check every port, start the motorbike and read the papers and chassis number, view the room and the actual contract. Confirm serial numbers match the receipt or box.'],
+  [Sun,
+    { en: 'Meet in a busy public place, in daylight', vi: 'Gặp ở nơi công cộng đông người, vào ban ngày' },
+    {
+      en: 'A crowded café, a shopping mall, or a bank lobby is ideal — somewhere with people and cameras. Avoid alleys, private homes, and late-night handovers. For a room or vehicle you must view on-site, don’t go alone.',
+      vi: 'Quán cà phê đông khách, trung tâm thương mại hay sảnh ngân hàng là lý tưởng — nơi có người qua lại và có camera. Tránh hẻm vắng, nhà riêng và giao nhận lúc đêm muộn. Nếu phải đến tận nơi xem phòng hoặc xem xe, đừng đi một mình.',
+    }],
+  [Users,
+    { en: 'Tell someone where you’re going', vi: 'Báo cho người thân biết bạn đi đâu' },
+    {
+      en: 'Share the meeting place and time with a friend or family member, and bring them along for higher-value items. There’s real safety in not arriving alone.',
+      vi: 'Chia sẻ địa điểm và thời gian gặp với bạn bè hoặc người nhà, và rủ họ đi cùng khi mua món đồ giá trị cao. Không đến một mình sẽ an toàn hơn hẳn.',
+    }],
+  [SearchCheck,
+    { en: 'Inspect fully before any money moves', vi: 'Kiểm tra kỹ trước khi trả bất kỳ khoản tiền nào' },
+    {
+      en: 'Test it properly: power on electronics and check every port, start the motorbike and read the papers and chassis number, view the room and the actual contract. Confirm serial numbers match the receipt or box.',
+      vi: 'Hãy thử cho kỹ: bật nguồn đồ điện tử và kiểm tra từng cổng kết nối, nổ máy xe và đối chiếu giấy tờ với số khung, xem tận mắt căn phòng và bản hợp đồng thật. Kiểm tra số sê-ri có khớp với hóa đơn hoặc vỏ hộp không.',
+    }],
   // Housing is the category where an expat loses the most money in one go, and the loss is
   // almost always a deposit paid to somebody who does not own the place.
-  [FileText, 'Renting? Check the papers, not just the room',
-    'Ask to see the owner’s ID and the ownership certificate (sổ đỏ / sổ hồng), and check the name on them matches the person signing. Insist on a written contract and a receipt for every payment. Confirm the landlord will register your stay with the local police — for a foreign tenant that is the landlord’s legal duty, and one who refuses is usually not the owner.'],
-  [Banknote, 'Pay once, in person, at handover',
-    'Hand over cash — or transfer — only when the item is in your hands and matches what was agreed. Never send money ahead to “hold” an item. If you transfer, confirm it truly landed in the seller’s account before you leave; screenshots can be faked.'],
+  [FileText,
+    { en: 'Renting? Check the papers, not just the room', vi: 'Thuê nhà? Hãy xem giấy tờ, không chỉ xem phòng' },
+    {
+      en: 'Ask to see the owner’s ID and the ownership certificate (sổ đỏ / sổ hồng), and check the name on them matches the person signing. Insist on a written contract and a receipt for every payment. Confirm the landlord will register your stay with the local police — for a foreign tenant that is the landlord’s legal duty, and one who refuses is usually not the owner.',
+      vi: 'Hãy yêu cầu xem giấy tờ tùy thân của chủ nhà và giấy chứng nhận quyền sở hữu (sổ đỏ / sổ hồng), và kiểm tra tên trên giấy tờ có trùng với người ký hợp đồng không. Yêu cầu hợp đồng bằng văn bản và biên nhận cho mỗi lần thanh toán. Xác nhận chủ nhà sẽ khai báo tạm trú cho bạn với công an địa phương — với người thuê là người nước ngoài, đó là nghĩa vụ pháp lý của chủ nhà, và người từ chối thường không phải chủ nhà thật.',
+    }],
+  [Banknote,
+    { en: 'Pay once, in person, at handover', vi: 'Trả tiền một lần, trực tiếp, khi nhận hàng' },
+    {
+      en: 'Hand over cash — or transfer — only when the item is in your hands and matches what was agreed. Never send money ahead to “hold” an item. If you transfer, confirm it truly landed in the seller’s account before you leave; screenshots can be faked.',
+      vi: 'Chỉ đưa tiền mặt — hoặc chuyển khoản — khi món hàng đã ở trong tay bạn và đúng như đã thỏa thuận. Đừng bao giờ chuyển tiền trước để “giữ” hàng. Nếu chuyển khoản, hãy xác nhận tiền đã thật sự vào tài khoản người bán trước khi rời đi; ảnh chụp màn hình có thể bị làm giả.',
+    }],
 ]
 
 // The patterns that mean: stop, don’t pay, walk away.
 const redFlags: Tip[] = [
-  [AlertTriangle, '“Send a deposit first”',
-    `${SITE_NAME} never asks you to send a deposit to another user, and no honest seller needs one through a chat link. Any “pay to reserve”, “pay a shipping fee” or “pay a verification fee” request is a scam.`],
-  [AlertTriangle, 'A price too good to be true',
-    'If it’s dramatically cheaper than everything comparable, assume it’s bait — for a fake sale, a stolen item, or an account that vanishes the moment you pay.'],
-  [AlertTriangle, 'Pressure and urgency',
-    '“Lots of people are asking”, “transfer in 10 minutes or I’ll sell to someone else” — rushing you past a proper inspection is the oldest trick there is.'],
-  [AlertTriangle, '“Ship it before you see it”',
-    'A seller who refuses to meet in public and wants money up front for delivery is a risk you don’t need to take. Walk away.'],
-  [AlertTriangle, '“I’m abroad — I’ll courier it to you”',
-    'The standard rental and vehicle scam: the “owner” is overseas, the price is excellent, and all you have to do is transfer a deposit so the keys or the bike can be sent. Nothing ever arrives. If the person cannot meet you, there is no deal.'],
-  [AlertTriangle, '“Read me the code”',
-    'No legitimate trade ever needs an OTP, a bank password, a card number, or a code sent to your phone. Never read one out — that’s how accounts and money get taken.'],
-  [AlertTriangle, 'A brand-new, empty account',
-    'No listing history, no reviews, no trust — selling high-value goods cheap. On its own it’s a caution; combined with anything above, it’s your cue to stop.'],
+  [AlertTriangle,
+    { en: '“Send a deposit first”', vi: '“Chuyển cọc trước đi”' },
+    {
+      en: `${SITE_NAME} never asks you to send a deposit to another user, and no honest seller needs one through a chat link. Any “pay to reserve”, “pay a shipping fee” or “pay a verification fee” request is a scam.`,
+      vi: `${SITE_NAME} không bao giờ yêu cầu bạn chuyển tiền cọc cho người dùng khác, và không người bán ngay thẳng nào cần bạn đặt cọc qua một đường link trong tin nhắn. Mọi yêu cầu “trả tiền để giữ hàng”, “trả phí vận chuyển” hay “trả phí xác minh” đều là lừa đảo.`,
+    }],
+  [AlertTriangle,
+    { en: 'A price too good to be true', vi: 'Giá rẻ đến khó tin' },
+    {
+      en: 'If it’s dramatically cheaper than everything comparable, assume it’s bait — for a fake sale, a stolen item, or an account that vanishes the moment you pay.',
+      vi: 'Nếu rẻ hơn hẳn mọi món tương tự, hãy coi đó là mồi nhử — cho một vụ bán hàng giả, một món đồ trộm cắp, hoặc một tài khoản biến mất ngay khi bạn trả tiền.',
+    }],
+  [AlertTriangle,
+    { en: 'Pressure and urgency', vi: 'Hối thúc và gây áp lực' },
+    {
+      en: '“Lots of people are asking”, “transfer in 10 minutes or I’ll sell to someone else” — rushing you past a proper inspection is the oldest trick there is.',
+      vi: '“Nhiều người đang hỏi lắm”, “chuyển khoản trong 10 phút không thì tôi bán cho người khác” — hối thúc để bạn bỏ qua bước kiểm tra kỹ là chiêu lừa lâu đời nhất.',
+    }],
+  [AlertTriangle,
+    { en: '“Ship it before you see it”', vi: '“Gửi hàng trước, xem hàng sau”' },
+    {
+      en: 'A seller who refuses to meet in public and wants money up front for delivery is a risk you don’t need to take. Walk away.',
+      vi: 'Người bán từ chối gặp ở nơi công cộng và đòi tiền trước để giao hàng là rủi ro bạn không cần chấp nhận. Hãy bỏ qua.',
+    }],
+  [AlertTriangle,
+    { en: '“I’m abroad — I’ll courier it to you”', vi: '“Tôi đang ở nước ngoài — tôi sẽ gửi chuyển phát cho bạn”' },
+    {
+      en: 'The standard rental and vehicle scam: the “owner” is overseas, the price is excellent, and all you have to do is transfer a deposit so the keys or the bike can be sent. Nothing ever arrives. If the person cannot meet you, there is no deal.',
+      vi: 'Chiêu lừa quen thuộc khi thuê nhà và mua xe: “chủ” đang ở nước ngoài, giá rất hời, và bạn chỉ cần chuyển tiền cọc để họ gửi chìa khóa hoặc chiếc xe. Không bao giờ có gì được gửi đến. Nếu người đó không thể gặp bạn, thì không có giao dịch nào cả.',
+    }],
+  [AlertTriangle,
+    { en: '“Read me the code”', vi: '“Đọc mã cho tôi”' },
+    {
+      en: 'No legitimate trade ever needs an OTP, a bank password, a card number, or a code sent to your phone. Never read one out — that’s how accounts and money get taken.',
+      vi: 'Không giao dịch chính đáng nào cần mã OTP, mật khẩu ngân hàng, số thẻ hay mã được gửi đến điện thoại của bạn. Đừng bao giờ đọc những mã đó cho ai — đó chính là cách tài khoản và tiền bị chiếm đoạt.',
+    }],
+  [AlertTriangle,
+    { en: 'A brand-new, empty account', vi: 'Tài khoản mới tinh, chưa có gì' },
+    {
+      en: 'No listing history, no reviews, no trust — selling high-value goods cheap. On its own it’s a caution; combined with anything above, it’s your cue to stop.',
+      vi: 'Không có lịch sử đăng tin, không có đánh giá, không có uy tín — lại bán hàng giá trị cao với giá rẻ. Chỉ riêng điều này là lý do để cẩn trọng; đi kèm bất kỳ dấu hiệu nào ở trên, đó là lúc bạn nên dừng lại.',
+    }],
 ]
 
 // What the platform itself does — every sentence cited in CS-0b; no promises the code does not keep.
@@ -234,8 +294,12 @@ const PROTECTION_HEADING = { en: 'What we do — and what we don’t', vi: 'Nh�
 
 // If it goes wrong — ordered, do-this-now steps.
 const recovery: [title: Copy, body: Copy][] = [
-  ['Stop contact and keep everything',
-    'Don’t delete the conversation. Screenshots, receipts, and transfer records are your evidence — save them all.'],
+  [
+    { en: 'Stop contact and keep everything', vi: 'Ngừng liên lạc và giữ lại mọi thứ' },
+    {
+      en: 'Don’t delete the conversation. Screenshots, receipts, and transfer records are your evidence — save them all.',
+      vi: 'Đừng xóa cuộc trò chuyện. Ảnh chụp màn hình, biên lai và lịch sử chuyển khoản là bằng chứng của bạn — hãy lưu lại tất cả.',
+    }],
   // The three Report buttons: the listing, the seller's page and the chat ((pdp)/page.tsx,
   // seller-storefront.tsx, messages/[id]/page.tsx). "Any proof" overstated it: a case takes one
   // written statement and photos, nothing else (api/disputes/[id]/messages/route.ts).
@@ -245,10 +309,18 @@ const recovery: [title: Copy, body: Copy][] = [
       en: 'Use the Report button on the listing, the seller’s page or the chat. It opens a private case where you can describe what happened and add photos, such as screenshots and receipts.',
       vi: 'Dùng nút Báo cáo trên tin đăng, trang người bán hoặc trong cuộc trò chuyện. Báo cáo sẽ mở một hồ sơ riêng, nơi bạn trình bày sự việc và đính kèm ảnh, chẳng hạn ảnh chụp màn hình hay ảnh biên lai.',
     }],
-  ['If money was lost, act fast',
-    'Contact your bank immediately to try to reverse or freeze the transfer, and report the fraud to your local police (in Vietnam, the nearest công an phường).'],
-  ['Reach eno support',
-    `Email ${COMPANY.email} with your case details and we’ll help however we can.`],
+  [
+    { en: 'If money was lost, act fast', vi: 'Nếu đã mất tiền, hãy hành động ngay' },
+    {
+      en: 'Contact your bank immediately to try to reverse or freeze the transfer, and report the fraud to your local police (in Vietnam, the nearest công an phường).',
+      vi: 'Liên hệ ngay với ngân hàng để thử hoàn lại hoặc phong tỏa khoản chuyển khoản, và trình báo vụ lừa đảo với công an phường gần nhất.',
+    }],
+  [
+    { en: 'Reach eno support', vi: 'Liên hệ bộ phận hỗ trợ của eno' },
+    {
+      en: `Email ${COMPANY.email} with your case details and we’ll help however we can.`,
+      vi: `Gửi email đến ${COMPANY.email} kèm chi tiết sự việc, chúng tôi sẽ hỗ trợ trong khả năng có thể.`,
+    }],
 ]
 
 // Icon NAMES come from the aliased services module (a module of copy may not import

@@ -34,9 +34,25 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
 import { Rows, Row } from '@/components/ui/rows'
 import { formatHelpBody } from '@/components/marketplace/rich-text'
+import { useLocalized } from '@/components/marketplace/listing-content'
 import { HELP_TOPICS, splitIntoColumns } from '@/lib/help-center'
 import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 import type { HelpCenterData, HelpPost, HelpReview } from '@/lib/help-center-data'
+
+/**
+ * SERVER-READ TRANSLATIONS FOR THE INDEX (B5-HELP-VI, auth-02): source text → language → text, from the
+ * Translation cache (translate.ts cachedTranslations), narrowed to the reader's languages by the page.
+ * The curated Vietnamese of every seeded answer lives in that cache (sync-help-center.ts), but `useTr`
+ * only reaches it after hydration, so a Vietnamese reader's /help HTML — every question and answer — was
+ * English. Each row hands its entry to `useLocalized`, exactly as /help/[id] does for its h1 and body.
+ * Optional: the dashboard Help tab passes none and keeps the client path.
+ */
+export type HelpI18n = Record<string, Record<string, string> | null>
+
+/** An official answer is English BY AUTHORSHIP (useLocalized's 'english' source — see help-thread-client). */
+function useHelpText(post: HelpPost, text: string, i18n: HelpI18n | undefined, column: 'title' | 'description') {
+  return useLocalized(text, null, i18n?.[text], post.official ? 'english' : column)
+}
 import { cn } from '@/lib/utils'
 import { COMPANY } from '@/lib/site-legal'
 
@@ -55,8 +71,9 @@ import { COMPANY } from '@/lib/site-legal'
 // i18n: chrome uses LITERAL tr()/<Tr text="…"> so scripts/gen-ui-strings.mjs can harvest
 // it — the previous version rendered its FAQ through <Tr text={variable}>, which the
 // harvester cannot see, so every question paid a lazy per-string translation round trip.
-// Post titles/bodies are user content and go through useTr(), whose Vietnamese is
-// pre-seeded into the Translation cache by the sync script.
+// Post titles/bodies are user content: on /help their cached translations are embedded by the
+// server (HelpI18n, below) and rendered through useLocalized; without the embed (the dashboard tab)
+// useLocalized falls back to useTr, whose Vietnamese is pre-seeded into the cache by the sync script.
 
 // Topic glyphs, keyed by SLUG (the kebab-case `icon` strings in lib/help-center.ts are
 // mirrored into DB ForumCommunity.icon — they stay untouched; only artwork maps here).
@@ -122,9 +139,13 @@ const MORE_LINKS: { label: string; href: string }[] = [
   { label: 'Privacy policy', href: '/privacy' },
 ]
 
-function matches(post: HelpPost, needle: string): boolean {
+function matches(post: HelpPost, needle: string, lang: string, i18n?: HelpI18n): boolean {
   if (!needle) return true
-  return `${post.title} ${post.body} ${post.flair}`.toLocaleLowerCase().includes(needle)
+  // The source text plus the reader's OWN language — so "hoàn tiền" finds the answer a Vietnamese reader is actually
+  // reading, a French reader's visible French matches too, and an English reader never gets a hit from hidden
+  // Vietnamese text they cannot see (commit-gate review 2026-10-04).
+  const own = i18n && lang !== 'en' ? `${i18n[post.title]?.[lang] ?? ''} ${i18n[post.body]?.[lang] ?? ''}` : ''
+  return `${post.title} ${post.body} ${post.flair} ${own}`.toLocaleLowerCase().includes(needle)
 }
 
 /**
@@ -149,8 +170,8 @@ const ROW_LINK = 'group grid grid-cols-[minmax(0,1fr)_1rem] items-center gap-x-3
 const ROW_CHEVRON = 'size-4 text-ink-4 group-hover:text-accent-foreground'
 
 /** A "Top questions" row: the post's title in the reader's language, linking to its thread. */
-function TopQuestion({ post }: { post: HelpPost }) {
-  const title = useTr(post.title)
+function TopQuestion({ post, i18n }: { post: HelpPost; i18n?: HelpI18n }) {
+  const title = useHelpText(post, post.title, i18n, 'title')
   return (
     <Row className="py-0">
       <Link href={`/help/${encodeURIComponent(post.id)}`} className={ROW_LINK}>
@@ -187,10 +208,10 @@ function PolicyMatches({ pages }: { pages: typeof POLICY_PAGES }) {
 
 /** One FAQ answer. The question is the accordion trigger; the answer body, the upvote and
  *  the discussion link live in the panel. */
-function AnswerItem({ post }: { post: HelpPost }) {
+function AnswerItem({ post, i18n }: { post: HelpPost; i18n?: HelpI18n }) {
   const { tr } = useLanguage()
-  const title = useTr(post.title)
-  const body = useTr(post.body)
+  const title = useHelpText(post, post.title, i18n, 'title')
+  const body = useHelpText(post, post.body, i18n, 'description')
 
   return (
     <AccordionItem value={post.id}>
@@ -220,9 +241,9 @@ function AnswerItem({ post }: { post: HelpPost }) {
 }
 
 /** A community question asked inside a help topic — the Reddit half of the page. */
-function QuestionCard({ post }: { post: HelpPost }) {
+function QuestionCard({ post, i18n }: { post: HelpPost; i18n?: HelpI18n }) {
   const { tr } = useLanguage()
-  const title = useTr(post.title)
+  const title = useHelpText(post, post.title, i18n, 'title')
 
   return (
     <li>
@@ -296,8 +317,8 @@ function ReviewCard({ review }: { review: HelpReview }) {
   )
 }
 
-export function HelpCenter({ data }: { data: HelpCenterData }) {
-  const { tr } = useLanguage()
+export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI18n }) {
+  const { tr, lang } = useLanguage()
   const [query, setQuery] = useState('')
   const [topic, setTopic] = useState<string | null>(null)
   // Explicit hydration signal (same idiom as the forum's data-hydrated). The page is
@@ -330,12 +351,12 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
   )
 
   const answers = useMemo(
-    () => data.answers.filter((post) => (!topic || post.community === topic) && matches(post, needle)),
-    [data.answers, topic, needle],
+    () => data.answers.filter((post) => (!topic || post.community === topic) && matches(post, needle, lang, i18n)),
+    [data.answers, topic, needle, lang, i18n],
   )
   const questions = useMemo(
-    () => data.questions.filter((post) => (!topic || post.community === topic) && matches(post, needle)),
-    [data.questions, topic, needle],
+    () => data.questions.filter((post) => (!topic || post.community === topic) && matches(post, needle, lang, i18n)),
+    [data.questions, topic, needle, lang, i18n],
   )
 
   // Grouped by topic when browsing everything; a flat list once the reader has
@@ -460,7 +481,7 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
           {/* Top rule only — the Answers section's own hairline closes the list (see PolicyMatches). */}
           <Rows className="mt-3 border-t border-border">
             {top.map((post) => (
-              <TopQuestion key={post.id} post={post} />
+              <TopQuestion key={post.id} post={post} i18n={i18n} />
             ))}
           </Rows>
         </section>
@@ -522,7 +543,7 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
                     </h3>
                     <Accordion className="mt-1">
                       {group.posts.map((post) => (
-                        <AnswerItem key={post.id} post={post} />
+                        <AnswerItem key={post.id} post={post} i18n={i18n} />
                       ))}
                     </Accordion>
                   </section>
@@ -533,7 +554,7 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
         ) : (
           <Accordion className="mt-3">
             {answers.map((post) => (
-              <AnswerItem key={post.id} post={post} />
+              <AnswerItem key={post.id} post={post} i18n={i18n} />
             ))}
           </Accordion>
         )}
@@ -569,7 +590,7 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
         ) : (
           <ul className="mt-3 space-y-2.5">
             {questions.map((post) => (
-              <QuestionCard key={post.id} post={post} />
+              <QuestionCard key={post.id} post={post} i18n={i18n} />
             ))}
           </ul>
         )}

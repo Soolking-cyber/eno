@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 import { VI_OVERRIDES } from '../../generated/vi-overrides'
 
@@ -111,5 +112,69 @@ describe('content-page headings carry Vietnamese', () => {
     const stillMissing = new Set(missing.map((f) => f.text))
     const stale = [...KNOWN_ENGLISH_ONLY.keys()].filter((text) => !stillMissing.has(text))
     expect(stale).toEqual([])
+  })
+})
+
+/**
+ * ⛔ …AND SO IS EVERY TIP IN A CONTENT PAGE'S TIP GRID (B5-HELP-VI, auth-02, 2026-10-04).
+ *
+ * /safety renders its advice from `Tip[]` arrays (`[icon, title, body]`) and its recovery steps from
+ * `[title, body]` tuples, each slot a `Copy` — a plain string (rendered through <Tr>) or an authored
+ * `{ en, vi }` pair (rendered through <Bilingual>). The plain strings had no curated Vietnamese, so 17
+ * tips reached the vi server HTML in English and were machine-translated after hydration — on the page a
+ * Vietnamese reader opens to learn how not to get scammed.
+ *
+ * The rule: in a content page, every text slot of a literal tip tuple is an object carrying BOTH `en` and
+ * `vi` (a template literal inside is fine — the deposit red flag names SITE_NAME), or a plain string the
+ * curated dictionary already has. An array built at runtime (`SERVICES_SAFETY.tips.map(…)`, services
+ * edition only) is not a literal and is not scanned. Read through the TypeScript parser, not regexes:
+ * safety-copy.test.ts records how a regex comment-stripper once hid a string from its own check.
+ */
+/** A tip-list declaration: annotated `Tip[]`, or an array of tuples whose slots are typed `Copy`. */
+const TIP_LIST = /^(Tip\[\]|\[[^\]]*\bCopy\b[^\]]*\]\[\])$/
+
+function scanTips(): { checked: number; missing: Finding[] } {
+  const missing: Finding[] = []
+  let checked = 0
+  for (const file of files(ROOT)) {
+    const raw = readFileSync(file, 'utf8')
+    if (!/<Content(Page|Section)\b/.test(raw)) continue
+    const sf = ts.createSourceFile(file, raw, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+    const visit = (n: ts.Node) => {
+      if (ts.isVariableDeclaration(n) && n.type && TIP_LIST.test(n.type.getText(sf).replace(/\s+/g, ' ')) && n.initializer && ts.isArrayLiteralExpression(n.initializer)) {
+        for (const tuple of n.initializer.elements) {
+          if (!ts.isArrayLiteralExpression(tuple)) continue
+          for (const slot of tuple.elements) {
+            // The icon slot is an identifier; only text slots are judged.
+            if (ts.isStringLiteral(slot) || ts.isNoSubstitutionTemplateLiteral(slot) || ts.isTemplateExpression(slot)) {
+              checked++
+              const text = ts.isTemplateExpression(slot) ? slot.getText(sf) : slot.text
+              if (!ts.isTemplateExpression(slot) && VI_OVERRIDES[text] != null) continue
+              missing.push({ file, text })
+            } else if (ts.isObjectLiteralExpression(slot)) {
+              checked++
+              const keys = new Set(slot.properties.map((p) => (p.name && ts.isIdentifier(p.name) ? p.name.text : '')))
+              if (!(keys.has('en') && keys.has('vi'))) missing.push({ file, text: slot.getText(sf) })
+            }
+          }
+        }
+      }
+      n.forEachChild(visit)
+    }
+    visit(sf)
+  }
+  return { checked, missing }
+}
+
+describe('content-page tip grids carry Vietnamese', () => {
+  const { checked, missing } = scanTips()
+
+  it('finds the tips (the scan is not vacuous)', () => {
+    // /safety alone: 4 + 5 + 7 + 6 tips and 4 steps, two text slots each.
+    expect(checked).toBeGreaterThanOrEqual(52)
+  })
+
+  it('every literal tip title and body carries an authored { en, vi }', () => {
+    expect(missing.map((f) => `${f.file}: ${f.text}`)).toEqual([])
   })
 })

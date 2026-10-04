@@ -185,6 +185,94 @@ const CS0B: [string, string][] = [
 ]
 
 /**
+ * THE ADVICE TIPS' AUTHORED VIETNAMESE (B5-HELP-VI, auth-02, 2026-10-04) — drafted under copy sheet CS-3
+ * (Claude drafts, the owner approves before deploy). Advice, not claims about the platform, so it is a
+ * separate sheet from CS-0b; the forbidden/deadline/removed-claim checks below still run over it. Pinned
+ * in source order like CS-0b, so an edit to either language is a deliberate change to this list. Pairs
+ * whose English carries `${…}` (the deposit red flag, the support email) are templates and are not
+ * listed — enViPairs reads plain literals only; content-page-vi-contract.test.ts holds their shape.
+ */
+const CS3_ADVICE: [string, string][] = [
+  ['Read the whole listing', 'Đọc kỹ toàn bộ tin đăng'],
+  [
+    'Check the photos actually match the item and description. Ask for extra photos or a short video of the things that matter — the serial number, the odometer, the room in daylight. Vague answers or recycled stock photos are a warning sign.',
+    'Kiểm tra xem ảnh có thật sự khớp với món hàng và phần mô tả không. Hãy xin thêm ảnh hoặc một video ngắn về những điểm quan trọng — số sê-ri, đồng hồ công-tơ-mét, căn phòng lúc ban ngày. Câu trả lời mập mờ hoặc ảnh mạng dùng lại là dấu hiệu cảnh báo.',
+  ],
+  ['Agree the details in writing', 'Thỏa thuận chi tiết bằng văn bản'],
+  [
+    'Before you travel, confirm the final price, the condition, what’s included, and the exact time and public place to meet. A seller who won’t commit to specifics in writing may not be serious.',
+    'Trước khi đi, hãy xác nhận giá cuối cùng, tình trạng món hàng, những gì đi kèm, cùng thời gian và địa điểm công cộng cụ thể để gặp. Người bán không chịu xác nhận rõ ràng bằng văn bản có thể không thật lòng muốn bán.',
+  ],
+  ['Meet in a busy public place, in daylight', 'Gặp ở nơi công cộng đông người, vào ban ngày'],
+  [
+    'A crowded café, a shopping mall, or a bank lobby is ideal — somewhere with people and cameras. Avoid alleys, private homes, and late-night handovers. For a room or vehicle you must view on-site, don’t go alone.',
+    'Quán cà phê đông khách, trung tâm thương mại hay sảnh ngân hàng là lý tưởng — nơi có người qua lại và có camera. Tránh hẻm vắng, nhà riêng và giao nhận lúc đêm muộn. Nếu phải đến tận nơi xem phòng hoặc xem xe, đừng đi một mình.',
+  ],
+  ['Tell someone where you’re going', 'Báo cho người thân biết bạn đi đâu'],
+  [
+    'Share the meeting place and time with a friend or family member, and bring them along for higher-value items. There’s real safety in not arriving alone.',
+    'Chia sẻ địa điểm và thời gian gặp với bạn bè hoặc người nhà, và rủ họ đi cùng khi mua món đồ giá trị cao. Không đến một mình sẽ an toàn hơn hẳn.',
+  ],
+  ['Inspect fully before any money moves', 'Kiểm tra kỹ trước khi trả bất kỳ khoản tiền nào'],
+  [
+    'Test it properly: power on electronics and check every port, start the motorbike and read the papers and chassis number, view the room and the actual contract. Confirm serial numbers match the receipt or box.',
+    'Hãy thử cho kỹ: bật nguồn đồ điện tử và kiểm tra từng cổng kết nối, nổ máy xe và đối chiếu giấy tờ với số khung, xem tận mắt căn phòng và bản hợp đồng thật. Kiểm tra số sê-ri có khớp với hóa đơn hoặc vỏ hộp không.',
+  ],
+  ['Renting? Check the papers, not just the room', 'Thuê nhà? Hãy xem giấy tờ, không chỉ xem phòng'],
+  [
+    'Ask to see the owner’s ID and the ownership certificate (sổ đỏ / sổ hồng), and check the name on them matches the person signing. Insist on a written contract and a receipt for every payment. Confirm the landlord will register your stay with the local police — for a foreign tenant that is the landlord’s legal duty, and one who refuses is usually not the owner.',
+    'Hãy yêu cầu xem giấy tờ tùy thân của chủ nhà và giấy chứng nhận quyền sở hữu (sổ đỏ / sổ hồng), và kiểm tra tên trên giấy tờ có trùng với người ký hợp đồng không. Yêu cầu hợp đồng bằng văn bản và biên nhận cho mỗi lần thanh toán. Xác nhận chủ nhà sẽ khai báo tạm trú cho bạn với công an địa phương — với người thuê là người nước ngoài, đó là nghĩa vụ pháp lý của chủ nhà, và người từ chối thường không phải chủ nhà thật.',
+  ],
+  ['Pay once, in person, at handover', 'Trả tiền một lần, trực tiếp, khi nhận hàng'],
+  [
+    'Hand over cash — or transfer — only when the item is in your hands and matches what was agreed. Never send money ahead to “hold” an item. If you transfer, confirm it truly landed in the seller’s account before you leave; screenshots can be faked.',
+    'Chỉ đưa tiền mặt — hoặc chuyển khoản — khi món hàng đã ở trong tay bạn và đúng như đã thỏa thuận. Đừng bao giờ chuyển tiền trước để “giữ” hàng. Nếu chuyển khoản, hãy xác nhận tiền đã thật sự vào tài khoản người bán trước khi rời đi; ảnh chụp màn hình có thể bị làm giả.',
+  ],
+  ['“Send a deposit first”', '“Chuyển cọc trước đi”'],
+  ['A price too good to be true', 'Giá rẻ đến khó tin'],
+  [
+    'If it’s dramatically cheaper than everything comparable, assume it’s bait — for a fake sale, a stolen item, or an account that vanishes the moment you pay.',
+    'Nếu rẻ hơn hẳn mọi món tương tự, hãy coi đó là mồi nhử — cho một vụ bán hàng giả, một món đồ trộm cắp, hoặc một tài khoản biến mất ngay khi bạn trả tiền.',
+  ],
+  ['Pressure and urgency', 'Hối thúc và gây áp lực'],
+  [
+    '“Lots of people are asking”, “transfer in 10 minutes or I’ll sell to someone else” — rushing you past a proper inspection is the oldest trick there is.',
+    '“Nhiều người đang hỏi lắm”, “chuyển khoản trong 10 phút không thì tôi bán cho người khác” — hối thúc để bạn bỏ qua bước kiểm tra kỹ là chiêu lừa lâu đời nhất.',
+  ],
+  ['“Ship it before you see it”', '“Gửi hàng trước, xem hàng sau”'],
+  [
+    'A seller who refuses to meet in public and wants money up front for delivery is a risk you don’t need to take. Walk away.',
+    'Người bán từ chối gặp ở nơi công cộng và đòi tiền trước để giao hàng là rủi ro bạn không cần chấp nhận. Hãy bỏ qua.',
+  ],
+  ['“I’m abroad — I’ll courier it to you”', '“Tôi đang ở nước ngoài — tôi sẽ gửi chuyển phát cho bạn”'],
+  [
+    'The standard rental and vehicle scam: the “owner” is overseas, the price is excellent, and all you have to do is transfer a deposit so the keys or the bike can be sent. Nothing ever arrives. If the person cannot meet you, there is no deal.',
+    'Chiêu lừa quen thuộc khi thuê nhà và mua xe: “chủ” đang ở nước ngoài, giá rất hời, và bạn chỉ cần chuyển tiền cọc để họ gửi chìa khóa hoặc chiếc xe. Không bao giờ có gì được gửi đến. Nếu người đó không thể gặp bạn, thì không có giao dịch nào cả.',
+  ],
+  ['“Read me the code”', '“Đọc mã cho tôi”'],
+  [
+    'No legitimate trade ever needs an OTP, a bank password, a card number, or a code sent to your phone. Never read one out — that’s how accounts and money get taken.',
+    'Không giao dịch chính đáng nào cần mã OTP, mật khẩu ngân hàng, số thẻ hay mã được gửi đến điện thoại của bạn. Đừng bao giờ đọc những mã đó cho ai — đó chính là cách tài khoản và tiền bị chiếm đoạt.',
+  ],
+  ['A brand-new, empty account', 'Tài khoản mới tinh, chưa có gì'],
+  [
+    'No listing history, no reviews, no trust — selling high-value goods cheap. On its own it’s a caution; combined with anything above, it’s your cue to stop.',
+    'Không có lịch sử đăng tin, không có đánh giá, không có uy tín — lại bán hàng giá trị cao với giá rẻ. Chỉ riêng điều này là lý do để cẩn trọng; đi kèm bất kỳ dấu hiệu nào ở trên, đó là lúc bạn nên dừng lại.',
+  ],
+  ['Stop contact and keep everything', 'Ngừng liên lạc và giữ lại mọi thứ'],
+  [
+    'Don’t delete the conversation. Screenshots, receipts, and transfer records are your evidence — save them all.',
+    'Đừng xóa cuộc trò chuyện. Ảnh chụp màn hình, biên lai và lịch sử chuyển khoản là bằng chứng của bạn — hãy lưu lại tất cả.',
+  ],
+  ['If money was lost, act fast', 'Nếu đã mất tiền, hãy hành động ngay'],
+  [
+    'Contact your bank immediately to try to reverse or freeze the transfer, and report the fraud to your local police (in Vietnam, the nearest công an phường).',
+    'Liên hệ ngay với ngân hàng để thử hoàn lại hoặc phong tỏa khoản chuyển khoản, và trình báo vụ lừa đảo với công an phường gần nhất.',
+  ],
+  ['Reach eno support', 'Liên hệ bộ phận hỗ trợ của eno'],
+]
+
+/**
  * Sentences /safety takes word for word from the listing page's dialog (CS-0). Each must appear in
  * ONE dialog pair and ONE page pair — English in the English, Vietnamese in the Vietnamese of the
  * same pair — so editing either surface alone fails here.
@@ -219,8 +307,16 @@ const FROM_CS0: [string, string][] = [
 describe('/safety: what the platform does (CS-0b)', () => {
   const pairs = enViPairs(PAGE)
 
+  // ⚠️ TWO SHEETS, ONE PAGE: every pair is on exactly one of them, each in source order. A pair on
+  // neither (a new sentence) lands in the CS-0b comparison and fails it.
+  const advice = new Set(CS3_ADVICE.map(([en]) => en))
+
   it('renders exactly the approved EN/VI pairs, in order', () => {
-    expect(pairs).toEqual(CS0B)
+    expect(pairs.filter(([en]) => !advice.has(en))).toEqual(CS0B)
+  })
+
+  it('renders exactly the drafted advice pairs (CS-3), in order', () => {
+    expect(pairs.filter(([en]) => advice.has(en))).toEqual(CS3_ADVICE)
   })
 
   it("repeats the listing page's approved sentences word for word, in both languages", () => {

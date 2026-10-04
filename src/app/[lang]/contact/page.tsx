@@ -29,11 +29,19 @@ import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
  * present in the artifact anyway. Keep this page about reaching the operator, nothing else.
  */
 
-export const metadata: Metadata = withShare({
+// Both link-preview cards come from withShare() and stay ENGLISH on both variants: a share scraper
+// sends no language, so the card must not depend on which variant it happened to hit.
+const METADATA: Metadata = withShare({
   title: `Contact ${SITE_NAME}`,
   description: `How to reach ${SITE_NAME} — support email, phone, registered address and the fastest route for account, listing or safety questions.`,
   alternates: { canonical: '/contact' },
 })
+
+// The <title> follows the `[lang]` variant the proxy served (B5-HELP-VI, as /safety does).
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
+  const { lang } = await params
+  return lang === 'vi' ? { ...METADATA, title: `Liên hệ ${SITE_NAME}` } : METADATA
+}
 
 const LINK = 'font-semibold text-accent-foreground hover:underline'
 

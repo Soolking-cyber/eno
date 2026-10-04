@@ -18,15 +18,18 @@ import { Tr } from '@/context/language-context'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { diverseFeedWindow } from '@/lib/feed-window'
 import { diversifyBySeller } from '@/lib/feed-diversity'
-import { loadSeller, OTHER_LISTINGS, storefrontCard, storefrontMetaDescription } from '@/components/marketplace/seller-storefront'
+import { loadSeller, OTHER_LISTINGS, storefrontCard, storefrontChatListingId, storefrontMetaDescription } from '@/components/marketplace/seller-storefront'
 import { StorefrontSellerCard } from '@/components/marketplace/storefront-seller-card'
 import { SellerInfo } from '@/components/marketplace/seller-info'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import Link from 'next/link'
 import { StorefrontBanner } from '@/components/marketplace/storefront-banner'
-import { storefrontByLabel, storefrontCanonical } from '@/lib/storefront'
+import { headers } from 'next/headers'
+import { canonicalAppHost, storefrontByLabel, storefrontCanonical } from '@/lib/storefront'
+import { storefrontHandleFromHost } from '@/lib/storefront-host'
+import { getVisaShopSeller } from '@/lib/visa-shop'
 import { ShareButton } from '@/components/marketplace/share-button'
-import { SITE_NAME } from '@/lib/edition'
+import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { storefrontJsonLd, type StorefrontLdListing } from './storefront-jsonld'
 
 /**
@@ -280,14 +283,35 @@ export default async function Storefront({ params }: Props) {
    * `loadSeller` is cache()d and [handle]'s generateMetadata already made the same call; the 90-day
    * conversation count is the one the path storefront runs for the response bucket.
    */
-  const [{ categories, listings, ldListings, total, otherListings, otherTotal }, seller, convoCount] = await Promise.all([
+  /**
+   * THE CHAT ANCHOR (B3-STORE, inbox-05) — the same scoped findFirst the path storefront uses
+   * (seller-storefront.tsx storefrontChatListingId: verified, active, `affiliateUrl: null`), so a
+   * storefront whose every product links out to the partner gets null and no chat, as on eno.vn/<handle>
+   * (owner, 2026-08-24). The visa desk takes no generic chat either (its threads ARE applications).
+   */
+  const [{ categories, listings, ldListings, total, otherListings, otherTotal }, seller, convoCount, chatAnchor, visaDesk, reqHeaders] = await Promise.all([
     getData(shop.sellerId),
     loadSeller(shop.sellerId),
     db.conversation.count({ where: { sellerId: shop.sellerId, createdAt: { gte: new Date(Date.now() - 90 * 86400000) } } }),
+    storefrontChatListingId(shop.sellerId),
+    // The visa desk exists only on the services edition (on eno.vn its storefront already 404s), so the marketplace
+    // build skips the lookup.
+    IS_SERVICES ? getVisaShopSeller() : Promise.resolve(null),
+    headers(),
   ])
   // Null for a hidden seller AND for a gone one (ownerless with nothing public, src/lib/storefront-gone.ts).
   if (!seller) notFound()
   const card = storefrontCard(seller, convoCount)
+  const chatListingId = visaDesk?.id === shop.sellerId ? null : chatAnchor
+  /**
+   * WHICH HOST IS SERVING THIS PAGE. The same component answers `<handle>.eno.vn` (proxy.ts rewrites
+   * its root here) and `eno.vn/<handle>` (rendered in place by [handle]/page.tsx), and chat can only
+   * START on the canonical host: the session cookie is scoped to it and every write is pinned there.
+   * ⚠️ THE PROXY'S OWN TEST (`storefrontHandleFromHost` against `canonicalAppHost()`), not a copy of it,
+   * so "is this a shop host" cannot get two answers. On the shop's host the CTA becomes a link to the
+   * listing on the canonical origin ("Chat on eno.vn"); on the canonical host it is the in-app push.
+   */
+  const onShopHost = !!storefrontHandleFromHost(reqHeaders.get('host'), canonicalAppHost())
 
   /**
    * ⚠️ THE SAME `storefrontCanonical(...)` CALL `generateMetadata` MAKES, so the `Store.url`, the Share
@@ -338,12 +362,20 @@ export default async function Storefront({ params }: Props) {
         {/* Share hands out the shop's SUBDOMAIN on this edition's domain (owner, 2026-09-13: "when user
             selects to share storefront use slug like vietkite.eno.vn or vietkite.eno.forum"), whether the
             shop was opened at the subdomain or in place at eno.vn/<handle>. */}
-        {/* ⛔ NO CHAT BUTTON HERE (`chatListingId={null}`): the session cookie is scoped to eno.vn, so
-            on <handle>.eno.vn there is no session to chat from, and affiliate partners take no chat
-            at all (owner, 2026-08-24). The count is the shop's whole scoped stock, as in the grid. */}
+        {/* CHAT (B3-STORE, inbox-05; this said "NO CHAT BUTTON HERE" until 2026-10-04). On eno.vn/<handle>
+            it is the in-app chat on the newest chattable listing. On <handle>.eno.vn there is no session
+            to chat from (the cookie is scoped to the canonical host), so it is a link that crosses to
+            the listing there — `chatOrigin`. Affiliate-only shops and the visa desk get null and no
+            button at all (owner, 2026-08-24). The count is the shop's whole scoped stock, as in the grid. */}
         <div className="flex items-start justify-between gap-3 pb-4 pt-3">
           <div className="min-w-0 max-w-md flex-1">
-            <StorefrontSellerCard seller={card.cardSeller} metrics={card.metrics} chatListingId={null} listingCount={total} />
+            <StorefrontSellerCard
+              seller={card.cardSeller}
+              metrics={card.metrics}
+              chatListingId={chatListingId}
+              chatOrigin={onShopHost ? origin : undefined}
+              listingCount={total}
+            />
           </div>
           <ShareButton url={canonical} title={shop.name} compact />
         </div>

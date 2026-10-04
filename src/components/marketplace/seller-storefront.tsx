@@ -231,6 +231,31 @@ export function storefrontCard(seller: NonNullable<Awaited<ReturnType<typeof loa
   return { cardSeller, metrics, sellerInfo }
 }
 
+/**
+ * THE LISTING A STOREFRONT'S "Chat" OPENS ON — the newest active one that chat actually works for.
+ * Shared by both storefront bodies (this page and s/[handle]/page.tsx) so they cannot anchor differently.
+ *
+ * ⚠️ THE NEWEST listing THAT CHAT ACTUALLY WORKS FOR. A partner ticket is booked on the partner's site
+ * and has no chat gate on its own PDP (the conversations route 409s an `affiliateUrl` row), so
+ * anchoring on the newest row of any kind would send a reader to a page with nothing to answer them.
+ * Null when there is none → the CTA self-omits, and that null is also how a storefront knows it is
+ * affiliate-only (owner, 2026-08-24: no generic "Chat now" there).
+ * ⚠️ QUERIED, NOT SEARCHED IN THE LOADED PAGE. With a `take` on the grid, a seller whose first 60
+ * listings are all affiliate ones would look as though they had no chattable listing at all —
+ * silently removing the Chat CTA from a storefront that has one on item 61.
+ * ⛔ `scopedListingWhere` IS NOT OPTIONAL HERE — IT IS THE LICENSING BOUNDARY. The grid and the
+ * `_count` are both scoped; a bare `sellerId + verified + status` lookup is not, so it could anchor
+ * the Chat CTA on a listing THIS EDITION REFUSES TO SERVE (a visa/itinerary row on eno.vn), open a
+ * thread on it, and flip `isAffiliatePartner` false against a scoped count that says every listing is
+ * affiliate. Three reviewers found this independently.
+ */
+export async function storefrontChatListingId(sellerId: string): Promise<string | null> {
+  return (await db.listing.findFirst({
+    where: await scopedListingWhere({ sellerId, verified: true, status: 'active', affiliateUrl: null }),
+    orderBy: { postedAt: 'desc' }, select: { id: true },
+  }))?.id ?? null
+}
+
 export async function SellerStorefront({ id }: { id: string }) {
   // The share address: the subdomain where `/s/<handle>` will actually serve this shop, otherwise the
   // path — this component is also the fallback for handles the subdomain rejects (brand-slug collisions).
@@ -323,29 +348,9 @@ export async function SellerStorefront({ id }: { id: string }) {
   // Trust score / rating / member-year ride in the card's metrics strip, so the old flat Stat grid
   // is retired to avoid duplicating the same three signals.
   const { cardSeller, metrics, sellerInfo } = storefrontCard(seller, convoCount)
-  // Anchor "Chat" to the newest active listing (listings already ordered postedAt
-  // desc). Null when there's nothing active to talk about → button self-omits.
-  // ⚠️ THE NEWEST listing THAT CHAT ACTUALLY WORKS FOR. A partner ticket is booked on the
-  // partner's site and has no chat gate on its own PDP, so anchoring here to `listings[0]` would
-  // send a reader to a page with nothing to answer them — which is what happens the moment a
-  // partner posts one ordinary item and stops being caught by `isAffiliatePartner` below.
-  /**
-   * ⚠️ QUERIED, NOT SEARCHED IN THE LOADED PAGE. With a `take` on the grid, a seller whose first 60
-   * listings are all affiliate ones would look as though they had no chattable listing at all —
-   * silently removing the Chat CTA from a storefront that has one on item 61.
-   */
-  /**
-   * ⛔ `scopedListingWhere` IS NOT OPTIONAL HERE — IT IS THE LICENSING BOUNDARY. The grid and the
-   * `_count` above are both scoped; a bare `sellerId + verified + status` lookup is not, so it
-   * could anchor the Chat CTA on a listing THIS EDITION REFUSES TO SERVE (a visa/itinerary row on
-   * eno.vn), open a thread on it, and flip `isAffiliatePartner` false against a scoped count that
-   * says every listing is affiliate. Three reviewers found this independently, and they were right:
-   * the array `.find()` this replaced could never do it, because the array was already scoped.
-   */
-  const chatListingId = (await db.listing.findFirst({
-    where: await scopedListingWhere({ sellerId: seller.id, verified: true, status: 'active', affiliateUrl: null }),
-    orderBy: { postedAt: 'desc' }, select: { id: true },
-  }))?.id ?? null
+  // Anchor "Chat" to the newest active listing chat works for — see storefrontChatListingId for the
+  // scoping and affiliate rules. Null when there's nothing to talk about → button self-omits.
+  const chatListingId = await storefrontChatListingId(seller.id)
   // Identity, not name/handle: the desk is whichever storefront getVisaShopSeller resolves.
   const isVisaDesk = seller.id === (await getVisaShopSeller())?.id
   /**
