@@ -55,3 +55,47 @@ export async function dismissOverlays(page: Page) {
     if (await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}) }
   }
 }
+
+/**
+ * Which edition the target is EXPECTED to be — `marketplace` (eno.vn) or `services` (eno.forum).
+ * ⛔ ON AN EDITION'S OWN DOMAIN THE ANSWER IS THE DOMAIN, NEVER THE BUNDLE (commit-gate review): a services
+ * bundle misrouted onto eno.vn would answer /itinerary 200 and be re-labelled "services", and every spec
+ * built on this would then hold eno.vn to eno.forum's expectations and pass. The configured base is the
+ * one fact the deployment cannot author (home.spec.ts makes the same argument for its edition check).
+ * A preview or staging host has no identity of its own, so there the BUNDLE is asked: `/itinerary` exists
+ * only in the services bundle — home.spec.ts's discriminator (a reserved handle, so the status alone is
+ * the signal). Anything but 200/404 there is a broken target, not an edition, and fails loudly.
+ */
+export async function expectedEdition(page: Page, baseURL: string | undefined): Promise<'marketplace' | 'services'> {
+  if (!baseURL) throw new Error('no baseURL — the edition expectation cannot be trusted without one')
+  const host = new URL(baseURL).hostname.replace(/^www\./, '')
+  if (host === 'eno.vn') return 'marketplace'
+  if (host === 'eno.forum') return 'services'
+  // ⚠️ NO REDIRECTS HERE (unlike home.spec's probe on a real domain): a preview has no www→apex hop to
+  // allow, and a marketplace preview whose /itinerary 308'd to eno.forum would otherwise land on a 200
+  // and be re-labelled "services" (commit-gate review). A 3xx is reported as the broken target it is.
+  const r = await page.request.get(`/itinerary?e2e=${Date.now()}`, { failOnStatusCode: false, maxRedirects: 0 })
+  if (r.status() === 200) return 'services'
+  if (r.status() === 404) return 'marketplace'
+  throw new Error(`/itinerary answered ${r.status()} — cannot tell which edition this target serves`)
+}
+
+/**
+ * ⛔ THE `/vi` PILOT (src/lib/lang-pinned.ts, switched on 2026-10-02, commit 1a6ac8926): on the
+ * MARKETPLACE the plain `/` is English for everyone, whatever the `lang` cookie or Accept-Language says,
+ * and `/vi` is its Vietnamese twin. eno.forum never pilots: its `/` negotiates and its `/vi` 404s.
+ * ⚠️ THE EXPECTATION COMES FROM THE EDITION, NEVER FROM PROBING `/vi` — a marketplace whose `/vi` broke
+ * would otherwise read as "pilot off" and pass. Withdrawing the pilot (VI_PREFIX_PATHS emptied, rollback
+ * V-R) must update this line, and these specs will say so by failing.
+ */
+export const viPilotOn = (edition: 'marketplace' | 'services') => edition === 'marketplace'
+
+/**
+ * A page that NEGOTIATES its language on both editions (cookie, then Accept-Language — src/proxy.ts):
+ * not piloted, not a pinned guide. The commit that switched the pilot on moved the deploy probe's
+ * negotiation checks here for the same reason.
+ */
+export const ADAPTIVE_PAGE = '/privacy'
+
+/** The `lang` of the SERVER's HTML — what the first response rendered, before any client swap or reload. */
+export const serverHtmlLang = (html: string) => html.match(/<html[^>]*\slang="([^"]*)"/)?.[1] ?? null
