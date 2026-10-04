@@ -17,12 +17,13 @@ type Row = Record<string, any>
 const h = vi.hoisted(() => ({
   result: { ok: true, deleted: true } as Row,
   owner: { ok: true, profileId: 'p1' } as Row,
+  update: { ok: true } as Row,
 }))
 
 vi.mock('@/lib/listing-owner', () => ({ checkListingOwner: async () => h.owner }))
 vi.mock('@/lib/core/listings', () => ({
   deleteListingCore: async () => h.result,
-  updateListingCore: async () => ({ ok: true }),
+  updateListingCore: async () => h.update,
 }))
 // The rest of the route's import graph (GET / PATCH) — not exercised here.
 vi.mock('@/lib/db', () => ({ db: {} }))
@@ -33,7 +34,8 @@ vi.mock('@/lib/serialize', () => ({ serializeListing: () => ({}) }))
 vi.mock('@/lib/price-stat', () => ({ getPriceBand: async () => null }))
 vi.mock('@/lib/seller-metrics', () => ({ topSellerReviews: async () => [], sameSellerListings: async () => [] }))
 
-const { DELETE } = await import('./route')
+const { DELETE, PATCH } = await import('./route')
+const { PARTNER_ONLY_REFUSAL } = await import('@/lib/taxonomy')
 
 async function del() {
   const res = await DELETE(new Request('https://eno.vn/api/listings/L1', { method: 'DELETE' }) as never, { params: Promise.resolve({ id: 'L1' }) })
@@ -43,6 +45,27 @@ async function del() {
 beforeEach(() => {
   h.result = { ok: true, deleted: true }
   h.owner = { ok: true, profileId: 'p1' }
+  h.update = { ok: true }
+})
+
+// O-34b (owner, 2026-10-05): an edit that moves a non-partner's listing into the visa slot is refused by the core
+// (listings.sell-rules.test.ts); the route answers it with the bilingual sentence, as POST /api/listings does —
+// the native apps' post schema still lists the slot, so they need words, not just the code.
+describe('PATCH /api/listings/[id] — the visa-slot refusal carries its words', () => {
+  const patch = async (body: Row) => {
+    const res = await PATCH(new Request('https://eno.vn/api/listings/L1', { method: 'PATCH', body: JSON.stringify(body) }) as never, { params: Promise.resolve({ id: 'L1' }) })
+    return { status: res.status, body: (await res.json()) as Row }
+  }
+
+  it('subcategory_partner_only → 400 with the code and PARTNER_ONLY_REFUSAL', async () => {
+    h.update = { ok: false, code: 400, error: 'subcategory_partner_only' }
+    expect(await patch({ subcategorySlug: 'visa-legal' })).toEqual({ status: 400, body: { error: 'subcategory_partner_only', message: PARTNER_ONLY_REFUSAL } })
+  })
+
+  it('every other refusal stays the bare code', async () => {
+    h.update = { ok: false, code: 400, error: 'title_too_short' }
+    expect(await patch({ title: 'ab' })).toEqual({ status: 400, body: { error: 'title_too_short' } })
+  })
 })
 
 describe('DELETE /api/listings/[id]', () => {

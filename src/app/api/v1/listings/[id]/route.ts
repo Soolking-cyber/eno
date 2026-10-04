@@ -5,6 +5,7 @@ import { updateListingCore, deleteListingCore, DELETE_HOLD_MESSAGE } from '@/lib
 import { resolveApiKey, listingOwnedBy } from '@/lib/api/auth'
 import { apiOk, apiError, apiAuthError } from '@/lib/api/respond'
 import { LISTING_REMOVED } from '@/lib/listing-removed'
+import { PARTNER_ONLY_REFUSAL } from '@/lib/taxonomy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,7 +43,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const res = await updateListingCore(id, body)
   // Pass through the real status: 404 not-found and 409 conflict (e.g. urgent_quota —
   // a retryable state conflict) must not be flattened to 422 "invalid payload".
-  if (!res.ok) return apiError(res.code === 404 ? 404 : res.code === 409 ? 409 : 422, res.error, res.error, r.rate)
+  if (!res.ok) return apiError(res.code === 404 ? 404 : res.code === 409 ? 409 : 422, res.error, res.error === 'subcategory_partner_only' ? PARTNER_ONLY_REFUSAL.en : res.error, r.rate)
   return apiOk({ ok: true }, r.rate)
 }
 

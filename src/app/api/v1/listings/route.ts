@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { containsPhoneNumber } from '@/lib/phone'
 import { createListingCore } from '@/lib/core/listings'
-import { paysSalary, resolveListingType } from '@/lib/taxonomy'
+import { paysSalary, resolveListingType, PARTNER_ONLY_REFUSAL } from '@/lib/taxonomy'
 import { postingGate } from '@/lib/enforcement'
 import { PublishBlockedError } from '@/lib/publish-guard'
 import { isIdentityBlockCode, publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
@@ -101,6 +101,8 @@ export async function POST(req: NextRequest) {
           : e.code === 'photos_min' ? 'At least 3 images from different angles are required (the same photo repeated counts as one).'
           : e.code === 'banned_words' ? 'The title or description contains a disallowed word.'
           : e.code === 'duplicate_listing' ? 'Duplicate of a live listing on this shop (see detail for its id) — update or bump the existing listing instead of re-posting it.'
+          // O-34b (eno.vn): the visa slot takes an official partner's listings only.
+          : e.code === 'subcategory_partner_only' ? PARTNER_ONLY_REFUSAL.en
           : 'Remove phone numbers, contact info or addresses from the title/description.'
         return { status: e.code === 'account_restricted' || e.code === 'released_charge_listing_cap' ? 403 : e.code === 'duplicate_listing' ? 409 : 422, body: { error: { code: e.code, message, ...(e.detail ? { detail: e.detail } : {}) } } }
       }

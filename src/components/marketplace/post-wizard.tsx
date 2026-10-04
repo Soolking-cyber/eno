@@ -35,7 +35,8 @@ import { trackPostListing } from '@/lib/analytics'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { isNativeShell } from '@/lib/native-browser'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
-import { postableSubcategoriesFor, isPostableSubcategory, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, VISA_PRODUCT_FACET_KEYS } from '@/lib/taxonomy'
+import { postableSubcategoriesFor, isPostableSubcategory, isPartnerOnlySubcategory, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, VISA_PRODUCT_FACET_KEYS } from '@/lib/taxonomy'
+import { IS_MARKETPLACE } from '@/lib/edition'
 import { RangeSpecInput } from './range-spec-input'
 import { usePostMedia } from '@/hooks/use-post-media'
 import { PublishButton, PublishLabel, Section, Field, Chips, Preview, DraftNotice } from './post-wizard-parts'
@@ -218,8 +219,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       }
       if (d.categorySlug) {
         setCategorySlug(d.categorySlug)
-        // AI must not pick a subcategory this edition does not offer for new posts (O-34).
-        setSubcategorySlug(d.subcategorySlug && isPostableSubcategory(d.categorySlug, d.subcategorySlug) ? d.subcategorySlug : '')
+        // AI must not pick a subcategory this edition does not offer for new posts (O-34) — nor, for a seller
+        // who is not an official partner, the partner-only visa slot (O-34b).
+        // ⚠️ While /api/me has not answered, a partner-only pick is KEPT (gate, 2026-10-05: a partner's AI fill was
+        // cleared by the not-yet-known `officialPartner`); the render guard below (keepSub / partnerKnown) drops it
+        // once the account is known not to be a partner.
+        const aiSubOk = !!d.subcategorySlug && (isPostableSubcategory(d.categorySlug, d.subcategorySlug, IS_MARKETPLACE, { officialPartner })
+          || (!meKnown && isPartnerOnlySubcategory(d.categorySlug, d.subcategorySlug)))
+        setSubcategorySlug(aiSubOk ? d.subcategorySlug : '')
         setAttrs(d.attributes && typeof d.attributes === 'object' ? d.attributes : {})
         setRanges({})
         if (d.listingType) setListingType(d.listingType)
@@ -686,13 +693,19 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   }, [categorySlug, subcategorySlug, listingType, brand, model, condition, bandYear])
 
   const cat = categories.find((c) => c.slug === categorySlug)
-  // Edition-aware (taxonomy.ts POST_HIDDEN_ON_MARKETPLACE); the value already on the form stays listed.
+  // Edition-aware (taxonomy.ts POST_HIDDEN_ON_MARKETPLACE) and poster-aware (O-34b, owner 2026-10-05: on eno.vn
+  // the visa slot takes an OFFICIAL PARTNER's listings only — PARTNER_ONLY_ON_MARKETPLACE; `officialPartner`
+  // comes from /api/me); the value already on the form stays listed.
   // A hidden subcategory is kept on screen only when EDITING a listing that already has it — never for a
-  // new post or a restored draft (the create route refuses it too).
-  const subOptions = postableSubcategoriesFor(categorySlug, edit ? subcategorySlug : undefined)
+  // new post or a restored draft (the create route refuses it too) — or, for the partner-only slot, while
+  // the account is not known yet: a partner's restored draft must not lose it before /api/me answers.
+  // (A guest is known at once: a guest is never a partner.)
+  const partnerKnown = meKnown || (!authLoading && !user)
+  const keepSub = edit || (!partnerKnown && isPartnerOnlySubcategory(categorySlug, subcategorySlug)) ? subcategorySlug : undefined
+  const subOptions = postableSubcategoriesFor(categorySlug, keepSub, IS_MARKETPLACE, { officialPartner })
   // A restored draft or an AI fill can still hold a withheld subcategory (O-34) — drop it so the chips
-  // show the truth and the seller picks again, instead of the server silently re-filing it on publish.
-  if (!edit && subcategorySlug && categorySlug && !isPostableSubcategory(categorySlug, subcategorySlug)) setSubcategorySlug('')
+  // show the truth and the seller picks again, instead of the server silently re-filing (or refusing) it on publish.
+  if (!edit && subcategorySlug && categorySlug && subcategorySlug !== keepSub && !isPostableSubcategory(categorySlug, subcategorySlug, IS_MARKETPLACE, { officialPartner })) setSubcategorySlug('')
   const typeOptions = typesFor(categorySlug)
   // askableFacetsFor, not facetsFor: a DERIVED facet (providerType) is computed from the
   // account server-side, so asking would be redundant — and lets a seller contradict their
@@ -1298,6 +1311,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ? (salaryPaid
               ? t('Hãy chọn vị trí cho tin tuyển dụng — ứng viên cần biết nơi làm việc.', 'Pick a location for your job — candidates need to know where the work is.')
               : t('Hãy chọn vị trí cho tin đăng — người mua cần biết món đồ ở đâu.', 'Pick a location for your listing — buyers need to know where the item is.'))
+          // O-34b: the visa slot is an official partner's on eno.vn — the picker does not offer it to anyone else,
+          // so this is a stale form or a revoked badge. The same two sentences as taxonomy.ts PARTNER_ONLY_REFUSAL
+          // (the server's `message`), typed here for the i18n harvest.
+          : msg === 'subcategory_partner_only'
+          ? t('Trên eno.vn, dịch vụ visa chỉ do đối tác chính thức đăng. Các dịch vụ pháp lý khác (giấy phép lao động, thuế…) hãy đăng trong Dịch vụ › Khác.', 'On eno.vn, visa services are listed by official partners only. Post other legal services (work permits, tax…) in Services › Other.')
           : msg === 'photo_required'
           ? t('Cần ít nhất một ảnh để đăng tin.', 'You need at least one photo to post.')
           : msg === 'photos_min'

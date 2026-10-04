@@ -53,8 +53,12 @@ export function minPhotosFor(categorySlug: string | null | undefined): number {
 // ⚠️ `identity_unverified` / `identity_expired` are LEGAL blocks, not quality blocks, and they are
 // listed first because they are checked first (see assertPublishable). Verification is required to
 // publish under NĐ 248/2026 — see docs/compliance-2026.md §1 and src/lib/compliance/account-state.ts.
-export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'identity_sign_in_required' | 'account_restricted' | 'released_charge_listing_cap' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required' | 'category_not_postable'
+export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'identity_sign_in_required' | 'account_restricted' | 'released_charge_listing_cap' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required' | 'category_not_postable' | 'subcategory_partner_only'
 
+// ⚠️ `subcategory_partner_only` (O-34b, owner 2026-10-05) — on eno.vn the visa slot (services/visa-legal) takes
+// an OFFICIAL PARTNER's listings only (taxonomy.ts PARTNER_ONLY_ON_MARKETPLACE). Thrown by createListingCore
+// for an explicit pick of it, and returned by updateListingCore for a MOVE into it; the routes answer 400 with
+// the bilingual PARTNER_ONLY_REFUSAL as `message`. Fixable in the form (pick Services › Other), so not 403.
 // ⚠️ `identity_sign_in_required` IS THE GUEST'S CODE, AND IT IS DISTINCT FROM `identity_unverified` ON
 // PURPOSE. Both mean "verify before you sell", but a guest has no account to verify: sending them to
 // /dashboard/account/verify bounces them through sign-in with no explanation of why. The wizard turns

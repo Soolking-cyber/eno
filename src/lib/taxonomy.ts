@@ -343,6 +343,8 @@ export function isVisaProductSlot(categorySlug: string, subcategorySlug?: string
  * 2026-08-13). The TAXONOMY entry reads this when the build is the marketplace, so every display of
  * the name (post picker, browse chips, breadcrumbs, PDP, /api/categories) follows from one place.
  * `name` literals on purpose — scripts/gen-ui-strings.mjs harvests `name: '…'` from this file.
+ * ⚠️ POSTING INTO IT IS AN OFFICIAL PARTNER'S ONLY since O-34b (2026-10-05, PARTNER_ONLY_ON_MARKETPLACE);
+ * the name is unchanged.
  */
 export const MARKETPLACE_SUBCAT_LABELS: Readonly<Record<string, { name: string; nameVi: string }>> = {
   [`${VISA_CATEGORY_SLUG}/${VISA_SUBCATEGORY_SLUG}`]: { name: 'Legal & permits', nameVi: 'Giấy tờ & pháp lý' },
@@ -1659,31 +1661,87 @@ export function subcategoriesFor(categorySlug: string): SubcatDef[] {
  * visa service, which the licensed sàn TMĐT does not offer, so eno.vn stops inviting new ones.
  * ⚠️ POSTING ONLY. The subcategory stays in TAXONOMY — browse, search, facets, storefronts and
  * every existing row are untouched, and eno.forum still offers it. services/visa-legal (VietKite's
- * own category) is NOT hidden — it is only renamed on this edition (MARKETPLACE_SUBCAT_LABELS) — and
- * nobody's listings are hidden.
+ * own category) is NOT in this set: it stays open to OFFICIAL PARTNERS (PARTNER_ONLY_ON_MARKETPLACE
+ * below, O-34b) and is renamed on this edition (MARKETPLACE_SUBCAT_LABELS) — and nobody's listings are
+ * hidden.
  */
 export const POST_HIDDEN_ON_MARKETPLACE: ReadonlySet<string> = new Set(['tickets-travel/visa-runs'])
 
-/** Is this subcategory offered in the post picker on this edition? `marketplace` is a parameter
- *  (defaulting to the build's edition) so the test can pin both editions in one process. */
-export function isPostableSubcategory(
+/**
+ * O-34b (owner, 2026-10-05: "apply best recommended") — SUBCATEGORIES ONLY AN OFFICIAL PARTNER MAY POST
+ * INTO on the marketplace edition, keyed `category/subcategory`, each with where an ordinary seller's
+ * listing goes instead. services/visa-legal is the VISA PRODUCT SLOT (isVisaProductSlot): VietKite's
+ * e-visa listings live there and stay (its visa results on eno.vn are intended — owner 2026-08-13), but
+ * the licensed sàn does not offer visa services itself, so an ordinary seller can no longer post one
+ * there. The slot keeps its eno.vn name ("Legal & permits", MARKETPLACE_SUBCAT_LABELS) and the work-permit
+ * and tax listings ordinary sellers posted before — they edit as usual, and may move out — while new
+ * legal services go to Services › Other, the subcategory the refusal names (PARTNER_ONLY_REFUSAL).
+ * ⚠️ POSTING ONLY, LIKE POST_HIDDEN_ON_MARKETPLACE: browse, search, facets, storefronts and every
+ * existing row are untouched, and eno.forum offers the slot to everyone.
+ * ⚠️ ONE RULE, THREE PLACES: the post picker (isPostableSubcategory / postableSubcategoriesFor, given the
+ * poster's Seller.officialPartner), the create path (core/listings.ts createListingCore — refuses an
+ * explicit pick, re-files a keyword guess to the fallback) and the edit path (updateListingCore — refuses
+ * a MOVE into the slot). /api/categories (the native apps' cached, anonymous post schema) still lists it;
+ * the server refusal is what a native post meets.
+ */
+export const PARTNER_ONLY_ON_MARKETPLACE: ReadonlyMap<string, string> = new Map([
+  [`${VISA_CATEGORY_SLUG}/${VISA_SUBCATEGORY_SLUG}`, 'service-other'],
+])
+
+/** Is this a subcategory only an official partner may post into, on this edition (PARTNER_ONLY_ON_MARKETPLACE)? */
+export function isPartnerOnlySubcategory(
   categorySlug: string, subcategorySlug: string | null | undefined, marketplace: boolean = IS_MARKETPLACE,
 ): boolean {
+  return !!subcategorySlug && marketplace && PARTNER_ONLY_ON_MARKETPLACE.has(`${categorySlug}/${subcategorySlug}`)
+}
+
+/** Where an ordinary seller's listing goes when a keyword guess lands in a partner-only subcategory —
+ *  the subcategory PARTNER_ONLY_REFUSAL names; null for any other subcategory. */
+export function partnerOnlyFallback(categorySlug: string, subcategorySlug: string): string | null {
+  return PARTNER_ONLY_ON_MARKETPLACE.get(`${categorySlug}/${subcategorySlug}`) ?? null
+}
+
+/**
+ * The refusal an ordinary seller meets for the visa slot on eno.vn — it states the RULE (visa services come
+ * from official partners only) and does not claim a content block: a slot rule cannot see a visa offer typed
+ * into Services › Other, which the /prohibited list and reports handle (gate, 2026-10-05: the first wording,
+ * "cannot be posted on eno.vn", promised more than the code enforces). The server's JSON `message` beside
+ * the code `subcategory_partner_only` (POST + PATCH /api/listings) and, in English, /api/v1's. The post
+ * wizard types the same two sentences inline for the i18n harvest (taxonomy.post-picker.test.ts holds them
+ * equal). Marketplace-only by construction: no eno.forum path emits that code. "cannot", not "can't": the
+ * harvester reads single-quoted strings only.
+ */
+export const PARTNER_ONLY_REFUSAL = {
+  en: 'On eno.vn, visa services are listed by official partners only. Post other legal services (work permits, tax…) in Services › Other.',
+  vi: 'Trên eno.vn, dịch vụ visa chỉ do đối tác chính thức đăng. Các dịch vụ pháp lý khác (giấy phép lao động, thuế…) hãy đăng trong Dịch vụ › Khác.',
+} as const
+
+/** Is this subcategory offered in the post picker on this edition, to this poster? `marketplace` is a
+ *  parameter (defaulting to the build's edition) so the test can pin both editions in one process.
+ *  `poster.officialPartner` opens the partner-only subcategories (O-34b); left out it is false — the safe
+ *  default, so a caller that does not know who is posting offers them to nobody. */
+export function isPostableSubcategory(
+  categorySlug: string, subcategorySlug: string | null | undefined, marketplace: boolean = IS_MARKETPLACE,
+  poster: { officialPartner?: boolean } = {},
+): boolean {
   if (!subcategorySlug) return true
-  return !(marketplace && POST_HIDDEN_ON_MARKETPLACE.has(`${categorySlug}/${subcategorySlug}`))
+  if (marketplace && POST_HIDDEN_ON_MARKETPLACE.has(`${categorySlug}/${subcategorySlug}`)) return false
+  return poster.officialPartner === true || !isPartnerOnlySubcategory(categorySlug, subcategorySlug, marketplace)
 }
 
 /**
  * The post wizard's subcategory chips: `subcategoriesFor` minus what this edition does not offer
- * for NEW posts. `keep` is the subcategory already on the form — an edited listing, a restored
+ * for NEW posts — and, for a poster who is not an official partner, minus the partner-only ones
+ * (O-34b). `keep` is the subcategory already on the form — an edited listing, a restored
  * draft — and stays listed even when hidden, so the chip row never loses the value it is showing
- * and a seller editing an old visa-run listing is not silently moved out of it.
+ * and a seller editing an old visa-run (or visa-slot) listing is not silently moved out of it.
  */
 export function postableSubcategoriesFor(
   categorySlug: string, keep?: string | null, marketplace: boolean = IS_MARKETPLACE,
+  poster: { officialPartner?: boolean } = {},
 ): SubcatDef[] {
   return subcategoriesFor(categorySlug)
-    .filter((s) => s.slug === keep || isPostableSubcategory(categorySlug, s.slug, marketplace))
+    .filter((s) => s.slug === keep || isPostableSubcategory(categorySlug, s.slug, marketplace, poster))
     // The edition's display name (MARKETPLACE_SUBCAT_LABELS). TAXONOMY already carries it on a
     // marketplace build; applying it here too is what lets the test pin the marketplace picker.
     .map((s) => {

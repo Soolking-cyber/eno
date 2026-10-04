@@ -15,7 +15,7 @@ import { postingGate } from '@/lib/enforcement'
 import { rateLimit } from '@/lib/ratelimit'
 import { createListingCore } from '@/lib/core/listings'
 import { RELEASED_CHARGE_MAX_ACTIVE } from '@/lib/released-charge-copy'
-import { migrateLegacyCategoryParams, paysSalary, resolveListingType } from '@/lib/taxonomy'
+import { migrateLegacyCategoryParams, paysSalary, resolveListingType, PARTNER_ONLY_REFUSAL } from '@/lib/taxonomy'
 import { idsFastPath, buildFeedFilters, resolveFeedFilters, buildFeedOrderBy, getSubcategoryCounts, countListingsCached } from './feed-query'
 import { computeFacetCounts, releasedParams, subcategoryDimension, subcategoryDropPlan, type FacetCounts } from '@/lib/facet-counts'
 import { PROVINCE_NAMES_EN } from '@/lib/province-match'
@@ -630,7 +630,9 @@ async function createListing(req: NextRequest) {
         return NextResponse.json({ error: e.code, limit: RELEASED_CHARGE_MAX_ACTIVE }, { status: 403 })
       }
       return NextResponse.json(
-        { error: e.code, detail: e.detail },
+        // O-34b: the visa-slot refusal carries its bilingual sentence for the native apps, whose post schema
+        // (/api/categories) still lists the slot — the web wizard words it itself (tr).
+        { error: e.code, detail: e.detail, ...(e.code === 'subcategory_partner_only' ? { message: PARTNER_ONLY_REFUSAL } : {}) },
         { status: e.code === 'account_restricted' ? 403 : e.code === 'duplicate_listing' ? 409 : 400 },
       )
     }

@@ -313,6 +313,7 @@ export type NicheApiErrorCode =
   | 'identity_unverified'
   | 'location_required'
   | 'category_not_postable' // teachers: written only by the teacher form (2026-09-30)
+  | 'subcategory_partner_only' // eno.vn: the visa slot takes an official partner's listings only (O-34b, 2026-10-05)
   | 'invalid_teacher_profile'
   | 'teacher_profile_missing'
   | 'business_only'
@@ -667,6 +668,7 @@ const ALL = [
   'identity_unverified',
   'location_required',
   'category_not_postable',
+  'subcategory_partner_only',
   'invalid_teacher_profile',
   'teacher_profile_missing',
   'business_only',

@@ -58,7 +58,9 @@ export async function GET() {
       shopUrl,
       sellerId: seller?.id ?? null,
       // Storefront contact for "post as" prefill. `officialPartner` (a public badge already shown on
-      // the storefront) tells the post wizard to keep the e-visa product chips (askableFacetsFor, O-34).
+      // the storefront) tells the post wizard to keep the e-visa product chips (askableFacetsFor, O-34)
+      // and, on eno.vn, to offer the visa slot at all (postableSubcategoriesFor, O-34b) — the server
+      // re-reads Seller.officialPartner itself, so this only shapes the form.
       seller: seller ? { name: seller.name, phone: seller.phone, officialPartner: seller.officialPartner } : null,
     },
   })

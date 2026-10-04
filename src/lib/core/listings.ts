@@ -28,7 +28,8 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
   }
 }
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
-import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, withoutDisallowedVisaAttrs } from '@/lib/taxonomy'
+import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isPartnerOnlySubcategory, partnerOnlyFallback, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, withoutDisallowedVisaAttrs } from '@/lib/taxonomy'
+import { IS_MARKETPLACE } from '@/lib/edition'
 import { syndicateListingIfPublic } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
@@ -492,6 +493,17 @@ export async function updateListingCore(
   if (!current || current.status === LISTING_REMOVED) return { ok: false, code: 404, error: 'not_found' }
   // ⛔ A teacher profile is edited through the teacher form only; to every generic editor it does not exist.
   if (!isPostableCategory(current.category.slug)) return { ok: false, code: 404, error: 'not_found' }
+  // ⛔ O-34b (owner, 2026-10-05): on eno.vn the visa slot (services/visa-legal) takes an OFFICIAL PARTNER's
+  // listings only (taxonomy.ts PARTNER_ONLY_ON_MARKETPLACE). An edit that MOVES another seller's listing into
+  // it is refused — first, before anything is read or written, so nothing is half-applied; the route adds the
+  // bilingual PARTNER_ONLY_REFUSAL. A listing ALREADY in the slot (posted before the rule) edits as usual —
+  // resending its own subcategory is not a move — and may move out.
+  if (body.subcategorySlug !== undefined) {
+    const sc = body.subcategorySlug ? String(body.subcategorySlug).trim() : null
+    if (sc && sc !== current.subcategorySlug && isPartnerOnlySubcategory(current.category.slug, sc) && !current.seller.officialPartner) {
+      return { ok: false, code: 400, error: 'subcategory_partner_only' }
+    }
+  }
 
   const data: Record<string, unknown> = {}
 
@@ -672,8 +684,9 @@ export async function updateListingCore(
   // Subcategory — must belong to the listing's (unchanged) category.
   if (body.subcategorySlug !== undefined) {
     const sc = body.subcategorySlug ? String(body.subcategorySlug).trim() : null
-    // O-34: an edit may KEEP a withheld subcategory the listing already has, never switch INTO one.
-    const allowed = !sc || sc === current.subcategorySlug || isPostableSubcategory(current.category.slug, sc)
+    // O-34: an edit may KEEP a withheld subcategory the listing already has, never switch INTO one. A move into
+    // the partner-only visa slot by anyone else was refused above (O-34b); a partner's is allowed here.
+    const allowed = !sc || sc === current.subcategorySlug || isPostableSubcategory(current.category.slug, sc, IS_MARKETPLACE, { officialPartner: current.seller.officialPartner })
     if (allowed && (!sc || subcategoriesFor(current.category.slug).some((s) => s.slug === sc))) data.subcategorySlug = sc
   }
   // Intent (listingType) — must be valid for the category.
@@ -1017,6 +1030,10 @@ export async function createListingCore(input: {
 }): Promise<{ id: string; verified: boolean }> {
   const { seller, guestCreate, category, title, price, body, headers } = input
   const categorySlug = category.slug
+  // Seller.officialPartner, read at most once and only when an answer depends on it (O-34 / O-34b below).
+  let officialPartner: boolean | undefined
+  const sellerIsOfficialPartner = async () =>
+    (officialPartner ??= (await db.seller.findUnique({ where: { id: seller.id }, select: { officialPartner: true } }))?.officialPartner === true)
   // ⛔ Teacher profiles are written ONLY by src/lib/teachers/publish.ts (2026-09-30). Every generic
   // create path (web wizard, /api/v1, MCP, bulk) ends here, so this one refusal covers them all.
   if (!isPostableCategory(categorySlug)) throw new PublishBlockedError('category_not_postable')
@@ -1094,11 +1111,23 @@ export async function createListingCore(input: {
   // ⛔ A NEW listing can only take a POSTABLE subcategory (O-34, 2026-09-30): the marketplace edition
   // withholds `tickets-travel/visa-runs` from the picker, and a restored draft or a crafted request must
   // not get it past the server either. Editing an existing listing is a different path (updateListing).
-  const subs = subcategoriesFor(categorySlug).filter((s) => isPostableSubcategory(categorySlug, s.slug))
+  // `{ officialPartner: true }` here is the EDITION rule alone: whether THIS seller may use a partner-only
+  // subcategory is decided just below, with at most one read.
+  const subs = subcategoriesFor(categorySlug).filter((s) => isPostableSubcategory(categorySlug, s.slug, IS_MARKETPLACE, { officialPartner: true }))
   let subcategorySlug: string | null = String(body.subcategorySlug || '').trim()
-  if (!subs.some((s) => s.slug === subcategorySlug)) {
+  const subcategoryPicked = subs.some((s) => s.slug === subcategorySlug)
+  if (!subcategoryPicked) {
     const suggested = suggestSubcategory(categorySlug, `${title} ${body.description || ''}`)
     subcategorySlug = (suggested && subs.some((s) => s.slug === suggested) ? suggested : null) || (subs[0]?.slug ?? null)
+  }
+  // ⛔ O-34b (owner, 2026-10-05): on eno.vn the visa slot (services/visa-legal) takes an OFFICIAL PARTNER's
+  // listings only (taxonomy.ts PARTNER_ONLY_ON_MARKETPLACE). A seller who PICKED it is refused — they chose it,
+  // so they are told, with the bilingual PARTNER_ONLY_REFUSAL the route adds; a keyword GUESS (or the
+  // first-subcategory fallback) that lands there is re-filed to Services › Other — the place that refusal
+  // names — because the seller never asked for the slot. VietKite (a partner) posts there as before.
+  if (subcategorySlug && isPartnerOnlySubcategory(categorySlug, subcategorySlug) && !(await sellerIsOfficialPartner())) {
+    if (subcategoryPicked) throw new PublishBlockedError('subcategory_partner_only')
+    subcategorySlug = partnerOnlyFallback(categorySlug, subcategorySlug)
   }
   // Currency + price unit — ₫ for EVERY listing, unit follows the intent (monthly for
   // rent/job, per-service for a service). Derived in one place so create and the taxonomy
@@ -1112,9 +1141,10 @@ export async function createListingCore(input: {
   // ⛔ O-34, THE SERVER HALF (eno.vn): an ordinary seller's NEW post carries no e-visa product
   // attributes — the wizard does not ask for them (askableFacetsFor), and a direct API call must not get
   // them in either. An official partner (VietKite) keeps them. The seller's flag is read only when such
-  // a key was actually sent (the stripped value then differs), so an ordinary create costs no query.
+  // a key was actually sent (the stripped value then differs) — and at most once per create, shared with
+  // the visa-slot check above — so an ordinary create costs no query.
   const forNonPartner = withoutDisallowedVisaAttrs(sanitized, { officialPartner: false })
-  const cleanAttributes = forNonPartner === sanitized || (await db.seller.findUnique({ where: { id: seller.id }, select: { officialPartner: true } }))?.officialPartner
+  const cleanAttributes = forNonPartner === sanitized || (await sellerIsOfficialPartner())
     ? sanitized
     : forNonPartner
   const money = listingMoneyFor({ categorySlug, subcategorySlug, listingType, rentalPeriod: rentalPeriodOf(cleanAttributes) })

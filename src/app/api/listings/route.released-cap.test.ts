@@ -27,7 +27,10 @@ vi.mock('@/lib/core/listings', () => ({
 }))
 vi.mock('@/lib/publish-funnel', () => ({ publishOutcome: () => 'x', recordPublishOutcome: async () => {} }))
 vi.mock('./feed-query', () => ({}))
-vi.mock('@/lib/taxonomy', () => ({ migrateLegacyCategoryParams: (p: URLSearchParams) => p, paysSalary: () => false, resolveListingType: () => 'sell' }))
+vi.mock('@/lib/taxonomy', async (importOriginal) => {
+  const { PARTNER_ONLY_REFUSAL } = await importOriginal<typeof import('@/lib/taxonomy')>()
+  return { migrateLegacyCategoryParams: (p: URLSearchParams) => p, paysSalary: () => false, resolveListingType: () => 'sell', PARTNER_ONLY_REFUSAL }
+})
 vi.mock('@/lib/feed-diversity', () => ({}))
 vi.mock('@/lib/feed-window', () => ({}))
 vi.mock('@/lib/edition-scope', () => ({}))
@@ -69,5 +72,21 @@ describe('POST /api/listings', () => {
   it('a content refusal is still the 400', async () => {
     h.createError = new PublishBlockedError('photos_min')
     expect((await post()).status).toBe(400)
+  })
+
+  // O-34b (owner, 2026-10-05): a non-partner's pick of the visa slot on eno.vn — fixable in the form, so a 400,
+  // with the bilingual sentence for the native apps (whose cached post schema still lists the slot).
+  it('subcategory_partner_only → 400 with the code and the bilingual sentence', async () => {
+    h.createError = new PublishBlockedError('subcategory_partner_only')
+    const { PARTNER_ONLY_REFUSAL } = await import('@/lib/taxonomy')
+    const r = await post()
+    expect(r.status).toBe(400)
+    expect(r.body).toMatchObject({ error: 'subcategory_partner_only', message: PARTNER_ONLY_REFUSAL })
+    expect(r.body.message.vi).toContain('Dịch vụ › Khác')
+  })
+
+  it('every other content refusal carries no message', async () => {
+    h.createError = new PublishBlockedError('photos_min')
+    expect((await post()).body).not.toHaveProperty('message')
   })
 })

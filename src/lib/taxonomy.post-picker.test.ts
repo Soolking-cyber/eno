@@ -1,8 +1,15 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import {
   askableFacetsFor,
   categoryDescriptionFor,
+  isPartnerOnlySubcategory,
+  isVisaProductSlot,
   MARKETPLACE_CATEGORY_DESCRIPTIONS,
+  PARTNER_ONLY_ON_MARKETPLACE,
+  PARTNER_ONLY_REFUSAL,
+  partnerOnlyFallback,
   TAXONOMY,
   visaProductKeyAllowed,
   withoutDisallowedVisaAttrs,
@@ -43,12 +50,92 @@ describe('post picker — visa runs on the marketplace edition', () => {
     expect(slugs(subcategoriesFor('tickets-travel'))).toContain('visa-runs')
   })
 
-  it('does not hide services/visa-legal (VietKite / GMBR) or anything outside travel', () => {
-    expect(isPostableSubcategory(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG, true)).toBe(true)
-    expect(slugs(postableSubcategoriesFor(VISA_CATEGORY_SLUG, null, true))).toEqual(slugs(subcategoriesFor(VISA_CATEGORY_SLUG)))
+  it('does not hide services/visa-legal from an official partner (VietKite / GMBR), or anything outside travel', () => {
+    // An ordinary seller no longer gets the visa slot (O-34b, below); a partner keeps every services aisle.
+    expect(isPostableSubcategory(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG, true, { officialPartner: true })).toBe(true)
+    expect(slugs(postableSubcategoriesFor(VISA_CATEGORY_SLUG, null, true, { officialPartner: true }))).toEqual(slugs(subcategoriesFor(VISA_CATEGORY_SLUG)))
     for (const cat of ['electronics', 'vehicles', 'rentals']) {
       expect(postableSubcategoriesFor(cat, null, true)).toEqual(subcategoriesFor(cat))
     }
+  })
+})
+
+// O-34b (owner, 2026-10-05: "apply best recommended"): on the marketplace edition the VISA SLOT takes an official
+// partner's listings only. Hidden from everyone else's post picker; the server refuses a pick or a move into it
+// (core/listings.sell-rules.test.ts). Partners, existing listings in the slot and eno.forum are unchanged.
+describe('the visa slot is an official partner’s on eno.vn (O-34b)', () => {
+  const poster = (officialPartner: boolean) => ({ officialPartner })
+
+  it('names exactly the visa product slot, with Services › Other as the ordinary seller’s place', () => {
+    expect([...PARTNER_ONLY_ON_MARKETPLACE.keys()]).toEqual([`${VISA_CATEGORY_SLUG}/${VISA_SUBCATEGORY_SLUG}`])
+    expect(isVisaProductSlot(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG)).toBe(true)
+    expect(partnerOnlyFallback(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG)).toBe('service-other')
+    expect(subcategoriesFor(VISA_CATEGORY_SLUG).some((s) => s.slug === 'service-other')).toBe(true)
+    expect(partnerOnlyFallback(VISA_CATEGORY_SLUG, 'cleaning')).toBeNull()
+  })
+
+  it('is partner-only on the marketplace edition and nowhere else', () => {
+    expect(isPartnerOnlySubcategory(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG, true)).toBe(true)
+    expect(isPartnerOnlySubcategory(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG, false)).toBe(false)
+    expect(isPartnerOnlySubcategory(VISA_CATEGORY_SLUG, 'service-other', true)).toBe(false)
+    expect(isPartnerOnlySubcategory('electronics', VISA_SUBCATEGORY_SLUG, true)).toBe(false)
+    expect(isPartnerOnlySubcategory(VISA_CATEGORY_SLUG, null, true)).toBe(false)
+  })
+
+  it('⛔ hides it from a non-partner’s picker on eno.vn — and when the caller does not say who is posting', () => {
+    expect(isPostableSubcategory(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG, true, poster(false))).toBe(false)
+    expect(isPostableSubcategory(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG, true)).toBe(false)
+    expect(slugs(postableSubcategoriesFor(VISA_CATEGORY_SLUG, null, true, poster(false)))).not.toContain(VISA_SUBCATEGORY_SLUG)
+    expect(slugs(postableSubcategoriesFor(VISA_CATEGORY_SLUG, null, true))).not.toContain(VISA_SUBCATEGORY_SLUG)
+    // Every other services aisle stays, in taxonomy order — Services › Other included.
+    expect(slugs(postableSubcategoriesFor(VISA_CATEGORY_SLUG, null, true, poster(false))))
+      .toEqual(slugs(subcategoriesFor(VISA_CATEGORY_SLUG)).filter((s) => s !== VISA_SUBCATEGORY_SLUG))
+  })
+
+  it('offers it to an official partner on eno.vn, named “Legal & permits”', () => {
+    expect(isPostableSubcategory(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG, true, poster(true))).toBe(true)
+    expect(postableSubcategoriesFor(VISA_CATEGORY_SLUG, null, true, poster(true)).find((s) => s.slug === VISA_SUBCATEGORY_SLUG))
+      .toMatchObject({ name: 'Legal & permits', nameVi: 'Giấy tờ & pháp lý' })
+  })
+
+  it('keeps it on an EDIT of a listing already in the slot, partner or not (the wizard passes keep)', () => {
+    expect(slugs(postableSubcategoriesFor(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG, true, poster(false)))).toContain(VISA_SUBCATEGORY_SLUG)
+  })
+
+  it('changes nothing on eno.forum: offered to everyone, named “Visa”', () => {
+    for (const p of [poster(false), poster(true), {}]) {
+      expect(isPostableSubcategory(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG, false, p)).toBe(true)
+      expect(postableSubcategoriesFor(VISA_CATEGORY_SLUG, null, false, p).find((s) => s.slug === VISA_SUBCATEGORY_SLUG)).toMatchObject({ name: 'Visa' })
+    }
+  })
+
+  it('never opens what the edition withholds from everyone (visa runs), partner or not', () => {
+    expect(isPostableSubcategory('tickets-travel', 'visa-runs', true, poster(true))).toBe(false)
+  })
+
+  it('refuses in both languages, naming eno.vn and Services › Other — the same words the wizard types', () => {
+    expect(PARTNER_ONLY_REFUSAL).toEqual({
+      en: 'On eno.vn, visa services are listed by official partners only. Post other legal services (work permits, tax…) in Services › Other.',
+      vi: 'Trên eno.vn, dịch vụ visa chỉ do đối tác chính thức đăng. Các dịch vụ pháp lý khác (giấy phép lao động, thuế…) hãy đăng trong Dịch vụ › Khác.',
+    })
+    // The fallback's own names are what the sentence says: Services › Other / Dịch vụ › Khác.
+    const services = TAXONOMY.find((c) => c.slug === VISA_CATEGORY_SLUG)!
+    const other = subcategoriesFor(VISA_CATEGORY_SLUG).find((s) => s.slug === partnerOnlyFallback(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG))!
+    expect(PARTNER_ONLY_REFUSAL.en).toContain(`${services.name} › ${other.name}`)
+    expect(PARTNER_ONLY_REFUSAL.vi).toContain(`${services.nameVi} › ${other.nameVi}`)
+    // The wizard maps the code to the same pair, typed inline (gen-ui-strings harvests single-quoted t() calls).
+    // ⚠️ Assembled, never written as a t() call here: the harvester scans test files too, and would catalogue
+    // the template placeholders as copy.
+    const wizard = readFileSync(join(__dirname, '../components/marketplace/post-wizard.tsx'), 'utf8')
+    const quoted = (x: string) => `'${x}'`
+    expect(wizard).toContain([`msg === ${quoted('subcategory_partner_only')}`, `          ? t(${quoted(PARTNER_ONLY_REFUSAL.vi)}, ${quoted(PARTNER_ONLY_REFUSAL.en)})`].join('\n'))
+  })
+
+  it('the wizard asks the picker with the poster’s partner flag, and keeps the slot only for an edit or an unknown account', () => {
+    const wizard = readFileSync(join(__dirname, '../components/marketplace/post-wizard.tsx'), 'utf8')
+    expect(wizard).toContain('const subOptions = postableSubcategoriesFor(categorySlug, keepSub, IS_MARKETPLACE, { officialPartner })')
+    expect(wizard).toContain('const keepSub = edit || (!partnerKnown && isPartnerOnlySubcategory(categorySlug, subcategorySlug)) ? subcategorySlug : undefined')
+    expect(wizard).toMatch(/isPostableSubcategory\(d\.categorySlug, d\.subcategorySlug, IS_MARKETPLACE, \{ officialPartner \}\)/)
   })
 })
 
@@ -56,7 +143,8 @@ describe('post picker — visa runs on the marketplace edition', () => {
 // does not ask an ordinary seller's NEW post for e-visa product chips. The slug, browse, search and
 // VietKite's listings are untouched (VietKite's visa results on eno.vn are intended — owner 2026-08-13).
 describe('services/visa-legal on the marketplace edition', () => {
-  const visaLegal = (marketplace: boolean) => postableSubcategoriesFor(VISA_CATEGORY_SLUG, null, marketplace).find((s) => s.slug === VISA_SUBCATEGORY_SLUG)
+  // Asked as an official partner: on eno.vn only a partner is offered the slot (O-34b, above).
+  const visaLegal = (marketplace: boolean) => postableSubcategoriesFor(VISA_CATEGORY_SLUG, null, marketplace, { officialPartner: true }).find((s) => s.slug === VISA_SUBCATEGORY_SLUG)
   const keys = (opts: Parameters<typeof askableFacetsFor>[2]) => askableFacetsFor(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG, opts).map((f) => f.key)
 
   it('is named "Legal & permits" / "Giấy tờ & pháp lý" on eno.vn, "Visa" on eno.forum — same slug', () => {
@@ -115,8 +203,10 @@ describe('services/visa-legal on the marketplace edition', () => {
 
   it('touches no other subcategory or facet', () => {
     expect(askableFacetsFor('electronics', 'phones', { newPost: true, marketplace: true })).toEqual(askableFacetsFor('electronics', 'phones'))
-    const other = postableSubcategoriesFor(VISA_CATEGORY_SLUG, null, true).filter((s) => s.slug !== VISA_SUBCATEGORY_SLUG)
-    expect(other).toEqual(subcategoriesFor(VISA_CATEGORY_SLUG).filter((s) => s.slug !== VISA_SUBCATEGORY_SLUG))
+    for (const officialPartner of [false, true]) {
+      const other = postableSubcategoriesFor(VISA_CATEGORY_SLUG, null, true, { officialPartner }).filter((s) => s.slug !== VISA_SUBCATEGORY_SLUG)
+      expect(other).toEqual(subcategoriesFor(VISA_CATEGORY_SLUG).filter((s) => s.slug !== VISA_SUBCATEGORY_SLUG))
+    }
   })
 })
 
