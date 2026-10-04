@@ -12,16 +12,25 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     // MARK: - Deep-link origins
     //
-    // This is a ONE-APP shell for TWO first-party origins (mirrors `server.allowNavigation` in
-    // capacitor.config.ts and MainViewController.firstPartyHosts). Deep links used to be handed
-    // unconditionally to Capacitor, which assumes the eno.vn bundle is the one running — so a link
-    // that arrived while the WebView sat on eno.forum (or on the local offline page) had no
-    // listener to receive it and was retained natively until the user happened to return to
-    // eno.vn, i.e. the tap did nothing. See `route(for:)` for exactly when we step in.
-    private static let marketHosts: Set<String> = ["eno.vn", "www.eno.vn"]
-    private static let forumHosts: Set<String> = ["eno.forum", "www.eno.forum"]
-    private static let firstPartyHosts: Set<String> = marketHosts.union(forumHosts)
-    private static let marketOrigin = "https://eno.vn"
+    // ⛔ THE APP RENDERS www.eno.forum, NOT eno.vn — mirrored from the Android shell (MainActivity
+    // MARKET_HOSTS / MARKET_ORIGIN, commit 11f430d12, 2026-09-08). capacitor.config.ts `server.url`
+    // is https://www.eno.forum and `allowNavigation` holds ONLY the two forum hosts, so an https
+    // eno.vn URL loaded into this WebView is not rendered here at all: Capacitor hands it to Safari.
+    // That is exactly how the home-screen quick actions broke — this file still built their target
+    // on https://eno.vn, so Post / Messages / Saved opened Safari, on the edition that carries the
+    // "not yet officially launched" banner (reproduced on the iOS 18.4 simulator, 2026-10-04).
+    //
+    // `appHosts` = the origin the WebView renders (server.url). The www is canonical: both forum
+    // hosts answer 200 with no redirect, and the services build bakes NEXT_PUBLIC_APP_URL =
+    // https://www.eno.forum, so the apex would be a second live origin with its own cookie jar —
+    // a native load always targets `appOrigin`, never the apex.
+    // eno.vn stays FIRST-PARTY for incoming links (every marketplace link ever shared points there,
+    // and the forum serves a superset of its paths), but its PATH is opened on `appOrigin`.
+    private static let appHosts: Set<String> = ["www.eno.forum", "eno.forum"]
+    private static let legacyMarketHosts: Set<String> = ["eno.vn", "www.eno.vn"]
+    private static let firstPartyHosts: Set<String> = appHosts.union(legacyMarketHosts)
+    /// Must stay byte-identical to `server.url` in capacitor.config.ts.
+    private static let appOrigin = "https://www.eno.forum"
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         if let shortcutItem = launchOptions?[.shortcutItem] as? UIApplicationShortcutItem {
@@ -166,34 +175,28 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // already consumes it; stepping in here would race the initial load.
         guard let current = webView.url else { return .webJS }
 
-        if current.scheme?.lowercased() == "https", let host = current.host?.lowercased() {
-            // eno.vn: native-bootstrap's routeDeepLink handles every shape. Leave it alone —
-            // it routes in-SPA, which a native load would downgrade to a full page fetch.
-            if Self.marketHosts.contains(host) { return .webJS }
-            // eno.forum: iOS injects the bridge into every allowNavigation origin, and
-            // apps/forum's ForumNativeBridge registers its own appUrlOpen listener — it routes
-            // first-party https links and `enovn://open?url=` itself. It deliberately does NOT
-            // interpret `enovn://open?path=` (that shape is eno.vn-relative by contract), which
-            // is every home-screen quick action — so that is the one we take over here.
-            if Self.forumHosts.contains(host), !Self.isMarketPathLink(url) { return .webJS }
+        // The app's own origin: native-bootstrap (src/components/native/native-bootstrap.tsx
+        // routeDeepLink) handles EVERY shape there — forum https links, eno.vn https links (path
+        // reused on this origin), `enovn://open?path=` and `enovn://open?url=` — and routes them
+        // in-SPA, which a native load would downgrade to a full page fetch. Leave it alone.
+        if current.scheme?.lowercased() == "https", let host = current.host?.lowercased(),
+           Self.appHosts.contains(host) {
+            return .webJS
         }
         // Everything else (the local offline page, the instant shell, about:blank, an unknown
-        // origin) has no deep-link listener at all.
+        // origin) has no deep-link listener at all: navigate the WebView to the target on the
+        // app's own origin.
         return .native(target)
     }
 
-    /// `enovn://open?path=…` — the eno.vn-relative shortcut shape.
-    private static func isMarketPathLink(_ url: URL) -> Bool {
-        guard url.scheme?.lowercased() == "enovn", url.host == "open",
-              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else { return false }
-        return items.contains(where: { $0.name == "path" }) && !items.contains(where: { $0.name == "url" })
-    }
-
-    // MARK: - Link → first-party https target
+    // MARK: - Link → https target on the app's own origin
     //
     // Mirrors the web contract (src/lib/deep-link.ts canonicalAppPath + native-bootstrap's
-    // routeDeepLink): canonicalize, then validate, and refuse anything that isn't one of the two
-    // first-party origins.
+    // routeDeepLink): canonicalize, then validate, and refuse anything that isn't first-party.
+    // ⛔ THE RESULT IS ALWAYS ON `appOrigin`. A first-party link on any other host (eno.vn, the
+    // forum apex) keeps its path, query and fragment and moves onto https://www.eno.forum — the
+    // only origin this WebView renders. Returning the eno.vn URL itself is what sent the quick
+    // actions to Safari.
 
     private static func resolveFirstPartyTarget(_ url: URL, depth: Int = 0) -> URL? {
         guard depth <= 1, let scheme = url.scheme?.lowercased() else { return nil }
@@ -210,7 +213,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             guard url.port == nil else { return nil }
             guard let host = url.host?.lowercased(), firstPartyHosts.contains(host) else { return nil }
             guard isRoutablePath(url.path) else { return nil }
-            return url
+            return onAppOrigin(url)
         }
 
         guard scheme == "enovn", url.host == "open",
@@ -226,12 +229,26 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                   let nested = URL(string: absolute) else { return nil }
             return resolveFirstPartyTarget(nested, depth: depth + 1)
         }
-        // ?path=<eno.vn app path> (queryItems already percent-decodes once, like searchParams.get).
+        // ?path=<app path> (queryItems already percent-decodes once, like searchParams.get).
         guard let path = items.first(where: { $0.name == "path" })?.value else { return nil }
-        return marketURL(forPath: path)
+        return appURL(forPath: path)
     }
 
-    private static func marketURL(forPath raw: String) -> URL? {
+    /// The same path, query and fragment on `appOrigin`. Rebuilt from the already-validated
+    /// components rather than string-spliced, so nothing the incoming host carried (it was checked
+    /// to be first-party, port-less and userinfo-less) can leak into the new authority.
+    private static func onAppOrigin(_ url: URL) -> URL? {
+        guard let source = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              var target = URLComponents(string: appOrigin) else { return nil }
+        target.percentEncodedPath = source.percentEncodedPath.isEmpty ? "/" : source.percentEncodedPath
+        target.percentEncodedQuery = source.percentEncodedQuery
+        target.percentEncodedFragment = source.percentEncodedFragment
+        guard let moved = target.url, moved.scheme?.lowercased() == "https",
+              let host = moved.host?.lowercased(), appHosts.contains(host) else { return nil }
+        return moved
+    }
+
+    private static func appURL(forPath raw: String) -> URL? {
         // `//evil.example` and `/\evil.example` are protocol-relative escapes: pasted after an
         // origin they resolve to a FOREIGN host. Reject rather than normalise.
         guard raw.hasPrefix("/"), !raw.hasPrefix("//"), !raw.hasPrefix("/\\") else { return nil }
@@ -242,7 +259,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         guard !hasParserSplitChars(raw) else { return nil }
         let pathOnly = String(raw.prefix { $0 != "?" && $0 != "#" })
         guard isRoutablePath(pathOnly) else { return nil }
-        let joined = marketOrigin + raw
+        let joined = appOrigin + raw
         // URL(string:) is strict (RFC 3986 since iOS 17); fall back to percent-encoding for paths
         // carrying raw spaces or non-ASCII (Vietnamese query text) rather than dropping the link.
         // `%` and `#` are added to the allowed set so an escape that is ALREADY encoded isn't
@@ -251,9 +268,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         guard let url = URL(string: joined)
                 ?? (joined.addingPercentEncoding(withAllowedCharacters: lenient).flatMap { URL(string: $0) })
         else { return nil }
-        // Belt and braces: whatever that parsed to, it must still be the marketplace origin.
+        // Belt and braces: whatever that parsed to, it must still be the app's own origin.
         guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased(),
-              marketHosts.contains(host) else { return nil }
+              appHosts.contains(host) else { return nil }
         return url
     }
 

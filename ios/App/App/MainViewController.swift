@@ -2,7 +2,7 @@ import UIKit
 import WebKit
 import Capacitor
 
-/// Self-healing WebView shell for the REMOTE-SERVER build (the app loads https://eno.vn live).
+/// Self-healing WebView shell for the REMOTE-SERVER build (the app loads https://www.eno.forum live).
 ///
 /// Capacitor's default navigation handler does NOTHING useful on a failed provisional load unless an
 /// `errorPathURL` is configured — so a dropped/aborted first request leaves a BLANK screen. The iOS
@@ -21,8 +21,10 @@ class MainViewController: CAPBridgeViewController {
     /// Where the user actually was, so a blank-page recovery can put them back (see `reloadFromServer`).
     private var lastGoodURL: URL?
     private var urlObservation: NSKeyValueObservation?
-    /// The origins this shell renders (mirrors `server.allowNavigation` in capacitor.config.ts).
-    private static let firstPartyHosts: Set<String> = ["eno.vn", "www.eno.vn", "eno.forum", "www.eno.forum"]
+    /// The origins worth returning to = `server.allowNavigation` in capacitor.config.ts. Since
+    /// 2026-09-08 that is the two forum hosts ONLY: an eno.vn URL is handed to Safari by Capacitor,
+    /// so a recovery reload must never target one (it would eject the user from the app).
+    private static let firstPartyHosts: Set<String> = ["eno.forum", "www.eno.forum"]
 
     /// Forwards every WKNavigationDelegate message to Capacitor's own handler EXCEPT the two
     /// failure callbacks, which it filters first. See `BenignNavigationError` below for why.
