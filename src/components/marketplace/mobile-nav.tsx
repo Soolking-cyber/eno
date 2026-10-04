@@ -22,6 +22,7 @@ import { CategoryGlyphArt } from './category-glyph'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { localizedHref, stripViPrefix } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
+import { isBrowseSurface } from '@/lib/browse-surface'
 
 /**
  * The guest Account sheet (O-09) — loaded on demand: only a signed-out visitor who touches the Account
@@ -284,6 +285,13 @@ export function MobileNav() {
   // tab's active state comes from the ONE source it should: the pathname.
   const at = (p: string) => mounted && pathname === p
   const atPrefix = (p: string) => mounted && (pathname?.startsWith(p) ?? false)
+  // ⛔ EXPLORE LIGHTS ACROSS THE BROWSE SURFACES, NOT ONLY ON `/` (NAV-5, UX3 2026-10-05): a category, a
+  // listing, a seller, a storefront or /brands is where exploring took you, and with an icon-only bar
+  // nothing else says so (research R9). Only the LIGHT widened: the tab still links the home root, its
+  // prefetch and its re-tap-to-top stay keyed on the EXACT home path (`at('/')`), and `aria-current` says
+  // "page" only there — elsewhere "true", the current item of the bar, not the current page.
+  // src/lib/browse-surface.ts holds the list.
+  const exploreHere = mounted && isBrowseSurface(pathname)
   // Account owns the whole /dashboard/** subtree, so it stays lit while you are inside any
   // section you reached from it (codex, plan review).
   const accountActive = mounted && (pathname?.startsWith('/dashboard') ?? false)
@@ -398,7 +406,7 @@ export function MobileNav() {
           tab, never just the glyph, so there is no dead band along the pill's top or bottom. No
           text lives in the bar, so the enlarged-text growth the old `min-h` allowed for is moot. */}
       <div className="flex h-full items-stretch">
-      <Link href={localizedHref('/', variantOfLanguage(lang))} prefetch={at('/') ? false : undefined} aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/'))}>
+      <Link href={localizedHref('/', variantOfLanguage(lang))} prefetch={at('/') ? false : undefined} aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : exploreHere ? 'true' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/'))}>
         {/* ⚠️ COMPASS RENDERS AS THE TWO-LAYER DUOTONE, not a single filled svg. The glyph draws
             the needle FIRST and the outer circle SECOND, so a fill applied to the whole svg
             paints the circle over the needle and the glyph collapses into a solid disc (owner,
@@ -407,7 +415,7 @@ export function MobileNav() {
             the same reason the category tiles never had this problem. The other three tabs
             (Heart, MessageSquare, User) have no self-covering child and stay single-svg. */}
         <TabBody
-          active={at('/')}
+          active={exploreHere}
           icon={(on) => <CategoryGlyphArt Icon={Compass} selected={on} stroke={STROKE} className="h-7 w-7" />}
         />
       </Link>
