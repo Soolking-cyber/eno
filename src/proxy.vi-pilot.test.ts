@@ -73,9 +73,47 @@ describe('lists on (V5, locally only)', () => {
     expect((await run('/vi', { method: 'POST', headers: { origin: 'https://evil.example' } })).status).toBe(403)
   })
 
-  it('storefront hosts are never pinned: their `/` is the shop, their `/vi` a 404', async () => {
+  /**
+   * ⛔ A SHOP'S HOST HAS NO PILOT OF ITS OWN, BUT ITS PAGES CARRY eno.vn's `/vi` LINKS (the HTML is shared
+   * ISR: the logo, the Explore tab, the breadcrumbs, the 404 search form). Its `/` stays the shop; a live
+   * `/vi` twin 308s to the same URL on the canonical apex instead of 404ing there.
+   */
+  it('storefront hosts are never pinned: their `/` is the shop, and a live `/vi` twin 308s to the apex', async () => {
     pilot.lists = ON
     expect((await run('/', { host: 'apple.eno.vn', headers: { cookie: 'lang=vi' } })).rewrite).toBe('/vi/s/apple')
+    const home = await run('/vi', { host: 'apple.eno.vn', headers: { cookie: 'lang=en' } })
+    expect(home).toMatchObject({ status: 308, location: 'https://eno.vn/vi', cacheControl: 'public, max-age=86400', rewrite: null })
+    const cat = await run('/vi/c/furniture-appliances', { host: 'apple.eno.vn' })
+    expect(cat).toMatchObject({ status: 308, location: 'https://eno.vn/vi/c/furniture-appliances' })
+  })
+
+  it('…the query rides along (the 404 page\'s GET search form, a filtered explorer link) — www or apex config alike', async () => {
+    pilot.lists = ON
+    const q = await run('/vi?q=t%E1%BB%A7%20l%E1%BA%A1nh&category=furniture-appliances', { host: 'apple.eno.vn' })
+    expect(q.status).toBe(308)
+    expect(q.location).toBe('https://eno.vn/vi?q=t%E1%BB%A7%20l%E1%BA%A1nh&category=furniture-appliances')
+    const www = await run('/vi?homes=1', { host: 'apple.eno.vn', app: 'https://www.eno.vn' })
+    expect(www.location).toBe('https://eno.vn/vi?homes=1')
+    expect((await run('/vi', { host: 'apple.eno.vn', method: 'HEAD' })).status).toBe(308)
+  })
+
+  it('…but only a pilot twin, only GET/HEAD, and never off a shop host', async () => {
+    pilot.lists = ON
+    // Not a twin: still the 404 every unpinned `/vi…` is.
+    for (const p of ['/vi/c/rentals', '/vi/vi', '/vi/listings/abc']) {
+      const r = await run(p, { host: 'apple.eno.vn', headers: { cookie: 'lang=en' } })
+      expect(r.status, p).toBe(200)
+      expect(r.rewrite, p).toBe('/en/~/not-found')
+      expect(r.location, p).toBeNull()
+    }
+    // A write keeps its old route — no redirect for a Server Action's POST.
+    const post = await run('/vi', { host: 'apple.eno.vn', method: 'POST', headers: { origin: 'https://eno.vn', cookie: 'lang=en' } })
+    expect(post.location).toBeNull()
+    expect(post.rewrite).toBe('/en/~/not-found')
+    // The site's own host serves the twin, as before.
+    expect((await run('/vi', { host: 'eno.vn', headers: { cookie: 'lang=en' } })).rewrite).toBe('/vi')
+    // Lists off (eno.forum, or the pilot withdrawn): nothing to send anywhere — the shop's `/vi` is a 404.
+    pilot.lists = { live: [], retired: [] }
     expect((await run('/vi', { host: 'apple.eno.vn', headers: { cookie: 'lang=en' } })).rewrite).toBe('/en/~/not-found')
   })
 
@@ -87,6 +125,14 @@ describe('lists on (V5, locally only)', () => {
 })
 
 describe('retired (rollback V-R)', () => {
+  it('on a shop host a withdrawn twin goes to the apex too (whose own rollback 308 finishes the job) — never a 404', async () => {
+    pilot.lists = { live: [], retired: ['/', '/c/furniture-appliances'] }
+    const r = await run('/vi/c/furniture-appliances?q=sofa', { host: 'apple.eno.vn', headers: { cookie: 'lang=vi' } })
+    expect(r.status).toBe(308)
+    expect(r.location).toBe('https://eno.vn/vi/c/furniture-appliances?q=sofa')
+    expect(r.cacheControl).toBe('public, max-age=86400')
+  })
+
   it('a withdrawn /vi URL answers 308 to the plain path on the canonical origin, query kept — never 404', async () => {
     pilot.lists = { live: [], retired: ['/', '/c/furniture-appliances'] }
     const a = await run('/vi?utm_source=x', { headers: { cookie: 'lang=vi' } })

@@ -196,6 +196,8 @@ const NOT_FOUND_PATH = '/~/not-found'
  * `/vi…` it does not pin still 404s here.
  */
 const INTERNAL_PREFIX = /^\/(en|vi)(\/|$)/
+/** A `/vi` or `/vi/…` path — the only shape a pilot twin can have (pinnedRoute decides whether it is live). */
+const VI_TWIN_PATH = /^\/vi(?:\/|$)/
 
 function isApi(pathname: string): boolean {
   return pathname === '/api' || pathname.startsWith('/api/')
@@ -353,7 +355,8 @@ export function proxy(req: NextRequest) {
      * ⚠️ EVERY METHOD, like the rewrite itself: a Server Action posts to the page's own URL, and posting
      * into the other variant would render a page that does not match the one on screen.
      * ⚠️ NOT ON A STOREFRONT HOST: a shop's host serves the ordinary app on every path but `/`, and those
-     * paths keep negotiating, as they did.
+     * paths keep negotiating, as they did — a guide included. (A live `/vi` twin asked of a shop's host is
+     * the one exception: it 308s to the apex, below.)
      */
     /**
      * ⛔ AND THE `/vi` PILOT (SEO wave B, V3a; switched on by V5 — `VI_PREFIX_PATHS`, lang-pinned.ts):
@@ -361,9 +364,35 @@ export function proxy(req: NextRequest) {
      * Vietnamese, also for everyone, at the plain path's own `vi` ISR entry; `/vi` + a WITHDRAWN path 308s
      * to the plain path, query kept — never a 404 once such a URL may be indexed (rollback V-R). Any
      * other `/vi…` is not pinned and keeps 404ing through INTERNAL_PREFIX below. The marketplace only
-     * (`VI_PILOT` is empty on eno.forum), and never on a storefront host.
-     * ⚠️ NO LANGUAGE REDIRECT ANYWHERE: the 308 is path-based, for a retired URL only (plan §5).
+     * (`VI_PILOT` is empty on eno.forum), and never SERVED on a storefront host — whose live twins 308 to
+     * the site's own (next block).
+     * ⚠️ NO LANGUAGE REDIRECT ANYWHERE: both 308s are path-based — a retired URL, and a twin asked of a
+     * shop's host — never a decision made from the cookie or Accept-Language (plan §5).
      */
+    /**
+     * ⛔ A STOREFRONT HOST HAS NO `/vi` PILOT OF ITS OWN, SO ITS LIVE `/vi` TWINS 308 TO THE SITE'S. The HTML
+     * is ISR and shared by every host, so `<handle>.eno.vn` serves the same chrome as eno.vn — the logo, the
+     * Explore tab, the breadcrumbs, the 404 page's search form, A1-LANG's localized links — and a Vietnamese
+     * reader there followed their `/vi…` targets into a 404 (this host is never pinned: the shop owns its
+     * `/`). Now a GET or HEAD for a twin pinnedRoute would serve on the apex goes to exactly that URL on the
+     * canonical apex, path and query kept — concatenated, never `new URL(path, base)` (see the underscore-host
+     * note); the path is one of our own list entries. Bounded like the rollback 308 below.
+     * ⚠️ A RETIRED twin goes to the apex too (commit-gate review 2026-10-04): the apex answers it with its own
+     * rollback 308 to the plain path, so a `/vi…` link still cached on a shop host is never a 404 — the
+     * "never a 404 once indexable" promise of rollback V-R, on every host.
+     * ⚠️ ONLY a pilot twin (live or retired), and only GET/HEAD: any other `/vi…` keeps its 404
+     * (INTERNAL_PREFIX), a write keeps its old route (a Server Action posts to its own URL), and every other
+     * path keeps negotiating.
+     */
+    if (handle && (req.method === 'GET' || req.method === 'HEAD') && VI_TWIN_PATH.test(req.nextUrl.pathname)) {
+      const twin = pinnedRoute(req.nextUrl.pathname)
+      const apex = apexOrigin(process.env.NEXT_PUBLIC_APP_URL)
+      if (twin && apex) {
+        const res = NextResponse.redirect(`${apex}${req.nextUrl.pathname}${req.nextUrl.search}`, 308)
+        res.headers.set('Cache-Control', 'public, max-age=86400')
+        return withCors(res, origin)
+      }
+    }
     const pinned = handle ? null : pinnedRoute(req.nextUrl.pathname)
     if (pinned && 'redirect' in pinned) {
       // To the canonical origin (behind nginx `req.nextUrl` can carry the internal host), concatenated —
