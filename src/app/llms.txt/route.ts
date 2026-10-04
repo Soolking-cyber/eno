@@ -182,7 +182,7 @@ function marketplaceSummary(f: SiteFacts | null): string {
   return [
     `${SITE_NAME} is a classifieds marketplace for expats, internationals and locals in Vietnam${scope}.`,
     POSTING_IS_FREE ? 'Browsing and posting are currently free.' : '',
-    `Listings posted here carry the seller's public trust score (an official partner shows a partner badge instead) and are answered in in-app chat; a listing linked from a source site has a page here that says where it is listed and links to the original posting.`,
+    `Listings posted here are answered in in-app chat, and a seller who posts from an account shows a public trust score (an official partner shows a partner badge instead); a listing linked from a source site has a page here that says where it is listed and links to the original posting.`,
     `The interface is available in ${LANGUAGES.length} languages and listings are machine-translated.`,
   ].filter(Boolean).join(' ')
 }

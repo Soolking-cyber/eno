@@ -116,14 +116,17 @@ const MARKETPLACE_URL = 'https://eno.vn'
 // ⚠️ NO MOTORBIKES AND NO "CHANGE HANDS EVERY TIME SOMEBODY MOVES" in the two lines below (2026-09-27):
 // motorbikes were 0 live listings, and the used furniture here is dealer-supplied — framing it as
 // expats' moving sales is the claim the guides were already corrected for.
-// ⚠️ "EVERY SELLER WHO POSTS HERE", NOT "EVERY SELLER": almost every live listing is linked from a
+// ⚠️ "A SELLER WHO POSTS FROM AN ACCOUNT", NOT "EVERY SELLER": almost every live listing is linked from a
 // source site (the At a glance block below counts it), and a trust score says nothing about those —
-// the same scoping the layout's Organization description uses.
+// the same scoping the layout's Organization description uses. ⛔ NOR "EVERY SELLER WHO POSTS HERE"
+// (2026-10-04): a signed-out guest posts too while IDENTITY_GATE_ENFORCED is unset, and a guest's
+// ownerless storefront is unrated (src/lib/linked-seller.ts isUnratedStorefront) — "from an account" IS
+// that rule, so it cannot drift from what the card shows.
 // ⛔ "SOURCE SITE", NEVER "PARTNER SITE" (2026-10-01): Chợ Tốt/Nhatot, Muaban, Batdongsan, VietnamWorks
 // and the other boards and portals we import from are not partners — no code or contract records one; "partner" is reserved
 // for the Official partner badge (a signed agreement — /partners).
 const MARKETPLACE_INTRO =
-  'eno.vn is a classifieds marketplace for expats, internationals and locals in Vietnam — housing, jobs, everyday services, furniture and electronics. Every seller who posts here carries a public trust score or, for an official partner, a partner badge, automated checks run on every post, and anyone can report a listing that is not what it claims to be.'
+  'eno.vn is a classifieds marketplace for expats, internationals and locals in Vietnam — housing, jobs, everyday services, furniture and electronics. Automated checks run on every post, a seller who posts from an account shows a public trust score or, for an official partner, a partner badge, and anyone can report a listing that is not what it claims to be.'
 
 const MARKETPLACE_WHAT = [
   'People and businesses post what they are renting out, selling or hiring for: apartments and rooms, jobs, services, furniture, appliances and electronics.',

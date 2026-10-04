@@ -120,6 +120,13 @@ const PLAY_LISTING = {
    * wordmark and an "& e-Visa" tail, which is what made it unfindable by name in Play search. The e-Visa service is
    * still described — and still disclaimed — in fullDescription below; it is the NAME it has left.
    */
+  /**
+   * ⛔ NOT "Every seller carries a public trust score" (owner, 2026-10-04 — the site retired it the same
+   * day, src/lib/retired-trust-claims.guard.test.ts): an official partner shows a partner badge instead, a
+   * guest's ownerless storefront and a linked listing's source show none. So it says how a score is BUILT,
+   * never that every seller has one. The report line is the owner's approved sentence.
+   * ⚠️ Editing this text changes nothing in the store until `listing --apply` runs (the owner's call).
+   */
   title: 'Eno Marketplace',
   shortDescription: 'Buy, sell and rent in Vietnam. Plus Vietnam e-Visas and free trip planning.',
   fullDescription: `eno is the app for expats and internationals living in or travelling to Vietnam. One place to buy and sell, sort your visa, and plan the trip.
@@ -144,7 +151,7 @@ PLAN THE TRIP
 Build an itinerary, save the places you like, and get help with bookings — free.
 
 BUILT FOR TRUST
-Every seller carries a public trust score built from real evidence, not stars alone. Business sellers can verify their registration. Listings that break the rules get reported by the community and reviewed. Prices are shown in Vietnamese đồng with a US dollar reference, so you always know what you are paying. Nobody can pay to rank higher.
+Trust scores are built from completed deals, reviews and confirmed reports, not stars alone. Business sellers can verify their registration. Members can report any listing that breaks the rules. Prices are shown in Vietnamese đồng with a US dollar reference, so you always know what you are paying. Nobody can pay to rank higher.
 
 YOUR LANGUAGE
 The whole app works in English and Tiếng Việt, with nine more languages for listing content.

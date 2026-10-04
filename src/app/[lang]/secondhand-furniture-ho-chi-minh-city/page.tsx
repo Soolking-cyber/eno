@@ -284,9 +284,9 @@ const CONTENT: ArticleContent = {
             is shorter, and you generally take it as it stands. If you are the one moving out, the
             other side of that trade is in{' '}
             <HereLink href="/selling-up-before-you-leave-vietnam">selling up before you leave Vietnam</HereLink>.
-            Either way, a seller who posts here carries a public trust score, so a listing with no
-            history reads as exactly that before you ride across town for it; an official partner
-            shows its partner badge in place of the score.
+            Either way, a seller who posts from an account shows a public trust score, so a seller
+            with no history reads as exactly that before you ride across town for it; an official
+            partner shows its partner badge in place of the score.
           </P>
         </>
       ),

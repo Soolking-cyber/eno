@@ -14,6 +14,7 @@ const base: StorefrontDescriptionInput = {
   reviewCount: 0,
   rating: 5, // `Seller.rating` defaults to 5: an unreviewed seller still carries it
   ownListing: true,
+  trustShown: true,
   siteName: 'eno.vn',
 }
 
@@ -52,6 +53,14 @@ describe('storefrontDescription', () => {
   it('keeps the tier word for a seller whose stock is its own', () => {
     expect(storefrontDescription({ ...base, trustTier: 'trusted' })).toContain(' · Trusted seller on eno.vn')
     expect(storefrontDescription({ ...base, trustTier: 'exceptional' })).toContain(' · Top-rated seller on eno.vn')
+  })
+
+  it('no tier word where the page shows no trust chip: an official partner (badge instead) or an unrated storefront', () => {
+    for (const trustTier of ['trusted', 'exceptional']) {
+      const d = storefrontDescription({ ...base, trustTier, trustShown: false })
+      expect(d).toBe('SDC Store — 47 listings in Electronics, Fashion & Beauty · Hồ Chí Minh on eno.vn')
+      expect(d).not.toMatch(/trusted|top-rated/i)
+    }
   })
 
   it('names the edition it is rendered on: eno.forum on the forum, never a literal eno.vn', () => {

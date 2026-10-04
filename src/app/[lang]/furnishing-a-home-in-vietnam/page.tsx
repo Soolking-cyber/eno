@@ -141,8 +141,8 @@ const CONTENT: ArticleContent = {
               furniture &amp; appliances
             </Link>
             . Many listings there link out to the shop or site they came from, and you buy there — so
-            check that seller the way you would any shop. A seller who posts here directly carries a
-            public trust score (an official partner shows its partner badge instead), so a listing with
+            check that seller the way you would any shop. A seller who posts from an account shows a
+            public trust score (an official partner shows its partner badge instead), so a seller with
             no history reads as exactly that before you travel across town for it.
           </P>
         </>

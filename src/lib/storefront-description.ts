@@ -41,6 +41,15 @@ export type StorefrontDescriptionInput = {
    * importer with 0 live listings and a `trusted` row would otherwise say "Trusted seller").
    */
   ownListing: boolean
+  /**
+   * True when the storefront page itself shows the seller's trust chip — an OWNED storefront that is not
+   * an official partner (src/lib/linked-seller.ts: a partner shows its partner badge INSTEAD of a score,
+   * and an ownerless storefront is unrated). ⛔ The tier word is a trust claim, so it needs this
+   * (owner, 2026-10-04): an official partner's meta said "Trusted seller" over a page that shows a
+   * partner badge and no score, and an ownerless guest storefront left at the v1 default of 100 read as
+   * "Trusted seller" over a page that shows no trust at all.
+   */
+  trustShown: boolean
   /** `SITE_NAME` of the edition rendering the page. */
   siteName: string
 }
@@ -78,7 +87,7 @@ export function storefrontDescription(input: StorefrontDescriptionInput): string
     return [`${name} on ${siteName}: ${count}, ${linked}`, rating].filter(Boolean).join(' · ')
   }
 
-  const tier = !input.ownListing ? '' : input.trustTier === 'exceptional' ? 'Top-rated seller' : input.trustTier === 'trusted' ? 'Trusted seller' : ''
+  const tier = !input.ownListing || !input.trustShown ? '' : input.trustTier === 'exceptional' ? 'Top-rated seller' : input.trustTier === 'trusted' ? 'Trusted seller' : ''
   const bits = [count, storefrontPlace(input.location) || '', tier, rating].filter(Boolean)
   return bits.length ? `${name} — ${bits.join(' · ')} on ${siteName}` : `${name} on ${siteName}`
 }

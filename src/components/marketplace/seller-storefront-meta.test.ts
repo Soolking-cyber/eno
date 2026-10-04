@@ -68,9 +68,27 @@ describe('storefrontMetaDescription', () => {
     expect(h.findFirstWhere).toEqual({ scoped: { sellerId: 's1', verified: true, status: 'active', affiliateUrl: null } })
   })
 
-  it('one own listing anywhere (even past the 60 loaded) makes it an ordinary storefront with its tier', async () => {
+  it('one own listing anywhere (even past the 60 loaded) makes it an ordinary storefront; an OWNED one carries its tier', async () => {
     h.ownListing = { id: 'own-61' }
+    h.seller = { ...h.seller, ownerId: 'p1' }
     expect(await storefrontMetaDescription('s1')).toBe(`CellphoneS — 9,726 listings in Electronics · Trusted seller on ${SITE_NAME}`)
+  })
+
+  /**
+   * ⛔ THE TIER WORD FOLLOWS THE PAGE'S TRUST CHIP (owner, 2026-10-04). The page shows no chip for an ownerless
+   * storefront (unrated) or an official partner (badge instead) — so neither meta may say "Trusted seller".
+   */
+  it('an ownerless storefront with an own listing: the ordinary wording, but no tier — its page shows no trust', async () => {
+    h.ownListing = { id: 'own-61' }
+    const d = await storefrontMetaDescription('s1')
+    expect(d).toBe(`CellphoneS — 9,726 listings in Electronics on ${SITE_NAME}`)
+    expect(d).not.toMatch(/trusted|top-rated/i)
+  })
+
+  it('an official partner shown as one: no tier — the page shows its partner badge instead of a score', async () => {
+    h.ownListing = { id: 'own-61' }
+    h.seller = { ...h.seller, ownerId: 'p1', officialPartner: true }
+    expect(await storefrontMetaDescription('s1')).toBe(`CellphoneS — 9,726 listings in Electronics on ${SITE_NAME}`)
   })
 
   it('an empty OWNED storefront never probes, and says no count, no linked wording and no tier', async () => {

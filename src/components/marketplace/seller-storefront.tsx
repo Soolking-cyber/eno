@@ -138,6 +138,9 @@ export async function storefrontMetaDescription(id: string): Promise<string | nu
         select: { id: true },
       })
     : null
+  // The trust chip AS THE PAGE SHOWS IT (storefrontCard below): a partner shown as one carries its badge
+  // instead of a score, and an ownerless storefront is unrated — neither earns the tier word.
+  const partner = partnerShown(seller.officialPartner, seller.listings.some((l) => !!l.affiliateUrl))
   return storefrontDescription({
     name: seller.name,
     total,
@@ -147,6 +150,7 @@ export async function storefrontMetaDescription(id: string): Promise<string | nu
     reviewCount: seller.reviewCount,
     rating: seller.rating,
     ownListing: !!own,
+    trustShown: !partner && !isUnratedStorefront({ ownerId: seller.ownerId, officialPartner: partner }),
     siteName: SITE_NAME,
   })
 }

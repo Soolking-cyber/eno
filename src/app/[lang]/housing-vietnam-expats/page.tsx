@@ -28,6 +28,11 @@ export const revalidate = 3600
  *
  * ⚠️ REWORDED, NOT DELETED. Trust scores and in-app chat are real — for listings POSTED here. So the
  * copy says which kind of listing gets which, and that a linked listing links to its source.
+ * ⛔ AND NO "A LISTING POSTED HERE SHOWS THE SELLER'S TRUST SCORE" (owner, 2026-10-04). Two kinds of posted
+ * listing show none: an official partner's (a partner badge instead) and a signed-out guest's (an ownerless
+ * storefront is unrated — src/lib/linked-seller.ts; guest posting is open while IDENTITY_GATE_ENFORCED is
+ * unset). Hedging one exception at a time is how the second one was missed, so the copy says what a score
+ * is WHERE one is shown, which no storefront state can make false.
  * ⛔ AND IT NEVER SAYS A LINKED RENTAL IS HANDLED AT ITS SOURCE. The owner removed "enquiries and
  * viewings are handled there, not by eno" from the importers on 2026-09-25
  * (src/lib/import-viewing-disclaimer.ts): the eno team checks availability, free, on ANY rental —
@@ -75,7 +80,7 @@ const AREAS_LEAD = 'Rentals by district:'
 const CONTENT: SeoContent = {
   eyebrow: 'Housing · Ho Chi Minh City',
   h1: 'Expat Housing in Vietnam: Renting in Ho Chi Minh City',
-  intro: `Looking for somewhere to live in Vietnam? This page covers Ho Chi Minh City: apartments, houses, rooms and serviced flats for rent, from studios to family houses, furnished or not, on monthly or yearly terms. Many listings are linked from other property listing sites: each says where it is listed and links to the original posting. Listings posted directly on ${SITE_NAME} show the seller’s public trust score and can be messaged in-app, and on any rental the eno team will check availability for you, free.`,
+  intro: `Looking for somewhere to live in Vietnam? This page covers Ho Chi Minh City: apartments, houses, rooms and serviced flats for rent, from studios to family houses, furnished or not, on monthly or yearly terms. Many listings are linked from other property listing sites: each says where it is listed and links to the original posting. Listings posted directly on ${SITE_NAME} can be messaged in-app, and on any rental the eno team will check availability for you, free.`,
   // ⚠️ `rentals`, not `house-rentals` — that slug does not exist and never did on this taxonomy.
   // Both CTAs on this page fed `/c/house-rentals`, which renders the not-found boundary, and the
   // listing strip queried a category slug matching nothing so it was permanently empty. A rename
@@ -105,7 +110,7 @@ const CONTENT: SeoContent = {
     },
     {
       title: 'Before you pay anything',
-      body: `Wherever a listing comes from, view the flat in person before any money moves, and make sure the person you pay is the owner or the agent the owner appointed. In Ho Chi Minh City the landlord customarily pays the agent, so a fee asked of you just to view a flat is worth questioning before you pay it. On listings posted here, the seller’s public trust score sits beside their name, and anyone can report a listing that looks wrong.`,
+      body: `Wherever a listing comes from, view the flat in person before any money moves, and make sure the person you pay is the owner or the agent the owner appointed. In Ho Chi Minh City the landlord customarily pays the agent, so a fee asked of you just to view a flat is worth questioning before you pay it. Where a listing shows the seller’s public trust score, read it before you go; anyone can report a listing that looks wrong.`,
     },
   ],
   related: RELATED_GUIDES.flatMap((href) => marketplaceGuidesExcept().filter((g) => g.href === href)),
@@ -120,7 +125,7 @@ const CONTENT: SeoContent = {
     },
     {
       q: `Does ${SITE_NAME} check the rentals listed here?`,
-      a: `It checks availability on request, free: tap the check button on up to 5 rentals and the eno team checks them for you. It does not vet the linked listings themselves — those are the source sites’ own postings. Listings posted directly here show the seller’s public trust score, built from completed deals, reviews and confirmed reports, and anyone can report a listing that looks wrong. Whichever kind it is, view the place in person before you pay anything.`,
+      a: `It checks availability on request, free: tap the check button on up to 5 rentals and the eno team checks them for you. It does not vet the linked listings themselves — those are the source sites’ own postings. A seller’s public trust score, where one is shown, is built from completed deals, reviews and confirmed reports, and anyone can report a listing that looks wrong. Whichever kind it is, view the place in person before you pay anything.`,
     },
   ],
 }

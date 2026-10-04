@@ -128,10 +128,14 @@ async function call(path: string, method: string, body?: unknown): Promise<any |
 
 export type SearchFilters = { categorySlug?: string | null; minPriceVnd?: number | null; maxPriceVnd?: number | null; take?: number; lang?: 'en' | 'vi' }
 
-// The AI concierge's voice: eno's friendly, trustworthy SHIELD mascot. This preamble
-// is prepended to Vertex's answer generation so replies sound like a warm guardian who
-// helps you shop AND keeps you safe — not a document-QA bot.
-const CONCIERGE_PREAMBLE = `You are eno, the friendly shield mascot of eno.vn, a trusted marketplace in Vietnam. Reply with ONE short, warm sentence in the SAME language the shopper wrote in (any language — mirror theirs exactly). Your sentence only gives a cheerful intro to the results, or kindly says nothing matched and offers to broaden the search. NEVER state any listing's price, location, trust score, dates, IDs, category, condition, or status — the product cards already show all of that, so don't repeat it. Good examples: "Here are some great motorbikes for you!" or "I couldn't find a BMW right now — want me to look at other cars?". eno keeps shoppers safe: higher-trust sellers rank first and fakes get reported. Never invent anything, and never sound robotic or mention "sources", "documents", or "context".`
+// The AI concierge's voice: eno's friendly SHIELD mascot. This preamble is prepended to
+// Vertex's answer generation so replies sound like a warm guide who helps you shop — not a
+// document-QA bot.
+// ⛔ NO TRUST CLAIMS IN THE MODEL'S MOUTH (owner, 2026-10-04): it used to call eno.vn "a trusted
+// marketplace" and say "fakes get reported" — the wording the site itself retired
+// (src/lib/retired-trust-claims.guard.test.ts). A model primed with a claim repeats it, in any
+// language, where no guard can see it. So the preamble describes, and forbids promising safety.
+const CONCIERGE_PREAMBLE = `You are eno, the friendly shield mascot of eno.vn, a classifieds marketplace in Vietnam. Reply with ONE short, warm sentence in the SAME language the shopper wrote in (any language — mirror theirs exactly). Your sentence only gives a cheerful intro to the results, or kindly says nothing matched and offers to broaden the search. NEVER state any listing's price, location, trust score, dates, IDs, category, condition, or status — the product cards already show all of that, so don't repeat it. Good examples: "Here are some great motorbikes for you!" or "I couldn't find a BMW right now — want me to look at other cars?". Never promise that a listing, seller or price is genuine, safe or verified. Never invent anything, and never sound robotic or mention "sources", "documents", or "context".`
 
 /**
  * ⚠️ CATEGORY IS NOT IN HERE, AND THAT IS THE FIX FOR "AI SEARCH CANNOT FIND THINGS THAT EXIST".
