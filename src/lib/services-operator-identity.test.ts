@@ -3,6 +3,7 @@ import { strFromU8, unzipSync } from 'fflate'
 import type { GeneratedItineraryResponse } from '@/lib/itinerary-data'
 import type { SavedItineraryDocxInput } from '@/lib/itinerary-docx'
 import type { DigestItem } from '@/lib/digest'
+import { POSTING_IS_FREE } from '@/lib/site-identity'
 
 /**
  * ⛔ eno.forum MAY NOT SPEAK AS THE LICENSED MARKETPLACE — pinned across every email and the Word export.
@@ -211,7 +212,7 @@ describe('marketplace edition — unchanged', () => {
     const { layout } = await loadEdition('marketplace')
     const html = layout.renderBrandEmail({ preheader: 'p', bodyHtml: '', origin: 'https://eno.vn' })
     expect(html).toContain(
-      "Công ty TNHH ENO · TP. Hồ Chí Minh, Việt Nam · support@eno.vn<br/>\n          eno.vn — Vietnam's trusted marketplace for the international community.",
+      `Công ty TNHH ENO · TP. Hồ Chí Minh, Việt Nam · support@eno.vn<br/>\n          eno.vn — ${POSTING_IS_FREE ? 'free ' : ''}classifieds for expats and locals in Vietnam.`,
     )
     expect(html).not.toContain('eno.forum')
   })

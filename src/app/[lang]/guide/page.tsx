@@ -1,6 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
-import { withShare } from '@/lib/site-identity'
+import { POSTING_IS_FREE, withShare } from '@/lib/site-identity'
 import Link from 'next/link'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
@@ -64,7 +64,13 @@ export default function GuidePage() {
   return (
     <ContentPage
       title="How eno.vn works"
-      intro={<Tr text="eno.vn is the trusted marketplace for Vietnam’s international community. Here’s everything you need in a couple of minutes." />}
+      // ⛔ NOT "eno.vn is the trusted marketplace for Vietnam’s international community." (owner, 2026-10-04):
+      // the site's own description, as the home page's Vietnamese says it (HOME_DESCRIPTION_VI).
+      // Two literal <Tr>s, not one <Tr text={cond ? a : b}>: gen-ui-strings extracts literals only, and a string
+      // missing from UI_STRINGS is machine-translated per page view for the nine MT languages.
+      intro={POSTING_IS_FREE
+        ? <Tr text="eno.vn is a free classifieds marketplace for expats and locals in Vietnam. Here’s everything you need in a couple of minutes." />
+        : <Tr text="eno.vn is a classifieds marketplace for expats and locals in Vietnam. Here’s everything you need in a couple of minutes." />}
       sections={[
         { id: 'buyers', label: 'For buyers' },
         { id: 'sellers', label: 'For sellers' },

@@ -21,6 +21,7 @@ import { FooterPreferences } from '@/components/marketplace/footer-preferences'
 import { SOCIALS, formatFollowers, type Social } from '@/lib/socials'
 import { SERVICES_FOOTER_LINKS } from '@/lib/edition-services-copy'
 import { IS_MARKETPLACE, IS_SERVICES, SITE_NAME } from '@/lib/edition'
+import { POSTING_IS_FREE } from '@/lib/site-identity'
 
 /**
  * One footer entry.
@@ -447,9 +448,16 @@ function FooterBody() {
                 A screen-reader user gains a heading-navigation stop that names the site; a
                 sighted user sees the same sentence in the same place. */}
             <h2 className="max-w-[220px] text-xs leading-relaxed text-muted-foreground">
+              {/* ⛔ NOT "Vietnam's trusted marketplace for the international community" (owner, 2026-10-04):
+                  the site's own title dropped "trusted" on 2026-10-01 (src/lib/site-title.ts) and this line is
+                  that title, word for word, in both languages; "free" follows POSTING_IS_FREE. */}
               {IS_SERVICES
-                ? tr("eno.forum — Vietnam's trusted marketplace for the international community.", 'eno.forum — chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')
-                : tr("eno.vn — Vietnam's trusted marketplace for the international community.", 'eno.vn — chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')}
+                ? (POSTING_IS_FREE
+                  ? tr('eno.forum — free classifieds for expats and locals in Vietnam.', 'eno.forum — rao vặt miễn phí cho người nước ngoài và người Việt.')
+                  : tr('eno.forum — classifieds for expats and locals in Vietnam.', 'eno.forum — rao vặt cho người nước ngoài và người Việt.'))
+                : (POSTING_IS_FREE
+                  ? tr('eno.vn — free classifieds for expats and locals in Vietnam.', 'eno.vn — rao vặt miễn phí cho người nước ngoài và người Việt.')
+                  : tr('eno.vn — classifieds for expats and locals in Vietnam.', 'eno.vn — rao vặt cho người nước ngoài và người Việt.'))}
             </h2>
             {/* The only genuinely OFF-SITE links on the page. In the native shell a plain
                 cross-origin anchor is a HARD EXIT — Capacitor hands the URL to Safari/Chrome and

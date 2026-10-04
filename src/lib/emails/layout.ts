@@ -17,6 +17,7 @@
 
 import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
 import { COMPANY } from '@/lib/site-legal'
+import { POSTING_IS_FREE } from '@/lib/site-identity'
 
 /** Per edition, never shared: the forum must not open its emails with the marketplace's name. */
 const WORDMARK = IS_MARKETPLACE
@@ -65,7 +66,7 @@ export function emailCta(label: string, url: string): string {
 function legalFooterHtml(): string {
   if (IS_MARKETPLACE) {
     return `${esc(COMPANY.name)} · TP. Hồ Chí Minh, Việt Nam · ${esc(COMPANY.email)}<br/>
-          ${esc(SITE_NAME)} — Vietnam's trusted marketplace for the international community.`
+          ${esc(SITE_NAME)} — ${POSTING_IS_FREE ? 'free ' : ''}classifieds for expats and locals in Vietnam.`
   }
   return `${esc(SITE_NAME)} · ${esc(COMPANY.email)}`
 }

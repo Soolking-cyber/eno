@@ -23,11 +23,11 @@ import { REPORT_SENTENCE } from '@/app/[lang]/c/[category]/category-copy'
  * literal around a `${}`) can slip past it; the built-artifact check (Googlebot fetch of the rendered
  * pages) is what covers composed output, and this is the cheap net under it.
  *
- * ⚠️ WHAT IS NOT PINNED, ON PURPOSE: the brand tagline "Vietnam's trusted marketplace for the
- * international community" / "chợ uy tín cho cộng đồng quốc tế" (footer.tsx, emails/layout.ts) and
- * /about's "The trusted marketplace for Vietnam." / "Chợ mua bán uy tín tại Việt Nam." are left for the
- * owner: rewording them needs new Vietnamese, which the 2026-10-04 decision did not approve. Add their
- * wording here the day they change.
+ * The brand tagline "Vietnam's trusted marketplace for the international community" / "chợ uy tín cho
+ * cộng đồng quốc tế" (footer.tsx, emails/layout.ts), /about's "The trusted marketplace for Vietnam." /
+ * "Chợ mua bán uy tín tại Việt Nam.", /guide's "the trusted marketplace for Vietnam’s international
+ * community" and /trust's "instead of stars and badges" followed in the second pass the same day: each
+ * now says what the site title says (src/lib/site-title.ts), and they are pinned below with the rest.
  *
  * ⚠️ PARSED, NOT GREPPED: comments quote the retired wording to say why it went, and they must keep
  * doing so. Template-literal parts count (`On ${SITE_NAME} every seller carries…` was one).
@@ -53,6 +53,20 @@ const RETIRED: RegExp[] = [
   /Every seller who posts here has a public trust score/i,
   /sellers who post here build (?:public )?trust scores/i,
   /problem sellers get caught fast|so the price and condition are real/i,
+  // The second pass (taglines, /about, /guide, /trust, the do-cu guide), 2026-10-04.
+  /trusted marketplace for (?:the international community|Vietnam)/i,
+  /chợ uy tín cho cộng đồng quốc tế|Sàn giao dịch uy tín|Chợ mua bán uy tín|sàn giao dịch uy tín dành cho/i,
+  /instead of stars and badges|thay vì số sao và huy hiệu/i,
+  /Mỗi người bán trên\s*$/,
+  // "Posted here ⇒ a trust score" with no partner badge in it (housing), and the forms this pass replaced
+  // with the card's own rule, "a seller who posts from an account" (src/lib/linked-seller.ts
+  // isUnratedStorefront: an ownerless storefront shows no score, and the API still takes a signed-out
+  // post while IDENTITY_GATE_ENFORCED is unset — the web wizard asks for sign-in first).
+  /^\s*show the seller(?:’|')s public trust score and can be messaged/i,
+  /On listings posted here, the seller(?:’|')s public trust score sits beside their name, and/i,
+  /Listings posted directly here show the seller(?:’|')s public trust score, built from/i,
+  /posts here(?: directly)? carries a public trust score/i,
+  /Listings posted here carry the seller(?:’|')s public trust score/i,
 ]
 
 /** Shipped = what a build compiles or serves: tests and test support are not. */

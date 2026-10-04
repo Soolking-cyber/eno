@@ -84,7 +84,9 @@ export default function TrustPage() {
     <ContentPage
       title="How trust works on eno.vn"
       titleVi="Cách điểm uy tín hoạt động trên eno.vn"
-      intro={<Tr text="Every account has one Trust Score — a single number, shown in color — instead of stars and badges. It is recomputed every day from what an account actually does on eno.vn, and recent behavior counts more than the past — so the score always reflects who a seller is now, not who they used to be." />}
+      // ⛔ NO "instead of stars and badges" (owner, 2026-10-04): an official partner shows a partner badge, a
+      // verified business a business badge, and reviews carry stars — the score sits beside them, not instead.
+      intro={<Tr text="Every account has one Trust Score — a single number, shown in color. It is recomputed every day from what an account actually does on eno.vn, and recent behavior counts more than the past — so the score always reflects who a seller is now, not who they used to be." />}
       sections={[
         { id: 'colors', label: 'What the colors mean', labelVi: 'Ý nghĩa các màu' },
         { id: 'built', label: 'How the score is built', labelVi: 'Điểm được tính thế nào' },

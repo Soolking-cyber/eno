@@ -465,8 +465,10 @@ export default async function AboutPage() {
         />
       )}
       <ContentPage
-        title={IS_SERVICES ? 'Before you arrive, and after you land.' : 'The trusted marketplace for Vietnam.'}
-        titleVi={IS_SERVICES ? undefined : 'Chợ mua bán uy tín tại Việt Nam.'}
+        // ⛔ NOT "The trusted marketplace for Vietnam." / "Chợ mua bán uy tín tại Việt Nam." (owner, 2026-10-04):
+        // the site title dropped "trusted" on 2026-10-01 and this heading now says what MARKETPLACE_TITLE_VI says.
+        title={IS_SERVICES ? 'Before you arrive, and after you land.' : POSTING_IS_FREE ? 'Free classifieds for expats and locals in Vietnam.' : 'Classifieds for expats and locals in Vietnam.'}
+        titleVi={IS_SERVICES ? undefined : POSTING_IS_FREE ? 'Rao vặt miễn phí cho người nước ngoài và người Việt tại Việt Nam.' : 'Rao vặt cho người nước ngoài và người Việt tại Việt Nam.'}
         intro={<Tr text={IS_SERVICES ? SERVICES_INTRO : MARKETPLACE_INTRO} />}
         sections={RAIL}
       >
