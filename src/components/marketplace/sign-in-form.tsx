@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { Mail, Phone, Loader2, ExternalLink, Eye, EyeOff } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
@@ -16,6 +16,7 @@ import { armIntent, withResume, type PendingIntent } from '@/lib/pending-intent'
 import type { SignInGate } from '@/lib/signup-prompt'
 import { HANDOFF_NEXT_KEY, handoffNonce } from '@/lib/auth/handoff-client'
 import { isNativeApp, nativeGoogleSignIn } from '@/lib/native-auth'
+import { appReviewGate, iosAppGate, nativeAppGate } from '@/lib/app-review-gates'
 import { googleFirstPartyEnabled } from '@/lib/google-identity'
 import { useTurnstile } from './turnstile'
 import { canonicalEmail } from '@/lib/email-alias'
@@ -231,6 +232,38 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   // ⚠️ DISABLED, NOT REMOVED. Deleting the tab would make the form silently re-flow to a single
   // method and lose the signal that phone sign-in is coming; a disabled tab that reads "soon" is
   // the honest version, and it keeps the code path warm rather than rotting behind a deleted UI.
+  /**
+   * APP STORE GATES (src/lib/app-review-gates.ts) — dormant until the owner sets the token.
+   *  · `ios-hide-google` (Guideline 4.8): an iOS app that offers Google must also offer Sign in with
+   *    Apple; offering only eno's own sign-in exempts it. Existing Google users sign in with an emailed
+   *    code to the same address. Android and the web keep Google.
+   *  · `app-signin-tidy`: in either app, drop the disabled "Phone · soon" strip (App Review reads a
+   *    disabled method as unfinished UI, 2.1) and open the legal links in the app, not in Safari.
+   * The CSS hooks (`ios-app-hidden` / `native-app-hidden`, globals.css) hide the server-rendered first
+   * frame; the state below is what the logic reads once mounted.
+   */
+  const gateGoogle = appReviewGate('ios-hide-google')
+  const gateTidy = appReviewGate('app-signin-tidy')
+  const [legalInApp, setLegalInApp] = useState(false)
+  /**
+   * `app-signin-tidy`: a legal link opens in the app's in-app browser sheet (SFSafariViewController /
+   * Custom Tab, the same one Google sign-in uses), NOT in this WebView and NOT in Safari. Navigating this
+   * WebView would throw away a half-finished sign-in — the typed email, the sent code, the Turnstile
+   * token (opus, review of this change); the sheet closes back onto the form exactly as it was.
+   * Without a bridge on this origin (Android off server.url, the shelved SwiftUI tabs) nothing changes:
+   * the link keeps target=_blank.
+   */
+  const openLegal = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (!legalInApp) return
+    e.preventDefault()
+    const url = new URL(e.currentTarget.getAttribute('href') || '/', window.location.origin).href
+    // If the sheet cannot open (a binary without the plugin, a rejected call), fall back to what the
+    // link did before this gate — a NEW window, which the app hands to Safari — never to '_self', which
+    // would navigate this WebView and lose the sign-in (codex + opus, review round 4).
+    void import('@capacitor/browser')
+      .then(({ Browser }) => Browser.open({ url }))
+      .catch(() => { window.open(url, '_blank', 'noreferrer') })
+  }
 
   const [tab, setTab] = useState<'email' | 'phone'>(PHONE_OTP_ENABLED ? 'phone' : 'email')
   const [email, setEmail] = useState('')
@@ -352,7 +385,11 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   const openEmail = () => { setEmailOpened(true); reportEmail() }
   useEffect(() => {
     setOauthBlocked(googleOauthBlocked() && !isNativeApp())
-    setHideGoogle(isNativeTabs() && !isNativeApp())
+    setHideGoogle((isNativeTabs() && !isNativeApp()) || iosAppGate('ios-hide-google'))
+    // Only where the bridge can open the sheet. An app page WITHOUT one (the UA says app, but no
+    // window.Capacitor — Android off server.url, the shelved SwiftUI tabs) keeps target=_blank, because a
+    // same-window link there would throw the half-finished sign-in away (codex + opus, review round 3).
+    setLegalInApp(nativeAppGate('app-signin-tidy') && isNativeApp())
     // ⚠️ EVERY CONTEXT WITH A SEPARATE COOKIE JAR NEEDS THE CODE, NOT THE LINK — and the set of
     // those is exactly `googleOauthBlocked()`, which is why it now drives both.
     //
@@ -1183,13 +1220,13 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
               `variant="bare"`, NOT ghost/outline: both force `hover:text-accent-foreground`, which
               would turn the label brand-blue on hover. The G is `size-5` (20px) — ui/button's base
               clamps any svg WITHOUT a `size-` class to 16px, so h-5/w-5 would silently lose. */}
-          <Button variant="bare" size="none" disabled={loading} onClick={pressGoogle} className="flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-popover px-4 text-sm font-bold text-foreground transition-colors hover:bg-tint disabled:opacity-50 cursor-pointer">
+          <Button variant="bare" size="none" disabled={loading} onClick={pressGoogle} className={cn('flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-popover px-4 text-sm font-bold text-foreground transition-colors hover:bg-tint disabled:opacity-50 cursor-pointer', gateGoogle && 'ios-app-hidden')}>
             {googleBusy ? <Loader2 className="size-5 animate-spin" /> : <GoogleIcon />}
             {googleBusy ? t('Signing you in…', 'Đang đăng nhập…') : t('Continue with Google', 'Tiếp tục với Google')}
           </Button>
 
           {!emailCollapsed && (
-            <div className="flex items-center gap-3 py-1">
+            <div className={cn('flex items-center gap-3 py-1', gateGoogle && 'ios-app-hidden')}>
               <span className="h-px flex-1 bg-border" />
               <span className="text-xs text-ink-4">{t('or', 'hoặc')}</span>
               <span className="h-px flex-1 bg-border" />
@@ -1230,7 +1267,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
           is still the way back. This is the one place the tabs migration is not pixel/behaviour
           identical, and it is an improvement. */}
       <Tabs value={tab} onValueChange={(v) => { setTab(v as 'email' | 'phone'); reset() }} className="gap-3">
-        <TabsList className="flex w-full items-stretch rounded-full bg-tint p-1 text-sm font-semibold group-data-horizontal/tabs:h-auto">
+        <TabsList className={cn('flex w-full items-stretch rounded-full bg-tint p-1 text-sm font-semibold group-data-horizontal/tabs:h-auto', gateTidy && !PHONE_OTP_ENABLED && 'native-app-hidden')}>
           {(['phone', 'email'] as const).map((m) => (
             // Selecting a method is LOCATION state (icon-language §5): the active glyph takes
             // the soft duotone — SAME line, plus the brand-100 interior wash (more wash, same
@@ -1531,7 +1568,8 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
           says the visitor will bring a code back, before they tap. A text link (a real 44px target),
           never a second CTA beside "Send code". */}
       {!hideGoogle && emailFirst && (
-        <div className="space-y-1 pt-1 text-center">
+        // `ios-hide-google`: the server-rendered first frame must not show Google in the iOS app either.
+        <div className={cn('space-y-1 pt-1 text-center', gateGoogle && 'ios-app-hidden')}>
           <div className="flex items-center gap-3 pb-1">
             <span className="h-px flex-1 bg-border" />
             <span className="text-xs text-ink-4">{t('or', 'hoặc')}</span>
@@ -1563,11 +1601,11 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
         {/* ⚠️ THE QUY CHẾ IS PART OF WHAT IS ACCEPTED (2026-10-01). Opening an account binds the user to the
             platform's Operating regulations (/regulations — the Quy chế hoạt động the sàn TMĐT publishes), so
             the assent line links it beside the Terms and the Privacy Policy, as onboard-client.tsx does. */}
-        <a href="/terms" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Terms', 'Điều khoản')}</a>
+        <a href="/terms" target={legalInApp ? undefined : '_blank'} onClick={openLegal} rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Terms', 'Điều khoản')}</a>
         {', '}
-        <a href="/regulations" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Operating regulations', 'Quy chế hoạt động')}</a>
+        <a href="/regulations" target={legalInApp ? undefined : '_blank'} onClick={openLegal} rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Operating regulations', 'Quy chế hoạt động')}</a>
         {' '}{t('and', 'và')}{' '}
-        <a href="/privacy" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Privacy Policy', 'Chính sách bảo mật')}</a>.
+        <a href="/privacy" target={legalInApp ? undefined : '_blank'} onClick={openLegal} rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Privacy Policy', 'Chính sách bảo mật')}</a>.
       </p>
     </div>
   )

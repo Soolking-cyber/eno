@@ -2123,6 +2123,21 @@ html.native nav[aria-label="breadcrumb" i] {
 html.native .web-only {
   display: none;
 }
+/* APP STORE REVIEW GATES (src/lib/app-review-gates.ts). A component adds one of these classes ONLY
+   when the owner has switched its gate on (NEXT_PUBLIC_APP_REVIEW_GATES, inlined at build time), so
+   with the variable unset no element carries them and both rules are inert. They exist for the FIRST
+   FRAME: the platform is known pre-paint through `html.native` / `html.native-ios` (the head script in
+   layout.tsx), while a component's own state only learns it after hydration — without these the
+   server-rendered control would flash in the app before it disappears.
+   ⚠️ The head script also sets `native-ios` for the shelved SwiftUI app's embedded tabs (EnoNativeTabs),
+   so a gated element hides there too — harmless for an app that is not shipped, but it is the one
+   place these hooks and the components' own iOS checks disagree. */
+html.native-ios .ios-app-hidden {
+  display: none;
+}
+html.native .native-app-hidden {
+  display: none;
+}
 /* iOS taps the status bar to scroll to top (MainViewController sets scrollsToTop),
    so the floating back-to-top chevron is redundant there — hide ONLY the chevron;
    the co-located Help "?" stays. Android has no status-bar-tap equivalent and

@@ -98,7 +98,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     // register() would reject with "event capacitorDidRegisterForRemoteNotifications not called" and
     // the JS `registration` listener (native-push.tsx) would never fire, so no device token is ever
     // POSTed. Re-added here so push works the moment the aps-environment entitlement + APNs config +
-    // NEXT_PUBLIC_NATIVE_PUSH=1 are turned on, with no further native code change.
+    // NEXT_PUBLIC_NATIVE_PUSH_IOS=1 are turned on, with no further native code change.
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
     }

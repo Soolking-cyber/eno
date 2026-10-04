@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { Loader2, TriangleAlert } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
+import { SITE_NAME } from '@/lib/edition'
+import { brandForCopy } from '@/lib/app-review-gates'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -86,7 +88,10 @@ export function DeleteAccount() {
       {/* Data access right (PDPL) — download everything we hold about you. */}
       <div className="mb-4">
         <p className="text-sm leading-relaxed text-body">
-          {tr('Download a copy of all your eno.vn data.', 'Tải xuống bản sao toàn bộ dữ liệu eno.vn của bạn.')}
+          {/* App Store gate `site-brand-copy` (R7): names THIS site on eno.forum once the owner switches it on. */}
+          {brandForCopy(SITE_NAME) === 'eno.forum'
+            ? tr('Download a copy of all your eno.forum data.', 'Tải xuống bản sao toàn bộ dữ liệu eno.forum của bạn.')
+            : tr('Download a copy of all your eno.vn data.', 'Tải xuống bản sao toàn bộ dữ liệu eno.vn của bạn.')}
         </p>
         {/* font-bold rides on the BUTTON, not the child: asChild goes through Base UI's
             render prop, which CONCATENATES classNames — only the Button's own className

@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { appRootSegments, markdown404Source } from "./src/lib/root-segments";
 import { INDEXNOW_KEY_REWRITE } from "./src/lib/indexnow-key";
 import { retiredCategoryRedirects } from "./src/lib/retired-categories";
+import { unknownAppReviewGates } from "./src/lib/app-review-gates";
 import type { NextConfig } from "next";
 
 /**
@@ -20,6 +21,20 @@ import type { NextConfig } from "next";
  * variable explicitly on BOTH services. (Found by an adversarial review of the phase-0 diff, which
  * pointed out the flag was fail-safe only during the transition.)
  */
+/**
+ * ⚠️ APP STORE REVIEW GATES ARE OWNER SWITCHES, AND A TYPO MUST NOT BUILD GREEN. The variable is a comma
+ * list read by src/lib/app-review-gates.ts, which ignores unknown tokens at runtime — so
+ * `ios-hide-walet` would ship the iOS app WITH the wallet it was meant to hide, and nothing would say so
+ * until App Review did. Refuse the build instead.
+ */
+const UNKNOWN_GATES = unknownAppReviewGates(process.env.NEXT_PUBLIC_APP_REVIEW_GATES);
+if (UNKNOWN_GATES.length) {
+  throw new Error(
+    `NEXT_PUBLIC_APP_REVIEW_GATES names no such gate: ${UNKNOWN_GATES.join(", ")}. ` +
+      "Valid tokens are listed at the top of src/lib/app-review-gates.ts. Refusing to build.",
+  );
+}
+
 const EDITION_ENV = process.env.NEXT_PUBLIC_ENO_EDITION;
 if (EDITION_ENV !== undefined && EDITION_ENV !== "marketplace" && EDITION_ENV !== "services") {
   throw new Error(

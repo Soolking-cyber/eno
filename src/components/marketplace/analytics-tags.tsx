@@ -8,6 +8,7 @@ import { applyConsentMode, enforceConsentCleanup } from '@/lib/consent-runtime'
 import { CONSENT_V2_KEY } from '@/lib/consent-value'
 import { GA_ID, GA_IDS } from '@/lib/analytics'
 import { IS_SERVICES } from '@/lib/edition'
+import { appReviewGate, isNativeAppClient } from '@/lib/app-review-gates'
 
 // Google Analytics (GA4) only. The Meta Pixel was removed (heaviest 3rd-party,
 // ~233 KiB; only useful for paid Meta-ad retargeting — re-add if you run Meta ads).
@@ -69,6 +70,17 @@ const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID
 // double-fire risk vs CAPI, ~233KiB of vendor JS, and its facebook.com/tr form-POST
 // fallback tripped the CSP form-action on every page. Restore from git if Meta ads ever
 // need on-site retargeting signals.
+
+/**
+ * ⚠️ APP STORE GATE `app-no-gtm` (src/lib/app-review-gates.ts, plan R11) — dormant until the owner sets
+ * it. Both apps declare "no tracking" (App Privacy / Play Data safety) and force analytics + advertising
+ * off for the EnoNativeApp user agent (consent-value.ts), but the container below has no consent gate at
+ * all, so it still loads inside the apps. With the gate on, the apps skip it; the web is unchanged.
+ * Read at RENDER time, not in an effect: next/script injects an afterInteractive script from its own
+ * mount effect, so a flag that flipped after mount would already be too late. The <Script> element
+ * renders no DOM on either side, so skipping it on the client cannot mismatch the server HTML.
+ */
+const skipContainerInApp = () => appReviewGate('app-no-gtm') && isNativeAppClient()
 
 export function AnalyticsTags() {
   const [ready, setReady] = useState(false)
@@ -170,7 +182,7 @@ export function AnalyticsTags() {
         * — before it is ever unpaused it must be set to require ad_storage in the GTM console, and
         * `fb()` in src/lib/analytics.ts refuses to fire without the Advertising purpose either way.
         */}
-      {IS_SERVICES && GTM_ID && (
+      {IS_SERVICES && GTM_ID && !skipContainerInApp() && (
         <Script id="gtm-init" strategy="afterInteractive">
           {`(function(w,d,s,l,i){w[l]=w[l]||[];function g(){w[l].push(arguments)}g('consent','default',${CONSENT_DEFAULT});if(w.__enoCm)g('consent','update',w.__enoCm);w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${GTM_ID}');`}
         </Script>

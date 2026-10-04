@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { eraseAccount } from '@/lib/core/account-erasure'
+import { appReviewGate } from '@/lib/app-review-gates'
+import { COMPANY } from '@/lib/site-legal'
 
 // ── Self-service account deletion (PDPL 91/2025: delete ≤20 days — we do it now) ──
 //
@@ -68,7 +70,9 @@ export async function POST(req: Request) {
   if (!result.ok) {
     if (result.code === 'under_review') {
       return NextResponse.json(
-        { error: 'under_review', message: 'Your account has open reports or an active review — contact support@eno.vn to complete deletion.' },
+        // App Store gate `site-brand-copy` (R7): this edition's own support address once switched on —
+        // on eno.forum (the site the apps render) that is support@eno.forum, from site-legal.
+        { error: 'under_review', message: `Your account has open reports or an active review — contact ${appReviewGate('site-brand-copy') ? COMPANY.email : 'support@eno.vn'} to complete deletion.` },
         { status: 409 },
       )
     }
