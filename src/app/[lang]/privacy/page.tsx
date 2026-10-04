@@ -121,11 +121,18 @@ const RECIPIENTS: Table = {
     [
       // src/lib/translate.ts:22-35 (Azure is the only paid provider; the self-hosted model is
       // src/lib/mt-local.ts) · chat: src/app/api/messages/translate/route.ts:220 translates the CALLER's
-      // INCOMING messages (route.ts:22-24), and src/hooks/use-chat-translation.ts:101-104 starts it ON
+      // INCOMING messages (route.ts:22-24), and src/hooks/use-chat-translation.ts:126-130 starts it ON
       // whenever the two languages differ — so a sender's text goes out on the RECIPIENT's switch.
+      // (App Store gate `app-ai-notice`, off by default: in the apps the first request waits for a
+      // one-time notice, and "Turn off translation" stops them — src/lib/chat-translation-consent.ts.)
       { en: 'Microsoft (Azure AI Translator)', vi: 'Microsoft (Azure AI Translator)' },
       { en: 'Outside Vietnam', vi: 'Ngoài Việt Nam' },
-      { en: 'Text to translate: listing text, interface text and chat messages, when the two people in a conversation use different languages: translation starts switched on in that case, each of you can switch it off for your own view, and the messages you send are translated for the other person while their translation is on. Part of our translation runs on our own server instead.', vi: 'Văn bản cần dịch: nội dung tin đăng, chữ trên giao diện và tin nhắn trò chuyện, khi hai bên dùng ngôn ngữ khác nhau: khi đó tính năng dịch được bật sẵn, mỗi bên có thể tắt cho phần hiển thị của mình, và tin nhắn bạn gửi được dịch cho bên kia khi họ đang bật dịch. Một phần việc dịch chạy trên máy chủ của chính chúng tôi.' },
+      // ⚠️ App Store gate `app-ai-notice` (R8, D14): with it on, the apps ASK before the first chat translation, so the
+      // policy says so (codex, review of that change: "starts switched on" alone no longer described the apps). Literal
+      // on both branches so the copy harvest keeps them; eno.forum only — the apps load nothing else.
+      appReviewGate('app-ai-notice') && IS_SERVICES
+        ? { en: 'Text to translate: listing text, interface text and chat messages, when the two people in a conversation use different languages: translation starts switched on in that case, each of you can switch it off for your own view, and the messages you send are translated for the other person while their translation is on. In our apps, you are asked before your chats are first translated, and you can turn chat translation off in Settings → Preferences. Part of our translation runs on our own server instead.', vi: 'Văn bản cần dịch: nội dung tin đăng, chữ trên giao diện và tin nhắn trò chuyện, khi hai bên dùng ngôn ngữ khác nhau: khi đó tính năng dịch được bật sẵn, mỗi bên có thể tắt cho phần hiển thị của mình, và tin nhắn bạn gửi được dịch cho bên kia khi họ đang bật dịch. Trong ứng dụng của chúng tôi, bạn sẽ được hỏi trước khi các cuộc trò chuyện được dịch lần đầu, và bạn có thể tắt dịch tin nhắn trong Cài đặt → Tùy chọn. Một phần việc dịch chạy trên máy chủ của chính chúng tôi.' }
+        : { en: 'Text to translate: listing text, interface text and chat messages, when the two people in a conversation use different languages: translation starts switched on in that case, each of you can switch it off for your own view, and the messages you send are translated for the other person while their translation is on. Part of our translation runs on our own server instead.', vi: 'Văn bản cần dịch: nội dung tin đăng, chữ trên giao diện và tin nhắn trò chuyện, khi hai bên dùng ngôn ngữ khác nhau: khi đó tính năng dịch được bật sẵn, mỗi bên có thể tắt cho phần hiển thị của mình, và tin nhắn bạn gửi được dịch cho bên kia khi họ đang bật dịch. Một phần việc dịch chạy trên máy chủ của chính chúng tôi.' },
       { en: 'Translating content into the language you choose.', vi: 'Dịch nội dung sang ngôn ngữ bạn chọn.' },
     ],
     [
@@ -372,7 +379,7 @@ const ON_DEVICE: Table = {
     ],
     [
       // install-hint.tsx · save-signup-sheet.tsx · post-wizard.tsx eno-posted-before · use-chat-translation.ts
-      // chat-tr:* · auth-context.tsx eno-signup-fired:* · availability-client.tsx eno-avail:* · auth/handoff-client.ts
+      // chat-tr:* (incl. chat-tr:consent:<profile>, chat-translation-consent.ts) · auth-context.tsx eno-signup-fired:* · availability-client.tsx eno-avail:* · auth/handoff-client.ts
       // eno:handoff:next
       { en: 'Small reminders', vi: 'Ghi nhớ nhỏ' },
       { en: 'Whether you dismissed a prompt or already saw it, whether chat translation is on for a conversation, where to take you back to after signing in, and similar flags.', vi: 'Bạn đã đóng hay đã xem một lời nhắc chưa, dịch tin nhắn có đang bật cho từng cuộc trò chuyện không, trang cần đưa bạn quay lại sau khi đăng nhập, và các ghi nhớ tương tự.' },

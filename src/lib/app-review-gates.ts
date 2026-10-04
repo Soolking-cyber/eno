@@ -22,6 +22,11 @@
  * | ugc-safety       | R3   | web + apps, both sites: block a user (chat header, storefront), unblock  | —        |
  * |                  |      | in settings; a block refuses new threads/messages/offers both ways and   |          |
  * |                  |      | tells moderators (src/lib/user-blocks.ts)                                |          |
+ * | app-ai-notice    | R8   | both apps: chat translation asks once (one answer for all chats) before  | D14      |
+ * |                  |      | anything goes to Microsoft (Azure AI Translator); "Turn off translation" |          |
+ * |                  |      | stops every request THIS person's app makes (what they send follows the  |          |
+ * |                  |      | other person's setting); Settings → Preferences turns it back on         |          |
+ * |                  |      | (src/lib/chat-translation-consent.ts)                                    |          |
  *
  * ⚠️ "iOS app" = the Capacitor shell on iOS: `window.Capacitor.getPlatform() === 'ios'` on the client,
  * the `EnoNativeApp` user-agent token plus an iOS device string on the server. "Both apps" = the
@@ -38,7 +43,7 @@
  */
 const NATIVE_UA_RE = /EnoNativeApp|EnoNativeTabs/
 
-export const APP_REVIEW_GATES = ['ios-hide-google', 'ios-hide-wallet', 'app-signin-tidy', 'app-no-gtm', 'site-brand-copy', 'ugc-safety'] as const
+export const APP_REVIEW_GATES = ['ios-hide-google', 'ios-hide-wallet', 'app-signin-tidy', 'app-no-gtm', 'site-brand-copy', 'ugc-safety', 'app-ai-notice'] as const
 export type AppReviewGate = (typeof APP_REVIEW_GATES)[number]
 
 /** Parse the comma list; unknown tokens are ignored (a typo turns nothing on). */

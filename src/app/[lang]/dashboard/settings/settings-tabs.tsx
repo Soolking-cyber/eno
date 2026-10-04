@@ -9,6 +9,7 @@ import { useDashboard } from '@/hooks/use-dashboard'
 import { Button } from '@/components/ui/button'
 import { LogOut } from '@/components/ui/icons'
 import { PreferencesInline } from '@/components/marketplace/preferences-inline'
+import { ChatTranslationSetting } from '@/components/marketplace/chat-translation-setting'
 import { SettingsClient } from './settings-client'
 import { DevClient } from '../dev/dev-client'
 
@@ -42,6 +43,9 @@ function PreferencesTab() {
         <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-4">{tr('Display', 'Hiển thị')}</h2>
         <PreferencesInline className="pt-1" />
       </section>
+      {/* App Store gate `app-ai-notice` (R8, D14): turns chat translation back on after the one-time
+          notice's "Turn off translation". Renders nothing unless the gate is on in either app. */}
+      <ChatTranslationSetting />
       {/* Quiet sign-out (canon §6): the least-used destructive action stays the quietest control. */}
       <div className="border-t border-border pt-6">
         <Button variant="outline" size="sm" onClick={() => void signOut()} className="w-full justify-center">

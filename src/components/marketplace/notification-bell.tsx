@@ -14,6 +14,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage, Tr } from '@/context/language-context'
 import { timeAgo } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { chatTextTranslationAllowed } from '@/lib/chat-translation-consent'
 
 /** Notification bell for the header (desktop + mobile). Badge shows unread count.
  *  Unread float to the top and stay highlighted; each row is marked read when
@@ -184,7 +185,10 @@ export function NotificationBell() {
                         </span>
                         <span className="shrink-0 text-3xs text-ink-4">{timeAgo(n.createdAt, lang === 'vi' ? 'vi' : 'en')}</span>
                       </div>
-                      {n.body && <p className={cn('text-xs', n.type === 'system' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate', n.read ? 'text-muted-foreground' : 'text-body')}><Tr text={n.body} /></p>}
+                      {/* ⚠️ App Store gate `app-ai-notice` (R8): an OFFER's body is the sender's own words (its note), and
+                          <Tr> machine-translates it through /api/translate — Microsoft. In either app with the gate on it
+                          is shown as written until the person has said OK to chat translation. Off ⇒ <Tr>, as always. */}
+                      {n.body && <p className={cn('text-xs', n.type === 'system' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate', n.read ? 'text-muted-foreground' : 'text-body')}>{n.type === 'offer' && !chatTextTranslationAllowed(user?.id) ? n.body : <Tr text={n.body} />}</p>}
                     </div>
                   </Link>
                   {/* Delete — reveals on hover (desktop); always visible on touch.
