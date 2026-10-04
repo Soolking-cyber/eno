@@ -200,6 +200,24 @@ describe('releasedParams', () => {
     expect(releasedParams(new URLSearchParams({ q: 'căn hộ quận 7' }), 'condition', 'd7').get('district')).toBe('d7')
   })
 
+  /**
+   * ⛔ CONDITION WORDS ALONE ARE THE SALE SCOPE (commit gate, 2026-10-04). The feed answers "second hand" /
+   * "đồ cũ" with the items for sale — the `type=sell` filter — and keeps it in its own facet base; these
+   * bases never see `q`, so the route hands over the decision (`saleScopeFromWords`) and it is written
+   * back like a district. Condition words never filter the condition, so nothing touches `condition`.
+   */
+  it('writes back type=sell for a query of condition words only — except on the type rail', () => {
+    const src = new URLSearchParams({ category: 'furniture-appliances', q: 'đồ cũ' })
+    expect(Object.fromEntries(releasedParams(src, 'brand', null, true))).toEqual({ category: 'furniture-appliances', type: 'sell' })
+    expect(Object.fromEntries(releasedParams(src, 'condition', null, true))).toEqual({ category: 'furniture-appliances', type: 'sell' })
+    expect(Object.fromEntries(releasedParams(src, 'subcategory', null, true))).toEqual({ category: 'furniture-appliances', type: 'sell' })
+    // The type rail counts "if you pick THIS type instead" — a picked type replaces the words' scope.
+    expect(Object.fromEntries(releasedParams(src, 'type', null, true))).toEqual({ category: 'furniture-appliances' })
+    // No decision handed over (or words beside other words): nothing is written.
+    expect(releasedParams(src, 'brand', null).get('type')).toBeNull()
+    expect(releasedParams(new URLSearchParams({ q: 'iphone cũ' }), 'brand', null, false).get('type')).toBeNull()
+  })
+
   it('an explicit district is never overwritten by the query', () => {
     const src = new URLSearchParams({ district: 'd1', q: 'quận 7' })
     expect(Object.fromEntries(releasedParams(src, 'condition'))).toEqual({ district: 'd1' })
@@ -361,6 +379,20 @@ describe('computeFacetCounts', () => {
     h.scope = {}
     await run({}, ['condition'])
     expect(JSON.stringify(h.calls[0]!.where)).not.toContain('sellerId')
+  })
+
+  it('counts every rail but the type one inside the sale scope when the query was only condition words', async () => {
+    await computeFacetCounts({
+      searchParams: new URLSearchParams({ category: 'vehicles', q: 'second hand' }),
+      buildFilters,
+      saleScopeFromWords: true,
+      dimensions: ORDER as Parameters<typeof computeFacetCounts>[0]['dimensions'],
+      now: new Date('2026-08-11T00:00:00Z'),
+    })
+    expect(paramsFor('brand')).toEqual({ category: 'vehicles', type: 'sell' })
+    expect(paramsFor('condition')).toEqual({ category: 'vehicles', type: 'sell' })
+    expect(paramsFor('area')).toEqual({ category: 'vehicles', type: 'sell' })
+    expect(paramsFor('type')).toEqual({ category: 'vehicles' })
   })
 
   it('drops the free-text clause from every base', async () => {

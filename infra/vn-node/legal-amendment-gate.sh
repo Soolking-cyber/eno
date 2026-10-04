@@ -6,8 +6,9 @@
 #   bash legal-amendment-gate.sh <repo-dir> <deployed-sha>
 #
 # ⛔ WHY (2026-10-01 review). src/lib/compliance/legal-amendment.ts types two dates: `published`,
-# printed on /terms, /regulations (META + Article 17), /returns, /prohibited, /legal/ranking and
-# /privacy, and `inForce`, which is ALSO the runtime switch for the Terms version onboarding stamps
+# printed on /terms, /regulations (META + Article 17), /returns, /prohibited and /privacy (not
+# /legal/ranking since 2026-10-04 — it has its own RANKING_DISCLOSURE_UPDATED, which this gate does not
+# read), and `inForce`, which is ALSO the runtime switch for the Terms version onboarding stamps
 # and for the site-wide notice. Deploys happen only on the owner's word, so the commit that carries
 # an amendment can sit unshipped for days. Deployed on any later day it:
 #   · prints a publication date that is false (the text went live later than it says);

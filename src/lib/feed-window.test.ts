@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { feedPagePlan, seatOrder } from './feed-window'
 import { JOB_SELLER_IDS } from './job-listing'
+import { SHARED_SEAT_SELLERS } from './feed-diversity'
+
+/** The vehicle storefronts' shared seat, exactly as the window reads it (feed-diversity.test.ts holds it equal to the importer's). */
+const VEHICLE_SELLER_IDS = [...SHARED_SEAT_SELLERS['vehicle-rentals']]
 
 /**
  * ⛔ THESE TESTS EXIST BECAUSE FOUR REVIEWERS INDEPENDENTLY REFUTED THE FIRST CUT AND NOTHING IN
@@ -381,6 +385,8 @@ describe('diverseFeedWindow — shared seats', () => {
 describe('diverseFeedWindow — the job boards share one seat', () => {
   const isEsimRead = (where: any) => JSON.stringify(where).includes('"in":["esim"]')
   const isBoardsRead = (where: any) => JSON.stringify(where).includes(`"in":${JSON.stringify(JOB_SELLER_IDS)}`)
+  // The vehicle storefronts' seat (home-01) is empty in these cases unless a test says otherwise.
+  const isVehicleRead = (where: any) => JSON.stringify(where).includes(`"in":${JSON.stringify(VEHICLE_SELLER_IDS)}`)
   const boards = JOB_SELLER_IDS.slice(0, 3)
   const boardRows = boards.flatMap((b) => Array.from({ length: 5 }, (_, i) => ({ id: `${b}-${i}`, sellerId: b, price: 0 })))
   const esimRows = ['fpt', 'mobi'].flatMap((c) => Array.from({ length: 5 }, (_, i) => ({ id: `${c}-${i}`, sellerId: c, subcategorySlug: 'esim' })))
@@ -393,14 +399,16 @@ describe('diverseFeedWindow — the job boards share one seat', () => {
     await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT, { sharedSeats: true })
     const where = groupBy.mock.calls[0][0].where
     expect(where.AND[1]).toEqual({ OR: [{ subcategorySlug: null }, { subcategorySlug: { notIn: ['esim'] } }] })
-    expect(where.AND[2]).toEqual({ sellerId: { notIn: JOB_SELLER_IDS } })
+    expect(where.AND[2]).toEqual({ sellerId: { notIn: [...JOB_SELLER_IDS, ...VEHICLE_SELLER_IDS] } })
     // One aggregate per seat, each narrowing the scoped predicate by the seat's own clause.
-    expect(aggregate.mock.calls.map((c) => c[0].where.AND[1])).toEqual([{ subcategorySlug: { in: ['esim'] } }, { sellerId: { in: JOB_SELLER_IDS } }])
+    expect(aggregate.mock.calls.map((c) => c[0].where.AND[1])).toEqual([
+      { subcategorySlug: { in: ['esim'] } }, { sellerId: { in: JOB_SELLER_IDS } }, { sellerId: { in: VEHICLE_SELLER_IDS } },
+    ])
   })
 
   it('two seats interleave with the sellers by their best rank — each takes ONE turn per round', async () => {
     groupBy.mockResolvedValue([{ sellerId: 'a', _max: { rankScore: 0.5 } }, { sellerId: 'b', _max: { rankScore: 0.4 } }])
-    aggregate.mockImplementation(async ({ where }: any) => ({ _max: { rankScore: isEsimRead(where) ? 0.6 : 0.55 } }))
+    aggregate.mockImplementation(async ({ where }: any) => ({ _max: { rankScore: isEsimRead(where) ? 0.6 : isVehicleRead(where) ? null : 0.55 } }))
     findMany.mockImplementation(fanOut)
     const win = await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT, { sharedSeats: true })
     // Round one: eSIM (0.6), boards (0.55), a (0.5), b (0.4); round two again one of each.
@@ -412,7 +420,7 @@ describe('diverseFeedWindow — the job boards share one seat', () => {
 
   it('a seat tied with a seller sits after it (sellers first on a tie)', async () => {
     groupBy.mockResolvedValue([{ sellerId: 'a', _max: { rankScore: 0.5 } }, { sellerId: 'b', _max: { rankScore: 0.4 } }])
-    aggregate.mockImplementation(async ({ where }: any) => ({ _max: { rankScore: isEsimRead(where) ? null : 0.5 } }))
+    aggregate.mockImplementation(async ({ where }: any) => ({ _max: { rankScore: isEsimRead(where) || isVehicleRead(where) ? null : 0.5 } }))
     findMany.mockImplementation(fanOut)
     const win = await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT, { sharedSeats: true })
     expect(win.slice(0, 3).map((r: any) => r.id)).toEqual(['a-0', `${boards[0]}-0`, 'b-0'])
@@ -421,10 +429,43 @@ describe('diverseFeedWindow — the job boards share one seat', () => {
   it('a board row at price 0 ("Salary: see details") does not jump its seat the way a free eSIM does', async () => {
     const mixed = [{ id: 'paid', sellerId: boards[0], price: 9_000_000 }, { id: 'nosalary', sellerId: boards[1], price: 0 }]
     groupBy.mockResolvedValue([{ sellerId: 'a', _max: { rankScore: 0.5 } }])
-    aggregate.mockImplementation(async ({ where }: any) => ({ _max: { rankScore: isEsimRead(where) ? null : 0.6 } }))
+    aggregate.mockImplementation(async ({ where }: any) => ({ _max: { rankScore: isEsimRead(where) || isVehicleRead(where) ? null : 0.6 } }))
     findMany.mockImplementation(async ({ where }: any) => (isBoardsRead(where) ? mixed : stock(where.AND[1].sellerId, 30)))
     const win = await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT, { sharedSeats: true })
     expect(win[0].id).toBe('paid')
+  })
+})
+
+/**
+ * ⛔ home-01 (UX program 2, 2026-10-04): the seven vehicle-import storefronts (Mioto, BonbonCar and five
+ * motorbike shops) took seven fan-out seats and the first home screen held no used goods. They share
+ * ONE seat, keyed by seller like the job boards.
+ */
+describe('diverseFeedWindow — the vehicle storefronts share one seat', () => {
+  const isVehicleRead = (where: any) => JSON.stringify(where).includes(`"in":${JSON.stringify(VEHICLE_SELLER_IDS)}`)
+  const shops = VEHICLE_SELLER_IDS.slice(0, 6)
+  const vehicleRows = shops.flatMap((v) => Array.from({ length: 4 }, (_, i) => ({ id: `${v}-${i}`, sellerId: v, subcategorySlug: 'car-rental', price: 500_000 })))
+
+  it('6 vehicle storefronts take one turn per round, not six', async () => {
+    groupBy.mockResolvedValue(['a', 'b', 'c', 'd', 'e', 'f'].map((s, i) => ({ sellerId: s, _max: { rankScore: 0.5 - i / 100 } })))
+    aggregate.mockImplementation(async ({ where }: any) => ({ _max: { rankScore: isVehicleRead(where) ? 0.9 : null } }))
+    findMany.mockImplementation(async ({ where }: any) => (isVehicleRead(where) ? vehicleRows : stock(where.AND[1].sellerId, 30)))
+    const win = await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT, { sharedSeats: true })
+    const isVehicle = (r: any) => VEHICLE_SELLER_IDS.includes(r.sellerId)
+    // Round one: the vehicle seat (best 0.9) leads with ONE card, then the six sellers.
+    expect(win.slice(0, 7).filter(isVehicle)).toHaveLength(1)
+    expect(win.slice(0, 12).filter(isVehicle)).toHaveLength(2)
+    // The seat still deals its own storefronts in turn: its first two cards are two different shops.
+    expect(new Set(win.filter(isVehicle).slice(0, 2).map((r: any) => r.sellerId)).size).toBe(2)
+  })
+
+  it('keeps every vehicle storefront out of the SELLER fan-out', async () => {
+    groupBy.mockResolvedValue([{ sellerId: 'a', _max: { rankScore: 0.5 } }, { sellerId: 'b', _max: { rankScore: 0.4 } }])
+    aggregate.mockResolvedValue({ _max: { rankScore: null } })
+    findMany.mockImplementation(async ({ where }: any) => stock(where.AND[1].sellerId, 30))
+    await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT, { sharedSeats: true })
+    const notIn = groupBy.mock.calls[0][0].where.AND[2].sellerId.notIn
+    for (const id of VEHICLE_SELLER_IDS) expect(notIn).toContain(id)
   })
 })
 

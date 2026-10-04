@@ -98,3 +98,21 @@ export function searchFactors(): RankingFactor[] {
 
 /** Featured placement is disclosed as a fixed, labelled boost — not hidden inside "relevance". */
 export const FEATURED_BOOST_PCT = Math.round(RANK.FEATURED_BOOST * 100)
+
+/**
+ * The date /legal/ranking prints as "Last updated" (ISO, Vietnam) — the page's OWN date, not a legal
+ * amendment's.
+ *
+ * ⛔ '2026-10-05' IS A PLACEHOLDER. The deployer replaces it with the actual deploy day when this change
+ * ships (UX program 2: the title tier, the condition words, the vehicle storefronts' shared seat). Do not
+ * re-date it at any other time; every later change to the disclosure sets it the same way, on its own
+ * deploy day — the day the text went live, never the day it was written.
+ *
+ * ⚠️ WHY ITS OWN DATE (review, 2026-10-04). Until then the page printed LEGAL_AMENDMENT.published, which is
+ * true only while the page changes WITH an amendment. This disclosure follows the code (a ranking change
+ * must reach it at once — docs/compliance-2026.md §4.1), so it is updated between amendments; re-dating
+ * the amendment to suit it would falsify the Quy chế's own dates and trip the deploy gate.
+ * ⚠️ Typed, never read from the clock: the page prerenders (revalidate 3600), and a build-time date
+ * would move with every rebuild.
+ */
+export const RANKING_DISCLOSURE_UPDATED = '2026-10-05'

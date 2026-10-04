@@ -22,7 +22,7 @@ import { NotificationBell } from './notification-bell'
 import { AppDownload } from './app-download'
 import type { Nearby, Geo } from './area-filter'
 import { useSearchSuggest } from '@/hooks/use-search-suggest'
-import { buildSuggestItems, type AnySuggestItem } from './search-suggest'
+import { buildSuggestItems, type PanelSuggestItem } from './search-suggest'
 import { TrendingSearches } from './trending-searches'
 import { useTrendingPanel } from '@/hooks/use-trending-searches'
 import { searchPanels, trendingEnabled } from '@/lib/search-panel'
@@ -376,15 +376,17 @@ export function Header() {
   // 'Search for "{q}"' row ALWAYS first: Enter with no arrow-key selection submits the
   // raw free-text search (never a suggestion); arrow keys still navigate suggestions.
   const live = useSearchSuggest(searchVal, showSuggestions)
-  const suggestItems = buildSuggestItems(searchVal, live.brands, live.categories, live.listings, live.lines, live.scope)
+  const suggestItems = buildSuggestItems(searchVal, live.brands, live.categories, live.listings, live.lines, live.scope, live.didYouMean)
   // Arrow-key virtual focus + its aria-activedescendant announcement — shared with
   // the hero bar (see use-search-box.ts for the a11y contract).
   const { activeIdx, moveDown, moveUp } = useSuggestKeyboardNav(searchVal)
   const activeOptionId = activeSuggestOptionId(SUGGEST_ID, instantOpen, activeIdx, suggestItems.length)
 
-  const pickSuggest = (it: AnySuggestItem) => {
+  const pickSuggest = (it: PanelSuggestItem) => {
     setShowSuggestions(false)
     if (it.type === 'query') { submitSearch(searchVal); return }
+    // A typo's likely spelling: the box takes the corrected words, and they are searched as typed.
+    if (it.type === 'didYouMean') { setSearchVal(it.q); submitSearch(it.q); return }
     // A facet link: applied in place on the explorer (it filters with replaceState, so a push would
     // not reach it), navigated to anywhere else.
     const openUrl = (url: string) => {

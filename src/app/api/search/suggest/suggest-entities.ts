@@ -27,7 +27,10 @@ import 'server-only'
 import type { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { MODEL_LINEAGE } from '@/generated/model-lineage'
-import { isVisaProductSlot, subcategoriesFor } from '@/lib/taxonomy'
+import { TAXONOMY, isVisaProductSlot, subcategoriesFor } from '@/lib/taxonomy'
+import { fold } from '@/lib/fold'
+import { SYNONYM_GROUPS, conditionWordMask } from '@/lib/search-synonyms'
+import { wordStart, type ParsedQuery } from '@/lib/text-relevance'
 import { buildFeedFilters } from '@/app/api/listings/feed-query'
 import { SCOPE_BUDGET_MS, SCOPE_MAX_IN_FLIGHT, aisleDb, isStatementTimeout } from './aisle-db'
 
@@ -168,6 +171,97 @@ export type ScopeRow = {
 export const SCOPE_SHARE = 0.4
 
 /**
+ * The taxonomy's names and keywords and the synonym terms that are ONE word, lowercased WITH their marks —
+ * the words a reader may stop typing on ("tv", "tủ", "bàn" are whole words at two or three letters).
+ * ⚠️ WHOLE ENTRIES ONLY, NEVER THE WORDS OF A PHRASE: "xe số" would make "số" one, and "camera ip" `ip`.
+ * ⚠️ MARKS KEPT, NOT FOLDED: folded, the notebook keyword "sổ" is `so`, the start of "sofa".
+ * (The synonym groups are stored folded, so only their unmarked one-word terms — "tv", "sofa" — count.)
+ */
+const KNOWN_WORDS: ReadonlySet<string> = (() => {
+  const words = new Set<string>()
+  const put = (s: string) => { const w = s.normalize('NFC').toLowerCase().trim(); if (w && !/\s/.test(w)) words.add(w) }
+  for (const cat of TAXONOMY) {
+    put(cat.name); put(cat.nameVi)
+    for (const sub of cat.subcategories) for (const k of [sub.name, sub.nameVi, ...sub.keywords]) put(k)
+  }
+  for (const g of SYNONYM_GROUPS) for (const t of g) put(t)
+  return words
+})()
+
+/**
+ * ⛔ THE SCOPED ROW WAITS FOR A WORD (disc-08(a), UX program 2). Mid-word, a fragment is an aisle's
+ * worth of unrelated rows: "may gi" (on its way to "máy giặt") offered "Cameras", because `gi` begins
+ * a camera's word too. The row appears once the last word is 3+ characters, carries a digit (a model:
+ * "iphone 13", "s24"), is already a whole word the catalogue knows ("tv", "tủ", "bàn"), or ends a
+ * condition phrase. The listings and the chips are not gated — they are previews, not a destination.
+ * ⚠️ A CONDITION WORD IS A COMPLETE WORD (review, 2026-10-04): folded, "cũ" is the two letters `cu`, so
+ * "iphone 13 pro max cũ", "xe máy cũ" and "tủ lạnh cũ" lost the row they had before this gate. Read as
+ * typed (search-synonyms.ts conditionWordMask — accents kept, so a bare `cu` is still a fragment), on
+ * the words themselves: the caller's `q` keeps its district words, which its own reading needs.
+ */
+export function scopeQueryReady(q: string): boolean {
+  const words = q.normalize('NFC').toLowerCase().split(/\s+/).filter(Boolean)
+  const last = words.at(-1) ?? ''
+  return fold(last).length >= 3 || /\d/.test(last) || KNOWN_WORDS.has(last) || (conditionWordMask(words).at(-1) ?? false)
+}
+
+/** What `aisleEvidence` reads from a candidate row (RANK_SELECT has all of it). */
+export type EvidenceRow = { title: string; titleVi: string | null; subcategorySlug: string | null; category: { slug: string } }
+
+/**
+ * A typed unit that carries Vietnamese marks — fold() would make it ambiguous ("tủ"/"tự" → `tu`).
+ * ⚠️ CASE IS NOT A MARK (commit gate, 2026-10-04): fold() also lowercases, so comparing it with the raw
+ * text called "Sofa" and "iPhone" (a phone keyboard's capital) marked, and the scoped row then
+ * demanded a capitalised word in lowercased titles. Both sides are lowercased (NFC) first.
+ */
+export const hasMarks = (typed: string) => {
+  const t = typed.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim()
+  return fold(t) !== t
+}
+
+/** `typed` at a word start of `text`, marks kept — both sides NFC and lowercased; Unicode-aware, unlike wordStart. */
+function markedWordStart(text: string | null, typed: string): boolean {
+  if (!text || !typed) return false
+  const hay = text.normalize('NFC').toLowerCase()
+  const needle = typed.normalize('NFC').toLowerCase()
+  let at = hay.indexOf(needle)
+  while (at >= 0) {
+    if (at === 0 || !/[\p{L}\p{N}]/u.test(hay[at - 1])) return true
+    at = hay.indexOf(needle, at + 1)
+  }
+  return false
+}
+
+/**
+ * The aisles whose candidate rows NAME the query in their title, counted per `category|subcategory`
+ * (tủ/ban, UX program 2). A unit typed WITH marks must appear with those marks ("tủ" is not "tự", the
+ * "tự lái" of every self-drive car — measured: "tủ" offered Rentals › Car) or as one of its
+ * unambiguous synonyms ("tủ lạnh" → "fridge"); a unit typed without marks may appear as any of its
+ * terms at a word start. Read from the typeahead's own ≤80 ranked candidates — no extra query.
+ */
+export function aisleEvidence(rows: readonly EvidenceRow[], query: ParsedQuery): Map<string, number> {
+  const hits = new Map<string, number>()
+  // No units (a condition-words-only query): nothing to be named, and `every` over none would count every row.
+  if (query.units.length === 0) return hits
+  for (const r of rows) {
+    if (!r.subcategorySlug) continue
+    const title = fold(r.title || '')
+    const titleVi = fold(r.titleVi || '')
+    const named = query.units.every((u, i) => {
+      const typed = query.typed[i] ?? ''
+      const marked = hasMarks(typed)
+      if (marked && (markedWordStart(r.title, typed) || markedWordStart(r.titleVi, typed))) return true
+      const terms = marked ? u.terms.filter((t) => t !== fold(typed)) : u.terms
+      return terms.some((t) => wordStart(title, t) || wordStart(titleVi, t))
+    })
+    if (!named) continue
+    const key = `${r.category.slug}|${r.subcategorySlug}`
+    hits.set(key, (hits.get(key) ?? 0) + 1)
+  }
+  return hits
+}
+
+/**
  * The aisle (category › subcategory) that holds most of the query's matches — at least ENTITY_MIN
  * rows and SCOPE_SHARE of all of them — and that the taxonomy still offers.
  * ⛔ NEVER THE VISA PRODUCT SLOT (taxonomy.ts isVisaProductSlot), ON EITHER EDITION. The typeahead is
@@ -176,12 +270,36 @@ export const SCOPE_SHARE = 0.4
  * ⚠️ `subcategoriesFor(cat)` IS THE GATE, NOT THE DATA: a slug that only the database still carries
  * (a retired aisle) would land on a filter the explorer cannot show.
  */
-export function pickScope(groups: readonly ScopeGroup[], categoriesById: ReadonlyMap<string, { slug: string; name: string; nameVi: string }>): ScopeRow | null {
+export function pickScope(
+  groups: readonly ScopeGroup[],
+  categoriesById: ReadonlyMap<string, { slug: string; name: string; nameVi: string }>,
+  /**
+   * What the typed words themselves say (tủ/ban, UX program 2) — all optional, so a caller without
+   * them gets the count-only rule above:
+   *  · `q`: the row waits for a whole word (scopeQueryReady);
+   *  · `evidence` (aisleEvidence): aisles whose rows NAME the words lead, before raw count, and once
+   *    any aisle has such a row an aisle with none is not offered; `marked` says the words carried
+   *    Vietnamese marks, and then an aisle no row names is never offered (the count is of the folded,
+   *    ambiguous spelling);
+   *  · `topCategories`: the categories of the first listing suggestions — an aisle in a different
+   *    category from every one of them is not where the query's best matches are.
+   */
+  opts: { q?: string; evidence?: ReadonlyMap<string, number>; marked?: boolean; topCategories?: readonly string[] } = {},
+): ScopeRow | null {
+  if (opts.q !== undefined && !scopeQueryReady(opts.q)) return null
   const total = groups.reduce((n, g) => n + g._count._all, 0)
-  for (const g of groups) {
+  const evidence = opts.evidence
+  const named = evidence ? [...evidence.values()].reduce((n, v) => n + v, 0) : 0
+  if (evidence && opts.marked && named === 0) return null
+  const hitsOf = (g: ScopeGroup) => evidence?.get(`${categoriesById.get(g.categoryId)?.slug}|${g.subcategorySlug}`) ?? 0
+  // A STABLE sort: with no evidence every group ties and the database's count order stands.
+  const ordered = named > 0 ? [...groups].sort((a, b) => hitsOf(b) - hitsOf(a)) : groups
+  for (const g of ordered) {
     if (!g.subcategorySlug || g._count._all < ENTITY_MIN || g._count._all < total * SCOPE_SHARE) continue
+    if (named > 0 && hitsOf(g) === 0) continue
     const cat = categoriesById.get(g.categoryId)
     if (!cat || isVisaProductSlot(cat.slug, g.subcategorySlug)) continue
+    if (opts.topCategories?.length && !opts.topCategories.includes(cat.slug)) continue
     const sub = subcategoriesFor(cat.slug).find((s) => s.slug === g.subcategorySlug)
     if (!sub) continue
     return {

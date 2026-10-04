@@ -46,7 +46,9 @@ const findMany = vi.fn(async (args: any) => {
 vi.mock('@/lib/db', () => ({ db: { listing: { findMany: (a: any) => findMany(a) } } }))
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: unknown) => w }))
 
-const { keywordRank, __resetKeywordRankCache } = await import('./keyword-rank')
+const { keywordRank, relevanceOrder, __resetKeywordRankCache } = await import('./keyword-rank')
+const { parseSearchQuery, scoreRow } = await import('@/lib/text-relevance')
+const { searchScore } = await import('@/lib/ranking-formula')
 
 const WHERE = { AND: [{ verified: true }, { status: 'active' }] }
 const ORDER = [{ rankScore: 'desc' as const }, { id: 'desc' as const }]
@@ -109,5 +111,100 @@ describe('keywordRank', () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     expect((await page(0)).keywordListings).toBeNull()
     err.mockRestore()
+  })
+})
+
+/**
+ * ⛔ home-09 (UX program 2): the 'title' tier leads, inside it the owner's searchScore — so a trusted
+ * seller's air conditioner (strong only through the aisle "tủ lạnh" names) can no longer open a fridge
+ * search, and the tie-dealing (A6 × A2) never lifts an 'aside' row above a 'title' one.
+ */
+describe('relevanceOrder — title tier first', () => {
+  const HOME = { slug: 'home-living', name: 'Home & Living', nameVi: 'Nhà cửa' }
+  const r = (id: string, title: string, titleVi: string | null, trust: number, sellerId = id) => ({
+    id, sellerId, title, titleVi, model: null as string | null, brandSlug: null, subcategorySlug: 'white-goods',
+    sellerTrustScore: trust, postedAt: posted, rankScore: 0.5, category: HOME,
+  })
+  const aircons = [r('ac1', 'Daikin air conditioner 1HP', 'Máy lạnh Daikin', 100), r('ac2', 'Panasonic aircon 2HP', 'Máy lạnh Panasonic', 98)]
+  const fridges = [r('f1', 'Toshiba refrigerator 180L', 'Tủ lạnh Toshiba', 20), r('f2', 'Sharp fridge 150L', 'Tủ lạnh Sharp', 15), r('f3', 'LG refrigerator', 'Tủ lạnh LG', 10)]
+  const now = posted.getTime()
+
+  it('the top 3 for "tủ lạnh" and "fridge" are refrigerators, the aircons follow', () => {
+    for (const q of ['tủ lạnh', 'fridge']) {
+      const { strong, titleCount } = relevanceOrder([...aircons, ...fridges], parseSearchQuery(q), now)
+      expect(strong.slice(0, 3).map((x) => x.id).sort()).toEqual(['f1', 'f2', 'f3'])
+      expect(strong.slice(3).map((x) => x.id).sort()).toEqual(['ac1', 'ac2'])
+      expect(titleCount).toBe(3)
+    }
+  })
+
+  it('a tie run never crosses the tier boundary', () => {
+    // 3 'title' rows from ONE seller and 3 'aside' rows from three sellers, at the SAME searchScore
+    // (the aside rows' higher trust makes up their lower relevance). As one run, the seller deal-out
+    // would put an aside row second.
+    const q = parseSearchQuery('fridge')
+    const key = (row: ReturnType<typeof r>) => Math.round(searchScore({ relevance: scoreRow(row, q).relevance, sellerTrustScore: row.sellerTrustScore, postedAt: row.postedAt }, now) * 1000)
+    // One product in three listings (same seller, same model): the deal-out alternates it with others.
+    const title = ['t1', 't2', 't3'].map((id) => ({ ...r(id, 'Fridge Samsung RT20', null, 30, 'shop'), model: 'RT20' }))
+    let trust = 30
+    while (trust <= 100 && key(r('a', 'Freezer box', null, trust)) !== key(title[0])) trust += 0.01
+    expect(trust).toBeLessThanOrEqual(100) // the fixture really ties across the tiers
+    const aside = [r('a1', 'Freezer box', null, trust, 'x'), r('a2', 'Freezer chest', null, trust, 'y'), r('a3', 'Ice maker', null, trust, 'z')]
+    const { strong } = relevanceOrder([...title, ...aside], q, now)
+    expect(strong.slice(0, 3).map((x) => x.id).sort()).toEqual(['t1', 't2', 't3'])
+  })
+})
+
+/**
+ * Review, 2026-10-04: the row's own aisle NAME counts as naming the word (text-relevance.ts AISLE_NAMES).
+ * Without it the tier put a title-matching accessory or rental above EVERY real item whose title does
+ * not repeat the aisle's name — whatever the seller's trust. With it both are 'title', and the owner's
+ * searchScore decides between them exactly as it did before the tiers.
+ */
+describe('relevanceOrder — an item filed in the aisle the word names shares the title tier', () => {
+  const EL = { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' }
+  const VEH = { slug: 'vehicles', name: 'Vehicles', nameVi: 'Xe cộ' }
+  const RENT = { slug: 'rentals', name: 'Rentals', nameVi: 'Cho thuê' }
+  const mk = (id: string, title: string, subcategorySlug: string, category: typeof EL, trust: number) => ({
+    id, sellerId: id, title, titleVi: null, model: null as string | null, brandSlug: null as string | null, subcategorySlug,
+    sellerTrustScore: trust, postedAt: posted, rankScore: 0.5, category,
+  })
+  const now = posted.getTime()
+  const order = (rows: ReturnType<typeof mk>[], q: string) => relevanceOrder(rows, parseSearchQuery(q), now)
+
+  it('"điện thoại": a trusted seller\'s iPhone (filed in Phones) is no longer buried under a phone case', () => {
+    const iphone = mk('iphone', 'iPhone 15 Pro Max 256GB', 'phones-tablets', EL, 120)
+    const kase = mk('case', 'Ốp lưng điện thoại iPhone 15', 'phone-cases', EL, 50)
+    for (const q of ['điện thoại', 'phone']) {
+      const { strong, titleCount } = order([kase, iphone], q)
+      expect(titleCount).toBe(2)
+      expect(strong.map((r) => r.id)).toEqual(['iphone', 'case'])
+    }
+  })
+
+  it('"laptop": a MacBook (filed in Laptops) beside the laptop stand, by searchScore', () => {
+    const mac = mk('mac', 'MacBook Air M2 2022', 'laptops-pcs', EL, 120)
+    const stand = mk('stand', 'Laptop stand aluminium', 'accessories', EL, 50)
+    const { strong, titleCount } = order([stand, mac], 'laptop')
+    expect(titleCount).toBe(2)
+    expect(strong[0].id).toBe('mac')
+  })
+
+  it('"xe máy": the motorbike for sale shares the tier with the rental and the helmet', () => {
+    const bike = mk('bike', 'Honda Vision 2022', 'motorbike', VEH, 120)
+    const rent = mk('rent', 'Thuê xe máy Honda Vision', 'motorbike-rental', RENT, 60)
+    const helmet = mk('helmet', 'Mũ bảo hiểm xe máy 3/4', 'parts-gear', VEH, 55)
+    const { strong, titleCount } = order([rent, helmet, bike], 'xe máy')
+    expect(titleCount).toBe(3)
+    expect(strong[0].id).toBe('bike')
+  })
+})
+
+describe('keywordRank — matchClass per row', () => {
+  it("labels the ranked strong rows 'title' and the tail 'aside'", async () => {
+    const res = await page(0, { limit: 50 })
+    const rows = res.keywordListings!
+    expect(rows.filter((x) => res.matchClassOf!(x.id) === 'title')).toHaveLength(30)
+    expect(rows.slice(30).every((x) => res.matchClassOf!(x.id) === 'aside')).toBe(true)
   })
 })

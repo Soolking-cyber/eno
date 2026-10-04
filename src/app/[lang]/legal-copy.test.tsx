@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AMENDED } from '@/lib/compliance/legal-amendment'
+import { AMENDED, dateEn, dateVi } from '@/lib/compliance/legal-amendment'
+import { RANKING_DISCLOSURE_UPDATED } from '@/lib/compliance/ranking-disclosure'
 import { TOS_EFFECTIVE_AT, TOS_PREVIOUS_VERSION, TOS_VERSION } from '@/lib/site-legal'
 
 /**
@@ -402,7 +403,10 @@ describe('/legal/ranking', () => {
     expect(html).toContain('The only exceptions are the For You and Recently viewed rails')
     expect(html).not.toContain('the one rail that can adapt to you')
     expect(html).toContain('the first 60 positions')
-    expect(html).toContain(`Last updated: ${AMENDED.publishedEn}`)
+    // ⚠️ ITS OWN DATE (ranking-disclosure.ts RANKING_DISCLOSURE_UPDATED, set on deploy day), not the legal
+    // amendment's: the disclosure follows the code and changed after 01/10/2026 (UX program 2).
+    expect(html).toContain(`Last updated: ${dateEn(RANKING_DISCLOSURE_UPDATED)}`)
+    expect(html).not.toContain(`Last updated: ${AMENDED.publishedEn}`)
     // The brand rule is applied to each returned page (api/listings/route.ts `ordered`), never across pages.
     expect(text(html)).toContain('each page of results puts that brand’s listings in your category ahead of the rest of that page')
   })
@@ -416,6 +420,33 @@ describe('/legal/ranking', () => {
     expect(html).toContain('Điểm uy tín của người bán')
     expect(html).not.toMatch(/tin cậy|Ô tin đăng|[Dd]ải /)
     expect(html).toContain('trong mỗi trang kết quả')
+  })
+
+  // UX program 2 (2026-10-04): the disclosure follows the code — keyword-rank.ts's title tier (MatchClass),
+  // the condition words (search-synonyms.ts splitConditionWords) and the vehicle storefronts' shared seat
+  // (feed-diversity.ts SHARED_SEAT_SELLERS). ⚖️ Article 14 of /regulations is deliberately NOT changed
+  // with it (ranking-content.tsx says why); its own tests above still pin the 01/10/2026 text.
+  it('states the title tier, the condition words and the vehicle seat, in both languages', async () => {
+    const en = text(await ranking('en'))
+    expect(en).toContain('listings come first when every word you typed is in their own title, model or brand, or is the name of the aisle they are listed in; then come listings that need their category for one of the words')
+    expect(en).toContain('are not looked for in the listing text and do not filter by condition')
+    expect(en).toContain('A search made only of such words shows the items for sale.')
+    // The withdrawn "not new" narrowing (commit gate, 2026-10-04) is no longer described.
+    expect(en).not.toContain('items for sale that give no condition')
+    expect(en).toContain('vehicle rentals linked from rental platforms and shops')
+    const vi = text(await ranking('vi'))
+    expect(vi).toContain('hoặc là tên của mục mà tin được đăng; tiếp theo là các tin cần đến danh mục của tin để khớp một trong các từ')
+    expect(vi).toContain('không được dùng để tìm trong nội dung tin và không lọc theo tình trạng')
+    expect(vi).toContain('kết quả là các món hàng đang được đăng bán')
+    expect(vi).toContain('tin cho thuê xe dẫn từ các nền tảng, cửa hàng cho thuê xe')
+  })
+
+  it('prints its own last-updated date, in both languages, later than the amendment it outlived', async () => {
+    expect(RANKING_DISCLOSURE_UPDATED).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    // The disclosure changed after the October 2026 amendment was published (01/10/2026). A LITERAL, not
+    // LEGAL_AMENDMENT.published: that constant moves on with the next amendment, this fact does not.
+    expect(RANKING_DISCLOSURE_UPDATED > '2026-10-01').toBe(true)
+    expect(text(await ranking('vi'))).toContain(`Cập nhật lần cuối: ${dateVi(RANKING_DISCLOSURE_UPDATED)}`)
   })
 })
 

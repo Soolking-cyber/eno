@@ -55,6 +55,41 @@ describe('correctQuery', () => {
     expect(await correctQuery('iphnoe 15 pro')).toBe('iphone 15 pro')
   })
 
+  /**
+   * UX program 2 (A6): condition words are the feed's "not new" narrowing (search-synonyms.ts), so a
+   * correction must hand them back intact. Measured on this vocabulary: without the mask, "hand" is one
+   * edit from the word "han" — "second hand sofaa" came back "second han sofa" — and "cũ" came back as
+   * the folded `cu`, the Củ Chi word.
+   */
+  it('never corrects a condition word, and hands it back as typed', async () => {
+    expect(await correctQuery('second hand sofaa')).toBe('second hand sofa')
+    expect(await correctQuery('Used sofaa')).toBe('Used sofa')
+    expect(await correctQuery('iphnoe cũ')).toBe('iphone cũ')
+    expect(await correctQuery('tủ lạnh đã qua sử dụng samsnug')).toBe('tủ lạnh đã qua sử dụng samsung')
+    // Nothing but condition words: nothing to correct.
+    expect(await correctQuery('second hand')).toBeNull()
+    // A bare unaccented `cu` is an ordinary word, as in the feed — never a candidate (two letters).
+    expect(await correctQuery('iphnoe cu')).toBe('iphone cu')
+  })
+
+  /**
+   * Commit gate, 2026-10-04: the "did you mean" row showed "tu lanh … samsung" for "tủ lạnh … samsng" —
+   * every token folded. A word that was not corrected is shown exactly as typed; a corrected one in its
+   * dictionary spelling when the bundle has exactly one.
+   */
+  it('keeps every uncorrected word as typed, accents and case included', async () => {
+    expect(await correctQuery('tủ lạnh samsng')).toBe('tủ lạnh samsung')
+    expect(await correctQuery('Tủ Lạnh samsng')).toBe('Tủ Lạnh samsung')
+    expect(await correctQuery('iPhnoe 15 Pro')).toBe('iphone 15 Pro')
+  })
+
+  it('shows a corrected word in its accented dictionary spelling when there is exactly one', async () => {
+    expect(await correctQuery('cho thuê phnog')).toBe('cho thuê phòng')
+    expect(await correctQuery('gioung ngủ')).toBe('giường ngủ')
+    // No accented spelling in the bundle (a brand): the vocabulary's folded word.
+    expect(await correctQuery('samsng')).toBe('samsung')
+  })
+
   it('knows the live brand names (priority 1) and reads them once per window', async () => {
     expect(await correctQuery('louisvuiton')).toBe('louisvuitton')
     await correctQuery('iphnoe')

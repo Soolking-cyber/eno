@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ENTITY_MIN, SCOPE_SHARE, brandWhere, isStatementTimeout, lineCandidates, lineKey, pickScope, rankBrands, type ScopeGroup } from './suggest-entities'
+import { ENTITY_MIN, SCOPE_SHARE, aisleEvidence, brandWhere, hasMarks, isStatementTimeout, lineCandidates, lineKey, pickScope, rankBrands, scopeQueryReady, type ScopeGroup } from './suggest-entities'
+import { parseSearchQuery } from '@/lib/text-relevance'
 
 /**
  * The typeahead's entity rows (S-TYPEAHEAD, 2026-09-29) — the pure halves, no database. Every case
@@ -105,6 +106,67 @@ describe('the scoped row — the aisle most of the query lives in', () => {
   it('a slug the taxonomy no longer offers is skipped — it would land on a filter the explorer cannot show', () => {
     expect(pickScope([g('c-home', 'retired-aisle', 500)], cats)).toBeNull()
     expect(pickScope([g('c-unknown', 'sofa-seating', 500)], cats)).toBeNull()
+  })
+})
+
+/** UX program 2: disc-08(a) (the row waits for a word) and tủ/ban (the aisle the words NAME leads). */
+describe('the scoped row reads the words', () => {
+  it.each([['sofa', true], ['tv', true], ['tủ', true], ['bàn', true], ['iphone 13', true], ['s24', true], ['máy giặt', true],
+    ['may gi', false], ['ip', false], ['so', false], ['iphone 1', true],
+    // A condition word ends a complete query (review, 2026-10-04): folded, "cũ" is the two letters `cu`.
+    ['iphone 13 pro max cũ', true], ['ps5 pro cũ', true], ['iphone 17 pro max 256gb cũ', true], ['xe máy cũ', true],
+    ['tủ lạnh cũ', true], ['tủ lạnh đồ cũ', true], ['tủ lạnh (cũ)', true],
+    // …read as typed: a bare unaccented `cu` is still a fragment, as it is an ordinary word in the feed.
+    ['iphone cu', false]])('scopeQueryReady(%s) = %s', (q, ready) => {
+    expect(scopeQueryReady(q as string)).toBe(ready)
+  })
+
+  const HOME = { slug: 'furniture-appliances' }
+  const RENT = { slug: 'rentals' }
+  const ev = (rows: { title: string; titleVi: string | null; subcategorySlug: string | null; category: { slug: string } }[], q: string) =>
+    Object.fromEntries(aisleEvidence(rows, parseSearchQuery(q)))
+
+  // Commit gate, 2026-10-04: a phone keyboard's capital is not a Vietnamese mark.
+  it.each([['Sofa', false], ['iPhone 13', false], ['SOFA', false], ['tủ', true], ['Tủ', true], ['TỦ LẠNH', true], ['máy giặt', true]])(
+    'hasMarks(%s) = %s — case is not a mark', (typed, marked) => {
+      expect(hasMarks(typed as string)).toBe(marked)
+    })
+
+  it('a capitalised, marked word still finds its title ("Tủ" in "Tủ quần áo")', () => {
+    const rows = [{ title: 'Wardrobe', titleVi: 'Tủ quần áo gỗ', subcategorySlug: 'storage', category: HOME }]
+    const query = { ...parseSearchQuery('tủ'), typed: ['Tủ'] } // as a caller that kept the reader's case would pass it
+    expect(Object.fromEntries(aisleEvidence(rows, query))).toEqual({ 'furniture-appliances|storage': 1 })
+  })
+
+  it('"tủ" (marked) is named by "Tủ quần áo", not by the "tự lái" of a car', () => {
+    const rows = [
+      { title: 'Toyota Vios', titleVi: 'Thuê xe tự lái Toyota Vios', subcategorySlug: 'car-rental', category: RENT },
+      { title: 'Wardrobe', titleVi: 'Tủ quần áo gỗ', subcategorySlug: 'storage', category: HOME },
+    ]
+    expect(ev(rows, 'tủ')).toEqual({ 'furniture-appliances|storage': 1 })
+    // Unmarked, `tu` is honestly ambiguous: both rows name it.
+    expect(ev(rows, 'tu')).toEqual({ 'rentals|car-rental': 1, 'furniture-appliances|storage': 1 })
+  })
+
+  it('"tủ lạnh" is named by an English-only "refrigerator" title too — an unambiguous synonym', () => {
+    const rows = [{ title: 'Toshiba refrigerator 180L', titleVi: null, subcategorySlug: 'white-goods', category: HOME }]
+    expect(ev(rows, 'tủ lạnh')).toEqual({ 'furniture-appliances|white-goods': 1 })
+  })
+
+  it('an aisle the words name leads, before raw count; once any is named, an unnamed aisle is not offered', () => {
+    const cats = new Map([['c-home', { slug: 'furniture-appliances', name: 'Home', nameVi: 'Nhà cửa' }], ['c-rent', { slug: 'rentals', name: 'Rentals', nameVi: 'Cho thuê' }]])
+    const groups: ScopeGroup[] = [
+      { categoryId: 'c-rent', subcategorySlug: 'car-rental', _count: { _all: 500 } },
+      { categoryId: 'c-home', subcategorySlug: 'storage', _count: { _all: 400 } },
+    ]
+    expect(pickScope(groups, cats)?.subcategory).toBe('car-rental') // count alone
+    expect(pickScope(groups, cats, { evidence: new Map([['furniture-appliances|storage', 3]]), marked: true })?.subcategory).toBe('storage')
+    // Marked words that no row names: no aisle at all.
+    expect(pickScope(groups, cats, { evidence: new Map(), marked: true })).toBeNull()
+    // Unmarked with no title evidence: the count rule stands.
+    expect(pickScope(groups, cats, { evidence: new Map(), marked: false })?.subcategory).toBe('car-rental')
+    // The best suggestions are all furniture: the car aisle is not where the query's matches are.
+    expect(pickScope(groups, cats, { topCategories: ['furniture-appliances'] })?.subcategory).toBe('storage')
   })
 })
 

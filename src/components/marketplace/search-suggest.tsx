@@ -36,6 +36,14 @@ export type SuggestItem =
  */
 export type SuggestEntityItem = ({ type: 'line' } & SuggestLine) | ({ type: 'scope' } & SuggestScope)
 export type AnySuggestItem = SuggestItem | SuggestEntityItem
+/**
+ * "Did you mean “iphone”?" — a typo that suggests nothing (api/search/suggest, src/lib/spell-correct.ts).
+ * ⚠️ OUTSIDE `AnySuggestItem` FOR THE SAME REASON THE ENTITY ROWS STARTED THERE: only a bar whose pick
+ * handler runs a search for `q` asks for it (the 7-argument `buildSuggestItems`); the hero's handler is
+ * typed on `AnySuggestItem` and never receives one.
+ */
+export type DidYouMeanItem = { type: 'didYouMean'; q: string }
+export type PanelSuggestItem = AnySuggestItem | DidYouMeanItem
 
 /** The id of the row at flat index `i` of `items`.
  *
@@ -68,11 +76,23 @@ export function buildSuggestItems(
   brands: SuggestBrand[],
   categories: SuggestCategory[],
   listings: SuggestListing[],
+  lines: SuggestLine[],
+  scope: SuggestScope | null,
+  didYouMean: string | null,
+): PanelSuggestItem[]
+export function buildSuggestItems(
+  query: string,
+  brands: SuggestBrand[],
+  categories: SuggestCategory[],
+  listings: SuggestListing[],
   lines: SuggestLine[] = [],
   scope: SuggestScope | null = null,
-): AnySuggestItem[] {
-  const items: AnySuggestItem[] = []
+  didYouMean: string | null = null,
+): PanelSuggestItem[] {
+  const items: PanelSuggestItem[] = []
   if (query.trim().length >= 2) items.push({ type: 'query' })
+  // Right under the query row: the server only sends it when nothing else matched.
+  if (didYouMean) items.push({ type: 'didYouMean', q: didYouMean })
   lines.slice(0, 2).forEach((l) => items.push({ type: 'line', ...l }))
   if (scope) items.push({ type: 'scope', ...scope })
   brands.slice(0, 2).forEach((b) => items.push({ type: 'brand', slug: b.slug, name: b.name }))
@@ -143,7 +163,7 @@ function RowCount({ count }: { count: number }) {
   )
 }
 
-export type SearchSuggestProps<T extends AnySuggestItem> = {
+export type SearchSuggestProps<T extends PanelSuggestItem> = {
   items: T[]
   loading: boolean
   query: string
@@ -157,7 +177,7 @@ export type SearchSuggestProps<T extends AnySuggestItem> = {
 
 /** Instant-match results rendered inside a search bar's dropdown surface. Shared
  *  by the header + hero search so they're identical on mobile and desktop. */
-export function SearchSuggest<T extends AnySuggestItem>({
+export function SearchSuggest<T extends PanelSuggestItem>({
   items, loading, query, activeIndex, listboxId, onPick, onSubmitQuery,
 }: SearchSuggestProps<T>) {
   const { lang, tr } = useLanguage()
@@ -167,14 +187,16 @@ export function SearchSuggest<T extends AnySuggestItem>({
   const pickDown = (fn: () => void) => (e: React.MouseEvent) => { e.preventDefault(); fn() }
 
   const hasQueryRow = items[0]?.type === 'query'
+  const didYouMeanItems = items.filter((i): i is Extract<T, { type: 'didYouMean' }> => i.type === 'didYouMean')
   const lineItems = items.filter((i): i is Extract<T, { type: 'line' }> => i.type === 'line')
   const scopeItems = items.filter((i): i is Extract<T, { type: 'scope' }> => i.type === 'scope')
   const brandItems = items.filter((i): i is Extract<T, { type: 'brand' }> => i.type === 'brand')
   const categoryItems = items.filter((i): i is Extract<T, { type: 'category' }> => i.type === 'category')
   const listingItems = items.filter((i): i is Extract<T, { type: 'listing' }> => i.type === 'listing')
-  const none = lineItems.length === 0 && scopeItems.length === 0 && brandItems.length === 0 && categoryItems.length === 0 && listingItems.length === 0
+  const none = didYouMeanItems.length === 0 && lineItems.length === 0 && scopeItems.length === 0 && brandItems.length === 0 && categoryItems.length === 0 && listingItems.length === 0
   // Flat indices, in render order — the contract `suggestOptionId` documents.
-  const lineStart = hasQueryRow ? 1 : 0
+  const didYouMeanStart = hasQueryRow ? 1 : 0
+  const lineStart = didYouMeanStart + didYouMeanItems.length
   const scopeStart = lineStart + lineItems.length
   const brandStart = scopeStart + scopeItems.length
   const categoryStart = brandStart + brandItems.length
@@ -209,7 +231,7 @@ export function SearchSuggest<T extends AnySuggestItem>({
   // their groups are named for assistive tech only.
   const linesLabel = tr('Product lines', 'Dòng sản phẩm')
   const scopeLabel = tr('Search in', 'Tìm trong')
-  const hasEntities = lineItems.length > 0 || scopeItems.length > 0
+  const hasEntities = didYouMeanItems.length > 0 || lineItems.length > 0 || scopeItems.length > 0
 
   return (
     <>
@@ -242,6 +264,24 @@ export function SearchSuggest<T extends AnySuggestItem>({
           <Search className="h-4 w-4 shrink-0" /> {tr('Search for', 'Tìm')} “{q}”
         </Button>
       )}
+
+      {/* "Did you mean" — a typo's likely spelling, a search to run like the query row above it. */}
+      {didYouMeanItems.map((d, i) => (
+        <Button
+          variant="bare"
+          size="none"
+          key={`dym|${d.q}`}
+          type="button"
+          {...optionProps(didYouMeanStart + i)}
+          onMouseDown={pickDown(() => onPick(d))}
+          className={cn(actionRowCls, activeIndex === didYouMeanStart + i ? 'bg-muted' : 'hover:bg-muted', (lineItems.length > 0 || scopeItems.length > 0) && 'mb-0')}
+        >
+          <Search className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 truncate">
+            {tr('Did you mean', 'Có phải bạn muốn tìm')} <span className="font-semibold">“{d.q}”</span>?
+          </span>
+        </Button>
+      ))}
 
       {/* Product lines — "iPhone · Apple", every live listing of the line (suggest-entities.ts). */}
       {lineItems.length > 0 && (

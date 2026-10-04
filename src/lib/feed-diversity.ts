@@ -69,6 +69,24 @@ type Diversifiable = { id: string; sellerId?: string | null; subcategorySlug?: s
 export const SHARED_SEAT_SUBCATEGORIES: readonly string[] = ['esim']
 
 /**
+ * The vehicle import's storefronts (vehicle-rental-listing.ts VEHICLE_SELLERS, pinned by id there).
+ * ⚠️ A LITERAL COPY, ON PURPOSE: importing that module would load the importer's pure half — through
+ * honeycomb-listing.ts, the administrative-unit table (vn-units.json) and the import translation
+ * segments, ~400 KB of JSON and code — into every feed route that reads the seats (the home page,
+ * /api/listings, the category pages). feed-diversity.test.ts holds this list equal to VEHICLE_SELLERS,
+ * so a storefront the importer adds fails the suite until it is added here.
+ */
+const VEHICLE_IMPORT_SELLER_IDS: readonly string[] = [
+  'vehicle-import-seller-mioto',
+  'vehicle-import-seller-bonboncar',
+  'vehicle-import-seller-janmotorbike',
+  'vehicle-import-seller-theextramile',
+  'vehicle-import-seller-dungmotorbikes',
+  'vehicle-import-seller-tuanmotorbike',
+  'vehicle-import-seller-rentabikevn',
+]
+
+/**
  * SELLER SETS THAT SHARE ONE SEAT IN THE DEFAULT FEED — the same failure as the carriers, through a
  * different catalogue. Measured on eno.vn at 390px, 2026-09-29: 7 of the first 12 home cards were
  * linked jobs, from seven different boards, because scripts/import-jobs.ts creates one ownerless
@@ -77,8 +95,17 @@ export const SHARED_SEAT_SUBCATEGORIES: readonly string[] = ['esim']
  * storefronts at once needs a shared seat.
  * ⚠️ KEYED BY SELLER, NOT BY SUBCATEGORY: 'teaching' and 'job-other' also hold members' own job
  * posts, and a member's post keeps its own seat like any other listing.
+ * 'vehicle-rentals' is the same failure a third time (UX program 2, home-01): the vehicle import
+ * (scripts/import-vehicle-rentals.ts) made seven storefronts at once — Mioto, BonbonCar and five
+ * motorbike shops, 6,388 rows at the 2026-09-29 refresh — and they took the fan-out's seats one each:
+ * the audit counted 6 vehicle rentals from 6 storefronts in the first 12 'Đề xuất' cards and 0 used
+ * goods, so a visitor from Chợ Tốt saw car hire where the used goods should be. Keyed by the import's
+ * own seller ids, so a member's own car or motorbike for rent in the same aisles keeps its own seat.
  */
-export const SHARED_SEAT_SELLERS: Readonly<Record<string, readonly string[]>> = { 'job-boards': JOB_SELLER_IDS }
+export const SHARED_SEAT_SELLERS: Readonly<Record<string, readonly string[]>> = {
+  'job-boards': JOB_SELLER_IDS,
+  'vehicle-rentals': VEHICLE_IMPORT_SELLER_IDS,
+}
 
 /** sellerId → its shared seat's key, for seatKey's hot loop. */
 const SELLER_SEAT = new Map<string, string>(

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { mergeRoundRobin, diversifyBySeller, diversifyRail, diversityAppliesTo, DEFAULT_FEED_SORT, FEED_DIVERSITY_WINDOW, seatKey, sharedSeatsFor } from './feed-diversity'
+import { mergeRoundRobin, diversifyBySeller, diversifyRail, diversityAppliesTo, DEFAULT_FEED_SORT, FEED_DIVERSITY_WINDOW, SHARED_SEAT_SELLERS, seatKey, sharedSeatsFor } from './feed-diversity'
 import { JOB_SELLER_IDS } from './job-listing'
+// The importer's own pinned storefront ids — the source of truth the feed's literal copy must equal.
+import { VEHICLE_SELLER_IDS } from './vehicle-rental-listing'
 
 /**
  * ⚠️ THE FIXTURE IS THE REAL PRODUCTION SHAPE, MEASURED 2026-08-13: 35 active listings, of which 14
@@ -303,6 +305,39 @@ describe('the job boards share one seat', () => {
     expect(sharedSeatsFor(null, null)).toBe(true)
     expect(sharedSeatsFor(null, 'services')).toBe(true)
     expect(sharedSeatsFor('esim', null)).toBe(false)
+  })
+})
+
+/**
+ * ⛔ home-01 (UX program 2, 2026-10-04): 0 of the first 12 home cards were used goods — the vehicle
+ * import's seven storefronts took seven seats. They share ONE, keyed by SELLER (corrections: a member's
+ * own car or motorbike for rent keeps its own seat).
+ */
+describe('the vehicle-rental storefronts share one seat', () => {
+  it("seats exactly the importer's storefronts — the literal copy cannot drift from VEHICLE_SELLERS", () => {
+    // feed-diversity.ts keeps the ids as a literal (importing the importer would load its tables into
+    // every feed route); a storefront the importer adds must fail here until the copy has it too.
+    expect([...SHARED_SEAT_SELLERS['vehicle-rentals']].sort()).toEqual([...VEHICLE_SELLER_IDS].sort())
+    expect(VEHICLE_SELLER_IDS).toHaveLength(7)
+    for (const id of VEHICLE_SELLER_IDS) expect(id).toMatch(/^vehicle-import-seller-/)
+  })
+
+  it('6 vehicle rentals from 6 storefronts take one seat', () => {
+    const shops = VEHICLE_SELLER_IDS.slice(0, 6)
+    const cars = shops.map((s, i) => ({ id: `v${i}`, sellerId: s, subcategorySlug: i % 2 ? 'motorbike-rental' : 'car-rental' }))
+    const goods = Array.from({ length: 6 }, (_, i) => row(`g${i}`, `seller-${i}`))
+    const out = diversifyBySeller([...cars, ...goods], { sharedSeats: true })
+    // Round one is the vehicle seat's best card plus the six sellers: one vehicle in the first seven.
+    expect(out.slice(0, 7).filter((r) => VEHICLE_SELLER_IDS.includes(r.sellerId!))).toHaveLength(1)
+    expect(new Set(cars.map((r) => seatKey(r, { sharedSeats: true })))).toEqual(new Set(['__catalogue__vehicle-rentals']))
+    expect(out).toHaveLength(12) // a round-robin, not a cap
+  })
+
+  it("a member's own car rental keeps its own seat, and the seat is off without the rule", () => {
+    expect(seatKey({ id: 'm', sellerId: 'member-7', subcategorySlug: 'car-rental' }, { sharedSeats: true })).toBe('member-7')
+    expect(seatKey({ id: 'x', sellerId: VEHICLE_SELLER_IDS[0], subcategorySlug: 'car-rental' })).toBe(VEHICLE_SELLER_IDS[0])
+    // Inside the aisle itself every storefront is its own seat again.
+    expect(sharedSeatsFor('car-rental', 'rentals')).toBe(false)
   })
 })
 

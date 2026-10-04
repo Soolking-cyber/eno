@@ -82,6 +82,18 @@ export function subcategoryIntent(term: string): ReadonlySet<string> {
 const EMPTY: ReadonlySet<string> = new Set()
 
 /**
+ * `category|subcategory` → that aisle's OWN names, folded (English and Vietnamese) — for matchClass:
+ * a row filed in the aisle a word is the very name of (an iPhone in Phones, “Điện thoại”) names the
+ * thing as surely as its title would. ⚠️ KEYED BY BOTH SLUGS: 'storage' is an aisle of Furniture
+ * (“Tủ kệ”) and of Electronics (“Lưu trữ”). ⚠️ THE NAMES ONLY, NEVER THE KEYWORDS: the Appliances aisle
+ * lists 'tủ lạnh' and 'máy lạnh' among its keywords, and an aircon is still not a fridge.
+ */
+const AISLE_NAMES = new Map<string, readonly string[]>()
+for (const cat of TAXONOMY) {
+  for (const sub of cat.subcategories) AISLE_NAMES.set(`${cat.slug}|${sub.slug}`, [fold(sub.name), fold(sub.nameVi)])
+}
+
+/**
  * The query's units and the phrase they spell — the same units the feed's text filter matches
  * (searchUnits: fold, ≥2-character tokens, the first six, synonym runs grouped).
  */
@@ -130,8 +142,13 @@ function foldRow(row: RelevanceRow): Folded {
   }
 }
 
-/** Evidence for one term: title + model/brand + category, 0 when none of those fields hold it. */
-function termWeight(f: Folded, row: RelevanceRow, term: string): number {
+/**
+ * Evidence for one term: title + model/brand + category, 0 when none of those fields hold it.
+ * `own` — the row NAMES the term: its title, model or brand holds it, or the term IS the name of the
+ * row's own aisle (AISLE_NAMES), rather than one of the words that merely file a row there
+ * (matchClass, below). The weights are unchanged by it.
+ */
+function termWeight(f: Folded, row: RelevanceRow, term: string): { w: number; own: boolean } {
   let t = 0
   if (wordStart(f.title, term) || wordStart(f.titleVi, term)) {
     t = REL.TITLE
@@ -144,8 +161,29 @@ function termWeight(f: Folded, row: RelevanceRow, term: string): number {
     wordStart(f.categoryText, term)
       ? REL.CATEGORY
       : 0
-  return t + m + c
+  const aisleNamed = row.subcategorySlug != null && (AISLE_NAMES.get(`${row.category.slug}|${row.subcategorySlug}`)?.includes(term) ?? false)
+  return { w: t + m + c, own: t + m > 0 || aisleNamed }
 }
+
+/**
+ * Which tier of a keyword search a row belongs to (home-09, UX program 2):
+ *  · 'title' — every unit is NAMED by the row: in its own title, model or brand, or as the very name
+ *    of the aisle it is filed in;
+ *  · 'aside' — at least one unit is only corroborated by the row's aisle or category (a keyword that
+ *    files rows there, a category name), or only by text none of those fields hold (the description).
+ * ⛔ WHY A KEYWORD OF THE AISLE IS NOT ENOUGH FOR THE FIRST TIER. "tủ lạnh" / "fridge" are keywords of
+ * the Appliances aisle (“Điện máy”), which also holds every air conditioner, so an aircon from a
+ * high-trust seller was STRONG on the aisle alone and its trust (0.40 of searchScore) outweighed a
+ * fridge's title hit: measured on production 2026-10-03, the first household search opened on air
+ * conditioners. Tiering keeps the owner's searchScore untouched INSIDE each tier; it only stops a row
+ * that never names the word from outranking one that does.
+ * ⛔ AND WHY THE AISLE'S OWN NAME IS (review, 2026-10-04). Without it, "điện thoại" / "phone" put a phone
+ * case titled "Ốp lưng điện thoại" above every iPhone filed in Phones (“Điện thoại”), "laptop" a laptop
+ * stand above the MacBooks in Laptops (“Laptop”), and "xe máy" / "motorbike" the rentals and helmets
+ * above the motorbikes for sale in Motorbike (“Xe máy”) — rows whose titles say only "iPhone 15" or
+ * "Honda Vision". The name of the aisle a seller chose is the row naming itself.
+ */
+export type MatchClass = 'title' | 'aside'
 
 /**
  * How well a row answers the query, in [0, 1], and whether EVERY unit found evidence in the row's
@@ -153,18 +191,23 @@ function termWeight(f: Folded, row: RelevanceRow, term: string): number {
  * one, so "condo" still prefers a row that says "condo". Two or more units spelled out, in order, in
  * the title earn PHRASE_BONUS.
  */
-export function scoreRow(row: RelevanceRow, query: ParsedQuery): { relevance: number; strong: boolean } {
+export function scoreRow(row: RelevanceRow, query: ParsedQuery): { relevance: number; strong: boolean; matchClass: MatchClass } {
   const { units, phrase } = query
-  if (!units.length) return { relevance: 0, strong: false }
+  if (!units.length) return { relevance: 0, strong: false, matchClass: 'aside' }
   const f = foldRow(row)
   let sum = 0
   let strong = true
+  let named = true
   for (const u of units) {
     let best = 0
+    let own = false
     u.terms.forEach((term, i) => {
-      const w = termWeight(f, row, term) * (i === 0 ? 1 : REL.SYNONYM_FACTOR)
+      const e = termWeight(f, row, term)
+      const w = e.w * (i === 0 ? 1 : REL.SYNONYM_FACTOR)
       if (w > best) best = w
+      if (e.own) own = true
     })
+    if (!own) named = false
     if (best > 0) sum += best
     else {
       sum += REL.DESC_ONLY
@@ -172,5 +215,5 @@ export function scoreRow(row: RelevanceRow, query: ParsedQuery): { relevance: nu
     }
   }
   const bonus = units.length >= 2 && phrase && (f.title.includes(phrase) || f.titleVi.includes(phrase)) ? REL.PHRASE_BONUS : 0
-  return { relevance: Math.min(1, sum / (REL.MAX_PER_UNIT * units.length) + bonus), strong }
+  return { relevance: Math.min(1, sum / (REL.MAX_PER_UNIT * units.length) + bonus), strong, matchClass: named ? 'title' : 'aside' }
 }

@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  */
 
 const findMany = vi.fn(async (_args: any) => [])
+const findFirst = vi.fn(async (_args: any): Promise<any> => null)
 const groupBy = vi.fn(async (_args: any): Promise<any[]> => [])
 const categories = vi.fn(async (_args: any): Promise<any[]> => [])
 const brandFindMany = vi.fn(async (_args: any): Promise<any[]> => [])
@@ -21,7 +22,7 @@ vi.mock('./aisle-db', async (importOriginal) => ({
 }))
 vi.mock('@/lib/db', () => ({
   db: {
-    listing: { findMany: (a: any) => findMany(a), groupBy: (a: any) => appGroupBy(a) },
+    listing: { findMany: (a: any) => findMany(a), findFirst: (a: any) => findFirst(a), groupBy: (a: any) => appGroupBy(a) },
     category: { findMany: (a: any) => categories(a) },
     brand: { findMany: (a: any) => brandFindMany(a), findUnique: (a: any) => brandFindUnique(a) },
   },
@@ -51,7 +52,8 @@ const suggest = (q: string) =>
 
 beforeEach(() => {
   findMany.mockClear()
-  for (const f of [groupBy, categories, brandFindMany, brandFindUnique]) f.mockReset()
+  for (const f of [groupBy, categories, brandFindMany, brandFindUnique, findFirst]) f.mockReset()
+  findFirst.mockImplementation(async () => null)
   appGroupBy.mockClear()
   aisleGroupBy.mockClear()
   groupBy.mockImplementation(async () => [])
@@ -232,6 +234,23 @@ describe('suggest — brands, product lines and the scoped row', () => {
     expect(scopeCall.where).toEqual(poolA()[0][0].where)
   })
 
+  it('a query of condition words only ("đồ cũ", "second hand") gets no scoped row — nothing for an aisle to be named by', async () => {
+    categories.mockImplementation(async () => CATS)
+    groupBy.mockImplementation(async (a: any) => (a.by.length === 2
+      ? [{ categoryId: 'c-home', subcategorySlug: 'sofa-seating', _count: { _all: 802 } }]
+      : []))
+    expect((await (await suggest('đồ cũ')).json()).scope).toBeNull()
+    expect((await (await suggest('second hand')).json()).scope).toBeNull()
+  })
+
+  it('a district-only query keeps its aisle row (the condition-only guard reads the RAW words)', async () => {
+    categories.mockImplementation(async () => CATS)
+    groupBy.mockImplementation(async (a: any) => (a.by.length === 2
+      ? [{ categoryId: 'c-home', subcategorySlug: 'sofa-seating', _count: { _all: 802 } }]
+      : []))
+    expect((await (await suggest('Quận 7')).json()).scope).not.toBeNull()
+  })
+
   it('⛔ the visa product slot is never the scoped row', async () => {
     categories.mockImplementation(async () => CATS)
     groupBy.mockImplementation(async (a: any) => (a.by.length === 2 ? [{ categoryId: 'c-svc', subcategorySlug: 'visa-legal', _count: { _all: 90 } }] : []))
@@ -377,6 +396,145 @@ describe('suggest — brands, product lines and the scoped row', () => {
   })
 
   it('every payload carries the two new keys, the short-query one included', async () => {
-    expect(await (await suggest('i')).json()).toEqual({ q: 'i', listings: [], categories: [], brands: [], lines: [], scope: null })
+    expect(await (await suggest('i')).json()).toEqual({ q: 'i', listings: [], categories: [], brands: [], lines: [], scope: null, didYouMean: null })
+  })
+})
+
+/**
+ * ⛔ UX program 2 (disc-08(a), research-typeahead tủ/ban): "tủ" offered Rentals › Car — folded to `tu`
+ * it is the "tự" of every "thuê xe tự lái" — and "may gi" offered Cameras mid-word.
+ */
+describe('suggest — the scoped row reads the words as typed', () => {
+  const CATS = [
+    { id: 'c-el', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' },
+    { id: 'c-home', slug: 'furniture-appliances', name: 'Home', nameVi: 'Nhà cửa' },
+    { id: 'c-rent', slug: 'rentals', name: 'Rentals', nameVi: 'Cho thuê' },
+  ]
+  const now = new Date()
+  const base = { sellerTrustScore: 100, postedAt: now, rankScore: 0.9, price: 1, currency: 'VND', priceUnit: '', location: 'HCMC', listingType: 'sell', brandSlug: null, model: null, images: '[]' }
+  const car = (id: string) => ({ ...base, id, sellerId: id, title: `Toyota Vios ${id}`, titleVi: `Thuê xe tự lái Toyota Vios ${id}`, subcategorySlug: 'car-rental', category: { slug: 'rentals', name: 'Rentals', nameVi: 'Cho thuê' } })
+  const cabinet = (id: string) => ({ ...base, id, sellerId: id, rankScore: 0.4, title: `Wooden wardrobe ${id}`, titleVi: `Tủ quần áo gỗ ${id}`, subcategorySlug: 'storage', category: { slug: 'furniture-appliances', name: 'Home', nameVi: 'Nhà cửa' } })
+  const aisles = (groups: [string, string, number][]) => async (a: any) =>
+    (a.by.length === 2 ? groups.map(([categoryId, subcategorySlug, n]) => ({ categoryId, subcategorySlug, _count: { _all: n } })) : [])
+
+  it('"tủ": the cars outnumber the cabinets, but no car says "tủ" — the cabinets\' aisle is offered, never Car', async () => {
+    categories.mockImplementation(async () => CATS)
+    groupBy.mockImplementation(aisles([['c-rent', 'car-rental', 500], ['c-home', 'storage', 400]]))
+    findMany.mockImplementation(async () => [car('a'), car('b'), cabinet('c'), cabinet('d'), cabinet('e')] as any)
+    const body = await (await suggest('tủ')).json()
+    findMany.mockImplementation(async () => [])
+    expect(body.scope?.subcategory).toBe('storage')
+  })
+
+  it('"tủ" with nothing that says "tủ" offers no aisle at all, however many cars the folded `tu` counts', async () => {
+    categories.mockImplementation(async () => CATS)
+    groupBy.mockImplementation(aisles([['c-rent', 'car-rental', 6000], ['c-home', 'storage', 40]]))
+    findMany.mockImplementation(async () => [car('a'), car('b'), car('c')] as any)
+    const body = await (await suggest('tủ')).json()
+    findMany.mockImplementation(async () => [])
+    expect(body.scope).toBeNull()
+  })
+
+  it('an aisle in another category than every top suggestion is not offered', async () => {
+    categories.mockImplementation(async () => CATS)
+    groupBy.mockImplementation(aisles([['c-home', 'sofa-seating', 802]]))
+    const phone = { ...base, id: 'p', sellerId: 'p', title: 'Sofa phone case', titleVi: null, subcategorySlug: null, category: { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' } }
+    findMany.mockImplementation(async () => [phone] as any)
+    const body = await (await suggest('sofa')).json()
+    findMany.mockImplementation(async () => [])
+    expect(body.scope).toBeNull()
+  })
+
+  it('waits for a whole word: "may gi" offers no aisle, "máy giặt" does', async () => {
+    categories.mockImplementation(async () => CATS)
+    groupBy.mockImplementation(aisles([['c-el', 'cameras', 90]]))
+    expect((await (await suggest('may gi')).json()).scope).toBeNull()
+    expect((await (await suggest('may giat')).json()).scope?.subcategory).toBe('cameras')
+  })
+
+  it('a capitalised query keeps its aisle row: "Sofa", "iPhone 13" (case is not a mark)', async () => {
+    categories.mockImplementation(async () => CATS)
+    const sofa = (id: string) => ({ ...base, id, sellerId: id, title: `Sofa da ${id}`, titleVi: `Ghế sofa ${id}`, subcategorySlug: 'sofa-seating', category: { slug: 'furniture-appliances', name: 'Home', nameVi: 'Nhà cửa' } })
+    groupBy.mockImplementation(aisles([['c-home', 'sofa-seating', 90]]))
+    findMany.mockImplementation(async () => [sofa('a'), sofa('b')] as any)
+    expect((await (await suggest('Sofa')).json()).scope?.subcategory).toBe('sofa-seating')
+    const phone = (id: string) => ({ ...base, id, sellerId: id, title: `iPhone 13 ${id}`, titleVi: null, subcategorySlug: 'phones-tablets', category: { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' } })
+    groupBy.mockImplementation(aisles([['c-el', 'phones-tablets', 90]]))
+    findMany.mockImplementation(async () => [phone('c'), phone('d')] as any)
+    expect((await (await suggest('iPhone 13')).json()).scope?.subcategory).toBe('phones-tablets')
+    findMany.mockImplementation(async () => [])
+  })
+
+  it('a query ending in the condition word "cũ" is complete — the aisle row it had before the gate stays', async () => {
+    categories.mockImplementation(async () => CATS)
+    groupBy.mockImplementation(aisles([['c-el', 'phones-tablets', 90]]))
+    for (const q of ['iphone 13 pro max cũ', 'ps5 pro cũ', 'iphone 17 pro max 256gb cũ']) {
+      expect((await (await suggest(q)).json()).scope?.subcategory).toBe('phones-tablets')
+    }
+    // Unaccented, `cu` is an ordinary two-letter fragment — no row yet.
+    expect((await (await suggest('iphone cu')).json()).scope).toBeNull()
+  })
+})
+
+describe('suggest — did you mean', () => {
+  it('a typo that suggests nothing gets its correction, when the correction finds a live row', async () => {
+    findFirst.mockImplementation(async () => ({ id: 'x' }))
+    const body = await (await suggest('iphnoe')).json()
+    expect(body.didYouMean).toBe('iphone')
+    // The check reads the correction through the feed's own text filter, edition-scoped.
+    expect(findFirst.mock.calls[0][0].where.AND).toEqual(textClauses('iphone'))
+  })
+
+  it('keeps the condition words as typed and checks the correction the way Enter reads it — no condition filter', async () => {
+    findFirst.mockImplementation(async () => ({ id: 'x' }))
+    const body = await (await suggest('iphnoe cũ')).json()
+    expect(body.didYouMean).toBe('iphone cũ')
+    // "cũ" is not text (and not the word `cu`), and since the commit gate it filters nothing either.
+    expect(findFirst.mock.calls[0][0].where.AND).toEqual(textClauses('iphone'))
+  })
+
+  it('shows the words it did not correct exactly as typed: "tủ lạnh samsng" → "tủ lạnh samsung"', async () => {
+    findFirst.mockImplementation(async () => ({ id: 'x' }))
+    const body = await (await suggest('tủ lạnh samsng')).json()
+    expect(body.didYouMean).toBe('tủ lạnh samsung')
+    expect(findFirst.mock.calls[0][0].where.AND).toEqual(textClauses('tu lanh samsung'))
+  })
+
+  /**
+   * Commit gate, 2026-10-04: the row's own contract — a typo that suggests NOTHING. A matching category,
+   * product line or scoped row is something: the reader already has a way forward.
+   */
+  it('no row when a category matches', async () => {
+    findFirst.mockImplementation(async () => ({ id: 'x' }))
+    categories.mockImplementation(async () => [{ id: 'c-x', slug: 'samsng-club', name: 'Samsng club', nameVi: 'Câu lạc bộ' }])
+    expect((await (await suggest('samsng')).json()).didYouMean).toBeNull()
+  })
+
+  it('no row when there is a scoped row', async () => {
+    findFirst.mockImplementation(async () => ({ id: 'x' }))
+    categories.mockImplementation(async () => [{ id: 'c-el', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' }])
+    groupBy.mockImplementation(async (a: any) => (a.by.length === 2 ? [{ categoryId: 'c-el', subcategorySlug: 'phones-tablets', _count: { _all: 90 } }] : []))
+    const body = await (await suggest('samsng')).json()
+    expect(body.scope?.subcategory).toBe('phones-tablets')
+    expect(body.didYouMean).toBeNull()
+  })
+
+  it('…and with nothing else at all, the row is offered', async () => {
+    findFirst.mockImplementation(async () => ({ id: 'x' }))
+    categories.mockImplementation(async () => [{ id: 'c-el', slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' }])
+    expect((await (await suggest('samsng')).json()).didYouMean).toBe('samsung')
+  })
+
+  it('no row when the correction finds nothing, when there are listings, or for a district query', async () => {
+    expect((await (await suggest('iphnoe')).json()).didYouMean).toBeNull()
+    findFirst.mockImplementation(async () => ({ id: 'x' }))
+    findMany.mockImplementationOnce(async () => [{
+      id: 'a', sellerId: 's', title: 'Iphnoe case', titleVi: null, images: '[]', model: null, brandSlug: null, subcategorySlug: null,
+      sellerTrustScore: 50, postedAt: new Date(), rankScore: 0.5, category: { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' },
+    }] as any)
+    expect((await (await suggest('iphnoe')).json()).didYouMean).toBeNull()
+    findFirst.mockClear()
+    await suggest('Quận 1')
+    expect(findFirst).not.toHaveBeenCalled()
   })
 })

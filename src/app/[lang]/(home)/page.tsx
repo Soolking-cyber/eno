@@ -59,23 +59,36 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
     categoriesPromise.catch(() => {})
     const publicScope = await scopedListingWhere({ verified: true, status: 'active' })
 
-    const [serializedCategories, listings, total, businesses, trending] = await Promise.all([
+    const firstPagePromise = diverseFeedWindow(
+      // ⚠️ EDITION-SCOPED. eno.vn is a licensed sàn TMĐT; the e-visa SKUs are ordinary Listing
+      // rows and they rank into this feed. This is the ISR-baked HTML of the root URL, served
+      // from disk to every anonymous visitor and every crawler — the most-seen leak there was.
+      publicScope,
+      // Match /api/listings' default sort EXACTLY (the balanced rankScore blend, id
+      // tiebreaker) so this SSR seed doesn't reshuffle on hydration into the client feed.
+      [{ rankScore: 'desc' }, { id: 'desc' }],
+      LISTING_CARD_SELECT,
+      // The API's rule for an unfiltered feed (sharedSeatsFor(null)) — one seat for the eSIM
+      // catalogue — or the SSR head and the hydrated feed disagree.
+      { sharedSeats: true },
+    )
+      // Interleave sellers across the window, then take the page. Slicing AFTER the reorder is the
+      // whole point: slicing first would hand the reorder the same monopolised twelve rows.
+      /**
+       * ⚠️ `diversifyBySeller` STILL RUNS, AND IT IS NOT REDUNDANT. `diverseFeedWindow` decides WHICH
+       * rows are in the window (each seller's best, merged); this reorders whatever came back, which
+       * matters on the fallback paths inside it — a groupBy failure, one seller, or a window the
+       * fan-out under-filled all return the plain top-N. /api/listings applies the identical pair,
+       * which is what keeps the SSR seed and the hydrated client feed in agreement.
+       */
+      .then((rows) => diversifyBySeller(rows, { sharedSeats: true }).slice(0, 12))
+
+    const [serializedCategories, firstPage, total, businesses, trending] = await Promise.all([
       // Categories ordered by live DEMAND — most-wanted lead the rail + home grid. Already in
       // flight, above.
       categoriesPromise,
-      diverseFeedWindow(
-        // ⚠️ EDITION-SCOPED. eno.vn is a licensed sàn TMĐT; the e-visa SKUs are ordinary Listing
-        // rows and they rank into this feed. This is the ISR-baked HTML of the root URL, served
-        // from disk to every anonymous visitor and every crawler — the most-seen leak there was.
-        publicScope,
-        // Match /api/listings' default sort EXACTLY (the balanced rankScore blend, id
-        // tiebreaker) so this SSR seed doesn't reshuffle on hydration into the client feed.
-        [{ rankScore: 'desc' }, { id: 'desc' }],
-        LISTING_CARD_SELECT,
-        // The API's rule for an unfiltered feed (sharedSeatsFor(null)) — one seat for the eSIM
-        // catalogue — or the SSR head and the hydrated feed disagree.
-        { sharedSeats: true },
-      ),
+      // Joined here, so its rejection is observed (the trending rail below only derives from it).
+      firstPagePromise,
       // MUST match the findMany predicate exactly: this seeds the client explorer's `initialTotal`,
       // which terminates its load-more (`listings.length < total`). A count that disagrees with the
       // cards either stops the infinite feed 14 items early or never lets it finish.
@@ -88,19 +101,15 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
       topBusinessListings().catch(() => []),
       // "Trending now" seed for the ForYouRail — same server-known-geometry fix
       // (the client's empty thin-catalog answer collapsed the SSR'd skeletons).
-      trendingRailListings().catch(() => []),
+      // ⛔ NOT THE FEED'S OWN CARDS (home-07): Trending opened on the feed's first card, two rows
+      // above it. The first page's ids leave the rail's 96-row pool before it chooses its 16
+      // (trending-rail.ts POOL); its narrow read still runs alongside the feed window — only its
+      // choosing step waits for the ids. For a visitor without personalisation signals (every first
+      // visit) the client keeps this seed (for-you-rail.tsx skips the fetch), so this exclusion is
+      // what they see, not a first paint that hydration replaces.
+      trendingRailListings({ excludeIds: firstPagePromise.then((rows) => rows.map((r) => r.id)) }).catch(() => []),
     ])
 
-    // Interleave sellers across the window, then take the page. Slicing AFTER the reorder is the
-    // whole point: slicing first would hand the reorder the same monopolised twelve rows.
-    /**
-     * ⚠️ `diversifyBySeller` STILL RUNS, AND IT IS NOT REDUNDANT. `diverseFeedWindow` decides WHICH
-     * rows are in the window (each seller's best, merged); this reorders whatever came back, which
-     * matters on the fallback paths inside it — a groupBy failure, one seller, or a window the
-     * fan-out under-filled all return the plain top-N. /api/listings applies the identical pair,
-     * which is what keeps the SSR seed and the hydrated client feed in agreement.
-     */
-    const firstPage = diversifyBySeller(listings, { sharedSeats: true }).slice(0, 12)
     const serializedListings: SerializedListingCard[] = await localizeListingTitles(firstPage.map(serializeListingCard))
 
     return { categories: serializedCategories, listings: serializedListings, total, businesses, trending }

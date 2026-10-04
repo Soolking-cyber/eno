@@ -82,7 +82,93 @@ describe('scoreRow — strong means the row itself names the thing', () => {
   })
 
   it('an empty query is never strong', () => {
-    expect(score(iphone, '')).toEqual({ relevance: 0, strong: false })
+    expect(score(iphone, '')).toEqual({ relevance: 0, strong: false, matchClass: 'aside' })
+  })
+})
+
+/**
+ * ⛔ home-09 (UX program 2): "tủ lạnh" and "fridge" opened on air conditioners — filed in the aisle the
+ * word names, strong on the aisle alone, and lifted by their sellers' trust. The aisle is still
+ * evidence (they stay strong), but only a row that NAMES every word is in the 'title' tier.
+ */
+describe('scoreRow — matchClass', () => {
+  const aircon = row({ title: 'Daikin inverter air conditioner 1HP', titleVi: 'Máy lạnh Daikin 1HP', brandSlug: 'daikin', subcategorySlug: 'white-goods', category: HOME })
+  const fridge = row({ title: 'Toshiba refrigerator 180L', titleVi: 'Tủ lạnh Toshiba 180L', brandSlug: 'toshiba', subcategorySlug: 'white-goods', category: HOME })
+
+  it('a fridge is title-tier for "tủ lạnh" and "fridge"; an aircon in the same aisle is strong but aside', () => {
+    for (const q of ['tủ lạnh', 'tu lanh', 'fridge']) {
+      expect(score(fridge, q)).toMatchObject({ strong: true, matchClass: 'title' })
+      expect(score(aircon, q)).toMatchObject({ strong: true, matchClass: 'aside' })
+    }
+  })
+
+  it('a model or brand hit names the thing; a description-only row is aside', () => {
+    expect(score(iphone, 'iphone').matchClass).toBe('title')
+    expect(score(washerHonda, 'honda').matchClass).toBe('title')
+    expect(score(esim, 'iphone').matchClass).toBe('aside')
+  })
+
+  /**
+   * Review, 2026-10-04: a row filed in the aisle whose NAME is the word names the thing too. Without it
+   * "điện thoại" put a phone case above every iPhone in Phones (“Điện thoại”), "laptop" a stand above the
+   * MacBooks in Laptops (“Laptop”), "xe máy" rentals and helmets above the motorbikes for sale.
+   * The aisle's KEYWORDS still do not count: Appliances (“Điện máy”) lists 'tủ lạnh', and an aircon is
+   * not a fridge. Real taxonomy slugs, so the aisle names are the ones production reads.
+   */
+  describe("the row's own aisle, by name", () => {
+    const EL = { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' }
+    const VEH = { slug: 'vehicles', name: 'Vehicles', nameVi: 'Xe cộ' }
+    const RENT = { slug: 'rentals', name: 'Rentals', nameVi: 'Cho thuê' }
+    const HOMECAT = { slug: 'furniture-appliances', name: 'Home', nameVi: 'Nhà cửa' }
+    const iphone15 = row({ title: 'iPhone 15 Pro Max 256GB', brandSlug: 'apple', model: 'iPhone 15 Pro Max', subcategorySlug: 'phones-tablets', category: EL })
+    const phoneCase = row({ title: 'Ốp lưng điện thoại iPhone 15', subcategorySlug: 'phone-cases', category: EL })
+    const macbook = row({ title: 'MacBook Air M2 2022', brandSlug: 'apple', subcategorySlug: 'laptops-pcs', category: EL })
+    const stand = row({ title: 'Laptop stand aluminium', subcategorySlug: 'accessories', category: EL })
+    const vision = row({ title: 'Honda Vision 2022', brandSlug: 'honda', subcategorySlug: 'motorbike', category: VEH })
+    const visionRent = row({ title: 'Thuê xe máy Honda Vision', subcategorySlug: 'motorbike-rental', category: RENT })
+    const helmet = row({ title: 'Mũ bảo hiểm xe máy 3/4', subcategorySlug: 'parts-gear', category: VEH })
+    const aircon = row({ title: 'Daikin air conditioner 1HP', titleVi: 'Máy lạnh Daikin 1HP', brandSlug: 'daikin', subcategorySlug: 'white-goods', category: HOMECAT })
+    const fridge = row({ title: 'Toshiba refrigerator 180L', titleVi: 'Tủ lạnh Toshiba 180L', brandSlug: 'toshiba', subcategorySlug: 'white-goods', category: HOMECAT })
+
+    it('"điện thoại" / "dien thoai" / "phone": an iPhone filed in Phones is title-tier, like the case that says it', () => {
+      for (const q of ['điện thoại', 'dien thoai', 'phone']) {
+        expect(score(iphone15, q)).toMatchObject({ strong: true, matchClass: 'title' })
+      }
+      expect(score(phoneCase, 'điện thoại').matchClass).toBe('title')
+    })
+
+    it('"laptop": a MacBook filed in Laptops is title-tier, like the stand that says it', () => {
+      expect(score(macbook, 'laptop').matchClass).toBe('title')
+      expect(score(stand, 'laptop').matchClass).toBe('title')
+    })
+
+    it('"xe máy" / "motorbike": the motorbike for sale is title-tier beside the rental and the helmet', () => {
+      for (const q of ['xe máy', 'motorbike']) {
+        expect(score(vision, q).matchClass).toBe('title')
+        expect(score(visionRent, q).matchClass).toBe('title')
+      }
+      expect(score(helmet, 'xe máy').matchClass).toBe('title')
+    })
+
+    it('"tủ lạnh" / "fridge": the aircon filed in Appliances (“Điện máy”) stays aside — a keyword is not a name', () => {
+      for (const q of ['tủ lạnh', 'tu lanh', 'fridge']) {
+        expect(score(fridge, q)).toMatchObject({ strong: true, matchClass: 'title' })
+        expect(score(aircon, q)).toMatchObject({ strong: true, matchClass: 'aside' })
+      }
+    })
+
+    it('the aisle is read with its category: a slug filed under another category names nothing', () => {
+      // AISLE_NAMES is keyed by both slugs ('storage' is an aisle of Furniture and of Electronics), so a
+      // row whose subcategory does not belong to its category gets no name from it — still strong, aside.
+      const stray = row({ title: 'iPhone 15 Pro Max', brandSlug: 'apple', subcategorySlug: 'phones-tablets', category: VEH })
+      expect(score(stray, 'điện thoại')).toMatchObject({ strong: true, matchClass: 'aside' })
+    })
+  })
+
+  it('every unit must be named: "samsung tủ lạnh" on a Samsung fridge is title, on a Samsung phone aside', () => {
+    const phone = row({ title: 'Galaxy S24', brandSlug: 'samsung', model: 'Galaxy S24', category: ELECTRONICS })
+    expect(score(fridgeVi, 'samsung tủ lạnh').matchClass).toBe('title')
+    expect(score(phone, 'samsung tủ lạnh').matchClass).toBe('aside')
   })
 })
 

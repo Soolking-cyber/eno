@@ -44,6 +44,12 @@ export const VEHICLE_SELLERS = {
   rentabikevn: { id: 'vehicle-import-seller-rentabikevn', name: 'Rentabike Vietnam', target: /^https:\/\/rentabikevn\.com\/[^\s]+$/ },
 } as const
 export type SellerKey = keyof typeof VEHICLE_SELLERS
+/**
+ * Every vehicle storefront's id. The feed's shared seat (feed-diversity.ts SHARED_SEAT_SELLERS) keeps a
+ * LITERAL copy so feed routes never load this module; feed-diversity.test.ts holds the two equal, so a
+ * storefront added above fails the suite until the seat has it too.
+ */
+export const VEHICLE_SELLER_IDS: readonly string[] = Object.values(VEHICLE_SELLERS).map((s) => s.id)
 export const SHOP_KEYS = ['janmotorbike', 'theextramile', 'dungmotorbikes', 'tuanmotorbike', 'rentabikevn'] as const
 export type ShopKey = (typeof SHOP_KEYS)[number]
 

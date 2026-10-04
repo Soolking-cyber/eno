@@ -12,10 +12,15 @@
  *   1. Candidates: the query's best 600 rows by rankScore, plus up to 300 more whose TITLE, model,
  *      brand or aisle holds a query term (pool B — recall for strong rows pool A missed).
  *   2. Score each with text-relevance.ts and keep the STRONG rows — every unit found in the row's own
- *      title, model, brand or category. Order them by the owner's searchScore (0.50 relevance · 0.40
- *      trust · 0.10 recency — unchanged), then rankScore, then id.
+ *      title, model, brand or category. Order them in two TIERS (matchClass, home-09): rows that name
+ *      every unit — in their own title, model or brand, or as the name of their own aisle (an iPhone in
+ *      Phones, “Điện thoại”) — ('title'), then rows that needed their aisle's keywords or category for
+ *      one ('aside' — an air conditioner filed in Appliances, whose keywords include "tủ lạnh"). Inside
+ *      a tier, by the owner's searchScore (0.50 relevance · 0.40 trust · 0.10 recency — unchanged),
+ *      then rankScore, then id.
  *   3. Exact ties only are dealt out by seller + model, so fourteen variants of one phone alternate
- *      with other models instead of arriving as a block. Relevance itself is never overruled.
+ *      with other models instead of arriving as a block. Relevance itself is never overruled, and no
+ *      tie run crosses a tier boundary — interleaving can never lift an 'aside' row above a 'title' one.
  *   4. Page over that ranked list, then the rest of the matches (the weak ones included) in rankScore
  *      order — ranked-page.ts, the same pagination the semantic path uses.
  * The row SET is exactly the feed's `where`; only the order changes, so `total` is unchanged.
@@ -26,7 +31,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { fold } from '@/lib/fold'
 import { searchScore } from '@/lib/ranking-formula'
 import { DEFAULT_FEED_SORT, diversifyBySeller } from '@/lib/feed-diversity'
-import { parseSearchQuery, scoreRow, subcategoryIntent, type ParsedQuery, type RelevanceRow } from '@/lib/text-relevance'
+import { parseSearchQuery, scoreRow, subcategoryIntent, type MatchClass, type ParsedQuery, type RelevanceRow } from '@/lib/text-relevance'
 import { pageRankedThenTail, RANKED_SET_TTL } from './ranked-page'
 
 /** The narrow projection ranking needs — no card fields, no description. */
@@ -51,8 +56,10 @@ const RANK_ORDER: Prisma.ListingOrderByWithRelationInput[] = [{ rankScore: 'desc
  * cached. Hidden or sold rows cannot be served from it: each page re-applies `where` (ranked-page.ts).
  */
 const RANK_CACHE_MAX = 200
-const rankCache = new Map<string, { at: number; ids: string[] }>()
-const rankInFlight = new Map<string, Promise<string[]>>()
+/** `titleCount`: the first `titleCount` ids are the 'title' tier (relevanceOrder puts it first). */
+type RankedSet = { ids: string[]; titleCount: number }
+const rankCache = new Map<string, { at: number } & RankedSet>()
+const rankInFlight = new Map<string, Promise<RankedSet>>()
 
 /** Test seam: forget every cached ranking. */
 export function __resetKeywordRankCache() {
@@ -112,18 +119,18 @@ type Rankable = RelevanceRow & { id: string; sellerId: string; sellerTrustScore:
 const byRankDesc = (a: Rankable, b: Rankable) => b.rankScore - a.rankScore || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)
 
 /**
- * Candidates → the STRONG rows in relevance order, and the weak rows in rankScore order. Pure given
- * `now`, so the same candidates always rank the same way.
+ * Candidates → the STRONG rows in relevance order (the 'title' tier first, its length `titleCount`),
+ * and the weak rows in rankScore order. Pure given `now`, so the same candidates always rank the same way.
  */
-export function relevanceOrder<R extends Rankable>(rows: readonly R[], query: ParsedQuery, now: number): { strong: R[]; weak: R[] } {
-  const strong: { r: R; s: number }[] = []
+export function relevanceOrder<R extends Rankable>(rows: readonly R[], query: ParsedQuery, now: number): { strong: R[]; weak: R[]; titleCount: number } {
+  const strong: { r: R; s: number; tier: number }[] = []
   const weak: R[] = []
   for (const r of rows) {
-    const { relevance, strong: isStrong } = scoreRow(r, query)
-    if (isStrong) strong.push({ r, s: searchScore({ relevance, sellerTrustScore: r.sellerTrustScore, postedAt: r.postedAt }, now) })
+    const { relevance, strong: isStrong, matchClass } = scoreRow(r, query)
+    if (isStrong) strong.push({ r, s: searchScore({ relevance, sellerTrustScore: r.sellerTrustScore, postedAt: r.postedAt }, now), tier: matchClass === 'title' ? 0 : 1 })
     else weak.push(r)
   }
-  strong.sort((a, b) => b.s - a.s || byRankDesc(a.r, b.r))
+  strong.sort((a, b) => a.tier - b.tier || b.s - a.s || byRankDesc(a.r, b.r))
   /**
    * ⚠️ EXACT TIES ONLY. Rows whose scores round to the same thousandth are indistinguishable to the
    * formula — typically one importer's variants of one product, posted together by one trusted
@@ -135,7 +142,9 @@ export function relevanceOrder<R extends Rankable>(rows: readonly R[], query: Pa
   for (let i = 0; i < strong.length; ) {
     const key = Math.round(strong[i].s * 1000)
     let j = i + 1
-    while (j < strong.length && Math.round(strong[j].s * 1000) === key) j++
+    // ⛔ A RUN ENDS AT THE TIER BOUNDARY TOO (A6 × A2): a 'title' row and an 'aside' row can share a
+    // score, and dealing them out together would lift the aside row over the title row.
+    while (j < strong.length && strong[j].tier === strong[i].tier && Math.round(strong[j].s * 1000) === key) j++
     const run = strong.slice(i, j).map((x) => x.r)
     if (run.length < 3) out.push(...run)
     else {
@@ -144,26 +153,27 @@ export function relevanceOrder<R extends Rankable>(rows: readonly R[], query: Pa
     }
     i = j
   }
-  return { strong: out, weak: [...weak].sort(byRankDesc) }
+  return { strong: out, weak: [...weak].sort(byRankDesc), titleCount: strong.filter((x) => x.tier === 0).length }
 }
 
-async function rankedIdsFor(scopedWhere: Prisma.ListingWhereInput, q: string, query: ParsedQuery): Promise<string[]> {
+async function rankedIdsFor(scopedWhere: Prisma.ListingWhereInput, q: string, query: ParsedQuery): Promise<RankedSet> {
   const key = JSON.stringify({ where: scopedWhere, q })
   const hit = rankCache.get(key)
   if (hit && Date.now() - hit.at < RANKED_SET_TTL) {
     rankCache.delete(key)
     rankCache.set(key, hit)
-    return hit.ids
+    return hit
   }
   const running = rankInFlight.get(key)
   if (running) return running
   const work = rankCandidates(scopedWhere, query, { takeA: POOL_A, takeB: POOL_B, select: RANK_SELECT })
     .then((rows: RankRow[]) => {
-      const ids = relevanceOrder(rows, query, Date.now()).strong.map((r) => r.id)
+      const order = relevanceOrder(rows, query, Date.now())
+      const set: RankedSet = { ids: order.strong.map((r) => r.id), titleCount: order.titleCount }
       rankCache.delete(key)
       if (rankCache.size >= RANK_CACHE_MAX) rankCache.delete(rankCache.keys().next().value!) // evict oldest
-      rankCache.set(key, { at: Date.now(), ids })
-      return ids
+      rankCache.set(key, { at: Date.now(), ...set })
+      return set
     })
     .finally(() => rankInFlight.delete(key))
   rankInFlight.set(key, work)
@@ -185,14 +195,21 @@ export async function keywordRank(args: {
   limit: number
   where: Prisma.ListingWhereInput
   orderBy: Prisma.ListingOrderByWithRelationInput[]
-}): Promise<{ keywordListings: Awaited<ReturnType<typeof pageRankedThenTail>> | null }> {
+}): Promise<{ keywordListings: Awaited<ReturnType<typeof pageRankedThenTail>> | null; matchClassOf?: (id: string) => MatchClass }> {
   const { q, looseMatch, featuredOnly, sort, offset, limit, where, orderBy } = args
   if (!q || looseMatch || featuredOnly || sort !== DEFAULT_FEED_SORT) return { keywordListings: null }
   const query = parseSearchQuery(q)
   if (!query.units.length) return { keywordListings: null }
   try {
-    const rankedIds = await rankedIdsFor(await scopedListingWhere(where), q, query)
-    return { keywordListings: await pageRankedThenTail({ rankedIds, pageWhere: where, tailWhere: where, orderBy, offset, limit }) }
+    const { ids: rankedIds, titleCount } = await rankedIdsFor(await scopedListingWhere(where), q, query)
+    const titleIds = new Set(rankedIds.slice(0, titleCount))
+    return {
+      keywordListings: await pageRankedThenTail({ rankedIds, pageWhere: where, tailWhere: where, orderBy, offset, limit }),
+      // Per row, for the explorer's results strip (B1): 'title' = in the ranked title tier; everything
+      // else is 'aside' — the ranked 'aside' rows, the weak rows AND every row past the candidate pools
+      // (POOL_A + POOL_B), whose titles were never scored. 'aside' never means "the title does not match".
+      matchClassOf: (id) => (titleIds.has(id) ? 'title' : 'aside'),
+    }
   } catch (e) {
     console.error('[keyword-rank] ranking failed — serving the unranked feed order', e)
     return { keywordListings: null }

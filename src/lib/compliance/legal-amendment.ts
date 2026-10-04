@@ -3,8 +3,11 @@
 // ⛔ `published` MUST BE THE DAY THE AMENDMENT IS ACTUALLY DEPLOYED, NOT THE DAY IT WAS WRITTEN.
 // Deploys happen only on the owner's word (CLAUDE.md), so both dates are set on the deploy day, here
 // and nowhere else: /regulations (META + Article 17), /terms ("Last updated" + the change note),
-// /returns (meta, changes section), /prohibited, /privacy and /legal/ranking ("Last updated") read them.
+// /returns (meta, changes section), /prohibited and /privacy read them.
 // A page that typed its own date drifted from the others the first time one was corrected.
+// ⚠️ /legal/ranking NO LONGER READS THEM (2026-10-04): the ranking disclosure follows the CODE and changes
+// between amendments, so it prints its own date — RANKING_DISCLOSURE_UPDATED in ranking-disclosure.ts,
+// also set on the deploy day. Never move these dates to re-date that page.
 //
 // ⛔ `inForce` IS ALSO A RUNTIME SWITCH, NOT ONLY A PRINTED DATE. src/lib/site-legal.ts derives
 // TOS_EFFECTIVE_AT from it (midnight Vietnam time), and that instant decides which Terms version

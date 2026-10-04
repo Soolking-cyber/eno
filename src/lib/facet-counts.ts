@@ -347,6 +347,11 @@ export function releasedParams(
    * here the way buildFeedFilters reads them.
    */
   inferredDistrict?: string | null,
+  /**
+   * The feed scoped `q` to the items for sale because it was ONLY condition words ("second hand",
+   * "đồ cũ") — buildFeedFilters' `saleScopeFromWords`. Omitted, false: no feed decision, no write-back.
+   */
+  saleScopeFromWords?: boolean,
 ): URLSearchParams {
   const p = new URLSearchParams(searchParams)
   switch (dimension) {
@@ -427,6 +432,16 @@ export function releasedParams(
     const slug = inferredDistrict !== undefined ? inferredDistrict : inferDistrictFromQuery(searchParams.get('q'))?.slug
     if (slug) p.set('district', slug)
   }
+  /**
+   * ⛔ A QUERY OF CONDITION WORDS ONLY IS THE SALE SCOPE, AND SURVIVES THE TEXT BEING DROPPED — like the
+   * district above (review, 2026-10-04). The feed answers "second hand" / "đồ cũ" with the items for
+   * sale — exactly the `type=sell` filter (feed-query.ts) — and keeps that clause in its own facet base;
+   * without this, these bases, which never see `q`, would count rentals and jobs beside a grid of goods.
+   * The `type` rail is the one that releases it ("if you pick THIS type instead" — a picked type
+   * replaces the words' scope in the feed too). Condition words beside other words filter nothing, so
+   * there is nothing to write back. The flag is the feed's decision, never a fresh parse.
+   */
+  if (saleScopeFromWords && dimension !== 'type') p.set('type', 'sell')
   for (const k of [...PRESENTATION_PARAMS, ...TEXT_PARAMS]) p.delete(k)
   return p
 }
@@ -507,6 +522,11 @@ export type FacetCountOptions = {
    * from the words.
    */
   inferredDistrict?: string | null
+  /**
+   * The feed's `saleScopeFromWords` (feed-query.ts): `q` was only condition words, answered as the items
+   * for sale — so every chip but the type rail's is counted inside that scope. See releasedParams.
+   */
+  saleScopeFromWords?: boolean
   /**
    * Which rails to count. Omit to let `defaultDimensions()` pick from the active category — which
    * is what the route does, and what keeps a category with no brand rail from paying for one.
@@ -672,7 +692,7 @@ export function __clearFacetCountCache() {
  * condition fails LOUD rather than quietly publishing e-Visa SKUs on the licensed marketplace.
  */
 export async function computeFacetCounts(opts: FacetCountOptions): Promise<FacetCounts> {
-  const { searchParams, buildFilters, provinceValues, now, inferredDistrict } = opts
+  const { searchParams, buildFilters, provinceValues, now, inferredDistrict, saleScopeFromWords } = opts
   /** ONE reference instant for every time-window filter in every base (the route passes the feed's). */
   const refNow = now ?? new Date()
   const dimensions = opts.dimensions ?? defaultDimensions(searchParams)
@@ -681,7 +701,7 @@ export async function computeFacetCounts(opts: FacetCountOptions): Promise<Facet
   const baseFor = async (dimension: ReleaseKey): Promise<Prisma.ListingWhereInput[]> => {
     // The category dimension counts every category side by side, teachers included — the teacher
     // rows then land ONLY in the teachers bucket, so no other count moves (2026-09-30).
-    const { andFilters, pgTextFilter } = await buildFilters(releasedParams(searchParams, dimension, inferredDistrict), dimension === 'category' ? { includeTeachers: true, now: refNow } : { now: refNow })
+    const { andFilters, pgTextFilter } = await buildFilters(releasedParams(searchParams, dimension, inferredDistrict, saleScopeFromWords), dimension === 'category' ? { includeTeachers: true, now: refNow } : { now: refNow })
     return andFilters.filter((f) => f !== pgTextFilter)
   }
 

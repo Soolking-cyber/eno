@@ -21,6 +21,7 @@ import { computeFacetCounts, releasedParams, subcategoryDimension, subcategoryDr
 import { PROVINCE_NAMES_EN } from '@/lib/province-match'
 import { semanticRank } from './semantic-rank'
 import { keywordRank } from './keyword-rank'
+import type { MatchClass } from '@/lib/text-relevance'
 import { correctQuery } from '@/lib/spell-correct'
 import { fold } from '@/lib/fold'
 import { inferDistrictFromQuery } from '@/lib/district-query'
@@ -97,7 +98,7 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
   // ONE reference instant for the grid AND every count below, so a time-window filter (Posted) cannot
   // put the chips and the results on opposite sides of a 5-minute step (src/lib/posted-filter.ts).
   const now = new Date()
-  const { category, q, inferredDistrict, sort, featuredOnly, limit, offset, priceMin, priceMax, histogram, looseMatch, priorityCategory, andFilters, pgTextFilter, subcategoryFilter, where } =
+  const { category, q, inferredDistrict, sort, featuredOnly, limit, offset, priceMin, priceMax, histogram, looseMatch, priorityCategory, andFilters, pgTextFilter, saleScopeFromWords, subcategoryFilter, where } =
     await resolveFeedFilters(searchParams, { now })
 
   /**
@@ -173,7 +174,7 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
      * can drop the ones with nothing in them — measured 2026-09-25, 27 of 34 had no public row at all.
      * They are counted out of the `area` groupBy the rail already runs; no extra query.
      */
-    ? computeFacetCounts({ searchParams, buildFilters: buildFeedFilters, inferredDistrict, provinceValues: PROVINCE_NAMES_EN, now }).catch((e: unknown) => {
+    ? computeFacetCounts({ searchParams, buildFilters: buildFeedFilters, inferredDistrict, saleScopeFromWords, provinceValues: PROVINCE_NAMES_EN, now }).catch((e: unknown) => {
         facetsError = e
         return {} as FacetCounts
       })
@@ -196,6 +197,9 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
   // respecting the structural chips — condition, type, brand, model, price, district —
   // which is the actual bug: a count said "12" but clicking yielded 2 because those
   // were ignored. Counts now match what the click returns.
+  // ⚠️ A QUERY OF CONDITION WORDS ONLY ("second hand", "đồ cũ") IS THE SALE SCOPE (feed-query.ts,
+  // `saleScopeFromWords`): its `listingType: 'sell'` clause is structural and stays in this base, and
+  // releasedParams writes it back as `type=sell` into the bases computeFacetCounts builds without `q`.
   const facetBaseFilters = andFilters.filter((f) => f !== subcategoryFilter && f !== pgTextFilter)
   /**
    * A catalogue sold by many storefronts (Services › eSIM: nine carriers; the job boards) shares ONE
@@ -236,7 +240,7 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
     // and make siblings incomparable). `releasedParams(…, 'subcategory')` + the feed's own builder is
     // the path computeFacetCounts uses for every rail; with nothing dropped it is `facetBaseFilters`.
     subPlans = await Promise.all([...groups.values()].map(async (g) => {
-      const p = releasedParams(searchParams, 'subcategory', inferredDistrict)
+      const p = releasedParams(searchParams, 'subcategory', inferredDistrict, saleScopeFromWords)
       for (const k of g.drop) p.delete(k)
       return { targets: g.targets, base: (await buildFeedFilters(p, { now })).andFilters }
     }))
@@ -249,6 +253,15 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
     categoryTotalPromise = countListingsCached({ AND: subPlans?.find((pl) => pl.targets.includes(''))?.base ?? facetBaseFilters })
   }
 
+  /**
+   * Set when the lexical ranker answered this page: 'title' / 'aside' per row (keyword-rank.ts,
+   * text-relevance.ts MatchClass), for the explorer to say where the strong matches end (B1). Absent on
+   * browse, an explicit sort and the semantic path — the field is then simply not on the rows.
+   * ⚠️ WIRE CONTRACT: 'aside' means "not in the ranked title tier", NOT "the title does not match" —
+   * rows outside the ranker's candidate pools (best 600 + 300 title/aisle hits) are 'aside' too, even
+   * when their titles name every word (types.ts SerializedListingCard.matchClass).
+   */
+  let matchClassOf: ((id: string) => MatchClass) | undefined
   const promises: [
     Promise<any[]>,
     Promise<number>,
@@ -267,7 +280,10 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
        * ⚠️ Created here, inside the array the Promise.all below joins, with no await in between — the
        * unhandled-rejection note on `facetsPromise` applies to any promise left unwatched.
        */
-      : keywordRank({ q, looseMatch, featuredOnly, sort, offset, limit, where, orderBy }).then(({ keywordListings }) => keywordListings ?? (
+      : keywordRank({ q, looseMatch, featuredOnly, sort, offset, limit, where, orderBy }).then(({ keywordListings, matchClassOf: classOf }) => {
+        matchClassOf = classOf
+        return keywordListings
+      }).then((keywordListings) => keywordListings ?? (
       /**
        * ⚠️ INSIDE THE DIVERSITY WINDOW THE PAGE IS SLICED FROM A REORDERED WINDOW, NOT FROM SQL.
        * One seller's fourteen near-identical e-visa SKUs held positions 0-13 of this feed on
@@ -413,7 +429,10 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
       // lang comes from the QUERY (the client sends it only for non-en/vi) so the CDN cache
       // key varies with the payload — the cookie-read variant poisoned the shared edge
       // entry with whichever language hit first (audit P2).
-      listings: await localizeListingTitles(ordered.map(serializeListingCard), searchParams.get('lang') || undefined),
+      listings: await localizeListingTitles(
+        ordered.map((l) => (matchClassOf ? { ...serializeListingCard(l), matchClass: matchClassOf(l.id) } : serializeListingCard(l))),
+        searchParams.get('lang') || undefined,
+      ),
       total,
       offset,
       limit,

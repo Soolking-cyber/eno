@@ -37,11 +37,12 @@ import { useLanguage } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { SITE_NAME } from '@/lib/edition'
 import { LEGAL_BASIS } from '@/lib/compliance/legal-basis'
-import { AMENDED } from '@/lib/compliance/legal-amendment'
+import { dateEn, dateVi } from '@/lib/compliance/legal-amendment'
 import {
   browseFactors,
   searchFactors,
   FEATURED_BOOST_PCT,
+  RANKING_DISCLOSURE_UPDATED,
   type RankingFactor,
 } from '@/lib/compliance/ranking-disclosure'
 
@@ -72,9 +73,11 @@ export function RankingContent({ diversityWindow }: { diversityWindow: number })
     <ContentPage
       title="How we rank results"
       titleVi="Cách chúng tôi sắp xếp kết quả"
+      // ⚠️ THE PAGE'S OWN DATE (ranking-disclosure.ts RANKING_DISCLOSURE_UPDATED, set on deploy day), not the
+      // legal amendment's: this disclosure follows the code and changes between amendments.
       meta={tr(
-        `Published under ${LEGAL_BASIS.ecommerceLaw.en} · Last updated: ${AMENDED.publishedEn}`,
-        `Công bố theo ${LEGAL_BASIS.ecommerceLaw.vi} · Cập nhật lần cuối: ${AMENDED.publishedVi}`,
+        `Published under ${LEGAL_BASIS.ecommerceLaw.en} · Last updated: ${dateEn(RANKING_DISCLOSURE_UPDATED)}`,
+        `Công bố theo ${LEGAL_BASIS.ecommerceLaw.vi} · Cập nhật lần cuối: ${dateVi(RANKING_DISCLOSURE_UPDATED)}`,
       )}
       intro={tr(
         `${SITE_NAME} does not sell placement: no listing appears higher because someone paid for it. Category browsing and search results are the same for everyone; the two rails that can adapt to you, For You and Recently viewed, are explained below — and they adapt only while personalisation is on in your cookie settings.`,
@@ -110,12 +113,29 @@ export function RankingContent({ diversityWindow }: { diversityWindow: number })
           )}
         </p>
         <FactorList factors={searchFactors()} />
-        {/* keyword-rank.ts, header steps 1–4; feed-query.ts `priorityCategory` for the brand rule — a stable sort
-            of each returned PAGE (api/listings/route.ts, `ordered`), never across pages. */}
+        {/* keyword-rank.ts, header steps 1–4 (the title/model/brand tier before the category tier — text-relevance.ts
+            MatchClass); feed-query.ts `priorityCategory` for the brand rule — a stable sort of each returned PAGE
+            (api/listings/route.ts, `ordered`), never across pages.
+            ⚖️ UX PROGRAM 2 (2026-10-04) CHANGED THIS PAGE AND NOT THE QUY CHẾ. The title tier, the condition words
+            (next paragraph) and the vehicle storefronts' shared seat (#diversity) are NOT in Article 14
+            (/regulations#ranking): editing the filed, versioned Quy chế is an amendment (Article 15: 5 days'
+            notice, a new version, an Article 17 entry, MoIT re-filing once registered), which is the owner's
+            and counsel's call. Until they make it, Article 14 still says what it said on 01/10/2026. */}
         <p>
           {tr(
-            'With the default order, listings that contain every word you typed in their own title, model, brand or category come first, ranked by the score above; listings that match only elsewhere, such as in the description, follow in the browse order. Listings with exactly equal scores are interleaved by seller and by model. If you search for a brand while browsing a category, each page of results puts that brand’s listings in your category ahead of the rest of that page; no listing moves from one page to another.',
-            'Với thứ tự mặc định, các tin có đủ mọi từ bạn nhập trong tiêu đề, mẫu mã, thương hiệu hoặc danh mục của chính tin đó được xếp trước, theo điểm nêu trên; các tin chỉ khớp ở phần khác, như phần mô tả, được xếp sau theo thứ tự khi duyệt. Các tin bằng điểm nhau được xếp xen kẽ theo người bán và mẫu sản phẩm. Nếu bạn tìm một thương hiệu khi đang xem một danh mục, trong mỗi trang kết quả, tin của thương hiệu đó thuộc danh mục bạn đang xem được đưa lên trước các tin còn lại của trang; không tin nào bị chuyển từ trang kết quả này sang trang khác.',
+            'With the default order, listings come first when every word you typed is in their own title, model or brand, or is the name of the aisle they are listed in; then come listings that need their category for one of the words, each group ranked by the score above. Listings that match only elsewhere, such as in the description, follow in the browse order. Listings with exactly equal scores are interleaved by seller and by model. If you search for a brand while browsing a category, each page of results puts that brand’s listings in your category ahead of the rest of that page; no listing moves from one page to another.',
+            'Với thứ tự mặc định, các tin được xếp trước khi mọi từ bạn nhập đều có trong tiêu đề, mẫu mã hoặc thương hiệu của chính tin đó, hoặc là tên của mục mà tin được đăng; tiếp theo là các tin cần đến danh mục của tin để khớp một trong các từ, mỗi nhóm theo điểm nêu trên. Các tin chỉ khớp ở phần khác, như phần mô tả, được xếp sau theo thứ tự khi duyệt. Các tin bằng điểm nhau được xếp xen kẽ theo người bán và mẫu sản phẩm. Nếu bạn tìm một thương hiệu khi đang xem một danh mục, trong mỗi trang kết quả, tin của thương hiệu đó thuộc danh mục bạn đang xem được đưa lên trước các tin còn lại của trang; không tin nào bị chuyển từ trang kết quả này sang trang khác.',
+          )}
+        </p>
+        {/* search-synonyms.ts splitConditionWords → feed-query.ts: the words leave the text and filter NOTHING
+            (commit gate, 2026-10-04 — the wizard stores "Như mới" / like-new as 'new'); a query of condition
+            words only gets the sale scope (`listingType: 'sell'`, `saleScopeFromWords`); an explicit
+            `?condition=` applies as usual and an explicit `?type=` replaces the sale scope.
+            ⚠️ The English stays ≤ 400 characters (below). */}
+        <p>
+          {tr(
+            'Words that describe condition, such as “second hand”, “used”, “cũ” or “đồ cũ”, are not looked for in the listing text and do not filter by condition. A search made only of such words shows the items for sale. A condition or listing type you pick in the filters applies as usual.',
+            'Các từ chỉ tình trạng, như “second hand”, “used”, “cũ” hoặc “đồ cũ”, không được dùng để tìm trong nội dung tin và không lọc theo tình trạng. Nếu từ khoá chỉ gồm những từ này, kết quả là các món hàng đang được đăng bán. Tình trạng hoặc loại tin bạn tự chọn trong bộ lọc vẫn được áp dụng như bình thường.',
           )}
         </p>
         <p>
@@ -134,10 +154,12 @@ export function RankingContent({ diversityWindow }: { diversityWindow: number })
             `Ở trang chủ và khi bạn duyệt một danh mục theo thứ tự mặc định, ${diversityWindow} vị trí đầu tiên được chia lần lượt theo người bán: tin tốt nhất của mỗi người bán trước, rồi đến tin thứ hai của mỗi người bán, và cứ thế tiếp tục. Trong mỗi lượt, thứ tự theo điểm được giữ nguyên và không tin nào bị ẩn — chỉ là một người bán có nhiều tin không thể chiếm hết màn hình đầu.`,
           )}
         </p>
+        {/* ⚠️ THE ENGLISH STAYS ≤ 400 CHARACTERS: scripts/gen-ui-strings.mjs drops longer strings, and with them
+            the warmed translations the nine machine-translated languages read (the 2026-10-01 sentence fit). */}
         <p>
           {tr(
-            'eSIM plans from every mobile carrier share one seat in that rotation, and so do job postings linked from job boards, so that a catalogue split across many storefronts cannot take over the first page either. Open the eSIM aisle or the Jobs category itself and every carrier and job board gets its own seat again.',
-            'Các gói eSIM của mọi nhà mạng dùng chung một vị trí trong lượt chia đó, tin tuyển dụng dẫn từ các trang tuyển dụng cũng vậy, để một danh mục do nhiều gian hàng cung cấp cũng không chiếm hết trang đầu. Khi bạn mở riêng mục eSIM hoặc danh mục Việc làm, mỗi nhà mạng, mỗi trang tuyển dụng lại có vị trí riêng.',
+            'eSIM plans from every carrier share one seat in that rotation, as do job postings linked from job boards and vehicle rentals linked from rental platforms and shops, so that a catalogue split across many storefronts cannot take over the first page either. Open the eSIM aisle, the Jobs category or a vehicle rental aisle itself and every carrier, job board and rental shop gets its own seat again.',
+            'Các gói eSIM của mọi nhà mạng dùng chung một vị trí trong lượt chia đó, tin tuyển dụng dẫn từ các trang tuyển dụng và tin cho thuê xe dẫn từ các nền tảng, cửa hàng cho thuê xe cũng vậy, để một danh mục do nhiều gian hàng cung cấp cũng không chiếm hết trang đầu. Khi bạn mở riêng mục eSIM, danh mục Việc làm hoặc một mục cho thuê xe, mỗi nhà mạng, mỗi trang tuyển dụng, mỗi cửa hàng cho thuê xe lại có vị trí riêng.',
           )}
         </p>
       </ContentSection>

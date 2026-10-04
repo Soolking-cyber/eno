@@ -17,7 +17,8 @@ import { liveBrandCounts } from './live-brands'
 import { fold } from './fold'
 import { MODEL_LINEAGE } from '@/generated/model-lineage'
 import { TAXONOMY } from './taxonomy'
-import { SYNONYM_GROUPS } from './search-synonyms'
+import { SYNONYM_GROUPS, conditionWordMask } from './search-synonyms'
+import synonymData from '@/data/search-synonyms.json'
 
 /**
  * Optimal-string-alignment distance: Levenshtein plus the swap of two adjacent letters as ONE edit
@@ -138,10 +139,51 @@ export function __resetVocabCache() {
   vocabCache = null
 }
 
-/** The corrected, folded query, or null when no token needed (or found) a correction. */
+/**
+ * folded word → its ONE accented spelling in the bundled words (taxonomy names and keywords, the raw
+ * synonym file), so a corrected token can be shown the way the dictionary writes it ("thoai" → "thoại").
+ * ⚠️ ONLY WHEN UNAMBIGUOUS: a folded word with two accented spellings ("ban": "bàn" a table, "bán" to
+ * sell) or that also appears unaccented gets none — the folded word is shown rather than a guess.
+ */
+const ACCENTED: ReadonlyMap<string, string> = (() => {
+  const forms = new Map<string, Set<string>>()
+  const add = (text: string) => {
+    for (const w of text.normalize('NFC').toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
+      if (!w) continue
+      const f = fold(w)
+      const set = forms.get(f) ?? new Set<string>()
+      set.add(w)
+      forms.set(f, set)
+    }
+  }
+  for (const cat of TAXONOMY) {
+    add(cat.name); add(cat.nameVi)
+    for (const sub of cat.subcategories) for (const t of [sub.name, sub.nameVi, ...sub.keywords]) add(t)
+  }
+  for (const g of synonymData.groups as { terms: string[] }[]) for (const t of g.terms) add(t)
+  const out = new Map<string, string>()
+  for (const [f, set] of forms) if (set.size === 1 && !set.has(f)) out.set(f, [...set][0])
+  return out
+})()
+
+/**
+ * The corrected query, or null when no token needed (or found) a correction.
+ * Every word that was NOT corrected comes back exactly as typed — case and accents ("tủ lạnh samsng" →
+ * "tủ lạnh samsung"); a corrected word comes back in its dictionary spelling when one is known
+ * (ACCENTED), else folded like the vocabulary. The feed folds whatever it is sent, so this only changes
+ * what the reader is shown (the typeahead's "did you mean", the results' "Showing results for").
+ * ⛔ THE CONDITION WORDS ("second hand", "used", "cũ", "đồ cũ" — search-synonyms.ts conditionWordMask)
+ * ARE NEVER CANDIDATES. Measured on the bundled vocabulary, "second hand sofaa" came back "second han
+ * sofa" (`hand` is one edit from the word `han`), which no longer says second-hand; and folded, "cũ"
+ * would be the `cu` of Củ Chi — a word the feed must match, not one it leaves out.
+ */
 export async function correctQuery(raw: string): Promise<string | null> {
-  const tokens = fold(raw).split(/\s+/).filter(Boolean)
+  // Word by word, so each folded token stays beside the word it came from (fold keeps the word count).
+  const words = raw.normalize('NFC').trim().split(/\s+/).filter((w) => fold(w))
+  const condition = conditionWordMask(words)
+  // A condition word goes in as '' — never a candidate — and so comes back unchanged.
+  const tokens = words.map((w, i) => (condition[i] ? '' : fold(w)))
   if (!tokens.some((t) => CANDIDATE.test(t))) return null
   const fixed = correctTokens(tokens, await buildVocab())
-  return fixed ? fixed.join(' ') : null
+  return fixed ? fixed.map((t, i) => (t === tokens[i] ? words[i] : ACCENTED.get(t) ?? t)).join(' ') : null
 }

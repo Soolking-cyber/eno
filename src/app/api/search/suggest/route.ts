@@ -10,13 +10,15 @@ import { hasPlainTextFallback, inferDistrictFromQuery, type DistrictInference } 
 import { districtScopeForSlug } from '@/lib/district-slug'
 import { textClauses } from '@/lib/search-match'
 import { parseSearchQuery } from '@/lib/text-relevance'
+import { splitConditionWords } from '@/lib/search-synonyms'
 import { diversifyRail } from '@/lib/feed-diversity'
 import { displayPriceUnit } from '@/lib/price-unit'
 import { UNLINKED_CATEGORIES } from '@/lib/retired-categories'
 import { liveBrandCounts } from '@/lib/live-brands'
 import { RANK_SELECT, rankCandidates, relevanceOrder } from '@/app/api/listings/keyword-rank'
 import type { Prisma } from '@/generated/prisma/client'
-import { ENTITY_GRACE_MS, brandWhere, lineCandidates, lineStats, pickScope, rankBrands, scopeGroups, settledWithin, type ScopeGroup } from './suggest-entities'
+import { ENTITY_GRACE_MS, aisleEvidence, brandWhere, hasMarks, lineCandidates, lineStats, pickScope, rankBrands, scopeGroups, settledWithin, type ScopeGroup } from './suggest-entities'
+import { correctQuery } from '@/lib/spell-correct'
 
 export const runtime = 'nodejs'
 
@@ -48,14 +50,16 @@ export const runtime = 'nodejs'
 // ⚠️ ADDITIVE WIRE CHANGE, 2026-09-29 (S-TYPEAHEAD): every payload, the empty ones included, also
 // carries `lines` ([] when none) and `scope` (null when none). Both are optional rows and fail soft —
 // a failed line or aisle read drops the row, never the response (suggest-entities.ts).
+// ⚠️ ADDITIVE WIRE CHANGE, 2026-10-04 (UX program 2): every payload also carries `didYouMean` (null when
+// none) — a corrected query for a typo that suggests nothing. Optional like the rows above; fails soft.
 export const GET = route({ auth: 'public' }, async ({ req }) => {
   const q = (new URL(req.url).searchParams.get('q') || '').trim().slice(0, 80)
-  if (q.length < 2) return NextResponse.json({ q, listings: [], categories: [], brands: [], lines: [], scope: null })
+  if (q.length < 2) return NextResponse.json({ q, listings: [], categories: [], brands: [], lines: [], scope: null, didYouMean: null })
 
   // Public + unindexed-ILIKE per keystroke → IP throttle to bound DB amplification.
   const ip = clientIp(req)
   const rl = await rateLimit('search-suggest', ip, 120, '1 m')
-  if (!rl.success) return NextResponse.json({ q, listings: [], categories: [], brands: [], lines: [], scope: null })
+  if (!rl.success) return NextResponse.json({ q, listings: [], categories: [], brands: [], lines: [], scope: null, didYouMean: null })
 
   const folded = fold(q)
   /**
@@ -65,14 +69,22 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
    * returns, so it reads the query the way the feed now does: district scope, remaining words as text.
    */
   const inferred = inferDistrictFromQuery(q)
-  /** The words the typeahead searches for, read with its district (`reading`) or as plain words (null). */
-  const textFor = (reading: DistrictInference | null) => (reading ? reading.rest : q)
+  /**
+   * The words the typeahead searches for, read with its district (`reading`) or as plain words (null),
+   * WITHOUT the condition words — the feed's own split (feed-query.ts, search-synonyms.ts
+   * splitConditionWords): "second hand furniture" previews "furniture", whatever its condition.
+   */
+  const textFor = (reading: DistrictInference | null) => splitConditionWords(reading ? reading.rest : q).rest
+  const askedCondition = splitConditionWords(q).used
   /** The typeahead's WHERE for the query read with its district (`reading`) or as plain words (null). */
   const whereFor = async (reading: DistrictInference | null) => {
     // ⛔ THE FEED'S OWN TEXT FILTER (src/lib/search-match.ts): one clause per unit — a short token at
     // a word start, a synonym phrase as one unit — ANDed so multi-word typeahead narrows exactly as
     // Enter does.
     const searchAnd: Prisma.ListingWhereInput[] = textClauses(fold(textFor(reading)))
+    // Condition words filter nothing; ALONE they are the feed's goods browse — the items for sale
+    // (feed-query.ts `saleScopeFromWords`; no explicit type chip exists here).
+    if (askedCondition && !textFor(reading)) searchAnd.push({ listingType: 'sell' })
     const districtScope = reading ? await districtScopeForSlug(reading.slug) : null
     if (districtScope) searchAnd.push(districtScope)
     return scopedListingWhere({ verified: true, status: 'active', AND: searchAnd })
@@ -99,7 +111,12 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
       try { images = JSON.parse(l.images || '[]') } catch { /* ignore */ }
       return { ...l, images: Array.isArray(images) ? images : [] }
     })
-    return diversifyRail(withCovers, { take: 6, perSeat: Infinity, modelScope: 'global', sharedSeats: false, interleave: false })
+    return {
+      picked: diversifyRail(withCovers, { take: 6, perSeat: Infinity, modelScope: 'global', sharedSeats: false, interleave: false }),
+      // Which aisles' candidates NAME the words in their title — the scoped row's ranking (pickScope).
+      evidence: aisleEvidence(rows, query),
+      marked: query.typed.some(hasMarks),
+    }
   }
   // Brand matching key ("Louis V" → "louisv") so a spaced prefix still hits "louisvuitton".
   const brandKey = normalizeBrand(q)
@@ -140,15 +157,15 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
         ))
         .catch((e: unknown) => { console.error('[suggest] brand chips read failed — no brand chips', e); return [] })
     : Promise.resolve([])
-  const [listings, allCategories] = await Promise.all([
+  const [{ picked: listings, evidence, marked }, allCategories] = await Promise.all([
     /**
      * ⛔ THE FEED'S SAFETY NET, HERE TOO (resolveFeedFilters in feed-query.ts): a district reading that
      * suggests nothing while the plain words would ("Hồi ức Phú Nhuận", a book) falls back to the
      * plain words, so the preview never shows less than Enter returns. A second query only on that
      * empty path; never for a bare numbered district (hasPlainTextFallback).
      */
-    suggestFor(suggestWhere, textFor(inferred)).then(async (rows) =>
-      rows.length === 0 && inferred && hasPlainTextFallback(inferred) ? suggestFor(await whereFor(null), textFor(null)) : rows),
+    suggestFor(suggestWhere, textFor(inferred)).then(async (res) =>
+      res.picked.length === 0 && inferred && hasPlainTextFallback(inferred) ? suggestFor(await whereFor(null), textFor(null)) : res),
     // Categories are a tiny fixed set — fetch once and match on FOLDED text in JS
     // so accent-free input ("can ho") matches "Căn hộ", consistent with the
     // accent-insensitive listing search (and one fewer DB round-trip per keystroke).
@@ -180,7 +197,46 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
     })
     .sort((a, b) => b.count - a.count)
     .slice(0, 2)
-  const scope = pickScope(groups, categoriesById)
+  /**
+   * ⛔ THE AISLE MUST BE ONE THE WORDS NAME (disc-08(a), tủ/ban — UX program 2). By count alone, "tủ"
+   * (a cabinet) offered Rentals › Car: folded to `tu` it is the "tự" of every "thuê xe tự lái", and
+   * 6,000 self-drive cars outnumber every cabinet. The row now waits for a whole word, prefers the
+   * aisles whose rows say the words as typed (marks kept), and is dropped when the best listing
+   * suggestions all sit in another category.
+   */
+  const topCategories = [...new Set(listings.slice(0, 3).map((l) => l.category.slug))]
+  // ⛔ A QUERY OF CONDITION WORDS ONLY ("đồ cũ", "second hand") GETS NO AISLE ROW: nothing names an aisle, and an
+  // empty word list would count every row as naming it (commit-gate review 2026-10-04). Judged on the RAW typed
+  // words — a district-only query ("Quận 7") also leaves no text units, and it keeps its row.
+  const conditionOnly = (() => { const s = splitConditionWords(q); return s.used && !s.rest.trim() })()
+  const scope = conditionOnly ? null : pickScope(groups, categoriesById, { q, evidence, marked, topCategories })
+  /**
+   * "DID YOU MEAN" — a typo that finds nothing (research-typeahead: "iphnoe", "samsng" offered no row
+   * at all). ⛔ ONLY WHEN NOTHING ELSE MATCHED: no listing, no brand, no category, no product line, no
+   * scoped row — and never for a district query (its words are district-query.ts's). A correction must
+   * itself find a live row: the feed's own corrector (src/lib/spell-correct.ts — what /api/listings
+   * answers a zero with), one cached vocabulary, one LIMIT-1 read. O-44 holds: nothing is logged.
+   * Fails soft to no row.
+   * ⚠️ THE CHECK READS THE CORRECTION THE WAY ENTER WILL: condition words out of the text, filtering
+   * nothing (splitConditionWords, as `whereFor` above). The corrector keeps every word it did not
+   * correct exactly as typed ("tủ lạnh samsng" → "tủ lạnh samsung"), so the row reads in the reader's
+   * own spelling.
+   */
+  const nothingElse = listings.length === 0 && brands.length === 0 && categories.length === 0
+    && lineRows.length === 0 && !scope && !inferred
+  const didYouMean = nothingElse
+    ? await correctQuery(q)
+        .then(async (fixed) => {
+          if (!fixed || fold(fixed) === folded) return null
+          const words = splitConditionWords(fixed)
+          const hit = await db.listing.findFirst({
+            where: await scopedListingWhere({ verified: true, status: 'active', AND: textClauses(fold(words.rest)) }),
+            select: { id: true },
+          })
+          return hit ? fixed : null
+        })
+        .catch((e: unknown) => { console.error('[suggest] did-you-mean failed — no row', e); return null })
+    : null
 
   return NextResponse.json(
     {
@@ -198,6 +254,8 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
       brands: brands.map((b) => ({ slug: b.slug, name: b.name })),
       lines: lineRows,
       scope,
+      // ⚠️ ADDITIVE WIRE FIELD (UX program 2): the corrected, folded query, or null.
+      didYouMean,
     },
     // Public verified+active data only → safe to let the CDN absorb repeat
     // prefixes (hot terms like "ho"/"xe"), matching the /api/listings policy.

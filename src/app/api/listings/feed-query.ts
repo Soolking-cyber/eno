@@ -21,6 +21,7 @@ import { districtScopeForSlug } from '@/lib/district-slug'
 import { hasPlainTextFallback, inferDistrictFromQuery, strippedUnderExplicitDistrict, type DistrictInference } from '@/lib/district-query'
 import { parseRadiusParams, radiusWhere } from '@/lib/geo-radius'
 import { conditionWhere } from '@/lib/listing-condition'
+import { splitConditionWords } from '@/lib/search-synonyms'
 import { provinceWhere, wardWhere } from '@/lib/province-match'
 import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
 import { HOME_RENTAL_SUBCATS, HOMES_ONLY_PARAM } from '@/lib/rental-homes'
@@ -338,7 +339,28 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
   }
   /** What is left of `q` for the text filter and for semantic ranking; undefined when nothing is. */
   const stripped = phrase && (!explicitDistrict || strippedUnderExplicitDistrict(phrase)) ? phrase : null
-  const textQ = stripped ? stripped.rest || undefined : q
+  const afterDistrict = stripped ? stripped.rest || undefined : q
+  /**
+   * ⛔ CONDITION WORDS LEAVE THE TEXT — AND FILTER NOTHING (field-03; search-synonyms.ts
+   * splitConditionWords). "second hand furniture" found 2 unrelated rows because `second` and `hand`
+   * had to appear in the text; now it is "furniture".
+   * ⛔ NO CONDITION NARROWING (decision at the commit gate, 2026-10-04): the post wizard labels the stored
+   * value 'new' "Mới / Như mới" (new / LIKE NEW), so members' like-new second-hand items are stored as
+   * condition='new'. A "not new" filter dropped exactly those from "iphone cũ" and "second hand
+   * furniture" — backwards on a second-hand catalogue. The words are simply not text.
+   * A query that was ONLY condition words ("second hand", "đồ cũ") is the goods browse: the items for
+   * sale (`listingType: 'sell'`), whatever their condition — not rentals, jobs or services.
+   * ⚠️ AN EXPLICIT `?condition=` APPLIES AS USUAL (above), and an explicit `?type=` replaces the words'
+   * sale scope (below): the reader's pick is the pick.
+   * ⚠️ THE SALE SCOPE IS STRUCTURAL, LIKE A DISTRICT READ OUT OF THE WORDS. It stays in the route's facet
+   * base, and `saleScopeFromWords` tells releasedParams (facet-counts.ts) to write it back as `type=sell`
+   * into the bases that never see `q`, so every chip counts what the grid shows.
+   */
+  const conditionWords = afterDistrict ? splitConditionWords(afterDistrict) : { rest: '', used: false }
+  const textQ = conditionWords.used ? conditionWords.rest || undefined : afterDistrict
+  const pickedType = searchParams.get('type')?.trim()
+  const saleScopeFromWords = conditionWords.used && !textQ && (!pickedType || pickedType === 'all')
+  if (saleScopeFromWords) andFilters.push({ listingType: 'sell' })
 
   /**
    * RADIUS — "within N km of this point", resolved in the DATABASE.
@@ -595,6 +617,8 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
     priorityCategory,
     andFilters,
     pgTextFilter,
+    /** The query was only condition words: the sale scope (`listingType: 'sell'`) is applied — see above. */
+    saleScopeFromWords,
     subcategoryFilter,
     where,
   }

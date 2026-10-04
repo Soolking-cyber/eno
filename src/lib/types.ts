@@ -20,6 +20,16 @@ export type SerializedCategory = {
 // superset, so a full listing is always assignable where a card is expected.
 export type SerializedListingCard = {
   /**
+   * Only on a keyword search's default-order page answered by the lexical ranker
+   * (api/listings/keyword-rank.ts): 'title' = the row is IN THE RANKED TITLE TIER — it names every word,
+   * in its own title, model or brand or as the name of its own aisle (text-relevance.ts MatchClass);
+   * 'aside' = it is NOT in that tier. ⚠️ 'aside' IS NOT "the title does not match": the ranker scores
+   * only its candidate pools (the query's best 600 rows by rankScore plus up to 300 title/aisle hits), so
+   * a row past them is 'aside' even when its title names every word. The 'title' rows come first, so
+   * the first 'aside' row is where the ranked strong matches end — read it as that, nothing more.
+   */
+  matchClass?: 'title' | 'aside'
+  /**
    * ⚠️ The partner project this unit belongs to, or null. Lets the map draw ONE pin per building
    * for grouped rentals while every other listing keeps its own pin — see LISTING_CARD_SELECT.
    */

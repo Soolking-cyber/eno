@@ -51,6 +51,9 @@ export function useSearchSuggest(query: string, enabled: boolean) {
   const [brands, setBrands] = useState<SuggestBrand[]>([])
   const [lines, setLines] = useState<SuggestLine[]>([])
   const [scope, setScope] = useState<SuggestScope | null>(null)
+  // The corrected query for a typo that suggests nothing ("iphnoe" → "iphone"), or null. Actionable like
+  // `lines`/`scope`, so it is gated on `entityQ` the same way.
+  const [didYouMean, setDidYouMean] = useState<string | null>(null)
   // The query `lines`/`scope` answered. They are ACTIONABLE rows ("Search in Sofas"), so unlike the listing
   // previews they are never shown for a different query — not during the debounce, not after a failed fetch
   // (gate 2026-09-30: typing "iphone" after "sofa" offered the Sofa scope).
@@ -68,7 +71,7 @@ export function useSearchSuggest(query: string, enabled: boolean) {
 
   useEffect(() => {
     if (!enabled || queryLength(q) < INSTANT_MIN_CHARS) {
-      setListings([]); setCategories([]); setBrands([]); setLines([]); setScope(null)
+      setListings([]); setCategories([]); setBrands([]); setLines([]); setScope(null); setDidYouMean(null)
       return
     }
     const ac = new AbortController()
@@ -82,6 +85,8 @@ export function useSearchSuggest(query: string, enabled: boolean) {
           // Additive fields (2026-09-29): an older cached payload has neither, and reads as none.
           setLines(Array.isArray(d.lines) ? d.lines : [])
           setScope(d.scope && typeof d.scope === 'object' ? d.scope : null)
+          // Additive (2026-10-04): an older cached payload has none.
+          setDidYouMean(typeof d.didYouMean === 'string' && d.didYouMean ? d.didYouMean : null)
           setEntityQ(q)
           setResults({ q, listings: d.listings || [], categories: d.categories || [] }) // marks this q as fetched → clears loading
         })
@@ -91,5 +96,5 @@ export function useSearchSuggest(query: string, enabled: boolean) {
   }, [q, enabled])
 
   const fresh = entityQ === q
-  return { listings, categories, brands, lines: fresh ? lines : [], scope: fresh ? scope : null, loading }
+  return { listings, categories, brands, lines: fresh ? lines : [], scope: fresh ? scope : null, didYouMean: fresh ? didYouMean : null, loading }
 }
