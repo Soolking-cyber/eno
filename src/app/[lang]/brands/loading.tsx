@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 // so the skeleton swaps to content with zero layout shift.
 export default function BrandsLoading() {
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         {/* Breadcrumb (text-sm → 20px line) */}

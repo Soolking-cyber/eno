@@ -61,7 +61,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
 
   return (
     // `data-error-page`: the "Join eno" prompt never asks on a page that just failed (src/lib/signup-prompt.ts).
-    <div data-error-page="" className="flex min-h-screen flex-col">
+    <div data-error-page="" className="flex min-h-page flex-col">
       <ChromeGuard>
         <Header />
       </ChromeGuard>

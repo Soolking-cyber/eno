@@ -58,7 +58,7 @@ function Endpoint({ method, path, desc, children }: { method: string; path: stri
 
 export default function DevelopersPage() {
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 pt-10 pb-16 sm:px-6 lg:px-8">
         {/* No "<site> API" kicker above the h1: API_NAME already leads with the product name, and

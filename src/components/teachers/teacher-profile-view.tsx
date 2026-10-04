@@ -71,7 +71,7 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
   })
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-page flex-col">
       {indexable && ld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(ld) }} />}
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">

@@ -44,7 +44,9 @@ export function AffiliateCodeCopy({ code }: { code: string }) {
        */
       className="press tap-44 relative group flex w-full items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-card px-4 py-3 text-left transition-colors hover:border-foreground/30"
     >
-      <span className="font-mono text-base font-semibold tracking-[0.18em] text-foreground">{code}</span>
+      {/* `allow-select`: buttons are unselectable app-wide (globals.css), but this text is the code
+          itself — selecting it by hand is the fallback when the clipboard write is refused. */}
+      <span className="allow-select font-mono text-base font-semibold tracking-[0.18em] text-foreground">{code}</span>
       <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-body">
         {copied ? <Check className="size-4 text-success" aria-hidden /> : <Copy className="size-4" aria-hidden />}
         {copied ? tr('Copied') : tr('Copy')}

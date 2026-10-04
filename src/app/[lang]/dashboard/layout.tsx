@@ -11,7 +11,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     // Styling-only Gemini touch (owner 2026-07-16): the SAME structure (Header + section + Footer
     // + the global nav rail) — just floated on the serene radial-blue `dashboard-canvas` instead of
     // a flat bg, so the dashboard *feels* calmer without changing the layout or navigation.
-    <div className="dashboard-canvas flex min-h-screen flex-col">
+    <div className="dashboard-canvas flex min-h-page flex-col">
       {/* iOS notch backdrop (owner 2026-07-18): the site header auto-hides on scroll and
           the mobile SectionHeader pins BELOW the notch, so on a native/notched device the
           status-bar strip would otherwise show scrolled content through it. This fixed,

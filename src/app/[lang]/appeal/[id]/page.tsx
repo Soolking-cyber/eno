@@ -60,7 +60,7 @@ export default function AppealPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-lg flex-1 px-3 py-10 sm:px-6 lg:px-8">
         {loading ? (

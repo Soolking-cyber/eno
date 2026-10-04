@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ lang: str
 
 export default function RentalCheckPage() {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-page flex-col">
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-4 pb-16 pt-6 sm:px-6">
         <RentalCheckView />

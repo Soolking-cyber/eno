@@ -332,7 +332,7 @@ export default async function Storefront({ params }: Props) {
   })
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       {/* `<` escaping matches every other JSON-LD emitter in the app: a `<` inside a listing
           title would otherwise be able to close this script tag. */}
       {ld.map((node, i) => (

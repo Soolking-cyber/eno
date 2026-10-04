@@ -211,7 +211,7 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
   }
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       {content.faqs.length > 0 && (
         <script
           type="application/ld+json"

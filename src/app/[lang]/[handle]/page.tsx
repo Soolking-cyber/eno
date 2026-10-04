@@ -188,7 +188,7 @@ export default async function HandlePage({ params }: Props) {
   const memberYear = new Date(row.profile.createdAt).getFullYear()
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-12">
         <div className="mx-auto max-w-md rounded-2xl bg-popover p-8 text-center shadow-xs">

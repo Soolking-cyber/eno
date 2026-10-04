@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 export default async function TeacherJoinPage() {
   const draftHost = isTeacherHost((await headers()).get('host'), APP_URL)
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-page flex-col">
       {draftHost ? <TeacherHostHeader apexOrigin={apexOrigin(APP_URL)} /> : <Header />}
       <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         <noscript>

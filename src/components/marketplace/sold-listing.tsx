@@ -46,7 +46,7 @@ export function SoldListing({
   const homeHref = localizedHref('/', lang)
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       <Header />
       {/* ⛔ BELOW sm THE ALTERNATIVES COME BEFORE THE BUTTONS (pdp-06 / auth-07). The 208px mascot, the
           H1 and three CTAs filled the first screen, and the first similar card started under the tab bar

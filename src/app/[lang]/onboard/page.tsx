@@ -80,7 +80,7 @@ export default async function OnboardPage({
   return (
     <Suspense
       fallback={
-        <main id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center">
+        <main id="main" tabIndex={-1} className="flex min-h-page items-center justify-center">
           <EnoLoader />
         </main>
       }

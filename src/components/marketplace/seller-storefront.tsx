@@ -373,7 +373,7 @@ export async function SellerStorefront({ id }: { id: string }) {
   const isAffiliatePartner = seller._count.listings > 0 && chatListingId === null
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       <ScrollToTop />
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">

@@ -11,7 +11,7 @@ import { DisputesPanel } from '@/components/marketplace/disputes-panel'
 
 export default function DisputesPage() {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-page flex-col">
       <Header />
       {/* Same max-w-7xl content width as the dashboard/header so the standalone page
           matches the dashboard Disputes tab (the list is already 2-col on desktop). */}

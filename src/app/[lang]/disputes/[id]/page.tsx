@@ -211,7 +211,7 @@ export default function DisputeRoomPage() {
   const stageIndex = data ? (data.stage === 'evidence' ? 1 : data.stage === 'review' ? 2 : 3) : 0
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-page flex-col">
       <Header />
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
         {loading ? (

@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: `Your teacher profile | ${SITE_NAME}`
 // /api/teachers/me (the page itself carries no personal data, so it can be static).
 export default function TeacherEditPage() {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-page flex-col">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         <TeacherForm mode="edit" draftHost={false} apexOrigin={apexOrigin(process.env.NEXT_PUBLIC_APP_URL)} />

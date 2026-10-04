@@ -13,7 +13,7 @@ import { LISTING_GRID } from '@/components/marketplace/listing-grid'
 // is "these two agree until the real number is known". They were 8 and 2.
 export default function SavedLoading() {
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         {/* h-title + count line — measured on the rendered page: the <h1> line box is

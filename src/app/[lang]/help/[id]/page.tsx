@@ -131,7 +131,7 @@ export default async function HelpThreadPage({ params }: Params) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       {/* JSON.stringify of a locally built object — no user HTML reaches this sink. */}
       {/**
         * ⛔ `<` IS ESCAPED, AND JSON.stringify DOES NOT DO IT FOR YOU. Help threads are DB rows — a body

@@ -43,7 +43,7 @@ function SectionSkeleton({ titleW, hintW, hintWrap, children }: { titleW: string
  */
 export default function PostLoading() {
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         {/* The wizard's own end-of-form reserve below lg: <StickyActionBarSpacer /> (its 4.5rem

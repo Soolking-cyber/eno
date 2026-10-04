@@ -185,7 +185,7 @@ export default async function HcmcRentIndexPage({ params }: { params: Promise<{ 
   const htmlSnippet = `<a href="${URL_}">HCMC Rent Index, ${SITE_NAME} (${citedMonth})</a>`
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       {jsonLd(index, lang).map((node, i) => (
         <script
           key={i}

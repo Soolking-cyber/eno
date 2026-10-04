@@ -42,7 +42,7 @@ const PILOTED = VI_PILOT.live.includes('/')
  */
 export default function HomeLayout({ children, params }: { children: React.ReactNode; params: Promise<{ lang: string }> }) {
   return (
-    <div className="flex min-h-screen flex-col home-wash">
+    <div className="flex min-h-page flex-col home-wash">
       {/* ⛔ PULL-TO-REFRESH WAS REMOVED HERE ON 2026-09-19 — owner: "pull down to refresh is too
           sensitive remove it for now". It fired on ordinary downward flicks near the top of the feed,
           which on a browse surface costs a scroll every time it misreads one.

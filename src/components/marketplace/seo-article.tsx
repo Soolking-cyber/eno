@@ -379,7 +379,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(articleLd) }} />
       {content.faqs.length > 0 && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(faqLd) }} />

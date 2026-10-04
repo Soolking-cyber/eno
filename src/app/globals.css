@@ -16,6 +16,29 @@
    SOMETHING, because touch devices emit a synthetic mouseenter on tap — an ungated
    hover affordance fires under the thumb. */
 @custom-variant hover-pointer (@media (hover: hover) and (pointer: fine));
+/* `min-h-page` — A PAGE SHELL'S MINIMUM HEIGHT: THE SMALL VIEWPORT, WITH A `vh` FALLBACK (mobile-native
+   pass, 2026-10-05). `min-h-screen` is `100vh`, which on a phone is the LARGEST viewport (URL bar
+   collapsed): with the bar showing, every short page — sign-in, 404, an empty /saved — overflowed by the
+   bar's height, scrolled for no reason and pushed its footer under the toolbar, and centred content sat
+   half a bar too low. `100svh` is the viewport with the browser chrome visible, so a short page fits.
+   ⚠️ `svh`, NOT `dvh`, AND BOTH WERE TRIED. Each has an edge in the band of pages taller than the small
+   viewport but shorter than the large one. `svh` is static: once the bar has collapsed, such a page ends
+   above the bottom edge — on the SAME colour, because html/body paint the floor every shell paints
+   (measured, light rgb(248,251,254) and dark rgb(28,29,31)). `dvh` relayouts as the bar moves: the
+   minimum grows past the content mid-scroll, the scroll range collapses to zero and the bar can toggle
+   back. A static, same-colour gap beats a moving layout, so this stays on the unit that never moves.
+   ⚠️ THE FALLBACK IS NOT DECORATION. Tailwind's `min-h-svh` emits `100svh` alone; an engine without
+   small-viewport units (Android WebView < 108 — in-app browsers on old phones) drops the declaration
+   and the shell loses its minimum entirely. Here such an engine keeps `100vh`, exactly as before.
+   ⚠️ `@supports`, NOT two stacked declarations: lightningcss compiles for the browserslist floor, every
+   member of which has `svh`, and is free to delete a `vh` line it considers a redundant fallback. The
+   built CSS keeps both rules, in order (checked). */
+@utility min-h-page {
+  min-height: 100vh;
+  @supports (min-height: 100svh) {
+    min-height: 100svh;
+  }
+}
 /* Base UI emits data-orientation="vertical|horizontal". WITHOUT these two lines,
    Tailwind reads `data-vertical:w-px` as the built-in bare-attribute variant and
    compiles it to `[data-vertical]` — an attribute Base UI never sets. Every rule in
@@ -1048,6 +1071,22 @@
      killed via -webkit-tap-highlight-color on <html> above (it inherits). */
   a, button, [role="button"], summary {
     touch-action: manipulation;
+  }
+  /* A held finger on a control must not select its LABEL (mobile-native pass, 2026-10-05): Android
+     Chrome turns a long-press on button text into a word selection with handles and a toolbar, and
+     the tap that was meant never fires. Controls only — never `body`, never links (a long-press on a
+     link is the web's "open in new tab", and link text is often content). `html.native` already does
+     this app-wide further down; this is the web's narrower half of the same rule.
+     ⚠️ Unprefixed on purpose: lightningcss emits the `-webkit-` twin Safari needs (see the
+     backdrop-filter note — hand-writing both can drop the standard one).
+     ⚠️ CONTENT THAT LIVES INSIDE A CONTROL OPTS BACK IN with `.allow-select` — the partner discount
+     code is the case: its copy button's fallback, when the clipboard is refused, is selecting the
+     code by hand. */
+  button, [role="button"] {
+    user-select: none;
+  }
+  .allow-select {
+    user-select: text;
   }
   /* type="search" gives us role=searchbox + enterKeyHint="search", but our search
      bars ship a custom Clear button — suppress the duplicate native one. */

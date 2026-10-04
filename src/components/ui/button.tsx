@@ -147,8 +147,11 @@ const buttonVariants = cva(
          * site instead of here.
          * ⚠️ STICKY `:hover` ON TOUCH IS REAL AND IS NOT FULLY EXCLUDED — stated carefully, because
          * an earlier version of this note claimed it was and all three reviewers corrected it.
-         * Mobile browsers keep `:hover` on the last-tapped element, and Tailwind emits
-         * `.hover\:bg-primary:hover` OUTSIDE any `@media (hover:hover)` (read from the built CSS).
+         * Mobile browsers keep `:hover` on the last-tapped element. (A correction, 2026-10-05: this
+         * note used to say Tailwind emits `.hover\:bg-primary:hover` OUTSIDE any hover media query.
+         * Walking the built CSS's block structure shows 0 of 114 hover rules outside one — the claim
+         * was a misread of minified text. The `(hover: hover)` gate is real; it just cannot see the
+         * 2-in-1 below.)
          * PHONES ARE OUT: this button sits in `mobile:hidden pc:contents`, and `pc` is
          * `(min-width: 64rem) and (pointer: fine)`, so a phone never renders it — it gets the
          * bottom-nav Post coin. A TOUCHSCREEN LAPTOP IS NOT: `pointer: fine` describes the PRIMARY

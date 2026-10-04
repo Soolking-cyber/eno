@@ -12,7 +12,7 @@ import { Footer } from '@/components/marketplace/footer'
 // re-checks getAdmin() server-side (never trust a layout gate).
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-page flex-col">
       <Header />
       {children}
       <Footer />

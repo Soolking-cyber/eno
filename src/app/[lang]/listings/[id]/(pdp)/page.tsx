@@ -691,7 +691,7 @@ export default async function ListingPage({ params }: Props) {
   )
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       {/* JSON-LD — indexable listings only (no rich snippets for hidden/sold/pending) */}
       {indexable && (
         <>

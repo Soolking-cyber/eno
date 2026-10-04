@@ -60,7 +60,7 @@ function SignInPageInner() {
        anchor keeps everything above the form still; `max(3rem, 10dvh)` keeps the plain, airy frame. */
     /* `<main id="main" tabIndex={-1}>` (quality-12): the skip link targets #main on every page, and this one
        had no main landmark at all — the skip link went nowhere and a screen reader found no main region. */
-    <main id="main" tabIndex={-1} className="flex min-h-screen w-full flex-col items-center justify-start px-6 pb-12 pt-[max(3rem,10dvh)]">
+    <main id="main" tabIndex={-1} className="flex min-h-page w-full flex-col items-center justify-start px-6 pb-12 pt-[max(3rem,10dvh)]">
       <div className="w-full max-w-sm">
         <Link href="/" className="mb-8 flex justify-center">
           {/* `?v=` is a content stamp that earns this file `max-age=31536000, immutable`
@@ -106,7 +106,7 @@ export default function SignInPage() {
         </div>
         {/* eslint-enable react/jsx-no-literals */}
       </noscript>
-      <Suspense fallback={<div className="min-h-screen" />}>
+      <Suspense fallback={<div className="min-h-page" />}>
         <SignInPageInner />
       </Suspense>
     </>

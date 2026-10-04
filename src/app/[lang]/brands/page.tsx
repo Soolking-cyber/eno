@@ -66,7 +66,7 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
   const items = brands.map((b) => ({ ...b, iconPath: brandIconPath(b), iconUrl: brandLogoUrl(b) }))
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg">
+    <div className="flex min-h-page flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         {/* The family's statement header: breadcrumb → h-display → measured lede → hairline.
