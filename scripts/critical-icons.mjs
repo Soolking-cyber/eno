@@ -110,6 +110,15 @@ export const CRITICAL_GLYPHS = [
    * fails a test.
    */
   'Award', 'SlidersHorizontal',
+  /**
+   * ⛔ RE-DERIVED 2026-10-05 (UX3 speed audit): `Send` — the "Gửi đề nghị / Send offer" button in the PDP's
+   * offer box (contact-composer.tsx, imported as `Send` from ui/icons), painted on arrival on a negotiable
+   * listing page — was the deferred glyph the phone lab (390×844, Chromium, guest, 5 cold loads per page) saw
+   * pull `glyphs-rest.svg` (~188 KB gzip, 700 KB decoded) on the PDP. One symbol here costs every page a few
+   * hundred bytes; a PDP in that state saves the whole deferred file. Other PDP states (fixed price, the
+   * seller's own view) were not measured and may still reach for another deferred glyph.
+   */
+  'Send',
 ]
 
 /** Measured so a later reader can tell whether the split still earns its complexity. */
