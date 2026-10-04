@@ -70,13 +70,3 @@ export function writeChatTranslationConsent(userId: string | null | undefined, v
 }
 
 export type ChatTranslationConsentChange = { userId: string; value: 'on' | 'off' }
-
-/**
- * May chat text be machine-translated for this person right now? Always true with the gate off (nothing changes);
- * with it on, in either app, only after they said OK. For surfaces OTHER than the thread that would otherwise send
- * someone's chat words to the translation API — the notification bell renders an offer's note through <Tr>, which
- * machine-translates it (found while checking that the hook is the chat endpoint's only caller).
- */
-export function chatTextTranslationAllowed(userId: string | null | undefined): boolean {
-  return !chatTranslationAskFirst() || readChatTranslationConsent(userId) === 'on'
-}
