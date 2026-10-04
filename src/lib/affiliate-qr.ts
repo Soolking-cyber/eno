@@ -17,11 +17,11 @@ import { qrSvg } from './qr-svg'
  * there is nothing for the browser to compute — shipping it to the client would be pure cost.
  */
 
-export function affiliateQrSvg(url: string, opts: { size?: number; title?: string } = {}): string | null {
+export function affiliateQrSvg(url: string, opts: { size?: number; title?: string; decorative?: boolean } = {}): string | null {
   // ⚠️ A THIN WRAPPER SINCE THE PAYMENTS WORK NEEDED THE SAME ENCODER. The QR-to-SVG logic moved to
   // `qr-svg.ts` unchanged; what stays here is the affiliate-specific default label. A second copy
   // of the module-painting loop would be two things to keep right, and a wrong QR still scans.
-  return qrSvg(url, { size: opts.size, title: opts.title ?? 'QR code linking to the booking page' })
+  return qrSvg(url, { size: opts.size, title: opts.title ?? 'QR code linking to the booking page', decorative: opts.decorative })
 }
 
 /**

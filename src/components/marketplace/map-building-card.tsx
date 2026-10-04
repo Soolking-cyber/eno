@@ -6,8 +6,9 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { useLanguage } from '@/context/language-context'
+import { fillBilingual } from '@/components/marketplace/bilingual'
 import { isMockImageUrl } from '@/lib/listing-image'
-import { glyphCountLabel } from '@/lib/listing-map-glyph'
+import { MAP_GLYPH_LABEL } from '@/lib/listing-map-glyph'
 import type { BuildingPin, SerializedListingCard } from '@/lib/types'
 import { compactPrice, moneyLocale } from '@/lib/vnd'
 import { LocalizedText } from './listing-content'
@@ -80,6 +81,8 @@ export function MapBuildingCard({
 
   const locale = moneyLocale(lang)
   const glyph = building.glyph ?? 'other'
+  const glyphNoun = MAP_GLYPH_LABEL[glyph]
+  const countTpl = { en: `{n} ${building.count === 1 ? glyphNoun.enOne : glyphNoun.enPlural} available`, vi: `{n} ${glyphNoun.vi} còn trống` }
   /**
    * ⚠️ `minPrice`/`maxPrice` ARRIVE FROM THE PIN AND WERE RENDERED NOWHERE UNTIL NOW, so treat them
    * as unproven: both are nullable (a project whose units are all POA), and a single-price tower
@@ -115,8 +118,9 @@ export function MapBuildingCard({
         <p className="mt-0.5 text-xs text-body">
           {/* "12 apartments available" — the count is the building pin's own, i.e. the whole
               filtered result set, never the length of the strip below (which is capped at 12). */}
-          {glyphCountLabel(glyph, building.count, lang)}
-          {tr(' available', ' còn trống')}
+          {/* ONE template with the count in it — "12" + "apartments" + " available" glued together
+              left the noun English in the nine machine-translated languages, and the word order wrong. */}
+          {fillBilingual(tr(countTpl.en, countTpl.vi), countTpl.en, { n: String(building.count) })}
           {building.district ? ` · ${building.district}` : ''}
         </p>
         {range && <p className="mt-0.5 text-xs font-semibold text-foreground">{range}</p>}

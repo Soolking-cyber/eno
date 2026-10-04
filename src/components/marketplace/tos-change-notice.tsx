@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { useLanguage } from '@/context/language-context'
-import { AMENDED } from '@/lib/compliance/legal-amendment'
+import { AMENDED, LEGAL_AMENDMENT } from '@/lib/compliance/legal-amendment'
 import { tosInNoticeWindow } from '@/lib/site-legal'
 
 /**
@@ -72,7 +72,10 @@ export function TosChangeNotice() {
 
   // Literal `tr(en, vi)` calls so gen-ui-strings harvests the English for the nine machine-translated
   // languages, rendered through <Bilingual> so `{date}` is filled after translation.
-  const tr = (en: string, vi: string, values?: Record<string, string>) => <Bilingual en={en} vi={vi} values={values} />
+  const tr = (en: string, vi: string, values?: Record<string, string>, datesIso?: Record<string, string>) => <Bilingual en={en} vi={vi} values={values} datesIso={datesIso} />
+  // en and vi print the legal forms; inside a translated line the nine machine-translated languages get
+  // their own month name (<Bilingual datesIso>) — the English "1 October 2026" was the one untranslated
+  // word in this banner for them, and an English line keeps the English date.
   const date = lang === 'vi' ? AMENDED.inForceVi : AMENDED.inForceEn
 
   // ⚠️ REWRITE THE DOCUMENT LIST FOR EACH AMENDMENT: "Terms of Service, Operating Regulations, Returns
@@ -89,6 +92,7 @@ export function TosChangeNotice() {
         'Our Terms of Service, Operating Regulations, Returns policy and Prohibited items list have been amended. The changes take effect on {date}.',
         'Điều khoản dịch vụ, Quy chế hoạt động, Chính sách đổi trả và Danh mục hàng hoá, dịch vụ cấm đăng đã được sửa đổi. Nội dung sửa đổi có hiệu lực từ ngày {date}.',
         { date },
+        { date: LEGAL_AMENDMENT.inForce },
       )}{' '}
       <Link href="/regulations#changelog" className="font-semibold underline underline-offset-2">
         {tr('See what changed', 'Xem nội dung sửa đổi')}

@@ -42,6 +42,7 @@ import { CATEGORY_COLOR_CLASSES } from '@/lib/types'
 import { Price } from '@/components/marketplace/price'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { FacetValue, facetValueStartsRaw } from './facet-value'
+import { LocalizedNav } from '@/components/ui/localized-nav'
 import { minPhotosFor } from '@/lib/publish-guard'
 import { priceUnitSuffix } from '@/lib/price-unit'
 import { Tr } from '@/context/language-context'
@@ -760,16 +761,18 @@ export default async function ListingPage({ params }: Props) {
               `tap-44` hit areas need 44px of room — but `truncate` makes this nav `overflow:hidden`,
               which would clip them back to the 20px line. The padding gives the clip box its 44px and
               the negative margin hands the space straight back, so nothing on the page moves. */}
-          <nav aria-label="Breadcrumb" className="order-7 -my-3 truncate py-3 text-sm text-muted-foreground md:order-1 md:col-span-12">
+          {/* The landmark's name follows the visitor's language (ui/localized-nav); `data-crumb-trail` is what
+              globals.css hides in the native app — never the label, which is no longer English everywhere. */}
+          <LocalizedNav label="Breadcrumb" labelVi="Đường dẫn" data-crumb-trail="" className="order-7 -my-3 truncate py-3 text-sm text-muted-foreground md:order-1 md:col-span-12">
             {/* prefetch={false} on both crumbs: they sit above the fold on every PDP, so auto
                 prefetch fires two extra RSC requests per listing view for links most visitors
                 never take (the way back is the tab bar or the browser's back button). */}
-            <Link href={localizedHref('/', pageVariant)} prefetch={false} className="relative tap-44 transition-colors hover:text-accent-foreground active:opacity-60"><Tr text="Home" /></Link>
+            <Link href={localizedHref('/', pageVariant)} prefetch={false} className="relative tap-44 transition-colors hover:text-accent-foreground active:opacity-60"><Tr text="Home" ctx="page" /></Link>
             <span className="mx-1.5 text-line-strong">/</span>
             <Link href={localizedHref(categoryBrowsePath(rawListing.category.slug), pageVariant)} prefetch={false} className="relative tap-44 transition-colors hover:text-accent-foreground active:opacity-60"><Bilingual en={listing.category.name} vi={listing.category.nameVi || listing.category.name} /></Link>
             <span className="mx-1.5 hidden text-line-strong md:inline">/</span>
             <span className="hidden font-medium text-foreground md:inline"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></span>
-          </nav>
+          </LocalizedNav>
 
           {/* The compact storefront link, MOBILE. `md:hidden` — the desktop twin lives in the left
               column, above the media, and is unchanged.

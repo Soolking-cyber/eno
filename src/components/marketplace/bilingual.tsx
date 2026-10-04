@@ -1,6 +1,9 @@
 'use client'
 
 import { useLanguage } from '@/context/language-context'
+import { safeTemplate } from '@/lib/i18n/placeholders'
+import { longCalendarDate } from '@/lib/calendar-day'
+import { isMtLanguage } from '@/lib/i18n/langs'
 
 /**
  * Renders a piece of copy that was AUTHORED in both languages, rather than translated at runtime.
@@ -28,7 +31,7 @@ import { useLanguage } from '@/context/language-context'
  * It is a client component because `tr` comes from the language context; the page around it stays a
  * server component and passes the constants down as plain strings.
  */
-export function Bilingual({ en, vi, values }: {
+export function Bilingual({ en, vi, values, datesIso }: {
   en: string
   vi: string
   /**
@@ -41,12 +44,36 @@ export function Bilingual({ en, vi, values }: {
    * raw. So the rule is the whole set, compared as a sorted list — not "is {site} still in there".
    */
   values?: Record<string, string>
+  /**
+   * `{key}` → a plain ISO calendar date ('2026-10-01') for any value in `values` that IS a date. en and vi
+   * keep the value as given (each page's authored legal form); the nine machine-translated languages get
+   * the same day with their own month name instead of an English "1 October 2026" inside a translated line.
+   * ⚠️ ONLY INSIDE A TRANSLATED LINE: while the translation is on its way (tr hands back the English) or
+   * after a fallback to the English template, the date stays the English value from `values` — never an
+   * English sentence around a Russian date.
+   */
+  datesIso?: Record<string, string>
 }) {
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const t = tr(en, vi)
   if (!values) return <>{t}</>
-  const tokens = (x: string) => (x.match(/\{[^{}]*\}/g) ?? []).sort().join('\u0000')
-  let out = tokens(t) === tokens(en) ? t : en
-  for (const [k, v] of Object.entries(values)) out = out.split(`{${k}}`).join(v)
-  return <>{out}</>
+  const translatedLine = isMtLanguage(lang) && safeTemplate(t, en) !== en
+  const filled = datesIso && translatedLine
+    ? { ...values, ...Object.fromEntries(Object.entries(datesIso).map(([k, iso]) => [k, longCalendarDate(iso, lang)])) }
+    : values
+  return <>{fillBilingual(t, en, filled)}</>
+}
+
+/**
+ * Fill a translated `{key}` template — the same rule <Bilingual> applies, for a caller that needs the
+ * STRING (an aria-label, a title) rather than a node: a translation whose placeholder set differs from
+ * the English template's falls back to the English, then the values go in.
+ */
+export function fillBilingual(translated: string, en: string, values: Record<string, string>): string {
+  // Same placeholders as the English → as is; one renamed placeholder (`{цена}`) → repaired; else English.
+  const template = safeTemplate(translated, en)
+  // ⚠️ ONE PASS over the TEMPLATE's placeholders. Filling key by key re-scanned text already filled in, so
+  // a listing titled "Combo {n} món" had its own "{n}" replaced by the photo number. A replacer function
+  // also prints a value's `$&` as typed (what split/join was for).
+  return template.replace(/\{([^{}]+)\}/g, (m, k: string) => (Object.prototype.hasOwnProperty.call(values, k) ? values[k] : m))
 }

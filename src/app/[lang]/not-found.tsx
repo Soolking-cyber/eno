@@ -6,6 +6,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Mascot } from '@/components/marketplace/mascot'
 import { Tr } from '@/context/language-context'
+import { LocalizedNav } from '@/components/ui/localized-nav'
 import { MachineIndexLead, NotFoundBody, NotFoundHomeLink } from './not-found-body'
 
 export const metadata: Metadata = { title: `Page not found | ${SITE_NAME}` }
@@ -133,7 +134,7 @@ export default function NotFound() {
             gen-ui-strings.mjs's services path list, so a services word here ships in the catalogue
             every eno.vn visitor downloads. See the header of src/app/[lang]/about/page.tsx.
           */}
-          <nav aria-label="Where to go next" className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm">
+          <LocalizedNav label="Where to go next" labelVi="Đi tiếp đến đâu" className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm">
             {/* The home explorer in the reader's language (`/vi` on a Vietnamese 404) — a client island. */}
             <NotFoundHomeLink className={RECOVERY_LINK} />
             {/*
@@ -146,7 +147,7 @@ export default function NotFound() {
             <Link href="/brands" className={RECOVERY_LINK}><Tr text="Browse by brand" /></Link>
             <Link href="/help" className={RECOVERY_LINK}><Tr text="Help centre" /></Link>
             <Link href="/contact" className={RECOVERY_LINK}><Tr text="Contact us" /></Link>
-          </nav>
+          </LocalizedNav>
           {/*
             ⛔ THE THREE MACHINE DOCUMENTS ARE THE WHOLE POINT OF THIS PARAGRAPH, and an agent audit
             on 2026-08-23 is why the third one is here. The 404 status code was already correct; what
@@ -178,7 +179,7 @@ export default function NotFound() {
             ⚠️ The label must differ from that one's — two same-named landmarks are worse than one
             unnamed one.
           */}
-          <nav aria-label="Machine-readable indexes" className="mt-3 text-xs text-body">
+          <LocalizedNav label="Machine-readable indexes" labelVi="Chỉ mục cho máy đọc" className="mt-3 text-xs text-body">
             {/* Plain <a>, not <Link>: these are non-HTML documents served by route handlers, and
                 the client router should not try to prefetch or soft-navigate them.
                 ⚠️ `type` IS THE ADVERTISED MEDIA TYPE OF THE TARGET, and it is here for the same
@@ -194,7 +195,7 @@ export default function NotFound() {
             <a href="/llms.txt" type="text/plain" className={RECOVERY_LINK}>{LLMS_FILE}</a>
             {' · '}
             <a href="/openapi.json" type="application/json" className={RECOVERY_LINK}>{OPENAPI_FILE}</a>
-          </nav>
+          </LocalizedNav>
         </div>
       </main>
       <Footer />

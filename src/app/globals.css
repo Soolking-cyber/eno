@@ -2069,10 +2069,13 @@ html.native .allow-select {
   -webkit-touch-callout: default;
 }
 /* Breadcrumb rows are SEO furniture — the app has a tab bar + swipe-back, so a
-   "Home / Category / Item" trail is pure web chrome there. Case-insensitive match
-   covers both spellings in use (PDP nav aria-label="Breadcrumb", ui/breadcrumb
-   "breadcrumb"). JSON-LD breadcrumbs are untouched, and Googlebot never carries
-   html.native, so SEO is unaffected. */
+   "Home / Category / Item" trail is pure web chrome there. JSON-LD breadcrumbs are
+   untouched, and Googlebot never carries html.native, so SEO is unaffected.
+   ⛔ SELECT ON data-crumb-trail, NOT THE LABEL: the trail's aria-label is now in the
+   viewer's language (ui/localized-nav), so the old `nav[aria-label="breadcrumb" i]`
+   matched only English pages. The label selector stays as a belt for any trail that
+   still hardcodes it. */
+html.native nav[data-crumb-trail],
 html.native nav[aria-label="breadcrumb" i] {
   display: none;
 }

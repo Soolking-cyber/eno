@@ -5,7 +5,7 @@ import useEmblaCarousel, {
   type UseEmblaCarouselType,
 } from "embla-carousel-react"
 
-import { Tr } from "@/context/language-context"
+import { Tr, useLanguage } from "@/context/language-context"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/icons"
@@ -53,6 +53,7 @@ function Carousel({
   children,
   ...props
 }: React.ComponentProps<"div"> & CarouselProps) {
+  const { tr } = useLanguage() // the region's role description is spoken (see CarouselItem)
   const [carouselRef, api] = useEmblaCarousel(
     {
       ...opts,
@@ -125,7 +126,7 @@ function Carousel({
         onKeyDownCapture={handleKeyDown}
         className={cn("relative", className)}
         role="region"
-        aria-roledescription="carousel"
+        aria-roledescription={tr("carousel", "trình chiếu")}
         data-slot="carousel"
         {...props}
       >
@@ -163,11 +164,13 @@ function CarouselContent({ className, viewportClassName, ...props }: React.Compo
 
 function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
   const { orientation } = useCarousel()
+  // A role description is SPOKEN — the English "slide" was read out in every language.
+  const { tr } = useLanguage()
 
   return (
     <div
       role="group"
-      aria-roledescription="slide"
+      aria-roledescription={tr("slide", "trang chiếu")}
       data-slot="carousel-item"
       className={cn(
         "min-w-0 shrink-0 grow-0 basis-full",

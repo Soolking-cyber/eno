@@ -3,18 +3,25 @@ import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
 
 import { Tr } from "@/context/language-context"
+import { LocalizedNav } from "@/components/ui/localized-nav"
 import { cn } from "@/lib/utils"
 import { ChevronRightIcon, MoreHorizontalIcon } from "@/components/ui/icons"
 
-function Breadcrumb({ className, ...props }: React.ComponentProps<"nav">) {
-  return (
-    <nav
-      aria-label="breadcrumb"
-      data-slot="breadcrumb"
-      className={cn(className)}
-      {...props}
-    />
-  )
+/**
+ * ⚠️ THE LANDMARK'S NAME IS TRANSLATED IN A CLIENT LEAF. This file stays server-renderable (pages
+ * render <Breadcrumb> on the server), so it cannot call useLanguage itself, and the hardcoded English
+ * "breadcrumb" was read out in all eleven languages. English stays the exact lowercase "breadcrumb"
+ * (e2e/ci/crawler-html.spec.ts reads it).
+ * ⛔ `data-crumb-trail` IS THE HOOK, NOT THE LABEL: globals.css hides the trail in the native app,
+ * and it selected on the English label — which no longer exists on a Russian or Vietnamese page.
+ * A caller that names the nav itself (result-line's category ladder, "Category") keeps its own
+ * label and is NOT marked, so the native app keeps showing it exactly as before.
+ */
+function Breadcrumb({ className, "aria-label": ariaLabel, ...props }: React.ComponentProps<"nav">) {
+  if (ariaLabel != null) {
+    return <nav aria-label={ariaLabel} data-slot="breadcrumb" className={cn(className)} {...props} />
+  }
+  return <LocalizedNav label="breadcrumb" labelVi="Đường dẫn" data-slot="breadcrumb" data-crumb-trail="" className={cn(className)} {...props} />
 }
 
 function BreadcrumbList({ className, ...props }: React.ComponentProps<"ol">) {

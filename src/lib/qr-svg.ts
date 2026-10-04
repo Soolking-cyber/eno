@@ -20,7 +20,7 @@ import qr from 'qrcode-generator'
 /** Error-correction level M: ~15% recovery, the usual choice when no logo is overlaid. */
 const EC_LEVEL = 'M' as const
 
-export function qrSvg(payload: string, opts: { size?: number; title?: string } = {}): string | null {
+export function qrSvg(payload: string, opts: { size?: number; title?: string; decorative?: boolean } = {}): string | null {
   const trimmed = payload.trim()
   if (!trimmed) return null
 
@@ -53,8 +53,10 @@ export function qrSvg(payload: string, opts: { size?: number; title?: string } =
   // what makes a small on-screen QR scan slowly.
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" ` +
-    `width="${size}" height="${size}" role="img" shape-rendering="crispEdges" ` +
-    `aria-label="${escapeAttr(opts.title ?? 'QR code')}">` +
+    `width="${size}" height="${size}" shape-rendering="crispEdges" ` +
+    // `decorative`: the caller names the image on a wrapper in the reader's language (qr-figure.tsx);
+    // a label baked into server-built markup could only ever be English.
+    (opts.decorative ? `aria-hidden="true" focusable="false">` : `role="img" aria-label="${escapeAttr(opts.title ?? 'QR code')}">`) +
     `<rect width="${total}" height="${total}" fill="#fff"/>` +
     `<path d="${path}" fill="#000"/>` +
     `</svg>`

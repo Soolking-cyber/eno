@@ -169,12 +169,14 @@ export function Providers({
             </NotificationsProvider>
           </AuthProvider>
           </CurrencyProvider>
+          {/* Inside ThemeProvider so toasts follow the in-app theme toggle.
+              ⚠️ IT WAS DEFERRED FOR ~66 KB AND PUT BACK, on measurement rather than principle: sonner
+              drops any toast published before this subscribes, and `load` on this app under 4x CPU +
+              slow 4G lands at 6.8–8.5s — seconds after the page is interactive. See ambient-chrome.tsx.
+              ⛔ AND INSIDE LanguageProvider (2026-10-05): the toaster names its live region in the reader's
+              language (ui/sonner.tsx calls useLanguage), which throws outside the provider. */}
+          <SonnerToaster position="top-center" closeButton />
         </LanguageProvider>
-        {/* Inside ThemeProvider so toasts follow the in-app theme toggle.
-            ⚠️ IT WAS DEFERRED FOR ~66 KB AND PUT BACK, on measurement rather than principle: sonner
-            drops any toast published before this subscribes, and `load` on this app under 4x CPU +
-            slow 4G lands at 6.8–8.5s — seconds after the page is interactive. See ambient-chrome.tsx. */}
-        <SonnerToaster position="top-center" closeButton />
       </ThemeProvider>
     </>
   );

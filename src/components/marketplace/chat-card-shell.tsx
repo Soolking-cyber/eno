@@ -4,6 +4,7 @@ import * as React from 'react'
 import type { ReactNode } from 'react'
 import type { IconComponent } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
+import { fillBilingual } from '@/components/marketplace/bilingual'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
@@ -176,6 +177,7 @@ export function ChatCardSteps({ current, total, labels, reachable, onSelect }: {
    */
   onSelect?: (step: number) => void
 }) {
+  const { tr } = useLanguage() // the steps' accessible names are spoken in the reader's language
   const interactive = typeof onSelect === 'function'
   const canGo = (n: number) => interactive && (reachable?.includes(n) ?? false)
   return (
@@ -201,7 +203,9 @@ export function ChatCardSteps({ current, total, labels, reachable, onSelect }: {
             type="button"
             onClick={() => onSelect?.(n)}
             aria-current={n === current ? 'step' : undefined}
-            aria-label={label ? `${label} — step ${n} of ${total}` : `Step ${n} of ${total}`}
+            aria-label={label
+              ? fillBilingual(tr('{label} — step {n} of {total}', '{label} — bước {n}/{total}'), '{label} — step {n} of {total}', { label, n: String(n), total: String(total) })
+              : fillBilingual(tr('Step {n} of {total}', 'Bước {n}/{total}'), 'Step {n} of {total}', { n: String(n), total: String(total) })}
             /* ⚠️ `relative` IS LOAD-BEARING, not styling. `tap-44` grows an ABSOLUTELY positioned
                ::before to reach the 44px minimum, and an absolute box is sized to the nearest
                POSITIONED ancestor — inside a thread `html.chat-locked` makes <body> positioned, so

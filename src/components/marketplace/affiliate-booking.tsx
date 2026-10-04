@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Tr } from '@/context/language-context'
 import { Bilingual } from './bilingual'
 import { affiliateQrSvg, safeAffiliateUrl } from '@/lib/affiliate-qr'
+import { QrFigure } from '@/components/marketplace/qr-figure'
 import { embeddedProductUrl } from '@/lib/affiliate-deeplink'
 import { AffiliateCodeCopy } from './affiliate-code-copy'
 import { AffiliateProductStep } from './affiliate-product-step'
@@ -86,19 +87,13 @@ export function AffiliateBooking({
   // <Bilingual> because this component renders on the server. No vi-overrides entry is needed.
   const tr = (en: string, vi: string, values?: Record<string, string>) => <Bilingual en={en} vi={vi} values={values} />
 
-  // ⚠️ THE QR's NAME IS A STRING INSIDE INLINE SVG MARKUP, so it cannot be a <Bilingual> node: a literal
-  // pair picked by the page's variant, harvested by gen-ui-strings like every other two-literal t() call
-  // (quality-12 — it was English on every Vietnamese page). split/join for {site}, so a `$` in a name
-  // prints as typed. ⚠️ Never write a t() call with two quoted literals in a COMMENT here: the harvester
-  // reads comments too, and one such example put the words "en" and "vi" into ui-strings.ts.
-  const t = (en: string, vi: string) => (lang === 'vi' ? vi : en).split('{site}').join(partnerName)
-  const qr = affiliateQrSvg(safeUrl, {
-    title: job
-      ? t('QR code to open the job posting on {site}', 'Mã QR để mở tin tuyển dụng trên {site}')
-      : rental
-        ? t('QR code to open the rental on {site}', 'Mã QR để mở tin cho thuê trên {site}')
-        : t('QR code to book on {site}', 'Mã QR để đặt trên {site}'),
-  })
+  // The image's NAME is set on QrFigure in the reader's language; the SVG itself is decorative.
+  const qr = affiliateQrSvg(safeUrl, { decorative: true })
+  const qrName = job
+    ? { en: 'QR code to open the job posting on {site}', vi: 'Mã QR để mở tin tuyển dụng trên {site}' }
+    : rental
+    ? { en: 'QR code to open the rental on {site}', vi: 'Mã QR để mở tin cho thuê trên {site}' }
+    : { en: 'QR code to book on {site}', vi: 'Mã QR để đặt trên {site}' }
   // The product this link was minted for, when the campaign is one measured not to deep-link.
   const productStep = embeddedProductUrl(safeUrl)
   // Can this link earn eno a commission? Decides the disclosure at the end of this box (2026-10-01).
@@ -208,7 +203,7 @@ export function AffiliateBooking({
             * Inline SVG rather than an <img>: the CSP pins img-src to our own origin, so a QR
             * service URL would be blocked, and a data: URI costs a base64 round-trip for no gain.
             */}
-          <div className="shrink-0 [&>svg]:size-20 [&>svg]:rounded-lg" dangerouslySetInnerHTML={{ __html: qr }} />
+          <QrFigure svg={qr} en={qrName.en} vi={qrName.vi} values={{ site: partnerName }} className="shrink-0 [&>svg]:size-20 [&>svg]:rounded-lg" />
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground">
               {job ? <Tr text="Scan to open the job posting on your phone" /> : booking ? <Tr text="Scan to book on your phone" /> : rental ? tr('Scan to open this rental on your phone', 'Quét để mở tin cho thuê này trên điện thoại') : <Tr text="Scan to open on your phone" />}

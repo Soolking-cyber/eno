@@ -38,13 +38,24 @@ import { IconButton } from '@/components/ui/icon-button'
 // for everyone else (the Vietnamese shorthand is opaque to the expat audience),
 // native "500k" / "51tr" / "1,2 tỷ" for vi; the rare non-₫ listing keeps its
 // symbol-prefixed format.
-function pinLabel(l: SerializedListingCard, locale: MoneyLocale, currency?: string, rate?: number): string {
+/** The listing's title as the card shows it: the authored Vietnamese for vi, the embedded machine
+ *  translation for the nine others when the feed carried one, else the source title. */
+function pinListingTitle(l: SerializedListingCard, uiLang: string): string {
+  if (uiLang === 'vi') return l.titleVi || l.title
+  if (uiLang !== 'en') return l.titleI18n?.[uiLang] || l.title
+  return l.title
+}
+
+function pinLabel(l: SerializedListingCard, locale: MoneyLocale, currency?: string, rate?: number, zero?: { free: string; job: string }): string {
   // ⚠️ A ZERO PRICE IS A WORD, NOT "0" — the rule <Price> applies one tap later in the popup: a free
   // item reads "Free", and a price-0 JOB is not free at all (its pay is in the posting), so its pin
   // says what it is. compactPrice(0) printed a bare "0", which reads as a broken pin.
-  // By `locale` rather than tr(): this is a plain function feeding raw marker HTML, and `locale` is
-  // already the language switch every other pin string here follows ('vi', else English).
-  if (l.price === 0) return l.listingType === 'job' ? (locale === 'vi' ? 'Việc làm' : 'Job') : (locale === 'vi' ? 'Miễn phí' : 'Free')
+  // ⚠️ THE WORDS COME IN FROM THE COMPONENT'S tr() (`zero`). Choosing them by `locale` here printed
+  // English "Free" / "Job" on the pins for all nine machine-translated languages; the restyle effect
+  // below re-labels the pins when the translations land.
+  // A caller that passes no words still gets the authored Vietnamese, never an English default.
+  // i18n-invariant: the fallback only — both call sites pass tr()'d words.
+  if (l.price === 0) return l.listingType === 'job' ? (zero?.job ?? (locale === 'vi' ? 'Việc làm' : 'Job')) : (zero?.free ?? (locale === 'vi' ? 'Miễn phí' : 'Free'))
   // ⚠️ A PIN MUST NOT SHOW A BARE ĐỒNG MAGNITUDE TO SOMEONE READING IN DOLLARS. This returned
   // `compactPrice(l.price, locale)` unconditionally for ₫ listings — a unit-less "51M" — while every
   // other surface honoured the viewer's display currency. A USD reader saw "51M" on the pin and
@@ -380,6 +391,16 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   // detail-map passed 'vi'), so it could never drive money formatting; it was
   // unused and has been removed.
   const locale = moneyLocale(uiLang)
+  // The zero-price pin words (see pinLabel) and the pin-name nouns, resolved at RENDER: strings, so they can
+  // sit in the restyle effect's deps and a translation that lands later (warm batch or lazy) re-labels the
+  // pins. Computing them inside the effect would capture whatever tr returned when it last ran.
+  const zeroFree = tr('Free', 'Miễn phí')
+  const zeroJob = tr('Job', 'Việc làm')
+  const glyphName = Object.fromEntries((Object.keys(MAP_GLYPH_LABEL) as MapGlyph[]).map((g) => {
+    const viName = MAP_GLYPH_LABEL[g].vi
+    return [g, tr(MAP_GLYPH_LABEL[g].en, viName.charAt(0).toUpperCase() + viName.slice(1))]
+  })) as Record<MapGlyph, string>
+  const glyphNamesKey = Object.values(glyphName).join('|')
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<any>(null)
   // The basemap style follows the scheme only where the host opted in (the PDP); read in the init
@@ -912,6 +933,23 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     }
   }, [ready])
 
+  /**
+   * ⚠️ LEAFLET'S ZOOM BUTTONS CARRY ENGLISH `title` / `aria-label` ("Zoom in" / "Zoom out") in every
+   * language. The control is built once with the map, so the names are written onto its anchors here
+   * whenever the translation changes — including when a machine translation lands after first paint.
+   */
+  const zoomInLabel = tr('Zoom in', 'Phóng to')
+  const zoomOutLabel = tr('Zoom out', 'Thu nhỏ')
+  useEffect(() => {
+    const el = mapRef.current
+    if (!ready || !el) return
+    for (const [sel, label] of [['.leaflet-control-zoom-in', zoomInLabel], ['.leaflet-control-zoom-out', zoomOutLabel]] as const) {
+      const a = el.querySelector(sel)
+      if (a) { a.setAttribute('title', label); a.setAttribute('aria-label', label) }
+    }
+  }, [ready, zoomInLabel, zoomOutLabel])
+
+
   // Draw / refresh markers when listings change.
   useEffect(() => {
     if (!ready || !mapInstanceRef.current) return
@@ -1036,7 +1074,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       const { lat, lng } = getListingCoordinates(l)
       bounds.push([lat, lng])
       const lGlyph = mapGlyphFor(l.subcategorySlug)
-      const icon = L.divIcon({ html: pinHtml(pinLabel(l, locale, displayCurrency, displayRate), selectedId === l.id, lGlyph), className: 'eno-pin', iconSize: [0, 0] })
+      const icon = L.divIcon({ html: pinHtml(pinLabel(l, locale, displayCurrency, displayRate, { free: zeroFree, job: zeroJob }), selectedId === l.id, lGlyph), className: 'eno-pin', iconSize: [0, 0] })
       // `alt` gives the pin an accessible name (the visible label is just a price
       // string); keyboard users close the popup card via Escape on the wrapper.
       /**
@@ -1053,7 +1091,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       // label, so it opens with a capital.
       const viName = MAP_GLYPH_LABEL[lGlyph].vi
       const glyphName = tr(MAP_GLYPH_LABEL[lGlyph].en, viName.charAt(0).toUpperCase() + viName.slice(1))
-      const marker = L.marker([lat, lng], { icon, riseOnHover: true, title: `${glyphName} — ${l.title}` }).addTo(map)
+      const marker = L.marker([lat, lng], { icon, riseOnHover: true, title: `${glyphName} — ${pinListingTitle(l, uiLang)}` }).addTo(map)
       // A rebuild mid-selection must keep the selected pin on top — the styling
       // effect only runs on [selectedId, ready], not on a redraw.
       if (selectedId === l.id) marker.setZIndexOffset(1000)
@@ -1359,7 +1397,15 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       }
       const l = listings.find((x) => x.id === id)
       if (!l) return
-      const html = pinHtml(pinLabel(l, locale, displayCurrency, displayRate), selectedId === id, mapGlyphFor(l.subcategorySlug))
+      // The pin's name was written when the marker was BUILT — before a machine translation of the
+      // glyph noun ("Listing", "Apartment") had landed — so it is refreshed here, like the label.
+      const pinTitle = `${glyphName[mapGlyphFor(l.subcategorySlug)]} — ${pinListingTitle(l, uiLang)}`
+      // ⚠️ options.title TOO, not only the element: setIcon below re-runs Leaflet's _initIcon, which writes
+      // options.title back onto the pin — the build-time English — undoing a bare attribute write.
+      marker.options.title = pinTitle
+      const pinEl = marker.getElement?.()
+      if (pinEl && pinEl.getAttribute('title') !== pinTitle) pinEl.setAttribute('title', pinTitle)
+      const html = pinHtml(pinLabel(l, locale, displayCurrency, displayRate, { free: zeroFree, job: zeroJob }), selectedId === id, mapGlyphFor(l.subcategorySlug))
       if (markerHtmlRef.current.get(id) !== html) {
         marker.setIcon(L.divIcon({ html, className: 'eno-pin', iconSize: [0, 0] }))
         markerHtmlRef.current.set(id, html)
@@ -1371,7 +1417,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     // /api/fx a moment after first paint, and adding them to the build deps would tear down and
     // recreate every marker — and re-fit the bounds — the instant they land. This effect only
     // calls setIcon on markers that already exist, which is exactly what a re-label needs.
-  }, [selectedId, ready, listings, locale, displayCurrency, displayRate, labelled, buildings, selectedBuilding])
+  }, [selectedId, ready, listings, locale, displayCurrency, displayRate, labelled, buildings, selectedBuilding, zeroFree, zeroJob, glyphNamesKey, uiLang])
 
   // Fly to a specific listing when requested ("locate on map").
   useEffect(() => {

@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tr, useLanguage } from '@/context/language-context'
+import { fillBilingual } from './bilingual'
 import { pushBlackStatusBar } from '@/components/native/native-bootstrap'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { autoplayAllowed } from '@/lib/autoplay'
@@ -240,6 +241,11 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
   // eslint's i18n rule is configured with ignoreProps:true / noAttributeStrings:false and
   // sees none of it, which is how these four sat in English for every locale.
   const { tr } = useLanguage()
+  // The photo's accessible name: one template per shape, so "photo" / "of" are translated and the word
+  // order is the translation's (the English "— photo 3" was read out in every language).
+  const photoAlt = (n: number, total?: number) => total
+    ? fillBilingual(tr('{title} — photo {n} of {total}', '{title} — ảnh {n}/{total}'), '{title} — photo {n} of {total}', { title, n: String(n), total: String(total) })
+    : fillBilingual(tr('{title} — photo {n}', '{title} — ảnh {n}'), '{title} — photo {n}', { title, n: String(n) })
   const hasVideo = !!video && images.length > 0
   const mediaCount = images.length + (hasVideo ? 1 : 0)
   const [open, setOpen] = useState(false)
@@ -571,7 +577,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               )}
               {images.map((img, i) => (
                 <Button key={i} variant="bare" size="none" onClick={() => openAt(i)} className="relative block aspect-square w-full shrink-0 snap-center snap-always overflow-hidden rounded-none bg-tint cursor-pointer active:scale-100">
-                  <BlurFillImage img={img} alt={`${title} — photo ${i + 1}`} sizes="100vw" mock={isMockImageUrl(img)} priority={i === 0 && !hasVideo} />
+                  <BlurFillImage img={img} alt={photoAlt(i + 1)} sizes="100vw" mock={isMockImageUrl(img)} priority={i === 0 && !hasVideo} />
                 </Button>
               ))}
             </div>
@@ -613,7 +619,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                   const photoIdx = hasVideo ? sel - 1 : sel
                   return (
                     <Button variant="bare" size="none" onClick={() => openAt(photoIdx)} className="group relative block h-full w-full overflow-hidden rounded-none cursor-pointer active:scale-100">
-                      <BlurFillImage img={images[photoIdx]} alt={`${title} — photo ${photoIdx + 1}`} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[photoIdx])} eager={photoIdx === 0} />
+                      <BlurFillImage img={images[photoIdx]} alt={photoAlt(photoIdx + 1)} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[photoIdx])} eager={photoIdx === 0} />
                     </Button>
                   )
                 })()
@@ -957,7 +963,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                   ? { transform: `translate(${dragX}px, ${dragY}px)`, opacity: 1 - Math.min(0.6, Math.abs(dragY) / 500) }
                   : undefined}
             >
-              <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" quality={60} /* ⛔ MATCHES THE HERO'S TIER ON PURPOSE. 70 here looks like the right
+              <Image src={images[idx]} alt={photoAlt(idx + 1, images.length)} fill sizes="92vw" quality={60} /* ⛔ MATCHES THE HERO'S TIER ON PURPOSE. 70 here looks like the right
                       call — the user has deliberately zoomed to inspect condition — but a different q is a guaranteed
                       cache MISS and a fresh sharp encode at the exact moment they are waiting. ⚠️ It only shares the
                       hero's actual variant where the two resolve to the SAME width rung: the hero is
