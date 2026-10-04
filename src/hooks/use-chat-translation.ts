@@ -2,6 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { detectContentLang } from '@/lib/detect-lang'
+import {
+  CHAT_TRANSLATION_CONSENT_EVENT,
+  chatTranslationAskFirst,
+  chatTranslationConsentKey,
+  readChatTranslationConsent,
+  writeChatTranslationConsent,
+  type ChatTranslationConsent,
+  type ChatTranslationConsentChange,
+} from '@/lib/chat-translation-consent'
 
 // ── Live chat translation (client half) ──────────────────────────────────────────────
 //
@@ -82,7 +91,23 @@ export function useChatTranslation(opts: {
 
   // A mismatch requires BOTH languages known and different. myLang is always known; the
   // counterpart's is null until their locale syncs, and we never invent one.
-  const available = !!counterpartLang && counterpartLang !== myLang
+  const mismatch = !!counterpartLang && counterpartLang !== myLang
+
+  /**
+   * ⚠️ APP STORE GATE `app-ai-notice` (plan R8, Guideline 5.1.2(i), D14) — src/lib/chat-translation-consent.ts.
+   * Off (the default) ⇒ `askFirst` is false, `consent` is never read, and every line below behaves
+   * exactly as it did before the gate existed. On, inside either app: the FIRST time a translation
+   * would apply, nothing is requested until the person answers the notice (`needsNotice`); "OK"
+   * lets requests go, "Turn off translation" makes the feature unavailable for this account on this
+   * device — no strip, no request — until Settings → Preferences turns it back on.
+   * ⚠️ THE GATE IS ON THE REQUEST, NOT ON THE RENDER. Hiding a translation that was still fetched would
+   * already have sent the text to Microsoft; the fetch effect below refuses to run while
+   * `awaitingConsent`, and this hook is the only caller of POST /api/messages/translate.
+   */
+  const askFirst = chatTranslationAskFirst()
+  const [consent, setConsent] = useState<ChatTranslationConsent>(null)
+  const available = mismatch && !(askFirst && consent === 'off')
+  const awaitingConsent = askFirst && available && consent !== 'on'
 
   const prefKey = `chat-tr:${userId ?? 'anon'}:${conversationId}`
   const [enabled, setEnabledState] = useState(false)
@@ -98,16 +123,46 @@ export function useChatTranslation(opts: {
   // no server-default-ON vs hydrated-OFF mismatch); the real init runs on the client, where
   // the toggle actually renders (it's gated on `thread`, which is null during SSR anyway).
   const [initedKey, setInitedKey] = useState<string | null>(null)
-  if (typeof window !== 'undefined' && available && prefKey !== initedKey) {
+  // `mismatch`, not `available`: with the gate on, `available` itself depends on the consent read here.
+  // The consent is re-read on the same render as the toggle, so a stale answer from another account
+  // never decides a request (prefKey carries the profile id).
+  if (typeof window !== 'undefined' && mismatch && prefKey !== initedKey) {
     setInitedKey(prefKey)
     const stored = safeGet(prefKey)
     setEnabledState(stored ? stored === 'on' : true)
+    if (askFirst) setConsent(readChatTranslationConsent(userId))
   }
 
   const setEnabled = useCallback((value: boolean) => {
     setEnabledState(value)
     safeSet(prefKey, value ? 'on' : 'off')
   }, [prefKey])
+
+  /** The notice's answer — 'on' (OK) or 'off' (Turn off translation). Only rendered with the gate on. */
+  const answerNotice = useCallback((value: 'on' | 'off') => {
+    setConsent(value)
+    writeChatTranslationConsent(userId, value)
+  }, [userId])
+
+  // The answer can change while this thread is mounted — Settings, another thread, another tab — and the change must
+  // stop (or allow) requests here at once. Gate off ⇒ no listener at all.
+  useEffect(() => {
+    if (!askFirst || !userId) return
+    // Same tab: the value rides in the event (a re-read would answer null with storage blocked). Other tabs: `storage`.
+    const onChange = (e: Event) => {
+      const d = (e as CustomEvent<ChatTranslationConsentChange>).detail
+      if (d?.userId === userId) setConsent(d.value)
+    }
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === chatTranslationConsentKey(userId)) setConsent(readChatTranslationConsent(userId))
+    }
+    window.addEventListener(CHAT_TRANSLATION_CONSENT_EVENT, onChange)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener(CHAT_TRANSLATION_CONSENT_EVENT, onChange)
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [askFirst, userId])
 
   // id+lang → translated text. State (not a ref) so a landed translation repaints the
   // bubble. attempted/inflight are refs — bookkeeping that must not trigger renders.
@@ -121,7 +176,8 @@ export function useChatTranslation(opts: {
   useEffect(() => () => { mountedRef.current = false }, [])
 
   useEffect(() => {
-    if (!enabled || !available) return
+    // `awaitingConsent` — the app-ai-notice gate: no answer yet ⇒ no request (see the note above).
+    if (!enabled || !available || awaitingConsent) return
     // Which incoming plain-text messages still need a translation into myLang?
     const wanted: string[] = []
     for (const m of messages) {
@@ -183,12 +239,22 @@ export function useChatTranslation(opts: {
         }
       }
     })()
-  }, [enabled, available, messages, myLang, conversationId, cacheKey])
+  }, [enabled, available, awaitingConsent, messages, myLang, conversationId, cacheKey])
 
   const translationFor = useCallback(
-    (id: string): string | undefined => (enabled && available ? translations[cacheKey(id)] : undefined),
-    [enabled, available, translations, cacheKey],
+    (id: string): string | undefined => (enabled && available && !awaitingConsent ? translations[cacheKey(id)] : undefined),
+    [enabled, available, awaitingConsent, translations, cacheKey],
   )
 
-  return { available, enabled, setEnabled, translationFor }
+  // The one-time notice shows where the strip would be, and only while a translation WOULD apply: a
+  // conversation the person already unticked asks nothing until they tick it again, and a thread with no
+  // incoming message yet has nothing to translate, so it asks nothing yet either (opus, review of this change).
+  const needsNotice = awaitingConsent && enabled && messages.some(isTranslatable)
+  // The "Translate messages" strip. Before permission it would show a TICKED box for a translation that has not been
+  // allowed, so while awaiting an answer it shows only for a thread the person had unticked (ticking it then asks);
+  // otherwise the notice — or, in a thread with nothing incoming yet, nothing — stands in its place (codex, review of
+  // this change). Gate off ⇒ `awaitingConsent` is false and this is `available`, as before.
+  const showToggle = available && !(awaitingConsent && enabled)
+
+  return { available, enabled, setEnabled, translationFor, needsNotice, answerNotice, showToggle }
 }

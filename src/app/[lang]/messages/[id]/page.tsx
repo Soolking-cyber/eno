@@ -60,6 +60,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Checkbox } from '@/components/ui/checkbox'
 import { LANGUAGES } from '@/lib/i18n/langs'
 import { useChatTranslation } from '@/hooks/use-chat-translation'
+import { ChatTranslationNotice } from '@/components/marketplace/chat-translation-notice'
 import { fmtTime, dayKey } from '@/lib/dates'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useUndoWindow } from '@/hooks/use-undo-window'
@@ -2310,10 +2311,16 @@ export default function ThreadPage() {
             </div>
           )}
 
+          {/* App Store gate `app-ai-notice` (R8, D14): in the apps, the FIRST time a translation would
+              apply, ask before anything is sent — the notice stands where the strip would be, and the hook
+              requests nothing until it is answered. Gate off ⇒ `needsNotice` is always false. */}
+          {thread && translate.needsNotice && <ChatTranslationNotice onAnswer={translate.answerNotice} />}
           {/* Live-translation toggle — shown ONLY when the two participants' app languages
               differ (owner ask). Defaults ON on that mismatch; the choice persists per
               conversation. Ticking translates the OTHER party's messages into your language. */}
-          {thread && translate.available && (
+          {/* `showToggle`: the strip, minus the moment before permission when it would show a ticked box for a
+              translation nobody has allowed (gate `app-ai-notice`; the hook says when). Gate off ⇒ `available`. */}
+          {thread && translate.showToggle && (
             <div className="flex items-center gap-2 border-t border-border bg-background px-4 py-2">
               <Languages className="h-3.5 w-3.5 shrink-0 text-ink-4" aria-hidden />
               <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-body">

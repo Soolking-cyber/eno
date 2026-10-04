@@ -225,11 +225,29 @@ describe('/privacy — the facts it states match the code', () => {
   })
 
   it('⛔ chat translation: on by default when languages differ, and a sender’s messages go out on the other person’s switch', async () => {
-    // use-chat-translation.ts:101-104 (default ON on a mismatch) · api/messages/translate/route.ts:24 (incoming only)
+    // use-chat-translation.ts:126-130 (default ON on a mismatch) · api/messages/translate/route.ts:24 (incoming only)
     const text = await policy('marketplace')
     expect(text).toContain('translation starts switched on in that case')
     expect(text).toContain('the messages you send are translated for the other person while their translation is on')
     expect(text).not.toContain('when you turn on chat translation, the messages you receive')
+  })
+
+  it('App Store gate app-ai-notice: eno.forum\'s policy says the apps ask first — and only with the gate on', async () => {
+    const ASK = 'In our apps, you are asked before your chats are first translated'
+    // `policy()` renders into document.body, so each render is cleaned up before the next is read.
+    const read = async (...args: Parameters<typeof policy>) => { cleanup(); return policy(...args) }
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    expect(await read('services')).not.toContain(ASK)
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'app-ai-notice')
+    const on = await read('services')
+    expect(on).toContain(ASK)
+    // The existing promises stay word for word on both branches.
+    expect(on).toContain('translation starts switched on in that case')
+    expect(await read('services', 'vi')).toContain('Trong ứng dụng của chúng tôi, bạn sẽ được hỏi trước')
+    // eno.vn's policy is untouched: the apps load only eno.forum.
+    expect(await read('marketplace')).not.toContain(ASK)
+    cleanup()
+    vi.unstubAllEnvs()
   })
 
   it('⛔ Google receives search terms, a search-by-photo image and text to rephrase', async () => {
