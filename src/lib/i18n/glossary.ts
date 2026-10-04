@@ -19,6 +19,13 @@ export const TR_OVERRIDES: Record<string, Partial<Record<Language, string>>> = {
   // Избранное, Leboncoin Favoris, 闲鱼 收藏, Karrot 찜 목록, ジモティー お気に入り).
   Saved: { 'zh-Hans': '收藏', ko: '찜 목록', ja: 'お気に入り', ru: 'Избранное', km: 'បានរក្សាទុក', ms: 'Disimpan', th: 'บันทึกไว้', fr: 'Favoris', hi: 'सेव किए गए' },
   'Recently viewed': { 'zh-Hans': '最近浏览', ko: '최근 본 상품', ja: '閲覧履歴', ru: 'Вы недавно смотрели', km: 'បានមើលថ្មីៗនេះ', ms: 'Dilihat baru-baru ini', th: 'ดูล่าสุด', fr: 'Vus récemment', hi: 'हाल ही में देखे गए' },
+  // ── SENSE-TAGGED entries: `word@sense`, read by tr(en, vi, sense) / <Tr text ctx> before the plain word.
+  // "Home" below is the FURNITURE CATEGORY; the homepage link (breadcrumbs, the sold page) is a different
+  // word in every one of these languages, and sharing the key printed "Для дома" ("for the home") as
+  // the first crumb of every Russian breadcrumb. ⚠️ Client-only, and deliberately NOT mirrored into
+  // scripts/glossary-data.json: those rows seed the Translation table keyed by the English source, and
+  // `Home@page` is not a string anything sends to the translator.
+  'Home@page': { 'zh-Hans': '首页', ko: '홈', ja: 'ホーム', ru: 'Главная', km: 'ទំព័រដើម', ms: 'Laman Utama', th: 'หน้าแรก', fr: 'Accueil', hi: 'होम' },
   // ── Category tiles (DB Category.name → <Tr>) — bare words MT reliably mis-senses ──
   Vehicles: { 'zh-Hans': '交通工具', ko: '차량', ja: '乗り物', ru: 'Транспорт', km: 'យានយន្ត', ms: 'Kenderaan', th: 'ยานพาหนะ', fr: 'Véhicules', hi: 'वाहन' },
   Rentals: { 'zh-Hans': '租赁', ko: '렌탈·임대', ja: 'レンタル・賃貸', ru: 'Аренда', km: 'ជួល', ms: 'Sewaan', th: 'ให้เช่า', fr: 'Locations', hi: 'किराये पर' },

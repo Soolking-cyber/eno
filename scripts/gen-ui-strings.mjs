@@ -78,7 +78,17 @@ const SERVICES_SOURCES = [
 ]
 const isServicesFile = (f) => {
   const rel = f.split('\\').join('/')
-  return SERVICES_SOURCES.some((d) => rel.startsWith(d))
+  if (SERVICES_SOURCES.some((d) => rel.startsWith(d))) return true
+  // A `.svc.` module only compiles on the services edition (pageExtensions), so its copy is services-only.
+  if (/\.svc\.tsx?$/.test(rel)) return true
+  if (!/\.tsx?$/.test(rel)) return false
+  /**
+   * ⚠️ A MODULE WITH A `.stub` TWIN IS SERVICES-ONLY BY CONSTRUCTION: next.config.ts aliases it to the
+   * stub on a marketplace build (edition-services-copy, privacy-services-copy, cross-site-links, …), so
+   * its copy never renders on eno.vn and must not ride eno.vn's catalogue either. The authored-pair
+   * harvest below reaches these files' `{ en, vi }` tables, which the literal scans never did.
+   */
+  return !/\.stub\.tsx?$/.test(rel) && existsSync(rel.replace(/\.(tsx?)$/, '.stub.$1'))
 }
 
 /** string -> true when EVERY file it appeared in is a services surface. */
@@ -94,23 +104,149 @@ const add = (s) => {
 }
 const unesc = (s) => s.replace(/\\'/g, "'").replace(/\\"/g, '"').replace(/\\`/g, '`')
 
+/**
+ * ⚠️ IS THIS THE VIETNAMESE HALF OF A PAIR? The t('A','B') helpers below come in BOTH orders —
+ * `t(en, vi)` in most files, `t(vi, en)` in post-wizard.tsx — so the scan used to take both arguments,
+ * and ~100 Vietnamese strings ("Lưu thay đổi", "Đăng tin") entered the catalogue as if they were English
+ * sources. Each was sent to the translator for nine languages, came back unchanged (the provider is told
+ * the source is English), and sat in the DB as a "translation" identical to its source. Nothing renders
+ * them — the helpers hand only the English to tr() — so they were pure cost. A string is Vietnamese when
+ * at least half its words carry a letter only Vietnamese uses; an English sentence quoting one term
+ * ("Listings marked Bán gấp, meaning urgent") stays English.
+ */
+const VI_ONLY = /[ăâđêôơưàáạảãằắặẳẵầấậẩẫèéẹẻẽềếệểễìíịỉĩòóọỏõồốộổỗờớợởỡùúụủũừứựửữỳýỵỷỹ]/i
+const viRatio = (s) => {
+  const words = s.split(/[^\p{L}]+/u).filter(Boolean)
+  return words.length ? words.filter((w) => VI_ONLY.test(w)).length / words.length : 0
+}
+const looksVietnamese = (s) => viRatio(s) >= 0.5
+
+/**
+ * Where an authored pair is UI copy. NOT: tests (fixtures are full of title/titleVi rows), admin and
+ * /developers (English-only by convention), API routes, the long-form fixed-language pages, and the legal
+ * documents — /regulations is printed in both languages at once and never machine-translated, and the
+ * other legal texts translate lazily, on the page that shows them, under an "English is authoritative"
+ * note. Nor the place-name tables: a district is never machine-translated (PlaceName's rule).
+ */
+const PAIR_SCOPE = (f) => {
+  const rel = f.split('\\').join('/')
+  if (/\.(test|spec)\.|\.stub\./.test(rel)) return false
+  if (/^src\/app\/(\[lang\]\/)?(admin|developers)\/|^src\/components\/admin\/|^src\/app\/api\//.test(rel)) return false
+  if (/^src\/app\/\[lang\]\/(privacy|terms|regulations|returns|prohibited)\//.test(rel)) return false
+  if (/listings-explorer\.constants\.ts$|honeycomb-listing\.ts$|batdongsan|district-|provinces|vn-admin/.test(rel)) return false
+  return !LONGFORM.has(rel)
+}
+// The fixed-language article and hub pages — the same files eslint.config.mjs exempts from the i18n gate.
+const LONGFORM = new Set(
+  // ONLY the i18n gate's ignore list — the block from its banner to its `rules:` — not any path the config names.
+  [...(readFileSync('eslint.config.mjs', 'utf8').split('// ── i18n gate')[1]?.split('rules:')[0] ?? '').matchAll(/"(src\/[^"*]+\.tsx)"/g)].map((m) => m[1].replace(/\\\\/g, '')),
+)
+// The list is read out of eslint.config.mjs's string literals; if that file's shape ever changes, an empty
+// set would quietly start warming every article and legal page — refuse instead.
+if (LONGFORM.size < 20) {
+  console.error(`\n✗ gen-ui-strings: read only ${LONGFORM.size} fixed-language pages out of eslint.config.mjs — its i18n ignore list changed shape.\n`)
+  process.exit(1)
+}
+
+/**
+ * ⛔ THE t(key) DICTIONARY LIVES IN src/lib/i18n/static-dicts.ts. This block used to read it out of
+ * language-context.tsx, and when the dictionary moved the harvest went quietly empty — the header's
+ * "Free Post" stopped being warmed in every machine-translated language. Only the keys some file
+ * actually CALLS are harvested: the dictionary still carries dozens of dead keys, and warming them
+ * would pay a translator for words nobody sees.
+ */
+const tKeys = new Map() // key -> the files that call t(key)
+for (const file of walk('src')) {
+  if (/\.(test|spec)\./.test(file)) continue // a test's own t('x.y') is not app copy
+  const src = readFileSync(file, 'utf8')
+  for (const m of src.matchAll(/\bt\(\s*'([a-z][\w-]*\.[\w.-]+)'\s*\)/g)) tKeys.set(m[1], [...(tKeys.get(m[1]) ?? []), file])
+}
+{
+  const dicts = readFileSync('src/lib/i18n/static-dicts.ts', 'utf8')
+  const enBlock = dicts.split(/export const EN\b/)[1]?.split(/export const VI\b/)[0] || ''
+  // Each value is added once PER CALLING FILE, so a key only a services surface calls stays services-only.
+  const found = new Set()
+  for (const m of enBlock.matchAll(/'([\w.-]+)'\s*:\s*'((?:[^'\\]|\\.)*)'/g)) {
+    for (const f of tKeys.get(m[1]) ?? []) { currentFile = f; add(unesc(m[2])); found.add(m[1]) }
+  }
+  currentFile = ''
+  // ⛔ A called key whose English this parse could not read is the silent failure this block exists to end —
+  // said out loud, but NOT fatal: this script is the edit hook, and a stray t('x.y') in a comment must not
+  // stop it regenerating the catalogue.
+  const unread = [...tKeys.keys()].filter((k) => !found.has(k))
+  if (unread.length) {
+    console.error(`⚠ gen-ui-strings: t() is called with ${unread.join(', ')}, but no single-quoted English value for it was read out of src/lib/i18n/static-dicts.ts — it will not be pre-translated.`)
+  }
+}
+
 for (const file of walk('src')) {
   currentFile = file
   const src = readFileSync(file, 'utf8')
-  // EN dictionary values (the t(key) strings)
-  if (file.endsWith('language-context.tsx')) {
-    const enBlock = src.split('const EN:')[1]?.split('const VI:')[0] || ''
-    for (const m of enBlock.matchAll(/:\s*'((?:[^'\\]|\\.)*)'/g)) add(unesc(m[1]))
-  }
   // tr('English', ...) — first arg is the English source
   for (const m of src.matchAll(/\btr\(\s*'((?:[^'\\]|\\.)*)'/g)) add(unesc(m[1]))
   for (const m of src.matchAll(/\btr\(\s*"((?:[^"\\]|\\.)*)"/g)) add(unesc(m[1]))
-  // t('A','B') delegated helpers — capture both args
-  for (const m of src.matchAll(/\bt\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*'((?:[^'\\]|\\.)*)'/g)) { add(unesc(m[1])); add(unesc(m[2])) }
+  // t('A','B') delegated helpers — whichever argument is the English one (see looksVietnamese)
+  for (const m of src.matchAll(/\bt\(\s*'((?:[^'\\]|\\.)*)'\s*,\s*'((?:[^'\\]|\\.)*)'/g)) {
+    // Only the clear-cut case drops a half: one side carries Vietnamese letters and the other carries
+    // none ("Lưu thay đổi" / "Save changes"). Anything less certain keeps both, as the scan always did —
+    // a wasted translation costs a cent, a dropped English line costs a visitor a flash of English.
+    const [a, b] = [unesc(m[1]), unesc(m[2])]
+    const [va, vb] = [VI_ONLY.test(a), VI_ONLY.test(b)]
+    if (va && !vb) add(b)
+    else if (vb && !va) add(a)
+    else { add(a); add(b) }
+  }
   // <Tr text="literal"> / <Tr text={'literal'}>
   for (const m of src.matchAll(/<Tr\s+text=\{?\s*'((?:[^'\\]|\\.)*)'/g)) add(unesc(m[1]))
   for (const m of src.matchAll(/<Tr\s+text="((?:[^"\\]|\\.)*)"/g)) add(unesc(m[1]))
+  // <Bilingual en="literal"> / en={'literal'} — server pages' authored pairs; the nine MT languages
+  // translate the English, so it belongs in the warm batch like any tr() literal.
+  for (const m of src.matchAll(/<Bilingual\b[^<>]*?\sen=\{?\s*'((?:[^'\\]|\\.)*)'/g)) add(unesc(m[1]))
+  for (const m of src.matchAll(/<Bilingual\b[^<>]*?\sen="((?:[^"\\]|\\.)*)"/g)) add(unesc(m[1]))
+  if (PAIR_SCOPE(file)) harvestPairs(src)
 }
+
+/**
+ * ⚠️ AUTHORED PAIRS THAT REACH THE SCREEN THROUGH A VARIABLE. Copy written as `{ en: '…', vi: '…' }`,
+ * `{ label: '…', labelVi: '…' }`, `{ labelEn: '…', labelVi: '…' }` — or as a component's
+ * `title="…" titleVi="…"` props — is rendered as `tr(x.en, x.vi)` / `<Bilingual en={x.label} …>`, a
+ * call the literal scans above cannot see. Vietnamese is unaffected (it is authored), but the nine
+ * machine-translated languages used to get each of these through a lazy per-string request and an
+ * English flash — or, where the call site picked `lang === 'vi' ? vi : en`, never at all (2026-10-04).
+ * The rule is structural, not a file list: a string is harvested when its key has a `…Vi` / `vi`
+ * sibling IN THE SAME OBJECT (or the same JSX tag), which is exactly the shape of an authored pair.
+ * ⚠️ CAPPED AT 200 CHARACTERS ON PURPOSE. The legal pages hold hundreds of paragraph-long pairs; they
+ * translate lazily on the page that shows them, and warming them would add every clause of the privacy
+ * policy to the dictionary every machine-translated visitor downloads on their first page.
+ */
+function harvestPairs(src) {
+  const STR = String.raw`'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"`
+  const pairsIn = (body, sep) => {
+    const vals = new Map()
+    for (const m of body.matchAll(new RegExp(String.raw`(?:^|[\s,{(])([A-Za-z_]\w*)\s*${sep}\s*(?:${STR})`, 'g'))) {
+      const v = m[2] ?? m[3]
+      if (v != null && !vals.has(m[1])) vals.set(m[1], unesc(v))
+    }
+    for (const [k, v] of vals) {
+      if (!v || v.length > 200 || /^(\/|https?:|mailto:)/.test(v)) continue
+      // A pair whose two halves are identical is a proper noun (a brand, "TikTok") — nothing to translate.
+      const twin = k === 'en' ? vals.get('vi') : /En$/.test(k) ? vals.get(k.slice(0, -2) + 'Vi') : vals.get(k + 'Vi')
+      if (twin === v) continue
+      const english =
+        (k === 'en' && vals.has('vi')) ||
+        (/En$/.test(k) && vals.has(k.slice(0, -2) + 'Vi')) ||
+        (!/(?:Vi|En)$/.test(k) && k !== 'vi' && vals.has(k + 'Vi'))
+      // A mis-keyed Vietnamese value is skipped; an English line naming a Vietnamese place ("Đà Nẵng guide")
+      // is not — hence a stricter bar than the t(a, b) comparison above.
+      if (english && viRatio(v) < 0.75) add(v)
+    }
+  }
+  // Object literals with no nested braces — `{ en: 'Sold', vi: 'Đã bán' }`.
+  for (const m of src.matchAll(/\{([^{}]{0,1200})\}/g)) pairsIn(m[1], ':')
+  // A JSX tag's string props — `<ContentSection title="Contact" titleVi="Liên hệ">`.
+  for (const m of src.matchAll(/<[A-Z][\w.]*\s([^<>]{0,1200}?)\/?>/g)) pairsIn(m[1], '=')
+}
+
 currentFile = '' // everything below is shared copy, never services-only
 // price unit suffixes
 for (const u of ['month', 'month (est.)', 'hour', 'visit (from)', 'service (from)', 'day', 'year', 'week']) add(u)

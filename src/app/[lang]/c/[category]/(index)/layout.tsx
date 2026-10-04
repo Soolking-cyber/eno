@@ -75,7 +75,7 @@ export default async function CategoryIndexLayout({
             <BreadcrumbItem>
               {/* Base UI render prop (never asChild) — keeps the Next.js client-side nav. */}
               {/* `relative tap-44`: a 44px touch target around the short crumb, no layout change (home-06). */}
-              <BreadcrumbLink render={<Link href={localizedHref('/', lang)} />} className="relative tap-44 hover:text-accent-foreground"><Tr text="Home" /></BreadcrumbLink>
+              <BreadcrumbLink render={<Link href={localizedHref('/', lang)} />} className="relative tap-44 hover:text-accent-foreground"><Tr text="Home" ctx="page" /></BreadcrumbLink>
             </BreadcrumbItem>
             {/* Literal "/" separator, and the colour stays pinned to --line-strong: the
                 primitive's default is a chevron in text-muted-foreground. */}

@@ -145,7 +145,7 @@ interface LanguageContextProps {
   // source for en, the hand-authored Vietnamese for vi (if given), and a cached
   // machine translation for every other language (and for vi when no hand
   // translation is supplied). Safe to call anywhere tr is in scope.
-  tr: (en: string, vi?: string) => string
+  tr: (en: string, vi?: string, ctx?: string) => string
 }
 
 const LanguageContext = createContext<LanguageContextProps | undefined>(undefined)
@@ -519,11 +519,11 @@ function LanguageProviderInner({
     }
   }
 
-  const t = (key: string): string => dicts[lang]?.[key] ?? EN[key] ?? key
-
   // Inline UI-string translation (see interface). English source is the cache
   // key; results are shared with <Tr>/useTr via the same module cache.
-  const tr = (en: string, vi?: string): string => {
+  // `ctx` names the SENSE of a short English word whose meanings differ in other languages ("Home" the
+  // homepage vs "Home" the furniture category): the glossary is consulted under `${en}@${ctx}` first.
+  const tr = (en: string, vi?: string, ctx?: string): string => {
     if (!en) return en
     if (lang === 'en') return en
     if (lang === 'vi') {
@@ -532,7 +532,7 @@ function LanguageProviderInner({
       if (hv != null) return hv
       if (!viLoaded) { void loadViOverrides().catch(() => {}); return en } // dict inbound — emitTrChange repaints
     }
-    const override = TR_OVERRIDES[en]?.[lang]
+    const override = (ctx ? TR_OVERRIDES[`${en}@${ctx}`]?.[lang] : undefined) ?? TR_OVERRIDES[en]?.[lang]
     if (override) return override
     const ck = `${lang} ${en}`
     const hit = trCache.get(ck)
@@ -545,6 +545,16 @@ function LanguageProviderInner({
     }
     return en // optimistic source fallback until the translation lands
   }
+
+  /**
+   * ⛔ t(key) IS A KEYED tr(), NOT A SEPARATE LOOKUP. It used to read `dicts[lang]`, which is filled
+   * ONLY from the batch-warmed UI dictionary — and the harvest stopped seeing the EN dictionary when it
+   * moved to static-dicts.ts, so the header's "Free Post" (the one t() caller) rendered in English in
+   * all nine machine-translated languages, with no lazy fallback to rescue it. Through tr() it gets the
+   * same chain as every other string: English, the authored Vietnamese, then glossary → cache → MT.
+   */
+  // An unknown key prints as itself, as it always did — never sent to the translator as if it were copy.
+  const t = (key: string): string => (EN[key] != null ? tr(EN[key], STATIC.vi?.[key]) : key)
 
   // t/tr read module-level caches at call time, so [lang, dicts] deps are enough —
   // async translation arrivals repaint via the external store, not new closures.
@@ -573,8 +583,10 @@ export function useLanguage() {
  * for fields with a native Vietnamese variant, pass the vi field when lang==='vi'
  * (it will be echoed). English is returned unchanged (it is the source language).
  */
-export function useTr(text: string | null | undefined): string {
+export function useTr(text: string | null | undefined, ctx?: string): string {
   const { lang } = useLanguage()
+  // A sense-tagged glossary entry (see tr()) wins over the plain one for this word.
+  const ctxOverride = ctx && text ? TR_OVERRIDES[`${text}@${ctx}`] : undefined
   const safe = text ?? ''
   const cacheKey = `${lang} ${safe}`
   const [val, setVal] = useState<string>(() =>
@@ -585,7 +597,7 @@ export function useTr(text: string | null | undefined): string {
       // Curated glossary wins over the MT cache — same precedence as tr(). Without
       // this, <Tr>-rendered category tiles kept serving a stale WRONG cache row
       // (ru "Свойства" for Property) that the glossary couldn't override.
-      : TR_OVERRIDES[safe]?.[lang] ?? trCache.get(cacheKey) ?? safe,
+      : ctxOverride?.[lang] ?? TR_OVERRIDES[safe]?.[lang] ?? trCache.get(cacheKey) ?? safe,
   )
 
   useEffect(() => {
@@ -606,7 +618,7 @@ export function useTr(text: string | null | undefined): string {
     }
     if (lang === 'vi') { const hv = viDict[safe]; if (hv != null) { setVal(hv); return } }
     // Curated glossary before the MT cache (mirrors tr()).
-    const override = TR_OVERRIDES[safe]?.[lang]
+    const override = ctxOverride?.[lang] ?? TR_OVERRIDES[safe]?.[lang]
     if (override) { setVal(override); return }
     const ck = `${lang} ${safe}`
     const hit = trCache.get(ck)
@@ -614,7 +626,7 @@ export function useTr(text: string | null | undefined): string {
     let cancelled = false
     translateText(safe, lang).then((tr) => { if (!cancelled) setVal(tr) })
     return () => { cancelled = true }
-  }, [safe, lang])
+  }, [safe, lang, ctx])
 
   return val
 }
@@ -625,9 +637,9 @@ export function useTr(text: string | null | undefined): string {
  *  `<span lang>` so assistive tech voices it correctly (WCAG 3.1.2). Detection only
  *  fires on unambiguous scripts / VI-exclusive letters, so chrome in the page
  *  language is never wrapped. */
-export function Tr({ text }: { text?: string | null }) {
+export function Tr({ text, ctx }: { text?: string | null; ctx?: string }) {
   const { lang } = useLanguage()
-  const out = useTr(text)
+  const out = useTr(text, ctx)
   const cl = detectContentLang(out)
   return cl && cl !== lang ? <span lang={cl}>{out}</span> : <>{out}</>
 }

@@ -75,7 +75,7 @@ export default async function BrandsPage({ params }: { params: Promise<{ lang: s
           <BreadcrumbList>
             <BreadcrumbItem>
               {/* Base UI render prop (never asChild) — keeps the Next.js client-side nav. */}
-              <BreadcrumbLink render={<Link href={home('/')} />} className="hover:text-accent-foreground"><Tr text="Home" /></BreadcrumbLink>
+              <BreadcrumbLink render={<Link href={home('/')} />} className="hover:text-accent-foreground"><Tr text="Home" ctx="page" /></BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
             <BreadcrumbItem>

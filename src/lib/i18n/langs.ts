@@ -31,3 +31,22 @@ export const LANGUAGES: { code: Language; label: string; native: string }[] = [
 
 // Flat code list, derived so it can never drift from the roster above.
 export const LANGS: Lang[] = LANGUAGES.map((l) => l.code)
+
+/**
+ * The Intl locale for DATES and RELATIVE TIMES in a UI language — month names and "ago" are words, and
+ * a hardcoded `lang === 'vi' ? 'vi-VN' : 'en-US'` printed them in English for all nine
+ * machine-translated languages.
+ *
+ * ⚠️ EN AND VI ARE PASSED IN, NOT DECIDED HERE: call sites already disagree on English (`en-US` in
+ * some, `en-GB` in others) and that output is shipped and tested, so each keeps its own. This map only
+ * decides the nine others. (Thai prints the Buddhist-era year — 2569 — which is what a Thai reader
+ * expects.) Number grouping is NOT routed through this on purpose: digits are not words, and the
+ * money format is owned by src/lib/vnd.ts.
+ */
+const INTL_LOCALE: Record<string, string> = {
+  'zh-Hans': 'zh-CN', ko: 'ko-KR', ja: 'ja-JP', ru: 'ru-RU', km: 'km-KH', ms: 'ms-MY', th: 'th-TH', fr: 'fr-FR', hi: 'hi-IN',
+}
+export function intlLocale(lang: string | null | undefined, en = 'en-US', vi = 'vi-VN'): string {
+  if (lang === 'vi') return vi
+  return (lang && INTL_LOCALE[lang]) || en
+}

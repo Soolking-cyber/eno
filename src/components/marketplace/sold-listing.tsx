@@ -159,7 +159,7 @@ function SoldActions({ sellerHref, categoryHref, homeHref, className }: { seller
           href={homeHref}
           className="inline-flex items-center rounded-xl px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-transparent hover:text-foreground"
         >
-          <Home className="h-4 w-4" /> <Tr text="Home" />
+          <Home className="h-4 w-4" /> <Tr text="Home" ctx="page" />
         </Link>
       </Button>
     </div>
