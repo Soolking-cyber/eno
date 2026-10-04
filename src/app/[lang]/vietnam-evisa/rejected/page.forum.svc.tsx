@@ -47,6 +47,8 @@ const CONTENT: SeoContent = {
   categorySlug: VISA_CATEGORY_SLUG,
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   cta: 'Start a new application',
+  // App Store gate `ios-hide-visa` (D5 = b): information only in the iOS app — no CTA, no grid (seo-landing.tsx).
+  appInfoOnly: true,
   sections: [
     {
       title: 'The fixable causes, in rough order of frequency',

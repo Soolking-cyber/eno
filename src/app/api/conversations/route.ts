@@ -19,6 +19,8 @@ import { getVisaShopSeller, isVisaShopListing } from '@/lib/visa-shop'
 import { VISA_SUBCATEGORY_SLUG, takesOffers, paysSalary } from '@/lib/taxonomy'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { startVisaDmFlow } from '@/lib/visa/dm-flow'
+import { IOS_APP_UNAVAILABLE, iosHideVisaFor } from '@/lib/ios-hide-visa'
+import { isEVisaProductListing } from '@/lib/evisa-listing'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -212,6 +214,25 @@ export const POST = route(
     // a transient 503 beats a permanent blank chat on a real visa product. An ordinary seller's
     // visa-legal listing is only affected while the desk lookup is down.
     : listing.subcategorySlug === VISA_SUBCATEGORY_SLUG
+
+  /**
+   * ⚠️ APP STORE GATE `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — off by default: `iosHideVisaFor` is false
+   * and nothing below runs. On, from the iOS app, NO conversation about an e-Visa product starts here — the desk's (it
+   * would create the application) or a partner's (isEVisaProductListing: the visa slot plus an e-Visa chip; its chat
+   * is where that seller takes the application). Every "Chat with seller" funnels through this route (cards, list
+   * rows, video feed, the PDP composer), so this one check closes all of them; /messages/pending says where to go.
+   * ⚠️ DEFINITIVE ANSWERS ONLY: the desk case this route could not decide (`mightBeVisa`) keeps its retryable 503 below
+   * rather than a refusal that names a place to apply (opus, review). The extra read runs only for a listing in the
+   * visa slot — an e-Visa product is always there — so an ordinary chat from the app costs nothing (codex, review).
+   * A plain 403, not ApiError: the code is this gate's own, not part of the shared catalogue.
+   */
+  if (iosHideVisaFor(req.headers.get('user-agent'))) {
+    const eVisa = isVisaProduct || (listing.subcategorySlug === VISA_SUBCATEGORY_SLUG && await db.listing
+      .findUnique({ where: { id: listing.id }, select: { attributes: true, category: { select: { slug: true } } } })
+      .then((x) => !!x && isEVisaProductListing({ categorySlug: x.category.slug, subcategorySlug: listing.subcategorySlug, attributes: x.attributes })))
+    if (eVisa) return NextResponse.json({ error: IOS_APP_UNAVAILABLE }, { status: 403 })
+  }
+
   if (!isVisaProduct && mightBeVisa) {
     /**
      * ⚠️ ON THE MARKETPLACE EDITION THIS ANSWERS 404, NOT 503, AND THE DIFFERENCE IS THE WHOLE

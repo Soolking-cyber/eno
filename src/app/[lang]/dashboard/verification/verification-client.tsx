@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Check, ShieldCheck, IdCard } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
+import { useIosHideVisa } from '@/hooks/use-ios-hide-visa'
+import { IosVerifyElsewhereNote } from '@/components/marketplace/ios-browser-only-note'
 
 /**
  * BOTH VERIFICATIONS, IN ORDER, ON ONE SCREEN.
@@ -62,6 +64,9 @@ export function VerificationClient() {
 
   const personDone = person === 'verified'
   const personPending = person === 'pending'
+  // App Store gate `ios-hide-visa` (D5 = b): the iOS app keeps this hub — the status is the person's own — but the
+  // capture behind "Verify yourself" is done in a browser (/dashboard/account/verify redirects the app here).
+  const captureElsewhere = useIosHideVisa()
 
   /**
    * ⛔ THE SELLER IS TOLD WHY. The reviewer's note verbatim when there is one; otherwise the machine
@@ -152,7 +157,8 @@ export function VerificationClient() {
                   {/* ⚠️ `w-full sm:w-auto` — a full-width primary action is the phone convention and
                       the reason the CTA is reachable with a thumb; it shrinks to its label on
                       wider screens where a full-width button reads as a banner. */}
-                  {!personDone && !personPending && (
+                  {!personDone && !personPending && captureElsewhere && <IosVerifyElsewhereNote kind="identity" className="mt-3" />}
+                  {!personDone && !personPending && !captureElsewhere && (
                     <Button variant="cta" asChild className="mt-3 w-full sm:w-auto">
                       <a href="/dashboard/account/verify">
                         {person === 'rejected' || person === 'expired'

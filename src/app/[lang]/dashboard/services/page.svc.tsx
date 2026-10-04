@@ -1,5 +1,8 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
+import { headers } from 'next/headers'
+import { appReviewGate } from '@/lib/app-review-gates'
+import { iosHideVisaFor } from '@/lib/ios-hide-visa'
 import { SITE_NAME } from '@/lib/edition'
 import { getTripAssistanceListingId } from '@/lib/trips/dm-thread'
 import { visaThreadsForViewer } from '@/lib/visa/viewer-threads'
@@ -32,11 +35,18 @@ async function ServicesBody() {
   // soft to its own empty value (visaThreadsForViewer already swallows internally; this catch guards
   // the trip read symmetrically), so one service degrading never blocks the other — least of all the
   // money path.
+  // ⚠️ App Store gate `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — off by default. On, the iOS app gets no
+  // e-Visa tab: it holds the cases list, "Open the e-Visa chat" / "Continue in chat", the payment-return confirm and
+  // the approve-for-prefill step. Decided HERE, on the server, so the tab is never in the app's HTML (this route is
+  // force-dynamic and signed-in, so no shared cache holds it); `?tab=evisa` then falls back to Trips
+  // (DashboardTabs' rule for an unknown tab). The visa read is skipped rather than done and thrown away.
+  // The flag first, as the payments page does: off ⇒ the request headers are never read.
+  const hideVisa = appReviewGate('ios-hide-visa') && iosHideVisaFor((await headers()).get('user-agent'))
   const [planListingId, threads] = await Promise.all([
     getTripAssistanceListingId().catch(() => null),
-    visaThreadsForViewer().catch(() => ({})),
+    hideVisa ? Promise.resolve({}) : visaThreadsForViewer().catch(() => ({})),
   ])
-  return <ServicesClient planListingId={planListingId} threads={threads} />
+  return <ServicesClient planListingId={planListingId} threads={threads} hideVisa={hideVisa} />
 }
 
 export default function ServicesPage() {

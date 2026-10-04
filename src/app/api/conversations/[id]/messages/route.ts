@@ -14,6 +14,8 @@ import { whatsappRecipientFor } from '@/lib/whatsapp-bridge'
 import { sendWhatsAppText } from '@/lib/whatsapp'
 import { isRemovedStatus } from '@/lib/listing-removed'
 import { paysSalary, takesOffers } from '@/lib/taxonomy'
+import { IOS_APP_UNAVAILABLE, iosHideVisaFor } from '@/lib/ios-hide-visa'
+import { isEVisaThread } from '@/lib/ios-hide-visa-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -177,6 +179,18 @@ export const POST = route(
     if (isOffer && offerListing && offerListing.status !== 'active') {
       await release()
       throw new ApiError('listing_unavailable', 409)
+    }
+
+    /**
+     * ⚠️ APP STORE GATE `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — off by default: one env read, no query. On,
+     * the APPLICANT in the iOS app cannot write into an e-Visa thread (the desk's, or one about a partner's e-Visa
+     * product): that chat is where an application is taken, the thread page is read-only there, and this keeps a stale
+     * or scripted client from writing anyway (codex, review). The seller side answers as before. isEVisaThread fails
+     * CLOSED — an unreadable classification fails the send. A plain Response: the code is this gate's own.
+     */
+    if (iAmBuyer && iosHideVisaFor(req.headers.get('user-agent')) && await isEVisaThread(id)) {
+      await release()
+      return NextResponse.json({ error: IOS_APP_UNAVAILABLE }, { status: 403 })
     }
 
     let message: Awaited<ReturnType<typeof insertMessage>>

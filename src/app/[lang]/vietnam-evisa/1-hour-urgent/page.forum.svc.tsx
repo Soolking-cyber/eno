@@ -40,6 +40,8 @@ const CONTENT: SeoContent = {
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   attributes: { visaSpeed: '1H' },
   cta: 'See 1-hour options',
+  // App Store gate `ios-hide-visa` (D5 = b): information only in the iOS app — no CTA, no grid (seo-landing.tsx).
+  appInfoOnly: true,
   sections: [
     {
       title: 'The clock starts at submission, not at payment',

@@ -16,6 +16,9 @@ import { seoBrowseHref } from './seo-landing-href'
 import { hasNoInventory, railFor } from './seo-landing-inventory'
 // The rail's query and markup live in seo-listing-rail.tsx, shared with the long-form guides.
 import { loadSeoRail, SeoListingGrid } from './seo-listing-rail'
+import { appReviewGate } from '@/lib/app-review-gates'
+import { IosAppHidden } from './ios-app-hidden'
+import { VisaInAppNote } from '@/components/marketplace/visa-start' // ⚠️ the ALIASED specifier: './visa-start' would ship the e-Visa words on eno.vn
 
 type SeoContentFields = {
   eyebrow: string
@@ -28,6 +31,14 @@ type SeoContentFields = {
    * that sells a government-adjacent service.
    */
   disclosure?: { text: string; textVi?: string; linkLabel: string }
+  /**
+   * App Store gate `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts): set on the pages that SELL ONLY e-Visas (the
+   * /vietnam-evisa family — not /services-for-expats-vietnam, whose grid is every service). With the gate on, in the
+   * iOS app the CTA and the listing grid
+   * — the way from this page to an application — are hidden by the `ios-app-hidden` hook and an `ios-app-only` line
+   * says where applying happens, leaving the page information only. Off, or unset, nothing changes: no wrapper, no line.
+   */
+  appInfoOnly?: boolean
   /** Heading of the live listing rail; default "Trusted listings". A page whose rail is mostly LINKED
    *  postings eno.vn has not vetted (jobs) must not call them trusted. */
   railTitle?: string
@@ -193,6 +204,9 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
   // Nothing to browse, and we know it rather than merely failing to look. The predicate lives in
   // its own module so it can be unit-tested — this file imports Prisma, so a test cannot.
   const noInventory = hasNoInventory(inventoryKnown, listings.length)
+  // App Store gate `ios-hide-visa` — CSS hooks, never the user agent: this page is ISR and the edge cache shares its
+  // HTML between the app and the web (see `appInfoOnly`).
+  const iosInfoOnly = content.appInfoOnly === true && appReviewGate('ios-hide-visa')
 
   // FAQPage structured data for rich results.
   const faqLd = {
@@ -250,6 +264,7 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
             className="mt-6"
           />
         )}
+        {iosInfoOnly && <VisaInAppNote kind="page" className="ios-app-only mt-6 max-w-3xl" />}
         {/* gap/weight on the BUTTON — see header.tsx: asChild concatenates the child's
             className instead of twMerging it, so overrides there are settled by
             stylesheet order rather than by intent. */}
@@ -267,6 +282,7 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
             zero-results recovery — remove-filters / create an alert / post a Wanted / jump to
             another category — which is already built and good, so this deliberately does not
             duplicate it here. */}
+        <IosAppHidden when={iosInfoOnly}>
         {noInventory ? (
           <>
             {/* ⚠️ DELIBERATELY NOT INTERPOLATED FROM THE EYEBROW. The obvious version —
@@ -333,6 +349,7 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
             </Link>
           </Button>
         )}
+        </IosAppHidden>
 
         {/* ⚠️ THE `lede` SLOT IS ABOVE THE FOLD ON PURPOSE, WHICH IS WHAT SEPARATES IT FROM
             `after`. `after` renders below the FAQ and the brand line — correct for a cross-site
@@ -347,7 +364,9 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
         {/* Live listings (crawlable internal links). ⛔ The default heading was "Trusted listings" — the
             claim CS-3 (claim 2) took off every category title: nothing on the site verifies a listing. */}
         {listings.length > 0 && (
+          <IosAppHidden when={iosInfoOnly}>
           <SeoListingGrid listings={listings} title={content.railTitle ?? 'Listed now'} cta={content.cta} links={content.browseLinks} href={browseHref} />
+          </IosAppHidden>
         )}
 
         {/* Editorial / keyword sections — wide container, readable measure.

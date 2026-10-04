@@ -15,6 +15,9 @@ import { syncBadgeToProfile } from '@/lib/native-push'
 import { dayCoarse } from '@/lib/last-seen'
 import { takesOffers } from '@/lib/taxonomy'
 import { blockStateBetween } from '@/lib/user-blocks'
+import { appReviewGate } from '@/lib/app-review-gates'
+import { iosHideVisaFor } from '@/lib/ios-hide-visa'
+import { isEVisaProductListing } from '@/lib/evisa-listing'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -310,12 +313,27 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
    * payload is byte-for-byte what it was.
    */
   const blockState = iAmSupport ? 'none' : await blockStateBetween(meId, iAmBuyer ? convo.sellerProfileId : convo.buyerProfileId)
+  /**
+   * ⚠️ APP STORE GATE `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — off by default: no read, no field, the
+   * payload is byte-identical. On, for the iOS app only, an ordinary-kind thread about a PARTNER's e-Visa product
+   * (isEVisaProductListing — VietKite's live listings) is flagged, because that chat is where the partner takes the
+   * application: the thread page makes it read-only there, like the desk's own e-Visa threads (`kind === 'visa'`).
+   * Starting such a chat from the app is already refused (POST /api/conversations); this covers one begun on the web.
+   * One primary-key read, and only for that user agent with the gate on.
+   */
+  // The APPLICANT side only: the seller (the partner answering, or the desk) keeps an ordinary thread (opus, review).
+  const eVisaProduct = !!convo.listing && kind === 'listing' && iAmBuyer && appReviewGate('ios-hide-visa') && iosHideVisaFor(req.headers.get('user-agent'))
+    && await db.listing.findUnique({ where: { id: convo.listing.id }, select: { subcategorySlug: true, attributes: true, category: { select: { slug: true } } } })
+      .then((l) => !!l && isEVisaProductListing({ categorySlug: l.category.slug, subcategorySlug: l.subcategorySlug, attributes: l.attributes }))
+      .catch(() => false)
 
   return {
     id: convo.id,
     me: meId,
     /** 'visa' | 'itinerary' | 'listing' — what this thread is ABOUT. */
     kind,
+    // App Store gate `ios-hide-visa` — present only when true (see above), so the gate-off payload is unchanged.
+    ...(eVisaProduct ? { eVisaProduct: true } : {}),
     // The seller of the listing reveals nothing here (they ARE the contact) — the client
     // uses this to hide the "Request number / Zalo" action for the seller side.
     iAmSeller,

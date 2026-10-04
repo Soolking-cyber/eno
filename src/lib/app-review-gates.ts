@@ -27,6 +27,10 @@
  * |                  |      | stops every request THIS person's app makes (what they send follows the  |          |
  * |                  |      | other person's setting); Settings → Preferences turns it back on         |          |
  * |                  |      | (src/lib/chat-translation-consent.ts)                                    |          |
+ * | ios-hide-visa    | D5   | iOS app: no e-Visa application (start, product pick, passport/portrait    | D5 = b   |
+ * |                  |      | upload, form, send/pay — desk or partner e-Visa product) and no identity |          |
+ * |                  |      | or business-document capture; says "at www.eno.forum in a web browser";  |          |
+ * |                  |      | info pages stay; writes refused server-side (src/lib/ios-hide-visa.ts)   |          |
  *
  * ⚠️ "iOS app" = the Capacitor shell on iOS: `window.Capacitor.getPlatform() === 'ios'` on the client,
  * the `EnoNativeApp` user-agent token plus an iOS device string on the server. "Both apps" = the
@@ -43,7 +47,7 @@
  */
 const NATIVE_UA_RE = /EnoNativeApp|EnoNativeTabs/
 
-export const APP_REVIEW_GATES = ['ios-hide-google', 'ios-hide-wallet', 'app-signin-tidy', 'app-no-gtm', 'site-brand-copy', 'ugc-safety', 'app-ai-notice'] as const
+export const APP_REVIEW_GATES = ['ios-hide-google', 'ios-hide-wallet', 'app-signin-tidy', 'app-no-gtm', 'site-brand-copy', 'ugc-safety', 'app-ai-notice', 'ios-hide-visa'] as const
 export type AppReviewGate = (typeof APP_REVIEW_GATES)[number]
 
 /** Parse the comma list; unknown tokens are ignored (a typo turns nothing on). */

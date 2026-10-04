@@ -66,6 +66,8 @@ Not sure which option is right for you? **Message us before ordering — we’re
   categorySlug: VISA_CATEGORY_SLUG,
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   cta: 'See all e-visa options',
+  // App Store gate `ios-hide-visa` (D5 = b): information only in the iOS app — no CTA, no grid (seo-landing.tsx).
+  appInfoOnly: true,
   sections: [
     {
       title: 'What you are choosing between',

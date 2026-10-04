@@ -50,6 +50,10 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { LANGUAGES } from '@/lib/i18n/langs'
 import { useChatTranslation } from '@/hooks/use-chat-translation'
 import { ChatTranslationNotice } from '@/components/marketplace/chat-translation-notice'
+// ⚠️ The ALIASED specifier: on eno.vn this is the stub and the e-Visa sentence never ships.
+import { VisaInAppNote } from '@/components/marketplace/visa-start'
+import { useIosHideVisa } from '@/hooks/use-ios-hide-visa'
+import { iosHideVisaClient } from '@/lib/ios-hide-visa'
 import { fmtTime, dayKey } from '@/lib/dates'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useUndoWindow } from '@/hooks/use-undo-window'
@@ -284,6 +288,8 @@ type Thread = {
    * (the fallback threadKind itself fails closed to), never as a desk thread.
    */
   kind?: 'visa' | 'itinerary' | 'listing' | null
+  /** App Store gate `ios-hide-visa`: a partner's e-Visa product thread — sent only to the iOS app with the gate on. */
+  eVisaProduct?: boolean
   iAmSeller?: boolean // true = I'm the listing's seller → hide "request contact" (I'm the contact)
   // Seller.officialPartner — a partner shares no number by agreement, so the contact strip is not
   // offered at all. ⚠️ OPTIONAL, and that is load-bearing, exactly as it is for iAmSeller above:
@@ -1316,6 +1322,20 @@ export default function ThreadPage() {
   // Only the APPLICANT drives the wizard: acknowledging a passport is their act, and the
   // act route refuses anyone but the thread's buyer.
   const iAmApplicant = !!visaInfo && !thread?.iAmSeller
+  /**
+   * ⚠️ APP STORE GATE `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — off by default, and then `visaElsewhere` is
+   * false and this thread is exactly what it was. On, in the iOS app an e-Visa thread is READ-ONLY: the thread IS the
+   * application ("the whole application happens inside the thread"), so the cards that take a step (product pick,
+   * passport/portrait upload, form, send/pay) become one line each, the chip row and the composer give way to a notice
+   * that the application continues at www.eno.forum in a web browser, and nothing is POSTed on open. The history — and
+   * a finished e-Visa's download — stays.
+   * useIosHideVisa, not a bare check: it is `false` on the server and through hydration, then right (no mismatch).
+   */
+  // `eVisaProduct`: a PARTNER's e-Visa product thread (kind 'listing') — the server sets it only for the iOS app with
+  // the gate on (api/conversations/[id]/route.ts); that chat is where the partner takes the application.
+  // `!iAmSeller`: only the APPLICANT side is read-only — the partner answering, or the desk, keeps its composer (opus,
+  // review); the send route refuses the applicant's writes there too.
+  const visaElsewhere = useIosHideVisa() && !thread?.iAmSeller && (!!visaInfo || thread?.kind === 'visa' || thread?.eVisaProduct === true)
   const { kase: visaCase, unavailable: visaCaseError, missing: visaCaseMissing, reload: reloadVisaCase } = useVisaCase(visaInfo?.applicationId ?? null, iAmApplicant)
   const [visaBusy, setVisaBusy] = useState(false)
 
@@ -1344,6 +1364,9 @@ export default function ThreadPage() {
   // the 15s poll: idempotent is not the same as free.
   const visaAdvancedRef = useRef<string | null>(null)
   useEffect(() => {
+    // App Store gate `ios-hide-visa`: an effect only ever runs in the browser, so the platform is read directly here —
+    // the hook's value is still `false` on the hydration pass, which would POST /advance (and toast the 403) once.
+    if (iosHideVisaClient()) return
     const applicationId = iAmApplicant ? visaInfo?.applicationId : null
     if (!applicationId || visaAdvancedRef.current === applicationId) return
     visaAdvancedRef.current = applicationId
@@ -2508,6 +2531,11 @@ export default function ThreadPage() {
                       {metaNode}
                     </div>
                   </div>
+                ) : visaElsewhere && (m.kind === 'visa_step' || m.kind === 'visa_checkout' || m.kind === 'visa_picker') ? (
+                  // App Store gate `ios-hide-visa`: a card that would TAKE a step of the application (pick, upload, form,
+                  // send/pay), one line instead. The finished e-Visa (visa_result) stays: a download of the person's own
+                  // document, which captures nothing.
+                  <VisaInAppNote kind="step" />
                 ) : visaStepMeta ? (
                   <VisaStepCard
                     meta={visaStepMeta}
@@ -2754,7 +2782,7 @@ export default function ThreadPage() {
                 onAskHuman={askTripHuman}
               />
             )}
-            {visaInfo && (<>
+            {visaInfo && !visaElsewhere && (<>
               {/*
                 ⚠️ NO "NOT A GOVERNMENT AGENCY" PANEL IN THE CHAT (owner, 2026-09-14: "remove this warning in the
                 chat only on product page is ok … covers too much space of chat ui"). It sat above the composer on
@@ -2824,7 +2852,7 @@ export default function ThreadPage() {
             * reply and then switching to an offer would otherwise leave a chip promising something
             * the send cannot honour. Switching modes drops the quote (see toggleOffer).
             */}
-          {replyTo && !showOffer && !thread?.closed && (
+          {replyTo && !showOffer && !thread?.closed && !visaElsewhere && (
             <div className="flex items-center gap-2 bg-tint px-4 py-1.5">
               {/* Same mark as the quoted strip inside a bubble — see the note there on why the
                   left stripe is gone. */}
@@ -2870,14 +2898,14 @@ export default function ThreadPage() {
               it: nothing inside the composer row moves, and ChatSendButton's focus-hold is untouched. */}
           {showOffer && thread?.iAmSeller === false && !thread.closed && <OfferPartiesNote className="bg-background px-4 pt-2" />}
 
-          {/* Composer — the Tag toggle flips this same bar between a message field
-              and the offer-amount field (no separate input bar). In offer mode the
-              field shows an inline +000 chip and Send submits the offer. */}
-          {/* App Store gate `ugc-safety`: a thread CLOSED by a block shows why instead of a composer whose
+          {/* App Store gate `ios-hide-visa`: a read-only e-Visa thread in the iOS app (see `visaElsewhere`).
+              App Store gate `ugc-safety`: a thread CLOSED by a block shows why instead of a composer whose
               every send the server refuses (follow-up 2 of 0a470ed98). The Report button stays in the
               header, and the dialog instance above stays mounted. Never set while the gate is off. */}
-          {thread?.closed && <ClosedThreadBanner closed={thread.closed} />}
-          {!thread?.closed && (
+          {visaElsewhere ? <VisaInAppNote kind="thread" className="mx-4 mt-2 mb-3" /> : thread?.closed ? <ClosedThreadBanner closed={thread.closed} /> : (
+          /* Composer — the Tag toggle flips this same bar between a message field
+              and the offer-amount field (no separate input bar). In offer mode the
+              field shows an inline +000 chip and Send submits the offer. */
           <div className="chat-composer flex items-end gap-2 bg-background px-4 pt-3 pb-3">
             {/* Offer control only on negotiable listings — a fixed-price seller takes
                 no offers (buyers just ask availability + buy). Undefined = older cached

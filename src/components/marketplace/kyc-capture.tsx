@@ -8,6 +8,10 @@ import { Spinner } from '@/components/ui/spinner'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { createDocDetector, grabDetectFrame, grabDocStill, downscaleImageData, cropImageData, type DocDetector, type DocBox } from '@/lib/identity/doc-detect'
+import { useMounted } from '@/hooks/use-mounted'
+import { appReviewGate } from '@/lib/app-review-gates'
+import { iosHideVisaClient } from '@/lib/ios-hide-visa'
+import { IosVerifyElsewhereNote } from './ios-browser-only-note'
 
 // ── CAPTURING A PASSPORT AND A SELFIE ───────────────────────────────────────────────────────────
 //
@@ -95,7 +99,7 @@ async function decodeToImageData(blob: Blob, maxDim = 2400): Promise<ImageData |
   }
 }
 
-export function KycCapture({
+function KycCaptureCamera({
   kind,
   guide,
   alt,
@@ -953,4 +957,24 @@ function messageFor(code: string | undefined, tr: (en: string, vi: string) => st
     default:
       return tr('Something went wrong. Please try again.', 'Đã xảy ra lỗi. Vui lòng thử lại.')
   }
+}
+
+/**
+ * ⚠️ APP STORE GATE `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts): in the iOS app no camera opens for a document
+ * or a selfie, wherever this is mounted — /dashboard/account/verify already sends the app to the hub, the dev preview
+ * does not — and the person is told where the check is done instead.
+ * ⚠️ TWO COMPONENTS, AND THE ORDER MATTERS. The camera starts in a MOUNT EFFECT (`start()` above), so it must not
+ * mount at all until we know this is not the iOS app: a hydration render that assumed "not the app" would ask iOS for
+ * the camera before the correction landed. With the build flag on, nothing renders until after mount; with it off
+ * (the default) this is exactly the camera component, with no extra render.
+ */
+type KycCaptureProps = Parameters<typeof KycCaptureCamera>[0]
+export function KycCapture(props: KycCaptureProps) {
+  return appReviewGate('ios-hide-visa') ? <KycCaptureGated {...props} /> : <KycCaptureCamera {...props} />
+}
+
+function KycCaptureGated(props: KycCaptureProps) {
+  const mounted = useMounted()
+  if (!mounted) return null
+  return iosHideVisaClient() ? <IosVerifyElsewhereNote kind="identity" className={props.className} /> : <KycCaptureCamera {...props} />
 }
