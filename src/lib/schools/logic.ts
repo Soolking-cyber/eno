@@ -47,6 +47,10 @@ const GENERIC_EMPLOYERS = new Set([
   'academy', 'education', 'university', 'college', 'institute', 'center', 'centre', 'training center', 'training centre',
   'confidential', 'private', 'employer', 'recruiter', 'agency', 'client', 'our client', 'partner school', 'partner schools',
   'trung tam anh ngu', 'trung tam ngoai ngu', 'truong quoc te', 'anh ngu', 'ngoai ngu', 'truong hoc', 'giao duc',
+  // a nationality + "school" names a KIND of school, not one: "The American School" must not catch an ad
+  // from "American School" anywhere (diff review).
+  'american school', 'british school', 'australian school', 'canadian school', 'international school vietnam',
+  'asian school', 'london school', 'japanese school', 'korean school', 'french school', 'german school',
 ])
 export function isGenericEmployer(normalised: string): boolean {
   return normalised.length < 3 || GENERIC_EMPLOYERS.has(normalised)

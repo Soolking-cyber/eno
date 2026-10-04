@@ -132,7 +132,7 @@ describe('schoolsRedirectPath', () => {
 
 describe('isGenericEmployer', () => {
   it('refuses the phrases job boards print for a hidden employer, and anything under 3 characters', () => {
-    for (const n of ['The International School', 'English Center', 'Trung tâm Anh ngữ', 'Confidential', 'IU', 'E2', 'International School Vietnam Co., Ltd']) {
+    for (const n of ['The International School', 'English Center', 'Trung tâm Anh ngữ', 'Confidential', 'IU', 'E2', 'International School Vietnam Co., Ltd', 'The American School', 'Japanese School']) {
       expect(isGenericEmployer(normEmployer(n)), n).toBe(true)
     }
   })

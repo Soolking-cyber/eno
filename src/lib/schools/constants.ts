@@ -91,12 +91,17 @@ export const PAY_MAX_AGE_YEARS = 3
 export const SCHOOLS_PATH = '/schools'
 export const SCHOOLS_SUBDOMAIN = 'schools'
 
-/** Ho Chi Minh City areas, the labels the directory and the review's optional branch use. */
-/** Same names the rentals area filter uses (the familiar pre-2025 districts expats still search by). */
+/**
+ * Ho Chi Minh City areas, the labels the directory and the review's optional branch use: the familiar
+ * pre-2025 districts expats still search by.
+ */
+// ⚠️ ONE bucket for Thu Duc City. Districts 2 and 9 were merged into it in 2021, and schools and teachers use
+// all three names for the same streets (An Phu, Thao Dien). Three options split one area: a teacher picking
+// "District 2" missed every school filed under "Thu Duc City". Thu Dau Mot joined the city with Binh Duong (2025).
 export const HCMC_AREAS = [
-  'District 1', 'District 2 (Thu Duc)', 'District 3', 'District 4', 'District 5', 'District 6', 'District 7',
-  'District 8', 'District 9 (Thu Duc)', 'District 10', 'District 11', 'District 12', 'Binh Thanh', 'Phu Nhuan',
-  'Tan Binh', 'Tan Phu', 'Go Vap', 'Binh Tan', 'Thu Duc City', 'Binh Chanh', 'Nha Be', 'Hoc Mon', 'Cu Chi',
+  'District 1', 'Thu Duc City (D2 & D9)', 'District 3', 'District 4', 'District 5', 'District 6', 'District 7',
+  'District 8', 'District 10', 'District 11', 'District 12', 'Binh Thanh', 'Phu Nhuan', 'Tan Binh', 'Tan Phu',
+  'Go Vap', 'Binh Tan', 'Binh Chanh', 'Nha Be', 'Hoc Mon', 'Cu Chi', 'Thu Dau Mot',
 ] as const
 export type HcmcArea = (typeof HCMC_AREAS)[number]
 export const isHcmcArea = (v: unknown): v is HcmcArea => typeof v === 'string' && (HCMC_AREAS as readonly string[]).includes(v)

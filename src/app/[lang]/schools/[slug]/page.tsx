@@ -5,6 +5,7 @@ import { pageShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { formatInteger, moneyLocale } from '@/lib/vnd'
 import { Bilingual } from '@/components/marketplace/bilingual'
+import { Tr } from '@/context/language-context'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Badge } from '@/components/ui/badge'
@@ -118,7 +119,9 @@ export default async function SchoolPageRoute({ params }: Props) {
             </div>
           </header>
 
-          {summary && <p className="mt-5 max-w-prose text-base leading-relaxed text-body">{summary}</p>}
+          {/* An authored Vietnamese summary when there is one; otherwise the English through the site's own
+              translation layer (<Tr>), as listing text is, so a Vietnamese reader is not handed English. */}
+          {summary && <p className="mt-5 max-w-prose text-base leading-relaxed text-body">{lang === 'vi' && school.summaryVi ? summary : <Tr text={summary} />}</p>}
 
           <div className="mt-5 flex flex-wrap gap-2">
             <Button variant="cta" asChild>
