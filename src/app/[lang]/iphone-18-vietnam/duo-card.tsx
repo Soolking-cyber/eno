@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { LocalizedLink } from '@/components/marketplace/localized-link'
 import { Tr } from '@/context/language-context'
 import { ArrowRight } from '@/components/ui/icons'
 import { Price } from '@/components/marketplace/price'
@@ -98,7 +99,7 @@ export function DuoCard({ rows, known, checked }: { rows: PriceRow[]; known: boo
             ? <><Tr text="Apple Vietnam recommended retail prices, announced 9 September 2026. No second-hand shop lists an iPhone Duo here yet, as of" /> {checked}.</>
             : <Tr text="Apple Vietnam recommended retail prices, announced 9 September 2026." />}
       </p>
-      <Link
+      <LocalizedLink
         href={listed
           ? '/?category=electronics&subcategory=phones-tablets&brand=apple&condition=used&model=iPhone+Duo'
           : '/?category=electronics&subcategory=phones-tablets&brand=apple&condition=used'}
@@ -106,7 +107,7 @@ export function DuoCard({ rows, known, checked }: { rows: PriceRow[]; known: boo
       >
         {listed ? <Tr text="See every second-hand iPhone Duo" /> : <Tr text="Browse second-hand Apple phones" />}
         {' '}<ArrowRight className="h-4 w-4" />
-      </Link>
+      </LocalizedLink>
     </section>
   )
 }

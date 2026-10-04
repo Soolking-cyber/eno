@@ -13,6 +13,7 @@ import { db } from '@/lib/db'
 import { brandIconPath } from '@/lib/brand-icons'
 import { brandLogoUrl } from '@/lib/brand-logo-url'
 import { listedBrands, liveBrandCounts } from '@/lib/live-brands'
+import { localizedHref } from '@/lib/lang-pinned'
 
 export const metadata: Metadata = {
   title: `Brands | ${SITE_NAME}`,
@@ -26,7 +27,10 @@ export const metadata: Metadata = {
 // sells out should leave /brands within the hour, not up to six — one cheap regeneration per hour per language.
 export const revalidate = 3600
 
-export default async function BrandsPage() {
+export default async function BrandsPage({ params }: { params: Promise<{ lang: string }> }) {
+  // The page's language: a Vietnamese render links the `/vi` home twin, never the English-pinned `/` (A1-LANG).
+  const { lang } = await params
+  const home = (href: string) => localizedHref(href, lang === 'vi' ? 'vi' : 'en')
   // Brands with LIVE listings only, most-listed first, each with the count `/?brand=<slug>` returns
   // (src/lib/live-brands.ts). Resolve each brand's monotone logo server-side so simple-icons never
   // reaches the client.
@@ -71,7 +75,7 @@ export default async function BrandsPage() {
           <BreadcrumbList>
             <BreadcrumbItem>
               {/* Base UI render prop (never asChild) — keeps the Next.js client-side nav. */}
-              <BreadcrumbLink render={<Link href="/" />} className="hover:text-accent-foreground"><Tr text="Home" /></BreadcrumbLink>
+              <BreadcrumbLink render={<Link href={home('/')} />} className="hover:text-accent-foreground"><Tr text="Home" /></BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
             <BreadcrumbItem>
@@ -99,7 +103,7 @@ export default async function BrandsPage() {
             action={
               <Button asChild variant="cta" size="none">
                 <Link
-                  href="/"
+                  href={home('/')}
                   className="px-5 py-2.5"
                 >
                   <Tr text="Browse all listings" />
@@ -115,7 +119,7 @@ export default async function BrandsPage() {
             {items.map((b) => (
               <Link
                 key={b.slug}
-                href={`/?brand=${encodeURIComponent(b.slug)}`}
+                href={home(`/?brand=${encodeURIComponent(b.slug)}`)}
                 className="flex flex-col items-center gap-3 rounded-2xl border border-border px-4 py-6 text-center transition-colors hover:border-line-strong hover:bg-muted active:bg-muted"
               >
                 <BrandLogo name={b.name} iconPath={b.iconUrl ? null : b.iconPath} iconUrl={b.iconUrl} size={44} />

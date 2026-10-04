@@ -1,10 +1,12 @@
 'use client'
 
+import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Search } from '@/components/ui/icons'
 import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/context/language-context'
-import { LANG_VARIANTS } from '@/lib/lang-variant'
+import { LANG_VARIANTS, variantOfLanguage } from '@/lib/lang-variant'
+import { localizedHref } from '@/lib/lang-pinned'
 
 /**
  * ⚠️ THE ONE-PREFIX TOLERANCE IS WHAT KEEPS THIS HYDRATION-SAFE. The proxy rewrites a public path P to
@@ -34,7 +36,7 @@ const LISTING_PATH = new RegExp(`^(?:/(?:${LANG_VARIANTS.join('|')}))?/listings/
  * contract as the help centre's search (ui/input `unstyled`).
  */
 export function NotFoundBody() {
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const isListing = LISTING_PATH.test(usePathname() ?? '')
   const label = tr('Search listings', 'Tìm tin đăng')
   return (
@@ -51,7 +53,8 @@ export function NotFoundBody() {
           : tr('The link may be mistyped or out of date.', 'Đường dẫn có thể bị gõ sai hoặc đã cũ.')}
       </p>
       <form
-        action="/"
+        // A Vietnamese 404 searches the `/vi` twin, not the English-pinned `/` (A1-LANG).
+        action={localizedHref('/', variantOfLanguage(lang))}
         method="get"
         role="search"
         className="mx-auto mt-6 flex max-w-sm items-center rounded-xl bg-tint px-3 transition-shadow focus-within:ring-2 focus-within:ring-[color:var(--ring)]"
@@ -69,4 +72,27 @@ export function NotFoundBody() {
       </form>
     </>
   )
+}
+
+/**
+ * The recovery list's "Search all listings": the home explorer in the reader's language — the `/vi`
+ * twin on a Vietnamese 404, never the English-pinned `/` (A1-LANG). A client island for the same
+ * reason as NotFoundBody: not-found.tsx cannot read the request.
+ */
+export function NotFoundHomeLink({ className }: { className?: string }) {
+  const { tr, lang } = useLanguage()
+  return (
+    <Link href={localizedHref('/', variantOfLanguage(lang))} className={className}>
+      {tr('Search all listings', 'Tìm trong tất cả tin đăng')}
+    </Link>
+  )
+}
+
+/**
+ * The lead-in to the machine-readable indexes, translated (auth-13): the English sentence sat in the
+ * Vietnamese 404 because it had no curated Vietnamese. The filenames that follow it stay as they are.
+ */
+export function MachineIndexLead() {
+  const { tr } = useLanguage()
+  return <>{tr('Looking for a machine-readable index?', 'Cần chỉ mục cho máy đọc?')}</>
 }

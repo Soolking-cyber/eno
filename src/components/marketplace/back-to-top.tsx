@@ -12,9 +12,10 @@ import { cn } from '@/lib/utils'
 import { SupportButton } from '@/components/marketplace/support-button'
 import { isPostFlowPath } from '@/lib/post-flow-path'
 import { RentalCheckPill } from '@/components/marketplace/rental-check-pill'
+import { useRentalBasketCount } from '@/lib/rental-check/store'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
-import { MAX_OBSTACLE_HEIGHT, nextScrollDirection, planClearance, tapBox, YIELDED, type Box, type ClearancePlan, type Obstacle, type ScrollDir } from '@/lib/fab-clearance'
+import { MAX_OBSTACLE_HEIGHT, nextScrollDirection, PILL_OBSTACLES, pillCovers, planClearance, tapBox, TAP_FLOOR, YIELDED, type Box, type ClearancePlan, type Obstacle, type ScrollDir } from '@/lib/fab-clearance'
 
 /** The chevron stays away until the reader is this far down — near the top there is nothing to go back to. */
 const CHEVRON_AFTER_Y = 700
@@ -34,6 +35,13 @@ const MAX_LIFT_SHARE = 0.4
  *  fade + no pointer, still focusable (YIELDED in src/lib/fab-clearance.ts) — and only ever a yield: a
  *  wide value (the PDP's H1) is never a bar the cluster rises above (`yieldOnly`). */
 const OBSTACLES = 'main button, main a[href], main [role="button"], main input, main select, main textarea, main [data-fab-avoid], #app-footer a[href], #app-footer button'
+
+/** `checkVisibility` where the engine has it: an ANCESTOR's opacity-0 / visibility:hidden counts (see `solve`). */
+type CheckVisibility = (o?: Record<string, boolean>) => boolean
+const hiddenByAncestor = (el: HTMLElement) => {
+  const cv = (el as HTMLElement & { checkVisibility?: CheckVisibility }).checkVisibility
+  return !!cv && !cv.call(el, { opacityProperty: true, visibilityProperty: true, checkOpacity: true, checkVisibilityCSS: true })
+}
 
 type Plan = { rise: number; standDown: boolean; chevron: boolean; support: boolean }
 const AT_REST: Plan = { rise: 0, standDown: false, chevron: false, support: false }
@@ -96,11 +104,38 @@ export function BackToTop() {
   const chevronYields = standDown || plan.chevron
   const supportYields = standDown || plan.support
   const column = useRef<HTMLDivElement>(null)
+  /**
+   * ⛔ THE PHONE PILL YIELDS AT REST, LIKE THE CHEVRON AND THE SUPPORT MARK (rentals-04). It sits
+   * bottom-left (owner, 2026-09-25 — the placement is unchanged) over the left card column, where it
+   * covered the very hearts and "check availability" toggles it exists to collect. At rest, when its box
+   * meets one (PILL_OBSTACLES, src/lib/fab-clearance.ts), it fades and takes no pointer (YIELDED) until
+   * the page moves again — the same `holding` hand-back as the column's controls.
+   * ⚠️ ITS OWN APPEARANCE IS NOT A REST, ON PURPOSE: the pill pops in as the feedback for an add, so it is
+   * not re-planned the moment it mounts (that would be a zoom-in followed at once by a fade-out). It is
+   * judged at the next rest like everything else.
+   */
+  const pillWrap = useRef<HTMLDivElement>(null)
+  const [pillYields, setPillYields] = useState(false)
+  /**
+   * ⛔ A BASKET CHANGE HANDS THE PILL BACK. Without it a yield outlived its pill: rest on a heart
+   * (yielded), take the last rental out without scrolling (the pill unmounts, `pillYields` stays true),
+   * add another — and the new pill mounted already faded, so the add showed no pill at all. Any add or
+   * removal is feedback; the next rest judges.
+   * ⚠️ REACT'S "PREVIOUS VALUE IN STATE" PATTERN (react.dev, "Storing information from previous renders"),
+   * not a ref written during render: the guarded setState re-renders this component at once, before
+   * the children commit, and nothing reads a mutable value mid-render.
+   */
+  const basketCount = useRentalBasketCount()
+  const [seenBasket, setSeenBasket] = useState(basketCount)
+  if (seenBasket !== basketCount) {
+    setSeenBasket(basketCount)
+    if (pillYields) setPillYields(false)
+  }
   // Whether anything is currently yielded or stood down — read by the scroll listener, which must
   // hand the controls back the moment the page moves without re-subscribing on every plan.
   const holding = useRef(false)
   const kick = useRef<() => void>(() => {})
-  useEffect(() => { holding.current = standDown || plan.chevron || plan.support }, [standDown, plan])
+  useEffect(() => { holding.current = standDown || plan.chevron || plan.support || pillYields }, [standDown, plan, pillYields])
 
   useEffect(() => { setMounted(true) }, [])
   useEffect(() => {
@@ -164,7 +199,28 @@ export function BackToTop() {
     if (!mounted) return
     let timer: ReturnType<typeof setTimeout> | undefined
     let raf = 0
+    const solvePill = () => {
+      // Only the phone mount has a wrapper (desktop keeps the pill in the column, under its own plan).
+      const pill = pillWrap.current?.querySelector<HTMLElement>('[data-rental-check-pill]')
+      if (!pill) { setPillYields(false); return }
+      const r = pill.getBoundingClientRect()
+      if (r.width === 0 || r.height === 0) { setPillYields(false); return }
+      // A yield is a fade in place, so the box measured here is where the pill IS whether or not it is
+      // currently yielded — answers cannot oscillate between rests.
+      const reach = TAP_FLOOR / 2
+      const obstacles: Box[] = []
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>(PILL_OBSTACLES))) {
+        const b = el.getBoundingClientRect()
+        // < 4px is `sr-only`; anything a tap floor away above or below cannot meet the pill.
+        if (b.width < 4 || b.height < 4 || b.bottom < r.top - reach || b.top > r.bottom + reach) continue
+        // Inert or invisible (an ancestor's fade included) is nothing a finger is aiming at.
+        if (el.closest('[inert]') || hiddenByAncestor(el)) continue
+        obstacles.push(tapBox(b))
+      }
+      setPillYields(pillCovers(r, obstacles))
+    }
     const solve = () => {
+      solvePill()
       const col = column.current
       if (!col) return
       // What is meant to be on screen: the chevron only while shown (its box is 0 where native iOS
@@ -204,8 +260,7 @@ export function BackToTop() {
         // `checkVisibility` sees an ANCESTOR's opacity-0 / visibility:hidden, which the element's own
         // computed style does not (opacity is not inherited): a button inside a fading wrapper is not
         // there for a finger (codex, opus). The own-style read stays as the fallback and for pointer.
-        const cv = (el as HTMLElement & { checkVisibility?: (o?: Record<string, boolean>) => boolean }).checkVisibility
-        if (cv && !cv.call(el, { opacityProperty: true, visibilityProperty: true, checkOpacity: true, checkVisibilityCSS: true })) continue
+        if (hiddenByAncestor(el)) continue
         const cs = getComputedStyle(el)
         if (cs.visibility === 'hidden' || cs.opacity === '0' || cs.pointerEvents === 'none') continue
         // A `[data-fab-avoid]` value is yielded to, never risen above, however wide (fab-clearance.ts Obstacle).
@@ -227,7 +282,7 @@ export function BackToTop() {
     // A yield or a stand-down lasts until the page MOVES, not until the next rest: a reader scrolling up
     // to find the chevron must see it come back as they scroll, exactly as it would anywhere else.
     const onScroll = () => {
-      if (holding.current) { holding.current = false; setPlan((p) => ({ ...p, standDown: false, chevron: false, support: false })) }
+      if (holding.current) { holding.current = false; setPlan((p) => ({ ...p, standDown: false, chevron: false, support: false })); setPillYields(false) }
       atRest()
     }
     // ⚠️ `scrollend` ANSWERS AT ONCE where it exists: the gap between a fling stopping and the plan
@@ -282,6 +337,7 @@ export function BackToTop() {
           bar (the PDP contact bar), the same modal and account-panel stand-downs, and /messages exits above.
           Desktop (lg+) keeps it in the column. */}
       {!desktop && (<div
+        ref={pillWrap}
         className={cn(
           // Width-capped so even the longer Vietnamese label on a 320px phone stops short of the right-hand
           // column: 16px gutter + 44px chevron/support column + 16px edge + 12px gap = 5.5rem.
@@ -302,7 +358,10 @@ export function BackToTop() {
         )}
         style={{ ...(lift ? { bottom: lift + 12 } : {}), transitionTimingFunction: 'var(--ease-spring)' }}
       >
-        <RentalCheckPill />
+        {/* YIELDED only, no transition class: ui/button's own transition list already carries `opacity`,
+            and a `transition-opacity` here would REPLACE that list through tailwind-merge (the press scale
+            would lose its spring). */}
+        <RentalCheckPill className={pillYields ? YIELDED : undefined} />
       </div>)}
       <div
         ref={column}

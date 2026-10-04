@@ -211,6 +211,50 @@ export function localizedHref(href: string, variant: string, lists: ViPilot = VI
 }
 
 /**
+ * Does the `/vi` pilot exist on this HOST? Not on a storefront's own host (`<label>.<apex>`): src/proxy.ts
+ * pins nothing there — its `/` is the shop — and only sends a live `/vi` twin on to the apex with a 308
+ * (proxy.vi-pilot.test.ts). The apex, its `www`, localhost and any unrelated host keep it. ⚠️ FOR
+ * CALL-TIME CHECKS IN HANDLERS ONLY (header.tsx): cached HTML is shared by every host, so a rendered
+ * href cannot ask this — the proxy's 308 is what catches those.
+ */
+export function pilotOnHost(hostname: string, appUrl: string | null | undefined): boolean {
+  let apex = ''
+  try { apex = new URL(appUrl ?? '').hostname.replace(/^www\./, '') } catch { return true }
+  const host = hostname.toLowerCase()
+  return !apex || host === apex || host === `www.${apex}` || !host.endsWith(`.${apex}`)
+}
+
+/**
+ * The variant a HANDLER should navigate with when it means to STAY IN THE SHOP: `variant`, except on a host
+ * without the pilot (a shop's host — pilotOnHost), where a `/vi…` target would bounce to the apex and out
+ * of the shop, while the plain URL stays on the shop's host in the reader's own language (a shop's host
+ * negotiates every path, and its `/` is the shop's own explorer). The header's search, brand, map and area
+ * and a grid's "show on map" use it. ⚠️ A STORED, MARKETPLACE-WIDE link (a saved search, an alert) must
+ * NOT: it keeps the twin, and the proxy's bounce to the apex is exactly where it belongs (hrefHere).
+ * Reads `location`, so call it at click time, never while rendering (see pilotOnHost).
+ */
+export function hereVariant(variant: string): string {
+  if (typeof window === 'undefined') return variant
+  return pilotOnHost(window.location.hostname, process.env.NEXT_PUBLIC_APP_URL) ? variant : 'en'
+}
+
+/**
+ * A STORED `/vi…` link opened in a build without that twin — eno.forum, which has no pilot (its `/vi` is a
+ * 404) — back to the plain URL, the same page there. The saved-search cron runs on eno.vn and writes
+ * `/vi?…` for a Vietnamese recipient (A1-LANG), but the notification row is in the database both editions
+ * share. public/sw.js applies the same rule to a push's URL.
+ * ⚠️ A SHOP'S HOST KEEPS THE TWIN, unlike a handler's hereVariant: src/proxy.ts sends a live twin asked of
+ * a shop's host on to the apex, which is where a marketplace-wide saved search belongs — the plain `/?…`
+ * there would be that one shop's own explorer. Anything that is not a `/vi…` twin is returned as it is.
+ */
+export function hrefHere(href: string, lists: ViPilot = VI_PILOT): string {
+  const cut = href.search(/[?#]/)
+  const plain = viPrefixed(cut === -1 ? href : href.slice(0, cut))
+  if (plain === null || lists.live.includes(plain)) return href
+  return plain + (cut === -1 ? '' : href.slice(cut))
+}
+
+/**
  * The head of a pilot page (V3b, decision V-g): its canonical and the reciprocal alternates — the plain URL
  * for `en` and `x-default`, the `/vi` twin for `vi-VN` — or `null` when `plain` is not a live pilot path,
  * in which case the page emits exactly what it did before the pilot. `origin` has no trailing slash.

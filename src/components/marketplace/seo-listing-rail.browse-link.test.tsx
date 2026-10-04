@@ -14,6 +14,9 @@ vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (w: unknown) =
 vi.mock('@/lib/translate', () => ({ localizeListingTitles: async (x: unknown) => x }))
 
 const { SeoListingGrid } = await import('./seo-listing-rail')
+// The grid's links are LocalizedLink (A1-LANG), which reads the language context — render inside a provider.
+const { LanguageProvider } = await import('@/context/language-context')
+const wrap = (el: React.ReactElement) => renderToStaticMarkup(<LanguageProvider initialLang="en">{el}</LanguageProvider>)
 
 // By attribute value, not an `a[href="…"]` selector: jsdom's selector engine does not match an href holding `?…&…`.
 const browse = (html: string, href: string) =>
@@ -22,13 +25,13 @@ const browse = (html: string, href: string) =>
 describe('SeoListingGrid — the browse link', () => {
   it('carries the rel it is handed', () => {
     const href = '/?category=furniture-appliances&condition=used'
-    const a = browse(renderToStaticMarkup(<SeoListingGrid listings={[]} title="Used furniture now" cta="Browse all used furniture" href={href} heading="h-title" browseLink={{ rel: 'nofollow', prefetch: false }} />), href)
+    const a = browse(wrap(<SeoListingGrid listings={[]} title="Used furniture now" cta="Browse all used furniture" href={href} heading="h-title" browseLink={{ rel: 'nofollow', prefetch: false }} />), href)
     expect(a).not.toBeNull()
     expect(a!.getAttribute('rel')).toBe('nofollow')
   })
 
   it('is unchanged without it', () => {
-    const a = browse(renderToStaticMarkup(<SeoListingGrid listings={[]} title="Homes for rent now" cta="Browse rentals" href="/c/rentals" />), '/c/rentals')
+    const a = browse(wrap(<SeoListingGrid listings={[]} title="Homes for rent now" cta="Browse rentals" href="/c/rentals" />), '/c/rentals')
     expect(a).not.toBeNull()
     expect(a!.hasAttribute('rel')).toBe(false)
   })

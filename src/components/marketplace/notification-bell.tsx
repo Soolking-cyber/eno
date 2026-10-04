@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useAuth } from '@/context/auth-context'
 import { useLanguage, Tr } from '@/context/language-context'
 import { timeAgo } from '@/lib/types'
+import { hrefHere } from '@/lib/lang-pinned'
 import { cn } from '@/lib/utils'
 
 /** Notification bell for the header (desktop + mobile). Badge shows unread count.
@@ -145,7 +146,9 @@ export function NotificationBell() {
             </div>
           ) : (
             sorted.map((n) => {
-              const href = n.url ? n.url : n.type === 'reminder' ? '/dashboard/availability' : n.conversationId ? `/messages/${n.conversationId}` : n.listingId ? `/listings/${n.listingId}` : '#'
+              // `hrefHere`: a Vietnamese recipient's saved-search alert is stored as `/vi?…` (the cron runs on
+              // eno.vn, A1-LANG); read on eno.forum, which has no `/vi`, it opens the plain `/?…` instead.
+              const href = n.url ? hrefHere(n.url) : n.type === 'reminder' ? '/dashboard/availability' : n.conversationId ? `/messages/${n.conversationId}` : n.listingId ? `/listings/${n.listingId}` : '#'
               // 'system' = an official admin→user message, i.e. eno itself speaking — a genuine
               // first-party moment, so it carries the eno seal (icon-language §0b: the signature
               // echo, reserved for first-party trust; every other type keeps its lucide verb).
@@ -169,7 +172,8 @@ export function NotificationBell() {
                       // Home-filter deep-links (saved-search alerts → `/?<filters>`) are a
                       // soft nav the in-page explorer can't see when we're already on `/`;
                       // tell it to apply the filters. Harmless on other routes (no listener).
-                      if (href.startsWith('/?')) window.dispatchEvent(new CustomEvent('eno:apply-url', { detail: { url: href } }))
+                      // `/vi?…` too: a Vietnamese recipient's alert links the `/vi` home twin (A1-LANG).
+                      if (href.startsWith('/?') || href.startsWith('/vi?')) window.dispatchEvent(new CustomEvent('eno:apply-url', { detail: { url: href } }))
                     }}
                     className="flex gap-3 px-4 py-3 pr-10"
                   >

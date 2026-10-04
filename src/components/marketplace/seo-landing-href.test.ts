@@ -1,5 +1,20 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { seoBrowseHref } from './seo-landing-href'
+
+/**
+ * vitest runs as the SERVICES edition (vitest.config.ts), where the `/vi` pilot is off and `localizedHref` is
+ * the identity — so the marketplace's lists (lang-pinned.ts VI_PREFIX_PATHS) are put in front of it here.
+ */
+vi.mock('@/lib/lang-pinned', async (importOriginal) => {
+  const m = await importOriginal<typeof import('@/lib/lang-pinned')>()
+  const ON = { live: m.VI_PREFIX_PATHS, retired: [] }
+  return {
+    ...m,
+    localizedHref: (href: string, variant: string) => m.localizedHref(href, variant, ON),
+    stripViPrefix: (p: string | null | undefined) => m.stripViPrefix(p, ON),
+  }
+})
+
 
 /**
  * The CTA on an SEO landing page must show the visitor the SAME set of listings the page just
@@ -12,6 +27,16 @@ import { seoBrowseHref } from './seo-landing-href'
  * counts the pages' own Prisma queries rendered.
  */
 describe('seoBrowseHref', () => {
+  it('⛔ a Vietnamese article links the /vi twin of a pilot path, never its English-pinned plain URL (A1-LANG)', () => {
+    expect(seoBrowseHref({ categorySlug: 'furniture-appliances' }, 'vi')).toBe('/vi/c/furniture-appliances')
+    expect(seoBrowseHref({ categorySlug: 'furniture-appliances', condition: 'used' }, 'vi')).toBe(
+      '/vi?category=furniture-appliances&condition=used',
+    )
+    // A /c page outside the pilot has no /vi twin (it would 404): unchanged. English is unchanged.
+    expect(seoBrowseHref({ categorySlug: 'rentals' }, 'vi')).toBe('/c/rentals')
+    expect(seoBrowseHref({ categorySlug: 'furniture-appliances' }, 'en')).toBe('/c/furniture-appliances')
+  })
+
   it('sends an un-narrowed page to the real /c/<category> route', () => {
     // There is no /c/<cat>/<subcat> route, but /c/<cat> is server-rendered and crawlable, so a page
     // that narrows nothing should prefer it over a query-string equivalent.

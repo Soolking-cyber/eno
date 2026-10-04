@@ -2,13 +2,15 @@ import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
 import { HOME_RENTAL_SUBCATS, HOMES_ONLY_PARAM } from '@/lib/rental-homes'
+import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 // `{ teachers: true }` on every read here: each one is pinned to ONE categoryId, so the default
 // teacher exclusion (scopedListingWhere) can only ever empty /c/teachers — it hides nothing elsewhere.
 import { loadCategory } from '../load-category'
-import { loadDistrictChips, loadLinkedCount, loadRentalsFacts, loadRentalsHeadline } from '../category-data'
+import { loadDistrictChips, loadJobCities, loadLinkedCount, loadRentalsFacts, loadRentalsHeadline } from '../category-data'
 import { byAreaChips, categoryMetadata, crumbNames, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
 import { CategoryGuides, OtherRentalsLink, PlaceName, RentalsDistricts } from '../category-text'
 import { CategoryFiltersLink } from '../category-filters-link'
+import { JobCityChips } from '../job-city-chips'
 import { CategoryLedeBlock } from './category-lede-block'
 import { LEDE_PLACEMENT } from './lede-placement'
 import { guidesForCategory } from '@/lib/category-guides'
@@ -175,8 +177,10 @@ export default async function CategoryPage({ params }: Props) {
    * ⛔ /c/rentals SHOWS PLACES, NOT VEHICLE HIRE (src/lib/rental-places.ts). Its H1 answers "apartments
    * for rent in …" and its lede counts places; ~6,400 imported cars and motorbikes share the category
    * (scripts/import-vehicle-rentals.ts) and would otherwise fill its first 48 cards. The lede links
-   * them into the explorer's car / motorbike views instead; the strip's Filters link and "Refine in
-   * full search" still open the whole category there. Sort and Show-more stay on this page since
+   * them into the explorer's car / motorbike views instead. The strip's Filters link and "Refine in
+   * full search" carry `homes=1` while the preview is homes only (A1-LANG, below) — ⚠️ but the explorer
+   * does not read `homes` from its URL (explorer-url.ts readExplorerUrl; only /api/listings does — the axis
+   * is deferred to B1), so they still open the whole category there. Sort and Show-more stay on this page since
    * C1-DEADEND, so they page over PLACES too (`kind=places` in `serverScope` below — one scope).
    * ONLY WHILE A PLACE IS LIVE — with none, the facts are null, the page keeps the generic copy and
    * shows whatever rentals exist, never an empty grid.
@@ -194,10 +198,11 @@ export default async function CategoryPage({ params }: Props) {
   const scopedWhere = await scopedListingWhere(
     homes ? { AND: [base, RENTAL_PLACES, { subcategorySlug: { in: [...HOME_RENTAL_SUBCATS] } }] }
     : rentalsFacts ? { AND: [base, RENTAL_PLACES] } : base, { teachers: true })
-  const [raw, otherCats, chips, rentals] = await Promise.all([
+  const [raw, otherCats, chips, rentals, jobCities] = await Promise.all([
     // Card projection: this page only renders <ListingCard> slots — the full row (description,
     // attributes, searchText, whole Seller) tripled the ISR payload. The order is buildFeedOrderBy('newest').
-    diverseFeedWindow(scopedWhere, [{ rankScore: 'desc' }, { id: 'desc' }], LISTING_CARD_SELECT, { sharedSeats }),
+    // `teachers: true` again inside the window, which re-applies the scope: without it /c/teachers was empty.
+    diverseFeedWindow(scopedWhere, [{ rankScore: 'desc' }, { id: 'desc' }], LISTING_CARD_SELECT, { sharedSeats, teachers: true }),
     // ⛔ Not the shelves no browse surface links (src/lib/retired-categories.ts — the footer reads the same
     // set): /c/vehicles redirects to a rental hub, and the empty ones are noindex dead ends.
     db.category.findMany({ where: { NOT: { id: cat.id }, slug: { notIn: [...UNLINKED_CATEGORIES] } }, orderBy: { name: 'asc' } }),
@@ -211,6 +216,8 @@ export default async function CategoryPage({ params }: Props) {
     // The same cached call generateMetadata and the lede make — one set of counts per render. The
     // page reads only `top` from it (RentalsDistricts); the linked count is the lede's alone.
     rentalsFacts,
+    // /c/jobs only: its "By city" row (rentals-11) — jobs carry a province, never a district.
+    cat.slug === 'jobs' && total > 0 ? loadJobCities(cat.id) : Promise.resolve([]),
   ])
   // Reorder THEN slice (the window's fallback paths hand back a plain top-N nobody interleaved).
   const listings = await localizeListingTitles(diversifyBySeller(raw, { sharedSeats }).slice(0, PAGE_SIZE).map(serializeListingCard))
@@ -224,6 +231,15 @@ export default async function CategoryPage({ params }: Props) {
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   // The crumb names follow the page's language, equal to the visible crumbs in `(index)/layout.tsx` (V2).
   const crumbs = crumbNames(cat, pageLang(lang))
+  /**
+   * The explorer, in the page's language: the `/vi` twin on a Vietnamese page (never the English-pinned
+   * `/`, A1-LANG), carrying `homes=1` while the preview is homes only (D1b) — the same condition
+   * `serverScope` sends it under. ⚠️ The explorer ignores `homes` until B1 gives it that axis; /api/listings
+   * (Show-more, sort) is what honours it today.
+   */
+  const homesQuery: Record<string, string> = homes ? { [HOMES_ONLY_PARAM.key]: HOMES_ONLY_PARAM.value } : {}
+  const explorerHref = localizedHref(`/?${new URLSearchParams({ category: cat.slug, ...homesQuery }).toString()}`, pageLang(lang))
+  const isTeachers = cat.slug === TEACHERS_CATEGORY_SLUG
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -269,6 +285,10 @@ export default async function CategoryPage({ params }: Props) {
         </div>
       )}
 
+      {/* /c/jobs: "Theo thành phố / By city" with counts, the jobs page's "By area" (rentals-11) — only
+          with two cities or more, where there is a choice to make. */}
+      {jobCities.length > 1 && <JobCityChips cities={jobCities} />}
+
       {/* Masthead boundary — on the content box, like the sort strip's own hairline below and the
           home toolbar's (C1-HAIRLINE); it used to bleed to the page frame with negative margins.
           Tighter on a phone, where the fold is the budget (C1-FOLD). */}
@@ -306,12 +326,12 @@ export default async function CategoryPage({ params }: Props) {
                 total: homes?.total ?? rentals?.total ?? total,
                 pageSize: PAGE_SIZE,
               }}
-              stripEnd={<CategoryFiltersLink slug={cat.slug} />}
+              stripEnd={<CategoryFiltersLink slug={cat.slug} query={homesQuery} />}
               priceLabel={cat.slug === 'jobs' ? 'salary' : 'price'}
               sortable={(homes?.total ?? total) > 1}
             />
           </div>
-          {homes && <OtherRentalsLink n={homes.offices} href="/?category=rentals&subcategory=office-rental" />}
+          {homes && <OtherRentalsLink n={homes.offices} href={localizedHref('/?category=rentals&subcategory=office-rental', pageLang(lang))} />}
           <div className="mt-8">
             {/* Real ArrowRight at h-4, not a literal '→' — the SEO-landing CTAs already
                 use the lucide arrow, and one page family should speak one arrow language.
@@ -319,7 +339,7 @@ export default async function CategoryPage({ params }: Props) {
             {/* nofollow + no prefetch: /?category= is canonicalised to /, and a prefetch would render
                 the full explorer for everyone who scrolls this far (as the strip's Filters link). */}
             <Button asChild variant="cta" size="none" className="gap-1.5">
-              <Link href={`/?category=${cat.slug}`} rel="nofollow" prefetch={false} className="px-5 py-2.5">
+              <Link href={explorerHref} rel="nofollow" prefetch={false} className="px-5 py-2.5">
                 <Tr text="Refine in full search" /> <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
@@ -347,21 +367,33 @@ export default async function CategoryPage({ params }: Props) {
           tone="bare"
           size="lg"
           media={<Mascot name="search" className="h-40 w-40" />}
-          title={<Tr text="No listings here yet — be the first to post one." />}
-          subtitle={<Tr text="Your listing goes live in minutes and reaches buyers across Vietnam." />}
+          // ⚠️ /c/teachers speaks to TEACHERS, not sellers: a profile is not a listing that "reaches
+          // buyers", and its way in is /teachers/join, not /post (disc-03 / rentals-01).
+          // ⚠️ "SCHOOLS AND COMPANIES", NEVER "FAMILIES": only a business account may message a teacher
+          // (owner, 2026-09-30 — teacher-contact.tsx, POST /api/conversations → 403 business_only).
+          title={isTeachers
+            ? <Bilingual en="No teacher profiles here yet — be the first." vi="Chưa có hồ sơ giáo viên nào — hãy là người đầu tiên." />
+            : <Tr text="No listings here yet — be the first to post one." />}
+          subtitle={isTeachers
+            ? <Bilingual en="Create a free profile, and schools and companies hiring teachers can message you on eno." vi="Tạo hồ sơ miễn phí để các trường học và công ty đang tuyển giáo viên nhắn tin cho bạn trên eno." />
+            : <Tr text="Your listing goes live in minutes and reaches buyers across Vietnam." />}
           action={
             <div className="flex max-w-2xl flex-col items-center gap-6">
               <div className="flex flex-col items-center gap-3">
                 <Button asChild variant="cta" size="none">
-                  <Link href="/post" className="px-5 py-2.5">
-                    <Tr text="Post a listing" />
+                  <Link href={isTeachers ? '/teachers/join' : '/post'} className="px-5 py-2.5">
+                    {isTeachers
+                      ? <Bilingual en="Create your free teacher profile" vi="Tạo hồ sơ giáo viên miễn phí" />
+                      : <Tr text="Post a listing" />}
                   </Link>
                 </Button>
                 {/* The anchor names what the LINK does (browse) and only promises the alert as
                     a step there — same honest-anchor rule as the SEO landings. */}
-                <Link href={`/?category=${cat.slug}`} rel="nofollow" prefetch={false} className="text-sm font-semibold text-accent-foreground hover:underline">
-                  <Tr text="Or browse the category — you can set an alert there" />
-                </Link>
+                {!isTeachers && (
+                  <Link href={explorerHref} rel="nofollow" prefetch={false} className="text-sm font-semibold text-accent-foreground hover:underline">
+                    <Tr text="Or browse the category — you can set an alert there" />
+                  </Link>
+                )}
               </div>
               {otherCats.length > 0 && (
                 <div className="flex flex-col items-center gap-3">

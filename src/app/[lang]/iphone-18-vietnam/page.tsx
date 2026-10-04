@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
+import { LocalizedLink } from '@/components/marketplace/localized-link'
 import { Tr } from '@/context/language-context'
 import { pageShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
@@ -259,9 +259,9 @@ export default async function IPhone18VietnamPage() {
           {phones.known && rows.length === 0 ? (
             <p className="mt-8 max-w-prose text-sm leading-relaxed text-body">
               <Tr text="No second-hand shop lists an iPhone 18 here yet — used units usually appear a few weeks after launch." />{' '}
-              <Link href="/?category=electronics&subcategory=phones-tablets&brand=apple&condition=used" rel="nofollow" prefetch={false} className="font-semibold text-accent-foreground hover:underline">
+              <LocalizedLink href="/?category=electronics&subcategory=phones-tablets&brand=apple&condition=used" rel="nofollow" prefetch={false} className="font-semibold text-accent-foreground hover:underline">
                 <Tr text="Browse second-hand iPhones" />
-              </Link>
+              </LocalizedLink>
             </p>
           ) : (
             <PriceTable rows={rows} known={phones.known} updated={updated} seeAll={false} id="used-iphone-18-prices" heading={<Tr text="Second-hand iPhone 18 prices today" />} />

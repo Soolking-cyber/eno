@@ -10,7 +10,7 @@ import { useLanguage } from '@/context/language-context'
 import { preloadSignIn, useAuth } from '@/context/auth-context'
 import { useSafeBack } from '@/lib/safe-back'
 import { LANG_VARIANTS, variantOfLanguage } from '@/lib/lang-variant'
-import { localizedHref } from '@/lib/lang-pinned'
+import { hereVariant, localizedHref } from '@/lib/lang-pinned'
 import { isPostFlowPath } from '@/lib/post-flow-path'
 import { useIsPhone } from '@/hooks/use-is-phone'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
@@ -88,6 +88,16 @@ export { isPostFlowPath }
 
 export function Header() {
   const { t, tr, lang } = useLanguage()
+  // The server variant this page renders in: every explorer-bound link goes to its `/vi` twin on a
+  // Vietnamese page, so a search, brand pick or map tap never lands on the English-pinned `/?…`
+  // (A1-LANG, field-01). Identity for English and for any target outside the live pilot list.
+  const variant = variantOfLanguage(lang)
+  // What a HANDLER navigates with: the same, except on a storefront's own host (`<label>.eno.vn` — the
+  // header renders there too), which has no pilot: a `/vi…` target would bounce to the apex and out of the
+  // shop (src/proxy.ts), while the plain `/?…` is that shop's own explorer, in the reader's language — what
+  // a search there always opened (lang-pinned.ts hereVariant). Asked at click time only, so SSR and
+  // hydration never see the host.
+  const navVariant = () => hereVariant(variant)
   const { user, openSignIn } = useAuth()
   const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false)
   // ⚠️ `open` IS THE RAIL'S OWN STATE, and the header logo hides on exactly it. Using `user`
@@ -382,7 +392,7 @@ export function Header() {
       else router.push(url)
     }
     // Open the brand's facets — the explorer resolves its dominant category.
-    if (it.type === 'brand') { openUrl(`/?brand=${encodeURIComponent(it.slug)}`); return }
+    if (it.type === 'brand') { openUrl(localizedHref(`/?brand=${encodeURIComponent(it.slug)}`, navVariant())); return }
     /**
      * A product line, with the category most of it lives in. With a brand set, the explorer sends that
      * category as a boost (`priorityCategory`), not a filter, so the total is the row's count; it is in
@@ -390,15 +400,15 @@ export function Header() {
      * (api/search/suggest/suggest-entities.ts).
      */
     if (it.type === 'line') {
-      openUrl(`/?category=${encodeURIComponent(it.category)}&brand=${encodeURIComponent(it.brand)}&line=${encodeURIComponent(it.line)}`)
+      openUrl(localizedHref(`/?category=${encodeURIComponent(it.category)}&brand=${encodeURIComponent(it.brand)}&line=${encodeURIComponent(it.line)}`, navVariant()))
       return
     }
     // The query, in its aisle. The words stay the query, so the explorer's box shows them.
     if (it.type === 'scope') {
-      openUrl(`/?q=${encodeURIComponent(searchVal.trim())}&category=${encodeURIComponent(it.category)}&subcategory=${encodeURIComponent(it.subcategory)}`)
+      openUrl(localizedHref(`/?q=${encodeURIComponent(searchVal.trim())}&category=${encodeURIComponent(it.category)}&subcategory=${encodeURIComponent(it.subcategory)}`, navVariant()))
       return
     }
-    router.push(it.type === 'category' ? `/c/${it.slug}` : `/listings/${it.listing.id}`)
+    router.push(it.type === 'category' ? localizedHref(`/c/${it.slug}`, navVariant()) : `/listings/${it.listing.id}`)
   }
   const onSearchKeyDown = (e: React.KeyboardEvent) => {
     if (!instantOpen || suggestItems.length === 0) return
@@ -463,7 +473,7 @@ export function Header() {
     if (onExplorer()) {
       window.dispatchEvent(new CustomEvent('eno:search', { detail: { query: q } }))
     } else {
-      router.push(explorerFallbackUrl(pathname, { q }))
+      router.push(explorerFallbackUrl(pathname, { q }, navVariant()))
     }
   }
 
@@ -477,7 +487,7 @@ export function Header() {
       window.dispatchEvent(new CustomEvent('eno:visual-search', { detail: r }))
     } else {
       // The photo's detected category wins; otherwise the landing page's own.
-      router.push(explorerFallbackUrl(pathname, { q, match: 'any', ...(r.category ? { category: r.category } : {}) }))
+      router.push(explorerFallbackUrl(pathname, { q, match: 'any', ...(r.category ? { category: r.category } : {}) }, navVariant()))
     }
   }
 
@@ -485,7 +495,7 @@ export function Header() {
   const openMap = () => {
     setShowSuggestions(false)
     if (onExplorer()) window.dispatchEvent(new CustomEvent('eno:view-map'))
-    else router.push(explorerFallbackUrl(pathname, { view: 'map' }))
+    else router.push(explorerFallbackUrl(pathname, { view: 'map' }, navVariant()))
   }
   // The AI concierge — likewise the pill's ✨ (sm+) and the phone panel's first row.
   const openAi = () => { router.push('/messages/ai'); setShowSuggestions(false) }
@@ -499,7 +509,7 @@ export function Header() {
       // dropped the chosen area. Same consume-once sessionStorage idiom as
       // eno:video-return; the explorer applies it on mount.
       try { sessionStorage.setItem('eno:pending-area', JSON.stringify({ province: p, ward: w, nearby: nb })) } catch { /* storage blocked */ }
-      router.push(explorerFallbackUrl(pathname)) // off the explorer: jump to the home feed (same category)
+      router.push(explorerFallbackUrl(pathname, {}, navVariant())) // off the explorer: jump to the home feed (same category)
     }
   }
 
@@ -676,7 +686,10 @@ export function Header() {
             // blocks implicit submission (the search input; the Map and clear controls are
             // type="button" on purpose). Add a second text field and Enter stops submitting —
             // at which point this needs a visually-hidden submit button, not a shrug.
-            action="/"
+            // A Vietnamese page submits to the `/vi` twin, not the English-pinned `/` (A1-LANG, field-01).
+            // ⚠️ The server's variant, because this attribute is in the cached HTML; it is only ever used
+            // BEFORE hydration — after it, onSubmit routes through submitSearch, which knows a shop's host.
+            action={localizedHref('/', variant)}
             method="get"
             // ⚠️ THE QUERY COMES FROM THE FIELD, NOT FROM REACT STATE, and that is a correctness
             // fix rather than a style choice. There is a window during hydration where the handler

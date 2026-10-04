@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useSyncExternalStore } from 'react'
-import { stripViPrefix } from '@/lib/lang-pinned'
+import { localizedHref, stripViPrefix } from '@/lib/lang-pinned'
 
 /**
  * Is a <ListingsExplorer> mounted on this page right now?
@@ -56,14 +56,22 @@ export function useExplorerMounted(): boolean {
  * than widening to the whole site. `extra` is merged in (q, view, match…). The district segment of
  * /c/<category>/<district> is not carried: its slug is a landing-page key, not the explorer's
  * `district` filter value.
+ *
+ * `variant` is the language the page is rendered in: a Vietnamese reader goes to the `/vi` twin of
+ * the home explorer, never the English-pinned plain `/` (V-a keeps `/` English for everyone, so a
+ * plain `/?q=` from a Vietnamese /c page or PDP used to switch the reader to English — field-01).
  */
-export function explorerFallbackUrl(pathname: string | null | undefined, extra: Record<string, string> = {}): string {
+export function explorerFallbackUrl(
+  pathname: string | null | undefined,
+  extra: Record<string, string> = {},
+  variant: string = 'en',
+): string {
   const p = new URLSearchParams()
   const category = categoryFromPath(pathname)
   if (category) p.set('category', category)
   for (const [k, v] of Object.entries(extra)) if (v) p.set(k, v)
   const qs = p.toString()
-  return qs ? `/?${qs}` : '/'
+  return localizedHref(qs ? `/?${qs}` : '/', variant)
 }
 
 /** The category of a /c/<category>[/<district>] landing page, or null anywhere else. */

@@ -13,6 +13,7 @@ import { Rows, Row } from '@/components/ui/rows'
 import { Header } from './header'
 import { Footer } from './footer'
 import { seoBrowseHref } from './seo-landing-href'
+import { LocalizedLink } from './localized-link'
 import { hasNoInventory, railFor } from './seo-landing-inventory'
 // The rail's query and markup live in seo-listing-rail.tsx, shared with the long-form guides.
 import { loadSeoRail, SeoListingGrid } from './seo-listing-rail'
@@ -188,6 +189,10 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
   // page with a hundred listings until the next ISR regen, a week later. `known` is set only after
   // the query genuinely returns, so an outage falls back to today's behaviour.
   const { listings, known: inventoryKnown } = await railFor(content, () => loadSeoRail(content))
+  // The plain browse URL: its CTAs below are LocalizedLinks, which turn it into the reader's own — the
+  // `/vi` twin of a pilot path on a Vietnamese page (A1-LANG). This server component has no `params` to
+  // read the language from; the client context starts at the variant the server rendered, so the href
+  // hydrates as rendered. The rail's CTA (SeoListingGrid) does the same.
   const browseHref = seoBrowseHref(content)
 
   // Nothing to browse, and we know it rather than merely failing to look. The predicate lives in
@@ -305,12 +310,12 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
                   the browse URL — the alert button lives in the explorer's zero-results state, so
                   the link promised an action its destination does not perform. Naming both steps
                   is honest and still routes to the recovery UI that is already built. */}
-              <Link
+              <LocalizedLink
                 href={browseHref}
                 className="text-sm font-semibold text-accent-foreground hover:underline"
               >
                 Or browse the category — you can set an alert there
-              </Link>
+              </LocalizedLink>
             </div>
           </>
         ) : content.browseLinks ? (
@@ -325,12 +330,12 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
           </div>
         ) : (
           <Button asChild variant="cta" size="none" className="gap-1.5 font-semibold">
-            <Link
+            <LocalizedLink
               href={browseHref}
               className="mt-6 px-5 py-2.5 text-sm"
             >
               {content.cta} <ArrowRight className="h-4 w-4" />
-            </Link>
+            </LocalizedLink>
           </Button>
         )}
 

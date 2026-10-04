@@ -6,7 +6,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Mascot } from '@/components/marketplace/mascot'
 import { Tr } from '@/context/language-context'
-import { NotFoundBody } from './not-found-body'
+import { MachineIndexLead, NotFoundBody, NotFoundHomeLink } from './not-found-body'
 
 export const metadata: Metadata = { title: `Page not found | ${SITE_NAME}` }
 
@@ -134,7 +134,8 @@ export default function NotFound() {
             every eno.vn visitor downloads. See the header of src/app/[lang]/about/page.tsx.
           */}
           <nav aria-label="Where to go next" className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm">
-            <Link href="/" className={RECOVERY_LINK}><Tr text="Search all listings" /></Link>
+            {/* The home explorer in the reader's language (`/vi` on a Vietnamese 404) — a client island. */}
+            <NotFoundHomeLink className={RECOVERY_LINK} />
             {/*
               ⚠️ THE SECOND ENTRY POINT IS A REAL INDEX PAGE, NOT A FILTERED HOME URL. `/` IS the
               search page on both editions (home-is-search), so a second link to `/?category=…`
@@ -187,7 +188,7 @@ export default function NotFound() {
                 the route handler before editing: src/app/sitemap.xml/route.ts, llms.txt/route.ts
                 and openapi.json/route.ts are the authorities, and a `type` that disagrees with the
                 response is worse than none. */}
-            <Tr text="Looking for a machine-readable index?" />{' '}
+            <MachineIndexLead />{' '}
             <a href="/sitemap.xml" type="application/xml" className={RECOVERY_LINK}>{SITEMAP_FILE}</a>
             {' · '}
             <a href="/llms.txt" type="text/plain" className={RECOVERY_LINK}>{LLMS_FILE}</a>

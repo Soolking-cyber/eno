@@ -5,6 +5,7 @@ import { publishableCells, type RentCell } from '@/lib/district-rent-cells'
 import { rentIndexRetrySoon } from '@/lib/rent-index-retry'
 import { formatCalendarDay } from '@/lib/calendar-day'
 import { DistrictRent } from './district-rent'
+import { DistrictFilterRow } from './district-filter-row'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { PLACES_KIND_PARAM, RENTAL_PLACES } from '@/lib/rental-places'
 import { HOME_RENTAL_SUBCATS, HOMES_ONLY_PARAM } from '@/lib/rental-homes'
@@ -316,9 +317,12 @@ export default async function CategoryDistrictPage({ params }: Props) {
   // curated spelling only in case or diacritics ("Quan 1"), which district-match.ts's exact LIKE
   // misses. So a chip that passes lands on a page that passes unless such rows make the difference.
   const otherDistricts = districts.filter((d) => d.slug !== district && isIndexableCount(d.count)).slice(0, SIBLING_DISTRICTS)
-  // The explorer scoped to exactly this page — the API resolves a slugified district name the same
-  // way this page does (src/lib/district-slug.ts), so leaving here keeps the district.
-  const scopedExplorer = `/?category=${cat.slug}&district=${district}`
+  // The explorer scoped to this page — the API resolves a slugified district name the same way this page
+  // does (src/lib/district-slug.ts), so leaving here keeps the district — in the page's language (`/vi`
+  // twin, A1-LANG). It also carries `homes=1` while the grid lists homes only (D1), which the explorer
+  // ignores until B1 gives it a homes axis (only /api/listings reads it today).
+  const homesQuery: Record<string, string> = homes ? { [HOMES_ONLY_PARAM.key]: HOMES_ONLY_PARAM.value } : {}
+  const scopedExplorer = localizedHref(`/?${new URLSearchParams({ category: cat.slug, district, ...homesQuery }).toString()}`, lang)
   // The rent block (D2): rentals, in HCMC, on the marketplace. Otherwise, or on a miss, the plain link.
   // Started before the title localisation so a cold snapshot read overlaps it (review).
   const rentP = rentals && data.inHcmc && !IS_SERVICES ? districtRent(district) : Promise.resolve(null)
@@ -391,6 +395,8 @@ export default async function CategoryDistrictPage({ params }: Props) {
             availability for free" is in the meta description, so the hint that says how is here, in the
             HTML with JavaScript off — rentals pages only, as on /c/rentals. */}
         {rentals && <RentalCheckHint className="mt-2 max-w-prose" />}
+        {/* Filters, map and bedrooms at the top, above the rent block (rentals-03) — scoped to this page. */}
+        <DistrictFilterRow categorySlug={cat.slug} district={district} homesOnly={!!homes} lang={lang} />
         {/* Only for an HCMC district: the index covers Ho Chi Minh City and nothing else. The block when
             the snapshot has a figure for this district; the plain link otherwise (and on eno.forum,
             where RentIndexLink renders nothing). */}
@@ -430,7 +436,7 @@ export default async function CategoryDistrictPage({ params }: Props) {
             }}
           />
         </div>
-        {homes && <OtherRentalsLink n={homes.offices} href={`/?category=rentals&district=${district}&subcategory=office-rental`} />}
+        {homes && <OtherRentalsLink n={homes.offices} href={localizedHref(`/?category=rentals&district=${district}&subcategory=office-rental`, lang)} />}
 
         <div className="mt-8 flex flex-wrap gap-3">
           <Button asChild variant="outline" size="none" className="border-line-strong font-bold hover:bg-muted hover:text-foreground">

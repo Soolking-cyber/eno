@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { Tr } from '@/context/language-context'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
-import { TeacherContact } from '@/components/teachers/teacher-contact'
+import { TeacherContact, TeacherContactJump } from '@/components/teachers/teacher-contact'
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { TEACHER_OPTIONS } from '@/lib/teachers/profile'
@@ -91,6 +91,9 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
                     {' · '}{tp.currentDistrict ? `${tp.currentDistrict}, ` : ''}<Tr text={cityLabel} />
                   </p>
                 )}
+                {/* "Message" in the first screen (rentals-12): scrolls to the contact block below and runs
+                    its action. Phones and tablets only — on lg the block is the sticky right column. */}
+                <TeacherContactJump listingId={listing.id} className="mt-3 lg:hidden" />
               </div>
             </header>
 

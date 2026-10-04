@@ -11,8 +11,13 @@ vi.mock('@/context/language-context', () => ({
 vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: null }) }))
 vi.mock('./account-panel', () => ({ useAccountPanel: () => ({ open: false }) }))
 vi.mock('@/components/marketplace/help-feedback', () => ({ HelpFeedback: () => null }))
+// The rental-check pill is a next/link; outside the app router a plain anchor is all these tests read.
+vi.mock('next/link', () => ({
+  default: ({ href, children, prefetch: _p, ...rest }: { href: string; children: React.ReactNode; prefetch?: boolean }) => <a href={href} {...rest}>{children}</a>,
+}))
 
 import { BackToTop } from './back-to-top'
+import { __resetRentalCheckStoreForTests, addToBasket, removeFromBasket } from '@/lib/rental-check/store'
 
 /**
  * THE FLOATING CLUSTER'S BEHAVIOUR (owner, 2026-09-25): "back-to-top arrow shows ONLY while the user
@@ -308,5 +313,103 @@ describe('BackToTop — yields to the opt-in values and to the footer', () => {
     layOut()
     rest()
     expect(yielded(support())).toBe(true)
+  })
+})
+
+/**
+ * ⛔ THE PHONE PILL YIELDS AT REST (rentals-04). It sits bottom-left over the LEFT card column, and on the
+ * audit's 40 rests at 390/360 it covered a card's toggle, heart or price at 13–14 of them. Measured box on a
+ * 390x844 phone: x 16–246, y 712–756 (left-4, above the nav). jsdom lays nothing out, so it is stubbed.
+ */
+describe('BackToTop — the phone rental-check pill yields at rest (rentals-04)', () => {
+  const memoryStorage = (): Storage => {
+    const map = new Map<string, string>()
+    return {
+      get length() { return map.size },
+      key: (i: number) => [...map.keys()][i] ?? null,
+      getItem: (k: string) => (map.has(k) ? map.get(k)! : null),
+      setItem: (k: string, v: string) => { map.set(k, String(v)) },
+      removeItem: (k: string) => { map.delete(k) },
+      clear: () => { map.clear() },
+    } as Storage
+  }
+  const rental = (n: number) => ({ id: `r${n}`, title: `Flat ${n}`, titleVi: null, images: [], price: 9_000_000, currency: 'VND', priceUnit: 'VND/month', category: { slug: 'rentals' } })
+  const pill = () => document.querySelector<HTMLElement>('[data-rental-check-pill]')
+  const PILL = { left: 16, right: 246, top: 712, bottom: 756 }
+  /** Put a rental in the basket so the pill renders, and lay it out where it rests on a phone. */
+  function showPill(n = 1) {
+    act(() => { addToBasket(rental(n)) })
+    const p = pill()!
+    p.getBoundingClientRect = () => ({ ...PILL, width: PILL.right - PILL.left, height: PILL.bottom - PILL.top, x: PILL.left, y: PILL.top, toJSON() {} }) as DOMRect
+    return p
+  }
+  /** An element at a viewport rect, inside a card root (`[data-card-root]`) in <main>. */
+  function inCard(tag: string, rect: { top: number; bottom: number; left: number; right: number }, attrs: Record<string, string> = {}) {
+    let main = document.querySelector('main')
+    if (!main) { main = document.createElement('main'); document.body.prepend(main) }
+    const card = document.createElement('div')
+    card.setAttribute('data-card-root', '')
+    main.appendChild(card)
+    const el = placed(tag, card, rect)
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v)
+    return el
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', memoryStorage())
+    vi.stubGlobal('sessionStorage', memoryStorage())
+    __resetRentalCheckStoreForTests()
+  })
+
+  it("fades and takes no pointer while it rests on a card's save heart, and comes back once the page moves", () => {
+    inCard('button', { left: 149, right: 181, top: 716, bottom: 748 }, { 'aria-pressed': 'false' }) // left card's heart
+    render(<BackToTop />)
+    const p = showPill()
+    expect(yielded(p)).toBe(false) // its own appearance is not a rest
+    rest()
+    expect(yielded(p)).toBe(true)
+    // A yield is visual and pointer-only: the link stays in the tab order and shows itself on focus.
+    expect(p.hasAttribute('inert')).toBe(false)
+    scrollTo(40)
+    expect(yielded(p)).toBe(false)
+  })
+
+  it("yields to a \"check availability\" toggle and to a card's price as well", () => {
+    render(<BackToTop />)
+    const p = showPill()
+    const toggle = inCard('button', { left: 150, right: 178, top: 690, bottom: 718 }, { 'data-rental-check-toggle': '', 'aria-pressed': 'true' })
+    rest()
+    expect(yielded(p)).toBe(true)
+    toggle.remove()
+    scrollTo(40)
+    inCard('span', { left: 12, right: 140, top: 730, bottom: 750 }, { class: 'text-price tabular-nums font-bold' })
+    rest()
+    expect(yielded(p)).toBe(true)
+  })
+
+  it("does not yield to a card's stretched link, plain text, an inert or hidden toggle, or one a tap floor away", () => {
+    render(<BackToTop />)
+    const p = showPill()
+    const link = inCard('a', { left: 12, right: 189, top: 500, bottom: 800 }) // the card's own <a data-card-link>
+    link.setAttribute('href', '/listings/x')
+    inCard('p', { left: 12, right: 189, top: 720, bottom: 740 }) // a title: text is never an obstacle
+    inCard('button', { left: 149, right: 181, top: 716, bottom: 748 }, { 'aria-pressed': 'false', inert: '' })
+    const ghost = inCard('button', { left: 149, right: 181, top: 716, bottom: 748 }, { 'aria-pressed': 'false' })
+    ;(ghost as unknown as { checkVisibility: () => boolean }).checkVisibility = () => false // inside a faded wrapper
+    inCard('button', { left: 149, right: 181, top: 620, bottom: 652 }, { 'aria-pressed': 'false' }) // 60px above the pill
+    rest()
+    expect(yielded(p)).toBe(false)
+  })
+
+  it('a basket change hands it back without a scroll — a pill never re-appears already faded', () => {
+    inCard('button', { left: 149, right: 181, top: 716, bottom: 748 }, { 'aria-pressed': 'false' })
+    render(<BackToTop />)
+    showPill(1)
+    rest()
+    expect(yielded(pill()!)).toBe(true)
+    act(() => { removeFromBasket('r1') }) // the last rental out, no scroll: the pill unmounts
+    expect(pill()).toBeNull()
+    act(() => { addToBasket(rental(2)) }) // …and a new one in
+    expect(yielded(pill()!)).toBe(false)
   })
 })

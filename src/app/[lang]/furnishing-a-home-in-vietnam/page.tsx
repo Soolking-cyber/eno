@@ -1,9 +1,8 @@
 import type { Metadata } from 'next'
 import { pageShare } from '@/lib/site-identity'
-import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
-import { P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
+import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
 
 /**
  * FURNISHING A HOME IN VIETNAM — the marketplace's own long-form guide.
@@ -137,9 +136,9 @@ const CONTENT: ArticleContent = {
                 used furniture listings from 3 shops, all linked). And the trust score is scoped to
                 sellers who post here — a linked listing opens on the shop's own page. */}
             On this site, the place to start is{' '}
-            <Link href="/c/furniture-appliances" className="font-semibold text-accent-foreground hover:underline">
+            <HereLink href="/c/furniture-appliances">
               furniture &amp; appliances
-            </Link>
+            </HereLink>
             . Many listings there link out to the shop or site they came from, and you buy there — so
             check that seller the way you would any shop. A seller who posts from an account shows a
             public trust score (an official partner shows its partner badge instead), so a seller with

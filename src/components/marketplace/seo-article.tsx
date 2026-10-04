@@ -268,14 +268,11 @@ export function OfficialLink({ href, children }: { href: string; children: React
   )
 }
 
-/** An in-site link (another guide on this deployment). */
-export function HereLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link href={href} className="font-semibold text-accent-foreground hover:underline">
-      {children}
-    </Link>
-  )
-}
+/**
+ * An in-site link (another guide on this deployment). A client leaf (here-link.tsx) so it can follow
+ * the page's language: a Vietnamese guide links the `/vi` twin, never the English-pinned plain URL.
+ */
+export { HereLink } from './here-link'
 
 const ldJson = (o: object) => JSON.stringify(o).replace(/</g, '\\u003c')
 

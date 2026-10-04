@@ -11,10 +11,15 @@ import { RentalCheckView } from './rental-check-view'
  * ⚠️ A SERVER SHELL AROUND A CLIENT VIEW, AND NOINDEX. Everything on the page lives on the visitor's
  * device (the basket is localStorage), so there is nothing for a crawler to read and nothing worth
  * a search result — an empty list page per language would be pure index bloat.
+ * The TITLE follows the language the HTML is rendered in (the `[lang]` segment, src/proxy.ts) — a
+ * Vietnamese reader's tab read "Check availability" (rentals-15). Same shape as saved/layout.tsx.
  */
-export const metadata: Metadata = {
-  title: `Check availability | ${SITE_NAME}`,
-  robots: { index: false, follow: false },
+export async function generateMetadata({ params }: { params: Promise<{ lang: string }> }): Promise<Metadata> {
+  const { lang } = await params
+  return {
+    title: lang === 'vi' ? `Kiểm tra phòng trống | ${SITE_NAME}` : `Check availability | ${SITE_NAME}`,
+    robots: { index: false, follow: false },
+  }
 }
 
 export default function RentalCheckPage() {

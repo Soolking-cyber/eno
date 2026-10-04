@@ -55,6 +55,14 @@ const h = vi.hoisted(() => {
   return { router, language, auth, facet, nav, restores }
 })
 
+// A1-LANG: the `/vi` pilot's lists, switched on only by the test that needs them (vitest runs as the
+// services edition, where the pilot is off and localizedHref is the identity). Off = the real default.
+const pilot = vi.hoisted(() => ({ on: false }))
+vi.mock('@/lib/lang-pinned', async (importOriginal) => {
+  const m = await importOriginal<typeof import('@/lib/lang-pinned')>()
+  return { ...m, localizedHref: (href: string, variant: string) => m.localizedHref(href, variant, pilot.on ? { live: m.VI_PREFIX_PATHS, retired: [] } : m.VI_PILOT) }
+})
+
 vi.mock('next/navigation', () => ({
   useRouter: () => h.router,
   usePathname: () => h.nav.pathname,
@@ -977,6 +985,35 @@ describe('a tile links to the PUBLIC page on both sides of the lang rewrite (E-T
       expect(v.href('tile-clear')).toBe('/')
     } finally {
       v.unmount()
+    }
+  })
+
+  /**
+   * ⛔ A1-LANG (home-14): the Vietnamese home is `/vi`, whose path is `/` too once the variant is stripped,
+   * so its tiles wrote the plain `/?category=…` — the English-pinned home — and a ctrl-click or a crawler
+   * left Vietnamese. They write the `/vi` twin now, on both sides of hydration. A storefront's never do:
+   * a shop's host has no pilot, and a `/vi` tile there would leave the shop it filters.
+   */
+  it('the Vietnamese home (/vi) writes /vi?category=…, prerendered and hydrated — a storefront keeps /?…', async () => {
+    pilot.on = true
+    h.language.lang = 'vi'
+    try {
+      const v = await prerenderThenHydrate('/vi', '/vi')
+      try {
+        expect(v.href('tile-category')).toBe('/vi?category=rentals')
+        expect(v.href('tile-intent')).toBe('/vi?type=free')
+        expect(v.href('tile-clear')).toBe('/vi')
+      } finally {
+        v.unmount()
+      }
+      window.history.replaceState({}, '', '/')
+      h.nav.pathname = '/'
+      mount(newClient(), { sellerId: 'shop-1' })
+      expect(screen.getByTestId('tile-category').getAttribute('href')).toBe('/?category=rentals')
+      expect(screen.getByTestId('tile-clear').getAttribute('href')).toBe('/')
+    } finally {
+      pilot.on = false
+      h.language.lang = 'en'
     }
   })
 

@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import type { Locator, Page } from '@playwright/test'
 import { test, expect } from '../helpers'
+import { PILL_OBSTACLES, TAP_FLOOR } from '../../src/lib/fab-clearance'
 
 /**
  * The rental availability check, end to end at phone width (390×844): collect rentals from the
@@ -30,6 +31,41 @@ function overlaps(a: { x: number; y: number; width: number; height: number }, b:
 
 async function boxOf(l: Locator) {
   return (await l.count()) ? l.first().boundingBox() : null
+}
+
+/**
+ * ⛔ THE PILL YIELDS AT REST WHILE IT SITS ON A CARD CONTROL (rentals-04, back-to-top.tsx): faded and
+ * taking no pointer until the page moves. So a tap needs a rest where it is clear — nudge the page in
+ * small steps until it comes to one (the cluster re-plans 120ms after the last scroll, or on scrollend).
+ */
+async function restPillClear(page: Page) {
+  const pill = page.locator('[data-rental-check-pill]')
+  for (let i = 0; i < 30; i++) {
+    await page.waitForTimeout(300)
+    if (await pill.evaluate((el) => getComputedStyle(el).pointerEvents !== 'none')) return
+    await page.evaluate(() => window.scrollBy(0, 53))
+  }
+  throw new Error('the pill never came to rest clear of the card controls')
+}
+
+/** At this rest: does the pill's box meet a card control (grown to the tap floor), and has it yielded? */
+async function pillAtRest(page: Page) {
+  return page.evaluate(({ sel, floor }) => {
+    const pill = document.querySelector('[data-rental-check-pill]')
+    if (!pill) return null
+    const p = pill.getBoundingClientRect()
+    const meets = [...document.querySelectorAll<HTMLElement>(sel)].some((el) => {
+      const b = el.getBoundingClientRect()
+      if (b.width < 4 || b.height < 4 || el.closest('[inert]')) return false
+      if (el.checkVisibility && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return false
+      const w = Math.max(b.width, floor)
+      const h = Math.max(b.height, floor)
+      const cx = b.left + b.width / 2
+      const cy = b.top + b.height / 2
+      return cx - w / 2 < p.right && cx + w / 2 > p.left && cy - h / 2 < p.bottom && cy + h / 2 > p.top
+    })
+    return { meets, yielded: getComputedStyle(pill).pointerEvents === 'none' }
+  }, { sel: PILL_OBSTACLES, floor: TAP_FLOOR })
 }
 
 async function collectTwo(page: Page) {
@@ -64,7 +100,7 @@ test('guest: collect two, the pill clears the chrome, the list shows both, sendi
   const pill = page.locator('[data-rental-check-pill]')
   await expect(pill).toBeVisible()
   await expect(pill).toContainText('Check 2 rentals')
-  await expect(pill).toContainText('Free · same price as listed')
+  await expect(pill).toContainText('Free · the price you see is the price you get')
 
   // Geometry: the pill must not sit on the bottom nav, the support mark or the chevron.
   const pillBox = (await pill.boundingBox())!
@@ -73,7 +109,9 @@ test('guest: collect two, the pill clears the chrome, the list shows both, sendi
     const b = await boxOf(l)
     if (b && b.width > 0 && b.height > 0) expect(overlaps(pillBox, b), `pill overlaps the ${name}`).toBe(false)
   }
-  // …and it is really tappable (the cluster is pointer-events:none; the pill must opt back in).
+  // …and it is really tappable (the cluster is pointer-events:none; the pill must opt back in) — at a rest
+  // where it is not yielding to a card control under it.
+  await restPillClear(page)
   const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[data-rental-check-pill]') != null, {
     x: pillBox.x + pillBox.width / 2,
     y: pillBox.y + pillBox.height / 2,
@@ -95,6 +133,29 @@ test('guest: collect two, the pill clears the chrome, the list shows both, sendi
   expect(posts, 'a guest press must not reach the API').toEqual([])
 })
 
+// The audit's probe (rentals-04): 40 scroll rests per width, and at none of them may the pill sit, still
+// taking taps, on a card's heart, its "check availability" toggle or its price.
+test('at rest the pill never covers a heart, a check toggle or a price (40 rests at 390 and 360)', async ({ page }) => {
+  test.setTimeout(120_000)
+  await collectTwo(page)
+  for (const size of [{ width: 390, height: 844 }, { width: 360, height: 780 }]) {
+    await page.setViewportSize(size)
+    await page.evaluate(() => window.scrollTo(0, 0))
+    const bad: number[] = []
+    let seen = 0
+    for (let i = 0; i < 40; i++) {
+      await page.evaluate(() => window.scrollBy(0, 157))
+      await page.waitForTimeout(300)
+      const r = await pillAtRest(page)
+      if (!r) continue
+      seen++
+      if (r.meets && !r.yielded) bad.push(i)
+    }
+    expect(seen, `the pill was on screen at ${size.width}`).toBeGreaterThan(0)
+    expect(bad, `rests at ${size.width} where a tappable pill covered a card control (scroll step index)`).toEqual([])
+  }
+})
+
 const BUYER = 'e2e/.auth/buyer.json'
 const sameHost = (process.env.E2E_AUTHED_BASE || '').replace(/\/$/, '') === (process.env.E2E_BASE || '').replace(/\/$/, '')
 
@@ -109,6 +170,7 @@ test.describe('signed in', () => {
       await route.fulfill({ status: 200, json: { conversationId: 'e2e-rental-thread', messageId: 'm', threadCreated: true, listingIds: [] } })
     })
     await collectTwo(page)
+    await restPillClear(page)
     await page.locator('[data-rental-check-pill]').click()
     await page.getByRole('radio', { name: 'WhatsApp' }).click()
     await page.locator('#rc-contact').fill('+44 7700 900123')

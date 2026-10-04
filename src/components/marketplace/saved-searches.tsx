@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { localizedHref } from '@/lib/lang-pinned'
+import { variantOfLanguage } from '@/lib/lang-variant'
 
 type SavedSearch = { id: string; label: string; notify: boolean; createdAt: string; url: string }
 
@@ -17,7 +19,7 @@ type SavedSearch = { id: string; label: string; notify: boolean; createdAt: stri
 // entirely when signed out or empty (favorites remain the page's primary content).
 export function SavedSearches() {
   const router = useRouter()
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const { user, loading } = useAuth()
   const [searches, setSearches] = useState<SavedSearch[] | null>(null)
 
@@ -71,7 +73,9 @@ export function SavedSearches() {
             <Button
               variant="bare"
               size="none"
-              onClick={() => router.push(s.url)}
+              // The stored URL is the plain `/?…`; a Vietnamese reader runs it on the `/vi` twin (A1-LANG). On a
+              // shop's host the proxy sends that twin on to the apex — where a marketplace-wide search belongs.
+              onClick={() => router.push(localizedHref(s.url, variantOfLanguage(lang)))}
               className="flex min-w-0 flex-1 shrink items-center justify-start gap-2.5 px-2 text-left cursor-pointer"
             >
               <Search className="h-4 w-4 shrink-0 text-accent-foreground" />

@@ -13,6 +13,7 @@ import { LISTING_GRID } from './listing-grid'
 import { Price } from './price'
 import { seoLandingWhere, type SeoLandingTarget } from './seo-landing-where'
 import { seoBrowseHref, type SeoBrowseTarget } from './seo-landing-href'
+import { LocalizedLink } from './localized-link'
 
 /**
  * THE LIVE LISTING RAIL OF THE SEO PAGES — one query and one markup for SeoLanding (the category
@@ -167,24 +168,28 @@ export function SeoListingGrid({
       {links ? (
         <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2">
           {links.map((b) => (
-            <Link
+            <LocalizedLink
               key={b.href}
               href={b.href}
               className="inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
             >
               {b.label} <ArrowRight className="h-4 w-4" />
-            </Link>
+            </LocalizedLink>
           ))}
         </div>
       ) : cta ? (
-        <Link
+        // ⚠️ IN THE READER'S LANGUAGE, LIKE A GUIDE'S HereLink (A1-LANG): the `/vi` twin of a pilot path on a
+        // Vietnamese page. A LocalizedLink rather than a server-side variant, because the article's language
+        // is not the page's on a guide that negotiates (the furnishing guide is English for everyone who
+        // reads it, Vietnamese chrome included) — this way the rail and the body's links always agree.
+        <LocalizedLink
           href={href}
           rel={browseLink?.rel}
           prefetch={browseLink?.prefetch}
           className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
         >
           {cta} <ArrowRight className="h-4 w-4" />
-        </Link>
+        </LocalizedLink>
       ) : null}
     </section>
   )
@@ -217,5 +222,7 @@ export async function SeoListingRail({
 }) {
   const { listings } = await loadSeoRail(target)
   if (listings.length < minCount) return null
+  // An explicit browseLink.href wins (a language-pinned guide hands over its own localized URL — A11); otherwise the
+  // plain URL, which SeoListingGrid's LocalizedLink CTA turns into the reader's language (A1-LANG).
   return <SeoListingGrid listings={listings} title={title} cta={cta} href={browseLink?.href ?? seoBrowseHref(target)} className={className} heading={heading} browseLink={browseLink} />
 }

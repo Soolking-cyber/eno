@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { pageShare } from '@/lib/site-identity'
-import Link from 'next/link'
 import { SITE_NAME } from '@/lib/edition'
 import { guideDates, marketplaceGuidesExcept } from '@/lib/expat-guides'
 import { HereLink, P, SeoArticle, Ul, type ArticleContent } from '@/components/marketplace/seo-article'
@@ -197,9 +196,9 @@ const CONTENT: ArticleContent = {
             sellers rather than a record of what each item sold for, and they are a snapshot taken on 23
             September 2026. What they have that a landlord&apos;s round number does not is a date, a
             public URL and a photograph. Open{' '}
-            <Link href="/c/furniture-appliances" className="font-semibold text-accent-foreground hover:underline">
+            <HereLink href="/c/furniture-appliances">
               furniture &amp; appliances
-            </Link>{' '}
+            </HereLink>{' '}
             and send three live listings for the same item. A wardrobe billed at the price of a new one
             is a different conversation once three comparable wardrobes around the {d(6_200_000)} median are
             on the screen.

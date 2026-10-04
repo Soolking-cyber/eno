@@ -15,6 +15,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { fold } from '@/lib/fold'
 import { hapticSelection } from '@/lib/haptics'
 import { useLanguage } from '@/context/language-context'
+import { hereVariant, localizedHref } from '@/lib/lang-pinned'
+import { variantOfLanguage } from '@/lib/lang-variant'
 
 /**
  * ⚠️ ENGLISH PLURALISES, VIETNAMESE DOES NOT — and the count line read "1 listings." until an
@@ -37,6 +39,7 @@ export function SellerListings({
   initialSort = 'relevance',
   stripEnd,
   priceLabel = 'price',
+  homeVariant,
 }: {
   listings: SerializedListingCard[]
   searchable?: boolean
@@ -68,6 +71,15 @@ export function SellerListings({
    * it as pay), and a "Price" tab over job cards reads as a fee (K-ORANGE, 2026-09-29).
    */
   priceLabel?: 'price' | 'salary'
+  /**
+   * The page's language, for the card's "show on map" link into the home explorer: `vi` sends it to the
+   * `/vi` twin instead of the English-pinned `/` (A1-LANG). DEFAULTS TO THE PAGE'S OWN LANGUAGE (the
+   * language context, which starts at the variant the server rendered), so every grid — /c pages, district
+   * hubs, the vehicle hubs, storefronts — gets it without passing anything; pass it only to override.
+   * Safe on a storefront: the tap re-checks the HOST (hereVariant), and on a shop's own host — no pilot
+   * there — it opens the plain `/?focus=`.
+   */
+  homeVariant?: string
 }) {
   const router = useRouter()
   const { tr, lang } = useLanguage()
@@ -323,7 +335,7 @@ export function SellerListings({
     <div className={LISTING_GRID}>
       {shown.map((l, i) => (
         <div key={l.id} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)} onFocus={() => router.prefetch(`/listings/${l.id}`)}>
-          <ListingCard listing={l} onOpen={() => router.push(`/listings/${l.id}`)} onLocate={() => router.push(`/?focus=${l.id}`)} priority={i < 4} lcp={i === 0 && !remote} />
+          <ListingCard listing={l} onOpen={() => router.push(`/listings/${l.id}`)} onLocate={() => router.push(localizedHref(`/?focus=${l.id}`, hereVariant(homeVariant ?? variantOfLanguage(lang))))} priority={i < 4} lcp={i === 0 && !remote} />
         </div>
       ))}
     </div>

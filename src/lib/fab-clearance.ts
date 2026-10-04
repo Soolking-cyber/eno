@@ -162,3 +162,27 @@ export function nextScrollDirection(s: ScrollDir, y: number, height: number): Sc
   if (Math.abs(d) <= DIR_THRESHOLD) return s
   return { anchor: at, height, up: d < 0 }
 }
+
+/**
+ * ⛔ THE PHONE'S RENTAL-CHECK PILL YIELDS TOO (rentals-04). It sits bottom-left (owner, 2026-09-25 —
+ * "above the bottom navbar but not covering icons on the right"), which puts it over the LEFT card
+ * column, and measured at 390 and 360 it rested on a card's toggle, heart or price at 13–14 of 40 scroll
+ * rests — the very controls it exists to collect from. Same rule as the cluster's small controls: at rest,
+ * while its box meets one of these, it fades and takes no pointer (YIELDED) until the page moves; it
+ * never moves (the full-width basket bar is owner item C23).
+ * ⚠️ NARROWER THAN back-to-top.tsx's OBSTACLES ON PURPOSE: the pill is a wide label over the left
+ * column, and yielding to every link there (each card is one stretched link) would hide it on every
+ * feed. These are the controls a reader aims at on a card, plus any opted-in `[data-fab-avoid]` value:
+ *  · a card's toggles — its save heart, the quick-offer and the "check availability" chip all carry
+ *    `aria-pressed` (button[aria-pressed] inside [data-card-root]);
+ *  · `[data-rental-check-toggle]` anywhere in <main> (a PDP's or a list row's, not only a card's);
+ *  · a card's price (`.text-price`, the Price root — price.tsx).
+ * ⚠️ e2e/guest/rental-check.spec.ts imports this selector for its 40-rest probe; keep it a plain string.
+ */
+export const PILL_OBSTACLES =
+  'main [data-card-root] button[aria-pressed], main [data-rental-check-toggle], main [data-card-root] .text-price, main [data-fab-avoid]'
+
+/** Does the pill's box meet any obstacle (each already grown to the tap floor — `tapBox`)? Edges that only touch do not. */
+export function pillCovers(pill: Box, obstacles: readonly Box[]): boolean {
+  return obstacles.some((o) => overlaps(pill, o))
+}

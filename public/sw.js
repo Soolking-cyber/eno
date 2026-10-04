@@ -33,9 +33,28 @@ self.addEventListener('push', (event) => {
   })())
 })
 
+/**
+ * ⛔ A `/vi…` URL RESOLVES ONLY ON eno.vn's OWN HOSTS (A1-LANG). The saved-search cron runs on eno.vn and
+ * writes `/vi?…` into a Vietnamese recipient's push, but a push subscription belongs to an ORIGIN, and one
+ * registered on eno.forum — which has no `/vi` pilot, so its `/vi` is a 404 — opens the URL there. On such
+ * an origin the plain path is the same page, so that is what opens. The rule hrefHere follows in the app
+ * (src/lib/lang-pinned.ts) for the same stored URL: eno.vn and its subdomains keep it (a shop's host sends a
+ * live twin on to the apex with a 308 — src/proxy.ts), and so does a local preview (loopback). A path that
+ * merely starts with the letters (e.g. `/vietnam-guide`) is not a twin and is left alone.
+ * ⚠️ PLAIN JS, NO BUNDLER, NO IMPORTS: this file is served as-is, so the rule is restated here rather than
+ * imported (sw-push-click.test.ts runs this file and pins it).
+ */
+function urlForThisOrigin(url) {
+  if (typeof url !== 'string' || !/^\/vi(?=$|[/?#])/.test(url)) return url
+  const host = (self.location && self.location.hostname) || ''
+  if (host === 'eno.vn' || host.endsWith('.eno.vn') || host === 'localhost' || host === '127.0.0.1' || host === '[::1]') return url
+  const rest = url.slice(3)
+  return rest === '' || rest[0] === '?' || rest[0] === '#' ? `/${rest}` : rest
+}
+
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const url = (event.notification.data && event.notification.data.url) || '/dashboard'
+  const url = urlForThisOrigin((event.notification.data && event.notification.data.url) || '/dashboard')
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (wins) => {
       // Focus an existing tab if one is open (navigating it where supported), else

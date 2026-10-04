@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { sendPushToProfile } from '@/lib/push'
 import { toUrlParams, type SavedSearchParams } from '@/lib/saved-search'
 import { buildListingWhere } from '@/lib/saved-search-where'
+import { localizedHref } from '@/lib/lang-pinned'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,7 +35,9 @@ export const GET = route({ auth: 'cron' }, async () => {
     where: { notify: true },
     orderBy: { lastNotifiedAt: 'asc' },
     take: MAX_SEARCHES,
-    select: { id: true, profileId: true, label: true, params: true, lastNotifiedAt: true },
+    // The recipient's saved language (written by /api/profile/locale) decides the alert's link: `/vi?…`
+    // for a Vietnamese reader, never the English-pinned `/?…` (A1-LANG). Unset is today's plain URL.
+    select: { id: true, profileId: true, label: true, params: true, lastNotifiedAt: true, profile: { select: { locale: true } } },
   })
   if (searches.length === 0) return { ok: true, notified: 0 }
 
@@ -56,7 +59,7 @@ export const GET = route({ auth: 'cron' }, async () => {
           if (matches === 0) return { notified: 0, pushed: 0 }
           const title = matches === 1 ? '🔔 New match for your saved search' : `🔔 ${matches} new matches for your saved search`
           const body = `${s.label} — tap to view.`
-          const url = `/?${toUrlParams(params)}`
+          const url = localizedHref(`/?${toUrlParams(params)}`, s.profile?.locale === 'vi' ? 'vi' : 'en')
           // Create the notification and advance the cursor atomically so a mid-run crash
           // can't leave the search stuck re-notifying the same matches every run.
           await db.$transaction([

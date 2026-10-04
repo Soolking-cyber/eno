@@ -580,7 +580,11 @@ export function RentalCheckView() {
             ]}
           />
           <Field invalid={!!contactError}>
-            <FieldLabel className="sr-only">{channelLabel}</FieldLabel>
+            {/* ⛔ A VISIBLE LABEL, AND AN EXAMPLE THAT SAYS IT IS ONE (rentals-07). The label was sr-only and
+                the placeholder a bare "0912 345 678", so the basket's last step read as already filled in
+                with somebody's number. The label names what goes in the box; "VD:" / "e.g." marks the
+                placeholder as an example; WhatsApp, the channel for foreign numbers, asks for the code. */}
+            <FieldLabel>{channelLabel}</FieldLabel>
             <FieldControl
               id={CONTACT_ID}
               render={
@@ -595,10 +599,17 @@ export function RentalCheckView() {
                     else { phoneTouched.current = true; setPhone(e.target.value) }
                     if (contactError) setContactError(null)
                   }}
-                  placeholder={channel === 'email' ? tr('name@example.com', 'ten@email.com') : channel === 'zalo' ? '0912 345 678' : '+44 7700 900123'}
+                  placeholder={channel === 'email'
+                    ? tr('e.g. name@example.com', 'VD: ten@email.com')
+                    : channel === 'zalo' ? tr('e.g. 0912 345 678', 'VD: 0912 345 678') : tr('e.g. +44 7700 900123', 'VD: +44 7700 900123')}
                 />
               }
             />
+            {channel === 'whatsapp' && (
+              <FieldDescription>
+                {tr('Include your country code, e.g. +44 for the UK or +84 for Vietnam.', 'Ghi kèm mã quốc gia, ví dụ +44 (Anh) hoặc +84 (Việt Nam).')}
+              </FieldDescription>
+            )}
             {contactError && <FieldError>{contactMessage(contactError)}</FieldError>}
           </Field>
         </div>

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { LocalizedLink } from '@/components/marketplace/localized-link'
 import type { ReactNode } from 'react'
 import { Tr } from '@/context/language-context'
 import { Bilingual } from '@/components/marketplace/bilingual'
@@ -100,14 +101,14 @@ export function PriceTable({ rows, known, updated, heading, id, seeAll = true }:
         ))}
       </div>
       {seeAll && (
-        <Link
+        <LocalizedLink
           href={models.length === 1
             ? `/?category=electronics&subcategory=phones-tablets&brand=apple&condition=used&model=${encodeURIComponent(models[0])}`
             : '/?category=electronics&subcategory=phones-tablets&brand=apple&condition=used'}
           className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-accent-foreground hover:underline"
         >
           <Tr text="See every second-hand listing" /> <ArrowRight className="h-4 w-4" />
-        </Link>
+        </LocalizedLink>
       )}
     </section>
   )

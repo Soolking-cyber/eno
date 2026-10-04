@@ -11,16 +11,21 @@ import { rentalFreeShort } from './rental-check-toggle'
 import { cn } from '@/lib/utils'
 
 /**
- * The basket's way back: "Check n rentals / Free · same price as listed", floating above the chevron.
+ * The basket's way back: "Check n rentals / Free · the price you see is the price you get"
+ * (rentalFreeShort, the owner's final copy).
  *
- * ⛔ IT LIVES INSIDE back-to-top.tsx's CLUSTER, NOT IN A FIXED LAYER OF ITS OWN. That column already
- * clears the bottom nav, lifts over every `data-fab-clear` sticky bar (the PDP contact bar among
- * them), hides under a modal, stands down with the account panel and disappears on /messages — five
- * rules a second floating element would have to re-derive and would drift from. As the column's
- * first child it sits above the chevron's reserved slot, so it can never land on the chevron, the
- * support mark or the nav.
- * ⚠️ `pointer-events-auto` IS REQUIRED: the column is `pointer-events-none` so its empty area never
- * swallows a tap meant for the page (see the comment there); every visible control opts back in.
+ * ⛔ IT IS MOUNTED BY back-to-top.tsx, NOT IN A FIXED LAYER OF ITS OWN — that component already clears
+ * the bottom nav, lifts over every `data-fab-clear` sticky bar (the PDP contact bar among them), hides
+ * under a modal, stands down with the account panel and disappears on /messages: five rules a second
+ * floating element would have to re-derive and would drift from. WHERE differs by width:
+ *  · phones — its own bottom-left wrapper just above the nav (owner, 2026-09-25: "above the bottom
+ *    navbar but not covering icons on the right"), width-capped short of the right-hand column, and it
+ *    YIELDS at rest — fades and takes no pointer — while it sits on a card's heart, its "check
+ *    availability" toggle or its price (PILL_OBSTACLES, rentals-04);
+ *  · desktop (lg+) — the column's first child, above the chevron's reserved slot, so it can never land
+ *    on the chevron, the support mark or the nav.
+ * ⚠️ `pointer-events-auto` IS REQUIRED: both wrappers are `pointer-events-none` so their empty area
+ * never swallows a tap meant for the page (see the comment there); every visible control opts back in.
  *
  * Hidden when the basket is empty, and on the list page itself, where it would point at the page
  * the visitor is already on.

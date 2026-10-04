@@ -115,7 +115,15 @@ export async function diverseFeedWindow<S extends Prisma.ListingSelect & { id: t
   where: Prisma.ListingWhereInput,
   orderBy: Prisma.ListingOrderByWithRelationInput[],
   select: S,
-  opts?: SeatOptions,
+  opts?: SeatOptions & {
+    /**
+     * Keep teacher profiles in the window — ONLY for a caller whose `where` already made the teacher
+     * decision (/c/teachers, the API under `category=teachers`). Omitted, the default exclusion applies
+     * exactly as before (home, storefronts): re-applying the scope without it emptied /c/teachers even
+     * though the page passed `{ teachers: true }` to its own scopedListingWhere (disc-03 / rentals-01).
+     */
+    teachers?: boolean
+  },
 ): Promise<Prisma.ListingGetPayload<{ select: S }>[]> {
   /**
    * ⛔ THE SCOPE IS RE-APPLIED HERE, NOT ASSUMED FROM THE CALLER — and `edition-lint` is why. Both
@@ -133,7 +141,7 @@ export async function diverseFeedWindow<S extends Prisma.ListingSelect & { id: t
    * two editions differ ONLY by this exclusion, so keying on the caller's raw `where` would let the
    * marketplace serve a window built for the services edition — a licensing breach out of a cache.
    */
-  const scoped = await scopedListingWhere(where)
+  const scoped = await scopedListingWhere(where, opts?.teachers ? { teachers: true } : undefined)
   /**
    * ⚠️ `select` IS PART OF THE KEY, AND LEAVING IT OUT WAS A REAL DEFECT — three reviewers named
    * it. The memo stores ROWS, so a caller asking for a narrower projection would otherwise be

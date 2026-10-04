@@ -301,7 +301,8 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
        * all the way down.
        */
       diversityAppliesTo(sort)
-        ? diverseFeedWindow(where, orderBy, LISTING_CARD_SELECT, { sharedSeats })
+        // `teachers: true`: `where` already carries buildFeedFilters' teacher decision (as the tail below).
+        ? diverseFeedWindow(where, orderBy, LISTING_CARD_SELECT, { sharedSeats, teachers: true })
             /**
              * ⛔ ROWS PAST THE WINDOW MUST EXCLUDE WHAT THE WINDOW ALREADY SERVED. The window no
              * longer contains the natural top 60 — it contains each seller's best — so continuing

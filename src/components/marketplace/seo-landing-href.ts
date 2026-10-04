@@ -1,3 +1,5 @@
+import { localizedHref } from '@/lib/lang-pinned'
+
 /**
  * Where an SEO landing page's CTA sends people to see EVERY matching listing, not just the eight
  * rendered on the page.
@@ -6,8 +8,9 @@
  * itself: `seo-landing.tsx` imports the Prisma client, so a rule defined there cannot be reached by
  * a unit test without dragging a database into it. This function decides where a visitor lands
  * after reading a page that has just described a narrowed set of products — the one place a silent
- * mismatch costs a click — so it is worth being able to assert on directly. Zero imports on
- * purpose: the type below is structural, not the full `SeoContent`, so the leaf stays a leaf.
+ * mismatch costs a click — so it is worth being able to assert on directly. One import only, the
+ * Prisma-free `localizedHref` (lang-pinned.ts): the type below is structural, not the full `SeoContent`,
+ * so the leaf stays a leaf.
  *
  * ⚠️ TWO DIFFERENT DESTINATIONS ON PURPOSE. A page that narrows nothing funnels to `/c/<slug>`, a
  * real server-rendered route. There is no `/c/<cat>/<subcat>` route — subcategory and facet
@@ -81,7 +84,19 @@ export type SeoBrowseTarget = {
   attributes?: Record<string, string>
 }
 
-export function seoBrowseHref(content: SeoBrowseTarget): string {
+/**
+ * `variant` is the language of the page the link sits on: a Vietnamese article links the `/vi` twin of a
+ * live pilot path (`/`, `/c/furniture-appliances`) instead of its English-pinned plain URL (A1-LANG).
+ * English, or a target outside the pilot list, is unchanged. ⚠️ A SERVER COMPONENT THAT CANNOT SEE THE
+ * PAGE'S LANGUAGE leaves it at 'en' and renders the plain URL through a LocalizedLink instead (the SEO
+ * landings' CTAs and SeoListingGrid's): on a guide that negotiates, the article's language is not the
+ * reader's, and only the client context knows the reader's.
+ */
+export function seoBrowseHref(content: SeoBrowseTarget, variant: string = 'en'): string {
+  return localizedHref(browseHref(content), variant)
+}
+
+function browseHref(content: SeoBrowseTarget): string {
   const attrs = Object.entries(content.attributes ?? {})
   // ⚠️ THE CONDITION IS "NARROWED AT ALL", NOT "HAS A SUBCATEGORY" — agy refuted the first cut,
   // which keyed on `subcategorySlug` alone. A page setting `attributes` WITHOUT a subcategory still

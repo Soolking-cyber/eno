@@ -220,6 +220,45 @@ describe('the list', () => {
   })
 })
 
+/**
+ * ⛔ THE LAST STEP MUST NOT LOOK PRE-FILLED (rentals-07). The contact label was sr-only and the
+ * placeholder a bare "0912 345 678", which reads as somebody's number already typed in.
+ */
+describe('the contact field', () => {
+  const hint = 'Include your country code, e.g. +44 for the UK or +84 for Vietnam.'
+
+  it('shows its label for each channel, marks the placeholder as an example, and asks WhatsApp for the code', async () => {
+    addToBasket(rental(1))
+    await mount()
+    pickChannel('Zalo')
+    expect(screen.getByText('Zalo number').className).not.toContain('sr-only')
+    expect(screen.getByLabelText('Zalo number')).toBe(contactInput())
+    expect(contactInput().getAttribute('placeholder')).toBe('e.g. 0912 345 678')
+    expect(screen.queryByText(hint)).toBeNull()
+
+    pickChannel('WhatsApp')
+    expect(screen.getByLabelText('WhatsApp number')).toBe(contactInput())
+    expect(contactInput().getAttribute('placeholder')).toBe('e.g. +44 7700 900123')
+    const desc = screen.getByText(hint)
+    expect(contactInput().getAttribute('aria-describedby') ?? '').toContain(desc.id)
+
+    pickChannel('Email')
+    expect(contactInput().getAttribute('placeholder')).toBe('e.g. name@example.com')
+    expect(screen.queryByText(hint)).toBeNull()
+  })
+
+  it('in Vietnamese: "Số Zalo" and a "VD:" example', async () => {
+    language.lang = 'vi'
+    addToBasket(rental(1))
+    render(<RentalCheckView />)
+    pickChannel('Zalo')
+    expect(screen.getByText('Số Zalo').className).not.toContain('sr-only')
+    expect(contactInput().getAttribute('placeholder')).toBe('VD: 0912 345 678')
+    pickChannel('WhatsApp')
+    expect(screen.getByText('Ghi kèm mã quốc gia, ví dụ +44 (Anh) hoặc +84 (Việt Nam).')).toBeTruthy()
+  })
+})
+
 describe('sending', () => {
   it('validates the contact before sending anything', async () => {
     addToBasket(rental(1))

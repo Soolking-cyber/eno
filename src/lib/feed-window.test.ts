@@ -14,8 +14,12 @@ const findMany = vi.fn()
 const aggregate = vi.fn()
 vi.mock('./db', () => ({ db: { listing: { groupBy: (a: unknown) => groupBy(a), findMany: (a: unknown) => findMany(a), aggregate: (a: unknown) => aggregate(a) } } }))
 // The window must carry the licensing scope; the identity here lets a test assert it was applied.
+const scopeOpts: unknown[] = []
 vi.mock('./edition-scope', () => ({
-  scopedListingWhere: async (w: unknown) => ({ AND: [w, { sellerId: { notIn: ['desk'] } }] }),
+  scopedListingWhere: async (w: unknown, opts?: unknown) => {
+    scopeOpts.push(opts)
+    return { AND: [w, { sellerId: { notIn: ['desk'] } }] }
+  },
 }))
 
 const { diverseFeedWindow, __resetFeedWindowCache } = await import('./feed-window')
@@ -32,6 +36,23 @@ beforeEach(() => {
   groupBy.mockReset()
   findMany.mockReset()
   aggregate.mockReset()
+  scopeOpts.length = 0
+})
+
+/**
+ * ⛔ /c/teachers WAS EMPTY (disc-03 / rentals-01): the page scoped its own `where` with `{ teachers: true }`,
+ * and the window re-applied the scope WITHOUT it — the default teacher exclusion emptied the page. The
+ * opt-in is optional and off by default, so home and storefront windows keep excluding teachers.
+ */
+describe('diverseFeedWindow — the teacher opt-in', () => {
+  it('re-applies the scope with the default exclusion unless the caller opts in', async () => {
+    findMany.mockResolvedValue([])
+    groupBy.mockResolvedValue([])
+    await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT)
+    expect(scopeOpts).toEqual([undefined])
+    await diverseFeedWindow({ status: 'active', categoryId: 't' }, RANK_DESC, SELECT, { teachers: true })
+    expect(scopeOpts).toEqual([undefined, { teachers: true }])
+  })
 })
 
 describe('diverseFeedWindow', () => {

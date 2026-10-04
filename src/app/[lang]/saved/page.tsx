@@ -14,12 +14,16 @@ import { SavedSearches } from '@/components/marketplace/saved-searches'
 import { Mascot } from '@/components/marketplace/mascot'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
+import { localizedHref } from '@/lib/lang-pinned'
+import { variantOfLanguage } from '@/lib/lang-variant'
 import { ListingCardSkeleton, SAVED_SKELETON_COUNT } from '@/components/marketplace/listing-card-skeleton'
 import { LISTING_GRID } from '@/components/marketplace/listing-grid'
 
 export default function SavedPage() {
   const { count, saved, savedError, retrySaved } = useFavorites()
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
+  // A Vietnamese page goes to the `/vi` home twin, never the English-pinned `/` (A1-LANG).
+  const variant = variantOfLanguage(lang)
   const router = useRouter()
   // Preloaded + cached in FavoritesContext — instant, no fetch-on-open.
   const list = saved ?? []
@@ -119,7 +123,7 @@ export default function SavedPage() {
             )}
             action={
               <Button asChild variant="cta" size="none">
-                <Link href="/" className="px-5 py-2.5">
+                <Link href={localizedHref('/', variant)} className="px-5 py-2.5">
                   {tr('Browse listings', 'Khám phá tin đăng')}
                 </Link>
               </Button>
@@ -129,7 +133,7 @@ export default function SavedPage() {
           <div className={LISTING_GRID}>
             {list.map((l, i) => (
               <div key={l.id} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)}>
-                <ListingCard listing={l} onOpen={() => router.push(`/listings/${l.id}`)} onLocate={() => router.push(`/?focus=${l.id}`)} priority={i < 4} />
+                <ListingCard listing={l} onOpen={() => router.push(`/listings/${l.id}`)} onLocate={() => router.push(localizedHref(`/?focus=${l.id}`, variant))} priority={i < 4} />
               </div>
             ))}
           </div>

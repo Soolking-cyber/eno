@@ -37,8 +37,14 @@ export const rentalFreeLine = (tr: Tr) =>
     'Free service to find your next home — the price you see is the price you get.',
     'Dịch vụ miễn phí giúp bạn tìm nhà — giá bạn thấy là giá bạn trả.',
   )
-/** The pill's second line — the tightest space in the flow. */
-export const rentalFreeShort = (tr: Tr) => tr('Free · same price as listed', 'Miễn phí · đúng giá niêm yết')
+/**
+ * The pill's second line — the tightest space in the flow, in the owner's final words (rentals-05,
+ * approved 2026-10-04). ⚠️ MEASURED AGAINST THE PILL, NOT GUESSED: in Open Runde Regular at 11px the
+ * Vietnamese line is ~173px and the English ~225px, against ~216px of text room in the 360px phone's
+ * pill (calc(100vw - 5.5rem) minus the padding, glyph and gap — rental-check-pill.tsx). So Vietnamese
+ * fits at 360; English fits from 375 and truncates its last word at 360.
+ */
+export const rentalFreeShort = (tr: Tr) => tr('Free · the price you see is the price you get', 'Miễn phí · thấy giá nào, trả giá đó')
 /** Under the send button: the moment the visitor commits, so it names all three promises. */
 export const rentalFreeCta = (tr: Tr) =>
   tr('Free service · the price you see is the price you get', 'Dịch vụ miễn phí · thấy giá nào, trả giá đó')

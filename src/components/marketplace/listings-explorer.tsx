@@ -35,7 +35,8 @@ import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvives
 import { queryChips } from '@/lib/district-query'
 import { clearPlaceForTypedDistrict, queryAfterAreaPick } from './explorer-place'
 import { isSeededFeed, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type ExplorerSort, type ExplorerView } from '@/lib/explorer-url'
-import { publicPathname } from '@/lib/lang-variant'
+import { publicPathname, variantOfLanguage } from '@/lib/lang-variant'
+import { localizedHref } from '@/lib/lang-pinned'
 import { handBackAfterLeaving, holdScrollRestoration, pinnedChromeBottom, releaseScrollRestoration, runRestore } from './feed-restore'
 import { useDropStaleDistrict } from './use-drop-stale-district'
 import { type Nearby, type Geo } from './area-filter'
@@ -534,14 +535,21 @@ export function ListingsExplorer({
    * the browser agree (lang-variant.ts; header.tsx's `hydrated` note is the same trap). The storefront
    * is force-dynamic, and a per-request render already reads the public `/` (src/proxy.ts).
    * (`pathname` itself is declared at the top, beside `urlInit`, which reads it too.)
+   * ⛔ IN THE PAGE'S LANGUAGE ON THE MARKETPLACE (A1-LANG, home-14): the `/vi` home's public path is `/`
+   * too, so its tiles linked the English-pinned `/?category=…`; `localizedHref` sends a Vietnamese page
+   * to `/vi?category=…`. ⚠️ NEVER ON A STOREFRONT (`sellerId`): a shop's host has no `/vi` pilot — the
+   * proxy bounces its `/vi` to the apex marketplace — so a tile there would leave the shop it filters.
+   * The server variant and the first client render
+   * agree (the provider starts at the variant the server rendered), so the href hydrates as rendered.
    */
+  const tileVariant = sellerId ? 'en' : variantOfLanguage(lang)
   const tileHref = useCallback((param: { category?: string; type?: string } | null) => {
-    if (!param) return pathname
+    if (!param) return localizedHref(pathname, tileVariant)
     const q = new URLSearchParams()
     if (param.category) q.set('category', param.category)
     if (param.type) q.set('type', param.type)
-    return `${pathname}?${q.toString()}`
-  }, [pathname])
+    return localizedHref(`${pathname}?${q.toString()}`, tileVariant)
+  }, [pathname, tileVariant])
   // ⛔ NO FILTERS DRAWER ANY MORE, AND NO 'open-mobile-filters' LISTENER. The bottom drawer
   // (explorer-filters.tsx) could only be opened by that window event, and nothing had dispatched it
   // since the header's events moved to the `eno:*` names — so its "Quận / Huyện" picker was the one

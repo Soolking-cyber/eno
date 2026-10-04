@@ -10,6 +10,12 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { stashCompose } from '@/lib/quick-contact'
+import { scrollBehavior } from '@/lib/reduced-motion'
+import { cn } from '@/lib/utils'
+
+/** The contact block's anchor, and the event the first-screen button fires at it (TeacherContactJump). */
+export const TEACHER_CONTACT_ID = 'teacher-contact'
+export const TEACHER_CONTACT_EVENT = 'eno:teacher-contact'
 
 export function TeacherContact({ listingId, name, image }: { listingId: string; name: string; image: string | null }) {
   const { user, loading, accountType, identityLoaded, openSignIn } = useAuth()
@@ -55,8 +61,23 @@ export function TeacherContact({ listingId, name, image }: { listingId: string; 
     setTimeout(() => setBusy(false), 8000)
   }
 
+  // The first-screen "Message" button (TeacherContactJump) runs THIS start — one action, one set of rules
+  // (sign-in, the business-only check, the queue) — never a second copy of them. A ref, so the listener
+  // reads the current render's closure without re-subscribing on every render.
+  // Kept current in an effect, never written during render (React refs rule); the listener below reads it.
+  const startRef = useRef(start)
+  useEffect(() => { startRef.current = start })
+  useEffect(() => {
+    const onJump = (e: Event) => {
+      if ((e as CustomEvent<{ listingId?: string }>).detail?.listingId === listingId) startRef.current()
+    }
+    window.addEventListener(TEACHER_CONTACT_EVENT, onJump)
+    return () => window.removeEventListener(TEACHER_CONTACT_EVENT, onJump)
+  }, [listingId])
+
   return (
-    <div className="space-y-2">
+    // `scroll-mt-24`: the jump lands it clear of the sticky header (lg:top-24 is the aside's own offset).
+    <div id={TEACHER_CONTACT_ID} className="scroll-mt-24 space-y-2">
       <Button variant="cta" className="w-full" onClick={() => start()} disabled={busy}>
         {busy ? tr('Opening chat…', 'Đang mở trò chuyện…') : tr('Message teacher', 'Nhắn tin cho giáo viên')}
       </Button>
@@ -70,5 +91,31 @@ export function TeacherContact({ listingId, name, image }: { listingId: string; 
         {tr('The teacher’s phone, email and CV are shared with you only if they choose to, in your chat.', 'Số điện thoại, email và CV của giáo viên chỉ được chia sẻ nếu họ đồng ý, trong cuộc trò chuyện.')}
       </p>
     </div>
+  )
+}
+
+/**
+ * "Message" BESIDE THE NAME, IN THE FIRST SCREEN (rentals-12). On a phone the profile stacks and the
+ * contact block falls below the bio, the teaching rows, the experience and the qualifications — a school
+ * had to scroll the whole profile to find the one button. This one SCROLLS TO that block and fires ITS
+ * action (TEACHER_CONTACT_EVENT), so the outcome lands where the reader now is: the sign-in sheet for a
+ * guest, the "only school and company accounts" note for a personal account (the business-only rule
+ * stays — owner, 2026-09-30), the chat for a business.
+ * ⚠️ NO STICKY BAR (owner, §6) — an in-flow button only. Below lg only: on desktop the contact block is the
+ * sticky right-hand column, already beside the name.
+ */
+export function TeacherContactJump({ listingId, className }: { listingId: string; className?: string }) {
+  const { tr } = useLanguage()
+  return (
+    <Button
+      variant="cta"
+      className={cn('relative tap-44', className)}
+      onClick={() => {
+        document.getElementById(TEACHER_CONTACT_ID)?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
+        window.dispatchEvent(new CustomEvent(TEACHER_CONTACT_EVENT, { detail: { listingId } }))
+      }}
+    >
+      {tr('Message', 'Nhắn tin')}
+    </Button>
   )
 }

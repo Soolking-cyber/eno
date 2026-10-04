@@ -13,6 +13,7 @@ import vnUnits from '@/data/vn-units.json'
 import { homeFacts, linkedTier, rentalKinds, rentalsHeadline, type RentalsFacts, type RentalsHeadline } from './category-copy'
 import { RENTAL_PLACES } from '@/lib/rental-places'
 import { isIndexableCount } from '@/lib/index-floor'
+import { jobCityChips, type JobCity } from './job-cities'
 
 /**
  * The category page's live numbers beyond the headline count — shared by `generateMetadata` and the
@@ -47,6 +48,19 @@ export const loadDistrictChips = cache(async (categoryId: string, placesOnly = f
     _count: { _all: true },
   })
   return mergeDistrictGroups(groups.map((g) => ({ district: g.district, count: g._count._all }))).filter((c) => isIndexableCount(c.count))
+})
+
+/**
+ * /c/jobs "By city" (rentals-11): live jobs per `city`, merged into one chip per province (job-cities.ts
+ * owns the merge, the order and the cap). Jobs carry no district, so this is their "By area".
+ */
+export const loadJobCities = cache(async (categoryId: string): Promise<JobCity[]> => {
+  const groups = await db.listing.groupBy({
+    by: ['city'],
+    where: await scopedListingWhere(live(categoryId), { teachers: true }),
+    _count: { _all: true },
+  })
+  return jobCityChips(groups.map((g) => ({ city: g.city, count: g._count._all })))
 })
 
 /**
