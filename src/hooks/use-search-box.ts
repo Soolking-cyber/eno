@@ -12,7 +12,8 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { suggestOptionId } from '@/components/marketplace/search-suggest'
-import { runVisualSearch, imageFromPaste, isUnauthorized, type VisualSearchResult } from '@/lib/visual-search'
+import { runVisualSearch, imageFromPaste, isUnauthorized, isAiDeclined, type VisualSearchResult } from '@/lib/visual-search'
+import { aiConsentNeeded, askAiConsent } from '@/lib/ai-consent'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 import type { Geo } from '@/components/marketplace/area-filter'
 
@@ -74,6 +75,9 @@ export function activeSuggestOptionId(listboxId: string, listOpen: boolean, acti
  *  decides how to apply it) — or the error toast when nothing was recognized.
  *  Does nothing (and doesn't preventDefault) when the paste has no image, so text
  *  pastes flow through untouched. */
+/** A Google AI question for a pasted photo is open (App Store gate `app-ai-notice`) — module state: one paste pipeline. */
+let pasteAskingAi = false
+
 export async function visualSearchFromPaste(
   e: { clipboardData?: DataTransfer | null; preventDefault: () => void },
   tr: (en: string, vi?: string) => string,
@@ -82,6 +86,17 @@ export async function visualSearchFromPaste(
   const f = imageFromPaste(e)
   if (!f) return
   e.preventDefault()
+  // ⚠️ App Store gate `app-ai-notice` (src/lib/ai-consent.ts): in the apps, ask before "Reading your photo…" and before
+  // the photo goes to Google (Gemini Vision). "Not now" ⇒ nothing is sent and no toast of ours (the notice spoke). One
+  // question at a time: a second paste while it is open is ignored, not queued behind "Allow" (codex, review).
+  // Gate off ⇒ aiConsentNeeded() is false: no await, unchanged.
+  if (aiConsentNeeded('photo_search')) {
+    if (pasteAskingAi) return
+    pasteAskingAi = true
+    let allowed = false
+    try { allowed = await askAiConsent('photo_search') } finally { pasteAskingAi = false }
+    if (!allowed) return
+  }
   /**
    * ⛔ try/finally, BECAUSE A THROW HERE LEFT "Reading your photo…" ON SCREEN FOREVER. Only the
    * happy path and the no-match path dismissed the loading toast; `runVisualSearch` awaits a
@@ -96,7 +111,7 @@ export async function visualSearchFromPaste(
   let settled = false
   try {
     const r = await runVisualSearch(f)
-    if (isUnauthorized(r)) { toast.dismiss('vis'); settled = true; return }
+    if (isUnauthorized(r) || isAiDeclined(r)) { toast.dismiss('vis'); settled = true; return }
     if (r && 'query' in r && r.query) { toast.dismiss('vis'); settled = true; onResult(r as VisualSearchResult); return }
     toast.error(tr("Couldn't recognize the item — try a clearer photo.", 'Không nhận ra món đồ — thử ảnh rõ hơn.'), { id: 'vis' })
     settled = true

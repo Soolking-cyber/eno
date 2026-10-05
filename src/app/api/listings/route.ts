@@ -20,6 +20,7 @@ import { idsFastPath, buildFeedFilters, resolveFeedFilters, buildFeedOrderBy, ge
 import { computeFacetCounts, releasedParams, subcategoryDimension, subcategoryDropPlan, type FacetCounts } from '@/lib/facet-counts'
 import { PROVINCE_NAMES_EN } from '@/lib/province-match'
 import { semanticRank } from './semantic-rank'
+import { appReviewGate, isNativeAppUserAgent } from '@/lib/app-review-gates'
 import { keywordRank } from './keyword-rank'
 import type { MatchClass } from '@/lib/text-relevance'
 import { correctQuery } from '@/lib/spell-correct'
@@ -48,7 +49,13 @@ export async function GET(req: NextRequest) {
   const fastPath = await idsFastPath(searchParams)
   if (fastPath) return fastPath
 
-  let payload = await buildFeedPayload(searchParams)
+  /**
+   * ⚠️ App Store gate `app-ai-notice` (Guideline 5.1.2(i)): in either app, typed search words are never sent to Google —
+   * the Vertex AI Search ranking (semantic-rank.ts) is skipped and the keyword path answers, so there is no permission to
+   * ask for (src/lib/ai-consent.ts). The UA is the apps' own token (app-review-gates.ts). Gate off ⇒ false: unchanged.
+   */
+  const noAi = appReviewGate('app-ai-notice') && isNativeAppUserAgent(req.headers.get('user-agent'))
+  let payload = await buildFeedPayload(searchParams, { noAi })
   /**
    * ⛔ A SEARCH THAT FINDS NOTHING IS ANSWERED FOR ITS LIKELY SPELLING — "iphnoe" found 0 while "iphone"
    * found 3,439 (production, 2026-09-29). Vertex was the typo-tolerant path and it is off in
@@ -75,7 +82,7 @@ export async function GET(req: NextRequest) {
     if (fixed && fixed !== fold(rawQ)) {
       const corrected = new URLSearchParams(searchParams)
       corrected.set('q', fixed)
-      const retry = await buildFeedPayload(corrected)
+      const retry = await buildFeedPayload(corrected, { noAi })
       if (retry.body.total > 0) {
         payload = retry
         correctedQuery = fixed
@@ -92,7 +99,7 @@ export async function GET(req: NextRequest) {
  * the Cache-Control it is served with. Split out of GET so a zero-result search can be asked again
  * with its corrected spelling (above) through exactly the same code.
  */
-async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: { total: number } & Record<string, unknown>; cacheControl: string; histogram: boolean }> {
+async function buildFeedPayload(searchParams: URLSearchParams, opts: { noAi?: boolean } = {}): Promise<{ body: { total: number } & Record<string, unknown>; cacheControl: string; histogram: boolean }> {
   // ⚠️ RESOLVED, not merely built: a district read out of `q` that would find nothing where the plain
   // words find something is dropped here (resolveFeedFilters), and every figure below — rows, total,
   // histogram, facet counts — follows that one decision.
@@ -184,8 +191,9 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
   const orderBy = buildFeedOrderBy(sort)
 
   // Semantic ranking via Vertex AI Search — falls back to the keyword query in `where`.
-  const { semanticListings, semanticTotal } = await semanticRank({
+  const { semanticListings, semanticTotal, aiSkipped } = await semanticRank({
     q, looseMatch, featuredOnly, sort, category, priceMin, priceMax, offset, limit, andFilters, pgTextFilter, orderBy,
+    noAi: opts.noAi,
   })
 
   // Parallel fetch: Listings, total count, and subcategory counts (if category is set)
@@ -464,7 +472,9 @@ async function buildFeedPayload(searchParams: URLSearchParams): Promise<{ body: 
     // s-maxage = Cloudflare edge TTL (the browser keeps the shorter max-age);
     // stale-while-revalidate serves the cached feed instantly from the VN edge
     // while it refreshes behind the scenes, so cache-hits never touch Cloud Run.
-    cacheControl: 'public, max-age=15, s-maxage=60, stale-while-revalidate=300',
+    // ⚠️ EXCEPT an app's keyword-only answer to a search a browser would have had ranked by Vertex (`aiSkipped`,
+    // App Store gate `app-ai-notice`): the edge keys on the URL alone, so caching it would hand that answer to browsers.
+    cacheControl: aiSkipped ? 'private, no-store' : 'public, max-age=15, s-maxage=60, stale-while-revalidate=300',
     histogram: false,
   }
 }

@@ -55,6 +55,9 @@ import {
   type VisaQuoteWire,
 } from '@/components/marketplace/visa-cards'
 import { TripAssistChips, TripQuoteCard, TripRequestCard, TripStatusCard, TripWizardCard, TripWizardLauncher } from '@/components/marketplace/trip-cards'
+import { useTripAiConsentCopy } from '@/components/marketplace/trip-ai-consent'
+import { aiConsentNeeded, askAiConsent } from '@/lib/ai-consent'
+import { useAiConsent } from '@/hooks/use-ai-consent'
 import { AvailabilityRequestCard, parseAvailabilityRequestMeta } from '@/components/marketplace/availability-request-card'
 import { Avatar } from '@/components/ui/avatar'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -1588,12 +1591,17 @@ export default function ThreadPage() {
   // — the mistake the trip launcher shipped when it fetched its eligibility once on mount.
   const [tripConciergeArmed, setTripConciergeArmed] = useState(false)
   const [tripBusy, setTripBusy] = useState(false)
+  const tripAiCopy = useTripAiConsentCopy() // App Store gate `app-ai-notice` — see askTripConcierge
   const tripHumanRequested = useMemo(() => (thread?.messages ?? []).some((m) => m.kind === 'trip_help'), [thread])
   // Trip chips belong to the traveller on a trip thread, never to the desk seat.
   const tripAssistAvailable = thread?.kind === 'itinerary' && !thread?.iAmSeller
+  // App Store gate `app-ai-notice`: trip AI turned off in this app (the notice's "Not now", or Settings) — the concierge
+  // must not stay armed, or every Send would toast and disarm again (opus, review). TripAssistChips disables its item.
+  const tripAiConsent = useAiConsent('trip')
+  const tripAiOff = tripAiConsent.askFirst && tripAiConsent.consent === 'off'
   useEffect(() => {
-    if (!tripAssistAvailable || tripHumanRequested) setTripConciergeArmed(false)
-  }, [tripAssistAvailable, tripHumanRequested])
+    if (!tripAssistAvailable || tripHumanRequested || tripAiOff) setTripConciergeArmed(false)
+  }, [tripAssistAvailable, tripHumanRequested, tripAiOff])
 
   const askTripHuman = async (mode: 'human' | 'ai' = 'human') => {
     if (tripBusy) return
@@ -1627,6 +1635,16 @@ export default function ThreadPage() {
     const question = raw.trim()
     if (!question || tripBusy) return
     setTripBusy(true)
+    // ⚠️ App Store gate `app-ai-notice` (src/lib/ai-consent.ts, the `trip` family): in the apps, ask before the question
+    // goes to Google (Gemini). "Not now" ⇒ nothing is sent, the question stays in the composer, and the composer is
+    // DISARMED — so Send now puts it in front of the desk's people, which is how this works without AI. tripBusy is set
+    // FIRST (codex, review): it disables Send and Return (dispatchSend) while the question is open, so a second tap cannot
+    // queue a second question for "Allow" to release. Gate off ⇒ aiConsentNeeded() is false: no await, unchanged.
+    if (aiConsentNeeded('trip', user?.id) && !(await askAiConsent('trip', { userId: user?.id, copy: tripAiCopy }))) {
+      setTripBusy(false)
+      setTripConciergeArmed(false)
+      return
+    }
     // Clear the field immediately (the send() idiom) — the question comes back from the server as
     // a real message, so there is nothing to keep locally.
     setText('')

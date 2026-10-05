@@ -26,7 +26,12 @@
  * |                  |      | anything goes to Microsoft (Azure AI Translator); "Turn off translation" |          |
  * |                  |      | stops every request THIS person's app makes (what they send follows the  |          |
  * |                  |      | other person's setting); Settings → Preferences turns it back on         |          |
- * |                  |      | (src/lib/chat-translation-consent.ts)                                    |          |
+ * |                  |      | (src/lib/chat-translation-consent.ts). AND Google AI: before a family's  |          |
+ * |                  |      | first request, "Use Google AI for …?" — Allow / Not now, remembered per  |          |
+ * |                  |      | account, changed in Settings → Preferences → Google AI: eno AI (Not now  |          |
+ * |                  |      | = keyword answers, `ai: false`), posting help (classify + rephrase),     |          |
+ * |                  |      | search by photo, eno.forum trip AI (unavailable on Not now); typed       |          |
+ * |                  |      | search never reaches Vertex from the apps (src/lib/ai-consent.ts)        |          |
  * | ios-hide-visa    | D5   | iOS app: no e-Visa application (start, product pick, passport/portrait    | D5 = b   |
  * |                  |      | upload, form, send/pay — desk or partner e-Visa product) and no identity |          |
  * |                  |      | or business-document capture; says "at www.eno.forum in a web browser";  |          |

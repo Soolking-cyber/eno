@@ -44,7 +44,14 @@ export async function semanticRank(args: {
   andFilters: Prisma.ListingWhereInput[]
   pgTextFilter: Prisma.ListingWhereInput | null
   orderBy: Prisma.ListingOrderByWithRelationInput[]
-}): Promise<{ semanticListings: any[] | null; semanticTotal: number }> {
+  /**
+   * App Store gate `app-ai-notice` (route.ts decides: the gate is on AND the request comes from either app). The search
+   * words must not go to Google, so the semantic path is skipped whole — no Vertex call and no cached Vertex ranking
+   * either — and the keyword query in `where` answers. `aiSkipped` tells the route that THIS answer differs from what a
+   * browser would get, so it must not be edge-cached for one.
+   */
+  noAi?: boolean
+}): Promise<{ semanticListings: any[] | null; semanticTotal: number; aiSkipped: boolean }> {
   const { q, looseMatch, featuredOnly, sort, category, priceMin, priceMax, offset, limit, andFilters, pgTextFilter, orderBy } = args
   let semanticListings: any[] | null = null
   let semanticTotal = 0
@@ -52,6 +59,7 @@ export async function semanticRank(args: {
   // debounces at 150ms, so 1-2 char prefixes ("h", "ho") fire constantly, cost a paid call
   // each, and rank poorly anyway; short VN terms ("xe", "tv") still get the keyword path.
   if (q && q.length >= 3 && !looseMatch && !featuredOnly && sort === 'newest' && vertexConfigured()) {
+    if (args.noAi) return { semanticListings: null, semanticTotal: 0, aiSkipped: true }
     const minP = Number.isNaN(priceMin) ? null : priceMin
     const maxP = Number.isNaN(priceMax) ? null : priceMax
     const catArg = category && category !== 'all' ? category : null
@@ -118,5 +126,5 @@ export async function semanticRank(args: {
       semanticListings = page
     }
   }
-  return { semanticListings, semanticTotal }
+  return { semanticListings, semanticTotal, aiSkipped: false }
 }

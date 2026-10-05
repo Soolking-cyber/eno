@@ -19,6 +19,7 @@ import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { SaveSignupSheet } from "@/components/marketplace/save-signup-sheet";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
 import { SignupPrompt } from "@/components/marketplace/signup-prompt";
+import { AiConsentHost } from "@/components/marketplace/ai-consent-host";
 import { AppSplash } from "@/components/marketplace/app-splash";
 import { InstallHint } from "@/components/marketplace/install-hint";
 import { ImageShield } from "@/components/marketplace/image-shield";
@@ -151,6 +152,10 @@ export function Providers({
                         which is why it lives here under the layout that never unmounts, and opens THE
                         sign-in popup (AuthProvider above) in its join presentation. Both editions. */}
                     <SignupPrompt />
+                    {/* App Store gate `app-ai-notice`: the one-time "Use Google AI for …?" question, asked in the apps before
+                        a feature first sends what someone typed or a photo to Google (src/lib/ai-consent.ts). Inside Auth +
+                        Language for the account and the words. Gate off ⇒ renders null and registers nothing. */}
+                    <AiConsentHost />
                     {/* ⛔ THE FIRST-RUN TOUR IS GONE (owner, 2026-09-16: "remove onboarding autoplay
                         where it shows top seach bar and taps the category brand too jittery"). It typed
                         into the header search itself and then pointed at the category/brand chips for the
