@@ -27,9 +27,12 @@ const h = vi.hoisted(() => ({
   priceAudit: null as Row | null,
 }))
 
-/** Prisma's conditional-write semantics, on one row: does `where` still match it? */
+/** Prisma's conditional-write semantics, on one row: does `where` still match it? (`equals` is the
+ *  reactivation writes' status-they-read condition, 2026-10-05 — see setStatusCore / confirmCore.) */
 function matches(row: Row | null, where: Row): boolean {
   if (!row || row.id !== where.id) return false
+  const eq = where.status?.equals
+  if (eq !== undefined && row.status !== eq) return false
   const not = where.status?.not
   return not === undefined || row.status !== not
 }
@@ -162,11 +165,18 @@ describe('confirmCore — "still available" cannot revive a listing removed afte
     expect(h.afters).toBe(0) // not even the engagement reward
   })
 
-  it('the ordinary confirm writes through the guarded where', async () => {
+  it('the ordinary confirm writes through the guarded where — not removed, AND still the status it read', async () => {
     h.read = listing('active')
     h.row = listing('active')
     expect(await confirmCore('L1', 'p1')).toEqual({ ok: true, bumped: false })
-    expect(h.writes[0].args.where).toEqual({ id: 'L1', status: { not: 'removed' } })
+    expect(h.writes[0].args.where).toEqual({ id: 'L1', status: { not: 'removed', equals: 'active' } })
+  })
+
+  it('read active, SOLD before the write (a mark-sold in another tab): 404, and the sale is not silently revived', async () => {
+    h.read = listing('active')
+    h.row = { ...listing('active'), status: 'sold' }
+    expect(await confirmCore('L1', 'p1')).toEqual(NOT_FOUND)
+    expect(h.row!.status).toBe('sold')
   })
 })
 

@@ -125,6 +125,19 @@ let openClearedReply = true
 let failFirstGets = 0
 /** Status code the listing-status POST (the strip's "Mark sold") answers with. */
 let statusReplyCode = 200
+/** B6 — who messaged about l1 (GET /api/listings/l1/buyers?scope=listing): this thread's buyer, then another. */
+const BUYER_ROWS = [
+  { conversationId: 'c1', profileId: 'p-buyer', name: 'Buyer', avatarUrl: null, avatarColor: '#888', lastMessageAt: '2026-09-25T08:01:00.000Z' },
+  { conversationId: 'c9', profileId: 'p-other', name: 'Huy', avatarUrl: null, avatarColor: '#888', lastMessageAt: '2026-09-25T09:00:00.000Z' },
+]
+let buyersReply: { status: number; body: unknown } = { status: 200, body: { buyers: BUYER_ROWS } }
+/** Status code POST /api/listings/l1/sold answers with; `holdSold` keeps it in flight until released. */
+let soldReplyCode = 200
+let holdSold: null | { release?: () => void } = null
+/** The BUYER's side of the loop — GET /api/conversations/c1/sale-question answers with these. */
+let saleQuestions: unknown[] = []
+/** How that GET answers: 200 (the list above), another status (a failure), or 'hold' (never answers). */
+let saleQuestionReply: number | 'hold' = 200
 /** The thread GET, open or refetch — matched on the path, since the open carries `?opened=1`. */
 const isThreadGet = (c: { url: string; method: string }) => c.method === 'GET' && c.url.split('?')[0] === '/api/conversations/c1'
 
@@ -141,6 +154,8 @@ beforeEach(() => {
   }
   Element.prototype.scrollIntoView ??= function () {}
   Element.prototype.scrollTo ??= function () {} as never
+  // The "Who bought it?" sheet is a Base UI Drawer, which asks the platform about running animations.
+  Element.prototype.getAnimations ??= () => []
   vi.useFakeTimers({ shouldAdvanceTime: true })
   calls = []
   serverStatus = 'pending'
@@ -162,6 +177,11 @@ beforeEach(() => {
   openClearedReply = true
   failFirstGets = 0
   statusReplyCode = 200
+  buyersReply = { status: 200, body: { buyers: BUYER_ROWS } }
+  soldReplyCode = 200
+  holdSold = null
+  saleQuestions = []
+  saleQuestionReply = 200
   notifs.refresh.mockClear()
   // Module-level on purpose (it outlives a page — see offer-choices.ts), so each test starts clean.
   unconfirmedOfferChoices.clear()
@@ -190,6 +210,25 @@ beforeEach(() => {
     }
     if (url === '/api/listings/l1/status' && method === 'POST') {
       return Promise.resolve(json(statusReplyCode, statusReplyCode === 200 ? { ok: true, status: 'sold' } : { error: 'server_error' }))
+    }
+    if (url === '/api/listings/l1/buyers?scope=listing' && method === 'GET') {
+      return Promise.resolve(json(buyersReply.status, buyersReply.body))
+    }
+    if (url === '/api/listings/l1/sold' && method === 'POST') {
+      const reply = () => json(soldReplyCode, soldReplyCode === 200 ? { ok: true } : { error: 'server_error' })
+      if (holdSold) { const h = holdSold; return new Promise<Response>((resolve) => { h.release = () => resolve(reply()) }) }
+      return Promise.resolve(reply())
+    }
+    if (url === '/api/conversations/c1/sale-question' && method === 'GET') {
+      if (saleQuestionReply === 'hold') return new Promise<Response>(() => {})
+      if (saleQuestionReply !== 200) return Promise.resolve(json(saleQuestionReply, { error: 'internal_error' }))
+      return Promise.resolve(json(200, { questions: saleQuestions }))
+    }
+    if (url === '/api/listings/l1/sale-confirmation' && method === 'POST') {
+      const { answer } = JSON.parse(String(init!.body)) as { answer: string }
+      // Answered: the question is no longer open on the server.
+      saleQuestions = []
+      return Promise.resolve(json(200, { ok: true, status: answer === 'confirm' ? 'confirmed' : 'declined' }))
     }
     if (url === '/api/conversations/c1/messages' && method === 'POST') {
       // A text send: the server's copy of the message, as the route returns it.
@@ -511,8 +550,8 @@ describe('the item strip (inbox-03) — the landmine gates, as rendered', () => 
     expect(within(strip).queryByRole('button', { name: 'Mark sold' })).toBeNull()
   })
 
-  it('"Mark sold" asks first (ui/alert-dialog), then makes the one status POST — and a "$&" in the title stays literal', async () => {
-    const strip = await openWith({ listing: { ...base(), title: 'Lamp $& $$ co' } })
+  it('"Mark sold" on a NON-sale listing (a rental) still asks first (ui/alert-dialog), then makes the one status POST — and a "$&" in the title stays literal', async () => {
+    const strip = await openWith({ listing: { ...base(), listingType: 'rent', title: 'Lamp $& $$ co' } })
     fireEvent.click(within(strip).getByRole('button', { name: 'Mark sold' }))
     const statusPosts = () => calls.filter((c) => c.url === '/api/listings/l1/status')
     expect(statusPosts()).toEqual([])
@@ -520,6 +559,213 @@ describe('the item strip (inbox-03) — the landmine gates, as rendered', () => 
     expect(within(dialog).getByText('Mark "Lamp $& $$ co" as sold?')).toBeTruthy()
     await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Mark as sold' })); await vi.advanceTimersByTimeAsync(50) })
     expect(statusPosts()).toEqual([{ url: '/api/listings/l1/status', method: 'POST', body: { status: 'sold' }, keepalive: undefined }])
+    // "Who bought it?" describes a sale, not a tenancy: no sheet, no buyer lookup.
+    expect(screen.queryByText('Who bought it?')).toBeNull()
+    expect(calls.some((c) => c.url.startsWith('/api/listings/l1/buyers'))).toBe(false)
+  })
+})
+
+/**
+ * B6 — "WHO BOUGHT IT?" FROM THE THREAD. On a sale, every seller door to "sold" — the strip's 'Đã bán',
+ * the "Deal! Mark as sold?" chip, the one-time prompt under an accepted offer — opens the same sheet with
+ * THIS thread's buyer listed first, and the write goes through POST /sold (the same transition as the
+ * status POST, plus who bought it), optimistic with a rollback.
+ * ⚠️ The thread's buyer is PRE-PICKED only when the thread has a DEAL that still stands for this listing
+ * (src/lib/thread-deal.ts) or the offer was just accepted — an open chat is not evidence they bought it
+ * (B6 review). Without one, the seller taps the person.
+ */
+describe('"Who bought it?" from a thread (B6)', () => {
+  const base = () => thread('pending').listing
+  async function openWith(extra: Record<string, unknown>, status = 'pending') {
+    serverStatus = status
+    extraThread = extra
+    render(<ThreadPage />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    return document.querySelector('[data-item-strip]') as HTMLElement
+  }
+  /** The open sheet — found from its title, so it never matches a "Mark as sold" outside it. */
+  async function sheet() {
+    const title = await screen.findByText('Who bought it?')
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) }) // the buyer lookup lands
+    return title.closest('[role="dialog"]') as HTMLElement
+  }
+  const soldPosts = () => calls.filter((c) => c.url === '/api/listings/l1/sold')
+  /** No deal in the thread → nobody is pre-picked: the seller taps this thread's buyer themselves. */
+  const pickThreadBuyer = (s: HTMLElement) => fireEvent.click(within(s).getAllByRole('radio')[0])
+
+  it('⛔ NO DEAL: the strip\'s "Mark sold" lists THIS thread\'s buyer first but picks NOBODY — one tap on them, one to file through /sold', async () => {
+    const strip = await openWith({})
+    fireEvent.click(within(strip).getByRole('button', { name: 'Mark sold' }))
+    const s = await sheet()
+    expect(screen.queryByRole('alertdialog')).toBeNull()
+    expect(calls.filter((c) => c.url === '/api/listings/l1/buyers?scope=listing' && c.method === 'GET')).toHaveLength(1)
+    // This thread's buyer first — but a pending offer is not a deal, so nobody is chosen for the seller.
+    const radios = within(s).getAllByRole('radio')
+    expect(radios[0].textContent).toContain('Buyer')
+    expect(radios.every((r) => r.getAttribute('aria-checked') === 'false')).toBe(true)
+    const cta = within(s).getByRole('button', { name: 'Mark as sold' }) as HTMLButtonElement
+    expect(cta.disabled).toBe(true)
+    pickThreadBuyer(s)
+    expect(cta.disabled).toBe(false)
+    await act(async () => { fireEvent.click(cta); await vi.advanceTimersByTimeAsync(50) })
+    expect(soldPosts()).toEqual([{ url: '/api/listings/l1/sold', method: 'POST', body: { buyerProfileId: 'p-buyer', salePrice: 15_000_000 }, keepalive: undefined }])
+    expect(calls.some((c) => c.url === '/api/listings/l1/status')).toBe(false)
+  })
+
+  it('WITH A DEAL STANDING: the strip\'s "Mark sold" pre-picks THIS thread\'s buyer at the agreed price — one tap files it', async () => {
+    const strip = await openWith({}, 'accepted')
+    fireEvent.click(within(strip).getByRole('button', { name: 'Mark sold' }))
+    const s = await sheet()
+    const radios = within(s).getAllByRole('radio')
+    expect(radios[0].getAttribute('aria-checked')).toBe('true')
+    expect(within(s).getByRole('radio', { name: /Huy/ }).getAttribute('aria-checked')).toBe('false')
+    expect((within(s).getByRole('textbox', { name: 'Agreed price' }) as HTMLInputElement).value).toBe('12,000,000')
+    await act(async () => { fireEvent.click(within(s).getByRole('button', { name: 'Mark as sold' })); await vi.advanceTimersByTimeAsync(50) })
+    expect(soldPosts().map((c) => c.body)).toEqual([{ buyerProfileId: 'p-buyer', salePrice: 12_000_000 }])
+  })
+
+  it('OPTIMISTIC: the strip says "Sold" while the write is out, and the sheet holds the spinner', async () => {
+    const strip = await openWith({})
+    fireEvent.click(within(strip).getByRole('button', { name: 'Mark sold' }))
+    const s = await sheet()
+    pickThreadBuyer(s)
+    holdSold = {}
+    await act(async () => { fireEvent.click(within(s).getByRole('button', { name: 'Mark as sold' })); await vi.advanceTimersByTimeAsync(10) })
+    expect(soldPosts()).toHaveLength(1)
+    expect(within(strip).getByText('Sold')).toBeTruthy()
+    // `hidden: true` — the open (modal) sheet hides the page behind it from role queries; the button must be GONE, not hidden.
+    expect(within(strip).queryByRole('button', { name: 'Mark sold', hidden: true })).toBeNull()
+    // Still mounted through its own flip (the mount ignores status), still writing.
+    expect((within(s).getByRole('button', { name: 'Mark as sold' }) as HTMLButtonElement).disabled).toBe(true)
+    extraThread = { listing: { ...base(), status: 'sold' } } // what the server holds once it lands
+    await act(async () => { holdSold!.release!(); await vi.advanceTimersByTimeAsync(50) })
+    expect(within(strip).getByText('Sold')).toBeTruthy()
+    expect(soldPosts()).toHaveLength(1)
+  })
+
+  it('⛔ ROLLBACK: the write fails AND the reconcile read fails — "Mark sold" is back, never a stale "Sold", and the sheet says why', async () => {
+    const strip = await openWith({})
+    fireEvent.click(within(strip).getByRole('button', { name: 'Mark sold' }))
+    const s = await sheet()
+    pickThreadBuyer(s)
+    soldReplyCode = 500
+    failGets = true // the same bad connection takes the reconcile refetch down too
+    await act(async () => { fireEvent.click(within(s).getByRole('button', { name: 'Mark as sold' })); await vi.advanceTimersByTimeAsync(50) })
+    expect(soldPosts()).toHaveLength(1)
+    // `hidden: true` — the sheet is still open (modal) over the strip; the button is back in the strip itself.
+    expect(within(strip).getByRole('button', { name: 'Mark sold', hidden: true })).toBeTruthy()
+    expect(within(strip).queryByText('Sold')).toBeNull()
+    // Said in the sheet (which stays open and re-arms its CTA for the retry), not as a toast.
+    expect(within(s).getByRole('alert').textContent).toBe('Could not mark as sold — please try again.')
+    expect((within(s).getByRole('button', { name: 'Mark as sold' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('⛔ a RETARGET while the sheet is open cannot change what it sells — the write goes to the listing tapped', async () => {
+    const strip = await openWith({})
+    fireEvent.click(within(strip).getByRole('button', { name: 'Mark sold' }))
+    const s = await sheet()
+    pickThreadBuyer(s)
+    // The buyer asks the same seller about another item: the 15s poll brings the thread back about it.
+    extraThread = { listing: { ...base(), id: 'l2', title: 'Table' } }
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_100) })
+    expect(within(strip).getByText('Table')).toBeTruthy()
+    expect(within(s).getByText('Road bike')).toBeTruthy() // the sheet still says what it is selling
+    await act(async () => { fireEvent.click(within(s).getByRole('button', { name: 'Mark as sold' })); await vi.advanceTimersByTimeAsync(50) })
+    expect(soldPosts()).toHaveLength(1)
+    expect(calls.some((c) => c.url === '/api/listings/l2/sold')).toBe(false)
+    // …and the strip, now about the table, was never flipped to "Sold".
+    expect(within(strip).queryByText('Sold')).toBeNull()
+  })
+
+  it('the "Deal! Mark as sold?" chip appears once the thread agreed a price — and the price is the one agreed', async () => {
+    await openWith({}, 'accepted')
+    fireEvent.click(screen.getByRole('button', { name: 'Deal! Mark as sold?' }))
+    const s = await sheet()
+    const radios = within(s).getAllByRole('radio')
+    expect(radios[0].getAttribute('aria-checked')).toBe('true')
+    expect((within(s).getByRole('textbox', { name: 'Agreed price' }) as HTMLInputElement).value).toBe('12,000,000')
+    await act(async () => { fireEvent.click(within(s).getByRole('button', { name: 'Mark as sold' })); await vi.advanceTimersByTimeAsync(50) })
+    expect(soldPosts().map((c) => c.body)).toEqual([{ buyerProfileId: 'p-buyer', salePrice: 12_000_000 }])
+  })
+
+  it('the agreed price is the one AT THE TAP: a buyer message landing while the sheet is open does not move it', async () => {
+    await openWith({}, 'accepted')
+    fireEvent.click(screen.getByRole('button', { name: 'Deal! Mark as sold?' }))
+    const s = await sheet()
+    const price = () => (within(s).getByRole('textbox', { name: 'Agreed price' }) as HTMLInputElement).value
+    expect(price()).toBe('12,000,000')
+    // The buyer writes again — the deal no longer "stands" for the chip, but this sheet is about the tap.
+    extraThread = { messages: [...thread('accepted').messages, { id: 'm-more', mine: false, body: 'Mấy giờ lấy được ạ?', createdAt: '2026-09-25T09:00:00.000Z', kind: 'text' }] }
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_100) })
+    expect(screen.getByText('Mấy giờ lấy được ạ?')).toBeTruthy()
+    expect(price()).toBe('12,000,000')
+  })
+
+  it('no agreement, no chip — a pending offer is not a deal', async () => {
+    await openWith({})
+    expect(screen.queryByRole('button', { name: 'Deal! Mark as sold?' })).toBeNull()
+  })
+
+  it('⛔ a deal the conversation has moved past is not offered: no chip, and the price starts at the ask', async () => {
+    // The buyer wrote after the accepted offer — which is also exactly what a RETARGET leaves behind (the
+    // sofa's accepted offer, now in a thread about the table). src/lib/thread-deal.ts has the full rule.
+    const accepted = thread('accepted').messages
+    const strip = await openWith({ messages: [...accepted, { id: 'm-next', mine: false, body: 'Còn cái bàn không ạ?', createdAt: '2026-09-25T09:00:00.000Z', kind: 'text' }] }, 'accepted')
+    expect(screen.queryByRole('button', { name: 'Deal! Mark as sold?' })).toBeNull()
+    fireEvent.click(within(strip).getByRole('button', { name: 'Mark sold' }))
+    const s = await sheet()
+    expect((within(s).getByRole('textbox', { name: 'Agreed price' }) as HTMLInputElement).value).toBe('15,000,000')
+  })
+
+  it('⛔ nor after a relist: the listing re-confirmed after the deal closes it', async () => {
+    await openWith({ listing: { ...base(), availabilityConfirmedAt: '2026-09-26T08:00:00.000Z' } }, 'accepted')
+    expect(screen.queryByRole('button', { name: 'Deal! Mark as sold?' })).toBeNull()
+  })
+
+  it('the prompt under the offer the seller just accepted opens the SAME sheet — and the chip stays away while it is up', async () => {
+    await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(5200) }) // the undo window, then the POST
+    expect(await screen.findByText('Deal! Mark "Road bike" as sold?')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Deal! Mark as sold?' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as sold' }))
+    const s = await sheet()
+    expect(within(s).getAllByRole('radio')[0].getAttribute('aria-checked')).toBe('true')
+    // The prompt knows ITS offer: the price is the one just accepted.
+    expect((within(s).getByRole('textbox', { name: 'Agreed price' }) as HTMLInputElement).value).toBe('12,000,000')
+    expect(calls.some((c) => c.url === '/api/listings/l1/status')).toBe(false)
+  })
+
+  it('⛔ the post-accept prompt is about the listing it was accepted ON — after a retarget it goes, never "mark the NEW item sold"', async () => {
+    await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(5200) })
+    expect(await screen.findByText('Deal! Mark "Road bike" as sold?')).toBeTruthy()
+    // An accepted offer does not block a retarget: the buyer asks the same seller about another item, and
+    // the poll brings the thread back about it — with the bike's accepted offer still in the timeline.
+    extraThread = { listing: { ...thread('accepted').listing, id: 'l2', title: 'Table' } }
+    await act(async () => { await vi.advanceTimersByTimeAsync(15_100) })
+    expect(screen.getByText('Table')).toBeTruthy()
+    expect(screen.queryByText('Deal! Mark "Table" as sold?')).toBeNull()
+    expect(screen.queryByText('Deal! Mark "Road bike" as sold?')).toBeNull()
+    expect(screen.queryByText('Who bought it?')).toBeNull()
+  })
+
+  it('a lookup that fails never becomes "nobody messaged": the sheet closes and says so, and nothing is filed', async () => {
+    buyersReply = { status: 500, body: { error: 'server_error' } }
+    const strip = await openWith({})
+    fireEvent.click(within(strip).getByRole('button', { name: 'Mark sold' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    expect(toasts.state.errors).toContain('Could not load who messaged you — please try again.')
+    expect(soldPosts()).toEqual([])
+  })
+
+  it('⛔ no sheet for the buyer: no "Mark sold", no chip, no buyer lookup — even on an agreed deal', async () => {
+    const strip = await openWith({ iAmSeller: false }, 'accepted')
+    expect(within(strip).queryByRole('button', { name: 'Mark sold' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Deal! Mark as sold?' })).toBeNull()
+    expect(screen.queryByText('Who bought it?')).toBeNull()
+    expect(calls.some((c) => c.url.startsWith('/api/listings/l1/buyers'))).toBe(false)
   })
 })
 
@@ -596,6 +842,78 @@ describe('the strip placeholder while a thread loads (no jump on a listing-less 
   })
 })
 
+/**
+ * THE BUYER'S HALF — "did you buy this?" (trade loop, 2026-10-05). When a seller names this person as who
+ * bought something, the notification and push bring them HERE, to their thread with that seller, and the
+ * question is answered in one tap above the composer. The post-deal review card waits while it is open:
+ * one card at a time, and the review only once both sides have spoken.
+ */
+describe('the buyer\'s "did you buy this?" in the thread', () => {
+  const QUESTION = { saleId: 'l1:1000', listingId: 'l1', title: 'Road bike', price: 12_000_000, currency: '₫' }
+  const asBuyer = () => ({
+    iAmSeller: false,
+    counterpart: { name: 'Minh Shop', avatarColor: '#888', avatarUrl: null, sellerId: 's1', locale: 'en', trust: null },
+    listing: { ...thread('pending').listing, status: 'sold' },
+  })
+  const questionGets = () => calls.filter((c) => c.url === '/api/conversations/c1/sale-question')
+
+  it('the seller\'s question is shown — and ONE tap answers it; the review card waits until it has', async () => {
+    saleQuestions = [QUESTION]
+    extraThread = asBuyer()
+    render(<ThreadPage />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    expect(questionGets()).toHaveLength(1)
+    const group = screen.getByRole('group', { name: /says you bought/ })
+    expect(group.textContent).toContain('Minh Shop says you bought Road bike for 12,000,000 đ.')
+    // One card at a time: the review waits for the answer.
+    expect(screen.queryByText('How was your experience with Minh Shop?')).toBeNull()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Yes, I bought it' })); await vi.advanceTimersByTimeAsync(50) })
+    expect(calls.filter((c) => c.url === '/api/listings/l1/sale-confirmation')).toEqual([
+      { url: '/api/listings/l1/sale-confirmation', method: 'POST', body: { answer: 'confirm', price: 12_000_000 }, keepalive: undefined },
+    ])
+    expect(screen.getByText('Confirmed — this deal is now on record for both of you.')).toBeTruthy()
+    // Both sides have spoken: now the review.
+    expect(screen.getByText('How was your experience with Minh Shop?')).toBeTruthy()
+  })
+
+  it('⛔ the review card waits until "nothing is being asked" is KNOWN: not while the lookup is out…', async () => {
+    saleQuestionReply = 'hold'
+    extraThread = asBuyer()
+    render(<ThreadPage />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    expect(questionGets()).toHaveLength(1)
+    expect(screen.queryByText('How was your experience with Minh Shop?')).toBeNull()
+  })
+
+  it('⛔ …and not when the lookup FAILED (a question may be open; the next open asks again)', async () => {
+    saleQuestionReply = 500
+    extraThread = asBuyer()
+    render(<ThreadPage />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    expect(screen.queryByText('How was your experience with Minh Shop?')).toBeNull()
+  })
+
+  it('with nothing asked, nothing changes: no card, and the review card shows as it always did', async () => {
+    extraThread = asBuyer()
+    render(<ThreadPage />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    expect(questionGets()).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Yes, I bought it' })).toBeNull()
+    expect(screen.getByText('How was your experience with Minh Shop?')).toBeTruthy()
+  })
+
+  it('⛔ never on the SELLER\'s side, and never in a thread with no seller identity (the rental desk)', async () => {
+    saleQuestions = [QUESTION]
+    await openThread() // the seller's view
+    expect(questionGets()).toEqual([])
+    cleanup()
+    extraThread = { ...asBuyer(), counterpart: { ...asBuyer().counterpart, sellerId: null } }
+    render(<ThreadPage />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    expect(questionGets()).toEqual([])
+  })
+})
+
 describe('the open is confirmed by the server, not by asking (si-04)', () => {
   const opens = () => calls.filter(isThreadGet).filter((c) => c.url.includes('opened=1')).length
   const refetch = async () => { await act(async () => { window.dispatchEvent(new Event('focus')); await vi.advanceTimersByTimeAsync(50) }) }
@@ -635,6 +953,8 @@ describe('the open is confirmed by the server, not by asking (si-04)', () => {
 
 describe('"Mark sold" rolls back on its own (inbox-03)', () => {
   it('⛔ the POST fails AND the reconcile read fails: the strip offers "Mark sold" again — never a stale "Sold"', async () => {
+    // The AlertDialog path — a non-sale listing (a sale opens "Who bought it?"; its rollback is pinned in the B6 block).
+    extraThread = { listing: { ...thread('pending').listing, listingType: 'rent' } }
     await openThread()
     const strip = document.querySelector('[data-item-strip]') as HTMLElement
     fireEvent.click(within(strip).getByRole('button', { name: 'Mark sold' }))

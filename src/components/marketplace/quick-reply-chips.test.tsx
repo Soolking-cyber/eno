@@ -61,6 +61,31 @@ describe('seller chips', () => {
   })
 })
 
+/**
+ * B6 — "Deal! Mark as sold?" is a reply to where the conversation IS: an agreed deal (the parent decides,
+ * src/lib/thread-deal.ts). It opens the mark-sold sheet; it never marks anything itself. Seller only, never
+ * on a job, never without a deal or without the sheet to open.
+ */
+describe('the seller\'s "Deal! Mark as sold?" chip (B6)', () => {
+  it('first in the seller\'s row once the thread agreed a deal', () => {
+    LANG = 'en'
+    const out = chips({ isSeller: true, dealAgreed: true, onMarkSold: () => {} })
+    expect(out.startsWith('Deal! Mark as sold?')).toBe(true)
+    LANG = 'vi'
+    expect(chips({ isSeller: true, dealAgreed: true, onMarkSold: () => {} })).toContain('Chốt đơn! Đánh dấu đã bán?')
+  })
+  it('no deal → no chip; no sheet to open → no chip', () => {
+    LANG = 'en'
+    expect(chips({ isSeller: true, dealAgreed: false, onMarkSold: () => {} })).not.toContain('Deal!')
+    expect(chips({ isSeller: true, dealAgreed: true })).not.toContain('Deal!')
+  })
+  it('⛔ never to the buyer, never on a job', () => {
+    LANG = 'en'
+    expect(chips({ isSeller: false, dealAgreed: true, onMarkSold: () => {} })).not.toContain('Deal!')
+    expect(chips({ isSeller: true, job: true, dealAgreed: true, onMarkSold: () => {} })).not.toContain('Deal!')
+  })
+})
+
 describe('buyer chips', () => {
   const listing: OpenerListing = { categorySlug: 'electronics', subcategorySlug: null, listingType: 'sell', price: 5_000_000, currency: '₫', priceUnit: 'VND', negotiable: true }
 

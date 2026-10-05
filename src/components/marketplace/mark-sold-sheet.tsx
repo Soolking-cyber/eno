@@ -17,6 +17,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { VndInput } from './vnd-input'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale, parseVnd } from '@/lib/vnd'
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { ICON_SIZE, STROKE_UI } from '@/lib/icon-tokens'
 import { hapticConfirm } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
@@ -47,10 +48,13 @@ import { cn } from '@/lib/utils'
  *    of these five people", sellers will pick one of these five people. That is how the completed
  *    -deal data becomes a lie, and every downstream number built on it (trust, price guidance,
  *    the price band on the PDP) inherits the lie. Making the honest answer free is the whole
- *    point. With NOBODY in the list it is also pre-selected, because it is then the only true
+ *    point. When NOBODY EVER MESSAGED it is also pre-selected, because it is then the only true
  *    answer available and asking for a tap to confirm the obvious is theatre — but that
  *    pre-selection is DERIVED from the list being empty, never latched at mount, so a list that
  *    arrives late un-picks it rather than filing a false off-eno sale (see `choiceValue`).
+ *    ⚠️ AND AN EMPTY LIST IS NOT, BY ITSELF, "NOBODY MESSAGED" (B6 review). The caller's list can
+ *    lose a real buyer (a thread that moved to another listing), so the default needs the caller's
+ *    PROOF as well — `nobodyMessaged`. Unsure → nothing is picked, and the seller says it themselves.
  *
  * 3. **THE AGREED PRICE IS ASKED FOR, NOT ASSUMED.** The asking price is a starting position; in
  *    this market the sale price usually is not it. Trust and price guidance want what the thing
@@ -133,6 +137,27 @@ export type MarkSoldSheetProps = {
    *  simply FORGETTING the prop, which is not a hazard anyone should be able to opt into by
    *  omission. Pass `false` until the projection resolves. */
   buyersLoaded: boolean
+  /** ⚠️ THE CALLER'S PROOF THAT NOBODY EVER MESSAGED ABOUT THIS LISTING — not merely that `buyers` is
+   *  empty. Only with it does an empty, loaded list pre-select "someone not on eno". An empty list can
+   *  be LOSSY (B6 review: a buyer who chatted here and then asked the same seller about another item
+   *  takes their thread with them), and a pre-selection over a lossy list is a one-tap false off-eno
+   *  sale for a real eno buyer — where the old path, with no sheet at all, wrote an honest null.
+   *  Defaults to false: unsure means nothing is picked, and the empty-list line says only what is
+   *  known (no chat is linked to the listing), never "nobody has messaged". */
+  nobodyMessaged?: boolean
+  /** The person to start with selected — the thread's buyer when the sheet opens from that chat, so
+   *  the path there stays one tap. ⚠️ DERIVED, NEVER LATCHED, exactly like the empty-list off-eno
+   *  default (see `choiceValue`): it holds only while the seller has not answered, only once the list
+   *  has loaded, and only while that id is IN `buyers`. An id that is not in the list selects nobody —
+   *  never a guess at someone else — and an explicit tap always wins. */
+  defaultBuyerId?: string | null
+  /** Whether naming a buyer REALLY sends them the "did you buy this?" question (sale-confirm-prompt).
+   *  ⚠️ OFF BY DEFAULT, BECAUSE THE FOOTER IS A PROMISE. With it on, picking someone reads "{name} will
+   *  be asked to confirm"; without it the footer says only what is certain — the sale is recorded
+   *  against that person. MarkSoldFlow turns it on from the server's own answer (GET /buyers'
+   *  `asksBuyer`: POST /sold asks a buyer only about a sale of goods, never on the services desk), so
+   *  the sentence is exactly as true as the mechanism behind it. */
+  asksBuyerToConfirm?: boolean
   onConfirm: (submission: MarkSoldSubmission) => void
   /** True while the caller's write is in flight — spins the CTA, freezes the answer, and disables
    *  Cancel (Escape and the swipe handle deliberately stay open, so a hung request can never trap
@@ -168,6 +193,9 @@ export function MarkSoldSheet({
   listing,
   buyers,
   buyersLoaded,
+  nobodyMessaged = false,
+  defaultBuyerId,
+  asksBuyerToConfirm = false,
   onConfirm,
   submitting,
   errorMessage,
@@ -213,6 +241,9 @@ export function MarkSoldSheet({
           listing={listing}
           buyers={buyers}
           buyersLoaded={buyersLoaded}
+          nobodyMessaged={nobodyMessaged}
+          defaultBuyerId={defaultBuyerId ?? null}
+          asksBuyerToConfirm={asksBuyerToConfirm}
           onConfirm={onConfirm}
           onCancel={() => onOpenChange(false)}
           submitting={submitting}
@@ -227,6 +258,9 @@ function MarkSoldForm({
   listing,
   buyers,
   buyersLoaded,
+  nobodyMessaged,
+  defaultBuyerId,
+  asksBuyerToConfirm,
   onConfirm,
   onCancel,
   submitting,
@@ -235,6 +269,9 @@ function MarkSoldForm({
   listing: MarkSoldSheetProps['listing']
   buyers: MarkSoldBuyer[]
   buyersLoaded: boolean
+  nobodyMessaged: boolean
+  defaultBuyerId: string | null
+  asksBuyerToConfirm: boolean
   onConfirm: (submission: MarkSoldSubmission) => void
   onCancel: () => void
   submitting?: boolean
@@ -264,7 +301,15 @@ function MarkSoldForm({
   // real buyer — the exact "the data becomes a lie" failure the header is about, arriving through
   // the door built to prevent it. Deriving it means the pre-selection lasts exactly as long as the
   // list is empty, and an explicit tap (which sets `choice`) always wins.
-  const choiceValue = choice === '' && buyers.length === 0 && buyersLoaded ? OFF_PLATFORM_VALUE : choice
+  // The caller's `defaultBuyerId` (the thread's buyer) rides the same rule for the same reason: derived
+  // from a LOADED list that still contains that person, so a list that arrives late or drops them simply
+  // stops pre-selecting — it can never leave a stale person chosen.
+  const defaultValue =
+    buyersLoaded && defaultBuyerId && buyers.some((b) => b.id === defaultBuyerId) ? buyerValue(defaultBuyerId) : null
+  // ⚠️ AND THE OFF-ENO DEFAULT NEEDS `nobodyMessaged` — the caller's proof, not just an empty list (see
+  // the prop): unsure picks nothing.
+  const choiceValue =
+    choice !== '' ? choice : defaultValue ?? (buyers.length === 0 && buyersLoaded && nobodyMessaged ? OFF_PLATFORM_VALUE : '')
   // ⚠️ THE LOADING GATE APPLIES ONLY UNTIL THE SELLER HAS ANSWERED. Its whole job is to stop an
   // UNINFORMED off-eno answer over a list that has not arrived; once a person has been named
   // explicitly, a caller that re-enters its loading state (a `router.refresh()` on a failed write —
@@ -307,7 +352,11 @@ function MarkSoldForm({
   // because `prevAnchor` already read 13.000.000 the field never caught up — a failed write then
   // retried the old figure, with the sheet's own rule saying it should not have.
   const canReanchor = !priceEdited && !submitting && dispatchedAnswer === null
-  const [prevAnchor, setPrevAnchor] = useState(anchor)
+  // ⚠️ SEEDED FROM `asking`, NOT `anchor` — the figure the field was actually seeded with above. A form
+  // that mounts with a buyer already chosen (a `defaultBuyerId` over a list that is already loaded) has
+  // an anchor of THAT person's accepted offer on its first render; seeding the sentinel from it read as
+  // "already applied", so the field kept showing the asking price and never followed.
+  const [prevAnchor, setPrevAnchor] = useState(asking)
   if (prevAnchor !== anchor && canReanchor) {
     setPrevAnchor(anchor)
     setPriceDigits(anchor ? String(anchor) : '')
@@ -449,7 +498,11 @@ function MarkSoldForm({
           <p className="mb-2 text-xs text-body">
             {awaitingList
               ? tr('Looking up who messaged you…', 'Đang tìm những người đã nhắn tin…')
-              : tr('Nobody has messaged about this listing yet.', 'Chưa có ai nhắn tin về tin đăng này.')}
+              : nobodyMessaged
+                ? tr('Nobody has messaged about this listing yet.', 'Chưa có ai nhắn tin về tin đăng này.')
+                : // ⚠️ What IS known, nothing more: no thread points here now. Someone may still have
+                  // messaged about it in a thread that has since moved (see `nobodyMessaged`).
+                  tr('No chat is linked to this listing right now.', 'Hiện chưa có cuộc trò chuyện nào gắn với tin đăng này.')}
           </p>
         )}
 
@@ -637,7 +690,14 @@ function MarkSoldForm({
                 ? tr('Confirm the price first.', 'Xác nhận giá trước đã.')
                 : isOffPlatform
                   ? tr('Recorded as sold off eno. Nobody is asked to confirm.', 'Ghi nhận là bán ngoài eno. Không ai cần xác nhận.')
-                  : tr('{name} will be asked to confirm — that is what makes it count for both of you.', '{name} sẽ được hỏi để xác nhận — đó là điều làm giao dịch được tính cho cả hai bên.').replace('{name}', () => chosenBuyer?.name ?? '')}
+                  : asksBuyerToConfirm
+                    ? // ⚠️ THE PROMISE, AND ONLY THE PROMISE: they ARE asked (POST /sold). It used to add
+                      // "— that is what makes it count for both of you", which nothing backs yet: trust
+                      // counts every sold listing whether or not the buyer answers (the note on the
+                      // off-eno row below; sale-confirm-prompt.tsx's header).
+                      fillTemplate(tr('{name} will be asked to confirm.', '{name} sẽ được hỏi để xác nhận.'), '{name} will be asked to confirm.', { name: chosenBuyer?.name ?? '' })
+                    : // What is certain without the question (see `asksBuyerToConfirm`): the sale is filed against them.
+                      fillTemplate(tr('Recorded as sold to {name}.', 'Ghi nhận là đã bán cho {name}.'), 'Recorded as sold to {name}.', { name: chosenBuyer?.name ?? '' })}
         </p>
 
         <Button

@@ -12,6 +12,8 @@ import { LISTING_REMOVED, NOT_REMOVED } from '@/lib/listing-removed'
 import { notifyDispute } from '@/lib/dispute'
 import { removalClosedBy } from '@/lib/trust-math'
 import { logError } from '@/lib/log'
+import { REACTIVATION_SALE_RESET } from '@/lib/trade-loop'
+import { withdrawSaleQuestions } from '@/lib/core/sale-withdraw'
 
 export const dynamic = 'force-dynamic'
 
@@ -200,16 +202,21 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       //     moderator's takedown into something verifying undoes.
       //   · already active AND verified — already public. The gate governs ENTERING public state; an
       //     "activate" that changes nothing must not quietly become a takedown.
+      //
+      // ⛔ EVERY "→ active" WRITE BELOW ALSO CLEARS THE SALE (REACTIVATION_SALE_RESET, src/lib/trade-loop.ts):
+      // activating a sold row is a relist, and the seller's relist (setStatusCore) and revive (confirmCore)
+      // already clear it. Without it an admin-activated listing kept its buyer, agreed price and pending
+      // "did you buy this?" question — answerable while the item was back on sale.
       const { allowed, held: gated } = await partitionByIdentityGate(ids)
-      affected = allowed.length ? (await db.listing.updateMany({ where: { id: { in: allowed }, ...NOT_REMOVED }, data: { status: 'active' } })).count : 0
+      affected = allowed.length ? (await db.listing.updateMany({ where: { id: { in: allowed }, ...NOT_REMOVED }, data: { status: 'active', ...REACTIVATION_SALE_RESET } })).count : 0
       if (gated.length) {
         // ⚠️ THE UNPARKED ROWS FIRST: once a row is parked it is itself `verified: false`, and running
         // this second would match it again and double-count. The two WHEREs are disjoint as ordered.
         // An ALREADY-parked row lands here too (it is unverified): its status is applied, so it goes
         // live as the admin asked once the seller verifies — but it is counted as `alreadyHeld`, not
         // as affected. The returned flags are the rows' own, untouched by this status-only write.
-        const rest = await db.listing.updateManyAndReturn({ where: { id: { in: gated }, OR: [{ verified: false }, { status: 'active' }], ...NOT_REMOVED }, data: { status: 'active' }, select: { verified: true, identityHold: true } })
-        const parked = (await db.listing.updateManyAndReturn({ where: { id: { in: gated }, verified: true, status: { notIn: ['active', LISTING_REMOVED] } }, data: { status: 'active', verified: false, identityHold: true }, select: { id: true } })).map((r) => r.id)
+        const rest = await db.listing.updateManyAndReturn({ where: { id: { in: gated }, OR: [{ verified: false }, { status: 'active' }], ...NOT_REMOVED }, data: { status: 'active', ...REACTIVATION_SALE_RESET }, select: { verified: true, identityHold: true } })
+        const parked = (await db.listing.updateManyAndReturn({ where: { id: { in: gated }, verified: true, status: { notIn: ['active', LISTING_REMOVED] } }, data: { status: 'active', verified: false, identityHold: true, ...REACTIVATION_SALE_RESET }, select: { id: true } })).map((r) => r.id)
         // A verification that landed between the decision and the park is released here (see
         // settleHolds); those rows went live after all, so they count as affected, not held. Only
         // the ids parked HERE are re-checked, so only they can be counted as released.
@@ -223,6 +230,10 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
         // itself released went public because of it, so only those join `affected`.
         affected += rest.length - alreadyHeld + released
       }
+      // …and the "did you buy this?" those sales put to their buyers goes with them, in this request: every
+      // row for these listings, whoever was asked (withdrawSaleQuestions — best-effort, never fails the
+      // activate). Without it a buyer kept an unread question in the bell for a listing back on sale.
+      await withdrawSaleQuestions(ids)
       break
     }
     case 'feature': affected = (await db.listing.updateMany({ where: { id: { in: ids }, ...NOT_REMOVED }, data: { featured: true } })).count; break

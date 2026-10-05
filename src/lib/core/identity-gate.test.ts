@@ -296,8 +296,10 @@ describe('setStatusCore — relisting is refused, never held', () => {
     expect(h.reads).toEqual(['listing.findUnique'])
     expect(h.decisionCalls).toEqual([])
     expect(h.updates).toHaveLength(1)
-    // The write is conditional on "not a tombstone" (a removal racing the read is never overwritten).
-    expect(h.updates[0].where).toEqual({ id: 'l1', status: { not: 'removed' } })
+    // The write is conditional on "not a tombstone" (a removal racing the read is never overwritten) and,
+    // since the trade loop (2026-10-05), on the status it read — a relist clears the whole sale, so a sale
+    // committing after the read must make it miss rather than be erased.
+    expect(h.updates[0].where).toEqual({ id: 'l1', status: { not: 'removed', equals: 'sold' } })
     expect(h.updates[0].data).toMatchObject({ status: 'active', marketPosition: null, soldAt: null, soldChannel: null, soldToProfileId: null, soldPlatform: null })
   })
 })

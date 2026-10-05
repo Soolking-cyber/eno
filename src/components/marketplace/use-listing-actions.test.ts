@@ -107,3 +107,57 @@ describe('useListingActions.setStatus — a relist refused by the account HOLD i
     expect(toastFn.error).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * useListingActions.markSold — the dashboard's "Who bought it?" write (B6). The same contract as the row's
+ * other lifecycle actions: the status flips the instant it is asked, the request goes out, and a refusal
+ * rolls the row back. What is new is the route (POST /sold, so the buyer rides along) and that it RESOLVES
+ * whether it landed — the sheet closes on true and says why on false.
+ */
+describe('useListingActions.markSold — optimistic, through POST /sold, rolled back on refusal', () => {
+  let calls: { url: string; method?: string; body?: unknown }[] = []
+  let release: (() => void) | null = null
+  function deferred(ok: boolean) {
+    calls = []
+    release = null
+    vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method, body: init?.body ? JSON.parse(String(init.body)) : undefined })
+      return new Promise((resolve) => { release = () => resolve({ ok, json: async () => (ok ? { ok: true } : { error: 'server_error' }) }) })
+    }))
+  }
+
+  it('flips to "sold" BEFORE the server answers, posts the answer to /sold, and resolves true when it lands', async () => {
+    deferred(true)
+    const onChanged = vi.fn()
+    const hook = renderHook(() => useListingActions(listing, onChanged))
+    let landed: Promise<boolean> = Promise.resolve(false)
+    act(() => { landed = hook.result.current.markSold({ buyerProfileId: 'p1', salePrice: 11_000_000 }) })
+    expect(hook.result.current.status).toBe('sold') // instant
+    expect(calls).toEqual([{ url: '/api/listings/L1/sold', method: 'POST', body: { buyerProfileId: 'p1', salePrice: 11_000_000 } }])
+    await act(async () => { release!() })
+    await expect(landed).resolves.toBe(true)
+    expect(hook.result.current.status).toBe('sold')
+    expect(onChanged).toHaveBeenCalled()
+  })
+
+  it('⛔ a refusal ROLLS BACK to the server\'s status and resolves false (the sheet then says why) — no toast of its own', async () => {
+    deferred(false)
+    const hook = renderHook(() => useListingActions(listing, vi.fn()))
+    let landed: Promise<boolean> = Promise.resolve(true)
+    act(() => { landed = hook.result.current.markSold({ channel: 'external', salePrice: null }) })
+    expect(hook.result.current.status).toBe('sold')
+    await act(async () => { release!() })
+    await expect(landed).resolves.toBe(false)
+    expect(hook.result.current.status).toBe('active')
+    expect(toastFn.error).not.toHaveBeenCalled()
+  })
+
+  it('⛔ a dropped connection rolls back too', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))))
+    const hook = renderHook(() => useListingActions(listing, vi.fn()))
+    let landed: Promise<boolean> = Promise.resolve(true)
+    await act(async () => { landed = hook.result.current.markSold({ channel: 'external', salePrice: 1 }) })
+    await expect(landed).resolves.toBe(false)
+    expect(hook.result.current.status).toBe('active')
+  })
+})

@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
  *
  * One question, two answers:
  *
- *   "Minh says you bought the Honda Vision for 11.200.000 đ. Confirm so it counts for both of you."
+ *   "Minh says you bought the Honda Vision for 11.200.000 đ. Confirm so it is on record for both of you."
  *
  * ⚠️ PROPS ONLY. Nothing is fetched, nothing is stored, nothing is mounted here. The parent owns
  * `status` and flips it; this component renders the question or the settled answer. Do not invent
@@ -26,8 +26,16 @@ import { cn } from '@/lib/utils'
  * seller's record to gain, and a bare "Did you buy this? Yes/No" reads as a survey — so it gets
  * ignored, and the whole loop degrades into a seller-only claim that nothing corroborates. The one
  * honest lever is MUTUALITY, and it has to be in the question rather than in a tooltip: confirming
- * is what makes the deal count on BOTH sides. That sentence is not decoration, it is the reason
+ * is what puts the deal on record for BOTH sides. That sentence is not decoration, it is the reason
  * the component works at all, and it is asserted in the tests so nobody trims it as verbose.
+ *
+ * ⚠️ "ON RECORD", NOT "COUNTS" — UNTIL SOMETHING COUNTS IT (2026-10-05, when this was first mounted).
+ * The sentence read "Confirm so it counts for both of you", and nothing counted it: trust's transaction
+ * tally reads every `status = 'sold'` row whether or not the buyer answered (src/lib/trust.ts — the
+ * same fact mark-sold-sheet.tsx's "Someone not on eno" line is careful about), and no review or score
+ * reads `saleConfirmedAt` yet. What a "Yes" DOES do today is record the sale as confirmed by both
+ * people — so that is what it says. When trust starts counting only confirmed sales (the plan in
+ * prisma/schema.prisma's trade-loop index (3)), "counts" becomes true and may come back.
  *
  * **Declining is safe, and it says so before you tap.** Two failure modes were designed out:
  *   · IT MUST NOT ACCUSE. "No" here means "that is not what happened", not "this person is lying".
@@ -68,8 +76,10 @@ export type SaleConfirmPromptProps = {
   /** The seller's display name, as the buyer already knows them from chat. */
   sellerName: string
   listingTitle: string
-  /** The AGREED price the seller submitted, in whole VND — not the asking price. */
-  price: number
+  /** The AGREED price the seller submitted, in whole VND — not the asking price. `null` = the seller
+   *  did not say (a giveaway, or a figure the server could not accept), and the sentence then names no
+   *  price rather than inventing "0 đ". */
+  price: number | null
   /** Defaults to '₫'; every eno listing is stored in đồng. */
   currency?: string
   /** Owned by the parent. Defaults to 'asking'. */
@@ -118,7 +128,7 @@ export function SaleConfirmPrompt({
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang)
   const questionId = useId()
-  const money = formatMoneyFull(Math.max(0, Math.round(price || 0)), currency, locale)
+  const money = price !== null && price > 0 ? formatMoneyFull(Math.round(price), currency, locale) : null
 
   // ⚠️ ONE ANSWER PER ASKING, AND THE RELEASE IS "THE PARENT REPORTED A FAILURE" — nothing weaker.
   // `pending` is the parent's flag and arrives a render late at best, so before it lands a double
@@ -180,7 +190,7 @@ export function SaleConfirmPrompt({
   const settled = status !== 'asking'
   const confirmed = status === 'confirmed'
   const settledText = confirmed
-    ? tr('Confirmed — this deal now counts for both of you.', 'Đã xác nhận — giao dịch này được tính cho cả hai bên.')
+    ? tr('Confirmed — this deal is now on record for both of you.', 'Đã xác nhận — giao dịch này đã được ghi nhận cho cả hai bên.')
     : tr('Noted. Nobody was reported, and we will not ask about this one again.', 'Đã ghi nhận. Không ai bị báo cáo, và chúng tôi sẽ không hỏi lại về tin này.')
 
   // ⚠️ SPLIT ON THE TOKENS RATHER THAN .replace()-ing THEM IN.
@@ -188,11 +198,10 @@ export function SaleConfirmPrompt({
   // translatable string; and a title or a name containing "$&" would be eaten by String.replace's
   // substitution patterns. Splitting keeps the translated order AND lets the two facts the buyer
   // must actually check — WHAT and HOW MUCH — carry weight in the type.
-  const sentence = tr(
-    '{seller} says you bought {title} for {price}.',
-    '{seller} nói bạn đã mua {title} với giá {price}.',
-  )
-  const values: Record<string, string> = { '{seller}': sellerName, '{title}': listingTitle, '{price}': money }
+  const sentence = money
+    ? tr('{seller} says you bought {title} for {price}.', '{seller} nói bạn đã mua {title} với giá {price}.')
+    : tr('{seller} says you bought {title}.', '{seller} nói bạn đã mua {title}.')
+  const values: Record<string, string> = { '{seller}': sellerName, '{title}': listingTitle, '{price}': money ?? '' }
   const parts = sentence.split(/(\{seller\}|\{title\}|\{price\})/)
 
   return (
@@ -245,7 +254,7 @@ export function SaleConfirmPrompt({
           </p>
           {/* The load-bearing sentence — see the header. Do not trim it. */}
           <p className="mt-1 text-sm font-semibold text-accent-foreground">
-            {tr('Confirm so it counts for both of you.', 'Xác nhận để giao dịch được tính cho cả hai bên.')}
+            {tr('Confirm so it is on record for both of you.', 'Xác nhận để giao dịch được ghi nhận cho cả hai bên.')}
           </p>
         </div>
       </div>

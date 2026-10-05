@@ -56,6 +56,8 @@ export function QuickReplyChips({
   buyerHasSent = false,
   sellerRepliedAfterBuyer = false,
   openerListing,
+  dealAgreed = false,
+  onMarkSold,
   className,
 }: {
   isSeller: boolean
@@ -86,6 +88,16 @@ export function QuickReplyChips({
    * strip's "Make an offer", which goes through the offer composer and its gates.
    */
   openerListing?: OpenerListing | null
+  /**
+   * The thread has AGREED A DEAL that still stands for the listing it is about now, and that listing is
+   * still for sale — the parent decides (src/lib/thread-deal.ts, plus the item strip's own seller "Mark
+   * sold" gate). With `onMarkSold` it puts "Deal! Mark as sold?" first in the SELLER's row (B6), opening the
+   * "Who bought it?" sheet with this thread's buyer already picked. Like every chip here it is a reply to
+   * where the conversation IS: no deal, no chip. Never to the buyer, never on a job (a hire is not a sale).
+   */
+  dealAgreed?: boolean
+  /** Opens the mark-sold sheet — the chip never marks anything sold by itself. */
+  onMarkSold?: () => void
   className?: string
 }) {
   const { tr, lang } = useLanguage()
@@ -196,6 +208,11 @@ export function QuickReplyChips({
         </div>
       )}
       <div className="flex gap-1 overflow-x-auto scrollbar-none">
+        {isSeller && !job && dealAgreed && onMarkSold && (
+          <Chip size="xs" tone="ghost" onClick={onMarkSold}>
+            {tr('Deal! Mark as sold?', 'Chốt đơn! Đánh dấu đã bán?')}
+          </Chip>
+        )}
         {isSeller ? (
           sellerChips.map((c) => (
             <Chip
@@ -235,14 +252,19 @@ export function QuickReplyChips({
  * "Deal! Mark X as sold?" → one tap closes the loop (or "Keep it live" dismisses).
  * Shown only right after the seller's own successful accept — never to the buyer,
  * never auto-marks. Dismissal lives in component state only.
+ *
+ * `onMarkSold` (B6): the CTA opens the parent's "Who bought it?" sheet instead of the plain status POST
+ * below — the sheet then owns the write, its optimism and its rollback, so this card neither posts nor
+ * flips itself to "done" (the parent hides it once the listing is sold). Without it, the plain POST.
  */
-export function MarkSoldPrompt({ listingId, listingTitle }: { listingId: string; listingTitle: string }) {
+export function MarkSoldPrompt({ listingId, listingTitle, onMarkSold }: { listingId: string; listingTitle: string; onMarkSold?: () => void }) {
   const { tr } = useLanguage()
   const [state, setState] = useState<'ask' | 'done' | 'dismissed'>('ask')
 
   if (state === 'dismissed') return null
 
   const markSold = async () => {
+    if (onMarkSold) { onMarkSold(); return }
     setState('done') // optimistic — the revert below undoes a refused POST
     haptic(18)
     try {

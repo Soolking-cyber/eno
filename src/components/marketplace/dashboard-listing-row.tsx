@@ -13,6 +13,7 @@ import { QuickDiscount } from './quick-discount'
 import { paysSalary } from '@/lib/taxonomy'
 import { ListingSparkline, type SparkPoint } from './listing-sparkline'
 import { useListingActions } from './use-listing-actions'
+import { MarkSoldFlow, soldSheetApplies } from './mark-sold-flow'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -32,10 +33,15 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   const router = useRouter()
   // Optimistic lifecycle actions — shared with the desktop data-table so both
   // surfaces behave identically (instant flip, undo-delete, rollback on failure).
-  const { gone, status, setStatus, del } = useListingActions(listing, onChanged)
+  const { gone, status, setStatus, markSold, del } = useListingActions(listing, onChanged)
   // The price-cut dialog, opened from the overflow menu (inbox-12). It lives OUTSIDE the menu: Base UI
   // unmounts a closed menu's popup, and a dialog rendered inside it would die the moment the menu shut.
   const [discountOpen, setDiscountOpen] = useState(false)
+  // B6: "Mark sold" on a SALE opens "Who bought it?" (mark-sold-flow.tsx) — when the server can PROVE nobody
+  // ever messaged about it, "someone not on eno" is already picked, so it is still one tap; when it cannot,
+  // nothing is picked and the seller says it. Any other listing keeps the instant flip.
+  const [soldOpen, setSoldOpen] = useState(false)
+  const asksWhoBought = soldSheetApplies({ listingType: listing.listingType, categorySlug: listing.category?.slug })
 
   const title = lang === 'vi' ? (listing.titleVi || listing.title) : listing.title
   const img = listing.images[0] || null
@@ -198,7 +204,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
         <Pencil className="size-4 max-sm:hidden" /> {tr('Edit', 'Sửa')}
       </Button>
       {status === 'active' ? (
-        <Button variant="bare" size="none" onClick={() => setStatus('sold')} className={chip}>
+        <Button variant="bare" size="none" onClick={() => (asksWhoBought ? setSoldOpen(true) : void setStatus('sold'))} className={chip}>
           <CheckCircle2 className="size-4" /> {tr('Mark sold', 'Đã bán')}
         </Button>
       ) : (
@@ -243,6 +249,16 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
           trigger={false}
           open={discountOpen}
           onOpenChange={setDiscountOpen}
+        />
+      )}
+      {/* Outside the `status === 'active'` branch on purpose: confirming flips the row to Sold at once
+          (markSold is optimistic), and the sheet must stay mounted to show the write and any failure. */}
+      {asksWhoBought && (
+        <MarkSoldFlow
+          open={soldOpen}
+          onOpenChange={setSoldOpen}
+          listing={{ id: listing.id, title, price: listing.price, currency: listing.currency }}
+          write={markSold}
         />
       )}
     </div>

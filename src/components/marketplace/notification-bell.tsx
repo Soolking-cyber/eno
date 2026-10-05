@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, TrendingDown, ShieldCheck } from "@/components/ui/icons"
+import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, TrendingDown, ShieldCheck, Handshake } from "@/components/ui/icons"
 import { STROKE_NAV } from '@/lib/icon-tokens'
 import { useNotifications } from '@/context/notifications-context'
 import { Badge } from '@/components/ui/badge'
@@ -155,7 +155,9 @@ export function NotificationBell() {
               // echo, reserved for first-party trust; every other type keeps its lucide verb).
               // 'verification' (KYC / business outcomes) is eno speaking too — split from 'system' only so its
               // reviewer note is never machine-translated (src/lib/notification-text.ts).
-              const Icon = n.type === 'system' || n.type === 'verification' ? ShieldCheck : n.type === 'offer' ? Tag : n.type === 'price_drop' ? TrendingDown : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : n.type === 'milestone' ? Sparkles : n.type === 'dispute' ? Scale : MessageSquare
+              // 'sale_confirm' = a seller named this person as who bought something (src/lib/core/sale-loop.ts):
+              // the handshake, the same glyph the question itself wears in the thread (sale-confirm-prompt.tsx).
+              const Icon = n.type === 'system' || n.type === 'verification' ? ShieldCheck : n.type === 'offer' ? Tag : n.type === 'price_drop' ? TrendingDown : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : n.type === 'milestone' ? Sparkles : n.type === 'dispute' ? Scale : n.type === 'sale_confirm' ? Handshake : MessageSquare
               return (
                 // Unread = brand-tinted with a dot; read = plain. Opening a notification marks
                 // just it read (so it sinks below on next view).
@@ -187,7 +189,7 @@ export function NotificationBell() {
                       <div className="flex items-center justify-between gap-2">
                         <span className={cn('flex min-w-0 items-center gap-1.5 truncate text-sm', n.read ? 'font-medium text-body' : 'font-bold text-foreground')}>
                           {!n.read && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-accent-foreground" />}
-                          <span className="truncate">{n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.type === 'price_drop' ? tr('Price drop', 'Giảm giá') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : notificationTextAsWritten(n.type, n.url, 'title') ? n.title : <Tr text={n.title} />}</span>
+                          <span className="truncate">{n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.type === 'price_drop' ? tr('Price drop', 'Giảm giá') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : n.type === 'sale_confirm' ? tr('Did you buy this?', 'Bạn đã mua món này chưa?') : notificationTextAsWritten(n.type, n.url, 'title') ? n.title : <Tr text={n.title} />}</span>
                         </span>
                         <span className="shrink-0 text-3xs text-ink-4">{timeAgo(n.createdAt, lang)}</span>
                       </div>

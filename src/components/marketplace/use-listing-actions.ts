@@ -7,6 +7,7 @@ import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { ENFORCEMENT } from '@/lib/enforcement-machine'
+import type { MarkSoldRequest } from './mark-sold-flow'
 
 // Shared optimistic lifecycle actions for a seller's own listing — used by the
 // dashboard row cards AND the desktop data-table so both surfaces behave
@@ -29,17 +30,19 @@ export function useListingActions(
   const setGone = (g: boolean) => { setGoneRaw(g); onState?.(g ? 'gone' : null) }
   const setOptStatus = (s: 'sold' | 'active' | 'hidden' | null) => { setOptStatusRaw(s); onState?.(s) }
 
+  // Resolves whether the write landed (the rollback has already run when it did not) — the mark-sold
+  // sheet closes on true and says why on false; every other caller ignores it.
   const act = (
     optimistic: () => void,
     rollback: () => void,
     url: string,
     method: 'POST' | 'DELETE',
     body?: unknown,
-  ) => {
+  ): Promise<boolean> => {
     optimistic()
-    fetch(url, { method, ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) })
+    return fetch(url, { method, ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) })
       .then(async (res) => {
-        if (res.ok) { onChanged(); return }
+        if (res.ok) { onChanged(); return true }
         // ⚠️ AN IDENTITY REFUSAL MUST BE SAID, NOT JUST UNDONE. Every non-2xx rolls back silently, so
         // a relist the seller identity gate refused looked like a tap that did nothing — the listing
         // flicked to Active and back with no reason given. That refusal now names the next step and
@@ -62,8 +65,9 @@ export function useListingActions(
           // active-listing cap while the confirmed report stands. The number from the constant.
           toast.error(`${tr('Your hold was released, but the confirmed report stays on your record, so you can keep up to', 'Tạm dừng đã được gỡ, nhưng báo cáo đã xác nhận vẫn còn trong hồ sơ của bạn, nên bạn chỉ được giữ tối đa')} ${ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS} ${tr('active listings. Mark one sold or hide one before putting this back on sale.', 'tin đang đăng. Hãy đánh dấu đã bán hoặc ẩn một tin trước khi mở bán lại tin này.')}`)
         }
+        return false
       })
-      .catch(() => { rollback(); onChanged() })
+      .catch(() => { rollback(); onChanged(); return false })
   }
 
   // 'hidden' = pulled from the public feed, kept in the dashboard (the dashboard row's Hide, inbox-12).
@@ -71,6 +75,16 @@ export function useListingActions(
     () => setOptStatus(s),
     () => setOptStatus(null),
     `/api/listings/${listing.id}/status`, 'POST', { status: s },
+  )
+
+  // The "Who bought it?" sheet's write (B6): the same instant flip to 'sold' and the same rollback as
+  // setStatus('sold'), through POST /api/listings/[id]/sold so the buyer rides along. That route runs the
+  // same setStatusCore transition as /status (status, soldAt, purge, de-index, webhook) and adds only the
+  // attribution columns — the sold semantics do not change.
+  const markSold = (sale: MarkSoldRequest) => act(
+    () => setOptStatus('sold'),
+    () => setOptStatus(null),
+    `/api/listings/${listing.id}/sold`, 'POST', sale,
   )
 
   const del = () => {
@@ -115,5 +129,5 @@ export function useListingActions(
     })
   }
 
-  return { gone, status: optStatus ?? listing.status, setStatus, del }
+  return { gone, status: optStatus ?? listing.status, setStatus, markSold, del }
 }

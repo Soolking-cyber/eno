@@ -164,14 +164,28 @@ describe('MarkSoldSheet — "Someone not on eno" is first class', () => {
     expect(within(screen.getByRole('radiogroup')).getAllByRole('radio')).toContain(off)
   })
 
-  it('THE EMPTY CASE: nobody messaged ⇒ it is the only option, and it is already chosen', () => {
-    renderSheet({ buyers: [] })
+  it('THE EMPTY CASE: nobody messaged — and the caller PROVES it ⇒ it is the only option, and it is already chosen', () => {
+    renderSheet({ buyers: [], nobodyMessaged: true })
     const radios = screen.getAllByRole('radio')
     expect(radios).toHaveLength(1)
     expect(radios[0].getAttribute('aria-checked')).toBe('true')
     expect(screen.getByText('Nobody has messaged about this listing yet.')).toBeTruthy()
     // And the sheet is immediately submittable — the price already carries the asking figure.
     expect(cta().disabled).toBe(false)
+  })
+
+  it('⛔ AN EMPTY LIST WITHOUT THAT PROOF IS NOT AN ANSWER — nothing is picked, and the line claims nothing (B6 review)', async () => {
+    // The caller's list can lose a real buyer (a thread that moved to another listing). Pre-picking
+    // off-eno over it filed a false off-eno sale in one tap; the seller must say it themselves.
+    const user = userEvent.setup()
+    const { onConfirm } = renderSheet({ buyers: [] })
+    expect(screen.getByRole('radio', { name: /Someone not on eno/ }).getAttribute('aria-checked')).toBe('false')
+    expect(cta().disabled).toBe(true)
+    expect(screen.getByText('No chat is linked to this listing right now.')).toBeTruthy()
+    expect(screen.queryByText('Nobody has messaged about this listing yet.')).toBeNull()
+    await user.click(screen.getByRole('radio', { name: /Someone not on eno/ }))
+    await user.click(cta())
+    expect(onConfirm).toHaveBeenCalledWith({ buyerId: null, price: 12_000_000 })
   })
 
   it('reports an off-eno sale as buyerId null, not as an error or a fake id', async () => {
@@ -411,15 +425,15 @@ describe('MarkSoldSheet reconciles with props that arrive late or change underne
     expect(onConfirm).not.toHaveBeenCalled()
   })
 
-  it('and once the lookup comes back empty, off-eno IS the answer', () => {
-    const { update } = renderSheet({ buyers: [], buyersLoaded: false })
+  it('and once the lookup comes back empty — with the proof — off-eno IS the answer', () => {
+    const { update } = renderSheet({ buyers: [], buyersLoaded: false, nobodyMessaged: true })
     update({ buyers: [], buyersLoaded: true })
     expect(screen.getByRole('radio', { name: /Someone not on eno/ }).getAttribute('aria-checked')).toBe('true')
     expect(cta().disabled).toBe(false)
   })
 
   it('a list that arrives AFTER the sheet opens un-picks the off-eno default', async () => {
-    const { update, onConfirm } = renderSheet({ buyers: [] })
+    const { update, onConfirm } = renderSheet({ buyers: [], nobodyMessaged: true })
     // While loading, off-eno is the only true answer and is pre-selected.
     expect(screen.getAllByRole('radio')[0].getAttribute('aria-checked')).toBe('true')
     expect(cta().disabled).toBe(false)
@@ -435,7 +449,7 @@ describe('MarkSoldSheet reconciles with props that arrive late or change underne
 
   it('re-asks even if the seller had TAPPED the off-eno row while the list was empty', async () => {
     const user = userEvent.setup()
-    const { update } = renderSheet({ buyers: [] })
+    const { update } = renderSheet({ buyers: [], nobodyMessaged: true })
     // ⚠️ MEASURED, AND IT IS WHY THIS RESOLVES THE WAY IT DOES. Base UI drives selection off the
     // hidden input's `change` event, and a browser fires none when you click an ALREADY-CHECKED
     // radio (documented at length in ui/radio-group.tsx). So a tap on the pre-selected off-eno row
@@ -475,6 +489,55 @@ describe('MarkSoldSheet reconciles with props that arrive late or change underne
     expect(cta().disabled).toBe(true)
     await user.click(cta())
     expect(onConfirm).not.toHaveBeenCalled()
+  })
+
+  describe('defaultBuyerId — the thread\'s buyer, pre-picked (B6: one tap from a chat)', () => {
+    it('is selected the moment the list holds them, with the CTA live — one tap', async () => {
+      const user = userEvent.setup()
+      const { onConfirm } = renderSheet({ defaultBuyerId: 'u1' })
+      expect(screen.getByRole('radio', { name: /Minh/ }).getAttribute('aria-checked')).toBe('true')
+      expect(cta().disabled).toBe(false)
+      expect(screen.getByText('Recorded as sold to Minh.')).toBeTruthy()
+      await user.click(cta())
+      expect(onConfirm).toHaveBeenCalledWith({ buyerId: 'u1', price: 12_000_000 })
+    })
+
+    it('carries THAT person\'s accepted offer into the price, like a tap would', () => {
+      renderSheet({ defaultBuyerId: 'u2' })
+      expect(screen.getByRole('radio', { name: /Lan/ }).getAttribute('aria-checked')).toBe('true')
+      expect(priceField().value).toBe('11,000,000')
+    })
+
+    it('⛔ NOTHING while the list is loading — the default is derived from a LOADED list, never latched', async () => {
+      const { update, onConfirm } = renderSheet({ defaultBuyerId: 'u1', buyers: [], buyersLoaded: false })
+      expect(screen.getAllByRole('radio').every((r) => r.getAttribute('aria-checked') === 'false')).toBe(true)
+      expect(cta().disabled).toBe(true)
+      update({ defaultBuyerId: 'u1', buyers: BUYERS, buyersLoaded: true })
+      expect(screen.getByRole('radio', { name: /Minh/ }).getAttribute('aria-checked')).toBe('true')
+      expect(onConfirm).not.toHaveBeenCalled()
+    })
+
+    it('⛔ an id that is NOT in the list selects nobody — not off-eno, not a guess', () => {
+      renderSheet({ defaultBuyerId: 'someone-else' })
+      expect(screen.getAllByRole('radio').every((r) => r.getAttribute('aria-checked') === 'false')).toBe(true)
+      expect(cta().disabled).toBe(true)
+      expect(screen.getByText('Pick who bought it.')).toBeTruthy()
+    })
+
+    it('an explicit tap wins over it', async () => {
+      const user = userEvent.setup()
+      const { onConfirm } = renderSheet({ defaultBuyerId: 'u1' })
+      await user.click(screen.getByRole('radio', { name: /Someone not on eno/ }))
+      await user.click(cta())
+      expect(onConfirm).toHaveBeenCalledWith({ buyerId: null, price: 12_000_000 })
+    })
+
+    it('a refreshed list that drops them stops pre-selecting — never a stale person', () => {
+      const { update } = renderSheet({ defaultBuyerId: 'u1' })
+      update({ defaultBuyerId: 'u1', buyers: BUYERS.filter((b) => b.id !== 'u1') })
+      expect(screen.getAllByRole('radio').every((r) => r.getAttribute('aria-checked') === 'false')).toBe(true)
+      expect(cta().disabled).toBe(true)
+    })
   })
 
   it('swapping the LISTING on an open sheet starts a clean answer', async () => {
@@ -635,7 +698,7 @@ describe('MarkSoldSheet files one sale per sale', () => {
 
   it('a buyer arriving DURING the write cannot un-say an off-eno answer already sent', async () => {
     const user = userEvent.setup()
-    const { onConfirm, update } = renderSheet({ buyers: [] })
+    const { onConfirm, update } = renderSheet({ buyers: [], nobodyMessaged: true })
     await user.click(cta())
     expect(onConfirm).toHaveBeenCalledWith({ buyerId: null, price: 12_000_000 })
 
@@ -723,13 +786,31 @@ describe('MarkSoldSheet — the controls and what they promise', () => {
     expect(cta().disabled).toBe(false)
   })
 
-  it('tells the seller the buyer will be asked to confirm, and why that matters', async () => {
+  it('tells the seller the buyer will be asked to confirm — where that is TRUE, and nothing more', async () => {
+    const user = userEvent.setup()
+    renderSheet({ asksBuyerToConfirm: true })
+    await user.click(screen.getByRole('radio', { name: /Minh/ }))
+    expect(screen.getByText('Minh will be asked to confirm.')).toBeTruthy()
+    // ⛔ No "counts for both of you": trust counts every sold listing whether or not the buyer answers.
+    expect(screen.queryByText(/count/)).toBeNull()
+  })
+
+  it('says the same promise in Vietnamese', async () => {
+    const user = userEvent.setup()
+    renderSheet({ asksBuyerToConfirm: true }, 'vi')
+    await vi.waitFor(() => expect(screen.getByRole('radio', { name: /Minh/ })).toBeTruthy())
+    await user.click(screen.getByRole('radio', { name: /Minh/ }))
+    await vi.waitFor(() => expect(screen.getByText('Minh sẽ được hỏi để xác nhận.')).toBeTruthy())
+  })
+
+  it('⛔ BY DEFAULT IT PROMISES NO CONFIRMATION — only what is certain: the sale is filed against them', async () => {
+    // Where the caller has not said a question really goes out (the route's `asksBuyer` — never on a
+    // listing the trade loop does not cover), a footer saying it will is a promise with no mechanism.
     const user = userEvent.setup()
     renderSheet()
     await user.click(screen.getByRole('radio', { name: /Minh/ }))
-    expect(
-      screen.getByText('Minh will be asked to confirm — that is what makes it count for both of you.'),
-    ).toBeTruthy()
+    expect(screen.getByText('Recorded as sold to Minh.')).toBeTruthy()
+    expect(screen.queryByText(/asked to confirm/)).toBeNull()
   })
 
   it('names its actions in plain words', () => {

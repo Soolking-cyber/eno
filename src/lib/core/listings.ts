@@ -50,6 +50,9 @@ import { LISTING_REMOVED, NOT_REMOVED } from '@/lib/listing-removed'
 import { tombstoneListingsTx } from '@/lib/core/listing-tombstone'
 import { POSTED_FACET_KEY } from '@/lib/posted-filter'
 import { cutText } from '@/lib/feed-text'
+import { REACTIVATION_SALE_RESET, type MarkSoldPatch } from '@/lib/trade-loop'
+import { withdrawSaleQuestions } from '@/lib/core/sale-withdraw'
+import type { Prisma } from '@/generated/prisma/client'
 
 // ── Listing write-path "cores" (Phase 0 of the Partner API) ──────────────────────
 // These hold the business logic for mutating a listing, decoupled from HOW the caller
@@ -174,7 +177,24 @@ export function parseVideoField(raw: unknown): { action: 'set'; url: string } | 
  * (pulled from the public feed, kept in the dashboard). Re-activating also stamps an
  * availability confirmation. Purges the cached detail page + (re)indexes for AI search.
  */
-export type SoldMeta = { channel?: string | null; buyerProfileId?: string | null; platform?: string | null }
+export type SoldMeta = {
+  channel?: string | null
+  buyerProfileId?: string | null
+  platform?: string | null
+  /**
+   * The trade loop's columns for this sale (POST /api/listings/[id]/sold, from validateMarkSold in
+   * src/lib/trade-loop.ts) — written in the SAME UPDATE as the status, so a sold row never exists with
+   * a buyer named and the question to them half-recorded.
+   */
+  sale?: Pick<MarkSoldPatch, 'salePrice' | 'saleConfirmedAt' | 'saleDeclinedAt' | 'saleBuyerHistory' | 'saleConfirmPromptedAt'>
+  /**
+   * A COMPARE-AND-SWAP on the facts the caller decided on: ANDed into the UPDATE's WHERE, so the write
+   * lands only while the row still holds them. Zero rows answers `not_found` (the same as a tombstone);
+   * the caller re-reads to tell the two apart and decides again. It is what makes a double tap ask a
+   * buyer ONCE, and what stops a mark-sold racing the buyer's own answer from erasing it.
+   */
+  expect?: Prisma.ListingWhereInput
+}
 
 /**
  * Every code `setStatusCore` can put on the wire. Named for the same reason as the union below.
@@ -248,6 +268,8 @@ export async function setStatusCore(
 ): Promise<{ ok: true; status: string } | { ok: false; code: number; error: ListingStatusErrorCode }> {
   if (!LISTING_STATUSES.has(status)) return { ok: false, code: 400, error: 'invalid_status' }
   let listingType: string | null | undefined
+  // The status a relist READ — the write below is conditional on it (see `where`).
+  let readStatus: string | null = null
   // Only 'active' can publish; sold/hidden are never gated — taking a listing DOWN is always allowed,
   // held or not. Both refusals below apply only to a TRANSITION into active (sold/hidden → active): a
   // row already active stays where it is (a held seller's active rows are the ones the hold pulled).
@@ -259,6 +281,7 @@ export async function setStatusCore(
       select: { status: true, sellerId: true, listingType: true, seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } } },
     })
     listingType = row?.listingType
+    readStatus = row?.status ?? null
     // ⛔ A TOMBSTONE IS NOT RELISTABLE (src/lib/listing-removed.ts) — not by its seller, not by a sync.
     if (row?.status === LISTING_REMOVED) return { ok: false, code: 404, error: 'not_found' }
     if (row && row.status !== 'active') {
@@ -317,9 +340,14 @@ export async function setStatusCore(
             soldChannel: soldMeta.channel === 'external' ? 'external' : soldMeta.buyerProfileId ? 'eno' : null,
             soldToProfileId: soldMeta.channel === 'external' ? null : (soldMeta.buyerProfileId ?? null),
             soldPlatform: soldMeta.channel === 'external' ? (soldMeta.platform ?? null) : null,
+            // The trade loop's half (the agreed price, the buyer's question) — the attributing route's.
+            ...(soldMeta.sale ?? {}),
           }
+      // ⛔ A RELIST CLEARS THE WHOLE SALE, `sale*` AS WELL AS `sold*` (src/lib/trade-loop.ts,
+      // REACTIVATION_SALE_RESET): a relisted item is a new sale, and a stale salePrice, confirmation or
+      // pending question must not ride into it.
       : status === 'active'
-        ? { soldAt: null, soldChannel: null, soldToProfileId: null, soldPlatform: null }
+        ? { ...REACTIVATION_SALE_RESET }
         // Hiding a sold row with no soldAt (every sale before generic sold stamped one) FREEZES its
         // sale time first: the write restamps updatedAt, the only time trust had for it, and the
         // listing re-marked sold later would otherwise count as a brand-new sale.
@@ -334,8 +362,19 @@ export async function setStatusCore(
    * status guard is IN the UPDATE's WHERE (one statement: `… WHERE id = $1 AND status <> 'removed'`)
    * and zero rows is answered exactly as the read path answers a tombstone or a missing row: 404.
    */
+  /**
+   * ⛔ A RELIST IS CONDITIONAL ON THE STATUS IT READ (commit gate, 2026-10-05) — `equals` beside the
+   * tombstone guard, one filter. Every relist clears the whole sale (REACTIVATION_SALE_RESET), so an
+   * unconditional write would also erase a sale that committed AFTER the read: a listing the seller just
+   * marked sold in another tab — buyer named, question sent — silently back on sale holding nothing. Now
+   * that write misses and answers 404 like any other race; and "the row was sold or hidden" — the one
+   * fact the question withdrawal below keys on — is exact rather than a guess.
+   */
+  const relistGuard = status === 'active' && readStatus ? { status: { not: LISTING_REMOVED, equals: readStatus } } : NOT_REMOVED
   const { count } = await db.listing.updateMany({
-    where: { id: listingId, ...NOT_REMOVED },
+    // `soldMeta.expect`: the attributing route's compare-and-swap (see SoldMeta) — AND-composed, so it can
+    // never replace the tombstone guard beside it.
+    where: soldMeta?.expect ? { AND: [{ id: listingId, ...NOT_REMOVED }, soldMeta.expect] } : { id: listingId, ...relistGuard },
     // ⚠️ marketPosition is cleared on REACTIVATION for the same reason the edit path clears it on a
     // price change: it is the denormalized "Good price / Gia tot" verdict, the nightly cron only
     // recomputes rows with status='active', and a hidden/sold row therefore keeps a FROZEN verdict.
@@ -344,6 +383,9 @@ export async function setStatusCore(
     data: { status, ...(status === 'active' ? { availabilityConfirmedAt: new Date(), marketPosition: null } : {}), ...saleData },
   })
   if (count === 0) return { ok: false, code: 404, error: 'not_found' }
+  // A REAL reactivation (sold/hidden → active) asks nobody any more. Not on an active → active re-send — the
+  // partner sync's every-row 'active' — where the guard above proves there was nothing to clear.
+  if (status === 'active' && readStatus && readStatus !== 'active') after(() => withdrawSaleQuestions([listingId]))
   revalidatePublicPath(`/listings/${listingId}`) // sold/hidden must drop from the cached page (it 404s non-active)
   after(() => reindexListing(listingId)) // active → (re)index for AI search; sold/hidden → remove
   if (status === 'active') after(() => recomputeRankScoreForListing(listingId)) // re-decay on re-activation
@@ -408,20 +450,26 @@ export async function confirmCore(listingId: string, profileId: string): Promise
   // ⛔ CONDITIONAL ON "NOT A TOMBSTONE" IN THE WRITE ITSELF (review, 2026-10-01) — a removal that
   // commits after the read above must not be revived to 'active' by this update (setStatusCore has
   // the same guard and says why). Zero rows — removed, or gone — is the read path's 404.
+  // ⛔ …AND ON THE STATUS IT READ (commit gate, 2026-10-05): `wasInactive` is decided by that read, and a
+  // mark-sold committing in between turned an ordinary confirm into a silent revive that kept the buyer,
+  // the price and the open question on an ACTIVE listing. Now that write misses — the same 404 — so
+  // `wasInactive` is exactly what the write did, and only a real revive clears the sale.
   const { count: confirmed } = await db.listing.updateMany({
-    where: { id: listingId, ...NOT_REMOVED },
+    where: { id: listingId, status: { not: LISTING_REMOVED, equals: current.status } },
     data: {
       status: 'active',
       availabilityConfirmedAt: now,
       // Same reason as setStatusCore above — a reactivated listing must not carry a stale
       // market-position verdict the cron could not refresh while it was inactive.
-      ...(wasInactive ? { soldChannel: null, soldToProfileId: null, soldPlatform: null, soldAt: null, marketPosition: null } : {}),
+      // A revive clears the WHOLE sale — `sale*` as well as `sold*` (REACTIVATION_SALE_RESET, trade-loop.ts).
+      ...(wasInactive ? { ...REACTIVATION_SALE_RESET, marketPosition: null } : {}),
       // A bump resets recency (postedAt=now) → recompute rankScore at age 0 so the listing
       // jumps up immediately. No bump (within cooldown) leaves recency to the daily decay.
       ...(bump ? { postedAt: now, rankScore: browseRankScore({ sellerTrustScore: current.sellerTrustScore ?? 100, postedAt: now, featured: current.featured, views: current.views, contactCount: current.contactCount }) } : {}),
     },
   })
   if (confirmed === 0) return { ok: false, code: 404, error: 'not_found' }
+  if (wasInactive) after(() => withdrawSaleQuestions([listingId])) // a revived sale asks nobody any more
   if (wasInactive) {
     revalidatePublicPath(`/listings/${listingId}`)
     after(() => reindexListing(listingId))

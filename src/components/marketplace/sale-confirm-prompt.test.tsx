@@ -12,9 +12,11 @@ import { SaleConfirmPrompt } from './sale-confirm-prompt'
  * <SaleConfirmPrompt> is one paragraph and two buttons, so the temptation is to test that it
  * renders. The things that can silently break are elsewhere:
  *
- *  · THE MUTUALITY SENTENCE. "Confirm so it counts for both of you" is the only reason a buyer
- *    who already has the bike answers at all. It is the first thing a copy edit trims for being
- *    wordy, and losing it costs answer rate — which nobody would ever attribute to a copy edit.
+ *  · THE MUTUALITY SENTENCE. "Confirm so it is on record for both of you" is the only reason a
+ *    buyer who already has the bike answers at all. It is the first thing a copy edit trims for
+ *    being wordy, and losing it costs answer rate — which nobody would ever attribute to a copy edit.
+ *    (It said "counts" until 2026-10-05, when nothing counted a confirmation yet — see the
+ *    component's header. It must stay TRUE as well as present.)
  *  · THE DECLINE IS NOT A TRAP. Two separate guarantees: declining does not accuse anyone, and a
  *    declined prompt renders NO buttons at all, so there is nothing left to re-prompt with.
  *  · THE MONEY. A đồng amount rendered with commas is the shape that reads foreign to the home
@@ -94,9 +96,34 @@ describe('SaleConfirmPrompt asks ONE question', () => {
     expect(prompt.textContent).toContain('11,200,000 đ')
   })
 
-  it('says confirming is what makes it count FOR BOTH — the reason a buyer answers at all', () => {
+  it('says confirming is what puts it on record FOR BOTH — the reason a buyer answers at all', () => {
     renderPrompt(<SaleConfirmPrompt {...BASE} />)
-    expect(screen.getByText('Confirm so it counts for both of you.')).toBeTruthy()
+    expect(screen.getByText('Confirm so it is on record for both of you.')).toBeTruthy()
+  })
+
+  it('⛔ promises nothing that is not wired: no "counts" while trust does not read a confirmation', () => {
+    renderPrompt(<SaleConfirmPrompt {...BASE} />)
+    expect(screen.getByRole('group').textContent).not.toMatch(/counts/i)
+  })
+
+  it('says the same thing in Vietnamese — the question, the price with DOT thousands, and the reason', async () => {
+    renderPrompt(<SaleConfirmPrompt {...BASE} />, 'vi')
+    const prompt = await screen.findByRole('group')
+    await vi.waitFor(() => expect(prompt.textContent).toContain('Minh nói bạn đã mua Honda Vision 2021 với giá 11.200.000 đ.'))
+    expect(prompt.textContent).toContain('Xác nhận để giao dịch được ghi nhận cho cả hai bên.')
+    expect(screen.getByRole('button', { name: 'Đúng, tôi đã mua' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Không, tôi không mua' })).toBeTruthy()
+  })
+
+  it('a sale with NO agreed price names no price — never an invented "0 đ" (en and vi)', async () => {
+    renderPrompt(<SaleConfirmPrompt {...BASE} price={null} />)
+    expect(screen.getByRole('group').textContent).toContain('Minh says you bought Honda Vision 2021.')
+    expect(screen.getByRole('group').textContent).not.toContain('đ')
+    cleanup()
+    renderPrompt(<SaleConfirmPrompt {...BASE} price={null} />, 'vi')
+    const prompt = await screen.findByRole('group')
+    await vi.waitFor(() => expect(prompt.textContent).toContain('Minh nói bạn đã mua Honda Vision 2021.'))
+    expect(prompt.textContent).not.toContain('với giá')
   })
 
   it('is labelled by the question, so the group announces what it is asking', () => {
@@ -381,9 +408,9 @@ describe('SaleConfirmPrompt — the two answers and their accessible names', () 
 })
 
 describe('SaleConfirmPrompt settles — and a settled prompt cannot re-ask', () => {
-  it('confirmed: says it now counts for both, and offers NO buttons', () => {
+  it('confirmed: says it is now on record for both, and offers NO buttons', () => {
     renderPrompt(<SaleConfirmPrompt {...BASE} status="confirmed" />)
-    expect(screen.getByText('Confirmed — this deal now counts for both of you.')).toBeTruthy()
+    expect(screen.getByText('Confirmed — this deal is now on record for both of you.')).toBeTruthy()
     expect(screen.queryAllByRole('button')).toHaveLength(0)
   })
 
@@ -417,7 +444,7 @@ describe('SaleConfirmPrompt settles — and a settled prompt cannot re-ask', () 
     )
     // Same node, new content — which is the change a live region is defined to announce.
     expect(screen.getByRole('status')).toBe(region)
-    expect(region.textContent).toContain('counts for both of you')
+    expect(region.textContent).toContain('on record for both of you')
   })
 })
 
@@ -429,10 +456,11 @@ describe('SaleConfirmPrompt — hostile inputs', () => {
     expect(screen.getByRole('group').textContent).toContain('Honda $& Vision')
   })
 
-  it('a zero or negative price never renders a negative amount', () => {
+  it('a zero or negative price never renders an amount at all — no negative, no invented "0 đ"', () => {
     renderPrompt(<SaleConfirmPrompt {...BASE} price={-5} />)
     const text = screen.getByRole('group').textContent ?? ''
-    expect(text).toContain('0 đ')
+    expect(text).toContain('Minh says you bought Honda Vision 2021.')
     expect(text).not.toContain('-5')
+    expect(text).not.toContain('0 đ')
   })
 })

@@ -12,7 +12,19 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), prefetch:
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
 vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
 const setStatus = vi.fn()
-vi.mock('./use-listing-actions', () => ({ useListingActions: () => ({ gone: false, status: 'active', setStatus, del: vi.fn() }) }))
+const markSold = vi.fn()
+vi.mock('./use-listing-actions', () => ({ useListingActions: () => ({ gone: false, status: 'active', setStatus, markSold, del: vi.fn() }) }))
+// B6: the "Who bought it?" flow, stubbed to what the row hands it (its own behaviour: mark-sold-flow.test.tsx).
+// soldSheetApplies stays REAL — which listings get the sheet is the row's decision under test.
+vi.mock('./mark-sold-flow', async () => {
+  const real = await vi.importActual<typeof import('./mark-sold-flow')>('./mark-sold-flow')
+  return {
+    soldSheetApplies: real.soldSheetApplies,
+    MarkSoldFlow: ({ open, listing, write }: { open: boolean; listing: { id: string; title: string; price: number }; write: unknown }) => (
+      <span data-mark-sold-flow data-open={String(open)} data-listing={listing.id} data-title={listing.title} data-wired={String(write === markSold)} />
+    ),
+  }
+})
 vi.mock('./quick-discount', () => ({ QuickDiscount: ({ open, trigger }: { open?: boolean; trigger?: boolean }) => <span data-quick-discount data-open={String(!!open)} data-trigger={String(trigger !== false)} /> }))
 vi.mock('./listing-sparkline', () => ({ ListingSparkline: () => null }))
 vi.mock('./price', () => ({ Price: () => null }))
@@ -78,6 +90,36 @@ describe('DashboardListingRow actions', () => {
     render(<DashboardListingRow listing={live} onChanged={() => {}} />)
     const svg = screen.getByRole('button', { name: 'Edit' }).querySelector('svg')!
     expect(svg.getAttribute('class')).toContain('max-sm:hidden')
+  })
+
+  /**
+   * B6 — "MARK SOLD" ON A SALE ASKS WHO BOUGHT IT. The sheet opens (it is the confirm, and it pre-picks
+   * "someone not on eno" when nobody messaged, so it stays one tap); the write is useListingActions'
+   * markSold — optimistic, through POST /sold, rolled back on failure (use-listing-actions.test.ts).
+   * Anything that is not a sale keeps the instant flip it had.
+   */
+  it('on a SALE, "Mark sold" opens "Who bought it?" wired to markSold — and marks nothing by itself', () => {
+    setStatus.mockClear()
+    const { container } = render(<DashboardListingRow listing={live} onChanged={() => {}} />)
+    const flow = () => container.querySelector('[data-mark-sold-flow]') as HTMLElement
+    expect(flow().dataset.open).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: 'Mark sold' }))
+    expect(flow().dataset.open).toBe('true')
+    expect(flow().dataset.listing).toBe('l1')
+    expect(flow().dataset.title).toBe('Road bike')
+    expect(flow().dataset.wired).toBe('true')
+    expect(setStatus).not.toHaveBeenCalled()
+  })
+
+  it('⛔ not a sale (a job, a rental, a free community post): no sheet — the instant flip it always had', () => {
+    for (const extra of [{ listingType: 'job' }, { listingType: 'rent' }, { listingType: 'free', category: { slug: 'community-events' } }]) {
+      setStatus.mockClear()
+      const { container, unmount } = render(<DashboardListingRow listing={{ ...live, ...extra } as SerializedListing} onChanged={() => {}} />)
+      expect(container.querySelector('[data-mark-sold-flow]')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'Mark sold' }))
+      expect(setStatus).toHaveBeenCalledWith('sold')
+      unmount()
+    }
   })
 
   it('the overflow carries Discount, Copy link, View, Hide and Delete — and Discount opens the dialog', async () => {

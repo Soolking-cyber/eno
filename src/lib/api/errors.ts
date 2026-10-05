@@ -112,6 +112,13 @@ export type NicheApiErrorCode =
   | 'budget_unavailable'
   | 'business_name_required'
   | 'buyer_not_in_conversations'
+  // POST /api/listings/[id]/sold — validateMarkSold's refusals (src/lib/trade-loop.ts): naming yourself,
+  // naming a buyer who said "No" about this listing, re-marking a sale the buyer already confirmed, and a
+  // price change once that buyer's asks are spent.
+  | 'buyer_is_seller'
+  | 'buyer_declined'
+  | 'already_confirmed'
+  | 'ask_budget_exhausted'
   | 'bad_credentials'                    // api/auth/password — the ONE failure shape
   | 'cannot_block_self'
   | 'cannot_erase_admin'                // admin Users console: an ADMIN_EMAILS account is never erased from the console
@@ -542,6 +549,10 @@ const ALL = [
   'business_name_required',
   'business_only',
   'buyer_not_in_conversations',
+  'buyer_is_seller',
+  'buyer_declined',
+  'already_confirmed',
+  'ask_budget_exhausted',
   'bad_credentials',
   'cannot_block_self',
   'cannot_erase_admin',

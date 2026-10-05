@@ -632,6 +632,77 @@ export function validateMarkSold(input: MarkSoldInput, ctx: MarkSoldContext): Ma
   }
 }
 
+/**
+ * Did this mark-sold SEND the named eno buyer a question — the first ask, or a re-ask about a changed
+ * price? The one signal the caller notifies on, so a re-tap of the same answer notifies nobody.
+ *
+ * Read off the buyer's own `asks` counter in saleBuyerHistory, which validateMarkSold moves ONLY when the
+ * ask actually goes out (see `nextHistory` there): asked ⇔ it went up between the facts and the patch.
+ * ⚠️ NOT "saleConfirmPromptedAt equals this call's `now`" — the convention trade-loop.test.ts uses inside a
+ * simulated clock. On a real clock a re-tap landing in the SAME MILLISECOND as the ask before it carries
+ * that stamp through unchanged, and it then reads as a fresh ask: measured in the mark-sold route's own
+ * double-tap test, which notified twice whenever the two requests shared a millisecond.
+ */
+export function markSoldAsks(patch: MarkSoldPatch, before: Pick<SaleFacts, 'saleBuyerHistory'>): boolean {
+  if (patch.soldChannel !== 'eno' || !patch.soldToProfileId) return false
+  const asksAfter = buyerHistoryEntry(patch.saleBuyerHistory, patch.soldToProfileId)?.asks ?? 0
+  const asksBefore = buyerHistoryEntry(before.saleBuyerHistory, patch.soldToProfileId)?.asks ?? 0
+  return asksAfter > asksBefore
+}
+
+/**
+ * Is this listing a SALE OF GOODS — the only kind of listing the trade loop describes? Sell, wholesale or
+ * free (a giveaway, recorded at 0 đ); a missing type is the column default, 'sell'. The goods test of
+ * listingLdKind (src/lib/listing-jsonld.ts) with its rentals-category guard (the rentals category is a
+ * rental whatever the type says) — plus one it lacks: community-events takes `free` too (taxonomy.ts), and a
+ * free meetup, class or lost-and-found post is not something anyone bought.
+ *
+ * ⚠️ ONE RULE FOR BOTH HALVES. The web's "Who bought it?" sheet opens only where this is true
+ * (soldSheetApplies in mark-sold-flow.tsx is this function), and the server asks a buyer "did you buy
+ * this?" only where it is true — so the sheet's "{name} will be asked to confirm" and the question that
+ * actually goes out can never disagree about which listings they cover. "Who bought it?" and "Agreed
+ * price" do not describe a tenancy, a hire, a teacher, a service or a buyer's own "wanted" post.
+ */
+export function isGoodsSale(l: { listingType?: string | null; categorySlug?: string | null }): boolean {
+  const t = l.listingType || 'sell'
+  return (t === 'sell' || t === 'wholesale' || t === 'free') && l.categorySlug !== 'rentals' && l.categorySlug !== 'community-events'
+}
+
+/**
+ * EVERY column a listing going back to 'active' must clear — the seller's claim (`sold*`) AND the
+ * marketplace's observation (`sale*`), in one object so no reactivation path can clear half of it.
+ *
+ * Spread into the data of every write that moves a listing back to active: setStatusCore's relist,
+ * confirmCore's revive (src/lib/core/listings.ts) and the admin console's "Activate"
+ * (src/app/api/admin/listings/route.ts). It is the obligation stated at the top of this file
+ * ("REACTIVATION CLEARS THE WHOLE CLUSTER").
+ *
+ * ⚠️ saleBuyerHistory IS CLEARED TOO, NOT APPENDED TO. Its entries are not a log of past buyers: each one
+ * is a LIVE RULE for the current sale — `askedAt` anchors that buyer's one confirm window, `asks` spends
+ * their ask budget, `declinedAt` bars them (canNameBuyer, validateMarkSold). Carried across a relist, the
+ * previous buyer's entry would make the NEXT sale to them a dead end: a window that closed months ago
+ * ('ask_budget_exhausted', or a silent no-ask at the same price), or a permanent `buyer_declined` for a
+ * person who said no to a different sale. A relisted item is genuinely a new sale.
+ */
+/**
+ * The bell row type for "did you buy this?" (src/lib/core/sale-loop.ts writes it; notification-bell.tsx gives
+ * it its label). One row per buyer per listing. Here, in the pure module, so every writer and every
+ * withdrawal — the mark-sold route, a relist, a revive — names the same string.
+ */
+export const SALE_CONFIRM_NOTIFICATION = 'sale_confirm'
+
+export const REACTIVATION_SALE_RESET = {
+  soldAt: null,
+  soldChannel: null,
+  soldToProfileId: null,
+  soldPlatform: null,
+  salePrice: null,
+  saleConfirmedAt: null,
+  saleDeclinedAt: null,
+  saleBuyerHistory: null,
+  saleConfirmPromptedAt: null,
+} as const
+
 // ── The buyer's answer ────────────────────────────────────────────────────────────
 
 export type RespondContext = {

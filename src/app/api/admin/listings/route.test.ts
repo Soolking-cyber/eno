@@ -54,6 +54,8 @@ vi.mock('@/lib/db', () => ({
       findMany: async (a: Row) => { h.calls.push({ m: 'findMany', args: a }); return h.before },
       deleteMany: async (a: Row) => { h.calls.push({ m: 'deleteMany', args: a }); return { count: 0 } },
     },
+    // The "did you buy this?" withdrawal an activate makes (src/lib/core/sale-withdraw.ts).
+    notification: { deleteMany: async (a: Row) => { h.calls.push({ m: 'notification.deleteMany', args: a }); return { count: 0 } } },
     report: {
       // Outside a transaction only the post-commit reporter lookup reads reports.
       findMany: async (a: Row) => { h.calls.push({ m: 'report.findMany', args: { ...a, inTx: h.inTx } }); if (h.resolvedRows === null) throw new Error('db down'); return h.resolvedRows },
@@ -101,6 +103,16 @@ async function post(body: unknown) {
   return { status: res.status, text: await res.text() }
 }
 const updates = () => h.calls.filter((c) => c.m === 'updateMany').map((c) => c.args)
+/**
+ * ⛔ An activate is a RELIST, so every "→ active" write clears the whole sale — the seller's claim AND the
+ * trade loop's columns (REACTIVATION_SALE_RESET, src/lib/trade-loop.ts), exactly as setStatusCore's relist
+ * and confirmCore's revive do. Spelled out here rather than imported, so a column dropped from the shared
+ * constant fails this test instead of silently shrinking both sides of it.
+ */
+const SALE_CLEARED = {
+  soldAt: null, soldChannel: null, soldToProfileId: null, soldPlatform: null,
+  salePrice: null, saleConfirmedAt: null, saleDeclinedAt: null, saleBuyerHistory: null, saleConfirmPromptedAt: null,
+}
 /** Every write in order, tagged with the method — the gated branches use both forms. */
 const writes = () => h.calls.filter((c) => c.m.startsWith('updateMany')).map((c) => [c.m, c.args])
 
@@ -121,7 +133,38 @@ describe('activate', () => {
     h.counts = [2]
     const r = await post({ action: 'activate', ids: ['a', 'b'] })
     expect(r.text).toBe('{"ok":true,"affected":2}')
-    expect(updates()).toEqual([{ where: { id: { in: ['a', 'b'] }, status: { not: 'removed' } }, data: { status: 'active' } }])
+    expect(updates()).toEqual([{ where: { id: { in: ['a', 'b'] }, status: { not: 'removed' } }, data: { status: 'active', ...SALE_CLEARED } }])
+  })
+
+  it('⛔ activating a SOLD row clears its buyer, agreed price and pending "did you buy this?" — it is back on sale', async () => {
+    h.counts = [1]
+    await post({ action: 'activate', ids: ['sold-1'] })
+    const data = updates()[0].data as Record<string, unknown>
+    for (const col of ['soldChannel', 'soldToProfileId', 'salePrice', 'saleConfirmedAt', 'saleDeclinedAt', 'saleBuyerHistory', 'saleConfirmPromptedAt']) {
+      expect(data[col], col).toBeNull()
+    }
+  })
+
+  it('⛔ …and withdraws EVERY "did you buy this?" bell row for the activated listings, in the same request — after the writes', async () => {
+    h.held = ['b']
+    h.counts = [1]
+    h.returns = [[], [{ id: 'b' }]]
+    await post({ action: 'activate', ids: ['a', 'b'] })
+    const order = h.calls.map((c) => c.m).filter((m) => m.startsWith('updateMany') || m === 'notification.deleteMany')
+    expect(order).toEqual(['updateMany', 'updateManyAndReturn', 'updateManyAndReturn', 'notification.deleteMany'])
+    expect(h.calls.find((c) => c.m === 'notification.deleteMany')!.args).toEqual({ where: { type: 'sale_confirm', listingId: { in: ['a', 'b'] } } })
+  })
+
+  it('a single-listing activate withdraws by that id', async () => {
+    h.counts = [1]
+    await post({ action: 'activate', ids: ['solo'] })
+    expect(h.calls.find((c) => c.m === 'notification.deleteMany')!.args).toEqual({ where: { type: 'sale_confirm', listingId: 'solo' } })
+  })
+
+  it('no other action withdraws anything (hide, verify and feature do not put a listing back on sale)', async () => {
+    h.counts = [2]
+    await post({ action: 'hide', ids: ['a', 'b'] })
+    expect(h.calls.some((c) => c.m === 'notification.deleteMany')).toBe(false)
   })
 
   it('a refused owner: rows about to go public are PARKED; unverified or already-live rows are left un-held', async () => {
@@ -133,11 +176,11 @@ describe('activate', () => {
     expect(r.text).toBe('{"ok":true,"affected":1,"held":1}')
     expect(h.settleCalls).toEqual([['b']])
     expect(writes()).toEqual([
-      ['updateMany', { where: { id: { in: ['a'] }, status: { not: 'removed' } }, data: { status: 'active' } }],
+      ['updateMany', { where: { id: { in: ['a'] }, status: { not: 'removed' } }, data: { status: 'active', ...SALE_CLEARED } }],
       // Not public either way (unverified), or public already (active) — status only, no hold.
-      ['updateManyAndReturn', { where: { id: { in: ['b'] }, OR: [{ verified: false }, { status: 'active' }], status: { not: 'removed' } }, data: { status: 'active' }, select: { verified: true, identityHold: true } }],
+      ['updateManyAndReturn', { where: { id: { in: ['b'] }, OR: [{ verified: false }, { status: 'active' }], status: { not: 'removed' } }, data: { status: 'active', ...SALE_CLEARED }, select: { verified: true, identityHold: true } }],
       // Verified and NOT yet active: activating would publish it → parked, and the ids come back.
-      ['updateManyAndReturn', { where: { id: { in: ['b'] }, verified: true, status: { notIn: ['active', 'removed'] } }, data: { status: 'active', verified: false, identityHold: true }, select: { id: true } }],
+      ['updateManyAndReturn', { where: { id: { in: ['b'] }, verified: true, status: { notIn: ['active', 'removed'] } }, data: { status: 'active', verified: false, identityHold: true, ...SALE_CLEARED }, select: { id: true } }],
     ])
   })
 

@@ -37,7 +37,9 @@ import { ClosedThreadBanner } from '@/components/marketplace/closed-thread-banne
 import { OBJECTIONABLE_CONTENT, composerFreeForRefused, objectionableCopy } from '@/lib/ugc-copy'
 import { TrustMeta } from '@/components/marketplace/trust-meta'
 import { QuickReplyChips, MarkSoldPrompt, chipContext } from '@/components/marketplace/quick-reply-chips'
+import { MarkSoldFlow, soldSheetApplies, type MarkSoldRequest } from '@/components/marketplace/mark-sold-flow'
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
+import { SaleQuestions, type SaleQuestionsState } from '@/components/marketplace/sale-questions'
 import { ChatComposer, type ChatComposerHandle } from '@/components/marketplace/chat-composer'
 import { useSafeBack } from '@/lib/safe-back'
 import { FirstContactNote, OfferAcceptedNote, OfferPartiesNote, OffPlatformWarning, PaymentLureWarning, findOffPlatformMessageId, findPaymentLureMessageId, paymentLureKind } from '@/components/marketplace/chat-safety-note'
@@ -46,6 +48,7 @@ import { isListingImageUrl, isMockImageUrl } from '@/lib/listing-image'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { seenReceipt } from '@/lib/chat-seen'
 import { THREAD_HEADER_CLASS, threadStripGates } from '@/lib/thread-chrome'
+import { standingDeal } from '@/lib/thread-deal'
 import { IS_SERVICES } from '@/lib/edition'
 import { ThreadStripSkeleton } from '@/components/marketplace/thread-strip-skeleton'
 import {
@@ -640,9 +643,28 @@ export default function ThreadPage() {
   // The item strip's 'Đã bán' (inbox-03): its confirm dialog, and the POST in flight — one tap, one request.
   const [confirmSoldOpen, setConfirmSoldOpen] = useState(false)
   const [markingSold, setMarkingSold] = useState(false)
+  // B6: on a SALE the strip's 'Đã bán', the "Deal!" chip and the post-accept prompt all open "Who bought it?",
+  // about the sale as it stood at the tap — thread, listing, agreed price and whether there was a deal (see
+  // openSoldSheet).
+  const [soldSheetOpen, setSoldSheetOpen] = useState(false)
+  const [soldSheet, setSoldSheet] = useState<{ threadId: string; listing: { id: string; title: string; price: number; currency: string }; agreed: number | null; hasDeal: boolean } | null>(null)
+  // The BUYER's side of the same loop: what is known about a "did you buy this?" from this seller here
+  // (sale-questions.tsx)? The post-deal review card shows only once that is known to be 'none' — one
+  // question at a time, the review only once both sides have spoken, and never while the lookup is out or
+  // after it failed ('unknown': a question may be open).
+  const [saleQuestionState, setSaleQuestionState] = useState<SaleQuestionsState>('unknown')
+  useEffect(() => { setSaleQuestionState('unknown') }, [id])
+  // This route does not remount between threads (see `autoPlan` below): a sheet left open must not follow the
+  // seller into the next conversation, where "this thread's buyer" would be someone else.
+  useEffect(() => { setSoldSheetOpen(false) }, [id])
   // The offer THIS seller just accepted in this session → anchors the one-time
   // "Mark as sold?" follow-through under that offer card (never shown to the buyer).
   const [justAcceptedId, setJustAcceptedId] = useState<string | null>(null)
+  // …and the listing the thread was about WHEN it was accepted. ⚠️ The prompt is about THAT deal: an
+  // accepted offer does not block a retarget (only a pending one does — retargetForListing), so after the
+  // buyer asks about another item the thread shows THAT listing, and a prompt keyed on the offer alone
+  // offered to mark the new item sold, to this buyer, at the old item's price — pre-picked (review).
+  const [justAcceptedListingId, setJustAcceptedListingId] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const footerRef = useRef<HTMLDivElement>(null) // review+quick-replies+composer; lifts to fixed on keyboard
@@ -1357,8 +1379,9 @@ export default function ThreadPage() {
     const choice = choiceFor(action)
     offerChoices.set(m.id, choice)
     setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === m.id ? { ...x, offerStatus: choice } : x)) } : t))
-    // Everything the send needs is fixed NOW: the send can run after this page is gone.
-    const answer = { conversationId: id, messageId: m.id, action, iAmSeller: !!thread?.iAmSeller }
+    // Everything the send needs is fixed NOW: the send can run after this page is gone. `listingId` is the
+    // listing the offer is being answered ON (see justAcceptedListingId).
+    const answer = { conversationId: id, messageId: m.id, action, iAmSeller: !!thread?.iAmSeller, listingId: thread?.listing?.id ?? null }
     undoWindow.start(m.id, {
       title: action === 'accept' ? tr('Offer accepted', 'Đã chấp nhận đề nghị') : tr('Offer declined', 'Đã từ chối đề nghị'),
       description: formatMoneyFull(m.offerAmount || 0, '₫', locale),
@@ -1377,7 +1400,7 @@ export default function ThreadPage() {
   // ⚠️ `keepalive` ALWAYS, not only when leaving (reviewer-caught): the window can close on the timer
   // and the user reload or close the tab a moment later, while this request is in flight. A plain
   // fetch is aborted with the page; a keepalive one is delivered. Its body is a few bytes.
-  const sendOfferAnswer = async (a: { conversationId: string; messageId: string; action: OfferAction; iAmSeller: boolean }) => {
+  const sendOfferAnswer = async (a: { conversationId: string; messageId: string; action: OfferAction; iAmSeller: boolean; listingId?: string | null }) => {
     let res: Response | null = null
     try {
       res = await fetch(`/api/conversations/${a.conversationId}/offer`, {
@@ -1405,7 +1428,10 @@ export default function ThreadPage() {
       // Seller accepted → offer the natural next step (mark the listing sold). ⚠️ Only if still here: a
       // seller who left inside the window does not get this one-time prompt (reviewer-noted, accepted —
       // it lives in this page's state, and marking sold stays one tap away on the listing itself).
-      if (onScreen && a.action === 'accept' && a.iAmSeller) setJustAcceptedId(a.messageId)
+      if (onScreen && a.action === 'accept' && a.iAmSeller) {
+        setJustAcceptedId(a.messageId)
+        setJustAcceptedListingId(a.listingId ?? null)
+      }
       return
     }
     // ⛔ A REFUSAL IS SAID OUT LOUD, even after the user has moved elsewhere in the app (the Toaster is
@@ -2116,11 +2142,22 @@ export default function ThreadPage() {
     return null
   }, [thread])
 
+  /**
+   * The trade loop's BUYER half (sale-questions.tsx): the seller named this person as who bought something,
+   * and the notification + push that sent them brought them HERE — so this is where they answer. Only the
+   * buyer side (`=== false`, never a cached thread that does not say), only a marketplace listing thread
+   * with a seller identity: never a support thread (no listing), the rental desk (no seller id), or the
+   * visa / trip desk (the server never asks there either). The server re-checks all of it.
+   */
+  const askBuyerAboutSales = !!thread && thread.iAmSeller === false && !!thread.listing && !!thread.counterpart.sellerId &&
+    thread.kind !== 'visa' && thread.kind !== 'itinerary'
   // Buyer-side review prompt: the deal closed (listing sold OR an offer here was
-  // accepted) and this conversation hasn't produced a review yet.
+  // accepted) and this conversation hasn't produced a review yet — and, where this thread can carry the
+  // seller's "did you buy this?", it is KNOWN that none is waiting (`saleQuestionState === 'none'`): one card
+  // at a time, the question first, and nothing assumed while the lookup is out or has failed.
   const hasAcceptedOffer = !!acceptedOfferId
   const showReviewPrompt = !!thread && !thread.iAmSeller && !thread.hasReviewed && !!thread.counterpart.sellerId &&
-    (thread.listing?.status === 'sold' || hasAcceptedOffer)
+    (thread.listing?.status === 'sold' || hasAcceptedOffer) && (!askBuyerAboutSales || saleQuestionState === 'none')
 
   // Safety interjections — pure render-time, no fetch/send involvement. THREE moments now:
   // the thread's first breath, the first off-platform lure, and the moment a price is agreed.
@@ -2198,6 +2235,65 @@ export default function ThreadPage() {
     } finally {
       setMarkingSold(false)
       void load()
+    }
+  }
+
+  /**
+   * B6 — "WHO BOUGHT IT?" (mark-sold-flow.tsx) on a SALE, from three doors: the strip's 'Đã bán', the
+   * "Deal! Mark as sold?" chip and the post-accept prompt. Anything else (a rental, a service…) keeps the
+   * AlertDialog above (soldSheetApplies says why). The doors open only on a live listing (`stripSold`).
+   */
+  const soldSheetFits = !!thread?.iAmSeller && thread.kind === 'listing' && !!thread.listing &&
+    soldSheetApplies({ listingType: thread.listing.listingType, categorySlug: thread.listing.categorySlug })
+  // The deal this thread agreed, only while it still stands for the listing shown NOW (src/lib/thread-deal.ts —
+  // an accepted offer survives a retarget to another listing). It shows the chip and pre-fills "Agreed price".
+  const deal = thread ? standingDeal(thread.messages, thread.listing, !!thread.iAmSeller, (offerId) => unconfirmedOfferChoices.has(offerId)) : null
+  // ...and not while the one-time prompt under that very card is up: the same question, once.
+  const dealChip = stripSold && soldSheetFits && !!deal && justAcceptedId !== deal.offerId
+  /**
+   * ⚠️ THE SHEET WORKS ON A SNAPSHOT TAKEN AT THE TAP (`soldSheet`: thread, listing, agreed price), never on
+   * the live thread. The 15s poll can retarget this thread to another listing while the sheet is open (the
+   * buyer asked about a second item), and a buyer's new message ends the standing deal; reading either live
+   * would file the sale against an item the seller never chose, or move the price under their eyes. The
+   * snapshot also keeps the sheet MOUNTED through its own optimistic flip to 'sold', which closes every
+   * door, and its key gives every sale its own sheet, so a write still out for an earlier one cannot land
+   * in this one.
+   */
+  // `agreed` overrides the standing deal's amount: the post-accept prompt knows ITS offer, and opens before the
+  // server has confirmed the answer — when `deal` still (deliberately) reads that offer as unconfirmed.
+  // ⚠️ `hasDeal` DECIDES WHETHER THE THREAD'S BUYER IS PRE-PICKED (B6 review). Opening the sheet from someone's
+  // chat is not evidence they bought it — the strip's 'Đã bán' is there in every seller thread. Only a deal
+  // that still stands for this listing (`deal`), or the offer the seller has just accepted (the prompt under
+  // it, which passes `agreed`), is; anything else opens with nobody picked.
+  const openSoldSheet = (agreed?: number | null) => {
+    const l = thread?.listing
+    if (!thread || !l) return
+    setSoldSheet({ threadId: thread.id, listing: { id: l.id, title: l.title, price: l.price ?? 0, currency: l.currency || '₫' }, agreed: agreed !== undefined ? agreed : deal?.amount ?? null, hasDeal: agreed !== undefined || !!deal })
+    setSoldSheetOpen(true)
+  }
+  // The sheet's write: markSoldFromStrip's optimism and rollback, through POST /sold so the buyer rides
+  // along (same setStatusCore transition as /status, plus the attribution). The sheet owns the telling —
+  // spinner, inline error, success toast — so nothing is toasted here. Both flips touch the strip only while
+  // it still shows the listing being sold, and the reconcile read only runs while this is still the thread.
+  const writeSale = async (sale: MarkSoldRequest): Promise<boolean> => {
+    const s = soldSheet
+    if (!s) return false
+    const target = s.listing
+    const before = thread?.listing?.id === target.id ? thread.listing.status : undefined
+    setThread((t) => (t && t.listing && t.listing.id === target.id ? { ...t, listing: { ...t.listing, status: 'sold' } } : t))
+    try {
+      const res = await fetch(`/api/listings/${target.id}/sold`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sale),
+      })
+      if (!res.ok) throw new Error('sold_failed')
+      return true
+    } catch {
+      setThread((t) => (t && t.listing && t.listing.id === target.id && t.listing.status === 'sold' ? { ...t, listing: { ...t.listing, status: before } } : t))
+      return false
+    } finally {
+      if (idRef.current === s.threadId) void load()
     }
   }
 
@@ -2359,7 +2455,7 @@ export default function ThreadPage() {
                 <Button
                   variant="cta"
                   size="none"
-                  onClick={() => setConfirmSoldOpen(true)}
+                  onClick={() => (soldSheetFits ? openSoldSheet() : setConfirmSoldOpen(true))}
                   disabled={markingSold}
                   className="relative shrink-0 rounded-full px-3 py-1.5 text-xs cursor-pointer tap-44"
                 >
@@ -2383,6 +2479,22 @@ export default function ThreadPage() {
                 </AlertDialogContent>
               </AlertDialog>
             </div>
+          )}
+          {/* "Who bought it?" (B6) — portalled, so its place in the tree changes nothing on screen. Mounted on
+              the snapshot taken at the tap (see openSoldSheet), so neither its own optimistic flip nor a
+              retarget by the poll can unmount it or change what it sells; keyed on it, so each sale gets
+              its own sheet state. */}
+          {thread?.iAmSeller && soldSheet && (
+            <MarkSoldFlow
+              key={`${soldSheet.threadId}:${soldSheet.listing.id}`}
+              open={soldSheetOpen}
+              onOpenChange={setSoldSheetOpen}
+              listing={soldSheet.listing}
+              threadConversationId={soldSheet.threadId}
+              threadHasDeal={soldSheet.hasDeal}
+              threadAcceptedOffer={soldSheet.agreed}
+              write={writeSale}
+            />
           )}
 
           {/* App Store gate `app-ai-notice` (R8, D14): in the apps, the FIRST time a translation would
@@ -2834,9 +2946,16 @@ export default function ThreadPage() {
                         here would be dead code that ALSO hid the line on a cold cache paint, where
                         `kind` is absent — the deny-list lesson written out in the timeline map above. */}
                     {m.id === acceptedOfferId && <OfferAcceptedNote />}
-                    {/* Seller just accepted THIS offer → follow through to "sold". */}
-                    {thread?.iAmSeller && thread.listing && m.id === justAcceptedId && m.offerStatus === 'accepted' && (
-                      <MarkSoldPrompt listingId={thread.listing.id} listingTitle={thread.listing.title} />
+                    {/* Seller just accepted THIS offer → follow through to "sold". On a sale it opens
+                        "Who bought it?" (B6) — and, since the card then no longer flips itself to
+                        "done", it goes once the listing is sold (the sheet's optimistic flip).
+                        ⚠️ ONLY WHILE THE THREAD STILL SHOWS THE LISTING IT WAS ACCEPTED ON
+                        (justAcceptedListingId): after a retarget the deal is not about what the strip
+                        shows, and this door pre-picks the buyer at the accepted price. */}
+                    {thread?.iAmSeller && thread.listing && m.id === justAcceptedId && m.offerStatus === 'accepted' &&
+                      thread.listing.id === justAcceptedListingId &&
+                      (!soldSheetFits || stripSold) && (
+                      <MarkSoldPrompt listingId={thread.listing.id} listingTitle={thread.listing.title} onMarkSold={soldSheetFits ? () => openSoldSheet(m.offerAmount ?? null) : undefined} />
                     )}
                     {/* Owner, 2026-08-16: "timestamp is inside box for all other in chat elements
                         too like offers etc". The shell cards get the same line from
@@ -3049,6 +3168,20 @@ export default function ThreadPage() {
               a plain flow footer when the keyboard is closed. Wrapped together so the
               quick-reply chips are never hidden behind the fixed composer. */}
           <div ref={footerRef} className="chat-footer shrink-0">
+          {/* "Did you buy this?" (buyer only) — the seller's question, one tap to answer, above the composer
+              like the review card below it. Keyed on the thread: this route does not remount between
+              threads, and a different thread is a different seller's questions. `refreshKey` re-asks when
+              the listing this thread shows changes status (a sale landing while the buyer looks on). */}
+          {askBuyerAboutSales && thread && (
+            <SaleQuestions
+              key={thread.id}
+              conversationId={thread.id}
+              sellerName={thread.counterpart.name}
+              refreshKey={`${thread.listing?.id ?? ''}:${thread.listing?.status ?? ''}`}
+              onStateChange={setSaleQuestionState}
+              className="px-4 pt-1.5"
+            />
+          )}
           {/* Post-transaction review prompt (buyer only) — one quiet card above the
               composer; ✕ hides it for the session, it stays gone once reviewed. */}
           {showReviewPrompt && thread && (
@@ -3170,6 +3303,9 @@ export default function ThreadPage() {
                 negotiable: thread.listing.negotiable === true,
               } : null}
               availabilityConfirmedAt={thread.listing.availabilityConfirmedAt}
+              // B6: "Deal! Mark as sold?" once this thread agreed a price (see `dealChip`).
+              dealAgreed={dealChip}
+              onMarkSold={() => openSoldSheet()}
               onInsert={insertQuickReply}
               onSend={(t) => send(t)}
               composerText={text}
