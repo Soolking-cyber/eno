@@ -27,7 +27,8 @@ vi.mock('@/lib/lang-pinned', async (importOriginal) => {
   return { ...m, localizedHref: (href: string, variant: string) => m.localizedHref(href, variant, { live: m.VI_PREFIX_PATHS, retired: [] }) }
 })
 
-import { VehicleHubFilterRow } from './vehicle-hub-filter-row'
+import { HCMC_PROVINCE_CODE, VehicleHubFilterRow } from './vehicle-hub-filter-row'
+import { provinceByCode } from '@/lib/vn-areas'
 import { hubTypeChips } from '@/lib/vehicle-hub-chips'
 
 afterEach(() => { cleanup(); LANG = 'vi'; sessionStorage.clear() })
@@ -35,7 +36,7 @@ const params = (a: HTMLElement) => {
   const href = a.getAttribute('href')!
   return { path: href.split('?')[0], q: Object.fromEntries(new URLSearchParams(href.split('?')[1] ?? '')) }
 }
-const BIKE = { category: 'rentals', subcategory: 'motorbike-rental' }
+const BIKE = { category: 'rentals', subcategory: 'motorbike-rental', province: '79' }
 
 describe('VehicleHubFilterRow — the hub\'s way into the explorer, under the lede', () => {
   it('the Vietnamese motorbike hub: Bộ lọc, Bản đồ and Loại xe: Xe ga · Xe số, all on /vi and scoped', () => {
@@ -64,7 +65,7 @@ describe('VehicleHubFilterRow — the hub\'s way into the explorer, under the le
     LANG = 'en'
     const { facet, types } = hubTypeChips({ kind: 'car', counts: { 'seats-4': 3, 'seats-7': 2 } })
     render(<VehicleHubFilterRow kind="car" facet={facet} types={types} lang="en" />)
-    const CAR = { category: 'rentals', subcategory: 'car-rental' }
+    const CAR = { category: 'rentals', subcategory: 'car-rental', province: '79' }
     expect(params(screen.getByRole('link', { name: /Filters/ }))).toEqual({ path: '/', q: CAR })
     expect(params(screen.getByRole('link', { name: /Map/ }))).toEqual({ path: '/', q: { ...CAR, view: 'map' } })
     const group = screen.getByRole('group', { name: 'Type:' })
@@ -82,5 +83,11 @@ describe('VehicleHubFilterRow — the hub\'s way into the explorer, under the le
     sessionStorage.clear()
     for (const name of [/Bộ lọc/, /Bản đồ/, 'Xe ga']) fireEvent.click(screen.getByRole('link', { name }))
     expect(sessionStorage.getItem('eno:pending-area')).toBeNull()
+  })
+})
+
+describe('the hubs\' province code', () => {
+  it('is Ho Chi Minh City in the area data the explorer reads it with — not a number that only matches itself', () => {
+    expect(provinceByCode(HCMC_PROVINCE_CODE)).toMatchObject({ code: '79', name: 'Hồ Chí Minh' })
   })
 })

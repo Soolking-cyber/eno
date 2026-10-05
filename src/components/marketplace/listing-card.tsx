@@ -1271,11 +1271,11 @@ function ListingCardImpl({
                         HTML says "· 3h ago" and a visitor five hours later computes "· 8h ago".
                         React 19 does not patch a text mismatch the way 18 did — it throws
                         HydrationMismatchException and recovers by CLIENT-RENDERING FROM THE NEAREST
-                        SUSPENSE BOUNDARY. This route has no user boundary; the only one is Next's
-                        segment boundary from (home)/loading.tsx, which since SEO wave B (H1c) encloses
-                        the whole feed but no longer the header, H1 or footer ((home)/layout.tsx renders
-                        those above it). One stale label anywhere in it re-renders the entire feed — on
-                        essentially every cache hit, on the page whose LCP was taken from 5.4s to 1.57s.
+                        SUSPENSE BOUNDARY. ⛔ SINCE UX3 FAST-8 (2026-10-05) THE HOME AND CATEGORY PAGES
+                        HAVE NO BOUNDARY EITHER — (home)/loading.tsx and (index)/loading.tsx are gone — so a
+                        stale label there now recovers from the ROOT, exactly as on a listing page: the
+                        whole document re-renders, on essentially every cache hit. (Until FAST-8 the
+                        loading boundary confined it to the feed.)
                         ⚠️ AND ON A LISTING PAGE THERE IS NO BOUNDARY AT ALL since H1a deleted
                         (pdp)/loading.tsx, so a mismatch in a card there recovers from the ROOT: the
                         whole document re-renders, which makes this gate stricter, not optional.

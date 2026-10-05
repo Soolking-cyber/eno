@@ -839,7 +839,7 @@ export function ListingsExplorer({
   // visitor and every crawler. At 0 that HTML said the marketplace had no listings while
   // showing twelve of them, and it also made `hasMore` false, so the "Browse everything"
   // ending popped in after hydration instead of being in the markup (app/(home)/loading.tsx
-  // already reserves it). initialTotal is the count for exactly the rows baked beside it —
+  // reserved it until UX3 FAST-8 removed that file; the ending is in the inline HTML now). initialTotal is the count for exactly the rows baked beside it —
   // page.tsx runs the count() against the same predicate as the findMany().
   // Known, accepted imprecision: a FILTERED deep link (/?q=…) is served the same prerendered
   // HTML, so it shows the unfiltered total for one paint before the response corrects it. It
@@ -4159,7 +4159,7 @@ export function ListingsExplorer({
     // padding read as a dead band (<main>'s pt-4 still spaces it from the header hairline). Measured
     // with the rail, facet-pill and gap trims (category-rail.tsx, facet-bar.tsx, `space-y-3` below):
     // first card top 517 → 447 at 360×740 and 390×844, 407 → 367 at 1440×900, CLS unchanged.
-    // (home)/loading.tsx mirrors every one of these numbers. The notes above are the older layout's.
+    // (home)/loading.tsx mirrored every one of these numbers until UX3 FAST-8 removed it. The notes above are the older layout's.
     // ⛔ A `{/* … */}` COMMENT CANNOT LIVE HERE — right after `return (` is expression position,
     // where JSX comment syntax is a syntax error (tsc TS1005). This is the second time in one
     // night; CLAUDE.md records the rule.
@@ -4338,7 +4338,7 @@ export function ListingsExplorer({
             money path. The feed should simply be there — and now that this tree is also the
             LANDING tree, an entrance here would fire on every cold home load. */}
         {/* ⚠️ space-y-3, NOT 4 (home fold trim, 2026-09-30): 4px back between each rung — rail, recents,
-            strip, results header — at every width. (home)/loading.tsx mirrors this rhythm. */}
+            strip, results header — at every width. (home)/loading.tsx mirrored this rhythm until UX3 FAST-8. */}
         <div className="space-y-3">
 
           {/* CATEGORY LADDER — ONE SLOT, TWO REPRESENTATIONS.
@@ -4532,7 +4532,7 @@ export function ListingsExplorer({
               current order, opening the five choices), the facet pills, then Good price; the tab row is
               desktop-only. sm and up are unchanged. Measured (next dev, headless, cold): first card top
               447 → 406 at 360×740 and 390×844, en and vi; 367 unchanged at 1440×900.
-              (home)/loading.tsx and FacetBarFallback mirror the one-row phone geometry. */}
+              FacetBarFallback mirrors the one-row phone geometry ((home)/loading.tsx did too until UX3 FAST-8). */}
           <SortStrip
             sort={sort}
             onPickSort={pickSort}
