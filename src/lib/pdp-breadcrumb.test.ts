@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { pdpBreadcrumbLd, subcategoryCrumb } from './pdp-breadcrumb'
+import { MARKETPLACE_SUBCAT_LABELS, PARTNER_ONLY_ON_MARKETPLACE, POST_HIDDEN_ON_MARKETPLACE, TAXONOMY } from './taxonomy'
 import { isHubCity, vehicleHubPathFor } from './vehicle-hub-slugs'
 
 /**
@@ -66,6 +67,7 @@ describe('subcategoryCrumb', () => {
   it('eno.vn adds no visa wording: no crumb for a subcategory the marketplace withholds (O-34 visa runs)', () => {
     const run = { categorySlug: 'tickets-travel', subcategorySlug: 'visa-runs', city: 'Hồ Chí Minh' }
     expect(subcategoryCrumb(run, 'en', true)).toBeNull()
+    expect(subcategoryCrumb(run, 'vi', true)).toBeNull()
     // eno.forum offers it, so there the trail has it.
     expect(subcategoryCrumb(run, 'en', false)?.href).toBe('/?category=tickets-travel&subcategory=visa-runs')
   })
@@ -73,7 +75,57 @@ describe('subcategoryCrumb', () => {
   it('names the subcategory as the edition does (O-34: services/visa-legal is "Legal & permits" on eno.vn)', () => {
     const legal = { categorySlug: 'services', subcategorySlug: 'visa-legal', city: null }
     expect(subcategoryCrumb(legal, 'vi', true)).toMatchObject({ name: 'Legal & permits', nameVi: 'Giấy tờ & pháp lý' })
-    expect(subcategoryCrumb(legal, 'vi', false)?.name).toBe('Visa')
+    expect(subcategoryCrumb(legal, 'en', true)).toMatchObject({ name: 'Legal & permits', nameVi: 'Giấy tờ & pháp lý' })
+    expect(subcategoryCrumb(legal, 'vi', false)).toMatchObject({ name: 'Visa', nameVi: 'Visa' })
+  })
+
+  it('a partner-only slot keeps its crumb on eno.vn: O-34b decides who may POST there, not what browse shows', () => {
+    // UX2 0b67f870c closed services/visa-legal to ordinary sellers on eno.vn and left browse untouched — VietKite's
+    // listings stay there, named "Giấy tờ & pháp lý". The crumb is browse chrome, so it follows browse; gating it on
+    // isPostableSubcategory (which now asks who posts) dropped it (codex, gate 2026-10-05).
+    const legal = { categorySlug: 'services', subcategorySlug: 'visa-legal', city: null }
+    expect(subcategoryCrumb(legal, 'vi', true)?.href).toBe('/?category=services&subcategory=visa-legal')
+  })
+
+  it('every subcategory, both editions: eno.forum crumbs them all; eno.vn withholds exactly POST_HIDDEN_ON_MARKETPLACE', () => {
+    let pairs = 0
+    for (const c of TAXONOMY) {
+      for (const sub of c.subcategories ?? []) {
+        const l = { categorySlug: c.slug, subcategorySlug: sub.slug, city: null }
+        const key = `${c.slug}/${sub.slug}`
+        for (const lang of ['en', 'vi'] as const) {
+          expect(subcategoryCrumb(l, lang, false), `${key} ${lang}`).not.toBeNull()
+          expect(subcategoryCrumb(l, lang, true) === null, `${key} ${lang}`).toBe(POST_HIDDEN_ON_MARKETPLACE.has(key))
+        }
+        pairs++
+      }
+    }
+    expect(pairs).toBeGreaterThan(50)
+  })
+
+  it('the licensed edition\'s crumbs never carry visa, itinerary or PayPal wording — checked on the words, not the list', () => {
+    // Independent of POST_HIDDEN_ON_MARKETPLACE (codex, gate: a test that mirrors the hide-list is circular): whatever
+    // the lists say, no crumb eno.vn renders may name a service it is not licensed to offer, in either language.
+    const BANNED = /visa|thị thực|itinerar|lịch trình|paypal/i
+    for (const c of TAXONOMY) {
+      for (const sub of c.subcategories ?? []) {
+        for (const lang of ['en', 'vi'] as const) {
+          const crumb = subcategoryCrumb({ categorySlug: c.slug, subcategorySlug: sub.slug, city: null }, lang, true)
+          if (crumb) expect(`${crumb.name} ${crumb.nameVi}`, `${c.slug}/${sub.slug} ${lang}`).not.toMatch(BANNED)
+        }
+      }
+    }
+  })
+
+  it('a partner-only slot that eno.vn crumbs always carries the edition\'s own name (no raw visa wording)', () => {
+    for (const key of PARTNER_ONLY_ON_MARKETPLACE.keys()) {
+      expect(MARKETPLACE_SUBCAT_LABELS[key], key).toBeDefined()
+      const [categorySlug, subcategorySlug] = key.split('/')
+      for (const lang of ['en', 'vi'] as const) {
+        expect(subcategoryCrumb({ categorySlug, subcategorySlug, city: null }, lang, true), `${key} ${lang}`)
+          .toMatchObject({ name: MARKETPLACE_SUBCAT_LABELS[key]!.name, nameVi: MARKETPLACE_SUBCAT_LABELS[key]!.nameVi })
+      }
+    }
   })
 })
 

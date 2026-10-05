@@ -1,4 +1,4 @@
-import { MARKETPLACE_SUBCAT_LABELS, isPostableSubcategory, subcategoriesFor } from '@/lib/taxonomy'
+import { MARKETPLACE_SUBCAT_LABELS, POST_HIDDEN_ON_MARKETPLACE, subcategoriesFor } from '@/lib/taxonomy'
 import { isRetiredNavCategory } from '@/lib/retired-categories'
 import { vehicleHubPathFor } from '@/lib/vehicle-hub-slugs'
 
@@ -43,7 +43,11 @@ export function subcategoryCrumb(
   // ⛔ NOT FOR A SUBCATEGORY THIS EDITION WITHHOLDS (taxonomy.ts POST_HIDDEN_ON_MARKETPLACE — today
   // tickets-travel/visa-runs on eno.vn, O-34): the licensed marketplace's chrome must not ADD visa wording
   // to a page, whatever the row itself says. The category crumb still leads up.
-  if (!isPostableSubcategory(l.categorySlug, l.subcategorySlug, marketplace)) return null
+  // ⚠️ THE EDITION'S LIST, NOT isPostableSubcategory (codex, gate 2026-10-05). Since UX2's O-34b that predicate
+  // also asks WHO posts — a partner-only slot is closed to a poster it does not know — and a crumb is BROWSE
+  // chrome, which O-34b left untouched: VietKite's partner listings in services/visa-legal stay on eno.vn as
+  // "Giấy tờ & pháp lý", so their trail keeps that crumb, exactly as the category panel and facets show it.
+  if (marketplace && POST_HIDDEN_ON_MARKETPLACE.has(`${l.categorySlug}/${l.subcategorySlug}`)) return null
   const sub = subcategoriesFor(l.categorySlug).find((s) => s.slug === l.subcategorySlug)
   if (!sub) return null
   // The edition's display name (MARKETPLACE_SUBCAT_LABELS: services/visa-legal reads "Legal & permits" on
