@@ -270,7 +270,7 @@ export function MarkSoldPrompt({ listingId, listingTitle }: { listingId: string;
 
   return (
     <div className="mt-2 duration-200 ease-out animate-in fade-in">
-      <p className="text-xs font-medium text-foreground">
+      <p className="text-xs font-medium text-foreground [overflow-wrap:anywhere]">
         {/* A replacer FUNCTION: a string replacement would read `$&` / `$$` in a seller's title as patterns. */}
         {tr('Deal! Mark "{title}" as sold?', 'Chốt đơn! Đánh dấu "{title}" là đã bán?').replace('{title}', () => listingTitle)}
       </p>

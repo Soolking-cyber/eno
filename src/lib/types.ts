@@ -1,4 +1,5 @@
 import type { MapGlyph } from './listing-map-glyph'
+import { isLanguage, localeForLanguage } from './languages'
 // Client-safe shared types for the marketplace frontend.
 // Mirrors the shapes returned by the API routes (see src/lib/serialize.ts).
 
@@ -254,8 +255,8 @@ export type Stats = {
 
 export type VerificationMethod = 'in-person' | 'video-call' | 'document-check' | 'agent-visit'
 
-export function timeAgo(iso: string, lang: string = 'vi'): string {
-  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+export function timeAgo(iso: string, lang: string = 'vi', now: number = Date.now()): string {
+  const m = Math.floor((now - new Date(iso).getTime()) / 60000)
   const h = Math.floor(m / 60), d = Math.floor(h / 24), mo = Math.floor(d / 30), y = Math.floor(mo / 12)
   // Hand-crafted compact forms for the two primary markets.
   if (lang === 'vi') {
@@ -279,6 +280,29 @@ export function timeAgo(iso: string, lang: string = 'vi'): string {
     if (mo < 12) return rtf.format(-mo, 'month')
     return rtf.format(-y, 'year')
   } catch { return en() }
+}
+
+/**
+ * The inbox row's time: relative for the first week, then a DATE (break-ui, 2026-10-05). "11 tháng
+ * trước" / "3 năm trước" never said when, and at 320px those long relative strings were half of what
+ * erased the counterpart's name. Same year → "12 thg 9" / "12 Sept"; older → "12/9/2023" / "12/09/2023".
+ * ⚠️ Client-rendered only (the inbox is client-fetched), so the render-time clock and the viewer's
+ * timezone cannot mismatch a server render.
+ */
+export function inboxTime(iso: string, lang: string = 'vi', now: number = Date.now()): string {
+  const t = new Date(iso).getTime()
+  if (!Number.isFinite(t)) return ''
+  // Relative only for the past week. A time in the FUTURE beyond ten minutes of clock skew is bad data, and
+  // timeAgo would call it "just now" until it arrived (codex) — it gets its date instead.
+  const age = now - t
+  if (age > -10 * 60 * 1000 && age < 7 * 24 * 60 * 60 * 1000) return timeAgo(iso, lang, now)
+  const locale = lang === 'vi' ? 'vi-VN' : lang === 'en' ? 'en-GB' : isLanguage(lang) ? localeForLanguage(lang) : 'en-GB'
+  const sameYear = new Date(t).getFullYear() === new Date(now).getFullYear()
+  try {
+    return new Intl.DateTimeFormat(locale, sameYear ? { day: 'numeric', month: 'short' } : { day: 'numeric', month: 'numeric', year: 'numeric' }).format(t)
+  } catch {
+    return timeAgo(iso, lang, now)
+  }
 }
 
 // Single-accent palette: every category renders in the one brand blue.

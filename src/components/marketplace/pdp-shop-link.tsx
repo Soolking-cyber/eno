@@ -95,7 +95,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
       // shared SellerCard strip and the storefront review rows (icon-language §1).
       <span key="reviews" className="inline-flex items-center gap-1">
         <Star className="h-3.5 w-3.5 shrink-0 fill-rating text-rating" aria-hidden />
-        <RatingValue value={rating} /> · <CountValue value={reviewCount} /> {tr('reviews', 'đánh giá')}
+        <RatingValue value={rating} /> · <CountValue value={reviewCount} /> {reviewCount === 1 ? tr('review', 'đánh giá') : tr('reviews', 'đánh giá')}
       </span>,
     )
   }

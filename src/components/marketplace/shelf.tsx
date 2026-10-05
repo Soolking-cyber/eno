@@ -231,9 +231,10 @@ export function Shelf({
       <div className={SECTION_HEADER_ROW}>
         <div className="flex min-w-0 items-center gap-2">
           {Icon && <Icon className="h-4 w-4 shrink-0 text-accent-foreground" />}
-          {/* No truncate — original rail titles wrapped naturally (e.g. same-seller's
-              "Tin khác từ {sellerName}" can be long); min-w-0 on the wrapper lets it. */}
-          <h2 className={SECTION_TITLE}>{title}</h2>
+          {/* Rail titles wrap (e.g. same-seller's "Tin khác từ {sellerName}" can be long) — but to TWO lines,
+              then clamp with the full title on hover (break-ui, 2026-10-05): a 120-character shop name
+              wrapped to five lines on the PDP. min-w-0 on the wrapper lets it wrap at all. */}
+          <h2 title={typeof title === 'string' ? title : undefined} className={`${SECTION_TITLE} line-clamp-2 [overflow-wrap:anywhere]`}>{title}</h2>
         </div>
         {seeAll}
       </div>

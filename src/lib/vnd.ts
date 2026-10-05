@@ -131,6 +131,36 @@ export function formatRating(n: number, locale: MoneyLocale = 'en'): string {
   return locale === 'vi' ? s.replace('.', ',') : s
 }
 
+/**
+ * THE SECOND SANCTIONED EXCEPTION TO THE FULL-GROUPED FORMAT (break-ui, 2026-10-05, owner-approved):
+ * at or above HUGE_VND a NARROW surface — a feed card, a dashboard row, the chat's item strip — shows the
+ * amount in words, "95 tỷ đ" / "95 billion đ". Measured at 320px: the API's ceiling (1e12) painted
+ * "1.000.000.000.000" straight into the neighbouring card's price, and the chat strip could only
+ * truncate it. Ten billion đồng is where Vietnamese property prices are already spoken in tỷ, so the
+ * words are how the amount is read anyway; the detail page (PDP) keeps every digit.
+ */
+export const HUGE_VND = 10_000_000_000
+/**
+ * In the reader's OWN scale words: "95 tỷ đ", "95 billion đ", "950亿 đ", "95 milliards đ" — the nine non-vi/en UI
+ * languages must not read English "billion" (codex, 2026-10-05).
+ * ⚠️ vi AND en ARE HAND-BUILT, NOT Intl compact notation: they are the two languages the server renders, and
+ * ISR bakes the cards at build time — Node's ICU and the browser's CLDR need not agree on compact-long output
+ * (NBSP vs U+202F, plural forms), which would be a hydration mismatch (opus). Plain decimal formatting is
+ * stable across both. The MT languages render client-side after mount, so Intl compact is safe for them.
+ * Exact to the million in every scale: three decimals of a tỷ/billion; six for Intl (Thai counts in หมื่นล้าน
+ * = 1e10 and Hindi in खरब = 1e11). Price calls this only for a whole number of millions; an odd figure is
+ * rounded first and marked "≈" there.
+ */
+const BILLIONS = { vi: new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 }), en: new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 }) }
+const HUGE_FORMATS = new Map<string, Intl.NumberFormat>()
+export function hugeVnd(n: number, lang: string = 'en'): string {
+  if (lang === 'vi' || lang === 'en') return `${BILLIONS[lang].format(n / 1_000_000_000)} ${lang === 'vi' ? 'tỷ' : 'billion'} đ`
+  const locale = intlLocale(lang, 'en-GB') // the MT languages' own locale (the same helper vndWords uses)
+  let f = HUGE_FORMATS.get(locale)
+  if (!f) { f = new Intl.NumberFormat(locale, { notation: 'compact', compactDisplay: 'long', maximumFractionDigits: 6 }); HUGE_FORMATS.set(locale, f) }
+  return `${f.format(n)} đ`
+}
+
 /** Readable helper under the price input: "12 million đ" / "12 triệu đ".
  *  en and vi are hand-written; the nine machine-translated languages spell the magnitude in their own
  *  words through Intl's long compact notation ("12 миллионов đ", "1200万 đ", "1.2 करोड़ đ") — the English

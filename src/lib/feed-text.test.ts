@@ -46,3 +46,32 @@ describe('cutText', () => {
     expect(feedDescription('x&#x1F600;', 2)).toBe('x')
   })
 })
+
+/**
+ * cutText's CONTRACT, now that it guards every server-side free-text cut (break-ui, 2026-10-05: titles,
+ * descriptions, names, bios, messages, previews). It is `.slice(0, max)` and nothing else — no ellipsis, no
+ * word-boundary search, newlines kept — except that it never ends on half of a surrogate pair.
+ */
+describe('cutText — the write-path contract', () => {
+  it('is exactly .slice(0, max) for ordinary text: no ellipsis, no word boundary', () => {
+    const s = 'Cho thuê căn hộ 3PN Vinhomes Central Park'
+    expect(cutText(s, 12)).toBe(s.slice(0, 12))
+    expect(cutText(s, 12).endsWith('…')).toBe(false)
+  })
+  it('returns the whole string at or under the limit', () => {
+    expect(cutText('abc', 3)).toBe('abc')
+    expect(cutText('abc', 10)).toBe('abc')
+    expect(cutText('', 5)).toBe('')
+  })
+  it('keeps an unbroken string to the full limit (a pasted URL is never emptied)', () => {
+    const url = 'https://example.com/' + 'x'.repeat(3000)
+    expect(cutText(url, 2000)).toHaveLength(2000)
+  })
+  it('keeps newlines inside the limit', () => {
+    expect(cutText('Địa chỉ:\n123 Nguyễn Văn Linh', 12)).toBe('Địa chỉ:\n123')
+  })
+  it('drops only the half surrogate at the cut, never more', () => {
+    expect(cutText('a'.repeat(139) + '😀', 140)).toBe('a'.repeat(139))
+    expect(cutText('a'.repeat(138) + '😀', 140)).toBe('a'.repeat(138) + '😀')
+  })
+})

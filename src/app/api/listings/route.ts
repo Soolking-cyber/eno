@@ -28,6 +28,7 @@ import { inferDistrictFromQuery } from '@/lib/district-query'
 import { resolveSellerForPost } from './resolve-seller'
 import { publishOutcome, recordPublishOutcome } from '@/lib/publish-funnel'
 import { buildHistogram } from '@/lib/price-histogram'
+import { cutText } from '@/lib/feed-text'
 
 export const dynamic = 'force-dynamic'
 
@@ -561,9 +562,9 @@ async function createListing(req: NextRequest) {
   try {
     const body = await req.json()
     const categorySlug = String(body.categorySlug || '').trim()
-    const title = String(body.title || '').trim().slice(0, 140)
+    const title = cutText(String(body.title || '').trim(), 140)
     const contactPhone = normalizePhone(String(body.contactPhone || ''))
-    const contactName = String(body.contactName || '').trim().slice(0, 80)
+    const contactName = cutText(String(body.contactName || '').trim(), 80)
     // ⛔ A JOB IS PAID A SALARY (taxonomy.ts paysSalary): the wizard sends no price for one, and
     // createListingCore derives it from the salary — so there is no price here to require.
     const price = paysSalary(resolveListingType(categorySlug, body.listingType)) ? 0 : Number(body.price)

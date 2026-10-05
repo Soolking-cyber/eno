@@ -300,7 +300,7 @@ export function RichText({ text, className }: { text: string; className?: string
   const out = useTr(text) || text
   const cl = detectContentLang(out)
   return (
-    <div lang={cl && cl !== lang ? cl : undefined} className={`allow-select${className ? ` ${className}` : ''}`}>
+    <div lang={cl && cl !== lang ? cl : undefined} className={`allow-select [overflow-wrap:anywhere]${className ? ` ${className}` : ''}`}>
       {formatRichText(out)}
     </div>
   )
@@ -380,7 +380,7 @@ export function ListingDescription({ text, vi, i18n, className }: { text: string
   return (
     <>
       {machine ? <MachineTranslationNote original={original} onToggle={() => setOriginal((o) => !o)} /> : reserve ? <MachineTranslationReserve /> : null}
-      <div id={id} lang={cl && cl !== lang ? cl : undefined} className={`allow-select${className ? ` ${className}` : ''}${clampable && !expanded ? ' max-md:line-clamp-8' : ''}`}>{formatRichText(shown)}</div>
+      <div id={id} lang={cl && cl !== lang ? cl : undefined} className={`allow-select [overflow-wrap:anywhere]${className ? ` ${className}` : ''}${clampable && !expanded ? ' max-md:line-clamp-8' : ''}`}>{formatRichText(shown)}</div>
       {clampable && (
         <Button variant="link" size="none" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded((e) => !e)} className="relative tap-44 w-fit text-sm font-semibold text-accent-foreground md:hidden">
           {expanded ? tr('See less', 'Thu gọn') : tr('See more', 'Xem thêm')}

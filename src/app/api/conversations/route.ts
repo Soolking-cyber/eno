@@ -18,6 +18,7 @@ import { getVisaShopSeller, isVisaShopListing } from '@/lib/visa-shop'
 import { VISA_SUBCATEGORY_SLUG, takesOffers, paysSalary } from '@/lib/taxonomy'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { startVisaDmFlow } from '@/lib/visa/dm-flow'
+import { cutText } from '@/lib/feed-text'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -65,7 +66,7 @@ export const POST = route(
   if (!listingId) throw new ApiError('missing_listing', 400)
   // Optional first message — lets the composer create the thread AND send in one
   // round trip (snappier; the message side effects live in insertMessage).
-  const initialMessage = String(body.message || '').trim().slice(0, 2000)
+  const initialMessage = cutText(String(body.message || '').trim(), 2000)
   // Optional STRUCTURED first offer (kind='offer' → renders as an offer card,
   // identical to in-thread offers) with an optional note alongside it.
   const rawAmount = Number(body.offerAmount)
@@ -457,7 +458,7 @@ export const POST = route(
           const threads = await db.conversation.findMany({ where: { listingId }, select: { id: true }, take: 2 })
           if (threads.length !== 1) return
           const title = 'First interested buyer!'
-          const body = `"${listingTitle.slice(0, 80)}" just got its first message — reply quickly to keep them.`
+          const body = `"${cutText(listingTitle, 80)}" just got its first message — reply quickly to keep them.`
           await db.notification.create({
             data: { recipientId: sellerProfileId, type: 'milestone', title, body, conversationId: newConvoId, listingId },
           })

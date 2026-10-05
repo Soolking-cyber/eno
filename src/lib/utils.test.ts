@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { cn } from './utils'
+import { cn, getInitials } from './utils'
 
 /**
  * THE Z LADDER'S NAMES ARE A tailwind-merge GROUP (D-Z, 2026-09-29). Without the extension in
@@ -45,5 +45,43 @@ describe('cn — the house curves', () => {
     const curves = [...block![1].matchAll(/--ease-([a-z-]+):/g)].map((m) => m[1])
     expect(curves.length).toBeGreaterThan(0)
     for (const c of curves) expect(cn('ease-linear', `ease-${c}`), c).toBe(`ease-${c}`)
+  })
+})
+
+/**
+ * AVATAR INITIALS (break-ui, 2026-10-05): first + last word, whole graphemes, never an emoji half.
+ * Every value is a real naming shape from the break-ui catalog, not filler.
+ */
+describe('getInitials', () => {
+  it.each([
+    ['Nguyễn Văn An', 'NA'], // was "NV" — shared by a third of the country
+    ['Đặng Thị Ngọc Hân', 'ĐH'], // was "ĐT" — every "… Thị …" name
+    ['Aleksandra Wiśniewska-Kowalczyk', 'AW'],
+    ['Christopher Alexander Montgomery III', 'CM'], // the suffix is not the surname (not "CI")
+    ['Jo', 'J'],
+    ['J', 'J'],
+    ['dana', 'D'],
+    ['Ólafur Darri Ólafsson', 'ÓÓ'],
+    ['王秀英', '王'], // written without spaces: one word, one initial
+    ['  Sam   Lee ', 'SL'], // was "" — an empty circle
+    ['🦊 Fox', 'F'], // was "�F" — half a surrogate pair
+    ['👩🏽‍💻 Priya', 'P'], // a ZWJ emoji is skipped whole
+    ['ศุภชัย ใจดี', 'ศุจ'], // whole graphemes (ศ + its below-vowel ุ); the leading vowel ใ is written first but is not the initial
+    ['María José de la Cruz y Fernández', 'MF'],
+    ['Lan V.', 'LV'], // a Vietnamese surname initial, not a suffix
+    ['Studio V', 'SV'], // a shop name
+    ['Studio III', 'SI'], // two words: the last one stays
+    ['John Smith Jr', 'JS'],
+    ['ßeta Müller', 'SM'], // ß uppercases to SS — one letter per initial
+    ['क्षमा शर्मा', 'कश'], // no dangling virama to fuse with the surname's initial
+    ['សុខា ស្រីពៅ', 'សុស'], // Khmer: the vowel sign stays, the coeng (subscript joiner) goes
+  ])('%s → %s', (name, expected) => {
+    expect(getInitials(name)).toBe(expected)
+  })
+  it('nothing usable is "?", never an empty circle', () => {
+    expect(getInitials('')).toBe('?')
+    expect(getInitials('   ')).toBe('?')
+    expect(getInitials(null)).toBe('?')
+    expect(getInitials('🦊')).toBe('?')
   })
 })

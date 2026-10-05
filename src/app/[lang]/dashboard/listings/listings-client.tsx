@@ -9,6 +9,7 @@ import { useDashboard } from '@/hooks/use-dashboard'
 import { ListChecks } from '@/components/ui/icons'
 import { timeAgo } from '@/lib/types'
 import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-row'
+import { formatInteger, moneyLocale } from '@/lib/vnd'
 import { DashboardFetchError } from '@/components/marketplace/dashboard-fetch-error'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Segmented } from '@/components/ui/segmented'
 import { Alert } from '@/components/ui/alert'
 
+
+const ROWS_STEP = 60
 /** One <DashboardListingRow> placeholder, built from the ROW'S OWN box model rather than a
  *  guessed height — that is what makes it right at every width.
  *
@@ -84,6 +87,8 @@ function StatsGridSkeleton() {
 export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { user, loading } = useAuth()
   const { tr, lang } = useLanguage()
+  // Grouped like every other count in the app (break-ui, 2026-10-05): the tiles printed "1284000 / 12841".
+  const grouped = (v: number) => formatInteger(v, moneyLocale(lang))
   const router = useRouter()
   const { dash: cachedDash, refresh, error } = useDashboard()
   /**
@@ -104,6 +109,11 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
   // enough to be worth filtering). 'active' includes a held (unverified) listing — its chip reads
   // "Held" but it is still status:'active'.
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'sold' | 'hidden'>('all')
+  // ⚠️ ROWS RENDER IN PAGES OF ROWS_STEP (break-ui, 2026-10-05): the dashboard payload carries EVERY
+  // non-removed listing (core/dashboard.ts), and a thousand DashboardListingRows took 38–52s to mount
+  // in the harness. Every filter change starts the list at one page again — reset in the change handler,
+  // not an effect, and not remembered per filter (codex: coming BACK to an expanded tab re-mounted it all).
+  const [limit, setLimit] = useState(ROWS_STEP)
 
   useEffect(() => {
     if (!loading && !user) router.replace('/signin?next=/dashboard/listings')
@@ -187,10 +197,10 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
           the sections are the dashboard, and market info belongs to My listings). */}
       {!dash ? (stuck ? null : <StatsGridSkeleton />) : (
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <div className="rounded-xl bg-tint px-3 py-3"><p className="text-lg font-bold tabular-nums">{dash.stats.activeCount ?? dash.listings.filter((l) => l.status === 'active').length}</p><p className="text-xs text-body">{tr('Active listings', 'Tin đang đăng')}</p></div>
-          <Link href="/messages" className="press rounded-xl bg-tint px-3 py-3 transition-colors hover:bg-muted"><p className="text-lg font-bold tabular-nums">{dash.stats.unreadMessages}</p><p className="text-xs text-body">{tr('Unread messages', 'Tin nhắn chưa đọc')}</p></Link>
-          <div className="rounded-xl bg-tint px-3 py-3"><p className="text-lg font-bold tabular-nums">{dash.stats.saves ?? 0}</p><p className="text-xs text-body">{tr('Saves', 'Lượt lưu')}</p></div>
-          <div className="rounded-xl bg-tint px-3 py-3"><p className="text-lg font-bold tabular-nums">{dash.stats.totalViews} / {dash.stats.totalLeads}</p><p className="text-xs text-body">{tr('Views / leads', 'Lượt xem / liên hệ')}</p></div>
+          <div className="rounded-xl bg-tint px-3 py-3"><p className="text-lg font-bold tabular-nums">{grouped(dash.stats.activeCount ?? dash.listings.filter((l) => l.status === 'active').length)}</p><p className="text-xs text-body">{tr('Active listings', 'Tin đang đăng')}</p></div>
+          <Link href="/messages" className="press rounded-xl bg-tint px-3 py-3 transition-colors hover:bg-muted"><p className="text-lg font-bold tabular-nums">{grouped(dash.stats.unreadMessages ?? 0)}</p><p className="text-xs text-body">{tr('Unread messages', 'Tin nhắn chưa đọc')}</p></Link>
+          <div className="rounded-xl bg-tint px-3 py-3"><p className="text-lg font-bold tabular-nums">{grouped(dash.stats.saves ?? 0)}</p><p className="text-xs text-body">{tr('Saves', 'Lượt lưu')}</p></div>
+          <div className="rounded-xl bg-tint px-3 py-3"><p className="text-lg font-bold tabular-nums">{grouped(dash.stats.totalViews ?? 0)} / {grouped(dash.stats.totalLeads ?? 0)}</p><p className="text-xs text-body">{tr('Views / leads', 'Lượt xem / liên hệ')}</p></div>
         </div>
       )}
       <div className="mt-6">
@@ -231,7 +241,7 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
                   className="mb-3"
                   aria-label={tr('Filter listings by status', 'Lọc tin theo trạng thái')}
                   value={statusFilter}
-                  onValueChange={setStatusFilter}
+                  onValueChange={(v) => { setStatusFilter(v); setLimit(ROWS_STEP) }}
                   options={[
                     { value: 'all', label: tr('All', 'Tất cả') },
                     { value: 'active', label: tr('Active', 'Đang đăng') },
@@ -244,9 +254,14 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
                 <p className="py-10 text-center text-sm text-muted-foreground">{tr('No listings in this filter.', 'Không có tin nào phù hợp bộ lọc.')}</p>
               ) : (
                 <div className="space-y-2.5">
-                  {shown.map((l) => (
+                  {shown.slice(0, limit).map((l) => (
                     <DashboardListingRow key={l.id} listing={l} onChanged={refresh} />
                   ))}
+                  {shown.length > limit && (
+                    <Button variant="outline" className="w-full" onClick={() => setLimit(limit + ROWS_STEP)}>
+                      {tr('Show {n} more', 'Xem thêm {n} tin').replace('{n}', () => grouped(Math.min(ROWS_STEP, shown.length - limit)))}
+                    </Button>
+                  )}
                 </div>
               )}
             </>
@@ -282,7 +297,11 @@ function AvailabilityButton({ dash, tr, lang }: {
   const overdue = !lastReviewed || nowTick - lastReviewed > 3 * 864e5
   return (
     <div className="mt-4">
-      <Button variant="bare" size="none" asChild>
+      {/* ON THE PRIMITIVE, not the Link (break-ui, 2026-10-05): ui/button's base carries `whitespace-nowrap`
+          and `justify-center`, and an asChild child's classes are CONCATENATED, not merged (CLAUDE.md) — only
+          <Button className> goes through tailwind-merge. Without the wrap, "Xác nhận còn hàng · Chưa xác
+          nhận lần nào" pushed the whole dashboard to 342px on a 320px phone. */}
+      <Button variant="bare" size="none" asChild className="max-w-full flex-wrap justify-start whitespace-normal text-left">
         <Link
           href="/dashboard/availability"
           className={

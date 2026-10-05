@@ -20,7 +20,7 @@ import { isBookingCategory } from '@/lib/affiliate-kind'
 import { cardHidesTrust } from '@/lib/linked-seller'
 import { rentalCheckApplies } from '@/lib/rental-check/shared'
 import { Badge as UiBadge } from '@/components/ui/badge'
-import { formatMoneyFull, moneyLocale, dropPercent } from '@/lib/vnd'
+import { formatMoneyFull, moneyLocale, dropPercent, HUGE_VND } from '@/lib/vnd'
 import { CategoryIcon } from './category-icons'
 import { cardSlots, isSwipe } from '@/lib/card-slots'
 import { isMockImageUrl } from '@/lib/listing-image'
@@ -312,6 +312,11 @@ function ListingCardImpl({
   // A live price-drop already signals "cheap" — don't also stack the below-market chip
   // (redundant, and it crowds the price row on a narrow card).
   const hasDrop = listing.prevPrice != null && !!dropPercent(listing.prevPrice, listing.price)
+  // A REAL drop's price and struck "was" price share ONE format: when the old price reached HUGE_VND and the
+  // new one is still 1 tỷ+, both read in tỷ (price.tsx `compactAbove`) — so a drop across 10 tỷ does not set
+  // words beside digits. A drop below 1 tỷ (in practice a typo fix) keeps each figure in its own form. Only
+  // with a visible drop — a stale prevPrice must not change how a lone price reads.
+  const pairCompactAbove = hasDrop && listing.prevPrice! >= HUGE_VND && listing.price >= 1_000_000_000 ? 1_000_000_000 : HUGE_VND
 
   /**
    * ⛔ A TAPPED CARD HOLDS ITS PRESS UNTIL THE NEXT SCREEN PAINTS. `onOpen` is a router push, and
@@ -1153,8 +1158,12 @@ function ListingCardImpl({
               tiết" (rentals-09) — truncating, so the row stays one line and the card keeps its height.
               `fabAvoid`: the floating support mark fades over the figure rather than covering it
               (home-03; the owner's 09-25 yield model) — on the figure, never the full-width row. */}
+          {/* `compact` (break-ui, 2026-10-05): 10 billion đồng and up reads "95 tỷ đ" here — at 320px the
+              API's ceiling, 1e12, painted its digits straight into the neighbouring card's price. */}
           <Price
             native
+            compact
+            compactAbove={pairCompactAbove}
             fabAvoid
             price={listing.price}
             currency={listing.currency}
@@ -1179,7 +1188,7 @@ function ListingCardImpl({
               `fabAvoid`: being the only place the drop is stated (above), it is a value the support
               mark must not cover either. */}
           {hasDrop && (
-            <Price native fabAvoid price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" className="whitespace-nowrap text-2xs font-medium text-ink-4 line-through" approxClassName="text-3xs" />
+            <Price native compact compactAbove={pairCompactAbove} fabAvoid price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" className="whitespace-nowrap text-2xs font-medium text-ink-4 line-through" approxClassName="text-3xs" />
           )}
         </span>
 

@@ -55,6 +55,21 @@ export function ChatSendButton({ className, onClick, ...props }: React.ButtonHTM
  *  here — every native chat app lets you long-press a message to copy it (an address, a
  *  price, a Zalo handle). This opts the bubble back in, exactly like the listing
  *  description and the offer card in the text thread already do. */
+/**
+ * The DISPLAY form of a message's line breaks (opus, 2026-10-05): `whitespace-pre-line` keeps an address's
+ * lines, but "a" + 1,997 newlines + "b" passes the 2,000-char cap and would render ~2,000 lines tall in the
+ * other person's thread. CR/CRLF and U+2028/U+2029 (forced breaks in any white-space mode) count as line
+ * breaks, blank-line runs collapse to one blank line, and past
+ * MAX_LINES the rest flows on as spaces — a deliberate trade: a 31st line of an itemised list loses its break,
+ * so that no message can be thousands of lines tall. Display only — the stored text, and the string
+ * ContactChips scans, are untouched.
+ */
+const MAX_LINES = 30
+function shownLines(text: string): string {
+  const lines = text.replace(/\r\n?|[\u2028\u2029]/g, '\n').replace(/\n{3,}/g, '\n\n').split('\n')
+  return lines.length <= MAX_LINES ? lines.join('\n') : `${lines.slice(0, MAX_LINES).join('\n')} ${lines.slice(MAX_LINES).join(' ')}`
+}
+
 export function MessageBubble({
   mine,
   failed,
@@ -86,7 +101,11 @@ export function MessageBubble({
   return (
     <div
       className={cn(
-        'allow-select rounded-2xl px-3.5 py-2 text-sm leading-relaxed',
+        // `[overflow-wrap:anywhere]` (break-ui, 2026-10-05): a pasted link or email has no break
+        // opportunity, so at 320px a Drive URL ran 584px inside a 230px bubble and the whole thread
+        // scrolled sideways (on a phone the locked thread cannot pan, so its tail was simply cut off).
+        // `anywhere` breaks only where nothing else fits — ordinary words wrap exactly as before.
+        'allow-select rounded-2xl px-3.5 py-2 text-sm leading-relaxed [overflow-wrap:anywhere]',
         // Received bubble: a subtle `tint` well. `bg-card` collapsed into the canvas in the flat
         // design pass (docs/design-language.md §3b), which left received messages with NO fill —
         // bare text on the page. `tint` restores the light-grey received-bubble well (the shape
@@ -97,7 +116,12 @@ export function MessageBubble({
       )}
     >
       {quote}
-      {children}
+      {/* `whitespace-pre-line` ON THE TEXT ONLY (break-ui, 2026-10-05): the composer sends Shift+Enter
+          newlines and the server keeps them, but `white-space: normal` folded a five-line address into
+          one run-on paragraph. pre-line keeps the newlines and still collapses runs of spaces. It wraps
+          the STRING here rather than at the call sites, so `children` stays a bare string for the
+          ContactChips scanner below — which only fires for string children. */}
+      {typeof children === 'string' ? <span className="whitespace-pre-line">{shownLines(children)}</span> : children}
       {typeof children === 'string' ? <ContactChips text={children} mine={mine} /> : null}
       {meta ? (
         /**

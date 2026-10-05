@@ -13,6 +13,7 @@ import { apiOk, apiAuthError } from '@/lib/api/respond'
 import { withIdempotency } from '@/lib/api/idempotency'
 import { parsePageParams, pageQuery, buildPage } from '@/lib/api/pagination'
 import { NOT_REMOVED } from '@/lib/listing-removed'
+import { cutText } from '@/lib/feed-text'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
     try { body = await req.json() } catch { return { status: 400, body: { error: { code: 'bad_request', message: 'Invalid JSON body.' } } } }
 
     const categorySlug = String(body.categorySlug || '').trim()
-    const title = String(body.title || '').trim().slice(0, 140)
+    const title = cutText(String(body.title || '').trim(), 140)
     // A job is paid a salary (`salaryM`, million ₫ / month): its price is derived from that and any
     // `price` sent is ignored, so none is required (taxonomy.ts paysSalary).
     const price = paysSalary(resolveListingType(categorySlug, body.listingType)) ? 0 : Number(body.price)

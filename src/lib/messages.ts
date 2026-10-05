@@ -25,6 +25,7 @@ import {
   RENTAL_CHECK_REQUEST_ID_RE, normaliseRentalContact, type AvailabilityRequestMeta,
 } from '@/lib/rental-check/shared'
 import { RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
+import { cutText } from '@/lib/feed-text'
 
 // ---------------------------------------------------------------------------
 // Structured message kinds
@@ -593,7 +594,7 @@ export function serializeMessage(
       ? {
           id: quoted.id,
           // The recall of the QUOTED message redacts the quote — see MESSAGE_ROW_SELECT.
-          body: quoted.deletedAt ? '' : quoted.body.slice(0, 160),
+          body: quoted.deletedAt ? '' : cutText(quoted.body, 160),
           mine: quoted.senderProfileId === viewerProfileId,
           deleted: !!quoted.deletedAt,
         }
@@ -984,7 +985,7 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
   const selfThread = convo.buyerProfileId === senderId && convo.sellerProfileId === senderId
   const convoUpdate = {
     lastMessageAt: new Date(),
-    lastMessageText: previewText.slice(0, 140),
+    lastMessageText: cutText(previewText, 140),
     ...(selfThread ? {} : iAmBuyer ? { sellerUnread: { increment: 1 } } : { buyerUnread: { increment: 1 } }),
   }
 
@@ -1105,7 +1106,7 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
           recipientId,
           type: 'offer',
           title: senderName,
-          body: notifText.slice(0, 140),
+          body: cutText(notifText, 140),
           actorName: senderName,
           conversationId: convo.id,
           listingId: convo.listingId,
@@ -1115,7 +1116,7 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
       // after the response flushes — never delays the send.
       after(() => sendPushToProfile(recipientId, {
         title: senderName,
-        body: notifText.slice(0, 140),
+        body: cutText(notifText, 140),
         url: `/messages/${convo.id}`,
         tag: `convo-${convo.id}`,
       }))
@@ -1150,7 +1151,7 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
       // one try, and for a request nobody is watching the thread for, that is both paths at once).
       after(() => sendPushToProfile(recipientId, {
         title,
-        body: body.slice(0, 140),
+        body: cutText(body, 140),
         url: `/messages/${convo.id}`,
         tag: `convo-${convo.id}`,
       }))
@@ -1159,7 +1160,7 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
           recipientId,
           type,
           title,
-          body: body.slice(0, 140),
+          body: cutText(body, 140),
           actorName: senderName,
           conversationId: convo.id,
         },
@@ -1186,7 +1187,7 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
           // `deletedAt: null` was a condition of accepting the pointer above, so this branch is
           // unreachable today. It is written anyway because the redaction rule must not depend on
           // which path built the object — that is exactly how a leak gets reintroduced.
-          body: message.replyTo.deletedAt ? '' : message.replyTo.body.slice(0, 160),
+          body: message.replyTo.deletedAt ? '' : cutText(message.replyTo.body, 160),
           mine: message.replyTo.senderProfileId === senderId,
           deleted: !!message.replyTo.deletedAt,
         }

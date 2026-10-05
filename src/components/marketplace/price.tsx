@@ -2,7 +2,7 @@
 
 import { useLanguage, useTr } from '@/context/language-context'
 import { useCurrency, vndPerUsd } from '@/context/currency-context'
-import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { formatMoneyFull, hugeVnd, HUGE_VND, moneyLocale } from '@/lib/vnd'
 import { formatMoney } from '@/lib/currencies'
 import { priceUnitSuffix } from '@/lib/price-unit'
 import { cn } from '@/lib/utils'
@@ -54,7 +54,14 @@ type Props = {
   fabAvoid?: boolean
   currency: string
   priceUnit: string
+  /** NARROW SURFACES ONLY (cards, dashboard rows, the chat strip): an amount of HUGE_VND or more shows
+   *  in the reader's scale words — "95 tỷ đ" / "95 billion đ" / "950亿 đ" (src/lib/vnd.ts hugeVnd). Below that, and everywhere
+   *  without the prop (the PDP), every digit shows as before. */
   compact?: boolean
+  /** With `compact`: the threshold, default HUGE_VND. A PAIR shown together (the card's price and its struck
+   *  "was" price) passes one shared threshold so a drop across 10 tỷ never mixes "10,04 tỷ đ" with
+   *  "9.990.000.000 đ". */
+  compactAbove?: number
   /** Dual-currency approximation (user decision 2026-07-13): true = always show,
    *  'sm' = only at sm+ (one-line rows that fight for phone width), false = off.
    *
@@ -118,8 +125,7 @@ function FigureRun({ fabAvoid, children }: { fabAvoid?: boolean; children: React
   return fabAvoid ? <span data-fab-avoid="">{children}</span> : <>{children}</>
 }
 
-export function Price({ price, currency, priceUnit, compact = false, dual = true, unit: showUnit = true, native = false, className, approxClassName, listingType, linked, jobMeta, fabAvoid }: Props) {
-  void compact // amounts are always shown in full now
+export function Price({ price, currency, priceUnit, compact = false, compactAbove = HUGE_VND, dual = true, unit: showUnit = true, native = false, className, approxClassName, listingType, linked, jobMeta, fabAvoid }: Props) {
   const { lang, tr } = useLanguage()
   const { currency: displayCur, rates, ratesPending, format } = useCurrency()
   const locale = moneyLocale(lang)
@@ -159,6 +165,13 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
       : jobSlot && jobMeta ? jobMeta
       : noFigure ? (linked === false ? tr('Salary: negotiable', 'Lương: thỏa thuận') : tr('Salary: see details', 'Lương: xem chi tiết'))
       : tr('Free', 'Miễn phí'))
+    // `compact`: a narrow surface shows HUGE_VND+ in words ("95 tỷ đ") — only while the figure shown is
+    // đồng (`native`, or a VND viewer). A viewer in USD/EUR/KRW/… keeps their own currency (opus, 2026-10-05).
+    // hugeVnd prints a whole number of millions exactly; an odd figure is rounded to the million and MARKED "≈",
+    // so a card never states a falsely exact amount, yet still never paints a 12-digit run into the next card
+    // (opus, two rounds, 2026-10-05). The PDP shows the exact digits either way.
+    : compact && currency === '₫' && price >= compactAbove && (native || displayCur === 'VND')
+      ? (price % 1_000_000 === 0 ? hugeVnd(price, lang) : `≈ ${hugeVnd(Math.round(price / 1_000_000) * 1_000_000, lang)}`)
     : currency === '₫' && !native ? format(price, locale) : formatMoneyFull(price, currency, locale)
   // ⚠️ NO LEADING SPACE — the space that separates the suffix from the amount is rendered as its
   // own text node OUTSIDE both nowrap spans, because that space is the ONLY break opportunity the
@@ -180,10 +193,14 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   // `dual`/`unit` of 'fit' are truthy here on purpose: the element is always RENDERED and hidden
   // by a container query in CSS. Deciding it in JS would need the container's width, which is not
   // known at render and would tear on resize.
+  const perUsd = vndPerUsd(rates)
   if (dual !== false && currency === '₫' && price > 0) {
     // `native` already leads with đồng, so a USD viewer gets "đ ≈ $", never the đồng figure twice.
     if (displayCur === 'USD' && !native) approx = formatMoneyFull(price, '₫', locale)
-    else if (vndPerUsd(rates)) approx = formatMoney(price, 'USD', rates, locale)
+    // An estimate that rounds to $0 says nothing — a "1 đ, contact me" price read "≈ $0" (break-ui,
+    // 2026-10-05). Under half a dollar there is no approximation; the branch still CLAIMS the rate case,
+    // so a tiny price never falls through to the reserve below.
+    else if (perUsd) { if (price / perUsd >= 0.5) approx = formatMoney(price, 'USD', rates, locale) }
     // ⛔ THIS BRANCH RENDERS A FIGURE THAT IS NEVER SHOWN, AND THAT IS THE ENTIRE POINT.
     // /api/fx is deferred to an idle slot for the default VND viewer, so the "≈ $x" slot used to
     // appear ~620ms after paint and push everything under it down a line: on the PDP the whole
@@ -219,7 +236,7 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
     // this code — the same viewer previously went from NO span to the đồng string, so the reserve
     // makes their jump smaller, not larger — and closing it needs the display currency in the SSR
     // response, not a better placeholder. Noted so the next reader does not re-derive it.
-    else if (ratesPending) { approx = formatMoney(price, 'USD', FX_RESERVE_RATES, locale); approxReserved = true }
+    else if (ratesPending && price * FX_RESERVE_RATES.USD >= 0.5) { approx = formatMoney(price, 'USD', FX_RESERVE_RATES, locale); approxReserved = true }
   }
   // ⛔ THE SECOND FIGURE IS NOT ALWAYS THE ESTIMATE, AND 'fit' MUST NOT HIDE IT WHEN IT IS NOT.
   // Read the branch above: for a viewer whose display currency is USD, `amount` is the CONVERTED

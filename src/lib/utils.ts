@@ -38,10 +38,41 @@ export function cn(...inputs: ClassValue[]) {
  *  reach the Tailwind token — e.g. the fallback background of an initials avatar. */
 export const BRAND_BLUE = '#0a66c2'
 
-/** "Nguyen Van A" → "NA" — the app-wide avatar-initials rule (first letters of the
- *  first two words, uppercased). Was copy-pasted in five components. */
+/** A trailing generational suffix is not a surname: "… Montgomery III" is CM, not CI. ⚠️ Never a bare "V":
+ *  "Lan V." abbreviates Vũ/Võ, and "Studio V" is a shop (codex + opus, 2026-10-05). Applied only from three
+ *  words up, so a two-word shop name like "Studio III" keeps its last word. */
+const NAME_SUFFIX = /^(jr|sr|ii|iii|iv)\.?$/i
+const LETTER = /[\p{L}\p{N}]/u
+/**
+ * A word's initial: its first letter or digit WITH any combining marks after it (Thai "ศุ", a decomposed
+ * "Â"), skipping a Thai/Lao leading vowel — those are written BEFORE the consonant they follow, so "ใจดี"'s
+ * initial is จ. Emoji and punctuation are never an initial.
+ * ⚠️ A REGEX, NOT Intl.Segmenter (opus, 2026-10-05): Firefox 111–124 is inside the browserslist floor and has
+ * no Segmenter, so a server-rendered avatar and that client would disagree — a hydration mismatch. Letter +
+ * combining marks is the part of grapheme clustering initials need, and it is identical on every runtime.
+ */
+const INITIAL = /(?![\u0E40-\u0E44\u0EC0-\u0EC4])[\p{L}\p{N}]\p{M}*/u
+/** Viramas (Devanagari ्, Bengali ্, Tamil ், Khmer coeng ្, Myanmar ္ …) join a consonant to the NEXT one; at
+ *  the end of an initial they would fuse it with the surname's initial into a conjunct (codex, 2026-10-05). */
+const TRAILING_VIRAMA = /[\u094D\u09CD\u0A4D\u0ACD\u0B4D\u0BCD\u0C4D\u0CCD\u0D4D\u0DCA\u0E3A\u1039\u103A\u17D2]+$/u
+const initialOf = (word: string) => (word.match(INITIAL)?.[0] ?? '').replace(TRAILING_VIRAMA, '')
+
+/** "Nguyễn Văn An" → "NA" — the app-wide avatar-initials rule: the first letters of the FIRST and LAST
+ *  word, uppercased (break-ui, 2026-10-05). It used to take the first two words, so a third of the country
+ *  ("Nguyễn Văn …", "… Thị …") shared "NV"/"NT", every "Công Ty …" company read "CT", "🦊 Fox" printed a
+ *  broken half-emoji "�F", and leading spaces gave an empty circle. Now: whitespace runs collapse, words
+ *  with no letter (an emoji) are skipped, the initial is a letter with its combining marks, a generational
+ *  suffix is not the surname, a Thai/Lao leading vowel is skipped. One word (or CJK, written without
+ *  spaces) → one initial. Nothing usable → "?". */
 export function getInitials(name: string | null | undefined): string {
-  return (name || '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+  const words = (name ?? '').trim().split(/\s+/).filter((w) => LETTER.test(w))
+  if (words.length > 2 && NAME_SUFFIX.test(words[words.length - 1])) words.pop()
+  if (!words.length) return '?'
+  const first = initialOf(words[0])
+  const last = words.length > 1 ? initialOf(words[words.length - 1]) : ''
+  // Uppercase PER INITIAL and keep one letter: "ß" uppercases to "SS" (codex, 2026-10-05).
+  const up = (i: string) => i.toUpperCase().match(INITIAL)?.[0] ?? i
+  return up(first) + (last ? up(last) : '') || '?'
 }
 
 /** Privacy-safe stand-in for a missing display name: first 2 chars of the email

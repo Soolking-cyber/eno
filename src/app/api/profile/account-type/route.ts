@@ -12,6 +12,7 @@ import { ApiError, route } from '@/lib/api/handler'
 import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
 import { initialSellerTrust } from '@/lib/trust'
 import { refreshSellerPdps } from '@/lib/seller-pdp-refresh'
+import { cutText } from '@/lib/feed-text'
 
 export const runtime = 'nodejs'
 
@@ -64,9 +65,9 @@ export const POST = route(
   const accountType = String(body.accountType || '')
   if (!TYPES.has(accountType)) throw new ApiError('invalid_account_type', 400)
 
-  const displayName = String(body.displayName || '').trim().slice(0, 80) || profile.displayName || null
+  const displayName = cutText(String(body.displayName || '').trim(), 80) || profile.displayName || null
   const businessName = accountType === 'business'
-    ? (String(body.businessName || '').trim().slice(0, 120) || null)
+    ? (cutText(String(body.businessName || '').trim(), 120) || null)
     : null
   const phone = normalizePhone(String(body.phone || '')) || profile.phone || null
 
@@ -84,8 +85,8 @@ export const POST = route(
   //    is not re-typed). Validation mirrors src/lib/core/seller.ts EXACTLY (9–13
   //    digits — deliberately the editor's lenient range, launch policy: one rule,
   //    both doors). idNumber never renders publicly. ──
-  const legalName = String(body.legalName || '').trim().slice(0, 160) || null
-  const legalAddress = String(body.legalAddress || '').trim().slice(0, 240) || null
+  const legalName = cutText(String(body.legalName || '').trim(), 160) || null
+  const legalAddress = cutText(String(body.legalAddress || '').trim(), 240) || null
   const idDigits = String(body.idNumber || '').replace(/\D/g, '')
   if (idDigits && (idDigits.length < 9 || idDigits.length > 13)) {
     throw new ApiError('bad_id_number', 400)

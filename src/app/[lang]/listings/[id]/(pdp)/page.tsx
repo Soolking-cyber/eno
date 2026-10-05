@@ -981,7 +981,8 @@ export default async function ListingPage({ params }: Props) {
                     support bubble rests over the end of the title and the posted time on first paint (si-11,
                     real iOS) — it now yields there (back-to-top.tsx OBSTACLES; a wide value is yielded to,
                     never risen above). A machine-translated title gets "Translated · See original" under it. */}
-                <LocalizedTitleHeading className="text-lg font-bold leading-snug text-foreground" title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} />
+                {/* `[overflow-wrap:anywhere]` (break-ui, 2026-10-05): a title with no spaces in it must not widen the page. */}
+                <LocalizedTitleHeading className="text-lg font-bold leading-snug text-foreground [overflow-wrap:anywhere]" title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} />
 
                 {/* Metadata — ONE tightly-packed subdued row: brand · condition · specs · location ·
                     posted · social proof; flex-wrap spills to a second row only when it must.
@@ -996,8 +997,12 @@ export default async function ListingPage({ params }: Props) {
                       {brand.name}
                     </Badge>
                   )}
+                  {/* `max-w-full whitespace-normal` (break-ui, 2026-10-05): the condition is free text up to 60
+                      characters (core/listings.ts), and as a nowrap pill "Như mới 99%, đã thay pin chính hãng, còn
+                      bảo hành 6 tháng" was 369px wide on a 320px phone. It wraps inside the row now — the words
+                      are the seller's own and the warranty is in them, so they are not truncated. */}
                   {listing.condition && (
-                    <Badge data-fab-avoid size="md" className="font-semibold text-foreground">
+                    <Badge data-fab-avoid size="md" className="max-w-full whitespace-normal font-semibold text-foreground [overflow-wrap:anywhere]">
                       <Tr text={listing.condition === 'new' ? 'New' : listing.condition === 'used' ? 'Used' : listing.condition} />
                     </Badge>
                   )}
@@ -1243,7 +1248,11 @@ export default async function ListingPage({ params }: Props) {
                       `data-fab-avoid` on every value: the floating support mark yields (fades) when it
                       would sit over one — these right-aligned values run into the corner it rests in,
                       and plain text is otherwise never an obstacle (back-to-top.tsx OBSTACLES). */}
-                  <dl className="divide-y divide-border text-sm">
+                  {/* `[overflow-wrap:anywhere]` + a shrinkable VALUE (break-ui, 2026-10-05) — on the dd only: inherited by the
+                      dt it would lower the label's min-content and split "Dung lượng" mid-word (opus). An imported attribute
+                      with no spaces ("256GB-ChínhHãngVN/A-KhôngLock") pushed the row past a 320px screen;
+                      the Seller-information block below already does this (seller-info.tsx). */}
+                  <dl className="divide-y divide-border text-sm [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
                     {[...numericSpecs, ...detailOnlySpecs].map((s) => (
                       <div key={s.label} className="flex items-start justify-between gap-4 py-2.5">
                         <dt className="text-muted-foreground"><Tr text={s.label} /></dt>

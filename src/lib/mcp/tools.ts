@@ -21,6 +21,7 @@ import { PublishBlockedError } from '@/lib/publish-guard'
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
 import { NOT_REMOVED } from '@/lib/listing-removed'
 import { isStorefrontGone } from '@/lib/storefront-gone'
+import { cutText } from '@/lib/feed-text'
 
 // ── Partner MCP tools ─────────────────────────────────────────────────────────────
 // Each tool is a thin, shop-scoped wrapper over the SAME cores the /api/v1 routes use.
@@ -133,7 +134,7 @@ export const TOOLS: McpTool[] = [
       salaryM: z.number().int().nonnegative().optional().describe('A job (category "jobs"): the monthly salary in million VND; omit it when the pay is agreed with the candidate. A job\'s stored price is derived from it, and a job takes no offers.'),
     }),
     handler: async (auth, args) => {
-      const title = String(args.title || '').trim().slice(0, 140)
+      const title = cutText(String(args.title || '').trim(), 140)
       // A job is paid a salary: its price is derived from `salaryM` in createListingCore (taxonomy.ts
       // paysSalary), so it needs no price — one it sends is passed on and read as the salary there.
       const price = paysSalary(resolveListingType(String(args.categorySlug || ''), args.listingType)) ? 0 : Number(args.price)

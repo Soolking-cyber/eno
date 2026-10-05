@@ -21,6 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { copyText } from '@/lib/copy-text'
 import { isListingImageUrl, isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
+import { formatInteger, moneyLocale } from '@/lib/vnd'
 
 // One row in the seller dashboard's listings table. Lifecycle actions are
 // OPTIMISTIC: the row's status/availability flips INSTANTLY (local override), the
@@ -60,7 +61,15 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
         ? { label: tr('Sold', 'Đã bán'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
         : status === 'hidden'
           ? { label: tr('Hidden', 'Đã ẩn'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
-          : { label: tr('Live', 'Đang hiển thị'), variant: 'brand', className: 'text-2xs', cls: 'bg-accent text-accent-foreground' }
+          // ⚠️ "Live" ONLY FOR `active` (break-ui, 2026-10-05). It used to be the fallback, so an `expired`
+          // (the apartment freshness rule) or `stale` row read "Live" to its seller. Those statuses are written
+          // to ownerless import sellers today — but a claimed import storefront would carry them into a real
+          // dashboard, and a status the row does not know must never claim the listing is public.
+          : status === 'active'
+            ? { label: tr('Live', 'Đang hiển thị'), variant: 'brand', className: 'text-2xs', cls: 'bg-accent text-accent-foreground' }
+            : status === 'expired'
+              ? { label: tr('Expired', 'Hết hạn'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
+              : { label: tr('Not live', 'Không hiển thị'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
 
   // Unified tinted action chips (owner 2026-07-17): every action is the SAME soft tint chip with
   // even spacing — consistent, forum-scale (text-sm label + size-4 icon). The `border-transparent`
@@ -115,12 +124,14 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // step (h-3.5 beside text-xs) — size-4 read a step too loud against the 12px counts.
   const meta = (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-      <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{listing.views}</span>
+      {/* Grouped counts and a singular "lead" (break-ui, 2026-10-05): the row printed "12840 liên hệ" and
+          "1 leads". Vietnamese has no plural, so only the English string forks on 1. */}
+      <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{formatInteger(listing.views ?? 0, moneyLocale(lang))}</span>
       {/* Leads = chats started → the ONE Messages bubble (plain MessageSquare, frozen in the
           mobile tab bar §9) at meta size — never MessageSquareText, which forks the family. */}
-      <span className="inline-flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5" />{listing.contactCount} {tr('leads', 'liên hệ')}</span>
+      <span className="inline-flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5" />{formatInteger(listing.contactCount ?? 0, moneyLocale(lang))} {listing.contactCount === 1 ? tr('lead', 'liên hệ') : tr('leads', 'liên hệ')}</span>
       {listing.savedCount > 0 && (
-        <span className="inline-flex items-center gap-1"><Heart className="h-3.5 w-3.5" />{listing.savedCount} {tr('saved', 'đã lưu')}</span>
+        <span className="inline-flex items-center gap-1"><Heart className="h-3.5 w-3.5" />{formatInteger(listing.savedCount ?? 0, moneyLocale(lang))} {tr('saved', 'đã lưu')}</span>
       )}
       {/* Business tier only (series is fetched lazily for business dashboards and
           simply never passed otherwise) — the slot only exists once data arrived,

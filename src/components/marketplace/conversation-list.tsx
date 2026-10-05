@@ -23,7 +23,7 @@ import { CloseButton } from '@/components/ui/close-button'
 import { Input } from '@/components/ui/input'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
-import { timeAgo } from '@/lib/types'
+import { inboxTime } from '@/lib/types'
 import { isListingImageUrl, isMockImageUrl } from '@/lib/listing-image'
 
 // Borderless conversation list — the left pane of the desktop two-pane messenger
@@ -284,11 +284,17 @@ export function ConversationList() {
                       <span className="truncate text-sm font-bold text-foreground">{c.counterpart.name}</span>
                       {/* When, then how many — right-aligned the Zalo / Chợ Tốt way (inbox-02). The list is
                           client-fetched data, never server HTML, so a render-time clock cannot mismatch. */}
-                      <span className="flex shrink-0 items-center gap-1.5">
+                      {/* ⚠️ THE NAME ALWAYS KEEPS A SHARE OF THE ROW (break-ui, 2026-10-05). At 320px an
+                          uncapped "100000" badge beside "11 tháng trước" took all of it and the person's
+                          name vanished entirely. Now the count caps at 99+ (the account tab's cap), old
+                          times become a short date (inboxTime), and the group cannot pass 60% of the
+                          row — past that the TIME ellipsizes, never the name. Measured at 320px: the
+                          name keeps ~34% (the remaining 40% less the gap), about six letters. */}
+                      <span className="flex max-w-[60%] shrink-0 items-center gap-1.5">
                         {c.lastMessageAt && (
-                          <time dateTime={c.lastMessageAt} className="text-xs tabular-nums text-muted-foreground">{timeAgo(c.lastMessageAt, lang)}</time>
+                          <time dateTime={c.lastMessageAt} className="truncate text-xs tabular-nums text-muted-foreground">{inboxTime(c.lastMessageAt, lang)}</time>
                         )}
-                        {c.unread > 0 && <Badge variant="counter-brand" size="count" className="h-5 min-w-5 px-1.5">{c.unread}</Badge>}
+                        {c.unread > 0 && <Badge variant="counter-brand" size="count" className="h-5 min-w-5 shrink-0 px-1.5">{c.unread > 99 ? '99+' : c.unread}</Badge>}
                       </span>
                     </div>
                     {/* ⚠️ THE LABEL EXISTS BECAUSE THE COUNTERPART NAME CANNOT DISTINGUISH THESE.

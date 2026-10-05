@@ -49,6 +49,7 @@ import type { DeleteHoldReason } from '@/lib/delete-hold-copy'
 import { LISTING_REMOVED, NOT_REMOVED } from '@/lib/listing-removed'
 import { tombstoneListingsTx } from '@/lib/core/listing-tombstone'
 import { POSTED_FACET_KEY } from '@/lib/posted-filter'
+import { cutText } from '@/lib/feed-text'
 
 // ── Listing write-path "cores" (Phase 0 of the Partner API) ──────────────────────
 // These hold the business logic for mutating a listing, decoupled from HOW the caller
@@ -113,7 +114,7 @@ export function sanitizeAttributes(raw: unknown): string | null {
       // `posted` is a filter-only facet (src/lib/posted-filter.ts) that reads `postedAt`; a stored
       // copy would be dead state nothing reads, so it is never kept.
       if (k === POSTED_FACET_KEY) continue
-      if (typeof v === 'string' && v && /^[a-z0-9_]+$/i.test(k)) clean[k] = v.slice(0, 40)
+      if (typeof v === 'string' && v && /^[a-z0-9_]+$/i.test(k)) clean[k] = cutText(v, 40)
     }
   }
   return Object.keys(clean).length ? JSON.stringify(clean) : null
@@ -521,9 +522,9 @@ export async function updateListingCore(
   const derivesSalaryPrice = salaryPaid && current.affiliateUrl == null &&
     (nextType !== current.listingType || current.priceUnit === 'VND/month')
 
-  const title = body.title !== undefined ? String(body.title).trim().slice(0, 140) : undefined
-  const description = body.description !== undefined ? String(body.description).trim().slice(0, 5000) : undefined
-  const contactName = body.contactName !== undefined ? String(body.contactName).trim().slice(0, 80) : undefined
+  const title = body.title !== undefined ? cutText(String(body.title).trim(), 140) : undefined
+  const description = body.description !== undefined ? cutText(String(body.description).trim(), 5000) : undefined
+  const contactName = body.contactName !== undefined ? cutText(String(body.contactName).trim(), 80) : undefined
 
   /**
    * ⛔ CLEAR THE *Vi COUNTERPART ONLY WHEN THE PRIMARY ACTUALLY CHANGED, NOT WHENEVER IT IS SENT.
@@ -558,8 +559,28 @@ export async function updateListingCore(
 
   if (title !== undefined) {
     if (title.length < 3) return { ok: false, code: 400, error: 'title_too_short' }
-    data.title = title
-    if (!sameText(title, current.title, 140)) data.titleVi = null // stale now; display falls back to the new title (re-warmed below)
+    /**
+     * ⛔ AN UNCHANGED TITLE IS NOT RE-CUT TO 140 (break-ui, 2026-10-05). The column is unbounded and
+     * importers write past the form's cap (180–200, some templates uncapped — e.g. import-partners.ts,
+     * job-listing.ts); the wizard ROUND-TRIPS the title, so a price-only edit of such a listing silently
+     * cut its title to 140. Compared UNCUT on both sides — `sameText` caps at 140, which is exactly what
+     * would call a 180-character title "the same" as its own cut. Only an EDITED title is held to 140.
+     */
+    // ⚠️ Normalised the way the wizard's <input type="text"> round-trips a value: it STRIPS line breaks (HTML
+    // value sanitisation) and imports carry them; plus NFC. Spaces are NOT collapsed — a seller fixing an
+    // imported double space must be able to save it (codex + opus, 2026-10-05).
+    const asTyped = (v: string) => v.normalize('NFC').replace(/[\r\n]+/g, '').trim()
+    const uncut = asTyped(String(body.title))
+    const stored = asTyped(current.title ?? '')
+    // Only an OVER-CAP title can lose data to the re-cut, so only that one is compared; a title within 140 is
+    // written as sent, exactly as before (an API caller removing an imported line break is a real write).
+    if (uncut.length <= 140 || uncut !== stored) {
+      data.title = title
+      // ⚠️ Exact and UNCAPPED here, not `sameText(…, 140)`: an edit past character 140 of an imported
+      // title stores the 140-char cut, which `sameText` would call "the same" as the old title's first
+      // 140 — leaving the OLD translation over a changed source (codex, 2026-10-05).
+      if (asTyped(title) !== stored) data.titleVi = null // stale now; display falls back to the new title (re-warmed below)
+    }
   }
   if (description !== undefined) {
     data.description = description
@@ -605,14 +626,14 @@ export async function updateListingCore(
     data.marketPosition = null
   }
   if (body.district !== undefined) {
-    const district = body.district ? String(body.district).trim().slice(0, 80) : null
+    const district = body.district ? cutText(String(body.district).trim(), 80) : null
     data.district = district
     // Don't stomp the listing's city with a hardcoded "Ho Chi Minh City" (wrong for
     // every non-HCMC listing). Use the new district as the display location; if it's
     // cleared, keep the existing location (a non-nullable column — never write null).
     data.location = district || current.location
   }
-  if (body.condition !== undefined) data.condition = body.condition ? String(body.condition).trim().slice(0, 60) : null
+  if (body.condition !== undefined) data.condition = body.condition ? cutText(String(body.condition).trim(), 60) : null
   // Price-negotiable toggle (edit): honored on the same edit path the wizard resubmits.
   // Same rule on EDIT, or "post as goods, switch category, enable offers" is a bypass.
   if (body.negotiable !== undefined) data.negotiable = current.category?.slug === 'services' || salaryPaid ? false : Boolean(body.negotiable)
@@ -713,7 +734,7 @@ export async function updateListingCore(
     )
   }
   // Precise pin from "use my current location".
-  if (body.city !== undefined && body.city) data.city = String(body.city).trim().slice(0, 80)
+  if (body.city !== undefined && body.city) data.city = cutText(String(body.city).trim(), 80)
   if (body.lat !== undefined) data.lat = parseGeoCoord(body.lat, 90)
   if (body.lng !== undefined) data.lng = parseGeoCoord(body.lng, 180)
 
@@ -732,7 +753,7 @@ export async function updateListingCore(
   // Model edit (product categories only) — kept alongside a brand.
   if (body.model !== undefined && categoryHasBrand(current.category.slug)) {
     const effectiveBrand = (data.brandSlug as string | null | undefined) ?? current.brandSlug
-    data.model = effectiveBrand && body.model ? (String(body.model).trim().slice(0, 60) || null) : null
+    data.model = effectiveBrand && body.model ? (cutText(String(body.model).trim(), 60) || null) : null
   }
 
   // Range specs (year/mileage/engine) → clamped to the category's declared range.
@@ -1045,9 +1066,9 @@ export async function createListingCore(input: {
   // 'ignore' both mean "no video" here (only update distinguishes them).
   const parsedVideo = parseVideoField(body.video)
   const video: string | null = parsedVideo.action === 'set' ? parsedVideo.url : null
-  const district = body.district ? String(body.district).trim().slice(0, 80) : null
-  const city = body.city ? String(body.city).trim().slice(0, 80) : 'Ho Chi Minh City'
-  const location = body.location ? String(body.location).trim().slice(0, 120) : (district || city)
+  const district = body.district ? cutText(String(body.district).trim(), 80) : null
+  const city = body.city ? cutText(String(body.city).trim(), 80) : 'Ho Chi Minh City'
+  const location = body.location ? cutText(String(body.location).trim(), 120) : (district || city)
   // Optional precise pin from "use my current location" (validated to plausible ranges).
   const lat = parseGeoCoord(body.lat, 90)
   const lng = parseGeoCoord(body.lng, 180)
@@ -1057,11 +1078,11 @@ export async function createListingCore(input: {
   // missing photo / banned words / contact info in the text are REJECTED so the seller fixes
   // them (the wizard maps these codes to inline messages). Throws PublishBlockedError; the
   // caller turns it into an HTTP error. Pass → the listing goes live instantly.
-  const description = String(body.description || '').trim().slice(0, 5000)
+  const description = cutText(String(body.description || '').trim(), 5000)
   // The contact NAME is screened first and on its own, so "your name is an email"
   // reports as contact_in_name (fixable in Settings) instead of being folded into
   // contact_in_text, which tells the seller to edit a listing that is already clean.
-  const guardName = body.contactName ? String(body.contactName).trim().slice(0, 80) : null
+  const guardName = body.contactName ? cutText(String(body.contactName).trim(), 80) : null
   assertCleanContactName(guardName)
   // Services sell at the price stated: no offers, no urgency run.
   const fixedPriceOnly = categorySlug === 'services'
@@ -1179,7 +1200,7 @@ export async function createListingCore(input: {
     try { brandSlug = await resolveBrand(String(body.brand)) } catch { brandSlug = null }
   }
   // Specific model — only kept alongside a resolved brand.
-  const model = brandSlug && body.model ? (String(body.model).trim().slice(0, 60) || null) : null
+  const model = brandSlug && body.model ? (cutText(String(body.model).trim(), 60) || null) : null
 
   // Urgent-sale chip at posting. Quota-gated (max 2 concurrently urgent per seller) —
   // but NEVER fails the post over a chip: over quota, the listing is simply created
@@ -1198,7 +1219,7 @@ export async function createListingCore(input: {
   // is card/detail-rendered AND auto-syndicated to Telegram/Facebook, so a direct-
   // or partner-API caller could smuggle "Zalo 090… - bán súng đạn" past the gate —
   // 2026-07-06 launch audit; the UI wizard sends controlled geo names).
-  const conditionText = body.condition ? String(body.condition).trim().slice(0, 60) : null
+  const conditionText = body.condition ? cutText(String(body.condition).trim(), 60) : null
   assertCleanTexts([
     district, conditionText, model, city, location,
     body.brand ? String(body.brand) : undefined,

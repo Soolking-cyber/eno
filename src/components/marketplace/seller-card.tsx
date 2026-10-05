@@ -120,7 +120,8 @@ export function SellerCard({
       <span key="reviews" className="inline-flex items-center gap-1">
         <Star className="h-3.5 w-3.5 shrink-0 fill-rating text-rating" aria-hidden />
         <RatingValue value={rating} /> · <CountValue value={reviewCount} />{' '}
-        {tr('reviews', 'đánh giá')}
+        {/* "1 review", not "1 reviews" (break-ui, 2026-10-05); Vietnamese has no plural to fork. */}
+        {reviewCount === 1 ? tr('review', 'đánh giá') : tr('reviews', 'đánh giá')}
       </span>,
     )
   }
@@ -162,8 +163,10 @@ export function SellerCard({
             {/* ⚠️ ALWAYS THE <h1> ON A STOREFRONT, `<handle>.eno.vn` included: the explorer under it no
                 longer draws a site-name H1 when it is seller-scoped (ST-HEADER, 2026-09-29), so there
                 is exactly one — this one. */}
+            {/* Two lines, then clamped, with the full name on hover (break-ui, 2026-10-05): `truncate`
+                left a 120-character shop name (updateSeller's cap) unreadable anywhere on its own page. */}
             {variant === 'storefront' ? (
-              <h1 className="h-title truncate text-foreground">{seller.name}</h1>
+              <h1 title={seller.name} className="h-title line-clamp-2 text-foreground [overflow-wrap:anywhere]">{seller.name}</h1>
             ) : (
               <span className="truncate text-sm font-bold text-foreground">{seller.name}</span>
             )}

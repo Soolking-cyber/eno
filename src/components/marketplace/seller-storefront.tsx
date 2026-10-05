@@ -36,6 +36,7 @@ import { isLinkedShop, isUnratedStorefront, partnerShown } from '@/lib/linked-se
 import { SellerInfo } from '@/components/marketplace/seller-info'
 import { buildSellerInfo } from '@/lib/seller-info'
 import { isStorefrontGone } from '@/lib/storefront-gone'
+import { getInitials } from '@/lib/utils'
 
 // Shared storefront body — rendered by BOTH the canonical clean-handle URL
 // (src/app/[lang]/[handle]/page.tsx → eno.vn/<handle>) and the legacy /sellers/[id] route.
@@ -530,7 +531,7 @@ export async function SellerStorefront({ id }: { id: string }) {
                 <li key={r.id} className="py-4">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">
-                      {r.author.split(' ').map((w) => w[0]).join('').toUpperCase()}
+                      {getInitials(r.author)}
                     </span>
                     <span className="text-sm font-semibold text-foreground">{r.author}</span>
                     {/* Earned badge: only reviews with real conversation provenance.

@@ -80,3 +80,32 @@ describe('<Price native>', () => {
     expect(text(<Price price={3_030_000} currency="₫" priceUnit="VND/service" dual={false} />)).toBe('3,030,000 đ')
   })
 })
+
+/**
+ * `compact` (break-ui, 2026-10-05): a narrow surface reads 10 billion đồng and up in words — only a whole number
+ * of millions (never a rounded amount), only while the figure shown is đồng — and "≈ $0" is never drawn.
+ */
+describe('<Price native compact>', () => {
+  it('reads a huge whole-million price in words, with the đồng mark once', () => {
+    state.rates = { USD: 1 / 26_000 }
+    const t = text(<Price native compact price={95_000_000_000} currency="₫" priceUnit="VND" />)!
+    expect(t.startsWith('95 billion đ')).toBe(true)
+    expect(t.split('đ').length - 1).toBe(1)
+  })
+  it('keeps every digit below the threshold', () => {
+    expect(text(<Price native compact price={9_990_000_000} currency="₫" priceUnit="VND" />)).toBe('9,990,000,000 đ')
+  })
+  it('marks an amount that is not a whole number of millions as approximate, never as exact', () => {
+    expect(text(<Price native compact price={10_000_500_000} currency="₫" priceUnit="VND" />)).toBe('≈ 10.001 billion đ')
+  })
+  it('a shared threshold lets the drop pair read alike', () => {
+    expect(text(<Price native compact compactAbove={1_000_000_000} price={9_990_000_000} currency="₫" priceUnit="VND" />)).toBe('9.99 billion đ')
+  })
+  it('without `compact` (the PDP) every digit stays', () => {
+    expect(text(<Price native price={95_000_000_000} currency="₫" priceUnit="VND" />)).toBe('95,000,000,000 đ')
+  })
+  it('never draws "≈ $0" for a one-đồng "contact me" price', () => {
+    state.rates = { USD: 1 / 26_000 }
+    expect(text(<Price native price={1} currency="₫" priceUnit="VND" />)).toBe('1 đ')
+  })
+})

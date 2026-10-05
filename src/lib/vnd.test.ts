@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseVnd, formatMoneyFull, formatVndIso, compactPrice, formatCount, formatInteger, formatRating, groupVnd } from './vnd'
+import { parseVnd, formatMoneyFull, formatVndIso, compactPrice, formatCount, formatInteger, formatRating, groupVnd, hugeVnd, HUGE_VND } from './vnd'
 
 // Money is always displayed grouped + suffixed "đ"; parseVnd is the inverse used
 // on every price input. They must round-trip.
@@ -75,5 +75,26 @@ describe('formatCount / formatRating / groupVnd', () => {
   it('groups live input per locale', () => {
     expect(groupVnd('12000000')).toBe('12,000,000')
     expect(groupVnd('12000000', 'vi')).toBe('12.000.000')
+  })
+})
+
+/** The narrow-surface form for 10 billion đồng and up (break-ui, 2026-10-05): the reader's scale words, exact
+ *  to the million in every scale. */
+describe('hugeVnd', () => {
+  it('reads in the UI language\'s own scale words', () => {
+    expect(HUGE_VND).toBe(10_000_000_000)
+    expect(hugeVnd(95_000_000_000, 'vi')).toBe('95 tỷ đ')
+    expect(hugeVnd(95_000_000_000, 'en')).toBe('95 billion đ')
+    expect(hugeVnd(95_000_000_000, 'zh-Hans')).toBe('950亿 đ')
+    expect(hugeVnd(95_000_000_000, 'fr')).toBe('95 milliards đ')
+    expect(hugeVnd(1_000_000_000_000, 'vi')).toBe('1.000 tỷ đ') // hand-built for the SSR languages
+    expect(hugeVnd(1_000_000_000_000, 'en')).toBe('1,000 billion đ')
+  })
+  it('is exact to the million — a different price never reads the same', () => {
+    expect(hugeVnd(10_040_000_000, 'vi')).toBe('10,04 tỷ đ')
+    expect(hugeVnd(12_340_000_000, 'vi')).not.toBe(hugeVnd(12_310_000_000, 'vi'))
+    expect(hugeVnd(12_345_000_000, 'th')).toBe(`${new Intl.NumberFormat('th-TH', { notation: 'compact', compactDisplay: 'long', maximumFractionDigits: 6 }).format(12_345_000_000)} đ`)
+    expect(hugeVnd(12_345_000_000, 'th')).toContain('1.2345') // three digits rounded this to 1.235
+    expect(hugeVnd(999_999_000_000, 'hi')).not.toBe(hugeVnd(1_000_000_000_000, 'hi'))
   })
 })

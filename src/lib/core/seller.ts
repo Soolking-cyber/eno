@@ -9,6 +9,7 @@ import { lookupTaxCode, TAX_FACTS_TTL_MS } from '@/lib/tax-lookup'
 import { sellerIdentityHash } from '@/lib/business-verification'
 import { logError } from '@/lib/log'
 import { refreshSellerPdps } from '@/lib/seller-pdp-refresh'
+import { cutText } from '@/lib/feed-text'
 
 // Storefront (Seller) edit core — decoupled from auth, takes the already-resolved
 // sellerId + owning profileId. Shared by the dashboard PATCH /api/seller and the partner
@@ -40,12 +41,12 @@ export async function updateSellerCore(
 ): Promise<{ ok: true } | { ok: false; code: number; error: SellerUpdateErrorCode }> {
   const data: Record<string, unknown> = {}
   if (body.name !== undefined) {
-    const name = String(body.name).trim().slice(0, 120)
+    const name = cutText(String(body.name).trim(), 120)
     if (name.length < 2) return { ok: false, code: 400, error: 'name_too_short' }
     data.name = name
   }
-  if (body.bio !== undefined) data.bio = String(body.bio).trim().slice(0, 1000) || null
-  if (body.location !== undefined) data.location = String(body.location).trim().slice(0, 120) || null
+  if (body.bio !== undefined) data.bio = cutText(String(body.bio).trim(), 1000) || null
+  if (body.location !== undefined) data.location = cutText(String(body.location).trim(), 120) || null
   if (body.avatarUrl !== undefined) {
     const url = body.avatarUrl ? String(body.avatarUrl) : null
     if (url && !isListingImageUrl(url)) return { ok: false, code: 400, error: 'bad_avatar' }
@@ -91,11 +92,11 @@ export async function updateSellerCore(
   //    That is why `identityUpdatedAt` below must move on EVERY identity save. ──
   let identityTouched = false
   if (body.legalName !== undefined) {
-    data.legalName = String(body.legalName).trim().slice(0, 160) || null
+    data.legalName = cutText(String(body.legalName).trim(), 160) || null
     identityTouched = true
   }
   if (body.legalAddress !== undefined) {
-    data.legalAddress = String(body.legalAddress).trim().slice(0, 240) || null
+    data.legalAddress = cutText(String(body.legalAddress).trim(), 240) || null
     identityTouched = true
   }
   if (body.idNumber !== undefined) {

@@ -2188,6 +2188,7 @@ export default function ThreadPage() {
                         priceUnit={thread.listing.priceUnit || 'VND'}
                         listingType={thread.listing.listingType}
                         native
+                        compact
                         dual={false}
                         className="truncate text-xs font-bold"
                       />
@@ -2249,7 +2250,7 @@ export default function ThreadPage() {
                 <AlertDialogContent size="sm">
                   <AlertDialogHeader>
                     {/* A replacer FUNCTION: a string replacement would read `$&` / `$$` in a seller's title as patterns. */}
-                    <AlertDialogTitle>{tr('Mark "{title}" as sold?', 'Đánh dấu "{title}" là đã bán?').replace('{title}', () => stripTitle)}</AlertDialogTitle>
+                    <AlertDialogTitle className="[overflow-wrap:anywhere]">{tr('Mark "{title}" as sold?', 'Đánh dấu "{title}" là đã bán?').replace('{title}', () => stripTitle)}</AlertDialogTitle>
                     <AlertDialogDescription>{tr('It will no longer be for sale. You can relist it from My listings.', 'Tin sẽ không còn được rao bán. Bạn có thể đăng lại trong Tin của tôi.')}</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -2367,7 +2368,9 @@ export default function ThreadPage() {
               const dk = dayKey(m.createdAt)
               const dayText = dk === new Date().toDateString() ? tr('Today', 'Hôm nay')
                 : dk === new Date(Date.now() - 864e5).toDateString() ? tr('Yesterday', 'Hôm qua')
-                : new Date(m.createdAt).toLocaleDateString(intlLocale(lang), { month: 'short', day: 'numeric' })
+                // The YEAR once it is not this one (break-ui, 2026-10-05): a three-year-old thread read
+                // "12 thg 9" with nothing saying which September.
+                : new Date(m.createdAt).toLocaleDateString(intlLocale(lang), new Date(m.createdAt).getFullYear() === new Date().getFullYear() ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
               const askPct = m.kind === 'offer' && thread?.listing?.price && m.offerAmount ? Math.round((m.offerAmount / thread.listing.price) * 100) : null
               // KIND DISPATCH. Each structured kind parses its own metaJson and refuses to
               // render as a live prompt off a blob it cannot read (the server already
@@ -2615,7 +2618,7 @@ export default function ThreadPage() {
                     {tr('Message removed', 'Tin nhắn đã gỡ')}
                   </MessageBubble>
                 ) : m.kind === 'offer' ? (
-                  <div className={`allow-select w-full rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-tint'}`}>
+                  <div className={`allow-select w-full rounded-2xl border px-3 py-2.5 [overflow-wrap:anywhere] ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-tint'}`}>
                     {/* Offer line is DERIVED from the structured offerAmount (tr'd + money
                         format) — never from the stored body. Legacy messages still carry a
                         baked "💰 Offered …₫" body: skip it (rendering it too would double up).

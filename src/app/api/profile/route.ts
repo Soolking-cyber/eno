@@ -6,6 +6,7 @@ import { isListingImageUrl } from '@/lib/listing-image'
 import { containsContactInfo } from '@/lib/publish-guard'
 import { rateLimit } from '@/lib/ratelimit'
 import { ApiError, route } from '@/lib/api/handler'
+import { cutText } from '@/lib/feed-text'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,7 +51,7 @@ export const PATCH = route({ auth: 'profile' }, async ({ req, profile }) => {
 
   const data: Record<string, unknown> = {}
   if (body.displayName !== undefined) {
-    const name = String(body.displayName).trim().slice(0, 80)
+    const name = cutText(String(body.displayName).trim(), 80)
     if (name.length < 2) throw new ApiError('name_too_short', 400)
     if (containsPhoneNumber(name)) throw new ApiError('no_phone_in_name', 400)
     // ⚠️ This screened for a PHONE but not for an EMAIL, while the publish gate rejects

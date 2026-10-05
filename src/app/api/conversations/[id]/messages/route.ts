@@ -13,6 +13,7 @@ import { whatsappRecipientFor } from '@/lib/whatsapp-bridge'
 import { sendWhatsAppText } from '@/lib/whatsapp'
 import { isRemovedStatus } from '@/lib/listing-removed'
 import { paysSalary, takesOffers } from '@/lib/taxonomy'
+import { cutText } from '@/lib/feed-text'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -95,7 +96,7 @@ export const POST = route(
     const rounded = Number.isFinite(rawAmount) ? Math.min(Math.round(rawAmount), 1e12) : NaN
     const isOffer = Number.isFinite(rounded) && rounded > 0
     const offerAmount = isOffer ? rounded : undefined
-    const text = String(body.body || '').trim().slice(0, MAX_LEN)
+    const text = cutText(String(body.body || '').trim(), MAX_LEN)
     if (!text && !isOffer) { await release(); throw new ApiError('empty', 400) }
 
     // The quoted message, if this is a reply. Shape only here — WHETHER it may be quoted (same
