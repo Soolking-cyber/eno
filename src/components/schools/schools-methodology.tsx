@@ -19,15 +19,15 @@ const ITEMS: { h: { en: string; vi: string }; p: { en: string; vi: string } }[] 
   {
     h: { en: 'Whose votes count', vi: 'Phiếu nào được tính' },
     p: {
-      en: 'Votes, reviews and pay reports count when they come from an individual account in good standing that is at least 7 days old. Business accounts cannot vote, and a school\'s own account cannot vote on or review that school.',
-      vi: 'Phiếu bầu, đánh giá và báo cáo lương được tính khi đến từ tài khoản cá nhân có uy tín tốt và đã tạo ít nhất 7 ngày. Tài khoản doanh nghiệp không thể bình chọn, và tài khoản của chính trường không thể bình chọn hay đánh giá trường đó.',
+      en: 'One person, one vote: a vote counts only from an individual account with a verified identity (passport or VNeID), in good standing and at least 7 days old. Reviews and pay reports count when a moderator has also checked, privately, that their writer worked at the school. Business accounts cannot vote, and a school\'s own account cannot vote on or review that school. Who voted is never shown.',
+      vi: 'Mỗi người một phiếu: phiếu bầu chỉ được tính từ tài khoản cá nhân đã xác minh danh tính (hộ chiếu hoặc VNeID), có uy tín tốt và đã tạo ít nhất 7 ngày. Đánh giá và báo cáo lương được tính khi kiểm duyệt viên đã kiểm tra riêng tư rằng người viết từng làm ở trường. Tài khoản doanh nghiệp không thể bình chọn, và tài khoản của chính trường không thể bình chọn hay đánh giá trường đó. Không ai thấy ai đã bình chọn.',
     },
   },
   {
     h: { en: 'Reviews', vi: 'Đánh giá' },
     p: {
-      en: 'A moderator reads every review before it appears. A review describes the writer\'s own experience; it may not name individuals, share personal details or include links. Each review shows only a broad description of the writer, such as "Former teacher · 1–2 years".',
-      vi: 'Mọi đánh giá đều được kiểm duyệt viên đọc trước khi hiển thị. Đánh giá kể trải nghiệm của chính người viết; không được nêu tên cá nhân, tiết lộ thông tin cá nhân hay chèn đường link. Mỗi đánh giá chỉ hiển thị mô tả chung về người viết, ví dụ "Giáo viên cũ · 1–2 năm".',
+      en: 'Every review comes from a teacher whose employment a moderator has checked, privately: their LinkedIn profile must list the school and carry a one-time code we gave them, so the profile is theirs. LinkedIn histories are written by their owners, so this is a check, not a guarantee. The profile is never shown and is deleted 30 days after the check; only a one-way fingerprint of it is kept, so the same profile cannot vouch for a second account. The review shows only "Employment checked", never who. A moderator reads every review before it appears. A review describes the writer\'s own experience; it may not name individuals, share personal details or include links. Each review shows only a broad description of the writer, such as "Former teacher · 1–2 years".',
+      vi: 'Mọi đánh giá đến từ giáo viên đã được kiểm duyệt viên kiểm tra nơi làm việc một cách riêng tư: hồ sơ LinkedIn của họ phải ghi tên trường và có một mã dùng một lần do chúng tôi cấp, để chắc hồ sơ là của họ. Lý lịch trên LinkedIn do chính chủ hồ sơ tự ghi, nên đây là một bước kiểm tra, không phải sự bảo đảm. Hồ sơ không bao giờ được hiển thị và bị xoá 30 ngày sau khi kiểm tra; chỉ một dấu vân tay một chiều của hồ sơ được giữ lại, để cùng một hồ sơ không thể bảo chứng cho tài khoản thứ hai. Đánh giá chỉ hiển thị "Đã kiểm tra nơi làm việc", không bao giờ cho biết là ai. Mọi đánh giá đều được kiểm duyệt viên đọc trước khi hiển thị. Đánh giá kể trải nghiệm của chính người viết; không được nêu tên cá nhân, tiết lộ thông tin cá nhân hay chèn đường link. Mỗi đánh giá chỉ hiển thị mô tả chung về người viết, ví dụ "Giáo viên cũ · 1–2 năm".',
     },
   },
   {

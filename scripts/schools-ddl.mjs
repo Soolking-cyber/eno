@@ -26,7 +26,7 @@ await client.connect()
 await client.query('begin')
 process.on('unhandledRejection', async (e) => { console.error(e); try { await client.query('rollback') } catch {} process.exit(1) })
 
-const tables = ['School', 'SchoolAlias', 'SchoolVote', 'SchoolReview', 'SchoolReviewVote', 'SchoolReport']
+const tables = ['School', 'SchoolAlias', 'SchoolVote', 'SchoolReview', 'SchoolReviewVote', 'SchoolReport', 'SchoolEmployment', 'SchoolVoteEvent', 'SchoolProofKey', 'SchoolProofKeyCheck']
 for (const t of tables) {
   const r = await client.query(`select to_regclass('public."${t}"') as t`)
   if (!r.rows[0].t) {
@@ -129,6 +129,54 @@ await client.query(`
   before update of "schoolId" on "SchoolReview"
   for each row execute function public.school_review_school_fixed()`)
 console.log('ok  trigger school_review_school_fixed')
+
+// ── 2026-10-05: proof of employment and the vote log ─────────────────────────────────────────────────
+await constraint('SchoolEmployment', 'SchoolEmployment_method_check', `check (method = 'linkedin')`)
+await constraint('SchoolEmployment', 'SchoolEmployment_status_check', `check (status in ('pending','verified','rejected','withdrawn'))`)
+// A VERIFIED proof always carries what verified it — so "Verified employee" cannot appear on an empty row.
+await constraint('SchoolEmployment', 'SchoolEmployment_verified_check', `check (status <> 'verified' or "linkedinHash" is not null)`)
+await constraint('SchoolVoteEvent', 'SchoolVoteEvent_value_check', `check (value in (-1, 0, 1))`)
+await constraint('SchoolProofKey', 'SchoolProofKey_kind_check', `check (kind = 'linkedin' and length(hash) = 64)`)
+// One fingerprint, ever: the key both editions must share (employment.ts proofKeyMatches).
+await constraint('SchoolProofKeyCheck', 'SchoolProofKeyCheck_one_check', `check (id = 1 and length(fingerprint) = 64)`)
+
+// ⛔ THE VOTE LOG IS WRITTEN BY THE DATABASE, NOT BY THE APP: every insert, change and delete of a
+// SchoolVote appends one SchoolVoteEvent (0 = withdrawn), whatever path made it — the API, an admin script,
+// a cascade. The awards read each voter's last value before the cutoff from here, so a log the app could
+// forget to write would be a cutoff anyone could dispute. Naive UTC, like every Prisma timestamp.
+// ⚠️ A CASCADE DELETE (an erased account, a deleted school) logs nothing: the parent row is already gone,
+// and the account's own log rows go with it (FK cascade) — privacy first.
+await client.query(`
+  create or replace function public.school_vote_log() returns trigger language plpgsql as $f$
+  begin
+    if tg_op = 'DELETE' then
+      if exists (select 1 from "Profile" where id = old."profileId") and exists (select 1 from "School" where id = old."schoolId") then
+        insert into "SchoolVoteEvent" ("schoolId", "profileId", value, at) values (old."schoolId", old."profileId", 0, now() at time zone 'UTC');
+      end if;
+      return null;
+    end if;
+    if tg_op = 'UPDATE' and (new."schoolId" <> old."schoolId" or new."profileId" <> old."profileId") then
+      -- Nothing in the app moves a vote's key; if a script ever does, the old ballot is withdrawn first.
+      insert into "SchoolVoteEvent" ("schoolId", "profileId", value, at) values (old."schoolId", old."profileId", 0, now() at time zone 'UTC');
+    elsif tg_op = 'UPDATE' and new.value = old.value then
+      return null;
+    end if;
+    insert into "SchoolVoteEvent" ("schoolId", "profileId", value, at) values (new."schoolId", new."profileId", new.value, now() at time zone 'UTC');
+    return null;
+  end $f$`)
+await client.query(`
+  create or replace trigger school_vote_log
+  after insert or update or delete on "SchoolVote"
+  for each row execute function public.school_vote_log()`)
+console.log('ok  trigger school_vote_log')
+// Votes already cast when the trigger goes in get ONE event each, at their last change (diff review): the awards read
+// each voter's last value from this log, and a vote nobody has touched since would otherwise be missing from it.
+// Idempotent — only votes with no event at all.
+const seeded = await client.query(`
+  insert into "SchoolVoteEvent" ("schoolId", "profileId", value, at)
+  select v."schoolId", v."profileId", v.value, v."updatedAt" from "SchoolVote" v
+   where not exists (select 1 from "SchoolVoteEvent" e where e."schoolId" = v."schoolId" and e."profileId" = v."profileId")`)
+console.log(`ok  vote log seeded (${seeded.rowCount} vote(s) had no event)`)
 
 // ⚠️ THE FOREIGN KEYS ARE PRISMA RELATIONS (schema.prisma), NOT HERE: Profile → votes / reviews / review
 // votes CASCADE (an erased account takes them), the reporter SET NULL, School.sellerId → Seller SET NULL

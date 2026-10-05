@@ -83,6 +83,18 @@ export const isBadTag = (v: unknown): v is BadTag => typeof v === 'string' && (B
 export const ELIGIBLE_ACCOUNT_AGE_DAYS = 7
 export const REQUIRE_PHONE = false
 
+/**
+ * ⛔ ONE VERIFIED PERSON, ONE VOTE (owner, 2026-10-05: "make sure we dont get spam … upvotes or downvotes";
+ * plan review, codex + Opus). A school vote and a helpful-vote count only from an account with a LIVE
+ * verified identity (passport or VNeID — src/lib/kyc/identity.ts verifiedProfileIds), on top of WHO COUNTS
+ * above; KYC already refuses a second verified identity, so it is one per person. Unverified people can
+ * still vote: the vote is stored and starts counting the day they verify. A proof of EMPLOYMENT never stands
+ * in for it — a school controls its own mail domain and could mint "employees" — it makes a REVIEW count.
+ */
+export const VOTES_NEED_IDENTITY = true
+/** Where a teacher verifies their identity (the KYC capture page, on both editions). */
+export const VERIFY_IDENTITY_PATH = '/dashboard/account/verify'
+
 /** Pay shows only with this many distinct eligible, published reports per pay period (k-anonymity). */
 export const PAY_MIN_REPORTS = 5
 /** Reports older than this stop counting toward pay. */
@@ -122,3 +134,16 @@ export const REPORT_REASON_LABEL: Record<ReportReason, { en: string; vi: string 
   spam: { en: 'Spam or advertising', vi: 'Spam hoặc quảng cáo' },
   other: { en: 'Something else', vi: 'Lý do khác' },
 }
+
+/** A proof of employment's LinkedIn link and code are erased this long after a moderator's decision (employment.ts). */
+export const PURGE_AFTER_DAYS = 30
+/** A proof nobody has decided is closed (and erased) after this long: nothing is kept indefinitely. */
+export const PENDING_MAX_DAYS = 60
+/** A review its writer can no longer publish (their proof withdrawn or rejected) is deleted this long after. */
+export const ORPHAN_REVIEW_DAYS = 60
+/** Proofs one account may have waiting at once (the proof route): a flood must not bury real ones in the queue. */
+export const PROOFS_PENDING_MAX = 3
+/** The vote log (SchoolVoteEvent) is kept this long — enough to decide any award year — then swept (employment.ts). */
+export const VOTE_LOG_KEEP_DAYS = 730
+/** The reason an undecided proof is closed with (employment.ts sweepProofRetention); the proof step translates it. */
+export const EXPIRED_PROOF_REASON = 'Not checked in time — please submit it again.'

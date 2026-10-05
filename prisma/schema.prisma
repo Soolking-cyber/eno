@@ -155,17 +155,20 @@ model Profile {
 
   identityVerifications IdentityVerification[]
 
+  // /schools (2026-10-04) — an erased account takes its votes and reviews with it; reports keep the row.
+  schoolVotes       SchoolVote[]
+  schoolReviews     SchoolReview[]
+  schoolEmployments SchoolEmployment[]
+  schoolVoteEvents  SchoolVoteEvent[]
+  schoolProofKeys   SchoolProofKey[]
+  schoolReviewVotes SchoolReviewVote[]
+  schoolReports     SchoolReport[]
+
   @@index([phone])
   @@index([trustTier])
   @@index([attrSource])
   @@index([verificationStatus])
   @@index([documentExpiresAt])
-
-  // /schools (2026-10-04) — an erased account takes its votes and reviews with it; reports keep the row.
-  schoolVotes       SchoolVote[]
-  schoolReviews     SchoolReview[]
-  schoolReviewVotes SchoolReviewVote[]
-  schoolReports     SchoolReport[]
 }
 
 /// One row per verification ATTEMPT. APPEND-ONLY: never UPDATE a decided row, never DELETE one —
@@ -2190,8 +2193,96 @@ model School {
   votes   SchoolVote[]
   reviews SchoolReview[]
   reports SchoolReport[]
+  employments SchoolEmployment[]
+  voteEvents  SchoolVoteEvent[]
 
   @@index([status, kind])
+}
+
+/// A teacher's PRIVATE proof that they worked at a school (2026-10-05) — what lets their review be
+/// published. Reviews stay anonymous: the public sees only "Verified employee", never the profile. The proof
+/// is a LinkedIn profile a MODERATOR checks (the school in Experience + a one-time code on the profile); it
+/// makes someone REVIEW-eligible only — a vote counts from an identity-verified account (queries.ts).
+/// ⛔ NO WORK-EMAIL PROOF, DELIBERATELY (diff review, seven rounds): a school controls its own mail domain, so
+/// it could mint "employees" and, by reading codes on its own mail server, learn which staff had reviewed.
+/// CHECKs and RLS: scripts/schools-ddl.mjs.
+model SchoolEmployment {
+  id           String    @id @default(cuid())
+  schoolId     String
+  school       School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  profileId    String    @db.Uuid
+  profile      Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  /// linkedin (the only method; the column keeps room for a reviewed second one)
+  method       String    @default("linkedin")
+  /// pending | verified | rejected | withdrawn
+  status       String    @default("pending")
+  /// The normalised profile URL a moderator opens; nulled at purgeAt.
+  linkedinUrl  String?
+  /// HMAC of the normalised LinkedIn slug: one LinkedIn ↔ one eno account (SchoolProofKey). A clash is
+  /// FLAGGED to the moderator, never told to the submitter (it would let anyone test a colleague's profile).
+  linkedinHash String?
+  /// The opaque code the teacher puts on their LinkedIn profile until a moderator has looked.
+  challenge    String?
+  /// Why a moderator should look twice: linkedin_shared
+  flags        String[]  @default([])
+  decidedAt    DateTime?
+  decidedBy    String?
+  rejectReason String?
+  /// When linkedinUrl and challenge are erased (and an undecided proof is closed).
+  purgeAt      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([profileId, schoolId])
+  @@index([schoolId, status])
+  @@index([linkedinHash])
+}
+
+/// Every LinkedIn profile that ever PROVED someone's employment (2026-10-05), as its HMAC. Append-only: the
+/// FIRST account to prove a profile owns it for good, so withdrawing and re-submitting can never hand it to a
+/// second account. Kept past erasure, ownerless (see profileId). RLS + CHECK: scripts/schools-ddl.mjs.
+model SchoolProofKey {
+  /// linkedin
+  kind       String
+  hash       String
+  /// ⛔ SET NULL ON ERASURE, NOT CASCADE (diff review): deleting an account must not reset the ledger — a
+  /// revoked profile would otherwise come back with a fresh account. What stays is an HMAC owned by no one —
+  /// pseudonymous: only the server's key and a guess of the profile link it back — and it can never prove again.
+  profileId  String?   @db.Uuid
+  profile    Profile?  @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  at         DateTime  @default(now())
+  /// A moderator REVOKED a proof this key made (a rejection of a never-verified submission does not burn it — the
+  /// profile may be a victim's): it can never prove employment again, for anyone.
+  rejectedAt DateTime?
+
+  @@id([kind, hash])
+  @@index([profileId])
+}
+
+/// The FINGERPRINT of SCHOOL_PROOF_SECRET (2026-10-05) — an HMAC of a fixed label under that key, never the key. The
+/// first edition to use the key records it; an edition whose key does not match refuses to prove anything
+/// (employment.ts proofKeyMatches). Both editions share this database, so two different secrets would otherwise
+/// hash one LinkedIn profile twice — and it could prove one account per edition, unflagged (diff review).
+model SchoolProofKeyCheck {
+  id          Int      @id @default(1)
+  fingerprint String
+  createdAt   DateTime @default(now())
+}
+
+/// Append-only: every change to a school vote, 0 = withdrawn (2026-10-05). SchoolVote holds only the
+/// current value; the yearly awards need each voter's last value BEFORE the cutoff.
+model SchoolVoteEvent {
+  id        BigInt   @id @default(autoincrement())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  profileId String   @db.Uuid
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  /// +1 | -1 | 0
+  value     Int
+  at        DateTime @default(now())
+
+  @@index([schoolId, at])
+  @@index([profileId])
 }
 
 /// A normalised employer name (normEmployer) that a job posting may carry. The alias is the PRIMARY

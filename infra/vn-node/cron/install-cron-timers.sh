@@ -27,6 +27,9 @@ declare -A SCHED=(
   # its ≥3-year retention loses its personal content; its media is queued for storage-tombstones at
   # 09:00. Half an hour after the other PII sweep, an hour before the storage sweep.
   [listing-tombstone-retention]="*-*-* 08:00:00 UTC"
+  # /schools proofs of employment (src/lib/schools/employment.ts sweepProofRetention): LinkedIn URLs and
+  # codes erased 30 days after a decision, undecided ones closed after 60 days. Between the other PII sweeps.
+  [school-proof-retention]="*-*-* 08:30:00 UTC"
   # Durable erasure queue (StorageTombstone): objects the fast paths could not delete. Every
   # tombstone carries a grace hour, so a row written at the moment another job runs is due only
   # well after it — 09:00 keeps this clear of the 07:30 retention sweep and its own grace.
@@ -80,7 +83,11 @@ declare -A SCHED=(
 # tombstone existed before 2026-10-01 (measured that day: 0 rows with status 'removed', 0 listing.removed
 # audit rows), so nothing can be past its retention before 2029-10-01. It is enabled now precisely so
 # that date does not depend on anyone remembering it. Until then every run is a 200 with {scrubbed:0}.
-SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices partner-stock indexnow listing-tombstone-retention)
+# ⚠️ school-proof-retention is SAFE to enable at once: the proof and review tables reach production EMPTY (the
+# importer loads only the directory), so its first run has nothing to act on, and every later run applies exactly what each teacher agreed to when submitting a proof —
+# the LinkedIn link erased 30 days after the check, an undecided proof closed at 60, a review without a live proof
+# deleted 60 days on (the proof step says so).
+SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices partner-stock indexnow listing-tombstone-retention school-proof-retention)
 # Installed, NOT enabled: these send email to real people.
 EMAIL=(daily-reminders saved-search-alerts weekly-digest teacher-match-emails)
 # Installed, NOT enabled: the FIRST run acts on a policy nobody has acted on yet — every decided

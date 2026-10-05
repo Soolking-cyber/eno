@@ -96,6 +96,14 @@ export type NicheApiErrorCode =
   | 'pay_out_of_range'
   | 'stint_required'
   | 'review_changed_reload'
+  // /schools v2 (2026-10-05): proof of employment
+  | 'proof_required'
+  | 'proof_not_verified'
+  | 'proof_already_verified'
+  | 'linkedin_url_invalid'
+  | 'linkedin_already_used'
+  | 'too_many_pending_proofs'
+  | 'proof_rejected'
   | 'admin_takeover'
   | 'already_appealed'
   | 'already_generating'
@@ -514,6 +522,13 @@ const ALL = [
   'pay_out_of_range',
   'stint_required',
   'review_changed_reload',
+  'proof_required',
+  'proof_not_verified',
+  'proof_already_verified',
+  'linkedin_url_invalid',
+  'linkedin_already_used',
+  'too_many_pending_proofs',
+  'proof_rejected',
   'Forbidden',
   'Unauthorized',
   'account_restricted',

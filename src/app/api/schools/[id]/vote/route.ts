@@ -5,7 +5,7 @@
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
-import { writeEligibility } from '@/lib/schools/queries'
+import { isCountedVoter, writeEligibility } from '@/lib/schools/queries'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -44,6 +44,9 @@ export const POST = route(
       create: { schoolId: school.id, profileId: profile.id, value: body.value },
       update: { value: body.value },
     })
-    return { ok: true, value: body.value, countsNow: gate.countsNow, countsFrom: gate.countsFrom.toISOString() }
+    // Counts only from a verified person (constants.ts VOTES_NEED_IDENTITY): say so, rather than let the vote
+    // silently not move the number.
+    const person = await isCountedVoter(profile.id)
+    return { ok: true, value: body.value, countsNow: gate.countsNow && person, countsFrom: gate.countsFrom.toISOString(), needsIdentity: !person }
   },
 )

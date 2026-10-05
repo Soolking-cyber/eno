@@ -19,8 +19,9 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { groupVnd, moneyLocale, parseVnd } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
+import { ProofStep, proofLetsWrite, type ProofView } from './proof-step'
 import {
-  BAD_TAGS, ELIGIBLE_ACCOUNT_AGE_DAYS, EMPLOYMENTS, PAY_MIN_REPORTS, EMPLOYMENT_LABEL, GOOD_TAGS, HCMC_AREAS, REVIEW_ADVICE_MAX, REVIEW_TEXT_MAX, REVIEW_TEXT_MIN,
+  BAD_TAGS, ELIGIBLE_ACCOUNT_AGE_DAYS, ORPHAN_REVIEW_DAYS, EMPLOYMENTS, PAY_MIN_REPORTS, EMPLOYMENT_LABEL, GOOD_TAGS, HCMC_AREAS, REVIEW_ADVICE_MAX, REVIEW_TEXT_MAX, REVIEW_TEXT_MIN,
   ROLES, ROLE_LABEL, TAG_LABEL, TENURES, TENURE_LABEL,
   type BadTag, type Employment, type GoodTag, type SchoolRole, type Tenure,
 } from '@/lib/schools/constants'
@@ -63,6 +64,8 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
   const [existing, setExisting] = React.useState<Mine | null>(null)
   const [saved, setSaved] = React.useState(false)
   const [countsLater, setCountsLater] = React.useState(false)
+  // undefined = not loaded yet (ProofStep shows its own skeleton or error): nothing below may read "no proof" into it.
+  const [proof, setProof] = React.useState<ProofView | null | undefined>(undefined)
   const [busy, setBusy] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -124,6 +127,9 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
         <p className="mx-auto mt-2 max-w-md text-sm text-body">
           {tr('Your name is never shown. Reviews appear with a broad description only, such as "Former teacher · 1–2 years".', 'Tên của bạn không bao giờ hiển thị. Đánh giá chỉ kèm mô tả chung, ví dụ "Giáo viên cũ · 1–2 năm".')}
         </p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-body">
+          {tr('To keep reviews genuine, we ask for private proof that you worked there: your LinkedIn profile. Only our moderators see it.', 'Để đánh giá luôn chân thực, chúng tôi cần bằng chứng riêng tư rằng bạn từng làm ở đó: hồ sơ LinkedIn của bạn. Chỉ kiểm duyệt viên của chúng tôi thấy.')}
+        </p>
         <Button variant="cta" className="mt-4" onClick={() => openSignIn({ note: tr('Sign in to review {name}.', 'Đăng nhập để đánh giá {name}.').replace('{name}', schoolName) })}>
           <LogIn aria-hidden /> {tr('Sign in', 'Đăng nhập')}
         </Button>
@@ -148,6 +154,11 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
         <p className="mx-auto mt-2 max-w-md text-sm text-body">
           {tr('It appears on the school page once a moderator has checked it. You can edit it any time; an edit is checked again.', 'Đánh giá sẽ hiển thị trên trang trường sau khi được kiểm duyệt. Bạn có thể sửa bất cứ lúc nào; bản sửa sẽ được kiểm duyệt lại.')}
         </p>
+        {proof?.status === 'pending' && (
+          <p className="mx-auto mt-2 max-w-md text-sm text-body">
+            {tr('Your proof of employment is checked first; the review can appear only after that.', 'Bằng chứng làm việc của bạn được kiểm tra trước; đánh giá chỉ có thể hiển thị sau đó.')}
+          </p>
+        )}
         {countsLater && (
           <p className="mx-auto mt-2 max-w-md text-sm text-body">
             {tr('Your account is new, so the review also waits until the account is {n} days old.', 'Tài khoản của bạn còn mới, nên đánh giá sẽ chờ đến khi tài khoản được {n} ngày tuổi.').replace('{n}', String(ELIGIBLE_ACCOUNT_AGE_DAYS))}
@@ -201,6 +212,7 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
         : code === 'account_restricted' ? tr('Your account cannot post reviews right now.', 'Tài khoản của bạn hiện không thể đăng đánh giá.')
         : code === 'forbidden' ? tr("A school's own account cannot review it.", 'Tài khoản của chính trường không thể tự đánh giá.')
         : code === 'rate_limited' ? tr('Too many saves — try again in an hour.', 'Bạn lưu quá nhiều lần — thử lại sau một giờ.')
+        : code === 'proof_required' ? tr('Your proof of employment is missing or was not checked in time. Send it again above, then save your review.', 'Bằng chứng làm việc của bạn chưa có hoặc chưa được kiểm tra kịp thời. Hãy gửi lại ở trên, rồi lưu đánh giá.')
         : tr('Your review was not saved. Check the fields and try again.', 'Chưa lưu được đánh giá. Hãy kiểm tra lại và thử lần nữa.'),
       )
     } catch {
@@ -227,7 +239,7 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
   }
 
   const label = 'text-sm font-semibold text-foreground'
-  return (
+  const form = (
     <form onSubmit={submit} className="flex flex-col gap-6" noValidate>
       {existing && (
         <div className={cn('rounded-2xl p-4 text-sm', existing.status === 'rejected' ? 'bg-destructive/10 text-foreground' : 'bg-tint text-foreground')}>
@@ -367,6 +379,36 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
         )}
       </div>
     </form>
+  )
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Step 1: private proof of employment (owner, 2026-10-05). The review below is written once a proof is in. */}
+      <ProofStep schoolId={schoolId} schoolName={schoolName} onChange={setProof} />
+      {proof === undefined ? null : proofLetsWrite(proof) ? form : existing ? (
+        // ⛔ A SAVED REVIEW CAN ALWAYS BE DELETED (diff review): without a proof the form is closed, but the
+        // teacher's words and pay are still stored, and taking them down must never wait on proving anything.
+        <div className="flex flex-col gap-3 rounded-2xl bg-card p-4 ring-1 ring-border">
+          <p className="text-sm text-body">{tr('Your review is saved. It shows only while your proof of employment is in place, and you can change it once that proof is in place again (above). Without a proof it is deleted after {n} days; you can delete it yourself at any time.', 'Đánh giá của bạn đã được lưu. Đánh giá chỉ hiển thị khi bằng chứng làm việc còn hiệu lực, và bạn có thể sửa khi bằng chứng được bổ sung lại (ở trên). Khi không có bằng chứng, đánh giá sẽ bị xoá sau {n} ngày; bạn có thể tự xoá bất cứ lúc nào.').replace('{n}', String(ORPHAN_REVIEW_DAYS))}</p>
+          <AlertDialog>
+            <AlertDialogTrigger render={<Button type="button" variant="ghost" className="self-start text-destructive" disabled={busy} />}>
+              <Trash2 aria-hidden /> {tr('Delete my review', 'Xoá đánh giá của tôi')}
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{tr('Delete your review?', 'Xoá đánh giá của bạn?')}</AlertDialogTitle>
+                <AlertDialogDescription>{tr('It is removed from the school page, with its text and pay. This cannot be undone.', 'Đánh giá sẽ bị gỡ khỏi trang trường, cùng nội dung và mức lương. Không thể hoàn tác.')}</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{tr('Keep it', 'Giữ lại')}</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={remove}>{tr('Delete', 'Xoá')}</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      ) : (
+        <p className="rounded-2xl bg-card px-4 py-3 text-sm text-muted-foreground ring-1 ring-border">{tr('2. Your review — add your proof of employment above first.', '2. Đánh giá của bạn — hãy thêm bằng chứng làm việc ở trên trước.')}</p>
+      )}
+    </div>
   )
 }
 

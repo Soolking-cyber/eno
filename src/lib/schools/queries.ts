@@ -5,7 +5,8 @@ import { db } from '@/lib/db'
 import { fold } from '@/lib/fold'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { LISTING_CARD_SELECT, serializeListingCard, safeParse } from '@/lib/serialize'
-import { ELIGIBLE_ACCOUNT_AGE_DAYS, REQUIRE_PHONE, type SchoolKind, type GoodTag, type BadTag, isGoodTag, isBadTag } from './constants'
+import { verifiedProfileIds } from '@/lib/kyc/identity'
+import { ELIGIBLE_ACCOUNT_AGE_DAYS, REQUIRE_PHONE, VOTES_NEED_IDENTITY, type SchoolKind, type GoodTag, type BadTag, isGoodTag, isBadTag } from './constants'
 import { compareSchools, isGenericEmployer, normEmployer, summarisePay, type PaySummary, type SchoolSort } from './logic'
 import { inHcmc, jobSchoolId, type JobPlace } from './job-match'
 import { schoolLogo } from './logos'
@@ -20,11 +21,12 @@ import { schoolLogo } from './logos'
  * ⛔ WHOSE VOICE COUNTS — the one place it is written. `p` = the author's Profile, `s` = the School.
  * An individual account (a NULL accountType is an individual who has not onboarded yet), in good
  * standing, not trust-restricted, not an owner of the school's own linked shop, and (eligibleSql) at
- * least ELIGIBLE_ACCOUNT_AGE_DAYS old. ONE RULE FOR EVERYTHING PUBLIC — votes, helpful votes, and which
- * published reviews (with their tags and pay) show — so an account that is later held, restricted or
+ * least ELIGIBLE_ACCOUNT_AGE_DAYS old. THE BASE RULE FOR EVERYTHING PUBLIC — votes, helpful votes, and
+ * which published reviews (with their tags and pay) show — so an account that is later held, restricted or
  * turns out to own the school drops out everywhere at once, a new account's approved review waits for
  * the same 7 days its vote does, and there is no stored counter to correct (diff review: the page must
- * not state two rules).
+ * not state two rules). Since 2026-10-05 each use adds ONE thing on top: a vote needs a verified person
+ * (countedVoters), a review needs verified employment at that school (reviewAuthorSql).
  */
 function standingSql(): Prisma.Sql {
   return Prisma.sql`
@@ -42,26 +44,96 @@ function eligibleSql(): Prisma.Sql {
   return Prisma.sql`p."createdAt" <= (now() at time zone 'UTC') - make_interval(days => ${ELIGIBLE_ACCOUNT_AGE_DAYS}::int) and ${standingSql()}`
 }
 
-type VoteRow = { schoolId: string; up: number; down: number }
+/**
+ * ⛔ A REVIEW'S AUTHOR COUNTS only with a VERIFIED proof that they worked at THAT school (SchoolEmployment,
+ * owner 2026-10-05) on top of eligibleSql — which reviews show, their tags, their pay, the sitemap. Read
+ * here, at read time, so a withdrawn or rejected proof takes the review down everywhere at once.
+ */
+function reviewAuthorSql(): Prisma.Sql {
+  return Prisma.sql`${eligibleSql()}
+    and exists (select 1 from "SchoolEmployment" e where e."profileId" = p.id and e."schoolId" = s.id and e.status = 'verified')`
+}
+
+/**
+ * ⛔ ONE VERIFIED PERSON, ONE VOTE (constants.ts VOTES_NEED_IDENTITY): a vote or a helpful-vote that passes
+ * eligibleSql counts only if its author holds a LIVE verified identity — decided by the KYC module's own
+ * derivation (verifiedProfileIds), never by the Profile.verificationStatus cache. So votes are read as
+ * rows and counted here rather than in SQL.
+ */
+async function countedVoters(profileIds: string[]): Promise<(profileId: string) => boolean> {
+  if (!VOTES_NEED_IDENTITY) return () => true
+  const now = Date.now()
+  // Bounded BEFORE choosing what to fetch (diff review): clearing after would drop answers this call relies on.
+  if (VERIFIED_MEMO.size > 20_000) VERIFIED_MEMO.clear()
+  // ⚠️ THE ANSWER IS THIS CALL'S OWN SNAPSHOT (diff review): another request may clear the shared memo before the
+  // caller reads it, and a cleared memo must never count as "nobody is verified".
+  const answer = new Map<string, boolean>()
+  const stale: string[] = []
+  for (const id of new Set(profileIds)) {
+    const m = VERIFIED_MEMO.get(id)
+    if (m && m.until > now) answer.set(id, m.ok)
+    else stale.push(id)
+  }
+  if (stale.length) {
+    const ok = await verifiedProfileIds(stale)
+    for (const id of stale) {
+      answer.set(id, ok.has(id))
+      VERIFIED_MEMO.set(id, { ok: ok.has(id), until: now + VERIFIED_MEMO_MS })
+    }
+  }
+  return (id) => answer.get(id) ?? false
+}
+
+/**
+ * ⚠️ A ONE-MINUTE MEMO OF WHO IS A VERIFIED PERSON, FOR COUNTING ONLY (diff review: every page view's live
+ * state re-read every voter's identity history). A revocation or a new verification therefore reaches the
+ * public counts within a minute. Nothing that gates money, KYC or publishing reads this — they ask
+ * src/lib/kyc/identity.ts directly.
+ */
+const VERIFIED_MEMO = new Map<string, { ok: boolean; until: number }>()
+const VERIFIED_MEMO_MS = 60_000
+/** Drop the memo — for the probes, which change identities and must see it at once. */
+export function forgetCountedVoters() { VERIFIED_MEMO.clear() }
+
+type VoteRow = { key: string; profileId: string; value: number }
+
+/**
+ * eligibleSql for a VOTE: plus a cheap SQL pre-filter (diff review) so the rows countedVoters derives in JS are
+ * only people who have EVER been verified — not every account that pressed ▲. Safe as a pre-filter only:
+ * deriveVerification says 'verified' solely from a row whose status is 'verified', so nothing it would count is
+ * dropped here; it still decides expiry, revocation and the rest. (`identity_verifications` is the
+ * IdentityVerification model's @@map in schema.prisma; the probes run this SQL against a real Postgres.)
+ */
+function voterSql(): Prisma.Sql {
+  return Prisma.sql`${eligibleSql()}
+    ${VOTES_NEED_IDENTITY ? Prisma.sql`and exists (select 1 from identity_verifications iv where iv."profileId" = p.id and iv.status = 'verified')` : Prisma.empty}`
+}
+
+async function tally(rows: VoteRow[]): Promise<Map<string, { up: number; down: number }>> {
+  const counts = await countedVoters(rows.map((r) => r.profileId))
+  const out = new Map<string, { up: number; down: number }>()
+  for (const r of rows) {
+    if (!counts(r.profileId)) continue
+    const c = out.get(r.key) ?? { up: 0, down: 0 }
+    if (r.value === 1) c.up++
+    else if (r.value === -1) c.down++
+    out.set(r.key, c)
+  }
+  return out
+}
 
 async function eligibleVotes(schoolIds: string[]): Promise<Map<string, { up: number; down: number }>> {
-  const out = new Map<string, { up: number; down: number }>()
-  if (!schoolIds.length) return out
-  const rows = await db.$queryRaw<VoteRow[]>`
-    select v."schoolId" as "schoolId",
-           count(*) filter (where v.value = 1)::int as up,
-           count(*) filter (where v.value = -1)::int as down
+  if (!schoolIds.length) return new Map()
+  return tally(await db.$queryRaw<VoteRow[]>`
+    select v."schoolId" as key, v."profileId"::text as "profileId", v.value as value
       from "SchoolVote" v
       join "Profile" p on p.id = v."profileId"
       join "School" s on s.id = v."schoolId"
      where v."schoolId" in (${Prisma.join(schoolIds)})
-       and ${eligibleSql()}
-     group by v."schoolId"`
-  for (const r of rows) out.set(r.schoolId, { up: r.up, down: r.down })
-  return out
+       and ${voterSql()}`)
 }
 
-/** The PUBLIC reviews: published by a moderator AND by an author who counts (eligibleSql). */
+/** The PUBLIC reviews: published by a moderator AND by an author who counts (reviewAuthorSql). */
 async function visibleReviewIds(schoolIds: string[]): Promise<{ id: string; schoolId: string }[]> {
   if (!schoolIds.length) return []
   return db.$queryRaw<{ id: string; schoolId: string }[]>`
@@ -71,7 +143,7 @@ async function visibleReviewIds(schoolIds: string[]): Promise<{ id: string; scho
       join "School" s on s.id = r."schoolId"
      where r."schoolId" in (${Prisma.join(schoolIds)})
        and r.status = 'published'
-       and ${eligibleSql()}`
+       and ${reviewAuthorSql()}`
 }
 
 /** Public reviews per school. */
@@ -106,7 +178,7 @@ async function payReports(schoolIds: string[]) {
      where r."schoolId" in (${Prisma.join(schoolIds)})
        and r.status = 'published' and r."payVnd" is not null
        and coalesce(r."moderatedAt", r."submittedAt") < date_trunc('week', now() at time zone 'UTC')
-       and ${eligibleSql()}`
+       and ${reviewAuthorSql()}`
   const by = new Map<string, typeof rows>()
   for (const r of rows) by.set(r.schoolId, [...(by.get(r.schoolId) ?? []), r])
   const out = new Map<string, PublicPay[]>()
@@ -265,22 +337,16 @@ export const getSchoolPage = cache(loadSchoolPage)
 export type SchoolPage = NonNullable<Awaited<ReturnType<typeof loadSchoolPage>>>
 
 async function eligibleReviewVotes(reviewIds: string[], schoolId: string): Promise<Map<string, { up: number; down: number }>> {
-  const out = new Map<string, { up: number; down: number }>()
-  if (!reviewIds.length) return out
-  const rows = await db.$queryRaw<{ reviewId: string; up: number; down: number }[]>`
-    select v."reviewId" as "reviewId",
-           count(*) filter (where v.value = 1)::int as up,
-           count(*) filter (where v.value = -1)::int as down
+  if (!reviewIds.length) return new Map()
+  return tally(await db.$queryRaw<VoteRow[]>`
+    select v."reviewId" as key, v."profileId"::text as "profileId", v.value as value
       from "SchoolReviewVote" v
       join "SchoolReview" r on r.id = v."reviewId"
       join "Profile" p on p.id = v."profileId"
       join "School" s on s.id = ${schoolId}
      where v."reviewId" in (${Prisma.join(reviewIds)})
        and v."profileId" <> r."profileId" -- an author's own helpful vote never counts (the API refuses it too)
-       and ${eligibleSql()}
-     group by v."reviewId"`
-  for (const r of rows) out.set(r.reviewId, { up: r.up, down: r.down })
-  return out
+       and ${voterSql()}`)
 }
 
 /**
@@ -295,7 +361,7 @@ export async function schoolsForSitemap(): Promise<{ slug: string; lastmod: Date
       join "SchoolReview" r on r."schoolId" = s.id and r.status = 'published'
       join "Profile" p on p.id = r."profileId"
      where s.status = 'active'
-       and ${eligibleSql()}
+       and ${reviewAuthorSql()}
      group by s.slug
      order by s.slug`
 }
@@ -306,37 +372,56 @@ export async function schoolsForSitemap(): Promise<{ slug: string; lastmod: Date
 export async function liveReviewCounts(reviewIds: string[]): Promise<Record<string, { up: number; down: number }>> {
   const ids = [...new Set(reviewIds)].slice(0, 400)
   if (!ids.length) return {}
-  const rows = await db.$queryRaw<{ reviewId: string; up: number; down: number }[]>`
-    select v."reviewId" as "reviewId",
-           count(*) filter (where v.value = 1)::int as up,
-           count(*) filter (where v.value = -1)::int as down
+  const counted = await tally(await db.$queryRaw<VoteRow[]>`
+    select v."reviewId" as key, v."profileId"::text as "profileId", v.value as value
       from "SchoolReviewVote" v
       join "SchoolReview" r on r.id = v."reviewId"
       join "School" s on s.id = r."schoolId"
-      join "Profile" p on p.id = v."profileId"
+      join "Profile" p on p.id = v."profileId" -- p = the voter, which voterSql() below reads
      where v."reviewId" in (${Prisma.join(ids)})
        and r.status = 'published' and s.status = 'active'
        and v."profileId" <> r."profileId"
-       and ${eligibleSql()}
-     group by v."reviewId"`
-  // Zero-filled only for PUBLIC reviews: a pending or rejected id gets nothing back.
-  const published = await db.schoolReview.findMany({ where: { id: { in: ids }, status: 'published', school: { status: 'active' } }, select: { id: true } })
+       and ${voterSql()}`)
+  // Zero-filled only for PUBLIC reviews — the page's own rule (reviewAuthorSql): a pending or rejected id, or one
+  // whose author's proof was withdrawn, gets nothing back (diff review).
+  const published = await db.$queryRaw<{ id: string }[]>`
+    select r.id from "SchoolReview" r
+      join "Profile" p on p.id = r."profileId"
+      join "School" s on s.id = r."schoolId"
+     where r.id in (${Prisma.join(ids)}) and r.status = 'published' and s.status = 'active'
+       and ${reviewAuthorSql()}`
   const out: Record<string, { up: number; down: number }> = Object.fromEntries(published.map((r) => [r.id, { up: 0, down: 0 }]))
-  for (const r of rows) if (out[r.reviewId]) out[r.reviewId] = { up: r.up, down: r.down }
+  for (const [id, c] of counted) if (out[id]) out[id] = c
   return out
 }
 
-/** Eligible counts for the given schools and the caller's own votes (and whether they count yet). */
+/**
+ * Eligible counts for the given schools, the caller's own votes, and whether the caller is a verified person
+ * (`verified` — null when signed out) so the page can say why their own vote is not in the number yet.
+ */
 export async function liveState(schoolIds: string[], profileId: string | null) {
   const ids = [...new Set(schoolIds)].slice(0, 400)
-  const [votes, mine] = await Promise.all([
+  const [votes, mine, verified] = await Promise.all([
     eligibleVotes(ids),
     profileId ? db.schoolVote.findMany({ where: { profileId, schoolId: { in: ids } }, select: { schoolId: true, value: true } }) : Promise.resolve([]),
+    // The memo, not isCountedVoter's fresh read: this runs on every page view (diff review).
+    profileId ? countedVoters([profileId]).then((counts) => counts(profileId)) : Promise.resolve(null),
   ])
   return {
     counts: Object.fromEntries(ids.map((id) => [id, votes.get(id) ?? { up: 0, down: 0 }])),
     mine: Object.fromEntries(mine.map((v) => [v.schoolId, v.value])),
+    verified,
   }
+}
+
+/** Does this account's vote count as a person's vote (VOTES_NEED_IDENTITY)? The write routes answer with it. */
+export async function isCountedVoter(profileId: string): Promise<boolean> {
+  // FRESH, not the one-minute memo (diff review): this answers the caller about their OWN vote, and someone who has
+  // just verified must not be told to verify. The answer refreshes the memo the counts use.
+  if (!VOTES_NEED_IDENTITY) return true
+  const ok = (await verifiedProfileIds([profileId])).has(profileId)
+  VERIFIED_MEMO.set(profileId, { ok, until: Date.now() + VERIFIED_MEMO_MS })
+  return ok
 }
 
 export async function myReviewVotes(reviewIds: string[], profileId: string) {
@@ -383,4 +468,33 @@ export async function schoolForJob(employer: unknown, sellerId: string, place: J
   } catch {
     return null
   }
+}
+
+// ── moderation ─────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * ⛔ THE REVIEW QUEUE HOLDS ONLY REVIEWS THAT CAN BE APPROVED (diff review): pending, by a writer whose proof at
+ * that school is pending or verified. One whose proof was rejected, withdrawn or closed waits OFF the queue
+ * until its writer proves again — otherwise those would sit oldest-first in the 100 shown and bury every new one.
+ * The writer can still delete it from the school page.
+ */
+// ⚠️ A PENDING PROOF PAST ITS DATE COUNTS AS CLOSED HERE TOO (diff review): the Proofs tab no longer offers it
+// (admin page actionableProof), so its review must not sit here unapprovable until the nightly sweep closes it.
+const QUEUED = Prisma.sql`r.status = 'pending' and exists (
+  select 1 from "SchoolEmployment" e where e."profileId" = r."profileId" and e."schoolId" = r."schoolId"
+     and (e.status = 'verified' or (e.status = 'pending' and e."purgeAt" > (now() at time zone 'UTC'))))`
+/** The queue's first `limit` ids, APPROVABLE FIRST (diff review): reviews still waiting on their writer's proof must
+ * not fill the page ahead of ones a moderator can publish now. Oldest first within each. */
+export async function queuedReviewIds(limit: number): Promise<string[]> {
+  const rows = await db.$queryRaw<{ id: string }[]>`
+    select r.id from "SchoolReview" r
+      join "SchoolEmployment" e on e."profileId" = r."profileId" and e."schoolId" = r."schoolId"
+     where ${QUEUED}
+     order by (e.status = 'verified') desc, r."updatedAt" asc
+     limit ${limit}`
+  return rows.map((r) => r.id)
+}
+export async function queuedReviewCount(): Promise<number> {
+  const [row] = await db.$queryRaw<{ n: number }[]>`select count(*)::int as n from "SchoolReview" r where ${QUEUED}`
+  return row?.n ?? 0
 }

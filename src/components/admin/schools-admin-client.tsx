@@ -23,6 +23,12 @@ export type AdminReview = {
   leftYear: number | null; district: string | null; pros: string; cons: string; advice: string | null
   goodTags: string[]; badTags: string[]; pay: { amount: number; currency: string; period: string; vnd: number | null } | null
   flags: string[]; status: string; replyText: string | null; createdAt: string; updatedAt: string; author: Person
+  /** The writer's proof of employment at this school (pending reviews, and reviews under a report). Approval needs `verified`. */
+  proof?: { id: string; status: string; method: string; revocable: boolean } | null
+}
+export type AdminProof = {
+  id: string; method: string; linkedinUrl: string | null; challenge: string | null; flags: string[]
+  createdAt: string; updatedAt: string; school: { name: string; slug: string; website: string | null }; author: Person
 }
 export type AdminReport = {
   id: string; kind: 'review_report' | 'school_complaint'; reason: string; detail: string | null; contactEmail: string | null
@@ -34,8 +40,11 @@ async function act(body: Record<string, unknown>): Promise<boolean> {
   const res = await fetch('/api/admin/schools', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
   if (!res.ok) {
     const code = (await res.json().catch(() => ({}))).error
-    toast.error(code === 'review_changed_reload' ? 'The teacher changed this review after you opened it — reload and read it again.'
-      : code === 'invalid_status_transition' ? 'This review is no longer in a state where that applies — reload.'
+    toast.error(code === 'review_changed_reload' ? 'The teacher changed this after you opened it — reload and read it again.'
+      : code === 'proof_not_verified' ? 'Verify the writer’s proof of employment first (Proofs tab).'
+      : code === 'linkedin_already_used' ? 'This LinkedIn profile already proved employment for another account. Reject this proof, without saying why: the teacher reads the reason.'
+      : code === 'invalid_status_transition' ? 'This is no longer in a state where that applies — reload.'
+      : code === 'proof_rejected' ? 'This LinkedIn profile was revoked before: it can never prove employment. Reject this proof, without saying why: the teacher reads the reason.'
       : `Failed: ${code ?? res.status}`)
   }
   return res.ok
@@ -46,11 +55,16 @@ const ago = (iso: string) => {
   return d <= 0 ? 'today' : d === 1 ? '1 day ago' : `${d} days ago`
 }
 
-export function SchoolsAdminClient({ tab, reviews, reports, schools }: { tab: string; reviews: AdminReview[]; reports: AdminReport[]; schools: AdminSchool[] }) {
+export function SchoolsAdminClient({ tab, reviews, reports, schools, proofs }: { tab: string; reviews: AdminReview[]; reports: AdminReport[]; schools: AdminSchool[]; proofs: AdminProof[] }) {
   if (tab === 'reviews') {
     return reviews.length
       ? <ul className="flex flex-col gap-3">{reviews.map((r) => <li key={r.id}><ReviewModeration review={r} /></li>)}</ul>
       : <EmptyState tone="admin" icon={CheckCircle2} title="No reviews waiting" subtitle="New and edited reviews appear here before they are public." />
+  }
+  if (tab === 'proofs') {
+    return proofs.length
+      ? <ul className="flex flex-col gap-3">{proofs.map((p) => <li key={p.id}><ProofCard proof={p} /></li>)}</ul>
+      : <EmptyState tone="admin" icon={CheckCircle2} title="No proofs waiting" subtitle="Teachers' LinkedIn proofs of employment wait here until a moderator checks them." />
   }
   if (tab === 'reports') {
     return reports.length
@@ -124,9 +138,14 @@ function ReviewModeration({ review: r }: { review: AdminReview }) {
         </p>
       )}
       <AuthorLine who={r.author} label="Writer" />
+      <p className={cn('mt-1 text-xs font-semibold', r.proof?.status === 'verified' ? 'text-success' : 'text-warning')}>
+        Proof of employment: {r.proof ? `${r.proof.status} (LinkedIn)` : 'none'}
+        {r.proof?.status === 'pending' && ' — it can be approved only once the proof is verified (Proofs tab).'}
+        {r.proof && r.proof.status !== 'pending' && r.proof.status !== 'verified' && ' — it cannot be approved: the writer has no live proof.'}
+      </p>
       <div className="mt-3"><ReviewBody r={r} /></div>
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Button variant="cta" size="sm" disabled={busy} onClick={() => run({ action: 'approve', reviewId: r.id, seenUpdatedAt: r.updatedAt }, 'Published')}>Approve</Button>
+        <Button variant="cta" size="sm" disabled={busy || r.proof?.status !== 'verified'} onClick={() => run({ action: 'approve', reviewId: r.id, seenUpdatedAt: r.updatedAt }, 'Published')}>Approve</Button>
         <Button variant="outline" size="sm" disabled={busy} onClick={() => setRejecting((x) => !x)}>Reject…</Button>
       </div>
       {rejecting && (
@@ -134,6 +153,68 @@ function ReviewModeration({ review: r }: { review: AdminReview }) {
           <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value.slice(0, 500))} placeholder="Reason the writer will see (e.g. names a person; describe your own experience instead)" />
           <Button variant="destructive" size="sm" className="self-start" disabled={busy || reason.trim().length < 3}
             onClick={() => run({ action: 'reject', reviewId: r.id, reason: reason.trim(), seenUpdatedAt: r.updatedAt }, 'Rejected')}>Reject with this reason</Button>
+          {/* A verified proof found false while reading the review — a borrowed profile — is revoked here too, not only
+              from a report (diff review): every proof made with that profile goes, with the reviews it backed. */}
+          {r.proof?.revocable && (
+            <Button variant="outline" size="sm" className="self-start text-destructive" disabled={busy || reason.trim().length < 3}
+              onClick={() => run({ action: 'proof_revoke', proofId: r.proof!.id, reason: reason.trim() }, 'Proof revoked; reviews unpublished')}>Revoke the proof of employment instead</Button>
+          )}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+const FLAG_NOTE: Record<string, string> = {
+  linkedin_shared: 'This LinkedIn profile was also submitted from another eno account. Check both before verifying either. Never mention another account in the reason: the teacher reads it, and must not learn who else is here.',
+  account_revoked: 'A moderator REVOKED a proof from this account before (a profile it used was found false). Check this one with that in mind. Never mention it in the reason: the teacher reads it.',
+  linkedin_changed: 'This account proved employment before with a DIFFERENT LinkedIn profile. Check why it changed before verifying. Never mention another account in the reason: the teacher reads it, and must not learn who else is here.',
+  linkedin_revoked: 'A moderator revoked a proof made with this LinkedIn profile. It cannot verify any account again: reject this one. Never mention another account in the reason: the teacher reads it, and must not learn who else is here.',
+}
+
+/**
+ * One proof of employment. NEVER shown to anyone but a moderator. For LinkedIn: open the profile, check the
+ * school is in Experience and the code is on the profile (headline or About); we never scrape it.
+ */
+function ProofCard({ proof: p }: { proof: AdminProof }) {
+  const router = useRouter()
+  const [busy, setBusy] = React.useState(false)
+  const [rejecting, setRejecting] = React.useState(false)
+  const [reason, setReason] = React.useState('')
+  async function run(body: Record<string, unknown>, ok: string) {
+    setBusy(true)
+    if (await act(body)) { toast.success(ok); router.refresh() }
+    setBusy(false)
+  }
+  return (
+    <Card className={cn('p-4', p.flags.length > 0 && 'ring-2 ring-warning')}>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm font-semibold text-foreground">
+          <Link href={`/schools/${p.school.slug}`} className="hover:underline" target="_blank">{p.school.name}</Link>
+          {' · LinkedIn'}
+        </p>
+        <p className="text-xs text-muted-foreground">submitted {ago(p.updatedAt)}</p>
+      </div>
+      {p.flags.map((f) => <p key={f} className="mt-2 rounded-lg bg-warning/10 px-2 py-1 text-xs font-semibold text-warning">{FLAG_NOTE[f] ?? f}</p>)}
+      <AuthorLine who={p.author} label="Teacher" />
+      {p.method === 'linkedin' && p.linkedinUrl && (
+        <div className="mt-3 flex flex-col gap-1 text-sm">
+          <a href={p.linkedinUrl} target="_blank" rel="noopener noreferrer nofollow" className="break-all font-semibold text-accent-foreground hover:underline">{p.linkedinUrl}</a>
+          <p className="text-xs text-muted-foreground">
+            Verify only if (1) {p.school.name} is in the profile&apos;s Experience and (2) this code is on the profile:{' '}
+            <code className="rounded-lg bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">{p.challenge}</code>
+          </p>
+        </div>
+      )}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Button variant="cta" size="sm" disabled={busy} onClick={() => run({ action: 'proof_verify', proofId: p.id, seenUpdatedAt: p.updatedAt }, 'Verified')}>Verify</Button>
+        <Button variant="outline" size="sm" disabled={busy} onClick={() => setRejecting((x) => !x)}>Reject…</Button>
+      </div>
+      {rejecting && (
+        <div className="mt-3 flex flex-col gap-2">
+          <Textarea rows={2} value={reason} onChange={(e) => setReason(e.target.value.slice(0, 500))} placeholder="Reason the teacher will see: about their own profile only, never another account (e.g. the code is not on the profile)" />
+          <Button variant="destructive" size="sm" className="self-start" disabled={busy || reason.trim().length < 3}
+            onClick={() => run({ action: 'proof_reject', proofId: p.id, reason: reason.trim(), seenUpdatedAt: p.updatedAt }, 'Rejected')}>Reject with this reason</Button>
         </div>
       )}
     </Card>
@@ -145,6 +226,7 @@ function ReportCard({ report: rep }: { report: AdminReport }) {
   const [busy, setBusy] = React.useState(false)
   const [reply, setReply] = React.useState(rep.review?.replyText ?? '')
   const [unpublishReason, setUnpublishReason] = React.useState('')
+  const [revokeReason, setRevokeReason] = React.useState('')
   const overdue = rep.dueBy ? new Date(rep.dueBy).getTime() < Date.now() : false
   async function run(body: Record<string, unknown>, ok: string) {
     setBusy(true)
@@ -184,6 +266,15 @@ function ReportCard({ report: rep }: { report: AdminReport }) {
                 <Textarea rows={1} value={unpublishReason} onChange={(e) => setUnpublishReason(e.target.value.slice(0, 500))} placeholder="Reason to unpublish (the writer sees it)" />
                 <Button variant="destructive" size="sm" disabled={busy || unpublishReason.trim().length < 3}
                   onClick={() => run({ action: 'reject', reviewId: rep.review!.id, reason: unpublishReason.trim(), seenUpdatedAt: rep.review!.updatedAt }, 'Unpublished')}>Unpublish review</Button>
+              </div>
+            )}
+            {/* A verified proof that turns out false (a borrowed LinkedIn profile): taking it back unpublishes the
+                review it backs, and that profile can never prove employment again. */}
+            {rep.review.proof?.revocable && (
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Textarea rows={1} value={revokeReason} onChange={(e) => setRevokeReason(e.target.value.slice(0, 500))} placeholder="Why the proof of employment is revoked (the writer sees it)" />
+                <Button variant="destructive" size="sm" disabled={busy || revokeReason.trim().length < 3}
+                  onClick={() => run({ action: 'proof_revoke', proofId: rep.review!.proof!.id, reason: revokeReason.trim() }, 'Proof revoked; review unpublished')}>Revoke proof and unpublish</Button>
               </div>
             )}
           </div>

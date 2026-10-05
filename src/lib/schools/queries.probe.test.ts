@@ -27,6 +27,11 @@ const P = {
   young: uuid(9106), business: uuid(9107), held: uuid(9108), restricted: uuid(9109), owner: uuid(9110), nullType: uuid(9111),
 }
 const SCHOOL = 'probe-school-a', SCHOOL_B = 'probe-school-b', SHOP = 'probe-school-shop'
+/** A live passport verification for a probe account (a distinct subject per account). */
+const verifiedIdentity = (profileId: string, i: number, status = 'verified') => ({
+  id: `probe-iv-${status}-${i}`, profileId, tier: 'B', method: 'passport_mrz', status,
+  decidedAt: new Date(Date.now() - 30 * DAY), documentExpiresAt: new Date(Date.now() + 365 * DAY), subjectHash: `${'f'.repeat(56)}${String(i).padStart(8, '0')}`,
+})
 
 describe.skipIf(!live)('schools read-time eligibility against a real Postgres', () => {
   let db: typeof import('@/lib/db').db
@@ -51,6 +56,14 @@ describe.skipIf(!live)('schools read-time eligibility against a real Postgres', 
     await db.seller.create({ data: { id: SHOP, name: 'Probe School Shop', ownerId: P.owner } })
     await db.school.create({ data: { id: SCHOOL, slug: SCHOOL, name: 'Probe School A', kind: 'language_centre', sellerId: SHOP } })
     await db.school.create({ data: { id: SCHOOL_B, slug: SCHOOL_B, name: 'Probe School B', kind: 'agency' } })
+    // ⚠️ EVERY probe account is an identity-verified person with a verified proof of employment at both schools
+    // (2026-10-05 rules), so each test below still isolates the rule it names; the last tests take one away.
+    for (const [i, id] of Object.values(P).entries()) {
+      await db.identityVerification.create({ data: verifiedIdentity(id, i) })
+      for (const schoolId of [SCHOOL, SCHOOL_B]) {
+        await db.schoolEmployment.create({ data: { schoolId, profileId: id, method: 'linkedin', status: 'verified', linkedinHash: `${'0'.repeat(56)}${String(i).padStart(8, '0')}`, decidedAt: new Date(), decidedBy: 'probe' } })
+      }
+    }
     // A: 4 eligible ups (old1-3 + null-type), 1 eligible down (old4) — and one vote from every ineligible kind.
     const votes: [string, string, number][] = [
       [SCHOOL, P.old1, 1], [SCHOOL, P.old2, 1], [SCHOOL, P.old3, 1], [SCHOOL, P.nullType, 1], [SCHOOL, P.old4, -1],
@@ -63,8 +76,10 @@ describe.skipIf(!live)('schools read-time eligibility against a real Postgres', 
   afterAll(async () => { await reset(); await db.$disconnect() })
 
   async function reset() {
-    await db.school.deleteMany({ where: { id: { in: [SCHOOL, SCHOOL_B] } } }) // cascades votes/reviews/aliases
+    await db.school.deleteMany({ where: { id: { in: [SCHOOL, SCHOOL_B] } } }) // cascades votes/reviews/aliases/proofs
     await db.seller.deleteMany({ where: { id: SHOP } })
+    // Identity rows outlive their profile on purpose (SET NULL, the 3-year retention): delete them by id.
+    await db.identityVerification.deleteMany({ where: { id: { startsWith: 'probe-iv-' } } })
     await db.profile.deleteMany({ where: { id: { in: [...Object.values(P), uuid(9199)] } } })
   }
 
@@ -181,5 +196,42 @@ describe.skipIf(!live)('schools read-time eligibility against a real Postgres', 
     const pros = 'Supportive academic team and good materials.', cons = 'Schedule changes were sometimes announced late.'
     await db.schoolReview.create({ data: { schoolId: SCHOOL, profileId: P.owner, current: true, tenure: '2plus', role: 'other', employment: 'full_time', pros, cons, status: 'published' } })
     expect((await q.getSchoolPage(SCHOOL))?.reviews.length).toBe(5)
+  })
+  it('ONE VERIFIED PERSON, ONE VOTE: a revoked identity stops counting at once, and counts again when cleared', async () => {
+    const before = (await q.liveState([SCHOOL], null)).counts[SCHOOL]
+    const revoked = await db.identityVerification.create({ data: verifiedIdentity(P.old1, 901, 'revoked') })
+    q.forgetCountedVoters() // the counting memo holds an answer for a minute (queries.ts)
+    const after = (await q.liveState([SCHOOL], null)).counts[SCHOOL]
+    expect(after).toEqual({ up: before.up - 1, down: before.down }) // old1's up-vote, and nothing else
+    expect((await q.liveState([SCHOOL], P.old1)).verified).toBe(false)
+    await db.identityVerification.delete({ where: { id: revoked.id } })
+    q.forgetCountedVoters()
+    expect((await q.liveState([SCHOOL], null)).counts[SCHOOL]).toEqual(before)
+  })
+
+  it('a published review shows only while its author holds a VERIFIED proof of employment at THAT school', async () => {
+    const pros = 'The academic manager gave clear feedback every term.', cons = 'Paperwork for each class took longer than the class.'
+    const r = await db.schoolReview.create({ data: { schoolId: SCHOOL_B, profileId: P.old3, current: true, tenure: 'lt1', role: 'teacher', employment: 'full_time', pros, cons, status: 'published', moderatedAt: new Date(Date.now() - 8 * DAY) } })
+    const shown = async () => ((await q.getSchoolPage(SCHOOL_B))?.reviews ?? []).some((x) => x.id === r.id)
+    expect(await shown()).toBe(true)
+    await db.schoolEmployment.update({ where: { profileId_schoolId: { profileId: P.old3, schoolId: SCHOOL_B } }, data: { status: 'withdrawn' } })
+    expect(await shown()).toBe(false)
+    // A proof at ANOTHER school is no proof here.
+    expect(await db.schoolEmployment.count({ where: { profileId: P.old3, schoolId: SCHOOL, status: 'verified' } })).toBe(1)
+    await db.schoolEmployment.update({ where: { profileId_schoolId: { profileId: P.old3, schoolId: SCHOOL_B } }, data: { status: 'verified' } })
+    expect(await shown()).toBe(true)
+    await db.schoolReview.delete({ where: { id: r.id } })
+  })
+
+  it('the vote log records every change in the database (the awards cutoff reads it), and nothing on a cascade', async () => {
+    const id = uuid(9199)
+    await db.profile.create({ data: { id, email: '9199@probe.test', displayName: 'Probe', accountType: 'individual', createdAt: new Date(Date.now() - 30 * DAY) } })
+    await db.schoolVote.create({ data: { schoolId: SCHOOL_B, profileId: id, value: 1 } })
+    await db.schoolVote.update({ where: { schoolId_profileId: { schoolId: SCHOOL_B, profileId: id } }, data: { value: -1 } })
+    await db.schoolVote.delete({ where: { schoolId_profileId: { schoolId: SCHOOL_B, profileId: id } } })
+    expect((await db.schoolVoteEvent.findMany({ where: { profileId: id }, orderBy: { id: 'asc' } })).map((e) => e.value)).toEqual([1, -1, 0])
+    await db.schoolVote.create({ data: { schoolId: SCHOOL_B, profileId: id, value: 1 } })
+    await db.profile.delete({ where: { id } }) // erasure: the vote and the whole log go, and the delete succeeds
+    expect(await db.schoolVoteEvent.count({ where: { profileId: id } })).toBe(0)
   })
 })

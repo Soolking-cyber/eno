@@ -4,6 +4,7 @@
 //   DELETE → the caller withdraws it: the row is DELETED — text, pay and all (a reviewer's "take it down"
 //            must not leave their words and pay stored); helpful votes go with it, reports keep their row
 //
+// ⛔ A REVIEW NEEDS A PROOF OF EMPLOYMENT (2026-10-05, see POST) and is published only once that proof is verified.
 // ⛔ PRE-MODERATION IS THE LEGAL SAFEGUARD (plan review 2026-10-04: Vietnam's reputation/defamation rules
 // apply to anonymous employer reviews). Nothing a teacher writes is public until a moderator approves it.
 // ⛔ PAY NEVER COMES BACK OUT except to its author: public pages only ever see the k≥5 aggregate.
@@ -84,6 +85,14 @@ export const POST = route(
     }
     // The school's own shop owner does not review it.
     if (school.seller?.ownerId === profile.id) throw new ApiError('forbidden', 403)
+    // ⛔ PROOF OF EMPLOYMENT FIRST (owner, 2026-10-05): a review is written only with a private proof that the
+    // writer worked here (/api/schools/[id]/proof) — pending is enough to write, verified is needed to publish
+    // (the moderator's approve checks it, and the public read rule requires it).
+    const proof = await db.schoolEmployment.findUnique({ where: { profileId_schoolId: { profileId: profile.id, schoolId: school.id } }, select: { status: true, purgeAt: true } })
+    // A waiting proof past its date is no proof (diff review): the queue no longer shows it, so a review written on it
+    // would wait where no moderator looks. The same rule as the queue (queries.ts QUEUED).
+    const live = proof && (proof.status === 'verified' || (proof.status === 'pending' && !!proof.purgeAt && proof.purgeAt > new Date()))
+    if (!live) throw new ApiError('proof_required', 409)
 
     const texts = [body.pros, body.cons, body.advice ?? null]
     // Links first: the contact screen below also catches a URL, but its message ("remove phone numbers,

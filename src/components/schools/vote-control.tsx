@@ -11,7 +11,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { formatInteger, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
-import { ELIGIBLE_ACCOUNT_AGE_DAYS } from '@/lib/schools/constants'
+import { ELIGIBLE_ACCOUNT_AGE_DAYS, VERIFY_IDENTITY_PATH } from '@/lib/schools/constants'
 import { readVoteAck, useSchoolLive, writeVoteAck } from './school-live'
 
 /**
@@ -67,10 +67,21 @@ export function VoteControl({ schoolId, schoolName, layout = 'column', size = 'm
       if (value !== 0 && d.countsNow === false) {
         // Stored, but not counted yet: the public number must not show it.
         live.undoCount(schoolId, value, prev, at)
-        toast(tr(
-          'Vote saved. It starts counting once your account is {n} days old.',
-          'Đã lưu bình chọn. Bình chọn sẽ được tính khi tài khoản của bạn được {n} ngày tuổi.',
-        ).replace('{n}', String(ELIGIBLE_ACCOUNT_AGE_DAYS)))
+        if (d.needsIdentity) {
+          // One verified person, one vote (constants.ts VOTES_NEED_IDENTITY): say what makes it count — BOTH things
+          // when a new account also has to wait for its age (diff review: "verify" alone was not the whole story).
+          const young = typeof d.countsFrom === 'string' && new Date(d.countsFrom) > new Date()
+          toast(young
+            ? tr('Vote saved. It counts once you verify your identity and your account is {n} days old: one person, one vote.', 'Đã lưu bình chọn. Bình chọn sẽ được tính khi bạn xác minh danh tính và tài khoản được {n} ngày tuổi: mỗi người một phiếu.').replace('{n}', String(ELIGIBLE_ACCOUNT_AGE_DAYS))
+            : tr('Vote saved. It counts once you verify your identity: one person, one vote.', 'Đã lưu bình chọn. Bình chọn sẽ được tính khi bạn xác minh danh tính: mỗi người một phiếu.'), {
+            action: { label: tr('Verify', 'Xác minh'), onClick: () => { window.location.href = VERIFY_IDENTITY_PATH } },
+          })
+        } else {
+          toast(tr(
+            'Vote saved. It starts counting once your account is {n} days old.',
+            'Đã lưu bình chọn. Bình chọn sẽ được tính khi tài khoản của bạn được {n} ngày tuổi.',
+          ).replace('{n}', String(ELIGIBLE_ACCOUNT_AGE_DAYS)))
+        }
       }
       live.refresh({ schools: [schoolId] })
     } catch {
@@ -135,8 +146,8 @@ export function VoteControl({ schoolId, schoolName, layout = 'column', size = 'm
             <DialogTitle>{tr('Votes are for teachers who were there', 'Bình chọn dành cho giáo viên từng làm việc tại đây')}</DialogTitle>
             <DialogDescription>
               {tr(
-                'Vote only on schools and centres where you worked, or interviewed, as a teacher. Votes count from individual accounts in good standing that are at least {n} days old.',
-                'Chỉ bình chọn cho trường hoặc trung tâm nơi bạn từng làm việc hoặc phỏng vấn với vai trò giáo viên. Bình chọn được tính từ tài khoản cá nhân uy tín, đã tạo ít nhất {n} ngày.',
+                'Vote only on schools and centres where you worked, or interviewed, as a teacher. One person, one vote: votes count from individual accounts with a verified identity, in good standing and at least {n} days old. Who voted is never shown.',
+                'Chỉ bình chọn cho trường hoặc trung tâm nơi bạn từng làm việc hoặc phỏng vấn với vai trò giáo viên. Mỗi người một phiếu: bình chọn được tính từ tài khoản cá nhân đã xác minh danh tính, uy tín và đã tạo ít nhất {n} ngày. Không ai thấy bạn đã bình chọn.',
               ).replace('{n}', String(ELIGIBLE_ACCOUNT_AGE_DAYS))}
             </DialogDescription>
           </DialogHeader>

@@ -393,6 +393,33 @@ export async function hasVerifiedIdentity(profileId: string): Promise<boolean> {
 }
 
 /**
+ * THE BATCH FORM, FOR COUNTING: which of these profiles hold a LIVE verified identity right now.
+ *
+ * Asked by /schools (src/lib/schools/queries.ts), where a vote counts only from a verified person — one
+ * verified identity per human is already enforced at submit (kyc/service.ts duplicate_identity), so this
+ * is what makes it one person, one vote. A page of a few hundred voters cannot ask hasVerifiedIdentity
+ * one profile at a time.
+ * ⛔ THE SAME DERIVATION AS readVerifiedIdentity, NOT A SECOND PREDICATE: every row of each profile's
+ * history goes through `deriveVerification`, so revocation outranks everything and a lapsed document
+ * stops counting on the day it lapses. It deliberately does not read `Profile.verificationStatus` — that
+ * column is a cache nothing sweeps (kyc/person-gate.ts). Only the decision leaves this module: ids, never
+ * a name, a nationality or a hash.
+ */
+export async function verifiedProfileIds(profileIds: readonly string[], now: Date = new Date()): Promise<Set<string>> {
+  const ids = [...new Set(profileIds)].filter(Boolean)
+  if (ids.length === 0) return new Set()
+  const rows = await db.identityVerification.findMany({
+    where: { profileId: { in: ids } },
+    select: { id: true, profileId: true, tier: true, method: true, status: true, decidedAt: true, documentExpiresAt: true, assuranceLevel: true },
+  })
+  const byProfile = new Map<string, typeof rows>()
+  for (const r of rows) if (r.profileId) byProfile.set(r.profileId, [...(byProfile.get(r.profileId) ?? []), r])
+  const out = new Set<string>()
+  for (const [profileId, history] of byProfile) if (deriveVerification(history, now).status === 'verified') out.add(profileId)
+  return out
+}
+
+/**
  * The OTHER accounts that share one of this profile's identity subjects AND are held or suspended —
  * [] when none. Asked by a scam-hold RELEASE (src/lib/scam-hold.ts), which must not hand a seller
  * their listings back while the same person sits sanctioned under another account.

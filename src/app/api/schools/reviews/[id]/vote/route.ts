@@ -3,7 +3,7 @@
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
-import { writeEligibility } from '@/lib/schools/queries'
+import { isCountedVoter, writeEligibility } from '@/lib/schools/queries'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -36,6 +36,7 @@ export const POST = route(
       create: { reviewId: review.id, profileId: profile.id, value: body.value },
       update: { value: body.value },
     })
-    return { ok: true, value: body.value, countsNow: gate.countsNow }
+    const person = await isCountedVoter(profile.id)
+    return { ok: true, value: body.value, countsNow: gate.countsNow && person, countsFrom: gate.countsFrom.toISOString(), needsIdentity: !person }
   },
 )

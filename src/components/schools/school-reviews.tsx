@@ -3,7 +3,7 @@
 import * as React from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { ArrowBigUp, Flag, MessageSquareText, PencilLine } from '@/components/ui/icons'
+import { ArrowBigUp, BadgeCheck, Flag, MessageSquareText, PencilLine } from '@/components/ui/icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Segmented } from '@/components/ui/segmented'
@@ -15,7 +15,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { formatInteger, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
-import { EMPLOYMENT_LABEL, REPORT_REASONS, REPORT_REASON_LABEL, TAG_LABEL, type ReportReason } from '@/lib/schools/constants'
+import { ELIGIBLE_ACCOUNT_AGE_DAYS, EMPLOYMENT_LABEL, REPORT_REASONS, REPORT_REASON_LABEL, TAG_LABEL, VERIFY_IDENTITY_PATH, type ReportReason } from '@/lib/schools/constants'
 import { stintParts, wilsonLower } from '@/lib/schools/logic'
 import type { PublicReview } from '@/lib/schools/queries'
 import { useSchoolLive } from './school-live'
@@ -75,6 +75,11 @@ function ReviewCard({ review: r, schoolName }: { review: PublicReview; schoolNam
   return (
     <li className="rounded-2xl bg-card p-4 ring-1 ring-border sm:p-5">
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+        {/* Every public review has a moderator-checked proof of employment (queries.ts reviewAuthorSql), so the
+            badge is true of each one — and says nothing about who. ⚠️ "CHECKED", NOT "VERIFIED EMPLOYEE" (diff
+            review): a LinkedIn history is written by its owner, so the claim is what a moderator did, no more. */}
+        <span className="inline-flex items-center gap-1 font-semibold text-success"><BadgeCheck aria-hidden className="size-4" />{tr('Employment checked', 'Đã kiểm tra nơi làm việc')}</span>
+        <span aria-hidden>·</span>
         <span className="font-semibold text-foreground">{parts.map((p) => tr(p.en, p.vi)).join(' · ')}</span>
         <span aria-hidden>·</span>
         <span>{tr(EMPLOYMENT_LABEL[r.employment].en, EMPLOYMENT_LABEL[r.employment].vi)}</span>
@@ -165,7 +170,22 @@ function HelpfulVote({ review }: { review: PublicReview }) {
         return
       }
       // Stored, but a new account's vote does not count yet: the public number must not show it.
-      if (next !== 0 && body?.countsNow === false) live.undoReviewCount(review.id, next, prev, at)
+      if (next !== 0 && body?.countsNow === false) {
+        live.undoReviewCount(review.id, next, prev, at)
+        // One verified person, one vote — and the teacher is told so, as on a school vote (diff review: a helpful
+        // vote that silently did not count read as broken).
+        if (body?.needsIdentity) {
+          const young = typeof body.countsFrom === 'string' && new Date(body.countsFrom) > new Date()
+          toast(young
+            ? tr('Saved. It counts once you verify your identity and your account is {n} days old: one person, one vote.', 'Đã lưu. Phiếu sẽ được tính khi bạn xác minh danh tính và tài khoản được {n} ngày tuổi: mỗi người một phiếu.').replace('{n}', String(ELIGIBLE_ACCOUNT_AGE_DAYS))
+            : tr('Saved. It counts once you verify your identity: one person, one vote.', 'Đã lưu. Phiếu sẽ được tính khi bạn xác minh danh tính: mỗi người một phiếu.'), {
+            action: { label: tr('Verify', 'Xác minh'), onClick: () => { window.location.href = VERIFY_IDENTITY_PATH } },
+          })
+        } else {
+          // Verified, but the account is new: say when it counts, as a school vote does (diff review).
+          toast(tr('Saved. It counts once your account is {n} days old.', 'Đã lưu. Phiếu sẽ được tính khi tài khoản của bạn được {n} ngày tuổi.').replace('{n}', String(ELIGIBLE_ACCOUNT_AGE_DAYS)))
+        }
+      }
       live.refresh({ reviews: [review.id] })
     } catch {
       revert()
