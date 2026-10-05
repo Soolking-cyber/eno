@@ -216,6 +216,21 @@ describe('O-34b on the server — the visa slot is an official partner’s on en
     expect(h.creates[0].subcategorySlug).toBe('visa-legal')
   })
 
+  it('⛔ files by the TITLE first — a longer keyword in the description (the extras) does not win (gate, 2026-10-05)', async () => {
+    await createListingCore({
+      seller: { id: 'seller-1', ownerId: 'owner-1', trustTier: 'standard', trustScore: 100, phone: null },
+      guestCreate: false,
+      category: { id: 'c-services', slug: 'services', name: 'Services', nameVi: 'Dịch vụ' },
+      title: 'Dọn dẹp nhà cửa theo giờ',
+      price: 500_000,
+      // 'work permit' (11) is longer than 'dọn dẹp' (7): read together, the description would file this cleaner
+      // under Legal & permits (then Other, for a non-partner).
+      body: { listingType: 'service', subcategorySlug: '', description: 'Nhận dọn nhà cho chuyên gia, có thể hỗ trợ giấy tờ work permit.', attributes: {} },
+      headers: new Headers(),
+    })
+    expect(h.creates[0].subcategorySlug).toBe('cleaning')
+  })
+
   it('leaves every other services aisle alone, with no partner read', async () => {
     await createService('service-other', {}, 'Tax return help')
     expect(h.creates[0].subcategorySlug).toBe('service-other')

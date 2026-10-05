@@ -1413,10 +1413,13 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'childcare', name: 'Childcare', nameVi: 'Trông trẻ', icon: 'Baby', keywords: ['nanny', 'babysitter', 'childcare', 'trông trẻ', 'giữ trẻ'] },
       { slug: 'pet-services', name: 'Pets', nameVi: 'Thú cưng', icon: 'PawPrint', keywords: ['pet grooming', 'pet sitting', 'vet', 'grooming', 'thú y', 'chăm sóc thú cưng'] },
       // Mobile carriers' eSIMs and the plans that ride on them (scripts/import-esim.ts).
-      // ⚠️ LAST BEFORE 'service-other', AND ONLY eSIM-SPECIFIC KEYWORDS. suggestSubcategory() is a
-      // first-match substring test in array order: placed earlier, or given a bare 'sim' ("simple"),
-      // 'data' ("database"), 'gói cước' or 'nhà mạng' (any internet/TV package), it would pull
-      // cleaning, moving and repair posts in here. Two reviewers caught the first cut doing that.
+      // ⚠️ LAST BEFORE 'service-other', AND ONLY eSIM-SPECIFIC KEYWORDS. suggestSubcategory() files a
+      // post under the subcategory whose LONGEST whole-word keyword it mentions, a tie going to the
+      // earlier one (since 2026-10-05; it was a first-match substring test in array order). Given a
+      // bare 'data', 'gói cước' or 'nhà mạng' (any internet/TV package), it would pull cleaning,
+      // moving and repair posts in here — and a long keyword now wins wherever it sits in the list.
+      // Two reviewers caught the first cut doing that (with 'sim' and 'data' matching inside "simple"
+      // and "database", which whole-word matching no longer does).
       // ⚠️ And nothing that reads as a PHYSICAL SIM ('sim card', 'sim du lịch'): trading pre-activated
       // SIMs is illegal (ND 163/2024) — publish-guard.ts blocks it by text — and a suggester must not
       // file such a post here as if it were a normal product.
@@ -1452,10 +1455,11 @@ export const TAXONOMY: CategoryDef[] = [
       //
       // ⚠️ BOTH ARE `optional`. `visa-legal` is not a visa-products-only subcategory:
       // its keywords are visa / work permit / legal / tax / permit / giấy tờ / thuế /
-      // pháp lý, and suggestSubcategory() drops any Services listing mentioning one of
-      // them in here. Without the flag, a Vietnamese agent posting "gia hạn work
-      // permit" could not publish until they picked an e-visa entry type — exactly the
-      // kind of gate the owner's launch-leniency policy forbids. The e-visa surfaces
+      // pháp lý, and suggestSubcategory() drops a Services listing in here whenever one
+      // of them is the longest keyword it mentions. Without the flag, a Vietnamese
+      // agent posting "gia hạn work permit" could not publish until they picked an
+      // e-visa entry type — exactly the kind of gate the owner's launch-leniency
+      // policy forbids. The e-visa surfaces
       // read these attributes defensively (parseVisaEntryType / parseVisaSpeedCode
       // answer null, never a guessed default), so an unset chip costs a product its
       // auto-fill, never a wrong government form.
@@ -2044,15 +2048,83 @@ export function migrateLegacyCategoryParams(params: URLSearchParams): URLSearchP
   return next
 }
 
-// Pick the best subcategory slug for a free-text title (post-wizard auto-suggest
-// + mock generation). Returns undefined when nothing matches.
-export function suggestSubcategory(categorySlug: string, text: string): string | undefined {
-  const subs = subcategoriesFor(categorySlug)
-  const hay = (text || '').toLowerCase()
-  for (const s of subs) {
-    if (s.keywords.some((k) => hay.includes(k.toLowerCase()))) return s.slug
+/**
+ * THE SUBCATEGORY KEYWORD MATCH — whole words, marks kept, the longest phrase wins.
+ *
+ * ⛔ IT WAS `text.includes(keyword)` OVER THE SUBCATEGORIES IN ARRAY ORDER, FIRST HIT WINS (nav audit N11,
+ * 2026-10-05). "Tủ lạnh Toshiba 180L" under Nhà cửa › Điện máy was offered "Gợi ý: Tủ kệ?": storage's 'tủ'
+ * sits before white-goods' 'tủ lạnh'. The same shape sent "Ốp lưng iPhone" to Phones ('iphone' before 'ốp
+ * lưng'), "Sạc dự phòng" to Cables ('sạc'), "Camera giám sát" to Cameras, and — by substring — "Taxi to the
+ * airport" to Legal & permits ('tax'), "Shimano bike parts" to Motorbike ('sh'). Now:
+ *  · WHOLE WORDS. The boundary is any character that is not a letter or a mark IN ANY SCRIPT (`\p{L}\p{M}`):
+ *    JavaScript's `\b` is ASCII-only, so it sees a "boundary" inside "tủ" between t and ủ. ⚠️ A DIGIT IS A
+ *    BOUNDARY (gate, 2026-10-05): model titles glue the number on — "iPhone13 128GB", "Honda SH150i",
+ *    "Vision2022" — and with digits counted as letters those lost their keyword and their auto-filing.
+ *    (English compounds stay a known miss: 'bike' is not found in "motorbike".) An English keyword of three letters or more also takes its plural ("toys", "watches"); a two-letter
+ *    code does not — 'it' is not "its", 'pc' is not "pcs".
+ *  · MARKS ARE PART OF THE WORD. Text and keyword are NFC-normalised (a decomposed "ủ", which some
+ *    keyboards type, is the same letter as the precomposed one) and lower-cased, never folded: 'tủ' does not
+ *    match "tự", "tư" or an unaccented "tu" — the folded forms collide on every short Vietnamese word.
+ *  · THE LONGEST MATCHED KEYWORD WINS ('tủ lạnh' over 'tủ', 'máy tính bảng' over 'máy tính'), counted in
+ *    characters; a tie keeps the taxonomy's array order, which is all the order decided before.
+ * Pure and client-safe: the post wizard's chip runs it on every title keystroke, so each keyword's pattern
+ * is compiled once (the keyword set is the taxonomy's, so the cache is bounded).
+ */
+const KEYWORD_WORD = String.raw`\p{L}\p{M}`
+const KEYWORD_PATTERNS = new Map<string, { re: RegExp; length: number }>()
+
+/** The text as the keyword match reads it: NFC, lower case, marks kept. */
+function keywordText(text: string): string {
+  return (text || '').normalize('NFC').toLowerCase()
+}
+
+function keywordPattern(keyword: string): { re: RegExp; length: number } {
+  let p = KEYWORD_PATTERNS.get(keyword)
+  if (!p) {
+    const k = keywordText(keyword).trim()
+    // Words of a phrase are separated by any run of whitespace ("tủ  lạnh", a line break in a description).
+    const body = k.split(/\s+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join(String.raw`\s+`)
+    const plural = k.length >= 3 && /[a-z]$/.test(k) ? '(?:e?s)?' : ''
+    p = { re: new RegExp(`(?:^|[^${KEYWORD_WORD}])${body}${plural}(?![${KEYWORD_WORD}])`, 'u'), length: k.length }
+    KEYWORD_PATTERNS.set(keyword, p)
   }
-  return undefined
+  return p
+}
+
+/** The length of the longest of `keywords` that `text` (already keywordText) holds as whole words; 0 for none. */
+function longestKeywordIn(keywords: readonly string[], text: string): number {
+  let best = 0
+  for (const k of keywords) {
+    const p = keywordPattern(k)
+    if (p.length > best && p.re.test(text)) best = p.length
+  }
+  return best
+}
+
+/**
+ * The best subcategory slug for a free text, or undefined when no keyword matches: the post wizard's
+ * "Gợi ý / Suggestion" chip (from the title) and createListingCore's fallback for a post that arrives with
+ * no subcategory (title + description). The rule is the block above.
+ */
+export function suggestSubcategory(categorySlug: string, text: string): string | undefined {
+  const hay = keywordText(text)
+  if (!hay.trim()) return undefined
+  let best: { slug: string; length: number } | undefined
+  for (const s of subcategoriesFor(categorySlug)) {
+    const length = longestKeywordIn(s.keywords, hay)
+    if (length > (best?.length ?? 0)) best = { slug: s.slug, length }
+  }
+  return best?.slug
+}
+
+/**
+ * Does one subcategory's OWN keyword list match the text (whole words, as above)? The post wizard offers no
+ * suggestion while the subcategory the seller chose already matches the title (N11): "Tủ lạnh Toshiba" filed
+ * under Điện máy is filed right, and a nudge elsewhere would only second-guess a correct pick.
+ */
+export function subcategoryMatchesText(categorySlug: string, subcategorySlug: string, text: string): boolean {
+  const sub = subcategoriesFor(categorySlug).find((s) => s.slug === subcategorySlug)
+  return !!sub && longestKeywordIn(sub.keywords, keywordText(text)) > 0
 }
 
 // Back-compat shape for the existing SUBCATEGORIES consumers (keyword-matched).

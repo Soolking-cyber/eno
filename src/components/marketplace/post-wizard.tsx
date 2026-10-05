@@ -35,8 +35,10 @@ import { trackPostListing } from '@/lib/analytics'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { isNativeShell } from '@/lib/native-browser'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
-import { postableSubcategoriesFor, isPostableSubcategory, isPartnerOnlySubcategory, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, VISA_PRODUCT_FACET_KEYS } from '@/lib/taxonomy'
+import { postableSubcategoriesFor, isPostableSubcategory, isPartnerOnlySubcategory, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText, VISA_PRODUCT_FACET_KEYS } from '@/lib/taxonomy'
 import { IS_MARKETPLACE } from '@/lib/edition'
+import { localizedHref } from '@/lib/lang-pinned'
+import { variantOfLanguage } from '@/lib/lang-variant'
 import { RangeSpecInput } from './range-spec-input'
 import { usePostMedia } from '@/hooks/use-post-media'
 import { PublishButton, PublishLabel, Section, Field, Chips, Preview, DraftNotice } from './post-wizard-parts'
@@ -1407,7 +1409,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // "Suggestion: Phones?" under the title (sell-11): the keyword match the server already uses when a
   // post arrives with no subcategory, offered while the seller can still see it. Only a subcategory the
   // picker offers (subOptions — edition-aware), never the one already chosen, never one dismissed.
-  const suggestedSlug = categorySlug && title.trim().length >= 3 ? suggestSubcategory(categorySlug, title) : undefined
+  // ⛔ AND NONE WHILE THE CHOSEN SUBCATEGORY'S OWN KEYWORDS MATCH THE TITLE (nav audit N11): "Tủ lạnh
+  // Toshiba 180L" under Điện máy was nudged to "Tủ kệ?". The longest keyword now wins (taxonomy.ts), and
+  // a title the seller's own pick already describes gets no second opinion at all.
+  const chosenSubMatchesTitle = !!subcategorySlug && subcategoryMatchesText(categorySlug, subcategorySlug, title)
+  const suggestedSlug = categorySlug && title.trim().length >= 3 && !chosenSubMatchesTitle ? suggestSubcategory(categorySlug, title) : undefined
   const subSuggestion = suggestedSlug && suggestedSlug !== subcategorySlug && suggestedSlug !== dismissedSuggestion
     ? subOptions.find((s) => s.slug === suggestedSlug)
     : undefined
@@ -1422,9 +1428,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     <div>
       {/* Exit is a <Link>, not an <a>: inside the Capacitor WebView a raw anchor is a fresh
           HTTP load of the live site — blank screen, full document teardown. The draft is
-          already autosaved to localStorage, so a soft nav loses nothing. */}
+          already autosaved to localStorage, so a soft nav loses nothing.
+          ⛔ A VIETNAMESE SELLER EXITS TO `/vi` (nav audit N6b): the plain `/` is the English-pinned pilot
+          path (lang-pinned.ts), so `href="/"` dropped them on the English home. */}
       {!embedded && (
-        <Link href="/" onClick={dropPublishIntent} className="relative inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer tap-44">
+        <Link href={localizedHref('/', variantOfLanguage(lang))} onClick={dropPublishIntent} className="relative inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer tap-44">
           <ChevronLeft className="h-4 w-4" /> {t('Thoát', 'Exit')}
         </Link>
       )}

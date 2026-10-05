@@ -15,6 +15,7 @@ import { handleExternalClick } from '@/lib/native-browser'
 import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
 import { ANDROID_APP_URL, IOS_APP_URL } from '@/lib/app-store-links'
 import { NAV_CATEGORIES } from '@/lib/taxonomy-nav'
+import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { UNLINKED_CATEGORIES } from '@/lib/retired-categories'
 import { FooterStats } from '@/components/marketplace/footer-stats'
 import { FooterPreferences } from '@/components/marketplace/footer-preferences'
@@ -593,7 +594,9 @@ function FooterBody() {
                   sat in a panel (the primitive's text-sm/leading-relaxed would grow every desktop row). */}
               <AccordionPanel className="pb-3 text-base leading-normal sm:pb-0">
                 <ul className="grid grid-cols-2 gap-x-6 sm:gap-y-2">
-                  {NAV_CATEGORIES.filter((cat) => !FOOTER_HIDDEN_CATEGORIES.has(cat.slug)).map((cat) => (
+                  {/* Each link is a way IN, so it wears the entry label — "Find a teacher", not "Teachers"
+                      (nav audit N8, category-entry-label.ts); the slug and href are the category's own. */}
+                  {NAV_CATEGORIES.filter((cat) => !FOOTER_HIDDEN_CATEGORIES.has(cat.slug)).map((cat) => ({ ...cat, ...categoryEntryLabel(cat) })).map((cat) => (
                     <li key={cat.slug}>
                       {/* max-sm: a 44px row per link (D-TAP) with no gap between rows, so no row's hit
                           area can overlap its neighbour's — the tap-44 trap, avoided by real height. */}

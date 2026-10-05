@@ -64,6 +64,30 @@ export const loadJobCities = cache(async (categoryId: string): Promise<JobCity[]
 })
 
 /**
+ * Jobs › Teaching: where /c/teachers points a teacher who came looking for WORK (nav audit N8) — the
+ * Teachers category holds teacher profiles for schools to hire from, the teaching jobs live here.
+ */
+export const TEACHING_JOBS = { category: 'jobs', subcategory: 'teaching' } as const
+
+/**
+ * How many live jobs Jobs › Teaching holds — the "(N)" on /c/teachers' link there. The explorer's own
+ * predicate for `?category=jobs&subcategory=teaching` (verified, active, the edition scope, the category by
+ * slug — feed-query.ts buildFeedFilters), so the number is the one the link opens. The only read here
+ * WITHOUT `{ teachers: true }`: it is not pinned to a categoryId, and the default teacher exclusion is
+ * what that feed applies to jobs too (a no-op on the jobs category either way).
+ */
+export const loadTeachingJobsCount = cache(async (): Promise<number> =>
+  db.listing.count({
+    where: await scopedListingWhere({
+      verified: true,
+      status: 'active' as const,
+      category: { slug: TEACHING_JOBS.category },
+      subcategorySlug: TEACHING_JOBS.subcategory,
+    }),
+  }),
+)
+
+/**
  * HCMC's `?province=` name ('Ho Chi Minh'), read from vn-units by the code DISTRICTS is keyed to —
  * never typed, so it is the exact string /api/listings' province filter and facet use.
  */

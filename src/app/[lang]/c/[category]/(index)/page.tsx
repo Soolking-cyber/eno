@@ -6,11 +6,13 @@ import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 // `{ teachers: true }` on every read here: each one is pinned to ONE categoryId, so the default
 // teacher exclusion (scopedListingWhere) can only ever empty /c/teachers — it hides nothing elsewhere.
 import { loadCategory } from '../load-category'
-import { loadDistrictChips, loadJobCities, loadLinkedCount, loadRentalsFacts, loadRentalsHeadline } from '../category-data'
+import { loadDistrictChips, loadJobCities, loadLinkedCount, loadRentalsFacts, loadRentalsHeadline, loadTeachingJobsCount, TEACHING_JOBS } from '../category-data'
 import { byAreaChips, categoryMetadata, crumbNames, linkedTier, pageLang, rentalsMetadata } from '../category-copy'
 import { CategoryGuides, OtherRentalsLink, PlaceName, RentalsDistricts } from '../category-text'
 import { CategoryFiltersLink } from '../category-filters-link'
 import { JobCityChips } from '../job-city-chips'
+import { TeacherProfileLink, TeachingJobsLink } from '../teaching-links'
+import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { CategoryLedeBlock } from './category-lede-block'
 import { LEDE_PLACEMENT } from './lede-placement'
 import { guidesForCategory } from '@/lib/category-guides'
@@ -198,7 +200,7 @@ export default async function CategoryPage({ params }: Props) {
   const scopedWhere = await scopedListingWhere(
     homes ? { AND: [base, RENTAL_PLACES, { subcategorySlug: { in: [...HOME_RENTAL_SUBCATS] } }] }
     : rentalsFacts ? { AND: [base, RENTAL_PLACES] } : base, { teachers: true })
-  const [raw, otherCats, chips, rentals, jobCities] = await Promise.all([
+  const [raw, otherCatRows, chips, rentals, jobCities, teachingJobs] = await Promise.all([
     // Card projection: this page only renders <ListingCard> slots — the full row (description,
     // attributes, searchText, whole Seller) tripled the ISR payload. The order is buildFeedOrderBy('newest').
     // `teachers: true` again inside the window, which re-applies the scope: without it /c/teachers was empty.
@@ -218,7 +220,12 @@ export default async function CategoryPage({ params }: Props) {
     rentalsFacts,
     // /c/jobs only: its "By city" row (rentals-11) — jobs carry a province, never a district.
     cat.slug === 'jobs' && total > 0 ? loadJobCities(cat.id) : Promise.resolve([]),
+    // /c/teachers only: the live count on its "Jobs › Teaching (N)" link (nav audit N8, teaching-links.tsx).
+    cat.slug === TEACHERS_CATEGORY_SLUG ? loadTeachingJobsCount() : Promise.resolve(0),
   ])
+  // Each "Other categories" chip is a way IN, so it wears the entry label — "Find a teacher", not
+  // "Teachers" (nav audit N8, category-entry-label.ts). Only the label: slug and href are the category's.
+  const otherCats = otherCatRows.map((c) => ({ ...c, ...categoryEntryLabel(c) }))
   // Reorder THEN slice (the window's fallback paths hand back a plain top-N nobody interleaved).
   const listings = await localizeListingTitles(diversifyBySeller(raw, { sharedSeats }).slice(0, PAGE_SIZE).map(serializeListingCard))
   // ⚠️ "BY AREA" ONLY WHERE THERE ARE AREAS TO BROWSE (byAreaChips: three places with five or more).
@@ -240,6 +247,9 @@ export default async function CategoryPage({ params }: Props) {
   const homesQuery: Record<string, string> = homes ? { [HOMES_ONLY_PARAM.key]: HOMES_ONLY_PARAM.value } : {}
   const explorerHref = localizedHref(`/?${new URLSearchParams({ category: cat.slug, ...homesQuery }).toString()}`, pageLang(lang))
   const isTeachers = cat.slug === TEACHERS_CATEGORY_SLUG
+  // N8: the teaching cross-links, in the page's language (localizedHref — the `/vi` twin on a Vietnamese page).
+  const teachingJobsHref = localizedHref(`/?${new URLSearchParams(TEACHING_JOBS).toString()}`, pageLang(lang))
+  const teacherJoinHref = localizedHref('/teachers/join', pageLang(lang))
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -288,6 +298,11 @@ export default async function CategoryPage({ params }: Props) {
       {/* /c/jobs: "Theo tỉnh/thành / By city" with counts, the jobs page's "By area" (rentals-11) — only
           with two cities or more, where there is a choice to make. */}
       {jobCities.length > 1 && <JobCityChips cities={jobCities} />}
+
+      {/* N8 (nav audit): a teacher who came looking for WORK is pointed at the jobs, and a teacher browsing
+          jobs at the profile form — one line each, above the grid or the empty state (teaching-links.tsx). */}
+      {isTeachers && <TeachingJobsLink count={teachingJobs} href={teachingJobsHref} />}
+      {cat.slug === TEACHING_JOBS.category && <TeacherProfileLink href={teacherJoinHref} />}
 
       {/* Masthead boundary — on the content box, like the sort strip's own hairline below and the
           home toolbar's (C1-HAIRLINE); it used to bleed to the page frame with negative margins.

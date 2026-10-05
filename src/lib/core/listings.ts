@@ -1138,7 +1138,10 @@ export async function createListingCore(input: {
   let subcategorySlug: string | null = String(body.subcategorySlug || '').trim()
   const subcategoryPicked = subs.some((s) => s.slug === subcategorySlug)
   if (!subcategoryPicked) {
-    const suggested = suggestSubcategory(categorySlug, `${title} ${body.description || ''}`)
+    // TITLE FIRST (gate, 2026-10-05): the longest keyword wins (taxonomy.ts), and a description names the extras —
+    // "Honda Vision 2022" + "kèm mũ bảo hiểm" must stay a motorbike. The description is read only when the
+    // title alone matches nothing, which is all it was ever needed for.
+    const suggested = suggestSubcategory(categorySlug, title) ?? suggestSubcategory(categorySlug, `${title} ${body.description || ''}`)
     subcategorySlug = (suggested && subs.some((s) => s.slug === suggested) ? suggested : null) || (subs[0]?.slug ?? null)
   }
   // ⛔ O-34b (owner, 2026-10-05): on eno.vn the visa slot (services/visa-legal) takes an OFFICIAL PARTNER's

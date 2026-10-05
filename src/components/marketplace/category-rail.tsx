@@ -12,6 +12,7 @@ import { CountChip, offeredCategories, offeredIntents, offeredSubcategories, sub
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { STROKE_UI } from '@/lib/icon-tokens'
+import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { cn } from '@/lib/utils'
 import type { SerializedCategory } from '@/lib/types'
@@ -649,6 +650,8 @@ export function CategoryRail({
       {categories.map((cat, ci) => {
         const isActive = activeCategory === cat.slug
         const at = shortcutCount + ci
+        // A way IN, so its entry label: Teachers reads "Find a teacher" (nav audit N8, category-entry-label.ts).
+        const label = categoryEntryLabel(cat)
         return (
           <Fragment key={cat.id}>
             {tile({
@@ -663,7 +666,7 @@ export function CategoryRail({
                   <span className={glyphBox(bigTile[at], isActive)}>
                     <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={cn(iconCls(isActive), glyphSize(bigTile[at]))} selected={isActive} />
                   </span>
-                  <span className={nameCls(isActive)}><TileLabel en={cat.name} vi={cat.nameVi} /></span>
+                  <span className={nameCls(isActive)}><TileLabel en={label.name} vi={label.nameVi} /></span>
                 </>
               ),
             })}
