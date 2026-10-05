@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { ModerationClient, type ModCase } from '@/components/admin/moderation-client'
 import { reportContext, reportTargetKey, targetContext, type RawReport } from '@/lib/admin-reports'
+import { reportedContentFor } from '@/lib/reported-content'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Monitor } from '@/components/ui/icons'
 
@@ -35,17 +36,26 @@ export async function ReportsInbox() {
   } catch { /* migration pending */ }
 
   const raw: RawReport[] = [...openRows, ...resolvedRows].map((r) => ({ id: r.id, reporterProfileId: r.reporterProfileId, listingId: r.listingId, conversationId: r.conversationId, targetSellerId: r.targetSellerId, targetProfileId: r.targetProfileId }))
-  const [{ reporterById, convoByReportId }, { targetByReportId }] = await Promise.all([reportContext(raw), targetContext(raw)])
+  // CONTENT cases (ugc-safety, R5): the review / help reply / help post each one names, resolved live.
+  // One DisputeMessage query for the page, plus one per content kind present.
+  const [{ reporterById, convoByReportId }, { targetByReportId }, contentByReportId] = await Promise.all([reportContext(raw), targetContext(raw), reportedContentFor(raw.map((r) => r.id))])
+  const CONTENT_LABEL = { review: 'Reported review', 'help-comment': 'Reported help-centre reply', 'help-post': 'Reported help-centre post' } as const
+  // The pile-on key: a content case groups with every other open report on the SAME content, not by its
+  // (absent) target — several people reporting one review is exactly the signal the count exists for.
+  const keyOf = (r: Rep) => { const ct = contentByReportId.get(r.id); return ct ? `content:${ct.kind}:${ct.id}` : reportTargetKey(r) }
 
   // Community = how many OPEN reports share a target (the actionable pile-on).
   const openByKey = new Map<string, number>()
-  for (const r of openRows) { const k = reportTargetKey(r); openByKey.set(k, (openByKey.get(k) || 0) + 1) }
+  for (const r of openRows) { const k = keyOf(r); openByKey.set(k, (openByKey.get(k) || 0) + 1) }
 
   const now = Date.now()
   const buildCase = (r: Rep, resolved: boolean): ModCase => {
     const reporter = r.reporterProfileId ? reporterById.get(r.reporterProfileId) ?? null : null
-    const target = targetByReportId.get(r.id)!
-    const community = resolved ? 1 : openByKey.get(reportTargetKey(r)) ?? 1
+    const content = contentByReportId.get(r.id) ?? null
+    const target = content
+      ? { kind: 'content' as const, name: CONTENT_LABEL[content.kind], trustScore: null, trustTier: null, sellerId: null, profileId: null, isGuest: false, listing: null }
+      : targetByReportId.get(r.id)!
+    const community = resolved ? 1 : openByKey.get(keyOf(r)) ?? 1
     const sevKey = r.severity && SEV_W[r.severity] ? r.severity : 'moderate'
     const cred = credibility(reporter)
     const ageDays = (now - r.createdAt.getTime()) / 86_400_000
@@ -59,7 +69,7 @@ export async function ReportsInbox() {
       id: r.id, reason: r.reason, detail: r.detail, severity: r.severity, createdAt: r.createdAt.toISOString(),
       ageDays: Math.floor(ageDays), bucket, priority,
       preScreen: preScreened.has(r.id),
-      reporter, conversationId: convoByReportId.get(r.id) ?? null, communityCount: community, target,
+      reporter, conversationId: convoByReportId.get(r.id) ?? null, communityCount: community, target, content,
       internalNote: r.internalNote ?? null,
       sellerResponse: r.sellerResponse ?? null,
       sellerRespondedAt: r.sellerRespondedAt ? r.sellerRespondedAt.toISOString() : null,

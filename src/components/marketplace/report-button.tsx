@@ -16,6 +16,15 @@ type Props = {
   listingId?: string
   sellerId?: string
   conversationId?: string
+  /**
+   * CONTENT targets (App Store gate `ugc-safety`, plan R5) — one seller review, help-centre comment or
+   * member help post. Passed only by <ReportContentButton>, which renders nothing while the gate is off;
+   * the server ignores them then too. A content report names the CONTENT, never its author
+   * (src/lib/reported-content.ts).
+   */
+  reviewId?: string
+  commentId?: string
+  postId?: string
   className?: string
   /**
    * CONTROLLED, TRIGGERLESS MODE — the dialog with no button of its own.
@@ -42,10 +51,11 @@ const REASONS: { value: string; vi: string; en: string }[] = [
   { value: 'offensive', vi: 'Nội dung phản cảm / quấy rối', en: 'Offensive / harassment' },
   { value: 'other', vi: 'Khác', en: 'Other' },
 ]
-// A chat report is about the person/exchange, not a listing — only these reasons apply.
+// A chat report is about the person/exchange, not a listing — only these reasons apply. A review, help
+// comment or help post is the same: there is no item to call sold, duplicate or counterfeit.
 const CHAT_REASON_VALUES = new Set(['scam', 'offensive', 'other'])
 
-export function ReportButton({ listingId, sellerId, conversationId, className, open: openProp, onOpenChange }: Props) {
+export function ReportButton({ listingId, sellerId, conversationId, reviewId, commentId, postId, className, open: openProp, onOpenChange }: Props) {
   const { tr } = useLanguage()
   const t = (en: string, vi: string) => tr(en, vi)
   const { openSignIn } = useAuth()
@@ -62,6 +72,7 @@ export function ReportButton({ listingId, sellerId, conversationId, className, o
   // Distinguishes the reporter-ladder block from ordinary failures, so only that
   // message grows the Help link its own copy promises.
   const [blocked, setBlocked] = useState(false)
+  const isContent = !!(reviewId || commentId || postId)
 
   const submit = async () => {
     if (!reason) return
@@ -70,7 +81,7 @@ export function ReportButton({ listingId, sellerId, conversationId, className, o
       const res = await fetch('/api/report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listingId, sellerId, conversationId, reason, detail: detail.trim() || undefined }),
+        body: JSON.stringify({ listingId, sellerId, conversationId, reviewId, commentId, postId, reason, detail: detail.trim() || undefined }),
       })
       // Reporting requires an account — bounce anonymous users to sign-in.
       if (res.status === 401) { setOpen(false); openSignIn(); return }
@@ -90,7 +101,12 @@ export function ReportButton({ listingId, sellerId, conversationId, className, o
         setBlocked(code === 'reporting_blocked')
         setError(
           code === 'cannot_report_self'
-            ? t("You can't report your own listing or account.", 'Bạn không thể báo cáo nội dung của chính mình.')
+            ? (isContent
+              ? t('You can’t report something you wrote yourself.', 'Bạn không thể báo cáo nội dung do chính bạn viết.')
+              : t("You can't report your own listing or account.", 'Bạn không thể báo cáo nội dung của chính mình.'))
+            // A content report on a review or reply that has since been removed (or never existed).
+            : code === 'not_found' && isContent
+              ? t('This has already been removed.', 'Nội dung này đã bị gỡ.')
             : code === 'not_participant'
               ? t('You can only report a conversation you are part of.', 'Bạn chỉ có thể báo cáo cuộc trò chuyện của mình.')
               : code === 'reporting_blocked'
@@ -131,10 +147,16 @@ export function ReportButton({ listingId, sellerId, conversationId, className, o
   const isChat = !!conversationId
   const title = isChat
     ? t('Report this conversation', 'Báo cáo cuộc trò chuyện')
+    : reviewId
+      ? t('Report this review', 'Báo cáo đánh giá này')
+      : commentId
+        ? t('Report this reply', 'Báo cáo phản hồi này')
+        : postId
+          ? t('Report this post', 'Báo cáo bài viết này')
     : sellerId && !listingId
       ? t('Report this seller', 'Báo cáo người bán')
       : t('Report this listing', 'Báo cáo tin đăng')
-  const reasons = isChat ? REASONS.filter((r) => CHAT_REASON_VALUES.has(r.value)) : REASONS
+  const reasons = isChat || isContent ? REASONS.filter((r) => CHAT_REASON_VALUES.has(r.value)) : REASONS
 
   return (
     <>

@@ -62,6 +62,12 @@ export type ModCase = {
   sellerRespondedAt: string | null
   appeal?: { note: string | null; images: string[]; at: string } | null
   resolution?: { status: string; by: string | null; at: string | null } | null
+  /**
+   * A CONTENT case (App Store gate `ugc-safety`, plan R5): the review / help reply / help post it names,
+   * resolved live (src/lib/reported-content.ts). No person or shop is the target — Confirm REMOVES the
+   * content and tells its author; nobody's trust is docked.
+   */
+  content?: { kind: 'review' | 'help-comment' | 'help-post'; description: string; href: string | null; present: boolean; authorProfileId: string | null } | null
 }
 
 const REASON_LABEL: Record<string, string> = {
@@ -382,16 +388,39 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
               <p className="truncate text-2xs text-muted-foreground">{t.listing!.category} · {t.listing!.location}</p>
             </>
           ) : (
-            <p className="text-sm font-bold text-foreground">{t.kind === 'chat' ? 'Reported conversation' : 'Reported account'}</p>
+            <p className="text-sm font-bold text-foreground">{c.content ? t.name : t.kind === 'chat' ? 'Reported conversation' : 'Reported account'}</p>
           )}
+          {c.content ? (
+            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-2xs text-muted-foreground">
+              <span>Author:</span>
+              {c.content.authorProfileId
+                ? <a href={`/admin/users/${c.content.authorProfileId}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="font-semibold text-foreground hover:underline">open their account</a>
+                : <span className="italic text-ink-4">no account (seeded, or since erased)</span>}
+              <span className="text-ink-4">· not a party to the case — Confirm removes the content and tells them</span>
+            </p>
+          ) : (
           <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-2xs text-muted-foreground">
             <span>Target:</span>
             {t.sellerId ? <a href={`/sellers/${t.sellerId}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="font-semibold text-foreground hover:underline">{t.name}</a> : <span className="font-semibold text-foreground">{t.name}</span>}
             <TierChip tier={t.trustTier} score={t.trustScore} />
             {t.isGuest && <span className="italic text-ink-4">guest — unreachable</span>}
           </p>
+          )}
         </div>
       </div>
+
+      {/* The reported content as it read when it was reported (the pointer row keeps it — a confirmed
+          review is deleted), with where it lives now. */}
+      {c.content && (
+        <div className="mt-2 rounded-lg border border-border bg-tint/40 px-2 py-1.5">
+          <p className="flex flex-wrap items-center gap-1.5 text-3xs font-bold uppercase tracking-wide text-ink-4">
+            {t.name}
+            {!c.content.present && <Badge variant="neutral" size="sm" className="px-1.5 text-3xs normal-case">removed</Badge>}
+            {c.content.href && <a href={c.content.href} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 normal-case text-accent-foreground hover:underline"><ExternalLink className="h-3 w-3" /> open</a>}
+          </p>
+          <p className="mt-0.5 whitespace-pre-wrap text-xs text-foreground">{c.content.description}</p>
+        </div>
+      )}
 
       {c.detail && <p className="mt-2 text-xs text-foreground">“{c.detail}”</p>}
 
@@ -459,7 +488,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
               stay ONE-CLICK by design — idempotency is handled server-side. */}
           <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
             <SeverityMenu value={severity} onPick={(sv) => onSeverity(c.id, sv)} />
-            <Button size="none" variant="destructive" ref={(el) => { decisionRefs.current.confirm = el }} onClick={(e) => { e.stopPropagation(); onAction('confirm-report', c.id, severity) }} disabled={busy} title={`Docks the target ${PENALTY[severity]} trust${isListing ? ' and unpublishes the listing' : ''}`} className={cn('rounded-lg px-3 py-1 text-2xs font-bold disabled:opacity-40 cursor-pointer', aiFocus === 'confirm' && 'ring-2 ring-brand ring-offset-1')}>Confirm{isListing ? ' & unpublish' : ''}</Button>
+            <Button size="none" variant="destructive" ref={(el) => { decisionRefs.current.confirm = el }} onClick={(e) => { e.stopPropagation(); onAction('confirm-report', c.id, severity) }} disabled={busy} title={c.content ? 'Removes the reported content and tells its author — no trust is docked (the case has no target)' : `Docks the target ${PENALTY[severity]} trust${isListing ? ' and unpublishes the listing' : ''}`} className={cn('rounded-lg px-3 py-1 text-2xs font-bold disabled:opacity-40 cursor-pointer', aiFocus === 'confirm' && 'ring-2 ring-brand ring-offset-1')}>Confirm{isListing ? ' & unpublish' : c.content ? ' & remove' : ''}</Button>
             <Button size="none" variant="ghost" ref={(el) => { decisionRefs.current.dismiss = el }} onClick={(e) => { e.stopPropagation(); onAction('dismiss-report', c.id) }} disabled={busy} title={c.appeal ? 'Uphold the appeal — no penalty' : 'Keep the listing live — no penalty'} className={cn('rounded-lg border border-line-strong px-2.5 py-1 text-2xs font-semibold text-foreground hover:bg-muted hover:text-accent-foreground disabled:opacity-40 cursor-pointer', aiFocus === 'dismiss' && 'ring-2 ring-brand ring-offset-1')}>Dismiss</Button>
             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
             <span className="ml-auto inline-flex items-center gap-1.5">
@@ -518,7 +547,7 @@ function CaseRow({ c, active, checked, readOnly, onSelect, onCheck }: {
   )
 }
 
-type FilterKey = 'all' | 'critical' | 'aging' | 'listing' | 'account' | 'chat' | 'resolved'
+type FilterKey = 'all' | 'critical' | 'aging' | 'listing' | 'account' | 'chat' | 'content' | 'resolved'
 
 export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolved: ModCase[] }) {
   const router = useRouter()
@@ -557,6 +586,7 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
     listing: cases.filter((c) => c.target.kind === 'listing').length,
     account: cases.filter((c) => c.target.kind === 'account').length,
     chat: cases.filter((c) => c.target.kind === 'chat').length,
+    content: cases.filter((c) => c.target.kind === 'content').length,
     resolved: resolved.length,
   }
 
@@ -641,7 +671,7 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
 
   useEffect(() => { if (sel > filtered.length - 1) setSel(Math.max(0, filtered.length - 1)) }, [filtered.length, sel])
 
-  const CHIPS: [FilterKey, string][] = [['all', 'All'], ['critical', 'Critical'], ['aging', 'Aging >2d'], ['listing', 'Listings'], ['account', 'Accounts'], ['chat', 'Chats'], ['resolved', 'Resolved']]
+  const CHIPS: [FilterKey, string][] = [['all', 'All'], ['critical', 'Critical'], ['aging', 'Aging >2d'], ['listing', 'Listings'], ['account', 'Accounts'], ['chat', 'Chats'], ['content', 'Reviews & help'], ['resolved', 'Resolved']]
   const targetsOfChecked = new Set(cases.filter((c) => checked.has(c.id)).map((c) => c.target.sellerId || c.target.profileId || c.id)).size
   const selectedCase = filtered[sel]
 

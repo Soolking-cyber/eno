@@ -10,6 +10,7 @@ import { useAuth } from '@/context/auth-context'
 import { Tr, useLanguage, useTr } from '@/context/language-context'
 import { HelpTopicIcon } from '@/components/marketplace/help-center'
 import { HelpVote } from '@/components/marketplace/help-vote'
+import { ReportContentButton } from '@/components/marketplace/report-content-button'
 import { useLocalized } from '@/components/marketplace/listing-content'
 import { formatHelpBody } from '@/components/marketplace/rich-text'
 import { Avatar } from '@/components/ui/avatar'
@@ -60,8 +61,11 @@ function CommentRow({ comment, nested = false }: { comment: HelpComment; nested?
           )}
         </p>
         <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-body">{body}</p>
-        <div className="mt-2">
+        <div className="mt-2 flex items-center gap-1">
           <HelpVote id={comment.id} kind="comment" score={comment.score} viewerVote={comment.viewerVote} size="sm" />
+          {/* App Store gate `ugc-safety` (R5): report this reply into the moderation queue. Renders nothing
+              while the gate is off; a reply still being posted (no server id yet) has nothing to report. */}
+          {comment.id && <ReportContentButton kind="help-comment" id={comment.id} />}
         </div>
         {comment.replies.length > 0 && (
           // Replies indent once and stop. A help thread is a question and its answers,
@@ -158,7 +162,11 @@ export function HelpThreadClient({
         const data = await response.json().catch(() => null)
         throw new Error(data?.error || String(response.status))
       }
-      const created = await response.json()
+      // POST /api/forum/comments answers `{ comment: {…} }` — reading the envelope as the comment gave the
+      // fresh row `id: undefined` (a missing React key, and nothing for its Report control to name) until
+      // the refresh below replaced it.
+      const payload = await response.json()
+      const created = payload?.comment ?? payload
       setComments((prev) => [
         ...prev,
         {
@@ -277,6 +285,9 @@ export function HelpThreadClient({
         <span className="text-sm text-muted-foreground">
           <Tr text="Was this helpful?" />
         </span>
+        {/* App Store gate `ugc-safety` (R5): a MEMBER's question can be reported; the eno team's own
+            answers are edited, not moderated, and the server refuses them as a report target. */}
+        {!post.official && <ReportContentButton kind="help-post" id={post.id} className="ml-auto" />}
       </div>
 
       {related.length > 0 && (

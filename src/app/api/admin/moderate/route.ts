@@ -11,10 +11,21 @@ import { DISPUTE_BODY_MAX, DISPUTE_WINDOW_MS, addDisputeMessage, notifyDispute, 
 import { logError } from '@/lib/log'
 import { tombstoneListingsTx } from '@/lib/core/listing-tombstone'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
+import { takeDownReportedContent } from '@/lib/reported-content'
 
 export const dynamic = 'force-dynamic'
 
 const DAY_MS = 86_400_000
+
+/**
+ * A CONTENT case — a report on a seller review, a help-centre reply or a member's help post (App Store
+ * gate `ugc-safety`, plan R5; src/lib/reported-content.ts). It carries no target column at all: the
+ * content is named by the case's system pointer row. No other path files a report with all four NULL
+ * (api/report answers 'Missing target'; the AI and image-match reports carry a listing), so this costs
+ * the ordinary confirm no query.
+ */
+const isContentCase = (r: { listingId: string | null; conversationId: string | null; targetProfileId: string | null; targetSellerId: string | null }) =>
+  !r.listingId && !r.conversationId && !r.targetProfileId && !r.targetSellerId
 
 // Notify the reported party (if they have an account) that their content was actioned.
 // Deep-links into the dispute room, where the decision + appeal path live. In their
@@ -194,7 +205,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // keeps a retry / concurrent resolve from double-docking trust.
       const reports = await db.report.findMany({
         where: { id: { in: ids } },
-        select: { id: true, targetProfileId: true, targetSellerId: true, listingId: true, reporterProfileId: true, appealedAt: true },
+        select: { id: true, targetProfileId: true, targetSellerId: true, listingId: true, conversationId: true, reporterProfileId: true, appealedAt: true },
       })
       // ⛔ AN APPEAL NEVER MINTS A FIRST CHARGE — see confirm-report. One ledger read for the appeals in
       // the batch; a report that was never appealed is charged exactly as before, with no read.
@@ -203,8 +214,31 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       let confirmed = 0
       // Listing ids whose takedown write failed — the report is docked but the listing is STILL PUBLIC.
       const takedownFailures: string[] = []
+      // Content cases (ugc-safety) whose takedown failed — nothing was committed: the review / reply is STILL
+      // UP and the case still OPEN and untold, for the next Confirm (see confirm-report).
+      const contentStillUp: string[] = []
       for (const report of reports) {
         const rid = report.id
+        // A CONTENT case is decided BY its takedown, in one transaction (see confirm-report). `keepOpen: ids` —
+        // a case in THIS batch on the same content is decided by this loop, not closed as a sibling behind
+        // its back (which would count it as skipped; opus, gate round 2).
+        if (isContentCase(report)) {
+          let res: Awaited<ReturnType<typeof takeDownReportedContent>> = null
+          try {
+            res = await takeDownReportedContent(rid, admin, { onHeld, keepOpen: ids, decide: { status: 'confirmed', severity, resolvedBy: admin, resolvedAt: new Date() } })
+          } catch (e) {
+            logError(e, { op: 'moderate.takeDownContent', reportId: rid })
+            contentStillUp.push(rid)
+            continue
+          }
+          if (res) {
+            if (!res.decided) continue // already resolved — nothing done
+            if (report.reporterProfileId) await notifyDispute(report.reporterProfileId, rid, 'decided_upheld_reporter')
+            confirmed++
+            continue
+          }
+          // No pointer row: not a content case after all — decided below like any other report.
+        }
         const upd = await db.report.updateMany({ where: { id: rid, status: 'open' }, data: { status: 'confirmed', severity, resolvedBy: admin, resolvedAt: new Date() } })
         if (upd.count === 0) continue // already resolved — no double-dock
         // A denied appeal of a case that never charged (closed by a listing removal) is re-closed uncharged.
@@ -242,9 +276,9 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // success and the body says exactly which listings are still public — the operator has to
       // pull those by hand. moderation-client.tsx throws on !res.ok, so this surfaces without a
       // client change; the point is that "some listings are still up" can never read as success.
-      if (takedownFailures.length) {
+      if (takedownFailures.length || contentStillUp.length) {
         return NextResponse.json(
-          { error: 'takedown_failed', confirmed, skipped: ids.length - confirmed, stillPublic: takedownFailures },
+          { error: 'takedown_failed', confirmed, skipped: ids.length - confirmed, stillPublic: takedownFailures, ...(contentStillUp.length ? { contentStillUp } : {}) },
           { status: 500 },
         )
       }
@@ -367,9 +401,10 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // guest sellers (Seller mirror docked directly via penalizeSeller).
       const report = await db.report.findUnique({
         where: { id },
-        select: { id: true, status: true, targetProfileId: true, targetSellerId: true, listingId: true, severity: true, appealedAt: true },
+        select: { id: true, status: true, targetProfileId: true, targetSellerId: true, listingId: true, conversationId: true, severity: true, appealedAt: true },
       })
       if (!report) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      const contentCase = isContentCase(report)
       const sevInput = String(body.severity || '')
       const severity = (['minor', 'moderate', 'severe'].includes(sevInput)
         ? sevInput
@@ -386,13 +421,57 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // ⚠️ READ BEFORE THE FLIP: a failed read must leave the case open (retryable), not confirmed with
       // the charge decision lost behind the idempotency guard below.
       const unchargedAppeal = !!report.appealedAt && !(await chargedReportIds([report])).has(id)
+      // ⚠️ A CONTENT CASE (ugc-safety: a report on a review or a Help-centre reply/post) IS DECIDED BY ITS
+      // TAKEDOWN — the open→confirmed flip runs INSIDE the removal's transaction, so the decision and the
+      // removal commit together or not at all (src/lib/reported-content.ts). A failure answers 500 with
+      // nothing committed: the case still open, the content up, nobody told; the next Confirm is an ordinary
+      // one. A concurrent Dismiss cannot interleave (it finds the case no longer open, or this finds it so),
+      // and no half-state needs releasing — the three earlier orderings each left one (codex + opus, gate
+      // rounds 2-6). Nobody's trust is docked: the case has no target.
+      if (contentCase && report.status === 'open') {
+        let res: Awaited<ReturnType<typeof takeDownReportedContent>> = null
+        try {
+          res = await takeDownReportedContent(id, admin, { onHeld, decide: { status: 'confirmed', severity, resolvedBy: admin, resolvedAt: new Date(), decisionNote } })
+        } catch (e) {
+          logError(e, { op: 'moderate.takeDownContent', reportId: id })
+          return NextResponse.json({ error: 'takedown_failed', reportId: id }, { status: 500 })
+        }
+        if (res) {
+          if (res.decided) {
+            const r = await db.report.findUnique({ where: { id }, select: { reporterProfileId: true } })
+            if (r?.reporterProfileId) await notifyDispute(r.reporterProfileId, id, 'decided_upheld_reporter')
+          }
+          return NextResponse.json(withHeld({ ok: true }))
+        }
+        // No pointer row: not a content case after all — decided below like any other report.
+      }
       // Idempotent: only the open→confirmed transition applies a penalty (admin
       // double-click / retry can't re-dock the score).
       const upd = await db.report.updateMany({
         where: { id, status: 'open' },
         data: { status: 'confirmed', severity, resolvedBy: admin, resolvedAt: new Date(), decisionNote },
       })
-      if (upd.count === 0) return NextResponse.json({ ok: true })
+      if (upd.count === 0) {
+        // A repeat Confirm of a content case that is already confirmed re-runs the takedown (idempotent — a
+        // review already deleted or a reply already removed is a no-op; nothing restores removed help
+        // content). Its decision committed with its removal, so this finds nothing to do unless the content
+        // came back somehow — then THIS run removes it and the reporter hears it. Every other case answers
+        // exactly as before.
+        if (contentCase && report.status === 'confirmed') {
+          let res: Awaited<ReturnType<typeof takeDownReportedContent>> = null
+          try {
+            res = await takeDownReportedContent(id, admin, { onHeld })
+          } catch (e) {
+            logError(e, { op: 'moderate.takeDownContent', reportId: id })
+            return NextResponse.json({ error: 'takedown_failed', reportId: id }, { status: 500 })
+          }
+          if (res?.removed) {
+            const r = await db.report.findUnique({ where: { id }, select: { reporterProfileId: true } })
+            if (r?.reporterProfileId) await notifyDispute(r.reporterProfileId, id, 'decided_upheld_reporter')
+          }
+        }
+        return NextResponse.json({ ok: true })
+      }
       const penalty = -SEVERITY_PENALTY[severity]
       // Re-closed uncharged: no ledger row, no enforcement re-derive. The takedown and both notices below
       // still run — the moderator's decision on the case is still "upheld".

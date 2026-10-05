@@ -45,7 +45,7 @@ export default async function AdminDisputeRoomPage({ params }: { params: Promise
     targetContext(raw),
     // Admin renders once at SSR (no polling) — sign evidence for 6h so images don't
     // 404 mid-review during a long deliberation. The party page re-signs every poll.
-    disputeTimeline(report, { signTtl: 6 * 3600 }),
+    disputeTimeline(report, { signTtl: 6 * 3600, audience: 'admin' }),
   ])
   const reporter = report.reporterProfileId ? reporterById.get(report.reporterProfileId) ?? null : null
   const target = targetByReportId.get(report.id) ?? null

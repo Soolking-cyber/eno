@@ -6,6 +6,7 @@ import { useLanguage, Tr } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { getInitials } from '@/lib/utils'
 import { RatingValue } from './rating-value'
+import { ReportContentButton } from './report-content-button'
 import type { SellerReviewPreview } from '@/lib/seller-metrics'
 
 /**
@@ -68,6 +69,9 @@ export function ReviewsPreview({
               {/* User content — machine-translated into the viewer's language like the
                   storefront reviews (Tr handles arbitrary strings, not just UI copy). */}
               <p className="mt-0.5 line-clamp-3 text-sm text-body"><Tr text={r.text} /></p>
+              {/* App Store gate `ugc-safety` (R5): report this review. `id` is in the payload only while
+                  the gate is on (seller-metrics.ts), and the control renders nothing while it is off. */}
+              {r.id && <ReportContentButton kind="review" id={r.id} className="-ml-2 mt-0.5" />}
             </div>
           </li>
         ))}
