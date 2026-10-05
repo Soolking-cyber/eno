@@ -57,7 +57,7 @@ import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
 import { isUsedTitle } from '../src/lib/used-signal'
-import { blockedCreate, isLiveForRefresh } from '../src/lib/partner-import-rules'
+import { blockedAsDeclaredNew, blockedCreate, declaresBrandNew, isLiveForRefresh } from '../src/lib/partner-import-rules'
 import { decideTitleMaterial, titleMaterialFill } from '../src/lib/furniture-material'
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
@@ -271,6 +271,17 @@ async function main() {
         // Counted by what the shop's words say, for the owner's D4 call — never acted on here.
         drop(isUsedTitle(title, null, r.url) ? 'refresh-only shop: new product NOT created (its title/URL says used)' : 'refresh-only shop: new product NOT created')
         return
+      }
+      // ⛔ A "USED" SHOP'S PRODUCT WHOSE TITLE DECLARES IT BRAND-NEW IS NOT CREATED (partner-import-rules.ts
+      // declaresBrandNew — "[New 100%]" stock filed in a like-new category).
+      if (blockedAsDeclaredNew(storeByDomain.get(r.domain)!, existing, title)) {
+        drop('title declares brand-new: NOT created as used')
+        return
+      }
+      // ⚠️ A LIVE row whose refreshed title now opens with that tag still says `used` (condition is create-only):
+      // never relabelled or hidden here — named for the owner's review, the way the 31 were on 2026-10-05.
+      if (existing && isLiveForRefresh(existing.status) && storeByDomain.get(r.domain)!.condition === 'used' && declaresBrandNew(title)) {
+        console.warn(`  ⚠️ REVIEW ${existing.id}: live row labelled used, title now declares brand-new — "${title.slice(0, 80)}"`)
       }
       // ⛔ CONTENT SCREEN BEFORE ANY WRITE (src/lib/import-screen.ts): a banned word or an
       // advertising-banned product is never created; if it is already LIVE it is not refreshed and

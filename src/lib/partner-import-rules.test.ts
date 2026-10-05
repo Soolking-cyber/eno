@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { blockedCreate, isLiveForRefresh, liveRowsOnly } from './partner-import-rules'
+import { blockedAsDeclaredNew, blockedCreate, declaresBrandNew, isLiveForRefresh, liveRowsOnly } from './partner-import-rules'
 import { PARTNER_STORES } from './partner-stores'
 
 describe('isLiveForRefresh', () => {
@@ -46,6 +46,45 @@ describe('blockedCreate', () => {
     expect(blockedCreate({ refreshOnly: 'mixed stock' }, null)).toBe(true)
     expect(blockedCreate({ refreshOnly: 'mixed stock' }, { id: 'x' })).toBe(false)
     expect(blockedCreate({}, null)).toBe(false)
+  })
+})
+
+describe('declaresBrandNew / blockedAsDeclaredNew — a "used" shop never creates stock its title calls brand-new', () => {
+  it('matches the leading tag the 31 rows hidden on 2026-10-05 carried, in every spelling of it', () => {
+    for (const t of [
+      '[New 100%] Dell Latitude 5450 (Core Ultra 7 165U, 32GB, 512GB, 14 FHD, Win 11 Pro)',
+      '[New100%] Dell Latitude 7450 (Core Ultra 7 165U, 16GB, 256GB, 14 inch FHD+)',
+      '  [NEW 100 %] Dell XPS 13 9350',
+      '(New 100%) Dell XPS 14 9440',
+      '[Mới 100%] Laptop Dell XPS 13',
+      '[Mới 100%] Laptop Dell XPS 13'.normalize('NFD'),
+      '[New 100% Fullbox] Dell Latitude 7450',
+      '[New 100% - Nguyên seal] Dell XPS 13 9350',
+      'New 100% Dell Latitude 5450',
+      '[Brand New] Dell XPS 14 9440',
+      '[Nguyên Seal] Dell XPS 13 9345',
+    ]) expect(declaresBrandNew(t), t).toBe(true)
+  })
+  it('passes the used grades and part-new wordings a bare "new 100%" would have swallowed (gate, 2026-10-05)', () => {
+    for (const t of [
+      '[Like New 99%] Dell Latitude 7440 (Core i7-1365U, 16GB, 512GB)',
+      '[Like New 100%] Dell Latitude 7440',
+      'Dell XPS 13 9310 New 99% fullbox',
+      'Laptop Dell 7420 thay pin mới 100%',
+      'Dell Latitude đẹp như mới 100%',
+      'Laptop newest gen 2024, pin 100%',
+      'Dell Latitude 5450 New 100% ngoại hình',
+      'Laptop Dell còn nguyên seal hộp phụ kiện',
+      '[Like New 99%] Dell XPS 13 nguyên seal pin',
+    ]) expect(declaresBrandNew(t), t).toBe(false)
+  })
+  it('withholds only a CREATE, and only in a shop that claims used', () => {
+    const t = '[New 100%] Dell Latitude 5450'
+    expect(blockedAsDeclaredNew({ condition: 'used' }, null, t)).toBe(true)
+    expect(blockedAsDeclaredNew({ condition: 'used' }, { id: 'x' }, t)).toBe(false)
+    expect(blockedAsDeclaredNew({ condition: null }, null, t)).toBe(false)
+    expect(blockedAsDeclaredNew({ condition: 'new' }, null, t)).toBe(false)
+    expect(blockedAsDeclaredNew({ condition: 'used' }, null, '[Like New 99%] Dell Latitude 7440')).toBe(false)
   })
 })
 
