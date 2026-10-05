@@ -29,7 +29,17 @@ export const TR_OVERRIDES: Record<string, Partial<Record<Language, string>>> = {
   // ── Templates the engine reduced to a bare number (measured 2026-10-05 with numbered placeholders: km
   // "{n} available" → "{n}", "{total} listing." and "{total} listings." → "{total}"). Client-only like
   // `Home@page`: only the client renders these templates in a machine-translated language.
+  // The second batch (measured on prod after the 2026-10-05 warm run) came from the {placeholder} conversion:
+  // km dropped every word but the number, zh-Hans lost "step … of". Checked against the cache with
+  // ~/eno-i18n-work/db-tokens.mjs ("token-correct but no words left").
   '{n} available': { km: 'មាន {n}' },
+  '{label}, {badgeLabel} new': { km: '{label}, {badgeLabel} ថ្មី' },
+  '{n} contacted': { km: '{n} នាក់បានទាក់ទង' },
+  '{size} files ready': { km: 'ឯកសារ {size} រួចរាល់' },
+  '· {days} day left': { km: '· នៅសល់ {days} ថ្ងៃ' },
+  '· {days} days left': { km: '· នៅសល់ {days} ថ្ងៃ' },
+  '{length} replies': { km: '{length} ការឆ្លើយតប' },
+  '{label} — step {n} of {total}': { 'zh-Hans': '{label} — 第{n}步，共{total}步' },
   '{total} listing.': { km: 'បញ្ជីចំនួន {total}។' },
   '{total} listings.': { km: 'បញ្ជីចំនួន {total}។' },
   // ── Category tiles (DB Category.name → <Tr>) — bare words MT reliably mis-senses ──
