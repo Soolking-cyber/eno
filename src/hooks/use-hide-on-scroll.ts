@@ -13,33 +13,33 @@ import { usePathname } from "next/navigation"
 // y=0 with the tab bar at opacity 0 — and it stayed hidden until the reader happened to scroll UP (6.5 s in
 // the measured run). Native apps show their bars on every new screen. Two halves, because there are two
 // ways the old page's "hidden" outlived it:
-//   1. THE DECISION BELONGS TO THE PAGE IT WAS MADE ON. A pathname change resets `hidden` in the same
-//      render that shows the new page (the "adjust state when a prop changes" pattern, no effect), so the
-//      first frame of a new page has its bars whatever the old page decided — also when no scroll event
-//      follows the navigation (a link with scroll={false}, a Back that restores the old position).
+//   1. THE DECISION BELONGS TO THE PAGE VISIT IT WAS MADE ON. A hide is stored as the visit it hid — a token
+//      minted per pathname — and the bars are hidden only while that token is the current one. So the first
+//      render of a new page (or of a return to an old one) has its bars, whatever any page decided, also when
+//      no scroll event follows the navigation (a link with scroll={false}, a Back that restores the old
+//      position) — and there is no state to reset.
+//      ⛔ NOT a render-phase reset ("adjust state when a prop changes"). That shipped first and the preview
+//      measured it failing in Chromium and WebKit: shown, then hidden again inside the arrival commit. The
+//      repeat scroll-down frames on the old page set the value the state already held; React bails out of
+//      each but keeps it queued at the event's lane. The navigation renders in a TRANSITION, which skips
+//      those, and a render-phase update is not written to the base state while skipped updates remain — so
+//      the follow-up render replayed "hidden" over the reset. A replayed hide now names the old visit and
+//      hides nothing (test: "a hidden React replays after the navigation…"). The same holds for a frame the
+//      old page queued that runs after the new page commits (codex, gate 2026-10-05): it can only name the
+//      old visit, so no live-path check is needed.
 //   2. NEAR THE TOP ALWAYS SHOWS — EVEN IN A FRAME WHOSE DOCUMENT HEIGHT CHANGED. The arrival scroll to
 //      y=0 is such a frame (the new page is a different height), and the "a document that grew is not a
 //      user who scrolled" early return below used to run first and swallow it. Showing near the top was
 //      always the rule (the branch existed); it now wins.
 // The owner's hide-on-scroll (2026-07-16) is otherwise unchanged: scrolling down hides, up shows.
-const useIsoLayoutEffect = typeof window === 'undefined' ? React.useEffect : React.useLayoutEffect
-
 export function useHideOnScroll({ threshold = 6, revealOffset = 80 }: { threshold?: number; revealOffset?: number } = {}) {
-  const [hidden, setHidden] = React.useState(false)
-  // ⚠️ `null` OUTSIDE THE APP ROUTER (a unit test that renders a consumer bare): then nothing resets, as before.
+  // ⚠️ `null` OUTSIDE THE APP ROUTER (a unit test that renders a consumer bare): then it is one visit for good, as before.
   const pathname = usePathname()
-  // ⛔ THE LIVE PATH, SET IN A LAYOUT EFFECT (codex, gate 2026-10-05). A scroll frame queued on the old page can
-  // run AFTER the new page has committed but BEFORE the old passive effect's cleanup flips `disposed` — React
-  // runs passive cleanups after paint, while a queued rAF runs before it. A restored deep position (Back) would
-  // then read as one huge scroll-down and hide the bars again. Layout effects run inside the commit, before any
-  // frame callback, so a frame compares its own page against this and decides nothing for a page that is gone.
-  const livePath = React.useRef(pathname)
-  useIsoLayoutEffect(() => { livePath.current = pathname }, [pathname])
-  const [seenPath, setSeenPath] = React.useState(pathname)
-  if (pathname !== seenPath) {
-    setSeenPath(pathname)
-    if (hidden) setHidden(false)
-  }
+  // One token per page visit: a new object whenever the path changes, so Back to a path is a new visit too.
+  const visit = React.useMemo(() => ({ pathname }), [pathname])
+  // The visit the bars were hidden on, or null. A repeat frame passes the SAME token, so React still bails out
+  // of every frame after the first, as it did for `setHidden(true)` — scrolling costs no extra renders.
+  const [hiddenOn, setHiddenOn] = React.useState<object | null>(null)
 
   React.useEffect(() => {
     // ⚠️ ANCHOR LAZILY, ON THE FIRST SCROLL FRAME — DO NOT READ `window.scrollY` HERE.
@@ -51,7 +51,7 @@ export function useHideOnScroll({ threshold = 6, revealOffset = 80 }: { threshol
     // because rAF runs after layout has already settled.
     // The trade is that `hidden` cannot change until the user's first scroll frame, which is exactly
     // when it could first be meaningful: the bars start visible and a scroll is what hides them.
-    // ⚠️ `pathname` IS A DEPENDENCY ON PURPOSE: a new page is a new reference frame, so the listener
+    // ⚠️ `visit` IS A DEPENDENCY ON PURPOSE: a new page is a new reference frame, so the listener
     // re-anchors lazily on that page's first scroll frame instead of measuring a delta against the old
     // page's last position.
     let lastY: number | null = null
@@ -63,7 +63,7 @@ export function useHideOnScroll({ threshold = 6, revealOffset = 80 }: { threshol
 
     const update = () => {
       ticking = false
-      if (disposed || livePath.current !== pathname) return
+      if (disposed) return
       const y = Math.max(0, window.scrollY) // clamp iOS rubber-band negatives
       const height = document.documentElement.scrollHeight
       // First frame: adopt the current position as the reference and decide nothing. Without this
@@ -78,7 +78,7 @@ export function useHideOnScroll({ threshold = 6, revealOffset = 80 }: { threshol
       // not after it — see (2) at the top of this file: a new page arrives at y=0 in a frame whose height
       // changed, and that frame must still bring the bars back.
       if (y < revealOffset) {
-        setHidden(false)
+        setHiddenOn(null)
         lastY = y
         lastHeight = height
         return
@@ -106,7 +106,7 @@ export function useHideOnScroll({ threshold = 6, revealOffset = 80 }: { threshol
       }
       const delta = y - lastY
       if (Math.abs(delta) > threshold) {
-        setHidden(delta > 0) // scrolling down → hide; up → reveal
+        setHiddenOn(delta > 0 ? visit : null) // scrolling down → hide (this visit); up → reveal
         lastY = y
       }
     }
@@ -123,7 +123,7 @@ export function useHideOnScroll({ threshold = 6, revealOffset = 80 }: { threshol
       disposed = true
       window.removeEventListener("scroll", onScroll)
     }
-  }, [threshold, revealOffset, pathname])
+  }, [threshold, revealOffset, visit])
 
-  return hidden
+  return hiddenOn === visit
 }

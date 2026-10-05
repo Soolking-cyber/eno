@@ -123,6 +123,35 @@ describe('NAV-3: every new page starts with the bars showing', () => {
     expect(hidden()).toBe(false)
   })
 
+  it('a "hidden" React replays after the navigation cannot hide the new page (measured on the preview)', () => {
+    // Chromium and WebKit, UX3 preview 2026-10-05: a listing opened from a scrolled feed arrived with the tab bar at
+    // opacity 0 — shown, then hidden again, inside one commit. The repeat scroll-down frames on the feed set the
+    // value the state already held; React bails out of each but keeps it queued at the event's lane. The navigation
+    // renders in a transition, which skips those, and the follow-up render replays them onto the new page — a
+    // render-phase reset is not written to the base state while skipped updates remain, so it did not hold.
+    function Shell({ go }: { go: { current: () => void } }) {
+      const [, setN] = React.useState(0)
+      React.useEffect(() => { go.current = () => setN((n) => n + 1) })
+      return <Probe />
+    }
+    const navigate = { current: () => {} }
+    render(<Shell go={navigate} />)
+    scroll(1200)
+    scroll(1800)
+    expect(hidden()).toBe(true)
+    scroll(2400) // hidden already: React bails out of these and queues them
+    scroll(3000)
+    act(() => {
+      React.startTransition(() => {
+        nav.pathname = '/listings/abc'
+        navigate.current()
+      })
+    })
+    expect(hidden()).toBe(false)
+    scroll(0, 2200) // the arrival frame changes nothing
+    expect(hidden()).toBe(false)
+  })
+
   it('outside the App Router (pathname null) it still works and never resets on its own', () => {
     nav.pathname = null
     render(<Probe />)
