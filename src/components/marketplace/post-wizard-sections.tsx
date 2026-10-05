@@ -925,7 +925,7 @@ export function PostSuccess({
 // band (P25–P75 of comparable listings, same data as the PDP's "Market price" module).
 // Amber only when priced ABOVE the band (a nudge, never a blocker); a low ask is the
 // seller's call, so it stays neutral. Renders only when a reliable band exists.
-function PriceGuidance({ price, band }: { price: number; band: { n: number; p25: number; p75: number } }) {
+export function PriceGuidance({ price, band }: { price: number; band: { n: number; p25: number; p75: number; basis?: 'model' | 'similar' } }) {
   const { tr, lang } = useLanguage()
   const loc = moneyLocale(lang)
   // compactPrice matches the PDP MarketPrice module — same data, same voice
@@ -943,6 +943,10 @@ function PriceGuidance({ price, band }: { price: number; band: { n: number; p25:
       <span>
         {pos === 'high'
           ? fillTemplate(tr('Above the typical {range} range — fairly-priced listings sell faster', 'Cao hơn mặt bằng {range} — tin có giá hợp lý thường bán nhanh hơn'), 'Above the typical {range} range — fairly-priced listings sell faster', { range: String(range) })
+          : pos === 'low' && band.basis === 'similar'
+            // ⚠️ A SIMILAR-ITEMS band (price-fallback.ts) never shows the PDP's "good price" verdict — MarketPrice says only
+            // "below similar listings", and only within 0.5×P25 — so the wizard must not promise buyers a good deal (gate, 2026-10-05).
+            ? fillTemplate(tr('Below what similar listings ask ({range})', 'Thấp hơn giá đang rao của tin tương tự ({range})'), 'Below what similar listings ask ({range})', { range: String(range) })
           : pos === 'low'
             ? fillTemplate(tr('Below the typical {range} range — buyers will see a good deal', 'Thấp hơn mặt bằng {range} — người mua sẽ thấy đây là mức giá tốt'), 'Below the typical {range} range — buyers will see a good deal', { range: String(range) })
             : fillTemplate(tr('Similar listings go for {range} — yours is in range', 'Tin tương tự có giá {range} — giá của bạn hợp lý'), 'Similar listings go for {range} — yours is in range', { range: String(range) })}

@@ -79,7 +79,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     topSellerReviews(listing.sellerId, 2, { total: listing.seller.reviewCount, avg: listing.seller.rating }),
     sameSellerListings(listing.sellerId, listing.id, 10),
   ])
-  const res = NextResponse.json({ listing: serializeListing(listing), priceBand, reviews, sameSellerListings: moreFromSeller })
+  // ⚠️ BRAND+MODEL BANDS ONLY. A fallback band (`basis: 'similar'`, src/lib/price-fallback.ts) is a
+  // weaker, similar-items comparison, and the shipped native builds ignore unknown keys — they would
+  // print it under their "Good price" / "Above typical" verdicts as if it were the same-model band.
+  // A native build that renders `basis` can take it; until then it is withheld, not relabelled.
+  const res = NextResponse.json({ listing: serializeListing(listing), priceBand: priceBand?.basis === 'model' ? priceBand : null, reviews, sameSellerListings: moreFromSeller })
   res.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120')
   return res
 }

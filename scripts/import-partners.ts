@@ -33,6 +33,14 @@
  *     is create-only. The refresh used to upsert every matched row: on a hidden row that bumped
  *     `updatedAt` (and the hide's rollback refuses a row touched after it), and on the 1,014 rows the
  *     owner relabelled used on 2026-10-03 it wrote the store's `condition: null` back over 'used'.
+ *
+ * ⚠️ FURNITURE MATERIAL FROM THE TITLE (owner, 2026-10-05 — src/lib/furniture-material.ts). This script
+ * wrote no `attributes` at all, so Bàn Ghế Thanh Lý's ~3,100 live furniture rows had no `material` — the
+ * facet behind the furniture chips and the furniture price band. A furniture-appliances row on a shelf with
+ * that facet now gets the material its title names: on CREATE in the row's attributes, and on a REFRESH
+ * only when the row has none, by a separate compare-and-set on the attributes this run read — never over a
+ * seller's, a moderator's or another pass's value. The rows that existed before this are filled by
+ * scripts/backfill-furniture-material.ts.
  */
 import 'dotenv/config'
 import { readFileSync } from 'node:fs'
@@ -50,6 +58,7 @@ import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 import { ImportScreen } from '../src/lib/import-screen'
 import { isUsedTitle } from '../src/lib/used-signal'
 import { blockedCreate, isLiveForRefresh } from '../src/lib/partner-import-rules'
+import { decideTitleMaterial, titleMaterialFill } from '../src/lib/furniture-material'
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
@@ -170,6 +179,10 @@ async function main() {
   const failures: string[] = []
   const dropped: Record<string, number> = {}
   const drop = (why: string) => { dropped[why] = (dropped[why] || 0) + 1; skipped++ }
+  /** Furniture material read from titles (src/lib/furniture-material.ts): `new:<value>` on a create,
+   *  `filled:<value>` on a refresh of a row that had none. A dry run counts what it would write. */
+  const materials: Record<string, number> = {}
+  const noteMaterial = (kind: 'new' | 'filled', value: string) => { materials[`${kind}:${value}`] = (materials[`${kind}:${value}`] || 0) + 1 }
   const screen = new ImportScreen('partners', { db })
 
   for (let i = 0; i < rows.length; i += CONCURRENCY) {
@@ -245,7 +258,7 @@ async function main() {
 
       const existing = seller
         ? await db.listing.findFirst({ where: { sellerId: seller.id, externalId },
-            select: { id: true, images: true, status: true, title: true, titleVi: true, description: true, descriptionVi: true, categoryId: true, subcategorySlug: true, brandSlug: true, model: true } })
+            select: { id: true, images: true, status: true, title: true, titleVi: true, description: true, descriptionVi: true, categoryId: true, subcategorySlug: true, brandSlug: true, model: true, attributes: true } })
         : null
       // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
       if (existing?.status === 'removed') { drop('removed listing (tombstone)'); return }
@@ -267,7 +280,26 @@ async function main() {
       if (!(await screen.check({ title, description: r.desc, category: slug, subcategory: subcategoryFor(slug, title), merchant: r.domain, externalId, url: r.url }, existing ? { id: existing.id, status: existing.status } : null))) {
         drop('content screen'); return
       }
-      if (!APPLY) { existing ? updated++ : created++; return }
+
+      const feedTitle = title.slice(0, 180)
+      // ⛔ The row's stored category wins over the title rules on a refresh — see refreshPlacement.
+      const placed = refreshPlacement(
+        existing ? { categorySlug: catSlug.get(existing.categoryId) ?? null, subcategorySlug: existing.subcategorySlug } : null,
+        { categorySlug: slug, subcategorySlug: subcategoryFor(slug, feedTitle) },
+      )
+      // The furniture material the title names (see the header): what a create writes, and what a refresh
+      // fills on a row that has none. Decided here so the dry run counts it too.
+      const newMaterial = existing ? null : decideTitleMaterial({ categorySlug: placed.categorySlug, subcategorySlug: placed.subcategorySlug, attributes: null, title: feedTitle })
+      const materialFill = existing
+        ? titleMaterialFill({ id: existing.id, attributes: existing.attributes, categorySlug: placed.categorySlug, subcategorySlug: placed.subcategorySlug }, feedTitle)
+        : null
+      if (!APPLY) {
+        if (existing) updated++
+        else created++
+        if (newMaterial?.write) noteMaterial('new', newMaterial.material)
+        if (materialFill) noteMaterial('filled', materialFill.material)
+        return
+      }
 
       /**
        * ⚠️ IMAGES ARE FETCHED ONCE, like the AccessTrade importer — a listing that already has one
@@ -298,12 +330,6 @@ async function main() {
       }
       if (!images || images === '[]') { drop('image host failed'); return }
 
-      const feedTitle = title.slice(0, 180)
-      // ⛔ The row's stored category wins over the title rules on a refresh — see refreshPlacement.
-      const placed = refreshPlacement(
-        existing ? { categorySlug: catSlug.get(existing.categoryId) ?? null, subcategorySlug: existing.subcategorySlug } : null,
-        { categorySlug: slug, subcategorySlug: subcategoryFor(slug, feedTitle) },
-      )
       // ⛔ BRAND AND MODEL ARE SET ON CREATE ONLY (2026-09-14). A refresh used to rewrite them from the title rules, which
       // undid every correction the Gemini pass or `backfill-brands --recheck` made — and "fill when missing" refilled a
       // brand those passes had deliberately cleared (an iPhone case is not Apple's). The refresh keeps the stored values;
@@ -385,10 +411,13 @@ async function main() {
         // ⛔ create-only: rankScore defaults to 0, and 0 is dead last in a feed ordered by it — the
         // first partner import's 152 rows sat invisible for a day because of exactly this.
         rankScore: browseRankScore({ sellerTrustScore: seller?.trustScore ?? 100, postedAt: new Date(), featured: false }),
+        // ⛔ create-only: the furniture material the title names (header), or nothing. A refresh FILLS a row
+        // that has none (materialFill below) and never writes this field, so a stored value always stands.
+        attributes: newMaterial?.write ? newMaterial.attributes : undefined,
       }
       // ⛔ `condition` IS CREATE-ONLY (2026-10-03): it is a claim about the goods, and the stored value may be
       // a human's correction — 1,014 rows were relabelled 'used' that day, over the store's `null`.
-      const { status, verified, title: _t, description: _d, descriptionVi: _dv, rankScore: _r, condition: _c, ...refreshable } = fields
+      const { status, verified, title: _t, description: _d, descriptionVi: _dv, rankScore: _r, attributes: _a, condition: _c, ...refreshable } = fields
       /**
        * ⚠️ STOCK MOVES IN BOTH DIRECTIONS, AND ONLY BETWEEN active AND sold. A row a human set to
        * `hidden` (or `draft`, or a `removed` tombstone) is left exactly as it is — that is the
@@ -421,11 +450,27 @@ async function main() {
         })
         return count > 0
       }
+      /**
+       * The furniture material of an EXISTING row that has none: its own statement, after the refresh, and a
+       * compare-and-set on the attributes read above (titleMaterialFill) — so it can never overwrite a value
+       * written since. Not folded into refreshLive: a failed fill must cost the row its material until the next
+       * run, never its price or stock, so it is reported and swallowed rather than retried with the refresh.
+       */
+      const fillMaterial = async () => {
+        if (!materialFill) return
+        try {
+          const { count } = await db.listing.updateMany(materialFill.update)
+          if (count) noteMaterial('filled', materialFill.material)
+        } catch (e) {
+          failures.push(`material: ${(e as Error).message.slice(0, 70)}`)
+        }
+      }
 
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           if (existing) {
             if (!(await refreshLive())) { drop('not live at write time — left untouched'); return }
+            await fillMaterial()
           } else {
             /**
              * ⛔ A PLAIN CREATE, AND A LOST RACE FALLS BACK TO THE SAME CONDITIONAL REFRESH (commit-gate
@@ -436,6 +481,7 @@ async function main() {
             try {
               await db.listing.create({ data: { ...fields, sellerId: seller!.id, externalId } })
               created++
+              if (newMaterial?.write) noteMaterial('new', newMaterial.material)
               return
             } catch (e) {
               // P2002 here can only be Listing_sellerId_externalId_key — Listing's one unique index besides its cuid id.
@@ -454,6 +500,7 @@ async function main() {
 
   console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${created} created, ${updated} updated, ${imaged} images hosted, ${skipped} skipped${OVERLAY ? `, ${rehostKept} kept their burned photos (shorter or partial re-fetch)` : ''}`)
   if (Object.keys(dropped).length) console.log(`  dropped: ${JSON.stringify(dropped)}`)
+  if (Object.keys(materials).length) console.log(`  furniture material from titles (new = on create, filled = a refreshed row that had none): ${JSON.stringify(materials)}`)
   await screen.finish({ apply: APPLY })
   if (failures.length) {
     const kinds: Record<string, number> = {}

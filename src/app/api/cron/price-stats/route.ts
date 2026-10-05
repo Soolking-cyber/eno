@@ -1,7 +1,9 @@
 import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
-import { PRICE_STAT_MIN_SAMPLE, PRICE_STAT_MAX_SPREAD, SALE_LISTING_TYPE } from '@/lib/price-stat'
+import { marketplaceListingScope } from '@/lib/edition-scope'
+import { FALLBACK_BRAND_KEY } from '@/lib/price-fallback'
+import { ELIGIBLE_SQL, PRICE_STAT_MAX_SPREAD, PRICE_STAT_MIN_SAMPLE, SEGMENT_SQL, fallbackStatsUpsertSql } from '@/lib/price-stat'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,46 +15,21 @@ export const maxDuration = 60
 // when the listing has a `year` (vehicles) — so "Honda Wave (used, 2018–2019)" is its own row.
 // P-percentiles (not mean) shrug off scam/typo outliers. Stale segments (dropped below the
 // sample floor) are pruned so the PDP never shows an out-of-date band.
+// Then the FALLBACK bands for goods with no model (src/lib/price-fallback.ts) — same segment, same
+// statistics, same table, under brandSlug FALLBACK_BRAND_KEY.
 //
 // ⚠️ WS6 MIGRATION — `auth: 'cron'`. One of five byte-identical `bearerOk()` copies, now a single
 // timing-safe comparison in `src/lib/api/handler.ts`. Both branches unchanged:
 //   · unset CRON_SECRET, or a missing/malformed/wrong Bearer token → `{"error":"forbidden"}` 401
-//   · success → `{"ok":true,"segments":…,"pruned":…,"positioned":…}` 200
+//   · success → `{"ok":true,"segments":…,"fallback":…,"pruned":…,"positioned":…}` 200
 //
 // ⚠️ ONE ACCEPTED WIRE CHANGE, AS A SHAPE: any unhandled throw in this handler now returns
 // `{"error":"internal_error"}` 500 instead of Next's default 500 HTML. There is no try/catch here
-// at all — the two `$executeRaw` calls and the `$transaction` are bare — so this is the live
-// behaviour on a DB error, not a hypothetical.
-/**
- * The segment, in SQL, for a `"Listing" l JOIN "Category" c`. ⛔ MUST MATCH listingSegment() in
- * src/lib/price-stat.ts character for character — `<category>/<subcategory>|<condition>[:<year band>]`
- * — and price-stat.test.ts pins the TS half, having been checked against this SQL on every production
- * row when the key changed (27,133 rows, 0 mismatches — the test's header records the method; nothing
- * in CI executes this expression, so a change HERE must be re-measured the same way).
- * The shelf is in the key so a phone case is never banded with the phone it fits; see listingSegment()
- * for the measured cases that made it necessary.
- * ⚠️ regexp_replace ON `\s`, NOT btrim — btrim's default set is the SPACE CHARACTER ONLY, while the TS
- * side's String.trim() also eats tabs and newlines. A subcategory stored as "\tphone-cases" would then
- * be filed under one key by the cron and read under another by the PDP, and the band would silently
- * never render (astra). Postgres `\s` in a regex is the whitespace class, which is the same intent.
- * NULLIF(…,'') because a whitespace-only condition must read as 'any' on both sides.
- */
-const TRIM = (col: string) => Prisma.raw(`regexp_replace(${col}, '^\\s+|\\s+$', '', 'g')`)
-const SEGMENT_SQL = Prisma.sql`(${TRIM('c.slug')} || '/' || ${TRIM('l."subcategorySlug"')} || '|' || COALESCE(NULLIF(${TRIM('l.condition')}, ''), 'any')
-  || CASE WHEN l.year IS NOT NULL THEN ':' || ((l.year / 2) * 2)::text ELSE '' END)`
-
-/**
- * Which listings may form a band AND be judged against one. ONE predicate for both statements —
- * the positioning UPDATE used to omit `verified` and `currency`, so a listing that could never be
- * part of a band could still be badged by one (a non-₫ price compared with đồng percentiles).
- * No subcategory → no band (listingSegment returns null for it too), and SALE only — a band is a sale
- * price, so a monthly rental neither forms one nor is judged by one (see SALE_LISTING_TYPE).
- */
-const ELIGIBLE_SQL = Prisma.sql`l.status = 'active' AND l.verified = true
-  AND l."brandSlug" IS NOT NULL AND l.model IS NOT NULL
-  AND NULLIF(${TRIM('l."subcategorySlug"')}, '') IS NOT NULL
-  AND l."listingType" = ${SALE_LISTING_TYPE}
-  AND l.currency = '₫' AND l.price > 0`
+// around the brand+model work — the `$executeRaw` calls and the `$transaction` are bare — so this is
+// the live behaviour on a DB error, not a hypothetical.
+//
+// The segment expression and the eligibility predicate live in src/lib/price-stat.ts (SEGMENT_SQL,
+// ELIGIBLE_SQL) beside listingSegment(), their TS twin — see the notes there.
 
 export const GET = route({ auth: 'cron' }, async () => {
   const upserted = await db.$executeRaw(Prisma.sql`
@@ -75,6 +52,28 @@ export const GET = route({ auth: 'cron' }, async () => {
       DO UPDATE SET n = EXCLUDED.n, p25 = EXCLUDED.p25, median = EXCLUDED.median,
                     p75 = EXCLUDED.p75, "updatedAt" = now()
   `)
+
+  // The fallback bands. Edition-scoped like every listing read that feeds a marketplace surface: the
+  // visa/trip desk's sellers out, the partner allow-list when it is armed — a band is built only from
+  // listings this marketplace shows. (The allow-map already keeps out every category the desk sells
+  // in; the scope is the rule, the map is not.)
+  // ⚠️ ITS FAILURE MUST NOT COST THE BRAND+MODEL BANDS OR THE CARD BADGES, AND MUST NOT BE SILENT.
+  // marketplaceListingScope() throws by design when the desk cannot be resolved, and the SQL builder
+  // throws on a scope shape it cannot translate; caught here, the rest of the run completes, and the
+  // error is rethrown at the end so the timer shows a failed run. Rows from the last good run age out
+  // in the 36-hour prune below — fail closed, never stale forever.
+  let fallback = 0
+  // A flag, not `if (error)`: a falsy throw must still fail the run (Opus, fix review).
+  let fallbackFailed = false
+  let fallbackError: unknown = null
+  try {
+    fallback = await db.$executeRaw(fallbackStatsUpsertSql(await marketplaceListingScope()))
+  } catch (e) {
+    fallbackFailed = true
+    fallbackError = e
+    console.error('[price-stats] fallback bands were not refreshed this run', e)
+  }
+
   // Prune segments that weren't refreshed this run (fell below the sample floor / went stale).
   // ⚠️ This is also what retires the pre-2026-09-15 keys (condition-only, no shelf): no reader asks
   // for them any more and they stop being refreshed, so they age out here within 36 hours.
@@ -87,6 +86,9 @@ export const GET = route({ auth: 'cron' }, async () => {
   // band vanished or whose price moved out of 'low' must lose its badge), then set from the bands
   // that pass the min-spread guard — never badge off a uselessly-wide "range". Segment expression
   // MUST match listingSegment() / the upsert above.
+  // ⛔ A FALLBACK BAND NEVER BADGES A CARD: the card is a public verdict in a feed, and a similar-items
+  // comparison has not earned one. ELIGIBLE_SQL already refuses the sentinel as a listing brand; the
+  // explicit `ps."brandSlug" <>` below says so where the join is made.
   const [, positioned] = await db.$transaction([
     db.$executeRaw(Prisma.sql`
     UPDATE "Listing" SET "marketPosition" = NULL
@@ -97,11 +99,15 @@ export const GET = route({ auth: 'cron' }, async () => {
       CASE WHEN l.price < ps.p25 THEN 'low' WHEN l.price > ps.p75 THEN 'high' ELSE 'typical' END
     FROM "PriceStat" ps, "Category" c
     WHERE c.id = l."categoryId" AND ${ELIGIBLE_SQL}
+      AND ps."brandSlug" <> ${FALLBACK_BRAND_KEY}
       AND l."brandSlug" = ps."brandSlug" AND l.model = ps.model
       AND ps.segment = ${SEGMENT_SQL}
       AND ps.p75 <= ps.p25 * ${PRICE_STAT_MAX_SPREAD}
   `),
   ])
 
-  return { ok: true, segments: upserted, pruned: removed, positioned }
+  if (fallbackFailed) {
+    throw fallbackError instanceof Error ? fallbackError : new Error(`[price-stats] fallback bands failed: ${String(fallbackError)}`)
+  }
+  return { ok: true, segments: upserted, fallback, pruned: removed, positioned }
 })

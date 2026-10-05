@@ -673,7 +673,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // Market-price guidance for the price step — the same PriceStat band the PDP's
   // "Market price" module shows (n≥5 + spread suppression live server-side).
   // Debounced + stale-cancelled; best-effort: any miss/error just hides the box.
-  const [priceBand, setPriceBand] = useState<{ n: number; p25: number; median: number; p75: number } | null>(null)
+  const [priceBand, setPriceBand] = useState<{ n: number; p25: number; median: number; p75: number; basis?: 'model' | 'similar' } | null>(null)
   const bandYear = ranges['year'] ?? null
   useEffect(() => {
     // rentals price per MONTH — the PriceStat bands are sale prices, so guidance

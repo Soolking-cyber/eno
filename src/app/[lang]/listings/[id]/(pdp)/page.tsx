@@ -454,7 +454,8 @@ export default async function ListingPage({ params }: Props) {
     }),
     // Market-price band for this brand+model on THIS shelf (null when there aren't enough comparables,
     // or the listing has no subcategory — a case is never judged against the phone it fits).
-    getPriceBand({ brandSlug: listing.brandSlug, model: listing.model, categorySlug: rawListing.category.slug, subcategorySlug: rawListing.subcategorySlug, listingType: rawListing.listingType, condition: listing.condition, year: listing.year }),
+    // `attributes` (the stored JSON text) feeds the no-model fallback's facet — src/lib/price-fallback.ts.
+    getPriceBand({ brandSlug: listing.brandSlug, model: listing.model, categorySlug: rawListing.category.slug, subcategorySlug: rawListing.subcategorySlug, listingType: rawListing.listingType, condition: listing.condition, year: listing.year, attributes: rawListing.attributes }),
     // An official partner's live listing count, for '{n} listings on eno.vn' in the shop row (owner,
     // 2026-09-30, K-TRUST-BADGE option D). Partners only: one indexed count, and only on ISR regen.
     // Edition-scoped exactly like the storefront's `_count` (seller-storefront.tsx), so the two agree.
