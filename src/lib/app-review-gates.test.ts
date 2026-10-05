@@ -6,8 +6,10 @@ import {
   appReviewGate,
   brandForCopy,
   unknownAppReviewGates,
+  inAppSheetDocument,
   iosAppGate,
   isIosAppUserAgent,
+  isNativeAppClient,
   isNativeAppUserAgent,
   nativeAppGate,
   parseAppReviewGates,
@@ -128,5 +130,44 @@ describe('brandForCopy', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'site-brand-copy')
     expect(brandForCopy('eno.forum')).toBe('eno.forum')
     expect(brandForCopy('eno.vn')).toBe('eno.vn')
+  })
+})
+
+describe('the in-app browser sheet marker (?app_sheet=1)', () => {
+  // The sheet (SFSafariViewController / Custom Tab) runs with the BROWSER's UA, so the page it shows must
+  // be told it is the app's — or it is the ordinary web site, consent bar and GTM included (P10a).
+  const at = (path: string, fn: () => void) => {
+    window.history.replaceState(null, '', path)
+    try { fn() } finally { window.history.replaceState(null, '', '/'); sessionStorage.clear() }
+  }
+  // The sheet only exists when `app-signin-tidy` opens first-party pages in it.
+  const sheetOn = () => vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'app-signin-tidy')
+  it('⛔ is dormant while app-signin-tidy is off — the marker changes nothing on either site', () => {
+    at('/privacy?app_sheet=1', () => expect(inAppSheetDocument()).toBe(false))
+    expect(sessionStorage.getItem('eno:app-sheet')).toBeNull()
+  })
+  it('marks the document the app opened in its sheet', () => {
+    sheetOn()
+    at('/privacy?app_sheet=1', () => expect(inAppSheetDocument()).toBe(true))
+  })
+  it('⛔ is ONE document: the next page in the same tab is the ordinary web site again', () => {
+    sheetOn()
+    window.history.replaceState(null, '', '/terms?app_sheet=1')
+    expect(inAppSheetDocument()).toBe(true)
+    at('/c/rentals', () => expect(inAppSheetDocument()).toBe(false))
+    expect(sessionStorage.length).toBe(0) // nothing is remembered for the tab
+  })
+  it('is absent on an ordinary page, and only "1" counts', () => {
+    sheetOn()
+    at('/privacy', () => expect(inAppSheetDocument()).toBe(false))
+    at('/privacy?app_sheet=0', () => expect(inAppSheetDocument()).toBe(false))
+    at('/privacy?xapp_sheet=1', () => expect(inAppSheetDocument()).toBe(false))
+  })
+  it('⛔ is TRACKING-ONLY: it never turns the app gates on (anyone can put it on a link)', () => {
+    at('/terms?app_sheet=1', () => {
+      vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'app-signin-tidy,app-no-gtm')
+      expect(isNativeAppClient()).toBe(false)
+      expect(nativeAppGate('app-signin-tidy')).toBe(false)
+    })
   })
 })

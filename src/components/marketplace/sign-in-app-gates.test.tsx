@@ -104,7 +104,9 @@ describe('app-signin-tidy (R7 / R13)', () => {
     const click = new MouseEvent('click', { bubbles: true, cancelable: true })
     link.dispatchEvent(click)
     expect(click.defaultPrevented).toBe(true)
-    await vi.waitFor(() => expect(browserOpen).toHaveBeenCalledWith({ url: `${window.location.origin}/terms` }))
+    // Marked as the app's sheet: the sheet runs with the browser's UA, so the page needs the marker to
+    // behave as the app for consent and analytics (app-review-gates.ts IN_APP_SHEET_PARAM).
+    await vi.waitFor(() => expect(browserOpen).toHaveBeenCalledWith({ url: `${window.location.origin}/terms?app_sheet=1` }))
   })
 
   it('if the sheet fails to open, it falls back to a NEW window, never this one', async () => {
@@ -114,6 +116,7 @@ describe('app-signin-tidy (R7 / R13)', () => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null)
     await renderForm()
     legal('Privacy Policy').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    // The fallback is the system browser, not the app — it gets the plain URL, no sheet marker.
     await vi.waitFor(() => expect(open).toHaveBeenCalledWith(`${window.location.origin}/privacy`, '_blank', 'noreferrer'))
   })
 

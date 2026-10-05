@@ -44,4 +44,21 @@ describe('GTM container and the native apps', () => {
   it('web: still loads with app-no-gtm on', async () => {
     expect(await containerLoads(WEB, 'app-no-gtm')).toBe(true)
   })
+
+  // The app's in-app browser sheet runs with the BROWSER's UA (a Custom Tab looks like Chrome), so the
+  // page the app opened there is marked with ?app_sheet=1 (app-review-gates.ts IN_APP_SHEET_PARAM).
+  it('the in-app sheet (browser UA + ?app_sheet=1): skipped with app-no-gtm on, loads with it off', async () => {
+    window.history.replaceState(null, '', '/terms?app_sheet=1')
+    try {
+      // `app-signin-tidy` is what opens the sheet; without it the marker is dormant.
+      expect(await containerLoads(WEB, 'app-signin-tidy,app-no-gtm')).toBe(false)
+      sessionStorage.clear()
+      expect(await containerLoads(WEB, 'app-signin-tidy')).toBe(true)
+      sessionStorage.clear()
+      expect(await containerLoads(WEB, 'app-no-gtm')).toBe(true)
+    } finally {
+      window.history.replaceState(null, '', '/')
+      sessionStorage.clear()
+    }
+  })
 })

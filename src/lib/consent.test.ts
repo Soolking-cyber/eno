@@ -222,6 +222,29 @@ describe('⛔ inside the native apps analytics and advertising are always off', 
     vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (iPhone) EnoNativeTabs/1')
     expect([personalizationAllowed(), hasAnalyticsConsent(), hasAdConsent()]).toEqual([true, false, false])
   })
+
+  it('the app’s in-app browser sheet (browser UA, ?app_sheet=1 on the page it opened)', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'app-signin-tidy') // the gate that opens the sheet
+    decide(true, true, true)
+    window.history.replaceState(null, '', '/terms?app_sheet=1')
+    try {
+      expect([personalizationAllowed(), hasAnalyticsConsent(), hasAdConsent()]).toEqual([true, false, false])
+    } finally {
+      window.history.replaceState(null, '', '/')
+      sessionStorage.clear()
+    }
+  })
+
+  it('an ordinary web page keeps the visitor’s choice (the marker is absent or not "1")', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'app-signin-tidy')
+    decide(true, true, true)
+    window.history.replaceState(null, '', '/terms?app_sheet=0')
+    try {
+      expect([personalizationAllowed(), hasAnalyticsConsent(), hasAdConsent()]).toEqual([true, true, true])
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
+  })
 })
 
 describe('enforceConsentCleanup — by STATE, on every load', () => {
@@ -249,6 +272,37 @@ describe('enforceConsentCleanup — by STATE, on every load', () => {
     expect(localStorage.getItem('eno:viewed')).toBeNull()
     expect(localStorage.getItem('eno:viewed_ids')).toBeNull()
     expect(sessionStorage.getItem('eno_attr_pending')).toBeNull()
+  })
+
+  it('⛔ the app’s in-app browser sheet leaves the shared cookie jar alone (Android Custom Tab = Chrome’s jar)', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'app-signin-tidy') // the gate that opens the sheet
+    decide(true, true, true) // the visitor's own web answer, stored in the shared storage
+    plant()
+    window.history.replaceState(null, '', '/terms?app_sheet=1')
+    try {
+      expect(hasAnalyticsConsent()).toBe(false) // the sheet is the app: no analytics offered…
+      enforceConsentCleanup()
+      // …but their ordinary-browser cookies survive the visit to Terms from the app.
+      for (const n of ['_ga', '_gcl_au', '_fbp']) expect(cookieNames()).toContain(n)
+    } finally {
+      window.history.replaceState(null, '', '/')
+      sessionStorage.clear()
+    }
+  })
+
+  it('…while a personalization REFUSAL still holds in the sheet: view history is cleared', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'app-signin-tidy')
+    decide(false, true, true)
+    plant()
+    window.history.replaceState(null, '', '/terms?app_sheet=1')
+    try {
+      expect(personalizationAllowed()).toBe(false) // the marker never forces personalization on
+      enforceConsentCleanup()
+      expect(localStorage.getItem('eno:viewed_ids')).toBeNull()
+    } finally {
+      window.history.replaceState(null, '', '/')
+      sessionStorage.clear()
+    }
   })
 
   it('runs WITHOUT any change: an unanswered visitor loses the leftovers on the next page load', () => {

@@ -88,6 +88,36 @@ export function isNativeIOSClient(): boolean {
   return cap?.getPlatform?.() === 'ios'
 }
 
+/**
+ * The query marker the app adds to a FIRST-PARTY page it opens in its in-app browser sheet
+ * (SFSafariViewController / Chrome Custom Tab — `app-signin-tidy`'s legal links, sign-in-form.tsx).
+ *
+ * ⛔ THE SHEET IS NOT THE APP'S WEBVIEW: it runs with the browser's own user agent (no `EnoNativeApp`)
+ * and the browser's own storage, so without this marker the legal page inside it is the ordinary WEB
+ * site — consent prompt offering analytics and advertising, Google Tag Manager — while the apps declare
+ * "no tracking" (Android pass P10a, 2026-10-05).
+ * ⚠️ SCOPE, AND WHY IT IS THIS NARROW: ONE DOCUMENT, TRACKING ONLY. Anyone can put the marker on a link,
+ * so it may only ever switch tracking OFF for the page that carries it: consent (`isNativeContext`) forces
+ * analytics/ads off, the GTM container is skipped (`app-no-gtm`), the consent prompt is not shown and the
+ * consent cleanup leaves the shared cookie jar alone (an Android Custom Tab shares Chrome's). It is not
+ * carried to the next page and it changes nothing else — an earlier version also hid the site chrome and
+ * carried the mark through sessionStorage, which let a crafted link strip a tab's navigation and the
+ * footer's legally required operator details (review, 2026-10-05). Pages reached from inside the sheet are
+ * the web site, as in any browser.
+ * ⛔ DORMANT WITH `app-signin-tidy` OFF: that gate is what opens first-party pages in the sheet at all.
+ */
+export const IN_APP_SHEET_PARAM = 'app_sheet'
+
+/** Client only: this document is the one the app opened in its in-app browser sheet (see IN_APP_SHEET_PARAM). */
+export function inAppSheetDocument(): boolean {
+  if (typeof location === 'undefined' || !appReviewGate('app-signin-tidy')) return false
+  try {
+    return new URLSearchParams(location.search).get(IN_APP_SHEET_PARAM) === '1'
+  } catch {
+    return false
+  }
+}
+
 /** Client only: either native app, on any origin (UA token — see the header). */
 export function isNativeAppClient(): boolean {
   if (typeof navigator === 'undefined') return false
