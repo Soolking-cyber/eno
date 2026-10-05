@@ -34,6 +34,7 @@ import { EnoSlider } from '@/components/ui/slider'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { BlockUserButton } from '@/components/marketplace/block-user-button'
 import { ClosedThreadBanner } from '@/components/marketplace/closed-thread-banner'
+import { OBJECTIONABLE_CONTENT, composerFreeForRefused, objectionableCopy } from '@/lib/ugc-copy'
 import { TrustMeta } from '@/components/marketplace/trust-meta'
 import { QuickReplyChips, MarkSoldPrompt, chipContext } from '@/components/marketplace/quick-reply-chips'
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
@@ -553,6 +554,17 @@ export default function ThreadPage() {
    * server-side and the reply goes out unquoted, which is the honest outcome).
    */
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null)
+  // The reply armed NOW, for an async path that must not trust its closure's copy — the word filter's refusal,
+  // which decides whether a refused message may come back into the composer (composerFreeForRefused).
+  const replyToNow = useRef<ReplyTarget | null>(null)
+  useEffect(() => { replyToNow.current = replyTo }, [replyTo])
+  // ⛔ EVERY CHANGE GOES THROUGH HERE, so the ref is current the moment a reply is armed or cleared — the effect
+  // above alone lags a commit, and a refusal landing in that gap read the old target (codex, gate round 11).
+  const armReply = (next: ReplyTarget | null | ((r: ReplyTarget | null) => ReplyTarget | null)) => {
+    const value = typeof next === 'function' ? next(replyToNow.current) : next
+    replyToNow.current = value
+    setReplyTo(value)
+  }
 
   /** Which message the per-message report dialog is open for. Null = closed. */
   const [reportFor, setReportFor] = useState<string | null>(null)
@@ -832,7 +844,7 @@ export default function ThreadPage() {
     } : t))
     // A reply chip pointing at the message just recalled would keep showing its text in the
     // composer — the one place the recall has not reached yet.
-    setReplyTo((r) => (r?.id === messageId ? null : r))
+    armReply((r) => (r?.id === messageId ? null : r))
 
     try {
       const res = await fetch(`/api/conversations/${id}/messages/${messageId}`, { method: 'DELETE' })
@@ -1139,7 +1151,7 @@ export default function ThreadPage() {
      * the same thing. A RETRY passes its own — see retry().
      */
     const quoted = reuseReplyTo !== undefined ? reuseReplyTo : replyTo
-    if (reuseReplyTo === undefined) setReplyTo(null)
+    if (reuseReplyTo === undefined) armReply(null)
     // Optimistic: show the bubble the instant Send is tapped — the POST swaps in the
     // real message; realtime ignores my own echo, so the UI never waits on the DB.
     const tempId = `temp-${Date.now()}`
@@ -1186,7 +1198,7 @@ export default function ThreadPage() {
         // App Store gate `ugc-safety` (R3): a block is not a network blip. "Tap to retry" could never
         // succeed, so the bubble goes and the reason is said (codex, review). Never fires while the gate
         // is off — the route cannot answer `blocked` then.
-        const code = res.status === 403 ? ((await res.json().catch(() => null)) as { error?: string } | null)?.error : undefined
+        const code = res.status === 403 || res.status === 400 ? ((await res.json().catch(() => null)) as { error?: string } | null)?.error : undefined
         if (code === 'blocked') {
           sendClientIds.current.delete(tempId)
           sendReplyTargets.current.delete(tempId)
@@ -1194,6 +1206,26 @@ export default function ThreadPage() {
           toast.error(tr('You can no longer message this person.', 'Bạn không thể nhắn tin cho người này nữa.'))
           // The thread payload now says `closed` — reload so the banner replaces the composer at once.
           void load()
+        } else if (code === OBJECTIONABLE_CONTENT) {
+          // App Store gate `ugc-safety` (R5): the word filter refused it, and the reason is said. The text is
+          // never lost: read the composer NOW (not through a state updater) —
+          //   · empty → the bubble goes and the text AND its quote come back into the composer to rephrase;
+          //   · something new was typed meanwhile → that is never overwritten (nor a later send handed the
+          //     refused message's quote; codex, gate round 4), so the refused message stays as a failed
+          //     bubble, its words on screen — a retry is refused again, into what is by then an empty
+          //     composer (codex, gate round 5);
+          //   · ANOTHER reply armed meanwhile, nothing typed → the same: restoring this text under that quote
+          //     would send it as a reply to the wrong message (codex, gate round 10).
+          if (composerFreeForRefused(composerRef.current?.getValue() ?? '', replyToNow.current?.id, quoted?.id)) {
+            sendClientIds.current.delete(tempId)
+            sendReplyTargets.current.delete(tempId)
+            setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+            setText(body)
+            if (quoted) armReply(quoted)
+          } else {
+            markFailed(tempId)
+          }
+          toast.error(objectionableCopy('message', tr))
         } else {
           markFailed(tempId)
         }
@@ -1287,6 +1319,7 @@ export default function ThreadPage() {
         setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
         // App Store gate `ugc-safety`: a block is not a blip — "try again" could never succeed. Say the
         // thread is closed (never who closed it) and reload so the banner replaces the composer.
+        // (An offer from here carries no text — its body stays empty — so the word filter never refuses it.)
         const code = res.status === 403 ? ((await res.json().catch(() => null)) as { error?: string } | null)?.error : undefined
         if (code === 'blocked') {
           lastOfferSend.current = null
@@ -2042,7 +2075,7 @@ export default function ThreadPage() {
   // ⚠️ DROPS AN ARMED REPLY. An offer is a structured message with no place for a quote, and the
   // chip is hidden in offer mode — leaving it armed would silently re-attach it to the next TEXT
   // message the user sent, long after they had forgotten about it.
-  const toggleOffer = () => { setShowOffer((s) => !s); setOfferInput(''); setOfferPct(10); setCounterMode(false); setConciergeArmed(false); setReplyTo(null) }
+  const toggleOffer = () => { setShowOffer((s) => !s); setOfferInput(''); setOfferPct(10); setCounterMode(false); setConciergeArmed(false); armReply(null) }
 
   // Quick-reply chip → INSERT into the composer (never auto-send), cursor at the
   // end so partial templates ("Can meet in ") are completed in one motion.
@@ -2590,7 +2623,7 @@ export default function ThreadPage() {
                */
               const chromeLive = !m.pending && !m.failed && !m.deleted
               const messageActions = {
-                onReply: m.body ? () => { setShowOffer(false); setReplyTo({ id: m.id, body: m.body.slice(0, 160), mine: m.mine }); composerRef.current?.focus() } : undefined,
+                onReply: m.body ? () => { setShowOffer(false); armReply({ id: m.id, body: m.body.slice(0, 160), mine: m.mine }); composerRef.current?.focus() } : undefined,
                 /* ⚠️ COPIES WHAT IS ON SCREEN, NOT THE STORED BODY. Reviewer-caught: with live
                    translation on, `m.body` is the counterpart's original language while the bubble
                    shows the translation — so Copy handed over text the user could not read and had
@@ -3166,7 +3199,7 @@ export default function ThreadPage() {
               </div>
               <IconButton
                 size="sm"
-                onClick={() => setReplyTo(null)}
+                onClick={() => armReply(null)}
                 aria-label={tr('Cancel reply', 'Hủy trả lời')}
                 className="shrink-0 text-ink-4 hover:bg-muted"
               >

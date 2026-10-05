@@ -4,6 +4,7 @@ import { canParticipate, getForumAuth } from '@/lib/forum/auth'
 import { forumJson, forumPreflight, isAllowedForumOrigin } from '@/lib/forum/cors'
 import { forumAuthorSelect, serializeForumComment } from '@/lib/forum/serialize'
 import { rateLimit } from '@/lib/ratelimit'
+import { refuseObjectionable } from '@/lib/ugc-filter'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -58,6 +59,9 @@ export async function POST(request: Request) {
       })
     : null
   if (input.parentId && !parent) return forumJson(request, { error: 'parent_not_found' }, { status: 404 }, 'POST, OPTIONS')
+  // App Store gate `ugc-safety` (plan R5): the severe-only word filter (src/lib/ugc-filter.ts) refuses the
+  // reply before anything is written. Off ⇒ nothing is scanned.
+  if (await refuseObjectionable('help-comment', input.body)) return forumJson(request, { error: 'objectionable_content' }, { status: 400 }, 'POST, OPTIONS')
 
   const commentId = await db.$transaction(async (tx) => {
     const comment = await tx.forumComment.create({

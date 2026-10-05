@@ -9,6 +9,7 @@ import { trackContactSeller, currencyCode } from '@/lib/analytics'
 import { COMPOSE_KEY } from '@/components/marketplace/contact-composer'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+import { OBJECTIONABLE_CONTENT, objectionableCopy } from '@/lib/ugc-copy'
 
 type Compose = { listingId: string; body: string; offerAmount?: number | null; listingTitle: string; listingImage: string | null; trackPrice: number | null; currency: string; plan?: boolean }
 
@@ -62,6 +63,9 @@ export default function PendingComposePage() {
             : error === 'probation_conversation_cap' ? tr('New accounts can start up to 15 chats a day — please try again tomorrow.', 'Tài khoản mới có thể bắt đầu tối đa 15 cuộc trò chuyện mỗi ngày — hãy thử lại vào ngày mai.')
             // App Store gate `ugc-safety` (R3) — only ever answered while the gate is on.
             : error === 'blocked' ? tr('You can’t message this seller.', 'Bạn không thể nhắn tin cho người bán này.')
+            // App Store gate `ugc-safety` (R5): the word filter refused the first message. The draft is
+            // re-stashed below, so the listing page gives it back to be rephrased.
+            : error === OBJECTIONABLE_CONTENT ? objectionableCopy('message', tr)
             : tr('Could not send. Try again.', 'Không gửi được. Thử lại.'))
           // Re-stash the draft before bouncing (audit P2): removeItem ran up front,
           // so without this a transient failure silently DISCARDED the typed message

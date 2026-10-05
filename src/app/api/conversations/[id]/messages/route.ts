@@ -7,6 +7,7 @@ import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
 import { logError } from '@/lib/log'
 import { ApiError, route } from '@/lib/api/handler'
 import { isBlockedBetween } from '@/lib/user-blocks'
+import { refuseObjectionable } from '@/lib/ugc-filter'
 import { after } from 'next/server'
 import { getAdmin } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
@@ -133,7 +134,6 @@ export const POST = route(
     // gate off isBlockedBetween answers false WITHOUT a query — this is the hot send path admin.ts
     // warns about. A support operator is not a party to a block (the desk has no profile).
     if (!iAmSupport && await isBlockedBetween(convo.buyerProfileId, convo.sellerProfileId)) { await release(); throw new ApiError('blocked', 403) }
-
     // Fixed-price listing → offers are off. The UI hides the offer control, so this is
     // the abuse/stale-tab path: reject the offer. Only a BUYER spamming offers is abuse
     // worth a trust dock — offers here are bidirectional (insertMessage supports seller
@@ -193,6 +193,15 @@ export const POST = route(
       await release()
       return NextResponse.json({ error: IOS_APP_UNAVAILABLE }, { status: 403 })
     }
+
+    // ⚠️ App Store gate `ugc-safety` (plan R5): the severe-only word filter (src/lib/ugc-filter.ts) — a
+    // message or an offer's note with a slur, a threat, sexual content involving minors or solicitation is
+    // REFUSED, nothing is written, and the text is not kept anywhere. Off ⇒ nothing is scanned. AFTER every
+    // offer rule above, so a refused note never skips the fixed-price accounting (codex, gate round 3).
+    // ⛔ NOT IN A SUPPORT-DESK THREAD, EITHER SIDE (opus, gate round 2): it is where a victim tells the eno
+    // team what they were sent — "the seller wrote 'I will kill you'" must reach staff word for word, the
+    // same reason reports and dispute statements are unfiltered — and staff must be able to quote it back.
+    if (text && convo.sellerId !== SUPPORT_SELLER_ID && await refuseObjectionable('chat', text)) { await release(); throw new ApiError('objectionable_content', 400) }
 
     let message: Awaited<ReturnType<typeof insertMessage>>
     try {

@@ -265,6 +265,7 @@ export type NicheApiErrorCode =
   | 'blocked'                           // api/conversations(+/[id]/messages, /offer) — one party blocked the other (ugc-safety gate)
   | 'blocking_unavailable'              // api/blocks — the ugc-safety gate is off (404), or no signing secret for an unblock handle (503)
   | 'cannot_block_staff'                // api/blocks — the eno team (desk owner) cannot be blocked
+  | 'objectionable_content'             // chat / review / help reply+post — the severe-only word filter refused it (ugc-safety gate, src/lib/ugc-filter.ts)
   | 'reference_mismatch'
   | 'refinement_limit'
   | 'reply_required'
@@ -661,6 +662,7 @@ const ALL = [
   'blocked',
   'blocking_unavailable',
   'cannot_block_staff',
+  'objectionable_content',
   'refinement_limit',
   'reply_required',
   'report_cooldown',

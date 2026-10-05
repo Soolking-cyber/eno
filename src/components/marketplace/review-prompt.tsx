@@ -9,6 +9,7 @@ import { RadioGroup, Radio } from '@/components/ui/radio-group'
 import { Input } from '@/components/ui/input'
 import { useLanguage } from '@/context/language-context'
 import { haptic } from '@/lib/haptics'
+import { OBJECTIONABLE_CONTENT, objectionableCopy } from '@/lib/ugc-copy'
 
 /**
  * Post-transaction review prompt for the BUYER, shared by the full thread page
@@ -64,7 +65,10 @@ export function ReviewPrompt({
       if (err === 'already_reviewed') { setState('done'); return } // someone double-tapped — it's in
       setState('ask')
       toast.error(
-        err === 'rate_limited'
+        // App Store gate `ugc-safety` (R5): the word filter refused it; the text stays in the field to edit.
+        err === OBJECTIONABLE_CONTENT
+          ? objectionableCopy('review', tr)
+          : err === 'rate_limited'
           ? tr('Too many requests — please try again shortly.', 'Quá nhiều yêu cầu — vui lòng thử lại sau.')
           : tr('Could not submit your review — please try again.', 'Chưa gửi được đánh giá — vui lòng thử lại.'),
       )

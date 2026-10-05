@@ -5,6 +5,7 @@ import { messagingGate } from '@/lib/enforcement'
 import { maskEmailHandle } from '@/lib/utils'
 import { ApiError, route } from '@/lib/api/handler'
 import { removedReviewConversationNeedle } from '@/lib/reported-content'
+import { refuseObjectionable } from '@/lib/ugc-filter'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -90,6 +91,10 @@ export const POST = route({ auth: 'profile', rateLimit: { bucket: 'review-create
     select: { id: true },
   })
   if (removedBefore) throw new ApiError('already_reviewed', 409)
+  // App Store gate `ugc-safety` (plan R5): a review with a slur, a threat or sexual solicitation in it is
+  // refused (the severe-only filter, src/lib/ugc-filter.ts) — after every eligibility check, so an
+  // ineligible caller still hears why they cannot review at all. Off ⇒ nothing is scanned.
+  if (text && await refuseObjectionable('review', text)) throw new ApiError('objectionable_content', 400)
 
   // Never expose the email local part on a PUBLIC surface (it's often a full name).
   const author = me.displayName || maskEmailHandle(me.email) || 'Buyer'

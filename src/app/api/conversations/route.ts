@@ -8,6 +8,7 @@ import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
 import { blockedConversationIds, isBlockedBetween } from '@/lib/user-blocks'
+import { refuseObjectionable } from '@/lib/ugc-filter'
 import { insertMessage, type SerializedMessage } from '@/lib/messages'
 import { sendPushToProfile } from '@/lib/push'
 import { rateLimit } from '@/lib/ratelimit'
@@ -285,6 +286,12 @@ export const POST = route(
     if (!listing.negotiable && !paysSalary(listing.listingType)) await recordFixedPriceOfferAttempt(profile.id)
     throw new ApiError('not_negotiable', 409)
   }
+
+  // App Store gate `ugc-safety` (plan R5): the first message is filtered like every other one — refused
+  // BEFORE the thread exists, so a refusal leaves no empty conversation behind; and AFTER every eligibility
+  // rule (business-only teachers, enforcement, the visa branch that drops the text anyway, the fixed-price
+  // offer accounting), so those still answer first (codex, gate round 3). Off ⇒ nothing is scanned.
+  if (initialMessage && await refuseObjectionable('chat', initialMessage)) throw new ApiError('objectionable_content', 400)
 
   // Create the conversation, letting the unique (listingId, buyerProfileId)
   // constraint be the single source of truth for new-vs-existing. `created` stays
