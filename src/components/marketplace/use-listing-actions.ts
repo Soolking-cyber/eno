@@ -7,6 +7,7 @@ import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { ENFORCEMENT } from '@/lib/enforcement-machine'
+import { useUndoWindow } from '@/hooks/use-undo-window'
 import type { MarkSoldRequest } from './mark-sold-flow'
 
 // Shared optimistic lifecycle actions for a seller's own listing — used by the
@@ -25,6 +26,7 @@ export function useListingActions(
 ) {
   const { tr } = useLanguage()
   const router = useRouter()
+  const undoWindow = useUndoWindow()
   const [gone, setGoneRaw] = useState(false)
   const [optStatus, setOptStatusRaw] = useState<string | null>(null)
   const setGone = (g: boolean) => { setGoneRaw(g); onState?.(g ? 'gone' : null) }
@@ -87,46 +89,49 @@ export function useListingActions(
     `/api/listings/${listing.id}/sold`, 'POST', sale,
   )
 
+  /**
+   * ⛔ THE UNDO WINDOW IS THE HOUSE HOOK'S (src/hooks/use-undo-window.tsx), NOT A TIMER BESIDE A TOAST.
+   * This used to commit on its own 5s setTimeout next to a sonner toast of `duration: 5000` — but sonner
+   * PAUSES its timer while the toast is touched or hovered and while the tab is hidden, so the DELETE
+   * could go out with "Undo" still on screen, and a tap on it only un-hid the row of a listing that was
+   * already deleted (a tombstone, src/lib/listing-removed.ts). One clock now owns the window and the
+   * toast is its view, taken down the moment the DELETE is sent. Leaving inside the window — pagehide,
+   * the tab hidden, the row unmounting — sends it (keepalive lets it survive the page going away), so a
+   * listing the seller watched get deleted is never silently resurrected either (audit P2).
+   * ⚠️ SO THE HOST MUST STAY MOUNTED WHILE `gone` — render nothing (DashboardListingRow's
+   * `if (gone) return null`), never filter the row out. Unmounting is "leaving" to the hook: it would send
+   * the DELETE at once and withdraw the Undo, collapsing the window to zero. No host unmounts on `gone` or
+   * `onState('gone')` today (codex + opus, 2026-10-06).
+   */
   const del = () => {
     setGone(true)
-    let undone = false
-    let committed = false
-    // Commit path shared by the undo-window timer AND pagehide (audit P2): closing the
-    // tab / killing the app / hard-navigating inside the 5s window used to drop the
-    // timer, silently resurrecting a listing the seller watched get "deleted".
-    // keepalive lets the DELETE survive page teardown.
-    const commitNow = () => {
-      if (undone || committed) return
-      committed = true
-      window.removeEventListener('pagehide', commitNow)
-      fetch(`/api/listings/${listing.id}`, { method: 'DELETE', keepalive: true })
-        .then(async (res) => {
-          if (!res.ok) throw new Error('failed')
-          // ⚠️ A 200 IS NOT ALWAYS A DELETE. While the account or this listing is under
-          // investigation the server HIDES it instead, so the listing stays where the investigation
-          // can act on it (core/listings.ts deleteListingCore — a delete no longer erases reports or
-          // chats; it is a tombstone, src/lib/listing-removed.ts). The row comes back as hidden, and
-          // the seller is told why rather than watching a "deleted" listing reappear.
-          const d = (await res.json().catch(() => ({}))) as { hidden?: boolean; reason?: string }
-          if (d.hidden) {
-            setGone(false)
-            toast(d.reason === 'open_report'
-              ? tr('Hidden, not deleted: a report about this listing or your shop is still open. You can delete it once the report is resolved.', 'Đã ẩn, chưa xóa: một báo cáo về tin này hoặc gian hàng của bạn vẫn đang được xử lý. Bạn có thể xóa tin sau khi báo cáo được giải quyết.')
-              : tr('Hidden, not deleted: your account is under review. You can delete it once the review is finished.', 'Đã ẩn, chưa xóa: tài khoản của bạn đang được xem xét. Bạn có thể xóa tin sau khi việc xem xét kết thúc.'))
-          }
-          onChanged()
-        })
-        .catch(() => { setGone(false); toast.error(tr('Could not delete — listing restored.', 'Không xóa được — đã khôi phục tin.')); onChanged() })
-    }
-    const commit = setTimeout(commitNow, 5000)
-    window.addEventListener('pagehide', commitNow)
-    toast(tr('Listing deleted', 'Đã xóa tin'), {
-      duration: 5000,
-      action: {
-        label: tr('Undo', 'Hoàn tác'),
-        onClick: () => { undone = true; clearTimeout(commit); window.removeEventListener('pagehide', commitNow); setGone(false) },
-      },
+    undoWindow.start(`listing:${listing.id}`, {
+      title: tr('Listing deleted', 'Đã xóa tin'),
+      undoLabel: tr('Undo', 'Hoàn tác'),
+      undo: () => setGone(false),
+      commit: () => commitDelete(),
     })
+  }
+
+  const commitDelete = () => {
+    fetch(`/api/listings/${listing.id}`, { method: 'DELETE', keepalive: true })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('failed')
+        // ⚠️ A 200 IS NOT ALWAYS A DELETE. While the account or this listing is under
+        // investigation the server HIDES it instead, so the listing stays where the investigation
+        // can act on it (core/listings.ts deleteListingCore — a delete no longer erases reports or
+        // chats; it is a tombstone, src/lib/listing-removed.ts). The row comes back as hidden, and
+        // the seller is told why rather than watching a "deleted" listing reappear.
+        const d = (await res.json().catch(() => ({}))) as { hidden?: boolean; reason?: string }
+        if (d.hidden) {
+          setGone(false)
+          toast(d.reason === 'open_report'
+            ? tr('Hidden, not deleted: a report about this listing or your shop is still open. You can delete it once the report is resolved.', 'Đã ẩn, chưa xóa: một báo cáo về tin này hoặc gian hàng của bạn vẫn đang được xử lý. Bạn có thể xóa tin sau khi báo cáo được giải quyết.')
+            : tr('Hidden, not deleted: your account is under review. You can delete it once the review is finished.', 'Đã ẩn, chưa xóa: tài khoản của bạn đang được xem xét. Bạn có thể xóa tin sau khi việc xem xét kết thúc.'))
+        }
+        onChanged()
+      })
+      .catch(() => { setGone(false); toast.error(tr('Could not delete — listing restored.', 'Không xóa được — đã khôi phục tin.')); onChanged() })
   }
 
   return { gone, status: optStatus ?? listing.status, setStatus, markSold, del }

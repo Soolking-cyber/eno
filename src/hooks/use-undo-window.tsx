@@ -11,6 +11,9 @@ import { Button } from '@/components/ui/button'
  * the result on the tap; the request goes out only when the window closes. Emil's rule for it: fast
  * where the system responds (the card flips at once), deliberate where the user decides (five seconds
  * to take it back, without a confirm dialog taxing every correct tap).
+ * Since 2026-10-06 it also owns the delete windows of a listing (use-listing-actions.ts) and of a
+ * conversation (chat-context.tsx). Both used to run their own setTimeout beside a sonner toast — the
+ * exact bug the first ⛔ below describes: the DELETE went out with Undo still on screen.
  *
  * ⛔ THE WINDOW IS OURS, NOT SONNER'S. The toast is created with `duration: Infinity` and dismissed by
  * this hook when the window closes. Sonner's own timer PAUSES while the toast is hovered, while the
@@ -23,8 +26,8 @@ import { Button } from '@/components/ui/button'
  *   · the component unmounting (the user navigated in-app)       → commit('leave')
  *   · `pagehide` (a full navigation, a reload, closing the tab)  → commit('leave')
  *   · `visibilitychange` → hidden (switching apps, locking the phone). ⚠️ Deliberately MORE eager than
- *     chat-context's pagehide-only flush of conversation deletes: a phone is free to discard a
- *     backgrounded tab without ever firing pagehide, and `hidden` is the last moment a mobile page can
+ *     the pagehide-only flush conversation deletes had before they moved onto this hook: a phone is free
+ *     to discard a backgrounded tab without ever firing pagehide, and `hidden` is the last moment a mobile page can
  *     reliably run code. Losing the rest of an undo window to an app switch costs far less than an
  *     answer the user watched happen and the other party never receives. A reviewer called this "too
  *     aggressive" at plan time; this is the trade, made on purpose.

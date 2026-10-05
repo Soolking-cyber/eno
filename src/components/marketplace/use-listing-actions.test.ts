@@ -9,7 +9,12 @@
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const toastFn = vi.hoisted(() => Object.assign(vi.fn(), { error: vi.fn(), warning: vi.fn() }))
+// A real id per toast, and a `dismiss`: the undo window (use-undo-window.tsx) takes its toast down BY ID
+// when it closes — and sonner's dismiss(undefined) closes EVERY toast, so an id-less mock would hide that.
+const toastFn = vi.hoisted(() => {
+  let seq = 0
+  return Object.assign(vi.fn((_title?: unknown, _opts?: unknown) => ++seq), { error: vi.fn(), warning: vi.fn(), dismiss: vi.fn() })
+})
 vi.mock('sonner', () => ({ toast: toastFn }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
@@ -24,7 +29,7 @@ function answer(body: unknown, ok = true) {
 
 beforeEach(() => {
   vi.useFakeTimers()
-  toastFn.mockClear(); toastFn.error.mockClear()
+  toastFn.mockClear(); toastFn.error.mockClear(); toastFn.dismiss.mockClear()
 })
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals() })
 
@@ -66,6 +71,66 @@ describe('useListingActions.del', () => {
     const { hook } = await deleteAndCommit()
     expect(hook.result.current.gone).toBe(false)
     expect(toastFn.error).toHaveBeenCalledWith('Could not delete — listing restored.')
+  })
+})
+
+/**
+ * ⛔ ONE CLOCK (use-undo-window.tsx). The delete used to run its own 5s setTimeout beside a sonner toast
+ * of `duration: 5000` — and sonner pauses that toast while it is touched or hovered and while the tab is
+ * hidden, so the DELETE could go out with "Undo" still on screen, and the tap only un-hid the row of a
+ * listing that was already deleted. The window's clock is now the hook's, and the toast is its view.
+ */
+describe('useListingActions.del — the undo window cannot outlive the DELETE', () => {
+  const undoCall = () => toastFn.mock.calls.findIndex(([title]) => title === 'Listing deleted')
+  const undoToast = () => toastFn.mock.calls[undoCall()][1] as unknown as { duration: number; action: { props: { onClick: () => void } } }
+
+  it('⛔ the toast keeps no clock of its own: it comes down when the DELETE goes out, and a late Undo does nothing', async () => {
+    answer({ ok: true })
+    const { hook } = await deleteAndCommit()
+    expect(undoToast().duration).toBe(Infinity)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', { method: 'DELETE', keepalive: true })
+    expect(toastFn.dismiss).toHaveBeenCalledWith(toastFn.mock.results[undoCall()].value)
+    act(() => { undoToast().action.props.onClick() })
+    expect(hook.result.current.gone).toBe(true)
+    expect(fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('Undo inside the window brings the row back, and the DELETE is never sent', async () => {
+    answer({ ok: true })
+    const hook = renderHook(() => useListingActions(listing, vi.fn()))
+    act(() => { hook.result.current.del() })
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
+    act(() => { undoToast().action.props.onClick() })
+    expect(hook.result.current.gone).toBe(false)
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  // The house hook's deliberate trade (use-undo-window.tsx): a phone may discard a backgrounded tab without
+  // ever firing pagehide, so the tab going HIDDEN sends what is waiting — a lost delete would resurrect a
+  // listing the seller watched go. Coming back visible must not send anything.
+  it('the tab going hidden inside the window sends the DELETE at once; visible sends nothing', () => {
+    answer({ ok: true })
+    const hook = renderHook(() => useListingActions(listing, vi.fn()))
+    act(() => { hook.result.current.del() })
+    const setVisibility = (v: 'visible' | 'hidden') => {
+      Object.defineProperty(document, 'visibilityState', { value: v, configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+    }
+    act(() => { setVisibility('visible') })
+    expect(fetch).not.toHaveBeenCalled()
+    act(() => { setVisibility('hidden') })
+    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', { method: 'DELETE', keepalive: true })
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+  })
+
+  it('leaving inside the window (the row unmounting) sends the DELETE at once, with keepalive', () => {
+    answer({ ok: true })
+    const hook = renderHook(() => useListingActions(listing, vi.fn()))
+    act(() => { hook.result.current.del() })
+    hook.unmount()
+    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', { method: 'DELETE', keepalive: true })
   })
 })
 

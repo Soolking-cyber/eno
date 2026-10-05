@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { toast } from 'sonner'
 import { useAuth } from './auth-context'
 import { useLanguage } from './language-context'
+import { useUndoWindow } from '@/hooks/use-undo-window'
 
 type View = 'list' | 'thread'
 
@@ -118,25 +119,26 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // of the user's OWN data, persisted per-user to localStorage (keyed by userId
   // so it never leaks across accounts) — it works without waiting for the cookie
   // banner. Also prefetches the top conversations so opening them is instant.
+  // The undo window a deleted conversation waits out before its server DELETE (deleteConvo below).
+  const undoWindow = useUndoWindow()
   const refreshConvos = useCallback(() => {
     if (!user) { setConvos(null); return }
     fetch('/api/conversations').then((r) => r.json()).then((d) => {
-      const list: InboxConvo[] = d.conversations ?? []
+      // ⚠️ A conversation still inside its delete's undo window stays OUT of the list. The server has not
+      // hidden it yet, so a refresh in those seconds — another conversation's Undo (which re-pulls), a
+      // realtime bump, the tab coming back — used to put it back on screen with its DELETE still about to
+      // go out. Its own Undo is not affected: the window closes before undo() runs, so it re-pulls itself in.
+      const list: InboxConvo[] = ((d.conversations ?? []) as InboxConvo[]).filter((c) => !undoWindow.isOpen(`convo:${c.id}`))
       setConvos(list)
       try { localStorage.setItem(CONVOS_KEY, JSON.stringify({ userId: user.id, list })) } catch {}
       list.slice(0, 3).forEach((c) => prefetchThread(c.id))
     }).catch(() => {})
-  }, [user, prefetchThread])
+  }, [user, prefetchThread, undoWindow])
 
   // Mirror of `convos` for handler-time reads (deleteConvo computes the next
   // list without reaching inside a state updater — updaters must stay pure).
   const convosRef = useRef<InboxConvo[] | null>(null)
   useEffect(() => { convosRef.current = convos }, [convos])
-
-  // Conversation ids whose server DELETE is still held inside the 5s undo
-  // window (value = the undo toast's id + the commit timer) — flushed on
-  // pagehide so an unload can't lose the delete.
-  const pendingDeletes = useRef<Map<string, { toastId: string | number; timer: ReturnType<typeof setTimeout> }>>(new Map())
 
   // Delete a conversation from MY inbox (per-user hide, non-destructive on the
   // server). Optimistic: drop it from the list + caches now, then call the API.
@@ -150,51 +152,37 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     if (user) { try { localStorage.setItem(CONVOS_KEY, JSON.stringify({ userId: user.id, list: next })) } catch {} }
     threadCache.current.delete(id)
     if (user) { try { localStorage.removeItem(THREAD_PREFIX + id) } catch {} }
-    // Hold the server DELETE for the toast's lifetime so a mis-tap is recoverable —
-    // the row stays server-side until then, so Undo just re-pulls the inbox. If the
-    // page unloads first, the pagehide flush below commits the delete instead.
-    let undone = false
-    const commit = setTimeout(() => {
-      if (undone) return
-      pendingDeletes.current.delete(id)
-      // On failure, ROLL BACK the optimistic removal: the row still exists server-side,
-      // so re-pulling the inbox restores it — and say so instead of silently desyncing.
-      const rollback = () => { toast.error(tr("Couldn't delete — try again", 'Chưa xóa được — thử lại')); refreshConvos() }
-      fetch(`/api/conversations/${id}`, { method: 'DELETE' })
-        .then((r) => { if (r.ok) refreshUnread(); else rollback() })
-        .catch(rollback)
-    }, 5000)
-    const toastId = toast(tr('Conversation removed', 'Đã xóa cuộc trò chuyện'), {
-      duration: 5000,
-      action: {
-        label: tr('Undo', 'Hoàn tác'),
-        onClick: () => { undone = true; pendingDeletes.current.delete(id); clearTimeout(commit); refreshConvos() },
+    // Hold the server DELETE inside an undo window so a mis-tap is recoverable — the row stays
+    // server-side until then, so Undo just re-pulls the inbox.
+    // ⛔ THE WINDOW IS THE HOUSE HOOK'S (src/hooks/use-undo-window.tsx). It used to be a 5s setTimeout
+    // beside a sonner toast of `duration: 5000`; sonner PAUSES its timer while the toast is touched or
+    // hovered and while the tab is hidden, so the DELETE could go out with "Undo" still on screen and a
+    // tap on it re-pulled an inbox the conversation had already left. One clock now owns the window and
+    // the toast is taken down the moment the DELETE is sent. Leaving — pagehide, the tab hidden — sends
+    // it at once (this used to flush on pagehide only, which a phone discarding a backgrounded tab never
+    // fires). keepalive on every send, because a timer commit can be followed by a reload that would
+    // abort a plain fetch in flight; the route is an idempotent per-user hide, and the hook's flush also
+    // stops the clock, so a bfcache restore cannot fire a SECOND DELETE whose deletedAt restamp could
+    // hide a reply that landed in between.
+    undoWindow.start(`convo:${id}`, {
+      title: tr('Conversation removed', 'Đã xóa cuộc trò chuyện'),
+      undoLabel: tr('Undo', 'Hoàn tác'),
+      undo: () => refreshConvos(),
+      commit: () => {
+        // On failure, ROLL BACK the optimistic removal: the row still exists server-side,
+        // so re-pulling the inbox restores it — and say so instead of silently desyncing.
+        const rollback = () => { toast.error(tr("Couldn't delete — try again", 'Chưa xóa được — thử lại')); refreshConvos() }
+        // On success, re-pull too: the window closes BEFORE the DELETE lands, so a pull answered in that gap
+        // (a realtime bump, the tab coming back) could list the conversation again, and nothing else would
+        // take it away (opus, 2026-10-06). ⚠️ Pulls are still unordered: an OLDER pull resolving after this
+        // re-pull can show it until the next one. Ordering them belongs with the inbox's error handling
+        // (fix 3 of the 2026-10-06 audit) — tried here, it drew a newest-pull-fails edge of its own.
+        fetch(`/api/conversations/${id}`, { method: 'DELETE', keepalive: true })
+          .then((r) => { if (r.ok) { refreshUnread(); refreshConvos() } else rollback() })
+          .catch(rollback)
       },
     })
-    pendingDeletes.current.set(id, { toastId, timer: commit })
-  }, [user, refreshUnread, refreshConvos, tr])
-
-  // Unload safety net for the undo window above: a bare setTimeout dies with the
-  // page, silently losing the delete. On pagehide, commit any still-pending
-  // DELETEs via keepalive fetch (sendBeacon only speaks POST). The route is
-  // idempotent (per-user hide), so a bfcache restore whose timer later fires
-  // again is harmless.
-  useEffect(() => {
-    const flush = () => {
-      for (const [id, { toastId, timer }] of pendingDeletes.current) {
-        try { fetch(`/api/conversations/${id}`, { method: 'DELETE', keepalive: true }).catch(() => {}) } catch {}
-        // The delete is now committed — cancel the commit timer (a bfcache restore
-        // would otherwise fire a SECOND DELETE, whose deletedAt restamp could hide
-        // a reply that landed in between) and kill the Undo toast so the restore
-        // can't show a still-live Undo that would silently no-op.
-        clearTimeout(timer)
-        toast.dismiss(toastId)
-      }
-      pendingDeletes.current.clear()
-    }
-    window.addEventListener('pagehide', flush)
-    return () => window.removeEventListener('pagehide', flush)
-  }, [])
+  }, [user, refreshUnread, refreshConvos, tr, undoWindow])
 
   useEffect(() => {
     if (!user) { setConvos(null); threadCache.current.clear(); return }
