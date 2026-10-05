@@ -153,7 +153,9 @@ export function NotificationBell() {
               // 'system' = an official admin→user message, i.e. eno itself speaking — a genuine
               // first-party moment, so it carries the eno seal (icon-language §0b: the signature
               // echo, reserved for first-party trust; every other type keeps its lucide verb).
-              const Icon = n.type === 'system' ? ShieldCheck : n.type === 'offer' ? Tag : n.type === 'price_drop' ? TrendingDown : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : n.type === 'milestone' ? Sparkles : n.type === 'dispute' ? Scale : MessageSquare
+              // 'verification' (KYC / business outcomes) is eno speaking too — split from 'system' only so its
+              // reviewer note is never machine-translated (src/lib/notification-text.ts).
+              const Icon = n.type === 'system' || n.type === 'verification' ? ShieldCheck : n.type === 'offer' ? Tag : n.type === 'price_drop' ? TrendingDown : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : n.type === 'milestone' ? Sparkles : n.type === 'dispute' ? Scale : MessageSquare
               return (
                 // Unread = brand-tinted with a dot; read = plain. Opening a notification marks
                 // just it read (so it sinks below on next view).
@@ -185,7 +187,7 @@ export function NotificationBell() {
                       <div className="flex items-center justify-between gap-2">
                         <span className={cn('flex min-w-0 items-center gap-1.5 truncate text-sm', n.read ? 'font-medium text-body' : 'font-bold text-foreground')}>
                           {!n.read && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-accent-foreground" />}
-                          <span className="truncate">{n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.type === 'price_drop' ? tr('Price drop', 'Giảm giá') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : notificationTextAsWritten(n.type) ? n.title : <Tr text={n.title} />}</span>
+                          <span className="truncate">{n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.type === 'price_drop' ? tr('Price drop', 'Giảm giá') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : notificationTextAsWritten(n.type, n.url, 'title') ? n.title : <Tr text={n.title} />}</span>
                         </span>
                         <span className="shrink-0 text-3xs text-ink-4">{timeAgo(n.createdAt, lang)}</span>
                       </div>
@@ -193,7 +195,7 @@ export function NotificationBell() {
                           body is the offerer's own note and an availability request's names the person asking, so they —
                           and any type not on the list — are shown AS WRITTEN, title and body, on both sites. <Tr> would
                           send them to /api/translate (Microsoft) and the shared Translation cache. src/lib/notification-text.ts. */}
-                      {n.body && <p className={cn('text-xs', n.type === 'system' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate', n.read ? 'text-muted-foreground' : 'text-body')}>{notificationTextAsWritten(n.type) ? n.body : <Tr text={n.body} />}</p>}
+                      {n.body && <p className={cn('text-xs', n.type === 'system' || n.type === 'verification' ? 'line-clamp-3 whitespace-pre-wrap' : 'truncate', n.read ? 'text-muted-foreground' : 'text-body')}>{notificationTextAsWritten(n.type, n.url, 'body') ? n.body : <Tr text={n.body} />}</p>}
                     </div>
                   </Link>
                   {/* Delete — reveals on hover (desktop); always visible on touch.

@@ -52,7 +52,7 @@ beforeEach(() => {
 describe('notifyIdentityOutcome', () => {
   it('approved: bell + push + email, all pointing at the hub', async () => {
     await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'B' })
-    expect(h.s.bells[0]).toMatchObject({ recipientId: 'p1', type: 'system', url: '/dashboard/verification', title: 'Your identity is verified' })
+    expect(h.s.bells[0]).toMatchObject({ recipientId: 'p1', type: 'verification', url: '/dashboard/verification', title: 'Your identity is verified' })
     expect(h.s.pushes[0].payload).toMatchObject({ url: '/dashboard/verification', tag: 'identity-p1' })
     expect(h.s.mails[0].to).toBe('anna@example.com')
     expect(h.s.mails[0].subject).toBe('Your identity is verified on eno.forum')
