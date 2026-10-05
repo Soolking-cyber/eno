@@ -134,6 +134,10 @@ const PAIR_SCOPE = (f) => {
   if (/^src\/app\/(\[lang\]\/)?(admin|developers)\/|^src\/components\/admin\/|^src\/app\/api\//.test(rel)) return false
   if (/^src\/app\/\[lang\]\/(privacy|terms|regulations|returns|prohibited)\//.test(rel)) return false
   if (/listings-explorer\.constants\.ts$|honeycomb-listing\.ts$|batdongsan|district-|provinces|vn-admin/.test(rel)) return false
+  // Server-side trip data (places, booking resources): read by the itinerary API and the .docx export, shown
+  // through en/vi `loc()`, never through tr() — ~340 tourist names and blurbs the warm batch would download
+  // and pay for in nine languages for nothing.
+  if (/^src\/lib\/itinerary-(places|resources)\.ts$/.test(rel)) return false
   return !LONGFORM.has(rel)
 }
 // The fixed-language article and hub pages — the same files eslint.config.mjs exempts from the i18n gate.
@@ -219,16 +223,21 @@ for (const file of walk('src')) {
  * translate lazily on the page that shows them, and warming them would add every clause of the privacy
  * policy to the dictionary every machine-translated visitor downloads on their first page.
  */
+// A function declaration, not a const: the harvest loop above runs before this line is reached.
+function unmask(v) { return v.replace(/\u0001/g, '{').replace(/\u0002/g, '}') }
+
 function harvestPairs(src) {
   const STR = String.raw`'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"`
   const pairsIn = (body, sep) => {
     const vals = new Map()
     for (const m of body.matchAll(new RegExp(String.raw`(?:^|[\s,{(])([A-Za-z_]\w*)\s*${sep}\s*(?:${STR})`, 'g'))) {
       const v = m[2] ?? m[3]
-      if (v != null && !vals.has(m[1])) vals.set(m[1], unesc(v))
+      if (v != null && !vals.has(m[1])) vals.set(m[1], unmask(unesc(v)))
     }
     for (const [k, v] of vals) {
       if (!v || v.length > 200 || /^(\/|https?:|mailto:)/.test(v)) continue
+      // A language-code table (`{ en: 'en', vi: 'vi', … }`) is not copy — only a code-shaped value equal to its key.
+      if (v === k && /^[a-z]{2}(-[A-Za-z]{2,4})?$/.test(v)) continue
       // A pair whose two halves are identical is a proper noun (a brand, "TikTok") — nothing to translate.
       const twin = k === 'en' ? vals.get('vi') : /En$/.test(k) ? vals.get(k.slice(0, -2) + 'Vi') : vals.get(k + 'Vi')
       if (twin === v) continue
@@ -241,10 +250,19 @@ function harvestPairs(src) {
       if (english && viRatio(v) < 0.75) add(v)
     }
   }
+  // ⚠️ A `{placeholder}` INSIDE A STRING IS NOT AN OBJECT BRACE. `{ en: 'QR code to book on {site}', vi: … }`
+  // has braces in its values, so the no-nested-braces scan below never matched it and every authored
+  // TEMPLATE pair was silently left out of the warm batch (found 2026-10-05). Braces inside string
+  // literals are masked for the scan and put back in each value.
+  // One left-to-right pass over comments AND string literals, so a quote or backtick inside a comment
+  // cannot open a "string" that masks the braces of real code after it, and a `//` inside a string is
+  // not a comment. Comments are blanked (commented-out code is not copy); strings keep their text.
+  const masked = src.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*|'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g, (tok) =>
+    tok.startsWith('/*') || tok.startsWith('//') ? tok.replace(/[^\n]/g, ' ') : tok.replace(/\{/g, '\u0001').replace(/\}/g, '\u0002'))
   // Object literals with no nested braces — `{ en: 'Sold', vi: 'Đã bán' }`.
-  for (const m of src.matchAll(/\{([^{}]{0,1200})\}/g)) pairsIn(m[1], ':')
+  for (const m of masked.matchAll(/\{([^{}]{0,1200})\}/g)) pairsIn(m[1], ':')
   // A JSX tag's string props — `<ContentSection title="Contact" titleVi="Liên hệ">`.
-  for (const m of src.matchAll(/<[A-Z][\w.]*\s([^<>]{0,1200}?)\/?>/g)) pairsIn(m[1], '=')
+  for (const m of masked.matchAll(/<[A-Z][\w.]*\s([^<>]{0,1200}?)\/?>/g)) pairsIn(m[1], '=')
 }
 
 currentFile = '' // everything below is shared copy, never services-only

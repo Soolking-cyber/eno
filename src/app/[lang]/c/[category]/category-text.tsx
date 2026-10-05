@@ -39,6 +39,7 @@ import {
 /** A place name: English on every page but a Vietnamese one — never machine-translated. */
 export function PlaceName({ en, vi }: { en: string; vi: string }) {
   const { lang } = useLanguage()
+  // i18n-invariant: a place name — never machine-translated (the rule this component exists for).
   return <>{lang === 'vi' ? vi : en}</>
 }
 
