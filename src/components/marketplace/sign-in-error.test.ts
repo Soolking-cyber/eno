@@ -106,7 +106,7 @@ describe('codes map to copy a person can act on', () => {
     const { PHONE_OTP_ENABLED } = await import('@/lib/auth-policy')
     expect(PHONE_OTP_ENABLED).toBe(false)
     expect(signInErrorText({ code: 'send_failed' }, t)).toBe("We couldn't send the email just now. Try again in a moment.")
-    expect(signInErrorText({ code: 'send_failed' }, (_en, vi) => vi)).not.toMatch(/số điện thoại|SĐT/)
+    expect(signInErrorText({ code: 'send_failed' }, (_en, vi) => vi ?? '<missing>')).toBe('Chúng tôi chưa gửi được email lúc này. Thử lại sau giây lát nhé.')
   })
 
   it('shows provider text verbatim rather than flattening it to "something went wrong"', () => {
