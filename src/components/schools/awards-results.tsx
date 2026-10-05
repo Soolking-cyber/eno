@@ -38,7 +38,9 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
           <p className="mt-4 text-sm text-muted-foreground">
             <Bilingual en="Closed on {closed}. {voters} verified teachers' votes and {reviews} reviews counted." vi="Đã khép lại ngày {closed}. Đã tính phiếu của {voters} giáo viên đã xác minh và {reviews} đánh giá." values={{ closed, voters: n(page.voters), reviews: n(page.reviews) }} />
           </p>
-          <div className="mt-8 grid gap-6 lg:grid-cols-2">
+          {/* grid-cols-1, not an implicit column: an implicit track grows to the longest unwrapped (truncated) school
+              name, which overflowed a 390px phone by 8px (measured on the preview). */}
+          <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
             {SCHOOL_KINDS.map((kind) => <FinalCategory key={kind} kind={kind} year={y} places={page.places.filter((p) => p.category === kind)} withheld={page.withheld[kind] ?? 0} n={n} />)}
           </div>
         </>
@@ -63,7 +65,7 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
           <p className="mt-1 max-w-prose text-sm text-muted-foreground">
             <Bilingual en="In alphabetical order: the order is decided only when the year closes." vi="Theo thứ tự chữ cái: thứ hạng chỉ được quyết định khi năm khép lại." />
           </p>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {SCHOOL_KINDS.map((kind) => (
               <section key={kind} aria-labelledby={`q-${kind}`} className="rounded-2xl bg-card p-4 ring-1 ring-border">
                 <h3 id={`q-${kind}`} className="text-sm font-semibold text-foreground"><Bilingual en={KIND_LABEL[kind].pluralEn} vi={KIND_LABEL[kind].pluralVi} /></h3>
