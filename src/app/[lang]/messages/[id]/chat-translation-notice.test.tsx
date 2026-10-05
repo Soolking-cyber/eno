@@ -84,6 +84,19 @@ beforeEach(() => {
   }
   Element.prototype.scrollIntoView ??= function () {}
   Element.prototype.scrollTo ??= function () {} as never
+  // ⛔ A FRESH, WORKING Storage PER TEST (measured 2026-10-05). On CI's Node 24, jsdom's localStorage persists across
+  // a file's tests, so the first test's "OK" reached the next two and they failed (no notice). On Node 25 the global
+  // is Node's own Web Storage, which without --localstorage-file has no setItem at all — so the local run never
+  // stored the answer and passed by accident. Same shape as trip-ai-consent.test.tsx.
+  const store = new Map<string, string>()
+  vi.stubGlobal('localStorage', {
+    getItem: (k: string) => (store.has(k) ? store.get(k)! : null),
+    setItem: (k: string, v: string) => { store.set(k, String(v)) },
+    removeItem: (k: string) => { store.delete(k) },
+    clear: () => store.clear(),
+    key: (i: number) => [...store.keys()][i] ?? null,
+    get length() { return store.size },
+  })
   calls = []
   vi.stubGlobal('fetch', vi.fn((input: string, init?: RequestInit) => {
     const url = String(input)
