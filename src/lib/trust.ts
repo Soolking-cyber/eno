@@ -285,7 +285,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
     const txSince = new Date(now - TRUST.TRACK_WINDOW_DAYS * DAY_MS)
     const freshCutoff = new Date(now - TRUST.FRESH_DAYS * DAY_MS)
 
-    const [reviews, convo90, active, fresh, sold, acceptedOffers] = await Promise.all([
+    const [reviews, convo90, active, fresh, sold, acceptedOffers, declinedSales] = await Promise.all([
       // Verified reviews only (conversation-backed) — Q reads the Review table
       // directly; legacy positive_review ledger deltas are excluded (no double count).
       db.review.findMany({
@@ -312,10 +312,16 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
         // them handed partner storefronts thousands of phantom transactions (audit, 2026-09-13).
         // Windowed on the SAME timestamp saleTimeMs reads: soldAt when set, updatedAt only
         // for the rows that have none.
+        // ⛔ NOT A SALE THE BUYER DENIED (owner, 2026-10-06: "resolve with recommended"). Since the sold loop a seller
+        // can name who bought it, and that buyer is asked; a "No, I didn't buy this" (saleDeclinedAt) means the claim
+        // is disputed, so it is no transaction — here or through its accepted offer. Every OTHER sold listing still counts — unconfirmed is the norm
+        // (3,217 sold, 0 confirmed on the day confirmation began), and counting only confirmed sales would zero every
+        // seller's track record overnight. The answer route recomputes the seller's score on a "No".
         where: {
           sellerId: seller.id,
           status: 'sold',
           affiliateUrl: null,
+          saleDeclinedAt: null,
           OR: [{ soldAt: { gte: txSince } }, { soldAt: null, updatedAt: { gte: txSince } }],
         },
         select: { id: true, soldAt: true, updatedAt: true },
@@ -323,7 +329,15 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
       }),
       db.message.findMany({
         where: { kind: 'offer', offerStatus: 'accepted', createdAt: { gte: txSince }, conversation: { sellerId: seller.id } },
-        select: { createdAt: true, conversation: { select: { listingId: true } } },
+        select: { createdAt: true, conversation: { select: { listingId: true, buyerProfileId: true } } },
+        take: 5000,
+      }),
+      // The listings whose named buyer said "No, I didn't buy this", with WHO said it — that buyer's accepted offer
+      // on the listing is the same disputed deal and must not score either; another buyer's accepted offer there
+      // is a different deal and still counts (the seller may simply have named the wrong person) (gate, 2026-10-06).
+      db.listing.findMany({
+        where: { sellerId: seller.id, saleDeclinedAt: { not: null } },
+        select: { id: true, soldToProfileId: true },
         take: 5000,
       }),
     ])
@@ -336,10 +350,13 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
       const prev = txByListing.get(l.id)
       if (prev === undefined || t < prev) txByListing.set(l.id, t)
     }
+    const deniedBy = new Map(declinedSales.map((l) => [l.id, l.soldToProfileId] as const))
     for (const m of acceptedOffers) {
       // A support thread has no listing to key a transaction by, and cannot carry an accepted
       // offer in any case — skip rather than bucket it under a null key.
       if (!m.conversation.listingId) continue
+      const denier = deniedBy.get(m.conversation.listingId)
+      if (denier && denier === m.conversation.buyerProfileId) continue // that buyer denied this very deal (above)
       const t = m.createdAt.getTime()
       const prev = txByListing.get(m.conversation.listingId)
       if (prev === undefined || t < prev) txByListing.set(m.conversation.listingId, t)

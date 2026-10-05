@@ -22,6 +22,7 @@ const h = vi.hoisted(() => ({
   ownedSellers: [] as Row[],
   sold: [] as Row[],
   acceptedOffers: [] as Row[],
+  declined: [] as Row[],
   executeRawCount: 0,
   appealedReports: [] as Row[],
   chargedEvents: [] as Row[],
@@ -69,7 +70,8 @@ vi.mock('@/lib/db', () => {
       message: { findMany: async () => h.acceptedOffers },
       listing: {
         count: async () => 0,
-        findMany: async (a: Row) => { rec('listing.findMany', a); return h.sold },
+        // The sold query answers h.sold; the buyer-denied query (saleDeclinedAt: { not: null }) answers h.declined.
+        findMany: async (a: Row) => { rec('listing.findMany', a); return a?.where?.saleDeclinedAt && 'not' in a.where.saleDeclinedAt ? h.declined : h.sold },
         updateMany: async (a: Row) => { rec('listing.updateMany', a); return { count: 0 } },
       },
       $executeRaw: async (q: any) => { rec('$executeRaw', q); return h.executeRawCount },
@@ -101,6 +103,7 @@ beforeEach(() => {
   h.ownedSellers = [{ id: 's1', trustScore: 60, trustTier: 'standard' }]
   h.sold = []
   h.acceptedOffers = []
+  h.declined = []
   h.executeRawCount = 0
   h.appealedReports = []
   h.chargedEvents = []
@@ -144,6 +147,31 @@ describe('#26 — sale timing ignores a restamped updatedAt', () => {
     const where = called('listing.findMany')[0].args.where
     expect(where.updatedAt).toBeUndefined()
     expect(where.OR).toEqual([{ soldAt: { gte: expect.any(Date) } }, { soldAt: null, updatedAt: { gte: expect.any(Date) } }])
+  })
+
+  it('⛔ a denied deal does not score through its accepted offer either — the same deal is not counted twice over', async () => {
+    h.sold = [{ id: 'l2', soldAt: new Date(Date.now() - 10 * DAY), updatedAt: new Date() }] // the DB already left out denied l1
+    h.declined = [{ id: 'l1', soldToProfileId: 'buyerB' }]
+    h.acceptedOffers = [
+      { createdAt: new Date(Date.now() - 12 * DAY), conversation: { listingId: 'l1', buyerProfileId: 'buyerB' } }, // the denied deal's offer
+      { createdAt: new Date(Date.now() - 5 * DAY), conversation: { listingId: 'l3', buyerProfileId: 'buyerC' } }, // an untouched deal
+    ]
+    expect((await computeTrustV2('p1'))?.inputs.transactions365).toBe(2) // l2 + l3, never l1
+  })
+
+  it('…but ANOTHER buyer\'s accepted offer on that listing is a different deal and still counts (a mis-named buyer)', async () => {
+    h.sold = []
+    h.declined = [{ id: 'l1', soldToProfileId: 'buyerB' }]
+    h.acceptedOffers = [{ createdAt: new Date(Date.now() - 12 * DAY), conversation: { listingId: 'l1', buyerProfileId: 'buyerA' } }]
+    expect((await computeTrustV2('p1'))?.inputs.transactions365).toBe(1)
+  })
+
+  it('⛔ a sale the buyer DENIED is no transaction; unconfirmed sales still count (owner, 2026-10-06)', async () => {
+    await computeTrustV2('p1')
+    const where = called('listing.findMany')[0].args.where
+    expect(where.saleDeclinedAt).toBeNull()
+    expect(where.saleConfirmedAt).toBeUndefined() // NOT confirmed-only — that would zero every track record
+    expect(where.status).toBe('sold')
   })
 
   it('the trust cascade never goes through listing.updateMany (which restamps updatedAt)', async () => {

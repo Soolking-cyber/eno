@@ -29,7 +29,14 @@ const h = vi.hoisted(() => ({
   markRead: [] as Row[],
   desk: false,
   rateOk: true,
+  afters: [] as Array<() => unknown>,
+  recomputed: [] as string[],
 }))
+
+// What the route defers to after the response, and the trust recompute a "No" asks for (owner, 2026-10-06).
+vi.mock('next/server', async (orig) => ({ ...(await orig<Record<string, unknown>>()), after: (fn: () => unknown) => { h.afters.push(fn) } }))
+vi.mock('@/lib/trust', () => ({ recomputeTrust: async (id: string) => { h.recomputed.push(id); return null } }))
+const flushAfter = async () => { for (const fn of h.afters.splice(0)) await fn() }
 
 vi.mock('@/lib/admin', () => ({
   getAdmin: async () => null,
@@ -87,6 +94,8 @@ beforeEach(() => {
   h.markRead = []
   h.desk = false
   h.rateOk = true
+  h.afters = []
+  h.recomputed = []
 })
 
 describe('⛔ only the attributed buyer may answer', () => {
@@ -189,6 +198,18 @@ describe('decline — the sale stays sold; it is simply not confirmed', () => {
     await answer({ answer: 'decline', price: 11_200_000 })
     const history = JSON.parse(h.row!.saleBuyerHistory) as Row[]
     expect(history).toEqual([expect.objectContaining({ i: BUYER, d: expect.any(Number) })])
+  })
+
+  it('⛔ a "No" recomputes the SELLER’s trust (the disputed sale leaves their record); a "Yes" does not', async () => {
+    await answer({ answer: 'decline', price: 11_200_000 })
+    await flushAfter()
+    expect(h.recomputed).toEqual([SELLER_P])
+    h.row = sold()
+    h.writes = []
+    h.recomputed = []
+    await answer({ answer: 'confirm', price: 11_200_000 })
+    await flushAfter()
+    expect(h.recomputed).toEqual([])
   })
 
   it('No again → 200 declined, no second write; Yes after No → 409 already_resolved {status: declined}', async () => {

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route, apiFail } from '@/lib/api/handler'
@@ -6,6 +6,7 @@ import { LISTING_REMOVED } from '@/lib/listing-removed'
 import { buyerResponsePatch, canRespondToSale, confirmPromptPrice, saleState } from '@/lib/trade-loop'
 import { SALE_CONFIRM_NOTIFICATION, SALE_FACTS_SELECT, asksBuyerAbout, factsUnchanged, saleFacts } from '@/lib/core/sale-loop'
 import { logError } from '@/lib/log'
+import { recomputeTrust } from '@/lib/trust'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,8 +43,8 @@ const Body = z.object({
  *     seller can never name them for this listing again and nothing re-asks them. ⚠️ THE SALE STAYS SOLD:
  *     status, soldAt and the seller's attribution (soldChannel / soldToProfileId) are the SELLER's record
  *     and are not touched — the listing is still gone. It is simply no longer a sale that can be counted
- *     as confirmed (saleState 'declined'). Trust's transaction count reads `status = 'sold'` today
- *     (src/lib/trust.ts) and is unchanged by either answer.
+ *     as confirmed (saleState 'declined'). Since 2026-10-06 a decline also takes it out of trust's transaction
+ *     count (src/lib/trust.ts, offer path included) and recomputes the seller's score; a "Yes" changes nothing there.
  *
  * ⚠️ A CONDITIONAL WRITE, AS buyerResponsePatch REQUIRES. The UPDATE carries every fact the decision read
  * (the buyer, the channel, both answers still empty, the price, the per-buyer history and the compliance
@@ -120,6 +121,12 @@ export const POST = route(
         })
       } catch (e) {
         logError(e, { op: 'sale-confirmation.markRead' })
+      }
+      // ⛔ A "No" TAKES THE SALE OUT OF THE SELLER'S TRUST (trust.ts, owner 2026-10-06) — recompute now, so the public
+      // score does not keep a disputed sale until some unrelated event recomputes it. Best effort, after the answer.
+      if (body.answer === 'decline' && row.seller.ownerId) {
+        const sellerProfileId = row.seller.ownerId
+        after(() => recomputeTrust(sellerProfileId).then(() => undefined, (e) => logError(e, { op: 'sale-confirmation.recomputeTrust' })))
       }
       return { ok: true, status: wanted }
     }
