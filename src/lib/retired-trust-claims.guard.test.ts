@@ -55,6 +55,8 @@ const RETIRED: RegExp[] = [
   /problem sellers get caught fast|so the price and condition are real/i,
   // The second pass (taglines, /about, /guide, /trust, the do-cu guide), 2026-10-04.
   /trusted marketplace for (?:the international community|Vietnam)/i,
+  // The forum e-Visa intro's "Your trusted starting point for Vietnam." (owner, 2026-10-05: "Your starting point for Vietnam.").
+  /trusted starting point/i,
   /chợ uy tín cho cộng đồng quốc tế|Sàn giao dịch uy tín|Chợ mua bán uy tín|sàn giao dịch uy tín dành cho/i,
   /instead of stars and badges|thay vì số sao và huy hiệu/i,
   /Mỗi người bán trên\s*$/,

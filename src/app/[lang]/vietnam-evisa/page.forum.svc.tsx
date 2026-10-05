@@ -45,7 +45,7 @@ const CONTENT: SeoContent = {
   // rather than rewording it here; the constant is the single source.
   intro: `Welcome to Eno 👋
 
-Your trusted starting point for Vietnam.
+Your starting point for Vietnam.
 
 We make essential services simpler for internationals — from **Vietnam e-Visas** with flexible processing options to **free trip planning and booking support**.
 
