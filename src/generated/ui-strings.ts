@@ -4,6 +4,7 @@
 // Re-run the script when UI copy changes.
 export const UI_STRINGS: string[] = [
   "(fixed when editing)",
+  "(no rows)",
   "(no title)",
   "(opens in a new tab)",
   "(optional)",
