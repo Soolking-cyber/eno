@@ -83,12 +83,13 @@ export const LEGAL_AMENDMENT: LegalAmendment = {
  *
  * ⛔ OWNER, 2026-10-05: "apply best recommended" — the recommendation being the 2026-10-01 precedent (Terms
  * v2: "just change now we dont have users so its safe to implement just new terms no need for
- * announcement"): in force the day it is published, no notice window, no strip, no bell notice. Scoped to
- * THIS amendment — do not copy the flag forward.
+ * announcement") — and, confirmed explicitly at the deploy the same day: "deploy all no need for notice
+ * now". In force the day it is published, no notice window, no strip, no bell notice. Scoped to THIS
+ * amendment — do not copy the flag forward.
  */
 export const REGULATIONS_AMENDMENT: LegalAmendment = {
-  published: '2026-10-06',
-  inForce: '2026-10-06',
+  published: '2026-10-05',
+  inForce: '2026-10-05',
   immediate: true,
 }
 
