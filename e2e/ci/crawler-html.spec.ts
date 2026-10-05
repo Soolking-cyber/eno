@@ -175,22 +175,21 @@ test.describe('no hydration error under 6x CPU', () => {
 })
 
 /**
- * ⛔ TEXT TYPED INTO THE SEARCH BOX BEFORE THE PAGE IS REVEALED SURVIVES THE REVEAL (the race
- * e2e/ci/marketplace.spec.ts documents). While the category skeleton drew its own header, the box a
- * visitor typed into on a slow phone was the SKELETON's, and React's reveal replaced the whole
- * skeleton with the page's header and an empty box: Enter then searched nothing. Since H1b the only
- * header is in the layout, above the boundary, so the reveal never touches it.
- * The race is made deterministic, not waited for: an init script holds React's `$RC` (the inline
- * "complete boundary" call) until the text is typed, which is a slow phone's reveal made to last, and
- * the JS chunks stay held throughout, so Enter is the form's native GET (the header's `<form
- * action="/">` carries a hidden `category` input in the server HTML). Three checks keep the hold from
- * passing vacuously, each failing loudly instead of quietly racing again: the page still has at least
- * one pending boundary (with none there is no reveal to race); every pending boundary's `$RC` call was
- * queued (a React that renames `$RC`); and React's own `$RC`, which its inline runtime ASSIGNS
- * (`$RC=function(a,b){…}` in react-dom-server 19.2.8), reached the setter before the release (a runtime
- * that stops assigning it would otherwise leave `S:n` hidden until a timeout).
+ * ⛔ TEXT TYPED INTO THE SEARCH BOX BEFORE THE PAGE IS INTERACTIVE IS SEARCHED — AND SURVIVES ANY REVEAL (the race
+ * e2e/ci/marketplace.spec.ts documents). While the category skeleton drew its own header, the box a visitor typed
+ * into on a slow phone was the SKELETON's, and React's reveal replaced it with an empty one: Enter then searched
+ * nothing. H1b moved the header above the boundary; UX3 FAST-8 (202dcd461) then removed the /c/* route loading
+ * boundary altogether. ⛔ ITS RETURN IS REFUSED AT SOURCE LEVEL, NOT HERE: crawler-visible-html-contract.test.ts and
+ * district-status-contract.test.ts are that guard — keep them. This test is the visitor's flow in both worlds (a
+ * React that renamed `$RC` while a boundary came back would read as the no-boundary case below; the contract tests
+ * still catch the boundary):
+ *   · an init script HOLDS React's `$RC` (the inline "complete boundary" call, which runs during parsing, before
+ *     DOMContentLoaded — without the hold a boundary that already finished leaves no `B:n` to count), and every JS
+ *     chunk is held too (a slow phone before hydration), so Enter is the form's native GET;
+ *   · with a pending boundary: the text is typed, the reveal released, and the box must still hold it;
+ *   · with none (FAST-8): the text typed before hydration is searched all the same.
  */
-test('text typed into the category search box before the reveal survives it and is searched', async ({ page }) => {
+test('text typed into the category search box before hydration is searched, and survives any reveal', async ({ page }) => {
   await page.addInitScript(() => {
     const w = window as unknown as Record<string, unknown>
     const queue: unknown[][] = []
@@ -212,21 +211,23 @@ test('text typed into the category search box before the reveal survives it and 
   let release!: () => void
   const chunks = new Promise<void>((resolve) => { release = resolve })
   await page.route(/\/_next\/static\/chunks\/.+\.js(\?|$)/, async (route) => { await chunks; await route.continue().catch(() => {}) })
-  // ⚠️ /c/electronics, NOT /c/vehicles (second-hand focus, 2026-10-03): /c/vehicles now 308s to the motorbike-rental
-  // hub (src/lib/retired-categories.ts), so the race needs a category landing page that still renders one.
-  await page.goto(CATEGORY, { waitUntil: 'domcontentloaded' })
-  // One `$RC("B:n","S:n")` per pending boundary, so count the boundaries' placeholders: an outlined
-  // SEGMENT is also a `div[hidden][id^="S:"]`, but React completes it with `$RS` against a `P:n` template.
-  const pending = await page.locator(PLACEHOLDER).count()
-  expect(pending, 'the category page outlines its grid behind a B:n placeholder, so there is a reveal to race').toBeGreaterThan(0)
-  expect(await page.evaluate(() => (window as unknown as { __enoHeldReveals: unknown[] }).__enoHeldReveals.length), 'every pending boundary\'s $RC is held').toBe(pending)
-  const box = page.getByRole('search').getByRole('combobox', { name: 'Search' }).filter({ visible: true }).first()
-  await box.fill('laptop')
-  expect(await page.evaluate(() => (window as unknown as { __enoReleaseReveals: () => boolean }).__enoReleaseReveals()), "React's $RC was captured, so the release runs it").toBe(true)
-  await page.waitForFunction((sel) => !document.querySelector(sel), `${OUTLINED}, ${PLACEHOLDER}`)
-  await expect(box, 'the reveal must not replace the box the text was typed into').toHaveValue('laptop')
-  await box.press('Enter')
-  await expect(page).toHaveURL(/\/\?(?=.*\bcategory=electronics\b)(?=.*\bq=laptop\b)/)
-  release()
-  await page.unrouteAll({ behavior: 'ignoreErrors' })
+  try {
+    // ⚠️ /c/electronics, NOT /c/vehicles (second-hand focus, 2026-10-03): /c/vehicles now 308s to the motorbike-rental hub.
+    await page.goto(CATEGORY, { waitUntil: 'domcontentloaded' })
+    // One `$RC("B:n","S:n")` per pending boundary, so count the boundaries' placeholders (held, so none has completed).
+    const pending = await page.locator(PLACEHOLDER).count()
+    expect(await page.evaluate(() => (window as unknown as { __enoHeldReveals: unknown[] }).__enoHeldReveals.length), 'every pending boundary\'s $RC is held').toBe(pending)
+    const box = page.getByRole('search').getByRole('combobox', { name: 'Search' }).filter({ visible: true }).first()
+    await box.fill('laptop')
+    if (pending > 0) {
+      expect(await page.evaluate(() => (window as unknown as { __enoReleaseReveals: () => boolean }).__enoReleaseReveals()), "React's $RC was captured, so the release runs it").toBe(true)
+      await page.waitForFunction((sel) => !document.querySelector(sel), `${OUTLINED}, ${PLACEHOLDER}`)
+    }
+    await expect(box, 'no reveal may replace the box the text was typed into').toHaveValue('laptop')
+    await box.press('Enter')
+    await expect(page).toHaveURL(/\/\?(?=.*\bcategory=electronics\b)(?=.*\bq=laptop\b)/)
+  } finally {
+    release()
+    await page.unrouteAll({ behavior: 'ignoreErrors' })
+  }
 })
