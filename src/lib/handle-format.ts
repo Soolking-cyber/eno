@@ -54,6 +54,9 @@ const RESERVED = new Set([
   'signin', 'signup', 'sitemap', 'sitemaps', 'teachers', 'terms', 'trust',
   // teacher.eno.vn is the teacher sign-up form (2026-09-30); a seller holding `teacher` would own that host.
   'teacher',
+  // /schools is the teacher-ranked school directory and schools.eno.vn its name (2026-10-04): a seller
+  // holding `schools` would own both. `school` too, so the singular cannot pose as the directory.
+  'schools', 'school',
   // ⚠️ `docs` IS NOT AN app ROUTE — IT IS A REWRITE, WHICH IS EXACTLY WHY IT IS EASY TO MISS.
   // next.config.ts rewrites /docs -> /developers in `afterFiles`, which Next resolves BEFORE
   // dynamic routes, so it outranks src/app/[lang]/[handle]. A seller holding `docs` would have a

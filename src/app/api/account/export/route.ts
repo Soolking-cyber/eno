@@ -51,6 +51,29 @@ export async function GET() {
     db.message.findMany({ where: { senderProfileId: profile.id }, select: { id: true, conversationId: true, body: true, createdAt: true } }),
   ])
 
+  // /schools (2026-10-05, diff review: the access right covers it): the teacher's own votes, reviews (with the pay they
+  // reported), the timestamped log of their vote changes, helpful votes, reports filed and proofs of employment —
+  // never another account's, and never a ledger hash (pseudonymous; it says nothing the proofs listed do not).
+  const school = { select: { slug: true, name: true } } as const
+  const [schoolVotes, schoolVoteLog, schoolReviews, schoolHelpfulVotes, schoolProofs, schoolReports, schoolSuggestions] = await Promise.all([
+    db.schoolVote.findMany({ where: { profileId: profile.id }, select: { value: true, createdAt: true, updatedAt: true, school } }),
+    db.schoolVoteEvent.findMany({ where: { profileId: profile.id }, orderBy: { at: 'asc' }, select: { value: true, at: true, school } }),
+    db.schoolReview.findMany({
+      where: { profileId: profile.id },
+      select: {
+        current: true, tenure: true, leftYear: true, showLeftYear: true, role: true, employment: true, district: true, pros: true, cons: true, advice: true,
+        goodTags: true, badTags: true, payAmount: true, payCurrency: true, payPeriod: true, status: true, rejectReason: true, submittedAt: true, school,
+      },
+    }),
+    db.schoolReviewVote.findMany({ where: { profileId: profile.id }, select: { reviewId: true, value: true, createdAt: true } }),
+    db.schoolEmployment.findMany({ where: { profileId: profile.id }, select: { method: true, status: true, linkedinUrl: true, rejectReason: true, decidedAt: true, createdAt: true, school } }),
+    db.schoolReport.findMany({ where: { reporterProfileId: profile.id }, select: { kind: true, reason: true, detail: true, contactEmail: true, status: true, createdAt: true, school } }),
+    // The school a suggestion became or matched only while it is PUBLIC (diff review: a duplicate of a hidden school
+    // must not name it — the suggest route's own rule).
+    db.schoolSuggestion.findMany({ where: { profileId: profile.id }, select: { name: true, kind: true, website: true, districts: true, note: true, status: true, rejectReason: true, createdAt: true, school: { select: { slug: true, name: true, status: true } } } })
+      .then((rows) => rows.map(({ school: s, ...r }) => ({ ...r, school: s?.status === 'active' ? { slug: s.slug, name: s.name } : null }))),
+  ])
+
   // The Profile row minus purely-internal fields the user didn't provide and that
   // aren't "their" personal data (denormalized trust internals stay out).
   const { trustScore, trustTier, positiveInteractions, falseReportStrikes, enforcementState, ...profilePublicish } = profile
@@ -78,6 +101,7 @@ export async function GET() {
     trustEvents: trustEvents.map((e) => ({ event: describeTrustEvent(e.type, e.reason), points: e.delta, createdAt: e.createdAt })),
     conversations: { asBuyer: buyerConvos, asSeller: sellerConvos },
     messagesSent: messages,
+    schools: { votes: schoolVotes, voteLog: schoolVoteLog, reviews: schoolReviews, helpfulVotes: schoolHelpfulVotes, proofsOfEmployment: schoolProofs, reportsFiled: schoolReports, suggestions: schoolSuggestions },
   }
 
   return new NextResponse(JSON.stringify(payload, null, 2), {

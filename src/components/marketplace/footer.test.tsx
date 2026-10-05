@@ -88,6 +88,9 @@ describe('Footer links', () => {
       expect(hrefs).not.toContain(lang === 'vi' ? '/buying-a-used-iphone-vietnam' : '/kinh-nghiem-mua-iphone-cu')
       expect(container.textContent).toContain(lang === 'vi' ? 'Kinh nghiệm mua iPhone cũ' : 'Buying a used iPhone in Vietnam')
       for (const href of ['/best-place-to-buy-iphone-vietnam', '/mua-iphone-o-dau-uy-tin']) expect(hrefs).not.toContain(href)
+      // The teacher-ranked school directory (2026-10-04).
+      expect(hrefs).toContain('/schools')
+      expect(container.textContent).toContain(lang === 'vi' ? 'Trường ở Sài Gòn do giáo viên xếp hạng' : 'Saigon schools ranked by teachers')
     })
 
     // ⚠️ Not on eno.forum: there they would promote eno.forum's duplicate copies of eno.vn's pages
@@ -95,7 +98,7 @@ describe('Footer links', () => {
     it(`services/${lang}: does not promote the forum's copies of the rentals page or the guides`, async () => {
       const { hrefs, container } = await renderFooter('services', lang)
       expect(container.textContent).not.toContain(lang === 'vi' ? 'Căn hộ cho thuê tại TP.HCM' : 'Apartments for rent in Ho Chi Minh City')
-      for (const href of ['/renting-an-apartment-vietnam-foreigner', '/buying-a-used-iphone-vietnam', '/kinh-nghiem-mua-iphone-cu']) {
+      for (const href of ['/renting-an-apartment-vietnam-foreigner', '/buying-a-used-iphone-vietnam', '/kinh-nghiem-mua-iphone-cu', '/schools']) {
         expect(hrefs).not.toContain(href)
       }
     })

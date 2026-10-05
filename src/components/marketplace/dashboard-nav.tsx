@@ -48,7 +48,7 @@ import { SERVICES_NAV_ADMIN_QUEUE, SERVICES_NAV_PAYMENTS, SERVICES_NAV_SERVICES 
 import {
   Store, SquareArrowOutUpRight, MessageSquare, Heart, Scale, Wallet,
   CircleHelp, Route,
-  Flag, ClipboardList, Star, Stamp, Gavel, Users,
+  Flag, ClipboardList, Star, Stamp, Gavel, Users, GraduationCap,
   type IconComponent, ShieldCheck } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 
@@ -290,6 +290,7 @@ export const DASHBOARD_NAV: NavGroup[] = [
       { href: '/admin/verification', en: 'Verification', icon: ShieldCheck },
       { href: '/admin/moderation', en: 'Moderation', icon: Gavel },
       { href: '/admin/catalogue', en: 'Catalogue', icon: ClipboardList },
+      { href: '/admin/schools', en: 'Schools', icon: GraduationCap },
       ...(IS_SERVICES ? [{ ...SERVICES_NAV_ADMIN_QUEUE, icon: Stamp, servicesOnly: true }] : []),
       { href: '/admin/insights', en: 'Insights', icon: Star },
     ],

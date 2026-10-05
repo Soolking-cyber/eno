@@ -48,6 +48,11 @@ const h = vi.hoisted(() => ({
   failCount: false,
   failFindMany: false,
   services: false,
+  // Active schools with their newest PUBLISHED review's approval date (null = none published).
+  schools: [] as { slug: string; status: string; published: Date | null }[],
+  failSchools: false,
+  // Closed Teachers' Choice years (queries.ts awardYearsForSitemap).
+  awardYears: [] as { year: number; lastmod: Date }[],
 }))
 const CATEGORY_SLUGS: Record<string, string> = vi.hoisted(() => ({
   'cat-rentals': 'rentals', 'cat-fashion': 'fashion-beauty', 'cat-books': 'books-stationery', 'cat-hobbies': 'hobbies-sports', 'cat-pets': 'pets', 'cat-services': 'services', 'cat-empty': 'jobs',
@@ -93,6 +98,19 @@ function matches(row: Record<string, unknown>, where: Where | undefined): boolea
   })
 }
 
+// The /schools read in the pages child (src/lib/schools/queries.ts schoolsForSitemap): active schools with
+// a PUBLIC review, dated by the newest approval. Its SQL is covered by queries.probe.test.ts.
+vi.mock('@/lib/schools/queries', () => ({
+  schoolsForSitemap: async () => {
+    if (h.failSchools) throw new Error('fake db: schools unavailable')
+    return h.schools
+      .filter((x) => x.status === 'active' && x.published)
+      .sort((a, b) => (a.slug < b.slug ? -1 : 1))
+      .map((x) => ({ slug: x.slug, lastmod: x.published }))
+  },
+  awardYearsForSitemap: async () => h.awardYears,
+}))
+
 vi.mock('@/lib/db', () => ({
   db: {
     listing: {
@@ -132,6 +150,7 @@ vi.mock('@/lib/db', () => ({
     category: {
       findMany: async () => Object.entries(CATEGORY_SLUGS).map(([id, slug]) => ({ id, slug })),
     },
+
     seller: {
       findMany: async ({ where }: { where?: Where } = {}) =>
         ['import-seller', 'old-shop', 'sub-shop', 'brand-shop', 'desk-seller', 'own-seller']
@@ -273,6 +292,9 @@ beforeEach(() => {
   h.failCount = false
   h.failFindMany = false
   h.services = false
+  h.schools = []
+  h.failSchools = false
+  h.awardYears = []
 })
 afterEach(() => { vi.unstubAllEnvs() })
 
@@ -948,5 +970,43 @@ describe('the pages child: rentals district pages that carry the rent block (D3)
     h.failFindMany = true
     await expect(child('listings-0.xml')).rejects.toThrow(/findMany unavailable/)
     quiet.mockRestore()
+  })
+})
+
+describe('the school directory in the pages child (2026-10-04)', () => {
+  it('submits /schools and only the schools with a published review, dated by the newest approval', async () => {
+    h.schools = [
+      { slug: 'ila-vietnam', status: 'active', published: new Date('2026-10-02T03:00:00Z') },
+      { slug: 'vus', status: 'active', published: new Date('2026-10-03T03:00:00Z') },
+      { slug: 'no-reviews-yet', status: 'active', published: null },
+      { slug: 'hidden-school', status: 'hidden', published: new Date('2026-10-04T03:00:00Z') },
+    ]
+    const { xml } = await buildPagesSitemap({ rentIndex: 'require' })
+    expect(xml).toContain(`<loc>${HOST}/schools</loc><lastmod>2026-10-03`)
+    expect(xml).toContain(`<loc>${HOST}/schools/ila-vietnam</loc><lastmod>2026-10-02`)
+    expect(xml).toContain(`<loc>${HOST}/schools/vus</loc>`)
+    expect(xml).not.toContain('/schools/no-reviews-yet')
+    expect(xml).not.toContain('/schools/hidden-school')
+    expect(xml).not.toContain('/schools/awards') // no year closed yet
+  })
+
+  it("submits each closed Teachers' Choice year, dated by its closing", async () => {
+    h.awardYears = [{ year: 2026, lastmod: new Date('2026-12-31T17:10:00Z') }]
+    const { xml } = await buildPagesSitemap({ rentIndex: 'require' })
+    expect(xml).toContain(`<loc>${HOST}/schools/awards/2026</loc><lastmod>2026-12-31`)
+  })
+
+  it('a failed school read submits /schools alone and never fails the sitemap', async () => {
+    h.failSchools = true
+    const { xml } = await buildPagesSitemap({ rentIndex: 'require' })
+    expect(xml).toContain(`<loc>${HOST}/schools</loc></url>`)
+    expect(xml).not.toContain('/schools/')
+  })
+
+  it('is not submitted from eno.forum (its copy is a duplicate)', async () => {
+    h.services = true
+    h.schools = [{ slug: 'vus', status: 'active', published: new Date('2026-10-03T03:00:00Z') }]
+    const { xml } = await buildPagesSitemap({ rentIndex: 'require' })
+    expect(xml).not.toContain('/schools')
   })
 })

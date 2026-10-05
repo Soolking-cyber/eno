@@ -1,0 +1,4019 @@
+{
+ "checkedOn": "2026-10-05",
+ "note": "Compiled from each school's own site (sourceUrls). Corrections: edit and re-run scripts/import-schools.ts.",
+ "schools": [
+  {
+   "slug": "a-chau-english",
+   "name": "A Chau English",
+   "kind": "language_centre",
+   "website": "https://achauenglish.edu.vn",
+   "districts": [
+    "District 12",
+    "Go Vap",
+    "Tan Phu",
+    "Binh Tan",
+    "Hoc Mon"
+   ],
+   "curricula": [],
+   "summary": "English centre chain founded in 2005 for young learners, teens and adults, with branches in northern and western Ho Chi Minh City.",
+   "aliases": [
+    "Anh ngữ Á Châu",
+    "Hệ thống Anh ngữ Á Châu",
+    "A Chau English Centers System",
+    "ACE Á Châu",
+    "Công ty TNHH Phát triển Giáo dục ACE"
+   ],
+   "sourceUrls": [
+    "https://achauenglish.edu.vn/",
+    "https://achauenglish.edu.vn/chuong-trinh-hoc/anh-van-thieu-nhi"
+   ]
+  },
+  {
+   "slug": "abc-english",
+   "name": "ABC English",
+   "kind": "language_centre",
+   "website": "http://abcenglish.edu.vn",
+   "districts": [
+    "District 12",
+    "Thu Duc City (D2 & D9)",
+    "Binh Chanh",
+    "Nha Be"
+   ],
+   "curricula": [],
+   "summary": "English centre for young learners and teens with branches in Nha Be, Binh Chanh, District 12 and Thu Duc City, plus one in Phu Yen.",
+   "aliases": [],
+   "sourceUrls": [
+    "http://abcenglish.edu.vn/",
+    "http://abcenglish.edu.vn/gioi-thieu-tong-quan",
+    "http://abcenglish.edu.vn/easy-communication"
+   ]
+  },
+  {
+   "slug": "ama-american-academy",
+   "name": "AMA American Academy",
+   "kind": "language_centre",
+   "website": "https://ama.edu.vn",
+   "districts": [
+    "District 3",
+    "District 5",
+    "District 6",
+    "District 10",
+    "Binh Thanh",
+    "Go Vap",
+    "Phu Nhuan",
+    "Tan Binh",
+    "Tan Phu",
+    "Binh Tan",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre chain for kids, teens and adults with branches in Ho Chi Minh City, Da Nang and other provinces.",
+   "aliases": [
+    "AMA",
+    "AMA Education",
+    "AMA - American Academy",
+    "Anh ngữ AMA",
+    "Trung tâm Anh ngữ AMA"
+   ],
+   "sourceUrls": [
+    "https://ama.edu.vn/trung-tam",
+    "https://ama.edu.vn/"
+   ]
+  },
+  {
+   "slug": "ames-english",
+   "name": "AMES English",
+   "kind": "language_centre",
+   "website": "https://ames.edu.vn",
+   "districts": [
+    "Binh Thanh"
+   ],
+   "curricula": [
+    "IELTS"
+   ],
+   "summary": "English centre chain for kids and IELTS learners with branches nationwide and one branch in Ho Chi Minh City.",
+   "aliases": [
+    "AMES",
+    "Anh ngữ AMES",
+    "Công ty CP Đào tạo AMES"
+   ],
+   "sourceUrls": [
+    "https://ames.edu.vn/",
+    "https://jobs.ames.edu.vn/en/foreign-teacher/jobs/foreign-teacher-hiring-ho-chi-minh-city/122"
+   ]
+  },
+  {
+   "slug": "anh-ngu-au-chau-eres",
+   "name": "Anh Ngữ Âu Châu – ERES",
+   "kind": "language_centre",
+   "website": "https://auchauschool.edu.vn",
+   "districts": [
+    "District 6"
+   ],
+   "curricula": [],
+   "summary": "English centre in District 6, Ho Chi Minh City, for preschool, children, teens and adults, including IELTS and TOEIC preparation.",
+   "aliases": [
+    "ERES",
+    "Trung tâm Anh ngữ Âu Châu",
+    "Trung tâm Anh ngữ Âu Châu – ERES",
+    "Trung tâm Tiếng Anh Âu Châu ERES",
+    "Anh ngữ Âu Châu Sài Gòn"
+   ],
+   "sourceUrls": [
+    "https://auchauschool.edu.vn/",
+    "https://auchauschool.edu.vn/tai-sao-chon-eres/doi-ngu-giang-vien/"
+   ]
+  },
+  {
+   "slug": "anh-ngu-galaxy",
+   "name": "Anh Ngữ Galaxy",
+   "kind": "language_centre",
+   "website": null,
+   "districts": [
+    "District 12",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre chain using the Callan method, with branches in Thu Duc City and District 12, Ho Chi Minh City, and in other provinces.",
+   "aliases": [
+    "Trung tâm Anh ngữ Galaxy",
+    "Hệ thống Anh ngữ Galaxy",
+    "Công ty Cổ phần Đào tạo Quốc tế Ca Li"
+   ],
+   "sourceUrls": [
+    "https://anhngugalaxy.com/he-thong-anh-ngu-galaxy/",
+    "https://anhngugalaxy.com/gioi-thieu/"
+   ]
+  },
+  {
+   "slug": "anh-ngu-viet-uc",
+   "name": "Anh Ngữ Việt Úc",
+   "kind": "language_centre",
+   "website": "https://ielts.com.vn",
+   "districts": [
+    "District 10",
+    "Binh Tan"
+   ],
+   "curricula": [
+    "IELTS",
+    "Cambridge"
+   ],
+   "summary": "English centre focused on IELTS and Cambridge young learners exams, with branches in District 10 and Binh Tan, Ho Chi Minh City.",
+   "aliases": [
+    "Trung tâm Anh ngữ Việt Úc",
+    "Trung tâm Anh ngữ quốc tế Việt Úc",
+    "VietUc"
+   ],
+   "sourceUrls": [
+    "https://ielts.com.vn/",
+    "https://ielts.com.vn/ve-chung-toi.html"
+   ]
+  },
+  {
+   "slug": "anne-hill-international-school",
+   "name": "Anne Hill International School",
+   "kind": "international_school",
+   "website": "https://annehill.school/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "IEYC",
+    "Montessori",
+    "IPC",
+    "IMYC",
+    "Cambridge IGCSE",
+    "A Levels"
+   ],
+   "summary": "International preschool, primary and secondary school in An Phu, District 2 (Thu Duc City), using IEYC, IPC, IMYC and Cambridge programmes.",
+   "aliases": [
+    "AHIS",
+    "Anne Hill International School Ho Chi Minh City",
+    "Trường Mầm non Quốc tế Anne Hill",
+    "Trường Tiểu học Quốc tế Anne Hill"
+   ],
+   "sourceUrls": [
+    "https://annehill.school/",
+    "https://vn.linkedin.com/company/anne-hill-international-school"
+   ]
+  },
+  {
+   "slug": "apollo-english",
+   "name": "Apollo English",
+   "kind": "language_centre",
+   "website": "https://apollo.edu.vn",
+   "districts": [
+    "District 3",
+    "District 5",
+    "District 6",
+    "District 7",
+    "District 8",
+    "District 10",
+    "District 11",
+    "District 12",
+    "Binh Thanh",
+    "Go Vap",
+    "Phu Nhuan",
+    "Tan Binh",
+    "Tan Phu",
+    "Binh Tan",
+    "Thu Duc City (D2 & D9)",
+    "Nha Be"
+   ],
+   "curricula": [],
+   "summary": "English centre chain for kids and teens with branches in Ho Chi Minh City, Hanoi and other provinces.",
+   "aliases": [
+    "Apollo Việt Nam",
+    "Trung tâm Anh ngữ Apollo",
+    "Apollo Education and Training Organization"
+   ],
+   "sourceUrls": [
+    "https://apollo.edu.vn/he-thong-trung-tam?province=5",
+    "https://apollo.edu.vn/"
+   ]
+  },
+  {
+   "slug": "apu-american-international-school",
+   "name": "APU American International School",
+   "kind": "international_school",
+   "website": "https://apu.edu.vn/",
+   "districts": [
+    "District 11"
+   ],
+   "curricula": [
+    "American",
+    "AP"
+   ],
+   "summary": "American-curriculum school for kindergarten to Grade 12 with two campuses in District 11, offering AP courses.",
+   "aliases": [
+    "APU",
+    "APU International School",
+    "APU American International Schools",
+    "Trường Quốc tế Hoa Kỳ APU"
+   ],
+   "sourceUrls": [
+    "https://apu.edu.vn/",
+    "https://tuyensinh.apu.edu.vn/",
+    "https://en.wikipedia.org/wiki/APU_International_School"
+   ]
+  },
+  {
+   "slug": "asian-international-school",
+   "name": "Asian International School",
+   "kind": "bilingual_school",
+   "website": "https://www.asianschool.edu.vn/",
+   "districts": [
+    "District 1",
+    "Tan Binh",
+    "District 10",
+    "Binh Thanh",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "American",
+    "AP"
+   ],
+   "summary": "School for grades 1–12 combining the Vietnamese national programme with an American-standards (AERO, AP) programme, with campuses in five HCMC districts.",
+   "aliases": [
+    "The Asian International School",
+    "Trường Quốc tế Á Châu"
+   ],
+   "sourceUrls": [
+    "https://www.asianschool.edu.vn/vi-VN/ahs/cac-co-so-cua-truong/383",
+    "https://www.asianschool.edu.vn/vi-VN/ahs/gioi-thieu/381",
+    "https://tuoitre.vn/asian-school-moi-truong-giup-hoc-sinh-phat-trien-toan-dien-2025022715462367.htm"
+   ]
+  },
+  {
+   "slug": "askademy",
+   "name": "ASKademy",
+   "kind": "language_centre",
+   "website": "https://askademy.com",
+   "districts": [
+    "District 8"
+   ],
+   "curricula": [],
+   "summary": "English, arts and soft-skills centre for learners aged 4-18 with its main centre in District 8, Ho Chi Minh City.",
+   "aliases": [
+    "Trung tâm Anh ngữ & Tài năng ASKademy",
+    "Trung Tâm Anh Ngữ - Tài Năng ASKademy"
+   ],
+   "sourceUrls": [
+    "https://askademy.com/"
+   ]
+  },
+  {
+   "slug": "aurora-international-school-of-the-arts",
+   "name": "Aurora International School of the Arts",
+   "kind": "international_school",
+   "website": "https://www.auroraschool.vn/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "Reggio Emilia",
+    "New Zealand"
+   ],
+   "summary": "Reggio Emilia-inspired school for ages 1–15 in Thao Dien, District 2 (Thu Duc City), using the New Zealand curriculum in primary and middle years.",
+   "aliases": [
+    "Aurora International School",
+    "Aurora International Preschool of the Arts"
+   ],
+   "sourceUrls": [
+    "https://www.auroraschool.vn/",
+    "https://www.auroraschool.vn/primary/",
+    "https://www.edarabia.com/aurora-international-preschool-arts-ho-chi-minh-city-vietnam/"
+   ]
+  },
+  {
+   "slug": "australian-international-school-saigon",
+   "name": "Australian International School Saigon",
+   "kind": "international_school",
+   "website": "https://www.aisvietnam.com/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "IB",
+    "Cambridge",
+    "Cambridge IGCSE"
+   ],
+   "summary": "International school for ages 18 months–18 years (IB PYP, Cambridge Lower Secondary and IGCSE, IB Diploma) with campuses in Thu Thiem and Thao Dien, District 2.",
+   "aliases": [
+    "AIS Saigon",
+    "Australian International School",
+    "AIS Thu Thiem",
+    "AIS Thao Dien",
+    "Trường Quốc tế Úc"
+   ],
+   "sourceUrls": [
+    "https://www.aisvietnam.com/school-in-thu-thiem",
+    "https://www.aisvietnam.com/school-in-thao-dien",
+    "https://www.expatarrivals.com/asia-pacific/vietnam/ho-chi-minh-city/australian-international-school-saigon"
+   ]
+  },
+  {
+   "slug": "axcela-vietnam",
+   "name": "Axcela Vietnam",
+   "kind": "language_centre",
+   "website": "https://axcelavietnam.com",
+   "districts": [
+    "District 3"
+   ],
+   "curricula": [],
+   "summary": "Business and workplace English training provider for companies and working adults, based in District 3, Ho Chi Minh City.",
+   "aliases": [
+    "Axcela",
+    "Axcela English"
+   ],
+   "sourceUrls": [
+    "https://axcelavietnam.com/",
+    "https://vietnamteachingjobs.com/jobs/company/2748"
+   ]
+  },
+  {
+   "slug": "bamboo-school",
+   "name": "Bamboo School",
+   "kind": "bilingual_school",
+   "website": "https://bambooschool.edu.vn/",
+   "districts": [
+    "Tan Phu",
+    "District 12",
+    "Hoc Mon"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "Cambridge"
+   ],
+   "summary": "Private school system (Tre Viet) teaching the Vietnamese programme, with a Cambridge Primary stream; campuses in Tan Phu, District 12 and Hoc Mon.",
+   "aliases": [
+    "Hệ thống Trường Hội nhập Quốc tế Bamboo",
+    "Trường Tiểu học - THCS - THPT Tre Việt",
+    "Trường Tre Việt"
+   ],
+   "sourceUrls": [
+    "https://bambooschool.edu.vn/",
+    "https://bambooschool.edu.vn/he-tang-cuong-chuong-trinh-cambridge/",
+    "https://times.edu.vn/truong-quoc-te/truong-quoc-te-quan-tan-phu/"
+   ]
+  },
+  {
+   "slug": "blue-ridge-international-school-system",
+   "name": "Blue Ridge International School System",
+   "kind": "bilingual_school",
+   "website": "https://bris.edu.vn/",
+   "districts": [
+    "Binh Thanh",
+    "District 10",
+    "District 3",
+    "Tan Phu",
+    "Tan Binh",
+    "Go Vap"
+   ],
+   "curricula": [
+    "American",
+    "IEYC",
+    "Vietnamese national"
+   ],
+   "summary": "Kindergarten and primary school system with six HCMC campuses, using US standards, Singapore maths and IEYC alongside Vietnamese national-programme lessons.",
+   "aliases": [
+    "BRIS",
+    "Blue Ridge International School",
+    "Blue Ridge International Primary School",
+    "Blue Ridge International Kindergarten System",
+    "Hệ thống Trường Quốc tế BRIS"
+   ],
+   "sourceUrls": [
+    "https://bris.edu.vn/?lang=en",
+    "https://bris.edu.vn/tieu-hoc-quoc-te-bris/",
+    "https://bris.edu.vn/lien-he/"
+   ]
+  },
+  {
+   "slug": "british-council",
+   "name": "British Council",
+   "kind": "language_centre",
+   "website": "https://www.britishcouncil.vn",
+   "districts": [
+    "District 1",
+    "District 7",
+    "District 10",
+    "Binh Thanh",
+    "Tan Binh",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "UK cultural relations organisation running English teaching centres for children, teens and adults in Ho Chi Minh City and Hanoi.",
+   "aliases": [
+    "British Council Vietnam",
+    "British Council Việt Nam",
+    "Hội đồng Anh",
+    "British Council (Viet Nam) LLC"
+   ],
+   "sourceUrls": [
+    "https://www.britishcouncil.vn/en/english-courses/teaching-centre",
+    "https://www.britishcouncil.vn/en/teach/recruitment",
+    "https://edu2review.com/danh-gia/trung-tam-ngoai-ngu-hoi-dong-anh-british-council"
+   ]
+  },
+  {
+   "slug": "british-english-club",
+   "name": "British English Club",
+   "kind": "language_centre",
+   "website": "https://britishenglishclub.com",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [],
+   "summary": "English communication centre for adults and children, with private and company classes, in Phu My Hung, District 7, Ho Chi Minh City.",
+   "aliases": [
+    "Britishenglishclub",
+    "Trung tâm Anh ngữ British English Club"
+   ],
+   "sourceUrls": [
+    "https://britishenglishclub.com/",
+    "https://kiddihub.com/britishenglishclub"
+   ]
+  },
+  {
+   "slug": "british-international-school-ho-chi-minh-city",
+   "name": "British International School Ho Chi Minh City",
+   "kind": "international_school",
+   "website": "https://www.nordangliaeducation.com/bis-hcmc",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "EYFS",
+    "English National Curriculum",
+    "IPC",
+    "Cambridge IGCSE",
+    "IB"
+   ],
+   "summary": "British international school for ages 2–18 with three campuses in Thao Dien, District 2 (Thu Duc City); Cambridge IGCSE and IB Diploma.",
+   "aliases": [
+    "BIS HCMC",
+    "BIS Ho Chi Minh City",
+    "British International School HCMC"
+   ],
+   "sourceUrls": [
+    "https://www.nordangliaeducation.com/bis-hcmc/contact-us",
+    "https://www.nordangliaeducation.com/bis-hcmc/academic-excellence",
+    "https://www.nordangliaeducation.com/bis-hcmc"
+   ]
+  },
+  {
+   "slug": "british-vietnamese-international-school-ho-chi-minh-city",
+   "name": "British Vietnamese International School Ho Chi Minh City",
+   "kind": "international_school",
+   "website": "https://www.nordangliaeducation.com/bvis-hcmc",
+   "districts": [
+    "Binh Chanh"
+   ],
+   "curricula": [
+    "EYFS",
+    "English National Curriculum",
+    "IPC",
+    "IGCSE",
+    "A Levels"
+   ],
+   "summary": "British-curriculum international school teaching in English and Vietnamese, from early years to IGCSE and A Levels, on one campus in Binh Hung, Binh Chanh.",
+   "aliases": [
+    "BVIS HCMC",
+    "BVIS Ho Chi Minh City",
+    "British Vietnamese International School HCMC",
+    "Trường Quốc tế Anh Việt BVIS TP. HCM"
+   ],
+   "sourceUrls": [
+    "https://www.nordangliaeducation.com/bvis-hcmc/contact-us",
+    "https://www.nordangliaeducation.com/bvis-hcmc/academic-excellence",
+    "https://whichschooladvisor.com/vietnam/school-review/british-vietnamese-international-school-ho-chi-minh-city/contact-information"
+   ]
+  },
+  {
+   "slug": "byan-teach",
+   "name": "Byan Teach",
+   "kind": "agency",
+   "website": "https://byan.com.vn/",
+   "districts": [
+    "District 1"
+   ],
+   "curricula": [],
+   "summary": "Company that recruits and supplies foreign English teachers to schools, language centres and businesses in Ho Chi Minh City.",
+   "aliases": [
+    "Byan",
+    "Công ty TNHH Đào tạo & Phát triển Nguồn nhân lực Byan"
+   ],
+   "sourceUrls": [
+    "https://byan.com.vn/vn/byan-teach-don-vi-cung-ung-giao-vien-nuoc-ngoai-uy-tin-tai-tp-hcm.html"
+   ]
+  },
+  {
+   "slug": "cae-leaders",
+   "name": "CAE Leaders",
+   "kind": "language_centre",
+   "website": "https://caeleaders.edu.vn",
+   "districts": [
+    "Binh Thanh",
+    "Go Vap",
+    "Tan Binh",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre for children from age 3 teaching American-English communication, with six branches in Ho Chi Minh City.",
+   "aliases": [
+    "Tiếng Mỹ Giao Tiếp CAE Leaders",
+    "Ngoại ngữ Tiếng Mỹ Giao Tiếp CAE Leaders"
+   ],
+   "sourceUrls": [
+    "https://caeleaders.edu.vn/",
+    "https://caeleaders.edu.vn/gioi-thieu/"
+   ]
+  },
+  {
+   "slug": "cali-english",
+   "name": "Cali English",
+   "kind": "language_centre",
+   "website": "https://anhngucali.edu.vn",
+   "districts": [
+    "District 7",
+    "District 12",
+    "Go Vap",
+    "Tan Binh",
+    "Tan Phu",
+    "Binh Tan",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre for preschoolers, children, teens and adults with branches in Ho Chi Minh City and Binh Duong.",
+   "aliases": [
+    "Anh ngữ Cali",
+    "Ngoại ngữ Cali",
+    "Trung tâm Anh ngữ Cali",
+    "Trường Anh ngữ Quốc tế Cali",
+    "Cali International English Center"
+   ],
+   "sourceUrls": [
+    "https://anhngucali.edu.vn/",
+    "https://edu2review.com/danh-gia/truong-anh-ngu-quoc-te-cali"
+   ]
+  },
+  {
+   "slug": "compass-education",
+   "name": "Compass Education",
+   "kind": "agency",
+   "website": "https://compass.edu.vn/",
+   "districts": [
+    "District 3"
+   ],
+   "curricula": [],
+   "summary": "Company that supplies native English teachers to Ho Chi Minh City public schools and runs the Compass English language centre.",
+   "aliases": [
+    "COMPASS Education Development Ltd. Company",
+    "Công ty TNHH MTV Phát triển Giáo dục COM PA",
+    "Trung tâm Anh ngữ Kim Chỉ Nam"
+   ],
+   "sourceUrls": [
+    "https://giaoduc.net.vn/compass-education-lien-ket-day-tieng-anh-nhieu-truong-o-tphcm-co-gi-an-tuong-post245537.gd",
+    "https://dantri.com.vn/giao-duc/compass-education-chinh-thuc-khai-truong-trung-tam-anh-ngu-compass-english-1428088365.htm"
+   ]
+  },
+  {
+   "slug": "curioo-vietnam",
+   "name": "CURIOO Vietnam",
+   "kind": "language_centre",
+   "website": "https://curioo.edu.vn",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English and skills centre for children and teens with a campus in Thao Dien, Thu Duc City, plus online classes.",
+   "aliases": [
+    "CURIOO",
+    "CURIOOkids",
+    "CURIOO Việt Nam",
+    "Công ty TNHH CURIOO Việt Nam",
+    "CURIOO Vietnam Co., Ltd"
+   ],
+   "sourceUrls": [
+    "https://curioo.edu.vn/co-so/thao-dien",
+    "https://vietnamteachingjobs.com/jobs/view/curiookids-vietnam/"
+   ]
+  },
+  {
+   "slug": "dtp-education-solutions",
+   "name": "DTP Education Solutions",
+   "kind": "agency",
+   "website": "https://dtp-education.com/",
+   "districts": [
+    "Go Vap"
+   ],
+   "curricula": [],
+   "summary": "English textbook publisher and education group that recruits foreign teachers for English programmes in Ho Chi Minh City public schools.",
+   "aliases": [
+    "DTP",
+    "DTP Education",
+    "DTP Education Solutions Vietnam",
+    "Đại Trường Phát",
+    "Tập đoàn Giáo dục Đại Trường Phát"
+   ],
+   "sourceUrls": [
+    "https://dtpteacher.vn/",
+    "https://dtp-education.com/en/products-and-services/",
+    "https://vietnamteachingjobs.com/jobs/view/september-2025-full-time-expat-teachers-in-hcm-city/"
+   ]
+  },
+  {
+   "slug": "duong-minh-foreign-language-center",
+   "name": "Duong Minh Foreign Language Center",
+   "kind": "language_centre",
+   "website": "https://duongminh.edu.vn",
+   "districts": [
+    "Phu Nhuan"
+   ],
+   "curricula": [],
+   "summary": "Foreign-language centre founded in 1990 with English courses for children, teens and adults, headquartered in Phu Nhuan, Ho Chi Minh City.",
+   "aliases": [
+    "Ngoại ngữ Dương Minh",
+    "Trường Ngoại ngữ Dương Minh",
+    "Trung tâm Ngoại ngữ Dương Minh"
+   ],
+   "sourceUrls": [
+    "https://duongminh.edu.vn/",
+    "https://duongminh.edu.vn/tin-tuc/gioi-thieu-ve-duong-minh/thu-ngo-tu-truong-ngoai-ngu-duong-minh",
+    "https://duongminh.edu.vn/khoa-hoc/anh-van-thieu-nien-chung-chi-anh-van-ket-pet"
+   ]
+  },
+  {
+   "slug": "e-maison-international-pre-school",
+   "name": "E-Maison International Pre-School",
+   "kind": "international_school",
+   "website": "https://e-maison.vn/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "Reggio Emilia"
+   ],
+   "summary": "Reggio Emilia-inspired international preschool for ages 18 months–6 in Thao Dien, District 2; operated as an EtonHouse franchise until rebranding.",
+   "aliases": [
+    "E-Maison",
+    "EtonHouse E-Maison International Pre-School",
+    "EtonHouse Thao Dien",
+    "Trường Mầm non Quốc tế E-Maison"
+   ],
+   "sourceUrls": [
+    "https://e-maison.vn/about-us/",
+    "https://e-maison.vn/course/our-age-groups/",
+    "https://e-maison.vn/"
+   ]
+  },
+  {
+   "slug": "eastern-international-university",
+   "name": "Eastern International University",
+   "kind": "university",
+   "website": "https://eiu.edu.vn/",
+   "districts": [
+    "Thu Dau Mot"
+   ],
+   "curricula": [],
+   "summary": "Private university founded by Becamex in the former Binh Duong province (merged into HCMC in 2025) that hires foreign English teachers.",
+   "aliases": [
+    "EIU",
+    "Trường Đại học Quốc tế Miền Đông"
+   ],
+   "sourceUrls": [
+    "https://vietnamteachingjobs.com/jobs/view/native-english-teacher-at-eastern-international-university-april-to-june-2026/",
+    "https://eiu.edu.vn/en/connect/contact-us/"
+   ]
+  },
+  {
+   "slug": "ecorp-english",
+   "name": "Ecorp English",
+   "kind": "language_centre",
+   "website": "https://ecorp.edu.vn",
+   "districts": [
+    "District 10",
+    "Binh Thanh"
+   ],
+   "curricula": [],
+   "summary": "English communication centre chain headquartered in Hanoi, with two branches in Ho Chi Minh City.",
+   "aliases": [
+    "Ecorp",
+    "Trường Anh ngữ Quốc tế Ecorp",
+    "Hệ thống giáo dục Quốc tế ECORP"
+   ],
+   "sourceUrls": [
+    "https://ecorp.edu.vn/"
+   ]
+  },
+  {
+   "slug": "einstein-school-hcm",
+   "name": "Einstein School HCM",
+   "kind": "bilingual_school",
+   "website": "https://esh.edu.vn/",
+   "districts": [
+    "Binh Chanh"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "Australian",
+    "VCE"
+   ],
+   "summary": "Bilingual preschool-to-Grade 12 school in Binh Chanh teaching the Vietnamese programme with English, plus an Australian VCE pathway in Grades 10–12.",
+   "aliases": [
+    "ESH",
+    "Einstein School Ho Chi Minh City",
+    "Einstein School HCMC",
+    "Trường Song ngữ Einstein School",
+    "Albert Einstein School",
+    "Trường Song ngữ Quốc tế Albert Einstein"
+   ],
+   "sourceUrls": [
+    "https://esh.edu.vn/cau-chuyen-ve-esh",
+    "https://esh.edu.vn/tieu-hoc",
+    "https://en.wikipedia.org/wiki/Albert_Einstein_School_(Vietnam)"
+   ]
+  },
+  {
+   "slug": "eiv-education",
+   "name": "EIV Education",
+   "kind": "agency",
+   "website": "https://eiv.edu.vn/",
+   "districts": [
+    "District 3"
+   ],
+   "curricula": [],
+   "summary": "Recruitment company that places native English teachers in public and private schools, centres and companies in HCMC, Hanoi and Da Nang.",
+   "aliases": [
+    "EIV",
+    "Teach at EIV",
+    "EIV Recruitment"
+   ],
+   "sourceUrls": [
+    "https://recruitment.eiv.edu.vn/",
+    "https://teast.co/blog/teach-english-vietnam-agencies"
+   ]
+  },
+  {
+   "slug": "emasi-international-bilingual-schools",
+   "name": "EMASI International Bilingual Schools",
+   "kind": "bilingual_school",
+   "website": "https://www.emasi.edu.vn/",
+   "districts": [
+    "District 7",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "Cambridge",
+    "Cambridge IGCSE",
+    "A Levels",
+    "EYFS",
+    "Montessori"
+   ],
+   "summary": "Bilingual school for ages 3–18 combining the Vietnamese national and Cambridge programmes, with campuses in Nam Long (District 7) and Van Phuc (Thu Duc City).",
+   "aliases": [
+    "EMASI",
+    "EMASI Schools",
+    "EMASI International Bilingual School",
+    "Trường Quốc tế Song ngữ EMASI",
+    "EMASI Nam Long",
+    "EMASI Van Phuc"
+   ],
+   "sourceUrls": [
+    "https://www.emasi.edu.vn/en",
+    "https://www.emasi.edu.vn/"
+   ]
+  },
+  {
+   "slug": "emg-education",
+   "name": "EMG Education",
+   "kind": "agency",
+   "website": "https://emg.vn/",
+   "districts": [
+    "District 1",
+    "District 3"
+   ],
+   "curricula": [],
+   "summary": "Education company that runs integrated English, maths and science programmes with foreign teachers in Vietnamese public schools.",
+   "aliases": [
+    "EMG",
+    "EMG Education Management and Investment Joint Stock Company"
+   ],
+   "sourceUrls": [
+    "https://teach.emg.vn/",
+    "https://www.edarabia.com/emg-education-ho-chi-minh-city-vietnam/",
+    "https://www.theteflacademy.com/company/emg-education-3/"
+   ]
+  },
+  {
+   "slug": "english-the-universe",
+   "name": "English The Universe",
+   "kind": "language_centre",
+   "website": "https://etu.edu.vn",
+   "districts": [
+    "District 12"
+   ],
+   "curricula": [],
+   "summary": "English centre and school-programme provider with a centre in District 12, Ho Chi Minh City, and centres in other provinces.",
+   "aliases": [
+    "ETU English The Universe",
+    "English The Universe Co., Ltd",
+    "Trung tâm Anh ngữ ETU"
+   ],
+   "sourceUrls": [
+    "https://etu.edu.vn/",
+    "https://vietnamteachingjobs.com/jobs/company/2071"
+   ]
+  },
+  {
+   "slug": "european-international-school-ho-chi-minh-city",
+   "name": "European International School Ho Chi Minh City",
+   "kind": "international_school",
+   "website": "https://www.eishcmc.com/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "IB"
+   ],
+   "summary": "IB World School for ages 2–18 (PYP, MYP, Diploma) on Le Van Mien, Thao Dien, District 2 (Thu Duc City).",
+   "aliases": [
+    "EIS HCMC",
+    "European International School HCMC",
+    "Trường Quốc tế Châu Âu Thành phố Hồ Chí Minh"
+   ],
+   "sourceUrls": [
+    "https://www.eishcmc.com/",
+    "https://en.wikipedia.org/wiki/European_International_School_Ho_Chi_Minh_City"
+   ]
+  },
+  {
+   "slug": "everest-education",
+   "name": "Everest Education",
+   "kind": "language_centre",
+   "website": null,
+   "districts": [
+    "District 7",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "Learning centre offering English and maths enrichment, test prep and admissions consulting for grades 1–12, with centres in Ho Chi Minh City.",
+   "aliases": [],
+   "sourceUrls": [
+    "https://e2.com.vn/contact-us/",
+    "https://e2.com.vn/about-us/",
+    "https://vietnamteachingjobs.com/jobs/view/hcmc-english-teachers-at-everest-education-full-time-part-time-currently-in-vietnam/"
+   ]
+  },
+  {
+   "slug": "focus-learning",
+   "name": "FOCUS Learning",
+   "kind": "language_centre",
+   "website": "https://focus.edu.vn",
+   "districts": [
+    "District 7",
+    "Binh Thanh",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre for preschool, primary and secondary learners with branches in Binh Thanh, District 7 and Thu Duc City, plus Da Nang and Quang Ngai.",
+   "aliases": [],
+   "sourceUrls": [
+    "https://focus.edu.vn/co-so-vat-chat/",
+    "https://focus.edu.vn/diem-khac-biet/"
+   ]
+  },
+  {
+   "slug": "fosco-international-school",
+   "name": "FOSCO International School",
+   "kind": "international_school",
+   "website": "https://fis.edu.vn/",
+   "districts": [
+    "District 3"
+   ],
+   "curricula": [
+    "American"
+   ],
+   "summary": "American-curriculum international school in District 3 for ages 18 months to 11 years, from nursery to Grade 5.",
+   "aliases": [
+    "Trường Quốc tế FOSCO",
+    "FIS - FOSCO International School"
+   ],
+   "sourceUrls": [
+    "https://fis.edu.vn/",
+    "https://en.wikipedia.org/wiki/FOSCO_International_School"
+   ]
+  },
+  {
+   "slug": "fpt-university",
+   "name": "FPT University",
+   "kind": "university",
+   "website": "https://daihoc.fpt.edu.vn/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "Private technology and business university; its Ho Chi Minh City campus in Saigon Hi-Tech Park hires foreign English lecturers.",
+   "aliases": [
+    "FPTU",
+    "FPT University HCMC",
+    "Trường Đại học FPT"
+   ],
+   "sourceUrls": [
+    "https://vietnamteachingjobs.com/jobs/view/part-time-english-lecturer-foreigner-and-vietnamese/",
+    "https://www.vietnamworks.com/company/fpt-education"
+   ]
+  },
+  {
+   "slug": "french-international-school-boule-and-billes",
+   "name": "French International School Boule & Billes",
+   "kind": "international_school",
+   "website": "https://bouleetbilles.net/",
+   "districts": [
+    "Binh Thanh",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "French"
+   ],
+   "summary": "French international school (AEFE partner) for ages 6 months–11 with campuses in Binh Thanh and Thao Dien (District 2).",
+   "aliases": [
+    "Boule & Billes",
+    "Boule et Billes",
+    "École Boule et Billes",
+    "Ecole Française Boule et Billes",
+    "École française internationale Boule et Billes"
+   ],
+   "sourceUrls": [
+    "https://bouleetbilles.net/en/",
+    "https://bouleetbilles.net/en/contact-us/",
+    "https://bouleetbilles.net/en/elementary-school/"
+   ]
+  },
+  {
+   "slug": "fulbright-university-vietnam",
+   "name": "Fulbright University Vietnam",
+   "kind": "university",
+   "website": "https://fulbright.edu.vn/",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [],
+   "summary": "Private nonprofit liberal arts university; current campus at Crescent Plaza, with a permanent campus planned in Saigon Hi-Tech Park.",
+   "aliases": [
+    "FUV",
+    "Đại học Fulbright Việt Nam"
+   ],
+   "sourceUrls": [
+    "https://fulbright.edu.vn/campus-development/",
+    "https://en.wikipedia.org/wiki/Fulbright_University_Vietnam"
+   ]
+  },
+  {
+   "slug": "geb-english-center",
+   "name": "GEB English Center",
+   "kind": "language_centre",
+   "website": "https://geb.edu.vn",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre in Thu Duc City offering Cambridge young-learner, KET/PET and IELTS courses.",
+   "aliases": [
+    "GEB",
+    "Trung tâm Anh ngữ GEB",
+    "GEB IELTS",
+    "Trung Tâm Ngoại Ngữ Học Bá GEB"
+   ],
+   "sourceUrls": [
+    "https://geb.edu.vn/",
+    "https://geb.edu.vn/gioi-thieu-trung-tam-anh-ngu-geb-nang-tam-tri-thuc-ket-noi-tuong-lai",
+    "https://teast.co/jobs/vietnam/ho-chi-minh-city"
+   ]
+  },
+  {
+   "slug": "gee-o-english",
+   "name": "Gee-O English",
+   "kind": "language_centre",
+   "website": "https://gee-o.edu.vn",
+   "districts": [
+    "District 7",
+    "District 10",
+    "District 11",
+    "Tan Phu"
+   ],
+   "curricula": [],
+   "summary": "English and life-skills centre for children using phonics, with branches in Tan Phu, District 11, District 7 and District 10, Ho Chi Minh City.",
+   "aliases": [
+    "Gee-O",
+    "Gee-O Vietnam English for Kids",
+    "Trung tâm Anh ngữ Gee-O English",
+    "Trung tâm Anh ngữ Tia Chớp"
+   ],
+   "sourceUrls": [
+    "https://gee-o.edu.vn/"
+   ]
+  },
+  {
+   "slug": "gela-education",
+   "name": "GELA Education",
+   "kind": "agency",
+   "website": "https://gela.edu.vn/",
+   "districts": [
+    "Binh Thanh"
+   ],
+   "curricula": [],
+   "summary": "Education company that runs English programmes with native-speaker teachers in Ho Chi Minh City public schools under school contracts.",
+   "aliases": [
+    "GELA",
+    "Anh ngữ GELA",
+    "Công ty Cổ phần Giáo dục Gela"
+   ],
+   "sourceUrls": [
+    "https://giaoduc.net.vn/cong-ty-co-phan-giao-duc-gela-va-nhung-goi-thau-day-hoc-tieng-anh-o-nhieu-truong-cong-tai-tphcm-post258445.gd",
+    "https://masothue.com/0313334427-cong-ty-co-phan-giao-duc-gela",
+    "https://gela.edu.vn/"
+   ]
+  },
+  {
+   "slug": "gems-english-center",
+   "name": "GEMS English Center",
+   "kind": "agency",
+   "website": "http://www.gemsenglish.edu.vn/",
+   "districts": [
+    "Binh Thanh"
+   ],
+   "curricula": [],
+   "summary": "English centre company that recruits and manages foreign English teachers for public primary and secondary schools in Ho Chi Minh City.",
+   "aliases": [
+    "GEMS English",
+    "Global Education Mastery Solutions",
+    "Trung tâm Anh ngữ GEMS",
+    "Công ty Cổ phần Trung tâm Anh ngữ GEMS"
+   ],
+   "sourceUrls": [
+    "https://vietnamteachingjobs.com/jobs/company/2523",
+    "https://vietnamteachingjobs.com/jobs/company/854",
+    "https://vietnamteachingjobs.com/jobs/view/foreign-esl-teachers-for-public-schools-in-ho-chi-minh-city-2026-2027/"
+   ]
+  },
+  {
+   "slug": "greenwich-vietnam",
+   "name": "Greenwich Vietnam",
+   "kind": "university",
+   "website": "https://greenwich.edu.vn/",
+   "districts": [
+    "Tan Binh"
+   ],
+   "curricula": [],
+   "summary": "Partnership of the University of Greenwich (UK) and FPT University delivering UK degrees, with a Ho Chi Minh City campus.",
+   "aliases": [
+    "University of Greenwich (Vietnam)",
+    "Greenwich Việt Nam"
+   ],
+   "sourceUrls": [
+    "https://greenwich.edu.vn/en/contact-us/",
+    "https://vietnamteachingjobs.com/jobs/view/part-time-english-lecturer-native-english/"
+   ]
+  },
+  {
+   "slug": "hawaii-education",
+   "name": "Hawaii Education",
+   "kind": "agency",
+   "website": "https://hawaii.edu.vn/",
+   "districts": [
+    "Tan Phu",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "Company that recruits, supplies and manages native English teachers for schools and other education providers in Vietnam.",
+   "aliases": [
+    "Hawaii Education Co., Ltd",
+    "Công ty TNHH Giáo dục Hawaii"
+   ],
+   "sourceUrls": [
+    "https://hawaii.edu.vn/cung-cap-giao-vien-nuoc-ngoai/",
+    "https://hawaii.edu.vn/lien-he/",
+    "https://jobsgo.vn/tuyen-dung/cong-ty-tnhh-giao-duc-hawaii-3530852317.html"
+   ]
+  },
+  {
+   "slug": "hei-schools-saigon-central",
+   "name": "HEI Schools Saigon Central",
+   "kind": "bilingual_school",
+   "website": "https://www.heisaigoncentral.com/",
+   "districts": [
+    "Binh Thanh"
+   ],
+   "curricula": [
+    "Finnish"
+   ],
+   "summary": "Finnish-standard kindergarten in Binh Thanh for children aged 1–6, part of the University of Helsinki's HEI Schools network.",
+   "aliases": [
+    "Hai Thang Chin Private Kindergarten"
+   ],
+   "sourceUrls": [
+    "https://www.heisaigoncentral.com/en",
+    "https://www.heisaigoncentral.com/en/about-hei",
+    "https://www.heischools.com/blog/hei-schools-saigon-central-opening"
+   ]
+  },
+  {
+   "slug": "ho-chi-minh-city-university-of-economics-and-finance",
+   "name": "Ho Chi Minh City University of Economics and Finance",
+   "kind": "university",
+   "website": "https://www.uef.edu.vn/",
+   "districts": [
+    "Binh Thanh"
+   ],
+   "curricula": [],
+   "summary": "Private economics and finance university with a Faculty of English and fully English-taught degree programmes.",
+   "aliases": [
+    "UEF",
+    "University of Economics and Finance",
+    "Trường Đại học Kinh tế - Tài chính TP.HCM"
+   ],
+   "sourceUrls": [
+    "https://www.uef.edu.vn/conference",
+    "https://tuoitre.vn/giaoduc/uef-tuyen-sinh-chuong-trinh-dao-tao-dai-hoc-hoan-toan-bang-tieng-anh-nam-2025-108900079.htm"
+   ]
+  },
+  {
+   "slug": "ho-chi-minh-city-university-of-foreign-languages-and-information-technology",
+   "name": "Ho Chi Minh City University of Foreign Languages and Information Technology",
+   "kind": "university",
+   "website": "https://huflit.edu.vn/",
+   "districts": [
+    "District 10",
+    "Tan Binh",
+    "Hoc Mon"
+   ],
+   "curricula": [],
+   "summary": "Private university of foreign languages and IT; its English programme's specialised courses are taught in English by native-speaking instructors.",
+   "aliases": [
+    "HUFLIT",
+    "Trường Đại học Ngoại ngữ - Tin học TP.HCM"
+   ],
+   "sourceUrls": [
+    "https://huflit.edu.vn/en/tin-tuc/co-so-truong-huflit-en/",
+    "https://huflit.edu.vn/en/tin-tuc/ngon-ngu-anh-tai-huflit-nganh-hoc-go-cua-nhieu-co-hoi-nghe-nghiep-3-en/"
+   ]
+  },
+  {
+   "slug": "ho-chi-minh-city-university-of-technology-vnu-hcm",
+   "name": "Ho Chi Minh City University of Technology – VNU-HCM",
+   "kind": "university",
+   "website": "https://hcmut.edu.vn/",
+   "districts": [
+    "District 10"
+   ],
+   "curricula": [],
+   "summary": "Public engineering university of VNU-HCM that recruits foreign lecturers for English and its English-taught international programmes.",
+   "aliases": [
+    "HCMUT",
+    "Bach Khoa University",
+    "Trường Đại học Bách khoa – ĐHQG-HCM",
+    "OISP"
+   ],
+   "sourceUrls": [
+    "https://vietnamteachingjobs.com/jobs/view/english-language-lecturer/",
+    "https://en.wikipedia.org/wiki/Ho_Chi_Minh_City_University_of_Technology"
+   ]
+  },
+  {
+   "slug": "hoa-sen-university",
+   "name": "Hoa Sen University",
+   "kind": "university",
+   "website": "https://www.hoasen.edu.vn/",
+   "districts": [
+    "District 1",
+    "District 3",
+    "District 10",
+    "District 12"
+   ],
+   "curricula": [],
+   "summary": "Private university with a Faculty of Languages – International Cultures and the Hoa Sen English Zone centre.",
+   "aliases": [
+    "HSU",
+    "Đại học Hoa Sen",
+    "Trường Đại học Hoa Sen",
+    "Hoa Sen English Zone"
+   ],
+   "sourceUrls": [
+    "https://www.hoasen.edu.vn/lgtmqt/en/facilities-of-hoa-sen-university/",
+    "https://www.hoasen.edu.vn/en/hoa-sen-university-launches-english-center-hoa-sen-english-zone/",
+    "https://en.sggp.org.vn/universities-rolling-out-red-carpet-to-attract-top-professors-leading-experts-post115765.html"
+   ]
+  },
+  {
+   "slug": "hong-bang-international-university",
+   "name": "Hong Bang International University",
+   "kind": "university",
+   "website": "https://hiu.vn/",
+   "districts": [
+    "Binh Thanh"
+   ],
+   "curricula": [],
+   "summary": "Private university offering programmes in Vietnamese and English, including English-taught programmes.",
+   "aliases": [
+    "HIU",
+    "Trường Đại học Quốc tế Hồng Bàng"
+   ],
+   "sourceUrls": [
+    "https://hiu.vn/en/career/",
+    "https://hiu.vn/en/introduction-old/departments/faculty/faculty-of-social-sciences-and-humanities/programs-in-english/"
+   ]
+  },
+  {
+   "slug": "horizon-international-bilingual-school",
+   "name": "Horizon International Bilingual School",
+   "kind": "bilingual_school",
+   "website": "https://www.horizon.edu.vn/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "Cambridge",
+    "Cambridge IGCSE",
+    "OSSD"
+   ],
+   "summary": "Bilingual school combining the Vietnamese national and Cambridge programmes, with primary and secondary campuses in Thao Dien, District 2 (Thu Duc City).",
+   "aliases": [
+    "HIBS",
+    "Trường Song ngữ Quốc tế Horizon",
+    "Horizon International School"
+   ],
+   "sourceUrls": [
+    "https://www.horizon.edu.vn/eng/hcmc/academics/",
+    "https://www.horizon.edu.vn/eng/hcmp/home/",
+    "https://www.hibs.edu.vn/"
+   ]
+  },
+  {
+   "slug": "hutech-university",
+   "name": "HUTECH University",
+   "kind": "university",
+   "website": "https://www.hutech.edu.vn/",
+   "districts": [
+    "Binh Thanh"
+   ],
+   "curricula": [],
+   "summary": "Private technology university with a Faculty of English Language and English-taught international programmes.",
+   "aliases": [
+    "HUTECH",
+    "Ho Chi Minh City University of Technology (HUTECH)",
+    "Trường Đại học Công nghệ TP.HCM"
+   ],
+   "sourceUrls": [
+    "https://www.hutech.edu.vn/tienganhen",
+    "https://www.hutech.edu.vn/quocte/quoc-te-hutech/tuyen-sinh"
+   ]
+  },
+  {
+   "slug": "i-can-read-vietnam",
+   "name": "I Can Read Vietnam",
+   "kind": "language_centre",
+   "website": "https://icanread.edu.vn",
+   "districts": [
+    "District 5",
+    "District 7",
+    "District 10",
+    "Binh Thanh",
+    "Go Vap",
+    "Phu Nhuan",
+    "Tan Binh",
+    "Tan Phu",
+    "Binh Tan",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre chain for children and teens built on a phonics-based reading programme, with centres in Ho Chi Minh City and Hanoi.",
+   "aliases": [
+    "I Can Read",
+    "Hệ thống Anh ngữ Quốc tế I Can Read",
+    "Công ty TNHH Em Biết Đọc"
+   ],
+   "sourceUrls": [
+    "https://icanread.edu.vn/he-thong-trung-tam/",
+    "https://icanread.edu.vn/"
+   ]
+  },
+  {
+   "slug": "i-clc-inter-continental-language-center",
+   "name": "I-CLC Inter-Continental Language Center",
+   "kind": "language_centre",
+   "website": "https://i-clc.edu.vn/",
+   "districts": [
+    "District 10"
+   ],
+   "curricula": [],
+   "summary": "English centre for children aged 3–15, founded in 2007, that also places native English teachers in Ho Chi Minh City public schools.",
+   "aliases": [
+    "Inter-Continental Language Center (I-CLC)",
+    "I-CLC",
+    "ICLC",
+    "Inter-Continental Language Center",
+    "Trung tâm Ngoại ngữ Liên Lục Địa",
+    "Công ty TNHH TM&DV Tri Linh"
+   ],
+   "sourceUrls": [
+    "https://vietnamteachingjobs.com/jobs/company/2342/",
+    "https://i-clc.edu.vn/",
+    "https://teachinvietnam.vn/contact"
+   ]
+  },
+  {
+   "slug": "ielts-city",
+   "name": "IELTS CITY",
+   "kind": "language_centre",
+   "website": "https://ieltscity.vn",
+   "districts": [
+    "Binh Thanh"
+   ],
+   "curricula": [
+    "IELTS"
+   ],
+   "summary": "IELTS preparation centre with one location in Binh Thanh, Ho Chi Minh City.",
+   "aliases": [],
+   "sourceUrls": [
+    "https://ieltscity.vn/"
+   ]
+  },
+  {
+   "slug": "ies-education",
+   "name": "IES Education",
+   "kind": "agency",
+   "website": "https://iesc.edu.vn/",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [],
+   "summary": "Company that supplies foreign English teachers to schools, centres and businesses and runs its own English classes.",
+   "aliases": [
+    "Công ty TNHH Giải pháp Giáo dục IES",
+    "Trung tâm Anh ngữ IES Education"
+   ],
+   "sourceUrls": [
+    "https://iesc.edu.vn/blogs/tin-tong-hop/bang-gia-dich-vu-cung-cap-giao-vien-nuoc-ngoai-ies-education",
+    "https://giaoduc.edu.vn/ies-don-vi-chuyen-cung-cap-giao-vien-nuoc-ngoai-giao-vien-ban-ngu-cho-chuong-trinh-day-tieng-anh-tai-viet-nam/"
+   ]
+  },
+  {
+   "slug": "ies-international-english-school",
+   "name": "IES International English School",
+   "kind": "language_centre",
+   "website": "https://iesvietnam.edu.vn",
+   "districts": [
+    "District 5"
+   ],
+   "curricula": [],
+   "summary": "English centre founded in 1996 with courses for young learners, teens and adults, located in District 5, Ho Chi Minh City.",
+   "aliases": [
+    "Anh Ngữ Quốc Tế IES",
+    "Trường Anh Ngữ Quốc Tế - IES"
+   ],
+   "sourceUrls": [
+    "https://iesvietnam.edu.vn/",
+    "https://iesvietnam.edu.vn/gioi-thieu-ve-ies-1/"
+   ]
+  },
+  {
+   "slug": "ila-vietnam",
+   "name": "ILA Vietnam",
+   "kind": "language_centre",
+   "website": "https://ila.edu.vn",
+   "districts": [
+    "District 1",
+    "District 4",
+    "District 5",
+    "District 6",
+    "District 7",
+    "District 8",
+    "District 10",
+    "District 12",
+    "Binh Thanh",
+    "Go Vap",
+    "Phu Nhuan",
+    "Tan Binh",
+    "Tan Phu",
+    "Binh Tan",
+    "Thu Duc City (D2 & D9)",
+    "Binh Chanh",
+    "Hoc Mon",
+    "Nha Be"
+   ],
+   "curricula": [],
+   "summary": "English centre chain for kids, teens and adults with branches across Ho Chi Minh City and other Vietnamese cities.",
+   "aliases": [
+    "ILA",
+    "ILA Việt Nam",
+    "Trung tâm Anh ngữ ILA",
+    "Công ty TNHH ILA Việt Nam"
+   ],
+   "sourceUrls": [
+    "https://ila.edu.vn/trung-tam-dao-tao?city=48",
+    "https://vietnamteachingjobs.com/jobs/view/ila-is-hiring-part-time-esl-teachers-in-ho-chi-minh-city/",
+    "https://www.foody.vn/ho-chi-minh/trung-tam-anh-ngu-ila-cong-hoa"
+   ]
+  },
+  {
+   "slug": "ilearn-english",
+   "name": "ILearn English",
+   "kind": "language_centre",
+   "website": "https://www.ilearnenglish.vn",
+   "districts": [
+    "Go Vap"
+   ],
+   "curricula": [],
+   "summary": "English centre in Go Vap for children and teens aged 3-18, with programmes aligned to Cambridge young learners and secondary exams.",
+   "aliases": [
+    "Trung tâm Tiếng Anh ILearn English"
+   ],
+   "sourceUrls": [
+    "https://www.ilearnenglish.vn/",
+    "https://toplist.vn/top-list/trung-tam-tieng-anh-tot-nhat-tai-quan-go-vap-tp-ho-chi-minh-14423.htm"
+   ]
+  },
+  {
+   "slug": "ili-english-center",
+   "name": "ILI English Center",
+   "kind": "language_centre",
+   "website": "https://ili.edu.vn",
+   "districts": [
+    "District 10"
+   ],
+   "curricula": [],
+   "summary": "English centre founded in 2008 offering general and business English, IELTS and weekend kids' classes, in District 10, Ho Chi Minh City.",
+   "aliases": [
+    "ILI",
+    "Trung tâm Anh ngữ ILI",
+    "Ngoại ngữ ILI",
+    "Công ty TNHH Đầu tư và Phát triển Giáo dục ILI"
+   ],
+   "sourceUrls": [
+    "https://ili.edu.vn/",
+    "https://ili.edu.vn/vi/about-us"
+   ]
+  },
+  {
+   "slug": "ins-english",
+   "name": "INS English",
+   "kind": "language_centre",
+   "website": "https://insenglish.edu.vn",
+   "districts": [
+    "Cu Chi"
+   ],
+   "curricula": [],
+   "summary": "English centre chain for children, teens and adults with two centres in Cu Chi and others in the Vung Tau, Dong Nai and Tay Ninh areas.",
+   "aliases": [
+    "Trung tâm Ngoại ngữ INS",
+    "Hệ thống Trung tâm Ngoại ngữ INS English"
+   ],
+   "sourceUrls": [
+    "https://insenglish.edu.vn/"
+   ]
+  },
+  {
+   "slug": "international-german-school-ho-chi-minh-city",
+   "name": "International German School Ho Chi Minh City",
+   "kind": "international_school",
+   "website": "https://igs-hcmc.org/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "German",
+    "IB"
+   ],
+   "summary": "German school abroad from kindergarten to Grade 12, teaching in German and English, with the German-English (GIB) IB Diploma; campus in An Phu, District 2.",
+   "aliases": [
+    "IGS HCMC",
+    "International German School HCMC",
+    "German International School Ho Chi Minh City",
+    "Deutsche Schule Ho Chi Minh Stadt",
+    "Trường Quốc tế Đức Thành phố Hồ Chí Minh"
+   ],
+   "sourceUrls": [
+    "https://igs-hcmc.org/",
+    "https://igs-hcmc.org/academic-excellence",
+    "https://en.wikipedia.org/wiki/International_German_School_Ho_Chi_Minh_City"
+   ]
+  },
+  {
+   "slug": "international-montessori-academy",
+   "name": "International Montessori Academy",
+   "kind": "international_school",
+   "website": "https://imacademy.edu.vn/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "Montessori"
+   ],
+   "summary": "Montessori preschool for ages 18 months–5.5 in Thao Dien, District 2, offering international and bilingual programmes; opened 2018.",
+   "aliases": [
+    "IMA Montessori Academy",
+    "Trường Mầm non IMA Montessori"
+   ],
+   "sourceUrls": [
+    "https://imacademy.edu.vn/contact-us/",
+    "https://imacademy.edu.vn/message-from-founder/",
+    "https://imacademy.edu.vn/"
+   ]
+  },
+  {
+   "slug": "international-school-ho-chi-minh-city",
+   "name": "International School Ho Chi Minh City",
+   "kind": "international_school",
+   "website": "https://www.ishcmc.com/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "IB"
+   ],
+   "summary": "IB World School for ages 2–18 (PYP, MYP, Diploma) with primary and secondary campuses in Thao Dien and An Phu, District 2 (Thu Duc City).",
+   "aliases": [
+    "ISHCMC",
+    "Trường Quốc Tế Thành Phố Hồ Chí Minh",
+    "Trường Quốc tế TP.HCM (ISHCMC)"
+   ],
+   "sourceUrls": [
+    "https://www.ishcmc.com/",
+    "https://en.wikipedia.org/wiki/International_School_Ho_Chi_Minh_City"
+   ]
+  },
+  {
+   "slug": "international-school-ho-chi-minh-city-american-academy",
+   "name": "International School Ho Chi Minh City – American Academy",
+   "kind": "international_school",
+   "website": "https://www.aavn.edu.vn/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "American",
+    "AP"
+   ],
+   "summary": "American-curriculum middle and high school for ages 11–18 (Grades 6–12) offering Advanced Placement courses, in An Phu, District 2 (Thu Duc City).",
+   "aliases": [
+    "ISHCMC-AA",
+    "ISHCMC – American Academy",
+    "ISHCMC-AAVN",
+    "Trường Quốc Tế Học Viện Mỹ",
+    "Trường Quốc tế TP. Hồ Chí Minh – Học viện Mỹ"
+   ],
+   "sourceUrls": [
+    "https://www.aavn.edu.vn/our-location/",
+    "https://www.cognita.com/school/international-school-ho-chi-minh-city-american-academy/"
+   ]
+  },
+  {
+   "slug": "international-schools-of-north-america-saigon-south-campus",
+   "name": "International Schools of North America – Saigon South Campus",
+   "kind": "international_school",
+   "website": "https://sna.edu.vn/",
+   "districts": [
+    "Binh Chanh"
+   ],
+   "curricula": [
+    "IB"
+   ],
+   "summary": "IB school for Grades 1–12 in Binh Chanh (Saigon South) offering the PYP, MYP and Diploma Programme, with a boarding option.",
+   "aliases": [
+    "SNA",
+    "SNA Saigon South",
+    "SNA Saigon South Campus",
+    "SNA Nam Sài Gòn",
+    "International Schools of North America",
+    "International School of North America",
+    "Trường Quốc tế Bắc Mỹ"
+   ],
+   "sourceUrls": [
+    "https://sna.edu.vn/welcome-to-sna-sai-gon-south-campus/",
+    "https://sna.edu.vn/faq-sna/",
+    "https://sna.edu.vn/"
+   ]
+  },
+  {
+   "slug": "international-university-vietnam-national-university-ho-chi-minh-city",
+   "name": "International University – Vietnam National University Ho Chi Minh City",
+   "kind": "university",
+   "website": "https://hcmiu.edu.vn/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "Public member university of VNU-HCM where most courses are taught in English.",
+   "aliases": [
+    "HCMIU",
+    "VNU-HCM International University",
+    "Trường Đại học Quốc tế – ĐHQG-HCM"
+   ],
+   "sourceUrls": [
+    "https://en.wikipedia.org/wiki/Ho_Chi_Minh_City_International_University",
+    "https://sites.google.com/hcmiu.edu.vn/recruitment"
+   ]
+  },
+  {
+   "slug": "ise-i-study-english",
+   "name": "ISE – I Study English",
+   "kind": "language_centre",
+   "website": "https://ise.edu.vn",
+   "districts": [
+    "District 3",
+    "District 7",
+    "Binh Thanh"
+   ],
+   "curricula": [],
+   "summary": "English centre for adults offering communication, business English and IELTS courses, with three branches in Ho Chi Minh City.",
+   "aliases": [
+    "I Study English",
+    "Trung tâm Anh ngữ ISE",
+    "Công ty Cổ phần Tư vấn và Đào tạo Quốc tế ISE"
+   ],
+   "sourceUrls": [
+    "https://ise.edu.vn/",
+    "https://ise.edu.vn/gioi-thieu/"
+   ]
+  },
+  {
+   "slug": "jaxtina-english-center",
+   "name": "Jaxtina English Center",
+   "kind": "language_centre",
+   "website": "https://jaxtina.com",
+   "districts": [
+    "District 5",
+    "District 7",
+    "District 10",
+    "Go Vap",
+    "Phu Nhuan",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre system teaching general English, IELTS and TOEIC, with branches in Hanoi and Ho Chi Minh City.",
+   "aliases": [
+    "Jaxtina",
+    "Jaxtina English",
+    "Anh ngữ Jaxtina",
+    "Hệ thống Anh ngữ Jaxtina",
+    "Jaxtina Group",
+    "Công ty Cổ phần Giáo dục Jaxtina"
+   ],
+   "sourceUrls": [
+    "https://jaxtina.com/lien-he/",
+    "https://jaxtinagroup.com.vn/hn-hcm-part-time-native-english-teacher/"
+   ]
+  },
+  {
+   "slug": "jolo-english",
+   "name": "JOLO English",
+   "kind": "language_centre",
+   "website": "https://jolo.edu.vn",
+   "districts": [
+    "Binh Thanh",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre of the GLN International Education group for kids and adults, with branches in Hanoi and Ho Chi Minh City.",
+   "aliases": [
+    "JOLO",
+    "Trung tâm Anh ngữ JOLO",
+    "Trung Tâm Tiếng Anh JOLO",
+    "Công ty TNHH Dịch vụ và Phát triển Giáo dục Toàn Cầu JOLO",
+    "JOLO English Center"
+   ],
+   "sourceUrls": [
+    "https://jolo.edu.vn/vi/gioi-thieu/gioi-thieu-trung-tam-tieng-anh-jolo.html"
+   ]
+  },
+  {
+   "slug": "kapla-creative-american-english",
+   "name": "KAPLA - Creative American English",
+   "kind": "language_centre",
+   "website": "https://kapla.edu.vn",
+   "districts": [
+    "District 12",
+    "Go Vap",
+    "Tan Binh",
+    "Tan Phu",
+    "Binh Tan",
+    "Thu Duc City (D2 & D9)",
+    "Binh Chanh"
+   ],
+   "curricula": [],
+   "summary": "English centre chain for children combining English with STEAM, robotics and arts, with centres across Ho Chi Minh City.",
+   "aliases": [
+    "KAPLA",
+    "Kapla Tiếng Anh Sáng Tạo Mỹ",
+    "Trung tâm Anh ngữ KAPLA",
+    "KAPLA Vietnam"
+   ],
+   "sourceUrls": [
+    "https://kapla.edu.vn/"
+   ]
+  },
+  {
+   "slug": "kids-club-saigon",
+   "name": "Kids Club Saigon",
+   "kind": "international_school",
+   "website": "https://www.kidsclubsaigon.com/",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [
+    "American",
+    "Reggio Emilia",
+    "Montessori"
+   ],
+   "summary": "American-owned English-language preschool and kindergarten for ages 18 months–6 with two campuses in Phu My Hung, District 7.",
+   "aliases": [],
+   "sourceUrls": [
+    "https://www.kidsclubsaigon.com/",
+    "https://www.kidsclubsaigon.com/about-us",
+    "https://www.kidsclubsaigon.com/programs-and-schedules"
+   ]
+  },
+  {
+   "slug": "kidzone-bilingual-preschool",
+   "name": "Kidzone Bilingual Preschool",
+   "kind": "bilingual_school",
+   "website": "https://kidzone.edu.vn/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "HighScope"
+   ],
+   "summary": "Preschool using the US HighScope approach, with campuses in Thao Dien, Binh Trung and Vinhomes Grand Park offering bilingual and English-only tracks.",
+   "aliases": [
+    "Kidzone",
+    "Kidzone International Campus",
+    "Trường mầm non Kidzone"
+   ],
+   "sourceUrls": [
+    "https://kidzone.edu.vn/",
+    "https://www.latelier-anphu.com/en/international-school-in-d2-hcmc/"
+   ]
+  },
+  {
+   "slug": "kinder-academy-preschool",
+   "name": "Kinder Academy Preschool",
+   "kind": "international_school",
+   "website": "https://kinderacademy.edu.vn/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "Cambridge",
+    "Reggio Emilia",
+    "Vietnamese national"
+   ],
+   "summary": "Preschool for ages 12 months–6 in Thao Dien, District 2, with a full-English programme and an English–Vietnamese bilingual programme.",
+   "aliases": [
+    "Kinder Academy",
+    "Kinder Academy International Preschool",
+    "Mầm non Kinder Academy"
+   ],
+   "sourceUrls": [
+    "https://kinderacademy.edu.vn/",
+    "https://kinderacademy.edu.vn/contact/",
+    "https://kinderacademy.edu.vn/bilingual-programme/"
+   ]
+  },
+  {
+   "slug": "kinderland-international-preschool-vietnam",
+   "name": "Kinderland International Preschool Vietnam",
+   "kind": "bilingual_school",
+   "website": "https://kinderlandvietnam.com/",
+   "districts": [
+    "Thu Duc City (D2 & D9)",
+    "District 1",
+    "District 10"
+   ],
+   "curricula": [
+    "Singaporean"
+   ],
+   "summary": "Singapore-brand bilingual preschool for ages 12 months–6 years with centres in District 1, District 2 (Thu Duc City) and District 10.",
+   "aliases": [
+    "Kinderland Vietnam",
+    "Kinderland International Preschool"
+   ],
+   "sourceUrls": [
+    "https://kinderlandvietnam.com/centres-information/",
+    "https://kinderlandvietnam.com/our-curriculum/",
+    "https://kinderlandvietnam.com/kinderland-vista-verde/"
+   ]
+  },
+  {
+   "slug": "korean-international-school-hcmc",
+   "name": "Korean International School HCMC",
+   "kind": "international_school",
+   "website": "http://kshcm.net/",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [
+    "Korean"
+   ],
+   "summary": "Korean international school in District 7 for kindergarten through high school, taught in Korean.",
+   "aliases": [
+    "Korean International School Ho Chi Minh City",
+    "호치민시한국국제학교"
+   ],
+   "sourceUrls": [
+    "http://kshcm.net/",
+    "https://en.wikipedia.org/wiki/Korean_International_School,_HCMC",
+    "https://kenhtuyensinh.vn/danh-sach-truong-quoc-te-tai-tphcm"
+   ]
+  },
+  {
+   "slug": "ktdc-ielts",
+   "name": "KTDC IELTS",
+   "kind": "language_centre",
+   "website": "https://ktdcgroup.com/",
+   "districts": [
+    "District 1"
+   ],
+   "curricula": [
+    "IELTS"
+   ],
+   "summary": "IELTS preparation centre in District 1, Ho Chi Minh City.",
+   "aliases": [
+    "KTDC",
+    "KTDC Group",
+    "Trung tâm KTDC IELTS"
+   ],
+   "sourceUrls": [
+    "https://kiddihub.com/chi-tiet/trung-tam-ktdc-ielts-da-kao",
+    "https://ktdcgroup.com/"
+   ]
+  },
+  {
+   "slug": "latelier-an-phu",
+   "name": "L'Atelier An Phu",
+   "kind": "language_centre",
+   "website": "https://www.latelier-anphu.com",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "Language school in Thao Dien founded in 2010, teaching French, English and Vietnamese in small groups and private classes.",
+   "aliases": [
+    "Atelier An Phu"
+   ],
+   "sourceUrls": [
+    "https://www.latelier-anphu.com/en/english-lessons-saigon/"
+   ]
+  },
+  {
+   "slug": "la-petite-ecole-ho-chi-minh",
+   "name": "La Petite Ecole Ho Chi Minh",
+   "kind": "international_school",
+   "website": "https://www.lpehochiminh.com/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "French"
+   ],
+   "summary": "French international school (AEFE network) teaching in French and English for ages 1–11 in Thao Dien, District 2.",
+   "aliases": [
+    "LPE Ho Chi Minh"
+   ],
+   "sourceUrls": [
+    "https://www.lpehochiminh.com/en/",
+    "https://www.lpehochiminh.com/en/about/our-story/"
+   ]
+  },
+  {
+   "slug": "lda-language-development-academy",
+   "name": "LDA (Language Development Academy)",
+   "kind": "language_centre",
+   "website": "https://lda.edu.vn",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre for children and adults in Vinhomes Grand Park, Thu Duc City, that also advises on English study in the Philippines.",
+   "aliases": [
+    "LDA",
+    "Language Development Academy",
+    "LDA Dạy Kèm Song Ngữ"
+   ],
+   "sourceUrls": [
+    "https://lda.edu.vn/",
+    "https://ldaedu.kiddihub.com/"
+   ]
+  },
+  {
+   "slug": "lead-english",
+   "name": "LEAD English",
+   "kind": "language_centre",
+   "website": "https://leadenglish.vn",
+   "districts": [
+    "Binh Thanh",
+    "Go Vap",
+    "Binh Tan",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre chain for learners aged 3–16, with IELTS and business English courses, with branches in Ho Chi Minh City.",
+   "aliases": [
+    "LEAD English Vietnam",
+    "Hệ thống Trung tâm Anh ngữ LEAD English",
+    "Công ty TNHH Giáo dục Toàn cầu LEAD"
+   ],
+   "sourceUrls": [
+    "https://leadenglish.vn/",
+    "https://vietnamteachingjobs.com/jobs/company/2882"
+   ]
+  },
+  {
+   "slug": "lets-learn-english-centre",
+   "name": "Let's Learn English Centre",
+   "kind": "agency",
+   "website": "https://anhngu.ledc.edu.vn/",
+   "districts": [
+    "Tan Binh"
+   ],
+   "curricula": [],
+   "summary": "English centre company that recruits and supplies native and Vietnamese English teachers to schools, including HCMC public schools.",
+   "aliases": [
+    "Let's Learn",
+    "Anh ngữ Let's Learn",
+    "Trung tâm Anh ngữ Let's Learn",
+    "Công ty TNHH Trung tâm Anh ngữ Lets Learn",
+    "Công ty TNHH MTV Phát triển Giáo dục Ngôn ngữ",
+    "LEDC"
+   ],
+   "sourceUrls": [
+    "https://giaoduc.net.vn/anh-ngu-lets-learn-va-nhung-goi-thau-day-ngoai-ngu-voi-nguoi-nuoc-ngoai-o-truong-cong-tai-tphcm-post258133.gd",
+    "https://anhngu.ledc.edu.vn/vi/"
+   ]
+  },
+  {
+   "slug": "little-ems-preschool",
+   "name": "Little Em's Preschool",
+   "kind": "bilingual_school",
+   "website": "https://littleems.edu.vn/",
+   "districts": [
+    "District 3"
+   ],
+   "curricula": [
+    "Reggio Emilia",
+    "IB"
+   ],
+   "summary": "Reggio Emilia-inspired preschool for ages 18 months–6 in District 3 running the IB PYP; the early-years school of the Viet Nam Tinh Hoa system.",
+   "aliases": [
+    "Little Em's",
+    "Little Em's Pre-school",
+    "Trường Mầm non Thế giới Mặt trời",
+    "Trường Mầm non Thế giới Mặt trời – Little Em's"
+   ],
+   "sourceUrls": [
+    "https://littleems.edu.vn/en/",
+    "https://littleems.edu.vn/en/little-ems-preschool-a-magical-learning-haven-with-a-global-education/",
+    "https://ibo.org/school/062571/"
+   ]
+  },
+  {
+   "slug": "little-genius-international-kindergarten",
+   "name": "Little Genius International Kindergarten",
+   "kind": "international_school",
+   "website": "https://lgkids.vn/",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [
+    "EYFS"
+   ],
+   "summary": "Kindergarten in Phu My Hung, District 7, for children from 18 months to 6 years, following the British EYFS framework.",
+   "aliases": [
+    "Little Genius International Kindergarten & Educational Center"
+   ],
+   "sourceUrls": [
+    "https://lgkids.vn/academic/",
+    "https://lgkids.vn/",
+    "https://www.edarabia.com/little-genius-international-kindergarten-educational-center-hcmc-vietnam/"
+   ]
+  },
+  {
+   "slug": "lycee-francais-international-marguerite-duras",
+   "name": "Lycée Français International Marguerite Duras",
+   "kind": "international_school",
+   "website": "https://lfiduras.com/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "French",
+    "French International Baccalaureate"
+   ],
+   "summary": "AEFE-accredited French school from maternelle to terminale, with a British international section, in Long Binh, District 9 (Thu Duc City).",
+   "aliases": [
+    "LFIMD",
+    "LFI Duras",
+    "Lycée Français International Marguerite Duras de Ho Chi Minh Ville"
+   ],
+   "sourceUrls": [
+    "https://lfiduras.com/",
+    "https://en.wikipedia.org/wiki/Lyc%C3%A9e_Fran%C3%A7ais_International_Marguerite_Duras"
+   ]
+  },
+  {
+   "slug": "major-academy",
+   "name": "Major Academy",
+   "kind": "agency",
+   "website": "https://majoracademy.edu.vn/",
+   "districts": [
+    "Tan Binh"
+   ],
+   "curricula": [],
+   "summary": "Education company whose Major English Center runs English programmes with native teachers in public and private schools in Ho Chi Minh City.",
+   "aliases": [
+    "Công ty Cổ phần Major Academy",
+    "Trung tâm Anh ngữ Major"
+   ],
+   "sourceUrls": [
+    "https://giaoduc.net.vn/tphcm-truong-hoc-lien-ket-day-tieng-anh-voi-major-academy-cong-khai-thu-chi-ra-sao-post254725.gd",
+    "https://majoracademy.edu.vn/"
+   ]
+  },
+  {
+   "slug": "maple-bear-vietnam",
+   "name": "Maple Bear Vietnam",
+   "kind": "bilingual_school",
+   "website": "https://maplebearvietnam.edu.vn/",
+   "districts": [
+    "Tan Phu",
+    "Binh Tan"
+   ],
+   "curricula": [
+    "Canadian",
+    "Vietnamese national"
+   ],
+   "summary": "Canadian-curriculum bilingual preschool franchise with HCMC campuses in Celadon City (Tan Phu) and Binh Tan.",
+   "aliases": [
+    "Maple Bear Celadon",
+    "Maple Bear Tên Lửa",
+    "Trường Mầm non Quốc tế Canada Maple Bear"
+   ],
+   "sourceUrls": [
+    "https://maplebearvietnam.edu.vn/ve-chung-toi/",
+    "https://maplebearvietnam.edu.vn/contact-2/",
+    "https://maplebearvietnam.edu.vn/goc-chia-se/khong-khi-soi-noi-cua-su-kien-dao-tao-va-ket-noi-noi-bo/"
+   ]
+  },
+  {
+   "slug": "master-kids",
+   "name": "Master Kids",
+   "kind": "language_centre",
+   "website": "https://anhngusieunhi.edu.vn",
+   "districts": [
+    "District 6"
+   ],
+   "curricula": [],
+   "summary": "English centre for children and teens with two branches in District 6, Ho Chi Minh City, preparing learners for Cambridge young learners exams.",
+   "aliases": [
+    "Ngoại ngữ Siêu Nhí",
+    "Trung tâm Ngoại ngữ Siêu Nhí",
+    "Anh ngữ Master Kids"
+   ],
+   "sourceUrls": [
+    "https://anhngusieunhi.edu.vn/"
+   ]
+  },
+  {
+   "slug": "newsky",
+   "name": "NewSky",
+   "kind": "language_centre",
+   "website": "https://newsky.edu.vn",
+   "districts": [
+    "District 11",
+    "District 12",
+    "Go Vap",
+    "Phu Nhuan",
+    "Tan Binh",
+    "Tan Phu",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "Foreign-language centre teaching English, Chinese, Korean and Japanese, with branches across Ho Chi Minh City.",
+   "aliases": [
+    "Trung tâm Ngoại ngữ NewSky",
+    "Ngoại ngữ NewSky",
+    "NewSky Language Center"
+   ],
+   "sourceUrls": [
+    "https://newsky.edu.vn/lien-he/",
+    "https://newsky.edu.vn/"
+   ]
+  },
+  {
+   "slug": "nguyen-tat-thanh-university",
+   "name": "Nguyen Tat Thanh University",
+   "kind": "university",
+   "website": "https://ntt.edu.vn/",
+   "districts": [
+    "District 4",
+    "District 7",
+    "District 12",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "Private multidisciplinary university with a Faculty of Foreign Languages; foreign lecturers take part in its teaching.",
+   "aliases": [
+    "NTTU",
+    "Trường Đại học Nguyễn Tất Thành"
+   ],
+   "sourceUrls": [
+    "https://fast.ntt.edu.vn/contact/?lang=en",
+    "https://en.sggp.org.vn/universities-rolling-out-red-carpet-to-attract-top-professors-leading-experts-post115765.html"
+   ]
+  },
+  {
+   "slug": "ocean-edu",
+   "name": "Ocean Edu",
+   "kind": "language_centre",
+   "website": "https://ocean.edu.vn",
+   "districts": [
+    "Binh Thanh",
+    "Go Vap",
+    "Tan Phu",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre chain for kids, teens and adults with branches nationwide, including four in Ho Chi Minh City.",
+   "aliases": [
+    "Ocean Edu Vietnam",
+    "Anh ngữ Ocean Edu",
+    "Hệ thống Anh ngữ Quốc tế Ocean Edu",
+    "Công ty Cổ phần Giáo dục Đại Dương"
+   ],
+   "sourceUrls": [
+    "https://ocean.edu.vn/"
+   ]
+  },
+  {
+   "slug": "ola-academy",
+   "name": "OLA Academy",
+   "kind": "language_centre",
+   "website": "https://www.ola-academy.edu.vn",
+   "districts": [
+    "District 12",
+    "Thu Duc City (D2 & D9)",
+    "Nha Be"
+   ],
+   "curricula": [],
+   "summary": "English academy linked to ILA, with centres in District 12, Thu Duc City and Nha Be, Ho Chi Minh City, and in Vinh Long, Long Khanh and My Tho.",
+   "aliases": [
+    "OLA English Language Academy"
+   ],
+   "sourceUrls": [
+    "https://www.ola-academy.edu.vn/",
+    "https://tienphong.vn/ola-academy-chao-don-trung-tam-moi-tai-vinhomes-grand-park-tp-thu-duc-post1518630.tpo"
+   ]
+  },
+  {
+   "slug": "optimus-education",
+   "name": "Optimus Education",
+   "kind": "agency",
+   "website": "https://optimus.edu.vn/",
+   "districts": [
+    "Tan Binh"
+   ],
+   "curricula": [],
+   "summary": "Training company that supplies native, European and Philippine English teachers to schools, centres and businesses.",
+   "aliases": [
+    "Optimus Education Solution Co., Ltd",
+    "Công ty TNHH Giải pháp đào tạo Optimus"
+   ],
+   "sourceUrls": [
+    "https://optimus.edu.vn/cung-cap-giao-vien-nuoc-ngoai/",
+    "https://thuvienphapluat.vn/ma-so-thue/cong-ty-tnhh-giai-phap-dao-tao-optimus-mst-0316717932.html"
+   ]
+  },
+  {
+   "slug": "outeref",
+   "name": "OUTEREF",
+   "kind": "language_centre",
+   "website": "https://outeref.edu.vn",
+   "districts": [
+    "District 1",
+    "District 3",
+    "District 4",
+    "District 6",
+    "District 7",
+    "District 8",
+    "District 10",
+    "District 11",
+    "Binh Thanh",
+    "Go Vap",
+    "Phu Nhuan",
+    "Tan Binh",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre chain for kids, teens and adults, known as Ngoại Ngữ Không Gian until 2022, with branches across Ho Chi Minh City.",
+   "aliases": [
+    "Tiếng Mỹ Phản Xạ Không Gian",
+    "OUTEREF – Tiếng Mỹ Phản Xạ Không Gian",
+    "Ngoại Ngữ Không Gian"
+   ],
+   "sourceUrls": [
+    "https://outeref.edu.vn/ve-outeref/",
+    "https://outeref.edu.vn/tuyen-dung/"
+   ]
+  },
+  {
+   "slug": "pennsylvania-american-international-school",
+   "name": "Pennsylvania American International School",
+   "kind": "bilingual_school",
+   "website": "https://pennschool.edu.vn/en/",
+   "districts": [
+    "District 10",
+    "District 5"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "American"
+   ],
+   "summary": "Bilingual school with campuses in District 10 and District 5 combining the Vietnamese national programme with an American curriculum.",
+   "aliases": [
+    "PennSchool",
+    "The Pennsylvania American International School",
+    "Pennsylvania American International School System",
+    "Pennsylvania American School System",
+    "Hệ thống trường PennSchool"
+   ],
+   "sourceUrls": [
+    "https://pennschool.edu.vn/en/virtual-tour-ver-2/",
+    "https://pennschool.edu.vn/en/about-us/letter-from-school-board/",
+    "https://pennschool.edu.vn/en/admission/faqs/"
+   ]
+  },
+  {
+   "slug": "pmp-english",
+   "name": "PMP English",
+   "kind": "language_centre",
+   "website": "https://pmpenglish.edu.vn",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "TOEIC",
+    "IELTS"
+   ],
+   "summary": "English centre in Thu Duc City offering TOEIC and IELTS preparation, general English and a kids' programme (PMP Kids).",
+   "aliases": [
+    "PMP Kids",
+    "Công ty TNHH Đào tạo PMP",
+    "PMP Training Company Ltd"
+   ],
+   "sourceUrls": [
+    "https://pmpenglish.edu.vn/",
+    "https://pmpenglish.edu.vn/khoa_hoc/anh-van-thieu-nhi/"
+   ]
+  },
+  {
+   "slug": "poly-english-vietnam",
+   "name": "POLY English Vietnam",
+   "kind": "language_centre",
+   "website": "https://www.polyvietnam.edu.vn",
+   "districts": [
+    "District 7",
+    "Go Vap",
+    "Tan Phu",
+    "Binh Tan",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre chain for kindergarten, primary and teen learners using a Korea Poly School curriculum, with branches in Ho Chi Minh City and Hanoi.",
+   "aliases": [
+    "POLY English",
+    "Trung tâm Anh ngữ POLY",
+    "Công ty TNHH Dịch vụ Giáo dục POLY",
+    "POLY Educational Service Co., Ltd"
+   ],
+   "sourceUrls": [
+    "https://www.polyvietnam.edu.vn/",
+    "https://www.polyvietnam.edu.vn/guest/nac/aboutPoly.kps"
+   ]
+  },
+  {
+   "slug": "power-english",
+   "name": "Power English",
+   "kind": "agency",
+   "website": "https://powerenglish.edu.vn/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English training company that recruits native-level English teachers for its courses in Ho Chi Minh City public schools and companies.",
+   "aliases": [],
+   "sourceUrls": [
+    "https://recruitment.powerenglish.edu.vn/",
+    "https://powerenglish.edu.vn/",
+    "https://www.linkedin.com/company/powerenglish"
+   ]
+  },
+  {
+   "slug": "princeton-academy-premier",
+   "name": "Princeton Academy Premier",
+   "kind": "international_school",
+   "website": "https://www.princetonphumyhung.edu.vn/",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [
+    "American"
+   ],
+   "summary": "Kindergarten with two Phu My Hung campuses in District 7; English is 80–100% of class time in its US-based Early Critical Thinker programme.",
+   "aliases": [
+    "Princeton Academy Premier Phu My Hung"
+   ],
+   "sourceUrls": [
+    "https://www.princetonphumyhung.edu.vn/en",
+    "https://www.princetonphumyhung.edu.vn/en/chuong-trinh-hoc-mam-non"
+   ]
+  },
+  {
+   "slug": "readingstar-english-center",
+   "name": "ReadingStar English Center",
+   "kind": "language_centre",
+   "website": "https://readingstar.vn",
+   "districts": [
+    "District 7",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "Korean-origin English centre for children with a reading-based curriculum and campuses in Phu My Hung (District 7) and An Phu (Thu Duc City).",
+   "aliases": [
+    "ReadingStar",
+    "ReadingStar Vietnam",
+    "ReadingStar English Institute",
+    "ReadingStar Institute",
+    "Trung tâm ReadingStar",
+    "Trung tâm Anh ngữ ReadingStar"
+   ],
+   "sourceUrls": [
+    "https://readingstar.vn/about-us/readingstar-campuses/",
+    "https://readingstar.vn/about-us/teachers/",
+    "https://readingstar.vn/about-us/vision-mission/"
+   ]
+  },
+  {
+   "slug": "renaissance-international-school-saigon",
+   "name": "Renaissance International School Saigon",
+   "kind": "international_school",
+   "website": "https://renaissance.edu.vn/",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [
+    "IB",
+    "Cambridge IGCSE"
+   ],
+   "summary": "International school for ages 2–18 offering IB PYP, MYP and Diploma alongside Cambridge IGCSE, on Nguyen Thi Thap, District 7.",
+   "aliases": [
+    "RISS",
+    "Renaissance International School",
+    "Trường Quốc tế Renaissance"
+   ],
+   "sourceUrls": [
+    "https://renaissance.edu.vn/curriculum/",
+    "https://en.wikipedia.org/wiki/Renaissance_International_School_Saigon"
+   ]
+  },
+  {
+   "slug": "res-english",
+   "name": "RES English",
+   "kind": "language_centre",
+   "website": "https://res.edu.vn",
+   "districts": [
+    "District 3",
+    "District 5",
+    "District 6",
+    "District 7",
+    "District 12",
+    "Binh Thanh",
+    "Go Vap",
+    "Tan Binh",
+    "Tan Phu",
+    "Binh Tan",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "IELTS"
+   ],
+   "summary": "English centre chain focused on IELTS preparation and kids' and teens' English, with branches in Ho Chi Minh City, Hanoi and other provinces.",
+   "aliases": [
+    "Trung tâm Anh ngữ RES",
+    "Hệ thống Anh ngữ RES",
+    "Anh ngữ RES"
+   ],
+   "sourceUrls": [
+    "https://res.edu.vn/",
+    "https://res.edu.vn/gioi-thieu/"
+   ]
+  },
+  {
+   "slug": "rmit-university-vietnam",
+   "name": "RMIT University Vietnam",
+   "kind": "university",
+   "website": "https://www.rmit.edu.vn/",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [],
+   "summary": "Vietnam branch of Australia's RMIT University; its Saigon South campus hosts degree programmes and an English language school.",
+   "aliases": [
+    "RMIT Vietnam",
+    "RMIT",
+    "RMIT University Vietnam LLC",
+    "RMIT International University Vietnam",
+    "Đại học RMIT Việt Nam"
+   ],
+   "sourceUrls": [
+    "https://www.rmit.edu.vn/about-us/schools-and-centres/school-english-university-pathways/contact",
+    "https://www.rmit.edu.vn/about-us/schools-and-centres/school-english-university-pathways/about"
+   ]
+  },
+  {
+   "slug": "royal-english-school",
+   "name": "Royal English School",
+   "kind": "language_centre",
+   "website": "https://royalschool.edu.vn",
+   "districts": [
+    "District 1",
+    "Go Vap",
+    "Tan Phu",
+    "Binh Tan"
+   ],
+   "curricula": [],
+   "summary": "English centre (Anh Ngữ Hoàng Gia) for children, teens and adults with seven branches in Tan Phu, Binh Tan, Go Vap and District 1.",
+   "aliases": [
+    "Anh Ngữ Hoàng Gia",
+    "Trung tâm Anh ngữ Hoàng Gia",
+    "Royal English Center",
+    "Royal Professional English School",
+    "Trường Anh ngữ chuyên nghiệp Hoàng Gia"
+   ],
+   "sourceUrls": [
+    "https://royalschool.edu.vn/",
+    "https://royalschool.edu.vn/gioi-thieu.html"
+   ]
+  },
+  {
+   "slug": "royal-school",
+   "name": "Royal School",
+   "kind": "bilingual_school",
+   "website": "https://royal.edu.vn/",
+   "districts": [
+    "District 7",
+    "Binh Tan",
+    "Tan Phu"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "Cambridge"
+   ],
+   "summary": "Bilingual school for kindergarten to grade 12 combining the Vietnamese national and Cambridge programmes, with campuses in District 7, Binh Tan and Tan Phu.",
+   "aliases": [
+    "Trường Song ngữ Quốc tế Hoàng Gia",
+    "Trường Song ngữ Quốc tế ROYAL SCHOOL",
+    "Royal Bilingual International School",
+    "Trường Song Ngữ Quốc Tế Hoàng Gia - Royal Bilingual International School (Royal School)"
+   ],
+   "sourceUrls": [
+    "https://royal.edu.vn/tong-quan/gioi-thieu",
+    "https://en.royal.edu.vn/campuses",
+    "https://www.sggp.org.vn/royal-school-ra-mat-co-so-moi-celadon-campus-them-lua-chon-ve-ngoi-truong-hanh-phuc-tai-phia-tay-thanh-pho-post806799.html"
+   ]
+  },
+  {
+   "slug": "saigon-aston-international-english-center",
+   "name": "Saigon Aston International English Center",
+   "kind": "language_centre",
+   "website": "https://aston.edu.vn",
+   "districts": [
+    "District 10",
+    "Tan Phu"
+   ],
+   "curricula": [],
+   "summary": "English centre founded in 2005 for children and teens aged 4–18, with two branches in Ho Chi Minh City and one in Can Tho.",
+   "aliases": [
+    "Aston Saigon",
+    "Saigon Aston",
+    "Trung tâm Ngoại Ngữ Aston",
+    "Trung tâm Ngoại Ngữ Quốc tế Sài Gòn",
+    "Trung tâm Ngoại Ngữ Quốc tế Saigon Aston",
+    "Foreign Language Limited Liability Company E.I.S"
+   ],
+   "sourceUrls": [
+    "https://aston.edu.vn/",
+    "https://aston.edu.vn/trai-nghiem-doc-truyen-cung-gv-ban-ngu-aston-tai-fahasa-2024/",
+    "https://vietnamteachingjobs.com/jobs/company/2592"
+   ]
+  },
+  {
+   "slug": "saigon-international-college",
+   "name": "Saigon International College",
+   "kind": "international_school",
+   "website": "https://sic.edu.vn/",
+   "districts": [
+    "Phu Nhuan"
+   ],
+   "curricula": [
+    "Australian",
+    "WACE"
+   ],
+   "summary": "Upper-secondary school in Phu Nhuan teaching the Western Australian Certificate of Education (WACE) programme in English.",
+   "aliases": [
+    "Trường THPT Quốc tế Việt-Úc"
+   ],
+   "sourceUrls": [
+    "https://sic.edu.vn/en",
+    "https://sic.edu.vn/en/admission"
+   ]
+  },
+  {
+   "slug": "saigon-international-university",
+   "name": "Saigon International University",
+   "kind": "university",
+   "website": "https://siu.edu.vn/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "Private university offering programmes taught in English or Vietnamese, with campuses in the Thao Dien area.",
+   "aliases": [
+    "SIU",
+    "The Saigon International University",
+    "Trường Đại học Quốc tế Sài Gòn",
+    "Trường Đại học Tư thục Quốc tế Sài Gòn"
+   ],
+   "sourceUrls": [
+    "https://siu.edu.vn/en/library/about/",
+    "https://en.wikipedia.org/wiki/Saigon_International_University",
+    "https://vietnamteachingjobs.com/jobs/view/-89/"
+   ]
+  },
+  {
+   "slug": "saigon-kids-early-learning-centre",
+   "name": "Saigon Kids Early Learning Centre",
+   "kind": "international_school",
+   "website": "",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "Reggio Emilia"
+   ],
+   "summary": "Early learning centre for ages 2–6 off Tran Nao Street in District 2 (Thu Duc City) that describes itself as Reggio Emilia-inspired.",
+   "aliases": [
+    "Saigon Kids"
+   ],
+   "sourceUrls": [
+    "https://www.tes.com/en-us/jobs/employer/saigon-kids-early-learning-centre-1076008",
+    "https://www.tes.com/jobs/vacancy/art-teacher-atelierista-ho-chi-minh-2334963",
+    "https://www.edarabia.com/saigon-kids-early-learning-centre-ho-chi-minh-city-vietnam/"
+   ]
+  },
+  {
+   "slug": "saigon-south-international-school",
+   "name": "Saigon South International School",
+   "kind": "international_school",
+   "website": "https://www.ssis.edu.vn/",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [
+    "American",
+    "AP",
+    "IB"
+   ],
+   "summary": "Not-for-profit PreK–12 international school with an American standards-based curriculum, AP courses and the IB Diploma, in Phu My Hung, District 7.",
+   "aliases": [
+    "SSIS",
+    "Trường Quốc Tế Nam Sài Gòn"
+   ],
+   "sourceUrls": [
+    "https://www.ssis.edu.vn/",
+    "https://en.wikipedia.org/wiki/Saigon_South_International_School"
+   ]
+  },
+  {
+   "slug": "saint-ange-french-international-school",
+   "name": "Saint Ange French International School",
+   "kind": "international_school",
+   "website": "https://saintangeschool.com/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "French"
+   ],
+   "summary": "French school with crèche, kindergarten and primary classes in Thao Dien, District 2 (Thu Duc City), following French national programmes.",
+   "aliases": [
+    "Ecole Internationale Française Saint Ange",
+    "Ecole Saint Ange",
+    "Saint Ange School HCMC",
+    "Trường Học Quốc Tế Pháp Saint Ange"
+   ],
+   "sourceUrls": [
+    "https://saintangeschool.com/en/"
+   ]
+  },
+  {
+   "slug": "sakura-montessori-international-school",
+   "name": "Sakura Montessori International School",
+   "kind": "bilingual_school",
+   "website": "https://sakuramontessori.edu.vn/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "Montessori",
+    "HighScope"
+   ],
+   "summary": "Montessori and HighScope preschool chain (Sakura Schools) whose HCMC campus is on Nguyen Dia Lo in Thanh My Loi, District 2.",
+   "aliases": [
+    "Sakura Schools",
+    "Sakura Montessori",
+    "Sakura Schools Nguyễn Địa Lô",
+    "Trường Mầm non Quốc tế Sakura Schools"
+   ],
+   "sourceUrls": [
+    "https://sakuramontessori.edu.vn/ho-chi-minh/",
+    "https://sakuramontessori.edu.vn/en/",
+    "https://sakuramontessori.edu.vn/"
+   ]
+  },
+  {
+   "slug": "sap-education",
+   "name": "SAP Education",
+   "kind": "agency",
+   "website": "https://sap.edu.vn/",
+   "districts": [
+    "Binh Tan"
+   ],
+   "curricula": [],
+   "summary": "English centre company that also runs English programmes with native-speaker teachers in Ho Chi Minh City public schools.",
+   "aliases": [
+    "Trung tâm Anh ngữ SAP",
+    "Công ty TNHH SAP Education"
+   ],
+   "sourceUrls": [
+    "https://giaoduc.net.vn/tphcm-cong-ty-tnhh-sap-education-trung-thau-day-tieng-anh-voi-nguoi-ban-ngu-o-nhieu-truong-cong-post256326.gd",
+    "https://sap.edu.vn/"
+   ]
+  },
+  {
+   "slug": "scotch-ags",
+   "name": "Scotch AGS",
+   "kind": "international_school",
+   "website": "https://scotch-ags.edu.vn/",
+   "districts": [
+    "Phu Nhuan",
+    "Tan Phu"
+   ],
+   "curricula": [
+    "Australian",
+    "SACE"
+   ],
+   "summary": "Australian-curriculum school for Grades 1–12 awarding the SACE, with campuses in Phu Nhuan and Tan Phu.",
+   "aliases": [
+    "Nam Uc Scotch AGS",
+    "Trường Nam Úc Scotch AGS",
+    "Scotch College Australian Grammar School",
+    "Trường TH - THCS - THPT Nam Úc"
+   ],
+   "sourceUrls": [
+    "https://scotch-ags.edu.vn/en/contact/",
+    "https://scotch-ags.edu.vn/en/learning-pathway/",
+    "https://www.international-schools-database.com/in/ho-chi-minh-city/scotch-ags-ho-chi-minh-city"
+   ]
+  },
+  {
+   "slug": "seameo-retrac",
+   "name": "SEAMEO RETRAC",
+   "kind": "language_centre",
+   "website": "https://www.vnseameo.org/",
+   "districts": [
+    "District 1"
+   ],
+   "curricula": [],
+   "summary": "Regional education training centre in District 1 running English courses for children, teens and adults, teacher training, and a Curtin University MA in Applied Linguistics.",
+   "aliases": [
+    "SEAMEO Regional Training Center (SEAMEO RETRAC)",
+    "Anh văn SEAMEO RETRAC",
+    "SEAMEO RETRAC English Programs"
+   ],
+   "sourceUrls": [
+    "https://www.vnseameo.org/recruitment/",
+    "https://www.vnseameo.org/duhoc/index.php/lien-he/",
+    "http://anhvanseameo.vn/course/master-in-applied-linguistics/?lang=en"
+   ]
+  },
+  {
+   "slug": "sedbergh-vietnam",
+   "name": "Sedbergh Vietnam",
+   "kind": "bilingual_school",
+   "website": "https://sedbergh.edu.vn/",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "Cambridge",
+    "Cambridge IGCSE",
+    "A Levels"
+   ],
+   "summary": "Bilingual school in Phu My Hung, District 7 (formerly BCIS), combining the Vietnamese national curriculum with Cambridge, plus an IGCSE/A Level pathway.",
+   "aliases": [
+    "Sedbergh Vietnam - BCIS",
+    "Bilingual Canadian International School",
+    "BCIS",
+    "Trường Song ngữ Quốc tế Canada"
+   ],
+   "sourceUrls": [
+    "https://sedbergh.edu.vn/our-history/",
+    "https://sedbergh.edu.vn/overview-of-our-curriculum/",
+    "https://sedbergh.edu.vn/"
+   ]
+  },
+  {
+   "slug": "simple-english",
+   "name": "Simple English",
+   "kind": "language_centre",
+   "website": "https://simpleenglish.com.vn",
+   "districts": [
+    "District 10",
+    "Binh Thanh"
+   ],
+   "curricula": [],
+   "summary": "English centre for adult beginners and teens offering communication and business English courses, with branches in District 10 and Binh Thanh.",
+   "aliases": [
+    "Trung tâm Anh ngữ Simple English",
+    "Công ty TNHH Giáo dục và Đào tạo SLC"
+   ],
+   "sourceUrls": [
+    "https://simpleenglish.com.vn/",
+    "https://teens.simpleenglish.com.vn/"
+   ]
+  },
+  {
+   "slug": "singapore-international-school-saigon-south",
+   "name": "Singapore International School @ Saigon South",
+   "kind": "international_school",
+   "website": "https://saigonsouth.sis.edu.vn/",
+   "districts": [
+    "Binh Chanh"
+   ],
+   "curricula": [
+    "Singaporean",
+    "Cambridge",
+    "Cambridge IGCSE",
+    "A Levels",
+    "Vietnamese national"
+   ],
+   "summary": "School in Trung Son, Binh Chanh, with a Singapore/Cambridge international programme and a MOET-integrated programme, from kindergarten to A Level.",
+   "aliases": [
+    "SIS @ Saigon South"
+   ],
+   "sourceUrls": [
+    "https://saigonsouth.sis.edu.vn/",
+    "https://saigonsouth.sis.edu.vn/academic/international-programme/",
+    "https://saigonsouth.sis.edu.vn/academic/integrated-programme/"
+   ]
+  },
+  {
+   "slug": "smartkids-international-kindergarten",
+   "name": "SmartKids International Kindergarten",
+   "kind": "international_school",
+   "website": "https://www.smartkidsinfo.com/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "IB",
+    "IEYC"
+   ],
+   "summary": "English-medium preschool for ages 18 months–6 on Street 10 in Thao Dien, District 2, offering the IB PYP and IEYC.",
+   "aliases": [
+    "SmartKids International",
+    "SmartKids International Pre-school/Kindergarten",
+    "SmartKids Street 10"
+   ],
+   "sourceUrls": [
+    "https://www.smartkidsinfo.com/childcare/contact.html",
+    "https://www.smartkidsinfo.com/childcare/curriculum.html",
+    "https://ibo.org/programmes/find-an-ib-school/ibap2/s/smartkids-international-pre-schoolkindergarten/"
+   ]
+  },
+  {
+   "slug": "summit-education",
+   "name": "Summit Education",
+   "kind": "language_centre",
+   "website": "https://summit.edu.vn",
+   "districts": [
+    "District 3"
+   ],
+   "curricula": [
+    "SAT",
+    "IELTS",
+    "TOEFL",
+    "ACT"
+   ],
+   "summary": "Test-preparation and academic English centre founded in Hanoi in 2010, with one branch in Ho Chi Minh City.",
+   "aliases": [
+    "Summit Hồ Chí Minh"
+   ],
+   "sourceUrls": [
+    "https://summit.edu.vn/",
+    "https://summit.edu.vn/gioi-thieu-khoa-luyen-thi-ielts/"
+   ]
+  },
+  {
+   "slug": "super-youth",
+   "name": "Super Youth",
+   "kind": "language_centre",
+   "website": "https://superyouth.edu.vn",
+   "districts": [
+    "District 1",
+    "District 4",
+    "District 5",
+    "District 6",
+    "District 7",
+    "District 8",
+    "District 10",
+    "District 11",
+    "District 12",
+    "Binh Thanh",
+    "Go Vap",
+    "Tan Binh",
+    "Tan Phu",
+    "Binh Tan",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre chain for children aged 3–14 with centres across Ho Chi Minh City and one in Bien Hoa.",
+   "aliases": [
+    "Ngoại ngữ Thần Đồng",
+    "Ngoại ngữ Thần Đồng – Super Youth",
+    "Công ty Cổ phần Giáo dục Thần Đồng"
+   ],
+   "sourceUrls": [
+    "https://superyouth.edu.vn/cac-co-so/",
+    "https://superyouth.edu.vn/gioi-thieu/"
+   ]
+  },
+  {
+   "slug": "swinburne-vietnam",
+   "name": "Swinburne Vietnam",
+   "kind": "university",
+   "website": "https://swinburne-vn.edu.vn/",
+   "districts": [
+    "Tan Binh"
+   ],
+   "curricula": [],
+   "summary": "Partnership of Swinburne University of Technology (Australia) and FPT University delivering Swinburne degrees, with an HCMC location.",
+   "aliases": [
+    "Swinburne Việt Nam",
+    "Swinburne Vietnam Alliance Program",
+    "SVAP"
+   ],
+   "sourceUrls": [
+    "https://swinburne-vn.edu.vn/en/find-us-contact/",
+    "https://www.swinburne.edu.au/news/2021/03/swinburne-opens-new-location-at-ho-chi-minh-city/"
+   ]
+  },
+  {
+   "slug": "sylvan-learning-vietnam",
+   "name": "Sylvan Learning Vietnam",
+   "kind": "language_centre",
+   "website": "https://sylvanlearning.edu.vn",
+   "districts": [
+    "District 5",
+    "District 10",
+    "Go Vap",
+    "Binh Tan"
+   ],
+   "curricula": [],
+   "summary": "Learning centre for children aged 3–16 offering English, maths and STEM programmes, with centres in Ho Chi Minh City.",
+   "aliases": [
+    "Sylvan Learning",
+    "Sylvan Learning Việt Nam",
+    "Trung tâm Anh ngữ Sếu Vàng",
+    "Trung tâm Ngoại ngữ Sếu Vàng",
+    "Công ty Cổ phần Giáo dục Chân Trời Mới"
+   ],
+   "sourceUrls": [
+    "https://sylvanlearning.edu.vn/trung-tam/",
+    "https://sylvanlearning.edu.vn/chuong-trinh/chuong-trinh-tieng-anh/tieng-anh-thieu-nhi/"
+   ]
+  },
+  {
+   "slug": "taipei-school-in-ho-chi-minh-city",
+   "name": "Taipei School in Ho Chi Minh City",
+   "kind": "international_school",
+   "website": "https://www.tshcmc.edu.vn/",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [
+    "Taiwanese"
+   ],
+   "summary": "Taiwanese school in District 7 from kindergarten to grade 12 following Taiwan's Ministry of Education curriculum.",
+   "aliases": [
+    "TSHCMC",
+    "Taipei School in HCMC",
+    "胡志明市臺灣學校",
+    "越南胡志明市臺灣學校",
+    "Trường Đài Bắc"
+   ],
+   "sourceUrls": [
+    "https://www.tshcmc.edu.vn/p/404-1000-270.php?Lang=zh-tw",
+    "https://en.wikipedia.org/wiki/Taipei_School_in_Ho_Chi_Minh_City"
+   ]
+  },
+  {
+   "slug": "talent-english-center",
+   "name": "Talent English Center",
+   "kind": "language_centre",
+   "website": "https://talent.edu.vn",
+   "districts": [
+    "Tan Phu"
+   ],
+   "curricula": [],
+   "summary": "English and TESOL training centre in Tan Phu that also supplies English teachers to schools and runs aviation-staff training.",
+   "aliases": [
+    "Trung tâm Anh văn Tài Năng Việt",
+    "American TESOL Viet Nam"
+   ],
+   "sourceUrls": [
+    "https://talent.edu.vn/",
+    "https://vietnamteachingjobs.com/jobs/company/2049"
+   ]
+  },
+  {
+   "slug": "talkfirst",
+   "name": "TalkFirst",
+   "kind": "language_centre",
+   "website": "https://talkfirst.vn",
+   "districts": [
+    "Phu Nhuan"
+   ],
+   "curricula": [],
+   "summary": "English centre in Ho Chi Minh City offering communication, presentation and IELTS courses for working adults and students.",
+   "aliases": [
+    "TalkFirst Anh Ngữ",
+    "Anh ngữ TalkFirst",
+    "Công ty Cổ phần Giáo dục TalkFirst",
+    "TalkFirst Education JSC"
+   ],
+   "sourceUrls": [
+    "https://talkfirst.vn/"
+   ]
+  },
+  {
+   "slug": "tesla-education",
+   "name": "Tesla Education",
+   "kind": "bilingual_school",
+   "website": "https://tesla.edu.vn/",
+   "districts": [
+    "Tan Binh"
+   ],
+   "curricula": [
+    "IB",
+    "Vietnamese national"
+   ],
+   "summary": "Bilingual school in Tan Binh delivering the IB continuum (PYP, MYP, DP) alongside the Vietnamese national curriculum, from early years to grade 12.",
+   "aliases": [
+    "Trường Tesla",
+    "Tesla School"
+   ],
+   "sourceUrls": [
+    "https://tesla.edu.vn/",
+    "https://vir.com.vn/tesla-education-achieves-ib-continuum-151706.html",
+    "https://tesla.edu.vn/en/parent_learning/tesla-education-the-first-and-only-ib-school-in-tan-binh-district/"
+   ]
+  },
+  {
+   "slug": "the-abc-international-school",
+   "name": "The ABC International School",
+   "kind": "international_school",
+   "website": "https://www.theabcis.com/",
+   "districts": [
+    "Binh Chanh",
+    "Nha Be"
+   ],
+   "curricula": [
+    "EYFS",
+    "English National Curriculum",
+    "IGCSE",
+    "A Levels"
+   ],
+   "summary": "British-curriculum international school (EYFS to A Levels) with campuses in Trung Son, Binh Chanh and Tan An Huy, Nha Be.",
+   "aliases": [
+    "ABCIS",
+    "ABC International School",
+    "Trường Quốc tế ABC"
+   ],
+   "sourceUrls": [
+    "https://www.theabcis.com/about-us/our-campuses/trung-son-campus/",
+    "https://www.theabcis.com/about-us/our-campuses/nha-be-campus/",
+    "https://www.theabcis.com/curriculum/secondary-curriculum/"
+   ]
+  },
+  {
+   "slug": "the-american-school",
+   "name": "The American School",
+   "kind": "international_school",
+   "website": "https://www.tas.edu.vn/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "American",
+    "IB",
+    "AP"
+   ],
+   "summary": "American-curriculum school for Pre-Nursery to Grade 12 in District 2 (Thu Duc City), offering the IB PYP and AP courses.",
+   "aliases": [
+    "TAS International School",
+    "Trường Quốc tế TAS"
+   ],
+   "sourceUrls": [
+    "https://www.tas.edu.vn/about/about-tas",
+    "https://www.tas.edu.vn/blog-posts/tas-international-school-curriculum---full-u-s-learning-path",
+    "https://www.tas.edu.vn/blog-posts/toplist-international-schools-in-district-2"
+   ]
+  },
+  {
+   "slug": "the-canadian-international-school",
+   "name": "The Canadian International School",
+   "kind": "international_school",
+   "website": "https://cis.edu.vn/en",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [
+    "Canadian",
+    "AP",
+    "IB"
+   ],
+   "summary": "International school in District 7 for Grades 1–12, teaching the Ontario curriculum with optional AP courses and the IB Diploma in Grades 11–12.",
+   "aliases": [
+    "Canadian International School",
+    "Canadian International School Vietnam",
+    "The Canadian International School (CIS)",
+    "Trường Quốc tế Canada"
+   ],
+   "sourceUrls": [
+    "https://cis.edu.vn/en",
+    "https://cis.edu.vn/en/academics/secondary",
+    "https://en.wikipedia.org/wiki/Canadian_International_School_Vietnam"
+   ]
+  },
+  {
+   "slug": "the-international-school",
+   "name": "The International School",
+   "kind": "bilingual_school",
+   "website": "https://tis.edu.vn/",
+   "districts": [
+    "Phu Nhuan"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "American"
+   ],
+   "summary": "Bilingual school founded in 1999 in Phu Nhuan, preschool to Grade 12, combining the Vietnamese programme with a US high school diploma option.",
+   "aliases": [
+    "TIS",
+    "Trường Quốc tế TIS",
+    "Trường Phổ thông Quốc tế TIS"
+   ],
+   "sourceUrls": [
+    "https://tis.edu.vn/"
+   ]
+  },
+  {
+   "slug": "the-japanese-school-in-ho-chi-minh-city",
+   "name": "The Japanese School in Ho Chi Minh City",
+   "kind": "international_school",
+   "website": "https://jschoolhcmc.com/",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [
+    "Japanese"
+   ],
+   "summary": "Japanese school in District 7 for grades 1–9 following Japan's Ministry of Education guidelines, for children of Japanese residents.",
+   "aliases": [
+    "Japanese School in Ho Chi Minh City",
+    "JSHCM",
+    "ホーチミン日本人学校"
+   ],
+   "sourceUrls": [
+    "https://jschoolhcmc.com/about",
+    "https://jschoolhcmc.com/access",
+    "https://en.wikipedia.org/wiki/Japanese_School_in_Ho_Chi_Minh_City"
+   ]
+  },
+  {
+   "slug": "the-london-school",
+   "name": "The London School",
+   "kind": "language_centre",
+   "website": "https://londonschool.edu.vn",
+   "districts": [
+    "District 5",
+    "District 7",
+    "Binh Thanh",
+    "Go Vap",
+    "Tan Binh",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre founded in 1998 with native-speaker teachers and Cambridge-based courses, with branches across Ho Chi Minh City.",
+   "aliases": [
+    "Anh Ngữ Luân Đôn",
+    "Anh ngữ London",
+    "Trung tâm Anh ngữ Luân Đôn",
+    "Công ty Cổ phần Giáo dục London"
+   ],
+   "sourceUrls": [
+    "https://londonschool.edu.vn/"
+   ]
+  },
+  {
+   "slug": "the-montessori-international-school-of-vietnam",
+   "name": "The Montessori International School of Vietnam",
+   "kind": "international_school",
+   "website": "https://montessori.edu.vn/",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "Montessori"
+   ],
+   "summary": "Montessori school for infants to age 6 with three campuses in Thao Dien and An Phu, District 2; member of the American Montessori Society.",
+   "aliases": [
+    "MIS Thao Dien",
+    "MIS Binh An",
+    "The River House Montessori"
+   ],
+   "sourceUrls": [
+    "https://montessori.edu.vn/campuses/",
+    "https://montessori.edu.vn/contact/",
+    "https://montessori.edu.vn/"
+   ]
+  },
+  {
+   "slug": "the-western-australian-international-school-system",
+   "name": "The Western Australian International School System",
+   "kind": "bilingual_school",
+   "website": "https://wass.edu.vn/",
+   "districts": [
+    "District 3",
+    "Binh Thanh"
+   ],
+   "curricula": [
+    "Australian",
+    "Vietnamese national",
+    "WACE",
+    "IB"
+   ],
+   "summary": "School system with campuses in District 3 and Binh Thanh combining the Western Australian curriculum with Vietnam's national curriculum; offers WACE and IB DP.",
+   "aliases": [
+    "WASS",
+    "Western Australian International School System",
+    "Hệ thống Trường Tây Úc"
+   ],
+   "sourceUrls": [
+    "https://wass.edu.vn/en/about-wass/our-campuses/",
+    "https://wass.edu.vn/en/program/western-australian-program-k-10/",
+    "https://wass.edu.vn/en/"
+   ]
+  },
+  {
+   "slug": "tieng-anh-nghe-noi",
+   "name": "Tieng Anh Nghe Noi",
+   "kind": "language_centre",
+   "website": "https://tienganhnghenoi.vn",
+   "districts": [
+    "District 10",
+    "Binh Thanh",
+    "Go Vap"
+   ],
+   "curricula": [],
+   "summary": "English conversation centre for adults offering group, one-to-one and in-company classes, with three branches in Ho Chi Minh City.",
+   "aliases": [
+    "Tiếng Anh Nghe Nói",
+    "Trung tâm Tiếng Anh Nghe Nói"
+   ],
+   "sourceUrls": [
+    "https://tienganhnghenoi.vn/",
+    "https://tienganhnghenoi.vn/lien-he/"
+   ]
+  },
+  {
+   "slug": "ton-duc-thang-university",
+   "name": "Ton Duc Thang University",
+   "kind": "university",
+   "website": "https://www.tdtu.edu.vn/",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [],
+   "summary": "Public university whose language centre recruits foreign English teachers and full-time foreign lecturers.",
+   "aliases": [
+    "TDTU",
+    "Trường Đại học Tôn Đức Thắng",
+    "TDT Creative Language Center"
+   ],
+   "sourceUrls": [
+    "https://clc.tdtu.edu.vn/announcement-recruiting-full-time-foreign-lecturers-1",
+    "https://clc.tdtu.edu.vn/annoucement-english-teacher-vacancies"
+   ]
+  },
+  {
+   "slug": "travelbud",
+   "name": "TravelBud",
+   "kind": "agency",
+   "website": "https://travelbud.com/",
+   "districts": [],
+   "curricula": [],
+   "summary": "Teach-abroad programme provider that places TEFL-certified teachers in public schools and language centres in Vietnam, including HCMC.",
+   "aliases": [
+    "Travel Bud"
+   ],
+   "sourceUrls": [
+    "https://info.travelbud.com/teaching-placements-vietnam",
+    "https://travelbud.com/teach-english-in-vietnam"
+   ]
+  },
+  {
+   "slug": "tri-minh-esc",
+   "name": "Trí Minh ESC",
+   "kind": "language_centre",
+   "website": "https://triminhesc.edu.vn",
+   "districts": [
+    "Hoc Mon"
+   ],
+   "curricula": [],
+   "summary": "Foreign language centre teaching English, with three branches in Hoc Mon, Ho Chi Minh City.",
+   "aliases": [
+    "Ngoại ngữ Trí Minh ESC",
+    "Trung tâm Ngoại ngữ Trí Minh",
+    "Tri Minh Foreign Language Center - ESC",
+    "Trung tâm Anh ngữ Trí Minh E.S.C"
+   ],
+   "sourceUrls": [
+    "https://triminhesc.edu.vn/"
+   ]
+  },
+  {
+   "slug": "triangle-english-school",
+   "name": "Triangle English School",
+   "kind": "language_centre",
+   "website": "https://triangle-english.edu.vn",
+   "districts": [
+    "Go Vap",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English communication centre for children and adults with branches in Go Vap and Thu Duc City (Man Thien), Ho Chi Minh City.",
+   "aliases": [
+    "Triangle English",
+    "Trung tâm Anh ngữ TES"
+   ],
+   "sourceUrls": [
+    "https://triangle-english.edu.vn/",
+    "https://triangle-english.edu.vn/lien-he/",
+    "https://triangle-english.edu.vn/gioi-thieu/"
+   ]
+  },
+  {
+   "slug": "ucla-english-academy",
+   "name": "UCLA English Academy",
+   "kind": "language_centre",
+   "website": "https://www.uclaacademy.com",
+   "districts": [
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre in Thu Duc City offering level-based, exam-preparation and communication courses from young learners to adults.",
+   "aliases": [
+    "UCLA Academy",
+    "Công ty TNHH UCLA Academy"
+   ],
+   "sourceUrls": [
+    "https://www.uclaacademy.com/effective-english-communication",
+    "https://www.uclaacademy.com/about-ucla"
+   ]
+  },
+  {
+   "slug": "uk-academy-binh-thanh",
+   "name": "UK Academy Binh Thanh",
+   "kind": "bilingual_school",
+   "website": "https://binhthanh.uka.edu.vn/",
+   "districts": [
+    "Binh Thanh"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "Oxford International Curriculum"
+   ],
+   "summary": "Bilingual primary-to-high school in Binh Thanh combining the Vietnamese national programme with an Oxford international programme.",
+   "aliases": [
+    "UKA Binh Thanh",
+    "Trường Quốc tế Song ngữ UK Academy Bình Thạnh"
+   ],
+   "sourceUrls": [
+    "https://binhthanh.uka.edu.vn/",
+    "https://uka.edu.vn/en/uka-school-system/"
+   ]
+  },
+  {
+   "slug": "university-of-economics-ho-chi-minh-city",
+   "name": "University of Economics Ho Chi Minh City",
+   "kind": "university",
+   "website": "https://ueh.edu.vn/",
+   "districts": [
+    "District 3"
+   ],
+   "curricula": [],
+   "summary": "Public economics and business university whose International School of Business and other programmes are taught in English.",
+   "aliases": [
+    "UEH",
+    "Trường Đại học Kinh tế TP.HCM",
+    "UEH-ISB",
+    "UEH International School of Business",
+    "UEH Honours College"
+   ],
+   "sourceUrls": [
+    "https://international.isb.edu.vn/about-us/",
+    "http://studyinvietnam.edu.vn/detail-university/university-of-economics-hcmc-546.html",
+    "https://vn.linkedin.com/company/ueh-university-of-economics-ho-chi-minh-city"
+   ]
+  },
+  {
+   "slug": "us-vietnam-talent-international-school",
+   "name": "US Vietnam Talent International School",
+   "kind": "bilingual_school",
+   "website": "https://utschool.edu.vn/",
+   "districts": [
+    "Binh Thanh",
+    "Go Vap",
+    "District 4",
+    "Binh Chanh"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "Oxford International Curriculum",
+    "American",
+    "AP",
+    "GCSE",
+    "A Levels"
+   ],
+   "summary": "Bilingual K–12 school combining the Vietnamese programme with an Oxford (GCSE/A Level) or US Common Core/AP pathway, on three HCMC campuses.",
+   "aliases": [
+    "UTS",
+    "Trường Quốc tế Nam Mỹ UTS",
+    "Trường Quốc tế Nam Mỹ",
+    "UTS International School",
+    "Trường Tiểu học, Trung học cơ sở, Trung học phổ thông Nam Mỹ"
+   ],
+   "sourceUrls": [
+    "https://utschool.edu.vn/en/about-uts/",
+    "https://utschool.edu.vn/en/program-overview/",
+    "https://utschool.edu.vn/co-so-nam-sai-gon/"
+   ]
+  },
+  {
+   "slug": "van-lang-university",
+   "name": "Van Lang University",
+   "kind": "university",
+   "website": "https://www.vlu.edu.vn/",
+   "districts": [
+    "Go Vap",
+    "Binh Thanh",
+    "District 1"
+   ],
+   "curricula": [],
+   "summary": "Private university whose Faculty of Foreign Languages teaches English Studies and Chinese Studies programmes.",
+   "aliases": [
+    "VLU",
+    "Trường Đại học Văn Lang",
+    "Văn Lang University"
+   ],
+   "sourceUrls": [
+    "https://en.wikipedia.org/wiki/V%C4%83n_Lang_University",
+    "https://www.vlu.edu.vn/en/career/KNN-GV-Eng"
+   ]
+  },
+  {
+   "slug": "vea-english-center",
+   "name": "VEA English Center",
+   "kind": "language_centre",
+   "website": "https://vietaumy.edu.vn",
+   "districts": [
+    "District 12",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre for kids, teens and adults with four branches in District 12 and one in Vinhomes Grand Park, Ho Chi Minh City.",
+   "aliases": [
+    "Việt Âu Mỹ",
+    "Anh Ngữ Việt Âu Mỹ",
+    "Viet Au My English Center"
+   ],
+   "sourceUrls": [
+    "https://vietaumy.edu.vn/",
+    "https://vietnamteachingjobs.com/jobs/company/3001"
+   ]
+  },
+  {
+   "slug": "via-english-academy",
+   "name": "VIA English Academy",
+   "kind": "language_centre",
+   "website": "https://viaenglish.edu.vn",
+   "districts": [
+    "Binh Thanh",
+    "Tan Phu",
+    "Binh Chanh"
+   ],
+   "curricula": [],
+   "summary": "English academy founded in 2023 under Phu Thai Group, with centres in Ho Chi Minh City, Hanoi and Da Nang.",
+   "aliases": [
+    "VIA English"
+   ],
+   "sourceUrls": [
+    "https://viaenglish.edu.vn/he-thong-trung-tam",
+    "https://vietnamteachingjobs.com/jobs/view/part-time-expat-teacher-ho-chi-minh-city-currently-living-in-viet-nam-work-permit-and-trc-sponsorship-4",
+    "https://viaenglish.edu.vn/en"
+   ]
+  },
+  {
+   "slug": "victoria-school",
+   "name": "Victoria School",
+   "kind": "bilingual_school",
+   "website": "https://victoriaschool.edu.vn/",
+   "districts": [
+    "Nha Be",
+    "District 8"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "Cambridge",
+    "Cambridge IGCSE",
+    "American"
+   ],
+   "summary": "Bilingual school combining the Vietnamese programme with Cambridge and a US diploma option, with campuses in Nha Be (Saigon South) and District 8.",
+   "aliases": [
+    "Victoria School - Saigon South",
+    "Victoria School - Nam Sài Gòn",
+    "Victoria School - Riverside",
+    "Trường Quốc tế Song ngữ Victoria School",
+    "Victoria School System",
+    "Trường Tiểu học - THCS - THPT Khải Hoàn - Nam Sài Gòn"
+   ],
+   "sourceUrls": [
+    "https://victoriaschool.edu.vn/",
+    "https://saigonsouth.victoriaschool.edu.vn/tieu-hoc",
+    "https://saigonsouth.victoriaschool.edu.vn/trung-hoc-pho-thong"
+   ]
+  },
+  {
+   "slug": "viet-nam-tinh-hoa-the-futures-school",
+   "name": "Viet Nam Tinh Hoa – The Futures School",
+   "kind": "bilingual_school",
+   "website": "https://vietnamtinhhoa.edu.vn/",
+   "districts": [
+    "District 3"
+   ],
+   "curricula": [
+    "IB"
+   ],
+   "summary": "Dual-language (Vietnamese–English) IB World School for kindergarten to Grade 7 at 214–216 Pasteur, District 3.",
+   "aliases": [
+    "VNTH",
+    "Trường Tiểu học Việt Nam Tinh Hoa",
+    "North London Collegiate School Ho Chi Minh City",
+    "NLCS HCMC",
+    "Viet Nam Tinh Hoa by North London Collegiate School"
+   ],
+   "sourceUrls": [
+    "https://vietnamtinhhoa.edu.vn/",
+    "https://www.embassyeducation.edu.vn/event/tuan-le-trai-nghiem-soul-open-day-cung-khoa-am-nhac-vu-dao-smpaa/",
+    "https://saigoneer.com/sponsored-listings/248-education/26954-britain%E2%80%99s-prestigious-north-london-collegiate-school-arrives-in-vietnam"
+   ]
+  },
+  {
+   "slug": "vietmyenglish",
+   "name": "Vietmyenglish",
+   "kind": "language_centre",
+   "website": "https://vietmyenglish.edu.vn",
+   "districts": [
+    "Binh Tan",
+    "Binh Chanh"
+   ],
+   "curricula": [],
+   "summary": "English centre group (Anh văn Việt Mỹ) with several branches in Binh Chanh (Vinh Loc A) and one in Binh Tan, Ho Chi Minh City.",
+   "aliases": [
+    "Anh văn Việt Mỹ",
+    "Trung tâm Ngoại ngữ Phát triển Việt Mỹ",
+    "Vietmygroup",
+    "Công ty Cổ phần Tập đoàn Giáo dục Quốc tế Việt Mỹ"
+   ],
+   "sourceUrls": [
+    "https://vietmyenglish.edu.vn/",
+    "https://vieclam24h.vn/danh-sach-tin-tuyen-dung-trung-tam-ngoai-ngu-phat-trien-viet-my-ntd201822581p122.html"
+   ]
+  },
+  {
+   "slug": "vietnam-australia-international-school",
+   "name": "Vietnam Australia International School",
+   "kind": "bilingual_school",
+   "website": "https://www.vas.edu.vn/",
+   "districts": [
+    "District 10",
+    "District 7",
+    "Thu Duc City (D2 & D9)",
+    "Go Vap",
+    "Phu Nhuan"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "Cambridge",
+    "Cambridge IGCSE",
+    "A Levels"
+   ],
+   "summary": "Bilingual K–12 school group combining the Vietnamese national and Cambridge programmes, with six campuses in Districts 10, 7 and 2, Go Vap and Phu Nhuan.",
+   "aliases": [
+    "VAS",
+    "VAS International Bilingual Schools",
+    "Trường Quốc tế Việt Úc",
+    "Hệ thống Trường Quốc tế Việt Úc"
+   ],
+   "sourceUrls": [
+    "https://www.vas.edu.vn/tin-tuc/danh-sach-cac-truong-quoc-te-tai-tphcm-cua-vas",
+    "https://www.vas.edu.vn/en/campuses",
+    "https://www.vas.edu.vn/en/news/list-of-06-reputable-bilingual-high-schools-in-ho-chi-minh-city-under-vas"
+   ]
+  },
+  {
+   "slug": "vietnam-teaching-jobs",
+   "name": "Vietnam Teaching Jobs",
+   "kind": "agency",
+   "website": "https://vietnamteachingjobs.com/",
+   "districts": [],
+   "curricula": [],
+   "summary": "Teaching-jobs board whose EPIV programme places foreign English teachers in schools and centres across Vietnam, including HCMC.",
+   "aliases": [
+    "VTJ",
+    "VTJ Education Service Joint Stock Company",
+    "EPIV",
+    "English Teaching Placement in Vietnam"
+   ],
+   "sourceUrls": [
+    "https://vietnamteachingjobs.com/english-teaching-placement-in-vietnam/",
+    "https://teast.co/blog/teach-english-vietnam-agencies"
+   ]
+  },
+  {
+   "slug": "vietnam-finland-international-school",
+   "name": "Vietnam-Finland International School",
+   "kind": "bilingual_school",
+   "website": "https://vfis.tdtu.edu.vn/",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [
+    "Finnish",
+    "Vietnamese national",
+    "IB"
+   ],
+   "summary": "School of Ton Duc Thang University in District 7 offering Finnish-oriented bilingual and international programmes, including the IB, for grades 1–12.",
+   "aliases": [
+    "VFIS",
+    "Trường Quốc tế Việt Nam - Phần Lan"
+   ],
+   "sourceUrls": [
+    "https://vfis.tdtu.edu.vn/vi/gioi-thieu/gioi-thieu-truong-quoc-te-viet-nam-phan-lan",
+    "https://thanhnien.vn/nhung-truong-cong-lap-tai-tphcm-co-hoc-phi-hang-tram-trieu-dong-nam-185250409152318636.htm",
+    "https://info.anylearn.vn/class/1497/chuong-trinh-song-ngu-lop-1-2024-2025-truong-vfis"
+   ]
+  },
+  {
+   "slug": "vietnamese-american-school-system",
+   "name": "Vietnamese American School System",
+   "kind": "bilingual_school",
+   "website": "https://www.vass.edu.vn/",
+   "districts": [
+    "Tan Binh",
+    "Binh Thanh"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "Cambridge"
+   ],
+   "summary": "Bilingual school system founded in 2005 teaching the Vietnamese programme alongside Cambridge programmes, with campuses in Tan Binh and Binh Thanh.",
+   "aliases": [
+    "VASS",
+    "Hệ thống Trường Việt Mỹ VASS",
+    "Trường Việt Mỹ VASS"
+   ],
+   "sourceUrls": [
+    "https://www.vass.edu.vn/",
+    "https://www.vass.edu.vn/lien-he"
+   ]
+  },
+  {
+   "slug": "vinalearn-english",
+   "name": "Vinalearn English",
+   "kind": "agency",
+   "website": "https://www.vinalearn.com/",
+   "districts": [
+    "District 3"
+   ],
+   "curricula": [],
+   "summary": "English training company that recruits ESL teachers for its English programmes in Ho Chi Minh City public schools.",
+   "aliases": [
+    "Vinalearn",
+    "Vinalearn Links Training Company Limited"
+   ],
+   "sourceUrls": [
+    "https://www.vinalearn.com/",
+    "https://teast.co/job/vinalearn-english-is-recruiting-teachers-for-public-schools-rI4EMPL9zHwG5l3PGji9"
+   ]
+  },
+  {
+   "slug": "vinschool",
+   "name": "Vinschool",
+   "kind": "bilingual_school",
+   "website": "https://vinschool.edu.vn/",
+   "districts": [
+    "Binh Thanh",
+    "District 1",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "Cambridge",
+    "Cambridge IGCSE",
+    "A Levels"
+   ],
+   "summary": "K–12 school system teaching the Vietnamese national programme and a Cambridge bilingual pathway, with HCMC campuses in Binh Thanh, District 1 and District 9.",
+   "aliases": [
+    "Vinschool Education System",
+    "Hệ thống Giáo dục Vinschool",
+    "Vinschool Central Park",
+    "Vinschool Golden River",
+    "Vinschool Grand Park"
+   ],
+   "sourceUrls": [
+    "https://vinschool.edu.vn/en/contact/",
+    "https://vinschool.edu.vn/news_event/truong-trung-hoc-hcm/",
+    "https://vinschool.edu.vn/en/news_event/compulsory-education-program-the-bilingual-program/"
+   ]
+  },
+  {
+   "slug": "vus-the-english-center",
+   "name": "VUS The English Center",
+   "kind": "language_centre",
+   "website": "https://vus.edu.vn",
+   "districts": [
+    "District 1",
+    "District 4",
+    "District 5",
+    "District 6",
+    "District 7",
+    "District 8",
+    "District 10",
+    "District 11",
+    "District 12",
+    "Binh Thanh",
+    "Go Vap",
+    "Phu Nhuan",
+    "Tan Binh",
+    "Tan Phu",
+    "Binh Tan",
+    "Thu Duc City (D2 & D9)",
+    "Binh Chanh",
+    "Hoc Mon",
+    "Cu Chi",
+    "Nha Be"
+   ],
+   "curricula": [],
+   "summary": "English centre chain for kids, teens and adults with dozens of branches across Ho Chi Minh City and other provinces.",
+   "aliases": [
+    "VUS",
+    "VUS - The English Center",
+    "Vietnam USA Society English Centers",
+    "Anh văn Hội Việt Mỹ",
+    "Hội Việt Mỹ",
+    "Công ty Cổ phần Quốc tế Anh văn Hội Việt Mỹ"
+   ],
+   "sourceUrls": [
+    "https://vus.edu.vn/",
+    "https://vus.edu.vn/trung-tam-vus",
+    "https://teachenglish.vus.edu.vn/"
+   ]
+  },
+  {
+   "slug": "vusg-viet-my-sai-gon",
+   "name": "VUSG – Việt Mỹ Sài Gòn",
+   "kind": "language_centre",
+   "website": "https://vietmysaigon.edu.vn",
+   "districts": [
+    "District 8",
+    "District 12"
+   ],
+   "curricula": [],
+   "summary": "English centre for preschool and primary children with branches in District 12 and District 8, Ho Chi Minh City.",
+   "aliases": [
+    "VUSG",
+    "Trung tâm Anh ngữ Việt Mỹ Sài Gòn",
+    "Anh ngữ Việt Mỹ Sài Gòn"
+   ],
+   "sourceUrls": [
+    "https://vietmysaigon.edu.vn/"
+   ]
+  },
+  {
+   "slug": "wall-street-english",
+   "name": "Wall Street English",
+   "kind": "language_centre",
+   "website": "https://wallstreetenglish.edu.vn",
+   "districts": [
+    "District 3",
+    "District 7",
+    "Go Vap",
+    "Tan Binh",
+    "Binh Tan",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre for adults and working professionals, part of the international Wall Street English network, with branches in Ho Chi Minh City.",
+   "aliases": [
+    "WSE",
+    "Wall Street English Vietnam",
+    "Trung tâm Anh ngữ Wall Street English"
+   ],
+   "sourceUrls": [
+    "https://www.wallstreetenglish.edu.vn/trung-tam/thanh-pho-ho-chi-minh/",
+    "https://vietnamteachingjobs.com/jobs/view/ho-chi-minh-city-part-time-native-english-teachers-2/"
+   ]
+  },
+  {
+   "slug": "wellspring-saigon-international-bilingual-school",
+   "name": "Wellspring Saigon International Bilingual School",
+   "kind": "bilingual_school",
+   "website": "https://wellspring.edu.vn/co-so/wellspring-saigon",
+   "districts": [
+    "Binh Thanh"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "American",
+    "AP"
+   ],
+   "summary": "Bilingual school for grades 1–12 in Saigon Pearl, Binh Thanh, combining the Vietnamese national programme with US standards (CCSS/NGSS) and AP courses.",
+   "aliases": [
+    "Wellspring Saigon",
+    "Wellspring Sài Gòn",
+    "Trường Tiểu học, Trung học cơ sở, Trung học Phổ thông Mùa Xuân"
+   ],
+   "sourceUrls": [
+    "https://wellspring.edu.vn/co-so/wellspring-saigon",
+    "https://wellspringsaigon.edupage.org/",
+    "https://wellspring.edu.vn/tin-tuc/wssg-bac-trung-hoc-quoc-te"
+   ]
+  },
+  {
+   "slug": "wellspring-saigon-south",
+   "name": "Wellspring Saigon South",
+   "kind": "bilingual_school",
+   "website": "https://wellspring.edu.vn/co-so/wellspring-saigon-south",
+   "districts": [
+    "District 7"
+   ],
+   "curricula": [
+    "Vietnamese national",
+    "American"
+   ],
+   "summary": "Bilingual school in Phu My Hung, District 7, opened in August 2026, combining the Vietnamese national programme with US standards (CCSS/NGSS).",
+   "aliases": [
+    "Wellspring International Bilingual School Saigon South"
+   ],
+   "sourceUrls": [
+    "https://wellspring.edu.vn/co-so/wellspring-saigon-south",
+    "https://tienphong.vn/wellspring-saigon-south-chinh-thuc-khai-truong-chao-don-nam-hoc-2026-2027-post1871359.tpo",
+    "https://vnexpress.net/wellspring-saigon-south-mo-rong-lua-chon-giao-duc-song-ngu-5066301.html"
+   ]
+  },
+  {
+   "slug": "weset-english-center",
+   "name": "WESET English Center",
+   "kind": "language_centre",
+   "website": "https://weset.edu.vn",
+   "districts": [
+    "District 1",
+    "District 5",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "IELTS",
+    "TOEIC"
+   ],
+   "summary": "IELTS, TOEIC and communication English centre with branches in Ho Chi Minh City, Hanoi and Can Tho.",
+   "aliases": [
+    "WESET",
+    "WESET English",
+    "Trung tâm Anh ngữ WESET"
+   ],
+   "sourceUrls": [
+    "https://weset.edu.vn/lien-he/",
+    "https://weset.edu.vn/khoa-hoc/khoa-tieng-anh-giao-tiep-we-talk/"
+   ]
+  },
+  {
+   "slug": "western-sydney-university-vietnam",
+   "name": "Western Sydney University Vietnam",
+   "kind": "university",
+   "website": "https://westernsydney.edu.vn/",
+   "districts": [
+    "District 1"
+   ],
+   "curricula": [],
+   "summary": "Western Sydney University's Vietnam campus, run with UEH, offering Australian business, communication and English for Academic Purposes programmes.",
+   "aliases": [
+    "WSU Vietnam",
+    "Western Sydney University Vietnam Campus"
+   ],
+   "sourceUrls": [
+    "https://www.westernsydney.edu.au/future/our-campuses/vietnam",
+    "https://westernsydney.edu.vn/"
+   ]
+  },
+  {
+   "slug": "wewin-education",
+   "name": "WeWin Education",
+   "kind": "language_centre",
+   "website": "https://wewin.edu.vn",
+   "districts": [
+    "Binh Thanh"
+   ],
+   "curricula": [
+    "Cambridge",
+    "IELTS"
+   ],
+   "summary": "English centre for children and teens teaching Cambridge and IELTS programmes, with two branches in Binh Thanh, Ho Chi Minh City.",
+   "aliases": [
+    "WeWin",
+    "Trung tâm Anh ngữ WeWin",
+    "Trung tâm Anh ngữ WeWin Education"
+   ],
+   "sourceUrls": [
+    "https://wewin.edu.vn/",
+    "https://edu2review.com/danh-gia/trung-tam-anh-ngu-wewin"
+   ]
+  },
+  {
+   "slug": "wider-world",
+   "name": "Wider World",
+   "kind": "language_centre",
+   "website": "https://widerworld.edu.vn",
+   "districts": [
+    "Go Vap"
+   ],
+   "curricula": [],
+   "summary": "English centre for kids and IELTS learners headquartered in Hanoi, with one branch in Go Vap, Ho Chi Minh City.",
+   "aliases": [
+    "Trung tâm Ngoại ngữ Wider World",
+    "Trung tâm Ngoại Ngữ Thế Giới Mở",
+    "Công ty TNHH Wider World Việt Nam",
+    "Wider World Viet Nam Company Limited"
+   ],
+   "sourceUrls": [
+    "https://widerworld.edu.vn/",
+    "https://edu2review.com/danh-gia/trung-tam-ngoai-ngu-wider-world"
+   ]
+  },
+  {
+   "slug": "yola",
+   "name": "YOLA",
+   "kind": "language_centre",
+   "website": "https://yola.vn",
+   "districts": [
+    "District 1",
+    "District 7",
+    "District 10",
+    "Binh Thanh",
+    "Go Vap",
+    "Phu Nhuan",
+    "Tan Binh",
+    "Tan Phu",
+    "Binh Tan",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [],
+   "summary": "English centre for kids, teens and adults offering general English, IELTS and SAT courses, with branches in Ho Chi Minh City.",
+   "aliases": [
+    "YOLA Education",
+    "Trung tâm Tiếng Anh YOLA",
+    "Trung tâm Anh ngữ YOLA",
+    "Công ty Cổ phần Giáo dục YOLA",
+    "YOLA Education Joint Stock Company"
+   ],
+   "sourceUrls": [
+    "https://yola.vn/he-thong-trung-tam/",
+    "https://vietnamteachingjobs.com/jobs/view/hiring-full-time-esl-teachers-in-ho-chi-minh-city/"
+   ]
+  },
+  {
+   "slug": "zim-academy",
+   "name": "ZIM Academy",
+   "kind": "language_centre",
+   "website": "https://zim.vn",
+   "districts": [
+    "District 5",
+    "District 7",
+    "District 10",
+    "Binh Thanh",
+    "Go Vap",
+    "Phu Nhuan",
+    "Tan Phu",
+    "Thu Duc City (D2 & D9)"
+   ],
+   "curricula": [
+    "IELTS",
+    "TOEIC",
+    "SAT",
+    "PTE",
+    "VSTEP"
+   ],
+   "summary": "Exam-preparation centre (IELTS, TOEIC and others) with a kids' programme and branches in Hanoi, Ho Chi Minh City and Da Nang.",
+   "aliases": [
+    "ZIM",
+    "Anh ngữ ZIM",
+    "Học viện Anh ngữ ZIM",
+    "Hệ thống Anh ngữ ZIM",
+    "ZIM Faraday",
+    "Công ty cổ phần Eduvator"
+   ],
+   "sourceUrls": [
+    "https://zim.vn/",
+    "https://zim.vn/khoa-hoc-tieng-anh-cho-tre-em"
+   ]
+  }
+ ]
+}

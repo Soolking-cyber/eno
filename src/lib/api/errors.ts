@@ -89,6 +89,29 @@ export type SharedApiErrorCode =
  * `window_closed`), mixed with the `invalid_*` sprawl described above.
  */
 export type NicheApiErrorCode =
+  // The /api/schools routes (2026-10-04): who may vote or review, and why a review was refused
+  | 'business_account'
+  | 'phone_required'
+  | 'links_not_allowed'
+  | 'pay_out_of_range'
+  | 'stint_required'
+  | 'review_changed_reload'
+  // /schools v2 (2026-10-05): proof of employment
+  | 'proof_required'
+  | 'proof_not_verified'
+  | 'proof_already_verified'
+  | 'linkedin_url_invalid'
+  | 'school_name_invalid'
+  | 'website_invalid'
+  | 'district_invalid'
+  | 'alias_taken'
+  | 'award_year_open'
+  | 'award_year_invalid'
+  | 'award_reviews_pending'
+  | 'too_many_suggestions'
+  | 'linkedin_already_used'
+  | 'too_many_pending_proofs'
+  | 'proof_rejected'
   | 'admin_takeover'
   | 'already_appealed'
   | 'already_generating'
@@ -513,6 +536,27 @@ export function apiErrorCode(body: unknown): ApiErrorCode | null {
  * to the type but not here fails to compile.
  */
 const ALL = [
+  'business_account',
+  'phone_required',
+  'links_not_allowed',
+  'pay_out_of_range',
+  'stint_required',
+  'review_changed_reload',
+  'proof_required',
+  'proof_not_verified',
+  'proof_already_verified',
+  'linkedin_url_invalid',
+  'school_name_invalid',
+  'website_invalid',
+  'district_invalid',
+  'alias_taken',
+  'award_year_open',
+  'award_year_invalid',
+  'award_reviews_pending',
+  'too_many_suggestions',
+  'linkedin_already_used',
+  'too_many_pending_proofs',
+  'proof_rejected',
   'Forbidden',
   'Unauthorized',
   'account_restricted',

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { isTeacherHost, apexOrigin } from '@/lib/teachers/host'
+import { isSchoolsHost, schoolsRedirectUrl } from '@/lib/schools/host'
+import { IS_SERVICES } from '@/lib/edition'
 import { storefrontBaseHost, storefrontHandleFromHost, storefrontLabelUrl, underscoreHost } from '@/lib/storefront-host'
 import { LANG_COOKIE, langVariantFor, type LangVariant } from '@/lib/lang-variant'
 import { pinnedRoute } from '@/lib/lang-pinned'
@@ -296,6 +298,21 @@ export function proxy(req: NextRequest) {
     }
     const to = new URL(req.nextUrl.pathname + req.nextUrl.search, apexOrigin(process.env.NEXT_PUBLIC_APP_URL) || req.nextUrl.origin)
     return NextResponse.redirect(to, 301)
+  }
+
+  /**
+   * ⛔ schools.<base> — A NAME FOR /schools, NOT A SITE (2026-10-04). Every GET/HEAD page request 302s to
+   * the app origin's /schools with the path and query kept (src/lib/schools/host.ts says why it is not a
+   * rewrite: the session cookie is host-scoped). Anything else is a 405 — no page here accepts a write.
+   * `/api/*` passes through like teacher.<base>; the write guard above already refused a cross-origin
+   * write. ⚠️ BEFORE the storefront branch: `schools` is shaped like a shop handle (and is reserved in
+   * handle-format.ts so no shop can claim it).
+   */
+  // MARKETPLACE ONLY, like its footer link and sitemap: schools.<forum> would be a door to the forum's copy.
+  if (!IS_SERVICES && isSchoolsHost(req.headers.get('host'), process.env.NEXT_PUBLIC_APP_URL) && !isApi(req.nextUrl.pathname)) {
+    if (req.method !== 'GET' && req.method !== 'HEAD') return new NextResponse('Method Not Allowed', { status: 405, headers: { allow: 'GET, HEAD' } })
+    const to = schoolsRedirectUrl(process.env.NEXT_PUBLIC_APP_URL, req.nextUrl.pathname, req.nextUrl.search)
+    if (to) return NextResponse.redirect(to, 302)
   }
 
   const handle = storefrontHandleFromHost(req.headers.get('host'), canonicalHost())
