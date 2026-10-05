@@ -19,6 +19,15 @@ const chat = vi.hoisted(() => ({
   refreshConvos: () => {},
 }))
 vi.mock('@/context/chat-context', () => ({ useChat: () => chat }))
+// The thread page refreshes the bell after an offer action (main, 2026-10-05) — the same stub offer-undo.test.tsx uses.
+vi.mock('@/context/notifications-context', () => ({ useNotifications: () => ({ items: [], unread: 0, refresh: () => {} }) }))
+// The item strip prices the listing through <Price> (main, inbox-03), which reads the display currency —
+// the same stub offer-undo.test.tsx uses.
+const currency = vi.hoisted(() => ({ currency: 'VND', rates: {}, ratesPending: false, format: (n: number) => String(n) }))
+vi.mock('@/context/currency-context', async () => {
+  const real = await vi.importActual<typeof import('@/context/currency-context')>('@/context/currency-context')
+  return { vndPerUsd: real.vndPerUsd, useCurrency: () => currency }
+})
 const stable = vi.hoisted(() => ({
   params: { id: 'c1' },
   router: { push: () => {}, replace: () => {}, back: () => {}, prefetch: () => {} },
@@ -102,7 +111,7 @@ beforeEach(() => {
     const url = String(input)
     const method = init?.method ?? 'GET'
     calls.push({ url, method })
-    if (url === '/api/conversations/c1' && method === 'GET') return Promise.resolve(json(200, payload()))
+    if (url.split('?')[0] === '/api/conversations/c1' && method === 'GET') return Promise.resolve(json(200, payload())) // the first load is ?opened=1 (main, 2026-10-05)
     return Promise.resolve(json(200, {}))
   }))
 })
