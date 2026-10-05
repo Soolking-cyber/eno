@@ -121,13 +121,30 @@ describe('linked ticket and code copy names the seller or the operator, never a 
   })
 })
 
-describe('AffiliateBooking — the QR code’s accessible name follows the page (quality-12, 2026-10-04)', () => {
-  const qrLabel = (props: Record<string, unknown>) => renderToString(<AffiliateBooking url="https://shorten.asia/Abc" partnerName="Vin$&Wonders" listingId="l1" booking {...props} />).match(/<svg[^>]*aria-label="([^"]*)"/)?.[1]
-  it('Vietnamese on a vi page, English otherwise — and a `$` in the name prints as typed', () => {
-    expect(qrLabel({ lang: 'vi' })).toBe('Mã QR để đặt trên Vin$&amp;Wonders')
-    expect(qrLabel({})).toBe('QR code to book on Vin$&amp;Wonders')
-    expect(qrLabel({ lang: 'vi', job: true })).toBe('Mã QR để mở tin tuyển dụng trên Vin$&amp;Wonders')
-    expect(qrLabel({ lang: 'vi', rental: true, booking: false })).toBe('Mã QR để mở tin cho thuê trên Vin$&amp;Wonders')
+describe('AffiliateBooking — the QR code’s accessible name follows the reader (quality-12, 2026-10-04)', () => {
+  // The name lives on the QrFigure wrapper (role="img"), from tr() — so it follows the READER's language,
+  // not the page's `lang` prop; the server-built SVG inside is decorative. Asserted here for en and vi (the
+  // mock's tr() knows only those two); the nine machine-translated languages take the same tr() path.
+  const html = (props: Record<string, unknown>) => renderToString(<AffiliateBooking url="https://shorten.asia/Abc" partnerName="Vin$&Wonders" listingId="l1" booking {...props} />)
+  const qrLabel = (props: Record<string, unknown>) => html(props).match(/<div role="img" aria-label="([^"]*)"/)?.[1] ?? ''
+  it('Vietnamese for a Vietnamese reader, English otherwise — and a `$` in the name prints as typed', () => {
+    expect(both(() => qrLabel({})).vi).toBe('Mã QR để đặt trên Vin$&amp;Wonders')
+    expect(both(() => qrLabel({})).en).toBe('QR code to book on Vin$&amp;Wonders')
+    expect(both(() => qrLabel({ job: true }))).toEqual({ en: 'QR code to open the job posting on Vin$&amp;Wonders', vi: 'Mã QR để mở tin tuyển dụng trên Vin$&amp;Wonders' })
+    expect(both(() => qrLabel({ rental: true, booking: false }))).toEqual({ en: 'QR code to open the rental on Vin$&amp;Wonders', vi: 'Mã QR để mở tin cho thuê trên Vin$&amp;Wonders' })
+    // The page's `lang` prop does not override the reader: an English reader on a Vietnamese page hears English.
+    expect(both(() => qrLabel({ lang: 'vi' })).en).toBe('QR code to book on Vin$&amp;Wonders')
+  })
+  it('the QR SVG itself is decorative in every branch, for an English and a Vietnamese reader', () => {
+    // The QR's OWN <svg> — the first element inside the role="img" wrapper — not any icon on the card.
+    const qrSvg = (props: Record<string, unknown>) => html(props).match(/<div role="img" aria-label="[^"]*"[^>]*>(<svg[^>]*>)/)?.[1] ?? ''
+    for (const props of [{}, { job: true }, { rental: true, booking: false }]) {
+      for (const tag of Object.values(both(() => qrSvg(props)))) {
+        expect(tag).toMatch(/aria-hidden="true"/)
+        expect(tag).not.toMatch(/aria-label=/)
+      }
+      expect(html(props).match(/role="img"/g)).toHaveLength(1)
+    }
   })
 })
 
