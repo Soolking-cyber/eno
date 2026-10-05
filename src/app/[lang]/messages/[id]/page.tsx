@@ -3232,11 +3232,16 @@ export default function ThreadPage() {
               it: nothing inside the composer row moves, and ChatSendButton's focus-hold is untouched. */}
           {showOffer && thread?.iAmSeller === false && !thread.closed && <OfferPartiesNote className="bg-background px-4 pt-2" />}
 
-          {/* App Store gate `ios-hide-visa`: a read-only e-Visa thread in the iOS app (see `visaElsewhere`).
-              App Store gate `ugc-safety`: a thread CLOSED by a block shows why instead of a composer whose
+          {/* App Store gate `ugc-safety`: a thread CLOSED by a block shows why instead of a composer whose
               every send the server refuses (follow-up 2 of 0a470ed98). The Report button stays in the
-              header, and the dialog instance above stays mounted. Never set while the gate is off. */}
-          {visaElsewhere ? <VisaInAppNote kind="thread" className="mx-4 mt-2 mb-3" /> : thread?.closed ? <ClosedThreadBanner closed={thread.closed} /> : (
+              header, and the dialog instance above stays mounted. Never set while the gate is off.
+              App Store gate `ios-hide-visa`: a read-only e-Visa thread in the iOS app (see `visaElsewhere`).
+              ⚠️ CLOSED WINS. A partner's e-Visa product thread is an ordinary listing thread, so it can be
+              blocked; its visa note says the chat continues "at www.eno.forum in a web browser", which a
+              block has made false — there it is closed too. The banner is the true state for BOTH sides
+              (`closed` is only ever 'you_blocked' or 'blocked'); the blocker's banner also links the way
+              back (Manage blocked users), the blocked side's only says the thread is closed. */}
+          {thread?.closed ? <ClosedThreadBanner closed={thread.closed} /> : visaElsewhere ? <VisaInAppNote kind="thread" className="mx-4 mt-2 mb-3" /> : (
           /* Composer — the Tag toggle flips this same bar between a message field
               and the offer-amount field (no separate input bar). In offer mode the
               field shows an inline +000 chip and Send submits the offer. */

@@ -197,6 +197,23 @@ describe('a PARTNER e-Visa product thread (kind listing)', () => {
     expect(screen.queryByText(THREAD_NOTE)).toBeNull()
   })
 
+  // ugc-safety + ios-hide-visa together: a BLOCK closes the thread on the web too, so the visa note's "continues at
+  // www.eno.forum" would be false — the closed banner (and the blocker's way back) wins.
+  it.each(['you_blocked', 'blocked'] as const)('flagged AND closed by a block (%s): the closed banner, not the visa note', async (closed) => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa,ugc-safety')
+    platform('ios')
+    payload = () => ({ ...partnerThread(true), closed })
+    await openThread()
+    expect(composer()).toBeNull()
+    expect(screen.queryByText(THREAD_NOTE)).toBeNull()
+    // The blocker's banner links the way back; the blocked side's only says the thread is closed.
+    if (closed === 'you_blocked') expect(screen.getByText('Manage blocked users')).toBeTruthy()
+    else {
+      expect(screen.getByText(/This conversation is closed\./)).toBeTruthy()
+      expect(screen.queryByText('Manage blocked users')).toBeNull()
+    }
+  })
+
   it('flagged but the gate is off in this build: an ordinary chat', async () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
     platform('ios')
