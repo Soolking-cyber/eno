@@ -78,6 +78,23 @@ export function attrNeedles(key: string, value: string): AttrNeedles {
     if (!/^\d+$/.test(value)) attributes.push(`"${key}":"${value}"`)
     return { attributes, tokens: [] }
   }
+  /**
+   * ⛔ "THEO TUẦN" MEANS "CAN BE RENTED FOR A WEEK" (owner, 2026-10-05: "if only for rentals motorbikes or cars yes
+   * include"). It matched only rows that list a weekly RATE (20 bikes of one shop, via facetTokens), so every
+   * daily-priced bike and car — which can be rented for a week — vanished from a weekly search. Weekly now also
+   * matches daily-priced rows. Measured read-only 2026-10-05: only vehicles are priced per day (6,258 cars, 69
+   * motorbikes); no apartment, house, room or office is priced by the day or the week.
+   * ⚠️ NOT SCOPED TO VEHICLES IN CODE, on purpose (gate, 2026-10-05): the Filter panel's counts group rows by
+   * (attributes, facetTokens) with no subcategory, so a vehicle-only clause in SQL would make a chip's count and
+   * its results disagree; and scoping the facet to vehicles would take "Theo ngày" away from a short-stay room
+   * posting. A room ever priced per day can be rented for a week too — the same rule, honestly applied.
+   */
+  if (key === 'rentalPeriod' && value === 'weekly') {
+    return {
+      attributes: [`"${key}":"weekly"`, `"${key}":"daily"`],
+      tokens: [facetTokenFor(key, 'weekly'), facetTokenFor(key, 'daily')],
+    }
+  }
   const attributes = [`"${key}":"${value}"`]
   const prefixes = key === 'compatibleWith' ? COMPAT_DISPLAY_PREFIXES[value] : undefined
   // ⚠️ A PREFIX, CLOSED ON THE LEFT BY THE KEY: `"compatibleWith":"iPhone 14` matches "iPhone 14",

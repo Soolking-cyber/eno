@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { attrFiltersFrom, attrNeedles, attrRowMatches, attrWhere, OR_MORE_CEILING, viewScope } from './attr-match'
+import { attrFiltersFrom, attrMatcher, attrNeedles, attrRowMatches, attrWhere, OR_MORE_CEILING, viewScope } from './attr-match'
 import { COMPAT_DISPLAY_PREFIXES, extractSpecs, specsFor } from './electronics-specs'
 import { facetsFor, roomAttributes, roomCountValue, ROOM_COUNT_TOP } from './taxonomy'
 
@@ -119,5 +119,32 @@ describe('viewScope', () => {
     expect(viewScope('rentals', 'office-rental')).toBe('rentals/office-rental')
     expect(viewScope('rentals', 'all')).toBe('rentals/all')
     expect(viewScope('rentals', null)).toBe('rentals/all')
+  })
+})
+
+describe('rentalPeriod=weekly — "Theo tuần" means rentable for a week (owner, 2026-10-05)', () => {
+  it('matches rows with a weekly rate AND daily-priced rows; monthly-only rows stay out', () => {
+    const m = attrMatcher('rentalPeriod', 'weekly')
+    expect(m({ attributes: '{"rentalPeriod":"daily"}', facetTokens: null })).toBe(true)
+    expect(m({ attributes: '{"rentalPeriod":"monthly"}', facetTokens: '|rentalPeriod:daily|rentalPeriod:weekly|rentalPeriod:monthly|' })).toBe(true)
+    expect(m({ attributes: '{"rentalPeriod":"monthly"}', facetTokens: '|rentalPeriod:monthly|' })).toBe(false)
+    expect(m({ attributes: null, facetTokens: null })).toBe(false)
+  })
+  it('a row tagged weekly only in its attributes, with no tokens, still matches', () => {
+    expect(attrMatcher('rentalPeriod', 'weekly')({ attributes: '{"rentalPeriod":"weekly"}', facetTokens: null })).toBe(true)
+  })
+  it('⛔ the DATABASE predicate is the same OR — weekly or daily, in attributes or tokens (the grid and the counts agree)', () => {
+    expect(attrWhere('rentalPeriod', 'weekly')).toEqual({
+      OR: [
+        { attributes: { contains: '"rentalPeriod":"weekly"' } },
+        { attributes: { contains: '"rentalPeriod":"daily"' } },
+        { facetTokens: { contains: '|rentalPeriod:weekly|' } },
+        { facetTokens: { contains: '|rentalPeriod:daily|' } },
+      ],
+    })
+  })
+  it('the other periods are unchanged — daily is daily, monthly is monthly', () => {
+    expect(attrMatcher('rentalPeriod', 'daily')({ attributes: '{"rentalPeriod":"weekly"}', facetTokens: null })).toBe(false)
+    expect(attrMatcher('rentalPeriod', 'monthly')({ attributes: '{"rentalPeriod":"daily"}', facetTokens: null })).toBe(false)
   })
 })
