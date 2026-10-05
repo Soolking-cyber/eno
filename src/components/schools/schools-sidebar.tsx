@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Button } from '@/components/ui/button'
-import { Briefcase, GraduationCap } from '@/components/ui/icons'
+import { Briefcase, GraduationCap, Plus } from '@/components/ui/icons'
 import { formatInteger, moneyLocale } from '@/lib/vnd'
 import type { SchoolListRow } from '@/lib/schools/queries'
 import { SchoolLogo } from './school-bits'
@@ -73,6 +73,21 @@ export function SchoolsSidebar({ rows, lang }: { rows: SchoolListRow[]; lang: st
         </p>
         <Button variant="outline" className="mt-3 w-full" asChild>
           <Link href="/teachers/join"><Bilingual en="Create a teacher profile" vi="Tạo hồ sơ giáo viên" /></Link>
+        </Button>
+      </section>
+
+      <section aria-labelledby="schools-suggest-h" className="rounded-2xl bg-card p-4 ring-1 ring-border">
+        <h2 id="schools-suggest-h" className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+          <Plus aria-hidden className="size-4" /> <Bilingual en="Missing a school?" vi="Thiếu trường?" />
+        </h2>
+        <p className="mt-2 text-sm leading-relaxed text-body">
+          <Bilingual
+            en="Tell us about a school, centre or recruiter in Ho Chi Minh City that is not listed, and a moderator adds it."
+            vi="Hãy cho chúng tôi biết một trường, trung tâm hay đơn vị tuyển dụng tại TP. Hồ Chí Minh chưa có trong danh sách, kiểm duyệt viên sẽ thêm vào."
+          />
+        </p>
+        <Button variant="outline" className="mt-3 w-full" asChild>
+          <Link href="/schools/suggest"><Bilingual en="Suggest a school" vi="Đề xuất trường" /></Link>
         </Button>
       </section>
     </div>

@@ -26,7 +26,7 @@ await client.connect()
 await client.query('begin')
 process.on('unhandledRejection', async (e) => { console.error(e); try { await client.query('rollback') } catch {} process.exit(1) })
 
-const tables = ['School', 'SchoolAlias', 'SchoolVote', 'SchoolReview', 'SchoolReviewVote', 'SchoolReport', 'SchoolEmployment', 'SchoolVoteEvent', 'SchoolProofKey', 'SchoolProofKeyCheck']
+const tables = ['School', 'SchoolAlias', 'SchoolVote', 'SchoolReview', 'SchoolReviewVote', 'SchoolReport', 'SchoolEmployment', 'SchoolVoteEvent', 'SchoolProofKey', 'SchoolProofKeyCheck', 'SchoolSuggestion', 'SchoolAward', 'SchoolAwardYear']
 for (const t of tables) {
   const r = await client.query(`select to_regclass('public."${t}"') as t`)
   if (!r.rows[0].t) {
@@ -139,6 +139,14 @@ await constraint('SchoolVoteEvent', 'SchoolVoteEvent_value_check', `check (value
 await constraint('SchoolProofKey', 'SchoolProofKey_kind_check', `check (kind = 'linkedin' and length(hash) = 64)`)
 // One fingerprint, ever: the key both editions must share (employment.ts proofKeyMatches).
 await constraint('SchoolProofKeyCheck', 'SchoolProofKeyCheck_one_check', `check (id = 1 and length(fingerprint) = 64)`)
+// A suggestion (2026-10-05): its states and its shape. (No "decided ⇒ schoolId" check: the link is SET NULL when a
+// school row goes, and a check would turn that delete into an error.)
+await constraint('SchoolSuggestion', 'SchoolSuggestion_status_check', `check (status in ('pending','added','duplicate','rejected'))`)
+await constraint('SchoolSuggestion', 'SchoolSuggestion_kind_check', `check (kind in ('language_centre','international_school','bilingual_school','agency','university'))`)
+await constraint('SchoolSuggestion', 'SchoolSuggestion_shape_check', `check (length(name) between 2 and 120 and length(note) <= 500)`)
+// Teachers' Choice (2026-10-05): a winner and at most two finalists per category, numbers that can be true.
+await constraint('SchoolAward', 'SchoolAward_shape_check', `check (rank between 1 and 3 and category in ('language_centre','international_school','bilingual_school','agency','university') and score between 0 and 1 and up >= 0 and down >= 0 and reviews >= 0 and year >= 2026)`)
+await constraint('SchoolAwardYear', 'SchoolAwardYear_shape_check', `check (year >= 2026 and voters >= 0 and reviews >= 0)`)
 
 // ⛔ THE VOTE LOG IS WRITTEN BY THE DATABASE, NOT BY THE APP: every insert, change and delete of a
 // SchoolVote appends one SchoolVoteEvent (0 = withdrawn), whatever path made it — the API, an admin script,

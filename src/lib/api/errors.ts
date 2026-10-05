@@ -101,6 +101,14 @@ export type NicheApiErrorCode =
   | 'proof_not_verified'
   | 'proof_already_verified'
   | 'linkedin_url_invalid'
+  | 'school_name_invalid'
+  | 'website_invalid'
+  | 'district_invalid'
+  | 'alias_taken'
+  | 'award_year_open'
+  | 'award_year_invalid'
+  | 'award_reviews_pending'
+  | 'too_many_suggestions'
   | 'linkedin_already_used'
   | 'too_many_pending_proofs'
   | 'proof_rejected'
@@ -526,6 +534,14 @@ const ALL = [
   'proof_not_verified',
   'proof_already_verified',
   'linkedin_url_invalid',
+  'school_name_invalid',
+  'website_invalid',
+  'district_invalid',
+  'alias_taken',
+  'award_year_open',
+  'award_year_invalid',
+  'award_reviews_pending',
+  'too_many_suggestions',
   'linkedin_already_used',
   'too_many_pending_proofs',
   'proof_rejected',

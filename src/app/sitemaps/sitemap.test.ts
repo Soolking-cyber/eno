@@ -51,6 +51,8 @@ const h = vi.hoisted(() => ({
   // Active schools with their newest PUBLISHED review's approval date (null = none published).
   schools: [] as { slug: string; status: string; published: Date | null }[],
   failSchools: false,
+  // Closed Teachers' Choice years (queries.ts awardYearsForSitemap).
+  awardYears: [] as { year: number; lastmod: Date }[],
 }))
 const CATEGORY_SLUGS: Record<string, string> = vi.hoisted(() => ({
   'cat-rentals': 'rentals', 'cat-fashion': 'fashion-beauty', 'cat-books': 'books-stationery', 'cat-hobbies': 'hobbies-sports', 'cat-pets': 'pets', 'cat-services': 'services', 'cat-empty': 'jobs',
@@ -106,6 +108,7 @@ vi.mock('@/lib/schools/queries', () => ({
       .sort((a, b) => (a.slug < b.slug ? -1 : 1))
       .map((x) => ({ slug: x.slug, lastmod: x.published }))
   },
+  awardYearsForSitemap: async () => h.awardYears,
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -291,6 +294,7 @@ beforeEach(() => {
   h.services = false
   h.schools = []
   h.failSchools = false
+  h.awardYears = []
 })
 afterEach(() => { vi.unstubAllEnvs() })
 
@@ -983,6 +987,13 @@ describe('the school directory in the pages child (2026-10-04)', () => {
     expect(xml).toContain(`<loc>${HOST}/schools/vus</loc>`)
     expect(xml).not.toContain('/schools/no-reviews-yet')
     expect(xml).not.toContain('/schools/hidden-school')
+    expect(xml).not.toContain('/schools/awards') // no year closed yet
+  })
+
+  it("submits each closed Teachers' Choice year, dated by its closing", async () => {
+    h.awardYears = [{ year: 2026, lastmod: new Date('2026-12-31T17:10:00Z') }]
+    const { xml } = await buildPagesSitemap({ rentIndex: 'require' })
+    expect(xml).toContain(`<loc>${HOST}/schools/awards/2026</loc><lastmod>2026-12-31`)
   })
 
   it('a failed school read submits /schools alone and never fails the sitemap', async () => {

@@ -128,7 +128,8 @@ export function normaliseLinkedIn(raw: string): { slug: string; url: string } | 
   // ⛔ A MEMBER-ID LINK (linkedin.com/in/ACoAA…, what LinkedIn's share button gives) names the same person as their
   // public URL, so accepting both would let one person prove two accounts without even renaming (diff review):
   // only the public profile URL is accepted, and the form says where to find it.
-  if (/^acoa[a-z0-9_-]{20,}$/i.test(slug)) return null
+  // (ACoAA… and ACwAA… are the member-id encodings LinkedIn hands out — diff review.)
+  if (/^ac[ow]aa[a-z0-9_-]{20,}$/i.test(slug)) return null
   return { slug, url: `https://www.linkedin.com/in/${encodeURIComponent(slug)}/` }
 }
 

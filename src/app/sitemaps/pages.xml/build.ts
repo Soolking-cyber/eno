@@ -29,7 +29,7 @@ import { RENTAL_PLACES } from '@/lib/rental-places'
 import { isIndexableCount } from '@/lib/index-floor'
 import { submittedListingWhere, urlsetXml, siteOrigin } from '@/lib/sitemap'
 import { storefrontCanonicals } from '@/lib/storefront'
-import { schoolsForSitemap } from '@/lib/schools/queries'
+import { awardYearsForSitemap, schoolsForSitemap } from '@/lib/schools/queries'
 
 /**
  * THE BODY OF /sitemaps/pages.xml, MOVED OUT OF ITS ROUTE FILE (SEO wave B, I4) SO A SECOND CALLER CAN
@@ -522,6 +522,9 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
     const newest = dates.reduce<Date | undefined>((a, d) => (d && (!a || d > a) ? d : a), undefined)
     urls.push(`  <url><loc>${hostUrl}/schools</loc>${lm(newest)}</url>\n`)
     for (const [i, r] of (reviewed ?? []).entries()) urls.push(`  <url><loc>${hostUrl}/schools/${r.slug}</loc>${lm(dates[i])}</url>\n`)
+    // Teachers' Choice results, once a year is closed (src/lib/schools/awards.ts). Same failure rule: none, not an error.
+    const awardYears = await Promise.resolve().then(() => awardYearsForSitemap()).catch(() => [])
+    for (const y of awardYears) urls.push(`  <url><loc>${hostUrl}/schools/awards/${y.year}</loc>${lm(y.lastmod)}</url>\n`)
   }
 
   // The e-visa cluster: the /vietnam-evisa hub and its long-tail children.

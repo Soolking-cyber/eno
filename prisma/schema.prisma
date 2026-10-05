@@ -161,6 +161,7 @@ model Profile {
   schoolEmployments SchoolEmployment[]
   schoolVoteEvents  SchoolVoteEvent[]
   schoolProofKeys   SchoolProofKey[]
+  schoolSuggestions SchoolSuggestion[]
   schoolReviewVotes SchoolReviewVote[]
   schoolReports     SchoolReport[]
 
@@ -2195,6 +2196,8 @@ model School {
   reports SchoolReport[]
   employments SchoolEmployment[]
   voteEvents  SchoolVoteEvent[]
+  suggestions SchoolSuggestion[]
+  awards      SchoolAward[]
 
   @@index([status, kind])
 }
@@ -2267,6 +2270,74 @@ model SchoolProofKeyCheck {
   id          Int      @id @default(1)
   fingerprint String
   createdAt   DateTime @default(now())
+}
+
+/// Teachers' Choice (2026-10-05): one row per school placed in a year's category — rank 1 the year's Teachers'
+/// Choice, 2–3 finalists. Written ONCE, when the year is finalised (src/lib/schools/awards.ts), and never recomputed:
+/// later votes never change a past award. CHECKs and RLS: scripts/schools-ddl.mjs.
+model SchoolAward {
+  id         String   @id @default(cuid())
+  year       Int
+  /// A school kind (constants.ts SCHOOL_KINDS): each kind is its own category.
+  category   String
+  rank       Int
+  schoolId   String
+  /// ⛔ RESTRICT (diff review): a past award never disappears with its school — schools are hidden, never deleted.
+  school     School   @relation(fields: [schoolId], references: [id], onDelete: Restrict)
+  /// Wilson lower bound (95%) of the up-share among counted votes, and what it was computed from.
+  score      Float
+  up         Int
+  down       Int
+  reviews    Int
+  computedAt DateTime @default(now())
+
+  @@unique([year, category, rank])
+  @@unique([year, category, schoolId])
+  @@index([schoolId])
+}
+
+/// A finalised award year (2026-10-05) — present even when no school qualified, so "final" never depends on there
+/// being a winner. Its presence is what makes finalising idempotent.
+model SchoolAwardYear {
+  year        Int      @id
+  finalisedAt DateTime @default(now())
+  finalisedBy String
+  /// How many votes and reviews counted across all categories (shown with the results).
+  voters      Int
+  reviews     Int
+}
+
+/// A school a teacher asked us to add (2026-10-05). PRIVATE: the suggester sees their own, moderators all of them.
+/// A moderator adds it (creating the School with the importer's own validation), marks it a duplicate of a listed
+/// school, or rejects it — a suggestion never becomes a school by itself. CHECKs and RLS: scripts/schools-ddl.mjs.
+model SchoolSuggestion {
+  id           String    @id @default(cuid())
+  /// ⛔ CASCADE: an erased account takes its suggestions with it; a school one led to stays (it is the directory's).
+  profileId    String    @db.Uuid
+  profile      Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name         String
+  kind         String
+  website      String?
+  districts    String[]  @default([])
+  note         String    @default("")
+  /// normEmployer(name): how a second suggestion of the same school is found.
+  nameKey      String
+  /// The website's host for matching (src/lib/schools/suggest.ts websiteKey); null for a host many schools share.
+  host         String?
+  /// pending | added | duplicate | rejected
+  status       String    @default("pending")
+  /// The school it became (added) or already was (duplicate).
+  schoolId     String?
+  school       School?   @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  decidedAt    DateTime?
+  decidedBy    String?
+  rejectReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status, createdAt])
+  @@index([profileId, status])
+  @@index([nameKey])
 }
 
 /// Append-only: every change to a school vote, 0 = withdrawn (2026-10-05). SchoolVote holds only the

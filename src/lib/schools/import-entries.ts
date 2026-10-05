@@ -14,6 +14,9 @@ export type Entry = {
   summary?: string; summaryVi?: string | null; aliases?: string[]; sourceUrls?: string[]
 }
 
+/** Static routes under /schools (src/app/[lang]/schools/*): never a school's slug. */
+export const RESERVED_SLUGS = new Set(['awards', 'suggest'])
+
 export function slugify(name: string): string {
   return fold(name).replace(/['’]/g, '').replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80).replace(/-+$/, '')
 }
@@ -36,6 +39,8 @@ export function clean(e: Entry): { ok: true; row: Clean } | { ok: false; why: st
   if (!isSchoolKind(e.kind)) why.push(`kind "${e.kind}"`)
   const slug = (e.slug ?? slugify(name)).trim()
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) || slug.length > 80) why.push(`slug "${slug}"`)
+  // /schools/awards and /schools/suggest are pages: a school with one of those slugs could never be reached.
+  if (RESERVED_SLUGS.has(slug)) why.push(`slug "${slug}" is reserved`)
   let website: string | null | undefined = e.website === undefined ? undefined : null
   if (e.website) {
     try {

@@ -17,7 +17,7 @@ describe('normaliseLinkedIn', () => {
     const { normaliseLinkedIn } = await load()
     for (const raw of ['https://www.linkedin.com/company/ila-vietnam/', 'https://evil-linkedin.com/in/jane', 'https://linkedin.com.evil.io/in/jane', 'https://www.linkedin.com/in/ab', 'javascript:alert(1)', 'not a url',
       // A member-id share link: the same person as their public URL, so never a second key.
-      'https://www.linkedin.com/in/ACoAAAB1c2VyIdABCDEFGHIJKLMNOPQRSTUVWX']) {
+      'https://www.linkedin.com/in/ACoAAAB1c2VyIdABCDEFGHIJKLMNOPQRSTUVWX', 'https://www.linkedin.com/in/ACwAAAB1c2VyIdABCDEFGHIJKLMNOPQRSTUVWX']) {
       expect(normaliseLinkedIn(raw), raw).toBeNull()
     }
   })

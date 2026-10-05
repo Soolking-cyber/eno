@@ -38,6 +38,13 @@ const ITEMS: { h: { en: string; vi: string }; p: { en: string; vi: string } }[] 
     },
   },
   {
+    h: { en: "Teachers' Choice", vi: 'Giáo viên bình chọn' },
+    p: {
+      en: "Each year, Teachers' Choice records the places teachers recommend, one category for each kind of place. A place qualifies when more of its voters recommend it than not, with votes from at least 10 teachers with a verified identity and at least 3 reviews whose writers also verified their identity, all during the year in Saigon time, and is ranked by the same score as Top rated. While the year is open, only the names of places that qualify are shown; the results are recorded when the year closes and never change.",
+      vi: 'Mỗi năm, mục Giáo viên bình chọn ghi nhận những nơi được giáo viên đề xuất, mỗi loại hình một hạng mục. Một nơi đủ điều kiện khi số người đề xuất nhiều hơn số người không đề xuất, có phiếu của ít nhất 10 giáo viên đã xác minh danh tính và ít nhất 3 đánh giá có người viết cũng đã xác minh danh tính, tất cả trong năm theo giờ Sài Gòn, và được xếp theo cùng cách tính với mục Được đánh giá cao. Khi năm còn mở, chỉ tên các nơi đủ điều kiện được hiển thị; kết quả được ghi lại khi năm khép lại và không thay đổi.',
+    },
+  },
+  {
     h: { en: 'Open jobs', vi: 'Việc đang tuyển' },
     p: {
       en: 'Open jobs are live job listings in Ho Chi Minh City on {site} whose employer name matches the school, plus any job the school posts from its own account. Each one shows the name it was posted under.',

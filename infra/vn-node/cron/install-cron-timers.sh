@@ -30,6 +30,10 @@ declare -A SCHED=(
   # /schools proofs of employment (src/lib/schools/employment.ts sweepProofRetention): LinkedIn URLs and
   # codes erased 30 days after a decision, undecided ones closed after 60 days. Between the other PII sweeps.
   [school-proof-retention]="*-*-* 08:30:00 UTC"
+  # /schools Teachers' Choice (src/lib/schools/awards.ts): closes LAST year's awards once, 17:10 UTC = 00:10 in
+  # Saigon, ten minutes after the year ends there. Daily, so a missed night is caught up; later runs write nothing.
+  # Installed NOT enabled (POLICY below): a moderator closes the year by default.
+  [school-awards]="*-*-* 17:10:00 UTC"
   # Durable erasure queue (StorageTombstone): objects the fast paths could not delete. Every
   # tombstone carries a grace hour, so a row written at the moment another job runs is due only
   # well after it — 09:00 keeps this clear of the 07:30 retention sweep and its own grace.
@@ -94,7 +98,10 @@ EMAIL=(daily-reminders saved-search-alerts weekly-digest teacher-match-emails)
 # business-verification case older than 30 days loses its registration scans, approved sellers
 # included (VERIFICATION_DOC_RETENTION_MS). Enable it once that retention is confirmed:
 #   systemctl enable --now eno-cron-business-verification-retention.timer
-POLICY=(business-verification-retention)
+# school-awards too (diff review): closing a Teachers' Choice year FREEZES public awards for good, so by default a
+# moderator closes it (admin → Schools → Directory → "Close {year}") after looking at it. Enable this only to make
+# that automatic:   systemctl enable --now eno-cron-school-awards.timer
+POLICY=(business-verification-retention school-awards)
 
 # ⚠️ ONE JOB ONLY: `ENO_CRON_ONLY=<job> bash install-cron-timers.sh` writes, reloads and enables just
 # that job's units (if it is in SAFE) and leaves every other unit as it is. A full re-run DISABLES the

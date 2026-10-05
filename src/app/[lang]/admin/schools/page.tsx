@@ -4,7 +4,10 @@ import { db } from '@/lib/db'
 import { queuedReviewCount, queuedReviewIds } from '@/lib/schools/queries'
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { AdminSectionShell, pickTab } from '@/components/admin/section-shell'
-import { SchoolsAdminClient, type AdminProof, type AdminReview, type AdminReport, type AdminSchool } from '@/components/admin/schools-admin-client'
+import { SchoolsAdminClient, type AdminAwards, type AdminProof, type AdminReview, type AdminReport, type AdminSchool, type AdminSuggestion } from '@/components/admin/schools-admin-client'
+import { websiteKey } from '@/lib/schools/suggest'
+import { currentAwardYear } from '@/lib/schools/award-rank'
+import { AWARD_FIRST_YEAR } from '@/lib/schools/constants'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = { title: 'Schools — eno.vn admin', robots: { index: false, follow: false } }
@@ -14,7 +17,7 @@ export const metadata: Metadata = { title: 'Schools — eno.vn admin', robots: {
 // school's complaint carries a 24 h due-by (plan v2). The third tab hides or shows a directory entry.
 // 2026-10-05: "Proofs" — a teacher's private proof of employment (their LinkedIn profile) waits here; a
 // review can only be approved once its writer's proof is verified.
-const TABS = ['reviews', 'proofs', 'reports', 'directory'] as const
+const TABS = ['reviews', 'proofs', 'reports', 'suggestions', 'directory'] as const
 const DAY_MS = 86_400_000
 
 export default async function AdminSchoolsPage({ searchParams }: { searchParams?: Promise<{ tab?: string | string[] }> }) {
@@ -24,13 +27,15 @@ export default async function AdminSchoolsPage({ searchParams }: { searchParams?
   // ⛔ NO WRITES ON A GET (diff review: a prefetch of this page would have deleted). Retention runs on its schedule
   // (/api/cron/school-proof-retention); here a proof past its date is simply not offered (actionableProof).
   const now = new Date()
-  const [pendingCount, openCount, proofCount] = await Promise.all([
+  const [pendingCount, openCount, proofCount, suggestionCount] = await Promise.all([
     queuedReviewCount(),
     db.schoolReport.count({ where: { status: 'open' } }),
     db.schoolEmployment.count({ where: actionableProof(now) }),
+    db.schoolSuggestion.count({ where: { status: 'pending' } }),
   ])
 
-  let reviews: AdminReview[] = [], reports: AdminReport[] = [], schools: AdminSchool[] = [], proofs: AdminProof[] = []
+  let reviews: AdminReview[] = [], reports: AdminReport[] = [], schools: AdminSchool[] = [], proofs: AdminProof[] = [], suggestions: AdminSuggestion[] = []
+  let awards: AdminAwards = { open: currentAwardYear(), ended: [] }
   if (tab === 'reviews') {
     // In the queue's own order — approvable first (queries.ts queuedReviewIds) — not re-sorted by date here.
     const queue = await queuedReviewIds(100)
@@ -60,6 +65,21 @@ export default async function AdminSchoolsPage({ searchParams }: { searchParams?
       id: r.id, method: r.method, linkedinUrl: r.linkedinUrl, challenge: r.challenge, flags: r.flags,
       createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString(), school: r.school, author: people.get(r.profileId) ?? null,
     }))
+  } else if (tab === 'suggestions') {
+    const rows = await db.schoolSuggestion.findMany({
+      where: { status: 'pending' }, orderBy: { createdAt: 'asc' }, take: 100,
+      select: { id: true, name: true, kind: true, website: true, districts: true, note: true, nameKey: true, host: true, createdAt: true, profileId: true },
+    })
+    const [people, all, aliases] = await Promise.all([
+      authorInfo(rows.map((r) => r.profileId)),
+      db.school.findMany({ select: { id: true, slug: true, name: true, status: true, website: true } }),
+      db.schoolAlias.findMany({ select: { alias: true, schoolId: true } }),
+    ])
+    const byId = new Map(all.map((x) => [x.id, x]))
+    suggestions = rows.map((r) => ({
+      id: r.id, name: r.name, kind: r.kind, website: r.website, districts: r.districts, note: r.note, createdAt: r.createdAt.toISOString(),
+      author: people.get(r.profileId) ?? null, matches: likelyMatches(r, all, aliases, byId),
+    }))
   } else if (tab === 'reports') {
     const rows = await db.schoolReport.findMany({
       where: { status: 'open' }, orderBy: { createdAt: 'asc' }, take: 200,
@@ -86,6 +106,16 @@ export default async function AdminSchoolsPage({ searchParams }: { searchParams?
     const published = await db.schoolReview.groupBy({ by: ['schoolId'], where: { status: 'published' }, _count: { _all: true } })
     const pub = new Map(published.map((p) => [p.schoolId, p._count._all]))
     schools = rows.map((s) => ({ id: s.id, slug: s.slug, name: s.name, kind: s.kind, status: s.status, reviews: s._count.reviews, published: pub.get(s.id) ?? 0, aliases: s._count.aliases }))
+    // Teachers' Choice: every year that has ended, and whether a moderator has closed it yet.
+    const open = currentAwardYear()
+    const done = new Map((await db.schoolAwardYear.findMany({ select: { year: true, finalisedAt: true, finalisedBy: true } })).map((y) => [y.year, y]))
+    awards = {
+      open,
+      ended: Array.from({ length: Math.max(0, open - AWARD_FIRST_YEAR) }, (_, i) => open - 1 - i).map((year) => {
+        const d = done.get(year)
+        return { year, finalisedAt: d?.finalisedAt.toISOString() ?? null, finalisedBy: d?.finalisedBy ?? null }
+      }),
+    }
   }
 
   return (
@@ -97,17 +127,40 @@ export default async function AdminSchoolsPage({ searchParams }: { searchParams?
         { key: 'reviews', label: 'Pending reviews', count: pendingCount },
         { key: 'proofs', label: 'Proofs of employment', count: proofCount },
         { key: 'reports', label: 'Reports & complaints', count: openCount },
+        { key: 'suggestions', label: 'Suggested schools', count: suggestionCount },
         { key: 'directory', label: 'Directory' },
       ]}
       active={tab}
     >
-      <SchoolsAdminClient tab={tab} reviews={reviews} reports={reports} schools={schools} proofs={proofs} />
+      <SchoolsAdminClient tab={tab} reviews={reviews} reports={reports} schools={schools} proofs={proofs} suggestions={suggestions} awards={awards} />
     </AdminSectionShell>
   )
 }
 
 /** A proof a moderator can decide: a LinkedIn profile waiting to be checked, inside its window (past it the daily sweep closes it). */
 const actionableProof = (now: Date) => ({ status: 'pending', linkedinHash: { not: null }, purgeAt: { gt: now } })
+
+/**
+ * Schools a suggestion may already be — hidden ones included, since the moderator decides (the public form never
+ * names a hidden school): one that answers to the same name, one with the same website, or one whose name holds
+ * the suggested one (or the other way round).
+ */
+function likelyMatches(
+  s: { nameKey: string; host: string | null },
+  all: { id: string; slug: string; name: string; status: string; website: string | null }[],
+  aliases: { alias: string; schoolId: string }[],
+  byId: Map<string, { id: string; slug: string; name: string; status: string }>,
+): AdminSuggestion['matches'] {
+  const out = new Map<string, AdminSuggestion['matches'][number]>()
+  const add = (id: string, why: 'name' | 'website' | 'similar') => {
+    const x = byId.get(id)
+    if (x && !out.has(id)) out.set(id, { slug: x.slug, name: x.name, status: x.status, why })
+  }
+  for (const a of aliases) if (a.alias === s.nameKey) add(a.schoolId, 'name')
+  if (s.host) for (const x of all) if (websiteKey(x.website) === s.host) add(x.id, 'website')
+  if (s.nameKey.length >= 4) for (const a of aliases) if (a.alias.length >= 4 && (a.alias.includes(s.nameKey) || s.nameKey.includes(a.alias))) add(a.schoolId, 'similar')
+  return [...out.values()].slice(0, 8)
+}
 
 /**
  * Which accounts still own a live ledger key (proved with some LinkedIn profile, not yet burnt) — what makes a proof

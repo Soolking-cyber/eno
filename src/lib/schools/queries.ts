@@ -230,6 +230,8 @@ export type SchoolListRow = {
   /** The logo tile's content stamp (logos.ts), or null: draw the monogram. */
   logo: string | null
   up: number; down: number; reviews: number; jobs: number; pay: PublicPay[]
+  /** Its most recent Teachers' Choice place (rank 1 = the choice, 2–3 = finalist), or null. */
+  award: { year: number; rank: number } | null
 }
 
 export async function listSchools(opts: { kind?: SchoolKind | null; area?: string | null; q?: string | null; sort: SchoolSort }): Promise<SchoolListRow[]> {
@@ -248,11 +250,12 @@ export async function listSchools(opts: { kind?: SchoolKind | null; area?: strin
     ? schools.filter((s) => fold(s.name).includes(q) || (alias.length > 1 && s.aliases.some((a) => a.alias.includes(alias))))
     : schools
   const ids = filtered.map((s) => s.id)
-  const [votes, reviews, pay, jobs] = await Promise.all([eligibleVotes(ids), publishedReviewCounts(ids), payReports(ids), jobsBySchool(filtered)])
+  const [votes, reviews, pay, jobs, awards] = await Promise.all([eligibleVotes(ids), publishedReviewCounts(ids), payReports(ids), jobsBySchool(filtered), schoolAwards(ids)])
   const rows: SchoolListRow[] = filtered.map((s) => ({
     id: s.id, slug: s.slug, name: s.name, kind: s.kind as SchoolKind, districts: s.districts, aliases: s.aliases.map((a) => a.alias), logo: schoolLogo(s.slug),
     up: votes.get(s.id)?.up ?? 0, down: votes.get(s.id)?.down ?? 0,
     reviews: reviews.get(s.id) ?? 0, jobs: jobs.get(s.id)?.length ?? 0, pay: pay.get(s.id) ?? [],
+    award: awards.get(s.id)?.[0] ?? null,
   }))
   return rows.sort(compareSchools(opts.sort))
 }
@@ -282,7 +285,7 @@ async function loadSchoolPage(slug: string) {
   if (!school) return null
   const ids = [school.id]
   const visible = (await visibleReviewIds(ids)).map((r) => r.id)
-  const [votes, pay, jobIds, reviewRows] = await Promise.all([
+  const [votes, pay, jobIds, reviewRows, awards] = await Promise.all([
     eligibleVotes(ids), payReports(ids), jobsBySchool([school]),
     db.schoolReview.findMany({
       where: { id: { in: visible } },
@@ -294,6 +297,7 @@ async function loadSchoolPage(slug: string) {
         pros: true, cons: true, advice: true, goodTags: true, badTags: true, replyText: true, replyAt: true, submittedAt: true,
       },
     }),
+    schoolAwards(ids),
   ])
   const helpful = await eligibleReviewVotes(reviewRows.map((r) => r.id), school.id)
   const reviews: PublicReview[] = reviewRows.map((r) => ({
@@ -329,6 +333,7 @@ async function loadSchoolPage(slug: string) {
     goodTags: [...goodCounts.entries()].sort((a, b) => b[1] - a[1]),
     badTags: [...badCounts.entries()].sort((a, b) => b[1] - a[1]),
     jobs,
+    awards: awards.get(school.id) ?? [],
   }
 }
 
@@ -494,7 +499,84 @@ export async function queuedReviewIds(limit: number): Promise<string[]> {
      limit ${limit}`
   return rows.map((r) => r.id)
 }
+/** Reviews in the moderation queue that were submitted inside [start, end) — what a year's closing waits for. */
+export async function queuedReviewCountIn(start: Date, end: Date): Promise<number> {
+  const [row] = await db.$queryRaw<{ n: number }[]>`
+    select count(*)::int as n from "SchoolReview" r
+     where ${QUEUED}
+       and r."submittedAt" >= (${start.toISOString()}::timestamptz at time zone 'UTC')
+       and r."submittedAt" < (${end.toISOString()}::timestamptz at time zone 'UTC')`
+  return row?.n ?? 0
+}
 export async function queuedReviewCount(): Promise<number> {
   const [row] = await db.$queryRaw<{ n: number }[]>`select count(*)::int as n from "SchoolReview" r where ${QUEUED}`
   return row?.n ?? 0
+}
+
+// ── Teachers' Choice awards (src/lib/schools/awards.ts) ─────────────────────────────────────────────
+
+/**
+ * What a year's awards count, read here beside the rules for everything else public (diff review: one place says
+ * whose voice counts). For the window [start, end) — Saigon's calendar year, as UTC instants:
+ * • VOTES: each voter's LAST value cast in the window, per school, from the append-only log (SchoolVoteEvent —
+ *   written by a trigger, so no path that changes a vote can skip it); 0 = withdrawn. The account was at least
+ *   ELIGIBLE_ACCOUNT_AGE_DAYS old AT THE CUTOFF and is in good standing now (standingSql). Whether its owner is a
+ *   verified person AS OF THE CUTOFF is decided by the caller (verifiedProfileIds asOf).
+ * • REVIEWS: published now, submitted in the window, by an author who counts (reviewAuthorSql); the caller also
+ *   requires a verified identity of the writer (employment.ts says why: the LinkedIn ledger binds a URL, not a
+ *   person).
+ * Only active schools. ⚠️ Timestamps are naive UTC: the bounds are converted to UTC in SQL.
+ */
+export async function awardVotes(start: Date, end: Date, asOf: Date = end) {
+  // Account age as of the same moment identity is judged (the cutoff, or today while the year is open — diff review:
+  // the open list must use the rule the board uses, not a future 31 December's).
+  const ageCutoff = new Date(asOf.getTime() - ELIGIBLE_ACCOUNT_AGE_DAYS * 86_400_000).toISOString()
+  return db.$queryRaw<{ schoolId: string; profileId: string; value: number }[]>`
+    select distinct on (e."profileId", e."schoolId") e."schoolId" as "schoolId", e."profileId"::text as "profileId", e.value as value
+      from "SchoolVoteEvent" e
+      join "School" s on s.id = e."schoolId"
+      join "Profile" p on p.id = e."profileId"
+     where e.at >= (${start.toISOString()}::timestamptz at time zone 'UTC')
+       and e.at < (${end.toISOString()}::timestamptz at time zone 'UTC')
+       and s.status = 'active'
+       and p."createdAt" <= (${ageCutoff}::timestamptz at time zone 'UTC')
+       and ${standingSql()}
+       and exists (select 1 from identity_verifications iv where iv."profileId" = p.id and iv.status = 'verified') -- pre-filter only (voterSql says why)
+     order by e."profileId", e."schoolId", e.at desc, e.id desc`
+}
+
+export async function awardReviews(start: Date, end: Date) {
+  return db.$queryRaw<{ schoolId: string; profileId: string }[]>`
+    select distinct r."schoolId" as "schoolId", r."profileId"::text as "profileId"
+      from "SchoolReview" r
+      join "Profile" p on p.id = r."profileId"
+      join "School" s on s.id = r."schoolId"
+     where r.status = 'published' and s.status = 'active'
+       and r."submittedAt" >= (${start.toISOString()}::timestamptz at time zone 'UTC')
+       and r."submittedAt" < (${end.toISOString()}::timestamptz at time zone 'UTC')
+       and ${reviewAuthorSql()}
+       and exists (select 1 from identity_verifications iv where iv."profileId" = p.id and iv.status = 'verified') -- pre-filter only (voterSql says why)`
+}
+
+/** Each school's Teachers' Choice places, newest year first — the badge on its page and its board row. */
+export async function schoolAwards(schoolIds: string[]): Promise<Map<string, { year: number; rank: number }[]>> {
+  const out = new Map<string, { year: number; rank: number }[]>()
+  if (!schoolIds.length) return out
+  // A badge is decoration: before its table exists (code ahead of the migration) the pages render without it rather
+  // than fail (diff review). Only "table does not exist" is forgiven.
+  const rows = await db.schoolAward.findMany({ where: { schoolId: { in: schoolIds } }, orderBy: [{ year: 'desc' }, { rank: 'asc' }], select: { schoolId: true, year: true, rank: true } })
+    .catch((e: unknown) => { if ((e as { code?: string })?.code === 'P2021') return []; throw e })
+  for (const r of rows) out.set(r.schoolId, [...(out.get(r.schoolId) ?? []), { year: r.year, rank: r.rank }])
+  return out
+}
+
+/** Closed Teachers' Choice years, for pages.xml: a results page is lasting content (the open year's is thin). */
+export async function awardYearsForSitemap(): Promise<{ year: number; lastmod: Date }[]> {
+  const [rows, placed] = await Promise.all([
+    db.schoolAwardYear.findMany({ orderBy: { year: 'asc' }, select: { year: true, finalisedAt: true } }),
+    db.schoolAward.groupBy({ by: ['year'] }),
+  ])
+  // Only years with at least one place: a closed year where nobody qualified is a thin page (diff review).
+  const withPlaces = new Set(placed.map((p) => p.year))
+  return rows.filter((r) => withPlaces.has(r.year)).map((r) => ({ year: r.year, lastmod: r.finalisedAt }))
 }

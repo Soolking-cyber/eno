@@ -17,6 +17,7 @@ import { SchoolReviews } from '@/components/schools/school-reviews'
 import { SchoolJobs } from '@/components/schools/school-jobs'
 import { SchoolClaim } from '@/components/schools/school-claim'
 import { KindLabel, PayRange, SchoolLogo } from '@/components/schools/school-bits'
+import { AwardBadge } from '@/components/schools/award-badge'
 import { getSchoolPage, type SchoolPage } from '@/lib/schools/queries'
 import { KIND_LABEL, PAY_MAX_AGE_YEARS, PAY_MIN_REPORTS, TAG_LABEL } from '@/lib/schools/constants'
 
@@ -97,6 +98,9 @@ export default async function SchoolPageRoute({ params }: Props) {
               <SchoolLogo slug={school.slug} logo={school.logo} name={school.name} kind={school.kind} size="lg" />
               <div className="min-w-0">
                 <h1 className="h-title text-foreground">{school.name}</h1>
+                {page.awards.length > 0 && (
+                  <p className="mt-2 flex flex-wrap gap-2">{page.awards.map((a) => <AwardBadge key={a.year} year={a.year} rank={a.rank} />)}</p>
+                )}
                 <p className="mt-1 text-sm text-muted-foreground">
                   <KindLabel kind={school.kind} />
                   {school.districts.length > 0 && <> · {school.districts.slice(0, 3).join(', ')}</>}

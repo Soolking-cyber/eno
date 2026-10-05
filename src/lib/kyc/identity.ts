@@ -405,15 +405,22 @@ export async function hasVerifiedIdentity(profileId: string): Promise<boolean> {
  * column is a cache nothing sweeps (kyc/person-gate.ts). Only the decision leaves this module: ids, never
  * a name, a nationality or a hash.
  */
-export async function verifiedProfileIds(profileIds: readonly string[], now: Date = new Date()): Promise<Set<string>> {
+export async function verifiedProfileIds(profileIds: readonly string[], now: Date = new Date(), opts: { asOf?: Date } = {}): Promise<Set<string>> {
   const ids = [...new Set(profileIds)].filter(Boolean)
   if (ids.length === 0) return new Set()
   const rows = await db.identityVerification.findMany({
     where: { profileId: { in: ids } },
     select: { id: true, profileId: true, tier: true, method: true, status: true, decidedAt: true, documentExpiresAt: true, assuranceLevel: true },
   })
+  // ⚠️ `asOf` (the /schools awards' cutoff): a decision made after that moment did not exist then, so it is set
+  // aside — EXCEPT a revocation, which says the identity was never good and counts whenever it was made. A
+  // revocation either rewrites the verified row in place (admin-users.ts revokeIdentity: status 'revoked', a new
+  // decidedAt) or adds its own row — kept whatever its date either way; and expiry is derived from the document date
+  // against `now`. So filtering the other rows by decidedAt is the whole of "as of".
+  const asOf = opts.asOf
+  const usable = asOf ? rows.filter((r) => r.status === 'revoked' || (r.decidedAt !== null && r.decidedAt <= asOf)) : rows
   const byProfile = new Map<string, typeof rows>()
-  for (const r of rows) if (r.profileId) byProfile.set(r.profileId, [...(byProfile.get(r.profileId) ?? []), r])
+  for (const r of usable) if (r.profileId) byProfile.set(r.profileId, [...(byProfile.get(r.profileId) ?? []), r])
   const out = new Set<string>()
   for (const [profileId, history] of byProfile) if (deriveVerification(history, now).status === 'verified') out.add(profileId)
   return out

@@ -53,7 +53,7 @@ async function main() {
   // Which database, without credentials — a scratch-DB preview import must never read as a production one.
   // DATABASE_URL — the variable src/lib/db.ts actually connects with, so the journal names the right database.
   const dbHost = (() => { try { const u = new URL(process.env.DATABASE_URL || ''); return `${u.hostname}:${u.port || 5432}${u.pathname}` } catch { return 'unknown' } })()
-  const journal = { at: new Date().toISOString(), db: dbHost, apply: APPLY, created: [] as string[], updated: [] as { slug: string; fields: string[] }[], aliasesAdded: 0, aliasesPruned: [] as string[], aliasesNotInFile: [] as string[], aliasConflicts: [] as string[], missingFromFile: [] as string[] }
+  const journal = { at: new Date().toISOString(), db: dbHost, apply: APPLY, created: [] as string[], updated: [] as { slug: string; fields: string[] }[], aliasesAdded: 0, aliasesPruned: [] as string[], aliasesNotInFile: [] as string[], aliasConflicts: [] as string[], missingFromFile: [] as string[], fromSuggestions: [] as string[] }
   // ⛔ ONE TRANSACTION: a uniqueness error or a dropped connection half-way leaves NOTHING applied, never a
   // prefix of the file. (A dry run reads only; the same plan code runs against a read-only callback.)
   const plan = async (tx: Pick<typeof db, 'school' | 'schoolAlias'> | null) => {
@@ -104,12 +104,23 @@ async function main() {
   else await plan(null)
   const inFile = new Set(rows.map((r) => r.slug))
   journal.missingFromFile = existing.filter((s) => !inFile.has(s.slug)).map((s) => s.slug)
+  // A school a moderator added from a teacher's suggestion (/admin/schools → Suggested schools) is not in the file
+  // by construction: said apart, so a real gap is not lost among them. Pass 1 never prunes their aliases (it only
+  // reads schools the file lists).
+  // After an --apply has committed, so a missing table (a database the suggestions DDL has not reached) must not throw
+  // the journal away (diff review): "table does not exist" reads as no suggestions.
+  const suggestions = await db.schoolSuggestion.findMany({ where: { status: 'added' }, select: { school: { select: { slug: true } } } })
+    .catch((e: unknown) => { if ((e as { code?: string })?.code === 'P2021') return []; throw e })
+  const suggested = new Set(suggestions.flatMap((x) => (x.school ? [x.school.slug] : [])))
+  journal.fromSuggestions = journal.missingFromFile.filter((s) => suggested.has(s))
+  journal.missingFromFile = journal.missingFromFile.filter((s) => !suggested.has(s))
 
   console.log(`${APPLY ? 'APPLIED' : 'DRY RUN'}: ${rows.length} valid, ${refused} refused · ${journal.created.length} new, ${journal.updated.length} updated, ${journal.aliasesAdded} aliases added`)
   if (journal.aliasConflicts.length) console.log(`⛔ alias conflicts — --apply refuses the whole file until they are fixed: ${journal.aliasConflicts.join(', ')}`)
   if (journal.aliasesNotInFile.length) console.log(`⚠️ aliases no longer in the file (kept; --prune-aliases removes them): ${journal.aliasesNotInFile.join(', ')}`)
   if (journal.aliasesPruned.length) console.log(`${APPLY ? 'pruned' : 'WOULD prune (dry run — nothing deleted)'} aliases: ${journal.aliasesPruned.join(', ')}`)
   if (journal.missingFromFile.length) console.log(`⚠️ in the database but not the file (NOT touched; hide in /admin/schools if gone): ${journal.missingFromFile.join(', ')}`)
+  if (journal.fromSuggestions.length) console.log(`ℹ️ added from teachers' suggestions, not in the file yet (copy them in under the same slug to keep it whole): ${journal.fromSuggestions.join(', ')}`)
   if (APPLY) {
     // After the commit: the writes happened, so a journal that cannot be saved is PRINTED instead of lost.
     try {

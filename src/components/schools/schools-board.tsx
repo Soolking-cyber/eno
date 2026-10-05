@@ -18,6 +18,7 @@ import type { SchoolListRow } from '@/lib/schools/queries'
 import { SchoolLiveProvider, useSchoolLive } from './school-live'
 import { VoteControl } from './vote-control'
 import { KindLabel, PayRange, PCT_MIN_VOTES, SchoolLogo } from './school-bits'
+import { AwardBadge } from './award-badge'
 
 type BoardRow = SchoolListRow
 
@@ -165,7 +166,7 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
           icon={Search}
           title={tr('No school matches', 'Không có trường phù hợp')}
           subtitle={tr('Try another name or clear a filter. Missing a school? Tell us and we will add it.', 'Thử tên khác hoặc bỏ bớt bộ lọc. Thiếu trường? Hãy báo để chúng tôi bổ sung.')}
-          action={<Link href="/contact" className="font-semibold text-accent-foreground hover:underline">{tr('Suggest a school', 'Đề xuất trường')}</Link>}
+          action={<Link href="/schools/suggest" className="font-semibold text-accent-foreground hover:underline">{tr('Suggest a school', 'Đề xuất trường')}</Link>}
         />
       )}
     </section>
@@ -194,6 +195,7 @@ function BoardRowItem({ row, rank }: { row: BoardRow; rank: number | null }) {
               {row.name}
             </Link>
           </p>
+          {row.award && <p className="mt-1"><AwardBadge year={row.award.year} rank={row.award.rank} /></p>}
           <p className="mt-0.5 truncate text-sm text-muted-foreground">
             <KindLabel kind={row.kind} />
             {row.districts.length > 0 && <> · {row.districts.slice(0, 2).join(', ')}{row.districts.length > 2 ? ` +${row.districts.length - 2}` : ''}</>}

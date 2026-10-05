@@ -9,7 +9,8 @@ import { SchoolsBoard } from '@/components/schools/schools-board'
 import { SchoolsMethodology } from '@/components/schools/schools-methodology'
 import { SchoolsSidebar } from '@/components/schools/schools-sidebar'
 import { listAllSchools } from '@/lib/schools/queries'
-import { HCMC_AREAS } from '@/lib/schools/constants'
+import { AWARDS_PATH, HCMC_AREAS } from '@/lib/schools/constants'
+import { currentAwardYear } from '@/lib/schools/award-rank'
 
 /**
  * /schools — teacher-ranked schools, English centres, international schools and recruiters in Ho Chi
@@ -59,6 +60,8 @@ export default async function SchoolsPage({ params }: { params: Promise<{ lang: 
             <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
               <a href="#how-it-works" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="How the ranking works" vi="Cách xếp hạng hoạt động" /></a>
               <Link href="/c/jobs" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Browse all jobs" vi="Xem mọi việc làm" /></Link>
+              <Link href="/schools/suggest" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Missing a school? Suggest it" vi="Thiếu trường? Đề xuất ngay" /></Link>
+              <Link href={AWARDS_PATH} className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Teachers' Choice {y}" vi="Giáo viên bình chọn {y}" values={{ y: String(currentAwardYear()) }} /></Link>
             </p>
             <SchoolsBoard rows={rows} areas={areas} />
           </div>

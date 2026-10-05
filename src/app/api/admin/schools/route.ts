@@ -1,12 +1,17 @@
 // POST /api/admin/schools — moderation for /schools (2026-10-04). Admin only (getAdmin, re-checked here).
 // Actions: approve / reject a pending review, publish the school's reply under a review, resolve a report
-// or a school complaint, hide / show a school, verify / reject a teacher's proof of employment (2026-10-05).
+// or a school complaint, hide / show a school, verify / reject a teacher's proof of employment, and add / match /
+// reject a teacher's suggestion of a school (2026-10-05).
 // Every change purges the school's page and the list.
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
+import { SCHOOL_KINDS } from '@/lib/schools/constants'
 import { PURGE_AFTER_DAYS, claimProofKey } from '@/lib/schools/employment'
+import { checkSuggestion } from '@/lib/schools/suggest'
+import { finaliseAwards } from '@/lib/schools/awards'
+import { AWARDS_PATH } from '@/lib/schools/constants'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,6 +30,16 @@ const Body = z.discriminatedUnion('action', [
   // A VERIFIED proof taken back (a borrowed profile, a moderator's mistake): every proof made with that profile goes,
   // and the reviews they backed are unpublished.
   z.object({ action: z.literal('proof_revoke'), proofId: z.string().max(40), reason: z.string().trim().min(3).max(500) }),
+  // A teacher's suggestion (2026-10-05): ADD it as a school — the moderator may correct its facts first — say it is
+  // ALREADY LISTED as another school, or REJECT it with a reason the teacher sees.
+  z.object({
+    action: z.literal('suggestion_add'), suggestionId: z.string().max(40),
+    name: z.string().trim().min(2).max(120), kind: z.enum(SCHOOL_KINDS), website: z.string().trim().max(300).nullish(), districts: z.array(z.string().max(60)).max(30),
+  }),
+  z.object({ action: z.literal('suggestion_duplicate'), suggestionId: z.string().max(40), schoolSlug: z.string().trim().min(1).max(80) }),
+  z.object({ action: z.literal('suggestion_reject'), suggestionId: z.string().max(40), reason: z.string().trim().min(3).max(500) }),
+  // Teachers' Choice: close a year that has ended, if the daily cron has not already (src/lib/schools/awards.ts).
+  z.object({ action: z.literal('awards_finalise'), year: z.number().int() }),
 ])
 
 const PURGE_AFTER_MS = PURGE_AFTER_DAYS * 86_400_000
@@ -173,11 +188,88 @@ export const POST = route({ auth: 'admin', body: Body }, async ({ admin, body })
       for (const slug of slugs) purge(slug)
       return { ok: true }
     }
+    case 'suggestion_add': {
+      // The row passes the importer's own validation (src/lib/schools/suggest.ts → import-entries.ts clean()).
+      const c = checkSuggestion({ name: body.name, kind: body.kind, website: body.website ?? null, districts: body.districts, note: '' })
+      if (!c.ok) {
+        // Each code spelled out as a literal: errors.test.ts harvests the wire vocabulary from literals.
+        if (c.code === 'website_invalid') throw new ApiError('website_invalid', 400)
+        if (c.code === 'district_invalid') throw new ApiError('district_invalid', 400)
+        if (c.code === 'contact_in_text') throw new ApiError('contact_in_text', 400)
+        if (c.code === 'banned_words') throw new ApiError('banned_words', 400)
+        throw new ApiError('school_name_invalid', 400)
+      }
+      const { row } = c.value
+      const now = new Date()
+      try {
+        const slug = await db.$transaction(async (tx) => {
+          const sug = await tx.schoolSuggestion.findUnique({ where: { id: body.suggestionId }, select: { nameKey: true } })
+          const done = await tx.schoolSuggestion.updateMany({ where: { id: body.suggestionId, status: 'pending' }, data: { status: 'added', decidedAt: now, decidedBy: admin } })
+          if (done.count === 0 || !sug) throw new ApiError('already_resolved', 409)
+          // ⛔ AN ALIAS NEVER MOVES (scripts/import-schools.ts): it is how job ads find their school, so a name another
+          // school already answers to means this IS that school — the card shows which; mark it a duplicate instead.
+          if (await tx.schoolAlias.findFirst({ where: { alias: { in: row.aliases } }, select: { alias: true } })) throw new ApiError('alias_taken', 409)
+          let slug = row.slug
+          for (let i = 2; await tx.school.findUnique({ where: { slug }, select: { id: true } }); i++) {
+            if (i > 20) throw new ApiError('school_name_invalid', 400)
+            slug = `${row.slug.slice(0, 76).replace(/-+$/, '')}-${i}` // never "foo--2", which clean() refuses (diff review)
+          }
+          const school = await tx.school.create({ data: { slug, name: row.name, kind: row.kind, website: row.website ?? null, districts: row.districts ?? [], status: 'active' }, select: { id: true } })
+          await tx.schoolAlias.createMany({ data: row.aliases.map((alias) => ({ alias, schoolId: school.id })) })
+          // This suggestion, and every other one still waiting under one of the school's names, now has its answer.
+          await tx.schoolSuggestion.updateMany({
+            // …by the school's names AND the name as suggested (diff review: a moderator's correction must not strand
+            // the others who suggested it the same way).
+            where: { OR: [{ id: body.suggestionId }, { status: 'pending', nameKey: { in: [...row.aliases, sug.nameKey] } }] },
+            data: { status: 'added', schoolId: school.id, decidedAt: now, decidedBy: admin },
+          })
+          return slug
+        })
+        purge(slug)
+        return { ok: true, slug }
+      } catch (e) {
+        // Two moderators adding the same name at once: the alias or slug key refuses the second.
+        if ((e as { code?: string })?.code === 'P2002') throw new ApiError('alias_taken', 409)
+        throw e
+      }
+    }
+    case 'suggestion_duplicate': {
+      const school = await db.school.findUnique({ where: { slug: body.schoolSlug }, select: { id: true } })
+      if (!school) throw new ApiError('not_found', 404)
+      const now = new Date()
+      await db.$transaction(async (tx) => {
+        const sug = await tx.schoolSuggestion.findUnique({ where: { id: body.suggestionId }, select: { nameKey: true } })
+        // This one, and every other suggestion of the same name still waiting — as Add does (diff review).
+        const done = await tx.schoolSuggestion.updateMany({ where: { id: body.suggestionId, status: 'pending' }, data: { status: 'duplicate', schoolId: school.id, decidedAt: now, decidedBy: admin } })
+        if (done.count === 0 || !sug) throw new ApiError('already_resolved', 409)
+        await tx.schoolSuggestion.updateMany({ where: { status: 'pending', nameKey: sug.nameKey }, data: { status: 'duplicate', schoolId: school.id, decidedAt: now, decidedBy: admin } })
+      })
+      return { ok: true }
+    }
+    case 'suggestion_reject': {
+      const done = await db.schoolSuggestion.updateMany({ where: { id: body.suggestionId, status: 'pending' }, data: { status: 'rejected', rejectReason: body.reason, decidedAt: new Date(), decidedBy: admin } })
+      if (done.count === 0) throw new ApiError('already_resolved', 409)
+      return { ok: true }
+    }
+    case 'awards_finalise': {
+      const r = await finaliseAwards(body.year, admin)
+      if (!r.ok) {
+        if (r.code === 'award_year_open') throw new ApiError('award_year_open', 409)
+        if (r.code === 'award_reviews_pending') throw new ApiError('award_reviews_pending', 409)
+        throw new ApiError('award_year_invalid', 400)
+      }
+      revalidatePublicPath('/schools')
+      revalidatePublicPath(`${AWARDS_PATH}/[year]`, 'page')
+      for (const slug of r.slugs) revalidatePublicPath(`/schools/${slug}`)
+      return { ok: true, already: r.already, places: r.places }
+    }
     case 'school_status': {
       const s = await db.school.findUnique({ where: { id: body.schoolId }, select: { id: true, slug: true } })
       if (!s) throw new ApiError('not_found', 404)
       await db.school.update({ where: { id: s.id }, data: { status: body.status } })
       purge(s.slug)
+      // The awards pages name and link schools too (the open year's qualifiers, a closed year's places).
+      revalidatePublicPath(`${AWARDS_PATH}/[year]`, 'page')
       return { ok: true }
     }
   }

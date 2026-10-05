@@ -147,3 +147,20 @@ export const PROOFS_PENDING_MAX = 3
 export const VOTE_LOG_KEEP_DAYS = 730
 /** The reason an undecided proof is closed with (employment.ts sweepProofRetention); the proof step translates it. */
 export const EXPIRED_PROOF_REASON = 'Not checked in time — please submit it again.'
+
+/** Suggest a school (src/lib/schools/suggest.ts): the note's length, and how many one account may have waiting. */
+export const SUGGESTION_NOTE_MAX = 500
+export const SUGGESTIONS_PENDING_MAX = 3
+
+/**
+ * Teachers' Choice awards (src/lib/schools/awards.ts). A school qualifies in a year with at least
+ * AWARD_MIN_VOTERS counted voters and AWARD_MIN_REVIEWS counted reviews; the methodology states these numbers
+ * and its test pins them. ⚠️ NO SUPERLATIVE in any name (Vietnamese advertising rules): the award is
+ * "Teachers' Choice", the categories are the school kinds.
+ */
+export const AWARD_FIRST_YEAR = 2026
+export const AWARD_MIN_VOTERS = 10
+export const AWARD_MIN_REVIEWS = 3
+/** Places per category: the Teachers' Choice and two finalists. */
+export const AWARD_PLACES = 3
+export const AWARDS_PATH = '/schools/awards'

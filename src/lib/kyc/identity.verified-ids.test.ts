@@ -26,6 +26,19 @@ describe('verifiedProfileIds', () => {
     expect([...await verifiedProfileIds(['alive', 'revoked', 'lapsed', 'pending', 'rejected', 'nobody'], now)]).toEqual(['alive'])
   })
 
+  it('as of a past moment: a verification decided after it does not count, a revocation always does', async () => {
+    rows.length = 0
+    const cutoff = new Date(now.getTime() - 5 * day)
+    rows.push(
+      row('before', 'verified'), // decided 10 days ago, before the cutoff
+      row('after', 'verified', { decidedAt: new Date(now.getTime() - 1 * day) }), // verified only after the cutoff
+      row('revokedLater', 'verified'), row('revokedLater', 'revoked', { decidedAt: new Date(now.getTime() - 1 * day) }),
+    )
+    expect([...await verifiedProfileIds(['before', 'after', 'revokedLater'], cutoff, { asOf: cutoff })]).toEqual(['before'])
+    // Without asOf, today's view: the later verification counts, the revoked one still does not.
+    expect([...await verifiedProfileIds(['before', 'after', 'revokedLater'], now)].sort()).toEqual(['after', 'before'])
+  })
+
   it('asks nothing for an empty list', async () => {
     expect((await verifiedProfileIds([], now)).size).toBe(0)
   })

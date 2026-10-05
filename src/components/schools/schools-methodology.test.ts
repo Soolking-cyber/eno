@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { METHODOLOGY_ITEMS } from './schools-methodology'
-import { ELIGIBLE_ACCOUNT_AGE_DAYS, PAY_MAX_AGE_YEARS, PAY_MIN_REPORTS, PURGE_AFTER_DAYS } from '@/lib/schools/constants'
+import { AWARD_MIN_REVIEWS, AWARD_MIN_VOTERS, ELIGIBLE_ACCOUNT_AGE_DAYS, PAY_MAX_AGE_YEARS, PAY_MIN_REPORTS, PURGE_AFTER_DAYS } from '@/lib/schools/constants'
 import { PAY_BAND, PAY_ROUND_STEP } from '@/lib/schools/logic'
 import { PCT_MIN_VOTES } from './school-bits'
 
@@ -19,6 +19,8 @@ describe('schools methodology copy', () => {
     expect(vi).toContain(`${PAY_ROUND_STEP.hour.toLocaleString('vi-VN')} đ mỗi giờ hoặc ${PAY_ROUND_STEP.month.toLocaleString('vi-VN')} đ mỗi tháng`)
     expect(en).toContain(`deleted ${PURGE_AFTER_DAYS} days after the check`)
     expect(vi).toContain(`bị xoá ${PURGE_AFTER_DAYS} ngày sau khi kiểm tra`)
+    expect(en).toContain(`votes from at least ${AWARD_MIN_VOTERS} teachers with a verified identity and at least ${AWARD_MIN_REVIEWS} reviews`)
+    expect(vi).toContain(`phiếu của ít nhất ${AWARD_MIN_VOTERS} giáo viên đã xác minh danh tính và ít nhất ${AWARD_MIN_REVIEWS} đánh giá`)
     expect(en).toContain(`once a school has ${PCT_MIN_VOTES} votes`)
     expect(vi).toContain(`từ ${PCT_MIN_VOTES} phiếu`)
     const pct = Math.round((PAY_BAND.hi - PAY_BAND.lo) * 100)

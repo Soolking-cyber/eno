@@ -24,6 +24,12 @@ describe('import-schools clean()', () => {
     expect(clean({ ...ok, sourceUrls: ['javascript:alert(1)'] }).ok).toBe(false)
     expect(clean({ ...ok, kind: 'casino' }).ok).toBe(false)
   })
+  it('a slug that is one of /schools’ own pages is refused (the school could never be reached)', () => {
+    expect(clean({ name: 'Awards', kind: 'agency' })).toMatchObject({ ok: false, why: ['slug "awards" is reserved'] })
+    expect(clean({ name: 'Suggest Academy', kind: 'language_centre', slug: 'suggest' })).toMatchObject({ ok: false })
+    expect(clean({ name: 'Awards Academy', kind: 'language_centre' }).ok).toBe(true)
+  })
+
   it('null in the file clears a summary; absent keeps it', () => {
     const r = clean({ ...ok, summary: null as unknown as string, summaryVi: null })
     expect(r.ok && [r.row.summary, r.row.summaryVi]).toEqual(['', null])
