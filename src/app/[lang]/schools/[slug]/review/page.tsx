@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { SITE_NAME } from '@/lib/edition'
 import { db } from '@/lib/db'
+import { BreadcrumbNav } from '@/components/schools/breadcrumb-nav'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
@@ -46,11 +47,11 @@ export default async function SchoolReviewPage({ params }: Props) {
       {/* The header's own container (owner, 2026-10-05): the form, and beside it on desktop what a useful
           review covers. */}
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 pb-16 pt-6 sm:px-6 lg:px-8">
-        <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
+        <BreadcrumbNav className="text-sm text-muted-foreground">
           <Link href="/schools" className="hover:underline"><Bilingual en="Schools" vi="Trường học" /></Link>
           <span aria-hidden> / </span>
           <Link href={`/schools/${school.slug}`} className="hover:underline">{school.name}</Link>
-        </nav>
+        </BreadcrumbNav>
         <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-10">
           <div className="min-w-0">
             <h1 className="mt-3 h-title text-foreground">

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { pageShare } from '@/lib/site-identity'
 import { SITE_NAME } from '@/lib/edition'
 import { formatInteger, moneyLocale } from '@/lib/vnd'
+import { BreadcrumbNav } from '@/components/schools/breadcrumb-nav'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Tr } from '@/context/language-context'
 import { Header } from '@/components/marketplace/header'
@@ -86,11 +87,11 @@ export default async function SchoolPageRoute({ params }: Props) {
       {/* The header's own container, so the page spans from the logo to the last header button on desktop
           (owner, 2026-10-05). */}
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 pb-16 pt-6 sm:px-6 lg:px-8">
-        <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
+        <BreadcrumbNav className="text-sm text-muted-foreground">
           <Link href="/schools" className="hover:underline"><Bilingual en="Schools ranked by teachers" vi="Trường do giáo viên xếp hạng" /></Link>
           <span aria-hidden> / </span>
           <span className="text-foreground">{school.name}</span>
-        </nav>
+        </BreadcrumbNav>
 
         <SchoolLiveProvider schoolIds={[school.id]} reviewIds={page.reviews.map((r) => r.id)} initial={{ [school.id]: { up: page.up, down: page.down } }}>
           <header className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

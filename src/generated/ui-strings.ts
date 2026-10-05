@@ -331,6 +331,7 @@ export const UI_STRINGS: string[] = [
   "Boy",
   "Brand",
   "Brands",
+  "Breadcrumb",
   "Browse all listings",
   "Browse by brand",
   "Browse every rental listing",
