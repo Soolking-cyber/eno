@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useLanguage } from '@/context/language-context'
 
 /**
@@ -16,7 +17,10 @@ export function DropCountdown({ expiresAt }: { expiresAt: string | null }) {
   if (days <= 0) return null
   return (
     <span className="tabular-nums text-2xs font-semibold text-destructive">
-      {tr(`· ${days} ${days === 1 ? 'day' : 'days'} left`, `· còn ${days} ngày`)}
+      {/* Two whole templates, not a word slotted into one: "day"/"days" is copy, not a value. */}
+      {days === 1
+        ? fillTemplate(tr('· {days} day left', '· còn {days} ngày'), '· {days} day left', { days: String(days) })
+        : fillTemplate(tr('· {days} days left', '· còn {days} ngày'), '· {days} days left', { days: String(days) })}
     </span>
   )
 }

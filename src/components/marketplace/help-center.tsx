@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
@@ -230,7 +231,7 @@ function AnswerItem({ post, i18n }: { post: HelpPost; i18n?: HelpI18n }) {
             className="ml-auto inline-flex items-center gap-1 text-xs font-semibold text-accent-foreground hover:underline"
           >
             {post.commentCount > 0
-              ? tr(`Discussion (${post.commentCount})`, `Thảo luận (${post.commentCount})`)
+              ? fillTemplate(tr('Discussion ({commentCount})', 'Thảo luận ({commentCount})'), 'Discussion ({commentCount})', { commentCount: String(post.commentCount) })
               : tr('Ask a follow-up', 'Hỏi thêm')}
             <ChevronRight className="size-3.5" aria-hidden />
           </Link>
@@ -290,7 +291,7 @@ function ReviewCard({ review }: { review: HelpReview }) {
         </div>
         {/* --rating is a deliberate token, held apart from --warning so a caution
             colour change never repaints review stars (globals.css). */}
-        <div className="mt-2 flex items-center gap-1" aria-label={tr(`${review.rating} out of 5`, `${review.rating} trên 5`)}>
+        <div className="mt-2 flex items-center gap-1" aria-label={fillTemplate(tr('{rating} out of 5', '{rating} trên 5'), '{rating} out of 5', { rating: String(review.rating) })}>
           {[1, 2, 3, 4, 5].map((star) => (
             <Star
               key={star}

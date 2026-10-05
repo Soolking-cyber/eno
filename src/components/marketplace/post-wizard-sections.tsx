@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 // Step sections of the PostWizard with FLAT prop seams (photos/media, price,
 // location, contact) + the success screen, moved out of post-wizard.tsx verbatim.
 // Hoisted to module scope so React keeps stable component identity across the
@@ -936,10 +937,10 @@ function PriceGuidance({ price, band }: { price: number; band: { n: number; p25:
       {pos === 'typical' && <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />}
       <span>
         {pos === 'high'
-          ? tr(`Above the typical ${range} range — fairly-priced listings sell faster`, `Cao hơn mặt bằng ${range} — tin có giá hợp lý thường bán nhanh hơn`)
+          ? fillTemplate(tr('Above the typical {range} range — fairly-priced listings sell faster', 'Cao hơn mặt bằng {range} — tin có giá hợp lý thường bán nhanh hơn'), 'Above the typical {range} range — fairly-priced listings sell faster', { range: String(range) })
           : pos === 'low'
-            ? tr(`Below the typical ${range} range — buyers will see a good deal`, `Thấp hơn mặt bằng ${range} — người mua sẽ thấy đây là mức giá tốt`)
-            : tr(`Similar listings go for ${range} — yours is in range`, `Tin tương tự có giá ${range} — giá của bạn hợp lý`)}
+            ? fillTemplate(tr('Below the typical {range} range — buyers will see a good deal', 'Thấp hơn mặt bằng {range} — người mua sẽ thấy đây là mức giá tốt'), 'Below the typical {range} range — buyers will see a good deal', { range: String(range) })
+            : fillTemplate(tr('Similar listings go for {range} — yours is in range', 'Tin tương tự có giá {range} — giá của bạn hợp lý'), 'Similar listings go for {range} — yours is in range', { range: String(range) })}
       </span>
     </div>
   )

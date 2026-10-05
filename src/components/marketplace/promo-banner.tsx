@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import Link from 'next/link'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -300,7 +301,7 @@ export function PromoBanner() {
                   className="pl-0"
                   inert={!current}
                   aria-hidden={!current}
-                  aria-label={tr(`Slide ${i + 1} of ${SLIDES.length}`, `Trang ${i + 1} trên ${SLIDES.length}`)}
+                  aria-label={fillTemplate(tr('Slide {n} of {length}', 'Trang {n} trên {length}'), 'Slide {n} of {length}', { n: String(i + 1), length: String(SLIDES.length) })}
                 >
                   {/* ⚠️ `artReady` HOLDS BACK THE OFF-SCREEN ARTWORK UNTIL THE PAGE HAS LOADED, and
                       it is a bandwidth fix rather than a bytes-total one. Measured on production:
@@ -374,7 +375,7 @@ export function PromoBanner() {
                 variant="bare"
                 size="none"
                 onClick={() => api?.scrollTo(i)}
-                aria-label={tr(`Go to slide ${i + 1}`, `Đến trang ${i + 1}`)}
+                aria-label={fillTemplate(tr('Go to slide {n}', 'Đến trang {n}'), 'Go to slide {n}', { n: String(i + 1) })}
                 aria-current={i === selected}
                 className="pointer-events-auto flex h-6 min-w-6 items-center justify-center px-1"
               >

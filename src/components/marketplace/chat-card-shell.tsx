@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import * as React from 'react'
 import type { ReactNode } from 'react'
 import type { IconComponent } from '@/components/ui/icons'
@@ -125,7 +126,7 @@ export function ChatCard({
           <span className="ml-auto shrink-0">{right}</span>
         ) : step ? (
           <Badge variant="neutral" size="sm" className="ml-auto shrink-0">
-            {tr(`Step ${step.current} of ${step.total}`, `Bước ${step.current}/${step.total}`)}
+            {fillTemplate(tr('Step {current} of {total}', 'Bước {current}/{total}'), 'Step {current} of {total}', { current: String(step.current), total: String(step.total) })}
           </Badge>
         ) : null}
       </div>

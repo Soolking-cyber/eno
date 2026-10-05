@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useState } from 'react'
 import { RelativeTime } from '@/components/marketplace/relative-time'
 import Link from 'next/link'
@@ -299,7 +300,7 @@ export function HelpThreadClient({
         {comments.length > 0 && (
           <h2 id="help-thread-replies" className="flex items-center gap-2 text-base font-bold text-foreground">
             <MessageCircle className="size-4" aria-hidden />
-            {tr(`${comments.length} replies`, `${comments.length} phản hồi`)}
+            {fillTemplate(tr('{length} replies', '{length} phản hồi'), '{length} replies', { length: String(comments.length) })}
           </h2>
         )}
 

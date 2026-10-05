@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { numberPlaceholders, restorePlaceholders, safeTemplate, templateIntact } from './placeholders'
+import { fillTemplate, numberPlaceholders, restorePlaceholders, safeTemplate, templateIntact } from './placeholders'
 
 describe('placeholders through machine translation', () => {
   it('numbers named placeholders on the way out and names them back', () => {
@@ -26,5 +26,13 @@ describe('placeholders through machine translation', () => {
     // Two different names renamed: order may have changed in translation — never guessed.
     expect(safeTemplate('Показано {показано} из {всего}', 'Showing {shown} of {total} listings.')).toBe('Showing {shown} of {total} listings.')
     expect(safeTemplate('Привет', 'Hello')).toBe('Привет') // no placeholders: untouched
+  })
+})
+
+describe('fillTemplate', () => {
+  it('fills a safe template in one pass — a value carrying its own {n} is printed as typed', () => {
+    expect(fillTemplate('Слайд {n} из {length}', 'Slide {n} of {length}', { n: '2', length: '5' })).toBe('Слайд 2 из 5')
+    expect(fillTemplate('{title} — фото {n}', '{title} — photo {n}', { title: 'Combo {n} món', n: '3' })).toBe('Combo {n} món — фото 3')
+    expect(fillTemplate('Цена: $&', 'Price: {p}', { p: 'x' })).toBe('Price: x') // lost placeholder → the English
   })
 })

@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { getTrSnapshot, subscribeTr } from '@/lib/i18n/mt-client'
 import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition, type CSSProperties } from 'react'
 import Image from 'next/image'
@@ -3224,7 +3225,7 @@ export function ListingsExplorer({
   const areaPillLabel = activeWard
     ? (lang === 'vi' ? activeWard.name : activeWard.nameEn)
     : nearby
-    ? tr(`Within ${nearby.radiusKm} km`, `Trong ${nearby.radiusKm} km`)
+    ? fillTemplate(tr('Within {radiusKm} km', 'Trong {radiusKm} km'), 'Within {radiusKm} km', { radiusKm: String(nearby.radiusKm) })
     : pillDistrict !== 'all'
     ? districtSlugLabel(pillDistrict, lang)
     : activeProvince
@@ -3270,7 +3271,7 @@ export function ListingsExplorer({
     // Area / location (new province→ward model + "near you" radius) — so the saved
     // search + alert clearly include where the user is looking.
     if (nearby) {
-      const label = tr(`Within ${nearby.radiusKm} km`, `Trong ${nearby.radiusKm} km`)
+      const label = fillTemplate(tr('Within {radiusKm} km', 'Trong {radiusKm} km'), 'Within {radiusKm} km', { radiusKm: String(nearby.radiusKm) })
       chips.push({ label, onClear: () => { setNearby(null); setActiveProvince(null); setActiveWard(null) }, pill: label === areaPillLabel })
     } else if (activeWard) {
       const label = lang === 'vi' ? activeWard.name : activeWard.nameEn

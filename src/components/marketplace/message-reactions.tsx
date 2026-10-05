@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import * as React from 'react'
 
 import { useLanguage } from '@/context/language-context'
@@ -161,7 +162,7 @@ export function ReactionPills({
             type="button"
             onClick={() => { burst(r.emoji); onToggle(r.emoji) }}
             aria-pressed={r.mine}
-            aria-label={tr(`${name}, ${r.count}`, `${name}, ${r.count}`)}
+            aria-label={fillTemplate(tr('{name}, {count}', '{name}, {count}'), '{name}, {count}', { name: String(name), count: String(r.count) })}
             className={cn(
               // ⛔ NO PILL, NO BORDER, NO FILL. Owner, 2026-08-16: "around gray default emoji leave
               // the circle but when pressed activated emojis to the left of it no circles". A
@@ -646,7 +647,9 @@ export function BubbleChrome({
           /* ⚠️ NAMES THE ACTION, NOT JUST THE GLYPH. "Heart, button" does not tell anyone what
              pressing it does. `top` is never empty — topReactions() tops up from
              DEFAULT_TOP_REACTIONS and a unit test asserts a full bar. */
-          aria-label={tr(`React with ${reactionFor(PRIMARY_REACTION)?.label ?? PRIMARY_REACTION}`, `Bày tỏ ${reactionFor(PRIMARY_REACTION)?.labelVi ?? PRIMARY_REACTION}`)}
+          aria-label={fillTemplate(tr('React with {reaction}', 'Bày tỏ {reaction}'), 'React with {reaction}', {
+            reaction: reactionFor(PRIMARY_REACTION) ? tr(reactionFor(PRIMARY_REACTION)!.label, reactionFor(PRIMARY_REACTION)!.labelVi) : PRIMARY_REACTION,
+          })}
           className={cn(
             // ⚠️ 26px, UP FROM 18 (+44%) — owner, 2026-08-17, same note as the tallies. At 18px
             // this was a smudge rather than a control: it is the ONE-TAP shortcut, the most-used

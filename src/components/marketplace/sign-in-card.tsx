@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import type { ElementType } from 'react'
 import Image from 'next/image'
 import { useLanguage } from '@/context/language-context'
@@ -107,7 +108,7 @@ export function SignInCard({
           )}
           <div className="min-w-0 space-y-0.5">
             <Title className="text-sm font-bold leading-snug text-foreground line-clamp-2">
-              {tr(`Sign in to message ${seller} about ${listingTitle}`, `Đăng nhập để nhắn ${seller} về ${listingTitle}`)}
+              {fillTemplate(tr('Sign in to message {seller} about {listingTitle}', 'Đăng nhập để nhắn {seller} về {listingTitle}'), 'Sign in to message {seller} about {listingTitle}', { seller: String(seller), listingTitle: String(listingTitle) })}
             </Title>
             <p className="text-xs text-muted-foreground">
               {note || tr('Free · takes 20 seconds · your number stays private', 'Miễn phí · 20 giây · số của bạn được giữ kín')}

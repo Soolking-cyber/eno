@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import Link from 'next/link'
 import { MessageCircle, Store, Star } from "@/components/ui/icons"
 import { useLanguage } from '@/context/language-context'
@@ -110,7 +111,7 @@ export function SellerCard({
   const strip: React.ReactNode[] = []
   if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
   if (lastSeen.key) strip.push(tr(lastSeen.en, lastSeen.vi))
-  strip.push(tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`))
+  strip.push(fillTemplate(tr('Joined {memberSinceYear}', 'Tham gia {memberSinceYear}'), 'Joined {memberSinceYear}', { memberSinceYear: String(memberSinceYear) }))
   if (reviewCount > 0) {
     strip.push(
       // lucide Star (rating fill), NOT the '★' text glyph — one rating mark across

@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { UserPlus } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
@@ -54,7 +55,7 @@ export function TrustMeta({ trustScore, trustTier, memberSinceYear, responseBuck
         )}
 
         {memberSinceYear > 0 && (
-          <span className="tabular-nums">{tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`)}</span>
+          <span className="tabular-nums">{fillTemplate(tr('Joined {memberSinceYear}', 'Tham gia {memberSinceYear}'), 'Joined {memberSinceYear}', { memberSinceYear: String(memberSinceYear) })}</span>
         )}
 
         {responseBucket.key && (
@@ -90,7 +91,7 @@ export function TrustMeta({ trustScore, trustTier, memberSinceYear, responseBuck
       )}
 
       {memberSinceYear > 0 && (
-        <span className="shrink-0 tabular-nums max-sm:hidden">{tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`)}</span>
+        <span className="shrink-0 tabular-nums max-sm:hidden">{fillTemplate(tr('Joined {memberSinceYear}', 'Tham gia {memberSinceYear}'), 'Joined {memberSinceYear}', { memberSinceYear: String(memberSinceYear) })}</span>
       )}
 
       {responseBucket.key && (

@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import Link from 'next/link'
 import { ChevronRight, Star } from '@/components/ui/icons'
 import { Avatar } from '@/components/ui/avatar'
@@ -87,7 +88,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
   else if (linked === 'listing') strip.push(tr('Linked listing — not verified by eno.vn', 'Tin đăng dẫn link — eno.vn chưa xác minh'))
   else if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
   if (!linked && lastSeen.key) strip.push(tr(lastSeen.en, lastSeen.vi))
-  if (!linked) strip.push(tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`))
+  if (!linked) strip.push(fillTemplate(tr('Joined {memberSinceYear}', 'Tham gia {memberSinceYear}'), 'Joined {memberSinceYear}', { memberSinceYear: String(memberSinceYear) }))
   if (!linked && reviewCount > 0) {
     strip.push(
       // lucide Star (rating fill), NOT the '★' text glyph — same rating mark as the

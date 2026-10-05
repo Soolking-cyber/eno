@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, MapPinOff, Sparkles, Trash2, Wallet, Clock, Footprints } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
@@ -217,8 +218,7 @@ export function StopRefineDialog({ itineraryId, target, onClose, onRemove, onApp
         <DialogHeader>
           <DialogTitle>{tr('Replace this activity?', 'Thay hoạt động này?')}</DialogTitle>
           <DialogDescription>
-            {tr(`We can suggest something else instead of ${target.name}, or just take it off the day.`,
-                `Chúng tôi có thể gợi ý hoạt động khác thay cho ${target.name}, hoặc chỉ cần bỏ khỏi ngày.`)}
+            {fillTemplate(tr('We can suggest something else instead of {name}, or just take it off the day.', 'Chúng tôi có thể gợi ý hoạt động khác thay cho {name}, hoặc chỉ cần bỏ khỏi ngày.'), 'We can suggest something else instead of {name}, or just take it off the day.', { name: String(target.name) })}
           </DialogDescription>
         </DialogHeader>
 
@@ -342,7 +342,7 @@ export function StopRefineDialog({ itineraryId, target, onClose, onRemove, onApp
               <p className="text-3xs text-ink-4">
                 {remaining === 1
                   ? tr('1 more suggestion left for this trip', 'Còn 1 lần gợi ý cho chuyến đi này')
-                  : tr(`${remaining} more suggestions left for this trip`, `Còn ${remaining} lần gợi ý cho chuyến đi này`)}
+                  : fillTemplate(tr('{remaining} more suggestions left for this trip', 'Còn {remaining} lần gợi ý cho chuyến đi này'), '{remaining} more suggestions left for this trip', { remaining: String(remaining) })}
               </p>
             )}
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useEffect, useRef, useState } from 'react'
 import { Clock, Footprints, Loader2, MapPinOff, Navigation, Route, Search, Sparkles, Trash2, Wallet, Info } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
@@ -152,7 +153,7 @@ export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = nul
           <DayTab key={day.dayNumber} active={activeDay === day.dayNumber} onClick={() => onSelectDay(day.dayNumber)}>
             <span className="inline-flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full" style={{ background: dayColor(day.dayNumber) }} aria-hidden="true" />
-              {tr(`Day ${day.dayNumber}`, `Ngày ${day.dayNumber}`)}
+              {fillTemplate(tr('Day {dayNumber}', 'Ngày {dayNumber}'), 'Day {dayNumber}', { dayNumber: String(day.dayNumber) })}
             </span>
           </DayTab>
         ))}
@@ -169,7 +170,7 @@ export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = nul
           <section key={day.dayNumber} aria-labelledby={`trip-day-${day.dayNumber}`} className="space-y-2">
             <header className="flex items-baseline gap-2">
               <h3 id={`trip-day-${day.dayNumber}`} className="text-base font-bold text-foreground">
-                {tr(`Day ${day.dayNumber}`, `Ngày ${day.dayNumber}`)} · {day.title}
+                {fillTemplate(tr('Day {dayNumber}', 'Ngày {dayNumber}'), 'Day {dayNumber}', { dayNumber: String(day.dayNumber) })} · {day.title}
               </h3>
               <span className="text-xs text-ink-4">{day.area}</span>
               <DayRouteButton day={day} />
@@ -371,7 +372,7 @@ function StopRow({
         size="none"
         onClick={onSelect}
         aria-current={selected ? 'true' : undefined}
-        aria-label={tr(`Show ${stop.place} on the map`, `Xem ${stop.place} trên bản đồ`)}
+        aria-label={fillTemplate(tr('Show {place} on the map', 'Xem {place} trên bản đồ'), 'Show {place} on the map', { place: String(stop.place) })}
         className="flex w-full gap-2.5 px-3 py-3 text-left transition-colors hover:bg-tint/60"
       >
         {body}
@@ -405,12 +406,12 @@ function DayRouteButton({ day }: { day: TripDay }) {
       // Truncation is SAID, never silent: a long day routes its first stops and the label admits it,
       // rather than emitting a URL Google rejects or quietly dropping the middle of someone's day.
       title={route.truncated
-        ? tr(`Route covers the first ${route.includedCount} stops`, `Tuyến đi gồm ${route.includedCount} điểm đầu tiên`)
+        ? fillTemplate(tr('Route covers the first {includedCount} stops', 'Tuyến đi gồm {includedCount} điểm đầu tiên'), 'Route covers the first {includedCount} stops', { includedCount: String(route.includedCount) })
         : undefined}
     >
       <Route className="h-3.5 w-3.5" />
       {route.truncated
-        ? tr(`Route (first ${route.includedCount})`, `Tuyến (${route.includedCount} điểm đầu)`)
+        ? fillTemplate(tr('Route (first {includedCount})', 'Tuyến ({includedCount} điểm đầu)'), 'Route (first {includedCount})', { includedCount: String(route.includedCount) })
         : tr('Route this day', 'Chỉ đường cả ngày')}
     </Button>
   )

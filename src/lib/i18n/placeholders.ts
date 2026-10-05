@@ -77,3 +77,12 @@ export function safeTemplate(translated: string, en: string): string {
   if (only && names.size === 1 && got.length === want.length) return translated.replace(/\{[^{}]*\}/g, only)
   return en
 }
+
+/**
+ * Fill a translated `{key}` template — the one rule every caller uses (tr() results, <Bilingual>, server
+ * copy): the template is made safe first (safeTemplate), then each placeholder is filled in ONE pass, so a
+ * value that itself contains "{n}" is printed as typed and never re-filled. A key with no value stays as is.
+ */
+export function fillTemplate(translated: string, en: string, values: Record<string, string>): string {
+  return safeTemplate(translated, en).replace(/\{([^{}]+)\}/g, (m, k: string) => (Object.prototype.hasOwnProperty.call(values, k) ? values[k] : m))
+}

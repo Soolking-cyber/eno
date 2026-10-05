@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useEffect, useRef, useState } from 'react'
 import { BedDouble, Loader2, MapPin, Sparkles, Wallet } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
@@ -195,8 +196,7 @@ export function StayRefineDialog({ itineraryId, target, onClose, onApply }: {
         <DialogHeader>
           <DialogTitle>{tr('Change where you stay?', 'Đổi chỗ ở?')}</DialogTitle>
           <DialogDescription>
-            {tr(`We can suggest somewhere else instead of ${target.name}.`,
-                `Chúng tôi có thể gợi ý chỗ khác thay cho ${target.name}.`)}
+            {fillTemplate(tr('We can suggest somewhere else instead of {name}.', 'Chúng tôi có thể gợi ý chỗ khác thay cho {name}.'), 'We can suggest somewhere else instead of {name}.', { name: String(target.name) })}
           </DialogDescription>
         </DialogHeader>
 
@@ -301,7 +301,7 @@ export function StayRefineDialog({ itineraryId, target, onClose, onApply }: {
               <p className="text-3xs text-ink-4">
                 {remaining === 1
                   ? tr('1 more suggestion left for this trip', 'Còn 1 lần gợi ý cho chuyến đi này')
-                  : tr(`${remaining} more suggestions left for this trip`, `Còn ${remaining} lần gợi ý cho chuyến đi này`)}
+                  : fillTemplate(tr('{remaining} more suggestions left for this trip', 'Còn {remaining} lần gợi ý cho chuyến đi này'), '{remaining} more suggestions left for this trip', { remaining: String(remaining) })}
               </p>
             )}
 

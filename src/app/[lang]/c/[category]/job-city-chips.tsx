@@ -48,6 +48,7 @@ export function JobCityChips({ cities }: { cities: JobCity[] }) {
           data-job-city={c.geo.code}
           className={chipVariants({ size: 'sm', tone: 'neutral' })}
         >
+          {/* i18n-invariant: a city name — never machine-translated (PlaceName's rule). */}
           {lang === 'vi' ? c.label.vi : c.label.en}
           <span className="font-normal tabular-nums text-muted-foreground">{c.count}</span>
         </Link>

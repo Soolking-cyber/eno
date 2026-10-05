@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -136,7 +137,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   const nudge = showNudge ? (
     <p className="mt-0.5 text-sm text-warning">
       {listing.savedCount >= 5
-        ? tr(`${listing.savedCount} people saved this — a small price drop usually sells it`, `${listing.savedCount} người đã lưu tin này — giảm giá một chút thường sẽ bán được`)
+        ? fillTemplate(tr('{savedCount} people saved this — a small price drop usually sells it', '{savedCount} người đã lưu tin này — giảm giá một chút thường sẽ bán được'), '{savedCount} people saved this — a small price drop usually sells it', { savedCount: String(listing.savedCount) })
         : tr('Lots of views but no contacts yet — a lower price usually fixes this', 'Nhiều lượt xem nhưng chưa có liên hệ — giảm giá thường sẽ bán được')}
       {' · '}
       <Button

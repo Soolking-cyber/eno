@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -306,7 +307,7 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
           <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4 text-ink-4" />{cityName}</span>
           <span className="inline-flex items-center gap-1.5">
             <CalendarDays className="h-4 w-4 text-ink-4" />
-            {trip.days === 1 ? tr('1 day', '1 ngày') : tr(`${trip.days} days`, `${trip.days} ngày`)}
+            {trip.days === 1 ? tr('1 day', '1 ngày') : fillTemplate(tr('{days} days', '{days} ngày'), '{days} days', { days: String(trip.days) })}
           </span>
           {budget && <Badge size="md" className="bg-tint text-body">{tr(budget.label, budget.labelVi)}</Badge>}
           {typeof trip.estimatedBudget === 'number' && trip.estimatedBudget > 0 && (
@@ -432,7 +433,7 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
                           variant="secondary"
                           size="sm"
                           disabled={busy}
-                          aria-label={tr(`Change ${loc(stay.name, stay.nameVi)}`, `Đổi ${loc(stay.name, stay.nameVi)}`)}
+                          aria-label={fillTemplate(tr('Change {n}', 'Đổi {n}'), 'Change {n}', { n: String(loc(stay.name, stay.nameVi)) })}
                           onClick={() => setStayTarget({ stayId: stay.id, name: loc(stay.name, stay.nameVi), area: loc(stay.area, stay.areaVi) })}
                           className="shrink-0 gap-1.5"
                         >

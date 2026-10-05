@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Papa from 'papaparse'
 import { Upload, Download, FileText, Loader2, Check, CheckCircle2, AlertTriangle } from '@/components/ui/icons'
@@ -69,7 +70,7 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
     // a thousand times cheaper. VND has no decimals: digits-only is always right.
     const priceNum = parseVnd((r.price || '').toString())
     let err: string | null = null
-    if (!slug || !slugSet.has(slug)) err = tr(`Unknown category "${slug}"`, `Danh mục không hợp lệ "${slug}"`)
+    if (!slug || !slugSet.has(slug)) err = fillTemplate(tr('Unknown category "{slug}"', 'Danh mục không hợp lệ "{slug}"'), 'Unknown category "{slug}"', { slug: String(slug) })
     else if (title.length < 3) err = tr('Title too short', 'Tiêu đề quá ngắn')
     else if (!Number.isFinite(priceNum) || priceNum < 0) err = tr('Invalid price', 'Giá không hợp lệ')
     else if (containsPhoneNumber(title) || containsPhoneNumber(r.description || '')) err = tr('Phone number not allowed', 'Không được ghi số điện thoại')
@@ -89,7 +90,7 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
       const photoCount = urlCount + images.length
       if (missing.length) {
         err = zip
-          ? tr(`Not in the ZIP: ${missing.slice(0, 3).join(', ')}`, `Không có trong ZIP: ${missing.slice(0, 3).join(', ')}`)
+          ? fillTemplate(tr('Not in the ZIP: {n}', 'Không có trong ZIP: {n}'), 'Not in the ZIP: {n}', { n: String(missing.slice(0, 3).join(', ')) })
           : tr('This row names files — attach the ZIP that contains them', 'Dòng này ghi tên tệp — hãy đính kèm ZIP chứa chúng')
       } else if (photoCount < 3) {
         err = tr('Needs at least 3 photos (different angles)', 'Cần ít nhất 3 ảnh (các góc khác nhau)')
@@ -301,13 +302,13 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
           // this chunk was created, and no later chunk would be either — say why, not "try again".
           const identityMsg = identityBlockMessage(d.error, tr)
           setError(identityMsg
-            ? (created > 0 ? `${tr(`Stopped after ${created} listings — the rest were not imported.`, `Đã dừng sau ${created} tin — phần còn lại chưa được nhập.`)} ${identityMsg}` : identityMsg)
+            ? (created > 0 ? `${fillTemplate(tr('Stopped after {created} listings — the rest were not imported.', 'Đã dừng sau {created} tin — phần còn lại chưa được nhập.'), 'Stopped after {created} listings — the rest were not imported.', { created: String(created) })} ${identityMsg}` : identityMsg)
             : d.error === 'business_only'
             ? tr('Bulk upload is for business accounts.', 'Tải hàng loạt chỉ dành cho tài khoản doanh nghiệp.')
             : created > 0
               // ⚠️ SAY WHAT SURVIVED. Chunking means a late failure is partial, and "try again" on
               // its own would send the seller to re-import rows that already exist.
-              ? tr(`Stopped after ${created} listings — the rest were not imported.`, `Đã dừng sau ${created} tin — phần còn lại chưa được nhập.`)
+              ? fillTemplate(tr('Stopped after {created} listings — the rest were not imported.', 'Đã dừng sau {created} tin — phần còn lại chưa được nhập.'), 'Stopped after {created} listings — the rest were not imported.', { created: String(created) })
               : tr('Upload failed. Try again.', 'Tải lên thất bại. Thử lại.'))
           stopped = true
           break
@@ -340,7 +341,7 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
     } catch {
       stopped = true
       setError(created > 0
-        ? tr(`Stopped after ${created} listings — the rest were not imported.`, `Đã dừng sau ${created} tin — phần còn lại chưa được nhập.`)
+        ? fillTemplate(tr('Stopped after {created} listings — the rest were not imported.', 'Đã dừng sau {created} tin — phần còn lại chưa được nhập.'), 'Stopped after {created} listings — the rest were not imported.', { created: String(created) })
         : tr('Upload failed. Try again.', 'Tải lên thất bại. Thử lại.'))
     } finally {
       /**
@@ -428,7 +429,7 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {zip
-                  ? tr(`${zip.files.size} files ready`, `${zip.files.size} tệp sẵn sàng`)
+                  ? fillTemplate(tr('{size} files ready', '{size} tệp sẵn sàng'), '{size} files ready', { size: String(zip.files.size) })
                   : tr('Name files in the CSV exactly as they appear in the ZIP', 'Ghi tên tệp trong CSV đúng như trong ZIP')}
               </p>
               <input ref={zipRef} type="file" accept=".zip,application/zip" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onZip(f) }} />

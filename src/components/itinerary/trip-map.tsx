@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { basemapTileUrl } from '@/lib/basemap'
 import { useEffect, useRef, useState } from 'react'
 import { Map as MapIcon, Info } from '@/components/ui/icons'
@@ -615,7 +616,7 @@ export function TripMap({ days, activeDay = null, selectedStopId = null, onSelec
           {legendDays.map((day) => (
             <li key={day.dayNumber} className="flex items-center gap-1.5 text-3xs font-bold text-ink-3">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: dayColor(day.dayNumber) }} aria-hidden="true" />
-              {tr(`Day ${day.dayNumber}`, `Ngày ${day.dayNumber}`)}
+              {fillTemplate(tr('Day {dayNumber}', 'Ngày {dayNumber}'), 'Day {dayNumber}', { dayNumber: String(day.dayNumber) })}
             </li>
           ))}
         </ul>

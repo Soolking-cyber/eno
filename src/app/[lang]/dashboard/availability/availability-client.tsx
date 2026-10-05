@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Search, Loader2, Check } from '@/components/ui/icons'
@@ -201,7 +202,7 @@ export function AvailabilityClient() {
                 <Button variant="cta" size="none" onClick={submit} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm transition-colors disabled:opacity-50 cursor-pointer">
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {soldCount > 0
-                    ? tr(`Bump ${availCount} · sold ${soldCount}`, `Đẩy ${availCount} · đã bán ${soldCount}`)
+                    ? fillTemplate(tr('Bump {availCount} · sold {soldCount}', 'Đẩy {availCount} · đã bán {soldCount}'), 'Bump {availCount} · sold {soldCount}', { availCount: String(availCount), soldCount: String(soldCount) })
                     : tr('Everything’s still available', 'Tất cả vẫn còn')}
                 </Button>
               </div>

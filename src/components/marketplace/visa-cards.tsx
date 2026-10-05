@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
@@ -2080,8 +2081,8 @@ function VisaFieldControl({ spec, value, bounds, onChange }: {
               placeholder={tr('Type or choose a checkpoint', 'Nhập hoặc chọn cửa khẩu')}
               className="text-base font-normal lg:text-sm"
             />
-            <ComboboxClear aria-label={tr(`Clear ${label}`, `Xóa ${label}`)} />
-            <ComboboxTrigger aria-label={tr(`Open ${label} options`, `Mở lựa chọn ${label}`)} />
+            <ComboboxClear aria-label={fillTemplate(tr('Clear {label}', 'Xóa {label}'), 'Clear {label}', { label: String(label) })} />
+            <ComboboxTrigger aria-label={fillTemplate(tr('Open {label} options', 'Mở lựa chọn {label}'), 'Open {label} options', { label: String(label) })} />
           </ComboboxInputGroup>
           <ComboboxContent>
             <ComboboxEmpty>{tr('No matching checkpoint. You can keep what you typed.', 'Không có cửa khẩu phù hợp. Bạn có thể giữ giá trị đã nhập.')}</ComboboxEmpty>
@@ -2332,14 +2333,8 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
         {quote && !quickFlow && (
           <p className="mt-1.5 text-2xs leading-relaxed text-ink-4">
             {quote.processingUsdCents != null && quote.serviceUsdCents != null && quote.processingUsdCents > 0
-              ? tr(
-                  `Service ${formatUsdCents(quote.serviceUsdCents, locale)} + payment processing ${formatUsdCents(quote.processingUsdCents, locale)}. Charged in US dollars at ${rateLabel(quote, locale)} per dollar.`,
-                  `Dịch vụ ${formatUsdCents(quote.serviceUsdCents, locale)} + phí xử lý thanh toán ${formatUsdCents(quote.processingUsdCents, locale)}. Thu bằng đô la Mỹ theo tỷ giá ${rateLabel(quote, locale)} mỗi đô la.`,
-                )
-              : tr(
-                  `Charged in US dollars at ${rateLabel(quote, locale)} per dollar.`,
-                  `Thu bằng đô la Mỹ theo tỷ giá ${rateLabel(quote, locale)} mỗi đô la.`,
-                )}
+              ? fillTemplate(tr('Service {n} + payment processing {n2}. Charged in US dollars at {n3} per dollar.', 'Dịch vụ {n} + phí xử lý thanh toán {n2}. Thu bằng đô la Mỹ theo tỷ giá {n3} mỗi đô la.'), 'Service {n} + payment processing {n2}. Charged in US dollars at {n3} per dollar.', { n: String(formatUsdCents(quote.serviceUsdCents, locale)), n2: String(formatUsdCents(quote.processingUsdCents, locale)), n3: String(rateLabel(quote, locale)) })
+              : fillTemplate(tr('Charged in US dollars at {n} per dollar.', 'Thu bằng đô la Mỹ theo tỷ giá {n} mỗi đô la.'), 'Charged in US dollars at {n} per dollar.', { n: String(rateLabel(quote, locale)) })}
           </p>
         )}
       </div>

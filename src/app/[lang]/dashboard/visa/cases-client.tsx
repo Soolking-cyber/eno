@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -216,9 +217,9 @@ function VisaTypeLabel({ item, tr, className }: { item: VisaApplication; tr: Tr;
 /** Coarse honest remainder — "about 3 h" / "about 2 days"; null once under a minute. */
 function remainingCopy(ms: number, tr: Tr): string | null {
   if (ms < 60_000) return null
-  if (ms < 3_600_000) return tr(`about ${Math.round(ms / 60_000)} min left`, `còn khoảng ${Math.round(ms / 60_000)} phút`)
-  if (ms < 48 * 3_600_000) return tr(`about ${Math.round(ms / 3_600_000)} h left`, `còn khoảng ${Math.round(ms / 3_600_000)} giờ`)
-  return tr(`about ${Math.round(ms / 86_400_000)} days left`, `còn khoảng ${Math.round(ms / 86_400_000)} ngày`)
+  if (ms < 3_600_000) return fillTemplate(tr('about {n} min left', 'còn khoảng {n} phút'), 'about {n} min left', { n: String(Math.round(ms / 60_000)) })
+  if (ms < 48 * 3_600_000) return fillTemplate(tr('about {n} h left', 'còn khoảng {n} giờ'), 'about {n} h left', { n: String(Math.round(ms / 3_600_000)) })
+  return fillTemplate(tr('about {n} days left', 'còn khoảng {n} ngày'), 'about {n} days left', { n: String(Math.round(ms / 86_400_000)) })
 }
 
 /** The case's promise line, or null when no honest one exists (fails closed with eta.ts). */

@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 // The account panel BODY — everything below the shell's mount gate, split into its
 // own chunk (perf Phase 1): the shell's lazy `mounted` flag already kept guests from
 // RENDERING this, but the module still shipped in the root bundle (nav resolver,
@@ -175,7 +176,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
     // rail and the config cannot disagree about which count is which.
     const badgeVariant = it.badgeTone === 'neutral' ? 'counter-neutral' : 'counter'
     // aria-label REPLACES the element's content for AT, which silenced the badge count — fold it in.
-    const accessibleName = badgeLabel ? tr(`${it.label}, ${badgeLabel} new`, `${it.label}, ${badgeLabel} mới`) : it.label
+    const accessibleName = badgeLabel ? fillTemplate(tr('{label}, {badgeLabel} new', '{label}, {badgeLabel} mới'), '{label}, {badgeLabel} new', { label: String(it.label), badgeLabel: String(badgeLabel) }) : it.label
     const inner = (
       <>
         {/* `flex`, not the bare inline box it used to be: the child is now an inline-flex

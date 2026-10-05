@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useEffect, useId, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
 import { MapPin, ChevronDown, SlidersHorizontal, X } from '@/components/ui/icons'
 import { CustomSelect } from './custom-select'
@@ -301,7 +302,7 @@ export function FacetBar({
   const areaLabel = ward
     ? (lang === 'vi' ? ward.name : ward.nameEn)
     : nearby
-    ? tr(`Within ${nearby.radiusKm} km`, `Trong ${nearby.radiusKm} km`)
+    ? fillTemplate(tr('Within {radiusKm} km', 'Trong {radiusKm} km'), 'Within {radiusKm} km', { radiusKm: String(nearby.radiusKm) })
     : districtPicked
     ? districtSlugLabel(district!, lang)
     : province

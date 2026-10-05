@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useEffect, useState } from 'react'
 import { ArtImage } from '@/components/marketplace/art-image'
 import { X } from '@/components/ui/icons'
@@ -123,7 +124,7 @@ export function InstallHint() {
             {tr('Get the eno app', 'Tải ứng dụng eno')}
           </p>
           <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
-            {tr(`Faster, with notifications — on ${store}`, `Nhanh hơn, có thông báo — trên ${store}`)}
+            {fillTemplate(tr('Faster, with notifications — on {store}', 'Nhanh hơn, có thông báo — trên {store}'), 'Faster, with notifications — on {store}', { store: String(store) })}
           </p>
         </div>
         <Button asChild variant="cta" size="sm" className="shrink-0">

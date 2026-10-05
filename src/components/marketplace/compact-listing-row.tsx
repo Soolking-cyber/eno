@@ -1,5 +1,6 @@
 'use client'
 
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { memo, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -246,7 +247,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               can't spare the width on mobile. */}
           {l.contactCount >= 3 && (
             <span className="hidden shrink-0 text-2xs text-muted-foreground tabular-nums sm:inline">
-              {tr(`${formatCount(l.contactCount, moneyLocale(lang))} contacted`, `Đã liên hệ ${formatCount(l.contactCount, moneyLocale(lang))}`)}
+              {fillTemplate(tr('{n} contacted', 'Đã liên hệ {n}'), '{n} contacted', { n: String(formatCount(l.contactCount, moneyLocale(lang))) })}
             </span>
           )}
           {l.isSponsored && <UiBadge variant="neutral" size="sm" data-ad-marker="" className={cn('ml-auto hidden shrink-0 sm:inline-flex', offer !== null && 'sm:hidden')}>{tr('Ad', 'Quảng cáo')}</UiBadge>}

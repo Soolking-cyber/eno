@@ -1,7 +1,7 @@
 'use client'
 
 import { useLanguage } from '@/context/language-context'
-import { safeTemplate } from '@/lib/i18n/placeholders'
+import { fillTemplate, safeTemplate } from '@/lib/i18n/placeholders'
 import { longCalendarDate } from '@/lib/calendar-day'
 import { isMtLanguage } from '@/lib/i18n/langs'
 
@@ -70,10 +70,7 @@ export function Bilingual({ en, vi, values, datesIso }: {
  * the English template's falls back to the English, then the values go in.
  */
 export function fillBilingual(translated: string, en: string, values: Record<string, string>): string {
-  // Same placeholders as the English → as is; one renamed placeholder (`{цена}`) → repaired; else English.
-  const template = safeTemplate(translated, en)
-  // ⚠️ ONE PASS over the TEMPLATE's placeholders. Filling key by key re-scanned text already filled in, so
-  // a listing titled "Combo {n} món" had its own "{n}" replaced by the photo number. A replacer function
-  // also prints a value's `$&` as typed (what split/join was for).
-  return template.replace(/\{([^{}]+)\}/g, (m, k: string) => (Object.prototype.hasOwnProperty.call(values, k) ? values[k] : m))
+  // ⚠️ ONE PASS over the TEMPLATE's placeholders (fillTemplate): filling key by key re-scanned text already
+  // filled in, so a listing titled "Combo {n} món" had its own "{n}" replaced by the photo number.
+  return fillTemplate(translated, en, values)
 }
