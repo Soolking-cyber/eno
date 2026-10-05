@@ -98,6 +98,13 @@ describe.each([
     'src/components/marketplace/cross-site-promo.tsx',
     'src/components/marketplace/cross-site-promo.stub.tsx',
   ],
+  // The trip family's Google AI notice words + Settings row (App Store gate `app-ai-notice`). Imported by SHARED files —
+  // the chat page, Settings, the trip cards — so a drifted export is a crash on eno.vn, which only ever gets the stub.
+  [
+    'trip-ai-consent',
+    'src/components/marketplace/trip-ai-consent.tsx',
+    'src/components/marketplace/trip-ai-consent.stub.tsx',
+  ],
   // ⚠️ THE ONE THIS GUARD ACTUALLY CAUGHT. visa-start is imported at module top level by
   // src/app/[lang]/listings/[id]/page.tsx — the product detail page — so a missing or drifted export is a
   // white screen on every eno.vn listing. It was aliased only after a clean build measured eight
@@ -172,6 +179,7 @@ describe('alias coverage', () => {
     'src/lib/cross-site-links.ts',
     'src/lib/promo-slides-services.ts',
     'src/components/marketplace/cross-site-promo.tsx',
+    'src/components/marketplace/trip-ai-consent.tsx',
     'src/components/marketplace/visa-start.tsx',
     'src/generated/ui-strings.services.ts',
     'src/lib/api/errors-services.ts',

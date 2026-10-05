@@ -43,6 +43,7 @@ import { categoryChangeLosesAnswers, categoryChangeReset } from './post-wizard-c
 import { postCopyFor } from '@/lib/post-copy'
 import { clearDraftPhotos, draftPhotosEpoch, loadDraftPhotos, saveDraftPhotos } from '@/lib/post-draft-photos'
 import { scrollBehavior } from '@/lib/reduced-motion'
+import { aiConsentNeeded, askAiConsent } from '@/lib/ai-consent'
 
 const TITLE_MAX = 140
 const DESC_MAX = 5000
@@ -143,6 +144,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     const coverFile = photos[0]?.file
     if (!coverFile || aiBusy) return
     setAiBusy('photo')
+    // ⚠️ App Store gate `app-ai-notice` (src/lib/ai-consent.ts): in the apps, ask before the cover photo goes to Google
+    // (Gemini). "Not now" ⇒ nothing is sent; the seller fills the form in. Gate off ⇒ no await — exactly as before.
+    // ⚠️ BUSY FIRST, THEN THE QUESTION (codex, review): with the busy flag set after the await, a second tap before the
+    // notice appeared started a second wait, and "Allow" released both — two Google calls.
+    if (aiConsentNeeded('listing', user.id) && !(await askAiConsent('listing', { userId: user.id }))) { setAiBusy(null); return }
     try {
       const fd = new FormData()
       fd.append('file', coverFile)
@@ -196,6 +202,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     if (!user) { openSignIn({ note: aiGateNote }); return } // AI burns paid credits — members only
     if (description.trim().length < 3 || aiBusy) return
     setAiBusy('desc')
+    // ⚠️ App Store gate `app-ai-notice`: the same question before the description goes to Google (Gemini) — one answer
+    // covers both buttons (one family, src/lib/ai-consent.ts). Busy first, as above. Gate off ⇒ no await.
+    if (aiConsentNeeded('listing', user.id) && !(await askAiConsent('listing', { userId: user.id }))) { setAiBusy(null); return }
     try {
       const res = await fetch('/api/ai/rephrase', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: description, lang }),

@@ -24,6 +24,9 @@ import {
   type TripWizardStep,
 } from '@/lib/trips/itinerary-wizard'
 import { ChatCard, ChatCardSteps } from '@/components/marketplace/chat-card-shell'
+import { useTripAiConsentCopy } from '@/components/marketplace/trip-ai-consent'
+import { aiConsentNeeded, askAiConsent } from '@/lib/ai-consent'
+import { useAiConsent } from '@/hooks/use-ai-consent'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuTrigger,
@@ -308,6 +311,7 @@ function loadDraft(messageId: string): Draft {
 
 export function TripWizardCard({ conversationId, messageId, meta }: { conversationId: string; messageId: string; meta: WizardStepMeta }) {
   const { tr, lang } = useLanguage()
+  const tripAiCopy = useTripAiConsentCopy() // App Store gate `app-ai-notice` — see build()
   // Same derivation as TripQuoteCard above: every money figure in this card is grouped for the
   // ACTIVE language (vi → dot thousands), never for a hardcoded locale.
   const locale = moneyLocale(lang)
@@ -497,6 +501,11 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
   const build = async () => {
     if (busy) return
     setBusy(true); setError(null)
+    // ⚠️ App Store gate `app-ai-notice` (src/lib/ai-consent.ts, the `trip` family): in the apps, ask before the trip
+    // answers go to Google (Gemini) — before anything is posted, so "Not now" leaves the card exactly as it was (the
+    // notice says a person from the desk can still help). BUSY FIRST (codex, review): set after the await, a second tap
+    // before the notice appeared started a second wait, and "Allow" built two plans. Gate off ⇒ no await, unchanged.
+    if (aiConsentNeeded('trip') && !(await askAiConsent('trip', { copy: tripAiCopy }))) { setBusy(false); return }
     try {
       // ⚠️ NEVER GENERATE FROM AN INCOMPLETE DRAFT — THIS WAS AN UNWINNABLE DEAD END.
       //
@@ -981,6 +990,10 @@ export function TripAssistChips({
   onAskHuman: (mode?: 'human' | 'ai') => void | Promise<void>
 }) {
   const { tr } = useLanguage()
+  // App Store gate `app-ai-notice` (src/lib/ai-consent.ts): trip AI turned off in this app. The concierge cannot answer
+  // without it, so its item is disabled and says why — armable, it looped: arm → ask → "off" toast → disarm (opus, review).
+  const tripAi = useAiConsent('trip')
+  const aiOff = tripAi.askFirst && tripAi.consent === 'off'
   return (
     <DropdownMenu>
       {/* ⚠️ Icon and label INSIDE the rendered Button — Base UI's `render` REPLACES the trigger, so
@@ -1011,7 +1024,7 @@ export function TripAssistChips({
       <DropdownMenuContent side="top" align="start" sideOffset={6} className="min-w-60">
         {/* "name is Eno concierge" (owner) — the same string in both languages, not translated. */}
         <DropdownMenuItem
-          disabled={thinking}
+          disabled={thinking || aiOff}
           // In human mode this item's job is to SWITCH BACK (a server round trip), not to arm the
           // composer — arming a bot the server would refuse is the disappearing-chip bug wearing a
           // different hat.
@@ -1032,7 +1045,10 @@ export function TripAssistChips({
         {/* The disclaimer, and it changes with the state — a fixed line would be wrong in one of
             the two modes. Small and muted: it explains, it does not shout. */}
         <p className="mt-1 max-w-60 border-t border-border px-2 pb-1 pt-2 text-2xs leading-relaxed text-ink-4">
-          {humanRequested
+          {aiOff
+            ? tr('Eno concierge uses Google AI, which is turned off in this app. A person can help you here — or turn it on in Settings → Preferences.',
+                 'Eno concierge dùng Google AI, hiện đang tắt trong ứng dụng này. Nhân viên có thể hỗ trợ bạn tại đây — hoặc bật lại trong Cài đặt → Tùy chọn.')
+            : humanRequested
             ? tr('A person is answering. Eno concierge stays quiet so it never replies over them — tap it to switch back.',
                  'Nhân viên đang trả lời. Eno concierge tạm im để không trả lời chồng lên — chạm để chuyển lại.')
             : tr('Eno concierge is an AI and can be wrong. Ask for a person any time.',

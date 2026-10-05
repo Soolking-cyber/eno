@@ -1,6 +1,7 @@
 // Client helper: POST a photo to the visual-search endpoint and get back a text
 // query (+ best-guess category/brand) to drive the normal keyword search.
 import { compressImageFile } from './normalize-image'
+import { aiConsentNeeded, askAiConsent } from './ai-consent'
 
 export type VisualSearchResult = {
   query: string
@@ -9,7 +10,12 @@ export type VisualSearchResult = {
   unclear?: boolean
 }
 
-export async function runVisualSearch(file: File): Promise<VisualSearchResult | Unauthorized | null> {
+export async function runVisualSearch(file: File): Promise<VisualSearchResult | Unauthorized | AiDeclined | null> {
+  // ⚠️ App Store gate `app-ai-notice` (src/lib/ai-consent.ts): in the apps, the photo goes to Google (Gemini Vision) only
+  // after "Allow". The ONE chokepoint for both entrances (the camera button, a pasted image) — each also asks before
+  // showing its own progress, so this is the backstop. Declined ⇒ AI_DECLINED, which both callers treat as silent (the
+  // notice already said what happened). Gate off ⇒ aiConsentNeeded() is false: no await, nothing changes.
+  if (aiConsentNeeded('photo_search') && !(await askAiConsent('photo_search'))) return AI_DECLINED
   // Downscale + re-encode in the browser first (same helper as the post wizard).
   // Raw phone photos are 5–15MB and Vercel caps request bodies at ~4.5MB, so the
   // platform 413'd BEFORE our route ran; the server resizes to 512px anyway, so
@@ -44,6 +50,12 @@ export async function runVisualSearch(file: File): Promise<VisualSearchResult | 
  */
 export type Unauthorized = { unauthorized: true }
 export const UNAUTHORIZED: Unauthorized = { unauthorized: true }
+/** Returned when the person did not allow search by photo to use Google AI (App Store gate `app-ai-notice`). Silent, like UNAUTHORIZED. */
+export type AiDeclined = { aiDeclined: true }
+export const AI_DECLINED: AiDeclined = { aiDeclined: true }
+export function isAiDeclined(r: unknown): r is AiDeclined {
+  return !!r && typeof r === 'object' && (r as { aiDeclined?: boolean }).aiDeclined === true
+}
 export function isUnauthorized(r: unknown): r is Unauthorized {
   return !!r && typeof r === 'object' && (r as { unauthorized?: boolean }).unauthorized === true
 }

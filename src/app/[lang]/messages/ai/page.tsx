@@ -18,6 +18,8 @@ import { useSafeBack } from '@/lib/safe-back'
 import type { SerializedListingCard } from '@/lib/types'
 import { fmtTime } from '@/lib/dates'
 import { scrollBehavior } from '@/lib/reduced-motion'
+import { aiConsentNeeded, askAiConsentAnswer, type AiConsent } from '@/lib/ai-consent'
+import { useAiConsent } from '@/hooks/use-ai-consent'
 
 // The "eno AI" conversation — rendered as a native thread in the messages tab (the AI
 // is just another contact). Self-contained: messages live in component state +
@@ -40,6 +42,11 @@ export default function AiThreadPage() {
   const listRef = useRef<HTMLDivElement>(null) // scroll only THIS, never the document (scrollIntoView can scroll <body> → header off)
   const footerRef = useRef<HTMLDivElement>(null) // composer; lifts to position:fixed above the keyboard (globals.css .chat-footer)
   const { open: kbOpen } = useVirtualKeyboard() // coalesced store → re-renders only on open/close, safe
+  // App Store gate `app-ai-notice` (src/lib/ai-consent.ts): in the apps, "Not now" to Google AI leaves a keyword-only
+  // assistant, and the header says so. Gate off ⇒ askFirst is false and nothing here changes.
+  const aiConsent = useAiConsent('assistant')
+  const googleAiOff = aiConsent.askFirst && aiConsent.consent === 'off'
+  const askingAi = useRef(false) // a Google AI question is open (see send)
 
   const greeting: Msg = {
     role: 'assistant',
@@ -115,6 +122,23 @@ export default function AiThreadPage() {
     // AI is members-only (it draws the paid Vertex/Gemini credit). Prompt sign-in
     // instead of firing a request that the server would 401 anyway.
     if (!user) { openSignIn(); return }
+    // ⚠️ App Store gate `app-ai-notice`: in the apps, the FIRST send asks before anything typed here reaches Google
+    // (Gemini + Vertex AI Search). "Not now" still gets an answer — the request carries `ai: false` and the route uses
+    // its own keyword reading and Postgres search; no answer at all sends nothing. Gate off ⇒ aiConsentNeeded() is
+    // false: no await, no `ai` field, the request exactly as before. The text stays in the composer while it is open.
+    // ⚠️ ONE QUESTION AT A TIME (codex, review): `loading` is set only after the answer, so a second Return before the
+    // notice appeared started a second wait — and "Allow" would have sent the message twice.
+    let noAi = false
+    if (aiConsentNeeded('assistant', user.id)) {
+      if (askingAi.current) return
+      askingAi.current = true
+      let answer: AiConsent = null
+      try { answer = await askAiConsentAnswer('assistant', { userId: user.id }) } finally { askingAi.current = false }
+      // NO ANSWER IS NOT "NOT NOW" (codex, review): Escape, or a question voided because the page or the account changed
+      // while it was open, sends nothing at all — the text stays in the composer.
+      if (answer === null) return
+      noAi = answer !== 'on'
+    }
     haptic()
     const next: Msg[] = [...messages, { role: 'user', content: body, createdAt: new Date().toISOString() }]
     setMessages(next)
@@ -124,7 +148,7 @@ export default function AiThreadPage() {
       const res = await fetch('/api/ai/concierge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lang, messages: next.map((m) => ({ role: m.role, content: m.content })) }),
+        body: JSON.stringify({ lang, messages: next.map((m) => ({ role: m.role, content: m.content })), ...(noAi ? { ai: false } : {}) }),
       })
       if (res.status === 401) { openSignIn(); setLoading(false); return }
       const d = await res.json().catch(() => null)
@@ -160,7 +184,11 @@ export default function AiThreadPage() {
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand"><Sparkles className="h-5 w-5" aria-hidden /></span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-bold text-foreground">{tr('eno AI', 'eno AI')}</div>
-          <div className="truncate text-xs text-accent-foreground">{tr('AI shopping assistant', 'Trợ lý mua sắm AI')}</div>
+          <div className="truncate text-xs text-accent-foreground">
+            {googleAiOff
+              ? tr('Keyword search · Google AI off', 'Tìm theo từ khóa · Đã tắt Google AI')
+              : tr('AI shopping assistant', 'Trợ lý mua sắm AI')}
+          </div>
         </div>
       </div>
 

@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Field, FieldLabel, FieldControl } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
 import { useLanguage } from '@/context/language-context'
+import { useTripAiConsentCopy } from '@/components/marketplace/trip-ai-consent'
+import { aiConsentNeeded, askAiConsent } from '@/lib/ai-consent'
 import { cn } from '@/lib/utils'
 import { moneyLocale } from '@/lib/vnd'
 import { useDualMoney } from '@/context/currency-context'
@@ -74,6 +76,7 @@ export function StopRefineDialog({ itineraryId, target, onClose, onRemove, onApp
   onApply: (dayId: string, stopId: string, replacement: StopReplacement) => void | Promise<void>
 }) {
   const { tr, lang } = useLanguage()
+  const tripAiCopy = useTripAiConsentCopy() // App Store gate `app-ai-notice` — see ask()
   const dualMoney = useDualMoney()
   const [reasons, setReasons] = useState<string[]>([])
   const [preference, setPreference] = useState('')
@@ -136,6 +139,16 @@ export function StopRefineDialog({ itineraryId, target, onClose, onRemove, onApp
     const seq = askSeq.current
     setAsking(true)
     setError(null)
+    // ⚠️ App Store gate `app-ai-notice` (src/lib/ai-consent.ts, the `trip` family): in the apps, ask before this trip and
+    // the reasons typed here go to Google (Gemini) for stop suggestions. "Not now" ⇒ nothing is sent. Asking is set
+    // FIRST (codex, review): the button is disabled while the question is open, so a second tap cannot start a second
+    // wait that "Allow" would release too. Gate off ⇒ no await, unchanged.
+    if (aiConsentNeeded('trip') && !(await askAiConsent('trip', { copy: tripAiCopy }))) {
+      if (askSeq.current === seq) setAsking(false)
+      return
+    }
+    // The dialog moved on (another place, or closed) while the question was open — nothing to ask Google about now.
+    if (askSeq.current !== seq) return
     try {
       const res = await fetch(`/api/itineraries/${encodeURIComponent(itineraryId)}/stops/suggest`, {
         method: 'POST',

@@ -120,11 +120,14 @@ function heuristicUnderstand(text: string): Understood {
 // One Gemini call = the concierge's brain: intent + a natural reply + structured
 // search params resolved from the WHOLE conversation ("cheapest one" after "i need a
 // computer" → "computer"; a new topic replaces the old).
-async function understand(messages: Msg[], cats: { slug: string }[], lang: 'en' | 'vi'): Promise<Understood> {
+async function understand(messages: Msg[], cats: { slug: string }[], lang: 'en' | 'vi', useAi = true): Promise<Understood> {
   const lastUser = [...messages].reverse().find((m) => m.role === 'user')!
   const fallback = heuristicUnderstand(lastUser.content)
   // The free chat guard fires regardless of Gemini availability/budget.
   if (fallback.intent === 'chat') return fallback
+  // The person said "Not now" to Google AI (App Store gate `app-ai-notice`, src/lib/ai-consent.ts): the keyword reading,
+  // exactly as when Gemini is unconfigured or over budget — nothing leaves for Google.
+  if (!useAi) return fallback
   const ai = getGemini()
   if (!ai) return fallback
   // Global daily Gemini budget breaker — caps total real-money understanding spend.
@@ -509,15 +512,22 @@ export async function POST(req: NextRequest) {
   const gate = await aiGuard('concierge', undefined, { skipGlobal: true }) // concierge has its own daily breakers with graceful heuristic degrade
   if (!gate.ok) return gate.res
 
-  let body: { messages?: Msg[]; lang?: string }
+  let body: { messages?: Msg[]; lang?: string; ai?: unknown }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
   const lang = body.lang === 'vi' ? 'vi' : 'en'
+  /**
+   * ⚠️ `ai: false` = NO GOOGLE AT ALL FOR THIS TURN — neither Gemini (understand) nor Vertex AI Search (conciergeSearch).
+   * Sent only by the apps with `app-ai-notice` on, after the person answered "Not now" (src/lib/ai-consent.ts). Only the
+   * literal `false` switches it off; anything else — including the field being absent, which is every request with the
+   * gate off — is today's behaviour exactly.
+   */
+  const useAi = body.ai !== false
   const messages = (body.messages || []).filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string').slice(-12)
   if (![...messages].some((m) => m.role === 'user')) return NextResponse.json({ error: 'bad_request' }, { status: 400 })
 
   // Understand the turn: intent + natural reply + structured search params.
   const cats = (await db.category.findMany({ select: { slug: true } })).filter((c) => isPostableCategory(c.slug))
-  const u = await understand(messages, cats, lang)
+  const u = await understand(messages, cats, lang, useAi)
 
   // Conversation, not commerce: reply warmly, show nothing for sale. Free.
   if (u.intent === 'chat') {
@@ -573,7 +583,7 @@ export async function POST(req: NextRequest) {
    */
   const numericSpecs = Object.fromEntries(
     Object.entries(querySpecs).filter(([k]) => NUMERIC_SPEC_KEYS.has(k)))
-  const vBudget = vertexConfigured() && !sort && !Object.keys(numericSpecs).length
+  const vBudget = useAi && vertexConfigured() && !sort && !Object.keys(numericSpecs).length
     ? await rateLimit('ai-concierge-vertex', 'global', 20000, '1 d', { strict: true })
     : { success: false }
   if (vBudget.success) {

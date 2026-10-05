@@ -40,6 +40,8 @@ const SERVICES_SOURCES = [
   'src/app/api/visa/', 'src/app/api/trips/', 'src/app/api/itineraries/', 'src/app/api/admin/trips/',
   'src/lib/visa/', 'src/lib/trips/', 'src/lib/itinerary-',
   'src/components/marketplace/visa-cards', 'src/components/marketplace/trip-cards',
+  // The trip family's Google AI notice + Settings row (App Store gate `app-ai-notice`) — aliased away on eno.vn.
+  'src/components/marketplace/trip-ai-consent',
   'src/components/itinerary/', 'src/components/marketplace/visa-start',
   // eno.forum's home banner. Same trap as cross-site-promo below: the PATH looks shared
   // (`src/lib/promo-slides-*`, right beside the marketplace's own slides) while the copy is

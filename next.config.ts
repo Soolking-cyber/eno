@@ -592,6 +592,9 @@ const nextConfig: NextConfig = {
              * lib/itinerary-data, lib/trips/itinerary-wizard, lib/utils, lib/vnd. It reaches NONE of
              * the modules that stay stubbed below — no edition-services-copy, no ui-strings.services,
              * no visa-provider, no cross-site-promo. Un-stubbing it ships the trip UI and nothing else.
+             * (2026-10-05: it now also imports `trip-ai-consent`, which STAYS stubbed below — so an
+             * un-stubbed trip-cards gets the stub's empty words, and the Google AI notice that needs
+             * them refuses, sending nothing. Still nothing extra in eno.vn's chunks.)
              *
              * ⚠️ `visa-start` IS THE ONE THAT WAS MISSING FOR A MONTH, AND IT SAT ON THE BUSIEST PAGE
              * ON THE SITE. src/app/[lang]/listings/[id]/page.tsx — the product detail page — imports it at
@@ -640,6 +643,10 @@ const nextConfig: NextConfig = {
             // Footer links and home tiles. Already gated at their call sites — this removes the
             // LABELS from the artifact, which the gate cannot do.
             "@/lib/edition-services-copy": "./src/lib/edition-services-copy.stub.ts",
+            // The trip family's words for the Google AI notice, and its Settings row (App Store gate `app-ai-notice`,
+            // src/lib/ai-consent.ts). SHARED files import it — the chat page, Settings — so a gate cannot keep "trip plan"
+            // out of eno.vn's chunks; only this can. Stubbed flag or no flag: the app the notice is for is eno.forum.
+            "@/components/marketplace/trip-ai-consent": "./src/components/marketplace/trip-ai-consent.stub.tsx",
             // The third-party provider of record for the e-visa service: partner name, licence and
             // tax placeholders, and the provider-of-record disclosure in vi + en. The LEGAL PAGES
             // are shared by both editions — one /terms, one /privacy, one disclosure page, each

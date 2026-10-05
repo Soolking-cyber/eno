@@ -3,7 +3,8 @@
 import { useRef, useState } from 'react'
 import { Camera, Loader2 } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
-import { runVisualSearch, isUnauthorized } from '@/lib/visual-search'
+import { runVisualSearch, isUnauthorized, isAiDeclined } from '@/lib/visual-search'
+import { aiConsentNeeded, askAiConsent } from '@/lib/ai-consent'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -32,14 +33,20 @@ export function ImageSearchButton({
 
   const handle = async (file?: File | null) => {
     if (!file || busy) return
-    onStart?.()
     setBusy(true)
+    // ⚠️ App Store gate `app-ai-notice` (src/lib/ai-consent.ts): in the apps, ask before the caller's onStart — the photo
+    // has been picked, nothing has been sent. "Not now" ⇒ nothing is sent, nothing else happens (the notice said what).
+    // Busy is set FIRST so a second pick cannot start a second wait (codex, review). Gate off ⇒ no await; the only
+    // difference is that busy is set a line before onStart instead of a line after.
+    if (aiConsentNeeded('photo_search') && !(await askAiConsent('photo_search'))) { setBusy(false); return }
+    onStart?.()
     try {
       const r = await runVisualSearch(file)
       // ⚠️ 401 IS SILENT HERE TOO. runVisualSearch has already asked the AuthProvider to open the
       // sign-in modal; adding "try a clearer photo" on top of it blames the photograph for being
       // signed out. This branch existed because a 401 used to arrive as a bare `null`.
-      if (isUnauthorized(r)) return
+      // A declined Google AI question is silent for the same reason: the notice has already spoken.
+      if (isUnauthorized(r) || isAiDeclined(r)) return
       if (r && r.query) onResult({ query: r.query, category: r.category, brand: r.brand })
       else onError?.(tr("Couldn't recognize the item — try a clearer photo.", 'Không nhận ra món đồ — thử ảnh rõ hơn.'))
     } catch {
