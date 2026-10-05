@@ -1,0 +1,32 @@
+[Unit]
+Description=cloudflared tunnel eno-origin (replica %i) — eno-wb1-backup/plan/cloudflare-tunnel-runbook.md
+After=network-online.target nginx.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=notify
+User=cloudflared
+Group=cloudflared
+ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate --config /etc/cloudflared/config.yml --metrics 127.0.0.1:2024%i run
+Restart=always
+RestartSec=5s
+TimeoutStartSec=90s
+TimeoutStopSec=45s
+LimitNOFILE=65536
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+CapabilityBoundingSet=
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target

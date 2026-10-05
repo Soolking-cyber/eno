@@ -1,0 +1,51 @@
+# /etc/cloudflared/config.yml — tunnel eno-origin (locally managed). No secrets here.
+# Every hostname is listed from day one; DNS decides which ones actually flow (runbook §5).
+tunnel: 1dfae46f-b6ad-484a-9911-0e2cc232eea9
+credentials-file: /etc/cloudflared/1dfae46f-b6ad-484a-9911-0e2cc232eea9.json
+protocol: auto            # QUIC; falls back to HTTP/2 if UDP 7844 is blocked (switch rule: runbook §10)
+edge-ip-version: "4"      # the box has no global IPv6
+grace-period: 30s
+loglevel: info
+no-autoupdate: true       # apt-pinned + held; upgrade by hand, one replica at a time
+originRequest:
+  connectTimeout: 10s
+  tcpKeepAlive: 30s
+  keepAliveConnections: 256
+  keepAliveTimeout: 60s   # ⛔ MUST stay below nginx keepalive_timeout (905s since 2026-10-04) — no idle-close race
+  noHappyEyeballs: true
+ingress:
+  # ⛔ never tunnelled (mail stays on its A records; img.* are dead DNS-only names)
+  - hostname: mail.eno.vn
+    service: http_status:404
+  - hostname: mx.eno.vn
+    service: http_status:404
+  - hostname: img.eno.vn
+    service: http_status:404
+  - hostname: img.eno.forum
+    service: http_status:404
+  # test hosts
+  - hostname: tunnel-check.eno.vn
+    service: http://127.0.0.1:8181
+  - hostname: tunnel-sb.eno.vn          # Stage 0b: sb dry run — nginx sees Host sb.eno.vn
+    service: http://127.0.0.1:8181
+    originRequest:
+      httpHostHeader: sb.eno.vn
+  # eno.vn zone
+  - hostname: eno.vn
+    service: http://127.0.0.1:8181
+  - hostname: www.eno.vn
+    service: http://127.0.0.1:8181
+  - hostname: teacher.eno.vn
+    service: http://127.0.0.1:8181
+  - hostname: sb.eno.vn
+    service: http://127.0.0.1:8181
+  - hostname: "*.eno.vn"
+    service: http://127.0.0.1:8181
+  # eno.forum zone
+  - hostname: eno.forum
+    service: http://127.0.0.1:8181
+  - hostname: www.eno.forum
+    service: http://127.0.0.1:8181
+  - hostname: "*.eno.forum"
+    service: http://127.0.0.1:8181
+  - service: http_status:404

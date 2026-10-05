@@ -32,12 +32,34 @@ this box; nothing reaches it directly.
 
 ## Files
 
+⛔ **THE BOX IS THE SOURCE OF TRUTH, AND THESE COPIES HAD DRIFTED FROM IT.** Until 2026-10-05 the repo's
+`eno.conf` lacked the shop wildcards (`*.eno.vn`, `*.eno.forum`), the `aop` log format and every
+`listen 127.0.0.1:8181` of the Cloudflare Tunnel, and still had `listen 80` on the app vhosts;
+`ssl-params.conf` lacked the AOP enforcement block; `partner.eno.vn.conf` was not here at all. Running the
+Deploy steps below with those copies would have taken down the shop subdomains and, once a hostname is on the
+tunnel, served it 502. Every file in the table was then copied from the box, and **the directives match it
+exactly**: compare with comments stripped, `sed 's/#.*//' | grep -v '^[[:space:]]*$' | sha256sum` on both
+sides. Four comments were corrected here and are still stale on the box until someone applies them there
+(comment-only; no reload needed):
+- `eno.conf`: the header IP (`.208` is the retired box).
+- `eno.conf`: the `aop` log-format note. It said enforcement was off above a config that enforces.
+- `ssl-params.conf`: the AOP block. It said "MEASURING, NOT ENFORCING … DO NOT CHANGE THIS TO `on`"
+  directly above `ssl_verify_client on`.
+- `eno.conf`: the Decree 333 / 400-day retention note, restored to the marketplace vhost.
+
+**After any edit on the box, copy the file back here in the same session and compare both sides.**
+
 | repo | on the box |
 | --- | --- |
-| `eno.conf` | `/etc/nginx/sites-available/eno.conf` (symlinked into `sites-enabled/`) |
+| `eno.conf` | `/etc/nginx/sites-enabled/eno.conf` (a regular file on the box today; the Deploy steps write it to `sites-available/` and symlink it) |
+| `partner.eno.vn.conf` | `/etc/nginx/sites-enabled/partner.eno.vn.conf`: the static B2B profile |
+| `../cloudflared/eno-tunnel.conf` | `/etc/nginx/sites-enabled/eno-tunnel.conf`: the Cloudflare Tunnel listener (`../cloudflared/README.md`) |
 | `proxy-params.conf` | `/etc/nginx/snippets/eno-proxy.conf` |
 | `ssl-params.conf` | `/etc/nginx/snippets/eno-ssl.conf` |
 | `logrotate-nginx.conf` | `/etc/logrotate.d/eno-nginx` — keeps nginx logs 400 days instead of the package's 14, **per counsel review, pending lawyer confirmation**, of [Decree 333/2026/ND-CP, Art 20](https://english.luatvietnam.vn/decree-no-333-2026-nd-cp-dated-august-19-2026-of-the-government-detailing-a-number-of-articles-and-measures-for-implementation-of-the-law-on-cyberse-445089-doc1.html) (Art. 20(3): system logs ≥ 12 months). It sits **beside** the package's `/etc/logrotate.d/nginx` and never edits it: that file is a dpkg conffile, and an edited conffile makes unattended-upgrades hold nginx security updates back ("has conffile prompt and needs to be upgraded manually"). `ignoreduplicates` on the eno stanza, which logrotate reads first (`eno-nginx` sorts before `nginx`), is what keeps the package's stanza from claiming the same files — needs logrotate ≥ 3.21.0 (Ubuntu 24.04 ships 3.21.0). Install and verify with `bash infra/vn-node/install-logrotate.sh` (`--check` changes nothing). Keep every `access_log`/`error_log` directly under `/var/log/nginx/` with a `.log` name — the glob does not recurse, and the installer fails on any path it would miss. |
+
+`teacher.eno.vn` has no `server_name` of its own on the box: the `*.eno.vn` vhost hands it to :3001, and the
+app's proxy serves the teacher sign-up form there (2026-09-30).
 
 ## Deploy
 
@@ -64,6 +86,12 @@ $SCP proxy-params.conf $H:/etc/nginx/snippets/eno-proxy.conf
 $SCP ssl-params.conf   $H:/etc/nginx/snippets/eno-ssl.conf
 $SCP eno.conf          $H:/etc/nginx/sites-available/eno.conf
 $SSH 'ln -sfn /etc/nginx/sites-available/eno.conf /etc/nginx/sites-enabled/eno.conf && rm -f /etc/nginx/sites-enabled/default'
+$SCP partner.eno.vn.conf $H:/etc/nginx/sites-enabled/partner.eno.vn.conf
+#    ⚠️ its content is NOT in this repo: /var/www/partner.eno.vn/index.html is built from
+#    ~/eno-profile/digital-v3 on the owner's Mac (npm run release). Restore it from backup, or the
+#    vhost answers 404 for everything.
+# ⛔ eno.conf and partner.eno.vn.conf carry `listen 127.0.0.1:8181` for the tunnel; their listener file must exist too
+$SCP ../cloudflared/eno-tunnel.conf $H:/etc/nginx/sites-enabled/eno-tunnel.conf
 
 # 3. certificate — nginx will not start without BOTH files present.
 #    On a rebuild, reuse the existing pair from backup. To mint a new one:
@@ -75,6 +103,10 @@ $SSH 'cd /etc/nginx/ssl && openssl genrsa -out origin.key 2048 && chmod 600 orig
 #    ⛔ Verify the pair matches before reloading — a mismatch stops nginx dead:
 $SSH 'openssl x509 -noout -modulus -in /etc/nginx/ssl/origin.crt | sha256sum;
       openssl rsa  -noout -modulus -in /etc/nginx/ssl/origin.key | sha256sum'
+#    ⛔ AND THE AOP CA: ssl-params.conf enforces client certificates against
+#    /etc/nginx/ssl/eno-origin-pull-ca.pem (our own "eno origin-pull CA", sha256 7725ab51…9114,
+#    aop-runbook.md). nginx -t fails without it. Restore it from backup; the older global
+#    cf-origin-pull-ca.pem is no longer referenced.
 
 # 4. test THEN reload, always as one command
 $SSH 'nginx -t && systemctl reload nginx'
@@ -132,6 +164,13 @@ Only the GUEST suite may run against it: the host is not in `ALLOWED_AUTH_HOSTS`
 so auth links fall back to `NEXT_PUBLIC_APP_URL` and would point at live prod.
 
 ## Authenticated Origin Pulls — prepared, NOT enabled
+
+⚠️ **SUPERSEDED: ENFORCEMENT IS ON.** The box's `eno-ssl.conf` (= `ssl-params.conf` here) carries
+`ssl_verify_client on`, so a request to :443 without Cloudflare's client certificate gets 400; on
+2026-10-05, 1,993 of the last 2,000 `aop.log` lines read `verify=SUCCESS`. The history below is kept for
+the reasoning. The tunnel listener on `127.0.0.1:8181` has no client-certificate step by design: it is
+plain HTTP on loopback, reachable only from the box itself, and cloudflared is its one intended client
+(`../cloudflared/README.md`).
 
 The origin half is installed: Cloudflare's origin-pull CA is at
 `/etc/nginx/ssl/cf-origin-pull-ca.pem` (sha256 `c14fed0ce5210db0719fea11d1f10b33750dc17d609aeaf47c75e9eff0d7b843`,
