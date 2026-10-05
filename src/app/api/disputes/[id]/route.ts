@@ -38,6 +38,7 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId, params }) =>
   // statement (the reporter's initial complaint `detail` is NOT a DisputeMessage, so
   // it doesn't count — they still get one evidence submission with photos).
   const submitted = await partyHasSubmitted(report.id, meId)
+  const timeline = await disputeTimeline(report)
 
   return {
     id: report.id,
@@ -63,6 +64,13 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId, params }) =>
     conversationId: role === 'reporter' ? report.conversationId : null,
     listing: listing ? { id: listing.id, title: listing.title, image: firstImg(listing.images) } : null,
     counterparty: role === 'reporter' ? await counterpartyName(report) : null,
-    timeline: await disputeTimeline(report),
+    timeline,
+    // A CONTENT case (App Store gate `ugc-safety`, R5 — a report on a review or a Help-centre reply/post)
+    // has no respondent: its author is not a party. The page then says only the eno team sees what the
+    // reporter adds, instead of promising "the other side" a reply (opus, gate round 2). Known by its
+    // POINTER ROW, not by empty target columns (codex + opus, round 5), and not gated: a case filed while
+    // the gate was on keeps its true copy if it goes off (round 4). Every other case's payload is
+    // byte-for-byte as before.
+    ...(timeline.some((item) => item.about) ? { contentCase: true } : {}),
   }
 })

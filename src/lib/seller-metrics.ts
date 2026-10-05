@@ -1,4 +1,5 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
+import { appReviewGate } from '@/lib/app-review-gates'
 import 'server-only'
 import { cache } from 'react'
 import { db } from '@/lib/db'
@@ -154,6 +155,12 @@ export function sellerMetrics(seller: MetricsSellerInput, convoCount: number): S
 }
 
 export type SellerReviewPreview = {
+  /**
+   * The review's id — present ONLY while the `ugc-safety` review gate is on, for its Report control
+   * (plan R5). Off, the preview payload (also served by /api/listings/[id] and /api/sellers/[id]) is
+   * byte-for-byte what it was.
+   */
+  id?: string
   author: string
   rating: number
   text: string
@@ -188,21 +195,23 @@ export const topSellerReviews = cache(async (sellerId: string, take = 2, known?:
           where: { sellerId },
           orderBy: { createdAt: 'desc' },
           take: SCAN,
-          select: { author: true, rating: true, text: true, createdAt: true, conversationId: true, authorProfileId: true },
+          select: { id: true, author: true, rating: true, text: true, createdAt: true, conversationId: true, authorProfileId: true },
         })
       } catch {
         const legacy = await db.review.findMany({
           where: { sellerId },
           orderBy: { createdAt: 'desc' },
           take: SCAN,
-          select: { author: true, rating: true, text: true, createdAt: true },
+          select: { id: true, author: true, rating: true, text: true, createdAt: true },
         })
         return legacy.map((r) => ({ ...r, conversationId: null as string | null, authorProfileId: null as string | null }))
       }
     })(),
   ])
 
+  const withIds = appReviewGate('ugc-safety')
   const mapped: SellerReviewPreview[] = rows.map((r) => ({
+    ...(withIds ? { id: r.id } : {}),
     author: r.author,
     rating: r.rating,
     text: r.text,

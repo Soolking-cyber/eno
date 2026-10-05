@@ -4,6 +4,7 @@ import { recordReview } from '@/lib/trust'
 import { messagingGate } from '@/lib/enforcement'
 import { maskEmailHandle } from '@/lib/utils'
 import { ApiError, route } from '@/lib/api/handler'
+import { removedReviewConversationNeedle } from '@/lib/reported-content'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -78,6 +79,17 @@ export const POST = route({ auth: 'profile', rateLimit: { bucket: 'review-create
     convo.listing.status === 'sold' ||
     (await db.message.count({ where: { conversationId, kind: 'offer', offerStatus: 'accepted' } })) > 0
   if (!transacted) throw new ApiError('not_transacted', 403)
+  // A review a moderator REMOVED (App Store gate `ugc-safety`, plan R5) does not come straight back. The
+  // removal deleted the row (Review has no status column), which freed this conversation's one-review slot;
+  // the moderation log remembers the deal (src/lib/reported-content.ts reviewRemovalNote), and the answer is
+  // the one-review-per-conversation code the review prompt already treats as "done" (codex + opus, gate
+  // round 1). NOT gated: a removal made while the gate was on still holds if it goes off (opus, round 5) —
+  // and with no removal on record (all there can be until the gate is on) the answer is exactly as before.
+  const removedBefore = await db.forumModerationAction.findFirst({
+    where: { targetProfileId: me.id, action: 'remove', reason: 'review', note: { contains: removedReviewConversationNeedle(conversationId) } },
+    select: { id: true },
+  })
+  if (removedBefore) throw new ApiError('already_reviewed', 409)
 
   // Never expose the email local part on a PUBLIC surface (it's often a full name).
   const author = me.displayName || maskEmailHandle(me.email) || 'Buyer'

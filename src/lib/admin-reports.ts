@@ -105,7 +105,8 @@ export async function reportContext(
 // The reported PARTY, surfaced so an admin sees who they're about to penalize (trust/tier)
 // and the listing for a listing report.
 export type TargetInfo = {
-  kind: 'listing' | 'account' | 'chat'
+  /** 'content' = a report on a review / help reply / help post (ugc-safety, R5) — no person or shop target. */
+  kind: 'listing' | 'account' | 'chat' | 'content'
   name: string
   trustScore: number | null
   trustTier: string | null

@@ -21,6 +21,7 @@ import { Bilingual } from '@/components/marketplace/bilingual'
 import { RichText } from '@/components/marketplace/listing-content'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { BlockUserButton } from '@/components/marketplace/block-user-button'
+import { ReportContentButton } from '@/components/marketplace/report-content-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
 import { ShareButton } from '@/components/marketplace/share-button'
 import { shopShareUrl } from '@/lib/storefront'
@@ -559,6 +560,10 @@ export async function SellerStorefront({ id }: { id: string }) {
                         ))}
                       </span>
                       <CalendarDay value={r.createdAt} />
+                      {/* App Store gate `ugc-safety` (R5): report THIS review — a content case, never a
+                          case against its author or this shop (src/lib/reported-content.ts). Renders
+                          nothing while the gate is off. */}
+                      <ReportContentButton kind="review" id={r.id} className="-my-1" />
                     </span>
                   </div>
                   <p className="mt-2 text-sm leading-relaxed text-body"><Tr text={r.text} /></p>

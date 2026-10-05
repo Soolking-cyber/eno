@@ -34,6 +34,8 @@ type TimelineItem = {
   body: string
   images: string[]
   at: string
+  /** A content case's pointer row: the kind of content reported (the body is empty). */
+  about?: 'review' | 'help-comment' | 'help-post'
 }
 
 type CaseData = {
@@ -54,6 +56,8 @@ type CaseData = {
   listing: { id: string; title: string; image: string | null } | null
   counterparty: string | null
   timeline: TimelineItem[]
+  /** A report on a review or a Help-centre reply/post: no respondent (ugc-safety). */
+  contentCase?: boolean
 }
 
 const REASON_LABELS: Record<string, [string, string]> = {
@@ -194,6 +198,11 @@ export default function DisputeRoomPage() {
     : t('Reporter', 'Người báo cáo')
 
   const reasonLabel = (r: string) => { const [en, vi] = REASON_LABELS[r] || REASON_LABELS.other; return t(en, vi) }
+  // A content case's pointer row names only the KIND of content (the server never sends its text here).
+  const aboutCopy = (k: NonNullable<TimelineItem['about']>) =>
+    k === 'review' ? t('This case is about a seller review.', 'Hồ sơ này liên quan đến một đánh giá người bán.')
+      : k === 'help-comment' ? t('This case is about a reply in the Help center.', 'Hồ sơ này liên quan đến một câu trả lời trong Trung tâm trợ giúp.')
+      : t('This case is about a post in the Help center.', 'Hồ sơ này liên quan đến một bài viết trong Trung tâm trợ giúp.')
 
   const decisionCopy = (d: CaseData) => {
     if (d.withdrawn) return { icon: XCircle, cls: 'text-ink-4', text: t('Case withdrawn by the reporter.', 'Người báo cáo đã rút lại hồ sơ.') }
@@ -336,7 +345,7 @@ export default function DisputeRoomPage() {
                   return (
                     <div key={item.id} className="text-center">
                       <Badge size="md" className="px-3 py-1 font-semibold text-body whitespace-normal">
-                        {item.kind === 'decision' ? (decisionCopy(data).text + (item.body ? ` — ${item.body}` : '')) : item.body}
+                        {item.kind === 'decision' ? (decisionCopy(data).text + (item.body ? ` — ${item.body}` : '')) : item.about ? aboutCopy(item.about) : item.body}
                       </Badge>
                       <p className="mt-0.5 text-3xs text-ink-4">{new Date(item.at).toLocaleString(deviceOrIntlLocale(lang))}</p>
                     </div>
@@ -437,7 +446,9 @@ export default function DisputeRoomPage() {
                 </div>
                 {error && <p role="alert" className="mt-2 text-xs font-semibold text-destructive">{error}</p>}
                 <p className="mt-3 text-xs leading-relaxed text-ink-4">
-                  {t('Screenshots of payments, chats or the item help most. The other party and the eno.vn team can see what you post. Photos are stored privately and only visible inside this case.', 'Ảnh chụp thanh toán, trò chuyện hoặc sản phẩm là hữu ích nhất. Bên còn lại và đội ngũ eno.vn sẽ thấy nội dung bạn gửi. Ảnh được lưu riêng tư và chỉ hiển thị trong hồ sơ này.')}
+                  {data.contentCase
+                    ? t('Screenshots help most. Only the eno.vn team can see what you post. Photos are stored privately and only visible inside this case.', 'Ảnh chụp màn hình là hữu ích nhất. Chỉ đội ngũ eno.vn thấy nội dung bạn gửi. Ảnh được lưu riêng tư và chỉ hiển thị trong hồ sơ này.')
+                    : t('Screenshots of payments, chats or the item help most. The other party and the eno.vn team can see what you post. Photos are stored privately and only visible inside this case.', 'Ảnh chụp thanh toán, trò chuyện hoặc sản phẩm là hữu ích nhất. Bên còn lại và đội ngũ eno.vn sẽ thấy nội dung bạn gửi. Ảnh được lưu riêng tư và chỉ hiển thị trong hồ sơ này.')}
                 </p>
               </div>
             ) : data.submitted && data.status === 'open' ? (
@@ -446,7 +457,9 @@ export default function DisputeRoomPage() {
                 <Check className="mx-auto h-6 w-6 text-success" />
                 <p className="mt-1.5 text-sm font-semibold text-foreground">{t('Your statement is in', 'Đã nhận phần trình bày của bạn')}</p>
                 <p className="mt-0.5 text-xs text-ink-4">
-                  {t('The other side has until the window closes to add theirs, then the eno.vn team reviews and decides. If they add nothing, your account stands.', 'Bên còn lại có thời gian đến khi hết hạn để bổ sung, sau đó đội ngũ eno.vn xem xét và quyết định. Nếu họ không bổ sung, phần trình bày của bạn được giữ nguyên.')}
+                  {data.contentCase
+                    ? t('The eno.vn team reviews the report and decides.', 'Đội ngũ eno.vn sẽ xem xét báo cáo và quyết định.')
+                    : t('The other side has until the window closes to add theirs, then the eno.vn team reviews and decides. If they add nothing, your account stands.', 'Bên còn lại có thời gian đến khi hết hạn để bổ sung, sau đó đội ngũ eno.vn xem xét và quyết định. Nếu họ không bổ sung, phần trình bày của bạn được giữ nguyên.')}
                 </p>
               </div>
             ) : data.status === 'open' ? (

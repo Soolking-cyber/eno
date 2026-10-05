@@ -3,6 +3,10 @@ import { db } from '@/lib/db'
 import { getForumAuth } from '@/lib/forum/auth'
 import { forumJson, forumPreflight, isAllowedForumOrigin } from '@/lib/forum/cors'
 import { rateLimit } from '@/lib/ratelimit'
+import { appReviewGate } from '@/lib/app-review-gates'
+import { reporterStanding } from '@/lib/enforcement-machine'
+import { fileContentReport } from '@/lib/reported-content'
+import { isContentId } from '@/lib/reported-content-pointer'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,6 +17,17 @@ const reportSchema = z.object({
   reason: z.enum(['spam', 'scam', 'harassment', 'hate', 'privacy', 'misinformation', 'off_topic', 'other']),
   detail: z.string().trim().max(2000).nullable().optional(),
 }).refine((value) => Boolean(value.postId || value.commentId), { message: 'A report target is required' })
+
+/**
+ * App Store gate `ugc-safety` (plan R5): the forum reasons, mapped onto the moderation queue's own. The
+ * queue speaks Report's vocabulary (api/report REASONS); anything without a counterpart is 'other', and
+ * the reporter's own words still travel in `detail`. Only the three reasons a content case takes on
+ * /api/report (scam / offensive / other — opus, gate round 4): spam is 'other', not the 'severe' scam
+ * (trust.ts severityForReason; round 2), and misinformation is 'other' too.
+ */
+const TO_REPORT_REASON: Record<z.infer<typeof reportSchema>['reason'], string> = {
+  spam: 'other', scam: 'scam', harassment: 'offensive', hate: 'offensive', privacy: 'other', misinformation: 'other', off_topic: 'other', other: 'other',
+}
 
 export function OPTIONS(request: Request) {
   return forumPreflight(request, 'POST, OPTIONS')
@@ -45,6 +60,31 @@ export async function POST(request: Request) {
   const parsed = reportSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return forumJson(request, { error: 'invalid_report', issues: parsed.error.issues }, { status: 400 }, 'POST, OPTIONS')
   const input = parsed.data
+
+  /**
+   * ⛔ App Store gate `ugc-safety` (plan R5): FILED INTO THE MODERATION QUEUE, NOT INTO ForumReport.
+   * Nothing in the app reads ForumReport — no admin surface lists it — so a report filed below reaches
+   * no human (opus + agy, plan review). With the gate on, a help-centre report becomes the same CONTENT
+   * case POST /api/report files (src/lib/reported-content.ts): /admin/moderation, the reporter's
+   * /disputes, takedown on Confirm. The forum's own gates above (origin, auth, cooldown, rate limit) have
+   * run; the reporter ladder's hard stop is added here because ForumReport never had one.
+   * Answers keep this route's shape: 201 {reportId, duplicate:false} · 200 {reportId, duplicate:true} ·
+   * 200 {reportId:null, duplicate:false} for a silent refile-cooldown accept. Off ⇒ exactly as before.
+   */
+  if (appReviewGate('ugc-safety')) {
+    if (reporterStanding(auth.profile.falseReportStrikes) === 'blocked') return forumJson(request, { error: 'reporting_blocked' }, { status: 403 }, 'POST, OPTIONS')
+    // Exactly one target, as /api/report requires — a body naming both is ambiguous about what is
+    // reported, so it is refused rather than guessed (codex, gate round 1).
+    if (input.postId && input.commentId) return forumJson(request, { error: 'invalid_report' }, { status: 400 }, 'POST, OPTIONS')
+    const target = input.commentId ? { kind: 'help-comment' as const, id: input.commentId } : { kind: 'help-post' as const, id: input.postId ?? '' }
+    if (!isContentId(target.id)) return forumJson(request, { error: 'not_found' }, { status: 404 }, 'POST, OPTIONS')
+    const r = await fileContentReport({ id: auth.profile.id, falseReportStrikes: auth.profile.falseReportStrikes }, target, TO_REPORT_REASON[input.reason], input.detail || null)
+    if (r.outcome === 'not_found') return forumJson(request, { error: 'not_found' }, { status: 404 }, 'POST, OPTIONS')
+    if (r.outcome === 'cannot_report_self') return forumJson(request, { error: 'cannot_report_self' }, { status: 400 }, 'POST, OPTIONS')
+    if (r.outcome === 'suppressed') return forumJson(request, { reportId: null, duplicate: false }, undefined, 'POST, OPTIONS')
+    if (r.outcome === 'duplicate') return forumJson(request, { reportId: r.id, duplicate: true }, undefined, 'POST, OPTIONS')
+    return forumJson(request, { reportId: r.id, duplicate: false }, { status: 201 }, 'POST, OPTIONS')
+  }
 
   const [post, comment] = await Promise.all([
     input.postId ? db.forumPost.findUnique({ where: { id: input.postId }, select: { id: true, authorProfileId: true } }) : null,

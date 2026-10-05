@@ -6,6 +6,7 @@ import { pickLocale } from './admin-macros'
 import { sendPushToProfile } from './push'
 import { maskEmailHandle } from './utils'
 import { logError } from '@/lib/log'
+import { parseContentPointer, stripContentPointer, type ContentKind } from '@/lib/reported-content-pointer'
 
 // ── Dispute center core (Binance-P2P-style case rooms on Report) ─────────────────
 // Every report IS a dispute case: reporter + respondent + admin exchange statements
@@ -137,6 +138,9 @@ export type TimelineItem = {
   body: string
   images: string[] // signed/public URLs, ready to render
   at: string // ISO
+  /** A content case's pointer row, for a PARTY: the kind of content it names, the body empty — the case
+   *  page words it in the viewer's language (ugc-safety, R5; src/lib/reported-content-pointer.ts). */
+  about?: ContentKind
 }
 
 /**
@@ -146,7 +150,8 @@ export type TimelineItem = {
  * a synthesized decision entry (from status + decisionNote — decisions deliberately
  * do NOT write a thread row, so old resolutions render identically to new ones).
  */
-export async function disputeTimeline(report: PartyReport, opts: { signTtl?: number } = {}): Promise<TimelineItem[]> {
+export async function disputeTimeline(report: PartyReport, opts: { signTtl?: number; audience?: 'party' | 'admin' } = {}): Promise<TimelineItem[]> {
+  const audience = opts.audience ?? 'party'
   const rows = await db.disputeMessage.findMany({
     where: { reportId: report.id },
     orderBy: { createdAt: 'asc' },
@@ -173,11 +178,16 @@ export async function disputeTimeline(report: PartyReport, opts: { signTtl?: num
   const allPaths = [...new Set(rowImages.flat().filter((i) => !i.startsWith('http')))]
   const signed = await signEvidenceMap(allPaths, opts.signTtl ?? 3600)
   rows.forEach((m, index) => {
+    // A content case's pointer row (ugc-safety, R5): the `[[reported …]]` token is for the server, never for
+    // a person. A moderator reads the description; a PARTY only the kind of content — the reported text can
+    // carry what the licensed marketplace must not show (src/lib/reported-content-pointer.ts).
+    const ptr = m.senderRole === 'system' ? parseContentPointer(m.body) : null
     items.push({
       id: m.id,
       kind: m.senderRole === 'system' ? 'system' : 'message',
       role: (['reporter', 'respondent', 'admin', 'system'].includes(m.senderRole) ? m.senderRole : 'system') as TimelineItem['role'],
-      body: m.body,
+      body: !ptr ? m.body : audience === 'admin' ? stripContentPointer(m.body) : '',
+      ...(ptr && audience === 'party' ? { about: ptr.kind } : {}),
       images: rowImages[index].map((i) => (i.startsWith('http') ? i : signed.get(i) ?? '')).filter(Boolean),
       at: m.createdAt.toISOString(),
     })

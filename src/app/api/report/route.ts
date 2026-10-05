@@ -5,6 +5,10 @@ import { reporterStanding } from '@/lib/enforcement-machine'
 import { rateLimit } from '@/lib/ratelimit'
 import { DISPUTE_WINDOW_MS, notifyDispute, respondentProfileId } from '@/lib/dispute'
 import { ApiError, route } from '@/lib/api/handler'
+import { appReviewGate } from '@/lib/app-review-gates'
+import { REFILE_COOLDOWN_STATUSES, refileSuppressed } from '@/lib/report-refile'
+import { fileContentReport } from '@/lib/reported-content'
+import { isContentId, type ContentKind } from '@/lib/reported-content-pointer'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,36 +18,26 @@ type Reason = (typeof REASONS)[number]
 
 // A report can target a listing and/or a storefront. Reports surface only in the
 // /admin queue; an admin-confirmed report moves the target's trust score.
-/**
- * How long a REJECTED report suppresses another against the same surface by the same
- * reporter. 24h is long enough to break a withdraw-refile loop (the reachable abuse
- * is minutes, not days) and short enough that a genuine second incident the next day
- * still gets through.
- */
-export const REFILE_COOLDOWN_MS = 24 * 60 * 60 * 1000
-
-/** Statuses that mean the report was REJECTED. `confirmed` is deliberately absent. */
-export const REFILE_COOLDOWN_STATUSES = ['dismissed', 'abusive'] as const
-
-/**
- * True while a rejected report still suppresses a refile against the same surface.
- *
- * ⚠️ TAKES THE LATEST SETTLED TIME, NOT THE LATEST CREATED ROW. The first version
- * ordered by createdAt and measured resolvedAt, so a case filed two days ago and
- * dismissed a minute ago lost to a newer row dismissed last week — the cooldown
- * silently did nothing. All three reviewers found it independently.
- */
-export function refileSuppressed(
-  rows: { resolvedAt: Date | null; createdAt: Date }[],
-  now: number = Date.now(),
-): boolean {
-  // resolvedAt is nullable on rows predating it; createdAt is the conservative
-  // fallback, never later than resolution, so the window can only come out shorter.
-  const settled = rows.map((r) => (r.resolvedAt ?? r.createdAt).getTime())
-  if (settled.length === 0) return false
-  return now - Math.max(...settled) < REFILE_COOLDOWN_MS
-}
+// The refile cooldown (24h after a rejected report) now lives in src/lib/report-refile.ts, shared with
+// the content reports below; re-exported here unchanged for this route's own tests.
+export { REFILE_COOLDOWN_MS, REFILE_COOLDOWN_STATUSES, refileSuppressed } from '@/lib/report-refile'
 const MAX_OPEN_PER_LISTING = 50
+/** The reasons a review / help reply / help post can be reported for — report-button.tsx's chat subset. */
+const CONTENT_REASONS = new Set<string>(['scam', 'offensive', 'other'])
+
+/**
+ * The CONTENT a report names — App Store gate `ugc-safety` (plan R5): exactly one of `reviewId`,
+ * `commentId` (a help-centre reply) or `postId` (a member's help post), cuid-shaped. Null for anything
+ * else — none, two, or a malformed id — and the request then answers 'Missing target' like any report
+ * with no target. Never consulted while the gate is off.
+ */
+function contentTargetOf(body: { reviewId?: unknown; commentId?: unknown; postId?: unknown }): { kind: ContentKind; id: string } | null {
+  const given = ([['review', body.reviewId], ['help-comment', body.commentId], ['help-post', body.postId]] as const)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+  if (given.length !== 1) return null
+  const [kind, id] = given[0]
+  return isContentId(id) ? { kind, id } : null
+}
 
 // ⚠️ WS6 MIGRATION — AUTH PREAMBLE ONLY, AND `auth: 'profile'` IS THE CORRECT MODE HERE, not the
 // cheaper `'userId'`. This route reads the Profile ROW: `falseReportStrikes` feeds the standing
@@ -85,7 +79,7 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile: reporter }
   const rl = await rateLimit('report', reporter.id, 10, '1 h', { strict: true })
   if (!rl.success) throw new ApiError('rate_limited', 429)
 
-  let body: { listingId?: string; sellerId?: string; conversationId?: string; reason?: string; detail?: string }
+  let body: { listingId?: string; sellerId?: string; conversationId?: string; reviewId?: string; commentId?: string; postId?: string; reason?: string; detail?: string }
   try {
     body = await req.json()
   } catch {
@@ -152,7 +146,24 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile: reporter }
     if (!seller) return NextResponse.json({ error: 'Seller not found' }, { status: 404 })
     targetProfileId = seller.ownerId ?? null
   } else {
-    return NextResponse.json({ error: 'Missing target' }, { status: 400 })
+    // App Store gate `ugc-safety` (plan R5): a seller review, a help-centre reply or a member's help post.
+    // ⛔ A CONTENT CASE, NOT A CASE AGAINST A PERSON OR A SHOP — every target column stays NULL and the
+    // content is named by the case's system pointer row (src/lib/reported-content.ts has the four reasons,
+    // the first being that the usual reporter of a review is the reviewed shop's owner, whose own deletion
+    // an open report on their storefront would hold). Its own dedupe and cooldown, keyed on the content.
+    const content = appReviewGate('ugc-safety') ? contentTargetOf(body) : null
+    if (!content) return NextResponse.json({ error: 'Missing target' }, { status: 400 })
+    // A review or a reply cannot be "sold", a "duplicate" or "counterfeit": the dialog offers these three,
+    // and the server holds the same line (opus, gate round 1).
+    if (!CONTENT_REASONS.has(reason)) return NextResponse.json({ error: 'Invalid reason' }, { status: 400 })
+    const r = await fileContentReport(reporter, content, reason, detail)
+    if (r.outcome === 'not_found') throw new ApiError('not_found', 404)
+    if (r.outcome === 'cannot_report_self') throw new ApiError('cannot_report_self', 400)
+    // Same three answers as every other surface, byte-for-byte: a silent accept (refile cooldown), the
+    // reporter's own open case, a new case. The dialog renders the same confirmation for all three.
+    if (r.outcome === 'suppressed') return { ok: true }
+    if (r.outcome === 'duplicate') return { ok: true, id: r.id }
+    return NextResponse.json({ ok: true, id: r.id }, { status: 201 })
   }
 
   // Can't report yourself.
