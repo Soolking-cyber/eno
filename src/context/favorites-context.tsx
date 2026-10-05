@@ -8,7 +8,16 @@ import { hapticTap } from '@/lib/haptics'
 import { chunkListingIds } from '@/lib/listing-ids'
 
 const KEY = 'eno:favorites'
-const SAVED_KEY = 'eno-saved-cache' // { idKey, list } — device-local functional cache
+const SAVED_KEY = 'eno-saved-cache' // { idKey, list, unavailable? } — device-local functional cache
+
+/**
+ * A saved id whose listing ENDED through its own lifecycle — sold, or expired / stale under the
+ * apartment availability rules — rather than being taken down. It stays saved and is shown apart from
+ * the live grid (/saved's "No longer available"). `card` is what THIS DEVICE last fetched while the
+ * listing was live (nothing new crosses the network for a listing that is no longer public); null
+ * when the device never had it.
+ */
+export type SavedUnavailable = { id: string; sold: boolean; card: SerializedListing | null }
 
 type FavoritesCtx = {
   ids: Set<string>
@@ -20,6 +29,7 @@ type FavoritesCtx = {
   // own save once the server value (which now includes it) is reloaded. Reset on nav.
   savedDelta: (id: string) => number
   saved: SerializedListing[] | null // preloaded hydrated saved listings (null = loading)
+  savedUnavailable: SavedUnavailable[] // saved ids whose listing sold or expired (kept, shown apart)
   // The hydrating fetch did not fully succeed: either every request failed (with `saved` still
   // null, so /saved shows its retry state) or some of them did, in which case `saved` holds the
   // listings that DID load and /saved shows a retry banner above them. Never silently partial.
@@ -111,6 +121,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   // localStorage as { idKey, list } (consent-gated); favorites are device-local
   // so no per-user scoping is needed.
   const [saved, setSaved] = useState<SerializedListing[] | null>(null)
+  const [savedUnavailable, setSavedUnavailable] = useState<SavedUnavailable[]>([])
   // Surfaced so /saved can show an error + retry instead of shimmering forever
   // when the hydrating fetch fails with no cache to fall back on.
   const [savedError, setSavedError] = useState(false)
@@ -122,12 +133,17 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     // idsHydrated above. Returning early keeps /saved in its loading branch, which is the honest
     // state, instead of asserting the device has nothing saved.
     if (!idsHydrated) return
-    if (!idKey) { setSaved([]); return }
+    if (!idKey) { setSaved([]); setSavedUnavailable([]); return }
     // Instant paint from cache (functional first-party cache of the user's own
-    // saved items — works without the cookie banner).
+    // saved items — works without the cookie banner) when it is about THIS set of ids. Read
+    // REGARDLESS of that as a lookup of cards by id: a listing that ended after the set changed (a new
+    // heart changes idKey) still gets the card this device last had for it.
+    const knownCards = new Map<string, SerializedListing>()
     try {
       const c = JSON.parse(localStorage.getItem(SAVED_KEY) || 'null')
-      if (c && c.idKey === idKey) setSaved(c.list)
+      if (c && c.idKey === idKey) { setSaved(c.list); if (Array.isArray(c.unavailable)) setSavedUnavailable(c.unavailable) }
+      for (const l of (Array.isArray(c?.list) ? c.list : []) as SerializedListing[]) if (l?.id) knownCards.set(l.id, l)
+      for (const u of (Array.isArray(c?.unavailable) ? c.unavailable : []) as SavedUnavailable[]) if (u?.id && u.card) knownCards.set(u.id, u.card)
     } catch {}
     // Debounce so rapid hearting while browsing coalesces into one request.
     let cancelled = false
@@ -153,6 +169,12 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
               // nothing at all. Failing closed here costs a stale heart; failing open costs the
               // user their saved items.
               evaluated: Array.isArray(d?.evaluated) ? (d.evaluated as string[]) : [],
+              // ⛔ THE ONLY IDS THIS CLIENT MAY DELETE, named by the server (feed-query.ts `gone`):
+              // removed, hidden, or never existed. An id missing from `listings` is NOT a deletion any
+              // more — a sold or expired listing is kept. `null` (an older revision without the field)
+              // means this chunk can neither prune nor classify anything: fail closed.
+              gone: Array.isArray(d?.gone) ? new Set(d.gone as string[]) : null,
+              sold: new Set(Array.isArray(d?.sold) ? (d.sold as string[]) : []),
             }))
             .catch(() => null),
         ),
@@ -169,25 +191,39 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
           .map((id) => byId.get(id))
           .filter((l): l is SerializedListing => !!l)
 
+        // Kept, not live: evaluated in a chunk that could classify (`gone` present), not returned as a
+        // card, and not named gone. The card is the one this device last had — never fetched anew.
+        const unavailable: SavedUnavailable[] = []
+        for (const r of ok) {
+          if (!r.gone) continue
+          for (const id of r.evaluated) {
+            if (byId.has(id) || r.gone.has(id)) continue
+            unavailable.push({ id, sold: r.sold.has(id), card: knownCards.get(id) ?? null })
+          }
+        }
+        const order = new Map(requested.map((id, i) => [id, i]))
+        unavailable.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))
+
         const complete = ok.length === results.length
         setSavedError(!complete)
         setSaved(list)
+        setSavedUnavailable(unavailable)
         // ⚠️ CACHE ONLY A COMPLETE ANSWER. The cache is keyed by idKey and read back as the whole
         // set, so storing a partial merge would present a chunk failure as a shrunken library on
         // every later load — including offline ones.
-        if (complete) { try { localStorage.setItem(SAVED_KEY, JSON.stringify({ idKey, list })) } catch {} }
+        if (complete) { try { localStorage.setItem(SAVED_KEY, JSON.stringify({ idKey, list, unavailable })) } catch {} }
 
-        // Self-heal: drop saved ids that no longer resolve to a live listing (deleted / removed),
-        // so count + badge match what's actually shown.
-        // ⛔ SCOPED TO WHAT THE SERVER SAID IT EVALUATED — never to what this client asked for. An
-        // id can be missing from `listings` for three different reasons: it is gone, it was never
-        // looked at (past the per-request cap), or its chunk failed. Only the first is a deletion,
-        // and `evaluated` is the only thing that tells them apart. It also still excludes a heart
-        // tapped while the fetch was in flight, since that id was never sent.
-        const evaluated = new Set(ok.flatMap((r) => r.evaluated))
-        if (evaluated.size === 0) return
+        // Self-heal: drop saved ids whose listing is GONE (removed, hidden, never existed), so count +
+        // badge match what is shown — the grid plus "No longer available".
+        // ⛔ ONLY WHAT THE SERVER NAMED `gone` — never "missing from listings". An id can be missing for
+        // five reasons: gone, sold, expired/stale, never looked at (past the per-request cap), or its
+        // chunk failed. Only the first is a deletion, and only the server can say which (Emil-skills
+        // audit, 2026-10-06: sold and expired saves used to be deleted here without a word). A heart
+        // tapped while the fetch was in flight was never sent, so it can never be named gone.
+        const gone = new Set(ok.flatMap((r) => (r.gone ? r.evaluated.filter((id) => r.gone!.has(id)) : [])))
+        if (gone.size === 0) return
         setIds((prev) => {
-          const next = new Set([...prev].filter((id) => !evaluated.has(id) || byId.has(id)))
+          const next = new Set([...prev].filter((id) => !gone.has(id)))
           if (next.size === prev.size) return prev
           try { localStorage.setItem(KEY, JSON.stringify([...next])) } catch {}
           return next
@@ -197,7 +233,11 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; clearTimeout(t) }
   }, [idKey, fetchTick, lang, idsHydrated])
 
-  const value = useMemo(() => ({ ids, isFavorite, toggle, count: ids.size, savedDelta, saved, savedError, retrySaved }), [ids, isFavorite, toggle, savedDelta, saved, savedError, retrySaved])
+  // ⚠️ FILTERED BY THE LIVE `ids`, AT ONCE (codex + opus, 2026-10-06). The entries are rebuilt only after the
+  // debounced refetch, so a removed one stayed on screen with its Remove still live — and a second tap
+  // toggled the save straight back on. A row now leaves the moment its id does.
+  const unavailableShown = useMemo(() => savedUnavailable.filter((u) => ids.has(u.id)), [savedUnavailable, ids])
+  const value = useMemo(() => ({ ids, isFavorite, toggle, count: ids.size, savedDelta, saved, savedUnavailable: unavailableShown, savedError, retrySaved }), [ids, isFavorite, toggle, savedDelta, saved, unavailableShown, savedError, retrySaved])
 
   return (
     <FavoritesContext.Provider value={value}>

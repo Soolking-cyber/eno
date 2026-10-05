@@ -11,6 +11,7 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { ListingCard } from '@/components/marketplace/listing-card'
 import { SavedSearches } from '@/components/marketplace/saved-searches'
+import { SavedUnavailableSection } from '@/components/marketplace/saved-unavailable'
 import { Mascot } from '@/components/marketplace/mascot'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
@@ -20,7 +21,7 @@ import { ListingCardSkeleton, SAVED_SKELETON_COUNT } from '@/components/marketpl
 import { LISTING_GRID } from '@/components/marketplace/listing-grid'
 
 export default function SavedPage() {
-  const { count, saved, savedError, retrySaved } = useFavorites()
+  const { count, saved, savedUnavailable, savedError, retrySaved } = useFavorites()
   const { tr, lang } = useLanguage()
   // A Vietnamese page goes to the `/vi` home twin, never the English-pinned `/` (A1-LANG).
   const variant = variantOfLanguage(lang)
@@ -107,7 +108,10 @@ export default function SavedPage() {
               <ListingCardSkeleton key={i} />
             ))}
           </div>
-        ) : list.length === 0 ? (
+        ) : list.length === 0 && savedUnavailable.length === 0 ? (
+          // ⚠️ BOTH lists, not the grid alone: with every save sold or expired the grid is empty while the
+          // header still counts them, and "No saved listings yet" under "3 saved listings" contradicts
+          // itself — they are listed under "No longer available" below instead.
           // The shared mascot-led empty state (tone="bare") — same treatment as the
           // messenger's placeholder, so the two quiet surfaces speak with one voice.
           <EmptyState
@@ -130,13 +134,19 @@ export default function SavedPage() {
             }
           />
         ) : (
-          <div className={LISTING_GRID}>
-            {list.map((l, i) => (
-              <div key={l.id} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)}>
-                <ListingCard listing={l} onOpen={() => router.push(`/listings/${l.id}`)} onLocate={() => router.push(localizedHref(`/?focus=${l.id}`, variant))} priority={i < 4} />
+          <>
+            {list.length > 0 && (
+              <div className={LISTING_GRID}>
+                {list.map((l, i) => (
+                  <div key={l.id} onMouseEnter={() => router.prefetch(`/listings/${l.id}`)} onTouchStart={() => router.prefetch(`/listings/${l.id}`)}>
+                    <ListingCard listing={l} onOpen={() => router.push(`/listings/${l.id}`)} onLocate={() => router.push(localizedHref(`/?focus=${l.id}`, variant))} priority={i < 4} />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+            {/* Saves whose listing sold or expired: kept, apart from the grid (saved-unavailable.tsx). */}
+            <SavedUnavailableSection items={savedUnavailable} />
+          </>
         )}
       </main>
       <Footer />

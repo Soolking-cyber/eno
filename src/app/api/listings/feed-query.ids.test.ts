@@ -21,6 +21,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const h = vi.hoisted(() => ({
   /** Ids that exist as PUBLIC (verified + active) listings. */
   live: new Set<string>(),
+  /** Ids that exist in another status: sold / expired / stale (kept) or hidden / removed (gone). */
+  ended: new Map<string, string>(),
   /** Every `id: { in: [...] }` the fast path actually sent to the database. */
   queried: [] as string[][],
 }))
@@ -31,10 +33,15 @@ vi.mock('@/lib/db', () => ({
       findMany: vi.fn(async ({ where }: any) => {
         const asked: string[] = where?.id?.in ?? []
         h.queried.push(asked)
+        // The status filter as Prisma reads it: an exact value or `{ in: [...] }`.
+        const allowed = (s: string) => (typeof where?.status === 'string' ? where.status === s : (where?.status?.in ?? []).includes(s))
+        const statusOf = (id: string) => (h.live.has(id) ? 'active' : h.ended.get(id))
         // ⚠️ RETURNED OUT OF ORDER ON PURPOSE. Postgres makes no promise about the order of rows
         // for an `IN` list, and the route re-orders by the requested sequence. A test that fed
         // rows back in request order would pass even if that re-ordering were deleted.
-        return [...asked].reverse().filter((id) => h.live.has(id)).map((id) => ({ id }))
+        return [...asked].reverse()
+          .filter((id) => { const s = statusOf(id); return s !== undefined && allowed(s) })
+          .map((id) => ({ id, status: statusOf(id) }))
       }),
     },
   },
@@ -58,11 +65,12 @@ const idsOf = (n: number, from = 0) => Array.from({ length: n }, (_, i) => `id-$
 async function call(ids: string[], extra = '') {
   const res = await idsFastPath(new URLSearchParams(`ids=${ids.join(',')}${extra}`))
   expect(res).not.toBeNull()
-  return (await res!.json()) as { listings: { id: string }[]; total: number; evaluated: string[]; complete: boolean }
+  return (await res!.json()) as { listings: { id: string }[]; total: number; evaluated: string[]; complete: boolean; gone: string[]; sold: string[] }
 }
 
 beforeEach(() => {
   h.live = new Set()
+  h.ended = new Map()
   h.queried = []
 })
 
@@ -88,12 +96,37 @@ describe('idsFastPath — the ids it answers about', () => {
     expect(body.complete).toBe(true)
   })
 
-  it('a genuinely deleted id is EVALUATED and absent — the one case a caller may prune', async () => {
+  it('a genuinely deleted id is EVALUATED, absent and named GONE — the one case a caller may prune', async () => {
     h.live.add('id-0')
     const body = await call(['id-0', 'id-1'])
     expect(body.listings.map((l) => l.id)).toEqual(['id-0'])
     expect(body.evaluated).toEqual(['id-0', 'id-1'])
+    expect(body.gone).toEqual(['id-1'])
     expect(body.complete).toBe(true)
+  })
+
+  /**
+   * ⛔ ENDED IS NOT GONE (Emil-skills audit, 2026-10-06). A saved listing that SOLD or EXPIRED used to be
+   * indistinguishable from a deleted one — absent from `listings` — so the saved list deleted it from the
+   * device. Ended listings are now kept: never a card (they are not live), never `gone`; only `sold`,
+   * which has its own public page, is named.
+   */
+  it('sold, expired and stale ids are KEPT: no card, not gone — and only sold is named', async () => {
+    h.live.add('id-0')
+    h.ended.set('id-1', 'sold').set('id-2', 'expired').set('id-3', 'stale')
+    const body = await call(['id-0', 'id-1', 'id-2', 'id-3'])
+    expect(body.listings.map((l) => l.id)).toEqual(['id-0'])
+    expect(body.gone).toEqual([])
+    expect(body.sold).toEqual(['id-1'])
+    expect(body.evaluated).toEqual(['id-0', 'id-1', 'id-2', 'id-3'])
+  })
+
+  it('hidden and removed ids are GONE, like a missing one — takedowns are never kept', async () => {
+    h.ended.set('id-1', 'hidden').set('id-2', 'removed')
+    const body = await call(['id-1', 'id-2', 'id-3'])
+    expect(body.listings).toEqual([])
+    expect(body.gone).toEqual(['id-1', 'id-2', 'id-3'])
+    expect(body.sold).toEqual([])
   })
 
   it(`${IDS_FAST_PATH_MAX} ids: the whole list fits, all of it evaluated`, async () => {

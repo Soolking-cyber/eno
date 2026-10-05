@@ -137,6 +137,10 @@ export function countListingsCached(where: Prisma.ListingWhereInput): Promise<nu
  * outside it is data loss. `complete` says whether the caller's list fit; a caller with more must
  * chunk (`IDS_FAST_PATH_MAX`) rather than assume one round trip covered it.
  */
+/** Statuses a saved id survives in: live, or ended by its own lifecycle (sold; the apartment rules'
+ *  expired / stale). Anything else — hidden, removed — is `gone`. */
+const KEEPABLE_STATUSES = ['active', 'sold', 'expired', 'stale'] as const
+
 export async function idsFastPath(searchParams: URLSearchParams): Promise<NextResponse | null> {
   const idsParam = searchParams.get('ids')
   // ⚠️ ABSENT AND EMPTY ARE DIFFERENT QUESTIONS. No `ids` at all is a browse request and belongs to
@@ -148,21 +152,45 @@ export async function idsFastPath(searchParams: URLSearchParams): Promise<NextRe
   const requested = [...new Set(idsParam.split(',').map((s) => s.trim()).filter(Boolean))]
   const ids = requested.slice(0, IDS_FAST_PATH_MAX)
   if (ids.length === 0) return NextResponse.json({ listings: [], total: 0, evaluated: [], complete: true })
+  // ONE query over every status a saved id may be KEPT in, split below — two queries could each see a
+  // row mid-transition and drop it between them.
   const rows = await db.listing.findMany({
     // Explicit ids (saved, recently viewed) — a recruiter's saved teacher profiles must come back.
-    where: await scopedListingWhere({ id: { in: ids }, verified: true, status: 'active' }, { teachers: true }),
-    select: LISTING_CARD_SELECT,
+    where: await scopedListingWhere({ id: { in: ids }, verified: true, status: { in: [...KEEPABLE_STATUSES] } }, { teachers: true }),
+    select: { ...LISTING_CARD_SELECT, status: true },
   })
-  const byId = new Map(rows.map((r) => [r.id, serializeListingCard(r)]))
+  // Cards are for LIVE listings only — the shape every caller (saved, recently viewed, the rental
+  // basket, the map focus) has always read.
+  const byId = new Map(rows.filter((r) => r.status === 'active').map((r) => [r.id, serializeListingCard(r)]))
   const listings = ids.map((id) => byId.get(id)).filter((l): l is NonNullable<typeof l> => !!l)
+  const kept = new Set(rows.map((r) => r.id))
+  const sold = new Set(rows.filter((r) => r.status === 'sold').map((r) => r.id))
   return NextResponse.json({
     listings: await localizeListingTitles(listings, searchParams.get('lang') || undefined),
     total: listings.length,
     // ⛔ `evaluated` IS THE WHOLE POINT OF THIS RESPONSE SHAPE — see the block comment above.
     evaluated: ids,
     complete: requested.length === ids.length,
+    /**
+     * ⛔ THE ONLY IDS A CALLER MAY DELETE FROM A DEVICE (Emil-skills audit, 2026-10-06). The saved list
+     * used to delete every evaluated id missing from `listings` — so a listing that SOLD or EXPIRED
+     * vanished from the buyer's saved items without a word, and renters' shortlists shrank every week
+     * under the apartment availability rules. `gone` names the ids with no in-scope row in a keepable
+     * status: removed, hidden (compliance takedowns included) or never existed. Sold, expired and stale
+     * ids are kept and are in NEITHER list. Naming deletions explicitly makes an older response —
+     * without this field — prune nothing at all (fail closed by shape).
+     * ⚠️ A DELIBERATE ONE-BIT ORACLE, and for ANY id — this endpoint is public and cannot know the caller
+     * saved it (saves are device-local). What it adds is only "existed publicly and ended through its
+     * own lifecycle" (expired / stale: in neither list). A takedown (hidden, removed) reads exactly like
+     * an id that never existed, so nothing about one is confirmed. Never a status beyond `sold`, never a
+     * field of the row.
+     */
+    gone: ids.filter((id) => !kept.has(id)),
+    /** Sold has its own public page (200, noindex), so naming it here says nothing that page does not. */
+    sold: ids.filter((id) => sold.has(id)),
   })
 }
+
 
 export type FeedFilterOptions = {
   /**

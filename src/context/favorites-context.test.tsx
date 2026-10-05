@@ -36,7 +36,7 @@ const idsOf = (n: number) => Array.from({ length: n }, (_, i) => id(i))
 /** Ids the device has saved, read straight out of localStorage — where the damage happened. */
 const persisted = (): string[] => JSON.parse(localStorage.getItem(KEY) || '[]')
 
-type Answer = { listings: string[]; evaluated?: string[] } | 'fail'
+type Answer = { listings: string[]; evaluated?: string[]; gone?: string[]; sold?: string[] } | 'fail'
 
 /**
  * Stub `GET /api/listings?ids=` with a per-chunk answer, and record every chunk asked for.
@@ -57,6 +57,8 @@ function stubFetch(answer: (chunk: string[], index: number) => Answer) {
         listings: a.listings.map((x) => ({ id: x })),
         total: a.listings.length,
         ...(a.evaluated === undefined ? {} : { evaluated: a.evaluated }),
+        ...(a.gone === undefined ? {} : { gone: a.gone }),
+        ...(a.sold === undefined ? {} : { sold: a.sold }),
       }),
     } as any
   })
@@ -65,13 +67,15 @@ function stubFetch(answer: (chunk: string[], index: number) => Answer) {
 }
 
 function Probe() {
-  const { saved, savedError, count, toggle } = useFavorites()
+  const { saved, savedUnavailable, savedError, count, toggle } = useFavorites()
   return (
     <div>
       <span data-testid="state">{saved === null ? 'loading' : `n=${saved.length}`}</span>
+      <span data-testid="unavailable">{savedUnavailable.map((u) => `${u.id}:${u.sold ? 'sold' : 'ended'}:${u.card ? 'card' : 'nocard'}`).join(',')}</span>
       <span data-testid="error">{savedError ? 'error' : 'ok'}</span>
       <span data-testid="count">{count}</span>
       <button type="button" onClick={() => toggle('id-999')}>heart</button>
+      <button type="button" onClick={() => toggle('id-001')}>remove-1</button>
     </div>
   )
 }
@@ -156,12 +160,68 @@ describe('FavoritesContext hydration', () => {
     expect(persisted()).toHaveLength(500)
   })
 
-  it('a genuinely deleted listing IS pruned — the self-heal still works', async () => {
+  it('a listing the server names GONE is pruned — the self-heal still works', async () => {
     const ids = idsOf(3)
-    stubFetch((c) => ({ listings: c.filter((x) => x !== id(1)), evaluated: c }))
+    stubFetch((c) => ({ listings: c.filter((x) => x !== id(1)), evaluated: c, gone: [id(1)], sold: [] }))
     await mountWith(ids)
     await waitFor(() => expect(persisted()).toEqual([id(0), id(2)]))
     expect(screen.getByTestId('state').textContent).toBe('n=2')
+    expect(screen.getByTestId('unavailable').textContent).toBe('')
+  })
+
+  /**
+   * ⛔ ENDED IS NOT GONE (Emil-skills audit, 2026-10-06). An id missing from `listings` used to be deleted
+   * from the device — so a saved listing that SOLD or EXPIRED vanished without a word. It is now kept,
+   * and listed apart with the card this device last fetched while it was live.
+   */
+  it('⛔ a SOLD or EXPIRED listing is KEPT and listed apart, with the card this device last had', async () => {
+    stubFetch((c) => ({ listings: c, evaluated: c, gone: [], sold: [] }))
+    await mountWith(idsOf(3)) // all live: the device caches their cards
+    await waitFor(() => expect(screen.getByTestId('state').textContent).toBe('n=3'))
+    cleanup()
+    stubFetch((c) => ({ listings: [id(0)], evaluated: c, gone: [], sold: [id(1)] })) // id-1 sold, id-2 expired
+    await mountWith(idsOf(3))
+    await waitFor(() => expect(screen.getByTestId('unavailable').textContent).toBe(`${id(1)}:sold:card,${id(2)}:ended:card`))
+    expect(screen.getByTestId('state').textContent).toBe('n=1')
+    expect(persisted()).toEqual(idsOf(3)) // nothing deleted
+  })
+
+  it('⛔ removing an ended save takes its row away AT ONCE — a second tap cannot re-save it', async () => {
+    stubFetch((c) => ({ listings: [id(0)], evaluated: c, gone: [], sold: [id(1)] }))
+    await mountWith(idsOf(2))
+    await waitFor(() => expect(screen.getByTestId('unavailable').textContent).toBe(`${id(1)}:sold:nocard`))
+    // No timers advanced: the row must leave with the id, not with the next debounced refetch.
+    await act(async () => { screen.getByText('remove-1').click() })
+    expect(screen.getByTestId('unavailable').textContent).toBe('')
+    expect(persisted()).toEqual([id(0)])
+  })
+
+  it('an ended listing this device never had a card for is still kept (no card, nothing invented)', async () => {
+    stubFetch((c) => ({ listings: [], evaluated: c, gone: [], sold: [id(0)] }))
+    await mountWith([id(0)])
+    await waitFor(() => expect(screen.getByTestId('unavailable').textContent).toBe(`${id(0)}:sold:nocard`))
+    expect(persisted()).toEqual([id(0)])
+  })
+
+  it('the card lookup survives a change of the saved set (a new heart changes the cache key)', async () => {
+    stubFetch((c) => ({ listings: c, evaluated: c, gone: [], sold: [] }))
+    await mountWith(idsOf(2))
+    await waitFor(() => expect(screen.getByTestId('state').textContent).toBe('n=2'))
+    cleanup()
+    // A third save later; meanwhile id-1 sold. The cached answer is about {0,1}, not {0,1,2}.
+    stubFetch((c) => ({ listings: c.filter((x) => x !== id(1)), evaluated: c, gone: [], sold: [id(1)] }))
+    await mountWith(idsOf(3))
+    await waitFor(() => expect(screen.getByTestId('unavailable').textContent).toBe(`${id(1)}:sold:card`))
+  })
+
+  it('a response with `evaluated` but no `gone` (an older revision) prunes NOTHING and lists nothing apart', async () => {
+    // ⚠️ FAIL CLOSED BY SHAPE: deletions are named, so a response that names none deletes none — even
+    // though it says which ids it evaluated and one of them came back without a card.
+    stubFetch((c) => ({ listings: c.filter((x) => x !== id(1)), evaluated: c }))
+    await mountWith(idsOf(3))
+    await waitFor(() => expect(screen.getByTestId('state').textContent).toBe('n=2'))
+    expect(persisted()).toHaveLength(3)
+    expect(screen.getByTestId('unavailable').textContent).toBe('')
   })
 
   it('a failed chunk prunes NOTHING from that chunk, and says the load was partial', async () => {
