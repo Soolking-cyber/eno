@@ -12,8 +12,18 @@ import {
   afterMethod,
   afterShown,
   afterSignedIn,
+  UNKNOWN_CONTEXT,
+  contextClassOf,
+  contextParts,
   counterKey,
   creditTick,
+  gateCounterKey,
+  isCountedGate,
+  isGateAction,
+  parseContextClass,
+  parseGateCounterKey,
+  promptAsGate,
+  summariseGates,
   freshDevice,
   freshTab,
   isDue,
@@ -243,8 +253,8 @@ describe('signup-prompt — a completed sign-up is the prompt’s only if a meth
 })
 
 describe('signup-prompt — the anonymous daily totals', () => {
-  it('six events, and nothing else is a counter', () => {
-    for (const e of ['shown', 'dismissed', 'dismissed_then_continued', 'google_click', 'email_click', 'signup_completed']) expect(isSignupPromptEvent(e)).toBe(true)
+  it('seven events (left_open since UX3 J1), and nothing else is a counter', () => {
+    for (const e of ['shown', 'dismissed', 'dismissed_then_continued', 'google_click', 'email_click', 'signup_completed', 'left_open']) expect(isSignupPromptEvent(e)).toBe(true)
     for (const e of ['', 'Shown', 'shown ', 'published', '__proto__', 'constructor', 42, null]) expect(isSignupPromptEvent(e)).toBe(false)
   })
 
@@ -254,11 +264,34 @@ describe('signup-prompt — the anonymous daily totals', () => {
     expect(vnDay(Date.UTC(2026, 9, 1, 23, 30))).toBe('2026-10-02')
   })
 
-  it('⛔ a key holds the day, the edition and the event — nothing about anyone — and reads back', () => {
-    const k = counterKey('2026-10-01', 'marketplace', 'dismissed_then_continued')
-    expect(k).toBe('signup-prompt:2026-10-01:marketplace:dismissed_then_continued')
-    expect(parseCounterKey(k)).toEqual({ day: '2026-10-01', site: 'marketplace', event: 'dismissed_then_continued' })
-    for (const bad of ['site-stats:salt:2026-10-01', 'signup-prompt:2026-10-01:marketplace:hacked', 'signup-prompt:yesterday:marketplace:shown']) expect(parseCounterKey(bad)).toBeNull()
+  it('⛔ a key holds the day, the edition, the event and the coarse class — nothing about anyone — and reads back', () => {
+    const k = counterKey('2026-10-01', 'marketplace', 'dismissed_then_continued', 'inapp-zalo.phone.vi')
+    expect(k).toBe('signup-prompt:2026-10-01:marketplace:dismissed_then_continued:inapp-zalo.phone.vi')
+    expect(parseCounterKey(k)).toEqual({ day: '2026-10-01', site: 'marketplace', event: 'dismissed_then_continued', ctx: 'inapp-zalo.phone.vi' })
+    // No class → "unknown"; a made-up class can never reach a key.
+    expect(counterKey('2026-10-01', 'marketplace', 'shown')).toBe('signup-prompt:2026-10-01:marketplace:shown:unknown')
+    expect(counterKey('2026-10-01', 'marketplace', 'shown', 'Mozilla/5.0 iPhone')).toBe('signup-prompt:2026-10-01:marketplace:shown:unknown')
+    for (const bad of [
+      'site-stats:salt:2026-10-01', 'signup-prompt:2026-10-01:marketplace:hacked', 'signup-prompt:yesterday:marketplace:shown',
+      'signup-prompt:2026-10-01:marketplace:shown:browser.tablet.en', 'signup-prompt:2026-10-01:marketplace:shown:x.y.z',
+    ]) expect(parseCounterKey(bad)).toBeNull()
+  })
+
+  it('⛔ a week-one key (before the class existed) still reads back — as "unknown" — so the totals keep adding up', () => {
+    expect(parseCounterKey('signup-prompt:2026-10-01:marketplace:shown')).toEqual({ day: '2026-10-01', site: 'marketplace', event: 'shown', ctx: UNKNOWN_CONTEXT })
+  })
+
+  it('⛔ the context class is a closed set of 24: 6 kinds of browser × phone/desktop × vi/en', () => {
+    const all: string[] = []
+    for (const c of ['native', 'inapp-fb', 'inapp-zalo', 'inapp-other', 'pwa', 'browser'] as const) {
+      for (const d of ['phone', 'desktop'] as const) for (const l of ['vi', 'en'] as const) all.push(contextClassOf(c, d, l))
+    }
+    expect(new Set(all).size).toBe(24)
+    for (const c of all) expect(parseContextClass(c)).toBe(c)
+    for (const bad of [null, '', 'browser', 'browser.phone', 'browser.phone.ko', 'safari.phone.vi', 'browser.phone.vi.extra', '__proto__', 7]) {
+      expect(parseContextClass(bad)).toBe(UNKNOWN_CONTEXT)
+      expect(contextParts(bad)).toBeNull()
+    }
   })
 
   it('summarises per day and over the window, for one edition, ignoring foreign and junk rows', () => {
@@ -278,6 +311,21 @@ describe('signup-prompt — the anonymous daily totals', () => {
     expect(summariseSignupPrompt(rows, { days }).total.shown).toBe(15 + 99)
   })
 
+  it('splits the window by context class, and a week-one row joins the "unknown" bucket', () => {
+    const days = ['2026-10-05']
+    const rows = [
+      { key: counterKey('2026-10-05', 'marketplace', 'shown', 'browser.phone.vi'), n: 4 },
+      { key: counterKey('2026-10-05', 'marketplace', 'left_open', 'browser.phone.vi'), n: 2 },
+      { key: counterKey('2026-10-05', 'marketplace', 'shown', 'pwa.phone.en'), n: 1 },
+      { key: 'signup-prompt:2026-10-05:marketplace:shown', n: 3 },
+    ]
+    const s = summariseSignupPrompt(rows, { site: 'marketplace', days })
+    expect(s.total.shown).toBe(8)
+    expect(s.byContext['browser.phone.vi']).toEqual({ ...zeroTotals(), shown: 4, left_open: 2 })
+    expect(s.byContext['pwa.phone.en'].shown).toBe(1)
+    expect(s.byContext[UNKNOWN_CONTEXT].shown).toBe(3)
+  })
+
   it('the rates the owner asked for — and "no data" rather than 0% when nothing was shown', () => {
     const r = signupPromptRates({ ...zeroTotals(), shown: 200, dismissed: 120, dismissed_then_continued: 90, google_click: 30, email_click: 10, signup_completed: 12 })
     expect(r.closeRate).toBeCloseTo(0.6)
@@ -285,6 +333,48 @@ describe('signup-prompt — the anonymous daily totals', () => {
     expect(r.startRate).toBeCloseTo(0.2)
     expect(r.completionRate).toBeCloseTo(0.3)
     expect(r.signupPerShow).toBeCloseTo(0.06)
-    expect(signupPromptRates(zeroTotals())).toEqual({ closeRate: null, bounceAfterClose: null, startRate: null, completionRate: null, signupPerShow: null })
+    expect(signupPromptRates({ ...zeroTotals(), shown: 200, left_open: 50 }).leftOpenRate).toBeCloseTo(0.25)
+    expect(signupPromptRates(zeroTotals())).toEqual({ closeRate: null, bounceAfterClose: null, startRate: null, completionRate: null, signupPerShow: null, leftOpenRate: null })
+  })
+})
+
+describe('signup-prompt — per-gate sign-in counters (UX3 J1)', () => {
+  it('every gate but the timed prompt sends its own events; four actions and nothing else', () => {
+    for (const g of ['first_save', 'chat', 'offer', 'rental_check', 'save_search', 'post', 'nav', 'page', 'other']) expect(isCountedGate(g)).toBe(true)
+    for (const g of ['timed', '', 'Chat', 'checkout', null]) expect(isCountedGate(g)).toBe(false)
+    for (const a of ['open', 'google', 'email', 'completed']) expect(isGateAction(a)).toBe(true)
+    for (const a of ['shown', 'Open', '', null]) expect(isGateAction(a)).toBe(false)
+  })
+
+  it('⛔ a gate key holds the day, the edition, the gate, the action and the class — and reads back', () => {
+    const k = gateCounterKey('2026-10-05', 'marketplace', 'save_search', 'completed', 'inapp-fb.phone.vi')
+    expect(k).toBe('signin-gate:2026-10-05:marketplace:save_search:completed:inapp-fb.phone.vi')
+    expect(parseGateCounterKey(k)).toEqual({ day: '2026-10-05', site: 'marketplace', gate: 'save_search', action: 'completed', ctx: 'inapp-fb.phone.vi' })
+    expect(gateCounterKey('2026-10-05', 'marketplace', 'chat', 'open', 'nonsense')).toBe('signin-gate:2026-10-05:marketplace:chat:open:unknown')
+    for (const bad of [
+      'signin-gate:2026-10-05:marketplace:timed:open:unknown', 'signin-gate:2026-10-05:marketplace:chat:shown:unknown',
+      'signin-gate:2026-10-05:marketplace:chat:open', 'signup-prompt:2026-10-05:marketplace:shown:unknown',
+    ]) expect(parseGateCounterKey(bad)).toBeNull()
+  })
+
+  it('summarises per gate and per gate × class over the window, for one edition', () => {
+    const days = ['2026-10-04', '2026-10-05']
+    const rows = [
+      { key: gateCounterKey('2026-10-05', 'marketplace', 'chat', 'open', 'inapp-zalo.phone.vi'), n: 6 },
+      { key: gateCounterKey('2026-10-05', 'marketplace', 'chat', 'email', 'inapp-zalo.phone.vi'), n: 3 },
+      { key: gateCounterKey('2026-10-04', 'marketplace', 'chat', 'completed', 'inapp-zalo.phone.vi'), n: '2' },
+      { key: gateCounterKey('2026-10-05', 'marketplace', 'chat', 'open', 'browser.desktop.en'), n: 1 },
+      { key: gateCounterKey('2026-10-05', 'services', 'chat', 'open', 'browser.desktop.en'), n: 50 },
+      { key: gateCounterKey('2026-09-01', 'marketplace', 'chat', 'open', 'browser.desktop.en'), n: 50 },
+      { key: counterKey('2026-10-05', 'marketplace', 'shown', 'browser.desktop.en'), n: 9 },
+    ]
+    const g = summariseGates(rows, { site: 'marketplace', days })
+    expect(g.byGate.chat).toEqual({ open: 7, google: 0, email: 3, completed: 2 })
+    expect(g.byGateContext.chat['inapp-zalo.phone.vi']).toEqual({ open: 6, google: 0, email: 3, completed: 2 })
+    expect(g.byGate.offer).toBeUndefined()
+  })
+
+  it('the timed prompt reads as a gate row from its own events', () => {
+    expect(promptAsGate({ ...zeroTotals(), shown: 10, google_click: 2, email_click: 1, signup_completed: 1 })).toEqual({ open: 10, google: 2, email: 1, completed: 1 })
   })
 })

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Tag, Send, MessageCircle, Route, Loader2 } from '@/components/ui/icons'
+import { Tag, Send, MessageCircle, Route, Loader2, Info } from '@/components/ui/icons'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
@@ -10,9 +10,21 @@ import { EnoSlider } from './eno-slider'
 import { OfferPartiesNote } from './chat-safety-note'
 import { useLocalized } from './listing-content'
 import { Button } from '@/components/ui/button'
+import { Alert } from '@/components/ui/alert'
+import { CloseButton } from '@/components/ui/close-button'
 import { stashCompose } from '@/lib/quick-contact'
 import { hapticTap, hapticConfirm } from '@/lib/haptics'
 import { scrollBehavior } from '@/lib/reduced-motion'
+import {
+  addressResumeKind,
+  decideResume,
+  discountFor,
+  readIntent,
+  stripResumeFromAddress,
+  takeIntent,
+  writeIntent,
+  type IntentPayload,
+} from '@/lib/pending-intent'
 
 const MAX_DISCOUNT = 50 // % off the asking price the slider allows
 export { COMPOSE_KEY } from '@/lib/quick-contact' // re-export: the key + writer live in the lib
@@ -70,7 +82,7 @@ export function ContactComposer({
    */
   sellerIsPartner?: boolean
 }) {
-  const { user, loading, openSignIn } = useAuth()
+  const { user, loading, identityLoaded, accountType, openSignIn } = useAuth()
   const { lang, tr } = useLanguage()
   const shownTitle = useLocalized(listingTitle ?? '', listingTitleVi, listingTitleI18n) || listingTitle
   const locale = moneyLocale(lang) // offer amounts follow the viewer's language
@@ -113,13 +125,28 @@ export function ContactComposer({
    * failure. Anything that leaves the buyer on this page must leave the button usable.
    */
   const [busy, setBusy] = useState(false)
+  /**
+   * The sign-in a guest's tap opens — and, since UX3 J5, the action it finishes afterwards: a chat
+   * remembers its opener, an offer its amount (src/lib/pending-intent.ts). The trip planner's tap
+   * resumes nothing (it opens a form, not a message).
+   */
+  const gateSignIn = (opts: { body?: string; offerAmount?: number | null; plan?: boolean }) => {
+    const offer = typeof opts.offerAmount === 'number' && opts.offerAmount > 0
+    const here = `${window.location.pathname}${window.location.search}`
+    const resume = opts.plan
+      ? null
+      : offer
+        ? writeIntent('offer', { listingId, offerAmount: opts.offerAmount! }, here)
+        : writeIntent('chat', { listingId, body: opts.body || opener() }, here)
+    openSignIn({ listingTitle: shownTitle, listingImage, sellerName, gate: offer ? 'offer' : 'chat', resume })
+  }
   const send = (opts: { body?: string; offerAmount?: number | null; plan?: boolean }) => {
     // Until auth resolves, treat as not-ready: don't push to /messages/pending
     // (which would 401-bounce). Prompt only once we know they're truly logged out.
     if (!user) {
       if (loading) { pendingRef.current = opts; return }
       setBusy(false) // the sign-in dialog is the answer; the buyer stays here and may retry
-      openSignIn({ listingTitle: shownTitle, listingImage, sellerName })
+      gateSignIn(opts)
       return
     }
     const offerAmount = opts.offerAmount ?? null
@@ -162,6 +189,55 @@ export function ContactComposer({
     send(opts)
   }, [user, loading])
 
+  /**
+   * ⛔ UX3 J5 — FINISH WHAT THE GUEST STARTED, ONCE, AND NEVER SEND ANYTHING BY ITSELF.
+   * A guest who tapped Chat now or an offer (here, or on this listing's card) and signed in used to come
+   * back to this page and have to find the button again. Now, once the user AND their profile are loaded
+   * (the rental check's rule — a new account goes through /onboard first), a pending intent for THIS
+   * listing (src/lib/pending-intent.ts) is honoured:
+   *   · chat  — the opener is shown ready to go, with one "Send" tap. Not auto-sent: whether a sign-in
+   *             may post a message by itself is the owner's open question (C26, as for Publish).
+   *   · offer — the offer opens at the amount chosen on the card (none from the PDP's own gate), with a
+   *             line saying they are signed in; "Send offer" is still theirs to press.
+   * A `resume=` in the address with no trusted intent behind it (a crafted link; a magic link's new tab;
+   * a sign-in finished in another browser) gets the same one-tap block with the default opener/amount —
+   * nothing it carries is acted on. The marker leaves the address once read.
+   */
+  const [resumed, setResumed] = useState<null | { kind: 'chat'; body: string } | { kind: 'offer' }>(null)
+  const resumeRan = useRef(false)
+  useEffect(() => {
+    if (resumeRan.current || loading) return
+    const urlKind = addressResumeKind()
+    const ours = urlKind === 'chat' || urlKind === 'offer'
+    if (!user) {
+      if (ours) stripResumeFromAddress()
+      return
+    }
+    if (!identityLoaded || !accountType) return
+    const d = decideResume({
+      urlKind,
+      intent: readIntent(),
+      kinds: ['chat', 'offer'],
+      matches: (it) => (it.payload as { listingId?: unknown }).listingId === listingId,
+    })
+    if (d.action === 'none') return
+    resumeRan.current = true
+    stripResumeFromAddress()
+    if (d.action === 'act' && !takeIntent(d.intent.nonce)) return
+    const kind = d.action === 'act' ? d.intent.kind : d.kind
+    if (kind === 'offer') {
+      if (!canOffer) return // a fixed-price listing has no offer to reopen
+      const pct = d.action === 'act' ? discountFor((d.intent.payload as IntentPayload['offer']).offerAmount, price, MAX_DISCOUNT) : null
+      if (pct !== null) setDiscount(pct)
+      setResumed({ kind: 'offer' })
+    } else {
+      if (planning) return
+      const body = d.action === 'act' ? (d.intent.payload as IntentPayload['chat']).body : opener()
+      setResumed({ kind: 'chat', body })
+    }
+    window.setTimeout(() => document.getElementById('contact')?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' }), 150)
+  }, [user, loading, identityLoaded, accountType])
+
   // Touch feedback on the two highest-commitment taps in the app. Fired in the gesture
   // handler (never in send(), which also runs from the deferred auth drain — a buzz
   // arriving after the fact would confirm a tap the user has already forgotten about).
@@ -191,6 +267,16 @@ export function ContactComposer({
   const chatNow = () => {
     if (busy) return
     hapticTap(); setBusy(true); send(planning ? { plan: true } : { body: opener() })
+  }
+  /** "Send" on the resumed opener — the same tap as Chat now, with the same guard. */
+  const sendResumed = () => {
+    if (busy || resumed?.kind !== 'chat') return
+    hapticTap(); setBusy(true); send({ body: resumed.body })
+  }
+  /** The PDP's own "Sign in to make an offer": an offer intent with no amount (none was chosen yet). */
+  const gateOffer = () => {
+    const resume = writeIntent('offer', { listingId, offerAmount: null }, `${window.location.pathname}${window.location.search}`)
+    openSignIn({ listingTitle: shownTitle, listingImage, sellerName, gate: 'offer', resume })
   }
   const sendOffer = () => {
     if (!canOffer) return
@@ -290,8 +376,38 @@ export function ContactComposer({
     </Button>
   )
 
+  /**
+   * The resumed opener (UX3 J5) — what the guest asked to send, ready, one tap away. The bubble is the
+   * message as it will be posted; nothing here sends it but "Send". The ✕ just puts it away.
+   */
+  const resumeChat = resumed?.kind === 'chat' ? (
+    <div data-resume="chat" className="rounded-2xl bg-accent p-3">
+      <div className="flex items-start justify-between gap-2">
+        <p className="pt-0.5 text-xs font-semibold text-body">{tr('You’re signed in — send your message?', 'Bạn đã đăng nhập — gửi tin nhắn này?')}</p>
+        <CloseButton size="2xs" onClick={() => setResumed(null)} className="-mr-1 -mt-0.5 shrink-0" />
+      </div>
+      <p className="mt-2 w-fit max-w-full rounded-2xl bg-card px-3 py-2 text-sm text-foreground">{resumed.body}</p>
+      <Button
+        type="button"
+        variant="cta"
+        size="none"
+        loading={busy}
+        onClick={sendResumed}
+        className="press mt-3 flex min-h-11 w-full items-center justify-center gap-1.5 py-2.5 cursor-pointer"
+      >
+        <Send className="h-4 w-4" /> {tr('Send', 'Gửi')}
+      </Button>
+    </div>
+  ) : null
+  /** The offer reopened after sign-in (UX3 J5): one line, above the offer, saying whose turn it is. */
+  const resumeOffer = resumed?.kind === 'offer' ? (
+    <Alert data-resume="offer" tone="info" appearance="flat" size="xs" icon={<Info className="h-4 w-4" />}>
+      {tr('You’re signed in — check your offer, then tap Send offer.', 'Bạn đã đăng nhập — xem lại giá đề nghị rồi bấm Gửi đề nghị.')}
+    </Alert>
+  ) : null
+
   // Fixed-price listing: no offer → Chat now + the safety reminder.
-  if (!canOffer) return <div className="space-y-2">{chatButton}{safetyLine}</div>
+  if (!canOffer) return <div className="space-y-2">{resumeChat}{chatButton}{safetyLine}</div>
 
   if (!loading && !user) {
     return (
@@ -301,7 +417,7 @@ export function ContactComposer({
           type="button"
           variant="bare"
           size="none"
-          onClick={() => openSignIn({ listingTitle: shownTitle, listingImage, sellerName })}
+          onClick={gateOffer}
           // `active:scale-100` dropped — see the note on chatButton above.
           // `min-h-11` for the same reason as chatButton above — this measured 366×40 too, and
           // it is the second-most-important action on the page.
@@ -322,6 +438,8 @@ export function ContactComposer({
 
   return (
     <div className="space-y-2">
+      {resumeChat}
+      {resumeOffer}
       {/* The offer is always open on a negotiable listing (user decisions 2026-07-14:
           haggling is the norm here, so it opens at a default discount). There's no
           close ✕ and no "Make an offer" trigger — nothing to close it TO: leaving the

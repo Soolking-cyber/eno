@@ -1,4 +1,5 @@
 import type { SerializedListingCard } from '@/lib/types'
+import { writeIntent, type PendingIntent } from '@/lib/pending-intent'
 
 /** sessionStorage handoff → /messages/pending. Defined HERE, the one writer module
  *  (audit Phase 1: the composer carried a second inline writer of the same key). */
@@ -66,4 +67,25 @@ export function stashCompose(payload: {
   } catch {
     return false // storage blocked — caller decides the fallback
   }
+}
+
+/**
+ * A GUEST'S quick action on a card or a list row (UX3 J5): the sign-in gate it opens, and the pending
+ * intent that finishes it after sign-in — ON THE LISTING'S PAGE, since a card has no composer: the
+ * sign-in returns there (`next` = the listing with `resume=`), or auth-context takes the visitor there
+ * once after an in-place sign-in, and ContactComposer shows the opener ready to send / the offer at this
+ * amount. Never sent by itself. A reference listing (no owner to message) resumes nothing.
+ */
+export function quickActionSignIn(
+  l: { id: string; isPartnerBooking?: boolean },
+  opts: { body?: string; offerAmount?: number | null },
+): { gate: 'chat' | 'offer'; resume: PendingIntent | null } {
+  const offer = typeof opts.offerAmount === 'number' && opts.offerAmount > 0
+  const gate = offer ? 'offer' : 'chat'
+  if (l.isPartnerBooking) return { gate, resume: null }
+  const path = `/listings/${l.id}`
+  // `away`: asked on a feed, finished on the listing — the only kind auth-context routes to.
+  if (offer) return { gate, resume: writeIntent('offer', { listingId: l.id, offerAmount: opts.offerAmount! }, path, { away: true }) }
+  const body = (opts.body ?? '').trim()
+  return { gate, resume: body ? writeIntent('chat', { listingId: l.id, body }, path, { away: true }) : null }
 }

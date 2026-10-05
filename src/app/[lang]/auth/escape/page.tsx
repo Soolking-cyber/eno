@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { HANDOFF_COOKIE, handoffAuthUrl, isNonce } from '@/lib/auth/handoff'
+import { parseHandoffVia } from '@/lib/auth/handoff-client'
 import { HandoffWaiting } from '@/components/marketplace/handoff-waiting'
 import { HandoffLaunch } from '@/components/marketplace/handoff-launch'
 
@@ -18,8 +19,10 @@ import { HandoffLaunch } from '@/components/marketplace/handoff-launch'
 // another browser gets the sign-in they were trying to do rather than an error.
 export const dynamic = 'force-dynamic'
 
-export default async function EscapePage({ searchParams }: { searchParams: Promise<{ h?: string }> }) {
-  const { h } = await searchParams
+export default async function EscapePage({ searchParams }: { searchParams: Promise<{ h?: string; via?: string }> }) {
+  const { h, via: rawVia } = await searchParams
+  // Where the visitor started (UX3 J2) — an allow-listed word for the launch ramp's copy, or null.
+  const via = parseHandoffVia(rawVia)
   const cookieNonce = (await cookies()).get(HANDOFF_COOKIE)?.value
 
   // ⚠️ COOKIE PRESENT ⇒ ALWAYS THE WAITING ROOM, even if `h` is absent or does not match. An
@@ -39,5 +42,5 @@ export default async function EscapePage({ searchParams }: { searchParams: Promi
   // inside the live user gesture, before it has asked Supabase for the Google URL, so arriving
   // early is the NORMAL case rather than a failure. Bouncing to /signin here would start the
   // disconnected second sign-in this whole design exists to prevent.
-  return <HandoffLaunch nonce={h} />
+  return <HandoffLaunch nonce={h} via={via} />
 }

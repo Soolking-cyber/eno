@@ -1,10 +1,19 @@
 import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import {
+  CONTEXTS,
   COUNTER_PREFIX,
+  GATE_COUNTER_PREFIX,
+  SIGNIN_GATES,
+  UNKNOWN_CONTEXT,
+  contextParts,
+  promptAsGate,
   signupPromptRates,
+  summariseGates,
   summariseSignupPrompt,
   vnDay,
+  zeroGateTotals,
+  type GateTotals,
   type SignupPromptTotals,
 } from '../src/lib/signup-prompt'
 
@@ -27,6 +36,13 @@ import {
 //   bounce after ×  closed it and opened no other page in that tab
 //   start rate      (Google + email) / shown
 //   completion      signed in within an hour of choosing a method / (Google + email)
+//   left open       (UX3 J1) the page was hidden or closed with the prompt still open and unanswered —
+//                   once per show; NOT exclusive with × (a visitor can leave, come back and close it)
+// Since UX3 J1 (2026-10-05) every total also carries a coarse context class — what kind of browser
+// (in-app Facebook / Zalo / other, browser, home-screen app, the eno app) × phone/desktop × vi/en — and
+// every sign-in GATE (first save, chat, offer, rental check, save search, post, header/tab bar, the
+// /signin page, other) has its own open / Google / email / completed totals. Rows written before the
+// deploy carry no class and show as "unknown".
 // ⚠️ kv_store is UNLOGGED: a Postgres crash recovery empties it, and the totals
 // restart from zero that day. A day that is suddenly all zeros mid-week is that,
 // not a dead prompt — compare with the Profiles column.
@@ -66,7 +82,7 @@ async function main() {
     const rows = await tx.$queryRaw<Array<{ key: string; n: string | null }>>`
       select key, value #>> '{}' as n
         from kv_store
-       where key like ${COUNTER_PREFIX + '%'}
+       where (key like ${COUNTER_PREFIX + '%'} or key like ${GATE_COUNTER_PREFIX + '%'})
          and (expires_at is null or expires_at > now())`
     // New Profiles per Vietnam day (all accounts, and those that finished onboarding). Profiles carry
     // no edition, so this column is the same whichever --site is asked for.
@@ -81,16 +97,17 @@ async function main() {
   })
 
   const s = summariseSignupPrompt(rows, { site, days: window })
+  const g = summariseGates(rows, { site, days: window })
   const prof = new Map(profiles.map((p) => [p.day, { created: Number(p.created), onboarded: Number(p.onboarded) }]))
 
   console.log(`\n"Join eno" prompt — ${window[0]} → ${window[window.length - 1]} (Vietnam days), site: ${siteArg}`)
-  const head = '  day          shown      ×  moved on  google   email  signed in   × rate  bounce  start  complete   new profiles (onboarded)'
+  const head = '  day          shown      ×  moved on  left open  google   email  signed in   × rate  bounce  start  complete   new profiles (onboarded)'
   console.log(head)
   console.log('  ' + '─'.repeat(head.length - 2))
   const line = (label: string, t: SignupPromptTotals, p: { created: number; onboarded: number }) => {
     const r = signupPromptRates(t)
     console.log(
-      `  ${label.padEnd(10)} ${num(t.shown)} ${num(t.dismissed, 6)} ${num(t.dismissed_then_continued, 9)} ${num(t.google_click)} ${num(t.email_click)} ${num(t.signup_completed, 10)}` +
+      `  ${label.padEnd(10)} ${num(t.shown)} ${num(t.dismissed, 6)} ${num(t.dismissed_then_continued, 9)} ${num(t.left_open, 10)} ${num(t.google_click)} ${num(t.email_click)} ${num(t.signup_completed, 10)}` +
       `   ${pct(r.closeRate)} ${pct(r.bounceAfterClose)} ${pct(r.startRate)} ${pct(r.completionRate)}   ${num(p.created, 8)} (${p.onboarded})`,
     )
   }
@@ -108,14 +125,81 @@ async function main() {
   console.log(`
   × rate           ${pct(r.closeRate)}   closed it (×, Esc or backdrop) / shown
   bounce after ×   ${pct(r.bounceAfterClose)}   closed it and opened no other page in that tab / closed
+  left open        ${pct(r.leftOpenRate)}   page hidden or closed with the prompt still open, unanswered / shown
   start rate       ${pct(r.startRate)}   chose Google or email / shown
   completion       ${pct(r.completionRate)}   signed in within an hour / chose a method
   sign-up per ask  ${pct(r.signupPerShow)}   signed in / shown
-  new profiles     ${num(sumProf.created, 5)}    created in the window, any route (${sumProf.onboarded} finished onboarding)
+  new profiles     ${num(sumProf.created, 5)}    created in the window, any route — ${sumProf.onboarded} finished onboarding, ${Math.max(0, sumProf.created - sumProf.onboarded)} did not (the /onboard loss)
+`)
 
-  Notes: counts are anonymous and per tab-event, not per person; "signed in" (a sign-in within an hour of a prompt click) includes returning
-  accounts that signed in from the prompt. Everyone, consent or not, is counted here; GA sees only
-  visitors who allowed Analytics, so GA's numbers will be lower.
+  // ── The prompt by context class (UX3 J1) ──────────────────────────────────────────────────────
+  const ctxRows = Object.entries(s.byContext).sort((a, b) => b[1].shown - a[1].shown || a[0].localeCompare(b[0]))
+  console.log(`  The prompt by context (${days}-day) — kind of browser · phone/desktop · vi/en`)
+  const ch = '  context                        shown      ×  left open  google   email  signed in   start  complete'
+  console.log(ch)
+  console.log('  ' + '─'.repeat(ch.length - 2))
+  if (!ctxRows.length) console.log('  (no prompt events in the window)')
+  for (const [ctx, t] of ctxRows) {
+    const cr = signupPromptRates(t)
+    console.log(`  ${ctx.padEnd(28)} ${num(t.shown)} ${num(t.dismissed, 6)} ${num(t.left_open, 10)} ${num(t.google_click)} ${num(t.email_click)} ${num(t.signup_completed, 10)}   ${pct(cr.startRate)} ${pct(cr.completionRate)}`)
+  }
+  console.log('  ⚠️ In-app browsers show 0 prompts by design since UX3 J2 (the prompt never opens there on its own).\n')
+
+  // ── Every sign-in gate (UX3 J1) ───────────────────────────────────────────────────────────────
+  const gateRows: Array<[string, GateTotals]> = SIGNIN_GATES.map((gate) => [gate, gate === 'timed' ? promptAsGate(s.total) : (g.byGate[gate] ?? zeroGateTotals())])
+  console.log(`  Sign-in gates (${days}-day) — where sign-in was asked, what was chosen, what completed`)
+  const gh = '  gate           opened  google   email  completed   start  complete  per open'
+  console.log(gh)
+  console.log('  ' + '─'.repeat(gh.length - 2))
+  const ratio = (a: number, b: number) => (b > 0 ? a / b : null)
+  for (const [gate, t] of gateRows) {
+    const methods = t.google + t.email
+    console.log(`  ${gate.padEnd(13)} ${num(t.open)} ${num(t.google)} ${num(t.email)} ${num(t.completed, 10)}   ${pct(ratio(methods, t.open))} ${pct(ratio(t.completed, methods))} ${pct(ratio(t.completed, t.open))}`)
+  }
+  console.log(`
+  timed = the "Join eno" prompt (its own events above). completed = a sign-in on that device within an hour
+  of choosing a method at that gate, counted once; a sign-in after methods at two places can be credited to
+  both the prompt and a gate.
+`)
+
+  // Completion in-app vs browser — the J2 question — per gate, by kind of browser (device and language summed).
+  const byKind = (perCtx: Record<string, GateTotals> | undefined) => {
+    const out = new Map<string, GateTotals>()
+    for (const [ctx, t] of Object.entries(perCtx ?? {})) {
+      const kind = contextParts(ctx)?.context ?? UNKNOWN_CONTEXT
+      const acc = out.get(kind) ?? zeroGateTotals()
+      for (const k of Object.keys(acc) as Array<keyof GateTotals>) acc[k] += t[k]
+      out.set(kind, acc)
+    }
+    return out
+  }
+  const promptByKind = new Map<string, GateTotals>()
+  for (const [ctx, t] of Object.entries(s.byContext)) {
+    const kind = contextParts(ctx)?.context ?? UNKNOWN_CONTEXT
+    const acc = promptByKind.get(kind) ?? zeroGateTotals()
+    const pg = promptAsGate(t)
+    for (const k of Object.keys(acc) as Array<keyof GateTotals>) acc[k] += pg[k]
+    promptByKind.set(kind, acc)
+  }
+  const kinds = [...CONTEXTS, UNKNOWN_CONTEXT]
+  console.log(`  Gates by kind of browser (${days}-day): opened → chose a method → completed`)
+  const kh = '  gate         ' + kinds.map((k) => k.padStart(18)).join('')
+  console.log(kh)
+  console.log('  ' + '─'.repeat(kh.length - 2))
+  for (const gate of SIGNIN_GATES) {
+    const m = gate === 'timed' ? promptByKind : byKind(g.byGateContext[gate])
+    if (![...m.values()].some((t) => t.open || t.completed)) continue
+    const cells = kinds.map((k) => {
+      const t = m.get(k)
+      return (t ? `${t.open}→${t.google + t.email}→${t.completed}` : '·').padStart(18)
+    })
+    console.log(`  ${gate.padEnd(12)} ${cells.join('')}`)
+  }
+
+  console.log(`
+  Notes: counts are anonymous and per tab-event, not per person; "signed in" (a sign-in within an hour of a
+  prompt click) includes returning accounts that signed in from the prompt. Everyone, consent or not, is
+  counted here; GA sees only visitors who allowed Analytics, so GA's numbers will be lower.
 `)
 }
 

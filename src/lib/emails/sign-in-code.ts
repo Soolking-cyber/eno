@@ -34,21 +34,28 @@ type Lang = 'en' | 'vi'
  * ⛔ THE SITE NAME IS A PARAMETER, NOT A WORD IN THE COPY — see the same note in sign-in-link.ts.
  * Both editions send this code; a hardcoded "eno.vn" told eno.forum's app users they were signing
  * in to the licensed marketplace.
+ *
+ * ⛔ THE CODE IS NOT IN THE SUBJECT OR THE PREHEADER (codex + opus, gate 2026-10-05). Sign-in is passwordless,
+ * so the code IS the account: in a notification banner it can be read off a locked phone, a paired watch or a
+ * mail log by anyone nearby, for as long as it is valid. UX3 J2 put it there for in-app visitors' convenience;
+ * that trade is the owner's to make, with the box's OTP expiry set first — until then it stays in the body.
+ * ⚠️ AND NO "IN THE APP" (UX3 J2): the code is typed in an in-app browser, a home-screen app or a browser as
+ * often as in the eno app, so the copy says "where you are signing in".
  */
 const COPY = (site: string) => ({
   signin: {
     en: {
       subject: `Your ${site} sign-in code`,
-      preheader: 'Enter this code in the app. It expires in one hour.',
+      preheader: 'Enter this code where you are signing in. It expires in one hour.',
       heading: 'Your sign-in code',
-      body: `Enter this code in the ${site} app to finish signing in.`,
+      body: `Enter this code where you are signing in to ${site}.`,
       ignore: 'If you didn’t request it, you can safely ignore this email — nobody can sign in without the code.',
     },
     vi: {
       subject: `Mã đăng nhập ${site} của bạn`,
-      preheader: 'Nhập mã này trong ứng dụng. Mã hết hạn sau một giờ.',
+      preheader: 'Nhập mã này ở nơi bạn đang đăng nhập. Mã hết hạn sau một giờ.',
       heading: 'Mã đăng nhập của bạn',
-      body: `Nhập mã này trong ứng dụng ${site} để hoàn tất đăng nhập.`,
+      body: `Nhập mã này ở nơi bạn đang đăng nhập ${site}.`,
       ignore: 'Nếu bạn không yêu cầu, hãy bỏ qua email này — không ai đăng nhập được nếu không có mã.',
     },
   },
@@ -57,14 +64,14 @@ const COPY = (site: string) => ({
       subject: `Confirm your email to create your ${site} account`,
       preheader: `This address has no ${site} account yet — enter the code to create one.`,
       heading: `Create your ${site} account`,
-      body: `This address doesn’t have an ${site} account yet. Enter this code in the app to confirm it and finish creating one.`,
+      body: `This address doesn’t have an ${site} account yet. Enter this code where you are signing in to confirm it and finish creating one.`,
       ignore: 'If you didn’t request this, ignore this email — the account stays unconfirmed and cannot be used by anyone.',
     },
     vi: {
       subject: `Xác nhận email để tạo tài khoản ${site}`,
       preheader: `Địa chỉ này chưa có tài khoản ${site} — nhập mã để tạo mới.`,
       heading: `Tạo tài khoản ${site}`,
-      body: `Địa chỉ này chưa có tài khoản ${site}. Nhập mã này trong ứng dụng để xác nhận và hoàn tất việc tạo tài khoản.`,
+      body: `Địa chỉ này chưa có tài khoản ${site}. Nhập mã này ở nơi bạn đang đăng nhập để xác nhận và hoàn tất việc tạo tài khoản.`,
       ignore: 'Nếu bạn không yêu cầu, hãy bỏ qua email này — tài khoản sẽ không được xác nhận và không ai dùng được.',
     },
   },

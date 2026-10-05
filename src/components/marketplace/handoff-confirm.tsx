@@ -5,6 +5,9 @@ import { CheckCircle2, AlertCircle, Copy, Check } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
+import { SITE_NAME } from '@/lib/edition'
+import { inAppHostName } from '@/lib/in-app-browser'
+import type { HandoffVia } from '@/lib/auth/handoff-client'
 
 /** Status coin — ui/empty-state's chrome-coin recipe, exactly as §6 writes it:
  *  bg-brand-50 disc, h-8 glyph at the display stroke, line in the brand ink.
@@ -37,8 +40,18 @@ function StatusCoin({ icon: Icon }: { icon: typeof CheckCircle2 }) {
  * confidence, but IP geolocation on Vietnamese mobile is routinely a different province, and an
  * honest visitor who sees a wrong city answers "no" and destroys their own sign-in.
  */
-export function HandoffConfirm({ nonce, parked }: { nonce: string | null; parked: boolean }) {
+export function HandoffConfirm({ nonce, parked, via = null }: { nonce: string | null; parked: boolean; via?: HandoffVia | null }) {
   const { tr } = useLanguage()
+  /**
+   * ⛔ NEVER "THE eno APP" TO SOMEONE WHO CAME FROM FACEBOOK OR ZALO (UX3 J2, 2026-10-05). This screen runs
+   * in the real browser, which cannot see where the visitor started, so the app that opened it says so
+   * (`via`, allow-listed). Named: "go back to Zalo". Unknown (a raw WebView, a home-screen app, an old
+   * link): neutral words — "where you started". The question also stopped quoting a button label: the
+   * in-app form's Google control is a link now ("Use Google instead"), not "Continue with Google".
+   * Placeholders + .replace, never a template literal: gen-ui-strings harvests literals only.
+   */
+  const app = inAppHostName(via === 'pwa' ? null : via)
+  const fill = (s: string) => s.replace('{site}', SITE_NAME).replace(/\{app\}/g, app ?? '')
   const [phase, setPhase] = useState<'ask' | 'pair' | 'voided' | 'gone'>(parked && nonce ? 'ask' : 'gone')
   const [pair, setPair] = useState('')
   const [busy, setBusy] = useState(false)
@@ -76,7 +89,9 @@ export function HandoffConfirm({ nonce, parked }: { nonce: string | null; parked
             {tr('Almost there', 'Sắp xong rồi')}
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            {tr('Did you just tap “Continue with Google” in the eno app on this phone?', 'Bạn vừa chạm “Tiếp tục với Google” trong ứng dụng eno trên điện thoại này phải không?')}
+            {fill(app
+              ? tr('Did you just choose to sign in to {site} with Google in {app} on this phone?', 'Bạn vừa chọn đăng nhập {site} bằng Google trong {app} trên điện thoại này phải không?')
+              : tr('Did you just choose to sign in to {site} with Google on this phone?', 'Bạn vừa chọn đăng nhập {site} bằng Google trên điện thoại này phải không?'))}
           </p>
           <div className="mt-5 flex w-full flex-col gap-2">
             <Button variant="cta" size="none" type="button" disabled={busy} onClick={() => answer(true)} className="w-full py-3">
@@ -92,7 +107,9 @@ export function HandoffConfirm({ nonce, parked }: { nonce: string | null; parked
       {phase === 'pair' && (
         <>
           <h1 className="text-xl font-extrabold tracking-tight text-foreground">
-            {tr('Enter this code in the eno app', 'Nhập mã này trong ứng dụng eno')}
+            {fill(app
+              ? tr('Enter this code back in {app}', 'Nhập mã này khi quay lại {app}')
+              : tr('Enter this code where you started signing in', 'Nhập mã này ở nơi bạn bắt đầu đăng nhập'))}
           </h1>
           <div className="mt-5 rounded-2xl border border-line-strong bg-card px-6 py-4">
             <span className="font-mono text-3xl font-extrabold tracking-[0.3em] text-foreground">{pair}</span>
@@ -103,7 +120,9 @@ export function HandoffConfirm({ nonce, parked }: { nonce: string | null; parked
             {copied ? <><Check className="size-4 bubble-in" />{tr('Copied', 'Đã sao chép')}</> : <><Copy className="size-4" />{tr('Copy', 'Sao chép')}</>}
           </Button>
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-            {tr('Switch back to the eno app and type it in. The code lasts 5 minutes.', 'Quay lại ứng dụng eno và nhập mã. Mã có hiệu lực 5 phút.')}
+            {fill(app
+              ? tr('Switch back to {app} and type it in. The code lasts 5 minutes.', 'Quay lại {app} và nhập mã. Mã có hiệu lực 5 phút.')
+              : tr('Switch back to where you started signing in and type it in. The code lasts 5 minutes.', 'Quay lại nơi bạn bắt đầu đăng nhập và nhập mã. Mã có hiệu lực 5 phút.'))}
           </p>
           {/* ⚠️ THE WAY OUT OF AN EXPIRED CODE, AND WITHOUT IT THIS SCREEN IS A DEAD END. The pair
               lasts 5 minutes and the app's own error text says "get a fresh one in your browser" —
@@ -144,7 +163,11 @@ export function HandoffConfirm({ nonce, parked }: { nonce: string | null; parked
             {tr('This sign-in link has expired', 'Liên kết đăng nhập đã hết hạn')}
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            {tr('Go back to the eno app and tap Continue with Google again — or use email or phone, which work without leaving it.', 'Quay lại ứng dụng eno và chạm Tiếp tục với Google lần nữa — hoặc dùng email/SĐT, không cần rời ứng dụng.')}
+            {/* "a code", not "email or phone": phone sign-in is off ("sắp có"), and the emailed code is the
+                one that works where they started — the same words stay true when phone comes back. */}
+            {fill(app
+              ? tr('Go back to {app} and choose Google again — or sign in there with a code, no browser needed.', 'Quay lại {app} và chọn Google lần nữa — hoặc đăng nhập bằng mã ngay tại đó, không cần trình duyệt.')
+              : tr('Go back to where you started and choose Google again — or sign in there with a code, no browser needed.', 'Quay lại nơi bạn bắt đầu và chọn Google lần nữa — hoặc đăng nhập bằng mã ngay tại đó, không cần trình duyệt.'))}
           </p>
         </>
       )}

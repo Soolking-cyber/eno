@@ -56,19 +56,46 @@ beforeEach(() => {
 })
 
 describe('POST /api/signup-prompt', () => {
-  it('⛔ every one of the six events adds one to today’s total for this edition — the key holds nothing about the caller', async () => {
+  it('⛔ every one of the seven events adds one to today’s total for this edition — the key holds nothing about the caller', async () => {
     for (const e of SIGNUP_PROMPT_EVENTS) {
       const res = await call({ e })
       expect(res.status).toBe(204)
       expect(await res.text()).toBe('')
     }
     const day = vnDay(Date.now())
-    expect(h.incr.map((i) => i.key)).toEqual(SIGNUP_PROMPT_EVENTS.map((e) => `signup-prompt:${day}:${EDITION}:${e}`))
+    // A client that sends no context class (an old tab, before UX3 J1) is counted as "unknown".
+    expect(h.incr.map((i) => i.key)).toEqual(SIGNUP_PROMPT_EVENTS.map((e) => `signup-prompt:${day}:${EDITION}:${e}:unknown`))
     for (const i of h.incr) {
       expect(i.by).toBe(1)
       expect(i.ttl).toBeGreaterThan(365 * 24 * 60 * 60)
       expect(i.key).not.toContain('203.0.113.7')
     }
+  })
+
+  it('⛔ UX3 J1: the coarse context class rides the key — only one of the 24 fixed classes, anything else is "unknown"', async () => {
+    await call({ e: 'shown', c: 'inapp-zalo.phone.vi' })
+    await call({ e: 'left_open', c: 'Mozilla/5.0 (iPhone) Zalo 25.1' })
+    await call({ e: 'shown', c: { evil: true } })
+    const day = vnDay(Date.now())
+    expect(h.incr.map((i) => i.key)).toEqual([
+      `signup-prompt:${day}:${EDITION}:shown:inapp-zalo.phone.vi`,
+      `signup-prompt:${day}:${EDITION}:left_open:unknown`,
+      `signup-prompt:${day}:${EDITION}:shown:unknown`,
+    ])
+  })
+
+  it('⛔ UX3 J1: a sign-in gate action adds one to that gate’s total; the timed prompt and unknown gates/actions are dropped', async () => {
+    await call({ g: 'save_search', a: 'open', c: 'browser.phone.vi' })
+    await call({ g: 'chat', a: 'completed' })
+    await call({ g: 'timed', a: 'open' })
+    await call({ g: 'checkout', a: 'open' })
+    await call({ g: 'chat', a: 'shown' })
+    const day = vnDay(Date.now())
+    expect(h.incr.map((i) => i.key)).toEqual([
+      `signin-gate:${day}:${EDITION}:save_search:open:browser.phone.vi`,
+      `signin-gate:${day}:${EDITION}:chat:completed:unknown`,
+    ])
+    for (const i of h.incr) expect(i.key).not.toContain('203.0.113.7')
   })
 
   it('⛔ a local preview (not the live host) or a dev build writes nothing — not even the limiter', async () => {

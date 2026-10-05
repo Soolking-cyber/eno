@@ -27,6 +27,10 @@ import {
   type TabState,
 } from '@/lib/signup-prompt'
 import { screenBusy } from './cookie-consent'
+import { consentAnswered } from '@/lib/consent'
+import { inAppHost } from '@/lib/in-app-browser'
+import { askHidden, askShown, mayAsk, notePageView } from '@/lib/page-asks'
+import { countPromptEvent } from '@/lib/signup-counters'
 
 /**
  * ⛔ STORAGE CAN THROW OR BE MISSING (private windows, blocked site data, previews) — so every read and
@@ -63,21 +67,13 @@ function saveDevice(mem: Mem, d: DeviceState): void { mem.device = d; writeKey('
  * ONE ANONYMOUS +1 ON TODAY'S TOTAL (POST /api/signup-prompt → src/lib/signup-prompt-counter.ts) — the
  * owner's week-one numbers (2026-10-01: "how many pressed x, bounced, and how many signed up").
  * ⚠️ NOT CONSENT-GATED, ON PURPOSE, AND THAT IS ONLY HONEST BECAUSE OF WHAT THE SERVER KEEPS: one integer
- * per (day, edition, event) — no IP, no id, no cookie, no user agent, no page — so there is no personal
- * data to ask consent for. The body is the event name and nothing else. /privacy says so. The GA events
- * (trackSignupPrompt) are the consent-gated half and stay that way.
- * A beacon, so a Google click that leaves the page at once still lands. Fails silently: a dropped count
- * never becomes a visitor's problem.
+ * per (day, edition, event, coarse context class) — no IP, no id, no cookie, no user agent, no page — so
+ * there is no personal data to ask consent for. The body is the event name and one of 24 fixed classes
+ * (src/lib/signup-counters.ts; UX3 J1). /privacy says so. The GA events (trackSignupPrompt) are the
+ * consent-gated half and stay that way.
  */
 export function countSignupPrompt(event: SignupPromptCounterEvent): void {
-  try {
-    const body = JSON.stringify({ e: event })
-    if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function'
-      && navigator.sendBeacon('/api/signup-prompt', new Blob([body], { type: 'application/json' }))) return
-    // ⚠️ SILENCE IS CORRECT HERE, as in analytics.ts's beacon: client-side counter plumbing has no
-    // server log to reach, and a lost +1 is not an incident.
-    fetch('/api/signup-prompt', { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true }).catch(() => {})
-  } catch { /* a counter must never break the page */ }
+  countPromptEvent(event)
 }
 
 /** How this document was loaded — a reload is not "moving on" after closing the prompt. */
@@ -101,8 +97,12 @@ const NATIVE_TABS_UA = /EnoNativeTabs/
  * · never on an excluded route (sign-in, onboarding, legal pages, the post form, signed-in surfaces) or
  *   an error page, and never over anything else — the cookie bar, any dialog/sheet/menu, the keyboard,
  *   a focused field. It waits for the next calm second instead.
+ * Since UX3 (2026-10-05): its minute starts only once the cookie consent has been answered (J7a); it
+ * never opens on its own inside an in-app browser (J2); and never in a page view where the app-install
+ * card is up or appeared (J7f, src/lib/page-asks.ts). The schedule, the copy and the modal are the
+ * owner's 10-01 design, unchanged.
  * It also reports the owner's numbers: GA events through the consent-gated helper, and the anonymous
- * daily totals through `countSignupPrompt`.
+ * daily totals through `countSignupPrompt` — with `left_open` and a coarse context class since J1.
  *
  * ⚠️ MOUNTED ONCE, IN providers.tsx, UNDER THE ROOT LAYOUT THAT NEVER UNMOUNTS — which is what makes the
  * count survive client navigations; sessionStorage carries it across reloads in the same tab.
@@ -137,6 +137,8 @@ export function SignupPrompt() {
    */
   const lastPath = useRef<string | null>(null)
   useEffect(() => {
+    // UX3 J7f: every route change is a new page view for the one-ask-per-page-view rule (page-asks.ts).
+    notePageView(pathname)
     const first = lastPath.current === null
     const moved = !first && lastPath.current !== pathname
     lastPath.current = pathname
@@ -158,6 +160,18 @@ export function SignupPrompt() {
     let automated = true
     try { automated = navigator.webdriver === true || NATIVE_TABS_UA.test(navigator.userAgent || '') } catch { /* stays true */ }
     if (automated && override === null) return
+    /**
+     * ⛔ NEVER ON ITS OWN INSIDE AN IN-APP BROWSER (UX3 J2, 2026-10-05) — Facebook, Zalo, Instagram,
+     * TikTok, the Google app, an Android WebView. There Google cannot finish (it refuses webviews), the
+     * prompt led with a 9–11-screen hand-off and filled 71% of a Zalo screen, and week one cannot say it
+     * converts there at all. The gates the visitor triggers (a heart, chat, an offer, save search, the
+     * rental check) still open sign-in, with the emailed code first. ⚠️ This changes the owner's 10-01
+     * design for in-app visitors — flagged in the UX3 plan (§R, J2 ⚠) for the owner's veto. The test
+     * override does not lift it: it is a product rule, not an automation guard.
+     */
+    let inApp = false
+    try { inApp = inAppHost() !== null } catch { inApp = false }
+    if (inApp) return
     const againMs = override ?? AGAIN_AFTER_MS
     if (getDevice(mem).member) return
 
@@ -168,9 +182,21 @@ export function SignupPrompt() {
      * and nothing after it is.
      */
     let wasVisible = document.visibilityState === 'visible'
+    /**
+     * ⛔ THE CLOCK STARTS ONCE THE COOKIE CONSENT HAS BEEN ANSWERED (UX3 J7a, 2026-10-05) — read, never
+     * changed, from src/lib/consent.ts. Until then the consent bar is on screen (it arrives 4 s in and
+     * stays until answered), and the prompt used to be free to open over it: two asks on one first
+     * screen. Time before the answer is not credited, so the minute starts at the answer. Once answered
+     * it stays answered for this page life.
+     */
+    let consentOk = false
+    const consented = (): boolean => {
+      if (!consentOk) { try { consentOk = consentAnswered() } catch { consentOk = false } }
+      return consentOk
+    }
     const credit = (): number => {
       const now = Date.now()
-      saveTab(mem, creditTick(getTab(mem), now - last, wasVisible))
+      saveTab(mem, creditTick(getTab(mem), now - last, wasVisible && consented()))
       last = now
       wasVisible = document.visibilityState === 'visible'
       return now
@@ -185,6 +211,23 @@ export function SignupPrompt() {
       && isDue(getTab(mem), getDevice(mem), now, againMs)
       && !isExcludedPath(window.location.pathname)
       && !screenBusy() && !pageBusy(document)
+      // UX3 J7f: never two asks in one page view — not while the app-install card is up, nor in a page
+      // view it appeared in. The prompt waits for a later page view; nothing else changes.
+      && mayAsk('join', window.location.pathname)
+
+    /**
+     * The ask on screen right now, for `left_open` (UX3 J1): the page hidden or closed while it is still
+     * open and unanswered, AT MOST ONCE PER SHOW. ⚠️ A bfcache restore keeps this closure, so a page
+     * that goes into the back/forward cache (pagehide, persisted) and comes back still holds `left`:
+     * hiding or closing it again sends nothing more.
+     */
+    let openAsk: { answered: boolean; closed: boolean; left: boolean } | null = null
+    const leave = () => {
+      const a = openAsk
+      if (!a || a.left || a.answered || a.closed || userRef.current) return
+      a.left = true
+      countSignupPrompt('left_open')
+    }
 
     const tryShow = async (now: number) => {
       if (inFlight || !eligible(now)) return
@@ -203,8 +246,11 @@ export function SignupPrompt() {
         const count = shown.tab.shown
         trackSignupPrompt('shown', { count })
         countSignupPrompt('shown')
+        askShown('join', window.location.pathname)
         /** A method was chosen in THIS ask — a close after that is the visitor answering, not a dismissal. */
         let answered = false
+        const ask = { answered: false, closed: false, left: false }
+        openAsk = ask
         openSignIn({
           prompt: {
             onMethod: (method) => {
@@ -212,11 +258,21 @@ export function SignupPrompt() {
               // start rate adds the two as exclusive outcomes (codex, 2026-10-01).
               if (answered) return
               answered = true
+              ask.answered = true
               trackSignupPrompt(method, { count })
               countSignupPrompt(method === 'google' ? 'google_click' : 'email_click')
               saveDevice(mem, afterMethod(getDevice(mem), Date.now()))
             },
+            // Another sign-in took the popup over before the visitor answered: no × and no answer to count,
+            // but the ask is off the screen — no `left_open` for it, and the install card may have its turn.
+            onReplaced: () => {
+              ask.closed = true
+              askHidden('join')
+            },
             onDismiss: () => {
+              // Off the screen, whatever closed it — the install card may have its page view (J7f).
+              ask.closed = true
+              askHidden('join')
               // A sign-in that closed it is not a dismissal (opus, plan review).
               if (userRef.current) return
               const tab = getTab(mem)
@@ -240,15 +296,21 @@ export function SignupPrompt() {
     }
 
     const iv = window.setInterval(() => { void tryShow(credit()) }, TICK_MS)
-    const settle = () => { credit() }
+    const settle = () => {
+      credit()
+      if (document.visibilityState === 'hidden') leave()
+    }
+    const pageHide = () => { credit(); leave() }
     document.addEventListener('visibilitychange', settle)
-    window.addEventListener('pagehide', settle)
+    window.addEventListener('pagehide', pageHide)
     return () => {
       stopped = true
       window.clearInterval(iv)
       document.removeEventListener('visibilitychange', settle)
-      window.removeEventListener('pagehide', settle)
+      window.removeEventListener('pagehide', pageHide)
       credit()
+      // A sign-in (or sign-out) re-runs this effect: whatever ask was up is no longer this page's.
+      if (openAsk) askHidden('join')
     }
   }, [loading, user, openSignIn])
 

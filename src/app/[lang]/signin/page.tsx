@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect } from 'react'
+import { Suspense, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft } from "@/components/ui/icons"
@@ -10,16 +10,26 @@ import { SignInCard } from '@/components/marketplace/sign-in-card'
 import { safeNextPath } from '@/lib/url'
 import { COMPANY } from '@/lib/site-legal'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
+import { noteGateOpen } from '@/lib/signin-gates'
 
 // The sign-in ROUTE. Renders the app's one sign-in card (the same one the popup shows) because a
 // server `redirect('/signin?next=…')` cannot open a dialog. Honors ?next= for the post-login
 // redirect and bounces already-signed-in users away.
 function SignInPageInner() {
   const { tr } = useLanguage()
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
   const router = useRouter()
   const params = useSearchParams()
   const raw = params.get('next') || '/'
+
+  // The /signin page is its own gate in the per-gate sign-in counters (UX3 J1) — counted once per visit,
+  // and only for a guest (a signed-in visitor is redirected straight on).
+  const countedOpen = useRef(false)
+  useEffect(() => {
+    if (loading || user || countedOpen.current) return
+    countedOpen.current = true
+    noteGateOpen('page')
+  }, [loading, user])
 
   useEffect(() => {
     if (!user) return

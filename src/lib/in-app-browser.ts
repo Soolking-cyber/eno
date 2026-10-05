@@ -41,6 +41,104 @@ export function isNativeTabs(): boolean {
   return /EnoNativeTabs/.test(navigator.userAgent || '')
 }
 
+/**
+ * WHICH APP'S BUILT-IN BROWSER THIS IS — or null for a real browser, a home-screen PWA or the eno app.
+ *
+ * Two uses, both added for the UX3 sign-up work (2026-10-05):
+ *   · copy that names the place the visitor actually is — the Google hand-off used to tell people in
+ *     Facebook or Zalo to "go back to the eno app", which they were never in (handoff-*.tsx);
+ *   · the anonymous sign-up counters' coarse context class (`browserContext` below).
+ * ⚠️ MESSENGER BEFORE FACEBOOK: Messenger's iOS UA carries `FBAN/MessengerForiOS`, so the Facebook
+ * pattern matches it too. The order of this list is the precedence.
+ * ⚠️ Same scope as `googleOauthBlocked`'s in-app list, plus Android's raw `wv` WebView as 'other' — and
+ * NEVER the Capacitor app (its WebView also says `wv`) or the native iOS tabs: those are the eno app.
+ */
+export type InAppHost = 'messenger' | 'facebook' | 'instagram' | 'zalo' | 'tiktok' | 'line' | 'google' | 'other'
+const IN_APP_HOSTS: ReadonlyArray<readonly [InAppHost, RegExp]> = [
+  ['messenger', /\bFBAN\/Messenger|\bFB_IAB\/Orca|\bMessengerForiOS\b|\bMessengerLite/],
+  ['facebook', /\b(FBAN|FBAV|FB_IAB|FBIOS|FB4A)\b/],
+  ['instagram', /\bInstagram\b/],
+  ['zalo', /\bZalo/i],
+  ['tiktok', /\b(TikTok|musical_ly|BytedanceWebview)\b/i],
+  ['line', /\bLine\//],
+  ['google', /\bGSA\//],
+  ['other', /\b(MicroMessenger|Snapchat|Pinterest|LinkedInApp|KAKAOTALK)\b/i],
+]
+
+/** Inside the eno app itself (Capacitor shell or the native iOS tabs) — never an "in-app browser". */
+function insideEnoApp(ua: string): boolean {
+  if (/EnoNativeApp|EnoNativeTabs/.test(ua)) return true
+  try {
+    return !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
+  } catch { return false }
+}
+
+export function inAppHost(uaArg?: string): InAppHost | null {
+  if (typeof navigator === 'undefined' && uaArg === undefined) return null
+  const ua = uaArg ?? navigator.userAgent ?? ''
+  if (typeof window !== 'undefined' && insideEnoApp(ua)) return null
+  for (const [host, re] of IN_APP_HOSTS) if (re.test(ua)) return host
+  // Android System WebView embedded by some other app, with no name we know.
+  if (/Android/.test(ua) && /\bwv\b/.test(ua)) return 'other'
+  return null
+}
+
+/** True for a host we can name in copy ("Facebook", "Zalo" …); 'other' and null are not. */
+export const IN_APP_HOST_VALUES: readonly InAppHost[] = IN_APP_HOSTS.map(([h]) => h)
+export const isInAppHost = (v: unknown): v is InAppHost =>
+  typeof v === 'string' && (IN_APP_HOST_VALUES as readonly string[]).includes(v)
+
+/** The name a visitor knows the host app by. 'other' has none — callers fall back to neutral copy. */
+export function inAppHostName(host: InAppHost | null | undefined): string | null {
+  switch (host) {
+    case 'facebook': return 'Facebook'
+    case 'messenger': return 'Messenger'
+    case 'instagram': return 'Instagram'
+    case 'zalo': return 'Zalo'
+    case 'tiktok': return 'TikTok'
+    case 'line': return 'LINE'
+    // Not 'Google' (opus, gate 2026-10-05): "sign in with Google in Google" names the account and the app the
+    // same; the Google app's visitors get the neutral copy, like 'other'.
+    default: return null
+  }
+}
+
+/**
+ * THE COARSE CONTEXT CLASS the anonymous sign-up counters are split by (UX3 J1). Six values and
+ * nothing finer — the counters stay anonymous daily totals; this only says what KIND of browser the
+ * event happened in, because a Facebook or Zalo in-app visitor and a Chrome visitor meet a different
+ * sign-in (Google cannot finish in-app).
+ *   native      — the eno app (Capacitor shell or the native iOS tabs)
+ *   inapp-fb    — Facebook or Messenger's built-in browser
+ *   inapp-zalo  — Zalo's built-in browser
+ *   inapp-other — any other app's built-in browser (Instagram, TikTok, the Google app, a raw WebView…)
+ *   pwa         — eno.vn added to the home screen (standalone display mode)
+ *   browser     — everything else
+ */
+export type BrowserContext = 'native' | 'inapp-fb' | 'inapp-zalo' | 'inapp-other' | 'pwa' | 'browser'
+export function browserContext(uaArg?: string): BrowserContext {
+  if (typeof navigator === 'undefined' && uaArg === undefined) return 'browser'
+  const ua = uaArg ?? navigator.userAgent ?? ''
+  if (typeof window !== 'undefined' && insideEnoApp(ua)) return 'native'
+  const host = inAppHost(ua)
+  if (host === 'facebook' || host === 'messenger') return 'inapp-fb'
+  if (host === 'zalo') return 'inapp-zalo'
+  if (host) return 'inapp-other'
+  try {
+    if ((navigator as Navigator & { standalone?: boolean }).standalone === true) return 'pwa'
+    if (typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)').matches) return 'pwa'
+  } catch { /* no matchMedia — a browser */ }
+  return 'browser'
+}
+
+/** Phone or desktop, coarsely: a touch-first device (no hover, coarse pointer) is a phone — tablets included. */
+export function deviceClass(): 'phone' | 'desktop' {
+  try {
+    if (typeof window !== 'undefined' && window.matchMedia?.('(hover: none) and (pointer: coarse)').matches) return 'phone'
+  } catch { /* no matchMedia */ }
+  return 'desktop'
+}
+
 export function isIOS(): boolean {
   if (typeof navigator === 'undefined') return false
   const ua = navigator.userAgent || ''

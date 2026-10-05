@@ -4,6 +4,10 @@ import { useEffect, useRef, useMemo } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { SignInCard } from '@/components/marketplace/sign-in-card'
 import type { SignInPrompt } from '@/context/auth-context'
+import { googleOauthBlocked } from '@/lib/in-app-browser'
+import { isNativeApp } from '@/lib/native-auth'
+import type { PendingIntent } from '@/lib/pending-intent'
+import type { SignInGate } from '@/lib/signup-prompt'
 
 type Props = {
   open: boolean
@@ -18,6 +22,10 @@ type Props = {
   note?: string
   /** The "Join eno" prompt's join presentation (see SignInContext.prompt). */
   prompt?: SignInPrompt
+  /** Which gate opened it (UX3 J1's per-gate counters) — auth-context classifies it. */
+  gate?: SignInGate
+  /** The action a gate asked to finish after sign-in (UX3 J5). */
+  resume?: PendingIntent | null
 }
 
 /**
@@ -61,7 +69,7 @@ const JOIN_FRAME = [
  * "Continue with email or phone", both of which only opened this dialog — a whole extra tap and a
  * second decision in front of a visitor who had already decided.
  */
-export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, sellerName, note, prompt }: Props) {
+export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, sellerName, note, prompt, gate, resume }: Props) {
   // A new prompt object is a new ask (signup-prompt.tsx builds one per ask) — a fresh key per ask.
   const askKey = useMemo(() => (prompt ? `ask-${Math.random().toString(36).slice(2)}` : 'none'), [prompt])
   // Whether the join presentation acts on presses yet. Starts false and drops back on every close, so
@@ -74,6 +82,18 @@ export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, s
     return () => clearTimeout(t)
   }, [open, prompt])
   const arming = () => !armed.current
+  /**
+   * ⛔ IN AN IN-APP BROWSER THE EMAIL FIELD TAKES THE FOCUS (UX3 J2) — the code is how a Facebook or Zalo
+   * visitor finishes here, and the form leads with it (SignInForm's `emailFirst`). Base UI's default on a
+   * TOUCH open is to focus the popup itself (to keep the keyboard down); for a sign-in the visitor asked
+   * for, the field they are about to type in is the right place. Everywhere else: the default.
+   * Only the visitor-opened popup — the join presentation appears on its own and never grabs a field.
+   */
+  const popupRef = useRef<HTMLDivElement>(null)
+  const initialFocus = () => {
+    if (!googleOauthBlocked() || isNativeApp()) return true
+    return popupRef.current?.querySelector<HTMLInputElement>('input[type="email"]') ?? true
+  }
   if (prompt) {
     return (
       <Dialog
@@ -106,7 +126,7 @@ export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, s
           caller passes any other max-w, so this card rendered 384px wide on a 390px phone — 3px from
           each edge (measured on prod). min(24rem, 100% − 1.5rem) keeps the 384px card everywhere it
           fits and the canonical 12px phone gutter (px-3) below 408px. */}
-      <DialogContent className="rounded-2xl shadow-overlay w-full max-w-[min(24rem,calc(100%-1.5rem))] sm:max-w-sm p-6 gap-0">
+      <DialogContent ref={popupRef} initialFocus={initialFocus} className="rounded-2xl shadow-overlay w-full max-w-[min(24rem,calc(100%-1.5rem))] sm:max-w-sm p-6 gap-0">
         {/*
           ⚠️ NO `DialogHeader` WRAPPER. It is a `flex flex-col gap-2` box meant for a title and a
           description, and `SignInCard` is title AND the whole form — so wrapping it put the email
@@ -120,6 +140,8 @@ export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, s
           listingImage={listingImage}
           sellerName={sellerName}
           note={note}
+          gate={gate}
+          resume={resume}
         />
       </DialogContent>
     </Dialog>

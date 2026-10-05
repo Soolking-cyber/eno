@@ -7,6 +7,9 @@ import type { User } from '@supabase/supabase-js'
 import { trackSignUp } from '@/lib/analytics'
 import { mayGateOnboarding } from '@/lib/onboarding-gate'
 import { clearAccountDeviceStorage } from '@/lib/sign-out-storage'
+import { classifyGate, noteGateOpen, pressedInChrome, settleGateSignIn, type PressInfo } from '@/lib/signin-gates'
+import { armIntent, dropIntent, markIntentRouted, pathnameOf, readIntent, type PendingIntent } from '@/lib/pending-intent'
+import type { SignInGate } from '@/lib/signup-prompt'
 /**
  * ⚠️ THE IDENTITY RULES LIVE IN A PURE MODULE — see auth-identity.ts for why (they shipped wrong
  * once, and testing them must not drag next/navigation and the Supabase browser client along).
@@ -92,6 +95,18 @@ export type SignInContext = {
    * button is SignInForm's own — same oauth(), same native and in-app-browser handling, same `next`.
    */
   prompt?: SignInPrompt
+  /**
+   * WHICH GATE ASKED (UX3 J1's per-gate counters, signup-prompt.ts SIGNIN_GATES). Callers this work
+   * owns name theirs; for the rest openSignIn classifies from where it happened (signin-gates.ts).
+   */
+  gate?: SignInGate
+  /**
+   * THE ACTION TO FINISH AFTER SIGN-IN (UX3 J5, src/lib/pending-intent.ts) — the intent the gate just
+   * wrote. It rides the sign-in's `next` as `resume=<kind>`; closing the popup without signing in drops
+   * it; signing in INSIDE this popup arms it. Absent = a sign-in that resumes nothing, and it supersedes
+   * any pending intent.
+   */
+  resume?: PendingIntent | null
 }
 
 /** The join presentation's two hooks back to the prompt that opened it. */
@@ -104,6 +119,13 @@ export type SignInPrompt = {
    * never counted as a dismissal; the prompt also re-checks for a user before counting (opus, plan review).
    */
   onDismiss?: () => void
+  /**
+   * The popup was TAKEN OVER while this ask was still up — another sign-in was opened in its place (an
+   * async 401's `eno:require-signin`, say), so `onDismiss` will never come for it. Not the visitor's ×
+   * and not an answer: the prompt only stops treating the ask as on screen (UX3 review, 2026-10-05 — it
+   * otherwise counted `left_open` for a prompt that was gone, and kept the install card out all page).
+   */
+  onReplaced?: () => void
 }
 
 type AuthCtx = {
@@ -333,6 +355,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const bootAuth = useRef<(() => void) | null>(null)
   const router = useRouter()
   const pathname = usePathname()
+  /**
+   * The popup's open state and context, for the auth listener (created once, in the boot effect) — so a
+   * session that appears WHILE a gate's popup is open can arm that gate's pending action (UX3 J5).
+   */
+  const signInOpenRef = useRef(false)
+  const signInCtxRef = useRef<SignInContext | null>(null)
+  useEffect(() => { signInOpenRef.current = signInOpen }, [signInOpen])
+  useEffect(() => { signInCtxRef.current = signInCtx }, [signInCtx])
+  /** A new open while the "Join eno" ask is still up takes the popup over: tell the prompt (onReplaced). */
+  const replacingPrompt = useCallback((next: SignInPrompt | null) => {
+    const prev = signInCtxRef.current?.prompt
+    if (signInOpenRef.current && prev && prev !== next) prev.onReplaced?.()
+  }, [])
+  /**
+   * The last press anywhere, reduced to "was it in the header or the tab bar" — what tells a sign-in
+   * opened from site chrome (the "nav" gate) apart from the rest when the caller names no gate (UX3 J1).
+   * Capture phase and passive: it observes, it never handles.
+   */
+  const lastPress = useRef<PressInfo | null>(null)
+  useEffect(() => {
+    const onPress = (e: Event) => { lastPress.current = { at: Date.now(), inChrome: pressedInChrome(e.target as Element | null) } }
+    window.addEventListener('pointerdown', onPress, { capture: true, passive: true })
+    window.addEventListener('keydown', onPress, { capture: true, passive: true })
+    return () => {
+      window.removeEventListener('pointerdown', onPress, { capture: true })
+      window.removeEventListener('keydown', onPress, { capture: true })
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -382,7 +432,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }).catch(fail)
         const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
           setUser(session?.user ?? null)
-          if (session?.user) { setSignInOpen(false); maybeTrackSignUp(session.user) }
+          if (session?.user) {
+            // ⚠️ UX3 J5 — A SESSION THAT ARRIVES WHILE A GATE'S POPUP IS OPEN IS THAT GATE'S SIGN-IN (the
+            // code typed in place; a magic link finished in another tab). It arms the gate's pending
+            // action, which is then honoured once the profile is loaded — the in-place proof that has no
+            // `resume=` in the address to carry it (src/lib/pending-intent.ts).
+            const ctx = signInCtxRef.current
+            if (signInOpenRef.current && ctx?.resume) armIntent(ctx.resume.nonce)
+            setSignInOpen(false); maybeTrackSignUp(session.user)
+          }
           // Native-shell Phase 2 · M2: mirror the session into native Preferences so
           // LOCAL shell pages (different origin — no cookie access) can restore it via
           // setSession and call the APIs with a Bearer token. Fire-and-forget; cleared
@@ -465,7 +523,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // threading openSignIn through every caller.
   useEffect(() => {
     // A plain open — so it must not inherit the context of the last one (see the dialog's onOpenChange).
-    const onReq = () => { bootAuth.current?.(); setSignInCtx(null); setSignInOpen(true) }
+    // ⚠️ `setEverOpened(true)` WAS MISSING: the popup only mounts once `everOpened` is set (see the render
+    // note below), so an `eno:require-signin` that came FIRST — visual search's 401 — opened nothing.
+    // It is an "other" gate for the per-gate counters (UX3 J1), and resumes nothing (J5).
+    const onReq = () => {
+      bootAuth.current?.()
+      replacingPrompt(null)
+      dropIntent()
+      noteGateOpen('other')
+      setSignInCtx({ gate: 'other' })
+      setEverOpened(true)
+      setSignInOpen(true)
+    }
     window.addEventListener('eno:require-signin', onReq)
     return () => window.removeEventListener('eno:require-signin', onReq)
   }, [])
@@ -632,6 +701,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.replace(`/onboard?next=${encodeURIComponent(here)}`)
   }, [user, identityLoaded, accountType, pathname, router])
 
+  /**
+   * UX3 J1 — A SIGN-IN THAT FOLLOWS A GATE'S METHOD WITHIN THE HOUR IS THAT GATE'S COMPLETION, counted
+   * once on this device (signin-gates.ts spends the record). Every tab that sees the session asks; the
+   * first one spends it.
+   */
+  useEffect(() => { if (user) settleGateSignIn() }, [user])
+
+  /**
+   * UX3 J5 — A CHAT OR OFFER STARTED FROM A CARD FINISHES ON ITS LISTING. A card has no composer, so a
+   * guest who signed in from a card's quick action IN PLACE (the code in the popup, or /onboard handing
+   * back to the feed) is taken to that listing once, where ContactComposer honours the intent: the
+   * opener ready to send, or the offer with its amount — never sent by itself. The Google round trip
+   * needs none of this: its `next` already is the listing. Only an ARMED intent (signed in inside its own
+   * popup) moves anyone, and only once (`routed`).
+   */
+  useEffect(() => {
+    if (!user || !identityLoaded || !accountType) return
+    if (!pathname || /^\/(signin|auth|onboard)(\/|$)/.test(pathname)) return
+    const it = readIntent()
+    // `away` = asked from a card / row / video, finished on the listing: never a gate on that page itself.
+    if (!it || (it.kind !== 'chat' && it.kind !== 'offer') || !it.armed || !it.away || it.routed) return
+    if (pathnameOf(it.path) === pathname) return
+    markIntentRouted(it.nonce)
+    router.push(it.path)
+  }, [user, identityLoaded, accountType, pathname, router])
+
   const signOut = useCallback(async (opts?: { scope?: 'global' | 'local' }) => {
     // Tear down Web Push FIRST so a shared device never keeps delivering the
     // previous user's reminders to the next person who signs in here.
@@ -699,7 +794,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Sticky: flipped true on the first open and never back. See the render note below — it is what
   // lets the dialog's declared exit animation actually run, without loading its chunk up front.
   const [everOpened, setEverOpened] = useState(false)
-  const openSignIn = useCallback((ctx?: SignInContext | null) => { bootAuth.current?.(); setSignInCtx(ctx ?? null); setEverOpened(true); setSignInOpen(true) }, [])
+  /**
+   * Open THE popup. UX3: the gate is classified here (signin-gates.ts) and counted as an opening — the
+   * timed prompt counts itself — and an ask that carries no `resume` supersedes any pending action, so
+   * an earlier gate's intent can never be finished by an unrelated sign-in.
+   */
+  const openSignIn = useCallback((ctx?: SignInContext | null) => {
+    bootAuth.current?.()
+    const c = ctx ?? null
+    const gate = classifyGate({
+      explicit: c?.gate,
+      prompt: !!c?.prompt,
+      listing: !!c?.listingTitle,
+      pathname: typeof window === 'undefined' ? null : window.location.pathname,
+      press: lastPress.current,
+      now: Date.now(),
+    })
+    replacingPrompt(c?.prompt ?? null)
+    if (!c?.resume) dropIntent()
+    if (gate !== 'timed') noteGateOpen(gate)
+    setSignInCtx({ ...(c ?? {}), gate })
+    setEverOpened(true)
+    setSignInOpen(true)
+  }, [])
   // Memoized: opening/closing the sign-in dialog is signInOpen state on THIS
   // provider — without useMemo every useAuth consumer re-rendered on each toggle.
   const value = useMemo(() => ({ user, loading, accountType, sellerId, identityLoaded, signOut, openSignIn, markOnboarded }), [user, loading, accountType, sellerId, identityLoaded, signOut, openSignIn, markOnboarded])
@@ -731,12 +848,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
            * `openSignIn(ctx)` writes it (null when none) and `eno:require-signin` clears it.
            * A close the VISITOR made (×, Esc, backdrop) is the prompt's dismissal.
            */
-          onOpenChange={(o) => { setSignInOpen(o); if (!o) { signInCtx?.prompt?.onDismiss?.(); signInCtx?.onDismiss?.() } }}
+          onOpenChange={(o) => {
+            setSignInOpen(o)
+            if (!o) {
+              // Closed by the visitor without signing in: the gate's pending action goes with it (J5).
+              if (signInCtx?.resume) dropIntent(signInCtx.resume.nonce)
+              signInCtx?.prompt?.onDismiss?.()
+              signInCtx?.onDismiss?.()
+            }
+          }}
           listingTitle={signInCtx?.listingTitle}
           listingImage={signInCtx?.listingImage}
           sellerName={signInCtx?.sellerName}
           note={signInCtx?.note}
           prompt={signInCtx?.prompt}
+          gate={signInCtx?.gate}
+          resume={signInCtx?.resume ?? null}
         />
       )}
     </AuthContext.Provider>

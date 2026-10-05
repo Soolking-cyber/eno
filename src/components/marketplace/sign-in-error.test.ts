@@ -102,6 +102,13 @@ describe('codes map to copy a person can act on', () => {
     expect(signInErrorText({ code: 'cooldown' }, t)).toContain('30')
   })
 
+  it('⛔ "could not send the email" promises no phone sign-in while phone sign-in is off (UX3 J2)', async () => {
+    const { PHONE_OTP_ENABLED } = await import('@/lib/auth-policy')
+    expect(PHONE_OTP_ENABLED).toBe(false)
+    expect(signInErrorText({ code: 'send_failed' }, t)).toBe("We couldn't send the email just now. Try again in a moment.")
+    expect(signInErrorText({ code: 'send_failed' }, (_en, vi) => vi)).not.toMatch(/số điện thoại|SĐT/)
+  })
+
   it('shows provider text verbatim rather than flattening it to "something went wrong"', () => {
     expect(signInErrorText({ code: 'raw', message: 'Email rate limit exceeded' }, t))
       .toBe('Email rate limit exceeded')

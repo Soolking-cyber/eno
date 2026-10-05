@@ -40,7 +40,9 @@ export function GuestAccountSheet({ open, onOpenChange, signInNote }: { open: bo
   const signIn = () => {
     handingOff.current = true
     onOpenChange(false)
-    openSignIn(signInNote ? { note: signInNote } : undefined)
+    // The tab bar's Account sign-in: the `nav` gate in the per-gate counters (UX3 J1) — this sheet is a
+    // portal, outside the <nav> whose presses auth-context recognises on their own.
+    openSignIn(signInNote ? { note: signInNote, gate: 'nav' } : { gate: 'nav' })
   }
 
   // A row that goes somewhere: 48px, full width, trailing chevron. Closing on click keeps the sheet

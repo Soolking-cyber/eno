@@ -2,10 +2,12 @@
 
 import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { ArtImage } from '@/components/marketplace/art-image'
 import { X } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { isIOS } from '@/lib/in-app-browser'
+import { askHidden, askShown, mayAsk, notePageView } from '@/lib/page-asks'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 
@@ -37,6 +39,24 @@ const SESSION_KEY = 'eno-visit-counted'
 export function InstallHint() {
   const { tr } = useLanguage()
   const [mode, setMode] = useState<'ios' | 'android' | null>(null)
+  /**
+   * ⛔ NEVER TWO ASKS IN ONE PAGE VIEW (UX3 J7f, 2026-10-05 — src/lib/page-asks.ts): when the timer
+   * comes due while the "Join eno" prompt is up, or in a page view it appeared in, the card waits here
+   * and shows on the next page the visitor opens. Nothing else about when it asks changes.
+   */
+  const [due, setDue] = useState<'ios' | 'android' | null>(null)
+  const pathname = usePathname()
+  useEffect(() => {
+    notePageView(pathname)
+    if (!due || mode) return
+    if (!mayAsk('install', pathname)) return
+    askShown('install', pathname)
+    setMode(due)
+    setDue(null)
+  }, [due, mode, pathname])
+  // Off the screen when it goes, however it goes (dismissed, Get, or the provider unmounting).
+  useEffect(() => { if (!mode) askHidden('install') }, [mode])
+  useEffect(() => () => askHidden('install'), [])
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -59,7 +79,7 @@ export function InstallHint() {
         sessionStorage.setItem(SESSION_KEY, '1')
       }
       const delay = visits >= 2 ? 4000 : 75_000
-      timer = setTimeout(() => setMode(ios ? 'ios' : 'android'), delay)
+      timer = setTimeout(() => setDue(ios ? 'ios' : 'android'), delay)
     } catch {
       /* storage blocked — silently skip */
     }

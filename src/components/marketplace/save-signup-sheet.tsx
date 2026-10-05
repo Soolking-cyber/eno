@@ -38,7 +38,8 @@ export function SaveSignupSheet() {
         if (localStorage.getItem('eno:save-sheet-done')) return
         localStorage.setItem('eno:save-sheet-done', '1')
       } catch { /* private mode — show it anyway, once per session */ }
-      openSignIn({ note: tr('Saved on this device. Sign in to message sellers and get alerts for new listings.', 'Đã lưu trên thiết bị này. Đăng nhập để nhắn tin với người bán và nhận thông báo tin mới.') })
+      // `first_save`: its own gate in the per-gate sign-in counters (UX3 J1).
+      openSignIn({ note: tr('Saved on this device. Sign in to message sellers and get alerts for new listings.', 'Đã lưu trên thiết bị này. Đăng nhập để nhắn tin với người bán và nhận thông báo tin mới.'), gate: 'first_save' })
     }
     window.addEventListener('eno:first-save', onFirstSave)
     return () => window.removeEventListener('eno:first-save', onFirstSave)

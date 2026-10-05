@@ -579,6 +579,6 @@ describe('the phone "Save search" pill (JOIN-SAVE)', () => {
     mount(client())
     await waitFor(() => expect(pill()).not.toBeNull())
     act(() => { pill()!.click() })
-    await waitFor(() => expect(h.openSignIn).toHaveBeenCalledWith({ note: 'Sign in to get alerts when new listings match this search.' }))
+    await waitFor(() => expect(h.openSignIn).toHaveBeenCalledWith(expect.objectContaining({ note: 'Sign in to get alerts when new listings match this search.' })))
   })
 })

@@ -67,3 +67,19 @@ export function pendingOnboardingStep(p: OnboardingState | null | undefined): 'a
   if (SIGNUP_REQUIRES_PHONE && !p.phone) return 'phone'
   return null
 }
+
+/**
+ * ⛔ PHONE SIGN-IN IS OFF AND SAYS SO (owner, 2026-08-17: "phone otp login say coming soon only show
+ * google and email magic link login options"). Flip this one constant to bring phone sign-in back —
+ * the sign-in form's tab and every line of copy that would offer it read it, nothing was deleted.
+ *
+ * ⚠️ THE PROVIDER AGREES, WHICH IS WHY THIS IS A FIX AND NOT A PREFERENCE. The live Supabase project
+ * answers `"phone": false` in /auth/v1/settings (measured 2026-08-18), and the Zalo ZNS channel is
+ * still blocked on the company registry.
+ *
+ * ⚠️ IT LIVES HERE, NOT IN sign-in-form.tsx, since UX3 J2 (2026-10-05): the Google hand-off screens and
+ * the email error copy told visitors to "use email or phone — it works right here" while the phone tab
+ * read "sắp có". Copy that offers phone sign-in now asks this constant first, and those screens must
+ * not import the whole sign-in form to read one boolean.
+ */
+export const PHONE_OTP_ENABLED = false

@@ -82,6 +82,33 @@ describe('sign-in emails · signup is visibly different from sign-in', () => {
   })
 })
 
+describe('sign-in emails · the code is readable from the notification (UX3 J2)', () => {
+  // Most code emails go to visitors signing in from Facebook's or Zalo's built-in browser: the subject is
+  // what a phone's notification banner shows, so the code must be in it — and in the preheader beside it.
+  const preheaderOf = (html: string) => /<!-- preheader --><div[^>]*>([^<]*)<\/div>/.exec(html)?.[1] ?? ''
+
+  it('⛔ never puts the code in the subject or the preheader — a notification banner is readable off a locked phone', () => {
+    // Sign-in is passwordless, so the code is the account (codex + opus, gate 2026-10-05). It is in the body only.
+    for (const lang of ['en', 'vi'] as const) {
+      for (const mode of ['signin', 'signup'] as const) {
+        const m = renderSignInCodeEmail({ code: CODE, origin: ORIGIN, email: EMAIL, lang, mode })
+        expect(m.subject, `${lang}/${mode}`).not.toContain(CODE)
+        expect(preheaderOf(m.html), `${lang}/${mode}`).not.toContain(CODE)
+        expect(m.text, `${lang}/${mode}`).toContain(CODE)
+      }
+    }
+    expect(renderSignInCodeEmail({ code: CODE, origin: ORIGIN, email: EMAIL, lang: 'vi' }).subject).toBe('Mã đăng nhập eno.vn của bạn')
+    expect(renderSignInCodeEmail({ code: CODE, origin: ORIGIN, email: EMAIL }).subject).toBe('Your eno.vn sign-in code')
+  })
+
+  it('no longer says "in the app" — the code is typed in an in-app browser or a browser as often as in the app', () => {
+    for (const lang of ['en', 'vi'] as const) {
+      const { html, text } = renderSignInCodeEmail({ code: CODE, origin: ORIGIN, email: EMAIL, lang })
+      expect(html + text).not.toMatch(/in the app|in the eno\.vn app|trong ứng dụng/)
+    }
+  })
+})
+
 describe('sign-in emails · the site name is a parameter, never a literal', () => {
   // Both editions send these. A literal "eno.vn" mailed eno.forum visitors "Sign in to eno.vn".
   it('names whichever site the caller passes, in every mode and language', () => {

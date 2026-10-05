@@ -7,6 +7,8 @@ import { useLanguage } from '@/context/language-context'
 import { SignInForm } from '@/components/marketplace/sign-in-form'
 import { Bell, MessageCircle, Tag } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
+import type { PendingIntent } from '@/lib/pending-intent'
+import type { SignInGate } from '@/lib/signup-prompt'
 
 /**
  * THE ONE SIGN-IN SURFACE — owner, 2026-08-28: "unify all login signup pages to this only 1 popup
@@ -33,6 +35,8 @@ export function SignInCard({
   sellerName,
   note,
   join,
+  gate,
+  resume,
 }: {
   className?: string
   /**
@@ -58,6 +62,10 @@ export function SignInCard({
    * browsing for a minute. Only the dialog passes it. See `SignInPrompt` in auth-context.tsx.
    */
   join?: { onMethod?: (method: 'google' | 'email') => void }
+  /** Which gate opened it (UX3 J1) — the /signin page passes nothing and is the `page` gate. */
+  gate?: SignInGate
+  /** The action to finish after sign-in (UX3 J5) — see SignInForm's `resume`. */
+  resume?: PendingIntent | null
 }) {
   const { tr } = useLanguage()
   const seller = sellerName || tr('the seller', 'người bán')
@@ -93,7 +101,7 @@ export function SignInCard({
             <span>{tr('Post your own listings for free', 'Đăng tin bán miễn phí')}</span>
           </li>
         </ul>
-        <SignInForm className="mt-4" collapseEmail onMethod={join.onMethod} />
+        <SignInForm className="mt-4" collapseEmail onMethod={join.onMethod} gate="timed" />
       </div>
     )
   }
@@ -132,7 +140,7 @@ export function SignInCard({
       {!listingTitle && note ? (
         <p data-sign-in-note="" className="mt-1.5 text-center text-xs text-muted-foreground">{note}</p>
       ) : null}
-      <SignInForm className="mt-4" />
+      <SignInForm className="mt-4" gate={gate} resume={resume} />
     </div>
   )
 }

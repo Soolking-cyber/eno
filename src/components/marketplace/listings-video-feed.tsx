@@ -17,7 +17,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { pushBlackStatusBar } from '@/components/native/native-bootstrap'
-import { stashQuickCompose } from '@/lib/quick-contact'
+import { quickActionSignIn, stashQuickCompose } from '@/lib/quick-contact'
 import { optimizedImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -301,8 +301,11 @@ function VideoFeedItem({
   }
 
   const chat = () => {
-    if (!user) { if (!authLoading) openSignIn({ listingTitle: title, listingImage: listing.images[0] ?? null }); return }
-    if (stashQuickCompose(listing, { body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') })) router.push('/messages/pending')
+    const body = tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?')
+    // A guest's chat is remembered and finished on the listing's page after sign-in (UX3 J5) — the same
+    // quick-action gate as the card and the list row.
+    if (!user) { if (!authLoading) openSignIn({ listingTitle: title, listingImage: listing.images[0] ?? null, ...quickActionSignIn(listing, { body }) }); return }
+    if (stashQuickCompose(listing, { body })) router.push('/messages/pending')
     else router.push(`/listings/${listing.id}#contact`)
   }
   const share = useCallback(async () => {

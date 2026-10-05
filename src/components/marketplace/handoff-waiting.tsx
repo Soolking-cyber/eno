@@ -113,7 +113,13 @@ export function HandoffWaiting({ nonce }: { nonce: string }) {
     } finally { setBusy(false) }
   }
 
-  const useEmail = () => router.replace('/signin')
+  // To the sign-in form, which leads with the emailed code here — and still returns to where the visitor
+  // was going (with its `resume=` for a gate's pending action, UX3 J5), not to the home page.
+  const useEmail = () => {
+    let next = '/'
+    try { next = safeNextPath(localStorage.getItem(HANDOFF_NEXT_KEY), window.location.origin) || '/' } catch { /* private mode */ }
+    router.replace(next === '/' ? '/signin' : `/signin?next=${encodeURIComponent(next)}`)
+  }
 
   return (
     <div className="mx-auto flex min-h-[60vh] w-full max-w-md flex-col items-center justify-center px-6 text-center">
@@ -163,22 +169,25 @@ export function HandoffWaiting({ nonce }: { nonce: string }) {
         </>
       )}
 
+      {/* ⛔ NO "EMAIL OR PHONE" (UX3 J2, 2026-10-05): phone sign-in is off ("sắp có"), and this screen is
+          inside Facebook, Zalo or a home-screen app, never "the app" eno. "A code … right here on the page
+          you're viewing" is what is true — /signin there leads with the emailed code. */}
       {phase === 'expired' && (
         <>
           <h1 className="text-lg font-extrabold tracking-tight text-foreground">{tr('That took too long', 'Quá thời gian chờ')}</h1>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            {tr('The sign-in expired before it was finished. Use email or phone — they work right here without leaving the app.', 'Lượt đăng nhập đã hết hạn. Dùng email hoặc SĐT — vẫn hoạt động ngay trong ứng dụng.')}
+            {tr('The sign-in expired before it was finished. Sign in with a code instead — it works right here, on the page you’re viewing.', 'Lượt đăng nhập đã hết hạn. Hãy đăng nhập bằng mã — vẫn hoạt động ngay trên trang bạn đang xem.')}
           </p>
           <Button variant="cta" size="none" type="button" onClick={useEmail} className="mt-5 w-full py-3">
-            {tr('Use email or phone', 'Dùng email hoặc SĐT')}
+            {tr('Sign in with a code', 'Đăng nhập bằng mã')}
           </Button>
         </>
       )}
 
-      {/* ⚠️ Always one tap away, in every phase — email and phone genuinely work in this context. */}
+      {/* ⚠️ Always one tap away, in every phase — the emailed code genuinely works in this context. */}
       {phase !== 'expired' && (
         <Button variant="bare" size="none" type="button" onClick={useEmail} className="mt-6 text-xs font-semibold text-ink-4 hover:text-foreground">
-          {tr('Cancel and use email or phone', 'Huỷ và dùng email hoặc SĐT')}
+          {tr('Cancel and sign in with a code', 'Huỷ và đăng nhập bằng mã')}
         </Button>
       )}
     </div>

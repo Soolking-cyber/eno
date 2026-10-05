@@ -1,4 +1,5 @@
 import { isNonce } from '@/lib/auth/handoff'
+import { parseHandoffVia } from '@/lib/auth/handoff-client'
 import { HandoffConfirm } from '@/components/marketplace/handoff-confirm'
 
 // Runs in the REAL BROWSER, immediately after Google. The visitor's authorization code is parked;
@@ -10,7 +11,8 @@ import { HandoffConfirm } from '@/components/marketplace/handoff-confirm'
 // signed-in eno.vn and never think to switch back to the app that is still waiting.
 export const dynamic = 'force-dynamic'
 
-export default async function ConfirmPage({ searchParams }: { searchParams: Promise<{ h?: string; ok?: string }> }) {
-  const { h, ok } = await searchParams
-  return <HandoffConfirm nonce={isNonce(h) ? h : null} parked={ok === '1'} />
+export default async function ConfirmPage({ searchParams }: { searchParams: Promise<{ h?: string; ok?: string; via?: string }> }) {
+  const { h, ok, via } = await searchParams
+  // `via` (UX3 J2): the app the visitor started in, so the copy can name it — allow-listed, else neutral.
+  return <HandoffConfirm nonce={isNonce(h) ? h : null} parked={ok === '1'} via={parseHandoffVia(via)} />
 }

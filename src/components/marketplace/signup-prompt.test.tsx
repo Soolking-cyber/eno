@@ -5,6 +5,10 @@ import { act, cleanup, render } from '@testing-library/react'
 import '@/lib/bot-ua' // in the module cache, so the controller's lazy import settles inside a tick
 import { AGAIN_AFTER_MS, DEVICE_KEY, PAUSE_MS, TAB_KEY, TEST_KEY } from '@/lib/signup-prompt'
 import type { SignInContext } from '@/context/auth-context'
+import { __resetPageAsksForTests, askHidden, askShown } from '@/lib/page-asks'
+
+/** The cookie consent's legacy refusal key — an ANSWER (consent.ts), which starts the prompt's clock (UX3 J7a). */
+const CONSENT_KEY = 'eno-cookie-consent'
 
 // ── The "Join eno" prompt's controller (owner, 2026-10-01: ask after a minute; dismissible; returns) ──
 // useAuth is stubbed: the controller's whole contract with auth is "who is signed in, is it known yet,
@@ -73,6 +77,9 @@ beforeEach(() => {
   vi.useFakeTimers({ now: T0 })
   vi.stubGlobal('localStorage', memoryStorage())
   vi.stubGlobal('sessionStorage', memoryStorage())
+  // The visitor has answered the cookie consent: the prompt's minute only runs after that (UX3 J7a).
+  localStorage.setItem(CONSENT_KEY, 'essential')
+  __resetPageAsksForTests()
   Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility })
   Object.defineProperty(navigator, 'webdriver', { configurable: true, get: () => webdriver })
   Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => ua })
@@ -106,7 +113,7 @@ describe('SignupPrompt — when', () => {
     expect(opens()).toBe(0)
     await advance(2_000)
     expect(opens()).toBe(1)
-    expect(ctx().prompt).toEqual({ onMethod: expect.any(Function), onDismiss: expect.any(Function) })
+    expect(ctx().prompt).toEqual({ onMethod: expect.any(Function), onDismiss: expect.any(Function), onReplaced: expect.any(Function) })
     expect(track).toHaveBeenCalledWith('shown', { count: 1 })
   })
 
@@ -194,9 +201,15 @@ describe('SignupPrompt — when', () => {
     const throwing = { getItem: () => { throw new Error('blocked') }, setItem: () => { throw new Error('blocked') } }
     vi.stubGlobal('localStorage', throwing)
     vi.stubGlobal('sessionStorage', throwing)
-    mount()
-    await advance(61_000)
-    expect(opens()).toBe(1)
+    // The consent answer lives in a cookie too — the one place it can be read with storage blocked.
+    document.cookie = `${CONSENT_KEY}=essential; path=/`
+    try {
+      mount()
+      await advance(61_000)
+      expect(opens()).toBe(1)
+    } finally {
+      document.cookie = `${CONSENT_KEY}=; path=/; max-age=0`
+    }
   })
 })
 
@@ -273,6 +286,42 @@ describe('SignupPrompt — who', () => {
     await advance(10 * 60_000)
     expect(opens()).toBe(0)
   })
+
+  it.each([
+    ['Facebook (iOS)', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/FBIOS;FBDV/iPhone14,5;FBMD/iPhone;FBSN/iOS;FBSV/18.0;FBLC/vi_VN]'],
+    ['Zalo (Android)', 'Mozilla/5.0 (Linux; Android 14; SM-A546E Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/141.0.0.0 Mobile Safari/537.36 Zalo android/12210160 ZaloTheme/light ZaloLanguage/vn'],
+    ['Instagram', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 350.0.0.0 (iPhone14,5; iOS 18_0; vi_VN)'],
+  ])('⛔ UX3 J2: never on its own inside an in-app browser — %s', async (_n, inApp) => {
+    ua = inApp
+    localStorage.setItem(TEST_KEY, '1500') // not even with the test override: a product rule, not an automation guard
+    mount()
+    await advance(10 * 60_000)
+    expect(opens()).toBe(0)
+    expect(await counts()).toEqual([])
+  })
+})
+
+describe('SignupPrompt — never two asks in one page view (UX3 J7f)', () => {
+  it('⛔ waits while the app-install card is up, and in the page view it appeared in — then asks on the next page', async () => {
+    askShown('install', '/')
+    mount()
+    await advance(3 * 60_000)
+    expect(opens()).toBe(0)
+    askHidden('install') // dismissed — but it appeared in THIS page view
+    await advance(60_000)
+    expect(opens()).toBe(0)
+    goTo('/c/phones') // the next page view
+    await advance(1_000)
+    expect(opens()).toBe(1)
+  })
+
+  it('an install card still up across a navigation keeps the next page view too', async () => {
+    askShown('install', '/')
+    mount()
+    goTo('/rentals')
+    await advance(2 * 60_000)
+    expect(opens()).toBe(0)
+  })
 })
 
 describe('SignupPrompt — where, and never over anything else', () => {
@@ -305,16 +354,23 @@ describe('SignupPrompt — where, and never over anything else', () => {
     expect(opens()).toBe(0)
   })
 
-  it('opens over the UNANSWERED auto cookie bar (it hides under the scrim) — ignoring the bar must not hide the prompt', async () => {
+  it('⛔ UX3 J7a: the minute starts once the cookie consent is ANSWERED — never over the unanswered bar', async () => {
+    localStorage.removeItem(CONSENT_KEY)
     const bar = document.createElement('div')
     bar.setAttribute('role', 'dialog')
     bar.setAttribute('data-open', '')
     bar.setAttribute('data-consent-auto', '')
     document.body.appendChild(bar)
     mount()
-    await advance(61_000)
-    expect(opens()).toBe(1)
+    await advance(5 * 60_000)
+    expect(opens()).toBe(0)
+    // The visitor answers (either way): the bar goes, and the clock starts from here — not from page load.
+    localStorage.setItem(CONSENT_KEY, 'essential')
     bar.remove()
+    await advance(58_000)
+    expect(opens()).toBe(0)
+    await advance(3_000)
+    expect(opens()).toBe(1)
   })
 
   it('⛔ waits while the cookie consent card is open, then asks at the next calm second', async () => {
@@ -370,12 +426,70 @@ describe('SignupPrompt — what it reports', () => {
 })
 
 describe('SignupPrompt — the anonymous daily totals (owner: "how many pressed x, bounced, and how many signed up")', () => {
-  it('⛔ counted WITHOUT analytics consent — the beacon carries the event name and nothing else', async () => {
+  it('⛔ counted WITHOUT analytics consent — the beacon carries the event name and the coarse class, nothing else', async () => {
     mount()
     await advance(61_000)
     expect(await counts()).toEqual(['shown'])
     const body = await beaconBlobs[0].text()
-    expect(JSON.parse(body)).toEqual({ e: 'shown' })
+    // jsdom: no matchMedia (→ desktop), no <html lang> (→ en), an ordinary Chrome UA (→ browser). UX3 J1.
+    expect(JSON.parse(body)).toEqual({ e: 'shown', c: 'browser.desktop.en' })
+  })
+
+  it('UX3 J1: the class names the kind of browser, the device and the language — and nothing finer', async () => {
+    document.documentElement.lang = 'vi'
+    const mm = vi.fn((q: string) => ({ matches: q.includes('pointer: coarse') }))
+    vi.stubGlobal('matchMedia', mm)
+    try {
+      mount()
+      await advance(61_000)
+      expect(JSON.parse(await beaconBlobs[0].text())).toEqual({ e: 'shown', c: 'browser.phone.vi' })
+    } finally {
+      document.documentElement.lang = ''
+    }
+  })
+
+  it('⛔ UX3 J1: left_open — the page hidden with the prompt still open and unanswered — counted ONCE per show', async () => {
+    mount()
+    await advance(61_000)
+    await setVisible('hidden')
+    await setVisible('visible')
+    // A bfcache round trip keeps the controller's memory: hidden again, page hidden again — nothing more.
+    await act(async () => { window.dispatchEvent(new Event('pagehide')) })
+    await setVisible('hidden')
+    await setVisible('visible')
+    expect(await counts()).toEqual(['shown', 'left_open'])
+    // …and it can still be closed afterwards (left, came back, closed it): that is a dismissal too.
+    await act(async () => { ctx().prompt!.onDismiss!() })
+    expect(await counts()).toEqual(['shown', 'left_open', 'dismissed'])
+  })
+
+  it('UX3 J1: no left_open once the prompt was answered or closed', async () => {
+    mount()
+    await advance(61_000)
+    ctx().prompt!.onMethod!('email') // typing a code, then off to the mail app — not leaving
+    await setVisible('hidden')
+    await setVisible('visible')
+    await act(async () => { window.dispatchEvent(new Event('pagehide')) })
+    expect(await counts()).toEqual(['shown', 'email_click'])
+  })
+
+  it('UX3 review: a prompt whose popup another sign-in took over is off the screen — no left_open, and the install card may ask', async () => {
+    mount()
+    await advance(61_000)
+    await act(async () => { ctx().prompt!.onReplaced!() })
+    await setVisible('hidden')
+    expect(await counts()).toEqual(['shown'])
+    const { mayAsk } = await import('@/lib/page-asks')
+    goTo('/c/phones')
+    expect(mayAsk('install', '/c/phones')).toBe(true)
+  })
+
+  it('UX3 J1: closed with × and then hidden is not "left open"', async () => {
+    mount()
+    await advance(61_000)
+    await act(async () => { ctx().prompt!.onDismiss!() })
+    await setVisible('hidden')
+    expect(await counts()).toEqual(['shown', 'dismissed'])
   })
 
   it('× then another page in the same tab: dismissed, then dismissed_then_continued — once', async () => {

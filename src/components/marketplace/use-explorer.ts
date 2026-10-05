@@ -4,10 +4,21 @@
 // ~2100-line component to keep it readable. Each is behaviour-preserving (same effects, same
 // deps): the component just calls the hook and consumes its return.
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { createElement, useState, useEffect, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
+import { Button } from '@/components/ui/button'
+import {
+  addressResumeKind,
+  decideResume,
+  pathnameOf,
+  readIntent,
+  stripResumeFromAddress,
+  takeIntent,
+  writeIntent,
+  type IntentPayload,
+} from '@/lib/pending-intent'
 import type { Geo } from './area-filter'
 import { readRecentSearches, readRecentLocations, RECENT_LOCATIONS_KEY, type RecentLocation } from '@/hooks/use-search-box'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
@@ -127,29 +138,93 @@ export function hasSavableSearch(f: SaveSearchFilters): boolean {
 }
 
 /** Save the current filter set as a Saved Search (buyer gets alerted on new matches). Reads a
- *  read-only filter bag; writes ZERO component state — network + toast + openSignIn only. */
+ *  read-only filter bag; writes ZERO component state — network + toast + openSignIn only.
+ *
+ *  ⛔ UX3 J5 (2026-10-05) — A GUEST'S SAVE IS FINISHED AFTER SIGN-IN. The 401 used to open sign-in and
+ *  forget the search; the visitor came back (after Google, after /onboard) to an unsaved search and had
+ *  to find the button again. Now the 401 writes the search as a pending intent (src/lib/pending-intent.ts
+ *  — the rental check's resume pattern, shared) and this hook saves THOSE params once the user and their
+ *  profile are loaded, through this same `post` — the existing save, not a second one (the phone's
+ *  save-search pill (JOIN-SAVE) calls the function this returns, and inherits all of it). A `resume=` with
+ *  nothing trusted behind it (a crafted link, a magic link's new tab) only offers one tap: "Save". */
 export function useSaveSearch(filters: SaveSearchFilters) {
   const { tr } = useLanguage()
-  const { openSignIn } = useAuth()
+  const { user, loading, identityLoaded, accountType, openSignIn } = useAuth()
   const savingSearch = useRef(false)
-  const {
-    activeCategory, activeSubcategory, activeBrand, activeModel, listingType,
-    debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters,
-  } = filters
-  return useCallback(async () => {
+
+  /** POST one saved search — the one save, for the button and for the resume alike. */
+  const post = useCallback(async (params: Record<string, unknown>) => {
     if (savingSearch.current) return // block double-tap → duplicate rows → duplicate cron alerts
     savingSearch.current = true
-    const params = saveSearchParams({
-      activeCategory, activeSubcategory, activeBrand, activeModel, listingType,
-      debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters,
-    })
     try {
       const res = await fetch('/api/saved-searches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ params }) })
-      if (res.status === 401) { openSignIn({ note: tr('Sign in to get alerts when new listings match this search.', 'Đăng nhập để nhận thông báo khi có tin mới khớp với tìm kiếm này.') }); return }
+      if (res.status === 401) {
+        // UX3 J5: remember exactly what was asked for — finished after sign-in (see the resume below).
+        const it = writeIntent('saveSearch', { params }, `${window.location.pathname}${window.location.search}`)
+        openSignIn({ note: tr('Sign in to get alerts when new listings match this search.', 'Đăng nhập để nhận thông báo khi có tin mới khớp với tìm kiếm này.'), gate: 'save_search', resume: it })
+        return
+      }
       if (res.status === 409) { toast.error(tr("You've reached the saved-search limit", 'Bạn đã đạt giới hạn tìm kiếm đã lưu')); return }
       if (!res.ok) throw new Error()
       toast.success(tr("Saved — we'll alert you on new matches", 'Đã lưu — sẽ báo khi có tin mới phù hợp'))
     } catch { toast.error(tr('Could not save search', 'Không thể lưu tìm kiếm')) }
     finally { savingSearch.current = false }
-  }, [activeCategory, activeSubcategory, activeBrand, activeModel, listingType, debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters, tr, openSignIn])
+  }, [tr, openSignIn])
+
+  const save = useCallback(async () => {
+    // JSON drops the undefined fields exactly as the body always has; the stored intent keeps the same shape.
+    await post(JSON.parse(JSON.stringify(saveSearchParams(filters))) as Record<string, unknown>)
+    // Keyed on the fields, not the bag's identity (a new object every render).
+  }, [filters.activeCategory, filters.activeSubcategory, filters.activeBrand, filters.activeModel, filters.listingType, filters.debouncedQuery, filters.activeDistrict, filters.conditionFilter, filters.priceRange, filters.customFilters, post])
+
+  // The latest closures, for the resume — which runs once, from an effect keyed on auth alone.
+  const postRef = useRef(post)
+  const saveRef = useRef(save)
+  useEffect(() => { postRef.current = post; saveRef.current = save })
+
+  /**
+   * THE RESUME, ONCE PER PAGE LIFE — the rental check's rule: only once the user AND their profile are
+   * loaded (a new account is sent to /onboard first; saving before that would race the redirect).
+   *   act     — a fresh intent for THIS page, proven by `resume=saveSearch` in the address (a sign-in
+   *             return in this tab) or by a sign-in inside its own popup: save the params it holds;
+   *   confirm — `resume=saveSearch` with nothing trusted behind it: one tap, "Save" (the search on screen);
+   *   a guest who lands on a `resume=` link: the marker is just removed.
+   */
+  const resumeRan = useRef(false)
+  useEffect(() => {
+    if (resumeRan.current || loading) return
+    const urlKind = addressResumeKind()
+    if (!user) {
+      if (urlKind === 'saveSearch') stripResumeFromAddress()
+      return
+    }
+    if (!identityLoaded || !accountType) return
+    const d = decideResume({
+      urlKind,
+      intent: readIntent(),
+      kinds: ['saveSearch'],
+      matches: (it) => pathnameOf(it.path) === window.location.pathname,
+    })
+    if (d.action === 'none') return
+    resumeRan.current = true
+    stripResumeFromAddress()
+    if (d.action === 'act') {
+      if (takeIntent(d.intent.nonce)) void postRef.current((d.intent.payload as IntentPayload['saveSearch']).params)
+      return
+    }
+    // ⚠️ A real <Button> in the toast, not sonner's 24px `{ label, onClick }` — the use-undo-window recipe:
+    // `tap-44` for a 44px hit area, `relative` to keep the pseudo on it, and the click closes the toast.
+    const id = toast(tr('You’re signed in — save this search to get alerts on new listings?', 'Bạn đã đăng nhập — lưu tìm kiếm này để nhận thông báo khi có tin mới?'), {
+      duration: 15_000,
+      action: createElement(Button, {
+        type: 'button',
+        variant: 'outline',
+        size: 'sm',
+        className: 'relative ml-auto font-bold tap-44',
+        onClick: () => { toast.dismiss(id); void saveRef.current() },
+      }, tr('Save', 'Lưu')),
+    })
+  }, [user, loading, identityLoaded, accountType, tr])
+
+  return save
 }

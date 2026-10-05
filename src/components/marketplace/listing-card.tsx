@@ -54,7 +54,7 @@ import { useMounted } from '@/hooks/use-mounted'
 const CardVideo = dynamic(() => import('./card-video').then((m) => m.CardVideo), { ssr: false })
 const Slider = dynamic(() => import('@/components/ui/slider').then((m) => m.Slider), { ssr: false })
 
-import { stashQuickCompose } from '@/lib/quick-contact'
+import { quickActionSignIn, stashQuickCompose } from '@/lib/quick-contact'
 
 /**
  * ⛔ THE BLUR PLACEHOLDER IS GONE, AND ITS OWN COMMENT IS WHY. It said "matches the card's bg" and
@@ -186,9 +186,10 @@ function ListingCardImpl({
 
   // Quick actions land IN the conversation: stash the structured compose payload
   // and let /messages/pending create the thread + post it (same flow as the PDP
-  // composer). Guests get the sign-in dialog with listing context.
+  // composer). Guests get the sign-in dialog with listing context — and (UX3 J5) the action is
+  // remembered and finished on the listing's page after sign-in (quickActionSignIn), never sent by itself.
   const quickGo = (opts: { body?: string; offerAmount?: number | null }) => {
-    if (!user) { if (!authLoading) openSignIn({ listingTitle: displayTitle, listingImage: images[0] ?? null }); return }
+    if (!user) { if (!authLoading) openSignIn({ listingTitle: displayTitle, listingImage: images[0] ?? null, ...quickActionSignIn(listing, opts) }); return }
     if (stashQuickCompose(listing, opts)) router.push('/messages/pending')
     else router.push(`/listings/${listing.id}#contact`)
   }

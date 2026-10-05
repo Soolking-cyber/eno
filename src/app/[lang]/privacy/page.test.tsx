@@ -177,11 +177,18 @@ describe('/privacy — the facts it states match the code', () => {
     }
   })
 
-  it('⛔ the "Join eno" reminder’s two keys are listed, hold no personal data, and the page does not claim sign-out clears them', async () => {
+  it('⛔ the "Join eno" reminder’s keys — and the sign-in gate record (UX3 J1) — are listed, hold no personal data, and the page does not claim sign-out clears them', async () => {
     const { DEVICE_KEY, TAB_KEY } = await import('@/lib/signup-prompt')
+    const { GATE_RECORD_KEY } = await import('@/lib/signin-gates')
+    const { INTENT_KEY } = await import('@/lib/pending-intent')
     const text = await policy('marketplace')
-    expect(text).toContain(`Sign-up reminder (${DEVICE_KEY}, ${TAB_KEY})`)
-    expect(text).toContain('Timings, counts and that one yes/no — no page, listing or identifier.')
+    expect(text).toContain(`Sign-up reminder (${DEVICE_KEY}, ${TAB_KEY}, ${GATE_RECORD_KEY}, ${INTENT_KEY})`)
+    expect(text).toContain('Apart from that action: timings, counts, that one yes/no and the kind of place — no page, listing or identifier.')
+    expect(text).toContain('the kind of place at your next sign-in')
+    // UX3 J5: the pending action is disclosed, as this tab only, and its lifetime promises only what the code does
+    // (pending-intent.ts: spent on use, dropped on close, read as gone after 15 minutes; sign-out-storage.ts).
+    expect(text).toContain('that action — the search, the amount or the message and its listing — for this tab only')
+    expect(text).toContain('the action also once it is finished or when you sign out, and it is ignored after 15 minutes')
     expect(text).toContain('signing out does not remove it')
     const vi = await policy('marketplace', 'vi')
     expect(vi).toContain('Lời nhắc đăng ký')
@@ -195,7 +202,12 @@ describe('/privacy — the facts it states match the code', () => {
     for (const site of ['marketplace', 'services'] as const) {
       const text = await policy(site)
       expect(text, site).toContain('Sign-up reminder counts')
-      expect(text, site).toContain('no IP address, account, cookie, browser details or page')
+      // UX3 J1: the coarse label is named, so the page no longer says the totals hold no browser details.
+      expect(text, site).toContain('no IP address, account, cookie, browser version or page')
+      expect(text, site).toContain('left open when the page was hidden or closed')
+      expect(text, site).toContain('the kind of browser (a regular one, Facebook’s, Zalo’s or another app’s built-in browser, the home-screen app or the eno app), phone or computer, and Vietnamese or English')
+      expect(text, site).toContain('how many times sign-in was opened there, Google or email was chosen, and a sign-in followed')
+      expect(text, site).not.toContain('browser details or page')
       expect(text, site).toContain('counted whatever you choose for Analytics')
       const vi = await policy(site, 'vi')
       expect(vi, site).toContain('Số liệu lời nhắc đăng ký')

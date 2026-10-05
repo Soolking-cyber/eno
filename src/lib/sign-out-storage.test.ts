@@ -53,6 +53,11 @@ describe('sign-out keys match the code that writes them', () => {
   it('⛔ the composer hand-off (sessionStorage) is the key quick-contact.ts writes', () => {
     expect(SIGN_OUT_SESSION_KEYS).toContain(COMPOSE_KEY)
   })
+
+  it('⛔ a guest’s pending action (sessionStorage, UX3 J5) is the key pending-intent.ts writes', () => {
+    expect(src('src/lib/pending-intent.ts')).toMatch(/INTENT_KEY = 'eno:pending-intent'/)
+    expect(SIGN_OUT_SESSION_KEYS).toContain('eno:pending-intent')
+  })
 })
 
 describe('clearAccountDeviceStorage', () => {

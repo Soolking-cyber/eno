@@ -58,9 +58,13 @@ export async function GET(request: Request) {
     // escape URL — is no longer enough to mint the pairing code and claim someone else's sign-in.
     const browserSecret = newBrowserSecret()
     const ok = isNonce(handoff) && !!code && (await parkCode(handoff, code, browserSecret))
+    // UX3 J2: where the visitor started (Facebook, Zalo …), for the confirm screen's copy — an
+    // allow-listed word passed through, never echoed as text (parseHandoffVia).
+    const { parseHandoffVia } = await import('@/lib/auth/handoff-client')
+    const via = parseHandoffVia(url.searchParams.get('via'))
     // ⚠️ The nonce rides the URL (it already did, to get here) but the CODE never does, and neither
     // does the browser secret — a secret in a query string lands in history, referrers and logs.
-    const res = redirect(`${origin}/auth/escape/confirm?h=${encodeURIComponent(handoff)}&ok=${ok ? '1' : '0'}`)
+    const res = redirect(`${origin}/auth/escape/confirm?h=${encodeURIComponent(handoff)}&ok=${ok ? '1' : '0'}${via ? `&via=${via}` : ''}`)
     if (ok) {
       res.cookies.set(browserCookieName(handoff), browserSecret, {
         httpOnly: true,

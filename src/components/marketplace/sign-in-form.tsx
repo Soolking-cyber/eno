@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { Mail, Phone, Loader2, ExternalLink, Eye, EyeOff } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
@@ -9,7 +9,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
-import { googleOauthBlocked, isNativeTabs, openInSystemBrowser } from '@/lib/in-app-browser'
+import { googleOauthBlocked, inAppHost, isIOS, isNativeTabs, openInSystemBrowser } from '@/lib/in-app-browser'
+import { PHONE_OTP_ENABLED } from '@/lib/auth-policy'
+import { noteGateMethod } from '@/lib/signin-gates'
+import { armIntent, withResume, type PendingIntent } from '@/lib/pending-intent'
+import type { SignInGate } from '@/lib/signup-prompt'
 import { HANDOFF_NEXT_KEY, handoffNonce } from '@/lib/auth/handoff-client'
 import { isNativeApp, nativeGoogleSignIn } from '@/lib/native-auth'
 import { googleFirstPartyEnabled } from '@/lib/google-identity'
@@ -137,7 +141,10 @@ export function signInErrorText(e: SignInError, t: (en: string, vi?: string) => 
     case 'rate_limited':
       return t('Too many sign-in attempts. Try again in an hour.', 'Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau một giờ.')
     case 'send_failed':
-      return t("We couldn't send the email just now. Try again in a moment, or sign in with your phone.", 'Chúng tôi chưa gửi được email lúc này. Thử lại sau giây lát, hoặc đăng nhập bằng số điện thoại nhé.')
+      // ⚠️ NO "OR USE YOUR PHONE" WHILE PHONE SIGN-IN IS OFF (UX3 J2) — the tab beside this reads "soon".
+      return PHONE_OTP_ENABLED
+        ? t("We couldn't send the email just now. Try again in a moment, or sign in with your phone.", 'Chúng tôi chưa gửi được email lúc này. Thử lại sau giây lát, hoặc đăng nhập bằng số điện thoại nhé.')
+        : t("We couldn't send the email just now. Try again in a moment.", 'Chúng tôi chưa gửi được email lúc này. Thử lại sau giây lát nhé.')
     case 'bad_code':
       return t('That code is wrong or has expired. Send a new one and try again.', 'Mã không đúng hoặc đã hết hạn. Hãy gửi mã mới rồi thử lại nhé.')
     case 'unknown':
@@ -160,38 +167,70 @@ export function emailSendErrorToCode(code: unknown, retryAfterSec?: number): Sig
   return { code: 'unknown' }
 }
 
+/**
+ * Where a sign-in returns to: the page it was opened from (or, on /signin, its `?next=`) — and, when a
+ * gate asked for its action to be finished after sign-in (UX3 J5), that gate's page with
+ * `resume=<kind>`, so the page reached by the Google round trip, the in-app hand-off or /onboard knows a
+ * resume was asked for. One function for every way out of this form (Google first-party and Supabase,
+ * the in-app hand-off, the native app, the magic link), so they cannot disagree.
+ */
+export function signInNextPath(loc: { pathname: string; search: string }, resume?: Pick<PendingIntent, 'kind' | 'path'> | null): string {
+  let base: string
+  if (loc.pathname === '/signin') base = new URLSearchParams(loc.search).get('next') || '/'
+  else if (loc.pathname.startsWith('/auth') || loc.pathname.startsWith('/onboard')) base = '/'
+  else base = loc.pathname + loc.search
+  return resume ? withResume(resume.path || base, resume.kind) : base
+}
+
+/**
+ * Where the visitor is, for the Google hand-off's copy in the REAL browser (handoff-confirm/-launch):
+ * the app whose built-in browser this is, or `pwa` for the home-screen app. Carried as `via=` on the
+ * escape URL and the OAuth callback — an allow-listed word, never free text (parseHandoffVia).
+ */
+function handoffVia(): string | null {
+  const host = inAppHost()
+  if (host) return host
+  try {
+    if (isIOS() && (navigator as Navigator & { standalone?: boolean }).standalone === true) return 'pwa'
+  } catch { /* not a PWA */ }
+  return null
+}
+
 /** All sign-in logic + UI, with NO outer chrome — rendered by both the modal
  *  (SignInDialog) and the dedicated /signin page so they share identical
  *  handlers (Google OAuth, email magic-link, phone OTP). */
-export function SignInForm({ className, collapseEmail = false, onMethod }: {
+export function SignInForm({ className, collapseEmail = false, onMethod, gate = 'page', resume = null }: {
   className?: string
   /**
    * THE JOIN PRESENTATION (the "Join eno" prompt, signup-prompt.tsx): Google first, and the email tabs
    * folded behind one "Use email instead" button that opens them IN PLACE — the same form, the same
    * state, no navigation (agy + opus, plan review: a link to /signin would be a second surface).
    * ⚠️ IGNORED WHERE GOOGLE CANNOT FINISH HERE — hidden (the native iOS tabs) or blocked (an in-app
-   * browser, whose hint says "email below works right here"): there the email form shows at once.
+   * browser, where the emailed code leads and Google is the quiet link under it): there the email form
+   * shows at once.
    */
   collapseEmail?: boolean
   /** Told which method the visitor reached for — Google pressed, or email opened. Analytics only. */
   onMethod?: (method: 'google' | 'email') => void
+  /**
+   * Which gate opened this sign-in (UX3 J1's per-gate counters). The /signin page passes nothing and is
+   * the `page` gate; the popup passes what auth-context classified. `timed` (the join prompt) counts
+   * itself through `onMethod`.
+   */
+  gate?: SignInGate
+  /** The action a gate asked to finish after sign-in (UX3 J5) — rides the `next` as `resume=<kind>`. */
+  resume?: PendingIntent | null
 }) {
   const { tr, lang } = useLanguage()
   const t = (en: string, vi?: string) => tr(en, vi)
 
-  // ⛔ PHONE OTP IS OFF AND SAYS SO (owner, 2026-08-17: "phone otp login say coming soon only show
-  // google and email magic link login options"). Flip this one constant to bring the whole tab
-  // back — every branch below reads it, nothing was deleted.
-  //
-  // ⚠️ THE PROVIDER AGREES, WHICH IS WHY THIS IS A FIX AND NOT A PREFERENCE. The live Supabase
-  // project answers `"phone": false` in /auth/v1/settings (measured 2026-08-18), and the Zalo ZNS
-  // channel is still blocked on the company registry. The tab was the DEFAULT one — a visitor
-  // landed on the only method that could not work, in front of the two that do.
+  // ⛔ PHONE OTP IS OFF AND SAYS SO — the constant and its reasons live in src/lib/auth-policy.ts
+  // (PHONE_OTP_ENABLED) since UX3 J2, because copy outside this form must ask it too. The tab was the
+  // DEFAULT one — a visitor landed on the only method that could not work, in front of the two that do.
   //
   // ⚠️ DISABLED, NOT REMOVED. Deleting the tab would make the form silently re-flow to a single
   // method and lose the signal that phone sign-in is coming; a disabled tab that reads "soon" is
   // the honest version, and it keeps the code path warm rather than rotting behind a deleted UI.
-  const PHONE_OTP_ENABLED = false
 
   const [tab, setTab] = useState<'email' | 'phone'>(PHONE_OTP_ENABLED ? 'phone' : 'email')
   const [email, setEmail] = useState('')
@@ -262,6 +301,16 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
   // The join presentation's fold — see `collapseEmail`. Opening it is one-way for this form's life.
   const [emailOpened, setEmailOpened] = useState(false)
   const emailCollapsed = collapseEmail && !emailOpened && !hideGoogle && !oauthBlocked
+  /**
+   * ⛔ WHERE GOOGLE CANNOT FINISH HERE, THE EMAILED CODE LEADS (UX3 J2, 2026-10-05) — Facebook, Zalo,
+   * Instagram, TikTok, the Google app, an Android WebView, an iOS home-screen app (`googleOauthBlocked`;
+   * never the Capacitor app, which signs in with Google through its own browser tab). The form opens on
+   * the email field and "Send code"; Google moves below it as a text link that says it opens the browser
+   * and that the visitor brings a code back. Measured from the audit: 4 screens in place against 9–11 for
+   * the hand-off. The code (not a link) is already forced here — see `autoCode`.
+   */
+  const emailFirst = oauthBlocked
+  const googleNoteId = useId()
   // The form's own box, so the fold can find its email field (ui/input takes no ref).
   const formRef = useRef<HTMLDivElement>(null)
   /**
@@ -273,11 +322,33 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
     if (emailOpened) formRef.current?.querySelector<HTMLInputElement>('input[type="email"]')?.focus({ preventScroll: true })
   }, [emailOpened])
   /**
+   * The email field is FOCUSED where it leads (J2) — on the /signin page here; inside the popup the
+   * dialog's own `initialFocus` does it (sign-in-dialog.tsx), because Base UI moves focus after this
+   * effect and on a touch open would otherwise park it on the popup itself.
+   */
+  useEffect(() => {
+    if (!emailFirst) return
+    const form = formRef.current
+    if (!form || form.closest('[role="dialog"]')) return
+    form.querySelector<HTMLInputElement>('input[type="email"]')?.focus({ preventScroll: true })
+  }, [emailFirst])
+  /**
    * Email is reported ONCE per form, at the first sign of choosing it: opening the fold, or — where
    * there is no fold (Google hidden or blocked, so the email form shows at once) — the first send.
    */
   const emailReported = useRef(false)
-  const reportEmail = () => { if (emailReported.current) return; emailReported.current = true; onMethod?.('email') }
+  /**
+   * The gate's method (UX3 J1): the FIRST choice in this form only, as the prompt counts one outcome per
+   * ask — a visitor who taps Google, comes back and sends a code is one start, not two. It also leaves
+   * the device record (signin-gates.ts) that credits the sign-in which follows to this gate.
+   */
+  const gateMethodReported = useRef(false)
+  const reportGateMethod = (m: 'google' | 'email') => {
+    if (gateMethodReported.current) return
+    gateMethodReported.current = true
+    noteGateMethod(gate, m)
+  }
+  const reportEmail = () => { reportGateMethod('email'); if (emailReported.current) return; emailReported.current = true; onMethod?.('email') }
   const openEmail = () => { setEmailOpened(true); reportEmail() }
   useEffect(() => {
     setOauthBlocked(googleOauthBlocked() && !isNativeApp())
@@ -384,14 +455,9 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
     if (AUTH_USES_REQUEST_ORIGIN) return window.location.origin
     return process.env.NEXT_PUBLIC_APP_URL || window.location.origin
   })()
-  // Where to resume after signing in — the page the visitor triggered sign-in from.
-  const nextPath = (() => {
-    if (typeof window === 'undefined') return '/'
-    const { pathname, search } = window.location
-    if (pathname === '/signin') return new URLSearchParams(search).get('next') || '/' // the intended dest, not /signin
-    if (pathname.startsWith('/auth') || pathname.startsWith('/onboard')) return '/'
-    return pathname + search
-  })()
+  // Where to resume after signing in — the page the visitor triggered sign-in from (on /signin, its
+  // `?next=`), or the gate's own page with `resume=<kind>` when it asked for its action back (J5).
+  const nextPath = typeof window === 'undefined' ? '/' : signInNextPath(window.location, resume)
   // OAuth still round-trips through Supabase, so it needs the full allow-listed callback
   // URL. The magic link does not: it is minted and delivered by us, and lands on
   // /auth/confirm, so that path only needs `nextPath`.
@@ -425,17 +491,20 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
    */
   const openGoogleInBrowser = () => {
     if (typeof window === 'undefined') return
-    const { pathname, search } = window.location
-    let next = pathname + search
-    if (pathname === '/signin') next = new URLSearchParams(search).get('next') || '/'
-    if (pathname.startsWith('/auth') || pathname.startsWith('/onboard')) next = '/'
+    const next = signInNextPath(window.location, resume)
 
     const nonce = handoffNonce()
     try { localStorage.setItem(HANDOFF_NEXT_KEY, next) } catch { /* private mode */ }
 
+    // ⚠️ `via` NAMES WHERE THE VISITOR IS, FOR THE REAL BROWSER'S COPY (UX3 J2). The confirm and launch
+    // screens run in Safari/Chrome, which cannot see that the visitor came from Facebook or Zalo, and
+    // used to tell them to "go back to the eno app". An allow-listed word, never free text.
+    const via = handoffVia()
+    const viaQ = via ? `&via=${encodeURIComponent(via)}` : ''
+
     // Synchronous, inside the gesture. The browser lands on /auth/escape, which will not have the
     // row yet — it re-checks, so a moment of "expired" is not possible; see the escape page.
-    const escapePath = `/auth/escape?h=${encodeURIComponent(nonce)}`
+    const escapePath = `/auth/escape?h=${encodeURIComponent(nonce)}${viaQ}`
     const handed = openInSystemBrowser(`${authOrigin}${escapePath}`)
     if (!handed) setIosHint(true)
 
@@ -447,7 +516,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
       clearStalePkceCookies()
       const { data, error } = await sb.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${authOrigin}/auth/callback?handoff=${encodeURIComponent(nonce)}`, skipBrowserRedirect: true },
+        options: { redirectTo: `${authOrigin}/auth/callback?handoff=${encodeURIComponent(nonce)}${viaQ}`, skipBrowserRedirect: true },
       })
       if (error || !data?.url) { setError({ code: 'raw', message: error?.message || 'Google sign-in failed' }); return }
       await fetch('/api/auth/handoff/open', {
@@ -528,10 +597,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
     if (isNativeApp()) {
       setError(null)
       setLoading(true)
-      const { pathname, search } = window.location
-      let next = pathname + search
-      if (pathname === '/signin') next = new URLSearchParams(search).get('next') || '/'
-      if (pathname.startsWith('/auth') || pathname.startsWith('/onboard')) next = '/'
+      const next = signInNextPath(window.location, resume)
       const sb = await getSupabase()
       if (!sb) return // getSupabase already cleared loading and set the error
       try { await nativeGoogleSignIn(sb, next) }
@@ -585,6 +651,9 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
     // `loading` set so the button cannot be tapped again during the navigation.
     if (error) { setError({ code: 'raw', message: error.message }); setLoading(false); setGoogleBusy(false) }
   }
+
+  /** Google pressed — in either place it is shown. One outcome per ask for the prompt; the gate's first method. */
+  const pressGoogle = () => { onMethod?.('google'); reportGateMethod('google'); void oauth('google') }
 
   // Magic link goes through OUR endpoint, not supabase.auth.signInWithOtp — see the
   // header of api/auth/email-link for why (Supabase's SMTP credentials silently expired
@@ -915,6 +984,9 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
       // Reloading the current URL is correct in BOTH places without a branch: in the modal it
       // re-renders the same listing, signed in; on /signin the page's own effect sees `user`
       // and performs the ?next= redirect it already owns. One behaviour, no special case.
+      // ⚠️ UX3 J5: the reload means auth-context never sees this sign-in happen inside the dialog, which
+      // is what arms a gate's pending action — so it is armed here, before the page goes.
+      if (resume) armIntent(resume.nonce)
       window.location.reload()
     } catch {
       retryOnCaptchaSolvedRef.current = null
@@ -1090,10 +1162,10 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
 
   return (
     <div ref={formRef} className={cn('space-y-3', className)}>
-      {/* OAuth — in an in-app browser / iOS PWA, Google rejects OAuth, so this hands
-          off to the real browser (Android: automatic; iOS: shows the manual hint).
+      {/* OAuth — in an in-app browser / iOS PWA, Google rejects OAuth, so it hands off to the real
+          browser, and since UX3 J2 it is not the lead there: the email code is (see `emailFirst`).
           In the native app's embedded tabs it's hidden outright (isNativeTabs). */}
-      {!hideGoogle && (
+      {!hideGoogle && !emailFirst && (
         <>
           {/* ⛔ OUR OWN BUTTON, AND OUR OWN OAUTH FLOW BEHIND IT — the third and final shape.
               Google prints the redirect HOST on its consent screen, so the only way to have both
@@ -1111,20 +1183,10 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
               `variant="bare"`, NOT ghost/outline: both force `hover:text-accent-foreground`, which
               would turn the label brand-blue on hover. The G is `size-5` (20px) — ui/button's base
               clamps any svg WITHOUT a `size-` class to 16px, so h-5/w-5 would silently lose. */}
-          <Button variant="bare" size="none" disabled={loading} onClick={() => { onMethod?.('google'); void oauth('google') }} className="flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-popover px-4 text-sm font-bold text-foreground transition-colors hover:bg-tint disabled:opacity-50 cursor-pointer">
+          <Button variant="bare" size="none" disabled={loading} onClick={pressGoogle} className="flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-popover px-4 text-sm font-bold text-foreground transition-colors hover:bg-tint disabled:opacity-50 cursor-pointer">
             {googleBusy ? <Loader2 className="size-5 animate-spin" /> : <GoogleIcon />}
-            {googleBusy
-              ? t('Signing you in…', 'Đang đăng nhập…')
-              : oauthBlocked ? t('Open Google in your browser', 'Mở Google trong trình duyệt') : t('Continue with Google', 'Tiếp tục với Google')}
-            {oauthBlocked && !googleBusy && <ExternalLink className="size-3.5 text-ink-4" />}
+            {googleBusy ? t('Signing you in…', 'Đang đăng nhập…') : t('Continue with Google', 'Tiếp tục với Google')}
           </Button>
-          {oauthBlocked && (
-            <p className="rounded-xl bg-tint px-3 py-2 text-2xs leading-relaxed text-muted-foreground">
-              {iosHint
-                ? t('Tap ••• at the top, choose “Open in Safari/Browser”, then sign in with Google. Or just use Phone/Email below — they work right here.', 'Chạm ••• ở trên rồi chọn “Mở trong Safari”, sau đó đăng nhập với Google. Hoặc dùng SĐT/email bên dưới — vẫn hoạt động ngay tại đây.')
-                : t('Google sign-in needs your real browser. Phone or email below work right here.', 'Google chỉ hoạt động trong trình duyệt thật. Dùng SĐT hoặc email bên dưới — vẫn hoạt động ngay tại đây.')}
-            </p>
-          )}
 
           {!emailCollapsed && (
             <div className="flex items-center gap-3 py-1">
@@ -1461,6 +1523,38 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
       )}
 
       {error && <p role="alert" className="text-center text-xs font-semibold text-destructive">{signInErrorText(error, t)}</p>}
+
+      {/* ⛔ IN AN IN-APP BROWSER GOOGLE IS THE QUIET ALTERNATIVE, BELOW THE CODE (UX3 J2, 2026-10-05). It was
+          the first, focused button — and from Facebook or Zalo it starts a 9–11-screen hand-off (a menu
+          step, two app switches, a pairing code), while the emailed code finishes right here in four.
+          Google refuses webviews outright, so this link still opens the real browser; it says so, and
+          says the visitor will bring a code back, before they tap. A text link (a real 44px target),
+          never a second CTA beside "Send code". */}
+      {!hideGoogle && emailFirst && (
+        <div className="space-y-1 pt-1 text-center">
+          <div className="flex items-center gap-3 pb-1">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-xs text-ink-4">{t('or', 'hoặc')}</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <Button
+            variant="bare"
+            size="none"
+            disabled={loading}
+            onClick={pressGoogle}
+            aria-describedby={googleNoteId}
+            className="relative inline-flex min-h-11 items-center justify-center gap-1.5 px-2 text-sm font-semibold text-accent-foreground hover:underline disabled:opacity-50 cursor-pointer"
+          >
+            {googleBusy ? t('Signing you in…', 'Đang đăng nhập…') : t('Use Google instead', 'Dùng Google')}
+            <ExternalLink className="size-3.5" aria-hidden />
+          </Button>
+          <p id={googleNoteId} className="text-2xs leading-relaxed text-muted-foreground">
+            {iosHint
+              ? t('Tap ••• at the top and choose “Open in Safari/Browser” to continue with Google. Or use the code above — it works right here.', 'Chạm ••• ở trên rồi chọn “Mở trong Safari” để tiếp tục với Google. Hoặc dùng mã ở trên — vẫn hoạt động ngay tại đây.')
+              : t('Opens your browser — then you bring a short code back here.', 'Sẽ mở trình duyệt — sau đó bạn mang một mã ngắn về đây.')}
+          </p>
+        </div>
+      )}
       {/* Invisible Turnstile — renders a visible challenge only if one is required. Only the email/phone
           SENDS need its token (OAuth is not gated), so the folded join form leaves it unmounted. */}
       {!emailCollapsed && <Turnstile />}

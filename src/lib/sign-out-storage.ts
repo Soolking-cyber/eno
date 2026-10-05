@@ -1,3 +1,4 @@
+import { dropIntent } from '@/lib/pending-intent'
 /**
  * What sign-out removes from THIS DEVICE, so the next person on a shared phone or laptop does not
  * open the previous account's inbox, AI chat or half-written drafts.
@@ -41,6 +42,9 @@ export const SIGN_OUT_LOCAL_PREFIXES: readonly string[] = [
  */
 export const SIGN_OUT_SESSION_KEYS: readonly string[] = [
   'eno-compose', //            src/lib/quick-contact.ts COMPOSE_KEY
+  // A guest's action waiting to be finished after sign-in (UX3 J5) — spent on use; a leftover must not
+  // greet the next person to sign in on this tab.
+  'eno:pending-intent', //     src/lib/pending-intent.ts INTENT_KEY
 ]
 
 /** sessionStorage key PREFIXES (the basket's first-add hint). */
@@ -69,6 +73,10 @@ function clearFrom(store: Storage | undefined, exact: readonly string[], prefixe
 
 /** Remove every per-account key above. Never throws. */
 export function clearAccountDeviceStorage(local?: Storage, session?: Storage): void {
+  // ⛔ AND THE PENDING ACTION'S MEMORY COPY (codex, gate 2026-10-05): once a write to sessionStorage has failed,
+  // pending-intent.ts keeps the action in memory and reads that instead — removing the key below would leave
+  // it for whoever signs in next on this page. dropIntent clears both.
+  dropIntent()
   let ls = local
   let ss = session
   try { ls ??= typeof localStorage === 'undefined' ? undefined : localStorage } catch { ls = undefined }

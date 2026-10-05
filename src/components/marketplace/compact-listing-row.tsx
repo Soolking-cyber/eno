@@ -19,7 +19,7 @@ import { cardHidesTrust } from '@/lib/linked-seller'
 import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
-import { stashQuickCompose } from '@/lib/quick-contact'
+import { quickActionSignIn, stashQuickCompose } from '@/lib/quick-contact'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
@@ -52,7 +52,8 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
   const [offer, setOffer] = useState<number | null>(null)
   const { user, loading: authLoading, openSignIn } = useAuth()
   const quickGo = (opts: { body?: string; offerAmount?: number | null }) => {
-    if (!user) { if (!authLoading) openSignIn({ listingTitle: displayTitle, listingImage: cover ?? null }); return }
+    // A guest's quick action is remembered and finished on the listing's page after sign-in (UX3 J5).
+    if (!user) { if (!authLoading) openSignIn({ listingTitle: displayTitle, listingImage: cover ?? null, ...quickActionSignIn(l, opts) }); return }
     if (stashQuickCompose(l, opts)) router.push('/messages/pending')
     else router.push(`/listings/${l.id}#contact`)
   }
