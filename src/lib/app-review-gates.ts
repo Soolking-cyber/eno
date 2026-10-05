@@ -19,9 +19,13 @@
  * | app-no-gtm       | R11  | both apps: no Google Tag Manager container                               | —        |
  * | site-brand-copy  | R7   | web + apps, eno.forum: its own name where copy hard-codes eno.vn; an     | —        |
  * |                  |      | English /privacy sentence for the not-yet-registered operator            |          |
- * | ugc-safety       | R3   | web + apps, both sites: block a user (chat header, storefront), unblock  | —        |
- * |                  |      | in settings; a block refuses new threads/messages/offers both ways and   |          |
- * |                  |      | tells moderators (src/lib/user-blocks.ts)                                |          |
+ * | ugc-safety       | R3,  | web + apps, both sites — everything Guideline 1.2 asks for:              | —        |
+ * |                  | R5   | · block a user (chat header, storefront), unblock in settings; a block   |          |
+ * |                  |      |   closes the thread both ways and tells moderators (user-blocks.ts);     |          |
+ * |                  |      | · Report on seller reviews and help replies/posts, as content cases in   |          |
+ * |                  |      |   the moderation queue (reported-content.ts);                            |          |
+ * |                  |      | · a SEVERE-only word filter refusing chat, reviews, help posts           |          |
+ * |                  |      |   (ugc-filter.ts, severe-abuse-words.ts)                                 |          |
  * | app-ai-notice    | R8   | both apps: chat translation asks once (one answer for all chats) before  | D14      |
  * |                  |      | anything goes to Microsoft (Azure AI Translator); "Turn off translation" |          |
  * |                  |      | stops every request THIS person's app makes (what they send follows the  |          |

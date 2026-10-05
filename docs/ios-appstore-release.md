@@ -16,7 +16,7 @@ wallet or a hidden surface after approval without a new submission that disclose
 
 ---
 
-## State as of 2026-10-04
+## State as of 2026-10-05
 
 | | |
 |---|---|
@@ -30,22 +30,32 @@ wallet or a hidden surface after approval without a new submission that disclose
 | App Store Connect | **no record exists** |
 | Android | LIVE on Play production, package `eno.vn`, versionCode 4 / 1.0.2 — nothing to upload |
 
-Branch `build/ios-appstore-prep` (pushed, not merged, not deployed) carries:
+Branch `build/ios-appstore-prep` (pushed, not merged, not deployed; based on `4f736d3b9`) carries:
 
 | Commit | What |
 |---|---|
-| `04ceb0907` | iOS shell — privacy manifest (FileTimestamp + full data types), forum-origin deep links, iPhone-only, 1.0.2, localized Info.plist strings, dormant entitlements template |
-| `a7bd3e02b` | Web — App Store review gates (all OFF), push flag per platform |
-| `52c17e4d8` | Web — block users (Guideline 1.2) behind the `ugc-safety` gate (OFF) |
-| `f361c7c8a` | App Store screenshot pipeline from the simulator (6/6 certified 2026-10-04 on the final scripts) |
-| (this doc's commit) | this runbook; `docs/ios-appstore-readiness.md` marked as the shelved app |
-| `32e6e0895` | Web — chat translation asks before it sends (`app-ai-notice`, R8/D14, OFF) — branch `build/ios-appstore-prep-b` |
-| `23ca17e31` | Web — no e-Visa application or ID capture in the iOS app (`ios-hide-visa`, D5 = b, OFF) — branch `build/ios-appstore-prep-b` |
+| `b6a4f2d52` | iOS shell — privacy manifest (FileTimestamp + full data types), forum-origin deep links, iPhone-only, 1.0.2, localized Info.plist strings, dormant entitlements template |
+| `33db03ab0` | Web — App Store review gates (all OFF), push flag per platform |
+| `0a470ed98` | Web — block users (Guideline 1.2) behind the `ugc-safety` gate (OFF) |
+| `40e8474bb` | App Store screenshot pipeline from the simulator (6/6 certified 2026-10-04 on the final scripts) |
+| `cab9e3e66` | this runbook; `docs/ios-appstore-readiness.md` marked as the shelved app |
+| `c32a17290` | Web — the blocking follow-ups settled (`ugc-safety`, OFF) |
+| `ed4197fc1` | Web — chat translation asks before it sends (`app-ai-notice`, R8/D14, OFF) |
+| `f9d0e1ebe` | Web — no e-Visa application or ID capture in the iOS app (`ios-hide-visa`, D5 = b, OFF) |
+| `f16a37a66` | this runbook — `app-ai-notice` and `ios-hide-visa` |
+| `64cf0e198`, `720a21bec` | Web — the notification bell never machine-translates private text (both sites, NOT a gate) |
+| `bd70e488b` | Web — Google AI asks first in the apps (`app-ai-notice`, OFF) |
+| `5f8f53fc8` | Web — the legal page the app opens in the in-app browser sheet offers no tracking (under `app-signin-tidy`) |
+| `57594f4bd` | Web — Report on seller reviews and help-centre content (`ugc-safety`, OFF) |
+| `43772099a` | Web — the severe-only word filter (`ugc-safety`, OFF) |
+| `146285a89` | Web — a thread closed by a block shows its banner, not the iOS e-Visa note (`ugc-safety` × `ios-hide-visa`) |
+| (this doc's commit) | the runbook for all of the above |
 
 ⚠️ **THE BRANCH IS NOT ON main.** Merge it (and, for the web half, deploy on the owner's word) before the
-first signed archive, or the archive will not carry the shell fixes.
-⚠️ **`build/ios-appstore-prep-b` (R8, D5) too.** Until it is merged, `app-ai-notice` and `ios-hide-visa` are
-unknown tokens, and a build with either in `NEXT_PUBLIC_APP_REVIEW_GATES` fails (`next.config.ts` refuses them).
+first signed archive, or the archive will not carry the shell fixes. The ids above are THIS branch's, on
+`4f736d3b9`; `main` has moved since (37 commits by 2026-10-05). A local rebase onto `5451fa340` was made and
+verified on 2026-10-05 (§2, "Re-run 2026-10-05") but not pushed — at deploy, rebase onto the then-current
+main and re-run every gate on the result.
 
 ---
 
@@ -87,8 +97,8 @@ changes on either site or in either app. A misspelled token fails the build (`ne
 | `app-signin-tidy` | R7, R13 | both apps: no disabled "Phone · soon" strip; Terms / Quy chế / Privacy open in the in-app browser sheet | — |
 | `app-no-gtm` | R11 | both apps: no Google Tag Manager container | — |
 | `site-brand-copy` | R7 | eno.forum names itself where copy hard-codes eno.vn; English /privacy stops quoting the Vietnamese placeholder | — |
-| `ugc-safety` | R3 | both sites + apps: Block beside Report (chat header, a person's storefront), unblock in Settings → Privacy; a block refuses new threads, messages, offer accepts, the phone reveal and teacher contact shares both ways, hides the threads from the blocker's inbox and badge, and tells moderators via `/admin/feedback` | — |
-| `app-ai-notice` | R8 | both apps: the first time a chat has something to translate, a one-time notice — "To translate your chats, messages are sent to Microsoft (Azure AI Translator)…" — with "Turn off translation" / "OK"; ONE answer for all chats on that account and device. NOTHING is requested until it is answered; "off" stops every CHAT translation request that person's app makes (no strip, no request — interface and listing text still translate as before); Settings → Preferences → Chat translation shows OFF until permission is given and turns it back on. The notification bell stops machine-translating an offer's note until "OK". Kept on the device (`chat-tr:consent:<profile>`) — no server-side translation preference exists (§6), so what a person SENDS still follows the other person's setting, and the notice says so. ⚠️ Keys on `EnoNativeApp`, so it also changes the live Android app (P10a) | D14 |
+| `ugc-safety` | R3, R5 | both sites + apps — everything Guideline 1.2 asks for, on one switch. **Block** beside Report (chat header, a person's storefront), unblock in Settings → Privacy; a block refuses new threads, messages, offer accepts, the phone reveal and teacher contact shares and reads both ways, CLOSES the thread on both sides (a "conversation closed" banner replaces the composer), hides the threads from the blocker's inbox and badge, and tells moderators via `/admin/feedback` (one note per pair per day). **Report** on seller reviews, help-centre replies and member help posts — into the same moderation queue (Moderation → Reports → "Reviews & help"); Confirm removes the content. **Word filter**: chat messages, offer notes, reviews and help replies/posts with a SEVERE term — slurs and hate speech, sexual content involving minors, sexual solicitation, explicit threats of violence; not profanity — are refused with a bilingual reason | — |
+| `app-ai-notice` | R8 | both apps: the first time a chat has something to translate, a one-time notice — "To translate your chats, messages are sent to Microsoft (Azure AI Translator)…" — with "Turn off translation" / "OK"; ONE answer for all chats on that account and device. NOTHING is requested until it is answered; "off" stops every CHAT translation request that person's app makes (no strip, no request — interface and listing text still translate as before); Settings → Preferences → Chat translation shows OFF until permission is given and turns it back on. Kept on the device (`chat-tr:consent:<profile>`) — no server-side translation preference exists (§6), so what a person SENDS still follows the other person's setting, and the notice says so. **And Google AI** (`src/lib/ai-consent.ts`): each feature family asks once before its first request — "Use Google AI for …?" with Not now / Allow (equal weight), remembered per account on the device, changeable in Settings → Preferences → Google AI. Families: eno AI (Not now = keyword answers, `ai: false`), posting help (Autofill from photo + Polish with AI), search by photo, and eno.forum trip planning (Build my plan, stay/stop suggestions, the trip chat's Eno concierge). Typed search never reaches Vertex AI Search from the apps (no question needed). ⚠️ Keys on `EnoNativeApp`, so it also changes the live Android app (P10a); for iOS, switch it together with `ios-hide-visa` (§6) | D14 |
 | `ios-hide-visa` | D5 | iOS app only: no e-Visa application and no identity/business-document capture. `/dashboard/visa` → Services (no e-Visa tab), `/dashboard/account/verify` → the verification hub (status kept, "Verify yourself" replaced); an e-Visa product page — the desk's or a partner's (visa slot + an e-Visa chip) — hides "Apply in chat" / the chat box; the `/vietnam-evisa` family loses its CTA and listing grid (information only; `/services-for-expats-vietnam` keeps its grid — it is every service, and its e-Visa cards lead to gated product pages); an e-Visa chat thread — the desk's, or one about a partner's e-Visa product — is read-only for the applicant (the seller side keeps its composer; each desk card that takes a step becomes one line, a finished e-Visa stays downloadable, no composer, nothing posted on open); the camera never opens for KYC; the business panel takes no upload. Each place says the step is available at www.eno.forum in a web browser (plain text — a link would reopen it in the app). Backstop: the proxy refuses iOS-app writes (not DELETE) to `/api/visa/applications/**`, `/api/visa/cards/**`, `/api/seller/identity/**`, `/api/seller/verification/**`; `POST /api/conversations` refuses an e-Visa product and the send route refuses the applicant's message into an e-Visa thread (403 `ios_app_unavailable`) | D5 = b |
 
 Push is gated per platform now: `NEXT_PUBLIC_NATIVE_PUSH_IOS` / `NEXT_PUBLIC_NATIVE_PUSH_ANDROID`
@@ -114,15 +124,16 @@ the iOS app — see below). ⛔ Those two key on the `EnoNativeApp` user agent, 
 Android app that is live on Google Play, and the verification below covered only the iOS simulator and
 desktop Chromium.
 
-…and append `,ugc-safety` once the follow-ups in §6 are settled (Guideline 1.2 expects blocking, so it
-should be on before submission).
+…and append `,ugc-safety` — its §6 follow-ups are settled and R5 (report + word filter) is built into it
+(Guideline 1.2 expects blocking, reporting and filtering, so it should be on before submission).
 
 ⚠️ Set the SAME line in both env files (after the marketplace-edition check in the prerequisite above) — the two editions share one database, so a block made on one
-site and not enforced on the other would break the promise the Block dialog makes. Before
-`ugc-safety` goes on, settle the follow-ups listed in §6.
+site and not enforced on the other would break the promise the Block dialog makes (the §6 follow-ups
+are settled — 2026-10-05).
 
-**The two newer tokens (built 2026-10-05, branch `build/ios-appstore-prep-b`; NOT in the local verification
-below):** append `,ios-hide-visa` in Step 1 when D5 = b — it changes only the iOS app. Order matters: the gate
+**The two newer tokens (built 2026-10-05) — and `ugc-safety`, which has grown reporting, the word filter and the
+closed thread since the 2026-10-04 pass — are NOT in the device checks below; P10/P10a re-run with every token
+on before any of them is switched on:** append `,ios-hide-visa` in Step 1 when D5 = b — it changes only the iOS app. Order matters: the gate
 goes live by a WEB deploy, the privacy manifest only with a binary, so switch the gate on FIRST, then submit the
 binary whose `PrivacyInfo.xcprivacy` drops `SensitiveInfo` with App Privacy answered without "Sensitive Info"
 (Appendix B) — and never switch the gate off afterwards without a new submission (the shipped declarations would
@@ -159,17 +170,19 @@ with the gates OFF (the CI recipe) — see §2.
 - `NEXT_PUBLIC_NATIVE_PUSH*` unset on both editions.
 - `ForumUserBlock` exists in prod with **0 rows** (`supabase-db`, read-only transaction): no legacy
   block switches on with `ugc-safety`. The `Feedback` table exists.
+- (2026-10-05, read-only) `Review` 0 rows, `ForumComment` 0 rows, `Report` 4 rows — none with every target
+  NULL, so no existing report reads as an R5 content case; the severe-abuse list refuses 2 of 125,528 live
+  listings' texts (both genuine uses of a listed term, no collisions) and 0 of 164 chat messages.
 
 ### Not built in bucket 1, and why
 
-- **R5 report + word filter on help comments and reviews** — see §6. These are
-  product features with owner-level choices in them, not switches. (R3, blocking, IS built — §1.)
-- **R8 translation notice and D5 = hide visa + eKYC — built since, both OFF** (`app-ai-notice`, `ios-hide-visa`,
-  table above). The open question this bullet used to carry — an iOS seller the publish gate asks to verify —
-  is answered in the app: the verification hub says the check is done at www.eno.forum in a web browser. The
-  publish-time identity gate is marketplace-only today (`identityGateEnforced`, account-state.ts), so on
-  eno.forum nothing asks yet. If it is ever enforced there, an iOS seller has to verify in a browser before
-  publishing — part of D5 = b's cost, to weigh then.
+- **Nothing — every bucket-1 item is built, each OFF until its switch (table above).** R3 blocking and R5
+  report + word filter are `ugc-safety`; the R8 translation notice and the Google AI questions are
+  `app-ai-notice`; D5 = b is `ios-hide-visa`. The open question the D5 item used to carry — an iOS seller
+  the publish gate asks to verify — is answered in the app: the verification hub says the check is done at
+  www.eno.forum in a web browser. The publish-time identity gate is marketplace-only today
+  (`identityGateEnforced`, account-state.ts), so on eno.forum nothing asks yet. If it is ever enforced
+  there, an iOS seller has to verify in a browser before publishing — part of D5 = b's cost, to weigh then.
 
 ---
 
@@ -236,7 +249,9 @@ python3 scripts/ios-sim-inspect.py <udid> "JSON.stringify({href: location.href, 
 
 Run 2026-10-04 on an iPhone 16 Pro Max (18.4): home, a listing
 (`/listings/cmtsglhxu04v3rvq4ocnmwb2f`), `/signin` and the offline page all render, `innerWidth ===
-scrollWidth` on each (no zoom-out, 440 = 440). Re-run on the last commit that touches `src/` (`52c17e4d8`) on an iPhone SE
+scrollWidth` on each (no zoom-out, 440 = 440). Re-run on what was then the last commit to touch `src/` (`52c17e4d8`; `0a470ed98` after the rebase onto
+`4f736d3b9`) — before the blocking follow-ups, the bell, Google AI, reporting, the filter and the closed-thread
+order, so it covers none of them — on an iPhone SE
 (3rd generation, 18.4): home, `/listings/cmtzgayju00fi0jrs1klz68ac` and `/signin` at 375 = 375, html
 carries `native native-ios`. The Debug build and the unsigned archive above were rebuilt from that same
 head after a clean `npx cap sync ios` (no tracked file changed): both succeeded with 0 compiler
@@ -266,8 +281,21 @@ GitHub Actions runs only for `main` (`.github/workflows/ci.yml`), so this branch
 locally the way CI builds it — a scratch Postgres seeded by `scripts/ci-fixtures.ts`, placeholder
 secrets, `npm run build`: the **services edition with every review gate ON** and the **marketplace
 edition with the gates OFF** both finished `build=0`. Full vitest, tsc and `npm run lint` (eslint,
-design-, edition-, docs-lint) are green on `52c17e4d8`, the last commit that touches `src/`; `f361c7c8a`
-adds only `scripts/` (lint re-run green) and the docs commit only `docs/`. CI will run again on the merge.
+design-, edition-, docs-lint) were green on `52c17e4d8` (now `0a470ed98`), then the last commit to touch
+`src/`; `f361c7c8a` (now `40e8474bb`) added only `scripts/` (lint re-run green), the docs commit only `docs/`.
+
+**Re-run 2026-10-05 on the whole branch REBASED onto main `5451fa340`** — a local copy at `cce8ef322`, not
+pushed: every commit above up to the closed-thread order fix, plus the four test files adapted to main's newer
+thread page and listings route. tsc clean; `npm run lint` 0 errors; full vitest 773 files / 13,716 passed,
+0 failed; `npm run build` with ALL EIGHT tokens on — the services edition AND the marketplace edition
+(`MARKETPLACE_HOSTS_SERVICES=true`, production's setting), the same line both env files are meant to carry —
+both `build=0`. A curl smoke of both builds as a browser, the Android app and the iOS app: no 5xx on any page;
+on eno.forum in the iOS app `/dashboard/visa` → `/dashboard/services` and `/dashboard/account/verify` →
+`/dashboard/verification`, and POST `/api/visa/applications` / `/api/seller/identity/challenge` → 403
+`ios_app_unavailable` (a browser: 401). With that flag on, eno.vn's bundle carries the real visa module by
+design (next.config.ts), so the iOS note's sentences ship there too — they render only in the iOS app, which
+runs eno.forum. NOT yet run with the newer tokens: the device passes (P10 on iOS, P10a on Android) — before
+those tokens are switched on. CI runs on the merge to main.
 
 ### Simulator traps (not bugs)
 
@@ -440,8 +468,12 @@ tapped in Notes opens the right page, `/signin` and `/auth*` stay in Safari; qui
 camera + photo picker; push (P8). With the gates on: no Google on `/signin`, no Payments row, no "Phone ·
 soon", Terms opens in the sheet and closes back onto the form, no `googletagmanager.com` request (Safari →
 Develop → the device → Network); with `ugc-safety`: Block from a chat header and a storefront, the other
-account can no longer send there, the thread leaves the inbox and badge, the note appears in
-`/admin/feedback`, Unblock in Settings → Privacy restores it. ⚠️ A Google-created account must be able to sign in with an emailed code
+account sees the "conversation closed" banner and can no longer send there, the thread leaves the inbox and
+badge, the note appears in `/admin/feedback` (once, even after unblock + block), Unblock in Settings →
+Privacy restores it; Report a review on a storefront and a reply in /help → both cases appear in
+Moderation → Reports → "Reviews & help", Confirm removes the content and its author gets a notice; a chat
+message, a review and a help reply containing a listed severe term (e.g. "I will kill you") are refused
+with the bilingual reason and nothing is posted. ⚠️ A Google-created account must be able to sign in with an emailed code
 on iOS (`ios-hide-google`) — try one before submitting.
 
 With `app-ai-notice` (iOS AND Android, two accounts whose app languages differ): opening the chat shows the
@@ -467,10 +499,10 @@ age rating (Appendix C, override to 18+); content rights (D9); review notes + de
 release **Manual**.
 ✔ No missing-field warnings; "Add for Review" is enabled.
 
-**P13. Submit — only after BOTH gate steps are deployed and verified (all five tokens of §1, incl. `app-no-gtm` after P10a; P10), `ugc-safety` is live once the §6 follow-ups are settled (Guideline 1.2 expects blocking), and D5 is settled.** Before pasting the review notes, confirm `support@eno.forum` receives mail (Play lists the same address). If the account
+**P13. Submit — only after BOTH gate steps are deployed and verified (all five tokens of §1, incl. `app-no-gtm` after P10a; P10), `ugc-safety` is live (Guideline 1.2: blocking, reporting, filtering — all built, §6), and D5 is settled.** Before pasting the review notes, confirm `support@eno.forum` receives mail (Play lists the same address). If the account
 is an Individual (D1's fallback), the visa application and eKYC must not show in the iOS app (5.1.1(ix)) —
 that is `ios-hide-visa` (built, OFF; §1), and with it on, App Privacy "Sensitive Info" and the binary's
-`PrivacyInfo.xcprivacy` `SensitiveInfo` entry go in the SAME release (Appendix B). The "five tokens" above
+`PrivacyInfo.xcprivacy` `SensitiveInfo` entry are dropped in the SAME release (Appendix B). The "five tokens" above
 predate R8 and D5: `app-ai-notice` (D14, the 5.1.2(i) prompt) must be live and checked in P10 too, and with
 D5 = b so must `ios-hide-visa` and `ios-hide-wallet` (D7). The App Privacy answers
 ("no tracking", Payment Info = payout account only) and the screenshots describe the app WITH the gates
@@ -529,7 +561,7 @@ storefront listings.
 
 ## 6. Bucket 1: what is left, and the follow-ups on what was built
 
-**R3 blocking — built (`52c17e4d8`), OFF.** Design choices worth knowing:
+**R3 blocking — built (`0a470ed98`, follow-ups `c32a17290`), OFF.** Design choices worth knowing:
 - Moderators are told through the **Feedback queue** (`/admin/feedback`), not a `Report`: an open
   Report against a profile makes `eraseAccount` refuse that user's OWN deletion (`under_review`), so
   being blocked would have cost them their deletion right until an admin acted.
@@ -538,24 +570,67 @@ storefront listings.
 - Reviews are deliberately NOT gated by a block: that would let a seller veto a buyer's post-sale
   rating. The transaction rule and Report bound reviews.
 
-Settle before switching `ugc-safety` on (reviewer findings recorded in the commit):
-1. Copy for a `blocked` 403 on offer accept and on the phone reveal (today: the generic error).
-2. The blocked party keeps a thread whose sends are refused, with a toast — enough for Apple; a
-   "conversation closed" banner would be kinder.
-3. `GET /api/blocks` returns the blocked profiles' ids to the blocker; an opaque handle would be tighter.
-4. A block → unblock loop files a moderator note each time (bounded by the 30/h bucket); dedupe per pair.
-5. The moderator note links `/messages/<id>`; admins read non-desk threads through the dispute tools.
+The five follow-ups the block commit recorded are SETTLED (`c32a17290`, 2026-10-05), still behind the gate:
+1. A `blocked` 403 says so on offer accept, the phone/Zalo reveal, a new offer and the teacher share
+   ("This conversation is closed …" — the conversation, never the person).
+2. `GET /api/conversations/[id]` answers `closed` (`you_blocked` | `blocked`; omitted when open, one
+   primary-key read per poll, none with the gate off) and the thread shows a "conversation closed" banner
+   instead of the composer — the blocker gets "Manage blocked users", the other side is pointed at Report.
+3. `GET /api/blocks` carries no profile id: each row has an opaque handle (HMAC of blocker + blocked under
+   a key derived from `SUPABASE_SECRET_KEY`, else `CRON_SECRET` — set on both editions; without either,
+   unblock answers 503); unblock takes the handle, among the caller's own blocks only.
+4. One moderator note per (blocker → blocked) per day (kv claim, fails open).
+5. The note links `/admin/conversation/<id>` (the read-only admin thread viewer) or, for a storefront
+   block, `/admin/users/<blocked>`.
+Found while settling them: `/api/teachers/contact` and `/api/teachers/cv` still served a share made
+before the block — both now refuse it.
 
-**Still not built:**
-- **R5 — Report on help-centre comments and on seller reviews; a word filter on chat, reviews and
-  help comments.** The report half is mechanical (`/api/forum/reports` exists; reviews need a report
-  target). The filter changes what every user can send on both sites — owner sets how strict and what
-  happens to a hit (refuse, hold, or flag). Ship behind a new token.
-- (R8 is built — see "R8 and D5 — built" below.)
-- ⚠️ Until R5 ships, the USER-GENERATED CONTENT paragraph of the review notes must not claim a word
-  filter or reporting on reviews and help comments.
+**R5 — built, inside `ugc-safety` (not a new token: one switch turns on everything 1.2 asks for).**
+- **Report** (`src/lib/reported-content.ts`): a Report control on every storefront review, the PDP review
+  preview, every help-centre reply and a member's help post. It files into the SAME pipeline as every report
+  (`/api/report` → `/admin/moderation`, the reporter's `/disputes`) as a **content case**: no target column
+  is set — the content is named by the case's server-written system row — because the usual reporter of a
+  review is the reviewed shop's owner, and an open report on their storefront would make `eraseAccount` hold
+  THEIR OWN deletion; targeting the author instead would let a seller freeze every critical reviewer's
+  deletion. One open case per (reporter, content); the reporter's case room names only the KIND of content,
+  never its text (one database serves both editions). Confirm (Moderation → Reports → "Reviews & help")
+  decides the case in the same transaction that removes the content — a failed removal commits nothing
+  (case still open, nobody told): a review is deleted (its full text kept in the case, the shop's rating and count re-derived, its
+  listing pages purged, and the same buyer cannot review that deal again), a reply or post becomes
+  `removed`; its author is told, the other open cases on the same content close as upheld, and nobody's
+  trust is docked. `/api/forum/reports` wrote a `ForumReport` table nothing reads — under the gate it files
+  the same content case.
+- **Word filter** (`src/lib/ugc-filter.ts`; the list is `src/lib/severe-abuse-words.ts`): owner decision,
+  delegated: **SEVERE ONLY** — slurs and hate speech, sexual content involving minors, sexual solicitation,
+  explicit threats of violence; never general profanity. A hit is **refused** (400 `objectionable_content`,
+  bilingual reason, the text handed back to edit) on chat messages, offer notes, the first message of a
+  thread, reviews and help replies/posts (incl. edits) — after every eligibility rule, so those still
+  answer first. How to extend the list is in its header; it is matched by publish-guard's own machinery
+  (fold, whole words, the accent-aware reading; terms whose unaccented form is everyday Vietnamese — "giet
+  may" is also "giết mấy", "mua dam tre em" also "mua đầm trẻ em" — match only WITH accents). The first
+  list was cleared against all 125,528 live listings (2 genuine hits, no collisions); review rounds then
+  added English phrases and moved collision-prone Vietnamese ones to accents-only, and the last rounds
+  (7-12, 2026-10-05) REMOVED what accents cannot save — Vietnamese that is everyday WITH its accents
+  ("gái bao", bare "gái gọi" and "gái qua đêm", "mày sẽ chết", "bọn mọi"), the soft verb "hurt", and a
+  possessive exception that let slurs and threats through ("nigger's", "kill your wife's family").
+  ⚠️ Known gaps, by design: spaced or leet spellings and free paraphrase — Report is the backstop. The
+  refused text
+  is never stored; an anonymous per-day count per surface and category is kept in `kv_store`
+  (`ugc-filter:*`). Deliberately unfiltered: report details, dispute statements, appeals and BOTH sides of
+  the support-desk thread — a victim must be able to quote what they received. Public reviews and help
+  posts refuse even a quoted threat (the author can rephrase, or Report it) — kept by the owner on
+  2026-10-05: a victim quotes it in a report or to the support desk, neither of which is filtered.
+  ⚠️ ONE SWITCH, THREE FEATURES. If the filter refuses ordinary text, take the term out of
+  `src/lib/severe-abuse-words.ts` (its header says how) and deploy; switching `ugc-safety` off would also
+  remove blocking and reporting, which Guideline 1.2 requires — the last resort, and then the review notes'
+  `[ugc-safety live]` add-on must come out too. (A separate server-side kill switch for the filter alone is
+  a small change if the owner wants one.)
 
-**R8 and D5 — built (branch `build/ios-appstore-prep-b`), OFF.** Tokens `app-ai-notice` and `ios-hide-visa`
+**Still not built:** nothing — R5 above, R8 and D5 below.
+- ⚠️ R5 is built but DORMANT: until `ugc-safety` is live, the review notes must not claim blocking, the
+  word filter, or reporting on reviews and help-centre content (the `[ugc-safety live]` add-on below).
+
+**R8 and D5 — built, OFF.** Tokens `app-ai-notice` and `ios-hide-visa`
 (§1 table; `src/lib/chat-translation-consent.ts`, `src/lib/ios-hide-visa.ts`). Choices worth knowing:
 - **R8 asks in BOTH apps.** Chat messages go to Microsoft Azure AI Translator (`translateBatch` asks it
   first for chat; the self-hosted box model is the fallback). The gate stops the REQUEST, not just the
@@ -574,12 +649,7 @@ Settle before switching `ugc-safety` on (reviewer findings recorded in the commi
   translate; before that the "Translate messages" strip is not shown ticked. A change in Settings applies to a
   thread that is already open. Settings shows OFF until permission is given (a switch that said ON before anyone
   was asked claimed a consent that did not exist). With the gate on, eno.forum's /privacy adds that the apps
-  ask before chats are first translated. The notification bell renders an offer's note through `<Tr>`, i.e.
-  machine-translates it via `/api/translate`; under the gate it shows the note as written until "OK".
-  ⚠️ Pre-existing, with the gate
-  OFF and on the web: that `<Tr>` path sends offer notes (private chat text) to Microsoft and stores the
-  result in the SHARED translation cache — worth fixing for everyone (render user-authored notification text
-  without `<Tr>`, or through the private chat endpoint).
+  ask before chats are first translated. The notification bell no longer machine-translates private text at all — see the bell item below.
 - **D5 hides the APPLICATION, not the topic.** Kept in the iOS app: `/vietnam-evisa/official-process`,
   `/moving-to-vietnam`, `/first-month-in-vietnam`, the non-government disclosure on every e-Visa page, the
   verification hub's status, a read-only view of an existing e-Visa chat. Gone: every start/continue/pay
@@ -600,6 +670,54 @@ Settle before switching `ugc-safety` on (reviewer findings recorded in the commi
   route name enters a client chunk; the send route's thread check is `src/lib/ios-hide-visa-server.ts`.
 - `/services-for-expats-vietnam` keeps its CTA and grid in the app: they are every service, not only
   e-Visa, and its e-Visa cards lead to product pages that are gated.
+- **Notification bell — private text is never machine-translated (built `64cf0e198` + `720a21bec`, both
+  sites, NOT a gate).** The bell's rows go through `<Tr>` (→ `/api/translate` → Microsoft and the shared
+  Translation cache) only for an allowlist of types measured to carry eno's own copy or public text (system,
+  dispute, reminder, price_drop, milestone, saved_search, forum_reply, visa_result). Offers (the offerer's own
+  note), availability requests (they name the requester) and any unknown or new type render AS WRITTEN, title
+  and body. KYC and business-verification outcomes are their own type, `verification` (title translated —
+  eno's copy; body as written — it can be the reviewer's note naming a document number); older `system` rows
+  of that kind are caught by their url (`/dashboard/verification`, `/dashboard/settings`). Cost: an offer's
+  free-text note shows in its writer's language; enforcement scam-hold notices (same url) show their body as
+  written. ⚠️ Owner, optional (production writes, not done): retype the older rows to `verification` (a draft
+  `UPDATE` is in `720a21bec`'s message, still to be checked against eno.vn's site name) and purge their notes
+  from the Translation cache; copies Microsoft already processed cannot be recalled.
+- **R8 extended to Google AI (built `bd70e488b`, dormant behind `app-ai-notice`).** What each family sends,
+  and what "Not now" leaves:
+
+  | family | user action → route | sent to Google | Not now |
+  |---|---|---|---|
+  | eno AI | /messages/ai → `/api/ai/concierge` | the last turns (Gemini), search words (Vertex AI Search) | still answers: keyword reading + Postgres (`ai: false`) |
+  | posting help | Autofill from photo → `/api/ai/classify`; Polish with AI → `/api/ai/rephrase` | the cover photo; the description (Gemini) | unavailable; the seller fills the form |
+  | search by photo | camera button / paste → `/api/ai/visual-search` | the photo (Gemini Vision) | unavailable; typed search works |
+  | trip (eno.forum) | Build my plan → `/api/itineraries/generate`; stay/stop suggestions; trip chat concierge → `/api/trips/concierge` | trip details (cities, dates, travellers, budget, interests, notes) and questions (Gemini) | unavailable; the desk's people answer in the trip chat |
+  | typed search | `/api/listings` → semanticRank | nothing from the apps: Vertex is skipped (`noAi`), the answer served private/no-store | n/a |
+
+  Same storage limitation as chat translation (localStorage, per account per device; no server preference),
+  with an in-memory fallback so blocked or full storage still holds the answer for the page. A CLIENT gate by
+  design: the server cannot know a per-device answer; it enforces what it can (`ai: false` on the assistant,
+  no Vertex for app user agents). Every handler sets its busy guard before asking (no double Google call from
+  a double tap); a question still open across an account switch, a sign-out or a page change is void, and no
+  answer (Escape) is not "Not now" — eno AI sends nothing on it.
+- **Not gated, on purpose — owner to confirm:**
+  - Visa desk AI (the passport/portrait check `/api/visa/applications/[id]/extract`, the visa concierge):
+    unreachable in the iOS app with `ios-hide-visa` on (the proxy refuses every write under
+    `/api/visa/applications`). ⛔ Switch `ios-hide-visa` with `app-ai-notice` for iOS, or passport photos reach
+    Gemini with no notice. ⚠️ OPEN (owner): Android CAN reach it — with `app-ai-notice` on, an Android
+    applicant's passport photo still goes to Gemini with no Google AI question, because `/extract` has no
+    non-AI path (503 without Gemini) and gating it would block the application there. Either accept it (the
+    visa form and /privacy name the check; make sure Google Play's Data safety answers cover it) or give the
+    application step its own notice in the apps.
+  - Publish-time moderation (`src/lib/ai-moderation.ts`: a listing's title, description and photos → Gemini,
+    after publish, for non-Trusted sellers and a 5% sample of Trusted ones) and the search index
+    (`src/lib/listing-index.ts` → the Vertex AI Search datastore): eno's own processing of content a person
+    chose to publish. Disclosed (Appendix B; /privacy already names "Google (Vertex AI, Gemini)"); a per-person
+    opt-out of safety moderation would be an evasion route.
+  - Admin AI tools.
+- **Vertex AI Search status:** the box env sets `GOOGLE_VERTEX_PROJECT`, `VERTEX_SEARCH_DATASTORE_ID` /
+  `ENGINE_ID` and `GOOGLE_VERTEX_ADC` (`vertexConfigured()` = true) but no credentials source (no
+  `GOOGLE_APPLICATION_CREDENTIALS`, no `K_SERVICE`); code notes (`api/listings/route.ts`,
+  `listings-explorer.tsx`, 2026-09-29) say it is off in production. Not re-measured.
 
 ---
 
@@ -716,8 +834,7 @@ Add-ons, each only when true:
 [D2 = b, ios-hide-google live] The iOS app offers only eno's own sign-in (email code / password); no third-party login is offered on iOS.
 [D2 = a] Sign in with Apple is offered alongside Google.
 [P7/P8 live] Push notifications for messages and offers; universal links for eno.forum listing links (and eno.vn, if approved).
-[ugc-safety live] Users can block any other user from the chat header or their storefront; blocking also notifies our moderators.
-[R5 built and live] Reviews and help-centre comments have a Report control, and a word filter holds messages, reviews and comments with banned content.
+[ugc-safety live] Users can block any other user from the chat header or their storefront; a blocked conversation closes for both sides and our moderators are notified. Seller reviews and help-centre replies and posts also have a Report control, and reports go to a human moderator who can remove the content. A word filter screens chat messages, reviews and help-centre posts and refuses severe language — slurs and hate speech, explicit threats of violence, sexual content involving minors and sexual solicitation; anything it misses can be reported.
 [D8 — only once the Terms say so] We act on objectionable content within 24 hours.
 [D1 allows partner services] Partner services (eSIMs, company set-up) are real-world services fulfilled outside the app; payment is arranged with the partner in chat.
 [D5 = a] e-VISA: eno is not a government service. The e-Visa page names VietKite as the licensed provider (e-Visa assistance is a real-world service fulfilled outside the app) and links the official portal https://evisa.gov.vn.
@@ -747,6 +864,22 @@ Deviations from the 2026-10-04 plan, each from review or measurement: the payout
 **Payment Info**, not Other Financial Info (Apple's definition names bank account numbers); chat is
 declared as **Emails or Text Messages**; CSP reports are declared. ⚠️ The plan's "Payment Info = No"
 does not hold: the payout form collects an account number, and Crossmint is configured on eno.forum.
+
+**Google AI, with `app-ai-notice` on** — Google is a service provider for these, used only for App
+Functionality and only after the person allows the feature (§6, "R8 extended to Google AI"):
+- **User Content → Other User Content**: what a person types to eno AI (and the last few turns); a listing
+  description sent to Polish with AI; trip details, notes and questions (eno.forum). Linked; not tracking.
+- **Photos or Videos**: a listing's cover photo (Autofill from photo); a photo chosen for search by photo.
+  Linked; not tracking.
+- **Search History**: eno AI sends the search words to Vertex AI Search (people who allowed it); typed
+  search from the apps sends nothing to Google. App Functionality; not tracking.
+- Sensitive Info is unchanged by this: the visa document check stays unreachable in the iOS app only while
+  `ios-hide-visa` is on.
+
+⚠️ **Whatever the gates say:** a published listing's text and photos go to Gemini for prohibited-item
+moderation (non-Trusted sellers, plus a 5% sample of Trusted ones) — not optional, so **Photos or Videos**
+and **Other User Content** are declared (App Functionality, Google as a service provider) even with
+`app-ai-notice` off.
 
 ## Appendix C — Age rating
 
