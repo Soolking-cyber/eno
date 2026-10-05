@@ -129,6 +129,10 @@ const UNREVIEWABLE = [
    * chooses from it, and product-feed.ts is fully visible.
    */
   ':(exclude)src/lib/__fixtures__/google-product-category-ids.txt',
+  // The gone page's allow-list (src/data/gone-listing-ids.json): 68,281 listing ids copied verbatim from the
+  // owner's cleanup journals — 1.9 MB of data no reviewer can read line by line. Reviewed instead through
+  // src/lib/gone-listing-ids.ts and its test (count, a known id from each journal, SuperSports absent).
+  ':(exclude)src/data/gone-listing-ids.json',
 ]
 
 /**

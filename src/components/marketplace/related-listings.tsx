@@ -17,8 +17,10 @@ import type { SerializedListingCard } from '@/lib/types'
  *  (IO-gated) so this below-fold call never competes with the gallery LCP image for bandwidth.
  *  Uses the STANDARD grid-matched card size (2/3/4 per view, like the home rails +
  *  "Recently viewed") so all rails read as one family. */
-export function RelatedListings({ listingId, categorySlug, subcategorySlug, brandSlug, excludeSellerId, variant = 'pdp' }: {
+export function RelatedListings({ listingId, categorySlug, subcategorySlug, brandSlug, model, excludeSellerId, variant = 'pdp' }: {
   listingId: string; categorySlug: string; subcategorySlug?: string | null; brandSlug?: string | null
+  /** The catalogue model ("A6c"). Read by the 'gone' variant only, whose first pass is brand + model. */
+  model?: string | null
   /**
    * ⚠️ SET ONLY WHEN THE "More from this seller" RAIL IS ACTUALLY ON THE PAGE (it renders nothing under
    * two listings). A single-seller shelf — every tickets-travel row is VinWonders — otherwise drew the
@@ -26,8 +28,9 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
    * the two disjoint; if that empties it, it renders nothing, which is the point.
    */
   excludeSellerId?: string | null
-  /** 'sold': the shelf on the sold page, where the item itself is gone — hence its own title. */
-  variant?: 'pdp' | 'sold'
+  /** 'sold': the shelf on the sold page, where the item itself is gone — hence its own title.
+   *  'gone': the shelf on the gone page (gone-listing.tsx) — SECOND-HAND rows only; see the scopes below. */
+  variant?: 'pdp' | 'sold' | 'gone'
 }) {
   const router = useRouter()
   const { tr, lang } = useLanguage()
@@ -56,11 +59,31 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
     // exists under more than one category — so a subcategory-only query can pull in another
     // category's listings, which is the same class of bug this rail is being fixed for.
     const cat = `category=${encodeURIComponent(categorySlug)}`
-    const scopes = [
-      subcategorySlug && brandSlug ? `${cat}&subcategory=${encodeURIComponent(subcategorySlug)}&brand=${encodeURIComponent(brandSlug)}` : null,
-      subcategorySlug ? `${cat}&subcategory=${encodeURIComponent(subcategorySlug)}` : null,
-      cat,
-    ].filter(Boolean) as string[]
+    const scopes = (variant === 'gone'
+      /**
+       * ⛔ THE GONE PAGE OFFERS SECOND-HAND ONLY: `condition=used` on EVERY pass (the feed's one definition
+       * of used, src/lib/listing-condition.ts — which also keeps out anything with no condition, services
+       * and jobs included). The feed itself is verified + active + edition-scoped (buildFeedFilters), so
+       * nothing here can surface a desk listing on eno.vn. Narrowest first, as below: the same model
+       * (brand + model), then the same shelf with its brand first, then the shelf, then the category.
+       * ⛔ THE CATEGORY-WIDE PASS ONLY WHEN THE ROW HAS A SHELF OR A BRAND. 48,005 of the 74,132 gone rows (mostly
+       * Tiki) carry neither and are often mis-filed — books, shoes and detergent under 'electronics' — so a
+       * category-only pass would title the newest used electronics "similar". With nothing to match on, the rail
+       * stays empty and the page offers the search link alone (gone-listing.tsx).
+       */
+      ? [
+          brandSlug && model ? `${cat}&brand=${encodeURIComponent(brandSlug)}&model=${encodeURIComponent(model)}` : null,
+          subcategorySlug && brandSlug ? `${cat}&subcategory=${encodeURIComponent(subcategorySlug)}&brand=${encodeURIComponent(brandSlug)}` : null,
+          subcategorySlug ? `${cat}&subcategory=${encodeURIComponent(subcategorySlug)}` : null,
+          // A brand but no shelf: the brand within its category — never the plain category (gate, 2026-10-05).
+          !subcategorySlug && brandSlug ? `${cat}&brand=${encodeURIComponent(brandSlug)}` : null,
+          subcategorySlug ? cat : null,
+        ].filter(Boolean).map((s) => `${s}&condition=used`)
+      : [
+          subcategorySlug && brandSlug ? `${cat}&subcategory=${encodeURIComponent(subcategorySlug)}&brand=${encodeURIComponent(brandSlug)}` : null,
+          subcategorySlug ? `${cat}&subcategory=${encodeURIComponent(subcategorySlug)}` : null,
+          cat,
+        ].filter(Boolean)) as string[]
 
     ;(async () => {
       const seen = new Map<string, SerializedListingCard>()
@@ -77,15 +100,19 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
       if (!off) setItems([...seen.values()].slice(0, 10))
     })()
     return () => { off = true }
-  }, [near, categorySlug, subcategorySlug, brandSlug, listingId, excludeSellerId])
+  }, [near, categorySlug, subcategorySlug, brandSlug, model, variant, listingId, excludeSellerId])
 
-  const title = variant === 'sold' ? tr('Similar items still available', 'Tin tương tự vẫn còn bán') : tr('More like this', 'Tin tương tự')
-  /* The sold page's rail sits right under the sold item on a phone (sold-listing.tsx): mt-12 there kept
-     the first card under the tab bar. */
-  const sectionClassName = variant === 'sold' ? 'mt-4 sm:mt-12' : 'mt-12'
+  const title = variant === 'gone'
+    ? tr('Similar second-hand listings', 'Tin tương tự đã qua sử dụng')
+    : variant === 'sold' ? tr('Similar items still available', 'Tin tương tự vẫn còn bán') : tr('More like this', 'Tin tương tự')
+  /* The sold and gone pages' rail sits right under the item's name on a phone (sold-listing.tsx,
+     gone-listing.tsx): mt-12 there kept the first card under the tab bar. */
+  const sectionClassName = variant === 'pdp' ? 'mt-12' : 'mt-4 sm:mt-12'
   // "See all" keeps a Vietnamese reader in Vietnamese, like the sold page's own "Browse this category" and
   // the PDP's brand chip: a bare '/c/…' or '/?category=…' can be an English-pinned pilot path (lang-pinned.ts).
-  const seeAllHref = localizedHref(categoryBrowsePath(categorySlug), variantOfLanguage(lang))
+  // The gone rail is second-hand only, so its "See all" is too (gate, 2026-10-05).
+  // (The explorer itself, where `condition` is a filter — a /c hub is a landing page.)
+  const seeAllHref = localizedHref(variant === 'gone' ? `/?category=${encodeURIComponent(categorySlug)}&condition=used` : categoryBrowsePath(categorySlug), variantOfLanguage(lang))
 
   /**
    * ⛔ ON THE SOLD PAGE THE RAIL'S PLACE IS HELD WHILE IT LOADS. Below sm it is the first thing under the
@@ -95,7 +122,11 @@ export function RelatedListings({ listingId, categorySlug, subcategorySlug, bran
    * is in the SSR HTML. An empty answer still collapses to nothing — rare, the last pass is the whole
    * category. The PDP's rail is below the fold and keeps its zero-size sentinel.
    */
-  if (items === null && variant === 'sold') {
+  // The gone page's rail is the same case: the first thing under the item's name, with the search link below it.
+  // The gone rail with nothing to match on (no shelf, no brand — see the passes above) asks for nothing, so it
+  // renders nothing from the first frame instead of flashing its "similar" heading over a placeholder.
+  if (variant === 'gone' && !subcategorySlug && !brandSlug) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
+  if (items === null && variant !== 'pdp') {
     return (
       <div ref={ref} data-related-loading="">
         <Shelf title={title} seeAllHref={seeAllHref} sectionClassName={sectionClassName}>

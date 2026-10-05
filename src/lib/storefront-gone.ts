@@ -32,7 +32,9 @@ import { db } from '@/lib/db'
  * src/app/[lang]/listings/[id]/(pdp)/get-listing.ts), pinned to it by storefront-gone.test.ts.
  * `sold` IS public: it renders its own "this item has been sold" page (a 200), which links the shop —
  * so a shop with only sold rows is not gone, or that link would 404.
- * `stale`, `expired`, `hidden` and `removed` all 404 at the PDP, so they do not keep a shop alive.
+ * `stale`, `expired`, `hidden` and `removed` all 404 at the PDP, so they do not keep a shop alive. (A
+ * hidden import-shop goods row renders the gone page instead — src/lib/gone-listing.ts — which names
+ * no shop and links none, so it keeps nothing alive either.)
  */
 export const PUBLIC_LISTING_STATUSES: readonly string[] = ['active', 'sold']
 

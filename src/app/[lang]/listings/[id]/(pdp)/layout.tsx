@@ -44,6 +44,9 @@ import { isListingViewable } from './get-listing'
  * ⚠️ `sold` IS VIEWABLE, deliberately — it renders its own "this item has been sold" page, not a
  * 404. `page.tsx` remains the authority on what happens after this; the layout only decides whether
  * there is a page at all.
+ * ⛔ SO IS A GONE ROW (a hidden import-shop listing → the gone page, 200 + noindex;
+ * src/lib/gone-listing.ts) — and ONLY that hidden row: a person's post hidden by moderation, and every
+ * other non-live status, is still a 404 decided here.
  *
  * ⛔ IT LIVES IN THE `(pdp)` ROUTE GROUP SO THAT IT GUARDS THE PRODUCT PAGE AND NOTHING ELSE. It sat
  * at `listings/[id]/layout.tsx` until 2026-09-23, where a layout wraps every child segment — so the

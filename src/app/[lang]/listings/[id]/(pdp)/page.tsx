@@ -55,6 +55,8 @@ import { cn } from '@/lib/utils'
 import { ReviewsPreview } from '@/components/marketplace/reviews-preview'
 import { SameSellerShelf } from '@/components/marketplace/same-seller-shelf'
 import { SoldListing } from '@/components/marketplace/sold-listing'
+import { GoneListing } from '@/components/marketplace/gone-listing'
+import { goneListingView, goneMetadata, goneSearchQuery, isGoneListing } from '@/lib/gone-listing'
 import { ProtectionsRow } from '@/components/marketplace/protections-row'
 import { DropCountdown } from '@/components/marketplace/drop-countdown'
 import { LiveUntil } from '@/components/marketplace/live-until'
@@ -103,7 +105,8 @@ type Props = {
 // ISR: render on-demand, then cache the HTML at the global edge (the #1 SEO page,
 // served ~globally in tens of ms instead of a function+DB hit in Singapore per
 // view). Self-heals hourly; mutation routes call revalidatePath('/listings/<id>')
-// so an edit/sold/hidden/delete purges it immediately (sold → the sold page, hidden → 404).
+// so an edit/sold/hidden/delete purges it immediately (sold → the sold page; hidden → 404, or the gone
+// page for an import shop's row — src/lib/gone-listing.ts).
 // Content renders in the visitor's language CLIENT-side (LocalizedTitle + <Tr>),
 // same as the cards — so no per-request server translation forces it dynamic.
 export const revalidate = 2592000 // 30d — HIGH-cardinality route (one page per listing). Real edits/status/sold/moderation revalidate ON-DEMAND, so the only time-based regen is for off-listing changes (e.g. a seller renaming their storefront). A long 30d window keeps eventual freshness while cutting ISR writes hugely.
@@ -132,10 +135,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // has no `loading.tsx` (`src/app/[lang]/crawler-visible-html-contract.test.ts`). Do not rely on this
   // call alone: metadata may still be streamed apart from the shell. It stays the authority on the
   // FULL policy below, which the layout deliberately does not duplicate.
-  // SOLD is the ONE exception: it renders a dedicated "this item has been sold" page
+  // SOLD is one exception: it renders a dedicated "this item has been sold" page
   // (not a 404), so here we return noindex metadata for it rather than notFound() — a
   // sold URL shouldn't stay in search, but it's still a real, on-brand page.
-  if (!listing || !listing.verified || (listing.status !== 'active' && listing.status !== 'sold')) notFound()
+  // ⛔ The GONE page is the other, and the only one for a non-live row: a hidden import-shop row
+  // (src/lib/gone-listing.ts) — noindex,follow like sold. Every other non-live row still 404s.
+  if (!listing || !listing.verified || (listing.status !== 'active' && listing.status !== 'sold')) {
+    if (listing && isGoneListing(listing)) return goneMetadata(listing, lang)
+    notFound()
+  }
   /**
    * ⛔ THE <title> AND THE SHARE TITLES FOLLOW THE `[lang]` VARIANT (SEO wave B, V2b; copy sheet CS-3,
    * approved 2026-10-01). This page renders once per variant since `[lang]` (src/proxy.ts) — the old note
@@ -246,8 +254,19 @@ export default async function ListingPage({ params }: Props) {
   const rawListing = await getListing(id)
 
   // Only publicly-live listings get the full detail page; hidden/held/unverified are
-  // pulled from public view entirely (sellers manage them in their dashboard → 404).
+  // pulled from public view entirely (sellers manage them in their dashboard → 404) —
+  // except a hidden import-shop row, which gets the gone page (src/lib/gone-listing.ts).
   if (!rawListing || !rawListing.verified || (rawListing.status !== 'active' && rawListing.status !== 'sold')) {
+    if (rawListing && isGoneListing(rawListing)) {
+      // ⛔ THE PROJECTION, NEVER THE ROW: the gone page gets the title and the slugs it matches on, so no
+      // photo, price, seller or contact can reach its HTML or RSC payload (goneListingView).
+      const gone = goneListingView(rawListing)
+      const [brand, goneI18n] = await Promise.all([
+        gone.brandSlug ? db.brand.findUnique({ where: { slug: gone.brandSlug }, select: { name: true } }) : Promise.resolve(null),
+        cachedTranslations([gone.title]),
+      ])
+      return <GoneListing listing={gone} searchQuery={goneSearchQuery(gone, brand?.name ?? null, pageVariant)} lang={pageVariant} titleI18n={goneI18n[gone.title] ?? null} />
+    }
     notFound()
   }
 

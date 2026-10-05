@@ -1,6 +1,8 @@
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { scopedListingWhere } from '@/lib/edition-scope'
+import { isGoneListing } from '@/lib/gone-listing'
+import { isJournaledGone } from '@/lib/gone-listing-ids'
 // `{ teachers: true }` on every read here: each one is pinned to ONE listing id, so the default
 // teacher exclusion (scopedListingWhere) would only 404 a teacher's own profile page.
 
@@ -33,19 +35,28 @@ import { scopedListingWhere } from '@/lib/edition-scope'
  * ⚠️ THE RULE HERE MUST STAY IN STEP WITH `page.tsx`'s GUARD. `sold` is viewable on purpose — it
  * renders its own on-brand "this item has been sold" page rather than a 404 — so this must not
  * reject it. The page remains the authority on what happens next; this only decides 404 or not.
+ *
+ * ⛔ AND SO IS A GONE ROW — a hidden import-shop listing, which renders the gone page (200, noindex;
+ * src/lib/gone-listing.ts). Only a verified HIDDEN row can be one, so only that row pays for the
+ * second read, and the read is `getListing` itself: the page and generateMetadata ask for the same row
+ * through the same `cache()`, so the request makes it once. Every other row costs what it always did.
  */
 export const isListingViewable = cache(async (id: string) => {
   const row = await db.listing.findFirst({
     where: await scopedListingWhere({ id }, { teachers: true }),
     select: { verified: true, status: true },
   })
-  return listingIsViewable(row)
+  if (listingIsViewable(row)) return true
+  // The journal first: a Set lookup spares the full read for every hidden row that can never be gone.
+  return !!row && row.verified && row.status === 'hidden' && isJournaledGone(id) && isGoneListing(await getListing(id))
 })
 
 /**
  * The rule itself, as a pure function so it can be TESTED — which is the point, because the bug
  * three reviewers caught was in this rule and not in the plumbing. This module imports Prisma, so
  * `isListingViewable` above cannot be reached from a unit test; `listingIsViewable` can.
+ * ⚠️ It is the LIVE half (active or sold) — a hidden row is still `false` here; whether it is a gone
+ * page is `isGoneListing`'s question, asked of the full row (above).
  */
 export const listingIsViewable = (row: { verified: boolean; status: string } | null) =>
   !!row && row.verified && (row.status === 'active' || row.status === 'sold')
