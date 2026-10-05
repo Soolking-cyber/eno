@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { CheckCircle2 } from '@/components/ui/icons'
 import { formatMoneyFull } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
-import { SCHOOL_KINDS } from '@/lib/schools/constants'
+import { REVIEWS_NEED_PROOF, SCHOOL_KINDS } from '@/lib/schools/constants'
 
 // Admin chrome is EN-only by repo convention.
 
@@ -200,14 +200,18 @@ function ReviewModeration({ review: r }: { review: AdminReview }) {
         </p>
       )}
       <AuthorLine who={r.author} label="Writer" />
-      <p className={cn('mt-1 text-xs font-semibold', r.proof?.status === 'verified' ? 'text-success' : 'text-warning')}>
-        Proof of employment: {r.proof ? `${r.proof.status} (LinkedIn)` : 'none'}
-        {r.proof?.status === 'pending' && ' — it can be approved only once the proof is verified (Proofs tab).'}
-        {r.proof && r.proof.status !== 'pending' && r.proof.status !== 'verified' && ' — it cannot be approved: the writer has no live proof.'}
-      </p>
+      {/* Proof lines and the Approve lock only while proofs are required (constants.ts REVIEWS_NEED_PROOF, off since
+          2026-10-06 — diff review: with them off, a locked Approve would strand every review in the queue). */}
+      {REVIEWS_NEED_PROOF && (
+        <p className={cn('mt-1 text-xs font-semibold', r.proof?.status === 'verified' ? 'text-success' : 'text-warning')}>
+          Proof of employment: {r.proof ? `${r.proof.status} (LinkedIn)` : 'none'}
+          {r.proof?.status === 'pending' && ' — it can be approved only once the proof is verified (Proofs tab).'}
+          {r.proof && r.proof.status !== 'pending' && r.proof.status !== 'verified' && ' — it cannot be approved: the writer has no live proof.'}
+        </p>
+      )}
       <div className="mt-3"><ReviewBody r={r} /></div>
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <Button variant="cta" size="sm" disabled={busy || r.proof?.status !== 'verified'} onClick={() => run({ action: 'approve', reviewId: r.id, seenUpdatedAt: r.updatedAt }, 'Published')}>Approve</Button>
+        <Button variant="cta" size="sm" disabled={busy || (REVIEWS_NEED_PROOF && r.proof?.status !== 'verified')} onClick={() => run({ action: 'approve', reviewId: r.id, seenUpdatedAt: r.updatedAt }, 'Published')}>Approve</Button>
         <Button variant="outline" size="sm" disabled={busy} onClick={() => setRejecting((x) => !x)}>Reject…</Button>
       </div>
       {rejecting && (

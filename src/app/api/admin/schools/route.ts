@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
-import { SCHOOL_KINDS } from '@/lib/schools/constants'
+import { SCHOOL_KINDS, REVIEWS_NEED_PROOF } from '@/lib/schools/constants'
 import { PURGE_AFTER_DAYS, claimProofKey } from '@/lib/schools/employment'
 import { checkSuggestion } from '@/lib/schools/suggest'
 import { finaliseAwards } from '@/lib/schools/awards'
@@ -66,7 +66,7 @@ export const POST = route({ auth: 'admin', body: Body }, async ({ admin, body })
       // ⛔ APPROVE ONLY WITH A VERIFIED PROOF OF EMPLOYMENT, read under a row lock in the SAME transaction as the
       // compare-and-set (plan review): a proof rejected or withdrawn while the moderator had this card open
       // must not let the review go live. (The public read rule requires it too; this keeps the status honest.)
-      const done = body.action === 'approve'
+      const done = body.action === 'approve' && REVIEWS_NEED_PROOF
         ? await db.$transaction(async (tx) => {
             const proof = await tx.$queryRaw<{ status: string }[]>`
               select status from "SchoolEmployment" where "profileId" = ${r.profileId}::uuid and "schoolId" = ${r.schoolId} for update`

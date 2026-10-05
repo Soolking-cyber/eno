@@ -2,7 +2,7 @@ import 'server-only'
 import crypto from 'node:crypto'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
-import { EXPIRED_PROOF_REASON, ORPHAN_REVIEW_DAYS, PENDING_MAX_DAYS, PURGE_AFTER_DAYS, VOTE_LOG_KEEP_DAYS } from './constants'
+import { EXPIRED_PROOF_REASON, ORPHAN_REVIEW_DAYS, PENDING_MAX_DAYS, PURGE_AFTER_DAYS, REVIEWS_NEED_PROOF, VOTE_LOG_KEEP_DAYS } from './constants'
 
 /**
  * PROOF OF EMPLOYMENT for /schools reviews (owner, 2026-10-05: "in order to leave a comment they should attach
@@ -174,7 +174,8 @@ export async function sweepProofRetention(now: Date = new Date(), opts: { school
   // writer would control when it disappears by withdrawing. It goes on the first run after the report is resolved.
   // ⛔ THE PROOF ROWS ARE LOCKED FOR THE STATEMENT, AND ONE BEING CHANGED IS SKIPPED (diff review): a re-send in
   // flight is never swept (the next run sees it pending); one that lands after the delete has nothing left to save.
-  const reviews = await db.$executeRaw`
+  // ⛔ NOT WHILE REVIEWS NEED NO PROOF (owner 2026-10-06): every review would be "proofless" and the sweep would delete them all.
+  const reviews = !REVIEWS_NEED_PROOF ? 0 : await db.$executeRaw`
     with gone as (
       select e."profileId", e."schoolId" from "SchoolEmployment" e
        where e.status in ('rejected', 'withdrawn')
@@ -186,7 +187,7 @@ export async function sweepProofRetention(now: Date = new Date(), opts: { school
        ${onlySql}`
   // …and one with NO proof row at all — written before proofs existed — measured from its last change (diff review:
   // nothing else would ever remove it, and it can never be published).
-  const proofless = await db.$executeRaw`
+  const proofless = !REVIEWS_NEED_PROOF ? 0 : await db.$executeRaw`
     delete from "SchoolReview" r
      where not exists (select 1 from "SchoolEmployment" e where e."profileId" = r."profileId" and e."schoolId" = r."schoolId")
        and r."updatedAt" < (${cutoff}::timestamptz at time zone 'UTC')

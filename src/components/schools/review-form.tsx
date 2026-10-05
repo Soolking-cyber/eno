@@ -22,7 +22,7 @@ import { cn } from '@/lib/utils'
 import { ProofStep, proofLetsWrite, type ProofView } from './proof-step'
 import {
   BAD_TAGS, ELIGIBLE_ACCOUNT_AGE_DAYS, ORPHAN_REVIEW_DAYS, EMPLOYMENTS, PAY_MIN_REPORTS, EMPLOYMENT_LABEL, GOOD_TAGS, HCMC_AREAS, REVIEW_ADVICE_MAX, REVIEW_TEXT_MAX, REVIEW_TEXT_MIN,
-  ROLES, ROLE_LABEL, TAG_LABEL, TENURES, TENURE_LABEL,
+  REVIEWS_NEED_PROOF, ROLES, ROLE_LABEL, TAG_LABEL, TENURES, TENURE_LABEL,
   type BadTag, type Employment, type GoodTag, type SchoolRole, type Tenure,
 } from '@/lib/schools/constants'
 
@@ -127,9 +127,11 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
         <p className="mx-auto mt-2 max-w-md text-sm text-body">
           {tr('Your name is never shown. Reviews appear with a broad description only, such as "Former teacher · 1–2 years".', 'Tên của bạn không bao giờ hiển thị. Đánh giá chỉ kèm mô tả chung, ví dụ "Giáo viên cũ · 1–2 năm".')}
         </p>
-        <p className="mx-auto mt-2 max-w-md text-sm text-body">
-          {tr('To keep reviews genuine, we ask for private proof that you worked there: your LinkedIn profile. Only our moderators see it.', 'Để đánh giá luôn chân thực, chúng tôi cần bằng chứng riêng tư rằng bạn từng làm ở đó: hồ sơ LinkedIn của bạn. Chỉ kiểm duyệt viên của chúng tôi thấy.')}
-        </p>
+        {REVIEWS_NEED_PROOF && (
+          <p className="mx-auto mt-2 max-w-md text-sm text-body">
+            {tr('To keep reviews genuine, we ask for private proof that you worked there: your LinkedIn profile. Only our moderators see it.', 'Để đánh giá luôn chân thực, chúng tôi cần bằng chứng riêng tư rằng bạn từng làm ở đó: hồ sơ LinkedIn của bạn. Chỉ kiểm duyệt viên của chúng tôi thấy.')}
+          </p>
+        )}
         <Button variant="cta" className="mt-4" onClick={() => openSignIn({ note: tr('Sign in to review {name}.', 'Đăng nhập để đánh giá {name}.').replace('{name}', schoolName) })}>
           <LogIn aria-hidden /> {tr('Sign in', 'Đăng nhập')}
         </Button>
@@ -380,6 +382,8 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
       </div>
     </form>
   )
+  // No proof step while REVIEWS_NEED_PROOF is off (owner, 2026-10-06): a signed-in account writes straight away.
+  if (!REVIEWS_NEED_PROOF) return form
   return (
     <div className="flex flex-col gap-6">
       {/* Step 1: private proof of employment (owner, 2026-10-05). The review below is written once a proof is in. */}

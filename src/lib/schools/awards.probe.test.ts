@@ -9,6 +9,11 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
  * ⛔ Same opt-in and guards as queries.probe.test.ts: RACE_DB_TESTS=1, loopback only, never :5433.
  * Run it: DATABASE_URL=postgresql://postgres@127.0.0.1:5544/eno RACE_DB_TESTS=1 npx vitest run src/lib/schools/awards.probe.test.ts
  */
+// ⛔ THIS PROBE PINS THE STRICT RULES (identity for votes, a 7-day account age, a proof for reviews): they are off in
+// production since 2026-10-06 (constants.ts — owner: any signed-in account votes and reviews) but stay in the code
+// behind switches, and this keeps them working for the day they are turned back on. The open rules have their own
+// probe: schools-open.probe.test.ts.
+vi.mock('@/lib/schools/constants', async (orig) => ({ ...(await orig<typeof import('@/lib/schools/constants')>()), VOTES_NEED_IDENTITY: true, REVIEWS_NEED_PROOF: true, ELIGIBLE_ACCOUNT_AGE_DAYS: 7 }))
 vi.mock('server-only', () => ({}))
 const url = process.env.DATABASE_URL || ''
 const parsed = (() => { try { return new URL(url) } catch { return null } })()

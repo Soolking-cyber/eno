@@ -25,6 +25,11 @@ vi.mock('@/lib/admin', () => ({
   getCurrentProfileId: async () => (h.me?.id as string | undefined) ?? null,
   getAdmin: async () => h.admin,
 }))
+// ⛔ THIS PROBE PINS THE STRICT RULES (identity for votes, a 7-day account age, a proof for reviews): they are off in
+// production since 2026-10-06 (constants.ts — owner: any signed-in account votes and reviews) but stay in the code
+// behind switches, and this keeps them working for the day they are turned back on. The open rules have their own
+// probe: schools-open.probe.test.ts.
+vi.mock('@/lib/schools/constants', async (orig) => ({ ...(await orig<typeof import('@/lib/schools/constants')>()), VOTES_NEED_IDENTITY: true, REVIEWS_NEED_PROOF: true, ELIGIBLE_ACCOUNT_AGE_DAYS: 7 }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true }) }))
 vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: (p: string) => { h.purged.push(p) } }))
 // A probe-only secret unless one is set: then a fingerprint made with it can only be this probe's own (a killed run's).

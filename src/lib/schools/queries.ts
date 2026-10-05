@@ -6,7 +6,7 @@ import { fold } from '@/lib/fold'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { LISTING_CARD_SELECT, serializeListingCard, safeParse } from '@/lib/serialize'
 import { verifiedProfileIds } from '@/lib/kyc/identity'
-import { ELIGIBLE_ACCOUNT_AGE_DAYS, REQUIRE_PHONE, VOTES_NEED_IDENTITY, type SchoolKind, type GoodTag, type BadTag, isGoodTag, isBadTag } from './constants'
+import { ELIGIBLE_ACCOUNT_AGE_DAYS, REQUIRE_PHONE, REVIEWS_NEED_PROOF, VOTES_NEED_IDENTITY, type SchoolKind, type GoodTag, type BadTag, isGoodTag, isBadTag } from './constants'
 import { compareSchools, isGenericEmployer, normEmployer, summarisePay, type PaySummary, type SchoolSort } from './logic'
 import { inHcmc, jobSchoolId, type JobPlace } from './job-match'
 import { schoolLogo } from './logos'
@@ -49,7 +49,11 @@ function eligibleSql(): Prisma.Sql {
  * owner 2026-10-05) on top of eligibleSql — which reviews show, their tags, their pay, the sitemap. Read
  * here, at read time, so a withdrawn or rejected proof takes the review down everywhere at once.
  */
+// With proofs off (owner 2026-10-06) a review needs none — but a writer a moderator found had NOT worked there (a
+// REJECTED proof at that school) stays out (diff review: dropping the proof rule must not publish them).
+const NOT_REJECTED = Prisma.sql`not exists (select 1 from "SchoolEmployment" x where x."profileId" = r."profileId" and x."schoolId" = r."schoolId" and x.status = 'rejected')`
 function reviewAuthorSql(): Prisma.Sql {
+  if (!REVIEWS_NEED_PROOF) return Prisma.sql`${eligibleSql()} and not exists (select 1 from "SchoolEmployment" x where x."profileId" = p.id and x."schoolId" = s.id and x.status = 'rejected')`
   return Prisma.sql`${eligibleSql()}
     and exists (select 1 from "SchoolEmployment" e where e."profileId" = p.id and e."schoolId" = s.id and e.status = 'verified')`
 }
@@ -485,7 +489,7 @@ export async function schoolForJob(employer: unknown, sellerId: string, place: J
  */
 // ⚠️ A PENDING PROOF PAST ITS DATE COUNTS AS CLOSED HERE TOO (diff review): the Proofs tab no longer offers it
 // (admin page actionableProof), so its review must not sit here unapprovable until the nightly sweep closes it.
-const QUEUED = Prisma.sql`r.status = 'pending' and exists (
+const QUEUED = !REVIEWS_NEED_PROOF ? Prisma.sql`r.status = 'pending' and ${NOT_REJECTED}` : Prisma.sql`r.status = 'pending' and exists (
   select 1 from "SchoolEmployment" e where e."profileId" = r."profileId" and e."schoolId" = r."schoolId"
      and (e.status = 'verified' or (e.status = 'pending' and e."purgeAt" > (now() at time zone 'UTC'))))`
 /** The queue's first `limit` ids, APPROVABLE FIRST (diff review): reviews still waiting on their writer's proof must
@@ -493,9 +497,9 @@ const QUEUED = Prisma.sql`r.status = 'pending' and exists (
 export async function queuedReviewIds(limit: number): Promise<string[]> {
   const rows = await db.$queryRaw<{ id: string }[]>`
     select r.id from "SchoolReview" r
-      join "SchoolEmployment" e on e."profileId" = r."profileId" and e."schoolId" = r."schoolId"
+      left join "SchoolEmployment" e on e."profileId" = r."profileId" and e."schoolId" = r."schoolId"
      where ${QUEUED}
-     order by (e.status = 'verified') desc, r."updatedAt" asc
+     order by (e.status is not distinct from 'verified') desc, r."updatedAt" asc
      limit ${limit}`
   return rows.map((r) => r.id)
 }
@@ -541,7 +545,7 @@ export async function awardVotes(start: Date, end: Date, asOf: Date = end) {
        and s.status = 'active'
        and p."createdAt" <= (${ageCutoff}::timestamptz at time zone 'UTC')
        and ${standingSql()}
-       and exists (select 1 from identity_verifications iv where iv."profileId" = p.id and iv.status = 'verified') -- pre-filter only (voterSql says why)
+       ${VOTES_NEED_IDENTITY ? Prisma.sql`and exists (select 1 from identity_verifications iv where iv."profileId" = p.id and iv.status = 'verified')` : Prisma.empty} -- pre-filter only (voterSql says why)
      order by e."profileId", e."schoolId", e.at desc, e.id desc`
 }
 
@@ -555,7 +559,7 @@ export async function awardReviews(start: Date, end: Date) {
        and r."submittedAt" >= (${start.toISOString()}::timestamptz at time zone 'UTC')
        and r."submittedAt" < (${end.toISOString()}::timestamptz at time zone 'UTC')
        and ${reviewAuthorSql()}
-       and exists (select 1 from identity_verifications iv where iv."profileId" = p.id and iv.status = 'verified') -- pre-filter only (voterSql says why)`
+       ${REVIEWS_NEED_PROOF ? Prisma.sql`and exists (select 1 from identity_verifications iv where iv."profileId" = p.id and iv.status = 'verified')` : Prisma.empty} -- pre-filter only (voterSql says why)`
 }
 
 /** Each school's Teachers' Choice places, newest year first — the badge on its page and its board row. */

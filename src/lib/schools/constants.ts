@@ -80,7 +80,10 @@ export const isBadTag = (v: unknown): v is BadTag => typeof v === 'string' && (B
  * authenticated by phone) but phone OTP is OFF on eno.vn today (sign-in-form.tsx PHONE_OTP_ENABLED):
  * turning this on now would lock every user out. Flip it with the OTP launch.
  */
-export const ELIGIBLE_ACCOUNT_AGE_DAYS = 7
+// ⛔ 0 SINCE 2026-10-06 — owner: "just google or normal sign in can post review and upvote, too complex for users
+// to engage". A new account counts at once; the rest of WHO COUNTS (individual, good standing, not the school's
+// own shop) still applies.
+export const ELIGIBLE_ACCOUNT_AGE_DAYS = 0
 export const REQUIRE_PHONE = false
 
 /**
@@ -91,7 +94,19 @@ export const REQUIRE_PHONE = false
  * still vote: the vote is stored and starts counting the day they verify. A proof of EMPLOYMENT never stands
  * in for it — a school controls its own mail domain and could mint "employees" — it makes a REVIEW count.
  */
-export const VOTES_NEED_IDENTITY = true
+// ⛔ OFF SINCE 2026-10-06 (owner, same words as ELIGIBLE_ACCOUNT_AGE_DAYS): any signed-in account votes; one vote
+// per account still holds (SchoolVote's key). Flip back to true to require a verified identity again.
+export const VOTES_NEED_IDENTITY = false
+/**
+ * ⛔ OFF SINCE 2026-10-06 (owner: "just google or normal sign in can post review … too complex"). When false, any
+ * signed-in account may write a review with no proof of employment; a moderator still reads every review before it
+ * appears. The LinkedIn proof step, its admin queue and its tables stay in the code, dormant — true brings them
+ * back. ⚠️ While false the retention sweep must NOT delete reviews for lacking a proof (employment.ts), and the proof
+ * endpoint takes no new proofs. ⛔ TURNING IT BACK ON is not just a flip (diff review): every review published while it
+ * was off has no proof row, so the read rule would hide them all at once and the sweep would later delete them —
+ * decide first what happens to those (keep them as written-before-proofs, or ask their writers for a proof).
+ */
+export const REVIEWS_NEED_PROOF = false
 /** Where a teacher verifies their identity (the KYC capture page, on both editions). */
 export const VERIFY_IDENTITY_PATH = '/dashboard/account/verify'
 

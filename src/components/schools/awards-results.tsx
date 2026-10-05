@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { SITE_NAME } from '@/lib/edition'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Award, Users } from '@/components/ui/icons'
 import type { AwardsPage } from '@/lib/schools/awards'
@@ -28,15 +29,16 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
       </h1>
       <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
         <Bilingual
-          en="The schools, English centres and recruiters in Ho Chi Minh City that teachers recommend working for, chosen only by teachers with a verified identity and reviews from teachers whose employment was checked. One category for each kind of place."
-          vi="Các trường, trung tâm tiếng Anh và đơn vị tuyển dụng tại TP. Hồ Chí Minh được giáo viên đề xuất làm việc, chỉ do giáo viên đã xác minh danh tính bình chọn, cùng đánh giá của giáo viên đã được kiểm tra nơi làm việc. Mỗi loại hình có một hạng mục riêng."
+          en="The schools, English centres and recruiters in Ho Chi Minh City that teachers recommend working for, chosen by teachers' votes and reviews on {site}. One category for each kind of place."
+          vi="Các trường, trung tâm tiếng Anh và đơn vị tuyển dụng tại TP. Hồ Chí Minh được giáo viên đề xuất làm việc, dựa trên bình chọn và đánh giá của giáo viên trên {site}. Mỗi loại hình có một hạng mục riêng."
+          values={{ site: SITE_NAME }}
         />
       </p>
 
       {page.state === 'final' ? (
         <>
           <p className="mt-4 text-sm text-muted-foreground">
-            <Bilingual en="Closed on {closed}. {voters} verified teachers' votes and {reviews} reviews counted." vi="Đã khép lại ngày {closed}. Đã tính phiếu của {voters} giáo viên đã xác minh và {reviews} đánh giá." values={{ closed, voters: n(page.voters), reviews: n(page.reviews) }} />
+            <Bilingual en="Closed on {closed}. {voters} teachers' votes and {reviews} reviews counted." vi="Đã khép lại ngày {closed}. Đã tính phiếu của {voters} giáo viên và {reviews} đánh giá." values={{ closed, voters: n(page.voters), reviews: n(page.reviews) }} />
           </p>
           {/* grid-cols-1, not an implicit column: an implicit track grows to the longest unwrapped (truncated) school
               name, which overflowed a 390px phone by 8px (measured on the preview). */}
@@ -55,8 +57,8 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
             <h2 id="awards-take-part-h" className="text-lg font-bold text-foreground"><Bilingual en="How to take part" vi="Cách tham gia" /></h2>
             <p className="mt-2 text-sm leading-relaxed text-body">
               <Bilingual
-                en="Vote on the places you worked or interviewed at on the school list, and write a review of the ones you worked at. Votes count from teachers with a verified identity; one person, one vote. Each year starts fresh: votes cast in earlier years do not carry over."
-                vi="Hãy bình chọn những nơi bạn từng làm việc hoặc phỏng vấn trong danh sách trường, và viết đánh giá về nơi bạn từng làm. Phiếu được tính từ giáo viên đã xác minh danh tính; mỗi người một phiếu. Mỗi năm bắt đầu lại từ đầu: phiếu của các năm trước không được chuyển sang."
+                en="Vote on the places you worked or interviewed at on the school list, and write a review of the ones you worked at. Sign in with Google or email; one vote per account. Each year starts fresh: votes cast in earlier years do not carry over."
+                vi="Hãy bình chọn những nơi bạn từng làm việc hoặc phỏng vấn trong danh sách trường, và viết đánh giá về nơi bạn từng làm. Đăng nhập bằng Google hoặc email; mỗi tài khoản một phiếu. Mỗi năm bắt đầu lại từ đầu: phiếu của các năm trước không được chuyển sang."
               />{' '}
               <Link href="/schools" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Go to the school list" vi="Đến danh sách trường" /></Link>
             </p>
@@ -86,8 +88,8 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
         <h2 id="awards-how-h" className="text-base font-bold text-foreground"><Bilingual en="How the winners are chosen" vi="Cách chọn ra kết quả" /></h2>
         <p className="mt-2 text-sm leading-relaxed text-body">
           <Bilingual
-            en="Each place is compared only with places of its own kind. A place qualifies when more of its voters recommend it than not, with votes from at least {voters} teachers with a verified identity and at least {reviews} reviews from teachers whose employment a moderator checked and who also verified their identity, all cast during the year, Saigon time. Each teacher's last vote of the year counts. Qualified places are ranked by the lower bound of a 95% confidence interval on the share of up-votes, the same score as the list's Top rated, so a place cannot win on a handful of friendly votes; ties go to more voters. The teachers' choice and up to two finalists are recorded when the year closes and never change afterwards."
-            vi="Mỗi nơi chỉ được so với các nơi cùng loại hình. Một nơi đủ điều kiện khi số người đề xuất nhiều hơn số người không đề xuất, có phiếu của ít nhất {voters} giáo viên đã xác minh danh tính và ít nhất {reviews} đánh giá của giáo viên đã được kiểm duyệt viên kiểm tra nơi làm việc và cũng đã xác minh danh tính, tất cả trong năm, theo giờ Sài Gòn. Phiếu cuối cùng trong năm của mỗi giáo viên được tính. Các nơi đủ điều kiện được xếp theo cận dưới của khoảng tin cậy 95% cho tỷ lệ phiếu lên, cùng cách tính với mục Được đánh giá cao của danh sách, nên không nơi nào thắng nhờ vài phiếu quen biết; nếu bằng điểm, nơi có nhiều người bình chọn hơn xếp trên. Lựa chọn của giáo viên và tối đa hai nơi vào chung kết được ghi lại khi năm khép lại và không thay đổi sau đó."
+            en="Each place is compared only with places of its own kind. A place qualifies when more of its voters recommend it than not, with votes from at least {voters} teachers and at least {reviews} reviews a moderator has read, all cast during the year, Saigon time. Each teacher's last vote of the year counts. Qualified places are ranked by the lower bound of a 95% confidence interval on the share of up-votes, the same score as the list's Top rated, so a place cannot win on a handful of friendly votes; ties go to more voters. The teachers' choice and up to two finalists are recorded when the year closes and never change afterwards."
+            vi="Mỗi nơi chỉ được so với các nơi cùng loại hình. Một nơi đủ điều kiện khi số người đề xuất nhiều hơn số người không đề xuất, có phiếu của ít nhất {voters} giáo viên và ít nhất {reviews} đánh giá đã được kiểm duyệt viên đọc, tất cả trong năm, theo giờ Sài Gòn. Phiếu cuối cùng trong năm của mỗi giáo viên được tính. Các nơi đủ điều kiện được xếp theo cận dưới của khoảng tin cậy 95% cho tỷ lệ phiếu lên, cùng cách tính với mục Được đánh giá cao của danh sách, nên không nơi nào thắng nhờ vài phiếu quen biết; nếu bằng điểm, nơi có nhiều người bình chọn hơn xếp trên. Lựa chọn của giáo viên và tối đa hai nơi vào chung kết được ghi lại khi năm khép lại và không thay đổi sau đó."
             values={{ voters: String(AWARD_MIN_VOTERS), reviews: String(AWARD_MIN_REVIEWS) }}
           />
         </p>

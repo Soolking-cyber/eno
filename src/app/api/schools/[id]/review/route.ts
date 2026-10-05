@@ -16,7 +16,7 @@ import { writeEligibility } from '@/lib/schools/queries'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { payInBand, screenReviewText, toVnd } from '@/lib/schools/logic'
 import {
-  BAD_TAGS, EMPLOYMENTS, GOOD_TAGS, HCMC_AREAS, REVIEW_ADVICE_MAX, REVIEW_TEXT_MAX, REVIEW_TEXT_MIN, ROLES, TENURES,
+  BAD_TAGS, EMPLOYMENTS, GOOD_TAGS, HCMC_AREAS, REVIEW_ADVICE_MAX, REVIEW_TEXT_MAX, REVIEW_TEXT_MIN, ROLES, TENURES, REVIEWS_NEED_PROOF,
 } from '@/lib/schools/constants'
 
 export const runtime = 'nodejs'
@@ -88,11 +88,12 @@ export const POST = route(
     // ⛔ PROOF OF EMPLOYMENT FIRST (owner, 2026-10-05): a review is written only with a private proof that the
     // writer worked here (/api/schools/[id]/proof) — pending is enough to write, verified is needed to publish
     // (the moderator's approve checks it, and the public read rule requires it).
-    const proof = await db.schoolEmployment.findUnique({ where: { profileId_schoolId: { profileId: profile.id, schoolId: school.id } }, select: { status: true, purgeAt: true } })
+    // ⛔ ONLY WHILE REVIEWS_NEED_PROOF (constants.ts): since 2026-10-06 any signed-in account may write one (owner).
+    const proof = REVIEWS_NEED_PROOF ? await db.schoolEmployment.findUnique({ where: { profileId_schoolId: { profileId: profile.id, schoolId: school.id } }, select: { status: true, purgeAt: true } }) : null
     // A waiting proof past its date is no proof (diff review): the queue no longer shows it, so a review written on it
     // would wait where no moderator looks. The same rule as the queue (queries.ts QUEUED).
     const live = proof && (proof.status === 'verified' || (proof.status === 'pending' && !!proof.purgeAt && proof.purgeAt > new Date()))
-    if (!live) throw new ApiError('proof_required', 409)
+    if (REVIEWS_NEED_PROOF && !live) throw new ApiError('proof_required', 409)
 
     const texts = [body.pros, body.cons, body.advice ?? null]
     // Links first: the contact screen below also catches a URL, but its message ("remove phone numbers,

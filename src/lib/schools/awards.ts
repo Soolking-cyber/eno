@@ -1,7 +1,7 @@
 import 'server-only'
 import { db } from '@/lib/db'
 import { verifiedProfileIds } from '@/lib/kyc/identity'
-import { AWARD_FIRST_YEAR, SCHOOL_KINDS, type SchoolKind } from './constants'
+import { AWARD_FIRST_YEAR, REVIEWS_NEED_PROOF, SCHOOL_KINDS, VOTES_NEED_IDENTITY, type SchoolKind } from './constants'
 import { awardReviews, awardVotes, queuedReviewCountIn } from './queries'
 import { awardWindow, currentAwardYear, placesOf, rankCategory, type Standing } from './award-rank'
 
@@ -39,18 +39,22 @@ export async function awardStandings(year: number, now: Date = new Date()): Prom
   // A closed year: AS OF its cutoff. An open year: plainly today (diff review: "as of" sets aside rows with no decision
   // date, which today's view — the board's — would count).
   const ids = [...votes.map((v) => v.profileId), ...reviews.map((r) => r.profileId)]
-  const people = now < end ? await verifiedProfileIds(ids, now) : await verifiedProfileIds(ids, end, { asOf: end })
+  const people = !VOTES_NEED_IDENTITY && !REVIEWS_NEED_PROOF ? new Set<string>()
+    : now < end ? await verifiedProfileIds(ids, now) : await verifiedProfileIds(ids, end, { asOf: end })
+  // Identity counts only while a switch asks for it (constants.ts, owner 2026-10-06: any signed-in account votes and reviews).
+  const votesOk = (id: string) => !VOTES_NEED_IDENTITY || people.has(id)
+  const reviewsOk = (id: string) => !REVIEWS_NEED_PROOF || people.has(id)
   const tally = new Map<string, { up: number; down: number; reviews: number }>()
   const at = (id: string) => { let t = tally.get(id); if (!t) tally.set(id, (t = { up: 0, down: 0, reviews: 0 })); return t }
   const voters = new Set<string>()
   for (const v of votes) {
-    if (!people.has(v.profileId) || (v.value !== 1 && v.value !== -1)) continue
+    if (!votesOk(v.profileId) || (v.value !== 1 && v.value !== -1)) continue
     voters.add(v.profileId)
     if (v.value === 1) at(v.schoolId).up++
     else at(v.schoolId).down++
   }
   let reviewCount = 0
-  for (const r of reviews) if (people.has(r.profileId)) { at(r.schoolId).reviews++; reviewCount++ }
+  for (const r of reviews) if (reviewsOk(r.profileId)) { at(r.schoolId).reviews++; reviewCount++ }
   const categories = Object.fromEntries(SCHOOL_KINDS.map((k) => [k, [] as (Standing & { slug: string })[]])) as CategoryStandings
   for (const kind of SCHOOL_KINDS) {
     const of = schools.filter((s) => s.kind === kind && tally.has(s.id))

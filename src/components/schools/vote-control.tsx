@@ -146,9 +146,9 @@ export function VoteControl({ schoolId, schoolName, layout = 'column', size = 'm
             <DialogTitle>{tr('Votes are for teachers who were there', 'Bình chọn dành cho giáo viên từng làm việc tại đây')}</DialogTitle>
             <DialogDescription>
               {tr(
-                'Vote only on schools and centres where you worked, or interviewed, as a teacher. One person, one vote: votes count from individual accounts with a verified identity, in good standing and at least {n} days old. Who voted is never shown.',
-                'Chỉ bình chọn cho trường hoặc trung tâm nơi bạn từng làm việc hoặc phỏng vấn với vai trò giáo viên. Mỗi người một phiếu: bình chọn được tính từ tài khoản cá nhân đã xác minh danh tính, uy tín và đã tạo ít nhất {n} ngày. Không ai thấy bạn đã bình chọn.',
-              ).replace('{n}', String(ELIGIBLE_ACCOUNT_AGE_DAYS))}
+                'Vote only on schools and centres where you worked, or interviewed, as a teacher. One vote per account. Who voted is never shown.',
+                'Chỉ bình chọn cho trường hoặc trung tâm nơi bạn từng làm việc hoặc phỏng vấn với vai trò giáo viên. Mỗi tài khoản một phiếu. Không ai thấy bạn đã bình chọn.',
+              )}
             </DialogDescription>
           </DialogHeader>
           <label className="flex items-start gap-3 text-sm text-foreground">

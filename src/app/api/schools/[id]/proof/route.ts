@@ -12,7 +12,7 @@ import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { writeEligibility } from '@/lib/schools/queries'
-import { EXPIRED_PROOF_REASON, PROOFS_PENDING_MAX } from '@/lib/schools/constants'
+import { EXPIRED_PROOF_REASON, PROOFS_PENDING_MAX, REVIEWS_NEED_PROOF } from '@/lib/schools/constants'
 import { PENDING_MAX_DAYS, newChallenge, normaliseLinkedIn, proofConfigured, proofHash, proofKeyMatches, proofKeyMayMatch } from '@/lib/schools/employment'
 
 export const runtime = 'nodejs'
@@ -77,6 +77,10 @@ export const POST = route(
     const s = await school(params.id)
     if (!s) throw new ApiError('not_found', 404)
     const where = { profileId_schoolId: { profileId: profile.id, schoolId: s.id } }
+    // ⛔ NO NEW PROOFS WHILE THEY ARE NOT REQUIRED (constants.ts REVIEWS_NEED_PROOF, off since 2026-10-06 — diff review):
+    // the page no longer asks for one or describes how it is kept, so no LinkedIn URL is collected. Withdrawing one
+    // already held still works, so anyone can take theirs back.
+    if (!REVIEWS_NEED_PROOF && body.action !== 'withdraw') throw new ApiError('not_found', 404)
 
     if (body.action === 'withdraw') {
       // The hash stays (a profile cannot be cycled through a fresh account); what identifies the person in readable
