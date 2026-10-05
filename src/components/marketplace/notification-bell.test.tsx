@@ -11,8 +11,9 @@ import { trCache } from '@/lib/i18n/mt-client'
 // <Tr> machine-translates through /api/translate (Microsoft) into the SHARED Translation cache. An offer's body is
 // the offerer's own note and an availability request's names the person asking, so both render as written — title and
 // body — with the App Store gate off (the web, today) and on, whatever the person answered about chat translation; so
-// does a type the allowlist does not know. The control row (eno's own copy) proves the bell still machine-translates
-// what it may, so "nothing private was sent" means something.
+// does a type the allowlist does not know, and a refused verification (the reviewer's note can name a document number).
+// The control row (eno's own copy) proves the bell still machine-translates what it may, so "nothing private was sent"
+// means something.
 
 const ME = '11111111-1111-4111-8111-111111111111'
 const IOS_APP = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 EnoNativeApp/1'
@@ -23,13 +24,18 @@ const OFFER_WITH_AMOUNT = 'Trả giá · Offered 4.500.000 ₫ — Could you do 
 const AVAILABILITY = `${NAME} · 2 căn / 2 rentals · eno.vn`
 const AVAILABILITY_FORUM = `${NAME} · 1 căn / 1 rental · eno.forum`
 const UNKNOWN_BODY = 'Meet me at the Thao Dien cafe at six, my number is in the chat'
+// A refused verification: the reviewer's own note, which can name a document number (kyc/notify-outcome.ts).
+const VERIFICATION_TITLE = 'Identity verification not accepted'
+const VERIFICATION_NOTE = 'Passport B1234567 shows a different surname than the account'
+// The same refusal written BEFORE 2026-10-05, when these rows were still `system` — caught by its url.
+const LEGACY_NOTE = 'Tax code 0312345678 does not match the business licence'
 const SYSTEM_TITLE = 'Listing held for review'
 const SYSTEM_BODY = 'Your listing was hidden pending review because its photos match another listing.'
 const AVAILABILITY_TITLE = 'Kiểm tra phòng trống · Availability check'
 
 const at = (min: number) => new Date(Date.now() - min * 60_000).toISOString()
-const row = (id: string, type: string, title: string, body: string, min: number) =>
-  ({ id, type, title, body, read: false, createdAt: at(min), conversationId: 'c1', listingId: null, url: null, actorName: null })
+const row = (id: string, type: string, title: string, body: string, min: number, url: string | null = null) =>
+  ({ id, type, title, body, read: false, createdAt: at(min), conversationId: 'c1', listingId: null, url, actorName: null })
 const ITEMS = [
   row('n1', 'offer', NAME, OFFER_NOTE, 1),
   row('n2', 'offer', NAME, OFFER_WITH_AMOUNT, 2),
@@ -37,6 +43,8 @@ const ITEMS = [
   row('n4', 'availability_request_forum', AVAILABILITY_TITLE, AVAILABILITY_FORUM, 4),
   row('n5', 'message', NAME, UNKNOWN_BODY, 5),
   row('n6', 'system', SYSTEM_TITLE, SYSTEM_BODY, 6),
+  row('n7', 'verification', VERIFICATION_TITLE, VERIFICATION_NOTE, 7),
+  row('n8', 'system', 'Verification needs a change', LEGACY_NOTE, 8, '/dashboard/settings'),
 ]
 
 vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: { id: ME }, loading: false, openSignIn: vi.fn() }) }))
@@ -90,12 +98,14 @@ async function openBellInVietnamese() {
 function expectPrivateTextAsWritten() {
   const sent = sentForTranslation()
   // Nothing that names the person or carries their words left for translation — title or body.
-  expect(sent.filter((t) => t.includes(NAME) || t.includes('Thao Dien') || t.includes('4.5M'))).toEqual([])
-  for (const privateText of [OFFER_NOTE, OFFER_WITH_AMOUNT, AVAILABILITY, AVAILABILITY_FORUM, UNKNOWN_BODY]) {
+  expect(sent.filter((t) => t.includes(NAME) || t.includes('Thao Dien') || t.includes('4.5M') || t.includes('B1234567') || t.includes('0312345678'))).toEqual([])
+  for (const privateText of [OFFER_NOTE, OFFER_WITH_AMOUNT, AVAILABILITY, AVAILABILITY_FORUM, UNKNOWN_BODY, VERIFICATION_NOTE, LEGACY_NOTE]) {
     expect(screen.getByText(privateText)).toBeTruthy()
   }
   // The unknown type's title (a name) is shown as stored too.
   expect(screen.getByText(NAME)).toBeTruthy()
+  // A verification row's TITLE is eno's own copy, so it still goes to translation — only its body (the note) does not.
+  expect(sent).toContain(VERIFICATION_TITLE)
 }
 
 describe('notification bell — private text is shown as written', () => {
@@ -120,8 +130,23 @@ describe('notificationTextAsWritten — an allowlist that fails closed', () => {
       expect(notificationTextAsWritten(t)).toBe(false)
     }
   })
+  it('a verification row: the title (eno copy) is translated, the body (a reviewer note) is not', () => {
+    expect(notificationTextAsWritten('verification', null, 'title')).toBe(false)
+    expect(notificationTextAsWritten('verification', null, 'body')).toBe(true)
+    expect(notificationTextAsWritten('verification')).toBe(true) // the body is the default part
+  })
+  it('a LEGACY verification row (still `system`) is caught by the page it points at; other system rows are not', () => {
+    for (const url of ['/dashboard/verification', '/dashboard/settings', '/dashboard/settings/', '/dashboard/verification?tab=x', '/dashboard/settings#business']) {
+      expect(notificationTextAsWritten('system', url, 'body')).toBe(true)
+      expect(notificationTextAsWritten('system', url, 'title')).toBe(false)
+    }
+    expect(notificationTextAsWritten('system', '/listings/l1')).toBe(false)
+    expect(notificationTextAsWritten('system', '/dashboard')).toBe(false)
+    expect(notificationTextAsWritten('system', null)).toBe(false)
+    expect(notificationTextAsWritten('dispute', '/dashboard/verification')).toBe(false)
+  })
   it('shows everything else as written — the private types and any type it does not know', () => {
-    for (const t of ['offer', 'availability_request', 'availability_request_forum', 'message', 'some_new_type', '']) {
+    for (const t of ['offer', 'availability_request', 'availability_request_forum', 'verification', 'message', 'some_new_type', '']) {
       expect(notificationTextAsWritten(t)).toBe(true)
     }
   })

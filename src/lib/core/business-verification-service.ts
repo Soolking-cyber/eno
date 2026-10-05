@@ -91,7 +91,9 @@ async function notifyVerificationOutcome(
      */
     try {
       await db.notification.create({
-        data: { recipientId: ownerId, type: 'system', title, body: bellBody, actorName: SITE_NAME, url: '/dashboard/settings' },
+        // `verification`, not `system`: the body can be the operator's note, and the bell machine-translates `system` rows —
+        // this type is shown as written (src/lib/notification-text.ts). Same seal and line-clamp in the bell.
+        data: { recipientId: ownerId, type: 'verification', title, body: bellBody, actorName: SITE_NAME, url: '/dashboard/settings' },
       })
     } catch (e) {
       console.error('[verification] bell', (e as Error).message)

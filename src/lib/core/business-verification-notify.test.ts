@@ -76,6 +76,8 @@ describe('a decided verification tells the seller', () => {
     // The note is the actionable half — a rejection that does not say what to fix is useless.
     expect(String(h.notifications[0].body)).toContain('tax code')
     expect(h.notifications[0].url).toBe('/dashboard/settings')
+    // Its own type, not 'system': the bell never machine-translates a 'verification' row (src/lib/notification-text.ts).
+    expect(h.notifications[0].type).toBe('verification')
   })
 
   it('emails the seller, because a review lands when nobody is on the site', async () => {

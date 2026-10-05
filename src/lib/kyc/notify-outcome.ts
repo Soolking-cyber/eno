@@ -68,7 +68,9 @@ export async function notifyIdentityOutcome(
 
     try {
       await db.notification.create({
-        data: { recipientId: profileId, type: 'system', title, body: bellBody, actorName: SITE_NAME, url: '/dashboard/verification' },
+        // `verification`, not `system`: a refusal's body is the reviewer's note, and the bell machine-translates `system`
+        // rows — this type is shown as written (src/lib/notification-text.ts). Same seal and line-clamp in the bell.
+        data: { recipientId: profileId, type: 'verification', title, body: bellBody, actorName: SITE_NAME, url: '/dashboard/verification' },
       })
     } catch (e) {
       console.error('[identity] bell', (e as Error).message)
