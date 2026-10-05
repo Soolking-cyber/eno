@@ -5,9 +5,15 @@ export type Macro = { key: string; label: string; en: string; vi: string }
 
 export const MOD_MACROS: Macro[] = [
   {
-    key: 'off_platform', label: 'Off-platform deposit warning',
-    en: 'Warning from eno.vn: never pay a deposit or transfer money outside the app. Keep all contact and payments on eno.vn so you stay protected.',
-    vi: 'Cảnh báo từ eno.vn: tuyệt đối không chuyển cọc hay thanh toán ngoài ứng dụng. Hãy giữ mọi liên hệ và giao dịch trên eno.vn để được bảo vệ.',
+    // ⛔ NO PROTECTION CLAIM, NO IN-APP PAYMENT (2026-10-05). It said "never pay … outside the app. Keep all
+    // contact and payments on eno.vn so you stay protected" — eno takes no payment between users and holds
+    // no escrow, so it promised a protection that does not exist and implied an in-app way to pay. It also
+    // told users to ignore the phone/Zalo the site itself reveals, and named one site from a codebase that
+    // runs two. Now: a universal caution (anyone, any money in advance), a plain statement of what eno does
+    // not do, and "the eno team" as the sender on either site.
+    key: 'off_platform', label: 'Deposit / prepayment warning',
+    en: 'Warning from the eno team: never pay a deposit or send money to anyone before you have checked who they are and what you are paying for. eno does not hold or guarantee payments between users.',
+    vi: 'Cảnh báo từ đội ngũ eno: tuyệt đối không đặt cọc hay chuyển tiền cho bất kỳ ai trước khi bạn kiểm tra rõ họ là ai và bạn đang trả tiền cho điều gì. eno không giữ hộ và không bảo đảm các khoản thanh toán giữa người dùng.',
   },
   {
     key: 'need_detail', label: 'Need more detail',
