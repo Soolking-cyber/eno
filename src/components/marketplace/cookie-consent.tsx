@@ -95,6 +95,11 @@ function PurposeRow({ title, desc, checked, onChange, locked = false }: { title:
  * ⚠️ THE WORDS AND THE tr() STRINGS ARE UNCHANGED — the split happens on the translated text at render, so the
  * copy fingerprint (and CONSENT_COPY_VERSION) is untouched and no sentence is reworded or resized (text-sm
  * stays: "cut words — never the size"). The only visible change: each sentence starts on its own line.
+ * ⚠️ PHONES ONLY (`md:inline`). From md up the card photos are ~85k px² against a bar paragraph of half that, so
+ * the photo is the LCP with one paragraph too (measured on prod and on the preview at 1440×900: a photo in 12/12
+ * loads each) — and a block per sentence costs the half-empty last line of each block: +1 line (161 → 180 px) on
+ * the Vietnamese desktop bar. On a 320–360px phone the same lines are the price of the photo LCP (+19 px of bar,
+ * 7–8.5 s → 0.8 s LCP at 360); cutting them needs shorter words, which wait for counsel (see the bar's copy).
  */
 function SentenceBlocks({ text, tail }: { text: string; tail?: ReactNode }) {
   // ⛔ NO LOOKBEHIND (codex + opus, gate 2026-10-05): a `(?<=…)` regex literal is a SyntaxError when the chunk is
@@ -102,11 +107,11 @@ function SentenceBlocks({ text, tail }: { text: string; tail?: ReactNode }) {
   // would lose the consent bar and the navigation together. Match sentences forward instead.
   const parts = (text.match(/[^.?!。？！]+[.?!。？！]+|[^.?!。？！]+$/g) ?? [text]).map((p) => p.trim()).filter(Boolean)
   // An empty translation must never take the Privacy Policy link with it (opus, gate): the link always renders.
-  if (!parts.length) return tail ? <span className="block">{tail}</span> : null
+  if (!parts.length) return tail ? <span className="block md:inline">{tail}</span> : null
   return (
     <>
       {parts.map((sentence, i) => (
-        <span key={i} className="block">
+        <span key={i} className="block md:inline">
           {sentence}
           {/* The space a sentence break had, kept: screen readers and textContent read "choose. Change", and a
               trailing space at the end of a block line paints nothing. */}
