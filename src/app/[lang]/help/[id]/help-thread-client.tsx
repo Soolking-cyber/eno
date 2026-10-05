@@ -11,6 +11,7 @@ import { Tr, useLanguage, useTr } from '@/context/language-context'
 import { HelpTopicIcon } from '@/components/marketplace/help-center'
 import { HelpVote } from '@/components/marketplace/help-vote'
 import { ReportContentButton } from '@/components/marketplace/report-content-button'
+import { OBJECTIONABLE_CONTENT, objectionableCopy } from '@/lib/ugc-copy'
 import { useLocalized } from '@/components/marketplace/listing-content'
 import { formatHelpBody } from '@/components/marketplace/rich-text'
 import { Avatar } from '@/components/ui/avatar'
@@ -197,6 +198,9 @@ export function HelpThreadClient({
       toast.error(
         code === 'account_restricted'
           ? tr('Your account cannot post replies right now.', 'Tài khoản của bạn hiện không thể trả lời.')
+          // App Store gate `ugc-safety` (R5): the word filter refused it; the draft stays in the box.
+          : code === OBJECTIONABLE_CONTENT
+            ? objectionableCopy('reply', tr)
           : code === 'rate_limited'
             ? tr('Too many replies just now. Try again shortly.', 'Bạn vừa gửi quá nhiều phản hồi. Vui lòng thử lại sau.')
             : tr('Could not post your reply. Try again.', 'Chưa gửi được phản hồi. Vui lòng thử lại.'),

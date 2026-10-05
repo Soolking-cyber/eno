@@ -4,6 +4,7 @@ import { canParticipate, getForumAuth } from '@/lib/forum/auth'
 import { forumJson, forumPreflight, isAllowedForumOrigin } from '@/lib/forum/cors'
 import { forumAuthorSelect, serializeForumPost } from '@/lib/forum/serialize'
 import { rateLimit } from '@/lib/ratelimit'
+import { refuseObjectionable } from '@/lib/ugc-filter'
 import { withheldHelpTopicSlugs } from '@/lib/help-center'
 
 export const runtime = 'nodejs'
@@ -165,6 +166,10 @@ export async function POST(request: Request) {
   const community = await db.forumCommunity.findUnique({ where: { slug: input.community }, select: { slug: true, status: true } })
   if (!community || community.status !== 'active') {
     return forumJson(request, { error: 'community_not_found' }, { status: 404 }, 'GET, POST, OPTIONS')
+  }
+  // App Store gate `ugc-safety` (plan R5): title and body through the severe-only filter. Off ⇒ no scan.
+  if (await refuseObjectionable('help-post', input.title, input.body)) {
+    return forumJson(request, { error: 'objectionable_content' }, { status: 400 }, 'GET, POST, OPTIONS')
   }
 
   const [flair, flairVi] = flairByKind[input.kind]

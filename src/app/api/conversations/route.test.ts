@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * POST /api/conversations — the thread-resolution rules, and the live 500 they used to cause.
@@ -147,6 +147,8 @@ vi.mock('@/lib/db', () => ({
       },
     },
     notification: { create: () => Promise.resolve({}) },
+    // App Store gate `ugc-safety`: the block lookup the route makes once the gate is on (no block here).
+    forumUserBlock: { findFirst: () => Promise.resolve(null) },
   },
 }))
 
@@ -154,7 +156,7 @@ vi.mock('@/lib/admin', () => ({
   getCurrentProfile: () => Promise.resolve(h.state.profile),
   getCurrentProfileId: () => Promise.resolve(h.state.profile?.id ?? null),
 }))
-vi.mock('@/lib/ratelimit', () => ({ rateLimit: () => Promise.resolve({ success: h.state.rateOk }) }))
+vi.mock('@/lib/ratelimit', () => ({ rateLimit: () => Promise.resolve({ success: h.state.rateOk }), kv: { incrby: () => Promise.resolve(1) } }))
 vi.mock('@/lib/enforcement', () => ({ conversationGate: () => Promise.resolve(h.state.gate) }))
 vi.mock('@/lib/push', () => ({ sendPushToProfile: () => Promise.resolve() }))
 vi.mock('@/lib/offer-guard', () => ({ recordFixedPriceOfferAttempt: (id: string) => { h.state.docked.push(id); return Promise.resolve() } }))
@@ -379,5 +381,30 @@ describe('an opening OFFER on a listing that takes none', () => {
     expect(json.error).toBe('not_negotiable')
     expect(h.state.docked).toEqual([])
     expect(h.state.convos).toHaveLength(0)
+  })
+})
+
+// ── App Store gate `ugc-safety` (plan R5): the first message goes through the severe-only word filter ──
+describe('the word filter on the message that opens a thread', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('gate OFF: nothing is scanned — the thread opens and the message is delivered as before', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    const { status } = await post({ listingId: SHOP_A, message: 'I will kill you' })
+    expect(status).toBe(200)
+    expect(h.state.delivered).toHaveLength(1)
+  })
+
+  it('gate ON: a threat is refused BEFORE the thread exists — no conversation, no message', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+    expect(await post({ listingId: SHOP_A, message: 'tao giết mày' })).toEqual({ status: 400, json: { error: 'objectionable_content' } })
+    expect(h.state.convos).toEqual([])
+    expect(h.state.delivered).toEqual([])
+  })
+
+  it('gate ON: an ordinary first message (and a bare offer) still opens the thread', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+    expect((await post({ listingId: SHOP_A, message: 'Còn hàng không bạn? Giá cuối bao nhiêu?' })).status).toBe(200)
+    expect((await post({ listingId: SHOP_B, offerAmount: 500000 })).status).toBe(200)
   })
 })

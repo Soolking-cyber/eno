@@ -10,6 +10,7 @@ import {
   type ForumCommentDto,
 } from '@/lib/forum/serialize'
 import { rateLimit } from '@/lib/ratelimit'
+import { refuseObjectionable } from '@/lib/ugc-filter'
 import { logError } from '@/lib/log'
 import { isBotRequest } from '@/lib/bot-ua'
 
@@ -162,6 +163,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const existing = await db.forumPost.findUnique({ where: { id }, select: { authorProfileId: true, title: true, body: true, status: true } })
   if (!existing || existing.status === 'removed') return forumJson(request, { error: 'not_found' }, { status: 404 })
   if (existing.authorProfileId !== auth.profile.id) return forumJson(request, { error: 'forbidden' }, { status: 403 })
+  // App Store gate `ugc-safety` (plan R5): an edit is filtered like a new post, or clean-post-then-edit
+  // would be the way around the filter. Off ⇒ nothing is scanned.
+  if (await refuseObjectionable('help-post', parsed.data.title, parsed.data.body)) return forumJson(request, { error: 'objectionable_content' }, { status: 400 })
 
   await db.$transaction([
     db.forumPostRevision.create({ data: { postId: id, editorProfileId: auth.profile.id, title: existing.title, body: existing.body } }),

@@ -169,13 +169,10 @@ const BANNED_WORDS = [
   'wegovy', 'mounjaro', 'tirzepatide', 'saxenda', 'misoprostol', 'mifepristone', 'clenbuterol',
 ].map((w) => fold(w))
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-const BANNED_RE = new RegExp(`\\b(${BANNED_WORDS.map(escapeRe).join('|')})\\b`)
 
 /** First banned (illegal-content) word found, as its folded form, or null. */
 export function findBannedWord(text: string | null | undefined): string | null {
-  if (!text) return null
-  const m = fold(text).match(BANNED_RE)
-  return m ? m[1] : null
+  return BANNED.folded(text)
 }
 
 /**
@@ -249,6 +246,106 @@ const isAccented = (raw: string) => /[\u0300-\u036f]/.test(raw.normalize('NFD'))
 const tokensOf = (raw: string) => raw.normalize('NFC').split(/[^\p{L}\p{M}\p{N}]+/u).filter(Boolean)
 
 /**
+ * ── THE MATCHER — ONE IMPLEMENTATION FOR EVERY WORD LIST ──────────────────────────────────────────────
+ *
+ * The listing list above and the user-generated-content filter's severe-abuse list
+ * (src/lib/severe-abuse-words.ts, App Store gate `ugc-safety`) are matched by THIS code — fold, whole
+ * words, then the accent-aware reading — so a fix to one is a fix to both, and neither list grows its
+ * own almost-identical copy. `terms` are already folded; `accented` maps a folded Vietnamese term to its
+ * real spelling(s).
+ *
+ * `accentedOnly` (used by the severe list only): terms whose UNACCENTED form is an everyday phrase —
+ * "bê đê" (a slur) is "be de", which is also "bé dễ (dàng)" in 82 live listings. Such a term matches ONLY
+ * when every word carries the term's own spelling: the three places the ordinary reading fails CLOSED are
+ * reversed for it (opus + agy, plan review, 2026-10-05):
+ *   · an all-unaccented text cannot match it (no early return);
+ *   · within a span, an unaccented word must spell the term's word exactly — "moi" is not "mọi";
+ *   · when no run of words reproduces the folded hit, it does not count.
+ * The price, stated where the list is: typed without accents, such a term passes.
+ *
+ * `overlapping` (the severe list only): scan from EVERY word, not just past the end of the last hit — so
+ * a longer term that fails its accent check ("tấu khựa" is not "tàu khựa") cannot hide a shorter one that
+ * starts INSIDE it ("khựa"; codex, gate round 4). ⚠️ At one start position the regex still yields only the
+ * first alternative that matches, so two terms must never begin with the same words — one a word-prefix of
+ * the other; severe-abuse-words.test.ts pins that (opus, round 5).
+ * With neither option, behaviour is byte-for-byte what findBannedWordAccentAware always did.
+ */
+export type TermMatcher = {
+  /** The first term on the folded text — findBannedWord's reading. Ignores `accentedOnly`. */
+  folded: (text: string | null | undefined) => string | null
+  /** The accent-aware reading — findBannedWordAccentAware's, plus accented-only terms. */
+  accentAware: (text: string | null | undefined) => string | null
+}
+
+export function buildTermMatcher(
+  terms: readonly string[],
+  accented: Readonly<Record<string, readonly string[]>>,
+  opts: { accentedOnly?: ReadonlySet<string>; overlapping?: boolean } = {},
+): TermMatcher {
+  const source = `\\b(${terms.map(escapeRe).join('|')})\\b`
+  const once = new RegExp(source)
+  const only = opts.accentedOnly ?? new Set<string>()
+  // A zero-width lookahead matches at every position, so terms that overlap each other are all seen.
+  const scan = opts.overlapping ? `(?=${source})` : source
+  return {
+    folded(text) {
+      if (!text) return null
+      const m = fold(text).match(once)
+      return m ? m[1] : null
+    },
+    accentAware(text) {
+      if (!text) return null
+      const hits = [...new Set([...fold(text).matchAll(new RegExp(scan, 'g'))].map((m) => m[1]))]
+      if (!hits.length) return null
+      const textAccented = isAccented(text)
+      let raw: string[] | null = null
+      let foldedTokens: string[] | null = null
+      for (const term of hits) {
+        const strict = only.has(term)
+        if (!textAccented) {
+          if (strict) continue
+          return term
+        }
+        raw ??= tokensOf(text)
+        foldedTokens ??= raw.map((t) => fold(t))
+        const spellings = accented[term]
+        if (!spellings) {
+          if (strict) continue
+          return term
+        }
+        const want = term.split(' ')
+        const sigs = spellings.map((sp) => sp.split(' ').map(syllableSig))
+        let located = false
+        for (let i = 0; i + want.length <= raw.length; i++) {
+          if (!want.every((w, j) => foldedTokens![i + j] === w)) continue
+          located = true
+          const span = raw.slice(i, i + want.length)
+          if (strict) {
+            // Every word must spell the term's word — an unaccented one included (its signature then has
+            // no marks, which matches only a term word that has none either).
+            const spanSigs = span.map((w) => syllableSig(w))
+            if (sigs.some((sig) => sig.every((sg, j) => spanSigs[j] !== null && sg === spanSigs[j]))) return term
+          } else {
+            // An unaccented word already matched on its folded letters (the line above), and so does one whose
+            // accents are no Vietnamese spelling (syllableSig → null); a properly accented one must carry the
+            // term's own accents.
+            const spanSigs = span.map((w) => (isAccented(w) ? syllableSig(w) : null))
+            if (sigs.some((sig) => sig.every((sg, j) => spanSigs[j] === null || sg === spanSigs[j]))) return term
+          }
+        }
+        // ⛔ FAIL CLOSED: the folded text holds this term, yet no run of words reproduces it — the two readings
+        // of the text disagree, so nothing here can show the accents clear it. It counts, as findBannedWord
+        // says — except for an accented-only term, which counts only when its own spelling is seen.
+        if (!located && !strict) return term
+      }
+      return null
+    },
+  }
+}
+
+const BANNED = buildTermMatcher(BANNED_WORDS, BANNED_ACCENTED)
+
+/**
  * findBannedWord, read with the accents — FOR IMPORTED ROWS ONLY (src/lib/import-screen.ts). A seller's
  * own post never comes through here: assertCleanTexts / findBannedWord keep the folded match.
  *
@@ -267,34 +364,7 @@ const tokensOf = (raw: string) => raw.normalize('NFC').split(/[^\p{L}\p{M}\p{N}]
  * English terms and any term without an entry in BANNED_ACCENTED match exactly as findBannedWord does.
  */
 export function findBannedWordAccentAware(text: string | null | undefined): string | null {
-  if (!text) return null
-  const folded = fold(text)
-  const hits = [...folded.matchAll(new RegExp(BANNED_RE.source, 'g'))].map((m) => m[1])
-  if (!hits.length) return null
-  if (!isAccented(text)) return hits[0]
-  const raw = tokensOf(text)
-  const foldedTokens = raw.map((t) => fold(t))
-  for (const term of hits) {
-    const spellings = BANNED_ACCENTED[term]
-    if (!spellings) return term
-    const want = term.split(' ')
-    const sigs = spellings.map((s) => s.split(' ').map(syllableSig))
-    let located = false
-    for (let i = 0; i + want.length <= raw.length; i++) {
-      if (!want.every((w, j) => foldedTokens[i + j] === w)) continue
-      located = true
-      const span = raw.slice(i, i + want.length)
-      // An unaccented word already matched on its folded letters (the line above), and so does one whose
-      // accents are no Vietnamese spelling (syllableSig → null); a properly accented one must carry the
-      // term's own accents.
-      const spanSigs = span.map((w) => (isAccented(w) ? syllableSig(w) : null))
-      if (sigs.some((sig) => sig.every((s, j) => spanSigs[j] === null || s === spanSigs[j]))) return term
-    }
-    // ⛔ FAIL CLOSED: the folded text holds this term, yet no run of words reproduces it — the two readings
-    // of the text disagree, so nothing here can show the accents clear it. It counts, as findBannedWord says.
-    if (!located) return term
-  }
-  return null
+  return BANNED.accentAware(text)
 }
 
 // ── Off-platform contact / address bypass ───────────────────────────────────────────
