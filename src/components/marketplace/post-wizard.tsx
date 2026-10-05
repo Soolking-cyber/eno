@@ -35,7 +35,7 @@ import { trackPostListing } from '@/lib/analytics'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { isNativeShell } from '@/lib/native-browser'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
-import { postableSubcategoriesFor, isPostableSubcategory, isPartnerOnlySubcategory, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText, VISA_PRODUCT_FACET_KEYS } from '@/lib/taxonomy'
+import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isPartnerOnlySubcategory, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText, VISA_PRODUCT_FACET_KEYS } from '@/lib/taxonomy'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
@@ -1380,7 +1380,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   }
 
   if (submitted) {
-    return <PostSuccess firstListing={firstListing} createdId={createdId} title={title} price={salaryPaid ? '' : price} job={salaryPaid} onPostAnother={embedded ? undefined : postAnother} t={t} />
+    return <PostSuccess firstListing={firstListing} createdId={createdId} title={title} price={salaryPaid ? '' : price} job={salaryPaid} takesOffers={takesOffers({ negotiable, listingType })} onPostAnother={embedded ? undefined : postAnother} t={t} />
   }
 
   const publishButtonProps = {

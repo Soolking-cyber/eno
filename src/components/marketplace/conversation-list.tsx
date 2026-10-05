@@ -9,6 +9,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { MessagesGuestGate } from '@/components/marketplace/messages-guest-gate'
+import { PushOptInCard } from '@/components/marketplace/push-opt-in-card'
 import { Search, Trash2, X, Sparkles, Check, Undo2, Tag, MoreHorizontal } from '@/components/ui/icons'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
@@ -147,6 +148,10 @@ export function ConversationList() {
       </div>
 
       <div className="mt-2 flex-1 overflow-y-auto px-2 pb-4 scroll-thin">
+        {/* "Turn on notifications" — signed-in only, once per device, one ask at a time (push-opt-in-card.tsx). */}
+        {/* Only on the inbox itself: behind an open thread a phone hides this list, and an unseen card would still
+            hold the page's one ask (page-asks.ts) with no way to close it (gate, 2026-10-05). */}
+        {/\/messages\/?$/.test(pathname ?? '') && <PushOptInCard surface="inbox" className="mb-2" />}
         {/* eno AI — pinned at the top; always available (a chat with the AI assistant). */}
         <Link
           href="/messages/ai"

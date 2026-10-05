@@ -1091,7 +1091,6 @@ export const VI_OVERRIDES: Record<string, string> = {
   "Relax one thing": "Bỏ bớt một tiêu chí",
   "Relevance": "Liên quan nhất",
   "Relist": "Đăng lại",
-  "Reminders": "Nhắc nhở",
   "Remote": "Từ xa",
   "Remove": "Xóa",
   "Remove banner": "Gỡ banner",

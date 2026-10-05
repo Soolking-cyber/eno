@@ -20,6 +20,7 @@ import { ChangeEmailForm } from '@/components/marketplace/change-email-form'
 import { SetPasswordForm } from '@/components/marketplace/set-password-form'
 import { AccountTypeSwitcher } from '@/components/marketplace/account-type-switcher'
 import { ReminderSettings } from '@/components/marketplace/reminder-settings'
+import { PushEventList } from '@/components/marketplace/push-opt-in-card'
 import { DeleteAccount } from '@/components/marketplace/delete-account'
 import { BlockedUsers } from '@/components/marketplace/blocked-users'
 import { appReviewGate } from '@/lib/app-review-gates'
@@ -144,7 +145,7 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
             The cut follows what Shopify, Stripe and GitHub all land on:
               Profile        — who you are publicly: profile, storefront banner, handle, verification
               Account        — the account itself: email, account type, password, deletion
-              Notifications  — reminders
+              Notifications  — what sends a push, the device switch, reminders, the digest
               Privacy        — consent withdrawal
               Preferences    — display + sign out (its own tab already)
               Developers     — API keys, business only (its own tab already)
@@ -203,8 +204,15 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
               <SettingsGroup caption={tr('Danger zone', 'Vùng nguy hiểm')} danger><DeleteAccount /></SettingsGroup>
             </>
           )}
+          {/* ⚠️ "NOTIFICATIONS", NOT "REMINDERS" (UX2 W2 B2-NOTIFY): the switch below turns on every push this
+              account gets, and the list above it names those events — the same server events the opt-in card
+              (push-opt-in-card.tsx) may promise; on eno.forum one generic line covers its order and application
+              pushes. A push added or removed on the server changes that list. */}
           {section === 'notifications' && (
-            <SettingsGroup first caption={tr('Reminders', 'Nhắc nhở')}><ReminderSettings /></SettingsGroup>
+            <SettingsGroup first caption={tr('Notifications', 'Thông báo')}>
+              <PushEventList />
+              <div className="mt-5 border-t border-border pt-5"><ReminderSettings /></div>
+            </SettingsGroup>
           )}
           {section === 'privacy' && (
             /* Consent withdrawal (PDPL): the footer's "Cookie settings" link is the other entry

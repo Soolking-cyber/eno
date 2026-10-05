@@ -13,8 +13,15 @@
 //
 // ⚠️ MODULE STATE, ONE PAGE LIFE: both asks are mounted once under the root layout (providers.tsx), so a
 // plain module is the shared memory. A reload starts it fresh, which is a new page view anyway.
+//
+// ⛔ A THIRD ASK SINCE UX2 W2 B2-NOTIFY (2026-10-05): 'push', the "turn on notifications" card
+// (push-opt-in-card.tsx — the post-success screen and the inbox). The rule is the same rule, read for
+// any number of asks: an ask may appear only when no OTHER ask is on screen and none appeared in this
+// page view. With 'push' never shown, join and install behave exactly as before (page-asks.test.ts).
+// The card is mounted by its pages, not by providers.tsx, so its own unmount reports it hidden.
 
-export type PageAsk = 'join' | 'install'
+export type PageAsk = 'join' | 'install' | 'push'
+const ASKS: readonly PageAsk[] = ['join', 'install', 'push']
 
 let view = 0
 let lastPath: string | null = null
@@ -31,14 +38,10 @@ export function notePageView(path: string | null | undefined): void {
   for (const a of visible) appearedIn.set(a, view)
 }
 
-const other = (a: PageAsk): PageAsk => (a === 'join' ? 'install' : 'join')
-
-/** May `ask` appear now, on `path`? False while the other ask is on screen or already appeared in this view. */
+/** May `ask` appear now, on `path`? False while another ask is on screen or already appeared in this view. */
 export function mayAsk(ask: PageAsk, path: string | null | undefined): boolean {
   notePageView(path)
-  const o = other(ask)
-  if (visible.has(o)) return false
-  return appearedIn.get(o) !== view
+  return ASKS.every((o) => o === ask || (!visible.has(o) && appearedIn.get(o) !== view))
 }
 
 /** `ask` just appeared. */

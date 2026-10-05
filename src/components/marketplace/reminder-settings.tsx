@@ -1,22 +1,14 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Bell, BellOff, Loader2, Mail } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
-
-const VAPID = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
-
-// VAPID public key (base64url) → Uint8Array for pushManager.subscribe.
-function urlBase64ToUint8Array(base64: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64.length % 4)) % 4)
-  const b64 = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const raw = atob(b64)
-  const out = new Uint8Array(raw.length)
-  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i)
-  return out
-}
+// The support rule and the subscribe call live in src/lib/push-subscribe.ts since UX2 W2 B2-NOTIFY, shared
+// with the opt-in card (push-opt-in-card.tsx). This row keeps its own rule (`pushSupport`) and the call's
+// original order — extracted, not changed.
+import { hasPushSubscription, pushSupport, readPushEnv, subscribeToPush } from '@/lib/push-subscribe'
 
 /** The daily availability check is always on (no opt-in). This just lets the
  *  seller enable BROWSER PUSH so the nudge reaches them even when eno.vn is
@@ -30,16 +22,20 @@ export function ReminderSettings() {
   // once FCM/APNs activates. State (not inline read) so SSR/first paint match.
   const [native, setNative] = useState(false)
   const [busy, setBusy] = useState(false)
+  const acted = useRef(false)
   // Weekly marketing digest opt-in (null = not yet loaded / not signed in → hide the row).
   const [digest, setDigest] = useState<boolean | null>(null)
 
   useEffect(() => {
-    if ((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) { setNative(true); return }
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !VAPID) {
-      setPushState('unsupported')
-    } else {
-      setPushState(Notification.permission === 'granted' ? 'granted' : Notification.permission === 'denied' ? 'denied' : 'default')
-    }
+    const support = pushSupport(readPushEnv())
+    if (support === 'native') { setNative(true); return }
+    setPushState(support)
+    // ⚠️ "granted" is the BROWSER's permission, not this account's subscription: sign-out tears the
+    // subscription down and keeps the permission, so the row must offer the button again (as the card does).
+    // ⚠️ A tap that lands before this probe answers wins: `acted` stops a stale "no subscription" from flipping
+    // a row the user just turned on back to the button (gate, 2026-10-05).
+    // A probe that cannot tell (null) offers the button too: permission alone is not "on".
+    if (support === 'granted') hasPushSubscription().then((has) => { if (has !== true && !acted.current) setPushState('default') }).catch(() => { if (!acted.current) setPushState('default') })
   }, [])
 
   useEffect(() => {
@@ -62,26 +58,19 @@ export function ReminderSettings() {
   }
 
   const enablePush = async () => {
+    acted.current = true
     setBusy(true)
     try {
-      const reg = await navigator.serviceWorker.register('/sw.js')
-      await navigator.serviceWorker.ready
-      const perm = await Notification.requestPermission()
-      if (perm !== 'granted') { setPushState(perm === 'denied' ? 'denied' : 'default'); return }
-      const wanted = urlBase64ToUint8Array(VAPID)
-      // Reuse an existing subscription, but if it was made with a DIFFERENT VAPID
-      // key (e.g. keys rotated), drop it first — re-subscribing with a mismatched
-      // applicationServerKey otherwise throws.
-      let sub = await reg.pushManager.getSubscription()
-      if (sub) {
-        const cur = new Uint8Array(sub.options.applicationServerKey || new ArrayBuffer(0))
-        const matches = cur.length === wanted.length && cur.every((b, i) => b === wanted[i])
-        if (!matches) { await sub.unsubscribe().catch(() => {}); sub = null }
-      }
-      sub = sub || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: wanted as BufferSource })
-      await fetch('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub.toJSON()) })
-      setPushState('granted')
-    } catch { /* user dismissed or platform refused */ } finally { setBusy(false) }
+      // Permission FIRST, inside the tap: Safari ties the prompt to the user's activation, and a first
+      // service-worker install can outlast it (the card's order — push-subscribe.ts `permissionFirst`).
+      const outcome = await subscribeToPush({ permissionFirst: true })
+      // The row's states: a refused or closed prompt shows it; "on" only when the server stored the
+      // subscription; a throw ('failed' — user dismissed or platform refused) changes nothing.
+      if (outcome === 'denied' || outcome === 'default') setPushState(outcome)
+      // 'unsaved' (the server did not store it) keeps the button, so a retry re-posts the same subscription.
+      else if (outcome === 'granted') setPushState('granted')
+      else if (outcome === 'unsaved') setPushState('default')
+    } finally { setBusy(false) }
   }
 
   return (

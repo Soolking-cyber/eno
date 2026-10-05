@@ -37,6 +37,7 @@ import { Section, Field } from './post-wizard-parts'
 import { VndInput } from './vnd-input'
 import { Mascot } from './mascot'
 import { ShareButton } from './share-button'
+import { PushOptInCard } from './push-opt-in-card'
 import { SquareCropDialog } from './square-crop-dialog'
 
 type T = (vi: string, en: string) => string
@@ -860,6 +861,7 @@ export function PostSuccess({
   title,
   price,
   job = false,
+  takesOffers = true,
   onPostAnother,
   t,
 }: {
@@ -869,6 +871,8 @@ export function PostSuccess({
   price: string
   /** A job post: candidates, not buyers, will message the poster. */
   job?: boolean
+  /** Whether buyers may send offers (taxonomy.ts takesOffers) — the push card names offers only then. */
+  takesOffers?: boolean
   /** "List another item" — the wizard keeps the area, contact, price type (and a moving sale) and
    *  clears the item itself. Absent → no button (an embedded wizard has its own next step). */
   onPostAnother?: () => void
@@ -909,6 +913,7 @@ export function PostSuccess({
           </Button>
         )}
       </div>
+      <PushOptInCard surface={job ? 'job-post' : 'post'} offers={takesOffers} className="w-full max-w-md" />
       <Link href="/dashboard" className="text-sm font-semibold text-accent-foreground hover:underline">
         {t('Tới bảng điều khiển', 'Go to dashboard')}
       </Link>
