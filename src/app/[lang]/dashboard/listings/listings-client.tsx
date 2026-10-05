@@ -258,7 +258,7 @@ export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}
                     <DashboardListingRow key={l.id} listing={l} onChanged={refresh} />
                   ))}
                   {shown.length > limit && (
-                    <Button variant="outline" className="w-full" onClick={() => setLimit(limit + ROWS_STEP)}>
+                    <Button variant="outline" className="w-full" onClick={() => setLimit((l) => l + ROWS_STEP)}>
                       {tr('Show {n} more', 'Xem thêm {n} tin').replace('{n}', () => grouped(Math.min(ROWS_STEP, shown.length - limit)))}
                     </Button>
                   )}

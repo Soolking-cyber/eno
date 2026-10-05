@@ -387,7 +387,11 @@ export function MobileNav() {
         // trade one snap for another. Listing both is what makes every route into and out of this
         // bar continuous. `ease-out`, not the house spring: a retracting bar travels to a resting
         // place, and an overshoot there reads as a wobble (globals.css, the motion contract).
-        'mobile-nav lg:hidden fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px))] z-nav [--tab-surface:var(--color-popover)] mx-auto h-14 max-w-sm rounded-full border border-foreground/10 bg-popover/95 shadow-pop backdrop-blur-md material transition-[translate,transform,opacity] duration-[250ms] ease-out [will-change:translate,transform,opacity] motion-reduce:transition-none',
+        // `pc:hidden`, not `lg:hidden` (break-ui decision, 2026-10-05): a touch tablet at ≥64rem has no account
+        // rail (account-panel.tsx) and its header Post button is `mobile:hidden` — with the tab bar width-gated it
+        // had neither, so a landscape iPad had no persistent Post entry (measured: none at all on /messages).
+        // Touch follows the mobile UI.
+        'mobile-nav pc:hidden fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px))] z-nav [--tab-surface:var(--color-popover)] mx-auto h-14 max-w-sm rounded-full border border-foreground/10 bg-popover/95 shadow-pop backdrop-blur-md material transition-[translate,transform,opacity] duration-[250ms] ease-out [will-change:translate,transform,opacity] motion-reduce:transition-none',
         // Reveal-on-focus: if a keyboard user tabs into the (scroll-hidden) bar, :focus-within
         // out-specificities the retract below and slides it back into view — never an invisible,
         // focused control. (Harmless while docked; a no-op when inert during keyboard-up.)

@@ -425,7 +425,8 @@ describe('CookieConsent — the bar', () => {
     const wrapper = bar()!.parentElement!
     expect(tokens(wrapper)).toEqual(expect.arrayContaining([
       'pointer-events-none', 'fixed', 'items-end',
-      'bottom-[calc(5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))]', 'lg:bottom-4',
+      // `pc:`, not `lg:`: a touch tablet at ≥64rem has the tab bar now, so the bar must clear it there too.
+      'bottom-[calc(5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))]', 'pc:bottom-4',
     ]))
     expect(tokens(wrapper)).not.toContain('items-center')
     expect(tokens(wrapper)).not.toContain('inset-0')

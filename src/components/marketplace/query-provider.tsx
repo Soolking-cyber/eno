@@ -132,13 +132,13 @@ function OfflineBanner() {
   // which would bury the support mark — so the gutter stays either way.
   // Solved horizontally on purpose: that cluster's VERTICAL position is dynamic — it takes
   // an inline `bottom: lift + 12` whenever a bottom bar is on screen — so any clearance
-  // computed from its y would be wrong half the time. At lg it moves to right-6 while this
+  // computed from its y would be wrong half the time. On a real desktop (`pc`) it moves to right-6 while this
   // strip is a centred max-w-md island far from the edge, so the reservation drops away.
   return (
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom)+0.75rem)] z-50 flex justify-center px-3 pr-18 lg:bottom-4 lg:pr-3"
+      className="pointer-events-none fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom)+0.75rem)] z-50 flex justify-center px-3 pr-18 pc:bottom-4 pc:pr-3"
     >
       {offline && !dismissed && (
         <Alert

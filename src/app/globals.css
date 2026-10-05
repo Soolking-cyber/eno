@@ -3620,7 +3620,7 @@ html:not(.native) #app-splash {
      COMMIT'S WORTH OF MINUTES. `transition` is a SHORTHAND: writing it set `transition-property` to
      `--i-back-opacity` and nothing else — and by the very layer rule documented above, this
      unlayered block then beat every transition utility in the call site's class list. Both died:
-     the colour fade, and `max-lg:transition-[translate,opacity]`, which is how the mark RIDES DOWN
+     the colour fade, and `mobile:transition-[translate,opacity]`, which is how the mark RIDES DOWN
      with the bottom nav. The result was a bar that slides away while the support mark teleports.
      ⚠️ MY OWN MEASUREMENT PRINTED `transitionProperty: --i-back-opacity` AND I READ IT AS A PASS.
      It was the evidence of the bug. Two reviewers named it independently.

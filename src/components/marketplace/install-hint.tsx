@@ -125,7 +125,7 @@ export function InstallHint() {
        * that lives in the same band at `right-4`. Two reviewers caught it: raising a layer is a
        * paint change, but a full-bleed wrapper also moves the hit test. The CARD re-enables them.
        */
-      className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[70] px-3 lg:bottom-4 lg:px-4"
+      className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[70] px-3 pc:bottom-4 lg:px-4"
     >
       <div className="pointer-events-auto mx-auto flex w-full max-w-sm items-center gap-3 rounded-2xl border border-foreground/10 bg-popover p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 lg:max-w-md">
         {/* ⚠️ A FILE SIZED FOR THIS 40px BOX (3x), NOT /icon-192.png THROUGH next/image. The optimizer

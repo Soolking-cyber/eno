@@ -59,7 +59,7 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
        * (shell bottom 780, nav top 772): the composer kept 4px of clearance and the last inbox row
        * never cleared the bar. Change the three together.
        */
-      className="flex h-[calc(100dvh-4.5rem-env(safe-area-inset-bottom)-var(--banner-h,0px))] flex-col overflow-hidden lg:h-[calc(100dvh-var(--banner-h,0px))]"
+      className="flex h-[calc(100dvh-4.5rem-env(safe-area-inset-bottom)-var(--banner-h,0px))] flex-col overflow-hidden pc:h-[calc(100dvh-var(--banner-h,0px))]"
     >
       {/* ⚠️ NO GLOBAL HEADER IN A PHONE THREAD (inbox-01, si-05). On a real iPhone the messages got 352 of
           654px: the site header (64px of logo + listing search) sat above the thread's own header, which

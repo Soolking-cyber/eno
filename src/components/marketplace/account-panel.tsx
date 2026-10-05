@@ -56,7 +56,11 @@ export function AccountPanelShell({ children }: { children: React.ReactNode }) {
   // the viewport crossing the lg breakpoint (resize/orientation), so the rail is correct without a
   // reload. Guests get neither (user is null → open stays false → nothing mounts, no content margin).
   useEffect(() => {
-    const mq = window.matchMedia('(min-width: 64rem)')
+    // ⚠️ `pc`, NOT the bare 64rem width (break-ui decision, 2026-10-05; the owner's 2026-07-06 rule that touch
+    // follows the mobile UI at any width). The rail's labels open on HOVER, which a touch tablet does not
+    // have: a tap unfolded them over the feed and left them there, and the folded rail hid language, currency
+    // and sign-out. A landscape iPad now gets the phone chrome — the tab bar and /dashboard/account.
+    const mq = window.matchMedia('(min-width: 64rem) and (pointer: fine)')
     const sync = () => setOpen(mq.matches && !!user)
     sync()
     mq.addEventListener('change', sync)
@@ -96,7 +100,7 @@ export function AccountPanelShell({ children }: { children: React.ReactNode }) {
             // The trade is deliberate: a little motion on hover, in exchange for never covering what
             // the visitor was reading. Covering content is the worse failure on a marketplace, where
             // the thing behind the rail is a listing someone is part-way through.
-            open && (expanded ? 'lg:pl-[var(--account-w-open)] lg:pr-[var(--account-w)]' : 'lg:px-[var(--account-w)]'),
+            open && (expanded ? 'pc:pl-[var(--account-w-open)] pc:pr-[var(--account-w)]' : 'pc:px-[var(--account-w)]'),
         )}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
       >

@@ -46,8 +46,10 @@ const hiddenByAncestor = (el: HTMLElement) => {
 type Plan = { rise: number; standDown: boolean; chevron: boolean; support: boolean }
 const AT_REST: Plan = { rise: 0, standDown: false, chevron: false, support: false }
 
-// ⚠️ `lg` (64rem) — the breakpoint below which the tab bar exists and the support bubble rides with it.
-const DESKTOP = '(min-width: 64rem)'
+// ⚠️ `pc` (≥64rem AND a precise pointer) — outside it the tab bar exists and the support bubble rides with it.
+// Touch tablets at ≥64rem get the tab bar too (break-ui decision, owner's 2026-07-06 rule: touch follows the
+// mobile UI at any width), so this is the house `pc` query, not the bare width.
+const DESKTOP = '(min-width: 64rem) and (pointer: fine)'
 const subscribeDesktop = (cb: () => void) => {
   const mq = typeof window !== 'undefined' ? window.matchMedia?.(DESKTOP) : undefined
   mq?.addEventListener?.('change', cb)
@@ -423,16 +425,16 @@ export function BackToTop() {
           // WebView < 140, where Capacitor injects --safe-area-inset-* vars instead
           // of env() passthrough (see the Android safe-area note in globals.css);
           // everywhere else the var is undefined → 0px, so this equals plain env().
-          'bottom-[calc(5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] lg:bottom-6',
+          'bottom-[calc(5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] pc:bottom-6',
           // The account rail now lives on the LEFT (a 72px collapsed column, owner 2026-07-17), so
           // the bottom-RIGHT controls no longer overlap it and need no --account-w offset — they
-          // stay pinned to the right edge. Below lg the panel owns the whole screen when open, so
-          // they stand down (max-lg:hidden). Same spring for a calm settle.
+          // stay pinned to the right edge. Outside `pc` the panel owns the whole screen when open, so
+          // they stand down (mobile:hidden). Same spring for a calm settle.
           // ⚠️ `translate` and `opacity` JOINED THE LIST for the at-rest clearance: the rise above a
           // heart or a CTA is a `translate` (compositor-only) and standing down is a fade. Named, not
           // `transition-all` — `bottom` (the fixed-bar lift) must keep tracking its bar frame by frame.
-          'right-4 transition-[right,translate,opacity] duration-300 motion-reduce:transition-none lg:right-6',
-          panelOpen && 'max-lg:hidden',
+          'right-4 transition-[right,translate,opacity] duration-300 motion-reduce:transition-none pc:right-6',
+          panelOpen && 'mobile:hidden',
         )}
         // Inline bottom (beats the classes) only while a bottom bar is on screen; the at-rest rise
         // rides on top of it as a translate.
@@ -510,7 +512,7 @@ export function BackToTop() {
             Neither position shifts the other: both are always in the DOM (the chevron fades with
             `opacity`, never `display`), so the column's geometry is fixed whatever either is doing. */}
         {/* `pointer-events-auto` re-enables the mark inside the column's `pointer-events-none`. Its own
-            scrolled-away state still wins below lg: `max-lg:pointer-events-none` is a variant rule and
+            scrolled-away state still wins outside `pc`: `mobile:pointer-events-none` is a variant rule and
             sorts after this plain utility, and `inert` removes it regardless. `hidden` is decided
             HERE (the tab bar's scroll signal, phones only, or the cluster standing down) because this
             cluster has to know what is visible to keep it off the page's controls. */}

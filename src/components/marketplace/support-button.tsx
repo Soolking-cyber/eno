@@ -78,11 +78,14 @@ export function SupportButton({ className, hidden = false, yielded = false }: { 
    * ⚠️ DECIDED BY THE CLUSTER (back-to-top.tsx), WHICH PASSES IT AS `hidden`. It calls the same hook,
    * gated to phones, and adds its own stand-down; it has to own the answer because it keeps whatever
    * is visible off the page's controls (owner, 2026-09-25: never over the save hearts or the CTA).
-   * ⚠️ MOBILE ONLY for the ride-down (`max-lg:`). There is no bottom nav from lg up — nothing to move
+   * ⚠️ MOBILE ONLY for the ride-down (`mobile:`). There is no bottom nav on a `pc` — nothing to move
    * with — and hiding a support affordance on a desktop scroll would just make it hard to find. The
-   * cluster never passes a scroll-away `hidden` on a desktop: it used to be computed here without the
-   * breakpoint, so `inert` below went on while the `max-lg:` classes did not, and the visible desktop
+   * cluster never passes a scroll-away `hidden` on a `pc`: it used to be computed here without the
+   * breakpoint, so `inert` below went on while the width classes did not, and the visible desktop
    * mark silently stopped taking clicks after any scroll down.
+   * ⚠️ `mobile:`, NOT `max-lg:` — the variant must be the cluster's own `DESKTOP` query, inverted. A touch
+   * tablet at ≥64rem has the tab bar (break-ui decision, 2026-10-05), so the cluster passes `hidden` there;
+   * under `max-lg:` the mark went inert with no ride-down — the same dead mark, on an iPad.
    */
   const scrolledAway = hidden
   /**
@@ -222,8 +225,8 @@ export function SupportButton({ className, hidden = false, yielded = false }: { 
             // rides DOWN WITH the tab bar on scroll, and motion that moves together must share duration
             // and curve: on 300ms --ease-spring the mark had covered ~11% of its travel when the bar had
             // covered ~58%, so on every scroll reversal it visibly detached and trailed the nav.
-            'max-lg:transition-[translate,opacity,--i-back-opacity] max-lg:duration-[var(--duration-sticky,250ms)] max-lg:ease-out motion-reduce:transition-none',
-            scrolledAway && 'max-lg:pointer-events-none max-lg:translate-y-[calc(100%+1.25rem)] max-lg:opacity-0',
+            'mobile:transition-[translate,opacity,--i-back-opacity] mobile:duration-[var(--duration-sticky,250ms)] mobile:ease-out motion-reduce:transition-none',
+            scrolledAway && 'mobile:pointer-events-none mobile:translate-y-[calc(100%+1.25rem)] mobile:opacity-0',
             className,
             // After `className`, so the cluster's `pointer-events-auto` cannot win over a yield.
             yielded && YIELDED,

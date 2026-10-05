@@ -594,7 +594,7 @@ export function CookieConsent() {
         <div
           className={cn(
             'pointer-events-none fixed inset-x-0 top-0 z-[200] flex items-end justify-center px-2 pt-[max(0.5rem,env(safe-area-inset-top),var(--safe-area-inset-top,0px))]',
-            'bottom-[calc(5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] lg:bottom-4 lg:px-4',
+            'bottom-[calc(5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))] pc:bottom-4 lg:px-4',
             '[html.native-tabs_&]:bottom-[calc(0.5rem+max(env(safe-area-inset-bottom),var(--safe-area-inset-bottom,0px)))]',
             '[html.kb-open_&]:hidden [body:has(.overlay-scrim)_&]:hidden',
           )}
