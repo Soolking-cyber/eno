@@ -117,6 +117,14 @@ export type ResultLineProps = {
    * dissolves the box they need to escape.
    */
   splitOnMobile?: boolean
+  /**
+   * A control pinned at the END OF THE COUNT ROW, outside its scroller — the phone's labelled "Save search"
+   * pill (UX3 JOIN-SAVE). The count + path half keeps scrolling on its own; this sits beside it at its own
+   * width, so a long breadcrumb can never push it off screen. The CALLER decides where it shows (the
+   * explorer passes an `sm:hidden` pill: from sm the save offer lives with the view modes). Omitted, the
+   * half renders exactly as before — one scroller, no wrapper.
+   */
+  countTrailing?: React.ReactNode
   className?: string
 }
 
@@ -219,6 +227,25 @@ export function removeFilterLabel(label: string, tr: TrFn): string {
   return `${tr('Remove', 'Bỏ')} ${label}`
 }
 
+/** The count + path half's own scroller classes — the half IS the scroller unless something is pinned beside it. */
+const COUNT_SCROLLER = 'flex-nowrap overflow-x-auto overscroll-x-contain scrollbar-none whitespace-nowrap'
+
+/**
+ * The count + path half. Without `trailing` it is ONE box that is both the flex item and the scroller —
+ * byte for byte the element this line always rendered. With `trailing` the scroller moves INSIDE and the
+ * control sits after it, outside the scroll, at its own width (the chips half below does the same for
+ * "Clear all" — see its note).
+ */
+function CountHalf({ trailing, className, children }: { trailing?: React.ReactNode; className: string; children: React.ReactNode }) {
+  if (trailing == null) return <div className={cn(className, COUNT_SCROLLER)}>{children}</div>
+  return (
+    <div className={className}>
+      <div className={cn('flex min-w-0 flex-1 items-center gap-x-2 sm:gap-x-3', COUNT_SCROLLER)}>{children}</div>
+      {trailing}
+    </div>
+  )
+}
+
 export function ResultLine({
   count,
   crumbs,
@@ -230,6 +257,7 @@ export function ResultLine({
   className,
   term,
   appliedCount,
+  countTrailing,
 }: ResultLineProps) {
   const { lang, tr } = useLanguage()
   const ladder = crumbs ?? []
@@ -429,9 +457,10 @@ export function ResultLine({
        they are scoped to `max-sm` rather than left unprefixed: an unscoped `order-2` on the second
        half would REVERSE the two at desktop, where DOM order is the layout. */
     <div data-slot="result-line" className={cn('flex items-center gap-x-2 sm:gap-x-3', className)}>
-      <div
+      <CountHalf
+        trailing={countTrailing}
         className={cn(
-          'flex min-w-0 flex-1 basis-1/2 flex-nowrap items-center gap-x-2 overflow-x-auto overscroll-x-contain scrollbar-none whitespace-nowrap sm:gap-x-3',
+          'flex min-w-0 flex-1 basis-1/2 items-center gap-x-2 sm:gap-x-3',
           splitOnMobile && 'max-sm:order-last max-sm:w-full max-sm:flex-none max-sm:basis-auto',
         )}
       >
@@ -485,7 +514,7 @@ export function ResultLine({
             </BreadcrumbList>
           </Breadcrumb>
         )}
-      </div>
+      </CountHalf>
 
       {(filters.length > 0 || saveSearch || clearAll) && (
         // ⚠️ THE SCROLLER MOVED OFF THIS HALF AND ONTO THE <ul> INSIDE IT (owner, 2026-08-12:

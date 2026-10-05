@@ -15,6 +15,7 @@ import { CloseButton } from '@/components/ui/close-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer'
 import { useIsPhone } from '@/hooks/use-is-phone'
+import { useBackToClose } from '@/lib/back-to-close'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useLanguage } from '@/context/language-context'
 import { CONDITION_FACET, facetsFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
@@ -238,6 +239,13 @@ export type FacetBarProps = {
    * ladder, and a fold behind an open panel moved the page ~220px under the reader's finger.
    */
   onPanelOpenChange?: (open: boolean) => void
+  /**
+   * Called just before the Area panel APPLIES a place (Apply, a district chip, Clear) — a committed view
+   * change, so the explorer gives it its own history entry and Back undoes it (UX3 NAV-1). Live taps in the
+   * Filter and Price panels are not commits: on a phone their sheet's own entry carries them (see
+   * `useBackToClose`), and from sm up they stay in-place tweaks.
+   */
+  onCommit?: () => void
 }
 
 // Compact, category-aware facet bar (faceted-search pattern) — all facets come
@@ -278,12 +286,18 @@ export function FacetBar({
   facetCounts = {},
   resultCount,
   onPanelOpenChange,
+  onCommit,
 }: FacetBarProps) {
   const { lang, tr } = useLanguage()
   const isPhone = useIsPhone()
   const [areaOpen, setAreaOpen] = useState(false)
   const [advOpen, setAdvOpen] = useState(false) // advanced per-category filter panel
   const [priceOpen, setPriceOpen] = useState(false)
+  // ⛔ BACK CLOSES THE PHONE FILTER SHEET (UX3 NAV-1): one history entry while it is open. Taps inside apply
+  // live, so a sheet closed after a tap KEEPS its entry as the step it made (Back undoes it) and one closed
+  // untouched pops it — src/lib/back-to-close.ts. Phone only: from sm the panel is a popover, not a layer.
+  // Declared before the open-change effect below, so the entry exists by the time the explorer hears of it.
+  useBackToClose(isPhone && advOpen, () => setAdvOpen(false), 'filters')
   // One signal for the three panels (see `onPanelOpenChange`). Through a ref so a parent that passes a
   // fresh closure every render does not re-fire it; only a real open/close change reaches the parent.
   const panelOpen = areaOpen || advOpen || priceOpen
@@ -791,6 +805,7 @@ export function FacetBar({
            * another province drops the district. HCMC alone contains the district and keeps it.
            */
           onPickDistrict={setDistrict ? (slug) => {
+            onCommit?.()
             if (slug !== 'all') {
               setWard(null)
               setNearby(null)
@@ -800,6 +815,7 @@ export function FacetBar({
           } : undefined}
           nearby={nearby}
           onApply={({ province: p, ward: w, nearby: nb }) => {
+            onCommit?.()
             // Only a CHANGED place replaces the district: an Apply that re-sends the radius already
             // applied must not strip a district from the search box (opus). The panel's province
             // defaults to HCMC, and HCMC contains every curated district, so that is no change here.
@@ -811,7 +827,7 @@ export function FacetBar({
             // Hà Nội) is resolved by any Apply (opus): the pick is dropped, the place stays.
             if ((changed || districtPicked) && !districtSurvivesArea({ province: p, ward: w, nearby: nb })) setDistrict?.('all')
           }}
-          onReset={() => { setProvince(null); setWard(null); setNearby(null); setDistrict?.('all') }}
+          onReset={() => { onCommit?.(); setProvince(null); setWard(null); setNearby(null); setDistrict?.('all') }}
         />
       </div>
     </div>

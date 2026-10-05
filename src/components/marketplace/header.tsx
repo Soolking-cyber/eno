@@ -5,10 +5,12 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { User, Search, MapPin, Map, Clock, X, ChevronLeftIcon, LayoutGrid, Sparkles } from '@/components/ui/icons'
+import { User, Search, MapPin, Map, Clock, X, ChevronLeftIcon, LayoutGrid, Sparkles, Heart } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { preloadSignIn, useAuth } from '@/context/auth-context'
+import { useFavoriteCount } from '@/context/favorites-context'
 import { useSafeBack } from '@/lib/safe-back'
+import { useBackToClose } from '@/lib/back-to-close'
 import { LANG_VARIANTS, variantOfLanguage } from '@/lib/lang-variant'
 import { hereVariant, localizedHref } from '@/lib/lang-pinned'
 import { isPostFlowPath } from '@/lib/post-flow-path'
@@ -17,6 +19,7 @@ import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { NotificationBell } from './notification-bell'
 import { AppDownload } from './app-download'
@@ -69,6 +72,18 @@ const STROKE = STROKE_NAV
 const noopSubscribe = () => () => {}
 
 /**
+ * Could a press on this element navigate (or commit something)? A link, a button, any control — and ANY
+ * listing card (`data-card-root`, on every <ListingCard>): a rail card opens from its PHOTO's own click
+ * handler, and the card's link is that photo's sibling, not its ancestor (review). The search panel's
+ * outside-press handler RELEASES its history entry for these instead of popping it (see
+ * `releaseSearchPanel`) — an asynchronous pop would race the navigation; a press on bare page pops it.
+ */
+const MAY_NAVIGATE = 'a[href],button,[role="button"],[role="link"],[role="tab"],[role="checkbox"],[role="switch"],[role="option"],input,select,textarea,label,summary,[data-feed-card],[data-card-root]'
+function mayNavigate(t: EventTarget | null): boolean {
+  return t instanceof Element && !!t.closest(MAY_NAVIGATE) && !t.closest('[data-header-back]')
+}
+
+/**
  * ⚠️ HOME, AS A TEST THAT AGREES ON BOTH SIDES OF THE REWRITE. The installed-PWA Back button needs
  * only "is this home", not the path itself, so it can render on the server with no hydration gate
  * (which cost a logo→Back swap after hydration in standalone). The proxy maps the public `/` to
@@ -99,6 +114,8 @@ export function Header() {
   // hydration never see the host.
   const navVariant = () => hereVariant(variant)
   const { user, openSignIn } = useAuth()
+  // The guest's saved count for the desktop heart (NAV-7) — device-local, 0 until it hydrates (client-only).
+  const savedCount = useFavoriteCount()
   const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false)
   // ⚠️ `open` IS THE RAIL'S OWN STATE, and the header logo hides on exactly it. Using `user`
   // instead left a hole all three reviewers found independently (2026-08-03): `user && lg:hidden`
@@ -210,6 +227,9 @@ export function Header() {
   const [recentLocations, setRecentLocations] = useState<RecentLocation[]>([])
 
   const searchFormRef = useRef<HTMLFormElement>(null)
+  // The panel hook's `release` (declared further down, where `panelOpen` is known), for the outside-press
+  // handler registered above it. Synced in an effect beside the hook, never assigned during render.
+  const releaseSearchRef = useRef<() => void>(() => {})
 
   /**
    * ⛔ TEXT TYPED BEFORE HYDRATION USED TO BE WIPED ~40ms AFTER IT. React leaves a controlled input's
@@ -244,7 +264,17 @@ export function Header() {
   useEffect(() => {
     if (!showSuggestions) return
     const outside = (t: EventTarget | null) => !!searchFormRef.current && !searchFormRef.current.contains(t as Node)
-    const onDown = (e: MouseEvent) => { if (outside(e.target)) setShowSuggestions(false) }
+    // ⛔ A PRESS OUTSIDE ON A CONTROL MAY BE A NAVIGATION (a card, a tab, a link) — the panel's history entry is
+    // RELEASED, not popped: an asynchronous `history.back()` would land after that navigation's push and undo
+    // it (src/lib/back-to-close.ts). A press on bare page is a plain dismissal and pops it. Phone only (the hook).
+    // ⚠️ THE HEADER'S OWN BACK IS NOT A NAVIGATION THAT PUSHES (opus, gate 2026-10-05): it is a traversal, so the
+    // close pops the panel's entry and its click then goes back, like the system Back. Released, its first tap
+    // only popped that same-URL entry and looked dead (mayNavigate excludes `data-header-back`).
+    const onDown = (e: MouseEvent) => {
+      if (!outside(e.target)) return
+      if (mayNavigate(e.target)) releaseSearchRef.current()
+      setShowSuggestions(false)
+    }
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowSuggestions(false) }
     /**
      * ⛔ TAB USED TO LEAVE THE PANEL OPEN OVER THE PAGE (D-KEYBOARD, S-TYPEAHEAD, measured headless on
@@ -325,6 +355,25 @@ export function Header() {
     // needs three distinct searchers before it shows a term at all.
     recentSearches.length > 0 || recentLocations.length > 0 || trending.length > 0 || shortcutCategories.length > 0 || isPhone,
   )
+  /**
+   * ⛔ BACK CLOSES THE PHONE SEARCH PANEL (UX3 NAV-1, src/lib/back-to-close.ts). Below 640px the panel is a
+   * fixed layer over the page, and Back went straight through it and off the page. It now owns one history
+   * entry while open: Back closes it; ✕ / Escape / a press on bare page pops the entry again.
+   * ⚠️ AN ACTION THAT NAVIGATES RELEASES FIRST (`releaseSearchPanel()` right before every router.push and on
+   * the category links): an asynchronous `history.back()` would land after that navigation and undo it.
+   * Released, the entry is replaced by the page the action opens, so Back from there comes straight back
+   * here. An action ON the explorer (a search, a facet pick, the map, an area) does not release: the
+   * explorer commits it in the same commit and takes the entry over itself (or, when it changed nothing,
+   * the untouched entry is popped). From sm the panel is a dropdown, not a layer, and keeps no entry.
+   * ⚠️ Back closes the panel with the field still focused, and the panel opens on FOCUS — so the field is
+   * blurred too, or tapping it again would fire nothing and show nothing (review).
+   */
+  const { release: releaseSearchPanel } = useBackToClose(isPhone && panelOpen, () => {
+    setShowSuggestions(false)
+    const field = searchFormRef.current?.elements.namedItem('q')
+    if (field instanceof HTMLInputElement) field.blur()
+  }, 'search')
+  useEffect(() => { releaseSearchRef.current = releaseSearchPanel }, [releaseSearchPanel])
   // The search window is ONE element for both panels (see its comment below), so it keeps its
   // scrollTop across the switch — two separate mounts used to start each panel at the top. Reset it
   // before paint when the contents switch, or the instant results open scrolled past their top rows.
@@ -391,7 +440,7 @@ export function Header() {
     // not reach it), navigated to anywhere else.
     const openUrl = (url: string) => {
       if (onExplorer()) window.dispatchEvent(new CustomEvent('eno:apply-url', { detail: { url } }))
-      else router.push(url)
+      else { releaseSearchPanel(); router.push(url) }
     }
     // Open the brand's facets — the explorer resolves its dominant category.
     if (it.type === 'brand') { openUrl(localizedHref(`/?brand=${encodeURIComponent(it.slug)}`, navVariant())); return }
@@ -410,6 +459,7 @@ export function Header() {
       openUrl(localizedHref(`/?q=${encodeURIComponent(searchVal.trim())}&category=${encodeURIComponent(it.category)}&subcategory=${encodeURIComponent(it.subcategory)}`, navVariant()))
       return
     }
+    releaseSearchPanel()
     router.push(it.type === 'category' ? localizedHref(`/c/${it.slug}`, navVariant()) : `/listings/${it.listing.id}`)
   }
   const onSearchKeyDown = (e: React.KeyboardEvent) => {
@@ -475,6 +525,7 @@ export function Header() {
     if (onExplorer()) {
       window.dispatchEvent(new CustomEvent('eno:search', { detail: { query: q } }))
     } else {
+      releaseSearchPanel() // a navigation — never popped behind it (see the hook above)
       router.push(explorerFallbackUrl(pathname, { q }, navVariant()))
     }
   }
@@ -488,6 +539,7 @@ export function Header() {
     if (onExplorer()) {
       window.dispatchEvent(new CustomEvent('eno:visual-search', { detail: r }))
     } else {
+      releaseSearchPanel()
       // The photo's detected category wins; otherwise the landing page's own.
       router.push(explorerFallbackUrl(pathname, { q, match: 'any', ...(r.category ? { category: r.category } : {}) }, navVariant()))
     }
@@ -497,10 +549,10 @@ export function Header() {
   const openMap = () => {
     setShowSuggestions(false)
     if (onExplorer()) window.dispatchEvent(new CustomEvent('eno:view-map'))
-    else router.push(explorerFallbackUrl(pathname, { view: 'map' }, navVariant()))
+    else { releaseSearchPanel(); router.push(explorerFallbackUrl(pathname, { view: 'map' }, navVariant())) }
   }
   // The AI concierge — likewise the pill's ✨ (sm+) and the phone panel's first row.
-  const openAi = () => { router.push('/messages/ai'); setShowSuggestions(false) }
+  const openAi = () => { releaseSearchPanel(); router.push('/messages/ai'); setShowSuggestions(false) }
 
   const applyArea = ({ province: p, ward: w, nearby: nb }: { province: Geo | null; ward: Geo | null; nearby: Nearby | null }) => {
     if (onExplorer()) {
@@ -511,6 +563,7 @@ export function Header() {
       // dropped the chosen area. Same consume-once sessionStorage idiom as
       // eno:video-return; the explorer applies it on mount.
       try { sessionStorage.setItem('eno:pending-area', JSON.stringify({ province: p, ward: w, nearby: nb })) } catch { /* storage blocked */ }
+      releaseSearchPanel()
       router.push(explorerFallbackUrl(pathname, {}, navVariant())) // off the explorer: jump to the home feed (same category)
     }
   }
@@ -613,6 +666,7 @@ export function Header() {
           <IconButton
             size="lg"
             onClick={onBack}
+            data-header-back=""
             aria-label={tr('Back', 'Quay lại')}
             className="standalone-back hidden shrink-0 press tap-48 text-foreground"
           >
@@ -1094,9 +1148,14 @@ export function Header() {
                       <ul aria-labelledby={CATEGORIES_LABEL_ID} className="flex flex-wrap gap-1.5">
                         {shortcutCategories.map((c) => (
                           <li key={c.slug}>
-                            {/* Classes on the BUTTON: asChild concatenates, and only these are twMerged. */}
+                            {/* Classes on the BUTTON: asChild concatenates, and only these are twMerged.
+                                ⛔ IN THE PAGE'S LANGUAGE (UX3 NAV-8, nav audit N6a): a raw `/c/${slug}` sent a
+                                Vietnamese reader to the English-pinned `/c/furniture-appliances` ("Home in
+                                Vietnam" under a VI banner). `localizedHref` gives the `/vi` twin of a piloted
+                                path and leaves every other path as it is — the server variant, like the logo's
+                                href (the panel only renders after a focus, so this never meets hydration). */}
                             <Button asChild variant="soft" size="none" className="whitespace-normal rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:text-accent-foreground cursor-pointer">
-                              <Link href={`/c/${c.slug}`} prefetch={false} onClick={() => setShowSuggestions(false)}>
+                              <Link href={localizedHref(`/c/${c.slug}`, variant)} prefetch={false} onClick={() => { releaseSearchPanel(); setShowSuggestions(false) }}>
                                 {tr(c.name, c.nameVi)}
                               </Link>
                             </Button>
@@ -1131,6 +1190,42 @@ export function Header() {
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {/* Saved + Messages live in the LEFT nav rail (desktop) / bottom nav (mobile) for signed-in
               users — removed from here (owner 2026-07-18) so the top bar doesn't duplicate them. */}
+          {/* ⛔ …BUT A DESKTOP GUEST HAD NO WAY TO SAVED BUT THE FOOTER (UX3 NAV-7, nav audit N7): no rail (it is
+              signed-in only) and no tab bar (phones only), so "Saved listings" sat at y≈3,000 — even right after
+              the visitor tapped a heart (t11-desk-01). This is the heart Chợ Tốt's desktop header and FB's
+              "Saved" give them, with the same count the phone's Saved tab shows (red `counter`, O-08 reverted).
+              · lg+ only and guests only — the same gate as the rail's absence (`!user`, like Sign in beside it),
+                so a signed-in reader never gets the duplicate the 2026-07-18 note removed; phones unchanged.
+              · The COUNT IS CLIENT-ONLY: favourites live in this device's localStorage and hydrate in an effect,
+                so the edge-cached HTML (one copy for everyone) carries the bare heart and no number.
+              · A LINK, through `localizedHref` like every header destination (identity for /saved today).
+              · `size-7`, not `h-7 w-7`: ui/button's base `[&_svg:not([class*='size-'])]:size-4` would shrink an
+                h-/w- sized glyph to 16px under `asChild` (CLAUDE.md, "ui/button inflates small icons"). */}
+          {!user && (
+            <Button
+              asChild
+              variant="bare"
+              size="none"
+              className="relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-full tap-44 text-body transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96] lg:flex"
+            >
+              <Link
+                href={localizedHref('/saved', variant)}
+                prefetch={false}
+                aria-label={savedCount > 0 ? `${tr('Saved', 'Đã lưu')}, ${savedCount}` : tr('Saved', 'Đã lưu')}
+                // Hydration-gated like the Sign in link's `?next=`: the server's pathname can be the internal
+                // `/en/saved` (see `hydrated`), and React does not patch an attribute on hydration.
+                aria-current={hydrated && pathname === '/saved' ? 'page' : undefined}
+                data-header-saved=""
+              >
+                <Heart className="size-7" strokeWidth={STROKE} />
+                {savedCount > 0 && (
+                  <Badge aria-hidden variant="counter" size="count" className="absolute right-1 top-1">
+                    {savedCount > 99 ? '99+' : savedCount}
+                  </Badge>
+                )}
+              </Link>
+            </Button>
+          )}
           <NotificationBell />
           {/* "Get the app" — ONE control placed to satisfy both placements the owner asked for
               (2026-09-16): on a phone, where Post lives in the bottom nav, it lands immediately to the

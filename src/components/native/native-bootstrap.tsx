@@ -8,6 +8,7 @@ import { confirmExitToast, EXIT_CONFIRM_MS } from '@/lib/subtle-toast'
 import { setNativeKeyboard } from '@/hooks/use-virtual-keyboard'
 import { hapticLongPress, hapticTap } from '@/lib/haptics'
 import { canonicalAppPath } from '@/lib/deep-link'
+import { backPressClosesOverlay } from '@/lib/back-to-close'
 
 // The status bar sits over the bg-card header, so it must match it. Read the LIVE --card token
 // (which already flips light/dark) at runtime — no hardcoded colour, always in sync with the theme.
@@ -132,6 +133,9 @@ const BASE_UI_OPEN = [
   '[data-open][role="listbox"]',
 ].join(',')
 
+// A select's listbox or a menu open on top of a history-owning sheet (see backConsumedByOverlay).
+const NESTED_POPUP = '[data-open][role="menu"],[data-open][role="listbox"]'
+
 // The hand-rolled modals that predate the Base UI sweep (the mobile account rail, the PDP
 // lightbox). `aria-modal` is set nowhere else in src, and `:not([data-open])` keeps this strictly
 // disjoint from the Base UI set above.
@@ -170,6 +174,14 @@ const backConsumedByOverlay = (navigate: () => void): boolean => {
       if (document.querySelector(selector) === overlay) navigate()
     }, 160)
   }
+
+  // ⛔ A LAYER THAT OWNS A HISTORY ENTRY CLOSES THROUGH IT (UX3 NAV-1): the explorer's phone Filters / Area /
+  // Price sheets and the phone header search panel push one entry while open (src/lib/back-to-close.ts), so
+  // Back must go through `history.back()` — popstate closes the layer, exactly as the browser's Back does.
+  // Dismissing it here as well would close it AND leave its entry for the next press (or, with live filter
+  // taps, keep the taps where browser Back undoes them). The one exception is a Base UI listbox or menu
+  // opened INSIDE the sheet (a select): that is the topmost layer, so it still gets the Escape below.
+  if (backPressClosesOverlay() && !document.querySelector(NESTED_POPUP)) return false
 
   // A Base UI layer is always the topmost thing on screen — even when it was opened from inside one
   // of the history-owning takeovers below — so it gets first refusal on the press.

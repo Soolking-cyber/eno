@@ -15,6 +15,7 @@ import { CloseButton } from '@/components/ui/close-button'
 import { Label } from '@/components/ui/label'
 import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
 import { useIsPhone } from '@/hooks/use-is-phone'
+import { useBackToClose } from '@/lib/back-to-close'
 import { offeredKeys, railDimension } from './count-chip'
 import type { DimensionCounts } from '@/lib/facet-counts'
 
@@ -124,6 +125,11 @@ export function AreaFilter({
 }) {
   const { lang, tr } = useLanguage()
   const isPhone = useIsPhone()
+  // ⛔ BACK CLOSES THE PHONE AREA SHEET (UX3 NAV-1, src/lib/back-to-close.ts). Search mode only — the sheet
+  // (below); the post wizard's picker is a popover and keeps its own flow. Apply, a district chip and Clear
+  // change the explorer's URL in the same commit, so the entry stays as that step (Back undoes the place);
+  // a dismissed sheet pops it.
+  useBackToClose(mode === 'search' && isPhone && open, onClose, 'area')
   const [provinces, setProvinces] = useState<Unit[]>([])
   const [wards, setWards] = useState<Unit[]>([])
   const [loadingWards, setLoadingWards] = useState(false)

@@ -12,7 +12,7 @@ describe('readExplorerUrl', () => {
     expect(s).toEqual({
       query: '', looseMatch: false, category: 'all', district: 'all', subcategory: 'all', brand: 'all',
       model: 'all', line: '', listingType: 'all', condition: 'all', goodPrice: false, sort: 'newest',
-      priceRange: 'all', customFilters: {}, view: null, directed: false,
+      priceRange: 'all', customFilters: {}, view: null, province: '', ward: '', directed: false,
     })
     expect(isSeededFeed(s)).toBe(true)
   })
@@ -77,6 +77,29 @@ describe('readExplorerUrl', () => {
       expect(s.directed, qs).toBe(true)
       expect(isSeededFeed(s), qs).toBe(false)
     }
+  })
+
+  it('the area travels as unit codes (NAV-2): a province or ward directs the feed and leaves the seed', () => {
+    const s = readExplorerUrl('province=79&ward=26734')
+    expect(s).toMatchObject({ province: '79', ward: '26734', directed: true })
+    expect(isSeededFeed(s)).toBe(false)
+    expect(readExplorerUrl('province=01')).toMatchObject({ province: '01', ward: '', directed: true })
+  })
+
+  it('a ward without its province, or a code that is not one, is no place at all', () => {
+    expect(readExplorerUrl('ward=26734')).toMatchObject({ province: '', ward: '', directed: false })
+    for (const qs of ['province=Ho+Chi+Minh', 'province=79%3Bx', 'province=', 'province=79&ward=abc']) {
+      const s = readExplorerUrl(qs)
+      expect(s.ward, qs).toBe('')
+      if (qs !== 'province=79&ward=abc') expect(s.province, qs).toBe('')
+    }
+    expect(isSeededFeed(readExplorerUrl('ward=26734'))).toBe(true)
+  })
+
+  it('never reads a "near you" circle — the URL carries no coordinates (PDPL)', () => {
+    const s = readExplorerUrl('lat=10.7&lng=106.7&radiusKm=5&near=10.7,106.7,5')
+    expect(s.directed).toBe(false)
+    expect(Object.keys(s)).not.toEqual(expect.arrayContaining(['near', 'lat', 'lng', 'radiusKm', 'nearby']))
   })
 
   it('whitespace-only words are no search at all', () => {

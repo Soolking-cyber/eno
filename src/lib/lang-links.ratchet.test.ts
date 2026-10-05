@@ -42,7 +42,14 @@ const ALLOWED: Record<string, number> = {
   'src/components/marketplace/listings-explorer.tsx': 2,
 }
 
-const SINK = /(?:href=\{?|action=\{?|\bpush\(|\breplace\(|\bassign\(|\bopenUrl\(|\bapplyUrl\()\s*[`'"]\/(?:\?|c\/furniture-appliances(?=[`'"?#/]))|action="\/"/g
+/**
+ * ⚠️ AND A TEMPLATE `/c/${slug}` (UX3 NAV-8, nav audit N6a): the header search panel's "Danh mục" chips linked
+ * `/c/${c.slug}` raw, so "Nhà cửa" opened the English-pinned `/c/furniture-appliances` from a Vietnamese page.
+ * A slug interpolated into a bare category path can BE a pilot path, so it is a finding unless localized.
+ * Only the bare path — `/c/${slug}` then the end, a `?` or a `#`: a deeper path (`/c/${cat}/${district}`)
+ * is never a pilot path, so it is not one.
+ */
+const SINK = /(?:href=\{?|action=\{?|\bpush\(|\breplace\(|\bassign\(|\bopenUrl\(|\bapplyUrl\()\s*[`'"]\/(?:\?|c\/furniture-appliances(?=[`'"?#/])|c\/\$\{[^}`]*\}(?=[`?#]))|action="\/"/g
 const LOCALIZED_TAG = /<(?:LocalizedLink|HereLink)\b[^<>]*$/
 
 function* files(dir: string): Generator<string> {
@@ -84,12 +91,17 @@ describe('lang links ratchet — no literal link into an English-pinned plain UR
     expect(findPinnedLinks(`router.push('/?view=map')`)).toHaveLength(1)
     expect(findPinnedLinks('openUrl(`/?brand=${b}`)')).toHaveLength(1)
     expect(findPinnedLinks('<Link href="/c/furniture-appliances" className="x">')).toHaveLength(1)
+    // A slug interpolated into the bare category path (NAV-8) — with or without a query.
+    expect(findPinnedLinks('<Link href={`/c/${c.slug}`} prefetch={false}>')).toHaveLength(1)
+    expect(findPinnedLinks('router.push(`/c/${slug}?sort=recent`)')).toHaveLength(1)
     // Not findings: localized, a different category, a different path.
     expect(findPinnedLinks(`openUrl(localizedHref(\`/?brand=\${b}\`, variant))`)).toHaveLength(0)
     expect(findPinnedLinks('<HereLink href="/c/furniture-appliances">x</HereLink>')).toHaveLength(0)
     expect(findPinnedLinks('<LocalizedLink href="/?category=x" rel="nofollow" prefetch={false} className="y">')).toHaveLength(0)
     expect(findPinnedLinks('<Link href="/c/furniture-appliances-x">')).toHaveLength(0)
     expect(findPinnedLinks('<Link href="/listings/x">')).toHaveLength(0)
+    expect(findPinnedLinks('<Link href={`/c/${cat.slug}/${d.slug}`} />')).toHaveLength(0) // a district page is never a pilot path
+    expect(findPinnedLinks('<Link href={localizedHref(`/c/${c.slug}`, variant)}>')).toHaveLength(0)
     expect(findPinnedLinks('// router.push(`/?q=x`) in a comment')).toHaveLength(0)
   })
 

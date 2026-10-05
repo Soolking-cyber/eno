@@ -39,6 +39,9 @@ const CASES: [string, boolean][] = [
   ['?range_areaM2=30-80', true],
   ['?utm_source=zalo&fbclid=x', false], // tracking params are not the explorer's
   ['?focus=abc', false],
+  ['?province=79', true], // NAV-2: the area is the explorer's too
+  ['?province=79&ward=26734', true],
+  ['?lat=10.7&lng=106.7', false], // never ours: the explorer writes no coordinates
 ]
 
 describe('the pre-paint mask rule', () => {

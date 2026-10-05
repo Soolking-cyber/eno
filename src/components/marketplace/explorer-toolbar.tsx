@@ -2,6 +2,7 @@
 
 import { Rows3, LayoutGrid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown, ChevronRight } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Toggle } from '@/components/ui/toggle'
@@ -176,8 +177,9 @@ export function SortStrip({
     ? (salary ? tr('Salary', 'Lương') : tr('Price', 'Giá'))
     : (sortOptions.find((o) => o.value === sort)?.label ?? tr('Sort by', 'Sắp xếp'))
   const SortGlyph = sort === 'price-low' ? ArrowUp : sort === 'price-high' ? ArrowDown : ArrowUpDown
-  // The phone row's scroller, for the edge signpost (category-rail.tsx's pattern — see below).
-  const { scrollerRef: phoneRowRef, canRight: phoneRowCanRight } = useScrollArrows<HTMLDivElement>({ watch: sort })
+  // The phone row's scroller, for the edge "›" (category-rail.tsx's pattern — see below). `page` is the
+  // desktop arrows' own step (85% of the row), so the phone button scrolls exactly as "Scroll right" does.
+  const { scrollerRef: phoneRowRef, canRight: phoneRowCanRight, page: pagePhoneRow } = useScrollArrows<HTMLDivElement>({ watch: sort })
 
   return (
     <Tabs
@@ -407,21 +409,19 @@ export function SortStrip({
           onClick={() => {
             if (priceSortActive) flipPrice()
           }}
-          aria-label={priceLabel === 'salary' ? tr('Sort by salary', 'Sắp xếp theo lương') : tr('Sort by price', 'Sắp xếp theo giá')}
+          // The spoken form of the visible label, from the phone menu's own options (`sortOptions`): a screen
+          // reader says "Price: low to high" rather than "Price low right arrow high".
+          aria-label={sortOptions.find((o) => o.value === (sort === 'price-high' ? 'price-high' : 'price-low'))?.label}
           className={sortTabClass(priceSortActive)}
         >
-          {priceLabel === 'salary' ? tr('Salary', 'Lương') : tr('Price', 'Giá')}
-          {/* size-3.5 is the same 14px as h-3.5 w-3.5 — but TabsTrigger's base carries the OLD
-              [&_svg:not([class*='size-'])]:size-4 rule (0,2,1), which outspecificities h-3.5 and
-              would inflate these arrows to 16px. A class containing "size-" is excluded by that
-              :not(), so this spelling keeps them at 14px. */}
-          {sort === 'price-low' ? (
-            <ArrowUp className="size-3.5" />
-          ) : sort === 'price-high' ? (
-            <ArrowDown className="size-3.5" />
-          ) : (
-            <ArrowUpDown className="size-3.5 text-ink-4" />
-          )}
+          {/* ⛔ THE TAB SAYS WHICH WAY IT SORTS (UX3 NAV-13, nav audit N15). It read "Price ⇅" one pill away
+              from the "Price ▾" FILTER, so the desktop row had two "Price" controls that did different
+              things. It now names the order a tap gives — "Price low → high", and after the re-tap flip
+              "Price high → low" — and the arrow glyph went with it: the words carry the direction.
+              The phone keeps its sort pill (`sortPillLabel`), which has no filter twin beside it. */}
+          {sort === 'price-high'
+            ? (salary ? tr('Salary high → low', 'Lương cao → thấp') : tr('Price high → low', 'Giá cao → thấp'))
+            : (salary ? tr('Salary low → high', 'Lương thấp → cao') : tr('Price low → high', 'Giá thấp → cao'))}
         </TabsTrigger>
       </TabsList>
       {(goodPrice || goodPriceOffered) && (
@@ -458,19 +458,26 @@ export function SortStrip({
       </div>
       </div>
       {/**
-        * THE PHONE ROW'S EDGE SIGNPOST — category-rail.tsx's, class for class: a static plated chevron
-        * at the right edge while there IS more to the right (`canRight`), gone at the end of the row,
-        * `pointer-events-none` so a swipe passes through it. NOT the rail beam: shelf.tsx reserves the
-        * beam for rails of PRODUCTS and names the facet bar as a row that deliberately goes without.
-        * `sm:hidden` — from sm this row does not scroll.
+        * THE PHONE ROW'S EDGE "›" — category-rail.tsx's, class for class: the static plated chevron at the
+        * right edge while there IS more to the right (`canRight`), gone at the end of the row. NOT the rail
+        * beam: shelf.tsx reserves the beam for rails of PRODUCTS and names the facet bar as a row that
+        * deliberately goes without. `sm:hidden` — from sm this row does not scroll.
+        * ⛔ A REAL BUTTON NOW, NOT A `pointer-events-none` SIGNPOST (UX3 NAV-4, nav audit N5). It looks like a
+        * control, so people tap it — and the tap fell THROUGH to the pill underneath: measured, it opened the
+        * Price sheet (t1-vi-07-tap-arrow). It now does what it looks like: scrolls the row by the desktop
+        * arrows' own step (`page(1)`, 85% of the row). IconButton's `tap-44` gives the 32px disc a 44px hit
+        * area; the look is unchanged. The trade, stated: a swipe that STARTS on the 32px disc no longer pans
+        * the row (the rest of the row still does) — a control cannot also be a pass-through.
         */}
       {phoneRowCanRight && (
-        <span
-          aria-hidden="true"
-          className="material pointer-events-none absolute right-0 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-card/70 text-body shadow-sm ring-1 ring-border/60 backdrop-blur-sm sm:hidden"
+        <IconButton
+          size="sm"
+          onClick={() => pagePhoneRow(1)}
+          aria-label={tr('More', 'Xem thêm')}
+          className="material absolute right-0 top-1/2 z-10 -translate-y-1/2 bg-card/70 text-body shadow-sm ring-1 ring-border/60 backdrop-blur-sm sm:hidden"
         >
           <ChevronRight className="h-5 w-5" strokeWidth={STROKE_UI} />
-        </span>
+        </IconButton>
       )}
       </div>
     </Tabs>

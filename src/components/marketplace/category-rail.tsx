@@ -10,6 +10,7 @@ import { ChevronRight } from '@/components/ui/icons'
 import { CategoryTileGlyph } from './category-art'
 import { CountChip, offeredCategories, offeredIntents, offeredSubcategories, subcategoryCountFor } from './count-chip'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { cn } from '@/lib/utils'
@@ -773,17 +774,24 @@ export function CategoryRail({
         * here on the right side to indicate users can swipe to get more categories". It shows only
         * while there IS more to the right, which is the same `canRight` the arrows use, so it
         * disappears at the end of the rail instead of lying.
-        * ⚠️ `pointer-events-none`: it is a hint over a scroller, and swiping THROUGH it must work.
+        * ⛔ A REAL BUTTON, NOT A `pointer-events-none` HINT (UX3 NAV-4, nav audit N5). The plate looks like a
+        * control and people tap it; the tap went THROUGH to the tile underneath — measured on production,
+        * a deep-linked results page switched the category to Mẹ & Bé → "0 kết quả" (prod-signpost-tap-
+        * result-0-results). It now scrolls the rail by the desktop arrows' own step (`page(1)`, 85%), the
+        * same thing their "Scroll right" does. `tap-44` gives the 32px disc a 44px hit area; the look is
+        * unchanged. A swipe that STARTS on the disc no longer pans the rail — the rest of the rail does.
         */}
       {canRight && (
-        <span
-          aria-hidden="true"
-          className="material pointer-events-none absolute right-0 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-card/70 text-body shadow-sm ring-1 ring-border/60 backdrop-blur-sm pc:hidden"
+        <IconButton
+          size="sm"
+          onClick={() => page(1)}
+          aria-label={tr('More', 'Xem thêm')}
+          className="material absolute right-0 top-1/2 z-10 -translate-y-1/2 bg-card/70 text-body shadow-sm ring-1 ring-border/60 backdrop-blur-sm pc:hidden"
         >
           {/* ⛔ STATIC — the owner removed the drift the moment they saw it ("remove animation from
-              right arrow"). It is a signpost, not a control; the motion made it read as a button. */}
+              right arrow"). */}
           <ChevronRight className="h-5 w-5" strokeWidth={STROKE_UI} />
-        </span>
+        </IconButton>
       )}
 
     </div>

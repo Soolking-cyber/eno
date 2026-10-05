@@ -211,3 +211,14 @@ export function useFavorites() {
   if (!ctx) throw new Error('useFavorites must be used within a FavoritesProvider')
   return ctx
 }
+
+/**
+ * Just the saved COUNT, for chrome that shows it as a badge (the desktop header's heart, UX3 NAV-7).
+ * ⚠️ 0 WITHOUT A PROVIDER, NOT A THROW: the header is mounted by tests and stories that do not wrap it in
+ * FavoritesProvider, and a badge has nothing to say there. In the app the provider is always above it
+ * ([lang]/providers.tsx). The count is device-local and hydrates in an effect, so it is 0 on the server
+ * and the first client render — the badge is client-only by construction, as edge-cached HTML needs.
+ */
+export function useFavoriteCount(): number {
+  return useContext(FavoritesContext)?.count ?? 0
+}

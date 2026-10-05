@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer'
 import { CloseButton } from '@/components/ui/close-button'
 import { useIsPhone } from '@/hooks/use-is-phone'
+import { useBackToClose } from '@/lib/back-to-close'
 import { PricePresetChips } from './price-preset-chips'
 
 /** One side of the committed "min-max" string. Empty or malformed (`?priceMin=abc`) is an open end
@@ -77,6 +78,9 @@ export function PriceRangeFilter({
   const [open, setOpen] = useState(false)
   const changeOpen = (next: boolean) => { setOpen(next); onOpenChange?.(next) }
   const isPhone = useIsPhone()
+  // ⛔ BACK CLOSES THE PHONE PRICE SHEET (UX3 NAV-1, src/lib/back-to-close.ts). A range applies live, so a
+  // sheet closed after one keeps its entry as that step (Back undoes the range); an untouched one pops it.
+  useBackToClose(isPhone && open, () => changeOpen(false), 'price')
   // `null` = no histogram (failed fetch, or an OLD cached `{ prices }` body) — the panel still offers
   // the presets and the typed inputs, it just has no bars or slider to draw.
   const [hist, setHist] = useState<PriceHistogram | null>(null)

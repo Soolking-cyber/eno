@@ -84,9 +84,8 @@ export function useSearchHistory(activeProvince: Geo | null, activeWard: Geo | n
   return { recentSearches, recentLocations, setRecentSearches, setRecentLocations, saveSearchToHistory }
 }
 
-/** Save the current filter set as a Saved Search (buyer gets alerted on new matches). Reads a
- *  read-only filter bag; writes ZERO component state — network + toast + openSignIn only. */
-export function useSaveSearch(filters: {
+/** The explorer's filter bag, as the saved-search flow reads it. */
+export type SaveSearchFilters = {
   activeCategory: string
   activeSubcategory: string
   activeBrand: string
@@ -97,7 +96,39 @@ export function useSaveSearch(filters: {
   conditionFilter: string
   priceRange: string
   customFilters: Record<string, string>
-}) {
+}
+
+/** What a save sends as `params` — `undefined` for every axis at its default (the POST body below). */
+export function saveSearchParams(f: SaveSearchFilters) {
+  const [mn, mx] = f.priceRange !== 'all' ? f.priceRange.split('-') : ['', '']
+  return {
+    category: f.activeCategory !== 'all' ? f.activeCategory : undefined,
+    subcategory: f.activeSubcategory !== 'all' ? f.activeSubcategory : undefined,
+    brand: f.activeBrand !== 'all' ? f.activeBrand : undefined,
+    model: f.activeBrand !== 'all' && f.activeModel !== 'all' ? f.activeModel : undefined,
+    listingType: f.listingType !== 'all' ? f.listingType : undefined,
+    q: f.debouncedQuery.trim() || undefined,
+    district: f.activeDistrict !== 'all' ? f.activeDistrict : undefined,
+    condition: f.conditionFilter !== 'all' ? f.conditionFilter : undefined,
+    priceMin: mn ? Number(mn) : undefined,
+    priceMax: mx ? Number(mx) : undefined,
+    attrs: Object.keys(f.customFilters).length ? f.customFilters : undefined,
+  }
+}
+
+/**
+ * Would a save carry ANY search? (UX3 JOIN-SAVE.) The phone's "Save search" pill shows from the FIRST query
+ * or filter — but only one the saved search can keep. ⚠️ The province, ward and near-you circle are not part
+ * of a saved search (src/lib/saved-search.ts), so an area alone offers nothing: saving it would save "All
+ * listings" and alert on every new one.
+ */
+export function hasSavableSearch(f: SaveSearchFilters): boolean {
+  return Object.values(saveSearchParams(f)).some((v) => v !== undefined)
+}
+
+/** Save the current filter set as a Saved Search (buyer gets alerted on new matches). Reads a
+ *  read-only filter bag; writes ZERO component state — network + toast + openSignIn only. */
+export function useSaveSearch(filters: SaveSearchFilters) {
   const { tr } = useLanguage()
   const { openSignIn } = useAuth()
   const savingSearch = useRef(false)
@@ -108,20 +139,10 @@ export function useSaveSearch(filters: {
   return useCallback(async () => {
     if (savingSearch.current) return // block double-tap → duplicate rows → duplicate cron alerts
     savingSearch.current = true
-    const [mn, mx] = priceRange !== 'all' ? priceRange.split('-') : ['', '']
-    const params = {
-      category: activeCategory !== 'all' ? activeCategory : undefined,
-      subcategory: activeSubcategory !== 'all' ? activeSubcategory : undefined,
-      brand: activeBrand !== 'all' ? activeBrand : undefined,
-      model: activeBrand !== 'all' && activeModel !== 'all' ? activeModel : undefined,
-      listingType: listingType !== 'all' ? listingType : undefined,
-      q: debouncedQuery.trim() || undefined,
-      district: activeDistrict !== 'all' ? activeDistrict : undefined,
-      condition: conditionFilter !== 'all' ? conditionFilter : undefined,
-      priceMin: mn ? Number(mn) : undefined,
-      priceMax: mx ? Number(mx) : undefined,
-      attrs: Object.keys(customFilters).length ? customFilters : undefined,
-    }
+    const params = saveSearchParams({
+      activeCategory, activeSubcategory, activeBrand, activeModel, listingType,
+      debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters,
+    })
     try {
       const res = await fetch('/api/saved-searches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ params }) })
       if (res.status === 401) { openSignIn({ note: tr('Sign in to get alerts when new listings match this search.', 'Đăng nhập để nhận thông báo khi có tin mới khớp với tìm kiếm này.') }); return }

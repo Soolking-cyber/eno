@@ -47,6 +47,13 @@ export type ExplorerUrlState = {
   /** `?view=` when it names a view, else null (the explorer keeps its default). */
   view: ExplorerView | null
   /**
+   * `?province=` / `?ward=` — the Area panel's place as unit CODES ('' = none), UX3 NAV-2. The explorer turns
+   * them back into areas through src/lib/vn-areas.ts. A ward without a province is not a place (wards are
+   * looked up inside their province), so it reads as no ward. ⛔ The "near you" circle is never in the URL.
+   */
+  province: string
+  ward: string
+  /**
    * The URL directs the feed: any axis the explorer's `showExplorer` latch reads, or a view. The
    * same answer the latch and the `?view=` reader reach after mount — computed here so a client
    * mount does not paint one frame of the undirected home chrome first.
@@ -79,6 +86,8 @@ export function parseFilterParams(p: URLSearchParams, categorySlug: string, subc
 
 const SORTS: readonly ExplorerSort[] = ['recent', 'price-low', 'price-high', 'popular']
 const VIEWS: readonly ExplorerView[] = ['compact', 'grid', 'map', 'video']
+/** An administrative unit code from the URL — digits only (vn-units codes), else '' (junk is no place). */
+const unitCode = (v: string | null): string => (v && /^\d{1,6}$/.test(v) ? v : '')
 
 /** Every axis `applyParams` sets, from one query string (with or without the leading `?`). */
 export function readExplorerUrl(search: string | URLSearchParams): ExplorerUrlState {
@@ -110,6 +119,8 @@ export function readExplorerUrl(search: string | URLSearchParams): ExplorerUrlSt
     priceRange: pmin || pmax ? `${pmin || ''}-${pmax || ''}` : 'all',
     customFilters: parseFilterParams(params, category, subcategory),
     view: VIEWS.includes(viewParam as ExplorerView) ? (viewParam as ExplorerView) : null,
+    province: unitCode(params.get('province')),
+    ward: unitCode(params.get('province')) ? unitCode(params.get('ward')) : '',
   }
   return { ...state, directed: isDirected(state) }
 }
@@ -118,13 +129,15 @@ export function readExplorerUrl(search: string | URLSearchParams): ExplorerUrlSt
  * ⚠️ THE SAME AXIS LIST AS THE EXPLORER'S `showExplorer` LATCH (its useLayoutEffect), plus a view —
  * the explorer's `?view=` reader opens the results view for any recognised view. `sort` and
  * `match` are deliberately absent: they reorder or loosen the same set, they do not direct it.
+ * The area (province / ward, NAV-2) directs it too: the explorer's `isLandingMode` already leaves
+ * undirected browse on an applied province or ward.
  */
 function isDirected(s: Omit<ExplorerUrlState, 'directed'>): boolean {
   return (
     s.category !== 'all' || s.query.trim() !== '' || s.district !== 'all' || s.subcategory !== 'all' ||
     s.brand !== 'all' || s.model !== 'all' || s.line !== '' || s.listingType !== 'all' ||
     s.condition !== 'all' || s.goodPrice || s.priceRange !== 'all' || Object.keys(s.customFilters).length > 0 ||
-    s.view !== null
+    s.view !== null || s.province !== '' || s.ward !== ''
   )
 }
 
@@ -139,7 +152,8 @@ export function isSeededFeed(s: ExplorerUrlState): boolean {
   return (
     s.category === 'all' && s.subcategory === 'all' && s.brand === 'all' && s.model === 'all' &&
     s.district === 'all' && s.condition === 'all' && !s.goodPrice && s.priceRange === 'all' &&
-    s.listingType === 'all' && s.sort === 'newest' && !s.query.trim() && Object.keys(s.customFilters).length === 0
+    s.listingType === 'all' && s.sort === 'newest' && !s.query.trim() && Object.keys(s.customFilters).length === 0 &&
+    !s.province && !s.ward
   )
 }
 
@@ -156,7 +170,7 @@ export function isSeededFeed(s: ExplorerUrlState): boolean {
  * ⚠️ ONE LIST FOR THE SCRIPT AND THE TESTS: `PREPAINT_SCRIPT` is built from it by JSON.stringify, so the
  * browser's copy cannot drift from `explorerUrlMasks`.
  */
-export const MASK_KEYS = ['q', 'category', 'subcategory', 'brand', 'model', 'line', 'type', 'condition', 'deal', 'sort', 'priceMin', 'priceMax', 'district', 'match', 'view'] as const
+export const MASK_KEYS = ['q', 'category', 'subcategory', 'brand', 'model', 'line', 'type', 'condition', 'deal', 'sort', 'priceMin', 'priceMax', 'district', 'match', 'view', 'province', 'ward'] as const
 
 /** Does this query string direct the feed away from the ISR seed? The rule `PREPAINT_SCRIPT` applies. */
 export function explorerUrlMasks(search: string | URLSearchParams): boolean {

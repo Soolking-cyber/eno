@@ -40,9 +40,11 @@ import { isSeededFeed, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type Ex
 import { publicPathname, variantOfLanguage } from '@/lib/lang-variant'
 import { localizedHref } from '@/lib/lang-pinned'
 import { handBackAfterLeaving, holdScrollRestoration, pinnedChromeBottom, releaseScrollRestoration, runRestore } from './feed-restore'
+import { ENTRY_KEY, OVERLAY_KEY, VIEW_KEY, currentHistoryState, hasUserActivation, liveOverlayOnTop, newHistoryKey, popIsLayerClose, stripOverlayEntry, viewStamp, whenLayerPopSettles } from '@/lib/back-to-close'
+import { peekWard, provinceByCode, rememberWard, resolveWard } from '@/lib/vn-areas'
 import { useDropStaleDistrict } from './use-drop-stale-district'
 import { type Nearby, type Geo } from './area-filter'
-import { useSearchShortcuts, useSearchHistory, useSaveSearch } from './use-explorer'
+import { useSearchShortcuts, useSearchHistory, useSaveSearch, hasSavableSearch } from './use-explorer'
 import { ViewToggles, SortStrip } from './explorer-toolbar'
 import { ResultLine, resultCountLabel, shouldOfferSaveSearch } from './result-line'
 import { Spinner } from '@/components/ui/spinner'
@@ -158,6 +160,140 @@ let explorerCommitted = false
  */
 export function __resetExplorerCommittedForTests(): void {
   explorerCommitted = false
+  entrySnaps.clear()
+}
+
+/**
+ * THE FEED AS IT WAS ON EACH HISTORY ENTRY THE READER LEFT BY A COMMITTED VIEW CHANGE (UX3 NAV-1) — so Back
+ * puts back the rows and the scroll, not just the filters. A category tile, a search, the map, an applied
+ * filter sheet each push an entry (see `commitView`); the feed being left is snapshotted here, keyed by its
+ * entry's `enoEntry` id, in the SAME shape as the card-tap snapshot in sessionStorage, and Back hands it to
+ * the SAME restore (`pendingSnapRef` → the restore layout effect → feed-restore.ts's frame loop).
+ * ⚠️ IN MEMORY, NOT sessionStorage: a document's own history (a full reload drops it, and the browser's own
+ * restoration then applies as before), and it would not fit the one sessionStorage slot the card tap owns.
+ * ⚠️ ONE-SHOT and TIME-BOXED like that snapshot (consumed by the Back that uses it, 30 min), and dropped
+ * when Back merely closes a layer back onto the same URL — a snapshot must never fire later as a scroll
+ * jump nobody asked for. At most `ENTRY_SNAP_CAP` entries; a snapshot over 120 rows is not taken.
+ */
+type FeedSnap = {
+  sig: string; rowsSig?: string; listings: SerializedListingCard[]; page: number; totalCount: number; scrollY: number; ts: number
+  unlocked?: boolean; ceiling?: number; anchorId?: string | null; anchorTop?: number | null
+  /** A history-entry snapshot (this map), as opposed to the card tap's — applied now or dropped, never kept waiting. */
+  fromHistory?: boolean
+}
+const entrySnaps = new Map<string, FeedSnap>()
+const ENTRY_SNAP_CAP = 20
+const ENTRY_SNAP_TTL_MS = 30 * 60 * 1000
+function keepEntrySnap(id: string, snap: FeedSnap): void {
+  entrySnaps.delete(id)
+  entrySnaps.set(id, snap)
+  while (entrySnaps.size > ENTRY_SNAP_CAP) entrySnaps.delete(entrySnaps.keys().next().value as string)
+}
+
+/**
+ * history.state key of an explorer entry's EXACT area (UX3 NAV-2): the province and ward as the explorer holds
+ * them, and the "near you" circle. The URL carries only the province/ward CODES and never the circle (PDPL:
+ * coordinates are personal data and leak through Referer and logs); history.state never leaves the browser,
+ * so Back and Forward restore a near-you search exactly while a shared link or a reload gets the codes.
+ */
+const AREA_KEY = 'enoArea'
+type AreaState = { province: Geo | null; ward: Geo | null; nearby: Nearby | null }
+const NO_AREA: AreaState = { province: null, ward: null, nearby: null }
+
+function isGeo(v: unknown): v is Geo {
+  return !!v && typeof v === 'object' && typeof (v as Geo).code === 'string' && typeof (v as Geo).name === 'string' && typeof (v as Geo).nameEn === 'string'
+}
+function isNearby(v: unknown): v is Nearby {
+  const n = v as Nearby
+  return !!n && typeof n === 'object' && Number.isFinite(n.lat) && Number.isFinite(n.lng) && Number.isFinite(n.radiusKm)
+}
+/** The exact area an entry's history.state recorded, or null (none recorded, or malformed). */
+function historyArea(state: unknown): AreaState | null {
+  const a = state && typeof state === 'object' ? (state as Record<string, unknown>)[AREA_KEY] : null
+  if (!a || typeof a !== 'object') return null
+  const { province, ward, nearby } = a as Record<string, unknown>
+  return { province: isGeo(province) ? province : null, ward: isGeo(ward) ? ward : null, nearby: isNearby(nearby) ? nearby : null }
+}
+
+/**
+ * The area a URL (and its entry's state) names, as far as it can be known SYNCHRONOUSLY:
+ * · the entry's recorded area when it agrees with the URL's codes (Back, Forward, a reload) — exact, near-you
+ *   included;
+ * · else the URL's codes — the province from the static table, the ward only if this document already knows
+ *   it (`wardPending` names the one still to fetch);
+ * · null when the URL names no area and the entry recorded none.
+ */
+function areaForLocation(u: { province: string; ward: string }, state: unknown): { area: AreaState; wardPending?: { province: string; ward: string } } | null {
+  const h = historyArea(state)
+  if (h) {
+    const agrees = h.nearby
+      ? !u.province && !u.ward
+      : (h.province?.code ?? '') === u.province && (h.ward?.code ?? '') === u.ward
+    if (agrees) return { area: h }
+  }
+  if (!u.province) return null
+  const province = provinceByCode(u.province)
+  if (!province) return null
+  if (!u.ward) return { area: { province, ward: null, nearby: null } }
+  const ward = peekWard(u.province, u.ward)
+  return ward
+    ? { area: { province, ward, nearby: null } }
+    : { area: { province, ward: null, nearby: null }, wardPending: { province: u.province, ward: u.ward } }
+}
+
+const sameNearby = (a: Nearby | null, b: Nearby | null) =>
+  a === b || (!!a && !!b && a.lat === b.lat && a.lng === b.lng && a.radiusKm === b.radiusKm)
+
+/**
+ * WRITE THE EXPLORER'S URL INTO HISTORY — the one place the explorer touches it (UX3 NAV-1).
+ *
+ * ⛔ IN PLACE (replaceState) UNLESS THE READER COMMITTED A VIEW CHANGE. Typing, sort, a refinement, a tweak
+ * inside a sheet: the URL follows the state and no entry is added, as before. A category tile, a search, the
+ * map ⇄ list switch, an applied area, a filter taken off (`commitView` lists them): ONE new entry, so Back
+ * undoes it instead of leaving eno.vn — measured on production and preview alike: tile or search, then Back,
+ * landed on about:blank.
+ * ⚠️ A COMMIT THAT LANDS ON A LAYER'S ENTRY TAKES IT OVER ("absorb"): the search panel or a sheet already put
+ * one entry on top for itself, and pushing a second would leave a dead one under it. The layer's mark goes
+ * (src/lib/back-to-close.ts sees that and leaves the entry alone) and the entry becomes the committed step.
+ * ⚠️ A PUSH NEEDS THE TAP'S USER ACTIVATION (Chrome skips history entries added without one); a commit that
+ * somehow lost it falls back to replacing, which is today's behaviour.
+ * ⚠️ THE NEW ENTRY CARRIES NEXT'S OWN STATE (`__NA` + tree — so Next's popstate restores this same page) but
+ * NOT a layer's flags (`takeover`, `lightbox`, our mark): those belong to the entry the layer pushed.
+ * Every entry also records its exact area (`AREA_KEY`) and an identity (`ENTRY_KEY`, for `entrySnaps`).
+ */
+function writeExplorerEntry(url: string, area: AreaState, commit: boolean): void {
+  const base = currentHistoryState()
+  // ⚠️ THE VIEW, NOT ONLY THE URL: a near-you circle changes the feed without changing the URL, so an Apply of
+  // one must still count as a change — or the Area sheet's own entry would be popped as untouched and the
+  // popstate would undo the circle (review). `VIEW_KEY` is what back-to-close.ts compares for the same reason.
+  const stamp = areaStamp(area)
+  const changed = new URL(url, window.location.href).href !== window.location.href || base[VIEW_KEY] !== stamp
+  const layer = liveOverlayOnTop()
+  const keptId = typeof base[ENTRY_KEY] === 'string' ? base[ENTRY_KEY] : newHistoryKey()
+  const mine = { [AREA_KEY]: area, [VIEW_KEY]: stamp }
+  if (commit && changed) {
+    if (layer) { stripOverlayEntry({ ...mine, [ENTRY_KEY]: newHistoryKey() }, url); return }
+    if (hasUserActivation()) {
+      const next: Record<string, unknown> = { ...base, ...mine, [ENTRY_KEY]: newHistoryKey() }
+      delete next[OVERLAY_KEY]; delete next.takeover; delete next.lightbox
+      window.history.pushState(next, '', url)
+      return
+    }
+  }
+  // A RELEASED layer entry (the search panel closed by a tap that may navigate) that the view now moves is a
+  // real step from here on — unmarked, so the next navigation does not replace it (back-to-close.ts).
+  if (layer?.released && changed) { stripOverlayEntry({ ...mine, [ENTRY_KEY]: newHistoryKey() }, url); return }
+  // Preserve the rest of history.state — dropping it would wipe the `takeover: 'video'` flag the video-return
+  // mount check depends on, and an open layer's mark.
+  window.history.replaceState({ ...base, ...mine, [ENTRY_KEY]: keptId }, '', url)
+}
+
+/**
+ * The part of the area the URL does not carry, as a stamp — the near-you circle (and the place it was
+ * picked under). '' when the URL says it all. Written as the entry's `VIEW_KEY`.
+ */
+function areaStamp(a: AreaState): string {
+  return a.nearby ? JSON.stringify([a.nearby.lat, a.nearby.lng, a.nearby.radiusKm, a.province?.code ?? null, a.ward?.code ?? null]) : ''
 }
 
 function releaseFeedEntry() {
@@ -417,6 +553,14 @@ export function ListingsExplorer({
       : null
   ))
   useEffect(() => { explorerCommitted = true }, [])
+  /**
+   * The area a CLIENT-SIDE mount starts in (UX3 NAV-2) — the same rule as every other axis above: Back to a
+   * feed filtered to Hồ Chí Minh must start filtered to it, or the snapshot restore cannot match and the
+   * reader sees the whole country first (measured on production: 14 jobs → 25 after Back). Exact from the
+   * entry's own state when it has one; else the URL's codes (a ward this document has not seen yet is
+   * fetched by the mount effect). `null` on a cold load, which keeps the effect path.
+   */
+  const [areaInit] = useState(() => (urlInit ? areaForLocation(urlInit, window.history.state) : null))
   const [activeCategory, setActiveCategory] = useState(urlInit?.category ?? 'all')
   const [query, setQuery] = useState(urlInit?.query ?? '')
   // Loose (any-word) text match — set by visual search so a photo-derived phrase
@@ -426,12 +570,14 @@ export function ListingsExplorer({
   const [verifiedOnly, setVerifiedOnly] = useState(true)
   const [activeDistrict, setActiveDistrict] = useState(urlInit?.district ?? 'all')
   // New area model (Vietnam 2025: province → ward), driven by the AreaFilter.
-  const [activeProvince, setActiveProvince] = useState<Geo | null>(null)
+  const [activeProvince, setActiveProvince] = useState<Geo | null>(areaInit?.area.province ?? null)
   // ⛔ An HCMC district pick resets when the province leaves HCMC (Hà Nội AND District 1 is an empty
   // feed) — one effect for all four paths that set the province. See use-drop-stale-district.ts.
   useDropStaleDistrict(activeProvince?.code ?? null, setActiveDistrict)
-  const [activeWard, setActiveWard] = useState<Geo | null>(null)
-  const [nearby, setNearby] = useState<Nearby | null>(null) // {lat,lng,radiusKm} when "search near you" is on
+  const [activeWard, setActiveWard] = useState<Geo | null>(areaInit?.area.ward ?? null)
+  const [nearby, setNearby] = useState<Nearby | null>(areaInit?.area.nearby ?? null) // {lat,lng,radiusKm} when "search near you" is on
+  // Every ward the explorer holds is remembered for the document, so Back to its URL resolves it at once (vn-areas.ts).
+  useEffect(() => { rememberWard(activeProvince?.code, activeWard) }, [activeProvince?.code, activeWard])
   const [conditionFilter, setConditionFilter] = useState(urlInit?.condition ?? 'all') // 'all' | 'new' | 'used'
   /**
    * "Good price" — a FILTER (URL/API `deal=good`), not a sort, so it narrows the result set, its count
@@ -494,8 +640,19 @@ export function ListingsExplorer({
   // The full-screen Video view remembers the view to fall back to on close (so exiting the
   // takeover lands the user back where they were, not always on the grid).
   const prevViewRef = useRef<ViewMode>(DEFAULT_VIEW)
+  /** The view on screen, for handlers registered once (the map switch is a committed change only when it is one). */
+  const viewModeRef = useRef<ViewMode>(viewMode)
+  useEffect(() => { viewModeRef.current = viewMode }, [viewMode])
   const changeView = useCallback((m: ViewMode) => {
-    setViewMode((cur) => { if (m === 'video' && cur !== 'video') prevViewRef.current = cur; return m })
+    /**
+     * ⛔ INTO OR OUT OF THE MAP IS A STEP BACK UNDOES (UX3 NAV-1, `commitView`): the map is a takeover of the
+     * results column, and Back from it should land on the list it replaced. Grid ⇄ list is a presentation
+     * of the same rows (stays in place, like a sort). The Video view pushes its own entry (its takeover's),
+     * so it never pushes a second one here.
+     */
+    const cur = viewModeRef.current
+    if (m !== cur && m !== 'video' && cur !== 'video' && (m === 'map' || cur === 'map')) commitView()
+    setViewMode((c) => { if (m === 'video' && c !== 'video') prevViewRef.current = c; return m })
   }, [])
   // Clip to restore when the Video feed re-opens after a back-nav from a listing.
   const [videoReturn, setVideoReturn] = useState<{ id: string; params: string } | null>(null)
@@ -568,6 +725,44 @@ export function ListingsExplorer({
   const headerHidden = useHideOnScroll()
 
   /**
+   * ⛔ "THIS TAP IS A STEP BACK CAN UNDO" (UX3 NAV-1). Called at the start of every committed view change —
+   * a category or intent tile, a search (header, recents, popular, visual), a typeahead pick that applies a
+   * URL, the map ⇄ list switch, an area applied from its panel, the logo's reset, and taking a filter off
+   * (a chip's ✕, Clear all, a crumb, the empty state's relax buttons — in place, those rewrote a pushed
+   * entry back to the URL below it and left two identical entries; review) — and of nothing else: typing,
+   * sort, subcategory/brand refinements and taps inside a sheet stay in place, as the plan (§R) scopes it.
+   * It does two things, both before the state changes:
+   *   · snapshots the feed being LEFT (rows, depth, scroll anchor) under its history entry, so Back puts the
+   *     reader exactly there (`entrySnaps`);
+   *   · arms ONE push for the URL write this tap causes (the writer consumes it; a tap that changes no URL
+   *     leaves nothing armed past this task).
+   * ⚠️ Synchronous with the tap ON PURPOSE: the push needs the tap's user activation, and the state it
+   * snapshots must be the state before the change. An async path (visual search) calls it after its await.
+   */
+  const historyIntentRef = useRef(false)
+  /** Builds the snapshot of the feed on screen — kept current by a layout effect beside `handleOpen`. */
+  const snapSourceRef = useRef<() => FeedSnap | null>(() => null)
+  /** Snapshot the feed on screen under the entry it is on (a layer's entry shares its base's id until it commits). */
+  const snapshotThisEntry = useCallback(() => {
+    try {
+      const snap = snapSourceRef.current()
+      if (!snap) return
+      let id = currentHistoryState()[ENTRY_KEY]
+      if (typeof id !== 'string') {
+        // An entry the explorer has not written yet (Next's own, after a navigation) gets its identity now.
+        id = newHistoryKey()
+        window.history.replaceState({ ...currentHistoryState(), [ENTRY_KEY]: id }, '')
+      }
+      keepEntrySnap(id as string, snap)
+    } catch { /* a snapshot is a nicety — nothing depends on it */ }
+  }, [])
+  const commitView = useCallback(() => {
+    snapshotThisEntry()
+    historyIntentRef.current = true
+    setTimeout(() => { historyIntentRef.current = false }, 0)
+  }, [snapshotThisEntry])
+
+  /**
    * ⚠️ A CLIENT-SIDE MOUNT OF ANY OTHER FEED STARTS WITH NO ROWS, NOT THE ISR SEED (E-BACK). The seed
    * is page one of the unfiltered home; under `?q=honda` it is twelve unrelated cards and a count that
    * contradicts the chip. With nothing to show the grid draws its first-page skeleton, and the rows
@@ -575,7 +770,8 @@ export function ListingsExplorer({
    * in the first render, below the seed adoption) or the request — whichever the reader has.
    * `startedOffSeed` is false on every cold load and on a client mount of the seeded view itself.
    */
-  const [startedOffSeed] = useState(() => urlInit !== null && !isSeededFeed(urlInit))
+  // A near-you circle is no part of the URL but is part of the feed (it comes back from the entry's state).
+  const [startedOffSeed] = useState(() => urlInit !== null && (!isSeededFeed(urlInit) || !!areaInit?.area.nearby))
   const [listings, setListings] = useState<SerializedListingCard[]>(startedOffSeed ? [] : initialListings)
   // Freshness anchor for the SSR seed: the SERVER render timestamp baked into the ISR
   // HTML (initialFetchedAt). The homepage snapshot can be up to 6h old — stamping it
@@ -721,7 +917,7 @@ export function ListingsExplorer({
   // settle to the same signature. On a COLD load the filters hydrate from the URL in an
   // effect, so the match can't be made synchronously at mount; a client-side mount (the
   // normal Back) seeds them from `urlInit`, so there it matches in the first layout effect.
-  const pendingSnapRef = useRef<{ sig: string; rowsSig?: string; listings: SerializedListingCard[]; page: number; totalCount: number; scrollY: number; ts: number; unlocked?: boolean; ceiling?: number; anchorId?: string | null; anchorTop?: number | null } | null>(null)
+  const pendingSnapRef = useRef<FeedSnap | null>(null)
   const snapReadRef = useRef(false)
   const [subcategoryCounts, setSubcategoryCounts] = useState<Record<string, number>>({})
   /**
@@ -916,7 +1112,11 @@ export function ListingsExplorer({
   useEffect(() => { liveCollapseRef.current = liveCollapse }, [liveCollapse])
   const onFacetPanelOpenChange = useCallback((open: boolean) => {
     setPanelFreeze(open ? liveCollapseRef.current : null)
-  }, [])
+    // A phone sheet's taps can become a history step (its entry is kept when they change the URL — see
+    // back-to-close.ts), so the feed under it is snapshotted now, while it is still the feed being left:
+    // Back from that step then restores these rows and this scroll, not page one (NAV-1).
+    if (open) snapshotThisEntry()
+  }, [snapshotThisEntry])
   const [ladderOpen, setLadderOpen] = useState(false)
   // Folded again for the next search once the feed is back to undirected — or once the screen is wide
   // enough to show the whole ladder anyway (a rotated tablet), so narrowing it back starts folded.
@@ -1015,6 +1215,10 @@ export function ListingsExplorer({
   // to landing mode (a same-route <Link> can't reset this client state on its own).
   useEffect(() => {
     const onResetHome = () => {
+      // ⛔ A COMMIT, NOT AN IN-PLACE RESET (review): the logo's own <Link> navigation finds the URL already `/`
+      // and REPLACES — so an in-place reset left the results entry overwritten by a second `/`, and Back from
+      // it changed nothing. Pushed, Back from home returns to the results the logo was tapped on.
+      commitView()
       resetToLandingPage()
       setActiveProvince(null)
       setActiveWard(null)
@@ -1162,7 +1366,7 @@ export function ListingsExplorer({
   const pickHeroSuggest = (it: AnySuggestItem) => {
     setShowSuggestions(false)
     if (it.type === 'query') { handleLandingSearch(landingQuery); return }
-    if (it.type === 'brand') { setLandingQuery(''); applyResolved({ brand: it.slug }); return }
+    if (it.type === 'brand') { setLandingQuery(''); commitView(); applyResolved({ brand: it.slug }); return }
     if (it.type === 'category') { handleCategorySelect(it.slug); setLandingQuery(''); return }
     /**
      * A product line and a scoped search (S-TYPEAHEAD) — the SAME urls header.tsx's pickSuggest builds,
@@ -1205,6 +1409,7 @@ export function ListingsExplorer({
   // chips bar stays the visible receipt).
   const handleLandingSearch = useCallback((searchTerm: string) => {
     const trimmed = searchTerm.trim()
+    commitView() // a search (header, recents, popular) is a step Back undoes (NAV-1)
     setShowExplorer(true)
     setShowSuggestions(false)
     setLooseMatch(false) // a typed search is strict (AND); only visual search is loose
@@ -1230,8 +1435,10 @@ export function ListingsExplorer({
     try {
       const res = await fetch(`/api/search/resolve?q=${encodeURIComponent(q)}`)
       const d = res.ok ? await res.json() : null
-      if (d?.brand) { applyResolved(d); return }
+      if (d?.brand) { commitView(); applyResolved(d); return }
     } catch {}
+    // After the await, right before the state it commits (NAV-1): the snapshot must be the feed being left.
+    commitView()
     if (r.category) {
       setActiveCategory(r.category)
       setActiveSubcategory('all')
@@ -1252,6 +1459,7 @@ export function ListingsExplorer({
   // search once the hero scrolls out of view.
   // Re-apply a previously-used area from the suggestions quick-select.
   const applyRecentLocation = useCallback((loc: { province: Geo; ward: Geo | null }) => {
+    commitView()
     setNearby(null)
     setActiveProvince(loc.province)
     setActiveWard(loc.ward)
@@ -1277,6 +1485,7 @@ export function ListingsExplorer({
     // Area filter (district + "near you") applied from the header search bar.
     const onArea = (e: Event) => {
       const d = (e as CustomEvent<{ province?: Geo | null; ward?: Geo | null; nearby?: Nearby | null }>).detail
+      commitView() // an area picked from the header is a step Back undoes (NAV-1)
       setActiveProvince(d?.province ?? null)
       setActiveWard(d?.ward ?? null)
       setNearby(d?.nearby ?? null)
@@ -1292,6 +1501,7 @@ export function ListingsExplorer({
     // eno:search above. WITHOUT THIS LISTENER THE BUTTON RENDERS AND DOES NOTHING, which is a
     // failure both tsc and lint wave straight through.
     const onViewMap = () => {
+      if (viewModeRef.current !== 'map') commitView() // into the map is a step Back undoes (NAV-1)
       setViewMode('map')
       setShowExplorer(true)
       // ⚠️ SCROLL AFTER THE RE-RENDER, NOT DURING IT. This used to be about the node being
@@ -1350,6 +1560,7 @@ export function ListingsExplorer({
   useSearchShortcuts(setShowSuggestions)
 
   const handleCategorySelect = (slug: string) => {
+    commitView() // a category tile is a step Back undoes (NAV-1)
     setLooseMatch(false)
     setActiveCategory(slug)
     setActiveSubcategory('all')
@@ -1391,19 +1602,170 @@ export function ListingsExplorer({
     setCustomFilters(u.customFilters)
   }, [])
 
+  /**
+   * Put an area in place (UX3 NAV-2) — the URL's or an entry's. Each axis keeps its current object when the
+   * code (or circle) is the same, so re-applying the area already held re-renders nothing.
+   */
+  const applyArea = useCallback((a: AreaState) => {
+    setActiveProvince((p) => (p?.code === a.province?.code ? p : a.province))
+    setActiveWard((w) => (w?.code === a.ward?.code ? w : a.ward))
+    setNearby((n) => (sameNearby(n, a.nearby) ? n : a.nearby))
+  }, [])
+
+  /** The view (URL + stamp, back-to-close.ts `viewStamp`) this explorer last wrote or arrived at — "did Back
+   *  change the view, or only close a layer?" */
+  const lastStampRef = useRef<string | null>(null)
+  /** Bumped when the URL no longer says what the state is and nothing in the state changed — the writer re-runs. */
+  const [urlNudge, setUrlNudge] = useState(0)
+  /**
+   * A URL's ward still being looked up (/api/geo) on a mount or a Back that applied its province already.
+   * While it is, the URL writer keeps `?ward=` (or the look-up would erase the very link it is resolving),
+   * and the answer applies only if nothing has replaced the place since (a pick, another Back).
+   */
+  const pendingWardRef = useRef<{ province: string; ward: string } | null>(null)
+  const activeProvinceCodeRef = useRef<string | null>(activeProvince?.code ?? null)
+  useEffect(() => { activeProvinceCodeRef.current = activeProvince?.code ?? null }, [activeProvince?.code])
+
   // URL state synchronization: Read from URL on mount and on popstate
   useEffect(() => {
-    const handleUrlChange = () => applyParams(new URLSearchParams(window.location.search))
-    handleUrlChange() // Initial check
-    setUrlApplied(true) // batched with the params above: the render that applies them knows it (see `foldArmed`)
+    let cancelled = false
+    /** One location, applied: its params, its area (when it names one), and on Back/Forward its view. */
+    const applyLocation = (search: string, area: AreaState | null, withView: boolean) => {
+      const raw = new URLSearchParams(search)
+      applyParams(raw)
+      if (area) applyArea(area)
+      if (withView) {
+        // ⛔ THE VIEW IS PART OF WHAT BACK RESTORES NOW (UX3 NAV-1): the map ⇄ list switch pushes an entry, so
+        // Back from the map must land on the list (and vice versa). `?view=` is written for every non-grid
+        // view, so its absence IS the grid. Same opening rule as the mount reader below for map.
+        // ⛔ BUT VIDEO ONLY ON THE TAKEOVER'S OWN ENTRY (review): the Video chunk loads lazily, so `?view=video`
+        // is written onto the entry UNDER the takeover before the takeover pushes its own; closing it pops
+        // back onto that entry, and re-opening the video from its URL looped ✕ → reopen forever. The video
+        // view's own close already put the right view back; the takeover's entry carries `takeover`.
+        const v = readExplorerUrl(raw).view
+        const takeover = (window.history.state as { takeover?: unknown } | null)?.takeover === 'video'
+        if (v !== 'video' || takeover) {
+          setViewMode(v ?? DEFAULT_VIEW)
+          if (v === 'map' || v === 'video') setShowExplorer(true)
+        } else {
+          // …and that entry's URL still says `view=video`: have the writer put the view on screen back into it,
+          // or a reload of this entry would open the takeover again.
+          setUrlNudge((n) => n + 1)
+        }
+      }
+    }
+    /** A ward this document has not seen yet: fetched, and applied only if its place still stands (`pendingWardRef`). */
+    const wardLater = (pending: { province: string; ward: string }) => {
+      pendingWardRef.current = pending
+      void resolveWard(pending.province, pending.ward).then((ward) => {
+        if (cancelled || pendingWardRef.current !== pending) return
+        pendingWardRef.current = null
+        if (ward && activeProvinceCodeRef.current === pending.province) setActiveWard((w) => (w?.code === ward.code ? w : ward))
+      })
+    }
+
+    // ── MOUNT ──
     // E-SSR: the pre-paint script marked a directed URL — hold the mask until this URL's answer lands.
     // Anything else (a client mount, or no mark) must not leave one behind.
     const root = document.documentElement
-    if (coldLoad && root.hasAttribute('data-explorer-directed')) { setAwaitingUrlAnswer(true); setSeedMasked(true) }
-    else root.removeAttribute('data-explorer-directed')
-    window.addEventListener('popstate', handleUrlChange)
-    return () => window.removeEventListener('popstate', handleUrlChange)
-  }, [applyParams, coldLoad])
+    const masked = coldLoad && root.hasAttribute('data-explorer-directed')
+    if (!masked) root.removeAttribute('data-explorer-directed')
+    const mountSearch = window.location.search
+    const found = areaForLocation(readExplorerUrl(mountSearch), window.history.state)
+    /** The URL is read (once): its params applied, the writer released, the mask armed for its answer. */
+    let mounted = false
+    const settleMount = () => {
+      if (mounted) return false
+      mounted = true
+      setUrlApplied(true) // batched with the params: the render that applies them knows it (see `foldArmed`)
+      if (masked) { setAwaitingUrlAnswer(true); setSeedMasked(true) }
+      return true
+    }
+    const applyMount = (area: AreaState | null) => {
+      if (mounted) return // a Back already applied a newer location (below)
+      applyLocation(mountSearch, area, false)
+      settleMount()
+    }
+    if (coldLoad && found?.wardPending) {
+      /**
+       * ⛔ A COLD LINK TO A WARD THIS DOCUMENT HAS NOT SEEN (NAV-2): its name comes from /api/geo, so the WHOLE
+       * URL is applied once it is known — not the province now and the ward later, which would fetch, paint
+       * and unmask the province's answer and then replace it. The seed stays masked and inert meanwhile
+       * (`seedMasked`), and the URL writer waits for `urlApplied`, so nothing rewrites the link either.
+       * 2.5s at most: a ward /api/geo does not know is dropped and the rest of the URL still applies.
+       * ⛔ A SLOW ANSWER IS NOT A MISSING WARD (codex, gate 2026-10-05): past 2.5 s the rest of the URL applies
+       * now and the ward goes on as `wardLater` — `?ward=` stays in the address and the ward lands when its
+       * answer does (unless the reader has picked another place by then), instead of a link silently broadened.
+       */
+      if (masked) setSeedMasked(true)
+      const pending = found.wardPending
+      void Promise.race([
+        resolveWard(pending.province, pending.ward).then((ward) => ({ ward, late: false })),
+        new Promise<{ ward: null; late: true }>((r) => setTimeout(() => r({ ward: null, late: true }), 2500)),
+      ]).then(({ ward, late }) => {
+        if (cancelled) return
+        applyMount({ ...found.area, ward: ward ?? null })
+        if (late) wardLater(pending)
+      })
+    } else {
+      applyMount(found?.area ?? null)
+      if (found?.wardPending) wardLater(found.wardPending)
+    }
+    lastStampRef.current = viewStamp()
+
+    // ── BACK / FORWARD ──
+    const onPop = () => {
+      // A Back while a cold ward link is still being looked up supersedes it: this location is the newer one.
+      settleMount()
+      const st = window.history.state
+      const stamp = viewStamp()
+      const viewChanged = stamp !== lastStampRef.current
+      lastStampRef.current = stamp
+      // A layer popping its OWN untouched entry (back-to-close.ts) lands on the URL the feed already shows —
+      // and if the reader tapped something meanwhile, the state here is newer than that URL. Not a Back.
+      if (popIsLayerClose()) return
+      if (viewChanged) {
+        // ⛔ A RESTORE STILL ALIGNING IS FOR THE VIEW BEING LEFT (review): stop it on every view-changing Back,
+        // or a fast second Back lands the new view at the old one's offset.
+        restoreStopRef.current?.()
+        // A building drill-in is map state the URL does not carry; Back leaves it, and it must go in THIS
+        // render — it is part of the rows' signature, and a snapshot of the list taken without it would
+        // otherwise be refused (the passive clean-up below runs too late for the restore).
+        setSelectedBuilding(null)
+      }
+      /**
+       * ⛔ THE ENTRY'S OWN SNAPSHOT PUTS THE ROWS AND THE SCROLL BACK (NAV-1) — see `entrySnaps`. One-shot,
+       * and only when Back actually changed the view: a popstate onto the SAME URL is a layer (a sheet, the
+       * search panel) closing over a feed that never moved, and restoring there would be a jump from nowhere.
+       * The arriving entry is set to 'manual' first, so the browser's own restoration — which runs right
+       * after this event, against the feed being left — cannot fight the restore; the restore hands it
+       * 'auto' back when it settles (releaseFeedEntry). Not matched in the render it causes → dropped.
+       */
+      const id = st && typeof st === 'object' ? (st as Record<string, unknown>)[ENTRY_KEY] : null
+      if (typeof id === 'string') {
+        const snap = entrySnaps.get(id)
+        entrySnaps.delete(id)
+        if (snap && viewChanged && Date.now() - snap.ts <= ENTRY_SNAP_TTL_MS && !liveOverlayOnTop()) {
+          const pending: FeedSnap = { ...snap, fromHistory: true }
+          pendingSnapRef.current = pending
+          try { window.history.scrollRestoration = 'manual' } catch { /* unsupported */ }
+          requestAnimationFrame(() => {
+            if (pendingSnapRef.current === pending) { pendingSnapRef.current = null; releaseFeedEntry() }
+          })
+        }
+      }
+      // The URL is the whole truth on Back: an area it does not name (and the entry did not record) is gone.
+      pendingWardRef.current = null
+      const found = areaForLocation(readExplorerUrl(window.location.search), st)
+      applyLocation(window.location.search, found?.area ?? NO_AREA, true)
+      if (found?.wardPending) wardLater(found.wardPending)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => {
+      cancelled = true
+      window.removeEventListener('popstate', onPop)
+    }
+  }, [applyParams, applyArea, coldLoad])
 
   // A notification / deep-link (e.g. a saved-search alert) routes to `/?<filters>`. When
   // we're ALREADY on the home route that's a soft <Link> nav the reader above can't see
@@ -1415,6 +1777,8 @@ export function ListingsExplorer({
   // any change in behaviour here breaks them rather than this tile.
   const applyUrl = useCallback((url: string) => {
     const qs = url.includes('?') ? url.slice(url.indexOf('?') + 1) : ''
+    // A typeahead pick, a notification's search, eno's own shortcut tiles: each is a view the reader asked for (NAV-1).
+    commitView()
     applyParams(new URLSearchParams(qs))
     setShowExplorer(true)
     requestAnimationFrame(() => document.getElementById('listings')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' }))
@@ -1453,6 +1817,15 @@ export function ListingsExplorer({
 
   // URL state synchronization: Write back to URL as filters change
   useEffect(() => {
+    /**
+     * ⛔ NOT BEFORE THE URL HAS BEEN READ (UX3 NAV-2). On a cold load this effect used to run once with the
+     * DEFAULT state, in the mount commit, before the reader's state had rendered — so it rewrote `/?q=honda`
+     * to `/` for a moment and broadcast an empty query to the header box. Harmless while every axis was
+     * re-applied a render later; not once a ward link waits for /api/geo before it applies (the reader
+     * above), where that write would have erased the ward from the address bar. A client-side mount has
+     * read its URL already (`urlApplied` starts true).
+     */
+    if (!urlApplied) return
     const params = new URLSearchParams(window.location.search)
     
     if (activeCategory !== 'all') {
@@ -1518,6 +1891,22 @@ export function ListingsExplorer({
     if (viewMode !== DEFAULT_VIEW) params.set('view', viewMode)
     else params.delete('view')
 
+    /**
+     * ⛔ THE AREA IS URL STATE TOO (UX3 NAV-2, nav audit N3) — the province and ward CODES (vn-areas.ts turns
+     * them back), exactly when the feed sends them: under "near you" the API ignores both, so the URL does
+     * too. ⛔ NEVER THE CIRCLE ITSELF: coordinates are personal data (PDPL) and a URL travels — Referer,
+     * logs, a shared link. The circle lives in the entry's own history.state (`AREA_KEY`), so Back and
+     * Forward still restore it; a reload or a shared link gets the codes, or no area at all.
+     */
+    if (!nearby && activeProvince) params.set('province', activeProvince.code)
+    else params.delete('province')
+    // A ward still being looked up keeps its place in the URL — until the province it belongs to changes.
+    const lookingUp = pendingWardRef.current
+    if (lookingUp && lookingUp.province !== activeProvince?.code) pendingWardRef.current = null
+    if (!nearby && activeProvince && activeWard) params.set('ward', activeWard.code)
+    else if (!nearby && activeProvince && pendingWardRef.current) params.set('ward', pendingWardRef.current.ward)
+    else params.delete('ward')
+
     params.delete('priceMin'); params.delete('priceMax')
     if (priceRange !== 'all') {
       const [mn, mx] = priceRange.split('-')
@@ -1534,9 +1923,16 @@ export function ListingsExplorer({
     const newSearch = params.toString()
     const newUrl = newSearch ? `?${newSearch}` : window.location.pathname
 
-    // Preserve the existing history.state — replacing it with null would wipe the
-    // `takeover: 'video'` flag the video-return mount check depends on.
-    window.history.replaceState(window.history.state, '', newUrl)
+    // In place, or — when the reader committed a view change (`commitView`) — one new entry. See writeExplorerEntry.
+    // ⚠️ After a layer's own `history.back()` has landed, if one is on its way (a tap right after closing a
+    // sheet): a push now would be cancelled by that traversal, and its popstate would undo this state.
+    const commit = historyIntentRef.current
+    historyIntentRef.current = false
+    const area = { province: activeProvince, ward: activeWard, nearby }
+    whenLayerPopSettles(() => {
+      writeExplorerEntry(newUrl, area, commit)
+      lastStampRef.current = viewStamp()
+    })
     // replaceState bypasses Next's router, so the persistent header search bar won't
     // see the query change — broadcast it so the top bar stays in sync. When a search
     // resolved to a brand/model (no text query), show the brand label so the bar still
@@ -1545,7 +1941,7 @@ export function ListingsExplorer({
       ? [prettyBrand(activeBrand), activeModel !== 'all' ? activeModel : null].filter(Boolean).join(' ')
       : ''
     window.dispatchEvent(new CustomEvent('eno:query', { detail: { query: query.trim() || brandLabel } }))
-  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, activeLine, customFilters, listingType, conditionFilter, goodPriceOnly, priceRange, sort, looseMatch, viewMode])
+  }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, activeLine, customFilters, listingType, conditionFilter, goodPriceOnly, priceRange, sort, looseMatch, viewMode, activeProvince, activeWard, nearby, urlApplied, urlNudge])
 
   // Debounce search query input to avoid making API requests on every keystroke
   useEffect(() => {
@@ -1818,6 +2214,10 @@ export function ListingsExplorer({
       activeBrand === 'all' && activeModel === 'all' &&
       activeDistrict === 'all' && conditionFilter === 'all' && !goodPriceOnly && priceRange === 'all' &&
       listingType === 'all' &&
+      // ⛔ AND NO AREA (NAV-2): a province, ward or near-you circle is part of the key, and the seed is the
+      // whole catalogue — seeding an area's key with it painted the unfiltered rows as that area's answer
+      // (and, within 30s of the ISR render, kept them: the seed reads as fresh). Same gate as isSeededFeed.
+      !activeProvince && !activeWard && !nearby &&
       sort === 'newest' && verifiedOnly && !debouncedQuery.trim() &&
       Object.keys(customFilters).length === 0
         ? { listings: initialListings, total: initialTotal ?? initialListings.length, subcategoryCounts: {}, categoryTotal: 0 }
@@ -2458,8 +2858,15 @@ export function ListingsExplorer({
        * dead end the snapshot exists to prevent.
        */
       feedSigForCap.current = feedSig
+    } else if (snap?.fromHistory) {
+      // A Back's snapshot (NAV-1, `entrySnaps`) answers THIS render or never: a feed that does not match now
+      // is not the one it was taken of, and keeping it armed would fire it later as a jump from nowhere.
+      pendingSnapRef.current = null
+      releaseFeedEntry()
     }
-  }, [feedSig, liveSig])
+    // ⚠️ `viewMode` too: Back from the map to the list changes no filter, so without it a list snapshot would
+    // never be looked at (the view is not in `feedSig` — the rows are the same set).
+  }, [feedSig, liveSig, viewMode])
 
   // Put the buyer back where they were, once the restored rows are actually IN THE DOM.
   // A single scrollTo in the commit that restored them is not enough: the grid renders off
@@ -2954,6 +3361,35 @@ export function ListingsExplorer({
     } catch { /* ignore quota/serialization */ }
     router.push(`/listings/${l.id}`)
   }, [listings, page, totalCount, feedSig, feedUnlocked, autoLoadCeiling, router])
+  /**
+   * What `commitView` snapshots (NAV-1, `entrySnaps`): the same fields as the card tap's snapshot above, with
+   * the ANCHOR being the first card on screen below the pinned chrome — there is no tapped card — so Back
+   * realigns that card where it was (feed-restore.ts) whatever grew or shrank above the grid meanwhile. The
+   * map's list is not anchored (its cards are not `data-feed-card`): the raw offset stands in. The rows are a
+   * COPY, so restoring them is always a new array and the restore's `[listings]` effect always runs.
+   * Rebuilt every commit (a layout effect with no deps) so a handler registered once still reads this render.
+   */
+  useLayoutEffect(() => {
+    snapSourceRef.current = () => {
+      if (listings.length === 0 || listings.length > 120) return null
+      let anchorId: string | null = null
+      let anchorTop: number | null = null
+      if (viewMode === 'grid' || viewMode === 'compact') {
+        const chrome = pinnedChromeBottom(document)
+        for (const el of document.querySelectorAll<HTMLElement>('[data-feed-card]')) {
+          const r = el.getBoundingClientRect()
+          // The first card whose TOP is on screen below the chrome: a card half under the header would be
+          // clamped below it by the restore (restoreTargetTop) and land the reader a card higher.
+          if (r.top >= chrome - 1 && r.top < window.innerHeight) { anchorId = el.getAttribute('data-feed-card'); anchorTop = r.top; break }
+        }
+      }
+      return {
+        sig: feedSig, rowsSig: rowsSigRef.current, listings: [...listings], page, totalCount, scrollY: window.scrollY,
+        ts: Date.now(), unlocked: feedUnlocked, ceiling: autoLoadCeiling, anchorId, anchorTop,
+      }
+    }
+  })
+
   // Warm the listing page before the click (hover on desktop, touchstart on mobile)
   // so it opens instantly instead of SSR-ing on click. De-duped by Next's prefetch cache.
   /**
@@ -2974,6 +3410,7 @@ export function ListingsExplorer({
   // listing (the map flies to + opens its pin). Scrolls the feed into view so the
   // map is visible after the mode switch.
   const locateOnMap = useCallback((id: string) => {
+    if (viewModeRef.current !== 'map') commitView() // "show on map" takes the reader into the map (NAV-1)
     setViewMode('map')
     setShowExplorer(true)
     setHoveredId(id)
@@ -3036,10 +3473,21 @@ export function ListingsExplorer({
   }, [])
 
   // Save the current filter set → the buyer gets alerted (in-app + push) on new matches. (extracted)
-  const saveSearch = useSaveSearch({
+  const saveSearchFilters = {
     activeCategory, activeSubcategory, activeBrand, activeModel, listingType,
     debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters,
-  })
+  }
+  const saveSearch = useSaveSearch(saveSearchFilters)
+  /**
+   * ⛔ ON A PHONE, "SAVE SEARCH" IS OFFERED FROM THE FIRST QUERY OR FILTER, LABELLED, AT 44px (UX3 JOIN-SAVE —
+   * UX2 B1 items 3-4, handed over). It was an unlabelled 36×24 bookmark that appeared only from the SECOND
+   * filter (`SAVE_SEARCH_MIN_FILTERS`), so "tell me when a new flat appears" — the account's best promise on
+   * rental pages, where 0 of 32 sampled listings have chat — was invisible on the device most visitors use.
+   * Same flow as before (`saveSearch`: a guest gets the sign-in sheet with its note), shown whenever a save
+   * would keep something (`hasSavableSearch` — an area alone is not part of a saved search). From sm up the
+   * labelled button keeps its two-filter offer beside the view modes, as before.
+   */
+  const phoneSaveOffered = !showDiscovery && hasSavableSearch(saveSearchFilters)
 
   // Distinct from the empty state: a failed fetch (DB down, 500) must NOT read as
   // "no listings" — show an error + retry so the marketplace never looks empty.
@@ -3108,18 +3556,18 @@ export function ListingsExplorer({
       const cat = categories.find((c) => c.slug === activeCategory)
       crumbs.push({
         label: cat ? tr(cat.name, cat.nameVi || cat.name) : activeCategory,
-        onSelect: () => { setActiveSubcategory('all'); setActiveBrand('all'); setActiveLine(''); setActiveModel('all') },
+        onSelect: () => { commitView(); setActiveSubcategory('all'); setActiveBrand('all'); setActiveLine(''); setActiveModel('all') },
       })
     }
     if (activeSubcategory !== 'all') {
       const sub = SUBCATEGORIES[activeCategory]?.find((s) => s.slug === activeSubcategory)
       crumbs.push({
         label: sub ? tr(sub.name, sub.nameVi || sub.name) : activeSubcategory,
-        onSelect: () => { setActiveBrand('all'); setActiveLine(''); setActiveModel('all') },
+        onSelect: () => { commitView(); setActiveBrand('all'); setActiveLine(''); setActiveModel('all') },
       })
     }
     if (activeBrand !== 'all') {
-      crumbs.push({ label: prettyBrand(activeBrand), onSelect: () => setActiveModel('all') })
+      crumbs.push({ label: prettyBrand(activeBrand), onSelect: () => { commitView(); setActiveModel('all') } })
     }
     // The deepest crumb is where you already are, so it gets no handler — a control that does
     // nothing is worse than plain text, and ResultLine renders a handler-less crumb as text.
@@ -3321,9 +3769,15 @@ export function ListingsExplorer({
     // `activeCategory` + `tr`: the custom-filter chips are named from the category's facets (E-ACTIVE).
     [debouncedQuery, serverInferredDistrict, activeCategory, activeSubcategory, activeBrand, activeModel, activeLine, activeDistrict, activeProvince, activeWard, conditionFilter, goodPriceOnly, listingType, priceRange, customFilters, verifiedOnly, nearby, lang, tr],
   )
+  /**
+   * ⛔ REMOVING A FILTER IS A STEP TOO (UX3 NAV-1, review): a search or a tile pushed an entry, and taking the
+   * chip off in place rewrote that entry back to the URL BELOW it — two identical entries, so the next Back
+   * changed nothing. As a commit it pushes, and Back puts the filter back (Baymard: Back undoes the last
+   * filter change, in either direction). `commitView` is stable, so the memo still only follows the chips.
+   */
   const resultFilters = useMemo(
-    () => appliedChips.filter((c) => !c.pill).map((c) => ({ id: c.label, label: c.label, onRemove: c.onClear })),
-    [appliedChips],
+    () => appliedChips.filter((c) => !c.pill).map((c) => ({ id: c.label, label: c.label, onRemove: () => { commitView(); c.onClear() } })),
+    [appliedChips, commitView],
   )
 
 
@@ -3544,7 +3998,7 @@ export function ListingsExplorer({
                     key={i}
                     variant="bare"
                     size="none"
-                    onClick={c.onClear}
+                    onClick={() => { commitView(); c.onClear() }}
                     className="inline-flex items-center gap-1 whitespace-normal rounded-xl px-3 py-1.5 text-xs font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
                   >
                     {c.label}
@@ -3573,7 +4027,7 @@ export function ListingsExplorer({
                 <Button
                   variant="outline"
                   size="none"
-                  onClick={() => { setNearby(null); setActiveWard(null); setActiveProvince(null); setActiveDistrict('all') }}
+                  onClick={() => { commitView(); setNearby(null); setActiveWard(null); setActiveProvince(null); setActiveDistrict('all') }}
                   className="rounded-xl px-4 py-2 text-xs font-semibold cursor-pointer"
                 >
                   {tr('Widen the area', 'Mở rộng khu vực tìm kiếm')}
@@ -3581,7 +4035,7 @@ export function ListingsExplorer({
               )}
               {(chips.length > 0 || activeCategory !== 'all') && (
                 <Button variant="cta" size="none"
-                  onClick={clearAllFilters}
+                  onClick={() => { commitView(); clearAllFilters() }}
                   className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
                 >
                   {tr('Clear all filters', 'Xóa tất cả bộ lọc')}
@@ -3928,7 +4382,7 @@ export function ListingsExplorer({
                 onSubcategory={setActiveSubcategory}
                 intents={sellerId ? undefined : INTENT_SHORTCUTS}
                 activeType={listingType}
-                onIntent={(type) => setListingType(listingType === type ? 'all' : type)}
+                onIntent={(type) => { commitView(); setListingType(listingType === type ? 'all' : type) }}
                 expanded={ladderOpen}
                 // The same counts the full rail reads, so the phone row offers the same chips (E-TILES).
                 facets={facetCounts}
@@ -3965,7 +4419,7 @@ export function ListingsExplorer({
             // Free / Wanted shortcuts — the intent tiles, at the tail.
             intents={sellerId ? undefined : INTENT_SHORTCUTS}
             activeType={listingType}
-            onIntent={(type) => setListingType(listingType === type ? 'all' : type)}
+            onIntent={(type) => { commitView(); setListingType(listingType === type ? 'all' : type) }}
             // Tiles are links (E-TILES): new-tab and crawlable, filtering in place on a plain click.
             hrefFor={tileHref}
           />
@@ -4128,6 +4582,9 @@ export function ListingsExplorer({
                   // masked seed's (E-SSR): the sheet is not under the mask, so it says no number yet.
                   resultCount={seedMasked ? null : resultLineCount}
                   onPanelOpenChange={onFacetPanelOpenChange}
+                  // An area applied from its panel is a committed change (NAV-1); on a phone it lands on the
+                  // sheet's own history entry, from sm up it pushes one.
+                  onCommit={commitView}
                 />
               </div>
             }
@@ -4294,7 +4751,7 @@ export function ListingsExplorer({
               crumbs={ladderCrumbs}
               filters={resultFilters}
               appliedCount={appliedChips.length}
-              onClearAll={appliedChips.length > 1 ? clearAllFilters : undefined}
+              onClearAll={appliedChips.length > 1 ? () => { commitView(); clearAllFilters() } : undefined}
               // The results header on a search (E-RESULTS, O-13): "N results for “q”". Not on the
               // undirected home, where there are no words to answer, and not while the grid still holds
               // the PREVIOUS words' rows (placeholderData): their count beside the new words would be a
@@ -4314,6 +4771,15 @@ export function ListingsExplorer({
               // itself, where their own `max-sm:order-*` (see result-line.tsx) can place them.
               // It stays a real flex box at sm+, where one row is the right answer.
               className="order-2 min-w-0 flex-1 max-sm:contents"
+              // The phone's "Save search" pill (JOIN-SAVE, see `phoneSaveOffered`): at the end of the count row,
+              // outside its scroller. `sm:hidden` — from sm the offer is the labelled button beside the view modes.
+              // `outline`, never `cta`: an offer on the filter row is not the page's one brand CTA (canon).
+              countTrailing={phoneSaveOffered ? (
+                <Button type="button" variant="outline" size="none" onClick={saveSearch} className="min-h-11 shrink-0 gap-1.5 rounded-full px-3.5 text-sm font-semibold sm:hidden">
+                  <Bookmark className="size-4" aria-hidden />
+                  {tr('Save search', 'Lưu tìm kiếm')}
+                </Button>
+              ) : undefined}
             />
             {/* ⛔ SAVE SEARCH SITS LEFT OF THE VIEW MODES, ON THE SAME LINE — owner, 2026-08-12,
                 and the order is the instruction, not a preference. Both are right-aligned by this
@@ -4347,11 +4813,11 @@ export function ListingsExplorer({
                   onClick={saveSearch}
                   variant="bare"
                   size="none"
-                  // ⚠️ NOT `hidden sm:inline-flex`. It was, and that put the one control for
-                  // "tell me when something like this appears" out of reach on a phone — the
-                  // device most of this marketplace is browsed on. The label hides under sm, the
-                  // button does not.
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent"
+                  // ⚠️ IT WAS ONCE `hidden sm:inline-flex`, which put "tell me when something like this
+                  // appears" out of reach on a phone. Below sm it is hidden again, but now because the
+                  // phone has its OWN offer: the labelled 44px pill at the end of the count row, from the
+                  // first query or filter (JOIN-SAVE, `phoneSaveOffered`). One offer per screen size.
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent max-sm:hidden"
                 >
                   <Bookmark className="h-4 w-4" aria-hidden />
                   <span className="hidden sm:inline">{tr('Save search', 'Lưu tìm kiếm')}</span>
