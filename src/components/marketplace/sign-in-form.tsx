@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 import { googleOauthBlocked, isNativeTabs, openInSystemBrowser } from '@/lib/in-app-browser'
 import { HANDOFF_NEXT_KEY, handoffNonce } from '@/lib/auth/handoff-client'
 import { isNativeApp, nativeGoogleSignIn } from '@/lib/native-auth'
-import { appReviewGate, iosAppGate, nativeAppGate } from '@/lib/app-review-gates'
+import { appReviewGate, iosAppGate, IN_APP_SHEET_PARAM, nativeAppGate } from '@/lib/app-review-gates'
 import { googleFirstPartyEnabled } from '@/lib/google-identity'
 import { useTurnstile } from './turnstile'
 import { canonicalEmail } from '@/lib/email-alias'
@@ -214,11 +214,16 @@ export function SignInForm({ className, collapseEmail = false, onMethod }: {
     if (!legalInApp) return
     e.preventDefault()
     const url = new URL(e.currentTarget.getAttribute('href') || '/', window.location.origin).href
+    // The SHEET's copy is marked, so the page inside it offers no analytics/ads and loads no GTM — the
+    // sheet carries the browser's UA, not the app's (app-review-gates.ts IN_APP_SHEET_PARAM). The
+    // fallback below opens the system browser, which is not the app, so it gets the plain URL.
+    const sheet = new URL(url)
+    sheet.searchParams.set(IN_APP_SHEET_PARAM, '1')
     // If the sheet cannot open (a binary without the plugin, a rejected call), fall back to what the
     // link did before this gate — a NEW window, which the app hands to Safari — never to '_self', which
     // would navigate this WebView and lose the sign-in (codex + opus, review round 4).
     void import('@capacitor/browser')
-      .then(({ Browser }) => Browser.open({ url }))
+      .then(({ Browser }) => Browser.open({ url: sheet.href }))
       .catch(() => { window.open(url, '_blank', 'noreferrer') })
   }
 

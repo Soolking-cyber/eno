@@ -12,6 +12,7 @@ import { GA_ID } from './analytics'
 import { consentAnswered, hasAdConsent, hasAnalyticsConsent, personalizationAllowed } from './consent'
 import { consentModeState } from './consent-value'
 import { clearViewHistory } from './reco-signals'
+import { inAppSheetDocument } from '@/lib/app-review-gates'
 
 declare global {
   interface Window {
@@ -91,11 +92,21 @@ export function applyConsentMode(): Record<string, 'granted' | 'denied'> {
 /** Remove what belongs to every purpose that is not granted RIGHT NOW. Idempotent and cheap. */
 export function enforceConsentCleanup(): void {
   if (typeof window === 'undefined') return
-  if (!hasAnalyticsConsent()) {
-    deleteCookies(isAnalyticsCookie)
-    // The staged first-touch value is only kept while the visitor has not answered yet.
-    if (consentAnswered()) { try { sessionStorage.removeItem(ATTR_SESSION_KEY) } catch { /* noop */ } }
+  /**
+   * ⛔ THE COOKIE DELETIONS SKIP THE APP'S IN-APP BROWSER SHEET (app-review-gates.ts IN_APP_SHEET_PARAM).
+   * There analytics and ads read as "no" because it is the app, not because the visitor refused — and on
+   * Android a Custom Tab shares Chrome's cookie jar, so deleting here would wipe the visitor's
+   * ORDINARY-browser cookies just for opening Terms from the app (review, 2026-10-05). GA and the ad tags
+   * are never loaded in the sheet, so leaving those cookies is inert. Personalization is a real answer in
+   * the sheet too (the marker never forces it), so its cleanup below still runs.
+   */
+  if (!inAppSheetDocument()) {
+    if (!hasAnalyticsConsent()) {
+      deleteCookies(isAnalyticsCookie)
+      // The staged first-touch value is only kept while the visitor has not answered yet.
+      if (consentAnswered()) { try { sessionStorage.removeItem(ATTR_SESSION_KEY) } catch { /* noop */ } }
+    }
+    if (!hasAdConsent()) deleteCookies(isAdCookie)
   }
-  if (!hasAdConsent()) deleteCookies(isAdCookie)
   if (!personalizationAllowed()) clearViewHistory()
 }

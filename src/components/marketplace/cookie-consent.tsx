@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
+import { inAppSheetDocument } from '@/lib/app-review-gates'
 
 /**
  * ⚠️ THE ONE ROUTE THIS CARD MUST NOT COVER. `/signin` centres the sign-in card in exactly the
@@ -233,6 +234,13 @@ export function CookieConsent() {
    */
   useEffect(() => {
     syncConsentStorage()
+    /**
+     * ⛔ THE APP'S IN-APP BROWSER SHEET NEVER SHOWS THE BAR (app-review-gates.ts IN_APP_SHEET_PARAM) — not
+     * this prompt and not the footer re-open below. Tracking is already off there, and on Android a Custom
+     * Tab shares Chrome's storage: any answer saved inside the sheet (necessary-only, since the app offers
+     * nothing else) would overwrite the visitor's ordinary-browser consent for a year (review, 2026-10-05).
+     */
+    if (inAppSheetDocument()) return
     // ⚠️ A v1 'all' / 'personalized' reads as NOT ANSWERED here, so those visitors are asked once more
     // (consent v2 — see src/lib/consent-value.ts). A v1 'essential' is an answer and is never re-asked.
     if (consentAnswered()) return
@@ -379,6 +387,8 @@ export function CookieConsent() {
   // as easy to change as to give (compliance verification 2026-07-06).
   useEffect(() => {
     const reopen = () => {
+      // The in-app sheet never shows the bar, re-open included — see the first-visit effect above.
+      if (inAppSheetDocument()) return
       /**
        * ⛔ A DELIBERATE OPEN CANCELS THE PENDING AUTO-OPEN, ANY DEFERRAL AND ANY WAIT (consent v2;
        * agy caught it on that diff). Left pending, the 4s timer or the next navigation would fire into

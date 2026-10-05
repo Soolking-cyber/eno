@@ -410,6 +410,29 @@ Android emulator with the Play build (or `android/` debug) against a preview bui
 `/signin` has no "Phone · soon"; Terms / Quy chế / Privacy open in the in-app sheet and close back onto
 the form, also from inside the 60-second "Join eno" prompt (it must survive); no `googletagmanager.com`
 request (chrome://inspect → Network); Google sign-in still completes (Android keeps Google).
+✅ **RUN 2026-10-05 against a scratch services preview with all five step-1+2 gates (throwaway debug app on
+the `eno_pixel` emulator; evidence `~/eno-ios-prep/p10a/evidence-index.txt`):** no "Phone · soon" (EN/VI);
+Terms / Operating regulations / Privacy / Quy chế open the Custom Tab and close back onto the form with the
+typed email (and a half-typed code) intact; from inside the "Join eno" prompt too — the prompt survives
+(the iOS note in §1 does not reproduce on Android); 0 of 1,381 WebView requests to googletagmanager /
+google-analytics / doubleclick while desktop Chromium on the same build requested `gtm.js?id=GTM-TEST000`;
+"Continue with Google" still on Android; `/dashboard/payments` redirects only for the iOS app UA. Not
+runnable locally: the real email-code and Google round trips (placeholder auth backend).
+⛔ **Found by that pass and fixed (`app_sheet` marker):** the sheet is NOT the app's WebView — it runs with
+the browser's own UA and storage — so a legal page opened there was the ordinary web site, consent prompt
+offering analytics and ads included, while the apps declare "no tracking". The app now opens those pages
+with `?app_sheet=1`, and for THAT ONE DOCUMENT (only with `app-signin-tidy` on): consent forces analytics
+and ads off, the GTM container is skipped (`app-no-gtm`), the consent prompt is not shown (its footer
+re-open does nothing on that page), and the consent cleanup leaves the shared cookie jar alone (an Android
+Custom Tab shares Chrome's); a personalization refusal still clears view history. Tracking-only and one
+page only, by design: anyone can put the marker on a link, so it may never do more than switch tracking
+off for the page that carries it. An earlier version also hid the site chrome and carried the mark through
+sessionStorage — reviewers showed a crafted link could then strip a tab's navigation and the footer's
+legally required operator details, so that was removed. Pages reached from inside the sheet are the web
+site, as in any browser (server-side consent-gated events there follow the browser's stored consent). The
+system-browser fallback gets the plain URL (src/lib/app-review-gates.ts `IN_APP_SHEET_PARAM`).
+⚠️ Not yet re-run on a device: on the P10/P10a pass, open Terms from `/signin` and confirm no consent prompt
+and no `googletagmanager.com` request on that page.
 
 **P10. TestFlight device pass (the owner's device; the owner installs it).** Images load; Google sign-in
 round trip (Android, and iOS if D2 keeps Google there — never yet run end to end on iOS); a universal link

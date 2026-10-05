@@ -83,6 +83,40 @@ afterEach(() => {
   goTo('/')
 })
 
+describe('CookieConsent — the app’s in-app browser sheet (?app_sheet=1)', () => {
+  // The sheet (Custom Tab / SFSafariViewController) shares the BROWSER's storage on Android: an answer
+  // saved there would become the visitor's ordinary-browser consent, so the bar never shows in it.
+  it('⛔ never shows the bar — neither the first-visit prompt nor the footer re-open — and stores nothing', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'app-signin-tidy') // the gate that opens the sheet
+    window.history.replaceState(null, '', '/terms?app_sheet=1')
+    try {
+      mount()
+      await advance(10_000)
+      expect(bar()).toBeNull()
+      await act(async () => { window.dispatchEvent(new Event('eno:open-consent')) })
+      await advance(1_000)
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(consentAnswered()).toBe(false)
+    } finally {
+      vi.unstubAllEnvs()
+      window.history.replaceState(null, '', '/')
+      sessionStorage.clear()
+    }
+  })
+
+  it('with app-signin-tidy OFF the marker is dormant: the bar appears as usual', async () => {
+    window.history.replaceState(null, '', '/terms?app_sheet=1')
+    try {
+      mount()
+      await advance(4_000)
+      expect(bar()).not.toBeNull()
+    } finally {
+      window.history.replaceState(null, '', '/')
+      sessionStorage.clear()
+    }
+  })
+})
+
 describe('CookieConsent — the question', () => {
   it('appears 4s after mount, not before', async () => {
     mount()

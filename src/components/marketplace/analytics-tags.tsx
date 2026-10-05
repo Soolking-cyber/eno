@@ -8,7 +8,7 @@ import { applyConsentMode, enforceConsentCleanup } from '@/lib/consent-runtime'
 import { CONSENT_V2_KEY } from '@/lib/consent-value'
 import { GA_ID } from '@/lib/analytics'
 import { IS_SERVICES } from '@/lib/edition'
-import { appReviewGate, isNativeAppClient } from '@/lib/app-review-gates'
+import { appReviewGate, inAppSheetDocument, isNativeAppClient } from '@/lib/app-review-gates'
 
 // Google Analytics (GA4) only. The Meta Pixel was removed (heaviest 3rd-party,
 // ~233 KiB; only useful for paid Meta-ad retargeting — re-add if you run Meta ads).
@@ -71,7 +71,8 @@ const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID
  * mount effect, so a flag that flipped after mount would already be too late. The <Script> element
  * renders no DOM on either side, so skipping it on the client cannot mismatch the server HTML.
  */
-const skipContainerInApp = () => appReviewGate('app-no-gtm') && isNativeAppClient()
+// …and in the app's in-app browser sheet, which runs with the browser's UA (app-review-gates.ts IN_APP_SHEET_PARAM).
+const skipContainerInApp = () => appReviewGate('app-no-gtm') && (isNativeAppClient() || inAppSheetDocument())
 
 export function AnalyticsTags() {
   const [ready, setReady] = useState(false)

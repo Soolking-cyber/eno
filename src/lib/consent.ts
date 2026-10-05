@@ -29,6 +29,7 @@ import {
   type ConsentPurpose,
   type StoredConsent,
 } from './consent-value'
+import { inAppSheetDocument } from '@/lib/app-review-gates'
 
 export type { ConsentAnswer, ConsentFlags, ConsentPurpose } from './consent-value'
 
@@ -71,7 +72,9 @@ export function isNativeContext(): boolean {
     const c = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor
     if (c?.isNativePlatform?.()) return true
   } catch { /* a broken bridge is not a native signal */ }
-  return typeof navigator !== 'undefined' && NATIVE_UA_RE.test(navigator.userAgent || '')
+  if (typeof navigator !== 'undefined' && NATIVE_UA_RE.test(navigator.userAgent || '')) return true
+  // The app's in-app browser sheet runs with the browser's UA — the app marks the page it opens there.
+  return inAppSheetDocument()
 }
 
 /** The stored answer on this device, or null when the visitor has not answered (or it expired). */
