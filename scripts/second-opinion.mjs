@@ -77,11 +77,12 @@ const RECEIPTS = join(ROOT, '.second-opinion')
  * (HISTORY) To restore it then: put 'codex' back in this array AND uncomment its seat in REVIEWERS
  * below. BOTH — the two lists drifting apart is what silently jammed this gate on 2026-09-16..20.
  */
-// ⏸ agy SKIPPED 2026-09-29 — owner: "skip agy" (Google quota: "Individual quota reached … Resets in
-// 14h54m"). codex's OpenAI quota was measured back the same hour, so the panel is codex + opus — two
-// labs, codex the independent vote. To restore agy: add 'agy' here; its seat below is only skipped
-// (dispatch runs only the seats named here; a name with no seat is refused below, never dropped).
-const REVIEWER_NAMES = ['codex', 'opus']
+// ⛔ PANEL SINCE 2026-10-05 = agy + opus — owner: "dont wait use agy plus opus", when codex hit its OpenAI usage
+// limit mid-review ("try again at 1:45 PM"). agy is the independent vote again, so its 180KB cutoff binds: split a
+// bigger change until agy sees all of it. (HISTORY: agy was skipped 2026-09-29 — owner: "skip agy", Google quota
+// — and the panel was codex + opus until today.) To bring codex back: add 'codex' here; its seat below is only
+// skipped (dispatch runs only the seats named here; a name with no seat is refused below, never dropped).
+const REVIEWER_NAMES = ['agy', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
