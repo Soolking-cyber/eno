@@ -21,17 +21,37 @@ import { test, expect } from '../helpers'
 // asserts the sheet contract instead: the phone never renders the popover, and the Price pill opens a
 // full-width sheet on the bottom edge that closes through its own action.
 
-const CATEGORY_ROUTE = '/?category=vehicles'
+// ⚠️ A LIVE SHELF, NOT `vehicles`: vehicles is RETIRED (src/lib/retired-categories.ts — 2 live rows), and on
+// 2026-10-05 this spec's failure there right after a cold deploy was read as "UX3 removed the phone Price pill".
+// It had not: the pill was present, the FacetBar (an ssr:false chunk) had simply not mounted in time. Electronics
+// carries the full live bar (Filter, Price, Area, condition, Good price) and enough rows to scroll. The specs
+// navigate on `domcontentloaded` and use the FacetBar's own mount as the readiness signal: the full `load` event
+// waits on every image of a big shelf and once exceeded the 20 s goto budget under parallel load (2026-10-06).
+const CATEGORY_ROUTE = '/?category=electronics'
 const POPOVER = '[data-slot="popover-content"]'
 const SHEET = '[data-slot="drawer-popup"]'
+
+/**
+ * The FacetBar is `dynamic(…, { ssr: false })` with a painted FacetBarFallback (aria-hidden, inert, no data-slot)
+ * until its chunk mounts. Wait for the REAL bar's Filter control first, so an unmounted bar reports as such —
+ * not as "the Price pill is missing", the misreading this replaces. (The fallback carries no marker, so the
+ * message names both causes rather than guessing.)
+ */
+async function facetBarMounted(page: import('@playwright/test').Page) {
+  await expect(
+    page.locator('[data-slot="drawer-trigger"],[data-slot="popover-trigger"]', { hasText: /^\s*(Filter|Bộ lọc)/ }).filter({ visible: true }).first(),
+    'no FacetBar Filter control on screen — usually its ssr:false chunk has not mounted (FacetBarFallback, an inert picture, is still painted: a load or deploy-skew problem); if the real bar IS mounted, its Filter control is missing',
+  ).toBeVisible({ timeout: 15_000 })
+}
 
 test.describe('Guest · open popups dismiss on a user scroll', () => {
   test('the facet bar price popover closes when the page is wheeled', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name === 'guest-mobile', 'phone: Price is a modal bottom sheet, not a popover — covered by the next test')
-    await page.goto(CATEGORY_ROUTE)
+    await page.goto(CATEGORY_ROUTE, { waitUntil: 'domcontentloaded' })
+    await facetBarMounted(page)
 
     const trigger = page.locator('[data-slot="popover-trigger"]', { hasText: /price|giá/i }).first()
-    await expect(trigger, 'the facet bar did not render — check the /?category= entry point').toBeVisible()
+    await expect(trigger, 'the facet bar mounted but has no Price pill').toBeVisible()
     await trigger.click()
     await expect(page.locator(POPOVER)).toBeVisible()
 
@@ -46,10 +66,11 @@ test.describe('Guest · open popups dismiss on a user scroll', () => {
 
   test('on a phone the price pill opens a full-width bottom sheet that closes', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'guest-mobile', 'phone-only: from sm up Price is the popover above')
-    await page.goto(CATEGORY_ROUTE)
+    await page.goto(CATEGORY_ROUTE, { waitUntil: 'domcontentloaded' })
+    await facetBarMounted(page)
 
     const trigger = page.locator('[data-slot="drawer-trigger"]', { hasText: /price|giá/i }).first()
-    await expect(trigger, 'the facet bar did not render — check the /?category= entry point').toBeVisible()
+    await expect(trigger, 'the facet bar mounted but has no Price pill').toBeVisible()
     // The phone branch REPLACES the popover; it does not sit beside it.
     await expect(page.locator('[data-slot="popover-trigger"]', { hasText: /price|giá/i })).toHaveCount(0)
     await trigger.click()

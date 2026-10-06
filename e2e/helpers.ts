@@ -14,6 +14,19 @@ export const test = base.extend({
     await page.addInitScript(() => {
       try { localStorage.setItem('eno-cookie-consent', 'essential') } catch { /* private mode */ }
     })
+    // ⛔ CLOUDFLARE'S INJECTED BOT PROBE STALLS HYDRATION — IN PLAYWRIGHT'S CHROMIUM ONLY (measured 2026-10-06).
+    // The edge appends a script to every eno HTML page that loads /cdn-cgi/challenge-platform/…/jsd/main.js in a
+    // same-origin iframe, so it runs on the PAGE's main thread. It reads window.speechSynthesis, and in Playwright's
+    // bundled Chromium that makes its next synchronous browser call block: 1.4–2 s idle, 5–23 s under parallel
+    // workers. React cannot hydrate under that task, so every client control — and every ssr:false chunk, like the
+    // FacetBar — waits (the bar appeared at ~10 s; at 1.4 s without the stall). Installed Chrome runs the same script
+    // in ~50 ms and WebKit is unaffected (bar at 1.9–3.1 s either way): a test-browser artefact, not a user-facing
+    // delay — and a large share of the guest suite's "page.goto timeout" flakes against production.
+    // Hiding the one API (eno never uses it; init scripts run in every frame, so the probe's iframe too) cut the probe
+    // to ~46 ms while it still runs. NOT page.route(): routing turns off Chromium's HTTP cache for every test.
+    await page.addInitScript(() => {
+      try { Object.defineProperty(window, 'speechSynthesis', { get: () => undefined, configurable: true }) } catch { /* locked */ }
+    })
     await use(page)
   },
 })
