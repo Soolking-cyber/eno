@@ -1,7 +1,7 @@
 /* Renders OUTSIDE every provider (no language context): its copy is the static table below, never tr(). */
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 
 /**
  * The three strings this page has, written out for every supported language.
@@ -45,11 +45,17 @@ const copyFor = (lang: string | null) => (lang && Object.prototype.hasOwnPropert
 // Root error boundary: replaces the WHOLE document (layout + providers) when the
 // root layout itself throws, so it must be fully self-contained — no context,
 // no shared components, inline styles only.
-export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function GlobalError({ error, reset, retry }: { error: Error & { digest?: string }; reset: () => void; retry?: () => void }) {
   useEffect(() => { console.error('Root error:', error) }, [error])
   const [lang, setLang] = useState<string | null>(null)
   useEffect(() => { setLang(storedLang()) }, [])
-  const [title, body, retry] = copyFor(lang) ?? BILINGUAL
+  const [title, body, retryLabel] = copyFor(lang) ?? BILINGUAL
+  // ⛔ `retry`, NOT `reset` (Emil-skills audit, 2026-10-06): reset re-rendered the same failed payload, so Try
+  // again did nothing; retry (Next 16.3.6) refreshes the route and resets in one transition — this boundary sits
+  // inside the router (app-router.js) — with `reset` as the fallback should a Next ever stop passing it. Busy
+  // while pending, but NEVER disabled: this is the only control on the page, so a refresh that hangs must still
+  // leave it pressable.
+  const [retrying, startRetry] = useTransition()
   return (
     <html lang={copyFor(lang) ? (lang as string) : 'en'}>
       <body style={{ margin: 0, fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif', background: '#fafafa', color: '#1a202c' }}>
@@ -60,10 +66,11 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
               {body}
             </p>
             <button
-              onClick={() => reset()}
-              style={{ background: '#0a66c2', color: '#fff', border: 0, borderRadius: 12, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+              onClick={() => startRetry(() => (retry ?? reset)())}
+              aria-busy={retrying || undefined}
+              style={{ background: '#0a66c2', color: '#fff', border: 0, borderRadius: 12, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: retrying ? 'progress' : 'pointer', opacity: retrying ? 0.6 : 1 }}
             >
-              {retry}
+              {retryLabel}
             </button>
           </div>
         </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { Component, useEffect, type ReactNode } from 'react'
+import { Component, useEffect, useTransition, type ReactNode } from 'react'
 import Link from 'next/link'
 import { AlertTriangle, RotateCw, Home } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
@@ -37,8 +37,16 @@ class ChromeGuard extends Component<{ children: ReactNode }, { failed: boolean }
 // EmptyState on its FAULT coin (neutral disc, destructive ink — icon-language §6: the product let the
 // reader down, so no mascot and not the brand's warm "nothing here yet" disc), with the title as the
 // page's h1.
-export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function Error({ error, reset, retry }: { error: Error & { digest?: string }; reset: () => void; retry?: () => void }) {
   const { tr } = useLanguage()
+  /**
+   * ⛔ `retry`, NOT `reset` (Emil-skills audit, 2026-10-06). `reset` only cleared this boundary, so a page that
+   * threw while rendering on the server re-rendered the SAME failed payload and threw again at once: Try again
+   * did nothing. `retry` (Next 16.3.6: error-boundary.d.ts / .js) refreshes the route and resets in one
+   * transition; `reset` stays the fallback should a Next ever stop passing it. While the transition is pending
+   * the button is busy (the house `loading`) — and the Home link beside it is the way out if a refresh hangs.
+   */
+  const [retrying, startRetry] = useTransition()
   useEffect(() => {
     /**
      * ⚠️ THIS REACHES THE USER'S BROWSER CONSOLE AND NOWHERE ELSE — the comment here used to say
@@ -77,7 +85,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
           subtitle={tr('We hit a snag loading this page. Try again, or head back home.', 'Đã có sự cố khi tải trang này. Hãy thử lại hoặc quay về trang chủ.')}
           action={
             <div className="flex flex-wrap items-center justify-center gap-2">
-              <Button variant="cta" onClick={reset}>
+              <Button variant="cta" onClick={() => startRetry(() => (retry ?? reset)())} loading={retrying}>
                 <RotateCw className="h-4 w-4" /> {tr('Try again', 'Thử lại')}
               </Button>
               <Button asChild variant="outline">

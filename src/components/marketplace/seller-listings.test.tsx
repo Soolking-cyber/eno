@@ -154,6 +154,54 @@ describe('SellerListings in server-scoped mode', () => {
    * says it is searching and stands skeletons in for the cards — it does not announce a zero
    * through aria-live over a shop that has 9,726 listings (external review).
    */
+  it('⛔ a failed "Show more" keeps the rows and retries THAT page — even in the untouched view', async () => {
+    const second = Array.from({ length: 60 }, (_, i) => card(`p2-${i}`, 1_000 + i))
+    const urls = stubFetch((_u, call) => (call === 0 ? 'fail' : { listings: second, total: 9726 }))
+    renderShop()
+    await userEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    await waitFor(() => expect(screen.getByText("Couldn't load more listings.")).toBeTruthy())
+    expect(screen.getAllByTestId('card')).toHaveLength(60) // the page stays
+    expect(screen.queryByText("Couldn't load listings.")).toBeNull() // not the whole-grid fault
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(screen.getAllByTestId('card')).toHaveLength(120))
+    expect(urls[1].searchParams.get('offset')).toBe('60') // the same page, asked again
+    expect(screen.queryByText("Couldn't load more listings.")).toBeNull()
+  })
+
+  it('⛔ after a sort too: a failed "Show more" keeps the sorted rows and asks for the same offset again', async () => {
+    const sorted = PAGE.map((l) => card(`s-${l.id}`, l.price))
+    const second = Array.from({ length: 60 }, (_, i) => card(`p2-${i}`, 1_000 + i))
+    const urls = stubFetch((_u, call) => (call === 0 ? { listings: sorted, total: 9726 } : call === 1 ? 'fail' : { listings: second, total: 9726 }))
+    renderShop()
+    await userEvent.click(screen.getByRole('tab', { name: /price/i }))
+    await waitFor(() => expect(screen.getAllByTestId('card')).toHaveLength(60))
+    await userEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    await waitFor(() => expect(screen.getByText("Couldn't load more listings.")).toBeTruthy())
+    expect(screen.getAllByTestId('card')[0].getAttribute('data-id')).toBe('s-new-0')
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await waitFor(() => expect(screen.getAllByTestId('card')).toHaveLength(120))
+    expect(urls[2].searchParams.get('offset')).toBe('60')
+    expect(urls[2].searchParams.get('sort')).toBe('price-low')
+  })
+
+  it('⛔ sorting A → B → A: the FIRST, slower answer for A cannot land over the second', async () => {
+    const pending: ((rows: SerializedListingCard[]) => void)[] = []
+    vi.stubGlobal('fetch', vi.fn(() => new Promise((res) => {
+      pending.push((rows) => res({ ok: true, json: async () => ({ listings: rows, total: 9726 }) }))
+    })))
+    renderShop()
+    await userEvent.click(screen.getByRole('tab', { name: /price/i })) // A
+    await userEvent.click(screen.getByRole('tab', { name: 'Most contacted' })) // B
+    await userEvent.click(screen.getByRole('tab', { name: /price/i })) // A again
+    expect(pending).toHaveLength(3)
+    pending[2](PAGE.map((l) => card(`fresh-${l.id}`, l.price)))
+    await waitFor(() => expect(screen.getAllByTestId('card')[0].getAttribute('data-id')).toBe('fresh-new-0'))
+    pending[0](PAGE.map((l) => card(`stale-${l.id}`, l.price)))
+    pending[1](PAGE.map((l) => card(`b-${l.id}`, l.price)))
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.getAllByTestId('card')[0].getAttribute('data-id')).toBe('fresh-new-0')
+  })
+
   it('says it is searching while the query is in flight, never "0 of 9,726"', async () => {
     let release: (v: unknown) => void = () => {}
     vi.stubGlobal('fetch', vi.fn(() => new Promise((r) => { release = r })))

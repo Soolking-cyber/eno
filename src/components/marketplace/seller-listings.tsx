@@ -105,6 +105,15 @@ export function SellerListings({
   const [remote, setRemote] = useState<{ key: string; rows: SerializedListingCard[]; total: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadError, setLoadError] = useState(false)
+  /**
+   * ⛔ A FAILED "SHOW MORE" IS NOT A FAILED QUERY (Emil-skills audit, 2026-10-06). It used to raise
+   * `loadError`, whose fault block covered the grid and whose Try again re-ran page 0 — or, in the untouched
+   * view, fetched NOTHING and dropped every page loaded so far. Now the rows stay, the Show more row says so,
+   * and its button retries THAT page (the same offset: the rows on screen). (Unchanged, and separate: anything
+   * that re-runs the query effect in the untouched view — a language switch gives `requestUrl` a new identity —
+   * still resets it to the server-rendered page.)
+   */
+  const [moreError, setMoreError] = useState(false)
   /** Bumped by "Try again" — the query is unchanged, so only this can re-run the effect. */
   const [refreshTick, setRefreshTick] = useState(0)
   /**
@@ -131,8 +140,10 @@ export function SellerListings({
     return `/api/listings?${p.toString()}`
   }, [serverScope, debouncedQ, sort, pageSize, lang])
 
-  // The in-flight request's key, so a slow answer to an abandoned query can never land.
-  const inFlight = useRef('')
+  // The request whose answer may land — a token per REQUEST, not the query's key: with the key, sorting A → B → A
+  // let A's first, slower answer land as if it were the second (codex + opus, plan review). 0 = none.
+  const inFlight = useRef(0)
+  const reqSeq = useRef(0)
 
   useEffect(() => {
     if (!serverMode) return
@@ -140,35 +151,38 @@ export function SellerListings({
     // marker and the flag, picking a sort and then going back to it left the grid dimmed and
     // "Show more" disabled until a request nobody wants settles — and its failure would print
     // "Couldn't load listings." over a grid that is correct (external review).
-    if (isInitialView) { inFlight.current = ''; setRemote(null); setLoadError(false); setLoading(false); return }
+    if (isInitialView) { inFlight.current = 0; setRemote(null); setLoadError(false); setMoreError(false); setLoading(false); return }
     const key = queryKey
-    inFlight.current = key
+    const req = ++reqSeq.current
+    inFlight.current = req
     setLoading(true)
     setLoadError(false)
+    setMoreError(false)
     fetch(requestUrl(0))
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then((d) => {
-        if (inFlight.current !== key) return
+        if (inFlight.current !== req) return
         setRemote({ key, rows: d.listings || [], total: typeof d.total === 'number' ? d.total : (d.listings || []).length })
       })
       // ⛔ AN ERROR MUST NOT FALL BACK TO THE PAGE'S OWN 60 ROWS. That would answer "cheapest first"
       // with the newest 60 re-sorted — the exact wrong answer this mode exists to stop — and look
       // like a successful sort.
-      .catch(() => { if (inFlight.current === key) { setRemote(null); setLoadError(true) } })
-      .finally(() => { if (inFlight.current === key) setLoading(false) })
+      .catch(() => { if (inFlight.current === req) { setRemote(null); setLoadError(true) } })
+      .finally(() => { if (inFlight.current === req) setLoading(false) })
   }, [serverMode, isInitialView, queryKey, requestUrl, refreshTick])
 
   const loadMore = useCallback(() => {
     if (!serverMode || loading) return
     const key = queryKey
     const current = remote?.key === key ? remote.rows : listings
-    inFlight.current = key
+    const req = ++reqSeq.current
+    inFlight.current = req
     setLoading(true)
-    setLoadError(false)
+    setMoreError(false)
     fetch(requestUrl(current.length))
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then((d) => {
-        if (inFlight.current !== key) return
+        if (inFlight.current !== req) return
         const more: SerializedListingCard[] = d.listings || []
         // Dedupe on id: a listing posted between two pages shifts the offset window, and the same
         // row arriving twice would render two identical cards with the same React key.
@@ -179,8 +193,8 @@ export function SellerListings({
           total: typeof d.total === 'number' ? d.total : current.length + more.length,
         })
       })
-      .catch(() => { if (inFlight.current === key) setLoadError(true) })
-      .finally(() => { if (inFlight.current === key) setLoading(false) })
+      .catch(() => { if (inFlight.current === req) setMoreError(true) })
+      .finally(() => { if (inFlight.current === req) setLoading(false) })
   }, [serverMode, loading, queryKey, remote, listings, requestUrl])
 
   const shown = useMemo(() => {
@@ -411,9 +425,11 @@ export function SellerListings({
 
       {/* Load more, only when the scope genuinely holds more than is on screen. */}
       {serverMode && !loadError && shown.length > 0 && shown.length < resultTotal && (
-        <div className="flex justify-center pt-2">
+        <div className="flex flex-col items-center gap-2 pt-2">
+          {/* A failed page says so HERE, under the rows it kept — and the button retries that page. */}
+          {moreError && <p role="alert" className="text-sm text-ink-3">{tr("Couldn't load more listings.", 'Không tải thêm được tin đăng.')}</p>}
           <Button variant="outline" size="none" onClick={loadMore} disabled={loading} className="rounded-xl border-line-strong px-5 py-2.5 text-sm font-bold hover:bg-muted hover:text-foreground">
-            {loading ? tr('Loading…', 'Đang tải…') : tr('Show more', 'Xem thêm')}
+            {loading ? tr('Loading…', 'Đang tải…') : moreError ? tr('Try again', 'Thử lại') : tr('Show more', 'Xem thêm')}
           </Button>
         </div>
       )}

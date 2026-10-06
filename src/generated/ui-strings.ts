@@ -691,6 +691,7 @@ export const UI_STRINGS: string[] = [
   "Couldn't copy — select the text instead.",
   "Couldn't delete — try again",
   "Couldn't load listings.",
+  "Couldn't load more listings.",
   "Couldn't load your messages.",
   "Couldn't recognize the item — try a clearer photo.",
   "Couldn't refresh your messages, so this list may be out of date.",
