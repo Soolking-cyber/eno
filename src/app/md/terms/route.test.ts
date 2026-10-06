@@ -34,11 +34,15 @@ afterEach(() => {
 })
 
 describe('/terms as markdown', () => {
-  // ⛔ Version 2 is an immediate amendment (owner, 2026-10-01): in force from 01/10/2026, its publication day.
-  it('names version 2 as in force since 1 October 2026 and links the version it replaced', async () => {
-    const md = await markdownAt(Date.parse('2026-10-01T18:00:00+07:00'))
-    expect(md).toContain(`Version in force: ${TOS_VERSION}, since 1 October 2026. The previous version, ${TOS_PREVIOUS_VERSION}, is published at https://eno.vn/terms/v${TOS_PREVIOUS_VERSION}.\n`)
-    expect(md).not.toMatch(/takes effect on|remains in force|7 October/)
+  // ⛔ The Terms' version 3 (App Store Guideline 1.2) is an IMMEDIATE amendment (owner, 2026-10-07: "Immediately
+  // (Recommended)"): in force from midnight Vietnam time on 07/10/2026, its publication day — no window.
+  it('names version 3 as in force since 7 October 2026 and links the version it replaced', async () => {
+    expect(TOS_VERSION).toBe('3')
+    for (const at of ['2026-10-07T00:00:00+07:00', '2026-10-07T18:00:00+07:00', '2026-10-13T00:00:00+07:00']) {
+      const md = await markdownAt(Date.parse(at))
+      expect(md, at).toContain(`Version in force: ${TOS_VERSION}, since 7 October 2026. The previous version, ${TOS_PREVIOUS_VERSION}, is published at https://eno.vn/terms/v${TOS_PREVIOUS_VERSION}.\n`)
+      expect(md, at).not.toMatch(/takes effect on|remains in force|13 October/)
+    }
   })
 
   it('names the new version from the in-force instant', async () => {
@@ -53,8 +57,12 @@ describe('/terms as markdown', () => {
     expect(md).toContain(`Version ${TOS_VERSION} — the text now published at https://eno.vn/terms — was published on 1 October 2026 and takes effect on 7 October 2026`)
     // The text in force is published, not "write to us for a copy" (src/lib/compliance/legal-archive.ts).
     expect(md).toContain(`its text is published at https://eno.vn/terms/v${TOS_PREVIOUS_VERSION}.`)
+    // The whole line, from the publication day on — the shape version 3 would have printed with its window.
+    expect(await markdownAt(Date.parse('2026-10-01T18:00:00+07:00'), WINDOW)).toContain(`Version in force: ${TOS_PREVIOUS_VERSION}. Version ${TOS_VERSION} — the text now published at https://eno.vn/terms — was published on 1 October 2026 and takes effect on 7 October 2026; until then version ${TOS_PREVIOUS_VERSION} remains in force, and its text is published at https://eno.vn/terms/v${TOS_PREVIOUS_VERSION}.\n`)
     // …and from its in-force instant, the new version alone.
-    expect(await markdownAt(Date.parse('2026-10-07T00:00:00+07:00'), WINDOW)).toContain(`Version in force: ${TOS_VERSION}, since 7 October 2026.`)
+    const after = await markdownAt(Date.parse('2026-10-07T00:00:00+07:00'), WINDOW)
+    expect(after).toContain(`Version in force: ${TOS_VERSION}, since 7 October 2026. The previous version, ${TOS_PREVIOUS_VERSION}, is published at https://eno.vn/terms/v${TOS_PREVIOUS_VERSION}.\n`)
+    expect(after).not.toMatch(/takes effect on|remains in force/)
   })
 
   it('quotes the linked-listings definition word for word and points at the binding clause', async () => {

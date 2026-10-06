@@ -250,18 +250,22 @@ export const AFFILIATION = {
  * Quy chế its own, {@link REGULATIONS_VERSION}.)
  *
  * ⚠️ IT IS NOT NECESSARILY THE VERSION IN FORCE, AND NOTHING THAT RECORDS AN ACCEPTANCE MAY READ IT.
- * '2' is the October 2026 amendment (linked listings, commission disclosure, 20-day fee notice, the
- * Vietnamese texts — the Terms' `changes` note and Quy chế Article 17 list each edit). A new version is
- * published on LEGAL_AMENDMENT.published and binds from LEGAL_AMENDMENT.inForce
- * (src/lib/compliance/legal-amendment.ts — the dates are typed THERE and nowhere else). By default the
- * two are ≥ 6 days apart, because the texts promise at least 5 days' notice before a change takes effect
- * (Quy chế Article 15, Terms "Changes"); until that instant {@link TOS_PREVIOUS_VERSION} governs, and
- * {@link tosVersionInForce} is what says which one.
+ * '3' is the App Store Guideline 1.2 amendment (decision D8: zero tolerance for objectionable content and
+ * abusive users, a 24-hour review of those reports, and no chance to put it right for them — the Terms'
+ * `changes` note lists each edit). '2' was the October 2026 amendment (linked listings, commission
+ * disclosure, 20-day fee notice, the Vietnamese texts — the Terms' `changes` note and Quy chế Article 17
+ * list each edit), archived at /terms/v2. A new version is published on LEGAL_AMENDMENT.published and binds
+ * from LEGAL_AMENDMENT.inForce (src/lib/compliance/legal-amendment.ts — the dates are typed THERE and
+ * nowhere else). By default the two are ≥ 6 days apart, because the texts promise at least 5 days' notice
+ * before a change takes effect (Quy chế Article 15, Terms "Changes"); until that instant
+ * {@link TOS_PREVIOUS_VERSION} governs, and {@link tosVersionInForce} is what says which one.
  *
- * ✅ VERSION 2 IS IN FORCE FROM 01/10/2026 — AN IMMEDIATE AMENDMENT (owner, 2026-10-01: "just change now
- * we dont have users so its safe to implement just new terms no need for announcement"). It shipped earlier
- * that day with a window to 07/10; LEGAL_AMENDMENT.immediate now sets in force = published, so there is no
- * notice window: tosInNoticeWindow() is false at every instant, the strip is unmounted, no bell notice.
+ * ⛔ VERSION 3 IS IMMEDIATE (owner, 2026-10-07 — published and in force 07/10/2026): from midnight Vietnam time
+ * on 07/10 tosVersionInForce() is '3' and onboarding stamps '3'; there is no window, no strip and no bell notice
+ * (an amendment with a window would show version 2 until its inForce — the tests keep that path on a fixture).
+ * Version 2 had none either — an IMMEDIATE amendment (owner, 2026-10-01: "just change now we dont have users so its
+ * safe to implement just new terms no need for announcement"), in force from 01/10/2026, the day it was
+ * published; its dates are literals in legal-archive.ts (V1_SUPERSEDED_BY) since version 3 re-used the record.
  *
  * ⚠️ RECOVERED, NOT REINVENTED (2026-10-01). The effective instant, stamping the version IN FORCE and
  * the site-wide notice existed in August (cc799c24, d067d756) and were removed as premature while
@@ -272,18 +276,23 @@ export const AFFILIATION = {
  *
  * WHEN THE TERMS CHANGE AGAIN: move this value to TOS_PREVIOUS_VERSION, set the new one here, and
  * set both dates in LEGAL_AMENDMENT on the DEPLOY day (in force ≥ published + 6 calendar days; its
- * test enforces the gap), drop `immediate`, and mount <TosChangeNotice /> again. Never backdate the
- * in-force date to "now" to make a diff tidy — the gap is the whole point; only the owner can waive it
- * for a specific amendment, by `immediate: true`.
+ * test enforces the gap), drop `immediate`, and mount <TosChangeNotice /> again. Archive the outgoing
+ * text at src/app/[lang]/terms/v<N>/page.tsx, and type the dates of the amendment the record held until
+ * then into legal-archive.ts as literals (legal-archive.test.ts says which) — every text that amendment
+ * dated and the new one does not change has to keep them (version 3 did this for version 2's). Never
+ * backdate the in-force date to "now" to make a diff tidy — the gap is the whole point; only the owner can
+ * waive it for a specific amendment, by `immediate: true`.
  */
-export const TOS_VERSION = '2'
+export const TOS_VERSION = '3'
 
 /** The version in force until {@link TOS_VERSION} takes effect. */
-export const TOS_PREVIOUS_VERSION = '1'
+export const TOS_PREVIOUS_VERSION = '2'
 
 /**
  * The NEWEST published version of the Quy chế (/regulations) — its OWN number since the Quy chế-only
- * amendment of October 2026, which made it '3' while the Terms stayed at {@link TOS_VERSION} '2'.
+ * amendment of October 2026, which made it '3' while the Terms stayed at version 2. (The Terms reached their
+ * own version 3 on 07/10/2026, a Terms-only amendment: the two numbers coincide again, and mean nothing to
+ * each other.)
  * Published and in force on REGULATIONS_AMENDMENT's dates (src/lib/compliance/legal-amendment.ts); the
  * previous version is archived at /regulations/v{@link REGULATIONS_PREVIOUS_VERSION}.
  *
@@ -339,8 +348,7 @@ const TOS_PUBLISHED_AT = Date.parse(`${LEGAL_AMENDMENT.published}T00:00:00+07:00
 
 /**
  * True while {@link TOS_VERSION} is published but not yet binding — the notice window, [published,
- * inForce) in Vietnam time. EMPTY for an immediate amendment (the two instants coincide), so it is false
- * at every instant today; before the publication day there is nothing published to give notice of.
+ * inForce) in Vietnam time. EMPTY for an immediate amendment — version 3's (the two instants coincide); before the publication day there is nothing published to give notice of.
  */
 export function tosInNoticeWindow(now: Date = new Date()): boolean {
   const t = now.getTime()

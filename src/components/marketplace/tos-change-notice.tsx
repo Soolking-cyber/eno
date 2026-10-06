@@ -12,13 +12,13 @@ import { tosInNoticeWindow } from '@/lib/site-legal'
  * The on-platform announcement of a Terms / Quy chế amendment, shown on every page during its notice
  * window — [LEGAL_AMENDMENT.published, LEGAL_AMENDMENT.inForce) in Vietnam time.
  *
- * ⛔ NOT MOUNTED SINCE 2026-10-01. The October 2026 amendment was made IMMEDIATE (owner: "just change now
- * we dont have users so its safe to implement just new terms no need for announcement") — in force the
- * day it was published, no window, nothing to announce — so providers.tsx no longer renders it. Kept for
- * the next amendment with a window, which mounts it again in providers.tsx (after SkipLink);
- * legal-amendment.test.ts fails until the mount matches the flag. ⚠️ ONE PART IS THAT AMENDMENT'S: the
- * list of amended texts in the sentence below — rewrite it for each amendment (with the bell copy in
- * legal-amendment-notice.ts, which must stay word for word the same).
+ * ⛔ NOT MOUNTED FOR THE TERMS' VERSION 3 EITHER: the owner made it IMMEDIATE (2026-10-07 — published and in
+ * force 07/10/2026, no window), as the October 2026 amendment before it was (owner, 2026-10-01: "just change now
+ * we dont have users so its safe to implement just new terms no need for announcement") — nothing to announce.
+ * legal-amendment.test.ts fails unless the mount in providers.tsx matches the flag: the next amendment WITH a
+ * window mounts it again, after SkipLink. ⚠️ ONE PART IS THAT AMENDMENT'S:
+ * the list of amended texts in the sentence below, and where "See what changed" points — rewrite both for
+ * each amendment (with the bell copy in legal-amendment-notice.ts, which must stay word for word the same).
  *
  * ⚠️ IT EXISTS BECAUSE PUBLISHING THE NEW TEXTS IS NOT ANNOUNCING THEM. Quy chế Article 15 and the
  * Terms' "Changes" section promise that a material change is announced on the platform at least 5
@@ -38,8 +38,8 @@ import { tosInNoticeWindow } from '@/lib/site-legal'
  * server component, correctly, because PRELAUNCH_BANNER is a build-time constant: the difference is
  * the clock, not the styling.
  *
- * ⚠️ BOTH EDITIONS, ON PURPOSE. The amended Terms sections, the Quy chế articles, /returns and
- * /prohibited all render on eno.forum too, so its users are owed the same notice. The copy names
+ * ⚠️ BOTH EDITIONS, ON PURPOSE. The amended Terms render on eno.forum too (as the Quy chế articles,
+ * /returns and /prohibited did in October), so its users are owed the same notice. The copy names
  * no service, so nothing here leaks across the edition boundary.
  *
  * ⚠️ NOT ON /messages. The chat layout sizes itself to the viewport minus a measured
@@ -78,9 +78,11 @@ export function TosChangeNotice() {
   // word in this banner for them, and an English line keeps the English date.
   const date = lang === 'vi' ? AMENDED.inForceVi : AMENDED.inForceEn
 
-  // ⚠️ REWRITE THE DOCUMENT LIST FOR EACH AMENDMENT: "Terms of Service, Operating Regulations, Returns
-  // policy and Prohibited items list" are the texts the October 2026 one changed. Change the bell copy
-  // (AMENDMENT_NOTICE, legal-amendment-notice.ts) in the same edit — its test holds the two word for word.
+  // ⚠️ REWRITE THE DOCUMENT LIST FOR EACH AMENDMENT: "Terms of Service" is the text the Terms' version 3
+  // changed with effect from its in-force date (October's named "Terms of Service, Operating Regulations,
+  // Returns policy and Prohibited items list" and linked the Quy chế's Article 17). The link goes to the
+  // Terms' own change log, whose last note lists version 3's edits. Change the bell copy (AMENDMENT_NOTICE,
+  // legal-amendment-notice.ts) in the same edit — its test holds the two word for word.
 
   return (
     <div
@@ -89,12 +91,12 @@ export function TosChangeNotice() {
       className="border-b border-border bg-muted px-4 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] text-center text-xs leading-snug text-foreground"
     >
       {tr(
-        'Our Terms of Service, Operating Regulations, Returns policy and Prohibited items list have been amended. The changes take effect on {date}.',
-        'Điều khoản dịch vụ, Quy chế hoạt động, Chính sách đổi trả và Danh mục hàng hoá, dịch vụ cấm đăng đã được sửa đổi. Nội dung sửa đổi có hiệu lực từ ngày {date}.',
+        'Our Terms of Service have been amended. The changes take effect on {date}.',
+        'Điều khoản dịch vụ đã được sửa đổi. Nội dung sửa đổi có hiệu lực từ ngày {date}.',
         { date },
         { date: LEGAL_AMENDMENT.inForce },
       )}{' '}
-      <Link href="/regulations#changelog" className="font-semibold underline underline-offset-2">
+      <Link href="/terms#changes" className="font-semibold underline underline-offset-2">
         {tr('See what changed', 'Xem nội dung sửa đổi')}
       </Link>
     </div>

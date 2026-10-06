@@ -6,10 +6,12 @@
 #   bash legal-amendment-gate.sh <repo-dir> <deployed-sha>
 #
 # ⛔ WHY (2026-10-01 review). src/lib/compliance/legal-amendment.ts types two dates: `published`,
-# printed on /terms, /regulations (META + Article 17), /returns, /prohibited and /privacy (not
-# /legal/ranking since 2026-10-04 — it has its own RANKING_DISCLOSURE_UPDATED, which this gate does not
-# read), and `inForce`, which is ALSO the runtime switch for the Terms version onboarding stamps
-# and for the site-wide notice. Deploys happen only on the owner's word, so the commit that carries
+# printed on the pages the record dates — for LEGAL_AMENDMENT, the Terms' version 3 since 2026-10-07:
+# /terms (and /md/terms) and /privacy; the October 2026 amendment's dates, printed on /returns,
+# /prohibited and the Quy chế's first Article 17 entry, are literals in legal-archive.ts now and need no
+# gate (and not /legal/ranking since 2026-10-04 — it has its own RANKING_DISCLOSURE_UPDATED, which this
+# gate does not read) — and `inForce`, which is ALSO the runtime switch for the Terms version onboarding
+# stamps and for the site-wide notice. Deploys happen only on the owner's word, so the commit that carries
 # an amendment can sit unshipped for days. Deployed on any later day it:
 #   · prints a publication date that is false (the text went live later than it says);
 #   · leaves fewer than the 5 clear days' notice Quy chế Article 15 promises (from 02/10 for a
@@ -18,7 +20,9 @@
 # Nothing else fails closed: legal-amendment.test.ts can only check the gap between two typed dates.
 #
 # ⚠️ TWO RECORDS SINCE 2026-10-05, EACH HELD TO THE SAME RULES, IN TURN — the module says why:
-#   · LEGAL_AMENDMENT — the Terms (and /returns, /prohibited, /privacy; the October 2026 amendment);
+#   · LEGAL_AMENDMENT — the Terms (and /privacy; since 2026-10-07 the Terms' version 3, published AND in
+#     force 07/10/2026 — IMMEDIATE, the owner's decision, so its publishing deploy needs
+#     LEGAL_AMENDMENT_IMMEDIATE=2026-10-07 on its own day);
 #   · REGULATIONS_AMENDMENT — the Quy chế's own amendments (version 3 on: /regulations' META and its
 #     newest Article 17 entry; /legal/ranking's RANKING_DISCLOSURE_UPDATED is tied to its `published`
 #     while version 3 is current, so this gate holds that page's date too).
@@ -181,6 +185,6 @@ check(){
 
 # ⛔ THE RECORDS — one `check` line each; legal-amendment-gate.test.ts holds this list equal to the
 # LegalAmendment consts the module exports.
-check LEGAL_AMENDMENT 'legal amendment' '/terms, /regulations, /returns, /prohibited and /privacy' 'the new Terms would bind' 1 || exit 1
+check LEGAL_AMENDMENT 'legal amendment' '/terms and /privacy' 'the new Terms would bind' 1 || exit 1
 check REGULATIONS_AMENDMENT 'Quy chế amendment (REGULATIONS_AMENDMENT)' '/regulations and /legal/ranking' 'the new Quy chế would bind' '' || exit 1
 exit 0

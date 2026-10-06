@@ -1,12 +1,18 @@
 // ── The amendments of the published legal texts — their dates, typed ONCE ────────────────────────
 //
 // ⚠️ TWO RECORDS SINCE 2026-10-05, because the two amendments that stand did not change the same texts:
-//   · LEGAL_AMENDMENT — the October 2026 amendment: Terms version 2, /returns, /prohibited, /privacy and
-//     the Quy chế's version 2 with them (published and in force 01/10/2026). /terms ("Last updated" + the
-//     change note), /returns (meta, changes section), /prohibited, /privacy and the Quy chế's FIRST
-//     Article 17 entry (through legal-archive.ts V1_SUPERSEDED) read it, and it is the Terms' runtime
-//     switch (below). The Quy chế-only amendment left it alone — its dates are still true of every text
-//     it describes.
+//   · LEGAL_AMENDMENT — the Terms' newest amendment: since 2026-10-07 the Terms' VERSION 3 (App Store
+//     Guideline 1.2 — decision D8), which also dates the /privacy text that changed with it. /terms ("Last
+//     updated", the "not yet in force" line, its change note), /md/terms, /privacy, the /terms/v2 banner
+//     (through legal-archive.ts TERMS_V2_SUPERSEDED_BY), the strip and the bell notice read it, and it is
+//     the Terms' runtime switch (below).
+//     ⚠️ IT USED TO BE THE OCTOBER 2026 AMENDMENT (Terms version 2, /returns, /prohibited, /privacy and the
+//     Quy chế's version 2 with them — published and in force 01/10/2026, immediate). Re-using the record
+//     for version 3 moved those dates out of it: they are LITERALS now, in legal-archive.ts
+//     (V1_SUPERSEDED_BY), and every text version 3 did not change reads them there — /returns,
+//     /prohibited, the Quy chế's FIRST Article 17 entry, the version-1 and version-2 archives and the
+//     version-2 note in /terms' change log. A text that read LEGAL_AMENDMENT for a date version 3 did not
+//     give it would now print 7 October for an October-1 change.
 //   · REGULATIONS_AMENDMENT — the Quy chế's OWN newest amendment: version 3 (Article 14 — UX program 2's
 //     ranking), which changed no other text. /regulations (META + Article 17's newest entry), the
 //     /regulations/v2 archive ("replaced from …") and /legal/ranking's date (ranking-disclosure.ts
@@ -43,10 +49,10 @@
 // ⛔ THE ONE EXCEPTION IS `immediate: true` — AN OWNER'S DECISION, NEVER A CONVENIENCE. It means "in force
 // on the day it is published, no notice window, no announcement": inForce MUST equal published, nothing
 // is announced (no strip, no bell notice), and the deploy gate wants LEGAL_AMENDMENT_IMMEDIATE=<published>
-// on top of the publication-day rule. The October 2026 amendment is one, and so is the Quy chế's version 3
-// (both below). The next amendment drops the flag and gets its 6 days again unless the owner decides
-// otherwise for THAT amendment. Quy chế Article 15's 5-day promise stays in the text for every amendment
-// after these.
+// on top of the publication-day rule. The October 2026 amendment was one, and so are the Quy chế's version 3
+// and — owner, 2026-10-07 — the Terms' version 3 (both below). The next amendment drops the flag and gets its
+// 6 days again unless the owner decides otherwise for THAT amendment. Quy chế Article 15's 5-day promise stays
+// in the text for every amendment after these.
 //
 // ⚠️ TYPED, NEVER READ FROM THE CLOCK: these pages prerender, and a build-time date moves with every
 // rebuild.
@@ -60,13 +66,35 @@ export type LegalAmendment = {
   readonly immediate?: true
 }
 
+/**
+ * THE TERMS' VERSION 3 — App Store Guideline 1.2 (decision D8, docs/ios-appstore-release.md): zero tolerance
+ * for objectionable content and abusive users, a 24-hour review of those reports, and no chance to put it
+ * right for them (/terms `conduct`, `complaints`, `termination`; the edits are listed in its `changes` note).
+ * It also dates /privacy, whose text changed in the same deploy: the moderators' AI review of reports (the
+ * Google row, "Automated decisions") and eno.vn's partner e-Visa section. The Quy chế did not change —
+ * REGULATIONS_AMENDMENT keeps its own dates — and neither did /returns or /prohibited (V1_SUPERSEDED_BY).
+ *
+ * ⛔ IMMEDIATE — THE OWNER'S DECISION (2026-10-07, on the record below): published AND in force 07/10/2026, from
+ * midnight Vietnam time, with no notice window and no announcement — the 2026-10-01 precedent. From that
+ * instant version 3 is the version in force (tosVersionInForce — onboarding stamps '3', /terms and /md/terms
+ * headline version 3, and /terms' "not yet in force" line never renders); /terms' change note and the
+ * /terms/v2 banner print their one-date variants on their own; <TosChangeNotice /> is NOT mounted in
+ * providers.tsx (legal-amendment.test.ts holds the mount to the flag); and scripts/notify-legal-amendment.ts
+ * refuses to send a bell notice. It was written with the default window (published 07/10, in force
+ * 13/10/2026); the tests keep that machinery on fixtures, for the next amendment that has one.
+ * ⛔ 2026-10-07 IS THE DAY IT IS MEANT TO SHIP, NOT YET A FACT: `published` must be the day it actually deploys
+ * (Vietnam time). If that is another day, the deployer re-dates BOTH — to the same day, because it is
+ * immediate — in the commit that ships it, and runs the deploy with LEGAL_AMENDMENT_IMMEDIATE=<that day>; the
+ * deploy gate (legal-amendment-gate.sh) refuses any other day and any deploy without that ack.
+ */
 export const LEGAL_AMENDMENT: LegalAmendment = {
-  published: '2026-10-01',
-  inForce: '2026-10-01',
-  // ⛔ OWNER, 2026-10-01 (~18:00 Vietnam), quoting the site-wide strip that announced 07/10/2026: "just
-  // change now we dont have users so its safe to implement just new terms no need for announcement".
-  // It shipped earlier that day with a 6-day window (110295be: published 01/10, in force 07/10); this makes
-  // version 2 binding from 01/10 with no window. Scoped to THIS amendment — do not copy it forward.
+  published: '2026-10-07',
+  inForce: '2026-10-07',
+  // ⛔ OWNER, 2026-10-07 (AskUserQuestion: "When should that Terms change take effect?"): "Immediately
+  // (Recommended)" — in force on the deploy day, no notice window, no announcement; the 2026-10-01 precedent.
+  // It was planned with the default 6-day window (in force 13/10); this makes version 3 binding from its
+  // publication day. The deploy runs with LEGAL_AMENDMENT_IMMEDIATE=2026-10-07. Scoped to THIS amendment — do
+  // not copy it forward.
   immediate: true,
 }
 

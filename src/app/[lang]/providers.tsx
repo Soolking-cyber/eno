@@ -54,7 +54,8 @@ export function Providers({
               ThemeProvider, so status-bar theming is unchanged. */}
           <NativeBootstrap />
           <SkipLink />
-          {/* NO AMENDMENT STRIP (owner, 2026-10-01: "just change now … no need for announcement" —
+          {/* NO AMENDMENT STRIP (owner, 2026-10-07, for the Terms' version 3: "Immediately (Recommended)" — in
+              force on the deploy day, no notice window, no announcement; the 2026-10-01 precedent —
               LEGAL_AMENDMENT.immediate). For an amendment WITH a notice window, TosChangeNotice
               (tos-change-notice.tsx) mounts exactly here: after SkipLink so the skip link stays the first
               tab stop, inside LanguageProvider because it renders the visitor's language.

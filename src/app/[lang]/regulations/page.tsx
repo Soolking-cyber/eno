@@ -39,8 +39,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
  * owner-decided exceptions (`immediate`): published and in force the same day, no notice window, no
  * announcement. The dates come from src/lib/compliance/legal-amendment.ts — version 3's from
  * REGULATIONS_AMENDMENT (META directly, its Article 17 entry through legal-archive.ts V2_SUPERSEDED),
- * version 2's from LEGAL_AMENDMENT through V1_SUPERSEDED — and the version numbers from REGULATIONS_VERSION /
- * REGULATIONS_PREVIOUS_VERSION (site-legal.ts), no longer TOS_VERSION: the Terms stayed at version 2.
+ * version 2's from legal-archive.ts V1_SUPERSEDED (literals since the Terms' own version 3 re-used
+ * LEGAL_AMENDMENT on 2026-10-07 — a Terms-only amendment that changed nothing here) — and the version numbers
+ * from REGULATIONS_VERSION / REGULATIONS_PREVIOUS_VERSION (site-legal.ts), never TOS_VERSION: the Terms
+ * count their own versions.
  * By default `published` = the real deploy day and in force ≥ 6 calendar days later, because the 5-day
  * notice (Article 15) does not count the publication day; Article 15 still promises that notice for
  * every future amendment.
@@ -132,7 +134,8 @@ const INTRO: Para = {
 //   for the next amendment, worded to stay true after its in-force date too.
 // The authoritative-language and future-amendment-notice sentences are the same in both.
 // ⚠️ REGULATIONS_*, NOT TOS_* (2026-10-05): version 3 amended the Quy chế alone, so its number and dates are
-// the Quy chế's own; TOS_VERSION is the Terms' and still reads '2'.
+// the Quy chế's own; TOS_VERSION is the Terms' (it reads '3' since the Terms' own, Terms-only version 3 of
+// 2026-10-07 — the same number, a different amendment).
 const META: Para = REGULATIONS_AMENDMENT.immediate
   ? {
       vi: `Phiên bản ${REGULATIONS_VERSION}, có hiệu lực từ ngày ${REGULATIONS_AMENDED.inForceVi} (xem Điều 17). Phiên bản trước được lưu tại ${archivedPath('regulations', REGULATIONS_PREVIOUS_VERSION)}. Bản tiếng Việt là bản có giá trị pháp lý; bản tiếng Anh là bản dịch tham khảo. Mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực.`,
@@ -823,9 +826,9 @@ const ARTICLES: Article[] = [
     // The 2026-10 entry was re-dated ON ITS OWN PUBLICATION DAY (owner, 2026-10-01: in force at once, no
     // announcement — LEGAL_AMENDMENT.immediate): it first said "published 01/10, in force 07/10; until then
     // version 1 applies". One date now, because it was published and took effect the same day.
-    // ⚠️ ITS DATE NOW COMES FROM V1_SUPERSEDED (legal-archive.ts) — the same 01/10/2026 LEGAL_AMENDMENT holds,
-    // but held there to a literal once that record moves on, so this entry can never take a later
-    // amendment's date. Its words are unchanged.
+    // ⚠️ ITS DATE NOW COMES FROM V1_SUPERSEDED (legal-archive.ts) — a literal 01/10/2026 since LEGAL_AMENDMENT
+    // moved on to the Terms' version 3 (2026-10-07), so this entry can never take a later amendment's date.
+    // Its words are unchanged.
     // VERSION 3's entry (2026-10-05) is the second — immediate like version 2, so it has one date too. Dated
     // through V2_SUPERSEDED for the same reason: REGULATIONS_AMENDMENT's dates today, a literal once a
     // version 4 re-uses that record (legal-archive.test.ts).

@@ -15,7 +15,11 @@ import { linkifyLegal } from '@/components/marketplace/legal-linkify'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { LegalLanguageNote } from '@/components/legal/legal-language-note'
 import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
-import { AMENDED, LEGAL_AMENDMENT } from '@/lib/compliance/legal-amendment'
+// ⚠️ THIS POLICY'S DATES ARE THE OCTOBER 2026 AMENDMENT'S (published and in force 01/10/2026, immediate) —
+// literals in legal-archive.ts (V1_SUPERSEDED) since LEGAL_AMENDMENT moved on to the Terms' version 3
+// (2026-10-07), which did not change this page. Never point them back at LEGAL_AMENDMENT: /returns would
+// print the next Terms amendment's dates as the day its own scope narrowed.
+import { V1_SUPERSEDED, V1_SUPERSEDED_BY } from '@/lib/compliance/legal-archive'
 
 // ── Returns and exchanges ───────────────────────────────────────────────────────────────
 //
@@ -26,7 +30,7 @@ import { AMENDED, LEGAL_AMENDMENT } from '@/lib/compliance/legal-amendment'
 // promising, on behalf of sellers it does not employ, something none of them agreed to. On a
 // licensed sàn TMĐT in Vietnam that is a consumer-protection exposure, not a growth hack.
 //
-// ⛔ THE SCOPE NARROWED IN 2026-10 (dates: LEGAL_AMENDMENT, src/lib/compliance/legal-amendment.ts), AND THE OLD ONE WAS
+// ⛔ THE SCOPE NARROWED IN 2026-10 (dates: V1_SUPERSEDED, src/lib/compliance/legal-archive.ts), AND THE OLD ONE WAS
 // THE EXPOSURE ABOVE. The 2026-09-17 wording bound "the verified business storefronts whose
 // catalogues appear in product listings and in shopping results" to a 7-day no-reason return. Those
 // storefronts are linked/affiliate merchants (Tiki, CellphoneS, FPT Shop…): none of them agreed to
@@ -223,9 +227,9 @@ const sections: Section[] = [
     paras: [
       {
         // ONE date: this version was published and took effect the same day (an immediate amendment —
-        // owner, 2026-10-01; LEGAL_AMENDMENT.immediate), so "published X and in force from X" said it twice.
-        en: `This version is in force from ${AMENDED.inForceEn}. Before that date the ${WINDOW_DAYS}-day commitment was described as covering the verified business storefronts whose catalogues appear in product listings and shopping results; it now covers only business sellers that sell through chat on ${SITE_NAME} and have accepted this policy, and linked listings and affiliate shops follow their own shop's policy. A purchase made before ${AMENDED.inForceEn} is governed by the version in force when it was made.`,
-        vi: `Phiên bản này có hiệu lực từ ngày ${AMENDED.inForceVi}. Trước ngày đó, cam kết ${WINDOW_DAYS} ngày được mô tả là áp dụng cho các gian hàng doanh nghiệp đã xác minh có danh mục sản phẩm hiển thị trong tin đăng và kết quả mua sắm; nay cam kết chỉ áp dụng cho người bán là doanh nghiệp bán hàng qua kênh nhắn tin trên ${SITE_NAME} và đã chấp nhận chính sách này, còn tin đăng liên kết và cửa hàng liên kết áp dụng chính sách của chính cửa hàng đó. Giao dịch mua trước ngày ${AMENDED.inForceVi} được điều chỉnh bởi phiên bản có hiệu lực tại thời điểm mua.`,
+        // owner, 2026-10-01), so "published X and in force from X" said it twice.
+        en: `This version is in force from ${V1_SUPERSEDED.inForceEn}. Before that date the ${WINDOW_DAYS}-day commitment was described as covering the verified business storefronts whose catalogues appear in product listings and shopping results; it now covers only business sellers that sell through chat on ${SITE_NAME} and have accepted this policy, and linked listings and affiliate shops follow their own shop's policy. A purchase made before ${V1_SUPERSEDED.inForceEn} is governed by the version in force when it was made.`,
+        vi: `Phiên bản này có hiệu lực từ ngày ${V1_SUPERSEDED.inForceVi}. Trước ngày đó, cam kết ${WINDOW_DAYS} ngày được mô tả là áp dụng cho các gian hàng doanh nghiệp đã xác minh có danh mục sản phẩm hiển thị trong tin đăng và kết quả mua sắm; nay cam kết chỉ áp dụng cho người bán là doanh nghiệp bán hàng qua kênh nhắn tin trên ${SITE_NAME} và đã chấp nhận chính sách này, còn tin đăng liên kết và cửa hàng liên kết áp dụng chính sách của chính cửa hàng đó. Giao dịch mua trước ngày ${V1_SUPERSEDED.inForceVi} được điều chỉnh bởi phiên bản có hiệu lực tại thời điểm mua.`,
       },
     ],
   },
@@ -245,14 +249,14 @@ export default async function ReturnsPage({ params }: { params: Promise<{ lang: 
       meta={
         <>
           <p className="mt-3 text-sm text-ink-4">
-            {/* One date: this version was published and took effect the same day
-                (LEGAL_AMENDMENT.immediate), and for a returns policy the date that matters to a purchase
+            {/* One date: this version was published and took effect the same day (the October 2026
+                amendment, immediate), and for a returns policy the date that matters to a purchase
                 is the one it binds from. The changes section below says what it replaced. */}
             <Bilingual
               en="In force from {date} · Applies to purchases in Vietnam"
               vi="Có hiệu lực từ ngày {date} · Áp dụng cho giao dịch tại Việt Nam"
-              values={{ date: vi ? AMENDED.inForceVi : AMENDED.inForceEn }}
-              datesIso={{ date: LEGAL_AMENDMENT.inForce }}
+              values={{ date: vi ? V1_SUPERSEDED.inForceVi : V1_SUPERSEDED.inForceEn }}
+              datesIso={{ date: V1_SUPERSEDED_BY.inForce }}
             />
           </p>
           <LegalLanguageNote />

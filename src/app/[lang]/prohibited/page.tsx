@@ -5,7 +5,10 @@ import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { LegalLanguageNote } from '@/components/legal/legal-language-note'
-import { AMENDED, LEGAL_AMENDMENT } from '@/lib/compliance/legal-amendment'
+// ⚠️ "LAST UPDATED" IS THE OCTOBER 2026 AMENDMENT'S DATE (01/10/2026) — a literal in legal-archive.ts
+// (V1_SUPERSEDED) since LEGAL_AMENDMENT moved on to the Terms' version 3 (2026-10-07), which did not change
+// this list. Never point it back at LEGAL_AMENDMENT: a Terms-only amendment would re-date it.
+import { V1_SUPERSEDED, V1_SUPERSEDED_BY } from '@/lib/compliance/legal-archive'
 import { CROSS_SITE_REL } from '@/lib/cross-site-links'
 import { PROHIBITED_SERVICES_CROSSLINK, PROHIBITED_SERVICES_SECTION } from '@/lib/prohibited-services-copy'
 
@@ -192,7 +195,7 @@ export default async function ProhibitedPage({ params }: { params: Promise<{ lan
       meta={
         <>
           <p className="mt-3 text-sm text-ink-4">
-            <Bilingual en="Part of the Operating Regulations · Last updated: {date}" vi="Một phần của Quy chế hoạt động · Cập nhật lần cuối: {date}" values={{ date: vi ? AMENDED.publishedVi : AMENDED.publishedEn }} datesIso={{ date: LEGAL_AMENDMENT.published }} />
+            <Bilingual en="Part of the Operating Regulations · Last updated: {date}" vi="Một phần của Quy chế hoạt động · Cập nhật lần cuối: {date}" values={{ date: vi ? V1_SUPERSEDED.publishedVi : V1_SUPERSEDED.publishedEn }} datesIso={{ date: V1_SUPERSEDED_BY.published }} />
           </p>
           <LegalLanguageNote />
         </>

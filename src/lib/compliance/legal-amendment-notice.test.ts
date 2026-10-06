@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AMENDED, LEGAL_AMENDMENT } from './legal-amendment'
 import { AMENDMENT_NOTICE, AMENDMENT_NOTICE_ID_PREFIX, AMENDMENT_NOTICE_URL, noticeIdPrefix, noticeSendable, retractable } from './legal-amendment-notice'
 
@@ -13,13 +13,42 @@ const ROOT = join(__dirname, '..', '..', '..')
 describe('the amendment notice to registered users', () => {
   it('says exactly what the site-wide strip says', () => {
     const strip = readFileSync(join(ROOT, 'src/components/marketplace/tos-change-notice.tsx'), 'utf8')
-    const [en, vi] = [...strip.matchAll(/^\s*'((?:Our Terms|Điều khoản dịch vụ, Quy chế)[^']+)',$/gm)].map((m) => m[1])
+    const [en, vi] = [...strip.matchAll(/^\s*'((?:Our Terms|Điều khoản dịch vụ)[^']+)',$/gm)].map((m) => m[1])
     expect(en).toBeTruthy()
     expect(vi).toBeTruthy()
     expect(AMENDMENT_NOTICE.en.body).toBe(en.replace('{date}', AMENDED.inForceEn))
     expect(AMENDMENT_NOTICE.vi.body).toBe(vi.replace('{date}', AMENDED.inForceVi))
-    expect(AMENDMENT_NOTICE_URL).toBe('/regulations#changelog')
+    expect(AMENDMENT_NOTICE_URL).toBe('/terms#changes')
     expect(strip).toContain(`href="${AMENDMENT_NOTICE_URL}"`)
+  })
+
+  // The Terms' version 3 changed the Terms alone, so the copy names the Terms alone and points at their own
+  // change log — not the Quy chế's, which did not change. (Version 3 is immediate, so it is never sent — below.)
+  it('names the Terms of Service alone, for the Terms’ version 3, and links their change log', () => {
+    expect(AMENDMENT_NOTICE.en.body).toBe(`Our Terms of Service have been amended. The changes take effect on ${AMENDED.inForceEn}.`)
+    expect(AMENDMENT_NOTICE.vi.body).toBe(`Điều khoản dịch vụ đã được sửa đổi. Nội dung sửa đổi có hiệu lực từ ngày ${AMENDED.inForceVi}.`)
+    expect(JSON.stringify(AMENDMENT_NOTICE)).not.toMatch(/Operating Regulations|Quy chế|Returns|đổi trả|Prohibited|cấm đăng/)
+    const terms = readFileSync(join(ROOT, 'src/app/[lang]/terms/page.tsx'), 'utf8')
+    expect(terms).toContain("id: 'changes',")
+  })
+
+  // With a window — version 3 as it was written, published 07/10 and in force 13/10/2026, on a fixture — the
+  // copy names the in-force date, each language in its own form: what the bell would have said.
+  it('with a window, says when the Terms take effect, in each language’s date form', async () => {
+    const AS_WRITTEN = { published: '2026-10-07', inForce: '2026-10-13' } as const
+    vi.resetModules()
+    vi.doMock('./legal-amendment', async (importOriginal) => {
+      const real = await importOriginal<typeof import('./legal-amendment')>()
+      return { ...real, LEGAL_AMENDMENT: AS_WRITTEN, AMENDED: real.amendedDates(AS_WRITTEN) }
+    })
+    try {
+      const { AMENDMENT_NOTICE: windowed } = await import('./legal-amendment-notice')
+      expect(windowed.en.body).toBe('Our Terms of Service have been amended. The changes take effect on 13 October 2026.')
+      expect(windowed.vi.body).toBe('Điều khoản dịch vụ đã được sửa đổi. Nội dung sửa đổi có hiệu lực từ ngày 13/10/2026.')
+    } finally {
+      vi.doUnmock('./legal-amendment')
+      vi.resetModules()
+    }
   })
 
   it('names no site and nothing across the edition boundary — one row is read on both editions', () => {
@@ -29,16 +58,28 @@ describe('the amendment notice to registered users', () => {
 
   it('derives one id per account per amendment', () => {
     expect(AMENDMENT_NOTICE_ID_PREFIX).toBe(`legal-amendment-${LEGAL_AMENDMENT.published}-`)
+    expect(AMENDMENT_NOTICE_ID_PREFIX).toBe('legal-amendment-2026-10-07-')
   })
 
   it('derives the id prefix from a publication date, so a retraction can name an earlier batch', () => {
     expect(noticeIdPrefix('2026-10-01')).toBe('legal-amendment-2026-10-01-')
   })
 
-  // ⛔ Owner, 2026-10-01: "no need for announcement" — the October 2026 amendment is immediate.
+  // ⛔ Owner, 2026-10-01: "no need for announcement" — the October 2026 amendment was immediate (its dates, here).
   it('is never sendable for an immediate amendment — there is no window and nothing to announce', () => {
-    expect(LEGAL_AMENDMENT.immediate).toBe(true)
+    const OCTOBER = { published: '2026-10-01', inForce: '2026-10-01', immediate: true } as const
     for (const at of ['2026-09-30T23:00:00+07:00', '2026-10-01T00:00:00+07:00', '2026-10-01T18:00:00+07:00', '2026-10-05T00:00:00+07:00']) {
+      const r = noticeSendable(new Date(at), OCTOBER)
+      expect(r.ok, at).toBe(false)
+      expect(r.ok ? '' : r.reason).toContain('nothing to announce')
+    }
+  })
+
+  // ⛔ Owner, 2026-10-07: "Immediately (Recommended)" — the Terms' version 3 is immediate: in force on its
+  // publication day, no window, no announcement, so no bell notice at any instant (its window was 07/10–12/10).
+  it('is never sendable for the Terms’ version 3 — immediate, there is no window and nothing to announce', () => {
+    expect(LEGAL_AMENDMENT.immediate).toBe(true)
+    for (const at of ['2026-10-06T23:59:59+07:00', '2026-10-07T00:00:00+07:00', '2026-10-07T18:00:00+07:00', '2026-10-12T23:59:59+07:00', '2026-10-13T00:00:00+07:00']) {
       const r = noticeSendable(new Date(at))
       expect(r.ok, at).toBe(false)
       expect(r.ok ? '' : r.reason).toContain('nothing to announce')
@@ -61,6 +102,8 @@ describe('the amendment notice to registered users', () => {
   })
 
   it('may be retracted only for an immediate amendment — a windowed notice is the promised announcement', () => {
+    // The Terms' version 3 is immediate (owner, 2026-10-07): a notice sent under its date would name an in-force
+    // date that is no longer true, and nothing replaces it — so it may be retracted.
     expect(retractable().ok).toBe(true)
     expect(retractable({ published: '2026-10-01', inForce: '2026-10-01', immediate: true }).ok).toBe(true)
     const windowed = retractable({ published: '2026-10-01', inForce: '2026-10-07' })

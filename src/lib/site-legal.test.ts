@@ -70,42 +70,87 @@ describe('the affiliation statement', () => {
 const inVietnam = (isoLocal: string) => new Date(`${isoLocal}+07:00`)
 
 /**
- * ⛔ VERSION 2 IS IN FORCE NOW — AN IMMEDIATE AMENDMENT (owner, 2026-10-01: "just change now we dont have
- * users so its safe to implement just new terms no need for announcement"). It shipped earlier that day
- * with a window to 07/10; these pin the state that replaced it, against the real LEGAL_AMENDMENT.
+ * ⛔ VERSION 3 — App Store Guideline 1.2 (D8) — IS IN FORCE FROM ITS PUBLICATION DAY: AN IMMEDIATE AMENDMENT
+ * (owner, 2026-10-07, asked "When should that Terms change take effect?": "Immediately (Recommended)" — the
+ * 2026-10-01 precedent). It was written with the default window (in force 13/10/2026); these pin the state that
+ * replaced it, against the real LEGAL_AMENDMENT. The window machinery is pinned on a fixture further down.
  */
-describe('version 2, in force from its publication day', () => {
-  it('has a newer version and the one it replaced', () => {
-    expect(TOS_VERSION).toBe('2')
-    expect(TOS_PREVIOUS_VERSION).toBe('1')
+describe('version 3, in force from its publication day', () => {
+  it('has a newer version and the one it replaced, published and in force the same day', () => {
+    expect(TOS_VERSION).toBe('3')
+    expect(TOS_PREVIOUS_VERSION).toBe('2')
     expect(LEGAL_AMENDMENT.immediate).toBe(true)
+    expect(LEGAL_AMENDMENT.published).toBe('2026-10-07')
     expect(LEGAL_AMENDMENT.inForce).toBe(LEGAL_AMENDMENT.published)
   })
 
-  it('took effect at midnight in Vietnam on 01/10/2026', () => {
-    expect(TOS_EFFECTIVE_AT).toBe(Date.parse('2026-10-01T00:00:00+07:00'))
-    expect(new Date(TOS_EFFECTIVE_AT).toISOString()).toBe('2026-09-30T17:00:00.000Z')
+  it('takes effect at midnight in Vietnam on 07/10/2026 — 17:00 UTC the day before', () => {
+    expect(TOS_EFFECTIVE_AT).toBe(Date.parse('2026-10-07T00:00:00+07:00'))
+    expect(new Date(TOS_EFFECTIVE_AT).toISOString()).toBe('2026-10-06T17:00:00.000Z')
   })
 
-  it('is the version in force all of 01/10 and from then on — including the old 07/10 date', () => {
-    for (const at of ['2026-10-01T00:00:00', '2026-10-01T18:00:00', '2026-10-06T23:59:59', '2026-10-07T00:00:00', '2027-06-01T00:00:00']) {
-      expect(tosVersionInForce(inVietnam(at)), at).toBe(TOS_VERSION)
+  it('is the version in force all of 07/10 and from then on — including the old 13/10 date', () => {
+    for (const at of ['2026-10-07T00:00:00', '2026-10-07T18:00:00', '2026-10-12T23:59:59', '2026-10-13T00:00:00', '2027-06-01T00:00:00']) {
+      expect(tosVersionInForce(inVietnam(at)), at).toBe('3')
     }
-    expect(tosVersionInForce(inVietnam('2026-09-30T23:59:59'))).toBe(TOS_PREVIOUS_VERSION)
+    // Version 2 — October's, in force from 01/10/2026 — up to the last instant of 06/10.
+    for (const at of ['2026-10-01T18:00:00', '2026-10-06T23:59:59']) expect(tosVersionInForce(inVietnam(at)), at).toBe('2')
+    expect(tosVersionInForce(new Date(TOS_EFFECTIVE_AT - 1))).toBe('2')
   })
 
   it('has no notice window at any instant', () => {
-    for (const at of ['2026-09-30T23:59:59', '2026-10-01T00:00:00', '2026-10-01T18:00:00', '2026-10-06T12:00:00', '2026-10-07T00:00:00']) {
+    for (const at of ['2026-10-06T23:59:59', '2026-10-07T00:00:00', '2026-10-07T18:00:00', '2026-10-10T12:00:00', '2026-10-12T23:59:59', '2026-10-13T00:00:00']) {
       expect(tosInNoticeWindow(inVietnam(at)), at).toBe(false)
     }
     expect(tosInNoticeWindow(new Date('nonsense'))).toBe(false)
   })
 
-  it('stamps version 2 on acceptance now, and re-stamps an account that accepted version 1', () => {
-    const now = inVietnam('2026-10-01T18:30:00')
-    expect(tosAcceptanceStamp(null, now)).toEqual({ tosAcceptedAt: now, tosVersion: '2' })
-    expect(tosAcceptanceStamp('1', now)).toEqual({ tosAcceptedAt: now, tosVersion: '2' })
-    expect(tosAcceptanceStamp('2', now)).toEqual({})
+  it('stamps version 3 on acceptance from 07/10, and re-stamps an account that accepted version 2 or 1', () => {
+    const now = inVietnam('2026-10-07T18:30:00')
+    expect(tosAcceptanceStamp(null, now)).toEqual({ tosAcceptedAt: now, tosVersion: '3' })
+    expect(tosAcceptanceStamp('2', now)).toEqual({ tosAcceptedAt: now, tosVersion: '3' })
+    expect(tosAcceptanceStamp('1', now)).toEqual({ tosAcceptedAt: now, tosVersion: '3' })
+    expect(tosAcceptanceStamp('3', now)).toEqual({})
+    // …and version 2 one millisecond before the instant.
+    const before = new Date(TOS_EFFECTIVE_AT - 1)
+    expect(tosAcceptanceStamp(null, before)).toEqual({ tosAcceptedAt: before, tosVersion: '2' })
+  })
+})
+
+/**
+ * AN IMMEDIATE AMENDMENT — THE OWNER'S WAIVER (version 2's, 2026-10-01: "just change now we dont have users
+ * so its safe to implement just new terms no need for announcement"). Loaded against version 2's own dates,
+ * which the module no longer carries: in force from midnight Vietnam time on its publication day, no window.
+ */
+describe('an immediate amendment (version 2’s dates)', () => {
+  const NOW = { published: '2026-10-01', inForce: '2026-10-01', immediate: true } as const
+  let L: typeof import('./site-legal')
+
+  beforeAll(async () => {
+    vi.resetModules()
+    vi.doMock('./compliance/legal-amendment', async (importOriginal) => {
+      const real = await importOriginal<typeof import('./compliance/legal-amendment')>()
+      return { ...real, LEGAL_AMENDMENT: NOW, AMENDED: real.amendedDates(NOW) }
+    })
+    L = await import('./site-legal')
+  })
+  afterAll(() => {
+    vi.doUnmock('./compliance/legal-amendment')
+    vi.resetModules()
+  })
+
+  it('is in force all of its publication day and from then on', () => {
+    expect(L.TOS_EFFECTIVE_AT).toBe(Date.parse('2026-10-01T00:00:00+07:00'))
+    for (const at of ['2026-10-01T00:00:00', '2026-10-01T18:00:00', '2026-10-07T00:00:00']) {
+      expect(L.tosVersionInForce(inVietnam(at)), at).toBe(L.TOS_VERSION)
+    }
+    expect(L.tosVersionInForce(inVietnam('2026-09-30T23:59:59'))).toBe(L.TOS_PREVIOUS_VERSION)
+  })
+
+  it('has no notice window at any instant', () => {
+    for (const at of ['2026-09-30T23:59:59', '2026-10-01T00:00:00', '2026-10-01T18:00:00', '2026-10-06T12:00:00']) {
+      expect(L.tosInNoticeWindow(inVietnam(at)), at).toBe(false)
+    }
   })
 })
 
@@ -185,6 +230,8 @@ describe('with a notice window (the default)', () => {
   it('records the version IN FORCE, never the newest, during the window', () => {
     const now = inVietnam(`${published}T15:00:00`)
     expect(L.tosAcceptanceStamp(null, now)).toEqual({ tosAcceptedAt: now, tosVersion: L.TOS_PREVIOUS_VERSION })
+    // An acceptance of an even older version is re-stamped — with the version in force, not the newest.
+    expect(L.tosAcceptanceStamp('1', now)).toEqual({ tosAcceptedAt: now, tosVersion: L.TOS_PREVIOUS_VERSION })
     // Already holding the version in force: nothing is re-stamped.
     expect(L.tosAcceptanceStamp(L.TOS_PREVIOUS_VERSION, now)).toEqual({})
   })

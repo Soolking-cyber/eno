@@ -110,24 +110,73 @@ const OCT: Dates = ['2026-10-01', '2026-10-07']
 const NOW: Dates = ['2026-10-01', '2026-10-01', true]
 
 describe('legal-amendment-gate.sh', () => {
-  // ⛔ THE STATE THE NEXT DEPLOY MEETS (2026-10-05): the box's deployed commit carries LEGAL_AMENDMENT exactly
-  // as it is now (immediate, 01/10 — prod since 86f531e1) and NO Quy chế record; the working tree is the real
-  // module, verbatim. So October's amendment is routine and the Quy chế's version 3 publishes, on its day only.
+  // ⛔ THE STATE THE NEXT DEPLOY MEETS (2026-10-07): the box's deployed commit carries October's LEGAL_AMENDMENT
+  // (immediate, 01/10 — prod since 86f531e1) and the Quy chế's version 3 (immediate, 05/10 — prod since its
+  // deploy); the working tree is the real module, verbatim — the Terms' version 3, IMMEDIATE (owner, 2026-10-07:
+  // "Immediately (Recommended)"). So the Quy chế's record is routine and the Terms' version 3 publishes on its
+  // own day ONLY with the owner's waiver acked: LEGAL_AMENDMENT_IMMEDIATE=2026-10-07.
   it('reads the dates and the flags the module exports, in the state the next deploy meets', () => {
     expect(LEGAL_AMENDMENT.immediate).toBe(true)
     expect(REGULATIONS_AMENDMENT.immediate).toBe(true)
-    const at = boxSrc(SOURCE, without(SOURCE, 'REGULATIONS_AMENDMENT'))
-    const day = REGULATIONS_AMENDMENT.published
-    const unacked = gate(at, day)
-    expect(unacked.status).toBe(1)
-    expect(unacked.out).toContain(`legal amendment published ${LEGAL_AMENDMENT.published} (in force ${LEGAL_AMENDMENT.inForce}, immediate) is already live`)
-    expect(unacked.out).toContain(`LEGAL_AMENDMENT_IMMEDIATE=${day} bash eno-deploy.sh`)
+    const prod = setRecord(SOURCE, 'LEGAL_AMENDMENT', ['2026-10-01', '2026-10-01', true])
+    const at = boxSrc(SOURCE, prod)
+    const day = LEGAL_AMENDMENT.published
+    expect(day).toBe('2026-10-07')
+    expect(LEGAL_AMENDMENT.inForce).toBe(day)
+    // Without the ack it refuses: no notice window is the owner's waiver, acknowledged for its day.
+    const bare = gate(at, day)
+    expect(bare.status).toBe(1)
+    expect(bare.out).toContain(`published AND in force ${day}, with NO notice window`)
+    expect(bare.out).toContain(`LEGAL_AMENDMENT_IMMEDIATE=${day} bash eno-deploy.sh`)
     const r = gate(at, day, { LEGAL_AMENDMENT_IMMEDIATE: day })
     expect(r.status).toBe(0)
-    expect(r.out).toContain(`IMMEDIATE Quy chế amendment (REGULATIONS_AMENDMENT): published and in force ${REGULATIONS_AMENDMENT.inForce} (today)`)
-    // Any other day refuses, acknowledged or not — the day after, whatever date the deployer typed.
+    expect(r.out).toContain(`proceeding on LEGAL_AMENDMENT_IMMEDIATE=${day}`)
+    expect(r.out).toContain(`Quy chế amendment (REGULATIONS_AMENDMENT) published ${REGULATIONS_AMENDMENT.published} (in force ${REGULATIONS_AMENDMENT.inForce}, immediate) is already live`)
+    // Neither October's date nor the late-publication ack unlocks it.
+    expect(gate(at, day, { LEGAL_AMENDMENT_IMMEDIATE: '2026-10-01' }).status).toBe(1)
+    expect(gate(at, day, { LEGAL_AMENDMENT_ACK: day }).status).toBe(1)
+    // Any other day refuses, acked or not, and says to re-date both — the day after (a false date on /terms and
+    // /privacy) and the day before (a date that has not happened).
     const dayAfter = new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)
-    expect(gate(at, dayAfter, { LEGAL_AMENDMENT_IMMEDIATE: day }).status).toBe(1)
+    const dayBefore = new Date(Date.parse(`${day}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10)
+    for (const other of [dayBefore, dayAfter]) {
+      const off = gate(at, other, { LEGAL_AMENDMENT_IMMEDIATE: day })
+      expect(off.status, other).toBe(1)
+      expect(off.out, other).toContain(`set published: '${other}' and inForce: '${other}'`)
+    }
+    // …and once it is deployed, every later deploy is routine, with no ack.
+    const live = boxSrc(SOURCE, SOURCE)
+    for (const d of [day, dayAfter, '2026-10-13', '2027-03-01']) {
+      const routine = gate(live, d)
+      expect(routine.status, d).toBe(0)
+      expect(routine.out, d).toContain(`legal amendment published ${day} (in force ${day}, immediate) is already live`)
+    }
+  })
+
+  // The Terms' version 3 AS IT WAS WRITTEN — the default window, published 07/10, in force 13/10/2026 — before
+  // the owner made it immediate, on a fixture of the real module: it would publish on its own day with no ack (a
+  // windowed amendment waives nothing), on no other day, and an immediate ack would not unlock it.
+  it('publishes the Terms’ version 3 as written — with its window — on its own day, with no ack', () => {
+    const day = '2026-10-07'
+    const prod = setRecord(SOURCE, 'LEGAL_AMENDMENT', ['2026-10-01', '2026-10-01', true])
+    const asWritten = setRecord(SOURCE, 'LEGAL_AMENDMENT', [day, '2026-10-13'])
+    const at = boxSrc(asWritten, prod)
+    const r = gate(at, day)
+    expect(r.status).toBe(0)
+    expect(r.out).toContain(`publishes the legal amendment today (${day}); in force 2026-10-13, 6 days later`)
+    expect(r.out).toContain(`Quy chế amendment (REGULATIONS_AMENDMENT) published ${REGULATIONS_AMENDMENT.published} (in force ${REGULATIONS_AMENDMENT.inForce}, immediate) is already live`)
+    const late = gate(at, '2026-10-08', { LEGAL_AMENDMENT_IMMEDIATE: day })
+    expect(late.status).toBe(1)
+    expect(late.out).toContain('/terms and /privacy would print a false publication date')
+    expect(late.out).toContain('only 4 clear day(s) of notice would remain of the 5 promised')
+    expect(gate(at, '2026-10-06').out).toContain('has not happened yet')
+    // …and once deployed, every later deploy is routine.
+    const live = boxSrc(asWritten, asWritten)
+    for (const d of [day, '2026-10-08', '2026-10-13', '2027-03-01']) {
+      const routine = gate(live, d)
+      expect(routine.status, d).toBe(0)
+      expect(routine.out, d).toContain(`legal amendment published ${day} (in force 2026-10-13) is already live`)
+    }
   })
 
   it('withDates sets each record inside its own object — dates and flag', () => {

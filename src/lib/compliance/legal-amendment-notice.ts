@@ -17,26 +17,35 @@
 // amendment became one AFTER 30 notices had gone out saying it "takes effect on 7 October 2026" — false
 // once it is in force from 01/10 — so the script also has `--retract`, which deletes exactly the rows this
 // module's id scheme produced (retractable() below says when that is allowed).
+//
+// ⛔ THE TERMS' VERSION 3 IS IMMEDIATE (owner, 2026-10-07: published and in force 07/10/2026, no window), so
+// noticeSendable() refuses at every instant and no row is ever written for it. The copy below still names the
+// Terms and /terms#changes, ready for the next amendment that has a window.
 
 import { AMENDED, LEGAL_AMENDMENT, MIN_NOTICE_DAYS, daysBetween, type LegalAmendment } from './legal-amendment'
 
-/** Where the notice points: the change log of the Quy chế, which lists every edit. */
-export const AMENDMENT_NOTICE_URL = '/regulations#changelog'
+/**
+ * Where the notice points: the change log of the text the amendment changed, which lists every edit — the
+ * Terms' `changes` section for the Terms' version 3 (its last note). October's pointed at the Quy chế's
+ * Article 17 (/regulations#changelog), the one log that listed everything it changed. The strip links here too.
+ */
+export const AMENDMENT_NOTICE_URL = '/terms#changes'
 
 /**
  * The bell copy, per stored Profile.locale — Vietnamese for 'vi', English (machine-translated on display) otherwise.
- * ⚠️ THE DOCUMENT LIST IS THE OCTOBER 2026 AMENDMENT'S ("Terms of Service, Operating Regulations, Returns policy
- * and Prohibited items list"): rewrite it for each amendment to name the texts THAT amendment changes — here
- * and in tos-change-notice.tsx together (legal-amendment-notice.test.ts holds them word for word).
+ * ⚠️ THE DOCUMENT LIST IS THE TERMS' VERSION 3's ("Terms of Service" — October's was "Terms of Service, Operating
+ * Regulations, Returns policy and Prohibited items list"): rewrite it for each amendment to name the texts THAT
+ * amendment changes — here and in tos-change-notice.tsx together (legal-amendment-notice.test.ts holds them word
+ * for word).
  */
 export const AMENDMENT_NOTICE = {
   en: {
     title: 'Our terms have been amended',
-    body: `Our Terms of Service, Operating Regulations, Returns policy and Prohibited items list have been amended. The changes take effect on ${AMENDED.inForceEn}.`,
+    body: `Our Terms of Service have been amended. The changes take effect on ${AMENDED.inForceEn}.`,
   },
   vi: {
     title: 'Điều khoản đã được sửa đổi',
-    body: `Điều khoản dịch vụ, Quy chế hoạt động, Chính sách đổi trả và Danh mục hàng hoá, dịch vụ cấm đăng đã được sửa đổi. Nội dung sửa đổi có hiệu lực từ ngày ${AMENDED.inForceVi}.`,
+    body: `Điều khoản dịch vụ đã được sửa đổi. Nội dung sửa đổi có hiệu lực từ ngày ${AMENDED.inForceVi}.`,
   },
 } as const
 

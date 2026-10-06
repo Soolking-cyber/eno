@@ -15,8 +15,9 @@ import { TOS_EFFECTIVE_AT, TOS_PREVIOUS_VERSION, TOS_VERSION } from '@/lib/site-
  *    of Profile.tosVersion / tosAcceptedAt, and those two columns are evidence of what a person agreed
  *    to and when (E-Transactions Law). During a notice window the newly published Terms are not yet
  *    binding, so a person onboarding then accepts the PREVIOUS version; from the in-force instant
- *    (midnight Vietnam time, src/lib/site-legal.ts) they accept the new one. Version 2 had no window
- *    (immediate, in force 01/10/2026 — owner's decision), so before that instant is the day before.
+ *    (midnight Vietnam time, src/lib/site-legal.ts) they accept the new one. Version 3 has no window
+ *    (immediate, in force 07/10/2026, its publication day — owner's decision, 2026-10-07), so before that
+ *    instant is the day before; the window case runs on a fixture amendment.
  */
 
 const h = vi.hoisted(() => ({
@@ -116,9 +117,9 @@ describe('POST /api/profile/account-type — the Terms acceptance stamp', () => 
    * An individual RE-onboarding (accountType already set): no storefront, attribution or CAPI path, so
    * the profile write under test is the only one. The clock is pinned (Date only) per call.
    */
-  async function onboardAt(at: number) {
+  async function onboardAt(at: number, post: typeof POST = POST) {
     vi.setSystemTime(at)
-    const res = await POST(new Request('https://eno.vn/api/profile/account-type', {
+    const res = await post(new Request('https://eno.vn/api/profile/account-type', {
       method: 'POST',
       body: JSON.stringify({ accountType: 'individual', displayName: 'Lan' }),
       headers: { 'content-type': 'application/json' },
@@ -158,16 +159,46 @@ describe('POST /api/profile/account-type — the Terms acceptance stamp', () => 
     expect(data.tosVersion).toBe(TOS_VERSION)
   })
 
-  // ⛔ Version 2 is an IMMEDIATE amendment (owner, 2026-10-01: "just change now … no need for announcement"):
-  // in force from midnight Vietnam time on its publication day, so onboarding on 01/10 accepts version 2.
-  it('stamps version 2 on 01/10/2026 itself — no notice window', async () => {
-    const at = Date.parse('2026-10-01T18:00:00+07:00')
-    expect(TOS_EFFECTIVE_AT).toBe(Date.parse('2026-10-01T00:00:00+07:00'))
+  // ⛔ Version 3 (App Store Guideline 1.2) is an IMMEDIATE amendment (owner, 2026-10-07: "Immediately
+  // (Recommended)"): in force from midnight Vietnam time on its publication day, so onboarding on 07/10 accepts
+  // version 3.
+  it('stamps version 3 on 07/10/2026 itself — no notice window', async () => {
+    const at = Date.parse('2026-10-07T18:00:00+07:00')
+    expect(TOS_EFFECTIVE_AT).toBe(Date.parse('2026-10-07T00:00:00+07:00'))
     const data = await onboardAt(at)
-    expect(data.tosVersion).toBe('2')
+    expect(data.tosVersion).toBe('3')
     expect((data.tosAcceptedAt as Date).getTime()).toBe(at)
-    // …and an account that accepted version 1 earlier that day is re-stamped on its next onboarding.
+    // …and an account that accepted version 2 — or 1 — is re-stamped on its next onboarding.
+    h.tosVersion = '2'
+    expect((await onboardAt(at + 60_000)).tosVersion).toBe('3')
     h.tosVersion = '1'
-    expect((await onboardAt(at + 60_000)).tosVersion).toBe('2')
+    expect((await onboardAt(at + 120_000)).tosVersion).toBe('3')
+  })
+
+  // The default for the next amendment, on a fixture with a real window (the dates 110295be shipped: published
+  // 01/10, in force 07/10): onboarding inside it accepts the PREVIOUS version — the text in force — re-stamping
+  // an older acceptance with it, and the new version only from the in-force instant.
+  it('with a notice window, stamps the previous version inside it and the new one from the instant', async () => {
+    const WINDOW = { published: '2026-10-01', inForce: '2026-10-07' } as const
+    vi.resetModules()
+    vi.doMock('@/lib/compliance/legal-amendment', async (importOriginal) => {
+      const real = await importOriginal<typeof import('@/lib/compliance/legal-amendment')>()
+      return { ...real, LEGAL_AMENDMENT: WINDOW, AMENDED: real.amendedDates(WINDOW) }
+    })
+    try {
+      const { POST: windowed } = await import('./route')
+      const at = Date.parse('2026-10-01T18:00:00+07:00')
+      const data = await onboardAt(at, windowed)
+      expect(data.tosVersion).toBe(TOS_PREVIOUS_VERSION)
+      expect((data.tosAcceptedAt as Date).getTime()).toBe(at)
+      h.tosVersion = '1'
+      expect((await onboardAt(at + 60_000, windowed)).tosVersion).toBe(TOS_PREVIOUS_VERSION)
+      h.tosVersion = TOS_PREVIOUS_VERSION
+      expect(await onboardAt(Date.parse('2026-10-06T23:59:59+07:00'), windowed)).not.toHaveProperty('tosVersion')
+      expect((await onboardAt(Date.parse('2026-10-07T00:00:00+07:00'), windowed)).tosVersion).toBe(TOS_VERSION)
+    } finally {
+      vi.doUnmock('@/lib/compliance/legal-amendment')
+      vi.resetModules()
+    }
   })
 })

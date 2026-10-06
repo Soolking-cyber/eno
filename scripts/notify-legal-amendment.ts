@@ -1,8 +1,10 @@
 // SEND THE AMENDMENT NOTICE TO EVERY REGISTERED ACCOUNT — one bell notification each (2026-10-01).
 //
 // Quy chế Article 15 promises every amendment is published on the platform at least 5 days ahead "kèm
-// thông báo tới người sử dụng đã đăng ký tài khoản". The site-wide strip is the publication; this is the
-// notice. The copy, the window and the row id live in src/lib/compliance/legal-amendment-notice.ts
+// thông báo tới người sử dụng đã đăng ký tài khoản" (and the Terms' "Changes" section announces a Terms
+// amendment at least 5 days before it takes effect). The site-wide strip is the publication; this is the
+// notice. Since 2026-10-07 the amendment is the Terms' version 3 — IMMEDIATE (published and in force 07/10/2026, the
+// owner's decision), so this script refuses it: there is nothing to notify. The copy, the window and the row id live in src/lib/compliance/legal-amendment-notice.ts
 // (unit-tested); this file only counts and writes.
 //
 // Run ON THE PUBLICATION DAY, AFTER the deploy that publishes the amendment (eno-deploy.sh's step 2b
@@ -33,9 +35,9 @@
 // since been re-dated (the sent rows keep the date they were sent under); --apply takes it only 1–6 days
 // before LEGAL_AMENDMENT.published — this amendment re-dated, never another amendment's batch.
 // ⛔ --retract --apply REFUSES unless the amendment is immediate (a window's notice is the announcement the
-// Quy chế promises — retractable()), and unless the live /regulations already shows the immediate
-// version (deleting first would leave the strip saying "7 October" and no bell) — --skip-live-check
-// skips that, say why in the deploy notes.
+// Quy chế promises — retractable()), and unless the live /terms already shows the immediate version
+// (deleting first would leave the strip naming the old in-force date and no bell) — --skip-live-check
+// skips that, say why in the deploy notes. (For October's amendment that check read /regulations.)
 import pg from 'pg'
 import { invokedDirectly } from '../src/lib/cli-entry'
 import { AMENDED, LEGAL_AMENDMENT } from '../src/lib/compliance/legal-amendment'
@@ -61,21 +63,22 @@ async function liveCheck(origin: string): Promise<string | null> {
 }
 
 /**
- * Does the live /regulations show the amendment as in force from its publication day? The Quy chế renders
- * its Vietnamese text unconditionally (both languages are the document), so the marker holds whatever
- * language the edge answers in. `?d=` defeats the edge cache.
- * ⚠️ THE MARKER IS THE AMENDMENT'S ARTICLE 17 ENTRY, NOT THE META LINE (2026-10-05). META names the NEWEST
- * Quy chế version, which the Quy chế-only version 3 (REGULATIONS_AMENDMENT) moved on from version 2; the
- * October amendment's own dated entry stays in Article 17 whatever comes after it (append-only).
+ * Does the live /terms show the amendment as in force from its publication day? Made immediate, the Terms'
+ * change note prints ONE date — "Changes in force from <date>:" (terms/page.tsx V3_NOTE), where the windowed
+ * note says "Changes published on …" — so that is the marker, in the English page (accept-language en; the
+ * dates are LEGAL_AMENDMENT's, the same as the notices'). `?d=` defeats the edge cache.
+ * ⚠️ THE MARKER FOLLOWS THE TEXT THE AMENDMENT CHANGED (2026-10-07). The October amendment changed the Quy chế
+ * too, and this read its Article 17 entry on /regulations ("Sửa đổi, bổ sung được công bố và có hiệu lực từ
+ * ngày …"); the Terms' version 3 is a Terms-only amendment, logged only in /terms' own change notes.
  */
 async function liveImmediateCheck(origin: string): Promise<string | null> {
-  const marker = `Sửa đổi, bổ sung được công bố và có hiệu lực từ ngày ${AMENDED.inForceVi}`
+  const marker = `Changes in force from ${AMENDED.inForceEn}:`
   try {
-    const res = await fetch(`${origin}/regulations?d=${Date.now()}`, { headers: { accept: 'text/html', 'accept-language': 'vi' } })
-    if (!res.ok) return `${origin}/regulations answered ${res.status}`
-    return (await res.text()).includes(marker) ? null : `${origin}/regulations does not yet say "${marker}" — deploy the immediate amendment first`
+    const res = await fetch(`${origin}/terms?d=${Date.now()}`, { headers: { accept: 'text/html', 'accept-language': 'en' } })
+    if (!res.ok) return `${origin}/terms answered ${res.status}`
+    return (await res.text()).includes(marker) ? null : `${origin}/terms does not yet say "${marker}" — deploy the immediate amendment first`
   } catch (e) {
-    return `${origin}/regulations could not be fetched (${(e as Error).message})`
+    return `${origin}/terms could not be fetched (${(e as Error).message})`
   }
 }
 
@@ -92,12 +95,12 @@ async function retract(url: string, apply: boolean) {
     if (!process.argv.includes('--skip-live-check')) {
       const why = await liveImmediateCheck(origin)
       if (why) throw new Error(`refusing to retract: ${why} (--skip-live-check to override)`)
-      console.log(`live: ${origin}/regulations logs the amendment as published and in force on ${AMENDED.inForceVi}`)
+      console.log(`live: ${origin}/terms logs the amendment as in force from ${AMENDED.inForceEn}`)
     }
   } else {
     if (!allowed.ok) console.log(`⚠️  --apply would refuse: ${allowed.reason}`)
     const why = await liveImmediateCheck(origin)
-    console.log(why ? `⚠️  --apply would refuse until deployed: ${why}` : `live: ${origin}/regulations logs the amendment as published and in force on ${AMENDED.inForceVi}`)
+    console.log(why ? `⚠️  --apply would refuse until deployed: ${why}` : `live: ${origin}/terms logs the amendment as in force from ${AMENDED.inForceEn}`)
   }
 
   // THE predicate: what the send mode's INSERT (main, below) wrote, and nothing else.

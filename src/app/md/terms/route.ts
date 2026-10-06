@@ -17,8 +17,8 @@ import { markdownResponse, SITE_ORIGIN } from '../markdown-response'
  * ⚠️ THE VERSION STRING IS LOAD-BEARING. `tosVersionInForce()` is what gets stamped onto
  * Profile.tosVersion at acceptance, so an agent quoting "version in force: N" from this document and a
  * user's stored acceptance record refer to the same text by construction. It is read PER REQUEST
- * (this route is force-dynamic): during a notice window (none for the immediate 2026-10 amendment) the
- * newest published version (TOS_VERSION) is not yet the one in force, and the body says so. Do not print a date in place of the version:
+ * (this route is force-dynamic): during a notice window (an amendment that has one — version 3 had
+ * none: immediate, owner 2026-10-07) the newest published version (TOS_VERSION) is not yet the one in force, and the body says so. Do not print a date in place of the version:
  * site-legal.ts explains why dated version strings implied a history the account table does not hold.
  *
  * ⚠️ NO CLAUSE IS PARAPHRASED. Summarising a limitation of liability or a governing-law clause in
@@ -43,9 +43,9 @@ const operatorLine = OPERATOR_REGISTERED
 
 /**
  * The version line, per request. In force: the version, the date it took effect and where the one it
- * replaced is published (version 2 took effect on its publication day — an immediate amendment, owner
- * 2026-10-01). During a notice window it also names the newer published version and when it takes
- * effect, so "the text at /terms" and "the version in force" cannot be confused.
+ * replaced is published. During a notice window (when an amendment has one) it also names the newer
+ * published version and when it takes effect, so "the text at /terms" and "the version in force" cannot
+ * be confused — and the version in force is the one published at /terms/v2.
  */
 function versionLine(now: Date): string {
   const inForce = tosVersionInForce(now)
