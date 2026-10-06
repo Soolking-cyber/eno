@@ -87,7 +87,7 @@ Every one of the 94 refusals is an instance of one of these. All are **wire fact
 1. **The guest response is not 401.** `403 business_only` (`/api/keys`, `/api/webhooks`),
    `200 {"unread":0}` (`/api/conversations/unread`), `200 {"user":null}` (`/api/forum/me`),
    a bodyless `new NextResponse(null, {status:401})` (`/api/conversations/[id]/typing`), a 204, a
-   redirect (`/api/auth/forum-handoff`).
+   redirect (`/api/auth/forum-handoff` — route DELETED 2026-10-06 with the apps' SSO hand-off).
 2. **A guard must run before the caller is resolved.** `route()`'s order is fixed —
    auth → rateLimit → body → handler. So: `aiGuard`'s `503 ai_unavailable`
    (`/api/ai/{classify,rephrase,visual-search}`), the `isAllowedForumOrigin` 403, the
