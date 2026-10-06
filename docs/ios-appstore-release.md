@@ -705,20 +705,24 @@ a TestFlight (Release) build**: Capacitor makes the WebView inspectable only in 
 
 **P11. ⏳ Reviewer account (OWNER-APPROVED prod write).** App Review needs an **@eno.vn demo seat** (e.g.
 `app-review@eno.vn`), partner-flagged so "Use a password" works — not `play-review@eno.forum` (that stays Play's
-seat). ⚠️ NOT BUILT: `scripts/register-play-reviewer.mjs` knows only the Play seat and `--for=lawyer`, and refuses
-any other `--for`; an Apple seat is a small code change in the same shape (address, public name, credential file).
+seat). ✅ BUILT 2026-10-07: `scripts/register-play-reviewer.mjs --for=apple` (seat table `scripts/review-seats.mjs`;
+credentials to `.env.app-review.local`, never printed) and `scripts/seed-app-review-thread.mjs` (the demo thread).
 Once it exists:
 
 ```bash
-node --env-file=.env scripts/register-play-reviewer.mjs --for=<the apple seat>            # dry run
-node --env-file=.env scripts/register-play-reviewer.mjs --for=<the apple seat> --apply
+node --env-file=.env scripts/register-play-reviewer.mjs --for=apple            # dry run
+node --env-file=.env scripts/register-play-reviewer.mjs --for=apple --apply
 node --env-file=.env scripts/set-official-partner.mjs <sellerId printed above> --apply
 ```
 
-Seed one listing and one conversation — the conversation's counterpart must be a **NON-staff account that owns a live
-listing**: the eno team (ADMIN_EMAILS) and the shops eno lists on a business's behalf cannot be blocked, and the
-reviewer must be able to test Block (Guideline 1.2). No script seeds these — OPEN. The owner pastes the credentials
-into App Store Connect → App Review Information — never into git.
+Then `node --env-file=.env scripts/seed-app-review-thread.mjs` (dry run, read-only) and `node --env-file=.env scripts/seed-app-review-thread.mjs --apply --gate=off` (only
+while production does not enforce `IDENTITY_GATE_ENFORCED` — unset on 2026-10-07): a NON-staff counterpart
+`app-review-seller@eno.vn` ("Demo seller (App Review)") owning one demo listing created **SOLD** — its page opens and
+the thread's Block works (Guideline 1.2: staff and eno-listed shops cannot be blocked), but browse, the sitemap and the
+Google/Meta feeds never list a not-for-sale item with a price — and one conversation with the seat as buyer. The owner
+pastes the password into App Store Connect → App Review Information — never into git — then
+saves it in their password manager, then `rm .env.app-review.local` (macOS has no `shred`). That file is the only
+copy: the script refuses an existing seat (it never re-issues a password).
 ✔ In the TestFlight build: Sign in → email → "Use a password" works; note whether Turnstile challenges; Block works on
 the seeded conversation.
 
@@ -730,12 +734,12 @@ review notes + the demo account (Appendix A, P11); version release **Manual**. P
 ✔ No missing-field warnings; "Add for Review" is enabled.
 
 **P13. ⛔ Submit — only when ALL of these hold:**
-- **D8 live** — the Terms' zero-tolerance clause and 24-hour commitment, with the eno.vn /privacy app-ai-notice
+- **D8 live** — IMMEDIATE (owner, 2026-10-07; deploy with LEGAL_AMENDMENT_IMMEDIATE=2026-10-07) — the Terms' zero-tolerance clause and 24-hour commitment, with the eno.vn /privacy app-ai-notice
   clause (`TOS_VERSION` 3 + `LEGAL_AMENDMENT`), deployed with the gate line;
 - **D17 decided** (US storefront) and **B1–B5 answered** (§5);
 - **the gate line live** on both env files and verified (P10, P10a), `ugc-safety` included (Guideline 1.2:
   blocking, reporting, filtering);
-- **push live** (P8);
+- ~~push live (P8)~~ — waived: owner, 2026-10-07, "Ship v1 without push" (push arrives with 1.0.4);
 - H done (the help-centre answers), the reviewer seat working (P11), the screenshots re-captured (§3);
 - `support@eno.vn` receives mail — the address eno.vn publishes, a Cloudflare redirect into the support@eno.forum
   mailbox (`src/lib/email-alias.ts`); Play lists it too once `node scripts/play-api.mjs details --apply` has run.
