@@ -993,3 +993,71 @@ describe('the payment-lure warning reaches only the payer (A7 item 8)', () => {
     expect(document.querySelector('[data-payment-lure]')).toBeNull()
   })
 })
+
+/**
+ * ⛔ SENDING BEFORE THE THREAD HAS LOADED (Emil-skills audit, 2026-10-06). Sent from an uncached thread's
+ * skeleton, the composer emptied, no bubble was drawn, and a failed POST had nothing to mark — the words were
+ * gone. Every send now waits for the thread, the text stays put, and Send says it is not ready yet.
+ */
+describe('sending waits for the thread (fix 3b)', () => {
+  beforeEach(() => {
+    // jsdom has no innerText, which the contenteditable composer reads on `input`.
+    if (!('innerText' in HTMLElement.prototype)) {
+      Object.defineProperty(HTMLElement.prototype, 'innerText', {
+        configurable: true,
+        get() { return (this as HTMLElement).textContent ?? '' },
+        set(v: string) { (this as HTMLElement).textContent = v },
+      })
+    }
+  })
+  const messagePosts = () => calls.filter((c) => c.method === 'POST' && c.url.endsWith('/messages'))
+  const field = () => screen.getByRole('textbox', { name: 'Write a message' })
+  const type = async (value: string) => {
+    field().textContent = value
+    await act(async () => { fireEvent.input(field()) })
+  }
+
+  it('⛔ Return and Send before an uncached thread loads send nothing and keep the text; it sends once the thread is here', async () => {
+    holdGets = true
+    render(<ThreadPage />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    await type('Is it still available?')
+    await act(async () => { fireEvent.keyDown(field(), { key: 'Enter' }) })
+    expect(messagePosts()).toEqual([]) // it used to POST with no bubble to show for it, and empty the field
+    expect(field().textContent).toBe('Is it still available?')
+    expect(screen.getByRole('button', { name: 'Send' }).getAttribute('aria-disabled')).toBe('true')
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })) })
+    expect(messagePosts()).toEqual([])
+    expect(field().textContent).toBe('Is it still available?')
+    await act(async () => { heldGets.splice(0).forEach((release) => release()); await vi.advanceTimersByTimeAsync(50) })
+    expect(screen.getByRole('button', { name: 'Send' }).getAttribute('aria-disabled')).toBeNull()
+    // Return reaches the latest send, not the one from the skeleton's render (the composer reads onSend via a ref)…
+    await act(async () => { fireEvent.keyDown(field(), { key: 'Enter' }); await vi.advanceTimersByTimeAsync(50) })
+    // …and so does the Send button.
+    await type('Can I see it today?')
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); await vi.advanceTimersByTimeAsync(50) })
+    expect(messagePosts().map((c) => (c.body as { body: string }).body)).toEqual(['Is it still available?', 'Can I see it today?'])
+  })
+
+  // Insurance, not a state Next produces: each thread id is its own page instance (the [id] segment is keyed by its
+  // value). If one were ever handed another id while still showing a thread, nothing may post to the new id from
+  // under the old conversation.
+  it('a thread on screen that is not this id\'s is not sendable', async () => {
+    const view = await openThread() // c1
+    const base = globalThis.fetch as unknown as (input: string, init?: RequestInit) => Promise<Response>
+    vi.stubGlobal('fetch', vi.fn((input: string, init?: RequestInit) => (
+      String(input).split('?')[0] === '/api/conversations/c2' && (init?.method ?? 'GET') === 'GET' ? new Promise<Response>(() => {}) : base(input, init)
+    )))
+    stable.params.id = 'c2'
+    try {
+      view.rerender(<ThreadPage />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+      await type('Meant for c2')
+      await act(async () => { fireEvent.keyDown(field(), { key: 'Enter' }) })
+      expect(messagePosts()).toEqual([])
+      expect(field().textContent).toBe('Meant for c2')
+    } finally {
+      stable.params.id = 'c1'
+    }
+  })
+})

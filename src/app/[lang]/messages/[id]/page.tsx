@@ -654,8 +654,8 @@ export default function ThreadPage() {
   // after it failed ('unknown': a question may be open).
   const [saleQuestionState, setSaleQuestionState] = useState<SaleQuestionsState>('unknown')
   useEffect(() => { setSaleQuestionState('unknown') }, [id])
-  // This route does not remount between threads (see `autoPlan` below): a sheet left open must not follow the
-  // seller into the next conversation, where "this thread's buyer" would be someone else.
+  // Defensive (see `autoPlan` below): a sheet left open must never follow the seller into another conversation,
+  // where "this thread's buyer" would be someone else.
   useEffect(() => { setSoldSheetOpen(false) }, [id])
   // The offer THIS seller just accepted in this session → anchors the one-time
   // "Mark as sold?" follow-through under that offer card (never shown to the buyer).
@@ -1116,10 +1116,10 @@ export default function ThreadPage() {
     if (typeof window === 'undefined') return
     const url = new URL(window.location.href)
     const wanted = url.searchParams.get('plan') === '1'
-    // ⚠️ ASSIGNED UNCONDITIONALLY, NOT SET-ON-MATCH. This route does not remount between threads —
-    // the same component receives a new `id`, which is why openedRef exists a few blocks up. An
-    // early `return` when the param is absent would leave `autoPlan` true from the PREVIOUS thread,
-    // so walking from a planner link into another conversation would open a wizard nobody asked for.
+    // ⚠️ ASSIGNED UNCONDITIONALLY, NOT SET-ON-MATCH — defensively. Next 16.3 gives each thread id its own
+    // page instance (the [id] segment is keyed by its value, layout-router.js; an earlier one is kept hidden
+    // for Back), but were an instance ever handed another `id`, an early `return` when the param is absent
+    // would leave `autoPlan` true from the PREVIOUS thread and open a wizard nobody asked for.
     setAutoPlan(wanted)
     if (!wanted) return
     url.searchParams.delete('plan')
@@ -1163,9 +1163,21 @@ export default function ThreadPage() {
     const openedLast = thread.messages[thread.messages.length - 1]
     if (openedLast) enteredIds.current.add(openedLast.id)
   }
+  /**
+   * ⛔ SENDING WAITS FOR THE THREAD (Emil-skills audit, 2026-10-06). The optimistic bubble needs a thread to live
+   * in. Sent from an uncached thread's skeleton (a notification, a deep link), the composer emptied, no bubble was
+   * drawn, and a failed POST had nothing to mark: the words were simply gone. Until the thread is here, every send
+   * path (Return, the Send buttons, the offer, a quick reply) does nothing and leaves what was typed where it is,
+   * and the Send buttons say so (aria-disabled). Each thread id is its own page instance — Next keys the [id]
+   * segment by its value (layout-router.js) — so the thread here is always this id's, and so is the draft; the
+   * id check is insurance for the one thing that must never happen if that ever changed: a message drawn into
+   * one conversation while it posts to another.
+   */
+  const canSend = thread !== null && thread.id === id
   const send = async (override?: string, reuseClientId?: string, reuseReplyTo?: ReplyTarget | null) => {
     const body = (override ?? text).trim()
     if (!body) return
+    if (!canSend) return // the text stays in the composer — see canSend
     /**
      * ⚠️ THE QUOTE IS CAPTURED AND CLEARED IN THE SAME BREATH. Read at the top so an await later in
      * this function cannot see a `replyTo` the user has since changed, and cleared immediately so a
@@ -1784,6 +1796,8 @@ export default function ThreadPage() {
    * not inline it back into either entry point.
    */
   const dispatchSend = () => {
+    // Not before the thread is here (canSend) — for the desks as for a message.
+    if (!canSend) return
     // The SAME busy rule as the tap-Send button's `disabled`, here so Return obeys it too: while a
     // desk is answering (or a switch-to-person is in flight) nothing is sent from the composer —
     // otherwise Return during askTripHuman (which disarms first) posted the typed text to the desk.
@@ -2084,6 +2098,8 @@ export default function ThreadPage() {
   const askingPrice = thread?.listing?.price && thread.listing.price > 0 ? thread.listing.price : null
   const sliderOffer = askingPrice ? Math.round(askingPrice * (1 - offerPct / 100)) : null
   const submitOffer = () => {
+    // Not before the thread is here (canSend) — the slider prices off its listing.
+    if (!canSend) return
     // counterMode → the typed amount; otherwise the slider wins when the listing has a price.
     const n = counterMode || sliderOffer === null ? Number(offerInput.replace(/\D/g, '')) : sliderOffer
     if (n > 0) { sendOffer(n); setShowOffer(false); setOfferInput(''); setCounterMode(false) }
@@ -3169,8 +3185,8 @@ export default function ThreadPage() {
               quick-reply chips are never hidden behind the fixed composer. */}
           <div ref={footerRef} className="chat-footer shrink-0">
           {/* "Did you buy this?" (buyer only) — the seller's question, one tap to answer, above the composer
-              like the review card below it. Keyed on the thread: this route does not remount between
-              threads, and a different thread is a different seller's questions. `refreshKey` re-asks when
+              like the review card below it. Keyed on the thread — a different thread is a different seller's
+              questions (each thread id is its own page instance in Next 16.3, so the key is belt and braces). `refreshKey` re-asks when
               the listing this thread shows changes status (a sale landing while the buyer looks on). */}
           {askBuyerAboutSales && thread && (
             <SaleQuestions
@@ -3476,6 +3492,7 @@ export default function ThreadPage() {
               <ChatSendButton
                 onClick={submitOffer}
                 disabled={sliderOffer === null && !offerInput}
+                aria-disabled={!canSend || undefined}
                 aria-label={tr('Send offer', 'Gửi đề nghị')}
                 title={tr('Send offer', 'Gửi đề nghị')}
               />
@@ -3490,6 +3507,9 @@ export default function ThreadPage() {
                 // tripBusy too: without it a second tap while the trip concierge is answering was
                 // live, and fell through to an ordinary send of whatever had been typed since.
                 disabled={!text.trim() || conciergeBusy || tripBusy}
+                // Not sendable yet (canSend): dimmed and inert, but NOT `disabled` — a disabled button loses the
+                // focus hold, so the tap would blur the field and close the keyboard over the text waiting to go.
+                aria-disabled={!canSend || undefined}
                 aria-label={conciergeArmed || tripConciergeArmed ? tr('Ask Eno concierge', 'Hỏi Eno concierge') : tr('Send', 'Gửi')}
                 title={conciergeArmed || tripConciergeArmed ? tr('Ask Eno concierge', 'Hỏi Eno concierge') : tr('Send', 'Gửi')}
               />

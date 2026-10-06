@@ -26,6 +26,9 @@ export function ChatSendButton({ className, onClick, ...props }: React.ButtonHTM
   // travel for 220ms. It is keyed off the CLICK, not off mount or off message arrival: a
   // composer that animates while you read is decoration, and a send that animates is feedback.
   const [flying, setFlying] = useState(false)
+  // `aria-disabled` (not `disabled`): reads and looks unavailable and does nothing, but KEEPS the focus hold —
+  // for a tap that has to wait (the thread page while its thread loads) without closing the keyboard.
+  const inert = props['aria-disabled'] === true || props['aria-disabled'] === 'true'
   return (
     <IconButton
       size="lg"
@@ -33,11 +36,11 @@ export function ChatSendButton({ className, onClick, ...props }: React.ButtonHTM
       {...props}
       // ⚠️ AFTER the spread, so it cannot be dropped by a caller passing its own onClick — the
       // caller's handler still runs first-class, this only piggybacks the animation on it.
-      onClick={(e) => { setFlying(true); onClick?.(e) }}
+      onClick={(e) => { if (inert) return; setFlying(true); onClick?.(e) }}
       // Disabled = muted coin + quiet ink (on the §5 ladder), not a brand tint: 40%-opacity
       // brand read as an ambiguous mid-blue "coin" in the blind A/B — enabled/disabled must be
       // readable at a glance, and a faded CTA color is neither state.
-      className={cn('press bg-primary text-white disabled:bg-muted disabled:text-ink-4', className)}
+      className={cn('press bg-primary text-white disabled:bg-muted disabled:text-ink-4 aria-disabled:bg-muted aria-disabled:text-ink-4', className)}
     >
       <span aria-hidden onAnimationEnd={() => setFlying(false)} className={cn('inline-flex', flying && 'send-lift')}>
         <Send className="h-5 w-5" aria-hidden />
