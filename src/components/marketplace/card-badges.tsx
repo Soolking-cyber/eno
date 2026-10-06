@@ -2,6 +2,7 @@
 
 import { Zap } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
+import { useMounted } from '@/hooks/use-mounted'
 import { dropPercent } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import type { SerializedListingCard } from '@/lib/types'
@@ -91,7 +92,15 @@ export function CardBadges({
 }) {
   const { tr } = useLanguage()
   const drop = listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price)
-  const isNew = showNew && !!listing.postedAt && Date.now() - new Date(listing.postedAt).getTime() < NEW_MS
+  /**
+   * ⛔ "NEW" IS DECIDED AFTER MOUNT (Emil-skills audit, 2026-10-06). Cards are baked into ISR pages, and a listing
+   * under 48h old when the page was generated is not when it is viewed: deciding it in render put the chip in the
+   * server HTML and took it out on the client — a structural hydration mismatch on every stale feed page. The
+   * server HTML and the hydration pass carry no "New" chip; it appears a frame after mount (use-mounted.ts).
+   * Urgent and price-drop are untouched: they come from the server's data, not this clock.
+   */
+  const mounted = useMounted()
+  const isNew = mounted && showNew && !!listing.postedAt && Date.now() - new Date(listing.postedAt).getTime() < NEW_MS
 
   // One badge → no wrapper. `className` therefore styles THE CHIP, not a row around it: the
   // caller's positioning classes ride on the chip (an absolutely-positioned inline/inline-flex

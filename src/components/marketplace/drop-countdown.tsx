@@ -2,6 +2,7 @@
 
 import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useLanguage } from '@/context/language-context'
+import { useMounted } from '@/hooks/use-mounted'
 
 /**
  * Tiny "· còn N ngày" / "· N days left" suffix for the price-drop pill on the
@@ -12,7 +13,14 @@ import { useLanguage } from '@/context/language-context'
  */
 export function DropCountdown({ expiresAt }: { expiresAt: string | null }) {
   const { tr } = useLanguage()
-  if (!expiresAt) return null
+  /**
+   * ⛔ THE CLOCK IS READ ONLY AFTER MOUNT (Emil-skills audit, 2026-10-06). The PDP is ISR-cached for 30 days, so a
+   * count taken in render differed between the page's generation and the visitor's now — and once the window had
+   * lapsed the element itself was gone on the client: a hydration mismatch on the busiest page in the app. The
+   * server HTML and the hydration pass render nothing; the live count appears a frame later (use-mounted.ts).
+   */
+  const mounted = useMounted()
+  if (!expiresAt || !mounted) return null
   const days = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000)
   if (days <= 0) return null
   return (
