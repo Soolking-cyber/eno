@@ -9,8 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { createDocDetector, grabDetectFrame, grabDocStill, downscaleImageData, cropImageData, type DocDetector, type DocBox } from '@/lib/identity/doc-detect'
 import { useMounted } from '@/hooks/use-mounted'
-import { appReviewGate } from '@/lib/app-review-gates'
-import { iosHideVisaClient } from '@/lib/ios-hide-visa'
+import { iosHideKycClient, iosHideKycOn } from '@/lib/ios-hide-kyc'
 import { IosVerifyElsewhereNote } from './ios-browser-only-note'
 
 // ── CAPTURING A PASSPORT AND A SELFIE ───────────────────────────────────────────────────────────
@@ -960,7 +959,7 @@ function messageFor(code: string | undefined, tr: (en: string, vi: string) => st
 }
 
 /**
- * ⚠️ APP STORE GATE `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts): in the iOS app no camera opens for a document
+ * ⚠️ APP STORE GATE `ios-hide-kyc` (src/lib/ios-hide-kyc.ts): in the iOS app no camera opens for a document
  * or a selfie, wherever this is mounted — /dashboard/account/verify already sends the app to the hub, the dev preview
  * does not — and the person is told where the check is done instead.
  * ⚠️ TWO COMPONENTS, AND THE ORDER MATTERS. The camera starts in a MOUNT EFFECT (`start()` above), so it must not
@@ -970,11 +969,11 @@ function messageFor(code: string | undefined, tr: (en: string, vi: string) => st
  */
 type KycCaptureProps = Parameters<typeof KycCaptureCamera>[0]
 export function KycCapture(props: KycCaptureProps) {
-  return appReviewGate('ios-hide-visa') ? <KycCaptureGated {...props} /> : <KycCaptureCamera {...props} />
+  return iosHideKycOn() ? <KycCaptureGated {...props} /> : <KycCaptureCamera {...props} />
 }
 
 function KycCaptureGated(props: KycCaptureProps) {
   const mounted = useMounted()
   if (!mounted) return null
-  return iosHideVisaClient() ? <IosVerifyElsewhereNote kind="identity" className={props.className} /> : <KycCaptureCamera {...props} />
+  return iosHideKycClient() ? <IosVerifyElsewhereNote kind="identity" className={props.className} /> : <KycCaptureCamera {...props} />
 }

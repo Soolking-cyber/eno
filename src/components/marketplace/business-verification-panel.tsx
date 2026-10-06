@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
-import { useIosHideVisa } from '@/hooks/use-ios-hide-visa'
+import { useIosHideKyc } from '@/hooks/use-ios-hide-kyc'
 import { IosVerifyElsewhereNote } from './ios-browser-only-note'
 
 // The seller's own "get verified" surface (mounts under the business profile editor).
@@ -58,11 +58,11 @@ const ERROR_COPY: Record<string, [string, string]> = {
 export function BusinessVerificationPanel({ showPersonSteps = true }: { showPersonSteps?: boolean } = {}) {
   const { tr } = useLanguage()
   /**
-   * App Store gate `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — off by default. On, the iOS app keeps the
+   * App Store gate `ios-hide-kyc` (src/lib/ios-hide-kyc.ts) — off by default. On, the iOS app keeps the
    * status lines but not the uploads: "Business / ID document" takes a person's CCCD or passport image as readily as
    * a licence, so it is identity-document capture by another name (and the API refuses it from the app anyway).
    */
-  const uploadsElsewhere = useIosHideVisa()
+  const uploadsElsewhere = useIosHideKyc()
   const [view, setView] = useState<CaseView>(null)
   const [live, setLive] = useState<LiveView>('unverified')
   /**

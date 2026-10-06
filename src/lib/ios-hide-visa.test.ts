@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { iosHideVisaClient, iosHideVisaFor } from './ios-hide-visa'
-import { IOS_HIDDEN_WRITE_PREFIXES, iosHideVisaRefusesApi } from './ios-hide-visa-api'
+import { IOS_HIDDEN_VISA_WRITE_PREFIXES, iosHideVisaRefusesApi } from './ios-hide-visa-api'
 
 // ── App Store gate `ios-hide-visa` (D5 = b): the predicates every layer uses ─────────────────────────
 // Off ⇒ false for everyone. On ⇒ only the iOS app; Android, Safari and the shelved SwiftUI app are untouched.
+// Since 2026-10-06 the e-Visa APPLICATION only: identity capture is `ios-hide-kyc`'s (ios-hide-kyc.test.ts).
 
 const IOS_APP = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 EnoNativeApp/1'
 const MAC_IOS_APP = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) EnoNativeApp/1'
@@ -28,11 +29,6 @@ const WRITES: [string, string][] = [
   ['POST', '/api/visa/applications/abc/submit'],
   ['POST', '/api/visa/applications/abc/checkout'],
   ['POST', '/api/visa/cards/m1/act'],
-  ['POST', '/api/seller/identity/challenge'],
-  ['POST', '/api/seller/identity/documents'],
-  ['POST', '/api/seller/identity/submit'],
-  ['POST', '/api/seller/verification'],
-  ['POST', '/api/seller/verification/documents'],
 ]
 
 describe('gate OFF (the shipped default)', () => {
@@ -47,7 +43,7 @@ describe('gate OFF (the shipped default)', () => {
   })
 
   it('every other gate on still hides nothing', () => {
-    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-google,ios-hide-wallet,app-signin-tidy,app-no-gtm,site-brand-copy,ugc-safety,app-ai-notice')
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-google,ios-hide-wallet,app-signin-tidy,app-no-gtm,site-brand-copy,ugc-safety,app-ai-notice,ios-hide-kyc')
     expect(iosHideVisaFor(IOS_APP)).toBe(false)
     expect(iosHideVisaRefusesApi('/api/visa/applications/start', 'POST', IOS_APP)).toBe(false)
   })
@@ -94,9 +90,13 @@ describe('gate ON', () => {
     ]) expect(iosHideVisaRefusesApi(p, m, IOS_APP)).toBe(false)
   })
 
-  it('touches nothing outside its prefixes — the desk admin, chat, look-alike paths', () => {
+  it('touches nothing outside its prefixes — the desk admin, chat, identity capture (ios-hide-kyc\'s), look-alike paths', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
     for (const p of [
+      '/api/seller/identity/challenge',
+      '/api/seller/identity/documents',
+      '/api/seller/verification',
+      '/api/seller/verification/documents',
       '/api/visa/admin/applications/abc/result',
       '/api/conversations',
       '/api/conversations/c1/messages',
@@ -108,19 +108,24 @@ describe('gate ON', () => {
     ]) expect(iosHideVisaRefusesApi(p, 'POST', IOS_APP)).toBe(false)
   })
 
-  it('the prefix list is exactly the four write surfaces the runbook names', () => {
-    expect([...IOS_HIDDEN_WRITE_PREFIXES]).toEqual(['/api/visa/applications', '/api/visa/cards', '/api/seller/identity', '/api/seller/verification'])
+  it('the prefix list is exactly the two e-Visa write surfaces the runbook names', () => {
+    expect([...IOS_HIDDEN_VISA_WRITE_PREFIXES]).toEqual(['/api/visa/applications', '/api/visa/cards'])
   })
 })
 
 describe('the backstop list on the marketplace build', () => {
-  it('is EMPTY there — the literal folds away, so no e-Visa route name ships in eno.vn\'s proxy', async () => {
+  // ⛔ Since 2026-10-06 both apps render eno.vn, and eno.vn compiles every one of these routes (VietKite's e-Visa chat
+  // under MARKETPLACE_HOSTS_SERVICES; eKYC and business verification as marketplace features). The list used to fold to
+  // [] there ("no iOS app ever loads eno.vn"); this pins that assumption as gone.
+  it('is the SAME list there, and refuses the iOS app on eno.vn too — the e-Visa routes only', async () => {
     vi.resetModules()
     vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
     const mod = await import('./ios-hide-visa-api')
-    expect(mod.IOS_HIDDEN_WRITE_PREFIXES).toEqual([])
-    expect(mod.iosHideVisaRefusesApi('/api/visa/applications/start', 'POST', IOS_APP)).toBe(false)
+    expect([...mod.IOS_HIDDEN_VISA_WRITE_PREFIXES]).toEqual(['/api/visa/applications', '/api/visa/cards'])
+    expect(mod.iosHideVisaRefusesApi('/api/visa/applications/start', 'POST', IOS_APP)).toBe(true)
+    expect(mod.iosHideVisaRefusesApi('/api/seller/identity/challenge', 'POST', IOS_APP)).toBe(false) // ios-hide-kyc's
+    expect(mod.iosHideVisaRefusesApi('/api/visa/applications/start', 'POST', ANDROID_APP)).toBe(false)
     vi.resetModules()
   })
 })

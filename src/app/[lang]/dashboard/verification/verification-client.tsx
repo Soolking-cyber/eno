@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Check, ShieldCheck, IdCard } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
-import { useIosHideVisa } from '@/hooks/use-ios-hide-visa'
+import { useIosHideKyc } from '@/hooks/use-ios-hide-kyc'
 import { IosVerifyElsewhereNote } from '@/components/marketplace/ios-browser-only-note'
 
 /**
@@ -64,9 +64,9 @@ export function VerificationClient() {
 
   const personDone = person === 'verified'
   const personPending = person === 'pending'
-  // App Store gate `ios-hide-visa` (D5 = b): the iOS app keeps this hub — the status is the person's own — but the
-  // capture behind "Verify yourself" is done in a browser (/dashboard/account/verify redirects the app here).
-  const captureElsewhere = useIosHideVisa()
+  // App Store gate `ios-hide-kyc` (src/lib/ios-hide-kyc.ts): the iOS app keeps this hub — the status is the person's
+  // own — but the capture behind "Verify yourself" is done in a browser (/dashboard/account/verify redirects the app here).
+  const captureElsewhere = useIosHideKyc()
 
   /**
    * ⛔ THE SELLER IS TOLD WHY. The reviewer's note verbatim when there is one; otherwise the machine

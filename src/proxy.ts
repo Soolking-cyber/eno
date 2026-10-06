@@ -7,7 +7,7 @@ import { storefrontBaseHost, storefrontHandleFromHost, storefrontLabelUrl, under
 import { LANG_COOKIE, langVariantFor, type LangVariant } from '@/lib/lang-variant'
 import { pinnedRoute } from '@/lib/lang-pinned'
 import { IOS_APP_UNAVAILABLE } from '@/lib/ios-hide-visa'
-import { iosHideVisaRefusesApi } from '@/lib/ios-hide-visa-api'
+import { iosHideKycRefusesApi, iosHideVisaRefusesApi } from '@/lib/ios-hide-visa-api'
 
 // Edge-ingress guard. When EDGE_SECRET is set, every /api/* request (except crons,
 // which are invoked off-Cloudflare with their own CRON_SECRET bearer) must carry the
@@ -273,13 +273,16 @@ export function proxy(req: NextRequest) {
   }
 
   /**
-   * ⚠️ APP STORE GATE `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — THE API BACKSTOP. Off by default, and then
-   * this is one env read that answers false. On, a WRITE from the iOS app to an e-Visa application route or an
-   * identity / business-verification route is refused here: the screens that make those writes are hidden or replaced
-   * in the app, and this is what still holds for a screen someone forgets — no passport, selfie or visa form can
-   * leave the iOS app. Reads, the desk's admin routes, Android and the web pass straight on.
+   * ⚠️ APP STORE GATES `ios-hide-visa` (src/lib/ios-hide-visa.ts) AND `ios-hide-kyc` (src/lib/ios-hide-kyc.ts) — THE API
+   * BACKSTOPS, one route list each (src/lib/ios-hide-visa-api.ts). Off by default, and then this is two env reads that
+   * answer false. With `ios-hide-visa` on, a WRITE from the iOS app to an e-Visa application route is refused here; with
+   * `ios-hide-kyc` on, a WRITE to an identity / business-verification route. The screens that make those writes are
+   * hidden or replaced in the app, and this is what still holds for a screen someone forgets. Reads, the desk's admin
+   * routes, Android and the web pass straight on. (Owner, 2026-10-06: e-Visa in both apps, so only `ios-hide-kyc` is
+   * meant to go on.)
    */
-  if (iosHideVisaRefusesApi(req.nextUrl.pathname, req.method, req.headers.get('user-agent'))) {
+  if (iosHideVisaRefusesApi(req.nextUrl.pathname, req.method, req.headers.get('user-agent'))
+    || iosHideKycRefusesApi(req.nextUrl.pathname, req.method, req.headers.get('user-agent'))) {
     return withCors(NextResponse.json({ error: IOS_APP_UNAVAILABLE }, { status: 403 }), origin)
   }
 

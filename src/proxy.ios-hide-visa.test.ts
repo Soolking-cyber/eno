@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-// ── App Store gate `ios-hide-visa` (D5 = b): the API backstop in src/proxy.ts ─────────────────────────
-// Off ⇒ the proxy behaves exactly as before for every caller. On ⇒ a WRITE from the iOS app to an e-Visa
-// application or identity/business-verification route is refused with 403 `ios_app_unavailable`; reads, the
-// desk's admin routes, other API routes, Android and the web are untouched.
+// ── App Store gates `ios-hide-visa` and `ios-hide-kyc`: the API backstops in src/proxy.ts ─────────────────
+// Off ⇒ the proxy behaves exactly as before for every caller. `ios-hide-visa` on ⇒ a WRITE from the iOS app to an
+// e-Visa application route is refused with 403 `ios_app_unavailable`; `ios-hide-kyc` on ⇒ the same for an identity /
+// business-verification route. Each leaves the other's routes alone (split 2026-10-06: the owner keeps the e-Visa
+// flow in both apps). Reads, the desk's admin routes, other API routes, Android and the web are untouched.
 
 const IOS_APP = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 EnoNativeApp/1'
 const ANDROID_APP = 'Mozilla/5.0 (Linux; Android 15; Pixel 9; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/140.0.0.0 Mobile Safari/537.36 EnoNativeApp/1'
@@ -24,35 +25,54 @@ async function call(path: string, method: string, ua: string) {
   return { status: res.status, body }
 }
 
-const WRITES: [string, string][] = [
+const VISA_WRITES: [string, string][] = [
   ['POST', '/api/visa/applications/start'],
   ['POST', '/api/visa/applications/abc/documents'],
   ['POST', '/api/visa/cards/m1/act'],
+]
+const KYC_WRITES: [string, string][] = [
   ['POST', '/api/seller/identity/documents'],
   ['POST', '/api/seller/verification/documents'],
 ]
+const WRITES = [...VISA_WRITES, ...KYC_WRITES]
 
-describe('ios-hide-visa backstop — gate OFF (the shipped default)', () => {
+describe('iOS-app backstops — both gates OFF (the shipped default)', () => {
   it.each(WRITES)('%s %s from the iOS app passes through', async (method, path) => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
     expect((await call(path, method, IOS_APP)).status).not.toBe(403)
   })
 })
 
-describe('ios-hide-visa backstop — gate ON', () => {
-  it.each(WRITES)('%s %s from the iOS app is refused', async (method, path) => {
-    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
+// ⛔ ios-hide-visa still covers the identity writes too (src/lib/ios-hide-kyc.ts: an env line from before the
+// 2026-10-06 split must never reopen them); ios-hide-kyc alone leaves the e-Visa writes alone.
+const ON: [string, [string, string][]][] = [
+  ['ios-hide-visa', WRITES],
+  ['ios-hide-kyc', KYC_WRITES],
+]
+describe.each(ON)('%s ON', (gate, refused) => {
+  it.each(refused)('%s %s from the iOS app is refused', async (method, path) => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', gate)
     expect(await call(path, method, IOS_APP)).toEqual({ status: 403, body: { error: 'ios_app_unavailable' } })
   })
 
-  it.each(WRITES)('%s %s from Android or Safari passes through', async (method, path) => {
-    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
+  it.each(refused)('%s %s from Android or Safari passes through', async (method, path) => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', gate)
     expect((await call(path, method, ANDROID_APP)).status).not.toBe(403)
     expect((await call(path, method, IOS_SAFARI)).status).not.toBe(403)
   })
 
+})
+
+describe('ios-hide-kyc alone (the 2026-10-06 plan)', () => {
+  it.each(VISA_WRITES)('%s %s (the e-Visa flow) passes through from the iOS app', async (method, path) => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-kyc')
+    expect((await call(path, method, IOS_APP)).status).not.toBe(403)
+  })
+})
+
+describe('both gates ON', () => {
   it('reads, the desk admin and unrelated writes from the iOS app pass through', async () => {
-    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa,ios-hide-kyc')
     for (const [method, path] of [
       ['GET', '/api/seller/identity/status'],
       ['GET', '/api/visa/applications/abc/result'],

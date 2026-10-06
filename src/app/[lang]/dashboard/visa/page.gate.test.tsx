@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-// ── App Store gate `ios-hide-visa` (D5 = b) on the e-Visa pages that render per request ───────────────
-// Off ⇒ unchanged for everyone. On ⇒ only the iOS app's user agent: no e-Visa tab, and no way to the cases
-// list or the identity capture by URL.
+// ── App Store gates on the pages that render per request: `ios-hide-visa` (the e-Visa pages) and `ios-hide-kyc`
+// (the identity capture, split out 2026-10-06) ──
+// Off ⇒ unchanged for everyone. On ⇒ only the iOS app's user agent: `ios-hide-visa` — no e-Visa tab, no way to the
+// cases list by URL; `ios-hide-kyc` — no way to the identity capture by URL. Neither touches the other's page.
 
 let ua: string | null = null
 vi.mock('next/headers', () => ({ headers: async () => new Headers(ua ? { 'user-agent': ua } : {}) }))
@@ -61,7 +62,7 @@ describe('gate OFF (the shipped default)', () => {
   })
 })
 
-describe('gate ON', () => {
+describe('ios-hide-visa ON', () => {
   it('the iOS app is sent to Services (Trips) from /dashboard/visa', async () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
     ua = IOS_APP
@@ -69,7 +70,7 @@ describe('gate ON', () => {
     expect(redirect).toHaveBeenCalledWith('/dashboard/services')
   })
 
-  it('the iOS app is sent to the verification hub from /dashboard/account/verify', async () => {
+  it('⛔ it still keeps the iOS app out of the identity capture (an env line from before the split)', async () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
     ua = IOS_APP
     await expect(VerifyPage()).rejects.toThrow('NEXT_REDIRECT /dashboard/verification')
@@ -83,9 +84,28 @@ describe('gate ON', () => {
     expect(props.threads).toEqual({})
     expect(visaThreads).not.toHaveBeenCalled()
   })
+})
 
+describe('ios-hide-kyc ON (the 2026-10-06 plan)', () => {
+  it('the iOS app is sent to the verification hub from /dashboard/account/verify', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-kyc')
+    ua = IOS_APP
+    await expect(VerifyPage()).rejects.toThrow('NEXT_REDIRECT /dashboard/verification')
+  })
+
+  it('the e-Visa side is untouched in the iOS app: the tab, its data and the payment-return query', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-kyc')
+    ua = IOS_APP
+    await expect(visa()).rejects.toThrow('NEXT_REDIRECT /dashboard/services?paid=stripe&aid=a1&tab=evisa')
+    const props = await servicesProps()
+    expect(props.hideVisa).toBe(false)
+    expect(props.threads).toEqual({ app1: 'convo1' })
+  })
+})
+
+describe('both gates ON', () => {
   it.each([['Android app', ANDROID_APP], ['iOS Safari', IOS_SAFARI], ['no user agent', null]])('%s is untouched everywhere', async (_, agent) => {
-    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa,ios-hide-kyc')
     ua = agent
     await expect(visa()).rejects.toThrow('NEXT_REDIRECT /dashboard/services?paid=stripe&aid=a1&tab=evisa')
     await expect(VerifyPage()).resolves.toBeTruthy()

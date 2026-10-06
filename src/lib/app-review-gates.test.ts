@@ -59,6 +59,7 @@ describe('unknownAppReviewGates (next.config.ts refuses the build on any)', () =
     expect(unknownAppReviewGates(undefined)).toEqual([])
     expect(unknownAppReviewGates('ios-hide-google, app-no-gtm')).toEqual([])
     expect(unknownAppReviewGates('ios-hide-walet,app-no-gtm,all')).toEqual(['ios-hide-walet', 'all'])
+    expect(unknownAppReviewGates('ios-hide-visa,ios-hide-kyc')).toEqual([]) // the 2026-10-06 split builds
   })
 })
 
@@ -78,6 +79,12 @@ describe('appReviewGate', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-wallet')
     expect(appReviewGate('ios-hide-wallet')).toBe(true)
     expect(appReviewGate('ios-hide-google')).toBe(false)
+  })
+
+  it('ios-hide-kyc and ios-hide-visa are separate switches (split 2026-10-06)', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-kyc')
+    expect(appReviewGate('ios-hide-kyc')).toBe(true)
+    expect(appReviewGate('ios-hide-visa')).toBe(false)
   })
 })
 

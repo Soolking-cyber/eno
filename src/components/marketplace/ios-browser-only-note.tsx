@@ -6,14 +6,15 @@ import { SITE_NAME } from '@/lib/edition'
 import { cn } from '@/lib/utils'
 
 /**
- * The line the iOS app shows where it would have taken an identity or business document, or an e-Visa application —
- * App Store gate `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts). Presentational: the caller supplies the words.
+ * The line the iOS app shows where it would have taken an identity or business document (App Store gate
+ * `ios-hide-kyc`, src/lib/ios-hide-kyc.ts) or an e-Visa application (`ios-hide-visa`, src/lib/ios-hide-visa.ts).
+ * Presentational: the caller supplies the words.
  *
  * ⛔ PLAIN TEXT, NOT A LINK, ON PURPOSE: inside the app the site is the app's own origin, so a link would reload the
  * same gated page in the WebView, and the in-app Safari sheet would carry the flow back into the app. The host is
  * written out because that is what the person needs to open Safari themselves.
  * ⛔ e-Visa WORDS NEVER LIVE IN THIS FILE. It is shared by both editions and gen-ui-strings harvests it into the
- * catalogue eno.vn ships; the visa sentences are VisaInAppNote in visa-start.tsx, which is aliased to a stub there.
+ * catalogue eno.vn ships; the visa sentences are VisaInAppNote in visa-start.tsx — a stub on a marketplace build only while MARKETPLACE_HOSTS_SERVICES is off; production eno.vn builds with it ON (infra/vn-node/eno-build.sh), so there they are real.
  */
 export function IosBrowserOnlyNote({ text, className }: { text: string; className?: string }) {
   return (
@@ -38,8 +39,8 @@ function siteHost(): string {
 
 /**
  * Identity / business verification, done in a browser. Both editions verify people, so the words are shared and name
- * no site; the host comes from the build. In practice only eno.forum's renders: the gate keys on the iOS app, and the
- * iOS app only ever loads www.eno.forum (capacitor.config.ts).
+ * no site; the host comes from the build. In practice only eno.vn's renders ("… in a web browser: eno.vn"): the gate
+ * keys on the iOS app, and since 2026-10-06 the iOS app only ever loads https://eno.vn (capacitor.config.ts).
  */
 export function IosVerifyElsewhereNote({ kind, className }: { kind: 'identity' | 'business'; className?: string }) {
   const { tr } = useLanguage()

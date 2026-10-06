@@ -1,15 +1,20 @@
 /**
  * APP STORE REVIEW GATES — dormant switches for what the native apps show, each one an OWNER DECISION.
  *
- * The apps are WebViews of www.eno.forum, so anything App Review would reject has to be changed on the
- * SITE (docs/ios-appstore-release.md, bucket 1). None of these changes may reach anyone until the
+ * The apps are WebViews of https://eno.vn — both of them since 2026-10-06 (owner: "ship both with eno.vn";
+ * from 2026-09-08 they rendered www.eno.forum) — so anything App Review would reject has to be changed on
+ * the SITE (docs/ios-appstore-release.md, bucket 1). None of these changes may reach anyone until the
  * owner chooses it, so every one sits behind a token in ONE build-time variable:
  *
  *   NEXT_PUBLIC_APP_REVIEW_GATES=ios-hide-google,ios-hide-wallet,app-signin-tidy,app-no-gtm,site-brand-copy
  *
  * Unset (the default) ⇒ every helper below returns false and nothing changes, on the web or in either
- * app. It is a NEXT_PUBLIC_* value, so it is inlined at build time: set it in
- * /opt/eno/secrets/eno-forum.env (and eno-vn.env — the code is shared) and deploy on the owner's word.
+ * app. It is a NEXT_PUBLIC_* value, so it is inlined at build time: set it in /opt/eno/secrets/eno-vn.env
+ * — the build the apps load — and deploy on the owner's word. eno-forum.env still matters while an Android
+ * install older than versionCode 5 keeps loading the forum.
+ * ⚠️ THREE TOKENS DO NOTHING ON THE MARKETPLACE BUILD: `ios-hide-wallet` (the wallet is services-only),
+ * `app-no-gtm` (only the forum's env sets NEXT_PUBLIC_GTM_ID — analytics-tags.tsx) and `site-brand-copy` (eno.vn's
+ * answers are already "eno.vn"). `ios-hide-visa` and `ios-hide-kyc` are NOT among them — see their rows.
  *
  * | token            | plan | what it does                                                             | decision |
  * |------------------|------|--------------------------------------------------------------------------|----------|
@@ -36,10 +41,18 @@
  * |                  |      | = keyword answers, `ai: false`), posting help (classify + rephrase),     |          |
  * |                  |      | search by photo, eno.forum trip AI (unavailable on Not now); typed       |          |
  * |                  |      | search never reaches Vertex from the apps (src/lib/ai-consent.ts)        |          |
- * | ios-hide-visa    | D5   | iOS app: no e-Visa application (start, product pick, passport/portrait    | D5 = b   |
- * |                  |      | upload, form, send/pay — desk or partner e-Visa product) and no identity |          |
- * |                  |      | or business-document capture; says "at www.eno.forum in a web browser";  |          |
- * |                  |      | info pages stay; writes refused server-side (src/lib/ios-hide-visa.ts)   |          |
+ * | ios-hide-visa    | D5   | iOS app: no e-Visa application (start, product pick, passport/portrait   | OFF —    |
+ * |                  |      | upload, form, send/pay — desk or partner e-Visa product); says it is     | owner    |
+ * |                  |      | done in a web browser (VisaInAppNote's words); info pages stay; writes   | 10-06:   |
+ * |                  |      | refused server-side (src/lib/ios-hide-visa.ts). Real on eno.vn too: it   | e-Visa   |
+ * |                  |      | builds with MARKETPLACE_HOSTS_SERVICES=true (the partner e-Visa flow).   | in both  |
+ * |                  |      | Identity capture is NOT here since 2026-10-06 — see ios-hide-kyc         | apps     |
+ * | ios-hide-kyc     | D5   | iOS app: no identity or business-document capture — eKYC's passport/CCCD | D5 = b   |
+ * |                  |      | photo and selfie (/dashboard/account/verify → the verification hub, the  | (eKYC    |
+ * |                  |      | camera never opens), the business panel's uploads; says it is done in a  | only)    |
+ * |                  |      | web browser at the build's own host (IosVerifyElsewhereNote); writes     |          |
+ * |                  |      | refused server-side (src/lib/ios-hide-kyc.ts). Split from ios-hide-visa  |          |
+ * |                  |      | 2026-10-06: the owner keeps the e-Visa flow in both apps                 |          |
  *
  * ⚠️ "iOS app" = the Capacitor shell on iOS: `window.Capacitor.getPlatform() === 'ios'` on the client,
  * the `EnoNativeApp` user-agent token plus an iOS device string on the server. "Both apps" = the
@@ -56,7 +69,7 @@
  */
 const NATIVE_UA_RE = /EnoNativeApp|EnoNativeTabs/
 
-export const APP_REVIEW_GATES = ['ios-hide-google', 'ios-hide-wallet', 'app-signin-tidy', 'app-no-gtm', 'site-brand-copy', 'ugc-safety', 'app-ai-notice', 'ios-hide-visa'] as const
+export const APP_REVIEW_GATES = ['ios-hide-google', 'ios-hide-wallet', 'app-signin-tidy', 'app-no-gtm', 'site-brand-copy', 'ugc-safety', 'app-ai-notice', 'ios-hide-visa', 'ios-hide-kyc'] as const
 export type AppReviewGate = (typeof APP_REVIEW_GATES)[number]
 
 /** Parse the comma list; unknown tokens are ignored (a typo turns nothing on). */
@@ -158,8 +171,8 @@ export function nativeAppGate(gate: AppReviewGate): boolean {
 
 /**
  * `site-brand-copy` (R7): the brand a sentence should name. Copy that hard-codes "eno.vn" reads wrong
- * on eno.forum ("not verified by eno.vn" on the forum, in the app). With the gate on it names THIS
- * edition; off, it keeps today's words. On eno.vn both answers are "eno.vn".
+ * on eno.forum ("not verified by eno.vn" on the forum). With the gate on it names THIS edition; off, it
+ * keeps today's words. On eno.vn — the site both apps load since 2026-10-06 — both answers are "eno.vn".
  */
 export function brandForCopy(siteName: string): string {
   return appReviewGate('site-brand-copy') ? siteName : 'eno.vn'
