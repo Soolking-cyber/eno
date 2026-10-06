@@ -20,8 +20,8 @@ connections to HKG, and **no DNS name points at it**, so it carries zero traffic
 
 ⛔ **`eno.conf` AND `partner.eno.vn.conf` CARRY AN EXTRA `listen 127.0.0.1:8181;`** under every
 `listen 443 ssl;  listen [::]:443 ssl;` line (5 + 1). That is the whole tunnel path on the nginx side. The
-copies in `../nginx/` were reconciled with the box on 2026-10-05, directive for directive; they had drifted
-before this work (`../nginx/README.md` lists the comments still stale on the box). Once a hostname is cut
+copies in `../nginx/` were reconciled with the box on 2026-10-05 and matched it byte for byte on 2026-10-06; they had
+drifted before this work (`../nginx/README.md` records what drifted and how to re-check it). Once a hostname is cut
 over, a config without the 8181 listens sends its Host to the 444 default and every visitor of that name
 gets 502. That is why `cut` now refuses unless `precheck` passes.
 

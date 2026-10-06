@@ -37,16 +37,17 @@ this box; nothing reaches it directly.
 `listen 127.0.0.1:8181` of the Cloudflare Tunnel, and still had `listen 80` on the app vhosts;
 `ssl-params.conf` lacked the AOP enforcement block; `partner.eno.vn.conf` was not here at all. Running the
 Deploy steps below with those copies would have taken down the shop subdomains and, once a hostname is on the
-tunnel, served it 502. Every file in the table was then copied from the box, and **the directives match it
-exactly**: compare with comments stripped, `sed 's/#.*//' | grep -v '^[[:space:]]*$' | sha256sum` on both
-sides. Four comments were corrected here and are still stale on the box until someone applies them there
-(comment-only; no reload needed):
+tunnel, served it 502. Every file in the table was then copied from the box, and four stale comments were corrected
+here (the box had them too):
 - `eno.conf`: the header IP (`.208` is the retired box).
-- `eno.conf`: the `aop` log-format note. It said enforcement was off above a config that enforces.
-- `ssl-params.conf`: the AOP block. It said "MEASURING, NOT ENFORCING … DO NOT CHANGE THIS TO `on`"
-  directly above `ssl_verify_client on`.
+- `eno.conf`: the `aop` log-format note, which said enforcement was off above a config that enforces.
+- `ssl-params.conf` (on the box: `snippets/eno-ssl.conf`): the AOP block, which said "MEASURING, NOT ENFORCING … DO NOT
+  CHANGE THIS TO `on`" directly above `ssl_verify_client on`.
 - `eno.conf`: the Decree 333 / 400-day retention note, restored to the marketplace vhost.
 
+On 2026-10-06 the corrected copies were put back on the box (a one-off copy that first checked the directives were
+unchanged; backup `/root/nginx-backup-20261006T123126Z-comments`), and a `sha256sum` of each pair matched for all five
+rows of the table: **identical as of that date. It is a check, not a guarantee** — re-run it after any edit on the box.
 **After any edit on the box, copy the file back here in the same session and compare both sides.**
 
 | repo | on the box |
