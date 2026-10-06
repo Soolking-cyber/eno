@@ -116,15 +116,39 @@ test.describe('Guest · listing detail (first live listing)', () => {
   })
 
   test('main image actually renders (broken-image guard)', async ({ page }) => {
-    await expect(page.getByRole('heading', { level: 1, name: TITLE_RE })).toBeVisible()
-    // Largest visible <img> = the hero photo; a broken image reports naturalWidth === 0.
-    const naturalWidth = await page.evaluate(() => {
-      const vis = [...document.querySelectorAll('img')].filter((i) => { const r = i.getBoundingClientRect(); return r.width > 80 && r.height > 80 })
-      if (!vis.length) return 0
-      const big = vis.reduce((a, b) => { const ar = a.getBoundingClientRect(), br = b.getBoundingClientRect(); return br.width * br.height > ar.width * ar.height ? b : a })
-      return big.naturalWidth
-    })
-    expect(naturalWidth, 'main listing image should have decoded (naturalWidth > 0)').toBeGreaterThan(0)
+    // ⛔ THIS TEST PICKS ITS OWN LISTING, as the lightbox test below learned to. The shared LISTING is the home
+    // feed's FIRST card, which is now a linked JOB — and a job PDP has NO gallery by design (owner, 2026-09-30:
+    // its one image is the importer's poster of its own words; the PDP opens on the compact job header instead).
+    // "The largest <img> on the page" then fell to a lazy, below-the-fold similar-listings card that had not
+    // loaded yet: naturalWidth 0, red on production, for a photo that does not exist (measured 2026-10-06).
+    // So it walks the first screen's cards to one WITH a gallery and measures THAT hero — the visible
+    // "<title> — photo 1" (the mobile carousel and the desktop mosaic both render; only one is laid out) — and
+    // waits for it to decode, since a slow photo is not a broken one. A broken hero is still FOUND: the gallery's
+    // images are `fill`, so a failed one keeps its box (measured — a run with every /_next/image aborted picks it
+    // and fails on the decode, not on "no gallery").
+    // ⚠️ It still FAILS if no listing on the first screen has a gallery: "found none" is never a silent pass.
+    test.setTimeout(180_000) // up to ten listing pages plus the home feed, each a real production load — as the file's other walking tests
+    await page.goto('/')
+    const cards = page.locator('a[data-card-link]')
+    await cards.first().waitFor({ timeout: 20_000 })
+    const hrefs = [...new Set((await cards.evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).getAttribute('href'))))
+      .filter((h): h is string => !!h && h.startsWith('/listings/')))]
+      .slice(0, 10)
+    expect(hrefs.length, 'no listing cards on the home feed to test a hero photo with').toBeGreaterThan(0)
+    let hero: Locator | null = null
+    for (const href of hrefs) {
+      await page.goto(href)
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+      const candidate = page.locator('img[alt$="— photo 1"]').locator('visible=true').first()
+      // A bounded wait, not a one-shot read: a gallery laid out a beat after the heading is still a gallery.
+      if (await candidate.waitFor({ state: 'visible', timeout: 5_000 }).then(() => true, () => false)) { hero = candidate; break }
+    }
+    expect(hero, 'no listing on the first screen has a photo gallery — every one a job or photo-less?').not.toBeNull()
+    // A broken image settles at naturalWidth 0; a slow one gets there — poll rather than read once.
+    await expect.poll(() => hero!.evaluate((i) => (i as HTMLImageElement).naturalWidth), {
+      message: 'the hero photo should decode (naturalWidth > 0)',
+      timeout: 15_000,
+    }).toBeGreaterThan(0)
   })
 
   test('opens the photo lightbox and locks background scroll', async ({ page }) => {
