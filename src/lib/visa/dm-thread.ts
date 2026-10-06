@@ -18,6 +18,7 @@ import { visaDmStepPreview, type VisaDmStep } from './dm-steps'
 import { getVisaDb } from './db'
 import { visaPaymentsConfig } from './payments'
 import { recordVisaEvent } from './records'
+import { IS_SERVICES } from '../edition'
 
 // ── The buyer ↔ visa-shop THREAD ──────────────────────────────────────────────────
 //
@@ -505,7 +506,10 @@ export async function sendVisaCheckoutCard(input: {
   // (79.99 * 100 === 7998.999999999999) while the epsilon comparison still refuses a
   // sub-cent amount like 25.999, which would be a caller computing a price wrong.
   const cents = Math.round(input.amountUsd * 100)
-  if (!Number.isFinite(input.amountUsd) || cents <= 0 || Math.abs(input.amountUsd * 100 - cents) > 1e-6) {
+  // ⚠️ 0 IS LEGAL: the send card with no price on it (eno.forum when FX is down; eno.vn whenever the quote fails).
+  // messages.ts's schema already allows min(0); refusing it here turned emitVisaCheckoutCard's `amountUsd: 0` branch
+  // into checkout_card_refused 503 — masked in dm-flow.test.ts, which mocks this module.
+  if (!Number.isFinite(input.amountUsd) || cents < 0 || Math.abs(input.amountUsd * 100 - cents) > 1e-6) {
     console.error('[visa-dm] checkout amount is not a positive whole-cent USD value')
     return null
   }
@@ -529,7 +533,8 @@ export async function sendVisaCheckoutCard(input: {
       kind: 'visa_checkout',
       meta,
       // Bilingual composite, no applicant data — the price is public.
-      preview: `Phí dịch vụ e-Visa · e-Visa service fee — $${amountUsd.toFixed(2)}`,
+      // eno.vn takes no money and names no fee; a $0 card has no fee to name either.
+      preview: amountUsd > 0 && IS_SERVICES ? `Phí dịch vụ e-Visa · e-Visa service fee — $${amountUsd.toFixed(2)}` : 'Gửi ảnh cho người bán · Send your photos to the seller',
     })
     return { messageId: message.id }
   } catch (e) {

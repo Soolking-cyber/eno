@@ -357,8 +357,9 @@ beforeEach(() => {
 // ── The partition is FROZEN at five ───────────────────────────────────────────────
 
 describe('the five-page partition', () => {
-  it('never emits a step outside 1..5', async () => {
-    // Empty case → Documents. Documents passed but no answers → Confirm passport.
+  it.each([[false], [true]])('both editions (services=%s): documents, then straight to the send card — never a step 2-4 card', async (isServices) => {
+    h.state.isServices = isServices
+    // Empty case → Documents. Documents passed, no form answers at all → the send card (2026-10-06: eno.vn is photos-only).
     seedCase()
     const first = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
     expect(first).toMatchObject({ ok: true, step: 1, complete: false })
@@ -366,10 +367,9 @@ describe('the five-page partition', () => {
     seedCase({ documents: PASSED_DOCUMENTS })
     h.state.messages = []
     const second = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
-    expect(second).toMatchObject({ ok: true, step: 2, complete: false })
+    expect(second).toMatchObject({ ok: true, step: 5, complete: true })
 
-    for (const card of h.state.stepCards) expect(card.step).toBeGreaterThanOrEqual(1)
-    for (const card of h.state.stepCards) expect(card.step).toBeLessThanOrEqual(5)
+    for (const card of h.state.stepCards) expect(card.step).toBe(1)
   })
 
   it('a complete case is step 5 — the pay card, not a sixth page', async () => {
@@ -400,30 +400,29 @@ describe('advance is idempotent', () => {
   })
 
   it('asks again once the live card has been answered but the step is still incomplete', async () => {
-    seedCase({ documents: PASSED_DOCUMENTS })
+    seedCase()
     await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
-    // The applicant acknowledged the card without supplying the missing answers.
+    // The applicant acknowledged the documents card without sending the photos.
     const card = h.state.messages[0]
     card.metaJson = JSON.stringify({ ...JSON.parse(card.metaJson!), state: 'done' })
 
     const again = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
-    expect(again).toMatchObject({ ok: true, step: 2 })
+    expect(again).toMatchObject({ ok: true, step: 1 })
     expect(dmThread.sendVisaStepCard).toHaveBeenCalledTimes(2)
   })
 
-  it('closes the cards the flow has moved past, and only those', async () => {
+  it('a long-flow draft left on a step 2-4 card goes straight to the send card (2026-10-06)', async () => {
     seedCase()
     await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })   // step 1 card
-    const stepOneCard = h.state.messages[0].id
-    // Documents now pass → the flow moves to step 2 and the step-1 card is history.
+    // An eno.vn draft from before the photos-only flow: its newest card is an ACTIVE step-3 form.
+    h.state.messages[0].metaJson = JSON.stringify({ ...JSON.parse(h.state.messages[0].metaJson!), step: 3, state: 'active' })
     h.state.tables.visa_documents = PASSED_DOCUMENTS
-    h.state.messages[0].metaJson = JSON.stringify({ ...JSON.parse(h.state.messages[0].metaJson!), state: 'done' })
-    h.state.messages[0].metaJson = JSON.stringify({ ...JSON.parse(h.state.messages[0].metaJson!), state: 'active' })
-    await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
 
-    expect(h.state.stateWrites).toContainEqual({ messageId: stepOneCard, state: 'done' })
-    // The newly-emitted step-2 card is untouched.
-    expect(h.state.stateWrites.filter((w) => w.messageId !== stepOneCard)).toHaveLength(0)
+    expect(result).toMatchObject({ ok: true, step: 5, complete: true })
+    // No new form card; the stale step-3 card is history in the thread page (liveVisaStepId skips steps 2-4).
+    expect(dmThread.sendVisaStepCard).toHaveBeenCalledTimes(1)
+    expect(dmThread.sendVisaCheckoutCard).toHaveBeenCalled()
   })
 
   it('reuses an unpaid checkout card at the same amount, and supersedes one that drifted', async () => {
@@ -505,7 +504,7 @@ describe('resend posts a card, every time', () => {
     const before = { ...h.state.tables.visa_applications[0] }
 
     const resent = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
-    expect(resent).toMatchObject({ ok: true, step: 2 })
+    expect(resent).toMatchObject({ ok: true, step: 5, kind: 'visa_checkout' })
     expect(h.state.tables.visa_applications[0]).toEqual(before)
     expect(h.state.events.filter((e) => e.event === 'dm_step_fields_saved')).toHaveLength(0)
   })
@@ -648,9 +647,10 @@ describe('resending the pay card cannot re-price it', () => {
     h.state.checkoutCards = []
     h.state.messages = []
     h.state.quote = null
-    const refused = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
-    expect(refused).toMatchObject({ ok: false, error: 'fx_unavailable', status: 503 })
-    expect(h.state.checkoutCards).toHaveLength(0)
+    // No quote is no longer a dead end on either edition: the send card goes out at no price.
+    const unpriced = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    expect(unpriced).toMatchObject({ ok: true, step: 5, kind: 'visa_checkout' })
+    expect(dmThread.sendVisaCheckoutCard).toHaveBeenLastCalledWith(expect.objectContaining({ amountUsd: 0 }))
   })
 
   it('refuses once the service is paid for — there is nothing left to ask', async () => {
@@ -834,15 +834,13 @@ describe('the step-2 acknowledgement list', () => {
     }
   })
 
-  it('carries FIELD NAMES only — no applicant value reaches the card', async () => {
+  it('a short flow never sends the step-2 card, and no applicant value reaches any card', async () => {
     const payload = { ...emptyVisaPayload('traveller@example.com'), surname: 'DOE', givenNames: 'JANE', passportNumber: 'X1234567' }
     seedCase({ payload, documents: PASSED_DOCUMENTS })
     await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
 
-    const card = h.state.stepCards[0]
-    expect(card.step).toBe(2)
-    expect(card.needsReview).toEqual(expect.arrayContaining(['surname', 'givenNames', 'passportNumber']))
-    // The values are read to decide membership and thrown away.
+    expect(h.state.stepCards ?? []).toHaveLength(0)
+    // The AI-read values stay in the encrypted payload; nothing in the thread carries them.
     const serialized = JSON.stringify(h.state.messages)
     for (const value of ['DOE', 'JANE', 'X1234567', 'traveller@example.com']) expect(serialized).not.toContain(value)
   })
@@ -874,13 +872,13 @@ describe('the pay card fails closed', () => {
     expect(h.state.checkoutCards[0].amountUsd).toBe(114.89)
   })
 
-  it('refuses when FX is unavailable', async () => {
+  it('FX unavailable → the send card at no price, never a dead end (both editions take no money in the card)', async () => {
     seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS })
     seedProductChoice()
     h.state.quote = null
     const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
-    expect(result).toMatchObject({ ok: false, error: 'fx_unavailable', status: 503, step: 5, complete: true })
-    expect(dmThread.sendVisaCheckoutCard).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ ok: true, step: 5, complete: true })
+    expect(dmThread.sendVisaCheckoutCard).toHaveBeenCalledWith(expect.objectContaining({ amountUsd: 0 }))
   })
 
   /**
@@ -902,15 +900,15 @@ describe('the pay card fails closed', () => {
 
   /** FX is a different thing from payments, and it must STILL fail — a card that cannot state a
    *  price honestly is worse than no card. Guards against the fix above being over-applied. */
-  it('still refuses when FX is unavailable, even with payments dormant', async () => {
-    seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS })
+  it('eno.vn with payments dormant and FX down still reaches the seller', async () => {
+    seedCase({ payload: visaPayloadSchema.parse({}), documents: PASSED_DOCUMENTS })
     seedProductChoice()
     h.state.payments = null
     h.state.isServices = false
     h.state.quote = null
     const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
-    expect(result).toMatchObject({ ok: false, error: 'fx_unavailable', status: 503 })
-    expect(dmThread.sendVisaCheckoutCard).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ ok: true, step: 5, complete: true })
+    expect(dmThread.sendVisaCheckoutCard).toHaveBeenCalledWith(expect.objectContaining({ amountUsd: 0 }))
   })
 
   it('a complete case with no product gets the PICKER, not a refusal (Phase 2)', async () => {
@@ -924,13 +922,14 @@ describe('the pay card fails closed', () => {
     expect(h.state.checkoutCards).toHaveLength(0)
   })
 
-  it('refuses a product that left the catalogue mid-flow', async () => {
+  it('a product that left the catalogue mid-flow still gets the no-price send card — the seller sorts it out in chat', async () => {
     seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS })
     seedProductChoice()
     h.state.products = []
     h.state.listings = [{ id: 'listing-1', verified: false, status: 'active' }]
     const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
-    expect(result).toMatchObject({ ok: false, error: 'product_not_for_sale', status: 409 })
+    expect(result).toMatchObject({ ok: true, step: 5, complete: true })
+    expect(dmThread.sendVisaCheckoutCard).toHaveBeenCalledWith(expect.objectContaining({ amountUsd: 0 }))
   })
 })
 

@@ -56,6 +56,9 @@ const DECLARATION_VERSION = 'evisa-applicant-declaration-2026-07-24'
 const AUTHORIZATION_VERSION = 'eno-hosted-prefill-authorization-2026-07-24'
 
 const h = vi.hoisted(() => ({
+  insertMessage: vi.fn(async () => ({ id: 'msg-sent' })),
+  sendPush: vi.fn(async () => 1),
+  afters: [] as Array<() => unknown>,
   /**
    * ⚠️ A SPY, NOT A CONVENIENCE. `auth: 'userId'` and `auth: 'profile'` resolve the SAME id here,
    * so no response assertion anywhere in this file can tell the two modes apart — and the swap is
@@ -65,6 +68,8 @@ const h = vi.hoisted(() => ({
    */
   getCurrentProfile: vi.fn(async (): Promise<{ id: string } | null> => null),
   state: {
+    /** A block between the applicant and the desk's seller (src/lib/user-blocks.ts, mocked). */
+    blocked: false,
     userId: 'user-1' as string | null,
     cryptoReady: true,
     rateOk: true,
@@ -86,6 +91,7 @@ const h = vi.hoisted(() => ({
      */
     isServices: false,
     openCases: 0,
+    convo: { id: 'convo-1', buyerProfileId: 'user-1', sellerProfileId: 'desk-1', listingId: 'listing-1' } as Row | null,
     /** Is this case answered by THIS deployment's visa desk? See the cross-edition guard. */
     caseOnLocalDesk: true,
     canonicalListingId: 'listing-1' as string | null,
@@ -188,7 +194,11 @@ vi.mock('@/lib/supabase-admin', () => ({
   getSupabaseAdmin: () => { throw new Error('supabase is not available in unit tests') },
   LISTING_VIDEOS_BUCKET: 'listing-videos',
 }))
-vi.mock('@/lib/db', () => ({ db: {} }))
+vi.mock('@/lib/db', () => ({ db: { conversation: { findUnique: async () => h.state.convo } } }))
+// The desk notification (2026-10-06): the applicant-authored "photos sent" line, and its push after the response.
+vi.mock('@/lib/messages', () => ({ insertMessage: h.insertMessage }))
+vi.mock('@/lib/user-blocks', () => ({ isBlockedBetween: async () => h.state.blocked }))
+vi.mock('next/server', async (orig) => ({ ...(await orig<Record<string, unknown>>()), after: (fn: () => unknown) => { h.afters.push(fn) } }))
 // The durable erasure queue (2026-09-05, review S05). Recorded into the same sequence as the row
 // delete and the file removal, because the ORDER is the invariant under test.
 vi.mock('@/lib/core/storage-tombstones', () => ({
@@ -202,7 +212,7 @@ vi.mock('@/lib/core/storage-tombstones', () => ({
   },
 }))
 vi.mock('@/lib/mail', () => ({ sendMail: async () => true, mailEnabled: () => false }))
-vi.mock('@/lib/push', () => ({ sendPushToProfile: async () => 0 }))
+vi.mock('@/lib/push', () => ({ sendPushToProfile: h.sendPush }))
 
 // ⚠️ BOTH MODES STILL BEHAVE IDENTICALLY ON PURPOSE — a mock that made `profile` fail would prove
 // nothing about which one the route asked for. `getCurrentProfile` is a spy so the QUESTION the
@@ -336,6 +346,10 @@ beforeEach(() => {
   // what happened: the two fee-gate cases turned it on and the CAS/consent tests below then asserted
   // a 503 they were never about.
   s.isServices = false
+  s.openCases = 0 // the cap applies on BOTH editions since 2026-10-06 — never leak one test's count into the next
+  s.convo = { id: 'convo-1', buyerProfileId: 'user-1', sellerProfileId: 'desk-1', listingId: 'listing-1' }
+  s.blocked = false
+  h.insertMessage.mockClear(); h.sendPush.mockClear(); h.afters.length = 0
   s.caseOnLocalDesk = true
   s.userId = 'user-1'
   s.cryptoReady = true
@@ -497,14 +511,15 @@ describe('submit — send_for_review', () => {
   it('an incomplete case → 400 {"error":"application_incomplete","issues":[…]} — the EXTRA field', async () => {
     // The second reason no `body:`/`apiFail()` hoist could carry this route: `apiFail()` emits
     // exactly `{"error":"<code>"}`, and this branch has a sibling key the form draws from.
-    h.state.issues = ['passport_missing', 'portrait_blurry']
+    // eno.vn is PHOTOS-ONLY since 2026-10-06: only the two documents can block; a form answer never does.
+    h.state.issues = ['passport_image_required', 'portrait_image_not_verified', 'surname_required']
     const r = await submit(SEND)
     expect(r.status).toBe(400)
-    expect(r.body).toBe('{"error":"application_incomplete","issues":["passport_missing","portrait_blurry"]}')
+    expect(r.body).toBe('{"error":"application_incomplete","issues":["passport_image_required","portrait_image_not_verified"]}')
     // The issues are persisted so the client can re-read them, and nothing transitions.
     const update = writes()[0]
     expect(update.table).toBe('visa_applications')
-    expect(update.payload).toEqual({ checklist: ['passport_missing', 'portrait_blurry'], updated_at: NOW })
+    expect(update.payload).toEqual({ checklist: ['passport_image_required', 'portrait_image_not_verified'], updated_at: NOW })
     /**
      * ⚠️ THE FILTER IS THE WHOLE SAFETY OF THIS WRITE, and it is the only write in either route
      * that carries no CAS. `.update({checklist, updated_at})` with NO filter is a legal PostgREST
@@ -630,7 +645,7 @@ describe('submit — send_for_review', () => {
     expect(r.status).toBe(200)
     expect(json(r)).toEqual({
       application: serialized({
-        status: 'ready_for_review', applicantConfirmedAt: NOW, authorizedAt: NOW, updatedAt: NOW,
+        status: 'ready_for_review', applicantConfirmedAt: NOW, authorizedAt: null, updatedAt: NOW,
       }),
     })
     const update = writes()[0]
@@ -645,11 +660,12 @@ describe('submit — send_for_review', () => {
       status: 'ready_for_review',
       checklist: [],
       applicant_confirmed_at: NOW,
-      applicant_confirmation_version: DECLARATION_VERSION,
+      // eno.vn PHOTOS-ONLY (2026-10-06): the applicant vouched for two photos, and nothing authorises a prefill.
+      applicant_confirmation_version: 'evisa-photos-declaration-2026-10-06',
       applicant_snapshot_hash: 'snapshot-hash',
-      authorized_at: NOW,
-      authorization_version: AUTHORIZATION_VERSION,
-      authorization_snapshot_hash: 'snapshot-hash',
+      authorized_at: null,
+      authorization_version: null,
+      authorization_snapshot_hash: null,
       last_applicant_action_at: NOW,
       updated_at: NOW,
     })
@@ -676,9 +692,10 @@ describe('submit — send_for_review', () => {
       actor_ref: 'user-1',
       event: 'sent_for_review',
       metadata: {
-        declarationVersion: DECLARATION_VERSION,
-        authorizationVersion: AUTHORIZATION_VERSION,
-        officialPrefillAuthorized: true,
+        declarationVersion: 'evisa-photos-declaration-2026-10-06',
+        quickFlow: true,
+        photosOnly: true,
+        officialPrefillAuthorized: false,
       },
     }])
   })
@@ -999,5 +1016,55 @@ describe('DELETE — the CAS and the trigger', () => {
     const r = await del()
     expect(r.status).toBe(200)
     expect(h.state.removedFiles).toEqual([[]])
+  })
+})
+
+describe('submit — eno.vn photos-only: the desk hears about it (2026-10-06)', () => {
+  it('⛔ never across a block: the case is sent, but no line lands in the closed thread and no one is pushed', async () => {
+    h.state.blocked = true
+    const r = await submit(SEND)
+    expect(r.status).toBe(200)
+    expect(h.insertMessage).not.toHaveBeenCalled()
+    expect(h.afters).toHaveLength(0)
+  })
+
+  it('⛔ only a photos-only send says "photos sent": a quick case on eno.forum posts no such line and pushes no one', async () => {
+    h.state.isServices = true
+    const r = await submit({ ...SEND, intendedEntryDate: '2099-01-10' })
+    expect(r.status).toBe(200)
+    expect(h.insertMessage).not.toHaveBeenCalled()
+    expect(h.afters).toHaveLength(0)
+  })
+
+  it('posts the constant "photos sent" line AS THE APPLICANT and pushes the desk the case page', async () => {
+    const r = await submit(SEND)
+    expect(r.status).toBe(200)
+    expect(h.insertMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'convo-1', buyerProfileId: 'user-1', sellerProfileId: 'desk-1' }),
+      'user-1',
+      '📎 Đã gửi ảnh hộ chiếu và ảnh chân dung · Passport photo and portrait sent',
+    )
+    expect(h.afters).toHaveLength(1)
+    await h.afters[0]()
+    expect(h.sendPush).toHaveBeenCalledWith('desk-1', expect.objectContaining({ url: `/admin/visas/${APP_ID}` }))
+    expect(h.state.recordedEvents.at(-1)).toMatchObject({ event: 'sent_for_review', metadata: expect.objectContaining({ photosOnly: true, officialPrefillAuthorized: false }) })
+  })
+
+  it('announces nothing into a thread that is not the applicant\'s, and a failed announcement never fails the send', async () => {
+    h.state.convo = { id: 'convo-x', buyerProfileId: 'someone-else', sellerProfileId: 'desk-1', listingId: null }
+    expect((await submit(SEND)).status).toBe(200)
+    expect(h.insertMessage).not.toHaveBeenCalled()
+    h.state.convo = { id: 'convo-1', buyerProfileId: 'user-1', sellerProfileId: 'desk-1', listingId: 'listing-1' }
+    h.state.application = app()
+    h.insertMessage.mockRejectedValueOnce(new Error('insert failed'))
+    expect((await submit(SEND)).status).toBe(200)
+  })
+
+  it('caps open free cases on eno.vn too: three waiting → 429, nothing written', async () => {
+    h.state.openCases = 3
+    const r = await submit(SEND)
+    expect(r.status).toBe(429)
+    expect(json(r)).toEqual({ error: 'too_many_open_cases' })
+    expect(writes()).toEqual([])
   })
 })

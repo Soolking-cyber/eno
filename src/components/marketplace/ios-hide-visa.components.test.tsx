@@ -5,9 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { LanguageProvider } from '@/context/language-context'
 
-// ── App Store gate `ios-hide-visa` (D5 = b) on the components that START an application or CAPTURE a document ──
-// Off ⇒ each renders exactly as before, everywhere. On ⇒ only in the iOS app: no start button, no camera, no upload —
-// and where it would have verified, a line saying it is done at www.eno.forum in a web browser.
+// ── App Store gates on the components that START an application (`ios-hide-visa`) or CAPTURE a document
+// (`ios-hide-kyc`, split out 2026-10-06) ──
+// Off ⇒ each renders exactly as before, everywhere. On ⇒ only in the iOS app: no start button (visa), no camera, no
+// upload (kyc) — and where it would have verified, a line saying it is done in a web browser. Each switch leaves the
+// other's components alone: the owner keeps the e-Visa flow in both apps and takes only identity capture out of iOS.
 
 const auth = vi.hoisted(() => ({ user: { id: 'u1' } as { id: string } | null, loading: false, openSignIn: () => {} }))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
@@ -64,6 +66,13 @@ describe('VisaStart', () => {
     expect(screen.getByRole('button', { name: /Apply in chat/ })).toBeTruthy()
   })
 
+  it('ios-hide-kyc alone (the 2026-10-06 plan): the button is there in the iOS app — the e-Visa flow stays', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-kyc')
+    platform('ios')
+    render(wrap(<VisaStart listingId="l1" />))
+    expect(screen.getByRole('button', { name: /Apply in chat/ })).toBeTruthy()
+  })
+
   it('server render (ISR HTML) keeps the button whatever the gate — the page wraps it in the CSS hook instead', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
     platform('ios') // ignored on the server: the server snapshot is false
@@ -74,7 +83,7 @@ describe('VisaStart', () => {
 describe('VisaInAppNote', () => {
   it('names where applying happens, in plain text (no link back into the app)', () => {
     const html = renderToString(wrap(<VisaInAppNote kind="apply" className="ios-app-only" />))
-    expect(html).toContain('e-Visa applications are available at www.eno.forum in a web browser.')
+    expect(html).toContain('e-Visa applications are not available in the app. You can apply in a web browser.')
     expect(html).toContain('ios-app-only')
     expect(html).not.toContain('<a ')
   })
@@ -92,7 +101,7 @@ describe('KycCapture — no camera in the iOS app', () => {
   })
 
   it('gate ON, iOS app: the camera is NEVER asked for, and the line says where', async () => {
-    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-kyc')
     platform('ios')
     render(capture())
     await settle()
@@ -101,11 +110,19 @@ describe('KycCapture — no camera in the iOS app', () => {
   })
 
   it('gate ON, Android: the camera is asked for', async () => {
-    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-kyc')
     platform('android')
     render(capture())
     await settle()
     expect(getUserMedia).toHaveBeenCalled()
+  })
+
+  it('⛔ ios-hide-visa alone (an env line from before the split), iOS app: the camera is still never asked for', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
+    platform('ios')
+    render(capture())
+    await settle()
+    expect(getUserMedia).not.toHaveBeenCalled()
   })
 })
 
@@ -122,7 +139,7 @@ describe('BusinessVerificationPanel — no document upload in the iOS app', () =
   })
 
   it('gate ON, iOS app: no file input, no Submit, the line says where', async () => {
-    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-kyc')
     platform('ios')
     render(wrap(<BusinessVerificationPanel />))
     await settle()
@@ -132,11 +149,19 @@ describe('BusinessVerificationPanel — no document upload in the iOS app', () =
   })
 
   it('gate ON, Android: unchanged', async () => {
-    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-kyc')
     platform('android')
     render(wrap(<BusinessVerificationPanel />))
     await settle()
     expect(fileInputs()).toHaveLength(2)
+  })
+
+  it('⛔ ios-hide-visa alone (an env line from before the split), iOS app: still no document upload', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
+    platform('ios')
+    render(wrap(<BusinessVerificationPanel />))
+    await settle()
+    expect(fileInputs()).toHaveLength(0)
   })
 })
 

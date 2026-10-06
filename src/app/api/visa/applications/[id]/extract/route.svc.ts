@@ -30,7 +30,9 @@ import { VISA_BUCKET, VISA_IMAGE_RULES_VERSION } from '@/lib/visa/storage'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
-const requestSchema = z.object({ kind: z.enum(['portrait', 'passport']).default('passport'), documentId: z.string().uuid().optional() })
+// `ai: false` — the applicant said "Not now" to the Google AI check (App Store gate `app-ai-notice`, family
+// `document_check`): record the document as saved-but-unchecked and call no model.
+const requestSchema = z.object({ kind: z.enum(['portrait', 'passport']).default('passport'), documentId: z.string().uuid().optional(), ai: z.boolean().optional() })
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const passportSchema = {
@@ -198,6 +200,26 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
   if (!['draft', 'needs_changes'].includes(application.status)) return NextResponse.json({ error: 'application_locked' }, { status: 409 })
   if (!document) return NextResponse.json({ error: `${parsed.data.kind}_image_required` }, { status: 409 })
   const existingReport = document.validation_report && typeof document.validation_report === 'object' ? document.validation_report as Record<string, unknown> : {}
+  // ⛔ "NOT NOW" SENDS NOTHING TO GOOGLE AND BLOCKS NOTHING. `unavailable` is the non-blocking status (schema.ts — the same
+  // one an outage writes), the issue code says why, and a document that already PASSED is never downgraded. No limiter
+  // is charged: no model runs. The desk's case page shows the document as not checked.
+  if (parsed.data.ai === false) {
+    const validationReport = { ...existingReport, version: VISA_IMAGE_RULES_VERSION, status: 'unavailable', issues: ['automatic_image_check_declined'], warnings: [], analyzedAt: new Date().toISOString() }
+    // ⛔ ONLY AN UNCHECKED PHOTO (review 2026-10-06): one that already PASSED is never downgraded, and one that FAILED is
+    // never laundered into the non-blocking `unavailable` — "Not now" skips a check, it does not overrule one.
+    const declined = await db.from('visa_documents').update({ validation_status: 'unavailable', validation_report: validationReport }).eq('id', document.id).in('validation_status', ['pending', 'unavailable']).select('id')
+    if (declined.error) throw declined.error
+    if (declined.data?.length) {
+      await recordVisaEvent(id, 'applicant', 'automatic_image_check_declined', userId, { documentId: document.id, kind: parsed.data.kind })
+      return NextResponse.json({ document: { id: document.id, validationStatus: 'unavailable', validationReport }, issues: [], warnings: [] })
+    }
+    // Zero rows: it was already decided (passed, or failed — the applicant re-uploads), or it changed or vanished since
+    // the read above. Nothing was declined, so nothing is recorded; report what is there NOW (codex, review 2026-10-06).
+    const { data: now, error: nowError } = await db.from('visa_documents').select('validation_status,validation_report').eq('id', document.id).maybeSingle()
+    if (nowError) throw nowError
+    if (!now) return NextResponse.json({ error: `${parsed.data.kind}_image_required` }, { status: 409 })
+    return NextResponse.json({ document: { id: document.id, validationStatus: now.validation_status, validationReport: now.validation_report ?? {} }, issues: [], warnings: [] })
+  }
   // User limits FIRST. A single Promise.all also consumed the SHARED ai-global token
   // for a caller already over their OWN quota — a spammer past their hourly could
   // still drain the platform-wide daily budget and black out AI for everyone. So the

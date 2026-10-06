@@ -10,6 +10,7 @@ import {
   validateVisaDmStep,
   visaDmStepPreview,
   type VisaDmStep,
+  validateVisaPhotosSubmit,
 } from './dm-steps'
 import { validateVisaForReview, visaDateDefaultsForStart, visaPayloadSchema, type VisaPayload } from './schema'
 
@@ -237,7 +238,9 @@ describe('visaDmStepPreview', () => {
     for (const step of STEPS) {
       const preview = visaDmStepPreview(step)
       expect(preview).toContain('·') // Vietnamese · English composite
-      expect(preview).toContain(`${step}/5`)
+      // Step 1 is the ONLY step either short flow sends (2026-10-06), so its line promises no "of 5".
+      if (step === 1) expect(preview).not.toContain('/5')
+      else expect(preview).toContain(`${step}/5`)
       // Conversation.lastMessageText is sliced to 140 in insertMessage.
       expect(preview.length).toBeLessThanOrEqual(140)
       expect(previewLeak(preview, step), `step ${step} preview`).toBeNull()
@@ -277,5 +280,19 @@ describe('the quick flow', () => {
   it('requires only codes the validator can actually emit', () => {
     const emittable = emittableCodes(source)
     for (const code of VISA_QUICK_REQUIRED) expect(emittable.has(code), code).toBe(true)
+  })
+})
+
+describe('photos-only: "Not now" to the Google AI check never blocks the send (2026-10-06)', () => {
+  // The applicant declined: the extract route marked both photos `unavailable` and stamped no AI consent. Step 1 is
+  // complete on the DOCUMENTS alone — aiDocumentProcessingConsent is the step's writable field, never a requirement.
+  const declined = visaPayloadSchema.parse({ aiDocumentProcessingConsent: false })
+  const docs = [{ kind: 'passport', validation_status: 'unavailable' }, { kind: 'portrait', validation_status: 'unavailable' }]
+  it('the send is allowed, and step 1 counts as done', () => {
+    expect(validateVisaPhotosSubmit(declined, docs)).toEqual([])
+    expect(firstIncompleteVisaQuickStep(declined, docs)).toBeNull()
+  })
+  it('a FAILED photo still blocks — "Not now" skips a check, it does not overrule one', () => {
+    expect(validateVisaPhotosSubmit(declined, [{ kind: 'passport', validation_status: 'failed' }, docs[1]])).toContain('passport_image_not_verified')
   })
 })

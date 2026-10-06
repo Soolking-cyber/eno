@@ -5,7 +5,8 @@ import { notificationScope, SERVICES_ONLY_NOTIFICATION_TYPES } from './route'
  * ⛔ IMPORTS THE REAL PREDICATE, per the idiom in report/cooldown.test.ts — re-implementing the
  * clause here would pin a copy and stay green against drifted code.
  *
- * What this guards: `sendVisaResultCard` writes a notification row titled "eno e-Visa", and
+ * What this guards: `sendVisaResultCard` writes a visa_result notification row (titled "eno e-Visa" on eno.forum,
+ * the partner's name on eno.vn since 2026-10-06), and
  * /api/notifications is `route.ts` — compiled into BOTH editions — selecting title and body
  * verbatim. Without scoping, an applicant who signs into eno.vn saw eno's own e-Visa service in
  * the marketplace bell. eno.vn is a licensed sàn TMĐT that may not surface it at all, so this is

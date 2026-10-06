@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { renderVisaResultEmail } from '@/lib/emails/visa-result'
-import { SITE_NAME } from '@/lib/edition'
+import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
 import { sendMail } from '@/lib/mail'
 import { insertMessage, type VisaResultMeta } from '@/lib/messages'
 import { sendPushToProfile } from '@/lib/push'
@@ -331,13 +331,19 @@ export async function sendVisaResultCard(input: {
     // back to the conversationId deep link and the MessageSquare glyph.
     try {
       const body = line.slice(0, 140)
+      // ⛔ ON eno.vn THE BELL AND THE PUSH SPEAK AS THE PARTNER, AS THE MAIL DOES (result-brand.ts; 2026-10-06): the
+      // partner's desk delivers its results THERE, and a hard-coded "eno e-Visa" put the licensed company on the
+      // applicant's lock screen as the provider of a service it may not offer. No honest name (visaResultBrand fails
+      // closed) ⇒ a neutral "e-Visa" — this IS the delivery, so it never goes silent. eno.forum keeps "eno e-Visa".
+      const brand = IS_MARKETPLACE ? await visaResultBrand().catch(() => null) : null
+      const from = IS_MARKETPLACE ? (brand ? `${brand.siteName} · e-Visa` : 'e-Visa') : 'eno e-Visa'
       await db.notification.create({
         data: {
           recipientId: convo.buyerProfileId,
           type: 'visa_result',
-          title: 'eno e-Visa',
+          title: from,
           body,
-          actorName: 'eno e-Visa',
+          actorName: from,
           conversationId: convo.id,
           listingId: convo.listingId,
         },
@@ -347,7 +353,7 @@ export async function sendVisaResultCard(input: {
       // away the bell row that already landed.
       try {
         after(() => sendPushToProfile(convo.buyerProfileId, {
-          title: 'eno e-Visa',
+          title: from,
           body,
           url: `/messages/${convo.id}`,
           tag: `convo-${convo.id}`,

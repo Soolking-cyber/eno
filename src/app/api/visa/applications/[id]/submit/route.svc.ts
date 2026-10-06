@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
 import { decryptVisaPayload, encryptVisaPayload, visaApplicantSnapshotHash, visaCryptoReady } from '@/lib/visa/crypto'
@@ -9,7 +9,11 @@ import { IS_SERVICES } from '@/lib/edition'
 import { visaCaseOnLocalDesk } from '@/lib/visa-admin'
 import { recordVisaEvent, serializeVisa, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa/records'
 import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForReview, visaDateDefaultsForStart } from '@/lib/visa/schema'
-import { VISA_QUICK_DECLARATION_VERSION, validateVisaQuickSubmit } from '@/lib/visa/dm-steps'
+import { VISA_PHOTOS_DECLARATION_VERSION, VISA_QUICK_DECLARATION_VERSION, validateVisaPhotosSubmit, validateVisaQuickSubmit } from '@/lib/visa/dm-steps'
+import { db as prisma } from '@/lib/db'
+import { insertMessage } from '@/lib/messages'
+import { sendPushToProfile } from '@/lib/push'
+import { isBlockedBetween } from '@/lib/user-blocks'
 
 // In-hub port of apps/forum/src/app/api/visa/applications/[id]/submit/route.ts —
 // cookie-session auth, no CORS layer. Every action here reads the payload (cancel's
@@ -23,6 +27,31 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('cancel') }),
 ])
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * ⛔ THE DESK MUST SEE A SENT CASE (owner 2026-10-06: customers "send to vietkite via message"). Cards are desk-authored,
+ * so they only bump the BUYER's unread (messages.ts) and never push: until now "Send to the desk" reached the desk's
+ * inbox as nothing at all. An applicant-authored constant line — the help route's idiom (help/route.svc.ts) — bumps the
+ * desk's unread; a push opens the case page. PII-free; best-effort (the status write is the record).
+ */
+const VISA_SENT_LINE = '📎 Đã gửi ảnh hộ chiếu và ảnh chân dung · Passport photo and portrait sent'
+async function notifyDeskOfSentCase(applicationId: string, userId: string, reference: string | null | undefined) {
+  try {
+    const convo = await prisma.conversation.findUnique({
+      where: { visaApplicationId: applicationId },
+      select: { id: true, buyerProfileId: true, sellerProfileId: true, listingId: true },
+    })
+    if (!convo || convo.buyerProfileId !== userId) return
+    // ⛔ Never across a block (gate `ugc-safety`), either way: no line into the closed thread and no push. The case
+    // still waits in the desk's queue (/admin/visas), where its operator decides.
+    if (await isBlockedBetween(convo.buyerProfileId, convo.sellerProfileId).catch(() => true)) return
+    await insertMessage(convo, userId, VISA_SENT_LINE)
+    const desk = convo.sellerProfileId
+    if (desk) after(() => sendPushToProfile(desk, { title: VISA_SENT_LINE, body: reference ?? '', url: `/admin/visas/${applicationId}`, tag: `visa-sent-${applicationId}` }))
+  } catch (e) {
+    console.error('[visa] sent case not announced to the desk', e)
+  }
+}
 
 // ⚠️ WS6 MIGRATION — `auth: 'userId'` AND NOTHING ELSE. THIS IS THE IRREVERSIBLE ONE (it stamps
 // the consent hashes and hands a government form to the desk), so the migration is deliberately
@@ -87,7 +116,10 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
    */
   // ⚠️ NOT for a case already PAID through the old checkout: that applicant answered every step, and a
   // needs_changes resubmit must keep its full declaration and prefill authorisation (a reviewer's catch).
-  const quick = IS_SERVICES && parsed.data.action === 'send_for_review' && !app.paid_at
+  // ⛔ BOTH EDITIONS SEND SHORT NOW: eno.forum the quick flow (photos + entry date, 2026-09-13), eno.vn PHOTOS-ONLY
+  // (owner 2026-10-06). The partner desk collects the rest, and payment, in the chat; nothing authorises a prefill.
+  const quick = parsed.data.action === 'send_for_review' && !app.paid_at
+  const photosOnly = quick && !IS_SERVICES
   let payload = decryptVisaPayload(app.encrypted_payload)
   let payloadChanged = false
   if (quick && parsed.data.action === 'send_for_review' && parsed.data.intendedEntryDate) {
@@ -100,7 +132,7 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
     payloadChanged = true
   }
   const snapshotHash = visaApplicantSnapshotHash(payload)
-  const issues = quick ? validateVisaQuickSubmit(payload, docs) : validateVisaForReview(payload, docs)
+  const issues = photosOnly ? validateVisaPhotosSubmit(payload, docs) : quick ? validateVisaQuickSubmit(payload, docs) : validateVisaForReview(payload, docs)
   if (issues.length) {
     await db.from('visa_applications').update({ checklist: issues, updated_at: new Date().toISOString() }).eq('id', id)
     return NextResponse.json({ error: 'application_incomplete', issues }, { status: 400 })
@@ -154,7 +186,7 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
     // ⛔ NO PAYMENT GATE ON eno.forum ANY MORE — the desk takes payment in chat (owner, 2026-09-13).
     // Free submissions cost the desk's time and hold passport images, so an account may have only a
     // few cases waiting with the desk at once.
-    if (IS_SERVICES && !app.paid_at) {
+    if (!app.paid_at) { // both editions: a free submission holds passport images, so cap the open ones
       // Counts the account's OTHER unpaid cases the desk has touched in the last 30 days — never this one,
       // and never stale ones, so an old abandoned case cannot lock a user out for good.
       const { count: open, error: openError } = await db.from('visa_applications').select('id', { count: 'exact', head: true })
@@ -185,7 +217,7 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
       ...(payloadChanged ? { encrypted_payload: encryptVisaPayload(payload) } : {}),
       applicant_confirmed_at: now,
       // A quick case's applicant vouched for their images and date only — record THAT text's version.
-      applicant_confirmation_version: quick ? VISA_QUICK_DECLARATION_VERSION : VISA_DECLARATION_VERSION,
+      applicant_confirmation_version: photosOnly ? VISA_PHOTOS_DECLARATION_VERSION : quick ? VISA_QUICK_DECLARATION_VERSION : VISA_DECLARATION_VERSION,
       applicant_snapshot_hash: snapshotHash,
       // A quick case authorises NO hosted prefill: its answers are partial and the desk files off-system.
       authorized_at: quick ? null : now,
@@ -200,8 +232,11 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
     if (sfr.error) throw sfr.error
     if (!sfr.data) return NextResponse.json({ error: 'application_status_changed' }, { status: 409 })
     const data = sfr.data
+    // Only the photos-only send says "passport photo and portrait sent" — a full-form or quick case on eno.forum is
+    // more than that, and its desk works from the case queue as before (review 2026-10-06).
+    if (photosOnly) await notifyDeskOfSentCase(id, userId, (data as VisaApplicationRow).reference)
     await recordVisaEvent(id, 'applicant', 'sent_for_review', userId, quick
-      ? { declarationVersion: VISA_QUICK_DECLARATION_VERSION, quickFlow: true, officialPrefillAuthorized: false }
+      ? { declarationVersion: photosOnly ? VISA_PHOTOS_DECLARATION_VERSION : VISA_QUICK_DECLARATION_VERSION, quickFlow: true, photosOnly, officialPrefillAuthorized: false }
       : {
         declarationVersion: VISA_DECLARATION_VERSION,
         authorizationVersion: VISA_AUTHORIZATION_VERSION,

@@ -27,6 +27,6 @@ describe('PDP × ios-hide-visa', () => {
 
   it('says where to apply, only in the iOS app, through the aliased visa module', () => {
     expect(PAGE).toContain('{iosHideContact && <VisaInAppNote kind="apply" className="ios-app-only mt-4" />}')
-    expect(PAGE).toMatch(/import \{ VisaInAppNote, VisaStart, VISA_START_AVAILABLE \} from '@\/components\/marketplace\/visa-start'/)
+    expect(PAGE).toMatch(/import \{ VisaInAppNote, VisaPartnerNote, VisaStart, VISA_START_AVAILABLE \} from '@\/components\/marketplace\/visa-start'/)
   })
 })

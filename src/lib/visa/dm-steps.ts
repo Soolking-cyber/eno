@@ -190,7 +190,7 @@ export function firstIncompleteVisaDmStep(payload: VisaPayload, documents: VisaD
 // run at render time. ⚠️ Constant literals only — nothing is interpolated, so no
 // applicant datum can ever reach the unencrypted column through this path.
 const VISA_DM_STEP_PREVIEW: Record<VisaDmStep, string> = {
-  1: 'Bước 1/5: Giấy tờ · Step 1 of 5: Documents',
+  1: 'Gửi ảnh hộ chiếu và ảnh chân dung · Send your passport photo and portrait',
   2: 'Bước 2/5: Xác nhận hộ chiếu · Step 2 of 5: Confirm passport',
   3: 'Bước 3/5: Thông tin của bạn · Step 3 of 5: About you',
   4: 'Bước 4/5: Chuyến đi của bạn · Step 4 of 5: Your trip',
@@ -229,4 +229,22 @@ export function validateVisaQuickSubmit(payload: VisaPayload, documents: VisaDmD
 export function firstIncompleteVisaQuickStep(payload: VisaPayload, documents: VisaDmDoc[]): 1 | null {
   const owned = VISA_DM_STEP_ISSUES[1]
   return validateVisaForReview(payload, documents).some((issue) => owned.has(issue)) ? 1 : null
+}
+
+// ── THE PHOTOS-ONLY FLOW (eno.vn's partner desk, owner 2026-10-06) ───────────────────────────────
+// "have evisa application flow in the app via eno.vn so when customers send to vietkite via message they can quick
+// check and send needed documents only passport photo and 3x4 portrait image". Same step-1 card as the quick flow,
+// then a send card with NO entry date and NO form: the seller collects everything else, and payment, in the chat.
+// The applicant vouches for two photos only, so the stored declaration version names THAT text.
+export const VISA_PHOTOS_DECLARATION_VERSION = 'evisa-photos-declaration-2026-10-06'
+
+/** What a photos-only send requires: the two documents, uploaded and not failed (an outage never blocks). */
+export function validateVisaPhotosSubmit(payload: VisaPayload, documents: VisaDmDoc[]): string[] {
+  return validateVisaDmStep(payload, documents, 1)
+}
+
+/** A case sent through a short flow (quick or photos-only) — read off the declaration version it was sent with. */
+const SHORT_FLOW_DECLARATIONS: ReadonlySet<string> = new Set([VISA_QUICK_DECLARATION_VERSION, VISA_PHOTOS_DECLARATION_VERSION])
+export function isShortFlowVisaCase(app: { applicant_confirmation_version?: string | null }): boolean {
+  return SHORT_FLOW_DECLARATIONS.has(app.applicant_confirmation_version ?? '')
 }

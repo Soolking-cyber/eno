@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { NextResponse } from 'next/server'
 import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
-import { decryptVisaPayload, encryptVisaPayload, visaCryptoReady } from '@/lib/visa/crypto'
+import { visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
 import { MAX_INTAKE_BYTES } from '@/lib/visa/image-normalization'
 import { recordVisaEvent } from '@/lib/visa/records'
@@ -94,7 +94,7 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
   const { id } = params
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   const db = getVisaDb()
-  const { data: application } = await db.from('visa_applications').select('id,status,encrypted_payload,updated_at').eq('id', id).eq('user_id', userId).maybeSingle()
+  const { data: application } = await db.from('visa_applications').select('id,status').eq('id', id).eq('user_id', userId).maybeSingle()
   if (!application) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   if (!['draft', 'needs_changes'].includes(application.status)) return NextResponse.json({ error: 'application_locked' }, { status: 409 })
   let form: FormData
@@ -165,29 +165,10 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
       const gone = result.code === 'not_found'
       return NextResponse.json({ error: gone ? 'not_found' : 'application_locked' }, { status: gone ? 404 : 409 })
     }
-    if (kind.data === 'passport') {
-      // ⚠️ COMPARE-AND-SET ON updated_at. The consent stamp is a read-modify-write of the whole
-      // encrypted payload; a concurrent PATCH (the applicant editing the form in another tab)
-      // between our read and this write would be overwritten with a stale payload. The write is
-      // gated on the updated_at we read; losing the race re-reads and re-applies on the newer
-      // payload. Three attempts, then a loud failure — the document IS committed either way.
-      let current: { encrypted_payload: string; updated_at: string } = application
-      for (let attempt = 0; ; attempt++) {
-        const payload = decryptVisaPayload(current.encrypted_payload)
-        if (payload.aiDocumentProcessingConsent) break
-        payload.aiDocumentProcessingConsent = true
-        const consentUpdate = await db.from('visa_applications')
-          .update({ encrypted_payload: encryptVisaPayload(payload), updated_at: new Date().toISOString() })
-          .eq('id', id).eq('user_id', userId).eq('updated_at', current.updated_at).select('id')
-        if (consentUpdate.error) throw consentUpdate.error
-        if (consentUpdate.data?.length) break
-        if (attempt >= 2) throw new Error('consent_stamp_lost')
-        const reread = await db.from('visa_applications').select('encrypted_payload,updated_at').eq('id', id).eq('user_id', userId).maybeSingle()
-        if (reread.error) throw reread.error
-        if (!reread.data) throw new Error('consent_stamp_lost')
-        current = reread.data
-      }
-    }
+    // ⚠️ NO CONSENT STAMP HERE ANY MORE (2026-10-06). Uploading a photo is not consent to an AI reading it — in the apps
+    // the applicant may say "Not now" to the Google AI check (ai-consent.ts, `document_check`). The extract route stamps
+    // aiDocumentProcessingConsent when the model actually reads the passport, so the bundle's "consented to automated
+    // passport reading" line is true of every case it appears on.
     const oldPaths = result.old_paths ?? []
     if (oldPaths.length) {
       // Fast path. The RPC already tombstoned these, so a failure here loses nothing — the sweep

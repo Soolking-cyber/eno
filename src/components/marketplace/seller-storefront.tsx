@@ -1,6 +1,7 @@
 import { isSellerHiddenHere, scopedListingWhere } from '@/lib/edition-scope'
-import { SITE_NAME } from '@/lib/edition'
+import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
+import { VisaPartnerNote } from '@/components/marketplace/visa-start'
 import { CalendarDay } from '@/components/marketplace/calendar-day'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import { cache } from 'react'
@@ -428,64 +429,67 @@ export async function SellerStorefront({ id }: { id: string }) {
                 linkLabel="Official Vietnam e-Visa portal (Immigration Department)"
               />
             )}
-            {/* ⚠️ THE CTA NOW LIVES ON THIS ROW, so the guard has to admit it. The row used to
-                render only when there was a handle or an owner; a seller with a chat target but
-                neither would have lost their "Chat now" entirely when it moved here. */}
-            {(seller.handle || seller.ownerId || (!isVisaDesk && !isAffiliatePartner && chatListingId)) && (
-              <div className="flex flex-wrap items-center gap-2">
-                {/* One line, mobile and desktop (owner, 2026-08-11). `flex-wrap` is deliberate
-                    and is NOT a second row in disguise: at 320px the chips + CTA + Report cannot
-                    fit, and forcing them to would either overflow the viewport or shrink the
-                    primary action below a 44px target. Wrapping degrades to two lines only where
-                    one is physically impossible; everywhere else it is the single row asked for. */}
-                {!isVisaDesk && !isAffiliatePartner && <StorefrontChatButton chatListingId={chatListingId} />}
-                {seller.handle && <HandleChip handle={seller.handle.handle} />}
-                {/* Share hands out the SUBDOMAIN (owner, 2026-09-13: "when user selects to share storefront
-                    use slug like vietkite.eno.vn or vietkite.eno.forum") — this edition's own domain. */}
-                {shareUrl && <ShareButton url={shareUrl} title={seller.name} compact />}
-                {/* ONE badge only (owner 2026-07-23: "only 1 badge, no 2 badge system").
-                    A business that passed the >=2-channel verification shows "Business
-                    verified"; everyone else shows just "Active account". The standalone
-                    "Tax code verified" chip was REMOVED — the tax registry check is now an
-                    INPUT to the single badge (isBusinessVerified requires it), never a
-                    public badge on its own, so a business that passed only the automatic
-                    tax check (a copyable public MST) can no longer flash a partial
-                    "verified" signal to buyers. */}
-                {/* Glyphs are RANKED, not interchangeable: the EnoSeal is the mark for
-                    signals eno actually VERIFIED ("Business verified", "Verified buyer") —
-                    §0b routes every first-party verification moment to the seal, and a
-                    stock BadgeCheck beside the authored seal chip diluted the signature
-                    (blind-critic catch, R2). The weaker "Active account" status takes the
-                    plain CheckCircle2 — stamping the verification mark on mere activity
-                    would devalue the real one.
-                    size="md" (text-xs + h-3.5 glyph) matches the HandleChip beside it,
-                    so the identity row reads as ONE height of chip. */}
-                {/* ⚠️ "Active account" WAS REMOVED (owner, 2026-08-11) — do not restore it.
-                    It was the else-branch of this badge: a verified business showed "Business
-                    verified", everyone else showed "Active account". The second one asserted
-                    nothing a reader could act on — every storefront that renders at all belongs
-                    to an active account — while the card's metrics strip directly above already
-                    carries the honest version of that signal, a real last-seen bucket computed
-                    from lastSeenAt. A green tick claiming "active" beside a line saying when
-                    they were actually last online is the weaker of two claims about the same
-                    thing, and it borrowed the success colour to say it.
-                    What remains is a badge only where something was genuinely VERIFIED, which
-                    is what the one-badge rule (owner 2026-07-23) was protecting in the first
-                    place: a storefront now shows a badge or it shows nothing, and the badge
-                    means eno checked a document. */}
-                {cardSeller.businessVerified && (
-                  <Badge variant="success" size="md"><ShieldCheck aria-hidden className="h-3.5 w-3.5" /> <Tr text="Business verified" /></Badge>
-                )}
-                {/* Report rides the END of this line. It is a rare, secondary action — as its
-                    own red block under the CTA it read as loud as "Chat now". */}
-                <span className="ml-auto flex items-center">
-                  <ReportButton sellerId={seller.id} />
-                  {/* Block (App Store gate `ugc-safety`; renders nothing while it is off) — only on a shop
-                      a PERSON runs. An imported, ownerless shop has nobody to block. */}
-                  {seller.ownerId && <BlockUserButton sellerId={seller.id} name={seller.name} />}
-                </span>
-              </div>
-            )}
+            {/* eno.vn: the block above is empty there (stubbed provider) — name the seller and link the official portal. */}
+            {isVisaDesk && !IS_SERVICES && <VisaPartnerNote className="mb-4" partner={seller.name} />}
+            {/* ⛔ NO GUARD ON THIS ROW ANY MORE — REPORT RIDES IT ON EVERY STOREFRONT (App Store Guideline 1.2;
+                audit 1.5, 2026-10-06). It rendered only when the shop had a handle, an owner or a chat target
+                (the guard grew the last when "Chat now" moved onto this row), so a handle-less, ownerless shop
+                with nothing to chat about — an imported linked shop, reached at /sellers/<id> — lost "Report this
+                seller" with the rest of the row. Every item on it carries its own condition; with none of them
+                true the row is Report alone, at its end. Block stays on a shop a person runs. */}
+            <div className="flex flex-wrap items-center gap-2">
+              {/* One line, mobile and desktop (owner, 2026-08-11). `flex-wrap` is deliberate
+                  and is NOT a second row in disguise: at 320px the chips + CTA + Report cannot
+                  fit, and forcing them to would either overflow the viewport or shrink the
+                  primary action below a 44px target. Wrapping degrades to two lines only where
+                  one is physically impossible; everywhere else it is the single row asked for. */}
+              {!isVisaDesk && !isAffiliatePartner && <StorefrontChatButton chatListingId={chatListingId} />}
+              {seller.handle && <HandleChip handle={seller.handle.handle} />}
+              {/* Share hands out the SUBDOMAIN (owner, 2026-09-13: "when user selects to share storefront
+                  use slug like vietkite.eno.vn or vietkite.eno.forum") — this edition's own domain. */}
+              {shareUrl && <ShareButton url={shareUrl} title={seller.name} compact />}
+              {/* ONE badge only (owner 2026-07-23: "only 1 badge, no 2 badge system").
+                  A business that passed the >=2-channel verification shows "Business
+                  verified"; everyone else shows just "Active account". The standalone
+                  "Tax code verified" chip was REMOVED — the tax registry check is now an
+                  INPUT to the single badge (isBusinessVerified requires it), never a
+                  public badge on its own, so a business that passed only the automatic
+                  tax check (a copyable public MST) can no longer flash a partial
+                  "verified" signal to buyers. */}
+              {/* Glyphs are RANKED, not interchangeable: the EnoSeal is the mark for
+                  signals eno actually VERIFIED ("Business verified", "Verified buyer") —
+                  §0b routes every first-party verification moment to the seal, and a
+                  stock BadgeCheck beside the authored seal chip diluted the signature
+                  (blind-critic catch, R2). The weaker "Active account" status takes the
+                  plain CheckCircle2 — stamping the verification mark on mere activity
+                  would devalue the real one.
+                  size="md" (text-xs + h-3.5 glyph) matches the HandleChip beside it,
+                  so the identity row reads as ONE height of chip. */}
+              {/* ⚠️ "Active account" WAS REMOVED (owner, 2026-08-11) — do not restore it.
+                  It was the else-branch of this badge: a verified business showed "Business
+                  verified", everyone else showed "Active account". The second one asserted
+                  nothing a reader could act on — every storefront that renders at all belongs
+                  to an active account — while the card's metrics strip directly above already
+                  carries the honest version of that signal, a real last-seen bucket computed
+                  from lastSeenAt. A green tick claiming "active" beside a line saying when
+                  they were actually last online is the weaker of two claims about the same
+                  thing, and it borrowed the success colour to say it.
+                  What remains is a badge only where something was genuinely VERIFIED, which
+                  is what the one-badge rule (owner 2026-07-23) was protecting in the first
+                  place: a storefront now shows a badge or it shows nothing, and the badge
+                  means eno checked a document. */}
+              {cardSeller.businessVerified && (
+                <Badge variant="success" size="md"><ShieldCheck aria-hidden className="h-3.5 w-3.5" /> <Tr text="Business verified" /></Badge>
+              )}
+              {/* Report rides the END of this line. It is a rare, secondary action — as its
+                  own red block under the CTA it read as loud as "Chat now". */}
+              <span className="ml-auto flex items-center">
+                <ReportButton sellerId={seller.id} />
+                {/* Block (App Store gate `ugc-safety`; renders nothing while it is off) — only on a shop
+                    a PERSON runs. An imported, ownerless shop has nobody to block. */}
+                {seller.ownerId && <BlockUserButton sellerId={seller.id} name={seller.name} />}
+              </span>
+            </div>
             {/* ⚠️ A <div>, NOT THE <p> THIS WAS. RichText emits <p>/<ul> blocks, and a block inside
                 a <p> is invalid HTML the browser silently re-parents — the server tree and the
                 client tree then differ and React logs a hydration mismatch. The className moves

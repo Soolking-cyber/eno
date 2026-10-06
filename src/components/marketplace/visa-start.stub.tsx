@@ -108,3 +108,7 @@ export function VisaStart(_props: { listingId: string; label?: string; className
 export function VisaInAppNote(_props: { kind: 'apply' | 'page' | 'step' | 'thread'; className?: string }) {
   return null
 }
+
+export function VisaPartnerNote(_props: { partner: string; className?: string }) {
+  return null
+}

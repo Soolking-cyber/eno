@@ -4,6 +4,7 @@ import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
 import { askVisaConcierge, VISA_CONCIERGE_QUESTION_MAX } from '@/lib/visa/concierge'
 import { visaDmFailureFor } from '@/lib/visa/dm-flow'
+import { IS_SERVICES } from '@/lib/edition'
 
 // ASK ENO CONCIERGE — "also hook ai gemini 3.5 flash there so it can answer all related
 // latest updates about visa application name is Eno concierge" (owner).
@@ -68,6 +69,9 @@ export const POST = route({ auth: 'userId' }, async ({ req: request, params, use
   const { id } = params
   // A non-uuid segment would 400 at the uuid column rather than 404 (the visa-admin idiom).
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  // eno.vn hosts a PARTNER's desk: no Eno concierge there (its prompt speaks as eno, the provider). The chip is not
+  // rendered on eno.vn either (messages/[id]/page.tsx conciergeAvailable); this is the second lock on the same door.
+  if (!IS_SERVICES) return NextResponse.json({ error: 'concierge_unavailable' }, { status: 503 })
 
   // TIGHT AND STRICT. Every success spends real Gemini money AND writes two messages into a
   // two-party thread the desk cannot mute. Keyed per (actor, application) so one applicant

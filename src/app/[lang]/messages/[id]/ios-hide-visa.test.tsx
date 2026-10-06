@@ -131,8 +131,8 @@ async function openThread() {
 }
 const composer = () => document.querySelector('.chat-composer')
 const advancePosts = () => calls.filter((c) => c.url.endsWith('/advance') && c.method === 'POST')
-const THREAD_NOTE = 'This e-Visa application continues at www.eno.forum in a web browser. You can still read the conversation here.'
-const STEP_NOTE = 'This e-Visa step is available at www.eno.forum in a web browser.'
+const THREAD_NOTE = 'This e-Visa application continues in a web browser. You can still read the conversation here.'
+const STEP_NOTE = 'This e-Visa step is available in a web browser.'
 
 describe('gate OFF (the shipped default) — the e-Visa thread is unchanged', () => {
   it.each(['ios', 'android', 'web'] as const)('%s: composer present, card rendered, /advance posted, no notice', async (kind) => {

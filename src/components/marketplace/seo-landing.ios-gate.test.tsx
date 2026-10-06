@@ -58,7 +58,7 @@ describe('SeoLanding × ios-hide-visa', () => {
     expect(hidden.some((n) => n.textContent?.includes('See all e-visa options'))).toBe(true)
     expect(hidden.some((n) => n.querySelector('[data-grid]'))).toBe(true)
     const note = doc.querySelector('.ios-app-only')
-    expect(note?.textContent).toContain('e-Visa applications are available at www.eno.forum in a web browser.')
+    expect(note?.textContent).toContain('In the app this page is for information only. e-Visa applications can be made in a web browser.')
     // Nothing outside the hidden wrappers links onward to the listings.
     for (const a of doc.querySelectorAll('a')) expect(a.closest('.ios-app-hidden') || !/category=services/.test(a.getAttribute('href') ?? '')).toBeTruthy()
   })

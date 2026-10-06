@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Clock, Loader2, Stamp } from '@/components/ui/icons'
+import { Clock, Info, Loader2, Stamp } from '@/components/ui/icons'
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { intlLocale } from '@/lib/i18n/langs'
@@ -543,18 +544,48 @@ function VisaStartButton({ listingId, label, className }: {
 
 /**
  * APP STORE GATE `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — what the iOS app says where an e-Visa would have
- * been applied for: "…available at www.eno.forum in a web browser". The CALLER decides when it shows (an ISR page wraps
- * it in the `ios-app-only` hook; the chat thread asks useIosHideVisa), so this renders unconditionally.
+ * been applied for: "…can be made in a web browser". The CALLER decides when it shows (an ISR page wraps it in the
+ * `ios-app-only` hook; the chat thread asks useIosHideVisa), so this renders unconditionally.
  * ⛔ IT LIVES HERE, IN THE ALIASED MODULE, BECAUSE ITS WORDS ARE e-VISA VOCABULARY. Shared callers (the PDP, SeoLanding,
- * the chat thread) compile on eno.vn too; there the stub renders nothing and no sentence ships, and gen-ui-strings
- * files these strings in the services catalogue. "www.eno.forum" is literal because only eno.forum hosts the desk.
+ * the chat thread) compile on eno.vn too — and production eno.vn builds with MARKETPLACE_HOSTS_SERVICES=true, so this
+ * is the REAL module there and its words ship. ⛔ IT NAMES NO SITE (owner decision D18, 2026-10-06): the iOS app renders
+ * eno.vn and is published by the licensed company, which may not send people to eno.forum for an e-Visa; a partner's
+ * product (VietKite) is applied for on the site that lists it, in a web browser.
  */
 export function VisaInAppNote({ kind, className }: { kind: 'apply' | 'page' | 'step' | 'thread'; className?: string }) {
   const { tr } = useLanguage()
   const text =
-    kind === 'apply' ? tr('e-Visa applications are available at www.eno.forum in a web browser.', 'Bạn có thể nộp hồ sơ e-Visa tại www.eno.forum trên trình duyệt web.')
-    : kind === 'page' ? tr('In the app this page is for information only. e-Visa applications are available at www.eno.forum in a web browser.', 'Trong ứng dụng, trang này chỉ để cung cấp thông tin. Bạn có thể nộp hồ sơ e-Visa tại www.eno.forum trên trình duyệt web.')
-    : kind === 'step' ? tr('This e-Visa step is available at www.eno.forum in a web browser.', 'Bước e-Visa này có tại www.eno.forum trên trình duyệt web.')
-    : tr('This e-Visa application continues at www.eno.forum in a web browser. You can still read the conversation here.', 'Hồ sơ e-Visa này được tiếp tục tại www.eno.forum trên trình duyệt web. Bạn vẫn có thể xem cuộc trò chuyện tại đây.')
+    kind === 'apply' ? tr('e-Visa applications are not available in the app. You can apply in a web browser.', 'Ứng dụng không hỗ trợ nộp hồ sơ e-Visa. Bạn có thể nộp hồ sơ trên trình duyệt web.')
+    : kind === 'page' ? tr('In the app this page is for information only. e-Visa applications can be made in a web browser.', 'Trong ứng dụng, trang này chỉ để cung cấp thông tin. Bạn có thể nộp hồ sơ e-Visa trên trình duyệt web.')
+    : kind === 'step' ? tr('This e-Visa step is available in a web browser.', 'Bước e-Visa này có trên trình duyệt web.')
+    : tr('This e-Visa application continues in a web browser. You can still read the conversation here.', 'Hồ sơ e-Visa này được tiếp tục trên trình duyệt web. Bạn vẫn có thể xem cuộc trò chuyện tại đây.')
   return <IosBrowserOnlyNote text={text} className={className} />
+}
+
+/**
+ * eno.vn's e-Visa disclosure (owner 2026-10-06: the flow ships in both apps via eno.vn). `@/lib/visa-provider` is stubbed
+ * on every marketplace build, so VisaDisclosure renders null on eno.vn; this module is REAL there (MARKETPLACE_HOSTS_SERVICES),
+ * so the words ship only where the flow does. It names the SELLER — never eno — as the one who sells and handles the
+ * service, says what eno.vn is not, and links the official portal (Google Play, 2026-09-10: a clear statement plus a
+ * clear, functional official URL). ⚠️ No "licensed" claim until the licence is on file (visa-provider.ts licenceOnFile).
+ * ⛔ Never inside `.web-only`, never collapsed: it must render in the apps (visa-disclosure.tsx says why).
+ */
+// The official portal, kept out of JSX text (jsx-no-literals) — the same constant visa-provider.ts holds, which eno.vn stubs.
+const OFFICIAL_PORTAL = { url: 'https://evisa.gov.vn/', host: 'evisa.gov.vn' } as const
+export function VisaPartnerNote({ partner, className = '' }: { partner: string; className?: string }) {
+  const { tr } = useLanguage()
+  const text = fillTemplate(
+    tr('This e-Visa service is sold and handled by {n}. eno.vn is the marketplace — not a government agency — and does not decide visa applications. You can always apply yourself on the official portal:', 'Dịch vụ e-Visa này do {n} bán và xử lý. eno.vn là sàn giao dịch — không phải cơ quan nhà nước — và không quyết định kết quả hồ sơ thị thực. Bạn luôn có thể tự nộp hồ sơ trên cổng thông tin chính thức:'),
+    'This e-Visa service is sold and handled by {n}. eno.vn is the marketplace — not a government agency — and does not decide visa applications. You can always apply yourself on the official portal:',
+    { n: partner },
+  )
+  return (
+    <aside className={`flex max-w-3xl items-start gap-3 rounded-xl bg-tint p-4 ${className}`}>
+      <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
+      <p className="min-w-0 text-sm leading-relaxed text-body">
+        {text}{' '}
+        <a href={OFFICIAL_PORTAL.url} target="_blank" rel="noreferrer" className="font-semibold text-accent-foreground underline underline-offset-2">{OFFICIAL_PORTAL.host}</a>
+      </p>
+    </aside>
+  )
 }

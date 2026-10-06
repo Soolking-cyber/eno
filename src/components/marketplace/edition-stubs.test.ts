@@ -116,6 +116,14 @@ describe.each([
     'src/components/marketplace/visa-start.tsx',
     'src/components/marketplace/visa-start.stub.tsx',
   ],
+  // The e-Visa photo check's Google AI notice (2026-10-06) — imported by the SHARED chat page and Settings.
+  [
+    'visa-ai-consent',
+    'src/components/marketplace/visa-ai-consent.tsx',
+    'src/components/marketplace/visa-ai-consent.stub.tsx',
+  ],
+  // eno.vn's /privacy section for the partner e-Visa flow (2026-10-06) — the privacy page compiles on every build.
+  ['privacy-partner-visa-copy', 'src/lib/privacy-partner-visa-copy.ts', 'src/lib/privacy-partner-visa-copy.stub.ts'],
   // The lazily-loaded services translation catalogue. Generated, so nobody edits it by hand — but
   // it is aliased like the rest, and an alias with no parity check is the gap this list closes.
   // The API error vocabulary's services half. Not copy — a RUNTIME array of code strings that
@@ -181,6 +189,8 @@ describe('alias coverage', () => {
     'src/components/marketplace/cross-site-promo.tsx',
     'src/components/marketplace/trip-ai-consent.tsx',
     'src/components/marketplace/visa-start.tsx',
+    'src/components/marketplace/visa-ai-consent.tsx',
+    'src/lib/privacy-partner-visa-copy.ts',
     'src/generated/ui-strings.services.ts',
     'src/lib/api/errors-services.ts',
     'src/lib/payments/crossmint.ts',

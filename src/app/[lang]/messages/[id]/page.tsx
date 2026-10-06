@@ -60,7 +60,8 @@ import {
 } from '@/components/marketplace/visa-cards'
 import { TripAssistChips, TripQuoteCard, TripRequestCard, TripStatusCard, TripWizardCard, TripWizardLauncher } from '@/components/marketplace/trip-cards'
 import { useTripAiConsentCopy } from '@/components/marketplace/trip-ai-consent'
-import { aiConsentNeeded, askAiConsent } from '@/lib/ai-consent'
+import { aiConsentNeeded, askAiConsent, askAiConsentAnswer } from '@/lib/ai-consent'
+import { useVisaPhotoCheckAiCopy } from '@/components/marketplace/visa-ai-consent'
 import { useAiConsent } from '@/hooks/use-ai-consent'
 import { AvailabilityRequestCard, parseAvailabilityRequestMeta } from '@/components/marketplace/availability-request-card'
 import { Avatar } from '@/components/ui/avatar'
@@ -1481,7 +1482,7 @@ export default function ThreadPage() {
    * false and this thread is exactly what it was. On, in the iOS app an e-Visa thread is READ-ONLY: the thread IS the
    * application ("the whole application happens inside the thread"), so the cards that take a step (product pick,
    * passport/portrait upload, form, send/pay) become one line each, the chip row and the composer give way to a notice
-   * that the application continues at www.eno.forum in a web browser, and nothing is POSTed on open. The history — and
+   * that the application continues in a web browser, and nothing is POSTed on open. The history — and
    * a finished e-Visa's download — stays.
    * useIosHideVisa, not a bare check: it is `false` on the server and through hydration, then right (no mismatch).
    */
@@ -1562,6 +1563,13 @@ export default function ThreadPage() {
     setVisaBusy(true)
     const toastId = `visa-${kind}`
     try {
+      // ⚠️ App Store gate `app-ai-notice` (src/lib/ai-consent.ts, family `document_check`): in the apps, ask before the
+      // photos go to Google (Gemini) for the check. "Not now" ⇒ the photo is still saved and goes to the seller unchecked
+      // (the extract route calls no model); no answer ⇒ nothing is uploaded. Gate off ⇒ 'on' at once, unchanged.
+      const ai = aiConsentNeeded('document_check', user?.id)
+        ? await askAiConsentAnswer('document_check', { userId: user?.id, copy: visaAiCopy })
+        : 'on'
+      if (ai === null) return
       toast.loading(tr('Preparing your photo…', 'Đang chuẩn bị ảnh…'), { id: toastId })
       let prepared: File
       try {
@@ -1579,10 +1587,12 @@ export default function ThreadPage() {
       const documentId = (uploaded.data.document as { id?: string } | undefined)?.id
       // ⚠️ COPY VIA visa-cards, NOT INLINE. next.config.ts aliases that module away on a
       // marketplace build; a literal here ships "Đang đọc hộ chiếu…" in eno.vn's chunk (measured).
-      toast.loading(visaDocToastCopy(kind, 'reading', tr), { id: toastId })
-      const analyzed = await visaPost(`/api/visa/applications/${applicationId}/extract`, { kind, ...(documentId ? { documentId } : {}) })
+      if (ai === 'on') toast.loading(visaDocToastCopy(kind, 'reading', tr), { id: toastId })
+      const analyzed = await visaPost(`/api/visa/applications/${applicationId}/extract`, { kind, ...(documentId ? { documentId } : {}), ...(ai === 'off' ? { ai: false } : {}) })
       if (!analyzed.ok) {
         toast.error(visaErrorCopy(analyzed.error, tr), { id: toastId })
+      } else if (ai === 'off') {
+        toast.success(visaDocToastCopy(kind, 'saved', tr), { id: toastId })
       } else if ((analyzed.data.document as { validationStatus?: string } | undefined)?.validationStatus === 'passed') {
         toast.success(visaDocToastCopy(kind, 'read', tr), { id: toastId })
       } else {
@@ -1637,7 +1647,9 @@ export default function ThreadPage() {
   // `mode === 'ai'`, so asking for a person unmounted the whole control and swapped in a banner —
   // the assistant "disappeared" with no way back. Only `admin` still yields to the banner: an
   // operator's takeover is theirs to end, not the applicant's.
-  const conciergeAvailable = !!visaInfo && iAmApplicant && (visaInfo.mode === 'ai' || visaInfo.mode === 'human_requested')
+  // eno.vn: no Eno concierge — its prompt speaks as eno, the e-Visa provider, sends questions to Google AI and is grounded
+  // on five steps (src/lib/visa/concierge.ts). "Talk to a person" and the chat itself reach the seller.
+  const conciergeAvailable = IS_SERVICES && !!visaInfo && iAmApplicant && (visaInfo.mode === 'ai' || visaInfo.mode === 'human_requested')
   const visaHumanRequested = visaInfo?.mode === 'human_requested'
   // ⚠️ ALSO ON humanRequested, not just on availability. `conciergeAvailable` deliberately stays
   // TRUE in human mode now (the toggle must remain mounted), so this reset stopped firing on the
@@ -1663,6 +1675,7 @@ export default function ThreadPage() {
   const [tripConciergeArmed, setTripConciergeArmed] = useState(false)
   const [tripBusy, setTripBusy] = useState(false)
   const tripAiCopy = useTripAiConsentCopy() // App Store gate `app-ai-notice` — see askTripConcierge
+  const visaAiCopy = useVisaPhotoCheckAiCopy() // App Store gate `app-ai-notice` — see uploadVisaDocument
   const tripHumanRequested = useMemo(() => (thread?.messages ?? []).some((m) => m.kind === 'trip_help'), [thread])
   // Trip chips belong to the traveller on a trip thread, never to the desk seat.
   const tripAssistAvailable = thread?.kind === 'itinerary' && !thread?.iAmSeller
@@ -2042,6 +2055,8 @@ export default function ThreadPage() {
       const m = thread.messages[i]
       const meta = parseVisaStepMeta(m.kind, m.meta)
       if (!meta) continue
+      // Both editions run a SHORT flow: a step 2-4 card a long-flow draft left behind is history, never a live form.
+      if (meta.step !== 1) continue
       return meta.state === 'active' && meta.applicationId === visaInfo.applicationId ? m.id : null
     }
     return null
@@ -2163,17 +2178,21 @@ export default function ThreadPage() {
    * and the notification + push that sent them brought them HERE — so this is where they answer. Only the
    * buyer side (`=== false`, never a cached thread that does not say), only a marketplace listing thread
    * with a seller identity: never a support thread (no listing), the rental desk (no seller id), or the
-   * visa / trip desk (the server never asks there either). The server re-checks all of it.
+   * visa / trip desk (the server never asks there either), and never a thread a block has CLOSED (gate
+   * `ugc-safety` — the server lists nothing across a block). The server re-checks all of it.
    */
   const askBuyerAboutSales = !!thread && thread.iAmSeller === false && !!thread.listing && !!thread.counterpart.sellerId &&
-    thread.kind !== 'visa' && thread.kind !== 'itinerary'
+    thread.kind !== 'visa' && thread.kind !== 'itinerary' && !thread.closed
   // Buyer-side review prompt: the deal closed (listing sold OR an offer here was
   // accepted) and this conversation hasn't produced a review yet — and, where this thread can carry the
   // seller's "did you buy this?", it is KNOWN that none is waiting (`saleQuestionState === 'none'`): one card
-  // at a time, the question first, and nothing assumed while the lookup is out or has failed.
+  // at a time, the question first, and nothing assumed while the lookup is out or has failed. Never in a thread
+  // a block has closed (`ugc-safety`) — where `askBuyerAboutSales` is false and would otherwise let it through.
   const hasAcceptedOffer = !!acceptedOfferId
   const showReviewPrompt = !!thread && !thread.iAmSeller && !thread.hasReviewed && !!thread.counterpart.sellerId &&
     (thread.listing?.status === 'sold' || hasAcceptedOffer) && (!askBuyerAboutSales || saleQuestionState === 'none')
+  // ⚠️ NOT gated by a block, on purpose (runbook §6, R3): a seller who could close the thread could otherwise veto the
+  // buyer's post-sale review. The block hides the sale QUESTION (askBuyerAboutSales), never the review card.
 
   // Safety interjections — pure render-time, no fetch/send involvement. THREE moments now:
   // the thread's first breath, the first off-platform lure, and the moment a price is agreed.
@@ -2993,7 +3012,8 @@ export default function ThreadPage() {
                     caseError={visaCaseError}
                     // Live only for the applicant, only for the newest active card of the
                     // bound case, and never while a human has taken the thread over.
-                    live={iAmApplicant && m.id === liveVisaStepId}
+                    // …and only while the case is still the applicant's to edit: the step-1 card is never closed on a short flow.
+                    live={iAmApplicant && m.id === liveVisaStepId && (!visaCase || EDITABLE_VISA_STATUSES.has(visaCase.status))}
                     busy={visaBusy}
                     onAct={(action, fields, step) => actOnVisaCard(m.id, action, fields, step)}
                     onUpload={uploadVisaDocument}
@@ -3003,7 +3023,9 @@ export default function ThreadPage() {
                     meta={visaCheckoutMeta}
                     info={visaInfo}
                     kase={visaCase}
-                    live={iAmApplicant && m.id === liveVisaCheckoutId}
+                    // A short flow's send card is never PAID, so "unpaid" alone kept it live after sending (re-press → 409).
+                    live={iAmApplicant && m.id === liveVisaCheckoutId && (!visaCase || EDITABLE_VISA_STATUSES.has(visaCase.status))}
+                    deskName={iAmApplicant ? thread?.counterpart.name : undefined}
                     busy={visaBusy}
                     onPay={payVisa}
                     // Applicant only: the desk reads this card, it does not need an escape hatch
@@ -3389,7 +3411,7 @@ export default function ThreadPage() {
               header, and the dialog instance above stays mounted. Never set while the gate is off.
               App Store gate `ios-hide-visa`: a read-only e-Visa thread in the iOS app (see `visaElsewhere`).
               ⚠️ CLOSED WINS. A partner's e-Visa product thread is an ordinary listing thread, so it can be
-              blocked; its visa note says the chat continues "at www.eno.forum in a web browser", which a
+              blocked; its visa note says the chat continues "in a web browser", which a
               block has made false — there it is closed too. The banner is the true state for BOTH sides
               (`closed` is only ever 'you_blocked' or 'blocked'); the blocker's banner also links the way
               back (Manage blocked users), the blocked side's only says the thread is closed. */}

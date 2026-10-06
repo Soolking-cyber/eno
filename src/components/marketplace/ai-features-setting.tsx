@@ -6,6 +6,7 @@ import { useMounted } from '@/hooks/use-mounted'
 import { aiConsentAskFirst } from '@/lib/ai-consent'
 import { AiFamilySwitchRow } from '@/components/marketplace/ai-family-switch-row'
 import { TripAiSetting } from '@/components/marketplace/trip-ai-consent'
+import { VisaPhotoCheckAiSetting } from '@/components/marketplace/visa-ai-consent'
 
 /**
  * Settings → Preferences → GOOGLE AI — one switch per feature family, beside Chat translation. App Store gate
@@ -57,6 +58,7 @@ export function AiFeaturesSetting() {
           )}
         />
         <TripAiSetting />
+        <VisaPhotoCheckAiSetting />
       </div>
     </section>
   )

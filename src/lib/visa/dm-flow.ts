@@ -22,7 +22,7 @@ import {
 } from '../visa-shop'
 import { decryptVisaPayload, encryptVisaPayload, visaCryptoReady } from './crypto'
 import { getVisaDb, visaTableMissing } from './db'
-import { firstIncompleteVisaDmStep, firstIncompleteVisaQuickStep, VISA_DM_STEP_FIELDS, type VisaDmStep, type VisaDmDoc } from './dm-steps'
+import { firstIncompleteVisaQuickStep, VISA_DM_STEP_FIELDS, type VisaDmStep, type VisaDmDoc } from './dm-steps'
 import {
   bindVisaThread,
   findVisaThread,
@@ -32,8 +32,6 @@ import {
   sendVisaStepCard,
 } from './dm-thread'
 import { quoteVisaUsd, type VisaQuote } from './fx'
-// The edition flag, so a deployment that is SUPPOSED to charge still fails closed.
-import { IS_SERVICES } from '../edition'
 import { recordVisaEvent, type VisaApplicationRow, type VisaDocumentRow } from './records'
 import { emptyVisaPayload, visaPayloadSchema, visaStatuses, type VisaPayload } from './schema'
 
@@ -644,12 +642,13 @@ export async function applyVisaDmFieldEdit(input: {
  * their takeover returns the thread to 'ai' and the next call resumes.
  */
 /**
- * The step the applicant is on. ⛔ eno.forum RUNS THE QUICK FLOW (owner, 2026-09-13): documents, then
- * straight to the send-to-desk card where they pick an entry date — steps 2-4 are never sent there.
- * The marketplace keeps the full five steps.
+ * The step the applicant is on. ⛔ BOTH EDITIONS RUN A SHORT FLOW: eno.forum the quick flow (documents + an entry
+ * date on the send card, owner 2026-09-13) and eno.vn the PHOTOS-ONLY flow (owner 2026-10-06: "only passport photo
+ * and 3x4 portrait image" — the partner desk collects the rest in chat). Steps 2-4 are never sent on either; their
+ * partition stays in dm-steps.ts because approve_for_prefill still validates the full form.
  */
 function currentVisaDmStep(payload: VisaDmCase['payload'], documents: VisaDmDoc[]): VisaDmStep | null {
-  return IS_SERVICES ? firstIncompleteVisaQuickStep(payload, documents) : firstIncompleteVisaDmStep(payload, documents)
+  return firstIncompleteVisaQuickStep(payload, documents)
 }
 
 export async function advanceVisaDmFlow(input: { applicationId: string; userId: string }): Promise<VisaDmAdvance> {
@@ -760,7 +759,7 @@ async function emitVisaCheckoutCard(kase: VisaDmCase, conversationId: string): P
    * reasoning above is kept as the record of the pay-before-review rule this replaced.
    */
   const quote = await priceVisaCheckout(applicationId)
-  if (isFailure(quote) && !IS_SERVICES) return { ...quote, step: 5, complete: true }
+  // eno.vn (photos-only) takes no money either: an unquotable price must not stop two photos reaching the desk.
   if (isFailure(quote)) {
     if (existing && existing.meta.status === 'unpaid') return { ok: true, step: 5, messageId: existing.id, complete: true }
     const card = await sendVisaCheckoutCard({ conversationId, applicationId, amountUsd: 0 })
@@ -945,7 +944,9 @@ export async function resendVisaDmCard(input: {
   // carries fields, and from there the review UI reaches 1..4 — which is also exactly the writable
   // set the act route allows (`1..meta.step`).
   // The quick flow has no step 4 to review (eno.forum, 2026-09-13) — a review request there re-posts the send card.
-  const step = input.mode === 'review' && rawStep === null && !IS_SERVICES ? (4 as VisaDmStep) : rawStep
+  // Short flows (both editions) have no form step to review: "review" re-posts the DOCUMENTS card so a photo can be
+  // swapped before sending.
+  const step = input.mode === 'review' && rawStep === null ? (1 as VisaDmStep) : rawStep
 
   if (step === null) {
     // ── THE PAY CARD ───────────────────────────────────────────────────────────────
@@ -975,8 +976,7 @@ export async function resendVisaDmCard(input: {
       // Never asked yet — so there is nothing to re-send and nothing to preserve. This is
       // a FIRST emission and it goes through the ordinary server price chain.
       const priced = await priceVisaCheckout(input.applicationId)
-      // eno.forum: an unquotable price does not block the send-to-desk card (see emitVisaCheckoutCard).
-      if (isFailure(priced) && !IS_SERVICES) return priced
+      // Neither edition charges in the card: an unquotable price never blocks the send card (see emitVisaCheckoutCard).
       amountUsd = isFailure(priced) ? 0 : priced.amountUsd
     }
     const card = await sendVisaCheckoutCard({ conversationId, applicationId: input.applicationId, amountUsd })

@@ -17,6 +17,8 @@ import {
   PRIVACY_SERVICES_RETENTION,
   PRIVACY_SERVICES_SECTIONS,
 } from '@/lib/privacy-services-copy'
+// eno.vn's own section for the PARTNER e-Visa flow (2026-10-06) — aliased like the module above; rendered only on eno.vn.
+import { PRIVACY_PARTNER_VISA_RECIPIENTS, PRIVACY_PARTNER_VISA_SECTIONS } from '@/lib/privacy-partner-visa-copy'
 
 export const metadata: Metadata = withShare({
   title: `Privacy Policy | ${SITE_NAME}`,
@@ -470,6 +472,7 @@ const SECTIONS: Section[] = [
     ],
   },
   ...(IS_SERVICES ? PRIVACY_SERVICES_SECTIONS.map(([id, title, blocks]): Section => ({ id, title, blocks })) : []),
+  ...(!IS_SERVICES ? PRIVACY_PARTNER_VISA_SECTIONS.map(([id, title, blocks]): Section => ({ id, title, blocks })) : []),
   {
     id: 'why-and-basis',
     title: { en: 'Why we use your data, and on what legal basis', vi: 'Vì sao chúng tôi sử dụng dữ liệu của bạn và trên cơ sở pháp lý nào' },
@@ -556,6 +559,7 @@ const SECTIONS: Section[] = [
       },
       { table: RECIPIENTS },
       ...(IS_SERVICES ? PRIVACY_SERVICES_RECIPIENTS : []),
+      ...(!IS_SERVICES ? PRIVACY_PARTNER_VISA_RECIPIENTS : []),
       {
         en: 'We also disclose data when Vietnamese law requires it: to a competent state authority acting within its powers, and where we must report information about sellers (for example to the tax authority). Where we are permitted to tell you about such a disclosure, we will.',
         vi: 'Chúng tôi cũng cung cấp dữ liệu khi pháp luật Việt Nam yêu cầu: cho cơ quan nhà nước có thẩm quyền trong phạm vi thẩm quyền của cơ quan đó, và khi chúng tôi phải báo cáo thông tin về người bán (ví dụ cho cơ quan thuế). Khi được phép thông báo cho bạn về việc cung cấp đó, chúng tôi sẽ thông báo.',

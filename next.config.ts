@@ -622,6 +622,10 @@ const nextConfig: NextConfig = {
                   "@/components/marketplace/trip-cards": "./src/components/marketplace/trip-cards.stub.tsx",
                   "@/components/marketplace/visa-cards": "./src/components/marketplace/visa-cards.stub.tsx",
                   "@/components/marketplace/visa-start": "./src/components/marketplace/visa-start.stub.tsx",
+                  // The e-Visa photo check's Google AI notice words + Settings row (app-ai-notice, family `document_check`).
+                  "@/components/marketplace/visa-ai-consent": "./src/components/marketplace/visa-ai-consent.stub.tsx",
+                  // eno.vn's /privacy section for the partner e-Visa flow (photos sent to a seller in chat).
+                  "@/lib/privacy-partner-visa-copy": "./src/lib/privacy-partner-visa-copy.stub.ts",
                   // The visa/itinerary half of the API error vocabulary. errors.ts holds a RUNTIME
                   // array imported by api/client.ts, i.e. on a path into client chunks, and eight of
                   // its entries name a surface eno.vn may not mention. The TYPE union is not split —
@@ -648,7 +652,7 @@ const nextConfig: NextConfig = {
             "@/lib/edition-services-copy": "./src/lib/edition-services-copy.stub.ts",
             // The trip family's words for the Google AI notice, and its Settings row (App Store gate `app-ai-notice`,
             // src/lib/ai-consent.ts). SHARED files import it — the chat page, Settings — so a gate cannot keep "trip plan"
-            // out of eno.vn's chunks; only this can. Stubbed flag or no flag: the app the notice is for is eno.forum.
+            // out of eno.vn's chunks; only this can. Stubbed flag or no flag — and since 2026-10-06 the apps render eno.vn, where trip-cards is REAL (MARKETPLACE_HOSTS_SERVICES), so with app-ai-notice on a partner (GMBR) trip plan's Google AI is refused in both apps (no words ⇒ "no").
             "@/components/marketplace/trip-ai-consent": "./src/components/marketplace/trip-ai-consent.stub.tsx",
             // The third-party provider of record for the e-visa service: partner name, licence and
             // tax placeholders, and the provider-of-record disclosure in vi + en. The LEGAL PAGES

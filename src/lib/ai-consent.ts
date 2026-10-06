@@ -16,16 +16,22 @@
  *                 "Not now": unavailable — the seller fills the form in, which is how it works without AI anyway.
  *   photo_search  the camera button and pasting an image into search → POST /api/ai/visual-search (the photo,
  *                 Gemini Vision). "Not now": unavailable; typed search still works.
- *   trip          eno.forum's trip desk: "Build my plan" → /api/itineraries/generate, stay and stop suggestions →
+ *   trip          the trip desk (eno.forum's own; on eno.vn a partner's, GMBR): "Build my plan" → /api/itineraries/generate, stay and stop suggestions →
  *                 /api/itineraries/[id]/stays|stops/suggest, and the trip chat's Eno concierge → /api/trips/concierge
  *                 (the trip answers — cities, dates, travellers, budget, interests, notes — and the questions; Gemini).
  *                 "Not now": unavailable; the desk's people still answer in the trip chat. Its words live in
- *                 trip-cards.tsx, which eno.vn's build aliases away (a gate decides what renders, an alias what ships).
+ *                 trip-ai-consent.tsx, which eno.vn's build ALWAYS stubs — so in the apps on eno.vn the notice refuses (no trip AI with the gate on).
+ *   document_check  the e-Visa photo check (owner 2026-10-06: the flow is in both apps via eno.vn) → POST
+ *                 /api/visa/applications/[id]/extract (the passport data page and the portrait; Gemini reads the passport too).
+ *                 "Not now": the photo is still saved and goes to the seller UNCHECKED — the route marks it `unavailable`
+ *                 with `automatic_image_check_declined` and calls no Google (never blocking). Its words live in
+ *                 visa-ai-consent.tsx, real only where the e-Visa flow is (MARKETPLACE_HOSTS_SERVICES / eno.forum).
  *
  * Handled without a question: typed SEARCH (/api/listings → semanticRank → Vertex AI Search). In the apps with the gate
  * on, the route never sends search words to Google (semantic-rank.ts `noAi`), so there is nothing to ask permission for.
- * Not gated, and why (docs/ios-appstore-release.md §6): the visa desk's AI (passport/portrait check, visa concierge) —
- * the iOS app cannot reach it with `ios-hide-visa` on; publish-time moderation (ai-moderation.ts) and the search index
+ * Not gated, and why (docs/ios-appstore-release.md §6): the visa concierge — refused on eno.vn's build
+ * (concierge/route.svc.ts: a partner's desk there), the only one the apps load, so no app reaches it (the passport/portrait
+ * check is `document_check` above); publish-time moderation (ai-moderation.ts) and the search index
  * (listing-index.ts) — eno's own processing of a listing someone chose to publish, not a feature they invoke; admin.
  *
  * ⚠️ DEVICE STORAGE, PER ACCOUNT — the chat-translation answer's constraint, for the same reason: there is no
@@ -51,7 +57,7 @@
  */
 import { nativeAppGate } from './app-review-gates'
 
-export const AI_FAMILIES = ['assistant', 'listing', 'photo_search', 'trip'] as const
+export const AI_FAMILIES = ['assistant', 'listing', 'photo_search', 'trip', 'document_check'] as const
 export type AiFamily = (typeof AI_FAMILIES)[number]
 
 /** 'on' = allowed (in the notice or in Settings); 'off' = "Not now" / turned off; null = not asked yet. */

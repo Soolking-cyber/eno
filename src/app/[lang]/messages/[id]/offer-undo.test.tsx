@@ -912,6 +912,28 @@ describe('the buyer\'s "did you buy this?" in the thread', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(50) })
     expect(questionGets()).toEqual([])
   })
+
+  // App Store gate `ugc-safety` (audit 1.6): the server lists nothing across a block; the page does not even ask.
+  it.each(['blocked', 'you_blocked'])('⛔ never in a thread a block has CLOSED (%s): no question asked or shown — but the review card stays (a block must not veto a review)', async (closed) => {
+    saleQuestions = [QUESTION]
+    extraThread = { ...asBuyer(), closed }
+    render(<ThreadPage />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    expect(questionGets()).toEqual([])
+    expect(screen.queryByRole('button', { name: 'Yes, I bought it' })).toBeNull()
+    expect(screen.getByText('How was your experience with Minh Shop?')).toBeTruthy()
+  })
+
+  it('⛔ …and a thread that CLOSES while open (a poll brings the block) drops the question', async () => {
+    saleQuestions = [QUESTION]
+    extraThread = asBuyer()
+    render(<ThreadPage />)
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    expect(screen.getByRole('button', { name: 'Yes, I bought it' })).toBeTruthy()
+    extraThread = { ...asBuyer(), closed: 'blocked' }
+    await act(async () => { window.dispatchEvent(new Event('focus')); await vi.advanceTimersByTimeAsync(50) })
+    expect(screen.queryByRole('button', { name: 'Yes, I bought it' })).toBeNull()
+  })
 })
 
 describe('the open is confirmed by the server, not by asking (si-04)', () => {

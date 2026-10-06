@@ -716,12 +716,19 @@ describe('sendVisaCheckoutCard', () => {
     }
   })
 
-  it('refuses anything that is not a positive whole-cent amount', async () => {
+  it('refuses anything that is not a whole-cent amount of zero or more', async () => {
     h.state.payments = { ...LIVE_PAYMENTS }
-    for (const amount of [0, -25, Number.NaN, Number.POSITIVE_INFINITY, 25.999, -0.004]) {
+    for (const amount of [-25, Number.NaN, Number.POSITIVE_INFINITY, 25.999, -0.004]) {
       expect(await sendVisaCheckoutCard({ conversationId: 'convo-1', applicationId: APP_ID, amountUsd: amount }), `amount ${amount}`).toBeNull()
     }
     expect(h.state.inserted).toEqual([])
+  })
+
+  it('0 is the no-price send card: minted, and its inbox line names no fee (2026-10-06)', async () => {
+    h.state.payments = { ...LIVE_PAYMENTS }
+    expect(await sendVisaCheckoutCard({ conversationId: 'convo-1', applicationId: APP_ID, amountUsd: 0 })).not.toBeNull()
+    expect(h.state.inserted[0].opts.meta.amountUsd).toBe(0)
+    expect(h.state.inserted[0].opts.preview).not.toMatch(/\$/)
   })
 
   it('never mints a card already claiming to be paid', async () => {

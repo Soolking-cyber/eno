@@ -44,6 +44,8 @@ const h = vi.hoisted(() => {
       transitionResult: { ok: true } as { ok: boolean; error?: string },
       /** Notification rows raised for the applicant when the result card lands. */
       notifications: [] as Array<Record<string, unknown>>,
+      /** The build: false = eno.forum (services), true = eno.vn (the partner's desk delivers there). */
+      marketplace: false,
       /** Ordered trace of the delivery side effects, so ordering can be asserted. */
       order: [] as string[],
       deleteError: null as unknown,
@@ -61,7 +63,7 @@ const h = vi.hoisted(() => {
       insertError: null as { code?: string } | null,
       storedBytes: Buffer.from('%PDF-1.7\nstored\n%%EOF\n', 'latin1'),
       downloadFails: false,
-      shop: { id: 'shop-1', ownerId: 'shop-owner-1' } as { id: string; ownerId: string } | null,
+      shop: { id: 'shop-1', ownerId: 'shop-owner-1' } as { id: string; ownerId: string; name?: string } | null,
       conversation: {
         id: 'convo-1', buyerProfileId: 'applicant-1', sellerProfileId: 'shop-owner-1',
         listingId: 'listing-1', visaApplicationId: application.id,
@@ -205,6 +207,10 @@ vi.mock('@/lib/messages', () => ({
    edition-scope explodes on a mock that omits it. The chain arrived via unread.ts on 2026-09-18 and
    the mock had been incomplete all along. Mock the module's exports, not just the ones today's test
    happens to call. */
+vi.mock('@/lib/edition', async (importOriginal) => {
+  const real = await importOriginal<typeof import('@/lib/edition')>()
+  return { ...real, get IS_MARKETPLACE() { return h.state.marketplace } }
+})
 vi.mock('@/lib/visa-shop', () => ({
   getVisaShopSeller: async () => h.state.shop,
   VISA_SHOP_OWNER_EMAILS: [] as readonly string[],
@@ -290,6 +296,7 @@ function uploadRequest(bytes: Buffer, type = 'application/pdf'): Request {
 
 beforeEach(() => {
   const s = h.state
+  s.marketplace = false
   s.admin = 'desk@eno.vn'
   s.profileId = null
   s.rateLimitOk = true
@@ -652,6 +659,28 @@ describe('upload route — delivery', () => {
   it('notifies AFTER the card exists, so the bell never points at an empty thread', async () => {
     await POST(uploadRequest(pdf()), params())
     expect(h.state.order.indexOf('notification')).toBeGreaterThan(h.state.order.indexOf('card'))
+  })
+
+  // ⛔ WHO THE BELL AND THE PUSH SPEAK AS (2026-10-06; one `from` feeds both): on eno.vn the partner, as the result
+  // mail does (result-brand.ts) — never "eno e-Visa", which named the licensed company as the provider.
+  it('eno.forum: "eno e-Visa", as before', async () => {
+    await POST(uploadRequest(pdf()), params())
+    expect(h.state.notifications[0]).toMatchObject({ title: 'eno e-Visa', actorName: 'eno e-Visa' })
+  })
+
+  it('⛔ eno.vn: the partner storefront speaks, never eno', async () => {
+    h.state.marketplace = true
+    h.state.shop = { id: 'shop-1', ownerId: 'shop-owner-1', name: 'VietKite' }
+    await POST(uploadRequest(pdf()), params())
+    expect(h.state.notifications[0]).toMatchObject({ title: 'VietKite · e-Visa', actorName: 'VietKite · e-Visa' })
+  })
+
+  it('⛔ eno.vn with no honest partner name: a neutral "e-Visa" — and it is still delivered', async () => {
+    h.state.marketplace = true
+    h.state.shop = { id: 'shop-1', ownerId: 'shop-owner-1', name: 'eno Visa Services' }
+    await POST(uploadRequest(pdf()), params())
+    expect(h.state.notifications).toHaveLength(1)
+    expect(h.state.notifications[0]).toMatchObject({ title: 'e-Visa', actorName: 'e-Visa' })
   })
 })
 

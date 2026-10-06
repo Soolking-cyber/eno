@@ -173,7 +173,7 @@ export function parseVisaCheckoutMeta(kind: string | undefined, value: unknown):
   if (kind !== 'visa_checkout' || !isRecord(value)) return null
   const { applicationId, amountUsd, status } = value
   if (typeof applicationId !== 'string' || !applicationId) return null
-  if (typeof amountUsd !== 'number' || !Number.isFinite(amountUsd) || amountUsd <= 0) return null
+  if (typeof amountUsd !== 'number' || !Number.isFinite(amountUsd) || amountUsd < 0) return null // 0 = the no-price send card
   if (status !== 'unpaid' && status !== 'paid' && status !== 'failed') return null
   return { applicationId, amountUsd, status }
 }
@@ -327,9 +327,13 @@ const STEP_TITLE: Record<VisaDmStep, [string, string]> = {
 }
 
 const STEP_HINT: Record<VisaDmStep, [string, string]> = {
-  1: [
+  // eno.vn (photos-only, owner 2026-10-06): say where the photos go and that Google AI checks them (App Store 5.1.2(i)).
+  1: IS_SERVICES ? [
     'Send a photo of your passport data page and a portrait photo. We read the passport automatically and fill in what we can.',
     'Gửi ảnh trang thông tin hộ chiếu và ảnh chân dung. Chúng tôi đọc hộ chiếu tự động và điền giúp bạn những gì có thể.',
+  ] : [
+    'Send a photo of your passport data page and a portrait photo. We check both against the e-Visa photo rules (using Google AI), then you send them to the seller in this chat.',
+    'Gửi ảnh trang thông tin hộ chiếu và ảnh chân dung. Chúng tôi kiểm tra cả hai ảnh theo yêu cầu ảnh e-Visa (bằng Google AI), sau đó bạn gửi cho người bán trong cuộc trò chuyện này.',
   ],
   2: [
     'We read these from your passport. Confirm they are right — or correct them.',
@@ -947,6 +951,8 @@ const IMAGE_ISSUE_COPY: Record<string, [string, string]> = {
   automatic_image_check_busy: ['Your image is saved. The checker is busy — try again in about a minute.', 'Ảnh đã được lưu. Hệ thống kiểm tra đang bận — thử lại sau khoảng một phút.'],
   automatic_image_check_rate_limited: ['Checking paused after too many attempts. Your image is saved.', 'Kiểm tra tạm dừng do quá nhiều lần thử. Ảnh của bạn đã được lưu.'],
   automatic_image_check_failed: ['Automatic checking failed. Try this image again.', 'Kiểm tra tự động thất bại. Hãy thử lại ảnh này.'],
+  // The applicant said "Not now" to the Google AI check (App Store gate `app-ai-notice`): saved, not checked, never blocking.
+  automatic_image_check_declined: ['Saved without the automatic check (Google AI is off). The seller checks it by hand.', 'Đã lưu, chưa kiểm tra tự động (Google AI đang tắt). Người bán sẽ tự kiểm tra ảnh.'],
 }
 
 /**
@@ -963,6 +969,7 @@ const OUTAGE_ISSUE_CODES = new Set([
   'automatic_image_check_busy',
   'automatic_image_check_rate_limited',
   'automatic_image_check_failed',
+  'automatic_image_check_declined',
 ])
 
 /**
@@ -977,7 +984,9 @@ const ERROR_COPY: Record<string, [string, string]> = {
   application_cancelled: ['This application was cancelled.', 'Hồ sơ này đã bị hủy.'],
   too_many_open_cases: ['You already have cases waiting with the desk — they will reply in this chat first.', 'Bạn đã có hồ sơ đang chờ bộ phận hỗ trợ — họ sẽ trả lời bạn trong cuộc trò chuyện này trước.'],
   entry_date_invalid: ['Pick an entry date from today onwards.', 'Hãy chọn ngày nhập cảnh từ hôm nay trở đi.'],
-  application_locked: ['This application is with eno now and can no longer be edited.', 'Hồ sơ đang ở chỗ eno và không thể chỉnh sửa nữa.'],
+  application_locked: IS_SERVICES
+    ? ['This application is with eno now and can no longer be edited.', 'Hồ sơ đang ở chỗ eno và không thể chỉnh sửa nữa.']
+    : ['This application has been sent and can no longer be edited.', 'Hồ sơ đã được gửi và không thể chỉnh sửa nữa.'],
   application_changed_retry: ['Something else updated this application. Please try again.', 'Hồ sơ vừa được cập nhật ở nơi khác. Vui lòng thử lại.'],
   invalid_fields: ['Please check the highlighted answers.', 'Vui lòng kiểm tra lại các câu trả lời được đánh dấu.'],
   field_not_in_step: ['That answer belongs to another step.', 'Câu trả lời đó thuộc bước khác.'],
@@ -1067,14 +1076,15 @@ export function visaErrorCopy(code: string | undefined, tr: Tr): string {
  * ⚠️ THE WHOLE TERNARY MOVED, not just the passport half. Splitting it would have left "Checking the
  * portrait…" in the shared file for no reason and made the two branches drift apart.
  */
-export function visaDocToastCopy(kind: 'passport' | 'portrait', phase: 'reading' | 'read', tr: Tr): string {
+export function visaDocToastCopy(kind: 'passport' | 'portrait', phase: 'reading' | 'read' | 'saved', tr: Tr): string {
+  if (phase === 'saved') return tr('Photo saved without the automatic check. The seller checks it by hand.', 'Đã lưu ảnh, chưa kiểm tra tự động. Người bán sẽ tự kiểm tra.')
   if (phase === 'reading') {
     return kind === 'passport'
       ? tr('Reading your passport…', 'Đang đọc hộ chiếu…')
       : tr('Checking the portrait…', 'Đang kiểm tra ảnh chân dung…')
   }
   return kind === 'passport'
-    ? tr('Passport read. Check the details below.', 'Đã đọc hộ chiếu. Hãy kiểm tra thông tin bên dưới.')
+    ? tr('Passport photo accepted.', 'Đã nhận ảnh hộ chiếu.')
     : tr('Portrait accepted.', 'Đã nhận ảnh chân dung.')
 }
 
@@ -1490,7 +1500,7 @@ function DocSample({ kind }: { kind: DocKind }) {
 
 const DOC_SAMPLE_CAPTION: Record<DocKind, [string, string]> = {
   passport: ['The whole page, flat, all four corners in frame — including both code lines at the bottom.', 'Toàn bộ trang, để phẳng, thấy đủ bốn góc — gồm cả hai dòng mã ở dưới cùng.'],
-  portrait: ['Head and shoulders, centred, like a printed 4×6 passport photo.', 'Đầu và vai, ở giữa khung, giống ảnh thẻ 4×6 in sẵn.'],
+  portrait: ['Head and shoulders, centred, like a printed 3×4 or 4×6 ID photo.', 'Đầu và vai, ở giữa khung, giống ảnh thẻ 3×4 hoặc 4×6 in sẵn.'],
 }
 
 function DocumentRow({
@@ -1813,7 +1823,7 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
     // or a human takeover). Never guess "no longer active" for all of them.
     const superseded = !!info && meta.applicationId !== info.applicationId
     return (
-      <CardShell step={meta.step} title={title} tone="settled">
+      <CardShell step={meta.step === 1 ? null : meta.step} title={title} tone="settled">
         <p className="mt-1 flex items-center gap-1.5 text-2xs font-semibold text-ink-4">
           {meta.state === 'done' && <Check className="h-3 w-3 text-success" aria-hidden />}
           {meta.state === 'skipped'
@@ -1829,8 +1839,9 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
   }
 
   return (
-    <CardShell step={view} title={title}>
-      <StepDots step={view} current={meta.step} onSelect={(n) => { setEditing(false); setReviewStep(n === meta.step ? null : (n as VisaDmStep)) }} />
+    <CardShell step={view === 1 ? null : view} title={title}>
+      {/* Short flows (both editions) have ONE form-less step — "1 of 5" and five dots would promise steps that never come. */}
+      {view !== 1 && <StepDots step={view} current={meta.step} onSelect={(n) => { setEditing(false); setReviewStep(n === meta.step ? null : (n as VisaDmStep)) }} />}
       {reviewing && (
         <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-tint px-3 py-2">
           <p className="text-2xs text-ink-3">
@@ -2214,6 +2225,8 @@ export type VisaCheckoutCardProps = {
    */
   /** Hand the case to the desk. On the eno.forum quick flow it carries the entry date the applicant picked. */
   onSendToDesk?: (entryDate?: string) => void | Promise<void>
+  /** eno.vn: the seller's storefront name (the applicant's thread.counterpart.name) — the photos-only copy names THEM, never eno. */
+  deskName?: string
 }
 
 /**
@@ -2225,7 +2238,7 @@ export type VisaCheckoutCardProps = {
  * server could not issue a quote (FX down), the card SAYS SO and pays nothing — there is no
  * fallback rate on this surface and there must never be one.
  */
-export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview, onSendToDesk }: VisaCheckoutCardProps) {
+export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview, onSendToDesk, deskName }: VisaCheckoutCardProps) {
   const { tr, lang } = useLanguage()
   const locale = moneyLocale(lang)
   // ONE consent tick covering both legal acts (see the label below); the server still
@@ -2268,7 +2281,11 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
   // ⚠️ THE EDITION ALONE, NOT "AND NO PROVIDERS": the submit route runs the quick flow on every services
   // submission, so a stray STRIPE key must not flip this card back to a pay card with no date field and
   // leave the applicant unable to submit (a reviewer's catch).
-  const quickFlow = IS_SERVICES
+  // ⛔ BOTH EDITIONS ARE SHORT NOW (dm-flow.ts currentVisaDmStep): eno.forum keeps the entry date; eno.vn is
+  // PHOTOS-ONLY (owner 2026-10-06) — no date, no money words, and the seller is named instead of "eno".
+  const quickFlow = true
+  const photosOnly = !IS_SERVICES
+  const seller = deskName?.trim() || tr('the seller', 'người bán')
   const savedEntryDate = typeof (kase?.payload as unknown as Record<string, unknown> | undefined)?.intendedEntryDate === 'string'
     ? String((kase?.payload as unknown as Record<string, unknown>).intendedEntryDate)
     : ''
@@ -2277,7 +2294,7 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
   const todayVn = useMemo(() => new Date(Date.now() + 7 * 3600_000).toISOString().slice(0, 10), [])
   const entryDateOk = /^\d{4}-\d{2}-\d{2}$/.test(entryDate) && entryDate >= todayVn
 
-  const title = quickFlow ? tr('Pick your entry date and send', 'Chọn ngày nhập cảnh và gửi') : tr('Pay for your e-Visa', 'Thanh toán E-Visa')
+  const title = photosOnly ? tr('Send your photos', 'Gửi ảnh của bạn') : quickFlow ? tr('Pick your entry date and send', 'Chọn ngày nhập cảnh và gửi') : tr('Pay for your e-Visa', 'Thanh toán E-Visa')
 
   if (paid) {
     return (
@@ -2294,7 +2311,7 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
   }
 
   return (
-    <CardShell step={5} title={title} tone={live ? 'live' : 'settled'}>
+    <CardShell step={quickFlow ? null : 5} title={title} tone={live ? 'live' : 'settled'}>
       {/* Decorative here — no onSelect. The pay card is not a form to go back into, and once the
           case is paid the server refuses every field edit anyway (EDITABLE_STATUSES).
           Not on the quick flow: five dots would promise steps that flow does not have. */}
@@ -2327,7 +2344,9 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
             fall back to the original sentence. */}
         {quickFlow && (
           <p className="mt-1.5 text-2xs leading-relaxed text-ink-4">
-            {tr('Nothing is charged here. The desk confirms the fee and how to pay with you in this chat.', 'Không thu tiền tại đây. Bộ phận hỗ trợ sẽ xác nhận phí và cách thanh toán với bạn trong cuộc trò chuyện này.')}
+            {photosOnly
+              ? fillTemplate(tr('Nothing is charged here. {n} confirms the fee and how to pay with you in this chat.', 'Không thu tiền tại đây. {n} sẽ xác nhận phí và cách thanh toán với bạn trong cuộc trò chuyện này.'), 'Nothing is charged here. {n} confirms the fee and how to pay with you in this chat.', { n: seller })
+              : tr('Nothing is charged here. The desk confirms the fee and how to pay with you in this chat.', 'Không thu tiền tại đây. Bộ phận hỗ trợ sẽ xác nhận phí và cách thanh toán với bạn trong cuộc trò chuyện này.')}
           </p>
         )}
         {quote && !quickFlow && (
@@ -2371,7 +2390,7 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
           {closedReadyAt ? ` ${tr('Expected ready', 'Dự kiến xong')}: ${closedReadyAt}.` : ''}
         </p>
       )}
-      {live && quickFlow && (
+      {live && quickFlow && !photosOnly && (
         <Field className="mt-3">
           <FieldLabel htmlFor="visa-quick-entry-date" className="text-xs font-bold text-foreground">
             {tr('When will you enter Vietnam?', 'Bạn sẽ nhập cảnh Việt Nam khi nào?')}
@@ -2428,7 +2447,9 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
             {/* ⚠️ THE QUICK FLOW'S CONSENT IS NARROWER, AND IT IS VERSIONED SEPARATELY
                 (VISA_QUICK_DECLARATION_VERSION): the applicant vouches for their photos and date only —
                 they have given no other answers to vouch for, and the desk files off-system. */}
-            <span>{quickFlow
+            <span>{photosOnly
+              ? fillTemplate(tr('I confirm the passport and portrait photos I uploaded are mine and accurate, and I agree to send them to {n}, the seller of this e-Visa service, who will contact me in this chat about any other details and about payment. eno.vn is the marketplace, not a government agency. False information can cause refusal and legal consequences.', 'Tôi xác nhận ảnh hộ chiếu và ảnh chân dung tôi đã tải lên là của tôi và chính xác, và tôi đồng ý gửi các ảnh này cho {n}, đơn vị bán dịch vụ e-Visa này, đơn vị sẽ liên hệ tôi trong cuộc trò chuyện này về các thông tin khác và việc thanh toán. eno.vn là sàn giao dịch, không phải cơ quan nhà nước. Thông tin sai có thể dẫn đến từ chối và hậu quả pháp lý.'), 'I confirm the passport and portrait photos I uploaded are mine and accurate, and I agree to send them to {n}, the seller of this e-Visa service, who will contact me in this chat about any other details and about payment. eno.vn is the marketplace, not a government agency. False information can cause refusal and legal consequences.', { n: seller })
+              : quickFlow
               ? tr('I confirm the passport and portrait photos I uploaded are mine and accurate, and that I plan to enter Vietnam on this date. I authorise the eno desk to prepare my e-Visa application with them and to contact me in this chat for any other details and for payment. False information can cause refusal and legal consequences.', 'Tôi xác nhận ảnh hộ chiếu và ảnh chân dung tôi đã tải lên là của tôi và chính xác, và tôi dự định nhập cảnh Việt Nam vào ngày này. Tôi cho phép bộ phận hỗ trợ eno chuẩn bị hồ sơ E-Visa của tôi với các thông tin đó và liên hệ tôi trong cuộc trò chuyện này về các thông tin khác và việc thanh toán. Thông tin sai có thể dẫn đến từ chối và hậu quả pháp lý.')
               : tr('I confirm that every answer and image I have approved is true, complete and accurate, and I authorise eno to use them to prefill the official e-Visa form. False information can cause refusal and legal consequences; a person still reviews the form before it is submitted.', 'Tôi xác nhận mọi câu trả lời và hình ảnh tôi đã duyệt đều trung thực, đầy đủ và chính xác, và tôi cho phép eno dùng chúng để điền trước biểu mẫu E-Visa chính thức. Thông tin sai có thể dẫn đến từ chối và hậu quả pháp lý; vẫn có người kiểm tra biểu mẫu trước khi nộp.')}</span>
           </label>
@@ -2450,12 +2471,15 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
                 variant="cta"
                 size="none"
                 // The closed-desk "no honest ready time" block is about taking money; the quick flow takes none.
-                disabled={busy || !consented || (!quickFlow && unpromisable) || (quickFlow && !entryDateOk)}
-                onClick={() => void onSendToDesk(quickFlow ? entryDate : undefined)}
+                // Photos-only asks for no date, so only the consent gates the send.
+                disabled={busy || !consented || (!quickFlow && unpromisable) || (quickFlow && !photosOnly && !entryDateOk)}
+                onClick={() => void onSendToDesk(quickFlow && !photosOnly ? entryDate : undefined)}
                 className="rounded-xl px-3.5 py-2.5 text-xs"
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
-                {tr('Send to the desk', 'Gửi cho bộ phận hỗ trợ')}
+                {photosOnly
+                  ? fillTemplate(tr('Send to {n}', 'Gửi cho {n}'), 'Send to {n}', { n: seller })
+                  : tr('Send to the desk', 'Gửi cho bộ phận hỗ trợ')}
               </Button>
             )}
             {providers.includes('stripe') && !quickFlow && (
@@ -2471,10 +2495,13 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
               </Button>
             )}
           </div>
-          <p className="flex items-start gap-1.5 text-2xs leading-relaxed text-ink-4">
-            <LockKeyhole className="mt-px h-3 w-3 shrink-0" aria-hidden />
-            {tr('You finish paying on the provider’s own secure page, then come back here.', 'Bạn hoàn tất thanh toán trên trang bảo mật của nhà cung cấp rồi quay lại đây.')}
-          </p>
+          {/* Only true when a provider button is on this card — never on eno.vn, and not on eno.forum since 2026-09-13. */}
+          {providers.length > 0 && !quickFlow && (
+            <p className="flex items-start gap-1.5 text-2xs leading-relaxed text-ink-4">
+              <LockKeyhole className="mt-px h-3 w-3 shrink-0" aria-hidden />
+              {tr('You finish paying on the provider’s own secure page, then come back here.', 'Bạn hoàn tất thanh toán trên trang bảo mật của nhà cung cấp rồi quay lại đây.')}
+            </p>
+          )}
           {/* ⚠️ THE WAY BACK, AND IT DID NOT EXIST (owner, 2026-07-30: "when you go to checkout in
               thread for visa you cant go back and edit"). This card offered consent and pay, and
               the resend chip re-posts THIS card — so an applicant who spotted a wrong passport name
@@ -2491,19 +2518,26 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
               className="mt-0.5 h-auto justify-start p-0 text-2xs font-bold text-accent-foreground underline-offset-2 hover:underline"
             >
               <PencilLine className="h-3 w-3 shrink-0" aria-hidden />
-              {tr('Check or change my answers first', 'Kiểm tra hoặc sửa thông tin trước')}
+              {photosOnly ? tr('Change a photo first', 'Đổi ảnh trước') : tr('Check or change my answers first', 'Kiểm tra hoặc sửa thông tin trước')}
             </Button>
           )}
         </div>
       )}
 
-      {!live && !paid && (
-        <p className="mt-2 text-2xs leading-relaxed text-ink-4">
-          {info && meta.applicationId !== info.applicationId
-            ? tr('From an earlier application.', 'Thuộc hồ sơ trước đó.')
-            : tr('Waiting for payment.', 'Đang chờ thanh toán.')}
+      {!live && !paid && (info && meta.applicationId !== info.applicationId ? (
+        <p className="mt-2 text-2xs leading-relaxed text-ink-4">{tr('From an earlier application.', 'Thuộc hồ sơ trước đó.')}</p>
+      ) : !quickFlow ? (
+        <p className="mt-2 text-2xs leading-relaxed text-ink-4">{tr('Waiting for payment.', 'Đang chờ thanh toán.')}</p>
+      ) : kase && !EDITABLE_VISA_STATUSES.has(kase.status) ? (
+        // Only the APPLICANT holds `kase`; the desk's side has no status to read, so it says nothing it cannot know
+        // (the "photos sent" line the submit route posts tells the desk).
+        <p className="mt-2 flex items-center gap-1.5 text-2xs font-semibold leading-relaxed text-success">
+          <Check className="h-3 w-3" aria-hidden />
+          {photosOnly
+            ? fillTemplate(tr('Sent to {n}. They will reply in this chat.', 'Đã gửi cho {n}. Họ sẽ trả lời trong cuộc trò chuyện này.'), 'Sent to {n}. They will reply in this chat.', { n: seller })
+            : tr('Sent to the desk. They will reply in this chat.', 'Đã gửi cho bộ phận hỗ trợ. Họ sẽ trả lời trong cuộc trò chuyện này.')}
         </p>
-      )}
+      ) : null)}
     </CardShell>
   )
 }
@@ -2875,7 +2909,9 @@ export function VisaThreadStrip({
     return (
       <div className={cn('flex items-start gap-2 text-2xs leading-relaxed text-body', compact && 'basis-full', className)}>
         <UserRound className="mt-px h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden />
-        <span>{tr('An eno specialist has taken over this chat. Just write to them below.', 'Chuyên viên eno đã tiếp nhận cuộc trò chuyện này. Bạn cứ nhắn trực tiếp bên dưới.')}</span>
+        <span>{IS_SERVICES
+          ? tr('An eno specialist has taken over this chat. Just write to them below.', 'Chuyên viên eno đã tiếp nhận cuộc trò chuyện này. Bạn cứ nhắn trực tiếp bên dưới.')
+          : tr('The seller has taken over this chat. Just write to them below.', 'Người bán đã tiếp nhận cuộc trò chuyện này. Bạn cứ nhắn trực tiếp bên dưới.')}</span>
       </div>
     )
   }
@@ -2891,7 +2927,7 @@ export function VisaThreadStrip({
 
   return (
     <div className={cn(compact ? 'contents' : 'flex items-center justify-between gap-2', className)}>
-      <span className="min-w-0 truncate text-2xs text-ink-4">{tr('Guided by eno’s assistant', 'Được trợ lý eno hướng dẫn')}</span>
+      <span className="min-w-0 truncate text-2xs text-ink-4">{IS_SERVICES ? tr('Guided by eno’s assistant', 'Được trợ lý eno hướng dẫn') : tr('Questions? Ask the seller here.', 'Có câu hỏi? Hãy hỏi người bán tại đây.')}</span>
       <Button
         variant="soft"
         size="none"

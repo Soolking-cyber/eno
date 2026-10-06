@@ -1,6 +1,7 @@
 'use client'
 
 import { fillTemplate } from '@/lib/i18n/placeholders'
+import { IS_SERVICES } from '@/lib/edition'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -122,6 +123,21 @@ const STATUS_CHIP: Record<string, { en: string; vi: string; variant: 'neutral' |
 
 type Tr = (en: string, vi: string) => string
 
+/**
+ * eno.vn (owner 2026-10-06): the e-Visa service there is a SELLER's (VietKite's), photos-only — so the sentences that
+ * name eno as the one handling the case say who really does. Only the statuses a photos-only case can reach.
+ */
+const PARTNER_FOOTER: [string, string] = [
+  'e-Visa services here are sold and handled by the seller you chose. eno.vn is the marketplace — not a government agency — and approval is decided only by the Vietnamese authorities.',
+  'Dịch vụ e-Visa tại đây do người bán bạn chọn cung cấp và xử lý. eno.vn là sàn giao dịch — không phải cơ quan nhà nước — và việc phê duyệt chỉ do cơ quan chức năng Việt Nam quyết định.',
+]
+const PARTNER_STATUS_DETAIL: Record<string, [string, string, string, string]> = {
+  needs_changes: ['Changes requested', 'Cần chỉnh sửa', 'The seller asked for a correction. Open your chat to make it.', 'Người bán yêu cầu chỉnh sửa. Hãy mở cuộc trò chuyện để sửa.'],
+  ready_for_review: ['Sent to the seller', 'Đã gửi cho người bán', 'Your photos are with the seller. They will reply in your chat.', 'Ảnh của bạn đã được gửi cho người bán. Họ sẽ trả lời trong cuộc trò chuyện.'],
+  under_review: ['Being checked', 'Đang kiểm tra', 'The seller is checking your photos.', 'Người bán đang kiểm tra ảnh của bạn.'],
+  processing: ['Filed with the authority', 'Đã nộp cho cơ quan chức năng', 'The seller has filed your application. The official result will appear here when it is issued.', 'Người bán đã nộp hồ sơ của bạn. Kết quả chính thức sẽ xuất hiện tại đây khi được cấp.'],
+}
+
 /** The sentence under the chip — what is happening to this case, and who is holding it. */
 function statusCopy(status: string, tr: Tr) {
   const map: Record<string, [string, string, string, string]> = {
@@ -138,7 +154,7 @@ function statusCopy(status: string, tr: Tr) {
     rejected: ['Application not approved', 'Hồ sơ không được chấp thuận', 'Read the case update below. Approval is always decided by the Vietnamese authority.', 'Đọc cập nhật bên dưới. Quyết định luôn thuộc cơ quan chức năng Việt Nam.'],
     cancelled: ['Application cancelled', 'Hồ sơ đã hủy', 'This case is closed.', 'Hồ sơ này đã đóng.'],
   }
-  const value = map[status] || ['Your application', 'Hồ sơ của bạn', 'Open your chat with the e-Visa desk to continue.', 'Mở cuộc trò chuyện với bộ phận e-Visa để tiếp tục.']
+  const value = (!IS_SERVICES && PARTNER_STATUS_DETAIL[status]) || map[status] || ['Your application', 'Hồ sơ của bạn', 'Open your chat with the e-Visa desk to continue.', 'Mở cuộc trò chuyện với bộ phận e-Visa để tiếp tục.']
   return { title: tr(value[0], value[1]), detail: tr(value[2], value[3]) }
 }
 
@@ -754,14 +770,17 @@ export function VisaCasesClient({ threads, embedded = false }: {
             <EmptyState
               icon={Stamp}
               title={tr('No applications yet', 'Chưa có hồ sơ nào')}
-              subtitle={tr(
+              subtitle={IS_SERVICES ? tr(
                 'Start in chat: pick a service on the card eno sends you, upload your passport and portrait, answer the trip questions, then pay — all in one conversation.',
                 'Bắt đầu trong chat: chọn dịch vụ trên thẻ eno gửi, tải lên hộ chiếu và ảnh chân dung, trả lời câu hỏi về chuyến đi rồi thanh toán — tất cả trong một cuộc trò chuyện.',
+              ) : tr(
+                'Start in chat: pick a seller’s e-Visa service, send your passport photo and a portrait, and the seller takes it from there in the same conversation.',
+                'Bắt đầu trong chat: chọn dịch vụ e-Visa của một người bán, gửi ảnh hộ chiếu và ảnh chân dung, người bán sẽ tiếp tục với bạn trong cùng cuộc trò chuyện.',
               )}
               action={<VisaStart />}
             />
           </div>
-          <p className="mt-6 border-t border-border pt-4 text-xs leading-relaxed text-body">{tr('eno is an independent assistance service, not a government agency. Approval is decided only by Vietnamese authorities. Official fees and eno service fees are confirmed separately in writing before payment.', 'eno là dịch vụ hỗ trợ độc lập, không phải cơ quan nhà nước. Việc phê duyệt chỉ do cơ quan chức năng Việt Nam quyết định. Lệ phí chính thức và phí dịch vụ eno được xác nhận riêng bằng văn bản trước thanh toán.')}</p>
+          <p className="mt-6 border-t border-border pt-4 text-xs leading-relaxed text-body">{IS_SERVICES ? tr('eno is an independent assistance service, not a government agency. Approval is decided only by Vietnamese authorities. Official fees and eno service fees are confirmed separately in writing before payment.', 'eno là dịch vụ hỗ trợ độc lập, không phải cơ quan nhà nước. Việc phê duyệt chỉ do cơ quan chức năng Việt Nam quyết định. Lệ phí chính thức và phí dịch vụ eno được xác nhận riêng bằng văn bản trước thanh toán.') : tr(PARTNER_FOOTER[0], PARTNER_FOOTER[1])}</p>
           <p className="mt-3 text-xs leading-relaxed text-body">
             {/* ⚠️ DELIBERATELY NOT routed through handleExternalClick (Alex's ruling on
                 Gemini's dissent, 2026-07-25) — the one external link in the app that keeps
@@ -909,7 +928,7 @@ export function VisaCasesClient({ threads, embedded = false }: {
           <Card className="mt-6">
             <CardHeader>
               <CardTitle>
-                {application.status === 'needs_changes' ? tr('Changes requested', 'Yêu cầu chỉnh sửa') : tr('Private update from eno', 'Cập nhật riêng từ eno')}
+                {application.status === 'needs_changes' ? tr('Changes requested', 'Yêu cầu chỉnh sửa') : (IS_SERVICES ? tr('Private update from eno', 'Cập nhật riêng từ eno') : tr('Private update from the seller', 'Cập nhật riêng từ người bán'))}
                 <span className="ml-2 font-mono text-xs font-semibold text-ink-4">{caseLabel(application)}</span>
               </CardTitle>
             </CardHeader>
@@ -976,7 +995,7 @@ export function VisaCasesClient({ threads, embedded = false }: {
           )
         })()}
 
-        <p className="mt-8 border-t border-border pt-4 text-xs leading-relaxed text-body">{tr('eno is an independent assistance service, not a government agency. Approval is decided only by Vietnamese authorities.', 'eno là dịch vụ hỗ trợ độc lập, không phải cơ quan nhà nước. Việc phê duyệt chỉ do cơ quan chức năng Việt Nam quyết định.')}</p>
+        <p className="mt-8 border-t border-border pt-4 text-xs leading-relaxed text-body">{IS_SERVICES ? tr('eno is an independent assistance service, not a government agency. Approval is decided only by Vietnamese authorities.', 'eno là dịch vụ hỗ trợ độc lập, không phải cơ quan nhà nước. Việc phê duyệt chỉ do cơ quan chức năng Việt Nam quyết định.') : tr(PARTNER_FOOTER[0], PARTNER_FOOTER[1])}</p>
 
         <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!busy && !open) setDeleteTarget(null) }}>
           <DialogContent className="sm:max-w-md">

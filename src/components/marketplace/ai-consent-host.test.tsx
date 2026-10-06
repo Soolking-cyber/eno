@@ -263,16 +263,16 @@ describe('Settings → Preferences → Google AI', () => {
     inApp()
     mountSettings()
     expect(await screen.findByText('Google AI')).toBeTruthy()
-    for (const label of ['eno AI assistant', 'AI help when posting', 'Search by photo', 'Trip planning']) {
+    for (const label of ['eno AI assistant', 'AI help when posting', 'Search by photo', 'Trip planning', 'e-Visa photo check']) {
       expect(screen.getByRole('switch', { name: label })).toBeTruthy()
     }
-    expect(screen.getAllByText('Not set yet — you will be asked the first time you use it.')).toHaveLength(4)
+    expect(screen.getAllByText('Not set yet — you will be asked the first time you use it.')).toHaveLength(5)
     const posting = screen.getByRole('switch', { name: 'AI help when posting' })
     expect(posting.getAttribute('aria-checked')).toBe('false')
     fireEvent.click(posting)
     await waitFor(() => expect(store.get(aiConsentKey('listing', ME))).toBe('on'))
     await waitFor(() => expect(screen.getByRole('switch', { name: 'AI help when posting' }).getAttribute('aria-checked')).toBe('true'))
-    expect(screen.getAllByText('Not set yet — you will be asked the first time you use it.')).toHaveLength(3)
+    expect(screen.getAllByText('Not set yet — you will be asked the first time you use it.')).toHaveLength(4)
     fireEvent.click(screen.getByRole('switch', { name: 'AI help when posting' }))
     await waitFor(() => expect(store.get(aiConsentKey('listing', ME))).toBe('off'))
   })

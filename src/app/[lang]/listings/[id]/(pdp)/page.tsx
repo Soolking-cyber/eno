@@ -79,7 +79,7 @@ import { SellerInfo } from '@/components/marketplace/seller-info'
 import { buildSellerInfo } from '@/lib/seller-info'
 import { approximateArea, hasRealCoords } from '@/lib/geo'
 import { isVehicleHireReference } from '@/lib/rental-places'
-import { VisaInAppNote, VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
+import { VisaInAppNote, VisaPartnerNote, VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
 import { IosAppHidden } from '@/components/marketplace/ios-app-hidden'
 import { appReviewGate } from '@/lib/app-review-gates'
 import { isEVisaProductListing } from '@/lib/evisa-listing'
@@ -1124,6 +1124,9 @@ export default async function ListingPage({ params }: Props) {
                         textVi={NOT_GOVERNMENT.vi}
                         linkLabel="Official Vietnam e-Visa portal (Immigration Department)"
                       />
+                      {/* eno.vn: @/lib/visa-provider is stubbed (next.config.ts), so the block above renders null there —
+                          this one names the seller, says who eno.vn is not, and links the official portal. */}
+                      {!IS_SERVICES && <VisaPartnerNote partner={listing.seller.name} />}
                       {/*
                         ⛔ THE CTA COMES AFTER THE DISCLAIMER, NOT BEFORE IT. Rendered first, "Apply
                         in chat" sat above the fold with the disclosure below it — a mobile buyer

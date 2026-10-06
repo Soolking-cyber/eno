@@ -390,11 +390,29 @@ describe('/privacy — round-2 corrections hold', () => {
 })
 
 describe('/privacy — the edition boundary', () => {
-  it('⛔ eno.vn never mentions visa, itinerary, trip planning or PayPal', async () => {
+  it('⛔ eno.vn never mentions itinerary, trip planning or PayPal — and e-Visa only as a SELLER\'s service (2026-10-06)', async () => {
     const text = await policy('marketplace')
-    expect(text).not.toMatch(/\bvisa|e-visa|itinerar|trip plan|paypal|thị thực|lịch trình/i)
+    expect(text).not.toMatch(/itinerar|trip plan|paypal|lịch trình/i)
+    expect(text).toContain('e-Visa photos you send to a seller')
+    expect(text).toContain('eno.vn is the marketplace: it is not a government agency and does not decide visa applications.')
+    expect(text).toContain('https://evisa.gov.vn')
+    // eno.forum's processor / provider-of-record text never reaches eno.vn
+    expect(text).not.toMatch(/eno\.forum operates the platform|data processor/i)
     cleanup()
-    expect(await policy('marketplace', 'vi')).not.toMatch(/\bvisa|e-visa|itinerar|paypal|thị thực|lịch trình/i)
+    const vi = await policy('marketplace', 'vi')
+    expect(vi).not.toMatch(/itinerar|paypal|lịch trình/i)
+    expect(vi).toContain('Ảnh hồ sơ e-Visa bạn gửi cho người bán')
+  })
+
+  it('⛔ a marketplace build WITHOUT the partner flow (the stub next.config.ts aliases in) never mentions visa at all', async () => {
+    vi.doMock('@/lib/privacy-partner-visa-copy', () => import('@/lib/privacy-partner-visa-copy.stub'))
+    try {
+      expect(await policy('marketplace')).not.toMatch(/visa/i)
+      cleanup()
+      expect(await policy('marketplace', 'vi')).not.toMatch(/visa|thị thực/i)
+    } finally {
+      vi.doUnmock('@/lib/privacy-partner-visa-copy')
+    }
   })
 
   it('eno.forum states its tag-manager exception; eno.vn states that declining stops all third-party tracking', async () => {

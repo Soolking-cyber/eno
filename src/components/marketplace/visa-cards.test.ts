@@ -47,6 +47,8 @@ const STEPS: readonly VisaDmStep[] = [1, 2, 3, 4, 5]
 const SOURCE_FILE = 'src/components/marketplace/visa-cards.tsx'
 const DASHBOARD_FORM_FILE = 'src/app/[lang]/dashboard/visa/apply-client.tsx'
 const UPLOAD_ROUTE_FILE = 'src/app/api/visa/applications/[id]/documents/route.svc.ts'
+// Since 2026-10-06 the stamp is written where the AI actually reads the passport, never on upload (the apps may decline).
+const EXTRACT_ROUTE_FILE = 'src/app/api/visa/applications/[id]/extract/route.svc.ts'
 const source = readFileSync(SOURCE_FILE, 'utf8')
 
 /**
@@ -162,7 +164,8 @@ describe('THE GATE — every payload field the chat owns is askable in the chat'
     expect([...STAMPED_BY_UPLOAD]).toEqual(['aiDocumentProcessingConsent'])
     // Step 1 owns that field and nothing else, and the upload route is what sets it.
     expect([...VISA_DM_STEP_FIELDS[1]]).toEqual(['aiDocumentProcessingConsent'])
-    expect(readFileSync(UPLOAD_ROUTE_FILE, 'utf8')).toContain('payload.aiDocumentProcessingConsent = true')
+    expect(readFileSync(EXTRACT_ROUTE_FILE, 'utf8')).toContain('payload.aiDocumentProcessingConsent = true')
+    expect(readFileSync(UPLOAD_ROUTE_FILE, 'utf8')).not.toContain('payload.aiDocumentProcessingConsent = true')
     // Steps 1 and 5 are the only ones without a form: uploads, and consent + payment.
     expect(VISA_STEP_FORM[1]).toEqual([])
     expect(VISA_STEP_FORM[5]).toEqual([])
