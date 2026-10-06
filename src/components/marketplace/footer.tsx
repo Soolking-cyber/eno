@@ -8,8 +8,10 @@ import { variantOfLanguage } from '@/lib/lang-variant'
 import { useLanguage } from '@/context/language-context'
 import { isPostFlowPath } from '@/lib/post-flow-path'
 // ⚠️ FORUM_URL IS GONE FROM THIS FILE, goToForum IS NOT. No footer link crosses origin any more,
-// but the `forumPath` machinery below stays: it is the guard that stops a FUTURE cross-origin link
-// silently becoming a hard exit out of the native shell.
+// but the `forumPath` machinery below stays for a future forum link: goToForum() is a plain same-tab
+// hop to the canonical forum host, and in the native apps that hop LEAVES the app for the system
+// browser — on purpose: eno.forum is not in allowNavigation (owner decision D18, 2026-10-06). The
+// single-use SSO hand-off it used to take (/auth/bridge, /api/auth/forum-handoff) was deleted 2026-10-06.
 import { goToForum } from '@/lib/forum-nav'
 import { handleExternalClick } from '@/lib/native-browser'
 import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
@@ -38,7 +40,7 @@ type FooterLink = {
   href: string
   /** Cross-site links only — `noopener`, never nofollow. See src/lib/cross-site-links.ts. */
   rel?: string
-  /** eno.forum links only — routes the click through goToForum()'s single-use SSO handoff. */
+  /** eno.forum links only — routes the click through goToForum(): a plain same-tab hop that leaves the apps for the system browser. */
   forumPath?: string
 }
 
@@ -299,12 +301,12 @@ function FooterBody() {
     },
     {
       title: tr('Community', 'Cộng đồng'),
-      // ⚠️ Any link here that LEAVES the origin MUST carry forumPath so the click is
-      // intercepted by goToForum() below — a plain cross-origin anchor drops the
-      // native app on eno.forum as a GUEST (sessions are per-origin cookies; the
-      // forum mints its own only via the /auth/bridge handoff). That was a live bug
-      // here: every dashboard forum CTA already routed through goToForum, and only
-      // the footer still handed users a raw URL.
+      // ⚠️ A link here that goes to eno.forum carries forumPath, so the click is
+      // intercepted by goToForum() below — a plain same-tab hop to the canonical forum
+      // host, which in the native apps leaves the app for the system browser (eno.forum
+      // is not in allowNavigation; owner decision D18, 2026-10-06). Sessions are
+      // per-origin cookies, so the reader arrives there as whoever they are in that
+      // browser: the /auth/bridge SSO hand-off this used to take was deleted 2026-10-06.
       links: [
         // ⚠️ SERVICES EDITION ONLY (owner, 2026-08-04: "remove this from eno.vn"). This was the
         // single highest-frequency outbound link in the marketplace artifact — a crawlable,
@@ -327,7 +329,7 @@ function FooterBody() {
         // services links use: move it into SERVICES_FOOTER_LINKS, which next.config.ts aliases to
         // edition-services-copy.stub.ts on a marketplace build. That is why those entries need no
         // gate at all. It was not done here because this label is not visa/itinerary vocabulary and
-        // the move would strand the forumPath/goToForum native-SSO machinery below as dead code.
+        // the move would strand the forumPath/goToForum machinery below as dead code.
         // ⛔ THIS POINTED AT THE STANDALONE FORUM, WHICH NO LONGER EXISTS AS A DESTINATION (owner,
         // 2026-08-17, pointing at the rendered anchor: "linkt this to help page"). The community
         // content became the DB-backed Help Center at /help; the footer was still sending readers
@@ -335,10 +337,9 @@ function FooterBody() {
         // back to an env value — so the "Community forum" link on eno.forum pointed at the
         // marketplace's home page.
         //
-        // ⚠️ SAME-ORIGIN NOW, SO NO `forumPath` AND NO goToForum. That property routes a click
-        // through the single-use SSO handoff so the NATIVE app arrives signed in on another origin;
-        // /help is on this origin, and sending a same-origin link through /auth/bridge would bounce
-        // the reader through an auth round trip to fetch a session they already hold.
+        // ⚠️ SAME-ORIGIN NOW, SO NO `forumPath` AND NO goToForum. That property sends a click
+        // through goToForum(), a full same-tab hop to the canonical forum host; /help is on this
+        // origin, so a plain link is the right one.
         //
         // ⚠️ IT NOW DUPLICATES "Help center" IN THE CUSTOMER SERVICE COLUMN — same destination,
         // different words, two columns apart. Flagged rather than silently deduped: which of the
@@ -352,8 +353,8 @@ function FooterBody() {
         // build — measured: 0 occurrences of "Trip planner" or href="/itinerary" in eno.vn's
         // prerendered HTML. Only the prose was wrong, which is the more dangerous half: nobody
         // greps a comment, they trust it. On the SERVICES edition these are same-origin, so they
-        // must NOT carry forumPath — routing a same-origin link through the SSO handoff would
-        // bounce the visitor through /auth/bridge to fetch a session they already have.
+        // must NOT carry forumPath — goToForum() would turn a same-origin link into a full-page
+        // hop to the canonical forum host.
         // ⚠️ SERVICES EDITION ONLY, AND THIS COMMENT ONCE SAID THE OPPOSITE — two lines below the
         // block above that exists to warn about exactly this. It read "e-Visa lives on eno.vn now
         // (ownership row, 2026-07-21): the desk's storefront is where a visitor applies". True when
@@ -376,11 +377,10 @@ function FooterBody() {
      * column does not exist at all rather than rendering empty — and, more to the point, its labels
      * are not in the artifact. See src/lib/cross-site-links.ts.
      *
-     * ⚠️ NO `forumPath`, DELIBERATELY. That property routes a click through goToForum()'s
-     * single-use SSO handoff, which exists so the NATIVE app arrives on eno.forum signed in. These
-     * links go the other way, to eno.vn, which is first-party to the shell (native-browser.ts's
-     * FIRST_PARTY_HOSTS) — the WebView is allowed to navigate there directly. Adding forumPath here
-     * would send a reader who tapped "Housing in Vietnam" to the forum's auth bridge instead.
+     * ⚠️ NO `forumPath`, DELIBERATELY. That property routes a click through goToForum(), which goes
+     * to FORUM_URL + the path — a forum page. These links go the other way, to eno.vn; adding
+     * forumPath here would send a reader who tapped "Housing in Vietnam" to the forum instead. (This
+     * column renders only on eno.forum, which the native apps no longer load — D18, 2026-10-06.)
      */
   // ⚠️ A COLUMN WITH NO LINKS MUST NOT RENDER ITS HEADING. On a marketplace build the Community
   // column's other two entries are already empty (`SERVICES_FOOTER_LINKS.explore`/`.help` are `[]`
@@ -621,8 +621,9 @@ function FooterBody() {
                     {col.links.map((link) => (
                       <li key={link.label}>
                         {/* href stays a REAL url for a11y / middle-click / cmd-click; a plain
-                            left-click on a forum link is intercepted so the native app takes
-                            the single-use SSO handoff instead of arriving signed out. Every
+                            left-click on a forum link goes through goToForum() — a plain same-tab
+                            hop to the canonical forum host, which leaves the native apps for the
+                            system browser (D18). Every
                             other link gets handleExternalClick, which is a no-op unless the
                             href is genuinely third-party AND we're in the native shell — so
                             the internal routes behave exactly as before, and a future off-site

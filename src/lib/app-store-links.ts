@@ -3,8 +3,9 @@
  * install prompt and anything added later cannot disagree about what is released.
  *
  * ⚠️ THE PLAY LISTING IS REAL AND LIVE — production carries versionCode 3 (1.0.1, "Eno Marketplace")
- * as of 2026-09-15. The package id is `eno.vn`, which is NOT the site the app renders (it loads
- * eno.forum); Play bound that identifier before the first upload and it cannot be changed.
+ * as of 2026-09-15. The package id is `eno.vn`; Play bound that identifier before the first upload and
+ * it cannot be changed. Up to versionCode 4 the app rendered www.eno.forum; from versionCode 5 (1.0.3),
+ * like the iOS app, it renders https://eno.vn (owner, 2026-10-06: "ship both with eno.vn").
  *
  * ⛔ iOS HAS NO LINK YET, AND "COMING SOON" IS THEREFORE A FACT, NOT A PLACEHOLDER. The App Store id
  * is assigned at submission, so there is nothing to link to — the UI must say so rather than ship a

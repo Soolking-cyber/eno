@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+import { IS_MARKETPLACE } from "@/lib/edition";
+
+// NEVER PRERENDERED. APPLE_TEAM_ID is a RUNTIME env (eno-vn.env, read on a container recreate): a build-time
+// prerender would bake today's 404 into the image and the owner's env write would change nothing. Same rule
+// as src/app/api/indexnow-key/route.ts.
+export const dynamic = "force-dynamic";
 
 // Serves /.well-known/apple-app-site-association (via a rewrite in next.config.ts —
 // the app router ignores dot-folders, so the file can't live under public/.well-known
@@ -8,6 +14,13 @@ import { NextResponse } from "next/server";
 // team, and serving an AASA with a bogus appID would make Apple's CDN cache a broken
 // association against the domain. The owner sets the env once the team exists; until
 // then iOS simply falls back to opening links in Safari, which is correct.
+//
+// ⛔ AND IT IS SERVED ON eno.vn ONLY — the marketplace edition. The iOS app renders
+// https://eno.vn and ios/App/App/App.entitlements claims applinks:eno.vn alone (owner,
+// 2026-10-06: "ship both with eno.vn"), so APPLE_TEAM_ID belongs in eno-vn.env. The services
+// edition answers 404 even if its env carries the key: no eno.forum link may ever open the
+// licensed company's app, and a forum association would only wait for someone to re-add a
+// forum host to the entitlement.
 //
 // The components MIRROR the native routing contract (AppDelegate.isRoutablePath +
 // native-bootstrap's canonicalAppPath): every first-party path deep-links into the app
@@ -31,7 +44,8 @@ import { NextResponse } from "next/server";
 // (WS6 audit, 2026-08-06.)
 export async function GET() {
   const team = process.env.APPLE_TEAM_ID;
-  if (!team) {
+  // Services edition: always 404 — see the ⛔ note at the top of this file.
+  if (!team || !IS_MARKETPLACE) {
     return new NextResponse(null, { status: 404 });
   }
   // The shipped App Store bundle id must match this exactly; overridable so a

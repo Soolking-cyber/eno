@@ -71,7 +71,7 @@ export async function POST(req: Request) {
     if (result.code === 'under_review') {
       return NextResponse.json(
         // App Store gate `site-brand-copy` (R7): this edition's own support address once switched on —
-        // on eno.forum (the site the apps render) that is support@eno.forum, from site-legal.
+        // support@eno.forum on eno.forum, support@eno.vn on eno.vn (the site both apps render since 2026-10-06), from site-legal.
         { error: 'under_review', message: `Your account has open reports or an active review — contact ${appReviewGate('site-brand-copy') ? COMPANY.email : 'support@eno.vn'} to complete deletion.` },
         { status: 409 },
       )

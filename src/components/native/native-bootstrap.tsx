@@ -9,6 +9,8 @@ import { setNativeKeyboard } from '@/hooks/use-virtual-keyboard'
 import { hapticLongPress, hapticTap } from '@/lib/haptics'
 import { canonicalAppPath } from '@/lib/deep-link'
 import { backPressClosesOverlay } from '@/lib/back-to-close'
+import { IS_SERVICES } from '@/lib/edition'
+import { leavingForHomeTwin } from '@/lib/app-home-language'
 
 // The status bar sits over the bg-card header, so it must match it. Read the LIVE --card token
 // (which already flips light/dark) at runtime — no hardcoded colour, always in sync with the theme.
@@ -416,8 +418,10 @@ export function NativeBootstrap() {
   }, [tr, router])
 
   // One-time native wiring: platform class, splash, keyboard bridge, hardware back.
+  // ⛔ NOTHING in a `/` document the pre-paint script is replacing with `/vi` (app-home-language.ts): registering the
+  // deep-link listeners here would CONSUME the retained launch events the `/vi` document is meant to route.
   useEffect(() => {
-    if (!isNative()) return
+    if (!isNative() || leavingForHomeTwin()) return
     let disposed = false
     const cleanups: Array<() => void> = []
     document.documentElement.classList.add('native', `native-${cap()?.getPlatform?.() ?? 'ios'}`)
@@ -560,53 +564,42 @@ export function NativeBootstrap() {
         const now = Date.now()
         if (!awayAt || now - awayAt < AWAY_BEFORE_REFRESH_MS) return
         awayAt = 0
-        // A deep link that arrived on this same foregrounding is already doing a full-page
-        // navigation (OAuth callback / forum hop) — both platforms deliver appUrlOpen BEFORE
-        // didBecomeActive/onResume, so the flag is set by the time we get here. Refreshing the
-        // route we're about to leave would fetch a page nobody will see, and can flash the old
-        // view mid-unload.
+        // A deep link that arrived on this same foregrounding is already navigating — the OAuth
+        // callback's full page load, or routeDeepLink's push to another route — and both platforms
+        // deliver appUrlOpen BEFORE didBecomeActive/onResume, so the flag is set by the time we get
+        // here. Refreshing the route we're about to leave would fetch a page nobody will see, and
+        // can flash the old view mid-unload.
         if (now - hardNavAt < 5_000) return
         router.refresh()
       }))
 
       /**
        * Deep-link router (App Links + app shortcuts + share targets). Three shapes:
-       *   · https://www.eno.forum/… | https://eno.forum/… → route the path in the SPA
-       *   · https://eno.vn/… | https://www.eno.vn/…       → route the SAME PATH in the SPA, because
-       *     the forum serves a superset of the marketplace and one app answers both domains
+       *   · https://eno.vn/… | https://www.eno.vn/…       → route the path in the SPA
+       *   · https://www.eno.forum/… | https://eno.forum/… → LEAVE THE APP for the system browser
+       *     (the services bundle routes it in the SPA instead — see the last paragraph)
        *   · enovn://open?path=<url-encoded app path>      → route the decoded path
        *
-       * ⛔ THESE TWO BRANCHES SWAPPED ON 2026-09-08 AND THAT IS THE WHOLE POINT OF THE EDIT. The app
-       * used to render eno.vn, so the forum was the cross-origin side and got a hard navigate. The
-       * app now renders eno.forum: the forum is THIS origin — the branch that hard-navigated it was
-       * reloading the page the user was already on, losing SPA state on every shared link — and
-       * eno.vn became the cross-origin side. Leaving them as they were would have been silently
-       * backwards for every App Link the app now claims.
+       * ⛔ BOTH APPS RENDER eno.vn SINCE 2026-10-06 (owner: "ship both with eno.vn"), WHICH REVERSES
+       * 11f430d12. eno.vn is THIS origin again. eno.forum is the sister site, and the licensed company's
+       * app may not show it — it carries the e-Visa and itinerary services — so it is out of
+       * capacitor.config.ts `allowNavigation`, and a forum link goes to the SYSTEM browser: never this
+       * WebView, and never the in-app browser sheet either (that would render the forum over the app).
        *
-       * ⚠️ AND THE FORUM ORIGIN CARRIES THE www. The old branch resolved against 'https://eno.forum'
-       * and then REQUIRED that exact origin, so a canonical www.eno.forum link — which is what the
-       * site actually emits — failed the check and was dropped in silence.
+       * ⚠️ THE SERVICES BRANCH IS FOR OLD ANDROID BINARIES, AND IT IS DELIBERATE. Up to versionCode 4
+       * the shell has server.url = https://www.eno.forum baked in and keeps loading the forum until the
+       * user updates. This file is shared, so the forum's own bundle (IS_SERVICES) keeps the 2026-09-08
+       * routing for them: the forum is that WebView's origin, and an eno.vn path resolves on it because
+       * the forum serves a superset of the marketplace. Delete it once no such install can still be live.
        */
       const routeDeepLink = (url: string) => {
         try {
           const u = new URL(url)
           let raw: string | null = null
-          if (u.protocol === 'https:' && (u.hostname === 'www.eno.forum' || u.hostname === 'eno.forum')) {
-            // THIS origin now — fall through to the shared canonicalize-then-validate below and let
-            // the Next router take it, which is what keeps a shared link from reloading the app.
-            raw = u.pathname + u.search + u.hash
-          } else if (u.protocol === 'https:' && (u.hostname === 'eno.vn' || u.hostname === 'www.eno.vn')) {
+          if (u.protocol === 'https:' && (u.hostname === 'eno.vn' || u.hostname === 'www.eno.vn')) {
             /**
-             * ⛔ AN eno.vn LINK IS SERVED FROM THE FORUM, NOT SENT TO THE BROWSER. The first cut
-             * hard-navigated these out of the app, and a reviewer put the cost plainly: every
-             * marketplace link anyone has ever shared — a listing, a category, a brand — would stop
-             * opening in the app and dump the user in Chrome, on the edition that carries the "not
-             * yet officially launched" banner.
-             *
-             * The forum is a SUPERSET of the marketplace (same listings, plus e-visa and itinerary),
-             * so every eno.vn path this app can be handed also resolves here. Taking the PATH and
-             * routing it in the SPA is what makes one app answer both domains' links, which is the
-             * whole point of pointing the app at the forum.
+             * THIS origin (www 308s to the apex, so it is the same site) — or, on the services bundle,
+             * the same PATH on the forum (see above).
              *
              * ⚠️ THE PATH ONLY — the origin is deliberately discarded. Resolving against eno.vn
              * first is what rejects the protocol-relative escapes (`//evil.com`, `/\evil.com`)
@@ -616,6 +609,26 @@ export function NativeBootstrap() {
             if (!vr.startsWith('/')) return
             if (new URL(vr, 'https://eno.vn').origin !== 'https://eno.vn') return
             raw = vr
+          } else if (u.protocol === 'https:' && (u.hostname === 'www.eno.forum' || u.hostname === 'eno.forum')) {
+            if (!IS_SERVICES) {
+              /**
+               * ⛔ THE SISTER SITE LEAVES THE APP. The path goes through the same shared validator as
+               * every other shape (escapes and the auth routes refused) and is rebuilt on the canonical
+               * www host, so nothing the incoming URL carried chooses where the browser goes.
+               * A plain navigation, NOT window.open: a deep link carries no user gesture, and WKWebView
+               * blocks a gesture-less window.open (javaScriptCanOpenWindowsAutomatically is off). The
+               * host is outside `allowNavigation`, so Capacitor cancels it in the WebView and hands the
+               * URL to the OS — the page the user is on stays put, which is why `hardNavAt` is not set.
+               */
+              const forumPath = canonicalAppPath(u.pathname + u.search + u.hash, { blockAuthPaths: true })
+              if (!forumPath) return
+              window.location.assign(new URL(forumPath, 'https://www.eno.forum').toString())
+              return
+            }
+            // Services bundle — an old Android binary ON the forum: THIS origin there. Fall through to
+            // the shared canonicalize-then-validate below and let the Next router take it, so a shared
+            // link does not reload the app.
+            raw = u.pathname + u.search + u.hash
           } else if (u.protocol === 'enovn:' && u.host === 'open') {
             // Two forms (docs/UNIFIED_MOBILE_APP.md in the forum repo):
             //   ?path=<url-encoded eno.vn app path>
@@ -690,11 +703,12 @@ export function NativeBootstrap() {
       // Cold start (see the platform asymmetry above). A replayed stale auth code (activity
       // recreation with the old intent) just fails the exchange benignly; dropping a FRESH
       // one would break Android cold-start sign-in outright.
-      // ⚠️ getLaunchUrl returns the RETAINED launch URL for the app's whole life, and every
-      // cross-origin hop (forum ↔ market) boots a fresh document whose in-memory dedupe is
-      // empty — without a persistent marker, launching from a forum link would re-bounce the
-      // user to the forum on EVERY return to eno.vn. sessionStorage is per-origin and
-      // survives same-origin navigations: consume each launch URL exactly once per app run.
+      // ⚠️ getLaunchUrl returns the RETAINED launch URL for the app's whole life, and every full
+      // document load (the OAuth callback, a reload, the offline page's retry) boots a fresh
+      // document whose in-memory dedupe is empty — without a persistent marker the launch link
+      // would be acted on again after each one (a forum launch link would re-open the system
+      // browser every time). sessionStorage is per-origin and survives same-origin navigations:
+      // consume each launch URL exactly once per app run.
       const launch = await App.getLaunchUrl().catch(() => undefined)
       if (!disposed && launch?.url) {
         const KEY = 'eno:launch-url-handled'

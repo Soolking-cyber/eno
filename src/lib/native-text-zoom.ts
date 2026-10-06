@@ -204,8 +204,8 @@ export async function initTextZoom(): Promise<void> {
 /**
  * Re-read and re-apply the OS text-size preference. Call on app resume: iOS Dynamic Type can
  * be changed in Settings while the app is backgrounded, and the inline style also has to be
- * re-stamped after any full document load (the WebView hops cross-origin to eno.forum and
- * back). Same no-op/never-throw contract as {@link initTextZoom}.
+ * re-stamped after any full document load (the OAuth callback, a reload, the offline page's
+ * retry). Same no-op/never-throw contract as {@link initTextZoom}.
  */
 export async function syncTextZoom(): Promise<void> {
   await applyPreferred()

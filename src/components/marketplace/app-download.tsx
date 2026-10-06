@@ -21,14 +21,11 @@ import { cn } from '@/lib/utils'
  * notification bell and the Post button, so on a phone — where Post lives in the bottom nav — it sits
  * immediately right of the bell, and on desktop immediately left of Post.
  *
- * ⚠️ THE OWNER WAS TOLD WHAT SHOWING THIS ON eno.vn MEANS AND ASKED FOR IT ANYWAY ("put on both",
- * 2026-09-16), so the earlier IS_SERVICES gate is gone. The fact behind the warning has not changed:
- * the published Android build renders `https://www.eno.forum` (capacitor.config.ts `server.url`; the
- * `eno.vn` package id is a Play identifier, not a destination), so the licensed marketplace is now
- * pointing visitors at the edition that offers e-Visa and itinerary. astra and agy both flagged it.
- * ⛔ THE REAL FIX IS AN eno.vn BUILD OF THE APP — its own package id, `server.url = https://eno.vn`,
- * its own listing — after which app-store-links.ts gains a per-edition URL and nothing here changes.
- * Do not quietly re-gate this without asking; it is the owner's standing decision.
+ * ON BOTH EDITIONS — the owner's standing decision ("put on both", 2026-09-16); do not re-gate it without
+ * asking. Since 2026-10-06 (owner: "ship both with eno.vn") the apps render https://eno.vn
+ * (capacitor.config.ts server.url), so on eno.vn this points at the licensed marketplace's own app; on
+ * eno.forum it now points visitors at an app that renders eno.vn (Android installs older than versionCode
+ * 5 still render www.eno.forum).
  *
  * ⛔ WEB ONLY. Inside the Capacitor shell the visitor already has the app. The effect below removes it
  * after hydration, and `html.native [data-app-download]` in globals.css hides it from the first frame

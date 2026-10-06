@@ -28,7 +28,7 @@ describe('canonicalAppPath', () => {
     expect(canonicalAppPath('/auth/callback', { blockAuthPaths: true })).toBeNull()
     expect(canonicalAppPath('/signin?next=/x', { blockAuthPaths: true })).toBeNull()
     expect(canonicalAppPath('/%2561uth/callback', { blockAuthPaths: true })).toBeNull() // %2561 → %61 → a
-    // …and stays allowed without the flag (bootstrap's forum branch never sets it).
+    // …and stays allowed without the flag (it is opt-in; every caller in src sets it).
     expect(canonicalAppPath('/auth/callback')).toBe('/auth/callback')
   })
 })

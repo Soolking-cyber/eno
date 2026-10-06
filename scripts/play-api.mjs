@@ -7,9 +7,10 @@
  *   node scripts/play-api.mjs tracks                 # releases per track
  *   node scripts/play-api.mjs details [--apply]      # the required contact fields
  *   node scripts/play-api.mjs signing <versionCode>  # the PLAY APP SIGNING SHA-256, for assetlinks
- *   node scripts/play-api.mjs release <app.aab> [--track production] [--shots <dir>] [--apply]
- *                                                   # ⛔ WITH --apply THIS PUBLISHES TO USERS: bundle,
- *                                                   # track release, listing and phone screenshots, one edit.
+ *   node scripts/play-api.mjs release <app.aab> [--track production] [--notes <file>] [--with-listing --shots <dir>] [--apply]
+ *                                                   # ⛔ WITH --apply THIS PUBLISHES TO USERS: bundle + track
+ *                                                   # release; with --with-listing ALSO the app-wide listing and
+ *                                                   # every phone screenshot, in the same edit.
  *
  * ⚠️ EVEN THE READ COMMANDS OPEN A SERVER-SIDE EDIT, because `details`, `listings` and `tracks` are
  * only readable inside one — that is the API's shape, not a choice here. Each run deletes its edit
@@ -383,7 +384,21 @@ async function main() {
    * until someone types --apply.
    */
   if (cmd === 'release') {
-    const usage = 'usage: release <path/to/app.aab> [--track production] [--shots <dir>] [--notes <file>] [--apply]'
+    const usage = 'usage: release <path/to/app.aab> [--track production] [--notes <file>] [--with-listing --shots <dir> | --keep-listing] [--apply]'
+    /**
+     * ⛔ THE LISTING AND THE SCREENSHOTS ARE APP-WIDE, NOT PER TRACK (2026-10-06). A release to `internal` that also PUTs
+     * the listing changes the PUBLIC store page for every production user once Play reviews it — while production may
+     * still run the previous build (until 2026-10-06: v4 on www.eno.forum with eno's own e-Visa desk). That mismatch is
+     * the Misleading-Claims class behind the 2026-09-10 rejection. So a release touches them only when asked:
+     * `--with-listing` (normally at the production promotion, after re-capturing the screenshots on the live site
+     * with play-capture.mjs + play-frames.mjs and a person looking at every image).
+     */
+    const withListing = process.argv.includes('--with-listing')
+    // ⛔ …AND A PRODUCTION RELEASE MAY NOT SILENTLY KEEP THE OLD PAGE (review 2026-10-06): versionCode 5 renders eno.vn,
+    // so promoting it while the public listing still describes the forum-era app is the same mismatch the other way.
+    // Production therefore says which it means: --with-listing (the normal promotion) or --keep-listing (a build whose
+    // listing really has not changed).
+    const keepListing = process.argv.includes('--keep-listing')
     const aab = process.argv[3]
     const trackFlag = argValue('--track')
     const track = trackFlag || 'production'
@@ -397,12 +412,15 @@ async function main() {
      * that the caller name the track out loud.
      */
     if (APPLY && !trackFlag) { console.error(`⛔ --apply to ${track} requires naming it: --track ${track}\n   ${usage}`); process.exit(1) }
-    if (!statSync(shotsDir, { throwIfNoEntry: false })?.isDirectory()) { console.error(`⛔ no screenshot directory at ${shotsDir}`); process.exit(1) }
+    if (withListing && keepListing) { console.error(`⛔ --with-listing and --keep-listing contradict each other — pick one\n   ${usage}`); process.exit(1) }
+    if (APPLY && track === 'production' && !withListing && !keepListing) { console.error(`⛔ a production release must either update the app-wide listing (--with-listing --shots <fresh set>) or say --keep-listing\n   ${usage}`); process.exit(1) }
+    if (withListing && !argValue('--shots')) { console.error(`⛔ --with-listing replaces every phone screenshot: name the freshly captured set with --shots <dir>\n   ${usage}`); process.exit(1) }
+    if (withListing && !statSync(shotsDir, { throwIfNoEntry: false })?.isDirectory()) { console.error(`⛔ no screenshot directory at ${shotsDir}`); process.exit(1) }
     // Sorted by filename: the order they are uploaded in is the order Play shows them, and 01-…04- is the story order.
-    const shots = readdirSync(shotsDir).filter((f) => f.endsWith('.png')).sort().map((f) => `${shotsDir}/${f}`)
+    const shots = withListing ? readdirSync(shotsDir).filter((f) => f.endsWith('.png')).sort().map((f) => `${shotsDir}/${f}`) : []
     // Play's own bounds for a phone listing: at least 2, at most 8. The MAXIMUM is checked here rather than discovered
     // at the ninth upload, which would be after the delete-all has already emptied the live set (astra, agy).
-    if (shots.length < 2 || shots.length > 8) { console.error(`⛔ ${shotsDir} holds ${shots.length} PNG(s); Play takes 2 to 8 phone screenshots`); process.exit(1) }
+    if (withListing && (shots.length < 2 || shots.length > 8)) { console.error(`⛔ ${shotsDir} holds ${shots.length} PNG(s); Play takes 2 to 8 phone screenshots`); process.exit(1) }
     const notes = notesFile ? readFileSync(notesFile, 'utf8').trim() : RELEASE_NOTES
     if (notes.length > 500) { console.error(`⛔ release notes are ${notes.length} chars, limit 500`); process.exit(1) }
     assertGovernmentDisclosure(PLAY_LISTING)
@@ -412,8 +430,8 @@ async function main() {
     }
     console.log(`bundle       ${aab} (${(statSync(aab).size / 1e6).toFixed(1)} MB)`)
     console.log(`track        ${track} — status "completed" (full rollout)`)
-    console.log(`title        ${PLAY_LISTING.title}`)
-    console.log(`screenshots  ${shots.length} file(s), replacing every phone screenshot on ${PLAY_LISTING.language}`)
+    console.log(withListing ? `listing      "${PLAY_LISTING.title}" — APP-WIDE, public once reviewed` : 'listing      untouched (add --with-listing at the production promotion)')
+    console.log(withListing ? `screenshots  ${shots.length} file(s), replacing every phone screenshot on ${PLAY_LISTING.language}` : 'screenshots  untouched')
     console.log(`notes        ${notesFile || `built in (versionCode ${NOTES_VERSION_CODE} only)`} — ${notes.replace(/\n/g, ' / ').slice(0, 80)}…`)
     await withEdit(async (id) => {
       const { tracks = [] } = await api(`/edits/${id}/tracks`)
@@ -437,6 +455,7 @@ async function main() {
         releases: [{ status: 'completed', versionCodes: [String(bundle.versionCode)], releaseNotes: [{ language: PLAY_LISTING.language, text: notes }] }],
       } })
       console.log(`  ${track}: release with v${bundle.versionCode}`)
+      if (!withListing) return
       await api(`/edits/${id}/listings/${PLAY_LISTING.language}`, { method: 'PUT', body: PLAY_LISTING })
       console.log(`  listing: "${PLAY_LISTING.title}"`)
       // ⚠️ DELETE-ALL FIRST, AND IT IS A PLAIN DELETE ON THE COLLECTION. Uploading alone APPENDS — Play caps phone

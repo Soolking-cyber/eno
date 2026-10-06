@@ -567,11 +567,15 @@ export function HelpCenter({ data, i18n }: { data: HelpCenterData; i18n?: HelpI1
           <h2 id="help-community-title" className="h-section text-foreground">
             <Tr text="From the community" />
           </h2>
-          {/* A real cross-origin URL for a11y / middle-click, with a left-click
-              intercepted so the native app takes the SSO handoff instead of landing
-              signed out. Posting stays on eno.forum on purpose — it owns the
-              composer, the media bucket and its storage RLS. */}
-          <Button variant="outline" size="sm" asChild>
+          {/* A real cross-origin URL for a11y / middle-click; a left-click goes through
+              goToForum (src/lib/forum-nav.ts), which in the native apps LEAVES the app for
+              the system browser — eno.forum is not in allowNavigation since both apps moved
+              to eno.vn (2026-10-06). There is no SSO handoff any more: the reader arrives on
+              the forum as whoever they are in that browser.
+              ⛔ HIDDEN IN THE APPS, UNCONDITIONALLY — not a review gate (native-app-hidden, pre-paint): the apps are published by the licensed
+              company and render eno.vn, which sends no one to eno.forum (owner decision D18, 2026-10-06). The
+              web keeps the link. The questions below still render in the app — they are read-only there. */}
+          <Button variant="outline" size="sm" className="native-app-hidden" asChild>
             <a
               href={`${FORUM_URL}/`}
               onClick={(event) => {

@@ -6,6 +6,7 @@ import { useLanguage } from '@/context/language-context'
 import { LANGUAGES } from '@/lib/languages'
 import { LANG_COOKIE, variantOfLanguage } from '@/lib/lang-variant'
 import { VI_PILOT, pinnedPair, stripViPrefix, type ViPilot } from '@/lib/lang-pinned'
+import { isNativeAppClient } from '@/lib/app-review-gates'
 
 /**
  * ⛔ THE ONE-TAP SUGGESTION ON A `/vi` PILOT PAGE (SEO wave B, V3b — dormant until V5; decision V-a: no
@@ -81,6 +82,9 @@ export function LangSuggestionBanner() {
     try { stored = localStorage.getItem('lang'); dismissed = localStorage.getItem(BANNER_DISMISS_KEY) === '1' } catch { /* storage blocked: no stored choice */ }
     const languages = navigator.languages?.length ? navigator.languages : [navigator.language]
     const b = bannerFor(window.location.pathname, { stored, cookie: readCookie(LANG_COOKIE), languages }, dismissed)
+    // ⛔ NEVER IN THE APPS: their start page FOLLOWS to the twin instead, in the pre-paint script, before any launch
+    // link or push tap is routed (src/lib/app-home-language.ts — following from a mount effect raced them).
+    if (isNativeAppClient()) return
     setShown(b ? { ...b, href: b.href + window.location.search } : null)
   }, [])
 

@@ -45,6 +45,10 @@ function makeNativePersister() {
     },
     maxAge: 24 * 60 * 60 * 1000, // a day-old feed still beats a blank screen
     prefix: 'eno-rq',
+    // ⚠️ PER ORIGIN. Preferences is per APP, not per origin, and survives a store update — so the cache the
+    // Android 1.0.2 app persisted while it rendered www.eno.forum would be restored under eno.vn by 1.0.3 (forum-
+    // only listings, the visa desk). A buster that differs drops every entry another origin wrote.
+    buster: typeof window === 'undefined' ? '' : window.location.host,
   })
 }
 

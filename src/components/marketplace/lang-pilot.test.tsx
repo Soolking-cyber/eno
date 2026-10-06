@@ -23,7 +23,9 @@ vi.mock('@/lib/lang-pinned', async (importOriginal) => {
     localizedHref: (h: string, v: string, l?: Parameters<typeof real.localizedHref>[2]) => real.localizedHref(h, v, l ?? lists()),
   }
 })
-const { BANNER_COPY, BANNER_DISMISS_KEY, LangSuggestionBanner, bannerFor } = await import('./lang-suggestion-banner')
+const { BANNER_COPY, BANNER_DISMISS_KEY, LangSuggestionBanner, bannerFor, preferredLanguage } = await import('./lang-suggestion-banner')
+const { APP_LANGUAGE_PICK_JS, appHomeTwinJs } = await import('@/lib/app-home-language')
+const { LANGUAGES } = await import('@/lib/languages')
 const { LangPilotSwitch } = await import('./lang-pilot-switch')
 const { LanguageProvider } = await import('@/context/language-context')
 
@@ -109,6 +111,20 @@ describe('<LangSuggestionBanner>', () => {
     expect(screen.queryByText(BANNER_COPY.vi.text, { exact: false })).toBeNull()
   })
 
+  it('in the apps it never shows and never navigates itself — the pre-paint script follows instead', () => {
+    at('/')
+    const ua = navigator.userAgent
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => `${ua} EnoNativeApp/1` })
+    try {
+      render(<LanguageProvider initialLang="en"><LangSuggestionBanner /></LanguageProvider>)
+      expect(screen.queryByText(BANNER_COPY.vi.text, { exact: false })).toBeNull()
+      expect(assign).not.toHaveBeenCalled()
+      expect(store.lang).toBeUndefined()
+    } finally {
+      Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => ua })
+    }
+  })
+
   it('on /vi for an English browser: the English literal, lang="en", "Dismiss"', () => {
     at('/vi')
     Object.defineProperty(navigator, 'languages', { configurable: true, get: () => ['en-US'] })
@@ -182,5 +198,59 @@ describe('localizedHref at each link site (source contract)', () => {
   })
   it('district chips stay plain: their /vi twins would 404', () => {
     expect(src('src/app/[lang]/c/[category]/[district]/page.tsx')).toMatch(/<Link href=\{`\/c\/\$\{cat\.slug\}\/\$\{d\.slug\}`\} \/>/)
+  })
+})
+
+describe('the apps follow their start page to /vi in the pre-paint script (app-home-language.ts)', () => {
+  type Run = { path?: string; search?: string; stored?: string | null; cookie?: string; languages?: string[] }
+  // The snippet with its globals passed in as parameters, so nothing real is read or navigated.
+  const run = (o: Run) => {
+    const replace = vi.fn()
+    const win: { __enoLeaving?: number } = {}
+    const languages = o.languages ?? ['en-US']
+    new Function('location', 'localStorage', 'document', 'navigator', 'window', appHomeTwinJs('/vi'))(
+      { pathname: o.path ?? '/', search: o.search ?? '', replace },
+      { getItem: (k: string) => (k === 'lang' ? (o.stored ?? null) : null) },
+      { cookie: o.cookie ?? '' },
+      { languages, language: languages[0] },
+      win,
+    )
+    return { replace, leaving: win.__enoLeaving === 1 }
+  }
+
+  it('its picker IS preferredLanguage — the same answer across the matrix', () => {
+    const pick = new Function(`return (${APP_LANGUAGE_PICK_JS})`)() as (st: string | null, ck: string | null, ls: readonly string[], k: string[]) => string | null
+    const codes = LANGUAGES.map((l) => l.code)
+    const matrix: Array<{ stored: string | null; cookie: string | null; languages: string[] }> = [
+      { stored: 'vi', cookie: null, languages: ['en-US'] }, { stored: 'en', cookie: 'vi', languages: ['vi-VN'] },
+      { stored: 'ko', cookie: null, languages: ['vi'] }, { stored: 'xx', cookie: 'vi', languages: ['en'] },
+      { stored: null, cookie: 'en', languages: ['vi-VN'] }, { stored: null, cookie: 'zz', languages: ['vi-VN', 'en'] },
+      { stored: null, cookie: null, languages: ['en-US', 'vi'] }, { stored: null, cookie: null, languages: ['xx', 'vi'] },
+      { stored: null, cookie: null, languages: ['zh-TW', 'vi'] }, { stored: null, cookie: null, languages: ['ZH-hans'] },
+      { stored: null, cookie: null, languages: ['VI'] }, { stored: null, cookie: null, languages: [] },
+      { stored: null, cookie: null, languages: ['fr-FR', 'vi-VN'] }, { stored: null, cookie: null, languages: ['de', 'ja-JP'] },
+    ]
+    for (const p of matrix) expect(pick(p.stored, p.cookie, p.languages, codes), JSON.stringify(p)).toBe(preferredLanguage(p))
+  })
+
+  it('a Vietnamese user on / is replaced to /vi (query kept) and the document is marked as leaving', () => {
+    for (const o of [{ languages: ['vi-VN', 'en'] }, { stored: 'vi' }, { cookie: 'a=1; lang=vi; b=2' }]) {
+      const r = run({ ...o, search: '?utm=x' })
+      expect(r.replace, JSON.stringify(o)).toHaveBeenCalledWith('/vi?utm=x')
+      expect(r.leaving).toBe(true)
+    }
+  })
+
+  it('an explicit English choice, an English device, or any page other than / → nothing at all', () => {
+    for (const o of [{ stored: 'en', languages: ['vi-VN'] }, { cookie: 'lang=en', languages: ['vi'] }, { languages: ['en-GB', 'vi'] }, { path: '/vi', languages: ['vi'] }, { path: '/listings/x', stored: 'vi' }]) {
+      const r = run(o)
+      expect(r.replace, JSON.stringify(o)).not.toHaveBeenCalled()
+      expect(r.leaving).toBe(false)
+    }
+  })
+
+  it('an edition whose / has no twin (eno.forum) gets an empty snippet, and the snippet stays template-literal safe', () => {
+    expect(appHomeTwinJs(null)).toBe('')
+    expect(appHomeTwinJs('/vi')).not.toMatch(/\\|`|\$\{/)
   })
 })

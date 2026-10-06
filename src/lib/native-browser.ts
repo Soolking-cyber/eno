@@ -12,11 +12,16 @@ import type { MouseEvent } from 'react'
  *
  * ⚠️ Three kinds of URL must NOT come through here:
  *
- *  1. FIRST-PARTY (eno.vn / eno.forum, and whatever origin we're actually served from — a LAN
- *     dev build is `http://192.168.x.x:3100`). Those are in capacitor.config `allowNavigation`
- *     and MUST stay in the WebView: that is where the session cookie jar and the SPA router
- *     live. An eno.forum hop additionally needs goToForum()'s single-use SSO handoff — send it
- *     to an in-app browser tab and the user arrives on the forum as a GUEST.
+ *  1. OURS. (a) The app's own origin — eno.vn / www.eno.vn, and whatever origin we're actually
+ *     served from (a LAN dev build is `http://192.168.x.x:3100`). Those are in capacitor.config
+ *     `allowNavigation` and MUST stay in the WebView: that is where the session cookie jar and
+ *     the SPA router live. (b) ⛔ THE SISTER SITE, eno.forum / www.eno.forum, which is NOT in
+ *     allowNavigation since both apps moved to eno.vn (owner, 2026-10-06: "ship both with
+ *     eno.vn"). It carries the e-Visa and itinerary services the licensed company's app may not
+ *     show, so it leaves through the SYSTEM browser: Capacitor hands any navigation outside
+ *     allowNavigation to the OS, and so does the `window.open` fallback below. Opening it in the
+ *     in-app sheet instead would render the forum on top of the app — which is the only reason
+ *     these hosts are listed here although the WebView refuses them.
  *
  *  2. NON-http SCHEMES (`mailto:`, `tel:`, `sms:`, `intent:`). SFSafariViewController refuses
  *     anything but http/https outright (@capacitor/browser's iOS `prepare(for:)` checks the
@@ -31,9 +36,11 @@ import type { MouseEvent } from 'react'
  *     the whole reason that flow exists. Do NOT fold it into openExternal().
  */
 
-// Hosts the WebView is allowed to navigate to itself — keep in sync with
-// capacitor.config.ts `server.allowNavigation`.
-const FIRST_PARTY_HOSTS = new Set(['eno.vn', 'www.eno.vn', 'eno.forum', 'www.eno.forum'])
+// The app's own origin — keep in sync with capacitor.config.ts `server.allowNavigation`.
+const APP_HOSTS = new Set(['eno.vn', 'www.eno.vn'])
+// ⛔ The sister site — NOT in allowNavigation, and never handed to the in-app sheet (point 1b above):
+// the WebView's own navigation, or `window.open`, sends it to the system browser instead.
+const SISTER_SITE_HOSTS = new Set(['eno.forum', 'www.eno.forum'])
 
 /** True inside the Capacitor shell (iOS/Android). False on web, SSR and desktop. */
 export function isNativeShell(): boolean {
@@ -44,8 +51,8 @@ export function isNativeShell(): boolean {
 
 /**
  * A third-party http(s) destination — i.e. the only thing that should be handed to the in-app
- * browser. Relative URLs, first-party hosts, the current origin and non-http schemes are all
- * false, so callers can pass any href blindly and get the safe answer.
+ * browser. Relative URLs, our own hosts (the app's origin AND the sister site), the current origin
+ * and non-http schemes are all false, so callers can pass any href blindly and get the safe answer.
  */
 export function isExternalUrl(url: string): boolean {
   if (typeof window === 'undefined') return false
@@ -54,7 +61,7 @@ export function isExternalUrl(url: string): boolean {
     if (u.protocol !== 'https:' && u.protocol !== 'http:') return false
     const host = u.hostname.toLowerCase()
     if (host === window.location.hostname.toLowerCase()) return false
-    return !FIRST_PARTY_HOSTS.has(host)
+    return !APP_HOSTS.has(host) && !SISTER_SITE_HOSTS.has(host)
   } catch {
     return false
   }

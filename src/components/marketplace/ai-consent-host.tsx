@@ -142,9 +142,12 @@ function AiConsentHostOn() {
 
   useEffect(() => {
     registerAiConsentAsker((family, uid, copy) => new Promise<AiConsent>((resolve) => {
-      const words = copy ?? builtIn(family)
-      if (!words) { resolve(null); return } // nothing to show ⇒ nothing is sent
       if (uid !== accountRef.current) { resolve(null); return } // asked on behalf of an account that is not signed in here
+      const words = copy ?? builtIn(family)
+      // Nothing to show ⇒ nothing is sent. Say so (2026-10-06): the apps render eno.vn, whose build stubs the trip
+      // family's words, so a partner trip's AI buttons would otherwise do nothing at all in the apps. The sentence
+      // names no service, so it may ship on either edition.
+      if (!words) { toast(tr('This AI feature isn’t available in the app.', 'Tính năng AI này không có trong ứng dụng.')); resolve(null); return }
       if (readAiConsent(family, uid) === 'off') {
         if (words.off) toast(words.off)
         resolve('off')
@@ -157,7 +160,7 @@ function AiConsentHostOn() {
       setQueue((q) => [...q, { key, family, userId: uid, copy: words }])
     }))
     return () => registerAiConsentAsker(null)
-  }, [builtIn])
+  }, [builtIn, tr])
 
   // Unmounting with a question open answers "not now, nothing stored" — never a promise left hanging.
   useEffect(() => {

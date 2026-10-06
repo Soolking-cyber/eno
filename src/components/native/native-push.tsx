@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { leavingForHomeTwin } from '@/lib/app-home-language'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { canonicalAppPath } from '@/lib/deep-link'
@@ -14,12 +15,13 @@ import { nativePushEnabled } from '@/lib/native-push-flags'
 // The old comment here claimed push was "DORMANT until cap sync … register() throws not implemented"
 // — that assumption is STALE: @capacitor/push-notifications is now cap-synced (PushNotificationsPlugin
 // is in packageClassList on both platforms), so requestPermissions() is LIVE and shows the real iOS
-// "Allow Notifications?" dialog. But there is still NO aps-environment entitlement, so register()
-// fails at the APNs layer and no push can ever arrive. Without this gate a signed-in native user is
-// therefore prompted for a capability that does nothing — burning iOS's one-shot permission grant on
-// a dead feature. So we stay truly dormant behind the flag. ACTIVATION (see NATIVE_PUSH_SETUP.md):
-// add the Push capability + aps-environment entitlement + APNs/FCM config + the AppDelegate
-// didRegisterForRemoteNotifications callbacks, THEN set the platform's flag.
+// "Allow Notifications?" dialog. The App Store binary carries the aps-environment entitlement since
+// 2026-10-06 (ios/App/App/App.entitlements, runbook P4), but a push can arrive only once the APNs key
+// and env are on the box and the NativePushToken table exists (runbook P8). Until then a signed-in
+// native user would be prompted for a capability that does nothing — burning iOS's one-shot
+// permission grant on a dead feature. So we stay dormant behind the flag, and this is the ONE place
+// that asks (native-badge.tsx only reads the answer). ACTIVATION (see NATIVE_PUSH_SETUP.md): APNs/FCM
+// config + the table, THEN set the platform's flag.
 //
 // Per-platform switch — see src/lib/native-push-flags.ts for why there is no shared flag any more.
 //
@@ -49,7 +51,8 @@ export function NativePush() {
   useEffect(() => { routerRef.current = router }, [router])
 
   useEffect(() => {
-    if (!user || started.current || !cap()?.isNativePlatform?.() || !nativePushEnabled(cap()?.getPlatform?.())) return
+    // ⛔ Not in a `/` document being replaced with `/vi` (app-home-language.ts): its retained tap belongs to `/vi`.
+    if (!user || started.current || leavingForHomeTwin() || !cap()?.isNativePlatform?.() || !nativePushEnabled(cap()?.getPlatform?.())) return
     started.current = true
     let disposed = false
     const cleanups: Array<() => void> = []

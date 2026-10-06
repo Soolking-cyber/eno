@@ -5,6 +5,7 @@ import { db } from './db'
 import { badgeCountFor } from './unread'
 import type { PushPayload } from './push'
 import { logError } from '@/lib/log'
+import { IS_SERVICES } from '@/lib/edition'
 
 /**
  * NATIVE push (Capacitor apps): FCM for Android, APNs for iOS — the counterpart to
@@ -139,6 +140,11 @@ function sendApns(cfg: NonNullable<ReturnType<typeof apnsConfig>>, jwt: string, 
  * APNs is configured. Prunes dead tokens. Returns the count of successful deliveries.
  */
 export async function sendNativePushToProfile(profileId: string, payload: PushPayload): Promise<number> {
+  // ⛔ NEVER FROM THE FORUM BUILD (2026-10-06): both apps render eno.vn and are published by the licensed company,
+  // and device tokens carry no edition — so a push sent by eno.forum's server (an e-Visa desk result, a payout
+  // change, a forum-only link) would land in the licensed company's app and open a page eno.vn does not have. The
+  // apps' pushes come from eno.vn's server only; APNS_* / FCM_* belong in eno-vn.env alone. Fails closed.
+  if (IS_SERVICES) return 0
   const fcm = fcmSa()
   const apns = apnsConfig()
   if (!fcm && !apns) return 0
@@ -183,6 +189,7 @@ export async function sendNativePushToProfile(profileId: string, payload: PushPa
  * self-heals on the next real push, which always carries the absolute count.
  */
 export async function syncBadgeToProfile(profileId: string): Promise<void> {
+  if (IS_SERVICES) return // see sendNativePushToProfile: the apps are eno.vn's
   try {
     const apns = apnsConfig()
     if (!apns) return

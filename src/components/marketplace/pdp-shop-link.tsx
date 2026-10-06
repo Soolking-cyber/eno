@@ -86,7 +86,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
   // ⚠️ "VERIFIED", NOT "VETTED" / "KIỂM DUYỆT" (2026-10-01). "eno.vn chưa kiểm duyệt" read as the platform
   // admitting it had not done its statutory pre-display moderation; what is true, and what this line
   // means, is that eno.vn has not VERIFIED the source's ad or the business behind it.
-  // ⚠️ App Store gate `site-brand-copy` (R7): on eno.forum — the site the apps render — the verifier is
+  // ⚠️ App Store gate `site-brand-copy` (R7): on eno.forum (both apps render eno.vn since 2026-10-06) the verifier is
   // eno.forum, not eno.vn. brandForCopy keeps today's words until the owner switches it on.
   // Literal strings on both branches, not a template: the i18n harvest (gen-ui-strings) only collects
   // literals, and the nine machine-translated languages read their keys from it.
