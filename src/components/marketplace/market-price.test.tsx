@@ -126,3 +126,18 @@ describe('a brand+model band reads exactly as before', () => {
     expect(t).not.toContain('giá đang rao')
   })
 })
+
+describe('the sample size is a grouped number, like every other count on the page', () => {
+  // A fallback band over a big shelf (rentals, phones) easily passes 999. String(n) printed "1234".
+  it('1,234 in English and 1.234 in Vietnamese — the fallback voice', () => {
+    expect(text('en', 2_500_000, { ...SIMILAR, n: 1234 })).toContain('Based on 1,234 similar listings · asking prices')
+    cleanup()
+    expect(text('vi', 2_500_000, { ...SIMILAR, n: 1234 })).toContain('Dựa trên 1.234 tin tương tự · giá đang rao')
+  })
+
+  it('…and the brand+model voice', () => {
+    expect(text('en', 2_500_000, { ...MODEL, n: 1234 })).toContain('Based on 1,234 similar listings')
+    cleanup()
+    expect(text('vi', 2_500_000, { ...MODEL, n: 1234 })).toContain('Dựa trên 1.234 tin tương tự')
+  })
+})

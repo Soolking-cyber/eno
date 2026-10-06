@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { useLanguage } from '@/context/language-context'
 import { isAskAboveBand, isBelowTypical, type SoldPriceBand } from '@/lib/price-guidance'
 import { cn } from '@/lib/utils'
-import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { formatInteger, formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
 /**
  * ── <PriceBand> — "what this actually sold for" ─────────────────────────────────────────────
@@ -128,7 +128,7 @@ export function PriceBand({ band, price, placement, className }: PriceBandProps)
         )}
       </p>
       <p className="mt-1 text-2xs text-ink-4">
-        {tr('Based on {n} confirmed sales', 'Dựa trên {n} giao dịch đã xác nhận').replace('{n}', String(band.n))}
+        {tr('Based on {n} confirmed sales', 'Dựa trên {n} giao dịch đã xác nhận').replace('{n}', formatInteger(band.n, loc))}
       </p>
       {/* ⚠️ ONE PERSISTENT POLITE LIVE REGION, NOT A CONDITIONALLY MOUNTED <p>. The verdict
           appears and disappears as the seller types, and a live region that is INSERTED along

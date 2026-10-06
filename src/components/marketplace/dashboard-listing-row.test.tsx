@@ -10,7 +10,11 @@ import type { SerializedListing } from '@/lib/types'
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }) }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
-vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
+// Switchable for the demand-nudge cases below; every other case runs in English, as before.
+const i18n = vi.hoisted(() => ({ lang: 'en' as 'en' | 'vi' }))
+vi.mock('@/context/language-context', () => ({
+  useLanguage: () => ({ lang: i18n.lang, tr: (en: string, viText?: string) => (i18n.lang === 'vi' && viText != null ? viText : en) }),
+}))
 const setStatus = vi.fn()
 const markSold = vi.fn()
 vi.mock('./use-listing-actions', () => ({ useListingActions: () => ({ gone: false, status: 'active', setStatus, markSold, del: vi.fn() }) }))
@@ -136,5 +140,24 @@ describe('DashboardListingRow actions', () => {
     await waitFor(() => expect(screen.getByRole('menuitem', { name: 'Discount' })).toBeTruthy())
     fireEvent.click(screen.getByRole('menuitem', { name: 'Discount' }))
     await waitFor(() => expect((container.querySelector('[data-quick-discount]') as HTMLElement).dataset.open).toBe('true'))
+  })
+})
+
+describe('DashboardListingRow demand nudge', () => {
+  afterEach(() => { i18n.lang = 'en' })
+  const saved = (savedCount: number) => ({ ...row('https://picsum.photos/400'), savedCount, views: 0, contactCount: 0 }) as unknown as SerializedListing
+
+  it('groups the saved count like the meta line beside it: 1,234 (en) / 1.234 (vi), never 1234', () => {
+    render(<DashboardListingRow listing={saved(1234)} onChanged={() => {}} />)
+    expect(screen.getByText(/^1,234 people saved this — /)).toBeTruthy()
+    cleanup()
+    i18n.lang = 'vi'
+    render(<DashboardListingRow listing={saved(1234)} onChanged={() => {}} />)
+    expect(screen.getByText(/^1\.234 người đã lưu tin này — /)).toBeTruthy()
+  })
+
+  it('stays silent below 5 saves', () => {
+    render(<DashboardListingRow listing={saved(4)} onChanged={() => {}} />)
+    expect(screen.queryByText(/people saved this/)).toBeNull()
   })
 })

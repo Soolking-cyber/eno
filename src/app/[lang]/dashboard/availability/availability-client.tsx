@@ -19,6 +19,7 @@ import { CloseButton } from '@/components/ui/close-button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { STROKE_MARK } from '@/lib/icon-tokens'
+import { formatInteger, moneyLocale } from '@/lib/vnd'
 
 // localStorage marker so the daily review only auto-shows once per day per user.
 export const reviewKey = (uid: string) => `eno-avail:${uid}`
@@ -28,7 +29,7 @@ export const todayStr = () => new Date().toISOString().slice(0, 10)
  *  Tick anything that sold; everything else gets bumped to the top in one tap. */
 export function AvailabilityClient() {
   const { user, loading } = useAuth()
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const router = useRouter()
   // Shared dashboard cache (same source the rail + sibling section pages read) instead
   // of a bespoke /api/dashboard fetch.
@@ -202,7 +203,7 @@ export function AvailabilityClient() {
                 <Button variant="cta" size="none" onClick={submit} disabled={submitting} className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm transition-colors disabled:opacity-50 cursor-pointer">
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                   {soldCount > 0
-                    ? fillTemplate(tr('Bump {availCount} · sold {soldCount}', 'Đẩy {availCount} · đã bán {soldCount}'), 'Bump {availCount} · sold {soldCount}', { availCount: String(availCount), soldCount: String(soldCount) })
+                    ? fillTemplate(tr('Bump {availCount} · sold {soldCount}', 'Đẩy {availCount} · đã bán {soldCount}'), 'Bump {availCount} · sold {soldCount}', { availCount: formatInteger(availCount, moneyLocale(lang)), soldCount: formatInteger(soldCount, moneyLocale(lang)) })
                     : tr('Everything’s still available', 'Tất cả vẫn còn')}
                 </Button>
               </div>

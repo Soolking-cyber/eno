@@ -10,7 +10,7 @@ import { identityBlockMessage } from '@/lib/identity-block-copy'
 import { containsPhoneNumber } from '@/lib/phone'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { parseVnd } from '@/lib/vnd'
+import { formatInteger, moneyLocale, parseVnd } from '@/lib/vnd'
 import { readZipMedia, resolveRowMedia, mediaTokens, isFilename, type ZipMedia } from '@/lib/bulk-media'
 import { uploadInBatches } from '@/lib/upload-client'
 
@@ -429,7 +429,7 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {zip
-                  ? fillTemplate(tr('{size} files ready', '{size} tệp sẵn sàng'), '{size} files ready', { size: String(zip.files.size) })
+                  ? fillTemplate(tr('{size} files ready', '{size} tệp sẵn sàng'), '{size} files ready', { size: formatInteger(zip.files.size, moneyLocale(lang)) })
                   : tr('Name files in the CSV exactly as they appear in the ZIP', 'Ghi tên tệp trong CSV đúng như trong ZIP')}
               </p>
               <input ref={zipRef} type="file" accept=".zip,application/zip" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onZip(f) }} />

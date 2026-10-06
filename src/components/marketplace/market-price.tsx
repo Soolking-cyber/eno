@@ -2,7 +2,7 @@
 
 import { useLanguage } from '@/context/language-context'
 import type { PriceBandBasis } from '@/lib/price-fallback'
-import { compactPrice, moneyLocale } from '@/lib/vnd'
+import { compactPrice, formatInteger, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 
 // "Where does this offer stand?" — the market-price band for a listing's brand+model+segment
@@ -99,8 +99,8 @@ export function MarketPrice({ price, band }: { price: number; band: Band }) {
       </div>
       <p className="mt-2 text-2xs text-ink-4">
         {similar
-          ? tr('Based on {n} similar listings · asking prices', 'Dựa trên {n} tin tương tự · giá đang rao').replace('{n}', String(band.n))
-          : tr('Based on {n} similar listings', 'Dựa trên {n} tin tương tự').replace('{n}', String(band.n))}
+          ? tr('Based on {n} similar listings · asking prices', 'Dựa trên {n} tin tương tự · giá đang rao').replace('{n}', formatInteger(band.n, loc))
+          : tr('Based on {n} similar listings', 'Dựa trên {n} tin tương tự').replace('{n}', formatInteger(band.n, loc))}
       </p>
     </div>
   )

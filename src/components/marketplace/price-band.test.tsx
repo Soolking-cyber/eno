@@ -256,3 +256,14 @@ describe('server rendering', () => {
     expect(first).toContain('10,875,000 đ')
   })
 })
+
+describe('the confirmed-sales count is grouped', () => {
+  it('1,234 in English and 1.234 in Vietnamese, never a raw 1234', () => {
+    const big = { ...BAND, n: 1234 }
+    const en = renderIn('en', props({ band: big }))
+    expect(en.container.textContent).toContain('Based on 1,234 confirmed sales')
+    en.unmount()
+    const vi = renderIn('vi', props({ band: big }))
+    expect(vi.container.textContent).toContain('Dựa trên 1.234 giao dịch đã xác nhận')
+  })
+})

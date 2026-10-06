@@ -154,7 +154,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   const nudge = showNudge ? (
     <p className="mt-0.5 text-sm text-warning">
       {listing.savedCount >= 5
-        ? fillTemplate(tr('{savedCount} people saved this — a small price drop usually sells it', '{savedCount} người đã lưu tin này — giảm giá một chút thường sẽ bán được'), '{savedCount} people saved this — a small price drop usually sells it', { savedCount: String(listing.savedCount) })
+        ? fillTemplate(tr('{savedCount} people saved this — a small price drop usually sells it', '{savedCount} người đã lưu tin này — giảm giá một chút thường sẽ bán được'), '{savedCount} people saved this — a small price drop usually sells it', { savedCount: formatInteger(listing.savedCount, moneyLocale(lang)) })
         : tr('Lots of views but no contacts yet — a lower price usually fixes this', 'Nhiều lượt xem nhưng chưa có liên hệ — giảm giá thường sẽ bán được')}
       {' · '}
       <Button
