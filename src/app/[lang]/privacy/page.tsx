@@ -141,11 +141,15 @@ const RECIPIENTS: Table = {
       // src/lib/gemini.ts:60 (location 'global') · src/lib/ai-moderation.ts · src/lib/vertex-search.ts:43
       // · src/app/api/ai/concierge/route.ts · search terms: src/app/api/listings/semantic-rank.ts:54-78 →
       // vertexSearchListingIds (vertex-search.ts:255-257) · photo search: api/ai/visual-search/route.ts:81-83
-      // (inlineData) · rephrase: api/ai/rephrase/route.ts:39-61
+      // (inlineData) · rephrase: api/ai/rephrase/route.ts:39-61 · report review (2026-10-06): a moderator's
+      // "AI review" button (components/admin/moderation-client.tsx, dispute-room-client.tsx) →
+      // api/admin/ai-review/route.ts — the report, reply and appeal, the dispute thread (:198), the parties'
+      // last 40 messages (:218), the listing (:293), display names + trust/age/report counts, MAX_IMAGES 4 (:25)
+      // inlineData; no account email or phone (:172); advisory, nothing mutates the case (:16-20).
       { en: 'Google (Vertex AI, Gemini)', vi: 'Google (Vertex AI, Gemini)' },
       { en: 'Outside Vietnam (Google’s global endpoint)', vi: 'Ngoài Việt Nam (điểm truy cập toàn cầu của Google)' },
-      { en: 'Listing photos and text sent for AI features and automated moderation; what you type to the AI assistant; where AI search is switched on, public listing details and the words you search for; a photo you choose to search by; text you ask us to rephrase.', vi: 'Ảnh và nội dung tin đăng được gửi cho các tính năng AI và kiểm duyệt tự động; nội dung bạn nhập cho trợ lý AI; khi tìm kiếm bằng AI được bật, thông tin công khai của tin đăng và từ khóa bạn tìm kiếm; ảnh bạn chọn để tìm kiếm bằng hình ảnh; văn bản bạn nhờ chúng tôi viết lại.' },
-      { en: 'Describing and classifying listings, checking them for prohibited goods, search, search by photo, writing help and the shopping assistant.', vi: 'Mô tả và phân loại tin đăng, kiểm tra hàng hóa bị cấm, tìm kiếm, tìm kiếm bằng hình ảnh, hỗ trợ viết nội dung và trợ lý mua sắm.' },
+      { en: 'Listing photos and text sent for AI features and automated moderation; what you type to the AI assistant; where AI search is switched on, public listing details and the words you search for; a photo you choose to search by; text you ask us to rephrase; and, when our team reviews a report or a dispute and asks the AI for a suggestion, that case: the report, any reply and appeal, the statements and messages in the dispute case, the last 40 messages of the conversation between the two parties, the listing concerned, each party’s display name, trust score, account age and record of past reports, and up to 4 photos (evidence from the dispute, appeal proof or listing photos) — not the email address or phone number of either account.', vi: 'Ảnh và nội dung tin đăng được gửi cho các tính năng AI và kiểm duyệt tự động; nội dung bạn nhập cho trợ lý AI; khi tìm kiếm bằng AI được bật, thông tin công khai của tin đăng và từ khóa bạn tìm kiếm; ảnh bạn chọn để tìm kiếm bằng hình ảnh; văn bản bạn nhờ chúng tôi viết lại; và, khi đội ngũ của chúng tôi xem xét một báo cáo hoặc tranh chấp và nhờ AI gợi ý, hồ sơ vụ việc đó: nội dung báo cáo, phản hồi và khiếu nại đối với quyết định (nếu có), các lời trình bày và tin nhắn trong hồ sơ tranh chấp, 40 tin nhắn gần nhất trong cuộc trò chuyện giữa hai bên, tin đăng liên quan, tên hiển thị, điểm tín nhiệm, thời gian sử dụng tài khoản và lịch sử báo cáo của mỗi bên, cùng tối đa 4 ảnh (ảnh bằng chứng trong tranh chấp, ảnh kèm khiếu nại hoặc ảnh tin đăng) — không kèm địa chỉ email hay số điện thoại của tài khoản nào.' },
+      { en: 'Describing and classifying listings, checking them for prohibited goods, search, search by photo, writing help, the shopping assistant, and suggesting an outcome to our team when it reviews a report or dispute (a member of our team decides).', vi: 'Mô tả và phân loại tin đăng, kiểm tra hàng hóa bị cấm, tìm kiếm, tìm kiếm bằng hình ảnh, hỗ trợ viết nội dung, trợ lý mua sắm, và gợi ý hướng xử lý cho đội ngũ của chúng tôi khi xem xét báo cáo hoặc tranh chấp (một nhân viên của chúng tôi đưa ra quyết định).' },
     ],
     [
       // src/lib/google-identity.ts · next.config.ts gsiScript
@@ -514,6 +518,13 @@ const SECTIONS: Section[] = [
         vi: 'Kiểm duyệt bằng AI: sau khi tin được đăng, một mô hình AI (Google Gemini) có thể kiểm tra nội dung và ảnh của tin để phát hiện hàng hóa bị cấm. Khi kết quả khớp với độ tin cậy cao, tin đăng bị ẩn ngay, một báo cáo được mở cho đội ngũ của chúng tôi và người bán được thông báo. Việc này tự nó không làm thay đổi điểm tín nhiệm của ai — chỉ báo cáo đã được đội ngũ của chúng tôi xác nhận mới có tác động đó.',
       },
       {
+        // src/app/api/admin/ai-review/route.ts:16-20 ("STRICTLY ADVISORY: nothing here mutates the case") — it
+        // only caches its suggestion on the report; "Use suggestion" (components/admin/moderation-client.tsx:207)
+        // pre-selects a severity and focuses a verdict button, which the moderator still has to press.
+        en: 'AI review of reports: when our team reviews a report or a dispute, a moderator may ask an AI model (Google Gemini) to read the case — what is sent is listed for Google under “Who else receives your data” — and suggest an outcome. The suggestion is advisory only: it does not decide or change anything in the case by itself, and a member of our team reads the evidence and makes the decision.',
+        vi: 'Hỗ trợ xem xét báo cáo bằng AI: khi đội ngũ của chúng tôi xem xét một báo cáo hoặc tranh chấp, người kiểm duyệt có thể nhờ một mô hình AI (Google Gemini) đọc hồ sơ vụ việc — dữ liệu được gửi đi được liệt kê ở dòng Google trong mục “Những ai khác nhận dữ liệu của bạn” — và gợi ý hướng xử lý. Gợi ý này chỉ mang tính tham khảo: tự nó không quyết định hay thay đổi điều gì trong vụ việc, và một nhân viên của chúng tôi xem xét bằng chứng và đưa ra quyết định.',
+      },
+      {
         // src/lib/trust-math.ts:15-45 (V: phone, business verification, age · Q: reviews, responsiveness,
         // freshness · T: transactions · C: confirmed reports) · publish-guard.ts:218 (Restricted can't post)
         en: 'Trust score: every seller has a trust score calculated automatically from a verified phone number, business verification, account age, reviews, how quickly they reply, whether their listings are kept up to date, completed transactions and confirmed reports. It is shown on listings and is one of the factors in the order of browse results (see /legal/ranking and /trust). An account whose score falls into the lowest band cannot publish new listings until it recovers.',
@@ -744,14 +755,20 @@ const isTable = (b: Block): b is { table: Table } => 'table' in b
 /**
  * ⚠️ "LAST UPDATED" IS THE AMENDMENT'S PUBLICATION DATE, ON BOTH EDITIONS. This text changed on both
  * builds (the curated Vietnamese, Consent v2, and the cross-border paragraph that no longer claims a
- * dossier filing — PDP_DOSSIERS_FILED), and it ships in the deploy that publishes the October legal
- * amendment, so it carries that deploy's date: LEGAL_AMENDMENT.published
+ * dossier filing — PDP_DOSSIERS_FILED), and it shipped in the deploy that published the October legal
+ * amendment, so it carried that deploy's date: LEGAL_AMENDMENT.published
  * (src/lib/compliance/legal-amendment.ts; infra/vn-node/legal-amendment-gate.sh holds it to the real
  * deploy day). A typed "October 2026" would silently go wrong if the deploy slipped.
  * ⚠️ Both dates are passed as authored strings rather than a {date} placeholder: the page stays a
  * synchronous component with no `lang` param, so <Bilingual> picks the language and each side carries
  * its own date format (01/10/2026 vs 1 October 2026).
  * Flipping PDP_DOSSIERS_FILED changes the text again: give this its new date in the same commit.
+ * ⚠️ THE TEXT CHANGED AGAIN WITH THE TERMS' VERSION 3 (2026-10-07): the moderators' AI review of reports —
+ * the Google row and "Automated decisions", both editions — and, on eno.vn, the partner e-Visa section
+ * (src/lib/privacy-partner-visa-copy.ts) with its row in "Who else receives your data". They ship in the
+ * deploy that publishes that amendment, so LEGAL_AMENDMENT.published — version 3's since 2026-10-07 — dates
+ * them, as the October amendment's dated the text before; the gate holds it to the real deploy day. Shipped
+ * in any other deploy, a change here needs its own date in that commit.
  */
 const LAST_UPDATED = {
   en: `Last updated: ${AMENDED.publishedEn}`,

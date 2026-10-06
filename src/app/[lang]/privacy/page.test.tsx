@@ -257,6 +257,32 @@ describe('/privacy — the facts it states match the code', () => {
     expect(text).toContain('text you ask us to rephrase')
   })
 
+  it('⛔ the moderators’ AI review of a report is disclosed — what Gemini receives, and that a person decides — on both editions', async () => {
+    // The numbers the policy prints are the route's own: src/app/api/admin/ai-review/route.ts.
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const route = readFileSync(join(__dirname, '..', '..', 'api', 'admin', 'ai-review', 'route.ts'), 'utf8')
+    expect(route).toMatch(/messages: \{ orderBy: \{ createdAt: 'desc' \}, take: 40\b/)
+    expect(route).toContain('const MAX_IMAGES = 4')
+    for (const site of ['marketplace', 'services'] as const) {
+      const en = await policy(site)
+      expect(en, site).toContain('when our team reviews a report or a dispute and asks the AI for a suggestion, that case')
+      expect(en, site).toContain('the last 40 messages of the conversation between the two parties')
+      expect(en, site).toContain('up to 4 photos (evidence from the dispute, appeal proof or listing photos)')
+      expect(en, site).toContain('not the email address or phone number of either account')
+      expect(en, site).toContain('suggesting an outcome to our team when it reviews a report or dispute (a member of our team decides)')
+      expect(en, site).toContain('AI review of reports: when our team reviews a report or a dispute')
+      expect(en, site).toContain('The suggestion is advisory only: it does not decide or change anything in the case by itself, and a member of our team reads the evidence and makes the decision.')
+      cleanup()
+      const vi = await policy(site, 'vi')
+      expect(vi, site).toContain('40 tin nhắn gần nhất trong cuộc trò chuyện giữa hai bên')
+      expect(vi, site).toContain('cùng tối đa 4 ảnh')
+      expect(vi, site).toContain('Hỗ trợ xem xét báo cáo bằng AI')
+      expect(vi, site).toContain('Gợi ý này chỉ mang tính tham khảo')
+      cleanup()
+    }
+  })
+
   it('⛔ the business tax code goes to VietQR — named as a recipient, not described as the tax authority', async () => {
     const text = await policy('marketplace')
     expect(text).toContain('VietQR’s public business-register service (api.vietqr.io')

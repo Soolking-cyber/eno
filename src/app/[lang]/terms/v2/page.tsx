@@ -1,15 +1,34 @@
 /**
- * ⚠️ KEEP `revalidate`, INSIDE A NOTICE WINDOW AND OUT OF ONE.
+ * ⛔ TERMS OF SERVICE — VERSION 2, THE ARCHIVED TEXT. DO NOT EDIT A WORD OF `operatorPara` OR `sections`.
  *
- * It was added because the page rendered a clock-derived value and, with no revalidate, Next baked
- * that value into on-disk HTML that would have outlived it. During a notice window (an amendment that has
- * one — version 3 had none: immediate, owner 2026-10-07) it renders one again: the version headlined and the "not yet in force" line read the clock
- * (tosVersionInForce), and revalidate is what carries the prerendered HTML past the in-force instant — at
- * most an hour late, toward the old version. Outside a window nothing here is time-dependent — but this is
- * a LEGAL page, and the class of bug is the one src/lib/edition.ts records twice over: /regulations once shipped
- * "PayPal" and "e-Visa" welded into prerendered HTML that no runtime gate could reach. An hour of
- * staleness costs nothing; re-adding this line after someone reintroduces a dynamic value costs a
- * silent wrong page.
+ * Why it exists, and why it is permanent: src/lib/compliance/legal-archive.ts. In short, version 3 (App Store
+ * Guideline 1.2 — TERMS_V2_SUPERSEDED_BY: published and in force 07/10/2026, immediate by the owner's decision)
+ * replaced it, and everyone who accepted from 01/10/2026 until version 3's in-force instant is stamped
+ * Profile.tosVersion '2': this is the text they accepted. (An amendment WITH a window would also make this the
+ * version in force during it — the banner below has that variant.)
+ *
+ * ⚠️ VERBATIM FROM `git show 177cdcaf4:src/app/[lang]/terms/page.tsx` (blob f484363a4, unchanged on main through
+ * prod 43d00cc73) — the version-2 text as deployed: no word of it changed after 86f531e10 made it immediate;
+ * 177cdcaf4, the one later commit to touch that file, only passed ISO dates to <Bilingual datesIso> in the header.
+ * From `type Para` to the end of `sections` the code is that file's, byte for byte — comments included, so
+ * read them as version 2's — with these substitutions and nothing else:
+ *   · AMENDED (the date in version 2's own change note) is a local alias of V1_SUPERSEDED — the October 2026
+ *     amendment's dates, 01/10/2026, literals in legal-archive.ts since LEGAL_AMENDMENT moved on to version 3;
+ *   · RENTAL_CHECK_MAX_ITEMS (the `linked` section) is a local constant at the value version 2 printed, 5:
+ *     the live one follows the code, and an archive that re-read it would rewrite what version 2 said.
+ * The header line and the language note under the title are version 2's own, as version 2 rendered them:
+ * "Last updated: 1 October 2026 · Version 2", and LegalLanguageNote's unapproved sentence, written out —
+ * version 2 declared no prevailing language, and when counsel signs the Vietnamese off LegalLanguageNote
+ * changes on the live pages, never here. Version 2's "not yet in force" line never rendered (it was
+ * immediate) and is not here. Operator fields still come from COMPANY and AFFILIATION, and the services
+ * sections from TERMS_SERVICES_COPY, exactly as they did in version 2 — the v1 archive's choice too.
+ *
+ * ⚠️ BOTH EDITIONS, LIKE THE ORIGINAL: the services sections come from `@/lib/terms-services-copy`, which
+ * next.config.ts aliases to an inert stub on a marketplace build, AND render behind IS_SERVICES. Both,
+ * always (see the live /terms header).
+ *
+ * ⚠️ noindex: an archived legal text must never outrank the current one in search. Linked from the live
+ * /terms (its "not yet in force" line during the window, and version 3's change note) and from /md/terms.
  */
 export const revalidate = 3600
 
@@ -21,69 +40,23 @@ import { ContentPage, ContentSection } from '@/components/marketplace/content-pa
 import { LinkifiedTr } from '@/components/marketplace/linkified-tr'
 import { linkifyLegal } from '@/components/marketplace/legal-linkify'
 import { Bilingual } from '@/components/marketplace/bilingual'
-import { LegalLanguageNote } from '@/components/legal/legal-language-note'
-import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, TOS_PREVIOUS_VERSION, TOS_VERSION, tosVersionInForce } from '@/lib/site-legal'
-import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
+import { AFFILIATION, COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
 import { CROSS_SITE_REL, MARKETPLACE_HOME } from '@/lib/cross-site-links'
 import { TERMS_SERVICES_COPY } from '@/lib/terms-services-copy'
-import { AMENDED, LEGAL_AMENDMENT } from '@/lib/compliance/legal-amendment'
-import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, archivedPath } from '@/lib/compliance/legal-archive'
-
-// ── Terms of Service — ONE file, rendered by BOTH deployments ───────────────────────────
-// eno.vn is a licensed sàn TMĐT classifieds marketplace. eno.forum is the same marketplace plus
-// e-visa services SOLD BY a licensed third-party partner, with eno as the intermediary. The legal
-// substance that differs between them is not decoration, so it is not written inline here:
-//
-//   · the words live in `@/lib/terms-services-copy`, which next.config.ts aliases to an inert stub
-//     on a marketplace build — that is what keeps the vocabulary out of eno.vn's artifact;
-//   · the render is additionally gated on IS_SERVICES — that is what keeps it off the screen.
-//
-// ⚠️ BOTH, ALWAYS. A gate leaves the strings in the bundle; an alias without a gate would render
-// empty headings. See src/lib/edition.ts for the measurement behind that split.
-//
-// ⚠️ NO COMPANY NAME, LICENCE NUMBER OR REGISTRATION NUMBER IS EVER TYPED INTO THIS FILE. The
-// operator comes from COMPANY (src/lib/site-legal.ts) and the e-visa partner from VISA_PROVIDER
-// (src/lib/visa-provider.ts). A number typed into a page is a legal defect no lint can see.
-//
-// ⚠️ SECTION IDS ARE SEMANTIC, NOT POSITIONAL. They were `s0…s9`, which meant `#s7` pointed at a
-// different section on each edition (the services build inserts two sections in the middle) and
-// would silently re-point again on the next edit. Anchors in these pages get quoted in emails and
-// in complaint threads; they have to keep meaning the same thing.
-//
-// ⚠️ CURATED VIETNAMESE, RENDERED ON THE SERVER (2026-10-01). Law 122/2025 Art 11.2 requires the
-// platform's published terms in Vietnamese, and Vietnamese readers used to get the English body under
-// a note declaring the ENGLISH authoritative. Each paragraph is now an {en, vi} pair like
-// /regulations: the `vi` variant renders the curated text straight into the server HTML; `en` and the
-// nine machine-translated languages keep <LinkifiedTr> over the English. Which language governs is
-// LegalLanguageNote's job (LEGAL_VI_APPROVED) — never a sentence typed here.
-// ⚠️ THE SERVICES-ONLY PARAGRAPHS STAY ENGLISH-ONLY ({ en } with no vi): they come from the aliased
-// module above, which deliberately carries no Vietnamese (see its header), so on eno.forum's `vi`
-// variant they still go through the translation layer.
-//
-// ⛔ SHIPPED WITH (version 2, 2026-10-01): W-C (the "Ad" marker + commission note the `linked` and `fees`
-// sections promise, and the "Linked shop" chip `trust` names) and the officialPartner DB flip (+ importers
-// that stop creating badged storefronts). Version 2 was an IMMEDIATE amendment — in force from its
-// publication day, 01/10/2026, with no notice window and no announcement (owner, 2026-10-01); its text is
-// archived at /terms/v2 (src/app/[lang]/terms/v2/page.tsx).
-//
-// ⛔ THIS IS VERSION 3 (App Store Guideline 1.2, decision D8 in docs/ios-appstore-release.md): the
-// zero-tolerance paragraph in `conduct`, the 24-hour review in `complaints`, the exception in
-// `termination`, and its note at the end of `changes`. It reaches users IMMEDIATELY — the owner's decision,
-// 2026-10-07: TOS_VERSION '3' (src/lib/site-legal.ts) and LEGAL_AMENDMENT published AND in force 07/10/2026
-// (src/lib/compliance/legal-amendment.ts), no window, no strip, no bell notice; the change note prints one date
-// (V3_NOTE below). The two-date variant (an amendment with a window) is kept and tested on a fixture.
-// ⛔ DEPLOY IT ONLY WITH THE `ugc-safety` REVIEW GATE ON — in the same deploy that switches it on, or a later
-// one, in BOTH env files (eno-vn.env, eno-forum.env: this page renders on both editions). The severe-term
-// filter, Report on reviews and help-centre comments, and blocking — all promised in `conduct` — exist only
-// with that gate on (src/lib/app-review-gates.ts); without it the paragraph is false the day it is published.
+import { TERMS_V2_SUPERSEDED, TERMS_V2_SUPERSEDED_BY, V1, V1_PATHS, V1_SUPERSEDED, V1_SUPERSEDED_BY, V2 } from '@/lib/compliance/legal-archive'
 
 export const metadata: Metadata = withShare({
-  title: `Terms of Service | ${SITE_NAME}`,
-  description: `The terms that apply when you use ${SITE_NAME}: accounts, listings posted here and listings linked from other sites, our role as an intermediary platform, fees and commissions, liability, complaints and governing law.`,
-  alternates: { canonical: '/terms' },
+  title: `Terms of Service — version ${V2} | ${SITE_NAME}`,
+  description: `Version ${V2} of the ${SITE_NAME} Terms of Service, archived.`,
+  alternates: { canonical: '/terms/v2' },
+  robots: { index: false, follow: true },
 })
 
-/** One paragraph. `vi` absent = English source only (the services-edition copy). */
+// ⚠️ FROZEN AT WHAT VERSION 2 PRINTED (see the header) — not the live values of the same names.
+/** Version 2's dates — published and in force 01/10/2026 — as its change note printed them (AMENDED there). */
+const AMENDED = V1_SUPERSEDED
+const RENTAL_CHECK_MAX_ITEMS = 5
+
 type Para = { en: string; vi?: string }
 type Section = { id: string; title: string; titleVi?: string; paras: Para[] }
 
@@ -101,29 +74,6 @@ const operatorPara: Para = OPERATOR_REGISTERED
   : {
       en: `These Terms govern your use of ${SITE_NAME}, an online classifieds marketplace for people living in, moving to and visiting Vietnam. They are an agreement between you and the operator of ${SITE_NAME}. The operating company is currently being registered in Vietnam; its registered name, business registration number and head-office address will be published here and in the Operating Regulations as soon as the certificate is issued.`,
       vi: `Điều khoản dịch vụ này điều chỉnh việc bạn sử dụng ${SITE_NAME} — chợ rao vặt trực tuyến dành cho người đang sinh sống, chuẩn bị chuyển đến hoặc đến thăm Việt Nam — và là thoả thuận giữa bạn với đơn vị vận hành ${SITE_NAME}. Công ty vận hành hiện đang làm thủ tục đăng ký thành lập tại Việt Nam; tên đăng ký, số giấy chứng nhận đăng ký doanh nghiệp và địa chỉ trụ sở chính sẽ được công bố tại đây và trong Quy chế hoạt động ngay khi giấy chứng nhận được cấp.`,
-    }
-
-// ── VERSION 3's CHANGE NOTE — the last entry of `changes` (the notes are a log: newest last) ──────────────
-// ⚠️ EVERY EDIT VERSION 3 MAKES IS LISTED — `conduct`'s new paragraph, `complaints`' 24 hours, `termination`'s
-// exception — and nothing else changed (diff the body against /terms/v2). Its dates are LEGAL_AMENDMENT's,
-// typed once in src/lib/compliance/legal-amendment.ts, so nothing here goes stale in HTML.
-// ⚠️ TWO DATES WITH A NOTICE WINDOW (the default — the shape version 2's note had at 110295be, before the owner
-// made it immediate), ONE DATE IF THE OWNER MAKES IT IMMEDIATE (the shape of version 2's note above): the
-// record's flag picks, so that choice needs no edit here.
-// ⚠️ THE PREVIOUS WORDING IS LINKED (2026-10-01 review): during the window it is the text in force, and
-// everyone who accepts before the in-force instant is stamped version 2 — /terms/v2, permanently.
-const V3_CHANGES = {
-  en: 'a zero-tolerance rule for objectionable content and abusive users added to the posting rules — what may not be posted, sent or shared, severe terms filtered before they are posted, the Report control on reviews and help-centre comments, and blocking other users; reports of objectionable content or abusive users reviewed within 24 hours, other reports still acknowledged within 3 working days; and objectionable content and abuse of other users made an exception to the chance to put a breach right before suspension or termination',
-  vi: 'bổ sung vào mục Quy tắc đăng tin và ứng xử nguyên tắc không khoan nhượng với nội dung phản cảm và người dùng có hành vi lạm dụng — những nội dung không được đăng, gửi hoặc chia sẻ, việc lọc các từ ngữ nghiêm trọng trước khi nội dung được đăng, nút Báo cáo trên đánh giá và bình luận trong Trung tâm trợ giúp, và việc chặn người dùng khác; báo cáo về nội dung phản cảm hoặc người dùng có hành vi lạm dụng được xem xét trong vòng 24 giờ, các báo cáo khác vẫn được xác nhận đã tiếp nhận trong vòng 3 ngày làm việc; và nội dung phản cảm, hành vi lạm dụng người dùng khác trở thành ngoại lệ, không được dành cơ hội khắc phục trước khi bị tạm khoá hoặc chấm dứt quyền truy cập',
-}
-const V3_NOTE: Para = LEGAL_AMENDMENT.immediate
-  ? {
-      en: `Changes in force from ${AMENDED.inForceEn}: ${V3_CHANGES.en}. The previous wording (version ${V2}) is published at ${V2_PATHS.terms}.`,
-      vi: `Các thay đổi có hiệu lực từ ngày ${AMENDED.inForceVi}: ${V3_CHANGES.vi}. Nội dung trước sửa đổi (phiên bản ${V2}) được lưu tại ${V2_PATHS.terms}.`,
-    }
-  : {
-      en: `Changes published on ${AMENDED.publishedEn}, in force from ${AMENDED.inForceEn}: ${V3_CHANGES.en}. Until ${AMENDED.inForceEn} the previous wording (version ${V2}) applies; it is published at ${V2_PATHS.terms}.`,
-      vi: `Các thay đổi công bố ngày ${AMENDED.publishedVi}, có hiệu lực từ ngày ${AMENDED.inForceVi}: ${V3_CHANGES.vi}. Trước ngày ${AMENDED.inForceVi}, nội dung trước sửa đổi (phiên bản ${V2}) vẫn được áp dụng và được đăng tại ${V2_PATHS.terms}.`,
     }
 
 const sections: Section[] = [
@@ -215,16 +165,6 @@ const sections: Section[] = [
       {
         en: `You may not post illegal, counterfeit, stolen, unsafe or otherwise prohibited items — the full list is published at /prohibited — and you may not engage in scams, bait pricing, harassment, spam, bulk scraping of other users' contact details, or manipulation of reviews and trust scores. We may remove listings, restrict features, and suspend or close accounts that break these Terms or the law.`,
         vi: `Bạn không được đăng hàng hoá bất hợp pháp, hàng giả, hàng do trộm cắp mà có, hàng không an toàn hoặc hàng bị cấm khác — danh mục đầy đủ công bố tại /prohibited — và không được lừa đảo, dùng giá mồi, quấy rối, gửi tin rác, thu thập hàng loạt thông tin liên hệ của người dùng khác, hay thao túng đánh giá và điểm uy tín. Chúng tôi có thể gỡ tin, hạn chế tính năng, tạm khoá hoặc đóng tài khoản vi phạm Điều khoản này hoặc pháp luật.`,
-      },
-      {
-        // ⛔ VERSION 3 (see the header). The D8 draft as approved in principle, its bold lead-in written as the
-        // first sentence (these paragraphs are plain strings), with ONE correction: "other users", not "any
-        // user" — the API refuses a block on the eno team (cannot_block_staff) and a shop eno lists on a
-        // business's behalf has no account to block (src/app/api/blocks/route.ts). True only with `ugc-safety` on:
-        // the severe-term filter (src/lib/ugc-filter.ts), Report on reviews and help-centre posts
-        // (src/lib/reported-content.ts), Block (src/lib/user-blocks.ts). "Within 24 hours" is a staffing promise.
-        en: `We have no tolerance for objectionable content or abusive users. You may not post, send or share content that is hateful or discriminatory, harasses, bullies or threatens anyone, is sexually explicit, sexualises minors or solicits sex, promotes violence, terrorism or self-harm, or is otherwise unlawful, and you may not use the service to abuse other users. Severe terms are filtered before they are posted. You can report any listing, profile, conversation, review or help-centre comment with the Report control on it, and you can block other users. We review reports of objectionable content and abusive users within 24 hours, remove content that breaks this rule, and suspend or close the accounts responsible; serious cases are referred to the competent authorities.`,
-        vi: `Chúng tôi không khoan nhượng với nội dung phản cảm và người dùng có hành vi lạm dụng. Bạn không được đăng, gửi hoặc chia sẻ nội dung mang tính thù ghét hoặc phân biệt đối xử; quấy rối, bắt nạt hoặc đe doạ người khác; có tính chất khiêu dâm, tình dục hoá người chưa thành niên hoặc gạ gẫm tình dục; cổ vũ bạo lực, khủng bố hoặc hành vi tự gây hại; hoặc trái pháp luật, và không được lợi dụng dịch vụ để lạm dụng người dùng khác. Các từ ngữ nghiêm trọng được lọc trước khi nội dung được đăng. Bạn có thể báo cáo bất kỳ tin đăng, hồ sơ, cuộc trò chuyện, đánh giá hoặc bình luận nào trong Trung tâm trợ giúp bằng nút Báo cáo trên đó, và có thể chặn người dùng khác. Chúng tôi xem xét báo cáo về nội dung phản cảm và người dùng có hành vi lạm dụng trong vòng 24 giờ, gỡ bỏ nội dung vi phạm và tạm khoá hoặc đóng tài khoản liên quan; các trường hợp nghiêm trọng được chuyển đến cơ quan nhà nước có thẩm quyền.`,
       },
     ],
   },
@@ -332,9 +272,8 @@ const sections: Section[] = [
     titleVi: 'Khiếu nại và báo cáo',
     paras: [
       {
-        // ⛔ VERSION 3 (see the header): the 24-hour sentence is the D8 draft's, word for word.
-        en: `Report a listing, a seller or a conversation with the Report control on the item itself, or write to ${COMPANY.email}. Reports of objectionable content or abusive users are reviewed within 24 hours; other reports are acknowledged within 3 working days and handled through the process set out in Article 12 of the Operating Regulations, which also lists the deadline for each kind of issue.`,
-        vi: `Bạn có thể báo cáo tin đăng, người bán hoặc cuộc trò chuyện bằng nút Báo cáo ngay trên đó, hoặc gửi email tới ${COMPANY.email}. Báo cáo về nội dung phản cảm hoặc người dùng có hành vi lạm dụng được xem xét trong vòng 24 giờ; các báo cáo khác được xác nhận đã tiếp nhận trong vòng 3 ngày làm việc và được xử lý theo quy trình tại Điều 12 Quy chế hoạt động, nơi nêu rõ thời hạn cho từng loại việc.`,
+        en: `Report a listing, a seller or a conversation with the Report control on the item itself, or write to ${COMPANY.email}. Reports are acknowledged within 3 working days and handled through the process set out in Article 12 of the Operating Regulations, which also lists the deadline for each kind of issue.`,
+        vi: `Bạn có thể báo cáo tin đăng, người bán hoặc cuộc trò chuyện bằng nút Báo cáo ngay trên đó, hoặc gửi email tới ${COMPANY.email}. Báo cáo được xác nhận đã tiếp nhận trong vòng 3 ngày làm việc và được xử lý theo quy trình tại Điều 12 Quy chế hoạt động, nơi nêu rõ thời hạn cho từng loại việc.`,
       },
       {
         en: `Complaints about the platform — your account, a moderation decision, the site itself — come to us. A complaint about another user is in the first instance between you and that user: we forward it, we give the parties and the competent authorities the record where the law allows, and we apply our own enforcement where our rules were broken.`,
@@ -353,10 +292,8 @@ const sections: Section[] = [
     titleVi: 'Tạm khoá và chấm dứt',
     paras: [
       {
-        // ⛔ VERSION 3 (see the header): the last sentence takes the zero-tolerance cases in `conduct` out of the
-        // chance to put it right — "no tolerance" with a cure period would not be what Guideline 1.2 asks for.
-        en: `We may suspend or terminate access where these Terms or the law are broken, or where it is necessary to protect users or the service. Where it is reasonable to do so we will tell you why and, for anything short of a serious breach, give you a chance to put it right. Objectionable content and abuse of other users, described in the section on posting rules and conduct, are the exception: we act on them straight away, without that chance.`,
-        vi: `Chúng tôi có thể tạm khoá hoặc chấm dứt quyền truy cập khi Điều khoản này hoặc pháp luật bị vi phạm, hoặc khi cần thiết để bảo vệ người dùng hay dịch vụ. Khi phù hợp, chúng tôi sẽ cho bạn biết lý do và, trừ trường hợp vi phạm nghiêm trọng, cho bạn cơ hội khắc phục. Ngoại lệ là nội dung phản cảm và hành vi lạm dụng người dùng khác, nêu tại mục Quy tắc đăng tin và ứng xử: chúng tôi xử lý ngay mà không dành cơ hội khắc phục đó.`,
+        en: `We may suspend or terminate access where these Terms or the law are broken, or where it is necessary to protect users or the service. Where it is reasonable to do so we will tell you why and, for anything short of a serious breach, give you a chance to put it right.`,
+        vi: `Chúng tôi có thể tạm khoá hoặc chấm dứt quyền truy cập khi Điều khoản này hoặc pháp luật bị vi phạm, hoặc khi cần thiết để bảo vệ người dùng hay dịch vụ. Khi phù hợp, chúng tôi sẽ cho bạn biết lý do và, trừ trường hợp vi phạm nghiêm trọng, cho bạn cơ hội khắc phục.`,
       },
       {
         en: `You may stop using ${SITE_NAME} at any time and ask for your account to be deleted, from your account settings or by writing to ${COMPANY.email}. Deletion is handled as described in the Privacy Policy.`,
@@ -397,17 +334,16 @@ const sections: Section[] = [
         vi: `Chúng tôi có thể cập nhật Điều khoản này khi pháp luật hoặc sản phẩm thay đổi. Những thay đổi quan trọng được thông báo trên nền tảng ít nhất 5 ngày trước ngày có hiệu lực, và số phiên bản ghi ở đầu trang thay đổi theo. Việc tiếp tục sử dụng dịch vụ sau ngày có hiệu lực đồng nghĩa với việc bạn chấp nhận nội dung mới; nếu không đồng ý, vui lòng ngừng sử dụng và bạn có thể yêu cầu xoá tài khoản.`,
       },
       {
-        // VERSION 2's NOTE, KEPT AS HISTORY — word for word what version 2 printed (/terms/v2), newest note last.
-        // ⚠️ ITS DATE IS V1_SUPERSEDED (src/lib/compliance/legal-archive.ts), A LITERAL 01/10/2026 — no longer
-        // LEGAL_AMENDMENT, which moved on to version 3 and would re-date October's edits to 07/10. ONE date:
-        // version 2 was published and took effect the same day (immediate — owner, 2026-10-01).
+        // ⚠️ A DATED CHANGE NOTE, NOT A CLOCK: the date is typed once in LEGAL_AMENDMENT
+        // (src/lib/compliance/legal-amendment.ts), so nothing here goes stale in HTML. ONE date: version 2
+        // was published and took effect the same day (immediate — owner, 2026-10-01), so "published X,
+        // in force X" would only say it twice.
         // ⚠️ THE PREVIOUS WORDING IS LINKED, NOT "WRITE TO US FOR A COPY" (2026-10-01 review): everyone who
         // accepted before 01/10 — and on 01/10 before this deploy — is stamped version 1, so it stays
         // published at /terms/v1 (src/lib/compliance/legal-archive.ts), permanently.
-        en: `Changes in force from ${V1_SUPERSEDED.inForceEn}: the section on who posts listings rewritten to tell the two kinds apart, and a new section on linked listings, including where complaints about them go; automated checks before publication and trust scores described as applying to listings posted here; the Official partner badge reserved for companies with a signed agreement, other shops being labelled Linked shop; disclosure that we may earn a commission on some partner and affiliate links; fee changes announced at least 20 days ahead instead of 5; and a Vietnamese text of these Terms. The previous wording (version ${V1}) is published at ${V1_PATHS.terms}.`,
-        vi: `Các thay đổi có hiệu lực từ ngày ${V1_SUPERSEDED.inForceVi}: viết lại mục Ai đăng tin trên sàn để phân biệt hai loại tin đăng, và bổ sung mục Tin đăng liên kết, kể cả nơi tiếp nhận khiếu nại về loại tin này; nêu rõ việc kiểm tra tự động trước khi hiển thị và điểm uy tín chỉ áp dụng cho tin đăng trực tiếp trên sàn; huy hiệu Đối tác chính thức chỉ dành cho công ty đã ký thoả thuận, các cửa hàng khác được gắn nhãn Cửa hàng liên kết; công khai việc chúng tôi có thể nhận hoa hồng từ một số đường dẫn của đối tác và cửa hàng liên kết; mọi thay đổi về phí được công bố trước ít nhất 20 ngày, thay vì 5 ngày như trước đây; và bổ sung bản tiếng Việt của Điều khoản. Nội dung trước sửa đổi (phiên bản ${V1}) được lưu tại ${V1_PATHS.terms}.`,
+        en: `Changes in force from ${AMENDED.inForceEn}: the section on who posts listings rewritten to tell the two kinds apart, and a new section on linked listings, including where complaints about them go; automated checks before publication and trust scores described as applying to listings posted here; the Official partner badge reserved for companies with a signed agreement, other shops being labelled Linked shop; disclosure that we may earn a commission on some partner and affiliate links; fee changes announced at least 20 days ahead instead of 5; and a Vietnamese text of these Terms. The previous wording (version ${V1}) is published at ${V1_PATHS.terms}.`,
+        vi: `Các thay đổi có hiệu lực từ ngày ${AMENDED.inForceVi}: viết lại mục Ai đăng tin trên sàn để phân biệt hai loại tin đăng, và bổ sung mục Tin đăng liên kết, kể cả nơi tiếp nhận khiếu nại về loại tin này; nêu rõ việc kiểm tra tự động trước khi hiển thị và điểm uy tín chỉ áp dụng cho tin đăng trực tiếp trên sàn; huy hiệu Đối tác chính thức chỉ dành cho công ty đã ký thoả thuận, các cửa hàng khác được gắn nhãn Cửa hàng liên kết; công khai việc chúng tôi có thể nhận hoa hồng từ một số đường dẫn của đối tác và cửa hàng liên kết; mọi thay đổi về phí được công bố trước ít nhất 20 ngày, thay vì 5 ngày như trước đây; và bổ sung bản tiếng Việt của Điều khoản. Nội dung trước sửa đổi (phiên bản ${V1}) được lưu tại ${V1_PATHS.terms}.`,
       },
-      V3_NOTE,
       {
         en: `Questions about these Terms: ${COMPANY.email}.`,
         vi: `Mọi câu hỏi về Điều khoản này xin gửi tới ${COMPANY.email}.`,
@@ -419,49 +355,58 @@ const sections: Section[] = [
   // rather than an untitled heading.
 ].filter((s) => s.title && s.paras.length > 0)
 
-export default async function TermsPage({ params }: { params: Promise<{ lang: string }> }) {
+export default async function TermsV2Page({ params }: { params: Promise<{ lang: string }> }) {
   const { lang } = await params
   const vi = lang === 'vi'
-  // ⚠️ READ AT RENDER, AND THIS PAGE IS ISR (revalidate above): the headline can lag the in-force
-  // instant by up to one revalidation. It lags toward the OLD version — toward more notice — which is
-  // the direction that is safe to be late in; the site-wide notice (tos-change-notice.tsx, mounted only
-  // while an amendment has a window) is client-side and exact.
-  const inForce = tosVersionInForce()
+  // One date when version 3 is immediate (in force the day it is published — the owner's call, legal-amendment.ts).
+  const oneDate = TERMS_V2_SUPERSEDED_BY.published === TERMS_V2_SUPERSEDED_BY.inForce
   return (
     <ContentPage
       title="Terms of Service"
       titleVi="Điều khoản dịch vụ"
       meta={
         <>
-          <p className="mt-3 text-sm text-ink-4">
-            {/* ⚠️ THE VERSION IN FORCE IS THE HEADLINE, NOT THE NEWEST ONE — the `acceptance` section
-                promises "the version of these Terms in force is shown at the top of this page", and
-                during a notice window the two differ (tosVersionInForce, src/lib/site-legal.ts). The
-                dated change note lives in the `changes` section. */}
-            <Bilingual en="Last updated: {date}" vi="Cập nhật lần cuối: {date}" values={{ date: vi ? AMENDED.publishedVi : AMENDED.publishedEn }} datesIso={{ date: LEGAL_AMENDMENT.published }} /> · <Tr text="Version" /> {inForce}
-          </p>
-          {inForce !== TOS_VERSION ? (
-            // Says which text binds TODAY: the body below is the newer version, published but not yet
-            // in force. Without this line "published" reads as "in force".
-            // The version in force is one tap away, not "write to us" (legal-archive.ts).
-            <p className="mt-1 max-w-[70ch] text-sm text-ink-4">
+          {/* What this page is, first. Worded to stay true on both sides of version 3's in-force date: before
+              it, "until then, version 2 is the version in force" is the operative fact; after it, history. */}
+          <p className="mt-3 max-w-[70ch] text-sm font-semibold text-foreground">
+            {oneDate ? (
               <Bilingual
-                en="The text below is version {next}, published on {published} and in force from {inForce}. Until then, version {prev} remains in force."
-                vi="Nội dung dưới đây là phiên bản {next}, công bố ngày {published} và có hiệu lực từ ngày {inForce}. Trước ngày đó, phiên bản {prev} vẫn là phiên bản đang có hiệu lực."
+                en="This is version {version} of these Terms. Version {next} replaced it with effect from {inForce}."
+                vi="Đây là phiên bản {version} của Điều khoản dịch vụ. Phiên bản {next} thay thế phiên bản này kể từ ngày {inForce}."
                 values={{
-                  next: TOS_VERSION,
-                  prev: TOS_PREVIOUS_VERSION,
-                  published: vi ? AMENDED.publishedVi : AMENDED.publishedEn,
-                  inForce: vi ? AMENDED.inForceVi : AMENDED.inForceEn,
+                  version: V2,
+                  next: TERMS_V2_SUPERSEDED_BY.version,
+                  inForce: vi ? TERMS_V2_SUPERSEDED.inForceVi : TERMS_V2_SUPERSEDED.inForceEn,
                 }}
-                datesIso={{ published: LEGAL_AMENDMENT.published, inForce: LEGAL_AMENDMENT.inForce }}
-              />{' '}
-              <a href={archivedPath('terms', TOS_PREVIOUS_VERSION)} className="font-semibold text-accent-foreground hover:underline">
-                <Bilingual en="Read version {prev}" vi="Xem phiên bản {prev}" values={{ prev: TOS_PREVIOUS_VERSION }} />
-              </a>
-            </p>
-          ) : null}
-          <LegalLanguageNote />
+                datesIso={{ inForce: TERMS_V2_SUPERSEDED_BY.inForce }}
+              />
+            ) : (
+              <Bilingual
+                en="This is version {version} of these Terms. Version {next}, published on {published}, takes effect on {inForce} and replaces it; until then, version {version} is the version in force."
+                vi="Đây là phiên bản {version} của Điều khoản dịch vụ. Phiên bản {next}, công bố ngày {published}, có hiệu lực từ ngày {inForce} và thay thế phiên bản này; trước ngày đó, phiên bản {version} là phiên bản đang có hiệu lực."
+                values={{
+                  version: V2,
+                  next: TERMS_V2_SUPERSEDED_BY.version,
+                  published: vi ? TERMS_V2_SUPERSEDED.publishedVi : TERMS_V2_SUPERSEDED.publishedEn,
+                  inForce: vi ? TERMS_V2_SUPERSEDED.inForceVi : TERMS_V2_SUPERSEDED.inForceEn,
+                }}
+                datesIso={{ published: TERMS_V2_SUPERSEDED_BY.published, inForce: TERMS_V2_SUPERSEDED_BY.inForce }}
+              />
+            )}{' '}
+            <a href="/terms" className="text-accent-foreground hover:underline">
+              <Bilingual en="Read the current Terms" vi="Xem Điều khoản dịch vụ hiện hành" />
+            </a>
+          </p>
+          {/* Version 2's own header and language note, as version 2 printed them (see the file header). */}
+          <p className="mt-3 text-sm text-ink-4">
+            <Bilingual en="Last updated: {date}" vi="Cập nhật lần cuối: {date}" values={{ date: vi ? V1_SUPERSEDED.publishedVi : V1_SUPERSEDED.publishedEn }} datesIso={{ date: V1_SUPERSEDED_BY.published }} /> · <Tr text="Version" /> {V2}
+          </p>
+          <p className="mt-2 max-w-[70ch] text-xs text-muted-foreground italic">
+            <Bilingual
+              en="The Vietnamese text of this page is a translation prepared by eno that our lawyers are still reviewing. Until they sign it off, neither language version prevails over the other."
+              vi="Bản tiếng Việt của trang này là bản dịch do eno biên soạn và đang được luật sư rà soát. Cho đến khi việc rà soát hoàn tất, chưa có bản ngôn ngữ nào được xác định là có giá trị ưu tiên."
+            />
+          </p>
         </>
       }
       sections={sections.map((s) => ({ id: s.id, label: s.title, labelVi: s.titleVi }))}
