@@ -1,9 +1,12 @@
 /**
  * CREATE THE GOOGLE PLAY REVIEWER ACCOUNT — the one login Play's reviewers use to see the parts
- * of the app that sign-in gates.
+ * of the app that sign-in gates. The same script creates the other review seats (scripts/review-seats.mjs):
+ * `--for=lawyer` (the owner's lawyer) and `--for=apple` (App Store review, app-review@eno.vn).
  *
  *   node --env-file=.env scripts/register-play-reviewer.mjs            # dry run
  *   node --env-file=.env scripts/register-play-reviewer.mjs --apply
+ *   node --env-file=.env scripts/register-play-reviewer.mjs --for=apple            # App Store seat, dry run
+ *   node --env-file=.env scripts/register-play-reviewer.mjs --for=apple --apply
  *
  * ⚠️ WHY THIS EXISTS RATHER THAN register-partner-seller.mjs. That script is the right shape for a
  * COMPANY: it claims a Handle, sets `accountType='business'` and writes a bio and a logo, so the
@@ -45,10 +48,11 @@
  * then needs NO Seller row at all — no storefront, no badge, nothing public. That is a change to
  * src/app/api/auth/password and therefore needs a DEPLOY, which is why it is not what this does.
  *
- * ⚠️ THE PASSWORD IS GENERATED HERE AND NEVER PRINTED. It goes to .env.play-reviewer.local
- * (gitignored by both `.env*.local` and `.env*`), mode 0600, and this script reports only the path
- * and the length. Whoever pastes it into Play Console should treat it as a live credential — and
- * SHRED IT afterwards; the success path prints the command.
+ * ⚠️ THE PASSWORD IS GENERATED HERE AND NEVER PRINTED. It goes to the seat's credential file at the
+ * repo root — .env.play-reviewer.local, .env.lawyer-review.local or .env.app-review.local (all
+ * gitignored by both `.env*.local` and `.env*`) — mode 0600, and this script reports only the path
+ * and the length. Whoever pastes it into Play Console (or App Store Connect) should treat it as a
+ * live credential — and SHRED IT afterwards; the success path prints the command.
  *
  * ⚠️ WHAT "NOT DISCOVERABLE" DOES AND DOES NOT MEAN, measured 2026-09-09 rather than asserted. The
  * storefront is excluded from sitemap.xml, AND there is no seller index route (`src/app/[lang]/sellers`
@@ -65,7 +69,9 @@
  *   2. delete "Seller"  where id = '<sellerId>'
  *   3. delete "Profile" where id = '<userId>'
  *   4. delete the auth user in Supabase → Authentication → Users
- *   5. shred .env.play-reviewer.local
+ *   5. shred the seat's credential file (.env.play-reviewer.local / .env.lawyer-review.local / .env.app-review.local)
+ * For the Apple seat, deleting its Profile also cascades away the demo conversation it is the buyer in;
+ * the demo seller and its listing have their own REVERSAL in scripts/seed-app-review-thread.mjs.
  */
 import { createClient } from '@supabase/supabase-js'
 import { Client } from 'pg'
@@ -73,29 +79,33 @@ import { randomBytes, randomInt } from 'node:crypto'
 import { writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
+import { findAuthUser, seatFromArgv } from './review-seats.mjs'
 
 const APPLY = process.argv.includes('--apply')
 /**
- * ⚠️ ONE SCRIPT, TWO REVIEW SEATS (2026-10-01). `--for=lawyer` creates the account the owner's lawyer uses to
- * check eno.vn for regulatory compliance (owner: "create a test account for the lawyer to check the
- * platform"; chose a shared password account knowing it needs the official-partner flag). Same minimal row
- * set and the same reasoning as the Play seat above; only the address, the public name and the credential
- * file differ. The default (no flag) is still the Play reviewer, unchanged.
+ * ⚠️ ONE SCRIPT, THREE REVIEW SEATS. `--for=lawyer` (2026-10-01) creates the account the owner's lawyer uses
+ * to check eno.vn for regulatory compliance (owner: "create a test account for the lawyer to check the
+ * platform"; chose a shared password account knowing it needs the official-partner flag). `--for=apple`
+ * (2026-10-07) creates App Store review's demo seat, app-review@eno.vn (docs/ios-appstore-release.md P11);
+ * the conversation its reviewer uses to test Block is seeded afterwards by scripts/seed-app-review-thread.mjs.
+ * Same minimal row set and the same reasoning as the Play seat above; only the address, the public name and
+ * the credential file differ, and those live in ONE table, scripts/review-seats.mjs, which the seed script
+ * reads too. The default (no flag) is still the Play reviewer, unchanged.
  */
-// ⛔ FAIL CLOSED ON A MISTYPED SEAT: `--for lawyer` (space) or `--for=Lawyer` must not silently fall
-// through to the Play seat and touch the wrong account (a reviewer's catch).
-const forArg = process.argv.find((a) => a === '--for' || a.startsWith('--for='))
-if (forArg && forArg !== '--for=lawyer') {
-  console.error(`unknown ${forArg} — the only seat flag is --for=lawyer (no flag = the Play reviewer)`)
+// ⛔ FAIL CLOSED ON A MISTYPED SEAT: `--for lawyer` (space), `--for=Lawyer` or a repeated --for must not
+// silently fall through to the Play seat and touch the wrong account (a reviewer's catch) — seatFromArgv
+// answers an error for every one of them.
+const picked = seatFromArgv(process.argv.slice(2))
+if (picked.error) {
+  console.error(picked.error)
   process.exit(1)
 }
-const FOR_LAWYER = forArg === '--for=lawyer'
 
 /**
  * ⚠️ THE ADDRESS IS ON A DOMAIN WE CONTROL AND IS NOT AN ADMIN ONE. ADMIN_EMAILS on the box is
  * support@eno.forum and nothing else (an EXACT allowlist, src/lib/admin.ts — not a domain match);
  * naming that address here would hand Play's reviewers the admin console. Nothing is ever delivered
- * to either mailbox — the account is created with email_confirm so it can sign in without an inbox
+ * to any seat's mailbox — the account is created with email_confirm so it can sign in without an inbox
  * round-trip. ⚠️ So any chat notification email for the lawyer seat goes nowhere: since 2026-10-01
  * that seat is also the Luật Hoàng Phi storefront (scripts/seed-hoangphi.ts), whose buyer chats are
  * read only when the lawyer signs in — unless a Cloudflare routing rule forwards lawyer-review@eno.vn.
@@ -103,20 +113,12 @@ const FOR_LAWYER = forArg === '--for=lawyer'
  * (2026-10-06): one database and one auth serve both editions, and src/app/api/auth/password has no
  * edition check, so it signs in on eno.vn exactly as it did on www.eno.forum. Re-creating it under @eno.vn
  * would be cosmetics bought with a production write, a new partner flag and new credentials in Play
- * Console and App Store Connect — the owner's call, not a fix.
+ * Console — the owner's call, not a fix. App Store review gets its own seat instead (`--for=apple`).
+ * ⚠️ EVERY SEAT'S sellerName IS PUBLIC — it renders on /sellers/<id>, which is reachable (see the header).
+ * Each is written to say plainly what the account is, so a user or a reviewer who ever lands on that
+ * page reads "internal" rather than mistaking it for a real merchant.
  */
-const REVIEWER = FOR_LAWYER ? {
-  email: 'lawyer-review@eno.vn',
-  sellerName: 'eno legal review (internal)',
-  displayName: 'Legal review',
-} : {
-  email: 'play-review@eno.forum',
-  // ⚠️ THIS NAME IS PUBLIC — it renders on /sellers/<id>, which is reachable (see the header).
-  // It is written to say plainly what the account is, so a user or a reviewer who ever lands on
-  // that page reads "internal" rather than mistaking it for a real merchant.
-  sellerName: 'eno Play review (internal)',
-  displayName: 'Play review',
-}
+const REVIEWER = picked.seat
 
 /**
  * ⚠️ ABSOLUTE, AND CREATED EXCLUSIVELY. A relative path resolves against the CWD, so running this
@@ -127,7 +129,7 @@ const REVIEWER = FOR_LAWYER ? {
  */
 const CRED_FILE = join(
   execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim(),
-  FOR_LAWYER ? '.env.lawyer-review.local' : '.env.play-reviewer.local',
+  REVIEWER.credFile,
 )
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -151,30 +153,8 @@ function generatePassword(len = 24) {
   return out
 }
 
-/**
- * Find an auth user by email, paging until found. ⚠️ PAGE, DO NOT GUESS A PAGE SIZE — the same
- * bug bit register-partner-seller.mjs: `{ page: 1, perPage: 200 }` silently stops finding anyone
- * once the user table outgrows one page, which is a failure that arrives with time rather than
- * with a code change.
- */
-async function findAuthUser(admin, email) {
-  const want = email.toLowerCase()
-  for (let page = 1; page <= 50; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 })
-    if (error) throw new Error(`listUsers failed: ${error.message}`)
-    if (!data?.users?.length) return null
-    const hit = data.users.find((u) => u.email?.toLowerCase() === want)
-    if (hit) return hit
-  }
-  /**
-   * ⚠️ RUNNING OUT OF PAGES IS NOT "NOT FOUND", AND RETURNING null CONFLATED THEM. 50 × 200 bounds
-   * this at 10,000 users; past that the old code returned null, which every caller reads as "the
-   * address is free" — so the collision guard would wave through a duplicate and the round-4
-   * recovery would report "no account was created" without having looked at the whole table.
-   * Throwing makes the caller treat it as UNKNOWN, which is what it is (codex, round 5).
-   */
-  throw new Error('listUsers: exhausted 50 pages (10,000 users) without a conclusive answer')
-}
+// findAuthUser — paged lookup, throws rather than answering "free" when it runs out of pages — lives in
+// scripts/review-seats.mjs now, shared with scripts/seed-app-review-thread.mjs; its reasoning moved with it.
 
 /**
  * ⚠️ FAIL FAST, BEFORE ANYTHING EXISTS. `wx` inside the run already refuses to clobber this file,
@@ -319,15 +299,15 @@ try {
             // is the one thing that cannot be re-derived. Rows can be rebuilt; a generated secret
             // cannot. `wx` fails rather than truncating an existing file or writing through a
             // symlink — see CRED_FILE above.
+            // Byte-for-byte what the Play and lawyer seats always wrote; the per-seat lines come from
+            // scripts/review-seats.mjs (src/lib/app-review-seat.test.ts pins them).
             writeFileSync(
               CRED_FILE,
-              (FOR_LAWYER ? `# Legal review sign-in for eno.vn (email + password, eno.vn/signin)\n` : `# Google Play Console → App content → Sign in details\n`) +
+              `${REVIEWER.credHeader}\n` +
                 `# Created ${new Date().toISOString()} by scripts/register-play-reviewer.mjs\n` +
-                (FOR_LAWYER
-                  ? `# Hand to the lawyer only, over a private channel. Treat as a live credential; rotate if it leaks.\n`
-                  : `# Paste these into the Play form. Treat as a live credential; rotate if it leaks.\n`) +
-                `${FOR_LAWYER ? 'LAWYER' : 'PLAY'}_REVIEWER_EMAIL=${REVIEWER.email}\n` +
-                `${FOR_LAWYER ? 'LAWYER' : 'PLAY'}_REVIEWER_PASSWORD=${password}\n`,
+                `${REVIEWER.credNote}\n` +
+                `${REVIEWER.envPrefix}_REVIEWER_EMAIL=${REVIEWER.email}\n` +
+                `${REVIEWER.envPrefix}_REVIEWER_PASSWORD=${password}\n`,
               { mode: 0o600, flag: 'wx' },
             )
             console.log(`  ✓ credentials written to ${CRED_FILE} (${password.length} chars, not printed)`)
@@ -418,10 +398,17 @@ try {
            * script asserts in a comment (the Opus seat, 2026-09-09). The one path that ends with a
            * WORKING password is the one that most needed the instruction.
            */
-          console.log(`\n⛔ Then paste the password into Play Console and destroy the local copy:`)
+          console.log(`\n⛔ Then ${REVIEWER.handOff} and destroy the local copy:`)
           console.log(`     shred -u ${CRED_FILE}   # or: rm -P ${CRED_FILE}  (macOS)`)
           console.log(`   It is a live credential for an account that passes the partner gate. Do not`)
           console.log(`   leave it in the working tree, and do not copy it into a note or a chat.`)
+          if (picked.key === 'apple') {
+            // App Review must be able to test Block (Guideline 1.2), and the eno team cannot be blocked —
+            // so the seat needs a conversation with an ordinary seller. That is a separate, idempotent seed.
+            console.log(`\nApp Review also needs its demo conversation (the Block test, docs/ios-appstore-release.md P11):`)
+            console.log(`  node --env-file=.env scripts/seed-app-review-thread.mjs                      # dry run`)
+            console.log(`  node --env-file=.env scripts/seed-app-review-thread.mjs --apply --gate=off`)
+          }
         }
       }
     }

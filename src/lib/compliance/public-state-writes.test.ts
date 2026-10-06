@@ -71,6 +71,7 @@ const AUDITED: Record<string, { count: number; why: string }> = {
   'src/lib/compliance/identity-holds.ts': { count: 1, why: 'releaseIdentityHolds — the gate’s own release, only after the owner is verified' },
   'scripts/publish-held.ts': { count: 2, why: 'bulk publish of held rows — refused owners PARKED unless --gate=off; + the post-park re-check release for owners verified mid-run' },
   'scripts/release-identity-holds.ts': { count: 1, why: 'manual release of identity holds after the gate is switched OFF; refuses while enforced' },
+  'scripts/seed-app-review-thread.mjs': { count: 1, why: 'App Review demo seat (docs/ios-appstore-release.md P11): ONE create-only listing on the script’s own test storefront (owner app-review-seller@eno.vn, seed-marked auth user) so the reviewer can test Block on a non-staff seller — --apply needs the operator to state --gate=off and REFUSES --gate=on, the gate’s own answer for this account (created on/after 2026-09-28, never verified → decideOwned refuses); a re-run never republishes a hidden row' },
   // ── Outside the gate by design ──
   'src/app/api/cron/partner-stock/route.ts': { count: 1, why: 'restock of OWNERLESS partner storefronts only — no person to verify' },
   'src/lib/affiliate-price-refresh.ts': { count: 1, why: 'restore of OWNERLESS affiliate storefronts only — no person to verify' },
