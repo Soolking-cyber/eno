@@ -10,7 +10,9 @@
  *   node scripts/push-test.mjs                 # config check only, sends nothing
  *   node scripts/push-test.mjs --send <email>  # also send a real test push + badge
  *
- * Run it with the env loaded:  set -a; . ./.env; set +a; node scripts/push-test.mjs
+ * Run it in a SUBSHELL with the APNs keys from their own gitignored file (docs/apns-setup.md) — never put APNS_* in the
+ * shared .env, where any dev or preview server would push to real devices:
+ *   ( set -a; . ./.env; . ./.env.apns.local; set +a; node scripts/push-test.mjs )
  */
 import crypto from 'node:crypto'
 import http2 from 'node:http2'

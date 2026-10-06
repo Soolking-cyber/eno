@@ -132,7 +132,7 @@ eno is a marketplace run by Eno Company Limited. It is not a government agency a
 Official source: https://evisa.gov.vn is the only place a Vietnam e-Visa is issued, and you can always apply there yourself. Approval, refusal and processing time are decided only by the Vietnamese authorities.
 
 BUILT FOR TRUST
-Trust scores are built from completed deals, reviews and confirmed reports, not stars alone. Every listing and seller has a Report button, and reports are reviewed by a person. Nobody can pay to rank higher, and sponsored items are labelled Ad.
+Trust scores are built from completed deals, reviews and confirmed reports, not stars alone. Every listing and seller has a Report button, and reports are reviewed by a person. Nobody can pay to rank higher, and listings that earn eno a commission are labelled Ad.
 
 CLEAR PRICES
 Prices are in Vietnamese đồng with a US dollar reference. On items posted directly on eno, make an offer in the chat and agree the deal with the seller. eno never takes payment for marketplace items.
