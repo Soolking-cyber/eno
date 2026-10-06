@@ -1,6 +1,7 @@
 // Shared, environment-neutral (no 'server-only', no 'use client') visa status
 // presentation helpers for the admin queue + case detail. Admin chrome is
 // EN-only by convention, so labels here bypass tr().
+import { isShortFlowVisaCase } from '@/lib/visa/dm-steps'
 
 /** Badge tone per status — mirrors the forum admin queue's mapping. */
 export function visaStatusVariant(status: string): 'success' | 'destructive' | 'warning' | 'neutral' {
@@ -30,4 +31,15 @@ export const VISA_ADMIN_ACTIONS: Record<string, Array<[string, string]>> = {
   submitted: [['payment_required', 'Payment required'], ['processing', 'Mark processing'], ['needs_changes', 'Request changes'], ['rejected', 'Reject']],
   payment_required: [['submitted', 'Payment complete'], ['processing', 'Mark processing'], ['rejected', 'Reject']],
   processing: [['approved', 'Approve'], ['needs_changes', 'Action required'], ['rejected', 'Reject']],
+}
+
+/**
+ * A short-flow case (eno.forum quick, eno.vn photos-only) is filed OFF-SYSTEM by the desk: offer "Mark filed"
+ * (→ processing; the result upload then closes it) and Cancel, instead of "Send for applicant approval", which that
+ * applicant can never complete (it needs the full form). Must stay legal under visaAdminTransitionsFor.
+ */
+export function visaAdminActionsFor(app: { status: string; applicant_confirmation_version?: string | null }): Array<[string, string]> {
+  const base = VISA_ADMIN_ACTIONS[app.status] || []
+  if (!isShortFlowVisaCase(app) || (app.status !== 'ready_for_review' && app.status !== 'under_review')) return base
+  return [...base.filter(([s]) => s !== 'applicant_approval'), ['processing', 'Mark filed (processing)'], ['cancelled', 'Cancel case']]
 }

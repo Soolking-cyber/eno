@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin'
 // Named `db2` because `db` is already this module's Supabase handle (`visaDb()`).
 import { db as db2 } from '@/lib/db'
 import type { VisaDeskScope } from '@/lib/desk-operator'
+import { isShortFlowVisaCase } from '@/lib/visa/dm-steps'
 
 // VISA OPERATOR QUEUE data layer — the eno.vn side of the one-dashboard port
 // (apps/forum/docs/CLAUDE_ONE_DASHBOARD_PROMPT.md item 6). The visa tables
@@ -320,6 +321,21 @@ export async function signVisaDocumentUrl(storagePath: string, ttl = 6 * 3600): 
 // ── Status workflow (ported from the forum admin PATCH route) ───────────────────
 
 /** Legal admin transitions — MUST stay identical to the forum route's map. */
+/**
+ * ⛔ A SHORT-FLOW CASE (eno.forum quick, eno.vn photos-only) CAN NEVER PASS approve_for_prefill — that action runs the
+ * FULL validator (submit/route.svc.ts) and these applicants were never asked steps 2-4. Under the map below it could
+ * therefore never reach `processing`, the result upload could never close it (result/route.svc.ts closes only
+ * processing → approved), and retention_until was never written: its passport and portrait were kept forever. The desk
+ * files these off-system, so it may mark them filed (`processing`), and the result upload may close them straight from
+ * review (`approved` still requires the result document — transitionVisaCase checks it).
+ * ⚠️ A FUNCTION BESIDE THE MAP, NOT AN EDIT TO IT: visa-transition-drift.test.ts pins the literal map to the forum copy.
+ */
+export function visaAdminTransitionsFor(app: { status: string; applicant_confirmation_version?: string | null }): string[] {
+  const base = VISA_ADMIN_TRANSITIONS[app.status] || []
+  if (!isShortFlowVisaCase(app) || (app.status !== 'ready_for_review' && app.status !== 'under_review')) return base
+  return [...base, 'processing', 'approved']
+}
+
 export const VISA_ADMIN_TRANSITIONS: Record<string, string[]> = {
   draft: ['cancelled'], ready_for_review: ['under_review', 'needs_changes', 'applicant_approval', 'cancelled'],
   under_review: ['needs_changes', 'applicant_approval', 'cancelled'], needs_changes: ['under_review', 'cancelled'],
@@ -379,7 +395,7 @@ export async function transitionVisaCase(id: string, next: string, admin: string
   if (loaded.state === 'not-found') return { ok: false, error: 'not_found' }
   const app = loaded.application
   if (next === app.status) return { ok: true }
-  if (!(VISA_ADMIN_TRANSITIONS[app.status] || []).includes(next)) return { ok: false, error: 'invalid_status_transition' }
+  if (!visaAdminTransitionsFor(app).includes(next)) return { ok: false, error: 'invalid_status_transition' }
   if (next === 'approved' && !loaded.documents.some((item) => item.kind === 'result')) {
     return { ok: false, error: 'result_document_required' }
   }

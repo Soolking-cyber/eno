@@ -740,7 +740,6 @@ export const VI_OVERRIDES: Record<string, string> = {
   "Laptops": "Laptop",
   "Last reviewed": "Đánh giá gần nhất",
   "Last updated: August 2026": "Cập nhật lần cuối: Tháng 8/2026",
-  "Last updated: September 2026": "Cập nhật lần cuối: Tháng 9 năm 2026",
   "Latest listings": "Tin đăng mới nhất",
   "Left by buyers after a completed deal. Open a seller to read every review on their storefront.": "Được người mua để lại sau khi hoàn tất giao dịch. Bấm vào người bán để xem tất cả đánh giá trên trang của họ.",
   "Legal information": "Thông tin pháp lý",

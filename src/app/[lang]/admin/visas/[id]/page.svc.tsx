@@ -6,7 +6,7 @@ import { getVisaDeskScope } from '@/lib/desk-operator'
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { loadVisaAdminCase, signVisaDocumentUrl, type VisaDocumentRow } from '@/lib/visa-admin'
 import { findVisaThread, getVisaThreadMode, type VisaThreadMode } from '@/lib/visa/dm-thread'
-import { VISA_ADMIN_ACTIONS, visaStatusLabel, visaStatusVariant } from '../visa-status'
+import { visaAdminActionsFor, visaStatusLabel, visaStatusVariant } from '../visa-status'
 import { VisaCaseActions, VisaThreadTakeover } from './case-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -124,7 +124,7 @@ export default async function AdminVisaCasePage({ params }: { params: Promise<{ 
               can only 409 — one result per case, ever (owner 2026-07-23). */}
           <VisaCaseActions
             id={application.id}
-            actions={VISA_ADMIN_ACTIONS[application.status] || []}
+            actions={visaAdminActionsFor(application)}
             hasResult={documents.some((d) => d.kind === 'result')}
           />
         </div>
