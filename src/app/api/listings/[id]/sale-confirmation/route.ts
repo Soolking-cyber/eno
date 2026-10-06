@@ -7,6 +7,7 @@ import { buyerResponsePatch, canRespondToSale, confirmPromptPrice, saleState } f
 import { SALE_CONFIRM_NOTIFICATION, SALE_FACTS_SELECT, asksBuyerAbout, factsUnchanged, saleFacts } from '@/lib/core/sale-loop'
 import { logError } from '@/lib/log'
 import { recomputeTrust } from '@/lib/trust'
+import { isBlockedBetween } from '@/lib/user-blocks'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -53,8 +54,9 @@ const Body = z.object({
  * re-read then answers for what is there now. A buyer can never confirm a figure they were not shown.
  *
  * Branches: guest → 401 auth_required · bad body → 400 invalid_body · rate limited → 429 · unknown or
- * removed listing → 404 not_found · not the attributed buyer (or no question was ever put to one) → 403
- * forbidden · the other answer already recorded → 409 already_resolved {status} · taken down by authority
+ * removed listing → 404 not_found · not the attributed buyer (or no question was ever put to one), or an open
+ * question across a block either way (gate `ugc-safety`) → 403 forbidden · the other answer already
+ * recorded → 409 already_resolved {status} · taken down by authority
  * order → 409 listing_unavailable · the question changed (a new price) or closed (the 14-day window) →
  * 409 not_actionable · success → 200 {"ok":true,"status":"confirmed"|"declined"}.
  */
@@ -92,6 +94,15 @@ export const POST = route(
       if (state === 'confirmed' || state === 'declined') {
         return NextResponse.json({ error: 'already_resolved', status: state }, { status: 409 })
       }
+      // ⛔ App Store gate `ugc-safety`: no CONFIRM crosses a block, either way — sale-question lists nothing then, and
+      // this refuses alike, with the "no question to answer" 403 (the block is not revealed; the prompt drops the
+      // card as no longer open). A DECLINE still goes through (review of this change): a buyer named falsely and
+      // then blocked must keep the one answer that keeps an invented sale out of the seller's trust score
+      // (trust.ts counts only sales with saleDeclinedAt null) — the same pass-through the offer route gives a
+      // decline. ⚠️ Server-side only today: across a block the thread never shows the question (sale-question
+      // lists nothing), so this is a door kept open for a client or support path, not a button anyone sees. After the two lines above on purpose: an answer already on record still reads back as it always
+      // did, and writes nothing. Off ⇒ no query.
+      if (body.answer === 'confirm' && await isBlockedBetween(userId, row.seller.ownerId)) return apiFail('forbidden', 403)
 
       const now = new Date()
       const can = canRespondToSale({ actorProfileId: userId, sellerProfileId: row.seller.ownerId, facts, now })

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * GET /api/listings/[id]/buyers — who the mark-sold picker offers.
@@ -23,9 +23,19 @@ const h = vi.hoisted(() => ({
   activeSince: null as Row | null,
   findFirstArgs: [] as Row[],
   desk: false,
+  /** ForumUserBlock rows (App Store gate `ugc-safety`); the batched read's args, and the per-person checks. */
+  blocks: [] as Row[],
+  blockReads: [] as Row[],
+  blockChecks: 0,
 }))
 
+/** One Prisma condition against a row: equality, or `{ in: [...] }`. */
+const meets = (row: Row, cond: Row) =>
+  Object.entries(cond).every(([k, v]) => (v && typeof v === 'object' ? (v.in as unknown[]).includes(row[k]) : row[k] === v))
+
 vi.mock('@/lib/listing-owner', () => ({ checkListingOwner: async () => h.owner }))
+// user-blocks.ts's staff rule (a block with the eno team is void) — the only export this route's graph reads.
+vi.mock('@/lib/admin', () => ({ isAdminEmail: (e: string | null | undefined) => e === 'support@eno.vn' }))
 vi.mock('@/lib/db', () => ({
   db: {
     conversation: {
@@ -34,6 +44,13 @@ vi.mock('@/lib/db', () => ({
     },
     notification: { findMany: async (args: Row) => { h.notifArgs.push(args); return h.notifs } },
     listing: { findUnique: async () => h.listing },
+    // The real gate check, a stubbed table: the gate decides whether it is read at all.
+    forumUserBlock: {
+      findMany: async (args: { where: { OR: Row[] } }) => { h.blockReads.push(args); return h.blocks.filter((b) => args.where.OR.some((c) => meets(b, c))) },
+      findFirst: async ({ where }: { where: { OR: Row[] } }) => { h.blockChecks += 1; return h.blocks.find((b) => where.OR.some((c) => meets(b, c))) ?? null },
+    },
+    // 'p-staff' is the eno team (ADMIN_EMAILS) — a block with them is void.
+    profile: { findUnique: async ({ where }: { where: { id: string } }) => ({ email: where.id === 'p-staff' ? 'support@eno.vn' : `${where.id}@example.com` }) },
   },
 }))
 vi.mock('@/lib/edition-scope', () => ({ isServicesDeskListing: async () => h.desk, scopedListingWhere: async (w: unknown) => w }))
@@ -59,7 +76,11 @@ beforeEach(() => {
   h.activeSince = null
   h.findFirstArgs = []
   h.desk = false
+  h.blocks = []
+  h.blockReads = []
+  h.blockChecks = 0
 })
+afterEach(() => vi.unstubAllEnvs())
 
 describe('the default answer is unchanged — the seller-wide list (the native picker)', () => {
   it('every thread with this seller, and no notification read at all', async () => {
@@ -171,5 +192,67 @@ describe('⛔ owner-only, whatever the scope', () => {
   it('a guest → 401', async () => {
     h.owner = { ok: false, code: 401, error: 'auth_required' }
     expect((await get('?scope=listing')).status).toBe(401)
+  })
+})
+
+/**
+ * ⛔ NOBODY ACROSS A BLOCK (App Store gate `ugc-safety`, audit 1.6): POST /sold refuses anyone with a block between
+ * them and this seller, either way — so neither picker offers them. Off: unchanged, and the table is never read.
+ */
+describe('⛔ nobody across a block is offered (App Store gate `ugc-safety`)', () => {
+  const three = () => [convo('a', { displayName: 'Minh', email: null }), convo('b', { displayName: 'Lan', email: null }), convo('c', { displayName: 'Huy', email: null })]
+  const names = (body: Row) => body.buyers.map((b: Row) => b.name)
+
+  it('gate OFF: a stored block changes nothing, in either scope, and the block table is never read', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    h.convos = three()
+    h.blocks = [{ blockerProfileId: 'p-seller', blockedProfileId: 'p-a' }]
+    expect(names((await get()).body)).toEqual(['Minh', 'Lan', 'Huy'])
+    expect(names((await get('?scope=listing')).body)).toEqual(['Minh', 'Lan', 'Huy'])
+    expect(h.blockReads).toEqual([])
+    expect(h.blockChecks).toBe(0)
+  })
+
+  it.each([['the seller-wide list (native)', ''], ['?scope=listing (web)', '?scope=listing']])(
+    'gate ON, %s: whoever the seller blocked AND whoever blocked the seller is left out',
+    async (_scope, qs) => {
+      vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+      h.convos = three()
+      h.blocks = [{ blockerProfileId: 'p-seller', blockedProfileId: 'p-a' }, { blockerProfileId: 'p-b', blockedProfileId: 'p-seller' }]
+      expect(names((await get(qs)).body)).toEqual(['Huy'])
+    },
+  )
+
+  it('gate ON: ONE read for the whole list, both directions — the per-person check (isBlockedBetween) runs only on a hit', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+    h.convos = three()
+    await get()
+    expect(h.blockReads.map((a) => a.where)).toEqual([{
+      OR: [
+        { blockerProfileId: 'p-seller', blockedProfileId: { in: ['p-a', 'p-b', 'p-c'] } },
+        { blockedProfileId: 'p-seller', blockerProfileId: { in: ['p-a', 'p-b', 'p-c'] } },
+      ],
+    }])
+    expect(h.blockChecks).toBe(0)
+    h.blocks = [{ blockerProfileId: 'p-b', blockedProfileId: 'p-seller' }]
+    await get()
+    expect(h.blockChecks).toBe(1)
+  })
+
+  it('⛔ a block with the eno team on either side is VOID (isBlockedBetween\'s rule) — still listed, as POST /sold accepts them', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+    h.convos = [convo('staff', { displayName: 'eno', email: null }), convo('a', { displayName: 'Minh', email: null })]
+    h.blocks = [{ blockerProfileId: 'p-seller', blockedProfileId: 'p-staff' }]
+    expect(names((await get('?scope=listing')).body)).toEqual(['eno', 'Minh'])
+  })
+
+  it('⛔ someone left out for a block still MESSAGED: never "nobody messaged", and the proof is not paid for', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+    h.convos = [convo('a', { displayName: 'Minh', email: null })]
+    h.blocks = [{ blockerProfileId: 'p-a', blockedProfileId: 'p-seller' }]
+    const { body } = await get('?scope=listing')
+    expect(body.buyers).toEqual([])
+    expect(body.nobodyMessaged).toBe(false)
+    expect(h.findFirstArgs).toEqual([])
   })
 })

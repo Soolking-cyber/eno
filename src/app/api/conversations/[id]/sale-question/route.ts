@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { route, ApiError } from '@/lib/api/handler'
 import { isSellerHiddenHere } from '@/lib/edition-scope'
 import { openSaleQuestions } from '@/lib/core/sale-loop'
+import { isBlockedBetween } from '@/lib/user-blocks'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,7 +22,8 @@ export const dynamic = 'force-dynamic'
  * openSaleQuestions — the same rule the answer route enforces, edition-scoped).
  *
  * Branches: guest → 401 auth_required · unknown thread, or one this edition hides → 404 not_found (the
- * thread GET's own answer) · not this thread's BUYER → 403 forbidden · success → 200 {"questions":[…]}.
+ * thread GET's own answer) · not this thread's BUYER → 403 forbidden · a block between the buyer and the seller,
+ * either way (gate `ugc-safety`) → 200 {"questions":[]} · success → 200 {"questions":[…]}.
  */
 export const GET = route({ auth: 'userId' }, async ({ params, userId }) => {
   const convo = await db.conversation.findUnique({
@@ -31,5 +33,8 @@ export const GET = route({ auth: 'userId' }, async ({ params, userId }) => {
   if (!convo) throw new ApiError('not_found', 404)
   if (await isSellerHiddenHere(convo.seller.id)) throw new ApiError('not_found', 404)
   if (convo.buyerProfileId !== userId) throw new ApiError('forbidden', 403)
+  // ⛔ App Store gate `ugc-safety`: nothing is asked across a block, EITHER way — the asker is the storefront's
+  // owner, the profile POST /sold checks. The answer route refuses alike. Off ⇒ no query.
+  if (await isBlockedBetween(userId, convo.seller.ownerId)) return { questions: [] }
   return { questions: await openSaleQuestions(userId, convo.seller, new Date()) }
 })

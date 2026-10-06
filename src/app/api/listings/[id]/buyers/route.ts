@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkListingOwner } from '@/lib/listing-owner'
 import { db } from '@/lib/db'
 import { maskEmailHandle } from '@/lib/utils'
+import { blockingOn, isBlockedBetween } from '@/lib/user-blocks'
 import {
   asksBuyerAbout,
   declinedBuyerIds,
@@ -42,7 +43,8 @@ export const dynamic = 'force-dynamic'
 //     the only record of what a thread was about before a retarget (Message has no listingId).
 // ⛔ POST /sold REFUSES ANYONE OUTSIDE THAT SAME SCOPE (400 buyer_not_in_conversations) — one predicate,
 // so the sheet never offers a person the write rejects. And it leaves out anyone who already said "No,
-// I did not" about this listing: POST /sold refuses them too (409 buyer_declined).
+// I did not" about this listing: POST /sold refuses them too (409 buyer_declined). ⛔ BOTH scopes leave out
+// anyone with a block between them and this seller, either way (gate `ugc-safety`; blockedBuyerIds below).
 // ⚠️ STILL LOSSY, in the direction of a false "nobody messaged": a buyer who only CHATTED about this
 // listing and then asked the same seller about another one leaves no trace here. So an EMPTY list is
 // not, by itself, permission to pre-select "someone not on eno" — `nobodyMessaged` below is: true only
@@ -81,7 +83,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     avatarColor: c.buyer?.avatarColor ?? null,
     lastMessageAt: c.lastMessageAt.toISOString(),
   })
-  if (!listingOnly) return NextResponse.json({ buyers: convos.map(project) })
+  // ⛔ Nobody with a block between them and this seller, either way (gate `ugc-safety`), in EITHER scope:
+  // POST /sold refuses them (blockedBuyerIds below).
+  const blocked = await blockedBuyerIds(auth.profileId, convos.map((c) => c.buyerProfileId))
+  const reachable = convos.filter((c) => !blocked.has(c.buyerProfileId))
+  if (!listingOnly) return NextResponse.json({ buyers: reachable.map(project) })
 
   // edition-lint-allow: ONE row by id, the CALLER'S OWN listing (checkListingOwner above); it yields
   // two booleans and a decline filter, never a listing field.
@@ -94,9 +100,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   })
   if (!listing) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   const declined = declinedBuyerIds(listing)
-  const buyers = convos.filter((c) => !declined.has(c.buyerProfileId)).map(project)
-  // Only an EMPTY scope can be "nobody messaged"; proving it costs one indexed probe, paid only then.
+  const buyers = reachable.filter((c) => !declined.has(c.buyerProfileId)).map(project)
+  // Only an EMPTY scope can be "nobody messaged"; proving it costs one indexed probe, paid only then. (`convos`,
+  // not `reachable`: someone left out for a block still messaged.)
   const nobodyMessaged = convos.length === 0 && (await nobodyEverMessaged(auth.sellerId, listing.createdAt))
   const asksBuyer = await asksBuyerAbout({ sellerId: listing.sellerId, listingType: listing.listingType, categorySlug: listing.category?.slug ?? null })
   return NextResponse.json({ buyers, nobodyMessaged, asksBuyer })
+}
+
+/**
+ * The listed buyers with a block between them and this seller, EITHER way (App Store gate `ugc-safety`). POST
+ * /sold refuses each of them (isBlockedBetween — the same 400 as no thread), so the picker must not offer them.
+ * Off ⇒ empty, with no query. On ⇒ ONE read for the whole list (the block table's primary key and its
+ * blockedProfileId index) rather than a lookup per buyer — the native picker lists up to 50 — and
+ * isBlockedBetween, the predicate /sold applies, has the last word on each (rare) hit, so its rules stay in one
+ * place: a block with the eno team on either side is void, in the picker exactly as in the write.
+ */
+async function blockedBuyerIds(sellerProfileId: string, buyerProfileIds: string[]): Promise<Set<string>> {
+  if (!blockingOn() || !buyerProfileIds.length) return new Set()
+  const ids = [...new Set(buyerProfileIds)]
+  const rows = await db.forumUserBlock.findMany({
+    where: { OR: [{ blockerProfileId: sellerProfileId, blockedProfileId: { in: ids } }, { blockedProfileId: sellerProfileId, blockerProfileId: { in: ids } }] },
+    select: { blockerProfileId: true, blockedProfileId: true },
+  })
+  const hits = [...new Set(rows.map((r) => (r.blockerProfileId === sellerProfileId ? r.blockedProfileId : r.blockerProfileId)))]
+  const confirmed = await Promise.all(hits.map((b) => isBlockedBetween(sellerProfileId, b)))
+  return new Set(hits.filter((_, i) => confirmed[i]))
 }

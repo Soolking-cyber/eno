@@ -5,10 +5,11 @@
 //     any reply, is what unlocks their details (owner decision; "no thanks" must unlock nothing);
 //   · recruiter (buyer side): the shared phone, email and CV once shared, else a waiting hint.
 // The server re-derives every rule from the conversation row (src/lib/teachers/share.ts).
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { FileText, Phone } from '@/components/ui/icons'
+import { isNativeShell, openExternal } from '@/lib/native-browser'
 
 type Contact = { phone: string | null; email: string | null; hasCv: boolean }
 
@@ -51,6 +52,22 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
       .catch(() => {})
     return () => { alive = false }
   }, [conversationId, iAmTeacher, shareSignal])
+
+  const cvHref = `/api/teachers/cv?conversationId=${encodeURIComponent(conversationId)}`
+  const openCvInApp = async (e: MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault()
+    setError('')
+    try {
+      const r = await fetch(`${cvHref}&format=json`)
+      const d = await r.json().catch(() => ({}))
+      if (r.ok && typeof d.url === 'string') { await openExternal(d.url); return }
+      setError(r.status === 429
+        ? tr('Too many downloads — try again in a few minutes.', 'Tải quá nhiều lần — hãy thử lại sau vài phút.')
+        : tr('Could not open the CV. Please try again.', 'Không mở được CV. Vui lòng thử lại.'))
+    } catch {
+      setError(tr('Could not open the CV. Please try again.', 'Không mở được CV. Vui lòng thử lại.'))
+    }
+  }
 
   const toggle = async (next: boolean) => {
     // `loading` keeps the button focusable (aria-disabled), so the double-tap guard lives here.
@@ -97,7 +114,11 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
         <>
           {contact.phone && <a href={`tel:${contact.phone.replace(/[^+\d]/g, '')}`} className="press flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted"><Phone className="h-3.5 w-3.5" /> {contact.phone}</a>}
           {contact.email && <a href={`mailto:${contact.email}`} className="rounded-full px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted">{contact.email}</a>}
-          {contact.hasCv && <a href={`/api/teachers/cv?conversationId=${encodeURIComponent(conversationId)}`} target="_blank" rel="noopener" className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted"><FileText className="h-3.5 w-3.5" /> {tr('Download CV', 'Tải CV')}</a>}
+          {/* ⚠️ NATIVE SHELL: never a navigation. A target=_blank link goes to Safari, which has no eno session
+              (401); a same-window load resets Capacitor's bridge. So the app asks for the signed link as JSON
+              and opens it in the in-app browser; a refusal stays here as the strip's alert. Web: unchanged.
+              `contact` only ever comes from the client fetch above, so this never renders on the server. */}
+          {contact.hasCv && <a href={cvHref} {...(isNativeShell() ? { onClick: openCvInApp } : { target: '_blank', rel: 'noopener' })} className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted"><FileText className="h-3.5 w-3.5" /> {tr('Download CV', 'Tải CV')}</a>}
         </>
       ) : (
         <p className="flex items-center gap-1.5 text-2xs text-body">

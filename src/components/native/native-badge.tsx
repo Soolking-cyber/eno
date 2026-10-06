@@ -9,8 +9,9 @@ import { useNotifications } from '@/context/notifications-context'
 // "banner from the OS, badge from the app, no third signal."
 //
 // WHY THIS EXISTS WHEN THE SERVER ALREADY SETS THE BADGE. `aps.badge` on a push is the
-// authoritative source and needs no plugin at all — that half works on any installed build,
-// and it is what makes the count appear when the app is CLOSED. What it cannot do is react
+// authoritative source and needs no plugin — but, like any iOS badge, it shows only once the user
+// has granted notification permission (native-push.tsx is the one asker). It is what makes the
+// count appear when the app is CLOSED. What it cannot do is react
 // to anything that happens with no push involved:
 //   · the user reads on ANOTHER device, or on the web, and comes back to this one;
 //   · the badge-only sync push (syncBadgeToProfile) was throttled or dropped by iOS, which
@@ -42,8 +43,6 @@ export function NativeBadge() {
 
   // Skip the redundant write when the number has not moved — this runs on every poll tick.
   const lastWritten = useRef<number | null>(null)
-  // Ask for badge authorization at most once per mount (a denial sticks; don't nag).
-  const requested = useRef(false)
 
   useEffect(() => {
     if (!cap()?.isNativePlatform?.()) return
@@ -54,22 +53,19 @@ export function NativeBadge() {
       if (lastWritten.current === count) return
       try {
         const { Badge } = await import('@capawesome/capacitor-badge')
-        // ⚠️ NEVER PROMPT A GUEST, AND NEVER FOR NOTHING. iOS shows NO app-icon badge without
-        // badge authorization, and NOTHING else asks for it: @capawesome/capacitor-badge's
-        // set/clear each call requestPermissions() (the OS dialog), and native-push — the other
-        // asker — is gated OFF (no aps-environment entitlement), so a "gate on already-granted"
-        // rule (the previous version) meant the badge could NEVER appear. So acquire it HERE, but
-        // narrowly: a SIGNED-IN user (never a guest cold launch — that un-earned prompt tanks
-        // opt-in), only when there's actually a count to show (count > 0), and only ONCE. This is
-        // badge-only authorization (.badge), independent of push registration — no entitlement
-        // needed. A 'denied' result sticks (checkPermissions returns it → no re-ask).
-        const settings = await Badge.checkPermissions()
-        let granted = settings.display === 'granted'
-        if (!granted && settings.display === 'prompt' && user && count > 0 && !requested.current) {
-          requested.current = true
-          granted = (await Badge.requestPermissions()).display === 'granted'
-        }
-        if (!granted) return
+        // ⛔ NEVER ASK FROM HERE, AND NEVER WRITE UNTIL THE ANSWER IS 'granted' (audit 1.3,
+        // 2026-10-06 — reverses 0d2f7a0b, which asked for badge-only authorization here while push
+        // could not ask). iOS gives an app ONE notification prompt: whoever asks first spends it,
+        // and a badge-only (.badge) grant leaves push with no alert and no sound — native-push's
+        // later [.alert, .sound, .badge] request shows no dialog. The App Store binary carries
+        // aps-environment now, so native-push.tsx (NEXT_PUBLIC_NATIVE_PUSH_IOS) is the ONE asker,
+        // and its grant covers the badge. "Never write" is the same rule, not a second one:
+        // @capawesome/capacitor-badge's iOS set/clear (and increase/decrease) call
+        // requestAuthorization THEMSELVES before writing, so a set or clear while the status is
+        // still 'prompt' IS the dialog. Until push is on and allowed the iOS icon shows no count —
+        // a push's own aps.badge needs that same grant. Android reports 'granted' unconditionally
+        // (the plugin's permission alias maps to no runtime permission), so it badges as before.
+        if ((await Badge.checkPermissions()).display !== 'granted') return
         if (count > 0) await Badge.set({ count })
         else await Badge.clear()
         if (!cancelled) lastWritten.current = count

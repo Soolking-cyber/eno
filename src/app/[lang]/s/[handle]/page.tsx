@@ -29,6 +29,8 @@ import { canonicalAppHost, storefrontByLabel, storefrontCanonical } from '@/lib/
 import { storefrontHandleFromHost } from '@/lib/storefront-host'
 import { getVisaShopSeller } from '@/lib/visa-shop'
 import { ShareButton } from '@/components/marketplace/share-button'
+import { ReportButton } from '@/components/marketplace/report-button'
+import { BlockUserButton } from '@/components/marketplace/block-user-button'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { storefrontJsonLd, type StorefrontLdListing } from './storefront-jsonld'
 
@@ -377,7 +379,23 @@ export default async function Storefront({ params }: Props) {
               listingCount={total}
             />
           </div>
-          <ShareButton url={canonical} title={shop.name} compact />
+          {/* REPORT AND BLOCK, UNDER SHARE (App Store Guideline 1.2; audit 1.5, 2026-10-06). eno.vn/<handle>
+              renders this body in place, so it is the storefront a /sellers/<id> link lands on (the PDP's
+              and the inbox's, in the apps too) — and it had neither. The same pair, on the same rules, as
+              the path storefront (seller-storefront.tsx): Report on every shop; Block only on one a PERSON
+              runs (an imported, ownerless shop has nobody to block), and nothing while `ugc-safety` is off.
+              ⛔ NOT ON THE SHOP'S OWN HOST. Both are writes: proxy.ts refuses one whose Origin is
+              `<handle>.eno.vn`, and there is no session there to send it with, so each would only ever say
+              "try again" — the reason chat above becomes a link to the canonical host there. The apps never
+              open that host in the WebView: capacitor.config.ts allowNavigation holds only the canonical ones.
+              ⚠️ A COLUMN, NOT A ROW: three controls beside the card leave it ~140px on a 360px phone. And
+              `gap-2` is the floor — each pill's tap-44 hit area reaches 8px past it, so any less and Block's
+              swallows the bottom of Report. */}
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <ShareButton url={canonical} title={shop.name} compact />
+            {!onShopHost && <ReportButton sellerId={shop.sellerId} />}
+            {!onShopHost && seller.ownerId && <BlockUserButton sellerId={shop.sellerId} name={shop.name} />}
+          </div>
         </div>
         {/* Seller information (owner, 2026-10-01) — the same block, from the same builder, as eno.vn/<handle>. */}
         {card.sellerInfo && <SellerInfo info={card.sellerInfo} variant="storefront" className="max-w-2xl pb-4" />}

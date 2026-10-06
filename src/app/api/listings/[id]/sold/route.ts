@@ -3,6 +3,7 @@ import { checkListingOwner } from '@/lib/listing-owner'
 import { setStatusCore } from '@/lib/core/listings'
 import { db } from '@/lib/db'
 import { LISTING_REMOVED } from '@/lib/listing-removed'
+import { isBlockedBetween } from '@/lib/user-blocks'
 import { markSoldAsks, normalizeSalePrice, validateMarkSold, type DenyReason, type MarkSoldPatch } from '@/lib/trade-loop'
 import {
   SALE_FACTS_SELECT,
@@ -64,7 +65,8 @@ const MAX_ATTEMPTS = 3
 //
 // Branches: guest → 401 auth_required · no storefront → 403 no_storefront · unknown id → 404 not_found ·
 // not the owner → 403 forbidden · non-UUID buyerProfileId → 400 invalid_buyer · buyer with no thread
-// about this listing → 400 buyer_not_in_conversations · naming yourself → 400 buyer_is_seller · a buyer
+// about this listing, or a block between the two either way (gate `ugc-safety`) → 400
+// buyer_not_in_conversations · naming yourself → 400 buyer_is_seller · a buyer
 // who said "No" about this listing → 409 buyer_declined · re-marking a sale the buyer already confirmed
 // → 409 already_confirmed · a price change with that buyer's asks spent → 409 ask_budget_exhausted ·
 // a listing taken down by authority order → 409 listing_unavailable · the row kept changing under the
@@ -93,6 +95,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // lookup names the thread the buyer's question opens.
   const buyerThread = buyerProfileId ? await buyerThreadFor(auth.sellerId, auth.profileId, id, buyerProfileId) : null
   if (buyerProfileId && !buyerThread) return NextResponse.json({ error: 'buyer_not_in_conversations' }, { status: 400 })
+  // ⛔ App Store gate `ugc-safety`: never across a block, EITHER way. Naming them would put a bell row and a push
+  // with this storefront's name in front of someone who cut contact (or reach someone this seller blocked),
+  // opening the closed thread on "did you buy this?". The same answer as no thread at all — the block is not
+  // revealed — and GET /buyers never offers them. Off ⇒ no query.
+  if (buyerProfileId && await isBlockedBetween(auth.profileId, buyerProfileId)) return NextResponse.json({ error: 'buyer_not_in_conversations' }, { status: 400 })
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     // edition-lint-allow: ONE row by id, the CALLER'S OWN listing — checkListingOwner above proved this

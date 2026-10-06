@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * GET /api/conversations/[id]/sale-question — what this thread's seller is asking the caller to confirm.
@@ -22,17 +22,29 @@ const h = vi.hoisted(() => ({
   hidden: false,
   desk: false,
   scoped: [] as unknown[],
+  /** ForumUserBlock rows (App Store gate `ugc-safety`), and how many times the table was asked. */
+  blocks: [] as Row[],
+  blockLookups: 0,
 }))
 
 vi.mock('@/lib/admin', () => ({
   getAdmin: async () => null,
   getCurrentProfile: async () => (h.userId ? { id: h.userId } : null),
   getCurrentProfileId: async () => h.userId,
+  isAdminEmail: () => false,
 }))
 vi.mock('@/lib/db', () => ({
   db: {
     conversation: { findUnique: async () => h.convo },
     listing: { findMany: async (a: Row) => { h.findManyArgs.push(a); return h.rows } },
+    // The real gate check, a stubbed table: the gate decides whether the lookup runs at all.
+    forumUserBlock: {
+      findFirst: async ({ where }: { where: { OR: Row[] } }) => {
+        h.blockLookups += 1
+        return h.blocks.find((b) => where.OR.some((c) => c.blockerProfileId === b.blockerProfileId && c.blockedProfileId === b.blockedProfileId)) ?? null
+      },
+    },
+    profile: { findUnique: async () => ({ email: 'someone@example.com' }) },
   },
 }))
 vi.mock('@/lib/edition-scope', () => ({
@@ -71,7 +83,10 @@ beforeEach(() => {
   h.hidden = false
   h.desk = false
   h.scoped = []
+  h.blocks = []
+  h.blockLookups = 0
 })
+afterEach(() => vi.unstubAllEnvs())
 
 describe('who may ask', () => {
   it('the thread\'s BUYER gets the open question — with the price they were asked about, and the sale\'s own id', async () => {
@@ -138,5 +153,43 @@ describe('what is listed — exactly what the answer route would accept', () => 
   it('an ownerless storefront has nobody to confirm with → nothing listed', async () => {
     h.convo = { buyerProfileId: BUYER, seller: { id: 's1', ownerId: null } }
     expect((await get()).body).toEqual({ questions: [] })
+  })
+})
+
+/**
+ * ⛔ NOTHING IS ASKED ACROSS A BLOCK (App Store gate `ugc-safety`, audit 1.6), either way: the thread is closed, and
+ * the answer route refuses alike. Off: unchanged, and no lookup.
+ */
+describe('⛔ nothing is asked across a block (App Store gate `ugc-safety`)', () => {
+  it('gate OFF: a stored block changes nothing and is never looked up', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    h.blocks = [{ blockerProfileId: BUYER, blockedProfileId: SELLER_P }]
+    expect((await get()).body.questions).toHaveLength(1)
+    expect(h.blockLookups).toBe(0)
+  })
+
+  it.each([
+    ['the buyer blocked the seller', BUYER, SELLER_P],
+    ['the seller blocked the buyer', SELLER_P, BUYER],
+  ])('gate ON, %s → 200 {questions: []}, and the sales are not even read', async (_case, blocker, blocked) => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+    h.blocks = [{ blockerProfileId: blocker, blockedProfileId: blocked }]
+    expect(await get()).toEqual({ status: 200, body: { questions: [] } })
+    expect(h.findManyArgs).toEqual([])
+  })
+
+  it('gate ON, no block between these two: the question is listed as before', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+    h.blocks = [{ blockerProfileId: BUYER, blockedProfileId: '00000000-0000-4000-8000-000000000009' }]
+    expect((await get()).body.questions).toHaveLength(1)
+    expect(h.blockLookups).toBe(1)
+  })
+
+  it('gate ON: not the thread\'s buyer is still 403 — before any block lookup', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
+    h.userId = SELLER_P
+    h.blocks = [{ blockerProfileId: SELLER_P, blockedProfileId: BUYER }]
+    expect(await get()).toEqual({ status: 403, body: { error: 'forbidden' } })
+    expect(h.blockLookups).toBe(0)
   })
 })

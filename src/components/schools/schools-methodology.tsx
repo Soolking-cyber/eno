@@ -19,8 +19,8 @@ const ITEMS: { h: { en: string; vi: string }; p: { en: string; vi: string } }[] 
   {
     h: { en: 'Whose votes count', vi: 'Phiếu nào được tính' },
     p: {
-      en: 'Anyone signed in to {site} with Google or email can vote: one vote per account, on each school. Votes count from individual accounts in good standing. Business accounts cannot vote, and a school\'s own account cannot vote on or review that school. Who voted is never shown.',
-      vi: 'Bất kỳ ai đăng nhập {site} bằng Google hoặc email đều có thể bình chọn: mỗi tài khoản một phiếu cho mỗi trường. Phiếu được tính từ tài khoản cá nhân có uy tín tốt. Tài khoản doanh nghiệp không thể bình chọn, và tài khoản của chính trường không thể bình chọn hay đánh giá trường đó. Không ai thấy ai đã bình chọn.',
+      en: 'Anyone signed in to {site} can vote: one vote per account, on each school. Votes count from individual accounts in good standing. Business accounts cannot vote, and a school\'s own account cannot vote on or review that school. Who voted is never shown.',
+      vi: 'Bất kỳ ai đăng nhập {site} đều có thể bình chọn: mỗi tài khoản một phiếu cho mỗi trường. Phiếu được tính từ tài khoản cá nhân có uy tín tốt. Tài khoản doanh nghiệp không thể bình chọn, và tài khoản của chính trường không thể bình chọn hay đánh giá trường đó. Không ai thấy ai đã bình chọn.',
     },
   },
   {

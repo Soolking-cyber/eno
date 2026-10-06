@@ -57,8 +57,8 @@ export function AwardsResults({ page, lang }: { page: AwardsPage; lang: string }
             <h2 id="awards-take-part-h" className="text-lg font-bold text-foreground"><Bilingual en="How to take part" vi="Cách tham gia" /></h2>
             <p className="mt-2 text-sm leading-relaxed text-body">
               <Bilingual
-                en="Vote on the places you worked or interviewed at on the school list, and write a review of the ones you worked at. Sign in with Google or email; one vote per account. Each year starts fresh: votes cast in earlier years do not carry over."
-                vi="Hãy bình chọn những nơi bạn từng làm việc hoặc phỏng vấn trong danh sách trường, và viết đánh giá về nơi bạn từng làm. Đăng nhập bằng Google hoặc email; mỗi tài khoản một phiếu. Mỗi năm bắt đầu lại từ đầu: phiếu của các năm trước không được chuyển sang."
+                en="Vote on the places you worked or interviewed at on the school list, and write a review of the ones you worked at. Sign in; one vote per account. Each year starts fresh: votes cast in earlier years do not carry over."
+                vi="Hãy bình chọn những nơi bạn từng làm việc hoặc phỏng vấn trong danh sách trường, và viết đánh giá về nơi bạn từng làm. Đăng nhập; mỗi tài khoản một phiếu. Mỗi năm bắt đầu lại từ đầu: phiếu của các năm trước không được chuyển sang."
               />{' '}
               <Link href="/schools" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Go to the school list" vi="Đến danh sách trường" /></Link>
             </p>

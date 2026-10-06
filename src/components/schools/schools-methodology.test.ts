@@ -26,4 +26,9 @@ describe('schools methodology copy', () => {
   it('keeps the same placeholders in both languages', () => {
     for (const i of METHODOLOGY_ITEMS) expect(i.p.vi.match(/\{\w+\}/g) ?? []).toEqual(i.p.en.match(/\{\w+\}/g) ?? [])
   })
+  // `ios-hide-google`: the iOS app offers no Google, so "signed in with Google or email" sent teachers looking for it.
+  it('names no sign-in method', () => {
+    expect(en).not.toContain('Google')
+    expect(vi).not.toContain('Google')
+  })
 })

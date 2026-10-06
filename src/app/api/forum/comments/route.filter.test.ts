@@ -42,6 +42,7 @@ vi.mock('@/lib/db', () => {
       forumComment: { ...tx.forumComment, findFirst: async () => null, findUniqueOrThrow: async () => ({ id: 'cmcomment000001' }) },
       forumCommunity: { findUnique: async () => ({ slug: 'help-buying', status: 'active' }) },
       forumPostRevision: { create: async () => ({}) },
+      forumUserBlock: { findFirst: async () => null }, // the reply bell's block lookup (route.blocked.test.ts)
       $transaction: async (arg: unknown) => (typeof arg === 'function' ? (arg as (t: Row) => unknown)(tx) : Promise.all(arg as unknown[])),
     },
   }

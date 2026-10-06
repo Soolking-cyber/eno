@@ -624,6 +624,11 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
    * explicitly cannot do either.
    */
   const oauth = async (provider: 'google', skipFirstParty = false) => {
+    // ⛔ `ios-hide-google` (Guideline 4.8): NO GOOGLE IN THE iOS APP BY ANY PATH, NOT JUST NO BUTTON.
+    // The `?g=fallback` retry above calls in here on mount with no tap at all, so hiding the controls
+    // left that way open. Ask the gate itself, never `hideGoogle`: that effect holds the FIRST render's
+    // closure, where the state is still false. Android and the web keep Google (iosAppGate is iOS only).
+    if (iosAppGate('ios-hide-google')) return
     // In-flight guard + synchronous `loading`, the same way sendPhone/sendEmail do it. The
     // client is now a dynamic import, so there is a real chunk-fetch gap between the tap and
     // signInWithOAuth — long enough to tap twice. Two concurrent calls both reach

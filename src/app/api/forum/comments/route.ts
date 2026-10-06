@@ -5,6 +5,7 @@ import { forumJson, forumPreflight, isAllowedForumOrigin } from '@/lib/forum/cor
 import { forumAuthorSelect, serializeForumComment } from '@/lib/forum/serialize'
 import { rateLimit } from '@/lib/ratelimit'
 import { refuseObjectionable } from '@/lib/ugc-filter'
+import { isBlockedBetween } from '@/lib/user-blocks'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -62,6 +63,13 @@ export async function POST(request: Request) {
   // App Store gate `ugc-safety` (plan R5): the severe-only word filter (src/lib/ugc-filter.ts) refuses the
   // reply before anything is written. Off ⇒ nothing is scanned.
   if (await refuseObjectionable('help-comment', input.body)) return forumJson(request, { error: 'objectionable_content' }, { status: 400 }, 'POST, OPTIONS')
+  // App Store gate `ugc-safety` (plan R3): a block silences the bell, either direction like every block
+  // (src/lib/user-blocks.ts) — no forum_reply row, which would carry the reply's first 180 characters, to
+  // someone who blocked the replier or whom the replier blocked. The reply itself still posts: it is public
+  // Help Center content, and Report covers it. Off ⇒ no query. Read outside the transaction (`db`, not `tx`).
+  const recipientId = parent?.authorProfileId || post.authorProfileId
+  // A failed block lookup skips the bell rather than failing the reply (fail closed on the notice only).
+  const recipientBlocked = await isBlockedBetween(recipientId, auth.profile.id).catch(() => true)
 
   const commentId = await db.$transaction(async (tx) => {
     const comment = await tx.forumComment.create({
@@ -91,9 +99,7 @@ export async function POST(request: Request) {
       ...(parent ? [tx.forumComment.update({ where: { id: parent.id }, data: { replyCount: { increment: 1 } } })] : []),
     ])
 
-    const recipientId = parent?.authorProfileId || post.authorProfileId
-    if (recipientId && recipientId !== auth.profile.id) {
-      const forumUrl = process.env.NEXT_PUBLIC_FORUM_URL || 'https://eno.forum'
+    if (recipientId && recipientId !== auth.profile.id && !recipientBlocked) {
       await tx.notification.create({
         data: {
           recipientId,
@@ -101,7 +107,7 @@ export async function POST(request: Request) {
           title: parent ? 'New reply to your comment' : 'New reply to your post',
           body: input.body.slice(0, 180),
           actorName: auth.profile.displayName || 'eno member',
-          url: `${forumUrl}/?post=${encodeURIComponent(input.postId)}`,
+          url: `/help/${encodeURIComponent(input.postId)}`,
         },
       })
     }
