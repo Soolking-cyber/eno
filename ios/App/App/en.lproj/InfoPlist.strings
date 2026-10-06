@@ -7,11 +7,11 @@
   Home-screen quick-action titles are looked up by their Info.plist VALUE as the key.
 */
 "CFBundleDisplayName" = "eno";
-"NSCameraUsageDescription" = "eno uses the camera so you can photograph and film the items you're listing, and photograph your ID document and a selfie when you verify your identity.";
-"NSPhotoLibraryUsageDescription" = "eno accesses your photo library so you can add photos and videos to your listings.";
+"NSCameraUsageDescription" = "eno uses the camera when you take a photo or video for eno — a listing, your profile or shop, a search by photo, a report, or a photo you send to a seller in chat.";
+"NSPhotoLibraryUsageDescription" = "eno opens your photo library when you choose photos or videos for eno — a listing, your profile or shop, a search by photo, a report, or a photo you send to a seller in chat.";
 "NSPhotoLibraryAddUsageDescription" = "eno saves photos to your library when you choose to.";
 "NSMicrophoneUsageDescription" = "eno uses the microphone when you record a listing video.";
-"NSLocationWhenInUseUsageDescription" = "eno uses your location to find listings near you and suggest your area when you post.";
+"NSLocationWhenInUseUsageDescription" = "eno uses your location to show listings near you and to fill in your area when you post, edit your business profile, or suggest a place to meet in chat.";
 "Post" = "Post";
 "Messages" = "Messages";
 "Saved" = "Saved";

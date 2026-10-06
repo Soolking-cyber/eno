@@ -12,25 +12,27 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     // MARK: - Deep-link origins
     //
-    // ⛔ THE APP RENDERS www.eno.forum, NOT eno.vn — mirrored from the Android shell (MainActivity
-    // MARKET_HOSTS / MARKET_ORIGIN, commit 11f430d12, 2026-09-08). capacitor.config.ts `server.url`
-    // is https://www.eno.forum and `allowNavigation` holds ONLY the two forum hosts, so an https
-    // eno.vn URL loaded into this WebView is not rendered here at all: Capacitor hands it to Safari.
-    // That is exactly how the home-screen quick actions broke — this file still built their target
-    // on https://eno.vn, so Post / Messages / Saved opened Safari, on the edition that carries the
-    // "not yet officially launched" banner (reproduced on the iOS 18.4 simulator, 2026-10-04).
+    // ⛔ THE APP RENDERS https://eno.vn — THE LICENSED MARKETPLACE — AND NOTHING ELSE (owner,
+    // 2026-10-06: "ship both with eno.vn"; the Android shell moves back in the same release). This
+    // reverses the www.eno.forum origin of c7fa473f1 (which mirrored Android's 11f430d12). The App
+    // Store seller is the licensed eno.vn company, which may not offer the services that live only on
+    // eno.forum, so no eno.forum page may render in this app. capacitor.config.ts `server.url` is
+    // https://eno.vn and no forum host is in `allowNavigation`: Capacitor hands a forum URL to Safari,
+    // which is exactly what a forum link should do.
     //
-    // `appHosts` = the origin the WebView renders (server.url). The www is canonical: both forum
-    // hosts answer 200 with no redirect, and the services build bakes NEXT_PUBLIC_APP_URL =
-    // https://www.eno.forum, so the apex would be a second live origin with its own cookie jar —
-    // a native load always targets `appOrigin`, never the apex.
-    // eno.vn stays FIRST-PARTY for incoming links (every marketplace link ever shared points there,
-    // and the forum serves a superset of its paths), but its PATH is opened on `appOrigin`.
-    private static let appHosts: Set<String> = ["www.eno.forum", "eno.forum"]
-    private static let legacyMarketHosts: Set<String> = ["eno.vn", "www.eno.vn"]
-    private static let firstPartyHosts: Set<String> = appHosts.union(legacyMarketHosts)
+    // `appHosts` = the origin the WebView renders (server.url). ON THIS DOMAIN THE APEX IS CANONICAL —
+    // the opposite of the forum: www.eno.vn answers 308 → https://eno.vn for every path (next.config.ts
+    // redirects), and the marketplace build bakes NEXT_PUBLIC_APP_URL = https://eno.vn. A native load
+    // always targets `appOrigin`, never the www.
+    // `firstPartyHosts` = the hosts whose links this app opens: the apex plus its www alias, whose path,
+    // query and fragment are opened on `appOrigin`.
+    // ⛔ eno.forum / www.eno.forum are in NEITHER set, on purpose. The app claims no forum domain, so a
+    // forum link can only arrive as `enovn://open?url=`; resolveFirstPartyTarget refuses it and it goes
+    // to Capacitor untouched (.webJS) — nothing in this file can load a forum page into the WebView.
+    private static let appHosts: Set<String> = ["eno.vn"]
+    private static let firstPartyHosts: Set<String> = appHosts.union(["www.eno.vn"])
     /// Must stay byte-identical to `server.url` in capacitor.config.ts.
-    private static let appOrigin = "https://www.eno.forum"
+    private static let appOrigin = "https://eno.vn"
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         if let shortcutItem = launchOptions?[.shortcutItem] as? UIApplicationShortcutItem {
@@ -108,15 +110,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
-        // Called when the app was launched with a url (enovn:// custom scheme today; Associated
-        // Domains are not configured, so web URLs arrive here only via `enovn://open?url=`).
+        // Called when the app is opened with a URL in its custom scheme: enovn://open?path= (quick
+        // actions), enovn://open?url=, and the enovn://auth-callback OAuth return. Universal links
+        // (applinks:eno.vn) never arrive here — they come through `continue userActivity` below.
         return deliver(url, options: options)
     }
 
     func application(_ application: UIApplication, continue userActivity: NSUserActivity, restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void) -> Bool {
-        // Called when the app was launched with an activity, including Universal Links. Same
-        // origin-agnostic delivery as `open url` — dormant until an Associated Domains entitlement
-        // is added, but it must not silently drop a link the day it is.
+        // Called when the app was launched with an activity, including Universal Links: https://eno.vn
+        // links, once the box serves /.well-known/apple-app-site-association (APPLE_TEAM_ID in
+        // eno-vn.env; App.entitlements claims applinks:eno.vn and nothing else). Same delivery as
+        // `open url`.
         if userActivity.activityType == NSUserActivityTypeBrowsingWeb,
            let incoming = userActivity.webpageURL,
            case .native(let target) = route(for: incoming) {
@@ -166,8 +170,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     private func route(for url: URL) -> DeepLinkRoute {
-        // Shapes we don't own (enovn://auth-callback, anything third-party) always go to Capacitor
-        // untouched — the OAuth return in particular must finish in the JS that started it.
+        // Shapes we don't own (enovn://auth-callback, an eno.forum link, anything third-party) always
+        // go to Capacitor untouched — the OAuth return in particular must finish in the JS that
+        // started it, and a forum link must never be loaded into this WebView from here.
         guard let target = Self.resolveFirstPartyTarget(url) else { return .webJS }
         guard let webView = bridgeWebView else { return .webJS }
         // Nothing committed yet = cold start. Capacitor retains appUrlOpen until the web app's
@@ -176,9 +181,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         guard let current = webView.url else { return .webJS }
 
         // The app's own origin: native-bootstrap (src/components/native/native-bootstrap.tsx
-        // routeDeepLink) handles EVERY shape there — forum https links, eno.vn https links (path
-        // reused on this origin), `enovn://open?path=` and `enovn://open?url=` — and routes them
-        // in-SPA, which a native load would downgrade to a full page fetch. Leave it alone.
+        // routeDeepLink) handles EVERY shape there — eno.vn https links (apex and www, incl.
+        // universal links), `enovn://open?path=` and `enovn://open?url=` — and routes them in-SPA,
+        // which a native load would downgrade to a full page fetch. Leave it alone.
         if current.scheme?.lowercased() == "https", let host = current.host?.lowercased(),
            Self.appHosts.contains(host) {
             return .webJS
@@ -193,10 +198,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     //
     // Mirrors the web contract (src/lib/deep-link.ts canonicalAppPath + native-bootstrap's
     // routeDeepLink): canonicalize, then validate, and refuse anything that isn't first-party.
-    // ⛔ THE RESULT IS ALWAYS ON `appOrigin`. A first-party link on any other host (eno.vn, the
-    // forum apex) keeps its path, query and fragment and moves onto https://www.eno.forum — the
-    // only origin this WebView renders. Returning the eno.vn URL itself is what sent the quick
-    // actions to Safari.
+    // ⛔ THE RESULT IS ALWAYS ON `appOrigin`. A www.eno.vn link keeps its path, query and fragment
+    // and moves onto https://eno.vn — the only origin this WebView renders. (Returning a URL on a host
+    // outside allowNavigation is what once sent the quick actions to Safari — c7fa473f1.) A forum
+    // URL is never first-party here, so no link shape can load an eno.forum page into this WebView.
 
     private static func resolveFirstPartyTarget(_ url: URL, depth: Int = 0) -> URL? {
         guard depth <= 1, let scheme = url.scheme?.lowercased() else { return nil }

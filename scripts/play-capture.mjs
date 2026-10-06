@@ -3,12 +3,17 @@
  * RAW PHONE CAPTURES FOR THE PLAY LISTING — light theme, the app's own user agent, Play's phone size.
  *
  *   node scripts/play-capture.mjs                      # → play-store-assets/raw/*.png (1082×2402 @ 412×915 css, 2.625x)
- *   BASE=https://www.eno.forum node scripts/play-capture.mjs
+ *   ⛔ No BASE override for a store image: the default, https://eno.vn, IS the app's origin (2026-10-06). The
+ *   `BASE=https://www.eno.forum` example that sat here is gone — the forum no longer renders in the app, and
+ *   play-frames.mjs refuses a manifest whose base is not its EXPECT_BASE (https://eno.vn by default).
  *
  * Owner, 2026-09-14: "update screen images from light theme and beautify those like professional app dont show visa
  * related pages only homescreen product and storefront pages". These are the INPUTS; scripts/play-frames.mjs puts them
- * in device frames with captions. eno.vn is captured, not eno.forum: it is the same marketplace without the e-Visa entry,
- * so no visa surface can slip into a store image.
+ * in device frames with captions. eno.vn is captured because it IS the app's origin (owner, 2026-10-06: "ship both with
+ * eno.vn"); from 2026-09-08 to 2026-10-06 the app rendered www.eno.forum and eno.vn was only its visa-free stand-in.
+ * ⚠️ eno.vn is NOT visa-free by construction: it lists PARTNER e-Visa and trip-planning products (VietKite, GMBR —
+ * intended, owner 2026-08-13; both on the home page's "Outstanding businesses" rail, measured 2026-10-06), which is why
+ * the regulated-copy scan below stays.
  *
  * Each capture runs in a FRESH context (one page's state — a tour's demo query — must not leak into the next): light theme
  * pinned before paint (localStorage 'eno-theme'), the `EnoNativeApp/1` UA token the app appends (so the page renders in

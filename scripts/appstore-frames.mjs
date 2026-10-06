@@ -13,7 +13,8 @@
  *
  * ⛔ ONLY A CERTIFIED SET IS FRAMED. Every raw must match the sha256 that appstore-capture.sh wrote into
  * manifest.json after the WHOLE run passed its regulated-copy scan, and the manifest must say the app
- * rendered https://www.eno.forum — a half-finished run or a hand-dropped file is refused, not framed.
+ * rendered https://eno.vn (its origin since 2026-10-06) — a half-finished run, a set captured from the old
+ * www.eno.forum origin, or a hand-dropped file is refused, not framed.
  * ⚠️ Captions follow the second-hand focus (2026-10-03) and docs/ios-appstore-release.md Appendix A:
  * no visa, no "new", no shop named as an "official partner". Re-count against the live screens before
  * each upload.
@@ -42,7 +43,7 @@ try { execFileSync('magick', ['-version'], { stdio: 'ignore' }) } catch { throw 
 const manifestPath = `${RAW}/manifest.json`
 if (!existsSync(manifestPath)) throw new Error(`${manifestPath} missing — run scripts/appstore-capture.sh first (it certifies the set)`)
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
-if (manifest.base !== 'https://www.eno.forum') throw new Error(`${manifestPath} says the app rendered ${manifest.base}, not https://www.eno.forum`)
+if (manifest.base !== 'https://eno.vn') throw new Error(`${manifestPath} says the app rendered ${manifest.base}, not https://eno.vn`)
 const pngSize = (file) => { const b = readFileSync(file); return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) } }
 for (const f of frames) {
   const file = `${RAW}/${f.file}.png`

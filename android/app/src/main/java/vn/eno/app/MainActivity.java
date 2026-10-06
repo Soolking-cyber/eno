@@ -38,8 +38,8 @@ import java.util.Set;
  * an inner scroller under the finger").
  *
  * It also narrows Capacitor's server.errorPath to genuine network failures — see the comment on the
- * BridgeWebViewClient swap in onCreate — and makes deep links work regardless of which first-party
- * origin the WebView happens to be showing (see onNewIntent).
+ * BridgeWebViewClient swap in onCreate — and makes deep links work even while the WebView is not
+ * on the app's origin (https://eno.vn), e.g. on the local offline page (see onNewIntent).
  */
 public class MainActivity extends BridgeActivity {
     private SwipeRefreshLayout swipeRefresh;
@@ -65,41 +65,45 @@ public class MainActivity extends BridgeActivity {
     /**
      * The main-frame URL the WebView is navigating TO, or null when nothing is in flight. getUrl()
      * still reports the OLD page until the new document commits, so without this a link arriving
-     * during a market -> forum hop would be judged against the origin we are leaving.
+     * during a hop between eno.vn and the offline page (either way) would be judged against the
+     * document we are leaving.
      */
     private volatile String pendingUrl = null;
 
-    // The two first-party origins this ONE app renders (mirrors server.allowNavigation in
-    // capacitor.config.ts). Nothing outside this set may ever be loaded from an external intent:
-    // allowNavigation origins are the ones Capacitor treats as trusted.
     /**
-     * ⛔ THESE ARE THE BRIDGE ORIGIN'S HOSTS, AND THEY MOVED TO eno.forum ON 2026-09-08.
-     * The name MARKET_* is historical: it means "the origin this app actually renders", which used
-     * to be the marketplace and is now the forum edition (a superset — the same listings plus
-     * e-visa and itinerary). Every shortcut target is built from MARKET_ORIGIN, so leaving these on
-     * eno.vn would have sent all three launcher shortcuts to the one origin that no longer carries
-     * the Capacitor bridge.
+     * ⛔ THE BRIDGE ORIGIN'S HOST: eno.vn, THE APEX, AND NOTHING ELSE — back from www.eno.forum on
+     * 2026-10-06 (owner: "ship both with eno.vn"; the app is published by the licensed eno.vn
+     * company and may not render the services edition). Android injects Capacitor into exactly ONE
+     * origin, the one capacitor.config.ts server.url names, and on this domain that is the apex:
+     * https://www.eno.vn 308s to it, so www is never the committed document. Every shortcut target
+     * is built from MARKET_ORIGIN, and server.url must stay byte-identical to it.
      *
-     * ⚠️ MARKET_ORIGIN CARRIES THE www, DELIBERATELY. Both eno.forum hosts answer 200 with no
-     * redirect and the build's canonical is https://www.eno.forum — the apex would be a second live
-     * origin with no bridge. capacitor.config.ts's server.url must stay byte-identical to this.
+     * ⚠️ www.eno.vn IS DELIBERATELY NOT IN MARKET_HOSTS. It can only ever be a navigation still in
+     * flight, and while one is, the document that would receive appUrlOpen is about to be replaced —
+     * webCanRouteDeepLink must answer "no" so the link is loaded natively instead.
      */
-    private static final Set<String> MARKET_HOSTS = new HashSet<>(Arrays.asList("eno.forum", "www.eno.forum"));
+    private static final Set<String> MARKET_HOSTS = new HashSet<>(Arrays.asList("eno.vn"));
     /**
-     * ⚠️ STILL BOTH DOMAINS. This set governs which EXTERNAL intents may be loaded at all, and an
-     * eno.vn link is still first-party — it is simply no longer rendered in the WebView (it is not
-     * in allowNavigation any more), so it leaves for the system browser rather than being refused.
+     * The hosts an EXTERNAL intent may load into this WebView: the bridge origin, plus www.eno.vn,
+     * which 308s onto it.
+     *
+     * ⛔ eno.forum IS NOT HERE AND MUST NEVER BE. webView.loadUrl() is an app-initiated load, which
+     * the WebView does not run past shouldOverrideUrlLoading (only its redirects), so
+     * allowNavigation cannot stop it — a forum host in this set would render the forum in-app for
+     * any intent that names one. A forum link resolves to null instead and travels the untouched
+     * Capacitor path (appUrlOpen) to native-bootstrap's routeDeepLink, whose job is to send it to
+     * the system browser.
      */
-    private static final Set<String> FIRST_PARTY_HOSTS = new HashSet<>(
-            Arrays.asList("eno.vn", "www.eno.vn", "eno.forum", "www.eno.forum"));
-    private static final String MARKET_ORIGIN = "https://www.eno.forum";
+    private static final Set<String> FIRST_PARTY_HOSTS = new HashSet<>(Arrays.asList("eno.vn", "www.eno.vn"));
+    private static final String MARKET_ORIGIN = "https://eno.vn";
 
     /**
      * JS bridge (window.EnoNative). addJavascriptInterface is safe here: minSdk 24 (>= 17, so only
      * @JavascriptInterface methods are exposed) and allowNavigation pins in-WebView navigation to
-     * eno.vn + eno.forum — both first-party, no third-party page can ever run in this WebView.
-     * Note the interface is injected into EVERY origin in the WebView, so forum pages get it too;
-     * on Android it is the forum pages' ONLY native channel, and it carries just setPtrEnabled.
+     * eno.vn (www.eno.vn 308s to it) — first-party only; eno.forum leaves for the system browser.
+     * Note the interface is injected into EVERY document in the WebView, not only the Capacitor
+     * bridge origin — the local offline page gets it too — and it carries just setPtrEnabled and
+     * refreshDone.
      */
     private class EnoNativeBridge {
         @JavascriptInterface
@@ -117,11 +121,11 @@ public class MainActivity extends BridgeActivity {
          * ⚠️ @JavascriptInterface methods run on the WebView's JS thread — every View touch must be
          * posted to the UI thread.
          *
-         * Reachable from BOTH injected first-party origins (eno.vn and eno.forum — the bridge is
-         * injected per WebView, not per origin), same as setPtrEnabled above. That is acceptable for
-         * the same reason: allowNavigation pins this WebView to our own two origins, and the whole
-         * capability is "retract a refresh spinner" — a cosmetic native-UI effect with no data
-         * access, gated further by the generation check below.
+         * Reachable from every document in the WebView (the interface is injected per WebView, not
+         * per origin), same as setPtrEnabled above. That is acceptable for the same reason:
+         * allowNavigation pins this WebView to eno.vn, and the whole capability is "retract a
+         * refresh spinner" — a cosmetic native-UI effect with no data access, gated further by the
+         * generation check below.
          */
         @JavascriptInterface
         public void refreshDone(int gen) {
@@ -319,15 +323,15 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
-     * Deep links on a two-origin shell.
+     * Deep links while the document on screen may not be the app's origin.
      *
      * launchMode is singleTask, so a link that arrives at an already-running app lands here.
      * Capacitor's own handling (BridgeActivity -> AppPlugin.handleOnNewIntent) fires the JS
-     * `appUrlOpen` event — but Android injects Capacitor ONLY into the server origin, so while the
-     * WebView is showing eno.forum there is no listener at all. The event is then RETAINED natively
-     * (notifyListeners(..., retainUntilConsumed = true)) and replayed whenever eno.vn next
-     * registers a listener: the tap does nothing now, and teleports the user somewhere unexpected
-     * later. Same for the local offline page.
+     * `appUrlOpen` event — but Android injects Capacitor ONLY into the server origin
+     * (https://eno.vn), so while the WebView is showing the local offline page there is no
+     * listener at all. The event is then RETAINED natively (notifyListeners(...,
+     * retainUntilConsumed = true)) and replayed whenever eno.vn next registers a listener: the tap
+     * does nothing now, and teleports the user somewhere unexpected later.
      *
      * So: when the document on screen cannot route the link itself, navigate the WebView here, and
      * hand super a data-stripped COPY of the intent. AppPlugin.handleOnNewIntent bails when
@@ -363,8 +367,8 @@ public class MainActivity extends BridgeActivity {
      *
      * The AND is what makes pendingUrl safe to consult. A navigation can start and never produce
      * onPageFinished (cancelled, 204, download, SSL block), so pendingUrl CAN go stale — and with
-     * an "either" test a stale eno.vn value stuck on a forum page would silently re-open the very
-     * bug this fixes. Requiring both means every stale combination fails toward "navigate it
+     * an "either" test a stale eno.vn value stuck on the offline page would silently re-open the
+     * very bug this fixes. Requiring both means every stale combination fails toward "navigate it
      * natively": the link always works, at worst with a redundant full load.
      */
     private boolean webCanRouteDeepLink() {

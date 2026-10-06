@@ -51,11 +51,10 @@ import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 
 /**
- * ⚠️ THE PLAY PACKAGE NAME — AND IT IS NOT THE SITE THE APP RENDERS. Two reviewers read `eno.vn`
- * beside e-Visa copy and called it a licensing leak, so it is worth stating flatly: Google Play
- * bound the app entry to this identifier before the first upload and it cannot be changed. The app
- * loads `https://www.eno.forum` (capacitor.config.ts server.url), which is the edition that may
- * offer visa and itinerary. A package name is a string, not a destination.
+ * ⚠️ THE PLAY PACKAGE NAME. Google Play bound the app entry to this identifier before the first upload and it
+ * cannot be changed — a package name is a string, not a destination. Since versionCode 5 / 1.0.3 it also matches
+ * the site the app renders: capacitor.config.ts server.url is `https://eno.vn` again (owner, 2026-10-06: "ship
+ * both with eno.vn"). versionCode 1–4 loaded `https://www.eno.forum`, which is why the listing used to sell e-Visas.
  */
 const PACKAGE = 'eno.vn'
 const SA = 'play-publisher@speedy-victory-500106-h8.iam.gserviceaccount.com'
@@ -92,81 +91,79 @@ const RELEASE_NOTES = `• New app icon — the full eno mark, at every launcher
 
 /** The listing copy, counted against Play's limits. Single source — edit here, not in the Console. */
 /**
- * ⛔ THE e-VISA SECTION CARRIES A DISCLAIMER AND AN OFFICIAL SOURCE LINK, AND BOTH ARE THERE
- * BECAUSE PLAY REJECTED THE APP WITHOUT THEM (Misleading Claims policy, 2026-09-10). The evidence
- * they cited was this exact field: an app that provides government information must name a clear,
- * official, valid and FUNCTIONAL source, and must say in an easy-to-see place that it does not
- * represent a government entity. Do not trim either of them for length.
- *
- * ⛔ THE SOURCE IS evisa.gov.vn, AND `curl` WILL TELL YOU IT IS DEAD. It is not. The site refuses
- * non-browser clients, so curl returns exit 000 from any network — I measured that from two,
- * including one inside Vietnam, concluded the domain was dead, and swapped every link in the app to
- * the OLD portal before the owner pointed out it loads fine in a browser (2026-09-10). Opened in
- * Chrome it is "Vietnam National Electronic Visa system", headed MINISTRY OF PUBLIC SECURITY /
- * IMMIGRATION DEPARTMENT.
- * ⚠️ AND THE SUPERSEDED PORTAL SAYS SO ITSELF. evisa.xuatnhapcanh.gov.vn carries an Immigration
- * Department notice: "From 08:00 on 11/11/2024 (GMT+7), the Vietnam Electronic Visa Portal will
- * operate on two new domains: https://thithucdientu.gov.vn and https://evisa.gov.vn. Please visit
- * these new addresses to submit your application." So the domain curl cannot reach is the CURRENT
- * one, and the one curl reaches is the retired one telling you to leave.
- * ⛔ VERIFY THIS LINK IN A BROWSER, NEVER WITH curl. A bot-blocked 000 reads exactly like a dead
- * host, and this repo has been caught by that before (sb.eno.vn).
+ * ⛔ SINCE 2026-10-06 THE APP RENDERS eno.vn (owner: "ship both with eno.vn"), THE LICENSED MARKETPLACE — so the
+ * listing describes the marketplace, and eno's OWN e-Visa desk and trip planning (eno.forum only) are gone from it.
+ * ⛔ e-VISA HELP IS STILL IN THE APP, AS A PARTNER'S SERVICE (owner, 2026-10-06: "have evisa application flow in the
+ * app via eno.vn … send to vietkite via message … only passport photo and 3x4 portrait image"): VietKite, a travel company
+ * selling on eno, takes the application in its own chat. ⛔ NO "licensed" until the owner confirms VietKite's licence and
+ * the signed agreement are on file (2026-10-06 plan, question B3). The section names VietKite as the provider and keeps the
+ * two things Play REJECTED the app without on 2026-09-10 (Misleading Claims policy): an easy-to-see statement that eno
+ * is not a government entity, and the official, functional source https://evisa.gov.vn. `assertGovernmentDisclosure`
+ * refuses to publish any listing that mentions an e-Visa without both — do not trim either for length.
+ * ⛔ VERIFY evisa.gov.vn IN A BROWSER, NEVER WITH curl: it refuses non-browser clients (exit 000 reads like a dead
+ * host). The superseded portal evisa.xuatnhapcanh.gov.vn itself points to evisa.gov.vn since 11/11/2024.
+ * ⚠️ Claims are the verified store text of docs/ios-appstore-release.md Appendix A (2026-10-06 audit): no "every seller
+ * carries a trust score" (retired 2026-10-04), chat and offers only on items posted directly on eno.
+ * ⚠️ Editing this text changes nothing in the store until `listing --apply` / `release … --apply` runs — the OWNER'S
+ * call, and the owner approves this copy first.
  */
 const PLAY_LISTING = {
   language: 'en-US',
-  /**
-   * ⚠️ THE STORE NAME IS "Eno Marketplace", AND THE OWNER ASKED FOR EXACTLY THIS (2026-09-14): "name of the app eno.vn
-   * is hard to find and from visa from name name should be Eno Marketplace". The old title led with a lowercase
-   * wordmark and an "& e-Visa" tail, which is what made it unfindable by name in Play search. The e-Visa service is
-   * still described — and still disclaimed — in fullDescription below; it is the NAME it has left.
-   */
-  /**
-   * ⛔ NOT "Every seller carries a public trust score" (owner, 2026-10-04 — the site retired it the same
-   * day, src/lib/retired-trust-claims.guard.test.ts): an official partner shows a partner badge instead, a
-   * guest's ownerless storefront and a linked listing's source show none. So it says how a score is BUILT,
-   * never that every seller has one. The report line is the owner's approved sentence.
-   * ⚠️ Editing this text changes nothing in the store until `listing --apply` runs (the owner's call).
-   */
+  /** "Eno Marketplace" — the owner's name for the app (2026-09-14), matching the App Store record. */
   title: 'Eno Marketplace',
-  shortDescription: 'Buy, sell and rent in Vietnam. Plus Vietnam e-Visas and free trip planning.',
-  fullDescription: `eno is the app for expats and internationals living in or travelling to Vietnam. One place to buy and sell, sort your visa, and plan the trip.
+  shortDescription: 'Rentals, jobs and second-hand deals in Vietnam, in English and Tiếng Việt.',
+  fullDescription: `eno is the app for expats, newcomers and locals in Vietnam: find a place to rent, a motorbike for the month, a job, or a good second-hand deal, and talk to the other side directly.
 
-BUY AND SELL
-• Housing and rentals, from studios to serviced apartments
-• Motorbikes, bicycles and cars
-• Furniture and appliances, including whole moving sales
-• Electronics, phones and laptops — new, used and refurbished
-• Jobs and local services
+RENT
+• Apartments, houses, rooms and offices, with photos, size, bedrooms and the ward on a map
+• Motorbike and scooter rentals from local shops, and self-drive cars from car-rental platforms
 
-Post a listing with photos from your phone, set a price in VND, and reply to buyers in the app. No listing fees.
+WORK
+• Jobs in Vietnam, including English-teaching roles in cities across the country
 
-VIETNAM e-VISA (INDEPENDENT ASSISTANCE SERVICE)
-eno is NOT a government agency. eno is not affiliated with, endorsed by, or acting on behalf of the Government of Vietnam, the Ministry of Public Security, or the Vietnam Immigration Department. We are a private company offering an optional paid assistance service.
+BUY AND SELL USED
+• Second-hand phones, laptops and cameras from local shops
+• Furniture and home appliances
+• Post a listing with photos from your phone in a minute. No listing fees.
 
-Official source: the Vietnam Immigration Department's official e-Visa portal — https://evisa.gov.vn — is the only place a Vietnam e-Visa is issued. Every application is decided there, whether you submit it yourself or ask us to help. You can always apply directly on that official site yourself, and the government fee is payable to the government.
-
-What eno does: helps you complete the application correctly, checks your photo and passport details against the published requirements before submission, and keeps you informed at each step. Choose standard or express handling, see our service fee and the timeline before you commit, and ask a human first if you are not sure which option fits. Approval, refusal and processing time are decided solely by the Vietnamese authorities — no service, including ours, can guarantee or speed up their decision.
-
-PLAN THE TRIP
-Build an itinerary, save the places you like, and get help with bookings — free.
+VIETNAM e-VISA HELP FROM A SELLER — NOT A GOVERNMENT SERVICE
+eno is a marketplace run by Eno Company Limited. It is not a government agency and is not affiliated with, endorsed by or acting for the Government of Vietnam, the Ministry of Public Security or the Vietnam Immigration Department. e-Visa help in the app is sold and provided by VietKite, a Vietnamese travel company selling on eno: message them from their listing and send the two photos they need, your passport data page and a 3x4 portrait, after a quick automatic check in the app. VietKite prepares and files the application and agrees its fee with you in the chat; eno takes no payment for it.
+Official source: https://evisa.gov.vn is the only place a Vietnam e-Visa is issued, and you can always apply there yourself. Approval, refusal and processing time are decided only by the Vietnamese authorities.
 
 BUILT FOR TRUST
-Trust scores are built from completed deals, reviews and confirmed reports, not stars alone. Business sellers can verify their registration. Members can report any listing that breaks the rules. Prices are shown in Vietnamese đồng with a US dollar reference, so you always know what you are paying. Nobody can pay to rank higher.
+Trust scores are built from completed deals, reviews and confirmed reports, not stars alone. Every listing and seller has a Report button, and reports are reviewed by a person. Nobody can pay to rank higher, and sponsored items are labelled Ad.
+
+CLEAR PRICES
+Prices are in Vietnamese đồng with a US dollar reference. On items posted directly on eno, make an offer in the chat and agree the deal with the seller. eno never takes payment for marketplace items.
 
 YOUR LANGUAGE
-The whole app works in English and Tiếng Việt, with nine more languages for listing content.
+The app works in English and Tiếng Việt, and listings can be read in nine more languages.
 
-MADE FOR VIETNAM
-Search by city and district, see listings on a map, and message sellers directly. Offers are built in, so you can negotiate without leaving the app.`,
+You must be 18 or older to use eno. Terms: https://eno.vn/terms · Privacy: https://eno.vn/privacy`,
 }
 
 /**
- * The developer contact Play REQUIRES on the listing. It is published to users, so it is the
- * EDITION'S OWN address: the app renders eno.forum, and support@eno.vn is the licensed
- * marketplace's inbox — printing that here would put the wrong operator's contact on an app that
- * sells visa services.
+ * Play's 2026-09-10 rejection, as a check: a listing that mentions an e-Visa must say eno is not a government agency
+ * and name the official portal. Run before anything is written to Play.
  */
-const PLAY_DETAILS = { contactEmail: 'support@eno.forum', contactWebsite: 'https://www.eno.forum' }
+function assertGovernmentDisclosure(listing) {
+  const text = `${listing.title}\n${listing.shortDescription}\n${listing.fullDescription}`
+  if (!/e-?visa|thị thực/i.test(text)) return
+  if (!/not a government agency/i.test(text) || !text.includes('https://evisa.gov.vn')) {
+    console.error('⛔ the listing mentions an e-Visa without "not a government agency" and https://evisa.gov.vn (Play, 2026-09-10)')
+    process.exit(1)
+  }
+}
+
+/**
+ * The developer contact Play REQUIRES on the listing. It is published to users, so it is the EDITION'S OWN
+ * address — and since 2026-10-06 the app renders eno.vn, the licensed marketplace, whose site publishes
+ * support@eno.vn (/contact and the footer; measured 2026-10-06). That address is a Cloudflare redirect
+ * into the support@eno.forum mailbox (src/lib/email-alias.ts), so who reads the mail does not change — only which
+ * operator the listing names. Until 2026-10-06 this was support@eno.forum / https://www.eno.forum, the edition
+ * the app rendered then. ⚠️ Nothing changes in Play until `details --apply` runs (the owner's call).
+ */
+const PLAY_DETAILS = { contactEmail: 'support@eno.vn', contactWebsite: 'https://eno.vn' }
 
 // Play's hard limits. Checked HERE rather than discovered at the API, because the API's error for an
 // over-long field names the field and not the limit, and the old hand-written listing was 86/80.
@@ -348,6 +345,7 @@ async function main() {
   }
 
   if (cmd === 'listing') {
+    assertGovernmentDisclosure(PLAY_LISTING)
     for (const [k, max] of Object.entries(LIMITS)) {
       const n = PLAY_LISTING[k].length
       if (n > max) { console.error(`⛔ ${k} is ${n} chars, limit ${max}`); process.exit(1) }
@@ -407,6 +405,7 @@ async function main() {
     if (shots.length < 2 || shots.length > 8) { console.error(`⛔ ${shotsDir} holds ${shots.length} PNG(s); Play takes 2 to 8 phone screenshots`); process.exit(1) }
     const notes = notesFile ? readFileSync(notesFile, 'utf8').trim() : RELEASE_NOTES
     if (notes.length > 500) { console.error(`⛔ release notes are ${notes.length} chars, limit 500`); process.exit(1) }
+    assertGovernmentDisclosure(PLAY_LISTING)
     for (const [k, max] of Object.entries(LIMITS)) {
       const n = PLAY_LISTING[k].length
       if (n > max) { console.error(`⛔ ${k} is ${n} chars, limit ${max}`); process.exit(1) }

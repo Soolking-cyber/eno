@@ -99,6 +99,11 @@ const FOR_LAWYER = forArg === '--for=lawyer'
  * round-trip. ⚠️ So any chat notification email for the lawyer seat goes nowhere: since 2026-10-01
  * that seat is also the Luật Hoàng Phi storefront (scripts/seed-hoangphi.ts), whose buyer chats are
  * read only when the lawyer signs in — unless a Cloudflare routing rule forwards lawyer-review@eno.vn.
+ * ⚠️ THE PLAY SEAT'S @eno.forum IS ONLY AN IDENTIFIER, AND IT STILL WORKS NOW THAT BOTH APPS RENDER eno.vn
+ * (2026-10-06): one database and one auth serve both editions, and src/app/api/auth/password has no
+ * edition check, so it signs in on eno.vn exactly as it did on www.eno.forum. Re-creating it under @eno.vn
+ * would be cosmetics bought with a production write, a new partner flag and new credentials in Play
+ * Console and App Store Connect — the owner's call, not a fix.
  */
 const REVIEWER = FOR_LAWYER ? {
   email: 'lawyer-review@eno.vn',

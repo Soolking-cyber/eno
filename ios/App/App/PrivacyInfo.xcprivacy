@@ -4,7 +4,7 @@
   The app's privacy manifest. It must agree with the App Privacy answers in App Store Connect,
   which are drafted in docs/ios-appstore-release.md (Appendix B) — change both together.
 
-  ⚠️ THE WEB CONTENT IS REMOTE (server.url = https://www.eno.forum), so this file describes what the
+  ⚠️ THE WEB CONTENT IS REMOTE (server.url = https://eno.vn), so this file describes what the
   LIVE SITE collects inside the app, not just what the Swift shell touches. Declare the capability
   the app can show today; a surface hidden later by a server flag is removed here in the SAME
   release that hides it, never before.
@@ -34,7 +34,8 @@
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
 			</array>
 		</dict>
-		<!-- Sign-in (emailed code) and account notices. -->
+		<!-- Sign-in (emailed code) and account notices — and eno's own weekly digest, which is on by
+		     default (Profile.weeklyDigestOptIn) and is marketing: hence Developer Advertising. -->
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeEmailAddress</string>
@@ -45,6 +46,7 @@
 			<key>NSPrivacyCollectedDataTypePurposes</key>
 			<array>
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+				<string>NSPrivacyCollectedDataTypePurposeDeveloperAdvertising</string>
 			</array>
 		</dict>
 		<!-- Seller contact and the optional phone on an account. -->
@@ -73,20 +75,9 @@
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
 			</array>
 		</dict>
-		<!-- A seller's payout bank account number (dashboard → Payments → Payout). Apple files a bank account
-		     number under Payment Info, not Other Financial Info. -->
-		<dict>
-			<key>NSPrivacyCollectedDataType</key>
-			<string>NSPrivacyCollectedDataTypePaymentInfo</string>
-			<key>NSPrivacyCollectedDataTypeLinked</key>
-			<true/>
-			<key>NSPrivacyCollectedDataTypeTracking</key>
-			<false/>
-			<key>NSPrivacyCollectedDataTypePurposes</key>
-			<array>
-				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
-			</array>
-		</dict>
+		<!-- ⛔ NO PaymentInfo (2026-10-06): the app renders eno.vn, where the payout, wallet and payments routes
+		     do not exist (404), and the iOS app hides them anyway (ios-hide-wallet). Re-declare it in the same
+		     binary that ever brings a payment surface into the app. -->
 		<!-- 'Near me' search and the post wizard's 'use my location' (lat/lng to 3 decimals). -->
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
@@ -113,19 +104,6 @@
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
 			</array>
 		</dict>
-		<!-- Religion on the e-Visa form and the face check of the identity verification. REMOVE if decision D5 hides both surfaces in the iOS app (docs/ios-appstore-release.md). -->
-		<dict>
-			<key>NSPrivacyCollectedDataType</key>
-			<string>NSPrivacyCollectedDataTypeSensitiveInfo</string>
-			<key>NSPrivacyCollectedDataTypeLinked</key>
-			<true/>
-			<key>NSPrivacyCollectedDataTypeTracking</key>
-			<false/>
-			<key>NSPrivacyCollectedDataTypePurposes</key>
-			<array>
-				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
-			</array>
-		</dict>
 		<!-- Buyer/seller chat messages. -->
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
@@ -139,7 +117,8 @@
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
 			</array>
 		</dict>
-		<!-- Listing photos and videos; document photos for identity checks. -->
+		<!-- Listing photos and videos; the passport data page and portrait sent to an e-Visa seller in chat
+		     (checked by Google Gemini as a service provider). eKYC's ID photos are web-only on iOS (ios-hide-kyc). -->
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypePhotosorVideos</string>
@@ -205,7 +184,9 @@
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
 			</array>
 		</dict>
-		<!-- Service and e-Visa orders placed through the app. -->
+		<!-- What an account bought, as the sale loop records it: the seller names the buyer and the agreed price,
+		     and the buyer answers "Yes, I bought it" (Listing.soldToProfileId / saleConfirmedAt — the trust score
+		     reads it). Nothing is paid in the app; this is the record of the deal. -->
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypePurchaseHistory</string>
@@ -233,7 +214,12 @@
 				<string>NSPrivacyCollectedDataTypePurposeProductPersonalization</string>
 			</array>
 		</dict>
-		<!-- Passport / government-ID details and date of birth (identity verification, e-Visa). -->
+		<!-- Nationality on a teacher profile; the CCCD / business-registration number on the switch-to-business
+		     form; and, since 2026-10-06 (owner: the e-Visa flow stays in the app, photos-only on eno.vn), the
+		     passport details the e-Visa photo check reads off the passport page — date and place of birth, sex,
+		     nationality, passport number and dates. ⛔ Still NO SensitiveInfo: eno.vn asks no form (no religion),
+		     the portrait is not used for face matching, and eKYC's ID + selfie stay out of the iOS app
+		     (ios-hide-kyc ON). docs/ios-appstore-release.md Appendix B mirrors this. -->
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeOtherDataTypes</string>

@@ -1,6 +1,7 @@
 #!/bin/bash
 # APP STORE SCREENSHOTS, TAKEN FROM THE APP ITSELF — the iOS shell on a simulator, rendering the live
-# www.eno.forum, exactly what a reviewer installs. Counterpart of scripts/play-capture.mjs (Play).
+# https://eno.vn (the app's origin since 2026-10-06), exactly what a reviewer installs. Counterpart of
+# scripts/play-capture.mjs (Play).
 #
 #   scripts/appstore-capture.sh <simulator-udid> <path/to/App.app>
 #   → play-store-assets/ios/raw/0N-*.png + manifest.json   (gitignored, like the Play assets)
@@ -22,8 +23,9 @@
 # ⛔ THE SET IS CERTIFIED AS A SET — manifest.json is written only after every shot passed, with each file's
 # sha256, and appstore-frames.mjs frames nothing it does not vouch for (same rule as the Play pipeline).
 #
-# ⚠️ CAPTURE AFTER THE iOS GATES ARE LIVE. The screens below show no gated surface today, but the store
-# images must match what the reviewer sees; re-run once the owner has deployed the flag changes.
+# ⚠️ CAPTURE AFTER THE iOS GATES ARE LIVE ON eno.vn (eno-vn.env — the edition the app renders since 2026-10-06).
+# The screens below show no gated surface today, but the store images must match what the reviewer sees;
+# re-run once the owner has deployed the flag changes.
 #
 # No `set -e` (it is a no-op in the agent shell this was written in): every step that must stop the
 # run checks its own status.
@@ -91,7 +93,7 @@ r = json.loads(raw) if isinstance(raw, str) else raw
 problems = []
 if r.get("error"): problems.append("prep threw " + r["error"])
 u = urllib.parse.urlsplit(r.get("href") or "")
-if u.scheme != "https" or u.netloc != "www.eno.forum": problems.append("not on https://www.eno.forum: " + str(r.get("href")))
+if u.scheme != "https" or u.netloc != "eno.vn": problems.append("not on https://eno.vn: " + str(r.get("href")))
 if u.path != sys.argv[4].split("?")[0]: problems.append("on " + str(r.get("href")) + ", not " + sys.argv[4])
 if not r.get("images"): problems.append("no image on screen — an empty or failed page")
 if r.get("platform") != "ios" or not r.get("nativeIos"): problems.append("not rendering as the iOS app")
@@ -127,8 +129,8 @@ shoot() { # shoot <name> <path> → prints the sha256 of the certified file
   # stdout of every step below is discarded: this function's stdout IS the hash the manifest records.
   xcrun simctl install "$U" "$APP" >/dev/null || { echo "$NAME: install failed" >&2; return 1; }
   xcrun simctl launch "$U" vn.eno.app >/dev/null || { echo "$NAME: launch failed" >&2; return 1; }
-  wait_for "location.href.startsWith('https://www.eno.forum/') && document.readyState === 'complete'" 60 \
-    || { echo "$NAME: the app never loaded www.eno.forum" >&2; return 1; }
+  wait_for "location.href.startsWith('https://eno.vn/') && document.readyState === 'complete'" 60 \
+    || { echo "$NAME: the app never loaded eno.vn" >&2; return 1; }
   sleep 4
   # Quiet the sign-up prompt before its 60-second clock can fire (see quietPrompts in the prep file).
   $INSPECT "$PREP" >/dev/null || return 1
@@ -186,7 +188,7 @@ for row in "${SHOTS[@]}"; do
   MANIFEST="$MANIFEST\"$NAME\":\"$SHA\","
 done
 # "base" is asserted per shot by check() (scheme + host), not merely written here.
-printf '{"at":"%s","base":"https://www.eno.forum","device":"%s","model":"%s","shots":%s}}\n' \
+printf '{"at":"%s","base":"https://eno.vn","device":"%s","model":"%s","shots":%s}}\n' \
   "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$U" "$DEVICE" "${MANIFEST%,}" > "$OUT/manifest.json" || exit 1
 python3 -m json.tool "$OUT/manifest.json" >/dev/null || { echo "manifest is not JSON" >&2; rm -f "$OUT/manifest.json"; exit 1; }
 echo "certified ${#SHOTS[@]} shots → $OUT"

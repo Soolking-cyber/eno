@@ -2,7 +2,7 @@ import UIKit
 import WebKit
 import Capacitor
 
-/// Self-healing WebView shell for the REMOTE-SERVER build (the app loads https://www.eno.forum live).
+/// Self-healing WebView shell for the REMOTE-SERVER build (the app loads https://eno.vn live).
 ///
 /// Capacitor's default navigation handler does NOTHING useful on a failed provisional load unless an
 /// `errorPathURL` is configured — so a dropped/aborted first request leaves a BLANK screen. The iOS
@@ -21,10 +21,13 @@ class MainViewController: CAPBridgeViewController {
     /// Where the user actually was, so a blank-page recovery can put them back (see `reloadFromServer`).
     private var lastGoodURL: URL?
     private var urlObservation: NSKeyValueObservation?
-    /// The origins worth returning to = `server.allowNavigation` in capacitor.config.ts. Since
-    /// 2026-09-08 that is the two forum hosts ONLY: an eno.vn URL is handed to Safari by Capacitor,
-    /// so a recovery reload must never target one (it would eject the user from the app).
-    private static let firstPartyHosts: Set<String> = ["eno.forum", "www.eno.forum"]
+    /// The origin worth returning to = the host of `server.url` in capacitor.config.ts, https://eno.vn
+    /// (owner, 2026-10-06: the app renders eno.vn only). ⛔ NEVER a forum host: Capacitor hands
+    /// eno.forum to Safari, so a recovery reload aimed at one would eject the user from the app — and
+    /// no forum page may render in it anyway. www.eno.vn is left out on purpose: it 308s to the apex
+    /// for every path, so it is never a page worth returning to, and leaving it out means a recovery
+    /// reload never depends on the www being in `allowNavigation`.
+    private static let firstPartyHosts: Set<String> = ["eno.vn"]
 
     /// Forwards every WKNavigationDelegate message to Capacitor's own handler EXCEPT the two
     /// failure callbacks, which it filters first. See `BenignNavigationError` below for why.
@@ -306,6 +309,37 @@ private final class NavigationFailureFilter: NSObject, WKNavigationDelegate {
         if e.domain == NSURLErrorDomain && e.code == NSURLErrorCancelled { return true }
         if e.domain == "WebKitErrorDomain" && e.code == 102 { return true }
         return false
+    }
+
+    /// The hosts that may render in this WebView — byte-for-byte `allowNavigation` in capacitor.config.ts.
+    /// eno.vn is the app (server.url); www.eno.vn only 308s to it.
+    static let appHosts: Set<String> = ["eno.vn", "www.eno.vn"]
+
+    /// ⛔ EXACT HOSTS, NOT A PREFIX (security, 2026-10-06). Capacitor treats any URL whose STRING merely starts
+    /// with `server.url` as the app itself (WebViewDelegationHandler: `navURL.absoluteString.starts(with:
+    /// serverURL.absoluteString)`), and iOS injects the native bridge into every page the WebView renders. With
+    /// server.url = https://eno.vn that let https://eno.vn.attacker.example/… and https://eno.vn@attacker.example/…
+    /// load INSIDE the app with every plugin callable. Here a top-level http(s) navigation to any other host
+    /// leaves for the system — exactly what Capacitor already does for every other outside host — before
+    /// Capacitor's own check runs. Subframes (embeds, the Turnstile challenge) and non-http schemes (the bundled
+    /// offline page, about:blank) go to Capacitor untouched. Server.url keeps NO trailing slash on purpose: the
+    /// capacitor:// file-fetch CORS check depends on it, so the prefix check cannot simply be made stricter there.
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        if let url = navigationAction.request.url,
+           let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+           navigationAction.targetFrame == nil || navigationAction.targetFrame?.isMainFrame == true,
+           !Self.appHosts.contains(url.host?.lowercased() ?? "") {
+            if UIApplication.shared.applicationState == .active {
+                UIApplication.shared.open(url, options: [:], completionHandler: nil)
+            }
+            decisionHandler(.cancel)
+            return
+        }
+        // Capacitor's handler implements this variant (and not the `preferences:` one), so the call lands; the nil
+        // branch only keeps WebKit's must-call-the-handler contract if that ever changes.
+        if inner.webView?(webView, decidePolicyFor: navigationAction, decisionHandler: decisionHandler) == nil {
+            decisionHandler(.allow)
+        }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {

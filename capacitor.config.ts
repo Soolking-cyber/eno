@@ -53,13 +53,16 @@ const config: CapacitorConfig = {
   appName: 'Eno Marketplace',
   webDir: 'capacitor/www',
   /**
-   * The cross-origin app-mode signal — Android does not inject Capacitor into non-server origins,
-   * so the OTHER edition detects the app via UA, server- and client-side.
+   * The app-mode signal the SERVER can see. Every gate keyed on the app (src/lib/app-review-gates.ts, the
+   * forced-off analytics in src/lib/consent-value.ts, src/lib/in-app-browser.ts) reads this token from the
+   * user agent, because `window.Capacitor` exists only in the page (and on Android only on the server.url
+   * origin), never in the request.
    *
-   * ⚠️ THE SIDE THIS DESCRIBES INVERTED ON 2026-09-08. It used to mean "eno.forum detects the app
-   * via UA" because eno.vn held the bridge; the app now loads eno.forum, so it is eno.vn that has
-   * only the UA. The token itself is unchanged and rides every origin, which is why nothing that
-   * reads it had to move.
+   * ⚠️ THE EDITION IT RIDES ON MOVED TWICE. Until 2026-09-08 the app rendered eno.vn and eno.forum knew the
+   * app by this UA alone; from 2026-09-08 it rendered www.eno.forum; since 2026-10-06 (owner: "ship both
+   * with eno.vn") it renders eno.vn again, and eno.forum is NOT navigable in the app at all (see
+   * allowNavigation) — a forum link opens the system browser, which does not carry this token. The token
+   * itself never changed, which is why nothing that reads it had to move.
    */
   appendUserAgent: 'EnoNativeApp/1',
   server: {
@@ -68,34 +71,33 @@ const config: CapacitorConfig = {
     // In LOCAL_SHELL mode `url` is omitted → Capacitor serves webDir, whose index.html
     // forwards to the live site after painting instantly.
     /**
-     * ⛔ THE CANONICAL HOST, WITH THE www — AND ON THIS DOMAIN THAT IS NOT THE APEX. The bridge is
-     * injected into exactly ONE origin (see the block above), and the services build bakes
-     * NEXT_PUBLIC_APP_URL=https://www.eno.forum: every canonical tag, og:url and absolute link the
-     * forum emits says www. Unlike eno.vn — where www 308s to the apex, so the apex IS canonical —
-     * BOTH eno.forum hosts answer 200 with no redirect, so they are two live origins serving one
-     * app and only one of them can hold the bridge. Point it at the apex and the first canonical
-     * link moves the user to www with no window.Capacitor: no splash hide, no keyboard geometry, no
-     * hardware back, no camera, no safe-area CSS. Measured 2026-09-08.
+     * ⛔ THE LICENSED MARKETPLACE, AT ITS CANONICAL HOST — THE APEX. Owner, 2026-10-06: "ship both
+     * with eno.vn": the iOS app (seller Eno Company Limited, the licensed eno.vn company) and the
+     * Android app both render https://eno.vn; from 2026-09-08 this was https://www.eno.forum. The
+     * marketplace build bakes NEXT_PUBLIC_APP_URL=https://eno.vn and https://www.eno.vn 308s to it
+     * (measured 2026-10-06), so the apex is the one live origin and the one Android injects the
+     * bridge into (see the block above).
+     * ⛔ MUST STAY BYTE-IDENTICAL TO MainActivity.MARKET_ORIGIN (Android builds every shortcut
+     * target and its "is this the bridge origin" test from it) and to the iOS shell's app origin.
+     * No trailing slash.
      */
-    ...(LOCAL_SHELL ? {} : { url: 'https://www.eno.forum' }),
+    ...(LOCAL_SHELL ? {} : { url: 'https://eno.vn' }),
     cleartext: false,
     // First-party links stay in the WebView; everything else opens in the system browser.
     // First-party only — iOS injects the full Capacitor bridge into every allowNavigation origin,
     // so NEVER add third-party hosts.
     /**
-     * ⛔ THE APP IS THE FORUM EDITION, AND eno.vn IS DELIBERATELY NOT IN HERE ANY MORE.
-     *
-     * eno.forum is a SUPERSET — the same marketplace listings plus e-visa, itinerary and the
-     * services pages — so there is nothing on eno.vn the app cannot show from its own origin.
-     * Keeping eno.vn navigable would buy two problems and no feature: (1) it is the NON-bridge
-     * origin now, so an in-app eno.vn page renders with no `html.native` class, no safe-area
-     * padding, no splash hide and no camera; and (2) eno.vn carries the statutory "website is under
-     * construction — not yet officially launched" banner while its MoIT registration is pending,
-     * which is the last thing an app should show a user, or a store reviewer.
-     * Dropping the hosts means those links open in the system browser instead, which is the honest
-     * behaviour for a link that leaves the app's own site.
+     * ⛔ eno.vn ONLY. eno.forum IS DELIBERATELY NOT IN HERE AND MUST NEVER BE (owner, 2026-10-06):
+     * it is the services edition (e-Visa, itinerary, trips), which the licensed company's app may
+     * not show. Leaving it out is what sends every forum link — tapped in a page or redirected to —
+     * to the system browser instead of rendering it in the WebView.
+     * www.eno.vn stays navigable so a www link is not ejected to the browser: it 308s onto the
+     * apex, the bridge origin, inside the WebView.
+     * ⚠️ allowNavigation does NOT govern a native webView.loadUrl() — on Android,
+     * MainActivity.FIRST_PARTY_HOSTS is the gate for links that arrive from outside the app, and it
+     * must exclude the forum too.
      */
-    allowNavigation: ['www.eno.forum', 'eno.forum'],
+    allowNavigation: ['eno.vn', 'www.eno.vn'],
     // If the remote load FAILS (offline / dropped connection), show a branded offline page from the
     // local webDir instead of a blank WebView. It auto-retries + offers a "Try again" button. The
     // MainViewController watchdog still backstops the pure-blank (-1005) case.
@@ -126,8 +128,8 @@ const config: CapacitorConfig = {
     //  · the UA reverts from the desktop-class "Macintosh; Intel Mac OS X…" spoof to the real
     //    "iPad; CPU OS…" string, and `navigator.platform` with it. Safe here: `appendUserAgent:
     //    'EnoNativeApp/1'` rides on applicationNameForUserAgent, which WebKit appends to whichever
-    //    base UA it builds, so the forum SSO handoff gate (`ua.includes('EnoNativeApp')`) cannot
-    //    break — and our own isIOS() helpers (lib/in-app-browser, lib/haptics) already match BOTH
+    //    base UA it builds, so the server-side app gates that read it (src/lib/app-review-gates.ts)
+    //    cannot break — and our own isIOS() helpers (lib/in-app-browser, lib/haptics) already match BOTH
     //    the iPad UA and the MacIntel+maxTouchPoints desktop-mode spelling.
     //  · the viewport POLICY changes: desktop class sizes itself from the window and shrink-to-fits
     //    on its own terms, mobile honours `width=device-width`. On a page as responsive as ours the
@@ -212,13 +214,12 @@ const config: CapacitorConfig = {
       // 'sound' — this is a 1:1 marketplace chat (offers, replies, dispute updates); a silent
       // banner is missable, and the payload already asks for the default sound.
       //
-      // ⚠️ NOT 'badge', deliberately: (1) the APNs payload we send (src/lib/native-push.ts) carries
-      // no `aps.badge`, so it would be inert; (2) badge is iOS-only; (3) nothing in the app ever
-      // clears the icon badge (no setBadgeCount/removeAllDeliveredNotifications call exists), so
-      // stamping a count on the icon of the app the user is CURRENTLY READING would leave a red
-      // dot that outlives the unread state. The in-app bell + chat unread counts are the honest
-      // foreground surface for counts. Note the plugin requests [.alert,.sound,.badge]
-      // authorization regardless of this array, so adding badges later needs no re-prompt.
+      // ⚠️ NOT 'badge', deliberately: the APNs payload (src/lib/native-push.ts) already carries
+      // `aps.badge`, and NativeBadge (src/components/native/native-badge.tsx) re-asserts the true
+      // count on foreground — so presenting a badge for a push that arrives while the app is OPEN
+      // would only stamp a count on the app the user is currently reading, ahead of the poll that
+      // corrects it. The in-app bell + chat unread counts are the foreground surface for counts.
+      // The plugin requests [.alert,.sound,.badge] authorization regardless of this array.
       presentationOptions: ['banner', 'list', 'sound'],
     },
   },

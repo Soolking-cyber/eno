@@ -39,15 +39,15 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>eno uses the camera so you can photograph and film the items you're listing, and photograph your ID document and a selfie when you verify your identity.</string>
+	<string>eno uses the camera when you take a photo or video for eno — a listing, your profile or shop, a search by photo, a report, or a photo you send to a seller in chat.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>eno accesses your photo library so you can add photos and videos to your listings.</string>
+	<string>eno opens your photo library when you choose photos or videos for eno — a listing, your profile or shop, a search by photo, a report, or a photo you send to a seller in chat.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>eno saves photos to your library when you choose to.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>eno uses the microphone when you record a listing video.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>eno uses your location to find listings near you and suggest your area when you post.</string>
+	<string>eno uses your location to show listings near you and to fill in your area when you post, edit your business profile, or suggest a place to meet in chat.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>CFBundleLocalizations</key>
