@@ -564,6 +564,19 @@
     "crop": null,
     "bg": null
   },
+  "ismart-education": {
+    "website": "https://ismart.edu.vn/",
+    "url": null,
+    "selector": null,
+    "use": null,
+    "crop": {
+      "left": 0.035,
+      "top": 0.3,
+      "width": 0.4,
+      "height": 0.38
+    },
+    "bg": null
+  },
   "jaxtina-english-center": {
     "website": "https://jaxtina.com",
     "url": null,
@@ -1219,14 +1232,6 @@
   },
   "vietnam-finland-international-school": {
     "website": "https://vfis.tdtu.edu.vn/",
-    "url": null,
-    "selector": null,
-    "use": null,
-    "crop": null,
-    "bg": null
-  },
-  "vietnam-teaching-jobs": {
-    "website": "https://vietnamteachingjobs.com/",
     "url": null,
     "selector": null,
     "use": null,

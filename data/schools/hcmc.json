@@ -3610,25 +3610,6 @@
    ]
   },
   {
-   "slug": "vietnam-teaching-jobs",
-   "name": "Vietnam Teaching Jobs",
-   "kind": "agency",
-   "website": "https://vietnamteachingjobs.com/",
-   "districts": [],
-   "curricula": [],
-   "summary": "Teaching-jobs board whose EPIV programme places foreign English teachers in schools and centres across Vietnam, including HCMC.",
-   "aliases": [
-    "VTJ",
-    "VTJ Education Service Joint Stock Company",
-    "EPIV",
-    "English Teaching Placement in Vietnam"
-   ],
-   "sourceUrls": [
-    "https://vietnamteachingjobs.com/english-teaching-placement-in-vietnam/",
-    "https://teast.co/blog/teach-english-vietnam-agencies"
-   ]
-  },
-  {
    "slug": "vietnam-finland-international-school",
    "name": "Vietnam-Finland International School",
    "kind": "bilingual_school",
@@ -4013,6 +3994,28 @@
    "sourceUrls": [
     "https://zim.vn/",
     "https://zim.vn/khoa-hoc-tieng-anh-cho-tre-em"
+   ]
+  },
+  {
+   "slug": "ismart-education",
+   "name": "iSMART Education",
+   "kind": "agency",
+   "website": "https://ismart.edu.vn/",
+   "districts": [
+    "District 10",
+    "District 1"
+   ],
+   "curricula": [],
+   "summary": "Education company, founded in 2013 and part of EQuest Education Group, that teaches English through Maths and Science in primary and secondary schools; it employs native English teachers and has its head office in District 10.",
+   "aliases": [
+    "iSMART",
+    "iSMART Education Joint Stock Company",
+    "Công ty Cổ phần Giáo dục iSMART",
+    "Giáo dục iSMART"
+   ],
+   "sourceUrls": [
+    "https://vietnamteachingjobs.com/jobs/company/1717/",
+    "https://www.facebook.com/ismart.ecosystem/"
    ]
   }
  ]

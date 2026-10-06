@@ -153,7 +153,6 @@ export const SCHOOL_LOGO_STAMPS: Readonly<Record<string, string>> = {
   'victoria-school': 'e0d308be',
   'viet-nam-tinh-hoa-the-futures-school': '42e14aea',
   'vietmyenglish': '3dbb09d1',
-  'vietnam-teaching-jobs': '15e5037c',
   'vietnam-finland-international-school': '4dc2cd49',
   'vietnamese-american-school-system': '3fc535f9',
   'vinalearn-english': '8c991ca8',
@@ -169,4 +168,5 @@ export const SCHOOL_LOGO_STAMPS: Readonly<Record<string, string>> = {
   'wider-world': '9ccf2bd7',
   'yola': 'e24ced97',
   'zim-academy': '5b95a8a5',
+  'ismart-education': '144a2107',
 }

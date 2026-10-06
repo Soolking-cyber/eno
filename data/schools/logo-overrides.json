@@ -119,5 +119,6 @@
   "european-international-school-ho-chi-minh-city": {
     "url": "https://d24d7vsshzrslo.cloudfront.net/sites/school73/files/2023-06/EIS_Logo_colour_v2.svg",
     "why": "the header capture is the white logo over a photo; this is the colour version the site also serves (an SVG, drawn to PNG)"
-  }
+  },
+  "ismart-education": {"crop": {"left": 0.035, "top": 0.30, "width": 0.40, "height": 0.38}, "why": "the header shows the logo beside a 15-years anniversary banner; keep only the iSMART logo"}
 }
