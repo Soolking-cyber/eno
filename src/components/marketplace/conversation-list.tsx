@@ -10,13 +10,15 @@ import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { MessagesGuestGate } from '@/components/marketplace/messages-guest-gate'
 import { PushOptInCard } from '@/components/marketplace/push-opt-in-card'
-import { Search, Trash2, X, Sparkles, Check, Undo2, Tag, MoreHorizontal } from '@/components/ui/icons'
+import { DashboardFetchError, useSignInAgain } from '@/components/marketplace/dashboard-fetch-error'
+import { Search, Trash2, X, Sparkles, Check, Undo2, Tag, MoreHorizontal, AlertTriangle } from '@/components/ui/icons'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Alert } from '@/components/ui/alert'
 import { PageHeader } from '@/components/ui/page-header'
 import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
@@ -35,9 +37,11 @@ export function ConversationList() {
   // document had no sb- cookie) is what lets the guest state paint before hydration — see below.
   const guest = !loading && !user
   const { lang, tr } = useLanguage()
-  const { convos, deleteConvo, refreshConvos, prefetchThread } = useChat()
+  const { convos, convosError, convosRetrying, deleteConvo, refreshConvos, retryConvos, prefetchThread } = useChat()
   const { id: activeId } = useParams<{ id?: string }>()
   const pathname = usePathname()
+  // Sign in comes back to where this list was showing — the inbox, or the thread beside it on a desktop.
+  const signInAgain = useSignInAgain(pathname || '/messages')
   const aiActive = pathname === '/messages/ai'
   const [confirmId, setConfirmId] = useState<string | null>(null)
   /**
@@ -167,12 +171,39 @@ export function ConversationList() {
             <p className="truncate text-xs text-accent-foreground">{tr('Ask anything — find products by chat', 'Hỏi bất cứ điều gì — tìm đồ bằng chat')}</p>
           </div>
         </Link>
+        {/* ⛔ A FAILED PULL IS SAID, NEVER SHOWN AS AN EMPTY INBOX (Emil-skills audit, 2026-10-06). The
+            context keeps the list it had (the cache, the previous answer) and raises `convosError`:
+            over a list that is a caution — it may be out of date — and with nothing to show (no list, or
+            an empty one) it is the fault state below, where the old code showed "No messages yet" or
+            endless skeletons. Try again keeps the caution up while it runs, the button busy. */}
+        {!guest && convos !== null && convos.length > 0 && convosError ? (
+          // 'auth' is a 401 under a signed-in client: retrying cannot help, signing in again can — the same
+          // split the dashboard makes (dashboard-fetch-error.tsx).
+          <Alert
+            tone="warning"
+            appearance="flat"
+            className="mx-1 mb-2"
+            icon={<AlertTriangle className="h-4 w-4" />}
+            action={convosError === 'auth'
+              ? <Button variant="cta" size="sm" onClick={() => void signInAgain()}>{tr('Sign in', 'Đăng nhập')}</Button>
+              : <Button variant="cta" size="sm" onClick={retryConvos} loading={convosRetrying}>{tr('Try again', 'Thử lại')}</Button>}
+          >
+            {convosError === 'auth'
+              ? tr('Your session has expired, so this list may be out of date.', 'Phiên đăng nhập đã hết hạn nên danh sách có thể chưa cập nhật.')
+              : tr("Couldn't refresh your messages, so this list may be out of date.", 'Không làm mới được tin nhắn nên danh sách có thể chưa cập nhật.')}
+          </Alert>
+        ) : null}
         {/* ⚠️ ONE GATE PER SCREEN: on a phone it lives here (the list IS the page); from lg the right
             pane shows it (messages/page.tsx), so this copy is `lg:hidden` — desktop used to show two
             mascots and two sign-in buttons side by side. */}
         {guest ? (
           <div className="lg:hidden"><MessagesGuestGate /></div>
-        ) : convos === null ? (
+        ) : (convos === null || convos.length === 0) && convosError && !convosRetrying ? (
+          // The house no-data state (dashboard-fetch-error.tsx): "Your session has expired" + Sign in for a 401,
+          // the fault coin + Try again for anything else. A cached EMPTY list is no answer either — never
+          // "No messages yet" under a refresh that failed (codex, round 6).
+          <DashboardFetchError error={convosError} onRetry={retryConvos} next={pathname || '/messages'} failedTitle={tr("Couldn't load your messages.", 'Không tải được tin nhắn.')} />
+        ) : convos === null || (convos.length === 0 && convosRetrying) ? (
           loading ? (
             /* ⛔ AUTH STILL RESOLVING — THE GATE PAINTS FROM THE FIRST FRAME FOR A COOKIE-LESS DOCUMENT.
                `loading` is true on the server and on the first client render, and only flips after

@@ -14,12 +14,20 @@ const chat = {
     { id: 'c1', kind: 'listing', counterpart: { name: 'An', avatarUrl: null }, lastMessageText: 'hi', unread: 0, listingTitle: 'Bike', lastOffer: null },
     { id: 'c2', kind: 'listing', counterpart: { name: 'Binh', avatarUrl: null }, lastMessageText: 'yo', unread: 0, listingTitle: 'Desk', lastOffer: null },
   ],
+  convosError: null as null | 'auth' | 'failed',
+  convosRetrying: false,
   deleteConvo: vi.fn(),
   refreshConvos: vi.fn(),
+  retryConvos: vi.fn(),
   prefetchThread: vi.fn(),
 }
+const signInAgain = vi.hoisted(() => vi.fn(async () => {}))
 
-vi.mock('next/navigation', () => ({ useParams: () => ({}), usePathname: () => '/messages' }))
+vi.mock('next/navigation', () => ({ useParams: () => ({}), usePathname: () => '/messages', useRouter: () => ({ replace: vi.fn(), push: vi.fn() }) }))
+vi.mock('@/components/marketplace/dashboard-fetch-error', async () => {
+  const real = await vi.importActual<typeof import('./dashboard-fetch-error')>('./dashboard-fetch-error')
+  return { ...real, useSignInAgain: () => signInAgain }
+})
 vi.mock('next/link', () => ({
   default: ({ href, children, scroll: _scroll, ...rest }: { href: string; children: ReactNode; scroll?: boolean }) => <a href={href} {...rest}>{children}</a>,
 }))
@@ -170,5 +178,88 @@ describe('ConversationList header (inbox-01)', () => {
     expect(field.value).toBe('')
     expect(field.closest('div.relative')!.className).toContain('max-lg:hidden')
     expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull()
+  })
+})
+
+/**
+ * ⛔ A FAILED PULL IS NOT AN EMPTY INBOX (Emil-skills audit, 2026-10-06). An outage used to read as
+ * "No messages yet" (and was cached), or left the skeletons up forever. The context now keeps what it had
+ * and raises `convosError`; the inbox says so and offers a retry — or, for a 401 under a signed-in client
+ * ('auth'), Sign in: retrying an expired session can never work.
+ */
+describe('ConversationList — a failed inbox pull', () => {
+  const before = { convos: chat.convos, convosError: chat.convosError }
+  afterEach(() => {
+    chat.convos = before.convos; chat.convosError = before.convosError; chat.convosRetrying = false
+    chat.retryConvos.mockClear(); signInAgain.mockClear()
+  })
+
+  it('with nothing to show: the fault state and a retry, never "No messages yet" and never endless skeletons', () => {
+    chat.convos = null as unknown as typeof chat.convos
+    chat.convosError = 'failed'
+    render(<ConversationList />)
+    expect(screen.getByRole('alert').textContent).toBe("Couldn't load your messages.")
+    expect(screen.queryByText('No messages yet')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(chat.retryConvos).toHaveBeenCalledTimes(1)
+  })
+
+  it('over a list it already had: the list stays, with a caution and a retry', () => {
+    chat.convosError = 'failed'
+    render(<ConversationList />)
+    expect(screen.getByText(/Couldn't refresh your messages/)).toBeTruthy()
+    expect(document.querySelector('a[href="/messages/c1"]')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    expect(chat.retryConvos).toHaveBeenCalledTimes(1)
+  })
+
+  it('⛔ a cached EMPTY inbox whose refresh failed is the fault state — never "No messages yet" under a caution', () => {
+    chat.convos = []
+    chat.convosError = 'failed'
+    render(<ConversationList />)
+    expect(screen.getByRole('alert').textContent).toBe("Couldn't load your messages.")
+    expect(screen.queryByText('No messages yet')).toBeNull()
+    expect(screen.queryByText(/Couldn't refresh your messages/)).toBeNull()
+  })
+
+  it('a retry in flight over a list keeps the caution up, its button busy', () => {
+    chat.convosError = 'failed'
+    chat.convosRetrying = true
+    render(<ConversationList />)
+    expect(screen.getByText(/Couldn't refresh your messages/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Try again' }).getAttribute('aria-busy')).toBe('true')
+  })
+
+  it('a retry in flight with nothing to show is skeletons — not the fault state, not "No messages yet"', () => {
+    for (const convos of [null, []]) {
+      chat.convos = convos as unknown as typeof chat.convos
+      chat.convosError = 'failed'
+      chat.convosRetrying = true
+      const view = render(<ConversationList />)
+      expect(screen.queryByText("Couldn't load your messages.")).toBeNull()
+      expect(screen.queryByText('No messages yet')).toBeNull()
+      expect(document.querySelector('[data-slot="skeleton"]')).toBeTruthy()
+      view.unmount()
+    }
+  })
+
+  it('⛔ an expired session with nothing to show says so and offers Sign in — no Try again', () => {
+    chat.convos = null as unknown as typeof chat.convos
+    chat.convosError = 'auth'
+    render(<ConversationList />)
+    expect(screen.getByText('Your session has expired')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+  })
+
+  it('⛔ an expired session over a list keeps the list and offers Sign in, which signs in again', () => {
+    chat.convosError = 'auth'
+    render(<ConversationList />)
+    expect(screen.getByText(/Your session has expired, so this list may be out of date/)).toBeTruthy()
+    expect(document.querySelector('a[href="/messages/c1"]')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    expect(signInAgain).toHaveBeenCalledTimes(1)
+    expect(chat.retryConvos).not.toHaveBeenCalled()
   })
 })

@@ -41,7 +41,7 @@ function stubFetch() {
   vi.stubGlobal('fetch', f)
   return f
 }
-const inboxPulls = (f: ReturnType<typeof stubFetch>) => f.mock.calls.filter(([url, init]) => url === '/api/conversations' && !init).length
+const inboxPulls = (f: ReturnType<typeof stubFetch>) => f.mock.calls.filter(([url, init]) => url === '/api/conversations' && !init?.method).length // GETs only
 const deletes = (f: ReturnType<typeof stubFetch>) => f.mock.calls.filter(([, init]) => init?.method === 'DELETE')
 const undoCall = () => toastFn.mock.calls.findIndex(([title]) => title === 'Conversation removed')
 const undoToast = () => toastFn.mock.calls[undoCall()][1] as unknown as { duration: number; action: { props: { onClick: () => void } } }

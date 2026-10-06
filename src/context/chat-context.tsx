@@ -1,10 +1,62 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { useAuth } from './auth-context'
 import { useLanguage } from './language-context'
 import { useUndoWindow } from '@/hooks/use-undo-window'
+import type { DashError } from '@/hooks/use-dashboard'
+
+// The house degrade (currency-context.tsx): a layout effect where there is a layout, a plain one on the
+// server, which would otherwise log "useLayoutEffect does nothing on the server" on every SSR'd page.
+const useIsoLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
+
+/**
+ * A GET whose JSON body must arrive within `ms`, or it rejects. An AbortController and a timer, not
+ * `AbortSignal.timeout`: that one is missing before Safari 16 / Chrome 103, where calling it threw before
+ * the fetch existed — outside any `.catch` — and a feature-detected fallback without a timer left a hung
+ * pull loading forever (codex + opus, 2026-10-06). ⚠️ The timer covers the BODY too: cleared on the
+ * headers, a stalled body (a flaky mobile link, a proxy holding the stream) left `r.json()` pending with
+ * nothing to end it (opus). Aborting the controller ends the body read as well. A non-2xx rejects here.
+ */
+class HttpError extends Error {
+  constructor(readonly status: number) { super(`HTTP ${status}`) }
+}
+async function getJsonWithTimeout(url: string, ms: number): Promise<unknown> {
+  const ctl = new AbortController()
+  const timer = setTimeout(() => ctl.abort(), ms)
+  try {
+    const r = await fetch(url, { signal: ctl.signal })
+    if (!r.ok) throw new HttpError(r.status)
+    return await r.json()
+  } finally {
+    clearTimeout(timer)
+  }
+}
+/** 45s, not less: a large inbox on a weak mobile link can take well over 15s, and a give-up that fires
+ *  before a slow answer can land fails every retry the same way (opus, round 4). It only has to end a
+ *  request that is never going to answer. */
+const PULL_TIMEOUT_MS = 45_000
+
+/**
+ * ⛔ PER-SESSION ORDER: AN ANSWER APPLIES WHEN IT IS NEWER THAN THE ONE ON SCREEN (codex + opus, round 4).
+ * "Only the newest pull started may apply" starved a busy inbox — on a slow link with a message every few
+ * seconds every pull was superseded before it answered, and nothing ever landed — and one shared counter
+ * let a stale callback from a PREVIOUS session invalidate the current one's pull. So each session (the
+ * provider's `session`) keeps its own `started` / `shown`: an answer applies iff it is newer than what is
+ * shown, which never starves and still ignores an older pull that lands late.
+ * The inbox's ERROR belongs to the newest pull started: only it may raise one (an older pull failing while
+ * a newer one is out says nothing about the newer one), and only an answer newer than that failure
+ * (`failed`) clears it — an older answer landing late still shows its data, but under the banner, because
+ * the refresh that was meant to follow it failed.
+ */
+type PullOrder = Map<number, { started: number; shown: number; failed: number; retry: number }>
+function startPull(order: PullOrder, session: number): number {
+  const o = order.get(session) ?? { started: 0, shown: 0, failed: 0, retry: 0 }
+  o.started += 1
+  order.set(session, o)
+  return o.started
+}
 
 type View = 'list' | 'thread'
 
@@ -45,7 +97,17 @@ type ChatCtx = {
   starting: boolean
   unread: number
   convos: InboxConvo[] | null
+  /** The last inbox pull FAILED: 'auth' for a 401 (the session expired under a signed-in client — the fix is
+   *  signing in again, not retrying), 'failed' for anything else (network, non-2xx, an unreadable body, 45s
+   *  without an answer). `convos` then still holds what was there before, or null if there never was one. */
+  convosError: DashError
   refreshConvos: () => void
+  /** Try again: pulls, KEEPING the error up and marking the retry in flight (`convosRetrying`) until an
+   *  answer lands (which clears both) or the retry fails (which ends it, error still up). Over a list the
+   *  caution stays while the list may still be stale, and the tap shows as busy rather than as nothing. */
+  retryConvos: () => void
+  /** A Try again is in flight — see retryConvos. */
+  convosRetrying: boolean
   deleteConvo: (id: string) => void
   getCachedThread: (id: string) => unknown
   cacheThread: (id: string, data: unknown) => void
@@ -78,11 +140,77 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [convos, setConvos] = useState<InboxConvo[] | null>(null)
   const [draft, setDraft] = useState('')          // composer text shared across pending → real thread
   const [pendingSend, setPendingSend] = useState(false) // user hit send before the convo id was ready
+  const [convosError, setConvosError] = useState<DashError>(null)
+  /**
+   * ⛔ A CHANGE OF USER RESETS THE INBOX STATE IN THE SAME RENDER (codex + opus, 2026-10-06). The effects
+   * below clear it only after the new user's first paint — one frame of the previous account's names and
+   * messages — and, now that a failed pull KEEPS what was there, a failed first pull for the new account
+   * would have kept the previous account's inbox and unread badge on screen indefinitely. React's
+   * "adjust state when a prop changes" pattern: compared and reset during render, before anything paints.
+   * The same block starts a new `session` (below).
+   */
+  const [stateOwner, setStateOwner] = useState<string | null>(user?.id ?? null)
+  const [session, setSession] = useState(0)
+  /** The session a Try again is in flight for (retryConvos). Tagged, not a boolean, so a stale retry from a
+   *  previous session — its answer is dropped on arrival and could never clear it — cannot leave the next
+   *  session's inbox busy (codex, round 8): `convosRetrying` is true only for the current session. */
+  const [retryingFor, setRetryingFor] = useState<number | null>(null)
+  const convosRetrying = retryingFor === session
+  if (stateOwner !== (user?.id ?? null)) {
+    setStateOwner(user?.id ?? null)
+    setSession((s) => s + 1)
+    setConvos(null)
+    setConvosError(null)
+    setRetryingFor(null)
+    setUnread(0)
+  }
+
+  /**
+   * ⛔ AN ANSWER BELONGS TO THE SESSION THAT ASKED (Emil-skills audit + review rounds, 2026-10-06). A pull or
+   * an unread count in flight when the user changes — signing out, into another account, or out and back
+   * into the SAME one — used to land afterwards: the previous user's inbox shown (and cached) while signed
+   * out, or an answer from before a sign-out landing in the next session. And a callback holding an OLD
+   * closure (a realtime bump, the tab coming back) could fetch with the new session's cookie and file the
+   * answer under the old user — or, after a switch back, show it to the old user (codex + opus, round 5).
+   * A user id cannot tell those apart; a session can. `session` moves in the render-phase reset above, on
+   * every change of user id, so it has moved before ANY effect runs. Every request captures the session it
+   * was made in and is dropped on ARRIVAL if that is no longer the session. There is deliberately no check
+   * before starting: a child's effects run before the provider's, and such a check (against a ref the
+   * provider had not updated yet) dropped the child's legitimate sign-in pull (opus, round 3).
+   * ⚠️ THE REF FOLLOWS `session` IN A LAYOUT EFFECT, NOT A PASSIVE ONE: React runs a CHILD's passive effects
+   * before its parent's; layout effects run before every passive effect in the tree, children's included.
+   * Auth updates are not transitions (auth-context.tsx), so no render yields between the reset and this.
+   */
+  const sessionRef = useRef(session)
+  const unreadOrder = useRef<PullOrder>(new Map()) // per-session order of unread answers (refreshUnread)
+  const convosOrder = useRef<PullOrder>(new Map()) // per-session order of inbox answers (refreshConvos)
+  useIsoLayoutEffect(() => {
+    sessionRef.current = session
+    // Only this session's order is read again — an answer from any other is dropped BEFORE its order is
+    // looked up — so the rest go when the session changes (codex + opus, round 6). A stale callback can put
+    // its old session back until the next change: a few numbers, bounded.
+    for (const order of [unreadOrder.current, convosOrder.current]) {
+      for (const k of order.keys()) if (k !== session) order.delete(k)
+    }
+  }, [session])
 
   const refreshUnread = useCallback(() => {
     if (!user) { setUnread(0); return }
-    fetch('/api/conversations/unread').then((r) => r.json()).then((d) => setUnread(d.unread ?? 0)).catch(() => {})
-  }, [user])
+    const forSession = session
+    // ⚠️ A FAILURE KEEPS THE BADGE. A 401/500 body used to read as `unread ?? 0` and hide the count;
+    // only a real number from a 2xx answer in THIS session changes it.
+    const pull = startPull(unreadOrder.current, forSession) // ordered like the inbox below
+    getJsonWithTimeout('/api/conversations/unread', PULL_TIMEOUT_MS)
+      .then((d) => {
+        const n = (d as { unread?: unknown } | null)?.unread
+        if (sessionRef.current !== forSession) return // another session's answer (its order may be gone)
+        const o = unreadOrder.current.get(forSession)!
+        if (pull <= o.shown || typeof n !== 'number') return
+        o.shown = pull
+        setUnread(n)
+      })
+      .catch(() => {})
+  }, [user, session])
 
   // Thread cache: in-memory (fast) backed by localStorage (per-user, so a
   // previously-opened conversation paints instantly even after a reload). Keyed
@@ -123,7 +251,26 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const undoWindow = useUndoWindow()
   const refreshConvos = useCallback(() => {
     if (!user) { setConvos(null); return }
-    fetch('/api/conversations').then((r) => r.json()).then((d) => {
+    const forSession = session
+    const pull = startPull(convosOrder.current, forSession) // ordered per session — see PullOrder
+    /**
+     * ⛔ A FAILED PULL IS NOT AN EMPTY INBOX (Emil-skills audit, 2026-10-06). A 401/500 JSON body read as
+     * `conversations ?? []`, so an outage told the user "No messages yet" — and CACHED that empty list,
+     * so it came back on the next load too; a non-JSON body left the skeletons up forever. Only a 2xx
+     * answer with an array is data. Anything else — the network, an unreadable body, 45s without an
+     * answer — leaves `convos` and the cache exactly as they were and raises `convosError`, which the
+     * inbox turns into a retry, or into Sign in for a 401 (conversation-list.tsx). A real empty inbox is
+     * `{ conversations: [] }` and still reads as one.
+     */
+    getJsonWithTimeout('/api/conversations', PULL_TIMEOUT_MS).then((body) => {
+      if (sessionRef.current !== forSession) return // another session's answer (its order may be gone)
+      const o = convosOrder.current.get(forSession)!
+      if (pull <= o.shown) return
+      const d = body as { conversations?: unknown } | null
+      if (!Array.isArray(d?.conversations)) throw new Error('unreadable inbox')
+      o.shown = pull
+      if (pull > o.failed) setConvosError(null)
+      if (pull >= o.retry) setRetryingFor(null) // an OLDER pull landing mid-retry does not end it
       // ⚠️ A conversation still inside its delete's undo window stays OUT of the list. The server has not
       // hidden it yet, so a refresh in those seconds — another conversation's Undo (which re-pulls), a
       // realtime bump, the tab coming back — used to put it back on screen with its DELETE still about to
@@ -132,8 +279,24 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       setConvos(list)
       try { localStorage.setItem(CONVOS_KEY, JSON.stringify({ userId: user.id, list })) } catch {}
       list.slice(0, 3).forEach((c) => prefetchThread(c.id))
-    }).catch(() => {})
-  }, [user, prefetchThread, undoWindow])
+    }).catch((e: unknown) => {
+      if (sessionRef.current !== forSession) return
+      const o = convosOrder.current.get(forSession)!
+      if (pull <= o.shown || pull !== o.started) return
+      o.failed = pull
+      if (pull >= o.retry) setRetryingFor(null) // always: the newest pull is the retry or newer
+      setConvosError(e instanceof HttpError && e.status === 401 ? 'auth' : 'failed')
+    })
+  }, [user, session, prefetchThread, undoWindow])
+  const retryConvos = useCallback(() => {
+    if (!user) return
+    refreshConvos()
+    // The retry is THIS pull: only its answer, or a newer pull's, ends the busy state — an older pull that
+    // lands meanwhile does not (codex + opus, round 7).
+    const o = convosOrder.current.get(session)
+    if (o) o.retry = o.started
+    setRetryingFor(session)
+  }, [user, session, refreshConvos])
 
   // Mirror of `convos` for handler-time reads (deleteConvo computes the next
   // list without reaching inside a state updater — updaters must stay pure).
@@ -281,7 +444,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const back = useCallback(() => { setView('list'); setConversationId(null); setStarting(false); setDraft(''); setPendingSend(false); refreshUnread(); refreshConvos() }, [refreshUnread, refreshConvos])
   const close = useCallback(() => { setOpen(false); setStarting(false); setDraft(''); setPendingSend(false) }, [])
 
-  const value = useMemo(() => ({ open, view, conversationId, starting, unread, convos, refreshConvos, deleteConvo, getCachedThread, cacheThread, prefetchThread, draft, setDraft, pendingSend, setPendingSend, refreshUnread, openInbox, openThread, openPendingThread, back, close }), [open, view, conversationId, starting, unread, convos, refreshConvos, deleteConvo, getCachedThread, cacheThread, prefetchThread, draft, pendingSend, refreshUnread, openInbox, openThread, openPendingThread, back, close])
+  const value = useMemo(() => ({ open, view, conversationId, starting, unread, convos, convosError, convosRetrying, refreshConvos, retryConvos, deleteConvo, getCachedThread, cacheThread, prefetchThread, draft, setDraft, pendingSend, setPendingSend, refreshUnread, openInbox, openThread, openPendingThread, back, close }), [open, view, conversationId, starting, unread, convos, convosError, convosRetrying, refreshConvos, retryConvos, deleteConvo, getCachedThread, cacheThread, prefetchThread, draft, pendingSend, refreshUnread, openInbox, openThread, openPendingThread, back, close])
 
   return (
     <ChatContext.Provider value={value}>
