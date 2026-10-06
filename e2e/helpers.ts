@@ -48,6 +48,15 @@ export async function expectNoA11yViolations(page: Page, context = 'page') {
   // content, not transient placeholders.
   await page.waitForLoadState('load').catch(() => {})
   await page.locator('.animate-pulse').first().waitFor({ state: 'detached', timeout: 6000 }).catch(() => {})
+  // ⚠️ Base UI composites render EVERY tab tabindex=-1 on the server and pick the roving tab stop only on mount, so a
+  // scan of the pre-hydration DOM flags `scrollable-region-focusable` on the sort tablist (measured 2026-10-06 on
+  // /c/electronics at phone size: all -1 at load, "Relevance" 0 once mounted, violation gone). Wait for the mount —
+  // best effort and bounded, so a tablist that NEVER gets a tab stop still reaches axe and fails (mutation-checked).
+  // The pre-hydration gap itself is tracked debt in TESTING.md ("pre-hydration tab stops"), not hidden.
+  await page.waitForFunction(
+    () => [...document.querySelectorAll('[role="tablist"]')].every((t) => !t.querySelector('[role="tab"]') || t.querySelector('[role="tab"][tabindex="0"]')),
+    null, { timeout: 8_000 },
+  ).catch(() => {})
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .disableRules(A11Y_BASELINE_RULES)

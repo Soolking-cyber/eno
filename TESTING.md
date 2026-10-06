@@ -95,6 +95,15 @@ buttons nested inside. Fixing it is a card-architecture change (card-as-link pat
 **dedicated follow-up**; the rule is baselined (not hidden) so the gate still catches *new* a11y
 regressions. The transient "Loading map…" contrast issue axe flagged was fixed (`text-slate-700`).
 
+**a11y: pre-hydration tab stops (tracked debt, 2026-10-06):** Base UI composites render every tab
+`tabindex="-1"` on the server and choose the roving tab stop only on mount. Until hydration, the
+explorer's horizontally scrolling sort tablist has no keyboard-focusable tab, and axe's
+`scrollable-region-focusable` fires on that DOM. The tabs are inert before hydration anyway, so the
+gate scans after mount: `expectNoA11yViolations` waits up to 8 s for every tablist to expose a
+`tabindex="0"` tab. A tablist that never gets one still reaches axe and fails (mutation-checked).
+Fixing the server render means overriding Base UI's roving tabindex in `ui/tabs`, which risks two
+tab stops or broken arrow keys on every tab strip. That is a **dedicated follow-up**, not hidden.
+
 ## Not yet wired (opt-in next layer)
 
 - **Authed-write E2E infra** — a preview deploy + ephemeral Supabase branch + seeded
