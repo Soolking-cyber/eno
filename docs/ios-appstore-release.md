@@ -37,7 +37,7 @@ wallet or a hidden surface after approval without a new submission that disclose
 | Apple account | Organization **Eno Company Limited**, Team ID **`DTP9SKVFMQ`**, account holder Apple ID `alex@eno.vn`. Free Apps Agreement active |
 | Bundle id | **`vn.eno.app`** (D3) — registered on the team by the first signed build (device "Alex" registered; dev cert "Apple Development: Babakulyyev Shanazar (7M9H4V6JQF)"). Permanent |
 | App Store Connect | app **"Eno Marketplace"**, Apple ID `6819638569`, Company Name "ENO Company Limited" (permanent), SKU `eno-ios-1`, primary language English (U.S.). Price **Free**. Availability **146 countries** — all except the United States (D17), the 27 EU states (D11: no DSA trader declaration) and China mainland (no ICP). Mac and Apple Vision Pro **OFF** |
-| Builds | **1.0.3 (2) uploaded 2026-10-06 21:10** by `scripts/ios-release.sh 2 --upload` (0 compiler warnings, every check passed; "Upload succeeded", App Store Connect processing) — commit `cd1c0539e`. The next upload must be build 3 or higher |
+| Builds | **1.0.3 (2) uploaded 2026-10-06 21:10** by `scripts/ios-release.sh 2 --upload` (0 compiler warnings, every check passed; "Upload succeeded", App Store Connect processing) — commit "iOS 1.0.3 (2) uploaded…". The next upload must be build 3 or higher |
 | Version | `MARKETING_VERSION` **1.0.3** (= Android 1.0.3 / versionCode 5); `CURRENT_PROJECT_VERSION` = the last uploaded build, written by `scripts/ios-release.sh <build>` — strictly increasing |
 | Devices | **iPhone only** (`TARGETED_DEVICE_FAMILY = 1`, D6); iPads run it in compatibility mode |
 | Minimum iOS | **16.4** — the live site is Tailwind v4 = WebKit 16.4+ (was 15.0; `scripts/ios-release.sh` checks it) |
@@ -74,8 +74,8 @@ duplicate or revert it. The ids below are main's:
 | `b67cf8f67` | this runbook, rebased ids |
 
 ⏳ **This change — branch `release/apps-eno-vn`, NOT on main, NOT deployed (2026-10-06).** The native half is
-committed (`fa0be2fcd`: team, 1.0.3, minimum 16.4, eno.vn origin, entitlements, privacy manifest, purpose strings,
-exact-host policy, `scripts/ios-release.sh`, Android versionCode 5) with the build-2 bump (`cd1c0539e`); the web half
+committed ("Apps on eno.vn, native half": team, 1.0.3, minimum 16.4, eno.vn origin, entitlements, privacy manifest, purpose strings,
+exact-host policy, `scripts/ios-release.sh`, Android versionCode 5) with the build-2 bump; the web half
 (the eno.vn e-Visa photos-only flow, `ios-hide-kyc`, the `document_check` question, the eno.vn-only AASA and push
 rules, the Play listing, the help-centre answers) and these docs follow. ⛔ The branch is pushed for review, never
 merged into `main` before W is go (W says why).
@@ -486,7 +486,7 @@ xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -dest
   -derivedDataPath <dd> -allowProvisioningUpdates -allowProvisioningDeviceRegistration build
 ```
 
-**P4. ✅ Repo — this change's native half (`fa0be2fcd`, 2026-10-06; second-opinion gate, literal-pathspec commit).**
+**P4. ✅ Repo — this change's native half (2026-10-06; second-opinion gate, literal-pathspec commit).**
 - `DEVELOPMENT_TEAM = DTP9SKVFMQ` in all four places in `ios/App/App.xcodeproj/project.pbxproj`.
 - `PRODUCT_BUNDLE_IDENTIFIER = vn.eno.app` on the **App target only** (two lines; never on the command line).
 - `ios/App/App/App.entitlements` (the template is gone): its file reference sits in the App group by hand (not a
@@ -505,7 +505,7 @@ Availability: 146 countries — all except the United States (D17), the 27 EU st
 Mac and Apple Vision Pro availability OFF — the same binary would run there, and the gates treat a Mac as iOS
 (`src/lib/app-review-gates.ts`). Free Apps Agreement active.
 
-**P6. ✅ First upload — 1.0.3 (2), 2026-10-06 21:10 (`cd1c0539e`). ⏳ App Store Connect's processing result.**
+**P6. ✅ First upload — 1.0.3 (2), 2026-10-06 21:10. ⏳ App Store Connect's processing result.**
 `scripts/ios-release.sh` is the whole path (Xcode 26.x only):
 
 ```bash
