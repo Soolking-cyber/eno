@@ -179,18 +179,21 @@ export function ConversationList() {
         {!guest && convos !== null && convos.length > 0 && convosError ? (
           // 'auth' is a 401 under a signed-in client: retrying cannot help, signing in again can — the same
           // split the dashboard makes (dashboard-fetch-error.tsx).
-          <Alert
-            tone="warning"
-            appearance="flat"
-            className="mx-1 mb-2"
-            icon={<AlertTriangle className="h-4 w-4" />}
-            action={convosError === 'auth'
-              ? <Button variant="cta" size="sm" onClick={() => void signInAgain()}>{tr('Sign in', 'Đăng nhập')}</Button>
-              : <Button variant="cta" size="sm" onClick={retryConvos} loading={convosRetrying}>{tr('Try again', 'Thử lại')}</Button>}
-          >
-            {convosError === 'auth'
-              ? tr('Your session has expired, so this list may be out of date.', 'Phiên đăng nhập đã hết hạn nên danh sách có thể chưa cập nhật.')
-              : tr("Couldn't refresh your messages, so this list may be out of date.", 'Không làm mới được tin nhắn nên danh sách có thể chưa cập nhật.')}
+          <Alert tone="warning" appearance="flat" className="mx-1 mb-2" icon={<AlertTriangle className="h-4 w-4" />}>
+            {/* The button sits UNDER the sentence, not in the Alert's top-right `action` slot: that slot keeps 72px
+                clear, and "Try again" / "Đăng nhập" — let alone the other languages' labels — are wider, so the
+                button covered words of the warning (branch review, 2026-10-06). One wrapper, so it stays in the
+                text column beside the icon. */}
+            <div>
+              {convosError === 'auth'
+                ? tr('Your session has expired, so this list may be out of date.', 'Phiên đăng nhập đã hết hạn nên danh sách có thể chưa cập nhật.')
+                : tr("Couldn't refresh your messages, so this list may be out of date.", 'Không làm mới được tin nhắn nên danh sách có thể chưa cập nhật.')}
+              <div className="mt-2">
+                {convosError === 'auth'
+                  ? <Button variant="cta" size="sm" onClick={() => void signInAgain()}>{tr('Sign in', 'Đăng nhập')}</Button>
+                  : <Button variant="cta" size="sm" onClick={retryConvos} loading={convosRetrying}>{tr('Try again', 'Thử lại')}</Button>}
+              </div>
+            </div>
           </Alert>
         ) : null}
         {/* ⚠️ ONE GATE PER SCREEN: on a phone it lives here (the list IS the page); from lg the right

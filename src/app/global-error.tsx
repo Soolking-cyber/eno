@@ -53,8 +53,9 @@ export default function GlobalError({ error, reset, retry }: { error: Error & { 
   // ⛔ `retry`, NOT `reset` (Emil-skills audit, 2026-10-06): reset re-rendered the same failed payload, so Try
   // again did nothing; retry (Next 16.3.6) refreshes the route and resets in one transition — this boundary sits
   // inside the router (app-router.js) — with `reset` as the fallback should a Next ever stop passing it. Busy
-  // while pending, but NEVER disabled: this is the only control on the page, so a refresh that hangs must still
-  // leave it pressable.
+  // while pending — aria-busy, the progress cursor and an ellipsis on the label — but NEVER disabled: this is the
+  // only control on the page, so a refresh that hangs must still leave it pressable. And never dimmed: a control
+  // that can still be pressed keeps its contrast (dimmed to 0.6 it read 2.66:1 — branch review, 2026-10-06).
   const [retrying, startRetry] = useTransition()
   return (
     <html lang={copyFor(lang) ? (lang as string) : 'en'}>
@@ -68,9 +69,9 @@ export default function GlobalError({ error, reset, retry }: { error: Error & { 
             <button
               onClick={() => startRetry(() => (retry ?? reset)())}
               aria-busy={retrying || undefined}
-              style={{ background: '#0a66c2', color: '#fff', border: 0, borderRadius: 12, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: retrying ? 'progress' : 'pointer', opacity: retrying ? 0.6 : 1 }}
+              style={{ background: '#0a66c2', color: '#fff', border: 0, borderRadius: 12, padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: retrying ? 'progress' : 'pointer' }}
             >
-              {retryLabel}
+              {retryLabel}{retrying ? '…' : ''}
             </button>
           </div>
         </div>

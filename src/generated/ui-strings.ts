@@ -1975,7 +1975,6 @@ export const UI_STRINGS: string[] = [
   "Remove banner",
   "Remove filter",
   "Remove from list",
-  "Remove from saved",
   "Remove my proof",
   "Remove my reaction",
   "Remove one from your list to add this rental.",

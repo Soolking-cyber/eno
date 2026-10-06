@@ -141,6 +141,139 @@ describe('deleteConvo — the undo window cannot outlive the DELETE', () => {
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
   })
 
+  /**
+   * ⛔ FROM THE TAP UNTIL ITS DELETE LANDS, THE CONVERSATION STAYS OUT OF THE LIST. Between the window closing and
+   * the DELETE landing the server still lists it, so a pull answered in that gap (a realtime bump, the tab coming
+   * back) used to put it back on screen, tappable (branch review, 2026-10-06). It now stays out while the DELETE
+   * is in flight, and the inbox re-pulls once it lands; a DELETE that fails brings it back.
+   */
+  function heldDeleteServer(deleteOk = true) {
+    let releaseDelete = null as (() => void) | null
+    let deleted = false
+    const f = vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE') {
+        await new Promise<void>((res) => { releaseDelete = () => { deleted = deleteOk; res() } })
+        return { ok: deleteOk, json: async () => ({}) }
+      }
+      if (url === '/api/conversations') {
+        return { ok: true, json: async () => ({ conversations: ['c1', 'c2', 'c3'].filter((id) => !(deleted && id === 'c1')).map((id) => ({ id })) }) }
+      }
+      return { ok: true, json: async () => ({ unread: 0 }) }
+    })
+    vi.stubGlobal('fetch', f)
+    return { f, release: () => releaseDelete?.() }
+  }
+
+  it('⛔ a pull answered while the DELETE is in flight does not bring the conversation back — and the inbox re-pulls once it lands', async () => {
+    const { chat } = await mountWithInbox()
+    const server = heldDeleteServer()
+    act(() => { chat().deleteConvo('c1') })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) }) // the window closes: the DELETE goes out, and waits
+    act(() => { chat().refreshConvos() }) // a realtime bump while it waits — the server still lists c1
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(chat().convos?.map((c) => c.id)).toEqual(['c2', 'c3']) // not back on screen, not tappable
+    const pullsBefore = inboxPulls(server.f as unknown as ReturnType<typeof stubFetch>)
+    await act(async () => { server.release(); await vi.advanceTimersByTimeAsync(0) })
+    expect(inboxPulls(server.f as unknown as ReturnType<typeof stubFetch>)).toBe(pullsBefore + 1) // the re-pull, once it landed
+    expect(chat().convos?.map((c) => c.id)).toEqual(['c2', 'c3'])
+  })
+
+  it('⛔ a pull STARTED while the DELETE was in flight, answering just after it lands, does not bring it back', async () => {
+    const { chat } = await mountWithInbox()
+    let releaseDelete = null as (() => void) | null
+    let deleted = false
+    const heldPulls: (() => void)[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE') {
+        await new Promise<void>((res) => { releaseDelete = () => { deleted = true; res() } })
+        return { ok: true, json: async () => ({}) }
+      }
+      if (url === '/api/conversations') {
+        // The answer is what the server held WHEN ASKED, even if it arrives later.
+        const body = { conversations: ['c1', 'c2', 'c3'].filter((id) => !(deleted && id === 'c1')).map((id) => ({ id })) }
+        await new Promise<void>((res) => { heldPulls.push(res) })
+        return { ok: true, json: async () => body }
+      }
+      return { ok: true, json: async () => ({ unread: 0 }) }
+    }))
+    act(() => { chat().deleteConvo('c1') })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) }) // the DELETE goes out, and waits
+    act(() => { chat().refreshConvos() }) // a bump: asked while the server still lists c1
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    await act(async () => { releaseDelete?.(); await vi.advanceTimersByTimeAsync(0) }) // lands → the re-pull is asked
+    expect(heldPulls).toHaveLength(2)
+    await act(async () => { heldPulls[0](); await vi.advanceTimersByTimeAsync(0) }) // the bump answers FIRST, listing c1
+    expect(chat().convos?.map((c) => c.id)).toEqual(['c2', 'c3'])
+    await act(async () => { heldPulls[1](); await vi.advanceTimersByTimeAsync(0) })
+    expect(chat().convos?.map((c) => c.id)).toEqual(['c2', 'c3'])
+  })
+
+  /** A server whose inbox answers wait for the test, each holding what the server listed WHEN ASKED. */
+  function heldPullServer(onDelete: () => Promise<{ ok: boolean }> = async () => ({ ok: true })) {
+    const heldPulls: (() => void)[] = []
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE') { const r = await onDelete(); return { ok: r.ok, json: async () => ({}) } }
+      if (url === '/api/conversations') {
+        const body = { conversations: ['c1', 'c2', 'c3'].map((id) => ({ id })) }
+        await new Promise<void>((res) => { heldPulls.push(res) })
+        return { ok: true, json: async () => body }
+      }
+      return { ok: true, json: async () => ({ unread: 0 }) }
+    }))
+    return heldPulls
+  }
+
+  it('⛔ an UNDONE delete is not hidden by an older pull answering after the Undo — even if Undo\'s own re-pull never lands', async () => {
+    const { chat } = await mountWithInbox()
+    const heldPulls = heldPullServer()
+    act(() => { chat().deleteConvo('c1') })
+    act(() => { chat().refreshConvos() }) // a bump inside the window: c1 is pending when it starts
+    act(() => { undoToast().action.props.onClick() }) // Undo — its own re-pull goes out too
+    expect(heldPulls).toHaveLength(2)
+    await act(async () => { heldPulls[0](); await vi.advanceTimersByTimeAsync(0) }) // the OLDER pull answers
+    expect(chat().convos?.map((c) => c.id)).toEqual(['c1', 'c2', 'c3'])
+  })
+
+  it('⛔ a FAILED delete is not hidden by an older pull answering after the failure', async () => {
+    const { chat } = await mountWithInbox()
+    let fail = null as (() => void) | null
+    const heldPulls = heldPullServer(() => new Promise((res) => { fail = () => res({ ok: false }) }))
+    act(() => { chat().deleteConvo('c1') })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) }) // the DELETE goes out, and waits
+    act(() => { chat().refreshConvos() }) // a pull started while it is pending
+    await act(async () => { fail?.(); await vi.advanceTimersByTimeAsync(0) }) // it fails: the rollback re-pull goes out
+    expect(heldPulls).toHaveLength(2)
+    await act(async () => { heldPulls[0](); await vi.advanceTimersByTimeAsync(0) }) // the OLDER pull answers
+    expect(chat().convos?.map((c) => c.id)).toEqual(['c1', 'c2', 'c3'])
+  })
+
+  it('⛔ delete, Undo, delete again: once the second DELETE lands, a pull from the FIRST attempt cannot bring it back', async () => {
+    const { chat } = await mountWithInbox()
+    let landed = false
+    let release = null as (() => void) | null
+    const heldPulls = heldPullServer(() => new Promise((res) => { release = () => { landed = true; res({ ok: true }) } }))
+    act(() => { chat().deleteConvo('c1') })
+    act(() => { chat().refreshConvos() }) // pull A, asked during the first attempt
+    act(() => { undoToast().action.props.onClick() }) // Undo — its re-pull goes out too
+    act(() => { chat().deleteConvo('c1') }) // and delete again
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) }) // the second DELETE goes out, and waits
+    await act(async () => { release?.(); await vi.advanceTimersByTimeAsync(0) }) // it lands → the re-pull is asked
+    expect(landed).toBe(true)
+    await act(async () => { heldPulls[0](); heldPulls[1](); await vi.advanceTimersByTimeAsync(0) }) // A and Undo's re-pull answer, listing c1
+    expect(chat().convos?.map((c) => c.id)).toEqual(['c2', 'c3'])
+  })
+
+  it('a DELETE that fails brings the conversation back, and says so', async () => {
+    const { chat } = await mountWithInbox()
+    const server = heldDeleteServer(false)
+    act(() => { chat().deleteConvo('c1') })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(chat().convos?.map((c) => c.id)).toEqual(['c2', 'c3'])
+    await act(async () => { server.release(); await vi.advanceTimersByTimeAsync(0) })
+    expect(chat().convos?.map((c) => c.id)).toEqual(['c1', 'c2', 'c3'])
+    expect(toastFn.error).toHaveBeenCalledWith("Couldn't delete — try again")
+  })
+
   it('the page going away inside the window sends the DELETE at once, with keepalive', async () => {
     const { f, chat } = await mountWithInbox()
     act(() => { chat().deleteConvo('c1') })

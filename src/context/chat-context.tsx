@@ -249,6 +249,17 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   // banner. Also prefetches the top conversations so opening them is instant.
   // The undo window a deleted conversation waits out before its server DELETE (deleteConvo below).
   const undoWindow = useUndoWindow()
+  /**
+   * ⛔ A DELETED CONVERSATION STAYS GONE (branch review, 2026-10-06). The server lists a conversation until its
+   * DELETE lands, so a pull answered in the meantime used to put it back on screen, tappable. Three rules, each
+   * cleaning up after itself: inside its undo window it is filtered (undoWindow.isOpen); while its DELETE is in
+   * flight it is filtered (this set — "<session>|<id>", added when the DELETE goes out, removed when it
+   * settles); and once the DELETE has LANDED no pull asked before it may answer at all — the per-session order
+   * is moved past every pull already out (deleteConvo), and the re-pull is the next answer. Undone or failed,
+   * it simply comes back. (A ledger of tokens and snapshots was tried here first: four review rounds, a new
+   * interleaving each time. The barrier reuses the one order the inbox already keeps.)
+   */
+  const deletesInFlight = useRef(new Set<string>())
   const refreshConvos = useCallback(() => {
     if (!user) { setConvos(null); return }
     const forSession = session
@@ -271,11 +282,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       o.shown = pull
       if (pull > o.failed) setConvosError(null)
       if (pull >= o.retry) setRetryingFor(null) // an OLDER pull landing mid-retry does not end it
-      // ⚠️ A conversation still inside its delete's undo window stays OUT of the list. The server has not
-      // hidden it yet, so a refresh in those seconds — another conversation's Undo (which re-pulls), a
-      // realtime bump, the tab coming back — used to put it back on screen with its DELETE still about to
-      // go out. Its own Undo is not affected: the window closes before undo() runs, so it re-pulls itself in.
-      const list: InboxConvo[] = ((d.conversations ?? []) as InboxConvo[]).filter((c) => !undoWindow.isOpen(`convo:${c.id}`))
+      // ⚠️ A conversation being deleted stays OUT of the list — inside its undo window and while its DELETE is
+      // in flight (deletesInFlight). The server still lists it, so a refresh in those seconds — another
+      // conversation's Undo (which re-pulls), a realtime bump, the tab coming back — used to put it back on
+      // screen. Its own Undo is not affected: the window closes before undo() runs, so it re-pulls itself in.
+      const list: InboxConvo[] = ((d.conversations ?? []) as InboxConvo[])
+        .filter((c) => !undoWindow.isOpen(`convo:${c.id}`) && !deletesInFlight.current.has(`${forSession}|${c.id}`))
       setConvos(list)
       try { localStorage.setItem(CONVOS_KEY, JSON.stringify({ userId: user.id, list })) } catch {}
       list.slice(0, 3).forEach((c) => prefetchThread(c.id))
@@ -335,17 +347,25 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         // On failure, ROLL BACK the optimistic removal: the row still exists server-side,
         // so re-pulling the inbox restores it — and say so instead of silently desyncing.
         const rollback = () => { toast.error(tr("Couldn't delete — try again", 'Chưa xóa được — thử lại')); refreshConvos() }
-        // On success, re-pull too: the window closes BEFORE the DELETE lands, so a pull answered in that gap
-        // (a realtime bump, the tab coming back) could list the conversation again, and nothing else would
-        // take it away (opus, 2026-10-06). ⚠️ Pulls are still unordered: an OLDER pull resolving after this
-        // re-pull can show it until the next one. Ordering them belongs with the inbox's error handling
-        // (fix 3 of the 2026-10-06 audit) — tried here, it drew a newest-pull-fails edge of its own.
+        // ⛔ OUT OF THE LIST UNTIL THE DELETE LANDS, AND GONE AFTER (deletesInFlight, above). The window closes
+        // BEFORE the DELETE lands and the server lists the conversation until then, so it is filtered while the
+        // DELETE is in flight. Once it LANDS, every pull asked before is moved behind the per-session order —
+        // their answers may predate the DELETE — and the re-pull (the server's list and the unread count) is
+        // the next answer that can apply. On failure the rollback re-pulls and the conversation comes back.
+        const key = `${session}|${id}`
+        deletesInFlight.current.add(key)
         fetch(`/api/conversations/${id}`, { method: 'DELETE', keepalive: true })
-          .then((r) => { if (r.ok) { refreshUnread(); refreshConvos() } else rollback() })
-          .catch(rollback)
+          .then((r) => {
+            deletesInFlight.current.delete(key)
+            if (!r.ok) { rollback(); return }
+            const o = convosOrder.current.get(session)
+            if (o) o.shown = Math.max(o.shown, o.started) // the barrier: no pull asked before the DELETE answers after it
+            refreshUnread(); refreshConvos()
+          })
+          .catch(() => { deletesInFlight.current.delete(key); rollback() })
       },
     })
-  }, [user, refreshUnread, refreshConvos, tr, undoWindow])
+  }, [user, session, refreshUnread, refreshConvos, tr, undoWindow])
 
   useEffect(() => {
     if (!user) { setConvos(null); threadCache.current.clear(); return }

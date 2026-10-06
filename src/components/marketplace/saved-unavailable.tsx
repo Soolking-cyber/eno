@@ -50,6 +50,7 @@ function UnavailableRow({ item }: { item: SavedUnavailable }) {
   const card = item.card
   const localized = useLocalized(card?.title ?? '', card?.titleVi ?? null, card?.titleI18n)
   const title = localized || tr('A saved listing', 'Một tin đã lưu')
+  const removeLabel = tr('Remove', 'Bỏ lưu')
   const img = card?.images?.[0] || null
   // A listing that ended may have had its photos purged since — fall back to the plain tile.
   const [imgBroken, setImgBroken] = useState(false)
@@ -86,8 +87,11 @@ function UnavailableRow({ item }: { item: SavedUnavailable }) {
             <Link href={href}>{item.sold ? tr('See listing', 'Xem tin') : tr('See similar', 'Xem tin tương tự')}</Link>
           </Button>
         )}
-        <Button variant="ghost" size="sm" onClick={() => toggle(item.id)} aria-label={`${tr('Remove from saved', 'Bỏ khỏi tin đã lưu')}: ${title}`}>
-          {tr('Remove', 'Bỏ lưu')}
+        {/* The name is built FROM the visible label — the same tr() — so it contains it in every language, the
+            machine-translated ones included, and a speech-input user who says what they see is understood
+            (WCAG 2.5.3 — branch review, 2026-10-06). */}
+        <Button variant="ghost" size="sm" onClick={() => toggle(item.id)} aria-label={`${removeLabel}: ${title}`}>
+          {removeLabel}
         </Button>
       </div>
     </li>

@@ -89,5 +89,7 @@ describe('global-error Try again — fallback and stuck states', () => {
     const button = view!.container.querySelector('button')!
     expect(button.getAttribute('aria-busy')).toBe('true') // the nested transition is still pending, and it shows
     expect(button.hasAttribute('disabled')).toBe(false)
+    expect(button.textContent?.endsWith('…')).toBe(true) // seen, not only announced
+    expect(button.style.opacity === '' || button.style.opacity === '1').toBe(true) // never dimmed below its contrast
   })
 })

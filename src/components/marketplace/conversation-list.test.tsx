@@ -222,6 +222,19 @@ describe('ConversationList — a failed inbox pull', () => {
     expect(screen.queryByText(/Couldn't refresh your messages/)).toBeNull()
   })
 
+  // jsdom cannot measure layout, so this pins the CAUSE of the overlap: the Alert's absolutely-placed action slot
+  // keeps 72px clear and both labels are wider. The button is in the text column instead, for either state.
+  it('the caution\'s button is not in the Alert\'s absolutely-placed action slot (which covered the words)', () => {
+    for (const [error, sentence, label] of [['failed', /Couldn't refresh your messages/, 'Try again'], ['auth', /Your session has expired, so/, 'Sign in']] as const) {
+      chat.convosError = error
+      render(<ConversationList />)
+      const alert = screen.getByText(sentence).closest('[data-slot="alert"]')!
+      expect(alert.querySelector('[data-slot="alert-action"]')).toBeNull()
+      expect(alert.contains(screen.getByRole('button', { name: label }))).toBe(true)
+      cleanup()
+    }
+  })
+
   it('a retry in flight over a list keeps the caution up, its button busy', () => {
     chat.convosError = 'failed'
     chat.convosRetrying = true
