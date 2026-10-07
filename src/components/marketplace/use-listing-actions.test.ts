@@ -18,10 +18,14 @@ const toastFn = vi.hoisted(() => {
 vi.mock('sonner', () => ({ toast: toastFn }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
+// Who is signed in — the DELETE names the account that tapped (src/lib/api/acting-account.ts).
+const auth = vi.hoisted(() => ({ user: { id: 'p1' } as { id: string } | null }))
+vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
 
 const { useListingActions } = await import('./use-listing-actions')
 
 const listing = { id: 'L1', status: 'active' } as never
+const DELETE_INIT = { method: 'DELETE', keepalive: true, headers: { 'x-eno-acting-account': 'p1' } }
 
 function answer(body: unknown, ok = true) {
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok, json: async () => body })))
@@ -30,6 +34,7 @@ function answer(body: unknown, ok = true) {
 beforeEach(() => {
   vi.useFakeTimers()
   toastFn.mockClear(); toastFn.error.mockClear(); toastFn.dismiss.mockClear()
+  auth.user = { id: 'p1' }
 })
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals() })
 
@@ -75,6 +80,52 @@ describe('useListingActions.del', () => {
 })
 
 /**
+ * ⛔ THE DELETE IS SENT AS THE ACCOUNT THAT TAPPED (src/lib/api/acting-account.ts). The cookie is read when
+ * the request goes out, five seconds after the tap; if the browser changed account in between, the route
+ * answers 409 account_changed instead of acting for whoever is signed in now.
+ */
+describe('useListingActions.del — the account that tapped travels with the DELETE', () => {
+  it('⛔ names the account signed in AT THE TAP, even when the session has changed by the time it goes out', async () => {
+    answer({ ok: true })
+    const hook = renderHook(() => useListingActions(listing, vi.fn()))
+    act(() => { hook.result.current.del() })
+    auth.user = { id: 'p2' } // another account signs in inside the window
+    hook.rerender()
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', DELETE_INIT)
+  })
+
+  it('⛔ 409 account_changed → the row comes back and the reason is said, with NO refetch (it would read the other account)', async () => {
+    answer({ error: 'account_changed' }, false)
+    const { hook, onChanged } = await deleteAndCommit()
+    expect(hook.result.current.gone).toBe(false)
+    expect(toastFn.error).toHaveBeenCalledWith('This browser is now signed in to a different account, so the listing was not deleted.')
+    expect(toastFn.error).toHaveBeenCalledTimes(1) // not also the "try again"-shaped restore toast
+    expect(onChanged).not.toHaveBeenCalled()
+  })
+
+  it('⛔ 409 account_changed after THIS screen has moved to the other account: the row stays out and nothing is said', async () => {
+    answer({ error: 'account_changed' }, false)
+    const onChanged = vi.fn()
+    const hook = renderHook(() => useListingActions(listing, onChanged))
+    act(() => { hook.result.current.del() })
+    auth.user = { id: 'p2' }
+    hook.rerender()
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(hook.result.current.gone).toBe(true)
+    expect(toastFn.error).not.toHaveBeenCalled() // a toast would tell p2 what p1 tried
+    expect(onChanged).not.toHaveBeenCalled()
+  })
+
+  it('no account known at the tap → no header, so the server keeps its old behaviour', async () => {
+    auth.user = null
+    answer({ ok: true })
+    await deleteAndCommit()
+    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', { method: 'DELETE', keepalive: true, headers: {} })
+  })
+})
+
+/**
  * ⛔ ONE CLOCK (use-undo-window.tsx). The delete used to run its own 5s setTimeout beside a sonner toast
  * of `duration: 5000` — and sonner pauses that toast while it is touched or hovered and while the tab is
  * hidden, so the DELETE could go out with "Undo" still on screen, and the tap only un-hid the row of a
@@ -89,7 +140,7 @@ describe('useListingActions.del — the undo window cannot outlive the DELETE', 
     const { hook } = await deleteAndCommit()
     expect(undoToast().duration).toBe(Infinity)
     expect(fetch).toHaveBeenCalledTimes(1)
-    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', { method: 'DELETE', keepalive: true })
+    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', DELETE_INIT)
     expect(toastFn.dismiss).toHaveBeenCalledWith(toastFn.mock.results[undoCall()].value)
     act(() => { undoToast().action.props.onClick() })
     expect(hook.result.current.gone).toBe(true)
@@ -121,7 +172,7 @@ describe('useListingActions.del — the undo window cannot outlive the DELETE', 
     act(() => { setVisibility('visible') })
     expect(fetch).not.toHaveBeenCalled()
     act(() => { setVisibility('hidden') })
-    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', { method: 'DELETE', keepalive: true })
+    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', DELETE_INIT)
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
   })
 
@@ -130,7 +181,7 @@ describe('useListingActions.del — the undo window cannot outlive the DELETE', 
     const hook = renderHook(() => useListingActions(listing, vi.fn()))
     act(() => { hook.result.current.del() })
     hook.unmount()
-    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', { method: 'DELETE', keepalive: true })
+    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', DELETE_INIT)
   })
 })
 

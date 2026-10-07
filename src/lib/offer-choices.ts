@@ -80,6 +80,7 @@ type Tr = (en: string, vi: string) => string
  * 409 `listing_unavailable` — accept on a listing that is no longer active;
  * 409 `not_actionable` — the offer is no longer pending (withdrawn, countered, already answered);
  * 403 `blocked` — accept across a block (App Store gate `ugc-safety`; decline is never refused for it);
+ * 409 `account_changed` — the browser is signed in to another account than the one that tapped;
  * anything else (429, 403, 5xx, a dropped connection) — worth trying again.
  * ⚠️ This lands up to ~5s after the tap, possibly after the user has left the thread, so it names the
  * action — "Could not accept the offer", never a bare "Something went wrong".
@@ -94,6 +95,12 @@ export function offerActFailedCopy(action: OfferAction, code: string | undefined
   // conversation, never the person — the thread itself shows the "closed" banner on its next load.
   if (code === 'blocked' && action === 'accept') {
     return tr('This conversation is closed, so the offer was not accepted.', 'Cuộc trò chuyện này đã đóng nên đề nghị chưa được chấp nhận.')
+  }
+  // The answer waited out its undo window while this browser changed account (src/lib/api/acting-account.ts).
+  if (code === 'account_changed') {
+    return action === 'accept'
+      ? tr('This browser is now signed in to a different account, so the offer was not accepted.', 'Trình duyệt này đang đăng nhập bằng một tài khoản khác nên đề nghị chưa được chấp nhận.')
+      : tr('This browser is now signed in to a different account, so the offer was not declined.', 'Trình duyệt này đang đăng nhập bằng một tài khoản khác nên đề nghị chưa bị từ chối.')
   }
   if (code === 'not_actionable') {
     return action === 'accept'

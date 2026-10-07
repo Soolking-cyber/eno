@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { actOnOffer } from '@/lib/messages'
 import { messagingGate } from '@/lib/enforcement'
 import { ApiError, route } from '@/lib/api/handler'
+import { actingAccountMismatch } from '@/lib/api/acting-account'
 import { isBlockedBetween } from '@/lib/user-blocks'
 
 export const runtime = 'nodejs'
@@ -22,7 +23,10 @@ export const dynamic = 'force-dynamic'
 // `messageId`/`action` and unparseable JSON both answer `bad_request`, but only because both were
 // written that way, not because a schema decided it. The tolerant parse therefore stays here.
 //
-// Branches held: guest → 401 auth_required · over limit → 429 rate_limited · gated account → 403
+// Branches held: guest → 401 auth_required · over limit → 429 rate_limited · a session that is not the
+// account that tapped (the answer waits out a 5s undo window; src/lib/api/acting-account.ts) → 409
+// account_changed, on the handler's first line (after the wrapper's auth and rate limit), before the gate or
+// the body · gated account → 403
 // with the gate's OWN body (an object, not an error code — returned as a Response) · malformed
 // JSON or missing messageId/action → 400 bad_request · unknown thread → 404 not_found ·
 // non-participant → 403 forbidden · accept on a non-active listing → 409 listing_unavailable ·
@@ -34,6 +38,7 @@ export const dynamic = 'force-dynamic'
 export const POST = route(
   { auth: 'userId', rateLimit: { bucket: 'offer:act', limit: 30, window: '1 m' } },
   async ({ req, params, userId: meId }) => {
+    if (actingAccountMismatch(req, meId)) throw new ApiError('account_changed', 409)
     const { id } = params
 
     // Enforcement (trust Phase 2): a suspended account can't act on offers.

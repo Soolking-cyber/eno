@@ -23,6 +23,7 @@ import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-par
 import { routeSend } from '@/lib/chat-send-route'
 import { ChatCardMetaProvider } from '@/components/marketplace/chat-card-shell'
 import { toast } from 'sonner'
+import { ACCOUNT_CHANGED, actingAccountHeaders } from '@/lib/api/acting-account'
 import { haptic } from '@/lib/haptics'
 import { formatMoneyFull, groupVnd, moneyLocale } from '@/lib/vnd'
 import { Button } from '@/components/ui/button'
@@ -691,6 +692,9 @@ export default function ThreadPage() {
   const mountedRef = useRef(true)
   const idRef = useRef(id)
   useEffect(() => { idRef.current = id }, [id])
+  // …and whether it is still the account that answered: a 409 account_changed puts the card back only for it.
+  const userIdRef = useRef(user?.id ?? null)
+  useEffect(() => { userIdRef.current = user?.id ?? null }, [user])
   // load() reads the copy through a ref so a language switch does not hand it a new identity — its
   // identity feeds the realtime subscription's deps, and re-subscribing for a string is not worth it.
   const trRef = useRef(tr)
@@ -1399,12 +1403,13 @@ export default function ThreadPage() {
     setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === m.id ? { ...x, offerStatus: choice } : x)) } : t))
     // Everything the send needs is fixed NOW: the send can run after this page is gone. `listingId` is the
     // listing the offer is being answered ON (see justAcceptedListingId).
-    const answer = { conversationId: id, messageId: m.id, action, iAmSeller: !!thread?.iAmSeller, listingId: thread?.listing?.id ?? null }
+    // `actingAccount`: who tapped — the POST names it, and the route refuses it under another account's session.
+    const answer = { conversationId: id, messageId: m.id, action, iAmSeller: !!thread?.iAmSeller, listingId: thread?.listing?.id ?? null, actingAccount: user?.id ?? null }
     undoWindow.start(m.id, {
       title: action === 'accept' ? tr('Offer accepted', 'Đã chấp nhận đề nghị') : tr('Offer declined', 'Đã từ chối đề nghị'),
       description: formatMoneyFull(m.offerAmount || 0, '₫', locale),
       undoLabel: tr('Undo', 'Hoàn tác'),
-      commit: () => { void sendOfferAnswer(answer) },
+      commit: () => sendOfferAnswer(answer),
       undo: () => {
         offerChoices.delete(m.id)
         // Only a card still showing OUR choice goes back to pending. load() cancels the window the
@@ -1418,11 +1423,11 @@ export default function ThreadPage() {
   // ⚠️ `keepalive` ALWAYS, not only when leaving (reviewer-caught): the window can close on the timer
   // and the user reload or close the tab a moment later, while this request is in flight. A plain
   // fetch is aborted with the page; a keepalive one is delivered. Its body is a few bytes.
-  const sendOfferAnswer = async (a: { conversationId: string; messageId: string; action: OfferAction; iAmSeller: boolean; listingId?: string | null }) => {
+  const sendOfferAnswer = async (a: { conversationId: string; messageId: string; action: OfferAction; iAmSeller: boolean; listingId?: string | null; actingAccount: string | null }) => {
     let res: Response | null = null
     try {
       res = await fetch(`/api/conversations/${a.conversationId}/offer`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...actingAccountHeaders(a.actingAccount) },
         body: JSON.stringify({ messageId: a.messageId, action: a.action }),
         keepalive: true,
       })
@@ -1434,6 +1439,18 @@ export default function ThreadPage() {
     if (!res?.ok) offerChoices.delete(a.messageId)
     // Read AFTER the await: an unmount that triggered this send has finished by now.
     const onScreen = mountedRef.current && idRef.current === a.conversationId
+    // ⛔ ANOTHER ACCOUNT HOLDS THIS BROWSER NOW (409 account_changed): nothing was sent, and the reconcile
+    // below would read this thread as THAT account. The card goes back to pending here, as Undo does, and the
+    // reason is said — only while the page still shows the account that answered (once it has moved, the
+    // thread is the other's, and even the toast would tell them what the previous account tried).
+    if (code === ACCOUNT_CHANGED) {
+      if (userIdRef.current === a.actingAccount) {
+        const choice = choiceFor(a.action)
+        if (onScreen) setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === a.messageId && x.offerStatus === choice ? { ...x, offerStatus: 'pending' } : x)) } : t))
+        toast.error(offerActFailedCopy(a.action, code, trRef.current))
+      }
+      return
+    }
     // ALWAYS reconcile from the server — on a reject (409/429/403) this reverts the card, so there is
     // never a phantom "Accepted" the server refused. Off-screen, refresh the cached copy instead, so
     // reopening the thread does not paint the answered offer as pending.

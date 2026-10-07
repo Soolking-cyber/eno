@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
@@ -8,6 +8,8 @@ import type { SerializedListing } from '@/lib/types'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { ENFORCEMENT } from '@/lib/enforcement-machine'
 import { useUndoWindow } from '@/hooks/use-undo-window'
+import { useAuth } from '@/context/auth-context'
+import { ACCOUNT_CHANGED, actingAccountHeaders } from '@/lib/api/acting-account'
 import type { MarkSoldRequest } from './mark-sold-flow'
 
 // Shared optimistic lifecycle actions for a seller's own listing — used by the
@@ -25,6 +27,10 @@ export function useListingActions(
   onState?: (state: 'sold' | 'active' | 'hidden' | 'gone' | null) => void,
 ) {
   const { tr } = useLanguage()
+  const { user } = useAuth()
+  // Who is signed in NOW: a delete refused as account_changed puts its row back only for the account that tapped.
+  const userIdRef = useRef(user?.id ?? null)
+  useEffect(() => { userIdRef.current = user?.id ?? null }, [user])
   const router = useRouter()
   const undoWindow = useUndoWindow()
   const [gone, setGoneRaw] = useState(false)
@@ -104,19 +110,35 @@ export function useListingActions(
    * `onState('gone')` today (codex + opus, 2026-10-06).
    */
   const del = () => {
+    // The account that tapped, captured NOW: the DELETE names it when the window closes (acting-account.ts).
+    const actingAccount = user?.id ?? null
     setGone(true)
     undoWindow.start(`listing:${listing.id}`, {
       title: tr('Listing deleted', 'Đã xóa tin'),
       undoLabel: tr('Undo', 'Hoàn tác'),
       undo: () => setGone(false),
-      commit: () => commitDelete(),
+      commit: () => commitDelete(actingAccount),
     })
   }
 
-  const commitDelete = () => {
-    fetch(`/api/listings/${listing.id}`, { method: 'DELETE', keepalive: true })
+  const commitDelete = (actingAccount: string | null) => {
+    return fetch(`/api/listings/${listing.id}`, { method: 'DELETE', keepalive: true, headers: actingAccountHeaders(actingAccount) })
       .then(async (res) => {
-        if (!res.ok) throw new Error('failed')
+        if (!res.ok) {
+          // ⛔ ANOTHER ACCOUNT HOLDS THIS BROWSER NOW (409 account_changed): the listing is untouched, so its
+          // row comes back and the reason is said — only while this screen is still the account that tapped
+          // (otherwise even the toast tells the next account what the previous one tried). No refetch
+          // (onChanged) either way: it would read THAT account's dashboard into this one.
+          const code = await res.json().then((b: { error?: unknown } | null) => b?.error, () => undefined)
+          if (code === ACCOUNT_CHANGED) {
+            if (userIdRef.current === actingAccount) {
+              setGone(false)
+              toast.error(tr('This browser is now signed in to a different account, so the listing was not deleted.', 'Trình duyệt này đang đăng nhập bằng một tài khoản khác nên tin chưa bị xóa.'))
+            }
+            return
+          }
+          throw new Error('failed')
+        }
         // ⚠️ A 200 IS NOT ALWAYS A DELETE. While the account or this listing is under
         // investigation the server HIDES it instead, so the listing stays where the investigation
         // can act on it (core/listings.ts deleteListingCore — a delete no longer erases reports or

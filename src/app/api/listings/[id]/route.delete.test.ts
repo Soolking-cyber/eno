@@ -18,11 +18,17 @@ const h = vi.hoisted(() => ({
   result: { ok: true, deleted: true } as Row,
   owner: { ok: true, profileId: 'p1' } as Row,
   update: { ok: true } as Row,
+  // The caller from the locally verified JWT (the acting-account check), and how often it was asked.
+  me: 'p1' as string | null,
+  idReads: 0,
+  ownerChecks: 0,
+  deletes: 0,
 }))
 
-vi.mock('@/lib/listing-owner', () => ({ checkListingOwner: async () => h.owner }))
+vi.mock('@/lib/listing-owner', () => ({ checkListingOwner: async () => { h.ownerChecks += 1; return h.owner } }))
+vi.mock('@/lib/admin', () => ({ getCurrentProfileId: async () => { h.idReads += 1; return h.me } }))
 vi.mock('@/lib/core/listings', () => ({
-  deleteListingCore: async () => h.result,
+  deleteListingCore: async () => { h.deletes += 1; return h.result },
   updateListingCore: async () => h.update,
 }))
 // The rest of the route's import graph (GET / PATCH) — not exercised here.
@@ -37,8 +43,8 @@ vi.mock('@/lib/seller-metrics', () => ({ topSellerReviews: async () => [], sameS
 const { DELETE, PATCH } = await import('./route')
 const { PARTNER_ONLY_REFUSAL } = await import('@/lib/taxonomy')
 
-async function del() {
-  const res = await DELETE(new Request('https://eno.vn/api/listings/L1', { method: 'DELETE' }) as never, { params: Promise.resolve({ id: 'L1' }) })
+async function del(headers: Record<string, string> = {}) {
+  const res = await DELETE(new Request('https://eno.vn/api/listings/L1', { method: 'DELETE', headers }) as never, { params: Promise.resolve({ id: 'L1' }) })
   return { status: res.status, body: (await res.json()) as Row }
 }
 
@@ -46,6 +52,10 @@ beforeEach(() => {
   h.result = { ok: true, deleted: true }
   h.owner = { ok: true, profileId: 'p1' }
   h.update = { ok: true }
+  h.me = 'p1'
+  h.idReads = 0
+  h.ownerChecks = 0
+  h.deletes = 0
 })
 
 // O-34b (owner, 2026-10-05): an edit that moves a non-partner's listing into the visa slot is refused by the core
@@ -97,6 +107,37 @@ describe('DELETE /api/listings/[id]', () => {
   it('an ownership refusal is unchanged', async () => {
     h.owner = { ok: false, error: 'forbidden', code: 403 }
     expect(await del()).toEqual({ status: 403, body: { error: 'forbidden' } })
+  })
+})
+
+/**
+ * ⛔ THE DASHBOARD'S DELETE IS SENT AS THE ACCOUNT THAT TAPPED (src/lib/api/acting-account.ts). It waits out a 5s
+ * undo window and the cookie is read when it goes out; a browser that changed account in between gets 409
+ * account_changed BEFORE the owner check — not a 403 about someone else's listing, shown to the wrong person.
+ */
+describe('DELETE /api/listings/[id] — the account that tapped', () => {
+  it('⛔ a session that is not the account named → 409 account_changed, before the owner check and the delete', async () => {
+    h.me = 'p2'
+    expect(await del({ 'x-eno-acting-account': 'p1' })).toEqual({ status: 409, body: { error: 'account_changed' } })
+    expect(h.ownerChecks).toBe(0)
+    expect(h.deletes).toBe(0)
+  })
+
+  it('the header names the session → the delete goes on as before', async () => {
+    expect(await del({ 'x-eno-acting-account': 'p1' })).toEqual({ status: 200, body: { ok: true } })
+    expect(h.deletes).toBe(1)
+  })
+
+  it('no header (the native dashboards) → the caller is not even resolved for it, and nothing changes', async () => {
+    expect(await del()).toEqual({ status: 200, body: { ok: true } })
+    expect(h.idReads).toBe(0)
+    expect(h.deletes).toBe(1)
+  })
+
+  it('signed out with a header → the owner check answers, as before (401 is its to give)', async () => {
+    h.me = null
+    h.owner = { ok: false, error: 'auth_required', code: 401 }
+    expect(await del({ 'x-eno-acting-account': 'p1' })).toEqual({ status: 401, body: { error: 'auth_required' } })
   })
 })
 

@@ -7,6 +7,7 @@ import type { User } from '@supabase/supabase-js'
 import { trackSignUp } from '@/lib/analytics'
 import { mayGateOnboarding } from '@/lib/onboarding-gate'
 import { clearAccountDeviceStorage } from '@/lib/sign-out-storage'
+import { createSignOutFlush } from '@/lib/api/acting-account'
 import { classifyGate, noteGateOpen, pressedInChrome, settleGateSignIn, type PressInfo } from '@/lib/signin-gates'
 import { armIntent, dropIntent, markIntentRouted, pathnameOf, readIntent, type PendingIntent } from '@/lib/pending-intent'
 import type { SignInGate } from '@/lib/signup-prompt'
@@ -293,6 +294,9 @@ function probeAuthBoot(): AuthBootProbe {
 }
 
 const AuthContext = createContext<AuthCtx | undefined>(undefined)
+
+/** One per tab: the shared wait signOut() takes for the writes it flushes (createSignOutFlush). */
+const flushBeforeSignOut = createSignOutFlush()
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -728,6 +732,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, identityLoaded, accountType, pathname, router])
 
   const signOut = useCallback(async (opts?: { scope?: 'global' | 'local' }) => {
+    // ⛔ FIRST, AND ITS ANNOUNCEMENT IS SYNCHRONOUS: every undo window open in this tab (a deleted
+    // conversation or listing, an offer answer) sends its write NOW, while the session cookie is still this
+    // account's — and the session stays until those writes have answered (capped; a second sign-out waits
+    // for the first one's). Later they would go out signed out, or as the next account
+    // (src/lib/api/acting-account.ts).
+    await flushBeforeSignOut()
     // Tear down Web Push FIRST so a shared device never keeps delivering the
     // previous user's reminders to the next person who signs in here.
     try {

@@ -89,6 +89,9 @@ export type SharedApiErrorCode =
  * `window_closed`), mixed with the `invalid_*` sprawl described above.
  */
 export type NicheApiErrorCode =
+  // A delayed write (an undo window) whose session now belongs to a different account than the one that
+  // tapped it — src/lib/api/acting-account.ts. Conversation delete, listing delete, offer answer.
+  | 'account_changed'
   // The /api/schools routes (2026-10-04): who may vote or review, and why a review was refused
   | 'business_account'
   | 'phone_required'
@@ -543,6 +546,7 @@ export function apiErrorCode(body: unknown): ApiErrorCode | null {
  * to the type but not here fails to compile.
  */
 const ALL = [
+  'account_changed',
   'business_account',
   'phone_required',
   'links_not_allowed',

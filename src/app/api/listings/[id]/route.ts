@@ -1,6 +1,8 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { checkListingOwner } from '@/lib/listing-owner'
+import { getCurrentProfileId } from '@/lib/admin'
+import { ACTING_ACCOUNT_HEADER, actingAccountMismatch } from '@/lib/api/acting-account'
 import { db } from '@/lib/db'
 import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
@@ -130,8 +132,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 // words it itself (tr); `message` is for the native dashboards, which call this same route and had
 // nothing to show — a held seller watched a "deleted" listing come back hidden with no reason.
 // A row that vanished concurrently stays the idempotent `{ ok: true }` it always was.
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+//
+// ⛔ FIRST: the dashboard's DELETE waits out a 5s undo window, so it names the account that tapped it
+// (src/lib/api/acting-account.ts). A session that belongs to someone else → 409 account_changed, before
+// the owner check. The caller is read from the locally verified JWT, and only when the header is there:
+// the native dashboards send none and pay nothing.
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  if (req.headers.get(ACTING_ACCOUNT_HEADER) && actingAccountMismatch(req, await getCurrentProfileId())) {
+    return NextResponse.json({ error: 'account_changed' }, { status: 409 })
+  }
   const auth = await checkListingOwner(id)
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.code })
   const r = await deleteListingCore(id)

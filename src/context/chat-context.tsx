@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
+import { ACCOUNT_CHANGED, actingAccountHeaders } from '@/lib/api/acting-account'
 import { useAuth } from './auth-context'
 import { useLanguage } from './language-context'
 import { useUndoWindow } from '@/hooks/use-undo-window'
@@ -321,7 +322,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     // Compute the next list OUTSIDE the setConvos updater: the localStorage
     // write is a side effect, and updaters must be pure (StrictMode double-
     // invokes them, so an impure updater writes the cache twice — or worse).
-    const next = (convosRef.current ?? []).filter((c) => c.id !== id)
+    const prev = convosRef.current ?? []
+    const at = prev.findIndex((c) => c.id === id)
+    const removed = at >= 0 ? prev[at] : null // kept to put back if the server refuses (account_changed, below)
+    const next = prev.filter((c) => c.id !== id)
     convosRef.current = next
     setConvos(next)
     if (user) { try { localStorage.setItem(CONVOS_KEY, JSON.stringify({ userId: user.id, list: next })) } catch {} }
@@ -339,6 +343,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     // abort a plain fetch in flight; the route is an idempotent per-user hide, and the hook's flush also
     // stops the clock, so a bfcache restore cannot fire a SECOND DELETE whose deletedAt restamp could
     // hide a reply that landed in between.
+    // The account that tapped, captured NOW: the DELETE names it when the window closes (acting-account.ts).
+    const actingAccount = user?.id ?? null
     undoWindow.start(`convo:${id}`, {
       title: tr('Conversation removed', 'Đã xóa cuộc trò chuyện'),
       undoLabel: tr('Undo', 'Hoàn tác'),
@@ -354,10 +360,32 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         // the next answer that can apply. On failure the rollback re-pulls and the conversation comes back.
         const key = `${session}|${id}`
         deletesInFlight.current.add(key)
-        fetch(`/api/conversations/${id}`, { method: 'DELETE', keepalive: true })
-          .then((r) => {
+        return fetch(`/api/conversations/${id}`, { method: 'DELETE', keepalive: true, headers: actingAccountHeaders(actingAccount) })
+          .then(async (r) => {
             deletesInFlight.current.delete(key)
-            if (!r.ok) { rollback(); return }
+            if (!r.ok) {
+              // ⛔ ANOTHER ACCOUNT HOLDS THIS BROWSER NOW (409 account_changed): nothing was deleted, and the
+              // rollback's re-pull would read THAT account's inbox into this one's list. So the conversation is
+              // put back from what the tap removed — locally, and only while this tab is still the session that
+              // removed it (once it has moved, the list belongs to whoever signed in). The device cache is left as
+              // the tap wrote it, on purpose: this browser now belongs to another account, whose session ignores it
+              // (or sign-out cleared it) — writing the old inbox back would leave it on a shared device.
+              const code = await r.json().then((b: { error?: unknown } | null) => b?.error, () => undefined)
+              if (code !== ACCOUNT_CHANGED) { rollback(); return }
+              // Nothing is put back and nothing is said once the tab has moved on: the screen is the other
+              // account's, and even the toast would tell them what the previous one tried.
+              if (sessionRef.current !== session) return
+              if (removed) {
+                const cur = convosRef.current ?? []
+                if (!cur.some((c) => c.id === id)) {
+                  const list = [...cur.slice(0, at), removed, ...cur.slice(at)]
+                  convosRef.current = list
+                  setConvos(list)
+                }
+              }
+              toast.error(tr('This browser is now signed in to a different account, so the conversation was not deleted.', 'Trình duyệt này đang đăng nhập bằng một tài khoản khác nên cuộc trò chuyện chưa bị xóa.'))
+              return
+            }
             const o = convosOrder.current.get(session)
             if (o) o.shown = Math.max(o.shown, o.started) // the barrier: no pull asked before the DELETE answers after it
             refreshUnread(); refreshConvos()
