@@ -18,12 +18,12 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 
 const toasts = vi.hoisted(() => {
   type Opts = { description?: string; duration?: number; action?: unknown }
-  const state = { seq: 0, shown: [] as { id: number; title: string; opts: Opts }[], dismissed: [] as (string | number)[], errors: [] as string[] }
+  const state = { seq: 0, shown: [] as { id: number; title: string; opts: Opts }[], dismissed: [] as (string | number)[], errors: [] as string[], errorOpts: [] as unknown[] }
   const toast = Object.assign(
     (title: string, opts: Opts) => { const id = ++state.seq; state.shown.push({ id, title, opts }); return id },
     {
       dismiss: (id: string | number) => { state.dismissed.push(id) },
-      error: (msg: string) => { state.errors.push(msg); return 0 },
+      error: (msg: string, opts?: unknown) => { state.errors.push(msg); state.errorOpts.push(opts); return 0 },
       success: () => 0,
       loading: () => 0,
       message: () => 0,
@@ -167,6 +167,7 @@ beforeEach(() => {
   toasts.state.shown.length = 0
   toasts.state.dismissed.length = 0
   toasts.state.errors.length = 0
+  toasts.state.errorOpts.length = 0
   chat.prefetchThread.mockClear()
   chat.cached = null
   chat.convos = null
@@ -345,6 +346,52 @@ describe('leaving sends — never a silent drop', () => {
     expect(offerPosts()).toHaveLength(1)
     // Off-screen: the cached copy is refreshed so reopening the thread does not paint it pending.
     expect(chat.prefetchThread).toHaveBeenCalledWith('c1')
+  })
+
+  it('⛔ a refusal that lands after the user LEFT carries the way back (Open chat), long enough to reach for it', async () => {
+    offerReply = { status: 409, body: { error: 'not_actionable' } }
+    const push = vi.spyOn(stable.router, 'push')
+    const { unmount } = await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    unmount() // leave → the POST goes out; its refusal lands with no thread on screen
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    expect(toasts.state.errors).toEqual(['That offer changed before your answer was sent, so it was not accepted.'])
+    const opts = toasts.state.errorOpts[0] as { id: string; duration: number; action: { label: string; onClick: () => void } }
+    expect(opts.id).toBe('offer-refusal:c1:m-offer') // one toast per answer — never merged with another thread's
+    expect(opts.duration).toBeGreaterThanOrEqual(8000)
+    expect(opts.duration).toBeLessThanOrEqual(15_000)
+    expect(opts.action.label).toBe('Open chat')
+    opts.action.onClick()
+    expect(push).toHaveBeenCalledWith('/messages/c1')
+    push.mockRestore()
+  })
+
+  it('a refusal that lands after this browser moved to another account says nothing (its way back is not theirs)', async () => {
+    const view = await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    holdPost = {}
+    await act(async () => { await vi.advanceTimersByTimeAsync(5100) })
+    const tapped = stable.auth.user
+    try {
+      stable.auth.user = { id: 'u-other' }
+      view.rerender(<ThreadPage />)
+      offerReply = { status: 409, body: { error: 'not_actionable' } }
+      await act(async () => { holdPost!.release!(); await vi.advanceTimersByTimeAsync(50) })
+      expect(toasts.state.errors).toEqual([])
+    } finally { stable.auth.user = tapped }
+  })
+
+  it('on the thread itself the refusal carries no step (the card already shows the truth) and lasts long enough to read', async () => {
+    offerReply = { status: 409, body: { error: 'listing_unavailable' } }
+    await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(5100) })
+    expect(toasts.state.errors).toEqual(['The listing is no longer available, so the offer was not accepted.'])
+    const opts = toasts.state.errorOpts[0] as { duration: number; action?: unknown }
+    expect(opts.action).toBeUndefined()
+    expect(opts.duration).toBeGreaterThanOrEqual(4000) // never shorter than the old default; a short one keeps it
+    expect(opts.duration).toBeLessThan(Infinity)
   })
 
   it('coming straight BACK while that answer is still in flight shows it answered — no live buttons, no second POST', async () => {

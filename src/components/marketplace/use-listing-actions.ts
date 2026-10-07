@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { subtleToast } from '@/lib/subtle-toast'
+import { refusalToast } from '@/lib/refusal-toast'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
@@ -62,17 +63,19 @@ export function useListingActions(
         const identityMsg = identityBlockMessage(d.error, tr)
         if (identityMsg) {
           const next = identityBlockAction(d.error)
-          toast.error(identityMsg, next === 'verify' ? { action: { label: tr('Verify', 'Xác minh'), onClick: () => router.push(IDENTITY_VERIFY_PATH) } } : undefined)
+          // A refusal: long enough to read — and, with Verify, to reach for it (src/lib/refusal-toast.ts); the
+          // three below too, one toast per listing. The 4s default took a 20-word sentence with it.
+          refusalToast(identityMsg, { id: `relist-refusal:${listing.id}`, step: next === 'verify' ? { label: tr('Verify', 'Xác minh'), onClick: () => router.push(IDENTITY_VERIFY_PATH) } : null })
         } else if (d.error === 'account_held' || d.error === 'account_suspended') {
           // The same kind of refusal, from the account's HOLD (core/listings.ts, the hold leak): a
           // held or suspended seller cannot put a listing back on sale. Said, not silently undone.
-          toast.error(d.error === 'account_suspended'
+          refusalToast(d.error === 'account_suspended'
             ? tr('Your account is suspended, so listings can’t be put back on sale. Details are in your notifications.', 'Tài khoản của bạn đang tạm ngưng nên chưa thể mở bán lại tin đăng. Xem chi tiết trong thông báo của bạn.')
-            : tr('Your listings are paused while your account is on hold, so they can’t be put back on sale yet. Details are in your notifications.', 'Tin đăng của bạn đang tạm dừng trong thời gian tài khoản bị tạm giữ nên chưa thể mở bán lại. Xem chi tiết trong thông báo của bạn.'))
+            : tr('Your listings are paused while your account is on hold, so they can’t be put back on sale yet. Details are in your notifications.', 'Tin đăng của bạn đang tạm dừng trong thời gian tài khoản bị tạm giữ nên chưa thể mở bán lại. Xem chi tiết trong thông báo của bạn.'), { id: `relist-refusal:${listing.id}` })
         } else if (d.error === 'released_charge_listing_cap') {
           // After a scam-hold RELEASE (released-charge-gate.ts): relisting is allowed, but only under the
           // active-listing cap while the confirmed report stands. The number from the constant.
-          toast.error(`${tr('Your hold was released, but the confirmed report stays on your record, so you can keep up to', 'Tạm dừng đã được gỡ, nhưng báo cáo đã xác nhận vẫn còn trong hồ sơ của bạn, nên bạn chỉ được giữ tối đa')} ${ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS} ${tr('active listings. Mark one sold or hide one before putting this back on sale.', 'tin đang đăng. Hãy đánh dấu đã bán hoặc ẩn một tin trước khi mở bán lại tin này.')}`)
+          refusalToast(`${tr('Your hold was released, but the confirmed report stays on your record, so you can keep up to', 'Tạm dừng đã được gỡ, nhưng báo cáo đã xác nhận vẫn còn trong hồ sơ của bạn, nên bạn chỉ được giữ tối đa')} ${ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS} ${tr('active listings. Mark one sold or hide one before putting this back on sale.', 'tin đang đăng. Hãy đánh dấu đã bán hoặc ẩn một tin trước khi mở bán lại tin này.')}`, { id: `relist-refusal:${listing.id}` })
         }
         return false
       })

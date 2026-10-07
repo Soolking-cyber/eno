@@ -23,6 +23,7 @@ import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-par
 import { routeSend } from '@/lib/chat-send-route'
 import { ChatCardMetaProvider } from '@/components/marketplace/chat-card-shell'
 import { toast } from 'sonner'
+import { refusalToast } from '@/lib/refusal-toast'
 import { ACCOUNT_CHANGED, actingAccountHeaders } from '@/lib/api/acting-account'
 import { haptic } from '@/lib/haptics'
 import { formatMoneyFull, groupVnd, moneyLocale } from '@/lib/vnd'
@@ -1269,7 +1270,8 @@ export default function ThreadPage() {
           } else {
             markFailed(tempId)
           }
-          toast.error(objectionableCopy('message', tr))
+          // 26 words, and the user has to rephrase: long enough to read, not the 4s default (refusal-toast.ts).
+          refusalToast(objectionableCopy('message', tr), { id: `chat-refusal:${id}` })
         } else {
           markFailed(tempId)
         }
@@ -1447,7 +1449,7 @@ export default function ThreadPage() {
       if (userIdRef.current === a.actingAccount) {
         const choice = choiceFor(a.action)
         if (onScreen) setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === a.messageId && x.offerStatus === choice ? { ...x, offerStatus: 'pending' } : x)) } : t))
-        toast.error(offerActFailedCopy(a.action, code, trRef.current))
+        refusalToast(offerActFailedCopy(a.action, code, trRef.current), { id: `offer-refusal:${a.conversationId}:${a.messageId}` })
       }
       return
     }
@@ -1477,10 +1479,19 @@ export default function ThreadPage() {
     // (a dropped response on a mobile network can follow a committed write), so that copy claims neither.
     // `tr` re-bound to the language NOW, not at the tap — this can land seconds later. (Named `tr` on
     // purpose: gen-ui-strings collects `tr('…')` calls, and reads `t('…','…')` as the vi-first form.)
+    // Only for the account that answered: once this browser has moved to another (signed out, or in as someone
+    // else), the refusal — and its way back into a thread that account may not open — is not theirs to see.
+    if (userIdRef.current !== a.actingAccount) return
     const tr = trRef.current
-    toast.error(res
+    // ⚠️ IT CAN LAND AFTER THE USER HAS LEFT THE THREAD — so then it carries the way back (and stays long enough to
+    // reach for it). On the thread itself the card already shows the truth: long enough to read. One toast per answer.
+    // Re-checked at the tap too: the toast lives up to 15s. ⚠️ Once this page has unmounted its ref stops following
+    // the account, so a switch AFTER leaving is not seen here — bounded by the toast's 15s, and the thread route
+    // refuses an account that is not in it (accepted, review 2026-10-07).
+    const backToThread = onScreen ? null : { label: tr('Open chat', 'Mở cuộc trò chuyện'), onClick: () => { if (userIdRef.current === a.actingAccount) router.push(`/messages/${a.conversationId}`) } }
+    refusalToast(res
       ? offerActFailedCopy(a.action, code, tr)
-      : tr('Your answer to the offer may not have been sent — check the chat.', 'Câu trả lời cho đề nghị có thể chưa được gửi — hãy kiểm tra cuộc trò chuyện.'))
+      : tr('Your answer to the offer may not have been sent — check the chat.', 'Câu trả lời cho đề nghị có thể chưa được gửi — hãy kiểm tra cuộc trò chuyện.'), { id: `offer-refusal:${a.conversationId}:${a.messageId}`, step: backToThread })
   }
 
   // ── e-VISA IN THE THREAD ────────────────────────────────────────────────────────

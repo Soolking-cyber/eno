@@ -7,7 +7,8 @@
  * to pause it — has read half of it, and the Vietnamese runs longer still (Emil-skills audit, ask-sonner #2).
  *
  * ~60ms a character is ≈16 characters a second: a slow reader, on a phone, in a second language. Measured on
- * the string actually shown, so the Vietnamese gets its own, longer, time.
+ * the string actually shown, so the Vietnamese gets its own, longer, time — up to the cap, which a long
+ * Vietnamese sentence can reach first (the cap keeps a toast nobody can act on from parking on screen).
  */
 export function readingTimeMs(message: string, floor: number, cap: number): number {
   return Math.min(cap, Math.max(floor, message.length * 60))

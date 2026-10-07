@@ -1726,6 +1726,7 @@ export const UI_STRINGS: string[] = [
   "Open Outlook",
   "Open a case in the Dispute Center",
   "Open brand list",
+  "Open chat",
   "Open in WhatsApp",
   "Open in Zalo",
   "Open jobs",

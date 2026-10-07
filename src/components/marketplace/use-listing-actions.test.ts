@@ -197,25 +197,35 @@ describe('useListingActions.setStatus — a relist refused by the account HOLD i
     return { hook, onChanged }
   }
 
+  it('⛔ an identity refusal carries Verify and stays long enough to reach for it — not gone in 4s', async () => {
+    answer({ error: 'identity_unverified' }, false)
+    const { hook } = await relist()
+    expect(hook.result.current.status).toBe('sold')
+    expect(toastFn.error).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ id: 'relist-refusal:L1', action: { label: 'Verify', onClick: expect.any(Function) } }))
+    expect((toastFn.error.mock.lastCall![1] as { duration: number }).duration).toBeGreaterThanOrEqual(8000)
+  })
+
   it('account_held → rolled back, with the hold named', async () => {
     answer({ error: 'account_held' }, false)
     const { hook, onChanged } = await relist()
     expect(hook.result.current.status).toBe('sold')
     expect(onChanged).toHaveBeenCalled()
-    expect(toastFn.error).toHaveBeenCalledWith(expect.stringMatching(/^Your listings are paused while your account is on hold/))
+    // A refusal with no step to take: long enough to read (src/lib/refusal-toast.ts), not the 4s default.
+    expect(toastFn.error).toHaveBeenCalledWith(expect.stringMatching(/^Your listings are paused while your account is on hold/), expect.objectContaining({ duration: expect.any(Number) }))
+    expect((toastFn.error.mock.lastCall![1] as { duration: number }).duration).toBeGreaterThan(4000)
   })
 
   it('account_suspended → the suspension named', async () => {
     answer({ error: 'account_suspended' }, false)
     await relist()
-    expect(toastFn.error).toHaveBeenCalledWith(expect.stringMatching(/^Your account is suspended, so listings can’t be put back on sale/))
+    expect(toastFn.error).toHaveBeenCalledWith(expect.stringMatching(/^Your account is suspended, so listings can’t be put back on sale/), expect.objectContaining({ duration: expect.any(Number) }))
   })
 
   it('released_charge_listing_cap → rolled back, with the limit and why', async () => {
     answer({ error: 'released_charge_listing_cap' }, false)
     const { hook } = await relist()
     expect(hook.result.current.status).toBe('sold')
-    expect(toastFn.error).toHaveBeenCalledWith('Your hold was released, but the confirmed report stays on your record, so you can keep up to 10 active listings. Mark one sold or hide one before putting this back on sale.')
+    expect(toastFn.error).toHaveBeenCalledWith('Your hold was released, but the confirmed report stays on your record, so you can keep up to 10 active listings. Mark one sold or hide one before putting this back on sale.', expect.objectContaining({ duration: 10_000 }))
   })
 
   it('any other failure keeps its silent rollback', async () => {
