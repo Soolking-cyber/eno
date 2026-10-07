@@ -36,6 +36,9 @@ const CHAT_CTA = /^(Chat now|Chat|Nhắn tin ngay|Nhắn tin|Chat ngay)$/i
  * hydration AND after the auth check has settled to "no user" (contact-composer.tsx: `!loading && !user`;
  * the server renders "Send offer" while auth is loading) — so once it is visible, a tap on Chat reaches
  * ContactComposer's guest branch.
+ * ⚠️ SINCE 2026-10-07 THE BUTTON ALONE IS NO LONGER THAT SIGNAL: a cookie-less document is server-rendered with the
+ * guest panel already showing (the `no-session` variant — no signed-in slider flashing for a guest), so it is
+ * visible before hydration. Only the panel auth has settled on carries `data-auth-settled`; the wait is scoped to it.
  */
 const GUEST_READY = /^(Sign in to make an offer|Đăng nhập để trả giá)$/i
 /** The chat gate's own card, for this listing's seller (sign-in-card.tsx; seller names are not translated). */
@@ -74,7 +77,7 @@ test('a guest who taps Chat gets the sign-in dialog, stays on the listing, and s
   }), [COMPOSE_KEY, INTENT_KEY] as const)
 
   await page.goto(OWN)
-  await expect(page.getByRole('button', { name: GUEST_READY }).first()).toBeVisible({ timeout: 30_000 })
+  await expect(page.locator('[data-auth-settled]').getByRole('button', { name: GUEST_READY }).first()).toBeVisible({ timeout: 30_000 })
   await expect(page.locator('[data-affiliate-cta]'), 'ci-l-1 is a native listing: no outbound booking link').toHaveCount(0)
 
   const chat = page.getByRole('button', { name: CHAT_CTA }).first()

@@ -94,6 +94,9 @@ describe('after sign-in, the composer finishes it — one tap, never by itself',
     fireEvent.click(screen.getByRole('button', { name: /^Send$/ }))
     expect(push).toHaveBeenCalledWith('/messages/pending')
     expect(JSON.parse(sessionStorage.getItem(COMPOSE_KEY)!)).toMatchObject({ listingId: 'l1', body: 'Chào bạn! Món này còn không?' })
+    // The spinner is on the Send that was pressed, not on the offer row's Chat now (which only goes inert).
+    expect(screen.getByRole('button', { name: /Chat now/ }).getAttribute('aria-busy')).not.toBe('true')
+    expect(screen.getByRole('button', { name: /Chat now/ }).getAttribute('aria-disabled')).toBe('true')
   })
 
   it('an ARMED chat (signed in inside its own popup — no address marker) is finished the same way', async () => {
