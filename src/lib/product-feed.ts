@@ -7,6 +7,9 @@ import { facetValues } from '@/lib/facet-tokens'
 // Both platforms accept PHYSICAL PRODUCTS only — rentals, jobs, services, events,
 // tickets and property aren't products, so feeding them flags the whole feed. Restrict
 // to the sellable retail categories, and to listingType 'sell'.
+// ⛔ Apartment rentals have their OWN feed AND their own Meta catalogue (/api/feeds/facebook-rentals,
+// src/lib/rentals-feed.ts, owner 2026-10-07) — so if Meta does treat flats as non-products, it is that
+// catalogue that gets flagged, not this one. Never add 'rentals' or 'rent' to the lists below.
 export const FEED_CATEGORIES = [
   'electronics', 'fashion-beauty', 'vehicles', 'furniture-appliances',
   'baby-kids', 'books-stationery', 'sports', 'hobbies-sports', 'pets', 'food-drink', 'moving-sale',

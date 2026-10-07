@@ -20,7 +20,7 @@ REST API for the eno.vn marketplace. All routes live under `/api`. Unless noted,
 - **public-browser** — `none` / `login` routes called from the web app or anonymous clients.
 - **owner-scoped** — mutations restricted to the resource owner: `owner`, `business`, `admin`, plus `login` message/notification/saved-search routes that filter by the caller's id (no cross-user 404 oracle).
 - **server-to-server** — `cron-bearer`, `supabase-hmac`, `basic-auth`.
-- **edge-pinned** — most routes require ingress through the pinned Cloudflare edge. **EDGE-PIN EXEMPT** routes (must accept off-edge callers): `/api/auth/send-sms`, `/api/cron/daily-reminders`, `/api/cron/saved-search-alerts`, `/api/feeds/facebook-catalog`, `/api/feeds/google-shopping`.
+- **edge-pinned** — most routes require ingress through the pinned Cloudflare edge. **EDGE-PIN EXEMPT** routes (must accept off-edge callers): `/api/auth/send-sms`, `/api/cron/daily-reminders`, `/api/cron/saved-search-alerts`, `/api/feeds/facebook-catalog`, `/api/feeds/facebook-rentals`, `/api/feeds/google-shopping`.
 
 ### Rate-limit modes
 
@@ -193,13 +193,18 @@ All AI routes require `login` and are **strict / fail-closed**. They draw on the
 
 ## Feeds
 
-Both feed routes are **EDGE-PIN EXEMPT**, `no-store`, `Vary: Authorization`. Basic-Auth is **open** until `FEED_USER` / `FEED_PASSWORD` are set.
+All feed routes are **EDGE-PIN EXEMPT** (`/api/feeds/` prefix), `no-store`, `Vary: Authorization`. Basic-Auth (or `?key=` = `FEED_PASSWORD`) is **open** until `FEED_USER` / `FEED_PASSWORD` are set.
 
 ### `GET /api/feeds/facebook-catalog`
 - **Auth:** basic-auth · **Rate limit:** none
 - **Purpose:** Meta commerce catalog CSV (sell-intent physical products only).
 - **Request:** `?exclude_mock=1`; optional Basic auth
 - **Response:** `text/csv` attachment; 401 when protected + wrong creds
+
+### `GET /api/feeds/facebook-rentals`
+- **Auth:** basic-auth or `?key=` · **Rate limit:** none
+- **Purpose:** Meta products CSV of **apartment rentals** (verified, active, `rentals` › `apartment-rental`, monthly rent 1M–500M ₫, first-party photos only) for its own catalogue — the "Products" row under the rentals video ad. Public path `/feeds/facebook-rentals.csv`. Rules in `src/lib/rentals-feed.ts`.
+- **Response:** `text/csv` attachment; `X-Feed-Excluded` = withheld rows by reason; 401 when protected + wrong creds; 500 JSON on failure
 
 ### `GET /api/feeds/google-shopping`
 - **Auth:** basic-auth · **Rate limit:** none

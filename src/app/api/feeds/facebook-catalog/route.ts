@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { LISTING_FEED_SELECT, serializeFeedListing } from '@/lib/serialize'
 import { NextResponse } from 'next/server'
 import { plainSnippet } from '@/lib/strip-md'
+import { escapeCsv } from '@/lib/feed-csv'
 import {
   feedCategories, feedListingTypes, isMockImages, feedExcluded, feedAuthError, feedCacheHeaders,
   feedStock, gpcFor,
@@ -11,20 +12,8 @@ import {
 // Meta/Facebook commerce catalog feed (Commerce Manager CSV format). Powers the
 // Facebook/Instagram Shop + Advantage+ catalog (DPA) ads — each item links back to
 // its eno.vn listing (off-site checkout). PHYSICAL PRODUCTS only (sell intent, retail
-// categories); rentals/jobs/services/events/property go in their own vertical feeds.
-
-// RFC-4180 CSV escaping. A field with a comma/quote/newline is wrapped in quotes
-// (also lets additional_image_link carry a comma-separated URL list in one cell).
-function escapeCsv(val: string): string {
-  let clean = val.replace(/\r?\n|\r/g, ' ').trim()
-  // CSV formula-injection guard: neutralize a leading =, +, - or @ so a listing title
-  // can't execute as a formula when the feed is opened in a spreadsheet.
-  if (/^[=+\-@]/.test(clean)) clean = `'${clean}`
-  if (clean.includes('"') || clean.includes(',') || clean.includes(';')) {
-    return `"${clean.replace(/"/g, '""')}"`
-  }
-  return clean
-}
+// categories); jobs/services/events/property go in their own vertical feeds. Apartment
+// rentals have theirs: /api/feeds/facebook-rentals, its own catalogue (rentals-feed.ts).
 
 // ⚠️ WS6 — NOT MIGRATED. This is a protocol endpoint for Meta's fetcher, not a first-party JSON
 // API, and nothing about it fits the wrapper (WS6 audit, 2026-08-06):

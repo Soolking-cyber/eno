@@ -878,6 +878,7 @@ Both routes query `verified && active && listingType === 'sell' && category.slug
 
 - **`/api/feeds/google-shopping`** (`route.ts`) — RSS 2.0 XML with the `g:` namespace; `?utm_source=google&utm_medium=shopping`; emits `g:brand` when known, else `g:identifier_exists=no`.
 - **`/api/feeds/facebook-catalog`** (`route.ts`) — Commerce Manager CSV (RFC-4180 escaping; `additional_image_link` carries a comma-list in one cell); `?utm_source=facebook&utm_medium=catalog`; powers FB/IG Shop + Advantage+ (DPA) ads.
+- **`/api/feeds/facebook-rentals`** (`route.ts`, rules in `src/lib/rentals-feed.ts`) — apartment rentals as a Meta products CSV for their OWN catalogue (the "Products" row under the rentals video ad); composed English titles, monthly-rent and first-party-image filters, withheld rows counted in `X-Feed-Excluded`; `?utm_source=facebook&utm_medium=catalog&utm_campaign=rentals`. Never folded into the goods feeds (`feedCategories`/`feedListingTypes` also drive Google Shopping).
 
 Both map condition to `new | used | refurbished` (Vietnamese "mới" → new, "refurb" → refurbished, else used), title is brand-led + capped (150 chars), and price is formatted `"<amount> VND"`/`"<amount> USD"`.
 

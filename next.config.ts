@@ -1111,6 +1111,7 @@ const nextConfig: NextConfig = {
         { source: "/index.md", destination: "/md/index" },
         { source: "/auth.md", destination: "/md/auth" },
         { source: "/feeds/facebook-catalog.csv", destination: "/api/feeds/facebook-catalog" },
+        { source: "/feeds/facebook-rentals.csv", destination: "/api/feeds/facebook-rentals" },
         { source: "/feeds/google-shopping.xml", destination: "/api/feeds/google-shopping" },
         /**
          * ── THE INDEXNOW KEY FILE (SEO wave B, I4) ──────────────────────────────────────────────
