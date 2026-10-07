@@ -12,6 +12,7 @@
 import { CATEGORY_BY_SLUG, type FacetDef } from '@/lib/taxonomy'
 import { buildFacetTokens } from '@/lib/facet-tokens'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
+import { COVER_LIMITS, COVER_SLOTS, COVER_AREA_KEYS } from '@/lib/teachers/cover'
 
 const facet = (key: string): FacetDef => {
   const f = CATEGORY_BY_SLUG[TEACHERS_CATEGORY_SLUG]?.facets.find((x) => x.key === key)
@@ -70,6 +71,18 @@ export type TeacherInput = {
   degreeYear: number | null
   certificates: CertificateEntry[]
   expectedSalaryM: number | null
+  /**
+   * COVER LESSONS (2026-10-07, src/lib/teachers/cover.ts) — the four fields the teacher edits, plus the
+   * separate consent tick. ⛔ The server-written cover columns (coverConfirmedAt, coverConsentAt,
+   * coverConsentVersion, coverWithdrawnAt) are deliberately NOT here: normalizeTeacherInput drops unknown
+   * keys, so neither a request body nor the teacher.eno.vn `#d=` fragment can set them.
+   */
+  coverOpen: boolean
+  coverSlots: string[]
+  coverAreas: string[]
+  coverRateVnd: number | null
+  /** The cover-publication consent, SEPARATE from consentPublic (PDP Law 91/2025 — unbundled). */
+  coverConsent: boolean
   phone: string
   staffContactOptIn: boolean
   matchEmailOptIn: boolean
@@ -82,23 +95,34 @@ export const EMPTY_TEACHER: TeacherInput = {
   currentCity: '', currentDistrict: '', preferredCities: [], openToOnline: false, availableFrom: null,
   jobTypes: [], ageGroups: [], subjects: [], yearsExperience: 0, experience: [],
   degreeLevel: null, degreeMajor: '', degreeInstitution: '', degreeYear: null, certificates: [],
-  expectedSalaryM: null, phone: '', staffContactOptIn: false, matchEmailOptIn: false, consentPublic: false,
+  expectedSalaryM: null,
+  coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, coverConsent: false,
+  phone: '', staffContactOptIn: false, matchEmailOptIn: false, consentPublic: false,
 }
 
 /** Field → error code. Codes, not prose: the form words them bilingually. */
 export type TeacherErrors = Partial<Record<keyof TeacherInput | `experience.${number}` | `certificates.${number}`, string>>
 
-/** The wizard's steps, and which fields each one owns — validation of a step checks only these. */
+/**
+ * The wizard's steps, and which fields each one owns — validation of a step checks only these.
+ * ⚠️ `cover` sits BEFORE `qualifications` on purpose: the teacher.eno.vn hand-off fires at the end of
+ * `qualifications` (teacher-form.tsx `onDraftHostEnd`), so the new step needed no change there. The form's
+ * own `steps[]` list must follow this order — the two lists change together.
+ */
 export const TEACHER_STEP_FIELDS = {
   about: ['fullName', 'headline', 'bio', 'nationality', 'nativeSpeaker', 'languages'],
   location: ['currentCity', 'currentDistrict', 'preferredCities', 'openToOnline', 'availableFrom'],
   experience: ['yearsExperience', 'experience', 'ageGroups', 'subjects', 'jobTypes', 'expectedSalaryM'],
+  cover: ['coverOpen', 'coverSlots', 'coverAreas', 'coverRateVnd', 'coverConsent'],
   qualifications: ['degreeLevel', 'degreeMajor', 'degreeInstitution', 'degreeYear', 'certificates'],
   finish: ['photoUrl', 'videoUrl', 'phone', 'staffContactOptIn', 'matchEmailOptIn', 'consentPublic'],
 } as const satisfies Record<string, readonly (keyof TeacherInput)[]>
 export type TeacherStep = keyof typeof TEACHER_STEP_FIELDS
 /** Steps that may be filled WITHOUT an account (the teacher.eno.vn half). */
-export const DRAFT_STEPS: readonly TeacherStep[] = ['about', 'location', 'experience', 'qualifications']
+export const DRAFT_STEPS: readonly TeacherStep[] = ['about', 'location', 'experience', 'cover', 'qualifications']
+
+/** The cover fields alone — what the edit page's quick panel (PATCH /api/teachers/me/cover) sends. */
+export const COVER_FIELDS = TEACHER_STEP_FIELDS.cover
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '')
 const longStr = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\r\n/g, '\n').trim().slice(0, max) : '')
@@ -108,6 +132,11 @@ const int = (v: unknown, min: number, max: number): number | null => {
 }
 const pick = (v: unknown, allowed: readonly string[], max = 20): string[] =>
   Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === 'string' && allowed.includes(x)))].slice(0, max) : []
+/** `picked` in the order of `allowed`, so the stored list — and the facet tokens built from it — is stable. */
+const canonical = (allowed: readonly string[], picked: readonly string[]): string[] => {
+  const s = new Set(picked)
+  return allowed.filter((v) => s.has(v))
+}
 const YM = /^\d{4}-(0[1-9]|1[0-2])$/ // experience dates are month precision: YYYY-MM, or '' for "present"
 const ISO_COUNTRY = /^[A-Z]{2}$/
 const CERT_TYPES = values('cert')
@@ -120,6 +149,11 @@ const DEGREES = values('degree')
 export function normalizeTeacherInput(raw: unknown): TeacherInput {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const thisYear = new Date().getUTCFullYear()
+  const currentCity = pick([r.currentCity], values('workIn').filter((v) => v !== 'anywhere' && v !== 'online'))[0] ?? ''
+  const preferredCities = pick(r.preferredCities, values('workIn'))
+  // Any listed area, in canonical order — NOT filtered by the teacher's cities: the form shows every city, so every
+  // stored pick stays visible and removable (cover.ts coverCitiesFor says why the filter was taken out).
+  const coverAreas = canonical(COVER_AREA_KEYS, pick(r.coverAreas, COVER_AREA_KEYS, COVER_LIMITS.areas))
   return {
     fullName: str(r.fullName, LIMITS.name),
     headline: str(r.headline, LIMITS.headline),
@@ -131,9 +165,9 @@ export function normalizeTeacherInput(raw: unknown): TeacherInput {
     languages: Array.isArray(r.languages)
       ? [...new Set(r.languages.map((l) => str(l, 30)).filter(Boolean))].slice(0, LIMITS.languages)
       : [],
-    currentCity: pick([r.currentCity], values('workIn').filter((v) => v !== 'anywhere' && v !== 'online'))[0] ?? '',
+    currentCity,
     currentDistrict: str(r.currentDistrict, LIMITS.shortText),
-    preferredCities: pick(r.preferredCities, values('workIn')),
+    preferredCities,
     openToOnline: r.openToOnline === true,
     availableFrom: typeof r.availableFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.availableFrom) ? r.availableFrom : null,
     jobTypes: pick(r.jobTypes, values('jobType')),
@@ -164,6 +198,13 @@ export function normalizeTeacherInput(raw: unknown): TeacherInput {
       }
     }),
     expectedSalaryM: int(r.expectedSalaryM, 0, LIMITS.maxSalaryM),
+    coverOpen: r.coverOpen === true,
+    coverSlots: canonical(COVER_SLOTS, pick(r.coverSlots, COVER_SLOTS, COVER_LIMITS.slots)),
+    coverAreas,
+    // NOT clamped to the rate bounds: a typo of 30,000 must reach validation as 30,000 and be refused,
+    // never be silently raised to the minimum. Only a nonsense magnitude is cut.
+    coverRateVnd: int(r.coverRateVnd, 0, 100_000_000),
+    coverConsent: r.coverConsent === true,
     phone: str(r.phone, 20),
     staffContactOptIn: r.staffContactOptIn === true,
     matchEmailOptIn: r.matchEmailOptIn === true,
@@ -192,6 +233,16 @@ export function validateTeacherInput(t: TeacherInput, steps: readonly TeacherSte
       if (!x.role || !x.employer) e[`experience.${i}`] = 'incomplete'
       else if (x.from && x.to && x.to < x.from) e[`experience.${i}`] = 'dates'
     })
+  }
+  // Cover is optional; once switched on it must be complete — a cover profile with no free period, no area
+  // or no rate would match searches it cannot answer.
+  if (has('cover') && t.coverOpen) {
+    if (!t.coverSlots.length) e.coverSlots = 'required'
+    if (!t.coverAreas.length) e.coverAreas = 'required'
+    if (t.coverRateVnd == null) e.coverRateVnd = 'required'
+    else if (t.coverRateVnd < COVER_LIMITS.rateMin || t.coverRateVnd > COVER_LIMITS.rateMax) e.coverRateVnd = 'rate_range'
+    // ⛔ Its OWN consent, never folded into consentPublic (PDP Law 91/2025 — specific and unbundled).
+    if (!t.coverConsent) e.coverConsent = 'required'
   }
   if (has('qualifications')) {
     t.certificates.forEach((c, i) => {
@@ -241,7 +292,14 @@ export function teacherSubcategory(t: Pick<TeacherInput, 'subjects'>): string {
 export function teacherFacetTokens(t: TeacherInput): string | null {
   const workIn = [...t.preferredCities]
   if (t.openToOnline && !workIn.includes('online')) workIn.push('online')
+  // ⛔ COVER TOKENS ONLY WHILE COVER IS ON AND CONSENTED. Switching it off keeps the saved periods, areas
+  // and rate on the profile for later, but the next save drops every cover token, so the profile leaves
+  // cover search at once (the facet filters read only these tokens).
+  const cover = coverIsPublic(t)
   return buildFacetTokens({
+    cover: cover ? 'open' : null,
+    coverSlot: cover ? t.coverSlots : null,
+    coverArea: cover ? t.coverAreas : null,
     workIn,
     native: t.nativeSpeaker ? 'native' : 'non-native',
     experience: experienceBucket(t.yearsExperience),
@@ -252,6 +310,11 @@ export function teacherFacetTokens(t: TeacherInput): string | null {
     jobType: t.jobTypes,
     video: t.videoUrl ? 'has-video' : null,
   })
+}
+
+/** Cover availability is shown and searchable only when switched on, consented and complete. */
+export function coverIsPublic(t: Pick<TeacherInput, 'coverOpen' | 'coverConsent' | 'coverSlots' | 'coverAreas' | 'coverRateVnd'>): boolean {
+  return t.coverOpen && t.coverConsent && t.coverSlots.length > 0 && t.coverAreas.length > 0 && t.coverRateVnd != null
 }
 
 /** The searchable prose of the public listing (title stays the teacher's name). */

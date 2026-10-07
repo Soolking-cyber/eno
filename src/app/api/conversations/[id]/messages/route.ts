@@ -18,6 +18,8 @@ import { paysSalary, takesOffers } from '@/lib/taxonomy'
 import { cutText } from '@/lib/feed-text'
 import { IOS_APP_UNAVAILABLE, iosHideVisaFor } from '@/lib/ios-hide-visa'
 import { isEVisaThread } from '@/lib/ios-hide-visa-server'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { isQuietGap, notifyTeacherOfSchoolMessage } from '@/lib/teachers/notify'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -110,7 +112,7 @@ export const POST = route(
 
     const convo = await db.conversation.findUnique({
       where: { id },
-      select: { id: true, buyerProfileId: true, sellerProfileId: true, sellerId: true, listing: { select: { id: true, negotiable: true, listingType: true, status: true } } },
+      select: { id: true, buyerProfileId: true, sellerProfileId: true, sellerId: true, lastMessageAt: true, listing: { select: { id: true, negotiable: true, listingType: true, status: true } } },
     })
     if (!convo) { await release(); throw new ApiError('not_found', 404) }
 
@@ -218,6 +220,20 @@ export const POST = route(
     // Store the committed result for replay (best-effort — a miss just means a rare
     // duplicate on the exact old failure pattern, never a lost message).
     if (idemKey) await kv.set(idemKey, message, { ex: 86_400 }).catch((e) => logError(e, { op: 'messages.set' }))
+
+    // A school writing into a teacher thread that had gone quiet rings the teacher — a fresh cover request in an
+    // old chat must not wait for them to open the app (src/lib/teachers/notify.ts; `lastMessageAt` is pre-send).
+    // Only while the profile is LIVE: a teacher who hid it keeps the thread but is not rung (gate review).
+    if (iAmBuyer && convo.sellerProfileId && convo.listing?.listingType === TEACHER_LISTING_TYPE && convo.listing.status === 'active' && isQuietGap(convo.lastMessageAt)) {
+      const teacherProfileId = convo.sellerProfileId
+      const listingId = convo.listing.id
+      after(async () => {
+        // Only a sender who is STILL a school or company rings (an account that switched back to personal keeps its
+        // thread, but the alert says "a school or company" — gate review, 2026-10-07).
+        const sender = await db.profile.findUnique({ where: { id: meId }, select: { accountType: true } })
+        if (sender?.accountType === 'business') await notifyTeacherOfSchoolMessage({ teacherProfileId, conversationId: id, listingId })
+      })
+    }
 
     /**
      * ⛔ THE OTHER HALF OF THE WHATSAPP BRIDGE — a support reply goes back out over WhatsApp.

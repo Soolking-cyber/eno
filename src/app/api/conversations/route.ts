@@ -1,6 +1,7 @@
 import { getAdmin } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { isQuietGap, notifyTeacherOfSchoolMessage } from '@/lib/teachers/notify'
 import { editionSellerScope, scopedListingWhere } from '@/lib/edition-scope'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { NextResponse } from 'next/server'
@@ -86,9 +87,20 @@ export const POST = route(
     where: await scopedListingWhere({ id: listingId }, { teachers: true }),
     // subcategorySlug is the local "is this a visa product?" second opinion the uncertainty check
     // below needs — see the note there; it costs nothing on a row we already fetch.
-    select: { id: true, title: true, verified: true, negotiable: true, sellerId: true, subcategorySlug: true, affiliateUrl: true, listingType: true, seller: { select: { ownerId: true } } },
+    select: { id: true, title: true, verified: true, status: true, negotiable: true, sellerId: true, subcategorySlug: true, affiliateUrl: true, listingType: true, seller: { select: { ownerId: true } } },
   })
   if (!listing || !listing.verified) throw new ApiError('not_found', 404)
+  // ⛔ A HIDDEN TEACHER IS NOT REACHABLE (cover lessons, 2026-10-07). setTeacherStatus hides a profile through
+  // `status` and keeps `verified`, so the check above let a school open a NEW thread to a teacher who had taken
+  // their profile down. The same 404 as an unverified row, so "hidden" is never revealed. A school that already has
+  // its thread keeps reaching it here too (the Message button in a tab left open — gate review), and is never rung.
+  if (listing.listingType === TEACHER_LISTING_TYPE && listing.status !== 'active') {
+    const mine = await db.conversation.findUnique({
+      where: { listingId_buyerProfileId: { listingId: listing.id, buyerProfileId: profile.id } },
+      select: { id: true },
+    })
+    if (!mine) throw new ApiError('not_found', 404)
+  }
 
   /**
    * ⛔ A REFERENCE LISTING HAS NOBODY TO TALK TO. `affiliateUrl` rows (imported rentals, linked job
@@ -401,10 +413,16 @@ export const POST = route(
   // common shape of that collision never reaches a write at all. Indexed unique read; cheap.
   const canonical = await db.conversation.findUnique({
     where: { listingId_buyerProfileId: { listingId, buyerProfileId: profile.id } },
-    select: { id: true },
+    select: { id: true, lastMessageAt: true },
   })
   if (canonical) {
     const message = await deliverFirstMessage({ id: canonical.id, buyerProfileId: profile.id, sellerProfileId, listingId })
+    // A school's fresh message into a teacher thread that had gone quiet rings the teacher (src/lib/teachers/notify.ts).
+    // A teacher thread is always this exact (listing, school) row — the seller-level reuse below never applies to it.
+    if (message && sellerProfileId && listing.listingType === TEACHER_LISTING_TYPE && listing.status === 'active' && isQuietGap(canonical.lastMessageAt)) {
+      const teacherProfileId = sellerProfileId
+      after(() => notifyTeacherOfSchoolMessage({ teacherProfileId, conversationId: canonical.id, listingId }))
+    }
     return { id: canonical.id, created: false, message }
   }
 
@@ -483,7 +501,13 @@ export const POST = route(
     // conversation, celebrate it once for the seller (bell + best-effort push).
     // Out of the hot path (after the response flushes), fail-quiet by design —
     // one thread per buyer per listing, so "count === 1" means exactly this one.
-    if (sellerProfileId) {
+    // ⛔ A TEACHER IS A PERSON, NOT A LISTING (2026-10-07): "First interested buyer!" was the wrong copy for them.
+    // A school's new thread rings the teacher instead — every new thread, within notify.ts's daily cap.
+    if (sellerProfileId && listing.listingType === TEACHER_LISTING_TYPE) {
+      const teacherProfileId = sellerProfileId
+      const newConvoId = convo.id
+      after(() => notifyTeacherOfSchoolMessage({ teacherProfileId, conversationId: newConvoId, listingId }))
+    } else if (sellerProfileId) {
       const newConvoId = convo.id
       const listingTitle = listing.title
       after(async () => {

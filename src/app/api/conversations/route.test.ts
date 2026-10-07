@@ -146,7 +146,7 @@ vi.mock('@/lib/db', () => ({
         return Promise.resolve(row)
       },
     },
-    notification: { create: () => Promise.resolve({}) },
+    notification: { create: ({ data }: Row) => { ((h.state as Row).notifications ??= []).push(data); return Promise.resolve({}) } },
     // App Store gate `ugc-safety`: the block lookup the route makes once the gate is on (no block here).
     forumUserBlock: { findFirst: () => Promise.resolve(null) },
   },
@@ -406,5 +406,70 @@ describe('the word filter on the message that opens a thread', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety')
     expect((await post({ listingId: SHOP_A, message: 'Còn hàng không bạn? Giá cuối bao nhiêu?' })).status).toBe(200)
     expect((await post({ listingId: SHOP_B, offerAmount: 500000 })).status).toBe(200)
+  })
+})
+
+// ── COVER LESSONS (2026-10-07): teacher threads ────────────────────────────────────────────────────
+// A hidden teacher is unreachable; a school's NEW thread rings the teacher (and the "First interested buyer!"
+// milestone no longer fires for a person); a school's message into a thread that went quiet rings them again.
+vi.mock('server-only', () => ({}))
+vi.mock('@/lib/teachers/notify', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@/lib/teachers/notify')>()
+  return { ...mod, notifyTeacherOfSchoolMessage: (a: Row) => { ((h.state as Row).notified ??= []).push(a); return Promise.resolve() } }
+})
+
+describe('teacher threads (cover lessons)', () => {
+  const TEACHER = 'listing-teacher-1'
+  const TEACHER_SELLER = 'seller-teacher-1'
+  beforeEach(() => {
+    h.state.profile = { id: BUYER, accountType: 'business' }
+    ;(h.state as Row).notified = []
+    ;(h.state as Row).notifications = []
+    h.state.listings[TEACHER] = listing(TEACHER, TEACHER_SELLER, { listingType: 'teacher', status: 'active', negotiable: false, seller: { ownerId: 'teacher-owner' } })
+  })
+
+  it('refuses a HIDDEN teacher with the same 404 as an unverified row, and creates nothing', async () => {
+    h.state.listings[TEACHER].status = 'hidden'
+    const { status, json } = await post({ listingId: TEACHER, message: 'Can you cover Monday?' })
+    expect(status).toBe(404)
+    expect(json.error).toBe('not_found')
+    expect(h.state.convos).toHaveLength(0)
+  })
+
+  it('lets a school that already has its thread reach a HIDDEN teacher — the same thread, and no ring', async () => {
+    h.state.listings[TEACHER].status = 'hidden'
+    h.state.convos = [{ ...convo('t-thread', TEACHER, TEACHER_SELLER, Date.now() - 7 * 3_600_000), sellerProfileId: 'teacher-owner' }]
+    const { status, json } = await post({ listingId: TEACHER, message: 'Still free on Monday?' })
+    expect(status).toBe(200)
+    expect(json.id).toBe('t-thread')
+    expect(h.state.convos).toHaveLength(1)
+    expect((h.state as Row).notified).toEqual([])
+  })
+
+  it('rings the teacher on a school\'s new thread — and sends no "First interested buyer!" milestone', async () => {
+    const { status, json } = await post({ listingId: TEACHER, message: 'Can you cover Monday?' })
+    expect(status).toBe(200)
+    expect(json.created).toBe(true)
+    expect((h.state as Row).notified).toEqual([{ teacherProfileId: 'teacher-owner', conversationId: json.id, listingId: TEACHER }])
+    expect(((h.state as Row).notifications as Row[]).filter((n) => n.type === 'milestone')).toEqual([])
+  })
+
+  it('rings again only when the existing thread had gone quiet', async () => {
+    h.state.convos = [{ ...convo('t-thread', TEACHER, TEACHER_SELLER, Date.now() - 7 * 3_600_000), sellerProfileId: 'teacher-owner' }]
+    await post({ listingId: TEACHER, message: 'Another cover this week?' })
+    expect((h.state as Row).notified).toHaveLength(1)
+
+    ;(h.state as Row).notified = []
+    h.state.convos = [{ ...convo('t-thread', TEACHER, TEACHER_SELLER, Date.now() - 3_600_000), sellerProfileId: 'teacher-owner' }]
+    await post({ listingId: TEACHER, message: 'And Thursday?' })
+    expect((h.state as Row).notified).toEqual([])
+  })
+
+  it('still lets only a business account message a teacher', async () => {
+    h.state.profile = { id: BUYER, accountType: 'individual' }
+    const { status, json } = await post({ listingId: TEACHER, message: 'hi' })
+    expect(status).toBe(403)
+    expect(json.error).toBe('business_only')
+    expect((h.state as Row).notified).toEqual([])
   })
 })

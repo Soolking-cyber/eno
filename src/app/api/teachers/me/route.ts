@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import { route, ApiError } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { PublishBlockedError } from '@/lib/publish-guard'
-import { saveTeacherProfile, deleteTeacherProfile, TeacherValidationError } from '@/lib/teachers/publish'
+import { saveTeacherProfile, deleteTeacherProfile, TeacherCoverConflictError, TeacherValidationError } from '@/lib/teachers/publish'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -33,6 +33,8 @@ export const PUT = route(
       if (e instanceof TeacherValidationError) {
         return NextResponse.json({ error: 'invalid_teacher_profile', fields: e.errors }, { status: 400 })
       }
+      // The cover state changed in another window since this form loaded it (publish.ts TeacherCoverConflictError).
+      if (e instanceof TeacherCoverConflictError) return NextResponse.json({ error: 'cover_changed' }, { status: 409 })
       if (e instanceof PublishBlockedError) {
         return NextResponse.json({ error: e.code, detail: e.detail ?? null }, { status: e.code.startsWith('identity_') ? 403 : 422 })
       }

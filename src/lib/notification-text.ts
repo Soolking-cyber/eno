@@ -16,6 +16,8 @@
  *   milestone      eno's copy + the seller's own PUBLIC listing title (api/conversations)
  *   saved_search   eno's copy + the recipient's own search label (cron/saved-search-alerts)
  *   forum_reply    a PUBLIC Help Center comment, translated on its own page too (api/forum/comments)
+ *   teacher_message eno's fixed bilingual copy only — "a school messaged you", no name, no message text
+ *                  (src/lib/teachers/notify.ts, 2026-10-07)
  *   visa_result    eno's bilingual template + the e-Visa case reference (src/lib/visa/result.ts). KEPT on the list on
  *                  purpose (opus, review): its readers are visa applicants, many reading in one of the nine machine-
  *                  translated languages, and this is the row that tells them the result. The reference is a case code,
@@ -41,7 +43,7 @@
  * not an App Store gate.
  */
 const MACHINE_TRANSLATABLE: ReadonlySet<string> = new Set([
-  'system', 'dispute', 'reminder', 'price_drop', 'milestone', 'saved_search', 'forum_reply', 'visa_result',
+  'system', 'dispute', 'reminder', 'price_drop', 'milestone', 'saved_search', 'forum_reply', 'visa_result', 'teacher_message',
 ])
 
 /**

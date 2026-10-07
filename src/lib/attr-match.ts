@@ -22,6 +22,7 @@ import { TAXONOMY } from '@/lib/taxonomy'
 import { facetTokenFor } from '@/lib/facet-tokens'
 import { COMPAT_DISPLAY_PREFIXES } from '@/lib/electronics-specs'
 import { POSTED_FACET_KEY, postedCutoff } from '@/lib/posted-filter'
+import { coverAreaFilterKeys } from '@/lib/teachers/cover'
 
 /**
  * The largest count an open-ended bucket enumerates. A bound, because `attributes` is a JSON STRING
@@ -94,6 +95,15 @@ export function attrNeedles(key: string, value: string): AttrNeedles {
       attributes: [`"${key}":"weekly"`, `"${key}":"daily"`],
       tokens: [facetTokenFor(key, 'weekly'), facetTokenFor(key, 'daily')],
     }
+  }
+  /**
+   * COVER AREAS (2026-10-07) read the way a school means them: District 2 also finds a teacher who picked
+   * Thủ Đức (its umbrella) or "anywhere in Ho Chi Minh City", and a city-wide pick finds every district of
+   * that city. One expansion (coverAreaFilterKeys), so the feed and the Filter panel's counts agree. Tokens
+   * only: cover lives in `facetTokens`, which no seller-typed attribute can reach.
+   */
+  if (key === 'coverArea') {
+    return { attributes: [], tokens: coverAreaFilterKeys(value).filter((k) => TOKENABLE.test(k)).map((k) => facetTokenFor(key, k)) }
   }
   const attributes = [`"${key}":"${value}"`]
   const prefixes = key === 'compatibleWith' ? COMPAT_DISPLAY_PREFIXES[value] : undefined

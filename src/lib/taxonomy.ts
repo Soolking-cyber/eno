@@ -30,6 +30,7 @@ import { specFacets } from './electronics-specs'
 // Import-free and build-time inlined (see edition.ts), so the post picker's gate below minifies
 // away on the edition it does not apply to.
 import { IS_MARKETPLACE } from './edition'
+import { COVER_AREAS, COVER_SLOTS, coverSlotLabel } from './teachers/cover'
 
 // ── Intent axis ──────────────────────────────────────────────────────────────
 export type ListingType = 'sell' | 'rent' | 'free' | 'wanted' | 'wholesale' | 'service' | 'job' | 'event' | 'teacher'
@@ -118,6 +119,11 @@ export type FacetDef = {
    * (src/lib/posted-filter.ts). Always set `derived` with it, so the wizard's own filter skips it too.
    */
   filterOnly?: boolean
+  /**
+   * PLACE NAMES: the options are places (cover-lesson areas), rendered as their own English or Vietnamese
+   * name and never sent through `tr()` — a district is never machine-translated (PlaceName's rule).
+   */
+  placeNames?: boolean
   /**
    * `orMore` marks an OPEN-ENDED top bucket ("6+"): the chip matches its own stored value AND every
    * larger count — see `attrNeedles` in src/lib/attr-match.ts, which the feed filter and the chip
@@ -1315,6 +1321,17 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'other-languages', name: 'Other languages', nameVi: 'Ngoại ngữ khác', icon: 'Map', keywords: ['chinese', 'korean', 'japanese', 'french', 'german', 'tiếng trung', 'tiếng hàn', 'tiếng nhật'] },
     ],
     facets: [
+      // COVER LESSONS (owner, 2026-10-07) — first, so a school looking for a cover sees them first. All three
+      // are derived from TeacherProfile by src/lib/teachers/cover.ts and exist on a row only while the teacher
+      // has cover switched on. ⛔ `coverSlot` is ONE combined day-part key (see COVER_SLOTS for why), and a
+      // `coverArea` filter expands to umbrellas and city-wide keys in attr-match.ts (coverAreaFilterKeys).
+      { key: 'cover', label: 'Cover lessons', labelVi: 'Dạy thay', kind: 'toggle', derived: true, options: [
+        { value: 'open', label: 'Available for cover', labelVi: 'Nhận dạy thay' },
+      ] },
+      { key: 'coverSlot', label: 'Free for cover', labelVi: 'Rảnh dạy thay', derived: true,
+        options: COVER_SLOTS.map((s) => ({ value: s, label: coverSlotLabel(s, 'en'), labelVi: coverSlotLabel(s, 'vi') })) },
+      { key: 'coverArea', label: 'Cover area', labelVi: 'Khu vực dạy thay', derived: true, placeNames: true,
+        options: COVER_AREAS.map((a) => ({ value: a.key, label: a.en, labelVi: a.vi })) },
       { key: 'salary', label: 'Expected salary', labelVi: 'Mức lương mong muốn', kind: 'range', options: [],
         range: { min: 0, max: 150, step: 1, unit: 'tr/tháng', column: 'salaryM' } },
       { key: 'workIn', label: 'Wants to work in', labelVi: 'Muốn làm việc tại', derived: true, options: [

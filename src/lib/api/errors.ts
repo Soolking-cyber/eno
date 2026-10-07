@@ -350,6 +350,7 @@ export type NicheApiErrorCode =
   | 'subcategory_partner_only' // eno.vn: the visa slot takes an official partner's listings only (O-34b, 2026-10-05)
   | 'invalid_teacher_profile'
   | 'teacher_profile_missing'
+  | 'cover_changed' // cover lessons: the cover state changed in another window since the form loaded (2026-10-07)
   | 'business_only'
   | 'cv_type'
   | 'cv_size'
@@ -734,6 +735,7 @@ const ALL = [
   'subcategory_partner_only',
   'invalid_teacher_profile',
   'teacher_profile_missing',
+  'cover_changed',
   'business_only',
   'cv_type',
   'cv_size',

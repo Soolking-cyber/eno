@@ -1085,6 +1085,28 @@ model TeacherProfile {
   matchEmailOptIn    Boolean  @default(false)
   consentAt          DateTime @default(now())
   lastMatchedAt      DateTime?
+  /// COVER LESSONS (owner, 2026-10-07) — an add-on to the job-seeking profile: weekly free periods,
+  /// an hourly rate and the areas the teacher will travel to. Rules in src/lib/teachers/cover.ts.
+  /// ⛔ Every column below except the four the teacher edits (coverOpen, coverSlots, coverAreas,
+  /// coverRateVnd) is SERVER-WRITTEN — never in TeacherInput, so neither a request body nor the
+  /// teacher.eno.vn `#d=` fragment can set it.
+  coverOpen          Boolean  @default(false)
+  /// '<mon|tue|wed|thu|fri|sat|sun>-<am|pm|eve>' — ONE combined key per slot (≤21)
+  coverSlots         String[] @default([])
+  /// cover-area keys: HCMC district slugs or a city-wide workIn slug (≤40, COVER_LIMITS.areas)
+  coverAreas         String[] @default([])
+  /// whole VND per hour
+  coverRateVnd       Int?
+  /// when the teacher last CONFIRMED their availability: cover switched on, a period/area/rate changed, or
+  /// "Still available" — a save that only edited the bio leaves it (publish.ts coverWrites)
+  coverConfirmedAt   DateTime?
+  /// SEPARATE consent (VN PDP Law 91/2025 — specific, unbundled, provable): when and under which
+  /// copy version cover was last switched on, and when it was last switched off (withdrawal).
+  /// ⚠️ coverWithdrawnAt is HISTORY, not state: it keeps the LAST withdrawal after a re-grant. Cover is on
+  /// iff coverOpen; a re-grant shows as a coverConsentAt later than coverWithdrawnAt.
+  coverConsentAt      DateTime?
+  coverConsentVersion String?
+  coverWithdrawnAt    DateTime?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   private            TeacherPrivate?
