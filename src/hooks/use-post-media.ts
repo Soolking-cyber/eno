@@ -218,12 +218,29 @@ export function usePostMedia({
 
   // Upload only NEW photos (those with a File); keep already-hosted URLs (edit mode)
   // in their original order so the cover + sequence are preserved.
-  const uploadPhotos = async (): Promise<string[]> => {
-    const toUpload = photos.filter((p) => p.file)
-    const uploaded = toUpload.length ? await uploadInBatches(toUpload.map((p) => p.file!)) : []
-    if (uploaded.length < toUpload.length) throw new Error('upload')
-    let ui = 0
-    return photos.map((p) => (p.file ? uploaded[ui++] : p.url))
+  // ⛔ A PHOTO UPLOADS ONCE. Each File's hosted URL is kept the moment its batch lands (`hosted`), so a Publish
+  // retried after a failure — the video, a refused word, a dropped connection mid-way — sends only the photos not
+  // up yet; the video is kept the same way (resolveVideoUrl). It used to upload everything again (Emil-skills
+  // audit, publish). Keyed by the File itself: a re-crop makes a new File and so a new upload. An upload is not tied
+  // to an account (the form is a guest flow until Publish), so a URL kept across a sign-in publishes exactly what
+  // re-uploading the same File would. Nothing sweeps unused uploads today (the "GC backstop" core/listings.ts names
+  // does not exist yet), so a kept URL stays valid for the page's life — revisit this if one is ever added.
+  // `onProgress(done, total)` counts the NEW photos, already-hosted ones included in `done`.
+  const hosted = useRef(new WeakMap<File, string>())
+  const uploadPhotos = async (onProgress?: (done: number, total: number) => void): Promise<string[]> => {
+    const fresh = photos.filter((p) => p.file)
+    const pending = fresh.filter((p) => !hosted.current.has(p.file!))
+    let done = fresh.length - pending.length
+    if (fresh.length) onProgress?.(done, fresh.length)
+    if (pending.length) {
+      await uploadInBatches(pending.map((p) => p.file!), (files, urls) => {
+        files.forEach((f, i) => { if (urls[i]) hosted.current.set(f, urls[i]) })
+        done += files.length
+        onProgress?.(done, fresh.length)
+      })
+    }
+    if (fresh.some((p) => !hosted.current.has(p.file!))) throw new Error('upload')
+    return photos.map((p) => (p.file ? hosted.current.get(p.file)! : p.url))
   }
 
   // Upload a newly-picked clip; keep an already-hosted one (edit). null clears it (removed).
@@ -238,9 +255,14 @@ export function usePostMedia({
     // and the 330s deadline. It throws the same 'video' / 'video_hevc' codes this wizard's submit
     // catch already maps to copy, so nothing here changes shape.
     if (video?.file) {
+      // Kept like the photos (`hosted`): a save refused AFTER the video went up — a phone already taken, a banned
+      // word the server caught — used to upload and transcode it again on the retry, up to 5.5 minutes for nothing.
+      const kept = hosted.current.get(video.file)
+      if (kept) return kept
       const { uploadListingVideo } = await import('@/lib/video-upload-client')
       const url = await uploadListingVideo(video.file, { hevc: video.hevc === true })
       if (!url) throw new Error('video')
+      hosted.current.set(video.file, url)
       return url
     }
     if (video && !video.url.startsWith('blob:')) return video.url

@@ -126,12 +126,12 @@ export function PublishButton({
   return (
     <Button variant="cta" size="none"
       onClick={onSubmit}
-      // NOT disabled when fields are missing — a click then reveals what's left
-      // (disabled submit hides the reason). Only blocked mid-submit.
-      disabled={submitting}
-      // Signed in, account details still loading: ui/button's busy state (spinner over the kept label,
-      // aria-busy, the tap refused without dropping focus) — the canon's, never a hand-built spinner.
-      loading={loadingProfile}
+      // NOT disabled when fields are missing — a click then reveals what's left (disabled submit hides the
+      // reason). Mid-submit and while the signed-in account's details load: ui/button's busy state (spinner over
+      // the kept label, aria-busy, the tap refused without dropping focus) — the canon's, never a hand-built
+      // spinner. Mid-submit used to be `disabled`: a dimmed "Posting…" with no spinner for the whole upload, and a
+      // keyboard user's focus thrown to the page (Emil-skills audit, publish).
+      loading={loadingProfile || submitting}
       // ⛔ NO `aria-disabled={!canSubmit}` — it was a lie, and once `opacity-70` went it was the
       // only remaining one. The control IS actionable with fields outstanding: that is the whole
       // design, a tap runs scrollToMissing and reveals what is left. `aria-disabled` told assistive

@@ -5,7 +5,9 @@
 // Returns public URLs in input order; throws 'upload' if any file fails.
 const BATCH = 3
 
-export async function uploadInBatches(files: File[]): Promise<string[]> {
+// `onBatch` hears each batch the moment it lands — its files and their URLs, in order — so a caller can
+// show "2/6" and remember what is already up before a later batch fails (the wizard's retry skips them).
+export async function uploadInBatches(files: File[], onBatch?: (files: File[], urls: string[]) => void): Promise<string[]> {
   const urls: string[] = []
   for (let i = 0; i < files.length; i += BATCH) {
     const slice = files.slice(i, i + BATCH)
@@ -35,6 +37,7 @@ export async function uploadInBatches(files: File[]): Promise<string[]> {
       throw new Error('upload')
     }
     urls.push(...got)
+    onBatch?.(slice, got)
   }
   return urls
 }

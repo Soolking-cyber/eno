@@ -173,3 +173,65 @@ describe('?resume=publish after a successful publish', () => {
     expect(window.location.search).toBe('')
   })
 })
+
+/**
+ * ⛔ WHY A PUBLISH STOPPED SHOWS NEXT TO THE BUTTON, AND THE FORM JUMPS TO THE FIELD (Emil-skills audit, publish).
+ * The form's error line sits at its foot — off-screen on a phone, under a desktop Publish pinned at the top — so the
+ * button just went back to its label with no visible reason, and "remove the phone number" did not say where.
+ */
+describe('a refused save', () => {
+  const EDIT: ListingEditData = {
+    id: 'l1', title: 'English teacher, full-time', description: 'Teach adults in the evenings, 20 hours a week.',
+    price: 45_000_000, negotiable: false, urgent: false, categorySlug: 'jobs', subcategorySlug: 'teaching', listingType: 'job',
+    condition: null, brand: null, model: null, attributes: { jobtype: 'fulltime', experience: '1-3-years', workMode: 'on-site' }, year: null, mileageKm: null, engineL: null, engineCc: null,
+    areaM2: null, salaryM: 45, district: 'Bình Thạnh', city: 'Hồ Chí Minh', lat: null, lng: null, images: [], video: null,
+  }
+  function refuseSave(code: string) {
+    let release = () => {}
+    vi.stubGlobal('fetch', vi.fn((url: string, init?: RequestInit) => {
+      if (String(url) === '/api/listings/l1' && init?.method === 'PATCH') {
+        return new Promise((resolve) => { release = () => resolve({ ok: false, json: () => Promise.resolve({ error: code }) }) })
+      }
+      return fakeFetch(url, init)
+    }))
+    return () => release()
+  }
+
+  it('⛔ while it saves the buttons are busy (spinner, focus kept), and a refusal is said beside them, with a jump to its field', async () => {
+    h.me = { user: { displayName: 'Minh Tran', phone: '0901234567', seller: { name: 'Minh Tran', phone: '0901234567' } } }
+    const release = refuseSave('phone_taken')
+    const scrolledTo: string[] = []
+    const scrolled = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(function (this: Element) { scrolledTo.push(this.id) })
+    render(<PostWizard categories={CATS} edit={EDIT} />)
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(document.querySelector('[data-publish-status]')?.textContent).toBe('') // mounted before anything happens
+    await act(async () => { publishButtons()[0].click() })
+    await act(async () => { await Promise.resolve() })
+    expect(document.querySelector('[data-publish-status]')?.textContent).toBe('Saving…') // the one region a screen reader hears
+    // Mid-save the label reads "Saving…" (publishButtons() matches the idle labels, so it would find nothing here).
+    const saving = screen.getAllByRole('button').filter((b) => /Saving…/.test(b.textContent ?? ''))
+    expect(saving).toHaveLength(2) // the desktop button and the mobile bar's
+    expect(saving.every((b) => b.getAttribute('aria-busy') === 'true')).toBe(true)
+    expect(saving.some((b) => b.hasAttribute('disabled'))).toBe(false) // never the focus-dropping native `disabled`
+    expect(saving.every((b) => b.getAttribute('aria-disabled') === 'true')).toBe(true) // refused by aria-disabled instead
+    await act(async () => { release(); await new Promise((r) => setTimeout(r, 0)) })
+    await act(async () => { await new Promise((r) => requestAnimationFrame(() => r(null))) })
+    const reason = /This phone number is already used by another account/
+    // The form's own alert (heard), plus the copy beside the desktop button and in the mobile bar (seen).
+    expect(screen.getAllByText(reason).length).toBe(3)
+    expect(screen.getAllByText(reason).filter((p) => p.getAttribute('aria-hidden') === 'true').length).toBe(2)
+    expect(scrolledTo).toContain('pw-contact') // the jump to the field it is about — its section, as the number shows verified here
+    scrolled.mockRestore()
+  })
+
+  it('⛔ a phone number caught in the DESCRIPTION before sending: said beside the button, and the textarea has focus', async () => {
+    h.me = { user: { displayName: 'Minh Tran', phone: '0901234567', seller: { name: 'Minh Tran', phone: '0901234567' } } }
+    render(<PostWizard categories={CATS} edit={{ ...EDIT, description: 'Teach adults in the evenings. Call me on 0912 345 678 to apply.' }} />)
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    await act(async () => { publishButtons()[0].click() })
+    const reason = /Do not put a phone number, email, link or street address in your job post/
+    expect(screen.getAllByText(reason).filter((p) => p.getAttribute('aria-hidden') === 'true').length).toBe(2)
+    expect(document.activeElement?.tagName).toBe('TEXTAREA') // its id sits on the wrapper; the control is focused
+    expect(h.posts).toEqual([]) // nothing was sent
+  })
+})

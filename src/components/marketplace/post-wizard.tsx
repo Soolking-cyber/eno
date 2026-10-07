@@ -175,6 +175,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [createdId, setCreatedId] = useState<string | null>(null)
   const [firstListing, setFirstListing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  // What a running Publish is doing, shown beside the button (publishProgress below). Photos and the video only
+  // upload at this point, and the video's transcode is polled for up to 5.5 min: a dimmed "Posting…" said nothing.
+  const [publishStep, setPublishStep] = useState<null | { kind: 'photos'; done: number; total: number } | { kind: 'video' } | { kind: 'saving' }>(null)
   // Synchronous latch — `submitting` state only flips after the next render, so a
   // fast double-tap can fire submit() twice before disabled takes effect → two
   // listings + two social cross-posts. This ref blocks the second call immediately.
@@ -401,7 +404,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // for AI autofill + preview, count for the publish checks) and calls the two
   // resolvers in submit(); everything else feeds <MediaSection> as one bundle.
   const media = usePostMedia({ edit, t })
-  const { photos, uploadPhotos, resolveVideoUrl } = media
+  const { photos, uploadPhotos, resolveVideoUrl, video: mediaVideo } = media
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [postingAs, setPostingAs] = useState<string | null>(null)
@@ -987,8 +990,36 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
    */
   const scrollToField = (key: string) => {
     const el = document.getElementById(`pw-${key}`)
+    // The phone row is a verified number with "Change number" when it is not being edited — no `pw-contactPhone`
+    // then — so the jump lands on its section instead, without focusing some other control in it.
+    if (!el && key === 'contactPhone') { document.getElementById('pw-contact')?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' }); return }
     el?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
-    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.focus({ preventScroll: true })
+    // ⚠️ THE CONTROL, NOT THE WRAPPER — for the two whose id sits on a wrapper: `pw-description` on its Field and
+    // `pw-price` on its section, the two checks sellers fail most, which were jumped to and never focused
+    // (Emil-skills audit, publish). Only those two: every other wrapper (category, location, photos) stays
+    // scroll-only, so a "Still needed" chip does not raise a keyboard on a picker (review, 2026-10-07).
+    const control = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement
+      ? el
+      : key === 'description' || key === 'price'
+        // Never a hidden control: Base UI's Select/Combobox keep an aria-hidden, tabindex=-1 input for the form.
+        ? el?.querySelector<HTMLElement>('input:not([type=file]):not([type=hidden]):not([type=checkbox]):not([type=radio]):not([aria-hidden="true"]):not([tabindex="-1"]), textarea:not([aria-hidden="true"])')
+        : null
+    control?.focus({ preventScroll: true })
+  }
+  /**
+   * The field a refusal is about, when it is one the seller can fix on this screen — the jump that comes with
+   * the message. It mirrors the check that ran, field by field, and names nothing it cannot point at: a banned
+   * word in the CONTACT NAME (part of that check, not editable here) jumps nowhere rather than to a clean
+   * description (review, 2026-10-07).
+   */
+  const fieldFor = (code: string): string | null => {
+    const hasContact = (s: string) => containsPhoneNumber(s) || containsContactInfo(s)
+    if (code === 'contact_in_text' || code === 'no_phone_in_listing') return hasContact(title) ? 'title' : hasContact(description) ? 'description' : null
+    if (code === 'banned_words') return findBannedWord(title) ? 'title' : findBannedWord(description) ? 'description' : null
+    if (code === 'upload_type' || code === 'upload_size' || code === 'upload_broken' || code === 'photo_required' || code === 'photos_min') return 'photo'
+    if (code === 'location_required') return 'location'
+    if (code === 'phone_taken') return 'contactPhone'
+    return null
   }
   // The first step the seller SEES as outstanding, in form order. The gate's own first miss is the
   // fallback for the one case the steps hide on purpose: contact during the auth/profile load, where
@@ -1146,12 +1177,16 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsContactInfo(listingText)) {
       countAttempt('client_contact_in_text')
       setError(contactInTextMsg)
+      const field = fieldFor('contact_in_text')
+      if (field) scrollToField(field)
       return
     }
     const blob = `${title} ${description} ${contactName}`
     if (findBannedWord(blob)) {
       countAttempt('client_banned_words')
       setError(t('Tin của bạn có từ ngữ không được phép. Vui lòng chỉnh sửa rồi đăng lại.', "Your listing contains a word that isn't allowed. Please edit it and try again."))
+      const field = fieldFor('banned_words')
+      if (field) scrollToField(field)
       return
     }
     // Draft-first: the listing is ready — NOW ask for the account. The text draft
@@ -1181,8 +1216,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       // Photo upload + the video sign→PUT→complete→transcode-poll pipeline moved
       // VERBATIM into usePostMedia (use-post-media.ts) — same order, same thrown
       // codes ('upload' / 'video' / 'video_hevc') that the catch below maps to copy.
-      const imageUrls = await uploadPhotos()
+      const imageUrls = await uploadPhotos((done, total) => setPublishStep({ kind: 'photos', done, total }))
+      if (mediaVideo?.file) setPublishStep({ kind: 'video' })
       const videoUrl = await resolveVideoUrl()
+      setPublishStep({ kind: 'saving' })
 
       const payload = {
         categorySlug,
@@ -1365,9 +1402,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       // punishment, which that same docblock warns against).
       hapticError()
       console.error(e)
+      // The jump that comes with the message, to the field it is about (fieldFor) — after the paint that shows it.
+      const field = fieldFor(msg)
+      if (field) requestAnimationFrame(() => scrollToField(field))
     } finally {
       submittingRef.current = false
       setSubmitting(false)
+      setPublishStep(null)
     }
   }
   /** "Đăng tin ngay" on the resume banner. The intent is consumed first (so the banner cannot fire
@@ -1382,6 +1423,17 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   if (submitted) {
     return <PostSuccess firstListing={firstListing} createdId={createdId} title={title} price={salaryPaid ? '' : price} job={salaryPaid} takesOffers={takesOffers({ negotiable, listingType })} onPostAnother={embedded ? undefined : postAnother} t={t} />
   }
+
+  // What the running Publish is doing — beside the button, in the mobile bar's slot and under the desktop button.
+  const publishProgress = !submitting || !publishStep ? null
+    : publishStep.kind === 'photos' ? `${t('Đang tải ảnh lên', 'Uploading photos')} ${publishStep.done}/${publishStep.total}…`
+    : publishStep.kind === 'video' ? t('Đang xử lý video — có thể mất vài phút…', 'Processing your video — this can take a few minutes…')
+    : edit ? t('Đang lưu…', 'Saving…') : t('Đang đăng…', 'Posting…')
+  // ⚠️ WHY A PUBLISH STOPPED, NEXT TO THE BUTTON THAT WAS PRESSED. The form's own error line sits at its foot —
+  // off-screen on a phone, under a desktop Publish that is pinned at the top — so the button just went back to
+  // "Publish listing" with no visible reason (Emil-skills audit, publish). That line keeps role="alert" and is
+  // what a screen reader hears; these copies are for the eye, so they are aria-hidden rather than heard twice.
+  const publishStopped = !submitting && error ? error : null
 
   const publishButtonProps = {
     onSubmit: submit,
@@ -1982,6 +2034,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           />
 
           {error && <p role="alert" className="text-sm font-semibold text-destructive">{error}</p>}
+          {/* ⚠️ WHAT A RUNNING PUBLISH IS DOING, FOR A SCREEN READER: ONE region, mounted always (a live region that
+              arrives together with its text is often not announced), outside both responsive copies so it is never
+              heard twice. The visible lines beside the desktop button and in the mobile bar are aria-hidden. */}
+          <p role="status" className="sr-only" data-publish-status>{publishProgress ?? ''}</p>
           {error && errorAction === 'verify' && (
             <Button asChild variant="cta" size="sm">
               {/* Web: a NEW TAB, so this form and its photos stay open (see the catch in submit()).
@@ -2021,6 +2077,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               />
             </div>
             <PublishButton {...publishButtonProps} />
+            {publishProgress && <p aria-hidden className="text-xs text-ink-4">{publishProgress}</p>}
+            {publishStopped && <p aria-hidden className="text-xs font-semibold text-destructive">{publishStopped}</p>}
             {pendingSteps.length > 0 && (
               <ul className="space-y-1.5 pt-1">
                 {steps.map((s) => (
@@ -2069,29 +2127,41 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         label={edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing')}
         // Not `render`: `disabled` flips while the seller watches, and the primitive's own note
         // says to take the plain path for exactly that.
-        primary={{ label: <PublishLabel submitting={submitting} loadingProfile={profileLoading} edit={!!edit} missingCount={badgeCount} t={t} />, onClick: submit, disabled: submitting, loading: profileLoading }}
-        above={attempted && pendingSteps.length > 0 ? (
-          // ⚠️ ONE ROW: the label beside a horizontal scroller, never `flex-wrap`. The row's height is
-          // constant however many items are outstanding, and nothing is ever clipped mid-word
-          // (`shrink-0` on each chip). Each chip jumps to its own field — the list IS the navigation.
-          <div className="flex items-center gap-2">
-            <p className="shrink-0 text-2xs font-semibold text-ink-4">{t('Còn thiếu', 'Still needed')}</p>
-            <div className="-mr-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto scrollbar-none pr-1">
-              {pendingSteps.map((s) => (
-                <Button
-                  key={s.key}
-                  type="button"
-                  variant="bare"
-                  size="none"
-                  onClick={() => scrollToField(s.target)}
-                  // min-h-9 py-2, NOT tap-44: this row is an overflow-x scroller, which clips a
-                  // pseudo-element hit area to its own box — the chip has to BE the target.
-                  className="press min-h-9 shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-2.5 py-2 text-2xs font-semibold text-warning cursor-pointer"
-                >
-                  {s.todo}
-                </Button>
-              ))}
-            </div>
+        // `loading` while it publishes too, not `disabled`: ui/button's busy state draws the spinner, keeps the label as
+        // the accessible name and keeps focus — `disabled` only dimmed it, and threw a keyboard user's focus away.
+        primary={{ label: <PublishLabel submitting={submitting} loadingProfile={profileLoading} edit={!!edit} missingCount={badgeCount} t={t} />, onClick: submit, loading: submitting || profileLoading }}
+        // Progress while it publishes; otherwise why one stopped AND the "Still needed" chips, stacked — neither may
+        // hide the other: the chips are the navigation, and the reason is the only place a refusal shows here (a field
+        // emptied mid-save can bring the chips back while the server refuses; review, 2026-10-07).
+        above={publishProgress ? (
+          <p aria-hidden className="text-xs text-ink-4">{publishProgress}</p>
+        ) : publishStopped || (attempted && pendingSteps.length > 0) ? (
+          <div className="space-y-1.5">
+            {publishStopped && <p aria-hidden className="text-xs font-semibold text-destructive">{publishStopped}</p>}
+            {attempted && pendingSteps.length > 0 && (
+              // ⚠️ ONE ROW: the label beside a horizontal scroller, never `flex-wrap`. The row's height is
+              // constant however many items are outstanding, and nothing is ever clipped mid-word
+              // (`shrink-0` on each chip). Each chip jumps to its own field — the list IS the navigation.
+              <div className="flex items-center gap-2">
+                <p className="shrink-0 text-2xs font-semibold text-ink-4">{t('Còn thiếu', 'Still needed')}</p>
+                <div className="-mr-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto scrollbar-none pr-1">
+                  {pendingSteps.map((s) => (
+                    <Button
+                      key={s.key}
+                      type="button"
+                      variant="bare"
+                      size="none"
+                      onClick={() => scrollToField(s.target)}
+                      // min-h-9 py-2, NOT tap-44: this row is an overflow-x scroller, which clips a
+                      // pseudo-element hit area to its own box — the chip has to BE the target.
+                      className="press min-h-9 shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-2.5 py-2 text-2xs font-semibold text-warning cursor-pointer"
+                    >
+                      {s.todo}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
       />
