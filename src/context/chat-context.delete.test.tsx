@@ -30,13 +30,16 @@ vi.mock('@/lib/supabase/browser', () => ({
 
 const { ChatProvider, useChat } = await import('./chat-context')
 
+// The inbox is ordered newest first by lastMessageAt (api/conversations): c1 is the newest.
+const AT: Record<string, string> = { c1: '2026-10-07T10:00:03.000Z', c2: '2026-10-07T10:00:02.000Z', c3: '2026-10-07T10:00:01.000Z' }
+const row = (id: string) => ({ id, lastMessageAt: AT[id] })
 // A tiny server: a DELETE hides the conversation from later pulls.
 function stubFetch() {
   const hidden = new Set<string>()
   const f = vi.fn(async (url: string, init?: RequestInit) => {
     if (init?.method === 'DELETE') { hidden.add(url.split('/').pop()!); return { ok: true, json: async () => ({}) } }
     if (url === '/api/conversations') {
-      return { ok: true, json: async () => ({ conversations: ['c1', 'c2', 'c3'].filter((id) => !hidden.has(id)).map((id) => ({ id })) }) }
+      return { ok: true, json: async () => ({ conversations: ['c1', 'c2', 'c3'].filter((id) => !hidden.has(id)).map(row) }) }
     }
     return { ok: true, json: async () => ({ unread: 0 }) }
   })
@@ -334,6 +337,106 @@ describe('deleteConvo — the undo window cannot outlive the DELETE', () => {
     expect(deletes(f)).toEqual([['/api/conversations/c1', DELETE_INIT]])
     expect(hook.result.current.convos?.map((c) => c.id)).toEqual(['d1'])
     expect(toastFn.error).not.toHaveBeenCalled() // not even a toast: it would tell u2 what u1 tried
+  })
+
+  /**
+   * ⛔ A DELETE THAT FAILS OFFLINE BRINGS THE CONVERSATION BACK EVEN THOUGH THE RE-PULL FAILS TOO. The rollback
+   * used to be the re-pull alone, and the likeliest reason a DELETE fails is the network — so the re-pull failed
+   * as well and the conversation stayed hidden under "Couldn't delete" (Emil-skills audit follow-up).
+   */
+  it('⛔ a DELETE that fails offline puts the conversation back in its place, though the re-pull fails too', async () => {
+    const { chat } = await mountWithInbox()
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') })) // the network is gone
+    act(() => { chat().deleteConvo('c2') })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(toastFn.error).toHaveBeenCalledWith("Couldn't delete — try again")
+    expect(chat().convos?.map((c) => c.id)).toEqual(['c1', 'c2', 'c3'])
+  })
+
+  it('⛔ Undo while offline puts the conversation back, though its re-pull fails', async () => {
+    const { chat } = await mountWithInbox()
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch') }))
+    act(() => { chat().deleteConvo('c2') })
+    act(() => { undoToast().action.props.onClick() })
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(chat().convos?.map((c) => c.id)).toEqual(['c1', 'c2', 'c3'])
+    await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
+    expect((fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'DELETE')).toHaveLength(0)
+  })
+
+  // Every order of deleting and of failing: top-down and bottom-up, either DELETE failing first. (Anchoring on
+  // the neighbouring row passed top-down and broke bottom-up — two rows shared one anchor.)
+  for (const [first, second] of [['c1', 'c2'], ['c2', 'c1']] as const) {
+    for (const failsFirst of [first, second]) {
+      it(`two deletes that fail offline come back in the server's order (deleted ${first} then ${second}, ${failsFirst} fails first)`, async () => {
+        const { chat } = await mountWithInbox()
+        const failDelete: Record<string, () => void> = {}
+        vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+          if (init?.method === 'DELETE') {
+            await new Promise<void>((_, reject) => { failDelete[url.split('/').pop()!] = () => reject(new TypeError('Failed to fetch')) })
+          }
+          throw new TypeError('Failed to fetch') // the re-pulls fail too
+        }))
+        act(() => { chat().deleteConvo(first) })
+        act(() => { chat().deleteConvo(second) })
+        expect(chat().convos?.map((c) => c.id)).toEqual(['c3'])
+        await act(async () => { await vi.advanceTimersByTimeAsync(5000) }) // both DELETEs go out, and wait
+        const failsSecond = failsFirst === first ? second : first
+        await act(async () => { failDelete[failsFirst](); await vi.advanceTimersByTimeAsync(0) })
+        await act(async () => { failDelete[failsSecond](); await vi.advanceTimersByTimeAsync(0) })
+        expect(chat().convos?.map((c) => c.id)).toEqual(['c1', 'c2', 'c3'])
+      })
+    }
+  }
+
+  it('a 404 that is NOT the route\'s own (an edge, a missing route) is a failure like any other: put back, and said', async () => {
+    const { chat } = await mountWithInbox()
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE') return { ok: false, status: 404, json: async () => { throw new SyntaxError('not JSON') } }
+      throw new TypeError('Failed to fetch')
+    }))
+    act(() => { chat().deleteConvo('c2') })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(toastFn.error).toHaveBeenCalledWith("Couldn't delete — try again")
+    expect(chat().convos?.map((c) => c.id)).toEqual(['c1', 'c2', 'c3'])
+  })
+
+  it('the route\'s own 404 (already gone, from another tab or device) is done: no row flashed back, no "try again"', async () => {
+    const { chat } = await mountWithInbox()
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE') return { ok: false, status: 404, json: async () => ({ error: 'not_found' }) }
+      if (url === '/api/conversations') return { ok: true, json: async () => ({ conversations: [{ id: 'c1' }, { id: 'c3' }] }) }
+      return { ok: true, json: async () => ({ unread: 0 }) }
+    }))
+    act(() => { chat().deleteConvo('c2') })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(toastFn.error).not.toHaveBeenCalled()
+    expect(chat().convos?.map((c) => c.id)).toEqual(['c1', 'c3'])
+  })
+
+  it('a failed delete after THIS tab moved to another account: nothing is put back and nothing is said', async () => {
+    let signedIn = 'u1'
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'DELETE') throw new TypeError('Failed to fetch')
+      if (url === '/api/conversations') return { ok: true, json: async () => ({ conversations: (signedIn === 'u1' ? ['c1', 'c2', 'c3'] : ['d1']).map((id) => ({ id })) }) }
+      return { ok: true, json: async () => ({ unread: 0 }) }
+    }))
+    const hook = renderHook(() => useChat(), { wrapper: ChatProvider })
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    act(() => { hook.result.current.deleteConvo('c1') })
+    signedIn = 'u2'
+    auth.user = { id: 'u2' }
+    hook.rerender()
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    act(() => { hook.result.current.refreshConvos() })
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) }) // the window closes; the DELETE fails
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    expect(hook.result.current.convos?.map((c) => c.id)).toEqual(['d1'])
+    expect(toastFn.error).not.toHaveBeenCalled()
   })
 
   it('the page going away inside the window sends the DELETE at once, with keepalive', async () => {

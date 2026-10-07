@@ -324,7 +324,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     // invokes them, so an impure updater writes the cache twice — or worse).
     const prev = convosRef.current ?? []
     const at = prev.findIndex((c) => c.id === id)
-    const removed = at >= 0 ? prev[at] : null // kept to put back if the server refuses (account_changed, below)
+    const removed = at >= 0 ? prev[at] : null // kept to put back on Undo, or if the DELETE fails or is refused
     const next = prev.filter((c) => c.id !== id)
     convosRef.current = next
     setConvos(next)
@@ -345,14 +345,41 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     // hide a reply that landed in between.
     // The account that tapped, captured NOW: the DELETE names it when the window closes (acting-account.ts).
     const actingAccount = user?.id ?? null
+    // Put the conversation back from what the tap removed — locally, and only while this tab is still the
+    // session that removed it (once it has moved, the list belongs to whoever signed in). WHERE A PULL WOULD
+    // LIST IT: the inbox is ordered by lastMessageAt, newest first (api/conversations), so any number of
+    // put-backs, in any order, land in the server's order. (Anchoring on the neighbouring row was tried
+    // first; deleting bottom-up gave two rows the same anchor — review, 2026-10-07.) In memory only: the
+    // device cache stays as the tap wrote it, because a failure can mean the browser is no longer this
+    // account's (a 401 after a sign-out elsewhere, a 409 below) and writing the old inbox back would leave it
+    // on a shared device; the next pull rewrites the cache anyway.
+    // ⚠️ UNDO TOO, NOT THE RE-PULL ALONE: offline, that pull fails and the conversation — never deleted —
+    // stayed hidden after the user took the delete back (review, 2026-10-07).
+    const putBack = () => {
+      if (!removed || sessionRef.current !== session) return
+      const cur = convosRef.current ?? []
+      if (cur.some((c) => c.id === id)) return
+      const t = Date.parse(removed.lastMessageAt)
+      const i = cur.findIndex((c) => Date.parse(c.lastMessageAt) < t)
+      const list = i < 0 ? [...cur, removed] : [...cur.slice(0, i), removed, ...cur.slice(i)]
+      convosRef.current = list
+      setConvos(list)
+    }
     undoWindow.start(`convo:${id}`, {
       title: tr('Conversation removed', 'Đã xóa cuộc trò chuyện'),
       undoLabel: tr('Undo', 'Hoàn tác'),
-      undo: () => refreshConvos(),
+      undo: () => { putBack(); refreshConvos() },
       commit: () => {
-        // On failure, ROLL BACK the optimistic removal: the row still exists server-side,
-        // so re-pulling the inbox restores it — and say so instead of silently desyncing.
-        const rollback = () => { toast.error(tr("Couldn't delete — try again", 'Chưa xóa được — thử lại')); refreshConvos() }
+        // On failure, ROLL BACK the optimistic removal — put it back AT ONCE, then re-pull (the row still exists
+        // server-side, so the pull confirms it) — and say so instead of silently desyncing. ⚠️ NOT THE RE-PULL
+        // ALONE: the likeliest reason a DELETE fails is the network, and then the re-pull fails too and the
+        // conversation stayed hidden under a "Couldn't delete" (Emil-skills audit follow-up).
+        // Only for the session that tapped: once the tab has moved to another account, its list and its toasts
+        // are that account's (the 409 branch below holds the same line).
+        const rollback = () => {
+          if (sessionRef.current !== session) return
+          putBack(); toast.error(tr("Couldn't delete — try again", 'Chưa xóa được — thử lại')); refreshConvos()
+        }
         // ⛔ OUT OF THE LIST UNTIL THE DELETE LANDS, AND GONE AFTER (deletesInFlight, above). The window closes
         // BEFORE the DELETE lands and the server lists the conversation until then, so it is filtered while the
         // DELETE is in flight. Once it LANDS, every pull asked before is moved behind the per-session order —
@@ -363,26 +390,20 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         return fetch(`/api/conversations/${id}`, { method: 'DELETE', keepalive: true, headers: actingAccountHeaders(actingAccount) })
           .then(async (r) => {
             deletesInFlight.current.delete(key)
-            if (!r.ok) {
+            const code = r.ok ? undefined : await r.json().then((b: { error?: unknown } | null) => b?.error, () => undefined)
+            // The ROUTE's own 404 (`not_found`) is not a failure to report: the conversation is gone already
+            // (another tab or device got there first), and putting it back under "try again" would flash a row
+            // the next pull removes. Any other 404 — an edge, a missing route — is a failure like the rest.
+            const alreadyGone = r.status === 404 && code === 'not_found'
+            if (!r.ok && !alreadyGone) {
               // ⛔ ANOTHER ACCOUNT HOLDS THIS BROWSER NOW (409 account_changed): nothing was deleted, and the
               // rollback's re-pull would read THAT account's inbox into this one's list. So the conversation is
-              // put back from what the tap removed — locally, and only while this tab is still the session that
-              // removed it (once it has moved, the list belongs to whoever signed in). The device cache is left as
-              // the tap wrote it, on purpose: this browser now belongs to another account, whose session ignores it
-              // (or sign-out cleared it) — writing the old inbox back would leave it on a shared device.
-              const code = await r.json().then((b: { error?: unknown } | null) => b?.error, () => undefined)
+              // only put back (putBack, above) and the reason said.
               if (code !== ACCOUNT_CHANGED) { rollback(); return }
               // Nothing is put back and nothing is said once the tab has moved on: the screen is the other
               // account's, and even the toast would tell them what the previous one tried.
               if (sessionRef.current !== session) return
-              if (removed) {
-                const cur = convosRef.current ?? []
-                if (!cur.some((c) => c.id === id)) {
-                  const list = [...cur.slice(0, at), removed, ...cur.slice(at)]
-                  convosRef.current = list
-                  setConvos(list)
-                }
-              }
+              putBack()
               toast.error(tr('This browser is now signed in to a different account, so the conversation was not deleted.', 'Trình duyệt này đang đăng nhập bằng một tài khoản khác nên cuộc trò chuyện chưa bị xóa.'))
               return
             }
