@@ -20,6 +20,9 @@ import { usePointerReorder } from '@/hooks/use-pointer-reorder'
 
 export type PostMedia = ReturnType<typeof usePostMedia>
 
+/** The most photos a listing holds — the pick, the draft restore and the ✕'s Undo all stop here. */
+const MAX_PHOTOS = 6
+
 export function usePostMedia({
   edit,
   t,
@@ -86,7 +89,7 @@ export function usePostMedia({
           const squareFile = await centerCropSquare(norm)
           const url = trackBlobUrl(URL.createObjectURL(squareFile))
           setPhotos((p) => {
-            if (p.length >= 6) { URL.revokeObjectURL(url); return p }
+            if (p.length >= MAX_PHOTOS) { URL.revokeObjectURL(url); return p }
             // centerCropSquare returns `norm` ITSELF if it couldn't crop → the flag must reflect
             // reality (an un-cropped photo mustn't claim to be square) (codex).
             return [...p, { url, file: squareFile, original: norm, square: squareFile !== norm }]
@@ -203,6 +206,55 @@ export function usePostMedia({
       setVideoBusy(false)
     }
   }
+  /**
+   * Remove one photo, with Undo (Emil-skills audit, missing confirmations: the ✕ dropped a photo — and revoked its
+   * blob, so it could not even be shown again — with no way back). The blob is NOT revoked here: every blob this hook
+   * makes is tracked and revoked on unmount, so a removed photo can be put back until the form goes. Undo puts it back
+   * where it was (or at the end, if the list moved) unless the form is full again.
+   */
+  const removedSeq = useRef(0)
+  const photosNow = useRef(photos)
+  useEffect(() => { photosNow.current = photos })
+  const removePhoto = (index: number) => {
+    const removed = photos[index]
+    if (!removed) return
+    // What came after it, in order, at the moment it went: Undo puts it back before the first of those still there
+    // (or last). Two removals undone in either order land as they were; an absolute index did not — undoing the
+    // first of two put it after the second (review, 2026-10-07).
+    const after = photos.slice(index + 1)
+    // By identity, not by index: a crop landing between this render and the update could have put a different
+    // object in that slot (review, 2026-10-07).
+    setPhotos((arr) => arr.filter((p) => p !== removed))
+    let restored = false
+    // ⚠️ ITS OWN TOAST PER REMOVAL: one fixed id let a second ✕ replace the first one's toast, and the first photo
+    // then had no way back (review, 2026-10-07).
+    const id = `pw-photo-undo:${++removedSeq.current}`
+    // Its blob is let go once the Undo is gone unused — kept until then, so Undo can show it again; the unmount
+    // sweep still covers the rest.
+    const release = () => { if (!restored && !photosNow.current.includes(removed) && removed.url.startsWith('blob:')) URL.revokeObjectURL(removed.url) }
+    toast(t('Đã xóa ảnh', 'Photo removed'), {
+      id,
+      duration: 6000,
+      onAutoClose: release,
+      onDismiss: release,
+      action: {
+        label: t('Hoàn tác', 'Undo'),
+        onClick: () => {
+          // Restored only if it can be (a form back at the cap, or a photo already there, is not). Refused, its blob
+          // is let go HERE: sonner closes a toast after its action without calling onDismiss (index.mjs, the action
+          // button's onClick → deleteToast), so nothing later would.
+          const now = photosNow.current
+          if (now.length >= MAX_PHOTOS || now.includes(removed)) { release(); return }
+          restored = true
+          setPhotos((arr) => {
+            if (arr.length >= MAX_PHOTOS || arr.includes(removed)) return arr
+            const at = arr.findIndex((p) => after.includes(p))
+            return at < 0 ? [...arr, removed] : [...arr.slice(0, at), removed, ...arr.slice(at)]
+          })
+        },
+      },
+    })
+  }
   const removeVideo = () => setVideo((prev) => { if (prev?.url.startsWith('blob:')) URL.revokeObjectURL(prev.url); return null })
 
   // Photos brought back from the IndexedDB draft (src/lib/post-draft-photos.ts) after a reload or
@@ -212,7 +264,7 @@ export function usePostMedia({
   // (updaters must stay side-effect-free, see setPhotoFile) and tracked, so a set that loses the race
   // is revoked with everything else at unmount.
   const restorePhotos = (items: { file: File; original?: File; square?: boolean }[]) => {
-    const restored = items.slice(0, 6).map((it) => ({ url: trackBlobUrl(URL.createObjectURL(it.file)), file: it.file, original: it.original, square: it.square }))
+    const restored = items.slice(0, MAX_PHOTOS).map((it) => ({ url: trackBlobUrl(URL.createObjectURL(it.file)), file: it.file, original: it.original, square: it.square }))
     setPhotos((p) => (p.length ? p : restored))
   }
 
@@ -284,6 +336,7 @@ export function usePostMedia({
     videoBusy,
     addVideo,
     removeVideo,
+    removePhoto,
     uploadPhotos,
     resolveVideoUrl,
   }

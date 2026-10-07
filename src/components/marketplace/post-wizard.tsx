@@ -229,7 +229,6 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         return
       }
       if (d.categorySlug) {
-        setCategorySlug(d.categorySlug)
         // AI must not pick a subcategory this edition does not offer for new posts (O-34) — nor, for a seller
         // who is not an official partner, the partner-only visa slot (O-34b).
         // ⚠️ While /api/me has not answered, a partner-only pick is KEPT (gate, 2026-10-05: a partner's AI fill was
@@ -237,14 +236,61 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         // once the account is known not to be a partner.
         const aiSubOk = !!d.subcategorySlug && (isPostableSubcategory(d.categorySlug, d.subcategorySlug, IS_MARKETPLACE, { officialPartner })
           || (!meKnown && isPartnerOnlySubcategory(d.categorySlug, d.subcategorySlug)))
-        setSubcategorySlug(aiSubOk ? d.subcategorySlug : '')
-        setAttrs(d.attributes && typeof d.attributes === 'object' ? d.attributes : {})
-        setRanges({})
+        // ⚠️ IT OVERWRITES WHAT THE SELLER HAD CHOSEN — the category, its specifics (ranges are wiped outright),
+        // condition, brand, model — so it comes with an Undo whenever something they had is replaced, as a manual
+        // category change already does (offerCategoryUndo). Emil-skills audit, missing confirmations.
+        //  · the "before" is the form AS IT IS NOW (latestForm), not as it was at the tap — the seller may have kept
+        //    editing while the photo was read;
+        //  · the toast only when something they had actually changes (a re-read that lands on the same answers,
+        //    or a first fill of an empty form, has nothing to undo);
+        //  · Undo is all-or-nothing, and only while the form is still exactly as autofill left it: any edit since
+        //    is the seller's newer word, and putting back half a snapshot would pair one category with another's
+        //    specifics (review, 2026-10-07). The title is filled only when empty, so it is never lost.
+        const snap = latestForm.current
+        const next = {
+          ...snap,
+          categorySlug: d.categorySlug as string,
+          subcategorySlug: aiSubOk ? (d.subcategorySlug as string) : '',
+          attrs: d.attributes && typeof d.attributes === 'object' ? d.attributes : {},
+          ranges: {},
+          listingType: d.listingType || snap.listingType,
+          condition: d.condition || snap.condition,
+          brand: d.brand || snap.brand, // AI auto-selects the brand ONLY when confident
+          model: d.model || snap.model,
+          title: d.title && !snap.title.trim() ? (d.title as string) : snap.title,
+        }
+        const FIELDS = ['categorySlug', 'subcategorySlug', 'listingType', 'attrs', 'ranges', 'condition', 'brand', 'model', 'title'] as const
+        // Key order is not a change: objects compare by their sorted entries.
+        const norm = (v: unknown) => JSON.stringify(v && typeof v === 'object' ? Object.entries(v).sort(([a], [b]) => a.localeCompare(b)) : v)
+        const same = (a: Record<string, unknown>, b: Record<string, unknown>) => FIELDS.every((k) => norm(a[k]) === norm(b[k]))
+        // Anything the seller had chosen — the listing type included ("buy", a wanted ad, before any category).
+        const hadAnswers = !!snap.categorySlug || Object.keys(snap.attrs).length > 0 || Object.keys(snap.ranges).length > 0 || !!snap.condition || !!snap.brand || !!snap.model || snap.listingType !== 'sell'
+        // Written: only what the AI provides — never a field copied back from the snapshot, which could be a
+        // keystroke behind the field (a value the seller typed in the same frame would be overwritten).
+        setCategorySlug(next.categorySlug)
+        setSubcategorySlug(next.subcategorySlug)
+        setAttrs(next.attrs)
+        setRanges(next.ranges)
         if (d.listingType) setListingType(d.listingType)
         if (d.condition) setCondition(d.condition)
-        if (d.brand) setBrand(d.brand) // AI auto-selects the brand ONLY when confident
+        if (d.brand) setBrand(d.brand)
         if (d.model) setModel(d.model)
-        if (d.title && !title.trim()) setTitle(d.title)
+        if (next.title !== snap.title) setTitle(next.title)
+        if (hadAnswers && !same(snap, next)) {
+          toast(t('Đã điền từ ảnh — các lựa chọn trước đó đã được thay', 'Filled in from your photo — your earlier choices were replaced'), {
+            id: 'pw-autofill-undo',
+            duration: 6000,
+            action: {
+              label: t('Hoàn tác', 'Undo'),
+              onClick: () => {
+                if (!same(latestForm.current, next)) return // edited since: the seller's newer word stands
+                setCategorySlug(snap.categorySlug); setSubcategorySlug(snap.subcategorySlug); setListingType(snap.listingType)
+                setAttrs(snap.attrs); setRanges(snap.ranges); setCondition(snap.condition); setBrand(snap.brand); setModel(snap.model)
+                setTitle(snap.title)
+              },
+            },
+          })
+        }
         // NOTE: intentionally do NOT auto-write the description. Sellers describe the
         // item in their OWN words (what actually matters — condition, quirks, why
         // selling), then optionally "Polish with AI" to tidy their own text.
@@ -281,7 +327,19 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         return
       }
       const d = await res.json()
-      if (d.text) setDescription(d.text)
+      // ⚠️ IT REPLACES THE SELLER'S OWN WORDS, so it comes with an Undo (Emil-skills audit, missing confirmations).
+      // The text sent is the text replaced: the field is read-only while the request runs (below), so nothing typed
+      // in the meantime is lost.
+      if (d.text) {
+        const before = description
+        setDescription(d.text)
+        // Only while the text is still the AI's: an edit since is the seller's newer word, and Undo leaves it alone.
+        toast(t('Đã chỉnh mô tả bằng AI', 'Description polished with AI'), {
+          id: 'pw-polish-undo',
+          duration: 6000,
+          action: { label: t('Hoàn tác', 'Undo'), onClick: () => setDescription((cur) => (cur === d.text ? before : cur)) },
+        })
+      }
     } catch {
       toast.error(t('Không thể dùng AI lúc này', 'AI is unavailable right now'))
     } finally {
@@ -316,6 +374,16 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [condition, setCondition] = useState(edit?.condition ?? '')
   const [brand, setBrand] = useState(edit?.brand ?? '')
   const [model, setModel] = useState(edit?.model ?? '')
+  // The form's latest committed values, for the AI Undos (autofillFromPhoto, polishDescription): what autofill overwrites and what its Undo checks
+  // are read when they happen, not from the render that started the request (the seller can keep editing while
+  // it runs). Kept by an effect, never written during render.
+  const latestForm = useRef({ categorySlug, subcategorySlug, listingType, attrs, ranges, condition, brand, model, title, description })
+  // ⚠️ AN AI UNDO CHECKS AT THE TAP, AND THAT IS ALL: it reverts only while the form is still exactly as the AI left
+  // it, otherwise it does nothing (for at most its toast's 6s). A tracker that took the Undo down the moment the
+  // form moved was tried, and each review round found a new way two Undos sharing it interleaved (review,
+  // 2026-10-07) — the bounded no-op is the simpler contract.
+  useEffect(() => { latestForm.current = { categorySlug, subcategorySlug, listingType, attrs, ranges, condition, brand, model, title, description } })
+
   // Brand suggestions: the catalogue's top brands overall, led by the brands that actually have live
   // listings in the chosen subcategory. Slugs are kept so a typed brand can be matched to its models.
   const [globalBrands, setGlobalBrands] = useState<{ name: string; slug: string }[]>([])
@@ -1911,6 +1979,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     value={description}
                     maxLength={DESC_MAX}
                     onChange={(e) => setDescription(e.target.value)}
+                    // Read-only while "Polish with AI" runs: the answer replaces the text that was sent, so anything
+                    // typed in those seconds would be lost to it.
+                    readOnly={aiBusy === 'desc'}
                     onBlur={() => touch('description')}
                     aria-required
                     rows={5}
