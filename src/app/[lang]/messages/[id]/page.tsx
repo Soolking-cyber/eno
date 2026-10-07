@@ -300,6 +300,30 @@ type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?
  * render type here would have forced a meaningless `deleted: false` at every construction site.
  */
 type ReplyTarget = { id: string; body: string; mine: boolean }
+/** How long a first read may take before the thread says so (readTrouble). */
+const THREAD_PATIENCE_MS = 10_000
+/** The most any one read may hang. Past it the request is dropped, so a dead connection cannot pile up a request
+ *  every 15s for ever; well past any thread that will ever load. */
+const THREAD_READ_CEILING_MS = 120_000
+/**
+ * One thread read, bounded by THREAD_READ_CEILING_MS — the answer and its body (null unless 2xx and JSON), or null
+ * when the network or the ceiling ended it. An AbortController and a timer rather than AbortSignal.timeout (Safari
+ * 16+), and the timer is let go the moment the read settles: a 15s poll must not leave a two-minute timer behind
+ * for every read it made (review).
+ */
+async function readBounded(url: string): Promise<{ res: Response; data: unknown } | null> {
+  const ceiling = typeof AbortController !== 'undefined' ? new AbortController() : null
+  const timer = ceiling ? setTimeout(() => ceiling.abort(), THREAD_READ_CEILING_MS) : null
+  try {
+    const res = await fetch(url, ceiling ? { signal: ceiling.signal } : undefined)
+    return { res, data: res.ok ? await res.json().catch(() => null) : null }
+  } catch {
+    return null
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 type Thread = {
   id: string
   me: string // current user's profile id — to tell my messages from incoming
@@ -395,7 +419,8 @@ export default function ThreadPage() {
   // back would paint that offer `pending` with live buttons.
   const [thread, setThread] = useState<Thread | null>(() => {
     const cached = getCachedThread(id) as Thread | null
-    return cached ? { ...cached, messages: overlayOfferChoices(cached.messages ?? [], unconfirmedOfferChoices) } : null
+    // Only THIS thread's copy: a cache entry is checked at the read, not trusted downstream.
+    return cached && cached.id === id ? { ...cached, messages: overlayOfferChoices(cached.messages ?? [], unconfirmedOfferChoices) } : null
   })
 
   /**
@@ -624,6 +649,27 @@ export default function ThreadPage() {
     return next
   }), [])
   const [notFound, setNotFound] = useState(false)
+  /**
+   * ⛔ A THREAD THAT CANNOT LOAD SAYS SO (Emil-skills audit, split out of the 3b send guard). A first read that
+   * failed, or never answered, left the skeletons up for good — the poll kept trying in silence.
+   *  · ONE page-level patience clock raises "slow": THREAD_PATIENCE_MS of a signed-in reader's wait, restarted
+   *    by Try again. Never a timer per read, whose stale ends re-raised the notice after a Try again (the
+   *    split-out's lesson).
+   *  · A read only raises trouble if it started at or after the last Try again or sign-out (`troubleFrom`); an
+   *    older one failing late must not put the notice back over a retry still in flight, or over the next session.
+   *  · Nothing is aborted at the notice — a slow thread still loads, and paints over it. Reads are bounded only by
+   *    a ceiling (THREAD_READ_CEILING_MS), so a dead connection does not pile up a request every 15s for ever.
+   *  · 401 (the session went) asks to sign in; 403/404 stay the not-found screen they were. A read that paints
+   *    clears the notice. Only while nothing of THIS thread is on screen: a painted thread keeps its own failure
+   *    handling (the send retries, the poll), untouched here.
+   *  · The notice takes the skeleton bubbles' place INSIDE the thread's tree (see the message list), never a
+   *    screen of its own: swapping the tree out and back would leave what binds to it at mount (the footer's
+   *    ResizeObserver) on a detached node once the thread paints.
+   */
+  const [readTrouble, setReadTrouble] = useState<null | { id: string; kind: 'slow' | 'failed' | 'signed-out' }>(null)
+  const [patienceRun, setPatienceRun] = useState(0)
+  const paintedFor = useRef<string | null>(thread && thread.id === id ? id : null)
+  const troubleFrom = useRef(0)
   const [text, setText] = useState('')
   const [showOffer, setShowOffer] = useState(false) // offer-amount input visible
   const [offerInput, setOfferInput] = useState('')
@@ -730,19 +776,38 @@ export default function ThreadPage() {
   const readThread = useCallback(async (opened: boolean): Promise<{ cleared: number; openCleared: boolean }> => {
     const none = { cleared: 0, openCleared: false }
     const ticket = ++loadTicket.current
+    // Raised only by a read that started at or after the last Try again, the last sign-out AND the last read
+    // that raised one — so an older read answering late can never replace a newer one's word (a "session ended"
+    // turned back into "couldn't load" by a poll that left before it) — and only while nothing of this thread is
+    // on screen (see readTrouble).
+    const trouble = (kind: 'failed' | 'signed-out') => {
+      if (ticket < troubleFrom.current || paintedFor.current === id) return
+      troubleFrom.current = ticket + 1
+      setReadTrouble((r) => (r && r.id === id && r.kind === kind ? r : { id, kind }))
+    }
     const startedAt = performance.now()
-    const res = await fetch(`/api/conversations/${id}${opened ? '?opened=1' : ''}`)
+    const got = await readBounded(`/api/conversations/${id}${opened ? '?opened=1' : ''}`)
+    // Offline, a dropped connection, or the ceiling: nothing to paint. Said, if nothing is on screen yet.
+    if (!got) { trouble('failed'); return none }
+    const { res } = got
     // Checked BEFORE any branch that paints — a superseded reply answering 403/404 must not swap a live
     // thread a newer reply already painted for the not-found screen (reviewer-caught, round 2).
     if (ticket < appliedTicket.current) return none
     if (res.status === 404 || res.status === 403) { appliedTicket.current = ticket; setNotFound(true); return none }
-    if (!res.ok) return none
-    const data = await res.json()
+    // Applied like 403/404: a session that has ended outranks any OLDER answer still on its way.
+    if (res.status === 401) { appliedTicket.current = ticket; trouble('signed-out'); return none }
+    if (!res.ok) { trouble('failed'); return none }
+    // Validated at the answer: THIS thread's payload, or nothing (an unreadable body is a failed read).
+    const data = got.data as (Thread & { notificationsCleared?: unknown; openCleared?: unknown }) | null
+    if (!data || data.id !== id) { trouble('failed'); return none }
     const cleared = typeof data?.notificationsCleared === 'number' ? data.notificationsCleared : 0
     const openCleared = opened && data?.openCleared === true
     if (cleared > 0) refreshNotificationsRef.current()
     if (ticket < appliedTicket.current) return { cleared, openCleared }
     appliedTicket.current = ticket
+    // Painted: the notice about not being able to show it is over.
+    paintedFor.current = id
+    setReadTrouble(null)
     cacheThread(id, data) // keep the cache warm for an instant paint next time
     // An answer still inside its undo window whose offer the server now reports as ANSWERED (the buyer
     // withdrew or countered, or this user answered on another device): it can no longer be sent — the
@@ -819,6 +884,31 @@ export default function ThreadPage() {
   // no-argument function on purpose: it is handed to setInterval, which in some engines passes its own
   // argument to the callback.
   const load = useCallback(async () => { await fetchThread() }, [fetchThread])
+
+  // The one patience clock (see readTrouble): a signed-in reader's wait, from the moment there is one, and again
+  // from each Try again. Signed out (or still settling) there are no reads to wait for: every notice goes with the
+  // session that raised it, and no read started before may raise one later — or the next sign-in would be met
+  // with the old session's "couldn't load", or a clock that ran out behind the sign-in card.
+  const signedIn = !!user
+  useEffect(() => {
+    if (!signedIn) {
+      troubleFrom.current = loadTicket.current + 1
+      setReadTrouble(null)
+      return
+    }
+    if (paintedFor.current === id) return
+    const t = setTimeout(() => {
+      if (paintedFor.current !== id) setReadTrouble((r) => (r && r.id === id ? r : { id, kind: 'slow' }))
+    }, THREAD_PATIENCE_MS)
+    return () => clearTimeout(t)
+  }, [id, patienceRun, signedIn])
+  // Try again: a fresh read now, the clock restarted, and only reads from here on may raise trouble again.
+  const retryRead = () => {
+    troubleFrom.current = loadTicket.current + 1
+    setReadTrouble(null)
+    setPatienceRun((n) => n + 1)
+    void load()
+  }
 
   /**
    * RECALL ONE OF MY MESSAGES.
@@ -2375,6 +2465,9 @@ export default function ThreadPage() {
     </div>
   )
 
+  // The read-trouble notice (see readTrouble), drawn in the message list in place of the skeleton bubbles.
+  const troubleShown = !thread && readTrouble?.id === id ? readTrouble : null
+
   return (
     <div className="flex h-full w-full flex-col bg-background">
       {!loading && !user ? (
@@ -3206,8 +3299,30 @@ export default function ThreadPage() {
             {thread && thread.messages.length === 0 && (
               <p className="py-10 text-center text-xs text-ink-4">{tr('Say hello — this seller will be notified.', 'Gửi lời chào — người bán sẽ được thông báo.')}</p>
             )}
-            {/* Uncached thread → skeleton bubbles (not a blank pane) while it loads. */}
-            {!thread && (
+            {/* Uncached thread → skeleton bubbles (not a blank pane) while it loads — or, when it cannot, the
+                notice in their place (readTrouble). Here, in the log: a live region since the first paint, so the
+                notice is announced when it appears (one inserted together with its text is not reliably read). */}
+            {troubleShown ? (
+              <div className="flex justify-center py-10">
+                <div className="max-w-xs rounded-2xl bg-popover p-6 text-center shadow-pop">
+                  <p className="text-sm text-muted-foreground">
+                    {troubleShown.kind === 'signed-out'
+                      ? tr('Your session has ended — sign in to see this conversation.', 'Phiên đăng nhập đã kết thúc — đăng nhập để xem cuộc trò chuyện này.')
+                      : troubleShown.kind === 'slow'
+                        ? tr('This conversation is taking longer than usual to load.', 'Cuộc trò chuyện này tải lâu hơn bình thường.')
+                        : tr('Couldn’t load this conversation.', 'Chưa tải được cuộc trò chuyện này.')}
+                  </p>
+                  {troubleShown.kind === 'signed-out' ? (
+                    <div className="mt-4"><SignInPrompt /></div>
+                  ) : (
+                    // tap-44: the notice's one action, at the 44px floor (the sm button draws 32px).
+                    <Button type="button" variant="outline" size="sm" className="relative mt-4 tap-44" onClick={retryRead}>
+                      <RotateCcw className="h-4 w-4" aria-hidden /> {tr('Try again', 'Thử lại')}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : !thread && (
               <div className="space-y-2" aria-hidden>
                 {[['start', 'w-40'], ['end', 'w-28'], ['start', 'w-52'], ['end', 'w-36']].map(([side, w], i) => (
                   <div key={i} className={`flex ${side === 'end' ? 'justify-end' : 'justify-start'}`}>
