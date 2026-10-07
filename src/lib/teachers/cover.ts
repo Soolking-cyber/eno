@@ -25,14 +25,16 @@ export type CoverPart = (typeof COVER_PARTS)[number]
  */
 export const COVER_SLOTS: readonly string[] = COVER_DAYS.flatMap((d) => COVER_PARTS.map((p) => `${d}-${p}`))
 
-export const COVER_DAY_LABELS: Record<CoverDay, { en: string; vi: string; enShort: string; viShort: string }> = {
-  mon: { en: 'Monday', vi: 'Thứ 2', enShort: 'Mon', viShort: 'T2' },
-  tue: { en: 'Tuesday', vi: 'Thứ 3', enShort: 'Tue', viShort: 'T3' },
-  wed: { en: 'Wednesday', vi: 'Thứ 4', enShort: 'Wed', viShort: 'T4' },
-  thu: { en: 'Thursday', vi: 'Thứ 5', enShort: 'Thu', viShort: 'T5' },
-  fri: { en: 'Friday', vi: 'Thứ 6', enShort: 'Fri', viShort: 'T6' },
-  sat: { en: 'Saturday', vi: 'Thứ 7', enShort: 'Sat', viShort: 'T7' },
-  sun: { en: 'Sunday', vi: 'Chủ nhật', enShort: 'Sun', viShort: 'CN' },
+// `shortEn`/`shortVi`, not `enShort`: scripts/gen-ui-strings.mjs harvests an `…En`/`…Vi` pair, so the short labels reach
+// the nine machine-translated languages pre-warmed (gate review, 2026-10-07).
+export const COVER_DAY_LABELS: Record<CoverDay, { en: string; vi: string; shortEn: string; shortVi: string }> = {
+  mon: { en: 'Monday', vi: 'Thứ 2', shortEn: 'Mon', shortVi: 'T2' },
+  tue: { en: 'Tuesday', vi: 'Thứ 3', shortEn: 'Tue', shortVi: 'T3' },
+  wed: { en: 'Wednesday', vi: 'Thứ 4', shortEn: 'Wed', shortVi: 'T4' },
+  thu: { en: 'Thursday', vi: 'Thứ 5', shortEn: 'Thu', shortVi: 'T5' },
+  fri: { en: 'Friday', vi: 'Thứ 6', shortEn: 'Fri', shortVi: 'T6' },
+  sat: { en: 'Saturday', vi: 'Thứ 7', shortEn: 'Sat', shortVi: 'T7' },
+  sun: { en: 'Sunday', vi: 'Chủ nhật', shortEn: 'Sun', shortVi: 'CN' },
 }
 
 /** Evening is not an afterthought: Vietnam's language centres teach most of their classes 17:30–21:00. */

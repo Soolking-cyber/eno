@@ -133,6 +133,9 @@ export type NavItem = {
   /** Show ONLY to a viewer who holds an e-Visa case (dash.hasVisa). The apply flow is
    *  chat-only, so this row is meaningless to everyone else. */
   requiresVisa?: boolean
+  /** Show ONLY to a viewer who has a teacher profile (dash.hasTeacher) — the way back to /teachers/edit, where a
+   *  teacher updates their cover availability or withdraws it (cover lessons, 2026-10-07). */
+  requiresTeacher?: boolean
   /** Renderer-computed href: 'storefront' → the signed-in seller's public storefront URL
    *  (/{handle} when a handle exists, else /sellers/{id}). */
   dynamic?: 'storefront'
@@ -187,6 +190,13 @@ export const DASHBOARD_NAV: NavGroup[] = [
       { href: '/dashboard/listings', ...tr('My listings', 'Tin của tôi'), icon: Store },
       { href: '/messages', ...tr('Messages', 'Tin nhắn'), icon: MessageSquare, badge: 'unread' },
       { href: '/saved', ...tr('Saved', 'Đã lưu'), icon: Heart, badge: 'saved' },
+      /**
+       * ⛔ THE ONLY DOOR BACK TO A TEACHER'S PROFILE, AND THE APPS NEED IT (2026-10-07). /teachers/edit was
+       * linked from nowhere a signed-in teacher could reach in the native apps (the footer is hidden there), so a
+       * teacher could not update their cover lessons or switch them off — withdrawal must be reachable (PDP Law
+       * 91/2025). Both editions, like the teacher feature itself.
+       */
+      { href: '/teachers/edit', ...tr('Teacher profile', 'Hồ sơ giáo viên'), icon: GraduationCap, requiresTeacher: true },
       // Label matches the page's own name ("Availability review" / "còn hàng").
       /**
        * ⛔ THE ROW THAT DID NOT EXIST, AND ITS ABSENCE WAS THE WHOLE PROBLEM. Owner, 2026-08-31:

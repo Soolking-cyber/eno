@@ -8,6 +8,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { SchoolsBoard } from '@/components/schools/schools-board'
 import { SchoolsMethodology } from '@/components/schools/schools-methodology'
 import { SchoolsSidebar } from '@/components/schools/schools-sidebar'
+import { CoverPromoCard } from '@/components/teachers/cover-promo-card'
 import { listAllSchools } from '@/lib/schools/queries'
 import { AWARDS_PATH, HCMC_AREAS } from '@/lib/schools/constants'
 import { currentAwardYear } from '@/lib/schools/award-rank'
@@ -68,6 +69,7 @@ export default async function SchoolsPage({ params }: { params: Promise<{ lang: 
           {/* Not sticky: the three cards are taller than a 1440×900 laptop's viewport, and a pinned column
               would hide its own last card until the 172-row list ends (diff review). */}
           <aside className="mt-10 lg:mt-0">
+            <CoverPromoCard className="mb-6" />
             <SchoolsSidebar rows={rows} lang={lang} />
           </aside>
         </div>

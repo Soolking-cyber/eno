@@ -288,6 +288,9 @@ export function teacherSubcategory(t: Pick<TeacherInput, 'subjects'>): string {
 /**
  * The derived facet tokens (all multi-valued facets go to `facetTokens`, which no public write path
  * can reach — see src/lib/facet-tokens.ts). Every value is a taxonomy slug, so every chip filters.
+ * ⚠️ `coverConsent` IS NOT A COLUMN. A rebuild from a stored row must set it to
+ * `coverConsentVersion === COVER_CONSENT_VERSION` (as publish.ts withStoredCover does), or the teacher silently
+ * drops out of cover search (gate review, 2026-10-07).
  */
 export function teacherFacetTokens(t: TeacherInput): string | null {
   const workIn = [...t.preferredCities]

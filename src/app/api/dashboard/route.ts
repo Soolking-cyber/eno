@@ -96,7 +96,12 @@ export async function GET() {
   ])
   // Sequential (needs the core's seller id) but cheap: 2–3 indexed PK reads on an
   // authed, owner-scoped route — never a public hot path.
-  const enforcement = await enforcementPayload(profile.id, dashboard.seller?.id ?? null)
+  const [enforcement, teacher] = await Promise.all([
+    enforcementPayload(profile.id, dashboard.seller?.id ?? null),
+    // Gates the "Teacher profile" row — the way back to /teachers/edit (cover lessons, 2026-10-07). Read beside the
+    // enforcement payload, never after it: every dashboard load would pay one more round-trip (gate review).
+    db.teacherProfile.findUnique({ where: { profileId: profile.id }, select: { id: true } }),
+  ])
   const i = breakdown?.inputs
   // Days since the most recent DEMOTION-RELEVANT confirmed report (the dual-threshold
   // windows the tier gates actually read) — null when the recent record is clean.
@@ -114,6 +119,7 @@ export async function GET() {
       isAdmin: !!(await getAdmin()),
       // Gates the "My e-Visa" rail row to people who have actually applied (chat-only flow).
       hasVisa: await userHasVisaApplication(profile.id),
+      hasTeacher: !!teacher,
       enforcement,
       trustProgress: i
         ? {

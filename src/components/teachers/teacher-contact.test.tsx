@@ -83,3 +83,41 @@ describe('TeacherContactJump — "Message" beside the name', () => {
     expect(auth.openSignIn).not.toHaveBeenCalled()
   })
 })
+
+describe('TeacherContact — cover lessons (2026-10-07)', () => {
+  it('offers "Ask about a cover lesson" only on a cover teacher, and sends the cover opener', async () => {
+    const { stashCompose } = await import('@/lib/quick-contact')
+    ;(stashCompose as ReturnType<typeof vi.fn>).mockClear()
+    Object.assign(auth, { user: { id: 'u1' }, identityLoaded: true, accountType: 'business' })
+    const { unmount } = render(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
+    expect(screen.queryByRole('button', { name: 'Ask about a cover lesson' })).toBeNull()
+    unmount()
+    render(<TeacherContact listingId="t1" name="Ms Lan" image={null} cover />)
+    fireEvent.click(screen.getByRole('button', { name: 'Ask about a cover lesson' }))
+    expect((stashCompose as ReturnType<typeof vi.fn>).mock.calls[0][0].body).toMatch(/cover teacher/)
+    expect(push).toHaveBeenCalledWith('/messages/pending')
+  })
+
+  it('sends an already-onboarded personal account to the account-type switch, never to /onboard (which bounces it)', () => {
+    Object.assign(auth, { user: { id: 'u1' }, identityLoaded: true, accountType: 'individual' })
+    render(<TeacherContact listingId="t1" name="Ms Lan" image={null} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Message teacher' }))
+    expect(screen.getByRole('link', { name: 'Switch to a business account' }).getAttribute('href')).toBe('/dashboard/settings?tab=account')
+  })
+})
+
+describe('TeacherContactJump on a cover teacher', () => {
+  it('only brings the school to the two openers — it never sends the hiring opener for them', () => {
+    Object.assign(auth, { user: { id: 'u1' }, identityLoaded: true, accountType: 'business' })
+    render(
+      <>
+        <TeacherContactJump listingId="t1" />
+        <TeacherContact listingId="t1" name="Ms Lan" image={null} cover />
+      </>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Message' }))
+    expect(scrolled.map((el) => el.id)).toEqual([TEACHER_CONTACT_ID])
+    expect(push).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Ask about a cover lesson' })).toBeTruthy()
+  })
+})

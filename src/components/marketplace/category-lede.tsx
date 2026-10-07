@@ -4,6 +4,7 @@ import { useLanguage } from '@/context/language-context'
 import Link from 'next/link'
 import { IS_SERVICES } from '@/lib/edition'
 import { Bilingual } from './bilingual'
+import { LocalizedLink } from './localized-link'
 import { formatCountFull, joinList } from '@/app/[lang]/c/[category]/category-copy'
 
 /**
@@ -101,6 +102,11 @@ function Provenance({ slug, linked }: { slug?: string; linked: 'all' | 'most' | 
       <>
         {tr('English and subject teachers looking for work in Vietnam. Schools and companies can message a teacher; their phone, email and CV are shared only when the teacher chooses to. ', 'Giáo viên tiếng Anh và các môn học đang tìm việc tại Việt Nam. Trường học và công ty có thể nhắn tin cho giáo viên; số điện thoại, email và CV chỉ được chia sẻ khi giáo viên đồng ý. ')}
         <Link href="/teachers/join" className="font-semibold text-brand underline">{tr('Teachers: create your free profile', 'Giáo viên: tạo hồ sơ miễn phí')}</Link>
+        {/* Cover lessons (2026-10-07): the school-side door — the explorer with the "Available for cover"
+            filter already on, where the district and free-period filters follow. */}
+        {' · '}
+        {/* LocalizedLink: `/` is the English-pinned home, so a Vietnamese reader must land on its `/vi` twin. */}
+        <LocalizedLink href="/?category=teachers&attr_cover=open" className="font-semibold text-brand underline">{tr('Need a cover teacher? See who is free', 'Cần giáo viên dạy thay? Xem ai đang rảnh')}</LocalizedLink>
       </>
     )
   }

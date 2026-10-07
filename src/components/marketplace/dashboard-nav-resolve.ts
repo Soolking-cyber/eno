@@ -35,6 +35,8 @@ export type NavResolveCtx = {
   isAdmin: boolean
   /** Does the viewer hold any e-Visa case? Gates the `requiresVisa` row (chat-only apply flow). */
   hasVisa: boolean
+  /** Does the viewer have a teacher profile? Gates the `requiresTeacher` row (/teachers/edit). */
+  hasTeacher: boolean
   /** The signed-in user's seller profile, when one exists (drives 'seller' role + storefront). */
   seller: { id: string; handle: string | null } | null
   /** Live badge counters, bound to config `badge` keys. */
@@ -97,7 +99,7 @@ export function resolveNavGroups(nav: NavGroup[], ctx: NavResolveCtx): ResolvedN
         // requiresVisa only ever gated "My e-Visa" — "My Trips" had NO gate at all, and the admin
         // "Visas" row was missed by the first sweep entirely. An explicit edition predicate is
         // checkable by reading the item; inferring it from requiresVisa was not.
-        .filter((it) => roleOk(ctx, it.role) && (!it.requiresVisa || ctx.hasVisa) && (!it.servicesOnly || IS_SERVICES))
+        .filter((it) => roleOk(ctx, it.role) && (!it.requiresVisa || ctx.hasVisa) && (!it.requiresTeacher || ctx.hasTeacher === true) && (!it.servicesOnly || IS_SERVICES))
         .flatMap((it) => { const r = toRail(it, ctx); return r ? [r] : [] }),
     }))
 }

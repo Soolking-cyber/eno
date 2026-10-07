@@ -70,7 +70,7 @@ function writeDismissed(): void {
 }
 
 /** Where the card is mounted — it picks the benefit line. */
-export type PushOptInSurface = 'post' | 'job-post' | 'inbox'
+export type PushOptInSurface = 'post' | 'job-post' | 'inbox' | 'teacher'
 
 /** `offers: false` — a fixed-price post: the server refuses offers there (409), so the card does not promise them. */
 export function PushOptInCard({ surface, offers = true, className }: { surface: PushOptInSurface; offers?: boolean; className?: string }) {
@@ -187,7 +187,10 @@ export function PushOptInCard({ surface, offers = true, className }: { surface: 
   }
 
   const benefit =
-    surface === 'job-post'
+    surface === 'teacher'
+      // A teacher offering cover lessons (2026-10-07): the bell + push rings when a school messages them.
+      ? tr('Get notified when a school messages you about a cover lesson', 'Nhận thông báo khi có trường nhắn tin cho bạn về buổi dạy thay')
+      : surface === 'job-post'
       ? tr('Get notified when the first candidate messages you', 'Nhận thông báo khi ứng viên đầu tiên nhắn tin cho bạn')
       : surface === 'post'
         ? offers

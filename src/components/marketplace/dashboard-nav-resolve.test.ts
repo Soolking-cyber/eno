@@ -16,6 +16,7 @@ const ctx = (over: Partial<NavResolveCtx> = {}): NavResolveCtx => ({
   isBusiness: false,
   isAdmin: false,
   hasVisa: false,
+  hasTeacher: false,
   seller: null,
   counters: { unread: 0, saved: 0 },
   label,
@@ -123,5 +124,14 @@ describe('real DASHBOARD_NAV config', () => {
   it('non-admin never sees the Admin group; admin sees it on every resolve', () => {
     expect(resolveNavGroups(DASHBOARD_NAV, ctx()).some((g) => g.caption === 'Admin')).toBe(false)
     expect(resolveNavGroups(DASHBOARD_NAV, ctx({ isAdmin: true })).some((g) => g.caption === 'Admin')).toBe(true)
+  })
+})
+
+describe('the "Teacher profile" row (cover lessons, 2026-10-07)', () => {
+  it('shows only to a viewer with a teacher profile — the way back to /teachers/edit, also in the apps', async () => {
+    const { DASHBOARD_NAV } = await import('./dashboard-nav')
+    const hrefs = (c: NavResolveCtx) => resolveNavGroups(DASHBOARD_NAV, c).flatMap((g) => g.items.map((i) => i.href))
+    expect(hrefs(ctx())).not.toContain('/teachers/edit')
+    expect(hrefs(ctx({ hasTeacher: true }))).toContain('/teachers/edit')
   })
 })

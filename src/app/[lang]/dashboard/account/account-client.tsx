@@ -104,6 +104,7 @@ export function AccountClient() {
     isBusiness: dash?.tier === 'business',
     isAdmin: dash?.isAdmin === true,
     hasVisa: dash?.hasVisa === true,
+    hasTeacher: dash?.hasTeacher === true,
     seller: dash?.seller ?? null,
     counters: { unread, saved: savedCount },
     label: tr,

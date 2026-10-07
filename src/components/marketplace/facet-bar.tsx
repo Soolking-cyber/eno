@@ -635,7 +635,8 @@ export function FacetBar({
       {shownAdvFacets.map(({ f, offered }) => {
         const value = facetValue(f)
         const dim = facetDimension(f)
-        const opts = f.options.filter((o) => offered.includes(o.value)).map((o) => ({ value: o.value, label: tr(o.label, o.labelVi) }))
+        // i18n-invariant: `placeNames` (cover areas) — a place is its own English or Vietnamese name, never machine-translated.
+        const opts = f.options.filter((o) => offered.includes(o.value)).map((o) => ({ value: o.value, label: f.placeNames ? (lang === 'vi' ? o.labelVi : o.label) : tr(o.label, o.labelVi) }))
         return (
           <div key={f.key} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
             <label id={`${uid}-${f.key}-label`} className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{tr(f.label, f.labelVi)}</label>

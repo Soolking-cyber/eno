@@ -12,7 +12,12 @@ import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { TEACHER_OPTIONS } from '@/lib/teachers/profile'
 import { countryName } from '@/lib/teachers/countries'
 import { teacherProfileLd } from '@/lib/teachers/jsonld'
-import { formatMoneyFull } from '@/lib/vnd'
+import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { Bilingual } from '@/components/marketplace/bilingual'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Check } from '@/components/ui/icons'
+import { COVER_CONSENT_VERSION, COVER_DAYS, COVER_DAY_LABELS, COVER_PARTS, COVER_PART_LABELS, coverAreaLabel, coverSlotLabel } from '@/lib/teachers/cover'
+import { formatCalendarDay } from '@/lib/calendar-day'
 
 type Opt = { value: string; label: string }
 const labelOf = (opts: readonly Opt[], v: string) => opts.find((o) => o.value === v)?.label ?? v
@@ -52,6 +57,7 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
       languages: true, currentCity: true, currentDistrict: true, preferredCities: true, openToOnline: true, availableFrom: true,
       jobTypes: true, ageGroups: true, subjects: true, yearsExperience: true, experience: true, degreeLevel: true,
       degreeMajor: true, degreeInstitution: true, degreeYear: true, certificates: true, expectedSalaryM: true, updatedAt: true,
+      coverOpen: true, coverSlots: true, coverAreas: true, coverRateVnd: true, coverConfirmedAt: true, coverConsentVersion: true,
     },
   })
   const cat = CATEGORY_BY_SLUG[TEACHERS_CATEGORY_SLUG]
@@ -64,6 +70,15 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
   const certificates = (Array.isArray(tp?.certificates) ? tp.certificates : []) as Certificate[]
   const workIn = tp ? [...tp.preferredCities.map((c) => labelOf(TEACHER_OPTIONS.workIn, c)), ...(tp.openToOnline && !tp.preferredCities.includes('online') ? ['Online'] : [])] : []
   const degreeLabel = tp?.degreeLevel ? labelOf(cat?.facets.find((f) => f.key === 'degree')?.options ?? [], tp.degreeLevel) : null
+  // Cover lessons (2026-10-07): shown only while switched on and complete — the same rule as the search tokens
+  // (profile.ts coverIsPublic; a stored coverOpen is only ever written with its separate consent).
+  // ⛔ AND ONLY UNDER TODAY'S NOTICE: a consent given to an older COVER_CONSENT_VERSION does not cover what the new
+  // notice says, so the section disappears until the teacher ticks the new one (gate review, 2026-10-07).
+  const coverSlots = tp?.coverSlots ?? [] // `?? []`: a NULL array written outside the app must not crash the page
+  const coverAreas = tp?.coverAreas ?? []
+  const cover = tp && tp.coverOpen && tp.coverConsentVersion === COVER_CONSENT_VERSION && coverSlots.length > 0 && coverAreas.length > 0 && tp.coverRateVnd != null
+    ? { slots: new Set(coverSlots), areas: coverAreas, rate: tp.coverRateVnd, confirmedAt: tp.coverConfirmedAt }
+    : null
   const ld = tp && teacherProfileLd({
     url: canonicalUrl, fullName: tp.fullName, headline: tp.headline, photoUrl: photo, nationality: countryName(tp.nationality, 'en'),
     languages: tp.languages, cityLabel, degreeLevel: tp.degreeLevel, degreeMajor: tp.degreeMajor, degreeInstitution: tp.degreeInstitution,
@@ -99,6 +114,59 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
               </div>
             </header>
 
+            {/* COVER LESSONS — first after the name, because a school arriving from the cover filter came for exactly
+                this. ⛔ The rate is display only, never JSON-LD (a person is not an Offer — jsonld.ts). Dates are a plain
+                calendar day (formatCalendarDay): this page is ISR-cached, so nothing here may read the clock. */}
+            {cover && (
+              <section aria-labelledby="t-cover" className="space-y-3 rounded-2xl bg-tint p-4">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 id="t-cover" className="text-lg font-semibold text-foreground"><Bilingual en="Available for cover lessons" vi="Nhận dạy thay" /></h2>
+                  <p className="font-semibold text-foreground">{formatMoneyFull(cover.rate, '₫', moneyLocale(lang))} <Bilingual en="/ hour" vi="/ giờ" /></p>
+                </div>
+                <Table className="table-fixed">
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="w-16"><span className="sr-only"><Bilingual en="Day" vi="Ngày" /></span></TableHead>
+                      {COVER_PARTS.map((p) => (
+                        <TableHead key={p} className="text-center">
+                          <Bilingual en={COVER_PART_LABELS[p].en} vi={COVER_PART_LABELS[p].vi} />
+                          <span className="block text-xs font-normal text-muted-foreground">{COVER_PART_LABELS[p].hours}</span>
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {COVER_DAYS.map((d) => (
+                      <TableRow key={d} className="hover:bg-transparent">
+                        <TableHead scope="row" className="font-semibold"><Bilingual en={COVER_DAY_LABELS[d].shortEn} vi={COVER_DAY_LABELS[d].shortVi} /></TableHead>
+                        {COVER_PARTS.map((p) => {
+                          const slot = `${d}-${p}`
+                          return (
+                            <TableCell key={p} className="text-center">
+                              {cover.slots.has(slot)
+                                ? <><Check aria-hidden className="mx-auto size-4 text-brand" /><span className="sr-only"><Bilingual en={coverSlotLabel(slot, 'en')} vi={coverSlotLabel(slot, 'vi')} /></span></>
+                                : <span aria-hidden className="text-muted-foreground">·</span>}
+                            </TableCell>
+                          )
+                        })}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground"><Bilingual en="Can cover in" vi="Có thể dạy thay tại" /></p>
+                  {/* Place names in the page's language, never machine-translated (PlaceName's rule). */}
+                  <ul className="flex flex-wrap gap-2">
+                    {cover.areas.map((a) => <li key={a} className="rounded-full bg-background px-3 py-1 text-sm text-body">{coverAreaLabel(a, lang)}</li>)}
+                  </ul>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  <Bilingual en="This is the teacher's usual week. Message them to agree a date, time and place." vi="Đây là lịch thường lệ của giáo viên. Hãy nhắn tin để thống nhất ngày, giờ và địa điểm." />
+                  {cover.confirmedAt && <>{' '}<Bilingual en="Confirmed on {date}." vi="Xác nhận ngày {date}." values={{ date: formatCalendarDay(cover.confirmedAt.toISOString(), lang) }} /></>}
+                </p>
+              </section>
+            )}
+
             {(tp?.videoUrl ?? listing.video) && (
               <section aria-labelledby="t-video">
                 <h2 id="t-video" className="mb-3 text-lg font-semibold text-foreground"><Tr text="Intro video" /></h2>
@@ -122,7 +190,7 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
                   <Row label={<Tr text="Looking for" />}><Chips items={tp.jobTypes.map((s) => labelOf(TEACHER_OPTIONS.jobType, s))} /></Row>
                   {workIn.length > 0 && <Row label={<Tr text="Wants to work in" />}><Chips items={workIn} /></Row>}
                   {tp.availableFrom && <Row label={<Tr text="Available from" />}>{tp.availableFrom.toISOString().slice(0, 10)}</Row>}
-                  {tp.expectedSalaryM != null && tp.expectedSalaryM > 0 && <Row label={<Tr text="Expected salary" />}>{formatMoneyFull(tp.expectedSalaryM * 1_000_000, '₫')} / <Tr text="month" /></Row>}
+                  {tp.expectedSalaryM != null && tp.expectedSalaryM > 0 && <Row label={<Tr text="Expected salary" />}>{formatMoneyFull(tp.expectedSalaryM * 1_000_000, '₫', moneyLocale(lang))} / <Tr text="month" /></Row>}
                   {tp.languages.length > 0 && <Row label={<Tr text="Languages" />}>{tp.languages.join(', ')}</Row>}
                 </dl>
               </section>
@@ -162,7 +230,7 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
           </div>
 
           <aside className="lg:sticky lg:top-24 lg:self-start">
-            <TeacherContact listingId={listing.id} name={name} image={photo} />
+            <TeacherContact listingId={listing.id} name={name} image={photo} cover={!!cover} />
           </aside>
         </div>
       </main>

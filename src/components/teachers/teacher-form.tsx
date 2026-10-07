@@ -23,22 +23,28 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Award, Briefcase, Camera, Check, FileText, GraduationCap, Loader2, MapPin, Plus, Trash2, User, Video, X } from '@/components/ui/icons'
+import { Award, Briefcase, CalendarDays, Camera, Check, FileText, GraduationCap, Loader2, MapPin, Plus, Trash2, User, Video, X } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { compressImageFile } from '@/lib/normalize-image'
 import { uploadListingVideo } from '@/lib/video-upload-client'
 import {
-  DRAFT_STEPS, EMPTY_TEACHER, LIMITS, TEACHER_OPTIONS, TEACHER_STEP_FIELDS, normalizeTeacherInput,
+  COVER_FIELDS, DRAFT_STEPS, EMPTY_TEACHER, LIMITS, TEACHER_OPTIONS, TEACHER_STEP_FIELDS, normalizeTeacherInput,
   validateTeacherInput, type TeacherErrors, type TeacherInput, type TeacherStep,
 } from '@/lib/teachers/profile'
 import { ALL_COUNTRY_CODES, COMMON_TEACHER_NATIONALITIES, countryName } from '@/lib/teachers/countries'
 import { TEACHER_DRAFT_HASH_KEY } from '@/lib/teachers/constants'
+import { COVER_CONSENT_VERSION, coverStamp } from '@/lib/teachers/cover'
+import { CoverFields, type CoverPatch } from '@/components/teachers/cover-fields'
+import { CoverSummary } from '@/components/teachers/cover-summary'
+import { PushOptInCard } from '@/components/marketplace/push-opt-in-card'
 
 const DRAFT_KEY = 'eno.teacherDraft.v1'
 const STEP_ORDER = Object.keys(TEACHER_STEP_FIELDS) as TeacherStep[]
 const CURRENT_CITY_OPTIONS = TEACHER_OPTIONS.workIn.filter((o) => o.value !== 'anywhere' && o.value !== 'online')
 
 type Mode = 'join' | 'edit'
+/** The cover availability as last saved — `consentCurrent`: saved under today's notice (COVER_CONSENT_VERSION). */
+type SavedCover = { coverOpen: boolean; coverSlots: string[]; coverAreas: string[]; coverRateVnd: number | null; consentCurrent: boolean }
 type Opt = { value: string; label: string; labelVi: string }
 
 function encodeDraft(t: TeacherInput): string {
@@ -144,6 +150,11 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
   const [langsText, setLangsText] = useState('')
   const [existing, setExisting] = useState(false)
   const [listingLive, setListingLive] = useState(true)
+  // Cover lessons (2026-10-07): the cover availability AS LAST SAVED (the summary card and its "Still available"
+  // tap work on this, never on unsaved edits in `t` — gate review), when it was last confirmed, and the save state.
+  const [savedCover, setSavedCover] = useState<SavedCover | null>(null)
+  const [coverConfirmedAt, setCoverConfirmedAt] = useState<string | null>(null)
+  const [coverSave, setCoverSave] = useState<'' | 'saving' | 'saved' | 'error'>('')
   const hydrated = useRef(false)
 
   const step = STEP_ORDER[stepIdx]
@@ -159,16 +170,22 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
     const m = window.location.hash.match(new RegExp(`[#&]${TEACHER_DRAFT_HASH_KEY}=([^&]+)`))
     const fromHash = m ? decodeDraft(m[1]) : null
     if (fromHash) {
-      const next = normalizeTeacherInput(fromHash)
+      // ⛔ THE COVER CONSENT NEVER TRAVELS IN THE FRAGMENT (gate review, 2026-10-07): a crafted `#d=` link could
+      // otherwise arrive with it ticked. It is asked again here, where the profile is published.
+      const next = { ...normalizeTeacherInput(fromHash), coverConsent: false }
       setT(next)
       writeStored(next)
       // Strip the fragment so a reload or a shared link never re-carries the draft.
       history.replaceState(null, '', window.location.pathname + window.location.search)
-      if (Object.keys(validateTeacherInput(next, DRAFT_STEPS)).length === 0) setStepIdx(STEP_ORDER.indexOf('finish'))
+      if (Object.keys(validateTeacherInput(next, DRAFT_STEPS.filter((s) => s !== 'cover'))).length === 0) {
+        setStepIdx(STEP_ORDER.indexOf(next.coverOpen ? 'cover' : 'finish'))
+      }
       return
     }
     const stored = readStored()
-    if (stored) setT(normalizeTeacherInput(stored))
+    // ⛔ Nor from a stored draft: the key is per DEVICE, not per person (a shared school or café browser), and a tick
+    // kept from an older notice would be sent as consent to today's (gate review, 2026-10-07). Asked again on the step.
+    if (stored) setT({ ...normalizeTeacherInput(stored), coverConsent: false })
   }, [mode])
 
   // ── Edit: load the saved profile ───────────────────────────────────────────────────────────────
@@ -186,7 +203,14 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
             ...tp,
             availableFrom: tp.availableFrom ? String(tp.availableFrom).slice(0, 10) : null,
             consentPublic: true,
+            // The cover tick stays ticked only under the notice version they agreed to — a new version asks again.
+            coverConsent: tp.coverOpen === true && tp.coverConsentVersion === COVER_CONSENT_VERSION,
           }))
+          setCoverConfirmedAt(tp.coverConfirmedAt ?? null)
+          setSavedCover({
+            coverOpen: tp.coverOpen === true, coverSlots: tp.coverSlots ?? [], coverAreas: tp.coverAreas ?? [],
+            coverRateVnd: tp.coverRateVnd ?? null, consentCurrent: tp.coverConsentVersion === COVER_CONSENT_VERSION,
+          })
           setCvName(tp.cvFileName ?? null)
           setStatus(tp.status === 'hidden' ? 'hidden' : 'live')
           setListingLive(tp.listingLive !== false)
@@ -221,6 +245,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
       case 'invalid': return tr('Please check this value.', 'Vui lòng kiểm tra lại.')
       case 'incomplete': return tr('Fill in the role and the school, or remove this entry.', 'Điền vị trí và nơi làm việc, hoặc xoá mục này.')
       case 'dates': return tr('The end date is before the start date.', 'Ngày kết thúc trước ngày bắt đầu.')
+      case 'rate_range': return tr('Please enter a rate between 50,000 đ and 2,000,000 đ an hour.', 'Vui lòng nhập mức phí từ 50.000 đ đến 2.000.000 đ một giờ.')
       default: return ''
     }
   }
@@ -230,6 +255,9 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
     if (code === 'account_restricted') return tr('Your account cannot publish right now.', 'Tài khoản của bạn hiện chưa thể đăng.')
     if (code.startsWith('identity_')) return tr('Please verify your identity in Account settings before publishing.', 'Vui lòng xác minh danh tính trong Cài đặt tài khoản trước khi đăng.')
     if (code === 'rate_limited') return tr('Too many saves — please wait a few minutes.', 'Lưu quá nhiều lần — vui lòng đợi vài phút.')
+    // Join mode loaded no saved cover, so the server will not let it overwrite one that is ON (publish.ts assertCoverBase).
+    if (code === 'cover_changed' && mode === 'join') return tr('You already have a teacher profile that offers cover lessons. Open it from your account (Teacher profile) to make changes.', 'Bạn đã có hồ sơ giáo viên đang nhận dạy thay. Hãy mở hồ sơ trong tài khoản (Hồ sơ giáo viên) để chỉnh sửa.')
+    if (code === 'cover_changed') return tr('Your cover lessons were changed in another window. Reload this page to see the latest, then save again.', 'Lịch dạy thay của bạn đã được thay đổi ở cửa sổ khác. Hãy tải lại trang để xem bản mới nhất rồi lưu lại.')
     return tr('Something went wrong. Please try again.', 'Đã có lỗi. Vui lòng thử lại.')
   }
 
@@ -308,7 +336,9 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
     }
     setBusy('saving'); setFormError('')
     try {
-      const res = await fetch('/api/teachers/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(t) })
+      // `coverBase`: the cover state this form loaded — the server refuses (409 cover_changed) if another window changed it.
+      // `coverNotice`: the cover notice this page shows — the server counts the tick only under the one in force.
+      const res = await fetch('/api/teachers/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...t, coverBase: mode === 'edit' && savedCover ? coverStamp(savedCover) : null, coverNotice: COVER_CONSENT_VERSION }) })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
         if (d.error === 'invalid_teacher_profile' && d.fields) setErrors(d.fields)
@@ -319,6 +349,12 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
       // retried from Edit — never leave the teacher on the form thinking nothing was published.
       if (cvFile) await uploadCv(cvFile)
       clearStored()
+      // The cover AS STORED (the server returns it): the next save's base and the real "confirmed on" date —
+      // never the form's own copy, whose order and date the server does not share (gate review).
+      if (d.cover) {
+        setSavedCover({ coverOpen: d.cover.coverOpen === true, coverSlots: d.cover.coverSlots ?? [], coverAreas: d.cover.coverAreas ?? [], coverRateVnd: d.cover.coverRateVnd ?? null, consentCurrent: d.cover.coverConsentVersion === COVER_CONSENT_VERSION })
+        setCoverConfirmedAt(d.cover.coverConfirmedAt ?? null)
+      }
       setDone({ listingId: d.listingId, live: d.live === true })
     } catch {
       setFormError(publishErrText(''))
@@ -341,10 +377,65 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
     if (res.ok) setCvName(null)
   }
 
+  // ── Cover lessons (2026-10-07) ───────────────────────────────────────────────────────────────────
+  const setCover = (patch: CoverPatch) => {
+    // ⛔ Switching cover OFF withdraws the consent too: switching it back on must ask for the tick again, or the
+    // record would show a fresh consent the teacher never gave after withdrawing (gate review, 2026-10-07).
+    const p = patch.coverOpen === false ? { ...patch, coverConsent: false } : patch
+    setT((prev) => ({ ...prev, ...p }))
+    setErrors((prev) => {
+      const n = { ...prev }
+      for (const k of Object.keys(p)) delete n[k as keyof TeacherErrors]
+      return n
+    })
+    setCoverSave('')
+  }
+  /**
+   * "Still available": re-send the cover values AS SAVED (PATCH /api/teachers/me/cover), which re-confirms them.
+   * ⚠️ THERE IS NO QUICK SAVE OF EDITED VALUES ON PURPOSE. It existed and every review round found another way its
+   * edited state disagreed with the saved profile (a city added but not saved, a switch-off confirmed by accident) —
+   * so edits go through the one full save, like every other field, and this only re-confirms what the server holds.
+   */
+  const saveCover = async (v: Pick<TeacherInput, (typeof COVER_FIELDS)[number]>) => {
+    if (coverSave === 'saving') return
+    const e = validateTeacherInput({ ...t, ...v }, ['cover'])
+    if (Object.keys(e).length) { setErrors(e); setStepIdx(STEP_ORDER.indexOf('cover')); return }
+    setCoverSave('saving')
+    try {
+      const res = await fetch('/api/teachers/me/cover', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...Object.fromEntries(COVER_FIELDS.map((k) => [k, v[k]])), coverBase: savedCover ? coverStamp(savedCover) : null, coverNotice: COVER_CONSENT_VERSION }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        if (d.error === 'invalid_teacher_profile' && d.fields) setErrors(d.fields)
+        if (d.error === 'cover_changed') setFormError(publishErrText('cover_changed'))
+        setCoverSave('error')
+        return
+      }
+      setCoverConfirmedAt(d.confirmedAt ?? null)
+      setSavedCover({ coverOpen: d.coverOpen === true, coverSlots: d.coverSlots ?? [], coverAreas: d.coverAreas ?? [], coverRateVnd: d.coverRateVnd ?? null, consentCurrent: true })
+      setCoverSave('saved')
+    } catch {
+      setCoverSave('error')
+    }
+  }
+  /** "Still available": re-confirm the availability AS SAVED — never unsaved edits, and never a switch-off. */
+  const confirmSavedCover = () => {
+    if (!savedCover?.coverOpen) return
+    // Saved under an older notice: the teacher must read and tick the current one first.
+    if (!savedCover.consentCurrent) { setErrors({ coverConsent: 'required' }); setStepIdx(STEP_ORDER.indexOf('cover')); return }
+    void saveCover({ coverOpen: true, coverSlots: savedCover.coverSlots, coverAreas: savedCover.coverAreas, coverRateVnd: savedCover.coverRateVnd, coverConsent: true })
+  }
+  // Order-insensitive, like the server's own conflict check (coverStamp sorts): re-ticking a period is not a change.
+  const coverDirty = !!savedCover && coverStamp(savedCover) !== coverStamp(t)
+
   const steps: WizardStep[] = useMemo(() => [
     { key: 'about', icon: <User className="size-4" />, label: tr('About you', 'Về bạn') },
     { key: 'location', icon: <MapPin className="size-4" />, label: tr('Location', 'Địa điểm') },
     { key: 'experience', icon: <Briefcase className="size-4" />, label: tr('Experience', 'Kinh nghiệm') },
+    { key: 'cover', icon: <CalendarDays className="size-4" />, label: tr('Cover lessons', 'Dạy thay') },
     { key: 'qualifications', icon: <GraduationCap className="size-4" />, label: tr('Qualifications', 'Bằng cấp') },
     { key: 'finish', icon: <Award className="size-4" />, label: tr('Photo & publish', 'Ảnh & đăng') },
   ], [tr])
@@ -386,6 +477,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
           {tr('Schools can now find you. When one messages you, reply and tap “Share my phone, email & CV” if you want them to have your phone, email and CV.', 'Các trường giờ có thể tìm thấy bạn. Khi có trường nhắn tin, hãy trả lời và bấm “Chia sẻ số điện thoại, email và CV” nếu bạn muốn gửi số điện thoại, email và CV.')}
         </p>
         {formError && <p role="alert" className="mt-3 text-sm text-destructive">{formError}</p>}
+        {t.coverOpen && <PushOptInCard surface="teacher" className="mt-4" />}
         <div className="mt-6 flex justify-center gap-3">
           <Button variant="cta" asChild><Link href={`/listings/${done.listingId}`}>{tr('View my profile', 'Xem hồ sơ')}</Link></Button>
           {mode === 'edit'
@@ -407,10 +499,27 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
       onStepSelect={(_k, i) => { if (i < stepIdx) setStepIdx(i) }}
       primaryAction={primary}
       secondaryAction={secondary}
+      // The action bar clears the phone's bottom MobileNav pill (the post wizard's own offset — post-wizard.tsx).
+      offsetBottom="4.5rem"
       header={
         <div className="mb-2">
+          {mode === 'edit' && step !== 'cover' && (
+            <CoverSummary
+              savedOpen={savedCover?.coverOpen === true}
+              slots={savedCover?.coverSlots.length ?? 0}
+              areas={savedCover?.coverAreas.length ?? 0}
+              rateVnd={savedCover?.coverRateVnd ?? null}
+              confirmedAt={coverConfirmedAt}
+              dirty={coverDirty}
+              status={coverSave}
+              onConfirm={confirmSavedCover}
+              onEdit={() => setStepIdx(STEP_ORDER.indexOf('cover'))}
+            />
+          )}
           <h1 className="text-xl font-semibold text-foreground">{mode === 'edit' ? tr('Your teacher profile', 'Hồ sơ giáo viên của bạn') : tr('Create your teacher profile', 'Tạo hồ sơ giáo viên')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{tr('Free. Schools across Vietnam see your profile; your phone, email and CV stay private until you share them.', 'Miễn phí. Các trường trên toàn Việt Nam xem được hồ sơ; số điện thoại, email và CV được giữ kín đến khi bạn chia sẻ.')}</p>
+          {/* Cover lessons (2026-10-07): the teacher.eno.vn pitch — the step itself comes after Experience. */}
+          {mode === 'join' && <p className="mt-1 text-sm text-body">{tr('New: offer cover lessons too — tap the periods you are free and set an hourly rate.', 'Mới: nhận cả dạy thay — chạm vào các buổi bạn rảnh và đặt mức phí theo giờ.')}</p>}
         </div>
       }
     >
@@ -523,6 +632,13 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
                 )}
               </div>
             </Section>
+          </>
+        )}
+
+        {step === 'cover' && (
+          <>
+            <CoverFields value={t} onChange={setCover} errors={errors} />
+            {t.coverOpen && user && <PushOptInCard surface="teacher" />}
           </>
         )}
 

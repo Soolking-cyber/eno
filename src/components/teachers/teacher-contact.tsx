@@ -17,12 +17,20 @@ import { cn } from '@/lib/utils'
 export const TEACHER_CONTACT_ID = 'teacher-contact'
 export const TEACHER_CONTACT_EVENT = 'eno:teacher-contact'
 
-export function TeacherContact({ listingId, name, image }: { listingId: string; name: string; image: string | null }) {
+export function TeacherContact({ listingId, name, image, cover = false }: {
+  listingId: string
+  name: string
+  image: string | null
+  /** The teacher offers cover lessons (2026-10-07): a second opener asks about a cover instead of a job. */
+  cover?: boolean
+}) {
   const { user, loading, accountType, identityLoaded, openSignIn } = useAuth()
   const { tr } = useLanguage()
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [needsBusiness, setNeedsBusiness] = useState(false)
+  // Which opener the tap asked for. A ref, so the queued replay (below) sends the one the school tapped.
+  const intent = useRef<'hire' | 'cover'>('hire')
 
   // A tap before the account type has loaded is QUEUED, not dropped (Opus, commit gate 09-30).
   const queued = useRef(false)
@@ -30,8 +38,11 @@ export function TeacherContact({ listingId, name, image }: { listingId: string; 
     if (queued.current && identityLoaded) { queued.current = false; start(true) }
   })
   // `force`: the queued replay — `busy` in this closure is the queue's own spinner, not a second tap.
-  const start = (force = false) => {
+  const start = (force = false, want?: 'hire' | 'cover') => {
     if (busy && !force) return
+    // The opener is fixed HERE, past the busy check: a second tap while a first one waits for the account to load
+    // must not swap the queued cover request for the hiring opener (gate review, 2026-10-07).
+    if (want) intent.current = want
     // Every early return below also drops the queue's spinner — a stuck "Opening chat…" is worse
     // than none (agy + Opus, commit gate 09-30).
     if (force) setBusy(false)
@@ -51,7 +62,9 @@ export function TeacherContact({ listingId, name, image }: { listingId: string; 
     setBusy(true)
     stashCompose({
       listingId,
-      body: tr('Hello, we are hiring a teacher and your profile looks like a good fit — are you open to talking?', 'Xin chào, chúng tôi đang tuyển giáo viên và hồ sơ của bạn rất phù hợp — bạn có muốn trao đổi thêm không?'),
+      body: intent.current === 'cover'
+        ? tr('Hello, we need a cover teacher — could you cover a lesson for us? We will send the day, time and place next.', 'Xin chào, chúng tôi cần giáo viên dạy thay — bạn có thể dạy thay một buổi cho chúng tôi không? Chúng tôi sẽ gửi ngày, giờ và địa điểm ngay sau đây.')
+        : tr('Hello, we are hiring a teacher and your profile looks like a good fit — are you open to talking?', 'Xin chào, chúng tôi đang tuyển giáo viên và hồ sơ của bạn rất phù hợp — bạn có muốn trao đổi thêm không?'),
       listingTitle: name,
       listingImage: image,
       currency: '₫',
@@ -69,22 +82,33 @@ export function TeacherContact({ listingId, name, image }: { listingId: string; 
   useEffect(() => { startRef.current = start })
   useEffect(() => {
     const onJump = (e: Event) => {
-      if ((e as CustomEvent<{ listingId?: string }>).detail?.listingId === listingId) startRef.current()
+      if ((e as CustomEvent<{ listingId?: string }>).detail?.listingId !== listingId) return
+      // A cover teacher has TWO openers here (a cover lesson, or a job): the jump only brings the school to them —
+      // starting the hiring chat would send "we are hiring" to someone they came to ask about a cover (2026-10-07).
+      if (cover) return
+      startRef.current()
     }
     window.addEventListener(TEACHER_CONTACT_EVENT, onJump)
     return () => window.removeEventListener(TEACHER_CONTACT_EVENT, onJump)
-  }, [listingId])
+  }, [listingId, cover])
 
   return (
     // `scroll-mt-24`: the jump lands it clear of the sticky header (lg:top-24 is the aside's own offset).
     <div id={TEACHER_CONTACT_ID} className="scroll-mt-24 space-y-2">
-      <Button variant="cta" className="w-full" onClick={() => start()} disabled={busy}>
-        {busy ? tr('Opening chat…', 'Đang mở trò chuyện…') : tr('Message teacher', 'Nhắn tin cho giáo viên')}
+      {cover && (
+        <Button variant="cta" className="w-full" onClick={() => start(false, 'cover')} disabled={busy}>
+          {busy && intent.current === 'cover' ? tr('Opening chat…', 'Đang mở trò chuyện…') : tr('Ask about a cover lesson', 'Hỏi về buổi dạy thay')}
+        </Button>
+      )}
+      <Button variant={cover ? 'secondary' : 'cta'} className="w-full" onClick={() => start(false, 'hire')} disabled={busy}>
+        {busy && intent.current === 'hire' ? tr('Opening chat…', 'Đang mở trò chuyện…') : tr('Message teacher', 'Nhắn tin cho giáo viên')}
       </Button>
       {needsBusiness && (
         <p className="text-sm text-body">
           {tr('Only school and company accounts can message teachers. ', 'Chỉ tài khoản trường học hoặc công ty mới nhắn tin được cho giáo viên. ')}
-          <Link href="/onboard" className="font-semibold text-brand underline">{tr('Set up a business account', 'Tạo tài khoản doanh nghiệp')}</Link>
+          {/* An account that has a type already would bounce off /onboard (it redirects anyone onboarded) — it
+              switches to business in Settings › Account instead (cover lessons, 2026-10-07). */}
+          <Link href={accountType ? '/dashboard/settings?tab=account' : '/onboard'} className="font-semibold text-brand underline">{accountType ? tr('Switch to a business account', 'Chuyển sang tài khoản doanh nghiệp') : tr('Set up a business account', 'Tạo tài khoản doanh nghiệp')}</Link>
         </p>
       )}
       <p className="text-xs text-muted-foreground">

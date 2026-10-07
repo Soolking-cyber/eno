@@ -47,7 +47,8 @@ export function customFilterChipLabel(facet: FacetDef | undefined, key: string, 
   }
   const opt = facet.options.find((o) => o.value === value)
   if (!opt) return `${name}: ${value}`
-  const optLabel = tr(opt.label, opt.labelVi)
+  // `placeNames` (cover areas): a place is its own English or Vietnamese name, never machine-translated.
+  const optLabel = facet.placeNames ? (lang === 'vi' ? opt.labelVi : opt.label) : tr(opt.label, opt.labelVi)
   // An option that states its own count AND unit ("2 BR", "4 seats") is already the whole chip.
   return /^\d/.test(optLabel) && /\p{L}/u.test(optLabel) ? optLabel : `${name}: ${optLabel}`
 }
