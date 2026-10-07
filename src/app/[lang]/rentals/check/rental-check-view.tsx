@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { subtleToast } from '@/lib/subtle-toast'
 import { CheckCircle2, ClipboardCheck, Info, X } from '@/components/ui/icons'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -220,7 +221,8 @@ export function RentalCheckView() {
         if (gone.length) setUnavailable((p) => new Set([...p, ...gone]))
         if (vehicles.length) {
           for (const id of vehicles) removeFromBasket(id)
-          toast(tr('Vehicle hire is not part of this check — removed from your list.', 'Thuê xe không thuộc dịch vụ kiểm tra này — đã bỏ khỏi danh sách.'))
+          // Nothing to press, so the subtle pill (owner, 2026-09-21).
+          subtleToast(tr('Vehicle hire is not part of this check — removed from your list.', 'Thuê xe không thuộc dịch vụ kiểm tra này — đã bỏ khỏi danh sách.'))
         }
       })
       // A failed refresh leaves the saved snapshot on screen; the server checks again at send.

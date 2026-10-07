@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { subtleToast } from '@/lib/subtle-toast'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
@@ -147,7 +148,8 @@ export function useListingActions(
         const d = (await res.json().catch(() => ({}))) as { hidden?: boolean; reason?: string }
         if (d.hidden) {
           setGone(false)
-          toast(d.reason === 'open_report'
+          // Nothing to press, so the subtle pill (owner, 2026-09-21) — on screen as long as it takes to read.
+          subtleToast(d.reason === 'open_report'
             ? tr('Hidden, not deleted: a report about this listing or your shop is still open. You can delete it once the report is resolved.', 'Đã ẩn, chưa xóa: một báo cáo về tin này hoặc gian hàng của bạn vẫn đang được xử lý. Bạn có thể xóa tin sau khi báo cáo được giải quyết.')
             : tr('Hidden, not deleted: your account is under review. You can delete it once the review is finished.', 'Đã ẩn, chưa xóa: tài khoản của bạn đang được xem xét. Bạn có thể xóa tin sau khi việc xem xét kết thúc.'))
         }

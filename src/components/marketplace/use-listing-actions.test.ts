@@ -61,14 +61,16 @@ describe('useListingActions.del', () => {
     const { hook, onChanged } = await deleteAndCommit()
     expect(hook.result.current.gone).toBe(false)
     expect(onChanged).toHaveBeenCalled()
-    expect(toastFn).toHaveBeenLastCalledWith(expect.stringMatching(/^Hidden, not deleted: a report about this listing or your shop is still open/))
+    // The subtle pill (nothing to press — owner, 2026-09-21), on screen long enough to read ~120 characters.
+    expect(toastFn).toHaveBeenLastCalledWith(expect.stringMatching(/^Hidden, not deleted: a report about this listing or your shop is still open/), expect.objectContaining({ className: expect.stringContaining('material') }))
+    expect((toastFn.mock.lastCall![1] as { duration: number }).duration).toBeGreaterThan(6000)
     expect(toastFn.error).not.toHaveBeenCalled()
   })
 
   it('a HIDE because the account is under review says that instead', async () => {
     answer({ ok: true, deleted: false, hidden: true, reason: 'account_held' })
     await deleteAndCommit()
-    expect(toastFn).toHaveBeenLastCalledWith(expect.stringMatching(/^Hidden, not deleted: your account is under review/))
+    expect(toastFn).toHaveBeenLastCalledWith(expect.stringMatching(/^Hidden, not deleted: your account is under review/), expect.objectContaining({ className: expect.stringContaining('material') }))
   })
 
   it('a failed delete still restores with the error toast', async () => {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { toast } from 'sonner'
+import { subtleToast } from '@/lib/subtle-toast'
 import {
   AlertDialog,
   AlertDialogContent,
@@ -147,9 +147,10 @@ function AiConsentHostOn() {
       // Nothing to show ⇒ nothing is sent. Say so (2026-10-06): the apps render eno.vn, whose build stubs the trip
       // family's words, so a partner trip's AI buttons would otherwise do nothing at all in the apps. The sentence
       // names no service, so it may ship on either edition.
-      if (!words) { toast(tr('This AI feature isn’t available in the app.', 'Tính năng AI này không có trong ứng dụng.')); resolve(null); return }
+      // Button-less, so the subtle pill (owner, 2026-09-21) — here and for the two below.
+      if (!words) { subtleToast(tr('This AI feature isn’t available in the app.', 'Tính năng AI này không có trong ứng dụng.')); resolve(null); return }
       if (readAiConsent(family, uid) === 'off') {
-        if (words.off) toast(words.off)
+        if (words.off) subtleToast(words.off)
         resolve('off')
         return
       }
@@ -182,7 +183,7 @@ function AiConsentHostOn() {
     // Belt and braces for the effect above: an answer is only ever stored for, and released to, the signed-in account.
     const current = head.userId === accountRef.current
     if (value && current) writeAiConsent(head.family, head.userId, value)
-    if (value === 'off' && current) toast(head.copy.declined)
+    if (value === 'off' && current) subtleToast(head.copy.declined)
     for (const resolve of w.resolvers) resolve(current ? value : null)
     setQueue((q) => q.filter((p) => p.key !== head.key))
   }
