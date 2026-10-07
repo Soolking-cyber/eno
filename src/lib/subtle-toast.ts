@@ -22,7 +22,7 @@ import { toast } from 'sonner'
  */
 const SUBTLE =
   'material !border-0 !bg-foreground/85 !text-background backdrop-blur-sm !shadow-lg ' +
-  'rounded-full !px-4 !py-2.5 !text-sm !font-medium !w-auto mx-auto'
+  '!rounded-full !px-4 !py-2.5 !text-sm !w-auto mx-auto'
 
 /** How long the "press again to leave" window stays open, in ms. */
 export const EXIT_CONFIRM_MS = 2200
@@ -35,6 +35,9 @@ export function subtleToast(message: string, opts?: { duration?: number; id?: st
   return toast(message, {
     /** ⚠️ `unstyled: false` on purpose — we are RESTYLING sonner's surface, not replacing it, so it
      *  keeps its stacking, swipe-to-dismiss and reduced-motion handling. Hence the `!` overrides. */
+    // ⚠️ `!rounded-full`, not `rounded-full`: the toast card rule in globals.css is unlayered and out-ranks
+    // sonner's, so a plain (layered) utility loses to it — and lost to sonner's own the same way, which is why
+    // this pill was never round.
     className: SUBTLE,
     duration: opts?.duration ?? 2000,
     /** ⛔ A STABLE ID SO REPEATS REPLACE RATHER THAN STACK. Without it, four impatient back-swipes
