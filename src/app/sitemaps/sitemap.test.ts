@@ -983,6 +983,7 @@ describe('the school directory in the pages child (2026-10-04)', () => {
     ]
     const { xml } = await buildPagesSitemap({ rentIndex: 'require' })
     expect(xml).toContain(`<loc>${HOST}/schools</loc><lastmod>2026-10-03`)
+    expect(xml).toContain(`<loc>${HOST}/teachers/cover</loc></url>`) // the cover-lessons landing (2026-10-07)
     expect(xml).toContain(`<loc>${HOST}/schools/ila-vietnam</loc><lastmod>2026-10-02`)
     expect(xml).toContain(`<loc>${HOST}/schools/vus</loc>`)
     expect(xml).not.toContain('/schools/no-reviews-yet')

@@ -643,5 +643,245 @@
    "fr": "Local",
    "hi": "Local"
   }
+ },
+ {
+  "en": "Cover lessons",
+  "context": "teacher profiles: lessons a teacher takes over at short notice for an absent teacher (substitute teaching, NOT 'cover' as in shelter or a lid); group label and step name; VI: Dạy thay",
+  "translations": {
+   "zh-Hans": "代课",
+   "ko": "대체 수업",
+   "ja": "代講",
+   "ru": "Замены уроков",
+   "km": "ការបង្រៀនជំនួស",
+   "ms": "Mengajar ganti",
+   "th": "สอนแทน",
+   "fr": "Remplacements",
+   "hi": "स्थानापन्न कक्षाएँ"
+  }
+ },
+ {
+  "en": "Available for cover",
+  "context": "teacher filter toggle: the teacher takes substitute (cover) lessons; VI: Nhận dạy thay",
+  "translations": {
+   "zh-Hans": "可代课",
+   "ko": "대체 수업 가능",
+   "ja": "代講可能",
+   "ru": "Берёт замены",
+   "km": "អាចបង្រៀនជំនួស",
+   "ms": "Boleh mengajar ganti",
+   "th": "รับสอนแทน",
+   "fr": "Disponible pour des remplacements",
+   "hi": "स्थानापन्न पढ़ाने के लिए उपलब्ध"
+  }
+ },
+ {
+  "en": "Available for cover lessons",
+  "context": "heading on a teacher's profile: the teacher takes substitute (cover) lessons; VI: Nhận dạy thay",
+  "translations": {
+   "zh-Hans": "可代课",
+   "ko": "대체 수업 가능",
+   "ja": "代講可能",
+   "ru": "Берёт замены уроков",
+   "km": "អាចបង្រៀនជំនួស",
+   "ms": "Boleh mengajar ganti",
+   "th": "รับสอนแทน",
+   "fr": "Disponible pour des remplacements",
+   "hi": "स्थानापन्न पढ़ाने के लिए उपलब्ध"
+  }
+ },
+ {
+  "en": "Free for cover",
+  "context": "teacher filter group: the weekly periods a teacher is free to take substitute (cover) lessons; VI: Rảnh dạy thay",
+  "translations": {
+   "zh-Hans": "可代课时段",
+   "ko": "대체 수업 가능 시간",
+   "ja": "代講できる時間帯",
+   "ru": "Свободное время для замен",
+   "km": "ពេលទំនេរសម្រាប់បង្រៀនជំនួស",
+   "ms": "Masa lapang untuk mengajar ganti",
+   "th": "เวลาว่างสอนแทน",
+   "fr": "Créneaux de remplacement",
+   "hi": "स्थानापन्न पढ़ाने का खाली समय"
+  }
+ },
+ {
+  "en": "Cover area",
+  "context": "teacher filter group: the districts a teacher will travel to for substitute (cover) lessons; VI: Khu vực dạy thay",
+  "translations": {
+   "zh-Hans": "代课区域",
+   "ko": "대체 수업 지역",
+   "ja": "代講エリア",
+   "ru": "Район для замен",
+   "km": "តំបន់បង្រៀនជំនួស",
+   "ms": "Kawasan mengajar ganti",
+   "th": "พื้นที่สอนแทน",
+   "fr": "Zone de remplacement",
+   "hi": "स्थानापन्न पढ़ाने का क्षेत्र"
+  }
+ },
+ {
+  "en": "Cover areas",
+  "context": "screen-reader name of the group of districts a teacher will travel to for substitute (cover) lessons; VI: Khu vực dạy thay",
+  "translations": {
+   "zh-Hans": "代课区域",
+   "ko": "대체 수업 지역",
+   "ja": "代講エリア",
+   "ru": "Районы для замен",
+   "km": "តំបន់បង្រៀនជំនួស",
+   "ms": "Kawasan mengajar ganti",
+   "th": "พื้นที่สอนแทน",
+   "fr": "Zones de remplacement",
+   "hi": "स्थानापन्न पढ़ाने के क्षेत्र"
+  }
+ },
+ {
+  "en": "a cover lesson",
+  "context": "fills {listingTitle} in 'Sign in to message {seller} about {listingTitle}' — a substitute lesson the school wants the teacher to take; VI: dạy thay",
+  "translations": {
+   "zh-Hans": "代课",
+   "ko": "대체 수업",
+   "ja": "代講",
+   "ru": "замене урока",
+   "km": "ការបង្រៀនជំនួស",
+   "ms": "kelas ganti",
+   "th": "การสอนแทน",
+   "fr": "un remplacement",
+   "hi": "स्थानापन्न कक्षा"
+  }
+ },
+ {
+  "en": "Cover lessons are on",
+  "context": "teacher cover lessons (substitute teaching — never shelter or a lid): a short UI label, button or heading",
+  "translations": {
+   "zh-Hans": "已开启代课",
+   "ko": "대체 수업 요청을 받고 있어요",
+   "ja": "代講を受け付け中",
+   "ru": "Замены включены",
+   "km": "កំពុងទទួលបង្រៀនជំនួស",
+   "ms": "Mengajar ganti dihidupkan",
+   "th": "เปิดรับสอนแทนแล้ว",
+   "fr": "Remplacements activés",
+   "hi": "स्थानापन्न कक्षाएँ चालू हैं"
+  }
+ },
+ {
+  "en": "New: cover lessons",
+  "context": "teacher cover lessons (substitute teaching — never shelter or a lid): a short UI label, button or heading",
+  "translations": {
+   "zh-Hans": "新功能：代课",
+   "ko": "새 기능: 대체 수업",
+   "ja": "新機能：代講",
+   "ru": "Новое: замены уроков",
+   "km": "ថ្មី៖ ការបង្រៀនជំនួស",
+   "ms": "Baharu: mengajar ganti",
+   "th": "ใหม่: สอนแทน",
+   "fr": "Nouveau : les remplacements",
+   "hi": "नया: स्थानापन्न कक्षाएँ"
+  }
+ },
+ {
+  "en": "Set up cover lessons",
+  "context": "teacher cover lessons (substitute teaching — never shelter or a lid): a short UI label, button or heading",
+  "translations": {
+   "zh-Hans": "设置代课",
+   "ko": "대체 수업 설정하기",
+   "ja": "代講を設定する",
+   "ru": "Настроить замены",
+   "km": "រៀបចំការបង្រៀនជំនួស",
+   "ms": "Sediakan mengajar ganti",
+   "th": "ตั้งค่าการสอนแทน",
+   "fr": "Configurer les remplacements",
+   "hi": "स्थानापन्न कक्षाएँ सेट करें"
+  }
+ },
+ {
+  "en": "I can take cover lessons",
+  "context": "teacher cover lessons (substitute teaching — never shelter or a lid): a short UI label, button or heading",
+  "translations": {
+   "zh-Hans": "我可以代课",
+   "ko": "대체 수업을 할 수 있어요",
+   "ja": "代講を引き受けられます",
+   "ru": "Я могу брать замены",
+   "km": "ខ្ញុំអាចបង្រៀនជំនួសបាន",
+   "ms": "Saya boleh mengajar ganti",
+   "th": "ฉันรับสอนแทนได้",
+   "fr": "Je peux faire des remplacements",
+   "hi": "मैं स्थानापन्न कक्षाएँ ले सकता/सकती हूँ"
+  }
+ },
+ {
+  "en": "Where can you teach a cover?",
+  "context": "teacher cover lessons (substitute teaching — never shelter or a lid): a short UI label, button or heading",
+  "translations": {
+   "zh-Hans": "您可以在哪里代课？",
+   "ko": "어디에서 대체 수업을 할 수 있나요?",
+   "ja": "どこで代講できますか？",
+   "ru": "Где вы можете провести замену?",
+   "km": "តើអ្នកអាចបង្រៀនជំនួសនៅឯណា?",
+   "ms": "Di mana anda boleh mengajar ganti?",
+   "th": "คุณสอนแทนได้ที่ไหนบ้าง?",
+   "fr": "Où pouvez-vous faire un remplacement ?",
+   "hi": "आप कहाँ स्थानापन्न कक्षा ले सकते हैं?"
+  }
+ },
+ {
+  "en": "Find a cover teacher",
+  "context": "teacher cover lessons (substitute teaching — never shelter or a lid): a short UI label, button or heading",
+  "translations": {
+   "zh-Hans": "寻找代课老师",
+   "ko": "대체 교사 찾기",
+   "ja": "代講の先生を探す",
+   "ru": "Найти учителя на замену",
+   "km": "រកគ្រូបង្រៀនជំនួស",
+   "ms": "Cari guru ganti",
+   "th": "หาครูสอนแทน",
+   "fr": "Trouver un professeur remplaçant",
+   "hi": "स्थानापन्न शिक्षक खोजें"
+  }
+ },
+ {
+  "en": "Schools: find a cover teacher",
+  "context": "teacher cover lessons (substitute teaching — never shelter or a lid): a short UI label, button or heading",
+  "translations": {
+   "zh-Hans": "学校：寻找代课老师",
+   "ko": "학교: 대체 교사 찾기",
+   "ja": "学校の方：代講の先生を探す",
+   "ru": "Школам: найдите учителя на замену",
+   "km": "សាលារៀន៖ រកគ្រូបង្រៀនជំនួស",
+   "ms": "Sekolah: cari guru ganti",
+   "th": "โรงเรียน: หาครูสอนแทน",
+   "fr": "Écoles : trouvez un professeur remplaçant",
+   "hi": "स्कूल: स्थानापन्न शिक्षक खोजें"
+  }
+ },
+ {
+  "en": "Need a cover teacher? See who is free",
+  "context": "teacher cover lessons (substitute teaching — never shelter or a lid): a short UI label, button or heading",
+  "translations": {
+   "zh-Hans": "需要代课老师？看看谁有空",
+   "ko": "대체 교사가 필요하신가요? 가능한 선생님을 확인하세요",
+   "ja": "代講の先生が必要ですか？空いている先生を見る",
+   "ru": "Нужен учитель на замену? Посмотрите, кто свободен",
+   "km": "ត្រូវការគ្រូបង្រៀនជំនួស? មើលថាអ្នកណាទំនេរ",
+   "ms": "Perlukan guru ganti? Lihat siapa yang lapang",
+   "th": "ต้องการครูสอนแทน? ดูว่าใครว่าง",
+   "fr": "Besoin d’un remplaçant ? Voyez qui est disponible",
+   "hi": "स्थानापन्न शिक्षक चाहिए? देखें कौन खाली है"
+  }
+ },
+ {
+  "en": "Offer cover lessons — free",
+  "context": "teacher cover lessons (substitute teaching — never shelter or a lid): a short UI label, button or heading",
+  "translations": {
+   "zh-Hans": "提供代课——免费",
+   "ko": "대체 수업 제공 — 무료",
+   "ja": "代講を引き受ける — 無料",
+   "ru": "Брать замены — бесплатно",
+   "km": "ផ្តល់ការបង្រៀនជំនួស — ឥតគិតថ្លៃ",
+   "ms": "Tawarkan mengajar ganti — percuma",
+   "th": "รับสอนแทน — ฟรี",
+   "fr": "Proposer des remplacements — gratuit",
+   "hi": "स्थानापन्न कक्षाएँ दें — मुफ़्त"
+  }
  }
 ]

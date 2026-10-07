@@ -1,4 +1,4 @@
-import { CategoryLede } from '@/components/marketplace/category-lede'
+import { CategoryLede, TeacherCoverLink } from '@/components/marketplace/category-lede'
 import { RentalCheckHint } from '@/components/marketplace/rental-check-toggle'
 import { loadCategory } from '../load-category'
 import { loadLinkedCount, loadRentalsFacts, loadTopSubcategories } from '../category-data'
@@ -58,6 +58,8 @@ export async function CategoryLedeBlock({ slug }: { slug: string }) {
       </ClampedLede>
       {/* The availability check is invisible until something says it exists — one line, rentals only. */}
       {cat.slug === 'rentals' && <RentalCheckHint className="mt-2 max-w-prose" />}
+      {/* Cover lessons: the schools' door, outside the clamped lede so a phone shows it (category-lede.tsx). */}
+      {cat.slug === 'teachers' && <TeacherCoverLink className="mt-2 max-w-prose text-sm" />}
     </>
   )
 }

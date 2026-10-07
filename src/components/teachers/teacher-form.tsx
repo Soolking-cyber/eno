@@ -33,9 +33,10 @@ import {
 } from '@/lib/teachers/profile'
 import { ALL_COUNTRY_CODES, COMMON_TEACHER_NATIONALITIES, countryName } from '@/lib/teachers/countries'
 import { TEACHER_DRAFT_HASH_KEY } from '@/lib/teachers/constants'
-import { COVER_CONSENT_VERSION, coverStamp } from '@/lib/teachers/cover'
+import { COVER_CONSENT_VERSION, coverStamp, mergeStaleCover, type SavedCover } from '@/lib/teachers/cover'
 import { CoverFields, type CoverPatch } from '@/components/teachers/cover-fields'
 import { CoverSummary } from '@/components/teachers/cover-summary'
+import { scrollBehavior } from '@/lib/reduced-motion'
 import { PushOptInCard } from '@/components/marketplace/push-opt-in-card'
 
 const DRAFT_KEY = 'eno.teacherDraft.v1'
@@ -43,8 +44,6 @@ const STEP_ORDER = Object.keys(TEACHER_STEP_FIELDS) as TeacherStep[]
 const CURRENT_CITY_OPTIONS = TEACHER_OPTIONS.workIn.filter((o) => o.value !== 'anywhere' && o.value !== 'online')
 
 type Mode = 'join' | 'edit'
-/** The cover availability as last saved — `consentCurrent`: saved under today's notice (COVER_CONSENT_VERSION). */
-type SavedCover = { coverOpen: boolean; coverSlots: string[]; coverAreas: string[]; coverRateVnd: number | null; consentCurrent: boolean }
 type Opt = { value: string; label: string; labelVi: string }
 
 function encodeDraft(t: TeacherInput): string {
@@ -136,7 +135,7 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
 export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draftHost: boolean; apexOrigin: string }) {
   const { tr, lang } = useLanguage()
   const { user, loading: authLoading, openSignIn } = useAuth()
-  const [t, setT] = useState<TeacherInput>(EMPTY_TEACHER)
+  const [t, setTState] = useState<TeacherInput>(EMPTY_TEACHER)
   const [stepIdx, setStepIdx] = useState(0)
   const [errors, setErrors] = useState<TeacherErrors>({})
   const [formError, setFormError] = useState('')
@@ -155,7 +154,22 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
   const [savedCover, setSavedCover] = useState<SavedCover | null>(null)
   const [coverConfirmedAt, setCoverConfirmedAt] = useState<string | null>(null)
   const [coverSave, setCoverSave] = useState<'' | 'saving' | 'saved' | 'error'>('')
+  // After a stale-window refusal: what reloadSavedCover says, on the cover card.
+  const [coverNotice, setCoverNotice] = useState('')
+  const coverReloadSeq = useRef(0)
   const hydrated = useRef(false)
+  // ⛔ THE FORM'S LATEST VALUE, WRITTEN BY EVERY CHANGE AS IT HAPPENS — never synced by an effect after the render (gate
+  // review, 2026-10-07): a re-read answering between an edit and that effect would judge the edit "untouched" and
+  // overwrite it (reloadSavedCover). Every write goes through setT, which updates this first.
+  const tRef = useRef(t)
+  const setT = useCallback((u: TeacherInput | ((prev: TeacherInput) => TeacherInput)) => {
+    const next = typeof u === 'function' ? u(tRef.current) : u
+    tRef.current = next
+    setTState(next)
+  }, [])
+  // The success screen replaces a long wizard: bring its heading into view (preview check, 2026-10-07 — after Publish
+  // or Save it sat above the viewport, wherever the last step had been scrolled to).
+  useEffect(() => { if (done) window.scrollTo({ top: 0, behavior: scrollBehavior() }) }, [done])
 
   const step = STEP_ORDER[stepIdx]
   const set = useCallback(<K extends keyof TeacherInput>(k: K, v: TeacherInput[K]) => {
@@ -257,7 +271,6 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
     if (code === 'rate_limited') return tr('Too many saves — please wait a few minutes.', 'Lưu quá nhiều lần — vui lòng đợi vài phút.')
     // Join mode loaded no saved cover, so the server will not let it overwrite one that is ON (publish.ts assertCoverBase).
     if (code === 'cover_changed' && mode === 'join') return tr('You already have a teacher profile that offers cover lessons. Open it from your account (Teacher profile) to make changes.', 'Bạn đã có hồ sơ giáo viên đang nhận dạy thay. Hãy mở hồ sơ trong tài khoản (Hồ sơ giáo viên) để chỉnh sửa.')
-    if (code === 'cover_changed') return tr('Your cover lessons were changed in another window. Reload this page to see the latest, then save again.', 'Lịch dạy thay của bạn đã được thay đổi ở cửa sổ khác. Hãy tải lại trang để xem bản mới nhất rồi lưu lại.')
     return tr('Something went wrong. Please try again.', 'Đã có lỗi. Vui lòng thử lại.')
   }
 
@@ -265,6 +278,27 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
     const e = validateTeacherInput(t, [s])
     setErrors(e)
     return Object.keys(e).length === 0
+  }
+  /**
+   * ⛔ A REFUSAL MUST BE SEEN (preview check, 2026-10-07). On a phone a refused Next left the screen unchanged while the
+   * cover step's only error sat ~2,300px below the viewport, and a refused save landed under the sticky action bar. So
+   * after any refusal the first error (an aria-invalid control, else an alert) is scrolled to and its control focused.
+   * Two frames: the errors and any step change render first.
+   */
+  const revealFirstError = (opts: { formLineFirst?: boolean } = {}) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      // In this order: an invalid field (a control, or a group of chips marked data-invalid), then the form's own error
+      // line — never another card's alert first. After a SERVER refusal with no field errors the new line comes first:
+      // a field marked earlier must not pull the page away from the reason the save just failed (gate review).
+      const field = () => document.querySelector<HTMLElement>('main [aria-invalid="true"], main [data-invalid]')
+      const line = () => document.querySelector<HTMLElement>('main [data-form-error]')
+      const el = (opts.formLineFirst ? line() ?? field() : field() ?? line()) ?? document.querySelector<HTMLElement>('main [role="alert"]')
+      if (!el) return
+      el.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
+      const focusable = 'input, textarea, button, [tabindex]:not([tabindex="-1"])'
+      const control = el.matches(focusable) ? el : el.querySelector<HTMLElement>(focusable)
+      control?.focus({ preventScroll: true })
+    }))
   }
 
   // ── Media ───────────────────────────────────────────────────────────────────────────────────────
@@ -322,6 +356,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
         setErrors(draftErrs)
         const firstBad = STEP_ORDER.findIndex((s) => TEACHER_STEP_FIELDS[s].some((f) => Object.keys(draftErrs).some((k) => k === f || k.startsWith(`${f}.`))))
         if (firstBad >= 0) setStepIdx(firstBad)
+        revealFirstError()
         return
       }
       openSignIn({ note: tr('Sign in to add your photo and publish your teacher profile. Your answers are kept.', 'Đăng nhập để thêm ảnh và đăng hồ sơ giáo viên. Câu trả lời của bạn được giữ lại.') })
@@ -332,6 +367,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
       setErrors(all)
       const firstBad = STEP_ORDER.findIndex((s) => TEACHER_STEP_FIELDS[s].some((f) => Object.keys(all).some((k) => k === f || k.startsWith(`${f}.`))))
       if (firstBad >= 0) setStepIdx(firstBad)
+      revealFirstError()
       return
     }
     setBusy('saving'); setFormError('')
@@ -341,8 +377,23 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
       const res = await fetch('/api/teachers/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...t, coverBase: mode === 'edit' && savedCover ? coverStamp(savedCover) : null, coverNotice: COVER_CONSENT_VERSION }) })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
-        if (d.error === 'invalid_teacher_profile' && d.fields) setErrors(d.fields)
+        if (d.error === 'invalid_teacher_profile' && d.fields) {
+          setErrors(d.fields)
+          // The server's field errors may sit on another step: go there first, or there is nothing to reveal (gate review).
+          const bad = Object.keys(d.fields as object)
+          const firstBad = STEP_ORDER.findIndex((s) => TEACHER_STEP_FIELDS[s].some((f) => bad.some((k) => k === f || k.startsWith(`${f}.`))))
+          if (firstBad >= 0) setStepIdx(firstBad)
+        }
+        // A stale cover from Save changes: the latest saved cover is loaded into the Cover step, which is shown with the
+        // line saying so — every other step's edits stay (reloadSavedCover).
+        if (d.error === 'cover_changed' && mode === 'edit') {
+          // The line is written once the re-read has answered — never a claim the re-read then contradicts.
+          const { r, reconsent } = await reloadSavedCover()
+          if (r !== 'superseded') { setFormError(staleCoverLine(r, reconsent)); revealFirstError({ formLineFirst: true }) }
+          return
+        }
         setFormError(publishErrText(String(d.error || '')))
+        revealFirstError({ formLineFirst: !d.fields })
         return
       }
       // The profile is saved either way; a failed CV upload is reported on the done screen and can be
@@ -355,9 +406,11 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
         setSavedCover({ coverOpen: d.cover.coverOpen === true, coverSlots: d.cover.coverSlots ?? [], coverAreas: d.cover.coverAreas ?? [], coverRateVnd: d.cover.coverRateVnd ?? null, consentCurrent: d.cover.coverConsentVersion === COVER_CONSENT_VERSION })
         setCoverConfirmedAt(d.cover.coverConfirmedAt ?? null)
       }
+      setCoverNotice('')
       setDone({ listingId: d.listingId, live: d.live === true })
     } catch {
       setFormError(publishErrText(''))
+      revealFirstError()
     } finally { setBusy('') }
   }
 
@@ -383,6 +436,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
     // record would show a fresh consent the teacher never gave after withdrawing (gate review, 2026-10-07).
     const p = patch.coverOpen === false ? { ...patch, coverConsent: false } : patch
     setT((prev) => ({ ...prev, ...p }))
+    setCoverNotice('') // the card's line was about the state before this edit
     setErrors((prev) => {
       const n = { ...prev }
       for (const k of Object.keys(p)) delete n[k as keyof TeacherErrors]
@@ -410,26 +464,89 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
         if (d.error === 'invalid_teacher_profile' && d.fields) setErrors(d.fields)
-        if (d.error === 'cover_changed') setFormError(publishErrText('cover_changed'))
+        // A stale window: the saved cover is re-read into the card, which then says what happened (reloadSavedCover).
+        if (d.error === 'cover_changed') {
+          const { r, open } = await reloadSavedCover()
+          setCoverSave('')
+          if (r === 'superseded') return
+          // Said for the state the card now shows: never "tap Still available" over a card that has no such button.
+          setCoverNotice(r === 'failed'
+            ? staleCoverLine('failed')
+            : open
+              ? tr('Changed in another window — the card now shows the saved version. Tap “Still available” again to confirm it.', 'Đã thay đổi ở cửa sổ khác — thẻ đang hiển thị bản đã lưu. Bấm “Vẫn còn rảnh” lần nữa để xác nhận.')
+              : tr('Cover lessons were switched off in another window.', 'Dạy thay đã được tắt ở cửa sổ khác.'))
+          return
+        }
         setCoverSave('error')
         return
       }
       setCoverConfirmedAt(d.confirmedAt ?? null)
       setSavedCover({ coverOpen: d.coverOpen === true, coverSlots: d.coverSlots ?? [], coverAreas: d.coverAreas ?? [], coverRateVnd: d.coverRateVnd ?? null, consentCurrent: true })
       setCoverSave('saved')
+      setCoverNotice('')
     } catch {
       setCoverSave('error')
     }
   }
   /** "Still available": re-confirm the availability AS SAVED — never unsaved edits, and never a switch-off. */
   const confirmSavedCover = () => {
-    if (!savedCover?.coverOpen) return
+    // Not while a full save is out: its own stale-window re-read would be superseded by this one's and say nothing.
+    if (!savedCover?.coverOpen || busy === 'saving') return
     // Saved under an older notice: the teacher must read and tick the current one first.
-    if (!savedCover.consentCurrent) { setErrors({ coverConsent: 'required' }); setStepIdx(STEP_ORDER.indexOf('cover')); return }
+    if (!savedCover.consentCurrent) {
+      // The consent line is on the Cover step only while cover is ON in the form. When it is off there, the card says
+      // what to do — and the page stays put, because the Cover step does not show the card (gate review, 2026-10-07).
+      if (t.coverOpen) { setStepIdx(STEP_ORDER.indexOf('cover')); setErrors({ coverConsent: 'required' }); revealFirstError() }
+      else setCoverNotice(tr('The cover-lessons notice was updated. To keep cover on, tap “Change”, switch cover on and tick the consent, then save.', 'Thông báo về dạy thay đã được cập nhật. Để tiếp tục nhận dạy thay, hãy bấm “Thay đổi”, bật dạy thay và đánh dấu đồng ý rồi lưu.'))
+      return
+    }
     void saveCover({ coverOpen: true, coverSlots: savedCover.coverSlots, coverAreas: savedCover.coverAreas, coverRateVnd: savedCover.coverRateVnd, coverConsent: true })
   }
   // Order-insensitive, like the server's own conflict check (coverStamp sorts): re-ticking a period is not a change.
   const coverDirty = !!savedCover && coverStamp(savedCover) !== coverStamp(t)
+  /**
+   * ⛔ A STALE WINDOW: WHAT THE TEACHER DID NOT TOUCH FOLLOWS THE SERVER; WHAT THEY EDITED STAYS THEIRS (gate reviews,
+   * 2026-10-07). After a 409 cover_changed — from "Still available" or from Save changes — the SAVED cover is re-read
+   * into the base (the card shows it; the next save is no longer stale). Then, judged at RESPONSE time against the base
+   * the form had when the re-read began: untouched cover fields take the saved values — a bio-only save must never
+   * switch cover back on after a withdrawal in another window — and edited ones are kept, with a line saying a save
+   * replaces the saved version with them. A newer re-read supersedes an older one, which then says nothing at all.
+   */
+  const reloadSavedCover = async (): Promise<{ r: 'untouched' | 'edited' | 'failed' | 'superseded'; open: boolean; reconsent: boolean }> => {
+    const seq = ++coverReloadSeq.current
+    const base = savedCover
+    try {
+      const res = await fetch('/api/teachers/me')
+      const tp = res.ok ? (await res.json())?.teacher : null
+      if (seq !== coverReloadSeq.current) return { r: 'superseded', open: false, reconsent: false }
+      if (!tp) return { r: 'failed', open: false, reconsent: false }
+      const fresh: SavedCover = {
+        coverOpen: tp.coverOpen === true, coverSlots: tp.coverSlots ?? [], coverAreas: tp.coverAreas ?? [],
+        coverRateVnd: tp.coverRateVnd ?? null, consentCurrent: tp.coverConsentVersion === COVER_CONSENT_VERSION,
+      }
+      // Field by field, and the tick never across a withdrawal (cover.ts mergeStaleCover — table-tested there).
+      const { cover, untouched, reconsent } = mergeStaleCover(tRef.current, base, fresh)
+      setT((prev) => ({ ...prev, ...cover }))
+      setSavedCover(fresh)
+      setCoverConfirmedAt(tp.coverConfirmedAt ?? null)
+      // The card's last line and status were about the version just replaced (gate review, 2026-10-07): the caller says
+      // what is true now — "Still available" on the card, Save changes on the form.
+      setCoverNotice('')
+      setCoverSave('')
+      return { r: untouched ? 'untouched' : 'edited', open: fresh.coverOpen, reconsent }
+    } catch {
+      return { r: seq === coverReloadSeq.current ? 'failed' : 'superseded', open: false, reconsent: false }
+    }
+  }
+  const staleCoverLine = (r: 'untouched' | 'edited' | 'failed', reconsent = false) => r === 'untouched'
+    ? reconsent
+      ? tr('Your cover lessons were changed in another window — this form now shows the saved version. Tick the consent on the Cover step again, then save to keep your other changes.', 'Lịch dạy thay của bạn đã được thay đổi ở cửa sổ khác — biểu mẫu này đang hiển thị bản đã lưu. Hãy đánh dấu lại ô đồng ý ở bước Dạy thay rồi lưu để giữ các thay đổi khác của bạn.')
+      : tr('Your cover lessons were changed in another window — this form now shows the saved version. Check the Cover step, then save again to keep your other changes.', 'Lịch dạy thay của bạn đã được thay đổi ở cửa sổ khác — biểu mẫu này đang hiển thị bản đã lưu. Hãy kiểm tra bước Dạy thay rồi lưu lại để giữ các thay đổi khác của bạn.')
+    : r === 'edited'
+      ? reconsent
+        ? tr('Your cover lessons were changed in another window — the card at the top shows the saved version. To save your changes on the Cover step instead, tick the consent there again.', 'Lịch dạy thay của bạn đã được thay đổi ở cửa sổ khác — thẻ ở đầu trang đang hiển thị bản đã lưu. Để lưu các thay đổi của bạn ở bước Dạy thay, hãy đánh dấu lại ô đồng ý ở đó.')
+        : tr('Your cover lessons were changed in another window — the card at the top shows the saved version. Saving again replaces it with your changes on the Cover step.', 'Lịch dạy thay của bạn đã được thay đổi ở cửa sổ khác — thẻ ở đầu trang đang hiển thị bản đã lưu. Lưu lại sẽ thay bản đó bằng các thay đổi của bạn ở bước Dạy thay.')
+      : tr('Your cover lessons were changed in another window, and the saved version could not be loaded. Try again in a moment.', 'Lịch dạy thay của bạn đã được thay đổi ở cửa sổ khác và không tải được bản đã lưu. Hãy thử lại sau giây lát.')
 
   const steps: WizardStep[] = useMemo(() => [
     { key: 'about', icon: <User className="size-4" />, label: tr('About you', 'Về bạn') },
@@ -443,10 +560,10 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
   const isLast = stepIdx === STEP_ORDER.length - 1
   const onDraftHostEnd = draftHost && step === 'qualifications'
   const primary = onDraftHostEnd
-    ? { label: tr('Continue to sign in', 'Tiếp tục để đăng nhập'), onClick: () => { if (checkStep(step)) handOff() } }
+    ? { label: tr('Continue to sign in', 'Tiếp tục để đăng nhập'), onClick: () => { if (checkStep(step)) handOff(); else revealFirstError() } }
     : isLast
       ? { label: busy === 'saving' ? tr('Saving…', 'Đang lưu…') : mode === 'edit' ? tr('Save changes', 'Lưu thay đổi') : tr('Publish profile', 'Đăng hồ sơ'), onClick: publish, disabled: busy !== '' }
-      : { label: tr('Next', 'Tiếp'), onClick: () => { if (checkStep(step)) setStepIdx((i) => i + 1) } }
+      : { label: tr('Next', 'Tiếp'), onClick: () => { if (checkStep(step)) setStepIdx((i) => i + 1); else revealFirstError() } }
   const secondary = stepIdx > 0 ? { label: tr('Back', 'Quay lại'), onClick: () => setStepIdx((i) => i - 1) } : undefined
 
   if (!loaded) {
@@ -476,7 +593,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
         <p className="mt-2 text-sm text-body">
           {tr('Schools can now find you. When one messages you, reply and tap “Share my phone, email & CV” if you want them to have your phone, email and CV.', 'Các trường giờ có thể tìm thấy bạn. Khi có trường nhắn tin, hãy trả lời và bấm “Chia sẻ số điện thoại, email và CV” nếu bạn muốn gửi số điện thoại, email và CV.')}
         </p>
-        {formError && <p role="alert" className="mt-3 text-sm text-destructive">{formError}</p>}
+        {formError && <p role="alert" data-form-error className="mt-3 text-sm text-destructive">{formError}</p>}
         {t.coverOpen && <PushOptInCard surface="teacher" className="mt-4" />}
         <div className="mt-6 flex justify-center gap-3">
           <Button variant="cta" asChild><Link href={`/listings/${done.listingId}`}>{tr('View my profile', 'Xem hồ sơ')}</Link></Button>
@@ -514,6 +631,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
               status={coverSave}
               onConfirm={confirmSavedCover}
               onEdit={() => setStepIdx(STEP_ORDER.indexOf('cover'))}
+              notice={coverNotice}
             />
           )}
           <h1 className="text-xl font-semibold text-foreground">{mode === 'edit' ? tr('Your teacher profile', 'Hồ sơ giáo viên của bạn') : tr('Create your teacher profile', 'Tạo hồ sơ giáo viên')}</h1>
@@ -767,7 +885,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
           </>
         )}
 
-        {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
+        {formError && <p role="alert" data-form-error className="text-sm text-destructive">{formError}</p>}
       </div>
     </StepWizard>
   )

@@ -48,7 +48,14 @@ export function TeacherContact({ listingId, name, image, cover = false }: {
     if (force) setBusy(false)
     if (loading) return
     if (!user) {
-      openSignIn({ listingTitle: name, listingImage: image, note: tr('Sign in with your school or company account to message teachers.', 'Đăng nhập bằng tài khoản trường hoặc công ty để nhắn tin cho giáo viên.') })
+      // "Sign in to message Jane Doe about a cover lesson" — the teacher by name, never "the seller", and what the
+      // school came for (preview check, 2026-10-07: the card's fallback called a teacher "the seller").
+      openSignIn({
+        sellerName: name,
+        listingTitle: intent.current === 'cover' ? tr('a cover lesson', 'việc dạy thay') : tr('a teaching job', 'công việc giảng dạy'),
+        listingImage: image,
+        note: tr('Sign in with your school or company account to message teachers.', 'Đăng nhập bằng tài khoản trường hoặc công ty để nhắn tin cho giáo viên.'),
+      })
       return
     }
     // accountType arrives with the profile, after `user` — never judge it before it has loaded.

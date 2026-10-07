@@ -84,8 +84,13 @@ export async function POST(req: Request) {
       }
     }
 
-    const translations = await translateBatch(list, target as Lang, { source: 'api' })
-    return NextResponse.json({ translations })
+    // ⛔ A PROVIDER FAILURE SAYS `partial` TOO (gate review, 2026-10-07). It serves source text for its misses, which
+    // looks exactly like "this string translates to itself" — translateBatch's out-param is what tells them apart. Without
+    // the flag, the dictionary loader could persist those passthroughs, and mt-client would count each as a DEFINITE miss
+    // and give the string up for the session after a long outage (noteMiss). Retryable, like the degrade path above.
+    const stats = { providerFailed: false }
+    const translations = await translateBatch(list, target as Lang, { source: 'api', stats })
+    return NextResponse.json(stats.providerFailed ? { translations, partial: true } : { translations })
   } catch (err) {
     console.error('[api/translate]', err)
     return NextResponse.json({ error: 'Translation failed' }, { status: 500 })

@@ -116,6 +116,7 @@ export const UI_STRINGS_SERVICES: string[] = [
   "Date",
   "Date of birth",
   "Dates",
+  "Day",
   "Day colours",
   "Day {dayNumber}",
   "Day-by-day plan",

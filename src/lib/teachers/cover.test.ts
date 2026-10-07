@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   COVER_AREAS, COVER_AREA_KEYS, COVER_CITIES, COVER_LIMITS, COVER_SLOTS, coverAreaFilterKeys, coverAreaLabel, coverStamp,
-  coverAreasForCities, coverCitiesFor, coverSlotLabel, parseCoverSlot,
+  coverAreasForCities, coverCitiesFor, coverDayShort, coverSlotLabel, mergeStaleCover, parseCoverSlot, type CoverDay, type SavedCover,
 } from './cover'
 import { coverIsPublic, normalizeTeacherInput, teacherFacetTokens, validateTeacherInput, DRAFT_STEPS, TEACHER_STEP_FIELDS } from './profile'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
@@ -169,5 +169,82 @@ describe('coverStamp (the stale-window check)', () => {
     for (const b of [{ ...a, coverOpen: false }, { ...a, coverSlots: ['mon-am'] }, { ...a, coverAreas: ['d7'] }, { ...a, coverRateVnd: 350_000 }]) {
       expect(coverStamp(b)).not.toBe(coverStamp(a))
     }
+  })
+})
+
+describe('coverDayShort — weekday names never go through machine translation (preview check, 2026-10-07)', () => {
+  it('keeps the authored English and Vietnamese labels', () => {
+    expect(['mon', 'sun'].map((d) => coverDayShort(d as CoverDay, 'en'))).toEqual(['Mon', 'Sun'])
+    expect(['mon', 'sun'].map((d) => coverDayShort(d as CoverDay, 'vi'))).toEqual(['T2', 'CN'])
+  })
+  it('gives every other UI language its own weekday names from Intl — ko read a bare "Mon" as "my" and "Sun" as "the sun"', () => {
+    expect(coverDayShort('mon', 'ko')).toBe('월')
+    expect(coverDayShort('sun', 'ko')).toBe('일')
+    expect(coverDayShort('wed', 'ja')).toBe('水')
+    expect(coverDayShort('mon', 'zh-Hans')).toBe('周一')
+    expect(coverDayShort('mon', 'ru').toLowerCase()).toBe('пн')
+  })
+  it('falls back to English for a code Intl does not take', () => {
+    expect(coverDayShort('mon', 'not a locale!')).toBe('Mon')
+  })
+})
+
+// ── A stale window's re-read (gate reviews, 2026-10-07): field by field, and the tick never across a withdrawal ──────
+describe('mergeStaleCover', () => {
+  const saved = (o: Partial<SavedCover> = {}): SavedCover => ({ coverOpen: true, coverSlots: ['mon-am'], coverAreas: ['hcm-d1'], coverRateVnd: 300000, consentCurrent: true, ...o })
+  const form = (b: SavedCover, o: Partial<Parameters<typeof mergeStaleCover>[0]> = {}) => ({ coverOpen: b.coverOpen, coverSlots: b.coverSlots, coverAreas: b.coverAreas, coverRateVnd: b.coverRateVnd, coverConsent: b.coverOpen && b.consentCurrent, ...o })
+
+  it('an edited rate stays; the areas another window saved come in', () => {
+    const base = saved()
+    const r = mergeStaleCover(form(base, { coverRateVnd: 350000 }), base, saved({ coverAreas: ['hcm-d3'] }))
+    expect(r.cover).toMatchObject({ coverRateVnd: 350000, coverAreas: ['hcm-d3'], coverSlots: ['mon-am'], coverOpen: true, coverConsent: true })
+    expect(r.untouched).toBe(false)
+  })
+  it('untouched: a withdrawal elsewhere switches it off here, tick and all', () => {
+    const base = saved()
+    const r = mergeStaleCover(form(base), base, saved({ coverOpen: false, consentCurrent: false }))
+    expect(r.cover).toMatchObject({ coverOpen: false, coverConsent: false })
+    expect(r).toMatchObject({ untouched: true, reconsent: false })
+  })
+  it('edited slots over a withdrawal: the slots stay, cover follows the withdrawal, the tick goes', () => {
+    const base = saved()
+    const r = mergeStaleCover(form(base, { coverSlots: ['tue-pm'] }), base, saved({ coverOpen: false, consentCurrent: false }))
+    expect(r.cover).toMatchObject({ coverOpen: false, coverSlots: ['tue-pm'], coverConsent: false })
+    expect(r.untouched).toBe(false)
+  })
+  it('a tick re-given here to an updated notice survives a change that withdrew nothing', () => {
+    const base = saved({ consentCurrent: false })
+    const r = mergeStaleCover(form(base, { coverConsent: true }), base, saved({ consentCurrent: false, coverSlots: ['wed-am'] }))
+    expect(r.cover).toMatchObject({ coverConsent: true, coverSlots: ['wed-am'] })
+    // The tick is the teacher's change here: "edited", so the line says a save applies it — never "the saved version".
+    expect(r).toMatchObject({ untouched: false, reconsent: false })
+  })
+  it('…and never crosses a withdrawal', () => {
+    const base = saved({ consentCurrent: false })
+    const r = mergeStaleCover(form(base, { coverConsent: true }), base, saved({ coverOpen: false, consentCurrent: false }))
+    expect(r.cover).toMatchObject({ coverOpen: false, coverConsent: false })
+  })
+  it('a tick removed here is never put back', () => {
+    const base = saved()
+    const r = mergeStaleCover(form(base, { coverConsent: false }), base, saved({ coverSlots: ['fri-pm'] }))
+    expect(r.cover.coverConsent).toBe(false)
+    expect(r.reconsent).toBe(false)
+  })
+  it('cover switched on and ticked here stays so over another window\'s edit while it was off', () => {
+    const base = saved({ coverOpen: false, consentCurrent: false, coverSlots: [], coverAreas: [] })
+    const r = mergeStaleCover(form(base, { coverOpen: true, coverSlots: ['mon-am'], coverAreas: ['hcm-d1'], coverConsent: true }), base, { ...base, coverRateVnd: 250000 })
+    expect(r.cover).toMatchObject({ coverOpen: true, coverConsent: true, coverRateVnd: 250000 })
+  })
+  it('the saved consent no longer standing under a cover still on: the tick goes and the line asks for it', () => {
+    const base = saved()
+    const r = mergeStaleCover(form(base, { coverSlots: ['sat-am'] }), base, saved({ consentCurrent: false }))
+    expect(r.cover).toMatchObject({ coverOpen: true, coverConsent: false })
+    expect(r.reconsent).toBe(true)
+  })
+  it('no base (an edit form that loaded no profile): an untouched form takes the saved cover whole', () => {
+    const empty = { coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, coverConsent: false }
+    const r = mergeStaleCover(empty, null, saved())
+    expect(r.cover).toEqual({ coverOpen: true, coverSlots: ['mon-am'], coverAreas: ['hcm-d1'], coverRateVnd: 300000, coverConsent: true })
+    expect(r.untouched).toBe(true)
   })
 })

@@ -115,6 +115,78 @@ export function subscribeTr(cb: () => void) {
 }
 export function getTrSnapshot() { return trVersion }
 
+/**
+ * ⛔ AN ENGLISH PASSTHROUGH IS NOT RE-ASKED ON EVERY REPAINT (preview check, 2026-10-07). flush() leaves a passthrough
+ * uncached on purpose (see there), but it also repainted every tr() reader, and tr() — finding no cache entry and
+ * nothing in flight — asked again 60 ms later: a page holding a string the provider would not translate re-POSTed
+ * /api/translate 15–17 times a second for as long as it stayed open (measured with the per-IP limit spent, which
+ * answers English with `partial`). A miss now waits before it is asked again — 15 s, then ×4 each time, at most
+ * 10 min — and a repaint happens only when a translation actually landed. A success clears the wait.
+ */
+const missUntil = new Map<string, number>() // `${lang} ${text}` → epoch ms before which it is not asked again
+const missCount = new Map<string, number>() // every miss — sets the wait
+// Only a DEFINITE passthrough (a 200 that was not `partial`) counts toward giving up. A failed request, a 429/5xx or a
+// `partial` reply (the per-IP limit — shared by whole carriers behind CGNAT) only waits: fifteen minutes of outage must
+// never switch translation off for the rest of a reader's visit (gate review, 2026-10-07).
+const definiteMisses = new Map<string, number>()
+const MISS_FIRST_MS = 15_000
+const MISS_MAX_MS = 600_000
+// A long session over user-written text must not grow these without end: past the cap the OLDEST misses are
+// forgotten (a Map iterates in insertion order), which only means they may be asked once more.
+const MISS_CAP = 1000
+const MISS_GIVE_UP = 5
+// Waits that end within this of each other are retried by ONE repaint, never a burst of app-wide repaints 60 ms apart.
+const DUE_SLACK_MS = 2_000
+// ONE timer, at the earliest expiry, repaints so the waiting strings are asked again — without it a page that never
+// re-rendered stayed in English for the whole visit after one outage (gate review, 2026-10-07).
+let retryTimer: ReturnType<typeof setTimeout> | null = null
+let retryAt = Infinity
+function scheduleRetry(at: number) {
+  // An earlier timer still pending covers this one; a retryAt already in the past is stale and is replaced.
+  if (at >= retryAt && retryAt > Date.now()) return
+  if (retryTimer) clearTimeout(retryTimer)
+  retryAt = at
+  retryTimer = setTimeout(() => {
+    retryTimer = null
+    retryAt = Infinity
+    const now = Date.now()
+    let due = false
+    let next = Infinity
+    for (const t of missUntil.values()) {
+      if (t <= now + DUE_SLACK_MS) due = true
+      else if (t < next) next = t
+    }
+    // Repaint only for a string whose wait is over: one that landed meanwhile (in the slack before this timer) was
+    // repainted then, and its wait deleted — an app-wide repaint for nothing otherwise (gate review, 2026-10-07).
+    if (due) emitTrChange()
+    // Re-arm for the next string still waiting, or it would stay English if this repaint's retry succeeds (no new miss
+    // would schedule anything) — gate review, 2026-10-07.
+    if (next !== Infinity) scheduleRetry(next)
+  }, Math.max(0, at - Date.now()))
+}
+/** Tests only: forget every miss and its timer, so no test depends on another's leftovers (gate review). */
+export function __resetMtMissesForTests() {
+  missUntil.clear()
+  missCount.clear()
+  definiteMisses.clear()
+  if (retryTimer) clearTimeout(retryTimer)
+  retryTimer = null
+  retryAt = Infinity
+}
+function noteMiss(ck: string, definite: boolean) {
+  const n = (missCount.get(ck) ?? 0) + 1
+  const d = (definiteMisses.get(ck) ?? 0) + (definite ? 1 : 0)
+  missCount.delete(ck); missUntil.delete(ck); definiteMisses.delete(ck) // re-insert at the end: newest is forgotten last
+  missCount.set(ck, n)
+  definiteMisses.set(ck, d)
+  // Five DEFINITE misses and it is left alone for the session: a string the provider never translates (a name, a brand)
+  // must not keep a timer — and an app-wide repaint — alive forever (gate review, 2026-10-07).
+  const until = d >= MISS_GIVE_UP ? Infinity : Date.now() + Math.min(MISS_FIRST_MS * 4 ** (n - 1), MISS_MAX_MS)
+  missUntil.set(ck, until)
+  for (const k of missUntil.keys()) { if (missUntil.size <= MISS_CAP) break; missUntil.delete(k); missCount.delete(k); definiteMisses.delete(k) }
+  if (until !== Infinity) scheduleRetry(until)
+}
+
 function flush() {
   scheduled = false
   for (const key of Object.keys(pending) as Language[]) {
@@ -131,20 +203,29 @@ function flush() {
       body: JSON.stringify({ texts, target: key }),
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then(({ translations }) => {
+      .then(({ translations, partial }) => {
         const byText = new Map(texts.map((t, i) => [t, translations?.[i] ?? t]))
-        items.forEach((it) => {
-          const value = byText.get(it.text) ?? it.text
+        let landed = false
+        for (const t of texts) {
+          const value = byText.get(t) ?? t
+          const ck = `${key} ${t}`
           // Don't PIN an English passthrough: when the provider is down the API
           // 200s with the source text, and caching that froze English into the
           // session until a full reload (2026-07-06 audit). Resolve it (render
-          // something now) but leave the cache empty so the next render retries.
-          if (value !== it.text) trCache.set(`${key} ${it.text}`, value)
-          it.resolve(value)
-        })
-        emitTrChange() // repaint every component reading trCache via tr()
+          // something now) but leave the cache empty, so it is retried — after its wait (noteMiss).
+          if (value !== t) { trCache.set(ck, value); missUntil.delete(ck); missCount.delete(ck); definiteMisses.delete(ck); landed = true }
+          // One miss per TEXT per answer (`texts` is the Set above), however many waiters asked for it. `partial` = the
+          // route's degrade path or a provider failure: retryable, never counted toward giving up.
+          else noteMiss(ck, partial !== true)
+        }
+        items.forEach((it) => it.resolve(byText.get(it.text) ?? it.text))
+        // Repaint every component reading trCache via tr() — only when there is something new to show.
+        if (landed) emitTrChange()
       })
-      .catch(() => items.forEach((it) => it.resolve(it.text)))
+      .catch(() => {
+        for (const t of texts) noteMiss(`${key} ${t}`, false)
+        items.forEach((it) => it.resolve(it.text))
+      })
   }
 }
 
@@ -160,6 +241,9 @@ export function translateText(text: string, lang: Language): Promise<string> {
     trCache.set(`vi ${text}`, text)
     return Promise.resolve(text)
   }
+  // Still waiting after a miss (noteMiss): answer the English now, with no request. A wait ending within the slack
+  // counts as over, so one repaint retries every nearly-due string together.
+  if ((missUntil.get(`${lang} ${text}`) ?? 0) > Date.now() + DUE_SLACK_MS) return Promise.resolve(text)
   return new Promise((resolve) => {
     (pending[lang] ||= []).push({ text, resolve })
     if (!scheduled) { scheduled = true; setTimeout(flush, 60) }

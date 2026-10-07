@@ -139,6 +139,17 @@ describe('translateBatch · same-language is free', () => {
     expect(stats.providerFailed).toBe(false)
   })
 
+  it('DOES report a provider failure, and serves the source uncached — api/translate then answers `partial`', async () => {
+    // A refusal the client does not retry (not 429/5xx): the chunk comes back null on the first attempt.
+    fetchMock.mockImplementationOnce(async () => ({ ok: false, status: 403, headers: { get: () => null }, json: async () => ({}), text: async () => 'quota' }) as never)
+    const stats = { providerFailed: false }
+    expect(await translateBatch([EN], 'ko', { stats, source: 'test' })).toEqual([EN])
+    // Without the flag this passthrough is indistinguishable from "translates to itself" — the client would give the
+    // string up for the session after an outage (mt-client noteMiss; gate review, 2026-10-07).
+    expect(stats.providerFailed).toBe(true)
+    expect(state.upserts).toEqual([])
+  })
+
   it('still translates the strings that are NOT in the target, in the same batch', async () => {
     const out = await translateBatch([VI, EN], 'vi', { source: 'test' })
     expect(out[0]).toBe(VI) // skipped

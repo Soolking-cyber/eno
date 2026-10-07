@@ -521,6 +521,9 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
     const dates = (reviewed ?? []).map((r) => r.lastmod ?? undefined)
     const newest = dates.reduce<Date | undefined>((a, d) => (d && (!a || d > a) ? d : a), undefined)
     urls.push(`  <url><loc>${hostUrl}/schools</loc>${lm(newest)}</url>\n`)
+    // The cover-lessons landing (2026-10-07): static, self-canonical, indexable — and promoted to both sides, so a page a
+    // crawler is never told about would be wasted. Undated, like the other static pages. Marketplace only, as /schools.
+    urls.push(`  <url><loc>${hostUrl}/teachers/cover</loc></url>\n`)
     for (const [i, r] of (reviewed ?? []).entries()) urls.push(`  <url><loc>${hostUrl}/schools/${r.slug}</loc>${lm(dates[i])}</url>\n`)
     // Teachers' Choice results, once a year is closed (src/lib/schools/awards.ts). Same failure rule: none, not an error.
     const awardYears = await Promise.resolve().then(() => awardYearsForSitemap()).catch(() => [])

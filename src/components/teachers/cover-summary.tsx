@@ -10,7 +10,7 @@ import { CalendarDays, Check } from '@/components/ui/icons'
 import { formatCalendarDay } from '@/lib/calendar-day'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
-export function CoverSummary({ savedOpen, slots, areas, rateVnd, confirmedAt, dirty, status, onConfirm, onEdit }: {
+export function CoverSummary({ savedOpen, slots, areas, rateVnd, confirmedAt, dirty, status, onConfirm, onEdit, notice = '' }: {
   /** whether cover is ON as last SAVED (not as currently edited) */
   savedOpen: boolean
   slots: number
@@ -22,14 +22,19 @@ export function CoverSummary({ savedOpen, slots, areas, rateVnd, confirmedAt, di
   status: '' | 'saving' | 'saved' | 'error'
   onConfirm: () => void
   onEdit: () => void
+  /** After a stale-window refusal: the form re-read the saved cover (teacher-form reloadSavedCover) and says so here. */
+  notice?: string
 }) {
   const { tr, lang } = useLanguage()
+  // In BOTH branches: a teacher whose window last saw cover OFF is told too (gate review, 2026-10-07).
+  const noticeLine = notice ? <p role="status" className="text-sm text-warning">{notice}</p> : null
   if (!savedOpen) {
     return (
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-tint p-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground">{tr('New: cover lessons', 'Mới: dạy thay')}</p>
           <p className="text-sm text-body">{tr('Schools look for teachers free for a one-off lesson. Show when you are free and what you charge.', 'Các trường tìm giáo viên rảnh để dạy thay một buổi. Hãy cho biết khi nào bạn rảnh và mức phí của bạn.')}</p>
+          {noticeLine}
         </div>
         <Button variant="secondary" size="sm" type="button" onClick={onEdit}><CalendarDays className="size-4" />{tr('Set up cover lessons', 'Thiết lập dạy thay')}</Button>
       </div>
@@ -47,6 +52,7 @@ export function CoverSummary({ savedOpen, slots, areas, rateVnd, confirmedAt, di
         {confirmedAt && (
           <p className="text-xs text-muted-foreground">{tr('Availability confirmed on', 'Đã xác nhận lịch rảnh ngày')} {formatCalendarDay(confirmedAt, lang)}</p>
         )}
+        {noticeLine}
         {dirty && (
           <p className="text-xs text-warning">{tr('You have unsaved changes on the Cover step — save them with “Save changes” on the last step. “Still available” confirms what is saved.', 'Bạn có thay đổi chưa lưu ở bước Dạy thay — hãy lưu bằng “Lưu thay đổi” ở bước cuối. “Vẫn còn rảnh” chỉ xác nhận lịch đã lưu.')}</p>
         )}

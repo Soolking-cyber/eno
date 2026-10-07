@@ -597,3 +597,24 @@ describe('<FacetBar> — only options that narrow are drawn', () => {
     expect(screen.getByText('Any type')).toBeTruthy()
   })
 })
+
+describe('the cover-area pill on the teachers cover browse (preview check, 2026-10-07)', () => {
+  const teachers = (customFilters: Record<string, string>) => props({ activeCategory: 'teachers', histogramQuery: 'category=teachers', customFilters })
+
+  it('puts a "Cover area" pill before Area once "Available for cover" is on — Area still filters where they live', () => {
+    renderIn('en', <FacetBar {...teachers({ cover: 'open' })} />)
+    const coverArea = screen.getByRole('combobox', { name: /cover area/i })
+    const area = screen.getByRole('button', { name: /^area$/i })
+    expect(coverArea.compareDocumentPosition(area) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('shows the picked area as "Cover area: <place>", in the page language, never machine-translated', () => {
+    renderIn('vi', <FacetBar {...teachers({ cover: 'open', coverArea: 'd1' })} />)
+    expect(screen.getByRole('combobox', { name: /khu vực dạy thay/i }).textContent).toContain('Khu vực dạy thay: Quận 1')
+  })
+
+  it('stays off the bar without the cover filter', () => {
+    renderIn('en', <FacetBar {...teachers({})} />)
+    expect(screen.queryByRole('combobox', { name: /cover area/i })).toBeNull()
+  })
+})

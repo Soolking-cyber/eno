@@ -88,6 +88,22 @@ function CountSentence({ name, nameVi, total, top }: { name: string; nameVi: str
   )
 }
 
+/**
+ * Cover lessons (2026-10-07): the school-side door — the explorer with "Available for cover" already on, where the
+ * district and free-period filters follow. ⛔ ITS OWN LINE UNDER THE LEDE, never inside it: the lede is clamped to two
+ * lines on a phone, and the link sat on lines 4–6, hidden behind "Show more" (preview check, 2026-10-07).
+ * rel="nofollow" + prefetch={false}: the house rule for links into `/?category=` (category-filters-link.tsx).
+ */
+export function TeacherCoverLink({ className }: { className?: string }) {
+  const { tr } = useLanguage()
+  return (
+    <p className={className}>
+      {/* LocalizedLink: `/` is the English-pinned home, so a Vietnamese reader must land on its `/vi` twin. */}
+      <LocalizedLink href="/?category=teachers&attr_cover=open" rel="nofollow" prefetch={false} className="font-semibold text-brand underline">{tr('Need a cover teacher? See who is free', 'Cần giáo viên dạy thay? Xem ai đang rảnh')}</LocalizedLink>
+    </p>
+  )
+}
+
 /** The second sentence: where the stock comes from, or — only where none of it is linked — the report sentence. */
 function Provenance({ slug, linked }: { slug?: string; linked: 'all' | 'most' | 'some' | 'none' }) {
   const { tr } = useLanguage()
@@ -102,11 +118,7 @@ function Provenance({ slug, linked }: { slug?: string; linked: 'all' | 'most' | 
       <>
         {tr('English and subject teachers looking for work in Vietnam. Schools and companies can message a teacher; their phone, email and CV are shared only when the teacher chooses to. ', 'Giáo viên tiếng Anh và các môn học đang tìm việc tại Việt Nam. Trường học và công ty có thể nhắn tin cho giáo viên; số điện thoại, email và CV chỉ được chia sẻ khi giáo viên đồng ý. ')}
         <Link href="/teachers/join" className="font-semibold text-brand underline">{tr('Teachers: create your free profile', 'Giáo viên: tạo hồ sơ miễn phí')}</Link>
-        {/* Cover lessons (2026-10-07): the school-side door — the explorer with the "Available for cover"
-            filter already on, where the district and free-period filters follow. */}
-        {' · '}
-        {/* LocalizedLink: `/` is the English-pinned home, so a Vietnamese reader must land on its `/vi` twin. */}
-        <LocalizedLink href="/?category=teachers&attr_cover=open" className="font-semibold text-brand underline">{tr('Need a cover teacher? See who is free', 'Cần giáo viên dạy thay? Xem ai đang rảnh')}</LocalizedLink>
+        {/* The schools' cover-lesson door is NOT here: this paragraph is clamped on a phone — TeacherCoverLink below. */}
       </>
     )
   }

@@ -18,8 +18,8 @@ import { Check } from '@/components/ui/icons'
 import { VndInput } from '@/components/marketplace/vnd-input'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import {
-  COVER_CITIES, COVER_DAYS, COVER_DAY_LABELS, COVER_PARTS, COVER_PART_LABELS, COVER_RATE_PRESETS,
-  coverAreasForCities, coverCitiesFor, coverSlotLabel,
+  COVER_CITIES, COVER_DAYS, COVER_PARTS, COVER_PART_LABELS, COVER_RATE_PRESETS,
+  coverAreasForCities, coverCitiesFor, coverDayShort, coverSlotLabel,
 } from '@/lib/teachers/cover'
 import type { TeacherErrors, TeacherInput } from '@/lib/teachers/profile'
 
@@ -51,6 +51,14 @@ function Block({ title, hint, children }: { title: string; hint?: string; childr
 export function CoverFields({ value, onChange, errors }: { value: CoverValue; onChange: (patch: CoverPatch) => void; errors: TeacherErrors }) {
   const { tr, lang } = useLanguage()
   const switchLabelId = useId()
+  // Each error is named, announced and tied to its control (preview check, 2026-10-07: they were bare paragraphs).
+  const errId = useId()
+  const errProps = (key: keyof TeacherErrors, part: string) =>
+    errors[key] ? { 'aria-invalid': true as const, 'aria-describedby': `${errId}-${part}` } : {}
+  // A GROUP of chips is not a control: aria-invalid is not supported on role=group (ARIA 1.2), so a group carries the
+  // description and a data marker the form's error reveal finds (teacher-form revealFirstError).
+  const groupErrProps = (key: keyof TeacherErrors, part: string) =>
+    errors[key] ? { 'data-invalid': '', 'aria-describedby': `${errId}-${part}` } : {}
   const err = (code: string | undefined): string =>
     code === 'required' ? tr('This is required.', 'Mục này là bắt buộc.')
       : code === 'rate_range' ? tr('Please enter a rate between 50,000 đ and 2,000,000 đ an hour.', 'Vui lòng nhập mức phí từ 50.000 đ đến 2.000.000 đ một giờ.')
@@ -87,7 +95,9 @@ export function CoverFields({ value, onChange, errors }: { value: CoverValue; on
       {value.coverOpen && (
         <>
           <Block title={tr('When are you usually free?', 'Bạn thường rảnh khi nào?')} hint={tr('Tap every period you can usually teach.', 'Chạm vào mọi buổi bạn thường có thể dạy.')}>
-            <div className="flex flex-wrap gap-2">
+            {/* gap-y-3, not gap-2: each small chip's tap-44 hit area reaches 6px past it, so two rows 8px apart overlapped
+                and a tap just under "Weekday afternoons" hit Clear and wiped every period (preview check, 2026-10-07). */}
+            <div className="flex flex-wrap gap-x-2 gap-y-3">
               {QUICK_PICKS.map((q) => (
                 <Chip key={q.key} size="sm" tone="neutral" className="relative tap-44" pressed={q.slots.every((s) => slots.has(s))} onPressedChange={(v) => quickPick(q.slots, v)}>
                   {tr(q.en, q.vi)}
@@ -99,7 +109,7 @@ export function CoverFields({ value, onChange, errors }: { value: CoverValue; on
                 </Chip>
               )}
             </div>
-            <div role="group" aria-label={tr('Free periods', 'Các buổi rảnh')} className="grid grid-cols-[3rem_repeat(3,minmax(0,1fr))] items-center gap-2">
+            <div role="group" aria-label={tr('Free periods', 'Các buổi rảnh')} {...groupErrProps('coverSlots', 'slots')} className="grid grid-cols-[3rem_repeat(3,minmax(0,1fr))] items-center gap-2">
               <span aria-hidden />
               {COVER_PARTS.map((p) => (
                 <span key={p} aria-hidden className="text-center text-xs font-semibold text-body">
@@ -109,7 +119,7 @@ export function CoverFields({ value, onChange, errors }: { value: CoverValue; on
               ))}
               {COVER_DAYS.map((d) => (
                 <div key={d} className="contents">
-                  <span aria-hidden className="text-sm font-semibold text-body">{lang === 'vi' ? COVER_DAY_LABELS[d].shortVi : tr(COVER_DAY_LABELS[d].shortEn, COVER_DAY_LABELS[d].shortVi)}</span>
+                  <span aria-hidden className="text-sm font-semibold text-body">{coverDayShort(d, lang)}</span>
                   {COVER_PARTS.map((p) => {
                     const slot = `${d}-${p}`
                     const on = slots.has(slot)
@@ -120,7 +130,7 @@ export function CoverFields({ value, onChange, errors }: { value: CoverValue; on
                         onPressedChange={(v) => toggleSlot(slot, v)}
                         size="md"
                         tone="neutral"
-                        aria-label={coverSlotLabel(slot, lang)}
+                        aria-label={tr(coverSlotLabel(slot, 'en'), coverSlotLabel(slot, 'vi'))}
                         className="min-h-11 w-full rounded-xl"
                       >
                         {on ? <Check className="size-4" /> : <span aria-hidden className="size-1.5 rounded-full bg-border" />}
@@ -130,25 +140,35 @@ export function CoverFields({ value, onChange, errors }: { value: CoverValue; on
                 </div>
               ))}
             </div>
-            {errors.coverSlots && <p className="text-sm text-destructive">{err(errors.coverSlots)}</p>}
+            {errors.coverSlots && <p id={`${errId}-slots`} role="alert" className="text-sm text-destructive">{err(errors.coverSlots)}</p>}
           </Block>
 
           <Block title={tr('Where can you teach a cover?', 'Bạn có thể dạy thay ở đâu?')} hint={tr('Pick the districts you can reach at short notice, or a whole city.', 'Chọn các quận bạn có thể đến gấp, hoặc cả thành phố.')}>
-            <div className="space-y-4">
+            <div role="group" aria-label={tr('Cover areas', 'Khu vực dạy thay')} {...groupErrProps('coverAreas', 'areas')} className="space-y-4">
                 {cities.map((k) => COVER_CITIES.find((c) => c.key === k)!).map((c) => (
-                  <div key={c.key} className="space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground">{placeName(c)}</p>
+                  // Each city is a group named by the city, and its city-wide chip carries the city in its OWN label ("All of
+                  // Hanoi"): twelve chips all reading "Anywhere in the city" told a screen reader nothing, and an aria-label
+                  // over that visible text broke Label-in-Name for voice control (preview checks, 2026-10-07).
+                  <div key={c.key} role="group" aria-labelledby={`${errId}-city-${c.key}`} className="space-y-2">
+                    <p id={`${errId}-city-${c.key}`} className="text-xs font-semibold text-muted-foreground">{placeName(c)}</p>
                     <div className="flex flex-wrap gap-2">
                       {areas.filter((a) => a.city === c.key).map((a) => (
-                        <Chip key={a.key} pressed={pickedAreas.has(a.key)} onPressedChange={(v) => toggleArea(a.key, v)} size="md" tone="neutral" className="relative tap-44">
-                          {a.cityWide ? tr('Anywhere in the city', 'Toàn thành phố') : placeName(a)}
+                        <Chip
+                          key={a.key}
+                          pressed={pickedAreas.has(a.key)}
+                          onPressedChange={(v) => toggleArea(a.key, v)}
+                          size="md"
+                          tone="neutral"
+                          className="relative tap-44"
+                        >
+                          {placeName(a)}
                         </Chip>
                       ))}
                     </div>
                   </div>
                 ))}
             </div>
-            {errors.coverAreas && <p className="text-sm text-destructive">{err(errors.coverAreas)}</p>}
+            {errors.coverAreas && <p id={`${errId}-areas`} role="alert" className="text-sm text-destructive">{err(errors.coverAreas)}</p>}
           </Block>
 
           <Block title={tr('Your hourly rate for a cover lesson', 'Mức phí dạy thay theo giờ')}>
@@ -161,20 +181,21 @@ export function CoverFields({ value, onChange, errors }: { value: CoverValue; on
               placeholder={tr('e.g. 300,000', 'vd. 300.000')}
               maxFactor={1_000_000}
               invalid={!!errors.coverRateVnd}
+              aria-describedby={errors.coverRateVnd ? `${errId}-rate` : undefined}
               aria-label={tr('Hourly rate for a cover lesson', 'Mức phí dạy thay theo giờ')}
               aria-required
             />
-            {errors.coverRateVnd && <p className="text-sm text-destructive">{err(errors.coverRateVnd)}</p>}
+            {errors.coverRateVnd && <p id={`${errId}-rate`} role="alert" className="text-sm text-destructive">{err(errors.coverRateVnd)}</p>}
           </Block>
 
           {/* ⛔ ITS OWN CONSENT (PDP Law 91/2025 — specific, unbundled, provable). The server records the time and
               the notice version (COVER_CONSENT_VERSION) — bump that version whenever these words change meaning. */}
           <div className="space-y-2">
             <label className="flex cursor-pointer items-start gap-2.5 text-sm leading-relaxed text-body">
-              <Checkbox checked={value.coverConsent} onChange={(v: boolean) => onChange({ coverConsent: v })} className="mt-0.5 h-5 w-5" />
+              <Checkbox checked={value.coverConsent} onChange={(v: boolean) => onChange({ coverConsent: v })} {...errProps('coverConsent', 'consent')} className="mt-0.5 h-5 w-5" />
               <span>{tr('Show my free periods, hourly rate and cover areas on my public profile, where schools and search engines can see them. Never my phone, email or address. I can switch cover off at any time. Required for cover.', 'Hiển thị các buổi rảnh, mức phí theo giờ và khu vực dạy thay trên hồ sơ công khai của tôi, nơi các trường và công cụ tìm kiếm có thể xem. Không bao giờ hiển thị số điện thoại, email hay địa chỉ. Tôi có thể tắt dạy thay bất cứ lúc nào. Bắt buộc để nhận dạy thay.')}</span>
             </label>
-            {errors.coverConsent && <p className="text-sm text-destructive">{err(errors.coverConsent)}</p>}
+            {errors.coverConsent && <p id={`${errId}-consent`} role="alert" className="text-sm text-destructive">{err(errors.coverConsent)}</p>}
           </div>
         </>
       )}

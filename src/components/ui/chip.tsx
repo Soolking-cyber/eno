@@ -62,6 +62,13 @@ type ChipBase = VariantProps<typeof chipVariants> & { className?: string; childr
  */
 const TOGGLE_MOTION =
   'transition-[color,background-color,box-shadow,scale] duration-[160ms] ease-spring-snappy active:scale-[0.97] active:duration-[60ms]'
+/**
+ * ⛔ AN UNPRESSED TOGGLE MUST NOT HOVER INTO THE PRESSED LOOK (preview check, 2026-10-07). The neutral tone hovers to
+ * bg-accent / text-accent-foreground — the very tokens of `data-pressed`, so on a desktop a hovered free period read as
+ * picked. Toggles in the neutral tone only: an action chip has no pressed state to be confused with, and the other tones
+ * keep their own hover.
+ */
+const TOGGLE_HOVER = 'not-data-pressed:hover:bg-muted not-data-pressed:hover:text-foreground'
 
 export function Chip(
   props:
@@ -74,7 +81,7 @@ export function Chip(
       <Toggle
         pressed={pressed}
         onPressedChange={onPressedChange}
-        className={cn(chipVariants({ size, tone }), TOGGLE_MOTION, className)}
+        className={cn(chipVariants({ size, tone }), TOGGLE_MOTION, (tone ?? 'neutral') === 'neutral' && TOGGLE_HOVER, className)}
         {...rest}
       >
         {children}

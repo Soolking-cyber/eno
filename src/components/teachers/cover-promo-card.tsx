@@ -21,7 +21,7 @@ export function CoverPromoCard({ className }: { className?: string }) {
       <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
         <Link href="/teachers/cover" className="font-semibold text-brand underline"><Bilingual en="How it works" vi="Cách hoạt động" /></Link>
         {/* `/` is the English-pinned home — LocalizedLink sends a Vietnamese reader to its `/vi` twin. */}
-        <LocalizedLink href="/?category=teachers&attr_cover=open" className="font-semibold text-brand underline"><Bilingual en="Schools: find a cover teacher" vi="Trường học: tìm giáo viên dạy thay" /></LocalizedLink>
+        <LocalizedLink href="/?category=teachers&attr_cover=open" rel="nofollow" prefetch={false} className="font-semibold text-brand underline"><Bilingual en="Schools: find a cover teacher" vi="Trường học: tìm giáo viên dạy thay" /></LocalizedLink>
       </p>
     </section>
   )

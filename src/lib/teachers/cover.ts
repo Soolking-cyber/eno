@@ -25,16 +25,17 @@ export type CoverPart = (typeof COVER_PARTS)[number]
  */
 export const COVER_SLOTS: readonly string[] = COVER_DAYS.flatMap((d) => COVER_PARTS.map((p) => `${d}-${p}`))
 
-// `shortEn`/`shortVi`, not `enShort`: scripts/gen-ui-strings.mjs harvests an `…En`/`…Vi` pair, so the short labels reach
-// the nine machine-translated languages pre-warmed (gate review, 2026-10-07).
-export const COVER_DAY_LABELS: Record<CoverDay, { en: string; vi: string; shortEn: string; shortVi: string }> = {
-  mon: { en: 'Monday', vi: 'Thứ 2', shortEn: 'Mon', shortVi: 'T2' },
-  tue: { en: 'Tuesday', vi: 'Thứ 3', shortEn: 'Tue', shortVi: 'T3' },
-  wed: { en: 'Wednesday', vi: 'Thứ 4', shortEn: 'Wed', shortVi: 'T4' },
-  thu: { en: 'Thursday', vi: 'Thứ 5', shortEn: 'Thu', shortVi: 'T5' },
-  fri: { en: 'Friday', vi: 'Thứ 6', shortEn: 'Fri', shortVi: 'T6' },
-  sat: { en: 'Saturday', vi: 'Thứ 7', shortEn: 'Sat', shortVi: 'T7' },
-  sun: { en: 'Sunday', vi: 'Chủ nhật', shortEn: 'Sun', shortVi: 'CN' },
+// ⚠️ `enShort`/`viShort` are deliberately NOT an `…En`/`…Vi` pair: gen-ui-strings would harvest them, and a bare "Mon" or
+// "Sun" through machine translation came back as ko "my" and "the sun" (preview check, 2026-10-07). The other UI languages
+// get their weekday names from Intl instead — coverDayShort below.
+export const COVER_DAY_LABELS: Record<CoverDay, { en: string; vi: string; enShort: string; viShort: string }> = {
+  mon: { en: 'Monday', vi: 'Thứ 2', enShort: 'Mon', viShort: 'T2' },
+  tue: { en: 'Tuesday', vi: 'Thứ 3', enShort: 'Tue', viShort: 'T3' },
+  wed: { en: 'Wednesday', vi: 'Thứ 4', enShort: 'Wed', viShort: 'T4' },
+  thu: { en: 'Thursday', vi: 'Thứ 5', enShort: 'Thu', viShort: 'T5' },
+  fri: { en: 'Friday', vi: 'Thứ 6', enShort: 'Fri', viShort: 'T6' },
+  sat: { en: 'Saturday', vi: 'Thứ 7', enShort: 'Sat', viShort: 'T7' },
+  sun: { en: 'Sunday', vi: 'Chủ nhật', enShort: 'Sun', viShort: 'CN' },
 }
 
 /** Evening is not an afterthought: Vietnam's language centres teach most of their classes 17:30–21:00. */
@@ -49,6 +50,22 @@ export function parseCoverSlot(slot: string): { day: CoverDay; part: CoverPart }
   return (COVER_DAYS as readonly string[]).includes(d) && (COVER_PARTS as readonly string[]).includes(p)
     ? { day: d as CoverDay, part: p as CoverPart }
     : null
+}
+
+/**
+ * A weekday's short name in the reader's language: the authored labels for English and Vietnamese, and for every
+ * machine-translated UI language its own name from Intl — never MT, which read a bare "Mon"/"Wed"/"Sun" as ko "my",
+ * "marriage", "the sun" (preview check, 2026-10-07). 2024-01-01 was a Monday.
+ */
+export function coverDayShort(day: CoverDay, lang: string): string {
+  const own = COVER_DAY_LABELS[day]
+  if (lang === 'vi') return own.viShort
+  if (lang === 'en') return own.enShort
+  try {
+    return new Intl.DateTimeFormat(lang, { weekday: 'short', timeZone: 'UTC' }).format(new Date(Date.UTC(2024, 0, 1 + COVER_DAYS.indexOf(day))))
+  } catch {
+    return own.enShort
+  }
 }
 
 /** "Monday morning" / "Sáng Thứ 2" — Vietnamese names the part of the day first. */
@@ -169,6 +186,48 @@ export function coverCitiesFor(currentCity: string, preferredCities: readonly st
 export function coverStamp(c: { coverOpen: boolean; coverSlots?: readonly string[] | null; coverAreas?: readonly string[] | null; coverRateVnd: number | null }): string {
   // SORTED: the form keeps tap order and the server stores canonical order — the same set must stamp the same.
   return [c.coverOpen ? 1 : 0, [...(c.coverSlots ?? [])].sort().join(','), [...(c.coverAreas ?? [])].sort().join(','), c.coverRateVnd ?? ''].join('|')
+}
+
+/** The cover as last SAVED, as an edit form holds it (teacher-form `savedCover`): the stale-window base. `consentCurrent`:
+ *  saved under today's notice (COVER_CONSENT_VERSION). */
+export type SavedCover = { coverOpen: boolean; coverSlots: string[]; coverAreas: string[]; coverRateVnd: number | null; consentCurrent: boolean }
+type CoverForm = { coverOpen: boolean; coverSlots: string[]; coverAreas: string[]; coverRateVnd: number | null; coverConsent: boolean }
+const NO_COVER: SavedCover = { coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, consentCurrent: false }
+
+/**
+ * ⛔ A STALE WINDOW'S RE-READ: WHAT THE TEACHER DID NOT TOUCH FOLLOWS THE SERVER; WHAT THEY CHANGED STAYS THEIRS — field
+ * by field (gate reviews, 2026-10-07). After a 409 cover_changed the form re-reads the saved cover (`fresh`) and merges
+ * it with what it shows (`cur`) against what it loaded (`base`; null = loaded no profile, i.e. no cover). Judged for the
+ * whole section, an edited rate kept stale areas too and the next save overwrote another window's areas.
+ * The tick follows the same rule with one more: it NEVER CROSSES A WITHDRAWAL — given or removed here it stays the
+ * teacher's, unless cover was switched off in another window since this one loaded (a tick shown here cannot have
+ * answered that); untouched, it follows whether the saved consent stands. Never a consent recorded after a withdrawal
+ * the teacher did not see, never a tick they removed put back.
+ */
+export function mergeStaleCover(cur: CoverForm, base: SavedCover | null, fresh: SavedCover): {
+  cover: CoverForm
+  /** Nothing differs from what was loaded, the tick included — the form now simply shows the saved version. */
+  untouched: boolean
+  /** Cover stays on in the form but the tick was taken away: the line must ask for it again. */
+  reconsent: boolean
+} {
+  const b = base ?? NO_COVER
+  const sameList = (x: readonly string[], y: readonly string[]) => [...x].sort().join(',') === [...y].sort().join(',')
+  const baseTick = b.coverOpen && b.consentCurrent
+  const withdrawn = b.coverOpen && !fresh.coverOpen
+  const cover: CoverForm = {
+    coverOpen: cur.coverOpen === b.coverOpen ? fresh.coverOpen : cur.coverOpen,
+    coverSlots: sameList(cur.coverSlots, b.coverSlots) ? fresh.coverSlots : cur.coverSlots,
+    coverAreas: sameList(cur.coverAreas, b.coverAreas) ? fresh.coverAreas : cur.coverAreas,
+    coverRateVnd: (cur.coverRateVnd ?? null) === (b.coverRateVnd ?? null) ? fresh.coverRateVnd : cur.coverRateVnd,
+    coverConsent: cur.coverConsent === baseTick ? fresh.coverOpen && fresh.consentCurrent : cur.coverConsent && !withdrawn,
+  }
+  return {
+    cover,
+    // The tick counts: a consent given or removed here is the teacher's change, and the line must say so (gate review).
+    untouched: coverStamp(cur) === coverStamp(b) && cur.coverConsent === baseTick,
+    reconsent: cover.coverOpen && cur.coverConsent && !cover.coverConsent,
+  }
 }
 
 /** The areas the form offers for those cities, in display order. */

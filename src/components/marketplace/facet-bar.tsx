@@ -1,7 +1,7 @@
 'use client'
 
 import { fillTemplate } from '@/lib/i18n/placeholders'
-import { useEffect, useId, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
+import { isValidElement, useEffect, useId, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
 import { MapPin, ChevronDown, SlidersHorizontal, X } from '@/components/ui/icons'
 import { CustomSelect } from './custom-select'
 import { PriceRangeFilter } from './price-range-filter'
@@ -605,6 +605,48 @@ export function FacetBar({
   // condition maps to the dedicated column; everything else to attr_* customFilters.
   const facetValue = (f: FacetDef) => (f.key === 'condition' ? conditionFilter : customFilters[f.key] || 'all')
   const setFacetValue = (f: FacetDef, v: string) => { if (f.key === 'condition') setConditionFilter(v); else setFacet(f.key, v) }
+
+  /**
+   * ⛔ COVER AREA, A PILL OF ITS OWN ON THE COVER BROWSE (preview check, 2026-10-07). With "Available for cover" on,
+   * the Area pill still filters where a teacher LIVES, while a school looking for a cover wants where they will TRAVEL
+   * — and that facet was reachable only inside Filter. So the cover-area facet gets a pill just before Area, labelled
+   * as such; Area stays (a school may want a local teacher too). The same value as the panel's group, so the two
+   * cannot disagree — the Condition pill's pattern.
+   */
+  // Also while an area is still set with the cover filter off: a set filter keeps its pill (the Condition pill's rule).
+  const coverAreaFacet = activeCategory === 'teachers' && (customFilters.cover === 'open' || (!!customFilters.coverArea && customFilters.coverArea !== 'all'))
+    ? advFacets.find((f) => f.key === 'coverArea')
+    : undefined
+  if (coverAreaFacet) {
+    const value = facetValue(coverAreaFacet)
+    const dim = facetDimension(coverAreaFacet)
+    const offered = offeredKeys(dim, coverAreaFacet.options.map((o) => o.value), value, { hideNoOp: true })
+    // i18n-invariant: cover areas are places — their own English or Vietnamese name, never machine-translated.
+    const opts = coverAreaFacet.options.filter((o) => offered.includes(o.value)).map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))
+    const title = tr('Cover area', 'Khu vực dạy thay')
+    if (opts.length || value !== 'all') {
+      // By the Area pill's own key, found NOW — never an index captured 200 lines earlier that a later insert would skew.
+      const areaAt = facets.findIndex((el) => isValidElement(el) && el.key === 'area')
+      facets.splice(areaAt >= 0 ? areaAt : facets.length, 0, (
+        <CustomSelect
+          key="coverArea"
+          value={value}
+          onChange={(v) => setFacetValue(coverAreaFacet, v)}
+          options={[
+            { value: 'all', label: labelWithCount(tr('All', 'Tất cả'), allCount(dim), lang) },
+            ...opts.map((o) => ({ value: o.value, label: labelWithCount(o.label, chipCount(dim, o.value), lang) })),
+          ]}
+          triggerLabel={value === 'all' ? title : `${title}: ${opts.find((o) => o.value === value)?.label ?? value}`}
+          label={title}
+          placeholder={title}
+          indicator="down"
+          className={cls}
+          activeClassName={active}
+          wrapperClassName={wrap}
+        />
+      ))
+    }
+  }
 
   // The Filter pill. One element for both containers, so the trigger never differs between them.
   const filterTrigger = (

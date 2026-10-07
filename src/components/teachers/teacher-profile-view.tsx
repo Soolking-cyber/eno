@@ -16,7 +16,8 @@ import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Check } from '@/components/ui/icons'
-import { COVER_CONSENT_VERSION, COVER_DAYS, COVER_DAY_LABELS, COVER_PARTS, COVER_PART_LABELS, coverAreaLabel, coverSlotLabel } from '@/lib/teachers/cover'
+import { COVER_CONSENT_VERSION, COVER_DAYS, COVER_PARTS, COVER_PART_LABELS, coverAreaLabel, coverSlotLabel } from '@/lib/teachers/cover'
+import { CoverDayShort } from '@/components/teachers/cover-day'
 import { formatCalendarDay } from '@/lib/calendar-day'
 
 type Opt = { value: string; label: string }
@@ -126,10 +127,12 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
                 <Table className="table-fixed">
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-16"><span className="sr-only"><Bilingual en="Day" vi="Ngày" /></span></TableHead>
+                      {/* Narrower below 360px, and the part labels a size down there: "Afternoon" is one word and cannot wrap,
+                          and at 320px it overran its column into "Evening" (preview check, 2026-10-07). */}
+                      <TableHead className="w-12 min-[360px]:w-16"><span className="sr-only"><Bilingual en="Day of the week" vi="Ngày trong tuần" /></span></TableHead>
                       {COVER_PARTS.map((p) => (
-                        <TableHead key={p} className="text-center">
-                          <Bilingual en={COVER_PART_LABELS[p].en} vi={COVER_PART_LABELS[p].vi} />
+                        <TableHead key={p} className="whitespace-normal px-1 text-center">
+                          <span className="text-xs min-[360px]:text-sm"><Bilingual en={COVER_PART_LABELS[p].en} vi={COVER_PART_LABELS[p].vi} /></span>
                           <span className="block text-xs font-normal text-muted-foreground">{COVER_PART_LABELS[p].hours}</span>
                         </TableHead>
                       ))}
@@ -138,7 +141,7 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
                   <TableBody>
                     {COVER_DAYS.map((d) => (
                       <TableRow key={d} className="hover:bg-transparent">
-                        <TableHead scope="row" className="font-semibold"><Bilingual en={COVER_DAY_LABELS[d].shortEn} vi={COVER_DAY_LABELS[d].shortVi} /></TableHead>
+                        <TableHead scope="row" className="font-semibold"><CoverDayShort day={d} /></TableHead>
                         {COVER_PARTS.map((p) => {
                           const slot = `${d}-${p}`
                           return (
@@ -154,7 +157,7 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
                   </TableBody>
                 </Table>
                 <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground"><Bilingual en="Can cover in" vi="Có thể dạy thay tại" /></p>
+                  <p className="text-sm text-muted-foreground"><Bilingual en="Can travel to" vi="Có thể đến dạy tại" /></p>
                   {/* Place names in the page's language, never machine-translated (PlaceName's rule). */}
                   <ul className="flex flex-wrap gap-2">
                     {cover.areas.map((a) => <li key={a} className="rounded-full bg-background px-3 py-1 text-sm text-body">{coverAreaLabel(a, lang)}</li>)}
@@ -162,7 +165,7 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
                 </div>
                 <p className="text-xs text-muted-foreground">
                   <Bilingual en="This is the teacher's usual week. Message them to agree a date, time and place." vi="Đây là lịch thường lệ của giáo viên. Hãy nhắn tin để thống nhất ngày, giờ và địa điểm." />
-                  {cover.confirmedAt && <>{' '}<Bilingual en="Confirmed on {date}." vi="Xác nhận ngày {date}." values={{ date: formatCalendarDay(cover.confirmedAt.toISOString(), lang) }} /></>}
+                  {cover.confirmedAt && <>{' '}<Bilingual en="Confirmed on {date}." vi="Xác nhận ngày {date}." values={{ date: formatCalendarDay(cover.confirmedAt.toISOString(), lang) }} datesIso={{ date: cover.confirmedAt.toISOString().slice(0, 10) }} /></>}
                 </p>
               </section>
             )}
