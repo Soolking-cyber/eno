@@ -715,6 +715,7 @@ export const UI_STRINGS: string[] = [
   "Couldn't refresh your messages, so this list may be out of date.",
   "Couldn't save that — try again",
   "Couldn't send — please try again.",
+  "Couldn’t load more listings.",
   "Couldn’t load new data",
   "Couldn’t load this conversation.",
   "Couldn’t load your listings",

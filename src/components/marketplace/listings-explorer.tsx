@@ -2201,7 +2201,7 @@ export function ListingsExplorer({
   }, [baseParamsString, lang, spellOn, selectedBuilding, activeCategory, activeSubcategory])
   /** The result set the CURRENT key asks for — the provenance of any non-placeholder answer. */
   const liveSig = resultSetSig(listingsQueryKey)
-  const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isPlaceholderData: queryShowingStaleSet, isError: queryError, refetch: refetchListings } = useQuery({
+  const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isPlaceholderData: queryShowingStaleSet, isError: queryError, isPaused: queryPaused, refetch: refetchListings } = useQuery({
     queryKey: listingsQueryKey,
     queryFn: fetchFeedPage,
     placeholderData: (previousData) => previousData,
@@ -3084,6 +3084,23 @@ export function ListingsExplorer({
    * again is the safe side of that trade.
    */
   const failedWithoutAnswer = queryError && page === 1 && listingsData === undefined
+  /**
+   * ⛔ A LOAD-MORE PAGE WITH NO ANSWER OF ITS OWN STOPS THE FEED THERE (Emil-skills audit, split out of tier 1 #4).
+   * Page N failed (after its retry) or is waiting for the network (paused offline). The observer re-armed the
+   * moment `queryFetching` went false, and a reader still at the bottom paged straight on to N+1: page N's rows
+   * skipped for good (measured in listings-explorer.feed-ux.test.tsx: rows 0–11 then 24–35), and with every
+   * request failing it walked the catalogue a page at a time. Now nothing pages past it — the sentinel is not
+   * observed and "Load more" is not offered — and the footer says so with a Try again that asks for page N
+   * again. Offline it simply waits: React Query resumes the paused fetch on reconnect, and the app-wide offline
+   * banner already says why. (The cap's "Load more" needs no gate of its own: pressing it raises the ceiling, so
+   * it is never on screen beside a page that failed after it.)
+   * ⚠️ `listingsData === undefined`, NOT `queryError` alone: a page that HAS its answer and whose background
+   * refetch failed keeps that answer (`data` stays defined) — stopping there would end the feed over good rows.
+   * ⚠️ A Try again's refetch puts the page back to pending (no data of its own → status 'pending', the
+   * placeholder again), so for its duration this is false and the page's skeleton cells show — its own loading
+   * state; a second failure brings the row back.
+   */
+  const pageWithoutAnswer = page > 1 && ((queryError && listingsData === undefined) || (queryPaused && queryShowingStaleSet))
 
   /**
    * E-SSR (see `awaitingUrlAnswer`): the URL's answer is in hand once page 1 of the CURRENT key has
@@ -3304,6 +3321,8 @@ export function ListingsExplorer({
     if (query.trim() !== debouncedQuery.trim()) return
     // Nor while a cold deep link's seed is still masked (E-SSR): those rows are not this URL's answer.
     if (seedMasked) return
+    // Nor past a page that has no answer of its own — it would be skipped for good (see `pageWithoutAnswer`).
+    if (pageWithoutAnswer) return
     const isMap = viewMode === 'map'
     // ⚠️ THE WINDOW IS THE ROOT IN EVERY VIEW NOW (E-MAP, 2026-09-29). The desktop map list used to be
     // its own scroll box and this observed against it; the list scrolls with the page since, so its
@@ -3321,7 +3340,7 @@ export function ListingsExplorer({
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [hasMore, queryFetching, prefetchNextPage, viewMode, showDiscovery, feedUnlocked, query, debouncedQuery, listings.length, autoLoadCeiling, seedMasked])
+  }, [hasMore, queryFetching, prefetchNextPage, viewMode, showDiscovery, feedUnlocked, query, debouncedQuery, listings.length, autoLoadCeiling, seedMasked, pageWithoutAnswer])
 
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
@@ -3514,6 +3533,18 @@ export function ListingsExplorer({
         </Button>
       }
     />
+  )
+
+  // A load-more page that failed (see `pageWithoutAnswer`): said where its rows would have been, with the one
+  // way on — asking for THAT page again. `role="alert"` on the text, as the page-1 error state above does, so
+  // the reader who scrolled into it is told; the button is not in it. tap-44: the sm button draws 32px.
+  const renderMoreError = (className?: string) => (
+    <div className={cn('flex flex-col items-center gap-3 text-center', className)}>
+      <p className="text-sm text-muted-foreground"><span role="alert">{tr('Couldn’t load more listings.', 'Không tải thêm được tin đăng.')}</span></p>
+      <Button variant="outline" size="sm" className="relative tap-44" onClick={() => { void refetchListings() }}>
+        {tr('Try again', 'Thử lại')}
+      </Button>
+    </div>
   )
 
   // ── THE TYPEAHEAD'S PANEL / LISTBOX DERIVATIONS ─────────────────────────────────────
@@ -5197,6 +5228,7 @@ export function ListingsExplorer({
                         list no longer scrolls on its own). ⚠️ Never `hidden` (the landmine rule). */}
                     {!nearby && (
                       <div ref={mapSentinelRef} className="col-span-full select-none py-2">
+                        {pageWithoutAnswer && queryError && renderMoreError('py-2')}
                         {queryFetching && hasMore && (
                           <div className="flex items-center justify-center gap-2 text-xs font-semibold text-muted-foreground">
                             <Spinner size="sm" className="border-border border-t-brand" />
@@ -5323,6 +5355,7 @@ export function ListingsExplorer({
                   client-side: there is no further page to fetch. */}
               {!nearby && viewMode !== 'map' && (
                 <div ref={loadMoreRef} className="mt-6 select-none">
+                  {pageWithoutAnswer && queryError && <div className="border-t border-border pt-6">{renderMoreError()}</div>}
                   {/* ⚠️ THE BUTTON AND THE SPINNER ARE MUTUALLY EXCLUSIVE AND BOTH KEY OFF THE SAME
                       CONDITION, or the footer swaps a 44px button for a ~19px spinner and shifts the
                       page. Gated on a fetch that is actually LOADING MORE (page > 1) rather than any
