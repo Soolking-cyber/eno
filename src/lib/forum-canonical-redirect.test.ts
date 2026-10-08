@@ -41,8 +41,8 @@ describe('next.config redirects — the forum apex moves to www', () => {
     expect(resolve('eno.forum', '/auth/google/callback', { code: 'c', state: 's' })).toMatchObject({ to: 'https://www.eno.forum/auth/google/callback', query: { code: 'c', state: 's' } })
   })
 
-  it('⛔ what a redirect would break stays on the apex: the API, the build\'s chunks, .well-known, the service worker', () => {
-    for (const p of ['/api', '/api/push/subscribe', '/api/forum/posts', '/_next', '/_next/static/chunks/main.js', '/.well-known', '/.well-known/oauth-authorization-server', '/.well-known/assetlinks.json', '/sw.js']) {
+  it('⛔ what a redirect would break stays on the apex: the API, the build\'s chunks, .well-known, the service worker, the feeds and images machines fetch', () => {
+    for (const p of ['/api', '/api/push/subscribe', '/api/forum/posts', '/_next', '/_next/static/chunks/main.js', '/.well-known', '/.well-known/oauth-authorization-server', '/.well-known/assetlinks.json', '/sw.js', '/feeds/facebook-catalog.csv', '/feeds/google-shopping.xml', '/listing-images/abc.webp']) {
       expect(resolve('eno.forum', p), p).toBeNull()
     }
   })

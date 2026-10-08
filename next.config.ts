@@ -913,6 +913,9 @@ const nextConfig: NextConfig = {
        *   · `api/` — a 308 fails a CORS preflight (src/lib/forum/cors.ts names the apex), and webhooks and the box's
        *     own jobs need not follow one;
        *   · `_next/` — an apex page still open requests its own chunks;
+       *   · `feeds/` and `listing-images/` — fetched by machines, not people: the forum's Meta catalog replaces itself
+       *     from https://eno.forum/feeds/facebook-catalog.csv, and a fetcher that does not follow a 308 would leave the
+       *     catalog stale without a word (review);
        *   · `.well-known/` — documents about the apex itself (the OAuth metadata says so in its own route);
        *   · `sw.js` — a service worker's update refuses a redirected script, and the apex's worker MUST update: it
        *     retires the apex's push subscription, which no page there can manage any more (public/sw.js).
@@ -923,7 +926,7 @@ const nextConfig: NextConfig = {
        */
       {
         // Each excluded prefix as a whole segment, its bare root included (`/api` as well as `/api/…` — review).
-        source: '/:path((?!(?:api|_next|\\.well-known)(?:/|$)|sw\\.js$).*)',
+        source: '/:path((?!(?:api|_next|\\.well-known|feeds|listing-images)(?:/|$)|sw\\.js$).*)',
         has: [{ type: 'host', value: 'eno.forum' }],
         destination: 'https://www.eno.forum/:path',
         permanent: true,
