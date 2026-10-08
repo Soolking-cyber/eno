@@ -7,6 +7,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 // Extracted, then two fixes (2026-10-05): the PROMPT comes first, inside the tap (Safari ties it to the user's
 // activation; a first service-worker install can outlast it), and "granted" without a subscription offers the button.
 
+vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
 // Set before the import: the pre-extraction row read the key at MODULE scope.
 const prevVapid = vi.hoisted(() => { const prev = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY; process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = 'AQID'; return prev })

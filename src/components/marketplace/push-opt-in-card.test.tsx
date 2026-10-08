@@ -319,7 +319,7 @@ describe('PushOptInCard — Turn on', () => {
     await mount(<PushOptInCard surface="post" />)
     await act(async () => { fireEvent.click(turnOn()!) })
     // permissionFirst: the prompt is the tap's first call (push-subscribe.test.ts pins the order).
-    expect(h.subscribe).toHaveBeenCalledWith({ permissionFirst: true })
+    expect(h.subscribe).toHaveBeenCalledWith({ permissionFirst: true, account: 'u1' }) // the account at the tap (F9)
     expect(card()).toBeNull()
     expect(h.toast.success).toHaveBeenCalledWith('Notifications are on for this device')
   })

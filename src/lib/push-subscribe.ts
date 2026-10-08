@@ -11,6 +11,7 @@
 // results. Copy that promises "new messages" would be false.
 
 import { isNativeShell } from './native-browser'
+import { actingAccountHeaders } from '@/lib/api/acting-account'
 import { inAppHost, isIOS } from './in-app-browser'
 import { NATIVE_UA_RE } from './consent-value'
 import { logError } from './log'
@@ -203,7 +204,7 @@ export async function hasPushSubscription(): Promise<boolean | null> {
  * 'denied' / 'default'  the browser prompt was refused / closed without an answer.
  * 'failed'   something threw (service worker refused, push service error, network).
  */
-export type SubscribeOutcome = PushPermission | 'unsaved' | 'failed'
+export type SubscribeOutcome = PushPermission | 'unsaved' | 'failed' | 'account_changed'
 
 /**
  * THE ONE SUBSCRIBE CALL. Default order is the Settings row's original one: register /sw.js → wait for it →
@@ -222,7 +223,7 @@ export type SubscribeOutcome = PushPermission | 'unsaved' | 'failed'
  * the tap can be retried (a retry reuses the subscription and POSTs it again), and sign-out tears the
  * subscription down (auth-context.tsx), after which the card asks again.
  */
-export async function subscribeToPush(opts: { permissionFirst?: boolean; vapidKey?: string } = {}): Promise<SubscribeOutcome> {
+export async function subscribeToPush(opts: { permissionFirst?: boolean; vapidKey?: string; account?: string | null } = {}): Promise<SubscribeOutcome> {
   const vapid = opts.vapidKey ?? vapidPublicKey()
   const ask = async (): Promise<PushPermission> => {
     const p = await Notification.requestPermission()
@@ -248,8 +249,19 @@ export async function subscribeToPush(opts: { permissionFirst?: boolean; vapidKe
       await sub.unsubscribe().catch((e) => logError(e, { op: 'push.unsubscribeRotatedKey' }))
       sub = null
     }
+    const created = !sub
     sub = sub || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: wanted as BufferSource })
-    const res = await fetch(PUSH_SUBSCRIBE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub.toJSON()) })
+    // Names the account signed in AT THE TAP (F9): a prompt left open across an account switch must not subscribe the
+    // next account — the server refuses (409) a tap made for another account than the cookie's.
+    const res = await fetch(PUSH_SUBSCRIBE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json', ...actingAccountHeaders(opts.account ?? null) }, body: JSON.stringify(sub.toJSON()) })
+    if (res.status === 409) {
+      // Refused: the tap was made for another account than the one now signed in (F9). A subscription this call
+      // created is nobody's, so it goes — it would read "on" here with nothing delivered. One it reused stays: it may
+      // be someone's, and the sign-in guard (push-account-guard.ts) decides about it. The UIs answer silently: the
+      // account now at the device never tapped.
+      if (created) await sub.unsubscribe().catch(() => false)
+      return 'account_changed'
+    }
     return res.ok ? 'granted' : 'unsaved'
   } catch {
     return 'failed'

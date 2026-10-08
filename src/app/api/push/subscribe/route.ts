@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
+import { actingAccountMismatch } from '@/lib/api/acting-account'
 import { isAllowedPushEndpoint } from '@/lib/ssrf'
 
 export const runtime = 'nodejs'
@@ -22,7 +23,14 @@ export const dynamic = 'force-dynamic'
 //
 // ⚠️ NOT BYTE-IDENTICAL ON ONE BRANCH: the upsert has no `.catch()`, so a DB rejection was an
 // unhandled throw (Next's default 500) and is now `{"error":"internal_error"}` 500.
+//
+// ⛔ A SUBSCRIPTION IS SAVED ONLY FOR THE ACCOUNT THAT TAPPED (F9). The tap's permission prompt can stay open across an
+// account switch (another tab, the "session ended" card); the POST then carried the NEXT account's cookie, and the
+// subscription was saved for an account that never opted in on this device. The client names the account signed in
+// at the tap (F1's x-eno-acting-account); another account's tap is refused before anything is written. No header is
+// an older client, allowed as in F1.
 export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
+  if (actingAccountMismatch(req, profile.id)) throw new ApiError('account_changed', 409)
   let body: { endpoint?: string; keys?: { p256dh?: string; auth?: string } }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
 

@@ -197,7 +197,7 @@ describe('readPushEnv', () => {
 })
 
 type Sub = { options: { applicationServerKey: ArrayBuffer | null }; unsubscribe: ReturnType<typeof vi.fn>; toJSON: () => unknown }
-function browser(opts: { permission?: NotificationPermission; existing?: Sub | null; fetchOk?: boolean; registerThrows?: boolean } = {}) {
+function browser(opts: { permission?: NotificationPermission; existing?: Sub | null; fetchOk?: boolean; fetchStatus?: number; registerThrows?: boolean } = {}) {
   const order: string[] = []
   const fresh: Sub = { options: { applicationServerKey: urlBase64ToUint8Array('AQID').buffer as ArrayBuffer }, unsubscribe: vi.fn(async () => true), toJSON: () => ({ endpoint: 'https://fcm.googleapis.com/fcm/send/new', keys: { p256dh: 'p', auth: 'a' } }) }
   const pushManager = {
@@ -213,7 +213,7 @@ function browser(opts: { permission?: NotificationPermission; existing?: Sub | n
   define(navigator, 'serviceWorker', sw)
   const requestPermission = vi.fn(async () => { order.push('permission'); return opts.permission ?? 'granted' })
   vi.stubGlobal('Notification', { permission: 'default', requestPermission })
-  const fetchMock = vi.fn(async () => { order.push('post'); return { ok: opts.fetchOk ?? true } })
+  const fetchMock = vi.fn(async () => { order.push('post'); return { ok: opts.fetchStatus ? opts.fetchStatus < 300 : opts.fetchOk ?? true, status: opts.fetchStatus ?? 200 } })
   vi.stubGlobal('fetch', fetchMock)
   return { order, sw, pushManager, requestPermission, fetchMock, fresh }
 }
@@ -228,6 +228,24 @@ describe('subscribeToPush — the one subscribe call', () => {
     expect(b.sw.register).toHaveBeenCalledWith(PUSH_SW_URL)
     expect(b.pushManager.subscribe).toHaveBeenCalledWith({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array('AQID') })
     expect(b.fetchMock).toHaveBeenCalledWith(PUSH_SUBSCRIBE_URL, expect.objectContaining({ method: 'POST', body: JSON.stringify(b.fresh.toJSON()) }))
+  })
+
+  it('⛔ the POST names the account signed in at the tap (F9) — and none when no account is known', async () => {
+    const b = browser()
+    expect(await subscribeToPush({ permissionFirst: true, account: 'u-a' })).toBe('granted')
+    expect(((b.fetchMock.mock.calls as unknown as [string, RequestInit][])[0][1]).headers).toMatchObject({ 'x-eno-acting-account': 'u-a' })
+    expect(await subscribeToPush({ permissionFirst: true })).toBe('granted')
+    expect(((b.fetchMock.mock.calls as unknown as [string, RequestInit][])[1][1]).headers).not.toHaveProperty('x-eno-acting-account')
+  })
+
+  it('⛔ refused for another account (409): a subscription this call created is dropped; one it reused stays', async () => {
+    const made = browser({ fetchStatus: 409 })
+    expect(await subscribeToPush({ permissionFirst: true, account: 'u-a' })).toBe('account_changed')
+    expect(made.fresh.unsubscribe).toHaveBeenCalledTimes(1)
+    const existing = { options: { applicationServerKey: urlBase64ToUint8Array('AQID').buffer as ArrayBuffer }, unsubscribe: vi.fn(async () => true), toJSON: () => ({ endpoint: 'https://fcm.googleapis.com/fcm/send/old', keys: { p256dh: 'p', auth: 'a' } }) }
+    browser({ fetchStatus: 409, existing })
+    expect(await subscribeToPush({ permissionFirst: true, account: 'u-a' })).toBe('account_changed')
+    expect(existing.unsubscribe).not.toHaveBeenCalled()
   })
 
   it('permissionFirst (the card): the prompt is the first thing the tap does', async () => {
@@ -328,7 +346,7 @@ describe('subscribeToPush — a subscription the server did not confirm stays (t
     expect(b.fresh.unsubscribe).not.toHaveBeenCalled()
     // The retry: the browser now holds that subscription with this key — reused, not re-created.
     b.pushManager.getSubscription.mockResolvedValue(b.fresh as never)
-    b.fetchMock.mockResolvedValueOnce({ ok: true })
+    b.fetchMock.mockResolvedValueOnce({ ok: true, status: 200 })
     expect(await subscribeToPush({ permissionFirst: true })).toBe('granted')
     expect(b.pushManager.subscribe).toHaveBeenCalledTimes(1)
     expect(b.fetchMock).toHaveBeenLastCalledWith(PUSH_SUBSCRIBE_URL, expect.objectContaining({ body: JSON.stringify(b.fresh.toJSON()) }))

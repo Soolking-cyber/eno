@@ -171,7 +171,7 @@ export function PushOptInCard({ surface, offers = true, className }: { surface: 
     if (inFlight.current) return
     inFlight.current = true
     setBusy(true)
-    const outcome = await subscribeToPush({ permissionFirst: true })
+    const outcome = await subscribeToPush({ permissionFirst: true, account: user?.id ?? null }) // the account at the tap (F9)
     inFlight.current = false
     setBusy(false)
     if (closed.current) return // closed while it was pending: the reader's ✕ wins, no toast
@@ -188,6 +188,7 @@ export function PushOptInCard({ surface, offers = true, className }: { surface: 
       toast.error(tr('Couldn’t turn on notifications. Please try again.', 'Chưa bật được thông báo. Vui lòng thử lại.'))
     }
     // 'default' — the prompt was closed without an answer: the card stays, the tap can be tried again.
+    // 'account_changed' — the tap was another account's (F9): no toast, the card looks again for whoever is signed in.
   }
 
   const benefit =
