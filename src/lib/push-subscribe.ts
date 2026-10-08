@@ -160,6 +160,26 @@ export function optInState(env: PushEnv): OptInState {
   return 'hidden'
 }
 
+/** Fired on window when this browser's subscription was dropped behind the UI's back — by the sign-in guard, because it
+ *  was not the signed-in account's (push-account-guard.ts, F7). The opt-in card and the Settings row decided on mount,
+ *  so they look again. */
+export const PUSH_SUBSCRIPTION_CHANGED = 'eno:push-subscription-changed'
+const PUSH_CHANNEL = 'eno:push-subscription'
+
+/** Tell this tab AND every other tab of the origin (they share the subscription) that it changed under them. */
+export function announcePushSubscriptionChanged(): void {
+  try { window.dispatchEvent(new Event(PUSH_SUBSCRIPTION_CHANGED)) } catch { /* nobody listening */ }
+  try { const channel = new BroadcastChannel(PUSH_CHANNEL); channel.postMessage('changed'); channel.close() } catch { /* no BroadcastChannel */ }
+}
+
+/** Call `look` whenever the subscription changed under this UI, in this tab or another. Returns the unsubscribe. */
+export function onPushSubscriptionChanged(look: () => void): () => void {
+  window.addEventListener(PUSH_SUBSCRIPTION_CHANGED, look)
+  let channel: BroadcastChannel | null = null
+  try { channel = new BroadcastChannel(PUSH_CHANNEL); channel.onmessage = () => look() } catch { channel = null }
+  return () => { window.removeEventListener(PUSH_SUBSCRIPTION_CHANGED, look); channel?.close() }
+}
+
 /** Does this browser hold a push subscription? null when it cannot tell (no service worker, or a probe threw). */
 export async function hasPushSubscription(): Promise<boolean | null> {
   try {

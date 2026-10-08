@@ -365,6 +365,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   const signInOpenRef = useRef(false)
   const signInCtxRef = useRef<SignInContext | null>(null)
+  // ⛔ A WEB PUSH SUBSCRIPTION THAT IS NOT THIS ACCOUNT'S IS DROPPED, on every sign-in (F7 — push-account-guard.ts): only
+  // signOut() tore it down, so a switch with no sign-out between left the previous account's pushes on this device.
+  // Asked again on every auth event (a re-sign-in, a token refresh): a check that failed is retried, and one that said
+  // "mine" is remembered for the tab, so it costs nothing. A question made before the account changed drops nothing.
+  const accountId = user?.id ?? null
+  useEffect(() => {
+    if (!accountId) return
+    let current = true
+    void import('@/lib/push-account-guard').then(({ dropForeignPushSubscription }) => dropForeignPushSubscription(accountId, () => current)).catch(() => {})
+    return () => { current = false }
+  }, [accountId, user])
   useEffect(() => { signInOpenRef.current = signInOpen }, [signInOpen])
   useEffect(() => { signInCtxRef.current = signInCtx }, [signInCtx])
   /** A new open while the "Join eno" ask is still up takes the popup over: tell the prompt (onReplaced). */

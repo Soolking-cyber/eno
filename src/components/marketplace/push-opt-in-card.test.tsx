@@ -182,6 +182,16 @@ describe('PushOptInCard — who sees it', () => {
     expect(card()).toBeNull()
   })
 
+  it('⛔ hidden while a subscription is held — and asks once the sign-in guard drops one that was not this account\'s (F7)', async () => {
+    h.env = supported({ permission: 'granted' })
+    h.subscribed = true
+    await mount(<PushOptInCard surface="post" />)
+    expect(card()).toBeNull()
+    h.subscribed = false
+    await act(async () => { window.dispatchEvent(new Event('eno:push-subscription-changed')) })
+    expect(turnOn()).not.toBeNull()
+  })
+
   it('granted but the subscription was torn down at sign-out: it asks again (the tap re-subscribes, no prompt)', async () => {
     h.env = supported({ permission: 'granted' })
     h.subscribed = false

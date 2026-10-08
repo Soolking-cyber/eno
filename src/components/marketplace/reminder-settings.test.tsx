@@ -68,6 +68,39 @@ describe('ReminderSettings push row', () => {
     expect(button()).toBeTruthy()
   })
 
+  it('⛔ "on" until the sign-in guard drops a subscription that was not this account\'s — then the button again (F7)', async () => {
+    pushBrowser({ current: 'granted' })
+    const reg = await (navigator.serviceWorker as unknown as { getRegistration: () => Promise<{ pushManager: { getSubscription: ReturnType<typeof vi.fn> } }> }).getRegistration()
+    const { urlBase64ToUint8Array } = await import('@/lib/push-subscribe')
+    reg.pushManager.getSubscription.mockResolvedValue({ endpoint: 'https://fcm.googleapis.com/fcm/send/x', options: { applicationServerKey: urlBase64ToUint8Array('AQID').buffer } })
+    await mount()
+    expect(button()).toBeNull() // held: "on"
+    reg.pushManager.getSubscription.mockResolvedValue(null) // the guard unsubscribed it
+    await act(async () => { window.dispatchEvent(new Event('eno:push-subscription-changed')) })
+    expect(button()).not.toBeNull()
+  })
+
+  it('⛔ even after this row\'s own tap, a drop by the sign-in guard (the rare race at sign-in) brings the button back', async () => {
+    pushBrowser()
+    await mount()
+    await act(async () => { fireEvent.click(button()!) })
+    expect(button()).toBeNull() // on, by the tap
+    ;(Notification as unknown as { permission: string }).permission = 'granted' // as the browser records the grant
+    const reg = await (navigator.serviceWorker as unknown as { getRegistration: () => Promise<{ pushManager: { getSubscription: ReturnType<typeof vi.fn> } }> }).getRegistration()
+    reg.pushManager.getSubscription.mockResolvedValue(null) // the guard dropped the subscription the tap had just made
+    await act(async () => { window.dispatchEvent(new Event('eno:push-subscription-changed')) })
+    expect(button()).not.toBeNull()
+  })
+
+  it('a drop announcement never offers the button where push is unsupported', async () => {
+    pushBrowser()
+    define(window, 'PushManager', undefined)
+    delete (window as unknown as Record<string, unknown>).PushManager
+    await mount()
+    await act(async () => { window.dispatchEvent(new Event('eno:push-subscription-changed')) })
+    expect(button()).toBeNull()
+  })
+
   it('a refused prompt shows the blocked line', async () => {
     pushBrowser({ permission: 'denied' })
     await mount()

@@ -11,7 +11,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { consentAnswered } from '@/lib/consent'
 import { askHidden, askShown, mayAsk, notePageView } from '@/lib/page-asks'
-import { hasPushSubscription, optInState, readPushEnv, subscribeToPush } from '@/lib/push-subscribe'
+import { hasPushSubscription, onPushSubscriptionChanged, optInState, readPushEnv, subscribeToPush } from '@/lib/push-subscribe'
 import { cn } from '@/lib/utils'
 import { IS_SERVICES } from '@/lib/edition'
 import { isNativeShell } from '@/lib/native-browser'
@@ -78,6 +78,10 @@ export function PushOptInCard({ surface, offers = true, className }: { surface: 
   const { user, loading } = useAuth()
   const pathname = usePathname()
   const [mode, setMode] = useState<'ask' | 'ios-install' | null>(null)
+  // Bumped when the sign-in guard drops a subscription that was not this account's (F7), in this tab or another: the card decided on mount,
+  // so it looks again — the account it now serves holds no subscription here and may want one.
+  const [subscriptionLook, setSubscriptionLook] = useState(0)
+  useEffect(() => onPushSubscriptionChanged(() => setSubscriptionLook((n) => n + 1)), [])
   const [busy, setBusy] = useState(false)
   const titleId = useId()
   /** The page view this card last looked at (a pathname change is a new one — page-asks' definition). */
@@ -132,7 +136,7 @@ export function PushOptInCard({ surface, offers = true, className }: { surface: 
       setMode(state)
     })()
     return () => { cancelled = true }
-  }, [loading, user, pathname, mode, register])
+  }, [loading, user, pathname, mode, register, subscriptionLook])
 
   /**
    * Off the screen — every way it goes says so to page-asks right there (dismissed, answered, signed out).

@@ -334,3 +334,25 @@ describe('subscribeToPush — a subscription the server did not confirm stays (t
     expect(b.fetchMock).toHaveBeenLastCalledWith(PUSH_SUBSCRIBE_URL, expect.objectContaining({ body: JSON.stringify(b.fresh.toJSON()) }))
   })
 })
+
+describe('onPushSubscriptionChanged (F7: the sign-in guard dropped a subscription under the UI)', () => {
+  it('hears this tab\'s announcement and another tab\'s (they share the subscription), and stops when asked', async () => {
+    const { announcePushSubscriptionChanged, onPushSubscriptionChanged } = await import('./push-subscribe')
+    const look = vi.fn()
+    const stop = onPushSubscriptionChanged(look)
+    announcePushSubscriptionChanged() // this tab: the window event at once (+ its channel post, which other tabs hear —
+    expect(look).toHaveBeenCalled() //  and this tab's own listener too, a moment later: a second look is harmless)
+    await new Promise((r) => setTimeout(r, 20))
+    look.mockClear()
+    const otherTab = new BroadcastChannel('eno:push-subscription')
+    otherTab.postMessage('changed')
+    await new Promise((r) => setTimeout(r, 20))
+    expect(look).toHaveBeenCalledTimes(1)
+    stop()
+    look.mockClear()
+    otherTab.postMessage('changed')
+    await new Promise((r) => setTimeout(r, 20))
+    expect(look).not.toHaveBeenCalled()
+    otherTab.close()
+  })
+})

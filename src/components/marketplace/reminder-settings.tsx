@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch'
 // The support rule and the subscribe call live in src/lib/push-subscribe.ts since UX2 W2 B2-NOTIFY, shared
 // with the opt-in card (push-opt-in-card.tsx). This row keeps its own rule (`pushSupport`) and the call's
 // original order — extracted, not changed.
-import { hasPushSubscription, pushSupport, readPushEnv, subscribeToPush } from '@/lib/push-subscribe'
+import { hasPushSubscription, onPushSubscriptionChanged, pushSupport, readPushEnv, subscribeToPush } from '@/lib/push-subscribe'
 
 /** The daily availability check is always on (no opt-in). This just lets the
  *  seller enable BROWSER PUSH so the nudge reaches them even when eno.vn is
@@ -37,6 +37,15 @@ export function ReminderSettings() {
     // A probe that cannot tell (null) offers the button too: permission alone is not "on".
     if (support === 'granted') hasPushSubscription().then((has) => { if (has !== true && !acted.current) setPushState('default') }).catch(() => { if (!acted.current) setPushState('default') })
   }, [])
+  // The sign-in guard dropped a subscription that was not this account's (F7), in this tab or another: "on" no longer holds —
+  // the row offers the button again, as on mount.
+  // Even after this row's own tap: the guard may have dropped a subscription that tap had just made (a rare race at
+  // sign-in, push-account-guard.ts) — then "on" is no longer true, and the button is the way back.
+  useEffect(() => onPushSubscriptionChanged(() => {
+    // As on mount: only where push is supported and allowed is the button a way back.
+    if (pushSupport(readPushEnv()) !== 'granted') return
+    hasPushSubscription().then((has) => { if (has !== true) setPushState('default') }).catch(() => {})
+  }), [])
 
   useEffect(() => {
     fetch('/api/profile/digest-prefs')
