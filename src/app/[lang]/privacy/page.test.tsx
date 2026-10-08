@@ -60,6 +60,10 @@ async function policy(edition: 'marketplace' | 'services', lang: 'en' | 'vi' = '
 
 describe('/privacy — its text and its date move together (commit gate B2)', () => {
   it('⛔ the policy as rendered matches PRIVACY_TEXT_FINGERPRINT — a change to the text must decide its date', async () => {
+    // The build-time switches the page reads, pinned empty (commit gate B4, opus): a shell or CI env that sets them
+    // must not move the hash and send someone to re-date a policy whose text did not change.
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    vi.stubEnv('NEXT_PUBLIC_APPLE_SIGNIN', '')
     const parts: string[] = []
     for (const edition of ['marketplace', 'services'] as const) {
       for (const lang of ['en', 'vi'] as const) {

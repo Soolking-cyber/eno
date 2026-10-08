@@ -9,9 +9,10 @@
   the app can show today; a surface hidden later by a server flag is removed here in the SAME
   release that hides it, never before.
 
-  Everything is linked to the account except the diagnostics entry at the end. Nothing is "used to
-  track you": analytics and advertising are forced off for the EnoNativeApp
-  user agent (src/lib/consent-value.ts), so NSPrivacyTracking is false and no ATT prompt is needed.
+  Everything is linked to the account — since build 3 the diagnostics entry at the end too (it
+  covers the server access log, which keeps IP addresses). Nothing is "used to track you":
+  analytics and advertising are forced off for the EnoNativeApp user agent
+  (src/lib/consent-value.ts), so NSPrivacyTracking is false and no ATT prompt is needed.
 -->
 <plist version="1.0">
 <dict>
@@ -78,6 +79,21 @@
 		<!-- ⛔ NO PaymentInfo (2026-10-06): the app renders eno.vn, where the payout, wallet and payments routes
 		     do not exist (404), and the iOS app hides them anyway (ios-hide-wallet). Re-declare it in the same
 		     binary that ever brings a payment surface into the app. -->
+		<!-- The expected salary a teacher may add to a teacher profile (optional; TeacherProfile.expectedSalaryM) —
+		     Apple's own example of Other Financial Info is "salary, income". No payment data: see above. Added in
+		     build 3 (presubmit P5 / N1); App Store Connect already declared it, so the two now agree. -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherFinancialInfo</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
 		<!-- 'Near me' search and the post wizard's 'use my location' (lat/lng to 3 decimals). -->
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
@@ -122,6 +138,20 @@
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypePhotosorVideos</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<!-- The sound recorded with a video: a listing video keeps its audio track (src/lib/video-compress.ts), and a
+		     teacher's intro video is a recording of their own voice. Added in build 3 (presubmit P4). -->
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeAudioData</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
 			<true/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>
@@ -232,13 +262,17 @@
 				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
 			</array>
 		</dict>
-		<!-- Browser CSP violation reports (directive, blocked URL, page URL) written to the server log by
-		     /api/csp-report. No account or device id rides them, so NOT linked. -->
+		<!-- Diagnostics the server keeps: browser CSP violation reports (directive, blocked URL, page URL) written to
+		     the server log by /api/csp-report, and the web server's access log — every request's IP address, browser
+		     details, address requested and time, kept 400 days for security and Vietnamese log-retention rules
+		     (infra/vn-node/nginx/eno.conf). The IP address makes it LINKED under Apple's rules ("Personal Information
+		     and Personal Data … are considered linked to the user"): declared not linked through build 2, linked from
+		     build 3 (presubmit P1). -->
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeOtherDiagnosticData</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
-			<false/>
+			<true/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>
 			<false/>
 			<key>NSPrivacyCollectedDataTypePurposes</key>

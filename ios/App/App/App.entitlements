@@ -1,14 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Wired at step P4 of docs/ios-appstore-release.md (paid team, 2026-10-06). Both capabilities ship
-  DORMANT and switch on from the server, with no new binary:
+  Wired at step P4 of docs/ios-appstore-release.md (paid team, 2026-10-06). Every capability ships
+  DORMANT and switches on from the server, with no new binary:
   - Universal links answer only once eno.vn serves /.well-known/apple-app-site-association, which
     needs APPLE_TEAM_ID in eno-vn.env (step P7). Until then iOS finds no association and links
     keep opening Safari.
   - aps-environment lets native push work once APNs is configured and NEXT_PUBLIC_NATIVE_PUSH_IOS=1
     is set (step P8). Xcode re-signs it as `production` when the archive is exported for App Store
     Connect.
+  - Sign in with Apple (build 3 of 1.0.3 on; SIWA plan 2026-10-08, decision D1, which replaces the
+    v1 decision D2 = b): com.apple.developer.applesignin = [Default] is what lets the native Apple
+    sheet in EnoSignInPlugin.swift run. The site shows Apple, and Google beside it (Guideline 4.8),
+    only once NEXT_PUBLIC_APPLE_SIGNIN carries `ios` (src/lib/apple-signin.ts); until then this
+    binary offers the email code only, exactly like build 2. Automatic signing can issue a profile
+    with it only once App ID vn.eno.app has Sign in with Apple enabled as a PRIMARY App ID (SIWA plan
+    owner step 2; the web Services ID is grouped under it). scripts/ios-release.sh refuses an
+    archive that does not carry exactly [Default].
   ⛔ applinks:eno.vn AND NOTHING ELSE (owner, 2026-10-06: "ship both with eno.vn"). The app renders
   the licensed marketplace and its company is the App Store seller, so eno.vn is the domain that
   vouches for it. NEVER an eno.forum host: the forum carries the services the licensed company may
@@ -16,12 +24,15 @@
   submitted binary can only be withdrawn by another submission; scripts/ios-release.sh refuses any
   other set. www.eno.vn 308s to the apex for every path, the association file included, so it could
   never be listed anyway.
-  No Sign in with Apple: decision D2 = b (Google is hidden in the iOS app instead).
 -->
 <plist version="1.0">
 <dict>
 	<key>aps-environment</key>
 	<string>development</string>
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
 	<key>com.apple.developer.associated-domains</key>
 	<array>
 		<string>applinks:eno.vn</string>

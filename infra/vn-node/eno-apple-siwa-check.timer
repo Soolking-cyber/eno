@@ -1,0 +1,17 @@
+[Unit]
+Description=Daily check of GoTrue's Sign in with Apple client secret on the VN box
+
+[Timer]
+# 20:40 UTC = 03:40 ICT, inside the 19:00-22:00 UTC low-traffic window, because with auto-rotate on this run may
+# recreate the auth container (a few seconds of failed sign-ins and token refreshes on BOTH editions). Explicit
+# UTC: the box runs ICT, and a bare time here would be local (eno-backup learned that the hard way). Clear of:
+#   19:00 UTC  partner-stock          19:30 UTC  eno-restore-drill (Mondays)
+#   20:00 UTC  affiliate-prices       21:00 UTC  warm-translations      21:30 UTC  eno-docker-prune (04:30 ICT)
+OnCalendar=*-*-* 20:40:00 UTC
+# If the box was off at 20:40, run at the next boot. A catch-up run outside the window probes and alerts but
+# defers a due rotation to the next 20:40 slot unless 3 days or fewer remain (apply-apple-signin.sh check).
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target
