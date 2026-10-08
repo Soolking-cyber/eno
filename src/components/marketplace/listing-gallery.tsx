@@ -15,6 +15,7 @@ import { pushBlackStatusBar } from '@/components/native/native-bootstrap'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { autoplayAllowed } from '@/lib/autoplay'
 import { releaseVelocity, rubberBand, SWIPE_FLICK_MIN_PX, SWIPE_FLICK_VELOCITY } from '@/hooks/use-swipe-dismiss'
+import { prefersReducedMotion } from '@/lib/reduced-motion'
 
 type Props = {
   /** 'mobile'/'desktop' render just that branch (dual-mount pages); 'auto' = both, CSS-split. */
@@ -367,6 +368,8 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
    * flick (0.16–0.18 px/ms averaged) snapped back and only a 120px drag closed the photo.
    */
   const [dragY, setDragY] = useState(0)
+  /** A committed swipe's two-frame settle (the slide-in), so a new touch can FLUSH it rather than be overwritten by it. */
+  const settle = useRef<{ frame: number; run: () => void } | null>(null)
   /** This gesture's vertical travel over time, for the release velocity. Reset on touchstart. */
   const ySamples = useRef<Array<{ t: number; p: number }>>([])
   const pinched = useRef(false)
@@ -772,7 +775,19 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             className="relative h-[78vh] max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom)-9rem)] w-[92vw] max-w-5xl [touch-action:pinch-zoom] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => toggleZoom(e.clientX, e.clientY)}
+            // A zoomed photo follows the MOUSE (Emil audit, tier 3): on a desktop it showed a grab cursor and could not be
+            // panned at all. The same mapping as the double-click zoom, so the point under the cursor is the one shown
+            // there. Touch pans with the finger, above; its compatibility mouse events are not 'mouse' pointers.
+            onPointerMove={(e) => {
+              if (!zoom || e.pointerType !== 'mouse') return
+              const rect = frameRef.current?.getBoundingClientRect()
+              if (!rect) return
+              setZoom(clampPan((e.clientX - (rect.left + rect.width / 2)) * (1 - ZOOM), (e.clientY - (rect.top + rect.height / 2)) * (1 - ZOOM)))
+            }}
             onTouchStart={(e) => {
+              // A touch inside the previous swipe's two settle frames: finish that settle NOW (the photo to the centre,
+              // the transition back on) rather than have it land on this gesture's drag later (review).
+              if (settle.current) { cancelAnimationFrame(settle.current.frame); settle.current.run(); settle.current = null }
               const t = e.touches[0]
               startX.current = t.clientX
               startY.current = t.clientY
@@ -878,15 +893,19 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                * velocity rule below exists to serve. Only an explicit 'y' is refused.
                */
               let dismissed = false
+              /** Where the dismissed photo is thrown, and where a committed swipe's NEW photo starts (Emil audit, tier 3). */
+              let thrown = 0
+              let slideFrom = 0
               if (!zoom && dragAxis.current === 'y' && !pinched.current && !browserZoomed() && startY.current != null) {
                 const dy = t.clientY - startY.current
                 const v = releaseVelocity(ySamples.current, Date.now())
                 // Signed: the release must be moving AWAY from the start, the way the photo already went.
                 const flick = Math.abs(dy) >= SWIPE_FLICK_MIN_PX && Math.sign(v) === Math.sign(dy) && Math.abs(v) > SWIPE_FLICK_VELOCITY
-                if (Math.abs(dy) > 120 || flick) { dismissed = true; closeLightbox() }
+                if (Math.abs(dy) > 120 || flick) { dismissed = true; thrown = Math.sign(dy) * window.innerHeight; closeLightbox() }
               }
-              // A dismissal keeps the photo where the finger left it while the lightbox fades out.
-              if (!dismissed) setDragY(0)
+              // A dismissal THROWS the photo on the way the finger sent it — it eases off under the transition while the
+              // lightbox fades, instead of stopping where it was let go. Anything else settles back.
+              setDragY(dismissed ? thrown : 0)
               if (!zoom && startX.current != null && dragAxis.current !== 'y') {
                 const dx = t.clientX - startX.current
                 /**
@@ -923,7 +942,12 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                  */
                 const axisOk = dragAxis.current === 'x' || Math.abs(dx) > Math.abs(dy)
                 const target = idx + (dx < 0 ? 1 : -1)
-                if (axisOk && (Math.abs(dx) > 40 || flick) && target >= 0 && target <= last) { goTo(target); committed = true }
+                if (axisOk && (Math.abs(dx) > 40 || flick) && target >= 0 && target <= last) {
+                  goTo(target)
+                  committed = true
+                  // The new photo starts beside the old one, on the side the finger came from.
+                  slideFrom = dx + (dx < 0 ? 1 : -1) * (frameRef.current?.getBoundingClientRect().width || window.innerWidth)
+                }
               }
               startX.current = null
               startY.current = null
@@ -948,12 +972,29 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               // A zoomed pan released past its bound settles back under the transition (panning clears just below).
               if (zoom) setZoom((z) => (z ? clampPan(z.tx, z.ty) : z))
               if (!committed) setPanning(false)
-              setDragX(0)
-              if (committed) requestAnimationFrame(() => setPanning(false))
+              /**
+               * ✅ THE NEW PHOTO NOW SLIDES IN FROM THE CORRECT SIDE (Emil audit, tier 3) — the snap above was the safe
+               * half. It is placed beside where the old one was let go, with the transition still suppressed, and
+               * released to the centre two frames later (one frame can coalesce with the placement, and the slide would
+               * then start from the wrong offset). Not under reduced motion: with no transition the placement would
+               * only flash.
+               */
+              const slide = committed && slideFrom !== 0 && !prefersReducedMotion()
+              // Placed with the transition OFF, also for a fast flick that ended before the axis lock set `panning` —
+              // or the placement itself would animate, a wobble outward before the slide back (review).
+              if (slide) setPanning(true)
+              setDragX(slide ? slideFrom : 0)
+              if (committed) {
+                const run = () => { setPanning(false); if (slide) setDragX(0) }
+                const frame = requestAnimationFrame(() => {
+                  if (settle.current) settle.current.frame = requestAnimationFrame(() => { settle.current = null; run() })
+                })
+                settle.current = { frame, run }
+              }
             }}
           >
             <div
-              className={cn('relative h-full w-full motion-reduce:transition-none', !panning && 'transition-transform duration-200', zoom && 'cursor-grab')}
+              className={cn('relative h-full w-full motion-reduce:transition-none', !panning && 'transition-transform duration-200', zoom && 'cursor-zoom-out')}
               style={zoom
                 ? { transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${ZOOM})` }
                 // ⚠️ `undefined` WHEN AT REST, not `translateX(0px)` — an always-present transform
