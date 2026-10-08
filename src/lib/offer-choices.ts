@@ -17,8 +17,8 @@ export type OfferChoice = 'accepted' | 'declined'
 export type OfferAction = 'accept' | 'decline'
 
 /**
- * THE MAP ITSELF — messageId → the answer the card shows, from the tap until the server is seen to
- * agree. MODULE-LEVEL, NOT A COMPONENT REF, because the answer outlives the thread page: leaving the
+ * THE MAPS — one per account (offerChoicesFor): messageId → the answer the card shows, from the tap until the server
+ * is seen to agree. MODULE-LEVEL, NOT A COMPONENT REF, because the answer outlives the thread page: leaving the
  * thread sends the deferred POST, and a user who comes straight back mounts a NEW page while that
  * request is still in flight. With a per-mount ref the new page painted the cached (and freshly
  * refetched) `pending` with live Accept/Decline, and a second tap was a second POST that 409s and
@@ -29,7 +29,26 @@ export type OfferAction = 'accept' | 'decline'
  * status. A successful answer's entry deliberately OUTLIVES the POST: a poll that left before the POST
  * and lands after it still carries `pending`, and this is what stops it resurrecting the buttons.
  */
-export const unconfirmedOfferChoices = new Map<string, OfferChoice>()
+export const offerChoicesByAccount = new Map<string, Map<string, OfferChoice>>()
+
+/**
+ * ⛔ ONE ACCOUNT'S ANSWERS, LAID ONLY OVER THAT ACCOUNT'S OWN READS (F5). One shared map let the next account to sign in
+ * on the device see the previous one's unsent "Accepted" on its own pending offer. Clearing it at the switch drew a
+ * new edge every review round: too late as a layout effect (the next account's first render, from its cached copy,
+ * was already drawn through it), unsafe in render (an abandoned render would have erased answers still in flight),
+ * and blind to a switch made away from the thread page. Keyed by the account that tapped, nothing is cleared: each
+ * account's answers simply stay theirs — and are still there if that account comes back before its POST lands.
+ * Nobody signed in answers nothing: a fresh map each time, so nothing written to it lingers.
+ */
+export function offerChoicesFor(account: string | null): Map<string, OfferChoice> {
+  if (!account) return new Map()
+  // Another account's map with nothing left in it goes: at most one small map per account seen in the tab, and only
+  // while it still holds an answer (review). A map still holding one stays — that account may come back for it.
+  for (const [other, theirs] of offerChoicesByAccount) if (other !== account && theirs.size === 0) offerChoicesByAccount.delete(other)
+  let mine = offerChoicesByAccount.get(account)
+  if (!mine) { mine = new Map(); offerChoicesByAccount.set(account, mine) }
+  return mine
+}
 
 export const choiceFor = (action: OfferAction): OfferChoice => (action === 'accept' ? 'accepted' : 'declined')
 

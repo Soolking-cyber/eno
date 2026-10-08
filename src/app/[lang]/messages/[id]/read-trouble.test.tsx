@@ -66,7 +66,7 @@ import ThreadPage from './page'
 const signedIn = (): Auth => ({ user: { id: 'u-seller' }, loading: false, openSignIn: () => {} })
 const thread = (id = 'c1', body = 'Hi, is it available?') => ({
   id,
-  me: 'p-seller',
+  me: 'u-seller',
   kind: 'listing',
   iAmSeller: true,
   hasReviewed: false,
@@ -84,8 +84,10 @@ let held: ((a: Answer) => void)[] = []
 let gets: { url: string; signal: AbortSignal | null | undefined }[] = []
 
 const json = (status: number, body: unknown) => ({ ok: status >= 200 && status < 300, status, json: () => Promise.resolve(body) }) as unknown as Response
-const settle = (a: Answer) =>
-  a === 'reject' ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve(json(a.status, a.body ?? (a.status === 200 ? thread() : { error: 'x' })))
+// `me` is the account the server read it for: whoever's cookie the request carried — the account signed in when it
+// went out, however late it is answered.
+const settle = (a: Answer, me: string | undefined) =>
+  a === 'reject' ? Promise.reject(new TypeError('Failed to fetch')) : Promise.resolve(json(a.status, a.body ?? (a.status === 200 ? { ...thread(), me } : { error: 'x' })))
 
 class NoopObserver { observe() {} unobserve() {} disconnect() {} takeRecords() { return [] } }
 
@@ -101,6 +103,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   stable.auth = signedIn()
   chat.cached = null
+  chat.cacheThread.mockClear() // a plain vi.fn: restoreAllMocks keeps its calls, so each test starts from none
   replies = []
   rest = { status: 200 }
   held = []
@@ -109,15 +112,16 @@ beforeEach(() => {
     const url = String(input)
     if ((init?.method ?? 'GET') === 'GET' && url.split('?')[0] === '/api/conversations/c1') {
       gets.push({ url, signal: init?.signal })
+      const me = stable.auth.user?.id // the cookie this request carries
       const r = replies.length ? replies.shift()! : rest
       // Held open — and, like a real fetch, ended by its signal (the 2-minute ceiling).
       if (r === 'hold') {
         return new Promise<Response>((resolve, reject) => {
           init?.signal?.addEventListener('abort', () => reject(new DOMException('The operation was aborted.', 'AbortError')))
-          held.push((a) => { settle(a).then(resolve, reject) })
+          held.push((a) => { settle(a, me).then(resolve, reject) })
         })
       }
-      return settle(r)
+      return settle(r, me)
     }
     return Promise.resolve(json(200, {}))
   }))
@@ -341,6 +345,75 @@ describe('a notice belongs to the session that raised it', () => {
     await tick(50)
     expect(painted()).toBe(true)
     expect(sessionEnded()).toBe(false)
+  })
+})
+
+describe('a conversation belongs to the account that read it (F5)', () => {
+  const signInAs = (view: ReturnType<typeof render>, id: string) => act(async () => { stable.auth = { user: { id }, loading: false, openSignIn: () => {} }; view.rerender(<ThreadPage />) })
+
+  it('⛔ after A signs out, the next account to sign in never sees A’s conversation — not for one frame', async () => {
+    replies = [{ status: 200 }, 'hold']
+    const view = render(<ThreadPage />)
+    await tick(50)
+    expect(painted()).toBe(true)
+    await signOut(view)
+    await signInAs(view, 'u-other')
+    expect(painted()).toBe(false) // in the very render the account changed in, before anything else answers
+    await tick(50)
+    expect(painted()).toBe(false)
+    await act(async () => { held[0]({ status: 404 }) }) // the other account's own read: not theirs to open
+    await tick(50)
+    expect(screen.queryByText('Conversation not found.')).not.toBeNull()
+    expect(painted()).toBe(false)
+  })
+
+  it('A’s read still out at the switch lands in nothing — not on screen, not in the cache', async () => {
+    replies = ['hold', 'hold']
+    const view = render(<ThreadPage />)
+    await tick(50)
+    await signOut(view)
+    await signInAs(view, 'u-other')
+    await tick(50)
+    chat.cacheThread.mockClear()
+    await act(async () => { held[0]({ status: 200 }) }) // A's open, answered (for A) after the switch
+    await tick(50)
+    expect(painted()).toBe(false)
+    expect(chat.cacheThread).not.toHaveBeenCalled()
+  })
+
+  it('an answer read under another account’s cookie (a switch in another tab) is neither painted nor cached — and is said', async () => {
+    replies = [{ status: 200, body: { ...thread(), me: 'u-other' } }]
+    render(<ThreadPage />)
+    await tick(50)
+    expect(painted()).toBe(false)
+    expect(chat.cacheThread).not.toHaveBeenCalled()
+    // Not skeletons until the patience clock, then a Try again that can never work: this tab's session is not the
+    // one the browser holds any more, which is what a 401 says, with its way out.
+    expect(sessionEnded()).toBe(true)
+    expect(screen.queryByRole('button', { name: /Sign in/ })).not.toBeNull()
+  })
+
+  it('the same account signing back in keeps its view: its conversation is there at once, before its new read answers', async () => {
+    // (The sign-in card replaces the thread's tree while signed out, as it always has — so not the same DOM; the same
+    // instance, whose state is still this account's.)
+    replies = [{ status: 200 }, 'hold']
+    const view = render(<ThreadPage />)
+    await tick(50)
+    await signOut(view)
+    await signIn(view)
+    expect(held).toHaveLength(1) // the new session's read, still out…
+    expect(painted()).toBe(true) // …and the conversation already on screen
+  })
+
+  it('a cold load (auth settling: nobody, then A) mounts the view once', async () => {
+    stable.auth = { user: null, loading: true, openSignIn: () => {} }
+    replies = [{ status: 200 }]
+    const view = render(<ThreadPage />)
+    const log = screen.getByRole('log')
+    await signIn(view)
+    await tick(50)
+    expect(screen.getByRole('log')).toBe(log)
+    expect(painted()).toBe(true)
   })
 })
 

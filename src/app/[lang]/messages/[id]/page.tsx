@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, type RefObject } from 'react'
 import { TeacherThreadStrip, type TeacherVideoFlags } from '@/components/teachers/teacher-thread-strip'
 import { BubbleChrome, ReactionPills, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
 import Link from 'next/link'
@@ -79,7 +79,7 @@ import { fmtTime, dayKey } from '@/lib/dates'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useUndoWindow } from '@/hooks/use-undo-window'
 import { OfferAnswerButtons } from '@/components/marketplace/offer-answer-buttons'
-import { answeredOnServer, choiceFor, offerActFailedCopy, overlayOfferChoices, unconfirmedOfferChoices, type OfferAction } from '@/lib/offer-choices'
+import { answeredOnServer, choiceFor, offerActFailedCopy, offerChoicesFor, overlayOfferChoices, type OfferAction } from '@/lib/offer-choices'
 
 // `meta` is the structured payload of a CARD message (visa_step / visa_checkout) — the
 // thread GET parses and re-validates it server-side (parseMessageMeta), so an unreadable
@@ -402,7 +402,33 @@ type Thread = {
   topReactions?: string[]
 }
 
+/**
+ * ⛔ ONE ACCOUNT PER VIEW (F5 — split out of the thread-load review, where codex raised it every round). signOut does
+ * not navigate, so this page stays mounted behind its "Sign in" card: the conversation stayed in its state, and the
+ * reads it had out still landed. The next account to sign in on the device was then shown the previous one's
+ * conversation — until its own read answered, or for good if that read failed (a painted thread is never covered by
+ * the load notice). The view is now keyed by the ACCOUNT: another account gets a fresh instance — no thread, no
+ * tickets, no composer text — and what the old one had in flight lands in an unmounted component. Unsent offer
+ * answers are kept per account (offerChoicesFor), so the next account's reads are never drawn through them. Its cache writes are labelled by the account the server read them for (chat-context), so they are never
+ * served to the new one.
+ * The key moves only between two DIFFERENT accounts: a cold load (auth settling, nobody → A), a sign-out (A →
+ * nobody: the card shows) and the same account signing back in keep the instance — nothing in it is anyone else's.
+ */
 export default function ThreadPage() {
+  const { user } = useAuth()
+  const now = user?.id ?? null
+  const [view, setView] = useState<{ account: string | null; epoch: number }>({ account: now, epoch: 0 })
+  if (now !== null && now !== view.account) setView({ account: now, epoch: view.account === null ? view.epoch : view.epoch + 1 })
+  // The account signed in NOW, for work an instance left running (an offer answer landing after the switch): it must
+  // follow the account across the remount, which the old instance's own refs cannot — they stop at its unmount. Moved
+  // in a LAYOUT effect, at the commit: a passive one leaves the gap before the passive flush, and that gap is exactly
+  // where the old instance's late answers are checked against it (F5 review).
+  const accountRef = useRef(now)
+  useLayoutEffect(() => { accountRef.current = now }, [now])
+  return <ThreadView key={view.epoch} accountRef={accountRef} />
+}
+
+function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const { user, loading } = useAuth()
@@ -415,12 +441,12 @@ export default function ThreadPage() {
   // Paint instantly from the cached thread (e.g. one the offer/Message action just
   // seeded) and revalidate in the background — no blank "loading" flash on open.
   // The cached copy is the server's last word, so an answer still on its way (sent from an earlier
-  // visit to this thread, see unconfirmedOfferChoices) is laid over it here too — or coming straight
+  // visit to this thread, see offerChoicesFor) is laid over it here too — or coming straight
   // back would paint that offer `pending` with live buttons.
   const [thread, setThread] = useState<Thread | null>(() => {
     const cached = getCachedThread(id) as Thread | null
     // Only THIS thread's copy: a cache entry is checked at the read, not trusted downstream.
-    return cached && cached.id === id ? { ...cached, messages: overlayOfferChoices(cached.messages ?? [], unconfirmedOfferChoices) } : null
+    return cached && cached.id === id ? { ...cached, messages: overlayOfferChoices(cached.messages ?? [], offerChoicesFor(user?.id ?? null)) } : null
   })
 
   /**
@@ -726,22 +752,22 @@ export default function ThreadPage() {
   const meRef = useRef<string | null>(null)
 
   /**
-   * ANSWERS TO OFFERS THE SERVER HAS NOT HEARD YET live in `unconfirmedOfferChoices` (module-level —
-   * the file says why), from the Accept/Decline tap, through the 5s undo window, until a refetch shows
-   * the server agreeing. load() lays them over every payload: without that, the 15s poll or a focus
+   * ANSWERS TO OFFERS THE SERVER HAS NOT HEARD YET live in this account's `offerChoicesFor` map (module-level —
+   * the file says why — and per account, F5), from the Accept/Decline tap, through the 5s undo window, until a
+   * refetch shows the server agreeing. load() lays them over every payload: without that, the 15s poll or a focus
    * refetch landing inside the window would repaint the offer as `pending` and bring the buttons back
    * under a toast that says "Offer accepted".
    */
-  const offerChoices = unconfirmedOfferChoices
+  const offerChoices = useMemo(() => offerChoicesFor(user?.id ?? null), [user?.id])
   const undoWindow = useUndoWindow()
   // The deferred POST settles after an await, when this page may have gone — these say whether the
   // thread it answered is still the one on screen (only then is repainting it right).
   const mountedRef = useRef(true)
   const idRef = useRef(id)
   useEffect(() => { idRef.current = id }, [id])
-  // …and whether it is still the account that answered: a 409 account_changed puts the card back only for it.
-  const userIdRef = useRef(user?.id ?? null)
-  useEffect(() => { userIdRef.current = user?.id ?? null }, [user])
+  // …and whether it is still the account that answered: a 409 account_changed puts the card back only for it. The
+  // page's own ref (ThreadPage), not this instance's: it keeps following the account after a switch remounts this.
+  const userIdRef = accountRef
   // load() reads the copy through a ref so a language switch does not hand it a new identity — its
   // identity feeds the realtime subscription's deps, and re-subscribing for a string is not worth it.
   const trRef = useRef(tr)
@@ -800,6 +826,13 @@ export default function ThreadPage() {
     // Validated at the answer: THIS thread's payload, or nothing (an unreadable body is a failed read).
     const data = got.data as (Thread & { notificationsCleared?: unknown; openCleared?: unknown }) | null
     if (!data || data.id !== id) { trouble('failed'); return none }
+    // ⛔ …and THIS ACCOUNT's (F5): `me` is the account the server read it for — the JWT `sub` of the cookie it saw
+    // (getCurrentProfileId, admin.profile-id.test.ts), which is the client's `user.id`: both are Supabase's auth user id
+    // (Profile.id is "= auth.users.id", schema.prisma, held by profile_auth_fk). A read made under another account's
+    // cookie is neither painted nor cached. It is said like a 401 — this tab's session is not the one the browser
+    // holds any more (switched in another tab, or signed out since); trouble() says so only while nothing of the
+    // thread is on screen — and ranked like one: an OLDER answer still on its way cannot replace it (newer ones can).
+    if (data.me !== userIdRef.current) { appliedTicket.current = ticket; trouble('signed-out'); return none }
     const cleared = typeof data?.notificationsCleared === 'number' ? data.notificationsCleared : 0
     const openCleared = opened && data?.openCleared === true
     if (cleared > 0) refreshNotificationsRef.current()
@@ -847,7 +880,7 @@ export default function ThreadPage() {
     })
     setThreadReadAt(startedAt)
     return { cleared, openCleared }
-  }, [id, cacheThread, undoWindow])
+  }, [id, cacheThread, undoWindow, offerChoices])
 
   /**
    * THE ONE-TIME OPEN (si-04): `?opened=1` clears this thread's bell notifications server-side even when no
@@ -2405,7 +2438,7 @@ export default function ThreadPage() {
     soldSheetApplies({ listingType: thread.listing.listingType, categorySlug: thread.listing.categorySlug })
   // The deal this thread agreed, only while it still stands for the listing shown NOW (src/lib/thread-deal.ts —
   // an accepted offer survives a retarget to another listing). It shows the chip and pre-fills "Agreed price".
-  const deal = thread ? standingDeal(thread.messages, thread.listing, !!thread.iAmSeller, (offerId) => unconfirmedOfferChoices.has(offerId)) : null
+  const deal = thread ? standingDeal(thread.messages, thread.listing, !!thread.iAmSeller, (offerId) => offerChoices.has(offerId)) : null
   // ...and not while the one-time prompt under that very card is up: the same question, once.
   const dealChip = stripSold && soldSheetFits && !!deal && justAcceptedId !== deal.offerId
   /**

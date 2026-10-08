@@ -90,6 +90,7 @@ export type InboxConvo = {
  */
 const CONVOS_KEY = 'eno-convos-v2'  // localStorage cache: { userId, list }
 const THREAD_PREFIX = 'eno-thr2:'   // per-thread localStorage cache: { userId, data }
+const LEGACY_THREAD_PREFIX = 'eno-thr:' // the pre-v2 per-thread caches (sign-out-storage.ts clears both too)
 
 type ChatCtx = {
   open: boolean
@@ -183,6 +184,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
    * Auth updates are not transitions (auth-context.tsx), so no render yields between the reset and this.
    */
   const sessionRef = useRef(session)
+  /** The account signed in now — moved in a layout effect below, so before any passive effect or late answer reads it. */
+  const accountNow = useRef(user?.id ?? null)
   const unreadOrder = useRef<PullOrder>(new Map()) // per-session order of unread answers (refreshUnread)
   const convosOrder = useRef<PullOrder>(new Map()) // per-session order of inbox answers (refreshConvos)
   useIsoLayoutEffect(() => {
@@ -194,6 +197,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       for (const k of order.keys()) if (k !== session) order.delete(k)
     }
   }, [session])
+  useIsoLayoutEffect(() => {
+    const was = accountNow.current
+    accountNow.current = user?.id ?? null
+    // ⛔ AN ACCOUNT → NOBODY (signed out here, or in another tab): a read that landed between signOut's device clear
+    // and this commit was still kept for the old account — accountNow only moves here. So its copies go again now,
+    // memory and device; from this commit on, nothing more is kept (F5 review: the window was real).
+    if (was !== null && accountNow.current === null) {
+      threadCache.current.clear()
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i)
+          if (k && (k.startsWith(THREAD_PREFIX) || k.startsWith(LEGACY_THREAD_PREFIX))) localStorage.removeItem(k)
+        }
+      } catch {}
+    }
+  }, [user?.id])
 
   const refreshUnread = useCallback(() => {
     if (!user) { setUnread(0); return }
@@ -214,35 +233,52 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [user, session])
 
   // Thread cache: in-memory (fast) backed by localStorage (per-user, so a
-  // previously-opened conversation paints instantly even after a reload). Keyed
-  // by userId so it never renders across accounts; cleared on explicit sign-out.
-  const threadCache = useRef<Map<string, unknown>>(new Map())
+  // previously-opened conversation paints instantly even after a reload). Cleared on explicit sign-out.
+  // ⛔ EVERY ENTRY IS THE ACCOUNT'S THE SERVER READ IT FOR, AND IS SERVED ONLY TO THAT ACCOUNT (F5). The in-memory
+  // copy used to carry no account at all: a read still in flight at a sign-out (the thread page's, or a prefetch)
+  // refilled it after the clear, and the next account's thread page painted it on its first frame. The label is
+  // the payload's own `me` — the account whose cookie the server saw — not this callback's `user`: a closure can be
+  // a render behind the cookie a request actually carried (codex, F5 plan review). A payload with no `me` is not kept —
+  // the same rule the thread page applies to an answer (GET /api/conversations/[id] always carries it, and the
+  // pending-compose seed sets it to the signed-in user — messages/pending/page.tsx). Two rules, one each side:
+  //  · written only for the account signed in NOW (`accountNow`): a read that lands after its account has gone —
+  //    signed out, or switched — is not kept, in memory or back on the device sign-out has just cleared;
+  //  · served only to the account it is labelled with: an account switch with no sign-out between (nothing
+  //    clears the memory then) leaves the previous account's entries in place, and they stay theirs.
+  const threadCache = useRef<Map<string, { account: string | null; data: unknown }>>(new Map())
   const getCachedThread = useCallback((id: string) => {
-    const mem = threadCache.current.get(id)
-    if (mem) return mem
     if (!user) return null
+    const mem = threadCache.current.get(id)
+    if (mem && mem.account === user.id) return mem.data
     try {
       const raw = JSON.parse(localStorage.getItem(THREAD_PREFIX + id) || 'null')
-      if (raw && raw.userId === user.id) { threadCache.current.set(id, raw.data); return raw.data }
+      // The payload's own `me` as well as the label: a copy written before F5 was labelled with the writing callback's
+      // account, which a closure a render behind its cookie could get wrong (codex, review). Such a copy is dropped.
+      if (raw && raw.userId === user.id && raw.data?.me === user.id) { threadCache.current.set(id, { account: user.id, data: raw.data }); return raw.data }
+      if (raw && raw.userId === user.id) localStorage.removeItem(THREAD_PREFIX + id)
     } catch {}
     return null
   }, [user])
   const cacheThread = useCallback((id: string, data: unknown) => {
-    threadCache.current.set(id, data)
+    const me = (data as { me?: unknown } | null)?.me
+    const account = typeof me === 'string' && me ? me : null
+    if (!account || account !== accountNow.current) return
+    threadCache.current.set(id, { account, data })
     // Don't PERSIST a placeholder seed with no counterpart name (e.g. the pending-
     // compose seed) — it'd instant-paint a blank/'…' header on reload. Keep it in
     // memory only; persist once a real thread (with identity) has loaded.
     const name = (data as { counterpart?: { name?: string } } | null)?.counterpart?.name
-    if (user && name) { try { localStorage.setItem(THREAD_PREFIX + id, JSON.stringify({ userId: user.id, data })) } catch {} }
+    if (name) { try { localStorage.setItem(THREAD_PREFIX + id, JSON.stringify({ userId: account, data })) } catch {} }
   }, [user])
   const prefetchThread = useCallback((id: string) => {
-    if (!id || threadCache.current.has(id)) return
+    // Already held for THIS account: nothing to warm. Another account's entry is no reason to skip.
+    if (!id || (user && threadCache.current.get(id)?.account === user.id)) return
     // ⚠️ peek=1 — a prefetch must NEVER mark the thread read. Without it this warm-up
     // (top 3 on inbox load, plus onTouchStart per row) cleared the unread counter on
     // threads the user never opened, so the blue rail + count badge vanished before
     // they could be seen and scrolling the list marked messages read.
     fetch(`/api/conversations/${id}?peek=1`).then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) cacheThread(id, d) }).catch(() => {})
-  }, [cacheThread])
+  }, [cacheThread, user])
 
   // Preload the inbox so opening Messages is instant. This is FUNCTIONAL caching
   // of the user's OWN data, persisted per-user to localStorage (keyed by userId

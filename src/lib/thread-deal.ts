@@ -59,7 +59,7 @@ export function standingDeal(
   listing: { availabilityConfirmedAt?: string | null } | null | undefined,
   /** The VIEWER's frame, as everywhere in the thread: the buyer's messages are `!mine` for a seller. */
   viewerIsSeller: boolean,
-  /** An answer the server has not confirmed yet (unconfirmedOfferChoices) — never a standing deal. */
+  /** An answer the server has not confirmed yet (offerChoicesFor, offer-choices.ts) — never a standing deal. */
   unconfirmed: (offerId: string) => boolean = () => false,
 ): StandingDeal | null {
   let at = -1
