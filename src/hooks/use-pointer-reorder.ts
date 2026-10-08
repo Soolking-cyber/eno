@@ -23,6 +23,46 @@ import { haptic } from '@/lib/haptics'
 // those taps still work.
 const LIFT_MS = 250 // long-press before a touch drag lifts
 const MOVE_TOLERANCE = 8 // px of pre-lift movement that counts as a scroll, not a drag
+const SWITCH_MARGIN = 6 // px a slot must be closer than the current one before the photo moves there
+
+/**
+ * ⛔ THE TARGET SLOT COMES FROM THE TILES' GEOMETRY, NOT FROM WHAT IS UNDER THE POINTER (Emil audit, tier 3).
+ * elementFromPoint found nothing in the 8px gaps between tiles, past the last photo or above the cover (the add and
+ * camera tiles carry no index), and whatever is drawn on top won the hit — the post form's sticky action bar, the tab
+ * bar. So each move measures every tile (six at most) and takes the nearest centre, inside the grid's box grown by
+ * half a tile; past that the photo stays where it is. A slot must be SWITCH_MARGIN px closer than the current one, so
+ * a pointer resting on a boundary never flickers between two. In the last row, right of the last photo, the slot is
+ * the last one — the empty cells there are nearer the row above, but "after the last photo" means the end (review);
+ * that region has the same margin as a band: entered SWITCH_MARGIN inside it, left SWITCH_MARGIN outside it.
+ * `tiles` are the hook's own (registered through bind's ref), so no markup or nesting can mix in another grid's.
+ * Returns null when fewer than two tiles can be measured (no layout): the caller then falls back to elementFromPoint.
+ */
+export function slotNearest(tiles: HTMLElement[], x: number, y: number, current: number): number | null {
+  let best: { idx: number; d: number } | null = null
+  let last: { idx: number; r: DOMRect } | null = null
+  let measured = 0
+  let currentD = Infinity
+  let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity, w = 0, h = 0
+  for (const t of tiles) {
+    const idx = Number(t.dataset.reorderIdx)
+    const r = t.getBoundingClientRect()
+    if (Number.isNaN(idx) || r.width === 0 || r.height === 0) continue // a collapsed box is no slot
+    measured += 1
+    if (!last || idx > last.idx) last = { idx, r }
+    left = Math.min(left, r.left); top = Math.min(top, r.top); right = Math.max(right, r.right); bottom = Math.max(bottom, r.bottom)
+    w = Math.max(w, r.width); h = Math.max(h, r.height)
+    const d = Math.hypot(x - (r.left + r.width / 2), y - (r.top + r.height / 2))
+    if (idx === current) currentD = d
+    if (!best || d < best.d) best = { idx, d }
+  }
+  if (!best || !last || measured < 2) return null
+  if (currentD === Infinity) return current // the lifted tile itself is not measurable this move: never jump
+  if (x < left - w / 2 || x > right + w / 2 || y < top - h / 2 || y > bottom + h / 2) return current
+  const lastRow = last.r
+  const inLastRow = (m: number) => y >= lastRow.top + m && x > lastRow.right + m
+  if (current === last.idx ? inLastRow(-SWITCH_MARGIN) : inLastRow(SWITCH_MARGIN)) return last.idx
+  return best.idx !== current && best.d + SWITCH_MARGIN < currentD ? best.idx : current
+}
 
 export function usePointerReorder(move: (from: number, to: number) => void) {
   const from = useRef<number | null>(null)
@@ -34,6 +74,8 @@ export function usePointerReorder(move: (from: number, to: number) => void) {
   const owner = useRef<number | null>(null)
   const ownerType = useRef<string | null>(null)
   const [dragging, setDragging] = useState<number | null>(null)
+  /** This hook's own tiles, by index — registered through bind's ref, so the geometry never depends on the markup. */
+  const tileEls = useRef(new Map<number, HTMLElement>())
 
   const clearTimer = () => { if (timer.current) { clearTimeout(timer.current); timer.current = null } }
 
@@ -140,10 +182,16 @@ export function usePointerReorder(move: (from: number, to: number) => void) {
       return
     }
     if (dragging === null) setDragging(from.current) // mouse: first real movement shows the lift
-    const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
-    const tile = el?.closest('[data-reorder-idx]') as HTMLElement | null
-    if (!tile) return
-    const to = Number(tile.dataset.reorderIdx)
+    const tiles = Array.from(tileEls.current.values())
+    let to = slotNearest(tiles, e.clientX, e.clientY, from.current)
+    if (to === null) {
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+      const tile = el?.closest('[data-reorder-idx]') as HTMLElement | null
+      // Only one of this hook's own tiles — unless none registered (a consumer whose ref never reached the DOM), where
+      // the fallback stays what it always was.
+      if (!tile || (tiles.length > 0 && !tiles.includes(tile))) return
+      to = Number(tile.dataset.reorderIdx)
+    }
     if (!Number.isNaN(to) && to !== from.current) {
       move(from.current, to)
       from.current = to
@@ -154,6 +202,7 @@ export function usePointerReorder(move: (from: number, to: number) => void) {
   }
 
   const bind = (i: number) => ({
+    ref: (el: HTMLElement | null) => { if (el) tileEls.current.set(i, el); else tileEls.current.delete(i) },
     'data-reorder-idx': i,
     onPointerDown: onPointerDown(i),
     onPointerMove,
