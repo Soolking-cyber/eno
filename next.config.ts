@@ -904,6 +904,30 @@ const nextConfig: NextConfig = {
         destination: 'https://eno.vn/:path*',
         permanent: true,
       },
+      /**
+       * ⛔ THE FORUM'S PAGES MOVE TO `www`, ITS CANONICAL — the services edition's APP_URL and every page's
+       * <link rel="canonical"> — the way www.eno.vn's move to the apex above. The apex served the same app as a
+       * separate ORIGIN: its own cookies (a session there is signed out on www), its own push subscription (F7's
+       * sign-in guard cannot see across origins), its own storage.
+       * NOT MOVED, because a redirect would break them:
+       *   · `api/` — a 308 fails a CORS preflight (src/lib/forum/cors.ts names the apex), and webhooks and the box's
+       *     own jobs need not follow one;
+       *   · `_next/` — an apex page still open requests its own chunks;
+       *   · `.well-known/` — documents about the apex itself (the OAuth metadata says so in its own route);
+       *   · `sw.js` — a service worker's update refuses a redirected script, and the apex's worker MUST update: it
+       *     retires the apex's push subscription, which no page there can manage any more (public/sw.js).
+       * One-time costs of the move, accepted: a session on the apex signs out once; an app installed from the apex
+       * opens out of scope; a form posted from an apex tab left open across the deploy, or an auth link issued on the
+       * apex before it, fails once.
+       * eno-deploy.sh's probe follows this canonical hop for the apex instead of demanding a 200 there.
+       */
+      {
+        // Each excluded prefix as a whole segment, its bare root included (`/api` as well as `/api/…` — review).
+        source: '/:path((?!(?:api|_next|\\.well-known)(?:/|$)|sw\\.js$).*)',
+        has: [{ type: 'host', value: 'eno.forum' }],
+        destination: 'https://www.eno.forum/:path',
+        permanent: true,
+      },
       // /dashboard/forum was the "Forum activity" section (posts/comments/saved), removed
       // 2026-07-21 in favour of the Help Center — which reads the SAME Forum* tables, so
       // nothing a member did there became unreachable. 308 so bookmarks and any indexed
