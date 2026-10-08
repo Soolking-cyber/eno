@@ -76,3 +76,10 @@ describe('the notifications poll', () => {
     expect(h.notifWhere[0].type).toBeDefined()
   })
 })
+
+describe('the answer names the account it is for (F6)', () => {
+  it('`me` is the caller — the bell applies an answer only to that account', async () => {
+    const body = (await run()) as unknown as { me?: string }
+    expect(body.me).toBe('me')
+  })
+})

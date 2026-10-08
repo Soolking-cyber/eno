@@ -472,7 +472,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     // the realtime nudge / post-send refreshUnread() calls elsewhere.
     const onVis = () => { if (document.visibilityState === 'visible') refreshUnread() }
     const onBroadcast = (e: Event) => {
-      const n = (e as CustomEvent<{ unread?: number }>).detail?.unread
+      const detail = (e as CustomEvent<{ unread?: number; me?: string }>).detail
+      // Only a count made for THIS account (F6): the poll names whose answer it was, and an unnamed one is no one's.
+      if (detail?.me !== user.id) return
+      const n = detail?.unread
       if (typeof n === 'number') setUnread(n)
     }
     refreshUnread()
