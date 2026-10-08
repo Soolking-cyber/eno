@@ -228,6 +228,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         toast.error(t('Chưa thấy rõ sản phẩm — chụp cận cảnh chỉ riêng món đồ.', "Couldn't spot a clear product — take a close photo of just the item."))
         return
       }
+      // ⛔ EDITING, THE CATEGORY IS FIXED — the pill says "fixed when editing", and the save keeps the listing's own
+      // (core/listings.ts drops a subcategory from another category). A photo read as ANOTHER category fills nothing:
+      // its subcategory, specifics and brand belong to that category, and the pill would show a category the save
+      // never applies. Said, so the tap is not silently ignored (Emil audit follow-up).
+      if (edit && d.categorySlug && d.categorySlug !== edit.categorySlug) {
+        subtleToast(t('Ảnh này có vẻ thuộc danh mục khác. Khi sửa tin, danh mục không đổi được, nên chưa có gì được điền.', 'This photo looks like a different category. The category can’t change while editing, so nothing was filled in.'))
+        return
+      }
       if (d.categorySlug) {
         // AI must not pick a subcategory this edition does not offer for new posts (O-34) — nor, for a seller
         // who is not an official partner, the partner-only visa slot (O-34b).
@@ -253,7 +261,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           subcategorySlug: aiSubOk ? (d.subcategorySlug as string) : '',
           attrs: d.attributes && typeof d.attributes === 'object' ? d.attributes : {},
           ranges: {},
-          listingType: d.listingType || snap.listingType,
+          // Editing, the listing type is fixed too (the sale/rent switch is create-only).
+          listingType: edit ? snap.listingType : d.listingType || snap.listingType,
           condition: d.condition || snap.condition,
           brand: d.brand || snap.brand, // AI auto-selects the brand ONLY when confident
           model: d.model || snap.model,
@@ -271,7 +280,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         setSubcategorySlug(next.subcategorySlug)
         setAttrs(next.attrs)
         setRanges(next.ranges)
-        if (d.listingType) setListingType(d.listingType)
+        if (d.listingType && !edit) setListingType(d.listingType)
         if (d.condition) setCondition(d.condition)
         if (d.brand) setBrand(d.brand)
         if (d.model) setModel(d.model)

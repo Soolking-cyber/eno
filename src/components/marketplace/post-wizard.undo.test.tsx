@@ -145,6 +145,28 @@ describe('Autofill from photo — no Undo when nothing the seller had changes', 
   }, 30_000)
 })
 
+describe('Autofill from photo — editing, the category is fixed', () => {
+  it('⛔ a photo read as ANOTHER category fills nothing, and says so: the pill keeps the listing\'s own category', async () => {
+    classifyAnswer = { categorySlug: 'electronics', subcategorySlug: 'phones', attributes: { storage: '128GB' }, condition: 'like_new' }
+    await pickPhotoAndAutofill()
+    await waitFor(() => expect((screen.getByRole('button', { name: /Autofill from photo/ }) as HTMLButtonElement).disabled).toBe(false))
+    const pill = screen.getByText('(fixed when editing)').parentElement!
+    expect(pill.textContent).toContain('Pets')
+    expect(pill.textContent).not.toContain('Electronics')
+    expect(h.toasts.some((t) => t.title.startsWith('This photo looks like a different category'))).toBe(true)
+    expect(h.toasts.find((t) => t.title.startsWith('Filled in from your photo'))).toBeUndefined()
+  }, 30_000)
+
+  it('⛔ the same category fills as usual — but never the listing type, which is fixed when editing too', async () => {
+    classifyAnswer = { categorySlug: 'pets', attributes: {}, listingType: 'wanted' }
+    await pickPhotoAndAutofill()
+    await waitFor(() => expect((screen.getByRole('button', { name: /Autofill from photo/ }) as HTMLButtonElement).disabled).toBe(false))
+    // A wanted ad prices as a "Budget" (post-wizard.tsx priceHeading): still a sale, so still "Price".
+    expect(screen.queryByText('Budget')).toBeNull()
+    expect(screen.getAllByText('Price').length).toBeGreaterThan(0)
+  }, 30_000)
+})
+
 describe('Autofill from photo', () => {
   it('⛔ replacing what the seller had chosen comes with an Undo that puts it back', async () => {
     // A NEW post with a category the seller picked (in edit mode the category is fixed — not the case under test).
