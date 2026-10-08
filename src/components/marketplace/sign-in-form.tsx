@@ -13,10 +13,11 @@ import { googleOauthBlocked, inAppHost, isIOS, isNativeTabs, openInSystemBrowser
 import { PHONE_OTP_ENABLED } from '@/lib/auth-policy'
 import { noteGateMethod } from '@/lib/signin-gates'
 import { armIntent, withResume, type PendingIntent } from '@/lib/pending-intent'
-import type { SignInGate } from '@/lib/signup-prompt'
+import type { SignInGate, SignInMethod } from '@/lib/signup-prompt'
 import { HANDOFF_NEXT_KEY, handoffNonce } from '@/lib/auth/handoff-client'
-import { isNativeApp, nativeGoogleSignIn } from '@/lib/native-auth'
-import { appReviewGate, iosAppGate, IN_APP_SHEET_PARAM, nativeAppGate } from '@/lib/app-review-gates'
+import { isNativeApp, nativeAppleSignIn, nativeAuthErrorCode, nativeOAuth, type NativeOAuthProvider } from '@/lib/native-auth'
+import { appReviewGate, inAppSheetDocument, IN_APP_SHEET_PARAM, nativeAppGate } from '@/lib/app-review-gates'
+import { appleAvailableHere, appleFlagSet, appleSignInTokens, appleWebEnabled, iosGoogleHidden, iosNativeAppleReady, iosSignInPluginPresent } from '@/lib/apple-signin'
 import { googleFirstPartyEnabled } from '@/lib/google-identity'
 import { useTurnstile } from './turnstile'
 import { canonicalEmail } from '@/lib/email-alias'
@@ -87,6 +88,11 @@ export type SignInErrorCode =
   | 'send_failed'
   | 'bad_code'
   | 'unknown'
+  /** Sign in with Apple did not finish: the network, a refused token, the native sheet failed (a cancel is silent). */
+  | 'apple_failed'
+  /** Sign in with Apple cannot run here: no Apple Account on the device (ASAuthorizationError 1000), or this
+   *  deployment is not configured for it (the server's 503). */
+  | 'apple_unavailable'
 
 export type SignInError =
   /** `detail` is Cloudflare's widget-error code on a captcha failure — see signInErrorText.
@@ -150,6 +156,11 @@ export function signInErrorText(e: SignInError, t: (en: string, vi?: string) => 
       return t('That code is wrong or has expired. Send a new one and try again.', 'Mã không đúng hoặc đã hết hạn. Hãy gửi mã mới rồi thử lại nhé.')
     case 'unknown':
       return t('Something went wrong. Please try again.', 'Đã có lỗi xảy ra. Vui lòng thử lại.')
+    // "Sign in with Apple" is Apple's own name for the feature, and "Đăng nhập bằng Apple" its own Vietnamese.
+    case 'apple_failed':
+      return t('Sign in with Apple didn’t finish. Try again, or use another way to sign in.', 'Đăng nhập bằng Apple chưa hoàn tất. Hãy thử lại hoặc dùng cách đăng nhập khác.')
+    case 'apple_unavailable':
+      return t('Sign in with Apple isn’t available right now. Check that this device is signed in to an Apple Account, or use another way to sign in.', 'Hiện chưa thể Đăng nhập bằng Apple. Hãy kiểm tra thiết bị đã đăng nhập Tài khoản Apple, hoặc dùng cách đăng nhập khác.')
   }
 }
 
@@ -203,16 +214,17 @@ function handoffVia(): string | null {
 export function SignInForm({ className, collapseEmail = false, onMethod, gate = 'page', resume = null }: {
   className?: string
   /**
-   * THE JOIN PRESENTATION (the "Join eno" prompt, signup-prompt.tsx): Google first, and the email tabs
-   * folded behind one "Use email instead" button that opens them IN PLACE — the same form, the same
-   * state, no navigation (agy + opus, plan review: a link to /signin would be a second surface).
-   * ⚠️ IGNORED WHERE GOOGLE CANNOT FINISH HERE — hidden (the native iOS tabs) or blocked (an in-app
-   * browser, where the emailed code leads and Google is the quiet link under it): there the email form
-   * shows at once.
+   * THE JOIN PRESENTATION (the "Join eno" prompt, signup-prompt.tsx): Google (and Apple, where it runs)
+   * first, and the email tabs folded behind one "Use email instead" button that opens them IN PLACE — the
+   * same form, the same state, no navigation (agy + opus, plan review: a link to /signin would be a second
+   * surface).
+   * ⚠️ IGNORED WHERE NO PROVIDER CAN FINISH HERE — hidden (the native iOS tabs, iOS build 2) or blocked (an
+   * in-app browser, where the emailed code leads and Google is the quiet link under it): there the email
+   * form shows at once.
    */
   collapseEmail?: boolean
-  /** Told which method the visitor reached for — Google pressed, or email opened. Analytics only. */
-  onMethod?: (method: 'google' | 'email') => void
+  /** Told which method the visitor reached for — Google or Apple pressed, or email opened. Analytics only. */
+  onMethod?: (method: SignInMethod) => void
   /**
    * Which gate opened this sign-in (UX3 J1's per-gate counters). The /signin page passes nothing and is
    * the `page` gate; the popup passes what auth-context classified. `timed` (the join prompt) counts
@@ -235,15 +247,33 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   /**
    * APP STORE GATES (src/lib/app-review-gates.ts) — dormant until the owner sets the token.
    *  · `ios-hide-google` (Guideline 4.8): an iOS app that offers Google must also offer Sign in with
-   *    Apple; offering only eno's own sign-in exempts it. Existing Google users sign in with an emailed
-   *    code to the same address. Android and the web keep Google.
+   *    Apple. Since Sign in with Apple (2026-10-08) it means "no Google in the iOS app UNLESS Apple shows
+   *    beside it" — a binary with the `EnoSignIn` plugin (build 3 on) and `ios` in NEXT_PUBLIC_APPLE_SIGNIN
+   *    (`iosGoogleHidden()`). Build 2 keeps showing neither; its Google users sign in with an emailed code to
+   *    the same address. Android and the web keep Google.
    *  · `app-signin-tidy`: in either app, drop the disabled "Phone · soon" strip (App Review reads a
    *    disabled method as unfinished UI, 2.1) and open the legal links in the app, not in Safari.
-   * The CSS hooks (`ios-app-hidden` / `native-app-hidden`, globals.css) hide the server-rendered first
-   * frame; the state below is what the logic reads once mounted.
+   * The CSS hooks (`ios-nosiwa-hidden` / `apple-native-only` for the providers, `native-app-hidden`,
+   * globals.css) hide the server-rendered first frame; the state below is what the logic reads once mounted.
    */
   const gateGoogle = appReviewGate('ios-hide-google')
   const gateTidy = appReviewGate('app-signin-tidy')
+  /**
+   * SIGN IN WITH APPLE — the rollout flag (src/lib/apple-signin.ts), a build-time value like the gates.
+   * ⛔ EMPTY FLAG ⇒ THIS FORM'S MARKUP IS TODAY'S: no Apple node on any render, and Google keeps its old look.
+   *  · `restyleGoogle` — any token: Google takes its Light theme and a 16px label beside Apple (plan B3/B4).
+   *  · `appleSsr` — the server renders an Apple button when `ios` or `web` is in the flag; it is the FIRST
+   *    render here too, so hydration matches, and the mount effect then keeps it only where Apple can run
+   *    (`appleAvailableHere()`). With `web-test` alone there is no server node: a tester's browser renders
+   *    it after mount.
+   *  · `appleWebAll` — `web`: the server node is for everyone. Without it the node carries
+   *    `apple-native-only` (shown only in the iOS binary that can run Apple natively) until the mount effect
+   *    finds a `web-test` tester here (`appleWebHere`).
+   */
+  const appleTokens = appleSignInTokens()
+  const restyleGoogle = appleFlagSet()
+  const appleWebAll = appleTokens.has('web')
+  const appleSsr = appleTokens.has('ios') || appleWebAll
   const [legalInApp, setLegalInApp] = useState(false)
   /**
    * `app-signin-tidy`: a legal link opens in the app's in-app browser sheet (SFSafariViewController /
@@ -328,17 +358,27 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   // Google blocks OAuth inside in-app browsers / iOS PWAs (403 disallowed_useragent).
   // Detect that client-side and hand off to the real browser instead of dead-ending.
   // ⚠️ EXCEPT in the native Capacitor app: its WebView UA also contains "wv" (so googleOauthBlocked
-  // is true), but oauth() routes native taps through nativeGoogleSignIn — a Custom Tab /
-  // SFSafariViewController that Google DOES allow. So treat native as NOT blocked: show the normal
+  // is true), but oauth() routes native taps through nativeOAuth — a Custom Tab /
+  // SFSafariViewController, or ASWebAuthenticationSession on iOS build 3, all of which Google DOES allow.
+  // So treat native as NOT blocked: show the normal
   // "Continue with Google" button, not the "open in your browser" fallback + hint.
   const [oauthBlocked, setOauthBlocked] = useState(false)
   const [iosHint, setIosHint] = useState(false)
   // Native iOS app's embedded tabs: Google can't work there at all (no escape
   // hatch, no session handoff) — hide it and lead with Phone/Email.
   const [hideGoogle, setHideGoogle] = useState(false)
+  // Sign in with Apple — see `appleSsr` above for the first render; the mount effect decides the rest.
+  // ⚠️ BEFORE THE `web` FLIP (commit gate B1, codex): with `web`, the server node paints in contexts the mount effect
+  // then removes it from (an in-app browser, an iOS home-screen web app) — a flash until hydration. The iOS binary
+  // never has it (`native-siwa` decides the first frame there). Fix with a pre-paint class from the layout's head
+  // script, like `native-siwa`, before `web` ships (I12) — not needed for `ios` or `web-test`.
+  const [showApple, setShowApple] = useState(appleSsr)
+  const [appleWebHere, setAppleWebHere] = useState(false)
+  // Either provider is offered here. The divider, and the join presentation's fold, key on this.
+  const providersShown = !hideGoogle || showApple
   // The join presentation's fold — see `collapseEmail`. Opening it is one-way for this form's life.
   const [emailOpened, setEmailOpened] = useState(false)
-  const emailCollapsed = collapseEmail && !emailOpened && !hideGoogle && !oauthBlocked
+  const emailCollapsed = collapseEmail && !emailOpened && providersShown && !oauthBlocked
   /**
    * ⛔ WHERE GOOGLE CANNOT FINISH HERE, THE EMAILED CODE LEADS (UX3 J2, 2026-10-05) — Facebook, Zalo,
    * Instagram, TikTok, the Google app, an Android WebView, an iOS home-screen app (`googleOauthBlocked`;
@@ -381,7 +421,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
    * the device record (signin-gates.ts) that credits the sign-in which follows to this gate.
    */
   const gateMethodReported = useRef(false)
-  const reportGateMethod = (m: 'google' | 'email') => {
+  const reportGateMethod = (m: SignInMethod) => {
     if (gateMethodReported.current) return
     gateMethodReported.current = true
     noteGateMethod(gate, m)
@@ -390,7 +430,14 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   const openEmail = () => { setEmailOpened(true); reportEmail() }
   useEffect(() => {
     setOauthBlocked(googleOauthBlocked() && !isNativeApp())
-    setHideGoogle((isNativeTabs() && !isNativeApp()) || iosAppGate('ios-hide-google'))
+    // ⛔ ONE ANSWER FOR BOTH PROVIDERS IN THE iOS APP: `iosGoogleHidden()` and `appleAvailableHere()` both come
+    // from `iosNativeAppleReady()`, so Google can never show there without Apple (Guideline 4.8). The app's
+    // in-app sheet is a plain browser (IN_APP_SHEET_PARAM) — no provider there (plan B8): a sign-in inside it would
+    // land in the sheet's browser jar, not the app. ⚠️ The one change here with the flag EMPTY (commit gate B2): it
+    // holds whatever the flag says, and only with `app-signin-tidy` on (the gate that opens the sheet at all).
+    setHideGoogle((isNativeTabs() && !isNativeApp()) || iosGoogleHidden() || inAppSheetDocument())
+    setShowApple(appleAvailableHere())
+    setAppleWebHere(appleWebEnabled())
     // Only where the bridge can open the sheet. An app page WITHOUT one (the UA says app, but no
     // window.Capacitor — Android off server.url, the shelved SwiftUI tabs) keeps target=_blank, because a
     // same-window link there would throw the half-finished sign-in away (codex + opus, review round 3).
@@ -570,16 +617,17 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
     })()
   }
 
-  // ⛔ GOOGLE-SPECIFIC, BECAUSE `loading` IS FORM-WIDE. Reusing `loading` for this button's label
+  // ⛔ PROVIDER-SPECIFIC, BECAUSE `loading` IS FORM-WIDE. Reusing `loading` for this button's label
   // made it announce "Signing you in…" whenever ANY flow was in flight — send a magic link and two
   // controls claim progress, one of them falsely. Caught by review. `loading` still governs
-  // `disabled`; only the COPY is provider-specific.
+  // `disabled`; only the busy state (the button's `loading` spinner) is per provider.
   const [googleBusy, setGoogleBusy] = useState(false)
+  const [appleBusy, setAppleBusy] = useState(false)
 
-  // ⛔ BACK FROM GOOGLE RESTORES THIS PAGE WITH ITS JS STATE INTACT. The first-party flow is a
-  // full-page navigation, so a visitor who reaches Google's account chooser and presses Back gets
-  // /signin from the bfcache with `loading` and `googleBusy` still true — every control disabled
-  // and the Google button spinning "Signing you in…" forever. iOS Safari bfcaches every time, so
+  // ⛔ BACK FROM GOOGLE (OR APPLE) RESTORES THIS PAGE WITH ITS JS STATE INTACT. Both web flows are a
+  // full-page navigation, so a visitor who reaches the provider's account chooser and presses Back gets
+  // /signin from the bfcache with `loading` and the busy flag still true — every control disabled
+  // and the button spinning forever. iOS Safari bfcaches every time, so
   // this is not an edge case. The old popup-based flow never navigated and never had it; caught by
   // review. `persisted` is what distinguishes a bfcache restore from a normal load.
   useEffect(() => {
@@ -587,6 +635,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
       if (!e.persisted) return
       setLoading(false)
       setGoogleBusy(false)
+      setAppleBusy(false)
     }
     window.addEventListener('pageshow', onShow)
     return () => window.removeEventListener('pageshow', onShow)
@@ -623,12 +672,16 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
    * piece of state to decide would either loop or go stale in a closure. Passing the intent
    * explicitly cannot do either.
    */
-  const oauth = async (provider: 'google', skipFirstParty = false) => {
-    // ⛔ `ios-hide-google` (Guideline 4.8): NO GOOGLE IN THE iOS APP BY ANY PATH, NOT JUST NO BUTTON.
-    // The `?g=fallback` retry above calls in here on mount with no tap at all, so hiding the controls
-    // left that way open. Ask the gate itself, never `hideGoogle`: that effect holds the FIRST render's
-    // closure, where the state is still false. Android and the web keep Google (iosAppGate is iOS only).
-    if (iosAppGate('ios-hide-google')) return
+  const oauth = async (provider: NativeOAuthProvider, skipFirstParty = false) => {
+    // ⛔ `ios-hide-google` (Guideline 4.8): NO GOOGLE IN THE iOS APP BY ANY PATH, NOT JUST NO BUTTON —
+    // unless Apple can run beside it (build 3 with `ios`, `iosGoogleHidden()`). The `?g=fallback` retry
+    // above calls in here on mount with no tap at all, so hiding the controls left that way open. Ask the
+    // helper itself, never `hideGoogle`: that effect holds the FIRST render's closure, where the state is
+    // still false. Android and the web keep Google (the helper is iOS only).
+    if (provider === 'google' && iosGoogleHidden()) return
+    // The same rule for Apple: only where it can run (the iOS binary's native sheet, the Android app's tab,
+    // a real browser — never an in-app browser, the iOS home-screen app or the in-app sheet, D7/B8).
+    if (provider === 'apple' && !appleAvailableHere()) return
     // In-flight guard + synchronous `loading`, the same way sendPhone/sendEmail do it. The
     // client is now a dynamic import, so there is a real chunk-fetch gap between the tap and
     // signInWithOAuth — long enough to tap twice. Two concurrent calls both reach
@@ -638,18 +691,30 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
     // whose verifier is gone. Recoverable by re-tapping, but it should not happen.
     // (Integration review, 2026-07-25.)
     if (loading) return
+    if (provider === 'apple') { await startApple(); return }
     // Native app (Capacitor): Google rejects OAuth in the embedded WebView, so open it in a real
-    // in-app browser tab and finish via the deep-link handler in native-bootstrap. `googleOauthBlocked`
+    // browser surface and finish via the callback hop (src/lib/native-auth.ts). `googleOauthBlocked`
     // does NOT catch the Capacitor WebView (it's not a known in-app browser UA), so gate on isNativeApp.
     if (isNativeApp()) {
       setError(null)
       setLoading(true)
       const next = signInNextPath(window.location, resume)
+      // iOS build 3: ASWebAuthenticationSession hands its callback back and this WebView FOLLOWS it — the
+      // document is going away, so `loading` stays set (a second tap there would clear the PKCE verifier the
+      // callback is about to use). The Custom Tab / SFSafariViewController path resolves once the sheet is up,
+      // and the deep link finishes it, so the form must come back to life for a visitor who closes the sheet.
+      const navigates = iosSignInPluginPresent()
       const sb = await getSupabase()
       if (!sb) return // getSupabase already cleared loading and set the error
-      try { await nativeGoogleSignIn(sb, next) }
-      catch (e) { setError({ code: 'raw', message: e instanceof Error ? e.message : 'Google sign-in failed' }) }
-      finally { setLoading(false) }
+      try {
+        await nativeOAuth(sb, 'google', next)
+        if (navigates) return
+      } catch (e) {
+        const code = nativeAuthErrorCode(e)
+        // Closing the sheet is the visitor's answer, not an error; a sheet that failed gets the generic line.
+        if (code !== 'canceled') setError(code ? { code: 'unknown' } : { code: 'raw', message: e instanceof Error ? e.message : 'Google sign-in failed' })
+      }
+      setLoading(false)
       return
     }
     // In an in-app browser / iOS PWA, OAuth is rejected (disallowed_useragent) — break
@@ -699,8 +764,62 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
     if (error) { setError({ code: 'raw', message: error.message }); setLoading(false); setGoogleBusy(false) }
   }
 
+  /**
+   * SIGN IN WITH APPLE — three routes, one per place it can run (plan §7.3a; `oauth` has already checked
+   * `appleAvailableHere()` and the in-flight guard):
+   *   · the iOS app (build 3, `ios`) → Apple's own sheet, redeemed by our server (nativeAppleSignIn);
+   *   · the Android app → GoTrue's Apple web flow in a Custom Tab, back through the `native=1` hop (nativeOAuth);
+   *   · a real browser → GoTrue's Apple web flow, a full-page navigation. Never the Google-only first-party
+   *     round trip (/auth/google/start).
+   * ⛔ `&p=apple` ON THE BROWSER'S CALLBACK IS REQUIRED, not a label: /auth/callback keeps Apple's refresh token
+   * (for revocation when the account is deleted, TN3194) only when it sees it. nativeOAuth adds its own.
+   * A cancel is SILENT on every route; anything else is `apple_failed` / `apple_unavailable`, never Apple's text.
+   */
+  const startApple = async () => {
+    setError(null)
+    setLoading(true)
+    setAppleBusy(true)
+    const fail = (code: 'apple_failed' | 'apple_unavailable' | null) => {
+      if (code) setError({ code })
+      setLoading(false)
+      setAppleBusy(false)
+    }
+    const next = signInNextPath(window.location, resume)
+    if (iosNativeAppleReady()) {
+      try {
+        // Resolves once this WebView is on its way to the server's `to` — the document is going away, so the
+        // busy state stays (as on the web route) rather than inviting a second sheet.
+        await nativeAppleSignIn(next)
+      } catch (e) {
+        const code = nativeAuthErrorCode(e)
+        fail(code === 'canceled' ? null : code === 'apple_unavailable' ? 'apple_unavailable' : 'apple_failed')
+      }
+      return
+    }
+    const sb = await getSupabase()
+    if (!sb) { setAppleBusy(false); return } // getSupabase already cleared loading and set the error
+    if (isNativeApp()) {
+      try {
+        await nativeOAuth(sb, 'apple', next)
+      } catch (e) {
+        fail(nativeAuthErrorCode(e) === 'canceled' ? null : 'apple_failed')
+        return
+      }
+      // The tab is up; the deep link finishes the sign-in, and a visitor who closes it gets the form back.
+      fail(null)
+      return
+    }
+    // Same instant as Google's: clear what abandoned attempts left, immediately before the new flow.
+    clearStalePkceCookies()
+    const { error } = await sb.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo: `${redirectTo}&p=apple` } })
+    // On success supabase-js navigates to Apple — leave the busy state set for the navigation.
+    if (error) fail('apple_failed')
+  }
+
   /** Google pressed — in either place it is shown. One outcome per ask for the prompt; the gate's first method. */
   const pressGoogle = () => { onMethod?.('google'); reportGateMethod('google'); void oauth('google') }
+  /** Apple pressed — the same accounting as Google. */
+  const pressApple = () => { onMethod?.('apple'); reportGateMethod('apple'); void oauth('apple') }
 
   // Magic link goes through OUR endpoint, not supabase.auth.signInWithOtp — see the
   // header of api/auth/email-link for why (Supabase's SMTP credentials silently expired
@@ -1210,9 +1329,12 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   return (
     <div ref={formRef} className={cn('space-y-3', className)}>
       {/* OAuth — in an in-app browser / iOS PWA, Google rejects OAuth, so it hands off to the real
-          browser, and since UX3 J2 it is not the lead there: the email code is (see `emailFirst`).
-          In the native app's embedded tabs it's hidden outright (isNativeTabs). */}
-      {!hideGoogle && !emailFirst && (
+          browser, and since UX3 J2 it is not the lead there: the email code is (see `emailFirst`), and
+          Apple is not offered at all (D7). In the native app's embedded tabs it's hidden outright
+          (isNativeTabs). ⛔ FIXED ORDER, GOOGLE THEN APPLE (D6), and both are the same Button shape —
+          `min-h-11 w-full rounded-xl`, the same `loading` busy state — so neither outweighs the other
+          (Apple HIG: "no smaller than other sign-in buttons"; Google: "approximately the same size"). */}
+      {providersShown && !emailFirst && (
         <>
           {/* ⛔ OUR OWN BUTTON, AND OUR OWN OAUTH FLOW BEHIND IT — the third and final shape.
               Google prints the redirect HOST on its consent screen, so the only way to have both
@@ -1230,13 +1352,42 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
               `variant="bare"`, NOT ghost/outline: both force `hover:text-accent-foreground`, which
               would turn the label brand-blue on hover. The G is `size-5` (20px) — ui/button's base
               clamps any svg WITHOUT a `size-` class to 16px, so h-5/w-5 would silently lose. */}
-          <Button variant="bare" size="none" disabled={loading} onClick={pressGoogle} className={cn('flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-popover px-4 text-sm font-bold text-foreground transition-colors hover:bg-tint disabled:opacity-50 cursor-pointer', gateGoogle && 'ios-app-hidden')}>
-            {googleBusy ? <Loader2 className="size-5 animate-spin" /> : <GoogleIcon />}
-            {googleBusy ? t('Signing you in…', 'Đang đăng nhập…') : t('Continue with Google', 'Tiếp tục với Google')}
-          </Button>
+          {/* SIGN IN WITH APPLE (2026-10-08). With ANY token in the flag Google takes its own Light theme —
+              #FFFFFF fill, #747775 stroke, #1F1F1F label, in BOTH colour schemes — and a 16px label, so it
+              carries the same visual weight as Apple's white button beside it; it may wrap rather than
+              overflow under the apps' text zoom. ⛔ With the flag EMPTY the first branch keeps the old
+              button's classes byte-for-byte (B4: the restyle must not leak into the dark deploy). The one
+              change there is the busy state, on purpose: `loading` replaces the old hand-built Loader2 swap
+              (design-language §5 — commit gate B1 asked); the label still turns into "Signing you in…" for a
+              screen reader, as it did. `ios-nosiwa-hidden` (was `ios-app-hidden`): hidden in the iOS app
+              before hydration unless the head script marked it `native-siwa` — Google only beside Apple. */}
+          {!hideGoogle && (
+            <Button variant="bare" size="none" disabled={loading} loading={googleBusy} onClick={pressGoogle} className={cn(restyleGoogle ? GOOGLE_LIGHT_THEME : 'flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-popover px-4 text-sm font-bold text-foreground transition-colors hover:bg-tint disabled:opacity-50 cursor-pointer', gateGoogle && 'ios-nosiwa-hidden')}>
+              <GoogleIcon />
+              {googleBusy ? t('Signing you in…', 'Đang đăng nhập…') : t('Continue with Google', 'Tiếp tục với Google')}
+            </Button>
+          )}
+          {/* ⛔ APPLE'S OWN LOOK, PER THE HIG (D6) — App Review evaluates a custom Sign in with Apple button:
+              white fill, black logo and title, a 1px black outline in light mode and none in dark mode (an inset
+              ring, which takes no height: exactly 44px, like Google); Apple's own logo artwork at the button's height,
+              never cropped (AppleIcon); the title at 43% of the height and ALWAYS "Continue with Apple" — the
+              busy state is the spinner over it, never a different label. It may grow rather than clip under
+              text zoom (B3: no nowrap).
+              `ios-nosiwa-hidden` ALWAYS: in the iOS app Apple exists only as the native sheet, so before
+              hydration it shows only where the head script found the plugin and `ios` (`native-siwa`).
+              `apple-native-only` while `web` is not in the flag: the server's node is then for that iOS
+              binary alone, until the mount effect finds a `web-test` tester here. */}
+          {showApple && (
+            <Button variant="bare" size="none" disabled={loading} loading={appleBusy} onClick={pressApple} className={cn(APPLE_BUTTON, 'ios-nosiwa-hidden', !appleWebAll && !appleWebHere && 'apple-native-only')}>
+              <AppleIcon />
+              <span className={APPLE_TITLE}>{t('Continue with Apple', 'Tiếp tục với Apple')}</span>
+            </Button>
+          )}
 
+          {/* The divider shows whenever a provider does, with Google's own first-frame hook: under the gate
+              in the iOS app, a provider can only paint with `native-siwa`. */}
           {!emailCollapsed && (
-            <div className={cn('flex items-center gap-3 py-1', gateGoogle && 'ios-app-hidden')}>
+            <div className={cn('flex items-center gap-3 py-1', gateGoogle && 'ios-nosiwa-hidden')}>
               <span className="h-px flex-1 bg-border" />
               <span className="text-xs text-ink-4">{t('or', 'hoặc')}</span>
               <span className="h-px flex-1 bg-border" />
@@ -1578,8 +1729,9 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
           says the visitor will bring a code back, before they tap. A text link (a real 44px target),
           never a second CTA beside "Send code". */}
       {!hideGoogle && emailFirst && (
-        // `ios-hide-google`: the server-rendered first frame must not show Google in the iOS app either.
-        <div className={cn('space-y-1 pt-1 text-center', gateGoogle && 'ios-app-hidden')}>
+        // `ios-hide-google`: the server-rendered first frame must not show Google in the iOS app either — the same
+        // `ios-nosiwa-hidden` hook as the main button. No Apple here: in-app browsers get none (D7).
+        <div className={cn('space-y-1 pt-1 text-center', gateGoogle && 'ios-nosiwa-hidden')}>
           <div className="flex items-center gap-3 pb-1">
             <span className="h-px flex-1 bg-border" />
             <span className="text-xs text-ink-4">{t('or', 'hoặc')}</span>
@@ -1690,6 +1842,50 @@ function SecondarySwitchRow({ show, items, replaceWith = null, announce = '' }: 
         </Fragment>
       ))}
     </div>
+  )
+}
+
+/**
+ * Google's Light theme (developers.google.com/identity/branding-guidelines): #FFFFFF fill, a 1px #747775 stroke,
+ * #1F1F1F label — kept in BOTH colour schemes, beside Apple's white button, and a 16px label (the canon's
+ * text-base) for equal visual weight. Used only while NEXT_PUBLIC_APPLE_SIGNIN has a token (plan B3/B4); the hover
+ * is a fixed light grey because the tint token turns dark in dark mode, under a near-black label.
+ * `whitespace-normal`: under the apps' text zoom the label wraps inside the button instead of spilling out.
+ */
+const GOOGLE_LIGHT_THEME = 'flex min-h-11 w-full items-center justify-center gap-2.5 whitespace-normal rounded-xl border border-[#747775] bg-white px-4 text-center text-base font-bold text-[#1F1F1F] transition-colors hover:bg-neutral-100 disabled:opacity-50 cursor-pointer'
+/**
+ * Apple's custom-button rules (HIG, Sign in with Apple → Creating a custom button): white fill with black logo and
+ * title; the white OUTLINED style on a light background, plain white on a dark one; the logo file's height equals the
+ * button's, so no vertical padding (AppleIcon's frame carries the logo's own margins, hence `gap-0`);
+ * `whitespace-normal` — the title may grow, never clip (B3).
+ * ⛔ THE OUTLINE IS AN INSET RING, NEVER A BORDER. Under border-box a 1px border sits INSIDE `min-h-11`, so the 44px
+ * logo pushed the box to 46px — taller than Google's 44 beside it, and the logo no longer the button's height
+ * (measured in Chromium, review 2026-10-08). `inset-ring` is a box-shadow: it takes no space, and the focus ring
+ * (an outer ring) still draws around it.
+ */
+const APPLE_BUTTON = 'flex min-h-11 w-full items-center justify-center gap-0 whitespace-normal rounded-xl inset-ring inset-ring-black bg-white px-4 text-center text-black hover:bg-neutral-100 disabled:opacity-50 cursor-pointer dark:inset-ring-transparent'
+// The title's size is 43% of the button's height in Apple's own proportions — 19px at 44px — which sits between the
+// canon's 18 and 20 steps, so it is the one arbitrary size here. Medium weight, Apple's own default.
+// ⚠️ A UNITLESS LEADING (1.25 — 23.75px at 19px, the same line as before). The apps' text zoom
+// (native-text-zoom.ts, up to 175%) grows the glyphs but never a px/rem line box, so a fixed `leading-6` kept 24px
+// lines under 28px+ glyphs and a wrapped title (B3 lets it wrap) overlapped itself.
+// Wrapping is real, not hypothetical: in the Join dialog at 320px (a 248px button) the fr, ru, ms and th titles take
+// two lines, and English fits with about 18px to spare on the right (review, 2026-10-08) — D6's screenshot review.
+const APPLE_TITLE = 'text-[19px] font-medium leading-tight' // design-lint-allow: Apple HIG custom button — title = 43% of the 44px height (19px)
+
+/**
+ * Apple's logo for the custom button, as the HIG requires it: Apple's glyph in the frame Apple ships for a logo
+ * beside a title at a 44pt button height — 31 × 44, centred, its padding PART of the artwork (the margin to the
+ * button's leading edge and to the title). Never crop it, never scale it apart from the button, never recolour it:
+ * `currentColor`, the button's black.
+ * ⛔ CHECK THIS PATH AGAINST APPLE'S OWN FILE BEFORE THE iOS FLIP (I11), NOT THE WEB FLIP: it was typed in, not taken
+ * from the downloadable "Sign in with Apple" logo files (Apple Design Resources, left-aligned, medium) — the only
+ * artwork the HIG allows — and build 3 shows this very button to App Review, which evaluates every custom Sign in
+ * with Apple button, before the web ever does (docs/ios-appstore-release.md P9).
+ */
+function AppleIcon() {
+  return (
+    <svg className="h-11 w-[31px] shrink-0" viewBox="0 0 31 44" fill="currentColor" aria-hidden="true"><path d="M15.7099491,14.8846154 C16.5675461,14.8846154 17.642562,14.3048315 18.28274,13.5317864 C18.8625238,12.8312142 19.2852829,11.852829 19.2852829,10.8744437 C19.2852829,10.7415766 19.2732041,10.6087095 19.2490464,10.5 C18.2948188,10.5362365 17.1473299,11.140178 16.4588366,11.9494596 C15.9152893,12.56548 15.4200572,13.5317864 15.4200572,14.5222505 C15.4200572,14.6671964 15.4442149,14.8121424 15.4562937,14.8604577 C15.5166879,14.8725366 15.6133185,14.8846154 15.7099491,14.8846154 Z M12.6902416,29.5 C13.8618881,29.5 14.3812778,28.7148761 15.8428163,28.7148761 C17.3285124,28.7148761 17.6546408,29.4758423 18.9591545,29.4758423 C20.2395105,29.4758423 21.0971074,28.2919142 21.9063891,27.1321538 C22.8123013,25.8034827 23.1867451,24.4989691 23.2109027,24.4385749 C23.1263509,24.4144173 20.6743484,23.4119966 20.6743484,20.5972773 C20.6743484,18.1573535 22.6069612,17.0579 22.7156707,16.9733482 C21.4353147,15.1382709 19.4906239,15.0899556 18.9591545,15.0899556 C17.5217737,15.0899556 16.3501271,15.9596309 15.6133185,15.9596309 C14.8161157,15.9596309 13.7652575,15.1382709 12.521138,15.1382709 C10.1532818,15.1382709 7.74950381,17.0941365 7.74950381,20.7905386 C7.74950381,23.0855165 8.64333654,25.513591 9.74278991,27.0838388 C10.6849473,28.4126271 11.5063073,29.5 12.6902416,29.5 Z" /></svg>
   )
 }
 

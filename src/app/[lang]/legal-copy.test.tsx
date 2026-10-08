@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AMENDED, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT, dateEn, dateVi, type LegalAmendment } from '@/lib/compliance/legal-amendment'
+import { AMENDED, LEGAL_AMENDMENT, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT, dateEn, dateVi, type LegalAmendment } from '@/lib/compliance/legal-amendment'
+import { PRIVACY_TEXT_PUBLISHED } from '@/lib/compliance/privacy-updated'
 import { V1_SUPERSEDED } from '@/lib/compliance/legal-archive'
 import { RANKING_DISCLOSURE_UPDATED } from '@/lib/compliance/ranking-disclosure'
 import { REGULATIONS_PREVIOUS_VERSION, REGULATIONS_VERSION, TOS_EFFECTIVE_AT, TOS_PREVIOUS_VERSION, TOS_VERSION } from '@/lib/site-legal'
@@ -823,6 +824,8 @@ describe('version 2 of the Quy chế, archived (/regulations/v2)', () => {
 })
 
 describe('/privacy', () => {
+  /** The later of the Terms' newest amendment and the policy's own date (privacy/page.tsx LAST_UPDATED). */
+  const PRIVACY_LAST_UPDATED_EN = dateEn(LEGAL_AMENDMENT.published > PRIVACY_TEXT_PUBLISHED ? LEGAL_AMENDMENT.published : PRIVACY_TEXT_PUBLISHED)
   async function privacy(edition: 'marketplace' | 'services') {
     const mod = await page<LangPage>('./privacy/page', 'en', edition)
     return text(renderToStaticMarkup(await mod.default({ params: Promise.resolve({ lang: 'en' }) })))
@@ -839,7 +842,9 @@ describe('/privacy', () => {
     expect(html).toContain('They have not been filed yet')
     // The correction changed eno.vn's text, so its date moved with the amendment's publication — and again
     // with the Terms' version 3 (the AI review of reports, eno.vn's partner e-Visa section): 7 October 2026.
-    expect(html).toContain(`Last updated: ${AMENDED.publishedEn}`)
+    // ⚠️ Since D12 (2026-10-08) the policy also has its OWN date for changes outside an amendment (the Sign in with
+    // Apple rows, the teacher paragraph — src/lib/compliance/privacy-updated.ts) and prints the later of the two.
+    expect(html).toContain(`Last updated: ${PRIVACY_LAST_UPDATED_EN}`)
     expect(AMENDED.publishedEn).toBe('7 October 2026')
   })
 
@@ -848,7 +853,7 @@ describe('/privacy', () => {
     expect(html).not.toContain('file them with the Ministry of Public Security, and update them')
     expect(html).not.toContain('have filed both with the Ministry of Public Security')
     expect(html).toContain('They have not been filed yet')
-    expect(html).toContain(`Last updated: ${AMENDED.publishedEn}`)
+    expect(html).toContain(`Last updated: ${PRIVACY_LAST_UPDATED_EN}`)
     expect(html).not.toContain('Last updated: August 2026')
   })
 })

@@ -645,6 +645,21 @@
   }
  },
  {
+  "en": "Continue with Apple",
+  "context": "the Sign in with Apple button title — Apple's own string in each language (HIG: only Sign in with Apple / Sign up with Apple / Continue with Apple); km keeps the English, Apple ships no Khmer title; VI: Tiếp tục với Apple",
+  "translations": {
+   "zh-Hans": "通过 Apple 继续",
+   "ko": "Apple로 계속하기",
+   "ja": "Appleで続ける",
+   "ru": "Продолжить с Apple",
+   "km": "Continue with Apple",
+   "ms": "Teruskan dengan Apple",
+   "th": "ดำเนินการต่อด้วย Apple",
+   "fr": "Continuer avec Apple",
+   "hi": "Apple से जारी रखें"
+  }
+ },
+ {
   "en": "Cover lessons",
   "context": "teacher profiles: lessons a teacher takes over at short notice for an absent teacher (substitute teaching, NOT 'cover' as in shelter or a lid); group label and step name; VI: Dạy thay",
   "translations": {

@@ -15,6 +15,12 @@ export const TR_OVERRIDES: Record<string, Partial<Record<Language, string>>> = {
   // which MT renders as ko 지역 / ja 地元 / fr Locale. A name stays a name. Mirrored in glossary-data.json.
   Local: { 'zh-Hans': 'Local', ko: 'Local', ja: 'Local', ru: 'Local', km: 'Local', ms: 'Local', th: 'Local', fr: 'Local', hi: 'Local' },
   Post: { 'zh-Hans': '发布', ko: '등록', ja: '投稿', ru: 'Разместить', fr: 'Publier' },
+  // ⛔ SIGN IN WITH APPLE'S BUTTON TITLE IS APPLE'S OWN STRING, NEVER A MACHINE TRANSLATION (HIG: "use only Sign in
+  // with Apple, Sign up with Apple, or Continue with Apple"; App Review judges a custom button by it). These are the
+  // titles Apple's own button shows in each language (the Vietnamese, "Tiếp tục với Apple", is the tr() pair in
+  // sign-in-form.tsx). Apple ships no Khmer title, so km keeps the English — pinned, so the engine cannot invent one.
+  // Mirrored in scripts/glossary-data.json; i18n/apple-title.test.ts holds the two to each other and to this table.
+  'Continue with Apple': { 'zh-Hans': '通过 Apple 继续', ko: 'Apple로 계속하기', ja: 'Appleで続ける', ru: 'Продолжить с Apple', km: 'Continue with Apple', ms: 'Teruskan dengan Apple', th: 'ดำเนินการต่อด้วย Apple', fr: 'Continuer avec Apple', hi: 'Apple से जारी रखें' },
   // Saved-listings nav: marketplaces use "favorites", not generic "saved" (Avito
   // Избранное, Leboncoin Favoris, 闲鱼 收藏, Karrot 찜 목록, ジモティー お気に入り).
   Saved: { 'zh-Hans': '收藏', ko: '찜 목록', ja: 'お気に入り', ru: 'Избранное', km: 'បានរក្សាទុក', ms: 'Disimpan', th: 'บันทึกไว้', fr: 'Favoris', hi: 'सेव किए गए' },

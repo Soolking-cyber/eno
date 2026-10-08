@@ -10,10 +10,11 @@ import { LanguageProvider } from '@/context/language-context'
 // way in: in the iOS app with the gate on, nothing may open Google. Android and the web keep the fallback.
 
 vi.mock('@/lib/google-identity', () => ({ googleFirstPartyEnabled: () => true }))
-const nativeGoogleSignIn = vi.fn((_sb: unknown, _next: string) => Promise.resolve())
+// Every native web flow starts in nativeOAuth since Sign in with Apple (the provider is its second argument).
+const nativeOAuth = vi.fn((_sb: unknown, _provider: string, _next: string) => Promise.resolve())
 vi.mock('@/lib/native-auth', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/native-auth')>()),
-  nativeGoogleSignIn: (sb: unknown, next: string) => nativeGoogleSignIn(sb, next),
+  nativeOAuth: (sb: unknown, provider: string, next: string) => nativeOAuth(sb, provider, next),
 }))
 const signInWithOAuth = vi.fn((_args: unknown) => Promise.resolve({ data: {}, error: null }))
 vi.mock('@/lib/supabase/browser', () => ({ createSupabaseBrowser: () => ({ auth: { signInWithOAuth: (a: unknown) => signInWithOAuth(a) } }) }))
@@ -44,7 +45,7 @@ async function renderFallback() {
 }
 
 beforeEach(() => {
-  nativeGoogleSignIn.mockReset()
+  nativeOAuth.mockReset()
   signInWithOAuth.mockClear()
   vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) })))
 })
@@ -62,21 +63,21 @@ describe('ios-hide-google: the ?g=fallback retry, which starts Google with no ta
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-google')
     context('ios-app')
     // Held open, so a start would stay visible on the form: it holds every control busy until it settles.
-    nativeGoogleSignIn.mockImplementation(() => new Promise<void>(() => {}))
+    nativeOAuth.mockImplementation(() => new Promise<void>(() => {}))
     await renderFallback()
     // The marker is still consumed, so a reload cannot retry it either.
     expect(new URLSearchParams(window.location.search).get('g')).toBeNull()
     fireEvent.change(screen.getByRole('textbox', { name: 'Email' }), { target: { value: 'teacher@example.com' } })
     expect(screen.getByRole('button', { name: 'Send code' }).hasAttribute('disabled')).toBe(false)
     await act(async () => { await new Promise((r) => setTimeout(r, 50)) })
-    expect(nativeGoogleSignIn).not.toHaveBeenCalled()
+    expect(nativeOAuth).not.toHaveBeenCalled()
   })
 
   it('keeps it in the Android app', async () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-google')
     context('android-app')
     await renderFallback()
-    await vi.waitFor(() => expect(nativeGoogleSignIn).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(nativeOAuth).toHaveBeenCalledWith(expect.anything(), 'google', '/'))
   })
 
   it('keeps it on the web', async () => {
@@ -90,6 +91,6 @@ describe('ios-hide-google: the ?g=fallback retry, which starts Google with no ta
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
     context('ios-app')
     await renderFallback()
-    await vi.waitFor(() => expect(nativeGoogleSignIn).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(nativeOAuth).toHaveBeenCalledWith(expect.anything(), 'google', '/'))
   })
 })

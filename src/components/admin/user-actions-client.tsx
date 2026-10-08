@@ -12,6 +12,20 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { ENFORCEMENT_STATES } from '@/lib/enforcement-machine'
+import { appleSupportUrl } from '@/lib/apple-signin'
+
+/**
+ * Sign in with Apple after an erase (src/lib/core/account-erasure.ts AppleEraseStatus, plan D9). EN-only admin chrome.
+ * `queued` and `manual` mean eno may still be listed in the person's Apple Account, so the support reply must tell
+ * them how to remove it — the line below, with Apple's own page in both languages (appleSupportUrl).
+ */
+const APPLE_ERASE_STATUS: Record<string, string> = {
+  none: 'no Apple sign-in on this account.',
+  revoked: 'revoked — Apple no longer lists eno for this person.',
+  queued: 'Apple did not answer — the revocation is retried daily for 14 days. Tell the person to check their Apple Account.',
+  manual: 'no revocable token — the person must remove eno in their Apple Account themselves.',
+}
+const APPLE_SUPPORT_REPLY = `Your account has been deleted. One last step: please remove eno from the apps that use Sign in with Apple in your Apple Account settings. Apple explains how here: ${appleSupportUrl('en')} (Tiếng Việt: ${appleSupportUrl('vi')}).`
 
 // The actions an admin may take on one account. Each is a POST to an admin API that re-checks
 // getAdmin(); the page gate is UX. Two of them are irreversible for the person (revoke, erase), so
@@ -36,6 +50,10 @@ export function UserActionsClient({ profileId, email, phone, verificationStatus,
   const [eraseOpen, setEraseOpen] = useState(false)
   const [eraseReason, setEraseReason] = useState('')
   const [eraseEmail, setEraseEmail] = useState('')
+  // What the erase did to the person's Sign in with Apple authorization (account-erasure.ts AppleEraseStatus).
+  // Set once the erase has ANSWERED: the dialog then shows it — with the support reply line when the person
+  // still has to remove eno in their Apple Account (queued / manual) — and Done leaves for the user list.
+  const [erasedApple, setErasedApple] = useState<string | null>(null)
 
   const post = async (url: string, body: Record<string, unknown>, key: string): Promise<Record<string, unknown> | null> => {
     setBusy(key)
@@ -133,8 +151,28 @@ export function UserActionsClient({ profileId, email, phone, verificationStatus,
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={eraseOpen} onOpenChange={setEraseOpen}>
+      <AlertDialog open={eraseOpen} onOpenChange={(next) => { if (!next && erasedApple) { router.push('/admin/users'); return } setEraseOpen(next) }}>
         <AlertDialogContent>
+          {erasedApple ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Account erased</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Sign in with Apple: {APPLE_ERASE_STATUS[erasedApple] ?? erasedApple}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              {(erasedApple === 'queued' || erasedApple === 'manual') && (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-muted-foreground">Support reply — add this line:</p>
+                  <Textarea readOnly value={APPLE_SUPPORT_REPLY} aria-label="Support reply line" rows={4} onFocus={(e) => e.currentTarget.select()} />
+                </div>
+              )}
+              <AlertDialogFooter>
+                <AlertDialogAction closeOnClick={false} onClick={() => router.push('/admin/users')}>Done</AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : (
+          <>
           <AlertDialogHeader>
             <AlertDialogTitle>Erase this account</AlertDialogTitle>
             <AlertDialogDescription>
@@ -153,12 +191,19 @@ export function UserActionsClient({ profileId, email, phone, verificationStatus,
               disabled={!confirmOk || !eraseReason.trim() || !!busy}
               onClick={async () => {
                 const r = await post(`/api/admin/users/${profileId}`, { action: 'erase', reason: eraseReason, confirmEmail: eraseEmail }, 'erase')
-                if (r) { toast.success('Account erased'); setEraseOpen(false); router.push('/admin/users') }
+                if (!r) return
+                toast.success('Account erased')
+                // `none` (no Apple sign-in) needs no second look; anything else stays on screen until Done.
+                const apple = typeof r.apple === 'string' ? r.apple : 'none'
+                if (apple === 'none') { setEraseOpen(false); router.push('/admin/users'); return }
+                setErasedApple(apple)
               }}
             >
               {busy === 'erase' ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Erase'}
             </AlertDialogAction>
           </AlertDialogFooter>
+          </>
+          )}
         </AlertDialogContent>
       </AlertDialog>
     </div>

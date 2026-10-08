@@ -85,6 +85,13 @@ const SECTIONS: [id: string, title: string, paras: Copy[], link?: { href: string
     'What is deleted',
     [
       'Your account and the profile attached to it, your listings, your saved items and searches, your messages, and any identity documents you uploaded for verification. Photographs you uploaded are removed from storage, not merely hidden.',
+      // Sign in with Apple (TN3194, plan D9): erasure revokes the Apple token before the sign-in is deleted
+      // (src/lib/core/account-erasure.ts); `queued` / `manual` end with the notice in delete-account.tsx, linking
+      // Apple's own page. ⚠️ No quoted labels here — the test holds every quoted label to the Settings screen.
+      {
+        en: 'If you signed in with Apple, deleting your account also asks Apple to end eno’s access to your Apple Account, which removes eno from the apps that use Sign in with Apple. If Apple cannot confirm that straight away, or eno holds no token Apple would accept for it, the screen tells you once the deletion is done, and you can remove eno yourself at any time in your Apple Account settings.',
+        vi: 'Nếu bạn đã đăng nhập bằng Apple, việc xóa tài khoản cũng yêu cầu Apple chấm dứt quyền truy cập của eno vào Tài khoản Apple của bạn, qua đó gỡ eno khỏi danh sách ứng dụng dùng Đăng nhập bằng Apple. Nếu Apple chưa xác nhận được ngay, hoặc eno không giữ mã nào Apple chấp nhận cho việc này, màn hình sẽ thông báo cho bạn khi việc xóa hoàn tất, và bạn có thể tự gỡ eno bất cứ lúc nào trong phần cài đặt Tài khoản Apple.',
+      },
       'Some records survive, and we would rather say so plainly than leave you to discover it. Where the law requires us to keep something — an invoice or a payment record, or evidence in a dispute or a fraud case that is still open — that record is kept for as long as the law requires and no longer, and it is separated from your profile. Messages you sent to another person remain in that person’s copy of the conversation, because their record of a conversation is theirs and is not ours to erase.',
     ],
   ],

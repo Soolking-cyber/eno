@@ -52,6 +52,13 @@
 # (LEGAL_AMENDMENT_ACK does not): a later day means re-dating both, which keeps the printed date true.
 # Once deployed, later deploys pass as routine like any other amendment.
 #
+# ⛔ AND /privacy's OWN DATE (2026-10-08, D12): src/lib/compliance/privacy-updated.ts types
+# PRIVACY_TEXT_PUBLISHED, the day a /privacy change made OUTSIDE an amendment went live (/privacy prints the later
+# of it and LEGAL_AMENDMENT.published). The same rule, with no notice window: unchanged since the deployed commit
+# → routine; otherwise this deploy publishes it, which is allowed only when today in Vietnam IS that date — or
+# with PRIVACY_TEXT_ACK=<that date>, for a text that really did go live then. A commit without the file (from
+# before it existed) has no date of its own to hold.
+#
 # ⚠️ PORTABLE ON PURPOSE (GNU on the box, BSD on a Mac for the tests): no `date -d`, no tz
 # database — Vietnam is UTC+7 with no DST, so the POSIX TZ string "UTC-7" (sign inverted by POSIX)
 # is exact — and day arithmetic is done by hand (days-from-civil).
@@ -183,8 +190,45 @@ check(){
   return 1
 }
 
+# /privacy's own date (the header says why). The ISO date typed as `export const PRIVACY_TEXT_PUBLISHED… = '…'`.
+PF=src/lib/compliance/privacy-updated.ts
+privacy_date(){
+  awk -v q="'" '
+    match($0, "^export const PRIVACY_TEXT_PUBLISHED(: string)? = " q "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]" q) {
+      s = substr($0, RSTART, RLENGTH); print substr(s, length(s) - 10, 10); exit
+    }' <<<"$1"
+}
+check_privacy_text(){
+  local src pub prev_pub=""
+  if ! src=$(cat "$REPO/$PF" 2>/dev/null); then
+    ok "no $PF in this commit — /privacy has no date of its own to hold"; return 0
+  fi
+  pub=$(privacy_date "$src")
+  if [ -z "$pub" ]; then bad "cannot read PRIVACY_TEXT_PUBLISHED from $PF — refusing"; return 1; fi
+  [ -n "$LAST" ] && prev_pub=$(privacy_date "$(git -C "$REPO" show "$LAST:$PF" 2>/dev/null)")
+  if [ "$prev_pub" = "$pub" ]; then
+    ok "/privacy's own text dated $pub is already live — unchanged since the deployed commit"; return 0
+  fi
+  if [ "$TODAY" = "$pub" ]; then ok "this deploy publishes /privacy's own text dated today ($TODAY)"; return 0; fi
+  if [ "${PRIVACY_TEXT_ACK:-}" = "$pub" ]; then
+    warn "this deploy publishes /privacy's own text dated $pub, but today in Vietnam is $TODAY —"
+    warn "proceeding on PRIVACY_TEXT_ACK=$pub. /privacy will say it was updated on $pub."
+    return 0
+  fi
+  bad "this deploy PUBLISHES /privacy's own text — PRIVACY_TEXT_PUBLISHED $pub in $PF — but today in Vietnam is $TODAY."
+  if [ "$(daynum "$TODAY")" -gt "$(daynum "$pub")" ]; then
+    bad "  /privacy would print a false \"Last updated\" date: the text goes live today, not on $pub."
+  else
+    bad "  /privacy would print an update date that has not happened yet."
+  fi
+  bad "Fix: set PRIVACY_TEXT_PUBLISHED = '$TODAY' in $PF, commit, push, re-run."
+  bad "Only if that text really went live on $pub: PRIVACY_TEXT_ACK=$pub bash eno-deploy.sh"
+  return 1
+}
+
 # ⛔ THE RECORDS — one `check` line each; legal-amendment-gate.test.ts holds this list equal to the
 # LegalAmendment consts the module exports.
 check LEGAL_AMENDMENT 'legal amendment' '/terms and /privacy' 'the new Terms would bind' 1 || exit 1
 check REGULATIONS_AMENDMENT 'Quy chế amendment (REGULATIONS_AMENDMENT)' '/regulations and /legal/ranking' 'the new Quy chế would bind' '' || exit 1
+check_privacy_text || exit 1
 exit 0

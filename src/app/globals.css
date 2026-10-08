@@ -2138,6 +2138,22 @@ html.native-ios .ios-app-hidden {
 html.native .native-app-hidden {
   display: none;
 }
+/* SIGN IN WITH APPLE (src/lib/apple-signin.ts) — the sign-in providers' first frame. Same contract as the two
+   rules above: the classes sit only on the Google / Apple controls of sign-in-form.tsx, and `native-siwa` is
+   added to <html> by the pre-paint head script ONLY in an iOS binary that carries the `EnoSignIn` plugin AND
+   was built with `ios` in NEXT_PUBLIC_APPLE_SIGNIN (src/lib/native-siwa-head.ts).
+   · `ios-nosiwa-hidden` — hidden in the iOS app unless Apple can show there: Google beside the gate
+     `ios-hide-google` (Guideline 4.8 — never Google without Apple), Apple always. With the flag empty
+     `native-siwa` is never set, so this is exactly `ios-app-hidden` (the dark deploy changes nothing).
+   · `apple-native-only` — the server-rendered Apple button while `web` is NOT in the flag: hidden everywhere
+     except that iOS binary. A `web-test` tester's browser drops the class after mount (sign-in-form.tsx).
+   ⚠️ Unlayered like the rules above, so it beats the button's own layered `flex`. */
+html.native-ios:not(.native-siwa) .ios-nosiwa-hidden {
+  display: none;
+}
+html:not(.native-siwa) .apple-native-only {
+  display: none;
+}
 /* `ios-hide-visa` (D5 = b) needs the OPPOSITE hook too: a line that exists ONLY in the iOS app ("…in a web browser"), on ISR pages whose HTML the edge cache shares between the app and the web — so
    the server cannot leave it out per user agent. Same contract as above: emitted only while the gate is on.
    ⚠️ `:not(.native-ios)`, NOT `.ios-app-only { display: none }` + a native-ios restore: the element keeps its own
