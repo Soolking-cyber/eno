@@ -28,6 +28,12 @@ type CapGlobal = { isNativePlatform?: () => boolean }
 const cap = (): CapGlobal | undefined =>
   typeof window === 'undefined' ? undefined : (window as unknown as { Capacitor?: CapGlobal }).Capacitor
 
+// Loaded once per app life, not once per write (every poll tick). Also what keeps the tests honest: vitest hands a
+// dynamic import of a factory-mocked module that overlaps another one the REAL module (its own comment: "this will not
+// work if user does Promise.all(import(), import())"), and F8's re-assert overlaps a write by design.
+let badgePlugin: Promise<typeof import('@capawesome/capacitor-badge')> | undefined
+const loadBadge = () => (badgePlugin ??= import('@capawesome/capacitor-badge').catch((e) => { badgePlugin = undefined; throw e }))
+
 export function NativeBadge() {
   const { user } = useAuth()
   const { unread: notifUnread } = useNotifications()
@@ -41,8 +47,16 @@ export function NativeBadge() {
   const totalRef = useRef(total)
   useEffect(() => { totalRef.current = total }, [total])
 
-  // Skip the redundant write when the number has not moved — this runs on every poll tick.
+  // What the icon shows now, as far as this component last wrote it (null = unknown). Skips the redundant write when the
+  // number has not moved — this runs on every poll tick.
   const lastWritten = useRef<number | null>(null)
+  // ⛔ THE CURRENT COUNT WINS (F8). A write awaits the plugin and the permission before it touches the icon, so a write
+  // for the previous count — the previous ACCOUNT's, at a switch — could land after the next one and leave that number
+  // on the icon. A cancelled write never reaches the plugin; while a call is in flight the icon is unknown
+  // (lastWritten = null), so the next write never skips it as "unchanged"; and a call that lands for a count no longer
+  // current puts the current one back. Not a queue: one native call that never answers would then freeze every later
+  // write, the foreground re-assert included (review) — here it blocks only itself.
+  const reassert = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     if (!cap()?.isNativePlatform?.()) return
@@ -52,7 +66,7 @@ export function NativeBadge() {
       if (cancelled) return
       if (lastWritten.current === count) return
       try {
-        const { Badge } = await import('@capawesome/capacitor-badge')
+        const { Badge } = await loadBadge()
         // ⛔ NEVER ASK FROM HERE, AND NEVER WRITE UNTIL THE ANSWER IS 'granted' (audit 1.3,
         // 2026-10-06 — reverses 0d2f7a0b, which asked for badge-only authorization here while push
         // could not ask). iOS gives an app ONE notification prompt: whoever asks first spends it,
@@ -66,15 +80,24 @@ export function NativeBadge() {
         // a push's own aps.badge needs that same grant. Android reports 'granted' unconditionally
         // (the plugin's permission alias maps to no runtime permission), so it badges as before.
         if ((await Badge.checkPermissions()).display !== 'granted') return
+        // Re-checked after the awaits: a count this effect no longer shows never reaches the icon (F8).
+        if (cancelled) return
+        lastWritten.current = null // in flight: what the icon shows is unknown until this lands
         if (count > 0) await Badge.set({ count })
         else await Badge.clear()
-        if (!cancelled) lastWritten.current = count
+        if (count === totalRef.current) lastWritten.current = count
+        // The count moved on while this was in flight, and a newer write may have landed before it: put the current
+        // count back. A re-assert writes the current count, so it ends there.
+        else reassert.current?.()
       } catch {
         // Plugin missing (a build predating it), permission denied, or an unsupported Android
         // launcher. A badge is decoration on top of the notification itself — never surface
-        // this, and never let it break the render.
+        // this, and never let it break the render. A call can also fail after it changed the icon: if the count moved on
+        // meanwhile, put the current one back (a re-assert writes the current count, so this ends there too).
+        if (count !== totalRef.current) reassert.current?.()
       }
     }
+    reassert.current = () => { lastWritten.current = null; void write(totalRef.current) }
 
     void write(total)
 
