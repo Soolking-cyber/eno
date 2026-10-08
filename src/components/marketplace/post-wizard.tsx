@@ -228,6 +228,22 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         toast.error(t('Chưa thấy rõ sản phẩm — chụp cận cảnh chỉ riêng món đồ.', "Couldn't spot a clear product — take a close photo of just the item."))
         return
       }
+      // ⛔ EDITING A RENTAL, THE PHOTO IS READ AS THE RENTAL IT IS. The classifier answers in SALE terms — it files a
+      // rentable item under Vehicles/Property (SALE_TO_RENT) — so a photo of the listed bike read as vehicles/motorbike,
+      // and the guard below told the seller it was "a different category". Mapped across, it is this listing's own
+      // category: what carries over is the subcategory and, for a vehicle, the brand and model. The sale specifics and
+      // condition do not — Rentals asks other questions (switchIntent resets them the same way) — so the seller's own
+      // rental answers stay exactly as they are. ONLY onto the same kind of rental, or one with no kind yet: a photo read
+      // as a motorbike must not re-file a bicycle rental (its answers would then sit under the wrong kind — review); that
+      // stays "a different category" below.
+      const mapped: string | undefined = edit?.categorySlug === 'rentals' && d.categorySlug ? SALE_TO_RENT[d.categorySlug]?.[d.subcategorySlug] : undefined
+      const currentSub = latestForm.current.subcategorySlug
+      const rentalSub = mapped && (!currentSub || currentSub === mapped) ? mapped : undefined
+      if (rentalSub) {
+        const vehicle = VEHICLE_RENTAL_SUBS.has(rentalSub)
+        Object.assign(d, { categorySlug: 'rentals', subcategorySlug: rentalSub, attributes: undefined, condition: undefined, listingType: undefined },
+          vehicle ? {} : { brand: undefined, model: undefined, brandUncertain: undefined })
+      }
       // ⛔ EDITING, THE CATEGORY IS FIXED — the pill says "fixed when editing", and the save keeps the listing's own
       // (core/listings.ts drops a subcategory from another category). A photo read as ANOTHER category fills nothing:
       // its subcategory, specifics and brand belong to that category, and the pill would show a category the save
@@ -259,8 +275,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ...snap,
           categorySlug: d.categorySlug as string,
           subcategorySlug: aiSubOk ? (d.subcategorySlug as string) : '',
-          attrs: d.attributes && typeof d.attributes === 'object' ? d.attributes : {},
-          ranges: {},
+          attrs: rentalSub ? snap.attrs : d.attributes && typeof d.attributes === 'object' ? d.attributes : {},
+          ranges: rentalSub ? snap.ranges : {},
           // Editing, autofill never switches the listing type: the type chips are the seller's (a photo must not quietly
           // turn a sale into a wanted ad), and the sale/rent switch is create-only.
           listingType: edit ? snap.listingType : d.listingType || snap.listingType,

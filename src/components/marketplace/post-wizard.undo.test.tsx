@@ -167,6 +167,48 @@ describe('Autofill from photo — editing, the category is fixed', () => {
   }, 30_000)
 })
 
+describe('Autofill from photo — editing a RENTAL, the sale-terms read maps across', () => {
+  // The classifier answers in sale terms: a photo of the listed bike reads as vehicles/motorbike.
+  const rental: ListingEditData = { ...edit, id: 'l2', categorySlug: 'rentals', subcategorySlug: '', listingType: 'rent', attributes: { rentalPeriod: 'daily' }, priceUnit: 'VND/day' } as ListingEditData
+  async function autofillRental(listing: ListingEditData = rental) {
+    const { container } = render(<PostWizard categories={CATS} edit={listing} />)
+    const input = container.querySelector('input[type="file"][accept^="image/"]') as HTMLInputElement
+    await act(async () => { fireEvent.change(input, { target: { files: [new File([new Uint8Array([1, 2, 3])], 'bike.jpg', { type: 'image/jpeg' })] } }) })
+    await act(async () => { fireEvent.click(await screen.findByRole('button', { name: /Autofill from photo/ })) })
+    await waitFor(() => expect((screen.getByRole('button', { name: /Autofill from photo/ }) as HTMLButtonElement).disabled).toBe(false))
+  }
+
+  it('⛔ a vehicle read fills the rental (subcategory, brand, model) instead of calling it "a different category"', async () => {
+    classifyAnswer = { categorySlug: 'vehicles', subcategorySlug: 'motorbike', brand: 'honda', model: 'Wave Alpha', attributes: { engineCc: '110' }, condition: 'used' }
+    await autofillRental()
+    expect(h.toasts.some((t) => t.title.startsWith('This photo looks like a different category'))).toBe(false)
+    expect(screen.getByText('(fixed when editing)').parentElement!.textContent).not.toMatch(/vehicles/i)
+    expect(h.toasts.some((t) => t.title.startsWith('Filled in from your photo'))).toBe(true) // something the seller had changed
+    // The kind it filled: the motorbike rental chip is the chosen one.
+    expect(screen.getAllByRole('button', { pressed: true }).some((b) => /motorbike/i.test(b.textContent ?? ''))).toBe(true)
+  }, 30_000)
+
+  it('⛔ a read of ANOTHER kind never re-files an existing rental: a bicycle rental read as a motorbike is "a different category"', async () => {
+    classifyAnswer = { categorySlug: 'vehicles', subcategorySlug: 'motorbike', brand: 'honda', attributes: {} }
+    await autofillRental({ ...rental, subcategorySlug: 'bicycle-rental' } as ListingEditData)
+    expect(h.toasts.some((t) => t.title.startsWith('This photo looks like a different category'))).toBe(true)
+    expect(h.toasts.some((t) => t.title.startsWith('Filled in from your photo'))).toBe(false)
+  }, 30_000)
+
+  it('⛔ the seller\'s own rental answers stay: the daily period still prices "/ day" (sale specifics never replace them)', async () => {
+    classifyAnswer = { categorySlug: 'vehicles', subcategorySlug: 'motorbike', brand: 'honda', attributes: { engineCc: '110' } }
+    await autofillRental()
+    expect(screen.getAllByText('/ day').length).toBeGreaterThan(0)
+    expect(screen.queryByText('/ month')).toBeNull()
+  }, 30_000)
+
+  it('a read with no rental counterpart (electronics) is still "a different category", and fills nothing', async () => {
+    classifyAnswer = { categorySlug: 'electronics', subcategorySlug: 'phones', attributes: {} }
+    await autofillRental()
+    expect(h.toasts.some((t) => t.title.startsWith('This photo looks like a different category'))).toBe(true)
+  }, 30_000)
+})
+
 describe('Autofill from photo', () => {
   it('⛔ replacing what the seller had chosen comes with an Undo that puts it back', async () => {
     // A NEW post with a category the seller picked (in edit mode the category is fixed — not the case under test).
