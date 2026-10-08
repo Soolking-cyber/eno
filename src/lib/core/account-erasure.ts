@@ -3,7 +3,7 @@ import { purgeStorageObjects } from '@/lib/core/storage-purge'
 import { clearTombstones, writeTombstones, type TombstoneRef } from '@/lib/core/storage-tombstones'
 import { listingObjectKey } from '@/lib/listing-image'
 import { parseVerificationDocs } from '@/lib/business-verification-store'
-import { BUSINESS_VERIFICATION_BUCKET } from '@/lib/supabase-admin'
+import { BUSINESS_VERIFICATION_BUCKET, TEACHER_CVS_BUCKET, TEACHER_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { appendAudit } from '@/lib/compliance/audit'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { VISA_BUCKET } from '@/lib/visa-admin'
@@ -108,6 +108,11 @@ export async function eraseAccount(profileId: string, actor: EraseActor): Promis
     // §4.2: on erasure clear the name and nationality, keep the hash, decision and expiry). The
     // evidence column keeps the checks and consent stamps but loses the object paths and the
     // decision inputs (the names again), and the captures themselves are tombstoned.
+    // The teacher's private files — the CV (phone and email on it) and a private intro video (2026-10-07). TeacherPrivate
+    // cascades with the profile; its objects would not, and before this nothing queued them (map, 2026-10-07).
+    const tpriv = await tx.teacherPrivate.findFirst({ where: { teacherProfile: { profileId: profile.id } }, select: { cvPath: true, videoPath: true } })
+    if (tpriv?.cvPath) privateRefs.push({ bucket: TEACHER_CVS_BUCKET, path: tpriv.cvPath })
+    if (tpriv?.videoPath) privateRefs.push({ bucket: TEACHER_VIDEOS_BUCKET, path: tpriv.videoPath })
     const identities = await tx.identityVerification.findMany({ where: { profileId: profile.id }, select: { id: true, evidence: true } })
     for (const v of identities) {
       const ev = (v.evidence && typeof v.evidence === 'object' && !Array.isArray(v.evidence) ? v.evidence : {}) as Record<string, unknown>

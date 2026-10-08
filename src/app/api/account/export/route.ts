@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { teacherExportOf } from '@/lib/teachers/export'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
@@ -74,10 +75,8 @@ export async function GET() {
       .then((rows) => rows.map(({ school: s, ...r }) => ({ ...r, school: s?.status === 'active' ? { slug: s.slug, name: s.name } : null }))),
   ])
 
-  // Teacher profile (2026-09-30) + cover lessons (2026-10-07) — the access right covers what the teacher entered and
-  // what eno recorded about it (cover consent and withdrawal timestamps), and their own private contact row. The CV
-  // is named, not its storage path (a bucket key is not their data). Matches are the local matcher's output: kept out.
-  const teacher = await db.teacherProfile.findUnique({ where: { profileId: profile.id }, include: { private: { select: { phone: true, email: true, cvFileName: true, updatedAt: true } } } })
+  // Teacher profile (2026-09-30), cover lessons and the private intro video (2026-10-07) — src/lib/teachers/export.ts.
+  const teacher = await teacherExportOf(profile.id)
 
   // The Profile row minus purely-internal fields the user didn't provide and that
   // aren't "their" personal data (denormalized trust internals stay out).
@@ -106,7 +105,7 @@ export async function GET() {
     trustEvents: trustEvents.map((e) => ({ event: describeTrustEvent(e.type, e.reason), points: e.delta, createdAt: e.createdAt })),
     conversations: { asBuyer: buyerConvos, asSeller: sellerConvos },
     messagesSent: messages,
-    teacherProfile: teacher ?? null,
+    teacherProfile: teacher,
     schools: { votes: schoolVotes, voteLog: schoolVoteLog, reviews: schoolReviews, helpfulVotes: schoolHelpfulVotes, proofsOfEmployment: schoolProofs, reportsFiled: schoolReports, suggestions: schoolSuggestions },
   }
 

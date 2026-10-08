@@ -13,6 +13,7 @@ import { getSupabaseAdmin, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { VIDEO_PATH_RE, VIDEO_MAX_BYTES } from '@/lib/core/media'
 import { transcodeToMp4 } from '@/lib/core/video-transcode'
 import { logError } from '@/lib/log'
+import { recordVideoOwner, videoOwner } from '@/lib/core/video-owner'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300 // Vercel Pro ceiling — a ≤60s clip transcodes in well under this
@@ -48,7 +49,7 @@ const DONE_TTL_S = 7200
 // re-submit would re-fetch an already-deleted path and the seller's clip would be lost
 // with no usable replacement (external review, 2026-07-19). Raw kept on persist failure —
 // the GC cron sweeps it later; a resubmit then simply re-encodes.
-async function runTranscode(path: string, hevc: boolean, persist?: (s: JobState) => Promise<boolean>): Promise<JobState> {
+async function runTranscode(path: string, hevc: boolean, persist?: (s: JobState) => Promise<boolean>, owner?: string | null): Promise<JobState> {
   const admin = getSupabaseAdmin()
   const rawUrl = admin.storage.from(LISTING_VIDEOS_BUCKET).getPublicUrl(path).data.publicUrl
   // H.264 falls open to the raw playable clip; HEVC fails closed (see header comment).
@@ -73,6 +74,8 @@ async function runTranscode(path: string, hevc: boolean, persist?: (s: JobState)
       .from(LISTING_VIDEOS_BUCKET)
       .upload(newPath, out, { contentType: 'video/mp4', upsert: false, cacheControl: '31536000' })
     if (upErr) { console.error('[transcode] upload', upErr.message); return fallback() }
+    // The output inherits the raw upload's owner — only when the raw upload was the caller's (src/lib/core/video-owner.ts).
+    if (owner) await recordVideoOwner(newPath, owner)
 
     const done: JobState = { state: 'done', url: admin.storage.from(LISTING_VIDEOS_BUCKET).getPublicUrl(newPath).data.publicUrl }
     // State durability BEFORE the destructive step (see persist doc above). Sync mode
@@ -127,7 +130,7 @@ export const POST = route(
     // during a limiter outage rather than an unbounded compute bill.
     rateLimit: { bucket: 'upload-video-transcode', limit: 30, window: '1 h', strict: true },
   },
-  async ({ req }) => {
+  async ({ req, userId }) => {
     try {
       const body = (await req.json().catch(() => ({}))) as { path?: unknown; hevc?: unknown }
       const path = String(body.path || '')
@@ -146,6 +149,8 @@ export const POST = route(
       // the name carries 6 random chars), so this both blocks the delete and the arbitrary fetch.
       const referenced = await db.listing.count({ where: { video: rawUrl } })
       if (referenced > 0) return NextResponse.json({ error: 'already_in_use' }, { status: 409 })
+      // Whose output this will be: the caller's only if the raw upload is (never claimable by knowing a path).
+      const owner = (await videoOwner(path)) === userId ? userId : null
 
       // Claim the job. NX means a double-submit (retry, double-tap) attaches to the running
       // job instead of racing a second encode against the same source. The token FENCES the
@@ -159,7 +164,7 @@ export const POST = route(
       } catch (e) {
         // A kv outage must not lose the old fail-open behavior — run synchronously instead.
         console.error('[transcode] claim', e)
-        return respond(await runTranscode(path, hevc))
+        return respond(await runTranscode(path, hevc, undefined, owner))
       }
       if (won !== 'OK') {
         const existing = await kv.get<string | JobState>(jobKey(path))
@@ -181,7 +186,7 @@ export const POST = route(
             return true
           } catch (e) { console.error('[transcode] state write', e); return false }
         }
-        const final = await runTranscode(path, hevc, persist)
+        const final = await runTranscode(path, hevc, persist, owner)
         // Success already persisted pre-delete (idempotent re-write); this records the
         // failure/fallback outcomes, which have no destructive step to order against.
         await persist(final)

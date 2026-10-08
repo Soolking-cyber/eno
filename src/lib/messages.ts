@@ -646,6 +646,14 @@ export type SendOpts = {
    * worse outcome.
    */
   replyToId?: string
+  /**
+   * Writes that must commit WITH this message or not at all — a grant the line announces (teacher contact and intro
+   * video, 2026-10-07). Lazy `db.*` PrismaPromises, run in the SAME batch transaction as the message and the thread's
+   * counters: a crash or a failed insert can never leave a grant with no line (whose retry would then be a silent no-op),
+   * and the realtime broadcast (an AFTER INSERT trigger, delivered on commit) can never announce one that is not there.
+   * ⛔ Plain 'text' / 'offer' only: card kinds run interactive transactions an outside PrismaPromise cannot join.
+   */
+  alongside?: Prisma.PrismaPromise<unknown>[]
 }
 
 // ---------------------------------------------------------------------------
@@ -933,6 +941,7 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
   // metaJson belongs to cards ONLY — a 'text'/'offer' message carrying one would be
   // a card the renderers don't gate on, so refuse rather than silently drop it.
   if (opts?.meta && !isCard) throw new Error('message_meta_not_allowed')
+  if (opts?.alongside?.length && isCard) throw new Error('message_alongside_not_allowed')
   const card = isVisaCard ? await buildCardMeta(kind, convo, senderId, opts?.meta) : null
   const tripCard = isTripCard ? await buildTripCardMeta(kind, convo, senderId, opts?.meta) : null
   const rentalCard = isRentalCard ? buildRentalCheckMeta(convo, senderId, opts?.meta) : null
@@ -1066,19 +1075,18 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
   } else {
     // A new offer supersedes any still-pending offer in the thread (from either side)
     // so only the latest is actionable — that's the "counter" flow.
-    const ops: Prisma.PrismaPromise<unknown>[] = []
+    // `alongside` first (SendOpts.alongside): they commit with the message or not at all.
+    const ops: Prisma.PrismaPromise<unknown>[] = [...(opts?.alongside ?? [])]
     if (isOffer) {
       ops.push(db.message.updateMany({
         where: { conversationId: convo.id, kind: 'offer', offerStatus: 'pending' },
         data: { offerStatus: 'countered' },
       }))
     }
-    ops.push(
-      db.message.create(createArgs),
-      db.conversation.update({ where: { id: convo.id }, data: convoUpdate }),
-    )
+    const createAt = ops.push(db.message.create(createArgs)) - 1
+    ops.push(db.conversation.update({ where: { id: convo.id }, data: convoUpdate }))
     const result = (await db.$transaction(ops)) as unknown[]
-    message = result[isOffer ? 1 : 0] as MessageRow
+    message = result[createAt] as MessageRow
   }
 
   // Plain chat messages do NOT create a bell notification or push — they already

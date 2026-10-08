@@ -4,6 +4,7 @@ import { getEnforcement, blocksPosting } from '@/lib/enforcement'
 import { getSupabaseAdmin, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { VIDEO_ALLOWED, VIDEO_MAX_BYTES } from '@/lib/core/media'
 import { route } from '@/lib/api/handler'
+import { recordVideoOwner } from '@/lib/core/video-owner'
 
 export const runtime = 'nodejs'
 
@@ -59,6 +60,8 @@ export const POST = route({ auth: 'userId' }, async ({ req, userId }) => {
       console.error('[POST /api/upload/video/sign]', error?.message)
       return NextResponse.json({ error: 'sign_failed' }, { status: 500 })
     }
+    // The uploader, for the teacher intro video's private move (src/lib/core/video-owner.ts) — best-effort.
+    await recordVideoOwner(data.path, userId)
     // signedUrl is the full direct-upload endpoint (the web SDK derives it from
     // its Supabase config; native clients have no SDK, so hand it over). Additive.
     return NextResponse.json({ path: data.path, token: data.token, signedUrl: data.signedUrl })

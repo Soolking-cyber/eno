@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { buildSearchText } from '@/lib/fold'
 import { warmTranslations } from '@/lib/translate'
-import { isListingImageUrl } from '@/lib/listing-image'
+import { isListingImageUrl, listingObjectKey } from '@/lib/listing-image'
 import { browseRankScore } from '@/lib/ranking'
 import { moderateListingById } from '@/lib/ai-moderation'
 import { initialSellerTrust } from '@/lib/trust'
@@ -12,8 +12,15 @@ import { assertSellerMayPublish } from '@/lib/compliance/seller-publish-gate'
 import { assertCleanContactName, assertCleanTexts, PublishBlockedError } from '@/lib/publish-guard'
 import { fold } from '@/lib/fold'
 import { deleteListingCore, parseVideoField } from '@/lib/core/listings'
-import { writeTombstones } from '@/lib/core/storage-tombstones'
-import { TEACHER_CVS_BUCKET } from '@/lib/supabase-admin'
+import { clearTombstones, writeTombstones, type TombstoneRef } from '@/lib/core/storage-tombstones'
+import { purgeStorageObjects } from '@/lib/core/storage-purge'
+import { logError } from '@/lib/log'
+import { LISTING_VIDEOS_BUCKET, TEACHER_CVS_BUCKET, TEACHER_VIDEOS_BUCKET } from '@/lib/supabase-admin'
+import { planVideoChange, type StoredVideo, type VideoBody, type VideoPlan } from '@/lib/teachers/video'
+import {
+  copyPrivateVideoToPublic, copyPublicVideoToPrivate, ownsPublicVideo, privateVideoPathFor, publicVideoKeyFor,
+  removeUnreferencedPrivateVideos,
+} from '@/lib/teachers/video-store'
 import { TEACHERS_CATEGORY_SLUG, TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import {
   CITY_PROVINCE, COVER_FIELDS, TEACHER_OPTIONS, coverIsPublic, normalizeTeacherInput, validateTeacherInput, teacherFreeTexts,
@@ -89,6 +96,35 @@ const noticeShown = (raw: unknown) =>
 /** What a save hands back about the stored cover: the form's next `coverBase` and its "confirmed on" date. */
 const SAVED_COVER_SELECT = { coverOpen: true, coverSlots: true, coverAreas: true, coverRateVnd: true, coverConfirmedAt: true, coverConsentVersion: true } as const
 export type SavedCoverState = { coverOpen: boolean; coverSlots: string[]; coverAreas: string[]; coverRateVnd: number | null; coverConfirmedAt: Date | null; coverConsentVersion: string | null }
+
+/** A stale window would change the intro video over a newer state (src/lib/teachers/video.ts) → 409 video_changed. */
+export class TeacherVideoConflictError extends Error {
+  constructor() {
+    super('video_changed')
+    this.name = 'TeacherVideoConflictError'
+  }
+}
+/** A bucket move failed before anything was written → 502 video_store_failed (the copy's tombstone collects it). */
+export class TeacherVideoStoreError extends Error {
+  constructor() {
+    super('video_store_failed')
+    this.name = 'TeacherVideoStoreError'
+  }
+}
+
+/** The stored intro-video state, as the planner reads it. */
+const VIDEO_STATE_SELECT = { videoOnRequest: true, videoUrl: true, videoVersion: true, private: { select: { videoPath: true } } } as const
+type VideoStateRow = { videoOnRequest: boolean; videoUrl: string | null; videoVersion: number; private: { videoPath: string | null } | null }
+const storedVideoOf = (r: VideoStateRow | null): StoredVideo | null =>
+  r ? { videoOnRequest: r.videoOnRequest, videoUrl: r.videoUrl, videoPath: r.private?.videoPath ?? null, videoVersion: r.videoVersion } : null
+/** A displaced object as a tombstone ref — a public one by its key (never the URL), a private one by its path. */
+const displacedRef = (d: Extract<VideoPlan, { kind: 'apply' }>['displaced'][number]): TombstoneRef | null => {
+  if (d.bucket === 'teacher-videos') return { bucket: TEACHER_VIDEOS_BUCKET, path: d.path }
+  const ref = listingObjectKey(d.url)
+  return ref && ref.bucket === LISTING_VIDEOS_BUCKET ? { bucket: LISTING_VIDEOS_BUCKET, path: ref.key } : null
+}
+/** What a save hands back about the video: the form's next base, and where the video now is. */
+export type SavedVideoState = { onRequest: boolean; version: number; hasPrivate: boolean; url: string | null }
 
 export class TeacherValidationError extends Error {
   constructor(public errors: TeacherErrors) {
@@ -226,7 +262,7 @@ export function screenTeacherTexts(t: TeacherInput) {
  * Create or update the caller's teacher profile and its listing. Returns the listing id.
  * Throws TeacherValidationError (400) or PublishBlockedError (the wizard's codes).
  */
-export async function saveTeacherProfile(profile: { id: string; email: string | null }, raw: unknown): Promise<{ listingId: string; created: boolean; live: boolean; cover: SavedCoverState | null }> {
+export async function saveTeacherProfile(profile: { id: string; email: string | null }, raw: unknown): Promise<{ listingId: string; created: boolean; live: boolean; cover: SavedCoverState | null; video: SavedVideoState }> {
   // A client from before cover lessons sends no cover field: its cover is taken from the row UNDER THE LOCK below,
   // and never written (withStoredCover). Its own (absent) cover reads as off here, which validates trivially.
   const part = coverPartOf(raw)
@@ -250,6 +286,43 @@ export async function saveTeacherProfile(profile: { id: string; email: string | 
   ])
   if (seller.trustTier === 'restricted') throw new PublishBlockedError('account_restricted')
 
+  // ── THE INTRO VIDEO (2026-10-07): plan against the stored state; any bucket copy runs BEFORE the transaction ──────
+  const rawBody = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const pre = await db.teacherProfile.findUnique({ where: { profileId: profile.id }, select: VIDEO_STATE_SELECT })
+  const preStored = storedVideoOf(pre)
+  const videoBody: VideoBody = {
+    ...('videoOnRequest' in rawBody ? { videoOnRequest: rawBody.videoOnRequest === true } : {}),
+    videoUrl: video.action === 'set' ? video.url : null,
+    videoBase: typeof rawBody.videoBase === 'number' ? rawBody.videoBase : null,
+  }
+  // Ownership is asked only of a NEW url (the stored public video is grandfathered — video.ts).
+  const freshUrl = videoBody.videoUrl && videoBody.videoUrl !== preStored?.videoUrl ? videoBody.videoUrl : null
+  const ownsFresh = freshUrl ? await ownsPublicVideo(freshUrl, profile.id) : false
+  const plan = planVideoChange(preStored, videoBody, (u) => u === freshUrl && ownsFresh)
+  if (plan.kind === 'refuse') {
+    if (plan.code === 'video_not_owned') throw new TeacherValidationError({ videoUrl: 'not_owned' })
+    throw new TeacherVideoConflictError()
+  }
+  let finalVideoUrl: string | null = plan.home.kind === 'public' ? plan.home.url : null
+  let finalVideoPath: string | null = plan.home.kind === 'private' ? plan.home.path : null
+  // The copy's destination is tombstoned FIRST: a crash after the upload then cannot orphan it (the sweep deletes it
+  // unless the committed row references it — and the commit deletes this tombstone when it does).
+  let pendingCopy: TombstoneRef | null = null
+  if (plan.home.kind === 'private' && plan.home.copyFromPublic) {
+    finalVideoPath = privateVideoPathFor(profile.id, plan.home.copyFromPublic)
+    pendingCopy = { bucket: TEACHER_VIDEOS_BUCKET, path: finalVideoPath }
+    await writeTombstones(db, [pendingCopy], 'teacher_video_pending')
+    if (!(await copyPublicVideoToPrivate(plan.home.copyFromPublic, finalVideoPath))) throw new TeacherVideoStoreError()
+  } else if (plan.home.kind === 'public' && plan.home.copyFromPrivate) {
+    const key = publicVideoKeyFor(plan.home.copyFromPrivate)
+    pendingCopy = { bucket: LISTING_VIDEOS_BUCKET, path: key }
+    await writeTombstones(db, [pendingCopy], 'teacher_video_pending')
+    finalVideoUrl = await copyPrivateVideoToPublic(plan.home.copyFromPrivate, key, profile.id)
+    if (!finalVideoUrl) throw new TeacherVideoStoreError()
+  }
+  // Facets and search text read the video from the FINAL state: only a public video says "has a video" (video.ts).
+  const tv: TeacherInput = { ...t, videoUrl: finalVideoUrl, videoOnRequest: plan.videoOnRequest }
+
   const status = existing?.status === 'hidden' ? 'hidden' : 'active'
   const description = teacherListingDescription(t)
   const listingData = {
@@ -263,17 +336,20 @@ export async function saveTeacherProfile(profile: { id: string; email: string | 
     district: t.currentDistrict || null,
     location: t.currentDistrict ? `${t.currentDistrict}, ${cityLabel(t.currentCity)}` : cityLabel(t.currentCity),
     images: JSON.stringify([t.photoUrl]),
-    video: video.action === 'set' ? video.url : null,
-    searchText: teacherSearchText(t, category),
+    video: finalVideoUrl,
+    searchText: teacherSearchText(tv, category),
     categoryId: category.id,
     subcategorySlug: teacherSubcategory(t),
     listingType: TEACHER_LISTING_TYPE,
     attributes: null,
-    facetTokens: teacherFacetTokens(t),
+    facetTokens: teacherFacetTokens(tv),
     salaryM: t.expectedSalaryM,
   }
   const profileData = {
-    fullName: t.fullName, headline: t.headline, bio: t.bio, photoUrl: t.photoUrl, videoUrl: listingData.video,
+    // ⛔ ONE HOME: the profile row's public URL is the PLAN's final one — exactly the listing's (null for a private or no
+    // video), never the body's. publish.video.test.ts pins both writes (gate reviews, 2026-10-07).
+    videoUrl: finalVideoUrl,
+    fullName: t.fullName, headline: t.headline, bio: t.bio, photoUrl: t.photoUrl,
     nationality: t.nationality, nativeSpeaker: t.nativeSpeaker, languages: t.languages,
     currentCity: t.currentCity, currentDistrict: t.currentDistrict || null, preferredCities: t.preferredCities,
     openToOnline: t.openToOnline, availableFrom: t.availableFrom ? new Date(`${t.availableFrom}T00:00:00Z`) : null,
@@ -281,20 +357,34 @@ export async function saveTeacherProfile(profile: { id: string; email: string | 
     experience: t.experience, degreeLevel: t.degreeLevel, degreeMajor: t.degreeMajor || null,
     degreeInstitution: t.degreeInstitution || null, degreeYear: t.degreeYear, certificates: t.certificates,
     expectedSalaryM: t.expectedSalaryM, staffContactOptIn: t.staffContactOptIn, matchEmailOptIn: t.matchEmailOptIn,
+    videoOnRequest: plan.videoOnRequest,
   }
 
-  const { listingId, saved } = await db.$transaction(async (tx) => {
+  const { listingId, saved, video: savedVideo } = await db.$transaction(async (tx) => {
     // ⛔ ONE SAVE AT A TIME PER ACCOUNT. Two first saves racing (a double tap) both saw "no profile"
     // and both created a listing; the loser's row was left live with no profile (Opus, commit gate
     // 09-30). The lock is per profile and held to COMMIT; the row is then re-read under it.
     await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${'teacher:' + profile.id}))`
-    const locked = await tx.teacherProfile.findUnique({ where: { profileId: profile.id }, select: { listingId: true, ...STORED_COVER_SELECT } })
+    const locked = await tx.teacherProfile.findUnique({ where: { profileId: profile.id }, select: { listingId: true, ...STORED_COVER_SELECT, videoVersion: true } })
     // Read under the lock, so a cover save racing this one cannot make consent/withdrawal lie.
     if (sendsCover) assertCoverBase(coverBaseOf(raw), locked)
+    // The video plan was made from a read BEFORE the lock (its copy cannot run inside it). Every video change bumps the
+    // version, so an unchanged version proves nothing moved in between; otherwise refuse (the copy's tombstone collects it).
+    if ((locked?.videoVersion ?? null) !== (pre?.videoVersion ?? null)) throw new TeacherVideoConflictError()
     // A legacy body keeps the stored cover (resolved here, under the lock) and writes no cover column.
-    const tc = sendsCover ? t : normalizeTeacherInput(withStoredCover(raw, locked))
+    const tc = { ...(sendsCover ? t : normalizeTeacherInput(withStoredCover(raw, locked))), videoUrl: finalVideoUrl, videoOnRequest: plan.videoOnRequest }
     const cover = sendsCover ? coverWrites(t, locked, new Date()) : {}
     const listingWrite = { ...listingData, facetTokens: teacherFacetTokens(tc), searchText: teacherSearchText(tc, category) }
+    // Every displaced object is tombstoned WITH the row change; the copy, now referenced, loses its pending tombstone.
+    const displaced = plan.displaced.map(displacedRef).filter((r): r is TombstoneRef => r !== null)
+    if (displaced.length) await writeTombstones(tx, displaced, 'teacher_video_replaced')
+    if (pendingCopy) await tx.storageTombstone.deleteMany({ where: { bucket: pendingCopy.bucket, path: pendingCopy.path } })
+    // The private video changed or left: every school it was SENT to loses it (a school sent v1 must not see v2). Only
+    // sent grants (`sharedAt` set): a school's pending ASK stands — it asked for the teacher's video, whichever version,
+    // and wiping it would silently drop the "this school asked" the teacher sees (gate review, 2026-10-07).
+    if (plan.revokeGrants && locked?.listingId) {
+      await tx.teacherVideoShare.updateMany({ where: { sharedAt: { not: null }, revokedAt: null, conversation: { listingId: locked.listingId, sellerProfileId: profile.id } }, data: { revokedAt: new Date() } })
+    }
     let id = locked?.listingId ?? null
     if (id) {
       // ⛔ An edit NEVER touches status or `verified`: AI moderation pulls a row with
@@ -317,26 +407,40 @@ export async function saveTeacherProfile(profile: { id: string; email: string | 
     }
     const tp = await tx.teacherProfile.upsert({
       where: { profileId: profile.id },
-      create: { ...profileData, ...cover, profileId: profile.id, listingId: id, consentPublicAt: new Date() },
-      update: { ...profileData, ...cover, listingId: id, consentAt: new Date() },
-      select: { id: true, ...SAVED_COVER_SELECT },
+      create: { ...profileData, ...cover, profileId: profile.id, listingId: id, consentPublicAt: new Date(), videoVersion: plan.changed ? 1 : 0 },
+      update: { ...profileData, ...cover, listingId: id, consentAt: new Date(), ...(plan.changed ? { videoVersion: { increment: 1 } } : {}) },
+      select: { id: true, ...SAVED_COVER_SELECT, videoVersion: true, videoOnRequest: true },
     })
     await tx.teacherPrivate.upsert({
       where: { teacherProfileId: tp.id },
-      create: { teacherProfileId: tp.id, phone: t.phone, email: profile.email },
-      update: { phone: t.phone, email: profile.email },
+      create: { teacherProfileId: tp.id, phone: t.phone, email: profile.email, videoPath: finalVideoPath },
+      update: { phone: t.phone, email: profile.email, videoPath: finalVideoPath },
     })
-    const { id: _tpId, ...saved } = tp
-    return { listingId: id, saved }
+    const { id: _tpId, videoVersion, videoOnRequest, ...saved } = tp
+    return { listingId: id, saved, video: { onRequest: videoOnRequest, version: videoVersion, hasPrivate: !!finalVideoPath, url: finalVideoUrl } }
   })
 
   revalidatePublicPath(`/listings/${listingId}`)
   revalidatePublicPath(`/c/${TEACHERS_CATEGORY_SLUG}`)
+  // The displaced video objects go now — reference-checked, so another listing that copied a public URL keeps it; what
+  // this does not finish, the tombstone sweep does.
+  const purgeUrls = plan.displaced.flatMap((d) => (d.bucket === 'listing-videos' ? [d.url] : []))
+  const purgePaths = plan.displaced.flatMap((d) => (d.bucket === 'teacher-videos' ? [d.path] : []))
+  if (purgeUrls.length || purgePaths.length) {
+    after(async () => {
+      try {
+        const settled = [...(purgeUrls.length ? (await purgeStorageObjects(purgeUrls)).settled : []), ...(await removeUnreferencedPrivateVideos(purgePaths))]
+        if (settled.length) await clearTombstones(settled)
+      } catch (e) {
+        logError(e, { op: 'teachers.video.purge' })
+      }
+    })
+  }
   after(() => moderateListingById(listingId))
   after(() => warmTranslations([t.headline, t.bio, listingData.location].filter(Boolean)))
   const live = await db.listing.findUnique({ where: { id: listingId }, select: { status: true, verified: true } })
   // The cover state AS STORED — the form keeps it as its base and its "confirmed on" date (never its own guess).
-  return { listingId, created: !existing?.listingId, live: live?.status === 'active' && live.verified, cover: saved }
+  return { listingId, created: !existing?.listingId, live: live?.status === 'active' && live.verified, cover: saved, video: savedVideo }
 }
 
 /**
@@ -390,6 +494,42 @@ export async function saveTeacherCover(profileId: string, raw: unknown): Promise
   return { coverOpen: result.coverOpen, confirmedAt: result.confirmedAt, coverSlots: result.coverSlots, coverAreas: result.coverAreas, coverRateVnd: result.coverRateVnd }
 }
 
+/**
+ * Remove the caller's PRIVATE intro video (DELETE /api/teachers/me/video) — the one change a save body never makes
+ * ("videoUrl: null" over a private video keeps it: the form never holds its URL — video.ts). Under the same account lock
+ * and version check as a save (`base` = the videoVersion the form loaded); the object is tombstoned with the row change
+ * and purged after commit, and every school it was sent to loses it. Null when there is no private video to remove.
+ */
+export async function deleteTeacherVideo(profileId: string, base: number | null): Promise<SavedVideoState | null> {
+  const result = await db.$transaction(async (tx) => {
+    await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${'teacher:' + profileId}))`
+    const tp = await tx.teacherProfile.findUnique({ where: { profileId }, select: { id: true, listingId: true, videoOnRequest: true, videoVersion: true, private: { select: { videoPath: true } } } })
+    const path = tp?.private?.videoPath
+    if (!tp || !path) return null
+    if (base === null || base !== tp.videoVersion) throw new TeacherVideoConflictError()
+    await writeTombstones(tx, [{ bucket: TEACHER_VIDEOS_BUCKET, path }], 'teacher_video_replaced')
+    await tx.teacherPrivate.update({ where: { teacherProfileId: tp.id }, data: { videoPath: null } })
+    const saved = await tx.teacherProfile.update({ where: { id: tp.id }, data: { videoVersion: { increment: 1 } }, select: { videoVersion: true, videoOnRequest: true } })
+    if (tp.listingId) {
+      // Sent grants only — a pending ask stands (see saveTeacherProfile).
+      await tx.teacherVideoShare.updateMany({ where: { sharedAt: { not: null }, revokedAt: null, conversation: { listingId: tp.listingId, sellerProfileId: profileId } }, data: { revokedAt: new Date() } })
+    }
+    return { path, listingId: tp.listingId, video: { onRequest: saved.videoOnRequest, version: saved.videoVersion, hasPrivate: false, url: null } satisfies SavedVideoState }
+  })
+  if (!result) return null
+  after(async () => {
+    try {
+      const settled = await removeUnreferencedPrivateVideos([result.path])
+      if (settled.length) await clearTombstones(settled)
+    } catch (e) {
+      logError(e, { op: 'teachers.video.deletePurge' })
+    }
+  })
+  if (result.listingId) revalidatePublicPath(`/listings/${result.listingId}`)
+  revalidatePublicPath(`/c/${TEACHERS_CATEGORY_SLUG}`)
+  return result.video
+}
+
 /** Show or hide the caller's profile (the listing follows). Null when they have none. */
 export async function setTeacherStatus(profileId: string, status: 'live' | 'hidden'): Promise<boolean> {
   const tp = await db.teacherProfile.findUnique({ where: { profileId }, select: { id: true, listingId: true } })
@@ -421,11 +561,16 @@ export async function setTeacherStatus(profileId: string, status: 'live' | 'hidd
  * (cascade), and a tombstone for the CV so the private object is swept.
  */
 export async function deleteTeacherProfile(profileId: string): Promise<boolean> {
-  const tp = await db.teacherProfile.findUnique({ where: { profileId }, select: { id: true, listingId: true, private: { select: { cvPath: true } } } })
+  const tp = await db.teacherProfile.findUnique({ where: { profileId }, select: { id: true, listingId: true, private: { select: { cvPath: true, videoPath: true } } } })
   if (!tp) return false
   if (tp.listingId) await deleteListingCore(tp.listingId)
   await db.$transaction(async (tx) => {
-    if (tp.private?.cvPath) await writeTombstones(tx, [{ bucket: TEACHER_CVS_BUCKET, path: tp.private.cvPath }], 'teacher_profile_deleted')
+    // The CV and a private intro video: their objects outlive the row unless tombstoned here (2026-10-07: the video).
+    const refs = [
+      ...(tp.private?.cvPath ? [{ bucket: TEACHER_CVS_BUCKET, path: tp.private.cvPath }] : []),
+      ...(tp.private?.videoPath ? [{ bucket: TEACHER_VIDEOS_BUCKET, path: tp.private.videoPath }] : []),
+    ]
+    if (refs.length) await writeTombstones(tx, refs, 'teacher_profile_deleted')
     // deleteMany: deleteListingCore above already removes the profile with its listing.
     await tx.teacherProfile.deleteMany({ where: { id: tp.id } })
   })

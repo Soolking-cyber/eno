@@ -14,6 +14,12 @@
 // ⛔ `teacher-cvs` IS PRIVATE. A CV carries the phone and email the whole feature withholds until
 // the teacher taps "Share"; a public bucket would publish them at an unguessable-but-leakable URL.
 // Served only by a 10-minute signed URL from /api/teachers/[id]/cv.
+//
+// ⛔ RLS ON, NO POLICIES, for every teacher table (2026-10-07): Supabase's default privileges give anon/authenticated ALL
+// on each new public table, and the app reads them only through Prisma (BYPASSRLS). Production also enables RLS at
+// CREATE TABLE time (the event trigger in scripts/rls-guard.sql), but this script asserts it rather than depending on
+// that. ⚠️ After running it on production, run the schema-wide check too:
+//   psql "$DIRECT_URL" -v ON_ERROR_STOP=1 -f scripts/rls-guard.sql
 
 import pg from 'pg'
 
@@ -22,6 +28,11 @@ if (!url) { console.error('Set DIRECT_URL'); process.exit(1) }
 
 const client = new pg.Client({ connectionString: url })
 await client.connect()
+// ⛔ ONE TRANSACTION (gate review, 2026-10-07 — the schools-ddl.mjs pattern): Postgres DDL is transactional, so a failing
+// step rolls EVERYTHING back instead of leaving, say, TeacherVideoShare created without its unique key and foreign key.
+// Every `process.exit(1)` below leaves without COMMIT, and Postgres rolls an uncommitted transaction back on disconnect.
+await client.query('begin')
+process.on('unhandledRejection', async (e) => { console.error(e); try { await client.query('rollback') } catch {} process.exit(1) })
 
 const exists = await client.query(`select to_regclass('public."TeacherJobMatch"') as t`)
 if (!exists.rows[0].t) {
@@ -79,6 +90,43 @@ await client.query(`
   end $$`)
 console.log('ok  TeacherProfile_cover_bounds')
 
+// ⛔ INTRO VIDEO: SHOW, OR KEEP PRIVATE AND SEND ON REQUEST (owner, 2026-10-07). Exactly Prisma's own DDL for these
+// schema.prisma fields (`migrate diff` shows no drift after this runs), made idempotent: the teacher's choice and the
+// server's change counter on TeacherProfile, the private object path on TeacherPrivate, and TeacherVideoShare — its
+// own grant table, NEVER TeacherContactShare (a row there already means "phone, email and CV shared").
+// ⚠️ RUN THIS ON PRODUCTION BEFORE THE DEPLOY: the conversation GET selects teacherVideoShare on EVERY thread open,
+// so the new code against the old schema breaks every conversation, not only teacher threads.
+await client.query(`
+  alter table "TeacherProfile"
+    add column if not exists "videoOnRequest" boolean not null default false,
+    add column if not exists "videoVersion" integer not null default 0`)
+await client.query(`alter table "TeacherPrivate" add column if not exists "videoPath" text`)
+await client.query(`
+  create table if not exists "TeacherVideoShare" (
+    "id" text not null,
+    "conversationId" text not null,
+    "requestedAt" timestamp(3),
+    "sharedAt" timestamp(3),
+    "revokedAt" timestamp(3),
+    constraint "TeacherVideoShare_pkey" primary key ("id")
+  )`)
+// RLS before anything else touches the new table — and for the four older teacher tables, which no script asserted.
+for (const t of ['TeacherProfile', 'TeacherPrivate', 'TeacherContactShare', 'TeacherVideoShare', 'TeacherJobMatch']) {
+  await client.query(`alter table "${t}" enable row level security`)
+  const on = (await client.query(`select relrowsecurity from pg_class where oid = 'public."${t}"'::regclass`)).rows[0].relrowsecurity
+  if (!on) { console.error(`RLS did not switch on for ${t} — stopping.`); process.exit(1) }
+  console.log(`ok  RLS ${t}`)
+}
+await client.query(`create unique index if not exists "TeacherVideoShare_conversationId_key" on "TeacherVideoShare"("conversationId")`)
+await client.query(`
+  do $$ begin
+    if not exists (select 1 from pg_constraint where conname = 'TeacherVideoShare_conversationId_fkey' and conrelid = '"TeacherVideoShare"'::regclass) then
+      alter table "TeacherVideoShare" add constraint "TeacherVideoShare_conversationId_fkey"
+        foreign key ("conversationId") references "Conversation"("id") on delete cascade on update cascade;
+    end if;
+  end $$`)
+console.log('ok  intro video columns + TeacherVideoShare')
+
 // Storage lives in the `storage` schema only on Supabase; a scratch Postgres has none.
 const hasStorage = await client.query(`select to_regclass('storage.buckets') as t`)
 if (hasStorage.rows[0].t) {
@@ -88,9 +136,21 @@ if (hasStorage.rows[0].t) {
      on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit,
        allowed_mime_types = excluded.allowed_mime_types`)
   const b = await client.query(`select public from storage.buckets where id = 'teacher-cvs'`)
-  console.log(`ok  bucket teacher-cvs (public=${b.rows[0].public})`)
+  if (b.rows[0].public !== false) { console.error('teacher-cvs is PUBLIC — stopping.'); process.exit(1) }
+  console.log('ok  bucket teacher-cvs (private)')
+  // The private intro videos (TeacherPrivate.videoPath): PRIVATE, the listing-videos limit, the same three types.
+  await client.query(
+    `insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+     values ('teacher-videos', 'teacher-videos', false, 52428800, array['video/mp4', 'video/webm', 'video/quicktime'])
+     on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit,
+       allowed_mime_types = excluded.allowed_mime_types`)
+  const v = await client.query(`select public from storage.buckets where id = 'teacher-videos'`)
+  if (v.rows[0].public !== false) { console.error('teacher-videos is PUBLIC — stopping.'); process.exit(1) }
+  console.log('ok  bucket teacher-videos (private)')
 } else {
   console.log('skip bucket: no storage schema (scratch database)')
 }
 
+await client.query('commit')
+console.log('ok  committed')
 await client.end()

@@ -68,6 +68,7 @@ function thread(over: Row = {}): Row {
     visaApplicationId: null,
     listing: { id: 'L1', title: 'Road bike', images: '["https://x/1.webp"]', price: 3_000_000, currency: '₫', priceUnit: 'VND', negotiable: true, availabilityConfirmedAt: null, status: 'active', listingType: 'sell', verified: true, subcategorySlug: 'bicycle', category: { slug: 'vehicles' }, teacherProfile: null },
     teacherContactShare: null,
+    teacherVideoShare: null,
     seller: { id: 'shop-1', ownerId: 'seller-1', name: 'Shop', avatarColor: '#111', avatarUrl: null, trustScore: 80, trustTier: 'standard', memberSince: new Date('2024-01-01'), reviewCount: 2, officialPartner: false, owner: { lastSeenAt: null, locale: 'vi' } },
     buyer: { displayName: 'An', email: 'an@example.com', avatarColor: '#222', avatarUrl: null, lastSeenAt: null, locale: 'vi' },
     messages: [],
@@ -229,5 +230,20 @@ describe('the listing carries the opener facts', () => {
     const { body } = await get()
     expect(body.listing.categorySlug).toBe('vehicles')
     expect(body.listing.subcategorySlug).toBe('bicycle')
+  })
+})
+
+// The intro video sent on request (2026-10-07): a teacher thread's payload carries the FLAGS the strip needs — never
+// where the private video is stored (the select reads the path only to know one exists).
+describe('a teacher thread\'s intro video', () => {
+  it('is flags only — the stored path never reaches either side', async () => {
+    h.convo = thread({
+      listing: { ...thread().listing as Row, listingType: 'teacher', teacherProfile: { status: 'live', videoOnRequest: true, private: { videoPath: 'p1/secret-intro.mp4' } } },
+      teacherVideoShare: { requestedAt: new Date(), sharedAt: null, revokedAt: null },
+    })
+    const { status, body } = await get()
+    expect(status).toBe(200)
+    expect(body.teacher.video).toEqual({ available: true, shareOn: false, shared: false, requested: true })
+    expect(JSON.stringify(body)).not.toContain('secret-intro')
   })
 })

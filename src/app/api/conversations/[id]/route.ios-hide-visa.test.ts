@@ -40,6 +40,7 @@ vi.mock('@/lib/db', () => ({
         visaApplicationId: null,
         listing: { id: 'L-vk', title: 'Vietnam E-Visa - Single Entry - 1 Hour', images: '[]', price: 3_000_000, currency: '₫', priceUnit: null, negotiable: false, availabilityConfirmedAt: null, status: 'active', listingType: 'sell', verified: true, teacherProfile: null },
         teacherContactShare: null,
+        teacherVideoShare: null,
         seller: { id: 'seller-vk', ownerId: 'vk-owner', name: 'VietKite', avatarColor: '#111', avatarUrl: null, trustScore: 100, trustTier: 'standard', memberSince: new Date('2025-01-01'), reviewCount: 0, officialPartner: true, owner: { lastSeenAt: null, locale: 'en' } },
         buyer: { displayName: 'Anna', email: 'anna@example.com', avatarColor: '#222', avatarUrl: null, lastSeenAt: null, locale: 'en' },
         messages: [],

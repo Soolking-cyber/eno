@@ -59,6 +59,7 @@ function thread(over: Row = {}): Row {
     visaApplicationId: null,
     listing: { id: 'L1', title: 'Honda Wave', images: '[]', price: 1, currency: '₫', priceUnit: 'VND', negotiable: true, availabilityConfirmedAt: null, status: 'active', listingType: 'sell', verified: true, teacherProfile: null },
     teacherContactShare: null,
+    teacherVideoShare: null,
     seller: { id: 'shop-1', ownerId: 'seller-1', name: 'Shop', avatarColor: '#111111', avatarUrl: null, trustScore: 100, trustTier: 'standard', memberSince: new Date('2024-01-01'), reviewCount: 2, officialPartner: false, owner: { lastSeenAt: null, locale: 'vi' } },
     buyer: { displayName: 'Anna', email: 'anna@example.com', avatarColor: '#222222', avatarUrl: null, lastSeenAt: null, locale: 'en' },
     messages: [],

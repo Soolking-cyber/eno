@@ -19,6 +19,9 @@ export const BUSINESS_VERIFICATION_BUCKET = 'business-verification'
 /** ⛔ PRIVATE. Teacher CVs carry the phone/email the Teachers feature withholds until the teacher
  *  taps "Share" — served only by 10-minute signed URL (src/lib/teachers/cv-store.ts). */
 export const TEACHER_CVS_BUCKET = 'teacher-cvs'
+/** PRIVATE bucket for intro videos a teacher keeps private and sends on request (scripts/teachers-ddl.mjs creates it;
+ *  src/lib/teachers/video-store.ts). Objects are `<profileId>/<uuid>.<ext>`, read only through a 10-minute signed URL. */
+export const TEACHER_VIDEOS_BUCKET = 'teacher-videos'
 
 let _admin: SupabaseClient | null = null
 

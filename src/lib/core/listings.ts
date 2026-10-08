@@ -2,7 +2,7 @@ import 'server-only'
 import { after } from 'next/server'
 import { clearTombstones, writeTombstones } from '@/lib/core/storage-tombstones'
 import { purgeStorageObjects } from '@/lib/core/storage-purge'
-import { TEACHER_CVS_BUCKET } from '@/lib/supabase-admin'
+import { TEACHER_CVS_BUCKET, TEACHER_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from '@/lib/db'
@@ -1516,8 +1516,13 @@ export async function deleteListingCore(listingId: string): Promise<DeleteListin
       // with it, and the CV is tombstoned for the sweeper, exactly as the teacher's own delete does.
       if (gone.teacherProfile) {
         // Re-read INSIDE the transaction: a CV replaced after the read above would otherwise escape.
-        const cv = (await tx.teacherPrivate.findUnique({ where: { teacherProfileId: gone.teacherProfile.id }, select: { cvPath: true } }))?.cvPath
-        if (cv) await writeTombstones(tx, [{ bucket: TEACHER_CVS_BUCKET, path: cv }], 'teacher_profile_deleted')
+        const priv = await tx.teacherPrivate.findUnique({ where: { teacherProfileId: gone.teacherProfile.id }, select: { cvPath: true, videoPath: true } })
+        // The CV and a PRIVATE intro video (2026-10-07) — both live only in TeacherPrivate, which dies with the profile.
+        const refs = [
+          ...(priv?.cvPath ? [{ bucket: TEACHER_CVS_BUCKET, path: priv.cvPath }] : []),
+          ...(priv?.videoPath ? [{ bucket: TEACHER_VIDEOS_BUCKET, path: priv.videoPath }] : []),
+        ]
+        if (refs.length) await writeTombstones(tx, refs, 'teacher_profile_deleted')
         await tx.teacherProfile.deleteMany({ where: { id: gone.teacherProfile.id } })
       }
     })

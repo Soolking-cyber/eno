@@ -351,6 +351,11 @@ export type NicheApiErrorCode =
   | 'invalid_teacher_profile'
   | 'teacher_profile_missing'
   | 'cover_changed' // cover lessons: the cover state changed in another window since the form loaded (2026-10-07)
+  // Teacher intro video, shown or sent on request (2026-10-07):
+  | 'video_changed' // the video state changed since the form loaded it (videoBase), or a change came with no base
+  | 'video_store_failed' // a move between the public and private buckets failed; nothing was written
+  | 'video_missing' // the teacher has no private intro video to send
+  | 'video_not_on_request' // a request for a video the teacher shows publicly, or does not keep on request
   | 'business_only'
   | 'cv_type'
   | 'cv_size'
@@ -736,6 +741,10 @@ const ALL = [
   'invalid_teacher_profile',
   'teacher_profile_missing',
   'cover_changed',
+  'video_changed',
+  'video_store_failed',
+  'video_missing',
+  'video_not_on_request',
   'business_only',
   'cv_type',
   'cv_size',

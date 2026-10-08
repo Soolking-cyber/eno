@@ -20,6 +20,8 @@ const h = vi.hoisted(() => ({
   purged: [] as string[],
   cleared: [] as Array<{ bucket: string; path: string }>,
   deskListError: false,
+  /** The teacher's private row (2026-10-07): a CV and a private intro video, both objects the cascade would orphan. */
+  teacherPrivate: null as null | { cvPath: string | null; videoPath: string | null },
   /** Make the PRIVATE verification bucket's prefix walk fail, independently of the desk's. */
   ownedListError: false,
   /** Entries the private verification bucket reports under `p1/` — enough to need paging. */
@@ -47,6 +49,7 @@ vi.mock('@/lib/db', () => {
       update: async ({ data }: { data: Record<string, unknown> }) => { h.identityUpdates.push(data); return {} },
     },
     profile: { delete: async () => { h.events.push('profile-deleted'); return {} } },
+    teacherPrivate: { findFirst: async () => h.teacherPrivate },
   }
   return {
     db: {
@@ -82,6 +85,8 @@ vi.mock('@/lib/log', () => ({ logError: () => {} }))
  */
 vi.mock('@/lib/supabase-admin', () => ({
   BUSINESS_VERIFICATION_BUCKET: 'business-verification',
+  TEACHER_CVS_BUCKET: 'teacher-cvs',
+  TEACHER_VIDEOS_BUCKET: 'teacher-videos',
   getSupabaseAdmin: () => ({ storage: { from: (bucket: string) => ({
     list: async (prefix: string, opts?: { limit?: number; offset?: number }) => {
       const page = <T,>(rows: T[]) => rows.slice(opts?.offset ?? 0, (opts?.offset ?? 0) + (opts?.limit ?? 1000))
@@ -109,11 +114,21 @@ beforeEach(() => {
   h.identities = [{ id: 'v1', evidence: { documentPath: 'p1/identity/document-1.jpg', selfiePath: 'p1/identity/selfie-1.jpg', decisionInput: { surname: 'DOE' }, checksPassed: ['mrz'], consentVersion: 'identity-v1' } }]
   h.events = []; h.tombstones = []; h.audits = []; h.identityUpdates = []; h.purged = []; h.cleared = []; h.deskListError = false; h.authDeletes = 0
   h.ownedListError = false
+  h.teacherPrivate = null
   h.ownedTop = [{ id: null, name: 'identity' }, { id: 'b1', name: 'licence.pdf' }]
   h.ownedIdentity = [{ id: 'i1', name: 'document-1.jpg' }, { id: 'i2', name: 'selfie-1.jpg' }]
 })
 
 describe('eraseAccount', () => {
+  it('a teacher: the CV and a private intro video are queued with the other private objects', async () => {
+    h.teacherPrivate = { cvPath: 'tp1/cv-1.pdf', videoPath: 'p1/aaaaaaaa-0000-4000-8000-000000000000.mp4' }
+    expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
+    expect(h.tombstones).toEqual(expect.arrayContaining([
+      { bucket: 'teacher-cvs', path: 'tp1/cv-1.pdf' },
+      { bucket: 'teacher-videos', path: 'p1/aaaaaaaa-0000-4000-8000-000000000000.mp4' },
+    ]))
+  })
+
   it('refuses under the investigation hold before touching anything', async () => {
     h.openReports = 1
     expect(await eraseAccount('p1', { kind: 'self' })).toEqual({ ok: false, code: 'under_review' })

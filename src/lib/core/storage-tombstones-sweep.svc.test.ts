@@ -24,6 +24,8 @@ const h = vi.hoisted(() => ({
   identityPaths: [] as string[],
   /** Make both business-verification reference reads throw — the "unknown, never delete" case. */
   verificationQueryError: false,
+  /** Paths a TeacherPrivate row still holds as its cvPath / videoPath (2026-10-07). */
+  teacherPaths: [] as string[],
   seq: 0,
   /** A hook run on every storage remove — lets a test refresh a row mid-batch like a concurrent writer would. */
   onRemove: null as null | ((bucket: string, paths: string[]) => void),
@@ -89,10 +91,15 @@ vi.mock('@/lib/db', () => ({
     },
     seller: { count: async () => 0 },
     profile: { count: async () => 0 },
+    teacherPrivate: {
+      findFirst: async ({ where }: { where: { cvPath?: string; videoPath?: string } }) =>
+        h.teacherPaths.includes((where.cvPath ?? where.videoPath)!) ? { teacherProfileId: 'tp1' } : null,
+    },
   },
 }))
 vi.mock('@/lib/supabase-admin', () => ({
   LISTINGS_BUCKET: 'listings', LISTING_VIDEOS_BUCKET: 'listing-videos', BUSINESS_VERIFICATION_BUCKET: 'business-verification', EVIDENCE_BUCKET: 'evidence',
+  TEACHER_CVS_BUCKET: 'teacher-cvs', TEACHER_VIDEOS_BUCKET: 'teacher-videos',
   getSupabaseAdmin: () => ({
     from: (table: string) => ({
       select: () => ({ eq: (_c: string, path: string) => ({ limit: async () =>
@@ -114,7 +121,7 @@ const t0 = new Date('2026-09-05T08:00:00.000Z')
 const later = new Date(t0.getTime() + TOMBSTONE_GRACE_MS + 1)
 const P = 'https://proj.supabase.co/storage/v1/object/public/listings/'
 
-beforeEach(() => { h.rows = []; h.removed = []; h.removeError = null; h.listingImages = []; h.visaPaths = []; h.visaQueryError = false; h.onRemove = null; h.verificationPaths = []; h.identityPaths = []; h.verificationQueryError = false })
+beforeEach(() => { h.rows = []; h.removed = []; h.removeError = null; h.listingImages = []; h.visaPaths = []; h.visaQueryError = false; h.onRemove = null; h.verificationPaths = []; h.identityPaths = []; h.verificationQueryError = false; h.teacherPaths = [] })
 
 describe('the tombstone sweep', () => {
   it('touches nothing younger than its grace', async () => {
@@ -139,6 +146,23 @@ describe('the tombstone sweep', () => {
     const r = await sweepTombstones(later)
     expect(h.removed).toEqual([{ bucket: 'visa-documents', paths: ['u1/app/old-passport.jpg'] }])
     expect(r).toMatchObject({ removed: 1, dropped: 1, failed: 0 })
+  })
+
+  /**
+   * THE TEACHER'S PRIVATE FILES (2026-10-07). Before these cases every CV tombstone hit `unknown_bucket` and backed off:
+   * a replaced or deleted CV — the phone and email on it — was never removed. The intro video kept private and sent on
+   * request lives in the same kind of bucket.
+   */
+  it('teacher-cvs / teacher-videos: an unreferenced object is removed; one a TeacherPrivate row still holds is dropped', async () => {
+    h.teacherPaths = ['p1/live.mp4']
+    await writeTombstones(db, [
+      { bucket: 'teacher-cvs', path: 'p1/old.pdf' },
+      { bucket: 'teacher-videos', path: 'p1/gone.mp4' },
+      { bucket: 'teacher-videos', path: 'p1/live.mp4' },
+    ], 'teacher_video_replaced', t0)
+    const r = await sweepTombstones(later)
+    expect(h.removed.flatMap((x) => x.paths.map((p) => `${x.bucket}/${p}`)).sort()).toEqual(['teacher-cvs/p1/old.pdf', 'teacher-videos/p1/gone.mp4'])
+    expect(r).toMatchObject({ removed: 2, dropped: 1, failed: 0 })
   })
 
   it('private business-verification bucket: an unreferenced object is removed', async () => {

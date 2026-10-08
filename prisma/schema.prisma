@@ -1057,6 +1057,13 @@ model TeacherProfile {
   bio                String   @default("")
   photoUrl           String?
   videoUrl           String?
+  /// INTRO VIDEO VISIBILITY (owner, 2026-10-07) — the teacher's choice: false = shown on the profile (videoUrl and
+  /// Listing.video); true = kept private (TeacherPrivate.videoPath) and sent to schools that ask. A video has EXACTLY
+  /// ONE home — rules and moves in src/lib/teachers/video.ts.
+  videoOnRequest     Boolean  @default(false)
+  /// SERVER-WRITTEN, bumped on every video change (upload, move, removal, choice): the stamp an edit form sends back
+  /// as `videoBase`, so a stale window can never publish, hide or delete over a newer choice. Never in TeacherInput.
+  videoVersion       Int      @default(0)
   nationality        String   // ISO-3166 alpha-2
   nativeSpeaker      Boolean  @default(false)
   languages          String[] @default([])
@@ -1125,6 +1132,9 @@ model TeacherPrivate {
   /// Object path in the PRIVATE bucket `teacher-cvs` — never a URL; served by 10-minute signed URL.
   cvPath           String?
   cvFileName       String?
+  /// The PRIVATE intro video (TeacherProfile.videoOnRequest): an object path in the private bucket `teacher-videos`
+  /// (`<profileId>/<uuid>.<ext>`) — never a URL; a school the teacher sent it to gets a 10-minute signed URL.
+  videoPath        String?
   updatedAt        DateTime       @updatedAt
 }
 
@@ -1135,6 +1145,20 @@ model TeacherContactShare {
   conversationId String       @unique
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sharedAt       DateTime     @default(now())
+  revokedAt      DateTime?
+}
+
+/// A teacher's PRIVATE intro video, sent to one school in one conversation (owner, 2026-10-07: "show their intro video
+/// in profile or hide and send upon request"). ⛔ ITS OWN TABLE, NOT TeacherContactShare: there a row with revokedAt
+/// null already MEANS "phone, email and CV shared" — a video grant must never unlock contact details, nor the reverse.
+/// requestedAt = the school asked; sharedAt (with revokedAt null) = the teacher sent it. A request alone unlocks
+/// nothing. Gate: src/lib/teachers/share.ts teacherThread. Columns: scripts/teachers-ddl.mjs.
+model TeacherVideoShare {
+  id             String       @id @default(cuid())
+  conversationId String       @unique
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  requestedAt    DateTime?
+  sharedAt       DateTime?
   revokedAt      DateTime?
 }
 
@@ -1200,6 +1224,7 @@ model Conversation {
   messages          Message[]
   /// Teachers: the teacher's revocable "share my phone, email & CV" grant for THIS thread.
   teacherContactShare TeacherContactShare?
+  teacherVideoShare   TeacherVideoShare?
   lastMessageAt     DateTime  @default(now())
   lastMessageText   String?
   buyerUnread       Int       @default(0)

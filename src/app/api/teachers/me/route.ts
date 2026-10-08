@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import { route, ApiError } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { PublishBlockedError } from '@/lib/publish-guard'
-import { saveTeacherProfile, deleteTeacherProfile, TeacherCoverConflictError, TeacherValidationError } from '@/lib/teachers/publish'
+import { saveTeacherProfile, deleteTeacherProfile, TeacherCoverConflictError, TeacherValidationError, TeacherVideoConflictError, TeacherVideoStoreError } from '@/lib/teachers/publish'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,14 +12,15 @@ export const dynamic = 'force-dynamic'
 export const GET = route({ auth: 'profile' }, async ({ profile }) => {
   const tp = await db.teacherProfile.findUnique({
     where: { profileId: profile.id },
-    include: { private: { select: { phone: true, cvFileName: true } }, listing: { select: { status: true, verified: true } } },
+    include: { private: { select: { phone: true, cvFileName: true, videoPath: true } }, listing: { select: { status: true, verified: true } } },
   })
   if (!tp) return { teacher: null }
   const { private: priv, listing, ...rest } = tp
   // What schools actually see — a moderation pull keeps the listing down whatever `status` says.
   const listingLive = !!listing && listing.status === 'active' && listing.verified
-  // The owner's own phone + whether a CV exists — never the CV path (it is not a URL anyone needs).
-  return { teacher: { ...rest, listingLive, phone: priv?.phone ?? '', cvFileName: priv?.cvFileName ?? null } }
+  // The owner's own phone + whether a CV or a private intro video exists — never either path (neither is a URL anyone
+  // needs; the private video is watched only through a school's signed link). videoVersion is the form's video base.
+  return { teacher: { ...rest, listingLive, phone: priv?.phone ?? '', cvFileName: priv?.cvFileName ?? null, hasPrivateVideo: !!priv?.videoPath } }
 })
 
 export const PUT = route(
@@ -35,6 +36,11 @@ export const PUT = route(
       }
       // The cover state changed in another window since this form loaded it (publish.ts TeacherCoverConflictError).
       if (e instanceof TeacherCoverConflictError) return NextResponse.json({ error: 'cover_changed' }, { status: 409 })
+      // The intro video changed in another window since this form loaded it, or a draft/old client tried to change it
+      // without the version it loaded (src/lib/teachers/video.ts).
+      if (e instanceof TeacherVideoConflictError) return NextResponse.json({ error: 'video_changed' }, { status: 409 })
+      // A bucket move failed before anything was written (the copy's tombstone collects any half-made copy).
+      if (e instanceof TeacherVideoStoreError) return NextResponse.json({ error: 'video_store_failed' }, { status: 502 })
       if (e instanceof PublishBlockedError) {
         return NextResponse.json({ error: e.code, detail: e.detail ?? null }, { status: e.code.startsWith('identity_') ? 403 : 422 })
       }

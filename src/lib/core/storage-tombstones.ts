@@ -26,6 +26,9 @@ export const TOMBSTONE_GRACE_MS = 60 * 60 * 1000
 
 export type TombstoneRef = { bucket: string; path: string }
 export type TombstoneReason = 'account_deleted' | 'visa_document_replaced' | 'visa_application_deleted' | 'visa_upload_intent' | 'verification_doc_orphaned' | 'kyc_capture_intent' | 'teacher_cv_replaced' | 'teacher_profile_deleted' | 'listing_retention_expired'
+  // Teacher intro video (2026-10-07): a copy made before its save commits (deleted again in the commit when the row
+  // references it), and an object a save displaced — moved to the other bucket, replaced, or removed.
+  | 'teacher_video_pending' | 'teacher_video_replaced'
 type Writer = Pick<Prisma.TransactionClient, 'storageTombstone' | '$executeRaw'>
 
 /** Record that these objects are to be deleted once nothing references them. Pass the transaction

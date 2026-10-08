@@ -52,6 +52,11 @@ export type TeacherInput = {
   bio: string
   photoUrl: string | null
   videoUrl: string | null
+  /**
+   * Intro video visibility (owner, 2026-10-07): false = shown on the profile, true = kept private and sent to schools
+   * that ask. The video's homes and moves: src/lib/teachers/video.ts. A body from before this field leaves it as stored.
+   */
+  videoOnRequest: boolean
   nationality: string
   nativeSpeaker: boolean
   languages: string[]
@@ -90,7 +95,7 @@ export type TeacherInput = {
 }
 
 export const EMPTY_TEACHER: TeacherInput = {
-  fullName: '', headline: '', bio: '', photoUrl: null, videoUrl: null,
+  fullName: '', headline: '', bio: '', photoUrl: null, videoUrl: null, videoOnRequest: false,
   nationality: '', nativeSpeaker: false, languages: [],
   currentCity: '', currentDistrict: '', preferredCities: [], openToOnline: false, availableFrom: null,
   jobTypes: [], ageGroups: [], subjects: [], yearsExperience: 0, experience: [],
@@ -115,7 +120,7 @@ export const TEACHER_STEP_FIELDS = {
   experience: ['yearsExperience', 'experience', 'ageGroups', 'subjects', 'jobTypes', 'expectedSalaryM'],
   cover: ['coverOpen', 'coverSlots', 'coverAreas', 'coverRateVnd', 'coverConsent'],
   qualifications: ['degreeLevel', 'degreeMajor', 'degreeInstitution', 'degreeYear', 'certificates'],
-  finish: ['photoUrl', 'videoUrl', 'phone', 'staffContactOptIn', 'matchEmailOptIn', 'consentPublic'],
+  finish: ['photoUrl', 'videoUrl', 'videoOnRequest', 'phone', 'staffContactOptIn', 'matchEmailOptIn', 'consentPublic'],
 } as const satisfies Record<string, readonly (keyof TeacherInput)[]>
 export type TeacherStep = keyof typeof TEACHER_STEP_FIELDS
 /** Steps that may be filled WITHOUT an account (the teacher.eno.vn half). */
@@ -160,6 +165,7 @@ export function normalizeTeacherInput(raw: unknown): TeacherInput {
     bio: longStr(r.bio, LIMITS.bio),
     photoUrl: typeof r.photoUrl === 'string' && r.photoUrl ? r.photoUrl.slice(0, 500) : null,
     videoUrl: typeof r.videoUrl === 'string' && r.videoUrl ? r.videoUrl.slice(0, 500) : null,
+    videoOnRequest: r.videoOnRequest === true,
     nationality: typeof r.nationality === 'string' && ISO_COUNTRY.test(r.nationality) ? r.nationality : '',
     nativeSpeaker: r.nativeSpeaker === true,
     languages: Array.isArray(r.languages)

@@ -1,5 +1,5 @@
 import { db } from '@/lib/db'
-import { BUSINESS_VERIFICATION_BUCKET, LISTINGS_BUCKET, LISTING_VIDEOS_BUCKET, getSupabaseAdmin } from '@/lib/supabase-admin'
+import { BUSINESS_VERIFICATION_BUCKET, LISTINGS_BUCKET, LISTING_VIDEOS_BUCKET, TEACHER_CVS_BUCKET, TEACHER_VIDEOS_BUCKET, getSupabaseAdmin } from '@/lib/supabase-admin'
 import { STORAGE_HOST } from '@/lib/listing-image'
 import { isStillReferenced } from '@/lib/core/storage-purge'
 import { VISA_BUCKET } from '@/lib/visa/storage'
@@ -83,6 +83,21 @@ async function referenceVerdict(bucket: string, path: string): Promise<Verdict> 
           }),
         ])
         return inCase || inIdentity ? 'referenced' : 'unreferenced'
+      } catch {
+        return 'unknown'
+      }
+    }
+    /**
+     * ⛔ THE TEACHER'S PRIVATE FILES (2026-10-07). Each object is `<profileId>/<uuid>.<ext>` and lives in exactly one
+     * TeacherPrivate column, so a reference is that column holding the path. Before this case every CV tombstone hit
+     * `unknown_bucket` and backed off for up to 30 days — a replaced or deleted CV (the phone and email on it) was
+     * never removed. Expect the first run after deploy to drain that backlog.
+     */
+    case TEACHER_CVS_BUCKET:
+    case TEACHER_VIDEOS_BUCKET: {
+      try {
+        const where = bucket === TEACHER_CVS_BUCKET ? { cvPath: path } : { videoPath: path }
+        return (await db.teacherPrivate.findFirst({ where, select: { teacherProfileId: true } })) ? 'referenced' : 'unreferenced'
       } catch {
         return 'unknown'
       }

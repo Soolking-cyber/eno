@@ -2,6 +2,7 @@
 import { route, ApiError } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { insertMessage } from '@/lib/messages'
+import { logError } from '@/lib/log'
 import { teacherThread } from '@/lib/teachers/share'
 import { conversationGate } from '@/lib/enforcement'
 import { isBlockedBetween } from '@/lib/user-blocks'
@@ -13,8 +14,10 @@ export const POST = route(
   async ({ req, profile }) => {
     const body = (await req.json().catch(() => null)) as { conversationId?: unknown; share?: unknown } | null
     const conversationId = typeof body?.conversationId === 'string' ? body.conversationId : ''
-    const share = body?.share !== false
-    if (!conversationId) throw new ApiError('bad_request', 400)
+    // FAIL CLOSED (gate review, 2026-10-07): only a literal `true` sends and a literal `false` stops — a missing field or
+    // the string "false" must never hand anything over.
+    if (!conversationId || typeof body?.share !== 'boolean') throw new ApiError('bad_request', 400)
+    const share = body.share
     const t = await teacherThread(conversationId)
     // Only the teacher of THIS thread may share or revoke. Anyone else: it does not exist.
     if (!t || t.teacherUserId !== profile.id) throw new ApiError('not_found', 404)
@@ -27,20 +30,23 @@ export const POST = route(
     // ⚠️ AGAINST THE TEACHER'S OWN CHOICE (`shareOn`), NOT `shared`: on a hidden profile `shared` is
     // false, so "Stop sharing" was a no-op there and the share came back on un-hide (Opus, gate 09-30).
     if (share === t.shareOn) return { ok: true, shared: t.shareOn }
-    await db.teacherContactShare.upsert({
-      where: { conversationId },
-      create: { conversationId, sharedAt: new Date(), revokedAt: share ? null : new Date() },
-      update: share ? { sharedAt: new Date(), revokedAt: null } : { revokedAt: new Date() },
-    })
     // A line in the thread, as the teacher, so the recruiter is told (realtime + unread) — the same
     // way an accepted offer announces itself. Bilingual, like the offer lines.
-    await insertMessage(
-      { id: t.convo.id, buyerProfileId: t.convo.buyerProfileId, sellerProfileId: t.convo.sellerProfileId, listingId: t.convo.listingId, sellerId: t.convo.sellerId },
-      profile.id,
-      share
-        ? '📇 Đã chia sẻ số điện thoại, email và CV · Shared my phone, email and CV'
-        : '🔒 Đã ngừng chia sẻ liên hệ · Stopped sharing my contact details',
-    )
+    const convo = { id: t.convo.id, buyerProfileId: t.convo.buyerProfileId, sellerProfileId: t.convo.sellerProfileId, listingId: t.convo.listingId, sellerId: t.convo.sellerId }
+    const now = new Date()
+    if (share) {
+      // ⛔ A SHARE COMMITS WITH ITS LINE OR NOT AT ALL (SendOpts.alongside, 2026-10-07). Written in two steps, a failed or
+      // interrupted line left a grant the recruiter was never told about, and the no-op above then swallowed every retry
+      // (the gap the intro-video review found here).
+      await insertMessage(convo, profile.id, '📇 Đã chia sẻ số điện thoại, email và CV · Shared my phone, email and CV', {
+        alongside: [db.teacherContactShare.upsert({ where: { conversationId }, create: { conversationId, sharedAt: now, revokedAt: null }, update: { sharedAt: now, revokedAt: null } })],
+      })
+    } else {
+      // ⛔ A REVOKE NEVER DEPENDS ON ITS LINE: it commits first, on its own; the line is best-effort (gate review, 2026-10-07).
+      await db.teacherContactShare.upsert({ where: { conversationId }, create: { conversationId, sharedAt: now, revokedAt: now }, update: { revokedAt: now } })
+      await insertMessage(convo, profile.id, '🔒 Đã ngừng chia sẻ liên hệ · Stopped sharing my contact details')
+        .catch((err) => logError(err, { op: 'teachers.contact_revoke_line' }))
+    }
     return { ok: true, shared: share }
   },
 )
