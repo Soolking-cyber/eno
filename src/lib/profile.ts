@@ -3,6 +3,7 @@ import type { User } from '@supabase/supabase-js'
 import { db } from './db'
 import { normalizePhone } from './phone'
 import { maskEmailHandle } from './utils'
+import { cleanDisplayName } from './display-name'
 import { checkBanEvasion } from './enforcement'
 import { recordNewAccount, recordPhoneVerified, recomputeTrust } from './trust'
 import { autoClaimHandle, consolidateSellerHandle } from './handle'
@@ -25,9 +26,11 @@ export async function ensureProfile(user: User) {
   // and displayName short-circuits maskEmailHandle everywhere it's rendered
   // (chat counterparty, public review author). A masked handle is the fallback;
   // the user can set a real name later. (Compliance verification 2026-07-06.)
+  // ⚠️ A PROVIDER'S NAME IS CLEANED FIRST (Sign in with Apple plan, A5) — every provider, not only Apple: control
+  // and bidi/zero-width characters stripped, 80 characters at most. It seeds the public name AND the handle.
   const displayName =
-    (user.user_metadata?.full_name as string | undefined) ||
-    (user.user_metadata?.name as string | undefined) ||
+    cleanDisplayName(user.user_metadata?.full_name) ||
+    cleanDisplayName(user.user_metadata?.name) ||
     maskEmailHandle(email)
   const avatarUrl = (user.user_metadata?.avatar_url as string | undefined) ?? null
 

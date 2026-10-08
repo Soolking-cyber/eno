@@ -9,7 +9,7 @@ import { mayGateOnboarding } from '@/lib/onboarding-gate'
 import { clearAccountDeviceStorage } from '@/lib/sign-out-storage'
 import { classifyGate, noteGateOpen, pressedInChrome, settleGateSignIn, type PressInfo } from '@/lib/signin-gates'
 import { armIntent, dropIntent, markIntentRouted, pathnameOf, readIntent, type PendingIntent } from '@/lib/pending-intent'
-import type { SignInGate } from '@/lib/signup-prompt'
+import type { SignInGate, SignInMethod } from '@/lib/signup-prompt'
 /**
  * ⚠️ THE IDENTITY RULES LIVE IN A PURE MODULE — see auth-identity.ts for why (they shipped wrong
  * once, and testing them must not drag next/navigation and the Supabase browser client along).
@@ -111,8 +111,8 @@ export type SignInContext = {
 
 /** The join presentation's two hooks back to the prompt that opened it. */
 export type SignInPrompt = {
-  /** A method was chosen inside the card — Google pressed, or email opened. For the prompt's analytics. */
-  onMethod?: (method: 'google' | 'email') => void
+  /** A method was chosen inside the card — Google or Apple pressed, or email opened. For the prompt's analytics. */
+  onMethod?: (method: SignInMethod) => void
   /**
    * Closed by the visitor without signing in: the × (the only button for it), Esc or the backdrop. ⚠️ Fires only from
    * the dialog's own onOpenChange — a successful sign-in closes it from onAuthStateChange instead and is

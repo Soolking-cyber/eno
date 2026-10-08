@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import { AuthErrorToast } from "@/components/marketplace/auth-error-toast";
+import { SiwaTestFlag } from "@/components/marketplace/siwa-test-flag";
+import { appleSignInTokens } from "@/lib/apple-signin";
 import { ThemeProvider } from "@/context/theme-context";
 import { LanguageProvider } from "@/context/language-context";
 import type { LangVariant } from "@/lib/lang-variant";
@@ -174,6 +176,10 @@ export function Providers({
                         rendering — the boundary is inside the component's own file's consumer here,
                         see below. */}
                     <Suspense fallback={null}><AuthErrorToast /></Suspense>
+                    {/* Sign in with Apple's tester switch (`?siwa_test=1|0` on any page — see siwa-test-flag.tsx).
+                        Mounted ONLY while `web-test` is in NEXT_PUBLIC_APPLE_SIGNIN (inlined at build), so the dark
+                        deploy's markup is unchanged. Same Suspense reason as the toast above. */}
+                    {appleSignInTokens().has('web-test') && <Suspense fallback={null}><SiwaTestFlag /></Suspense>}
                     </TooltipProvider>
                   </QueryProvider>
                 </FavoritesProvider>

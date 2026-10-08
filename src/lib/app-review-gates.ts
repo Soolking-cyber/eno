@@ -18,7 +18,10 @@
  *
  * | token            | plan | what it does                                                             | decision |
  * |------------------|------|--------------------------------------------------------------------------|----------|
- * | ios-hide-google  | R2   | no "Continue with Google" in the iOS app (Guideline 4.8)                 | D2 = b   |
+ * | ios-hide-google  | R2   | iOS app: no "Continue with Google" UNLESS Apple shows beside it — the    | SIWA     |
+ * |                  |      | binary carries the `EnoSignIn` plugin (build 3 on) AND                   | D1       |
+ * |                  |      | NEXT_PUBLIC_APPLE_SIGNIN has `ios` (Guideline 4.8; iosGoogleHidden in    | (10-08)  |
+ * |                  |      | src/lib/apple-signin.ts). Build 2 shows neither. Stays ON for good       |          |
  * | ios-hide-wallet  | R6   | no Payments row, /dashboard/payments|wallet|payout redirect, iOS app     | D7       |
  * | app-signin-tidy  | R7/R13 | both apps: no disabled "Phone · soon" tab; legal links open in-app     | —        |
  * | app-no-gtm       | R11  | both apps: no Google Tag Manager container                               | —        |
@@ -61,6 +64,9 @@
  * ⚠️ CLIENT HELPERS ARE FALSE DURING SSR. Anything rendered on the server that must not flash in the
  * app uses the CSS hooks instead — `ios-app-hidden` / `native-app-hidden` (globals.css), keyed off the
  * `native` / `native-ios` classes the pre-paint head script sets — so the first frame is already right.
+ * The sign-in providers use `ios-nosiwa-hidden` instead of `ios-app-hidden` since Sign in with Apple
+ * (2026-10-08): hidden in the iOS app unless the head script also set `native-siwa` (plugin present and
+ * `ios` in NEXT_PUBLIC_APPLE_SIGNIN) — the first-frame twin of `iosGoogleHidden()`.
  */
 /**
  * The native apps' user-agent tokens — the SAME pattern as `NATIVE_UA_RE` in src/lib/consent-value.ts

@@ -54,7 +54,10 @@ export const POST = route({ auth: 'admin' }, async ({ req, params, admin }) => {
       if (email && isAdminEmail(email)) return NextResponse.json({ error: 'cannot_erase_admin' }, { status: 409 })
       const r = await eraseAccount(id, { kind: 'admin', email: admin, reason })
       if (!r.ok) return NextResponse.json({ error: r.code }, { status: r.code === 'not_found' ? 404 : 409 })
-      return { ok: true, purge: r.purge }
+      // `apple` — what happened to the person's Sign in with Apple authorization (none | revoked | queued |
+      // manual): the console shows it, because queued/manual means the support reply must tell the person to
+      // remove eno in their Apple Account.
+      return { ok: true, purge: r.purge, apple: r.apple }
     }
     default:
       return NextResponse.json({ error: 'unknown_action' }, { status: 400 })

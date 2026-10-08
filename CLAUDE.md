@@ -95,7 +95,8 @@ from memory.
   `visa_documents`, `visa_payments`, `next_cache` (~8k rows), `rl_window`/`rl_cooldown` (the
   Postgres rate limiter), `zalo_oauth_token` (the rotating OTP chain), `ListingImageHash`,
   `PlaceGeocode`, `forum_translations`. This flow was safe when written and silently became lethal
-  as tables were added outside Prisma.
+  as tables were added outside Prisma. Since added outside it too: `apple_siwa_token` (Apple refresh
+  tokens kept for revocation on account deletion, TN3194 — `scripts/apple-siwa-ddl.mjs`, 2026-10-08).
 
   **The safe flow — generate SQL, read it, apply only what is additive:**
   1. Drop BOTH cross-schema FKs (`profile_auth_fk`, `visa_applications_user_id_fkey`) — Prisma

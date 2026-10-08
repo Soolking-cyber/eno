@@ -34,8 +34,12 @@ export default async function EscapePage({ searchParams }: { searchParams: Promi
   if (!isNonce(h)) redirect('/signin')
 
   const url = await handoffAuthUrl(h)
-  // The stored URL was host-validated on write (accounts.google.com only), which is what keeps this
-  // from being an open redirector aimed at someone mid-sign-in.
+  // The stored URL was pinned on write by /api/auth/handoff/open: this project's own Supabase
+  // /auth/v1/authorize (exact origin and path), `provider=google`, a PKCE `code_challenge`, and a
+  // `redirect_to` of exactly this site's /auth/callback?handoff=<that nonce> (plus an allow-listed
+  // `via`). That is what keeps this 302 from being an open redirector — or an implicit-flow token
+  // delivery — aimed at someone mid-sign-in. (It said "accounts.google.com only" until 2026-10-08;
+  // that was never what was stored.)
   if (url) redirect(url)
 
   // ⚠️ NOT AN ERROR — THE ROW IS PROBABLY STILL BEING WRITTEN. The app has to launch this browser

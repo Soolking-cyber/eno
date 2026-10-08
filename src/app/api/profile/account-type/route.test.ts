@@ -26,7 +26,10 @@ const h = vi.hoisted(() => ({
   tosVersion: null as string | null,
   profileUpdates: [] as Record<string, unknown>[],
   afterWork: [] as Array<() => unknown>,
-  capi: [] as Array<{ name: string; customData?: Record<string, unknown> }>,
+  capi: [] as Array<{ name: string; customData?: Record<string, unknown>; userData?: Record<string, unknown> }>,
+  /** Sign in with Apple D14: CAPI configured, and the caller's token says Apple-linked. */
+  capiOn: false,
+  appleLinked: false,
 }))
 
 vi.mock('next/server', async (orig) => ({
@@ -40,6 +43,7 @@ vi.mock('@/lib/admin', () => ({
   getCurrentProfileId: async () => 'p1',
   getAdmin: async () => null,
   getVerifiedPhone: async () => null,
+  isCurrentUserAppleLinkedByClaims: async () => h.appleLinked,
 }))
 vi.mock('@/lib/db', () => ({
   db: {
@@ -55,7 +59,8 @@ vi.mock('@/lib/trust', () => ({ initialSellerTrust: async () => ({}) }))
 vi.mock('@/lib/seller-pdp-refresh', () => ({ refreshSellerPdps: async () => {} }))
 vi.mock('@/lib/meta-capi', async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
-  sendMetaCapiEvent: async (name: string, opts: { customData?: Record<string, unknown> }) => { h.capi.push({ name, customData: opts.customData }) },
+  metaCapiConfigured: () => h.capiOn,
+  sendMetaCapiEvent: async (name: string, opts: { customData?: Record<string, unknown>; userData?: Record<string, unknown> }) => { h.capi.push({ name, customData: opts.customData, userData: opts.userData }) },
 }))
 
 const { POST } = await import('./route')
@@ -66,6 +71,8 @@ beforeEach(() => {
   h.profileUpdates = []
   h.afterWork = []
   h.capi = []
+  h.capiOn = false
+  h.appleLinked = false
 })
 
 describe('account-type — first-touch attribution needs the Analytics purpose', () => {
@@ -109,6 +116,30 @@ describe('account-type — first-touch attribution needs the Analytics purpose',
   it('⛔ writes NOTHING from inside the native app, whatever is stored', async () => {
     await signup(`${ATTR}; eno-consent-v2=${v2('111')}`, 'Mozilla/5.0 (iPhone) EnoNativeApp/1')
     expect(attrWrites()).toEqual([])
+  })
+})
+
+describe('account-type — Meta CAPI never gets an Apple-linked email (Sign in with Apple D14)', () => {
+  const signup = async () => {
+    const r = await POST(new Request('https://eno.vn/api/profile/account-type', {
+      method: 'POST',
+      body: JSON.stringify({ accountType: 'individual', displayName: 'Lan' }),
+      headers: { 'content-type': 'application/json' },
+    }))
+    expect(r.status).toBe(200)
+    for (const fn of h.afterWork) await fn()
+  }
+  it('passes appleLinked from the token when CAPI is configured', async () => {
+    h.capiOn = true
+    h.appleLinked = true
+    await signup()
+    expect(h.capi.find((c) => c.name === 'CompleteRegistration')?.userData).toMatchObject({ email: 'lan@example.com', externalId: 'p1', appleLinked: true })
+  })
+  it('false for everyone else — and the claims are not even read while CAPI is off', async () => {
+    h.capiOn = false
+    h.appleLinked = true
+    await signup()
+    expect(h.capi.find((c) => c.name === 'CompleteRegistration')?.userData).toMatchObject({ appleLinked: false })
   })
 })
 

@@ -8,6 +8,7 @@ import {
   AGAIN_AFTER_MS,
   DEVICE_KEY,
   FIRST_AFTER_MS,
+  PROMPT_METHOD_EVENT,
   TAB_KEY,
   TEST_KEY,
   TICK_MS,
@@ -260,7 +261,7 @@ export function SignupPrompt() {
               answered = true
               ask.answered = true
               trackSignupPrompt(method, { count })
-              countSignupPrompt(method === 'google' ? 'google_click' : 'email_click')
+              countSignupPrompt(PROMPT_METHOD_EVENT[method])
               saveDevice(mem, afterMethod(getDevice(mem), Date.now()))
             },
             // Another sign-in took the popup over before the visitor answered: no × and no answer to count,

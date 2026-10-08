@@ -21,10 +21,14 @@ export function authRedirect(to: string): NextResponse {
 
 /**
  * Provision the app Profile on sign-in (idempotent; best-effort so a transient DB hiccup
- * never blocks login). New accounts that haven't picked individual vs business are sent
- * through the one-time onboarding first.
+ * never blocks login) and say where the person goes next: `next`, or — for a new account that
+ * hasn't picked individual vs business — the one-time onboarding first, carrying `next`.
+ *
+ * A PATH, not a response, so a route that answers JSON can use it too: the native Sign in with
+ * Apple route (/api/auth/apple/native) returns `{ to }` and the app navigates there itself.
+ * `next` must already be sanitized (safeNextPath) by the caller.
  */
-export async function finishSignIn(user: User | null | undefined, origin: string, next: string): Promise<NextResponse> {
+export async function finishSignInPath(user: User | null | undefined, next: string): Promise<string> {
   if (user) {
     try {
       const profile = await ensureProfile(user)
@@ -34,12 +38,15 @@ export async function finishSignIn(user: User | null | undefined, origin: string
       // is a step a user skips by typing a URL.
       // ⚠️ `profile.phone` IS ALREADY PROOF, not a claim — ensureProfile mirrors it only when
       // `user.phone_confirmed_at` is set, so it can never be self-typed.
-      if (pendingOnboardingStep(profile)) {
-        return authRedirect(`${origin}/onboard?next=${encodeURIComponent(next)}`)
-      }
+      if (pendingOnboardingStep(profile)) return `/onboard?next=${encodeURIComponent(next)}`
     } catch (e) {
       console.error('[auth] ensureProfile', e)
     }
   }
-  return authRedirect(`${origin}${next}`)
+  return next
+}
+
+/** finishSignInPath as the redirect every redirect-style sign-in route answers with. */
+export async function finishSignIn(user: User | null | undefined, origin: string, next: string): Promise<NextResponse> {
+  return authRedirect(`${origin}${await finishSignInPath(user, next)}`)
 }

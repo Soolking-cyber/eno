@@ -8,7 +8,7 @@ import { SignInForm } from '@/components/marketplace/sign-in-form'
 import { Bell, MessageCircle, Tag } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import type { PendingIntent } from '@/lib/pending-intent'
-import type { SignInGate } from '@/lib/signup-prompt'
+import type { SignInGate, SignInMethod } from '@/lib/signup-prompt'
 
 /**
  * THE ONE SIGN-IN SURFACE — owner, 2026-08-28: "unify all login signup pages to this only 1 popup
@@ -61,7 +61,7 @@ export function SignInCard({
    * THE JOIN PRESENTATION — the "Join eno" prompt (signup-prompt.tsx) asking a guest who has been
    * browsing for a minute. Only the dialog passes it. See `SignInPrompt` in auth-context.tsx.
    */
-  join?: { onMethod?: (method: 'google' | 'email') => void }
+  join?: { onMethod?: (method: SignInMethod) => void }
   /** Which gate opened it (UX3 J1) — the /signin page passes nothing and is the `page` gate. */
   gate?: SignInGate
   /** The action to finish after sign-in (UX3 J5) — see SignInForm's `resume`. */

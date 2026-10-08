@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic'
  * J1) for one sign-in gate's action (src/lib/signup-prompt-counter.ts says what is kept: a number,
  * nothing about the caller).
  *   { e: <prompt event>, c?: <context class> }
- *   { g: <gate>, a: open|google|email|completed, c?: <context class> }
+ *   { g: <gate>, a: open|google|apple|email|completed, c?: <context class> }
  * `c` is one of a closed set of 24 coarse classes; anything else is stored as "unknown", never as sent.
  *
  * ⚠️ ALWAYS A BODYLESS 204, whatever happens. It is a beacon; nothing reads the reply, and an error

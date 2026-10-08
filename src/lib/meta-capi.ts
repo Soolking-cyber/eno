@@ -1,6 +1,7 @@
 import 'server-only'
 import { clientIp } from '@/lib/client-ip'
 import { serverConsent } from '@/lib/consent-value'
+import { isAppleRelayEmail } from '@/lib/apple-signin'
 import crypto from 'crypto'
 
 // ── Meta Conversions API (server-side) ───────────────────────────────────────
@@ -45,6 +46,18 @@ export type MetaUserData = {
   email?: string | null
   phone?: string | null
   externalId?: string | null // our stable id (profile/user/seller) — hashed
+  /**
+   * Does the account whose email this is have an Apple identity (`isAppleLinked(app_metadata)`)? ⛔ D14 (DPLA
+   * 3.3.5(C)): an address Apple shared — or relayed — through Sign in with Apple may not reach an ad platform.
+   * ⛔ FAIL CLOSED (commit gate round 2, O5): the email is hashed into `em` ONLY when this is exactly `false` — the
+   * caller asked and the account is not linked. `true` or no answer at all sends no `em`, so an event added later that
+   * passes an email and forgets this question cannot leak one. A relay address (`@privaterelay.appleid.com`,
+   * `@private.icloud.com`) is dropped whatever this says. Phone and external id are not Apple's data and stay.
+   * A session minted before Apple was linked (≤ 1 h, the JWT's life) still answers `false` (commit gate round 11,
+   * codex) — and is still right: GoTrue links an Apple identity only onto the SAME verified email (manual linking is
+   * off, D8), so the address is the one the account already had, not one Apple shared.
+   */
+  appleLinked?: boolean
   clientIp?: string | null
   userAgent?: string | null
   fbp?: string | null // _fbp cookie — sent raw (not hashed)
@@ -58,7 +71,9 @@ export type MetaUserData = {
 
 function userDataPayload(u: MetaUserData): Record<string, unknown> {
   const ud: Record<string, unknown> = {}
-  const em = hashLower(u.email); if (em) ud.em = [em]
+  // D14, fail closed: an email hash only for an account the caller ANSWERED is not Apple-linked, never for a relay address.
+  const em = u.appleLinked === false && !isAppleRelayEmail(u.email) ? hashLower(u.email) : undefined
+  if (em) ud.em = [em]
   const ph = hashPhone(u.phone); if (ph) ud.ph = [ph]
   const ext = hashLower(u.externalId); if (ext) ud.external_id = [ext]
   if (u.clientIp) ud.client_ip_address = u.clientIp
@@ -68,11 +83,24 @@ function userDataPayload(u: MetaUserData): Record<string, unknown> {
   return ud
 }
 
+/**
+ * The first-party identifiers a caller adds. ⛔ AN EMAIL ONLY WITH THE ANSWER TO "IS THIS ACCOUNT APPLE-LINKED?" (D14):
+ * the type refuses one without it, and userDataPayload drops it anyway (fail closed). Every caller, 2026-10-09 — the
+ * two that send an email answer: Contact (listings/[id]/contact, isAppleLinked of GoTrue's user) and CompleteRegistration
+ * (profile/account-type, the verified claims); Lead (core/listings: the seller's phone and id), ViewContent (track/view:
+ * nothing) and InitiateCheckout (visa start, eno.forum: the profile id) send no email. The browser pixel sends no user
+ * data and loads nowhere (analytics.ts).
+ */
+export type MetaIdentifiers = { phone?: string | null; externalId?: string | null } & (
+  | { email?: undefined; appleLinked?: boolean }
+  | { email: string | null | undefined; appleLinked: boolean }
+)
+
 // Pull IP / UA / _fbp / _fbc from the incoming request for best Event Match Quality,
 // merged with any first-party identifiers we hold (phone/email/our id).
 export function metaUserDataFromHeaders(
   headers: Headers,
-  extra: { email?: string | null; phone?: string | null; externalId?: string | null } = {},
+  extra: MetaIdentifiers = {},
 ): MetaUserData {
   const resolved = clientIp(headers)
   const ip = resolved === 'anon' ? undefined : resolved
