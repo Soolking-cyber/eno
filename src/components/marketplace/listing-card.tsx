@@ -23,6 +23,7 @@ import { Badge as UiBadge } from '@/components/ui/badge'
 import { formatMoneyFull, moneyLocale, dropPercent, HUGE_VND } from '@/lib/vnd'
 import { CategoryIcon } from './category-icons'
 import { cardSlots, isSwipe } from '@/lib/card-slots'
+import { rubberBand } from '@/hooks/use-swipe-dismiss'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
@@ -110,6 +111,14 @@ type Props = {
   // callers stay compatible (they just ignore the arg).
   onLocate?: (listing: SerializedListingCard) => void
 }
+
+
+/** The travel (px) after which a card's touch is judged sideways (the strip follows) or not (the page scrolls). */
+const CARD_DRAG_LOCK_PX = 8
+/** Sideways travel (px) at which a gesture that still leads horizontally locks sideways, however diagonal it is. */
+const CARD_DRAG_DIAGONAL_PX = 24
+/** Travel (px) past which a drag is not a tap. Browsers still deliver a click for a touch that slid less (~10–15px). */
+const CARD_TAP_SLOP_PX = 16
 
 function ListingCardImpl({
   listing,
@@ -292,6 +301,24 @@ function ListingCardImpl({
    * expires on its own, so a stale suppression cannot outlive the gesture that set it.
    */
   const suppressClickAt = useRef(0)
+  /**
+   * ⛔ THE STRIP FOLLOWS THE FINGER (Emil audit, tier 3). A swipe used to be judged only at touchend, so 200px of drag
+   * moved the photo 0px and then it jumped. Now a sideways drag (locked at CARD_DRAG_LOCK_PX) moves the strip with the
+   * finger, rubber-banded past the first and last slot, and touchend hands it back to React with the transition on, so
+   * it eases from the finger to wherever `isSwipe` lands. Written STRAIGHT to the strip's style, never through state: a feed
+   * card re-rendering on every touchmove is the cost this surface cannot pay. React writes the same transform once the
+   * index changes, and leaves it alone otherwise (its style prop did not change).
+   */
+  const stripRef = useRef<HTMLDivElement>(null)
+  const dragAxis = useRef<'x' | 'y' | null>(null)
+  /** The furthest the strip was dragged this gesture: past CARD_TAP_SLOP_PX it is not a tap, even if it came back. */
+  const dragReach = useRef(0)
+  const releaseStrip = (to: number) => {
+    const strip = stripRef.current
+    if (!strip) return
+    strip.style.transition = ''
+    strip.style.transform = `translateX(-${to * 100}%)`
+  }
   /**
    * ⚠️ SIZED TO THE SYNTHETIC CLICK, NOT TO "a while". The browser's touch-derived click follows
    * touchend within ~300ms (that is the legacy click delay's own ceiling), so 400ms covers it with
@@ -521,11 +548,45 @@ function ListingCardImpl({
            * arrives BEFORE any new touchstart, so clearing here can only release a real tap.
            */
           suppressClickAt.current = 0
+          // A drag whose end never arrived must not leave the strip displaced under the new gesture.
+          if (dragAxis.current === 'x') releaseStrip(idx)
+          dragAxis.current = null
+          dragReach.current = 0
           const t = e.changedTouches[0]
           touchId.current = t.identifier
           touchStartX.current = t.clientX
           touchStartY.current = t.clientY
           touchStartT.current = Date.now()
+        }}
+        onTouchMove={(e) => {
+          const sx = touchStartX.current
+          const sy = touchStartY.current
+          if (segments < 2 || sx == null || sy == null) return
+          const t = Array.from(e.changedTouches).find((c) => c.identifier === touchId.current)
+          if (!t) return
+          const dx = t.clientX - sx
+          const dy = t.clientY - sy
+          if (dragAxis.current === null) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) < CARD_DRAG_LOCK_PX) return
+            // Sideways only when CLEARLY sideways (twice the vertical travel): a thumb scroll that starts in an arc must not
+            // slide the photo while the feed scrolls under it (review). Vertical once vertical dominates. In between,
+            // undecided — wait for the next move; a gesture that never decides is judged at touchend by `isSwipe`, as
+            // before. No card sits in a horizontally scrolling rail today (they are laid out in LISTING_GRID), so no
+            // rail owns the drag; a computed-overflow test could not tell one anyway — overflow-y:auto makes
+            // overflow-x compute to auto too.
+            const ax = Math.abs(dx)
+            const ay = Math.abs(dy)
+            // …and a diagonal that still leads horizontally once it has gone CARD_DRAG_DIAGONAL_PX sideways is a photo
+            // swipe: by then a scroll's arc has turned vertical (review — undecided to the end, it jumped at release).
+            if (ax > 2 * ay || (ax > ay && ax >= CARD_DRAG_DIAGONAL_PX)) dragAxis.current = 'x'
+            else if (ay > ax) dragAxis.current = 'y'
+            else return
+          }
+          const strip = stripRef.current
+          if (dragAxis.current !== 'x' || !strip) return
+          dragReach.current = Math.max(dragReach.current, Math.abs(dx))
+          strip.style.transition = 'none'
+          strip.style.transform = `translateX(calc(${-idx * 100}% + ${rubberBand(dx, idx === last ? 0 : -Infinity, idx === 0 ? 0 : Infinity)}px))`
         }}
         // ⚠️ THE SWIPE IS CAPPED AT THE SAME FOUR SLOTS, AND THAT IS A DELIBERATE NARROWING.
         // This used to swipe through ALL of a listing's photos on a phone (`last` was
@@ -550,14 +611,28 @@ function ListingCardImpl({
           touchStartX.current = null
           touchStartY.current = null
           touchId.current = null
-          if (!end || sx == null) return
-          if (segments < 2) return
+          const locked = dragAxis.current
+          const dragged = locked === 'x'
+          dragAxis.current = null
+          if (!end || sx == null || segments < 2) { if (dragged) releaseStrip(idx); return }
           const dx = end.clientX - sx
           const dy = sy == null ? 0 : end.clientY - sy
           // The decision itself is `isSwipe` in card-slots.ts — pure, so it can be unit-tested.
           // It cannot be exercised from here: the live catalogue is single-image, `segments < 2`
           // short-circuits above, and a browser probe can only ever report "nothing happened".
-          if (isSwipe(dx, dy, Date.now() - touchStartT.current)) {
+          // ⛔ THE RELEASE OBEYS THE LOCK THE DRAG DID (review): a gesture judged vertical — the feed scrolling — never
+          // pages the photo at the end, however far it drifted sideways after. `null` still pages: a fast flick can end
+          // before any move crossed the lock (the lightbox's rule, listing-gallery.tsx).
+          const swipe = locked !== 'y' && isSwipe(dx, dy, Date.now() - touchStartT.current)
+          if (dragged) {
+            // Back to this slot's transform with the transition on. A swipe then changes the index in the same commit,
+            // and React writes the next slot's transform before paint: the strip eases there from the finger.
+            releaseStrip(idx)
+            // A sideways drag past the tap slop is not a tap, even when it came back to where it started. A sloppy tap
+            // that slid less still opens the listing, as it always did (review).
+            if (dragReach.current > CARD_TAP_SLOP_PX) suppressClickAt.current = Date.now()
+          }
+          if (swipe) {
             suppressClickAt.current = Date.now()
             // THIS is where touch takes ownership of the slide — a swipe that actually moved it.
             // From here a stray mouse-out (hybrid devices emit one) must not rewind the choice.
@@ -571,6 +646,8 @@ function ListingCardImpl({
           touchStartX.current = null
           touchStartY.current = null
           touchId.current = null
+          if (dragAxis.current === 'x') releaseStrip(idx) // the OS took the touch: the strip goes back to its slot
+          dragAxis.current = null
         }}
       >
         {images.length > 0 ? (
@@ -595,6 +672,8 @@ function ListingCardImpl({
             // visibly behind the pointer, and hover-scan only works if the photos keep up with
             // the hand. Still a slide rather than a crossfade, because this same transform
             // carries the touch swipe and a swipe has to track the finger's direction.
+            ref={stripRef}
+            data-card-strip
             className="flex h-full w-full transition-transform duration-200 ease-out"
             style={{ transform: `translateX(-${idx * 100}%)` }}
           >
