@@ -28,12 +28,18 @@ export const POST = route(
       // Sending announces itself and hands a video over: a suspended account does neither. STOPPING is always allowed —
       // a hold must never leave a teacher unable to take their video back (review, 2026-10-07).
       if ((await conversationGate(profile.id))?.error === 'account_suspended') throw new ApiError('account_suspended', 403)
+      // ⛔ Business-only, like the ask and the watch: a personal account (a parent) can never watch the video, so it is
+      // never sent one — the grant would sit there unusable (gate review, 2026-10-08). The thread's buyer, as re-read.
+      if (!t.videoForBusiness) throw new ApiError('business_only', 403)
       if (!t.profileLive) throw new ApiError('profile_hidden', 409)
       if (!t.videoAvailable) throw new ApiError('video_missing', 404)
       if (await isBlockedBetween(t.convo.buyerProfileId, t.convo.sellerProfileId)) throw new ApiError('blocked', 403)
     }
     // Against the teacher's own grant (`videoShareOn`), never the gated `videoShared` — on a hidden profile that is
     // false, and "Stop" would be a no-op that comes back on un-hide (the contact route's lesson, gate 09-30).
+    // ⚠️ Accepted residual: two tabs sending (or stopping) at the same instant can both pass this check and post two
+    // identical 🎬 lines. The state is the same either way (an upsert), and a plain line rings nobody (insertMessage: no
+    // bell or push for chat text); the contact share route has the same shape.
     if (share === t.videoShareOn) return { ok: true, shared: t.videoShareOn }
     const now = new Date()
     const convo = { id: t.convo.id, buyerProfileId: t.convo.buyerProfileId, sellerProfileId: t.convo.sellerProfileId, listingId: t.convo.listingId, sellerId: t.convo.sellerId }
@@ -70,7 +76,13 @@ export const GET = route(
     const conversationId = new URL(req.url).searchParams.get('conversationId') ?? ''
     const t = conversationId ? await teacherThread(conversationId) : null
     if (!t || (t.teacherUserId !== profile.id && t.recruiterUserId !== profile.id)) throw new ApiError('not_found', 404)
-    const res = NextResponse.json({ available: t.videoAvailable, shareOn: t.videoShareOn, shared: t.videoShared, requested: t.videoRequested })
+    // ⛔ A thread closed by a block tells the SCHOOL nothing about the video — not a flag (gate review, 2026-10-08), as the
+    // watch route and the thread payload. The TEACHER keeps theirs: a share made before the block must stay withdrawable.
+    if (t.recruiterUserId === profile.id && (await isBlockedBetween(t.recruiterUserId, t.teacherUserId))) throw new ApiError('blocked', 403)
+    const res = NextResponse.json({
+      available: t.videoAvailable, shareOn: t.videoShareOn, shared: t.videoShared, requested: t.videoRequested,
+      askAgain: t.videoAskAgain, forBusiness: t.videoForBusiness,
+    })
     res.headers.set('Cache-Control', 'private, no-store')
     return res
   },

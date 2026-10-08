@@ -23,7 +23,8 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Award, Briefcase, CalendarDays, Camera, Check, FileText, GraduationCap, Loader2, MapPin, Plus, Trash2, User, Video, X } from '@/components/ui/icons'
+import { Award, Briefcase, CalendarDays, Camera, Check, FileText, GraduationCap, Loader2, Lock, MapPin, Play, Plus, Trash2, User, Video, X } from '@/components/ui/icons'
+import { Radio, RadioDot, RadioGroup } from '@/components/ui/radio-group'
 import { cn } from '@/lib/utils'
 import { compressImageFile } from '@/lib/normalize-image'
 import { uploadListingVideo } from '@/lib/video-upload-client'
@@ -61,14 +62,33 @@ function decodeDraft(s: string): unknown {
     return null
   }
 }
-const readStored = (): unknown => {
-  try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null') } catch { return null }
+/**
+ * ⛔ THE DRAFT IS CRASH INSURANCE, NOT A DRAFTS FEATURE — the /post wizard's rule (post-wizard DRAFT_TTL_MS; gate reviews,
+ * 2026-10-08). It lives in THIS TAB (sessionStorage) for DRAFT_TTL_MS after the last real change: long enough for a reload
+ * and for the sign-in at Publish (Google's full-page redirect comes back to the same tab; the code sign-in never leaves the
+ * page), never long enough to hand a shared computer's next user the last person's name, phone and bio — as the old
+ * device-wide draft, kept for good, did. Only real typing is kept (an untouched form writes nothing); an account change in
+ * the tab starts a fresh form and clears it (TeacherForm); a publish clears it. ⚠️ Accepted, as for /post: someone using the
+ * SAME tab within that window, after the last person walked away without signing out.
+ * Four rounds of per-person ownership (owner stamps, an account store, adoption at sign-in) each grew a new edge; this is
+ * the contract the codebase already keeps.
+ */
+const DRAFT_TTL_MS = 15 * 60_000
+type StoredDraft = { v: 3; savedAt: number; t: unknown }
+export const readStoredDraft = (now = Date.now()): unknown => {
+  try {
+    localStorage.removeItem(DRAFT_KEY) // the old device-wide draft, kept for good: deleted unread
+    const d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null') as Partial<StoredDraft> | null
+    if (d?.v === 3 && d.t && typeof d.savedAt === 'number' && now - d.savedAt < DRAFT_TTL_MS) return d.t
+    sessionStorage.removeItem(DRAFT_KEY)
+    return null
+  } catch { return null }
 }
-const writeStored = (t: TeacherInput) => {
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(t)) } catch { /* private mode: the draft just does not persist */ }
+export const writeStoredDraft = (t: TeacherInput) => {
+  try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ v: 3, savedAt: Date.now(), t } satisfies StoredDraft)) } catch { /* private mode: the draft just does not persist */ }
 }
 const clearStored = () => {
-  try { localStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
+  try { sessionStorage.removeItem(DRAFT_KEY); localStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
 }
 
 /** Multi-pick chip row — the post wizard's chip look (bare button, pill when picked). */
@@ -132,7 +152,40 @@ function Section({ title, hint, children }: { title: string; hint?: string; chil
   )
 }
 
-export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draftHost: boolean; apexOrigin: string }) {
+type TeacherFormProps = { mode: Mode; draftHost: boolean; apexOrigin: string }
+
+/**
+ * How many times a SIGNED-IN account has left this page — a sign-out, or another account. A sign-in (none → an account) is
+ * not a leave: the teacher signs in mid-flow (Publish → sign in) and keeps their place. React's "adjust state while
+ * rendering" pattern, so the count moves in the very render that sees the new account — never one commit of the old form
+ * under it.
+ */
+export function useAccountLeaves(uid: string | null): number {
+  const [seen, setSeen] = useState({ uid, leaves: 0 })
+  if (seen.uid === uid) return seen.leaves
+  const next = { uid, leaves: seen.uid !== null ? seen.leaves + 1 : seen.leaves }
+  setSeen(next)
+  return next.leaves
+}
+
+/**
+ * ⛔ THE FORM IS ONE PERSON'S (gate reviews, 2026-10-07/08). Sign-out does not reload the page, and a session change from
+ * another tab arrives the same way:
+ *   · edit — another account (or none) gets a FRESH form: every loaded value, private video link, base and in-flight answer
+ *     of the previous account goes with the old instance;
+ *   · join — a sign-in keeps the instance (above); a signed-in account LEAVING gets a fresh one, which clears the stored
+ *     draft instead of restoring it: until that moment it was the previous person's. The app's own sign-out clears it too
+ *     (src/lib/sign-out-storage.ts); a session that ended elsewhere — another tab, an expired one — does not, and the
+ *     remounted form would have restored it, or the old one written it back.
+ */
+export function TeacherForm(props: TeacherFormProps) {
+  const { user } = useAuth()
+  const uid = user?.id ?? null
+  const leaves = useAccountLeaves(uid)
+  return <TeacherFormForAccount key={props.mode === 'edit' ? `acct:${uid ?? 'none'}` : `join:${leaves}`} {...props} restoreDraft={leaves === 0} />
+}
+
+function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = true }: TeacherFormProps & { restoreDraft?: boolean }) {
   const { tr, lang } = useLanguage()
   const { user, loading: authLoading, openSignIn } = useAuth()
   const [t, setTState] = useState<TeacherInput>(EMPTY_TEACHER)
@@ -156,6 +209,23 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
   const [coverSave, setCoverSave] = useState<'' | 'saving' | 'saved' | 'error'>('')
   // After a stale-window refusal: what reloadSavedCover says, on the cover card.
   const [coverNotice, setCoverNotice] = useState('')
+  // The intro video (2026-10-07, owner: "show their intro video in profile or hide and send upon request"): whether a
+  // PRIVATE one is stored — its address never reaches the form — and the version this form loaded, sent back as
+  // `videoBase` so a stale window can never publish, hide, replace or delete a newer choice (src/lib/teachers/video.ts).
+  const [privateVideo, setPrivateVideo] = useState(false)
+  const [videoBase, setVideoBase] = useState<number | null>(null)
+  const [videoRemoving, setVideoRemoving] = useState(false)
+  const [confirmVideoRemove, setConfirmVideoRemove] = useState(false)
+  // The public video AS SAVED: hiding THAT one cannot recall copies of its link (the note under the choice says so).
+  const [savedPublicUrl, setSavedPublicUrl] = useState<string | null>(null)
+  // The TeacherProfile this form loaded — Remove names it, and the server refuses another account's (me/video DELETE).
+  const [teacherProfileId, setTeacherProfileId] = useState<string | null>(null)
+  // The teacher's own look at their private video — a 10-minute link from GET /api/teachers/me/video.
+  const [ownVideoUrl, setOwnVideoUrl] = useState<string | null>(null)
+  const [ownVideoBusy, setOwnVideoBusy] = useState(false)
+  // Every Watch takes a ticket, and a reload of the saved video takes a newer one: an answer for an older one is dropped.
+  // (Another account gets another form instance altogether — TeacherForm.)
+  const ownSeq = useRef(0)
   const coverReloadSeq = useRef(0)
   const hydrated = useRef(false)
   // ⛔ THE FORM'S LATEST VALUE, WRITTEN BY EVERY CHANGE AS IT HAPPENS — never synced by an effect after the render (gate
@@ -181,14 +251,17 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
   useEffect(() => {
     if (mode !== 'join' || hydrated.current) return
     hydrated.current = true
+    // The form that replaced a signed-in account's (TeacherForm): a fresh start, and that account's draft goes.
+    if (!restoreDraft) { clearStored(); return }
     const m = window.location.hash.match(new RegExp(`[#&]${TEACHER_DRAFT_HASH_KEY}=([^&]+)`))
     const fromHash = m ? decodeDraft(m[1]) : null
     if (fromHash) {
       // ⛔ THE COVER CONSENT NEVER TRAVELS IN THE FRAGMENT (gate review, 2026-10-07): a crafted `#d=` link could
       // otherwise arrive with it ticked. It is asked again here, where the profile is published.
-      const next = { ...normalizeTeacherInput(fromHash), coverConsent: false }
+      // ⛔ Nor an upload: the draft host cannot upload, so a video in the fragment is never this teacher's (video.ts).
+      const next = { ...normalizeTeacherInput(fromHash), coverConsent: false, videoUrl: null }
       setT(next)
-      writeStored(next)
+      writeStoredDraft(next)
       // Strip the fragment so a reload or a shared link never re-carries the draft.
       history.replaceState(null, '', window.location.pathname + window.location.search)
       if (Object.keys(validateTeacherInput(next, DRAFT_STEPS.filter((s) => s !== 'cover'))).length === 0) {
@@ -196,11 +269,13 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
       }
       return
     }
-    const stored = readStored()
+    const stored = readStoredDraft()
     // ⛔ Nor from a stored draft: the key is per DEVICE, not per person (a shared school or café browser), and a tick
     // kept from an older notice would be sent as consent to today's (gate review, 2026-10-07). Asked again on the step.
-    if (stored) setT({ ...normalizeTeacherInput(stored), coverConsent: false })
-  }, [mode])
+    // Nor its upload: on a shared browser it may be someone else's, and the server only takes a teacher's OWN recent upload
+    // (video.ts). The last step then shows "Upload video" again, rather than a save refused there.
+    if (stored) setT({ ...normalizeTeacherInput(stored), coverConsent: false, videoUrl: null })
+  }, [mode, restoreDraft])
 
   // ── Edit: load the saved profile ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -226,6 +301,10 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
             coverRateVnd: tp.coverRateVnd ?? null, consentCurrent: tp.coverConsentVersion === COVER_CONSENT_VERSION,
           })
           setCvName(tp.cvFileName ?? null)
+          setPrivateVideo(tp.hasPrivateVideo === true)
+          setVideoBase(typeof tp.videoVersion === 'number' ? tp.videoVersion : null)
+          setSavedPublicUrl(tp.videoUrl ?? null)
+          setTeacherProfileId(typeof tp.id === 'string' ? tp.id : null)
           setStatus(tp.status === 'hidden' ? 'hidden' : 'live')
           setListingLive(tp.listingLive !== false)
           if (tp.listingId) setDone(null)
@@ -237,8 +316,12 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
   }, [mode, user, authLoading, tr])
 
   useEffect(() => {
-    if (mode === 'join' && hydrated.current) writeStored(t)
-  }, [t, mode])
+    // Never the upload: a restore drops it anyway (the draft key is per DEVICE — a shared browser), so it is not kept at all.
+    // ⛔ And never after a publish: clearStored() has run, and the saved video's setT must not write the draft — phone, name
+    // and bio included — back for the next person on a shared browser (integration review, 2026-10-08).
+    // Only real typing: an untouched form writes nothing (it would only replace a draft with an empty one).
+    if (mode === 'join' && hydrated.current && !done && t !== EMPTY_TEACHER) writeStoredDraft({ ...t, videoUrl: null })
+  }, [t, mode, done])
   // The languages box is free text while typing (a parsed value would eat the comma); it follows
   // the parsed list whenever that changes from outside the box (restore, edit load).
   const langsKey = t.languages.join('|')
@@ -259,6 +342,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
       case 'invalid': return tr('Please check this value.', 'Vui lòng kiểm tra lại.')
       case 'incomplete': return tr('Fill in the role and the school, or remove this entry.', 'Điền vị trí và nơi làm việc, hoặc xoá mục này.')
       case 'dates': return tr('The end date is before the start date.', 'Ngày kết thúc trước ngày bắt đầu.')
+      case 'not_owned': return tr('That upload has expired — please upload your video again.', 'Video tải lên đã hết hạn — vui lòng tải lại video.')
       case 'rate_range': return tr('Please enter a rate between 50,000 đ and 2,000,000 đ an hour.', 'Vui lòng nhập mức phí từ 50.000 đ đến 2.000.000 đ một giờ.')
       default: return ''
     }
@@ -269,6 +353,9 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
     if (code === 'account_restricted') return tr('Your account cannot publish right now.', 'Tài khoản của bạn hiện chưa thể đăng.')
     if (code.startsWith('identity_')) return tr('Please verify your identity in Account settings before publishing.', 'Vui lòng xác minh danh tính trong Cài đặt tài khoản trước khi đăng.')
     if (code === 'rate_limited') return tr('Too many saves — please wait a few minutes.', 'Lưu quá nhiều lần — vui lòng đợi vài phút.')
+    // Join mode loaded no saved video either: the server refuses a change over a stored one (video.ts, no base).
+    if (code === 'video_changed' && mode === 'join') return tr('You already have a teacher profile. Open it from your account (Teacher profile) to make changes.', 'Bạn đã có hồ sơ giáo viên. Hãy mở hồ sơ trong tài khoản (Hồ sơ giáo viên) để chỉnh sửa.')
+    if (code === 'video_store_failed') return tr('Your intro video could not be saved just now. Please try again.', 'Chưa lưu được video giới thiệu. Vui lòng thử lại.')
     // Join mode loaded no saved cover, so the server will not let it overwrite one that is ON (publish.ts assertCoverBase).
     if (code === 'cover_changed' && mode === 'join') return tr('You already have a teacher profile that offers cover lessons. Open it from your account (Teacher profile) to make changes.', 'Bạn đã có hồ sơ giáo viên đang nhận dạy thay. Hãy mở hồ sơ trong tài khoản (Hồ sơ giáo viên) để chỉnh sửa.')
     return tr('Something went wrong. Please try again.', 'Đã có lỗi. Vui lòng thử lại.')
@@ -322,6 +409,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
       if (file.size > 50 * 1024 * 1024) throw new Error('size')
       const url = await uploadListingVideo(file)
       if (!url) throw new Error('video')
+      setConfirmVideoRemove(false)
       set('videoUrl', url)
     } catch {
       setFormError(tr('Video upload failed. Keep it under 60 seconds and 50 MB (MP4 or MOV).', 'Tải video thất bại. Giữ dưới 60 giây và 50 MB (MP4 hoặc MOV).'))
@@ -374,7 +462,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
     try {
       // `coverBase`: the cover state this form loaded — the server refuses (409 cover_changed) if another window changed it.
       // `coverNotice`: the cover notice this page shows — the server counts the tick only under the one in force.
-      const res = await fetch('/api/teachers/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...t, coverBase: mode === 'edit' && savedCover ? coverStamp(savedCover) : null, coverNotice: COVER_CONSENT_VERSION }) })
+      const res = await fetch('/api/teachers/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...t, coverBase: mode === 'edit' && savedCover ? coverStamp(savedCover) : null, coverNotice: COVER_CONSENT_VERSION, videoBase: mode === 'edit' ? videoBase : null, teacherProfileId: mode === 'edit' ? teacherProfileId : null }) })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
         if (d.error === 'invalid_teacher_profile' && d.fields) {
@@ -383,6 +471,35 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
           const bad = Object.keys(d.fields as object)
           const firstBad = STEP_ORDER.findIndex((s) => TEACHER_STEP_FIELDS[s].some((f) => bad.some((k) => k === f || k.startsWith(`${f}.`))))
           if (firstBad >= 0) setStepIdx(firstBad)
+          // An upload that is not (or no longer) provably theirs: the form goes back to what is STORED and the line asks for a
+          // new upload. ⛔ Never null: null over a stored PUBLIC video is the explicit Remove — the next save would delete the
+          // published video though the teacher never tapped Remove (integration review, 2026-10-08). Null is right only
+          // over a private one, whose card then comes back — and savedPublicUrl is null exactly then.
+          if ((d.fields as Record<string, unknown>).videoUrl === 'not_owned') {
+            setT((p) => ({ ...p, videoUrl: savedPublicUrl }))
+            // Said once, on the form line — not also under the stored video it was restored to.
+            setErrors((e) => { const n = { ...e }; delete n.videoUrl; return n })
+            setFormError(errText('not_owned'))
+            revealFirstError({ formLineFirst: true })
+            return
+          }
+        }
+        // Saved under a session that is now another account's (or the profile was recreated elsewhere): nothing was written.
+        if (d.error === 'profile_changed') {
+          // Join mode claims there is no profile yet (api/teachers/me PUT): one exists — this account already had one, or
+          // another tab just made it. The line says where it is.
+          setFormError(mode === 'join'
+            ? tr('You already have a teacher profile. Open it from your account (Teacher profile) to make changes.', 'Bạn đã có hồ sơ giáo viên. Hãy mở hồ sơ trong tài khoản (Hồ sơ giáo viên) để chỉnh sửa.')
+            : profileChangedLine())
+          revealFirstError({ formLineFirst: true })
+          return
+        }
+        // The intro video changed in another window: the SAVED video state replaces this window's — a rare race, and the
+        // line says to make the video change again. Never a merge: a stale window must not publish, hide or replace it.
+        if (d.error === 'video_changed' && mode === 'edit') {
+          setFormError(staleVideoLine(await reloadSavedVideo()))
+          revealFirstError({ formLineFirst: true })
+          return
         }
         // A stale cover from Save changes: the latest saved cover is loaded into the Cover step, which is shown with the
         // line saying so — every other step's edits stay (reloadSavedCover).
@@ -407,6 +524,10 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
         setCoverConfirmedAt(d.cover.coverConfirmedAt ?? null)
       }
       setCoverNotice('')
+      // The video AS STORED: where it lives now (a private one has no URL here) and the next save's base.
+      if (d.video) applySavedVideo(d.video)
+      // A first save from /teachers/edit created the profile: Remove and the next Save name it (they would 400/409 without).
+      if (typeof d.teacherProfileId === 'string') setTeacherProfileId(d.teacherProfileId)
       setDone({ listingId: d.listingId, live: d.live === true })
     } catch {
       setFormError(publishErrText(''))
@@ -428,6 +549,74 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
   const removeCv = async () => {
     const res = await fetch('/api/teachers/me/cv', { method: 'DELETE' })
     if (res.ok) setCvName(null)
+  }
+
+  // ── Intro video (2026-10-07) ─────────────────────────────────────────────────────────────────────
+  // ⚠️ `setT` here and below is the form's latest-value setter (it writes tRef first — see its definition above), never the
+  // raw React one: a save after a 409 reload sends the reloaded video, not the stale window's.
+  const applySavedVideo = (v: { onRequest?: boolean; version?: number; hasPrivate?: boolean; url?: string | null }) => {
+    setPrivateVideo(v.hasPrivate === true)
+    setVideoBase(typeof v.version === 'number' ? v.version : null)
+    setSavedPublicUrl(v.url ?? null)
+    setConfirmVideoRemove(false) // never a "Remove for good" left armed over the NEXT video
+    ownSeq.current += 1; setOwnVideoUrl(null) // a link to a video that may since have moved or gone — late ones too
+    setT((p) => ({ ...p, videoUrl: v.url ?? null, videoOnRequest: v.onRequest === true }))
+  }
+  /** The teacher watches their own private video: their data, and the only way to see what they keep private. */
+  const watchOwnVideo = async () => {
+    if (ownVideoBusy) return
+    const ticket = ++ownSeq.current
+    setOwnVideoBusy(true); setFormError('')
+    try {
+      const res = await fetch('/api/teachers/me/video')
+      const d = await res.json().catch(() => ({}))
+      if (ticket !== ownSeq.current) return // the account changed (or the video moved) meanwhile
+      if (res.ok && typeof d.url === 'string') setOwnVideoUrl(d.url)
+      else if (d.error === 'video_missing') { const r = await reloadSavedVideo(); if (r !== 'ok') setFormError(staleVideoLine(r)) }
+      else setFormError(tr('Could not load your video. Please try again.', 'Không tải được video. Vui lòng thử lại.'))
+    } catch {
+      if (ticket === ownSeq.current) setFormError(tr('Could not load your video. Please try again.', 'Không tải được video. Vui lòng thử lại.'))
+    } finally { setOwnVideoBusy(false) }
+  }
+  /**
+   * After a 409 video_changed: the saved video state, re-read — 'failed' when it could not be loaded, 'other' when it belongs
+   * to ANOTHER TeacherProfile (a session switched in another tab, or the profile recreated elsewhere). ⛔ Another profile's
+   * state never enters this form (its next Save or Remove would act on that profile): the line asks for a reload instead.
+   */
+  const reloadSavedVideo = async (): Promise<'ok' | 'failed' | 'other'> => {
+    try {
+      const res = await fetch('/api/teachers/me')
+      const tp = res.ok ? (await res.json())?.teacher : null
+      // No profile any more, or another one: either way not the profile this form loaded.
+      if (!tp) return res.ok && teacherProfileId ? 'other' : 'failed'
+      if (teacherProfileId && tp.id !== teacherProfileId) return 'other'
+      applySavedVideo({ onRequest: tp.videoOnRequest, version: tp.videoVersion, hasPrivate: tp.hasPrivateVideo, url: tp.videoUrl })
+      return 'ok'
+    } catch { return 'failed' }
+  }
+  const profileChangedLine = () => tr('Your teacher profile changed in another window or account. Reload this page before saving.', 'Hồ sơ giáo viên đã thay đổi ở cửa sổ hoặc tài khoản khác. Hãy tải lại trang trước khi lưu.')
+  const staleVideoLine = (r: 'ok' | 'failed' | 'other') => r === 'other' ? profileChangedLine() : r === 'ok'
+    ? tr('Your intro video was changed in another window — this form now shows the saved video. Make your video change again if you still want it, then save.', 'Video giới thiệu đã được thay đổi ở cửa sổ khác — biểu mẫu này đang hiển thị video đã lưu. Hãy thay đổi lại video nếu bạn vẫn muốn, rồi lưu.')
+    : tr('Your intro video was changed in another window, and the saved version could not be loaded. Try again in a moment.', 'Video giới thiệu đã được thay đổi ở cửa sổ khác và không tải được bản đã lưu. Hãy thử lại sau giây lát.')
+  /** A PRIVATE video is removed by its own call (a save never holds its address), under the version this form loaded. */
+  const removePrivateVideo = async () => {
+    if (videoRemoving) return
+    setVideoRemoving(true); setFormError('')
+    try {
+      const res = await fetch(`/api/teachers/me/video?base=${videoBase ?? ''}&tp=${encodeURIComponent(teacherProfileId ?? '')}`, { method: 'DELETE' })
+      const d = await res.json().catch(() => ({}))
+      // Removed: the private video and the base move on; an unsaved visibility choice stays the teacher's (gate review).
+      if (res.ok && d.video) {
+        ownSeq.current += 1 // a Watch still out for the removed video must not reopen it
+        setPrivateVideo(false); setOwnVideoUrl(null); setConfirmVideoRemove(false)
+        if (typeof d.video.version === 'number') setVideoBase(d.video.version)
+      }
+      else if (d.error === 'video_changed') { setConfirmVideoRemove(false); setFormError(staleVideoLine(await reloadSavedVideo())); revealFirstError({ formLineFirst: true }) }
+      else if (d.error === 'video_missing') { setConfirmVideoRemove(false); const r = await reloadSavedVideo(); if (r !== 'ok') setFormError(staleVideoLine(r)) }
+      else setFormError(tr('Could not remove your video. Please try again.', 'Không xoá được video. Vui lòng thử lại.'))
+    } catch {
+      setFormError(tr('Could not remove your video. Please try again.', 'Không xoá được video. Vui lòng thử lại.'))
+    } finally { setVideoRemoving(false) }
   }
 
   // ── Cover lessons (2026-10-07) ───────────────────────────────────────────────────────────────────
@@ -818,18 +1007,75 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
               {errors.photoUrl && <p className="text-sm text-destructive">{errText(errors.photoUrl)}</p>}
             </Section>
             <Section title={tr('Intro video (optional)', 'Video giới thiệu (không bắt buộc)')} hint={tr('Up to 60 seconds: say hello and show how you teach.', 'Tối đa 60 giây: chào hỏi và cho thấy cách bạn dạy.')}>
-              {t.videoUrl ? (
-                <div className="flex items-center gap-3">
-                  <video src={t.videoUrl} controls className="h-40 rounded-xl bg-black" />
-                  <Button variant="ghost" size="sm" type="button" onClick={() => set('videoUrl', null)}><X className="size-4" />{tr('Remove', 'Xoá')}</Button>
-                </div>
-              ) : (
+              <div className="space-y-3">
+                {t.videoUrl ? (
+                  // Wraps on a phone: at h-40 a 16:9 player is ~284px wide, and "Remove" beside it overflowed 375px (preview check).
+                  <div className="flex flex-wrap items-center gap-3">
+                    <video src={t.videoUrl} controls className="h-40 max-w-full rounded-xl bg-black" />
+                    <Button variant="ghost" size="sm" type="button" onClick={() => set('videoUrl', null)}><X className="size-4" />{tr('Remove', 'Xoá')}</Button>
+                    {/* A new upload over a private video: say what Save will do — Remove brings the private one's card back. */}
+                    {privateVideo && <p className="w-full text-xs text-muted-foreground">{tr('Saving replaces your private intro video with this one. Schools you sent the old one to will need you to send it again.', 'Khi lưu, video này sẽ thay video giới thiệu riêng tư của bạn. Các trường đã nhận video cũ sẽ cần bạn gửi lại.')}</p>}
+                  </div>
+                ) : privateVideo ? (
+                  // A private video: the form never holds its address — what it is, and a Remove that is its own call.
+                  <div className="flex flex-wrap items-center gap-3 rounded-xl bg-tint p-3">
+                    <Lock className="size-4 shrink-0 text-muted-foreground" />
+                    <p className="min-w-0 flex-1 text-sm text-body">{t.videoOnRequest
+                      ? tr('Your intro video is saved privately. A school sees it only when you send it in your chat.', 'Video giới thiệu của bạn được lưu riêng tư. Trường chỉ xem được khi bạn gửi trong tin nhắn.')
+                      : tr('Your private intro video will be shown on your profile when you save.', 'Video giới thiệu riêng tư sẽ được hiển thị trên hồ sơ khi bạn lưu.')}</p>
+                    {!ownVideoUrl && <Button variant="ghost" size="sm" type="button" onClick={watchOwnVideo} loading={ownVideoBusy}><Play className="size-4" />{tr('Watch', 'Xem')}</Button>}
+                    {confirmVideoRemove ? (
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-muted-foreground">{tr('Schools you sent it to will lose access.', 'Các trường bạn đã gửi sẽ không xem được nữa.')}</span>
+                        <Button variant="destructive" size="sm" type="button" onClick={removePrivateVideo} loading={videoRemoving}>{tr('Remove for good', 'Xoá vĩnh viễn')}</Button>
+                        <Button variant="ghost" size="sm" type="button" onClick={() => setConfirmVideoRemove(false)}>{tr('Cancel', 'Huỷ')}</Button>
+                      </span>
+                    ) : (
+                      <Button variant="ghost" size="sm" type="button" onClick={() => setConfirmVideoRemove(true)}><X className="size-4" />{tr('Remove', 'Xoá')}</Button>
+                    )}
+                    {ownVideoUrl && (
+                      // An error (the 10-minute link expired during a long pause, or this browser cannot play the file) puts
+                      // Watch back, for a fresh link — never a dead player that only a reload clears (gate review).
+                      <video src={ownVideoUrl} controls playsInline preload="metadata" onError={() => { setOwnVideoUrl(null); setFormError(tr('Your video could not be played. Tap Watch to try again.', 'Không phát được video của bạn. Bấm Xem để thử lại.')) }} className="h-40 w-full max-w-sm rounded-xl bg-black" />
+                    )}
+                    {ownVideoUrl && <Button variant="ghost" size="sm" type="button" onClick={() => setOwnVideoUrl(null)}>{tr('Close video', 'Đóng video')}</Button>}
+                  </div>
+                ) : null}
                 <label className={cn('inline-flex cursor-pointer items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-body hover:bg-muted', !user && 'pointer-events-none opacity-50')}>
                   {busy === 'video' ? <Loader2 className="size-4 animate-spin" /> : <Video className="size-4" />}
-                  {busy === 'video' ? tr('Uploading…', 'Đang tải…') : tr('Upload video', 'Tải video lên')}
-                  <input type="file" accept="video/mp4,video/quicktime,video/webm" className="sr-only" disabled={!user} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadVideo(f) }} />
+                  {busy === 'video' ? tr('Uploading…', 'Đang tải…') : t.videoUrl || privateVideo ? tr('Replace video', 'Thay video') : tr('Upload video', 'Tải video lên')}
+                  {/* Cleared after each pick: choosing the same file again (a retry after a failed upload) must fire again. */}
+                  <input type="file" accept="video/mp4,video/quicktime,video/webm" className="sr-only" disabled={!user} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadVideo(f) }} />
                 </label>
-              )}
+                {/* Who watches it — saved with the profile. Private: kept out of the profile and sent per school, in chat. */}
+                <RadioGroup
+                  value={t.videoOnRequest ? 'request' : 'public'}
+                  onValueChange={(v) => set('videoOnRequest', v === 'request')}
+                  aria-label={tr('Who can watch your intro video', 'Ai được xem video giới thiệu của bạn')}
+                  className="grid gap-2 sm:grid-cols-2"
+                >
+                  <Radio value="public" className="flex w-full items-start justify-start gap-2.5 whitespace-normal rounded-xl border border-border p-3 text-left data-checked:border-brand">
+                    <RadioDot className="mt-0.5" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-foreground">{tr('Show it on my profile', 'Hiển thị trên hồ sơ')}</span>
+                      <span className="block text-xs text-muted-foreground">{tr('Anyone who opens your profile can watch it.', 'Ai mở hồ sơ của bạn cũng xem được.')}</span>
+                    </span>
+                  </Radio>
+                  <Radio value="request" className="flex w-full items-start justify-start gap-2.5 whitespace-normal rounded-xl border border-border p-3 text-left data-checked:border-brand">
+                    <RadioDot className="mt-0.5" />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-foreground">{tr('Keep it private — send it on request', 'Giữ riêng tư — gửi khi được đề nghị')}</span>
+                      <span className="block text-xs text-muted-foreground">{tr('Schools ask in chat. You choose who gets it, and can stop sharing any time.', 'Trường đề nghị trong tin nhắn. Bạn chọn gửi cho ai và có thể ngừng chia sẻ bất cứ lúc nào.')}</span>
+                    </span>
+                  </Radio>
+                </RadioGroup>
+                {/* ⚠️ Hiding a video that WAS public cannot recall its link: a copy someone saved — or a cache on the way —
+                    can outlive the move (gate review, 2026-10-07). Said here, where the teacher chooses. */}
+                {t.videoOnRequest && !!savedPublicUrl && t.videoUrl === savedPublicUrl && (
+                  <p className="text-xs text-warning">{tr('This video has been on your public profile, so anyone who saved its link may still be able to watch it. For a video that has never been on your profile, upload a new one.', 'Video này đã hiển thị công khai trên hồ sơ, nên ai đã lưu liên kết vẫn có thể xem được. Nếu muốn một video chưa từng hiển thị trên hồ sơ, hãy tải lên video mới.')}</p>
+                )}
+                {errors.videoUrl && <p role="alert" className="text-sm text-destructive">{errText(errors.videoUrl)}</p>}
+              </div>
             </Section>
             <Section title={tr('CV (optional)', 'CV (không bắt buộc)')} hint={tr('PDF, up to 10 MB. Private: a school gets it only when you tap “Share my phone, email & CV” in your chat with them.', 'PDF, tối đa 10 MB. Riêng tư: trường chỉ nhận được khi bạn bấm “Chia sẻ số điện thoại, email và CV” trong tin nhắn.')}>
               <div className="flex flex-wrap items-center gap-3">
@@ -851,7 +1097,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
             <Section title={tr('Your choices', 'Lựa chọn của bạn')}>
               <label className="flex cursor-pointer items-start gap-2.5 text-sm leading-relaxed text-body">
                 <Checkbox checked={t.consentPublic} onChange={(v: boolean) => set('consentPublic', v)} className="mt-0.5 h-5 w-5" />
-                <span>{tr('Publish my profile (name, photo, video, experience and qualifications) on this site, where schools and search engines can see it. Required.', 'Đăng hồ sơ của tôi (tên, ảnh, video, kinh nghiệm và bằng cấp) trên trang này, nơi các trường và công cụ tìm kiếm có thể xem. Bắt buộc.')}</span>
+                <span>{tr('Publish my profile (name, photo, experience and qualifications — and my intro video, if I choose to show it) on this site, where schools and search engines can see it. Required.', 'Đăng hồ sơ của tôi (tên, ảnh, kinh nghiệm và bằng cấp — cùng video giới thiệu, nếu tôi chọn hiển thị) trên trang này, nơi các trường và công cụ tìm kiếm có thể xem. Bắt buộc.')}</span>
               </label>
               {errors.consentPublic && <p className="text-sm text-destructive">{errText(errors.consentPublic)}</p>}
               <label className="flex cursor-pointer items-start gap-2.5 text-sm leading-relaxed text-body">
@@ -875,7 +1121,7 @@ export function TeacherForm({ mode, draftHost, apexOrigin }: { mode: Mode; draft
                   <Button variant="ghost" size="sm" type="button" className="text-destructive" onClick={() => setConfirmDelete(true)}><Trash2 className="size-4" />{tr('Delete my teacher profile', 'Xoá hồ sơ giáo viên')}</Button>
                 ) : (
                   <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-sm text-body">{tr('Delete your profile, video link and CV for good?', 'Xoá vĩnh viễn hồ sơ, video và CV?')}</span>
+                    <span className="text-sm text-body">{tr('Delete your profile, intro video and CV for good?', 'Xoá vĩnh viễn hồ sơ, video giới thiệu và CV?')}</span>
                     <Button variant="destructive" size="sm" type="button" onClick={deleteProfile}>{tr('Delete', 'Xoá')}</Button>
                     <Button variant="ghost" size="sm" type="button" onClick={() => setConfirmDelete(false)}>{tr('Cancel', 'Huỷ')}</Button>
                   </div>

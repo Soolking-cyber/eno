@@ -118,3 +118,37 @@ describe('the closed flag', () => {
     expect('closed' in body).toBe(false)
   })
 })
+
+// The intro video in a teacher thread (gate review, 2026-10-08): the SCHOOL (buyer) of a thread closed by a block is told
+// nothing about it — as the watch route and GET /api/teachers/video-share; the TEACHER keeps the flags, so a share made
+// before the block stays withdrawable.
+describe('a teacher thread closed by a block — the intro video', () => {
+  const teacherThread = (): Row => thread({
+    listing: { ...thread().listing, listingType: 'teacher', teacherProfile: { status: 'live', videoOnRequest: true, private: { videoPath: 'p1/intro.mp4' } } },
+    teacherVideoShare: { requestedAt: null, sharedAt: new Date(), revokedAt: null },
+    teacherContactShare: { sharedAt: new Date(), revokedAt: null },
+    buyer: { ...thread().buyer, accountType: 'business' },
+  })
+  beforeEach(() => { vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety'); h.convo = teacherThread() })
+
+  it('⛔ the school gets no video flags — whichever side blocked; the teacher still sees the standing share', async () => {
+    for (const block of [{ blockerProfileId: 'seller-1', blockedProfileId: 'buyer-1' }, { blockerProfileId: 'buyer-1', blockedProfileId: 'seller-1' }]) {
+      h.blocks = [block]
+      h.me = 'buyer-1'
+      const asSchool = await get()
+      expect(asSchool.status).toBe(200)
+      expect('closed' in asSchool.body).toBe(true)
+      expect(asSchool.body.teacher.video).toBeNull()
+      expect(asSchool.body.teacher.shared).toBe(false) // nor the contact share
+      h.me = 'seller-1'
+      const asTeacher = await get()
+      expect(asTeacher.body.teacher.video).toMatchObject({ shareOn: true, shared: true })
+      expect(asTeacher.body.teacher.shared).toBe(true)
+    }
+  })
+  it('an open thread still carries the school\'s flags', async () => {
+    const { body } = await get()
+    expect('closed' in body).toBe(false)
+    expect(body.teacher.video).toMatchObject({ shareOn: true, shared: true, forBusiness: true })
+  })
+})

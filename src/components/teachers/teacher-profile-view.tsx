@@ -15,7 +15,7 @@ import { teacherProfileLd } from '@/lib/teachers/jsonld'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Check } from '@/components/ui/icons'
+import { Check, Lock } from '@/components/ui/icons'
 import { COVER_CONSENT_VERSION, COVER_DAYS, COVER_PARTS, COVER_PART_LABELS, coverAreaLabel, coverSlotLabel } from '@/lib/teachers/cover'
 import { CoverDayShort } from '@/components/teachers/cover-day'
 import { formatCalendarDay } from '@/lib/calendar-day'
@@ -51,7 +51,7 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
   /** The server-rendered language (en | vi) — country names are named in it. */
   lang: string
 }) {
-  const tp = await db.teacherProfile.findUnique({
+  const tpRow = await db.teacherProfile.findUnique({
     where: { listingId: listing.id },
     select: {
       fullName: true, headline: true, bio: true, photoUrl: true, videoUrl: true, nationality: true, nativeSpeaker: true,
@@ -59,8 +59,19 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
       jobTypes: true, ageGroups: true, subjects: true, yearsExperience: true, experience: true, degreeLevel: true,
       degreeMajor: true, degreeInstitution: true, degreeYear: true, certificates: true, expectedSalaryM: true, updatedAt: true,
       coverOpen: true, coverSlots: true, coverAreas: true, coverRateVnd: true, coverConfirmedAt: true, coverConsentVersion: true,
+      videoOnRequest: true, private: { select: { videoPath: true } },
     },
   })
+  // ⛔ Only THAT a private intro video exists leaves this query (2026-10-07) — its storage path is never rendered, put in
+  // the JSON-LD or handed to a client component, so it is split off here, before `tp` is used anywhere.
+  const { private: tpPrivate, ...tpPublic } = tpRow ?? { private: null }
+  const tp = tpRow ? (tpPublic as Omit<NonNullable<typeof tpRow>, 'private'>) : null
+  // ⛔ PRIVACY WINS (video.ts, the planner's both-homes rule) — on the teacher's CHOICE alone: a teacher who keeps their video
+  // private is shown no public player even if a stale public URL survives somewhere (only a deploy window can leave one),
+  // with or without a private video stored (gate review, 2026-10-07). The on-request line needs one stored.
+  const keptPrivate = tp?.videoOnRequest === true
+  const videoOnRequest = keptPrivate && !!tpPrivate?.videoPath
+  const publicVideo = keptPrivate ? null : (tp?.videoUrl ?? listing.video)
   const cat = CATEGORY_BY_SLUG[TEACHERS_CATEGORY_SLUG]
   // A listing without its profile is a broken row (the publish core writes both in one transaction);
   // render the bare minimum rather than a 500.
@@ -170,10 +181,20 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
               </section>
             )}
 
-            {(tp?.videoUrl ?? listing.video) && (
+            {publicVideo && (
               <section aria-labelledby="t-video">
                 <h2 id="t-video" className="mb-3 text-lg font-semibold text-foreground"><Tr text="Intro video" /></h2>
-                <video src={(tp?.videoUrl ?? listing.video)!} controls preload="metadata" playsInline className="aspect-video w-full rounded-2xl bg-black" />
+                <video src={publicVideo} controls preload="metadata" playsInline className="aspect-video w-full rounded-2xl bg-black" />
+              </section>
+            )}
+            {/* Kept private, sent on request (2026-10-07): a school asks in the chat, and the teacher sends it there. */}
+            {videoOnRequest && (
+              <section aria-labelledby="t-video">
+                <h2 id="t-video" className="mb-2 text-lg font-semibold text-foreground"><Tr text="Intro video" /></h2>
+                <p className="flex items-center gap-2 text-sm text-body">
+                  <Lock className="size-4 shrink-0 text-muted-foreground" />
+                  <Bilingual en="Sent on request — schools can message this teacher and ask for it in the chat." vi="Gửi khi được đề nghị — trường có thể nhắn tin cho giáo viên và đề nghị xem trong cuộc trò chuyện." />
+                </p>
               </section>
             )}
 

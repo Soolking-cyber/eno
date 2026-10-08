@@ -17,15 +17,15 @@ vi.mock('server-only', () => ({}))
 vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => h.me, getCurrentProfileId: async () => h.me.id, getAdmin: async () => null, isAdminEmail: () => false }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true, resetSec: 0 }), kv: { set: async () => 'OK', get: async () => null } }))
 vi.mock('@/lib/db', () => ({
-  db: { teacherProfile: { findUnique: async ({ where }: Row) => (where.profileId === h.me.id ? { private: h.videoPath ? { videoPath: h.videoPath } : { videoPath: null } } : null) } },
+  db: { teacherProfile: { findUnique: async ({ where }: Row) => (where.profileId === h.me.id ? { id: 'tp-teacher-1', private: h.videoPath ? { videoPath: h.videoPath } : { videoPath: null } } : null) } },
 }))
 vi.mock('@/lib/teachers/video-store', () => ({ signTeacherVideo: async (p: string) => { h.signedPaths.push(p); return h.signed } }))
 vi.mock('@/lib/teachers/publish', () => {
   class TeacherVideoConflictError extends Error {}
   return {
     TeacherVideoConflictError,
-    deleteTeacherVideo: async (profileId: string, base: number | null) => {
-      h.deleted.push({ profileId, base })
+    deleteTeacherVideo: async (profileId: string, base: number | null, tp: string) => {
+      h.deleted.push({ profileId, base, tp })
       if (h.conflict) throw new TeacherVideoConflictError()
       return h.deleteAnswer
     },
@@ -58,18 +58,29 @@ describe('the teacher watches their own private video', () => {
 })
 
 describe('the teacher removes it', () => {
-  it('passes the loaded version through, and answers the video as it now is', async () => {
-    const res = await del('?base=3')
+  it('passes the loaded version AND profile through (re-checked under the lock), and answers the video as it now is', async () => {
+    const res = await del('?base=3&tp=tp-teacher-1')
     expect(res.status).toBe(200)
-    expect(h.deleted).toEqual([{ profileId: 'teacher-1', base: 3 }])
+    expect(h.deleted).toEqual([{ profileId: 'teacher-1', base: 3, tp: 'tp-teacher-1' }])
     expect(((await res.json()) as Row).video).toEqual({ onRequest: true, version: 4, hasPrivate: false, url: null })
   })
   it('a missing or malformed base is no base (the server then refuses any change); a stale one is 409; nothing to remove is 404', async () => {
-    await del('?base=abc'); await del('')
+    await del('?base=abc&tp=tp-teacher-1'); await del('?tp=tp-teacher-1')
     expect(h.deleted.map((d) => d.base)).toEqual([null, null])
     h.conflict = true
-    expect((await del('?base=2')).status).toBe(409)
+    expect((await del('?base=2&tp=tp-teacher-1')).status).toBe(409)
     h.conflict = false; h.deleteAnswer = null
-    expect((await del('?base=3')).status).toBe(404)
+    expect((await del('?base=3&tp=tp-teacher-1')).status).toBe(404)
+  })
+  it('⛔ never removes ANOTHER account\'s video: a form loaded as someone else (a session switched in another tab) is refused', async () => {
+    expect((await del('?base=3&tp=tp-someone-else')).status).toBe(409)
+    expect((await del('?base=3')).status).toBe(400) // the profile it was loaded for is required
+    expect(h.deleted).toEqual([])
+  })
+  it('a profile change the fast path missed is refused under the lock: the same 409 video_changed', async () => {
+    h.conflict = true // deleteTeacherVideo: another profile under the lock (publish.ts)
+    const res = await del('?base=3&tp=tp-teacher-1')
+    expect(res.status).toBe(409)
+    expect(await res.json()).toEqual({ error: 'video_changed' })
   })
 })

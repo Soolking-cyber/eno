@@ -15,6 +15,8 @@ const P = 'p1/aaaaaaaa-0000-4000-8000-000000000000.mp4'
 const h = vi.hoisted(() => ({
   pre: null as Row | null, // the pre-read (VIDEO_STATE_SELECT) and the locked read
   lockedVersion: null as number | null,
+  lockedId: 'tp1' as string | null, // the TeacherProfile read UNDER the lock — null: none by then (deleted in between)
+  upsertId: 'tp1', // what the save's upsert touched — another id: it CREATED a row (a lock-free delete got in first)
   owned: true,
   copyOk: true,
   tombstones: [] as Row[],
@@ -56,8 +58,8 @@ vi.mock('@/lib/teachers/video-store', () => ({
 const tx = {
   $executeRaw: vi.fn(),
   teacherProfile: {
-    findUnique: async () => (h.pre ? { listingId: 'L1', coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, coverConsentAt: null, coverConsentVersion: null, coverConfirmedAt: null, coverWithdrawnAt: null, videoVersion: h.lockedVersion ?? h.pre.videoVersion, id: 'tp1', videoOnRequest: h.pre.videoOnRequest, private: h.pre.private } : null),
-    upsert: async (args: Row) => { h.profileWrites.push(args); return { id: 'tp1', coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, coverConfirmedAt: null, coverConsentVersion: null, videoVersion: 4, videoOnRequest: true } },
+    findUnique: async () => (h.pre && h.lockedId !== null ? { listingId: 'L1', coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, coverConsentAt: null, coverConsentVersion: null, coverConfirmedAt: null, coverWithdrawnAt: null, videoVersion: h.lockedVersion ?? h.pre.videoVersion, id: h.lockedId, videoOnRequest: h.pre.videoOnRequest, private: h.pre.private } : null),
+    upsert: async (args: Row) => { h.profileWrites.push(args); return { id: h.upsertId, coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, coverConfirmedAt: null, coverConsentVersion: null, videoVersion: 4, videoOnRequest: true } },
     update: async (args: Row) => { h.profileWrites.push(args); return { videoVersion: 4, videoOnRequest: true } },
   },
   teacherPrivate: {
@@ -74,11 +76,23 @@ vi.mock('@/lib/db', () => ({
     seller: { findUnique: async () => ({ id: 's1', trustTier: 'standard', trustScore: 50 }) },
     category: { findUnique: async () => ({ id: 'cat-teachers', name: 'Teachers', nameVi: 'Giáo viên' }) },
     listing: { findUnique: async () => ({ status: 'active', verified: true }) },
-    $transaction: async (cb: (t: typeof tx) => unknown) => cb(tx),
+    // A throw inside the callback undoes every write it made, as the real transaction does — so "writes nothing" pins
+    // that a refusal is thrown INSIDE the transaction, never after a commit. Writes made before it (the pending
+    // tombstone) stand.
+    $transaction: async (cb: (t: typeof tx) => unknown) => {
+      const logs = [h.tombstones, h.deletedPending, h.revoked, h.privateWrites, h.profileWrites, h.listingWrites]
+      const marks = logs.map((l) => l.length)
+      try {
+        return await cb(tx)
+      } catch (e) {
+        logs.forEach((l, i) => { l.length = marks[i] })
+        throw e
+      }
+    },
   },
 }))
 
-const { saveTeacherProfile, deleteTeacherVideo, TeacherVideoConflictError, TeacherVideoStoreError, TeacherValidationError } = await import('./publish')
+const { saveTeacherProfile, deleteTeacherVideo, TeacherProfileChangedError, TeacherVideoConflictError, TeacherVideoStoreError, TeacherValidationError } = await import('./publish')
 
 const body = (o: Row = {}) => ({
   fullName: 'Jane Doe', headline: 'CELTA-certified English teacher, 6 years with kids', bio: 'I teach English to young learners and adults in Ho Chi Minh City.',
@@ -95,7 +109,7 @@ const save = (b: Row) => saveTeacherProfile({ id: 'p1', email: 'jane@example.com
 const stored = (o: Row = {}) => ({ videoOnRequest: false, videoUrl: null, videoVersion: 3, private: { videoPath: null }, ...o })
 
 beforeEach(() => {
-  h.pre = stored(); h.lockedVersion = null; h.owned = true; h.copyOk = true
+  h.pre = stored(); h.lockedVersion = null; h.lockedId = 'tp1'; h.upsertId = 'tp1'; h.owned = true; h.copyOk = true
   h.tombstones = []; h.deletedPending = []; h.revoked = []; h.privateWrites = []; h.profileWrites = []; h.listingWrites = []; h.copies = []
 })
 
@@ -115,6 +129,8 @@ describe('saving a video kept private', () => {
     expect(h.profileWrites[0].update.videoUrl).toBeNull()
     expect(h.profileWrites[0].create.videoUrl).toBeNull()
     expect(r.video).toEqual({ onRequest: true, version: 4, hasPrivate: true, url: null })
+    // The profile it saved — a form that created it names it on its next Save and Remove.
+    expect(r.teacherProfileId).toBe('tp1')
   })
   it('refuses an upload that is not this teacher\'s own — nothing copied', async () => {
     h.owned = false
@@ -163,10 +179,68 @@ describe('a save that leaves the video as stored', () => {
   })
 })
 
+// ⛔ The profile the form was loaded for, judged UNDER THE LOCK with the write (gate review, 2026-10-08) — the routes'
+// own reads before the call are only a fast path.
+describe('saveTeacherProfile — the profile the form was loaded for', () => {
+  const expectTp = (id: string | null, b: Row = body()) => saveTeacherProfile({ id: 'p1', email: 'jane@example.com' }, b, { expectTeacherProfileId: id })
+  const nothingWritten = () => {
+    expect(h.listingWrites).toEqual([])
+    expect(h.profileWrites).toEqual([])
+    expect(h.privateWrites).toEqual([])
+    expect(h.revoked).toEqual([])
+    expect(h.deletedPending).toEqual([])
+  }
+  it('saves while it is still the caller\'s profile', async () => {
+    const r = await expectTp('tp1')
+    expect(r.teacherProfileId).toBe('tp1')
+    expect(h.listingWrites).toHaveLength(1)
+    expect(h.privateWrites).toHaveLength(1)
+  })
+  it('⛔ another profile under the lock (re-made since the form loaded) refuses — nothing written', async () => {
+    h.lockedId = 'tp-new'
+    await expect(expectTp('tp1')).rejects.toBeInstanceOf(TeacherProfileChangedError)
+    nothingWritten()
+  })
+  it('⛔ no profile under the lock (deleted since the fast check) refuses rather than creating one', async () => {
+    h.lockedId = null
+    await expect(expectTp('tp1')).rejects.toBeInstanceOf(TeacherProfileChangedError)
+    nothingWritten()
+  })
+  it('⛔ an upsert that CREATED a row (a lock-free delete landed after the locked read) rolls the whole save back', async () => {
+    h.upsertId = 'tp-fresh'
+    await expect(expectTp('tp1')).rejects.toBeInstanceOf(TeacherProfileChangedError)
+    nothingWritten()
+  })
+  it('a copy made before the refusal keeps its pending tombstone, so the sweep collects it', async () => {
+    h.lockedId = 'tp-new'
+    await expect(expectTp('tp1', body({ videoOnRequest: true, videoUrl: V }))).rejects.toBeInstanceOf(TeacherProfileChangedError)
+    expect(h.copies).toEqual([{ url: V, path: P }])
+    expect(h.tombstones).toEqual([{ bucket: 'teacher-videos', path: P, reason: 'teacher_video_pending' }])
+    nothingWritten()
+  })
+  it('⛔ a body that claims NONE (null — the join form, an old tab) never writes a profile found under the lock', async () => {
+    await expect(expectTp(null)).rejects.toBeInstanceOf(TeacherProfileChangedError)
+    nothingWritten()
+  })
+  it('a "none" claim with no profile under the lock CREATES one — no second look after the upsert', async () => {
+    h.pre = null; h.upsertId = 'tp-fresh' // no profile at all: nothing stored, nothing locked — the upsert makes a new row
+    const r = await expectTp(null)
+    expect(r.created).toBe(true)
+    expect(r.teacherProfileId).toBe('tp-fresh')
+    expect(h.listingWrites[0].data.status).toBe('active') // listing.create (an update carries no status)
+    expect(h.profileWrites[0].create.profileId).toBe('p1')
+    expect(h.privateWrites).toHaveLength(1)
+  })
+  it('absent (callers outside the PUT route): no check, the ordinary rules apply', async () => {
+    h.lockedId = 'tp-new'; h.upsertId = 'tp-new'
+    expect((await save(body())).teacherProfileId).toBe('tp-new')
+  })
+})
+
 describe('deleteTeacherVideo', () => {
   it('removes the private video under the lock: tombstoned, path cleared, version bumped, grants ended', async () => {
     h.pre = stored({ videoOnRequest: true, private: { videoPath: P } })
-    const v = await deleteTeacherVideo('p1', 3)
+    const v = await deleteTeacherVideo('p1', 3, 'tp1')
     expect(v).toEqual({ onRequest: true, version: 4, hasPrivate: false, url: null })
     expect(h.tombstones).toEqual([{ bucket: 'teacher-videos', path: P, reason: 'teacher_video_replaced' }])
     expect(h.privateWrites[0]).toMatchObject({ data: { videoPath: null } })
@@ -174,8 +248,20 @@ describe('deleteTeacherVideo', () => {
   })
   it('refuses a stale base, and answers null when there is nothing to remove', async () => {
     h.pre = stored({ videoOnRequest: true, private: { videoPath: P } })
-    await expect(deleteTeacherVideo('p1', 2)).rejects.toBeInstanceOf(TeacherVideoConflictError)
+    await expect(deleteTeacherVideo('p1', 2, 'tp1')).rejects.toBeInstanceOf(TeacherVideoConflictError)
     h.pre = stored()
-    expect(await deleteTeacherVideo('p1', 3)).toBeNull()
+    expect(await deleteTeacherVideo('p1', 3, 'tp1')).toBeNull()
+  })
+  it('⛔ another profile under the lock is a conflict, even with a matching base — nothing removed', async () => {
+    h.pre = stored({ videoOnRequest: true, private: { videoPath: P } })
+    h.lockedId = 'tp-new' // re-made since the form loaded: its versions start low, so `base` alone could match
+    await expect(deleteTeacherVideo('p1', 3, 'tp1')).rejects.toBeInstanceOf(TeacherVideoConflictError)
+    expect(h.tombstones).toEqual([])
+    expect(h.privateWrites).toEqual([])
+    expect(h.profileWrites).toEqual([])
+    expect(h.revoked).toEqual([])
+    // …checked before "nothing to remove": a different profile is a conflict, not a 404.
+    h.pre = stored()
+    await expect(deleteTeacherVideo('p1', 3, 'tp1')).rejects.toBeInstanceOf(TeacherVideoConflictError)
   })
 })

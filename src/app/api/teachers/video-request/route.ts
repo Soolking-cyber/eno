@@ -12,9 +12,6 @@ import { notifyTeacherOfSchoolMessage } from '@/lib/teachers/notify'
 
 export const runtime = 'nodejs'
 
-/** A school may ask again a day later, or once the teacher stopped sharing since — never be locked out by one revoke. */
-const ASK_AGAIN_MS = 24 * 3600 * 1000
-
 export const POST = route(
   { auth: 'profile', rateLimit: { bucket: 'teacher-video-request', limit: 10, window: '1 h', strict: true } },
   async ({ req, profile }) => {
@@ -28,10 +25,15 @@ export const POST = route(
     if (await isBlockedBetween(t.recruiterUserId, t.teacherUserId)) throw new ApiError('blocked', 403)
     if (!t.videoAvailable) throw new ApiError('video_not_on_request', 409)
     if (t.videoShared) return { ok: true, requested: false, shared: true }
-    const prev = t.convo.teacherVideoShare
-    const now = new Date()
-    const askedRecently = !!prev?.requestedAt && now.getTime() - prev.requestedAt.getTime() < ASK_AGAIN_MS && (!prev.revokedAt || prev.revokedAt < prev.requestedAt)
+    // A school may ask again a day later (share.ts ASK_AGAIN_MS), or once the teacher stopped sharing since — never
+    // locked out by one revoke. ⛔ The SAME flags the strip reads (teacherVideoState `requested` / `askAgain`), never a
+    // second clock: "Ask again" is offered exactly when this route would take it (gate review, 2026-10-08).
+    // ⚠️ Accepted residual: two tabs asking at the same instant can both pass this check and post two identical 🎬
+    // lines. The state is the same either way (an upsert), and notify.ts's pair limit (1 per thread per 6 h) keeps the
+    // teacher's ring to one; the contact share route has the same shape.
+    const askedRecently = t.videoRequested && !t.videoAskAgain
     if (askedRecently) return { ok: true, requested: true, shared: false }
+    const now = new Date()
     // ⛔ ONE TRANSACTION (SendOpts.alongside): never a request the teacher was not told about — two steps left one after a
     // crash between them, and the "asked recently" rule above then silenced every retry for a day (gate review, 2026-10-07).
     await insertMessage(

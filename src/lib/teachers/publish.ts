@@ -97,6 +97,20 @@ const noticeShown = (raw: unknown) =>
 const SAVED_COVER_SELECT = { coverOpen: true, coverSlots: true, coverAreas: true, coverRateVnd: true, coverConfirmedAt: true, coverConsentVersion: true } as const
 export type SavedCoverState = { coverOpen: boolean; coverSlots: string[]; coverAreas: string[]; coverRateVnd: number | null; coverConfirmedAt: Date | null; coverConsentVersion: string | null }
 
+/**
+ * The form was loaded for a TeacherProfile that is no longer the caller's (a session switched in another tab, or the
+ * profile was deleted, or deleted and made again), or a body that claims there is none meets one → 409
+ * `profile_changed`. ⛔ Judged UNDER THE ACCOUNT LOCK, in the transaction that writes: the PUT route's own read before
+ * the save is only a fast path, and a delete or re-create landing between it and the write slipped past it (gate
+ * review, 2026-10-08).
+ */
+export class TeacherProfileChangedError extends Error {
+  constructor() {
+    super('profile_changed')
+    this.name = 'TeacherProfileChangedError'
+  }
+}
+
 /** A stale window would change the intro video over a newer state (src/lib/teachers/video.ts) → 409 video_changed. */
 export class TeacherVideoConflictError extends Error {
   constructor() {
@@ -261,8 +275,16 @@ export function screenTeacherTexts(t: TeacherInput) {
 /**
  * Create or update the caller's teacher profile and its listing. Returns the listing id.
  * Throws TeacherValidationError (400) or PublishBlockedError (the wizard's codes).
+ * `expectTeacherProfileId`, judged under the lock (TeacherProfileChangedError): a string = the profile an edit form was
+ * loaded for, which must still be the caller's; `null` = the body claims there is none, so the save may only CREATE;
+ * absent = no check (callers outside the PUT route). The PUT route always passes one (gate review, 2026-10-08).
  */
-export async function saveTeacherProfile(profile: { id: string; email: string | null }, raw: unknown): Promise<{ listingId: string; created: boolean; live: boolean; cover: SavedCoverState | null; video: SavedVideoState }> {
+export async function saveTeacherProfile(
+  profile: { id: string; email: string | null },
+  raw: unknown,
+  opts: { expectTeacherProfileId?: string | null } = {},
+): Promise<{ listingId: string; teacherProfileId: string; created: boolean; live: boolean; cover: SavedCoverState | null; video: SavedVideoState }> {
+  const expected = opts.expectTeacherProfileId
   // A client from before cover lessons sends no cover field: its cover is taken from the row UNDER THE LOCK below,
   // and never written (withStoredCover). Its own (absent) cover reads as off here, which validates trivially.
   const part = coverPartOf(raw)
@@ -360,12 +382,18 @@ export async function saveTeacherProfile(profile: { id: string; email: string | 
     videoOnRequest: plan.videoOnRequest,
   }
 
-  const { listingId, saved, video: savedVideo } = await db.$transaction(async (tx) => {
+  const { listingId, teacherProfileId, saved, video: savedVideo } = await db.$transaction(async (tx) => {
     // ⛔ ONE SAVE AT A TIME PER ACCOUNT. Two first saves racing (a double tap) both saw "no profile"
     // and both created a listing; the loser's row was left live with no profile (Opus, commit gate
     // 09-30). The lock is per profile and held to COMMIT; the row is then re-read under it.
     await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${'teacher:' + profile.id}))`
-    const locked = await tx.teacherProfile.findUnique({ where: { profileId: profile.id }, select: { listingId: true, ...STORED_COVER_SELECT, videoVersion: true } })
+    const locked = await tx.teacherProfile.findUnique({ where: { profileId: profile.id }, select: { id: true, listingId: true, ...STORED_COVER_SELECT, videoVersion: true } })
+    // ⛔ The profile the form was loaded for, judged WITH the write (gate review, 2026-10-08): gone, or another one — or,
+    // for a body that claims none (`null`), any profile at all — refuses before anything is written. A throw anywhere in
+    // here rolls the whole save back; a bucket copy made
+    // before the transaction keeps its pending tombstone (the deleteMany that clears it never commits) and nothing
+    // committed references it, so the sweep collects it.
+    if (expected !== undefined && (locked?.id ?? null) !== expected) throw new TeacherProfileChangedError()
     // Read under the lock, so a cover save racing this one cannot make consent/withdrawal lie.
     if (sendsCover) assertCoverBase(coverBaseOf(raw), locked)
     // The video plan was made from a read BEFORE the lock (its copy cannot run inside it). Every video change bumps the
@@ -411,13 +439,17 @@ export async function saveTeacherProfile(profile: { id: string; email: string | 
       update: { ...profileData, ...cover, listingId: id, consentAt: new Date(), ...(plan.changed ? { videoVersion: { increment: 1 } } : {}) },
       select: { id: true, ...SAVED_COVER_SELECT, videoVersion: true, videoOnRequest: true },
     })
+    // ⚠️ And once more on what the upsert touched: deleteTeacherProfile takes no lock, so a delete committing after the
+    // read above makes this upsert CREATE a fresh row — the form's profile is gone all the same. Rolled back with the rest.
+    // A `null` claim needs no second look: only this locked save creates a row, and a delete cannot create one.
+    if (typeof expected === 'string' && tp.id !== expected) throw new TeacherProfileChangedError()
     await tx.teacherPrivate.upsert({
       where: { teacherProfileId: tp.id },
       create: { teacherProfileId: tp.id, phone: t.phone, email: profile.email, videoPath: finalVideoPath },
       update: { phone: t.phone, email: profile.email, videoPath: finalVideoPath },
     })
-    const { id: _tpId, videoVersion, videoOnRequest, ...saved } = tp
-    return { listingId: id, saved, video: { onRequest: videoOnRequest, version: videoVersion, hasPrivate: !!finalVideoPath, url: finalVideoUrl } }
+    const { id: teacherProfileId, videoVersion, videoOnRequest, ...saved } = tp
+    return { listingId: id, teacherProfileId, saved, video: { onRequest: videoOnRequest, version: videoVersion, hasPrivate: !!finalVideoPath, url: finalVideoUrl } }
   })
 
   revalidatePublicPath(`/listings/${listingId}`)
@@ -440,7 +472,8 @@ export async function saveTeacherProfile(profile: { id: string; email: string | 
   after(() => warmTranslations([t.headline, t.bio, listingData.location].filter(Boolean)))
   const live = await db.listing.findUnique({ where: { id: listingId }, select: { status: true, verified: true } })
   // The cover state AS STORED — the form keeps it as its base and its "confirmed on" date (never its own guess).
-  return { listingId, created: !existing?.listingId, live: live?.status === 'active' && live.verified, cover: saved, video: savedVideo }
+  // teacherProfileId: a form that created the profile (edit mode, none loaded) names it on its next Save and Remove.
+  return { listingId, teacherProfileId, created: !existing?.listingId, live: live?.status === 'active' && live.verified, cover: saved, video: savedVideo }
 }
 
 /**
@@ -499,11 +532,15 @@ export async function saveTeacherCover(profileId: string, raw: unknown): Promise
  * ("videoUrl: null" over a private video keeps it: the form never holds its URL — video.ts). Under the same account lock
  * and version check as a save (`base` = the videoVersion the form loaded); the object is tombstoned with the row change
  * and purged after commit, and every school it was sent to loses it. Null when there is no private video to remove.
+ * `expectTeacherProfileId` — the profile the form was loaded for; another profile under the lock is a conflict.
  */
-export async function deleteTeacherVideo(profileId: string, base: number | null): Promise<SavedVideoState | null> {
+export async function deleteTeacherVideo(profileId: string, base: number | null, expectTeacherProfileId: string): Promise<SavedVideoState | null> {
   const result = await db.$transaction(async (tx) => {
     await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${'teacher:' + profileId}))`
     const tp = await tx.teacherProfile.findUnique({ where: { profileId }, select: { id: true, listingId: true, videoOnRequest: true, videoVersion: true, private: { select: { videoPath: true } } } })
+    // ⛔ Under the lock, with the write — the DELETE route's own read is only a fast path (gate review, 2026-10-08). A
+    // profile re-made since the form loaded starts its versions low, so `base` alone could match it.
+    if (tp && tp.id !== expectTeacherProfileId) throw new TeacherVideoConflictError()
     const path = tp?.private?.videoPath
     if (!tp || !path) return null
     if (base === null || base !== tp.videoVersion) throw new TeacherVideoConflictError()

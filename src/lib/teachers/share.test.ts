@@ -3,13 +3,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const h = vi.hoisted(() => ({ row: null as unknown }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/db', () => ({ db: { conversation: { findUnique: async () => h.row } } }))
-const { teacherThread } = await import('./share')
+const { teacherThread, teacherVideoState, ASK_AGAIN_MS } = await import('./share')
 
 const T = 'teacher-uuid'
 const row = (over: Record<string, unknown> = {}) => ({
   id: 'c1', buyerProfileId: 'recruiter-uuid', sellerProfileId: T, listingId: 'l1', sellerId: 's1',
   listing: { id: 'l1', listingType: 'teacher', status: 'active', verified: true, teacherProfile: { id: 'tp1', profileId: T, fullName: 'Jane', status: 'live' } },
   teacherContactShare: null,
+  buyer: { accountType: 'business' },
   ...over,
 })
 
@@ -83,5 +84,52 @@ describe('teacherThread — the intro video sent on request (2026-10-07)', () =>
     const t = await teacherThread('c1')
     expect(t?.videoShared).toBe(false)
     expect(t?.videoShareOn).toBe(true)
+  })
+  it('⛔ business-only: a personal buyer (a parent) is never shown a watchable video — but the teacher can still Stop', async () => {
+    const sent = { requestedAt: null, sharedAt: new Date(), revokedAt: null }
+    for (const accountType of ['individual', null]) {
+      h.row = row({ listing: live(), teacherVideoShare: sent, buyer: { accountType } })
+      const t = await teacherThread('c1')
+      expect(t?.videoForBusiness).toBe(false)
+      expect(t?.videoShared).toBe(false) // a grant sent before the rule watches nothing
+      expect(t?.videoShareOn).toBe(true) // …and stays revocable
+      expect(t?.videoAvailable).toBe(true) // `available` is the profile's state, not the buyer's: the teacher's copy stays true
+    }
+    h.row = row({ listing: live(), teacherVideoShare: sent })
+    const t = await teacherThread('c1')
+    expect(t?.videoForBusiness).toBe(true)
+    expect(t?.videoShared).toBe(true)
+  })
+  it('an ask may be repeated a day later: askAgain comes on at ASK_AGAIN_MS', async () => {
+    h.row = row({ listing: live(), teacherVideoShare: { requestedAt: new Date(Date.now() - 3600_000), sharedAt: null, revokedAt: null } })
+    let t = await teacherThread('c1')
+    expect(t?.videoRequested).toBe(true)
+    expect(t?.videoAskAgain).toBe(false)
+    h.row = row({ listing: live(), teacherVideoShare: { requestedAt: new Date(Date.now() - ASK_AGAIN_MS - 60_000), sharedAt: null, revokedAt: null } })
+    t = await teacherThread('c1')
+    expect(t?.videoRequested).toBe(true)
+    expect(t?.videoAskAgain).toBe(true)
+  })
+})
+
+describe('teacherVideoState — the one derivation behind the strip and the video routes', () => {
+  const tp = { videoOnRequest: true, private: { videoPath: 'tp/v.mp4' } }
+  const at = Date.UTC(2026, 9, 8, 12)
+  it('asks again exactly ASK_AGAIN_MS (a day) after the last ask — never sooner', () => {
+    expect(ASK_AGAIN_MS).toBe(24 * 3600 * 1000)
+    const asked = { requestedAt: new Date(at - ASK_AGAIN_MS), sharedAt: null, revokedAt: null }
+    expect(teacherVideoState(asked, tp, true, true, at).askAgain).toBe(true)
+    expect(teacherVideoState(asked, tp, true, true, at - 1).askAgain).toBe(false)
+  })
+  it('no standing ask, no askAgain: never asked, or answered by a stop since (the school may simply ask)', () => {
+    expect(teacherVideoState(null, tp, true, true, at)).toMatchObject({ requested: false, askAgain: false })
+    const stopped = { requestedAt: new Date(at - 3 * ASK_AGAIN_MS), sharedAt: new Date(at - 2 * ASK_AGAIN_MS), revokedAt: new Date(at - ASK_AGAIN_MS) }
+    expect(teacherVideoState(stopped, tp, true, true, at)).toMatchObject({ requested: false, askAgain: false })
+  })
+  it('shared needs the teacher\'s grant, a watchable video AND a business buyer', () => {
+    const sent = { requestedAt: null, sharedAt: new Date(at), revokedAt: null }
+    expect(teacherVideoState(sent, tp, true, true, at)).toMatchObject({ shared: true, forBusiness: true })
+    expect(teacherVideoState(sent, tp, true, false, at)).toMatchObject({ shared: false, shareOn: true, available: true, forBusiness: false })
+    expect(teacherVideoState(sent, tp, false, true, at)).toMatchObject({ shared: false, shareOn: true, available: false })
   })
 })

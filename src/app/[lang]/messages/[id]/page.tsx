@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { TeacherThreadStrip } from '@/components/teachers/teacher-thread-strip'
+import { TeacherThreadStrip, type TeacherVideoFlags } from '@/components/teachers/teacher-thread-strip'
 import { BubbleChrome, ReactionPills, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -344,7 +344,7 @@ type Thread = {
   /** Bell notifications the `?opened=1` load just marked read (0 on every poll). */
   notificationsCleared?: number
   /** A thread about a teacher profile (2026-09-30); optional — pending stubs and cached threads omit it. */
-  teacher?: { shared: boolean; live?: boolean } | null
+  teacher?: { shared: boolean; live?: boolean; video?: TeacherVideoFlags | null } | null
   /**
    * App Store gate `ugc-safety`: the thread is CLOSED by a block between its two people — 'you_blocked'
    * (I blocked them; the banner offers the way back) or 'blocked' (the other side did). Absent while the
@@ -712,6 +712,9 @@ export default function ThreadPage() {
   // already applied is dropped.
   const loadTicket = useRef(0)
   const appliedTicket = useRef(0)
+  // When the newest APPLIED read STARTED: the teacher strip orders this payload against its own actions by it (its
+  // `videoReadAt`, gate review 2026-10-08). ⚠️ Never in cacheThread — performance.now() counts from this document's start.
+  const [threadReadAt, setThreadReadAt] = useState<number | undefined>(undefined)
   /**
    * ONE READ OF THE THREAD. `opened` adds `?opened=1` (see fetchThread below — which is what decides it).
    * Whenever the server reports it cleared bell rows — on the open or on any later read, even one a newer
@@ -722,6 +725,7 @@ export default function ThreadPage() {
   const readThread = useCallback(async (opened: boolean): Promise<{ cleared: number; openCleared: boolean }> => {
     const none = { cleared: 0, openCleared: false }
     const ticket = ++loadTicket.current
+    const startedAt = performance.now()
     const res = await fetch(`/api/conversations/${id}${opened ? '?opened=1' : ''}`)
     // Checked BEFORE any branch that paints — a superseded reply answering 403/404 must not swap a live
     // thread a newer reply already painted for the not-found screen (reviewer-caught, round 2).
@@ -771,6 +775,7 @@ export default function ThreadPage() {
       })
       return pending.length ? { ...fresh, messages: [...fresh.messages, ...pending] } : fresh
     })
+    setThreadReadAt(startedAt)
     return { cleared, openCleared }
   }, [id, cacheThread, undoWindow])
 
@@ -2580,7 +2585,7 @@ export default function ThreadPage() {
               TEACHER'S OWN STRIP — "Stop sharing" must stay reachable while the block stands (the server still
               accepts an unshare), or a share made before the block would quietly come back with an unblock. */}
           {thread && thread.listing && thread.teacher && (!thread.closed || thread.iAmSeller) && (
-            <TeacherThreadStrip conversationId={thread.id} iAmTeacher={!!thread.iAmSeller} shared={thread.teacher.shared} live={thread.teacher.live !== false} shareSignal={(thread.messages ?? []).filter((m) => /^(📇|🔒)/.test(m.body ?? '')).length} closed={!!thread.closed} />
+            <TeacherThreadStrip conversationId={thread.id} iAmTeacher={!!thread.iAmSeller} shared={thread.teacher.shared} live={thread.teacher.live !== false} shareSignal={(thread.messages ?? []).filter((m) => /^(📇|🔒)/.test(m.body ?? '')).length} closed={!!thread.closed} video={thread.teacher.video ?? null} videoReadAt={threadReadAt} videoSignal={(thread.messages ?? []).filter((m) => /^🎬/.test(m.body ?? '')).length} />
           )}
           {/* The REQUEST button itself now lives in the item strip above (stripContact); this row keeps the
               two states that need a row — the revealed number, and the hint before the seller replies. */}

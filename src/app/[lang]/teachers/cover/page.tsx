@@ -68,7 +68,7 @@ export default function TeacherCoverPage() {
             </h2>
             <ul className="space-y-2.5">
               <Point Icon={MapPin} en="Filter by district and by free period — Monday morning, Thursday evening…" vi="Lọc theo quận và theo buổi rảnh — sáng Thứ 2, tối Thứ 5…" />
-              <Point Icon={GraduationCap} en="See each teacher's hourly rate, experience, qualifications and intro video." vi="Xem mức phí theo giờ, kinh nghiệm, bằng cấp và video giới thiệu của từng giáo viên." />
+              <Point Icon={GraduationCap} en="See each teacher's hourly rate, experience and qualifications — and their intro video, shown on the profile or sent on request." vi="Xem mức phí theo giờ, kinh nghiệm và bằng cấp của từng giáo viên — cùng video giới thiệu, hiển thị trên hồ sơ hoặc gửi khi được đề nghị." />
               <Point Icon={MessageSquare} en="Message them in the app. A teacher's phone, email and CV are shared only if they choose to." vi="Nhắn tin trong ứng dụng. Số điện thoại, email và CV của giáo viên chỉ được chia sẻ nếu họ đồng ý." />
             </ul>
             <Button variant="cta" asChild><LocalizedLink href={SCHOOLS_URL} rel="nofollow" prefetch={false}><Bilingual en="Find a cover teacher" vi="Tìm giáo viên dạy thay" /></LocalizedLink></Button>

@@ -30,10 +30,20 @@ export const DELETE = route(
   { auth: 'profile', rateLimit: { bucket: 'teacher-video-remove', limit: 20, window: '1 h', strict: true } },
   async ({ req, profile }) => {
     // `base` = the videoVersion this form loaded: a stale window never deletes a video saved after it.
-    const raw = new URL(req.url).searchParams.get('base')
+    const params = new URL(req.url).searchParams
+    const raw = params.get('base')
     const base = raw !== null && /^\d+$/.test(raw) ? Number(raw) : null
+    // ⛔ `tp` = the TeacherProfile that form loaded. A form loaded as one account, still open when the session became another
+    // (a sign-in in another tab), must never remove THAT account's video — versions start low and could match (gate
+    // review, 2026-10-07). Required: this route is new, and every caller sends it.
+    // This read is the FAST PATH; the guarantee is deleteTeacherVideo's own check under the account lock, in the
+    // transaction that removes (gate review, 2026-10-08).
+    const expected = params.get('tp')
+    if (!expected) throw new ApiError('bad_request', 400)
+    const mine = await db.teacherProfile.findUnique({ where: { profileId: profile.id }, select: { id: true } })
+    if (mine?.id !== expected) return NextResponse.json({ error: 'video_changed' }, { status: 409 })
     try {
-      const video = await deleteTeacherVideo(profile.id, base)
+      const video = await deleteTeacherVideo(profile.id, base, expected)
       if (!video) throw new ApiError('video_missing', 404)
       return { ok: true, video }
     } catch (e) {

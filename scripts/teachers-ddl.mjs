@@ -32,6 +32,9 @@ await client.connect()
 // step rolls EVERYTHING back instead of leaving, say, TeacherVideoShare created without its unique key and foreign key.
 // Every `process.exit(1)` below leaves without COMMIT, and Postgres rolls an uncommitted transaction back on disconnect.
 await client.query('begin')
+// Never queue thread opens behind a long wait: the FK step needs a lock on the busy Conversation table while this
+// transaction already holds the teacher tables. A timeout rolls everything back; the script is safe to re-run.
+await client.query("set local lock_timeout = '5s'")
 process.on('unhandledRejection', async (e) => { console.error(e); try { await client.query('rollback') } catch {} process.exit(1) })
 
 const exists = await client.query(`select to_regclass('public."TeacherJobMatch"') as t`)

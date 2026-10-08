@@ -236,14 +236,28 @@ describe('the listing carries the opener facts', () => {
 // The intro video sent on request (2026-10-07): a teacher thread's payload carries the FLAGS the strip needs — never
 // where the private video is stored (the select reads the path only to know one exists).
 describe('a teacher thread\'s intro video', () => {
+  const teacherThread = (over: Row = {}) => thread({
+    listing: { ...thread().listing as Row, listingType: 'teacher', teacherProfile: { status: 'live', videoOnRequest: true, private: { videoPath: 'p1/secret-intro.mp4' } } },
+    buyer: { ...thread().buyer as Row, accountType: 'business' },
+    ...over,
+  })
   it('is flags only — the stored path never reaches either side', async () => {
-    h.convo = thread({
-      listing: { ...thread().listing as Row, listingType: 'teacher', teacherProfile: { status: 'live', videoOnRequest: true, private: { videoPath: 'p1/secret-intro.mp4' } } },
-      teacherVideoShare: { requestedAt: new Date(), sharedAt: null, revokedAt: null },
-    })
+    h.convo = teacherThread({ teacherVideoShare: { requestedAt: new Date(), sharedAt: null, revokedAt: null } })
     const { status, body } = await get()
     expect(status).toBe(200)
-    expect(body.teacher.video).toEqual({ available: true, shareOn: false, shared: false, requested: true })
+    expect(body.teacher.video).toEqual({ available: true, shareOn: false, shared: false, requested: true, askAgain: false, forBusiness: true })
     expect(JSON.stringify(body)).not.toContain('secret-intro')
+  })
+  it('the same derivation as the video routes: a day-old ask may be repeated; a personal buyer is never shown a watchable video', async () => {
+    h.convo = teacherThread({ teacherVideoShare: { requestedAt: new Date(Date.now() - 25 * 3600_000), sharedAt: null, revokedAt: null } })
+    expect((await get()).body.teacher.video).toMatchObject({ requested: true, askAgain: true })
+    // Read by the teacher (the seller side), whose counterpart block describes the buyer.
+    h.me = 'seller-1'
+    h.convo = teacherThread({ teacherVideoShare: { requestedAt: null, sharedAt: new Date(), revokedAt: null }, buyer: { ...thread().buyer as Row, accountType: 'individual' } })
+    const { status, body } = await get()
+    expect(status).toBe(200)
+    expect(body.teacher.video).toEqual({ available: true, shareOn: true, shared: false, requested: false, askAgain: false, forBusiness: false })
+    // The buyer's account type feeds the flags only — never the counterpart payload.
+    expect(JSON.stringify(body)).not.toContain('individual')
   })
 })

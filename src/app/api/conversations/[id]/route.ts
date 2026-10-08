@@ -166,7 +166,8 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
       // Belt: the server is authoritative either way, so the failure is a missing affordance, not
       // a leak.
       seller: { select: { id: true, ownerId: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true, officialPartner: true, owner: { select: { lastSeenAt: true, locale: true } } } },
-      buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true, lastSeenAt: true, locale: true } },
+      // `accountType` feeds ONLY the teacher video flags (teacherVideoState `forBusiness`) — never the counterpart payload.
+      buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true, lastSeenAt: true, locale: true, accountType: true } },
       // Bounded (audit P2): the full history shipped on EVERY call × a 15s poll per
       // open tab. Last 200 in reverse, un-reversed below — covers any realistic
       // active thread; older history is simply not re-sent.
@@ -385,11 +386,19 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
           const live = convo.listing.status === 'active' && convo.listing.verified && convo.listing.teacherProfile?.status === 'live'
           // The intro video kept private and sent on request — the derivation the video routes enforce
           // (teacherVideoState): flags only, never the stored path; the school watches via /api/teachers/video.
-          const v = teacherVideoState(convo.teacherVideoShare, convo.listing.teacherProfile ?? {}, live)
+          // `forBusiness` from the thread's buyer, as teacherThread reads it: only a school or company may ask, be sent, or watch.
+          // (`buyer` is a required relation — Conversation.buyerProfileId, onDelete: Cascade — never null here.)
+          const v = teacherVideoState(convo.teacherVideoShare, convo.listing.teacherProfile ?? {}, live, convo.buyer.accountType === 'business')
+          // ⛔ A thread closed by a block tells the SCHOOL nothing the teacher shares — the contact share nor the video (as the
+          // read routes answer only `blocked`); the TEACHER keeps both, so a share made before the block stays withdrawable
+          // (gate review, 2026-10-08).
+          const closedToSchool = iAmBuyer && blockState !== 'none'
           return {
-            shared: !!convo.teacherContactShare && !convo.teacherContactShare.revokedAt,
+            shared: !closedToSchool && !!convo.teacherContactShare && !convo.teacherContactShare.revokedAt,
             live,
-            video: { available: v.available, shareOn: v.shareOn, shared: v.shared, requested: v.requested },
+            video: closedToSchool
+              ? null
+              : { available: v.available, shareOn: v.shareOn, shared: v.shared, requested: v.requested, askAgain: v.askAgain, forBusiness: v.forBusiness },
           }
         })()
       : null,
