@@ -40,8 +40,8 @@ import crypto from 'crypto'
  * `/api/:path*` in middleware and only ever calls `NextResponse.next()` (or answers a CORS
  * preflight, or 403s a missing edge header) — middleware runs before routing and does not care
  * which file eventually handles the request. And `rewrites()` in next.config.ts points at
- * `/api/well-known/aasa`, `/api/feeds/facebook-catalog` and `/api/feeds/google-shopping`, all three
- * real static routes that outrank this one.
+ * `/api/well-known/aasa`, `/api/feeds/facebook-catalog`, `/api/feeds/facebook-rentals` and
+ * `/api/feeds/google-shopping`, all real static routes that outrank this one.
  *
  * ⚠️ A `route.svc.ts` PATH NOW LANDS HERE ON THE MARKETPLACE BUILD, AND THAT IS THE POINT. Those
  * handlers are folded out of the eno.vn artifact by `pageExtensions`, so their URLs used to serve

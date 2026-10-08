@@ -374,3 +374,27 @@ export type SerializedFeedListing = Omit<ListingFeedRow, 'images'> & { images: s
 export function serializeFeedListing(l: ListingFeedRow): SerializedFeedListing {
   return { ...l, images: safeParse<string[]>(l.images, []).map(fixMockImage) }
 }
+
+/**
+ * THE APARTMENT-RENTALS FEED PROJECTION (/api/feeds/facebook-rentals, src/lib/rentals-feed.ts) — the same
+ * bar as LISTING_FEED_SELECT: every column is read by a row, and there is no `seller` (phone and email
+ * never enter a feed). `sellerId` is the bare id — it decides whether a bare `VND` is monthly
+ * (`isMonthlyRent`) and names the source in custom_label_4.
+ */
+export const RENTAL_FEED_SELECT = {
+  id: true, title: true, titleVi: true, description: true, price: true, priceUnit: true, currency: true,
+  images: true, sellerId: true, status: true, subcategorySlug: true, attributes: true,
+  city: true, district: true, areaM2: true,
+} as const
+
+type RentalFeedRow = Prisma.ListingGetPayload<{ select: typeof RENTAL_FEED_SELECT }>
+
+export type SerializedRentalFeedListing = Omit<RentalFeedRow, 'images'> & { images: string[] }
+
+/** ⚠️ ONE MALFORMED `images` VALUE MUST NOT 500 THE WHOLE FEED: anything but an array of strings is no
+ *  images, and the row is then withheld as `no_image`. */
+export function serializeRentalFeedListing(l: RentalFeedRow): SerializedRentalFeedListing {
+  const parsed = safeParse<unknown>(l.images, [])
+  const images = Array.isArray(parsed) ? parsed.filter((u): u is string => typeof u === 'string').map(fixMockImage) : []
+  return { ...l, images }
+}
