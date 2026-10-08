@@ -261,7 +261,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           subcategorySlug: aiSubOk ? (d.subcategorySlug as string) : '',
           attrs: d.attributes && typeof d.attributes === 'object' ? d.attributes : {},
           ranges: {},
-          // Editing, the listing type is fixed too (the sale/rent switch is create-only).
+          // Editing, autofill never switches the listing type: the type chips are the seller's (a photo must not quietly
+          // turn a sale into a wanted ad), and the sale/rent switch is create-only.
           listingType: edit ? snap.listingType : d.listingType || snap.listingType,
           condition: d.condition || snap.condition,
           brand: d.brand || snap.brand, // AI auto-selects the brand ONLY when confident
