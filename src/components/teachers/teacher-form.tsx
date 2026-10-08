@@ -22,7 +22,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Award, Briefcase, CalendarDays, Camera, Check, FileText, GraduationCap, Loader2, Lock, MapPin, Play, Plus, Trash2, User, Video, X } from '@/components/ui/icons'
 import { Radio, RadioDot, RadioGroup } from '@/components/ui/radio-group'
 import { cn } from '@/lib/utils'
@@ -32,11 +31,11 @@ import {
   COVER_FIELDS, DRAFT_STEPS, EMPTY_TEACHER, LIMITS, TEACHER_OPTIONS, TEACHER_STEP_FIELDS, normalizeTeacherInput,
   validateTeacherInput, type TeacherErrors, type TeacherInput, type TeacherStep,
 } from '@/lib/teachers/profile'
-import { ALL_COUNTRY_CODES, COMMON_TEACHER_NATIONALITIES, countryName } from '@/lib/teachers/countries'
 import { TEACHER_DRAFT_HASH_KEY } from '@/lib/teachers/constants'
 import { COVER_CONSENT_VERSION, coverStamp, mergeStaleCover, type SavedCover } from '@/lib/teachers/cover'
 import { CoverFields, type CoverPatch } from '@/components/teachers/cover-fields'
 import { CoverSummary } from '@/components/teachers/cover-summary'
+import { CountryCombobox } from '@/components/teachers/country-combobox'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { PushOptInCard } from '@/components/marketplace/push-opt-in-card'
 
@@ -795,8 +794,6 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
   }
 
   const L = (o: Opt) => tr(o.label, o.labelVi)
-  const countryOptions = [...COMMON_TEACHER_NATIONALITIES, ...ALL_COUNTRY_CODES.filter((c) => !(COMMON_TEACHER_NATIONALITIES as readonly string[]).includes(c))]
-  const countryItems = Object.fromEntries(countryOptions.map((c) => [c, countryName(c, lang)]))
 
   return (
     <StepWizard
@@ -841,12 +838,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
               </Field>
               <Field invalid={!!errors.nationality}>
                 <Label htmlFor="tf-nat">{tr('Nationality', 'Quốc tịch')}</Label>
-                <Select items={countryItems} value={t.nationality || null} onValueChange={(v) => set('nationality', typeof v === 'string' ? v : '')}>
-                  <SelectTrigger id="tf-nat" className="min-h-11 w-full rounded-xl"><SelectValue placeholder={tr('Choose', 'Chọn')} /></SelectTrigger>
-                  <SelectContent>
-                    {countryOptions.map((c) => <SelectItem key={c} value={c}>{countryItems[c]}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                {/* Searchable (owner, 2026-10-08). `tf-nat` lands on its <input>: the label focuses it, and a refused Next
+                    reaches it through the Field's data-invalid like every other field (revealFirstError). */}
+                <CountryCombobox id="tf-nat" value={t.nationality} onChange={(v) => set('nationality', v)} />
                 {errors.nationality && <FieldError>{errText(errors.nationality)}</FieldError>}
               </Field>
             </div>
