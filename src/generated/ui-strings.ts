@@ -2713,6 +2713,7 @@ export const UI_STRINGS: string[] = [
   "This page has moved on.",
   "This phone number is already used by another account. Each number belongs to one account.",
   "This phone number is already used by another account. Try a different one.",
+  "This photo looks like a different category. The category can’t change while editing, so nothing was filled in.",
   "This question is no longer open.",
   "This report isn’t on your account.",
   "This report was already reviewed and closed — thank you!",
