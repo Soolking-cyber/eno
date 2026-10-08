@@ -159,7 +159,7 @@ describe('when it is seen is CSS (globals.css) — and the one mount', () => {
   const CSS = readFileSync(join(process.cwd(), 'src/app/globals.css'), 'utf8')
 
   it('hidden for the first 400ms (fast navigations show nothing), faded out at 15s whatever happens', () => {
-    expect(CSS).toMatch(/\.nav-progress \{\s*animation:\s*nav-progress-in 160ms ease-out 400ms both,\s*nav-progress-out 240ms ease-in 15s forwards;/)
+    expect(CSS).toMatch(/\.nav-progress \{\s*animation:\s*nav-progress-in 160ms ease-out 400ms both,\s*nav-progress-out 240ms var\(--ease-out-strong\) 15s forwards;/) // an exit eases OUT (Emil audit, tier 4)
     expect(CSS).toMatch(/@keyframes nav-progress-in \{\s*from \{ opacity: 0; \}/)
   })
 

@@ -879,8 +879,8 @@ export function PostSuccess({
   t: T
 }) {
   return (
-    <div className="flex flex-col items-center gap-4 py-16 text-center">
-      <Mascot name="success" className="h-52 w-52" />
+    <div className="bubble-in flex flex-col items-center gap-4 py-16 text-center">
+      <Mascot name="success" className="h-52 w-52 animate-in fade-in zoom-in-90 duration-500 ease-bounce" />
       <h1 className="h-title text-foreground">
         {firstListing ? t('Tin đầu tiên của bạn đã lên sóng! 🎉', 'Your first listing is live! 🎉') : job ? t('Tin tuyển dụng của bạn đã được đăng!', 'Your job post is live!') : t('Tin của bạn đã được đăng!', 'Your listing is live!')}
       </h1>

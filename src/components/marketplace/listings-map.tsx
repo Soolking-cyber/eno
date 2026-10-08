@@ -659,7 +659,10 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
          * which reads the new size through latLngToContainerPoint.
          */
         const m = mapInstanceRef.current
-        if (m) m.invalidateSize({ pan: false })
+        // debounceMoveend: invalidateSize fires `moveend` on every call, and this observer calls it on every frame the
+        // box resizes (the chrome above the map moving) — each one re-sorted the whole side list through onMove. Leaflet
+        // then fires ONE moveend 200ms after the last resize (Emil audit, tier 4).
+        if (m) m.invalidateSize({ pan: false, debounceMoveend: true })
         const open = openCardObjRef.current
         if (open) placeCardForRef.current(open)
         // The building card has no placement helper of its own — the move handler re-places it

@@ -96,6 +96,11 @@ describe('Button loading', () => {
     expect(label.textContent).toBe('Save')
     expect(classes(label as HTMLElement)).toContain('opacity-0')
     expect(classes(label as HTMLElement)).not.toContain('invisible')
+    // The spinner settles in (@starting-style), never a one-frame swap (Emil audit, tier 4) — and the label has no
+    // starting style: @starting-style runs on first mount too, so a button born busy would flash its text.
+    expect(classes(label as HTMLElement).some((c) => c.startsWith('starting:'))).toBe(false)
+    const spinner = el.querySelector('svg.animate-spin')!.parentElement as HTMLElement
+    expect(classes(spinner)).toEqual(expect.arrayContaining(['starting:opacity-0', 'starting:scale-75']))
   })
 
   it('refuses the click while loading', () => {

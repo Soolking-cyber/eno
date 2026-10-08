@@ -127,7 +127,7 @@ export function InstallHint() {
        */
       className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-[70] px-3 pc:bottom-4 lg:px-4"
     >
-      <div className="pointer-events-auto mx-auto flex w-full max-w-sm items-center gap-3 rounded-2xl border border-foreground/10 bg-popover p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 lg:max-w-md">
+      <div className="pointer-events-auto mx-auto flex w-full max-w-sm items-center gap-3 rounded-2xl border border-foreground/10 bg-popover p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 ease-out-strong lg:max-w-md">
         {/* ⚠️ A FILE SIZED FOR THIS 40px BOX (3x), NOT /icon-192.png THROUGH next/image. The optimizer
             no longer reads public/ files (image-loader.ts `servedAsIs`), so the 7.9 KB 192px PNG would
             reach the phone as-is; this AVIF is 1,471 B (WebP twin 1,660 B for Safari < 16.4) — the

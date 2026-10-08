@@ -1363,6 +1363,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       // a genuine new publish, never on a PATCH.
       hapticConfirm()
       setSubmitted(true)
+      // The success screen replaces the whole form: start it at its top, or a form sent from the bottom bar lands the
+      // reader mid-page below the mascot and the headline (Emil audit, tier 4). Not inside the dashboard: onPosted
+      // switches its tab, and the page there is the dashboard's to place (review).
+      if (!embedded) { try { window.scrollTo({ top: 0 }) } catch { /* no scrolling here */ } }
       onPosted?.() // embedded in dashboard → refresh listings + switch tab
     } catch (e) {
       const msg = e instanceof Error ? e.message : ''

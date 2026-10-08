@@ -4063,7 +4063,7 @@ html[data-has-recents] .recents-row {
 .nav-progress {
   animation:
     nav-progress-in 160ms ease-out 400ms both,
-    nav-progress-out 240ms ease-in 15s forwards;
+    nav-progress-out 240ms var(--ease-out-strong) 15s forwards;
 }
 .nav-progress-bar {
   animation: nav-progress-sweep 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;

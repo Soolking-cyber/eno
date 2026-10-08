@@ -166,10 +166,16 @@ describe('?resume=publish after a successful publish', () => {
     r.rerender(<PostWizard categories={CATS} />)
     await act(async () => { await new Promise((res) => setTimeout(res, 0)) })
     // The ORDINARY Publish button, not the banner.
-    await act(async () => { publishButtons()[0].click() })
-    await act(async () => { await new Promise((res) => setTimeout(res, 0)) })
-    expect(h.posts).toContain('/api/listings')
-    expect(screen.getByRole('heading', { name: /job post is live|first listing is live/i })).toBeTruthy()
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    try {
+      await act(async () => { publishButtons()[0].click() })
+      await act(async () => { await new Promise((res) => setTimeout(res, 0)) })
+      expect(h.posts).toContain('/api/listings')
+      expect(screen.getByRole('heading', { name: /job post is live|first listing is live/i })).toBeTruthy()
+      expect(scrollTo).toHaveBeenCalledWith({ top: 0 }) // the success screen starts at its top (Emil audit, tier 4)
+    } finally {
+      scrollTo.mockRestore()
+    }
     expect(window.location.search).toBe('')
   })
 })
