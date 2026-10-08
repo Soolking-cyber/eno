@@ -230,9 +230,16 @@ purge comes back 200 with `"success": false`.
 regression sail through.
 
 ```bash
-E2E_BASE=https://eno.vn    npx playwright test --project=guest-desktop --project=guest-mobile
-E2E_BASE=https://eno.forum npx playwright test --project=guest-desktop
+E2E_BASE=https://eno.vn        npx playwright test --project=guest-desktop --project=guest-mobile
+E2E_BASE=https://www.eno.forum npx playwright test --project=guest-desktop --workers=2
 ```
+
+⚠️ **THE FORUM'S BASE IS `www`, ITS CANONICAL HOST.** Since dc58a7004 the apex 308s every page to
+`www.eno.forum` (next.config.ts), so `E2E_BASE=https://eno.forum` would test redirects followed into
+www rather than the pages themselves. ⚠️ Run the forum suite AFTER the eno.vn one, not beside it: eight
+workers on each against production right after a purge timed out seven forum page loads on
+2026-10-08 (cold pages + Cloudflare's bot probe), all of which passed re-run with `--workers=2` — hence
+the flag above.
 
 ⛔ And check the licensing boundary explicitly — it is the one failure that is a legal problem
 rather than a bug:
