@@ -54,6 +54,11 @@ describe('sign-out keys match the code that writes them', () => {
     expect(SIGN_OUT_SESSION_KEYS).toContain(COMPOSE_KEY)
   })
 
+  it('⛔ the teacher-profile draft (sessionStorage since 2026-10-08) is cleared from the tab, not only from localStorage', () => {
+    expect(src('src/components/teachers/teacher-form.tsx')).toMatch(/sessionStorage\.setItem\(DRAFT_KEY/)
+    expect(SIGN_OUT_SESSION_KEYS).toContain('eno.teacherDraft.v1')
+  })
+
   it('⛔ a guest’s pending action (sessionStorage, UX3 J5) is the key pending-intent.ts writes', () => {
     expect(src('src/lib/pending-intent.ts')).toMatch(/INTENT_KEY = 'eno:pending-intent'/)
     expect(SIGN_OUT_SESSION_KEYS).toContain('eno:pending-intent')
@@ -70,12 +75,13 @@ describe('clearAccountDeviceStorage', () => {
       'eno-theme': 'dark', 'lang': 'vi', 'eno-currency': 'USD', 'eno-consent-v2': 'v2.000.1.abcdefgh',
       'eno:recent_searches': '[]', 'eno:favorites': '[]',
     })
-    const ss = memoryStorage({ 'eno:rental-check:hinted': '1', 'eno:feed-snap': '{}', [COMPOSE_KEY]: '{"listingId":"x","body":"hi"}' })
+    const ss = memoryStorage({ 'eno:rental-check:hinted': '1', 'eno:feed-snap': '{}', [COMPOSE_KEY]: '{"listingId":"x","body":"hi"}', 'eno.teacherDraft.v1': '{"v":3}' })
     clearAccountDeviceStorage(ls, ss)
     const left = Array.from({ length: ls.length }, (_, i) => ls.key(i)).sort()
     expect(left).toEqual(['eno-consent-v2', 'eno-currency', 'eno-theme', 'eno:favorites', 'eno:recent_searches', 'lang'])
     expect(ss.getItem('eno:rental-check:hinted')).toBeNull()
     expect(ss.getItem(COMPOSE_KEY)).toBeNull()
+    expect(ss.getItem('eno.teacherDraft.v1')).toBeNull()
     expect(ss.getItem('eno:feed-snap')).toBe('{}')
   })
 
