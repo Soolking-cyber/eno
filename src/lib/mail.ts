@@ -148,6 +148,80 @@ export async function sendMailBatch(
   }
 }
 
+/**
+ * ⛔ ONE EMAIL THAT MUST NEVER ARRIVE TWICE — the teacher job-match emails (cron/teacher-match-emails). The caller claims
+ * its rows BEFORE sending and passes an idempotency key derived from what it claimed; this says what became of the send,
+ * classified by Resend's error NAME, never by status band (a 409 is a 4xx and proves nothing was refused):
+ *   · 'sent'    — Resend accepted it. Keep the claim.
+ *   · 'refused' — ONLY on a first attempt, and only for names that PROVE nothing was sent (the request was rejected
+ *                 before it was processed): rate limits and quotas, validation, a bad key or sender. The caller may
+ *                 release its claim for a later run. `stopRun` when every later send would fail the same way (quota,
+ *                 access, key, sender, idempotency key) — the run should end there.
+ *   · 'unknown' — everything else: a 409 (concurrent_idempotent_requests, invalid_idempotent_request), a 5xx /
+ *                 application_error, a network failure (the SDK's statusCode null: "Unable to fetch data"), a throw, and
+ *                 ANY non-success when `afterUnknown` says an earlier attempt with this key may already have been
+ *                 processed. Resend may have sent it: KEEP the claim, so the email is lost at worst, never doubled.
+ * A retry with the SAME key and payload is safe for 24 h: Resend answers it with the first request's result.
+ * Masked logging, as in sendMail. sendMail itself is unchanged for every other caller.
+ */
+export type OnceOutcome = 'sent' | 'refused' | 'unknown'
+export type OnceResult = {
+  outcome: OnceOutcome
+  /** every later send in this run would fail the same way: stop the run */
+  stopRun: boolean
+  /** Resend's error name ('rate_limit_exceeded', …), 'network' for a throw, null when sent */
+  name: string | null
+  /** Resend's retry-after (a 429), in ms, when it sent one */
+  retryAfterMs: number | null
+}
+
+/** Names that prove the request was refused before it was processed — nothing was sent. */
+const NOTHING_SENT = new Set([
+  'rate_limit_exceeded', 'daily_quota_exceeded', 'monthly_quota_exceeded',
+  'validation_error', 'missing_required_field', 'invalid_parameter', 'invalid_from_address', 'invalid_attachment',
+  'invalid_idempotency_key', 'invalid_access', 'invalid_api_key', 'restricted_api_key', 'missing_api_key',
+])
+/** …and of those, the ones every later send of the run would hit too (the quota, the key, the sender, the key format). */
+const STOP_RUN = new Set([
+  'daily_quota_exceeded', 'monthly_quota_exceeded', 'invalid_access', 'invalid_api_key', 'restricted_api_key', 'missing_api_key',
+  'invalid_idempotency_key', 'invalid_from_address',
+])
+
+export async function sendMailOnce(
+  msg: Omit<MailMessage, 'attachments'>,
+  opts: { idempotencyKey: string; afterUnknown?: boolean },
+): Promise<OnceResult> {
+  const who = maskEmail(msg.to)
+  if (!resend) {
+    console.warn('[mail] RESEND_API_KEY not set — email disabled (skipped', who + ')')
+    return { outcome: 'refused', stopRun: true, name: 'disabled', retryAfterMs: null }
+  }
+  try {
+    const res = await resend.emails.send(
+      { from: fromHeader(msg.fromName), to: msg.to, subject: msg.subject, html: msg.html, text: msg.text, headers: msg.headers },
+      { idempotencyKey: opts.idempotencyKey },
+    )
+    if (!res.error) {
+      if (res.data?.id) return { outcome: 'sent', stopRun: false, name: null, retryAfterMs: null }
+      // No error and no id is not a shape Resend documents: it may have been accepted.
+      console.error('[mail] once: no id and no error', who)
+      return { outcome: 'unknown', stopRun: false, name: 'no_id', retryAfterMs: null }
+    }
+    const { name, statusCode } = res.error
+    const after = Number(res.headers?.['retry-after'])
+    const retryAfterMs = Number.isFinite(after) && after > 0 ? after * 1000 : null
+    if (!opts.afterUnknown && statusCode != null && NOTHING_SENT.has(name)) {
+      console.error('[mail] once refused', who, name, statusCode)
+      return { outcome: 'refused', stopRun: STOP_RUN.has(name), name, retryAfterMs }
+    }
+    console.error('[mail] once unclear', who, name, statusCode)
+    return { outcome: 'unknown', stopRun: false, name, retryAfterMs }
+  } catch (e) {
+    console.error('[mail] once threw', who, e)
+    return { outcome: 'unknown', stopRun: false, name: 'network', retryAfterMs: null }
+  }
+}
+
 /** Send one email. Returns true on success; never throws (logs + returns false). */
 export async function sendMail(msg: MailMessage): Promise<boolean> {
   const who = maskEmail(msg.to)

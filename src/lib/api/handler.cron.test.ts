@@ -6,7 +6,7 @@ import { route } from '@/lib/api/handler'
 // probe their auth branch, which runs before any of these are touched. Stubs, not fixtures.
 vi.mock('@/lib/db', () => ({ db: {} }))
 vi.mock('@/lib/push', () => ({ sendPushToProfile: async () => 0 }))
-vi.mock('@/lib/mail', () => ({ sendMail: async () => true, mailEnabled: () => false }))
+vi.mock('@/lib/mail', () => ({ sendMail: async () => true, sendMailOnce: async () => ({ outcome: 'sent', stopRun: false, name: null, retryAfterMs: null }), mailEnabled: () => false }))
 vi.mock('@/lib/supabase-admin', () => ({ getSupabaseAdmin: () => ({}), LISTING_VIDEOS_BUCKET: 'v' }))
 // ⚠️ NEEDED ONLY BY THE ACCEPT-PATH ASSERTION BELOW, WHICH ACTUALLY ENTERS THE HANDLERS. With `db`
 // stubbed to `{}`, weekly-digest's fan-out floated a rejection that escaped route()'s catch and
@@ -164,6 +164,8 @@ describe('the six migrated cron routes still emit the legacy 401', () => {
     'saved-search-alerts': () => import('@/app/api/cron/saved-search-alerts/route'),
     'video-gc': () => import('@/app/api/cron/video-gc/route'),
     'weekly-digest': () => import('@/app/api/cron/weekly-digest/route'),
+    // The teacher job-match emails (2026-10-08: started by the /teachers skill's send after the owner approves a plan).
+    'teacher-match-emails': () => import('@/app/api/cron/teacher-match-emails/route'),
     'visa-retention (.svc)': () => import('@/app/api/cron/visa-retention/route.svc'),
   }
   for (const [name, load] of Object.entries(mods)) {

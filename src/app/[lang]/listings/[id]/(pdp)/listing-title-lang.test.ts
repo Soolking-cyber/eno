@@ -62,3 +62,17 @@ describe('listing <title> by variant (V2b)', () => {
     expect(m.description).toMatch(/on eno\.forum$/) // the suite runs as the services edition (vitest.config.ts)
   })
 })
+
+// ⛔ A TEACHER ABROAD IS NOT "IN VIETNAM" (teacher onboarding redesign, 2026-10-08): their row has no city (projection.ts
+// teacherHome writes ''), and the title says only what is true — as the profile's JSON-LD now does.
+describe('a teacher profile\'s <title>', () => {
+  const teacher = { title: 'Jane Doe', titleVi: null, listingType: 'teacher', price: 0, category: { name: 'Teachers', slug: 'teachers' } }
+  it('a teacher living in Vietnam: "Teacher in Vietnam" — no price ever', async () => {
+    expect((await meta('en', { ...teacher, city: 'Hồ Chí Minh' })).title).toMatch(/^Jane Doe — Teacher in Vietnam \| /)
+    expect((await meta('vi', { ...teacher, city: 'Gia Lai' })).title).toMatch(/^Jane Doe — Giáo viên tại Việt Nam \| /)
+  })
+  it('a teacher abroad (city \'\'): "Teacher", never "in Vietnam"', async () => {
+    expect((await meta('en', { ...teacher, city: '', location: 'Not in Vietnam yet · Online' })).title).toMatch(/^Jane Doe — Teacher \| /)
+    expect((await meta('vi', { ...teacher, city: '' })).title).toMatch(/^Jane Doe — Giáo viên \| /)
+  })
+})

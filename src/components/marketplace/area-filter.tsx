@@ -84,8 +84,14 @@ function DisabledField({ label }: { label: string }) {
  */
 export function AreaFilter({
   open, anchorRef, onClose, province, ward, district = 'all', onPickDistrict, nearby, onApply, onReset, mode = 'search', hideLocate = false,
-  districtCounts, provinceCounts,
+  districtCounts, provinceCounts, title,
 }: {
+  /**
+   * What the panel is called — its phone sheet's title and its popover's name. Omitted: "Area". The teachers browse
+   * passes "Lives in" (teacher onboarding redesign, 2026-10-08): there a row's place is where the teacher lives, and
+   * a "Can teach in" pill stands beside this one — the panel must not answer to a different name than its pill.
+   */
+  title?: string
   open: boolean
   anchorRef?: RefObject<HTMLElement | null>
   onClose: () => void
@@ -511,7 +517,7 @@ export function AreaFilter({
         {/* Named by its DrawerTitle (Base UI wires aria-labelledby), which outranks any aria-label. */}
         <DrawerContent finalFocus={anchorRef}>
           <DrawerHeader className="flex-row items-center justify-between gap-3 pb-1 text-left">
-            <DrawerTitle className="text-base font-bold">{tr('Area', 'Khu vực')}</DrawerTitle>
+            <DrawerTitle className="text-base font-bold">{title ?? tr('Area', 'Khu vực')}</DrawerTitle>
             {/* The 24px box the header row was laid out for — CloseButton's `2xs` (D-CLOSE). */}
             <CloseButton size="2xs" onClick={onClose} className="-mr-1 hover:bg-muted" />
           </DrawerHeader>
@@ -557,7 +563,7 @@ export function AreaFilter({
               strong ease-out as every other popover — exits faster than entrances. */}
           <PopoverPrimitive.Popup
             finalFocus={anchorRef}
-            aria-label={tr('Choose area', 'Chọn khu vực')}
+            aria-label={title ?? tr('Choose area', 'Chọn khu vực')}
             className="w-90 max-h-[min(72vh,var(--available-height,72vh))] max-w-[calc(100vw-1rem)] overflow-y-auto rounded-2xl border border-border bg-popover px-4 pt-4 shadow-pop scroll-thin origin-(--transform-origin) duration-100 ease-[var(--ease-out-strong)] data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-[side=bottom]:data-closed:slide-out-to-top-2 data-[side=top]:data-closed:slide-out-to-bottom-2 data-closed:duration-75"
           >
             {content}

@@ -2,7 +2,9 @@
 
 // The contact strip of a TEACHER thread (2026-09-30), replacing the product "Request number" strip.
 //   · teacher (seller side): "Share my phone, email & CV" / "Stop sharing" — their explicit tap, not
-//     any reply, is what unlocks their details (owner decision; "no thanks" must unlock nothing);
+//     any reply, is what unlocks their details (owner decision; "no thanks" must unlock nothing). With no phone on
+//     file it reads "Share my email & CV" (A3, owner 2026-10-08: the phone is required only for staff calls) — and that
+//     share never picks up a phone added later: "Share my phone too" is offered instead (gate review, 2026-10-09);
 //   · recruiter (buyer side): the shared phone, email and CV once shared, else a waiting hint.
 // Its second row (2026-10-07, owner: "hide and send upon request") is the intro video a teacher keeps private:
 //   · teacher: "Send my intro video" / "Stop sharing video", with the school's ask shown when there is one;
@@ -12,7 +14,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
-import { FileText, Phone, Play, Video } from '@/components/ui/icons'
+import { FileText, Mail, Phone, Play, Video } from '@/components/ui/icons'
 import { isNativeShell, openExternal } from '@/lib/native-browser'
 
 type Contact = { phone: string | null; email: string | null; hasCv: boolean }
@@ -28,19 +30,29 @@ const MAX_REMINTS = 2
 const REMINT_WITHIN_MS = 60_000
 
 /**
+ * `hasPhone` — the TEACHER has a phone on file (the thread payload's `teacher.hasPhone`, sent to the teacher only). A3
+ * (owner, 2026-10-08): the phone is optional unless "Our staff may call me" is on, so the button and the shared line
+ * name only what is handed over. Absent (an older payload) reads as true — the wording the strip always had.
+ * `phoneShared` — the standing share INCLUDED the phone (`teacher.phoneShared`, teacher only — gate review, 2026-10-09):
+ * the flag /api/teachers/contact serves the phone by. A share made as "email & CV" stays one after a phone is added, so
+ * the strip keeps saying so and offers "Share my phone too" (a re-share). Absent reads as true: never tell a teacher the
+ * phone is private when it may not be — the wording errs toward "shared".
  * `closed` — the thread is CLOSED by a block (App Store gate `ugc-safety`). The page then mounts the strip
  * for the TEACHER only, and only so a share made before the block can be WITHDRAWN: the strip shows "Stop
  * sharing" while a share stands and nothing otherwise — a Share button there could only be refused
  * (codex, gate round 3). The video row follows the same rule.
  * `videoReadAt` — when the page's read that brought `video` STARTED (performance.now(), readThread); absent = now.
  */
-export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedProp, live = true, shareSignal, closed = false, video: videoProp = null, videoReadAt, videoSignal = 0 }: { conversationId: string; iAmTeacher: boolean; shared: boolean; live?: boolean; shareSignal: number; closed?: boolean; video?: TeacherVideoFlags | null; videoReadAt?: number; videoSignal?: number }) {
+export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedProp, live = true, shareSignal, closed = false, video: videoProp = null, videoReadAt, videoSignal = 0, hasPhone = true, phoneShared: phoneSharedProp = true }: { conversationId: string; iAmTeacher: boolean; shared: boolean; live?: boolean; shareSignal: number; closed?: boolean; video?: TeacherVideoFlags | null; videoReadAt?: number; videoSignal?: number; hasPhone?: boolean; phoneShared?: boolean }) {
   const { tr } = useLanguage()
   const [shared, setShared] = useState(sharedProp)
-  const [busy, setBusy] = useState(false)
+  const [phoneShared, setPhoneShared] = useState(phoneSharedProp)
+  // WHICH of the teacher's taps is out (null = none): the shared row carries two buttons, and only the tapped one spins.
+  const [busy, setBusy] = useState<null | 'share' | 'phone' | 'stop'>(null)
   const [contact, setContact] = useState<Contact | null>(null)
   const [error, setError] = useState('')
   useEffect(() => { setShared(sharedProp) }, [sharedProp])
+  useEffect(() => { setPhoneShared(phoneSharedProp) }, [phoneSharedProp])
 
   // ⚠️ THE RECRUITER'S SIDE ASKS THE SERVER on mount and whenever `shareSignal` moves — the count of
   // share/revoke ANNOUNCEMENTS in the thread, not of all messages. A share or revoke arrives as a
@@ -293,14 +305,28 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
     }
   }
 
-  const toggle = async (next: boolean) => {
+  /**
+   * The teacher's three taps: Share, "Share my phone too", Stop sharing. ⛔ `phone` SAYS THE TAPPED LABEL NAMED THE PHONE —
+   * Share names it exactly when this render has a phone on file, "Share my phone too" always — and the server hands a phone
+   * over only then (gate review, 2026-10-09: the tap is the consent; a label read off an older payload may not name a phone
+   * added since). The answer is the share as it now stands.
+   */
+  const toggle = async (action: 'share' | 'phone' | 'stop') => {
     // `loading` keeps the button focusable (aria-disabled), so the double-tap guard lives here.
     if (busy) return
-    setBusy(true); setError('')
+    const next = action !== 'stop'
+    const withPhone = action === 'phone' || (action === 'share' && hasPhone)
+    setBusy(action); setError('')
     try {
-      const r = await fetch('/api/teachers/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversationId, share: next }) })
-      if (r.ok) setShared(next)
-      else {
+      // "Share my phone too" says so (`addPhone`): it may only ADD to a standing share — never re-grant a stopped one.
+      const r = await fetch('/api/teachers/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversationId, share: next, ...(next ? { phone: withPhone } : {}), ...(action === 'phone' ? { addPhone: true } : {}) }) })
+      if (r.ok) {
+        const d = await r.json().catch(() => ({}))
+        // The server's word on the share too: an "add my phone" that found the share stopped (another tab) answers false.
+        setShared(typeof d.shared === 'boolean' ? d.shared : next)
+        // The server's word on the phone (a re-share that found it already shared, or no phone on file any more).
+        setPhoneShared(typeof d.phoneShared === 'boolean' ? d.phoneShared : next && withPhone)
+      } else {
         const code = (await r.json().catch(() => ({}))).error
         setError(code === 'profile_hidden'
           ? tr('Show your profile again before sharing your contact details.', 'Hãy hiển thị lại hồ sơ trước khi chia sẻ thông tin liên hệ.')
@@ -310,7 +336,7 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
             ? tr('This conversation is closed — contact details can’t be shared here.', 'Cuộc trò chuyện này đã đóng — không thể chia sẻ thông tin liên hệ ở đây.')
             : tr('Could not update sharing. Please try again.', 'Không cập nhật được. Vui lòng thử lại.'))
       }
-    } finally { setBusy(false) }
+    } finally { setBusy(null) }
   }
 
   const videoShareOn = !!video?.shareOn
@@ -388,14 +414,29 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
           <>
             <p className="text-2xs text-body">{closed
               ? tr('Your details are still shared, but this school can’t see them while the conversation is closed.', 'Thông tin của bạn vẫn đang được chia sẻ, nhưng trường không xem được khi cuộc trò chuyện đang đóng.')
-              : live ? tr('This school can see your phone, email and CV.', 'Trường này xem được số điện thoại, email và CV của bạn.') : tr('Paused while your profile is hidden — the school sees nothing until it is visible again.', 'Tạm dừng khi hồ sơ bị ẩn — trường không xem được gì cho đến khi hồ sơ hiển thị lại.')}</p>
-            <Button variant="ghost" size="sm" onClick={() => toggle(false)} loading={busy}>{tr('Stop sharing', 'Ngừng chia sẻ')}</Button>
+              : live
+                // ⛔ WHAT THIS SCHOOL SEES NOW (gate review, 2026-10-09): the phone only when this share included it AND one
+                // is on file — an "email & CV" share keeps saying so after a phone is added (the contact route withholds it).
+                ? (phoneShared && hasPhone
+                  ? tr('This school can see your phone, email and CV.', 'Trường này xem được số điện thoại, email và CV của bạn.')
+                  : tr('This school can see your email and CV.', 'Trường này xem được email và CV của bạn.'))
+                : tr('Paused while your profile is hidden — the school sees nothing until it is visible again.', 'Tạm dừng khi hồ sơ bị ẩn — trường không xem được gì cho đến khi hồ sơ hiển thị lại.')}</p>
+            {/* A phone added since an "email & CV" share is never handed over by it: one tap here, never automatic. Not on a
+                closed thread or a hidden profile — the share route refuses a share there. */}
+            {!phoneShared && hasPhone && live && !closed && (
+              <Button variant="secondary" size="sm" onClick={() => toggle('phone')} loading={busy === 'phone'}>
+                <Phone className="size-4" />
+                {tr('Share my phone too', 'Chia sẻ thêm số điện thoại')}
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => toggle('stop')} loading={busy === 'stop'}>{tr('Stop sharing', 'Ngừng chia sẻ')}</Button>
           </>
         ) : (
           <>
-            <Button variant="cta" size="sm" onClick={() => toggle(true)} loading={busy}>
-              <Phone className="h-3.5 w-3.5" />
-              {tr('Share my phone, email & CV', 'Chia sẻ số điện thoại, email và CV')}
+            <Button variant="cta" size="sm" onClick={() => toggle('share')} loading={busy === 'share'}>
+              {/* ⛔ IT NAMES ONLY WHAT IS HANDED OVER (A3, owner 2026-10-08): no phone on file, no phone promised. */}
+              {hasPhone ? <Phone className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
+              {hasPhone ? tr('Share my phone, email & CV', 'Chia sẻ số điện thoại, email và CV') : tr('Share my email & CV', 'Chia sẻ email và CV')}
             </Button>
             <p className="text-2xs text-muted-foreground">{tr('Only this school sees them, and you can stop any time.', 'Chỉ trường này xem được, và bạn có thể ngừng bất cứ lúc nào.')}</p>
           </>

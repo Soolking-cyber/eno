@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { CurrencyProvider } from '@/context/currency-context'
@@ -604,7 +604,8 @@ describe('the cover-area pill on the teachers cover browse (preview check, 2026-
   it('puts a "Cover area" pill before Area once "Available for cover" is on — Area still filters where they live', () => {
     renderIn('en', <FacetBar {...teachers({ cover: 'open' })} />)
     const coverArea = screen.getByRole('combobox', { name: /cover area/i })
-    const area = screen.getByRole('button', { name: /^area$/i })
+    // On /c/teachers the Area pill is where the teacher LIVES (2026-10-08) — it says so.
+    const area = screen.getByRole('button', { name: /^lives in$/i })
     expect(coverArea.compareDocumentPosition(area) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
@@ -616,5 +617,169 @@ describe('the cover-area pill on the teachers cover browse (preview check, 2026-
   it('stays off the bar without the cover filter', () => {
     renderIn('en', <FacetBar {...teachers({})} />)
     expect(screen.queryByRole('combobox', { name: /cover area/i })).toBeNull()
+  })
+})
+
+/**
+ * ⛔ "CAN TEACH IN", "LIVES IN" AND "IN VIETNAM NOW" ON /c/teachers (teacher onboarding redesign, owner, 2026-10-08). The
+ * "Can teach in" filter has 65 places (12 cities, HCMC's 24 districts, 27 provinces, Online, "Will move anywhere"), so
+ * its pill draws only the ones that narrow, grouped under headings and searchable; the Area pill beside it is where the
+ * teacher lives; "In Vietnam now" is a toggle in Filter. Place names are never machine-translated; Online is a word.
+ */
+describe('the teachers browse — "Can teach in", "Lives in", "In Vietnam now"', () => {
+  const teachers = (customFilters: Record<string, string> = {}, over: Partial<FacetBarProps> = {}) =>
+    props({ activeCategory: 'teachers', histogramQuery: 'category=teachers', customFilters, ...over })
+  // Ten teachers in view. Da Nang is every one of them (a tap narrows nothing); Hai Phong none.
+  const COUNTS = Object.freeze({
+    attrScope: 'teachers/all',
+    attr: Object.freeze({
+      workIn: Object.freeze({ all: 10, values: Object.freeze({ online: 4, anywhere: 2, 'ho-chi-minh-city': 6, 'ha-noi': 3, 'da-nang': 10, 'hai-phong': 0, d7: 2, 'p-52': 1 }) }),
+      inVietnam: Object.freeze({ all: 10, values: Object.freeze({ yes: 6 }) }),
+    }),
+  }) as unknown as FacetCounts
+
+  it('puts "Can teach in" before the Area pill, which reads "Lives in" — and the Area pill stays "Area" elsewhere', () => {
+    renderIn('en', <FacetBar {...teachers()} />)
+    const teachIn = screen.getByRole('combobox', { name: /can teach in/i })
+    const livesIn = screen.getByRole('button', { name: /^lives in$/i })
+    expect(teachIn.compareDocumentPosition(livesIn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    cleanup()
+    renderIn('en', <FacetBar {...props()} />)
+    expect(screen.getByRole('button', { name: /^area$/i })).toBeTruthy()
+    expect(screen.queryByRole('combobox', { name: /can teach in/i })).toBeNull()
+  })
+
+  it('draws only the places that narrow, each with its count — the wide picks first, then a heading per kind of place', async () => {
+    const user = userEvent.setup()
+    renderIn('en', <FacetBar {...teachers({}, { facetCounts: COUNTS })} />)
+    await user.click(screen.getByRole('combobox', { name: /can teach in/i }))
+    const listbox = await screen.findByRole('listbox')
+    const rows = within(listbox).getAllByRole('option').map((o) => o.textContent)
+    expect(rows).toEqual(['All · 10', 'Online · 4', 'Will move anywhere · 2', 'Ho Chi Minh City · 6', 'Hanoi · 3', 'District 7 (Phu My Hung) · 2', 'Gia Lai · 1'])
+    // Da Nang is all ten (a tap narrows nothing), Hai Phong none: neither is offered.
+    expect(listbox.textContent).not.toMatch(/Da Nang|Hai Phong/)
+    expect(within(listbox).getAllByRole('group').map((g) => g.getAttribute('aria-labelledby') && document.getElementById(g.getAttribute('aria-labelledby')!)?.textContent))
+      .toEqual(['Cities', 'Ho Chi Minh City districts', 'Other provinces'])
+  })
+
+  it('is searchable — typing keeps only the matching places, with their headings', async () => {
+    const user = userEvent.setup()
+    renderIn('en', <FacetBar {...teachers({}, { facetCounts: COUNTS })} />)
+    await user.click(screen.getByRole('combobox', { name: /can teach in/i }))
+    // The popup's own search field (the trigger is a combobox of the same name, so it is found by its placeholder).
+    await user.type(await screen.findByPlaceholderText('Search'), 'gia')
+    await waitFor(() => {
+      const listbox = screen.getByRole('listbox')
+      expect(within(listbox).getAllByRole('option').map((o) => o.textContent)).toEqual(['Gia Lai · 1'])
+      // The heading of the one group that still matches stays; the others go with their rows.
+      expect(within(listbox).getAllByRole('group').map((g) => g.textContent?.startsWith('Other provinces'))).toEqual([true])
+    })
+  })
+
+  it('⛔ its search matches a place\'s NAME, never its count — "1" finds District 1 and 10, not every place counted 1 (gate review, 2026-10-08)', async () => {
+    const user = userEvent.setup()
+    const numbered = { attrScope: 'teachers/all', attr: { workIn: { all: 11, values: { online: 1, 'ha-noi': 1, 'da-nang': 1, d1: 3, d10: 1, d7: 1, 'p-52': 1 } } } } as unknown as FacetCounts
+    renderIn('en', <FacetBar {...teachers({}, { facetCounts: numbered })} />)
+    await user.click(screen.getByRole('combobox', { name: /can teach in/i }))
+    await user.type(await screen.findByPlaceholderText('Search'), '1')
+    await waitFor(() => {
+      expect(within(screen.getByRole('listbox')).getAllByRole('option').map((o) => o.textContent)).toEqual(['District 1 · 3', 'District 10 · 1'])
+    })
+  })
+
+  it('a pick is the workIn filter — the same value the Filter panel sets', async () => {
+    const user = userEvent.setup()
+    const setCustomFilters = vi.fn()
+    renderIn('en', <FacetBar {...teachers({}, { facetCounts: COUNTS, setCustomFilters })} />)
+    await user.click(screen.getByRole('combobox', { name: /can teach in/i }))
+    await user.click(within(await screen.findByRole('listbox')).getByRole('option', { name: /^District 7/ }))
+    const update = setCustomFilters.mock.calls.at(-1)![0] as (prev: Record<string, string>) => Record<string, string>
+    expect(update({})).toEqual({ workIn: 'd7' })
+  })
+
+  it('names the picked place in the page language, never machine-translated — and Online as a word', () => {
+    renderIn('vi', <FacetBar {...teachers({ workIn: 'd7' })} />)
+    expect(screen.getByRole('combobox', { name: /có thể dạy tại/i }).textContent).toContain('Có thể dạy tại: Quận 7 (Phú Mỹ Hưng)')
+    cleanup()
+    renderIn('vi', <FacetBar {...teachers({ workIn: 'online' })} />)
+    expect(screen.getByRole('combobox', { name: /có thể dạy tại/i }).textContent).toContain('Có thể dạy tại: Trực tuyến')
+  })
+
+  it('a short list is a plain menu, still under its headings', async () => {
+    const user = userEvent.setup()
+    const few = { attrScope: 'teachers/all', attr: { workIn: { all: 10, values: { online: 4, 'ha-noi': 3 } } } } as unknown as FacetCounts
+    renderIn('en', <FacetBar {...teachers({}, { facetCounts: few })} />)
+    await user.click(screen.getByRole('combobox', { name: /can teach in/i }))
+    const listbox = await screen.findByRole('listbox')
+    expect(within(listbox).getAllByRole('option').map((o) => o.textContent)).toEqual(['All · 10', 'Online · 4', 'Hanoi · 3'])
+    expect(within(listbox).getByRole('group', { name: 'Cities' })).toBeTruthy()
+  })
+
+  it('while "Available for cover" is on, the Cover-area pill takes its slot — unless a place is already picked here', () => {
+    renderIn('en', <FacetBar {...teachers({ cover: 'open' })} />)
+    expect(screen.queryByRole('combobox', { name: /can teach in/i })).toBeNull()
+    expect(screen.getByRole('combobox', { name: /cover area/i })).toBeTruthy()
+    cleanup()
+    // A set filter keeps its pill, so it can be read and cleared: Can teach in · Cover area · Lives in.
+    renderIn('en', <FacetBar {...teachers({ cover: 'open', workIn: 'ha-noi' })} />)
+    const teachIn = screen.getByRole('combobox', { name: /can teach in/i })
+    const coverArea = screen.getByRole('combobox', { name: /cover area/i })
+    const livesIn = screen.getByRole('button', { name: /^lives in$/i })
+    expect(teachIn.textContent).toContain('Can teach in: Hanoi')
+    expect(teachIn.compareDocumentPosition(coverArea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(coverArea.compareDocumentPosition(livesIn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('⛔ the "Lives in" panel offers no "near me" — a teacher row has no coordinates, so a radius finds no one (gate review, 2026-10-08)', async () => {
+    const user = userEvent.setup()
+    renderIn('en', <FacetBar {...teachers()} />)
+    await user.click(screen.getByRole('button', { name: /^lives in$/i }))
+    const panel = await screen.findByRole('dialog', { name: 'Lives in' })
+    expect(within(panel).queryByRole('button', { name: 'Use my current location' })).toBeNull()
+    expect(within(panel).queryByText('Search area')).toBeNull()
+    cleanup()
+    // Every other browse keeps it.
+    renderIn('en', <FacetBar {...props()} />)
+    await user.click(screen.getByRole('button', { name: /^area$/i }))
+    expect(within(await screen.findByRole('dialog', { name: 'Choose area' })).getByRole('button', { name: 'Use my current location' })).toBeTruthy()
+  })
+
+  it('…and a radius carried in from another browse is dropped by its Apply, never re-applied unseen', async () => {
+    const user = userEvent.setup()
+    const setNearby = vi.fn()
+    renderIn('en', <FacetBar {...teachers({}, { nearby: { lat: 10.73, lng: 106.72, radiusKm: 3 }, setNearby })} />)
+    await user.click(screen.getByRole('button', { name: /^within 3 km$/i }))
+    await user.click(within(await screen.findByRole('dialog', { name: 'Lives in' })).getByRole('button', { name: 'Apply' }))
+    expect(setNearby).toHaveBeenCalledWith(null)
+  })
+
+  it('"Lives in: <place>" once a place is picked — never a bare city beside "Can teach in"', () => {
+    renderIn('vi', <FacetBar {...teachers({}, { province: { code: '01', name: 'Hà Nội', nameEn: 'Ha Noi' } })} />)
+    expect(screen.getByRole('button', { name: /^sống tại: hà nội$/i })).toBeTruthy()
+    cleanup()
+    renderIn('en', <FacetBar {...teachers({}, { district: 'd7' })} />)
+    expect(screen.getByRole('button', { name: /^lives in: district 7/i })).toBeTruthy()
+  })
+
+  it('"In Vietnam now" is a toggle in Filter, with its count — and gone when every teacher in view is in Vietnam', async () => {
+    const user = userEvent.setup()
+    renderIn('en', <FacetBar {...teachers({}, { facetCounts: COUNTS })} />)
+    const panel = await openPanel(user)
+    const toggle = within(panel).getByRole('group', { name: 'In Vietnam now' })
+    const chip = within(toggle).getByRole('button', { name: /^In Vietnam now, 6 /i })
+    expect(chip.getAttribute('aria-pressed')).toBe('false')
+    cleanup()
+    const everyone = { attrScope: 'teachers/all', attr: { inVietnam: { all: 10, values: { yes: 10 } } } } as unknown as FacetCounts
+    renderIn('en', <FacetBar {...teachers({}, { facetCounts: everyone })} />)
+    expect(within(await openPanel(userEvent.setup())).queryByRole('group', { name: 'In Vietnam now' })).toBeNull()
+  })
+
+  it('Filter\'s own "Can teach in" field draws the same grouped menu as the pill', async () => {
+    const user = userEvent.setup()
+    renderIn('en', <FacetBar {...teachers({}, { facetCounts: COUNTS })} />)
+    const panel = await openPanel(user)
+    await user.click(within(panel).getByRole('combobox', { name: /can teach in/i }))
+    const listbox = (await screen.findAllByRole('listbox')).at(-1)!
+    expect(within(listbox).getAllByRole('option').map((o) => o.textContent)).toEqual(['All · 10', 'Online · 4', 'Will move anywhere · 2', 'Ho Chi Minh City · 6', 'Hanoi · 3', 'District 7 (Phu My Hung) · 2', 'Gia Lai · 1'])
   })
 })

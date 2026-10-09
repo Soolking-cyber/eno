@@ -10,6 +10,7 @@ import Image from 'next/image'
 import { Inbox, AlertTriangle, X, Clock, Bookmark } from '@/components/ui/icons'
 import { toast } from 'sonner'
 import type { SerializedListingCard, SerializedCategory, BuildingPin } from '@/lib/types'
+import { categoryHasMap, mapPinRows } from './map-pin-rows'
 // ⚠️ TYPE-ONLY, AND IT MUST STAY THAT WAY. src/lib/facet-counts.ts is `server-only` and pulls the
 // Prisma chain; a value import here would drag it into the client bundle (or fail the build).
 // `import type` is erased at compile, so this costs nothing at runtime.
@@ -575,7 +576,15 @@ export function ListingsExplorer({
   // feed) — one effect for all four paths that set the province. See use-drop-stale-district.ts.
   useDropStaleDistrict(activeProvince?.code ?? null, setActiveDistrict)
   const [activeWard, setActiveWard] = useState<Geo | null>(areaInit?.area.ward ?? null)
-  const [nearby, setNearby] = useState<Nearby | null>(areaInit?.area.nearby ?? null) // {lat,lng,radiusKm} when "search near you" is on
+  const [nearbyState, setNearby] = useState<Nearby | null>(areaInit?.area.nearby ?? null) // {lat,lng,radiusKm} when "search near you" is on
+  /**
+   * ⛔ NO "NEAR ME" RADIUS OVER A FEED WHOSE ROWS HAVE NO PLACE (teachers — map-pin-rows.ts categoryHasMap, the same reason
+   * there is no map; commit gate, 2026-10-09 — Opus). A radius carried in from another browse ("Within 3 km" on rentals)
+   * filtered the teachers feed to NOTHING until the reader found "Lives in" and pressed Apply. DERIVED, never reset: every
+   * reader below — the request, the cache key, the area pill, the entry's history.state — sees no radius on this feed,
+   * and the reader's own radius is still there when they go back to rentals.
+   */
+  const nearby = categoryHasMap(activeCategory) ? nearbyState : null
   // Every ward the explorer holds is remembered for the document, so Back to its URL resolves it at once (vn-areas.ts).
   useEffect(() => { rememberWard(activeProvince?.code, activeWard) }, [activeProvince?.code, activeWard])
   const [conditionFilter, setConditionFilter] = useState(urlInit?.condition ?? 'all') // 'all' | 'new' | 'used'
@@ -636,13 +645,37 @@ export function ListingsExplorer({
   }, [])
   // See DEFAULT_VIEW for why this is 'grid' and not 'compact'. The compact row is one tap away
   // on the view toggles, and ?view=compact still deep-links straight to it.
-  const [viewMode, setViewMode] = useState<ViewMode>(urlInit?.view ?? DEFAULT_VIEW)
+  const [viewState, setViewMode] = useState<ViewMode>(urlInit?.view ?? DEFAULT_VIEW)
+  /**
+   * ⛔ THE TEACHERS FEED HAS NO MAP VIEW (gate review, 2026-10-09). Every row on `?category=teachers` is a teacher (only the
+   * teacher form writes that category — taxonomy.ts NON_POSTING_CATEGORIES — and no other feed returns one: feed-query.ts
+   * teacherExclusion), and a teacher is never a pin (map-pin-rows.ts: a person has places they can teach, not a location).
+   * So that map ALWAYS came up without a single pin — 60dvh of streets over the list on a phone, a sticky column of them
+   * beside it on desktop, nothing saying why — and /c/teachers' "Filters" link lands right on this feed.
+   * ⛔ ONE RULE AT THE STATE, NOT A GUARD PER ROUTE. The toolbar's tab is gone (`showMap`), but 'map' also arrives from
+   * `?view=map` (a client mount's seed, the `?view=` reader, Back/Forward — and links: the header's Map off the explorer
+   * keeps a /c/teachers category, the /c/teachers/<district> hub has a Map link) and from a category change made ON the
+   * map (a tile, a typeahead or alert URL: none of them touch the view). Patching each is how the next one gets missed —
+   * the un-latch below says the same. So `viewMode` is the view ON SCREEN: on this feed a 'map' reads as the default
+   * view for every reader — the map block and its queries never start, and the URL writer drops `view=map` in place.
+   * ⚠️ THE STATE IS PUT BACK TOO, during render (adjust-state-during-render, as `foldArmed` below): a 'map' left behind
+   * came back the moment the reader left teachers — a view the URL had stopped naming, so a reload and a Back disagreed
+   * about one address. Derived AND reset: the derived value keeps even the render that resets it from starting the
+   * map's queries.
+   * ⚠️ Every other feed: `mapOffered` is true and `viewMode` IS `viewState` — unchanged.
+   */
+  const mapOffered = categoryHasMap(activeCategory)
+  if (!mapOffered && viewState === 'map') setViewMode(DEFAULT_VIEW)
+  const viewMode: ViewMode = !mapOffered && viewState === 'map' ? DEFAULT_VIEW : viewState
   // The full-screen Video view remembers the view to fall back to on close (so exiting the
   // takeover lands the user back where they were, not always on the grid).
   const prevViewRef = useRef<ViewMode>(DEFAULT_VIEW)
   /** The view on screen, for handlers registered once (the map switch is a committed change only when it is one). */
   const viewModeRef = useRef<ViewMode>(viewMode)
   useEffect(() => { viewModeRef.current = viewMode }, [viewMode])
+  /** `mapOffered`, for the same once-registered handlers (the header's Map, "show on map"). */
+  const mapOfferedRef = useRef(mapOffered)
+  useEffect(() => { mapOfferedRef.current = mapOffered }, [mapOffered])
   const changeView = useCallback((m: ViewMode) => {
     /**
      * ⛔ INTO OR OUT OF THE MAP IS A STEP BACK UNDOES (UX3 NAV-1, `commitView`): the map is a takeover of the
@@ -677,6 +710,7 @@ export function ListingsExplorer({
     const v = new URLSearchParams(window.location.search).get('view')
     // Also open the results view — landing + viewMode alone left the footer's
     // "Map" link on the landing hero, which read as a dead link.
+    // (⛔ `?view=map` on the teachers feed still shows the default view — `mapOffered`, beside the view state.)
     if (v === 'map' || v === 'grid' || v === 'compact' || v === 'video') { setViewMode(v); setShowExplorer(true) }
     else if (returning) { setViewMode('video'); setShowExplorer(true) }
   }, [])
@@ -805,8 +839,10 @@ export function ListingsExplorer({
   // Map view: inject the out-of-feed focus listing (For You rail / ?focus= deep
   // link) ahead of the feed. Memoized — an inline expression allocated a fresh
   // array every render, forcing the map's markers effect to re-run needlessly.
+  // ⛔ A TEACHER IS NEVER A MAP PIN (2026-10-08): a person carries no coordinates, and the text fallback put teachers abroad
+  // in central Saigon — mapPinRows (./map-pin-rows.ts) says why, and keeps the array's identity when it drops nothing.
   const mapListings = useMemo(
-    () => (focusListing && !shownListings.some((l) => l.id === focusListing.id) ? [focusListing, ...shownListings] : shownListings),
+    () => mapPinRows(focusListing && !shownListings.some((l) => l.id === focusListing.id) ? [focusListing, ...shownListings] : shownListings),
     [focusListing, shownListings],
   )
   // Render the card grids off a DEFERRED copy so a facet/sort toggle paints the
@@ -1501,7 +1537,21 @@ export function ListingsExplorer({
     // eno:search above. WITHOUT THIS LISTENER THE BUTTON RENDERS AND DOES NOTHING, which is a
     // failure both tsc and lint wave straight through.
     const onViewMap = () => {
-      if (viewModeRef.current !== 'map') commitView() // into the map is a step Back undoes (NAV-1)
+      /**
+       * ⛔ FROM A FEED WITH NO MAP (teachers — map-pin-rows.ts `categoryHasMap`) THE HEADER'S MAP OPENS THE MARKETPLACE MAP
+       * (gate review, 2026-10-09). It is the site's "browse by map", not a view of this feed: refused, the press did
+       * nothing — the view stays the default one on that feed — but snapshot a Back step and scroll the list to its top.
+       * So it does what "show on map" does there (`locateOnMap`): the logo's reset plus the map, as ONE step Back undoes
+       * (`commitView` snapshots the teachers feed first). Off the explorer, header.tsx sends /c/teachers to the same
+       * unfiltered map, so the two agree.
+       */
+      if (!mapOfferedRef.current) {
+        commitView()
+        resetToLandingPage()
+        setActiveProvince(null)
+        setActiveWard(null)
+        setNearby(null)
+      } else if (viewModeRef.current !== 'map') commitView() // into the map is a step Back undoes (NAV-1)
       setViewMode('map')
       setShowExplorer(true)
       // ⚠️ SCROLL AFTER THE RE-RENDER, NOT DURING IT. This used to be about the node being
@@ -1540,7 +1590,7 @@ export function ListingsExplorer({
       window.removeEventListener('eno:search', onSearch)
       window.removeEventListener('eno:set-area', onArea)
     }
-  }, [handleLandingSearch, applyVisualSearch])
+  }, [handleLandingSearch, applyVisualSearch, resetToLandingPage]) // resetToLandingPage is stable (useCallback)
 
   // ⚠️ HEADER CONTRACT — DO NOT DELETE THIS DISPATCH. header.tsx listens for `eno:hero` and
   // changes its own chrome on it: `present: true` makes it attach an IntersectionObserver to
@@ -3429,7 +3479,23 @@ export function ListingsExplorer({
   // listing (the map flies to + opens its pin). Scrolls the feed into view so the
   // map is visible after the mode switch.
   const locateOnMap = useCallback((id: string) => {
-    if (viewModeRef.current !== 'map') commitView() // "show on map" takes the reader into the map (NAV-1)
+    /**
+     * ⛔ FROM THE TEACHERS FEED, "SHOW ON MAP" OPENS THE MARKETPLACE MAP (gate review, 2026-10-09). The map cannot open
+     * over that feed (`mapOffered`), and no teacher card or row offers this — what reaches here from it is a card in the
+     * sparse-results recovery rail (ForYouRail `recovery` → `eno:locate`): a rental, a job, something with a place.
+     * Refused, the tap would do nothing but scroll. So it opens the map a card OUTSIDE the explorer opens (listing-card.tsx,
+     * `/?focus=`): the unfiltered map, focused on that listing — the logo's reset plus the map, as ONE step Back undoes
+     * (`commitView` snapshots the teachers feed first).
+     * ⚠️ The whole reset, not just the category: the reader's search words can match nothing under 'all', and a feed with
+     * no rows draws the empty state instead of the map — the located listing would not be on screen at all.
+     */
+    if (!mapOfferedRef.current) {
+      commitView()
+      resetToLandingPage()
+      setActiveProvince(null)
+      setActiveWard(null)
+      setNearby(null)
+    } else if (viewModeRef.current !== 'map') commitView() // "show on map" takes the reader into the map (NAV-1)
     setViewMode('map')
     setShowExplorer(true)
     setHoveredId(id)
@@ -3442,7 +3508,7 @@ export function ListingsExplorer({
         (mapWrapRef.current ?? document.getElementById('listings'))?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
       }),
     )
-  }, [])
+  }, [commitView, resetToLandingPage]) // both stable (useCallback, no changing deps) — the cards' callback stays one identity
   // ONE stable per-feed callback for cards (not a fresh `() => locateOnMap(l.id)`
   // per card per render) — lets the memoized ListingCard skip re-render during the
   // map hover/focus storm. The card hands back its own listing.
@@ -4855,7 +4921,8 @@ export function ListingsExplorer({
                   <span className="sr-only sm:hidden">{tr('Save search', 'Lưu tìm kiếm')}</span>
                 </Button>
               )}
-              <ViewToggles viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} />
+              {/* ⛔ No Map tab over the teachers feed — `mapOffered` (gate review, 2026-10-09). */}
+              <ViewToggles viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} showMap={mapOffered} />
             </div>
           </div>
 

@@ -50,6 +50,28 @@ describe('teacherThread — the share gate reads only the conversation row', () 
     expect(t?.recruiterUserId).toBe('recruiter-uuid')
     expect(t?.teacherUserId).toBe(T)
   })
+  // ⛔ THE CONTACT ROUTE SERVES THE PHONE BY THIS (gate review, 2026-10-09): the standing share's own record of whether its
+  // tap included the phone — never whether a phone is on file now.
+  it('phoneShared is the standing share\'s own record — not whether a phone is on file now', async () => {
+    const withPhone = { id: 'l1', listingType: 'teacher', status: 'active', verified: true, teacherProfile: { id: 'tp1', profileId: T, fullName: 'Jane', status: 'live', private: { videoPath: null, phone: '+84 90 123 4567' } } }
+    h.row = row({ listing: withPhone, teacherContactShare: { sharedAt: new Date(), revokedAt: null, phoneShared: false } })
+    let t = await teacherThread('c1')
+    expect(t?.shared).toBe(true)
+    expect(t?.hasPhone).toBe(true) // a phone added after an "email & CV" share…
+    expect(t?.phoneShared).toBe(false) // …is not part of it
+    h.row = row({ listing: withPhone, teacherContactShare: { sharedAt: new Date(), revokedAt: null, phoneShared: true } })
+    expect((await teacherThread('c1'))?.phoneShared).toBe(true)
+    // No share standing → false, whatever the row once recorded; no row at all → false.
+    h.row = row({ listing: withPhone, teacherContactShare: { sharedAt: new Date(), revokedAt: new Date(), phoneShared: true } })
+    t = await teacherThread('c1')
+    expect(t?.shareOn).toBe(false)
+    expect(t?.phoneShared).toBe(false)
+    h.row = row({ listing: withPhone })
+    expect((await teacherThread('c1'))?.phoneShared).toBe(false)
+    // A row that does not say reads as not shared (fail closed).
+    h.row = row({ listing: withPhone, teacherContactShare: { sharedAt: new Date(), revokedAt: null } })
+    expect((await teacherThread('c1'))?.phoneShared).toBe(false)
+  })
 })
 
 describe('teacherThread — the intro video sent on request (2026-10-07)', () => {

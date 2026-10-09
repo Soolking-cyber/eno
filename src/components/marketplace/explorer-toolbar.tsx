@@ -23,8 +23,13 @@ type SortTab = 'newest' | 'recent' | 'popular' | 'price'
 
 /** List / Grid / Map / Video view-mode toggle icons. `showVideo` gates the ▷ tab — with a
  *  catalog that has zero videos the Video view is a guaranteed dead end, so the parent hides
- *  the tab until at least one video listing exists (deep links via ?view=video still work). */
-export function ViewToggles({ viewMode, onViewMode, showVideo = true }: { viewMode: ViewMode; onViewMode: (m: ViewMode) => void; showVideo?: boolean }) {
+ *  the tab until at least one video listing exists (deep links via ?view=video still work).
+ *  ⛔ `showMap` gates the Map tab, and unlike Video a deep link does NOT get round it: the teachers feed has no map
+ *  at all (gate review, 2026-10-09). Every row there is a teacher and a teacher is never a pin (map-pin-rows.ts), so
+ *  the tab could only open a map without one pin and nothing saying why. The explorer also lands `?view=map` on that
+ *  feed in the default view (listings-explorer.tsx, `mapOffered`) — this prop only takes the button away.
+ *  Default true: every other feed keeps all four. */
+export function ViewToggles({ viewMode, onViewMode, showVideo = true, showMap = true }: { viewMode: ViewMode; onViewMode: (m: ViewMode) => void; showVideo?: boolean; showMap?: boolean }) {
   const { tr } = useLanguage()
   // p-2.5 + 20px icon = a 40px box (h-5 is the §4 ladder step for action-row icons — the old
   // h-[18px] was an off-ladder arbitrary size).
@@ -65,11 +70,13 @@ export function ViewToggles({ viewMode, onViewMode, showVideo = true }: { viewMo
           <LayoutGrid className="h-5 w-5" />
         </Button>
       </Tooltip>
-      <Tooltip content={tr('Map view', 'Xem Bản đồ')} side="bottom">
-        <Button variant="bare" size="none" onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} className={tab('map')}>
-          <Map className="h-5 w-5" />
-        </Button>
-      </Tooltip>
+      {showMap && (
+        <Tooltip content={tr('Map view', 'Xem Bản đồ')} side="bottom">
+          <Button variant="bare" size="none" onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} className={tab('map')}>
+            <Map className="h-5 w-5" />
+          </Button>
+        </Tooltip>
+      )}
       {showVideo && (
         <Tooltip content={tr('Video view', 'Xem Video')} side="bottom">
           <Button variant="bare" size="none" onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} className={tab('video')}>

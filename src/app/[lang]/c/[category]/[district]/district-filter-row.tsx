@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Map as MapIcon } from '@/components/ui/icons'
 import { chipVariants } from '@/components/ui/chip'
 import { Bilingual } from '@/components/marketplace/bilingual'
+import { categoryHasMap } from '@/components/marketplace/map-pin-rows'
 import { localizedHref } from '@/lib/lang-pinned'
 import { HOMES_ONLY_PARAM } from '@/lib/rental-homes'
 import { CategoryFiltersLink } from '../category-filters-link'
@@ -57,15 +58,19 @@ export function DistrictFilterRow({
   return (
     <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
       <CategoryFiltersLink slug={categorySlug} query={scope} />
-      <Link
-        href={explorer({ ...scope, view: 'map' })}
-        rel="nofollow"
-        prefetch={false}
-        className="relative tap-44 inline-flex items-center gap-1.5 whitespace-nowrap py-2.5 text-sm font-semibold text-accent-foreground hover:underline"
-      >
-        <MapIcon className="h-4 w-4" aria-hidden />
-        <Bilingual en="Map" vi="Bản đồ" />
-      </Link>
+      {/* ⛔ No Map link where the category has no map (teachers — map-pin-rows.ts `categoryHasMap`): it led to the
+          district's teacher list, never a map (gate review, 2026-10-09). */}
+      {categoryHasMap(categorySlug) && (
+        <Link
+          href={explorer({ ...scope, view: 'map' })}
+          rel="nofollow"
+          prefetch={false}
+          className="relative tap-44 inline-flex items-center gap-1.5 whitespace-nowrap py-2.5 text-sm font-semibold text-accent-foreground hover:underline"
+        >
+          <MapIcon className="h-4 w-4" aria-hidden />
+          <Bilingual en="Map" vi="Bản đồ" />
+        </Link>
+      )}
       {rentals && homesOnly && (
         <div role="group" aria-labelledby={bedsLabel} className="flex flex-wrap items-center gap-2">
           <span id={bedsLabel} className="text-xs font-semibold text-ink-4"><Bilingual en="Apartments:" vi="Căn hộ:" /></span>

@@ -166,7 +166,7 @@ describe('/privacy — the facts it states match the code', () => {
 
   it('⛔ names the recipients the code actually sends to, and drops the retired ones', async () => {
     const text = await policy('marketplace')
-    for (const r of ['Cloudflare', 'Microsoft (Azure AI Translator)', 'Google (Vertex AI, Gemini)', 'Resend', 'CARTO', 'OpenStreetMap', 'Meta (WhatsApp Business)', 'AccessTrade', 'Google Analytics', 'Meta (Conversions API)']) {
+    for (const r of ['Cloudflare', 'Microsoft (Azure AI Translator)', 'Google (Vertex AI, Gemini)', 'Anthropic (Claude)', 'Resend', 'CARTO', 'OpenStreetMap', 'Meta (WhatsApp Business)', 'AccessTrade', 'Google Analytics', 'Meta (Conversions API)']) {
       expect(text, r).toContain(r)
     }
     expect(text).not.toContain('Google Cloud Translation') // removed 2026-09-19 (src/lib/translate.ts)
@@ -357,7 +357,7 @@ describe('/privacy — Sign in with Apple', () => {
   it('⛔ account information and the cross-border notice name Apple', async () => {
     const text = await policy('marketplace')
     expect(text).toContain('if you use Sign in with Apple, your name from Apple — only the first time, and only if you choose to share it')
-    expect(text).toContain('Cloudflare, Microsoft, Google, Apple, Resend')
+    expect(text).toContain('Cloudflare, Microsoft, Google, Apple, Anthropic, Resend')
   })
 
   it('⛔ D14: the Meta row and the Advertising paragraph say the email hash is never sent for an Apple account or a relay address', async () => {
@@ -391,6 +391,53 @@ describe('/privacy — Sign in with Apple', () => {
     expect(await policy('marketplace')).toContain(`Last updated: ${dateEn(day)}`)
     cleanup()
     expect(await policy('marketplace', 'vi')).toContain(`Cập nhật lần cuối: ${dateVi(day)}`)
+  })
+})
+
+/**
+ * ⛔ TEACHER JOB MATCHING (owner, 2026-10-08 — Claude Haiku 5.5, Anthropic; plan review E4). The pipeline's privacy gate
+ * reads https://eno.vn/privacy for the exact label 'Anthropic (Claude)' before it judges anything, so the label, what is
+ * sent (and never sent), the transfer abroad, the automated paragraph and the page's own dated record are pinned here.
+ */
+describe('/privacy — teacher job matching (Anthropic)', () => {
+  it('⛔ names Anthropic (Claude) as a recipient on BOTH editions, outside Vietnam, with what it gets and never gets', async () => {
+    for (const site of ['marketplace', 'services'] as const) {
+      const text = await policy(site)
+      expect(text, site).toContain('Anthropic (Claude)')
+      expect(text, site).toContain('Only for teachers who ask for job matches (by email, or through a call from our staff)')
+      expect(text, site).toContain('with the teacher’s own name taken out where it appears')
+      expect(text, site).toContain('Never the name, photo, video, phone number, email address or CV fields of the profile.')
+      expect(text, site).toContain('Comparing teacher profiles with teaching jobs, to suggest jobs to the teacher and, where the teacher agreed, to our staff.')
+      cleanup()
+    }
+  })
+
+  it('⛔ lists Anthropic among the transfers outside Vietnam, in both languages', async () => {
+    expect(await policy('marketplace')).toContain('Cloudflare, Microsoft, Google, Apple, Anthropic, Resend')
+    cleanup()
+    expect(await policy('marketplace', 'vi')).toContain('Cloudflare, Microsoft, Google, Apple, Anthropic, Resend')
+  })
+
+  it('describes the matching as automated processing — the bar, the email limits, who sees the score, how to stop it', async () => {
+    const { MATCH_MIN_SCORE } = await import('@/lib/teachers/match-io')
+    const { MATCH_EMAIL_RULES } = await import('@/lib/teachers/match-emails')
+    // The numbers the policy prints are the code's own.
+    expect(MATCH_MIN_SCORE).toBe(70)
+    expect(MATCH_EMAIL_RULES.perEmail).toBe(5)
+    expect(MATCH_EMAIL_RULES.cooldownMs).toBe(3 * 86_400_000)
+    const en = await policy('marketplace')
+    expect(en).toContain('Teacher job matching: if a teacher asks for job matches, an AI model (Anthropic’s Claude) compares their profile with new teaching jobs')
+    expect(en).toContain('A job that scores 70 or more becomes a suggestion')
+    expect(en).toContain('at most five jobs per email, at most one email every three days')
+    expect(en).toContain('schools never see the score')
+    expect(en).toContain('the unsubscribe link in an email stops the emails')
+    expect(en).toContain('With a teacher’s consent only, given in the teacher profile')
+    expect(en).not.toMatch(/Gemini[^.]*job match/i)
+    cleanup()
+    const vi = await policy('marketplace', 'vi')
+    expect(vi).toContain('So khớp việc làm cho giáo viên')
+    expect(vi).toContain('Claude của Anthropic')
+    expect(vi).toContain('Chỉ khi giáo viên đồng ý trong hồ sơ giáo viên')
   })
 })
 

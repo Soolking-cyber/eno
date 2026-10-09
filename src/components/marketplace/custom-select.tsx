@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { Fragment, useId, useState } from 'react'
 import { Select as SelectPrimitive } from '@base-ui/react/select'
 import { Combobox as ComboboxPrimitive } from '@base-ui/react/combobox'
 import { ChevronsUpDown, ChevronDown, Check, Search } from '@/components/ui/icons'
@@ -24,7 +24,38 @@ export interface SelectOption {
    *  ⚠️ Only reach for it when the label alone is genuinely ambiguous. A description on every row
    *  doubles the height of the menu and makes the list harder to scan, not easier. */
   description?: string
+  /** ⚠️ OPTIONAL GROUP HEADING (teacher onboarding redesign, 2026-10-08 — the teachers' "Can teach in" pill, whose
+   *  65 places mix cities, HCMC districts and provinces). Consecutive options with the same `group` render under one
+   *  heading — Base UI's own Select.Group / Combobox.Group with their GroupLabel, so each run is a named
+   *  role="group" — and typing keeps the heading of every group that still matches. An option with no `group`
+   *  stands in an unlabelled run (the "All" row). Unset everywhere else, so every other picker renders as before. */
+  group?: string
+  /** ⚠️ OPTIONAL COUNT, DRAWN AFTER THE LABEL ("District 7 · 2") AND NEVER SEARCHED (gate review, 2026-10-08). Inside
+   *  `label` a count is part of what type-to-filter matches (Base UI filters on `label`, and Select's typeahead too),
+   *  so typing "1" to find District 1 also found every place whose COUNT holds a 1 — and HCMC's districts are named by
+   *  number. The facet menus pass it here; the row reads exactly as it did. */
+  count?: string
 }
+
+/** A run of consecutive options under one heading (`label` undefined = no heading). */
+type OptionGroup = { label: string | undefined; items: SelectOption[] }
+
+/** The options as consecutive runs of the same `group`, in order — or null when no option has a group (the flat
+ *  list every picker has always drawn). The run objects hold the SAME option objects as `options`, so the
+ *  Combobox's selected value (found in `options`) is still one of its items by identity. */
+function groupRuns(options: SelectOption[]): OptionGroup[] | null {
+  if (!options.some((o) => o.group)) return null
+  const runs: OptionGroup[] = []
+  for (const o of options) {
+    const last = runs[runs.length - 1]
+    if (last && last.label === o.group) last.items.push(o)
+    else runs.push({ label: o.group, items: [o] })
+  }
+  return runs
+}
+
+/** A group's heading — the same quiet uppercase label the Filter panel puts over its facets. */
+const GROUP_LABEL = 'px-3 pb-1 pt-2.5 text-2xs font-bold uppercase tracking-wider text-muted-foreground'
 
 /** ⚠️ DIACRITIC- AND CASE-BLIND, BECAUSE NOBODY TYPES THE ACCENTS. Someone looking for "Ngân hàng
  *  TMCP Á Châu" types "ngan hang a chau". NFD splits each letter from its combining mark and the
@@ -38,12 +69,13 @@ const fold = (s: string) =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase()
 
 /** The row's text. Two lines when the option carries a description, one when it does not — so
- *  every existing call site renders exactly as before. */
-function OptionLabel({ label, description }: { label: string; description?: string }) {
-  if (!description) return <span className="min-w-0 flex-1 truncate">{label}</span>
+ *  every existing call site renders exactly as before. A `count` follows the label as " · n". */
+function OptionLabel({ label, description, count }: { label: string; description?: string; count?: string }) {
+  const counted = count != null ? <>{label} · {count}</> : label
+  if (!description) return <span className="min-w-0 flex-1 truncate">{counted}</span>
   return (
     <span className="flex min-w-0 flex-1 flex-col">
-      <span className="truncate">{label}</span>
+      <span className="truncate">{counted}</span>
       {/* ⚠️ `font-normal`, because `itemClassName` sets font-semibold on the ACTIVE row and that
           would otherwise bold the legal name too, making the selected row read as two headings. */}
       <span className="truncate text-xs font-normal text-body">{description}</span>
@@ -223,6 +255,31 @@ function SearchableSelect({
    * handles accents; it simply cannot search a field it was never handed.
    */
   const searchesDescription = options.some((o) => o.description)
+  // Grouped options (`group`): Base UI takes `items` as `{ items }[]` natively — it filters inside each group, drops a
+  // group nothing in it matches, and hands the List the surviving groups.
+  const groups = groupRuns(options)
+  const renderItem = (item: SelectOption) => {
+    const isActive = item.value === value
+    return (
+      // ⚠️ A DIV, not ui/button — the one place these two menus must differ.
+      // Combobox drives the list with VIRTUAL focus: the real focus stays in the
+      // search input while `data-highlighted` moves. A natively focusable child
+      // breaks that twice — Base UI's own source says "Focusable items steal focus
+      // from the input upon mouseup. Warn if the user renders a natively focusable
+      // element like <button>, as it should be a <div> instead"
+      // (combobox/item/ComboboxItem.mjs), and a real button also stays in the tab
+      // order, so Tab can land on individual options. Select.Item below IS a button
+      // on purpose: it uses roving focus, not virtual focus. Caught by codex.
+      <ComboboxPrimitive.Item
+        key={item.value}
+        value={item}
+        className={itemClassName(isActive)}
+      >
+        <OptionLabel label={item.label} description={item.description} count={item.count} />
+        {isActive && <Check className="h-4 w-4 shrink-0" />}
+      </ComboboxPrimitive.Item>
+    )
+  }
 
   return (
     // Same sizing wrapper, and for the same reason as the plain variant below: the Root
@@ -230,7 +287,7 @@ function SearchableSelect({
     // caller's `space-y-*` (compiled to `> :not(:last-child)`) if it landed in their column.
     <div className={cn('relative', wrapperClassName ?? 'w-full')}>
       <ComboboxPrimitive.Root
-        items={options}
+        items={groups ?? options}
         value={selectedOption}
         onValueChange={(v) => { if (v && typeof v === 'object' && 'value' in v) onChange((v as { value: string }).value) }}
         open={open}
@@ -292,28 +349,18 @@ function SearchableSelect({
                 {tr('No matches', 'Không có kết quả')}
               </ComboboxPrimitive.Empty>
               <ComboboxPrimitive.List className="max-h-60 overflow-y-auto overflow-x-hidden p-1.5 scroll-thin">
-                {(item: SelectOption) => {
-                  const isActive = item.value === value
-                  return (
-                    // ⚠️ A DIV, not ui/button — the one place these two menus must differ.
-                    // Combobox drives the list with VIRTUAL focus: the real focus stays in the
-                    // search input while `data-highlighted` moves. A natively focusable child
-                    // breaks that twice — Base UI's own source says "Focusable items steal focus
-                    // from the input upon mouseup. Warn if the user renders a natively focusable
-                    // element like <button>, as it should be a <div> instead"
-                    // (combobox/item/ComboboxItem.mjs), and a real button also stays in the tab
-                    // order, so Tab can land on individual options. Select.Item below IS a button
-                    // on purpose: it uses roving focus, not virtual focus. Caught by codex.
-                    <ComboboxPrimitive.Item
-                      key={item.value}
-                      value={item}
-                      className={itemClassName(isActive)}
-                    >
-                      <OptionLabel label={item.label} description={item.description} />
-                      {isActive && <Check className="h-4 w-4 shrink-0" />}
-                    </ComboboxPrimitive.Item>
-                  )
-                }}
+                {groups
+                  // A heading only over a NAMED run; the unlabelled one (the "All" row) is its rows alone, so the
+                  // listbox holds no nameless group. Rows are indexed in DOM order either way.
+                  ? (group: OptionGroup) => (group.label ? (
+                      <ComboboxPrimitive.Group key={group.label} items={group.items}>
+                        <ComboboxPrimitive.GroupLabel className={GROUP_LABEL}>{group.label}</ComboboxPrimitive.GroupLabel>
+                        {group.items.map(renderItem)}
+                      </ComboboxPrimitive.Group>
+                    ) : (
+                      <Fragment key={`\u0000${group.items[0]?.value ?? ''}`}>{group.items.map(renderItem)}</Fragment>
+                    ))
+                  : renderItem}
               </ComboboxPrimitive.List>
             </ComboboxPrimitive.Popup>
           </ComboboxPrimitive.Positioner>
@@ -336,6 +383,48 @@ function PlainSelect({
   const [open, setOpen] = useState(false)
 
   const selectedOption = options.find((o) => o.value === value)
+  // Grouped options (`group`): each NAMED run is a Select.Group under its GroupLabel (a named role="group"); the
+  // unlabelled run (the "All" row) is its rows alone. The flat list, as ever, when no option has a group.
+  const groups = groupRuns(options)
+  const renderOption = (opt: SelectOption) => {
+    const isActive = opt.value === value
+    return (
+      // ui/button (variant="bare" size="none") = focus ring + icon rule only; the
+      // row's box/colours stay hand-rolled. Base classes neutralised below:
+      //   · justify-center → justify-between, text-center → text-left, inline-flex → flex
+      //   · gap-2 → gap-6 · rounded-xl → rounded-lg · transition-all → transition-colors
+      //   · active:scale-[0.97] → active:scale-100. These are PORTAL MENU ROWS: they
+      //     live in a fixed-position card anchored to the trigger and never had a
+      //     press-scale. Do not let the base scale back in.
+      // data-highlighted is the KEYBOARD cursor (ArrowDown/Up, Home/End, typeahead).
+      // It must paint the same as :hover, or arrow-key navigation moves an invisible
+      // cursor. Base UI also highlights on hover, so the two always agree.
+      <SelectPrimitive.Item
+        key={opt.value}
+        value={opt.value}
+        // Feeds the primitive's typeahead (it matches on this string, not on DOM text).
+        label={opt.label}
+        // Select.Item renders a <div> by default, so it assumes nativeButton={false}
+        // and layers its own Enter/Space emulation on top. We render it as ui/button —
+        // a REAL <button> — so it must be told: otherwise Base UI warns and
+        // double-handles activation keys on an element that already has them natively.
+        nativeButton
+        render={
+          <Button
+            type="button"
+            variant="bare"
+            size="none"
+            className={itemClassName(isActive)}
+          />
+        }
+      >
+        <OptionLabel label={opt.label} description={opt.description} count={opt.count} />
+        {/* Decorative only — lucide stamps aria-hidden on it. The row's selected state
+            is announced by the primitive's aria-selected, not by this ✓. */}
+        {isActive && <Check className="h-4 w-4 shrink-0" />}
+      </SelectPrimitive.Item>
+    )
+  }
 
   return (
     // ⚠️ THE SIZING WRAPPER MUST STAY *OUTSIDE* Select.Root. Do not move it back in.
@@ -437,45 +526,16 @@ function PlainSelect({
             className={cn('max-h-60 w-(--anchor-width) min-w-44 overflow-y-auto overflow-x-hidden rounded-2xl bg-popover p-1.5 shadow-pop scroll-thin', POPUP_MOTION)}
           >
             <SelectPrimitive.List>
-              {options.map((opt) => {
-                const isActive = opt.value === value
-                return (
-                  // ui/button (variant="bare" size="none") = focus ring + icon rule only; the
-                  // row's box/colours stay hand-rolled. Base classes neutralised below:
-                  //   · justify-center → justify-between, text-center → text-left, inline-flex → flex
-                  //   · gap-2 → gap-6 · rounded-xl → rounded-lg · transition-all → transition-colors
-                  //   · active:scale-[0.97] → active:scale-100. These are PORTAL MENU ROWS: they
-                  //     live in a fixed-position card anchored to the trigger and never had a
-                  //     press-scale. Do not let the base scale back in.
-                  // data-highlighted is the KEYBOARD cursor (ArrowDown/Up, Home/End, typeahead).
-                  // It must paint the same as :hover, or arrow-key navigation moves an invisible
-                  // cursor. Base UI also highlights on hover, so the two always agree.
-                  <SelectPrimitive.Item
-                    key={opt.value}
-                    value={opt.value}
-                    // Feeds the primitive's typeahead (it matches on this string, not on DOM text).
-                    label={opt.label}
-                    // Select.Item renders a <div> by default, so it assumes nativeButton={false}
-                    // and layers its own Enter/Space emulation on top. We render it as ui/button —
-                    // a REAL <button> — so it must be told: otherwise Base UI warns and
-                    // double-handles activation keys on an element that already has them natively.
-                    nativeButton
-                    render={
-                      <Button
-                        type="button"
-                        variant="bare"
-                        size="none"
-                        className={itemClassName(isActive)}
-                      />
-                    }
-                  >
-                    <OptionLabel label={opt.label} description={opt.description} />
-                    {/* Decorative only — lucide stamps aria-hidden on it. The row's selected state
-                        is announced by the primitive's aria-selected, not by this ✓. */}
-                    {isActive && <Check className="h-4 w-4 shrink-0" />}
-                  </SelectPrimitive.Item>
-                )
-              })}
+              {groups
+                ? groups.map((group) => (group.label ? (
+                    <SelectPrimitive.Group key={group.label}>
+                      <SelectPrimitive.GroupLabel className={GROUP_LABEL}>{group.label}</SelectPrimitive.GroupLabel>
+                      {group.items.map(renderOption)}
+                    </SelectPrimitive.Group>
+                  ) : (
+                    <Fragment key={`\u0000${group.items[0]?.value ?? ''}`}>{group.items.map(renderOption)}</Fragment>
+                  )))
+                : options.map(renderOption)}
             </SelectPrimitive.List>
           </SelectPrimitive.Popup>
         </SelectPrimitive.Positioner>

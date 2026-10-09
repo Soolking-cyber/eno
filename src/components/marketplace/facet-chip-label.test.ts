@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { facetsFor } from '@/lib/taxonomy'
-import { customFilterChipLabel } from './facet-chip-label'
+import { customFilterChipLabel, facetOptionLabel } from './facet-chip-label'
 
 /**
  * E-ACTIVE (2026-09-29): an applied custom filter's chip is named by the taxonomy, never by its state
@@ -53,5 +53,46 @@ describe('customFilterChipLabel', () => {
       if (!v) continue
       expect(customFilterChipLabel(f, f.key, v, 'en', en)).not.toContain(`${f.key}:`)
     }
+  })
+})
+
+// ── The teachers browse (teacher onboarding redesign, owner, 2026-10-08) ─────────────────────────────────────────────
+describe('customFilterChipLabel — "Can teach in" and "In Vietnam now"', () => {
+  const teachers = facetsFor('teachers', null)
+  const t = (key: string) => teachers.find((f) => f.key === key)
+  /** A machine translation that marks what it touched — a place must never pass through it. */
+  const mt = (e: string) => `‹${e}›`
+
+  it('a place is its own name in the page language, never machine-translated', () => {
+    expect(customFilterChipLabel(t('workIn'), 'workIn', 'd7', 'en', en)).toBe('Can teach in: District 7 (Phu My Hung)')
+    expect(customFilterChipLabel(t('workIn'), 'workIn', 'd7', 'vi', vi)).toBe('Có thể dạy tại: Quận 7 (Phú Mỹ Hưng)')
+    expect(customFilterChipLabel(t('workIn'), 'workIn', 'p-52', 'vi', vi)).toBe('Có thể dạy tại: Gia Lai')
+    // A machine-translated language: the facet's name is translated, the place is not.
+    expect(customFilterChipLabel(t('workIn'), 'workIn', 'ha-noi', 'ko', mt)).toBe('‹Can teach in›: Hanoi')
+  })
+  it('Online and "Will move anywhere" are WORDS — translated like any copy', () => {
+    expect(customFilterChipLabel(t('workIn'), 'workIn', 'online', 'ko', mt)).toBe('‹Can teach in›: ‹Online›')
+    expect(customFilterChipLabel(t('workIn'), 'workIn', 'anywhere', 'vi', vi)).toBe('Có thể dạy tại: Sẵn sàng chuyển đến bất kỳ đâu')
+  })
+  it('every old attr_workIn value still has its chip (B10)', () => {
+    for (const v of ['ho-chi-minh-city', 'ha-noi', 'da-nang', 'hai-phong', 'can-tho', 'hue', 'khanh-hoa', 'lam-dong', 'dong-nai', 'binh-duong', 'vung-tau', 'phu-quoc', 'anywhere', 'online']) {
+      // A named chip — never the raw `key: value` fallback a value the taxonomy lost would get.
+      expect(customFilterChipLabel(t('workIn'), 'workIn', v, 'en', en), v).not.toBe(`Can teach in: ${v}`)
+    }
+  })
+  it('"In Vietnam now" is the whole chip — never "In Vietnam now: In Vietnam now"', () => {
+    expect(customFilterChipLabel(t('inVietnam'), 'inVietnam', 'yes', 'en', en)).toBe('In Vietnam now')
+    expect(customFilterChipLabel(t('inVietnam'), 'inVietnam', 'yes', 'vi', vi)).toBe('Đang ở Việt Nam')
+  })
+})
+
+describe('facetOptionLabel — one rule for every reader of an option', () => {
+  const workIn = facetsFor('teachers', null).find((f) => f.key === 'workIn')!
+  const opt = (v: string) => workIn.options.find((o) => o.value === v)!
+  const mt = (e: string) => `‹${e}›`
+  it('places by name, words through tr(), other facets through tr()', () => {
+    expect(facetOptionLabel(workIn, opt('khanh-hoa'), 'fr', mt)).toBe('Nha Trang')
+    expect(facetOptionLabel(workIn, opt('online'), 'fr', mt)).toBe('‹Online›')
+    expect(facetOptionLabel(facet('furnishing')!, facet('furnishing')!.options[0], 'fr', mt)).toMatch(/^‹.*›$/)
   })
 })

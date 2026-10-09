@@ -4,6 +4,8 @@
 // Regenerate with: node scripts/gen-vi-overrides.mjs — which also TRANSLATES every gap with agy,
 // unreviewed. To only drop entries the code no longer uses: node scripts/gen-vi-overrides.mjs --prune
 export const VI_OVERRIDES: Record<string, string> = {
+  "Not in Vietnam yet": "Chưa ở Việt Nam",
+  "Not in Vietnam yet · Online": "Chưa ở Việt Nam · Trực tuyến",
   "Rent on": "Thuê trên",
   "Apply on": "Ứng tuyển trên",
   "Apply on the original posting": "Ứng tuyển trên tin tuyển dụng gốc",

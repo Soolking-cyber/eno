@@ -21,12 +21,13 @@ const h = vi.hoisted(() => {
   const language = { lang: 'en', t: (k: string) => k, tr, setLang: () => {} }
   const auth = { user: null, profile: null, loading: false, openSignIn: () => {} }
   const phone = { value: true }
-  return { push, router, language, auth, phone }
+  const pathname = { value: '/help' }
+  return { push, router, language, auth, phone, pathname }
 })
 
 vi.mock('next/navigation', () => ({
   useRouter: () => h.router,
-  usePathname: () => '/help',
+  usePathname: () => h.pathname.value,
   useSearchParams: () => new URLSearchParams(window.location.search),
 }))
 // The typeahead listbox is a code-split chunk and is not under test here (search-suggest.test.tsx).
@@ -63,6 +64,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})))
   h.push.mockClear()
   h.phone.value = true
+  h.pathname.value = '/help'
 })
 afterEach(() => {
   cleanup()
@@ -71,6 +73,21 @@ afterEach(() => {
 
 const field = () => screen.getByRole('combobox') as HTMLInputElement
 const panel = () => document.querySelector('#app-header form div.overflow-y-auto')
+
+// ⛔ A landing whose category has no map opens the MARKETPLACE map (map-pin-rows.ts categoryHasMap, gate review, 2026-10-09).
+describe('Map off the explorer', () => {
+  it('from /c/teachers it opens the unfiltered map — the teachers map is always empty; /c/rentals keeps its own', () => {
+    h.pathname.value = '/c/teachers'
+    const { unmount } = render(<Header />)
+    fireEvent.click(screen.getByRole('button', { name: 'Map' }))
+    expect(h.push).toHaveBeenLastCalledWith('/?view=map')
+    unmount()
+    h.pathname.value = '/c/rentals'
+    render(<Header />)
+    fireEvent.click(screen.getByRole('button', { name: 'Map' }))
+    expect(h.push).toHaveBeenLastCalledWith('/?category=rentals&view=map')
+  })
+})
 
 describe('O-03: ✨ and Map on a phone', () => {
   it('the pill\'s Map button is `hidden sm:flex` — gone below 640px from the first byte, unchanged above', () => {

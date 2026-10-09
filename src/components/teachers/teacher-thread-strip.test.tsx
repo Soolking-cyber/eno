@@ -493,3 +493,109 @@ describe('TeacherThreadStrip — intro video', () => {
     expect(screen.getByRole('button', { name: 'Stop sharing video' })).toBeTruthy()
   })
 })
+
+// ── No phone on file (A3, owner 2026-10-08: a phone is required only while "Our staff may call me" is on) ──────────
+// The teacher's button and the shared line name only what is handed over — never a phone the school will not get. Every
+// other strip rule holds as before: the tap is the consent, Stop works, a closed thread offers no Share.
+describe('TeacherThreadStrip — a teacher with no phone on file', () => {
+  it('the button reads "Share my email & CV", and the tap shares exactly as before', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ ok: true, shared: true }) })
+    const { container } = mount({ shared: false, hasPhone: false })
+    expect(screen.queryByRole('button', { name: /Share my phone/ })).toBeNull()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share my email & CV' })) })
+    // `phone: false` — the label did not name the phone (gate review, 2026-10-09: the server hands one over only then).
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ conversationId: 'c1', share: true, phone: false })
+    expect(container.textContent).toContain('This school can see your email and CV.')
+    expect(container.textContent).not.toContain('phone')
+    expect(screen.getByRole('button', { name: 'Stop sharing' })).toBeTruthy()
+  })
+
+  it('with a phone — or a payload that does not say (an older one) — it is the full button, as it always was', () => {
+    mount({ shared: false, hasPhone: true })
+    expect(screen.getByRole('button', { name: 'Share my phone, email & CV' })).toBeTruthy()
+    cleanup()
+    mount({ shared: false })
+    expect(screen.getByRole('button', { name: 'Share my phone, email & CV' })).toBeTruthy()
+  })
+
+  it('in Vietnamese', () => {
+    render(
+      <LanguageProvider initialLang="vi" initialViDict={{}}>
+        <TeacherThreadStrip conversationId="c1" iAmTeacher shared={false} shareSignal={0} hasPhone={false} />
+      </LanguageProvider>,
+    )
+    expect(screen.getByRole('button', { name: 'Chia sẻ email và CV' })).toBeTruthy()
+  })
+
+  it('a closed thread still offers no Share, phone or not', () => {
+    const { container } = mount({ shared: false, closed: true, hasPhone: false })
+    expect(container.textContent).toBe('')
+  })
+})
+
+// ── A share hands over what its tap named (gate review, 2026-10-09 — TeacherContactShare.phoneShared) ─────────────────
+// An "email & CV" share never picks up a phone added later: the strip keeps saying "email and CV" and offers "Share my
+// phone too" — a re-share through the same route, naming the phone. The Share tap says whether its label named the phone.
+describe('TeacherThreadStrip — a share that did not include the phone', () => {
+  const answer = (body: unknown) => ({ ok: true, status: 200, json: async () => body })
+
+  it('keeps saying "email and CV" after a phone is added — and offers "Share my phone too", which adds it', async () => {
+    fetchMock.mockResolvedValue(answer({ ok: true, shared: true, phoneShared: true }))
+    const { container } = mount({ shared: true, hasPhone: true, phoneShared: false })
+    expect(container.textContent).toContain('This school can see your email and CV.')
+    expect(container.textContent).not.toContain('phone, email and CV')
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share my phone too' })) })
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ conversationId: 'c1', share: true, phone: true, addPhone: true })
+    expect(container.textContent).toContain('This school can see your phone, email and CV.')
+    expect(screen.queryByRole('button', { name: 'Share my phone too' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Stop sharing' })).toBeTruthy()
+  })
+
+  it('⛔ "Share my phone too" in a stale tab, after Stop on another device: the server answers "not shared" — the strip offers Share', async () => {
+    fetchMock.mockResolvedValue(answer({ ok: true, shared: false, phoneShared: false }))
+    const { container } = mount({ shared: true, hasPhone: true, phoneShared: false })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share my phone too' })) })
+    expect(container.textContent).not.toContain('This school can see')
+    expect(screen.queryByRole('button', { name: 'Stop sharing' })).toBeNull()
+  })
+
+  it('a share that included the phone reads in full, with nothing to add', () => {
+    const { container } = mount({ shared: true, hasPhone: true, phoneShared: true })
+    expect(container.textContent).toContain('This school can see your phone, email and CV.')
+    expect(screen.queryByRole('button', { name: 'Share my phone too' })).toBeNull()
+  })
+
+  it('no offer without a phone on file, on a hidden profile, or on a closed thread (the server refuses a share there)', () => {
+    for (const props of [{ hasPhone: false }, { hasPhone: true, live: false }, { hasPhone: true, closed: true }]) {
+      mount({ shared: true, phoneShared: false, ...props })
+      expect(screen.queryByRole('button', { name: 'Share my phone too' }), JSON.stringify(props)).toBeNull()
+      expect(screen.getByRole('button', { name: 'Stop sharing' })).toBeTruthy()
+      cleanup()
+    }
+  })
+
+  it('the server\'s answer is the state: no phone on file any more → still "email and CV"', async () => {
+    fetchMock.mockResolvedValue(answer({ ok: true, shared: true, phoneShared: false }))
+    const { container } = mount({ shared: true, hasPhone: true, phoneShared: false })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share my phone too' })) })
+    expect(container.textContent).toContain('This school can see your email and CV.')
+  })
+
+  it('the Share tap says whether its label named the phone', async () => {
+    fetchMock.mockResolvedValue(answer({ ok: true, shared: true, phoneShared: true }))
+    const { container } = mount({ shared: false, hasPhone: true })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share my phone, email & CV' })) })
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ conversationId: 'c1', share: true, phone: true })
+    expect(container.textContent).toContain('This school can see your phone, email and CV.')
+  })
+
+  it('in Vietnamese', () => {
+    render(
+      <LanguageProvider initialLang="vi" initialViDict={{}}>
+        <TeacherThreadStrip conversationId="c1" iAmTeacher shared shareSignal={0} hasPhone phoneShared={false} />
+      </LanguageProvider>,
+    )
+    expect(screen.getByRole('button', { name: 'Chia sẻ thêm số điện thoại' })).toBeTruthy()
+    expect(screen.getByText('Trường này xem được email và CV của bạn.')).toBeTruthy()
+  })
+})

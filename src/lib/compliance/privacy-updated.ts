@@ -7,7 +7,9 @@
  * day — the RANKING_DISCLOSURE_UPDATED precedent (ranking-disclosure.ts).
  * What it dates today: the Sign in with Apple rows (Apple as a recipient, the account information, no email hash to
  * Meta for an Apple account or a relay address, Apple among the sign-in choices counted) and the teacher-profile
- * paragraph — none of them part of an amendment.
+ * paragraph — none of them part of an amendment. And, the same Vietnamese day (2026-10-09), teacher job matching: the
+ * Anthropic (Claude) recipient row, its purpose and the automated-decisions paragraph (owner: "apply recommended" —
+ * immediate; its own record, PRIVACY_AMENDMENT, was dropped for this one).
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -25,4 +27,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-09'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '57cbb0be815a4210'
+export const PRIVACY_TEXT_FINGERPRINT = 'f7507f5f2cffd331'

@@ -5,11 +5,14 @@ import { useLanguage, Tr } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Toggle } from '@/components/ui/toggle'
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { ChevronDown, LayoutGrid } from '@/components/ui/icons'
+import { ChevronDown, LayoutGrid, Plus } from '@/components/ui/icons'
 import { CategoryIcon } from './category-icons'
 import { offeredCategories, offeredIntents, offeredSubcategories } from './count-chip'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
+import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
+import { teacherJoinUrl } from '@/lib/teachers/host'
+import { keepTeacherJoinInApp } from '@/components/teachers/teacher-join-click'
 import type { SerializedCategory } from '@/lib/types'
 // Type only — erased at compile, so the module's Prisma/`server-only` chain never reaches the client.
 import type { FacetCounts } from '@/lib/facet-counts'
@@ -80,6 +83,11 @@ export function LadderCompactRow({
   // the rail guards the same way (its subcategory plate lives inside `categories.map`).
   const active = categories.find((c) => c.slug === activeCategory) ?? null
   const subs = active ? offeredSubcategories(active.slug, facets, subcategoryCounts, activeSubcategory).subs : []
+  // Teachers keep the SUBCATEGORY shape even with none offered — "All" and the way in — exactly as the rail's plate does
+  // (category-rail.tsx `plateOpen`); otherwise the link sank to the end of every category chip, in a "Categories" group
+  // (pill verification, 2026-10-09).
+  const teachers = active?.slug === TEACHERS_CATEGORY_SLUG
+  const subRow = subs.length > 0 || teachers
 
   // One chip look for every rung. 44px tall so the whole visible pill is the hit area (the facet
   // pills directly below are 48px); pressed = the same brand-50 tint the rail uses for "chosen".
@@ -110,12 +118,12 @@ export function LadderCompactRow({
       {!expanded && (
         <div
           role="group"
-          aria-label={subs.length > 0 ? tr('Subcategories', 'Danh mục con') : tr('Categories', 'Danh mục')}
+          aria-label={subRow ? tr('Subcategories', 'Danh mục con') : tr('Categories', 'Danh mục')}
           // Bleeds to the page's right gutter so the last chip is cut by the screen edge, not by an
           // invisible box — which is what says "this row scrolls".
           className="-mr-3 flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain scrollbar-none pr-3 sm:-mr-6 sm:pr-6"
         >
-          {subs.length > 0 ? (
+          {subRow ? (
             <>
               <Toggle pressed={activeSubcategory === 'all'} onPressedChange={() => onSubcategory('all')} className={chipCls}>
                 {tr('All', 'Tất cả')}
@@ -135,6 +143,18 @@ export function LadderCompactRow({
                   {label(it)}
                 </Toggle>
               ))}
+              {/* ⛔ TEACHERS: THE WAY IN, the rail plate's last chip in this row's pill look (owner, 2026-10-09: "add a
+                  button here as subcat that will redirect to teacher.eno.vn to create their profile") — on a phone this row
+                  is what the results view shows. A link: no pressed state; in the app it stays in the app
+                  (keepTeacherJoinInApp). */}
+              {teachers && (
+                <Button variant="bare" size="none" asChild className={cn(chipCls, 'inline-flex items-center gap-1 text-accent-foreground')}>
+                  <a href={teacherJoinUrl()} data-cross-link="teacher-profile" onClick={(e) => keepTeacherJoinInApp(e, lang)}>
+                    <Plus className="size-4 shrink-0" aria-hidden />
+                    {tr('Create a teacher profile', 'Tạo hồ sơ giáo viên')}
+                  </a>
+                </Button>
+              )}
             </>
           ) : (
             <>

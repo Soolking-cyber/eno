@@ -19,8 +19,11 @@ import { useBackToClose } from '@/lib/back-to-close'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useLanguage } from '@/context/language-context'
 import { CONDITION_FACET, facetsFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
+import { ANYWHERE, ONLINE, isHcmcDistrict, isHub, provinceCodeOfKey } from '@/lib/teachers/places'
 import { cn } from '@/lib/utils'
 import { formatCount, formatInteger, moneyLocale } from '@/lib/vnd'
+import { facetOptionLabel } from './facet-chip-label'
+import type { SelectOption } from './custom-select'
 // The chip counter's SPOKEN form. Reused rather than re-worded: this helper already groups per
 // language and already knows Vietnamese has no plural -s, and it is unit-tested for both.
 import { resultCountLabel } from './result-line'
@@ -86,6 +89,20 @@ function isCount(n: unknown): n is number {
 }
 
 /**
+ * "CAN TEACH IN"'S READING ORDER AND HEADINGS (teacher onboarding redesign, owner, 2026-10-08). Up to 65 places in one
+ * list — the taxonomy's order is places.ts's (cities, HCMC's districts, provinces, then Online and "anywhere") — so
+ * the menu puts the two wide picks first, beside "All" and under no heading, then one heading per kind of place.
+ * Stable: within a kind the taxonomy's order stays. `rank` sorts, `heading` names the run (CustomSelect `group`).
+ */
+const TEACH_IN_RANK = (v: string): number => (v === ONLINE ? 0 : v === ANYWHERE ? 1 : isHub(v) ? 2 : isHcmcDistrict(v) ? 3 : provinceCodeOfKey(v) ? 4 : 5)
+function teachInHeading(v: string, tr: (en: string, vi: string) => string): string | undefined {
+  if (isHub(v)) return tr('Cities', 'Thành phố')
+  if (isHcmcDistrict(v)) return tr('Ho Chi Minh City districts', 'Các quận TP. Hồ Chí Minh')
+  if (provinceCodeOfKey(v)) return tr('Other provinces', 'Tỉnh thành khác')
+  return undefined
+}
+
+/**
  * The count for a group's "All" chip.
  *
  * ⚠️ IT IS `dim.all`, NEVER THE SUM OF THE CHIPS BESIDE IT. "All" releases this dimension and keeps
@@ -123,13 +140,23 @@ export function railDimension(dim: DimensionCounts | undefined, chipKeys: readon
 }
 
 /**
- * `label` with its count appended, for a control whose options are plain STRINGS.
- * <CustomSelect> takes `{ value, label }[]`, so a count on a listing-type option cannot be its own
- * element the way it can on a segmented chip. Returns the label untouched when the count is `null`,
- * which is what keeps an absent dimension invisible rather than zeroed.
+ * `label` with its count appended, for a control whose options are plain STRINGS (the listing-type
+ * and condition pills — a few words, which nobody searches by a digit). Returns the label untouched
+ * when the count is `null`, which is what keeps an absent dimension invisible rather than zeroed.
+ * ⚠️ The facet menus (places, numbered districts) take the count as its own field instead
+ * (optionCount below): inside the label it is part of what the menu's search matches.
  */
 export function labelWithCount(label: string, n: number | null, lang: string): string {
   return n == null ? label : `${label} · ${formatCount(n, moneyLocale(lang))}`
+}
+
+/**
+ * The same count as a <CustomSelect> option's own `count` field — drawn after the name exactly as labelWithCount writes
+ * it ("District 7 · 2"), but NEVER PART OF THE NAME THE MENU'S SEARCH MATCHES (gate review, 2026-10-08): in the label,
+ * typing "1" to find District 1 also found every place counted 1, 10–19, 21… `undefined` = no count (absent ≠ zero).
+ */
+export function optionCount(n: number | null, lang: string): string | undefined {
+  return n == null ? undefined : formatCount(n, moneyLocale(lang))
 }
 
 /**
@@ -312,16 +339,25 @@ export function FacetBar({
   // The area pill is "active" when a ward/province/district or a near-you search is set.
   const districtPicked = !!district && district !== 'all'
   const areaActive = !!ward || !!province || !!nearby || districtPicked
+  /**
+   * ⛔ BROWSING TEACHERS (the explorer's teachers category, /?category=teachers — /c/teachers's "Filters" opens it) THE AREA PILL IS WHERE THE TEACHER LIVES (teacher onboarding redesign, owner, 2026-10-08): a teacher
+   * row's city and district are their HOME (projection.ts teacherHome — '' for a teacher abroad, who no place finds),
+   * and "Can teach in" now sits beside it. So the pill says "Lives in", and a picked place reads "Lives in: Hanoi" —
+   * never a bare "Hanoi" beside "Can teach in: Hanoi", two pills naming one city for two different questions.
+   */
+  const teachersBrowse = activeCategory === 'teachers'
+  const livesIn = teachersBrowse ? tr('Lives in', 'Sống tại') : null
+  const atPlace = (place: string) => (livesIn ? `${livesIn}: ${place}` : place)
   // ⚠️ THE DISTRICT OUTRANKS THE PROVINCE: with HCMC applied as well, "Quận 7" says what narrows.
   const areaLabel = ward
-    ? (lang === 'vi' ? ward.name : ward.nameEn)
+    ? atPlace(lang === 'vi' ? ward.name : ward.nameEn)
     : nearby
     ? fillTemplate(tr('Within {radiusKm} km', 'Trong {radiusKm} km'), 'Within {radiusKm} km', { radiusKm: String(nearby.radiusKm) })
     : districtPicked
-    ? districtSlugLabel(district!, lang)
+    ? atPlace(districtSlugLabel(district!, lang))
     : province
-    ? (lang === 'vi' ? province.name : province.nameEn)
-    : tr('Area', 'Khu vực')
+    ? atPlace(lang === 'vi' ? province.name : province.nameEn)
+    : livesIn ?? tr('Area', 'Khu vực')
 
   const setFacet = (key: string, value: string) =>
     setCustomFilters((prev) => {
@@ -605,6 +641,28 @@ export function FacetBar({
   // condition maps to the dedicated column; everything else to attr_* customFilters.
   const facetValue = (f: FacetDef) => (f.key === 'condition' ? conditionFilter : customFilters[f.key] || 'all')
   const setFacetValue = (f: FacetDef, v: string) => { if (f.key === 'condition') setConditionFilter(v); else setFacet(f.key, v) }
+  /**
+   * A select facet's OPTIONS — the offered ones, labelled by facetOptionLabel (a place is never machine-translated, a
+   * word is), each with its count — in its own field (CustomSelect `count`, optionCount), so the menu's search
+   * matches the NAME and never the number. "Can teach in" (`workIn`) also gets its reading order and headings
+   * (TEACH_IN_RANK / teachInHeading), so the Filter panel's field and the bar's pill draw the same grouped menu.
+   * `labels` are the countless names, for a trigger (a pill's text must not reflow when a count lands).
+   */
+  const selectOptions = (f: FacetDef, offered: readonly string[], dim: DimensionCounts | undefined) => {
+    const on = new Set(offered)
+    let picked = f.options.filter((o) => on.has(o.value))
+    if (f.key === 'workIn') picked = [...picked].sort((a, b) => TEACH_IN_RANK(a.value) - TEACH_IN_RANK(b.value))
+    const labels = new Map(picked.map((o) => [o.value, facetOptionLabel(f, o, lang, tr)]))
+    const options: SelectOption[] = picked.map((o) => ({
+      value: o.value,
+      label: labels.get(o.value)!,
+      count: optionCount(chipCount(dim, o.value), lang),
+      ...(f.key === 'workIn' ? { group: teachInHeading(o.value, tr) } : {}),
+    }))
+    return { options, labels }
+  }
+  /** A select facet's "All" row, its count beside the word (never searched — selectOptions). */
+  const allOption = (dim: DimensionCounts | undefined): SelectOption => ({ value: 'all', label: tr('All', 'Tất cả'), count: optionCount(allCount(dim), lang) })
 
   /**
    * ⛔ COVER AREA, A PILL OF ITS OWN ON THE COVER BROWSE (preview check, 2026-10-07). With "Available for cover" on,
@@ -621,10 +679,11 @@ export function FacetBar({
     const value = facetValue(coverAreaFacet)
     const dim = facetDimension(coverAreaFacet)
     const offered = offeredKeys(dim, coverAreaFacet.options.map((o) => o.value), value, { hideNoOp: true })
-    // i18n-invariant: cover areas are places — their own English or Vietnamese name, never machine-translated.
-    const opts = coverAreaFacet.options.filter((o) => offered.includes(o.value)).map((o) => ({ value: o.value, label: lang === 'vi' ? o.labelVi : o.label }))
+    // i18n-invariant: cover areas are places — their own English or Vietnamese name, never machine-translated
+    // (selectOptions → facetOptionLabel); their counts beside the name, never searched.
+    const { options, labels } = selectOptions(coverAreaFacet, offered, dim)
     const title = tr('Cover area', 'Khu vực dạy thay')
-    if (opts.length || value !== 'all') {
+    if (options.length || value !== 'all') {
       // By the Area pill's own key, found NOW — never an index captured 200 lines earlier that a later insert would skew.
       const areaAt = facets.findIndex((el) => isValidElement(el) && el.key === 'area')
       facets.splice(areaAt >= 0 ? areaAt : facets.length, 0, (
@@ -632,11 +691,54 @@ export function FacetBar({
           key="coverArea"
           value={value}
           onChange={(v) => setFacetValue(coverAreaFacet, v)}
-          options={[
-            { value: 'all', label: labelWithCount(tr('All', 'Tất cả'), allCount(dim), lang) },
-            ...opts.map((o) => ({ value: o.value, label: labelWithCount(o.label, chipCount(dim, o.value), lang) })),
-          ]}
-          triggerLabel={value === 'all' ? title : `${title}: ${opts.find((o) => o.value === value)?.label ?? value}`}
+          options={[allOption(dim), ...options]}
+          triggerLabel={value === 'all' ? title : `${title}: ${labels.get(value) ?? value}`}
+          label={title}
+          placeholder={title}
+          indicator="down"
+          className={cls}
+          activeClassName={active}
+          wrapperClassName={wrap}
+        />
+      ))
+    }
+  }
+
+  /**
+   * ⛔ "CAN TEACH IN", A PILL OF ITS OWN WHEN BROWSING TEACHERS (/?category=teachers; the /c/teachers landing links to it) (teacher onboarding redesign, owner, 2026-10-08). Where a teacher
+   * can teach — one list of up to 65 places (src/lib/teachers/places.ts) — is the first thing a school filters by, and
+   * it was reachable only inside Filter. A pick reads the way a school means it (attr-match.ts workInFilterKeys: a
+   * city also finds its districts, its province and "Will move anywhere"), and its counts go through the same needles
+   * (facet-counts.ts → attrMatcher), so the number on an option is what the tap returns.
+   *   · Only the places that would narrow (offeredKeys hideNoOp, owner 2026-09-25), grouped and searchable
+   *     (selectOptions + CustomSelect, past SEARCHABLE_FROM options);
+   *   · the Area pill beside it is where the teacher LIVES ("Lives in", above);
+   *   · ⚠️ while "Available for cover" is on, the Cover-area pill takes this slot — where a teacher will TRAVEL for a
+   *     cover is the question then — unless a place is already picked here: a set filter keeps its pill (the
+   *     Condition pill's rule), so it can be read and cleared.
+   * The same value as the Filter panel's field, so the two cannot disagree.
+   */
+  const teachInSet = !!customFilters.workIn && customFilters.workIn !== 'all'
+  const teachInFacet = activeCategory === 'teachers' && (customFilters.cover !== 'open' || teachInSet)
+    ? advFacets.find((f) => f.key === 'workIn')
+    : undefined
+  if (teachInFacet) {
+    const value = facetValue(teachInFacet)
+    const dim = facetDimension(teachInFacet)
+    const offered = offeredKeys(dim, teachInFacet.options.map((o) => o.value), value, { hideNoOp: true })
+    const { options, labels } = selectOptions(teachInFacet, offered, dim)
+    const title = tr('Can teach in', 'Có thể dạy tại')
+    if (options.length || value !== 'all') {
+      // Before the Cover-area pill when both show (a place picked here, cover on), else before Area — found by key NOW.
+      const at = (k: string) => facets.findIndex((el) => isValidElement(el) && el.key === k)
+      const slot = at('coverArea') >= 0 ? at('coverArea') : at('area')
+      facets.splice(slot >= 0 ? slot : facets.length, 0, (
+        <CustomSelect
+          key="workIn"
+          value={value}
+          onChange={(v) => setFacetValue(teachInFacet, v)}
+          options={[allOption(dim), ...options]}
+          triggerLabel={value === 'all' ? title : `${title}: ${labels.get(value) ?? value}`}
           label={title}
           placeholder={title}
           indicator="down"
@@ -677,8 +779,11 @@ export function FacetBar({
       {shownAdvFacets.map(({ f, offered }) => {
         const value = facetValue(f)
         const dim = facetDimension(f)
-        // i18n-invariant: `placeNames` (cover areas) — a place is its own English or Vietnamese name, never machine-translated.
-        const opts = f.options.filter((o) => offered.includes(o.value)).map((o) => ({ value: o.value, label: f.placeNames ? (lang === 'vi' ? o.labelVi : o.label) : tr(o.label, o.labelVi) }))
+        // i18n-invariant: `placeNames` (cover areas, "Can teach in") — a place is its own English or Vietnamese name,
+        // never machine-translated; a `word` option (Online) is translated (facetOptionLabel).
+        const opts = f.options.filter((o) => offered.includes(o.value)).map((o) => ({ value: o.value, label: facetOptionLabel(f, o, lang, tr) }))
+        // The select field's menu — "Can teach in" grouped exactly as its pill on the bar (selectOptions).
+        const menu = f.kind === 'toggle' || f.kind === 'range' ? null : selectOptions(f, offered, dim)
         return (
           <div key={f.key} className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
             <label id={`${uid}-${f.key}-label`} className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0">{tr(f.label, f.labelVi)}</label>
@@ -707,11 +812,8 @@ export function FacetBar({
                   // Same split as the listing-type pill: counts on the OPTIONS, and the
                   // trigger keeps the plain label so a panel field cannot reflow when a
                   // count arrives.
-                  options={[
-                    { value: 'all', label: labelWithCount(tr('All', 'Tất cả'), allCount(dim), lang) },
-                    ...opts.map((o) => ({ value: o.value, label: labelWithCount(o.label, chipCount(dim, o.value), lang) })),
-                  ]}
-                  triggerLabel={value === 'all' ? tr('All', 'Tất cả') : opts.find((o) => o.value === value)?.label}
+                  options={[allOption(dim), ...(menu?.options ?? [])]}
+                  triggerLabel={value === 'all' ? tr('All', 'Tất cả') : menu?.labels.get(value)}
                   label={tr(f.label, f.labelVi)}
                   placeholder={tr(f.label, f.labelVi)}
                   indicator="down"
@@ -835,6 +937,12 @@ export function FacetBar({
           open={areaOpen}
           anchorRef={areaBtnRef}
           onClose={() => setAreaOpen(false)}
+          // The panel names what the pill names: browsing teachers, where the teacher lives (see `livesIn`).
+          title={livesIn ?? undefined}
+          // ⛔ NO "NEAR ME" WHERE THE ROWS ARE PEOPLE (gate review, 2026-10-08): a radius is a lat/lng box (geo-radius.ts
+          // radiusWhere — a row with no coordinate is never in it) and a teacher row carries none (a person is not a
+          // place: map-pin-rows.ts), so browsing teachers "Use my current location" could only ever find no teachers.
+          hideLocate={teachersBrowse}
           province={province}
           ward={ward}
           district={district}
@@ -857,8 +965,12 @@ export function FacetBar({
             setDistrict(slug)
           } : undefined}
           nearby={nearby}
-          onApply={({ province: p, ward: w, nearby: nb }) => {
+          onApply={({ province: p, ward: w, nearby: applied }) => {
             onCommit?.()
+            // Browsing teachers (no "near me" — `hideLocate` above) a radius carried in from another browse is DROPPED by the
+            // first Apply, never re-applied unseen: the panel's draft starts from the applied radius, and with its control
+            // hidden nothing in the panel could remove it (gate review, 2026-10-08).
+            const nb = teachersBrowse ? null : applied
             // Only a CHANGED place replaces the district: an Apply that re-sends the radius already
             // applied must not strip a district from the search box (opus). The panel's province
             // defaults to HCMC, and HCMC contains every curated district, so that is no change here.

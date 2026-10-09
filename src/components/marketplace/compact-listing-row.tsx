@@ -16,6 +16,7 @@ import { useLanguage, Tr } from '@/context/language-context'
 import { useLocalized } from './listing-content'
 import { timeAgo, type SerializedListingCard } from '@/lib/types'
 import { cardHidesTrust } from '@/lib/linked-seller'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
@@ -47,6 +48,11 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
   // Embedded per-language title (titleI18n, warmed at post time) → instant, no
   // API call; falls back to lazy MT for langs without an embedded value.
   const displayTitle = useLocalized(l.title, l.titleVi, l.titleI18n)
+  // Where it is: the district, else the city. ⚠️ A TEACHER ABROAD HAS NEITHER (teacher onboarding redesign, 2026-10-08 —
+  // city '' by design, projection.ts teacherHome): their location is the fact ("Not in Vietnam yet · Online"), so it
+  // stands in; and a row with no place at all draws no divider beside nothing.
+  const teacher = l.listingType === TEACHER_LISTING_TYPE
+  const place = l.district || l.city || (teacher ? l.location : '')
   // Quick-offer: pressing the Tag rolls a discount slider open to the LEFT of the
   // action icons; confirm hands off to the composer's offer mode (?offer=N#contact).
   const [offer, setOffer] = useState<number | null>(null)
@@ -242,8 +248,8 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           )}
           {/* Address text on this line is desktop-only (user-picked: it truncated uselessly
               beside the price on phones). Phones get it on its own line below instead. */}
-          <span className="hidden h-3 w-px shrink-0 bg-border sm:block" />
-          <span className="hidden truncate sm:inline"><Tr text={l.district || l.city} /></span>
+          {place && <span className="hidden h-3 w-px shrink-0 bg-border sm:block" />}
+          {place && <span className="hidden truncate sm:inline"><Tr text={place} /></span>}
           {/* Demand proof (≥3 contact reveals) — desktop only: the one-line meta row
               can't spare the width on mobile. */}
           {l.contactCount >= 3 && (
@@ -265,7 +271,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             there is no server HTML to mismatch, and the mount-gated form would flash an ISO date for a
             frame first. Same function, so the same string the card and the PDP print. */}
         <p className="mt-0.5 truncate text-xs text-muted-foreground sm:hidden">
-          {l.district || l.city ? <><Tr text={l.district || l.city} />{' · '}</> : null}
+          {place ? <><Tr text={place} />{' · '}</> : null}
           {timeAgo(l.postedAt, lang)}
         </p>
       </div>
@@ -351,6 +357,9 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           </IconButton>
         </Tooltip>
         )}
+        {/* ⛔ A teacher is never a map pin (map-pin-rows.ts — a person is not a place), so their row offers no "Show on
+            map": it would open the map focused on nothing. */}
+        {!teacher && (
         <IconButton
           size="md"
           tapTarget={false}
@@ -362,6 +371,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
         >
           <MapPin className="h-5 w-5" />
         </IconButton>
+        )}
         {offer === null && <FavoriteHeart id={l.id} className="-mr-0.5" />}
       </div>
     </div>

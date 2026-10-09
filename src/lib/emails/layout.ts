@@ -62,13 +62,28 @@ export function emailCta(label: string, url: string): string {
  *
  * The marketplace branch is byte-identical to the old literal; it now reads COMPANY because
  * site-legal.ts forbids a company name typed anywhere else.
+ *
+ * ⛔ `full` — THE SENDER NAMED IN FULL (teacher job-match emails, 2026-10-08): mail a person asked for that still
+ * suggests something to them carries its sender's identity — the legal name and the REGISTERED HEAD OFFICE, not just
+ * the city — beside its unsubscribe (Decree 91/2020; plan review B9/E3). Marketplace only, like the block itself: on
+ * eno.forum the operator is not incorporated and `full` changes nothing.
  */
-function legalFooterHtml(): string {
+function legalFooterHtml(full = false): string {
   if (IS_MARKETPLACE) {
-    return `${esc(COMPANY.name)} · TP. Hồ Chí Minh, Việt Nam · ${esc(COMPANY.email)}<br/>
+    return `${esc(full ? `${COMPANY.name} (${COMPANY.nameEn})` : COMPANY.name)} · ${esc(full ? COMPANY.address : 'TP. Hồ Chí Minh, Việt Nam')} · ${esc(COMPANY.email)}<br/>
           ${esc(SITE_NAME)} — ${POSTING_IS_FREE ? 'free ' : ''}classifieds for expats and locals in Vietnam.`
   }
   return `${esc(SITE_NAME)} · ${esc(COMPANY.email)}`
+}
+
+/**
+ * The same full identity as plain text — the line a `text/plain` email ends with (renderTeacherMatches). Marketplace:
+ * "Công ty TNHH ENO (ENO Company Limited) · <registered head office> · <email>"; eno.forum: site name and contact only.
+ */
+export function senderIdentityText(): string {
+  return IS_MARKETPLACE
+    ? `${COMPANY.name} (${COMPANY.nameEn}) · ${COMPANY.address} · ${COMPANY.email}`
+    : `${SITE_NAME} · ${COMPANY.email}`
 }
 
 export function renderBrandEmail(opts: {
@@ -92,8 +107,10 @@ export function renderBrandEmail(opts: {
    * instead of the legal line, which on eno.vn names Công ty TNHH ENO as if it were the provider.
    */
   provider?: { name: string; footer: string }
+  /** 'full': the footer names the sender in full — legal name and registered head office (legalFooterHtml). */
+  sender?: 'full'
 }): string {
-  const { preheader, bodyHtml, origin, cta, audienceNote, unsubscribeUrl, provider } = opts
+  const { preheader, bodyHtml, origin, cta, audienceNote, unsubscribeUrl, provider, sender } = opts
   const E = EMAIL
   const audience = audienceNote
     ? `<p style="margin:0;font-size:12px;color:${E.MUTED};line-height:1.6;">${esc(audienceNote)}${
@@ -119,7 +136,7 @@ export function renderBrandEmail(opts: {
       <tr><td style="padding:20px 24px 24px;border-top:1px solid ${E.BORDER};">
         ${audience}
         <p style="margin:${audience ? '10px' : '0'} 0 0;font-size:11px;color:${E.MUTED};line-height:1.6;">
-          ${provider ? esc(provider.footer) : legalFooterHtml()}
+          ${provider ? esc(provider.footer) : legalFooterHtml(sender === 'full')}
         </p>
       </td></tr>
     </table>

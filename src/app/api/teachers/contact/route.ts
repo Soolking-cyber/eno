@@ -1,4 +1,5 @@
-// A recruiter reads the teacher's phone + email — only while the teacher's share is active (2026-09-30).
+// A recruiter reads the teacher's phone + email — only while the teacher's share is active (2026-09-30), and the phone
+// only when that share included it (TeacherContactShare.phoneShared, gate review 2026-10-09).
 import { route, ApiError } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { teacherThread } from '@/lib/teachers/share'
@@ -26,6 +27,10 @@ export const GET = route(
     // A lead signal, deduped per (listing, viewer) — the same ledger the listing contact route keeps.
     // Written once per (listing, viewer), never per read — this route is hit on every share signal.
     await db.contactReveal.createMany({ data: [{ listingId: t.convo.listingId!, viewerId: profile.id }], skipDuplicates: true })
-    return { phone: priv?.phone ?? null, email: priv?.email ?? null, hasCv: !!priv?.cvPath }
+    // ⛔ THE PHONE ONLY IF THE SHARE'S TAP INCLUDED IT (gate review, 2026-10-09). `priv` is the CURRENT private
+    // row, so without this a teacher who shared "email & CV" (no phone on file — optional since A3) and added a
+    // phone later, to switch staff calls on, silently handed it to every school shared with before. A share hands
+    // over what its tap named.
+    return { phone: t.phoneShared ? priv?.phone ?? null : null, email: priv?.email ?? null, hasCv: !!priv?.cvPath }
   },
 )

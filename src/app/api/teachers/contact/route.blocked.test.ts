@@ -21,6 +21,8 @@ vi.mock('@/lib/enforcement', () => ({ conversationGate: async () => null }))
 vi.mock('@/lib/teachers/share', () => ({
   teacherThread: async () => ({
     convo: { listingId: 'L-teacher' }, teacherProfileId: 'tp-1', teacherUserId: 'teacher-1', recruiterUserId: 'recruiter-1', shared: true, shareOn: true, profileLive: true,
+    // A share whose tap included the phone (route.phone.test.ts covers one that did not — gate review, 2026-10-09).
+    hasPhone: true, phoneShared: true,
   }),
 }))
 vi.mock('@/lib/teachers/cv-store', () => ({ signTeacherCv: async () => 'https://storage.example/cv.pdf?sig=1' }))

@@ -153,6 +153,20 @@ const RECIPIENTS: Table = {
       { en: 'Describing and classifying listings, checking them for prohibited goods, search, search by photo, writing help, the shopping assistant, and suggesting an outcome to our team when it reviews a report or dispute (a member of our team decides).', vi: 'Mô tả và phân loại tin đăng, kiểm tra hàng hóa bị cấm, tìm kiếm, tìm kiếm bằng hình ảnh, hỗ trợ viết nội dung, trợ lý mua sắm, và gợi ý hướng xử lý cho đội ngũ của chúng tôi khi xem xét báo cáo hoặc tranh chấp (một nhân viên của chúng tôi đưa ra quyết định).' },
     ],
     [
+      // TEACHER JOB MATCHING (owner, 2026-10-08 — Claude Haiku 5.5, never Gemini). THE SENDER: ~/eno-lead-pipeline
+      // src/cli/teachersMatch.ts → src/claudeFallback.ts (the pinned judge path, run by the /teachers skill through the
+      // owner's Claude subscription). WHAT IT GETS: eno.vn scripts/teachers-match.ts `export` — only teachers whose opt-in
+      // carries the CURRENT AI notice (src/lib/teachers/profile.ts aiMatchConsented), the MatchTeacher fields of
+      // src/lib/teachers/match-io.ts with the name's words taken out of the free text (stripNameWords), plus the public
+      // job fields (MatchJob); no name, photo, video, phone, email or CV field is selected for it. WHAT COMES BACK:
+      // TeacherJobMatch rows → the job-match emails (api/cron/teacher-match-emails) and, for staff-call opt-ins, the
+      // staff's local list. ⛔ The pipeline's privacy gate requires this exact label, 'Anthropic (Claude)'.
+      { en: 'Anthropic (Claude)', vi: 'Anthropic (Claude)' },
+      { en: 'Outside Vietnam', vi: 'Ngoài Việt Nam' },
+      { en: 'Only for teachers who ask for job matches (by email, or through a call from our staff): the headline and about text of the teacher profile as the teacher wrote them, with the teacher’s own name taken out where it appears; the teacher’s nationality and whether they are a native speaker, the city they live in and the cities they can teach in (and whether online), subjects, age groups, job types, years of experience, degree, certificate types, expected salary and start date — together with the public details of teaching jobs. Never the name, photo, video, phone number, email address or CV fields of the profile.', vi: 'Chỉ với giáo viên yêu cầu gợi ý việc làm (qua email, hoặc qua cuộc gọi từ nhân viên của chúng tôi): tiêu đề và phần giới thiệu trong hồ sơ giáo viên đúng như giáo viên đã viết, trong đó tên của chính giáo viên được lược bỏ nếu xuất hiện; quốc tịch và việc giáo viên có phải người bản ngữ hay không, thành phố giáo viên đang sống và các thành phố giáo viên có thể dạy (và có dạy trực tuyến hay không), môn dạy, độ tuổi học viên, loại công việc, số năm kinh nghiệm, bằng cấp, loại chứng chỉ, mức lương mong muốn và ngày có thể bắt đầu — cùng thông tin công khai của các việc làm giảng dạy. Không bao giờ gồm các mục tên, ảnh, video, số điện thoại, địa chỉ email hay CV trong hồ sơ.' },
+      { en: 'Comparing teacher profiles with teaching jobs, to suggest jobs to the teacher and, where the teacher agreed, to our staff.', vi: 'So sánh hồ sơ giáo viên với các việc làm giảng dạy, để gợi ý việc làm cho giáo viên và, khi giáo viên đồng ý, cho nhân viên của chúng tôi.' },
+    ],
+    [
       // src/lib/google-identity.ts · next.config.ts gsiScript
       { en: 'Google (Sign in with Google)', vi: 'Google (Đăng nhập bằng Google)' },
       { en: 'Outside Vietnam', vi: 'Ngoài Việt Nam' },
@@ -525,6 +539,12 @@ const SECTIONS: Section[] = [
       },
       ...(IS_SERVICES ? PRIVACY_SERVICES_PURPOSES : []),
       {
+        // The two opt-ins of the teacher profile (TeacherProfile.matchEmailOptIn / staffContactOptIn), each stamped with
+        // the AI notice it was given under (src/lib/teachers/publish.ts optInWrites) — both editions: one database.
+        en: 'With a teacher’s consent only, given in the teacher profile: to compare the profile with teaching jobs and suggest the ones that fit, by email or through a call from our staff (see “Automated decisions”).',
+        vi: 'Chỉ khi giáo viên đồng ý trong hồ sơ giáo viên: để so sánh hồ sơ với các việc làm giảng dạy và gợi ý những việc làm phù hợp, qua email hoặc qua cuộc gọi từ nhân viên của chúng tôi (xem mục “Quyết định tự động”).',
+      },
+      {
         en: 'The basis for all of this is your consent: expressed by a clear action, asked for separately for each purpose that needs it — each optional use has its own switch, and each is off until you turn it on — and withdrawable at any time without losing access to the parts of the service that do not depend on it. Where Vietnamese law allows processing without consent we rely only on the narrow grounds it lists — performing a contract you asked us to perform, meeting a legal obligation such as keeping e-commerce records, protecting someone’s life or health in an emergency, and answering a lawful request from a competent state authority. We do not sell personal data and we do not trade in it: Vietnamese law prohibits it, and so do our own rules.',
         vi: 'Cơ sở cho tất cả các hoạt động trên là sự đồng ý của bạn: được thể hiện bằng một hành động rõ ràng, được hỏi riêng cho từng mục đích cần đồng ý — mỗi mục tùy chọn có công tắc riêng và đều tắt cho đến khi bạn bật — và có thể rút lại bất cứ lúc nào mà không mất quyền sử dụng những phần dịch vụ không phụ thuộc vào sự đồng ý đó. Trong những trường hợp pháp luật Việt Nam cho phép xử lý không cần sự đồng ý, chúng tôi chỉ dựa vào các căn cứ hẹp được pháp luật liệt kê — thực hiện hợp đồng bạn yêu cầu, thực hiện nghĩa vụ pháp lý như lưu trữ dữ liệu giao dịch thương mại điện tử, bảo vệ tính mạng, sức khỏe của một người trong tình huống khẩn cấp, và đáp ứng yêu cầu hợp pháp của cơ quan nhà nước có thẩm quyền. Chúng tôi không bán và không mua bán dữ liệu cá nhân: pháp luật Việt Nam cấm hành vi này, và quy định của chính chúng tôi cũng cấm.',
       },
@@ -556,6 +576,13 @@ const SECTIONS: Section[] = [
         // pre-selects a severity and focuses a verdict button, which the moderator still has to press.
         en: 'AI review of reports: when our team reviews a report or a dispute, a moderator may ask an AI model (Google Gemini) to read the case — what is sent is listed for Google under “Who else receives your data” — and suggest an outcome. The suggestion is advisory only: it does not decide or change anything in the case by itself, and a member of our team reads the evidence and makes the decision.',
         vi: 'Hỗ trợ xem xét báo cáo bằng AI: khi đội ngũ của chúng tôi xem xét một báo cáo hoặc tranh chấp, người kiểm duyệt có thể nhờ một mô hình AI (Google Gemini) đọc hồ sơ vụ việc — dữ liệu được gửi đi được liệt kê ở dòng Google trong mục “Những ai khác nhận dữ liệu của bạn” — và gợi ý hướng xử lý. Gợi ý này chỉ mang tính tham khảo: tự nó không quyết định hay thay đổi điều gì trong vụ việc, và một nhân viên của chúng tôi xem xét bằng chứng và đưa ra quyết định.',
+      },
+      {
+        // The bar: src/lib/teachers/match-io.ts MATCH_MIN_SCORE (70). The email: src/lib/teachers/match-emails.ts
+        // MATCH_EMAIL_RULES (perEmail 5, cooldownMs 3 days). Who is matched: profile.ts aiMatchConsented. The staff list:
+        // scripts/teachers-match.ts (staff-call opt-ins only). The unsubscribe: api/unsubscribe (list=teacher-matches).
+        en: 'Teacher job matching: if a teacher asks for job matches, an AI model (Anthropic’s Claude) compares their profile with new teaching jobs and scores the fit. A job that scores 70 or more becomes a suggestion: it is emailed to the teacher (at most five jobs per email, at most one email every three days) and, if the teacher allowed our staff to call, listed for our staff. It only decides which jobs we suggest — schools never see the score, and no application is made on anyone’s behalf. Switching both choices off in the teacher profile stops it; the unsubscribe link in an email stops the emails.',
+        vi: 'So khớp việc làm cho giáo viên: nếu giáo viên yêu cầu gợi ý việc làm, một mô hình AI (Claude của Anthropic) so sánh hồ sơ của giáo viên với các việc làm giảng dạy mới và chấm điểm mức độ phù hợp. Việc làm đạt từ 70 điểm trở lên trở thành một gợi ý: được gửi qua email cho giáo viên (tối đa năm việc làm mỗi email, tối đa một email mỗi ba ngày) và, nếu giáo viên cho phép nhân viên của chúng tôi gọi điện, được đưa vào danh sách cho nhân viên. Việc chấm điểm chỉ quyết định những việc làm chúng tôi gợi ý — trường học không bao giờ thấy điểm số, và không có đơn ứng tuyển nào được nộp thay cho bất kỳ ai. Tắt cả hai lựa chọn trong hồ sơ giáo viên sẽ dừng việc này; đường dẫn hủy đăng ký trong email sẽ dừng các email.',
       },
       {
         // src/lib/trust-math.ts:15-45 (V: phone, business verification, age · Q: reviews, responsiveness,
@@ -615,8 +642,8 @@ const SECTIONS: Section[] = [
     title: { en: 'Processing outside Vietnam', vi: 'Xử lý dữ liệu ngoài Việt Nam' },
     blocks: [
       {
-        en: 'Our own systems are in Vietnam, but several of the recipients above work outside Vietnam — Cloudflare, Microsoft, Google, Apple, Resend, Telegram, Meta, LinkedIn, Reddit, CARTO, OpenStreetMap and the push-notification services. Sending them personal data is a cross-border transfer under Vietnamese law, and it carries its own duties: the transfer must be documented and assessed, the assessment must be filed with the Ministry of Public Security and kept current, and you must be told the transfer is happening. This paragraph is that notice.',
-        vi: 'Hệ thống của chính chúng tôi đặt tại Việt Nam, nhưng một số bên nhận nêu trên hoạt động ngoài Việt Nam — Cloudflare, Microsoft, Google, Apple, Resend, Telegram, Meta, LinkedIn, Reddit, CARTO, OpenStreetMap và các dịch vụ thông báo đẩy. Việc gửi dữ liệu cá nhân cho các bên này là chuyển dữ liệu cá nhân ra nước ngoài theo pháp luật Việt Nam và kèm theo các nghĩa vụ riêng: việc chuyển dữ liệu phải được ghi nhận và đánh giá, hồ sơ đánh giá phải được nộp cho Bộ Công an và cập nhật kịp thời, và bạn phải được thông báo về việc chuyển dữ liệu. Đoạn này là thông báo đó.',
+        en: 'Our own systems are in Vietnam, but several of the recipients above work outside Vietnam — Cloudflare, Microsoft, Google, Apple, Anthropic, Resend, Telegram, Meta, LinkedIn, Reddit, CARTO, OpenStreetMap and the push-notification services. Sending them personal data is a cross-border transfer under Vietnamese law, and it carries its own duties: the transfer must be documented and assessed, the assessment must be filed with the Ministry of Public Security and kept current, and you must be told the transfer is happening. This paragraph is that notice.',
+        vi: 'Hệ thống của chính chúng tôi đặt tại Việt Nam, nhưng một số bên nhận nêu trên hoạt động ngoài Việt Nam — Cloudflare, Microsoft, Google, Apple, Anthropic, Resend, Telegram, Meta, LinkedIn, Reddit, CARTO, OpenStreetMap và các dịch vụ thông báo đẩy. Việc gửi dữ liệu cá nhân cho các bên này là chuyển dữ liệu cá nhân ra nước ngoài theo pháp luật Việt Nam và kèm theo các nghĩa vụ riêng: việc chuyển dữ liệu phải được ghi nhận và đánh giá, hồ sơ đánh giá phải được nộp cho Bộ Công an và cập nhật kịp thời, và bạn phải được thông báo về việc chuyển dữ liệu. Đoạn này là thông báo đó.',
       },
       // ⛔ GATED ON PDP_DOSSIERS_FILED, NOT OPERATOR_REGISTERED (2026-10-01). It used to assert "we … file
       // them with the Ministry of Public Security" whenever the company certificate existed — which says
@@ -815,6 +842,10 @@ const isTable = (b: Block): b is { table: Table } => 'table' in b
  * refuses a deploy whose new PRIVACY_TEXT_PUBLISHED is not today in Vietnam, but nothing notices a later edit to this
  * text that leaves the date alone — so re-date it, in that deploy's commit, with any change here that ships outside
  * an amendment.
+ * ⛔ TEACHER JOB MATCHING (2026-10-09) rides the same date: the Anthropic (Claude) recipient row, its purpose and the
+ * automated-decisions paragraph shipped the same Vietnamese day as the Apple rows, so PRIVACY_TEXT_PUBLISHED
+ * (2026-10-09) dates them too — the owner's call ("apply recommended": immediate). Its parallel record
+ * (PRIVACY_AMENDMENT) was dropped for this one, already live.
  */
 // ISO dates compare as strings.
 const LAST_UPDATED_ON = LEGAL_AMENDMENT.published > PRIVACY_TEXT_PUBLISHED ? LEGAL_AMENDMENT.published : PRIVACY_TEXT_PUBLISHED

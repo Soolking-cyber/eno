@@ -25,7 +25,7 @@ vi.mock('@/context/language-context', () => ({
   LanguageProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
-import { SortStrip } from './explorer-toolbar'
+import { SortStrip, ViewToggles } from './explorer-toolbar'
 import { CategoryRail } from './category-rail'
 
 /** Every scroller overflows: 300px wide, 1000px of content — so each row has more to its right. */
@@ -106,5 +106,30 @@ describe('NAV-13: the price sort tab names the order it gives', () => {
     view.unmount()
     render(strip('price-high', 'salary'))
     expect(screen.getByRole('tab', { name: 'Lương: cao đến thấp' }).textContent).toBe('Lương cao → thấp')
+  })
+})
+
+/**
+ * ⛔ THE TEACHERS FEED HAS NO MAP (gate review, 2026-10-09): every row there is a teacher and a teacher is never a pin
+ * (map-pin-rows.ts), so the explorer passes `showMap={false}` over it. The default is the old toolbar, button for button
+ * — every other feed keeps its Map tab. (The explorer's half: listings-explorer.teachers-map.test.tsx.)
+ */
+describe('ViewToggles: the Map tab is offered unless the feed has no map', () => {
+  const views = () => screen.getAllByRole('button').map((b) => b.getAttribute('aria-label'))
+
+  it('by default all four views, in order — what every feed but the teachers\' gets', () => {
+    render(<ViewToggles viewMode="grid" onViewMode={() => {}} />)
+    expect(views()).toEqual(['List view', 'Grid view', 'Map view', 'Video view'])
+  })
+
+  it('`showMap={false}` takes the Map tab away and nothing else (the Video gate still works beside it)', () => {
+    const onViewMode = vi.fn()
+    const view = render(<ViewToggles viewMode="grid" onViewMode={onViewMode} showMap={false} />)
+    expect(views()).toEqual(['List view', 'Grid view', 'Video view'])
+    fireEvent.click(screen.getByRole('button', { name: 'List view' }))
+    expect(onViewMode).toHaveBeenCalledWith('compact')
+    view.unmount()
+    render(<ViewToggles viewMode="grid" onViewMode={() => {}} showMap={false} showVideo={false} />)
+    expect(views()).toEqual(['List view', 'Grid view'])
   })
 })

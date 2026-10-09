@@ -1,5 +1,6 @@
 'use client'
 import { categoryFromPath, explorerMounted, explorerFallbackUrl } from '@/lib/explorer-presence'
+import { categoryHasMap } from './map-pin-rows'
 
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
@@ -546,10 +547,16 @@ export function Header() {
   }
 
   // The map view — the pill's Map button (sm+) and the phone panel's Map row (O-03) run the same action.
+  // ⛔ A landing whose category has no map (/c/teachers — map-pin-rows.ts `categoryHasMap`) opens the MARKETPLACE map, not
+  // its own: the category's map is always empty, and the explorer would show that feed's list instead — a Map press that
+  // went nowhere (gate review, 2026-10-09). The explorer's `eno:view-map` answers the same way, so on and off it agree.
   const openMap = () => {
     setShowSuggestions(false)
     if (onExplorer()) window.dispatchEvent(new CustomEvent('eno:view-map'))
-    else { releaseSearchPanel(); router.push(explorerFallbackUrl(pathname, { view: 'map' }, navVariant())) }
+    else {
+      releaseSearchPanel()
+      router.push(explorerFallbackUrl(categoryHasMap(categoryFromPath(pathname)) ? pathname : null, { view: 'map' }, navVariant()))
+    }
   }
   // The AI concierge — likewise the pill's ✨ (sm+) and the phone panel's first row.
   const openAi = () => { releaseSearchPanel(); router.push('/messages/ai'); setShowSuggestions(false) }

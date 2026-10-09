@@ -370,7 +370,9 @@ type Thread = {
   /** Bell notifications the `?opened=1` load just marked read (0 on every poll). */
   notificationsCleared?: number
   /** A thread about a teacher profile (2026-09-30); optional — pending stubs and cached threads omit it. */
-  teacher?: { shared: boolean; live?: boolean; video?: TeacherVideoFlags | null } | null
+  // `hasPhone` reaches the TEACHER side only (A3, 2026-10-08) — what their Share button names; so does `phoneShared`
+  // (gate review, 2026-10-09) — whether the standing share included the phone.
+  teacher?: { shared: boolean; live?: boolean; hasPhone?: boolean; phoneShared?: boolean; video?: TeacherVideoFlags | null } | null
   /**
    * App Store gate `ugc-safety`: the thread is CLOSED by a block between its two people — 'you_blocked'
    * (I blocked them; the banner offers the way back) or 'blocked' (the other side did). Absent while the
@@ -2739,7 +2741,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
               TEACHER'S OWN STRIP — "Stop sharing" must stay reachable while the block stands (the server still
               accepts an unshare), or a share made before the block would quietly come back with an unblock. */}
           {thread && thread.listing && thread.teacher && (!thread.closed || thread.iAmSeller) && (
-            <TeacherThreadStrip conversationId={thread.id} iAmTeacher={!!thread.iAmSeller} shared={thread.teacher.shared} live={thread.teacher.live !== false} shareSignal={(thread.messages ?? []).filter((m) => /^(📇|🔒)/.test(m.body ?? '')).length} closed={!!thread.closed} video={thread.teacher.video ?? null} videoReadAt={threadReadAt} videoSignal={(thread.messages ?? []).filter((m) => /^🎬/.test(m.body ?? '')).length} />
+            <TeacherThreadStrip conversationId={thread.id} iAmTeacher={!!thread.iAmSeller} shared={thread.teacher.shared} live={thread.teacher.live !== false} shareSignal={(thread.messages ?? []).filter((m) => /^(📇|🔒)/.test(m.body ?? '')).length} closed={!!thread.closed} video={thread.teacher.video ?? null} videoReadAt={threadReadAt} videoSignal={(thread.messages ?? []).filter((m) => /^🎬/.test(m.body ?? '')).length} hasPhone={thread.teacher.hasPhone !== false} phoneShared={thread.teacher.phoneShared !== false} />
           )}
           {/* The REQUEST button itself now lives in the item strip above (stripContact); this row keeps the
               two states that need a row — the revealed number, and the hint before the seller replies. */}

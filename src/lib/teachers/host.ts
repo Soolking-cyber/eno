@@ -31,3 +31,14 @@ export function apexOrigin(appUrl: string | null | undefined): string {
   if (!appUrl) return ''
   try { const u = new URL(appUrl); return `${u.protocol}//${storefrontBaseHost(appUrl)}` } catch { return '' }
 }
+
+/**
+ * The link INTO the sign-up form from any page of the app (owner, 2026-10-09: "redirect to teacher.eno.vn to create their
+ * profile"): its own host, edition-aware — https://teacher.eno.vn/ or https://teacher.eno.forum/ (both live). A build with
+ * no app URL (a bare local run) falls back to the same form on this host. NEXT_PUBLIC_APP_URL is inlined at build, so a
+ * client component reads the deployment's own value.
+ */
+export function teacherJoinUrl(appUrl: string | null | undefined = process.env.NEXT_PUBLIC_APP_URL): string {
+  const origin = teacherOrigin(appUrl)
+  return origin ? `${origin}/` : '/teachers/join'
+}

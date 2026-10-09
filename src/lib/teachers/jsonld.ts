@@ -10,8 +10,15 @@ export type TeacherLdInput = {
   headline: string
   photoUrl: string | null
   nationality: string
+  /** languages the teacher speaks and teaches, readable names (English first when they teach in it) */
   languages: string[]
-  cityLabel: string
+  /**
+   * Where the teacher LIVES, in English — the city, or the province for "somewhere else in Vietnam"
+   * (src/lib/teachers/profile-view.ts homeLocationName). ⛔ null for a teacher abroad or unanswered (teacher
+   * onboarding redesign, 2026-10-08): homeLocation is then LEFT OUT — it used to print `${cityLabel}, Vietnam`
+   * whatever the city, so a teacher abroad read ", Vietnam" or the old Hồ Chí Minh fallback.
+   */
+  homeLocation: string | null
   degreeLevel: string | null
   degreeMajor: string | null
   degreeInstitution: string | null
@@ -48,7 +55,9 @@ export function teacherProfileLd(t: TeacherLdInput) {
       ...(t.photoUrl ? { image: t.photoUrl } : {}),
       ...(t.nationality ? { nationality: { '@type': 'Country', name: t.nationality } } : {}),
       ...(t.languages.length ? { knowsLanguage: t.languages } : {}),
-      homeLocation: { '@type': 'Place', name: `${t.cityLabel}, Vietnam` },
+      // ⚠️ No addressRegion: a city chip is sometimes a town (Nha Trang is in Khánh Hoà, Phú Quốc in An Giang), and a
+      // wrong region is worse than none. The country is the one field that holds for every teacher it is printed for.
+      ...(t.homeLocation ? { homeLocation: { '@type': 'Place', name: `${t.homeLocation}, Vietnam`, address: { '@type': 'PostalAddress', addressCountry: 'VN' } } } : {}),
       ...(t.degreeInstitution ? { alumniOf: { '@type': 'CollegeOrUniversity', name: t.degreeInstitution } } : {}),
       ...(credentials.length ? { hasCredential: credentials } : {}),
     },

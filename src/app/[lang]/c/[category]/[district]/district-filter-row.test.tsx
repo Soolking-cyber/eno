@@ -62,4 +62,11 @@ describe('DistrictFilterRow — the hub\'s way into the explorer, at the top', (
     render(<DistrictFilterRow categorySlug="electronics" district="d1" homesOnly={false} lang="vi" />)
     expect(screen.getAllByRole('link')).toHaveLength(2)
   })
+
+  it('⛔ a teachers district page has no Map link — its map is always empty (map-pin-rows.ts categoryHasMap)', () => {
+    render(<DistrictFilterRow categorySlug="teachers" district="d7" homesOnly={false} lang="en" />)
+    // Filters alone (its label follows the mocked reader language), and no map glyph anywhere in the row.
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+    expect(document.querySelector('[data-icon="map"]')).toBeNull()
+  })
 })

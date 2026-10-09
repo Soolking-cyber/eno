@@ -4,6 +4,20 @@ import { formatInteger, moneyLocale } from '@/lib/vnd'
 type Tr = (en: string, vi: string) => string
 
 /**
+ * WHAT ONE FACET OPTION IS CALLED — the one rule every reader of an option label shares (the Filter panel, the facet
+ * pills, the applied-filter chip below):
+ *  · a `placeNames` facet's option is a PLACE: its own English or Vietnamese name, never sent through `tr()` — a
+ *    district or a province is never machine-translated (PlaceName's rule); English for every other language;
+ *  · ⚠️ except an option marked `word` ("Can teach in"'s Online and "Will move anywhere", teacher onboarding
+ *    redesign, 2026-10-08) — a word, translated like any other label;
+ *  · every other facet's option is copy: `tr(label, labelVi)`.
+ */
+export function facetOptionLabel(facet: Pick<FacetDef, 'placeNames'>, opt: FacetDef['options'][number], lang: string, tr: Tr): string {
+  if (facet.placeNames && !opt.word) return lang === 'vi' ? opt.labelVi : opt.label
+  return tr(opt.label, opt.labelVi)
+}
+
+/**
  * WHAT AN APPLIED CUSTOM FILTER'S CHIP SAYS (E-ACTIVE, 2026-09-29) — "Bedrooms: 2 BR", "Size 30–80 m²".
  *
  * ⛔ IT USED TO SAY THE STATE KEY: `${key}: ${value}` printed "bedrooms: 2" and "areaM2: 30-80" on the
@@ -47,8 +61,11 @@ export function customFilterChipLabel(facet: FacetDef | undefined, key: string, 
   }
   const opt = facet.options.find((o) => o.value === value)
   if (!opt) return `${name}: ${value}`
-  // `placeNames` (cover areas): a place is its own English or Vietnamese name, never machine-translated.
-  const optLabel = facet.placeNames ? (lang === 'vi' ? opt.labelVi : opt.label) : tr(opt.label, opt.labelVi)
+  // `placeNames` (cover areas, "Can teach in"): a place is its own English or Vietnamese name, never machine-translated.
+  const optLabel = facetOptionLabel(facet, opt, lang, tr)
   // An option that states its own count AND unit ("2 BR", "4 seats") is already the whole chip.
-  return /^\d/.test(optLabel) && /\p{L}/u.test(optLabel) ? optLabel : `${name}: ${optLabel}`
+  if (/^\d/.test(optLabel) && /\p{L}/u.test(optLabel)) return optLabel
+  // A one-option toggle named like its facet ("In Vietnam now", 2026-10-08) is the whole chip too — never
+  // "In Vietnam now: In Vietnam now".
+  return optLabel === name ? optLabel : `${name}: ${optLabel}`
 }

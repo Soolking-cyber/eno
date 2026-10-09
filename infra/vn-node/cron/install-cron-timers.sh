@@ -44,9 +44,11 @@ declare -A SCHED=(
   [daily-reminders]="*-*-* 02:00:00 UTC"
   [saved-search-alerts]="*-*-* 05:00:00 UTC"
   [weekly-digest]="Thu *-*-* 02:00:00 UTC"
-  # Teacher job-match emails (2026-09-30). 03:30 UTC = 10:30 ICT: after the LOCAL matcher has run
-  # (~08:00 ICT on the owner's Mac) and imported its matches. Paced ~7/s, one email per teacher per 3 days.
-  [teacher-match-emails]="*-*-* 03:30:00 UTC"
+  # Teacher job-match emails (2026-09-30). ⛔ NO SCHEDULE SINCE 2026-10-08 — it is in MANUAL below: its SERVICE is written
+  # and NO TIMER. The owner's daily /teachers skill STARTS eno-cron-teacher-match-emails.service itself, and only after the
+  # owner approved that day's plan (~/eno-lead-pipeline scripts/teachers-send.sh). One email per teacher per 3 days,
+  # ≤ 5 jobs, paced under Resend's shared 10 req/s (src/lib/teachers/match-emails.ts, the route's header).
+  [teacher-match-emails]="manual — no timer (MANUAL below)"
   # Merchant price refresh for the imported affiliate catalogue. 20:00 UTC = 03:00 ICT, after
   # CellphoneS's own overnight repricing and well outside VN shopping hours — a ~50-page datafeed
   # walk plus a few thousand row updates should not compete with real traffic.
@@ -104,8 +106,16 @@ declare -A SCHED=(
 # run of this installer may enable it before I11, harmlessly. Once APPLE_SIWA_* is in the env a missing table is RED
 # (every Apple sign-in would keep no token) — that is the DDL step (I2) left undone, and the unit says so.
 SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices partner-stock indexnow listing-tombstone-retention school-proof-retention apple-revocations)
-# Installed, NOT enabled: these send email to real people.
-EMAIL=(daily-reminders saved-search-alerts weekly-digest teacher-match-emails)
+# Installed, NOT enabled: these send email to real people. They are enabled at cutover, by the line printed at the end.
+EMAIL=(daily-reminders saved-search-alerts weekly-digest)
+# ⛔ STARTED BY HAND, NEVER ON A SCHEDULE: a SERVICE and NO TIMER (gate review, 2026-10-08 — codex + Opus). The teacher
+# job-match emails go out only after the owner approved that day's plan (/teachers starts the service). Their timer used to
+# sit in EMAIL, installed and disabled — one pasted cutover line (or a `systemctl enable 'eno-cron-*.timer'`) away from a
+# 10:30 ICT send with no approved plan behind it. Now there is no timer to enable: every run that writes the unit disables
+# and REMOVES a timer an older run left. Never give a MANUAL job a timer, and never add it to the cutover line.
+MANUAL=(teacher-match-emails)
+# `in_list <x> <list…>` — a loop, not `printf | grep -q`: under pipefail grep's early exit can SIGPIPE printf and read as "no".
+in_list(){ local x=$1 j; shift; for j in "$@"; do [ "$j" = "$x" ] && return 0; done; return 1; }
 # Installed, NOT enabled: the FIRST run acts on a policy nobody has acted on yet — every decided
 # business-verification case older than 30 days loses its registration scans, approved sellers
 # included (VERIFICATION_DOC_RETENTION_MS). Enable it once that retention is confirmed:
@@ -174,6 +184,13 @@ Type=oneshot
 ExecStart=/opt/eno/bin/eno-cron.sh $job $TARGET
 $EXTRA
 UNIT
+  if in_list "$job" "${MANUAL[@]}"; then
+    # ⛔ NO TIMER (MANUAL above): stop and disable one an older run left, then delete its file — the daemon-reload below
+    # forgets it, and `systemctl enable` then has nothing to enable.
+    systemctl disable --now "eno-cron-$job.timer" >/dev/null 2>&1 || true
+    rm -f "/etc/systemd/system/eno-cron-$job.timer"
+    continue
+  fi
   cat > "/etc/systemd/system/eno-cron-$job.timer" <<UNIT
 [Unit]
 Description=eno cron timer: $job (${SCHED[$job]})
@@ -187,9 +204,11 @@ UNIT
 done
 systemctl daemon-reload
 if [ -n "$ONLY" ]; then
-  # A loop, not `printf | grep -q`: under pipefail grep's early exit can SIGPIPE printf and read as "no".
-  safe=0; for j in "${SAFE[@]}"; do [ "$j" = "$ONLY" ] && safe=1; done
-  if [ "$safe" = 1 ]; then
+  if in_list "$ONLY" "${MANUAL[@]}"; then
+    echo "  installed eno-cron-$ONLY.service — NO timer: started by hand only (the /teachers send), never on a schedule"
+    exit 0
+  fi
+  if in_list "$ONLY" "${SAFE[@]}"; then
     # A clear yes or no: a one-job install is where the operator expects one (opus, diff review).
     if systemctl enable --now "eno-cron-$ONLY.timer"; then echo "  enabled  eno-cron-$ONLY.timer"
     else echo "  FAILED to enable eno-cron-$ONLY.timer" >&2; exit 1; fi
@@ -209,6 +228,8 @@ for j in "${POLICY[@]}"; do
   else echo "  installed, NOT enabled (policy) eno-cron-$j.timer — when confirmed: systemctl enable --now eno-cron-$j.timer"; fi
 done
 for j in "${EMAIL[@]}"; do systemctl disable "eno-cron-$j.timer" >/dev/null 2>&1 || true; echo "  installed (DISABLED, sends email) eno-cron-$j.timer"; done
+for j in "${MANUAL[@]}"; do echo "  installed (NO timer — started by hand only, never at cutover) eno-cron-$j.service"; done
 echo
+# EMAIL only — never a MANUAL job (src/lib/cron-installer.test.ts runs this line and holds it to that).
 echo "At cutover, enable the email crons:"
 echo "  for j in ${EMAIL[*]}; do systemctl enable --now eno-cron-\$j.timer; done"

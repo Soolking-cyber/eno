@@ -1,4 +1,4 @@
-import { renderBrandEmail, esc, EMAIL } from './layout'
+import { renderBrandEmail, esc, EMAIL, senderIdentityText } from './layout'
 
 /**
  * "Jobs that match your teacher profile" (owner, 2026-09-30: "email sent to the teacher to apply").
@@ -6,6 +6,9 @@ import { renderBrandEmail, esc, EMAIL } from './layout'
  * at the source; a school's own post is answered by messaging the school on the site.
  * ⚠️ `siteName` comes from the caller (SITE_NAME) — the route is compiled into both editions.
  * ⛔ No visa wording, ever: the cron drops any job whose title/pay names one and filters the reasons.
+ * ⛔ EVERY ONE NAMES ITS SENDER AND CAN BE STOPPED (Decree 91/2020; plan review B9/E3): the HTML footer and the text
+ * part both carry the operator's legal name and registered head office (layout.ts `sender: 'full'`,
+ * senderIdentityText) and the list's own unsubscribe link; the cron adds the RFC 8058 one-click headers.
  */
 export type TeacherMatchJob = { title: string; city: string | null; pay: string | null; url: string; reasons: string[]; applyAtSource: boolean }
 
@@ -39,6 +42,7 @@ export function renderTeacherMatches(opts: {
     cta: { label: 'Update my teacher profile', url: `${origin}/teachers/edit` },
     audienceNote: `You're receiving this because you asked for job matches on your ${siteName} teacher profile.`,
     unsubscribeUrl,
+    sender: 'full',
   })
   const text = [
     hi.replace(/<[^>]+>/g, ''), '',
@@ -46,6 +50,9 @@ export function renderTeacherMatches(opts: {
     ...jobs.flatMap((j) => [`• ${j.title}${j.city ? ` (${j.city})` : ''}${j.pay ? ` — ${j.pay}` : ''}`, `  ${j.url}`, '']),
     `Update your profile: ${origin}/teachers/edit`,
     `Stop these emails: ${unsubscribeUrl}`,
+    '',
+    `You're receiving this because you asked for job matches on your ${siteName} teacher profile.`,
+    `Sent by ${senderIdentityText()}`,
   ].join('\n')
   return { subject, html, text }
 }

@@ -211,8 +211,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   // A teacher is a person: the title says so, and no price label ever rides on it (2026-09-30).
   const isTeacher = listing.listingType === TEACHER_LISTING_TYPE
+  // ⛔ "IN VIETNAM" ONLY FOR A TEACHER WHO LIVES THERE (teacher onboarding redesign, 2026-10-08): a teacher abroad has no
+  // city (projection.ts teacherHome writes '' — never the old Hồ Chí Minh fallback), and the title must not place them in
+  // Vietnam any more than the profile's JSON-LD does (jsonld.ts homeLocation). The wording is the owner's to change.
+  const teacherRole = listing.city ? (vi ? 'Giáo viên tại Việt Nam' : 'Teacher in Vietnam') : (vi ? 'Giáo viên' : 'Teacher')
   return {
-    title: isTeacher ? `${titleFor} — ${vi ? 'Giáo viên tại Việt Nam' : 'Teacher in Vietnam'} | ${SITE_NAME}` : titlePrice ? `${titleFor} — ${titlePrice} | ${SITE_NAME}` : `${titleFor} | ${SITE_NAME}`,
+    title: isTeacher ? `${titleFor} — ${teacherRole} | ${SITE_NAME}` : titlePrice ? `${titleFor} — ${titlePrice} | ${SITE_NAME}` : `${titleFor} | ${SITE_NAME}`,
     description: desc,
     // Only publicly-live listings (verified + active) are indexable; sold/hidden/held are not.
     // ⛔ An imported vehicle-hire reference is live but noindex — src/lib/rental-places.ts says why.

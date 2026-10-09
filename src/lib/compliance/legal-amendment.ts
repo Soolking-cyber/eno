@@ -1,11 +1,12 @@
 // ── The amendments of the published legal texts — their dates, typed ONCE ────────────────────────
 //
-// ⚠️ TWO RECORDS SINCE 2026-10-05, because the two amendments that stand did not change the same texts:
+// ⚠️ THREE RECORDS (two since 2026-10-05, /privacy's own since 2026-10-08), because the amendments that stand did not
+// change the same texts:
 //   · LEGAL_AMENDMENT — the Terms' newest amendment: since 2026-10-07 the Terms' VERSION 3 (App Store
-//     Guideline 1.2 — decision D8), which also dates the /privacy text that changed with it. /terms ("Last
-//     updated", the "not yet in force" line, its change note), /md/terms, /privacy, the /terms/v2 banner
-//     (through legal-archive.ts TERMS_V2_SUPERSEDED_BY), the strip and the bell notice read it, and it is
-//     the Terms' runtime switch (below).
+//     Guideline 1.2 — decision D8), which also dated the /privacy text that changed with it (until /privacy got its
+//     own record, below). /terms ("Last updated", the "not yet in force" line, its change note), /md/terms, the
+//     /terms/v2 banner (through legal-archive.ts TERMS_V2_SUPERSEDED_BY), the strip and the bell notice read it, and
+//     it is the Terms' runtime switch (below).
 //     ⚠️ IT USED TO BE THE OCTOBER 2026 AMENDMENT (Terms version 2, /returns, /prohibited, /privacy and the
 //     Quy chế's version 2 with them — published and in force 01/10/2026, immediate). Re-using the record
 //     for version 3 moved those dates out of it: they are LITERALS now, in legal-archive.ts
@@ -18,9 +19,13 @@
 //     /regulations/v2 archive ("replaced from …") and /legal/ranking's date (ranking-disclosure.ts
 //     RANKING_DISCLOSURE_UPDATED, tied to it for this deploy) read it. It switches nothing at runtime:
 //     Profile.tosVersion stamps the TERMS version, which this amendment did not change.
-//   An amendment that changes both kinds of text (as October's did) sets BOTH records to its dates; a
-//   Terms-only one moves LEGAL_AMENDMENT alone, a Quy chế-only one REGULATIONS_AMENDMENT alone. The deploy
-//   gate (infra/vn-node/legal-amendment-gate.sh) holds EACH record to the same rules, independently.
+//   · PRIVACY_AMENDMENT — /privacy's OWN newest amendment (since 2026-10-08: the Anthropic (Claude) recipient row and
+//     teacher job matching). /privacy's "Last updated" reads it (PRIVACY_AMENDED) and nothing else; it switches nothing
+//     at runtime. Before it existed, /privacy changes rode the Terms' record — version 3 dated /privacy 07/10/2026.
+//   An amendment that changes several kinds of text (as October's did) sets EACH of their records to its dates; a
+//   Terms-only one moves LEGAL_AMENDMENT alone, a Quy chế-only one REGULATIONS_AMENDMENT alone, a privacy-only one
+//   PRIVACY_AMENDMENT alone. The deploy gate (infra/vn-node/legal-amendment-gate.sh) holds EACH record to the same
+//   rules, independently.
 //
 // ⛔ `published` MUST BE THE DAY THE AMENDMENT IS ACTUALLY DEPLOYED, NOT THE DAY IT WAS WRITTEN.
 // Deploys happen only on the owner's word (CLAUDE.md), so both dates are set on the deploy day, here
@@ -39,7 +44,8 @@
 // ⚠️ THE STRIP AND THE BELL NOTICE KNOW ONLY LEGAL_AMENDMENT. A Quy chế-only amendment WITH a notice window
 // would be announced by nothing, breaking the very promise Article 15 makes — so until they learn
 // REGULATIONS_AMENDMENT, that record is immediate or carries LEGAL_AMENDMENT's own dates
-// (legal-amendment.test.ts fails otherwise).
+// (legal-amendment.test.ts fails otherwise). PRIVACY_AMENDMENT is held to the same rule: /privacy promises
+// "material changes are announced at least 5 days before they take effect", and nothing announces its record.
 //
 // ⚠️ THE DEFAULT: inForce ≥ published + 6 CALENDAR DAYS. The texts promise at least 5 days' notice, and
 // under the Civil Code 2015 Art 147–148 the day of publication is not counted: published 01/10 → notice
@@ -70,8 +76,9 @@ export type LegalAmendment = {
  * THE TERMS' VERSION 3 — App Store Guideline 1.2 (decision D8, docs/ios-appstore-release.md): zero tolerance
  * for objectionable content and abusive users, a 24-hour review of those reports, and no chance to put it
  * right for them (/terms `conduct`, `complaints`, `termination`; the edits are listed in its `changes` note).
- * It also dates /privacy, whose text changed in the same deploy: the moderators' AI review of reports (the
- * Google row, "Automated decisions") and eno.vn's partner e-Visa section. The Quy chế did not change —
+ * It also dated /privacy, whose text changed in the same deploy: the moderators' AI review of reports (the
+ * Google row, "Automated decisions") and eno.vn's partner e-Visa section — /privacy reads PRIVACY_AMENDMENT since
+ * 2026-10-08, so the Terms' next amendment no longer moves it. The Quy chế did not change —
  * REGULATIONS_AMENDMENT keeps its own dates — and neither did /returns or /prohibited (V1_SUPERSEDED_BY).
  *
  * ⛔ IMMEDIATE — THE OWNER'S DECISION (2026-10-07, on the record below): published AND in force 07/10/2026, from
@@ -121,6 +128,29 @@ export const REGULATIONS_AMENDMENT: LegalAmendment = {
   immediate: true,
 }
 
+/**
+ * /PRIVACY'S OWN RECORD (2026-10-08, teacher job matching — plan review E4): the "Anthropic (Claude)" row in "Who else
+ * receives your data", Anthropic in "Processing outside Vietnam", the teacher-matching purpose and its paragraph in
+ * "Automated decisions". A privacy-only change: the Terms and the Quy chế keep their records (and the Terms' record,
+ * LEGAL_AMENDMENT, is also the Terms' runtime switch — it must never move for a privacy change).
+ *
+ * ⛔ '2026-10-08' IS A PLACEHOLDER, NOT THE PUBLICATION DATE. The DEPLOYER sets BOTH dates to the real deploy day
+ * (Vietnam time) in the commit that ships it, and runs the deploy with LEGAL_AMENDMENT_IMMEDIATE=<that day>; the deploy
+ * gate (legal-amendment-gate.sh) refuses any other day and any deploy without that ack.
+ *
+ * ⛔ IMMEDIATE IS THE OWNER'S CALL, NOT YET MADE — the gate makes it explicit at the deploy. Why it is the default here:
+ * nothing announces a /privacy record (the strip and the bell notice know only LEGAL_AMENDMENT), so a windowed record
+ * would promise a notice nobody gives; and the change binds no one who has not agreed to it afresh — the processing it
+ * describes runs only for teachers who tick an opt-in under the new AI notice naming Anthropic (profile.ts
+ * aiMatchConsented), never on an older tick. If the owner wants the 5-day window instead, the strip and the bell must
+ * learn this record first (legal-amendment.test.ts holds that).
+ */
+export const PRIVACY_AMENDMENT: LegalAmendment = {
+  published: '2026-10-08',
+  inForce: '2026-10-08',
+  immediate: true,
+}
+
 /** The advance notice the texts promise (Quy chế Art 15, Terms "Changes"). */
 export const MIN_NOTICE_DAYS = 5
 
@@ -158,6 +188,9 @@ export const AMENDED = amendedDates(LEGAL_AMENDMENT)
 
 /** REGULATIONS_AMENDMENT's dates in both printed forms — what /regulations' META and newest Article 17 entry print. */
 export const REGULATIONS_AMENDED = amendedDates(REGULATIONS_AMENDMENT)
+
+/** PRIVACY_AMENDMENT's dates in both printed forms — /privacy's "Last updated". */
+export const PRIVACY_AMENDED = amendedDates(PRIVACY_AMENDMENT)
 
 /** Days from one ISO date to another (UTC calendar arithmetic — both are plain dates). */
 export const daysBetween = (from: string, to: string) => {

@@ -152,3 +152,62 @@ describe('a teacher thread closed by a block — the intro video', () => {
     expect(body.teacher.video).toMatchObject({ shareOn: true, shared: true, forBusiness: true })
   })
 })
+
+// A3 (owner, 2026-10-08): the phone is optional unless "Our staff may call me" is on, so the TEACHER's share button names
+// only what it hands over. Whether the number exists is the teacher's own fact: sent to the teacher, never to the school —
+// and only ever as a boolean.
+describe('a teacher thread — hasPhone, for the teacher only', () => {
+  const withPhone = (phone: string | null): Row => thread({
+    listing: { ...thread().listing, listingType: 'teacher', teacherProfile: { status: 'live', videoOnRequest: false, private: { videoPath: null, phone } } },
+    buyer: { ...thread().buyer, accountType: 'business' },
+  })
+  afterEach(() => { h.me = 'buyer-1' })
+
+  it('the teacher is told whether a phone is on file', async () => {
+    h.me = 'seller-1'
+    h.convo = withPhone(null)
+    expect((await get()).body.teacher.hasPhone).toBe(false)
+    h.convo = withPhone('+84 90 123 4567')
+    const { body } = await get()
+    expect(body.teacher.hasPhone).toBe(true)
+    expect(JSON.stringify(body)).not.toContain('123 4567') // the number itself never leaves the server here
+  })
+  it('the school is told nothing about it', async () => {
+    h.me = 'buyer-1'
+    h.convo = withPhone('+84 90 123 4567')
+    const { body } = await get()
+    expect('hasPhone' in body.teacher).toBe(false)
+    expect(JSON.stringify(body)).not.toContain('123 4567')
+  })
+})
+
+// ⛔ A SHARE RECORDS WHETHER ITS TAP INCLUDED THE PHONE (gate review, 2026-10-09 — TeacherContactShare.phoneShared). The
+// teacher's strip reads it to keep saying "email and CV" after a phone is added, and to offer "Share my phone too".
+describe('a teacher thread — phoneShared, for the teacher only', () => {
+  const sharedAs = (phoneShared: boolean, revokedAt: Date | null = null): Row => thread({
+    listing: { ...thread().listing, listingType: 'teacher', teacherProfile: { status: 'live', videoOnRequest: false, private: { videoPath: null, phone: '+84 90 123 4567' } } },
+    teacherContactShare: { revokedAt, phoneShared },
+    buyer: { ...thread().buyer, accountType: 'business' },
+  })
+  afterEach(() => { h.me = 'buyer-1' })
+
+  it('the teacher is told whether the standing share included the phone — not whether one is on file now', async () => {
+    h.me = 'seller-1'
+    h.convo = sharedAs(false) // shared as "email & CV", a phone added since
+    let { body } = await get()
+    expect(body.teacher).toMatchObject({ shared: true, hasPhone: true, phoneShared: false })
+    h.convo = sharedAs(true)
+    ;({ body } = await get())
+    expect(body.teacher.phoneShared).toBe(true)
+    h.convo = sharedAs(true, new Date()) // stopped: no share stands
+    ;({ body } = await get())
+    expect(body.teacher).toMatchObject({ shared: false, phoneShared: false })
+  })
+  it('the school is told nothing about it — its own contact read already shows what it got', async () => {
+    h.me = 'buyer-1'
+    h.convo = sharedAs(false)
+    const { body } = await get()
+    expect(body.teacher.shared).toBe(true)
+    expect('phoneShared' in body.teacher).toBe(false)
+  })
+})

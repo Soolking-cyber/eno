@@ -4,7 +4,8 @@ import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 
 /**
  * The share gate (owner, 2026-09-30): a teacher's phone, email and CV reach a recruiter ONLY after
- * the teacher taps "Share" in THAT conversation, and stop the moment they revoke it.
+ * the teacher taps "Share" in THAT conversation, and stop the moment they revoke it — and the phone only when that
+ * tap included it (`phoneShared`, gate review 2026-10-09).
  *
  * ⛔ Every check is re-derived from the conversation row, never from the client:
  *   · the thread's CURRENT listing is a teacher listing (a thread retargeted to another listing of the
@@ -17,8 +18,8 @@ export async function teacherThread(conversationId: string) {
     where: { id: conversationId },
     select: {
       id: true, buyerProfileId: true, sellerProfileId: true, listingId: true, sellerId: true,
-      listing: { select: { id: true, listingType: true, status: true, verified: true, teacherProfile: { select: { id: true, profileId: true, fullName: true, status: true, videoOnRequest: true, private: { select: { videoPath: true } } } } } },
-      teacherContactShare: { select: { sharedAt: true, revokedAt: true } },
+      listing: { select: { id: true, listingType: true, status: true, verified: true, teacherProfile: { select: { id: true, profileId: true, fullName: true, status: true, videoOnRequest: true, private: { select: { videoPath: true, phone: true } } } } } },
+      teacherContactShare: { select: { sharedAt: true, revokedAt: true, phoneShared: true } },
       teacherVideoShare: { select: { requestedAt: true, sharedAt: true, revokedAt: true } },
       // The thread's buyer side — whether the intro video can reach it at all (teacherVideoState `forBusiness`).
       buyer: { select: { accountType: true } },
@@ -44,6 +45,13 @@ export async function teacherThread(conversationId: string) {
     shared: profileLive && !!share && !share.revokedAt,
     /** The teacher's own choice, whatever the profile's state — what Share / Stop sharing toggles. */
     shareOn: !!share && !share.revokedAt,
+    /**
+     * ⛔ THE STANDING SHARE INCLUDES THE PHONE (gate review, 2026-10-09) — TeacherContactShare.phoneShared: its tap named
+     * the phone and one was on file. /api/teachers/contact hands the phone over ONLY while this holds, so a share made as
+     * "email & CV" never picks up a phone added since (that route reads the CURRENT private row); the teacher adds it with
+     * "Share my phone too", a re-share. False with no share standing; a row that does not say reads as false.
+     */
+    phoneShared: !!share && !share.revokedAt && share.phoneShared === true,
     profileLive,
     /**
      * The private video's path AS READ WITH THE GRANT. ⛔ The watch route signs THIS path, never a second read: a
@@ -51,6 +59,12 @@ export async function teacherThread(conversationId: string) {
      * grant (gate review, 2026-10-07). Server-only — never in a response.
      */
     privateVideoPath: tp.private?.videoPath ?? null,
+    /**
+     * Is there a phone to share? Optional since A3 (owner, 2026-10-08 — required only while "Our staff may call me" is
+     * on), so a share records (`phoneShared`) and announces only what it hands over. A boolean: the number itself is read
+     * only by /api/teachers/contact, for a recruiter the share is for.
+     */
+    hasPhone: !!tp.private?.phone,
     videoAvailable: video.available,
     videoShareOn: video.shareOn,
     videoShared: video.shared,

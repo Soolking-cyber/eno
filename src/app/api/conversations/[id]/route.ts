@@ -146,9 +146,9 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
       // every visa card is validated against server-side, and the client needs it to tell a
       // LIVE card from the inert history a rebound thread leaves behind.
       visaApplicationId: true,
-      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, status: true, listingType: true, verified: true, subcategorySlug: true, category: { select: { slug: true } }, teacherProfile: { select: { status: true, videoOnRequest: true, private: { select: { videoPath: true } } } } } },
+      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, status: true, listingType: true, verified: true, subcategorySlug: true, category: { select: { slug: true } }, teacherProfile: { select: { status: true, videoOnRequest: true, private: { select: { videoPath: true, phone: true } } } } } },
       // Teachers (2026-09-30): the teacher's revocable share — decides the thread's contact strip.
-      teacherContactShare: { select: { revokedAt: true } },
+      teacherContactShare: { select: { revokedAt: true, phoneShared: true } },
       // …and the intro video sent on request (2026-10-07): its own grant, and the school's ask.
       teacherVideoShare: { select: { requestedAt: true, sharedAt: true, revokedAt: true } },
       // `owner.locale` / `buyer.locale` = the counterpart's persisted app language, the ONLY
@@ -397,6 +397,16 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
           return {
             shared: !closedToSchool && !!convo.teacherContactShare && !convo.teacherContactShare.revokedAt,
             live,
+            // A3 (owner, 2026-10-08): a phone is required only while "Our staff may call me" is on, so the TEACHER's share
+            // button names what it will hand over ("Share my email & CV" without one). The teacher's own fact, sent to the
+            // teacher only — never whether the number exists, to the school. A boolean: the number never leaves here.
+            // ⛔ …and whether the standing share INCLUDED the phone (gate review, 2026-10-09 — TeacherContactShare.phoneShared,
+            // the flag /api/teachers/contact serves the phone by): an "email & CV" share keeps saying so after a phone is
+            // added, and offers "Share my phone too". Teacher only, like hasPhone — the school's own read already shows it.
+            ...(iAmSeller ? {
+              hasPhone: !!convo.listing.teacherProfile?.private?.phone,
+              phoneShared: !!convo.teacherContactShare && !convo.teacherContactShare.revokedAt && convo.teacherContactShare.phoneShared === true,
+            } : {}),
             video: closedToSchool
               ? null
               : { available: v.available, shareOn: v.shareOn, shared: v.shared, requested: v.requested, askAgain: v.askAgain, forBusiness: v.forBusiness },

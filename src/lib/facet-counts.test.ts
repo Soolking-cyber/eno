@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Prisma } from '@/generated/prisma/client'
 import { CATEGORY_BY_SLUG, rangeFacetsFor, typesFor } from '@/lib/taxonomy'
+import { attrWhere } from '@/lib/attr-match'
+import { normalizeForSave, normalizeTeacherInput } from '@/lib/teachers/profile'
+import { teacherListingProjection } from '@/lib/teachers/projection'
 
 /**
  * Live chip counts.
@@ -782,6 +785,42 @@ describe('attribute, range and Good-price rails', () => {
     const out = await run({ category: 'sports', subcategory: 'sportswear' }, ['attr'])
     expect(out.attr!.size.values.m).toBe(5)
     expect(out.attr!.size.values.l).toBe(5)
+  })
+
+  /**
+   * ⛔ "CAN TEACH IN" AND "IN VIETNAM NOW" (teacher onboarding redesign, owner, 2026-10-08): the number on every one of the
+   * 65 places is what its tap returns — with the other filter applied. Four teachers' REAL tokens (the save path's own
+   * builders), each standing for a few rows; the expected count is the feed's own predicate (attrWhere's `contains`
+   * needles) summed over the rows that pass the other filter too.
+   */
+  it('teachers: every "Can teach in" count equals what the feed returns for that tap, the "In Vietnam now" filter applied', async () => {
+    const CAT = { name: 'Teachers', nameVi: 'Giáo viên' }
+    const BASE = { subjects: ['general-english'], ageGroups: ['adults'], experienceBand: '3-5-years', fullName: 'T', nationality: 'GB', englishLevel: 'native', headline: 'Experienced teacher', teachAreasConfirmed: true }
+    const tokensOf = (a: Record<string, unknown>) => teacherListingProjection(normalizeForSave(normalizeTeacherInput({ ...BASE, ...a })), CAT).facetTokens
+    const people = [
+      { n: 3, facetTokens: tokensOf({ livesIn: 'city', currentCity: 'ho-chi-minh-city', currentDistrictKey: 'd7', jobTypes: ['private'], teachAreas: ['d7', 'd4'] }) },
+      { n: 2, facetTokens: tokensOf({ livesIn: 'elsewhere', currentProvince: '52', jobTypes: ['parttime'], relocate: 'no', teachAreas: ['online', 'p-52'] }) },
+      { n: 4, facetTokens: tokensOf({ livesIn: 'abroad', jobTypes: ['private'], relocate: 'online-only', teachAreas: ['online'] }) },
+      { n: 1, facetTokens: tokensOf({ livesIn: 'city', currentCity: 'ha-noi', jobTypes: ['fulltime'], relocate: 'anywhere', teachAreas: ['ha-noi', 'anywhere'] }) },
+    ]
+    h.groups['attributes+facetTokens'] = people.map((p) => bucket(null, p.n, 0, p.facetTokens))
+    const feedFinds = (key: string, value: string, row: { facetTokens: string | null }) =>
+      ((attrWhere(key, value) as { OR: { facetTokens?: { contains: string } }[] }).OR).some((c) => !!c.facetTokens && (row.facetTokens ?? '').includes(c.facetTokens.contains))
+    const out = await run({ category: 'teachers', attr_inVietnam: 'yes' }, ['attr'])
+    const inVietnam = people.filter((p) => feedFinds('inVietnam', 'yes', p))
+    expect(inVietnam.map((p) => p.n)).toEqual([3, 2, 1]) // the teacher abroad is the one left out
+    const workIn = CATEGORY_BY_SLUG.teachers!.facets.find((f) => f.key === 'workIn')!.options.map((o) => o.value)
+    expect(out.attr!.workIn.all).toBe(6)
+    for (const v of workIn) {
+      expect(out.attr!.workIn.values[v], `attr_workIn=${v}`).toBe(inVietnam.filter((p) => feedFinds('workIn', v, p)).reduce((s, p) => s + p.n, 0))
+    }
+    // Spot checks the sums above stand for: HCMC finds D7 + "anywhere"; Online finds Gia Lai only (the teacher abroad is
+    // filtered out by "In Vietnam now"); a Gia Lai search finds Gia Lai + "anywhere".
+    expect(out.attr!.workIn.values['ho-chi-minh-city']).toBe(4)
+    expect(out.attr!.workIn.values.online).toBe(2)
+    expect(out.attr!.workIn.values['p-52']).toBe(3)
+    // …and the "In Vietnam now" rail itself, with its own filter released: 6 of all 10.
+    expect(out.attr!.inVietnam).toEqual({ all: 10, values: { yes: 6 } })
   })
 
   it('splits the memo on the active attribute filters, which no base carries', async () => {

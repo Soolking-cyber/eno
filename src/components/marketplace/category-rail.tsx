@@ -6,7 +6,7 @@ import { useLanguage } from '@/context/language-context'
 import { Bilingual } from './bilingual'
 import { detectContentLang } from '@/lib/detect-lang'
 import { CategoryIcon } from './category-icons'
-import { ChevronRight } from '@/components/ui/icons'
+import { ChevronRight, Plus } from '@/components/ui/icons'
 import { CategoryTileGlyph } from './category-art'
 import { CountChip, offeredCategories, offeredIntents, offeredSubcategories, subcategoryCountFor } from './count-chip'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,9 @@ import { STROKE_UI } from '@/lib/icon-tokens'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { cn } from '@/lib/utils'
+import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
+import { teacherJoinUrl } from '@/lib/teachers/host'
+import { keepTeacherJoinInApp } from '@/components/teachers/teacher-join-click'
 import type { SerializedCategory } from '@/lib/types'
 // Type only — erased at compile time, so the client bundle never reaches for the module's
 // Prisma/`server-only` chain. It is imported rather than restated so the rail's prop and the
@@ -477,6 +480,10 @@ export function CategoryRail({
    * Apartment › 2 BR is its 2,270 offices, not a 0 that would have hidden it.
    */
   const subs = categories.some((c) => c.slug === activeCategory) ? offeredSubs : []
+  // ⛔ ONE PREDICATE FOR THE PLATE — its layout column (`activeAt` below) AND its render (pill verification, 2026-10-09):
+  // teachers open it even with no subcategory offered (its last chip is the way in), and when only the render knew that,
+  // the plate got `--sub-col-*: 0` — an invalid grid line, so it auto-placed after the tile and every later tile reflowed.
+  const plateOpen = subs.length > 0 || activeCategory === TEACHERS_CATEGORY_SLUG
 
 
   /**
@@ -504,7 +511,7 @@ export function CategoryRail({
        column for a box that is not beside it. Dead today (DESK_SHORTCUTS is empty on both editions)
        and a reviewer was right that it is one config change from being live. */
     const catAt = categories.findIndex((c) => c.slug === activeCategory)
-    const activeAt = subs.length > 0 && catAt >= 0 ? shortcutCount + catAt : -1
+    const activeAt = plateOpen && catAt >= 0 ? shortcutCount + catAt : -1
     const spans: string[] = []
     const big: boolean[] = []
     let col = 0, used = 0   // phone cursor: 6 unit rows per column
@@ -681,7 +688,7 @@ export function CategoryRail({
               * beside a tile this edition renders, so `?category=<other edition's slug>` cannot open
               * one. That guard had to be written by hand while this lived below the grid.
               */}
-            {isActive && subs.length > 0 && (
+            {isActive && plateOpen && (
               <div
                 /**
                  * ⛔ EXPLICITLY PLACED, NOT FLOWED. `grid-row: 1 / -1` makes it the rail's full height
@@ -727,6 +734,19 @@ export function CategoryRail({
                       </Button>
                     )
                   })}
+                  {/* ⛔ TEACHERS: THE PLATE'S LAST CHIP IS THE WAY IN — the teacher sign-up form on its own host (owner,
+                      2026-10-09: "on home page add a button here as subcat that will redirect to teacher.eno.vn to create
+                      their profile"). So the plate shows for teachers even with no subcategory offered (the condition
+                      above). A LINK, not a filter: an <a> with no pressed state, the chip's look in the action colour.
+                      `size-3.5` on the glyph keeps ui/button's size-4 inflation off it (CLAUDE.md). */}
+                  {cat.slug === TEACHERS_CATEGORY_SLUG && (
+                    <Button variant="bare" size="none" asChild className={cn('block', subChip(false), 'text-accent-foreground')}>
+                      <a href={teacherJoinUrl()} data-cross-link="teacher-profile" onClick={(e) => keepTeacherJoinInApp(e, lang)}>
+                        <Plus className="mr-1 size-3.5 shrink-0 align-[-2px]" aria-hidden />
+                        {tr('Create a teacher profile', 'Tạo hồ sơ giáo viên')}
+                      </a>
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
