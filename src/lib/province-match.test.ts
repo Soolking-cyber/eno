@@ -332,3 +332,16 @@ describe('the ward predicate matches a WHOLE name, never the start or end of a l
     expect(wardWhere(w.x.nameEn, w.p)).toEqual({ OR: [w.x.nameEn, ...wardAliases(w.x.nameEn, w.p)].flatMap((s) => [{ district: { contains: s } }, { location: { contains: s } }]) })
   })
 })
+
+describe('the curated names are HCMC’s (commit gate, 2026-10-09)', () => {
+  it('another province’s ward is never taken out by an HCMC curated place ("Phú Mỹ Hưng")', () => {
+    // HCMC keeps its curated collision…
+    expect(longerPlaceNames(['Phú Mỹ'], 'Ho Chi Minh')).toContain('Phú Mỹ Hưng')
+    // …and a Phú Mỹ elsewhere (Phú Thọ, Cà Mau in this dataset) never meets it. Asserted, not skipped: a dataset with no
+    // such ward fails here instead of passing silently.
+    const others = (vnUnits as { code: string; nameEn: string; wards?: { name: string; nameEn: string }[] }[])
+      .filter((u) => u.code !== '79' && (u.wards ?? []).some((w) => w.name === 'Phú Mỹ'))
+    expect(others.length).toBeGreaterThan(0)
+    for (const u of others) expect([u.nameEn, longerPlaceNames(['Phú Mỹ'], u.nameEn)]).not.toEqual([u.nameEn, expect.arrayContaining(['Phú Mỹ Hưng'])])
+  })
+})

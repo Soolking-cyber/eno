@@ -1,10 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import {
-  AMENDED, LEGAL_AMENDMENT, MIN_NOTICE_DAYS, PRIVACY_AMENDED, PRIVACY_AMENDMENT, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT,
-  amendmentDatesProblem, dateEn, dateVi,
-} from './legal-amendment'
+import { AMENDED, LEGAL_AMENDMENT, MIN_NOTICE_DAYS, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT, amendmentDatesProblem, dateEn, dateVi } from './legal-amendment'
 
 const ROOT = join(__dirname, '..', '..', '..')
 
@@ -12,7 +9,6 @@ describe('legal-amendment', () => {
   it('the amendments typed in the module pass their own rule', () => {
     expect(amendmentDatesProblem(LEGAL_AMENDMENT)).toBeNull()
     expect(amendmentDatesProblem(REGULATIONS_AMENDMENT)).toBeNull()
-    expect(amendmentDatesProblem(PRIVACY_AMENDMENT)).toBeNull()
   })
 
   // Civil Code 2015 Art 147–148: the publication day is not counted, so "at least 5 days" needs the
@@ -70,9 +66,8 @@ describe('legal-amendment', () => {
       }
     }
     walk('src')
-    // /privacy is NOT a reader since 2026-10-08: it has its own record (PRIVACY_AMENDMENT — below), so a Terms-only
-    // amendment no longer re-dates it, and a privacy-only change never moves the Terms' runtime switch.
     expect(readers.sort()).toEqual([
+      'src/app/[lang]/privacy/page.tsx', // "Last updated" — version 3 changed /privacy
       'src/app/[lang]/terms/page.tsx',
       'src/app/md/terms/route.ts',
       'src/components/marketplace/tos-change-notice.tsx', // the strip
@@ -103,8 +98,6 @@ describe('legal-amendment', () => {
     expect(AMENDED.publishedEn).toBe(dateEn(LEGAL_AMENDMENT.published))
     expect(REGULATIONS_AMENDED.inForceVi).toBe(dateVi(REGULATIONS_AMENDMENT.inForce))
     expect(REGULATIONS_AMENDED.publishedEn).toBe(dateEn(REGULATIONS_AMENDMENT.published))
-    expect(PRIVACY_AMENDED.publishedVi).toBe(dateVi(PRIVACY_AMENDMENT.published))
-    expect(PRIVACY_AMENDED.publishedEn).toBe(dateEn(PRIVACY_AMENDMENT.published))
     expect(() => dateVi('07/10/2026')).toThrow()
   })
 
@@ -137,44 +130,6 @@ describe('legal-amendment', () => {
         REGULATIONS_AMENDMENT.immediate === LEGAL_AMENDMENT.immediate
       expect(REGULATIONS_AMENDMENT.immediate === true || sameAsTerms,
         'a windowed Quy chế-only amendment needs its own strip + bell notice first (tos-change-notice.tsx, legal-amendment-notice.ts)').toBe(true)
-    })
-  })
-
-  // ⛔ /PRIVACY'S OWN RECORD (2026-10-08 — teacher job matching, the "Anthropic (Claude)" row; plan review E4). A
-  // privacy-only change dates /privacy and nothing else: LEGAL_AMENDMENT is the Terms' runtime switch and must not move.
-  describe('the privacy record (PRIVACY_AMENDMENT)', () => {
-    // (The Terms' record keeps version 3's dates — pinned above.)
-    it('dates /privacy after the Terms’ version 3 last dated it', () => {
-      expect(PRIVACY_AMENDMENT.published > LEGAL_AMENDMENT.published).toBe(true)
-      expect(PRIVACY_AMENDMENT.published).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-    })
-
-    // The readers are a closed list: /privacy's "Last updated" — and nothing that switches anything at runtime.
-    it('is read by /privacy only', () => {
-      const readers: string[] = []
-      const walk = (dir: string) => {
-        for (const name of readdirSync(join(ROOT, dir))) {
-          const rel = `${dir}/${name}`
-          if (statSync(join(ROOT, rel)).isDirectory()) { if (name !== 'generated') walk(rel); continue }
-          if (!/\.tsx?$/.test(name) || /\.test\.tsx?$/.test(name)) continue
-          for (const m of readFileSync(join(ROOT, rel), 'utf8').matchAll(/import\s*\{([^}]*)\}\s*from\s*'(?:@\/lib\/compliance|\.)\/legal-amendment'/g)) {
-            if (/\b(PRIVACY_AMENDMENT|PRIVACY_AMENDED)\b/.test(m[1])) readers.push(rel)
-          }
-        }
-      }
-      walk('src')
-      expect(readers).toEqual(['src/app/[lang]/privacy/page.tsx'])
-    })
-
-    // ⚠️ The strip and the bell notice read LEGAL_AMENDMENT only, so a windowed /privacy record would promise the notice
-    // /privacy itself promises ("announced at least 5 days before") and give none. Immediate (the owner's ack at the
-    // deploy — legal-amendment-gate.sh), or the Terms' own dates.
-    it('is never a windowed amendment the announcement machinery cannot see', () => {
-      const sameAsTerms = PRIVACY_AMENDMENT.published === LEGAL_AMENDMENT.published &&
-        PRIVACY_AMENDMENT.inForce === LEGAL_AMENDMENT.inForce &&
-        PRIVACY_AMENDMENT.immediate === LEGAL_AMENDMENT.immediate
-      expect(PRIVACY_AMENDMENT.immediate === true || sameAsTerms,
-        'a windowed privacy amendment needs its own strip + bell notice first (tos-change-notice.tsx, legal-amendment-notice.ts)').toBe(true)
     })
   })
 })

@@ -138,7 +138,9 @@ export function longerPlaceNames(spellings: string[], sentProvince?: string | nu
   const p = sentProvince?.trim()
   const unit = p ? unitFor(p) : undefined
   if (!unit) return []
-  const known = [...CURATED_PLACE_NAMES, ...unit.wards.flatMap((x) => [x.name, x.nameEn])]
+  // The curated names are HCMC's (DISTRICTS): another province's ward never loses a column to "Phú Mỹ Hưng" (commit gate,
+  // 2026-10-09 — Opus).
+  const known = [...(unit.code === '79' ? CURATED_PLACE_NAMES : []), ...unit.wards.flatMap((x) => [x.name, x.nameEn])]
   const folded = spellings.map((s) => s.toLowerCase())
   return [...new Set(known)].filter((n) => {
     const f = n.toLowerCase()
