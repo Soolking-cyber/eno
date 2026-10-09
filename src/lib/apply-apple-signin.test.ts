@@ -887,7 +887,8 @@ if (url === 'https://appleid.apple.com/auth/token') {
   const form = new URLSearchParams(stdinBody ? fs.readFileSync(0, 'utf8') : '')
   const secret = form.get('client_secret') || ''
   fs.appendFileSync(st('apple-secrets.log'), secret + '\n')
-  const forced = has('apple-answer') ? fs.readFileSync(st('apple-answer'), 'utf8').trim() : ''
+  const perClient = 'apple-answer-' + (form.get('client_id') || '')
+  const forced = has(perClient) ? fs.readFileSync(st(perClient), 'utf8').trim() : has('apple-answer') ? fs.readFileSync(st('apple-answer'), 'utf8').trim() : ''
   if (forced === 'unreachable') unreachable()
   // Apple, as far as a probe can tell: the key's signature, kid, team, client id, audience and expiry.
   const apple = JSON.parse(fs.readFileSync(st('apple.json'), 'utf8'))
@@ -912,7 +913,7 @@ if (url.includes('/auth/v1/authorize')) {
 }
 process.stderr.write('curl stub: unhandled ' + url + '\n'); process.exit(1)
 `,
-  flock: '#!/bin/sh\necho "flock $*" >> "$ENO_APPLE_SIWA_SANDBOX/state/argv.log"\nexit 0\n',
+  flock: '#!/bin/sh\necho "flock $*" >> "$ENO_APPLE_SIWA_SANDBOX/state/argv.log"\n[ -f "$ENO_APPLE_SIWA_SANDBOX/state/flock-busy" ] && exit 1\nexit 0\n',
   shred: '#!/bin/sh\necho "shred $*" >> "$ENO_APPLE_SIWA_SANDBOX/state/argv.log"\nfor a in "$@"; do case "$a" in -*) ;; *) rm -f "$a" ;; esac; done\nexit 0\n',
   systemctl: '#!/bin/sh\necho "systemctl $*" >> "$ENO_APPLE_SIWA_SANDBOX/state/argv.log"\n[ "$1" = list-timers ] && echo "eno-apple-siwa-check.timer eno-apple-siwa-check.service"\nexit 0\n',
 }
@@ -1206,8 +1207,39 @@ describe('the box flows, in a sandbox (stub docker, curl, flock, shred, systemct
     expect(r.status, r.out).toBe(1)
     expect(r.out).toMatch(/not \.env's secret/)
     expect(r.out).toContain('rotated — but 1 earlier check(s) failed above')
+    // the rotation ran under check's own lock: one flock, never a second open of the lock file
+    expect(lines(b, 'state/argv.log').filter((l) => l.startsWith('flock '))).toHaveLength(1)
     expect(envOf(b, 'supabase/.env').GOTRUE_EXTERNAL_APPLE_SECRET).not.toBe(short)
     expectNoLeak(b, r.out)
+  })
+
+  it('⛔ install refuses — before any write — when Apple refuses the key for the app’s bundle id; unreachable only warns', () => {
+    const b = makeBox()
+    writeFileSync(at(b, 'state/apple-answer-vn.eno.app'), 'invalid_client')
+    const before = snapshot(b)
+    const r = run_(b, INSTALL)
+    expect(r.status, r.out).toBe(3)
+    expect(r.out).toContain('Apple refuses this key for vn.eno.app: native sign-in would keep no token to revoke')
+    expect(snapshot(b)).toEqual(before)
+    expect(lines(b, 'state/recreates.log')).toEqual([])
+    expectNoLeak(b, r.out)
+    const c = makeBox()
+    writeFileSync(at(c, 'state/apple-answer-vn.eno.app'), 'unreachable')
+    const ok = run_(c, INSTALL)
+    expect(ok.status, ok.out).toBe(0)
+    expect(ok.out).toContain('vn.eno.app -> unreachable')
+  })
+
+  it('⛔ check reads under the lock: a lock held for 15 minutes FAILS the run — no probe, never a silent pass', () => {
+    const b = cloneBox(GOLD)
+    writeFileSync(at(b, 'state/flock-busy'), '')
+    const probes = lines(b, 'state/apple-secrets.log').length // the box's own install probed already
+    const r = run_(b, ['check', '--calibrate'])
+    expect(r.status, r.out).toBe(1)
+    expect(r.out).toContain('stayed busy for 15 minutes')
+    expect(r.out).toContain('nothing was checked')
+    expect(lines(b, 'state/apple-secrets.log')).toHaveLength(probes)
+    expect(lines(b, 'state/argv.log').some((l) => l.startsWith('flock -w 900'))).toBe(true)
   })
 
   it('check with Apple off in GoTrue passes without probing', () => {
@@ -1223,13 +1255,17 @@ describe('the box flows, in a sandbox (stub docker, curl, flock, shred, systemct
     const ts = backups(b)[0]
     const r = run_(b, ['restore', ts])
     expect(r.status, r.out).toBe(0)
-    // ⛔ Everything back as it was — except the token key, which a restore never takes away (C1/C3): rows sealed
-    // with it outlive the install. It comes back from the pre-restore copy, and its value never reaches the output.
+    // ⛔ Everything back as it was — except the apps' Apple revocation settings, which a restore never takes away
+    // (C1/C3 + follow-up): stored tokens need the key to open them and the rest to mint Apple's client secret. They
+    // come back from the pre-restore copy, and no value ever reaches the output.
     const snap = snapshot(b)
     for (const f of ['secrets/eno-vn.env', 'secrets/eno-forum.env']) {
-      expect(envOf(b, f).APPLE_TOKEN_ENC_KEY, f).toBe(b.tokenKey)
-      snap[f] = snap[f].replace(/^APPLE_TOKEN_ENC_KEY=.*\n/m, '')
-      expect(r.out).toContain(`kept APPLE_TOKEN_ENC_KEY in ${f.split('/')[1]}`)
+      const was = envOf(GOLD, f)
+      for (const k of ['APPLE_SIWA_TEAM_ID', 'APPLE_SIWA_KEY_ID', 'APPLE_SIWA_PRIVATE_KEY', 'APPLE_SIWA_SERVICES_ID', 'APPLE_SIWA_BUNDLE_ID', 'APPLE_TOKEN_ENC_KEY']) {
+        expect(envOf(b, f)[k], `${f} ${k}`).toBe(was[k])
+        snap[f] = snap[f].replace(new RegExp(`^${k}=.*\\n`, 'm'), '')
+      }
+      expect(r.out).toContain(`kept the Apple revocation settings in ${f.split('/')[1]}`)
     }
     expect(snap).toEqual(b.originals)
     expect(lines(b, 'state/recreates.log')).toEqual(['up -d --no-deps auth'])
@@ -1253,8 +1289,12 @@ describe('the box flows, in a sandbox (stub docker, curl, flock, shred, systemct
     expect(snapshot(b)).toEqual(before)
     const forced = run_(b, ['restore', ts, '--force'])
     expect(forced.status, forced.out).toBe(0)
-    expect(read(b, 'secrets/eno-vn.env').replace(/^APPLE_TOKEN_ENC_KEY=.*\n/m, '')).toBe(b.originals['secrets/eno-vn.env'])
-    expect(envOf(b, 'secrets/eno-vn.env').APPLE_TOKEN_ENC_KEY).toBe(b.tokenKey) // the token key stays (C1/C3)
+    let vn = read(b, 'secrets/eno-vn.env')
+    for (const k of ['APPLE_SIWA_TEAM_ID', 'APPLE_SIWA_KEY_ID', 'APPLE_SIWA_PRIVATE_KEY', 'APPLE_SIWA_SERVICES_ID', 'APPLE_SIWA_BUNDLE_ID', 'APPLE_TOKEN_ENC_KEY']) {
+      expect(envOf(b, 'secrets/eno-vn.env')[k], k).toBe(envOf(GOLD, 'secrets/eno-vn.env')[k]) // the revocation settings stay
+      vn = vn.replace(new RegExp(`^${k}=.*\\n`, 'm'), '')
+    }
+    expect(vn).toBe(b.originals['secrets/eno-vn.env'])
   })
 
   it('restore refuses to turn GoTrue’s Apple off while the running apps still show Apple (I13, B5)', () => {
@@ -1300,6 +1340,49 @@ describe('the box flows, in a sandbox (stub docker, curl, flock, shred, systemct
       const forced = run_(b, ['restore', backups(b)[0], '--force'])
       expect(forced.status, forced.out).toBe(0)
     }
+  })
+
+  it('⛔ restore keeps the revocation settings AS ONE SET: an older set in the backup is replaced by the running one', () => {
+    const b = cloneBox(GOLD)
+    const ts = backups(b)[0]
+    // The install's backup, as if an EARLIER install had left a different key id and services id in it.
+    const old = at(b, `backups/${ts}/eno-vn.env`)
+    writeFileSync(old, readFileSync(old, 'utf8') + 'APPLE_SIWA_KEY_ID=OLDKEY0001\nAPPLE_SIWA_SERVICES_ID=vn.eno.old\n')
+    const r = run_(b, ['restore', ts, '--force'])
+    expect(r.status, r.out).toBe(0)
+    const now = envOf(b, 'secrets/eno-vn.env'), was = envOf(GOLD, 'secrets/eno-vn.env')
+    for (const k of ['APPLE_SIWA_TEAM_ID', 'APPLE_SIWA_KEY_ID', 'APPLE_SIWA_PRIVATE_KEY', 'APPLE_SIWA_SERVICES_ID', 'APPLE_SIWA_BUNDLE_ID', 'APPLE_TOKEN_ENC_KEY']) {
+      expect(now[k], k).toBe(was[k])
+    }
+    expect(read(b, 'secrets/eno-vn.env')).not.toContain('OLDKEY0001')
+    expectNoLeak(b, r.out)
+  })
+
+  it('⛔ …and a setting the running copy does NOT hold is removed, never left from the backup (one set, by construction)', () => {
+    const b = cloneBox(GOLD)
+    const ts = backups(b)[0]
+    // Running: the bundle id gone by hand. Backup: an older bundle id. Restore must not pair the old id with the new key.
+    writeFileSync(at(b, 'secrets/eno-vn.env'), read(b, 'secrets/eno-vn.env').replace(/^APPLE_SIWA_BUNDLE_ID=.*\n/m, ''))
+    const old = at(b, `backups/${ts}/eno-vn.env`)
+    writeFileSync(old, readFileSync(old, 'utf8') + 'APPLE_SIWA_BUNDLE_ID=vn.eno.old\n')
+    const r = run_(b, ['restore', ts, '--force'])
+    expect(r.status, r.out).toBe(0)
+    const now = envOf(b, 'secrets/eno-vn.env')
+    expect(now.APPLE_SIWA_BUNDLE_ID).toBeUndefined()
+    expect(now.APPLE_SIWA_KEY_ID).toBe(envOf(GOLD, 'secrets/eno-vn.env').APPLE_SIWA_KEY_ID)
+    expect(read(b, 'secrets/eno-vn.env')).not.toContain('vn.eno.old')
+    expectNoLeak(b, r.out)
+  })
+
+  it('keep-apple: the backup without its six Apple keys, plus the running file’s six verbatim — an empty one too', () => {
+    const d = mkdtempSync(join(tmpdir(), 'siwa-keep-'))
+    const cur = join(d, 'cur.env'), bak = join(d, 'bak.env')
+    writeFileSync(cur, 'A_KEY=new\nAPPLE_SIWA_KEY_ID=NEWKEY0001\nAPPLE_SIWA_BUNDLE_ID=\nAPPLE_TOKEN_ENC_KEY=k-new\n')
+    writeFileSync(bak, 'A_KEY=old\nAPPLE_SIWA_KEY_ID=OLDKEY0001\nAPPLE_SIWA_SERVICES_ID=vn.eno.old\nB_KEY=2')
+    const r = helper(['keep-apple', cur, bak], '')
+    expect(r.status).toBe(0)
+    expect(r.stdout).toBe('A_KEY=old\nB_KEY=2\nAPPLE_SIWA_KEY_ID=NEWKEY0001\nAPPLE_SIWA_BUNDLE_ID=\nAPPLE_TOKEN_ENC_KEY=k-new\n')
+    expect(helper(['keep-apple', join(d, 'missing.env'), bak], '').status).not.toBe(0) // unreadable: stop, write nothing
   })
 
   it('restore lists the backups without a timestamp, and refuses anything that is not one', () => {

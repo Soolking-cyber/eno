@@ -78,6 +78,11 @@ cp -p /etc/nginx/sites-enabled/eno.conf /root/eno.conf.bak-$(date +%Y%m%d-%H%M%S
 
 Rollback: copy the backup back, then `nginx -t && systemctl reload nginx`.
 
+⚠️ **The cost, on purpose (D21):** from I4 on, an OAuth sign-in (Google, Apple) that starts on a local preview
+(`dev:vn`, `preview:vn` against sb.eno.vn) is refused — its `redirect_to` is not https eno.vn / eno.forum — and I8's
+`--drop-localhost-redirect` takes `http://localhost:3000/**` off GoTrue's allow-list too. Test signed-in screens
+locally with the fake-auth harness (no prod sign-in), and OAuth itself on the deployed site or the apps.
+
 ## I5 · the refusal matrix (Mac, through Cloudflare)
 
 ```bash
@@ -231,8 +236,11 @@ I12, after build-3 approval (D18): `ios,web` in `eno-vn.env` (in `eno-forum.env`
   keys, never the values; `--force` reverts them too), refuses while a running app still carries a non-empty
   `NEXT_PUBLIC_APPLE_SIGNIN` — in its environment OR in the image it runs (the label above) — takes a pre-restore
   backup first, recreates auth and waits for google and email.
-  Undoing the install also removes `APPLE_TOKEN_ENC_KEY`: tokens stored meanwhile open again only with the SAME key
-  (vault `apple-token-enc-key`).
+  It keeps the apps' Apple revocation settings (`APPLE_SIWA_*`, `APPLE_TOKEN_ENC_KEY`) exactly as they were before
+  the restore — as one set, `--force` included: tokens stored meanwhile stay revocable — the daily retry and every
+  erasure need the key to open them and the rest to mint Apple's client secret. A compromised key is replaced by
+  rotating it (I14), never by a restore. An app container it cannot read (missing, stopped, mid-swap) counts as
+  showing Apple.
 - **nginx:** see I4.
 
 Backups: an install's is kept for good; rotate and pre-restore backups past the newest 10 are pruned.

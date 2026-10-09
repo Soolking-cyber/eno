@@ -283,6 +283,24 @@ def cmd_env_set(path):
         print(f'{os.path.basename(path)}: {r}')
 
 
+APPLE_KEEP = ('APPLE_SIWA_TEAM_ID', 'APPLE_SIWA_KEY_ID', 'APPLE_SIWA_PRIVATE_KEY', 'APPLE_SIWA_SERVICES_ID',
+              'APPLE_SIWA_BUNDLE_ID', 'APPLE_TOKEN_ENC_KEY')
+
+
+def cmd_keep_apple(current, backup):
+    """stdout (always redirected to a file): `backup` with the six Apple revocation keys exactly as `current` holds
+    them — current's lines, verbatim and in order, an empty value included — and none of the backup's. A file that
+    cannot be read stops it (non-zero), before anything is written."""
+    keep = set(APPLE_KEEP)
+    cur = read_text(current).splitlines(keepends=True)
+    bak = read_text(backup).splitlines(keepends=True)
+    out = [line for line in bak if env_key(line) not in keep]
+    if out and not out[-1].endswith('\n'):
+        out[-1] += '\n'
+    out += [line if line.endswith('\n') else line + '\n' for line in cur if env_key(line) in keep]
+    sys.stdout.write(''.join(out))
+
+
 def cmd_redirect_drop(path, entry, check=None):
     lines = read_text(path).splitlines(keepends=True)
     at = [i for i, line in enumerate(lines) if env_key(line) == 'ADDITIONAL_REDIRECT_URLS']
@@ -634,7 +652,7 @@ def cmd_meta_summary(path):
 
 
 CMDS = {
-    'env-get': cmd_env_get, 'env-state': cmd_env_state, 'same': cmd_same, 'env-set': cmd_env_set,
+    'env-get': cmd_env_get, 'env-state': cmd_env_state, 'same': cmd_same, 'env-set': cmd_env_set, 'keep-apple': cmd_keep_apple,
     'redirect-drop': cmd_redirect_drop, 'env-foreign': cmd_env_foreign, 'merge-override': cmd_merge_override,
     'override-same': cmd_override_same, 'jwt-info': cmd_jwt_info, 'fp': cmd_fp, 'break-jwt': cmd_break_jwt,
     'settings': cmd_settings, 'container-env': cmd_container_env, 'apple-answer': cmd_apple_answer,
@@ -729,6 +747,8 @@ need_files() {
 }
 
 take_lock() {  # n: refuse at once · w: wait up to 15 minutes (the timer's rotation)
+  # Already held by this run (check → a due rotation): re-opening fd 8 would drop the lock for a moment.
+  [ "${LOCK_HELD:-0}" = 1 ] && return 0
   exec 8>"$LOCK" || die "cannot open $LOCK"
   if [ "$1" = w ]; then
     flock -w 900 8 || die "$LOCK stayed busy for 15 minutes (a deploy?) — nothing was changed"
@@ -1056,13 +1076,20 @@ cmd_install() {
   ok "Apple accepts it for $SERVICES (code=probe -> invalid_grant)"
   r=$(mint_from "$BUNDLE" 300 | apple_probe "$BUNDLE")
   if [ "$r" = ok ]; then ok "Apple accepts the same key for $BUNDLE (the native iOS code exchange)"
-  else warn "$BUNDLE -> $r: the native iOS flow will sign in but keep no token to revoke — check the key's primary App ID (owner step 2/4); /api/cron/apple-revocations reports the same"; fi
+  elif [ "$r" = unreachable ]; then
+    warn "$BUNDLE -> unreachable: Apple could not be asked about the native iOS code exchange — I9's probes and the daily cron ask again"
+  else
+    # ⛔ REFUSED, NOT WARNED (commit gate, part C follow-up, codex): native sign-in would keep no token to revoke, and
+    # account deletion — what App Review tests on camera — could only ask the person to remove eno by hand (TN3194).
+    explain_probe "$BUNDLE" "$r"
+    refuse "Apple refuses this key for $BUNDLE: native sign-in would keep no token to revoke — fix the key's primary App ID (owner step 2/4); nothing was changed"
+  fi
 
   backup install
   meta_set key_id "$KID"; meta_set services_id "$SERVICES"; meta_set secret_fp "$J_FP"; meta_set secret_exp "$J_EXP_DATE"
   APPLIED=1
 
-  say "1/5 app env — both editions (read only when the containers are next created: the I11 deploy)"
+  say "1/5 app env — both editions (read only when the containers are next created: I8b, right after this run)"
   for f in "$VN_ENV" "$FORUM_ENV"; do
     {
       printf 'APPLE_SIWA_TEAM_ID=%s\n' "$TEAM"
@@ -1195,6 +1222,19 @@ cmd_check() {
     ok "GoTrue's Apple provider is off (GOTRUE_EXTERNAL_APPLE_ENABLED is not true) — nothing to check"
     exit 0
   fi
+  # ⛔ READ UNDER THE LOCK (commit gate, part C follow-up, opus): mid-install or mid-rotate, .env already holds the new
+  # secret and the container the old one — a false "not .env's secret", and a due rotation run again right after the
+  # manual one. Waits like the rotation does — and a lock still held after 15 minutes FAILS the run (follow-up review,
+  # both seats): exiting 0 there let a wedged holder keep the expiry watchdog quiet for good. (Taken only once Apple
+  # is on: with nothing to check, a long deploy is no reason to fail.)
+  if [ "${LOCK_HELD:-0}" != 1 ]; then
+    exec 8>"$LOCK" || die "cannot open $LOCK"
+    if ! flock -w 900 8; then
+      bad "$LOCK stayed busy for 15 minutes (a deploy, an install — or a stuck one?): nothing was checked"
+      exit 1
+    fi
+    LOCK_HELD=1  # a due rotation below runs under this same lock (take_lock)
+  fi
   ids=$(py env-get "$SB_ENV" GOTRUE_EXTERNAL_APPLE_CLIENT_ID 2>/dev/null) && [ -n "$ids" ] \
     || die "GOTRUE_EXTERNAL_APPLE_CLIENT_ID is missing from $SB_ENV"
   SERVICES=${ids%%,*}
@@ -1313,23 +1353,32 @@ cmd_restore() {
     fi
   fi
 
+  # ⛔ THE APPS' APPLE REVOCATION SETTINGS ARE INVARIANT ACROSS A RESTORE (commit gate C1/C3 + follow-up, both seats):
+  # rows in public.apple_siwa_token outlive GoTrue's config, and revoking one needs the token key to open it AND the
+  # team, key id, .p8 and client ids to mint Apple's client secret. So each app env file is STAGED first — the
+  # backup's lines without the six keys, plus the six exactly as the running file holds them (keep-apple) — and then
+  # written once, by the same atomic copy as every other file. No older or partial set from the backup can survive,
+  # and a file that cannot be read stops the restore here, with nothing changed. A compromised key is rotated (I14),
+  # never restored. (The keys show nothing to anyone: the flag is the switch; the native routes also need it.)
+  local stage="$TMP/restore" name dst
+  mkdir -p "$stage" || die "cannot stage the restore — nothing was changed"
+  for name in supabase.env docker-compose.override.yml eno-vn.env eno-forum.env; do
+    [ -f "$dir/$name" ] || continue
+    case "$name" in
+      eno-vn.env|eno-forum.env)
+        dst=$(dst_of "$name")
+        py keep-apple "$dst" "$dir/$name" > "$stage/$name" || die "cannot read $dst or $dir/$name — nothing was changed" ;;
+      *) cp -p "$dir/$name" "$stage/$name" || die "cannot stage $name — nothing was changed" ;;
+    esac
+  done
+
   backup pre-restore
   APPLIED=1; AUTH_TOUCHED=1
-  restore_files "$dir" || die "putting $dir back failed"
+  restore_files "$stage" || die "putting $dir back failed"
   ok "files put back from $dir"
-  # ⛔ THE TOKEN KEY OUTLIVES THE INSTALL (commit gate C1/C3, codex): rows sealed with APPLE_TOKEN_ENC_KEY stay in
-  # public.apple_siwa_token whatever GoTrue's config becomes, and a key gone from the env strands them — no erasure
-  # or retry could open them. So a restore never takes it away: where the restored file lacks it, it goes back in from
-  # the pre-restore copy, file to file (@from-env), never through argv or the terminal.
-  local name dst
   for name in eno-vn.env eno-forum.env; do
-    dst=$(dst_of "$name")
-    if [ "$(py env-state "$BACKUP_DIR/$name" APPLE_TOKEN_ENC_KEY 2>/dev/null || true)" = set ] \
-       && [ "$(py env-state "$dst" APPLE_TOKEN_ENC_KEY)" != set ]; then
-      printf 'APPLE_TOKEN_ENC_KEY=@from-env:%s\n' "$BACKUP_DIR/$name" | py env-set "$dst" >/dev/null \
-        || die "could not keep APPLE_TOKEN_ENC_KEY in $dst"
-      ok "kept APPLE_TOKEN_ENC_KEY in $name — the stored Apple tokens stay readable"
-    fi
+    [ -f "$stage/$name" ] && [ "$(py env-state "$(dst_of "$name")" APPLE_TOKEN_ENC_KEY)" = set ] \
+      && ok "kept the Apple revocation settings in $name — stored tokens stay revocable"
   done
   compose_ok || die "the restored configuration does not load"
   recreate_auth || die "auth was not recreated"
