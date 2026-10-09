@@ -425,8 +425,49 @@ describe('Sign in with Apple — the Android app and browsers (GoTrue’s Apple 
     expect(g.className).toContain('bg-white')
     expect(g.className).toContain('border-[#747775]')
     expect(g.className).toContain('text-[#1F1F1F]')
-    expect(g.className).toContain('text-base')
     expect(g.className).not.toContain('bg-popover')
+  })
+
+  // Owner, 2026-10-09: "match typography continue with google and continue with apple". Apple's size is fixed by the
+  // HIG (the title 43% of the 44px height); Google's label takes it, and both are bold.
+  it.each(['web', 'android-app'] as const)('%s: both provider titles share ONE typography — 19px, bold, leading 1.25', async (kind) => {
+    flags('', 'ios,web')
+    context(kind)
+    await renderForm()
+    const appleTitle = [...apple()!.querySelectorAll('span')].find((s) => s.textContent === 'Continue with Apple')!
+    // every size the canon knows (design-lint's scale: 3xs…9xl) or an arbitrary one, every font-*, every leading-*
+    const typo = (cls: string) => cls.split(/\s+/).filter((c) => /^(text-\[[\d.]+(px|rem|em)\]|text-(\d*xs|sm|base|lg|\d*xl)|font-|leading-)/.test(c)).sort()
+    expect(typo(appleTitle.className)).toEqual(['font-bold', 'leading-tight', 'text-[19px]'])
+    expect(typo(google()!.className)).toEqual(typo(appleTitle.className))
+    // the label colour survives the merge beside the arbitrary size (tailwind-merge tells the two apart)
+    expect(google()!.className).toContain('text-[#1F1F1F]')
+  })
+
+  it('the two buttons are ONE PAIR: equal rows, so a wrapped label grows both — the flag EMPTY keeps the old markup', async () => {
+    flags('', 'ios,web')
+    context('web')
+    await renderForm()
+    const pair = google()!.parentElement!
+    expect(apple()!.parentElement).toBe(pair)
+    expect(pair.className.split(' ')).toEqual(expect.arrayContaining(['grid', 'auto-rows-fr', 'gap-3']))
+    cleanup()
+    flags('', '')
+    await renderForm()
+    expect(google()!.parentElement!.className).toContain('space-y-3') // straight in the form, as before
+  })
+
+  it('the pair carries its buttons\' first-frame hook under ios-hide-google — an iOS binary without the plugin gets no empty 12px box', () => {
+    flags('ios-hide-google', 'ios,web')
+    const host = ssr()
+    const g = byText(host, 'Continue with Google')!
+    const a = byText(host, 'Continue with Apple')!
+    expect(g.parentElement).toBe(a.parentElement)
+    // both buttons hide before hydration in that binary, so the pair does too — by the same rule
+    for (const el of [g, a, g.parentElement!]) expect(el.className).toContain('ios-nosiwa-hidden')
+    flags('', 'ios,web')
+    const plain = byText(ssr(), 'Continue with Google')!
+    expect(plain.className).not.toContain('ios-nosiwa-hidden') // Google ungated: the pair shows (it holds Google)
+    expect(plain.parentElement!.className).not.toContain('ios-nosiwa-hidden')
   })
 
   it('Apple pressed is reported like Google: once to the prompt, as the gate’s method', async () => {

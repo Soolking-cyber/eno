@@ -1341,53 +1341,55 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
           (Apple HIG: "no smaller than other sign-in buttons"; Google: "approximately the same size"). */}
       {providersShown && !emailFirst && (
         <>
-          {/* ⛔ OUR OWN BUTTON, AND OUR OWN OAUTH FLOW BEHIND IT — the third and final shape.
-              Google prints the redirect HOST on its consent screen, so the only way to have both
-              our design and our name on it is to own the redirect: /auth/google/start sends the
-              visitor to Google with redirect_uri on eno.vn, and /auth/google/callback trades the
-              code for an ID token that Supabase turns into the usual session.
-              Google Identity Services got the NAME right but rendered a cross-origin iframe we
-              could not style, and refused to accept a click while hidden. See
-              src/lib/auth/google-oauth.ts for the whole history. */}
-          {/* ⚠️ A REAL BUTTON, NOT A GHOST TEXT ROW. It rendered with no fill and no border (measured on
-              /signin at 390: 342x40, background transparent, border 0) — the one sign-in method most
-              visitors reach for read LESS like a button than the disabled email CTA beneath it.
-              Google's own branding asks for exactly this: a neutral fill, a 1px stroke and the
-              full-colour G. 44px tall (min-h-11) like every CTA in this form.
-              `variant="bare"`, NOT ghost/outline: both force `hover:text-accent-foreground`, which
-              would turn the label brand-blue on hover. The G is `size-5` (20px) — ui/button's base
-              clamps any svg WITHOUT a `size-` class to 16px, so h-5/w-5 would silently lose. */}
-          {/* SIGN IN WITH APPLE (2026-10-08). With ANY token in the flag Google takes its own Light theme —
-              #FFFFFF fill, #747775 stroke, #1F1F1F label, in BOTH colour schemes — and a 16px label, so it
-              carries the same visual weight as Apple's white button beside it; it may wrap rather than
-              overflow under the apps' text zoom. ⛔ With the flag EMPTY the first branch keeps the old
-              button's classes byte-for-byte (B4: the restyle must not leak into the dark deploy). The one
-              change there is the busy state, on purpose: `loading` replaces the old hand-built Loader2 swap
-              (design-language §5 — commit gate B1 asked); the label still turns into "Signing you in…" for a
-              screen reader, as it did. `ios-nosiwa-hidden` (was `ios-app-hidden`): hidden in the iOS app
-              before hydration unless the head script marked it `native-siwa` — Google only beside Apple. */}
-          {!hideGoogle && (
-            <Button variant="bare" size="none" disabled={loading} loading={googleBusy} onClick={pressGoogle} className={cn(restyleGoogle ? GOOGLE_LIGHT_THEME : 'flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-popover px-4 text-sm font-bold text-foreground transition-colors hover:bg-tint disabled:opacity-50 cursor-pointer', gateGoogle && 'ios-nosiwa-hidden')}>
-              <GoogleIcon />
-              {googleBusy ? t('Signing you in…', 'Đang đăng nhập…') : t('Continue with Google', 'Tiếp tục với Google')}
-            </Button>
-          )}
-          {/* ⛔ APPLE'S OWN LOOK, PER THE HIG (D6) — App Review evaluates a custom Sign in with Apple button:
-              white fill, black logo and title, a 1px black outline in light mode and none in dark mode (an inset
-              ring, which takes no height: exactly 44px, like Google); Apple's own logo artwork at the button's height,
-              never cropped (AppleIcon); the title at 43% of the height and ALWAYS "Continue with Apple" — the
-              busy state is the spinner over it, never a different label. It may grow rather than clip under
-              text zoom (B3: no nowrap).
-              `ios-nosiwa-hidden` ALWAYS: in the iOS app Apple exists only as the native sheet, so before
-              hydration it shows only where the head script found the plugin and `ios` (`native-siwa`).
-              `apple-native-only` while `web` is not in the flag: the server's node is then for that iOS
-              binary alone, until the mount effect finds a `web-test` tester here. */}
-          {showApple && (
-            <Button variant="bare" size="none" disabled={loading} loading={appleBusy} onClick={pressApple} className={cn(APPLE_BUTTON, 'ios-nosiwa-hidden', appleWebAll && 'apple-web', !appleWebAll && !appleWebHere && 'apple-native-only')}>
-              <AppleIcon />
-              <span className={APPLE_TITLE}>{t('Continue with Apple', 'Tiếp tục với Apple')}</span>
-            </Button>
-          )}
+          <ProviderPair pair={restyleGoogle} firstFrameHook={gateGoogle}>
+            {/* ⛔ OUR OWN BUTTON, AND OUR OWN OAUTH FLOW BEHIND IT — the third and final shape.
+                Google prints the redirect HOST on its consent screen, so the only way to have both
+                our design and our name on it is to own the redirect: /auth/google/start sends the
+                visitor to Google with redirect_uri on eno.vn, and /auth/google/callback trades the
+                code for an ID token that Supabase turns into the usual session.
+                Google Identity Services got the NAME right but rendered a cross-origin iframe we
+                could not style, and refused to accept a click while hidden. See
+                src/lib/auth/google-oauth.ts for the whole history. */}
+            {/* ⚠️ A REAL BUTTON, NOT A GHOST TEXT ROW. It rendered with no fill and no border (measured on
+                /signin at 390: 342x40, background transparent, border 0) — the one sign-in method most
+                visitors reach for read LESS like a button than the disabled email CTA beneath it.
+                Google's own branding asks for exactly this: a neutral fill, a 1px stroke and the
+                full-colour G. 44px tall (min-h-11) like every CTA in this form.
+                `variant="bare"`, NOT ghost/outline: both force `hover:text-accent-foreground`, which
+                would turn the label brand-blue on hover. The G is `size-5` (20px) — ui/button's base
+                clamps any svg WITHOUT a `size-` class to 16px, so h-5/w-5 would silently lose. */}
+            {/* SIGN IN WITH APPLE (2026-10-08). With ANY token in the flag Google takes its own Light theme —
+                #FFFFFF fill, #747775 stroke, #1F1F1F label, in BOTH colour schemes — and Apple's title typography
+                (PROVIDER_TITLE: 19px bold), so the pair reads as one; it may wrap rather than overflow under the
+                apps' text zoom. ⛔ With the flag EMPTY the first branch keeps the old
+                button's classes byte-for-byte (B4: the restyle must not leak into the dark deploy). The one
+                change there is the busy state, on purpose: `loading` replaces the old hand-built Loader2 swap
+                (design-language §5 — commit gate B1 asked); the label still turns into "Signing you in…" for a
+                screen reader, as it did. `ios-nosiwa-hidden` (was `ios-app-hidden`): hidden in the iOS app
+                before hydration unless the head script marked it `native-siwa` — Google only beside Apple. */}
+            {!hideGoogle && (
+              <Button variant="bare" size="none" disabled={loading} loading={googleBusy} onClick={pressGoogle} className={cn(restyleGoogle ? GOOGLE_LIGHT_THEME : 'flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-popover px-4 text-sm font-bold text-foreground transition-colors hover:bg-tint disabled:opacity-50 cursor-pointer', gateGoogle && 'ios-nosiwa-hidden')}>
+                <GoogleIcon />
+                {googleBusy ? t('Signing you in…', 'Đang đăng nhập…') : t('Continue with Google', 'Tiếp tục với Google')}
+              </Button>
+            )}
+            {/* ⛔ APPLE'S OWN LOOK, PER THE HIG (D6) — App Review evaluates a custom Sign in with Apple button:
+                white fill, black logo and title, a 1px black outline in light mode and none in dark mode (an inset
+                ring, which takes no height: exactly 44px, like Google); Apple's own logo artwork at the button's height,
+                never cropped (AppleIcon); the title at 43% of the height (PROVIDER_TITLE, shared with Google's label) and ALWAYS "Continue with Apple" — the
+                busy state is the spinner over it, never a different label. It may grow rather than clip under
+                text zoom (B3: no nowrap).
+                `ios-nosiwa-hidden` ALWAYS: in the iOS app Apple exists only as the native sheet, so before
+                hydration it shows only where the head script found the plugin and `ios` (`native-siwa`).
+                `apple-native-only` while `web` is not in the flag: the server's node is then for that iOS
+                binary alone, until the mount effect finds a `web-test` tester here. */}
+            {showApple && (
+              <Button variant="bare" size="none" disabled={loading} loading={appleBusy} onClick={pressApple} className={cn(APPLE_BUTTON, 'ios-nosiwa-hidden', appleWebAll && 'apple-web', !appleWebAll && !appleWebHere && 'apple-native-only')}>
+                <AppleIcon />
+                <span className={PROVIDER_TITLE}>{t('Continue with Apple', 'Tiếp tục với Apple')}</span>
+              </Button>
+            )}
+          </ProviderPair>
 
           {/* The divider shows whenever a provider does, with Google's own first-frame hook: under the gate
               in the iOS app, a provider can only paint with `native-siwa`. */}
@@ -1850,14 +1852,49 @@ function SecondarySwitchRow({ show, items, replaceWith = null, announce = '' }: 
   )
 }
 
+// BOTH PROVIDER TITLES, ONE TYPOGRAPHY (owner, 2026-10-09: "match typography continue with google and continue with
+// apple") — Google's 16px bold beside Apple's 19px regular read as two different kinds of button.
+// ⛔ THE SIZE IS APPLE'S, AND IT IS NOT FREE. The HIG lets a custom button change its title's font, weight and size,
+// but "regardless of the font you choose, the title and button height of your custom button need to use the same
+// proportions that the system uses": the title 43% of the height — 19px at our 44px, between the canon's 18 and 20
+// steps, so it is the one arbitrary size here. A smaller Apple title breaks that, and a shorter Apple button would be
+// "smaller than other sign-in buttons" — so Google's label takes Apple's size, never the reverse.
+// Bold: the weight IS free (HIG), and every other control in this form is bold. ⚠️ The canon loads Open Runde in 400
+// and 700 only, and maps `font-medium` to 400 — the old Apple title asked for medium and rendered regular.
+// ⚠️ A UNITLESS LEADING (1.25 — 23.75px at 19px). The apps' text zoom (native-text-zoom.ts, up to 175%) grows the
+// glyphs but never a px/rem line box, so a fixed `leading-6` kept 24px lines under 28px+ glyphs and a wrapped title
+// (B3 lets it wrap) overlapped itself.
+// Wrapping is real, not hypothetical: in the Join dialog at 320px (a 248px button, 216px inside its padding) English
+// needs 231px for Google and 221px for Apple, so BOTH take two lines there; Vietnamese needs 209 and 199 and fits. At
+// 360px (256px inside), and on /signin at 320px (240px), both fit (measured in Chromium, 2026-10-09). Longer languages
+// (fr, ru, ms, th) wrap at 320px too. Whatever wraps, ProviderPair keeps the two buttons the same height.
+const PROVIDER_TITLE = 'text-[19px] font-bold leading-tight' // design-lint-allow: Apple HIG custom button — title = 43% of the 44px height (19px)
+/**
+ * THE TWO PROVIDER BUTTONS AS ONE PAIR (`pair`: the flag is set) — a grid whose rows are always equal (`auto-rows-fr`),
+ * so when one label wraps the other button grows with it. At one shared size "Continue with Google" is ~10px longer
+ * than Apple's title, so between the widths where both fit and both wrap — and anywhere under the apps' text zoom —
+ * Google alone would take two lines: a 49.5px Google beside a 44px Apple (measured in Chromium, form 255px wide,
+ * 2026-10-09; commit gate, codex + opus). `gap-3` is the form's own `space-y-3` (both callers pass only `mt-4`), so
+ * the spacing does not move. With the flag EMPTY there is no wrapper at all: the dark deploy's markup stays
+ * byte-for-byte (B4).
+ * ⛔ THE PAIR CARRIES ITS BUTTONS' FIRST-FRAME HOOK (`firstFrameHook`, commit gate round 2, opus). Under
+ * `ios-hide-google` both buttons are `ios-nosiwa-hidden` — so in an iOS binary without the plugin both are hidden
+ * before hydration — and an empty grid would still be a block in the form's `space-y-3`: 12px of margin that the
+ * email form then jumps out of. Hidden by the same rule, the pair takes no space either. After mount it is never
+ * empty: the whole block renders only while a provider does (`providersShown`).
+ */
+function ProviderPair({ pair, firstFrameHook, children }: { pair: boolean; firstFrameHook: boolean; children: ReactNode }) {
+  if (!pair) return <>{children}</>
+  return <div className={cn('grid auto-rows-fr gap-3', firstFrameHook && 'ios-nosiwa-hidden')}>{children}</div>
+}
 /**
  * Google's Light theme (developers.google.com/identity/branding-guidelines): #FFFFFF fill, a 1px #747775 stroke,
- * #1F1F1F label — kept in BOTH colour schemes, beside Apple's white button, and a 16px label (the canon's
- * text-base) for equal visual weight. Used only while NEXT_PUBLIC_APPLE_SIGNIN has a token (plan B3/B4); the hover
- * is a fixed light grey because the tint token turns dark in dark mode, under a near-black label.
+ * #1F1F1F label — kept in BOTH colour schemes, beside Apple's white button — and Apple's title typography
+ * (PROVIDER_TITLE), so the two read as one pair. Used only while NEXT_PUBLIC_APPLE_SIGNIN has a token (plan B3/B4);
+ * the hover is a fixed light grey because the tint token turns dark in dark mode, under a near-black label.
  * `whitespace-normal`: under the apps' text zoom the label wraps inside the button instead of spilling out.
  */
-const GOOGLE_LIGHT_THEME = 'flex min-h-11 w-full items-center justify-center gap-2.5 whitespace-normal rounded-xl border border-[#747775] bg-white px-4 text-center text-base font-bold text-[#1F1F1F] transition-colors hover:bg-neutral-100 disabled:opacity-50 cursor-pointer'
+const GOOGLE_LIGHT_THEME = `flex min-h-11 w-full items-center justify-center gap-2.5 whitespace-normal rounded-xl border border-[#747775] bg-white px-4 text-center ${PROVIDER_TITLE} text-[#1F1F1F] transition-colors hover:bg-neutral-100 disabled:opacity-50 cursor-pointer`
 /**
  * Apple's custom-button rules (HIG, Sign in with Apple → Creating a custom button): white fill with black logo and
  * title; the white OUTLINED style on a light background, plain white on a dark one; the logo file's height equals the
@@ -1869,14 +1906,6 @@ const GOOGLE_LIGHT_THEME = 'flex min-h-11 w-full items-center justify-center gap
  * (an outer ring) still draws around it.
  */
 const APPLE_BUTTON = 'flex min-h-11 w-full items-center justify-center gap-0 whitespace-normal rounded-xl inset-ring inset-ring-black bg-white px-4 text-center text-black hover:bg-neutral-100 disabled:opacity-50 cursor-pointer dark:inset-ring-transparent'
-// The title's size is 43% of the button's height in Apple's own proportions — 19px at 44px — which sits between the
-// canon's 18 and 20 steps, so it is the one arbitrary size here. Medium weight, Apple's own default.
-// ⚠️ A UNITLESS LEADING (1.25 — 23.75px at 19px, the same line as before). The apps' text zoom
-// (native-text-zoom.ts, up to 175%) grows the glyphs but never a px/rem line box, so a fixed `leading-6` kept 24px
-// lines under 28px+ glyphs and a wrapped title (B3 lets it wrap) overlapped itself.
-// Wrapping is real, not hypothetical: in the Join dialog at 320px (a 248px button) the fr, ru, ms and th titles take
-// two lines, and English fits with about 18px to spare on the right (review, 2026-10-08) — D6's screenshot review.
-const APPLE_TITLE = 'text-[19px] font-medium leading-tight' // design-lint-allow: Apple HIG custom button — title = 43% of the 44px height (19px)
 
 /**
  * Apple's logo for the custom button, as the HIG requires it: Apple's glyph in the frame Apple ships for a logo
