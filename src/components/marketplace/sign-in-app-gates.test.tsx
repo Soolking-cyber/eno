@@ -417,15 +417,16 @@ describe('Sign in with Apple — the Android app and browsers (GoTrue’s Apple 
     }
   })
 
-  it('the Light-theme Google sits beside Apple whenever the flag is set', async () => {
+  // Owner, 2026-10-09: "make sure they look same have same contrast". Apple's colours are the fixed ones (HIG), so
+  // Google takes them: white, a black outline and label, no outline in dark mode — every colour class identical.
+  it('Google takes Apple\'s look beside it whenever the flag is set — the same colours, outline and hover', async () => {
     flags('', 'web')
     context('web')
     await renderForm()
-    const g = google()!
-    expect(g.className).toContain('bg-white')
-    expect(g.className).toContain('border-[#747775]')
-    expect(g.className).toContain('text-[#1F1F1F]')
-    expect(g.className).not.toContain('bg-popover')
+    const look = (el: HTMLElement) => el.className.split(/\s+/).filter((c) => /^(bg-|text-(black|white|\[#)|inset-ring|ring-|border|hover:|dark:)/.test(c)).sort()
+    expect(look(google()!)).toEqual(['bg-white', 'dark:inset-ring-transparent', 'hover:bg-neutral-100', 'inset-ring', 'inset-ring-black', 'text-black'])
+    expect(look(google()!)).toEqual(look(apple()!))
+    expect(google()!.className).not.toMatch(/border-\[#747775\]|text-\[#1F1F1F\]|bg-popover/)
   })
 
   // Owner, 2026-10-09: "match typography continue with google and continue with apple". Apple's size is fixed by the
@@ -440,7 +441,7 @@ describe('Sign in with Apple — the Android app and browsers (GoTrue’s Apple 
     expect(typo(appleTitle.className)).toEqual(['font-bold', 'leading-tight', 'text-[19px]'])
     expect(typo(google()!.className)).toEqual(typo(appleTitle.className))
     // the label colour survives the merge beside the arbitrary size (tailwind-merge tells the two apart)
-    expect(google()!.className).toContain('text-[#1F1F1F]')
+    expect(google()!.className).toContain('text-black')
   })
 
   it('the two buttons are ONE PAIR: equal rows, so a wrapped label grows both — the flag EMPTY keeps the old markup', async () => {

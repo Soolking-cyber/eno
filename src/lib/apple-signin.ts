@@ -60,8 +60,8 @@ export function appleSignInTokens(): Set<AppleSignInToken> {
 }
 
 /**
- * Any token at all — the switch for the restyled Google button (Light theme, 16 px label) that sits beside
- * Apple. Empty ⇒ the provider markup is byte-identical to before this work (plan B4).
+ * Any token at all — the switch for the restyled Google button (Apple's look and title, sign-in-form.tsx
+ * GOOGLE_BUTTON) that sits beside Apple. Empty ⇒ the provider markup is byte-identical to before this work (plan B4).
  */
 export function appleFlagSet(): boolean {
   return appleSignInTokens().size > 0
