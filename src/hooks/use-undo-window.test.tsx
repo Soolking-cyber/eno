@@ -26,6 +26,7 @@ const toasts = vi.hoisted(() => {
 vi.mock('sonner', () => ({ toast: toasts.toast }))
 
 import { UNDO_WINDOW_MS, useUndoWindow, type UndoableAction } from './use-undo-window'
+import { BEFORE_SIGN_OUT_EVENT } from '@/lib/api/acting-account'
 
 afterEach(cleanup)
 beforeEach(() => {
@@ -146,6 +147,44 @@ describe('leaving sends immediately — never a silent drop', () => {
     expect(a.commit).toHaveBeenCalledTimes(1)
     expect(a.commit).toHaveBeenCalledWith('leave')
     vis.mockRestore()
+  })
+
+  // ⛔ Signing out in this tab sends every open window FIRST, while the cookie is still the account that tapped:
+  // after it the write would go out signed out, or as the next account (src/lib/api/acting-account.ts).
+  it('signing out (BEFORE_SIGN_OUT_EVENT) sends every open window with via=leave and takes the toasts down', () => {
+    const { result } = renderHook(() => useUndoWindow())
+    const a = action()
+    const b = action({ title: 'Listing deleted' })
+    act(() => { result.current.start('o1', a); result.current.start('o2', b) })
+    window.dispatchEvent(new Event(BEFORE_SIGN_OUT_EVENT))
+    expect(a.commit).toHaveBeenCalledWith('leave')
+    expect(b.commit).toHaveBeenCalledWith('leave')
+    expect(toasts.state.dismissed).toEqual([1, 2])
+    act(() => { vi.advanceTimersByTime(60_000) })
+    expect(a.commit).toHaveBeenCalledTimes(1)
+    expect(b.commit).toHaveBeenCalledTimes(1)
+  })
+
+  it('⛔ each write a commit returns is handed to the sign-out, which keeps the session until it answers', () => {
+    const { result } = renderHook(() => useUndoWindow())
+    const write = Promise.resolve('sent')
+    const a = action({ commit: vi.fn(() => write) })
+    const b = action({ title: 'Listing deleted', commit: vi.fn(() => undefined) }) // a commit with nothing to wait for
+    act(() => { result.current.start('o1', a); result.current.start('o2', b) })
+    const waitedFor: Promise<unknown>[] = []
+    window.dispatchEvent(new CustomEvent(BEFORE_SIGN_OUT_EVENT, { detail: { waitFor: (p: Promise<unknown>) => { waitedFor.push(p) } } }))
+    expect(a.commit).toHaveBeenCalledWith('leave')
+    expect(b.commit).toHaveBeenCalledWith('leave')
+    expect(waitedFor).toEqual([write])
+  })
+
+  it('the sign-out listener goes with the hook: after unmount the event sends nothing a second time', () => {
+    const { result, unmount } = renderHook(() => useUndoWindow())
+    const a = action()
+    act(() => { result.current.start('o1', a) })
+    unmount() // sends once, as leaving
+    window.dispatchEvent(new Event(BEFORE_SIGN_OUT_EVENT))
+    expect(a.commit).toHaveBeenCalledTimes(1)
   })
 })
 

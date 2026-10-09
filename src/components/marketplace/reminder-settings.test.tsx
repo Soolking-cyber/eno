@@ -7,6 +7,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 // Extracted, then two fixes (2026-10-05): the PROMPT comes first, inside the tap (Safari ties it to the user's
 // activation; a first service-worker install can outlast it), and "granted" without a subscription offers the button.
 
+vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: { id: 'u1' } }) }))
 vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
 // Set before the import: the pre-extraction row read the key at MODULE scope.
 const prevVapid = vi.hoisted(() => { const prev = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY; process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = 'AQID'; return prev })
@@ -66,6 +67,39 @@ describe('ReminderSettings push row', () => {
     pushBrowser({ current: 'granted' })
     await mount()
     expect(button()).toBeTruthy()
+  })
+
+  it('⛔ "on" until the sign-in guard drops a subscription that was not this account\'s — then the button again (F7)', async () => {
+    pushBrowser({ current: 'granted' })
+    const reg = await (navigator.serviceWorker as unknown as { getRegistration: () => Promise<{ pushManager: { getSubscription: ReturnType<typeof vi.fn> } }> }).getRegistration()
+    const { urlBase64ToUint8Array } = await import('@/lib/push-subscribe')
+    reg.pushManager.getSubscription.mockResolvedValue({ endpoint: 'https://fcm.googleapis.com/fcm/send/x', options: { applicationServerKey: urlBase64ToUint8Array('AQID').buffer } })
+    await mount()
+    expect(button()).toBeNull() // held: "on"
+    reg.pushManager.getSubscription.mockResolvedValue(null) // the guard unsubscribed it
+    await act(async () => { window.dispatchEvent(new Event('eno:push-subscription-changed')) })
+    expect(button()).not.toBeNull()
+  })
+
+  it('⛔ even after this row\'s own tap, a drop by the sign-in guard (the rare race at sign-in) brings the button back', async () => {
+    pushBrowser()
+    await mount()
+    await act(async () => { fireEvent.click(button()!) })
+    expect(button()).toBeNull() // on, by the tap
+    ;(Notification as unknown as { permission: string }).permission = 'granted' // as the browser records the grant
+    const reg = await (navigator.serviceWorker as unknown as { getRegistration: () => Promise<{ pushManager: { getSubscription: ReturnType<typeof vi.fn> } }> }).getRegistration()
+    reg.pushManager.getSubscription.mockResolvedValue(null) // the guard dropped the subscription the tap had just made
+    await act(async () => { window.dispatchEvent(new Event('eno:push-subscription-changed')) })
+    expect(button()).not.toBeNull()
+  })
+
+  it('a drop announcement never offers the button where push is unsupported', async () => {
+    pushBrowser()
+    define(window, 'PushManager', undefined)
+    delete (window as unknown as Record<string, unknown>).PushManager
+    await mount()
+    await act(async () => { window.dispatchEvent(new Event('eno:push-subscription-changed')) })
+    expect(button()).toBeNull()
   })
 
   it('a refused prompt shows the blocked line', async () => {

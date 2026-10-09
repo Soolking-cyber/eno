@@ -101,7 +101,7 @@ export function LangSuggestionBanner() {
   }
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 -translate-y-[var(--consent-clearance,0px)] px-3 transition-[translate] duration-150 ease-out-strong pc:bottom-4 lg:px-4">
-      <div lang={shown.target} className="pointer-events-auto mx-auto flex w-full max-w-sm items-center gap-3 rounded-2xl border border-foreground/10 bg-popover p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 lg:max-w-md">
+      <div lang={shown.target} className="pointer-events-auto mx-auto flex w-full max-w-sm items-center gap-3 rounded-2xl border border-foreground/10 bg-popover p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 ease-out-strong lg:max-w-md">
         <p className="min-w-0 flex-1 text-sm leading-snug text-foreground">
           {copy.text}{' '}
           <a href={shown.href} hrefLang={copy.hrefLang} onClick={go} className="font-semibold text-accent-foreground hover:underline">

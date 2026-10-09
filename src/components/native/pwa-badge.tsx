@@ -56,33 +56,38 @@ export function PwaBadge() {
   // service worker may have moved the OS badge while we were backgrounded, so on return our cached
   // value is exactly what we no longer trust — the same reason NativeBadge forces its foreground write.
   const lastWritten = useRef<number | null>(null)
-  // SERIALIZE writes: setAppBadge/clearAppBadge are async and the spec guarantees no ordering
-  // between overlapping calls, so a slow setAppBadge(3) could resolve AFTER a newer clearAppBadge()
-  // and leave a stale count on the icon. Chaining each write onto the previous one guarantees at
-  // most one OS badge operation is ever in flight, applied in enqueue order. Component-scoped so it
-  // serializes across effect re-runs too.
-  const chain = useRef<Promise<void>>(Promise.resolve())
+  // ⛔ THE CURRENT COUNT WINS — NOT A QUEUE (the same mechanism as NativeBadge, F8). setAppBadge/clearAppBadge are
+  // async and the spec orders nothing between overlapping calls, so a slow setAppBadge(3) could resolve AFTER a newer
+  // clearAppBadge() and leave a stale count — the previous ACCOUNT's, at a switch. These writes used to be chained to
+  // serialize them, but a chain makes ONE call that never settles freeze every later write, the foreground re-assert
+  // included, for the rest of the page's life (the flaw both reviewers found in NativeBadge's first fix). So: a
+  // cancelled write never starts; while a call is in flight the icon is unknown (lastWritten = null), so the next write
+  // is never skipped as "unchanged"; and a call that lands — or fails, having perhaps changed the icon first — for a
+  // count no longer current puts the current one back. A re-assert writes the current count, so it ends there.
+  const reassert = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     if (isNative() || !supported() || !isInstalled()) return
     let cancelled = false
 
-    const write = (count: number) => {
-      chain.current = chain.current.then(async () => {
-        if (cancelled) return              // this effect run was torn down — a later run owns the icon
-        if (lastWritten.current === count) return
-        try {
-          if (count > 0) await navigator.setAppBadge(count)
-          else await navigator.clearAppBadge()
-          lastWritten.current = count
-        } catch {
-          // No notification permission (iOS only shows the badge once granted), or an engine that
-          // doesn't honor it. A badge is decoration on top of the notification — never surface this.
-        }
-      })
+    const write = async (count: number) => {
+      if (cancelled) return              // this effect run was torn down — a later run owns the icon
+      if (lastWritten.current === count) return
+      lastWritten.current = null         // in flight: what the icon shows is unknown until this lands
+      try {
+        if (count > 0) await navigator.setAppBadge(count)
+        else await navigator.clearAppBadge()
+        if (count === totalRef.current) lastWritten.current = count
+        else reassert.current?.()        // the count moved on meanwhile, and a newer write may have landed first
+      } catch {
+        // No notification permission (iOS only shows the badge once granted), or an engine that
+        // doesn't honor it. A badge is decoration on top of the notification — never surface this.
+        if (count !== totalRef.current) reassert.current?.()
+      }
     }
+    reassert.current = () => { lastWritten.current = null; void write(totalRef.current) }
 
-    write(total)
+    void write(total)
 
     // Re-assert on foreground — the moment the user looks at the icon, and usually just read, which
     // lowered the true count with no push to carry it. FORCE past the skip guard: the cached value is
@@ -90,7 +95,7 @@ export function PwaBadge() {
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return
       lastWritten.current = null
-      write(totalRef.current)
+      void write(totalRef.current)
     }
     document.addEventListener('visibilitychange', onVisible)
 

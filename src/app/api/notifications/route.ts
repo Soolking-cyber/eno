@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { route } from '@/lib/api/handler'
+import { ApiError, route } from '@/lib/api/handler'
+import { actingAccountMismatch } from '@/lib/api/acting-account'
 import { isCurrentUserAdminByClaims } from '@/lib/admin'
 import { conversationUnread } from '@/lib/unread'
 import { IS_MARKETPLACE } from '@/lib/edition'
@@ -63,6 +64,10 @@ export const GET = route({ auth: 'userId' }, async ({ userId }) => {
   ])
 
   return {
+    // The account this answer is for — the caller's verified JWT `sub`, which the browser holds as `user.id`. The
+    // bell applies an answer only to that account (notifications-context.tsx, F6): a poll still in flight when the
+    // browser changes account would otherwise land the previous account's rows on the next one's bell.
+    me: userId,
     notifications: items.map((n) => ({ ...n, createdAt: n.createdAt.toISOString() })),
     unread,
     convoUnread,
@@ -75,7 +80,11 @@ export const GET = route({ auth: 'userId' }, async ({ userId }) => {
 // wrapper an object would make it a 200 with `{}`, which is a wire change on the one branch clients
 // actually hit here. route()'s escape hatch keeps it byte-identical while still contributing the
 // auth preamble. Same error-path note as GET: a deleteMany rejection is now `internal_error` 500.
-export const DELETE = route({ auth: 'userId' }, async ({ userId }) => {
+export const DELETE = route({ auth: 'userId' }, async ({ req, userId }) => {
+  // ⛔ FIRST (F6, as F1 did for deletes and offer answers): the account whose bell made this tap. A tab still
+  // showing one account while another tab switched the shared cookie must not read or delete the OTHER account's
+  // notifications. Absent header = an older client: allowed, as before.
+  if (actingAccountMismatch(req, userId)) throw new ApiError('account_changed', 409)
   await db.notification.deleteMany({ where: { recipientId: userId } })
   return new NextResponse(null, { status: 204 })
 })

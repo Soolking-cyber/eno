@@ -81,17 +81,6 @@ probe(){
   check(){ got=$(curl -s -o /dev/null -w '%{http_code}' --max-time 25 "$1?d=$RANDOM$$")
            if [ "$got" = "$2" ]; then printf '  %-38s %s\n' "$1" "$got"
            else printf '  %-38s %s (want %s) ⛔\n' "$1" "$got" "$2"; fail=1; fi; }
-  check https://eno.vn/             200
-  check https://eno.forum/          200
-  check https://www.eno.forum/      200
-  # ⛔ THE LICENSING CHECK. eno.vn is a licensed sàn TMĐT and may not serve these at
-  # all. A 200 here is a compliance failure, not a bug.
-  check https://eno.vn/visa         404
-  check https://eno.vn/itinerary    404
-  check https://eno.forum/itinerary 200
-  # ⛔ THE SAME URL IN TWO LANGUAGES, WITH NO CACHE-BUSTER. Pages render in the visitor's language
-  # at one public URL (src/proxy.ts), so a shared cache keyed on the URL alone would hand the first
-  # visitor's language to everyone. `check` above appends ?d=… and can never see that; this cannot miss it.
   # ⛔ A REDIRECT IS A PASS, AND FOLLOWING IT WOULD BE WORSE THAN FAILING. www.eno.vn 308s to the
   # apex (measured), so a plain read finds no `<html lang>` and would roll back a healthy deploy —
   # but `curl -L` is not the fix: it would read the APEX's response for the `www` probe, and the two
@@ -111,6 +100,33 @@ probe(){
                     a=${1#https://}; a=${a#www.}
                     b=${2#https://}; b=${b#www.}
                     [ "$a" = "$b" ]; }
+  # `hostcheck URL WANT` — for the forum APEX only: the permanent 308 to `www` (next.config.ts moves the apex's pages
+  # there; `permanent: true` sends a 308, so a 301/302/307 is not that redirect) whose target then answers WANT.
+  # A DEPLOY must show the hop — an apex still answering 200 itself is the two-origin state the redirect removes. A
+  # ROLLBACK may also answer WANT directly: the images it restores can predate the redirect (review).
+  # ⚠️ NOT A LOOSER `check`: a plain check stays strict, or eno.vn/visa could pass a licensing line by redirecting.
+  hostcheck(){ local code target
+               code=$(curl -s -o /dev/null --max-time 25 -w '%{http_code} %{redirect_url}' "$1?d=$RANDOM$$")
+               case "$code" in
+                 308*) target=${code#* }; target=${target%%\?*}
+                      if canonical_pair "$1" "$target"; then printf '  %-38s %s → %s\n' "$1" "${code%% *}" "$target"; check "$target" "$2"
+                      else printf '  %-38s %s → %s ⛔ not the canonical host\n' "$1" "${code%% *}" "${target:-none}"; fail=1; fi ;;
+                 30*) printf '  %-38s %s ⛔ not the permanent 308 to www\n' "$1" "${code%% *}"; fail=1 ;;
+                 *) if [ "$mode" = rollback ] && [ "${code%% *}" = "$2" ]; then printf '  %-38s %s (restored images, before the redirect)\n' "$1" "${code%% *}"
+                    elif [ "${code%% *}" = "$2" ]; then printf '  %-38s %s ⛔ the apex should 308 to www\n' "$1" "${code%% *}"; fail=1
+                    else printf '  %-38s %s (want a 308 to www) ⛔\n' "$1" "${code%% *}"; fail=1; fi ;;
+               esac; }
+  check https://eno.vn/             200
+  hostcheck https://eno.forum/      200
+  check https://www.eno.forum/      200
+  # ⛔ THE LICENSING CHECK. eno.vn is a licensed sàn TMĐT and may not serve these at
+  # all. A 200 here is a compliance failure, not a bug.
+  check https://eno.vn/visa         404
+  check https://eno.vn/itinerary    404
+  hostcheck https://eno.forum/itinerary 200
+  # ⛔ THE SAME URL IN TWO LANGUAGES, WITH NO CACHE-BUSTER. Pages render in the visitor's language
+  # at one public URL (src/proxy.ts), so a shared cache keyed on the URL alone would hand the first
+  # visitor's language to everyone. `check` above appends ?d=… and can never see that; this cannot miss it.
   langcheck(){ local url="$1" al="$2" want="$3" got code
                code=$(curl -s -o /dev/null --max-time 25 -H "Accept-Language: $al" -w '%{http_code} %{redirect_url}' "$url")
                case "$code" in

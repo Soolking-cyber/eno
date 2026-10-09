@@ -1,7 +1,8 @@
 import { db } from '@/lib/db'
 import { after } from 'next/server'
 import { syncBadgeToProfile } from '@/lib/native-push'
-import { route } from '@/lib/api/handler'
+import { ApiError, route } from '@/lib/api/handler'
+import { actingAccountMismatch } from '@/lib/api/acting-account'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,6 +28,10 @@ export const dynamic = 'force-dynamic'
 // exception text, which can carry a Prisma query or a phone number — but it IS a wire change on the
 // failure path. The review caught this as an overclaim in the first draft; it is pinned by a test.
 export const POST = route({ auth: 'userId' }, async ({ req, userId }) => {
+  // ⛔ FIRST (F6, as F1 did for deletes and offer answers): the account whose bell made this tap. A tab still
+  // showing one account while another tab switched the shared cookie must not read or delete the OTHER account's
+  // notifications. Absent header = an older client: allowed, as before.
+  if (actingAccountMismatch(req, userId)) throw new ApiError('account_changed', 409)
   let body: { ids?: string[] } = {}
   try { body = await req.json() } catch { /* empty body → mark all */ }
 

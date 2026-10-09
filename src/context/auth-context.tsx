@@ -7,6 +7,7 @@ import type { User } from '@supabase/supabase-js'
 import { trackSignUp } from '@/lib/analytics'
 import { mayGateOnboarding } from '@/lib/onboarding-gate'
 import { clearAccountDeviceStorage } from '@/lib/sign-out-storage'
+import { createSignOutFlush } from '@/lib/api/acting-account'
 import { classifyGate, noteGateOpen, pressedInChrome, settleGateSignIn, type PressInfo } from '@/lib/signin-gates'
 import { armIntent, dropIntent, markIntentRouted, pathnameOf, readIntent, type PendingIntent } from '@/lib/pending-intent'
 import type { SignInGate, SignInMethod } from '@/lib/signup-prompt'
@@ -294,6 +295,9 @@ function probeAuthBoot(): AuthBootProbe {
 
 const AuthContext = createContext<AuthCtx | undefined>(undefined)
 
+/** One per tab: the shared wait signOut() takes for the writes it flushes (createSignOutFlush). */
+const flushBeforeSignOut = createSignOutFlush()
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -361,6 +365,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    */
   const signInOpenRef = useRef(false)
   const signInCtxRef = useRef<SignInContext | null>(null)
+  // ⛔ A WEB PUSH SUBSCRIPTION THAT IS NOT THIS ACCOUNT'S IS DROPPED, on every sign-in (F7 — push-account-guard.ts): only
+  // signOut() tore it down, so a switch with no sign-out between left the previous account's pushes on this device.
+  // Asked again on every auth event (a re-sign-in, a token refresh): a check that failed is retried, and one that said
+  // "mine" is remembered for the tab, so it costs nothing. A question made before the account changed drops nothing.
+  const accountId = user?.id ?? null
+  useEffect(() => {
+    if (!accountId) return
+    let current = true
+    void import('@/lib/push-account-guard').then(({ dropForeignPushSubscription }) => dropForeignPushSubscription(accountId, () => current)).catch(() => {})
+    return () => { current = false }
+  }, [accountId, user])
   useEffect(() => { signInOpenRef.current = signInOpen }, [signInOpen])
   useEffect(() => { signInCtxRef.current = signInCtx }, [signInCtx])
   /** A new open while the "Join eno" ask is still up takes the popup over: tell the prompt (onReplaced). */
@@ -728,6 +743,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, identityLoaded, accountType, pathname, router])
 
   const signOut = useCallback(async (opts?: { scope?: 'global' | 'local' }) => {
+    // ⛔ FIRST, AND ITS ANNOUNCEMENT IS SYNCHRONOUS: every undo window open in this tab (a deleted
+    // conversation or listing, an offer answer) sends its write NOW, while the session cookie is still this
+    // account's — and the session stays until those writes have answered (capped; a second sign-out waits
+    // for the first one's). Later they would go out signed out, or as the next account
+    // (src/lib/api/acting-account.ts).
+    await flushBeforeSignOut()
     // Tear down Web Push FIRST so a shared device never keeps delivering the
     // previous user's reminders to the next person who signs in here.
     try {

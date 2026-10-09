@@ -29,6 +29,9 @@ type Site = {
   furnitureOff?: boolean
   /** the edge Worker pins `/` and `/c/furniture-appliances` to the `en` key (V5's Worker), with a cache */
   workerPinned?: boolean
+  /** the forum apex: 308 to `www` (next.config.ts — the default), or 'none' (images from before it: the apex answers
+   *  itself), or — the failures — 308 across to eno.vn, or a temporary 302 to www */
+  forumApex?: 'www' | 'none' | 'eno.vn' | 'temporary'
 }
 
 /**
@@ -56,6 +59,8 @@ else case "$al" in [Vv][Ii]*) neg=vi ;; *) neg=en ;; esac; fi
 forum=0; case "$host" in *eno.forum) forum=1 ;; esac
 code=200 loc= lang=$neg
 if [ "$host" = www.eno.vn ]; then code=308; loc="https://eno.vn$path$q"
+elif [ "$host" = eno.forum ] && [ "@{SITE_FORUM_APEX:-www}" != none ] && [ "@{path#/api/}" = "$path" ]; then
+  code=308; case "$SITE_FORUM_APEX" in www) loc="https://www.eno.forum$path$q" ;; temporary) code=302; loc="https://www.eno.forum$path$q" ;; *) loc="https://eno.vn$path$q" ;; esac
 elif [ "$path" = /visa ] || { [ $forum = 0 ] && [ "$path" = /itinerary ]; }; then code=404
 elif [ "$path" = /vi ] || [ "@{path#/vi/}" != "$path" ]; then
   if [ $forum = 0 ] && [ "$SITE_PILOT" = on ] && { [ "$path" = /vi ] || { [ "$path" = /vi/c/furniture-appliances ] && [ -z "@{SITE_FURNITURE_OFF:-}" ]; }; }; then
@@ -99,6 +104,7 @@ function runProbe(site: Site, mode: 'deploy' | 'rollback') {
       SITE_STRAY_VI: site.strayVi ? '1' : '',
       SITE_FURNITURE_OFF: site.furnitureOff ? '1' : '',
       SITE_WORKER_PINNED: site.workerPinned ? '1' : '',
+      SITE_FORUM_APEX: site.forumApex ?? 'www',
       SITE_STATE: d,
     },
   })
@@ -171,5 +177,43 @@ describe('eno-deploy.sh probe() — the /vi pilot (V5)', { timeout: 20_000 }, ()
     for (const site of [{ pilot: 'on', unpinned: true }, { pilot: 'on', viFollowsCookie: true }, { pilot: 'off', strayVi: true }, { pilot: 'on', furnitureOff: true }] as Site[]) {
       expect(runProbe(site, 'rollback').rc, JSON.stringify(site)).toBe('1')
     }
+  })
+})
+
+/**
+ * ⛔ THE FORUM APEX MOVES ITS PAGES TO `www` (next.config.ts). The probe checked `https://eno.forum/` and its
+ * `/itinerary` for a plain 200, so the first deploy carrying the redirect would have failed its own probe and rolled
+ * itself back. The apex lines now accept the canonical hop — and only that one: a redirect anywhere else still fails,
+ * and images from before the redirect (a rollback) still pass.
+ */
+describe('eno-deploy.sh probe() — the forum apex moves to www', { timeout: 20_000 }, () => {
+  it('a deploy whose apex 308s to www passes, and the www target is checked in its place', () => {
+    const r = runProbe({ pilot: 'on', forumApex: 'www' }, 'deploy')
+    expect(r.out).toMatch(/https:\/\/eno\.forum\/\s+308 → https:\/\/www\.eno\.forum\//)
+    expect(r.out).toMatch(/https:\/\/eno\.forum\/itinerary\s+308 → https:\/\/www\.eno\.forum\/itinerary/)
+    expect(r.rc).toBe('0')
+  })
+
+  it('a rollback to images from before the redirect (the apex answering 200 itself) still passes', () => {
+    expect(runProbe({ pilot: 'off', forumApex: 'none' }, 'rollback').rc).toBe('0')
+  })
+
+  it('⛔ a deploy whose apex still answers 200 itself fails: the redirect is missing, the two origins are back', () => {
+    const r = runProbe({ pilot: 'on', forumApex: 'none' }, 'deploy')
+    expect(r.out).toMatch(/https:\/\/eno\.forum\/\s+200 ⛔ the apex should 308 to www/)
+    expect(r.rc).not.toBe('0')
+  })
+
+  it('⛔ a temporary redirect is not the canonical one: a 302 to www fails the apex line', () => {
+    const r = runProbe({ pilot: 'on', forumApex: 'temporary' }, 'deploy')
+    expect(r.out).toMatch(/https:\/\/eno\.forum\/\s+302 ⛔ not the permanent 308 to www/)
+    expect(r.rc).not.toBe('0')
+  })
+
+  it('⛔ an apex that redirects anywhere but its own www fails the deploy', () => {
+    const r = runProbe({ pilot: 'on', forumApex: 'eno.vn' }, 'deploy')
+    // The apex's own line (hostcheck), not langcheck's "…for this page": /itinerary on the apex is only checked there.
+    expect(r.out).toMatch(/https:\/\/eno\.forum\/itinerary\s+308 → https:\/\/eno\.vn\/itinerary ⛔ not the canonical host$/m)
+    expect(r.rc).not.toBe('0')
   })
 })

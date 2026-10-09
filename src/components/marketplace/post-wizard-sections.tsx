@@ -87,7 +87,7 @@ export function MediaSection({
   subcategorySlug?: string
   t: T
 }) {
-  const { photos, setPhotos, addPhotos, applySquareCrop, keepFullPhoto, movePhoto, bindPhoto, draggingPhoto, converting, video, videoBusy, addVideo, removeVideo } = media
+  const { photos, setPhotos, addPhotos, applySquareCrop, keepFullPhoto, movePhoto, bindPhoto, draggingPhoto, converting, video, videoBusy, addVideo, removeVideo, removePhoto } = media
   // Which photo's square-reframe dialog is open (index), or null.
   const [cropIndex, setCropIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -225,7 +225,7 @@ export function MediaSection({
               overrides the box to 24 and the glyph was never re-derived. 18 + 6 = 24.
               Since 2026-09-29 that pair IS CloseButton's `2xs` overlay size (CLOSE_GLYPH), so the
               box and the mark can no longer be edited apart. */}
-            <CloseButton size="2xs" variant="overlay" label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1" />
+            <CloseButton size="2xs" variant="overlay" label={t('Xóa ảnh', 'Remove photo')} onClick={() => removePhoto(i)} className="absolute right-1 top-1" />
             {/* Reframe / keep-full — only on a NEW photo (edit-mode hosted images have no source
                 to re-crop). Always visible (mobile can't hover); the label says the current state. */}
             {p.original && (
@@ -879,8 +879,8 @@ export function PostSuccess({
   t: T
 }) {
   return (
-    <div className="flex flex-col items-center gap-4 py-16 text-center">
-      <Mascot name="success" className="h-52 w-52" />
+    <div className="bubble-in flex flex-col items-center gap-4 py-16 text-center">
+      <Mascot name="success" className="h-52 w-52 animate-in fade-in zoom-in-90 duration-500 ease-bounce" />
       <h1 className="h-title text-foreground">
         {firstListing ? t('Tin đầu tiên của bạn đã lên sóng! 🎉', 'Your first listing is live! 🎉') : job ? t('Tin tuyển dụng của bạn đã được đăng!', 'Your job post is live!') : t('Tin của bạn đã được đăng!', 'Your listing is live!')}
       </h1>

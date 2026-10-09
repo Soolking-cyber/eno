@@ -402,10 +402,13 @@ function Button({
       // size="none" sites carry one) is the same tailwind-merge group and would delete a bare one.
       className={cn(buttonVariants({ variant, size, iconSize }), 'relative data-loading:cursor-wait', keepPressTransition(className))}
     >
+      {/* The spinner settles in over 150ms (@starting-style) instead of appearing in one frame (Emil audit, tier 4).
+          The label hides at once, NOT faded: @starting-style also runs on first mount, so a button that mounts already
+          busy would flash its text under the spinner (review). Leaving the busy state stays a swap: these spans unmount. */}
       <span data-slot="button-label" className="inline-flex items-center justify-center gap-[inherit] opacity-0">
         {children as React.ReactNode}
       </span>
-      <span aria-hidden className="absolute inset-0 flex items-center justify-center">
+      <span aria-hidden className="absolute inset-0 flex items-center justify-center transition-[opacity,scale] duration-150 ease-out-strong starting:scale-75 starting:opacity-0">
         <Loader2 className={cn(size === 'sm' ? ICON_SIZE.sm : ICON_SIZE.md, 'animate-spin')} />
       </span>
     </ButtonPrimitive>

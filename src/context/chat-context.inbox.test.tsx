@@ -533,3 +533,17 @@ describe('the unread count', () => {
     expect(hook.result.current.unread).toBe(0)
   })
 })
+
+describe('the conversations count broadcast by the notifications poll (F6)', () => {
+  it('is taken only when it was made for THIS account', async () => {
+    stubFetch(() => ({ body: [] }), () => ({ body: { unread: 0 } }))
+    const hook = renderHook(() => useChat(), { wrapper: ChatProvider })
+    await settle()
+    act(() => { window.dispatchEvent(new CustomEvent('eno:convo-unread', { detail: { unread: 9, me: 'someone-else' } })) })
+    expect(hook.result.current.unread).toBe(0)
+    act(() => { window.dispatchEvent(new CustomEvent('eno:convo-unread', { detail: { unread: 9 } })) }) // unnamed: no one's
+    expect(hook.result.current.unread).toBe(0)
+    act(() => { window.dispatchEvent(new CustomEvent('eno:convo-unread', { detail: { unread: 4, me: 'u1' } })) })
+    expect(hook.result.current.unread).toBe(4)
+  })
+})

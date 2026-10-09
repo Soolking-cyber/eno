@@ -3276,7 +3276,19 @@ html:not(.native) #app-splash {
     width: 100% !important;
   }
 }
-[data-sonner-toast] {
+/* ⛔ SCOPED UNDER THE TOASTER, ONE ATTRIBUTE ABOVE SONNER — UNTIL 2026-10-07 NONE OF THIS PAINTED ON A
+   SONNER-STYLED TOAST (the only kind the app raises: no toast.custom, no `unstyled`).
+   Sonner injects its stylesheet at runtime, unlayered and appended after ours, and draws the card as
+   [data-sonner-toast][data-styled=true] (0,2,0), the title one step deeper (0,3,0). Written as a bare
+   [data-sonner-toast] (0,1,0), this block lost every property both sides set: 8px corners, a 13px body,
+   sonner's shadow, titles at 500, and the font, because `inherit` on the card inherits from the TOASTER,
+   which sonner gives a system stack (where 500 is a real medium on Apple and Android). The rules read as
+   applied here and were not, so src/components/ui/sonner.styles.test.ts compares the two stylesheets
+   (Emil-skills audit, ask-sonner #6). */
+[data-sonner-toaster][data-sonner-theme] {
+  font-family: inherit;
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled='true'] {
   /* The token, not a hand-copied 1rem. This was a literal 1rem annotated "rounded-2xl
      panel" while --radius-2xl had moved to 18px — so the toast was the one floating
      panel in the app rendering 2px tighter than every dialog and popover it appears
@@ -3284,14 +3296,27 @@ html:not(.native) #app-splash {
      tier; the var can. */
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-pop);
-  font-family: inherit;
   font-size: 0.875rem;
-  /* 700, not 600 — the app ships only 400 and 700 (see the @theme note). A literal 600 here would
-     resolve upward to 700 anyway; writing it out keeps the file honest and keeps design-lint quiet. */
+}
+/* Sonner rings keyboard focus on top of ITS shadow; ours replaces that shadow, so the ring is restated. */
+[data-sonner-toaster] [data-sonner-toast][data-styled='true']:focus-visible {
+  box-shadow: var(--shadow-pop), 0 0 0 2px var(--ring);
+}
+/* The TITLE's weight, not the card's: sonner sets the title's and the description's own, so the card's
+   700 reached nothing. 400 or 700 — the app ships only those two faces (see the @theme note); sonner's 500
+   would ask for one that is not there.
+   ⚠️ BOLD ONLY AS A HEADING, over a description (the offer Undo: "Offer accepted" above its amount). A
+   one-sentence toast — toast.error('…') — puts the whole sentence in the title, and a bold paragraph
+   shouts; it is body text, 400. (Before 2026-10-07 titles were sonner's 500 in the system font: medium on
+   Apple and Android, regular on Windows — so this is a small change there, deliberately.) */
+[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-title] {
+  font-weight: 400;
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-content]:has([data-description]) [data-title] {
   font-weight: 700;
 }
-/* Tighten the close button + give it our muted hover. */
-[data-sonner-toast] [data-close-button] {
+/* The close button: a full circle. Scoped like the card, or sonner's own rule wins (it draws 50%). */
+[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-close-button] {
   border-radius: 9999px;
 }
 /* ⚠️ A 44px HIT AREA ON A 20px BUTTON, without changing what is drawn. Sonner paints the ✕ as a 20×20
@@ -4054,7 +4079,7 @@ html[data-has-recents] .recents-row {
 .nav-progress {
   animation:
     nav-progress-in 160ms ease-out 400ms both,
-    nav-progress-out 240ms ease-in 15s forwards;
+    nav-progress-out 240ms var(--ease-out-strong) 15s forwards;
 }
 .nav-progress-bar {
   animation: nav-progress-sweep 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;

@@ -128,3 +128,65 @@ describe('lightbox — edges give under the finger', () => {
     expect(photo.className).toContain('transition-transform')
   })
 })
+
+/**
+ * EMIL AUDIT, TIER 3 — the lightbox's motion follows the gesture. A dismissal throws the photo on instead of freezing
+ * it; a committed swipe brings the new photo in from the side the finger came from instead of snapping; and a zoomed
+ * photo follows the mouse on a desktop, where it could not be panned at all.
+ */
+describe('lightbox — motion that follows the gesture', () => {
+  const left = (px: number, steps: number): Array<[number, number]> => Array.from({ length: steps }, (_, i) => [-(px * (i + 1)) / steps, 0])
+
+  it('a dismissal throws the photo on, the way the finger sent it', () => {
+    const { dialog, frame, photo } = openLightbox()
+    gesture(frame, down(130, 26), { holdMs: 300 })
+    expect(closing(dialog)).toBe(true)
+    expect(photo.style.transform).toBe(`translate(0px, ${window.innerHeight}px)`)
+  })
+
+  it('a committed swipe brings the next photo in from the right, then settles it at the centre', () => {
+    const { frame, photo } = openLightbox()
+    gesture(frame, left(100, 10))
+    expect(photo.style.transform).toBe('translate(300px, 0px)') // beside the old one: -100 + the 400px frame
+    act(() => { vi.advanceTimersByTime(50) }) // two frames
+    expect(photo.style.transform).toBe('')
+  })
+
+  it('a fast flick that ends before the axis lock is placed with the transition OFF (no wobble outward first)', () => {
+    const { frame, photo } = openLightbox()
+    act(() => { fireEvent.touchStart(frame, { touches: touch(200, 300), changedTouches: touch(200, 300) }) })
+    act(() => { vi.advanceTimersByTime(30) })
+    act(() => { fireEvent.touchEnd(frame, { touches: [], changedTouches: touch(140, 300) }) }) // 60px in 30ms, no moves
+    expect(photo.style.transform).toBe('translate(340px, 0px)')
+    expect(photo.className).not.toContain('transition-transform')
+  })
+
+  it('a touch inside the two settle frames finishes the slide at once — the old settle never lands on the new drag', () => {
+    const { frame, photo } = openLightbox()
+    gesture(frame, left(100, 10))
+    expect(photo.style.transform).toBe('translate(300px, 0px)')
+    act(() => { fireEvent.touchStart(frame, { touches: touch(200, 300), changedTouches: touch(200, 300) }) })
+    expect(photo.style.transform).toBe('') // flushed: centred
+    act(() => { fireEvent.touchMove(frame, { touches: touch(180, 300), changedTouches: touch(180, 300) }) })
+    act(() => { fireEvent.touchMove(frame, { touches: touch(160, 300), changedTouches: touch(160, 300) }) })
+    act(() => { vi.advanceTimersByTime(50) }) // where the old settle would have fired
+    expect(photo.style.transform).toBe('translate(-40px, 0px)') // the new drag, untouched
+  })
+
+  it('under reduced motion the next photo simply appears (a placement with no transition would only flash)', () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('reduce'), media: q, addEventListener() {}, removeEventListener() {} }))
+    const { frame, photo } = openLightbox()
+    gesture(frame, left(100, 10))
+    expect(photo.style.transform).toBe('')
+  })
+
+  it('a zoomed photo follows the mouse — and only the mouse', () => {
+    const { frame, photo } = openLightbox()
+    act(() => { fireEvent.doubleClick(frame, { clientX: 200, clientY: 300 }) })
+    expect(photo.style.transform).toBe('translate(0px, 0px) scale(2.5)')
+    act(() => { fireEvent.pointerMove(frame, { pointerType: 'touch', clientX: 400, clientY: 300 }) })
+    expect(photo.style.transform).toBe('translate(0px, 0px) scale(2.5)')
+    act(() => { fireEvent.pointerMove(frame, { pointerType: 'mouse', clientX: 400, clientY: 300 }) }) // the right edge
+    expect(photo.style.transform).toBe('translate(-300px, 0px) scale(2.5)') // the photo's right edge, clamped
+  })
+})

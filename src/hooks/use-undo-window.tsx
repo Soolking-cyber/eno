@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { BEFORE_SIGN_OUT_EVENT, type BeforeSignOutDetail } from '@/lib/api/acting-account'
 
 /**
  * AN ACTION THAT WAITS OUT AN UNDO WINDOW BEFORE IT REACHES THE SERVER.
@@ -31,6 +32,11 @@ import { Button } from '@/components/ui/button'
  *     reliably run code. Losing the rest of an undo window to an app switch costs far less than an
  *     answer the user watched happen and the other party never receives. A reviewer called this "too
  *     aggressive" at plan time; this is the trade, made on purpose.
+ *   · signing out in this tab (BEFORE_SIGN_OUT_EVENT, from auth-context's signOut) → commit('leave'),
+ *     sent while the session cookie is still the account that tapped, and the write a commit RETURNS is
+ *     handed to signOut, which waits for it before removing the session. After it, the write would go out
+ *     signed out (a 401) or as whoever signs in next (a 409 account_changed, src/lib/api/acting-account.ts)
+ *     — refused either way, and so lost.
  * The caller learns WHICH through `via`. A 'leave' commit may run while the page is being torn down,
  * so whatever it sends must survive that (fetch `keepalive`). The offer thread sends EVERY answer with
  * keepalive, because a timer commit can be followed a moment later by a reload that would abort a
@@ -51,8 +57,9 @@ export type UndoableAction = {
   /** Optional second line — for an offer, the amount, so the toast names WHICH answer it can undo. */
   description?: string
   undoLabel: string
-  /** Send it. Called exactly once unless the user undoes, and never after an undo or a cancel. */
-  commit: (via: UndoCommitVia) => void
+  /** Send it. Called exactly once unless the user undoes, and never after an undo or a cancel. Return the
+   *  request's promise: a sign-out waits for it (BEFORE_SIGN_OUT_EVENT) before removing the session. */
+  commit: (via: UndoCommitVia) => void | Promise<unknown>
   /** Put the screen back. Called at most once, only from the toast's Undo, only inside the window. */
   undo: () => void
 }
@@ -120,16 +127,26 @@ export function useUndoWindow(windowMs: number = UNDO_WINDOW_MS) {
 
   useEffect(() => {
     const onPageHide = () => flushAll('leave')
+    // Each write a commit returns goes to signOut(), which keeps the session until it has answered.
+    const onSignOut = (e: Event) => {
+      const waitFor = (e as CustomEvent<BeforeSignOutDetail>).detail?.waitFor
+      for (const key of [...entries.current.keys()]) {
+        const sent = take(key)?.commit('leave')
+        if (sent && waitFor) waitFor(sent)
+      }
+    }
     const onVisibility = () => { if (document.visibilityState === 'hidden') flushAll('leave') }
     window.addEventListener('pagehide', onPageHide)
+    window.addEventListener(BEFORE_SIGN_OUT_EVENT, onSignOut)
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
       window.removeEventListener('pagehide', onPageHide)
+      window.removeEventListener(BEFORE_SIGN_OUT_EVENT, onSignOut)
       document.removeEventListener('visibilitychange', onVisibility)
       // Unmounting is leaving: an in-app navigation away from the thread sends what is still waiting.
       flushAll('leave')
     }
-  }, [flushAll])
+  }, [flushAll, take])
 
   // ⚠️ ONE STABLE OBJECT. Callers put it in the deps of callbacks that effects depend on (the thread's
   // load() feeds its realtime subscription), and a fresh literal per render would re-run those effects

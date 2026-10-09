@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback, type RefObject } from 'react'
 import { TeacherThreadStrip, type TeacherVideoFlags } from '@/components/teachers/teacher-thread-strip'
 import { BubbleChrome, ReactionPills, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
 import Link from 'next/link'
@@ -23,6 +23,8 @@ import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-par
 import { routeSend } from '@/lib/chat-send-route'
 import { ChatCardMetaProvider } from '@/components/marketplace/chat-card-shell'
 import { toast } from 'sonner'
+import { refusalToast } from '@/lib/refusal-toast'
+import { ACCOUNT_CHANGED, actingAccountHeaders } from '@/lib/api/acting-account'
 import { haptic } from '@/lib/haptics'
 import { formatMoneyFull, groupVnd, moneyLocale } from '@/lib/vnd'
 import { Button } from '@/components/ui/button'
@@ -77,7 +79,7 @@ import { fmtTime, dayKey } from '@/lib/dates'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { useUndoWindow } from '@/hooks/use-undo-window'
 import { OfferAnswerButtons } from '@/components/marketplace/offer-answer-buttons'
-import { answeredOnServer, choiceFor, offerActFailedCopy, overlayOfferChoices, unconfirmedOfferChoices, type OfferAction } from '@/lib/offer-choices'
+import { answeredOnServer, choiceFor, offerActFailedCopy, offerChoicesFor, overlayOfferChoices, type OfferAction } from '@/lib/offer-choices'
 
 // `meta` is the structured payload of a CARD message (visa_step / visa_checkout) — the
 // thread GET parses and re-validates it server-side (parseMessageMeta), so an unreadable
@@ -298,6 +300,30 @@ type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?
  * render type here would have forced a meaningless `deleted: false` at every construction site.
  */
 type ReplyTarget = { id: string; body: string; mine: boolean }
+/** How long a first read may take before the thread says so (readTrouble). */
+const THREAD_PATIENCE_MS = 10_000
+/** The most any one read may hang. Past it the request is dropped, so a dead connection cannot pile up a request
+ *  every 15s for ever; well past any thread that will ever load. */
+const THREAD_READ_CEILING_MS = 120_000
+/**
+ * One thread read, bounded by THREAD_READ_CEILING_MS — the answer and its body (null unless 2xx and JSON), or null
+ * when the network or the ceiling ended it. An AbortController and a timer rather than AbortSignal.timeout (Safari
+ * 16+), and the timer is let go the moment the read settles: a 15s poll must not leave a two-minute timer behind
+ * for every read it made (review).
+ */
+async function readBounded(url: string): Promise<{ res: Response; data: unknown } | null> {
+  const ceiling = typeof AbortController !== 'undefined' ? new AbortController() : null
+  const timer = ceiling ? setTimeout(() => ceiling.abort(), THREAD_READ_CEILING_MS) : null
+  try {
+    const res = await fetch(url, ceiling ? { signal: ceiling.signal } : undefined)
+    return { res, data: res.ok ? await res.json().catch(() => null) : null }
+  } catch {
+    return null
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 type Thread = {
   id: string
   me: string // current user's profile id — to tell my messages from incoming
@@ -376,7 +402,33 @@ type Thread = {
   topReactions?: string[]
 }
 
+/**
+ * ⛔ ONE ACCOUNT PER VIEW (F5 — split out of the thread-load review, where codex raised it every round). signOut does
+ * not navigate, so this page stays mounted behind its "Sign in" card: the conversation stayed in its state, and the
+ * reads it had out still landed. The next account to sign in on the device was then shown the previous one's
+ * conversation — until its own read answered, or for good if that read failed (a painted thread is never covered by
+ * the load notice). The view is now keyed by the ACCOUNT: another account gets a fresh instance — no thread, no
+ * tickets, no composer text — and what the old one had in flight lands in an unmounted component. Unsent offer
+ * answers are kept per account (offerChoicesFor), so the next account's reads are never drawn through them. Its cache writes are labelled by the account the server read them for (chat-context), so they are never
+ * served to the new one.
+ * The key moves only between two DIFFERENT accounts: a cold load (auth settling, nobody → A), a sign-out (A →
+ * nobody: the card shows) and the same account signing back in keep the instance — nothing in it is anyone else's.
+ */
 export default function ThreadPage() {
+  const { user } = useAuth()
+  const now = user?.id ?? null
+  const [view, setView] = useState<{ account: string | null; epoch: number }>({ account: now, epoch: 0 })
+  if (now !== null && now !== view.account) setView({ account: now, epoch: view.account === null ? view.epoch : view.epoch + 1 })
+  // The account signed in NOW, for work an instance left running (an offer answer landing after the switch): it must
+  // follow the account across the remount, which the old instance's own refs cannot — they stop at its unmount. Moved
+  // in a LAYOUT effect, at the commit: a passive one leaves the gap before the passive flush, and that gap is exactly
+  // where the old instance's late answers are checked against it (F5 review).
+  const accountRef = useRef(now)
+  useLayoutEffect(() => { accountRef.current = now }, [now])
+  return <ThreadView key={view.epoch} accountRef={accountRef} />
+}
+
+function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const { user, loading } = useAuth()
@@ -389,11 +441,12 @@ export default function ThreadPage() {
   // Paint instantly from the cached thread (e.g. one the offer/Message action just
   // seeded) and revalidate in the background — no blank "loading" flash on open.
   // The cached copy is the server's last word, so an answer still on its way (sent from an earlier
-  // visit to this thread, see unconfirmedOfferChoices) is laid over it here too — or coming straight
+  // visit to this thread, see offerChoicesFor) is laid over it here too — or coming straight
   // back would paint that offer `pending` with live buttons.
   const [thread, setThread] = useState<Thread | null>(() => {
     const cached = getCachedThread(id) as Thread | null
-    return cached ? { ...cached, messages: overlayOfferChoices(cached.messages ?? [], unconfirmedOfferChoices) } : null
+    // Only THIS thread's copy: a cache entry is checked at the read, not trusted downstream.
+    return cached && cached.id === id ? { ...cached, messages: overlayOfferChoices(cached.messages ?? [], offerChoicesFor(user?.id ?? null)) } : null
   })
 
   /**
@@ -622,6 +675,27 @@ export default function ThreadPage() {
     return next
   }), [])
   const [notFound, setNotFound] = useState(false)
+  /**
+   * ⛔ A THREAD THAT CANNOT LOAD SAYS SO (Emil-skills audit, split out of the 3b send guard). A first read that
+   * failed, or never answered, left the skeletons up for good — the poll kept trying in silence.
+   *  · ONE page-level patience clock raises "slow": THREAD_PATIENCE_MS of a signed-in reader's wait, restarted
+   *    by Try again. Never a timer per read, whose stale ends re-raised the notice after a Try again (the
+   *    split-out's lesson).
+   *  · A read only raises trouble if it started at or after the last Try again or sign-out (`troubleFrom`); an
+   *    older one failing late must not put the notice back over a retry still in flight, or over the next session.
+   *  · Nothing is aborted at the notice — a slow thread still loads, and paints over it. Reads are bounded only by
+   *    a ceiling (THREAD_READ_CEILING_MS), so a dead connection does not pile up a request every 15s for ever.
+   *  · 401 (the session went) asks to sign in; 403/404 stay the not-found screen they were. A read that paints
+   *    clears the notice. Only while nothing of THIS thread is on screen: a painted thread keeps its own failure
+   *    handling (the send retries, the poll), untouched here.
+   *  · The notice takes the skeleton bubbles' place INSIDE the thread's tree (see the message list), never a
+   *    screen of its own: swapping the tree out and back would leave what binds to it at mount (the footer's
+   *    ResizeObserver) on a detached node once the thread paints.
+   */
+  const [readTrouble, setReadTrouble] = useState<null | { id: string; kind: 'slow' | 'failed' | 'signed-out' }>(null)
+  const [patienceRun, setPatienceRun] = useState(0)
+  const paintedFor = useRef<string | null>(thread && thread.id === id ? id : null)
+  const troubleFrom = useRef(0)
   const [text, setText] = useState('')
   const [showOffer, setShowOffer] = useState(false) // offer-amount input visible
   const [offerInput, setOfferInput] = useState('')
@@ -678,19 +752,22 @@ export default function ThreadPage() {
   const meRef = useRef<string | null>(null)
 
   /**
-   * ANSWERS TO OFFERS THE SERVER HAS NOT HEARD YET live in `unconfirmedOfferChoices` (module-level —
-   * the file says why), from the Accept/Decline tap, through the 5s undo window, until a refetch shows
-   * the server agreeing. load() lays them over every payload: without that, the 15s poll or a focus
+   * ANSWERS TO OFFERS THE SERVER HAS NOT HEARD YET live in this account's `offerChoicesFor` map (module-level —
+   * the file says why — and per account, F5), from the Accept/Decline tap, through the 5s undo window, until a
+   * refetch shows the server agreeing. load() lays them over every payload: without that, the 15s poll or a focus
    * refetch landing inside the window would repaint the offer as `pending` and bring the buttons back
    * under a toast that says "Offer accepted".
    */
-  const offerChoices = unconfirmedOfferChoices
+  const offerChoices = useMemo(() => offerChoicesFor(user?.id ?? null), [user?.id])
   const undoWindow = useUndoWindow()
   // The deferred POST settles after an await, when this page may have gone — these say whether the
   // thread it answered is still the one on screen (only then is repainting it right).
   const mountedRef = useRef(true)
   const idRef = useRef(id)
   useEffect(() => { idRef.current = id }, [id])
+  // …and whether it is still the account that answered: a 409 account_changed puts the card back only for it. The
+  // page's own ref (ThreadPage), not this instance's: it keeps following the account after a switch remounts this.
+  const userIdRef = accountRef
   // load() reads the copy through a ref so a language switch does not hand it a new identity — its
   // identity feeds the realtime subscription's deps, and re-subscribing for a string is not worth it.
   const trRef = useRef(tr)
@@ -725,19 +802,45 @@ export default function ThreadPage() {
   const readThread = useCallback(async (opened: boolean): Promise<{ cleared: number; openCleared: boolean }> => {
     const none = { cleared: 0, openCleared: false }
     const ticket = ++loadTicket.current
+    // Raised only by a read that started at or after the last Try again, the last sign-out AND the last read
+    // that raised one — so an older read answering late can never replace a newer one's word (a "session ended"
+    // turned back into "couldn't load" by a poll that left before it) — and only while nothing of this thread is
+    // on screen (see readTrouble).
+    const trouble = (kind: 'failed' | 'signed-out') => {
+      if (ticket < troubleFrom.current || paintedFor.current === id) return
+      troubleFrom.current = ticket + 1
+      setReadTrouble((r) => (r && r.id === id && r.kind === kind ? r : { id, kind }))
+    }
     const startedAt = performance.now()
-    const res = await fetch(`/api/conversations/${id}${opened ? '?opened=1' : ''}`)
+    const got = await readBounded(`/api/conversations/${id}${opened ? '?opened=1' : ''}`)
+    // Offline, a dropped connection, or the ceiling: nothing to paint. Said, if nothing is on screen yet.
+    if (!got) { trouble('failed'); return none }
+    const { res } = got
     // Checked BEFORE any branch that paints — a superseded reply answering 403/404 must not swap a live
     // thread a newer reply already painted for the not-found screen (reviewer-caught, round 2).
     if (ticket < appliedTicket.current) return none
     if (res.status === 404 || res.status === 403) { appliedTicket.current = ticket; setNotFound(true); return none }
-    if (!res.ok) return none
-    const data = await res.json()
+    // Applied like 403/404: a session that has ended outranks any OLDER answer still on its way.
+    if (res.status === 401) { appliedTicket.current = ticket; trouble('signed-out'); return none }
+    if (!res.ok) { trouble('failed'); return none }
+    // Validated at the answer: THIS thread's payload, or nothing (an unreadable body is a failed read).
+    const data = got.data as (Thread & { notificationsCleared?: unknown; openCleared?: unknown }) | null
+    if (!data || data.id !== id) { trouble('failed'); return none }
+    // ⛔ …and THIS ACCOUNT's (F5): `me` is the account the server read it for — the JWT `sub` of the cookie it saw
+    // (getCurrentProfileId, admin.profile-id.test.ts), which is the client's `user.id`: both are Supabase's auth user id
+    // (Profile.id is "= auth.users.id", schema.prisma, held by profile_auth_fk). A read made under another account's
+    // cookie is neither painted nor cached. It is said like a 401 — this tab's session is not the one the browser
+    // holds any more (switched in another tab, or signed out since); trouble() says so only while nothing of the
+    // thread is on screen — and ranked like one: an OLDER answer still on its way cannot replace it (newer ones can).
+    if (data.me !== userIdRef.current) { appliedTicket.current = ticket; trouble('signed-out'); return none }
     const cleared = typeof data?.notificationsCleared === 'number' ? data.notificationsCleared : 0
     const openCleared = opened && data?.openCleared === true
     if (cleared > 0) refreshNotificationsRef.current()
     if (ticket < appliedTicket.current) return { cleared, openCleared }
     appliedTicket.current = ticket
+    // Painted: the notice about not being able to show it is over.
+    paintedFor.current = id
+    setReadTrouble(null)
     cacheThread(id, data) // keep the cache warm for an instant paint next time
     // An answer still inside its undo window whose offer the server now reports as ANSWERED (the buyer
     // withdrew or countered, or this user answered on another device): it can no longer be sent — the
@@ -777,7 +880,7 @@ export default function ThreadPage() {
     })
     setThreadReadAt(startedAt)
     return { cleared, openCleared }
-  }, [id, cacheThread, undoWindow])
+  }, [id, cacheThread, undoWindow, offerChoices])
 
   /**
    * THE ONE-TIME OPEN (si-04): `?opened=1` clears this thread's bell notifications server-side even when no
@@ -814,6 +917,31 @@ export default function ThreadPage() {
   // no-argument function on purpose: it is handed to setInterval, which in some engines passes its own
   // argument to the callback.
   const load = useCallback(async () => { await fetchThread() }, [fetchThread])
+
+  // The one patience clock (see readTrouble): a signed-in reader's wait, from the moment there is one, and again
+  // from each Try again. Signed out (or still settling) there are no reads to wait for: every notice goes with the
+  // session that raised it, and no read started before may raise one later — or the next sign-in would be met
+  // with the old session's "couldn't load", or a clock that ran out behind the sign-in card.
+  const signedIn = !!user
+  useEffect(() => {
+    if (!signedIn) {
+      troubleFrom.current = loadTicket.current + 1
+      setReadTrouble(null)
+      return
+    }
+    if (paintedFor.current === id) return
+    const t = setTimeout(() => {
+      if (paintedFor.current !== id) setReadTrouble((r) => (r && r.id === id ? r : { id, kind: 'slow' }))
+    }, THREAD_PATIENCE_MS)
+    return () => clearTimeout(t)
+  }, [id, patienceRun, signedIn])
+  // Try again: a fresh read now, the clock restarted, and only reads from here on may raise trouble again.
+  const retryRead = () => {
+    troubleFrom.current = loadTicket.current + 1
+    setReadTrouble(null)
+    setPatienceRun((n) => n + 1)
+    void load()
+  }
 
   /**
    * RECALL ONE OF MY MESSAGES.
@@ -1265,7 +1393,8 @@ export default function ThreadPage() {
           } else {
             markFailed(tempId)
           }
-          toast.error(objectionableCopy('message', tr))
+          // 26 words, and the user has to rephrase: long enough to read, not the 4s default (refusal-toast.ts).
+          refusalToast(objectionableCopy('message', tr), { id: `chat-refusal:${id}` })
         } else {
           markFailed(tempId)
         }
@@ -1399,12 +1528,13 @@ export default function ThreadPage() {
     setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === m.id ? { ...x, offerStatus: choice } : x)) } : t))
     // Everything the send needs is fixed NOW: the send can run after this page is gone. `listingId` is the
     // listing the offer is being answered ON (see justAcceptedListingId).
-    const answer = { conversationId: id, messageId: m.id, action, iAmSeller: !!thread?.iAmSeller, listingId: thread?.listing?.id ?? null }
+    // `actingAccount`: who tapped — the POST names it, and the route refuses it under another account's session.
+    const answer = { conversationId: id, messageId: m.id, action, iAmSeller: !!thread?.iAmSeller, listingId: thread?.listing?.id ?? null, actingAccount: user?.id ?? null }
     undoWindow.start(m.id, {
       title: action === 'accept' ? tr('Offer accepted', 'Đã chấp nhận đề nghị') : tr('Offer declined', 'Đã từ chối đề nghị'),
       description: formatMoneyFull(m.offerAmount || 0, '₫', locale),
       undoLabel: tr('Undo', 'Hoàn tác'),
-      commit: () => { void sendOfferAnswer(answer) },
+      commit: () => sendOfferAnswer(answer),
       undo: () => {
         offerChoices.delete(m.id)
         // Only a card still showing OUR choice goes back to pending. load() cancels the window the
@@ -1418,11 +1548,11 @@ export default function ThreadPage() {
   // ⚠️ `keepalive` ALWAYS, not only when leaving (reviewer-caught): the window can close on the timer
   // and the user reload or close the tab a moment later, while this request is in flight. A plain
   // fetch is aborted with the page; a keepalive one is delivered. Its body is a few bytes.
-  const sendOfferAnswer = async (a: { conversationId: string; messageId: string; action: OfferAction; iAmSeller: boolean; listingId?: string | null }) => {
+  const sendOfferAnswer = async (a: { conversationId: string; messageId: string; action: OfferAction; iAmSeller: boolean; listingId?: string | null; actingAccount: string | null }) => {
     let res: Response | null = null
     try {
       res = await fetch(`/api/conversations/${a.conversationId}/offer`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...actingAccountHeaders(a.actingAccount) },
         body: JSON.stringify({ messageId: a.messageId, action: a.action }),
         keepalive: true,
       })
@@ -1434,6 +1564,18 @@ export default function ThreadPage() {
     if (!res?.ok) offerChoices.delete(a.messageId)
     // Read AFTER the await: an unmount that triggered this send has finished by now.
     const onScreen = mountedRef.current && idRef.current === a.conversationId
+    // ⛔ ANOTHER ACCOUNT HOLDS THIS BROWSER NOW (409 account_changed): nothing was sent, and the reconcile
+    // below would read this thread as THAT account. The card goes back to pending here, as Undo does, and the
+    // reason is said — only while the page still shows the account that answered (once it has moved, the
+    // thread is the other's, and even the toast would tell them what the previous account tried).
+    if (code === ACCOUNT_CHANGED) {
+      if (userIdRef.current === a.actingAccount) {
+        const choice = choiceFor(a.action)
+        if (onScreen) setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === a.messageId && x.offerStatus === choice ? { ...x, offerStatus: 'pending' } : x)) } : t))
+        refusalToast(offerActFailedCopy(a.action, code, trRef.current), { id: `offer-refusal:${a.conversationId}:${a.messageId}` })
+      }
+      return
+    }
     // ALWAYS reconcile from the server — on a reject (409/429/403) this reverts the card, so there is
     // never a phantom "Accepted" the server refused. Off-screen, refresh the cached copy instead, so
     // reopening the thread does not paint the answered offer as pending.
@@ -1460,10 +1602,19 @@ export default function ThreadPage() {
     // (a dropped response on a mobile network can follow a committed write), so that copy claims neither.
     // `tr` re-bound to the language NOW, not at the tap — this can land seconds later. (Named `tr` on
     // purpose: gen-ui-strings collects `tr('…')` calls, and reads `t('…','…')` as the vi-first form.)
+    // Only for the account that answered: once this browser has moved to another (signed out, or in as someone
+    // else), the refusal — and its way back into a thread that account may not open — is not theirs to see.
+    if (userIdRef.current !== a.actingAccount) return
     const tr = trRef.current
-    toast.error(res
+    // ⚠️ IT CAN LAND AFTER THE USER HAS LEFT THE THREAD — so then it carries the way back (and stays long enough to
+    // reach for it). On the thread itself the card already shows the truth: long enough to read. One toast per answer.
+    // Re-checked at the tap too: the toast lives up to 15s. ⚠️ Once this page has unmounted its ref stops following
+    // the account, so a switch AFTER leaving is not seen here — bounded by the toast's 15s, and the thread route
+    // refuses an account that is not in it (accepted, review 2026-10-07).
+    const backToThread = onScreen ? null : { label: tr('Open chat', 'Mở cuộc trò chuyện'), onClick: () => { if (userIdRef.current === a.actingAccount) router.push(`/messages/${a.conversationId}`) } }
+    refusalToast(res
       ? offerActFailedCopy(a.action, code, tr)
-      : tr('Your answer to the offer may not have been sent — check the chat.', 'Câu trả lời cho đề nghị có thể chưa được gửi — hãy kiểm tra cuộc trò chuyện.'))
+      : tr('Your answer to the offer may not have been sent — check the chat.', 'Câu trả lời cho đề nghị có thể chưa được gửi — hãy kiểm tra cuộc trò chuyện.'), { id: `offer-refusal:${a.conversationId}:${a.messageId}`, step: backToThread })
   }
 
   // ── e-VISA IN THE THREAD ────────────────────────────────────────────────────────
@@ -2287,7 +2438,7 @@ export default function ThreadPage() {
     soldSheetApplies({ listingType: thread.listing.listingType, categorySlug: thread.listing.categorySlug })
   // The deal this thread agreed, only while it still stands for the listing shown NOW (src/lib/thread-deal.ts —
   // an accepted offer survives a retarget to another listing). It shows the chip and pre-fills "Agreed price".
-  const deal = thread ? standingDeal(thread.messages, thread.listing, !!thread.iAmSeller, (offerId) => unconfirmedOfferChoices.has(offerId)) : null
+  const deal = thread ? standingDeal(thread.messages, thread.listing, !!thread.iAmSeller, (offerId) => offerChoices.has(offerId)) : null
   // ...and not while the one-time prompt under that very card is up: the same question, once.
   const dealChip = stripSold && soldSheetFits && !!deal && justAcceptedId !== deal.offerId
   /**
@@ -2346,6 +2497,9 @@ export default function ThreadPage() {
       <span className="min-w-0 truncate text-sm font-bold text-foreground">{tr('Messages', 'Tin nhắn')}</span>
     </div>
   )
+
+  // The read-trouble notice (see readTrouble), drawn in the message list in place of the skeleton bubbles.
+  const troubleShown = !thread && readTrouble?.id === id ? readTrouble : null
 
   return (
     <div className="flex h-full w-full flex-col bg-background">
@@ -3178,8 +3332,30 @@ export default function ThreadPage() {
             {thread && thread.messages.length === 0 && (
               <p className="py-10 text-center text-xs text-ink-4">{tr('Say hello — this seller will be notified.', 'Gửi lời chào — người bán sẽ được thông báo.')}</p>
             )}
-            {/* Uncached thread → skeleton bubbles (not a blank pane) while it loads. */}
-            {!thread && (
+            {/* Uncached thread → skeleton bubbles (not a blank pane) while it loads — or, when it cannot, the
+                notice in their place (readTrouble). Here, in the log: a live region since the first paint, so the
+                notice is announced when it appears (one inserted together with its text is not reliably read). */}
+            {troubleShown ? (
+              <div className="flex justify-center py-10">
+                <div className="max-w-xs rounded-2xl bg-popover p-6 text-center shadow-pop">
+                  <p className="text-sm text-muted-foreground">
+                    {troubleShown.kind === 'signed-out'
+                      ? tr('Your session has ended — sign in to see this conversation.', 'Phiên đăng nhập đã kết thúc — đăng nhập để xem cuộc trò chuyện này.')
+                      : troubleShown.kind === 'slow'
+                        ? tr('This conversation is taking longer than usual to load.', 'Cuộc trò chuyện này tải lâu hơn bình thường.')
+                        : tr('Couldn’t load this conversation.', 'Chưa tải được cuộc trò chuyện này.')}
+                  </p>
+                  {troubleShown.kind === 'signed-out' ? (
+                    <div className="mt-4"><SignInPrompt /></div>
+                  ) : (
+                    // tap-44: the notice's one action, at the 44px floor (the sm button draws 32px).
+                    <Button type="button" variant="outline" size="sm" className="relative mt-4 tap-44" onClick={retryRead}>
+                      <RotateCcw className="h-4 w-4" aria-hidden /> {tr('Try again', 'Thử lại')}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ) : !thread && (
               <div className="space-y-2" aria-hidden>
                 {[['start', 'w-40'], ['end', 'w-28'], ['start', 'w-52'], ['end', 'w-36']].map(([side, w], i) => (
                   <div key={i} className={`flex ${side === 'end' ? 'justify-end' : 'justify-start'}`}>

@@ -10,7 +10,7 @@
  */
 import React from 'react'
 import { act, cleanup, configure, render, screen, waitFor, within } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query'
 import { renderToString } from 'react-dom/server'
 import { hydrateRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -163,6 +163,8 @@ function holdAll() {
 }
 /** When set, the server answers every page past the first with page 1's rows again (a reshuffle). */
 let repeatFirstPage = false
+/** Offsets the server answers 503 for while they are in here (a page that cannot load). */
+const failing = new Set<number>()
 function listingsRequests() { return requests.filter((u) => u.pathname === '/api/listings' && !u.searchParams.has('hasVideo')) }
 
 function answer(url: URL) {
@@ -190,6 +192,9 @@ function stubFetch() {
     const url = new URL(u, 'https://eno.vn')
     requests.push(url)
     if (gate && url.pathname === '/api/listings') await gate
+    if (url.pathname === '/api/listings' && !url.searchParams.has('hasVideo') && failing.has(Number(url.searchParams.get('offset') ?? 0))) {
+      return { ok: false, status: 503, json: async () => ({ error: 'unavailable' }) } as Response
+    }
     const body = url.pathname === '/api/listings' ? answer(url) : url.pathname === '/api/search/trending' ? { trending: TRENDING } : {}
     return { ok: true, status: 200, json: async () => body } as Response
   }))
@@ -236,6 +241,7 @@ beforeEach(() => {
   requests.length = 0
   gate = null
   repeatFirstPage = false
+  failing.clear()
   viewport.desktop = false
   h.facet.props = null
   h.nav.pathname = '/'
@@ -247,6 +253,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   cleanup()
+  onlineManager.setOnline(true)
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
   window.history.replaceState({}, '', '/')
@@ -353,6 +360,116 @@ describe('"Browse everything" reserves the next rows in the tap\'s own frame', (
     await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('offset') === '12')).toBe(true))
     await waitFor(() => expect(skeletons()).toBe(0)) // …and released when it brought nothing new
     expect(cardIds()).toHaveLength(12)
+  })
+})
+
+describe('a load-more page that fails is not skipped (Emil-skills audit, split out of tier 1 #4)', () => {
+  const asked = (offset: number) => listingsRequests().filter((u) => Number(u.searchParams.get('offset') ?? 0) === offset).length
+
+  it('⛔ a reader still at the bottom does not page PAST it — the feed waits on that page, with Try again', async () => {
+    catalogue = Array.from({ length: 36 }, (_, i) => row(`r${i}`)) // three pages of 12
+    window.history.replaceState({}, '', '/?q=phone')
+    mount(newClient())
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    failing.add(12)
+    scrollToSentinel()
+    await waitFor(() => expect(asked(12)).toBe(1))
+    await waitFor(() => expect(screen.queryByText('Couldn’t load more listings.')).not.toBeNull())
+    // The reader is still at the bottom: the next look at the sentinel must not jump to page 3.
+    scrollToSentinel()
+    await act(async () => { await new Promise((r) => setTimeout(r, 120)) })
+    expect(asked(24)).toBe(0)
+    expect(cardIds()).toEqual(catalogue.slice(0, 12).map((l) => l.id))
+    // Try again re-asks for page 2 — and the feed goes on from there, in order.
+    failing.clear()
+    act(() => { screen.getByRole('button', { name: /Try again/ }).click() })
+    await waitFor(() => expect(cardIds()).toHaveLength(24))
+    expect(asked(12)).toBe(2)
+    expect(screen.queryByText('Couldn’t load more listings.')).toBeNull()
+    scrollToSentinel()
+    await waitFor(() => expect(cardIds()).toEqual(catalogue.map((l) => l.id)))
+  })
+
+  it('offline, the page waits for the network instead of being skipped — and loads when it is back', async () => {
+    catalogue = Array.from({ length: 36 }, (_, i) => row(`r${i}`))
+    window.history.replaceState({}, '', '/?q=phone')
+    mount(newClient())
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    onlineManager.setOnline(false)
+    scrollToSentinel() // page 2's fetch is paused, not sent
+    await act(async () => { await new Promise((r) => setTimeout(r, 80)) })
+    scrollToSentinel() // still at the bottom, still offline
+    await act(async () => { await new Promise((r) => setTimeout(r, 120)) })
+    expect(asked(12)).toBe(0)
+    expect(asked(24)).toBe(0)
+    expect(screen.queryByText('Couldn’t load more listings.')).toBeNull() // the app-wide offline banner says why
+    act(() => { onlineManager.setOnline(true) })
+    await waitFor(() => expect(cardIds()).toEqual(catalogue.slice(0, 24).map((l) => l.id)))
+  })
+
+  it('a page that HAS its answer and whose refetch fails keeps paging (not `isError` alone)', async () => {
+    catalogue = Array.from({ length: 36 }, (_, i) => row(`r${i}`))
+    window.history.replaceState({}, '', '/?q=phone')
+    const client = newClient()
+    mount(client)
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    scrollToSentinel()
+    await waitFor(() => expect(cardIds()).toHaveLength(24))
+    failing.add(12)
+    await act(async () => { await client.invalidateQueries({ queryKey: ['listings'] }) }) // page 2 refetches, and fails
+    await waitFor(() => expect(asked(12)).toBe(2))
+    expect(screen.queryByText('Couldn’t load more listings.')).toBeNull()
+    scrollToSentinel()
+    await waitFor(() => expect(cardIds()).toEqual(catalogue.map((l) => l.id)))
+  })
+
+  it('page 1 failing is asked once — no request loop (the 08-27 "37 requests in 11s")', async () => {
+    catalogue = Array.from({ length: 36 }, (_, i) => row(`r${i}`))
+    failing.add(0)
+    window.history.replaceState({}, '', '/?q=phone')
+    mount(newClient())
+    await waitFor(() => expect(screen.queryByText('Couldn\'t load listings.')).not.toBeNull())
+    scrollToSentinel()
+    await act(async () => { await new Promise((r) => setTimeout(r, 400)) })
+    expect(asked(0)).toBe(1)
+    expect(listingsRequests()).toHaveLength(1)
+  })
+
+  it('past the auto-load cap, a page that fails after "Load more" offers Try again, and the feed resumes in order', async () => {
+    catalogue = Array.from({ length: 132 }, (_, i) => row(`r${i}`)) // 11 pages; the cap stops auto-paging at 108
+    window.history.replaceState({}, '', '/?q=phone')
+    mount(newClient())
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    for (let n = 24; n <= 108; n += 12) {
+      scrollToSentinel()
+      await waitFor(() => expect(cardIds()).toHaveLength(n))
+    }
+    const loadMore = await screen.findByRole('button', { name: 'Load more' })
+    failing.add(108)
+    act(() => { loadMore.click() })
+    await waitFor(() => expect(screen.queryByText('Couldn’t load more listings.')).not.toBeNull())
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
+    failing.clear()
+    act(() => { screen.getByRole('button', { name: /Try again/ }).click() })
+    await waitFor(() => expect(cardIds()).toHaveLength(120))
+    expect(cardIds()).toEqual(catalogue.slice(0, 120).map((l) => l.id))
+  })
+
+  it('the map view’s list stops at a failed page too, and says so in its own column', async () => {
+    viewport.desktop = true
+    catalogue = Array.from({ length: 36 }, (_, i) => row(`r${i}`))
+    window.history.replaceState({}, '', '/?q=phone&view=map')
+    mount(newClient())
+    await waitFor(() => expect(cardIds()).toHaveLength(12))
+    failing.add(12)
+    scrollToSentinel()
+    await waitFor(() => expect(screen.queryByText('Couldn’t load more listings.')).not.toBeNull())
+    scrollToSentinel()
+    await act(async () => { await new Promise((r) => setTimeout(r, 120)) })
+    expect(asked(24)).toBe(0)
+    failing.clear()
+    act(() => { screen.getByRole('button', { name: /Try again/ }).click() })
+    await waitFor(() => expect(cardIds()).toHaveLength(24))
   })
 })
 

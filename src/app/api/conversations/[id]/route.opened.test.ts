@@ -261,3 +261,23 @@ describe('a teacher thread\'s intro video', () => {
     expect(JSON.stringify(body)).not.toContain('individual')
   })
 })
+
+/**
+ * ⛔ `me` IS THE AUTHENTICATED ACCOUNT — the JWT subject getCurrentProfileId() returns, which is the client's
+ * `user.id` (both are Supabase's auth user id: src/lib/admin.ts reads `sub`; auth-context holds `session.user`).
+ * The thread page refuses any answer whose `me` is not the account on screen, and the chat cache labels entries by it
+ * (F5), so this is the contract both rest on — for either side of the conversation, on every kind of read.
+ */
+describe('the answer names the account it was read for (F5)', () => {
+  it('`me` is the caller\'s id — the buyer\'s, the seller\'s — on the open, a refetch and a peek', async () => {
+    for (const who of ['buyer-1', 'seller-1']) {
+      h.me = who
+      for (const qs of ['?opened=1', '', '?peek=1']) {
+        h.convo = thread()
+        const { status, body } = await get(qs)
+        expect(status).toBe(200)
+        expect(body.me).toBe(who)
+      }
+    }
+  })
+})

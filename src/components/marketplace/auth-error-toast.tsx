@@ -2,7 +2,8 @@
 
 import { useEffect, useRef } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { toast } from 'sonner'
+import { refusalToast } from '@/lib/refusal-toast'
+import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 
 /**
@@ -31,6 +32,7 @@ export function AuthErrorToast() {
   const pathname = usePathname()
   const router = useRouter()
   const { tr } = useLanguage()
+  const { user, openSignIn } = useAuth()
   // ⚠️ StrictMode double-invokes effects in development, and a toast is a side effect the user can
   // SEE — without this the message appears twice locally and someone "fixes" it by weakening the
   // dependency array. The ref keys on the value, so a genuine second failure still announces.
@@ -39,7 +41,11 @@ export function AuthErrorToast() {
   const code = params.get('auth_error')
 
   useEffect(() => {
-    if (!code || shown.current === code) return
+    // ⚠️ RESET ONCE THE FLAG IS GONE — the strip below removes it — so a genuine SECOND failure with the same code
+    // in this page's lifetime announces again. Without this the ref kept the code and swallowed it: the comment
+    // above promised the opposite (review, 2026-10-07). StrictMode's double run still sees the flag, so it stays one.
+    if (!code) { shown.current = null; return }
+    if (shown.current === code) return
     shown.current = code
     const message =
       code === 'signup_disabled'
@@ -51,13 +57,17 @@ export function AuthErrorToast() {
             'We could not finish signing you in. Please try again.',
             'Chúng tôi chưa hoàn tất đăng nhập được. Vui lòng thử lại.',
           )
-    toast.error(message)
+    // With Sign in, and long enough to read and reach for it (src/lib/refusal-toast.ts): a 27-word sentence about a
+    // failed sign-in, on a page the visitor did not choose, used to vanish after 4s with no way to try again but
+    // finding the button themselves.
+    // The step only for someone signed out — a callback error reaching a signed-in visitor has nothing to retry.
+    refusalToast(message, { id: 'auth-error', step: user ? null : { label: tr('Sign in', 'Đăng nhập'), onClick: () => openSignIn() } })
 
     const rest = new URLSearchParams(params.toString())
     rest.delete('auth_error')
     const qs = rest.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }, [code, params, pathname, router, tr])
+  }, [code, params, pathname, router, tr, openSignIn, user])
 
   return null
 }

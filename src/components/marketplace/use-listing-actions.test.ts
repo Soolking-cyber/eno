@@ -18,10 +18,14 @@ const toastFn = vi.hoisted(() => {
 vi.mock('sonner', () => ({ toast: toastFn }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
+// Who is signed in — the DELETE names the account that tapped (src/lib/api/acting-account.ts).
+const auth = vi.hoisted(() => ({ user: { id: 'p1' } as { id: string } | null }))
+vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
 
 const { useListingActions } = await import('./use-listing-actions')
 
 const listing = { id: 'L1', status: 'active' } as never
+const DELETE_INIT = { method: 'DELETE', keepalive: true, headers: { 'x-eno-acting-account': 'p1' } }
 
 function answer(body: unknown, ok = true) {
   vi.stubGlobal('fetch', vi.fn(async () => ({ ok, json: async () => body })))
@@ -30,6 +34,7 @@ function answer(body: unknown, ok = true) {
 beforeEach(() => {
   vi.useFakeTimers()
   toastFn.mockClear(); toastFn.error.mockClear(); toastFn.dismiss.mockClear()
+  auth.user = { id: 'p1' }
 })
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals() })
 
@@ -56,14 +61,16 @@ describe('useListingActions.del', () => {
     const { hook, onChanged } = await deleteAndCommit()
     expect(hook.result.current.gone).toBe(false)
     expect(onChanged).toHaveBeenCalled()
-    expect(toastFn).toHaveBeenLastCalledWith(expect.stringMatching(/^Hidden, not deleted: a report about this listing or your shop is still open/))
+    // The subtle pill (nothing to press — owner, 2026-09-21), on screen long enough to read ~120 characters.
+    expect(toastFn).toHaveBeenLastCalledWith(expect.stringMatching(/^Hidden, not deleted: a report about this listing or your shop is still open/), expect.objectContaining({ className: expect.stringContaining('material') }))
+    expect((toastFn.mock.lastCall![1] as { duration: number }).duration).toBeGreaterThan(6000)
     expect(toastFn.error).not.toHaveBeenCalled()
   })
 
   it('a HIDE because the account is under review says that instead', async () => {
     answer({ ok: true, deleted: false, hidden: true, reason: 'account_held' })
     await deleteAndCommit()
-    expect(toastFn).toHaveBeenLastCalledWith(expect.stringMatching(/^Hidden, not deleted: your account is under review/))
+    expect(toastFn).toHaveBeenLastCalledWith(expect.stringMatching(/^Hidden, not deleted: your account is under review/), expect.objectContaining({ className: expect.stringContaining('material') }))
   })
 
   it('a failed delete still restores with the error toast', async () => {
@@ -71,6 +78,52 @@ describe('useListingActions.del', () => {
     const { hook } = await deleteAndCommit()
     expect(hook.result.current.gone).toBe(false)
     expect(toastFn.error).toHaveBeenCalledWith('Could not delete — listing restored.')
+  })
+})
+
+/**
+ * ⛔ THE DELETE IS SENT AS THE ACCOUNT THAT TAPPED (src/lib/api/acting-account.ts). The cookie is read when
+ * the request goes out, five seconds after the tap; if the browser changed account in between, the route
+ * answers 409 account_changed instead of acting for whoever is signed in now.
+ */
+describe('useListingActions.del — the account that tapped travels with the DELETE', () => {
+  it('⛔ names the account signed in AT THE TAP, even when the session has changed by the time it goes out', async () => {
+    answer({ ok: true })
+    const hook = renderHook(() => useListingActions(listing, vi.fn()))
+    act(() => { hook.result.current.del() })
+    auth.user = { id: 'p2' } // another account signs in inside the window
+    hook.rerender()
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', DELETE_INIT)
+  })
+
+  it('⛔ 409 account_changed → the row comes back and the reason is said, with NO refetch (it would read the other account)', async () => {
+    answer({ error: 'account_changed' }, false)
+    const { hook, onChanged } = await deleteAndCommit()
+    expect(hook.result.current.gone).toBe(false)
+    expect(toastFn.error).toHaveBeenCalledWith('This browser is now signed in to a different account, so the listing was not deleted.')
+    expect(toastFn.error).toHaveBeenCalledTimes(1) // not also the "try again"-shaped restore toast
+    expect(onChanged).not.toHaveBeenCalled()
+  })
+
+  it('⛔ 409 account_changed after THIS screen has moved to the other account: the row stays out and nothing is said', async () => {
+    answer({ error: 'account_changed' }, false)
+    const onChanged = vi.fn()
+    const hook = renderHook(() => useListingActions(listing, onChanged))
+    act(() => { hook.result.current.del() })
+    auth.user = { id: 'p2' }
+    hook.rerender()
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000) })
+    expect(hook.result.current.gone).toBe(true)
+    expect(toastFn.error).not.toHaveBeenCalled() // a toast would tell p2 what p1 tried
+    expect(onChanged).not.toHaveBeenCalled()
+  })
+
+  it('no account known at the tap → no header, so the server keeps its old behaviour', async () => {
+    auth.user = null
+    answer({ ok: true })
+    await deleteAndCommit()
+    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', { method: 'DELETE', keepalive: true, headers: {} })
   })
 })
 
@@ -89,7 +142,7 @@ describe('useListingActions.del — the undo window cannot outlive the DELETE', 
     const { hook } = await deleteAndCommit()
     expect(undoToast().duration).toBe(Infinity)
     expect(fetch).toHaveBeenCalledTimes(1)
-    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', { method: 'DELETE', keepalive: true })
+    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', DELETE_INIT)
     expect(toastFn.dismiss).toHaveBeenCalledWith(toastFn.mock.results[undoCall()].value)
     act(() => { undoToast().action.props.onClick() })
     expect(hook.result.current.gone).toBe(true)
@@ -121,7 +174,7 @@ describe('useListingActions.del — the undo window cannot outlive the DELETE', 
     act(() => { setVisibility('visible') })
     expect(fetch).not.toHaveBeenCalled()
     act(() => { setVisibility('hidden') })
-    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', { method: 'DELETE', keepalive: true })
+    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', DELETE_INIT)
     Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
   })
 
@@ -130,7 +183,7 @@ describe('useListingActions.del — the undo window cannot outlive the DELETE', 
     const hook = renderHook(() => useListingActions(listing, vi.fn()))
     act(() => { hook.result.current.del() })
     hook.unmount()
-    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', { method: 'DELETE', keepalive: true })
+    expect(fetch).toHaveBeenCalledWith('/api/listings/L1', DELETE_INIT)
   })
 })
 
@@ -144,25 +197,35 @@ describe('useListingActions.setStatus — a relist refused by the account HOLD i
     return { hook, onChanged }
   }
 
+  it('⛔ an identity refusal carries Verify and stays long enough to reach for it — not gone in 4s', async () => {
+    answer({ error: 'identity_unverified' }, false)
+    const { hook } = await relist()
+    expect(hook.result.current.status).toBe('sold')
+    expect(toastFn.error).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ id: 'relist-refusal:L1', action: { label: 'Verify', onClick: expect.any(Function) } }))
+    expect((toastFn.error.mock.lastCall![1] as { duration: number }).duration).toBeGreaterThanOrEqual(8000)
+  })
+
   it('account_held → rolled back, with the hold named', async () => {
     answer({ error: 'account_held' }, false)
     const { hook, onChanged } = await relist()
     expect(hook.result.current.status).toBe('sold')
     expect(onChanged).toHaveBeenCalled()
-    expect(toastFn.error).toHaveBeenCalledWith(expect.stringMatching(/^Your listings are paused while your account is on hold/))
+    // A refusal with no step to take: long enough to read (src/lib/refusal-toast.ts), not the 4s default.
+    expect(toastFn.error).toHaveBeenCalledWith(expect.stringMatching(/^Your listings are paused while your account is on hold/), expect.objectContaining({ duration: expect.any(Number) }))
+    expect((toastFn.error.mock.lastCall![1] as { duration: number }).duration).toBeGreaterThan(4000)
   })
 
   it('account_suspended → the suspension named', async () => {
     answer({ error: 'account_suspended' }, false)
     await relist()
-    expect(toastFn.error).toHaveBeenCalledWith(expect.stringMatching(/^Your account is suspended, so listings can’t be put back on sale/))
+    expect(toastFn.error).toHaveBeenCalledWith(expect.stringMatching(/^Your account is suspended, so listings can’t be put back on sale/), expect.objectContaining({ duration: expect.any(Number) }))
   })
 
   it('released_charge_listing_cap → rolled back, with the limit and why', async () => {
     answer({ error: 'released_charge_listing_cap' }, false)
     const { hook } = await relist()
     expect(hook.result.current.status).toBe('sold')
-    expect(toastFn.error).toHaveBeenCalledWith('Your hold was released, but the confirmed report stays on your record, so you can keep up to 10 active listings. Mark one sold or hide one before putting this back on sale.')
+    expect(toastFn.error).toHaveBeenCalledWith('Your hold was released, but the confirmed report stays on your record, so you can keep up to 10 active listings. Mark one sold or hide one before putting this back on sale.', expect.objectContaining({ duration: 10_000 }))
   })
 
   it('any other failure keeps its silent rollback', async () => {

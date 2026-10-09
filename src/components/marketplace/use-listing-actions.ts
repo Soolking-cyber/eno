@@ -1,13 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import { subtleToast } from '@/lib/subtle-toast'
+import { refusalToast } from '@/lib/refusal-toast'
 import { useLanguage } from '@/context/language-context'
 import type { SerializedListing } from '@/lib/types'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { ENFORCEMENT } from '@/lib/enforcement-machine'
 import { useUndoWindow } from '@/hooks/use-undo-window'
+import { useAuth } from '@/context/auth-context'
+import { ACCOUNT_CHANGED, actingAccountHeaders } from '@/lib/api/acting-account'
 import type { MarkSoldRequest } from './mark-sold-flow'
 
 // Shared optimistic lifecycle actions for a seller's own listing — used by the
@@ -25,6 +29,10 @@ export function useListingActions(
   onState?: (state: 'sold' | 'active' | 'hidden' | 'gone' | null) => void,
 ) {
   const { tr } = useLanguage()
+  const { user } = useAuth()
+  // Who is signed in NOW: a delete refused as account_changed puts its row back only for the account that tapped.
+  const userIdRef = useRef(user?.id ?? null)
+  useEffect(() => { userIdRef.current = user?.id ?? null }, [user])
   const router = useRouter()
   const undoWindow = useUndoWindow()
   const [gone, setGoneRaw] = useState(false)
@@ -55,17 +63,19 @@ export function useListingActions(
         const identityMsg = identityBlockMessage(d.error, tr)
         if (identityMsg) {
           const next = identityBlockAction(d.error)
-          toast.error(identityMsg, next === 'verify' ? { action: { label: tr('Verify', 'Xác minh'), onClick: () => router.push(IDENTITY_VERIFY_PATH) } } : undefined)
+          // A refusal: long enough to read — and, with Verify, to reach for it (src/lib/refusal-toast.ts); the
+          // three below too, one toast per listing. The 4s default took a 20-word sentence with it.
+          refusalToast(identityMsg, { id: `relist-refusal:${listing.id}`, step: next === 'verify' ? { label: tr('Verify', 'Xác minh'), onClick: () => router.push(IDENTITY_VERIFY_PATH) } : null })
         } else if (d.error === 'account_held' || d.error === 'account_suspended') {
           // The same kind of refusal, from the account's HOLD (core/listings.ts, the hold leak): a
           // held or suspended seller cannot put a listing back on sale. Said, not silently undone.
-          toast.error(d.error === 'account_suspended'
+          refusalToast(d.error === 'account_suspended'
             ? tr('Your account is suspended, so listings can’t be put back on sale. Details are in your notifications.', 'Tài khoản của bạn đang tạm ngưng nên chưa thể mở bán lại tin đăng. Xem chi tiết trong thông báo của bạn.')
-            : tr('Your listings are paused while your account is on hold, so they can’t be put back on sale yet. Details are in your notifications.', 'Tin đăng của bạn đang tạm dừng trong thời gian tài khoản bị tạm giữ nên chưa thể mở bán lại. Xem chi tiết trong thông báo của bạn.'))
+            : tr('Your listings are paused while your account is on hold, so they can’t be put back on sale yet. Details are in your notifications.', 'Tin đăng của bạn đang tạm dừng trong thời gian tài khoản bị tạm giữ nên chưa thể mở bán lại. Xem chi tiết trong thông báo của bạn.'), { id: `relist-refusal:${listing.id}` })
         } else if (d.error === 'released_charge_listing_cap') {
           // After a scam-hold RELEASE (released-charge-gate.ts): relisting is allowed, but only under the
           // active-listing cap while the confirmed report stands. The number from the constant.
-          toast.error(`${tr('Your hold was released, but the confirmed report stays on your record, so you can keep up to', 'Tạm dừng đã được gỡ, nhưng báo cáo đã xác nhận vẫn còn trong hồ sơ của bạn, nên bạn chỉ được giữ tối đa')} ${ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS} ${tr('active listings. Mark one sold or hide one before putting this back on sale.', 'tin đang đăng. Hãy đánh dấu đã bán hoặc ẩn một tin trước khi mở bán lại tin này.')}`)
+          refusalToast(`${tr('Your hold was released, but the confirmed report stays on your record, so you can keep up to', 'Tạm dừng đã được gỡ, nhưng báo cáo đã xác nhận vẫn còn trong hồ sơ của bạn, nên bạn chỉ được giữ tối đa')} ${ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS} ${tr('active listings. Mark one sold or hide one before putting this back on sale.', 'tin đang đăng. Hãy đánh dấu đã bán hoặc ẩn một tin trước khi mở bán lại tin này.')}`, { id: `relist-refusal:${listing.id}` })
         }
         return false
       })
@@ -104,19 +114,35 @@ export function useListingActions(
    * `onState('gone')` today (codex + opus, 2026-10-06).
    */
   const del = () => {
+    // The account that tapped, captured NOW: the DELETE names it when the window closes (acting-account.ts).
+    const actingAccount = user?.id ?? null
     setGone(true)
     undoWindow.start(`listing:${listing.id}`, {
       title: tr('Listing deleted', 'Đã xóa tin'),
       undoLabel: tr('Undo', 'Hoàn tác'),
       undo: () => setGone(false),
-      commit: () => commitDelete(),
+      commit: () => commitDelete(actingAccount),
     })
   }
 
-  const commitDelete = () => {
-    fetch(`/api/listings/${listing.id}`, { method: 'DELETE', keepalive: true })
+  const commitDelete = (actingAccount: string | null) => {
+    return fetch(`/api/listings/${listing.id}`, { method: 'DELETE', keepalive: true, headers: actingAccountHeaders(actingAccount) })
       .then(async (res) => {
-        if (!res.ok) throw new Error('failed')
+        if (!res.ok) {
+          // ⛔ ANOTHER ACCOUNT HOLDS THIS BROWSER NOW (409 account_changed): the listing is untouched, so its
+          // row comes back and the reason is said — only while this screen is still the account that tapped
+          // (otherwise even the toast tells the next account what the previous one tried). No refetch
+          // (onChanged) either way: it would read THAT account's dashboard into this one.
+          const code = await res.json().then((b: { error?: unknown } | null) => b?.error, () => undefined)
+          if (code === ACCOUNT_CHANGED) {
+            if (userIdRef.current === actingAccount) {
+              setGone(false)
+              toast.error(tr('This browser is now signed in to a different account, so the listing was not deleted.', 'Trình duyệt này đang đăng nhập bằng một tài khoản khác nên tin chưa bị xóa.'))
+            }
+            return
+          }
+          throw new Error('failed')
+        }
         // ⚠️ A 200 IS NOT ALWAYS A DELETE. While the account or this listing is under
         // investigation the server HIDES it instead, so the listing stays where the investigation
         // can act on it (core/listings.ts deleteListingCore — a delete no longer erases reports or
@@ -125,7 +151,8 @@ export function useListingActions(
         const d = (await res.json().catch(() => ({}))) as { hidden?: boolean; reason?: string }
         if (d.hidden) {
           setGone(false)
-          toast(d.reason === 'open_report'
+          // Nothing to press, so the subtle pill (owner, 2026-09-21) — on screen as long as it takes to read.
+          subtleToast(d.reason === 'open_report'
             ? tr('Hidden, not deleted: a report about this listing or your shop is still open. You can delete it once the report is resolved.', 'Đã ẩn, chưa xóa: một báo cáo về tin này hoặc gian hàng của bạn vẫn đang được xử lý. Bạn có thể xóa tin sau khi báo cáo được giải quyết.')
             : tr('Hidden, not deleted: your account is under review. You can delete it once the review is finished.', 'Đã ẩn, chưa xóa: tài khoản của bạn đang được xem xét. Bạn có thể xóa tin sau khi việc xem xét kết thúc.'))
         }

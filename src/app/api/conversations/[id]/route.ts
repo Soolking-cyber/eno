@@ -6,6 +6,7 @@ import { getAdmin } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
 import { ApiError, route } from '@/lib/api/handler'
+import { actingAccountMismatch } from '@/lib/api/acting-account'
 import { MESSAGE_ROW_SELECT, serializeMessage } from '@/lib/messages'
 import { globalTopReactions } from '@/lib/reaction-tally'
 import { maskEmailHandle } from '@/lib/utils'
@@ -503,7 +504,12 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
 // ⚠️ NOTE THE ASYMMETRY WITH THE GET: this handler does NOT hide desk threads on the marketplace
 // edition. That is pre-existing and correct — deleting is per-user and reveals nothing, so a
 // forum-created visa thread can still be removed from an eno.vn inbox. Left exactly as it was.
-export const DELETE = route({ auth: 'userId' }, async ({ params, userId: meId }) => {
+//
+// ⛔ FIRST LINE: the DELETE waits out a 5s undo window, so the account that tapped it travels with it
+// (src/lib/api/acting-account.ts). A different account's session → 409 account_changed, before any
+// read. If both accounts are in this thread, the session's own inbox would otherwise lose it.
+export const DELETE = route({ auth: 'userId' }, async ({ req, params, userId: meId }) => {
+  if (actingAccountMismatch(req, meId)) throw new ApiError('account_changed', 409)
   const { id } = params
 
   const convo = await db.conversation.findUnique({

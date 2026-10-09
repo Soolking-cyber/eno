@@ -9,6 +9,8 @@ import { aiConsentKey, askAiConsent, askAiConsentAnswer, forgetAiConsentMemory, 
 
 const toastMock = vi.fn()
 vi.mock('sonner', () => ({ toast: (...a: unknown[]) => toastMock(...a) }))
+// A button-less message is the subtle pill (src/lib/subtle-toast.ts — owner, 2026-09-21), not the solid card.
+const SUBTLE_PILL = expect.objectContaining({ className: expect.stringContaining('material') })
 const ME = '11111111-1111-4111-8111-111111111111'
 const OTHER = '22222222-2222-4222-8222-222222222222'
 let authUser: { id: string } | null = { id: ME }
@@ -84,12 +86,12 @@ describe('the notice', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Not now' }))
     await waitFor(() => expect(answer).toBe(false))
     expect(store.get(aiConsentKey('listing', ME))).toBe('off')
-    expect(toastMock).toHaveBeenCalledWith(expect.stringContaining('Fill in the details yourself'))
+    expect(toastMock).toHaveBeenCalledWith(expect.stringContaining('Fill in the details yourself'), SUBTLE_PILL)
     // Remembered: the next tap asks nothing — it says the feature is off.
     toastMock.mockClear()
     expect(await askAiConsent('listing', { userId: ME })).toBe(false)
     expect(screen.queryByRole('button', { name: 'Allow' })).toBeNull()
-    expect(toastMock).toHaveBeenCalledWith(expect.stringContaining('AI help is off'))
+    expect(toastMock).toHaveBeenCalledWith(expect.stringContaining('AI help is off'), SUBTLE_PILL)
   })
 
   it('the assistant works without AI, so its "off" is silent', async () => {
@@ -135,7 +137,7 @@ describe('the notice', () => {
     expect(await screen.findByText('Trip question')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Not now' }))
     await waitFor(() => expect(answer).toBe(false))
-    expect(toastMock).toHaveBeenCalledWith('Trip declined')
+    expect(toastMock).toHaveBeenCalledWith('Trip declined', SUBTLE_PILL)
   })
 
   it('BLOCKED storage: "Allow" holds for the page — the next request (the visual-search chokepoint) asks nothing', async () => {

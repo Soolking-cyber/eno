@@ -20,6 +20,9 @@ import { usePointerReorder } from '@/hooks/use-pointer-reorder'
 
 export type PostMedia = ReturnType<typeof usePostMedia>
 
+/** The most photos a listing holds — the pick, the draft restore and the ✕'s Undo all stop here. */
+const MAX_PHOTOS = 6
+
 export function usePostMedia({
   edit,
   t,
@@ -86,7 +89,7 @@ export function usePostMedia({
           const squareFile = await centerCropSquare(norm)
           const url = trackBlobUrl(URL.createObjectURL(squareFile))
           setPhotos((p) => {
-            if (p.length >= 6) { URL.revokeObjectURL(url); return p }
+            if (p.length >= MAX_PHOTOS) { URL.revokeObjectURL(url); return p }
             // centerCropSquare returns `norm` ITSELF if it couldn't crop → the flag must reflect
             // reality (an un-cropped photo mustn't claim to be square) (codex).
             return [...p, { url, file: squareFile, original: norm, square: squareFile !== norm }]
@@ -203,6 +206,55 @@ export function usePostMedia({
       setVideoBusy(false)
     }
   }
+  /**
+   * Remove one photo, with Undo (Emil-skills audit, missing confirmations: the ✕ dropped a photo — and revoked its
+   * blob, so it could not even be shown again — with no way back). The blob is NOT revoked here: every blob this hook
+   * makes is tracked and revoked on unmount, so a removed photo can be put back until the form goes. Undo puts it back
+   * where it was (or at the end, if the list moved) unless the form is full again.
+   */
+  const removedSeq = useRef(0)
+  const photosNow = useRef(photos)
+  useEffect(() => { photosNow.current = photos })
+  const removePhoto = (index: number) => {
+    const removed = photos[index]
+    if (!removed) return
+    // What came after it, in order, at the moment it went: Undo puts it back before the first of those still there
+    // (or last). Two removals undone in either order land as they were; an absolute index did not — undoing the
+    // first of two put it after the second (review, 2026-10-07).
+    const after = photos.slice(index + 1)
+    // By identity, not by index: a crop landing between this render and the update could have put a different
+    // object in that slot (review, 2026-10-07).
+    setPhotos((arr) => arr.filter((p) => p !== removed))
+    let restored = false
+    // ⚠️ ITS OWN TOAST PER REMOVAL: one fixed id let a second ✕ replace the first one's toast, and the first photo
+    // then had no way back (review, 2026-10-07).
+    const id = `pw-photo-undo:${++removedSeq.current}`
+    // Its blob is let go once the Undo is gone unused — kept until then, so Undo can show it again; the unmount
+    // sweep still covers the rest.
+    const release = () => { if (!restored && !photosNow.current.includes(removed) && removed.url.startsWith('blob:')) URL.revokeObjectURL(removed.url) }
+    toast(t('Đã xóa ảnh', 'Photo removed'), {
+      id,
+      duration: 6000,
+      onAutoClose: release,
+      onDismiss: release,
+      action: {
+        label: t('Hoàn tác', 'Undo'),
+        onClick: () => {
+          // Restored only if it can be (a form back at the cap, or a photo already there, is not). Refused, its blob
+          // is let go HERE: sonner closes a toast after its action without calling onDismiss (index.mjs, the action
+          // button's onClick → deleteToast), so nothing later would.
+          const now = photosNow.current
+          if (now.length >= MAX_PHOTOS || now.includes(removed)) { release(); return }
+          restored = true
+          setPhotos((arr) => {
+            if (arr.length >= MAX_PHOTOS || arr.includes(removed)) return arr
+            const at = arr.findIndex((p) => after.includes(p))
+            return at < 0 ? [...arr, removed] : [...arr.slice(0, at), removed, ...arr.slice(at)]
+          })
+        },
+      },
+    })
+  }
   const removeVideo = () => setVideo((prev) => { if (prev?.url.startsWith('blob:')) URL.revokeObjectURL(prev.url); return null })
 
   // Photos brought back from the IndexedDB draft (src/lib/post-draft-photos.ts) after a reload or
@@ -212,18 +264,35 @@ export function usePostMedia({
   // (updaters must stay side-effect-free, see setPhotoFile) and tracked, so a set that loses the race
   // is revoked with everything else at unmount.
   const restorePhotos = (items: { file: File; original?: File; square?: boolean }[]) => {
-    const restored = items.slice(0, 6).map((it) => ({ url: trackBlobUrl(URL.createObjectURL(it.file)), file: it.file, original: it.original, square: it.square }))
+    const restored = items.slice(0, MAX_PHOTOS).map((it) => ({ url: trackBlobUrl(URL.createObjectURL(it.file)), file: it.file, original: it.original, square: it.square }))
     setPhotos((p) => (p.length ? p : restored))
   }
 
   // Upload only NEW photos (those with a File); keep already-hosted URLs (edit mode)
   // in their original order so the cover + sequence are preserved.
-  const uploadPhotos = async (): Promise<string[]> => {
-    const toUpload = photos.filter((p) => p.file)
-    const uploaded = toUpload.length ? await uploadInBatches(toUpload.map((p) => p.file!)) : []
-    if (uploaded.length < toUpload.length) throw new Error('upload')
-    let ui = 0
-    return photos.map((p) => (p.file ? uploaded[ui++] : p.url))
+  // ⛔ A PHOTO UPLOADS ONCE. Each File's hosted URL is kept the moment its batch lands (`hosted`), so a Publish
+  // retried after a failure — the video, a refused word, a dropped connection mid-way — sends only the photos not
+  // up yet; the video is kept the same way (resolveVideoUrl). It used to upload everything again (Emil-skills
+  // audit, publish). Keyed by the File itself: a re-crop makes a new File and so a new upload. An upload is not tied
+  // to an account (the form is a guest flow until Publish), so a URL kept across a sign-in publishes exactly what
+  // re-uploading the same File would. Nothing sweeps unused uploads today (the "GC backstop" core/listings.ts names
+  // does not exist yet), so a kept URL stays valid for the page's life — revisit this if one is ever added.
+  // `onProgress(done, total)` counts the NEW photos, already-hosted ones included in `done`.
+  const hosted = useRef(new WeakMap<File, string>())
+  const uploadPhotos = async (onProgress?: (done: number, total: number) => void): Promise<string[]> => {
+    const fresh = photos.filter((p) => p.file)
+    const pending = fresh.filter((p) => !hosted.current.has(p.file!))
+    let done = fresh.length - pending.length
+    if (fresh.length) onProgress?.(done, fresh.length)
+    if (pending.length) {
+      await uploadInBatches(pending.map((p) => p.file!), (files, urls) => {
+        files.forEach((f, i) => { if (urls[i]) hosted.current.set(f, urls[i]) })
+        done += files.length
+        onProgress?.(done, fresh.length)
+      })
+    }
+    if (fresh.some((p) => !hosted.current.has(p.file!))) throw new Error('upload')
+    return photos.map((p) => (p.file ? hosted.current.get(p.file)! : p.url))
   }
 
   // Upload a newly-picked clip; keep an already-hosted one (edit). null clears it (removed).
@@ -238,9 +307,14 @@ export function usePostMedia({
     // and the 330s deadline. It throws the same 'video' / 'video_hevc' codes this wizard's submit
     // catch already maps to copy, so nothing here changes shape.
     if (video?.file) {
+      // Kept like the photos (`hosted`): a save refused AFTER the video went up — a phone already taken, a banned
+      // word the server caught — used to upload and transcode it again on the retry, up to 5.5 minutes for nothing.
+      const kept = hosted.current.get(video.file)
+      if (kept) return kept
       const { uploadListingVideo } = await import('@/lib/video-upload-client')
       const url = await uploadListingVideo(video.file, { hevc: video.hevc === true })
       if (!url) throw new Error('video')
+      hosted.current.set(video.file, url)
       return url
     }
     if (video && !video.url.startsWith('blob:')) return video.url
@@ -262,6 +336,7 @@ export function usePostMedia({
     videoBusy,
     addVideo,
     removeVideo,
+    removePhoto,
     uploadPhotos,
     resolveVideoUrl,
   }

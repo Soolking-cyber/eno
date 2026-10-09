@@ -125,6 +125,11 @@ export function ContactComposer({
    * failure. Anything that leaves the buyer on this page must leave the button usable.
    */
   const [busy, setBusy] = useState(false)
+  // WHICH tap the one wait belongs to, so the spinner sits on the button that was pressed — the offer row has
+  // two (Send offer, Chat now) and neither showed it heard the press (Emil-skills audit, contact). Read only
+  // while `busy`, so a stale value after a reset is never shown.
+  // 'resume' = the resumed opener's own Send (it carries its own spinner): the row's two only go inert.
+  const [busyWith, setBusyWith] = useState<'chat' | 'offer' | 'resume'>('chat')
   /**
    * The sign-in a guest's tap opens — and, since UX3 J5, the action it finishes afterwards: a chat
    * remembers its opener, an offer its amount (src/lib/pending-intent.ts). The trip planner's tap
@@ -266,12 +271,12 @@ export function ContactComposer({
   // returns early so the announcement is true.
   const chatNow = () => {
     if (busy) return
-    hapticTap(); setBusy(true); send(planning ? { plan: true } : { body: opener() })
+    hapticTap(); setBusyWith('chat'); setBusy(true); send(planning ? { plan: true } : { body: opener() })
   }
   /** "Send" on the resumed opener — the same tap as Chat now, with the same guard. */
   const sendResumed = () => {
     if (busy || resumed?.kind !== 'chat') return
-    hapticTap(); setBusy(true); send({ body: resumed.body })
+    hapticTap(); setBusyWith('resume'); setBusy(true); send({ body: resumed.body })
   }
   /** The PDP's own "Sign in to make an offer": an offer intent with no amount (none was chosen yet). */
   const gateOffer = () => {
@@ -286,6 +291,7 @@ export function ContactComposer({
     // that the guard's own comment claimed more than the code did. If a third caller of send() is
     // ever added, it needs this line too.
     if (busy) return
+    setBusyWith('offer')
     setBusy(true)
     if (user) hapticConfirm()
     else hapticTap()
@@ -409,34 +415,33 @@ export function ContactComposer({
   // Fixed-price listing: no offer → Chat now + the safety reminder.
   if (!canOffer) return <div className="space-y-2">{resumeChat}{chatButton}{safetyLine}</div>
 
-  if (!loading && !user) {
-    return (
-      <div className="space-y-2">
-        {chatButton}
-        <Button
-          type="button"
-          variant="bare"
-          size="none"
-          onClick={gateOffer}
-          // `active:scale-100` dropped — see the note on chatButton above.
-          // `min-h-11` for the same reason as chatButton above — this measured 366×40 too, and
-          // it is the second-most-important action on the page.
-          // `items-center` comes WITH the floor and is not optional: a min-height taller than the
-          // content leaves the icon and label hanging at the top of the box without it.
-          // ⚠️ Horizontal alignment is deliberately NOT touched. A `justify-center` briefly rode
-          // along here and a reviewer flagged it as an undisclosed visual change — correct: this
-          // row is left-aligned today, that is a design decision nobody asked to revisit, and a
-          // tap-target fix is the wrong place to smuggle one.
-          className="press flex min-h-11 w-full cursor-pointer items-center gap-1.5 py-2.5 font-bold text-accent-foreground hover:bg-tint"
-        >
-          <Tag className="h-4 w-4" /> {tr('Sign in to make an offer', 'Đăng nhập để trả giá')}
-        </Button>
-        {safetyLine}
-      </div>
-    )
-  }
-
-  return (
+  // `data-auth-settled` only on the panel shown once auth has ANSWERED "no user" — the e2e contact gate waits for it:
+  // the copy server-rendered for `no-session` (below) is on screen before React has attached a single handler.
+  const guestPanel = (settled: boolean) => (
+    <div className="space-y-2" data-auth-settled={settled || undefined}>
+      {chatButton}
+      <Button
+        type="button"
+        variant="bare"
+        size="none"
+        onClick={gateOffer}
+        // `active:scale-100` dropped — see the note on chatButton above.
+        // `min-h-11` for the same reason as chatButton above — this measured 366×40 too, and
+        // it is the second-most-important action on the page.
+        // `items-center` comes WITH the floor and is not optional: a min-height taller than the
+        // content leaves the icon and label hanging at the top of the box without it.
+        // ⚠️ Horizontal alignment is deliberately NOT touched. A `justify-center` briefly rode
+        // along here and a reviewer flagged it as an undisclosed visual change — correct: this
+        // row is left-aligned today, that is a design decision nobody asked to revisit, and a
+        // tap-target fix is the wrong place to smuggle one.
+        className="press flex min-h-11 w-full cursor-pointer items-center gap-1.5 py-2.5 font-bold text-accent-foreground hover:bg-tint"
+      >
+        <Tag className="h-4 w-4" /> {tr('Sign in to make an offer', 'Đăng nhập để trả giá')}
+      </Button>
+      {safetyLine}
+    </div>
+  )
+  const offerPanel = (
     <div className="space-y-2">
       {resumeChat}
       {resumeOffer}
@@ -466,11 +471,17 @@ export function ContactComposer({
           <span>−{MAX_DISCOUNT}%</span>
         </div>
         <div className="mt-3 flex gap-2">
+          {/* ⚠️ THE SAME BUSY CONTRACT AS chatButton ABOVE, NOW ON BOTH BUTTONS OF THIS ROW: the one pressed shows
+              ui/button's spinner (`loading`), the other goes inert (`aria-disabled`; the guard in sendOffer/chatNow is
+              what refuses the tap). And the 44px floor: both measured 40px (`py-2.5` around a 20px line), on the
+              row a buyer presses to make an offer (Emil-skills audit, contact). */}
           <Button
             variant="cta"
             size="none"
             onClick={sendOffer}
-            className="flex min-w-0 basis-[70%] items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition active:scale-[0.96] cursor-pointer"
+            loading={busy && busyWith === 'offer'}
+            aria-disabled={busy || undefined}
+            className="flex min-h-11 min-w-0 basis-[70%] items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition active:scale-[0.96] cursor-pointer aria-disabled:cursor-wait"
           >
             <Send className="h-4 w-4 shrink-0" />
             <span className="truncate">{tr('Send offer', 'Gửi đề nghị')} · {formatMoneyFull(offerPrice, currency, locale)}</span>
@@ -480,8 +491,10 @@ export function ContactComposer({
             variant="bare"
             size="none"
             onClick={chatNow}
+            loading={busy && busyWith === 'chat'}
+            aria-disabled={busy || undefined}
             // `active:scale-100` dropped — see the note on chatButton above.
-            className="press flex min-w-0 basis-[30%] items-center justify-center gap-1.5 rounded-xl bg-card py-2.5 text-sm font-bold text-accent-foreground hover:bg-tint cursor-pointer"
+            className="press flex min-h-11 min-w-0 basis-[30%] items-center justify-center gap-1.5 rounded-xl bg-card py-2.5 text-sm font-bold text-accent-foreground hover:bg-tint cursor-pointer aria-disabled:cursor-wait"
           >
             <MessageCircle className="h-4 w-4 shrink-0" /> <span className="truncate">{tr('Chat now', 'Chat ngay')}</span>
           </Button>
@@ -492,5 +505,21 @@ export function ContactComposer({
 
       {safetyLine}
     </div>
+  )
+  // ⚠️ WHILE AUTH IS STILL LOADING, the panel is decided by the cookie, not guessed. `no-session` (html.no-session,
+  // set before paint when the document has no Supabase cookie — globals.css) shows a guest the guest panel from the
+  // first paint, and anyone with a cookie keeps the offer panel. Both used to get the offer panel until auth
+  // resolved, so a guest saw the signed-in slider and then watched it collapse into "Sign in to make an offer"
+  // (Emil-skills audit, contact). The variant is consumed only while loading, as globals.css requires.
+  // ⛔ TWO FIXED SLOTS, IN EVERY STATE: the offer panel first, the guest panel second, each present or not and its
+  // class toggled — never a different tree shape for "loading" and "answered". A first draft returned a fragment
+  // while loading and the bare panel after, so React rebuilt the offer panel the moment auth answered: a slider
+  // mid-drag let go, a focused Send offer threw focus to <body> — on exactly the page a sign-in return lands on,
+  // while auth is loading (review, 2026-10-07).
+  return (
+    <>
+      {(loading || user) && <div className={loading ? 'no-session:hidden' : undefined}>{offerPanel}</div>}
+      {(loading || !user) && <div className={loading ? 'hidden no-session:block' : undefined}>{guestPanel(!loading)}</div>}
+    </>
   )
 }

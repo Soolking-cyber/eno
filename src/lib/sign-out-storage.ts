@@ -45,6 +45,10 @@ export const SIGN_OUT_SESSION_KEYS: readonly string[] = [
   // A guest's action waiting to be finished after sign-in (UX3 J5) — spent on use; a leftover must not
   // greet the next person to sign in on this tab.
   'eno:pending-intent', //     src/lib/pending-intent.ts INTENT_KEY
+  // ⛔ The teacher-profile draft (name, phone, bio) moved to THIS TAB's sessionStorage (teacher-form.tsx DRAFT_KEY,
+  // 2026-10-08) while this list still only cleared its old localStorage copy (kept above for devices that hold one):
+  // the next person to open /teachers/join in the tab within its 15 minutes got the previous person's details back.
+  'eno.teacherDraft.v1', //    src/components/teachers/teacher-form.tsx DRAFT_KEY
 ]
 
 /** sessionStorage key PREFIXES (the basket's first-add hint). */

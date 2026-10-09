@@ -22,6 +22,9 @@ vi.mock('sonner', () => ({
 }))
 const lang = vi.hoisted(() => ({ lang: 'en', tr: (en: string) => en, t: (k: string) => k, setLang: () => {} }))
 vi.mock('@/context/language-context', () => ({ useLanguage: () => lang, useTr: () => lang.tr }))
+// useListingActions reads who is signed in (the delete names the account that tapped). A stable object.
+const auth = vi.hoisted(() => ({ user: { id: 'p1' } }))
+vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
 vi.mock('./quick-discount', () => ({ QuickDiscount: () => null }))
 vi.mock('./listing-sparkline', () => ({ ListingSparkline: () => null }))
 vi.mock('./price', () => ({ Price: () => null }))

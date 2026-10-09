@@ -25,6 +25,7 @@ import React from 'react'
 import { cleanup, render, screen, act } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider, shouldBootAuth, useAuth, type AuthBootProbe } from './auth-context'
+import { BEFORE_SIGN_OUT_EVENT, SIGN_OUT_FLUSH_WAIT_MS, type BeforeSignOutDetail } from '@/lib/api/acting-account'
 
 /** The live project ref, so the shapes below are byte-identical to production cookie names. */
 const KEY = 'sb-xihiryllwmjoouipkyhw-auth-token'
@@ -288,5 +289,61 @@ describe('AuthProvider — signOut leaves nothing of the seller behind on a shar
       expect(localStorage.getItem(k), k).toBeNull()
     }
     expect(localStorage.getItem('eno-theme')).toBe('dark')
+  })
+
+  // ⛔ A delete or an offer answer still inside its 5s undo window must go out as THIS account, so the
+  // announcement comes before the session is touched (src/lib/api/acting-account.ts).
+  it('⛔ announces the sign-out (BEFORE_SIGN_OUT_EVENT) before the session goes', async () => {
+    const order: string[] = []
+    createSupabaseBrowser.mockImplementation(() => ({
+      auth: { ...fakeClient().auth, signOut: () => { order.push('session signed out'); return Promise.resolve({ error: null }) } },
+    }))
+    const onEvent = () => order.push('announced')
+    window.addEventListener(BEFORE_SIGN_OUT_EVENT, onEvent)
+    try {
+      render(<AuthProvider><SignOutProbe /></AuthProvider>)
+      await act(async () => { screen.getByRole('button').click() })
+      await act(async () => { await vi.dynamicImportSettled() })
+    } finally { window.removeEventListener(BEFORE_SIGN_OUT_EVENT, onEvent) }
+    expect(order).toEqual(['announced', 'session signed out'])
+  })
+
+  it('⛔ keeps the session until a write flushed at sign-out has answered', async () => {
+    const order: string[] = []
+    createSupabaseBrowser.mockImplementation(() => ({
+      auth: { ...fakeClient().auth, signOut: () => { order.push('session signed out'); return Promise.resolve({ error: null }) } },
+    }))
+    let answer = () => {}
+    const onEvent = (e: Event) => {
+      (e as CustomEvent<BeforeSignOutDetail>).detail.waitFor(new Promise<void>((resolve) => { answer = () => { order.push('write answered'); resolve() } }))
+    }
+    window.addEventListener(BEFORE_SIGN_OUT_EVENT, onEvent)
+    try {
+      render(<AuthProvider><SignOutProbe /></AuthProvider>)
+      await act(async () => { screen.getByRole('button').click() })
+      await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+      expect(order).toEqual([]) // still waiting for the write
+      await act(async () => { answer(); await vi.advanceTimersByTimeAsync(0) })
+      await act(async () => { await vi.dynamicImportSettled() })
+    } finally { window.removeEventListener(BEFORE_SIGN_OUT_EVENT, onEvent) }
+    expect(order).toEqual(['write answered', 'session signed out'])
+  })
+
+  it('a write that never answers holds the sign-out for SIGN_OUT_FLUSH_WAIT_MS, not forever', async () => {
+    const order: string[] = []
+    createSupabaseBrowser.mockImplementation(() => ({
+      auth: { ...fakeClient().auth, signOut: () => { order.push('session signed out'); return Promise.resolve({ error: null }) } },
+    }))
+    const onEvent = (e: Event) => { (e as CustomEvent<BeforeSignOutDetail>).detail.waitFor(new Promise(() => {})) }
+    window.addEventListener(BEFORE_SIGN_OUT_EVENT, onEvent)
+    try {
+      render(<AuthProvider><SignOutProbe /></AuthProvider>)
+      await act(async () => { screen.getByRole('button').click() })
+      await act(async () => { await vi.advanceTimersByTimeAsync(SIGN_OUT_FLUSH_WAIT_MS - 100) })
+      expect(order).toEqual([])
+      await act(async () => { await vi.advanceTimersByTimeAsync(200) })
+      await act(async () => { await vi.dynamicImportSettled() })
+    } finally { window.removeEventListener(BEFORE_SIGN_OUT_EVENT, onEvent) }
+    expect(order).toEqual(['session signed out'])
   })
 })

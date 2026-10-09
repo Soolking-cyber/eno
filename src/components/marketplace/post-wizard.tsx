@@ -175,6 +175,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [createdId, setCreatedId] = useState<string | null>(null)
   const [firstListing, setFirstListing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  // What a running Publish is doing, shown beside the button (publishProgress below). Photos and the video only
+  // upload at this point, and the video's transcode is polled for up to 5.5 min: a dimmed "Posting…" said nothing.
+  const [publishStep, setPublishStep] = useState<null | { kind: 'photos'; done: number; total: number } | { kind: 'video' } | { kind: 'saving' }>(null)
   // Synchronous latch — `submitting` state only flips after the next render, so a
   // fast double-tap can fire submit() twice before disabled takes effect → two
   // listings + two social cross-posts. This ref blocks the second call immediately.
@@ -225,8 +228,31 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         toast.error(t('Chưa thấy rõ sản phẩm — chụp cận cảnh chỉ riêng món đồ.', "Couldn't spot a clear product — take a close photo of just the item."))
         return
       }
+      // ⛔ EDITING A RENTAL, THE PHOTO IS READ AS THE RENTAL IT IS. The classifier answers in SALE terms — it files a
+      // rentable item under Vehicles/Property (SALE_TO_RENT) — so a photo of the listed bike read as vehicles/motorbike,
+      // and the guard below told the seller it was "a different category". Mapped across, it is this listing's own
+      // category: what carries over is the subcategory and, for a vehicle, the brand and model. The sale specifics and
+      // condition do not — Rentals asks other questions (switchIntent resets them the same way) — so the seller's own
+      // rental answers stay exactly as they are. ONLY onto the same kind of rental, or one with no kind yet: a photo read
+      // as a motorbike must not re-file a bicycle rental (its answers would then sit under the wrong kind — review); that
+      // stays "a different category" below.
+      const mapped: string | undefined = edit?.categorySlug === 'rentals' && d.categorySlug ? SALE_TO_RENT[d.categorySlug]?.[d.subcategorySlug] : undefined
+      const currentSub = latestForm.current.subcategorySlug
+      const rentalSub = mapped && (!currentSub || currentSub === mapped) ? mapped : undefined
+      if (rentalSub) {
+        const vehicle = VEHICLE_RENTAL_SUBS.has(rentalSub)
+        Object.assign(d, { categorySlug: 'rentals', subcategorySlug: rentalSub, attributes: undefined, condition: undefined, listingType: undefined },
+          vehicle ? {} : { brand: undefined, model: undefined, brandUncertain: undefined })
+      }
+      // ⛔ EDITING, THE CATEGORY IS FIXED — the pill says "fixed when editing", and the save keeps the listing's own
+      // (core/listings.ts drops a subcategory from another category). A photo read as ANOTHER category fills nothing:
+      // its subcategory, specifics and brand belong to that category, and the pill would show a category the save
+      // never applies. Said, so the tap is not silently ignored (Emil audit follow-up).
+      if (edit && d.categorySlug && d.categorySlug !== edit.categorySlug) {
+        subtleToast(t('Ảnh này có vẻ thuộc danh mục khác. Khi sửa tin, danh mục không đổi được, nên chưa có gì được điền.', 'This photo looks like a different category. The category can’t change while editing, so nothing was filled in.'))
+        return
+      }
       if (d.categorySlug) {
-        setCategorySlug(d.categorySlug)
         // AI must not pick a subcategory this edition does not offer for new posts (O-34) — nor, for a seller
         // who is not an official partner, the partner-only visa slot (O-34b).
         // ⚠️ While /api/me has not answered, a partner-only pick is KEPT (gate, 2026-10-05: a partner's AI fill was
@@ -234,14 +260,63 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         // once the account is known not to be a partner.
         const aiSubOk = !!d.subcategorySlug && (isPostableSubcategory(d.categorySlug, d.subcategorySlug, IS_MARKETPLACE, { officialPartner })
           || (!meKnown && isPartnerOnlySubcategory(d.categorySlug, d.subcategorySlug)))
-        setSubcategorySlug(aiSubOk ? d.subcategorySlug : '')
-        setAttrs(d.attributes && typeof d.attributes === 'object' ? d.attributes : {})
-        setRanges({})
-        if (d.listingType) setListingType(d.listingType)
+        // ⚠️ IT OVERWRITES WHAT THE SELLER HAD CHOSEN — the category, its specifics (ranges are wiped outright),
+        // condition, brand, model — so it comes with an Undo whenever something they had is replaced, as a manual
+        // category change already does (offerCategoryUndo). Emil-skills audit, missing confirmations.
+        //  · the "before" is the form AS IT IS NOW (latestForm), not as it was at the tap — the seller may have kept
+        //    editing while the photo was read;
+        //  · the toast only when something they had actually changes (a re-read that lands on the same answers,
+        //    or a first fill of an empty form, has nothing to undo);
+        //  · Undo is all-or-nothing, and only while the form is still exactly as autofill left it: any edit since
+        //    is the seller's newer word, and putting back half a snapshot would pair one category with another's
+        //    specifics (review, 2026-10-07). The title is filled only when empty, so it is never lost.
+        const snap = latestForm.current
+        const next = {
+          ...snap,
+          categorySlug: d.categorySlug as string,
+          subcategorySlug: aiSubOk ? (d.subcategorySlug as string) : '',
+          attrs: rentalSub ? snap.attrs : d.attributes && typeof d.attributes === 'object' ? d.attributes : {},
+          ranges: rentalSub ? snap.ranges : {},
+          // Editing, autofill never switches the listing type: the type chips are the seller's (a photo must not quietly
+          // turn a sale into a wanted ad), and the sale/rent switch is create-only.
+          listingType: edit ? snap.listingType : d.listingType || snap.listingType,
+          condition: d.condition || snap.condition,
+          brand: d.brand || snap.brand, // AI auto-selects the brand ONLY when confident
+          model: d.model || snap.model,
+          title: d.title && !snap.title.trim() ? (d.title as string) : snap.title,
+        }
+        const FIELDS = ['categorySlug', 'subcategorySlug', 'listingType', 'attrs', 'ranges', 'condition', 'brand', 'model', 'title'] as const
+        // Key order is not a change: objects compare by their sorted entries.
+        const norm = (v: unknown) => JSON.stringify(v && typeof v === 'object' ? Object.entries(v).sort(([a], [b]) => a.localeCompare(b)) : v)
+        const same = (a: Record<string, unknown>, b: Record<string, unknown>) => FIELDS.every((k) => norm(a[k]) === norm(b[k]))
+        // Anything the seller had chosen — the listing type included ("buy", a wanted ad, before any category).
+        const hadAnswers = !!snap.categorySlug || Object.keys(snap.attrs).length > 0 || Object.keys(snap.ranges).length > 0 || !!snap.condition || !!snap.brand || !!snap.model || snap.listingType !== 'sell'
+        // Written: only what the AI provides — never a field copied back from the snapshot, which could be a
+        // keystroke behind the field (a value the seller typed in the same frame would be overwritten).
+        setCategorySlug(next.categorySlug)
+        setSubcategorySlug(next.subcategorySlug)
+        setAttrs(next.attrs)
+        setRanges(next.ranges)
+        if (d.listingType && !edit) setListingType(d.listingType)
         if (d.condition) setCondition(d.condition)
-        if (d.brand) setBrand(d.brand) // AI auto-selects the brand ONLY when confident
+        if (d.brand) setBrand(d.brand)
         if (d.model) setModel(d.model)
-        if (d.title && !title.trim()) setTitle(d.title)
+        if (next.title !== snap.title) setTitle(next.title)
+        if (hadAnswers && !same(snap, next)) {
+          toast(t('Đã điền từ ảnh — các lựa chọn trước đó đã được thay', 'Filled in from your photo — your earlier choices were replaced'), {
+            id: 'pw-autofill-undo',
+            duration: 6000,
+            action: {
+              label: t('Hoàn tác', 'Undo'),
+              onClick: () => {
+                if (!same(latestForm.current, next)) return // edited since: the seller's newer word stands
+                setCategorySlug(snap.categorySlug); setSubcategorySlug(snap.subcategorySlug); setListingType(snap.listingType)
+                setAttrs(snap.attrs); setRanges(snap.ranges); setCondition(snap.condition); setBrand(snap.brand); setModel(snap.model)
+                setTitle(snap.title)
+              },
+            },
+          })
+        }
         // NOTE: intentionally do NOT auto-write the description. Sellers describe the
         // item in their OWN words (what actually matters — condition, quirks, why
         // selling), then optionally "Polish with AI" to tidy their own text.
@@ -278,7 +353,19 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         return
       }
       const d = await res.json()
-      if (d.text) setDescription(d.text)
+      // ⚠️ IT REPLACES THE SELLER'S OWN WORDS, so it comes with an Undo (Emil-skills audit, missing confirmations).
+      // The text sent is the text replaced: the field is read-only while the request runs (below), so nothing typed
+      // in the meantime is lost.
+      if (d.text) {
+        const before = description
+        setDescription(d.text)
+        // Only while the text is still the AI's: an edit since is the seller's newer word, and Undo leaves it alone.
+        toast(t('Đã chỉnh mô tả bằng AI', 'Description polished with AI'), {
+          id: 'pw-polish-undo',
+          duration: 6000,
+          action: { label: t('Hoàn tác', 'Undo'), onClick: () => setDescription((cur) => (cur === d.text ? before : cur)) },
+        })
+      }
     } catch {
       toast.error(t('Không thể dùng AI lúc này', 'AI is unavailable right now'))
     } finally {
@@ -313,6 +400,16 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [condition, setCondition] = useState(edit?.condition ?? '')
   const [brand, setBrand] = useState(edit?.brand ?? '')
   const [model, setModel] = useState(edit?.model ?? '')
+  // The form's latest committed values, for the AI Undos (autofillFromPhoto, polishDescription): what autofill overwrites and what its Undo checks
+  // are read when they happen, not from the render that started the request (the seller can keep editing while
+  // it runs). Kept by an effect, never written during render.
+  const latestForm = useRef({ categorySlug, subcategorySlug, listingType, attrs, ranges, condition, brand, model, title, description })
+  // ⚠️ AN AI UNDO CHECKS AT THE TAP, AND THAT IS ALL: it reverts only while the form is still exactly as the AI left
+  // it, otherwise it does nothing (for at most its toast's 6s). A tracker that took the Undo down the moment the
+  // form moved was tried, and each review round found a new way two Undos sharing it interleaved (review,
+  // 2026-10-07) — the bounded no-op is the simpler contract.
+  useEffect(() => { latestForm.current = { categorySlug, subcategorySlug, listingType, attrs, ranges, condition, brand, model, title, description } })
+
   // Brand suggestions: the catalogue's top brands overall, led by the brands that actually have live
   // listings in the chosen subcategory. Slugs are kept so a typed brand can be matched to its models.
   const [globalBrands, setGlobalBrands] = useState<{ name: string; slug: string }[]>([])
@@ -401,7 +498,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // for AI autofill + preview, count for the publish checks) and calls the two
   // resolvers in submit(); everything else feeds <MediaSection> as one bundle.
   const media = usePostMedia({ edit, t })
-  const { photos, uploadPhotos, resolveVideoUrl } = media
+  const { photos, uploadPhotos, resolveVideoUrl, video: mediaVideo } = media
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [postingAs, setPostingAs] = useState<string | null>(null)
@@ -987,8 +1084,36 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
    */
   const scrollToField = (key: string) => {
     const el = document.getElementById(`pw-${key}`)
+    // The phone row is a verified number with "Change number" when it is not being edited — no `pw-contactPhone`
+    // then — so the jump lands on its section instead, without focusing some other control in it.
+    if (!el && key === 'contactPhone') { document.getElementById('pw-contact')?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' }); return }
     el?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
-    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.focus({ preventScroll: true })
+    // ⚠️ THE CONTROL, NOT THE WRAPPER — for the two whose id sits on a wrapper: `pw-description` on its Field and
+    // `pw-price` on its section, the two checks sellers fail most, which were jumped to and never focused
+    // (Emil-skills audit, publish). Only those two: every other wrapper (category, location, photos) stays
+    // scroll-only, so a "Still needed" chip does not raise a keyboard on a picker (review, 2026-10-07).
+    const control = el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement
+      ? el
+      : key === 'description' || key === 'price'
+        // Never a hidden control: Base UI's Select/Combobox keep an aria-hidden, tabindex=-1 input for the form.
+        ? el?.querySelector<HTMLElement>('input:not([type=file]):not([type=hidden]):not([type=checkbox]):not([type=radio]):not([aria-hidden="true"]):not([tabindex="-1"]), textarea:not([aria-hidden="true"])')
+        : null
+    control?.focus({ preventScroll: true })
+  }
+  /**
+   * The field a refusal is about, when it is one the seller can fix on this screen — the jump that comes with
+   * the message. It mirrors the check that ran, field by field, and names nothing it cannot point at: a banned
+   * word in the CONTACT NAME (part of that check, not editable here) jumps nowhere rather than to a clean
+   * description (review, 2026-10-07).
+   */
+  const fieldFor = (code: string): string | null => {
+    const hasContact = (s: string) => containsPhoneNumber(s) || containsContactInfo(s)
+    if (code === 'contact_in_text' || code === 'no_phone_in_listing') return hasContact(title) ? 'title' : hasContact(description) ? 'description' : null
+    if (code === 'banned_words') return findBannedWord(title) ? 'title' : findBannedWord(description) ? 'description' : null
+    if (code === 'upload_type' || code === 'upload_size' || code === 'upload_broken' || code === 'photo_required' || code === 'photos_min') return 'photo'
+    if (code === 'location_required') return 'location'
+    if (code === 'phone_taken') return 'contactPhone'
+    return null
   }
   // The first step the seller SEES as outstanding, in form order. The gate's own first miss is the
   // fallback for the one case the steps hide on purpose: contact during the auth/profile load, where
@@ -1146,12 +1271,16 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsContactInfo(listingText)) {
       countAttempt('client_contact_in_text')
       setError(contactInTextMsg)
+      const field = fieldFor('contact_in_text')
+      if (field) scrollToField(field)
       return
     }
     const blob = `${title} ${description} ${contactName}`
     if (findBannedWord(blob)) {
       countAttempt('client_banned_words')
       setError(t('Tin của bạn có từ ngữ không được phép. Vui lòng chỉnh sửa rồi đăng lại.', "Your listing contains a word that isn't allowed. Please edit it and try again."))
+      const field = fieldFor('banned_words')
+      if (field) scrollToField(field)
       return
     }
     // Draft-first: the listing is ready — NOW ask for the account. The text draft
@@ -1181,8 +1310,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       // Photo upload + the video sign→PUT→complete→transcode-poll pipeline moved
       // VERBATIM into usePostMedia (use-post-media.ts) — same order, same thrown
       // codes ('upload' / 'video' / 'video_hevc') that the catch below maps to copy.
-      const imageUrls = await uploadPhotos()
+      const imageUrls = await uploadPhotos((done, total) => setPublishStep({ kind: 'photos', done, total }))
+      if (mediaVideo?.file) setPublishStep({ kind: 'video' })
       const videoUrl = await resolveVideoUrl()
+      setPublishStep({ kind: 'saving' })
 
       const payload = {
         categorySlug,
@@ -1258,6 +1389,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       // a genuine new publish, never on a PATCH.
       hapticConfirm()
       setSubmitted(true)
+      // The success screen replaces the whole form: start it at its top, or a form sent from the bottom bar lands the
+      // reader mid-page below the mascot and the headline (Emil audit, tier 4). Not inside the dashboard: onPosted
+      // switches its tab, and the page there is the dashboard's to place (review).
+      if (!embedded) { try { window.scrollTo({ top: 0 }) } catch { /* no scrolling here */ } }
       onPosted?.() // embedded in dashboard → refresh listings + switch tab
     } catch (e) {
       const msg = e instanceof Error ? e.message : ''
@@ -1365,9 +1500,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       // punishment, which that same docblock warns against).
       hapticError()
       console.error(e)
+      // The jump that comes with the message, to the field it is about (fieldFor) — after the paint that shows it.
+      const field = fieldFor(msg)
+      if (field) requestAnimationFrame(() => scrollToField(field))
     } finally {
       submittingRef.current = false
       setSubmitting(false)
+      setPublishStep(null)
     }
   }
   /** "Đăng tin ngay" on the resume banner. The intent is consumed first (so the banner cannot fire
@@ -1382,6 +1521,17 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   if (submitted) {
     return <PostSuccess firstListing={firstListing} createdId={createdId} title={title} price={salaryPaid ? '' : price} job={salaryPaid} takesOffers={takesOffers({ negotiable, listingType })} onPostAnother={embedded ? undefined : postAnother} t={t} />
   }
+
+  // What the running Publish is doing — beside the button, in the mobile bar's slot and under the desktop button.
+  const publishProgress = !submitting || !publishStep ? null
+    : publishStep.kind === 'photos' ? `${t('Đang tải ảnh lên', 'Uploading photos')} ${publishStep.done}/${publishStep.total}…`
+    : publishStep.kind === 'video' ? t('Đang xử lý video — có thể mất vài phút…', 'Processing your video — this can take a few minutes…')
+    : edit ? t('Đang lưu…', 'Saving…') : t('Đang đăng…', 'Posting…')
+  // ⚠️ WHY A PUBLISH STOPPED, NEXT TO THE BUTTON THAT WAS PRESSED. The form's own error line sits at its foot —
+  // off-screen on a phone, under a desktop Publish that is pinned at the top — so the button just went back to
+  // "Publish listing" with no visible reason (Emil-skills audit, publish). That line keeps role="alert" and is
+  // what a screen reader hears; these copies are for the eye, so they are aria-hidden rather than heard twice.
+  const publishStopped = !submitting && error ? error : null
 
   const publishButtonProps = {
     onSubmit: submit,
@@ -1859,6 +2009,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     value={description}
                     maxLength={DESC_MAX}
                     onChange={(e) => setDescription(e.target.value)}
+                    // Read-only while "Polish with AI" runs: the answer replaces the text that was sent, so anything
+                    // typed in those seconds would be lost to it.
+                    readOnly={aiBusy === 'desc'}
                     onBlur={() => touch('description')}
                     aria-required
                     rows={5}
@@ -1982,6 +2135,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           />
 
           {error && <p role="alert" className="text-sm font-semibold text-destructive">{error}</p>}
+          {/* ⚠️ WHAT A RUNNING PUBLISH IS DOING, FOR A SCREEN READER: ONE region, mounted always (a live region that
+              arrives together with its text is often not announced), outside both responsive copies so it is never
+              heard twice. The visible lines beside the desktop button and in the mobile bar are aria-hidden. */}
+          <p role="status" className="sr-only" data-publish-status>{publishProgress ?? ''}</p>
           {error && errorAction === 'verify' && (
             <Button asChild variant="cta" size="sm">
               {/* Web: a NEW TAB, so this form and its photos stay open (see the catch in submit()).
@@ -2021,6 +2178,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               />
             </div>
             <PublishButton {...publishButtonProps} />
+            {publishProgress && <p aria-hidden className="text-xs text-ink-4">{publishProgress}</p>}
+            {publishStopped && <p aria-hidden className="text-xs font-semibold text-destructive">{publishStopped}</p>}
             {pendingSteps.length > 0 && (
               <ul className="space-y-1.5 pt-1">
                 {steps.map((s) => (
@@ -2069,29 +2228,41 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         label={edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing')}
         // Not `render`: `disabled` flips while the seller watches, and the primitive's own note
         // says to take the plain path for exactly that.
-        primary={{ label: <PublishLabel submitting={submitting} loadingProfile={profileLoading} edit={!!edit} missingCount={badgeCount} t={t} />, onClick: submit, disabled: submitting, loading: profileLoading }}
-        above={attempted && pendingSteps.length > 0 ? (
-          // ⚠️ ONE ROW: the label beside a horizontal scroller, never `flex-wrap`. The row's height is
-          // constant however many items are outstanding, and nothing is ever clipped mid-word
-          // (`shrink-0` on each chip). Each chip jumps to its own field — the list IS the navigation.
-          <div className="flex items-center gap-2">
-            <p className="shrink-0 text-2xs font-semibold text-ink-4">{t('Còn thiếu', 'Still needed')}</p>
-            <div className="-mr-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto scrollbar-none pr-1">
-              {pendingSteps.map((s) => (
-                <Button
-                  key={s.key}
-                  type="button"
-                  variant="bare"
-                  size="none"
-                  onClick={() => scrollToField(s.target)}
-                  // min-h-9 py-2, NOT tap-44: this row is an overflow-x scroller, which clips a
-                  // pseudo-element hit area to its own box — the chip has to BE the target.
-                  className="press min-h-9 shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-2.5 py-2 text-2xs font-semibold text-warning cursor-pointer"
-                >
-                  {s.todo}
-                </Button>
-              ))}
-            </div>
+        // `loading` while it publishes too, not `disabled`: ui/button's busy state draws the spinner, keeps the label as
+        // the accessible name and keeps focus — `disabled` only dimmed it, and threw a keyboard user's focus away.
+        primary={{ label: <PublishLabel submitting={submitting} loadingProfile={profileLoading} edit={!!edit} missingCount={badgeCount} t={t} />, onClick: submit, loading: submitting || profileLoading }}
+        // Progress while it publishes; otherwise why one stopped AND the "Still needed" chips, stacked — neither may
+        // hide the other: the chips are the navigation, and the reason is the only place a refusal shows here (a field
+        // emptied mid-save can bring the chips back while the server refuses; review, 2026-10-07).
+        above={publishProgress ? (
+          <p aria-hidden className="text-xs text-ink-4">{publishProgress}</p>
+        ) : publishStopped || (attempted && pendingSteps.length > 0) ? (
+          <div className="space-y-1.5">
+            {publishStopped && <p aria-hidden className="text-xs font-semibold text-destructive">{publishStopped}</p>}
+            {attempted && pendingSteps.length > 0 && (
+              // ⚠️ ONE ROW: the label beside a horizontal scroller, never `flex-wrap`. The row's height is
+              // constant however many items are outstanding, and nothing is ever clipped mid-word
+              // (`shrink-0` on each chip). Each chip jumps to its own field — the list IS the navigation.
+              <div className="flex items-center gap-2">
+                <p className="shrink-0 text-2xs font-semibold text-ink-4">{t('Còn thiếu', 'Still needed')}</p>
+                <div className="-mr-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto scrollbar-none pr-1">
+                  {pendingSteps.map((s) => (
+                    <Button
+                      key={s.key}
+                      type="button"
+                      variant="bare"
+                      size="none"
+                      onClick={() => scrollToField(s.target)}
+                      // min-h-9 py-2, NOT tap-44: this row is an overflow-x scroller, which clips a
+                      // pseudo-element hit area to its own box — the chip has to BE the target.
+                      className="press min-h-9 shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-2.5 py-2 text-2xs font-semibold text-warning cursor-pointer"
+                    >
+                      {s.todo}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : null}
       />

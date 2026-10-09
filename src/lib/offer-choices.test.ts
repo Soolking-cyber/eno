@@ -70,9 +70,16 @@ describe('offerActFailedCopy', () => {
     expect(offerActFailedCopy('accept', 'blocked', (_en, vi) => vi)).toBe('Cuộc trò chuyện này đã đóng nên đề nghị chưa được chấp nhận.')
   })
 
+  // The answer waited out its undo window while this browser changed account (src/lib/api/acting-account.ts):
+  // it says what happened, never "try again" — trying again here would be acting as the other account.
+  it('account_changed says the browser changed account, for both answers, with no "try again"', () => {
+    expect(offerActFailedCopy('accept', 'account_changed', tr)).toBe('This browser is now signed in to a different account, so the offer was not accepted.')
+    expect(offerActFailedCopy('decline', 'account_changed', tr)).toBe('This browser is now signed in to a different account, so the offer was not declined.')
+  })
+
   it('ships Vietnamese for every line (no English fallback in a vi thread)', () => {
     const vi = (_en: string, v: string) => v
-    for (const code of ['listing_unavailable', 'not_actionable', undefined]) {
+    for (const code of ['listing_unavailable', 'not_actionable', 'account_changed', undefined]) {
       for (const action of ['accept', 'decline'] as const) {
         expect(offerActFailedCopy(action, code, vi)).toMatch(/đề nghị|tin đăng/i)
       }

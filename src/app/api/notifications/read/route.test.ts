@@ -155,3 +155,19 @@ describe('POST /api/availability/skip — wire unchanged by the route() migratio
     expect(r).toEqual({ status: 200, json: { ok: true, skips: 0 } })
   })
 })
+
+describe('POST /api/notifications/read names the account whose bell tapped (F6)', () => {
+  const asAccount = (account: string, body: unknown = {}) =>
+    new Request('http://x/api/notifications/read', { method: 'POST', headers: { 'x-eno-acting-account': account }, body: JSON.stringify(body) })
+
+  it('⛔ another account\'s tap under this cookie (a tab still showing it after a switch elsewhere) → 409, nothing marked', async () => {
+    expect(await read(await markRead(asAccount('someone-else')))).toEqual({ status: 409, json: { error: 'account_changed' } })
+    expect(h.updateMany).toEqual([])
+  })
+
+  it('the account the cookie is → marked as before', async () => {
+    const res = await markRead(asAccount('user-1', { ids: ['n1'] }))
+    expect(res.status).toBe(200)
+    expect(h.updateMany).toHaveLength(1)
+  })
+})

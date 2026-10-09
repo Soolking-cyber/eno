@@ -205,7 +205,8 @@ describe('the list', () => {
     listingsAnswer = (ids) => ({ listings: ids.map((id) => ({ ...rental(Number(id.slice(1))), id, subcategorySlug: sub[id] })), evaluated: ids })
     await mount()
     await waitFor(() => expect(getBasket().map((i) => i.id)).toEqual(['r1']))
-    expect(toast).toHaveBeenCalledWith('Vehicle hire is not part of this check — removed from your list.')
+    // Nothing to press, so the subtle pill (owner, 2026-09-21), not the solid card.
+    expect(toast).toHaveBeenCalledWith('Vehicle hire is not part of this check — removed from your list.', expect.objectContaining({ className: expect.stringContaining('material') }))
     expect(screen.queryByText('No longer available')).toBeNull()
     expect(document.querySelector('[data-rental-row="r2"]')).toBeNull()
     expect(document.querySelector('[data-rental-row="r1"]')).toBeTruthy()

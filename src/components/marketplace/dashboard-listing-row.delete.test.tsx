@@ -18,6 +18,9 @@ const toastFn = vi.hoisted(() => {
 vi.mock('sonner', () => ({ toast: toastFn }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), prefetch: vi.fn() }) }))
 vi.mock('@/context/language-context', () => ({ useLanguage: () => ({ lang: 'en', tr: (en: string) => en }) }))
+// The row's delete names the account that tapped (src/lib/api/acting-account.ts). A stable object, as the provider's is.
+const auth = vi.hoisted(() => ({ user: { id: 'p1' } }))
+vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
 vi.mock('./mark-sold-flow', async () => {
   const real = await vi.importActual<typeof import('./mark-sold-flow')>('./mark-sold-flow')
   return { soldSheetApplies: real.soldSheetApplies, MarkSoldFlow: () => null }
@@ -58,6 +61,6 @@ describe('DashboardListingRow — Delete keeps its undo window', () => {
     expect(fetch).not.toHaveBeenCalled() // an unmount would have sent it already
 
     await act(async () => { await vi.advanceTimersByTimeAsync(100) })
-    expect(fetch).toHaveBeenCalledWith('/api/listings/l1', { method: 'DELETE', keepalive: true })
+    expect(fetch).toHaveBeenCalledWith('/api/listings/l1', { method: 'DELETE', keepalive: true, headers: { 'x-eno-acting-account': 'p1' } })
   })
 })

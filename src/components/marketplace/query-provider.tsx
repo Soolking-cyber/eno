@@ -163,7 +163,7 @@ function OfflineBanner() {
              has-data-[slot=alert-action]:pr-18, and the has() rule wins on specificity, so
              the alert got 72px of right padding and the Vietnamese copy wrapped onto a
              second line. Let the primitive's own action padding stand. */
-          className="pointer-events-auto w-full max-w-md rounded-xl shadow-overlay"
+          className="pointer-events-auto w-full max-w-md rounded-xl shadow-overlay animate-in fade-in slide-in-from-bottom-2 duration-200 ease-out-strong"
         >
           {tr(
             'You’re offline. We’ll reconnect automatically.',

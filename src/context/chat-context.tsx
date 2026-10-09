@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useLayoutEffect, useMemo, useRef } from 'react'
 import { toast } from 'sonner'
+import { ACCOUNT_CHANGED, actingAccountHeaders } from '@/lib/api/acting-account'
 import { useAuth } from './auth-context'
 import { useLanguage } from './language-context'
 import { useUndoWindow } from '@/hooks/use-undo-window'
@@ -89,6 +90,7 @@ export type InboxConvo = {
  */
 const CONVOS_KEY = 'eno-convos-v2'  // localStorage cache: { userId, list }
 const THREAD_PREFIX = 'eno-thr2:'   // per-thread localStorage cache: { userId, data }
+const LEGACY_THREAD_PREFIX = 'eno-thr:' // the pre-v2 per-thread caches (sign-out-storage.ts clears both too)
 
 type ChatCtx = {
   open: boolean
@@ -182,6 +184,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
    * Auth updates are not transitions (auth-context.tsx), so no render yields between the reset and this.
    */
   const sessionRef = useRef(session)
+  /** The account signed in now — moved in a layout effect below, so before any passive effect or late answer reads it. */
+  const accountNow = useRef(user?.id ?? null)
   const unreadOrder = useRef<PullOrder>(new Map()) // per-session order of unread answers (refreshUnread)
   const convosOrder = useRef<PullOrder>(new Map()) // per-session order of inbox answers (refreshConvos)
   useIsoLayoutEffect(() => {
@@ -193,6 +197,22 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       for (const k of order.keys()) if (k !== session) order.delete(k)
     }
   }, [session])
+  useIsoLayoutEffect(() => {
+    const was = accountNow.current
+    accountNow.current = user?.id ?? null
+    // ⛔ AN ACCOUNT → NOBODY (signed out here, or in another tab): a read that landed between signOut's device clear
+    // and this commit was still kept for the old account — accountNow only moves here. So its copies go again now,
+    // memory and device; from this commit on, nothing more is kept (F5 review: the window was real).
+    if (was !== null && accountNow.current === null) {
+      threadCache.current.clear()
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i)
+          if (k && (k.startsWith(THREAD_PREFIX) || k.startsWith(LEGACY_THREAD_PREFIX))) localStorage.removeItem(k)
+        }
+      } catch {}
+    }
+  }, [user?.id])
 
   const refreshUnread = useCallback(() => {
     if (!user) { setUnread(0); return }
@@ -213,35 +233,52 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }, [user, session])
 
   // Thread cache: in-memory (fast) backed by localStorage (per-user, so a
-  // previously-opened conversation paints instantly even after a reload). Keyed
-  // by userId so it never renders across accounts; cleared on explicit sign-out.
-  const threadCache = useRef<Map<string, unknown>>(new Map())
+  // previously-opened conversation paints instantly even after a reload). Cleared on explicit sign-out.
+  // ⛔ EVERY ENTRY IS THE ACCOUNT'S THE SERVER READ IT FOR, AND IS SERVED ONLY TO THAT ACCOUNT (F5). The in-memory
+  // copy used to carry no account at all: a read still in flight at a sign-out (the thread page's, or a prefetch)
+  // refilled it after the clear, and the next account's thread page painted it on its first frame. The label is
+  // the payload's own `me` — the account whose cookie the server saw — not this callback's `user`: a closure can be
+  // a render behind the cookie a request actually carried (codex, F5 plan review). A payload with no `me` is not kept —
+  // the same rule the thread page applies to an answer (GET /api/conversations/[id] always carries it, and the
+  // pending-compose seed sets it to the signed-in user — messages/pending/page.tsx). Two rules, one each side:
+  //  · written only for the account signed in NOW (`accountNow`): a read that lands after its account has gone —
+  //    signed out, or switched — is not kept, in memory or back on the device sign-out has just cleared;
+  //  · served only to the account it is labelled with: an account switch with no sign-out between (nothing
+  //    clears the memory then) leaves the previous account's entries in place, and they stay theirs.
+  const threadCache = useRef<Map<string, { account: string | null; data: unknown }>>(new Map())
   const getCachedThread = useCallback((id: string) => {
-    const mem = threadCache.current.get(id)
-    if (mem) return mem
     if (!user) return null
+    const mem = threadCache.current.get(id)
+    if (mem && mem.account === user.id) return mem.data
     try {
       const raw = JSON.parse(localStorage.getItem(THREAD_PREFIX + id) || 'null')
-      if (raw && raw.userId === user.id) { threadCache.current.set(id, raw.data); return raw.data }
+      // The payload's own `me` as well as the label: a copy written before F5 was labelled with the writing callback's
+      // account, which a closure a render behind its cookie could get wrong (codex, review). Such a copy is dropped.
+      if (raw && raw.userId === user.id && raw.data?.me === user.id) { threadCache.current.set(id, { account: user.id, data: raw.data }); return raw.data }
+      if (raw && raw.userId === user.id) localStorage.removeItem(THREAD_PREFIX + id)
     } catch {}
     return null
   }, [user])
   const cacheThread = useCallback((id: string, data: unknown) => {
-    threadCache.current.set(id, data)
+    const me = (data as { me?: unknown } | null)?.me
+    const account = typeof me === 'string' && me ? me : null
+    if (!account || account !== accountNow.current) return
+    threadCache.current.set(id, { account, data })
     // Don't PERSIST a placeholder seed with no counterpart name (e.g. the pending-
     // compose seed) — it'd instant-paint a blank/'…' header on reload. Keep it in
     // memory only; persist once a real thread (with identity) has loaded.
     const name = (data as { counterpart?: { name?: string } } | null)?.counterpart?.name
-    if (user && name) { try { localStorage.setItem(THREAD_PREFIX + id, JSON.stringify({ userId: user.id, data })) } catch {} }
+    if (name) { try { localStorage.setItem(THREAD_PREFIX + id, JSON.stringify({ userId: account, data })) } catch {} }
   }, [user])
   const prefetchThread = useCallback((id: string) => {
-    if (!id || threadCache.current.has(id)) return
+    // Already held for THIS account: nothing to warm. Another account's entry is no reason to skip.
+    if (!id || (user && threadCache.current.get(id)?.account === user.id)) return
     // ⚠️ peek=1 — a prefetch must NEVER mark the thread read. Without it this warm-up
     // (top 3 on inbox load, plus onTouchStart per row) cleared the unread counter on
     // threads the user never opened, so the blue rail + count badge vanished before
     // they could be seen and scrolling the list marked messages read.
     fetch(`/api/conversations/${id}?peek=1`).then((r) => (r.ok ? r.json() : null)).then((d) => { if (d) cacheThread(id, d) }).catch(() => {})
-  }, [cacheThread])
+  }, [cacheThread, user])
 
   // Preload the inbox so opening Messages is instant. This is FUNCTIONAL caching
   // of the user's OWN data, persisted per-user to localStorage (keyed by userId
@@ -321,7 +358,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     // Compute the next list OUTSIDE the setConvos updater: the localStorage
     // write is a side effect, and updaters must be pure (StrictMode double-
     // invokes them, so an impure updater writes the cache twice — or worse).
-    const next = (convosRef.current ?? []).filter((c) => c.id !== id)
+    const prev = convosRef.current ?? []
+    const at = prev.findIndex((c) => c.id === id)
+    const removed = at >= 0 ? prev[at] : null // kept to put back on Undo, or if the DELETE fails or is refused
+    const next = prev.filter((c) => c.id !== id)
     convosRef.current = next
     setConvos(next)
     if (user) { try { localStorage.setItem(CONVOS_KEY, JSON.stringify({ userId: user.id, list: next })) } catch {} }
@@ -339,14 +379,43 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     // abort a plain fetch in flight; the route is an idempotent per-user hide, and the hook's flush also
     // stops the clock, so a bfcache restore cannot fire a SECOND DELETE whose deletedAt restamp could
     // hide a reply that landed in between.
+    // The account that tapped, captured NOW: the DELETE names it when the window closes (acting-account.ts).
+    const actingAccount = user?.id ?? null
+    // Put the conversation back from what the tap removed — locally, and only while this tab is still the
+    // session that removed it (once it has moved, the list belongs to whoever signed in). WHERE A PULL WOULD
+    // LIST IT: the inbox is ordered by lastMessageAt, newest first (api/conversations), so any number of
+    // put-backs, in any order, land in the server's order. (Anchoring on the neighbouring row was tried
+    // first; deleting bottom-up gave two rows the same anchor — review, 2026-10-07.) In memory only: the
+    // device cache stays as the tap wrote it, because a failure can mean the browser is no longer this
+    // account's (a 401 after a sign-out elsewhere, a 409 below) and writing the old inbox back would leave it
+    // on a shared device; the next pull rewrites the cache anyway.
+    // ⚠️ UNDO TOO, NOT THE RE-PULL ALONE: offline, that pull fails and the conversation — never deleted —
+    // stayed hidden after the user took the delete back (review, 2026-10-07).
+    const putBack = () => {
+      if (!removed || sessionRef.current !== session) return
+      const cur = convosRef.current ?? []
+      if (cur.some((c) => c.id === id)) return
+      const t = Date.parse(removed.lastMessageAt)
+      const i = cur.findIndex((c) => Date.parse(c.lastMessageAt) < t)
+      const list = i < 0 ? [...cur, removed] : [...cur.slice(0, i), removed, ...cur.slice(i)]
+      convosRef.current = list
+      setConvos(list)
+    }
     undoWindow.start(`convo:${id}`, {
       title: tr('Conversation removed', 'Đã xóa cuộc trò chuyện'),
       undoLabel: tr('Undo', 'Hoàn tác'),
-      undo: () => refreshConvos(),
+      undo: () => { putBack(); refreshConvos() },
       commit: () => {
-        // On failure, ROLL BACK the optimistic removal: the row still exists server-side,
-        // so re-pulling the inbox restores it — and say so instead of silently desyncing.
-        const rollback = () => { toast.error(tr("Couldn't delete — try again", 'Chưa xóa được — thử lại')); refreshConvos() }
+        // On failure, ROLL BACK the optimistic removal — put it back AT ONCE, then re-pull (the row still exists
+        // server-side, so the pull confirms it) — and say so instead of silently desyncing. ⚠️ NOT THE RE-PULL
+        // ALONE: the likeliest reason a DELETE fails is the network, and then the re-pull fails too and the
+        // conversation stayed hidden under a "Couldn't delete" (Emil-skills audit follow-up).
+        // Only for the session that tapped: once the tab has moved to another account, its list and its toasts
+        // are that account's (the 409 branch below holds the same line).
+        const rollback = () => {
+          if (sessionRef.current !== session) return
+          putBack(); toast.error(tr("Couldn't delete — try again", 'Chưa xóa được — thử lại')); refreshConvos()
+        }
         // ⛔ OUT OF THE LIST UNTIL THE DELETE LANDS, AND GONE AFTER (deletesInFlight, above). The window closes
         // BEFORE the DELETE lands and the server lists the conversation until then, so it is filtered while the
         // DELETE is in flight. Once it LANDS, every pull asked before is moved behind the per-session order —
@@ -354,10 +423,26 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         // the next answer that can apply. On failure the rollback re-pulls and the conversation comes back.
         const key = `${session}|${id}`
         deletesInFlight.current.add(key)
-        fetch(`/api/conversations/${id}`, { method: 'DELETE', keepalive: true })
-          .then((r) => {
+        return fetch(`/api/conversations/${id}`, { method: 'DELETE', keepalive: true, headers: actingAccountHeaders(actingAccount) })
+          .then(async (r) => {
             deletesInFlight.current.delete(key)
-            if (!r.ok) { rollback(); return }
+            const code = r.ok ? undefined : await r.json().then((b: { error?: unknown } | null) => b?.error, () => undefined)
+            // The ROUTE's own 404 (`not_found`) is not a failure to report: the conversation is gone already
+            // (another tab or device got there first), and putting it back under "try again" would flash a row
+            // the next pull removes. Any other 404 — an edge, a missing route — is a failure like the rest.
+            const alreadyGone = r.status === 404 && code === 'not_found'
+            if (!r.ok && !alreadyGone) {
+              // ⛔ ANOTHER ACCOUNT HOLDS THIS BROWSER NOW (409 account_changed): nothing was deleted, and the
+              // rollback's re-pull would read THAT account's inbox into this one's list. So the conversation is
+              // only put back (putBack, above) and the reason said.
+              if (code !== ACCOUNT_CHANGED) { rollback(); return }
+              // Nothing is put back and nothing is said once the tab has moved on: the screen is the other
+              // account's, and even the toast would tell them what the previous one tried.
+              if (sessionRef.current !== session) return
+              putBack()
+              toast.error(tr('This browser is now signed in to a different account, so the conversation was not deleted.', 'Trình duyệt này đang đăng nhập bằng một tài khoản khác nên cuộc trò chuyện chưa bị xóa.'))
+              return
+            }
             const o = convosOrder.current.get(session)
             if (o) o.shown = Math.max(o.shown, o.started) // the barrier: no pull asked before the DELETE answers after it
             refreshUnread(); refreshConvos()
@@ -387,7 +472,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     // the realtime nudge / post-send refreshUnread() calls elsewhere.
     const onVis = () => { if (document.visibilityState === 'visible') refreshUnread() }
     const onBroadcast = (e: Event) => {
-      const n = (e as CustomEvent<{ unread?: number }>).detail?.unread
+      const detail = (e as CustomEvent<{ unread?: number; me?: string }>).detail
+      // Only a count made for THIS account (F6): the poll names whose answer it was, and an unnamed one is no one's.
+      if (detail?.me !== user.id) return
+      const n = detail?.unread
       if (typeof n === 'number') setUnread(n)
     }
     refreshUnread()

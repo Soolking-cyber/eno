@@ -1,6 +1,6 @@
 'use client'
 
-import { toast } from 'sonner'
+import { subtleToast } from '@/lib/subtle-toast'
 import { Languages } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
@@ -29,7 +29,8 @@ export function ChatTranslationNotice({ onAnswer }: { onAnswer: (value: 'on' | '
   const { tr } = useLanguage()
   const turnOff = () => {
     onAnswer('off')
-    toast(tr('Chat translation is off. You can turn it back on in Settings → Preferences.', 'Đã tắt dịch tin nhắn. Bạn có thể bật lại trong Cài đặt → Tùy chọn.'))
+    // No button, so the subtle pill (owner, 2026-09-21: every popup with nothing to press).
+    subtleToast(tr('Chat translation is off. You can turn it back on in Settings → Preferences.', 'Đã tắt dịch tin nhắn. Bạn có thể bật lại trong Cài đặt → Tùy chọn.'))
   }
   return (
     <section aria-labelledby="chat-tr-notice-title" className="border-t border-border bg-background px-4 py-3">

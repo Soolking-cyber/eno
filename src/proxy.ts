@@ -31,7 +31,8 @@ function withCors(res: NextResponse, origin: string | null): NextResponse {
   if (origin && APP_ORIGINS.has(origin)) {
     res.headers.set('Access-Control-Allow-Origin', origin)
     res.headers.set('Vary', 'Origin')
-    res.headers.set('Access-Control-Allow-Headers', 'authorization, content-type')
+    // x-eno-acting-account: the account a delayed write was tapped as (src/lib/api/acting-account.ts).
+    res.headers.set('Access-Control-Allow-Headers', 'authorization, content-type, x-eno-acting-account')
     res.headers.set('Access-Control-Allow-Methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS')
     res.headers.set('Access-Control-Max-Age', '86400')
   }

@@ -18,12 +18,12 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 
 const toasts = vi.hoisted(() => {
   type Opts = { description?: string; duration?: number; action?: unknown }
-  const state = { seq: 0, shown: [] as { id: number; title: string; opts: Opts }[], dismissed: [] as (string | number)[], errors: [] as string[] }
+  const state = { seq: 0, shown: [] as { id: number; title: string; opts: Opts }[], dismissed: [] as (string | number)[], errors: [] as string[], errorOpts: [] as unknown[] }
   const toast = Object.assign(
     (title: string, opts: Opts) => { const id = ++state.seq; state.shown.push({ id, title, opts }); return id },
     {
       dismiss: (id: string | number) => { state.dismissed.push(id) },
-      error: (msg: string) => { state.errors.push(msg); return 0 },
+      error: (msg: string, opts?: unknown) => { state.errors.push(msg); state.errorOpts.push(opts); return 0 },
       success: () => 0,
       loading: () => 0,
       message: () => 0,
@@ -85,12 +85,12 @@ vi.mock('@/lib/supabase/browser', () => ({
 }))
 
 import ThreadPage from './page'
-import { unconfirmedOfferChoices } from '@/lib/offer-choices'
+import { offerChoicesByAccount, offerChoicesFor } from '@/lib/offer-choices'
 
 const OFFER_ID = 'm-offer'
 const thread = (offerStatus: string) => ({
   id: 'c1',
-  me: 'p-seller',
+  me: 'u-seller', // the signed-in seller: `me` is the account the server read the thread for
   kind: 'listing',
   iAmSeller: true,
   hasReviewed: false,
@@ -104,6 +104,8 @@ const thread = (offerStatus: string) => ({
 
 type Call = { url: string; method: string; body?: unknown; keepalive?: boolean }
 let calls: Call[] = []
+/** The headers of each offer POST, in order — kept apart so the `calls` shapes above stay exact. */
+let offerPostHeaders: unknown[] = []
 let serverStatus = 'pending'
 let offerReply: { status: number; body: unknown } = { status: 200, body: { ok: true } }
 /** While true, every thread GET is held until the test releases it, in whatever order it chooses. */
@@ -158,12 +160,14 @@ beforeEach(() => {
   Element.prototype.getAnimations ??= () => []
   vi.useFakeTimers({ shouldAdvanceTime: true })
   calls = []
+  offerPostHeaders = []
   serverStatus = 'pending'
   offerReply = { status: 200, body: { ok: true } }
   toasts.state.seq = 0
   toasts.state.shown.length = 0
   toasts.state.dismissed.length = 0
   toasts.state.errors.length = 0
+  toasts.state.errorOpts.length = 0
   chat.prefetchThread.mockClear()
   chat.cached = null
   chat.convos = null
@@ -184,7 +188,7 @@ beforeEach(() => {
   saleQuestionReply = 200
   notifs.refresh.mockClear()
   // Module-level on purpose (it outlives a page — see offer-choices.ts), so each test starts clean.
-  unconfirmedOfferChoices.clear()
+  offerChoicesByAccount.clear()
   vi.stubGlobal('fetch', vi.fn((input: string, init?: RequestInit) => {
     const url = String(input)
     const method = init?.method ?? 'GET'
@@ -193,7 +197,8 @@ beforeEach(() => {
       if (failFirstGets > 0) { failFirstGets -= 1; return Promise.reject(new TypeError('Failed to fetch')) }
       // The body is what the server holds WHEN THE REQUEST ARRIVES, even if the reply lands later.
       const isOpen = url.endsWith('?opened=1')
-      const body = { ...thread(serverStatus), ...extraThread, notificationsCleared: isOpen ? clearedOnOpen : 0, openCleared: isOpen && openClearedReply }
+      // `me` is the account the server read it for — whoever the "cookie" is when the request arrives.
+      const body = { ...thread(serverStatus), me: stable.auth.user?.id, ...extraThread, notificationsCleared: isOpen ? clearedOnOpen : 0, openCleared: isOpen && openClearedReply }
       if (failGets) return Promise.reject(new TypeError('Failed to fetch'))
       const status = nextGetStatus ?? 200
       nextGetStatus = null
@@ -201,6 +206,7 @@ beforeEach(() => {
       return Promise.resolve(json(200, body))
     }
     if (url === '/api/conversations/c1/offer' && method === 'POST') {
+      offerPostHeaders.push(init?.headers)
       const settle = () => {
         if (offerReply.status === 200) serverStatus = (init!.body as string).includes('"accept"') ? 'accepted' : 'declined'
         return json(offerReply.status, offerReply.body)
@@ -343,6 +349,52 @@ describe('leaving sends — never a silent drop', () => {
     expect(chat.prefetchThread).toHaveBeenCalledWith('c1')
   })
 
+  it('⛔ a refusal that lands after the user LEFT carries the way back (Open chat), long enough to reach for it', async () => {
+    offerReply = { status: 409, body: { error: 'not_actionable' } }
+    const push = vi.spyOn(stable.router, 'push')
+    const { unmount } = await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    unmount() // leave → the POST goes out; its refusal lands with no thread on screen
+    await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+    expect(toasts.state.errors).toEqual(['That offer changed before your answer was sent, so it was not accepted.'])
+    const opts = toasts.state.errorOpts[0] as { id: string; duration: number; action: { label: string; onClick: () => void } }
+    expect(opts.id).toBe('offer-refusal:c1:m-offer') // one toast per answer — never merged with another thread's
+    expect(opts.duration).toBeGreaterThanOrEqual(8000)
+    expect(opts.duration).toBeLessThanOrEqual(15_000)
+    expect(opts.action.label).toBe('Open chat')
+    opts.action.onClick()
+    expect(push).toHaveBeenCalledWith('/messages/c1')
+    push.mockRestore()
+  })
+
+  it('a refusal that lands after this browser moved to another account says nothing (its way back is not theirs)', async () => {
+    const view = await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    holdPost = {}
+    await act(async () => { await vi.advanceTimersByTimeAsync(5100) })
+    const tapped = stable.auth.user
+    try {
+      stable.auth.user = { id: 'u-other' }
+      view.rerender(<ThreadPage />)
+      offerReply = { status: 409, body: { error: 'not_actionable' } }
+      await act(async () => { holdPost!.release!(); await vi.advanceTimersByTimeAsync(50) })
+      expect(toasts.state.errors).toEqual([])
+    } finally { stable.auth.user = tapped }
+  })
+
+  it('on the thread itself the refusal carries no step (the card already shows the truth) and lasts long enough to read', async () => {
+    offerReply = { status: 409, body: { error: 'listing_unavailable' } }
+    await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    await act(async () => { await vi.advanceTimersByTimeAsync(5100) })
+    expect(toasts.state.errors).toEqual(['The listing is no longer available, so the offer was not accepted.'])
+    const opts = toasts.state.errorOpts[0] as { duration: number; action?: unknown }
+    expect(opts.action).toBeUndefined()
+    expect(opts.duration).toBeGreaterThanOrEqual(4000) // never shorter than the old default; a short one keeps it
+    expect(opts.duration).toBeLessThan(Infinity)
+  })
+
   it('coming straight BACK while that answer is still in flight shows it answered — no live buttons, no second POST', async () => {
     const first = await openThread()
     fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
@@ -381,6 +433,143 @@ describe('the server’s word', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(5100) })
     expect(offerPosts()).toHaveLength(1)
     expect(toasts.state.errors).toEqual(['That offer changed before your answer was sent, so it was not accepted.'])
+  })
+
+  /**
+   * ⛔ THE ANSWER IS SENT AS THE ACCOUNT THAT TAPPED (src/lib/api/acting-account.ts). The cookie is read when the
+   * POST goes out, five seconds after the tap; a browser that changed account in between gets 409
+   * account_changed. Reconciling would read this thread as THAT account, so the card is put back locally.
+   */
+  it('⛔ another account\'s view is never drawn through the previous account\'s unsent offer answers (F5)', async () => {
+    // The answers are module-level — they outlive a page on purpose — and kept PER ACCOUNT, so the next account's
+    // own reads are never painted through them.
+    const view = await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    expect(offerChoicesFor('u-seller').has(OFFER_ID)).toBe(true)
+    holdPost = {} // the previous account's answer goes out at the switch (the old view's leave-flush) and has not landed
+    const tapped = stable.auth.user
+    try {
+      stable.auth.user = { id: 'u-other' }
+      await act(async () => { view.rerender(<ThreadPage />); await vi.advanceTimersByTimeAsync(50) })
+      expect(offerChoicesFor('u-other').size).toBe(0)
+      expect(offerChoicesFor('u-seller').has(OFFER_ID)).toBe(true) // still theirs, while their answer is in flight
+      // The next account's read says pending, and that is what it sees — not the other account's tap.
+      expect(screen.queryByText('Accepted')).toBeNull()
+      expect(screen.getByRole('button', { name: 'Accept' })).toBeTruthy()
+      // …and the tapping account's answer was not lost with the overlay: the old view's leave-flush sent it, as them.
+      expect(offerPostHeaders).toEqual([{ 'Content-Type': 'application/json', 'x-eno-acting-account': 'u-seller' }])
+    } finally { stable.auth.user = tapped }
+  })
+
+  it('⛔ a switch made AWAY from the thread page: the next account opening it is not shown the previous one\'s tap (F5)', async () => {
+    const first = await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    holdPost = {}
+    first.unmount() // the seller leaves for the inbox (the leave-flush sends the answer, which has not landed)…
+    const tapped = stable.auth.user
+    try {
+      stable.auth.user = { id: 'u-other' } // …signs out there, and the other account signs in and opens the thread
+      render(<ThreadPage />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(50) })
+      expect(screen.queryByText('Accepted')).toBeNull()
+      expect(screen.getByRole('button', { name: 'Accept' })).toBeTruthy()
+    } finally { stable.auth.user = tapped }
+  })
+
+  it('A → B → A while A\'s answer is still in flight: A comes back to its own answer, not to buttons for a second tap (F5)', async () => {
+    const view = await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    holdPost = {}
+    const tapped = stable.auth.user
+    try {
+      stable.auth.user = { id: 'u-other' }
+      await act(async () => { view.rerender(<ThreadPage />); await vi.advanceTimersByTimeAsync(50) })
+      stable.auth.user = tapped
+      await act(async () => { view.rerender(<ThreadPage />); await vi.advanceTimersByTimeAsync(50) })
+      expect(screen.getByText('Accepted')).toBeTruthy()
+      expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull()
+    } finally { stable.auth.user = tapped }
+  })
+
+  it('A → B → A after A\'s answer was refused under B\'s cookie (409): A comes back to the buttons, not a stuck "Accepted" (F5)', async () => {
+    // The refusal drops the entry from the TAPPING account's own map before any account check (sendOfferAnswer), so
+    // nothing is left to overlay when that account returns — the server's `pending` is the truth.
+    const view = await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    holdPost = {}
+    const tapped = stable.auth.user
+    try {
+      stable.auth.user = { id: 'u-other' }
+      await act(async () => { view.rerender(<ThreadPage />); await vi.advanceTimersByTimeAsync(50) })
+      offerReply = { status: 409, body: { error: 'account_changed' } }
+      await act(async () => { holdPost!.release!(); await vi.advanceTimersByTimeAsync(50) })
+      expect(offerChoicesFor('u-seller').has(OFFER_ID)).toBe(false)
+      stable.auth.user = tapped
+      await act(async () => { view.rerender(<ThreadPage />); await vi.advanceTimersByTimeAsync(50) })
+      expect(screen.getByRole('button', { name: 'Accept' })).toBeTruthy()
+      expect(screen.queryByText('Accepted')).toBeNull()
+    } finally { stable.auth.user = tapped }
+  })
+
+  it('⛔ …including the next account\'s FIRST render, drawn from its own cached copy before any read answers (F5)', async () => {
+    const view = await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    holdPost = {}
+    holdGets = true // the next account's reads stay out: what it sees is its first render, from its cached copy
+    chat.cached = { ...thread('pending'), me: 'u-other' }
+    const tapped = stable.auth.user
+    try {
+      stable.auth.user = { id: 'u-other' }
+      await act(async () => { view.rerender(<ThreadPage />); await vi.advanceTimersByTimeAsync(50) })
+      expect(screen.queryByText('Accepted')).toBeNull()
+      expect(screen.getByRole('button', { name: 'Accept' })).toBeTruthy()
+    } finally { stable.auth.user = tapped }
+  })
+
+  it('⛔ the POST names the account signed in AT THE TAP, even when the session has changed by then', async () => {
+    const view = await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    const tapped = stable.auth.user
+    try {
+      stable.auth.user = { id: 'u-other' } // another account signs in inside the window
+      view.rerender(<ThreadPage />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(5100) })
+    } finally { stable.auth.user = tapped }
+    expect(offerPostHeaders).toEqual([{ 'Content-Type': 'application/json', 'x-eno-acting-account': 'u-seller' }])
+  })
+
+  it('⛔ 409 account_changed: the card goes back to pending, the reason is said, and the thread is NOT re-read', async () => {
+    offerReply = { status: 409, body: { error: 'account_changed' } }
+    await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Decline' }))
+    const readsBefore = calls.filter(isThreadGet).length
+    const inboxRefreshesBefore = chat.refreshConvos.mock.calls.length
+    await act(async () => { await vi.advanceTimersByTimeAsync(5100) })
+    expect(offerPosts()).toHaveLength(1)
+    expect(toasts.state.errors).toEqual(['This browser is now signed in to a different account, so the offer was not declined.'])
+    expect(screen.getByRole('button', { name: 'Accept' })).toBeTruthy()
+    expect(calls.filter(isThreadGet).length).toBe(readsBefore) // no reconcile as the other account
+    expect(chat.refreshConvos.mock.calls.length).toBe(inboxRefreshesBefore)
+  })
+
+  it('⛔ 409 account_changed after THIS page has moved to the other account: the card is left to the server and nothing is said', async () => {
+    const view = await openThread()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    holdPost = {}
+    await act(async () => { await vi.advanceTimersByTimeAsync(5100) }) // the POST goes out, and waits
+    expect(offerPosts()).toHaveLength(1)
+    const tapped = stable.auth.user
+    try {
+      stable.auth.user = { id: 'u-other' } // the other account, signed in while the answer is in flight
+      view.rerender(<ThreadPage />)
+      serverStatus = 'accepted' // and the server's word, as that account reads it, is "accepted"
+      await act(async () => { window.dispatchEvent(new Event('focus')); await vi.advanceTimersByTimeAsync(50) })
+      expect(screen.getByText('Accepted')).toBeTruthy()
+      offerReply = { status: 409, body: { error: 'account_changed' } }
+      await act(async () => { holdPost!.release!(); await vi.advanceTimersByTimeAsync(50) })
+      expect(toasts.state.errors).toEqual([]) // a toast would tell the other account what this one tried
+      expect(screen.queryByRole('button', { name: 'Accept' })).toBeNull() // not flipped back to pending over the server's word
+    } finally { stable.auth.user = tapped }
   })
 
   it('a superseded refetch answering 403 does not replace a live thread with "not found"', async () => {

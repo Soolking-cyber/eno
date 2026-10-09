@@ -2,6 +2,30 @@
    Minimal on purpose: it only handles push display + notification clicks (no
    precaching/offline), so it never interferes with Next's own asset handling. */
 
+/**
+ * ⛔ THE FORUM APEX RETIRES ITS PUSH SUBSCRIPTION (next.config.ts moves eno.forum's pages to www). A subscription made
+ * on the apex belongs to the apex ORIGIN, and no page runs there any more: sign-out, the sign-in guard
+ * (push-account-guard.ts) and Settings all run on www and cannot see it. Left alone, it would keep showing one
+ * account's offers and notes on a shared device with nothing able to stop it. So the apex's worker unsubscribes it
+ * when it activates on this build — a worker updates on a push or a navigation once it is a day stale, and with no
+ * apex page left open it activates at once. The push service then refuses that endpoint (410) and push.ts prunes the
+ * row; on www the opt-in card offers a subscription of its own. Every other host is untouched.
+ */
+// On the apex only: a tab left open across the deploy must not keep this retirement waiting behind the old worker
+// (this worker has no fetch handler, so taking over changes nothing a page sees).
+self.addEventListener('install', () => {
+  if (((self.location && self.location.hostname) || '') === 'eno.forum') self.skipWaiting()
+})
+
+self.addEventListener('activate', (event) => {
+  if (((self.location && self.location.hostname) || '') !== 'eno.forum') return
+  event.waitUntil(
+    self.registration.pushManager.getSubscription()
+      .then((sub) => (sub ? sub.unsubscribe() : false))
+      .catch(() => false),
+  )
+})
+
 self.addEventListener('push', (event) => {
   let data = {}
   try { data = event.data ? event.data.json() : {} } catch { data = {} }
