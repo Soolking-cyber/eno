@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { db } from '@/lib/db'
-import { route } from '@/lib/api/handler'
-import { normalizeParams, describeParams, toUrlParams } from '@/lib/saved-search'
+import { ApiError, route } from '@/lib/api/handler'
+import { normalizeParams, describeParams, savedSearchOffered, toUrlParams } from '@/lib/saved-search'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -49,6 +49,10 @@ export const POST = route({ auth: 'profile', body: Body, invalidBodyCode: 'inval
   // start succeeding as an empty object.
   const b = body as { label?: unknown; params?: unknown }
   const params = normalizeParams(b.params)
+  // ⛔ NO SAVED SEARCH ON TEACHERS — the one rule (saved-search.ts savedSearchOffered), held on the SERVER too (2026-10-09):
+  // the browser stopped offering one, but a tab loaded before the deploy, or a direct request, would still save an alert
+  // the cron never sends (it leaves teachers out) under a "Saved — we'll alert you" toast. Before any read or write.
+  if (!savedSearchOffered(params.category)) throw new ApiError('not_offered', 422)
   const paramsJson = JSON.stringify(params)
 
   // Idempotent: re-saving the SAME filter set returns the existing row instead of

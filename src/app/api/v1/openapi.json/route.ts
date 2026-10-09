@@ -810,7 +810,8 @@ export const SPEC = {
           row: { type: 'integer', description: '1-based index into the array you sent.' },
           id: { type: ['string', 'null'], description: 'The created listing id, or null if the row failed.' },
           external_id: { type: ['string', 'null'], description: 'Echoed back when the row carried one.' },
-          error: { type: ['string', 'null'], description: 'Human-readable reason the row failed, or null. ⚠️ Free prose, not a stable code — the exceptions are `probation_listing_cap`, emitted verbatim when a new account hits its active-listing cap, and `released_charge_listing_cap`, emitted verbatim when a shop whose scam hold was released reaches the active-listing limit it keeps while the confirmed report stands.' },
+          // `category_not_postable` joined the verbatim codes 2026-10-09, when bulk started refusing a form-only category per row (bulk.ts).
+          error: { type: ['string', 'null'], description: 'Human-readable reason the row failed, or null. ⚠️ Free prose, not a stable code — the exceptions are `probation_listing_cap`, emitted verbatim when a new account hits its active-listing cap, `released_charge_listing_cap`, emitted verbatim when a shop whose scam hold was released reaches the active-listing limit it keeps while the confirmed report stands, and `category_not_postable`, emitted verbatim when the row\'s category takes no listings through the API (teachers: those rows are made only by the teacher profile form) — the same code `POST /listings` answers with.' },
         },
       },
       SyncRowResult: {

@@ -331,6 +331,17 @@ function AiReviewPanel({ caseId, internalNote, onUse, refresh }: {
 
 const RAIL = { critical: 'border-l-destructive', high: 'border-l-warning', standard: 'border-l-line-strong' }
 
+/**
+ * ⛔ A META LINE JOINS ONLY THE PARTS THAT SAY SOMETHING (2026-10-09). The case card printed "<category> · <location>"
+ * raw, so an empty location left "Teachers · " beside nothing, and an empty location is a real row now, not a corrupt
+ * one: a teacher whose "Where are you now?" is unanswered (teachers/projection.ts teacherHome's last branch) and every
+ * SCRUBBED tombstone (core/listing-tombstone.ts PERSONAL_SCRUB_DATA: a deleted teacher profile, or any listing the
+ * retention job has reached; the reports resolved on it stay in the Resolved tab).
+ * ⚠️ Generic on purpose, never a teachers special case: an empty or whitespace-only part drops out WITH its separator,
+ * and '' (nothing to say) tells the caller to render no line at all. Pinned by moderation-client.test.tsx.
+ */
+const metaLine = (...parts: (string | null | undefined)[]) => parts.map((p) => (p ?? '').trim()).filter(Boolean).join(' · ')
+
 function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onSeverity, onSelect, onAction, onListing, onDismissTarget, refresh }: {
   c: ModCase; selected: boolean; busy: boolean; severity: string; readOnly?: boolean
   checked?: boolean; onCheck?: () => void
@@ -343,6 +354,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
 }) {
   const t = c.target
   const isListing = t.kind === 'listing' && t.listing
+  const listingMeta = isListing ? metaLine(t.listing!.category, t.listing!.location) : ''
   const { lang } = useLanguage() // admin chrome stays English; amounts follow the viewer's language
   // "Use suggestion" pre-selects the AI's severity + focuses/highlights the matching
   // decision button — it NEVER submits. The admin makes the final call.
@@ -385,7 +397,7 @@ function CaseCard({ c, selected, busy, severity, readOnly, checked, onCheck, onS
             <>
               <a href={`/listings/${t.listing!.id}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 truncate text-sm font-bold text-foreground hover:text-accent-foreground"><span className="truncate">{t.listing!.title}</span><ExternalLink className="h-3 w-3 shrink-0 opacity-50" /></a>
               <p className="mt-0.5 text-xs font-semibold text-price">{formatMoneyFull(t.listing!.price, t.listing!.currency, moneyLocale(lang))}</p>
-              <p className="truncate text-2xs text-muted-foreground">{t.listing!.category} · {t.listing!.location}</p>
+              {listingMeta && <p className="truncate text-2xs text-muted-foreground">{listingMeta}</p>}
             </>
           ) : (
             <p className="text-sm font-bold text-foreground">{c.content ? t.name : t.kind === 'chat' ? 'Reported conversation' : 'Reported account'}</p>

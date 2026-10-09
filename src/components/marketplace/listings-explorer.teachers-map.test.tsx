@@ -37,7 +37,9 @@ const h = vi.hoisted(() => {
     id: 'trend-1', title: 'Trending studio', titleVi: null, price: 9_000_000, location: 'Ho Chi Minh City', district: 'District 3',
     postedAt: '2026-09-01T00:00:00.000Z', contactCount: 0, category: { slug: 'rentals', name: 'Rentals' }, lat: 10.78, lng: 106.69,
   }
-  return { router, language, auth, map, trending }
+  /** The shared dashboard store's answer (null = a visitor signed out, or not loaded). */
+  const dash: { value: { hasTeacher?: boolean } | null } = { value: null }
+  return { router, language, auth, map, trending, dash }
 })
 
 vi.mock('next/navigation', () => ({
@@ -65,6 +67,7 @@ vi.mock('@/context/language-context', () => ({
   Tr: ({ text }: { text?: string | null }) => <>{text}</>,
 }))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => h.auth }))
+vi.mock('@/hooks/use-dashboard', () => ({ useDashboard: () => ({ dash: h.dash.value, refresh: () => {}, loading: false, error: null, fresh: true }) }))
 vi.mock('@/lib/analytics', () => ({ trackSearch: () => {} }))
 vi.mock('./listing-card', () => ({
   ListingCard: function ListingCard({ listing, onOpen }: { listing: SerializedListingCard; onOpen?: (l: SerializedListingCard) => void }) {
@@ -73,8 +76,8 @@ vi.mock('./listing-card', () => ({
 }))
 // The category rail as the reader uses it: one tile per category, wired to the explorer's own handler.
 vi.mock('./category-rail', () => ({
-  CategoryRail: ({ categories, activeCategory, onCategory }: { categories: SerializedCategory[]; activeCategory: string; onCategory: (s: string) => void }) => (
-    <div>
+  CategoryRail: ({ categories, activeCategory, onCategory, teacherProfile }: { categories: SerializedCategory[]; activeCategory: string; onCategory: (s: string) => void; teacherProfile?: boolean }) => (
+    <div data-teacher-profile={String(!!teacherProfile)}>
       {categories.map((c) => (
         <button key={c.slug} type="button" data-tile={c.slug} onClick={() => onCategory(activeCategory === c.slug ? 'all' : c.slug)}>{c.name}</button>
       ))}
@@ -170,6 +173,7 @@ const mapTab = () => screen.queryByRole('button', { name: 'Map view' })
 const view = () => new URLSearchParams(window.location.search).get('view')
 
 beforeEach(() => {
+  h.dash.value = null
   __resetExplorerCommittedForTests()
   __resetBackToCloseForTests()
   __resetAreaCachesForTests()
@@ -367,5 +371,24 @@ describe('a "near me" radius never reaches the teachers feed — teacher rows ha
     act(() => { (document.querySelector('[data-tile="rentals"]') as HTMLButtonElement).click() })
     await waitFor(() => expect(feed('rentals').length).toBeGreaterThan(before))
     expect(feed('rentals').at(-1)!.searchParams.get('radiusKm')).toBe('3')
+  })
+})
+
+describe('the rail is told who already has a teacher profile (the dashboard store; owner, 2026-10-09)', () => {
+  it('a signed-out visitor: false — the chips offer the sign-up form', async () => {
+    vi.stubGlobal('matchMedia', media(true)) // desktop: the full category rail stays on screen over a directed feed
+    freshTop('/?category=teachers')
+    mount(client())
+    await waitFor(() => expect(gridIds()).toEqual(TEACHER_IDS))
+    expect(document.querySelector('[data-teacher-profile]')?.getAttribute('data-teacher-profile')).toBe('false')
+  })
+
+  it('a teacher who already has a profile (dashboard hasTeacher): true — the chips open their profile', async () => {
+    vi.stubGlobal('matchMedia', media(true))
+    h.dash.value = { hasTeacher: true }
+    freshTop('/?category=teachers')
+    mount(client())
+    await waitFor(() => expect(gridIds()).toEqual(TEACHER_IDS))
+    expect(document.querySelector('[data-teacher-profile]')?.getAttribute('data-teacher-profile')).toBe('true')
   })
 })

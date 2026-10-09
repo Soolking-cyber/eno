@@ -1,6 +1,7 @@
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { inferDistrictFromQuery } from './district-query'
-import { CATEGORY_BY_SLUG, LISTING_TYPE_LABEL, type ListingType } from './taxonomy'
+import { CATEGORY_BY_SLUG, LISTING_TYPE_LABEL, facetParamName, rangeFacetsFor, type ListingType } from './taxonomy'
+import { TEACHERS_CATEGORY_SLUG } from './teachers/constants'
 import { groupVnd, moneyLocale } from './vnd'
 
 // The serialized shape of a saved search — the subset of explorer filters we
@@ -53,7 +54,29 @@ export function normalizeParams(input: unknown): SavedSearchParams {
 // module is plain parsing and labelling — keeping the two apart means importing these helpers can
 // never pull Prisma into a bundle.
 
+/**
+ * ⛔ NO SAVED SEARCH ON THE TEACHERS CATEGORY (owner decision, 2026-10-09) — THE ONE RULE every "Save search" / "Create an
+ * alert" entry point reads: use-explorer.ts (`hasSavableSearch`, and `useSaveSearch`, which hands the explorer NO save
+ * function there and refuses a resumed one) → every button in listings-explorer.tsx.
+ * A saved search exists to send alerts, and the alert cron never sends one about teachers: it counts through
+ * scopedListingWhere's default, which leaves the teachers category out (edition-scope.ts; the cron's own comment points
+ * back here). The explorer still offered both CTAs on `?category=teachers`, so a school that saved "IELTS teachers in
+ * District 7" was told "Saved — we'll alert you on new matches" and never heard a word. Alerting schools about PEOPLE
+ * would be a decision of its own, not the side effect of a filter — so the CTA goes and the cron stays as it is.
+ * ⚠️ The CATEGORY decides, nothing else: no category ("all listings") is offered as before — that feed leaves teachers
+ * out too, so its alert counts what it showed.
+ */
+export function savedSearchOffered(category: string | null | undefined): boolean {
+  return category !== TEACHERS_CATEGORY_SLUG
+}
+
 // Canonical URL (home explorer) that re-applies a saved search.
+// ⛔ AND THE ALERT'S OWN QUERY (2026-10-09): saved-search-where.ts runs the feed's filter loops over exactly this string,
+// and the cron's notification opens `/?${toUrlParams(p)}` — so a filter here is what the alert counts AND what the link
+// shows. Each `attrs` key goes out under the explorer's own name for it (taxonomy.ts facetParamName): a range facet of
+// (category, subcategory) — year, mileage, engine, size, salary — as `range_<column>`, the rest as `attr_<key>`. Ranges
+// went out as `attr_<key>` here: an `attributes` text match no row has, so a range alert never fired and its link opened
+// without the range. A stored row needs no migration — every save always kept a range under `attrs` by facet key.
 export function toUrlParams(p: SavedSearchParams): string {
   const sp = new URLSearchParams()
   if (p.category) sp.set('category', p.category)
@@ -66,15 +89,22 @@ export function toUrlParams(p: SavedSearchParams): string {
   if (p.condition) sp.set('condition', p.condition)
   if (typeof p.priceMin === 'number') sp.set('priceMin', String(p.priceMin))
   if (typeof p.priceMax === 'number') sp.set('priceMax', String(p.priceMax))
-  if (p.attrs) for (const [k, v] of Object.entries(p.attrs)) sp.set(`attr_${k}`, v)
+  if (p.attrs) for (const [k, v] of Object.entries(p.attrs)) sp.set(facetParamName(k, p.category, p.subcategory), v)
   return sp.toString()
 }
 
-/** The params back out of a saved search's canonical URL (`toUrlParams`'s inverse). */
+/** The params back out of a saved search's canonical URL (`toUrlParams`'s inverse — a `range_<column>` back to its facet key). */
 export function paramsFromUrl(url: string): SavedSearchParams {
   const sp = new URLSearchParams(url.includes('?') ? url.slice(url.indexOf('?') + 1) : url)
+  const ranges = rangeFacetsFor(sp.get('category') ?? '', sp.get('subcategory'))
   const attrs: Record<string, string> = {}
-  for (const [k, v] of sp) if (k.startsWith('attr_')) attrs[k.slice(5)] = v
+  for (const [k, v] of sp) {
+    if (k.startsWith('attr_')) attrs[k.slice(5)] = v
+    else if (k.startsWith('range_')) {
+      const f = ranges.find((x) => x.range.column === k.slice(6))
+      if (f) attrs[f.key] = v
+    }
+  }
   return normalizeParams({
     category: sp.get('category'), subcategory: sp.get('subcategory'), brand: sp.get('brand'), model: sp.get('model'),
     listingType: sp.get('type'), q: sp.get('q'), district: sp.get('district'), condition: sp.get('condition'),

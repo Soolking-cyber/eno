@@ -39,6 +39,7 @@ vi.mock('@/lib/lang-pinned', async (importOriginal) => {
 })
 
 const { GET } = await import('./route')
+const { readExplorerUrl } = await import('@/lib/explorer-url')
 const req = () => new Request('https://eno.vn/api/cron/saved-search-alerts', { headers: { authorization: 'Bearer cron-secret' } })
 const search = (id: string, locale: string | null) => ({
   id,
@@ -72,5 +73,20 @@ describe('GET /api/cron/saved-search-alerts — the alert link speaks the recipi
     })
     // The push carries exactly the bell's URL.
     expect(Object.fromEntries(h.pushes.map((p) => [p.profileId, p.url]))).toEqual(byRecipient)
+  })
+})
+
+/**
+ * ⛔ A RANGE ALERT OPENS ON ITS RANGE (2026-10-09). A range facet is stored under `attrs` by facet key, and the link went
+ * out as `attr_year=…` — a param the explorer drops (it reads a range only as `range_<column>`), so the tap opened every
+ * vehicle. The link is toUrlParams, which now names it the way the explorer does (taxonomy.ts facetParamName).
+ */
+describe('GET /api/cron/saved-search-alerts — a range alert links to its range', () => {
+  it('the bell and the push open `range_<column>`, which the explorer reads back into the same filter', async () => {
+    h.searches = [{ ...search('en', 'en'), params: JSON.stringify({ category: 'vehicles', attrs: { year: '2018-2022' } }) }]
+    await GET(req())
+    expect(h.notifications.map((n) => n.url)).toEqual(['/?category=vehicles&range_year=2018-2022'])
+    expect(h.pushes.map((p) => p.url)).toEqual(['/?category=vehicles&range_year=2018-2022'])
+    expect(readExplorerUrl(new URL(h.notifications[0].url, 'https://eno.vn').search).customFilters).toEqual({ year: '2018-2022' })
   })
 })

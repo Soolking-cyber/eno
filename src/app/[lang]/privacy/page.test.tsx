@@ -405,7 +405,7 @@ describe('/privacy — teacher job matching (Anthropic)', () => {
       const text = await policy(site)
       expect(text, site).toContain('Anthropic (Claude)')
       expect(text, site).toContain('Only for teachers who ask for job matches (by email, or through a call from our staff)')
-      expect(text, site).toContain('with the teacher’s own name taken out where it appears')
+      expect(text, site).toContain('with the teacher’s own name taken out wherever we can detect it')
       expect(text, site).toContain('Never the name, photo, video, phone number, email address or CV fields of the profile.')
       expect(text, site).toContain('Comparing teacher profiles with teaching jobs, to suggest jobs to the teacher and, where the teacher agreed, to our staff.')
       cleanup()

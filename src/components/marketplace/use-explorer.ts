@@ -22,6 +22,7 @@ import {
 import type { Geo } from './area-filter'
 import { readRecentSearches, readRecentLocations, RECENT_LOCATIONS_KEY, type RecentLocation } from '@/hooks/use-search-box'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
+import { savedSearchOffered } from '@/lib/saved-search'
 
 /** '/' and ⌘/Ctrl+K focus the listings search input (the '/' path also opens the suggestions
  *  dropdown). One window keydown listener; ignores '/' while typing in an input/textarea. */
@@ -132,9 +133,11 @@ export function saveSearchParams(f: SaveSearchFilters) {
  * or filter — but only one the saved search can keep. ⚠️ The province, ward and near-you circle are not part
  * of a saved search (src/lib/saved-search.ts), so an area alone offers nothing: saving it would save "All
  * listings" and alert on every new one.
+ * ⛔ AND NEVER ON THE TEACHERS CATEGORY (owner decision, 2026-10-09 — saved-search.ts savedSearchOffered): no alert is
+ * ever sent there, so a save would be a promise nobody keeps.
  */
 export function hasSavableSearch(f: SaveSearchFilters): boolean {
-  return Object.values(saveSearchParams(f)).some((v) => v !== undefined)
+  return savedSearchOffered(f.activeCategory) && Object.values(saveSearchParams(f)).some((v) => v !== undefined)
 }
 
 /** Save the current filter set as a Saved Search (buyer gets alerted on new matches). Reads a
@@ -146,14 +149,23 @@ export function hasSavableSearch(f: SaveSearchFilters): boolean {
  *  — the rental check's resume pattern, shared) and this hook saves THOSE params once the user and their
  *  profile are loaded, through this same `post` — the existing save, not a second one (the phone's
  *  save-search pill (JOIN-SAVE) calls the function this returns, and inherits all of it). A `resume=` with
- *  nothing trusted behind it (a crafted link, a magic link's new tab) only offers one tap: "Save". */
-export function useSaveSearch(filters: SaveSearchFilters) {
+ *  nothing trusted behind it (a crafted link, a magic link's new tab) only offers one tap: "Save".
+ *
+ *  ⛔ NULL WHERE NO SAVED SEARCH IS OFFERED — the teachers category (owner decision, 2026-10-09; the rule is
+ *  saved-search.ts savedSearchOffered: the alert cron never sends one there). Null, not a no-op function, ON PURPOSE:
+ *  `onClick={saveSearch}` does not type-check against null, so every "Save search" / "Create an alert" button has to
+ *  be rendered under `saveSearch && …` — a new entry point cannot forget the rule. The resume honours it too: no "Save"
+ *  offer over a teachers search, and a stored teachers intent is never posted (`post` refuses it). */
+export function useSaveSearch(filters: SaveSearchFilters): (() => Promise<void>) | null {
   const { tr } = useLanguage()
   const { user, loading, identityLoaded, accountType, openSignIn } = useAuth()
   const savingSearch = useRef(false)
+  const offered = savedSearchOffered(filters.activeCategory)
 
   /** POST one saved search — the one save, for the button and for the resume alike. */
   const post = useCallback(async (params: Record<string, unknown>) => {
+    // ⛔ The rule at the one save as well: a resumed intent carries the category it was written on (2026-10-09).
+    if (!savedSearchOffered(typeof params.category === 'string' ? params.category : undefined)) return
     if (savingSearch.current) return // block double-tap → duplicate rows → duplicate cron alerts
     savingSearch.current = true
     try {
@@ -180,7 +192,8 @@ export function useSaveSearch(filters: SaveSearchFilters) {
   // The latest closures, for the resume — which runs once, from an effect keyed on auth alone.
   const postRef = useRef(post)
   const saveRef = useRef(save)
-  useEffect(() => { postRef.current = post; saveRef.current = save })
+  const offeredRef = useRef(offered)
+  useEffect(() => { postRef.current = post; saveRef.current = save; offeredRef.current = offered })
 
   /**
    * THE RESUME, ONCE PER PAGE LIFE — the rental check's rule: only once the user AND their profile are
@@ -212,6 +225,8 @@ export function useSaveSearch(filters: SaveSearchFilters) {
       if (takeIntent(d.intent.nonce)) void postRef.current((d.intent.payload as IntentPayload['saveSearch']).params)
       return
     }
+    // The one tap would save the search on screen — none is offered on the teachers category (savedSearchOffered).
+    if (!offeredRef.current) return
     // ⚠️ A real <Button> in the toast, not sonner's 24px `{ label, onClick }` — the use-undo-window recipe:
     // `tap-44` for a 44px hit area, `relative` to keep the pseudo on it, and the click closes the toast.
     const id = toast(tr('You’re signed in — save this search to get alerts on new listings?', 'Bạn đã đăng nhập — lưu tìm kiếm này để nhận thông báo khi có tin mới?'), {
@@ -226,5 +241,5 @@ export function useSaveSearch(filters: SaveSearchFilters) {
     })
   }, [user, loading, identityLoaded, accountType, tr])
 
-  return save
+  return offered ? save : null
 }

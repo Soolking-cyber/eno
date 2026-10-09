@@ -110,14 +110,14 @@ describe('the phone\'s compact row (what the results view shows below 640px) car
     </LanguageProvider>,
   )
 
-  it('teachers: the row ends with "Create a teacher profile" → https://teacher.eno.vn/ — a link, never a toggle', () => {
+  it('teachers: the row STARTS with "Create a teacher profile" → https://teacher.eno.vn/ — visible without a swipe; a link, never a toggle', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
     row('teachers')
     const group = screen.getByRole('group', { name: /Subcategories|Categories/ })
     const a = within(group).getByRole('link', { name: 'Create a teacher profile' })
     expect(a.getAttribute('href')).toBe('https://teacher.eno.vn/')
     expect(a.hasAttribute('aria-pressed')).toBe(false)
-    expect(group.lastElementChild).toBe(a)
+    expect(group.firstElementChild).toBe(a)
   })
 
   it('⛔ teachers with NO subcategory offered keep the subcategory shape — "All" and the way in, never the category list', () => {
@@ -133,12 +133,43 @@ describe('the phone\'s compact row (what the results view shows below 640px) car
     )
     const group = screen.getByRole('group', { name: 'Subcategories' })
     expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['All'])
-    expect(group.lastElementChild).toBe(within(group).getByRole('link', { name: 'Create a teacher profile' }))
+    expect(group.firstElementChild).toBe(within(group).getByRole('link', { name: 'Create a teacher profile' }))
   })
 
   it('another category\'s row has no such chip', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
     row('jobs')
+    expect(cta()).toBeNull()
+  })
+})
+
+describe('a teacher who already has a profile gets THEIRS — on both surfaces (owner, 2026-10-09, "apply recommended")', () => {
+  it('the rail plate: "Your teacher profile" → /teachers/edit, and no sign-up link', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    render(
+      <LanguageProvider>
+        <CategoryRail categories={cats} activeCategory="teachers" activeSubcategory="all" subcategoryCounts={{}}
+          onCategory={() => {}} onSubcategory={() => {}} teacherProfile />
+      </LanguageProvider>,
+    )
+    expect(screen.getByRole('link', { name: 'Your teacher profile' }).getAttribute('href')).toBe('/teachers/edit')
+    expect(cta()).toBeNull()
+  })
+
+  it('the phone row: the same, still first', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    render(
+      <LanguageProvider>
+        <Collapsible>
+          <LadderCompactRow categories={cats} activeCategory="teachers" activeSubcategory="all" onCategory={() => {}} onSubcategory={() => {}}
+            expanded={false} subcategoryCounts={{}} teacherProfile />
+        </Collapsible>
+      </LanguageProvider>,
+    )
+    const group = screen.getByRole('group', { name: 'Subcategories' })
+    const mine = within(group).getByRole('link', { name: 'Your teacher profile' })
+    expect(mine.getAttribute('href')).toBe('/teachers/edit')
+    expect(group.firstElementChild).toBe(mine)
     expect(cta()).toBeNull()
   })
 })

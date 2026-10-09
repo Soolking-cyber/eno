@@ -358,6 +358,7 @@ export type NicheApiErrorCode =
   | 'notice_changed' // a teacher save under an older publish / cover / AI notice than the one now in force (2026-10-08)
   | 'resubscribe_in_profile' // /api/unsubscribe: teacher job-match emails are turned back ON only in the profile, under the AI notice (2026-10-08)
   | 'no_teaching_goal' // PATCH /api/teachers/me/status → live: no work picked and cover off, so nothing to show schools (D6, 2026-10-09)
+  | 'not_offered' // POST /api/saved-searches: a search this site offers no alert for (teachers — saved-search.ts savedSearchOffered, 2026-10-09)
   // Teacher intro video, shown or sent on request (2026-10-07):
   | 'video_changed' // the video state changed since the form loaded it (videoBase), or a change came with no base
   | 'video_store_failed' // a move between the public and private buckets failed; nothing was written
@@ -753,6 +754,7 @@ const ALL = [
   'notice_changed',
   'resubscribe_in_profile',
   'no_teaching_goal',
+  'not_offered',
   'video_changed',
   'video_store_failed',
   'video_missing',

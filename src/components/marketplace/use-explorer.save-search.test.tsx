@@ -18,7 +18,7 @@ const auth = vi.hoisted(() => ({
 }))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
 
-import { useSaveSearch } from './use-explorer'
+import { hasSavableSearch, useSaveSearch } from './use-explorer'
 import { __resetPendingIntentForTests, armIntent, readIntent, writeIntent } from '@/lib/pending-intent'
 
 function memoryStorage() {
@@ -57,7 +57,7 @@ describe('useSaveSearch — the guest gate remembers the search', () => {
   it('⛔ a 401 opens sign-in with the "save_search" gate and the exact params as the pending intent', async () => {
     fetchMock.mockImplementation(() => Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) }))
     const { result } = renderHook(() => useSaveSearch(FILTERS))
-    await act(async () => { await result.current() })
+    await act(async () => { await result.current!() })
     const ctx = auth.openSignIn.mock.calls[0][0]
     expect(ctx.gate).toBe('save_search')
     expect(ctx.resume).toMatchObject({ kind: 'saveSearch', payload: { params: { category: 'furniture', q: 'sofa' } }, path: '/?q=sofa&category=furniture' })
@@ -117,5 +117,57 @@ describe('useSaveSearch — after sign-in', () => {
     await settle()
     expect(window.location.search).toBe('?q=sofa')
     expect(posted()).toEqual([])
+  })
+})
+
+/**
+ * ⛔ NO SAVED SEARCH ON THE TEACHERS CATEGORY (owner decision, 2026-10-09 — saved-search.ts savedSearchOffered). The alert
+ * cron leaves that category out, so "Saved — we'll alert you on new matches" there was a promise nobody kept. The hook is
+ * what every explorer entry point reads: null instead of a save, and `hasSavableSearch` false. Every other category is
+ * pinned beside it, unchanged.
+ */
+describe('the teachers category offers no saved search', () => {
+  const TEACHERS = { ...FILTERS, activeCategory: 'teachers', debouncedQuery: 'ielts', customFilters: { workIn: 'ho-chi-minh-city' } }
+
+  it('⛔ teachers: not savable, however much is set — and no save function to put on a button', () => {
+    expect(hasSavableSearch(TEACHERS)).toBe(false)
+    expect(renderHook(() => useSaveSearch(TEACHERS)).result.current).toBeNull()
+  })
+
+  it('every other category is unchanged: savable from the first filter, with a save that posts', async () => {
+    for (const activeCategory of ['jobs', 'rentals', 'furniture']) {
+      expect(hasSavableSearch({ ...FILTERS, activeCategory, debouncedQuery: '' })).toBe(true)
+    }
+    // The area-only and nothing-set answers are the old ones too (no category, no words, no filter).
+    expect(hasSavableSearch({ ...FILTERS, activeCategory: 'all', debouncedQuery: '' })).toBe(false)
+    signedIn()
+    const { result } = renderHook(() => useSaveSearch({ ...FILTERS, activeCategory: 'jobs', debouncedQuery: 'teacher' }))
+    expect(typeof result.current).toBe('function')
+    await act(async () => { await result.current!() })
+    expect(posted()).toEqual([{ category: 'jobs', q: 'teacher' }])
+  })
+
+  it('⛔ resume=saveSearch over a teachers search offers no "Save" — the marker is just removed', async () => {
+    window.history.replaceState(null, '', '/?category=teachers&q=ielts&resume=saveSearch')
+    signedIn()
+    renderHook(() => useSaveSearch(TEACHERS))
+    await settle()
+    expect(toast).not.toHaveBeenCalled()
+    expect(posted()).toEqual([])
+    expect(window.location.search).toBe('?category=teachers&q=ielts')
+  })
+
+  it('⛔ a teachers intent stored before the rule (a guest’s tap, then sign-in) is never posted', async () => {
+    // The same steps as the sign-in return above, which DOES post — only the category differs.
+    writeIntent('saveSearch', { params: { category: 'teachers', q: 'ielts' } }, '/?category=teachers&q=ielts')
+    window.history.replaceState(null, '', '/?category=teachers&q=ielts&resume=saveSearch')
+    signedIn()
+    const { rerender } = renderHook(() => useSaveSearch(TEACHERS))
+    await settle()
+    rerender()
+    await settle()
+    expect(posted()).toEqual([])
+    expect(toast.success).not.toHaveBeenCalled()
+    expect(readIntent()).toBeNull() // taken, not left behind to fire on a later page
   })
 })

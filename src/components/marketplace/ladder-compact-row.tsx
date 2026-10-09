@@ -5,13 +5,14 @@ import { useLanguage, Tr } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Toggle } from '@/components/ui/toggle'
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { ChevronDown, LayoutGrid, Plus } from '@/components/ui/icons'
+import { ChevronDown, LayoutGrid, Plus, UserRound } from '@/components/ui/icons'
 import { CategoryIcon } from './category-icons'
 import { offeredCategories, offeredIntents, offeredSubcategories } from './count-chip'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { teacherJoinUrl } from '@/lib/teachers/host'
+import { localizedHref } from '@/lib/lang-pinned'
 import { keepTeacherJoinInApp } from '@/components/teachers/teacher-join-click'
 import type { SerializedCategory } from '@/lib/types'
 // Type only — erased at compile, so the module's Prisma/`server-only` chain never reaches the client.
@@ -52,6 +53,7 @@ export function LadderCompactRow({
   expanded,
   facets,
   subcategoryCounts = {},
+  teacherProfile = false,
 }: {
   categories: SerializedCategory[]
   activeCategory: string
@@ -66,6 +68,8 @@ export function LadderCompactRow({
   /** The feed's chip counts and legacy subcategory counts — the same two the full rail reads. */
   facets?: FacetCounts
   subcategoryCounts?: Record<string, number>
+  /** The viewer already has a teacher profile: the teachers row's first chip opens it instead of the sign-up form. */
+  teacherProfile?: boolean
 }) {
   const { lang, tr } = useLanguage()
   // tr(name, nameVi): the authored Vietnamese for vi, a translation of the English for the nine others
@@ -125,6 +129,25 @@ export function LadderCompactRow({
         >
           {subRow ? (
             <>
+              {/* ⛔ TEACHERS: THE WAY IN, FIRST in this row (owner, 2026-10-09: "add a button here as subcat that will
+                  redirect to teacher.eno.vn to create their profile" — and "apply recommended": first, so a phone shows it
+                  without a swipe). The rail plate's last chip in this row's pill look. A link: no pressed state; in the
+                  app it stays in the app (keepTeacherJoinInApp); a teacher who already has a profile gets theirs. */}
+              {teachers && (
+                <Button variant="bare" size="none" asChild className={cn(chipCls, 'inline-flex items-center gap-1 text-accent-foreground')}>
+                  {teacherProfile ? (
+                    <a href={localizedHref('/teachers/edit', lang)} data-cross-link="teacher-profile-edit">
+                      <UserRound className="size-4 shrink-0" aria-hidden />
+                      {tr('Your teacher profile', 'Hồ sơ giáo viên của bạn')}
+                    </a>
+                  ) : (
+                    <a href={teacherJoinUrl()} data-cross-link="teacher-profile" onClick={(e) => keepTeacherJoinInApp(e, lang)}>
+                      <Plus className="size-4 shrink-0" aria-hidden />
+                      {tr('Create a teacher profile', 'Tạo hồ sơ giáo viên')}
+                    </a>
+                  )}
+                </Button>
+              )}
               <Toggle pressed={activeSubcategory === 'all'} onPressedChange={() => onSubcategory('all')} className={chipCls}>
                 {tr('All', 'Tất cả')}
               </Toggle>
@@ -143,18 +166,6 @@ export function LadderCompactRow({
                   {label(it)}
                 </Toggle>
               ))}
-              {/* ⛔ TEACHERS: THE WAY IN, the rail plate's last chip in this row's pill look (owner, 2026-10-09: "add a
-                  button here as subcat that will redirect to teacher.eno.vn to create their profile") — on a phone this row
-                  is what the results view shows. A link: no pressed state; in the app it stays in the app
-                  (keepTeacherJoinInApp). */}
-              {teachers && (
-                <Button variant="bare" size="none" asChild className={cn(chipCls, 'inline-flex items-center gap-1 text-accent-foreground')}>
-                  <a href={teacherJoinUrl()} data-cross-link="teacher-profile" onClick={(e) => keepTeacherJoinInApp(e, lang)}>
-                    <Plus className="size-4 shrink-0" aria-hidden />
-                    {tr('Create a teacher profile', 'Tạo hồ sơ giáo viên')}
-                  </a>
-                </Button>
-              )}
             </>
           ) : (
             <>

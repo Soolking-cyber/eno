@@ -212,8 +212,11 @@ export function homeHasCover(s: PlaceSituation): boolean {
  *   · a district       → cover.ts coverAreaFilterKeys (itself, its umbrella or parts, HCMC) and 'anywhere';
  *   · a province key   → itself, the hubs inside it (B5) and 'anywhere';
  *   · 'online', 'anywhere' → exactly themselves.
- * ⛔ The 14 values the old facet had (12 cities, 'anywhere', 'online') keep working, so every old link and saved search
- * does (plan review B10) — and a city filter now also finds a teacher who picked one of its districts or 'anywhere'.
+ * ⛔ The 14 values the old facet had (12 cities, 'anywhere', 'online') keep working, so every old LINK does (plan review
+ * B10) — and a city filter now also finds a teacher who picked one of its districts or 'anywhere'.
+ * ⚠️ NOT "and every saved search" (corrected 2026-10-09): no teachers alert ever fires — the alert cron counts through
+ * scopedListingWhere's default, which leaves the teachers category out — and since 2026-10-09 nothing offers to save a
+ * teachers search (saved-search.ts savedSearchOffered). One saved before then still opens from /saved, as a link.
  */
 export function workInFilterKeys(value: string): string[] {
   if (value === ONLINE || value === ANYWHERE) return [value]

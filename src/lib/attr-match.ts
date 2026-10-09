@@ -16,9 +16,11 @@
  *    A hand-written `3+` / `3plus` on the same facet means ≥3 the same way (old "3+" links).
  *  · ALIASED VALUES (compatibleWith) — the stored vocabulary is not the chip's: see
  *    COMPAT_DISPLAY_PREFIXES in electronics-specs.ts for the 2,638 rows that store a display string.
+ * The request's `range_<column>` filters are read here too (`rangeWhereFrom`, 2026-10-09) — the feed's loop, shared with
+ * the saved-search alert.
  */
 import type { Prisma } from '@/generated/prisma/client'
-import { TAXONOMY } from '@/lib/taxonomy'
+import { TAXONOMY, isRangeColumn } from '@/lib/taxonomy'
 import { facetTokenFor } from '@/lib/facet-tokens'
 import { COMPAT_DISPLAY_PREFIXES } from '@/lib/electronics-specs'
 import { POSTED_FACET_KEY, postedCutoff } from '@/lib/posted-filter'
@@ -112,8 +114,11 @@ export function attrNeedles(key: string, value: string): AttrNeedles {
    * picked one of its districts, its province (Nha Trang ↔ Khánh Hoà) or "anywhere"; a district finds its umbrella,
    * the whole city and "anywhere"; a province finds its towns and "anywhere"; Online and "anywhere" only themselves.
    * ⛔ The key is the old `workIn`, and all 14 old values (12 cities, anywhere, online) stay valid inputs — every old
-   * link and saved search keeps working, now with the wider (intended) meaning. Tokens only: the teacher publish core
-   * is the only writer of a teacher row, and it writes these to `facetTokens`, which no seller-typed attribute reaches.
+   * LINK keeps working, now with the wider (intended) meaning. ⚠️ NOT "and every saved search" (corrected 2026-10-09):
+   * no teachers alert has ever fired — the alert cron counts through scopedListingWhere's default, which leaves the
+   * teachers category out — and since 2026-10-09 nothing offers to save one (saved-search.ts savedSearchOffered). A
+   * teachers search saved before then still opens from /saved, as a link. Tokens only: the teacher publish core is the
+   * only writer of a teacher row, and it writes these to `facetTokens`, which no seller-typed attribute reaches.
    */
   if (key === 'workIn') {
     return { attributes: [], tokens: workInFilterKeys(value).filter((k) => TOKENABLE.test(k)).map((k) => facetTokenFor(key, k)) }
@@ -187,6 +192,31 @@ export function attrFiltersFrom(searchParams: URLSearchParams): { key: string; v
     const key = k.replace('attr_', '').replace(/[^a-z0-9_]/gi, '')
     const value = searchParams.get(k)
     if (key && value && value !== 'all') out.push({ key, value })
+  }
+  return out
+}
+
+/**
+ * THE `range_<column>=min-max` FILTERS A REQUEST CARRIES, as the feed's WHERE clauses — one `{ <column>: { gte, lte } }`
+ * per allow-listed column (taxonomy.ts isRangeColumn, so a caller cannot probe an arbitrary field), either side open
+ * when empty ("2020-" = 2020 and newer). Range facets (year, mileage, engine, size, salary) live on dedicated numeric
+ * columns, never in `attributes`, so they travel keyed by COLUMN — taxonomy.ts facetParamName is the key → param half.
+ * ⛔ MOVED HERE VERBATIM FROM feed-query.ts's buildFeedFilters (2026-10-09) SO THE SAVED-SEARCH ALERT RUNS THE SAME LOOP
+ * (saved-search-where.ts, over its own link). It read a range as `attr_<key>` — an `attributes` text match no row has —
+ * so a "Year 2018–2022" or "Salary 20–40 tr" alert could never fire.
+ */
+export function rangeWhereFrom(searchParams: URLSearchParams): Prisma.ListingWhereInput[] {
+  const out: Prisma.ListingWhereInput[] = []
+  for (const key of Array.from(searchParams.keys())) {
+    if (!key.startsWith('range_')) continue
+    const col = key.slice('range_'.length)
+    if (!isRangeColumn(col)) continue
+    const [mnStr = '', mxStr = ''] = (searchParams.get(key) || '').split('-')
+    const filter: Prisma.FloatFilter = {}
+    const mn = Number(mnStr), mx = Number(mxStr)
+    if (mnStr !== '' && Number.isFinite(mn)) filter.gte = mn
+    if (mxStr !== '' && Number.isFinite(mx)) filter.lte = mx
+    if (filter.gte !== undefined || filter.lte !== undefined) out.push({ [col]: filter })
   }
   return out
 }

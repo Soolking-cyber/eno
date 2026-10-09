@@ -134,11 +134,12 @@ export const REGULATIONS_AMENDMENT: LegalAmendment = {
  * "Automated decisions". A privacy-only change: the Terms and the Quy chế keep their records (and the Terms' record,
  * LEGAL_AMENDMENT, is also the Terms' runtime switch — it must never move for a privacy change).
  *
- * ⛔ '2026-10-08' IS A PLACEHOLDER, NOT THE PUBLICATION DATE. The DEPLOYER sets BOTH dates to the real deploy day
- * (Vietnam time) in the commit that ships it, and runs the deploy with LEGAL_AMENDMENT_IMMEDIATE=<that day>; the deploy
- * gate (legal-amendment-gate.sh) refuses any other day and any deploy without that ack.
+ * ⛔ DATED THE DEPLOY DAY (owner, 2026-10-09: "also deploy" + "apply recommended") — BOTH dates are the day it ships
+ * (Vietnam time), and the deploy runs with LEGAL_AMENDMENT_IMMEDIATE=2026-10-09; the deploy gate
+ * (legal-amendment-gate.sh) refuses any other day and any deploy without that ack. A deploy that slips past the day
+ * re-dates it (and only it) first.
  *
- * ⛔ IMMEDIATE IS THE OWNER'S CALL, NOT YET MADE — the gate makes it explicit at the deploy. Why it is the default here:
+ * ⛔ IMMEDIATE — THE OWNER'S CALL, MADE 2026-10-09 ("apply recommended"). Why:
  * nothing announces a /privacy record (the strip and the bell notice know only LEGAL_AMENDMENT), so a windowed record
  * would promise a notice nobody gives; and the change binds no one who has not agreed to it afresh — the processing it
  * describes runs only for teachers who tick an opt-in under the new AI notice naming Anthropic (profile.ts
@@ -146,8 +147,8 @@ export const REGULATIONS_AMENDMENT: LegalAmendment = {
  * learn this record first (legal-amendment.test.ts holds that).
  */
 export const PRIVACY_AMENDMENT: LegalAmendment = {
-  published: '2026-10-08',
-  inForce: '2026-10-08',
+  published: '2026-10-09',
+  inForce: '2026-10-09',
   immediate: true,
 }
 

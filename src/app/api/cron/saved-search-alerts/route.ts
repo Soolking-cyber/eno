@@ -54,6 +54,11 @@ export const GET = route({ auth: 'cron' }, async () => {
             // ⚠️ SCOPED HERE, NOT INSIDE buildListingWhere. That helper is shared with the browse
             // feed, which already carries the scope via andFilters — pushing it in there too would
             // double-apply it and couple two surfaces that should stay independent.
+            // ⛔ NO `{ teachers: true }`, ON PURPOSE: the default leaves the teachers category out, so no alert is ever
+            // sent about a teacher — alerting schools about PEOPLE is a decision of its own. The owner's call
+            // (2026-10-09) is to keep it that way and offer no saved search there at all: the ONE rule is
+            // saved-search.ts savedSearchOffered, which every Save-search / "Create an alert" entry point reads. Opt this
+            // in only together with that rule, or the UI and the alerts disagree again.
             where: await scopedListingWhere({ AND: [await buildListingWhere(params), { createdAt: { gt: s.lastNotifiedAt } }] }),
           })
           if (matches === 0) return { notified: 0, pushed: 0 }

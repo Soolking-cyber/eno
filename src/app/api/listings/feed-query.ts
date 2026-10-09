@@ -7,8 +7,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { Prisma } from '@/generated/prisma/client'
-import { isRangeColumn } from '@/lib/taxonomy'
-import { attrFiltersFrom, attrWhere } from '@/lib/attr-match'
+import { attrFiltersFrom, attrWhere, rangeWhereFrom } from '@/lib/attr-match'
 import { POSTED_FACET_KEY, postedOffered } from '@/lib/posted-filter'
 import { fold } from '@/lib/fold'
 import { textPredicate } from '@/lib/search-match'
@@ -434,6 +433,8 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
   const ward = searchParams.get('ward')?.trim()
   if (ward) {
     // Same split as the province: the filter sends the ward's English name (province-match.ts).
+    // ⛔ NEVER A LONGER KNOWN PLACE (2026-10-09 — province-match.ts wardWhere): the bare substring put every "Phú Mỹ Hưng"
+    // row — each District 7 teacher, every Phú Mỹ Hưng rental — in HCMC's Phú Mỹ ward.
     andFilters.push(wardWhere(ward, province))
   }
   // Default AND narrows ("honda red" needs both). Visual search (and any "loose"
@@ -605,17 +606,9 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
   // Numeric range facets (year/mileage/engine) live on dedicated columns and filter
   // as a min–max range: `range_<column>=min-max` (either side may be empty/open).
   // The column is allow-listed so a caller can't probe an arbitrary field.
-  for (const key of Array.from(searchParams.keys())) {
-    if (!key.startsWith('range_')) continue
-    const col = key.slice('range_'.length)
-    if (!isRangeColumn(col)) continue
-    const [mnStr = '', mxStr = ''] = (searchParams.get(key) || '').split('-')
-    const filter: Prisma.FloatFilter = {}
-    const mn = Number(mnStr), mx = Number(mxStr)
-    if (mnStr !== '' && Number.isFinite(mn)) filter.gte = mn
-    if (mxStr !== '' && Number.isFinite(mx)) filter.lte = mx
-    if (filter.gte !== undefined || filter.lte !== undefined) andFilters.push({ [col]: filter })
-  }
+  // ⚠️ THE LOOP LIVES IN attr-match.ts (rangeWhereFrom) since 2026-10-09: the saved-search alert runs the same one over
+  // its own link (saved-search-where.ts), so a range alert counts exactly the rows this feed shows for it.
+  andFilters.push(...rangeWhereFrom(searchParams))
 
   // Video feed (4th view): only listings that carry a clip. Pushed into andFilters so it
   // threads through both the keyword and semantic ranking paths (both build from andFilters).

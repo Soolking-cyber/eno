@@ -2,7 +2,7 @@ import 'server-only'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { containsPhoneNumber } from '@/lib/phone'
-import { containsContactInfo, findBannedWord, minPhotosFor, type IdentityBlockCode } from '@/lib/publish-guard'
+import { containsContactInfo, findBannedWord, minPhotosFor, type IdentityBlockCode, type PublishBlockCode } from '@/lib/publish-guard'
 import { countDistinctAngles } from '@/lib/image-hash-url'
 import { buildSearchText, fold } from '@/lib/fold'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
@@ -17,7 +17,7 @@ import { indexAndCheckProvenance } from '@/lib/image-provenance'
 import { storeListingImage, IMG_MAX_BYTES } from '@/lib/core/media'
 import { browseRankScore } from '@/lib/ranking'
 import { parseVnd } from '@/lib/vnd'
-import { paysSalary, resolveListingType, salaryMFromPrice, salaryPriceFor } from '@/lib/taxonomy'
+import { isPostableCategory, paysSalary, resolveListingType, salaryMFromPrice, salaryPriceFor } from '@/lib/taxonomy'
 import { sellerPublishDecision, type SellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
 import { cutText } from '@/lib/feed-text'
 
@@ -137,6 +137,18 @@ export async function bulkImportCore(
       const cat = catBySlug.get(categorySlug)
 
       if (!cat) { results.push({ row: rowNo, error: `Unknown category "${categorySlug}"` }); continue }
+      // ⛔ A CATEGORY NOBODY POSTS INTO IS REFUSED HERE TOO (2026-10-09) — taxonomy.ts NON_POSTING_CATEGORIES, today
+      // `teachers`, whose rows only src/lib/teachers/publish.ts writes, beside the TeacherProfile they need. This core
+      // creates with its own `db.listing.create`, so createListingCore's refusal never ran for it: a hand-made request
+      // to /api/listings/bulk, /api/v1/listings/bulk, the MCP bulk tool or a partner sync's create made a LIVE, verified
+      // teachers listing with NO profile — a priced 'sell' page under Teachers (listingType falls to the column
+      // default) and a row the teacher pipeline cannot read.
+      // ⚠️ ONE RULE: the same `isPostableCategory` the single path calls (listings.ts) and the same code it throws —
+      // never a slug list of this file's own, so a category added to that set is refused on every path at once.
+      // Per row and BEFORE anything is read or written for it (no duplicate lookup, no image fetch or upload), so the
+      // rest of the batch imports exactly as it does past any other bad row. The web panel never sends one (its slug
+      // list is /api/categories, which already hides the category); the code reaches API, MCP and sync callers.
+      if (!isPostableCategory(cat.slug)) { results.push({ row: rowNo, error: 'category_not_postable' satisfies PublishBlockCode }); continue }
       if (title.length < 3) { results.push({ row: rowNo, error: 'Title too short (min 3 chars)' }); continue }
       if (!Number.isFinite(price) || price < 0 || price > 1e12) { results.push({ row: rowNo, error: 'Invalid price' }); continue }
       if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsContactInfo(title) || containsContactInfo(description)) { results.push({ row: rowNo, error: 'Remove phone / contact info / address from the title and description' }); continue }

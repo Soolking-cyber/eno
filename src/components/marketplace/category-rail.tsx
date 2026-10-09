@@ -6,7 +6,7 @@ import { useLanguage } from '@/context/language-context'
 import { Bilingual } from './bilingual'
 import { detectContentLang } from '@/lib/detect-lang'
 import { CategoryIcon } from './category-icons'
-import { ChevronRight, Plus } from '@/components/ui/icons'
+import { ChevronRight, Plus, UserRound } from '@/components/ui/icons'
 import { CategoryTileGlyph } from './category-art'
 import { CountChip, offeredCategories, offeredIntents, offeredSubcategories, subcategoryCountFor } from './count-chip'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { cn } from '@/lib/utils'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { teacherJoinUrl } from '@/lib/teachers/host'
+import { localizedHref } from '@/lib/lang-pinned'
 import { keepTeacherJoinInApp } from '@/components/teachers/teacher-join-click'
 import type { SerializedCategory } from '@/lib/types'
 // Type only — erased at compile time, so the client bundle never reaches for the module's
@@ -88,6 +89,7 @@ export function CategoryRail({
   shortcuts,
   onShortcut,
   hrefFor,
+  teacherProfile = false,
 }: {
   categories: SerializedCategory[]
   activeCategory: string
@@ -162,6 +164,8 @@ export function CategoryRail({
    * The explorer builds it from the CURRENT path, so a storefront's tiles stay on the storefront.
    */
   hrefFor?: (param: { category?: string; type?: string } | null) => string
+  /** The viewer already has a teacher profile: the teachers plate's last chip opens it instead of the sign-up form. */
+  teacherProfile?: boolean
 }) {
   const { lang, tr } = useLanguage()
   /**
@@ -741,10 +745,18 @@ export function CategoryRail({
                       `size-3.5` on the glyph keeps ui/button's size-4 inflation off it (CLAUDE.md). */}
                   {cat.slug === TEACHERS_CATEGORY_SLUG && (
                     <Button variant="bare" size="none" asChild className={cn('block', subChip(false), 'text-accent-foreground')}>
-                      <a href={teacherJoinUrl()} data-cross-link="teacher-profile" onClick={(e) => keepTeacherJoinInApp(e, lang)}>
-                        <Plus className="mr-1 size-3.5 shrink-0 align-[-2px]" aria-hidden />
-                        {tr('Create a teacher profile', 'Tạo hồ sơ giáo viên')}
-                      </a>
+                      {/* A teacher who already has a profile: theirs, on this host (owner, 2026-10-09 — "apply recommended"). */}
+                      {teacherProfile ? (
+                        <a href={localizedHref('/teachers/edit', lang)} data-cross-link="teacher-profile-edit">
+                          <UserRound className="mr-1 size-3.5 shrink-0 align-[-2px]" aria-hidden />
+                          {tr('Your teacher profile', 'Hồ sơ giáo viên của bạn')}
+                        </a>
+                      ) : (
+                        <a href={teacherJoinUrl()} data-cross-link="teacher-profile" onClick={(e) => keepTeacherJoinInApp(e, lang)}>
+                          <Plus className="mr-1 size-3.5 shrink-0 align-[-2px]" aria-hidden />
+                          {tr('Create a teacher profile', 'Tạo hồ sơ giáo viên')}
+                        </a>
+                      )}
                     </Button>
                   )}
                 </div>

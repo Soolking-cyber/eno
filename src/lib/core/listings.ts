@@ -1103,8 +1103,10 @@ export async function createListingCore(input: {
   let officialPartner: boolean | undefined
   const sellerIsOfficialPartner = async () =>
     (officialPartner ??= (await db.seller.findUnique({ where: { id: seller.id }, select: { officialPartner: true } }))?.officialPartner === true)
-  // ⛔ Teacher profiles are written ONLY by src/lib/teachers/publish.ts (2026-09-30). Every generic
-  // create path (web wizard, /api/v1, MCP, bulk) ends here, so this one refusal covers them all.
+  // ⛔ Teacher profiles are written ONLY by src/lib/teachers/publish.ts (2026-09-30). The web wizard, /api/v1 and
+  // MCP create end here; the BULK core does NOT — it creates on its own (CSV, /api/v1 bulk, MCP bulk, a sync's
+  // creates) and, since 2026-10-09, asks this same `isPostableCategory` per row with this same code (bulk.ts). This
+  // comment used to list bulk among the paths that end here; it never was one, and until then nothing refused it.
   if (!isPostableCategory(categorySlug)) throw new PublishBlockedError('category_not_postable')
 
   const images: string[] = Array.isArray(body.images)

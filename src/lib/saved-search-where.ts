@@ -4,8 +4,8 @@ import { districtScopeForSlug } from './district-slug'
 import { hasPlainTextFallback, inferDistrictFromQuery, strippedUnderExplicitDistrict, type DistrictInference } from './district-query'
 import { db } from './db'
 import { scopedListingWhere } from './edition-scope'
-import type { SavedSearchParams } from './saved-search'
-import { attrWhere } from './attr-match'
+import { toUrlParams, type SavedSearchParams } from './saved-search'
+import { attrFiltersFrom, attrWhere, rangeWhereFrom } from './attr-match'
 import { POSTED_FACET_KEY, postedOffered } from './posted-filter'
 
 // Build the Prisma where for a saved search — IDENTICAL semantics to the public
@@ -74,17 +74,34 @@ async function whereFor(p: SavedSearchParams, phrase: DistrictInference | null, 
   if (text) and.push({ searchText: { contains: fold(text) } })
   const df = await districtScopeForSlug(districtSlug)
   if (df) and.push(df)
-  if (p.attrs) {
-    for (const [k, v] of Object.entries(p.attrs)) {
-      // `posted` filters `postedAt`, never `attributes` (src/lib/posted-filter.ts) — matched as text it
-      // would match nothing and the alert would never fire. Same clause and same offered-only rule as
-      // the feed; the window is measured back from when the alert runs ("posted this week").
-      if (k === POSTED_FACET_KEY) {
-        if (postedOffered(p.category, p.subcategory)) and.push(attrWhere(k, v))
-        continue
-      }
-      and.push({ attributes: { contains: `"${k}":"${v}"` } })
-    }
+  /**
+   * ⛔ FACET FILTERS BY THE FEED'S OWN RULES, READ OFF THE ALERT'S OWN LINK (2026-10-09). Every `attr_*` but `posted`
+   * was matched here as the plain text `"key":"value"` in `attributes`, while the feed reads it through attr-match.ts:
+   * the importer-only `facetTokens` column, the derived expansions (a city's "Can teach in" also finds its districts and
+   * "anywhere" — places.ts workInFilterKeys; a cover area its umbrella — cover.ts; "weekly" also priced by the day), the
+   * open-ended "6+" bucket and the "Fits" chips whose rows store a device name. Apartment amenities live only in tokens,
+   * so "pool" never fired.
+   * ⛔ AND A RANGE FACET (year, mileage, engine, size, salary) IS A NUMERIC COLUMN, NEVER `attributes`. It went out as
+   * `attr_year=2018-2022` — a text match no row has — so a range alert never fired. toUrlParams now names every key the
+   * way the explorer does (taxonomy.ts facetParamName: a range facet of the view as `range_<column>`), and the feed's
+   * range loop (attr-match.ts rangeWhereFrom) turns it into `{ year: { gte: 2018, lte: 2022 } }`.
+   * So it is the feed's two loops (feed-query.ts: `attrFiltersFrom` → `attrWhere`, then `rangeWhereFrom`) over the one
+   * URL the notification opens (`/?${toUrlParams(p)}`, the cron's deep link): the alert counts exactly the clauses that
+   * link's feed applies, and the explorer the link opens draws the same filters (explorer-url.ts parseFilterParams).
+   * ⚠️ Except a stored key the view does not offer (a row saved before the explorer pruned stale filters, 2026-09-25):
+   * it still narrows the alert as it always did, as `attr_<key>`, while the explorer drops it from the opened feed.
+   * ⚠️ `posted` filters `postedAt`, never `attributes` (posted-filter.ts), and only where the feed offers it — never
+   * invisibly on vehicle hire; its window is measured back from when the alert runs ("posted this week").
+   * ⚠️ A TEACHERS alert counts no row, by decision: the cron scopes through scopedListingWhere's default, which leaves the
+   * teachers category out (edition-scope.ts), and the owner's call (2026-10-09) is no saved search there at all —
+   * saved-search.ts savedSearchOffered, which every Save-search / "Create an alert" entry point reads.
+   * ⛔ saved-search.where.test.ts pins these clauses to buildFeedFilters' for the same link.
+   */
+  const link = new URLSearchParams(toUrlParams(p))
+  for (const { key, value } of attrFiltersFrom(link)) {
+    if (key === POSTED_FACET_KEY && !postedOffered(p.category, p.subcategory)) continue
+    and.push(attrWhere(key, value))
   }
+  and.push(...rangeWhereFrom(link))
   return { AND: and }
 }

@@ -37,7 +37,7 @@ import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE } from './shelf'
 import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
 import { queryChips } from '@/lib/district-query'
 import { clearPlaceForTypedDistrict, queryAfterAreaPick } from './explorer-place'
-import { isSeededFeed, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type ExplorerSort, type ExplorerView } from '@/lib/explorer-url'
+import { applyFilterParams, isSeededFeed, readExplorerUrl, recentSearchTerms, RECENTS_ATTR, type ExplorerSort, type ExplorerView } from '@/lib/explorer-url'
 import { publicPathname, variantOfLanguage } from '@/lib/lang-variant'
 import { localizedHref } from '@/lib/lang-pinned'
 import { handBackAfterLeaving, holdScrollRestoration, pinnedChromeBottom, releaseScrollRestoration, runRestore } from './feed-restore'
@@ -60,6 +60,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { useLanguage, Tr } from '@/context/language-context'
 import { Bilingual } from './bilingual'
 import { useAuth } from '@/context/auth-context'
+import { useDashboard } from '@/hooks/use-dashboard'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { offeredKeys } from './count-chip'
 import { LISTING_TYPES, INTENT_SHORTCUTS, DESK_SHORTCUTS, CONDITION_FACET, categoryHasBrand, facetsFor, typesFor } from '@/lib/taxonomy'
@@ -82,22 +83,10 @@ import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 import { scrollBehavior } from '@/lib/reduced-motion'
 
-// Custom filters are keyed by facet KEY in state, but range facets (year/mileage/
-// engine) travel in the URL + API keyed by their numeric COLUMN as `range_<col>`
-// (so the API can do a numeric range query); everything else is `attr_<key>`.
-function applyFilterParams(p: URLSearchParams, customFilters: Record<string, string>, categorySlug: string, subcategorySlug: string) {
-  const sub = subcategorySlug === 'all' ? null : subcategorySlug
-  const facets = facetsFor(categorySlug, sub)
-  Object.entries(customFilters).forEach(([key, val]) => {
-    if (!val || val === 'all') return
-    const f = facets.find((x) => x.key === key)
-    if (!f) return // facet not valid for this (category, subcategory) — drop stale value
-    if (f.kind === 'range' && f.range) p.set(`range_${f.range.column}`, val)
-    else p.set(`attr_${key}`, val)
-  })
-}
-// `parseFilterParams` (the URL → customFilters half) moved to src/lib/explorer-url.ts with the rest of
-// the URL reader; `applyParams` below reaches it through `readExplorerUrl`.
+// Custom filters → the request / URL is `applyFilterParams` (src/lib/explorer-url.ts, moved there 2026-10-09 beside its
+// inverse `parseFilterParams`): range facets travel keyed by their numeric COLUMN as `range_<col>`, everything else as
+// `attr_<key>` — taxonomy.ts facetParamName, the one mapping a saved search's link and alert use too (saved-search.ts).
+// `applyParams` below reads the URL back through `readExplorerUrl`.
 
 /**
  * WHICH ANSWER A FEED PAGE BELONGS TO: its react-query key with the page taken out, and the language
@@ -513,6 +502,10 @@ export function ListingsExplorer({
   // Bumps whenever a machine translation lands (see the crumbs memo below).
   const trVersion = useSyncExternalStore(subscribeTr, getTrSnapshot, () => 0)
   const { openSignIn } = useAuth()
+  // Who already HAS a teacher profile: the teachers chips then open their own profile, not the sign-up form (owner,
+  // 2026-10-09, "apply recommended"). The shared dashboard store — nothing is fetched for a visitor who is signed out.
+  const { dash } = useDashboard()
+  const hasTeacherProfile = dash?.hasTeacher === true
   // Desktop ← / → arrows for the horizontally-scrollable category grid (same primitive as the rails).
   const { scrollerRef: catScrollerRef, canLeft: catCanLeft, canRight: catCanRight, page: catPage } = useScrollArrows()
   /**
@@ -3562,6 +3555,12 @@ export function ListingsExplorer({
     activeCategory, activeSubcategory, activeBrand, activeModel, listingType,
     debouncedQuery, activeDistrict, conditionFilter, priceRange, customFilters,
   }
+  /**
+   * ⛔ NULL ON THE TEACHERS CATEGORY (owner decision, 2026-10-09 — saved-search.ts savedSearchOffered): the alert cron
+   * never sends a teachers alert, so no button here may promise one. Every "Save search" / "Create an alert for this
+   * search" below renders under `saveSearch && …` — `onClick={saveSearch}` does not type-check otherwise, so a new
+   * entry point cannot skip the rule. Every other category: exactly as before.
+   */
   const saveSearch = useSaveSearch(saveSearchFilters)
   /**
    * ⛔ ON A PHONE, "SAVE SEARCH" IS OFFERED FROM THE FIRST QUERY OR FILTER, LABELLED, AT 44px (UX3 JOIN-SAVE —
@@ -3969,9 +3968,12 @@ export function ListingsExplorer({
       return (
         <div className={cn('flex items-center gap-2 rounded-2xl bg-brand-50 px-2.5 py-2', className)}>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{chipBtns}</div>
-          <Button onClick={saveSearch} variant="cta" size="none" className="shrink-0 gap-1.5 px-3.5 py-1.5 text-xs shadow-sm active:scale-[0.96] cursor-pointer">
-            <Bookmark className="h-4 w-4" /> {tr('Save search', 'Lưu tìm kiếm')}
-          </Button>
+          {/* No save on the teachers category — `saveSearch` is null there (see its declaration). */}
+          {saveSearch && (
+            <Button onClick={saveSearch} variant="cta" size="none" className="shrink-0 gap-1.5 px-3.5 py-1.5 text-xs shadow-sm active:scale-[0.96] cursor-pointer">
+              <Bookmark className="h-4 w-4" /> {tr('Save search', 'Lưu tìm kiếm')}
+            </Button>
+          )}
         </div>
       )
     }
@@ -3979,10 +3981,12 @@ export function ListingsExplorer({
     return (
       <div className={cn('space-y-2.5 rounded-2xl bg-brand-50 p-3', className)}>
         <div className="flex flex-wrap items-center gap-1.5">{chipBtns}</div>
-        <Button variant="bare" size="none" onClick={saveSearch} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-card py-2 text-sm font-bold text-accent-foreground shadow-sm transition-colors hover:bg-accent cursor-pointer">
-          <Bookmark className="h-4 w-4" /> {tr('Save this search', 'Lưu tìm kiếm này')}
-          <span className="text-2xs font-normal text-muted-foreground">{tr('— alerts on new matches', '— báo khi có tin mới')}</span>
-        </Button>
+        {saveSearch && (
+          <Button variant="bare" size="none" onClick={saveSearch} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-card py-2 text-sm font-bold text-accent-foreground shadow-sm transition-colors hover:bg-accent cursor-pointer">
+            <Bookmark className="h-4 w-4" /> {tr('Save this search', 'Lưu tìm kiếm này')}
+            <span className="text-2xs font-normal text-muted-foreground">{tr('— alerts on new matches', '— báo khi có tin mới')}</span>
+          </Button>
+        )}
       </div>
     )
   }
@@ -4052,14 +4056,17 @@ export function ListingsExplorer({
           }
           action={
             <div className="flex w-full max-w-xs flex-col items-stretch gap-2">
-              <Button
-                variant="outline"
-                size="none"
-                onClick={saveSearch}
-                className="rounded-xl px-4 py-2.5 text-sm font-semibold cursor-pointer"
-              >
-                {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
-              </Button>
+              {/* `activeCategory === 'all'` here, so it is always offered — `saveSearch &&` is the rule, not a special case. */}
+              {saveSearch && (
+                <Button
+                  variant="outline"
+                  size="none"
+                  onClick={saveSearch}
+                  className="rounded-xl px-4 py-2.5 text-sm font-semibold cursor-pointer"
+                >
+                  {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
+                </Button>
+              )}
               <Button asChild variant="outline" size="none" className="rounded-xl px-4 py-2.5 text-sm font-semibold">
                 <Link href="/post" prefetch={false} onPointerDown={warmPost} onMouseEnter={warmPost}>
                   {tr('Post a Wanted — let sellers come to you', 'Đăng tin cần tìm — để người bán tìm đến bạn')}
@@ -4139,13 +4146,16 @@ export function ListingsExplorer({
                 </Button>
               )}
               {/* The other two exits of the recovery trio (widening = the chip row above):
-                  turn this search into an alert, or flip the intent and post a Wanted. */}
-              <Button variant="outline" size="none"
-                onClick={saveSearch}
-                className="rounded-xl px-4 py-2 text-xs font-semibold cursor-pointer"
-              >
-                {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
-              </Button>
+                  turn this search into an alert, or flip the intent and post a Wanted.
+                  ⛔ No alert on the teachers category — none would ever be sent (`saveSearch` is null there). */}
+              {saveSearch && (
+                <Button variant="outline" size="none"
+                  onClick={saveSearch}
+                  className="rounded-xl px-4 py-2 text-xs font-semibold cursor-pointer"
+                >
+                  {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
+                </Button>
+              )}
               <Button asChild variant="outline" size="none" className="rounded-xl px-4 py-2 text-xs font-semibold">
                 <Link href="/post" prefetch={false} onPointerDown={warmPost} onMouseEnter={warmPost}>
                   {tr('Post a Wanted — let sellers come to you', 'Đăng tin cần tìm — để người bán tìm đến bạn')}
@@ -4484,11 +4494,13 @@ export function ListingsExplorer({
                 // The same counts the full rail reads, so the phone row offers the same chips (E-TILES).
                 facets={facetCounts}
                 subcategoryCounts={subcategoryCounts}
+                teacherProfile={hasTeacherProfile}
               />
             }
           >
           <CategoryRail
             categories={categories}
+            teacherProfile={hasTeacherProfile}
             activeCategory={activeCategory}
             activeSubcategory={activeSubcategory}
             subcategoryCounts={subcategoryCounts}
@@ -4871,7 +4883,8 @@ export function ListingsExplorer({
               // The phone's "Save search" pill (JOIN-SAVE, see `phoneSaveOffered`): at the end of the count row,
               // outside its scroller. `sm:hidden` — from sm the offer is the labelled button beside the view modes.
               // `outline`, never `cta`: an offer on the filter row is not the page's one brand CTA (canon).
-              countTrailing={phoneSaveOffered ? (
+              // (`hasSavableSearch` already says no on the teachers category; `saveSearch &&` is the same rule, typed.)
+              countTrailing={phoneSaveOffered && saveSearch ? (
                 <Button type="button" variant="outline" size="none" onClick={saveSearch} className="min-h-11 shrink-0 gap-1.5 rounded-full px-3.5 text-sm font-semibold sm:hidden">
                   <Bookmark className="size-4" aria-hidden />
                   {tr('Save search', 'Lưu tìm kiếm')}
@@ -4904,8 +4917,9 @@ export function ListingsExplorer({
                   this line print", and using the display list for both meant Vehicles › Manual ›
                   Honda › Vision — four taps deep, and exactly the search in the owner's wireframe
                   — counted as ZERO and offered no save. Raised by two reviewers; confirmed on the
-                  page by drilling category + brand and watching the button never appear. */}
-              {shouldOfferSaveSearch(appliedChips.length + ladderCrumbs.length) && (
+                  page by drilling category + brand and watching the button never appear.
+                  ⛔ `saveSearch &&` first: never on the teachers category, however many filters (2026-10-09). */}
+              {saveSearch && shouldOfferSaveSearch(appliedChips.length + ladderCrumbs.length) && (
                 <Button
                   onClick={saveSearch}
                   variant="bare"

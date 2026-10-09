@@ -1,6 +1,6 @@
 import type { Prisma } from '@/generated/prisma/client'
 import vnUnits from '@/data/vn-units.json'
-import { PROVINCES } from '@/components/marketplace/listings-explorer.constants'
+import { DISTRICTS, PROVINCES } from '@/components/marketplace/listings-explorer.constants'
 import { slugify } from '@/lib/slug'
 
 /**
@@ -114,9 +114,56 @@ export function wardAliases(sentWard: string, sentProvince?: string | null): str
   return [...new Set(hits.flatMap((x) => [x.name, x.nameEn]))].filter((s) => s !== w)
 }
 
+/**
+ * ⛔ A WARD MATCHES AS A SUBSTRING — EXCEPT INSIDE A LONGER PLACE NAME THE APP KNOWS (2026-10-09). The bare `contains`
+ * put every row naming a longer place that contains the ward's name into that ward: HCMC's Phú Mỹ ward returned every
+ * "Phú Mỹ Hưng" row (each District 7 teacher — "Quận 7 (Phú Mỹ Hưng)" — and every Phú Mỹ Hưng rental), An Phú returned
+ * An Phú Đông, Vĩnh Lộc returned Tân Vĩnh Lộc. A first fix demanded a closed list of words around the name and LOST real
+ * rows ("thị xã Phú Mỹ", "KDC Phú Mỹ", "Phú Mỹ Q7" — commit gate, Opus): free text has no closed neighbourhood. So
+ * recall stays the substring's, and only the collisions the app KNOWS are taken out — every other ward name (vn-units:
+ * the province's, or every province's when none was sent) and every curated place name (DISTRICTS names and `match`
+ * spellings) that contains a spelling of the ward.
+ * ⚠️ A COLUMN naming the ward AND such a longer place does not count ("P. An Phú, gần An Phú Đông") — rare, and the price
+ * of a rule that never guesses at free text; the row's other column still can.
+ */
+const CURATED_PLACE_NAMES: readonly string[] = [...new Set(DISTRICTS.flatMap((d) => [d.name, d.nameEn, ...(d.match ?? [])]))]
+
+/**
+ * The known place names that CONTAIN one of these spellings and are longer — the collisions wardWhere takes out: the
+ * curated names and the OTHER wards of the sent province. ⛔ BOUNDED (commit gate, 2026-10-09 — Opus): only for a
+ * province that resolves; with none, every ward of the country containing a one-letter `?ward=a` became a NOT LIKE —
+ * thousands of clauses from a public parameter. No province → no exclusions (wardWhere keeps the bare substring).
+ */
+export function longerPlaceNames(spellings: string[], sentProvince?: string | null): string[] {
+  const p = sentProvince?.trim()
+  const unit = p ? unitFor(p) : undefined
+  if (!unit) return []
+  const known = [...CURATED_PLACE_NAMES, ...unit.wards.flatMap((x) => [x.name, x.nameEn])]
+  const folded = spellings.map((s) => s.toLowerCase())
+  return [...new Set(known)].filter((n) => {
+    const f = n.toLowerCase()
+    return folded.some((s) => s && f.length > s.length && f.includes(s))
+  })
+}
+
 export function wardWhere(sentWard: string, sentProvince?: string | null): Prisma.ListingWhereInput {
   const w = sentWard.trim()
-  return {
-    OR: [w, ...wardAliases(w, sentProvince)].flatMap((s) => [{ district: { contains: s } }, { location: { contains: s } }]),
-  }
+  const aliases = wardAliases(w, sentProvince)
+  const spellings = [w, ...aliases]
+  const bare: Prisma.ListingWhereInput = { OR: spellings.flatMap((s) => [{ district: { contains: s } }, { location: { contains: s } }]) }
+  // ⛔ EXCLUSIONS ONLY FOR A REAL WARD OF THE SENT PROVINCE (the Area panel always sends both): a free-typed or unknown
+  // value keeps the original two LIKEs — the cost of a public parameter stays the old one.
+  const p = sentProvince?.trim()
+  const known = !!p && !!unitFor(p)?.wards.some((x) => x.name === w || x.nameEn === w)
+  const longer = known ? longerPlaceNames(spellings, sentProvince) : []
+  if (!longer.length) return bare
+  // ⛔ PER COLUMN: a column counts when it names the ward and NONE of the longer places — so district "Quận 7 (Phú Mỹ
+  // Hưng)" beside location "P. Phú Mỹ, Quận 7" (a District 7 home that IS in Phú Mỹ ward) still finds it through the
+  // location. ⛔ NULL-SAFE BY CONSTRUCTION: the column already contains the spelling, so it is not NULL — a NOT LIKE on a
+  // NULL column is NULL, which would have dropped every row with no district.
+  const clean = (c: 'district' | 'location', s: string): Prisma.ListingWhereInput => ({
+    AND: [c === 'district' ? { district: { contains: s } } : { location: { contains: s } },
+      ...longer.map((n): Prisma.ListingWhereInput => ({ NOT: c === 'district' ? { district: { contains: n } } : { location: { contains: n } } }))],
+  })
+  return { OR: spellings.flatMap((s) => [clean('district', s), clean('location', s)]) }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isSeededFeed, parseFilterParams, readExplorerUrl } from './explorer-url'
+import { applyFilterParams, isSeededFeed, parseFilterParams, readExplorerUrl } from './explorer-url'
 
 /**
  * The explorer's one URL reader (E-BACK, 2026-09-29). `applyParams` sets exactly what this returns,
@@ -122,5 +122,32 @@ describe('parseFilterParams', () => {
 
   it('ignores a range column no facet of this view owns', () => {
     expect(parseFilterParams(new URLSearchParams('range_nope=1-2'), 'vehicles', 'all')).toEqual({})
+  })
+})
+
+/**
+ * The writer half, moved here from listings-explorer.tsx (2026-10-09) so a saved search's link can be pinned to the
+ * explorer's own request — the key → param naming is taxonomy.ts facetParamName, which saved-search.ts toUrlParams uses too.
+ */
+describe('applyFilterParams', () => {
+  const write = (filters: Record<string, string>, category: string, subcategory = 'all') => {
+    const p = new URLSearchParams()
+    applyFilterParams(p, filters, category, subcategory)
+    return Object.fromEntries(p)
+  }
+
+  it('a range facet by its column, a chip by its key — and parseFilterParams reads both back', () => {
+    const filters = { year: '2018-2022', mileage: '-50000', bikeType: 'scooter', engineCc: '100-150' }
+    const out = write(filters, 'vehicles', 'motorbike')
+    expect(out).toEqual({ range_year: '2018-2022', range_mileageKm: '-50000', attr_bikeType: 'scooter', range_engineCc: '100-150' })
+    expect(parseFilterParams(new URLSearchParams(out), 'vehicles', 'motorbike')).toEqual(filters)
+    expect(write({ salary: '20-40', jobtype: 'fulltime' }, 'jobs')).toEqual({ range_salaryM: '20-40', attr_jobtype: 'fulltime' })
+  })
+
+  it('drops a facet this view does not offer, and an "all" or empty value', () => {
+    // engineCc is a motorbike facet; bedrooms an apartment/house/room one.
+    expect(write({ engineCc: '100-150', year: 'all', color: '' }, 'vehicles')).toEqual({})
+    expect(write({ bedrooms: '2' }, 'rentals')).toEqual({})
+    expect(write({ bedrooms: '2' }, 'rentals', 'apartment-rental')).toEqual({ attr_bedrooms: '2' })
   })
 })

@@ -1317,7 +1317,9 @@ export const TAXONOMY: CategoryDef[] = [
   //   · `workIn` KEEPS ITS KEY and is relabelled "Can teach in": its options are the one place vocabulary
   //     (src/lib/teachers/places.ts — 12 cities, HCMC's 24 districts, 27 provinces, Online, "will move anywhere"),
   //     and a filter expands across city ↔ district ↔ province ↔ anywhere in attr-match.ts (workInFilterKeys). The
-  //     14 old values are all still options, so every old attr_workIn link and saved search keeps working.
+  //     14 old values are all still options, so every old attr_workIn LINK keeps working. ⚠️ Not "and saved search"
+  //     (corrected 2026-10-09): no teachers alert ever fires (the alert cron leaves this category out) and nothing
+  //     offers to save a teachers search any more (saved-search.ts savedSearchOffered) — an old one opens as a link.
   //   · `inVietnam` (new, toggle): the teacher answered "Where are you now?" with a place in Vietnam.
   //   · `jobType` no longer offers Online (a PLACE now) — the token is still derived from 'online' in the teach areas,
   //     so an old attr_jobType=online link still matches. `ageGroup` keeps Business as an option the form never asks:
@@ -1802,6 +1804,22 @@ export function facetsFor(categorySlug: string, subcategorySlug?: string | null)
 // Range facets (numeric slider + min/max filter) for a category (+subcategory).
 export function rangeFacetsFor(categorySlug: string, subcategorySlug?: string | null): (FacetDef & { range: RangeMeta })[] {
   return facetsFor(categorySlug, subcategorySlug).filter((f): f is FacetDef & { range: RangeMeta } => f.kind === 'range' && !!f.range)
+}
+
+/**
+ * ⛔ THE URL PARAM A FILTER ON FACET `key` TRAVELS UNDER, ON THE VIEW (category, subcategory) — ONE MAPPING (2026-10-09).
+ * A range facet of the view goes by its numeric COLUMN, `range_<column>` (the feed range-queries the column —
+ * attr-match.ts rangeWhereFrom); every other key goes by itself, `attr_<key>`. The explorer writes its request and its
+ * URL through it (explorer-url.ts applyFilterParams), a saved search writes its link — the alert's own where and the
+ * notification's deep link — through it (saved-search.ts toUrlParams), and parseFilterParams reads it back. The saved
+ * search had its own copy that wrote every key as `attr_<key>`: a range alert matched no row, and its link opened
+ * without the range.
+ * ⚠️ `'all'` / null / undefined subcategory = no subcategory, exactly as facetsFor reads it.
+ */
+export function facetParamName(key: string, categorySlug: string | null | undefined, subcategorySlug?: string | null): string {
+  const sub = subcategorySlug && subcategorySlug !== 'all' ? subcategorySlug : null
+  const range = categorySlug ? rangeFacetsFor(categorySlug, sub).find((f) => f.key === key) : undefined
+  return range ? `range_${range.range.column}` : `attr_${key}`
 }
 
 // Allow-list of columns a `range_<col>` query param may target — guards the API

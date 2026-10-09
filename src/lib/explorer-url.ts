@@ -1,4 +1,4 @@
-import { migrateLegacyCategoryParams, rangeFacetsFor, facetsFor } from '@/lib/taxonomy'
+import { migrateLegacyCategoryParams, rangeFacetsFor, facetsFor, facetParamName } from '@/lib/taxonomy'
 import { queryForExplicitDistrict } from '@/components/marketplace/explorer-place'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 
@@ -59,6 +59,25 @@ export type ExplorerUrlState = {
    * mount does not paint one frame of the undirected home chrome first.
    */
   directed: boolean
+}
+
+/**
+ * The custom filters INTO a request / URL — `parseFilterParams`'s other half. Custom filters are keyed by facet KEY in
+ * state, but range facets (year/mileage/engine/size/salary) travel in the URL + API keyed by their numeric COLUMN as
+ * `range_<col>` (so the API can do a numeric range query); everything else is `attr_<key>` — taxonomy.ts facetParamName,
+ * the one mapping, which a saved search's link writes through too (saved-search.ts toUrlParams).
+ * ⚠️ A facet this view does not offer is DROPPED (a stale value never reaches the feed) — the explorer's own rule; a
+ * saved search keeps such a stored key as `attr_<key>`, exactly as it always applied it.
+ * (Moved here from listings-explorer.tsx, 2026-10-09, so the saved-search tests can build the explorer's own request.)
+ */
+export function applyFilterParams(p: URLSearchParams, customFilters: Record<string, string>, categorySlug: string, subcategorySlug: string) {
+  const sub = subcategorySlug === 'all' ? null : subcategorySlug
+  const facets = facetsFor(categorySlug, sub)
+  Object.entries(customFilters).forEach(([key, val]) => {
+    if (!val || val === 'all') return
+    if (!facets.some((x) => x.key === key)) return // facet not valid for this (category, subcategory) — drop stale value
+    p.set(facetParamName(key, categorySlug, sub), val)
+  })
 }
 
 /**
