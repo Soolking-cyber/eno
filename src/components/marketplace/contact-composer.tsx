@@ -210,6 +210,10 @@ export function ContactComposer({
    */
   const [resumed, setResumed] = useState<null | { kind: 'chat'; body: string } | { kind: 'offer' }>(null)
   const resumeRan = useRef(false)
+  /** The resume's scroll-into-view, cleared on unmount: a bare timeout fired 150 ms later into a document that was
+   *  gone — in a test that ended inside that window, an unhandled `document is not defined` that failed CI. */
+  const resumeScroll = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(resumeScroll.current), [])
   useEffect(() => {
     if (resumeRan.current || loading) return
     const urlKind = addressResumeKind()
@@ -240,7 +244,7 @@ export function ContactComposer({
       const body = d.action === 'act' ? (d.intent.payload as IntentPayload['chat']).body : opener()
       setResumed({ kind: 'chat', body })
     }
-    window.setTimeout(() => document.getElementById('contact')?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' }), 150)
+    resumeScroll.current = window.setTimeout(() => document.getElementById('contact')?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' }), 150)
   }, [user, loading, identityLoaded, accountType])
 
   // Touch feedback on the two highest-commitment taps in the app. Fired in the gesture

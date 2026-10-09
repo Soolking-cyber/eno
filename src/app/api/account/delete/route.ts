@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentProfile } from '@/lib/admin'
+import { currentAppleClaims, getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
-import { eraseAccount } from '@/lib/core/account-erasure'
+import { appleStatusAfterErasure, eraseAccount } from '@/lib/core/account-erasure'
 import { appReviewGate } from '@/lib/app-review-gates'
 import { COMPANY } from '@/lib/site-legal'
 
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
   }
 
   const profile = await getCurrentProfile()
-  if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!profile) return (await repeatAfterErasure(req)) ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   let body: { confirm?: string } = {}
   try { body = await req.json() } catch {}
@@ -66,7 +66,9 @@ export async function POST(req: Request) {
   const gate = await rateLimit('account-delete', profile.id, 3, '1 h', { strict: true })
   if (!gate.success) return NextResponse.json({ error: 'Too many attempts — try again later' }, { status: 429 })
 
-  const result = await eraseAccount(profile.id, { kind: 'self' })
+  // The session's own word on Apple (verified locally, no round trip): it can only ADD the Apple notice (C1).
+  const claims = await currentAppleClaims()
+  const result = await eraseAccount(profile.id, { kind: 'self' }, { appleLinked: claims?.appleLinked === true })
   if (!result.ok) {
     if (result.code === 'under_review') {
       return NextResponse.json(
@@ -78,5 +80,34 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  return NextResponse.json({ ok: true })
+  // `apple` (none | revoked | queued | manual — EraseResult in src/lib/core/account-erasure.ts): the deletion
+  // dialog shows its last notice — "remove eno in your Apple Account" — for queued and manual.
+  return NextResponse.json({ ok: true, apple: result.apple })
+}
+
+/**
+ * ⛔ A REPEATED REQUEST AFTER A DELETION THAT SUCCEEDED (commit gate round 2, O3). A slow erasure can outlast a proxy:
+ * the dialog then says "something went wrong", the person presses Delete again — and, the account being gone, got 401
+ * "your session has expired — sign in again to delete your account" for a deletion that had worked (a new sign-in then
+ * makes a NEW, empty account). So it answers what the first request would have — { ok: true, apple } — but only on
+ * proof: the typed confirmation, a token verified LOCALLY (signature and expiry — so only within the deleted session's
+ * own token lifetime) whose account has no profile, the strict limiter keyed on it as above, and GoTrue's own word that
+ * the auth user is gone (appleStatusAfterErasure). Anything short of that is the old 401.
+ * NOT ABUSABLE: it deletes and changes nothing, and tells the holder of the deleted account's own token only that the
+ * account is gone. A session that merely failed to resolve (GoTrue down) fails the GoTrue check — 401, as before.
+ */
+async function repeatAfterErasure(req: Request): Promise<NextResponse | null> {
+  let body: { confirm?: string } = {}
+  try { body = await req.json() } catch {}
+  if (body.confirm !== 'DELETE') return null
+  const claims = await currentAppleClaims()
+  if (!claims) return null
+  const profile = await db.profile.findUnique({ where: { id: claims.id }, select: { id: true } }).catch(() => 'unknown' as const)
+  if (profile) return null
+  const gate = await rateLimit('account-delete', claims.id, 3, '1 h', { strict: true })
+  if (!gate.success) return NextResponse.json({ error: 'Too many attempts — try again later' }, { status: 429 })
+  const apple = await appleStatusAfterErasure(claims.id, claims)
+  if (!apple) return null
+  console.log('[account-delete] repeat request — already erased', claims.id, { apple })
+  return NextResponse.json({ ok: true, apple })
 }

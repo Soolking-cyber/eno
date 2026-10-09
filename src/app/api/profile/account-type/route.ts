@@ -1,10 +1,10 @@
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
 import { tosAcceptanceStamp } from '@/lib/site-legal'
-import { getVerifiedPhone } from '@/lib/admin'
+import { getVerifiedPhone, isCurrentUserAppleLinkedByClaims } from '@/lib/admin'
 import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
-import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
+import { sendMetaCapiEvent, metaUserDataFromHeaders, metaCapiConfigured } from '@/lib/meta-capi'
 import { parseAttributionCookie } from '@/lib/attribution'
 import { serverConsent } from '@/lib/consent-value'
 import { consolidateSellerHandle, revertToPersonalHandle } from '@/lib/handle'
@@ -246,10 +246,13 @@ export const POST = route(
 
     // Server-side conversion (CompleteRegistration) for Meta ad optimization. Fires
     // AFTER the response flushes (zero added latency) and no-ops until CAPI env is set.
+    // ⛔ An Apple-linked account's email never becomes `em` (Sign in with Apple D14 — meta-capi.ts); asked only
+    // when CAPI is configured, from the locally verified token — no auth-server round trip.
+    const appleLinked = metaCapiConfigured() ? await isCurrentUserAppleLinkedByClaims() : false
     after(() =>
       sendMetaCapiEvent('CompleteRegistration', {
         eventSourceUrl: req.headers.get('referer') || undefined,
-        userData: metaUserDataFromHeaders(req.headers, { email: profile.email, phone, externalId: profile.id }),
+        userData: metaUserDataFromHeaders(req.headers, { email: profile.email, phone, externalId: profile.id, appleLinked }),
         customData: {
           content_name: 'eno_account',
           status: accountType,

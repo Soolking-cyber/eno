@@ -33,6 +33,20 @@ class MainViewController: CAPBridgeViewController {
     /// failure callbacks, which it filters first. See `BenignNavigationError` below for why.
     private var navigationFilter: NavigationFailureFilter?
 
+    /// Registers the shell's own plugin, `EnoSignIn` (EnoSignInPlugin.swift: Sign in with Apple, and Google through
+    /// ASWebAuthenticationSession — build 3 of 1.0.3 on). Capacitor auto-registers only the npm plugins listed in the
+    /// generated capacitor.config.json, so an in-repo plugin is registered by hand; the bridge keeps the instance.
+    ///
+    /// ⚠️ HERE, NOT IN viewDidLoad. CAPBridgeViewController calls this from loadView, right after the bridge exists
+    /// and BEFORE the WebView loads its first page (loadWebView runs in viewDidLoad). registerPluginInstance adds the
+    /// plugin's JS as a document-start user script, so the very first document already answers
+    /// `Capacitor.isPluginAvailable('EnoSignIn')` — what the pre-paint head script (src/app/[lang]/layout.tsx) reads
+    /// to set `native-siwa`, the class that lets the sign-in buttons show on the first frame. Registered any later,
+    /// the first page would render as build 2 (no Apple, no Google) until the next full navigation.
+    override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(EnoSignInPlugin())
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         configureNativeFeel()

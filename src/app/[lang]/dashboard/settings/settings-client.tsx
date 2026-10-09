@@ -24,6 +24,7 @@ import { PushEventList } from '@/components/marketplace/push-opt-in-card'
 import { DeleteAccount } from '@/components/marketplace/delete-account'
 import { BlockedUsers } from '@/components/marketplace/blocked-users'
 import { appReviewGate } from '@/lib/app-review-gates'
+import { PHONE_OTP_ENABLED } from '@/lib/auth-policy'
 import { SectionHeader } from '@/components/marketplace/section-header'
 
 /** /dashboard/settings — the full account settings, one section per area (identical set
@@ -182,7 +183,10 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
           )}
           {section === 'account' && (
             <>
-              <SettingsGroup first caption={tr('Email', 'Email')}><ChangeEmailForm currentEmail={dash.profile.email} /></SettingsGroup>
+              <SettingsGroup first caption={tr('Email', 'Email')}>
+                <SignInMethods appMetadata={user.app_metadata} />
+                <ChangeEmailForm currentEmail={dash.profile.email} />
+              </SettingsGroup>
               <SettingsGroup caption={tr('Account type', 'Loại tài khoản')}><AccountTypeSwitcher isBusiness={isBusiness} businessName={dash.profile.businessName} onSaved={refresh} /></SettingsGroup>
               {/* ⚠️ SHOWN TO EVERYONE, DELIBERATELY — AND HIDING IT WAS A SECURITY MISTAKE I MADE
                   AND ALL THREE REVIEWERS CAUGHT INDEPENDENTLY.
@@ -238,6 +242,35 @@ export function SettingsClient({ embedded = false, section }: { embedded?: boole
       )}
       </div>
     </>
+  )
+}
+
+/**
+ * "Linked to: Apple, Google, email" — the identities GoTrue lists on the account
+ * (`app_metadata.providers`, read from the session; `provider` alone on an older one), in a fixed order.
+ * Shown only when Apple or Google is among them, so an email-code account's Settings read exactly as before.
+ * It is how a tester tells an Apple-only account from one that also holds an email identity before deleting it
+ * (plan D15). ⚠️ "LINKED TO", NOT "SIGN-IN METHODS" (commit gate B3, codex): it lists identities, and every account
+ * can also get in with a code sent to its email address (the help centre says so), so naming only the identities
+ * as the ways in was wrong — for a Hide My Email account most of all, whose relay forwards that code.
+ */
+function SignInMethods({ appMetadata }: { appMetadata: unknown }) {
+  const { tr } = useLanguage()
+  const m = (appMetadata ?? {}) as { provider?: unknown; providers?: unknown }
+  const ids = new Set<string>(Array.isArray(m.providers) ? m.providers.filter((p): p is string => typeof p === 'string') : typeof m.provider === 'string' ? [m.provider] : [])
+  if (!ids.has('apple') && !ids.has('google')) return null
+  // Brand names stay as they are; the two code methods are words. Unknown providers are left out — and so is a phone
+  // identity while phone sign-in is off (PHONE_OTP_ENABLED): this line names only ways the sign-in form offers.
+  const names = [
+    ids.has('apple') && 'Apple',
+    ids.has('google') && 'Google',
+    ids.has('email') && tr('email', 'email'),
+    PHONE_OTP_ENABLED && ids.has('phone') && tr('phone number', 'số điện thoại'),
+  ].filter((n): n is string => !!n)
+  return (
+    <p className="mb-3 text-sm text-body">
+      {tr('Linked to: {methods}', 'Đã liên kết với: {methods}').replace('{methods}', names.join(', '))}
+    </p>
   )
 }
 

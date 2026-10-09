@@ -35,6 +35,8 @@ const h = vi.hoisted(() => ({
   reveals: [] as Row[],
   /** Raw counter statements, as { sql, values } — contactCount moves by raw SQL since I3a. */
   raw: [] as { sql: string; values: unknown[] }[],
+  /** What the route handed metaUserDataFromHeaders (Sign in with Apple D14). */
+  capiExtra: [] as Row[],
 }))
 
 vi.mock('next/server', async (orig) => {
@@ -57,7 +59,7 @@ vi.mock('@/lib/contact', () => ({
   telHref: (p: string) => `tel:${p}`,
   zaloHref: (p: string) => `https://zalo.me/${p}`,
 }))
-vi.mock('@/lib/meta-capi', () => ({ sendMetaCapiEvent: async () => {}, metaUserDataFromHeaders: () => ({}) }))
+vi.mock('@/lib/meta-capi', () => ({ sendMetaCapiEvent: async () => {}, metaUserDataFromHeaders: (_h: Headers, extra: Row) => { h.capiExtra.push(extra); return {} } }))
 vi.mock('@/lib/db', () => ({
   db: {
     listing: { findFirst: async () => h.listing },
@@ -106,6 +108,7 @@ beforeEach(() => {
   h.rateOk = true
   h.reveals = []
   h.raw = []
+  h.capiExtra = []
   vi.clearAllMocks()
 })
 
@@ -250,6 +253,21 @@ describe('what the reveal records', () => {
     vi.stubEnv('CONTACT_IP_SALT', '')
     await call()
     expect(h.reveals[0].ipHash).toBeNull()
+  })
+
+  it('tells the CAPI payload when the buyer\'s account is Apple-linked, so its email is never hashed (D14)', async () => {
+    h.user = { id: BUYER, email: 'b@privaterelay.appleid.com', phone: null, app_metadata: { provider: 'apple', providers: ['apple'] } }
+    await call()
+    expect(h.capiExtra.at(-1)).toMatchObject({ email: 'b@privaterelay.appleid.com', externalId: BUYER, appleLinked: true })
+    h.user = { id: BUYER, email: 'b@example.test', phone: null, app_metadata: { provider: 'google', providers: ['google'] } }
+    h.reveals = []
+    await call()
+    expect(h.capiExtra.at(-1)).toMatchObject({ appleLinked: false })
+    // ⛔ an `Apple` account (GoTrue keeps the provider as a hand-made authorize request spelled it) sharing a real address
+    h.user = { id: BUYER, email: 'b@example.test', phone: null, app_metadata: { provider: 'Apple', providers: ['Apple'] } }
+    h.reveals = []
+    await call()
+    expect(h.capiExtra.at(-1)).toMatchObject({ email: 'b@example.test', appleLinked: true })
   })
 
   it('scopes the listing lookup through the EDITION filter', async () => {

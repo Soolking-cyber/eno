@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import { AuthErrorToast } from "@/components/marketplace/auth-error-toast";
+import { SiwaTestFlag } from "@/components/marketplace/siwa-test-flag";
+import { appleSignInTokens } from "@/lib/apple-signin";
 import { ThemeProvider } from "@/context/theme-context";
 import { LanguageProvider } from "@/context/language-context";
 import type { LangVariant } from "@/lib/lang-variant";
@@ -20,6 +22,7 @@ import { SaveSignupSheet } from "@/components/marketplace/save-signup-sheet";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
 import { SignupPrompt } from "@/components/marketplace/signup-prompt";
 import { AiConsentHost } from "@/components/marketplace/ai-consent-host";
+import { AppleDeletionNoticeHost } from "@/components/marketplace/apple-deletion-notice";
 import { AppSplash } from "@/components/marketplace/app-splash";
 import { InstallHint } from "@/components/marketplace/install-hint";
 import { ImageShield } from "@/components/marketplace/image-shield";
@@ -157,6 +160,8 @@ export function Providers({
                         a feature first sends what someone typed or a photo to Google (src/lib/ai-consent.ts). Inside Auth +
                         Language for the account and the words. Gate off ⇒ renders null and registers nothing. */}
                     <AiConsentHost />
+                    {/* Sign in with Apple: the notice a deletion hands to the page it lands on (apple-deletion-notice.tsx). */}
+                    <AppleDeletionNoticeHost />
                     {/* ⛔ THE FIRST-RUN TOUR IS GONE (owner, 2026-09-16: "remove onboarding autoplay
                         where it shows top seach bar and taps the category brand too jittery"). It typed
                         into the header search itself and then pointed at the category/brand chips for the
@@ -174,6 +179,10 @@ export function Providers({
                         rendering — the boundary is inside the component's own file's consumer here,
                         see below. */}
                     <Suspense fallback={null}><AuthErrorToast /></Suspense>
+                    {/* Sign in with Apple's tester switch (`?siwa_test=1|0` on any page — see siwa-test-flag.tsx).
+                        Mounted ONLY while `web-test` is in NEXT_PUBLIC_APPLE_SIGNIN (inlined at build), so the dark
+                        deploy's markup is unchanged. Same Suspense reason as the toast above. */}
+                    {appleSignInTokens().has('web-test') && <Suspense fallback={null}><SiwaTestFlag /></Suspense>}
                     </TooltipProvider>
                   </QueryProvider>
                 </FavoritesProvider>

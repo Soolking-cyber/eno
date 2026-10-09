@@ -21,6 +21,7 @@ vi.stubEnv('META_PIXEL_ID', '1234567890')
 vi.stubEnv('META_CAPI_TOKEN', 'test-token-not-a-real-credential')
 
 const { sendMetaCapiEvent, metaUserDataFromHeaders } = await import('./meta-capi')
+const { isAppleLinked } = await import('./apple-signin')
 
 let sent: Array<{ url: string; body: unknown }> = []
 
@@ -49,7 +50,7 @@ const headers = (consent?: string) => headersRaw(consent === undefined ? undefin
 
 const fireWith = async (h: Headers) => {
   await sendMetaCapiEvent('Contact', {
-    userData: metaUserDataFromHeaders(h, { email: 'buyer@example.com', externalId: 'p1' }),
+    userData: metaUserDataFromHeaders(h, { email: 'buyer@example.com', externalId: 'p1', appleLinked: false }),
   })
 }
 const fire = (consent?: string) => fireWith(headers(consent))
@@ -118,10 +119,90 @@ describe('sendMetaCapiEvent consent gate', () => {
 
   it('never puts a raw email or phone on the wire', async () => {
     await sendMetaCapiEvent('Contact', {
-      userData: metaUserDataFromHeaders(headersRaw(`eno-consent-v2=${v2('001')}`), { email: 'buyer@example.com', phone: '+84901234567' }),
+      userData: metaUserDataFromHeaders(headersRaw(`eno-consent-v2=${v2('001')}`), { email: 'buyer@example.com', phone: '+84901234567', appleLinked: false }),
     })
     const wire = JSON.stringify(sent[0].body)
     expect(wire).not.toContain('buyer@example.com')
     expect(wire).not.toContain('901234567')
+  })
+})
+
+/**
+ * ⛔ SIGN IN WITH APPLE (D14, DPLA 3.3.5(C)): an email that came through Sign in with Apple — the account is
+ * Apple-linked, or the address is one of Apple's relays — never becomes `em`. The phone and our external id are
+ * not Apple's data and stay; so does everything else for every other account.
+ */
+describe('Apple-sourced email (D14)', () => {
+  const consented = () => headersRaw(`eno-consent-v2=${v2('001')}`)
+  const userData = () => (sent[0].body as { data: Array<{ user_data: Record<string, unknown> }> }).data[0].user_data
+
+  it('drops em for an Apple-linked account; ph and external_id stay', async () => {
+    await sendMetaCapiEvent('Contact', {
+      userData: metaUserDataFromHeaders(consented(), { email: 'jane@example.com', phone: '+84901234567', externalId: 'p1', appleLinked: true }),
+    })
+    expect(userData().em).toBeUndefined()
+    expect(userData().ph).toEqual([expect.stringMatching(/^[0-9a-f]{64}$/)])
+    expect(userData().external_id).toEqual([expect.stringMatching(/^[0-9a-f]{64}$/)])
+  })
+
+  it('drops em for both relay domains even when the caller says the account is not linked', async () => {
+    for (const email of ['abc123@privaterelay.appleid.com', 'Def@Private.iCloud.com']) {
+      sent = []
+      await sendMetaCapiEvent('Contact', { userData: metaUserDataFromHeaders(consented(), { email, externalId: 'p1', appleLinked: false }) })
+      expect(userData().em, email).toBeUndefined()
+      expect(userData().external_id).toBeDefined()
+    }
+  })
+
+  it('keeps em for everyone else', async () => {
+    await sendMetaCapiEvent('Contact', { userData: metaUserDataFromHeaders(consented(), { email: 'jane@example.com', externalId: 'p1', appleLinked: false }) })
+    expect(userData().em).toEqual([expect.stringMatching(/^[0-9a-f]{64}$/)])
+  })
+
+  // ⛔ Commit gate round 2 (verifier): the answer comes from isAppleLinked, and GoTrue keeps the provider as the authorize
+  // request spelled it — an `Apple` account read as not linked, and Contact hashed its real, shared email.
+  it('⛔ an account whose app_metadata spells Apple another way sends no em either — Contact or CompleteRegistration', async () => {
+    for (const appMetadata of [{ provider: 'Apple', providers: ['Apple'] }, { provider: 'google', providers: ['google', 'APPLE'] }]) {
+      for (const event of ['Contact', 'CompleteRegistration']) {
+        sent = []
+        await sendMetaCapiEvent(event, { userData: metaUserDataFromHeaders(consented(), { email: 'jane@example.com', externalId: 'p1', appleLinked: isAppleLinked(appMetadata) }) })
+        expect(sent, `${event} ${JSON.stringify(appMetadata)}`).toHaveLength(1)
+        expect(userData().em, `${event} ${JSON.stringify(appMetadata)}`).toBeUndefined()
+        expect(userData().external_id).toEqual([expect.stringMatching(/^[0-9a-f]{64}$/)])
+      }
+    }
+    sent = []
+    await sendMetaCapiEvent('Contact', { userData: metaUserDataFromHeaders(consented(), { email: 'jane@example.com', appleLinked: isAppleLinked({ provider: 'Google', providers: ['Google'] }) }) })
+    expect(userData().em).toEqual([expect.stringMatching(/^[0-9a-f]{64}$/)])
+  })
+
+  // ⛔ Commit gate round 2, O5: D14 held only where a caller remembered to pass appleLinked — an event that sent an email
+  // without the answer hashed it. It now FAILS CLOSED: no answer, no `em`.
+  it('⛔ an email whose caller never answered the Apple question is NOT hashed — fail closed', async () => {
+    // Hand-assembled past the type (MetaIdentifiers refuses an email without appleLinked at compile time).
+    await sendMetaCapiEvent('Contact', { userData: { ...metaUserDataFromHeaders(consented()), email: 'jane@example.com', externalId: 'p1' } })
+    expect(userData().em).toBeUndefined()
+    expect(userData().external_id).toEqual([expect.stringMatching(/^[0-9a-f]{64}$/)])
+  })
+
+  it('⛔ no event sends em for an Apple-linked account, a relay address or an unanswered one — every event this app sends', async () => {
+    const cases: Array<[string, Record<string, unknown>]> = [
+      ['linked', { email: 'jane@example.com', appleLinked: true }],
+      ['relay', { email: 'x1@privaterelay.appleid.com', appleLinked: false }],
+      ['relay (iCloud)', { email: 'x2@private.icloud.com', appleLinked: false }],
+      ['unanswered', { email: 'jane@example.com' }],
+    ]
+    for (const event of ['Contact', 'CompleteRegistration', 'Lead', 'ViewContent', 'InitiateCheckout']) {
+      for (const [label, extra] of cases) {
+        sent = []
+        await sendMetaCapiEvent(event, { userData: { ...metaUserDataFromHeaders(consented()), externalId: 'p1', phone: '+84901234567', ...extra } })
+        expect(sent, `${event} ${label}`).toHaveLength(1)
+        expect(userData().em, `${event} ${label}`).toBeUndefined()
+        expect(JSON.stringify(sent[0].body)).not.toContain('"em"')
+      }
+      sent = []
+      await sendMetaCapiEvent(event, { userData: metaUserDataFromHeaders(consented(), { email: 'jane@example.com', appleLinked: false }) })
+      expect(userData().em, `${event} answered not linked`).toEqual([expect.stringMatching(/^[0-9a-f]{64}$/)])
+    }
   })
 })

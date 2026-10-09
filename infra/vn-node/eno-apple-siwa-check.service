@@ -1,0 +1,24 @@
+[Unit]
+Description=eno · probe GoTrue's Sign in with Apple client secret at Apple (and rotate it when due)
+# Wants, not Requires: matching eno-docker-prune. If docker or the network is slow to settle we still try, and the
+# script's own checks decide the outcome rather than systemd skipping the run silently.
+Wants=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+# APPLE_SIWA_AUTO_ROTATE=1, written by `apply-apple-signin.sh install-timer --auto-rotate` (D11), lets the check
+# rotate the secret itself when 30 days or fewer remain; 0 or absent = it only fails, loudly.
+EnvironmentFile=-/etc/default/eno-apple-siwa-check
+# The installed COPY (install-timer refreshes it): a deploy rewrites the checkout, and bash reads a running script
+# by offset — the corruption eno-deploy.sh's self-copy exists to avoid.
+ExecStart=/opt/eno/bin/apply-apple-signin.sh check
+# ⛔ A FAILED CHECK MUST BE VISIBLE: oneshot propagates the exit code to `systemctl --failed`. It fails when Apple
+# refuses the secret (invalid_client), when the running auth container holds a different secret than .env, when
+# Apple cannot be reached, and — without auto-rotate — at 30 days or fewer. It prints no secret: key id, expiry,
+# a 12-character fingerprint and Apple's answer word only.
+StandardOutput=journal
+StandardError=journal
+# A rotation recreates GoTrue and polls it (about two minutes at worst) after waiting up to 15 minutes for the
+# deploy lock; a hung call must end as a visible failure, not an unbounded run the next timer skips behind.
+TimeoutStartSec=25min

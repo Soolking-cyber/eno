@@ -772,7 +772,8 @@ function checkEyebrows(rel, codeLines, rawLines) {
 // files migrate when a later change touches them.) Measured 2026-09-29 (W3-SYSTEM).
 const RATCHETS = {
   'button-spinner': {
-    baseline: 71,
+    // 71 → 70 (2026-10-08): the sign-in form's Google button moved to `loading` with Sign in with Apple.
+    baseline: 70,
     what: 'a hand-built <Loader2 animate-spin> inside a <Button>',
     fix: 'pass `loading` to <Button> — it keeps the label (and the width), sets aria-busy and keeps focus (docs/design-language.md §5)',
   },

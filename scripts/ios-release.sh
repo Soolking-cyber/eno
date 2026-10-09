@@ -112,6 +112,11 @@ DOMAINS=$(ent com.apple.developer.associated-domains)
 # ⛔ applinks:eno.vn and NOTHING else (owner, 2026-10-06; see App.entitlements): no forum host, no www.
 { [ "$(echo "$DOMAINS" | grep -c 'applinks:')" = "1" ] && echo "$DOMAINS" | grep -qx '[[:space:]]*applinks:eno\.vn'; } \
   || fail "signed app must claim exactly applinks:eno.vn — it claims: $(echo "$DOMAINS" | grep -o 'applinks:[^[:space:]]*' | tr '\n' ' ')"
+# Sign in with Apple = exactly [Default] (build 3 of 1.0.3 on; App.entitlements, SIWA plan §7.18). Without it the
+# native Apple sheet fails (ASAuthorizationError 1000), while the site — seeing the EnoSignIn plugin and `ios` in
+# NEXT_PUBLIC_APPLE_SIGNIN — would offer Google beside a broken Apple: the exact Guideline 4.8 gap this build closes.
+[ "$(ent com.apple.developer.applesignin:0)" = "Default" ] && [ -z "$(ent com.apple.developer.applesignin:1)" ] \
+  || fail "signed app must carry com.apple.developer.applesignin = [Default] — it carries: $(ent com.apple.developer.applesignin | tr -s '[:space:]' ' ')"
 
 # Required-reason APIs: every Mach-O, undefined symbols only. A change here means PrivacyInfo.xcprivacy
 # needs a matching category (runbook §2) — then update EXPECTED.

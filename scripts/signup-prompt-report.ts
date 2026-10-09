@@ -101,13 +101,13 @@ async function main() {
   const prof = new Map(profiles.map((p) => [p.day, { created: Number(p.created), onboarded: Number(p.onboarded) }]))
 
   console.log(`\n"Join eno" prompt — ${window[0]} → ${window[window.length - 1]} (Vietnam days), site: ${siteArg}`)
-  const head = '  day          shown      ×  moved on  left open  google   email  signed in   × rate  bounce  start  complete   new profiles (onboarded)'
+  const head = '  day          shown      ×  moved on  left open  google   apple   email  signed in   × rate  bounce  start  complete   new profiles (onboarded)'
   console.log(head)
   console.log('  ' + '─'.repeat(head.length - 2))
   const line = (label: string, t: SignupPromptTotals, p: { created: number; onboarded: number }) => {
     const r = signupPromptRates(t)
     console.log(
-      `  ${label.padEnd(10)} ${num(t.shown)} ${num(t.dismissed, 6)} ${num(t.dismissed_then_continued, 9)} ${num(t.left_open, 10)} ${num(t.google_click)} ${num(t.email_click)} ${num(t.signup_completed, 10)}` +
+      `  ${label.padEnd(10)} ${num(t.shown)} ${num(t.dismissed, 6)} ${num(t.dismissed_then_continued, 9)} ${num(t.left_open, 10)} ${num(t.google_click)} ${num(t.apple_click)} ${num(t.email_click)} ${num(t.signup_completed, 10)}` +
       `   ${pct(r.closeRate)} ${pct(r.bounceAfterClose)} ${pct(r.startRate)} ${pct(r.completionRate)}   ${num(p.created, 8)} (${p.onboarded})`,
     )
   }
@@ -126,7 +126,7 @@ async function main() {
   × rate           ${pct(r.closeRate)}   closed it (×, Esc or backdrop) / shown
   bounce after ×   ${pct(r.bounceAfterClose)}   closed it and opened no other page in that tab / closed
   left open        ${pct(r.leftOpenRate)}   page hidden or closed with the prompt still open, unanswered / shown
-  start rate       ${pct(r.startRate)}   chose Google or email / shown
+  start rate       ${pct(r.startRate)}   chose Google, Apple or email / shown
   completion       ${pct(r.completionRate)}   signed in within an hour / chose a method
   sign-up per ask  ${pct(r.signupPerShow)}   signed in / shown
   new profiles     ${num(sumProf.created, 5)}    created in the window, any route — ${sumProf.onboarded} finished onboarding, ${Math.max(0, sumProf.created - sumProf.onboarded)} did not (the /onboard loss)
@@ -135,26 +135,26 @@ async function main() {
   // ── The prompt by context class (UX3 J1) ──────────────────────────────────────────────────────
   const ctxRows = Object.entries(s.byContext).sort((a, b) => b[1].shown - a[1].shown || a[0].localeCompare(b[0]))
   console.log(`  The prompt by context (${days}-day) — kind of browser · phone/desktop · vi/en`)
-  const ch = '  context                        shown      ×  left open  google   email  signed in   start  complete'
+  const ch = '  context                        shown      ×  left open  google   apple   email  signed in   start  complete'
   console.log(ch)
   console.log('  ' + '─'.repeat(ch.length - 2))
   if (!ctxRows.length) console.log('  (no prompt events in the window)')
   for (const [ctx, t] of ctxRows) {
     const cr = signupPromptRates(t)
-    console.log(`  ${ctx.padEnd(28)} ${num(t.shown)} ${num(t.dismissed, 6)} ${num(t.left_open, 10)} ${num(t.google_click)} ${num(t.email_click)} ${num(t.signup_completed, 10)}   ${pct(cr.startRate)} ${pct(cr.completionRate)}`)
+    console.log(`  ${ctx.padEnd(28)} ${num(t.shown)} ${num(t.dismissed, 6)} ${num(t.left_open, 10)} ${num(t.google_click)} ${num(t.apple_click)} ${num(t.email_click)} ${num(t.signup_completed, 10)}   ${pct(cr.startRate)} ${pct(cr.completionRate)}`)
   }
   console.log('  ⚠️ In-app browsers show 0 prompts by design since UX3 J2 (the prompt never opens there on its own).\n')
 
   // ── Every sign-in gate (UX3 J1) ───────────────────────────────────────────────────────────────
   const gateRows: Array<[string, GateTotals]> = SIGNIN_GATES.map((gate) => [gate, gate === 'timed' ? promptAsGate(s.total) : (g.byGate[gate] ?? zeroGateTotals())])
   console.log(`  Sign-in gates (${days}-day) — where sign-in was asked, what was chosen, what completed`)
-  const gh = '  gate           opened  google   email  completed   start  complete  per open'
+  const gh = '  gate           opened  google   apple   email  completed   start  complete  per open'
   console.log(gh)
   console.log('  ' + '─'.repeat(gh.length - 2))
   const ratio = (a: number, b: number) => (b > 0 ? a / b : null)
   for (const [gate, t] of gateRows) {
-    const methods = t.google + t.email
-    console.log(`  ${gate.padEnd(13)} ${num(t.open)} ${num(t.google)} ${num(t.email)} ${num(t.completed, 10)}   ${pct(ratio(methods, t.open))} ${pct(ratio(t.completed, methods))} ${pct(ratio(t.completed, t.open))}`)
+    const methods = t.google + t.apple + t.email
+    console.log(`  ${gate.padEnd(13)} ${num(t.open)} ${num(t.google)} ${num(t.apple)} ${num(t.email)} ${num(t.completed, 10)}   ${pct(ratio(methods, t.open))} ${pct(ratio(t.completed, methods))} ${pct(ratio(t.completed, t.open))}`)
   }
   console.log(`
   timed = the "Join eno" prompt (its own events above). completed = a sign-in on that device within an hour
@@ -191,7 +191,7 @@ async function main() {
     if (![...m.values()].some((t) => t.open || t.completed)) continue
     const cells = kinds.map((k) => {
       const t = m.get(k)
-      return (t ? `${t.open}→${t.google + t.email}→${t.completed}` : '·').padStart(18)
+      return (t ? `${t.open}→${t.google + t.apple + t.email}→${t.completed}` : '·').padStart(18)
     })
     console.log(`  ${gate.padEnd(12)} ${cells.join('')}`)
   }

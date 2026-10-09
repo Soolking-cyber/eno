@@ -10,6 +10,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Mascot } from '@/components/marketplace/mascot'
 import { safeNextPath } from '@/lib/url'
+import { isAppleLinked } from '@/lib/apple-signin'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { RadioGroup, Radio } from '@/components/ui/radio-group'
@@ -23,6 +24,17 @@ type Choice = 'individual' | 'business'
  *  shapes the rest of the experience (businesses get the CRM dashboard, bulk
  *  upload and analytics; individuals get a simple account). Simple surface, two
  *  big tap targets — the scientifically-low-friction pattern for a forced choice. */
+/**
+ * The name a provider left in user_metadata (`full_name`, else `name`) — a non-empty string or ''. ⛔ CHECKED, NEVER
+ * CAST (commit gate B1, codex): user_metadata is whatever the account wrote through updateUser, so a number or an
+ * object there must not throw in render (`.trim()` on it) and keep its owner out of onboarding.
+ */
+function providerName(meta: unknown): string {
+  const m = (meta && typeof meta === 'object' ? meta : {}) as Record<string, unknown>
+  for (const v of [m.full_name, m.name]) if (typeof v === 'string' && v.trim()) return v
+  return ''
+}
+
 export function OnboardClient() {
   const { tr } = useLanguage()
   const t = (en: string, vi: string) => tr(en, vi)
@@ -45,8 +57,8 @@ export function OnboardClient() {
 
   // Prefill the name from the OAuth profile + phone from a verified OTP login.
   useEffect(() => {
-    const m = (user?.user_metadata ?? {}) as { full_name?: string; name?: string }
-    if (m.full_name || m.name) setName((p) => p || m.full_name || m.name || '')
+    const n = providerName(user?.user_metadata)
+    if (n) setName((p) => p || n)
     if (user?.phone) setPhone((p) => p || user.phone || '')
   }, [user])
 
@@ -75,7 +87,20 @@ export function OnboardClient() {
     if (accountType) router.replace(computeNext())
   }, [loading, identityLoaded, user, accountType, rawNext, router])
 
-  const nameOk = name.trim().length >= 2
+  /**
+   * ⛔ SIGN IN WITH APPLE: NEVER ASK AGAIN FOR WHAT APPLE ALREADY GAVE (plan B1 — App Review rejects an app that
+   * asks an Apple user for their name after Sign in with Apple, Guideline 4.0). Apple shares a name only on the
+   * FIRST authorization, and only if the person chose to; the sign-in writes it into the session before this
+   * screen exists (user_metadata.full_name — the native route's updateUser, GoTrue's own for the web flow).
+   *  · an Apple account WITH that name → no name field at all for an individual; the prefilled name is sent;
+   *  · an Apple account WITHOUT one → the field is there, marked optional; left empty, the server keeps the
+   *    profile's own display name (api/profile/account-type: `displayName || profile.displayName`);
+   *  · a business's contact name is prefilled and optional for an Apple account, required for everyone else.
+   * Email and Google accounts are unchanged: a name is required.
+   */
+  const isApple = isAppleLinked(user?.app_metadata)
+  const appleNamed = isApple && !!providerName(user?.user_metadata)
+  const nameOk = isApple || name.trim().length >= 2
   const phoneOk = phone.replace(/\D/g, '').length >= 9
   const businessOk = choice !== 'business' || (businessName.trim().length >= 2 && phoneOk)
   const canSubmit = !!choice && nameOk && businessOk && !submitting
@@ -226,9 +251,10 @@ export function OnboardClient() {
               the document would carry a duplicate id and every label/aria-describedby pointing at "nm"
               would resolve to the wrong node. The ids are passed EXPLICITLY (Field would otherwise mint
               its own) because they are the ones the server's per-field errors are routed to. */}
-          {choice === 'individual' && (
+          {/* An Apple account that brought its name has nothing to fill in here (see `appleNamed`). */}
+          {choice === 'individual' && !appleNamed && (
             <Field className="mt-5 gap-1">
-              <FieldLabel render={<Label />} className="text-xs font-semibold text-body">{t('Your name', 'Tên của bạn')}</FieldLabel>
+              <FieldLabel render={<Label />} className="text-xs font-semibold text-body">{isApple ? t('Your name (optional)', 'Tên của bạn (không bắt buộc)') : t('Your name', 'Tên của bạn')}</FieldLabel>
               <FieldControl id="nm" render={<Input id="nm" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Minh', 'vd. Minh')} maxLength={80} className="transition-colors" />} />
             </Field>
           )}
@@ -240,7 +266,7 @@ export function OnboardClient() {
                 {fieldErr.biz && <FieldError className="font-semibold">{fieldErr.biz}</FieldError>}
               </Field>
               <Field className="gap-1">
-                <FieldLabel render={<Label />} className="text-xs font-semibold text-body">{t('Your name (contact person)', 'Tên người liên hệ')}</FieldLabel>
+                <FieldLabel render={<Label />} className="text-xs font-semibold text-body">{isApple ? t('Your name (contact person, optional)', 'Tên người liên hệ (không bắt buộc)') : t('Your name (contact person)', 'Tên người liên hệ')}</FieldLabel>
                 <FieldControl id="nm" render={<Input id="nm" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('e.g. Minh', 'vd. Minh')} maxLength={80} className="transition-colors" />} />
               </Field>
               <Field invalid={!!fieldErr.ph} className="gap-1">

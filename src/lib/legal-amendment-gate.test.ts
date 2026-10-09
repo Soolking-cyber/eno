@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { LEGAL_AMENDMENT, REGULATIONS_AMENDMENT } from '@/lib/compliance/legal-amendment'
+import { PRIVACY_TEXT_PUBLISHED } from '@/lib/compliance/privacy-updated'
 
 /**
  * infra/vn-node/legal-amendment-gate.sh — the deploy refuses to PUBLISH a legal amendment on any day but
@@ -100,7 +101,7 @@ const box = (building: Dates, deployed: Dates | null) => boxSrc(withDates(buildi
 function gate(at: { dir: string; sha: string }, today: string, env: Record<string, string> = {}) {
   const r = spawnSync('bash', [GATE, at.dir, at.sha], {
     encoding: 'utf8',
-    env: { ...ENV, LEGAL_AMENDMENT_ACK: '', LEGAL_AMENDMENT_IMMEDIATE: '', ...env, ENO_GATE_TODAY: today },
+    env: { ...ENV, LEGAL_AMENDMENT_ACK: '', LEGAL_AMENDMENT_IMMEDIATE: '', PRIVACY_TEXT_ACK: '', ...env, ENO_GATE_TODAY: today },
   })
   return { status: r.status, out: r.stdout + r.stderr }
 }
@@ -444,6 +445,85 @@ describe('legal-amendment-gate.sh', () => {
       expect(b.status).toBe(1)
       expect(b.out).toContain('publishes the legal amendment today (2026-10-01); in force 2026-10-07, 6 days later')
       expect(b.out).toContain('IMMEDIATE Quy chế amendment (REGULATIONS_AMENDMENT): published AND in force 2026-10-01')
+    })
+  })
+
+  // ⛔ /privacy's OWN DATE (D12, 2026-10-08): src/lib/compliance/privacy-updated.ts's PRIVACY_TEXT_PUBLISHED dates a
+  // /privacy change made outside an amendment — the Sign in with Apple rows and the teacher paragraph — and was a
+  // PLANNED day with nothing holding it. The same rule as an amendment's `published`, without a notice window. Here
+  // the amendments are the real module, already deployed, so only the privacy date moves.
+  describe("/privacy's own date (PRIVACY_TEXT_PUBLISHED)", () => {
+    const PF = 'src/lib/compliance/privacy-updated.ts'
+    const PRIVACY = readFileSync(join(ROOT, PF), 'utf8')
+    const DECL = /^(export const PRIVACY_TEXT_PUBLISHED: string = ')\d{4}-\d{2}-\d{2}(')$/m
+    const dated = (day: string) => PRIVACY.replace(DECL, `$1${day}$2`)
+    /** The deployed commit holds `deployed` (null: no privacy-updated.ts yet), the working tree `building` (null: none). */
+    function privacyBox(building: string | null, deployed: string | null): { dir: string; sha: string } {
+      const dir = mkdtempSync(join(tmpdir(), 'eno-gate-'))
+      git(dir, 'init', '-q')
+      mkdirSync(join(dir, 'src/lib/compliance'), { recursive: true })
+      writeFileSync(join(dir, F), SOURCE)
+      git(dir, 'add', F)
+      if (deployed !== null) {
+        writeFileSync(join(dir, PF), deployed)
+        git(dir, 'add', PF)
+      }
+      const sha = git(dir, 'commit-tree', git(dir, 'write-tree'), '-m', 'deployed')
+      if (building === null) rmSync(join(dir, PF), { force: true })
+      else writeFileSync(join(dir, PF), building)
+      return { dir, sha }
+    }
+
+    it('reads the real module, in the shape the gate parses, and publishes it on its own day', () => {
+      expect(PRIVACY).toMatch(DECL)
+      expect(dated(PRIVACY_TEXT_PUBLISHED)).toBe(PRIVACY)
+      const r = gate(privacyBox(PRIVACY, null), PRIVACY_TEXT_PUBLISHED)
+      expect(r.status, r.out).toBe(0)
+      expect(r.out).toContain(`publishes /privacy's own text dated today (${PRIVACY_TEXT_PUBLISHED})`)
+    })
+
+    it('refuses any other day — a false date after it, a date that has not happened before it', () => {
+      const at = privacyBox(dated('2026-10-09'), null)
+      const late = gate(at, '2026-10-10')
+      expect(late.status).toBe(1)
+      expect(late.out).toContain('/privacy would print a false "Last updated" date')
+      expect(late.out).toContain(`set PRIVACY_TEXT_PUBLISHED = '2026-10-10' in ${PF}`)
+      const early = gate(at, '2026-10-08')
+      expect(early.status).toBe(1)
+      expect(early.out).toContain('an update date that has not happened yet')
+    })
+
+    it('passes every later deploy once the deployed commit carries the same date', () => {
+      const live = privacyBox(dated('2026-10-09'), dated('2026-10-09'))
+      for (const day of ['2026-10-09', '2026-10-10', '2027-03-01']) {
+        const r = gate(live, day)
+        expect(r.status, day).toBe(0)
+        expect(r.out, day).toContain("/privacy's own text dated 2026-10-09 is already live")
+      }
+    })
+
+    it('treats a re-dated text as a new publication', () => {
+      const next = privacyBox(dated('2026-11-02'), dated('2026-10-09'))
+      expect(gate(next, '2026-11-02').status).toBe(0)
+      expect(gate(next, '2026-11-03').status).toBe(1)
+    })
+
+    it('takes an acknowledgement scoped to the date, never a bare flag — and never the amendment acks', () => {
+      const at = privacyBox(dated('2026-10-09'), null)
+      for (const ack of ['1', 'true', '2026-10-10', '']) expect(gate(at, '2026-10-10', { PRIVACY_TEXT_ACK: ack }).status, ack).toBe(1)
+      expect(gate(at, '2026-10-10', { LEGAL_AMENDMENT_ACK: '2026-10-09', LEGAL_AMENDMENT_IMMEDIATE: '2026-10-09' }).status).toBe(1)
+      const acked = gate(at, '2026-10-10', { PRIVACY_TEXT_ACK: '2026-10-09' })
+      expect(acked.status).toBe(0)
+      expect(acked.out).toContain('proceeding on PRIVACY_TEXT_ACK=2026-10-09')
+    })
+
+    it('refuses a file whose date it cannot read; a commit without the file has nothing to hold', () => {
+      const unreadable = gate(privacyBox(PRIVACY.replace(DECL, "export const PRIVACY_TEXT_PUBLISHED = new Date().toISOString().slice(0, 10)"), null), '2026-10-09')
+      expect(unreadable.status).toBe(1)
+      expect(unreadable.out).toContain('cannot read PRIVACY_TEXT_PUBLISHED')
+      const none = gate(privacyBox(null, null), '2026-10-09')
+      expect(none.status).toBe(0)
+      expect(none.out).toContain('has no date of its own to hold')
     })
   })
 

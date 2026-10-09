@@ -8,6 +8,7 @@ import { confirmExitToast, EXIT_CONFIRM_MS } from '@/lib/subtle-toast'
 import { setNativeKeyboard } from '@/hooks/use-virtual-keyboard'
 import { hapticLongPress, hapticTap } from '@/lib/haptics'
 import { canonicalAppPath } from '@/lib/deep-link'
+import { authCallbackPathFromDeepLink } from '@/lib/native-auth'
 import { backPressClosesOverlay } from '@/lib/back-to-close'
 import { IS_SERVICES } from '@/lib/edition'
 import { leavingForHomeTwin } from '@/lib/app-home-language'
@@ -663,19 +664,16 @@ export function NativeBootstrap() {
         } catch { /* unparseable URL — ignore */ }
       }
 
-      // Google OAuth deep-link return. Google blocks OAuth in the app's WebView, so the sign-in
-      // button opens it in a real in-app browser tab; on success Supabase redirects to
-      // `enovn://auth-callback?code=…`, which reopens the app HERE. Forward that code to the SAME
-      // server /auth/callback route the web uses — it runs in THIS WebView's cookie jar, reads the
-      // PKCE verifier cookie set by signInWithOAuth, exchanges it, provisions + onboards.
-      // Precise match — a substring test would also hit a legitimate App Link that merely
-      // CONTAINS "://auth-callback" in a query param and hijack it into the auth flow.
-      const isAuthCallback = (url: string) => {
-        try {
-          const u = new URL(url)
-          return u.protocol === 'enovn:' && u.host === 'auth-callback'
-        } catch { return false }
-      }
+      // OAuth deep-link return (Google; Apple's web flow on Android). Google blocks OAuth in the app's
+      // WebView, so the sign-in button opens it in a real in-app browser tab; on success the callback
+      // route redirects to `enovn://auth-callback?code=…`, which reopens the app HERE. Forward that code
+      // to the SAME server /auth/callback route the web uses — it runs in THIS WebView's cookie jar, reads
+      // the PKCE verifier cookie set by signInWithOAuth, exchanges it, provisions + onboards.
+      // authCallbackPathFromDeepLink (src/lib/native-auth.ts) matches scheme AND host precisely — a
+      // substring test would also hit a legitimate App Link that merely CONTAINS "://auth-callback" in a
+      // query param — and forwards the QUERY ONLY: never a fragment, where an implicit flow puts tokens.
+      // (iOS build 3 runs Google in ASWebAuthenticationSession instead, which hands its callback straight
+      // back to nativeOAuth; this path still serves Android and older iOS binaries.)
       // ONE dispatch path for both deliveries. Platform asymmetry: iOS fires a RETAINED
       // appUrlOpen for the launching URL AND returns it from getLaunchUrl (double delivery);
       // Android fires appUrlOpen only from onNewIntent (warm), so a cold-start URL arrives
@@ -689,11 +687,11 @@ export function NativeBootstrap() {
         if (url === lastUrl && now - lastAt < 5000) return
         lastUrl = url
         lastAt = now
-        if (isAuthCallback(url)) {
-          const query = url.split('?')[1] ?? ''
+        const authPath = authCallbackPathFromDeepLink(url)
+        if (authPath) {
           void import('@capacitor/browser').then(({ Browser }) => Browser.close().catch(() => {}))
           hardNavAt = Date.now()
-          window.location.assign(`/auth/callback${query ? `?${query}` : ''}`)
+          window.location.assign(authPath)
           return
         }
         routeDeepLink(url)

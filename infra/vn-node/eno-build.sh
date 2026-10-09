@@ -70,7 +70,14 @@ for line in open(path):
     out.append(f"{k}={url}\n" if k in ("DATABASE_URL", "DIRECT_URL") else line)
 open(path, "w").writelines(out)
 PYEOF
-echo "building $TAG (edition=$ED, $(grep -c '=' "$B") build vars)"
+# ⛔ THE IMAGE SAYS WHICH SIGN IN WITH APPLE FLAG ITS BUNDLE INLINED (2026-10-08). NEXT_PUBLIC_APPLE_SIGNIN is
+# compiled into the bundle, so a container's ENV can disagree with what it shows — `eno-deploy.sh --rollback` runs
+# the :prev image under the CURRENT env file — and apply-apple-signin.sh restore must not switch GoTrue's Apple off
+# while Apple is on screen (B5). So every image carries the value it was built with, read from the same file the
+# build reads (last assignment wins, as when the Dockerfile sources it; quotes stripped). Not a secret: it is in
+# the public bundle.
+APPLE_FLAG=$(grep -E '^NEXT_PUBLIC_APPLE_SIGNIN=' "$B" | tail -n 1 | cut -d= -f2- | sed -E "s/^\"(.*)\"\$/\\1/; s/^'(.*)'\$/\\1/" || true)
+echo "building $TAG (edition=$ED, $(grep -c '=' "$B") build vars, NEXT_PUBLIC_APPLE_SIGNIN='$APPLE_FLAG')"
 # ⛔ KEEP THE WHOLE LOG. `| tail -20` threw away the only copy of the actual
 # failure: the Dockerfile runs `npm run build;` with a SEMICOLON, so a failed
 # Next build does not fail the layer — it just leaves .next/standalone missing and
@@ -87,7 +94,7 @@ echo "building $TAG (edition=$ED, $(grep -c '=' "$B") build vars)"
 # reporting success, which is worse than failing: nobody goes looking.
 PRE=$(docker images --no-trunc --format '{{.ID}}' "$TAG" 2>/dev/null | head -1)
 set +e
-DOCKER_BUILDKIT=1 docker build --progress=plain --no-cache --network=host --secret id=buildenv,src="$B" -t "$TAG" . > "/opt/eno/build-$ED.log" 2>&1
+DOCKER_BUILDKIT=1 docker build --progress=plain --no-cache --network=host --secret id=buildenv,src="$B" --label "vn.eno.apple-signin=$APPLE_FLAG" -t "$TAG" . > "/opt/eno/build-$ED.log" 2>&1
 RC=$?
 set -e
 tail -20 "/opt/eno/build-$ED.log"

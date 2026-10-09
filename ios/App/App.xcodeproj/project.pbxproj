@@ -18,6 +18,7 @@
 		ED0000000000000000000001 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED0000000000000000000002 /* MainViewController.swift */; };
 		ED0000000000000000000003 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = ED0000000000000000000004 /* PrivacyInfo.xcprivacy */; };
 		ED0000000000000000000005 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = ED0000000000000000000006 /* InfoPlist.strings */; };
+		ED000000000000000000000A /* EnoSignInPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED000000000000000000000B /* EnoSignInPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,7 @@
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		ED0000000000000000000002 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
+		ED000000000000000000000B /* EnoSignInPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnoSignInPlugin.swift; sourceTree = "<group>"; };
 		ED0000000000000000000004 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		ED0000000000000000000009 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
 		ED0000000000000000000007 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
@@ -73,6 +75,7 @@
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				ED0000000000000000000002 /* MainViewController.swift */,
+				ED000000000000000000000B /* EnoSignInPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -173,6 +176,7 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				ED0000000000000000000001 /* MainViewController.swift in Sources */,
+				ED000000000000000000000A /* EnoSignInPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

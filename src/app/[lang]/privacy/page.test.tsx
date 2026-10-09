@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { createHash } from 'node:crypto'
 import * as React from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
@@ -56,6 +57,29 @@ async function policy(edition: 'marketplace' | 'services', lang: 'en' | 'vi' = '
   render(<LanguageProvider initialLang={lang} initialViDict={{}}><PrivacyPage /></LanguageProvider>)
   return document.body.textContent ?? ''
 }
+
+describe('/privacy — its text and its date move together (commit gate B2)', () => {
+  it('⛔ the policy as rendered matches PRIVACY_TEXT_FINGERPRINT — a change to the text must decide its date', async () => {
+    // The build-time switches the page reads, pinned empty (commit gate B4, opus): a shell or CI env that sets them
+    // must not move the hash and send someone to re-date a policy whose text did not change.
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', '')
+    vi.stubEnv('NEXT_PUBLIC_APPLE_SIGNIN', '')
+    const parts: string[] = []
+    for (const edition of ['marketplace', 'services'] as const) {
+      for (const lang of ['en', 'vi'] as const) {
+        parts.push(`${edition}/${lang}\n${(await policy(edition, lang)).replace(/\s+/g, ' ').trim()}`)
+        cleanup()
+      }
+    }
+    const fingerprint = createHash('sha256').update(parts.join('\n\n')).digest('hex').slice(0, 16)
+    const { PRIVACY_TEXT_FINGERPRINT, PRIVACY_TEXT_PUBLISHED } = await import('@/lib/compliance/privacy-updated')
+    expect(
+      fingerprint,
+      `/privacy's text changed. Shipping outside a legal amendment? Re-date PRIVACY_TEXT_PUBLISHED (now ${PRIVACY_TEXT_PUBLISHED}) ` +
+        `to the day it deploys. Then set PRIVACY_TEXT_FINGERPRINT to '${fingerprint}' (src/lib/compliance/privacy-updated.ts).`,
+    ).toBe(PRIVACY_TEXT_FINGERPRINT)
+  })
+})
 
 describe('/privacy — which language governs', () => {
   it('⛔ no longer says the English version is authoritative', async () => {
@@ -206,7 +230,9 @@ describe('/privacy — the facts it states match the code', () => {
       expect(text, site).toContain('no IP address, account, cookie, browser version or page')
       expect(text, site).toContain('left open when the page was hidden or closed')
       expect(text, site).toContain('the kind of browser (a regular one, Facebook’s, Zalo’s or another app’s built-in browser, the home-screen app or the eno app), phone or computer, and Vietnamese or English')
-      expect(text, site).toContain('how many times sign-in was opened there, Google or email was chosen, and a sign-in followed')
+      // Sign in with Apple (2026-10-08): `apple_click` / gate action `apple` are counted too (src/lib/signup-prompt.ts).
+      expect(text, site).toContain('how many times sign-in was opened there, Google, Apple or email was chosen, and a sign-in followed')
+      expect(text, site).toContain('answered with Google, Apple or email')
       expect(text, site).not.toContain('browser details or page')
       expect(text, site).toContain('counted whatever you choose for Analytics')
       const vi = await policy(site, 'vi')
@@ -302,6 +328,69 @@ describe('/privacy — the facts it states match the code', () => {
     expect(text).toContain('not to your IP address')
     expect(text).toContain('the Meta and Google advertising cookies')
     expect(text).not.toMatch(/Allow all|Essential only/)
+  })
+})
+
+/**
+ * SIGN IN WITH APPLE (2026-10-08, D12: one dated update shipped with the SIWA dark deploy). Apple is a recipient
+ * like Google, with what it sends (the name only the first time, a private relay address if the person hides
+ * theirs), the token kept ONLY to revoke at deletion (TN3194), and the relay that carries our mail; Meta never
+ * gets the email hash of an Apple account or a relay address (D14, meta-capi.ts). Both editions.
+ */
+describe('/privacy — Sign in with Apple', () => {
+  it('⛔ names Apple as a recipient — what it sends, the token kept only for revocation, the relay — in both languages', async () => {
+    for (const site of ['marketplace', 'services'] as const) {
+      const en = await policy(site)
+      expect(en, site).toContain('Apple (Sign in with Apple)')
+      expect(en, site).toContain('the first time only and only if you share it, your name')
+      expect(en, site).toContain('a private relay address that forwards to it')
+      expect(en, site).toContain('We keep a sign-in token from Apple, stored encrypted, only so that when you delete your account we can ask Apple to end this site’s access to your Apple Account.')
+      expect(en, site).toContain('Emails we send to a private relay address pass through Apple’s relay service on their way to you.')
+      cleanup()
+      const vi = await policy(site, 'vi')
+      expect(vi, site).toContain('Apple (Đăng nhập bằng Apple)')
+      expect(vi, site).toContain('chỉ để khi bạn xóa tài khoản, chúng tôi có thể yêu cầu Apple chấm dứt quyền truy cập')
+      cleanup()
+    }
+  })
+
+  it('⛔ account information and the cross-border notice name Apple', async () => {
+    const text = await policy('marketplace')
+    expect(text).toContain('if you use Sign in with Apple, your name from Apple — only the first time, and only if you choose to share it')
+    expect(text).toContain('Cloudflare, Microsoft, Google, Apple, Resend')
+  })
+
+  it('⛔ D14: the Meta row and the Advertising paragraph say the email hash is never sent for an Apple account or a relay address', async () => {
+    const en = await policy('marketplace')
+    expect(en).toContain('never your email address if you use Sign in with Apple, or if it is an Apple private relay address')
+    expect(en).toContain('with your email address (never if you use Sign in with Apple, or for an Apple private relay address), phone number and account identifier scrambled (hashed) first')
+    cleanup()
+    const vi = await policy('marketplace', 'vi')
+    expect(vi).toContain('không bao giờ gửi email của bạn nếu bạn dùng Đăng nhập bằng Apple')
+  })
+
+  it('the sign-up reminder lists Apple among the methods it remembers choosing', async () => {
+    const text = await policy('marketplace')
+    expect(text).toContain('when you last chose Google, Apple or email in it')
+    expect(text).toContain('For any sign-in window: when you choose Google, Apple or email in it')
+  })
+
+  it('the teacher-profile paragraph rides the same dated update', async () => {
+    const text = await policy('marketplace')
+    expect(text).toContain('Teacher profiles: if you create a teacher profile, we publish what you enter')
+    expect(text).toContain('a link that expires after 10 minutes')
+  })
+
+  it('⛔ D12: "Last updated" prints this text’s own date, or a later Terms amendment’s, never an earlier one', async () => {
+    const { LEGAL_AMENDMENT, dateEn, dateVi } = await import('@/lib/compliance/legal-amendment')
+    const { PRIVACY_TEXT_PUBLISHED: own } = await import('@/lib/compliance/privacy-updated')
+    expect(own).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    // The Apple rows and the teacher paragraph changed this text after the Terms' version 3 dated it.
+    expect(own >= LEGAL_AMENDMENT.published).toBe(true)
+    const day = own > LEGAL_AMENDMENT.published ? own : LEGAL_AMENDMENT.published
+    expect(await policy('marketplace')).toContain(`Last updated: ${dateEn(day)}`)
+    cleanup()
+    expect(await policy('marketplace', 'vi')).toContain(`Cập nhật lần cuối: ${dateVi(day)}`)
   })
 })
 

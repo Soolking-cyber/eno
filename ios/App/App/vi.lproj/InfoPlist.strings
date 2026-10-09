@@ -5,10 +5,10 @@
   Home-screen quick-action titles are looked up by their Info.plist VALUE as the key.
 */
 "CFBundleDisplayName" = "eno";
-"NSCameraUsageDescription" = "eno dùng máy ảnh khi bạn chụp ảnh hoặc quay video trên eno — cho tin đăng, hồ sơ hay cửa hàng của bạn, tìm kiếm bằng hình ảnh, một báo cáo, hoặc ảnh bạn gửi cho người bán trong chat.";
-"NSPhotoLibraryUsageDescription" = "eno mở thư viện ảnh khi bạn chọn ảnh hoặc video trên eno — cho tin đăng, hồ sơ hay cửa hàng của bạn, tìm kiếm bằng hình ảnh, một báo cáo, hoặc ảnh bạn gửi cho người bán trong chat.";
+"NSCameraUsageDescription" = "eno dùng máy ảnh khi bạn chụp ảnh hoặc quay video trên eno — cho tin đăng, hồ sơ hay cửa hàng của bạn, tìm kiếm bằng hình ảnh, một báo cáo, hoặc ảnh hay giấy tờ bạn gửi cho người bán trong chat.";
+"NSPhotoLibraryUsageDescription" = "eno mở thư viện ảnh khi bạn chọn ảnh hoặc video trên eno — cho tin đăng, hồ sơ hay cửa hàng của bạn, tìm kiếm bằng hình ảnh, một báo cáo, hoặc ảnh hay giấy tờ bạn gửi cho người bán trong chat.";
 "NSPhotoLibraryAddUsageDescription" = "eno lưu ảnh vào thư viện khi bạn chọn tải về.";
-"NSMicrophoneUsageDescription" = "eno dùng micro khi bạn quay video cho tin đăng.";
+"NSMicrophoneUsageDescription" = "eno dùng micro khi bạn quay video cho tin đăng hoặc hồ sơ giáo viên của bạn.";
 "NSLocationWhenInUseUsageDescription" = "eno dùng vị trí của bạn để hiện tin đăng gần bạn và điền khu vực của bạn khi đăng tin, sửa hồ sơ doanh nghiệp hoặc gợi ý nơi gặp trong chat.";
 "Post" = "Đăng tin";
 "Messages" = "Tin nhắn";

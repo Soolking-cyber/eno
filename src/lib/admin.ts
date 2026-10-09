@@ -9,6 +9,7 @@ import { recordPhoneVerified, BASE_SCORE, PHONE_VERIFIED_BONUS } from '@/lib/tru
 import type { Profile } from '@/generated/prisma/client'
 import { normalizePhone } from '@/lib/phone'
 import { logError } from '@/lib/log'
+import { isAppleLinked } from '@/lib/apple-signin'
 
 /** Comma-separated allowlist from ADMIN_EMAILS (server-only env). */
 function adminEmails(): string[] {
@@ -237,4 +238,28 @@ export async function getCurrentProfileId(): Promise<string | null> {
 export async function isCurrentUserAdminByClaims(): Promise<boolean> {
   const email = (await currentClaims())?.email
   return typeof email === 'string' && isAdminEmail(email)
+}
+
+/**
+ * Does the caller's account carry an Apple identity? Read from `app_metadata` in the LOCALLY verified JWT (the
+ * providers GoTrue stamped on the token), so it costs no auth-server round trip.
+ * ⛔ THE SAME RULE AS ABOVE: it may only ever REMOVE something — today the email hash from a Meta conversion
+ * event (Sign in with Apple D14, src/lib/meta-capi.ts) — never open a door. So NO VERIFIED CLAIMS ANSWER TRUE
+ * (commit gate round 2, O5): "cannot tell" removes the hash too, rather than sending it for an account that is linked.
+ */
+export async function isCurrentUserAppleLinkedByClaims(): Promise<boolean> {
+  const claims = await currentClaims()
+  return claims ? isAppleLinked(claims.app_metadata) : true
+}
+
+/**
+ * What the caller's LOCALLY verified token says that bears on Sign in with Apple: its subject, whether its
+ * app_metadata names Apple, and its email claim — or null without verified claims. For the self-service deletion
+ * (src/app/api/account/delete): they can only ADD the "remove eno in your Apple Account" notice, and a REPEATED request
+ * uses the subject to find the account the first one already erased — never to act on one.
+ */
+export async function currentAppleClaims(): Promise<{ id: string; appleLinked: boolean; email: string | null } | null> {
+  const claims = await currentClaims()
+  if (!claims || typeof claims.sub !== 'string' || !claims.sub) return null
+  return { id: claims.sub, appleLinked: isAppleLinked(claims.app_metadata), email: typeof claims.email === 'string' ? claims.email : null }
 }

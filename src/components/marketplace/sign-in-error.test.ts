@@ -67,6 +67,8 @@ describe('every OTHER error is sticky', () => {
     ['network', { code: 'network' }],
     ['email_unreachable', { code: 'email_unreachable' }],
     ['unknown', { code: 'unknown' }],
+    ['apple_failed', { code: 'apple_failed' }],
+    ['apple_unavailable', { code: 'apple_unavailable' }],
     ['raw provider text', { code: 'raw', message: 'Signups not allowed for this instance' }],
   ]
 
@@ -85,7 +87,7 @@ describe('every OTHER error is sticky', () => {
 describe('codes map to copy a person can act on', () => {
   it('gives every code a non-empty sentence', () => {
     const codes = ['captcha', 'network', 'email_unreachable', 'invalid_email', 'cooldown',
-      'rate_limited', 'send_failed', 'bad_code', 'unknown'] as const
+      'rate_limited', 'send_failed', 'bad_code', 'unknown', 'apple_failed', 'apple_unavailable'] as const
     for (const code of codes) {
       expect(signInErrorText({ code }, t), code).not.toBe('')
     }
@@ -107,6 +109,14 @@ describe('codes map to copy a person can act on', () => {
     expect(PHONE_OTP_ENABLED).toBe(false)
     expect(signInErrorText({ code: 'send_failed' }, t)).toBe("We couldn't send the email just now. Try again in a moment.")
     expect(signInErrorText({ code: 'send_failed' }, (_en, vi) => vi ?? '<missing>')).toBe('Chúng tôi chưa gửi được email lúc này. Thử lại sau giây lát nhé.')
+  })
+
+  it('Sign in with Apple’s two codes say what to do, in Apple’s own name for the feature, in both languages', () => {
+    const vi = (_en: string, v?: string) => v ?? '<missing>'
+    expect(signInErrorText({ code: 'apple_failed' }, t)).toMatch(/^Sign in with Apple didn’t finish\./)
+    expect(signInErrorText({ code: 'apple_unavailable' }, t)).toMatch(/signed in to an Apple Account/)
+    expect(signInErrorText({ code: 'apple_failed' }, vi)).toMatch(/^Đăng nhập bằng Apple chưa hoàn tất\./)
+    expect(signInErrorText({ code: 'apple_unavailable' }, vi)).toMatch(/Tài khoản Apple/)
   })
 
   it('shows provider text verbatim rather than flattening it to "something went wrong"', () => {

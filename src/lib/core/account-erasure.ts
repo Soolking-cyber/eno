@@ -8,6 +8,19 @@ import { appendAudit } from '@/lib/compliance/audit'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { VISA_BUCKET } from '@/lib/visa-admin'
 import { logError } from '@/lib/log'
+import { isAppleRelayEmail } from '@/lib/apple-signin'
+import {
+  APPLE_MIN_CALL_MS,
+  appleIdentityState,
+  appleOnOffer,
+  authUserState,
+  hasQueuedTokens,
+  isGoTrueUserNotFound,
+  queueTokensForErasure,
+  queueUnsettledTokens,
+  settleQueuedTokens,
+  type QueuedKey,
+} from '@/lib/auth/apple-siwa'
 import type { Prisma } from '@/generated/prisma/client'
 
 // ── ACCOUNT ERASURE (PDPL 91/2025: delete ≤20 days — we do it now) ──────────────────────────────
@@ -24,6 +37,9 @@ import type { Prisma } from '@/generated/prisma/client'
 //  sides of the user's threads), notifications, trust events, saved searches, push subscriptions,
 //  profile, and the Supabase auth user. Storage objects are tombstoned in the same transaction and
 //  purged on the response path (purgeStorageObjects); the sweep finishes what the fast path cannot.
+//  Sign in with Apple: the kept tokens are queued in the same transaction (so the daily retry owns them whatever
+//  happens next), and the person's authorization of eno is REVOKED at Apple before the auth user goes
+//  (Guideline 5.1.1(v), TN3194 — settleAppleTokens below); the result rides back as `apple`.
 //  Kept: reviews the user WROTE are anonymized (author name scrubbed + authorProfileId → null),
 //  resolved report records are DETACHED from the dying listings first so they survive by bare
 //  target/reporter ids for the statutory retention window (e-commerce records: 3 years), and the
@@ -38,11 +54,40 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SECRET_KEY = process.env.SUPABASE_SECRET_KEY
 
 export type EraseActor = { kind: 'self' } | { kind: 'admin'; email: string; reason: string }
+/**
+ * What happened to the person's Sign in with Apple authorization (Guideline 5.1.1(v), TN3194, plan D9):
+ *   none    — PROVEN not an Apple account: GoTrue lists its providers and none is Apple, no token row of it was found,
+ *             its address is not one of Apple's relays, and nothing the caller knows says otherwise.
+ *   revoked — every token we held was validated and revoked: eno is gone from their Apple Account.
+ *   queued  — Apple could not be reached (or refused our secret), or the request path's Apple budget ran out: retried
+ *             daily for 14 days by /api/cron/apple-revocations. The person is told to remove eno in their Apple Account
+ *             meanwhile.
+ *   manual  — everything else: an Apple account whose token we do not hold, or whose token Apple says is already dead,
+ *             and ANY account Apple may be involved with that we cannot prove otherwise (GoTrue not answering, a relay
+ *             address): only the person can confirm eno is gone, so they are told how (support.apple.com/…/102571).
+ * ⛔ FAIL TOWARD THE NOTICE (commit gate round 2, C1): a needless "check your Apple Account" costs a glance; a missing
+ * one leaves eno in it for good.
+ * ⛔ APPLE NEVER BLOCKS OR FAILS AN ERASURE: every Apple step is bounded — APPLE_ERASURE_BUDGET_MS in all — and caught.
+ */
+export type AppleEraseStatus = 'none' | 'revoked' | 'queued' | 'manual'
 export type EraseResult =
-  | { ok: true; purge: { deleted: number; kept: number; foreign: number; failed: number } }
+  | { ok: true; purge: { deleted: number; kept: number; foreign: number; failed: number }; apple: AppleEraseStatus }
   | { ok: false; code: 'not_found' | 'under_review' }
 
-export async function eraseAccount(profileId: string, actor: EraseActor): Promise<EraseResult> {
+/**
+ * ⛔ THE APPLE WORK ON THE ERASURE'S REQUEST PATH, IN ALL (commit gate round 2, O3): GoTrue's identity read, the wait for
+ * the Apple ID's lock and every call to Apple, together. It used to be a 5 s identity read, then up to 10 s for a pooled
+ * connection, a 25 s lock wait and four 5 s calls per Apple ID — close to a minute, long enough for a proxy to give up
+ * and the person to retry a deletion that had in fact succeeded. Past the budget, whatever is not settled stays queued
+ * for the daily retry and the person reads `queued`.
+ */
+export const APPLE_ERASURE_BUDGET_MS = 9_000
+
+/**
+ * `signals.appleLinked`: what the CALLER knows — the self-service route's verified session claims name Apple. It can
+ * only ADD the Apple notice (`manual` where the status would otherwise be `none`), never remove one.
+ */
+export async function eraseAccount(profileId: string, actor: EraseActor, signals: { appleLinked?: boolean } = {}): Promise<EraseResult> {
   const profile = await db.profile.findUnique({ where: { id: profileId }, select: { id: true, avatarUrl: true, enforcementState: true, email: true } })
   if (!profile) return { ok: false, code: 'not_found' }
   const by = actor.kind === 'self' ? 'self' : `admin:${actor.email}`
@@ -59,6 +104,17 @@ export async function eraseAccount(profileId: string, actor: EraseActor): Promis
     },
   })
   if (underEnforcement || openReports > 0) return { ok: false, code: 'under_review' }
+
+  // ⛔ SIGN IN WITH APPLE — whether GoTrue knows an Apple identity for this account, read BEFORE anything is deleted
+  // (it is gone with the auth user). A GoTrue that does not answer in 5 s reads as "unknown". The kept tokens
+  // themselves are queued INSIDE the transaction below and revoked after it. Its time counts against the Apple budget.
+  // ⛔ Only where Apple can have been used (appleOnOffer — commit gate rounds 6–7): before Apple is configured the dark
+  // deploy never waits on GoTrue for it; once configured, a later rollback of the flag still finds earlier Apple users.
+  const appleStarted = Date.now()
+  const appleIdentity: AppleIdentity = appleOnOffer() ? await readAppleIdentity(profile.id) : 'none'
+  const appleIdentityMs = Date.now() - appleStarted
+  /** What the transaction handed to the daily retry (queueTokensForErasure) — "failed" until it has run. */
+  let appleQueue: AppleQueue = { keys: [], missingTable: false, failed: true }
 
   // Interactive transaction: re-resolve the seller INSIDE the tx (a storefront
   // created concurrently must not survive as an orphan), then reports → reviews →
@@ -170,6 +226,11 @@ export async function eraseAccount(profileId: string, actor: EraseActor): Promis
       // a ticket id or a date, never a name, and it is capped here as well.
       detail: { by: actor.kind, reason: actor.kind === 'admin' ? actor.reason.slice(0, 120) : 'self_service', objects: publicRefs.length + privateRefs.length },
     })
+    // ⛔ APPLE'S TOKENS ARE QUEUED IN THIS COMMIT, NOT AFTER IT (commit-gate C1, 2026-10-08). Every active row of this
+    // account becomes the daily retry's in the same commit that deletes the profile, so a process killed right after
+    // the commit — before the revocation below — leaves them queued, not active and invisible to the retry for good.
+    // Never fails this transaction: a missing table or a failed UPDATE answers instead (savepoint — see the helper).
+    appleQueue = await queueTokensForErasure(tx, profile.id)
     await tx.profile.delete({ where: { id: profile.id } })
   }, { timeout: 30_000 }) // an account with hundreds of listings writes hundreds of tombstones; Prisma's 5s default is for a form save
 
@@ -222,9 +283,17 @@ export async function eraseAccount(profileId: string, actor: EraseActor): Promis
     )
   }
 
+  // ⛔ APPLE'S TOKENS ARE REVOKED AFTER THE ROWS ARE GONE AND BEFORE THE AUTH USER IS (TN3194): the rows the
+  // transaction queued are validated, then revoked, each deleted once settled; what Apple could not take now stays
+  // queued for the daily retry. Runs even when the auth user is kept below (deskQueueFailed): the account the person
+  // asked to delete is gone from eno either way, and so must eno be from their Apple Account. Within what the identity
+  // read left of APPLE_ERASURE_BUDGET_MS (O3) — the transaction and the storage walks in between are not Apple's time.
+  const appleSettled = await settleAppleTokens(profile.id, appleQueue, Date.now() + APPLE_ERASURE_BUDGET_MS - appleIdentityMs)
+
   // Remove the auth user (invalidates every session/device). Loud log on failure:
   // ensureProfile would recreate an EMPTY profile on a later sign-in — no data
   // comes back, but the orphan auth user should be cleaned up by hand.
+  let authUserGone = false
   if (deskQueueFailed) {
     // handled above
   } else if (SUPABASE_URL && SECRET_KEY) {
@@ -234,6 +303,9 @@ export async function eraseAccount(profileId: string, actor: EraseActor): Promis
         headers: { apikey: SECRET_KEY, Authorization: `Bearer ${SECRET_KEY}` },
         signal: AbortSignal.timeout(8000),
       })
+      // 404 from GoTrue itself (user_not_found): already gone — for the sweep below the same as deleted now. Not just any
+      // 404: a gateway's "no route" left the auth user in place, and the sweep must not run then (isGoTrueUserNotFound).
+      authUserGone = res.ok || (await isGoTrueUserNotFound(res))
       if (!res.ok) console.error('[account-delete] auth user removal failed', profile.id, res.status)
     } catch (e) {
       console.error('[account-delete] auth user removal errored', profile.id, (e as Error).name)
@@ -242,8 +314,24 @@ export async function eraseAccount(profileId: string, actor: EraseActor): Promis
     console.error('[account-delete] SUPABASE_SECRET_KEY missing — auth user not removed', profile.id)
   }
 
+  // ⛔ AND AGAIN ONCE THE AUTH USER IS GONE (commit-gate C2, 2026-10-08). Until that DELETE the account could still
+  // sign in elsewhere — another device, a tab mid-flow — and a sign-in stores its token at the END, so one could land
+  // after the transaction's queue and after the revocation above: an ACTIVE row with no account behind it, never
+  // revoked. Queue whatever row is still active, now that no sign-in can belong to this account any more. A store
+  // that lands later still — after this sweep — is the daily retry's orphan sweep's (queueOrphanedTokens).
+  // Not when the auth user is kept: a row re-activated then is a live sign-in, and the account can be used again.
+  let appleSwept = 0
+  if (authUserGone && !appleQueue.missingTable) {
+    try {
+      appleSwept = (await queueUnsettledTokens(profile.id)).length
+    } catch (e) {
+      logError(e, { op: 'account-erasure.apple-sweep' })
+    }
+  }
+  const apple = appleEraseStatus(appleSettled, appleSwept, appleIdentity, profile.email, signals.appleLinked === true)
+
   // Audit line (id only — no PII), then the storage purge ON the response path.
-  console.log('[account-delete] completed', profile.id, by, { deskQueued, ownedQueued })
+  console.log('[account-delete] completed', profile.id, by, { deskQueued, ownedQueued, apple })
   const { residue, settled, ...purge } = await purgeStorageObjects(imageUrls)
   // Settled = gone, or somebody else's. Clearing can fail without consequence: the sweep re-checks
   // references and finds those objects absent or referenced, and drops the tombstones itself.
@@ -255,7 +343,123 @@ export async function eraseAccount(profileId: string, actor: EraseActor): Promis
   else console.log('[account-delete] storage purged', profile.id, purge)
 
 
-  return { ok: true, purge }
+  return { ok: true, purge, apple }
+}
+
+/** What the transaction handed over: the rows it queued, or why there are none (no table; the hand-over failed). */
+type AppleQueue = { keys: QueuedKey[]; missingTable: boolean; failed: boolean }
+type AppleIdentity = 'apple' | 'none' | 'unknown'
+
+async function readAppleIdentity(userId: string): Promise<AppleIdentity> {
+  try {
+    return await appleIdentityState(userId)
+  } catch (e) {
+    // It answers rather than throws; this is the last guard of "Apple never blocks an erasure".
+    logError(e, { op: 'account-erasure.apple-identity' })
+    return 'unknown'
+  }
+}
+
+/**
+ * What the revocation right after the commit achieved. `pending`: rows still queued for the daily retry. `seen`: token
+ * rows of this account found at all, whatever became of them. `unowned`: the transaction's hand-over failed AND the one
+ * after the commit too — rows of this account may still be ACTIVE, and nothing is going to retry them.
+ */
+type AppleSettled = { revoked: number; dead: number; pending: number; seen: number; unowned: boolean }
+
+/**
+ * Settle the rows the transaction queued, at once: one locked unit per Apple ID (settleQueuedTokens — it checks every
+ * row, THEN revokes the valid ones, because the Services ID and the bundle ID share ONE grouped authorization:
+ * checked row by row, the second answered invalid_grant after the first revoke, and a person eno WAS removed for was
+ * told to remove it by hand). A row the unit could not settle stays queued — the transaction made it the daily
+ * retry's — so nothing here can leave a token active. When the transaction's hand-over had failed, it is done first,
+ * now (queueUnsettledTokens).
+ * ⛔ BY `deadline` (O3): each unit gets what is left of it (a short lock wait, calls bounded by it), and a unit there is
+ * no time left for is not started — its rows stay queued, the daily retry's, and count as pending.
+ */
+async function settleAppleTokens(userId: string, queue: AppleQueue, deadline: number): Promise<AppleSettled> {
+  const s: AppleSettled = { revoked: 0, dead: 0, pending: 0, seen: 0, unowned: false }
+  if (queue.missingTable) return s
+  let keys = queue.keys
+  if (queue.failed) {
+    try {
+      keys = await queueUnsettledTokens(userId)
+    } catch (e) {
+      logError(e, { op: 'account-erasure.apple-handover' })
+      s.unowned = true
+      return s
+    }
+  }
+  s.seen = keys.length
+  const bySub = new Map<string, string[]>()
+  for (const k of keys) bySub.set(k.appleSub, [...(bySub.get(k.appleSub) ?? []), k.clientId])
+  for (const [appleSub, clientIds] of bySub) {
+    if (deadline - Date.now() < APPLE_MIN_CALL_MS) {
+      s.pending += clientIds.length
+      continue
+    }
+    try {
+      for (const o of await settleQueuedTokens({ userId, appleSub, clientIds }, { liveCheck: false, deadline })) {
+        if (o.outcome === 'revoked') s.revoked++
+        else if (o.outcome === 'manual') s.dead++
+        else if (o.outcome === 'retried' || o.outcome === 'deferred') s.pending++
+        // 'skipped': a sign-in re-activated the row (the post-delete sweep queues it again) or the retry settled it.
+      }
+    } catch (e) {
+      // Still queued, exactly as the transaction left them: the daily retry has them.
+      logError(e, { op: 'account-erasure.apple-settle' })
+      s.pending += clientIds.length
+    }
+  }
+  return s
+}
+
+/**
+ * The person's Apple status, most demanding first:
+ *   queued  — anything waiting for the daily retry (a row Apple could not take now, one the budget left, or one the
+ *             post-delete sweep found);
+ *   manual  — rows that could not be handed to the retry at all (nobody will retry them);
+ *   revoked — at least one token revoked here: the one grouped authorization is gone, so a token that was already dead
+ *             (an earlier authorization) changes nothing;
+ *   then, nothing revoked and nothing waiting — ⛔ FAIL TOWARD THE NOTICE (commit gate round 2, C1): `none` ONLY when
+ *   GoTrue proved no Apple identity (appleIdentityState 'none'), no token row was found, the address is not one of
+ *   Apple's relays and the caller's session did not name Apple. Every other state is `manual` — a dead token, an Apple
+ *   identity, GoTrue unreachable (it used to read `none` unless the address was a relay: an Apple user who had shared
+ *   a real address and whose token was never kept got no notice at all), rows settled elsewhere meanwhile.
+ */
+/**
+ * ⚠️ AN UNKNOWN IDENTITY COUNTS ONLY WHERE APPLE COULD HAVE BEEN USED (commit gate round 4, opus): failing toward the
+ * notice (round 2, C1) told every Google and email user deleting during a GoTrue blip to "remove eno in your Apple
+ * Account" — through the dark deploy too, where nobody can have signed in with Apple. `unknown` now reads as Apple only
+ * where Apple can have been used (appleOnOffer: the flag, or Apple configured on this server). eno.forum counts once
+ * configured: the editions share one GoTrue, so an eno.vn Apple account can sign in and be deleted on either.
+ */
+function appleEraseStatus(s: AppleSettled, swept: number, identity: AppleIdentity, email: string | null, linked: boolean): AppleEraseStatus {
+  if (s.pending || swept) return 'queued'
+  if (s.unowned) return 'manual'
+  // A dead row beside a revoked one is an earlier authorization of the same grouped Apple ID (both clients share one):
+  // the revoke removed eno. Two different Apple IDs on one account would need GoTrue's manual linking, which is off (D8).
+  if (s.revoked) return 'revoked'
+  const identityApple = identity === 'apple' || (identity === 'unknown' && appleOnOffer())
+  if (s.dead || s.seen || identityApple || linked || isAppleRelayEmail(email)) return 'manual'
+  return 'none'
+}
+
+/**
+ * ⛔ A REPEATED DELETION REQUEST, AFTER THE FIRST ONE SUCCEEDED (commit gate round 2, O3) — the Apple status to answer it
+ * with, or null unless the account is PROVABLY erased. The caller has checked the profile is gone; this asks for
+ * GoTrue's own word that the auth user is too (authUserState: auth.users, or the admin API's user_not_found — never just
+ * any 404), so a session that merely failed to resolve never reads as a finished deletion.
+ * What the first request answered is not kept anywhere, so this fails toward the notice: rows still queued for the
+ * daily retry → `queued`; the queue unreadable, or the verified session naming Apple or carrying a relay address →
+ * `manual`; else `none`.
+ */
+export async function appleStatusAfterErasure(userId: string, session: { appleLinked: boolean; email: string | null }): Promise<AppleEraseStatus | null> {
+  if ((await authUserState(userId)) !== 'gone') return null
+  const queued = await hasQueuedTokens(userId)
+  if (queued === true) return 'queued'
+  if ((queued === null && appleOnOffer()) || session.appleLinked || isAppleRelayEmail(session.email)) return 'manual'
+  return 'none'
 }
 
 /** One Supabase listing page. Their maximum; asking for more is silently capped. */

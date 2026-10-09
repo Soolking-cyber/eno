@@ -1,4 +1,4 @@
-import { COMPLETION_WINDOW_MS, isCountedGate, isSignInGate, type SignInGate } from '@/lib/signup-prompt'
+import { COMPLETION_WINDOW_MS, isCountedGate, isSignInGate, type SignInGate, type SignInMethod } from '@/lib/signup-prompt'
 import { countGateEvent } from '@/lib/signup-counters'
 
 // ── Per-gate sign-in counters (UX3 J1, 2026-10-05) ────────────────────────────────────────────────
@@ -73,11 +73,11 @@ export function noteGateOpen(gate: SignInGate): void {
 }
 
 /**
- * Google or email was chosen in a sign-in opened at this gate: count it, and remember the gate so the
- * sign-in that follows within the hour — in this tab, after the Google round trip, or in the tab a magic
- * link opens — is counted once as that gate's completion.
+ * Google, Apple or email was chosen in a sign-in opened at this gate: count it, and remember the gate so the
+ * sign-in that follows within the hour — in this tab, after the Google or Apple round trip, or in the tab a
+ * magic link opens — is counted once as that gate's completion.
  */
-export function noteGateMethod(gate: SignInGate, method: 'google' | 'email', now: number = Date.now()): void {
+export function noteGateMethod(gate: SignInGate, method: SignInMethod, now: number = Date.now()): void {
   if (!isCountedGate(gate)) return
   try { localStorage.setItem(GATE_RECORD_KEY, JSON.stringify({ g: gate, at: now })) } catch { /* private mode: the count still lands */ }
   countGateEvent(gate, method)

@@ -60,6 +60,11 @@ declare -A SCHED=(
   # thirteen small shops on shared hosting rather than calling one datafeed API.
   # ⚠️ Retired new-goods shops (StoreConfig.retired, 2026-10-03) are skipped without a fetch.
   [partner-stock]="*-*-* 19:00:00 UTC"
+  # Sign in with Apple (2026-10-08): retry the Apple tokens an account erasure could not revoke (daily, at most 14
+  # days — TN3194) and probe both Apple clients (src/app/api/cron/apple-revocations/route.ts). 09:15 UTC: after the
+  # 09:00 storage sweep, outside VN peak. A non-200 (a client refused, a token given up on) fails the unit.
+  # Install it with I11 (plan): `ENO_CRON_ONLY=apple-revocations bash install-cron-timers.sh`.
+  [apple-revocations]="*-*-* 09:15:00 UTC"
   # IndexNow pings for eno.vn's changed URLs (SEO wave B, I4). Twice a day, so a trip's hold ripens on
   # its third run, 24 h after the first (src/lib/indexnow-diff.ts); the deploy also calls it once.
   # ⛔ DORMANT UNTIL INDEXNOW_KEY IS IN THE eno-vn CONTAINER: without it every run answers 200
@@ -91,7 +96,14 @@ declare -A SCHED=(
 # importer loads only the directory), so its first run has nothing to act on, and every later run applies exactly what each teacher agreed to when submitting a proof —
 # the LinkedIn link erased 30 days after the check, an undecided proof closed at 60, a review without a live proof
 # deleted 60 days on (the proof step says so).
-SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices partner-stock indexnow listing-tombstone-retention school-proof-retention)
+# ⚠️ apple-revocations is SAFE to enable: it reaches OUT to appleid.apple.com only for tokens of accounts that no
+# longer exist — queued by an erasure, or left active by a sign-in that raced one and confirmed gone by auth.users or
+# GoTrue's admin API — plus two probes a day; writes only its own table, emails nobody, and answers 200
+# {probe:'unconfigured'} touching nothing until the APPLE_SIWA_* values are in the container env — and, enabled before
+# scripts/apple-siwa-ddl.mjs has run, 200 {skipped:'no_table'} (a logged warning) while still unconfigured. So a full
+# run of this installer may enable it before I11, harmlessly. Once APPLE_SIWA_* is in the env a missing table is RED
+# (every Apple sign-in would keep no token) — that is the DDL step (I2) left undone, and the unit says so.
+SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices partner-stock indexnow listing-tombstone-retention school-proof-retention apple-revocations)
 # Installed, NOT enabled: these send email to real people.
 EMAIL=(daily-reminders saved-search-alerts weekly-digest teacher-match-emails)
 # Installed, NOT enabled: the FIRST run acts on a policy nobody has acted on yet — every decided
@@ -150,6 +162,9 @@ for job in "${!SCHED[@]}"; do
   # ⚠️ indexnow is eno.vn's ONLY, whatever host this installer was run for: the route 404s on the
   # services edition, and IndexNow is told about https://eno.vn URLs only.
   [ "$job" = indexnow ] && TARGET="eno.vn 3001"
+  # ⚠️ apple-revocations runs ONCE, on eno.vn, whatever host this installer was run for: the token table is in the
+  # shared database, so a second edition's run would only repeat the probes against Apple.
+  [ "$job" = apple-revocations ] && TARGET="eno.vn 3001"
   cat > "/etc/systemd/system/eno-cron-$job.service" <<UNIT
 [Unit]
 Description=eno cron: $job

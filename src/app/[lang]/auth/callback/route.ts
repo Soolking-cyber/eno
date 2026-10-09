@@ -1,10 +1,101 @@
 import { NextResponse } from 'next/server'
+import type { Session, User } from '@supabase/supabase-js'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { authRedirect, finishSignIn } from '@/lib/auth-finish'
 import { safeNextPath } from '@/lib/url'
 import { NATIVE_OAUTH_REDIRECT } from '@/lib/native-auth'
 import { IS_SERVICES } from '@/lib/edition'
 import { serverAuthUsesRequestOrigin, isLoopbackHost, loopbackOrigin } from '@/lib/auth-origin'
+
+/**
+ * What a provider's `?error=` means for the visitor — a CODE, never the provider's prose.
+ *   cancel          — they backed out: Apple's web flow returns `user_cancelled_authorize` (its ONLY web error,
+ *                     per Apple's "other platforms" guide), Google `access_denied`, and the app's own native hop
+ *                     forwards `cancel`. GoTrue's OAuth errors carry no `error_code`, so `access_denied` WITH one
+ *                     (signup_disabled) is not a cancel.
+ *   signup_disabled — the project refuses new accounts (the 2026-08-17 production finding below).
+ *   oauth           — anything else.
+ */
+type CallbackError = 'cancel' | 'signup_disabled' | 'oauth'
+function callbackError(error: string, errorCode: string): CallbackError {
+  if (error === 'user_cancelled_authorize' || error === 'cancel') return 'cancel'
+  if (errorCode === 'signup_disabled' || error === 'signup_disabled') return 'signup_disabled'
+  if (error === 'access_denied' && !errorCode) return 'cancel'
+  return 'oauth'
+}
+
+/** GoTrue's record of which provider minted this PKCE code (auth.flow_state), or null — read BEFORE the exchange. */
+type CodeFlow = { provider: string; userId: string | null } | null
+/** A stalled read must never hold a sign-in (commit gate round 5, codex): past this, the flow is unknown. */
+const CODE_FLOW_TIMEOUT_MS = 1_500
+
+async function codeFlow(code: string): Promise<CodeFlow> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    const { appleOnOffer, pkceCodeProvider } = await import('@/lib/auth/apple-siwa')
+    // ⛔ Only where Apple can have been used (commit gate round 8, opus): before Apple is configured on this server, no
+    // sign-in pays for the read — the dark deploy changes nothing for Google and email sign-ins.
+    if (!appleOnOffer()) return null
+    const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), CODE_FLOW_TIMEOUT_MS) })
+    return await Promise.race([pkceCodeProvider(code), timeout])
+  } catch {
+    return null
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+/**
+ * Sign in with Apple's web flow (GoTrue's Apple OAuth, the Services ID): keep Apple's refresh token for
+ * revocation at account deletion (TN3194 — src/lib/auth/apple-siwa.ts), then rewrite the session cookie WITHOUT
+ * the provider tokens. ⚠️ THE SECOND STEP IS WHY THIS RUNS EVEN WHEN THE KEEP FAILS: exchangeCodeForSession saved
+ * the whole session, `provider_refresh_token` included, into the JS-readable auth cookie; setSession saves it back
+ * with only the access and refresh tokens and the user (auth-js setSession builds a fresh session object).
+ * ⛔ KEPT ONLY WHEN GOTRUE SAYS THE CODE WAS APPLE'S (commit-gate C4, 2026-10-08). `p=apple` is a query parameter
+ * anyone can add to any callback: on an account where Google and Apple are linked, a GOOGLE callback carrying it found
+ * the Apple identity and kept GOOGLE's provider_refresh_token as an Apple token — sent to Apple at deletion. `flow` is
+ * GoTrue's own flow state for this code (pkceCodeProvider): provider `apple`, and the user it was issued to — the
+ * user just signed in. Anything else, or no answer at all, keeps nothing. The flow is read for every code (round 4):
+ * `p` was once a pre-filter here, and an Apple flow without it skipped both the keep and the strip.
+ * ⛔ ONLY GOTRUE'S WORD THAT THE CODE WAS APPLE'S MOVES ANYTHING (commit gate rounds 3–6). Google — and any flow GoTrue
+ * cannot vouch for (a stalled or unreadable flow read) — is left exactly as before this work: no keep, no rewrite, no
+ * new way to fail. ⚠️ THE STRIP IS BEST EFFORT, ON PURPOSE: four rounds of "fail closed when it fails" each found a new
+ * way to break someone's sign-in. What bounds the risk is Apple's own contract — every token call is client-
+ * authenticated with a secret signed by eno's private key (TN3194), so a refresh token read off the cookie is useless to
+ * anyone else. A failed rewrite is logged and the sign-in goes on.
+ */
+async function keepAppleToken(supabase: Awaited<ReturnType<typeof createSupabaseServer>>, user: User | null, session: Session | null, flow: CodeFlow): Promise<void> {
+  if (!user || !session || flow?.provider !== 'apple') return
+  // Any case: GoTrue keeps the provider as the authorize request spelled it (isAppleLinked; `flow` is lowercased too).
+  const identity = user.identities?.find((i) => typeof i.provider === 'string' && i.provider.trim().toLowerCase() === 'apple')
+  const refreshToken = session.provider_refresh_token
+  if (identity && refreshToken) {
+    if (flow.userId !== null && flow.userId !== user.id) {
+      console.warn('[auth] apple_token_not_kept', { reason: 'user_mismatch', flow: 'web', provider: flow.provider })
+    } else {
+      try {
+        const { appleServicesId, storeAppleToken } = await import('@/lib/auth/apple-siwa')
+        const clientId = appleServicesId()
+        const appleSub = (typeof identity.identity_data?.sub === 'string' && identity.identity_data.sub) || identity.id
+        if (!clientId) console.warn('[auth] apple_token_not_kept', { reason: 'unconfigured', flow: 'web' })
+        else await storeAppleToken({ userId: user.id, clientId, appleSub, refreshToken })
+      } catch (e) {
+        console.warn('[auth] apple_token_not_kept', { reason: 'error', flow: 'web', name: (e as Error)?.name })
+      }
+    }
+  }
+  if (!session.provider_token && !session.provider_refresh_token) return
+  // One retry: setSession only re-reads the user, so a transient GoTrue blip is usually absorbed.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const { error } = await supabase.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token })
+      if (!error) return
+      console.warn('[auth] apple_session_rewrite_failed', { status: error.status, attempt })
+    } catch (e) {
+      console.warn('[auth] apple_session_rewrite_failed', { name: (e as Error)?.name, attempt })
+    }
+  }
+}
 
 // OAuth / magic-link callback — exchanges the code for a session, then redirects.
 export async function GET(request: Request) {
@@ -79,13 +170,26 @@ export async function GET(request: Request) {
     return res
   }
 
+  // ⛔ THE HOP CARRIES ONLY WHAT THE APP NEEDS, AND NOTHING THE TAB WAS HANDED (plan A2). Three rules:
+  //   · ONLY WITH A CODE OR AN ERROR. With neither there is nothing to hand back, and hopping anyway let a
+  //     crafted `?native=1` bounce any visitor into the app; stay in the tab and show /signin instead.
+  //   · AN ERROR GOES AS A MAPPED CODE (cancel | signup_disabled | oauth), never `error_description` — a cancel
+  //     must still reach the app (stranding it in the tab was the cost of "hop only with a code"), but the
+  //     provider's prose is attacker-influenceable text.
+  //   · `p` ONLY WHEN IT IS apple OR google, and Location ENDS WITH `#`: a redirect without a fragment inherits
+  //     the request's, and an implicit-flow redirect carries the tokens there. An explicit empty fragment wins.
   if (url.searchParams.get('native') === '1') {
     const q = new URLSearchParams()
+    const hopError = url.searchParams.get('error')
     if (code) q.set('code', code)
+    else if (hopError) q.set('error', callbackError(hopError, url.searchParams.get('error_code') || ''))
+    else return redirect(`${origin}/signin`)
     q.set('next', next)
+    const p = url.searchParams.get('p')
+    if (p === 'apple' || p === 'google') q.set('p', p)
     return new NextResponse(null, {
       status: 302,
-      headers: { Location: `${NATIVE_OAUTH_REDIRECT}?${q.toString()}`, 'Cache-Control': 'private, no-store, max-age=0' },
+      headers: { Location: `${NATIVE_OAUTH_REDIRECT}?${q.toString()}#`, 'Cache-Control': 'private, no-store, max-age=0' },
     })
   }
 
@@ -128,6 +232,21 @@ export async function GET(request: Request) {
   const oauthError = url.searchParams.get('error')
   if (oauthError) {
     const errorCode = url.searchParams.get('error_code') || ''
+    const kind = callbackError(oauthError, errorCode)
+    // ⚠️ A CANCEL IS A DECISION, NOT A FAILURE: back to the form, silently, with `next` kept — no toast. (The
+    // first-party Google callback learned the same lesson: treating a refusal as an error sent people round in
+    // a loop.) Logged for the post-flip monitoring — with which of the three cancels it was and a capped description
+    // (commit gate round 11, opus): a refusal that ever arrived as a bare access_denied (a database trigger raising
+    // PT403 — none exists today) would otherwise look exactly like a person backing out.
+    if (kind === 'cancel') {
+      const p = url.searchParams.get('p')
+      console.log('[auth] oauth cancelled', {
+        provider: p === 'apple' || p === 'google' ? p : 'unknown',
+        error: oauthError, // one of the three cancel codes: callbackError returned 'cancel'
+        description: url.searchParams.get('error_description')?.slice(0, 120) ?? null,
+      })
+      return redirect(`${origin}/signin?next=${encodeURIComponent(next)}`)
+    }
     console.error('[auth] oauth callback error', {
       error: oauthError,
       code: errorCode,
@@ -137,15 +256,26 @@ export async function GET(request: Request) {
     // arriving in a query string; reflecting it into the page would be a content-injection vector
     // and would also show a visitor a sentence written for a developer. The client maps this to its
     // own copy.
-    const known = errorCode === 'signup_disabled' ? 'signup_disabled' : 'oauth'
-    return redirect(`${origin}/?auth_error=${known}`)
+    return redirect(`${origin}/?auth_error=${kind}`)
   }
 
   if (code) {
+    /**
+     * ⛔ EVERY CODE, NOT ONLY `p=apple` (commit gate round 4, codex): an Apple flow started without the marker reached
+     * the exchange unchecked, and its provider tokens stayed in the JS-readable cookie. Which provider minted the code
+     * is GoTrue's to say, and its flow state is deleted BY the exchange: read it first, for every code (one indexed
+     * read). `p` now only labels the return for the UI.
+     */
+    const flow = await codeFlow(code)
     const supabase = await createSupabaseServer()
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-    // Profile provisioning + the onboarding hop are shared with /auth/confirm.
-    if (!error) return finishSignIn(data.user, origin, next)
+    if (!error) {
+      // Keep Apple's refresh token for revocation (when GoTrue confirms Apple) and strip Apple's provider tokens from the
+      // cookie; every other provider is unchanged.
+      await keepAppleToken(supabase, data.user, data.session, flow)
+      // Profile provisioning + the onboarding hop are shared with /auth/confirm.
+      return finishSignIn(data.user, origin, next)
+    }
     /**
      * ⚠️ THIS LOG IS THE POINT OF THE WHOLE CHANGE. A `code` that fails to exchange is the OTHER
      * half of the owner's "first attempt does not log in, the second does" report, and it happens

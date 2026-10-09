@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, TriangleAlert } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { SITE_NAME } from '@/lib/edition'
 import { brandForCopy } from '@/lib/app-review-gates'
+import { AppleNoticeBody, handOffAppleNotice } from './apple-deletion-notice'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,6 +23,17 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 
+/**
+ * The server already removed the auth user; this clears the local session. Loaded on demand — see change-email-form:
+ * supabase-js must not ship in the settings route's first load just to sign out after a deletion.
+ */
+async function signOutLocally(): Promise<void> {
+  try {
+    const { createSupabaseBrowser } = await import('@/lib/supabase/browser')
+    await createSupabaseBrowser().auth.signOut()
+  } catch {}
+}
+
 // Danger zone — self-service account deletion (PDPL right, /privacy documents the
 // schedule). The typed "DELETE" confirmation is required server-side too; this UI
 // just keeps honest users from tapping through. Irreversible.
@@ -30,6 +42,34 @@ export function DeleteAccount() {
   const [open, setOpen] = useState(false)
   const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
+  /**
+   * ⛔ SIGN IN WITH APPLE — WHEN APPLE MAY STILL LIST eno AFTER THE DELETION (D9, TN3194): the notice and why it is
+   * HANDED TO THE NEXT PAGE are in apple-deletion-notice.tsx. What follows is the FALLBACK only — a tab whose
+   * sessionStorage cannot hold the hand-off (handOffAppleNotice → false) still gets the notice, here:
+   * ⛔ THE NOTICE COMES BEFORE THE SIGN-OUT, NEVER AFTER IT. Signing out tells every auth listener at once (auth-js
+   * notifies SIGNED_OUT even when /logout fails), and Settings — the only place this renders — answers "no user"
+   * by unmounting its whole body, this dialog included, and sending the visitor to /signin: a notice set after the
+   * sign-out never painted. So the account is gone but the local session stays for the length of the notice, and
+   * every way out of it (Done, the close, leaving the page) signs out first, then goes home.
+   * ⚠️ A TAB KILLED DURING THIS FALLBACK NOTICE skips that sign-out (commit gate B1): the browser keeps the deleted account's
+   * cookies, and they heal on their own — GoTrue's DELETE already ended the refresh token, so the first refresh
+   * (≤ 1 h, the JWT's life) fails and clears them; meanwhile a route that needs the account finds none, and the
+   * Profile cannot be re-created for an auth user that is gone (profile_auth_fk).
+   */
+  const [appleNotice, setAppleNotice] = useState<'queued' | 'manual' | null>(null)
+  const [leaving, setLeaving] = useState(false)
+  /** The notice is up (the account is gone, the session not yet): leaving this component must sign out. */
+  const noticeShown = useRef(false)
+  const signedOut = useRef(false)
+  const goHome = async () => {
+    setLeaving(true)
+    if (!signedOut.current) { signedOut.current = true; await signOutLocally() }
+    window.location.href = '/'
+  }
+  // Left the notice some other way than Done (Back, the tab bar): the account is gone, so is the session.
+  useEffect(() => () => {
+    if (noticeShown.current && !signedOut.current) { signedOut.current = true; void signOutLocally() }
+  }, [])
   // Two channels again. The server's 400 is a verdict on the TYPED WORD → it belongs to
   // #delete-account-confirm. Everything else (409 under_review, 429, network) is a verdict on the
   // ATTEMPT → form-level. Only ONE of them is a live announcement (role="alert" on the form-level p):
@@ -69,14 +109,16 @@ export function DeleteAccount() {
         setBusy(false)
         return
       }
-      // Server already removed the auth user; this clears local session state.
-      // Loaded on demand — see change-email-form: supabase-js must not ship in
-      // the settings route's first load just to sign out after a deletion.
-      try {
-        const { createSupabaseBrowser } = await import('@/lib/supabase/browser')
-        await createSupabaseBrowser().auth.signOut()
-      } catch {}
-      window.location.href = '/'
+      // The Apple notice goes to the next page (apple-deletion-notice.tsx): sign out now and go home, where it shows.
+      if (d.apple === 'queued' || d.apple === 'manual') {
+        if (handOffAppleNotice(d.apple)) { await goHome(); return }
+        // This tab cannot store it: the fallback shows it here, the session kept until Done (see the ⛔ above).
+        noticeShown.current = true
+        setAppleNotice(d.apple)
+        setBusy(false)
+        return
+      }
+      await goHome()
     } catch {
       setError(tr('Something went wrong — try again.', 'Có lỗi xảy ra — thử lại nhé.'))
       setBusy(false)
@@ -111,7 +153,11 @@ export function DeleteAccount() {
       </p>
       <AlertDialog
         open={open}
-        onOpenChange={(next) => { setOpen(next); if (!next) { setConfirm(''); setError(''); setConfirmErr('') } }}
+        onOpenChange={(next) => {
+          // Past the deletion there is no account to come back to: closing the Apple notice signs out and goes home.
+          if (!next && appleNotice) { void goHome(); return }
+          setOpen(next); if (!next) { setConfirm(''); setError(''); setConfirmErr('') }
+        }}
       >
         <AlertDialogTrigger
           render={
@@ -125,6 +171,15 @@ export function DeleteAccount() {
           {tr('Delete my account', 'Xóa tài khoản của tôi')}
         </AlertDialogTrigger>
         <AlertDialogContent>
+          {appleNotice ? (
+            <>
+              <AppleNoticeBody notice={appleNotice} />
+              <AlertDialogFooter>
+                <AlertDialogAction closeOnClick={false} disabled={leaving} onClick={() => void goHome()} className="font-bold">{tr('Done', 'Xong')}</AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : (
+          <>
           <AlertDialogHeader>
             <AlertDialogMedia className="bg-destructive/10 text-destructive">
               <TriangleAlert />
@@ -169,6 +224,8 @@ export function DeleteAccount() {
               {tr('Permanently delete', 'Xóa vĩnh viễn')}
             </AlertDialogAction>
           </AlertDialogFooter>
+          </>
+          )}
         </AlertDialogContent>
       </AlertDialog>
     </div>

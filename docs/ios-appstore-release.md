@@ -43,8 +43,8 @@ wallet or a hidden surface after approval without a new submission that disclose
 | Minimum iOS | **16.4** — the live site is Tailwind v4 = WebKit 16.4+ (was 15.0; `scripts/ios-release.sh` checks it) |
 | Toolchain | **Xcode 26.x only** (26.5 / iOS SDK 26.5) — TN3187, §7; Capacitor 8.4 (CLI 8.5.0), 14 plugins via SPM |
 | Origin | `server.url` = `https://eno.vn`, `allowNavigation` = `eno.vn`, `www.eno.vn` (since 2026-10-06; it was the two forum hosts), plus `MainViewController`'s exact-host navigation policy (§1). A Vietnamese user's app opens on `/vi` (the banner's rule: stored choice > `lang` cookie > first supported device language; an English choice stays English) — decided in the PRE-PAINT script (`src/lib/app-home-language.ts`), before any deep link or push tap is routed |
-| Signing | team `DTP9SKVFMQ` in all four `DEVELOPMENT_TEAM` lines of project.pbxproj, automatic signing; `App.entitlements` = `aps-environment` + `applinks:eno.vn` ONLY (P4) |
-| Privacy manifest | 15 linked data types + CSP reports as not-linked diagnostics; **no SensitiveInfo, no PaymentInfo** (Appendix B) |
+| Signing | team `DTP9SKVFMQ` in all four `DEVELOPMENT_TEAM` lines of project.pbxproj, automatic signing; `App.entitlements` = `aps-environment` + `applinks:eno.vn` ONLY in builds 1–2 (P4); build 3 adds `com.apple.developer.applesignin` = Default (D2 = a, 2026-10-08 — P9) |
+| Privacy manifest | **Build 3: 18 data types, all linked** — builds 1–2's 15 linked + diagnostics not linked, plus Audio Data and Other Financial Info, and diagnostics (CSP reports + the server access log) now linked (presubmit P1, P4, P5/N1); **no SensitiveInfo, no PaymentInfo** (Appendix B — App Store Connect's answers change with it, P9) |
 | APNs key | "eno APNs", Key ID `BQYKUSQG43`, Sandbox & Production, team-scoped — `~/eno-vault/apple/AuthKey_BQYKUSQG43.p8` (P8) |
 | Android | LIVE on Play production, versionCode 4 / 1.0.2, rendering `www.eno.forum`. **versionCode 5 / 1.0.3** renders eno.vn and reaches users only through a Play upload — docs/android-play-release.md |
 
@@ -94,12 +94,15 @@ the product-page and storefront note, the /privacy partner section (DRAFT) — s
   `NSURLCreationDateKey`, and its own `PrivacyInfo.xcprivacy` is never bundled (its `Package.swift`
   declares no resources for the library target). `ios/App/App/PrivacyInfo.xcprivacy` now declares
   `NSPrivacyAccessedAPICategoryFileTimestamp` with the library's reasons `C617.1` + `3B52.1`.
-- **Privacy manifest = the live site's collection inside the app** — 15 linked types, none tracking, plus CSP
-  violation reports as not-linked diagnostics. **No SensitiveInfo** (eno.vn's e-Visa flow asks no form — photos only,
-  no religion; the portrait is not used for face matching; eKYC is web-only on iOS) and **no PaymentInfo** (payout,
-  wallet and payments routes 404 on eno.vn). PurchaseHistory stays (the sale loop's record); Email Address also
-  carries Developer's Advertising (eno's weekly digest, on by default). It mirrors Appendix B; change both together.
-  `scripts/ios-release.sh` refuses an archive that declares SensitiveInfo.
+- **Privacy manifest = the live site's collection inside the app** — since build 3, 18 types, all linked, none
+  tracking (builds 1–2: 15 linked, plus CSP violation reports as not-linked diagnostics). Build 3 added **Audio Data**
+  (a listing video keeps its sound; a teacher's intro video is their voice — P4), **Other Financial Info** (a
+  teacher's optional expected salary — P5/N1; App Store Connect already declared it) and made the diagnostics
+  **linked** (they cover the server access log, which keeps IP addresses for 400 days — P1). **No SensitiveInfo**
+  (eno.vn's e-Visa flow asks no form — photos only, no religion; the portrait is not used for face matching; eKYC is
+  web-only on iOS) and **no PaymentInfo** (payout, wallet and payments routes 404 on eno.vn). PurchaseHistory stays
+  (the sale loop's record); Email Address also carries Developer's Advertising (eno's weekly digest, on by default).
+  It mirrors Appendix B; change both together. `scripts/ios-release.sh` refuses an archive that declares SensitiveInfo.
 - **Exact-host navigation policy (security, 2026-10-06).** Capacitor treats any URL whose string merely starts with
   `server.url` as the app (`starts(with:)`), and iOS injects the native bridge into every page the WebView renders —
   so `https://eno.vn.attacker.example/…` and `https://eno.vn@attacker.example/…` would have loaded inside the app
@@ -116,14 +119,18 @@ the product-page and storefront note, the /privacy partner section (DRAFT) — s
   `ORIGIN = 'https://eno.vn'`; `scripts/ios-release.sh` checks the bundled copies.
 - **iPhone-only, 1.0.3, display name "eno"** (D6, D15, D10).
 - **Info.plist strings localized like Android** — `en.lproj` / `vi.lproj` `InfoPlist.strings` for the five
-  usage descriptions and the three quick-action titles. Purpose strings (2026-10-06) name what each permission
-  serves and no service by name: camera and photo library — a listing, your profile or shop, a search by photo, a
-  report, or a photo you send to a seller in chat (that covers the e-Visa photos; a submitted string can only be
-  withdrawn by a new submission); location — listings near you, your area when you post or edit a business profile,
-  a place to meet in chat. The ID/selfie wording is gone (eKYC is web-only on iOS).
+  usage descriptions and the three quick-action titles. Purpose strings (2026-10-06; build 3 adds N2 and N3) name
+  what each permission serves and no service by name: camera and photo library — a listing, your profile or shop, a
+  search by photo, a report, or a photo or document you send to a seller in chat (build 3 — N3; it names no
+  service — an earlier draft named the e-Visa seller, which eno.vn's binary must not, and a submitted string can
+  only be withdrawn by a new submission); microphone — a video for a listing
+  or your teacher profile (build 3 — N2; builds 1–2 named the listing video only); location — listings near you,
+  your area when you post or edit a business profile, a place to meet in chat. The ID/selfie wording is gone (eKYC
+  is web-only on iOS).
 - **Entitlements, wired at P4 (2026-10-06):** `ios/App/App/App.entitlements` replaced the dormant template —
   **`applinks:eno.vn` only** (no forum host: a forum link must open Safari; no `www.eno.vn`: it 308s, and Apple
-  fetches the AASA without following redirects) and `aps-environment`. No Sign in with Apple (D2 = b).
+  fetches the AASA without following redirects) and `aps-environment`. No Sign in with Apple in builds 1–2 (D2 was
+  b); build 3 adds `com.apple.developer.applesignin` = Default (D2 = a, 2026-10-08 — P9).
 - **`scripts/ios-release.sh` + `ios/ExportOptions-AppStore.plist`** — signed archive, checks, upload (P6).
 
 ### Web (`src/`) — every change behind an owner switch, all OFF
@@ -134,7 +141,7 @@ changes on either site or in either app. A token the code being built does not k
 
 | Token | Plan | Effect when on | Decision |
 |---|---|---|---|
-| `ios-hide-google` | R2 | no "Continue with Google" in the iOS app (Guideline 4.8) | D2 = b |
+| `ios-hide-google` | R2 | iOS app only: no "Continue with Google" UNLESS this binary carries the native `EnoSignIn` plugin AND `NEXT_PUBLIC_APPLE_SIGNIN` contains `ios` — then Sign in with Apple and Google show together, and Apple meets Guideline 4.8 (new meaning since the Sign in with Apple change, 2026-10-08: `iosGoogleHidden()` in `src/lib/apple-signin.ts`; the `ios-nosiwa-hidden` class hides both before the first paint). Build 2 never carries the plugin, so it keeps showing the email code only after every deploy | D2 = a (2026-10-08); stays in the line for good |
 | `ios-hide-wallet` | R6 | no Payments row in the iOS app; `/dashboard/payments` (and `/wallet`, `/payout`, which redirect there) → `/dashboard`. ⚠️ A no-op on eno.vn (the wallet is services-only, 404) — harmless in the line | D7 |
 | `app-signin-tidy` | R7, R13 | both apps: no disabled "Phone · soon" strip; Terms / Quy chế / Privacy open in the in-app browser sheet | — |
 | `app-no-gtm` | R11 | both apps: no Google Tag Manager container. ⚠️ A no-op on eno.vn (only the forum sets `NEXT_PUBLIC_GTM_ID`) | — |
@@ -491,7 +498,7 @@ xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -dest
 - `PRODUCT_BUNDLE_IDENTIFIER = vn.eno.app` on the **App target only** (two lines; never on the command line).
 - `ios/App/App/App.entitlements` (the template is gone): its file reference sits in the App group by hand (not a
   synchronized group, no build phase); `CODE_SIGN_ENTITLEMENTS = App/App.entitlements` in both target
-  configurations. No Sign in with Apple (D2 = b).
+  configurations. No Sign in with Apple in builds 1–2; build 3 adds it (P9).
   ⛔ **Associated Domains = `applinks:eno.vn` ONLY** (D18). Never `applinks:www.eno.forum` / `applinks:eno.forum` —
   a forum link must open Safari, not the licensed company's app — and never `applinks:www.eno.vn`: it 308s, and
   Apple fetches the AASA without following redirects. A claim in a signed, submitted binary can only be removed by
@@ -600,15 +607,43 @@ off (no `google-services.json` — NATIVE_PUSH_SETUP.md §2).
 ✔ On TestFlight (`APNS_PRODUCTION=true`), the owner's own device: sign in → permission prompt → a `NativePushToken`
 row → **an offer** from a second account notifies (plain chat messages never push) → tapping it opens the right page.
 
-**P9. Sign in with Apple — only if D2 = a** (else v1.1). Native id-token flow:
-`@capacitor-community/apple-sign-in` (confirm SPM + Capacitor 8 support, or a small local
-`ASAuthorizationController` plugin — an auth bridge, not a re-implemented surface) →
-`supabase.auth.signInWithIdToken({ provider: 'apple', token, nonce })` behind a native-ios button. Must
-haves: a new Apple user goes through the same provisioning/onboarding as `/auth/callback`; register the
-sending domains with Apple's private email relay; revoke the Apple token in `eraseAccount`; add the capability to
-`App.entitlements` (a new binary).
-✔ New Hide-My-Email user gets a profile and an email; a returning user signs in; deleting the account
-removes it from Settings → Apple ID → Sign in with Apple.
+**P9. Sign in with Apple — D2 = a (owner, 2026-10-08): in 1.0.3 BUILD 3, with Google back on iOS.** The plan, its
+decisions and their reasons: `~/eno-ios-prep/siwa/plan.md` (its D-numbers are its own list, not §5's); the box half:
+`infra/vn-node/apple-signin.md`.
+- **iOS, build 3:** the in-repo plugin `EnoSignIn` (not `@capacitor-community/apple-sign-in`, which cannot resolve
+  against capacitor-swift-pm 8.4.2) — `ASAuthorizationController` for Apple with a server nonce
+  (`/api/auth/apple/nonce` → Apple → `/api/auth/apple/native`, which redeems the identity token with
+  `signInWithIdToken`, writes Apple's name before the profile exists and keeps the refresh token for revocation), and
+  `ASWebAuthenticationSession` (ephemeral) for Google. The entitlement `com.apple.developer.applesignin` = Default,
+  asserted by `scripts/ios-release.sh`. Build 3 also carries the queued privacy-manifest and purpose-string items
+  (plan D20 — presubmit P1, P4, P5/N1, N2, N3; Appendix B and §1 describe the result).
+- **⛔ App Store Connect → App Privacy, BEFORE Submit — build 3 changes the label** (the manifest and these answers
+  must agree): **Diagnostics → Other Diagnostic Data → "Linked to the user's identity" = Yes** (P1; purpose App
+  Functionality, tracking No); **add User Content → Audio Data** — App Functionality, linked, not tracking (P4).
+  Other Financial Info is already declared there (P5: the manifest now matches it). Then **Publish** the App Privacy
+  answers (Appendix B is the full set).
+- **⛔ The Apple logo, BEFORE the iOS flip (I11):** `AppleIcon` in `sign-in-form.tsx` was typed in, not taken from
+  Apple's file. Compare its path with the "Sign in with Apple" logo (Apple Design Resources, left-aligned, medium,
+  44pt) or replace it with that file: App Review evaluates every custom Sign in with Apple button, and build 3 shows
+  this one to the reviewer before the web flip ever does.
+- **The web and the Android app:** GoTrue's own Apple OAuth through a Services ID — no new Android binary; the app
+  returns through the existing `native=1` → `enovn://auth-callback` hop.
+- **One build-time flag, `NEXT_PUBLIC_APPLE_SIGNIN`** (`src/lib/apple-signin.ts`; an unknown token fails the build):
+  `ios` = Apple and Google in iOS binaries that carry `EnoSignIn`; `web-test` = Apple on the web and in the Android
+  app, only for a browser holding the tester cookie (`?siwa_test=1` on any page); `web` = Apple for everyone there.
+  Order: the dark deploy (empty) → `ios,web-test` → `ios,web` after build-3 approval. eno.forum's flag stays empty.
+- **Account deletion revokes** (5.1.1(v), TN3194): each kept token is validated, then revoked, before the GoTrue user
+  is deleted; a failed revoke is retried daily for at most 14 days (`/api/cron/apple-revocations`); a person whose
+  token could not be revoked is told, in their language, to remove eno in their Apple Account.
+- **The box, owner-run, in order** (`infra/vn-node/apple-signin.md`, I2–I14): the DDL (`scripts/apple-siwa-ddl.mjs`),
+  the dark deploy, the nginx guard on `sb.eno.vn/auth/v1/authorize`, the secrets and GoTrue's Apple provider
+  (`apply-apple-signin.sh install`), the daily client-secret check (`install-timer --auto-rotate`), the iOS flip.
+✔ Build 2 after every deploy: the email code only. Build 3 on TestFlight (the plan's §8 device matrix): a new account
+sharing the real email and one with Hide My Email (no name or email asked again; onboarding asks no name when Apple
+gave one); a returning user; cancel is silent; no iCloud account on the device; Google via
+`ASWebAuthenticationSession` with no "wants to use" alert; both buttons visible without scrolling in the dialog, on
+/signin and in the Join prompt; VoiceOver reads "Continue with Apple, button"; deleting a new Apple account removes
+eno from Settings → Apple Account → Sign in with Apple.
 
 **P10a. ⏳ Android pass BEFORE the gate line goes live (no Apple account needed).** On the Android emulator, in a
 throwaway debug app (`android/`; only generated, gitignored files change — `server.url`, `cleartext`,
@@ -662,7 +697,8 @@ a TestFlight (Release) build**: Capacitor makes the WebView inspectable only in 
 - **TestFlight build (the owner's device; the owner installs it) — the functional checks.** Images load; an eno.vn
   universal link tapped in Notes opens the right page once P7 is live, `/signin` and `/auth*` stay in Safari, and a
   www.eno.forum link — from Notes AND from inside the app — opens Safari (the forum never renders in the app);
-  quick actions warm AND cold; camera + photo picker; push (P8). With the gates on: no Google on `/signin`, no
+  quick actions warm AND cold; camera + photo picker; push (P8). With the gates on: no Google on `/signin` in build 2
+  (build 3 with the flag's `ios`: Apple and Google together — P9), no
   Payments row, no "Phone · soon", Terms opens in the sheet and closes back onto the form; with `ugc-safety` (⛔ PRODUCTION: only between the two test accounts and on content they
   wrote — the second account's storefront, plus a review and a help reply posted for this test. Confirm DELETES the
   content and notifies its author, so never Report-and-Confirm a real member's review, reply or post; delete anything
@@ -729,7 +765,7 @@ the seeded conversation.
 **P12. ⏳ Metadata (owner pastes from the appendices).** 6.9-inch screenshots (§3 — re-captured on eno.vn); name,
 subtitle, promotional text, keywords, description (Appendix A); support URL `https://eno.vn/contact`, privacy URL
 `https://eno.vn/privacy`, marketing URL **blank for v1**; category (D4); copyright `2026 Eno Company Limited`; App
-Privacy (Appendix B); age rating (Appendix C — Unrestricted Web Access YES, override to 18+); content rights (D9);
+Privacy (Appendix B — for build 3 the P1/P4 edits in P9); age rating (Appendix C — Unrestricted Web Access YES, override to 18+); content rights (D9);
 review notes + the demo account (Appendix A, P11); version release **Manual**. Price and availability ✅ (P5).
 ✔ No missing-field warnings; "Add for Review" is enabled.
 
@@ -759,10 +795,12 @@ publishes the app) and checks the VN storefront listing (the US is excluded in v
   ENO), team `DTP9SKVFMQ`, account holder `alex@eno.vn`.** With D18 that resolves the conflict this item used to
   carry — an app under the licensed company's name claiming eno.vn links while rendering the forum's visa desk — by
   moving the app, not the entity. What remains is a partner's e-Visa service on eno.vn (D19, B1, B3).
-- **D2 Guideline 4.8.** (a) Sign in with Apple (P9, ~1–2 days) or (b) hide Google on iOS (`ios-hide-google`).
-  **(b) for v1** — the binary carries no Sign in with Apple entitlement and the gate line carries the token (B5
-  confirms it); **(a) in v1.1** with Google restored. No Apple button on the web for now (Services ID + a secret
-  rotated every 6 months).
+- **D2 Guideline 4.8 — DECIDED 2026-10-08: (a) Sign in with Apple in 1.0.3 build 3, with Google restored on iOS**
+  (owner: "bring google back and do apple login for all web and mobile apps", then "ship it" on the plan). Builds 1–2
+  were (b): no entitlement, Google hidden by `ios-hide-google` — which stays in the gate line for good with its new
+  meaning (§1), so build 2 still shows the email code only. The web and the Android app get Apple too, through a
+  Services ID whose client secret is rotated automatically before Apple's 6-month limit
+  (`infra/vn-node/apple-signin.md`). The rest is P9.
 - **D3 Bundle id — DONE: `vn.eno.app`**, registered on team `DTP9SKVFMQ` by the first signed build and bound to the
   App Store Connect record (permanent). (Not `eno.vn` — not reverse-DNS; not `vn.eno.ios` — the shelved app's.)
 - **D4 Category: Shopping, secondary Lifestyle** — the store text is marketplace-first.
@@ -1014,8 +1052,9 @@ before the block — both now refuse it.
   guards the store text, but the 14 VietKite rows still carry "official assistance" and "VISA 24 GIỜ" on a Standard
   product (B4).
 - **5.2.2** — see D9.
-- **Google sign-in on iOS** (if kept) has never run end to end; SFSafariViewController shows "Open in
-  eno?" when the custom-scheme return fires.
+- **Google sign-in on iOS** has never completed a round trip on a device. Build 3 runs it in
+  `ASWebAuthenticationSession` (ephemeral: no "wants to use sb.eno.vn" alert, a Google login every time) instead of
+  SFSafariViewController, whose custom-scheme return showed "Open in eno?"; P9's device checks cover it.
 - **Reviewer path** — Turnstile may challenge the password step; the demo account is erased if the
   reviewer tests deletion (the notes ask them not to); a Block test fails against a staff or ownerless counterpart
   (P11).
@@ -1126,8 +1165,8 @@ The app sells no digital content. Marketplace deals are agreed and paid directly
 Add-ons, each only when true:
 
 ```
-[ios-hide-google live, D2 = b] The iOS app offers only eno's own sign-in (email code / password); no third-party login is offered on iOS.
-[D2 = a, v1.1] Sign in with Apple is offered alongside Google.
+[build 2, or a flag without ios — ios-hide-google live] The iOS app offers only eno's own sign-in (an emailed code; a password only on eno-issued accounts such as the review seat); no third-party login is offered on iOS.
+[build 3 with NEXT_PUBLIC_APPLE_SIGNIN containing ios — D2 = a] New accounts can use Sign in with Apple (Apple gives the name and email; neither is asked again), Continue with Google, or an emailed 6-digit code. Deleting an account revokes its Sign in with Apple token.
 [P8 live] Push notifications, including offers and counter-offers, a new enquiry on your listing, sale confirmations, price drops on a listing you asked about, saved-search alerts, reminders to confirm your listings are still available, dispute updates, rental availability requests, e-Visa case updates (a sent case to the seller, the result to the applicant) and account notices (ordinary chat messages show on the Messages badge instead).
 [P7 live] Universal links: eno.vn links open in the app; sign-in pages stay in Safari.
 [ugc-safety live] Users can block any other user — except the eno team and the shops eno lists on a business's behalf — from the chat header or their storefront; a blocked conversation closes for both sides and our moderators are notified. Seller reviews and help-centre replies and posts also have a Report control, and reports go to a human moderator who can remove the content. A word filter screens chat messages, reviews and help-centre posts and refuses severe language — slurs and hate speech, explicit threats of violence, sexual content involving minors and sexual solicitation; anything it misses can be reported.
@@ -1138,33 +1177,42 @@ Add-ons, each only when true:
 ⚠️ The "AI AND TRANSLATION ASK FIRST" section is true only with `app-ai-notice` live — it is in the base block because
 P13 requires the gate line.
 
+⚠️ **Build 3 (D2 = a) changes the base block too, not only the add-on:** the sign-in, native-features, deletion and
+services lines must name Sign in with Apple and Google Sign-In, and "third-party login" leaves the "Not on iOS" list.
+The submission text for build 3 is drafted beside the plan — `~/eno-ios-prep/siwa/notes-build3-draft.txt` and
+`reply-build3-draft.txt`, each under 4,000 characters; merge any later 2.1 edits into them before pasting.
+
 ## Appendix B — App Privacy answers (mirror of `PrivacyInfo.xcprivacy`)
 
-All "Linked to the user" except Diagnostics; none "Used to track you" (no ATT prompt: analytics and
+All "Linked to the user" — since build 3 the Diagnostics too; none "Used to track you" (no ATT prompt: analytics and
 advertising are forced off for the `EnoNativeApp` user agent in `src/lib/consent-value.ts`, and eno.vn renders no
-Google Tag Manager container at all — `analytics-tags.tsx` loads it only on eno.forum). 15 linked types + 1 not
-linked, exactly the manifest:
+Google Tag Manager container at all — `analytics-tags.tsx` loads it only on eno.forum). **18 linked types, exactly the
+build-3 manifest** (builds 1–2: 15 linked + 1 not linked; App Store Connect also already carried Other Financial
+Info — presubmit P5). The build-3 changes in App Store Connect: Other Diagnostic Data → Linked (P1), Audio Data
+added (P4) — P9.
 
 | Category | Types | Purposes |
 |---|---|---|
 | Contact Info | Name (the account and seller name; the name on the passport page the e-Visa photo check reads), Email Address — also **Developer's Advertising or Marketing** (eno's weekly digest, on by default), Phone Number, Physical Address | App Functionality (+ that one) |
 | Location | Precise (map, "near me", lat/lng at 3 decimals), Coarse | App Functionality |
-| User Content | Emails or Text Messages (chat), Photos or Videos (listing photos and videos; the passport data page and portrait sent to an e-Visa seller in chat), Customer Support, Other User Content (listings, reviews, help posts) | App Functionality |
+| Financial Info | Other Financial Info — the expected salary a teacher may add to a teacher profile (optional; `TeacherProfile.expectedSalaryM`). No payment data | App Functionality |
+| User Content | Emails or Text Messages (chat), Photos or Videos (listing photos and videos; the passport data page and portrait sent to an e-Visa seller in chat), **Audio Data** (the sound of a listing video; a teacher's intro video — build 3, P4), Customer Support, Other User Content (listings, reviews, help posts) | App Functionality |
 | Search History | Search History | App Functionality, Analytics (first-party) |
 | Identifiers | User ID | App Functionality |
 | Purchases | Purchase History — the sale loop's record of what an account bought (the seller names the buyer and price; the buyer confirms "Yes, I bought it"; `Listing.soldToProfileId` / `saleConfirmedAt`). Nothing is paid in the app (eno.vn compiles no Order or checkout route) | App Functionality |
 | Usage Data | Product Interaction | App Functionality, Analytics, Product Personalization |
 | Other Data | nationality (teacher profile); the CCCD / business-registration number (switch-to-business form); the passport fields the e-Visa photo check reads — date and place of birth, sex, nationality, passport number and its dates, personal ID number, passport type and issuing authority | App Functionality |
-| Diagnostics | Other Diagnostic Data (CSP violation reports) — **Not linked** | App Functionality |
+| Diagnostics | Other Diagnostic Data (CSP violation reports; the web server's access log — IP address, browser details, address requested, time, kept 400 days) — **Linked** since build 3 (P1; builds 1–2 declared it not linked) | App Functionality |
 
 **Sensitive Info — not declared, deliberately (2026-10-06).** eno.vn's e-Visa flow asks no form (photos only — no
 religion), the portrait is not used for face matching, and eKYC's ID + selfie stay out of the iOS app (`ios-hide-kyc`
 in the gate line). ⛔ Never switch `ios-hide-kyc` off, and never bring a form back to eno.vn's e-Visa flow, without a
 new submission that declares Sensitive Info — `scripts/ios-release.sh` refuses SensitiveInfo, so that check changes in
 the same binary.
-**Payment Info / Financial Info — not declared (2026-10-06).** eno.vn has no payout form, wallet or checkout
+**Payment Info — not declared (2026-10-06).** eno.vn has no payout form, wallet or checkout
 (`.forum.svc.` routes; `/dashboard/payout`, `/dashboard/wallet`, `/api/seller/payout` answer 404, measured
-2026-10-06). Re-declare in the binary that ever brings a payment surface into the app.
+2026-10-06). Re-declare in the binary that ever brings a payment surface into the app. Financial Info is declared
+only as **Other Financial Info** (a teacher's expected salary, above) — never Payment or Credit Info.
 
 Deviations from the 2026-10-04 plan, each from review or measurement: chat is declared as **Emails or Text
 Messages**; CSP reports are declared. (While the app rendered eno.forum the payout bank account was declared as

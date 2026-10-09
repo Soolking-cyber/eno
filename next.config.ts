@@ -3,6 +3,7 @@ import { appRootSegments, markdown404Source } from "./src/lib/root-segments";
 import { INDEXNOW_KEY_REWRITE } from "./src/lib/indexnow-key";
 import { retiredCategoryRedirects } from "./src/lib/retired-categories";
 import { unknownAppReviewGates } from "./src/lib/app-review-gates";
+import { unknownAppleSignInTokens } from "./src/lib/apple-signin";
 import type { NextConfig } from "next";
 
 /**
@@ -32,6 +33,20 @@ if (UNKNOWN_GATES.length) {
   throw new Error(
     `NEXT_PUBLIC_APP_REVIEW_GATES names no such gate: ${UNKNOWN_GATES.join(", ")}. ` +
       "Valid tokens are listed at the top of src/lib/app-review-gates.ts. Refusing to build.",
+  );
+}
+
+/**
+ * ⚠️ THE SIGN IN WITH APPLE ROLLOUT FLAG IS AN OWNER SWITCH TOO, AND ON iOS IT ALSO DECIDES GOOGLE. The comma
+ * list (`ios`, `web-test`, `web`) is read by src/lib/apple-signin.ts, which ignores unknown tokens at runtime —
+ * so `iso` or `web_test` would build green with Apple silently off, and in the iOS app Google with it (Google
+ * shows there only beside Apple). Refuse the build instead, exactly like the review gates above.
+ */
+const UNKNOWN_APPLE_TOKENS = unknownAppleSignInTokens(process.env.NEXT_PUBLIC_APPLE_SIGNIN);
+if (UNKNOWN_APPLE_TOKENS.length) {
+  throw new Error(
+    `NEXT_PUBLIC_APPLE_SIGNIN names no such token: ${UNKNOWN_APPLE_TOKENS.join(", ")}. ` +
+      "Valid tokens are ios, web-test and web (src/lib/apple-signin.ts). Refusing to build.",
   );
 }
 

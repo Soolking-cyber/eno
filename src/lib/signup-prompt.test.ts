@@ -8,6 +8,7 @@ import {
   MAX_PER_TAB,
   MAX_TICK_CREDIT_MS,
   PAUSE_MS,
+  PROMPT_METHOD_EVENT,
   afterDismissed,
   afterMethod,
   afterShown,
@@ -253,8 +254,8 @@ describe('signup-prompt — a completed sign-up is the prompt’s only if a meth
 })
 
 describe('signup-prompt — the anonymous daily totals', () => {
-  it('seven events (left_open since UX3 J1), and nothing else is a counter', () => {
-    for (const e of ['shown', 'dismissed', 'dismissed_then_continued', 'google_click', 'email_click', 'signup_completed', 'left_open']) expect(isSignupPromptEvent(e)).toBe(true)
+  it('eight events (left_open since UX3 J1, apple_click since Sign in with Apple), and nothing else is a counter', () => {
+    for (const e of ['shown', 'dismissed', 'dismissed_then_continued', 'google_click', 'apple_click', 'email_click', 'signup_completed', 'left_open']) expect(isSignupPromptEvent(e)).toBe(true)
     for (const e of ['', 'Shown', 'shown ', 'published', '__proto__', 'constructor', 42, null]) expect(isSignupPromptEvent(e)).toBe(false)
   })
 
@@ -339,10 +340,10 @@ describe('signup-prompt — the anonymous daily totals', () => {
 })
 
 describe('signup-prompt — per-gate sign-in counters (UX3 J1)', () => {
-  it('every gate but the timed prompt sends its own events; four actions and nothing else', () => {
+  it('every gate but the timed prompt sends its own events; five actions (apple since 2026-10-08) and nothing else', () => {
     for (const g of ['first_save', 'chat', 'offer', 'rental_check', 'save_search', 'post', 'nav', 'page', 'other']) expect(isCountedGate(g)).toBe(true)
     for (const g of ['timed', '', 'Chat', 'checkout', null]) expect(isCountedGate(g)).toBe(false)
-    for (const a of ['open', 'google', 'email', 'completed']) expect(isGateAction(a)).toBe(true)
+    for (const a of ['open', 'google', 'apple', 'email', 'completed']) expect(isGateAction(a)).toBe(true)
     for (const a of ['shown', 'Open', '', null]) expect(isGateAction(a)).toBe(false)
   })
 
@@ -369,12 +370,23 @@ describe('signup-prompt — per-gate sign-in counters (UX3 J1)', () => {
       { key: counterKey('2026-10-05', 'marketplace', 'shown', 'browser.desktop.en'), n: 9 },
     ]
     const g = summariseGates(rows, { site: 'marketplace', days })
-    expect(g.byGate.chat).toEqual({ open: 7, google: 0, email: 3, completed: 2 })
-    expect(g.byGateContext.chat['inapp-zalo.phone.vi']).toEqual({ open: 6, google: 0, email: 3, completed: 2 })
+    expect(g.byGate.chat).toEqual({ open: 7, google: 0, apple: 0, email: 3, completed: 2 })
+    expect(g.byGateContext.chat['inapp-zalo.phone.vi']).toEqual({ open: 6, google: 0, apple: 0, email: 3, completed: 2 })
     expect(g.byGate.offer).toBeUndefined()
   })
 
   it('the timed prompt reads as a gate row from its own events', () => {
-    expect(promptAsGate({ ...zeroTotals(), shown: 10, google_click: 2, email_click: 1, signup_completed: 1 })).toEqual({ open: 10, google: 2, email: 1, completed: 1 })
+    expect(promptAsGate({ ...zeroTotals(), shown: 10, google_click: 2, apple_click: 3, email_click: 1, signup_completed: 1 })).toEqual({ open: 10, google: 2, apple: 3, email: 1, completed: 1 })
+  })
+
+  it('an Apple choice is counted and read back like the others (Sign in with Apple)', () => {
+    const k = gateCounterKey('2026-10-08', 'marketplace', 'chat', 'apple', 'browser.phone.vi')
+    expect(parseGateCounterKey(k)).toEqual({ day: '2026-10-08', site: 'marketplace', gate: 'chat', action: 'apple', ctx: 'browser.phone.vi' })
+    expect(parseCounterKey(counterKey('2026-10-08', 'marketplace', 'apple_click', 'native.phone.en'))).toEqual({ day: '2026-10-08', site: 'marketplace', event: 'apple_click', ctx: 'native.phone.en' })
+    expect(PROMPT_METHOD_EVENT).toEqual({ google: 'google_click', apple: 'apple_click', email: 'email_click' })
+    // apple counts as a start, so the rates stay shares of the same asks
+    const r = signupPromptRates({ ...zeroTotals(), shown: 10, google_click: 1, apple_click: 2, email_click: 1, signup_completed: 2 })
+    expect(r.startRate).toBeCloseTo(0.4)
+    expect(r.completionRate).toBeCloseTo(0.5)
   })
 })
