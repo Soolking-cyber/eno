@@ -551,3 +551,38 @@ describe('⛔ THE INVARIANT — in the iOS app, Google is never visible without 
     }
   })
 })
+
+// ── `no-apple-web` (src/lib/apple-web-head.ts): the pre-paint class is set once per document; the form's mount effect
+// keeps it in step with appleAvailableHere(), so a client-side navigation can never leave it stale (commit gate). ──
+describe('Sign in with Apple — `web`: the mount reconciles the pre-paint class', () => {
+  it('the server node carries `apple-web` (the class the pre-paint rule hides)', () => {
+    flags('', 'ios,web')
+    const apple = byText(ssr(), 'Continue with Apple')
+    expect(apple?.className).toContain('apple-web')
+  })
+
+  it('a stale `no-apple-web` (left by the in-app sheet\'s URL) is removed where Apple is allowed — the button shows', async () => {
+    flags('', 'ios,web')
+    context('web')
+    document.documentElement.classList.add('no-apple-web')
+    await renderForm()
+    expect(document.documentElement.classList.contains('no-apple-web')).toBe(false)
+    expect(apple()).toBeTruthy()
+  })
+
+  it('…and set where Apple cannot run (an in-app browser), whatever the first frame said', async () => {
+    flags('', 'ios,web')
+    context('web', { ua: FBAN_UA })
+    await renderForm()
+    expect(document.documentElement.classList.contains('no-apple-web')).toBe(true)
+    expect(apple()).toBeNull()
+  })
+
+  it('without `web` the mount leaves the class alone (it hides nothing then)', async () => {
+    flags('', 'ios,web-test')
+    context('web')
+    document.documentElement.classList.add('no-apple-web')
+    await renderForm()
+    expect(document.documentElement.classList.contains('no-apple-web')).toBe(true)
+  })
+})

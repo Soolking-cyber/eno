@@ -9,12 +9,17 @@
  * Deliberately conservative: normal mobile Safari/Chrome and Android installed PWAs
  * (which DO support Google OAuth via Chrome) are NOT matched.
  */
+/** Known in-app browsers (all platforms) — embedded webviews Google rejects. ONE regex: googleOauthBlocked below and
+ *  the pre-paint `no-apple-web` script (src/lib/apple-web-head.ts) both read it, so the first frame and the mount
+ *  effect cannot disagree about where the web Apple button may show. */
+export const IN_APP_UA_RE = /\b(FBAN|FBAV|FB_IAB|FBIOS|Instagram|Line\/|MicroMessenger|Zalo|TikTok|musical_ly|Snapchat|Pinterest|LinkedInApp|GSA|KAKAOTALK)\b/i
+
 export function googleOauthBlocked(): boolean {
   if (typeof navigator === 'undefined' || typeof window === 'undefined') return false
   const ua = navigator.userAgent || ''
 
   // Known in-app browsers (all platforms) — embedded webviews Google rejects.
-  if (/\b(FBAN|FBAV|FB_IAB|FBIOS|Instagram|Line\/|MicroMessenger|Zalo|TikTok|musical_ly|Snapchat|Pinterest|LinkedInApp|GSA|KAKAOTALK)\b/i.test(ua)) return true
+  if (IN_APP_UA_RE.test(ua)) return true
 
   // Android System WebView (apps embedding a raw WebView).
   if (/Android/.test(ua) && /\bwv\b/.test(ua)) return true

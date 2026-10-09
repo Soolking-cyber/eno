@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 import { LANG_VARIANTS, type LangVariant } from "@/lib/lang-variant";
 import { APP_HOME_TWIN_JS } from "@/lib/app-home-language";
 import { NATIVE_SIWA_JS } from "@/lib/native-siwa-head";
+import { NO_APPLE_WEB_JS } from "@/lib/apple-web-head";
 import { IS_SERVICES, SITE_NAME } from "@/lib/edition";
 import { COMPANY, OPERATOR_REGISTERED } from "@/lib/site-legal";
 import { IOS_APP_URL } from "@/lib/app-store-links";
@@ -459,6 +460,12 @@ export default async function RootLayout({
             __html: `(function(){try{var m=matchMedia('(prefers-reduced-transparency: reduce)');var a=function(){document.documentElement.classList.toggle('reduce-transparency',m.matches)};a();if(m.addEventListener)m.addEventListener('change',a);}catch(e){}try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');var l=localStorage.getItem('lang');if(l&&l!=='en'&&l!=='vi'&&document.documentElement.lang!=='vi')document.documentElement.lang=l;}catch(e){}try{var de=document.documentElement,tc=document.querySelector('meta[name="theme-color"]');if(!tc){tc=document.createElement('meta');tc.name='theme-color';document.head.appendChild(tc);}tc.content=getComputedStyle(de).getPropertyValue('--background').trim()||(de.classList.contains('dark')?'#1c1d1f':'#f8fbfe');}catch(e){}try{var dc=document.documentElement.classList;var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){dc.add('native');dc.add('native-'+(C.getPlatform?C.getPlatform():'ios'));${NATIVE_SIWA_JS}${APP_HOME_TWIN_JS}if(!window.__enoLeaving)(function(){var done=false;var lift=function(){if(done)return;try{var r=C.nativePromise('SplashScreen','hide',{fadeOutDuration:200});done=true;if(r&&typeof r.catch==='function')r.catch(function(){done=false;});}catch(e){}};var po=null;try{po=new PerformanceObserver(function(list){for(var i=0,e=list.getEntries();i<e.length;i++){if(e[i].name==='first-contentful-paint'){po.disconnect();requestAnimationFrame(lift);return;}}});po.observe({type:'paint',buffered:true});}catch(e){po=null;}if(!po){var dcl=function(){requestAnimationFrame(function(){requestAnimationFrame(lift);});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',dcl,{once:true});else dcl();}setTimeout(lift,4000);})();}else if(navigator.userAgent.indexOf('EnoNativeTabs')>-1){dc.add('native');dc.add('native-ios');dc.add('native-tabs');}else{${APP_DOWNLOAD_OFF_JS}if(!window.scrollY)dc.add('page-at-top');}}catch(e){}try{var hd=document.documentElement.classList;if(!hd.contains('native')&&('; '+document.cookie).indexOf('; sb-')<0)hd.add('no-session');}catch(e){}})();`,
           }}
         />
+        {/* ⛔ THE WEB APPLE BUTTON'S FIRST FRAME (src/lib/apple-web-head.ts): with `web` in NEXT_PUBLIC_APPLE_SIGNIN,
+            `no-apple-web` on <html> where the web Sign in with Apple flow cannot run (in-app browsers, an iOS
+            home-screen web app, the shelved tabs, the app's in-app sheet) — globals.css hides `.apple-web` there, so
+            the server-rendered button never flashes before the mount effect removes it. Its own <script>, not a
+            splice into the template above: it needs real regexes. Not emitted at all without `web`. */}
+        {NO_APPLE_WEB_JS ? <script dangerouslySetInnerHTML={{ __html: NO_APPLE_WEB_JS }} /> : null}
         {/* ⚠️ THE ICON SPRITE — ONE REQUEST THAT EVERY PAGE NEEDS, AND THE ONLY THING THE PRELOAD
             SCANNER CANNOT FIND ON ITS OWN. Every glyph in the app renders as two `<use href>` into
             this file (see scripts/gen-icons.mjs), and a `<use>` reference is invisible to the

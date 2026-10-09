@@ -368,10 +368,10 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   // hatch, no session handoff) — hide it and lead with Phone/Email.
   const [hideGoogle, setHideGoogle] = useState(false)
   // Sign in with Apple — see `appleSsr` above for the first render; the mount effect decides the rest.
-  // ⚠️ BEFORE THE `web` FLIP (commit gate B1, codex): with `web`, the server node paints in contexts the mount effect
-  // then removes it from (an in-app browser, an iOS home-screen web app) — a flash until hydration. The iOS binary
-  // never has it (`native-siwa` decides the first frame there). Fix with a pre-paint class from the layout's head
-  // script, like `native-siwa`, before `web` ships (I12) — not needed for `ios` or `web-test`.
+  // With `web`, the server node paints for everyone, and the mount effect removes it where Apple cannot run (an
+  // in-app browser, an iOS home-screen web app, the shelved tabs, the in-app sheet). Its first frame there is
+  // decided before paint: `apple-web` + the `no-apple-web` script (src/lib/apple-web-head.ts) — no flash. The iOS
+  // binary never needed it (`native-siwa` decides the first frame there).
   const [showApple, setShowApple] = useState(appleSsr)
   const [appleWebHere, setAppleWebHere] = useState(false)
   // Either provider is offered here. The divider, and the join presentation's fold, key on this.
@@ -436,8 +436,13 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
     // land in the sheet's browser jar, not the app. ⚠️ The one change here with the flag EMPTY (commit gate B2): it
     // holds whatever the flag says, and only with `app-signin-tidy` on (the gate that opens the sheet at all).
     setHideGoogle((isNativeTabs() && !isNativeApp()) || iosGoogleHidden() || inAppSheetDocument())
-    setShowApple(appleAvailableHere())
+    const appleHere = appleAvailableHere()
+    setShowApple(appleHere)
     setAppleWebHere(appleWebEnabled())
+    // ⛔ RECONCILE THE PRE-PAINT CLASS (commit gate, codex + opus): `no-apple-web` is set once per document
+    // (src/lib/apple-web-head.ts), but the in-app sheet's marker belongs to ONE URL — a client-side navigation away
+    // from it would otherwise keep hiding a button appleAvailableHere() now allows. Every mount re-syncs it.
+    if (appleWebAll) document.documentElement.classList.toggle('no-apple-web', !appleHere)
     // Only where the bridge can open the sheet. An app page WITHOUT one (the UA says app, but no
     // window.Capacitor — Android off server.url, the shelved SwiftUI tabs) keeps target=_blank, because a
     // same-window link there would throw the half-finished sign-in away (codex + opus, review round 3).
@@ -1378,7 +1383,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
               `apple-native-only` while `web` is not in the flag: the server's node is then for that iOS
               binary alone, until the mount effect finds a `web-test` tester here. */}
           {showApple && (
-            <Button variant="bare" size="none" disabled={loading} loading={appleBusy} onClick={pressApple} className={cn(APPLE_BUTTON, 'ios-nosiwa-hidden', !appleWebAll && !appleWebHere && 'apple-native-only')}>
+            <Button variant="bare" size="none" disabled={loading} loading={appleBusy} onClick={pressApple} className={cn(APPLE_BUTTON, 'ios-nosiwa-hidden', appleWebAll && 'apple-web', !appleWebAll && !appleWebHere && 'apple-native-only')}>
               <AppleIcon />
               <span className={APPLE_TITLE}>{t('Continue with Apple', 'Tiếp tục với Apple')}</span>
             </Button>

@@ -2154,6 +2154,13 @@ html.native-ios:not(.native-siwa) .ios-nosiwa-hidden {
 html:not(.native-siwa) .apple-native-only {
   display: none;
 }
+/* `apple-web` — the server-rendered Apple button once `web` is in the flag (it is then for everyone): hidden from the
+   first frame where the web flow cannot run. `no-apple-web` is set by the pre-paint script in src/lib/apple-web-head.ts
+   — in-app browsers, an iOS home-screen web app, the shelved tabs, the app's in-app sheet — exactly where the mount
+   effect would remove the button anyway (appleAvailableHere). Unlayered, like the two rules above. */
+html.no-apple-web .apple-web {
+  display: none;
+}
 /* `ios-hide-visa` (D5 = b) needs the OPPOSITE hook too: a line that exists ONLY in the iOS app ("…in a web browser"), on ISR pages whose HTML the edge cache shares between the app and the web — so
    the server cannot leave it out per user agent. Same contract as above: emitted only while the gate is on.
    ⚠️ `:not(.native-ios)`, NOT `.ios-app-only { display: none }` + a native-ios restore: the element keeps its own
