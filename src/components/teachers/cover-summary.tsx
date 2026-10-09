@@ -1,16 +1,18 @@
 'use client'
 
-// ── COVER LESSONS AT A GLANCE (2026-10-07) — the card at the top of /teachers/edit. ─────────────────────
+// ── COVER LESSONS AT A GLANCE (2026-10-07) — the card at the top of /teachers/edit (step 1 only, since the
+// onboarding redesign of 2026-10-08). ──────────────────────────────────────────────────────────────────────────
 // Weekly upkeep must not mean walking five steps: "Still available" re-confirms the saved periods in one tap
 // (PATCH /api/teachers/me/cover with the same values), "Change" jumps to the Cover step. For a teacher who has
 // not switched cover on yet, the same card is how they hear the feature exists (plan review, 2026-10-07).
+// `areas` counts the SAVED reach — derived from the teacher's "Where you teach" places near home since 2026-10-08.
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { CalendarDays, Check } from '@/components/ui/icons'
 import { formatCalendarDay } from '@/lib/calendar-day'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
-export function CoverSummary({ savedOpen, slots, areas, rateVnd, confirmedAt, dirty, status, onConfirm, onEdit, notice = '' }: {
+export function CoverSummary({ savedOpen, slots, areas, rateVnd, confirmedAt, dirty, status, onConfirm, onEdit, notice = '', hidden = null }: {
   /** whether cover is ON as last SAVED (not as currently edited) */
   savedOpen: boolean
   slots: number
@@ -24,6 +26,14 @@ export function CoverSummary({ savedOpen, slots, areas, rateVnd, confirmedAt, di
   onEdit: () => void
   /** After a stale-window refusal: the form re-read the saved cover (teacher-form reloadSavedCover) and says so here. */
   notice?: string
+  /**
+   * ⛔ SAVED IS NOT SHOWN (gate review, 2026-10-09): the last save left the profile NOT live (the cover save's `live:
+   * false` — a save never re-shows a hidden profile), so the card says so rather than reading as if schools see the
+   * availability just confirmed. `onShow` is the way back, "Show my profile to schools" (the Visibility switch's own call
+   * — teacher-form changeVisibility); null when the teacher's switch is not what hides it (moderation, an identity
+   * hold): said, never offered.
+   */
+  hidden?: { onShow: (() => void) | null; showing: boolean } | null
 }) {
   const { tr, lang } = useLanguage()
   // In BOTH branches: a teacher whose window last saw cover OFF is told too (gate review, 2026-10-07).
@@ -54,7 +64,7 @@ export function CoverSummary({ savedOpen, slots, areas, rateVnd, confirmedAt, di
         )}
         {noticeLine}
         {dirty && (
-          <p className="text-xs text-warning">{tr('You have unsaved changes on the Cover step — save them with “Save changes” on the last step. “Still available” confirms what is saved.', 'Bạn có thay đổi chưa lưu ở bước Dạy thay — hãy lưu bằng “Lưu thay đổi” ở bước cuối. “Vẫn còn rảnh” chỉ xác nhận lịch đã lưu.')}</p>
+          <p className="text-xs text-warning">{tr('You have unsaved changes to your cover lessons — save them with “Save changes”. “Still available” confirms what is saved.', 'Bạn có thay đổi chưa lưu về dạy thay — hãy lưu bằng “Lưu thay đổi”. “Vẫn còn rảnh” chỉ xác nhận lịch đã lưu.')}</p>
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -67,6 +77,18 @@ export function CoverSummary({ savedOpen, slots, areas, rateVnd, confirmedAt, di
           {status === 'saved' ? tr('Saved.', 'Đã lưu.') : status === 'error' ? tr('Could not save. Please try again.', 'Không lưu được. Vui lòng thử lại.') : ''}
         </span>
       </div>
+      {hidden && (
+        <div className="flex flex-wrap items-center gap-2">
+          <p role="status" className="text-sm text-warning">
+            {hidden.onShow
+              ? tr('Your profile is hidden, so schools can’t see your cover lessons.', 'Hồ sơ của bạn đang bị ẩn, nên các trường không thấy lịch dạy thay của bạn.')
+              : tr('Your profile is under review and not visible right now. Contact support if you think this is a mistake.', 'Hồ sơ của bạn đang được xem xét và tạm thời không hiển thị. Liên hệ hỗ trợ nếu bạn cho rằng có nhầm lẫn.')}
+          </p>
+          {hidden.onShow && (
+            <Button variant="secondary" size="sm" type="button" onClick={hidden.onShow} loading={hidden.showing}>{tr('Show my profile to schools', 'Hiển thị hồ sơ cho các trường')}</Button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

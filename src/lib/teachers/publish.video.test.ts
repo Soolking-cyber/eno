@@ -93,15 +93,19 @@ vi.mock('@/lib/db', () => ({
 }))
 
 const { saveTeacherProfile, deleteTeacherVideo, TeacherProfileChangedError, TeacherVideoConflictError, TeacherVideoStoreError, TeacherValidationError } = await import('./publish')
+const { PUBLISH_NOTICE_VERSION } = await import('./profile')
+const { COVER_CONSENT_VERSION } = await import('./cover')
 
+// A v2 body (teacher onboarding redesign, 2026-10-08) — the video rules below are unchanged by it.
 const body = (o: Row = {}) => ({
   fullName: 'Jane Doe', headline: 'CELTA-certified English teacher, 6 years with kids', bio: 'I teach English to young learners and adults in Ho Chi Minh City.',
-  nationality: 'GB', nativeSpeaker: true, languages: ['en'], currentCity: 'ho-chi-minh-city', currentDistrict: '', preferredCities: ['ho-chi-minh-city'],
-  openToOnline: false, availableFrom: null, jobTypes: ['parttime'], ageGroups: ['kids'], subjects: ['ielts'], yearsExperience: 6, experience: [],
+  nationality: 'GB', englishLevel: 'native', languages: ['en'], livesIn: 'city', currentCity: 'ho-chi-minh-city', currentDistrictKey: '',
+  teachAreas: ['ho-chi-minh-city'], teachAreasConfirmed: true, relocate: 'no',
+  availableFrom: null, jobTypes: ['parttime'], ageGroups: ['kids'], subjects: ['ielts'], experienceBand: '5-10-years', experience: [],
   degreeLevel: 'bachelor', degreeMajor: 'English', degreeInstitution: 'Uni', degreeYear: 2015, certificates: [], expectedSalaryM: null,
   photoUrl: 'https://sb.eno.vn/storage/v1/object/public/listings/1700000000000-abcd12.webp', phone: '+84901234567',
-  staffContactOptIn: false, matchEmailOptIn: false, consentPublic: true,
-  coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, coverConsent: false, coverNotice: '2026-10-07',
+  staffContactOptIn: false, matchEmailOptIn: false, publishNotice: PUBLISH_NOTICE_VERSION,
+  coverOpen: false, coverSlots: [], coverRateVnd: null, coverConsent: false, coverNotice: COVER_CONSENT_VERSION,
   videoOnRequest: false, videoUrl: null, videoBase: 3,
   ...o,
 })

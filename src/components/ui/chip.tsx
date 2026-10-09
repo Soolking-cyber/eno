@@ -70,6 +70,15 @@ const TOGGLE_MOTION =
  */
 const TOGGLE_HOVER = 'not-data-pressed:hover:bg-muted not-data-pressed:hover:text-foreground'
 
+/**
+ * The look of a chip that TOGGLES — geometry, tone, the press motion and the no-hover-into-pressed rule above. One
+ * copy: the toggle path below and ui/toggle-group's items (which render Base UI's Toggle themselves, their pressed
+ * state coming from the group) both wear it.
+ */
+export function chipToggleClassName({ size, tone }: VariantProps<typeof chipVariants>): string {
+  return cn(chipVariants({ size, tone }), TOGGLE_MOTION, (tone ?? 'neutral') === 'neutral' && TOGGLE_HOVER)
+}
+
 export function Chip(
   props:
     | (ChipBase & { pressed: boolean; onPressedChange: (pressed: boolean) => void } & Omit<React.ComponentProps<typeof Toggle>, 'pressed' | 'onPressedChange' | 'className' | 'children'>)
@@ -81,7 +90,7 @@ export function Chip(
       <Toggle
         pressed={pressed}
         onPressedChange={onPressedChange}
-        className={cn(chipVariants({ size, tone }), TOGGLE_MOTION, (tone ?? 'neutral') === 'neutral' && TOGGLE_HOVER, className)}
+        className={cn(chipToggleClassName({ size, tone }), className)}
         {...rest}
       >
         {children}

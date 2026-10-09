@@ -14,13 +14,15 @@
  */
 import { useState } from 'react'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, configure, fireEvent, getConfig, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, configure, getConfig, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { LanguageProvider, type Language } from '@/context/language-context'
 import { CountryCombobox } from './country-combobox'
 import { TeacherForm } from './teacher-form'
+import { COMPLETE } from './teacher-form.fixtures'
 
-vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: null, loading: false, openSignIn: () => {} }) }))
+const openSignIn = vi.hoisted(() => vi.fn())
+vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: null, loading: false, openSignIn }) }))
 
 // Everything this file changes globally is put back after it (gate review, 2026-10-08) — per-file isolation already
 // scopes it, and this keeps it scoped even if a pool ever shares a worker.
@@ -367,29 +369,31 @@ describe('in the teacher form', () => {
   beforeEach(() => { vi.stubGlobal('localStorage', store()); vi.stubGlobal('sessionStorage', store()) })
   afterEach(() => { vi.unstubAllGlobals() })
 
-  it('a refused Next with no nationality focuses its input (revealFirstError); a pick lets the teacher on', async () => {
+  // The nationality is asked on step 4, "About you" — the last step before the sign-in (onboarding redesign, 2026-10-08).
+  // The form opens there from this tab's draft (steps 1–3 answered), as it does after a reload.
+  it('a refused "Sign in" with no nationality focuses its input (revealFirstError); a pick lets the teacher on', async () => {
+    sessionStorage.setItem('eno.teacherDraft.v1', JSON.stringify({ v: 4, savedAt: Date.now(), step: 'about', t: { ...COMPLETE, nationality: '' } }))
     const user = userEvent.setup()
     render(
       <LanguageProvider initialLang="en" initialViDict={{}}>
         <main><TeacherForm mode="join" draftHost={false} apexOrigin="https://eno.vn" /></main>
       </LanguageProvider>,
     )
-    // StepWizard renders Next twice — the phone's sticky bar first, the desktop inline twin after; jsdom shows both.
-    const next = () => user.click(screen.getAllByRole('button', { name: 'Next' })[0])
-    // The two plain fields in one change each: key-by-key, every keystroke re-renders the whole form (and that is not
-    // what this pins).
-    fireEvent.change(screen.getByRole('textbox', { name: 'Full name' }), { target: { value: 'Jane Doe' } })
-    fireEvent.change(screen.getByRole('textbox', { name: 'Headline' }), { target: { value: 'CELTA English teacher, five years' } })
-    await next()
-    const input = screen.getByRole('combobox', { name: LABEL })
+    // StepWizard renders its action twice — the phone's sticky bar first, the desktop inline twin after; jsdom shows both.
+    const go = () => user.click(screen.getAllByRole('button', { name: 'Sign in' })[0])
+    const input = await screen.findByRole('combobox', { name: LABEL })
+    expect(input.getAttribute('aria-invalid')).not.toBe('true')
+    await go()
     await waitFor(() => expect(document.activeElement).toBe(input))
     expect(input.getAttribute('aria-invalid')).toBe('true')
     const described = (input.getAttribute('aria-describedby') ?? '').split(' ').map((id) => document.getElementById(id)?.textContent)
     expect(described).toContain('This is required.') // the error is read as the field's description
+    expect(openSignIn).not.toHaveBeenCalled()
 
     await user.type(input, 'tunis')
     await user.click(await screen.findByRole('option', { name: 'Tunisia' })) // typing only filters: the row is tapped
-    await next()
-    expect(await screen.findByText('Where do you live now?')).toBeTruthy()
+    await go()
+    expect(openSignIn).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(sessionStorage.getItem('eno.teacherDraft.v1')!).t.nationality).toBe('TN')
   })
 })

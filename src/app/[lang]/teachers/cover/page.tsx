@@ -80,11 +80,13 @@ export default function TeacherCoverPage() {
               <Bilingual en="For teachers: fill your free periods" vi="Cho giáo viên: tận dụng giờ rảnh" />
             </h2>
             <ul className="space-y-2.5">
-              <Point Icon={CalendarDays} en="Tap the periods you are usually free — it takes a minute." vi="Chạm vào các buổi bạn thường rảnh — chỉ mất một phút." />
-              <Point Icon={MapPin} en="Choose the districts you can reach and set your hourly rate." vi="Chọn các quận bạn có thể đến và đặt mức phí theo giờ." />
+              <Point Icon={CalendarDays} en="Create your free teacher profile, then tap the periods you are usually free." vi="Tạo hồ sơ giáo viên miễn phí, rồi chạm vào các buổi bạn thường rảnh." />
+              <Point Icon={MapPin} en="Pick the districts near you where you can teach, and set your hourly rate." vi="Chọn các quận gần bạn nơi bạn có thể dạy, và đặt mức phí theo giờ." />
               <Point Icon={Check} en="Schools message you; you decide what to share and which lessons to take. Switch it off any time." vi="Các trường nhắn tin cho bạn; bạn quyết định chia sẻ gì và nhận buổi nào. Có thể tắt bất cứ lúc nào." />
             </ul>
-            <Button variant="secondary" asChild><Link href="/teachers/join"><Bilingual en="Offer cover lessons — free" vi="Nhận dạy thay — miễn phí" /></Link></Button>
+            {/* `?goal=cover`: the form asks for cover first — "Also looking for a job?" is optional, and HCMC opens on its
+                districts (teacher-form.tsx). */}
+            <Button variant="secondary" asChild><Link href="/teachers/join?goal=cover"><Bilingual en="Offer cover lessons — free" vi="Nhận dạy thay — miễn phí" /></Link></Button>
           </section>
         </div>
 

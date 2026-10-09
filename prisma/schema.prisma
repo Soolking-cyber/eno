@@ -1065,17 +1065,46 @@ model TeacherProfile {
   /// as `videoBase`, so a stale window can never publish, hide or delete over a newer choice. Never in TeacherInput.
   videoVersion       Int      @default(0)
   nationality        String   // ISO-3166 alpha-2
+  /// MIRROR since 2026-10-08: englishLevel === 'native' (projection.ts teacherMirrors) — kept for the old readers.
   nativeSpeaker      Boolean  @default(false)
+  /// other languages spoken — readable names (no ISO-code column in v1)
   languages          String[] @default([])
+  /// a hub slug (src/lib/teachers/places.ts HUBS) when livesIn = 'city', else '' — no longer always set
   currentCity        String
+  /// MIRROR since 2026-10-08: the curated Vietnamese DISTRICTS name of currentDistrictKey (what Listing.district holds)
   currentDistrict    String?
+  /// MIRROR since 2026-10-08: the city level of teachAreas (places.ts mirrorCities) — the external matcher reads it
   preferredCities    String[] @default([])
+  /// MIRROR since 2026-10-08: 'online' is in teachAreas
   openToOnline       Boolean  @default(false)
+  /// the first day of a month
   availableFrom      DateTime?
   jobTypes           String[] @default([])
   ageGroups          String[] @default([])
   subjects           String[] @default([])
+  /// MIRROR since 2026-10-08: the stored number while it falls in experienceBand, else the band's lower bound
   yearsExperience    Int      @default(0)
+  /// ── THE SITUATION (teacher onboarding redesign, owner 2026-10-08) — rules in src/lib/teachers/places.ts + profile.ts.
+  /// ⛔ ONE SHAPE: situationVersion is SERVER-WRITTEN (TEACHER_SITUATION_VERSION) by every save and by
+  /// scripts/teachers-backfill.ts; NULL = a row the old code wrote and the backfill has not migrated. No runtime adapter
+  /// reads the old columns as answers — they are mirrors (above). Columns: scripts/teachers-ddl.mjs (additive only).
+  /// "Where are you now?" — 'city' | 'elsewhere' | 'abroad'; NULL = not answered (never defaulted)
+  livesIn               String?
+  /// vn-units code of a province no city chip covers whole (places.ts PROVINCE_PLACES) — only for 'elsewhere'
+  currentProvince       String?
+  /// a curated HCMC DISTRICTS slug (HCMC only); currentDistrict keeps the display name
+  currentDistrictKey    String?
+  /// THE one "Where you can teach" list: 'online', hubs, HCMC districts, 'p-<code>', 'anywhere' (≤40, CHECK)
+  teachAreas            String[]  @default([])
+  /// when the teacher last confirmed (or edited) that list in the form — server-written; NULL for backfilled lists
+  teachAreasConfirmedAt DateTime?
+  /// languages taught under "Other language" — readable names (≤8, CHECK)
+  teachLanguages        String[]  @default([])
+  /// 'native' | 'fluent' | 'working'; NULL = not asked (no English-medium subject) or not answered
+  englishLevel          String?
+  /// the experience facet's bucket; NULL = not answered
+  experienceBand        String?
+  situationVersion      Int?
   /// [{role, employer, city, from, to}] — validated by src/lib/teachers/profile.ts
   experience         Json     @default("[]")
   degreeLevel        String?  // none | associate | bachelor | master | phd
@@ -1087,11 +1116,26 @@ model TeacherProfile {
   expectedSalaryM    Float?   // expected monthly salary, millions VND
   /// Consents — unbundled (VN PDP Law 91/2025). Public profile is the service itself; the two
   /// below are optional and default OFF.
+  /// consentPublicAt: when the CURRENT public consent was given (a save under a newer notice moves it).
   consentPublicAt    DateTime
   staffContactOptIn  Boolean  @default(false)
   matchEmailOptIn    Boolean  @default(false)
   consentAt          DateTime @default(now())
   lastMatchedAt      DateTime?
+  /// ⛔ CONSENT EVIDENCE (teacher onboarding redesign, plan review C2, 2026-10-08 — PDP Law 91/2025 Art 9(4)(d), Decree
+  /// 356/2025 Art 6(3)): every consent act stores its time AND the notice version shown, and a withdrawal its time. All
+  /// SERVER-WRITTEN (src/lib/teachers/publish.ts optInWrites), never in TeacherInput.
+  /// The Publish notice the teacher published under (PUBLISH_NOTICE_VERSION); NULL = the old consent tick-box (2 rows).
+  consentPublicVersion      String?
+  /// "Email me jobs that match my profile" — on: when + AI_NOTICE_VERSION; off: when. ⛔ Only an opt-in under the
+  /// CURRENT AI notice (Claude Haiku 5.5, Anthropic) sends the teacher to the matcher (profile.ts aiMatchConsented).
+  matchEmailOptInAt         DateTime?
+  matchEmailNoticeVersion   String?
+  matchEmailWithdrawnAt     DateTime?
+  /// "Our staff may call me" — the same three records.
+  staffContactOptInAt       DateTime?
+  staffContactNoticeVersion String?
+  staffContactWithdrawnAt   DateTime?
   /// COVER LESSONS (owner, 2026-10-07) — an add-on to the job-seeking profile: weekly free periods,
   /// an hourly rate and the areas the teacher will travel to. Rules in src/lib/teachers/cover.ts.
   /// ⛔ Every column below except the four the teacher edits (coverOpen, coverSlots, coverAreas,
@@ -1100,7 +1144,8 @@ model TeacherProfile {
   coverOpen          Boolean  @default(false)
   /// '<mon|tue|wed|thu|fri|sat|sun>-<am|pm|eve>' — ONE combined key per slot (≤21)
   coverSlots         String[] @default([])
-  /// cover-area keys: HCMC district slugs or a city-wide workIn slug (≤40, COVER_LIMITS.areas)
+  /// cover-area keys: HCMC district slugs or a city-wide workIn slug (≤40, COVER_LIMITS.areas). ⚠️ DERIVED since
+  /// 2026-10-08: the teach areas inside the home province (places.ts coverReachOf), rewritten by every save.
   coverAreas         String[] @default([])
   /// whole VND per hour
   coverRateVnd       Int?
@@ -1123,7 +1168,8 @@ model TeacherProfile {
 }
 
 /// ⛔ The only place teacher contact data lives. Revealed to a recruiter ONLY through an active
-/// TeacherContactShare on their conversation (src/app/api/teachers/[id]/contact).
+/// TeacherContactShare on their conversation (src/app/api/teachers/contact) — the phone only when that share's
+/// `phoneShared` says its tap included it (gate review, 2026-10-09).
 model TeacherPrivate {
   teacherProfileId String         @id
   teacherProfile   TeacherProfile @relation(fields: [teacherProfileId], references: [id], onDelete: Cascade)
@@ -1146,6 +1192,14 @@ model TeacherContactShare {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sharedAt       DateTime     @default(now())
   revokedAt      DateTime?
+  /// ⛔ THE TAP INCLUDED THE PHONE (gate review, 2026-10-09). Since A3 (owner, 2026-10-08) the phone is optional,
+  /// so a teacher with none shares "email & CV" — and /api/teachers/contact served the CURRENT private row, so a
+  /// phone added later reached every school they had shared "email & CV" with. A share hands over what its tap
+  /// named, nothing added since: the phone only while this is true. Stamped by every write in
+  /// src/app/api/teachers/share (a re-share re-stamps it — "Share my phone too"). Default TRUE because every row
+  /// before it was made while a phone was required, under the line "Shared my phone, email and CV" — and so a
+  /// rolled-back revision, which never writes it, still inserts. Column: scripts/teachers-ddl.mjs.
+  phoneShared    Boolean      @default(true)
 }
 
 /// A teacher's PRIVATE intro video, sent to one school in one conversation (owner, 2026-10-07: "show their intro video

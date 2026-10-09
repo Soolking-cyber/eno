@@ -56,17 +56,25 @@ function activeIndexOf(steps: WizardStep[], current: number | string): number {
 /**
  * The top progress rail. Purely presentational (plus one optional affordance): pass `onStepSelect`
  * to make ALREADY-COMPLETED nodes tappable so the user can jump back to fix an earlier step. A
- * current or upcoming node is never a button — you cannot skip ahead past work not yet done.
+ * current or upcoming node is never a button — you cannot skip ahead past work not yet done —
+ * unless `allowForward` says every step is already done (an edit), when upcoming nodes jump too.
  */
 export function StepRail({
   steps,
   current,
   onStepSelect,
+  allowForward = false,
   className,
 }: {
   steps: WizardStep[]
   current: number | string
   onStepSelect?: (key: string, index: number) => void
+  /**
+   * Upcoming nodes are tappable too — for a form whose every step is already answered (an EDIT of a saved
+   * profile), where "jump ahead" skips nothing. Off by default: a flow being filled for the first time must
+   * not let anyone skip past work not yet done.
+   */
+  allowForward?: boolean
   className?: string
 }) {
   const active = activeIndexOf(steps, current)
@@ -95,7 +103,7 @@ export function StepRail({
             className={cn('flex items-center', i < steps.length - 1 && 'flex-1')}
             aria-current={state === 'current' ? 'step' : undefined}
           >
-            {state === 'done' && onStepSelect ? (
+            {(state === 'done' || (allowForward && state === 'upcoming')) && onStepSelect ? (
               <button
                 type="button"
                 onClick={() => onStepSelect(step.key, i)}
@@ -126,10 +134,12 @@ export function StepWizard({
   steps,
   current,
   onStepSelect,
+  allowForward,
   header,
   children,
   primaryAction,
   secondaryAction,
+  actionNote,
   actionBarLabel,
   offsetBottom,
   className,
@@ -139,6 +149,8 @@ export function StepWizard({
   current: number | string
   /** Optional: tap a completed rail node to jump back to it. */
   onStepSelect?: (key: string, index: number) => void
+  /** With `onStepSelect`: upcoming nodes jump too (StepRail — an edit, where every step is already done). */
+  allowForward?: boolean
   /** Optional chrome above the rail (a title + close). Kept a slot so the primitive stays copy-free. */
   header?: React.ReactNode
   /** The current step's body — exactly one step's worth. */
@@ -146,6 +158,14 @@ export function StepWizard({
   /** When given, the bottom action bar is rendered (with its spacer). Omit for a step with no CTA. */
   primaryAction?: StickyActionBarAction
   secondaryAction?: StickyActionBarAction
+  /**
+   * One short line the primary action depends on — a consent notice beside Publish. It rides the phone's sticky
+   * bar (StickyActionBar `above`, measured with the panel) and sits above the desktop's inline actions.
+   * ⚠️ PASS `null`, NOT `undefined`, WHILE IT IS EMPTY BUT MAY FILL — StickyActionBar's rule: flipping between the
+   * two shapes re-parents the actions and remounts the primary button. Omitted entirely, the wizard renders exactly
+   * what it did before this prop existed.
+   */
+  actionNote?: React.ReactNode
   /** Accessible name for the action bar. */
   actionBarLabel?: string
   /** CSS length of whatever owns the bottom edge on this surface — `'4.5rem'` where <MobileNav> is
@@ -168,7 +188,7 @@ export function StepWizard({
   return (
     <div data-slot="step-wizard" className={cn('flex flex-col', className)}>
       {header}
-      <StepRail steps={steps} current={active} onStepSelect={onStepSelect} className="mb-6" />
+      <StepRail steps={steps} current={active} onStepSelect={onStepSelect} allowForward={allowForward} className="mb-6" />
 
       {/* Polite live region — announces "<label> · n/total" on change without stealing focus. The
           visible rail carries the same information for sighted users. */}
@@ -191,13 +211,15 @@ export function StepWizard({
             secondary={secondaryAction}
             offsetBottom={offsetBottom}
             label={actionBarLabel}
+            above={actionNote}
             className="lg:hidden"
           />
           <StickyActionBarSpacer className="lg:hidden" />
           {/* DESKTOP (≥lg): no bottom nav and a fixed full-width bar reads heavy on a centred form, so
               the SAME actions render inline at the end of the flow. Built here from the same objects
               so no caller duplicates them. `render` (link) actions are honoured via ui/button's bridge. */}
-          <div className="mt-6 hidden items-center justify-end gap-3 lg:flex">
+          {actionNote != null && <div className="mt-6 hidden lg:block">{actionNote}</div>}
+          <div className={actionNote != null ? 'mt-3 hidden items-center justify-end gap-3 lg:flex' : 'mt-6 hidden items-center justify-end gap-3 lg:flex'}>
             {secondaryAction && <InlineAction action={secondaryAction} variant="outline" />}
             <InlineAction action={primaryAction} variant="cta" />
           </div>

@@ -94,7 +94,7 @@ const RAW_CONTROL_ALLOW = [
   { file: 'src/components/marketplace/bulk-upload-panel.tsx', match: 'type="file"', reason: 'hidden CSV input, fired by the dropzone via fileRef.click()' },
   { file: 'src/components/marketplace/business-profile-editor.tsx', match: 'type="file"', reason: 'hidden logo input inside the <label> picker' },
   { file: 'src/components/marketplace/profile-editor.tsx', match: 'type="file"', reason: 'hidden avatar input inside the clickable <label>' },
-  { file: 'src/components/teachers/teacher-form.tsx', match: 'type="file"', reason: 'hidden photo / intro-video / CV inputs, each inside its clickable <label> picker (teacher form, 2026-09-30)' },
+  { file: 'src/components/teachers/steps/finish-step.tsx', match: 'type="file"', reason: 'hidden photo / intro-video / CV inputs, each inside its clickable <label> picker (teacher form, 2026-09-30; moved from teacher-form.tsx to its Photo & publish step, 2026-10-08)' },
   { file: 'src/components/marketplace/post-wizard-sections.tsx', match: 'type="file"', reason: 'hidden photo + video inputs inside the dashed <label> tiles (MediaSection, moved verbatim from post-wizard.tsx); the video one needs currentTarget.value = "" to allow a re-pick' },
   { file: 'src/app/[lang]/disputes/[id]/page.tsx', match: 'type="file"', reason: 'hidden evidence input inside the Evidence <label>' },
   { file: 'src/app/[lang]/appeal/[id]/page.tsx', match: 'type="file"', reason: 'hidden proof input inside the Add <label>' },
@@ -788,7 +788,11 @@ const RATCHETS = {
     fix: 'use ICON_SIZE / a square size-* class and the STROKE_* constants (src/lib/icon-tokens.ts); an owner-measured fit goes in ICON_FIT with its measurement',
   },
   'h1-off-ramp': {
-    baseline: 24,
+    // 24 → 20 (2026-10-08): /unsubscribe's four state <h1>s became ONE .h-title — that page is the whole drop. The teacher
+    // form's <h1>s moved onto .h-title too, but they live in src/components/teachers/, outside this count (page surfaces
+    // only, below). ⚠️ So this number and src/app/[lang]/unsubscribe/page.tsx ship in ONE commit: the baseline without
+    // that page reads 24 > 20 and fails `npm run build` (gate review, 2026-10-08).
+    baseline: 20,
     what: 'a page <h1> whose literal classes name none of h-display / h-title / h-greeting / sr-only',
     fix: 'use <PageHeader> (ui/page-header) or the .h-display / .h-title class (docs/design-language.md §1)',
   },

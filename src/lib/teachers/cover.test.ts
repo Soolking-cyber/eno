@@ -2,21 +2,23 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
-  COVER_AREAS, COVER_AREA_KEYS, COVER_CITIES, COVER_LIMITS, COVER_SLOTS, coverAreaFilterKeys, coverAreaLabel, coverStamp,
+  COVER_AREAS, COVER_AREA_KEYS, COVER_CITIES, COVER_CONSENT_VERSION, COVER_LIMITS, COVER_SLOTS, coverAreaFilterKeys, coverAreaLabel, coverStamp,
   coverAreasForCities, coverCitiesFor, coverDayShort, coverSlotLabel, mergeStaleCover, parseCoverSlot, type CoverDay, type SavedCover,
 } from './cover'
-import { coverIsPublic, normalizeTeacherInput, teacherFacetTokens, validateTeacherInput, DRAFT_STEPS, TEACHER_STEP_FIELDS } from './profile'
+import { coverIsPublic, normalizeTeacherInput, teacherFacetTokens, validateTeacherInput, DRAFT_STEPS, TEACHER_STEP_FIELDS, COVER_FIELDS } from './profile'
+import { HUBS, coverReachOf } from './places'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
 import { attrMatcher, attrWhere } from '@/lib/attr-match'
 import { parseFacetTokens } from '@/lib/facet-tokens'
 
+/** A v2 teacher living in HCMC who can teach in District 7 and (as a part-time job seeker) in Hanoi. */
 const base = {
   fullName: 'Jane Doe', headline: 'CELTA-certified English teacher, 6 years with kids', nationality: 'GB',
-  currentCity: 'ho-chi-minh-city', preferredCities: ['ho-chi-minh-city', 'ha-noi'],
+  livesIn: 'city', currentCity: 'ho-chi-minh-city', relocate: 'some', teachAreas: ['d7', 'ha-noi'], teachAreasConfirmed: true,
   jobTypes: ['parttime'], ageGroups: ['kids'], subjects: ['general-english'],
 }
-const coverOn = { coverOpen: true, coverSlots: ['mon-am', 'tue-pm'], coverAreas: ['d7', 'ha-noi'], coverRateVnd: 300_000, coverConsent: true }
+const coverOn = { coverOpen: true, coverSlots: ['mon-am', 'tue-pm'], coverRateVnd: 300_000, coverConsent: true }
 
 describe('cover slots', () => {
   it('are 21 combined day-part keys — never a day token and a part token apart', () => {
@@ -33,10 +35,10 @@ describe('cover slots', () => {
 })
 
 describe('cover areas', () => {
-  it('cover exactly the taxonomy workIn cities (minus anywhere/online)', () => {
+  it('COVER_CITIES = the places hubs, and every hub is a "Can teach in" option under its own name', () => {
     const workIn = CATEGORY_BY_SLUG.teachers.facets.find((f) => f.key === 'workIn')!.options
-    expect(COVER_CITIES.map((c) => c.key)).toEqual(workIn.map((o) => o.value).filter((v) => v !== 'anywhere' && v !== 'online'))
-    for (const c of COVER_CITIES) expect(workIn.find((o) => o.value === c.key)?.label).toBe(c.en)
+    expect(COVER_CITIES.map((c) => c.key)).toEqual([...HUBS])
+    for (const c of COVER_CITIES) expect(workIn.find((o) => o.value === c.key)).toMatchObject({ label: c.en, labelVi: c.vi })
   })
   it('reuse the curated HCMC district table verbatim, with Thủ Đức as the umbrella of d2/d9', () => {
     const hcmc = COVER_AREAS.filter((a) => a.city === 'ho-chi-minh-city' && !a.cityWide)
@@ -64,10 +66,12 @@ describe('cover areas', () => {
     expect(coverCitiesFor('ha-noi', ['anywhere'])).toHaveLength(COVER_CITIES.length)
     expect(coverAreasForCities(['da-nang']).map((a) => a.key)).toEqual(['da-nang'])
   })
-  it('never cut a teacher\'s picks: the area cap holds every area there is', () => {
+  it('never cut a teacher\'s reach: the area cap holds every area there is', () => {
     expect(COVER_AREA_KEYS.length).toBeLessThanOrEqual(COVER_LIMITS.areas)
-    const all = normalizeTeacherInput({ ...base, preferredCities: ['anywhere'], ...coverOn, coverAreas: [...COVER_AREA_KEYS] })
-    expect(all.coverAreas).toHaveLength(COVER_AREA_KEYS.length)
+    // the widest reach (HCMC's every district, Bình Dương, Vũng Tàu) fits the cap and the CHECK
+    const widest = coverReachOf(normalizeTeacherInput({ ...base, teachAreas: COVER_AREA_KEYS.filter((k) => k !== 'ho-chi-minh-city') }))
+    expect(widest.length).toBeGreaterThan(20)
+    expect(widest.length).toBeLessThanOrEqual(COVER_LIMITS.areas)
   })
   it('name places without machine translation', () => {
     expect(coverAreaLabel('d7', 'vi')).toBe('Quận 7 (Phú Mỹ Hưng)')
@@ -76,21 +80,24 @@ describe('cover areas', () => {
 })
 
 describe('cover on the teacher profile', () => {
-  it('is its own draft step, before qualifications (the teacher.eno.vn hand-off fires at the end of qualifications)', () => {
+  it('DRAFT_STEPS need no account and come before cover and finish; the hand-off fires after about', () => {
     const order = Object.keys(TEACHER_STEP_FIELDS)
-    expect(order.indexOf('cover')).toBe(order.indexOf('experience') + 1)
-    expect(order.indexOf('cover')).toBeLessThan(order.indexOf('qualifications'))
-    expect(DRAFT_STEPS).toContain('cover')
+    expect(DRAFT_STEPS).toEqual(['plans', 'where', 'teaching', 'about'])
+    expect(order.slice(0, 4)).toEqual([...DRAFT_STEPS])
+    expect(order.indexOf('cover')).toBe(order.indexOf('about') + 1)
+    expect(order.indexOf('finish')).toBe(order.indexOf('cover') + 1)
+    expect(DRAFT_STEPS).not.toContain('cover')
   })
-  it('cannot set the server-written cover columns from a body or the #d= fragment', () => {
-    const t = normalizeTeacherInput({ ...base, ...coverOn, coverConfirmedAt: '2020-01-01', coverConsentAt: '2020-01-01', coverConsentVersion: 'x', coverWithdrawnAt: 'x' })
-    for (const k of ['coverConfirmedAt', 'coverConsentAt', 'coverConsentVersion', 'coverWithdrawnAt']) expect(k in t, k).toBe(false)
+  it('cannot set the server-written cover columns — the areas now among them — from a body or the #d= fragment', () => {
+    const t = normalizeTeacherInput({ ...base, ...coverOn, coverAreas: ['d1'], coverConfirmedAt: '2020-01-01', coverConsentAt: '2020-01-01', coverConsentVersion: 'x', coverWithdrawnAt: 'x' })
+    for (const k of ['coverAreas', 'coverConfirmedAt', 'coverConsentAt', 'coverConsentVersion', 'coverWithdrawnAt']) expect(k in t, k).toBe(false)
+    expect([...COVER_FIELDS]).toEqual(['coverOpen', 'coverSlots', 'coverRateVnd', 'coverConsent'])
   })
-  it('drops slots and areas outside the lists and keeps a canonical order — but never an area for being outside the teacher\'s cities', () => {
-    const t = normalizeTeacherInput({ ...base, ...coverOn, coverSlots: ['tue-pm', 'mon-am', 'mon', 'x-am', 'mon-am'], coverAreas: ['ha-noi', 'd7', 'da-nang', 'atlantis'] })
+  it('drops slots outside the list and keeps a canonical order; the reach is the teach areas near home', () => {
+    const t = normalizeTeacherInput({ ...base, ...coverOn, coverSlots: ['tue-pm', 'mon-am', 'mon', 'x-am', 'mon-am'] })
     expect(t.coverSlots).toEqual(['mon-am', 'tue-pm'])
-    // da-nang is not one of this teacher's cities, and stays: the form shows every city, so the pick stays visible
-    expect(t.coverAreas).toEqual(['d7', 'ha-noi', 'da-nang'].sort((a, b) => COVER_AREA_KEYS.indexOf(a) - COVER_AREA_KEYS.indexOf(b)))
+    // Hanoi is a teach area of this HCMC teacher, but not near home: cover never reaches it (owner, 2026-10-08)
+    expect(coverReachOf(t)).toEqual(['d7'])
   })
   it('never silently raises a typo to the minimum rate', () => {
     const t = normalizeTeacherInput({ ...base, ...coverOn, coverRateVnd: 30_000 })
@@ -98,20 +105,23 @@ describe('cover on the teacher profile', () => {
     expect(validateTeacherInput(t, ['cover']).coverRateVnd).toBe('rate_range')
     expect(validateTeacherInput(normalizeTeacherInput({ ...base, ...coverOn, coverRateVnd: 3_000_000 }), ['cover']).coverRateVnd).toBe('rate_range')
   })
-  it('asks nothing while cover is off, and everything — including its OWN consent — once it is on', () => {
+  it('asks nothing while cover is off, and everything — including its OWN consent and a reach — once it is on', () => {
     expect(validateTeacherInput(normalizeTeacherInput(base), ['cover'])).toEqual({})
-    const e = validateTeacherInput(normalizeTeacherInput({ ...base, coverOpen: true }), ['cover'])
-    expect(e).toMatchObject({ coverSlots: 'required', coverAreas: 'required', coverRateVnd: 'required', coverConsent: 'required' })
+    const e = validateTeacherInput(normalizeTeacherInput({ ...base, coverOpen: true, teachAreas: ['ha-noi'] }), ['cover'])
+    expect(e).toMatchObject({ coverSlots: 'required', coverOpen: 'reach_required', coverRateVnd: 'required', coverConsent: 'required' })
     expect(validateTeacherInput(normalizeTeacherInput({ ...base, ...coverOn }), ['cover'])).toEqual({})
-    // the public-profile consent is not the cover consent
-    expect(validateTeacherInput(normalizeTeacherInput({ ...base, ...coverOn, coverConsent: false, consentPublic: true }), ['cover']).coverConsent).toBe('required')
+    // the Publish consent is not the cover consent
+    expect(validateTeacherInput(normalizeTeacherInput({ ...base, ...coverOn, coverConsent: false, publishNotice: 'x' }), ['cover']).coverConsent).toBe('required')
   })
   it('emits cover tokens only while cover is on, consented and complete — and switching off drops every one', () => {
     const on = parseFacetTokens(teacherFacetTokens(normalizeTeacherInput({ ...base, ...coverOn })))
     expect(on).toEqual(expect.arrayContaining([
       { key: 'cover', value: 'open' }, { key: 'coverSlot', value: 'mon-am' }, { key: 'coverSlot', value: 'tue-pm' },
-      { key: 'coverArea', value: 'd7' }, { key: 'coverArea', value: 'ha-noi' },
+      { key: 'coverArea', value: 'd7' },
     ]))
+    // the relocation city is a "Can teach in" token, never a cover area
+    expect(on).not.toContainEqual({ key: 'coverArea', value: 'ha-noi' })
+    expect(on).toContainEqual({ key: 'workIn', value: 'ha-noi' })
     for (const off of [{ ...coverOn, coverOpen: false }, { ...coverOn, coverConsent: false }, { ...coverOn, coverRateVnd: null }]) {
       const pairs = parseFacetTokens(teacherFacetTokens(normalizeTeacherInput({ ...base, ...off })))
       expect(pairs.filter((p) => p.key.startsWith('cover')), JSON.stringify(off)).toEqual([])
@@ -124,7 +134,11 @@ describe('cover on the teacher profile', () => {
 })
 
 describe('the school filter', () => {
-  const row = (areas: string[]) => ({ attributes: null, facetTokens: teacherFacetTokens(normalizeTeacherInput({ ...base, preferredCities: ['anywhere'], ...coverOn, coverAreas: areas })) })
+  // The teacher lives where the area is (cover reaches the home province only).
+  const row = (areas: string[]) => ({
+    attributes: null,
+    facetTokens: teacherFacetTokens(normalizeTeacherInput({ ...base, currentCity: areas[0] === 'ha-noi' ? 'ha-noi' : 'ho-chi-minh-city', relocate: 'no', ...coverOn, teachAreas: areas })),
+  })
   const cases: [string, string[], boolean][] = [
     ['d7', ['d7'], true],
     ['d7', ['ho-chi-minh-city'], true], // "anywhere in HCMC" covers District 7
@@ -146,8 +160,15 @@ describe('the school filter', () => {
   })
   it('a Monday-morning filter never matches a teacher free on Monday afternoon and Tuesday morning', () => {
     const r = { attributes: null, facetTokens: teacherFacetTokens(normalizeTeacherInput({ ...base, ...coverOn, coverSlots: ['mon-pm', 'tue-am'] })) }
+    expect(coverIsPublic(normalizeTeacherInput({ ...base, ...coverOn }))).toBe(true)
     expect(attrMatcher('coverSlot', 'mon-am')(r)).toBe(false)
     expect(attrMatcher('coverSlot', 'mon-pm')(r)).toBe(true)
+  })
+})
+
+describe('the cover notice version', () => {
+  it('was bumped for the switch-as-consent and the derived areas (2026-10-08)', () => {
+    expect(COVER_CONSENT_VERSION).toBe('2026-10-08')
   })
 })
 
@@ -192,13 +213,19 @@ describe('coverDayShort — weekday names never go through machine translation (
 // ── A stale window's re-read (gate reviews, 2026-10-07): field by field, and the tick never across a withdrawal ──────
 describe('mergeStaleCover', () => {
   const saved = (o: Partial<SavedCover> = {}): SavedCover => ({ coverOpen: true, coverSlots: ['mon-am'], coverAreas: ['hcm-d1'], coverRateVnd: 300000, consentCurrent: true, ...o })
-  const form = (b: SavedCover, o: Partial<Parameters<typeof mergeStaleCover>[0]> = {}) => ({ coverOpen: b.coverOpen, coverSlots: b.coverSlots, coverAreas: b.coverAreas, coverRateVnd: b.coverRateVnd, coverConsent: b.coverOpen && b.consentCurrent, ...o })
+  const form = (b: SavedCover, o: Partial<Parameters<typeof mergeStaleCover>[0]> = {}) => ({ coverOpen: b.coverOpen, coverSlots: b.coverSlots, coverRateVnd: b.coverRateVnd, coverConsent: b.coverOpen && b.consentCurrent, ...o })
 
-  it('an edited rate stays; the areas another window saved come in', () => {
+  it('an edited rate stays; the periods another window saved come in', () => {
     const base = saved()
-    const r = mergeStaleCover(form(base, { coverRateVnd: 350000 }), base, saved({ coverAreas: ['hcm-d3'] }))
-    expect(r.cover).toMatchObject({ coverRateVnd: 350000, coverAreas: ['hcm-d3'], coverSlots: ['mon-am'], coverOpen: true, coverConsent: true })
+    const r = mergeStaleCover(form(base, { coverRateVnd: 350000 }), base, saved({ coverSlots: ['wed-pm'] }))
+    expect(r.cover).toEqual({ coverRateVnd: 350000, coverSlots: ['wed-pm'], coverOpen: true, coverConsent: true })
     expect(r.untouched).toBe(false)
+  })
+  it('the areas are derived, never merged — a reach another window moved leaves the form untouched', () => {
+    const base = saved()
+    const r = mergeStaleCover(form(base), base, saved({ coverAreas: ['hcm-d3'] }))
+    expect('coverAreas' in r.cover).toBe(false)
+    expect(r.untouched).toBe(true)
   })
   it('untouched: a withdrawal elsewhere switches it off here, tick and all', () => {
     const base = saved()
@@ -232,7 +259,7 @@ describe('mergeStaleCover', () => {
   })
   it('cover switched on and ticked here stays so over another window\'s edit while it was off', () => {
     const base = saved({ coverOpen: false, consentCurrent: false, coverSlots: [], coverAreas: [] })
-    const r = mergeStaleCover(form(base, { coverOpen: true, coverSlots: ['mon-am'], coverAreas: ['hcm-d1'], coverConsent: true }), base, { ...base, coverRateVnd: 250000 })
+    const r = mergeStaleCover(form(base, { coverOpen: true, coverSlots: ['mon-am'], coverConsent: true }), base, { ...base, coverRateVnd: 250000 })
     expect(r.cover).toMatchObject({ coverOpen: true, coverConsent: true, coverRateVnd: 250000 })
   })
   it('the saved consent no longer standing under a cover still on: the tick goes and the line asks for it', () => {
@@ -242,9 +269,9 @@ describe('mergeStaleCover', () => {
     expect(r.reconsent).toBe(true)
   })
   it('no base (an edit form that loaded no profile): an untouched form takes the saved cover whole', () => {
-    const empty = { coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, coverConsent: false }
+    const empty = { coverOpen: false, coverSlots: [], coverRateVnd: null, coverConsent: false }
     const r = mergeStaleCover(empty, null, saved())
-    expect(r.cover).toEqual({ coverOpen: true, coverSlots: ['mon-am'], coverAreas: ['hcm-d1'], coverRateVnd: 300000, coverConsent: true })
+    expect(r.cover).toEqual({ coverOpen: true, coverSlots: ['mon-am'], coverRateVnd: 300000, coverConsent: true })
     expect(r.untouched).toBe(true)
   })
 })

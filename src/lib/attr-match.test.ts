@@ -148,3 +148,49 @@ describe('rentalPeriod=weekly — "Theo tuần" means rentable for a week (owner
     expect(attrMatcher('rentalPeriod', 'monthly')({ attributes: '{"rentalPeriod":"daily"}', facetTokens: null })).toBe(false)
   })
 })
+
+// ── "Can teach in" (teacher onboarding redesign, 2026-10-08) — one expansion for the feed and the counts ────────────
+describe('workIn — "Can teach in" reads the way a school means it', () => {
+  const tokens = (...keys: string[]) => row(null, `|${keys.map((k) => `workIn:${k}`).join('|')}|`)
+  /** The feed's predicate (Prisma `contains` over facetTokens) evaluated in JS — what attrWhere asks the database. */
+  const feed = (key: string, value: string, r: { attributes: string | null; facetTokens: string | null }) => {
+    const where = attrWhere(key, value) as { OR: { attributes?: { contains: string }; facetTokens?: { contains: string } }[] }
+    return where.OR.some((c) => (c.facetTokens && (r.facetTokens ?? '').includes(c.facetTokens.contains)) || (c.attributes && (r.attributes ?? '').includes(c.attributes.contains)))
+  }
+  const cases: [string, string[], boolean][] = [
+    ['ho-chi-minh-city', ['d7'], true], // a district teacher is found by their city
+    ['ho-chi-minh-city', ['anywhere'], true], // "will move anywhere" is found by every place
+    ['ho-chi-minh-city', ['binh-duong'], false], // the same province, but another city
+    ['d1', ['ho-chi-minh-city'], true], // "anywhere in HCMC" covers District 1
+    ['d1', ['d7'], false], // ⛔ a District 7 teacher never answers a District 1 search
+    ['d2', ['thu-duc'], true], // Thủ Đức covers its old District 2
+    ['d9', ['d2'], false],
+    ['khanh-hoa', ['p-56'], true], // Nha Trang ↔ Khánh Hoà (B5)
+    ['p-56', ['khanh-hoa'], true],
+    ['p-52', ['p-52'], true],
+    ['p-52', ['khanh-hoa'], false],
+    ['online', ['online'], true],
+    ['online', ['anywhere'], false], // Online is exact
+    ['anywhere', ['ha-noi'], false], // "anywhere" is exact
+  ]
+  it.each(cases)('attr_workIn=%s vs %j → %s, identically in the feed and the Filter count', (value, keys, expected) => {
+    const r = tokens(...keys)
+    expect(attrMatcher('workIn', value)(r)).toBe(expected)
+    expect(feed('workIn', value, r)).toBe(expected)
+  })
+  it('⛔ keeps all 14 old values working (B10): every old link still finds the rows the old facet stored', () => {
+    const OLD = ['ho-chi-minh-city', 'ha-noi', 'da-nang', 'hai-phong', 'can-tho', 'hue', 'khanh-hoa', 'lam-dong', 'dong-nai', 'binh-duong', 'vung-tau', 'phu-quoc', 'anywhere', 'online']
+    for (const v of OLD) {
+      expect(attrRowMatches(tokens(v), 'workIn', v), v).toBe(true)
+      expect(feed('workIn', v, tokens(v)), v).toBe(true)
+    }
+  })
+  it('is tokens only — a teacher row stores no workIn attribute', () => {
+    expect(attrNeedles('workIn', 'ha-noi').attributes).toEqual([])
+  })
+  it('keeps the old derived-token links: attr_jobType=online and attr_ageGroup=business', () => {
+    const r = row(null, '|jobType:fulltime|jobType:online|ageGroup:business|')
+    expect(attrRowMatches(r, 'jobType', 'online')).toBe(true)
+    expect(attrRowMatches(r, 'ageGroup', 'business')).toBe(true)
+  })
+})

@@ -23,6 +23,7 @@ import { facetTokenFor } from '@/lib/facet-tokens'
 import { COMPAT_DISPLAY_PREFIXES } from '@/lib/electronics-specs'
 import { POSTED_FACET_KEY, postedCutoff } from '@/lib/posted-filter'
 import { coverAreaFilterKeys } from '@/lib/teachers/cover'
+import { workInFilterKeys } from '@/lib/teachers/places'
 
 /**
  * The largest count an open-ended bucket enumerates. A bound, because `attributes` is a JSON STRING
@@ -104,6 +105,18 @@ export function attrNeedles(key: string, value: string): AttrNeedles {
    */
   if (key === 'coverArea') {
     return { attributes: [], tokens: coverAreaFilterKeys(value).filter((k) => TOKENABLE.test(k)).map((k) => facetTokenFor(key, k)) }
+  }
+  /**
+   * "CAN TEACH IN" (teacher onboarding redesign, 2026-10-08) reads the way a school means it, through ONE expansion
+   * (places.ts workInFilterKeys), so the feed and the Filter panel's counts agree: a city also finds the teachers who
+   * picked one of its districts, its province (Nha Trang ↔ Khánh Hoà) or "anywhere"; a district finds its umbrella,
+   * the whole city and "anywhere"; a province finds its towns and "anywhere"; Online and "anywhere" only themselves.
+   * ⛔ The key is the old `workIn`, and all 14 old values (12 cities, anywhere, online) stay valid inputs — every old
+   * link and saved search keeps working, now with the wider (intended) meaning. Tokens only: the teacher publish core
+   * is the only writer of a teacher row, and it writes these to `facetTokens`, which no seller-typed attribute reaches.
+   */
+  if (key === 'workIn') {
+    return { attributes: [], tokens: workInFilterKeys(value).filter((k) => TOKENABLE.test(k)).map((k) => facetTokenFor(key, k)) }
   }
   const attributes = [`"${key}":"${value}"`]
   const prefixes = key === 'compatibleWith' ? COMPAT_DISPLAY_PREFIXES[value] : undefined

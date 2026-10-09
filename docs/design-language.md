@@ -259,7 +259,9 @@ until load → strips it from SSR → costs the LCP; reason in the file).
 | Text input | `<Input>` — filled tint idiom (`rounded-xl bg-tint px-4 py-3 text-sm`); `variant="outline"` for bordered forms |
 | Multiline | `<Textarea>` — same idioms as Input |
 | Checkbox | `<Checkbox>` |
-| On/off toggle | `<Switch>` (has haptics) |
+| On/off toggle | `<Switch>` (has haptics); `<SwitchRow>` (ui/switch) when its words must be in view — a VISIBLE label plus a description (a consent notice) that is read with it and is not a tap target |
+| Chips answering one question | `<ToggleGroup>` + `<ToggleGroupItem>` (ui/toggle-group, Base UI ToggleGroup — one tab stop, arrow keys) — several choices (`multiple`), or one choice that clears on a second tap (what a radio cannot do) |
+| A question answered by a group of controls | `<Fieldset>` (ui/fieldset, Base UI Fieldset) — a visible legend names the group; the hint and the error join its `aria-describedby`; the error is `role="alert"` and the group carries `data-invalid` for a form's error reveal |
 | Avatar | `<Avatar>` |
 | Empty / error states | `<EmptyState>` (mascot or coin + title + hint + action) — flat (`tone="bare"`) by default; `variant="fault"` for a failure (neutral coin, destructive ink, no mascot); `titleAs="h1"` when the state IS the page (the route error screen) |
 | Horizontal shelf | `<Shelf>` (marketplace) |
@@ -289,7 +291,9 @@ compact sidebar controls → `lg`.
 imported. An unused primitive is not free — it is a decoy. `ui/alert` sat here with ZERO
 importers while ten hand-rolled callouts existed elsewhere in the app, because nobody knew
 to look for it. If you need one of these back, `npx shadcn@latest add <name>` takes
-seconds — but add it *with* its first real call site, never ahead of one.
+seconds — but add it *with* its first real call site, never ahead of one. (`toggle` and
+`toggle-group` have since come back that way — ui/toggle with the chip filters, ui/toggle-group
+with the teacher form's chip questions, 2026-10-08 — and `collapsible` with the feed's ladder.)
 
 ## 6. Motion
 

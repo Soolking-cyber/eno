@@ -1,161 +1,109 @@
 'use client'
 
 // ── TEACHER FORM ────────────────────────────────────────────────────────────────────────────────
-// The teacher sign-up + edit flow (owner, 2026-09-30). One StepWizard, two halves:
-//   · steps 1-4 (about, location, experience, qualifications) need no account — this is what
-//     teacher.eno.vn serves;
-//   · step 5 (photo, video, CV, phone, consents) and Publish need a session on eno.vn.
-// ⛔ teacher.eno.vn has no session (cookies are host-scoped), so on that host the last button hands
-// the draft to eno.vn in the URL FRAGMENT (`#d=`), which no server ever sees. On eno.vn the draft
-// lives in localStorage so it survives the sign-in round trip, like the post wizard's.
-// Validation is src/lib/teachers/profile.ts — the same functions the server runs.
+// The teacher sign-up + edit flow (owner, 2026-09-30), SITUATION FIRST since the onboarding redesign (owner,
+// 2026-10-08): the teacher taps where they are now and what work they want, and every later screen shows only what
+// fits them. One StepWizard, six steps (profile.ts teacherSteps decides which of them a teacher sees):
+//   1 Your plans · 2 Where you teach · 3 Your teaching · 4 About you — need no account: teacher.eno.vn serves these;
+//   5 Cover lessons (only where the home province has cover) · 6 Photo & publish — need a session on eno.vn.
+// ⛔ teacher.eno.vn has no session (cookies are host-scoped), so after step 4 it hands the answers to eno.vn in the URL
+// FRAGMENT (`#d=`, v2: the draft steps' fields only), which no server ever sees. On eno.vn the sign-in comes right
+// after "About you", so the cover switch, the two opt-ins and Publish — each one act, with its notice beside it —
+// happen once, on eno.vn, and nothing is lost in the hand-off or a Google sign-in.
+// Validation is src/lib/teachers/profile.ts — the same functions the server runs; the screens are ./steps/*.tsx; the
+// form's own derivations (one answer re-deriving another, the edit warnings, the hand-off) are teacher-form-rules.ts.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { StepWizard, type WizardStep } from '@/components/ui/step-wizard'
-import { Field, FieldControl, FieldDescription, FieldError } from '@/components/ui/field'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Switch } from '@/components/ui/switch'
-import { Award, Briefcase, CalendarDays, Camera, Check, FileText, GraduationCap, Loader2, Lock, MapPin, Play, Plus, Trash2, User, Video, X } from '@/components/ui/icons'
-import { Radio, RadioDot, RadioGroup } from '@/components/ui/radio-group'
-import { cn } from '@/lib/utils'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
+import { BookOpen, CalendarDays, Camera, Check, Compass, ExternalLink, Loader2, MapPin, User } from '@/components/ui/icons'
 import { compressImageFile } from '@/lib/normalize-image'
 import { uploadListingVideo } from '@/lib/video-upload-client'
 import {
-  COVER_FIELDS, DRAFT_STEPS, EMPTY_TEACHER, LIMITS, TEACHER_OPTIONS, TEACHER_STEP_FIELDS, normalizeTeacherInput,
-  validateTeacherInput, type TeacherErrors, type TeacherInput, type TeacherStep,
+  AI_NOTICE_VERSION, DRAFT_STEPS, EMPTY_TEACHER, PUBLISH_NOTICE_VERSION, TEACHER_STEPS, hasTeachingGoal, normalizeForSave,
+  normalizeTeacherInput, splitGoalErrors, teacherSteps, type TeacherErrors, type TeacherInput, type TeacherStep,
 } from '@/lib/teachers/profile'
 import { TEACHER_DRAFT_HASH_KEY } from '@/lib/teachers/constants'
 import { COVER_CONSENT_VERSION, coverStamp, mergeStaleCover, type SavedCover } from '@/lib/teachers/cover'
-import { CoverFields, type CoverPatch } from '@/components/teachers/cover-fields'
+import { HCMC, coverReachOf, placeLabel } from '@/lib/teachers/places'
+import { type CoverPatch } from '@/components/teachers/cover-fields'
 import { CoverSummary } from '@/components/teachers/cover-summary'
-import { CountryCombobox } from '@/components/teachers/country-combobox'
+import {
+  ACCOUNT_STEPS, checkSteps, decodeHandoff, draftPart, droppedAnswers, encodeHandoff, firstStepWithError, forDraft, fromDraft,
+  isTeacherStep, nothingDropped, type DroppedField,
+} from '@/components/teachers/teacher-form-rules'
+import { makeErrText, type StepProps } from '@/components/teachers/steps/shared'
+import { PlansStep } from '@/components/teachers/steps/plans-step'
+import { WhereStep } from '@/components/teachers/steps/where-step'
+import { TeachingStep } from '@/components/teachers/steps/teaching-step'
+import { AboutStep } from '@/components/teachers/steps/about-step'
+import { CoverStep } from '@/components/teachers/steps/cover-step'
+import { FinishStep } from '@/components/teachers/steps/finish-step'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { PushOptInCard } from '@/components/marketplace/push-opt-in-card'
 
 const DRAFT_KEY = 'eno.teacherDraft.v1'
-const STEP_ORDER = Object.keys(TEACHER_STEP_FIELDS) as TeacherStep[]
-const CURRENT_CITY_OPTIONS = TEACHER_OPTIONS.workIn.filter((o) => o.value !== 'anywhere' && o.value !== 'online')
 
 type Mode = 'join' | 'edit'
-type Opt = { value: string; label: string; labelVi: string }
 
-function encodeDraft(t: TeacherInput): string {
-  const bytes = new TextEncoder().encode(JSON.stringify(t))
-  let bin = ''
-  bytes.forEach((b) => { bin += String.fromCharCode(b) })
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-function decodeDraft(s: string): unknown {
-  try {
-    const b64 = s.replace(/-/g, '+').replace(/_/g, '/')
-    const bin = atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4))
-    return JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))))
-  } catch {
-    return null
-  }
-}
 /**
  * ⛔ THE DRAFT IS CRASH INSURANCE, NOT A DRAFTS FEATURE — the /post wizard's rule (post-wizard DRAFT_TTL_MS; gate reviews,
  * 2026-10-08). It lives in THIS TAB (sessionStorage) for DRAFT_TTL_MS after the last real change: long enough for a reload
- * and for the sign-in at Publish (Google's full-page redirect comes back to the same tab; the code sign-in never leaves the
- * page), never long enough to hand a shared computer's next user the last person's name, phone and bio — as the old
- * device-wide draft, kept for good, did. Only real typing is kept (an untouched form writes nothing); an account change in
- * the tab starts a fresh form and clears it (TeacherForm); a publish clears it. ⚠️ Accepted, as for /post: someone using the
- * SAME tab within that window, after the last person walked away without signing out.
+ * and for the sign-in after "About you" (Google's full-page redirect comes back to the same tab; the code sign-in never
+ * leaves the page), never long enough to hand a shared computer's next user the last person's name, phone and bio — as
+ * the old device-wide draft, kept for good, did. Only real typing is kept (an untouched form writes nothing); an account
+ * change in the tab starts a fresh form and clears it (TeacherForm); a publish clears it. ⚠️ Accepted, as for /post:
+ * someone using the SAME tab within that window, after the last person walked away without signing out.
  * Four rounds of per-person ownership (owner stamps, an account store, adoption at sign-in) each grew a new edge; this is
  * the contract the codebase already keeps.
+ * v4 (2026-10-08): `{ v: 4, savedAt, step, t }` under the same key (so the /privacy storage row stays true) — the STEP
+ * is kept, so a reload or the Google round trip lands where the teacher was (or where "Sign in" was taking
+ * them). ⛔ It never holds the photo, the video, the cover switch or a consent (teacher-form-rules forDraft): each is
+ * asked again where it is given. A v3 draft from the previous form is read once through the legacy mapping
+ * (profile.ts normalizeTeacherInput → fromLegacyTeacher) and opens on its first step that fails.
+ * `districtNotSaying` (only when true): the HCMC district was answered "Prefer not to say" — an answer that stores
+ * nothing, so it rides beside `t`, never in it (gate review, 2026-10-08; the form's districtNotSaying below).
  */
 const DRAFT_TTL_MS = 15 * 60_000
-type StoredDraft = { v: 3; savedAt: number; t: unknown }
-export const readStoredDraft = (now = Date.now()): unknown => {
+type StoredDraft = { v: 4; savedAt: number; step: TeacherStep; t: TeacherInput; districtNotSaying?: true }
+export type ReadDraft = { t: unknown; step: TeacherStep | null; districtNotSaying?: true }
+export const readStoredDraft = (now = Date.now()): ReadDraft | null => {
   try {
     localStorage.removeItem(DRAFT_KEY) // the old device-wide draft, kept for good: deleted unread
-    const d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null') as Partial<StoredDraft> | null
-    if (d?.v === 3 && d.t && typeof d.savedAt === 'number' && now - d.savedAt < DRAFT_TTL_MS) return d.t
+    const d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null') as { v?: unknown; savedAt?: unknown; step?: unknown; t?: unknown; districtNotSaying?: unknown } | null
+    if (d && (d.v === 4 || d.v === 3) && d.t && typeof d.savedAt === 'number' && now - d.savedAt < DRAFT_TTL_MS) {
+      return { t: d.t, step: d.v === 4 && isTeacherStep(d.step) ? d.step : null, ...(d.v === 4 && d.districtNotSaying === true ? { districtNotSaying: true as const } : {}) }
+    }
     sessionStorage.removeItem(DRAFT_KEY)
     return null
   } catch { return null }
 }
-export const writeStoredDraft = (t: TeacherInput) => {
-  try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ v: 3, savedAt: Date.now(), t } satisfies StoredDraft)) } catch { /* private mode: the draft just does not persist */ }
+export const writeStoredDraft = (t: TeacherInput, step: TeacherStep, ui: { districtNotSaying?: boolean } = {}) => {
+  try {
+    const draft: StoredDraft = { v: 4, savedAt: Date.now(), step, t: forDraft(t), ...(ui.districtNotSaying ? { districtNotSaying: true as const } : {}) }
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+  } catch { /* private mode: the draft just does not persist */ }
 }
 const clearStored = () => {
   try { sessionStorage.removeItem(DRAFT_KEY); localStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
 }
 
-/** Multi-pick chip row — the post wizard's chip look (bare button, pill when picked). */
-function MultiChips({ options, value, onChange, lang }: { options: readonly Opt[]; value: string[]; onChange: (v: string[]) => void; lang: string }) {
-  void lang // kept for the call sites; the label goes through tr() so the nine machine-translated languages get one
-  const { tr } = useLanguage()
-  return (
-    <div className="flex flex-wrap gap-2">
-      {options.map((o) => {
-        const on = value.includes(o.value)
-        return (
-          <Button
-            key={o.value}
-            variant="bare"
-            size="none"
-            type="button"
-            aria-pressed={on}
-            onClick={() => onChange(on ? value.filter((v) => v !== o.value) : [...value, o.value])}
-            className={cn('relative rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors cursor-pointer tap-44', on ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
-          >
-            {tr(o.label, o.labelVi)}
-          </Button>
-        )
-      })}
-    </div>
-  )
-}
+/** The rail's synthetic last node on teacher.eno.vn — "Finish on eno.vn", never a step of its own (never current). */
+const HANDOFF_NODE = 'handoff'
 
-function SingleChips({ options, value, onChange, lang }: { options: readonly Opt[]; value: string | null; onChange: (v: string) => void; lang: string }) {
-  void lang
-  const { tr } = useLanguage()
-  return (
-    <div className="flex flex-wrap gap-2" role="radiogroup">
-      {options.map((o) => (
-        <Button
-          key={o.value}
-          variant="bare"
-          size="none"
-          type="button"
-          role="radio"
-          aria-checked={value === o.value}
-          onClick={() => onChange(o.value)}
-          className={cn('relative rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors cursor-pointer tap-44', value === o.value ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
-        >
-          {tr(o.label, o.labelVi)}
-        </Button>
-      ))}
-    </div>
-  )
-}
-
-function Section({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-3">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">{title}</h2>
-        {hint && <p className="mt-0.5 text-sm text-muted-foreground">{hint}</p>}
-      </div>
-      {children}
-    </section>
-  )
-}
-
-type TeacherFormProps = { mode: Mode; draftHost: boolean; apexOrigin: string }
+type TeacherFormProps = { mode: Mode; draftHost: boolean; apexOrigin: string; goal?: 'cover' | null }
 
 /**
  * How many times a SIGNED-IN account has left this page — a sign-out, or another account. A sign-in (none → an account) is
- * not a leave: the teacher signs in mid-flow (Publish → sign in) and keeps their place. React's "adjust state while
+ * not a leave: the teacher signs in mid-flow (after "About you") and keeps their place. React's "adjust state while
  * rendering" pattern, so the count moves in the very render that sees the new account — never one commit of the old form
  * under it.
  */
@@ -184,23 +132,47 @@ export function TeacherForm(props: TeacherFormProps) {
   return <TeacherFormForAccount key={props.mode === 'edit' ? `acct:${uid ?? 'none'}` : `join:${leaves}`} {...props} restoreDraft={leaves === 0} />
 }
 
-function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = true }: TeacherFormProps & { restoreDraft?: boolean }) {
+type PendingChange = { next: TeacherInput; touched: readonly (keyof TeacherInput)[]; fields: DroppedField[]; places: string[] }
+
+function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, restoreDraft = true }: TeacherFormProps & { restoreDraft?: boolean }) {
   const { tr, lang } = useLanguage()
   const { user, loading: authLoading, openSignIn } = useAuth()
+  const uid = user?.id ?? null
+  const coverIntent = goal === 'cover'
   const [t, setTState] = useState<TeacherInput>(EMPTY_TEACHER)
-  const [stepIdx, setStepIdx] = useState(0)
+  // The step BY KEY, never by index: when an answer adds or removes a step (a home with cover, "Online only"), the rail
+  // re-counts around the step the teacher is on — it never moves them silently.
+  const [stepKey, setStepKey] = useState<TeacherStep>('plans')
   const [errors, setErrors] = useState<TeacherErrors>({})
   const [formError, setFormError] = useState('')
   const [busy, setBusy] = useState<'' | 'photo' | 'video' | 'saving'>('')
   const [cvFile, setCvFile] = useState<File | null>(null)
   const [cvName, setCvName] = useState<string | null>(null)
   const [status, setStatus] = useState<'live' | 'hidden'>('live')
-  const [done, setDone] = useState<{ listingId: string; live: boolean } | null>(null)
+  const [done, setDone] = useState<{ listingId: string; live: boolean; noGoal: boolean } | null>(null)
   const [loaded, setLoaded] = useState(mode === 'join')
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [langsText, setLangsText] = useState('')
+  // Edit: the signed-in account has no teacher profile — it is offered Create, never an empty edit form.
+  const [noProfile, setNoProfile] = useState(false)
   const [existing, setExisting] = useState(false)
+  // Join: answers ARRIVED — a teacher.eno.vn hand-off or a restored draft (or typed here before signing in) — so a
+  // signed-in account that already has a profile is offered to review them in it, rather than having them thrown away.
+  const [arrived, setArrived] = useState(false)
+  const [handoffArrived, setHandoffArrived] = useState(false)
   const [listingLive, setListingLive] = useState(true)
+  // GET /api/teachers/me: whether this account may publish right now (shown at the TOP of the last step), and — with no
+  // profile yet — what the account already knows, OFFERED, never filled in unasked.
+  const [publishGate, setPublishGate] = useState<{ ok: boolean; code: string | null } | null>(null)
+  const [prefill, setPrefill] = useState<{ displayName: string | null; avatarUrl: string | null; phone: string | null } | null>(null)
+  // Where to go once signed in: "Sign in", a hand-off, or a draft that was on a step needing an account.
+  const [resumeTo, setResumeTo] = useState<TeacherStep | null>(null)
+  const signInAsked = useRef(false)
+  // Edit: a stored consent given under an OLDER notice — loaded OFF, so it is given again under today's words (D5).
+  const [reconfirm, setReconfirm] = useState({ cover: false, optIns: false })
+  // Edit: a hand-off's answers were filled in over the saved profile ("Review these answers in my profile"), unsaved —
+  // and what saving them would clear from the saved profile, said up front (the edit warning's list, for the batch).
+  const [applied, setApplied] = useState<{ fields: DroppedField[]; places: string[] } | null>(null)
+  const [pendingChange, setPendingChange] = useState<PendingChange | null>(null)
+  const [whatsPublic, setWhatsPublic] = useState(false)
   // Cover lessons (2026-10-07): the cover availability AS LAST SAVED (the summary card and its "Still available"
   // tap work on this, never on unsaved edits in `t` — gate review), when it was last confirmed, and the save state.
   const [savedCover, setSavedCover] = useState<SavedCover | null>(null)
@@ -208,6 +180,11 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
   const [coverSave, setCoverSave] = useState<'' | 'saving' | 'saved' | 'error'>('')
   // After a stale-window refusal: what reloadSavedCover says, on the cover card.
   const [coverNotice, setCoverNotice] = useState('')
+  // What the card's last "Still available" left public (PATCH /api/teachers/me/cover `live`) — false: saved, but the
+  // profile is not shown, so the card must not read as if schools see the confirmed cover (gate review, 2026-10-09).
+  const [coverLive, setCoverLive] = useState(true)
+  // "Show my profile to schools" outside the Visibility switch (the done screen, the cover card) is on its way.
+  const [showing, setShowing] = useState(false)
   // The intro video (2026-10-07, owner: "show their intro video in profile or hide and send upon request"): whether a
   // PRIVATE one is stored — its address never reaches the form — and the version this form loaded, sent back as
   // `videoBase` so a stale window can never publish, hide, replace or delete a newer choice (src/lib/teachers/video.ts).
@@ -217,7 +194,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
   const [confirmVideoRemove, setConfirmVideoRemove] = useState(false)
   // The public video AS SAVED: hiding THAT one cannot recall copies of its link (the note under the choice says so).
   const [savedPublicUrl, setSavedPublicUrl] = useState<string | null>(null)
-  // The TeacherProfile this form loaded — Remove names it, and the server refuses another account's (me/video DELETE).
+  // The TeacherProfile this form loaded — Save and Remove name it, and the server refuses another account's (409).
   const [teacherProfileId, setTeacherProfileId] = useState<string | null>(null)
   // The teacher's own look at their private video — a 10-minute link from GET /api/teachers/me/video.
   const [ownVideoUrl, setOwnVideoUrl] = useState<string | null>(null)
@@ -227,6 +204,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
   const ownSeq = useRef(0)
   const coverReloadSeq = useRef(0)
   const hydrated = useRef(false)
+  // tr changes identity with the language; a load must never re-run (and overwrite edits) because of it.
+  const trRef = useRef(tr)
+  trRef.current = tr
   // ⛔ THE FORM'S LATEST VALUE, WRITTEN BY EVERY CHANGE AS IT HAPPENS — never synced by an effect after the render (gate
   // review, 2026-10-07): a re-read answering between an edit and that effect would judge the edit "untouched" and
   // overwrite it (reloadSavedCover). Every write goes through setT, which updates this first.
@@ -236,122 +216,229 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
     tRef.current = next
     setTState(next)
   }, [])
+  // ⛔ "PREFER NOT TO SAY" IS THE FORM'S TO KEEP (gate review, 2026-10-08). It stores nothing — currentDistrictKey '',
+  // exactly like the optional question left empty — so the district field cannot hold it: the field remounts with its
+  // step, and the answer it kept for itself showed as unanswered after every step change, reload and Google round trip.
+  // It stands while HCMC is the home (a saved district always shows as itself); a new home lets it go — that home's
+  // district is a new question — adjusted while rendering (useAccountLeaves' pattern). The draft carries it. ⚠️ Bounded
+  // to THIS TAB on purpose: the teacher.eno.vn `#d=` fragment carries answers only (decodeHandoff), and a saved profile
+  // stores none — an edit opens such a district empty, which is what was stored.
+  const [districtNotSaying, setDistrictNotSaying] = useState(false)
+  if (districtNotSaying && !(t.livesIn === 'city' && t.currentCity === HCMC)) setDistrictNotSaying(false)
+  // Edit: a save that would HIDE the profile, held until the teacher says so (the dialog below).
+  const [confirmHide, setConfirmHide] = useState(false)
   // The success screen replaces a long wizard: bring its heading into view (preview check, 2026-10-07 — after Publish
   // or Save it sat above the viewport, wherever the last step had been scrolled to).
   useEffect(() => { if (done) window.scrollTo({ top: 0, behavior: scrollBehavior() }) }, [done])
 
-  const step = STEP_ORDER[stepIdx]
+  // ── The steps this teacher sees — re-derived from their answers (profile.ts teacherSteps) ─────────────────────────
+  const steps = useMemo(() => teacherSteps(t, { draftHost }), [t, draftHost])
+  const step: TeacherStep = steps.includes(stepKey)
+    ? stepKey
+    : steps.find((s) => TEACHER_STEPS.indexOf(s) > TEACHER_STEPS.indexOf(stepKey)) ?? steps[steps.length - 1]
+  const stepIdx = steps.indexOf(step)
+  const errText = useMemo(() => makeErrText(tr), [tr])
+
+  const clearErrorsFor = (keys: readonly string[]) => setErrors((prev) => {
+    if (!keys.some((k) => prev[k as keyof TeacherErrors])) return prev
+    const n = { ...prev }
+    for (const k of keys) delete n[k as keyof TeacherErrors]
+    return n
+  })
   const set = useCallback(<K extends keyof TeacherInput>(k: K, v: TeacherInput[K]) => {
     setT((prev) => ({ ...prev, [k]: v }))
     setErrors((prev) => (prev[k] ? { ...prev, [k]: undefined } : prev))
-  }, [])
+  }, [setT])
+  const patch = useCallback((p: Partial<TeacherInput>) => {
+    setT((prev) => ({ ...prev, ...p }))
+    clearErrorsFor(Object.keys(p))
+  }, [setT])
+  /**
+   * A change that re-derives other answers. ⛔ ON AN EDIT, NOTHING SAVED IS DROPPED WITHOUT A WARNING (plan, 2026-10-08):
+   * removing Full-time takes the salary (and the start month without Part-time); moving abroad switches cover off; a
+   * new home drops the old home's places. The dialog lists what would go; only "Change it" applies it. A new profile
+   * has nothing saved to lose — its hidden answers stay in the form and come back with the question.
+   */
+  const update = useCallback((next: TeacherInput, touched: readonly (keyof TeacherInput)[], direct: readonly DroppedField[] = []) => {
+    if (mode === 'edit') {
+      // What the teacher clears THEMSELVES (their district, set to "Prefer not to say") is their answer, not a casualty.
+      const d = droppedAnswers(tRef.current, next)
+      const dropped = { fields: d.fields.filter((f) => !direct.includes(f)), places: d.places }
+      if (!nothingDropped(dropped)) { setPendingChange({ next, touched, ...dropped }); return }
+    }
+    setT(next)
+    clearErrorsFor(touched)
+  }, [mode, setT])
+  const applyPendingChange = () => {
+    if (!pendingChange) return
+    setT(pendingChange.next)
+    clearErrorsFor(pendingChange.touched)
+    setPendingChange(null)
+  }
 
-  // ── Restore: a `#d=` hand-off from teacher.eno.vn wins, then the local draft ──────────────────
+  // ── Restore: a `#d=` hand-off from teacher.eno.vn wins, then this tab's draft ────────────────────────────────────
   useEffect(() => {
     if (mode !== 'join' || hydrated.current) return
     hydrated.current = true
     // The form that replaced a signed-in account's (TeacherForm): a fresh start, and that account's draft goes.
     if (!restoreDraft) { clearStored(); return }
     const m = window.location.hash.match(new RegExp(`[#&]${TEACHER_DRAFT_HASH_KEY}=([^&]+)`))
-    const fromHash = m ? decodeDraft(m[1]) : null
-    if (fromHash) {
-      // ⛔ THE COVER CONSENT NEVER TRAVELS IN THE FRAGMENT (gate review, 2026-10-07): a crafted `#d=` link could
-      // otherwise arrive with it ticked. It is asked again here, where the profile is published.
-      // ⛔ Nor an upload: the draft host cannot upload, so a video in the fragment is never this teacher's (video.ts).
-      const next = { ...normalizeTeacherInput(fromHash), coverConsent: false, videoUrl: null }
-      setT(next)
-      writeStoredDraft(next)
-      // Strip the fragment so a reload or a shared link never re-carries the draft.
+    if (m) {
+      // Strip the fragment first, whatever it holds, so a reload or a shared link never re-carries the draft.
       history.replaceState(null, '', window.location.pathname + window.location.search)
-      if (Object.keys(validateTeacherInput(next, DRAFT_STEPS.filter((s) => s !== 'cover'))).length === 0) {
-        setStepIdx(STEP_ORDER.indexOf(next.coverOpen ? 'cover' : 'finish'))
+      // ⛔ ONLY THE DRAFT STEPS' FIELDS CROSS (decodeHandoff): never a consent, the cover switch, a phone or an upload —
+      // a crafted `#d=` link could otherwise arrive with them set (gate review, 2026-10-07). A v1 fragment from before
+      // the redesign is mapped at this boundary (plan review D2).
+      const handed = decodeHandoff(m[1])
+      if (handed) {
+        setT(handed)
+        setArrived(true)
+        // Steps 1–4 complete: sign in (opened once, below) and land on Cover — where offered — or Photo & publish.
+        // Otherwise the first step that fails.
+        const bad = firstStepWithError(checkSteps(handed, DRAFT_STEPS), DRAFT_STEPS)
+        const next = teacherSteps(handed, { draftHost: false }).find((s) => ACCOUNT_STEPS.includes(s)) ?? 'finish'
+        if (bad) setStepKey(bad)
+        else { setStepKey('about'); setResumeTo(next); setHandoffArrived(true) }
+        writeStoredDraft(handed, bad ?? next)
       }
       return
     }
     const stored = readStoredDraft()
-    // ⛔ Nor from a stored draft: the key is per DEVICE, not per person (a shared school or café browser), and a tick
-    // kept from an older notice would be sent as consent to today's (gate review, 2026-10-07). Asked again on the step.
-    // Nor its upload: on a shared browser it may be someone else's, and the server only takes a teacher's OWN recent upload
-    // (video.ts). The last step then shows "Upload video" again, rather than a save refused there.
-    if (stored) setT({ ...normalizeTeacherInput(stored), coverConsent: false, videoUrl: null })
-  }, [mode, restoreDraft])
+    if (!stored) return
+    // ⛔ Nor from a stored draft: the uploads, the cover switch and the consents are not in it (forDraft) and are stripped
+    // again on the way in (fromDraft) — the key is per TAB, and on a shared browser a tab can be the next person's.
+    const restored = fromDraft(stored.t)
+    setT(restored)
+    if (stored.districtNotSaying) setDistrictNotSaying(true)
+    setArrived(true)
+    // Back where it was — never past the first draft step that fails (a v3 draft, with no step, opens there).
+    const order = (s: TeacherStep) => TEACHER_STEPS.indexOf(s)
+    const bad = firstStepWithError(checkSteps(restored, DRAFT_STEPS), DRAFT_STEPS)
+    const want = stored.step
+    const target: TeacherStep = bad && (!want || order(bad) < order(want)) ? bad : want ?? bad ?? 'plans'
+    // A step that needs an account is shown once signed in; until then, the last step before it.
+    if (ACCOUNT_STEPS.includes(target)) { setStepKey('about'); setResumeTo(target) }
+    else setStepKey(target)
+  }, [mode, restoreDraft, setT])
 
-  // ── Edit: load the saved profile ───────────────────────────────────────────────────────────────
+  // Signed in (in place, or back from Google): on to where the teacher was going — ⛔ only past four valid draft steps.
+  useEffect(() => {
+    if (!resumeTo || authLoading || !uid) return
+    const bad = firstStepWithError(checkSteps(tRef.current, DRAFT_STEPS), DRAFT_STEPS)
+    setStepKey(bad ?? resumeTo)
+    setResumeTo(null)
+  }, [resumeTo, uid, authLoading])
+  // A step that needs an account, with none (a session that ended): the last step before it, and resume after.
+  useEffect(() => {
+    if (mode !== 'join' || draftHost || authLoading || uid || !ACCOUNT_STEPS.includes(stepKey)) return
+    setResumeTo(stepKey)
+    setStepKey('about')
+  }, [mode, draftHost, authLoading, uid, stepKey])
+  const signInNote = () => tr('Sign in to add cover lessons, your photo and publish your teacher profile. Your answers are kept.', 'Đăng nhập để thêm dạy thay, ảnh và đăng hồ sơ giáo viên. Câu trả lời của bạn được giữ lại.')
+  // The teacher.eno.vn hand-off arrived complete and signed out: the sign-in opens, ONCE (closing it leaves "Sign in to
+  // continue" on step 4).
+  useEffect(() => {
+    if (!handoffArrived || authLoading || uid || signInAsked.current) return
+    signInAsked.current = true
+    openSignIn({ note: signInNote() })
+  }, [handoffArrived, authLoading, uid, openSignIn]) // once per arrival (signInNote is copy)
+
+  // ── Edit: load the saved profile ───────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (mode !== 'edit' || authLoading) return
-    if (!user) { setLoaded(true); return }
+    if (!uid) { setLoaded(true); return }
     let alive = true
     fetch('/api/teachers/me')
       .then((r) => r.json())
       .then((d) => {
         if (!alive) return
+        if (d?.publishGate) setPublishGate(d.publishGate)
         const tp = d?.teacher
-        if (tp) {
-          setT(normalizeTeacherInput({
-            ...tp,
-            availableFrom: tp.availableFrom ? String(tp.availableFrom).slice(0, 10) : null,
-            consentPublic: true,
-            // The cover tick stays ticked only under the notice version they agreed to — a new version asks again.
-            coverConsent: tp.coverOpen === true && tp.coverConsentVersion === COVER_CONSENT_VERSION,
-          }))
-          setCoverConfirmedAt(tp.coverConfirmedAt ?? null)
-          setSavedCover({
-            coverOpen: tp.coverOpen === true, coverSlots: tp.coverSlots ?? [], coverAreas: tp.coverAreas ?? [],
-            coverRateVnd: tp.coverRateVnd ?? null, consentCurrent: tp.coverConsentVersion === COVER_CONSENT_VERSION,
-          })
-          setCvName(tp.cvFileName ?? null)
-          setPrivateVideo(tp.hasPrivateVideo === true)
-          setVideoBase(typeof tp.videoVersion === 'number' ? tp.videoVersion : null)
-          setSavedPublicUrl(tp.videoUrl ?? null)
-          setTeacherProfileId(typeof tp.id === 'string' ? tp.id : null)
-          setStatus(tp.status === 'hidden' ? 'hidden' : 'live')
-          setListingLive(tp.listingLive !== false)
-          if (tp.listingId) setDone(null)
+        if (!tp) { setNoProfile(true); setLoaded(true); return }
+        // ⛔ A CONSENT COUNTS ONLY UNDER THE NOTICE IN FORCE. The cover switch and the two opt-ins load ON only when their
+        // stored version is today's; an older one loads OFF and the step says why — switching it on again is the fresh
+        // consent (a save of a pre-ticked old opt-in would have recorded consent to words the teacher never saw — the
+        // skill plan's review, and plan review D5).
+        const coverCurrent = tp.coverOpen === true && tp.coverConsentVersion === COVER_CONSENT_VERSION
+        const emailCurrent = tp.matchEmailOptIn === true && tp.matchEmailNoticeVersion === AI_NOTICE_VERSION
+        const callsCurrent = tp.staffContactOptIn === true && tp.staffContactNoticeVersion === AI_NOTICE_VERSION
+        let next = normalizeTeacherInput({
+          ...tp,
+          availableFrom: tp.availableFrom ? String(tp.availableFrom).slice(0, 10) : null,
+          teachAreasConfirmed: !!tp.teachAreasConfirmedAt,
+          coverOpen: coverCurrent,
+          coverConsent: coverCurrent,
+          matchEmailOptIn: emailCurrent,
+          staffContactOptIn: callsCurrent,
+        })
+        // "Review these answers in my profile" (the join page, over an existing profile): the hand-off's draft-step
+        // answers over the saved profile — UNSAVED until Save changes. The draft then goes: it has done its job.
+        const params = new URLSearchParams(window.location.search)
+        if (params.get('review') === 'draft') {
+          const stored = readStoredDraft()
+          if (stored) {
+            const before = next
+            next = { ...next, ...draftPart(fromDraft(stored.t)) }
+            setApplied(droppedAnswers(before, next))
+            if (stored.districtNotSaying) setDistrictNotSaying(true)
+          }
+          clearStored()
+          params.delete('review')
+          history.replaceState(null, '', window.location.pathname + (params.toString() ? `?${params}` : ''))
         }
+        setT(next)
+        setReconfirm({ cover: tp.coverOpen === true && !coverCurrent, optIns: (tp.matchEmailOptIn === true && !emailCurrent) || (tp.staffContactOptIn === true && !callsCurrent) })
+        setCoverConfirmedAt(tp.coverConfirmedAt ?? null)
+        setSavedCover({
+          coverOpen: tp.coverOpen === true, coverSlots: tp.coverSlots ?? [], coverAreas: tp.coverAreas ?? [],
+          coverRateVnd: tp.coverRateVnd ?? null, consentCurrent: tp.coverConsentVersion === COVER_CONSENT_VERSION,
+        })
+        setCvName(tp.cvFileName ?? null)
+        setPrivateVideo(tp.hasPrivateVideo === true)
+        setVideoBase(typeof tp.videoVersion === 'number' ? tp.videoVersion : null)
+        setSavedPublicUrl(tp.videoUrl ?? null)
+        setTeacherProfileId(typeof tp.id === 'string' ? tp.id : null)
+        setStatus(tp.status === 'hidden' ? 'hidden' : 'live')
+        setListingLive(tp.listingLive !== false)
+        // A deep link (`/teachers/edit?step=finish` — the done screen's "Add more to stand out").
+        const want = params.get('step')
+        if (isTeacherStep(want)) setStepKey(want)
         setLoaded(true)
       })
-      .catch(() => { if (alive) { setFormError(tr('Could not load your profile.', 'Không tải được hồ sơ.')); setLoaded(true) } })
+      .catch(() => { if (alive) { setFormError(trRef.current('Could not load your profile.', 'Không tải được hồ sơ.')); setLoaded(true) } })
     return () => { alive = false }
-  }, [mode, user, authLoading, tr])
+  }, [mode, uid, authLoading, setT])
 
   useEffect(() => {
-    // Never the upload: a restore drops it anyway (the draft key is per DEVICE — a shared browser), so it is not kept at all.
-    // ⛔ And never after a publish: clearStored() has run, and the saved video's setT must not write the draft — phone, name
+    // ⛔ Never after a publish: clearStored() has run, and the saved video's setT must not write the draft — phone, name
     // and bio included — back for the next person on a shared browser (integration review, 2026-10-08).
     // Only real typing: an untouched form writes nothing (it would only replace a draft with an empty one).
-    if (mode === 'join' && hydrated.current && !done && t !== EMPTY_TEACHER) writeStoredDraft({ ...t, videoUrl: null })
-  }, [t, mode, done])
-  // The languages box is free text while typing (a parsed value would eat the comma); it follows
-  // the parsed list whenever that changes from outside the box (restore, edit load).
-  const langsKey = t.languages.join('|')
-  useEffect(() => {
-    setLangsText((cur) => (cur.split(',').map((s) => s.trim()).filter(Boolean).join('|') === langsKey ? cur : t.languages.join(', ')))
-  }, [langsKey])
+    // The step written is where a reload should land: where "Sign in" is taking them, else where they are.
+    if (mode === 'join' && hydrated.current && !done && t !== EMPTY_TEACHER) writeStoredDraft(t, resumeTo ?? stepKey, { districtNotSaying })
+  }, [t, stepKey, resumeTo, mode, done, districtNotSaying])
 
-  // /join while already having a profile: saving here would overwrite it, so send them to edit.
+  // /join with a profile already: saving here would overwrite it, so it is offered Edit instead. With no profile: what
+  // the account can offer the form, and whether it may publish now.
   useEffect(() => {
-    if (mode !== 'join' || !user) return
-    fetch('/api/teachers/me').then((r) => r.json()).then((d) => { if (d?.teacher) setExisting(true) }).catch(() => {})
-  }, [mode, user])
+    if (mode !== 'join' || !uid) return
+    let alive = true
+    fetch('/api/teachers/me').then((r) => r.json()).then((d) => {
+      if (!alive) return
+      if (d?.publishGate) setPublishGate(d.publishGate)
+      if (d?.teacher) setExisting(true)
+      else if (d?.prefill) setPrefill(d.prefill)
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [mode, uid])
 
-  const errText = (code: string | undefined): string => {
-    switch (code) {
-      case 'required': return tr('This is required.', 'Mục này là bắt buộc.')
-      case 'too_short': return tr('Please write a little more (at least 10 characters).', 'Vui lòng viết thêm (ít nhất 10 ký tự).')
-      case 'invalid': return tr('Please check this value.', 'Vui lòng kiểm tra lại.')
-      case 'incomplete': return tr('Fill in the role and the school, or remove this entry.', 'Điền vị trí và nơi làm việc, hoặc xoá mục này.')
-      case 'dates': return tr('The end date is before the start date.', 'Ngày kết thúc trước ngày bắt đầu.')
-      case 'not_owned': return tr('That upload has expired — please upload your video again.', 'Video tải lên đã hết hạn — vui lòng tải lại video.')
-      case 'rate_range': return tr('Please enter a rate between 50,000 đ and 2,000,000 đ an hour.', 'Vui lòng nhập mức phí từ 50.000 đ đến 2.000.000 đ một giờ.')
-      default: return ''
-    }
-  }
   const publishErrText = (code: string): string => {
     if (code === 'contact_in_text' || code === 'contact_in_name') return tr('Please remove phone numbers, emails and links from your profile text — schools get your contact only when you share it in chat.', 'Vui lòng xoá số điện thoại, email và liên kết khỏi hồ sơ — trường chỉ nhận liên hệ khi bạn chia sẻ trong tin nhắn.')
     if (code === 'banned_words') return tr('Your profile contains a word we do not allow. Please rephrase.', 'Hồ sơ có từ không được phép. Vui lòng viết lại.')
     if (code === 'account_restricted') return tr('Your account cannot publish right now.', 'Tài khoản của bạn hiện chưa thể đăng.')
     if (code.startsWith('identity_')) return tr('Please verify your identity in Account settings before publishing.', 'Vui lòng xác minh danh tính trong Cài đặt tài khoản trước khi đăng.')
     if (code === 'rate_limited') return tr('Too many saves — please wait a few minutes.', 'Lưu quá nhiều lần — vui lòng đợi vài phút.')
+    // A notice beside a consent changed while this page was open: its words must be read again (409 notice_changed).
+    if (code === 'notice_changed') return tr('Some of the wording on this page has changed since you opened it. Reload the page to read it, then save again.', 'Một số nội dung trên trang đã thay đổi kể từ khi bạn mở. Hãy tải lại trang để đọc, rồi lưu lại.')
     // Join mode loaded no saved video either: the server refuses a change over a stored one (video.ts, no base).
     if (code === 'video_changed' && mode === 'join') return tr('You already have a teacher profile. Open it from your account (Teacher profile) to make changes.', 'Bạn đã có hồ sơ giáo viên. Hãy mở hồ sơ trong tài khoản (Hồ sơ giáo viên) để chỉnh sửa.')
     if (code === 'video_store_failed') return tr('Your intro video could not be saved just now. Please try again.', 'Chưa lưu được video giới thiệu. Vui lòng thử lại.')
@@ -360,16 +447,11 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
     return tr('Something went wrong. Please try again.', 'Đã có lỗi. Vui lòng thử lại.')
   }
 
-  const checkStep = (s: TeacherStep): boolean => {
-    const e = validateTeacherInput(t, [s])
-    setErrors(e)
-    return Object.keys(e).length === 0
-  }
   /**
    * ⛔ A REFUSAL MUST BE SEEN (preview check, 2026-10-07). On a phone a refused Next left the screen unchanged while the
    * cover step's only error sat ~2,300px below the viewport, and a refused save landed under the sticky action bar. So
-   * after any refusal the first error (an aria-invalid control, else an alert) is scrolled to and its control focused.
-   * Two frames: the errors and any step change render first.
+   * after any refusal the first error (an aria-invalid control, else a group marked data-invalid, else an alert) is
+   * scrolled to and its control focused. Two frames: the errors and any step change render first.
    */
   const revealFirstError = (opts: { formLineFirst?: boolean } = {}) => {
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -381,11 +463,21 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
       const el = (opts.formLineFirst ? line() ?? field() : field() ?? line()) ?? document.querySelector<HTMLElement>('main [role="alert"]')
       if (!el) return
       el.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
-      const focusable = 'input, textarea, button, [tabindex]:not([tabindex="-1"])'
+      // Base UI's radios, checkboxes and switches keep a hidden <input> beside the control (aria-hidden, tabindex -1):
+      // focus the control a person would, never that.
+      const focusable = 'input:not([aria-hidden="true"]):not([tabindex="-1"]), textarea, button:not([disabled]), [tabindex]:not([tabindex="-1"])'
       const control = el.matches(focusable) ? el : el.querySelector<HTMLElement>(focusable)
       control?.focus({ preventScroll: true })
     }))
   }
+  /** Show `errs`, go to the first step that holds one (on this teacher's rail) and bring it into view. */
+  const refuse = (errs: TeacherErrors, opts: { formLineFirst?: boolean } = {}) => {
+    setErrors(errs)
+    const bad = firstStepWithError(errs, steps)
+    if (bad) setStepKey(bad)
+    revealFirstError(opts)
+  }
+  const goTo = (s: TeacherStep) => setStepKey(s)
 
   // ── Media ───────────────────────────────────────────────────────────────────────────────────────
   const uploadPhoto = async (file: File) => {
@@ -426,62 +518,86 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
     return true
   }
 
-  // ── Publish / continue ──────────────────────────────────────────────────────────────────────────
+  // ── Hand-off, sign-in, publish ──────────────────────────────────────────────────────────────────────────────────
+  /** Steps 1–4 must hold before the account half: what a hand-off or "Sign in" checks first. */
+  const draftStepsOk = (): boolean => {
+    const e = checkSteps(t, DRAFT_STEPS)
+    if (!Object.keys(e).length) return true
+    refuse(e)
+    return false
+  }
   const handOff = () => {
-    // teacher.eno.vn → eno.vn: the fragment carries the draft; no server sees it.
-    window.location.assign(`${apexOrigin}/teachers/join#${TEACHER_DRAFT_HASH_KEY}=${encodeDraft(t)}`)
+    if (!draftStepsOk()) return
+    // teacher.eno.vn → eno.vn: the fragment carries the draft steps' answers (v2), never a consent; no server sees it.
+    window.location.assign(`${apexOrigin}/teachers/join#${TEACHER_DRAFT_HASH_KEY}=${encodeHandoff(t)}`)
+  }
+  const signInToContinue = () => {
+    if (!draftStepsOk()) return
+    // The step after "About you" is kept in the draft, so a Google round trip lands on it; a code sign-in moves on by
+    // itself (the resume effect above).
+    const next = steps.find((s) => ACCOUNT_STEPS.includes(s)) ?? 'finish'
+    setResumeTo(next)
+    writeStoredDraft(t, next, { districtNotSaying })
+    openSignIn({ note: signInNote() })
   }
 
-  const publish = async () => {
+  /** ⚠️ Called with no argument (or `{ hideConfirmed: true }` from the hide dialog) — never handed a click event. */
+  const publish = async (opts?: { hideConfirmed?: boolean }) => {
     if (busy) return
-    // ⛔ SIGN-IN FIRST. Photo, video and CV can only be uploaded signed in, so validating the whole
-    // form before this would stop a signed-out teacher on "photo required" with no way forward
-    // (agy, commit gate 09-30). The draft steps are checked first so sign-in is not asked in vain.
-    if (!user) {
-      const draftErrs = validateTeacherInput(t, DRAFT_STEPS)
-      if (Object.keys(draftErrs).length) {
-        setErrors(draftErrs)
-        const firstBad = STEP_ORDER.findIndex((s) => TEACHER_STEP_FIELDS[s].some((f) => Object.keys(draftErrs).some((k) => k === f || k.startsWith(`${f}.`))))
-        if (firstBad >= 0) setStepIdx(firstBad)
-        revealFirstError()
-        return
-      }
-      openSignIn({ note: tr('Sign in to add your photo and publish your teacher profile. Your answers are kept.', 'Đăng nhập để thêm ảnh và đăng hồ sơ giáo viên. Câu trả lời của bạn được giữ lại.') })
-      return
-    }
-    const all = validateTeacherInput(t)
-    if (Object.keys(all).length) {
-      setErrors(all)
-      const firstBad = STEP_ORDER.findIndex((s) => TEACHER_STEP_FIELDS[s].some((f) => Object.keys(all).some((k) => k === f || k.startsWith(`${f}.`))))
-      if (firstBad >= 0) setStepIdx(firstBad)
-      revealFirstError()
+    // ⛔ SIGN-IN FIRST: photo, video and CV can only be uploaded signed in, so validating the whole form before this would
+    // stop a signed-out teacher on "photo required" with no way forward (agy, commit gate 09-30).
+    if (!user) { signInToContinue(); return }
+    // Validated as the server will validate it: what a save keeps, every step (profile.ts). ⛔ On an EDIT the goal rule
+    // (no work wanted and cover off) never blocks: the save goes through and HIDES the profile — a withdrawal never
+    // requires inventing a goal (plan review D6). A new profile with no goal is refused, as the server refuses it.
+    const checked = checkSteps(t, TEACHER_STEPS)
+    const all = mode === 'edit' ? splitGoalErrors(checked).other : checked
+    if (Object.keys(all).length) { refuse(all); return }
+    // ⛔ A SAVE THAT HIDES A SHOWN PROFILE IS ASKED FIRST (gate review, 2026-10-08). With no work wanted and no public
+    // cover the server saves and HIDES (D6, publish.ts noGoal) — and "Save changes" is on every step, while the
+    // warnings sat on two of them: a cover-only teacher whose cover loaded OFF under a newer notice, in on
+    // `?step=about` to fix a typo, saved a withdrawal they never made and found the profile hidden. The goal rule
+    // still never REFUSES an edit (D6): "Save and hide" goes through. Judged on what the save keeps, as the server is.
+    if (mode === 'edit' && status === 'live' && opts?.hideConfirmed !== true && !hasTeachingGoal(normalizeForSave(t))) {
+      setConfirmHide(true)
       return
     }
     setBusy('saving'); setFormError('')
     try {
-      // `coverBase`: the cover state this form loaded — the server refuses (409 cover_changed) if another window changed it.
-      // `coverNotice`: the cover notice this page shows — the server counts the tick only under the one in force.
-      const res = await fetch('/api/teachers/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...t, coverBase: mode === 'edit' && savedCover ? coverStamp(savedCover) : null, coverNotice: COVER_CONSENT_VERSION, videoBase: mode === 'edit' ? videoBase : null, teacherProfileId: mode === 'edit' ? teacherProfileId : null }) })
+      const body = {
+        ...t,
+        // ⛔ THE PUBLISH TAP IS THE CONSENT — under the notice beside it (the action bar's line and "What's public?").
+        publishNotice: PUBLISH_NOTICE_VERSION,
+        // The cover switch is its own consent, under the notice beside it on the Cover step.
+        ...(t.coverOpen ? { coverNotice: COVER_CONSENT_VERSION } : {}),
+        // Each opt-in is its own consent, under the AI note beside them (it names Anthropic and the transfer abroad).
+        ...(t.matchEmailOptIn || t.staffContactOptIn ? { aiNotice: AI_NOTICE_VERSION } : {}),
+        // `coverBase`: the cover state this form loaded — the server refuses (409 cover_changed) if another window changed it.
+        coverBase: mode === 'edit' && savedCover ? coverStamp(savedCover) : null,
+        videoBase: mode === 'edit' ? videoBase : null,
+        // ⛔ A save names the profile it edits, or claims there is none — never neither (api/teachers/me PUT).
+        teacherProfileId: mode === 'edit' ? teacherProfileId : null,
+      }
+      const res = await fetch('/api/teachers/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
         if (d.error === 'invalid_teacher_profile' && d.fields) {
-          setErrors(d.fields)
-          // The server's field errors may sit on another step: go there first, or there is nothing to reveal (gate review).
-          const bad = Object.keys(d.fields as object)
-          const firstBad = STEP_ORDER.findIndex((s) => TEACHER_STEP_FIELDS[s].some((f) => bad.some((k) => k === f || k.startsWith(`${f}.`))))
-          if (firstBad >= 0) setStepIdx(firstBad)
           // An upload that is not (or no longer) provably theirs: the form goes back to what is STORED and the line asks for a
           // new upload. ⛔ Never null: null over a stored PUBLIC video is the explicit Remove — the next save would delete the
           // published video though the teacher never tapped Remove (integration review, 2026-10-08). Null is right only
           // over a private one, whose card then comes back — and savedPublicUrl is null exactly then.
           if ((d.fields as Record<string, unknown>).videoUrl === 'not_owned') {
             setT((p) => ({ ...p, videoUrl: savedPublicUrl }))
-            // Said once, on the form line — not also under the stored video it was restored to.
-            setErrors((e) => { const n = { ...e }; delete n.videoUrl; return n })
-            setFormError(errText('not_owned'))
+            const { videoUrl: _gone, ...rest } = d.fields as TeacherErrors
+            void _gone
+            setErrors(rest) // said once, on the form line — not also under the stored video it was restored to
+            setFormError(errText('videoUrl', 'not_owned'))
             revealFirstError({ formLineFirst: true })
             return
           }
+          // The server's field errors may sit on another step: go there first, or there is nothing to reveal (gate review).
+          refuse(d.fields as TeacherErrors)
+          return
         }
         // Saved under a session that is now another account's (or the profile was recreated elsewhere): nothing was written.
         if (d.error === 'profile_changed') {
@@ -508,6 +624,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
           if (r !== 'superseded') { setFormError(staleCoverLine(r, reconsent)); revealFirstError({ formLineFirst: true }) }
           return
         }
+        // A screened text: the server names the FIELD it refused (never the word) — the form goes to it.
+        if (typeof d.detail === 'string' && d.detail && typeof d.error === 'string' && !d.error.startsWith('identity_')) {
+          setFormError(publishErrText(String(d.error)))
+          refuse({ [d.detail]: d.error } as TeacherErrors)
+          return
+        }
         setFormError(publishErrText(String(d.error || '')))
         revealFirstError({ formLineFirst: !d.fields })
         return
@@ -523,22 +645,58 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
         setCoverConfirmedAt(d.cover.coverConfirmedAt ?? null)
       }
       setCoverNotice('')
+      // Saved under today's notices: nothing is waiting for a fresh "yes" any more.
+      setReconfirm({ cover: false, optIns: false })
+      setApplied(null)
       // The video AS STORED: where it lives now (a private one has no URL here) and the next save's base.
       if (d.video) applySavedVideo(d.video)
-      // A first save from /teachers/edit created the profile: Remove and the next Save name it (they would 400/409 without).
       if (typeof d.teacherProfileId === 'string') setTeacherProfileId(d.teacherProfileId)
-      setDone({ listingId: d.listingId, live: d.live === true })
+      // No job goal and no cover left: the save went through and HID the profile (plan review D6) — the done screen says so.
+      if (d.noGoal === true) setStatus('hidden')
+      setDone({ listingId: d.listingId, live: d.live === true, noGoal: d.noGoal === true })
     } catch {
       setFormError(publishErrText(''))
       revealFirstError()
     } finally { setBusy('') }
   }
 
-  const toggleStatus = async (live: boolean) => {
+  /**
+   * ⛔ THE ONE WAY A HIDDEN PROFILE COMES BACK (gate review, 2026-10-09): PATCH /api/teachers/me/status (publish.ts
+   * setTeacherStatus) — behind the Visibility switch AND every "Show my profile to schools" this form offers where it says
+   * the profile is hidden (the done screen, the cover card). A save never shows one: an edit never publishes. Showing is a
+   * relist, so the server re-runs the publish gates and refuses a profile with nothing to be found for (409
+   * no_teaching_goal — the state D6 hides). Answers the refusal's words (null: done), for the caller to say where the tap
+   * was; on success, nothing on the page keeps saying the opposite.
+   */
+  const changeVisibility = async (live: boolean): Promise<string | null> => {
     const next = live ? 'live' : 'hidden'
-    const res = await fetch('/api/teachers/me/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next }) })
-    if (res.ok) { setStatus(next); setListingLive(true) }
-    else setFormError(tr('Could not change visibility.', 'Không đổi được chế độ hiển thị.'))
+    try {
+      const res = await fetch('/api/teachers/me/status', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next }) })
+      if (res.ok) {
+        setStatus(next); setListingLive(true)
+        setDone((d) => (d ? { ...d, live } : d))
+        setCoverLive(live)
+        return null
+      }
+      const d = await res.json().catch(() => ({}))
+      // The goal first, SAVED: the server judges the stored profile — work picked on step 1 but not saved does not count.
+      if (d.error === 'no_teaching_goal') return tr('Pick the work you want, or switch cover lessons on, and save first.', 'Hãy chọn công việc bạn muốn hoặc bật dạy thay rồi lưu lại trước đã.')
+    } catch { /* said below, like any other failure */ }
+    return tr('Could not change visibility.', 'Không đổi được chế độ hiển thị.')
+  }
+  /** The Visibility switch (Photo & publish): a refusal on the form's line, brought into view above the action bar. */
+  const toggleStatus = async (live: boolean) => {
+    const refused = await changeVisibility(live)
+    if (refused) { setFormError(refused); revealFirstError({ formLineFirst: true }) }
+  }
+  /** "Show my profile to schools" where the form says the profile is hidden — a refusal is said right there too. */
+  const showProfile = async (sayRefusal: (line: string) => void) => {
+    if (showing) return
+    setShowing(true)
+    try {
+      const refused = await changeVisibility(true)
+      if (refused) sayRefusal(refused)
+    } finally { setShowing(false) }
   }
   const deleteProfile = async () => {
     const res = await fetch('/api/teachers/me', { method: 'DELETE' })
@@ -619,17 +777,13 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
   }
 
   // ── Cover lessons (2026-10-07) ───────────────────────────────────────────────────────────────────
-  const setCover = (patch: CoverPatch) => {
-    // ⛔ Switching cover OFF withdraws the consent too: switching it back on must ask for the tick again, or the
-    // record would show a fresh consent the teacher never gave after withdrawing (gate review, 2026-10-07).
-    const p = patch.coverOpen === false ? { ...patch, coverConsent: false } : patch
-    setT((prev) => ({ ...prev, ...p }))
+  const setCover = (p: CoverPatch) => {
+    // ⛔ THE SWITCH IS THE CONSENT (2026-10-08): on gives it, off withdraws it — never one without the other, so switching
+    // back on after switching off is a fresh consent the record shows as such (gate review, 2026-10-07).
+    const q = p.coverOpen === undefined ? p : { ...p, coverConsent: p.coverOpen }
+    setT((prev) => ({ ...prev, ...q }))
     setCoverNotice('') // the card's line was about the state before this edit
-    setErrors((prev) => {
-      const n = { ...prev }
-      for (const k of Object.keys(p)) delete n[k as keyof TeacherErrors]
-      return n
-    })
+    clearErrorsFor([...Object.keys(q), 'coverOpen', 'coverConsent'])
     setCoverSave('')
   }
   /**
@@ -637,17 +791,17 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
    * ⚠️ THERE IS NO QUICK SAVE OF EDITED VALUES ON PURPOSE. It existed and every review round found another way its
    * edited state disagreed with the saved profile (a city added but not saved, a switch-off confirmed by accident) —
    * so edits go through the one full save, like every other field, and this only re-confirms what the server holds.
+   * ⚠️ The body carries NO areas: the reach is derived from the STORED teach areas (publish.ts saveTeacherCover), and a
+   * cover body with areas is an old panel's, refused (409) when it switches cover on.
    */
-  const saveCover = async (v: Pick<TeacherInput, (typeof COVER_FIELDS)[number]>) => {
+  const saveCover = async (v: { coverOpen: boolean; coverSlots: string[]; coverRateVnd: number | null; coverConsent: boolean }) => {
     if (coverSave === 'saving') return
-    const e = validateTeacherInput({ ...t, ...v }, ['cover'])
-    if (Object.keys(e).length) { setErrors(e); setStepIdx(STEP_ORDER.indexOf('cover')); return }
     setCoverSave('saving')
     try {
       const res = await fetch('/api/teachers/me/cover', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...Object.fromEntries(COVER_FIELDS.map((k) => [k, v[k]])), coverBase: savedCover ? coverStamp(savedCover) : null, coverNotice: COVER_CONSENT_VERSION }),
+        body: JSON.stringify({ ...v, coverBase: savedCover ? coverStamp(savedCover) : null, coverNotice: COVER_CONSENT_VERSION }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -670,6 +824,11 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
       }
       setCoverConfirmedAt(d.confirmedAt ?? null)
       setSavedCover({ coverOpen: d.coverOpen === true, coverSlots: d.coverSlots ?? [], coverAreas: d.coverAreas ?? [], coverRateVnd: d.coverRateVnd ?? null, consentCurrent: true })
+      // ⛔ SAVED IS NOT SHOWN (gate review, 2026-10-09): a cover save never re-shows a hidden profile, so the card reads
+      // `live` and says when schools cannot see what was just confirmed; a save that HID the profile (cover off, no job
+      // goal — D6) moves the Visibility switch with it. Absent (an older server) claims nothing.
+      if (d.hidden === true) setStatus('hidden')
+      setCoverLive(d.live !== false)
       setCoverSave('saved')
       setCoverNotice('')
     } catch {
@@ -680,18 +839,16 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
   const confirmSavedCover = () => {
     // Not while a full save is out: its own stale-window re-read would be superseded by this one's and say nothing.
     if (!savedCover?.coverOpen || busy === 'saving') return
-    // Saved under an older notice: the teacher must read and tick the current one first.
+    // Saved under an older notice: the teacher must read the current one and switch cover on again under it.
     if (!savedCover.consentCurrent) {
-      // The consent line is on the Cover step only while cover is ON in the form. When it is off there, the card says
-      // what to do — and the page stays put, because the Cover step does not show the card (gate review, 2026-10-07).
-      if (t.coverOpen) { setStepIdx(STEP_ORDER.indexOf('cover')); setErrors({ coverConsent: 'required' }); revealFirstError() }
-      else setCoverNotice(tr('The cover-lessons notice was updated. To keep cover on, tap “Change”, switch cover on and tick the consent, then save.', 'Thông báo về dạy thay đã được cập nhật. Để tiếp tục nhận dạy thay, hãy bấm “Thay đổi”, bật dạy thay và đánh dấu đồng ý rồi lưu.'))
+      setCoverNotice(tr('The cover-lessons notice was updated. To keep cover on, tap “Change”, switch cover on again under the new notice, then save.', 'Thông báo về dạy thay đã được cập nhật. Để tiếp tục nhận dạy thay, hãy bấm “Thay đổi”, bật lại dạy thay theo thông báo mới rồi lưu.'))
       return
     }
-    void saveCover({ coverOpen: true, coverSlots: savedCover.coverSlots, coverAreas: savedCover.coverAreas, coverRateVnd: savedCover.coverRateVnd, coverConsent: true })
+    void saveCover({ coverOpen: true, coverSlots: savedCover.coverSlots, coverRateVnd: savedCover.coverRateVnd, coverConsent: true })
   }
-  // Order-insensitive, like the server's own conflict check (coverStamp sorts): re-ticking a period is not a change.
-  const coverDirty = !!savedCover && coverStamp(savedCover) !== coverStamp(t)
+  // Order-insensitive, like the server's own conflict check (coverStamp sorts): re-ticking a period is not a change. The
+  // reach is compared too — the form's is derived from its (maybe unsaved) teach areas, the saved one is stored.
+  const coverDirty = !!savedCover && savedCover.consentCurrent && coverStamp(savedCover) !== coverStamp({ ...t, coverAreas: t.coverOpen ? coverReachOf(t) : [] })
   /**
    * ⛔ A STALE WINDOW: WHAT THE TEACHER DID NOT TOUCH FOLLOWS THE SERVER; WHAT THEY EDITED STAYS THEIRS (gate reviews,
    * 2026-10-07). After a 409 cover_changed — from "Still available" or from Save changes — the SAVED cover is re-read
@@ -699,6 +856,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
    * the form had when the re-read began: untouched cover fields take the saved values — a bio-only save must never
    * switch cover back on after a withdrawal in another window — and edited ones are kept, with a line saying a save
    * replaces the saved version with them. A newer re-read supersedes an older one, which then says nothing at all.
+   * 2026-10-08: the switch IS the consent, so a merge that keeps cover on without the consent (it never crosses a
+   * withdrawal — cover.ts mergeStaleCover) shows the switch OFF: switching it on again is how the consent is given.
    */
   const reloadSavedCover = async (): Promise<{ r: 'untouched' | 'edited' | 'failed' | 'superseded'; open: boolean; reconsent: boolean }> => {
     const seq = ++coverReloadSeq.current
@@ -712,9 +871,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
         coverOpen: tp.coverOpen === true, coverSlots: tp.coverSlots ?? [], coverAreas: tp.coverAreas ?? [],
         coverRateVnd: tp.coverRateVnd ?? null, consentCurrent: tp.coverConsentVersion === COVER_CONSENT_VERSION,
       }
-      // Field by field, and the tick never across a withdrawal (cover.ts mergeStaleCover — table-tested there).
+      // Field by field, and the consent never across a withdrawal (cover.ts mergeStaleCover — table-tested there).
       const { cover, untouched, reconsent } = mergeStaleCover(tRef.current, base, fresh)
-      setT((prev) => ({ ...prev, ...cover }))
+      const shown = cover.coverOpen && !cover.coverConsent ? { ...cover, coverOpen: false } : cover
+      setT((prev) => ({ ...prev, ...shown }))
       setSavedCover(fresh)
       setCoverConfirmedAt(tp.coverConfirmedAt ?? null)
       // The card's last line and status were about the version just replaced (gate review, 2026-10-07): the caller says
@@ -728,32 +888,72 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
   }
   const staleCoverLine = (r: 'untouched' | 'edited' | 'failed', reconsent = false) => r === 'untouched'
     ? reconsent
-      ? tr('Your cover lessons were changed in another window — this form now shows the saved version. Tick the consent on the Cover step again, then save to keep your other changes.', 'Lịch dạy thay của bạn đã được thay đổi ở cửa sổ khác — biểu mẫu này đang hiển thị bản đã lưu. Hãy đánh dấu lại ô đồng ý ở bước Dạy thay rồi lưu để giữ các thay đổi khác của bạn.')
+      ? tr('Your cover lessons were changed in another window — this form now shows the saved version. Switch cover on again on the Cover step, then save to keep your other changes.', 'Lịch dạy thay của bạn đã được thay đổi ở cửa sổ khác — biểu mẫu này đang hiển thị bản đã lưu. Hãy bật lại dạy thay ở bước Dạy thay rồi lưu để giữ các thay đổi khác của bạn.')
       : tr('Your cover lessons were changed in another window — this form now shows the saved version. Check the Cover step, then save again to keep your other changes.', 'Lịch dạy thay của bạn đã được thay đổi ở cửa sổ khác — biểu mẫu này đang hiển thị bản đã lưu. Hãy kiểm tra bước Dạy thay rồi lưu lại để giữ các thay đổi khác của bạn.')
     : r === 'edited'
       ? reconsent
-        ? tr('Your cover lessons were changed in another window — the card at the top shows the saved version. To save your changes on the Cover step instead, tick the consent there again.', 'Lịch dạy thay của bạn đã được thay đổi ở cửa sổ khác — thẻ ở đầu trang đang hiển thị bản đã lưu. Để lưu các thay đổi của bạn ở bước Dạy thay, hãy đánh dấu lại ô đồng ý ở đó.')
+        ? tr('Your cover lessons were changed in another window — the card at the top shows the saved version. To save your changes on the Cover step instead, switch cover on again there.', 'Lịch dạy thay của bạn đã được thay đổi ở cửa sổ khác — thẻ ở đầu trang đang hiển thị bản đã lưu. Để lưu các thay đổi của bạn ở bước Dạy thay, hãy bật lại dạy thay ở đó.')
         : tr('Your cover lessons were changed in another window — the card at the top shows the saved version. Saving again replaces it with your changes on the Cover step.', 'Lịch dạy thay của bạn đã được thay đổi ở cửa sổ khác — thẻ ở đầu trang đang hiển thị bản đã lưu. Lưu lại sẽ thay bản đó bằng các thay đổi của bạn ở bước Dạy thay.')
       : tr('Your cover lessons were changed in another window, and the saved version could not be loaded. Try again in a moment.', 'Lịch dạy thay của bạn đã được thay đổi ở cửa sổ khác và không tải được bản đã lưu. Hãy thử lại sau giây lát.')
 
-  const steps: WizardStep[] = useMemo(() => [
-    { key: 'about', icon: <User className="size-4" />, label: tr('About you', 'Về bạn') },
-    { key: 'location', icon: <MapPin className="size-4" />, label: tr('Location', 'Địa điểm') },
-    { key: 'experience', icon: <Briefcase className="size-4" />, label: tr('Experience', 'Kinh nghiệm') },
-    { key: 'cover', icon: <CalendarDays className="size-4" />, label: tr('Cover lessons', 'Dạy thay') },
-    { key: 'qualifications', icon: <GraduationCap className="size-4" />, label: tr('Qualifications', 'Bằng cấp') },
-    { key: 'finish', icon: <Award className="size-4" />, label: tr('Photo & publish', 'Ảnh & đăng') },
-  ], [tr])
+  // ── The rail ──────────────────────────────────────────────────────────────────────────────────────
+  const stepLabel = (s: TeacherStep | typeof HANDOFF_NODE): string => {
+    switch (s) {
+      case 'plans': return tr('Your plans', 'Kế hoạch của bạn')
+      case 'where': return tr('Where you teach', 'Nơi bạn dạy')
+      case 'teaching': return tr('Your teaching', 'Việc giảng dạy')
+      case 'about': return tr('About you', 'Về bạn')
+      case 'cover': return tr('Cover lessons', 'Dạy thay')
+      case 'finish': return tr('Photo & publish', 'Ảnh & đăng')
+      default: return tr('Finish on eno.vn', 'Hoàn tất trên eno.vn')
+    }
+  }
+  const STEP_ICON: Record<TeacherStep | typeof HANDOFF_NODE, React.ReactNode> = {
+    plans: <Compass className="size-4" />, where: <MapPin className="size-4" />, teaching: <BookOpen className="size-4" />,
+    about: <User className="size-4" />, cover: <CalendarDays className="size-4" />, finish: <Camera className="size-4" />,
+    [HANDOFF_NODE]: <ExternalLink className="size-4" />,
+  }
+  // teacher.eno.vn: the four draft steps, then "Finish on eno.vn" — a node that is never current, so never tappable.
+  const railKeys: (TeacherStep | typeof HANDOFF_NODE)[] = draftHost ? [...steps, HANDOFF_NODE] : steps
+  const rail: WizardStep[] = railKeys.map((k) => ({ key: k, icon: STEP_ICON[k], label: stepLabel(k) }))
 
-  const isLast = stepIdx === STEP_ORDER.length - 1
-  const onDraftHostEnd = draftHost && step === 'qualifications'
-  const primary = onDraftHostEnd
-    ? { label: tr('Continue to sign in', 'Tiếp tục để đăng nhập'), onClick: () => { if (checkStep(step)) handOff(); else revealFirstError() } }
-    : isLast
-      ? { label: busy === 'saving' ? tr('Saving…', 'Đang lưu…') : mode === 'edit' ? tr('Save changes', 'Lưu thay đổi') : tr('Publish profile', 'Đăng hồ sơ'), onClick: publish, disabled: busy !== '' }
-      : { label: tr('Next', 'Tiếp'), onClick: () => { if (checkStep(step)) setStepIdx((i) => i + 1); else revealFirstError() } }
-  const secondary = stepIdx > 0 ? { label: tr('Back', 'Quay lại'), onClick: () => setStepIdx((i) => i - 1) } : undefined
+  // ── The action bar ──────────────────────────────────────────────────────────────────────────────
+  const isLast = stepIdx === steps.length - 1
+  const next = () => {
+    const e = checkSteps(t, [step])
+    if (Object.keys(e).length) { setErrors(e); revealFirstError(); return }
+    setErrors({})
+    setStepKey(steps[stepIdx + 1])
+  }
+  const savingLabel = tr('Saving…', 'Đang lưu…')
+  // `() => publish()`, never `publish` itself: the bar hands its onClick the click event, which must not reach `opts`.
+  const primary = mode === 'edit'
+    ? { label: busy === 'saving' ? savingLabel : tr('Save changes', 'Lưu thay đổi'), onClick: () => { void publish() }, disabled: busy !== '' }
+    : draftHost && step === 'about'
+      ? { label: tr('Continue on eno.vn', 'Tiếp tục trên eno.vn'), onClick: handOff }
+      : !user && step === 'about'
+        // "Sign in", not "Sign in": the longer label wrapped to two lines in the 375px action bar (and the
+        // Vietnamese is longer still) — the line above the bar already says sign-in comes next (browser run, 2026-10-09).
+        ? { label: tr('Sign in', 'Đăng nhập'), onClick: signInToContinue, disabled: authLoading }
+        : isLast
+          ? { label: busy === 'saving' ? savingLabel : tr('Publish profile', 'Đăng hồ sơ'), onClick: () => { void publish() }, disabled: busy !== '' }
+          : { label: tr('Next', 'Tiếp'), onClick: next }
+  const secondary = mode === 'edit'
+    ? (!isLast ? { label: tr('Next step', 'Bước tiếp'), onClick: () => setStepKey(steps[stepIdx + 1]) } : stepIdx > 0 ? { label: tr('Back', 'Quay lại'), onClick: () => setStepKey(steps[stepIdx - 1]) } : undefined)
+    : stepIdx > 0 ? { label: tr('Back', 'Quay lại'), onClick: () => setStepKey(steps[stepIdx - 1]) } : undefined
+  // ⛔ THE PUBLISH NOTICE, beside the tap that is the consent: on the last step of a new profile, on every step of an
+  // edit (Save changes publishes too). Its meaning is PUBLISH_NOTICE_VERSION (profile.ts) — sent as `publishNotice`.
+  const showPublishNote = mode === 'edit' || (!draftHost && isLast && !!user)
+  const publishNote = showPublishNote ? (
+    <p className="text-xs text-body" data-testid="publish-notice">
+      {mode === 'edit'
+        ? tr('Saving updates your public profile: schools and search engines see everything except your phone, email, CV and a private video.', 'Khi lưu, hồ sơ công khai của bạn được cập nhật: các trường và công cụ tìm kiếm thấy mọi thứ trừ số điện thoại, email, CV và video riêng tư.')
+        : tr('Publishing shows your profile to schools and search engines — everything except your phone, email, CV and a private video.', 'Khi đăng, hồ sơ của bạn hiển thị với các trường và công cụ tìm kiếm — mọi thứ trừ số điện thoại, email, CV và video riêng tư.')}{' '}
+      <Button variant="link" size="none" type="button" className="text-xs font-semibold" onClick={() => setWhatsPublic(true)}>{tr('What’s public?', 'Những gì được công khai?')}</Button>
+    </p>
+  ) : null
 
+  // ── Screens other than the wizard ───────────────────────────────────────────────────────────────
   if (!loaded) {
     return <div className="flex justify-center py-24"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
   }
@@ -765,368 +965,303 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, restoreDraft = tru
       </div>
     )
   }
+  if (mode === 'edit' && noProfile) {
+    return (
+      <div className="mx-auto max-w-md py-16 text-center">
+        <h1 className="h-title text-foreground">{tr('You don’t have a teacher profile yet', 'Bạn chưa có hồ sơ giáo viên')}</h1>
+        <p className="mt-2 text-sm text-body">{tr('It is free, and schools across Vietnam can find you once it is published.', 'Hồ sơ miễn phí, và các trường trên toàn Việt Nam có thể tìm thấy bạn khi hồ sơ được đăng.')}</p>
+        <Button variant="cta" className="mt-4" asChild><Link href="/teachers/join">{tr('Create my teacher profile', 'Tạo hồ sơ giáo viên')}</Link></Button>
+      </div>
+    )
+  }
   if (existing && !done) {
     return (
       <div className="mx-auto max-w-md py-16 text-center">
-        <p className="text-body">{tr('You already have a teacher profile.', 'Bạn đã có hồ sơ giáo viên.')}</p>
-        <Button variant="cta" className="mt-4" asChild><Link href="/teachers/edit">{tr('Edit my profile', 'Sửa hồ sơ')}</Link></Button>
+        <h1 className="h-title text-foreground">{tr('You already have a teacher profile', 'Bạn đã có hồ sơ giáo viên')}</h1>
+        {arrived || t !== EMPTY_TEACHER ? (
+          <>
+            {/* A hand-off (or this tab's draft) onto an account that already has a profile: its answers are offered to the
+                profile — filled in, unsaved, for the teacher to check — or let go. Never saved over it unasked. */}
+            <p className="mt-2 text-sm text-body">{tr('You just answered the first questions again. Use these answers in your profile (you check them before anything is saved), or keep your profile as it is.', 'Bạn vừa trả lời lại các câu hỏi đầu tiên. Dùng các câu trả lời này trong hồ sơ (bạn kiểm tra trước khi lưu), hoặc giữ nguyên hồ sơ.')}</p>
+            <div className="mt-4 flex flex-col items-center gap-3">
+              <Button variant="cta" asChild><Link href="/teachers/edit?review=draft">{tr('Review these answers in my profile', 'Xem lại các câu trả lời này trong hồ sơ')}</Link></Button>
+              <Button variant="secondary" type="button" onClick={() => { clearStored(); window.location.assign('/teachers/edit') }}>{tr('Keep my profile', 'Giữ nguyên hồ sơ')}</Button>
+            </div>
+          </>
+        ) : (
+          <Button variant="cta" className="mt-4" asChild><Link href="/teachers/edit">{tr('Edit my profile', 'Sửa hồ sơ')}</Link></Button>
+        )}
       </div>
     )
   }
   if (done) {
+    // "Add more to stand out", most useful first — each opens the step that asks it.
+    const more: { step: TeacherStep; label: string }[] = [
+      ...(!t.videoUrl && !privateVideo ? [{ step: 'finish' as const, label: tr('Add an intro video', 'Thêm video giới thiệu') }] : []),
+      ...(!t.bio ? [{ step: 'about' as const, label: tr('Say more about yourself', 'Giới thiệu thêm về bạn') }] : []),
+      ...(!t.certificates.length ? [{ step: 'teaching' as const, label: tr('Add your certificates', 'Thêm chứng chỉ') }] : []),
+      ...(!t.experience.length ? [{ step: 'teaching' as const, label: tr('Add your teaching jobs', 'Thêm công việc giảng dạy') }] : []),
+    ]
+    // The chat's Share button, by the name the teacher will actually see there (teacher-thread-strip.tsx, amendment A3):
+    // with no phone on file it reads "Share my email & CV".
+    const shareWords = t.phone ? tr('Share my phone, email & CV', 'Chia sẻ số điện thoại, email và CV') : tr('Share my email & CV', 'Chia sẻ email và CV')
+    // ⛔ "SCHOOLS CAN NOW FIND YOU" ONLY WHEN THEY CAN (gate review, 2026-10-09). `done.live` is what the save left public
+    // (listing active AND verified), and a save never shows a hidden profile (an edit never publishes), so one hidden
+    // before it — by the teacher, by D6, by moderation — is still hidden after it. The screen says so, with the way back
+    // right there: "Show my profile to schools" (the Visibility switch's own call, gates and refusals) when the teacher's
+    // switch is what hides it; when D6 hid it, the goal first — the server refuses to show a profile with nothing to be
+    // found for (setTeacherStatus); and nothing to tap when the switch is ON and the listing is held anyway (moderation,
+    // an identity hold) — not the teacher's to lift, as the Visibility step says too.
+    const held = !done.live && !done.noGoal && status === 'live'
     return (
       <div className="mx-auto max-w-md py-16 text-center">
         <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-tint text-brand"><Check className="size-6" /></span>
-        <h1 className="mt-4 text-xl font-semibold text-foreground">{mode === 'edit' || !done.live ? tr('Profile saved', 'Đã lưu hồ sơ') : tr('Your profile is live', 'Hồ sơ của bạn đã được đăng')}</h1>
-        <p className="mt-2 text-sm text-body">
-          {tr('Schools can now find you. When one messages you, reply and tap “Share my phone, email & CV” if you want them to have your phone, email and CV.', 'Các trường giờ có thể tìm thấy bạn. Khi có trường nhắn tin, hãy trả lời và bấm “Chia sẻ số điện thoại, email và CV” nếu bạn muốn gửi số điện thoại, email và CV.')}
-        </p>
+        <h1 className="mt-4 h-title text-foreground">{mode === 'edit' || !done.live ? tr('Profile saved', 'Đã lưu hồ sơ') : tr('Your profile is live', 'Hồ sơ của bạn đã được đăng')}</h1>
+        {done.live ? (
+          <p className="mt-2 text-sm text-body">
+            {tr('Schools can now find you. When one messages you, reply — and tap', 'Các trường giờ có thể tìm thấy bạn. Khi có trường nhắn tin, hãy trả lời — và bấm')} “{shareWords}” {tr('if you want them to have your contact details and CV.', 'nếu bạn muốn gửi thông tin liên hệ và CV.')}
+          </p>
+        ) : done.noGoal ? (
+          <>
+            <p className="mt-2 text-sm text-warning">{tr('Your profile is now hidden: you are not looking for work and cover lessons are off, so schools have nothing to find you for. To show it again, pick the work you want or switch cover lessons on and save — then tap “Show my profile to schools”.', 'Hồ sơ của bạn đang bị ẩn: bạn không tìm việc và đã tắt dạy thay, nên các trường không có gì để tìm bạn. Để hiển thị lại, hãy chọn công việc bạn muốn hoặc bật dạy thay rồi lưu — sau đó bấm “Hiển thị hồ sơ cho các trường”.')}</p>
+            {/* An edit's alone (a new profile with no goal is refused): the steps that give it one, opened in place. */}
+            {mode === 'edit' && (
+              <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1">
+                <Button variant="link" size="none" type="button" className="text-sm font-semibold" onClick={() => { setDone(null); setStepKey('plans') }}>{tr('Pick the work you want', 'Chọn công việc bạn muốn')}</Button>
+                {steps.includes('cover') && (
+                  <Button variant="link" size="none" type="button" className="text-sm font-semibold" onClick={() => { setDone(null); setStepKey('cover') }}>{tr('Go to cover lessons', 'Đến bước Dạy thay')}</Button>
+                )}
+              </div>
+            )}
+          </>
+        ) : held ? (
+          <p className="mt-2 text-sm text-warning">{tr('Your profile is under review and not visible right now. Contact support if you think this is a mistake.', 'Hồ sơ của bạn đang được xem xét và tạm thời không hiển thị. Liên hệ hỗ trợ nếu bạn cho rằng có nhầm lẫn.')}</p>
+        ) : (
+          <>
+            <p className="mt-2 text-sm text-warning">{tr('Your profile is hidden: schools can’t find it or open it.', 'Hồ sơ của bạn đang bị ẩn: các trường không tìm thấy và không mở được hồ sơ.')}</p>
+            <Button variant="cta" type="button" className="mt-4" loading={showing} onClick={() => { setFormError(''); void showProfile(setFormError) }}>{tr('Show my profile to schools', 'Hiển thị hồ sơ cho các trường')}</Button>
+          </>
+        )}
         {formError && <p role="alert" data-form-error className="mt-3 text-sm text-destructive">{formError}</p>}
+        {/* Push only where a school may need the teacher today: cover lessons on. */}
         {t.coverOpen && <PushOptInCard surface="teacher" className="mt-4" />}
+        {more.length > 0 && (
+          <div className="mt-6 space-y-2 text-left">
+            <h2 className="text-sm font-semibold text-foreground">{tr('Add more to stand out', 'Thêm thông tin để nổi bật')}</h2>
+            <ul className="space-y-1">
+              {more.map((m) => (
+                <li key={m.label}>
+                  {mode === 'edit'
+                    ? <Button variant="link" size="none" type="button" className="text-sm font-semibold" onClick={() => { setDone(null); setStepKey(m.step) }}>{m.label}</Button>
+                    : <Link href={`/teachers/edit?step=${m.step}`} className="text-sm font-semibold text-brand underline">{m.label}</Link>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="mt-6 flex justify-center gap-3">
-          <Button variant="cta" asChild><Link href={`/listings/${done.listingId}`}>{tr('View my profile', 'Xem hồ sơ')}</Link></Button>
+          {/* While it is hidden, showing it is the one thing to do: viewing steps back. */}
+          <Button variant={done.live ? 'cta' : 'secondary'} asChild><Link href={`/listings/${done.listingId}`}>{tr('View my profile', 'Xem hồ sơ')}</Link></Button>
           {mode === 'edit'
-            ? <Button variant="secondary" onClick={() => { setDone(null); setStepIdx(0) }}>{tr('Keep editing', 'Tiếp tục sửa')}</Button>
+            ? <Button variant="secondary" onClick={() => { setDone(null); setStepKey(steps[0]) }}>{tr('Keep editing', 'Tiếp tục sửa')}</Button>
             : <Button variant="secondary" asChild><Link href="/teachers/edit">{tr('Edit', 'Sửa')}</Link></Button>}
         </div>
       </div>
     )
   }
 
-  const L = (o: Opt) => tr(o.label, o.labelVi)
+  const stepProps: StepProps = { t, set, patch, update, errors, errText, mode }
+  const droppedWords = (f: DroppedField): string => {
+    switch (f) {
+      case 'expectedSalaryM': return tr('your expected salary', 'mức lương mong muốn')
+      case 'availableFrom': return tr('your start month', 'tháng có thể bắt đầu')
+      case 'teachLanguages': return tr('the languages you teach', 'các ngôn ngữ bạn dạy')
+      case 'englishLevel': return tr('your English level', 'trình độ tiếng Anh')
+      case 'degreeDetails': return tr('your degree’s major, university and year', 'chuyên ngành, trường và năm của bằng cấp')
+      case 'optIns': return tr('your job-match emails and staff calls', 'email gợi ý việc làm và cuộc gọi từ nhân viên')
+      case 'cover': return tr('cover lessons (they switch off)', 'dạy thay (sẽ bị tắt)')
+      case 'currentDistrictKey': return tr('your district', 'quận của bạn')
+    }
+  }
+  // ⛔ A CONSENT THAT LOADED OFF IS SAID ON EVERY STEP (gate review, 2026-10-08). "Save changes" is on every step and a
+  // save with it off withdraws it, but this line sat on step 1 alone — a teacher who came in on `?step=about` (the done
+  // screen's "Add more to stand out" links there) saved it away unwarned. Not on the step whose own line says it beside
+  // the switches (CoverStep's, FinishStep's), and gone once there is nothing left to switch on again.
+  const reconfirmCoverLine = reconfirm.cover && !t.coverOpen && steps.includes('cover') && step !== 'cover'
+  const optInStepLine = step === 'finish' && !t.matchEmailOptIn && !t.staffContactOptIn // FinishStep's own line shows
+  const reconfirmOptInLine = reconfirm.optIns && t.jobTypes.length > 0 && !(t.matchEmailOptIn && t.staffContactOptIn) && !optInStepLine
+  // What the hide dialog says: cover off because its notice changed (no act of the teacher's), or simply off.
+  const hideForNotice = reconfirm.cover && !t.coverOpen
 
   return (
-    <StepWizard
-      steps={steps}
-      current={step}
-      onStepSelect={(_k, i) => { if (i < stepIdx) setStepIdx(i) }}
-      primaryAction={primary}
-      secondaryAction={secondary}
-      // The action bar clears the phone's bottom MobileNav pill (the post wizard's own offset — post-wizard.tsx).
-      offsetBottom="4.5rem"
-      header={
-        <div className="mb-2">
-          {mode === 'edit' && step !== 'cover' && (
-            <CoverSummary
-              savedOpen={savedCover?.coverOpen === true}
-              slots={savedCover?.coverSlots.length ?? 0}
-              areas={savedCover?.coverAreas.length ?? 0}
-              rateVnd={savedCover?.coverRateVnd ?? null}
-              confirmedAt={coverConfirmedAt}
-              dirty={coverDirty}
-              status={coverSave}
-              onConfirm={confirmSavedCover}
-              onEdit={() => setStepIdx(STEP_ORDER.indexOf('cover'))}
-              notice={coverNotice}
+    <>
+      <StepWizard
+        steps={rail}
+        current={step}
+        // A new profile jumps back only (the rail's default); an edit, both ways — every step is already answered.
+        onStepSelect={(k) => { if (isTeacherStep(k)) setStepKey(k) }}
+        allowForward={mode === 'edit'}
+        primaryAction={primary}
+        secondaryAction={secondary}
+        actionNote={publishNote}
+        // The action bar clears the phone's bottom MobileNav pill (the post wizard's own offset — post-wizard.tsx).
+        offsetBottom="4.5rem"
+        header={
+          <div className="mb-4 space-y-3">
+            {mode === 'edit' && step === 'plans' && (steps.includes('cover') || savedCover?.coverOpen) && (
+              <CoverSummary
+                savedOpen={savedCover?.coverOpen === true}
+                slots={savedCover?.coverSlots.length ?? 0}
+                areas={savedCover?.coverAreas.length ?? 0}
+                rateVnd={savedCover?.coverRateVnd ?? null}
+                confirmedAt={coverConfirmedAt}
+                dirty={coverDirty}
+                status={coverSave}
+                onConfirm={confirmSavedCover}
+                onEdit={() => setStepKey(steps.includes('cover') ? 'cover' : 'where')}
+                notice={coverNotice}
+                // Saved but not shown: the way back on the card itself — unless the teacher's switch is already ON and the
+                // listing is held (moderation, an identity hold), which no tap of theirs lifts.
+                hidden={coverSave === 'saved' && !coverLive
+                  ? { onShow: status === 'live' ? null : () => { setCoverNotice(''); void showProfile(setCoverNotice) }, showing }
+                  : null}
+              />
+            )}
+            <div>
+              <h1 className="h-title text-foreground">{mode === 'edit' ? tr('Your teacher profile', 'Hồ sơ giáo viên của bạn') : tr('Create your teacher profile', 'Tạo hồ sơ giáo viên')}</h1>
+              <p className="mt-1 text-sm text-muted-foreground">{tr('Free. Schools across Vietnam see your profile; your phone, email and CV stay private until you share them.', 'Miễn phí. Các trường trên toàn Việt Nam xem được hồ sơ; số điện thoại, email và CV được giữ kín đến khi bạn chia sẻ.')}</p>
+            </div>
+            {mode === 'edit' && applied && (
+              <div role="status" className="space-y-1 rounded-xl bg-tint px-3.5 py-2.5 text-sm text-body">
+                <p>{tr('Your new answers are filled in below and are not saved yet. Check each step, then tap “Save changes” to keep them.', 'Các câu trả lời mới đã được điền bên dưới và chưa được lưu. Hãy kiểm tra từng bước rồi bấm “Lưu thay đổi” để giữ lại.')}</p>
+                {!nothingDropped(applied) && (
+                  // The edit warning, for the whole batch at once: what saving them clears from the saved profile.
+                  <p className="text-warning">
+                    {tr('Saving them also clears:', 'Khi lưu, những mục này cũng bị xoá:')}{' '}
+                    {[...applied.fields.map(droppedWords), ...(applied.places.length ? [`${tr('places you can teach:', 'những nơi bạn có thể dạy:')} ${applied.places.map((k) => placeLabel(k, lang)).join(' · ')}`] : [])].join('; ')}
+                  </p>
+                )}
+              </div>
+            )}
+            {mode === 'edit' && (reconfirmCoverLine || reconfirmOptInLine) && (
+              <div role="status" className="space-y-1 rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">
+                {reconfirmCoverLine && <p>{tr('Cover lessons: the notice changed — switch cover on again on the Cover step to keep offering them.', 'Dạy thay: thông báo đã thay đổi — hãy bật lại dạy thay ở bước Dạy thay để tiếp tục.')}</p>}
+                {reconfirmOptInLine && <p>{tr('Job matches: the notice changed — switch them on again on the Photo & publish step to keep getting them.', 'Gợi ý việc làm: thông báo đã thay đổi — hãy bật lại ở bước Ảnh & đăng để tiếp tục nhận.')}</p>}
+              </div>
+            )}
+          </div>
+        }
+      >
+        <div className="space-y-8 pb-6">
+          {step === 'plans' && <PlansStep {...stepProps} coverIntent={coverIntent} signedIn={!!user} districtNotSaying={districtNotSaying} onDistrictNotSaying={setDistrictNotSaying} />}
+          {step === 'where' && <WhereStep {...stepProps} coverIntent={coverIntent} onGoTo={goTo} />}
+          {step === 'teaching' && <TeachingStep {...stepProps} />}
+          {step === 'about' && <AboutStep {...stepProps} prefillName={prefill?.displayName ?? null} draftHost={draftHost} signedIn={!!user} />}
+          {step === 'cover' && <CoverStep t={t} errors={errors} errText={errText} onCover={setCover} onGoTo={goTo} reconsentLine={reconfirm.cover} hidesProfile={mode === 'edit' && !t.coverOpen && !t.jobTypes.length} />}
+          {step === 'finish' && (
+            <FinishStep
+              {...stepProps}
+              signedIn={!!user}
+              publishGate={publishGate}
+              prefillAvatar={mode === 'join' ? prefill?.avatarUrl ?? null : null}
+              prefillPhone={mode === 'join' ? prefill?.phone ?? null : null}
+              optInsNoticeChanged={reconfirm.optIns}
+              media={{
+                busy, onPhoto: uploadPhoto, onVideo: uploadVideo, privateVideo, savedPublicUrl, ownVideoUrl, ownVideoBusy, videoRemoving,
+                confirmVideoRemove, setConfirmVideoRemove, onWatchOwnVideo: watchOwnVideo, onCloseOwnVideo: () => setOwnVideoUrl(null),
+                onOwnVideoError: () => { setOwnVideoUrl(null); setFormError(tr('Your video could not be played. Tap Watch to try again.', 'Không phát được video của bạn. Bấm Xem để thử lại.')) },
+                onRemovePrivateVideo: removePrivateVideo, cvName, cvFile, onCvPick: setCvFile, onCvDiscard: () => setCvFile(null),
+                onCvRemove: mode === 'edit' ? removeCv : null,
+              }}
+              edit={mode === 'edit' ? { live: status === 'live', listingLive, onToggleLive: toggleStatus, onDelete: deleteProfile } : null}
             />
           )}
-          <h1 className="text-xl font-semibold text-foreground">{mode === 'edit' ? tr('Your teacher profile', 'Hồ sơ giáo viên của bạn') : tr('Create your teacher profile', 'Tạo hồ sơ giáo viên')}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{tr('Free. Schools across Vietnam see your profile; your phone, email and CV stay private until you share them.', 'Miễn phí. Các trường trên toàn Việt Nam xem được hồ sơ; số điện thoại, email và CV được giữ kín đến khi bạn chia sẻ.')}</p>
-          {/* Cover lessons (2026-10-07): the teacher.eno.vn pitch — the step itself comes after Experience. */}
-          {mode === 'join' && <p className="mt-1 text-sm text-body">{tr('New: offer cover lessons too — tap the periods you are free and set an hourly rate.', 'Mới: nhận cả dạy thay — chạm vào các buổi bạn rảnh và đặt mức phí theo giờ.')}</p>}
+          {formError && <p role="alert" data-form-error className="text-sm text-destructive">{formError}</p>}
         </div>
-      }
-    >
-      <div className="space-y-8 pb-6">
-        {step === 'about' && (
-          <>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field invalid={!!errors.fullName}>
-                <Label htmlFor="tf-name">{tr('Full name', 'Họ và tên')}</Label>
-                <FieldControl id="tf-name" render={<Input id="tf-name" autoComplete="name" value={t.fullName} maxLength={LIMITS.name} onChange={(e) => set('fullName', e.target.value)} />} />
-                {errors.fullName && <FieldError>{errText(errors.fullName)}</FieldError>}
-              </Field>
-              <Field invalid={!!errors.nationality}>
-                <Label htmlFor="tf-nat">{tr('Nationality', 'Quốc tịch')}</Label>
-                {/* Searchable (owner, 2026-10-08). `tf-nat` lands on its <input>: the label focuses it, and a refused Next
-                    reaches it through the Field's data-invalid like every other field (revealFirstError). */}
-                <CountryCombobox id="tf-nat" value={t.nationality} onChange={(v) => set('nationality', v)} />
-                {errors.nationality && <FieldError>{errText(errors.nationality)}</FieldError>}
-              </Field>
+      </StepWizard>
+
+      {/* ⛔ THE EDIT WARNING — before a change drops answers that are saved (plan, 2026-10-08). */}
+      <AlertDialog open={!!pendingChange} onOpenChange={(open) => { if (!open) setPendingChange(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tr('This change clears some of your answers', 'Thay đổi này sẽ xoá một số câu trả lời')}</AlertDialogTitle>
+            <AlertDialogDescription>{tr('When you save, these go from your profile:', 'Khi bạn lưu, những mục này sẽ bị xoá khỏi hồ sơ:')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          {pendingChange && (
+            <ul className="list-disc space-y-1 pl-5 text-sm text-body">
+              {pendingChange.fields.map((f) => <li key={f}>{droppedWords(f)}</li>)}
+              {pendingChange.places.length > 0 && (
+                <li>{tr('places you can teach:', 'những nơi bạn có thể dạy:')} {pendingChange.places.map((k) => placeLabel(k, lang)).join(' · ')}</li>
+              )}
+            </ul>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>{tr('Keep my answers', 'Giữ câu trả lời')}</AlertDialogCancel>
+            <AlertDialogAction onClick={applyPendingChange}>{tr('Change it', 'Vẫn thay đổi')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ⛔ THE HIDE WARNING — before an edit save that would hide a shown profile, on whichever step it was tapped (gate
+          review, 2026-10-08). Saving still goes through ("Save and hide", D6); the cover step is offered when cover can be
+          switched on there — the switch itself stays the teacher's own act, under its notice. */}
+      <AlertDialog open={confirmHide} onOpenChange={setConfirmHide}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tr('Saving hides your profile', 'Khi lưu, hồ sơ của bạn sẽ bị ẩn')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {hideForNotice
+                ? tr('The cover-lessons notice has changed, so cover lessons stay off until you switch them on again — and no work is chosen in step 1. Saved like this, schools have nothing to find you for.', 'Thông báo về dạy thay đã thay đổi, nên dạy thay sẽ tắt cho đến khi bạn bật lại — và bạn chưa chọn công việc nào ở bước 1. Nếu lưu như vậy, các trường không có gì để tìm bạn.')
+                // Never "any time": showing it again needs a goal first (setTeacherStatus refuses one with none — gate review, 2026-10-09).
+                : tr('No work is chosen in step 1 and cover lessons are off, so schools have nothing to find you for. To show your profile again later, pick the work you want or switch cover lessons on first.', 'Bạn chưa chọn công việc nào ở bước 1 và đã tắt dạy thay, nên các trường không có gì để tìm bạn. Để hiển thị lại hồ sơ sau này, trước hết hãy chọn công việc bạn muốn hoặc bật dạy thay.')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {/* Stacked at every width: three buttons in a row overflow the dialog's 384px (sm:max-w-sm) — in English too. */}
+          <AlertDialogFooter className="sm:flex-col-reverse">
+            <AlertDialogCancel>{tr('Keep editing', 'Tiếp tục sửa')}</AlertDialogCancel>
+            {steps.includes('cover') && step !== 'cover' && !t.coverOpen && (
+              <AlertDialogAction variant="secondary" onClick={() => setStepKey('cover')}>{tr('Go to cover lessons', 'Đến bước Dạy thay')}</AlertDialogAction>
+            )}
+            <AlertDialogAction onClick={() => { void publish({ hideConfirmed: true }) }}>{tr('Save and hide', 'Lưu và ẩn hồ sơ')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* "What's public?" — every field, beside the Publish notice. Wording: owner to approve (plan amendment A5). */}
+      <Drawer open={whatsPublic} onOpenChange={setWhatsPublic} showSwipeHandle>
+        <DrawerContent>
+          <DrawerHeader className="text-left">
+            <DrawerTitle className="text-left text-base font-bold">{tr('What’s public?', 'Những gì được công khai?')}</DrawerTitle>
+            <DrawerDescription className="text-left">{tr('Your profile is a public page: schools and search engines can see it.', 'Hồ sơ của bạn là một trang công khai: các trường và công cụ tìm kiếm có thể xem.')}</DrawerDescription>
+          </DrawerHeader>
+          <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain px-4 pt-4 text-sm text-body">
+            <div className="space-y-2">
+              <p className="font-semibold text-foreground">{tr('Shown on your profile', 'Hiển thị trên hồ sơ')}</p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>{tr('Your name, photo, headline and about text', 'Tên, ảnh, tiêu đề và phần giới thiệu')}</li>
+                <li>{tr('Your nationality, your English level and the languages you speak', 'Quốc tịch, trình độ tiếng Anh và các ngôn ngữ bạn nói')}</li>
+                <li>{tr('Where you live — your city or province, and your HCMC district if you gave one — or “Not in Vietnam yet”', 'Nơi bạn sống — thành phố hoặc tỉnh, và quận ở TP.HCM nếu bạn cho biết — hoặc “Chưa ở Việt Nam”')}</li>
+                <li>{tr('The places you can teach, Online included', 'Những nơi bạn có thể dạy, kể cả trực tuyến')}</li>
+                <li>{tr('What you teach, who you teach and how long you have taught; your teaching jobs, degree and certificates', 'Môn dạy, đối tượng và thời gian giảng dạy; công việc giảng dạy, bằng cấp và chứng chỉ')}</li>
+                <li>{tr('The work you want, when you can start and your expected salary', 'Công việc bạn muốn, thời gian có thể bắt đầu và mức lương mong muốn')}</li>
+                <li>{tr('Your intro video — only if you choose to show it', 'Video giới thiệu — chỉ khi bạn chọn hiển thị')}</li>
+                <li>{tr('Cover lessons — your free periods, hourly rate and where schools find you — only while cover is on', 'Dạy thay — các buổi rảnh, mức phí theo giờ và nơi các trường tìm bạn — chỉ khi đang bật dạy thay')}</li>
+              </ul>
             </div>
-            <Field invalid={!!errors.headline}>
-              <Label htmlFor="tf-headline">{tr('Headline', 'Tiêu đề')}</Label>
-              <FieldControl id="tf-headline" render={<Input id="tf-headline" value={t.headline} maxLength={LIMITS.headline} placeholder={tr('e.g. CELTA-certified English teacher, 5 years with young learners', 'vd. Giáo viên tiếng Anh có CELTA, 5 năm dạy trẻ em')} onChange={(e) => set('headline', e.target.value)} />} />
-              {errors.headline && <FieldError>{errText(errors.headline)}</FieldError>}
-            </Field>
-            <Field>
-              <Label htmlFor="tf-bio">{tr('About you (optional)', 'Giới thiệu (không bắt buộc)')}</Label>
-              <FieldControl id="tf-bio" render={<Textarea id="tf-bio" rows={5} value={t.bio} maxLength={LIMITS.bio} onChange={(e) => set('bio', e.target.value)} />} />
-              <FieldDescription className="text-muted-foreground">{tr('Your teaching style and what you are looking for. No phone numbers or emails here.', 'Phong cách giảng dạy và công việc bạn tìm. Không ghi số điện thoại hay email.')}</FieldDescription>
-            </Field>
-            <Section title={tr('Native English speaker?', 'Người bản ngữ tiếng Anh?')}>
-              <Switch checked={t.nativeSpeaker} onChange={(v: boolean) => set('nativeSpeaker', v)} label={tr('Native speaker', 'Người bản ngữ')} />
-            </Section>
-            <Field>
-              <Label htmlFor="tf-langs">{tr('Other languages you speak (comma separated)', 'Ngôn ngữ khác (cách nhau bằng dấu phẩy)')}</Label>
-              <FieldControl id="tf-langs" render={<Input id="tf-langs" value={langsText} onChange={(e) => { setLangsText(e.target.value); set('languages', e.target.value.split(',').map((s) => s.trim()).filter(Boolean).slice(0, LIMITS.languages)) }} onBlur={() => setLangsText(t.languages.join(', '))} />} />
-            </Field>
-          </>
-        )}
-
-        {step === 'location' && (
-          <>
-            <Section title={tr('Where do you live now?', 'Bạn đang sống ở đâu?')}>
-              <SingleChips options={CURRENT_CITY_OPTIONS} value={t.currentCity || null} onChange={(v) => set('currentCity', v)} lang={lang} />
-              {errors.currentCity && <p className="text-sm text-destructive">{errText(errors.currentCity)}</p>}
-              <Field>
-                <Label htmlFor="tf-district">{tr('District (optional)', 'Quận/huyện (không bắt buộc)')}</Label>
-                <FieldControl id="tf-district" render={<Input id="tf-district" value={t.currentDistrict} maxLength={LIMITS.shortText} onChange={(e) => set('currentDistrict', e.target.value)} />} />
-              </Field>
-            </Section>
-            <Section title={tr('Where do you want to work?', 'Bạn muốn làm việc ở đâu?')} hint={tr('Pick every city you would take a job in.', 'Chọn mọi thành phố bạn sẵn sàng làm việc.')}>
-              <MultiChips options={TEACHER_OPTIONS.workIn} value={t.preferredCities} onChange={(v) => set('preferredCities', v)} lang={lang} />
-              {errors.preferredCities && <p className="text-sm text-destructive">{errText(errors.preferredCities)}</p>}
-              <Switch checked={t.openToOnline} onChange={(v: boolean) => set('openToOnline', v)} label={tr('Also open to online teaching', 'Nhận cả dạy trực tuyến')} />
-            </Section>
-            <Field>
-              <Label htmlFor="tf-avail">{tr('Available from (optional)', 'Có thể bắt đầu từ (không bắt buộc)')}</Label>
-              <FieldControl id="tf-avail" render={<Input id="tf-avail" type="date" value={t.availableFrom ?? ''} onChange={(e) => set('availableFrom', e.target.value || null)} />} />
-            </Field>
-          </>
-        )}
-
-        {step === 'experience' && (
-          <>
-            <Section title={tr('What do you teach?', 'Bạn dạy môn gì?')}>
-              <MultiChips options={TEACHER_OPTIONS.subject} value={t.subjects} onChange={(v) => set('subjects', v)} lang={lang} />
-              {errors.subjects && <p className="text-sm text-destructive">{errText(errors.subjects)}</p>}
-            </Section>
-            <Section title={tr('Who do you teach?', 'Bạn dạy đối tượng nào?')}>
-              <MultiChips options={TEACHER_OPTIONS.ageGroup} value={t.ageGroups} onChange={(v) => set('ageGroups', v)} lang={lang} />
-              {errors.ageGroups && <p className="text-sm text-destructive">{errText(errors.ageGroups)}</p>}
-            </Section>
-            <Section title={tr('What kind of job are you looking for?', 'Bạn tìm loại công việc nào?')}>
-              <MultiChips options={TEACHER_OPTIONS.jobType} value={t.jobTypes} onChange={(v) => set('jobTypes', v)} lang={lang} />
-              {errors.jobTypes && <p className="text-sm text-destructive">{errText(errors.jobTypes)}</p>}
-            </Section>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field>
-                <Label htmlFor="tf-years">{tr('Years of teaching experience', 'Số năm kinh nghiệm giảng dạy')}</Label>
-                <FieldControl id="tf-years" render={<Input id="tf-years" type="number" inputMode="numeric" min={0} max={LIMITS.maxYears} value={t.yearsExperience} onChange={(e) => set('yearsExperience', Math.max(0, Math.min(LIMITS.maxYears, Number(e.target.value) || 0)))} />} />
-              </Field>
-              <Field>
-                <Label htmlFor="tf-salary">{tr('Expected salary, million VND / month (optional)', 'Mức lương mong muốn, triệu đồng / tháng (không bắt buộc)')}</Label>
-                <FieldControl id="tf-salary" render={<Input id="tf-salary" type="number" inputMode="numeric" min={0} max={LIMITS.maxSalaryM} value={t.expectedSalaryM ?? ''} onChange={(e) => set('expectedSalaryM', e.target.value === '' ? null : Math.max(0, Math.min(LIMITS.maxSalaryM, Number(e.target.value) || 0)))} />} />
-              </Field>
+            <div className="space-y-2">
+              <p className="font-semibold text-foreground">{tr('Never public', 'Không bao giờ công khai')}</p>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>{tr('Your phone number, email and CV — a school gets them only when you tap the Share button in your chat', 'Số điện thoại, email và CV — trường chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn')}</li>
+                <li>{tr('An intro video you keep private — you send it to the schools you choose', 'Video giới thiệu bạn giữ riêng tư — bạn gửi cho trường bạn chọn')}</li>
+              </ul>
             </div>
-            <Section title={tr('Teaching experience', 'Kinh nghiệm giảng dạy')} hint={tr('Your most recent roles first. Optional, but schools read this closely.', 'Công việc gần nhất trước. Không bắt buộc, nhưng các trường rất quan tâm.')}>
-              <div className="space-y-4">
-                {t.experience.map((x, i) => (
-                  <div key={i} className="space-y-3 border-b border-border pb-4">
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <Input aria-label={tr('Role', 'Vị trí')} placeholder={tr('Role', 'Vị trí')} value={x.role} maxLength={LIMITS.shortText} onChange={(e) => set('experience', t.experience.map((y, j) => (j === i ? { ...y, role: e.target.value } : y)))} />
-                      <Input aria-label={tr('School or company', 'Trường hoặc công ty')} placeholder={tr('School or company', 'Trường hoặc công ty')} value={x.employer} maxLength={LIMITS.shortText} onChange={(e) => set('experience', t.experience.map((y, j) => (j === i ? { ...y, employer: e.target.value } : y)))} />
-                      <Input aria-label={tr('City', 'Thành phố')} placeholder={tr('City', 'Thành phố')} value={x.city} maxLength={LIMITS.shortText} onChange={(e) => set('experience', t.experience.map((y, j) => (j === i ? { ...y, city: e.target.value } : y)))} />
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <Input type="month" aria-label={tr('From', 'Từ')} className="w-auto" value={x.from} onChange={(e) => set('experience', t.experience.map((y, j) => (j === i ? { ...y, from: e.target.value } : y)))} />
-                      <span className="text-sm text-muted-foreground">–</span>
-                      <Input type="month" aria-label={tr('To (empty = now)', 'Đến (để trống = hiện tại)')} className="w-auto" value={x.to} onChange={(e) => set('experience', t.experience.map((y, j) => (j === i ? { ...y, to: e.target.value } : y)))} />
-                      <Button variant="ghost" size="sm" type="button" onClick={() => set('experience', t.experience.filter((_, j) => j !== i))}><Trash2 className="size-4" />{tr('Remove', 'Xoá')}</Button>
-                    </div>
-                    {errors[`experience.${i}`] && <p className="text-sm text-destructive">{errText(errors[`experience.${i}`])}</p>}
-                  </div>
-                ))}
-                {t.experience.length < LIMITS.experienceEntries && (
-                  <Button variant="secondary" size="sm" type="button" onClick={() => set('experience', [...t.experience, { role: '', employer: '', city: '', from: '', to: '' }])}><Plus className="size-4" />{tr('Add a role', 'Thêm công việc')}</Button>
-                )}
-              </div>
-            </Section>
-          </>
-        )}
-
-        {step === 'cover' && (
-          <>
-            <CoverFields value={t} onChange={setCover} errors={errors} />
-            {t.coverOpen && user && <PushOptInCard surface="teacher" />}
-          </>
-        )}
-
-        {step === 'qualifications' && (
-          <>
-            <p className="text-sm text-muted-foreground">{tr('Just type your qualifications — please do not upload certificates or diplomas. Schools check documents directly with you.', 'Chỉ cần nhập thông tin bằng cấp — vui lòng không tải lên chứng chỉ hay bằng. Các trường sẽ xác minh trực tiếp với bạn.')}</p>
-            <Section title={tr('Highest degree', 'Bằng cấp cao nhất')}>
-              <SingleChips options={TEACHER_OPTIONS.degree} value={t.degreeLevel} onChange={(v) => set('degreeLevel', v)} lang={lang} />
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Input aria-label={tr('Major', 'Chuyên ngành')} placeholder={tr('Major, e.g. English Literature', 'Chuyên ngành, vd. Văn học Anh')} value={t.degreeMajor} maxLength={LIMITS.shortText} onChange={(e) => set('degreeMajor', e.target.value)} />
-                <Input aria-label={tr('University', 'Trường đại học')} placeholder={tr('University', 'Trường đại học')} value={t.degreeInstitution} maxLength={LIMITS.shortText} onChange={(e) => set('degreeInstitution', e.target.value)} />
-                <Input aria-label={tr('Year', 'Năm')} placeholder={tr('Year', 'Năm')} type="number" inputMode="numeric" value={t.degreeYear ?? ''} onChange={(e) => set('degreeYear', e.target.value ? Number(e.target.value) : null)} />
-              </div>
-            </Section>
-            <Section title={tr('Teaching certificates', 'Chứng chỉ giảng dạy')}>
-              <div className="space-y-4">
-                {t.certificates.map((c, i) => (
-                  <div key={i} className="space-y-3 border-b border-border pb-4">
-                    <SingleChips options={TEACHER_OPTIONS.cert} value={c.type || null} onChange={(v) => set('certificates', t.certificates.map((y, j) => (j === i ? { ...y, type: v } : y)))} lang={lang} />
-                    <div className="flex flex-wrap items-center gap-3">
-                      <Input aria-label={tr('Hours', 'Số giờ')} placeholder={tr('Hours', 'Số giờ')} type="number" inputMode="numeric" className="w-28" value={c.hours ?? ''} onChange={(e) => set('certificates', t.certificates.map((y, j) => (j === i ? { ...y, hours: e.target.value ? Number(e.target.value) : null } : y)))} />
-                      <Input aria-label={tr('Provider', 'Đơn vị cấp')} placeholder={tr('Provider', 'Đơn vị cấp')} className="w-56" value={c.provider} maxLength={LIMITS.shortText} onChange={(e) => set('certificates', t.certificates.map((y, j) => (j === i ? { ...y, provider: e.target.value } : y)))} />
-                      <Input aria-label={tr('Year', 'Năm')} placeholder={tr('Year', 'Năm')} type="number" inputMode="numeric" className="w-24" value={c.year ?? ''} onChange={(e) => set('certificates', t.certificates.map((y, j) => (j === i ? { ...y, year: e.target.value ? Number(e.target.value) : null } : y)))} />
-                      <Button variant="ghost" size="sm" type="button" onClick={() => set('certificates', t.certificates.filter((_, j) => j !== i))}><Trash2 className="size-4" />{tr('Remove', 'Xoá')}</Button>
-                    </div>
-                    {errors[`certificates.${i}`] && <p className="text-sm text-destructive">{errText(errors[`certificates.${i}`])}</p>}
-                  </div>
-                ))}
-                {t.certificates.length < LIMITS.certificates && (
-                  <Button variant="secondary" size="sm" type="button" onClick={() => set('certificates', [...t.certificates, { type: '', hours: null, provider: '', year: null }])}><Plus className="size-4" />{tr('Add a certificate', 'Thêm chứng chỉ')}</Button>
-                )}
-              </div>
-            </Section>
-            {draftHost && (
-              <p className="text-sm text-muted-foreground">{tr('Next you sign in to add your photo, intro video and CV, and publish. Your answers come with you.', 'Tiếp theo bạn đăng nhập để thêm ảnh, video giới thiệu, CV và đăng hồ sơ. Câu trả lời sẽ được giữ nguyên.')}</p>
-            )}
-          </>
-        )}
-
-        {step === 'finish' && (
-          <>
-            {!user && !authLoading && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-tint p-4">
-                <p className="text-sm text-body">{tr('Sign in to add your photo, video and CV. Your answers are saved on this device.', 'Đăng nhập để thêm ảnh, video và CV. Câu trả lời được lưu trên thiết bị này.')}</p>
-                <Button variant="cta" size="sm" onClick={() => openSignIn()}>{tr('Sign in', 'Đăng nhập')}</Button>
-              </div>
-            )}
-            <Section title={tr('Profile photo', 'Ảnh hồ sơ')} hint={tr('A clear, friendly headshot.', 'Ảnh chân dung rõ mặt, thân thiện.')}>
-              <div className="flex items-center gap-4">
-                <span className="relative flex size-20 items-center justify-center overflow-hidden rounded-full bg-muted">
-                  {t.photoUrl ? <img src={t.photoUrl} alt="" className="size-full object-cover" /> : <Camera className="size-6 text-muted-foreground" />}
-                </span>
-                <label className={cn('inline-flex cursor-pointer items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-body hover:bg-muted', !user && 'pointer-events-none opacity-50')}>
-                  {busy === 'photo' ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
-                  {t.photoUrl ? tr('Change photo', 'Đổi ảnh') : tr('Upload photo', 'Tải ảnh lên')}
-                  <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="sr-only" disabled={!user} onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f) }} />
-                </label>
-              </div>
-              {errors.photoUrl && <p className="text-sm text-destructive">{errText(errors.photoUrl)}</p>}
-            </Section>
-            <Section title={tr('Intro video (optional)', 'Video giới thiệu (không bắt buộc)')} hint={tr('Up to 60 seconds: say hello and show how you teach.', 'Tối đa 60 giây: chào hỏi và cho thấy cách bạn dạy.')}>
-              <div className="space-y-3">
-                {t.videoUrl ? (
-                  // Wraps on a phone: at h-40 a 16:9 player is ~284px wide, and "Remove" beside it overflowed 375px (preview check).
-                  <div className="flex flex-wrap items-center gap-3">
-                    <video src={t.videoUrl} controls className="h-40 max-w-full rounded-xl bg-black" />
-                    <Button variant="ghost" size="sm" type="button" onClick={() => set('videoUrl', null)}><X className="size-4" />{tr('Remove', 'Xoá')}</Button>
-                    {/* A new upload over a private video: say what Save will do — Remove brings the private one's card back. */}
-                    {privateVideo && <p className="w-full text-xs text-muted-foreground">{tr('Saving replaces your private intro video with this one. Schools you sent the old one to will need you to send it again.', 'Khi lưu, video này sẽ thay video giới thiệu riêng tư của bạn. Các trường đã nhận video cũ sẽ cần bạn gửi lại.')}</p>}
-                  </div>
-                ) : privateVideo ? (
-                  // A private video: the form never holds its address — what it is, and a Remove that is its own call.
-                  <div className="flex flex-wrap items-center gap-3 rounded-xl bg-tint p-3">
-                    <Lock className="size-4 shrink-0 text-muted-foreground" />
-                    <p className="min-w-0 flex-1 text-sm text-body">{t.videoOnRequest
-                      ? tr('Your intro video is saved privately. A school sees it only when you send it in your chat.', 'Video giới thiệu của bạn được lưu riêng tư. Trường chỉ xem được khi bạn gửi trong tin nhắn.')
-                      : tr('Your private intro video will be shown on your profile when you save.', 'Video giới thiệu riêng tư sẽ được hiển thị trên hồ sơ khi bạn lưu.')}</p>
-                    {!ownVideoUrl && <Button variant="ghost" size="sm" type="button" onClick={watchOwnVideo} loading={ownVideoBusy}><Play className="size-4" />{tr('Watch', 'Xem')}</Button>}
-                    {confirmVideoRemove ? (
-                      <span className="flex flex-wrap items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{tr('Schools you sent it to will lose access.', 'Các trường bạn đã gửi sẽ không xem được nữa.')}</span>
-                        <Button variant="destructive" size="sm" type="button" onClick={removePrivateVideo} loading={videoRemoving}>{tr('Remove for good', 'Xoá vĩnh viễn')}</Button>
-                        <Button variant="ghost" size="sm" type="button" onClick={() => setConfirmVideoRemove(false)}>{tr('Cancel', 'Huỷ')}</Button>
-                      </span>
-                    ) : (
-                      <Button variant="ghost" size="sm" type="button" onClick={() => setConfirmVideoRemove(true)}><X className="size-4" />{tr('Remove', 'Xoá')}</Button>
-                    )}
-                    {ownVideoUrl && (
-                      // An error (the 10-minute link expired during a long pause, or this browser cannot play the file) puts
-                      // Watch back, for a fresh link — never a dead player that only a reload clears (gate review).
-                      <video src={ownVideoUrl} controls playsInline preload="metadata" onError={() => { setOwnVideoUrl(null); setFormError(tr('Your video could not be played. Tap Watch to try again.', 'Không phát được video của bạn. Bấm Xem để thử lại.')) }} className="h-40 w-full max-w-sm rounded-xl bg-black" />
-                    )}
-                    {ownVideoUrl && <Button variant="ghost" size="sm" type="button" onClick={() => setOwnVideoUrl(null)}>{tr('Close video', 'Đóng video')}</Button>}
-                  </div>
-                ) : null}
-                <label className={cn('inline-flex cursor-pointer items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-body hover:bg-muted', !user && 'pointer-events-none opacity-50')}>
-                  {busy === 'video' ? <Loader2 className="size-4 animate-spin" /> : <Video className="size-4" />}
-                  {busy === 'video' ? tr('Uploading…', 'Đang tải…') : t.videoUrl || privateVideo ? tr('Replace video', 'Thay video') : tr('Upload video', 'Tải video lên')}
-                  {/* Cleared after each pick: choosing the same file again (a retry after a failed upload) must fire again. */}
-                  <input type="file" accept="video/mp4,video/quicktime,video/webm" className="sr-only" disabled={!user} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadVideo(f) }} />
-                </label>
-                {/* Who watches it — saved with the profile. Private: kept out of the profile and sent per school, in chat. */}
-                <RadioGroup
-                  value={t.videoOnRequest ? 'request' : 'public'}
-                  onValueChange={(v) => set('videoOnRequest', v === 'request')}
-                  aria-label={tr('Who can watch your intro video', 'Ai được xem video giới thiệu của bạn')}
-                  className="grid gap-2 sm:grid-cols-2"
-                >
-                  <Radio value="public" className="flex w-full items-start justify-start gap-2.5 whitespace-normal rounded-xl border border-border p-3 text-left data-checked:border-brand">
-                    <RadioDot className="mt-0.5" />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-foreground">{tr('Show it on my profile', 'Hiển thị trên hồ sơ')}</span>
-                      <span className="block text-xs text-muted-foreground">{tr('Anyone who opens your profile can watch it.', 'Ai mở hồ sơ của bạn cũng xem được.')}</span>
-                    </span>
-                  </Radio>
-                  <Radio value="request" className="flex w-full items-start justify-start gap-2.5 whitespace-normal rounded-xl border border-border p-3 text-left data-checked:border-brand">
-                    <RadioDot className="mt-0.5" />
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-foreground">{tr('Keep it private — send it on request', 'Giữ riêng tư — gửi khi được đề nghị')}</span>
-                      <span className="block text-xs text-muted-foreground">{tr('Schools ask in chat. You choose who gets it, and can stop sharing any time.', 'Trường đề nghị trong tin nhắn. Bạn chọn gửi cho ai và có thể ngừng chia sẻ bất cứ lúc nào.')}</span>
-                    </span>
-                  </Radio>
-                </RadioGroup>
-                {/* ⚠️ Hiding a video that WAS public cannot recall its link: a copy someone saved — or a cache on the way —
-                    can outlive the move (gate review, 2026-10-07). Said here, where the teacher chooses. */}
-                {t.videoOnRequest && !!savedPublicUrl && t.videoUrl === savedPublicUrl && (
-                  <p className="text-xs text-warning">{tr('This video has been on your public profile, so anyone who saved its link may still be able to watch it. For a video that has never been on your profile, upload a new one.', 'Video này đã hiển thị công khai trên hồ sơ, nên ai đã lưu liên kết vẫn có thể xem được. Nếu muốn một video chưa từng hiển thị trên hồ sơ, hãy tải lên video mới.')}</p>
-                )}
-                {errors.videoUrl && <p role="alert" className="text-sm text-destructive">{errText(errors.videoUrl)}</p>}
-              </div>
-            </Section>
-            <Section title={tr('CV (optional)', 'CV (không bắt buộc)')} hint={tr('PDF, up to 10 MB. Private: a school gets it only when you tap “Share my phone, email & CV” in your chat with them.', 'PDF, tối đa 10 MB. Riêng tư: trường chỉ nhận được khi bạn bấm “Chia sẻ số điện thoại, email và CV” trong tin nhắn.')}>
-              <div className="flex flex-wrap items-center gap-3">
-                {(cvFile || cvName) && <span className="inline-flex items-center gap-2 text-sm text-body"><FileText className="size-4" />{cvFile?.name ?? cvName}</span>}
-                <label className={cn('inline-flex cursor-pointer items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold text-body hover:bg-muted', !user && 'pointer-events-none opacity-50')}>
-                  <FileText className="size-4" />
-                  {cvFile || cvName ? tr('Replace CV', 'Thay CV') : tr('Choose PDF', 'Chọn tệp PDF')}
-                  <input type="file" accept="application/pdf,.pdf" className="sr-only" disabled={!user} onChange={(e) => { const f = e.target.files?.[0]; if (f) setCvFile(f) }} />
-                </label>
-                {mode === 'edit' && cvName && !cvFile && <Button variant="ghost" size="sm" type="button" onClick={removeCv}><Trash2 className="size-4" />{tr('Remove', 'Xoá')}</Button>}
-              </div>
-            </Section>
-            <Field invalid={!!errors.phone}>
-              <Label htmlFor="tf-phone">{tr('Phone number', 'Số điện thoại')}</Label>
-              <FieldControl id="tf-phone" render={<Input id="tf-phone" type="tel" inputMode="tel" autoComplete="tel" value={t.phone} maxLength={20} placeholder="0901 234 567" onChange={(e) => set('phone', e.target.value)} />} />
-              <FieldDescription className="text-muted-foreground">{tr('Never shown publicly. Shared with a school only when you tap “Share my phone, email & CV” in your chat.', 'Không bao giờ công khai. Chỉ chia sẻ với trường khi bạn bấm “Chia sẻ số điện thoại, email và CV” trong tin nhắn.')}</FieldDescription>
-              {errors.phone && <FieldError>{errText(errors.phone)}</FieldError>}
-            </Field>
-            <Section title={tr('Your choices', 'Lựa chọn của bạn')}>
-              <label className="flex cursor-pointer items-start gap-2.5 text-sm leading-relaxed text-body">
-                <Checkbox checked={t.consentPublic} onChange={(v: boolean) => set('consentPublic', v)} className="mt-0.5 h-5 w-5" />
-                <span>{tr('Publish my profile (name, photo, experience and qualifications — and my intro video, if I choose to show it) on this site, where schools and search engines can see it. Required.', 'Đăng hồ sơ của tôi (tên, ảnh, kinh nghiệm và bằng cấp — cùng video giới thiệu, nếu tôi chọn hiển thị) trên trang này, nơi các trường và công cụ tìm kiếm có thể xem. Bắt buộc.')}</span>
-              </label>
-              {errors.consentPublic && <p className="text-sm text-destructive">{errText(errors.consentPublic)}</p>}
-              <label className="flex cursor-pointer items-start gap-2.5 text-sm leading-relaxed text-body">
-                <Checkbox checked={t.matchEmailOptIn} onChange={(v: boolean) => set('matchEmailOptIn', v)} className="mt-0.5 h-5 w-5" />
-                <span>{tr('Email me jobs that match my profile. Optional.', 'Gửi email cho tôi các việc làm phù hợp. Không bắt buộc.')}</span>
-              </label>
-              <label className="flex cursor-pointer items-start gap-2.5 text-sm leading-relaxed text-body">
-                <Checkbox checked={t.staffContactOptIn} onChange={(v: boolean) => set('staffContactOptIn', v)} className="mt-0.5 h-5 w-5" />
-                <span>{tr('Our staff may call me about matching jobs and introduce my profile to those schools. Optional.', 'Nhân viên của chúng tôi có thể gọi cho tôi về việc làm phù hợp và giới thiệu hồ sơ của tôi với các trường đó. Không bắt buộc.')}</span>
-              </label>
-              <p className="text-xs text-muted-foreground">
-                {tr('Matching uses AI services (Google Gemini) to compare your profile with jobs. See our ', 'Việc so khớp dùng dịch vụ AI (Google Gemini) để so sánh hồ sơ với việc làm. Xem ')}
-                <Link href="/privacy" className="underline">{tr('privacy policy', 'chính sách quyền riêng tư')}</Link>.
-              </p>
-            </Section>
-            {mode === 'edit' && (
-              <Section title={tr('Visibility', 'Hiển thị')}>
-                <Switch checked={status === 'live' && listingLive} onChange={(v: boolean) => toggleStatus(v)} label={tr('Show my profile to schools', 'Hiển thị hồ sơ cho các trường')} />
-                {status === 'live' && !listingLive && <p className="text-sm text-muted-foreground">{tr('Your profile is under review and not visible right now. Contact support if you think this is a mistake.', 'Hồ sơ của bạn đang được xem xét và tạm thời không hiển thị. Liên hệ hỗ trợ nếu bạn cho rằng có nhầm lẫn.')}</p>}
-                {!confirmDelete ? (
-                  <Button variant="ghost" size="sm" type="button" className="text-destructive" onClick={() => setConfirmDelete(true)}><Trash2 className="size-4" />{tr('Delete my teacher profile', 'Xoá hồ sơ giáo viên')}</Button>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-sm text-body">{tr('Delete your profile, intro video and CV for good?', 'Xoá vĩnh viễn hồ sơ, video giới thiệu và CV?')}</span>
-                    <Button variant="destructive" size="sm" type="button" onClick={deleteProfile}>{tr('Delete', 'Xoá')}</Button>
-                    <Button variant="ghost" size="sm" type="button" onClick={() => setConfirmDelete(false)}>{tr('Cancel', 'Huỷ')}</Button>
-                  </div>
-                )}
-              </Section>
-            )}
-          </>
-        )}
-
-        {formError && <p role="alert" data-form-error className="text-sm text-destructive">{formError}</p>}
-      </div>
-    </StepWizard>
+            <p>{tr('Hide or delete your profile at any time in your profile settings.', 'Bạn có thể ẩn hoặc xoá hồ sơ bất cứ lúc nào trong phần cài đặt hồ sơ.')}</p>
+          </div>
+          <DrawerFooter>
+            <Button variant="secondary" type="button" onClick={() => setWhatsPublic(false)}>{tr('Close', 'Đóng')}</Button>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
+    </>
   )
 }

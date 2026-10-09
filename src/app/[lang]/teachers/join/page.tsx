@@ -18,8 +18,12 @@ export const metadata: Metadata = {
   alternates: { canonical: teacherOrigin(APP_URL) ? `${teacherOrigin(APP_URL)}/` : '/teachers/join' },
 }
 
-export default async function TeacherJoinPage() {
+// `?goal=cover` — arrived from the cover-lessons page (/teachers/cover): the work question reads "Also looking for a
+// job? (optional)" and HCMC opens on its districts. Read here, on the server, so the first paint already says it (the
+// page is dynamic anyway: it reads the Host header).
+export default async function TeacherJoinPage({ searchParams }: { searchParams: Promise<{ goal?: string | string[] }> }) {
   const draftHost = isTeacherHost((await headers()).get('host'), APP_URL)
+  const goal = (await searchParams).goal === 'cover' ? 'cover' : null
   return (
     <div className="flex min-h-page flex-col">
       {draftHost ? <TeacherHostHeader apexOrigin={apexOrigin(APP_URL)} /> : <Header />}
@@ -33,7 +37,7 @@ export default async function TeacherJoinPage() {
           </div>
           {/* eslint-enable react/jsx-no-literals */}
         </noscript>
-        <TeacherForm mode="join" draftHost={draftHost} apexOrigin={apexOrigin(APP_URL)} />
+        <TeacherForm mode="join" draftHost={draftHost} apexOrigin={apexOrigin(APP_URL)} goal={goal} />
       </main>
       <Footer />
     </div>

@@ -31,6 +31,7 @@ import { specFacets } from './electronics-specs'
 // away on the edition it does not apply to.
 import { IS_MARKETPLACE } from './edition'
 import { COVER_AREAS, COVER_SLOTS, coverSlotLabel } from './teachers/cover'
+import { ANYWHERE, HCMC_DISTRICT_KEYS, HUBS, ONLINE, PROVINCE_PLACES, placeLabel } from './teachers/places'
 
 // ── Intent axis ──────────────────────────────────────────────────────────────
 export type ListingType = 'sell' | 'rent' | 'free' | 'wanted' | 'wholesale' | 'service' | 'job' | 'event' | 'teacher'
@@ -122,14 +123,20 @@ export type FacetDef = {
   /**
    * PLACE NAMES: the options are places (cover-lesson areas), rendered as their own English or Vietnamese
    * name and never sent through `tr()` — a district is never machine-translated (PlaceName's rule).
+   * ⚠️ Except an option marked `word` (below): every place-name reader goes through facetOptionLabel
+   * (src/components/marketplace/facet-chip-label.ts), which applies both rules.
    */
   placeNames?: boolean
   /**
    * `orMore` marks an OPEN-ENDED top bucket ("6+"): the chip matches its own stored value AND every
    * larger count — see `attrNeedles` in src/lib/attr-match.ts, which the feed filter and the chip
    * counts both read, so the count and the tap cannot disagree about what "6+" means.
+   * `word` (teacher onboarding redesign, 2026-10-08) marks an option of a `placeNames` facet that is a WORD, not a
+   * place — "Can teach in"'s Online and "Will move anywhere". Its label goes through `tr()` like any other copy, so
+   * the nine machine-translated languages translate it (it is a literal here, so gen-ui-strings harvests it); a
+   * place beside it stays its own name.
    */
-  options: { value: string; label: string; labelVi: string; orMore?: boolean }[]
+  options: { value: string; label: string; labelVi: string; orMore?: boolean; word?: boolean }[]
 }
 
 /** A facet the post wizard BLOCKS PUBLISH on. Range facets (year/mileage/engine) were
@@ -1306,6 +1313,16 @@ export const TAXONOMY: CategoryDef[] = [
   // TeacherProfile, so the post wizard must never offer it (POSTING_EXCLUDED_CATEGORIES).
   // Multi-valued facets (workIn, cert, ageGroup, subject, jobType) live in Listing.facetTokens.
   // ⛔ Teacher rows are excluded from every listing query by default — see scopedListingWhere.
+  // ONBOARDING REDESIGN (owner, 2026-10-08) — what changed here, and why each old link still works:
+  //   · `workIn` KEEPS ITS KEY and is relabelled "Can teach in": its options are the one place vocabulary
+  //     (src/lib/teachers/places.ts — 12 cities, HCMC's 24 districts, 27 provinces, Online, "will move anywhere"),
+  //     and a filter expands across city ↔ district ↔ province ↔ anywhere in attr-match.ts (workInFilterKeys). The
+  //     14 old values are all still options, so every old attr_workIn link and saved search keeps working.
+  //   · `inVietnam` (new, toggle): the teacher answered "Where are you now?" with a place in Vietnam.
+  //   · `jobType` no longer offers Online (a PLACE now) — the token is still derived from 'online' in the teach areas,
+  //     so an old attr_jobType=online link still matches. `ageGroup` keeps Business as an option the form never asks:
+  //     it is derived from the Business English subject.
+  //   · `native` is set only once the English level is answered; `experience` only once the band is.
   {
     slug: 'teachers',
     name: 'Teachers',
@@ -1334,21 +1351,18 @@ export const TAXONOMY: CategoryDef[] = [
         options: COVER_AREAS.map((a) => ({ value: a.key, label: a.en, labelVi: a.vi })) },
       { key: 'salary', label: 'Expected salary', labelVi: 'Mức lương mong muốn', kind: 'range', options: [],
         range: { min: 0, max: 150, step: 1, unit: 'tr/tháng', column: 'salaryM' } },
-      { key: 'workIn', label: 'Wants to work in', labelVi: 'Muốn làm việc tại', derived: true, options: [
-        { value: 'ho-chi-minh-city', label: 'Ho Chi Minh City', labelVi: 'TP. Hồ Chí Minh' },
-        { value: 'ha-noi', label: 'Hanoi', labelVi: 'Hà Nội' },
-        { value: 'da-nang', label: 'Da Nang', labelVi: 'Đà Nẵng' },
-        { value: 'hai-phong', label: 'Hai Phong', labelVi: 'Hải Phòng' },
-        { value: 'can-tho', label: 'Can Tho', labelVi: 'Cần Thơ' },
-        { value: 'hue', label: 'Hue', labelVi: 'Huế' },
-        { value: 'khanh-hoa', label: 'Nha Trang', labelVi: 'Nha Trang' },
-        { value: 'lam-dong', label: 'Da Lat', labelVi: 'Đà Lạt' },
-        { value: 'dong-nai', label: 'Dong Nai / Bien Hoa', labelVi: 'Đồng Nai / Biên Hòa' },
-        { value: 'binh-duong', label: 'Binh Duong', labelVi: 'Bình Dương' },
-        { value: 'vung-tau', label: 'Vung Tau', labelVi: 'Vũng Tàu' },
-        { value: 'phu-quoc', label: 'Phu Quoc', labelVi: 'Phú Quốc' },
-        { value: 'anywhere', label: 'Anywhere in Vietnam', labelVi: 'Bất kỳ đâu' },
-        { value: 'online', label: 'Online', labelVi: 'Trực tuyến' },
+      // "CAN TEACH IN" — the teacher's one teach-area list, every key a token (src/lib/teachers/places.ts). Place names
+      // are never machine-translated (placeNames), and are built from places.ts rather than restated here.
+      { key: 'workIn', label: 'Can teach in', labelVi: 'Có thể dạy tại', derived: true, placeNames: true, options: [
+        ...HUBS.map((k) => ({ value: k, label: placeLabel(k, 'en'), labelVi: placeLabel(k, 'vi') })),
+        ...HCMC_DISTRICT_KEYS.map((k) => ({ value: k, label: placeLabel(k, 'en'), labelVi: placeLabel(k, 'vi') })),
+        ...PROVINCE_PLACES.map((p) => ({ value: p.key, label: p.nameEn, labelVi: p.name })),
+        // Words, not places (`word`): translated like any copy, where the places around them never are.
+        { value: ONLINE, label: 'Online', labelVi: 'Trực tuyến', word: true },
+        { value: ANYWHERE, label: 'Will move anywhere', labelVi: 'Sẵn sàng chuyển đến bất kỳ đâu', word: true },
+      ] },
+      { key: 'inVietnam', label: 'In Vietnam now', labelVi: 'Đang ở Việt Nam', kind: 'toggle', derived: true, options: [
+        { value: 'yes', label: 'In Vietnam now', labelVi: 'Đang ở Việt Nam' },
       ] },
       { key: 'native', label: 'Native speaker', labelVi: 'Người bản ngữ', kind: 'toggle', derived: true, options: [
         { value: 'native', label: 'Native', labelVi: 'Bản ngữ' },
@@ -1378,6 +1392,7 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'associate', label: 'Associate / college', labelVi: 'Cao đẳng' },
         { value: 'no-degree', label: 'No degree', labelVi: 'Không có bằng' },
       ] },
+      // 'business' is a filter value only: derived from the Business English subject (the form asks kids/teens/adults).
       { key: 'ageGroup', label: 'Teaches', labelVi: 'Dạy lứa tuổi', derived: true, options: [
         { value: 'kids', label: 'Kids', labelVi: 'Trẻ em' },
         { value: 'teens', label: 'Teens', labelVi: 'Thiếu niên' },
@@ -1394,10 +1409,11 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'stem', label: 'Maths & science', labelVi: 'Toán & khoa học' },
         { value: 'other-language', label: 'Other language', labelVi: 'Ngoại ngữ khác' },
       ] },
+      // No Online chip: Online is a place ("Can teach in"). The `jobType:online` token is still derived from it, so an
+      // old attr_jobType=online link keeps matching (attr-match.ts default branch).
       { key: 'jobType', label: 'Looking for', labelVi: 'Tìm việc', derived: true, options: [
         { value: 'fulltime', label: 'Full-time', labelVi: 'Toàn thời gian' },
         { value: 'parttime', label: 'Part-time', labelVi: 'Bán thời gian' },
-        { value: 'online', label: 'Online', labelVi: 'Trực tuyến' },
         { value: 'private', label: 'Private tutoring', labelVi: 'Gia sư' },
       ] },
       { key: 'video', label: 'Intro video', labelVi: 'Video giới thiệu', kind: 'toggle', derived: true, options: [

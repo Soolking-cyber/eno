@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyUnsubscribeToken } from '@/lib/unsubscribe-token'
+import { optInWrites } from '@/lib/teachers/publish'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -8,10 +9,11 @@ export const dynamic = 'force-dynamic'
 const ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
 // Token-scoped, NO auth session required (the token IS the credential, per-Profile and
-// unguessable). Flips Profile.weeklyDigestOptIn.
+// unguessable). Flips Profile.weeklyDigestOptIn — or, with `list=teacher-matches`, switches the
+// teacher job-match emails off (below).
 //
 // POST /api/unsubscribe?token=… — RFC 8058 one-click target (mail clients POST here) and
-//   the /unsubscribe page's fetch. Body {optIn:true} re-subscribes; default unsubscribes.
+//   the /unsubscribe page's fetch. Body {optIn:true} re-subscribes the weekly digest; default unsubscribes.
 // GET  /api/unsubscribe?token=… — a bare GET (or a link scanner) must NOT mutate, so it
 //   just redirects to the confirm page. Only the POST changes state.
 //
@@ -53,9 +55,11 @@ export async function POST(req: NextRequest) {
   // these emails never carried one).
   if (new URL(req.url).searchParams.get('list') === 'teacher-matches') {
     if (!signedProfileId) return NextResponse.json({ error: 'invalid_token' }, { status: 404 })
-    const r = await db.teacherProfile.updateMany({ where: { profileId: signedProfileId }, data: { matchEmailOptIn: optIn } })
-    if (r.count === 0) return NextResponse.json({ error: 'invalid_token' }, { status: 404 })
-    return NextResponse.json({ ok: true, optIn })
+    // ⛔ NO ONE-TAP RE-SUBSCRIBE (plan review D5/E3). Turning match emails ON is a consent to AI matching (Anthropic,
+    // outside Vietnam) and must be given where that notice is shown — the teacher profile (/teachers/edit), whose save
+    // stamps the notice version. It used to flip matchEmailOptIn back on here, with no consent record at all.
+    if (optIn) return NextResponse.json({ error: 'resubscribe_in_profile' }, { status: 400 })
+    return unsubscribeTeacherMatches(signedProfileId)
   }
 
   const res = signedProfileId
@@ -69,6 +73,35 @@ export async function POST(req: NextRequest) {
 
   if (res.count === 0) return NextResponse.json({ error: 'invalid_token' }, { status: 404 })
   return NextResponse.json({ ok: true, optIn })
+}
+
+/**
+ * ⛔ A WITHDRAWAL IS RECORDED, NOT JUST APPLIED (PDP Law 91/2025; plan review B9/C2): matchEmailOptIn goes off and
+ * matchEmailWithdrawnAt is stamped — through optInWrites, the SAME rule the profile form's save uses, so the last grant
+ * (time + AI notice version) stays on record. An opt-in already off is left as it is (a repeated one-click is a no-op).
+ * ⚠️ COMPARE-AND-SET, not a blind write: the update applies only if the four stored fields are still what was read, so a
+ * profile save landing in between is never overwritten with stale consent evidence — the read is simply retried.
+ * A valid signature for an account with no teacher profile (deleted) answers ok: there is nothing left to email.
+ */
+async function unsubscribeTeacherMatches(profileId: string) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const row = await db.teacherProfile.findUnique({
+      where: { profileId },
+      select: { id: true, matchEmailOptIn: true, matchEmailOptInAt: true, matchEmailNoticeVersion: true, matchEmailWithdrawnAt: true },
+    })
+    if (!row || !row.matchEmailOptIn) return NextResponse.json({ ok: true, optIn: false })
+    const w = optInWrites(false, { on: true, at: row.matchEmailOptInAt, version: row.matchEmailNoticeVersion, withdrawnAt: row.matchEmailWithdrawnAt }, new Date())
+    const res = await db.teacherProfile.updateMany({
+      where: {
+        id: row.id, matchEmailOptIn: true, matchEmailOptInAt: row.matchEmailOptInAt,
+        matchEmailNoticeVersion: row.matchEmailNoticeVersion, matchEmailWithdrawnAt: row.matchEmailWithdrawnAt,
+      },
+      data: { matchEmailOptIn: w.on, matchEmailOptInAt: w.at, matchEmailNoticeVersion: w.version, matchEmailWithdrawnAt: w.withdrawnAt },
+    })
+    if (res.count === 1) return NextResponse.json({ ok: true, optIn: false })
+  }
+  // Three saves in a row raced this one: say so (try again) rather than claim a withdrawal that did not land.
+  return NextResponse.json({ error: 'retry' }, { status: 409 })
 }
 
 export function GET(req: NextRequest) {

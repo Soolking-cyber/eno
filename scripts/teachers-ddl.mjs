@@ -4,7 +4,9 @@
 //
 // Run AFTER the teacher tables exist (the safe flow in prisma/CLAUDE.md creates them from
 // schema.prisma). Adds CHECK constraints (TeacherJobMatch's owner rule; TeacherProfile's cover-lesson bounds,
-// 2026-10-07) and the PRIVATE storage bucket for CVs. Nothing existing is altered or dropped.
+// 2026-10-07; its teach-area bounds, 2026-10-08), the later TeacherProfile columns (cover lessons, the intro video, the
+// onboarding redesign), TeacherContactShare.phoneShared (2026-10-09) and the PRIVATE storage buckets. Nothing existing
+// is altered or dropped.
 //
 // ⛔ THE CHECK IS THE ONLY THING THAT MAKES `TeacherJobMatch` DEDUPE. Its two unique keys are
 // (teacherProfileId, listingId) and (leadId, listingId); a row with BOTH ids null satisfies both
@@ -129,6 +131,62 @@ await client.query(`
     end if;
   end $$`)
 console.log('ok  intro video columns + TeacherVideoShare')
+
+// ⛔ TEACHER ONBOARDING REDESIGN (owner, 2026-10-08) — the situation, the one teach-area list and the consent evidence.
+// EXACTLY the sixteen `ADD COLUMN`s `prisma migrate diff` prints for schema.prisma's new TeacherProfile fields (diffed
+// schema-to-schema, so `migrate diff` against a migrated database shows no drift), made idempotent and ADDITIVE ONLY.
+// Every one is nullable or defaulted, so the old code keeps running against the migrated table, and nothing existing
+// changes meaning: the old place / experience / native columns stay, written by every new save as mirrors
+// (src/lib/teachers/projection.ts teacherMirrors) — the old revision, a rollback and the external matcher read them.
+//   · the answers: livesIn (NULL = not answered — never defaulted), currentProvince, currentDistrictKey, teachAreas,
+//     teachLanguages, englishLevel, experienceBand, and the server-written situationVersion (NULL = not yet migrated by
+//     scripts/teachers-backfill.ts) and teachAreasConfirmedAt;
+//   · the consent evidence (PDP Law 91/2025 Art 9(4)(d), Decree 356/2025 Art 6(3)): consentPublicVersion, and per
+//     opt-in its time, the notice version shown and the withdrawal's time.
+// ⚠️ RUN THIS ON PRODUCTION BEFORE THE DEPLOY (and before the backfill): GET /api/teachers/me reads every TeacherProfile
+// column, so the new code against the old table answers 42703.
+await client.query(`
+  alter table "TeacherProfile"
+    add column if not exists "consentPublicVersion" text,
+    add column if not exists "currentDistrictKey" text,
+    add column if not exists "currentProvince" text,
+    add column if not exists "englishLevel" text,
+    add column if not exists "experienceBand" text,
+    add column if not exists "livesIn" text,
+    add column if not exists "matchEmailNoticeVersion" text,
+    add column if not exists "matchEmailOptInAt" timestamp(3),
+    add column if not exists "matchEmailWithdrawnAt" timestamp(3),
+    add column if not exists "situationVersion" integer,
+    add column if not exists "staffContactNoticeVersion" text,
+    add column if not exists "staffContactOptInAt" timestamp(3),
+    add column if not exists "staffContactWithdrawnAt" timestamp(3),
+    add column if not exists "teachAreas" text[] default array[]::text[],
+    add column if not exists "teachAreasConfirmedAt" timestamp(3),
+    add column if not exists "teachLanguages" text[] default array[]::text[]`)
+console.log('ok  TeacherProfile onboarding columns')
+// The database half of the list bounds: never more teach areas or taught languages than the form can produce. ⚠️ THE
+// NUMBERS ARE src/lib/teachers/places.ts MAX_TEACH_AREAS and profile.ts LIMITS.teachLanguages — places.test.ts reads
+// this file and fails if they drift. coalesce(): a CHECK accepts NULL. `if not exists` matches the NAME only: to change
+// the numbers later, drop the constraint first (see TeacherProfile_cover_bounds above).
+await client.query(`
+  do $$ begin
+    if not exists (select 1 from pg_constraint where conname = 'TeacherProfile_teach_bounds' and conrelid = '"TeacherProfile"'::regclass) then
+      alter table "TeacherProfile" add constraint "TeacherProfile_teach_bounds" check (
+        coalesce(cardinality("teachAreas"), 0) <= 40 and coalesce(cardinality("teachLanguages"), 0) <= 8);
+    end if;
+  end $$`)
+console.log('ok  TeacherProfile_teach_bounds')
+
+// ⛔ A CONTACT SHARE RECORDS WHETHER ITS TAP INCLUDED THE PHONE (gate review, 2026-10-09). The phone is optional since the
+// redesign, so a teacher with none shares "email & CV" — and the contact route served the CURRENT private row, so a phone
+// added later silently reached every school shared with before. Exactly Prisma's DDL for schema.prisma's
+// TeacherContactShare.phoneShared, idempotent and additive. DEFAULT TRUE IS THE BACKFILL, AND IT IS EXACT: every
+// existing row was made while a phone was required, under the line "Shared my phone, email and CV" (and a rolled-back
+// revision, which never writes the column, still inserts). On Postgres 11+ a constant default is metadata only — no
+// rewrite of the table. ⚠️ RUN THIS ON PRODUCTION BEFORE THE DEPLOY: the conversation GET selects the column on EVERY
+// thread open, so the new code against the old table breaks every conversation, not only teacher threads.
+await client.query(`alter table "TeacherContactShare" add column if not exists "phoneShared" boolean not null default true`)
+console.log('ok  TeacherContactShare.phoneShared')
 
 // Storage lives in the `storage` schema only on Supabase; a scratch Postgres has none.
 const hasStorage = await client.query(`select to_regclass('storage.buckets') as t`)

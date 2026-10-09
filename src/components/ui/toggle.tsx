@@ -4,6 +4,11 @@ import { Toggle as BaseToggle } from '@base-ui/react/toggle'
 import { cn } from '@/lib/utils'
 import { hapticSelection } from '@/lib/haptics'
 
+/** The behaviour layer every toggle wears — the pointer, the focus ring, disabled. One copy: ui/toggle-group's items
+ *  render Base UI's Toggle themselves (a grouped toggle takes its pressed state from the group), so they share it. */
+export const TOGGLE_BASE =
+  'cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50'
+
 /**
  * A two-state button — Base UI's Toggle (a real `<button aria-pressed>`), so Space/Enter, disabled and
  * the pressed state's accessibility come from the library rather than from a hand-rolled onClick.
@@ -34,10 +39,7 @@ export function Toggle({
         hapticSelection()
         onPressedChange(next)
       }}
-      className={cn(
-        'cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:pointer-events-none disabled:opacity-50',
-        className,
-      )}
+      className={cn(TOGGLE_BASE, className)}
       {...props}
     >
       {children}

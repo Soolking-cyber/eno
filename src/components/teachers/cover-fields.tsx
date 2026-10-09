@@ -1,30 +1,38 @@
 'use client'
 
-// ── COVER LESSONS FIELDS (owner, 2026-10-07) ────────────────────────────────────────────────────────
-// "when they post available periods like monday morning tuesday afternoon by tapping quickly and specify
-// hourly rate … in areas they selected by district". The switch, the 7×3 free-period grid, the area chips,
-// the hourly rate and the SEPARATE cover consent — shared by the profile wizard's "Cover lessons" step on
-// both hosts. Rules and option lists: src/lib/teachers/cover.ts; validation: src/lib/teachers/profile.ts.
+// ── COVER LESSONS FIELDS (owner, 2026-10-07; reworked by the onboarding redesign, 2026-10-08) ─────────────────────────
+// "when they post available periods like monday morning tuesday afternoon by tapping quickly and specify hourly rate
+// … in areas they selected by district". The switch, the 7×3 free-period grid with its quick picks, the hourly rate —
+// and, read-only, where schools find the teacher for cover. Rules and option lists: src/lib/teachers/cover.ts;
+// validation: src/lib/teachers/profile.ts.
 //
-// ⛔ Base UI throughout: every tappable cell and area is a <Chip pressed> (ui/toggle — a real aria-pressed
-// button), never a hand-rolled <Button aria-pressed>. Place names are never sent through tr() (PlaceName's rule).
+// ⛔ THE SWITCH IS THE CONSENT (2026-10-08 — COVER_CONSENT_VERSION was bumped for it). "Available for cover lessons"
+// carries its notice beside it, and switching it ON is the act: coverConsent follows coverOpen, there is no tick box,
+// and the form sends the notice's version (coverNotice) so the server records which words were shown. Switching OFF
+// withdraws it (the server stamps the withdrawal; the periods and the rate are kept for later).
+// ⛔ THE AREAS ARE NOT PICKED HERE ANY MORE: cover reaches the teacher's "Where you teach" places near home
+// (places.ts coverReachOf), shown as one read-only line with Change. A second list of places was the plan's first
+// thing to go — two lists disagreed.
+// ⛔ Base UI throughout: every tappable cell is a <Chip pressed> (ui/toggle — a real aria-pressed button), the switch
+// is a ui/switch SwitchRow with a visible label. Place names are never sent through tr() (PlaceName's rule).
 
 import { useId } from 'react'
 import { useLanguage } from '@/context/language-context'
-import { Switch } from '@/components/ui/switch'
+import { SwitchRow } from '@/components/ui/switch'
 import { Chip } from '@/components/ui/chip'
-import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@/components/ui/button'
 import { Check } from '@/components/ui/icons'
 import { VndInput } from '@/components/marketplace/vnd-input'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
-import {
-  COVER_CITIES, COVER_DAYS, COVER_PARTS, COVER_PART_LABELS, COVER_RATE_PRESETS,
-  coverAreasForCities, coverCitiesFor, coverDayShort, coverSlotLabel,
-} from '@/lib/teachers/cover'
+import { COVER_DAYS, COVER_PARTS, COVER_PART_LABELS, COVER_RATE_PRESETS, coverDayShort, coverSlotLabel } from '@/lib/teachers/cover'
+import { HCMC, coverReachOf, placeLabel } from '@/lib/teachers/places'
 import type { TeacherErrors, TeacherInput } from '@/lib/teachers/profile'
 
-export type CoverValue = Pick<TeacherInput, 'coverOpen' | 'coverSlots' | 'coverAreas' | 'coverRateVnd' | 'coverConsent' | 'currentCity' | 'preferredCities'>
-export type CoverPatch = Partial<Pick<TeacherInput, 'coverOpen' | 'coverSlots' | 'coverAreas' | 'coverRateVnd' | 'coverConsent'>>
+export type CoverValue = Pick<
+  TeacherInput,
+  'coverOpen' | 'coverSlots' | 'coverRateVnd' | 'coverConsent' | 'livesIn' | 'currentCity' | 'currentProvince' | 'teachAreas'
+>
+export type CoverPatch = Partial<Pick<TeacherInput, 'coverOpen' | 'coverSlots' | 'coverRateVnd' | 'coverConsent'>>
 
 const WEEKDAYS = COVER_DAYS.slice(0, 5)
 /** Quick picks — TOGGLES (a real aria-pressed Chip): pressed while all of its periods are picked; pressing adds them
@@ -48,21 +56,34 @@ function Block({ title, hint, children }: { title: string; hint?: string; childr
   )
 }
 
-export function CoverFields({ value, onChange, errors }: { value: CoverValue; onChange: (patch: CoverPatch) => void; errors: TeacherErrors }) {
+/**
+ * The notice beside the switch — ⛔ ITS MEANING IS COVER_CONSENT_VERSION (src/lib/teachers/cover.ts): change what it
+ * says is shown, to whom, or for how long, and that version must be bumped in the same change. Wording: owner to
+ * approve before deploy (plan amendment A5).
+ */
+export function CoverNotice() {
+  const { tr } = useLanguage()
+  return (
+    <>{tr('Switching this on shows your free periods, your hourly rate and the places where schools find you for cover on your public profile, where schools and search engines can see them — never your phone, email or address. Switch it off any time.', 'Khi bật, các buổi rảnh, mức phí theo giờ và những nơi các trường tìm bạn để dạy thay sẽ hiển thị trên hồ sơ công khai của bạn, nơi các trường và công cụ tìm kiếm có thể xem — không bao giờ hiển thị số điện thoại, email hay địa chỉ. Bạn có thể tắt bất cứ lúc nào.')}</>
+  )
+}
+
+export function CoverFields({ value, onChange, errors, onChangePlaces, errText }: {
+  value: CoverValue
+  onChange: (patch: CoverPatch) => void
+  errors: TeacherErrors
+  /** "Change" beside the read-only reach line: to the "Where you teach" step. */
+  onChangePlaces: () => void
+  /** An error code → its words (the form's, so every step words them alike). */
+  errText: (field: string, code: string | undefined) => string
+}) {
   const { tr, lang } = useLanguage()
-  const switchLabelId = useId()
   // Each error is named, announced and tied to its control (preview check, 2026-10-07: they were bare paragraphs).
   const errId = useId()
-  const errProps = (key: keyof TeacherErrors, part: string) =>
-    errors[key] ? { 'aria-invalid': true as const, 'aria-describedby': `${errId}-${part}` } : {}
   // A GROUP of chips is not a control: aria-invalid is not supported on role=group (ARIA 1.2), so a group carries the
   // description and a data marker the form's error reveal finds (teacher-form revealFirstError).
   const groupErrProps = (key: keyof TeacherErrors, part: string) =>
     errors[key] ? { 'data-invalid': '', 'aria-describedby': `${errId}-${part}` } : {}
-  const err = (code: string | undefined): string =>
-    code === 'required' ? tr('This is required.', 'Mục này là bắt buộc.')
-      : code === 'rate_range' ? tr('Please enter a rate between 50,000 đ and 2,000,000 đ an hour.', 'Vui lòng nhập mức phí từ 50.000 đ đến 2.000.000 đ một giờ.')
-        : code ? tr('Please check this value.', 'Vui lòng kiểm tra lại.') : ''
 
   const slots = new Set(value.coverSlots)
   const toggleSlot = (slot: string, on: boolean) =>
@@ -70,27 +91,28 @@ export function CoverFields({ value, onChange, errors }: { value: CoverValue; on
   const quickPick = (pick: string[], on: boolean) =>
     onChange({ coverSlots: on ? [...new Set([...value.coverSlots, ...pick])] : value.coverSlots.filter((s) => !pick.includes(s)) })
 
-  // The teacher's own cities first, then every other city — ALL stay pickable, so a stored pick never hides.
-  const own = coverCitiesFor(value.currentCity, value.preferredCities)
-  const cities = [...own, ...COVER_CITIES.map((c) => c.key).filter((k) => !own.includes(k))]
-  const areas = coverAreasForCities(cities)
-  const pickedAreas = new Set(value.coverAreas)
-  const toggleArea = (key: string, on: boolean) =>
-    onChange({ coverAreas: on ? [...value.coverAreas, key] : value.coverAreas.filter((k) => k !== key) })
-  // i18n-invariant: a place name, never machine-translated (PlaceName's rule) — Vietnamese or English, nothing else.
-  const placeName = (o: { en: string; vi: string }) => (lang === 'vi' ? o.vi : o.en)
+  // Where schools find the teacher for cover: their teach areas near home, never another city, Online or "anywhere".
+  const reach = coverReachOf(value)
+  // A consent the record no longer holds (a stale window's merge): the switch must be switched on again to give it.
+  const consentLine = errors.coverConsent ? tr('Switch cover lessons off and on again to agree to the notice above.', 'Hãy tắt rồi bật lại dạy thay để đồng ý với thông báo ở trên.') : ''
 
   return (
     <div className="space-y-6">
       <p className="text-sm text-muted-foreground">
-        {tr('Schools often need a teacher at short notice for a single lesson. Switch this on to show the periods you are usually free, the areas you can reach and your hourly rate — schools then message you in the app.', 'Các trường thường cần giáo viên dạy thay gấp cho một buổi học. Bật để hiển thị các buổi bạn thường rảnh, khu vực bạn có thể đến và mức phí theo giờ — các trường sẽ nhắn tin cho bạn trong ứng dụng.')}
+        {tr('Schools often need a teacher at short notice for a single lesson. Show the periods you are usually free and your hourly rate — schools then message you in the app.', 'Các trường thường cần giáo viên dạy thay gấp cho một buổi học. Hãy cho biết các buổi bạn thường rảnh và mức phí theo giờ — các trường sẽ nhắn tin cho bạn trong ứng dụng.')}
       </p>
-      {/* A VISIBLE label (UrgentRow's pattern, post-wizard-sections.tsx): the words sit in the row, and
-          aria-labelledby names the switch by the title alone — Base UI would otherwise take the whole row. */}
-      <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl bg-tint px-4 py-3">
-        <span id={switchLabelId} className="text-sm font-semibold text-foreground">{tr('I can take cover lessons', 'Tôi nhận dạy thay')}</span>
-        <Switch checked={value.coverOpen} onChange={(v: boolean) => onChange({ coverOpen: v })} aria-labelledby={switchLabelId} />
-      </label>
+      {/* ⛔ THE CONSENT ACT: the switch, its notice beside it — no tick box. */}
+      <div className="space-y-2" {...(errors.coverOpen || errors.coverConsent ? { 'data-invalid': '' } : {})}>
+        <SwitchRow
+          id="tf-cover-switch"
+          checked={value.coverOpen}
+          onChange={(on) => onChange({ coverOpen: on, coverConsent: on })}
+          label={tr('Available for cover lessons', 'Nhận dạy thay')}
+          description={<CoverNotice />}
+        />
+        {errors.coverOpen && <p role="alert" className="text-sm text-destructive">{errText('coverOpen', errors.coverOpen)}</p>}
+        {consentLine && <p role="alert" className="text-sm text-destructive">{consentLine}</p>}
+      </div>
 
       {value.coverOpen && (
         <>
@@ -140,35 +162,7 @@ export function CoverFields({ value, onChange, errors }: { value: CoverValue; on
                 </div>
               ))}
             </div>
-            {errors.coverSlots && <p id={`${errId}-slots`} role="alert" className="text-sm text-destructive">{err(errors.coverSlots)}</p>}
-          </Block>
-
-          <Block title={tr('Where can you teach a cover?', 'Bạn có thể dạy thay ở đâu?')} hint={tr('Pick the districts you can reach at short notice, or a whole city.', 'Chọn các quận bạn có thể đến gấp, hoặc cả thành phố.')}>
-            <div role="group" aria-label={tr('Cover areas', 'Khu vực dạy thay')} {...groupErrProps('coverAreas', 'areas')} className="space-y-4">
-                {cities.map((k) => COVER_CITIES.find((c) => c.key === k)!).map((c) => (
-                  // Each city is a group named by the city, and its city-wide chip carries the city in its OWN label ("All of
-                  // Hanoi"): twelve chips all reading "Anywhere in the city" told a screen reader nothing, and an aria-label
-                  // over that visible text broke Label-in-Name for voice control (preview checks, 2026-10-07).
-                  <div key={c.key} role="group" aria-labelledby={`${errId}-city-${c.key}`} className="space-y-2">
-                    <p id={`${errId}-city-${c.key}`} className="text-xs font-semibold text-muted-foreground">{placeName(c)}</p>
-                    <div className="flex flex-wrap gap-2">
-                      {areas.filter((a) => a.city === c.key).map((a) => (
-                        <Chip
-                          key={a.key}
-                          pressed={pickedAreas.has(a.key)}
-                          onPressedChange={(v) => toggleArea(a.key, v)}
-                          size="md"
-                          tone="neutral"
-                          className="relative tap-44"
-                        >
-                          {placeName(a)}
-                        </Chip>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-            </div>
-            {errors.coverAreas && <p id={`${errId}-areas`} role="alert" className="text-sm text-destructive">{err(errors.coverAreas)}</p>}
+            {errors.coverSlots && <p id={`${errId}-slots`} role="alert" className="text-sm text-destructive">{errText('coverSlots', errors.coverSlots)}</p>}
           </Block>
 
           <Block title={tr('Your hourly rate for a cover lesson', 'Mức phí dạy thay theo giờ')}>
@@ -185,17 +179,19 @@ export function CoverFields({ value, onChange, errors }: { value: CoverValue; on
               aria-label={tr('Hourly rate for a cover lesson', 'Mức phí dạy thay theo giờ')}
               aria-required
             />
-            {errors.coverRateVnd && <p id={`${errId}-rate`} role="alert" className="text-sm text-destructive">{err(errors.coverRateVnd)}</p>}
+            {errors.coverRateVnd && <p id={`${errId}-rate`} role="alert" className="text-sm text-destructive">{errText('coverRateVnd', errors.coverRateVnd)}</p>}
           </Block>
 
-          {/* ⛔ ITS OWN CONSENT (PDP Law 91/2025 — specific, unbundled, provable). The server records the time and
-              the notice version (COVER_CONSENT_VERSION) — bump that version whenever these words change meaning. */}
-          <div className="space-y-2">
-            <label className="flex cursor-pointer items-start gap-2.5 text-sm leading-relaxed text-body">
-              <Checkbox checked={value.coverConsent} onChange={(v: boolean) => onChange({ coverConsent: v })} {...errProps('coverConsent', 'consent')} className="mt-0.5 h-5 w-5" />
-              <span>{tr('Show my free periods, hourly rate and cover areas on my public profile, where schools and search engines can see them. Never my phone, email or address. I can switch cover off at any time. Required for cover.', 'Hiển thị các buổi rảnh, mức phí theo giờ và khu vực dạy thay trên hồ sơ công khai của tôi, nơi các trường và công cụ tìm kiếm có thể xem. Không bao giờ hiển thị số điện thoại, email hay địa chỉ. Tôi có thể tắt dạy thay bất cứ lúc nào. Bắt buộc để nhận dạy thay.')}</span>
-            </label>
-            {errors.coverConsent && <p id={`${errId}-consent`} role="alert" className="text-sm text-destructive">{err(errors.coverConsent)}</p>}
+          {/* READ-ONLY: the reach is the "Where you teach" places near home (coverReachOf) — changed there, not here. */}
+          <div className="space-y-1.5 rounded-xl bg-tint px-3.5 py-3">
+            <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-foreground">
+              <span className="font-semibold">{tr('Schools find you for cover in:', 'Các trường tìm bạn để dạy thay tại:')}</span>
+              <span data-testid="cover-reach">{reach.length ? reach.map((k) => placeLabel(k, lang)).join(' · ') : tr('nowhere yet', 'chưa có nơi nào')}</span>
+              <Button variant="link" size="none" type="button" className="font-semibold" onClick={onChangePlaces}>{tr('Change', 'Thay đổi')}</Button>
+            </p>
+            {reach.includes(HCMC) && (
+              <p className="text-xs text-muted-foreground">{tr('Tip: schools look for cover by district. Choosing your districts on the “Where you teach” step puts you in front of the schools near you.', 'Mẹo: các trường tìm giáo viên dạy thay theo quận. Chọn các quận của bạn ở bước “Nơi bạn dạy” để các trường gần bạn thấy bạn.')}</p>
+            )}
           </div>
         </>
       )}

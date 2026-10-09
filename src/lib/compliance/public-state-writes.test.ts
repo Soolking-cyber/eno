@@ -63,7 +63,7 @@ const ROOT = process.cwd()
 const AUDITED: Record<string, { count: number; why: string }> = {
   // ── Gated ──
   'src/lib/core/listings.ts': { count: 2, why: 'createListingCore insert (assertSellerMayPublish, guests refused) + confirmCore revive (identityGateForRevive → refuse)' },
-  'src/lib/teachers/publish.ts': { count: 1, why: 'saveTeacherProfile insert — assertSellerMayPublish (signed-in owner only); edits never touch status/verified, and setTeacherStatus(live) passes the same gate and cannot lift a moderation pull (verified:false)' },
+  'src/lib/teachers/publish.ts': { count: 1, why: 'saveTeacherProfile insert — assertSellerMayPublish (signed-in owner only); edits never touch status/verified, and setTeacherStatus(live) passes the same gate and cannot lift a moderation pull (verified:false) nor re-show a profile with no job goal and no public cover (D6 — TeacherNoGoalError, under the account lock)' },
   'src/lib/core/bulk.ts': { count: 1, why: 'bulkImportCore insert — whole batch refused before the loop (sellerPublishDecision)' },
   'src/app/api/admin/listings/route.ts': { count: 4, why: 'admin activate/verify — partitionByIdentityGate, refused owners are HELD (identityHold)' },
   'src/app/api/admin/moderate/route.ts': { count: 1, why: 'moderation approve — partitionByIdentityGate, refused owner HELD' },

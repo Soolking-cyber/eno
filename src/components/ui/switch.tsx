@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import { Switch as BaseSwitch } from '@base-ui/react/switch'
 import { cn } from '@/lib/utils'
 import { hapticTap } from '@/lib/haptics'
@@ -102,5 +103,57 @@ export function Switch({
         {children}
       </BaseSwitch.Thumb>
     </BaseSwitch.Root>
+  )
+}
+
+/**
+ * A SWITCH WITH ITS WORDS IN VIEW — a visible label beside the switch and, optionally, what switching it means under
+ * it (the post wizard's UrgentRow, as a primitive). "Every switch has a visible label": a bare `<Switch label>` is
+ * named only for a screen reader.
+ *   · The NAME is the label alone (`aria-labelledby`), and the description is read once, as the description
+ *     (`aria-describedby`). ⚠️ Load-bearing, not redundant: inside a `<label>`, Base UI names the switch by the WHOLE
+ *     label otherwise — the description read twice (UrgentRow's note, post-wizard-sections.tsx).
+ *   · ⛔ ONLY THE LABEL ROW IS THE TAP TARGET. The description sits OUTSIDE the `<label>`: for a switch that IS a
+ *     consent (the cover switch, the job-match opt-ins) a tap on the notice while reading it must never flip it.
+ *   · `description` may hold a link (a privacy policy), which is why it is a block, not a span inside the label.
+ */
+export function SwitchRow({
+  checked,
+  onChange,
+  label,
+  description,
+  disabled,
+  id,
+  className,
+}: {
+  checked: boolean
+  onChange?: (next: boolean) => void
+  /** The visible name — short, a statement of what ON means ("Available for cover lessons"). */
+  label: React.ReactNode
+  /** What switching it on does, in full — a notice, a hint. Read as the switch's description. */
+  description?: React.ReactNode
+  disabled?: boolean
+  /** Lands on the switch itself (an error reveal or a deep link can focus it). */
+  id?: string
+  className?: string
+}) {
+  const uid = useId()
+  const labelId = `${uid}-label`
+  const descId = `${uid}-desc`
+  return (
+    <div data-slot="switch-row" className={cn('rounded-2xl bg-tint px-4 py-3', className)}>
+      <label className={cn('flex items-center justify-between gap-4', disabled ? 'cursor-not-allowed' : 'cursor-pointer')}>
+        <span id={labelId} className="min-w-0 text-sm font-semibold text-foreground">{label}</span>
+        <Switch
+          id={id}
+          checked={checked}
+          onChange={onChange}
+          disabled={disabled}
+          aria-labelledby={labelId}
+          aria-describedby={description ? descId : undefined}
+        />
+      </label>
+      {description ? <div id={descId} className="mt-1.5 text-sm text-body">{description}</div> : null}
+    </div>
   )
 }

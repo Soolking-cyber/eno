@@ -7,6 +7,8 @@
  * (day × morning/afternoon/evening), one hourly rate in VND, and the areas the teacher will travel to.
  * Stored on TeacherProfile (coverOpen/coverSlots/coverAreas/coverRateVnd) and projected, ONLY while cover
  * is open, into the teacher Listing's `facetTokens` as `cover:open`, `coverSlot:<slot>`, `coverArea:<key>`.
+ * ⚠️ SINCE 2026-10-08 THE AREAS ARE DERIVED, NOT PICKED: coverAreas = the teacher's "Where you can teach" places inside
+ * their home province (places.ts coverReachOf), rewritten by every save. The switch itself is the consent act.
  *
  * Pure and import-light: the form, the publish core, the attr filter (src/lib/attr-match.ts) and the
  * taxonomy all read it. ⛔ It must NOT import the taxonomy — the taxonomy builds its cover facets from here.
@@ -93,11 +95,16 @@ export const COVER_RATE_PRESETS = [200_000, 300_000, 400_000, 500_000] as const
  * ⛔ BUMP IT WHENEVER THE NOTICE'S MEANING CHANGES — what is shown, to whom, or for how long — so the
  * record says which words each teacher actually accepted (VN PDP Law 91/2025: consent must be provable).
  * ⚠️ A BUMP HIDES OLD GRANTS ON THE PROFILE AT ONCE (teacher-profile-view.tsx checks the version) and makes every
- * cover save ask for the new tick — but the search TOKENS of teachers who never come back stay until re-projected.
+ * cover save ask for the new consent — but the search TOKENS of teachers who never come back stay until re-projected.
  * So a bump must ship with a one-off re-projection: for every profile whose coverConsentVersion is older, rebuild
  * the listing's facetTokens without the cover tokens (teacherFacetTokens with coverConsent false).
+ * BUMPED 2026-10-08 (teacher onboarding redesign): the "Available for cover lessons" SWITCH is now the consent act (no
+ * tick box) and the areas are DERIVED from the "Where you can teach" list (places.ts coverReachOf), so the words a
+ * teacher agrees to changed. The re-projection is scripts/teachers-backfill.ts: it rebuilds every migrated row's
+ * tokens with coverConsent = (coverConsentVersion === this), so a '2026-10-07' grant leaves cover search until the
+ * teacher switches cover on again under the new notice.
  */
-export const COVER_CONSENT_VERSION = '2026-10-07'
+export const COVER_CONSENT_VERSION = '2026-10-08'
 
 /**
  * The cities a teacher can pick cover areas in — the taxonomy's `workIn` cities, minus `anywhere` and
@@ -172,6 +179,8 @@ export function coverAreaLabel(key: string, lang: string): string {
  * shows FIRST. ⛔ ORDERING ONLY, NEVER A FILTER (gate review, 2026-10-07): areas are their own choice, and every city
  * stays pickable, so a pick can never become invisible on the form or be silently dropped by the server when the
  * teacher's cities change — the two ways the earlier filter made the stored and the shown cover disagree.
+ * ⚠️ TRANSITIONAL (2026-10-08): cover areas are now derived (places.ts coverReachOf), so nothing new calls this; it stays
+ * only until the old cover picker is gone at the onboarding integration merge, which deletes it with coverAreasForCities.
  */
 export function coverCitiesFor(currentCity: string, preferredCities: readonly string[]): string[] {
   if (preferredCities.includes('anywhere')) return COVER_CITIES.map((c) => c.key)
@@ -182,6 +191,9 @@ export function coverCitiesFor(currentCity: string, preferredCities: readonly st
 /**
  * A stamp of the whole cover state — what an edit-mode save sends as `coverBase` (the state it loaded), and what the
  * server compares under the account lock: any difference, not just on/off, means another window saved first.
+ * ⚠️ `coverAreas` here is the STORED, DERIVED reach (TeacherProfile.coverAreas, written by every save from places.ts
+ * coverReachOf) — the form never sends areas any more (2026-10-08), but a reach that moved because another window
+ * changed the teach areas is still another window's change, so the stamp keeps it.
  */
 export function coverStamp(c: { coverOpen: boolean; coverSlots?: readonly string[] | null; coverAreas?: readonly string[] | null; coverRateVnd: number | null }): string {
   // SORTED: the form keeps tap order and the server stores canonical order — the same set must stamp the same.
@@ -189,10 +201,13 @@ export function coverStamp(c: { coverOpen: boolean; coverSlots?: readonly string
 }
 
 /** The cover as last SAVED, as an edit form holds it (teacher-form `savedCover`): the stale-window base. `consentCurrent`:
- *  saved under today's notice (COVER_CONSENT_VERSION). */
+ *  saved under today's notice (COVER_CONSENT_VERSION). `coverAreas`: the stored derived reach, kept for coverStamp only. */
 export type SavedCover = { coverOpen: boolean; coverSlots: string[]; coverAreas: string[]; coverRateVnd: number | null; consentCurrent: boolean }
-type CoverForm = { coverOpen: boolean; coverSlots: string[]; coverAreas: string[]; coverRateVnd: number | null; coverConsent: boolean }
+/** The cover fields the teacher edits (2026-10-08: the reach is derived, so no areas; `coverConsent` follows the switch). */
+type CoverForm = { coverOpen: boolean; coverSlots: string[]; coverRateVnd: number | null; coverConsent: boolean }
 const NO_COVER: SavedCover = { coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, consentCurrent: false }
+/** What the teacher edits, stamped — the derived areas left out, since the form cannot have touched them. */
+const editStamp = (c: { coverOpen: boolean; coverSlots: readonly string[]; coverRateVnd: number | null }) => coverStamp({ ...c, coverAreas: [] })
 
 /**
  * ⛔ A STALE WINDOW'S RE-READ: WHAT THE TEACHER DID NOT TOUCH FOLLOWS THE SERVER; WHAT THEY CHANGED STAYS THEIRS — field
@@ -203,6 +218,9 @@ const NO_COVER: SavedCover = { coverOpen: false, coverSlots: [], coverAreas: [],
  * teacher's, unless cover was switched off in another window since this one loaded (a tick shown here cannot have
  * answered that); untouched, it follows whether the saved consent stands. Never a consent recorded after a withdrawal
  * the teacher did not see, never a tick they removed put back.
+ * 2026-10-08: the areas are no longer the teacher's to edit (derived from the teach areas — places.ts coverReachOf), so
+ * they are not merged; `coverConsent` is the switch's own consent (it follows `coverOpen` in the form) and keeps the
+ * never-across-a-withdrawal rule unchanged.
  */
 export function mergeStaleCover(cur: CoverForm, base: SavedCover | null, fresh: SavedCover): {
   cover: CoverForm
@@ -218,19 +236,18 @@ export function mergeStaleCover(cur: CoverForm, base: SavedCover | null, fresh: 
   const cover: CoverForm = {
     coverOpen: cur.coverOpen === b.coverOpen ? fresh.coverOpen : cur.coverOpen,
     coverSlots: sameList(cur.coverSlots, b.coverSlots) ? fresh.coverSlots : cur.coverSlots,
-    coverAreas: sameList(cur.coverAreas, b.coverAreas) ? fresh.coverAreas : cur.coverAreas,
     coverRateVnd: (cur.coverRateVnd ?? null) === (b.coverRateVnd ?? null) ? fresh.coverRateVnd : cur.coverRateVnd,
     coverConsent: cur.coverConsent === baseTick ? fresh.coverOpen && fresh.consentCurrent : cur.coverConsent && !withdrawn,
   }
   return {
     cover,
     // The tick counts: a consent given or removed here is the teacher's change, and the line must say so (gate review).
-    untouched: coverStamp(cur) === coverStamp(b) && cur.coverConsent === baseTick,
+    untouched: editStamp(cur) === editStamp(b) && cur.coverConsent === baseTick,
     reconsent: cover.coverOpen && cur.coverConsent && !cover.coverConsent,
   }
 }
 
-/** The areas the form offers for those cities, in display order. */
+/** The areas the form offers for those cities, in display order. ⚠️ TRANSITIONAL — see coverCitiesFor. */
 export function coverAreasForCities(cities: readonly string[]): CoverArea[] {
   const set = new Set(cities)
   return COVER_AREAS.filter((a) => set.has(a.city))

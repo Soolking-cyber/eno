@@ -355,6 +355,9 @@ export type NicheApiErrorCode =
   | 'teacher_profile_missing'
   | 'cover_changed' // cover lessons: the cover state changed in another window since the form loaded (2026-10-07)
   | 'profile_changed' // a teacher form loaded for one TeacherProfile, saved under a session that is now another's (2026-10-07)
+  | 'notice_changed' // a teacher save under an older publish / cover / AI notice than the one now in force (2026-10-08)
+  | 'resubscribe_in_profile' // /api/unsubscribe: teacher job-match emails are turned back ON only in the profile, under the AI notice (2026-10-08)
+  | 'no_teaching_goal' // PATCH /api/teachers/me/status → live: no work picked and cover off, so nothing to show schools (D6, 2026-10-09)
   // Teacher intro video, shown or sent on request (2026-10-07):
   | 'video_changed' // the video state changed since the form loaded it (videoBase), or a change came with no base
   | 'video_store_failed' // a move between the public and private buckets failed; nothing was written
@@ -747,6 +750,9 @@ const ALL = [
   'teacher_profile_missing',
   'cover_changed',
   'profile_changed',
+  'notice_changed',
+  'resubscribe_in_profile',
+  'no_teaching_goal',
   'video_changed',
   'video_store_failed',
   'video_missing',
