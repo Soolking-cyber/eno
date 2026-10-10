@@ -6,7 +6,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { LanguageProvider, useLanguage, type Language } from '@/context/language-context'
 import { formatCount } from '@/lib/vnd'
 import { resultCountLabel, type TrFn } from './result-line'
-import { CountChip, countChipLabel, countDigits, offeredCategories, optionCount, railDimension } from './count-chip'
+import { CountChip, browseInsteadCategories, countChipLabel, countDigits, offeredCategories, optionCount, railDimension } from './count-chip'
 import { CategoryRail } from './category-rail'
 import { BrandRail } from './brand-rail'
 
@@ -702,5 +702,37 @@ describe('offeredCategories — the retired shelves', () => {
   })
   it('keeps the active one, retired or not', () => {
     expect(offeredCategories(all, undefined, 'vehicles').map((c) => c.slug)).toEqual(['rentals', 'vehicles', 'electronics'])
+  })
+})
+
+/**
+ * The zero-results "Or browse" chips (listings-explorer.tsx). Owner, 2026-10-10: "put find a teacher to number 4
+ * everywhere so rentals jobs services and then electronics" — the chips are the rail's head, so they inherit it.
+ */
+describe('browseInsteadCategories — the "Or browse" chips under an empty result', () => {
+  // The rail's order as getCategoriesByDemand hands it over: the lead, moving-sale (pinned, empty), then demand.
+  const rail = [
+    { slug: 'rentals', verifiedCount: 25_502 },
+    { slug: 'jobs', verifiedCount: 40 },
+    { slug: 'services', verifiedCount: 447 },
+    { slug: 'teachers', verifiedCount: 2 },
+    { slug: 'electronics', verifiedCount: 63_932 },
+    { slug: 'moving-sale', verifiedCount: 0 },
+    { slug: 'vehicles', verifiedCount: 2 },
+    { slug: 'furniture-appliances', verifiedCount: 6_308 },
+  ]
+  const slugs = (xs: Array<{ slug: string }>) => xs.map((x) => x.slug)
+
+  it('offers the first four of the rail: rentals, jobs, services, Find a teacher', () => {
+    expect(slugs(browseInsteadCategories(rail, 'all'))).toEqual(['rentals', 'jobs', 'services', 'teachers'])
+  })
+
+  it('never offers the category the visitor is already in — an empty search inside teachers gets electronics instead', () => {
+    expect(slugs(browseInsteadCategories(rail, 'teachers'))).toEqual(['rentals', 'jobs', 'services', 'electronics'])
+  })
+
+  it('skips an empty or retired category rather than leading to it', () => {
+    const thin = rail.map((c) => (c.slug === 'jobs' || c.slug === 'services' ? { ...c, verifiedCount: 0 } : c))
+    expect(slugs(browseInsteadCategories(thin, 'all'))).toEqual(['rentals', 'teachers', 'electronics', 'furniture-appliances'])
   })
 })

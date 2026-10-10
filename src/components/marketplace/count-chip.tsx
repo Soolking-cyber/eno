@@ -251,6 +251,21 @@ export function offeredCategories<C extends { slug: string; verifiedCount: numbe
 }
 
 /**
+ * THE ZERO-RESULTS "OR BROWSE" CHIPS: the head of the rail — so the owner's lead order (category-lead.ts) —
+ * under the rail's offer rule, minus the category the visitor is already in.
+ * ⛔ THE OFFER RULE, because the unfiltered `slice(0, 4)` it replaced led to moving-sale's zero listings while
+ * moving-sale was pinned fourth: a dead end answered with another dead end.
+ * ⛔ NOT THE ACTIVE ONE, because a dead end is answered with somewhere ELSE. Teachers sits fourth now, and with
+ * a handful of profiles a search inside it is the likeliest empty result, which would have offered "Find a
+ * teacher" to a visitor already on it. Retapping a category only clears its filters, which is not browsing.
+ * No facets: an empty result's counts are zero under the very filters being escaped, so each category's own
+ * live total (`verifiedCount`) decides, as it does in the server-rendered rail.
+ */
+export function browseInsteadCategories<C extends { slug: string; verifiedCount: number }>(all: C[], activeCategory: string, take = 4): C[] {
+  return offeredCategories(all, undefined, activeCategory).filter((c) => c.slug !== activeCategory).slice(0, take)
+}
+
+/**
  * The intent tiles (Free & Giveaways, Wanted, Wholesale) are listing-type filters, read off the `type`
  * rail the same way: measured 2026-09-25, Free and Wanted returned 0 on every browse state. The active
  * one stays; with no counts every tile stays.

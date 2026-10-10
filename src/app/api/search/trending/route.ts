@@ -24,7 +24,7 @@ export const runtime = 'nodejs'
 // `internal_error` boundary is unreachable from here and all four branches are byte-identical.
 /**
  * The category shortcuts under the trending chips (S-TYPEAHEAD, 2026-09-29): the first six categories
- * of the home grid's own order (getCategoriesByDemand — the owner's four pinned, then live demand),
+ * of the home grid's own order (getCategoriesByDemand — the owner's lead order, then live demand),
  * only those with live listings, as `{ slug, name, nameVi }`. Edition-scoped and memoized by that
  * function, so this is the rail the visitor already sees, not a second opinion about it.
  * ⚠️ FAIL-OPEN LIKE EVERYTHING ELSE ON THIS VERB, INCLUDING A DeskResolutionError that

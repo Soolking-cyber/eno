@@ -72,27 +72,52 @@ describe('GET /api/category-rails', () => {
     const slugs = await rails()
     expect(slugs).not.toContain('hobbies-sports')
     expect(slugs).not.toContain('books-stationery')
-    // Eleven qualify, two are retired: the other nine, in demand order.
-    expect(slugs).toEqual(SLUGS.filter((s) => s !== 'hobbies-sports' && s !== 'books-stationery'))
+    // Eleven qualify, two are retired: the other nine — the owner's lead first (category-lead.ts), then demand.
+    expect(slugs).toEqual(['rentals', 'jobs', 'services', 'electronics', 'furniture-appliances', 'tickets-travel', 'fashion-beauty', 'food-drink', 'baby-kids'])
     // No query is spent filling a shelf that is never shown.
     expect(h.filledCategoryIds).not.toContain('id-hobbies-sports')
   })
 
   it('keeps MAX_RAILS full when a retired category would have ranked inside it', async () => {
     // Vehicles ranks 2nd and pets last; ten live categories remain. Cutting to MAX_RAILS (10) BEFORE dropping
-    // vehicles would have cut `teachers` (11th) and then shown nine rails.
-    h.categories.push({ id: 'id-vehicles', slug: 'vehicles' }, { id: 'id-pets', slug: 'pets' }, { id: 'id-teachers', slug: 'teachers' })
+    // vehicles would have cut `sports` (11th) and then shown nine rails.
+    // ⚠️ `sports`, not `teachers` as this read before 2026-10-10: teachers is in the lead now, and teacher
+    // profiles never reach this groupBy on production (scopedListingWhere keeps them out of listing shelves).
+    h.categories.push({ id: 'id-vehicles', slug: 'vehicles' }, { id: 'id-pets', slug: 'pets' }, { id: 'id-sports', slug: 'sports' })
     h.groups = [
       { categoryId: 'id-vehicles', _count: { _all: 9 }, _sum: { views: 995, contactCount: 0 } },
       ...h.groups.filter((g) => !['id-hobbies-sports', 'id-books-stationery'].includes(g.categoryId)),
-      { categoryId: 'id-teachers', _count: { _all: 4 }, _sum: { views: 2, contactCount: 0 } },
+      { categoryId: 'id-sports', _count: { _all: 4 }, _sum: { views: 2, contactCount: 0 } },
       { categoryId: 'id-pets', _count: { _all: 5 }, _sum: { views: 1, contactCount: 0 } },
     ]
     const slugs = await rails()
     expect(slugs).toHaveLength(10)
     expect(slugs).not.toContain('vehicles')
     expect(slugs).not.toContain('pets')
-    expect(slugs.at(-1)).toBe('teachers')
+    expect(slugs.at(-1)).toBe('sports')
+  })
+
+  /**
+   * ⛔ OWNER, 2026-10-10: "put find a teacher to number 4 everywhere so rentals jobs services and then electronics".
+   * These shelves were pure demand, which on production that day opened on electronics, rentals, furniture.
+   * ⚠️ There is no teachers shelf, so electronics follows services here.
+   */
+  it('leads with rentals, jobs, services, electronics — then demand — on the production ranking', async () => {
+    const live = ['electronics', 'rentals', 'furniture-appliances', 'services', 'fashion-beauty', 'tickets-travel', 'baby-kids', 'food-drink', 'jobs']
+    h.categories = live.map((slug) => ({ id: `id-${slug}`, slug }))
+    h.groups = live.map((slug, i) => ({ categoryId: `id-${slug}`, _count: { _all: 50 }, _sum: { views: 1000 - i * 10, contactCount: 0 } }))
+    expect(await rails()).toEqual(['rentals', 'jobs', 'services', 'electronics', 'furniture-appliances', 'fashion-beauty', 'tickets-travel', 'baby-kids', 'food-drink'])
+  })
+
+  /** The lead ranks BEFORE the MAX_RAILS cut: a lead shelf last by demand still shows, and the lowest-demand shelf outside the lead yields. */
+  it('a lead category last by demand is not cut; the weakest shelf outside the lead gives way', async () => {
+    const live = ['electronics', 'furniture-appliances', 'fashion-beauty', 'tickets-travel', 'baby-kids', 'food-drink', 'sports', 'property', 'community-events', 'moving-sale', 'jobs']
+    h.categories = live.map((slug) => ({ id: `id-${slug}`, slug }))
+    h.groups = live.map((slug, i) => ({ categoryId: `id-${slug}`, _count: { _all: 50 }, _sum: { views: 1000 - i * 10, contactCount: 0 } }))
+    const slugs = await rails()
+    expect(slugs).toHaveLength(10)
+    expect(slugs.slice(0, 3)).toEqual(['jobs', 'electronics', 'moving-sale'])
+    expect(slugs).not.toContain('community-events')
   })
 
   it('still drops a category below the floor, retired or not', async () => {

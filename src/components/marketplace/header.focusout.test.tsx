@@ -58,6 +58,8 @@ const TRENDING = {
     { slug: 'rentals', name: 'Rentals', nameVi: 'Cho thuê' },
     { slug: 'jobs', name: 'Jobs', nameVi: 'Việc làm' },
     { slug: 'services', name: 'Services', nameVi: 'Dịch vụ' },
+    // The payload carries the category's own name; the panel shows the entry label (category-entry-label.ts).
+    { slug: 'teachers', name: 'Teachers', nameVi: 'Giáo viên' },
     { slug: 'electronics', name: 'Electronics', nameVi: 'Điện tử' },
   ],
 }
@@ -172,7 +174,8 @@ describe('a first visit still opens on somewhere to go', () => {
       return ul!
     })
     const links = [...list.querySelectorAll('a')].map((a) => [a.getAttribute('href'), a.textContent])
-    expect(links).toEqual([['/c/rentals', 'Rentals'], ['/c/jobs', 'Jobs'], ['/c/services', 'Services'], ['/c/electronics', 'Electronics']])
+    // The owner's lead order (2026-10-10) arrives from the route; Teachers is a way in, so it reads "Find a teacher".
+    expect(links).toEqual([['/c/rentals', 'Rentals'], ['/c/jobs', 'Jobs'], ['/c/services', 'Services'], ['/c/teachers', 'Find a teacher'], ['/c/electronics', 'Electronics']])
     expect(screen.getByText('Categories').id).toBe('header-search-categories')
   })
 })

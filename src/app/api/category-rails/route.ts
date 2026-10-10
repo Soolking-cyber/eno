@@ -6,6 +6,7 @@ import { localizeListingTitles } from '@/lib/translate'
 import { route } from '@/lib/api/handler'
 import { diversifyRail } from '@/lib/feed-diversity'
 import { isRetiredNavCategory } from '@/lib/retired-categories'
+import { categoryLeadRank } from '@/lib/category-lead'
 
 export const runtime = 'nodejs'
 
@@ -74,8 +75,19 @@ export const GET = route({ auth: 'public' }, async () => {
       categoryId: g.categoryId,
       count: g._count._all,
       demand: (g._sum.views ?? 0) + 5 * (g._sum.contactCount ?? 0),
+      lead: categoryLeadRank(slugById.get(g.categoryId) ?? ''),
     }))
-    .sort((a, b) => b.demand - a.demand || b.count - a.count)
+    /**
+     * ⛔ THE OWNER'S LEAD ORDER FIRST, THEN DEMAND (owner, 2026-10-10: "put find a teacher to number 4
+     * everywhere so rentals jobs services and then electronics" — src/lib/category-lead.ts). These shelves
+     * were pure demand, so they led with electronics while every other list led with rentals.
+     * ⚠️ THERE IS NO TEACHERS SHELF, so here electronics follows services. Teacher profiles are not in this
+     * groupBy (scopedListingWhere keeps them out of listing shelves) and the live profiles are below
+     * MIN_LISTINGS anyway; a "Find a teacher" shelf would be a new surface for the owner to ask for.
+     * ⚠️ BEFORE THE CUT, so a lead category is never sliced off — which means past MAX_RAILS qualifying
+     * categories a lead shelf takes the place of the tenth by demand. Nine qualified on 2026-10-10.
+     */
+    .sort((a, b) => a.lead - b.lead || b.demand - a.demand || b.count - a.count)
     .slice(0, MAX_RAILS)
 
   const rails = await Promise.all(

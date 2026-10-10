@@ -109,3 +109,42 @@ describe('<Footer> — the Explore link to /c/teachers', () => {
     expect(vi_?.getAttribute('href')).toBe('/c/teachers')
   })
 })
+
+describe('<LadderCompactRow> — the Teachers chip on a phone', () => {
+  ;(globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = class { observe() {} unobserve() {} disconnect() {} }
+  HTMLElement.prototype.scrollTo = () => {}
+
+  async function row(lang: 'en' | 'vi', activeCategory: string) {
+    const { LanguageProvider } = await import('@/context/language-context')
+    const { Collapsible } = await import('@/components/ui/collapsible')
+    const { LadderCompactRow } = await import('@/components/marketplace/ladder-compact-row')
+    type Cats = React.ComponentProps<typeof LadderCompactRow>['categories']
+    const cats = [
+      { id: 'jobs', slug: 'jobs', name: 'Jobs', nameVi: 'Việc làm', icon: 'Briefcase', verifiedCount: 40 },
+      { id: 'teachers', slug: 'teachers', name: 'Teachers', nameVi: 'Giáo viên', icon: 'GraduationCap', verifiedCount: 2 },
+    ] as unknown as Cats
+    return render(
+      <LanguageProvider initialLang={lang} initialViDict={{}}>
+        <Collapsible>
+          <LadderCompactRow categories={cats} activeCategory={activeCategory} activeSubcategory="all" onCategory={() => {}} onSubcategory={() => {}}
+            expanded={false} subcategoryCounts={{}} />
+        </Collapsible>
+      </LanguageProvider>,
+    ).container
+  }
+
+  // The rail folds into this row once a search or filter directs the feed: the chip is the same way in as the tile.
+  it('the category chip reads "Find a teacher" / "Tìm giáo viên"', async () => {
+    const chips = (c: HTMLElement) => [...c.querySelectorAll('[aria-pressed]')].map((b) => b.textContent?.trim())
+    expect(chips(await row('en', 'all'))).toEqual(['Jobs', 'Find a teacher'])
+    cleanup()
+    expect(chips(await row('vi', 'all'))).toEqual(['Việc làm', 'Tìm giáo viên'])
+  })
+
+  // The pill names the ACTIVE filter — the category's own name, like the result line and the /c/teachers H1.
+  it('the scope pill keeps the category\u2019s own name once teachers is the active filter', async () => {
+    const c = await row('en', 'teachers')
+    expect(c.textContent).toContain('Teachers')
+    expect(c.textContent).not.toContain('Find a teacher')
+  })
+})

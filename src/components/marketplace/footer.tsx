@@ -18,6 +18,7 @@ import { COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
 import { ANDROID_APP_URL, IOS_APP_URL } from '@/lib/app-store-links'
 import { NAV_CATEGORIES } from '@/lib/taxonomy-nav'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
+import { leadFirst } from '@/lib/category-lead'
 import { UNLINKED_CATEGORIES } from '@/lib/retired-categories'
 import { FooterStats } from '@/components/marketplace/footer-stats'
 import { FooterPreferences } from '@/components/marketplace/footer-preferences'
@@ -597,8 +598,11 @@ function FooterBody() {
               <AccordionPanel className="pb-3 text-base leading-normal sm:pb-0">
                 <ul className="grid grid-cols-2 gap-x-6 sm:gap-y-2">
                   {/* Each link is a way IN, so it wears the entry label — "Find a teacher", not "Teachers"
-                      (nav audit N8, category-entry-label.ts); the slug and href are the category's own. */}
-                  {NAV_CATEGORIES.filter((cat) => !FOOTER_HIDDEN_CATEGORIES.has(cat.slug)).map((cat) => ({ ...cat, ...categoryEntryLabel(cat) })).map((cat) => (
+                      (nav audit N8, category-entry-label.ts); the slug and href are the category's own.
+                      ⛔ IN THE OWNER'S LEAD ORDER, read across the two columns (owner, 2026-10-10: "put find a
+                      teacher to number 4 everywhere") — Rentals | Jobs, Services | Find a teacher, Electronics
+                      | …, the rest in taxonomy order (category-lead.ts). Sorted here, not in TAXONOMY. */}
+                  {leadFirst(NAV_CATEGORIES.filter((cat) => !FOOTER_HIDDEN_CATEGORIES.has(cat.slug))).map((cat) => ({ ...cat, ...categoryEntryLabel(cat) })).map((cat) => (
                     <li key={cat.slug}>
                       {/* max-sm: a 44px row per link (D-TAP) with no gap between rows, so no row's hit
                           area can overlap its neighbour's — the tap-44 trap, avoided by real height. */}

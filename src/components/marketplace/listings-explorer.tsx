@@ -62,7 +62,8 @@ import { Bilingual } from './bilingual'
 import { useAuth } from '@/context/auth-context'
 import { useDashboard } from '@/hooks/use-dashboard'
 import { SUBCATEGORIES } from '@/lib/subcategories'
-import { offeredKeys } from './count-chip'
+import { browseInsteadCategories, offeredKeys } from './count-chip'
+import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { LISTING_TYPES, INTENT_SHORTCUTS, DESK_SHORTCUTS, CONDITION_FACET, categoryHasBrand, facetsFor, typesFor } from '@/lib/taxonomy'
 import { hashKey, useQuery, useQueryClient } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
@@ -4085,6 +4086,10 @@ export function ListingsExplorer({
     // Popular searches: other words people found things with. The current one is excluded — it just
     // found nothing — and so is anything that differs from it only in case or spacing.
     const popular = term ? zeroTrending.filter((t) => t.trim().toLowerCase() !== term.toLowerCase()).slice(0, 6) : []
+    // "Or browse": the rail's head, offered by the rail's rule, never the active one (browseInsteadCategories).
+    // ⚠️ The row is gated on THIS list, not on `categories`: the offer rule can leave nothing, and an "Or
+    // browse" eyebrow over no chips is a heading for an empty row (opus review).
+    const browseInstead = browseInsteadCategories(categories, activeCategory).map((c) => ({ ...c, ...categoryEntryLabel(c) }))
     return (
       <EmptyState
         tone="bare"
@@ -4186,12 +4191,15 @@ export function ListingsExplorer({
               </div>
             )}
 
-            {/* A dead end orients nobody — offer a one-tap jump to popular categories. */}
-            {categories.length > 0 && (
+            {/* A dead end orients nobody — offer a one-tap jump to popular categories: the rail's own head
+                (the owner's lead order), offered by the rail's rule and never the one already active —
+                browseInsteadCategories (count-chip.tsx) says why. Each chip is a way in, so Teachers wears
+                its entry label like the tile it mirrors. */}
+            {browseInstead.length > 0 && (
               <div className="flex flex-col items-center gap-2">
                 <span className="text-xs text-ink-4">{tr('Or browse', 'Hoặc xem')}</span>
                 <div className="flex flex-wrap items-center justify-center gap-2">
-                  {categories.slice(0, 4).map((c) => (
+                  {browseInstead.map((c) => (
                     <Button
                       key={c.slug}
                       variant="bare"

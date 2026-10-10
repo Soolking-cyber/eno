@@ -144,14 +144,19 @@ const CATEGORY_COPY: Record<string, { label: string; blurb: string }> = {
   'moving-sale': { label: 'Moving sales', blurb: 'people selling up before they move' },
 }
 
-/** The summary names these first when they have stock — the owner's pinned order (src/lib/categories.ts). */
-const SUMMARY_ORDER = ['rentals', 'jobs', 'services', 'furniture-appliances', 'electronics'] as const
+/**
+ * The summary names these first when they have stock — the owner's lead order (src/lib/category-lead.ts), then
+ * furniture. ⚠️ `teachers` prints only when site facts count teacher profiles, which the default listing scope
+ * keeps out — so on production the sentence goes from services straight to electronics.
+ */
+const SUMMARY_ORDER = ['rentals', 'jobs', 'services', 'teachers', 'electronics', 'furniture-appliances'] as const
 const SUMMARY_NOUN: Record<(typeof SUMMARY_ORDER)[number], string> = {
   rentals: 'rentals',
   jobs: 'jobs',
   services: 'services',
-  'furniture-appliances': 'furniture, appliances',
+  teachers: 'teachers',
   electronics: 'electronics',
+  'furniture-appliances': 'furniture, appliances',
 }
 
 const fmt = (n: number) => n.toLocaleString('en-US')

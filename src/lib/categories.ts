@@ -3,6 +3,7 @@ import 'server-only'
 import { db } from './db'
 import type { SerializedCategory } from './types'
 import { categoryDescriptionFor } from './taxonomy'
+import { CATEGORY_LEAD } from './category-lead'
 
 // Demand weighting: a contact (revealed number / message intent) is worth far more
 // than a passive view; a save sits in between. At launch everything is 0, so the
@@ -13,22 +14,23 @@ const W_SAVE = 2
 const W_CONTACT = 5
 
 /**
- * ⛔ THE FIRST FOUR TILES ARE AN EDITORIAL DECISION, NOT A MEASUREMENT. Owner, 2026-09-21:
- * "reorganize categories according to importance the top 4 rest old order. 1 rentals 2 jobs
- * 3 services 4 electronics", then "swap electronics to moving sales" — so the four are
- * rentals, jobs, services, moving-sale.
+ * ⛔ THE FIRST TILES ARE AN EDITORIAL DECISION, NOT A MEASUREMENT — the owner's lead order, kept in
+ * src/lib/category-lead.ts so every other list of categories follows the same one (owner, 2026-10-10:
+ * "put find a teacher to number 4 everywhere so rentals jobs services and then electronics"). The quotes
+ * and the reason moving-sale is still in it live there.
  *
- * The pin sits IN FRONT OF the demand ranking, it does not replace it: everything from the fifth
- * tile down is still ordered by live demand exactly as before.
+ * The pin sits IN FRONT OF the demand ranking, it does not replace it: every tile after the lead is still
+ * ordered by live demand exactly as before.
  *
  * ⚠️ DEMAND COULD NEVER HAVE PROMOTED THESE ON ITS OWN, WHICH IS THE POINT. The score is
  * views+saves+contacts summed over ACTIVE LISTINGS, so it follows SUPPLY: measured on production
  * 2026-09-21 the rail ran electronics, sports, furniture-appliances, … and put `rentals` LAST of
  * seventeen. `rentals`, `jobs` and `services` are low-supply, high-intent — few listings, but the
  * visitor who wants one wants it badly — and a category with 20 listings cannot out-score one with
- * 80,000 however wanted it is. That bias is what this corrects.
+ * 80,000 however wanted it is. That bias is what this corrects. Teachers is the extreme case: a
+ * handful of profiles, ranked tenth of eleven tiles on production 2026-10-10.
  */
-const PINNED_SLUGS = ['rentals', 'jobs', 'services', 'moving-sale'] as const
+const PINNED_SLUGS: readonly string[] = CATEGORY_LEAD
 
 /**
  * ⚠️ THE TWO AGGREGATES BELOW ARE MEMOIZED FOR DEMAND_TTL (audit M2). Measured on production
@@ -124,14 +126,14 @@ export async function getCategoriesByDemand(): Promise<SerializedCategory[]> {
         demand: score.get(c.id) ?? 0,
       }))
       /**
-       * The four pinned slugs first, in the order they are listed; everything else most-wanted
+       * The pinned slugs first, in the order they are listed; everything else most-wanted
        * first, ties broken by supply (active count) then name — unchanged from before the pin.
        * ⚠️ A slug in PINNED_SLUGS that no longer exists in the database simply never matches, so a
        * renamed or retired category degrades to "not pinned" rather than leaving a hole in the rail.
        */
       .sort((a, b) => {
-        const pa = (PINNED_SLUGS as readonly string[]).indexOf(a.slug)
-        const pb = (PINNED_SLUGS as readonly string[]).indexOf(b.slug)
+        const pa = PINNED_SLUGS.indexOf(a.slug)
+        const pb = PINNED_SLUGS.indexOf(b.slug)
         if (pa !== -1 && pb !== -1) return pa - pb
         if (pa !== -1) return -1
         if (pb !== -1) return 1

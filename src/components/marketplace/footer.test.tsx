@@ -125,6 +125,27 @@ describe('Footer links', () => {
     }
   })
 
+  /**
+   * ⛔ OWNER, 2026-10-10: "put find a teacher to number 4 everywhere so rentals jobs services and then electronics".
+   * Read across the two columns: Rentals | Jobs, Services | Find a teacher, Electronics | … — the rest in the
+   * order NAV_CATEGORIES (TAXONOMY) gives them, which is deliberately not reordered (category-lead.ts).
+   */
+  it('leads the Explore links with Rentals, Jobs, Services, Find a teacher, Electronics on both editions', async () => {
+    const { FOOTER_HIDDEN_CATEGORIES } = await import('./footer')
+    for (const edition of EDITIONS) {
+      const { container } = await renderFooter(edition, 'en')
+      const heading = [...container.querySelectorAll('h3')].find((h) => h.textContent === 'Explore')
+      const links = [...(heading?.parentElement?.querySelectorAll('ul a') ?? [])].map((a) => [a.getAttribute('href'), a.textContent])
+      expect(links.slice(0, 5), edition).toEqual([
+        ['/c/rentals', 'Rentals'], ['/c/jobs', 'Jobs'], ['/c/services', 'Services'], ['/c/teachers', 'Find a teacher'], ['/c/electronics', 'Electronics'],
+      ])
+      const lead = new Set(['rentals', 'jobs', 'services', 'teachers', 'electronics'])
+      const rest = NAV_CATEGORIES.filter((c) => !FOOTER_HIDDEN_CATEGORIES.has(c.slug) && !lead.has(c.slug)).map((c) => `/c/${c.slug}`)
+      expect(links.slice(5).map(([href]) => href), edition).toEqual(rest)
+      cleanup()
+    }
+  })
+
   it('every hidden slug is a real category — a rename cannot leave a dead entry behind', async () => {
     const { FOOTER_HIDDEN_CATEGORIES } = await import('./footer')
     const slugs = new Set(NAV_CATEGORIES.map((c) => c.slug))

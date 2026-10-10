@@ -14,6 +14,7 @@ import { useSafeBack } from '@/lib/safe-back'
 import { useBackToClose } from '@/lib/back-to-close'
 import { LANG_VARIANTS, variantOfLanguage } from '@/lib/lang-variant'
 import { hereVariant, localizedHref } from '@/lib/lang-pinned'
+import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { isPostFlowPath } from '@/lib/post-flow-path'
 import { useIsPhone } from '@/hooks/use-is-phone'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
@@ -1145,7 +1146,7 @@ export function Header() {
                     variant="header"
                     onPick={(term) => { setSearchVal(term); submitSearch(term); setShowSuggestions(false) }}
                   />
-                  {/* Category shortcuts — the home grid's first six (the owner's pinned four, then
+                  {/* Category shortcuts — the home grid's first six (the owner's lead order, then
                       live demand), so a first visit with no history and no trending still opens on
                       somewhere to go. Links, not buttons: each is a place with a URL (new tab, long
                       press, the status bar). Same chip as Trending, same eyebrow. */}
@@ -1153,7 +1154,10 @@ export function Header() {
                     <div className="space-y-1.5">
                       <span id={CATEGORIES_LABEL_ID} className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><LayoutGrid className="h-3 w-3" />{tr('Categories', 'Danh mục')}</span>
                       <ul aria-labelledby={CATEGORIES_LABEL_ID} className="flex flex-wrap gap-1.5">
-                        {shortcutCategories.map((c) => (
+                        {/* A way in, so Teachers reads "Find a teacher" (category-entry-label.ts) — applied HERE,
+                            not in /api/search/trending, so the route's payload and its edge-cached copies keep
+                            the category's own name for any other reader. */}
+                        {shortcutCategories.map((c) => ({ ...c, ...categoryEntryLabel(c) })).map((c) => (
                           <li key={c.slug}>
                             {/* Classes on the BUTTON: asChild concatenates, and only these are twMerged.
                                 ⛔ IN THE PAGE'S LANGUAGE (UX3 NAV-8, nav audit N6a): a raw `/c/${slug}` sent a

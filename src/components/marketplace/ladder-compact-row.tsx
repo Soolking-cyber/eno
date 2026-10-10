@@ -12,6 +12,7 @@ import { STROKE_UI } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { teacherJoinUrl } from '@/lib/teachers/host'
+import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { localizedHref } from '@/lib/lang-pinned'
 import { keepTeacherJoinInApp } from '@/components/teachers/teacher-join-click'
 import type { SerializedCategory } from '@/lib/types'
@@ -74,7 +75,7 @@ export function LadderCompactRow({
   const { lang, tr } = useLanguage()
   // tr(name, nameVi): the authored Vietnamese for vi, a translation of the English for the nine others
   // (it used to hand the Vietnamese to <Tr>, which machine-translated Vietnamese into Vietnamese).
-  const label = (x: { name: string; nameVi: string }) => tr(x.name, x.nameVi || x.name)
+  const label = (x: { name: string; nameVi?: string | null }) => tr(x.name, x.nameVi || x.name)
   /**
    * ⛔ THE SAME OFFER AS THE FULL RAIL (E-TILES, 2026-09-29): an empty category, subcategory or intent is
    * not a chip here either. This row used to list EVERY subcategory — eleven for Rentals at 390px, most
@@ -173,7 +174,10 @@ export function LadderCompactRow({
                 const on = cat.slug === activeCategory
                 return (
                   <Toggle key={cat.slug} pressed={on} onPressedChange={() => onCategory(on ? 'all' : cat.slug)} className={chipCls}>
-                    {label(cat)}
+                    {/* A way in, so its entry label, like the rail tile it folds from: Teachers reads "Find a
+                        teacher" (category-entry-label.ts). The pill above names the ACTIVE filter, so it keeps
+                        the category's own name, as the result line does. */}
+                    {label(categoryEntryLabel(cat))}
                   </Toggle>
                 )
               })}

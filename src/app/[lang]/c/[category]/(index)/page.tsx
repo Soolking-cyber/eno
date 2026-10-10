@@ -13,6 +13,7 @@ import { CategoryFiltersLink } from '../category-filters-link'
 import { JobCityChips } from '../job-city-chips'
 import { TeacherProfileLink, TeachingJobsLink } from '../teaching-links'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
+import { leadFirst } from '@/lib/category-lead'
 import { CategoryLedeBlock } from './category-lede-block'
 import { LEDE_PLACEMENT } from './lede-placement'
 import { guidesForCategory } from '@/lib/category-guides'
@@ -225,7 +226,9 @@ export default async function CategoryPage({ params }: Props) {
   ])
   // Each "Other categories" chip is a way IN, so it wears the entry label — "Find a teacher", not
   // "Teachers" (nav audit N8, category-entry-label.ts). Only the label: slug and href are the category's.
-  const otherCats = otherCatRows.map((c) => ({ ...c, ...categoryEntryLabel(c) }))
+  // ⛔ The owner's lead order first (2026-10-10, category-lead.ts), the rest A→Z as the query returns them.
+  // The page's own category is not a chip, so on /c/rentals Find a teacher is the third chip, not the fourth.
+  const otherCats = leadFirst(otherCatRows).map((c) => ({ ...c, ...categoryEntryLabel(c) }))
   // Reorder THEN slice (the window's fallback paths hand back a plain top-N nobody interleaved).
   const listings = await localizeListingTitles(diversifyBySeller(raw, { sharedSeats }).slice(0, PAGE_SIZE).map(serializeListingCard))
   // ⚠️ "BY AREA" ONLY WHERE THERE ARE AREAS TO BROWSE (byAreaChips: three places with five or more).
