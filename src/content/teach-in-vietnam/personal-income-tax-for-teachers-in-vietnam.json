@@ -1,0 +1,561 @@
+{
+ "slug": "personal-income-tax-for-teachers-in-vietnam",
+ "title": "Tax for English Teachers in Vietnam (2026)",
+ "description": "What foreign teachers pay in 2026: the 183-day test, the new five-bracket scale, 20% for non-residents, side-job withholding and settling up before you leave.",
+ "h1": "Personal income tax for foreign English teachers in Vietnam: residency, 2026 rates, withholding and leaving",
+ "eyebrow": "Pay and tax",
+ "intro": "Yes, foreign English teachers in Vietnam pay personal income tax, and the school normally withholds it from each payslip. If you are a tax resident (183 days or more in Vietnam in a calendar year or in 12 months from arrival, or leases adding up to 183 days), you pay 5% to 35% on salary after insurance and a monthly personal deduction. If not, you pay a flat 20% with no deductions. Residents normally finalise every year and must settle before leaving Vietnam for good.",
+ "keyPoints": [
+  "**Residency decides the rate**: 183 days or more in Vietnam in a calendar year or in the 12 months from your arrival, or rental contracts adding up to 183 days in the tax year (unless you can show you are tax resident elsewhere), makes you resident and taxed at 5–35% on worldwide salary. Non-residents pay a flat 20%.",
+  "For 2026 salary the new PIT Law 109/2025/QH15 applies from 1 January: five brackets (5/10/20/30/35%), a personal deduction of {{vnd:15500000}} a month and {{vnd:6200000}} a month per registered dependant.",
+  "A resident on {{vnd:40000000}} a month gross with no dependants pays about {{vnd:1570000}} a month in tax after insurance (our calculation). Taxed as a non-resident, the same salary loses {{vnd:8000000}} a month.",
+  "Casual payments of {{vnd:5000000}} or more to a resident with no labour contract, or one under 3 months, carry 10% withholding, and a teacher with a main salary cannot sign the form that stops it. A second employer also needs its own work permit for you.",
+  "Overtime within legal limits, pay for untaken leave, one home-leave flight a year and children's school fees paid by the employer are tax-free. A housing allowance paid to you in cash is fully taxable.",
+  "Finalise before you leave, or authorise someone to: since 1 July 2026 a foreigner with overdue tax can be stopped from leaving Vietnam, with no minimum amount."
+ ],
+ "sections": [
+  {
+   "id": "tax-residency-183-days",
+   "title": "Are you a tax resident? The 183-day test",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Vietnam taxes you according to residency, not nationality or job title. Under [Decree 253/2026/ND-CP](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf) (Art. 4), which applies to 2026 salary, you are a **tax resident** for the year if any one of these is true:"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "You are physically in Vietnam for 183 days or more in the calendar year.",
+      "You are in Vietnam for 183 days or more in the 12 consecutive months starting on your first day in the country.",
+      "You have habitual residence in Vietnam. That includes rental contracts that add up to 183 days or more in the tax year. Leases in different places are added together, and hotels, guesthouses and staff accommodation all count, whether you or the school rented them."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The way days are counted changed in 2026. The day you arrive and the day you leave **each count as one day**, where older guidance counted the two together as one; arriving and leaving on the same day still counts once ([Vialto Partners](https://vialtopartners.com/regional-alerts/vietnam-employment-tax-decree-no-253-2026-nd-cp-and-circular-no-87-2026-tt-btc-guiding-the-new-personal-income-tax-pit-law)). Your days are counted from the dates you entered and left Vietnam, so keep a dated list of every trip. A teacher who arrives in late June and stays to December can pass 183 days in that calendar year."
+    },
+    {
+     "type": "p",
+     "text": "If you have habitual residence here but spent fewer than 183 days in Vietnam, you are still a Vietnamese tax resident unless you prove tax residence in another country with a Certificate of Residence from that country (Decree 253 Art. 4.3)."
+    },
+    {
+     "type": "h3",
+     "text": "Your first year and income from before you arrived"
+    },
+    {
+     "type": "p",
+     "text": "If you arrive late in the year and are under 183 days by 31 December but reach 183 days within 12 months of arriving, your first tax period is those 12 consecutive months. From the second year the tax period is the calendar year, with a credit for the months that overlap (Decree 253 Art. 66.1(a))."
+    },
+    {
+     "type": "p",
+     "text": "Residents are taxed on salary earned inside and outside Vietnam. Practitioners report that from 2026 the old concession letting treaty-country foreigners count tax only from their month of arrival is gone, so a calendar-year resident may have to include salary earned abroad from 1 January ([Gonnapass](https://gonnapass.com/ky-tinh-thue-tncn-voi-nguoi-nuoc-ngoai-sang-viet-nam-nam-duong-lich-dau-tien/)). That reading is not yet confirmed against the official circular text. If you had a salary at home earlier in the year you arrived, ask a tax adviser before you finalise."
+    }
+   ]
+  },
+  {
+   "id": "tax-rates-2026",
+   "title": "2026 tax rates and what you actually pay",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The new Personal Income Tax Law 109/2025/QH15 took effect on 1 July 2026, but its salary rules for residents **apply to the whole 2026 tax year**, from 1 January ([consolidated text of the law](https://hrspring.vn/wp-content/uploads/2026/07/Van-ban-hop-nhat-112-VBHN-VPQH.pdf); [EY summary](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/new-personal-income-tax-law-109-2025-qh25)). It replaces the old seven-bracket scale with five."
+    },
+    {
+     "type": "table",
+     "caption": "Resident tax rates on taxable salary, 2026 tax year (Law 109/2025/QH15 Art. 9)",
+     "headers": [
+      "Monthly taxable income",
+      "Rate on that slice",
+      "Annual equivalent"
+     ],
+     "rows": [
+      [
+       "Up to {{vnd:10000000}}",
+       "5%",
+       "Up to {{vnd:120000000}}"
+      ],
+      [
+       "Over {{vnd:10000000}} to {{vnd:30000000}}",
+       "10%",
+       "{{vnd:120000000-360000000}}"
+      ],
+      [
+       "Over {{vnd:30000000}} to {{vnd:60000000}}",
+       "20%",
+       "{{vnd:360000000-720000000}}"
+      ],
+      [
+       "Over {{vnd:60000000}} to {{vnd:100000000}}",
+       "30%",
+       "{{vnd:720000000-1200000000}}"
+      ],
+      [
+       "Over {{vnd:100000000}}",
+       "35%",
+       "Over {{vnd:1200000000}}"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Taxable income is your salary minus compulsory insurance, the family deductions and any other allowed deductions. Each rate applies only to the slice of income inside its band. With no dependants you pay nothing until your salary after compulsory insurance passes {{vnd:15500000}} a month ([EY on Resolution 110/2025/UBTVQH15](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/resolution-110-2025-ubtvqh15-regarding-the-adjustment-of-family-relief-for-personal-income-tax))."
+    },
+    {
+     "type": "p",
+     "text": "Non-residents pay **20% of total salary** for work done in Vietnam, wherever it is paid, with no family deductions. That tax is final for each payment, so there is no year-end finalisation (Law 109 Art. 21; Decree 253 Arts. 64 and 66.2)."
+    },
+    {
+     "type": "table",
+     "caption": "Tax a month on three salaries in 2026: our calculation from Law 109 Arts. 9–10, assuming no dependants, gross salary used as the insurance base, and the employee's 9.5% social and health insurance capped at {{vnd:50600000}} of salary (the cap from 1 July 2026)",
+     "headers": [
+      "Gross salary a month",
+      "Resident, contract of 12 months or more",
+      "Resident, contract under 12 months (no insurance)",
+      "Non-resident (20%)"
+     ],
+     "rows": [
+      [
+       "{{vnd:25000000}}",
+       "About {{vnd:356000}}",
+       "About {{vnd:475000}}",
+       "{{vnd:5000000}}"
+      ],
+      [
+       "{{vnd:40000000}}",
+       "About {{vnd:1570000}}",
+       "About {{vnd:1950000}}",
+       "{{vnd:8000000}}"
+      ],
+      [
+       "{{vnd:60000000}}",
+       "About {{vnd:4439000}}",
+       "About {{vnd:5400000}}",
+       "{{vnd:12000000}}"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "One registered dependant brings the {{vnd:40000000}} resident figure down to about {{vnd:950000}} a month. Social and health insurance are compulsory only on contracts of 12 months or more: you pay 9.5%, the employer 20.5% ([EY](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/people-advisory-service-tax-alert-june-2025-notable-points-regarding-the-mandatory-social-security-from-1-july-2025)). That is why the shorter contract shows more tax but no insurance deduction. The details are in [social and health insurance for foreign teachers](/teach-in-vietnam/social-and-health-insurance-for-foreign-teachers-in-vietnam), and what schools actually pay is in [English teacher salary in Vietnam](/teach-in-vietnam/english-teacher-salary-in-vietnam)."
+    },
+    {
+     "type": "h3",
+     "text": "Tax year 2025 and the first half of 2026"
+    },
+    {
+     "type": "p",
+     "text": "Tax year 2025, finalised between March and May 2026, still used the old figures: a personal deduction of {{vnd:11000000}} a month, {{vnd:4400000}} per dependant and seven brackets ([Nhà Đầu Tư on Official Letter 1296/CT-NVT](https://nhadautu.vn/luu-y-quyet-toan-thue-thu-nhap-ca-nhan-nam-2025-muc-giam-tru-va-bieu-thue-van-theo-quy-dinh-cu-d103299.html)). Anyone filing late or amending a 2025 return uses those."
+    },
+    {
+     "type": "p",
+     "text": "Monthly withholding for January to June 2026 was also done under the old rules. Those returns are not re-filed; the difference is settled in the 2026 annual finalisation (Decree 253 Art. 70.2). If the new scale means you were over-withheld in early 2026, **finalisation is the only way to get it back**."
+    }
+   ]
+  },
+  {
+   "id": "deductions-and-tax-free-pay",
+   "title": "Deductions, allowances and what is tax-free",
+   "blocks": [
+    {
+     "type": "table",
+     "caption": "Deductions a resident can claim, 2026 tax year (Decree 253/2026/ND-CP Arts. 46–49; Resolution 110/2025/UBTVQH15)",
+     "headers": [
+      "Deduction",
+      "Amount",
+      "The catch"
+     ],
+     "rows": [
+      [
+       "Personal deduction",
+       "{{vnd:15500000}} a month",
+       "Counted in whole months from January, or from the month you first arrive, to the month your contract ends and you leave"
+      ],
+      [
+       "Each registered dependant",
+       "{{vnd:6200000}} a month",
+       "Register with documents before 31 December; each dependant counts for one taxpayer only"
+      ],
+      [
+       "Compulsory social and health insurance",
+       "What you actually pay",
+       "Includes compulsory social insurance you pay abroad on foreign salary"
+      ],
+      [
+       "Voluntary pension and life insurance",
+       "Up to {{vnd:3000000}} a month combined",
+       "Employer-paid premiums above the cap are taxable"
+      ],
+      [
+       "Medical costs in Vietnam (within the health-insurance list)",
+       "Up to {{vnd:23000000}} a year",
+       "New for 2026: itemised invoices in your or your dependant's name, not paid by insurance or the employer; you must finalise yourself"
+      ],
+      [
+       "Education or training fees in Vietnam",
+       "Up to {{vnd:24000000}} a year",
+       "New for 2026: same invoice rules, you must finalise yourself, and fees your employer already paid tax-free do not count"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Dependants are children under 18; children 18 or over who are disabled or unable to work; and children at university, college or vocational school (or 18 or over and still at high school) with no income or average income up to {{vnd:3000000}} a month. A spouse or parent of working age counts only if **both** unable to work (81% or more loss of working capacity) and within the same income limit, so a healthy partner who simply is not working does not qualify; one past working age needs only the income test (Decree 253 Arts. 47–48; [Vialto](https://vialtopartners.com/regional-alerts/vietnam-employment-tax-decree-no-253-2026-nd-cp-and-circular-no-87-2026-tt-btc-guiding-the-new-personal-income-tax-pit-law)). Bringing children or a partner? See [moving to Vietnam with a family](/teach-in-vietnam/moving-to-vietnam-with-family-as-a-teacher)."
+    },
+    {
+     "type": "h3",
+     "text": "What is not taxed"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "Overtime and night-shift pay within labour-law limits, and pay for untaken annual leave, are now **fully exempt** (Law 109 Art. 4.8; Decree 253 Art. 26). Hours above the legal limits are taxed.",
+      "One home-leave airfare a year paid by the employer, to your home country or your family's.",
+      "School fees the employer pays for your children studying in Vietnam, kindergarten to grade 12.",
+      "Job-related training, and employer-paid health insurance with no savings element.",
+      "A cash meal allowance up to {{vnd:1200000}} a month from 1 July 2026; meals provided in kind are not taxed.",
+      "Severance and job-loss allowances (Decree 253 Art. 8.3(h))."
+     ]
+    },
+    {
+     "type": "h3",
+     "text": "Housing: ask the school to pay the landlord"
+    },
+    {
+     "type": "p",
+     "text": "Rent and utilities the school **pays directly on your behalf** are taxed at the actual amount, but only up to 15% of your other taxable income. A housing allowance paid to you in cash is ordinary salary and taxed in full (Decree 253 Art. 8.2(h)). If you are offered a net, after-tax salary, the school grosses it up for tax, counting housing only up to the same 15% (Art. 46.4). Check whether every figure in an offer is gross or net; more in [what to check in a teaching contract](/teach-in-vietnam/english-teaching-contracts-in-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "withholding-main-job-and-second-jobs",
+   "title": "How tax is withheld: main job, short contracts and second jobs",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Tax is normally taken at source by whoever pays you, and the rate depends on your contract, not on what the job is called ([Decree 253/2026/ND-CP Art. 50](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf)). For a foreigner, the payer goes by the working time in Vietnam stated in the contract."
+    },
+    {
+     "type": "table",
+     "caption": "Who withholds what in 2026 (Decree 253/2026/ND-CP Arts. 50 and 67; Vialto Partners)",
+     "headers": [
+      "Your situation",
+      "Withholding",
+      "What to do"
+     ],
+     "rows": [
+      [
+       "Labour contract of 3 months or more that has you working in Vietnam 183 days or more in the tax year",
+       "Progressive 5–35% each month, after deductions",
+       "Give HR your dependant papers and check each payslip"
+      ],
+      [
+       "Contract that has you working in Vietnam fewer than 183 days in the tax year",
+       "Flat 20%",
+       "If you turn out to be resident, finalise to reclaim the difference"
+      ],
+      [
+       "Resident with no labour contract or one under 3 months, paid {{vnd:5000000}} or more each time (exam marking, for example)",
+       "10% of each payment",
+       "Below {{vnd:5000000}} the payer withholds only if you ask"
+      ],
+      [
+       "Non-resident paid by a Vietnamese payer",
+       "Flat 20%",
+       "Final tax; nothing to finalise"
+      ],
+      [
+       "Resident paid by a foreign platform or employer not tax-registered in Vietnam",
+       "None",
+       "Declare and pay it yourself"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The 10% threshold rose from {{vnd:2000000}} to {{vnd:5000000}} a payment under Decree 253, in force since 1 July 2026, and teaching fees count as employment income (Decree 253 Art. 8.2(a)). The commitment form that stops this withholding is open only to someone whose sole income is that casual income and whose full-year taxable income will not reach the taxable level, so **a teacher with a main salary cannot use it** for side work."
+    },
+    {
+     "type": "h3",
+     "text": "Second jobs and side classes"
+    },
+    {
+     "type": "p",
+     "text": "Withholding does not make the work legal. A work permit belongs to one employer, so a second school or weekend centre must get its own permit for you; see [the work permit guide](/teach-in-vietnam/vietnam-work-permit-for-english-teachers). A 'freelance' or 'service' agreement with a single centre that sets your timetable is a labour contract in law, but that paperwork cannot by itself support a work permit, so you end up working without one ([Labour Code Art. 13](https://hethongphapluat.com/bo-luat-lao-dong-2019/khoan-1-dieu-13)). Paid private students raise their own problems: see [private tutoring and online teaching](/teach-in-vietnam/private-tutoring-and-online-teaching-in-vietnam)."
+    },
+    {
+     "type": "p",
+     "text": "At the year end, side income from other payers that averaged {{vnd:15000000}} a month or less and was withheld at 10% can be left out of your finalisation. It does not remove the duty to finalise your main salary, and you can still authorise your main employer to do that (Decree 253 Art. 51)."
+    },
+    {
+     "type": "h3",
+     "text": "Online teaching for overseas platforms"
+    },
+    {
+     "type": "p",
+     "text": "If you are resident, pay from a foreign platform or home-country employer that is not tax-registered in Vietnam is still taxable here, and nobody withholds it: you declare and pay it yourself (Decree 253 Art. 67.5). If online work is your main income, count your days, because at 183 you are resident on worldwide income."
+    }
+   ]
+  },
+  {
+   "id": "tax-code-finalisation-refunds",
+   "title": "Your tax code, finalisation and refunds",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Foreigners keep a tax code (mã số thuế, MST) issued by the tax authority. Since 1 July 2025 Vietnamese citizens use their 12-digit ID number instead, but that switch does not apply to you ([Vietnam Briefing on Circular 86/2024/TT-BTC](https://vietnam-briefing.com/news/vietnams-personal-tax-code-key-changes-under-circular-86.html)). Your employer usually registers you. Ask HR for the number in writing, because you need it to log in and file."
+    },
+    {
+     "type": "p",
+     "text": "Every resident with salary income must **finalise** the year, either directly or by authorising the employer, unless the tax due is less than the tax already paid and you ask for no refund or offset (Decree 253 Art. 51.1)."
+    },
+    {
+     "type": "table",
+     "caption": "Who finalises tax year 2026, and by when (Decree 253 Art. 51; Decree 252/2026/ND-CP)",
+     "headers": [
+      "Route",
+      "Who can use it",
+      "Deadline"
+     ],
+     "rows": [
+      [
+       "Authorise your employer",
+       "One salary source under a contract of 3 months or more, still working there at finalisation time, even if for less than 12 months; small side income under the 10% rule is fine",
+       "The employer files by 31 March 2027 (secondary sources say this rule continues under Decree 252)"
+      ],
+      [
+       "Finalise yourself",
+       "Everyone else, including anyone who changed schools mid-year (two salary sources) or wants the health, education or charity deductions",
+       "Last day of the 4th month after the year ends: 30 April 2027 is a public holiday, so the next working day"
+      ],
+      [
+       "First tax period of 12 months from arrival",
+       "Teachers whose first period ran from their arrival date",
+       "Last day of the 4th month after that 12-month period ends"
+      ]
+     ]
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Gather your papers",
+       "text": "Your MST and login, the tax-withheld records from every payer, your dependant registration, and invoices in your name for any health or education deduction."
+      },
+      {
+       "title": "Log in to eTax",
+       "text": "Use the eTax Mobile app or the tax authority's portal dichvucong.gdt.gov.vn, logging in with your MST and password or with VNeID ([Forvis Mazars eTax Mobile guide](https://www.forvismazars.com/vn/en/insights/vietnam-updates/thought-catalysts/step-by-step-guide-pit-finalization-etax-mobile))."
+      },
+      {
+       "title": "Check the pre-filled figures",
+       "text": "The system pre-fills your salary from every source and the tax already withheld. Check them against your payslips, especially if you changed schools."
+      },
+      {
+       "title": "Add deductions you missed",
+       "text": "Personal-deduction months and dependants not claimed during the year can be claimed at finalisation, dependants from the month your support began (Decree 253 Art. 48)."
+      },
+      {
+       "title": "Pay the balance or claim the refund",
+       "text": "Refunds go only to a bank account in your own name, so keep your Vietnamese account open until the money arrives."
+      }
+     ]
+    },
+    {
+     "type": "p",
+     "text": "In Ho Chi Minh City the tax authority has been Thuế TP. Hồ Chí Minh since 1 July 2025, with 29 numbered local units (Thuế cơ sở) replacing the old district tax branches ([Thời báo Tài chính Việt Nam](https://thoibaotaichinhvietnam.vn/tp-ho-chi-minh-co-quan-thue-co-ten-goi-moi-179244.html)). Ask HR which unit holds your file. This page explains the rules as of October 2026; your employer's HR and the tax office have the final word on your case, and income in several countries is worth a tax adviser."
+    }
+   ]
+  },
+  {
+   "id": "leaving-vietnam-tax",
+   "title": "Leaving Vietnam: what to settle",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "A resident foreigner whose work contract in Vietnam ends must **finalise with the tax office before leaving**, or authorise an organisation or person to finalise for them, and stays responsible for any tax due (Decree 253 Art. 50.3(c)). [Decree 252/2026/ND-CP](https://luatvietnam.vn/thue/nghi-dinh-252-2026-nd-cp-huong-dan-thi-hanh-luat-quan-ly-thue-439382-d1.html) (Art. 10.5.d) sets the deadline: before you exit, and no later than 45 days after the labour contract ends."
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "Unpaid tax can stop you at the airport",
+     "text": "From 1 July 2026, under the Law on Tax Administration 108/2025/QH15 and Decree 252/2026/ND-CP, a foreigner with overdue tax can be temporarily barred from leaving Vietnam, and no minimum amount is set for foreigners ([Thời báo Tài chính Việt Nam](https://thoibaotaichinhvietnam.vn/cac-truong-hop-tam-hoan-xuat-canh-do-no-thue-200118.html); [Lawyers of Vietnam magazine](https://lsvn.vn/nhung-truong-hop-phai-hoan-thanh-nghia-vu-nop-thue-truoc-khi-xuat-canh-a175457.html)). The managing tax office issues the notice and is the office that can lift it. Settle weeks before your flight, not at the airport."
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "A month before your last day: agree the route with HR",
+       "text": "Ask how your tax will be finalised. If you qualify, sign an authorisation; if not, plan to finalise yourself. Get your MST and the tax-withheld records from every payer."
+      },
+      {
+       "title": "Check your final pay",
+       "text": "Final pay is due within 14 working days of the contract ending ([Labour Code Art. 48](https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html)), and pay for untaken leave is tax-free. Salary or a bonus paid after you leave counts as income of the year it is paid, so make sure it is in the finalisation."
+      },
+      {
+       "title": "Finalise and pay any balance",
+       "text": "The personal deduction runs to the month your contract ends and you leave. If you were over-withheld under the old scale in early 2026, this is your only chance to recover it."
+      },
+      {
+       "title": "Claim your social insurance",
+       "text": "On a contract of 12 months or more, the social insurance lump sum can be claimed once the contract or work permit ends, with no waiting period."
+      },
+      {
+       "title": "Keep your bank account open",
+       "text": "Tax refunds and the insurance payment go only to an account in your own name. See [banking and sending money home](/teach-in-vietnam/banking-and-sending-money-home-from-vietnam) for moving the money out."
+      }
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The rest of the move, from notice to selling up, is in [the leaving Vietnam checklist](/teach-in-vietnam/leaving-vietnam-checklist-for-teachers)."
+    }
+   ]
+  },
+  {
+   "id": "home-country-tax-treaties",
+   "title": "Tax at home: treaties, and Americans",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Vietnam has income tax treaties with the UK (in force since 1994), Australia (1992), Ireland (2008) and New Zealand (2014), and has signed treaties with Canada (1997) and the Philippines (2001). They let you credit Vietnamese tax and settle which country you are resident in if both claim you ([GOV.UK Vietnam tax treaties](https://gov.uk/government/publications/vietnam-tax-treaties); [Revenue Ireland](https://www.revenue.ie/en/tax-professionals/tax-agreements/dates-of-effect/index.aspx)). A Vietnamese resident can credit foreign tax only under such a treaty (Decree 253 Art. 6.3)."
+    },
+    {
+     "type": "p",
+     "text": "There is **no US–Vietnam income tax treaty in force**. The treaty signed in 2015 was never ratified by the US Senate, and Vietnam is not on the [IRS treaty list](https://www.irs.gov/businesses/international-businesses/united-states-income-tax-treaties-a-to-z). American teachers pay Vietnamese tax in full and rely on US relief, the foreign tax credit or the foreign earned income exclusion. How your home country treats Vietnamese salary is a question for an adviser there."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Is it 20% tax for my first months teaching in Vietnam?",
+   "a": "Only if your contract has you working in Vietnam fewer than 183 days in the tax year, or you are a non-resident. If you were withheld at 20% and later became resident, the difference comes back through the year-end finalisation."
+  },
+  {
+   "q": "Do I have to finalise if I owe nothing?",
+   "a": "Not if the tax due is less than the tax already withheld and you do not ask for a refund or offset. If you were over-withheld, finalising is how you get the money back."
+  },
+  {
+   "q": "I changed schools mid-year. Can my new school finalise for me?",
+   "a": "Usually not. Two salary sources means you finalise yourself on eTax Mobile, unless the move was a transfer within a merger or group of companies."
+  },
+  {
+   "q": "Can my school pay me in US dollars, and how is that taxed?",
+   "a": "Employers may pay foreign staff in foreign currency. For tax, the salary is converted to đồng at the buying rate of the commercial bank where you hold your account (or the one the school pays from) on the day the income arises."
+  },
+  {
+   "q": "I arrived in Vietnam this year. When does my personal deduction start?",
+   "a": "From the month you first arrive, counted in whole months, and it runs to the month your contract ends and you leave. Months not claimed during the year can be claimed at finalisation."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Decree 253/2026/ND-CP detailing the Personal Income Tax Law",
+   "publisher": "Government of Vietnam (Official Gazette)",
+   "url": "https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf"
+  },
+  {
+   "title": "Consolidated Personal Income Tax Law, text 112/VBHN-VPQH (20 May 2026)",
+   "publisher": "Office of the National Assembly (copy hosted by HR Spring)",
+   "url": "https://hrspring.vn/wp-content/uploads/2026/07/Van-ban-hop-nhat-112-VBHN-VPQH.pdf"
+  },
+  {
+   "title": "New Personal Income Tax Law 109/2025/QH15",
+   "publisher": "EY Vietnam",
+   "url": "https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/new-personal-income-tax-law-109-2025-qh25"
+  },
+  {
+   "title": "Resolution 110/2025/UBTVQH15 on the adjustment of family relief for personal income tax",
+   "publisher": "EY Vietnam",
+   "url": "https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/resolution-110-2025-ubtvqh15-regarding-the-adjustment-of-family-relief-for-personal-income-tax"
+  },
+  {
+   "title": "Vietnam employment tax: Decree 253/2026/ND-CP and Circular 87/2026/TT-BTC guiding the new PIT Law",
+   "publisher": "Vialto Partners",
+   "url": "https://vialtopartners.com/regional-alerts/vietnam-employment-tax-decree-no-253-2026-nd-cp-and-circular-no-87-2026-tt-btc-guiding-the-new-personal-income-tax-pit-law"
+  },
+  {
+   "title": "Thời hạn quyết toán thuế TNCN 2026",
+   "publisher": "Thư Viện Pháp Luật",
+   "url": "https://thuvienphapluat.vn/ma-so-thue/phap-luat-thue/thoi-han-quyet-toan-thue-tncn-2026-moi-cap-nhat-la-ngay-may-844757-228672.html"
+  },
+  {
+   "title": "A Step-by-Step Guide to Personal Income Tax Finalization on eTax Mobile 2026",
+   "publisher": "Forvis Mazars Vietnam",
+   "url": "https://www.forvismazars.com/vn/en/insights/vietnam-updates/thought-catalysts/step-by-step-guide-pit-finalization-etax-mobile"
+  },
+  {
+   "title": "Các trường hợp tạm hoãn xuất cảnh do nợ thuế",
+   "publisher": "Thời báo Tài chính Việt Nam",
+   "url": "https://thoibaotaichinhvietnam.vn/cac-truong-hop-tam-hoan-xuat-canh-do-no-thue-200118.html"
+  },
+  {
+   "title": "Những trường hợp phải hoàn thành nghĩa vụ nộp thuế trước khi xuất cảnh",
+   "publisher": "Lawyers of Vietnam magazine (LSVN)",
+   "url": "https://lsvn.vn/nhung-truong-hop-phai-hoan-thanh-nghia-vu-nop-thue-truoc-khi-xuat-canh-a175457.html"
+  },
+  {
+   "title": "Lưu ý quyết toán thuế thu nhập cá nhân năm 2025: mức giảm trừ và biểu thuế vẫn theo quy định cũ",
+   "publisher": "Nhà Đầu Tư",
+   "url": "https://nhadautu.vn/luu-y-quyet-toan-thue-thu-nhap-ca-nhan-nam-2025-muc-giam-tru-va-bieu-thue-van-theo-quy-dinh-cu-d103299.html"
+  },
+  {
+   "title": "Vietnam's personal tax code: key changes under Circular 86",
+   "publisher": "Vietnam Briefing",
+   "url": "https://vietnam-briefing.com/news/vietnams-personal-tax-code-key-changes-under-circular-86.html"
+  },
+  {
+   "title": "TP. Hồ Chí Minh: cơ quan thuế có tên gọi mới",
+   "publisher": "Thời báo Tài chính Việt Nam",
+   "url": "https://thoibaotaichinhvietnam.vn/tp-ho-chi-minh-co-quan-thue-co-ten-goi-moi-179244.html"
+  },
+  {
+   "title": "Kỳ tính thuế TNCN với người nước ngoài sang Việt Nam năm dương lịch đầu tiên",
+   "publisher": "Gonnapass",
+   "url": "https://gonnapass.com/ky-tinh-thue-tncn-voi-nguoi-nuoc-ngoai-sang-viet-nam-nam-duong-lich-dau-tien/"
+  },
+  {
+   "title": "Notable points regarding mandatory social security from 1 July 2025",
+   "publisher": "EY Vietnam",
+   "url": "https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/people-advisory-service-tax-alert-june-2025-notable-points-regarding-the-mandatory-social-security-from-1-july-2025"
+  },
+  {
+   "title": "Labour Code 2019, Article 13(1)",
+   "publisher": "Hệ thống pháp luật",
+   "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/khoan-1-dieu-13"
+  },
+  {
+   "title": "Labour Code 2019 (Bộ luật Lao động 2019)",
+   "publisher": "Dữ liệu pháp luật",
+   "url": "https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html"
+  },
+  {
+   "title": "United States income tax treaties A to Z",
+   "publisher": "Internal Revenue Service (US)",
+   "url": "https://www.irs.gov/businesses/international-businesses/united-states-income-tax-treaties-a-to-z"
+  },
+  {
+   "title": "Vietnam: tax treaties",
+   "publisher": "GOV.UK (HM Revenue & Customs)",
+   "url": "https://gov.uk/government/publications/vietnam-tax-treaties"
+  },
+  {
+   "title": "Double taxation agreements: dates of effect",
+   "publisher": "Revenue (Ireland)",
+   "url": "https://www.revenue.ie/en/tax-professionals/tax-agreements/dates-of-effect/index.aspx"
+  },
+  {
+   "title": "Nghị định 252/2026/NĐ-CP hướng dẫn thi hành Luật Quản lý thuế",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/thue/nghi-dinh-252-2026-nd-cp-huong-dan-thi-hanh-luat-quan-ly-thue-439382-d1.html"
+  }
+ ],
+ "related": [
+  "english-teacher-salary-in-vietnam",
+  "social-and-health-insurance-for-foreign-teachers-in-vietnam",
+  "english-teaching-contracts-in-vietnam",
+  "leaving-vietnam-checklist-for-teachers",
+  "banking-and-sending-money-home-from-vietnam",
+  "private-tutoring-and-online-teaching-in-vietnam"
+ ],
+ "lastChecked": "2026-10-11"
+}

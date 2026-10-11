@@ -1,0 +1,487 @@
+{
+ "slug": "healthcare-and-health-insurance-in-ho-chi-minh-city",
+ "title": "International hospitals in Ho Chi Minh City and insurance",
+ "description": "FV, Vinmec, FMP, Raffles and Victoria with new ward addresses, what national health insurance really pays, when to buy private cover, dengue and 115.",
+ "h1": "Healthcare in Ho Chi Minh City: international hospitals, costs and the insurance you need",
+ "eyebrow": "Arriving in Saigon",
+ "intro": "The international hospitals foreigners use in Ho Chi Minh City are FV Hospital (District 7) and Vinmec Central Park (Binh Thanh), both with 24-hour emergency departments, plus the clinic groups Family Medical Practice (open 24/7 in Thao Dien), Raffles Medical and Victoria Healthcare. On a teaching contract of 12 months or more you are normally in national health insurance through payroll; on anything shorter, buy private cover. For an ambulance, dial 115.",
+ "keyPoints": [
+  "**FV Hospital** (Tan My Ward, old District 7) and **Vinmec Central Park** (Binh Thanh) run 24-hour emergency departments, and Family Medical Practice's Thao Dien clinic is open 24/7. Save 115, FMP's *9999 and FV Emergency (028 3511 3500) before you need them.",
+  "On a contract of 12 months or more you normally must be in national health insurance (the exceptions are below): 1.5% of your salary, plus 3% from the school. If you are registered at FV, it pays most employees about 80% of the scheme's listed price for covered services, not 80% of FV's bill.",
+  "Contracts under 12 months, hourly 'freelance' deals and work without a work permit give you **no national cover**. Buy a private policy that includes outpatient care and motorbike accidents, and read its licence clause.",
+  "Dengue is the main rainy-season risk: the city counted 24,651 cases in 2026 up to 2 August. For a fever, take paracetamol only, never ibuprofen or aspirin, and get tested.",
+  "Since 15 May 2026 a pharmacy that sells prescription-only medicine (antibiotics included) without a prescription faces a fine of {{vnd:10000000-20000000}}. Bring prescriptions, and no more than 30 days of ordinary medicine in your luggage."
+ ],
+ "sections": [
+  {
+   "id": "international-hospitals-and-clinics",
+   "title": "Which international hospitals and clinics foreigners use in Ho Chi Minh City",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Five names cover most of what a foreign teacher needs: **FV Hospital** and **Vinmec Central Park** for emergencies and hospital care, and the clinic groups **Family Medical Practice (FMP)**, **Raffles Medical** and **Victoria Healthcare** for GP visits, vaccinations and referrals. The addresses below come from the [Australian Government's hospital list for Vietnam (July 2026)](https://hcmc.vietnam.embassy.gov.au/files/hchi/list_of_hospitals_jul_2026.pdf), which says it does not endorse any of them and cannot guarantee the details are current. Phone before you go."
+    },
+    {
+     "type": "p",
+     "text": "Since 1 July 2025 the city has had no districts officially, and addresses use new ward names. Everyone still says 'District 7' or 'Thao Dien', so the table gives both. When you book a Grab to a hospital, give the driver the old area and the new ward."
+    },
+    {
+     "type": "table",
+     "caption": "Expat-oriented hospitals and clinics in Ho Chi Minh City (Australian Government list, July 2026; FV, FMP and Raffles sites)",
+     "headers": [
+      "Hospital or clinic",
+      "Area (old name) and ward",
+      "Phone",
+      "Good to know"
+     ],
+     "rows": [
+      [
+       "FV (Franco-Vietnamese) Hospital",
+       "District 7 / Phu My Hung: 6 Nguyen Luong Bang, Tan My Ward",
+       "028 3511 3333; emergency 028 3511 3500",
+       "24-hour emergency, pharmacy, dentistry, wide specialist range; direct billing listed for dental, pharmacy and inpatient care; accepts national health insurance registration since July 2025"
+      ],
+      [
+       "Vinmec Central Park",
+       "Binh Thanh (Vinhomes Tan Cang): 208 Nguyen Huu Canh, Thanh My Tay Ward",
+       "028 3622 1166",
+       "24-hour emergency"
+      ],
+      [
+       "Family Medical Practice, Thao Dien",
+       "District 2 / Thao Dien: 95 Thao Dien Street, An Khanh Ward",
+       "028 3744 2000; 24/7 emergency *9999 or 028 3744 9000",
+       "Open 24/7: emergency, paediatrics, internal medicine, psychiatry, dermatology, vaccinations, lab, imaging"
+      ],
+      [
+       "Family Medical Practice, Diamond Plaza and Tan Hung",
+       "District 1: 34 Le Duan, Sai Gon Ward. District 7: 41 Dang Duc Thuat, Tan Hung Ward",
+       "028 3822 7848 (Diamond Plaza); 028 5448 4544 (Tan Hung)",
+       "Check opening hours before you go; out of hours, use the Thao Dien clinic or FMP's 24/7 line"
+      ],
+      [
+       "Raffles Medical",
+       "District 3: 285B Dien Bien Phu, Xuan Hoa Ward",
+       "028 3824 0777",
+       "Mon–Fri 08:00–18:00, Sat 08:00–17:00; moved from its old Nam Ky Khoi Nghia address"
+      ],
+      [
+       "Victoria Healthcare",
+       "District 1: 20–22 Dinh Tien Hoang, Tan Dinh Ward. Phu Nhuan: 135A Nguyen Van Troi, Phu Nhuan Ward. District 7 / Phu My Hung: 1056 Nguyen Van Linh (Sky Garden), Tan Hung Ward. District 2 / Thao Dien: 37–39 Luong Dinh Cua, An Khanh Ward",
+       "028 3910 4545",
+       "Four clinics in the areas where many teachers live"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The same list names other 24-hour hospitals: American International Hospital (199 Nguyen Hoang, Binh Trung Ward), City International Hospital (No. 3 Street 17A, An Lac Ward), Hanh Phuc International (18 Dai lo Binh Duong, Binh Hoa Ward, in former Binh Duong) and Hoan My Saigon (60–60A Phan Xich Long, Cau Kieu Ward). The big public referral hospitals are Cho Ray (201B Nguyen Chi Thanh, Cho Lon Ward) and the Hospital for Tropical Diseases (764 Vo Van Kiet, Cho Quan Ward), which treats dengue and other infections."
+    },
+    {
+     "type": "p",
+     "text": "Pick a clinic near home before you need one. Teachers in Thao Dien, Phu My Hung and District 1 have an FMP or Victoria clinic close by. FV is the obvious hospital if you live in District 7, and Vinmec if you live in Binh Thanh. If you are still choosing a neighbourhood, [where to live in Ho Chi Minh City as a teacher](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher) compares the areas. Your first visit is often the **work-permit health check**: [Decree 219/2025/ND-CP](https://congbaocdn.chinhphu.vn/CongBaoCP/VanBan/2025/8/45798/58141-1-20251073-1074219-2025-nd-cp.pdf) accepts a foreign health certificate only where Vietnam has a mutual-recognition agreement with that country, so in practice the check is done here, at a medical facility qualified to issue it. Ask your employer which one they use."
+    }
+   ]
+  },
+  {
+   "id": "what-a-visit-costs",
+   "title": "What a doctor's visit and hospital care cost",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "None of the international hospitals or clinics publishes its consultation fees online, and the figures you see on travel sites are unchecked estimates. Ask for the price when you book, and ask for an estimate before tests, scans or a hospital stay. Your type of cover matters more to the final bill than which hospital you choose."
+    },
+    {
+     "type": "table",
+     "caption": "Who pays what at a private international hospital, by type of cover (Báo Đầu tư on FV and national health insurance; HCMC Social Security via Tuoi Tre)",
+     "headers": [
+      "Your cover",
+      "What it pays",
+      "What you pay yourself"
+     ],
+     "rows": [
+      [
+       "National health insurance, registered at that hospital (FV accepts registration)",
+       "For most employees, about 80% of the scheme's listed price for covered services, with no referral needed",
+       "The co-payment, plus the gap between the hospital's own prices and the scheme's prices, plus anything outside the scheme's list"
+      ],
+      [
+       "National health insurance, registered somewhere else",
+       "Emergencies are covered without a referral at FV; other visits need a valid referral from your registered facility",
+       "The same gaps, or the full bill if you have no referral"
+      ],
+      [
+       "Private policy (from your employer or bought yourself)",
+       "Whatever the policy schedule says, up to its limits. If the insurer has a direct-billing arrangement with that hospital, the hospital bills the insurer",
+       "Excesses, exclusions and anything above the limits. Without direct billing you pay and then claim it back"
+      ],
+      [
+       "No insurance",
+       "Nothing",
+       "The full private price"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "A few figures are known in advance. Your share of national health insurance is 1.5% of your salary: {{vnd:675000}} a month on a {{vnd:45000000}} salary (our calculation), and never more than {{vnd:759000}} because contributions stop at {{vnd:50600000}} of salary a month from 1 July 2026 ([Decree 161/2026 base salary](https://hatinh.gov.vn/vi/bai-viet/tang-luong-co-so-tu-0172026)). The dengue vaccine cost {{vnd:1390000}} a dose at the VNVC chain at its 2024 launch (check today's price), and you need two doses."
+    },
+    {
+     "type": "p",
+     "text": "Tax can soften the cost. Since the 2026 tax year, residents can deduct medical costs paid in Vietnam for items on the health-insurance list, up to {{vnd:23000000}} a year for themselves and their dependants ([Decree 253/2026/ND-CP](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf), Art. 49). The invoices must be in your or your dependant's name with an itemised statement, the cost must not have been paid by an insurer or employer, and you have to file the year-end tax finalisation yourself. A private health policy your employer pays for, with no savings element, is not taxable income for you. The rest is in [personal income tax for foreign teachers](/teach-in-vietnam/personal-income-tax-for-teachers-in-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "insurance-your-job-includes",
+   "title": "The health insurance your teaching job includes",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Since 1 July 2025, foreign employees on a fixed-term labour contract of **12 months or more** with an employer in Vietnam must be in compulsory national health insurance (bảo hiểm y tế, BHYT). The contribution is 4.5% of insurable salary: 1.5% from you and 3% from the school ([HCMC Social Security, via Tuoi Tre](https://news.tuoitre.vn/foreign-workers-in-vietnam-required-to-join-national-health-insurance-10326041315262424.htm); [EY](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/people-advisory-service-tax-alert-june-2025-notable-points-regarding-the-mandatory-social-security-from-1-july-2025)). It comes with compulsory social insurance, so 9.5% in all comes off your pay. What the rest buys you is in [social and health insurance for foreign teachers](/teach-in-vietnam/social-and-health-insurance-for-foreign-teachers-in-vietnam)."
+    },
+    {
+     "type": "p",
+     "text": "There are three exceptions: intra-company transferees, people who had already reached retirement age when they signed (61 years 6 months for men and 57 for women in 2026, per [LuatVietnam](https://luatvietnam.vn/lao-dong-tien-luong/tuoi-nghi-huu-nam-2026-thay-doi-the-nao-562-106488-article.html)), and cases covered by a treaty."
+    },
+    {
+     "type": "p",
+     "text": "National insurance pays best at the facility you are **registered** at. Since 1 July 2025, [FV Hospital has been an initial-registration facility](https://baodautu.vn/benh-vien-fv-benh-nhan-duoc-bhyt-chi-tra-100-quyen-loi-khi-kham-chua-benh-d319012.html): patients registered there, and emergency cases, need no referral. 'Full entitlement' there still means the scheme's benefit list and prices, not FV's price list. Ask HR which facility you are registered at, and whether they can register you at FV (places are subject to quota)."
+    },
+    {
+     "type": "p",
+     "text": "Many chains also advertise a private policy for full-time teachers. ILA's 2026 ads, for example, list 'premium health insurance' ([job ad](https://vietnamteachingjobs.com/jobs/view/full-time-eslefl-teacher-at-ila-over-30-years-of-expertise-for-overseas-candidates)). A phrase in an ad tells you nothing about what the policy covers, so ask for the policy schedule before you sign. [English teaching contracts: what to check](/teach-in-vietnam/english-teaching-contracts-in-vietnam) covers the rest of the paperwork. Before you sign, ask HR:"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "Am I enrolled in national health insurance, from which month, and which facility am I registered at?",
+      "Is there a private policy as well? Who is the insurer, and can I see the schedule of benefits?",
+      "What are the inpatient and outpatient limits? Are dental, maternity and pre-existing conditions covered?",
+      "Does it cover motorbike accidents, and does it exclude riding without a licence that is valid in Vietnam?",
+      "Which hospitals bill the insurer directly, and how do I claim back what I pay myself?",
+      "Can my partner or children be added, and at what cost? See [moving to Vietnam with a family](/teach-in-vietnam/moving-to-vietnam-with-family-as-a-teacher)."
+     ]
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "The most common mistake: assuming you are covered",
+     "text": "A contract under 12 months or an hourly 'freelance' arrangement means **no national health insurance**. If the school gives you no private policy either, you pay international-hospital prices yourself, up front. Check your payslip for the 1.5% health-insurance deduction and ask HR for your card details in your first month."
+    }
+   ]
+  },
+  {
+   "id": "private-international-insurance",
+   "title": "Private health insurance: when you need your own and what it should cover",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "National insurance and a private policy do different jobs. National insurance is cheap and compulsory on longer contracts, but it pays the scheme's prices at your registered facility. A private policy is what pays international-hospital prices. Plans and premiums vary widely with age, limits and options, so get quotes from more than one insurer or broker, and compare the schedules, not the brochures."
+    },
+    {
+     "type": "table",
+     "caption": "National health insurance, an employer's private policy and your own policy compared (HCMC Social Security, EY, Báo Đầu tư; private policies vary)",
+     "headers": [
+      "Feature",
+      "National health insurance",
+      "Employer's private policy",
+      "Your own private policy"
+     ],
+     "rows": [
+      [
+       "Who has it",
+       "Employees on contracts of 12 months or more",
+       "Full-time staff, at some employers only",
+       "Anyone who buys it"
+      ],
+      [
+       "Where it works best",
+       "Your registered facility; elsewhere with a referral or in an emergency",
+       "Hospitals on the insurer's direct-billing list",
+       "Hospitals on the insurer's direct-billing list"
+      ],
+      [
+       "Typical gaps",
+       "The scheme's price list, not private prices; the co-payment",
+       "Low outpatient or dental limits; may end with the job",
+       "Exclusions you agreed to: pre-existing conditions, motorbike riding without a valid licence"
+      ],
+      [
+       "Cost to you",
+       "1.5% of salary",
+       "Check whether any of it is deducted from your pay",
+       "The full premium"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Buy your own policy if your contract is under 12 months, you teach on 'freelance' hourly terms outside a labour contract or online, you are between jobs, your employer's policy has no outpatient cover, or you are bringing a family. Look for outpatient as well as inpatient care, accident cover that includes motorbikes, and direct billing at the hospital you would actually use."
+    },
+    {
+     "type": "p",
+     "text": "**Read the licence clause.** International driving permits from the US, Canada, Australia, New Zealand and Ireland are not valid in Vietnam, because those countries are not parties to the [1968 Vienna Convention](https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en). Riding on one is riding without a licence, and an insurer may refuse an accident claim on that ground. [The motorbike licence guide](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners) explains how to get legal. The compulsory bike insurance ({{vnd:60000}} a year for bikes over 50 cc) pays other people, up to {{vnd:150000000}} per person for injury, and never your own medical bills ([VietnamFinance](https://vietnamfinance.vn/boi-thuong-toi-da-150-trieu-dongnguoi-trong-mot-vu-tai-nan-d100407.html))."
+    }
+   ]
+  },
+  {
+   "id": "dengue-vaccinations-air",
+   "title": "Dengue, vaccinations, rabies and air quality",
+   "blocks": [
+    {
+     "type": "h3",
+     "text": "Dengue"
+    },
+    {
+     "type": "p",
+     "text": "Dengue is the health risk most likely to touch you in Saigon. The city's Center for Disease Control counted 24,651 cases in 2026 up to 2 August, with that week's cases about 20% above the average of the previous four weeks; the city expected cases to stay high through the late rainy season ([Znews](https://lifestyle.zingnews.vn/sot-xuat-huyet-tai-tphcm-tang-hon-20-trong-1-tuan-post1675424.html); [VOV](https://vov.vn/xa-hoi/ca-sot-xuat-huyet-o-tphcm-tang-20-benh-nhan-can-chu-y-giai-doan-nguy-hiem-post1320192.vov)). Use repellent, especially at dawn and dusk."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "For a fever, take **paracetamol only**. Ibuprofen and aspirin raise the risk of bleeding if it turns out to be dengue.",
+      "Get tested at a clinic rather than waiting it out.",
+      "The dangerous phase is **days 3 to 7**, as the fever falls. Go to hospital for lethargy, abdominal pain, repeated vomiting or any bleeding.",
+      "A dengue vaccine, Qdenga, has been licensed in Vietnam since May 2024 for ages 4 and up: two doses 3 months apart ([Tuoi Tre](https://news.tuoitre.vn/vietnam-launches-vaccination-against-dengue-fever-nationwide-for-first-time-10382064.htm)). The CDC does not list it as a routine traveller vaccine, so discuss it with a travel clinic, especially if you have had dengue before."
+     ]
+    },
+    {
+     "type": "h3",
+     "text": "Vaccinations before you fly"
+    },
+    {
+     "type": "p",
+     "text": "The [CDC's Vietnam page](https://wwwnc.cdc.gov/travel/destinations/traveler/none/vietnam) (updated 25 August 2026) recommends routine vaccines plus hepatitis A, hepatitis B and typhoid. It advises Japanese encephalitis vaccination for anyone moving to Vietnam or staying a month or more, and rabies pre-exposure vaccination depending on your activities. It reports no malaria transmission in Ho Chi Minh City, and yellow fever vaccination is not required. FMP's Thao Dien clinic gives vaccinations if you arrive without them."
+    },
+    {
+     "type": "h3",
+     "text": "Rabies"
+    },
+    {
+     "type": "p",
+     "text": "Southern provinces recorded nearly 20 rabies deaths in the first half of 2026 ([VnExpress](https://vnexpress.net/vi-sao-so-ca-dai-tang-5092402.html)). After any dog or cat bite, wash the wound under running water with soap for at least 15 minutes, disinfect it, and get assessed the same day for the vaccine. Vaccine is available at the Pasteur Institute in Ho Chi Minh City and at VNVC and Long Chau vaccination centres."
+    },
+    {
+     "type": "h3",
+     "text": "Air and water"
+    },
+    {
+     "type": "p",
+     "text": "Air quality varies from day to day. Check an air-quality app such as [IQAir](https://www.iqair.com/vietnam), especially in the dry season (roughly December to April), and wear a well-fitting mask on hazy days when you ride. Drink bottled or filtered water, or boil tap water. The rainy season, when dengue peaks, is covered in [the teaching year in Vietnam](/teach-in-vietnam/the-teaching-year-in-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "emergencies",
+   "title": "Emergencies: 115 and the private emergency lines",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Vietnam's emergency numbers are **115** for an ambulance, **113** for police and **114** for fire and rescue, and calls are free ([VOV](https://vov.vn/xa-hoi/tphcm-ra-mat-he-thong-tong-dai-khan-cap-lien-thong-113-114-115-782233.vov)). 112 is not Vietnam's 911: it is a national line for disasters, incidents and search-and-rescue, run by provincial military commands since September 2025, and it links to 113, 114 and 115 rather than replacing them ([Ministry of Agriculture and Environment](https://en.mae.gov.vn/hotline-112-to-receive-disaster-and-emergency-reports-nationwide-9018.htm))."
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Call 115, or a private emergency line",
+       "text": "English on 115 is limited. The alternatives are FMP's 24/7 line (*9999 or 028 3744 9000) and FV's emergency department (028 3511 3500). Save all three in your phone in your first week."
+      },
+      {
+       "title": "Give the address both ways",
+       "text": "Say the old area and the new ward (for example 'Thao Dien, An Khanh Ward' or 'Phu My Hung, Tan My Ward'), plus a landmark. If you can, hand the phone to a Vietnamese speaker nearby."
+      },
+      {
+       "title": "Take your passport and insurance details",
+       "text": "Bring your national health insurance details or your private insurer's card. Private hospitals bill directly only if your insurer has an arrangement with them."
+      },
+      {
+       "title": "Tell your insurer and your school",
+       "text": "Private policies often require notice of a hospital admission, so check yours. Tell your academic manager or HR too, both about missed classes and because they may need to confirm your cover."
+      }
+     ]
+    },
+    {
+     "type": "p",
+     "text": "For a minor injury you can also take a Grab car to FMP Thao Dien (open 24/7) or FV's emergency department. More first-week set-up is in [your first weeks in Ho Chi Minh City](/teach-in-vietnam/your-first-weeks-in-ho-chi-minh-city)."
+    }
+   ]
+  },
+  {
+   "id": "pharmacies-and-medicines",
+   "title": "Pharmacies, prescriptions and bringing your own medicine",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Pharmacies are on almost every street, and the international hospitals have their own. They are stricter than they used to be. Since 15 May 2026, under Decree 90/2026/ND-CP, a pharmacy that sells prescription-only medicine without a prescription, antibiotics included, faces a fine of {{vnd:10000000-20000000}}, double the old level. Trading prescription medicines online can draw the same fine ([Tạp chí Luật sư](https://lsvn.vn/ban-thuoc-khong-co-chi-dinh-bac-si-bi-phat-toi-20-trieu-dong-a172405.html)). Expect to be asked for a prescription, and see a doctor to get one."
+    },
+    {
+     "type": "p",
+     "text": "Bringing your own medicine is allowed within limits. Without an import licence, your luggage may hold up to 30 days' supply of ordinary prescription medicine, 10 days of psychotropic medicines and 7 days of narcotic ones, each matching the prescription you carry ([Decree 163/2025/ND-CP, Art. 60](https://hethongphapluat.com/nghi-dinh-163-2025-nd-cp-huong-dan-va-bien-phap-de-to-chuc-thi-hanh-luat-duoc/dieu-60)). Ordinary (non-controlled) medicines sent to you from abroad are limited to US$200 customs value per shipment, at most three shipments a year."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "Carry the prescription and a doctor's letter (English is accepted) with your name, age, the medicine, the dose, and the doctor's signature and address, as the [UK travel advice](https://www.gov.uk/foreign-travel-advice/vietnam/health) recommends. It also warns that some anxiety, depression and insomnia medicines are restricted.",
+      "**ADHD stimulants**: Vietnam replaced its controlled-substance lists with Decree 28/2026/ND-CP from 19 January 2026 ([Tạp chí Luật sư](https://lsvn.vn/chinh-phu-ban-hanh-4-danh-muc-chat-ma-tuy-va-tien-chat-a168643.html)). No official guidance on bringing in amphetamine or methylphenidate for personal use was found, so check with a Vietnamese embassy or the Drug Administration before you travel.",
+      "For a long-term prescription, see an international clinic in your first month, so a local doctor can prescribe before your supply runs out."
+     ]
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Is tap water safe to drink in Ho Chi Minh City?",
+   "a": "It is not sold as drinking water straight from the tap. Most residents drink bottled or filtered water, or boil tap water, and that is the habit to copy."
+  },
+  {
+   "q": "Is there malaria in Ho Chi Minh City?",
+   "a": "The CDC reports no malaria transmission in Ho Chi Minh City, and Vietnam does not require yellow fever vaccination. Dengue is the mosquito-borne risk to plan for."
+  },
+  {
+   "q": "Can I use national health insurance at an international hospital?",
+   "a": "Yes, at FV Hospital, which has been an initial-registration facility for national health insurance since 1 July 2025; ask any other hospital directly before you rely on it. The scheme pays its own listed prices for covered services, so you still pay the co-payment and the gap to FV's prices. A private policy covers that gap."
+  },
+  {
+   "q": "Does my school's health insurance end when my contract ends?",
+   "a": "National health insurance is tied to your labour contract, and an employer's private policy usually is too. Ask HR for the end date of each, and arrange your own cover if there will be a gap between jobs."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Contact List – Hospitals – Vietnam (July 2026)",
+   "publisher": "Australian Consulate-General, Ho Chi Minh City (DFAT)",
+   "url": "https://hcmc.vietnam.embassy.gov.au/files/hchi/list_of_hospitals_jul_2026.pdf"
+  },
+  {
+   "title": "Foreign workers in Vietnam required to join national health insurance",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/foreign-workers-in-vietnam-required-to-join-national-health-insurance-10326041315262424.htm"
+  },
+  {
+   "title": "Notable points regarding the mandatory social security from 1 July 2025",
+   "publisher": "EY Vietnam",
+   "url": "https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/people-advisory-service-tax-alert-june-2025-notable-points-regarding-the-mandatory-social-security-from-1-july-2025"
+  },
+  {
+   "title": "Bệnh viện FV: Bệnh nhân được BHYT chi trả 100% quyền lợi khi khám chữa bệnh",
+   "publisher": "Báo Đầu tư",
+   "url": "https://baodautu.vn/benh-vien-fv-benh-nhan-duoc-bhyt-chi-tra-100-quyen-loi-khi-kham-chua-benh-d319012.html"
+  },
+  {
+   "title": "Decree 253/2026/ND-CP on personal income tax",
+   "publisher": "Government of Vietnam (Official Gazette)",
+   "url": "https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf"
+  },
+  {
+   "title": "Decree 219/2025/ND-CP on foreign workers in Vietnam",
+   "publisher": "Government of Vietnam (Official Gazette)",
+   "url": "https://congbaocdn.chinhphu.vn/CongBaoCP/VanBan/2025/8/45798/58141-1-20251073-1074219-2025-nd-cp.pdf"
+  },
+  {
+   "title": "Tăng lương cơ sở từ 01/7/2026",
+   "publisher": "Hà Tĩnh provincial portal",
+   "url": "https://hatinh.gov.vn/vi/bai-viet/tang-luong-co-so-tu-0172026"
+  },
+  {
+   "title": "Tuổi nghỉ hưu năm 2026 thay đổi thế nào",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong-tien-luong/tuoi-nghi-huu-nam-2026-thay-doi-the-nao-562-106488-article.html"
+  },
+  {
+   "title": "FV Hospital — Contact us",
+   "publisher": "FV Hospital",
+   "url": "https://www.fvhospital.com/en/contact-us/"
+  },
+  {
+   "title": "Ho Chi Minh City locations",
+   "publisher": "Family Medical Practice",
+   "url": "https://www.vietnammedicalpractice.com/locations/ho-chi-minh/"
+  },
+  {
+   "title": "Overseas RMG Clinics (December 2025)",
+   "publisher": "Raffles Medical Group",
+   "url": "https://www.rafflesmedicalgroup.com/wp-content/uploads/2025/12/Overseas-RMG-Clinics-NTU-10122025.pdf"
+  },
+  {
+   "title": "Vietnam traveler health information",
+   "publisher": "US Centers for Disease Control and Prevention",
+   "url": "https://wwwnc.cdc.gov/travel/destinations/traveler/none/vietnam"
+  },
+  {
+   "title": "Sốt xuất huyết tại TP.HCM tăng hơn 20% trong 1 tuần",
+   "publisher": "Znews",
+   "url": "https://lifestyle.zingnews.vn/sot-xuat-huyet-tai-tphcm-tang-hon-20-trong-1-tuan-post1675424.html"
+  },
+  {
+   "title": "Ca sốt xuất huyết ở TP.HCM tăng 20%",
+   "publisher": "VOV",
+   "url": "https://vov.vn/xa-hoi/ca-sot-xuat-huyet-o-tphcm-tang-20-benh-nhan-can-chu-y-giai-doan-nguy-hiem-post1320192.vov"
+  },
+  {
+   "title": "Vietnam launches vaccination against dengue fever nationwide for first time",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/vietnam-launches-vaccination-against-dengue-fever-nationwide-for-first-time-10382064.htm"
+  },
+  {
+   "title": "Vì sao số ca dại tăng",
+   "publisher": "VnExpress",
+   "url": "https://vnexpress.net/vi-sao-so-ca-dai-tang-5092402.html"
+  },
+  {
+   "title": "TPHCM ra mắt hệ thống tổng đài khẩn cấp liên thông 113-114-115",
+   "publisher": "VOV",
+   "url": "https://vov.vn/xa-hoi/tphcm-ra-mat-he-thong-tong-dai-khan-cap-lien-thong-113-114-115-782233.vov"
+  },
+  {
+   "title": "Hotline 112 to receive disaster and emergency reports nationwide",
+   "publisher": "Ministry of Agriculture and Environment",
+   "url": "https://en.mae.gov.vn/hotline-112-to-receive-disaster-and-emergency-reports-nationwide-9018.htm"
+  },
+  {
+   "title": "Bán thuốc không có chỉ định bác sĩ bị phạt tới 20 triệu đồng",
+   "publisher": "Tạp chí Luật sư Việt Nam",
+   "url": "https://lsvn.vn/ban-thuoc-khong-co-chi-dinh-bac-si-bi-phat-toi-20-trieu-dong-a172405.html"
+  },
+  {
+   "title": "Nghị định 163/2025/NĐ-CP, Điều 60",
+   "publisher": "Hệ thống pháp luật",
+   "url": "https://hethongphapluat.com/nghi-dinh-163-2025-nd-cp-huong-dan-va-bien-phap-de-to-chuc-thi-hanh-luat-duoc/dieu-60"
+  },
+  {
+   "title": "Vietnam travel advice: health",
+   "publisher": "UK Foreign, Commonwealth & Development Office",
+   "url": "https://www.gov.uk/foreign-travel-advice/vietnam/health"
+  },
+  {
+   "title": "Chính phủ ban hành 4 danh mục chất ma túy và tiền chất",
+   "publisher": "Tạp chí Luật sư Việt Nam",
+   "url": "https://lsvn.vn/chinh-phu-ban-hanh-4-danh-muc-chat-ma-tuy-va-tien-chat-a168643.html"
+  },
+  {
+   "title": "Convention on Road Traffic, Vienna 1968 — status",
+   "publisher": "United Nations Treaty Collection",
+   "url": "https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en"
+  },
+  {
+   "title": "Bồi thường tối đa 150 triệu đồng/người trong một vụ tai nạn",
+   "publisher": "VietnamFinance",
+   "url": "https://vietnamfinance.vn/boi-thuong-toi-da-150-trieu-dongnguoi-trong-mot-vu-tai-nan-d100407.html"
+  },
+  {
+   "title": "Full-time ESL/EFL teacher at ILA (job ad)",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/full-time-eslefl-teacher-at-ila-over-30-years-of-expertise-for-overseas-candidates"
+  }
+ ],
+ "related": [
+  "social-and-health-insurance-for-foreign-teachers-in-vietnam",
+  "your-first-weeks-in-ho-chi-minh-city",
+  "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+  "motorbike-licence-in-vietnam-for-foreigners",
+  "english-teaching-contracts-in-vietnam",
+  "moving-to-vietnam-with-family-as-a-teacher"
+ ],
+ "lastChecked": "2026-10-11"
+}

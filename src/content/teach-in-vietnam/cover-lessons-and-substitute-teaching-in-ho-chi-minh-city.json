@@ -1,0 +1,486 @@
+{
+ "slug": "cover-lessons-and-substitute-teaching-in-ho-chi-minh-city",
+ "title": "Substitute and cover teaching in Ho Chi Minh City (2026)",
+ "description": "How cover and substitute teaching works in Saigon in 2026: the work-permit rule for every school you teach at, real hourly rates, and how to be the one schools call.",
+ "h1": "Cover lessons and substitute teaching in Ho Chi Minh City: the legal routes, the pay and how to get called",
+ "eyebrow": "Teaching jobs",
+ "intro": "You can do cover and part-time teaching in Ho Chi Minh City, but legally only for a school or company that holds a work permit for you. A permit covers one employer, so even one cover class for another school is unpermitted work unless that school has its own permit for you. The legal routes are covering inside your own employer, a part-time contract with a second employer that files its own permit, or an agency that employs you and places you in schools. Hourly rates sit in the same band as ordinary centre work.",
+ "keyPoints": [
+  "A work permit belongs to one employer. Teaching for a second school or centre, even part-time or for one day, needs a separate permit filed by that second employer (Decree 219/2025/ND-CP, Art 20(1)).",
+  "Since 10 September 2026, teaching without a permit for that employer costs the teacher {{vnd:15000000-25000000}} and can lead to deportation (Decree 283/2026/ND-CP). The school is fined too, at double the individual rate because it is an organisation.",
+  "A new employer files your permit 60 to 10 days before your start date, so true same-day cover is only legal with an employer that already holds a permit for you. Get on a school's books before it needs you.",
+  "In July–October 2026 job ads, centres offered {{vnd:390000-600000}} an hour, most new-teacher offers {{vnd:430000-560000}}. None of the 2026 ads we reviewed publishes a cover premium, and pay usually covers contact time only.",
+  "On eno.vn you can mark the morning, afternoon and evening slots you are free for cover, set an hourly rate and the districts you will travel to, so schools can find and message you."
+ ],
+ "sections": [
+  {
+   "id": "is-cover-teaching-legal",
+   "title": "Can you legally do cover lessons in Ho Chi Minh City?",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Yes, but only for an employer that holds a work permit for you. Under [Decree 219/2025/ND-CP](https://english.luatvietnam.vn/decree-no-219-2025-nd-cp-dated-august-07-2025-of-the-government-on-foreign-workers-in-vietnam-407607-doc1.html), in force since 7 August 2025, a permit is tied to one employer. Teaching for another employer, even in the same job, needs a new permit filed by that employer (Art 20(1)). Teaching for a second school or centre **part-time or alongside your main job** therefore needs [a separate work permit for that second employer](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html)."
+    },
+    {
+     "type": "p",
+     "text": "The penalties are set by [Decree 283/2026/ND-CP](https://storage-vnportal.vnpt.vn/qnm-ubnd/7872/Ngh%E1%BB%8B%20%C4%91%E1%BB%8Bnh/283_2026_ND-CP_15072026_1-signed.pdf), in force since 10 September 2026. A teacher who works without a permit for that employer is fined {{vnd:15000000-25000000}} and may be deported. The school is fined as well: using foreign workers with no permit costs {{vnd:30000000-45000000}} for 1–10 workers, and using a worker outside what the permit covers costs {{vnd:5000000-10000000}} per worker. Those are the rates for individuals; schools and centres, as organisations, pay double ([Suc Khoe & Doi Song](https://suckhoedoisong.vn/tu-10-9-2026-lao-dong-nuoc-ngoai-se-bi-phat-neu-khong-co-giay-phep-lao-dong-169260824224738.htm))."
+    },
+    {
+     "type": "p",
+     "text": "Officials name cover work directly. In an April 2026 case in Thanh Hoa province, foreign teachers were found teaching at private kindergartens while their permits named a different language centre, and the provincial Department of Home Affairs said that bringing in foreigners without permits to teach, **substitute**, do trial lessons or observe classes is illegal ([Bao Thanh Hoa](https://baothanhhoa.vn/vi-pham-trong-su-dung-giao-vien-nuoc-ngoai-tai-co-so-mam-non-283585.htm)). That also rules out cover or trial classes while your first permit is still being processed."
+    },
+    {
+     "type": "table",
+     "caption": "The ways to do cover and part-time teaching in Ho Chi Minh City, and whether each is legal (Decree 219/2025 Art 20; Decree 283/2026; Labour Code)",
+     "headers": [
+      "Route",
+      "Who holds your permit",
+      "Works at short notice?",
+      "Legal?"
+     ],
+     "rows": [
+      [
+       "Covering classes for your own employer, at its other branches or for absent colleagues",
+       "Your employer",
+       "Yes, if the job title and work location on the permit match",
+       "Yes"
+      ],
+      [
+       "A part-time contract with a second school or centre",
+       "The second employer files its own permit for you",
+       "Only once that permit is issued",
+       "Yes"
+      ],
+      [
+       "Working for a teacher-supply agency that places you in schools",
+       "The agency, as your employer",
+       "Yes, once the agency's permit is in place",
+       "Yes"
+      ],
+      [
+       "A cash cover class for a school that has no permit for you",
+       "Nobody",
+       "Yes",
+       "No: a fine for you and the school, and possible deportation"
+      ],
+      [
+       "Paid private lessons on your own",
+       "Nobody: there is no permit route without an employer",
+       "Yes",
+       "No"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "The mistake that costs the most",
+     "text": "A school you have never worked for messages at 7am: their teacher is ill, can you take the 9am class, cash on the day. If that school has not filed a work permit for you, saying yes is unpermitted work for you and an offence for them, whatever your main permit says. Say yes only to employers that already hold a permit for you, and ask them to start one for the next time."
+    }
+   ]
+  },
+  {
+   "id": "how-cover-work-is-arranged",
+   "title": "How cover work is arranged in Saigon",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Cover is short-notice work by nature: a teacher is ill, leaves mid-term or a timetable grows. Because of the permit rule, the short-notice part only works with an employer that already has the paperwork done. In practice that leaves three legal sources of cover hours."
+    },
+    {
+     "type": "h3",
+     "text": "Inside your own employer"
+    },
+    {
+     "type": "p",
+     "text": "The big chains run many branches: VUS, for example, reports about 30 centres in the city ([VUS](https://teachenglish.vus.edu.vn/)). If you already teach for a chain, telling your academic manager that you want extra hours is the simplest route, because your permit is already with them. Before you cover somewhere unusual, check that your permit's job title and work location match. A change of position or form of work, even with the same employer, needs a new permit (Decree 219 Art 20(2)), and if your employer sends you to another province it must notify that province at least 3 days before you start there (Art 22(5))."
+    },
+    {
+     "type": "h3",
+     "text": "A part-time contract with a second employer"
+    },
+    {
+     "type": "p",
+     "text": "A second school can put you on a part-time labour contract and file a permit of its own. Your timetable has to leave room for it: centres teach mostly on weekday evenings and weekends, and VUS defines part-time as 12–18 hours a week ([VUS](https://teachenglish.vus.edu.vn/?p=979)). In Ho Chi Minh City the [Department of Home Affairs](https://luatvietnam.vn/lao-dong/quyet-dinh-6093-qd-ubnd-tp-ho-chi-minh-2026-cong-bo-danh-muc-thu-tuc-hanh-chinh-sua-doi-bo-sung-448197-d2.html) issues permits for practically every language centre and school (Decision 6093/QĐ-UBND, 21 September 2026). The employer files 60 to 10 days before your start date, the decree allows up to 10 working days for a decision and the city publishes 5. The city fee is {{vnd:600000}} for a new permit, paid by the employer ([Resolution 09/2022/NQ-HĐND](https://luatvietnam.vn/thue/nghi-quyet-09-2022-nq-hdnd-239822-d2.html)). Since Decision 346/QĐ-BNV (24 March 2026), a permit for a new employer means re-submitting proof of your degree and experience, so keep your certified copies and translations ready."
+    },
+    {
+     "type": "h3",
+     "text": "Teacher-supply agencies"
+    },
+    {
+     "type": "p",
+     "text": "Agencies employ foreign teachers and supply them to schools and kindergartens, including part-time. The eno.vn [school directory](/schools) lists the city's teacher agencies alongside its schools and centres. For public schools the documents must be in place before you set foot in the classroom: a city education department directive reported in January 2024 requires centres that send foreign teachers into schools to provide each teacher's work permit before the teacher starts teaching there ([VOH](https://voh.com.vn/giao-duc/trung-tam-ngoai-ngu-tai-tphcm-khong-duoc-thu-hoc-phi-dai-han-510985.html)). Since January 2026, schools running linked English programmes must hold a full file for each foreign teacher, with a permit naming the English-teacher role and a work location in the city, and partner companies may not promise to supply missing documents after signing ([Đại biểu Nhân dân](https://daibieunhandan.vn/tp-ho-chi-minh-ra-soat-nang-luc-bang-cap-giao-vien-chuong-trinh-lien-ket-10402625.html))."
+    },
+    {
+     "type": "h3",
+     "text": "Facebook groups and word of mouth"
+    },
+    {
+     "type": "p",
+     "text": "Teachers also pass cover requests around in chat groups and Facebook groups. We could not verify which groups are active and moderated in 2026, so treat any post from an unknown school the same way: ask which legal entity would employ you and whether it holds or will file a permit for you. Never pay anything to get hours. VUS, for example, says applying is free and any request for money is a scam ([VUS](https://teachenglish.vus.edu.vn/fake-job-warning)). Our guide to [teaching job scams in Vietnam](/teach-in-vietnam/teaching-job-scams-in-vietnam) covers the patterns."
+    }
+   ]
+  },
+  {
+   "id": "what-cover-teaching-pays",
+   "title": "What cover and part-time teaching pays (2026)",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "No 2026 ad we found publishes a separate cover or substitute rate, so expect the ordinary hourly rate of the type of school you cover for. As of October 2026, these are the bands in job ads, with one agency's price to schools for comparison; the [salary guide](/teach-in-vietnam/english-teacher-salary-in-vietnam) has the full picture."
+    },
+    {
+     "type": "table",
+     "caption": "Hourly rates for part-time and hourly teaching in Ho Chi Minh City, from July–October 2026 job ads (Vietnam Teaching Jobs, Teast) and one agency price list",
+     "headers": [
+      "Type of work",
+      "Hourly rate",
+      "When the hours are"
+     ],
+     "rows": [
+      [
+       "Language centres",
+       "{{vnd:390000-600000}}, most new-teacher offers {{vnd:430000-560000}}",
+       "Mostly weekday evenings and weekends"
+      ],
+      [
+       "Public schools, through placement agencies",
+       "{{vnd:430000-600000}}",
+       "Weekday daytime, September to May"
+      ],
+      [
+       "Kindergartens, part-time",
+       "{{vnd:420000-500000}}",
+       "Daytime, often mornings, in 25–35-minute activities"
+      ],
+      [
+       "What one agency charges schools for a part-time foreign teacher",
+       "{{vnd:700000-850000}}",
+       "Not what the teacher receives"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Some examples behind those bands: GEMS advertised {{vnd:430000-480000}} an hour for public primary classes and asks teachers to bring their own laptop ([Vietnam Teaching Jobs](https://vietnamteachingjobs.com/jobs/view/foreign-esl-teachers-for-public-schools-in-ho-chi-minh-city-2026-2027/)), and DTP advertised {{vnd:490000-550000}} gross for at least 3 weekdays, plus a {{vnd:2000000}} a month location allowance in Thu Dau Mot and Tan Uyen ([Vietnam Teaching Jobs](https://vietnamteachingjobs.com/jobs/view/native-part-time-english-teacher-public-schools-hcm-binh-duong-vung-tau-currently-in-vietnam)). A Tan Binh kindergarten offered {{vnd:420000-450000}} an hour for two 30-minute classes on three mornings a week ([Teast](https://teast.co/job/part-time-esl-teacher-for-kindergarten-dIUfG4eZOchx6u9HEJzC)). BYAN's 2026 price list charges clients {{vnd:700000-850000}} an hour for a part-time foreign teacher ([BYAN](https://byan.com.vn/vn/bang-gia-cung-cap-giao-vien-nuoc-ngoai)), and [a 2026 job-board guide](https://blog.vietnamteachingjobs.com/average-salary-esl-teachers-vietnam/) says public-school placement agencies deduct 5–10% from teachers' pay, though no agency publishes this. Ask what you will actually receive."
+    },
+    {
+     "type": "p",
+     "text": "In ads, 'up to' figures are ceilings. Hourly pay usually covers **contact time only**: travel between schools, early arrival and planning are typically unpaid, and a school 'hour' may be a 35–45-minute period ([Vietnam Teaching Jobs](https://vietnamteachingjobs.com/jobs/view/expat-primary-teacher-pathway-school-district-2-hcmc-full-time)). The arithmetic is simple: at {{vnd:500000}} an hour, 10 contact hours a week comes to {{vnd:5000000}} a week before tax. That is only if the classes run. Before you accept hours, ask:"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "Is the rate gross or net, and is it paid in VND or another currency?",
+      "Is it per 60-minute hour or per 35–45-minute period?",
+      "Is travel to a distant campus paid, or is there a location allowance?",
+      "When are you paid? Under Labour Code Art 97, hourly pay is due after each period worked or, if you agree, in a lump sum at least every 15 days.",
+      "What happens if a class is cancelled? Under [Labour Code Art 99](https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html), full pay is due if the employer is at fault for the stoppage; hours never guaranteed under an hourly contract need not be paid."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "contract-for-part-time-work",
+   "title": "The contract for part-time or cover work: what to check",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Cover hours from a second employer come with a contract of their own. Calling it 'freelance' or a 'service contract' does not change what it is: if there is paid work, a wage and supervision by the school, it is a labour contract ([Labour Code Art 13(1)](https://hethongphapluat.com/bo-luat-lao-dong-2019/khoan-1-dieu-13)), and a 'freelance' agreement with one centre that sets your timetable cannot by itself support a work permit. [Circular 59/2026/TT-BGDĐT](https://pbgdpl.cantho.gov.vn/hoat-dong-thinh-giang-tieu-chuan-cua-nha-giao-thinh-giang-dinh-muc-gio-thinh-giang-va-hop-dong-thinh-giang-duoc-quy-dinh-nhu-the-nao), in force since 1 September 2026, applies the same test to visiting teachers, foreigners included: a service contract only fits work the teacher does independently, outside the institution's direct management."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "A **written labour contract signed before you start** (Decree 219 Art 22(4)), with an end date no later than the permit's (Labour Code Art 151(2)).",
+      "Part-time status agreed in the contract. Part-time staff on a labour contract have the same rights as full-time staff ([Labour Code Art 32](https://hethongphapluat.com/bo-luat-lao-dong-2019/dieu-32)).",
+      "A minimum number of hours or a minimum monthly amount in writing, if the school will give one. Some employers advertise guaranteed pay but none publishes the amount.",
+      "Probation, if any, of at most 60 days at no less than 85% pay.",
+      "Notice: 3 working days on a contract under 12 months. Compulsory social insurance (employee share 9.5%: 8% pension plus 1.5% health insurance) applies only to contracts of 12 months or more, so ask what will be deducted on a shorter one.",
+      "No deposit and no original documents kept by the school: both are banned by Labour Code Art 17.",
+      "Final pay within 14 working days of the contract ending."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Your employer and the authority have the final word on how your own permit and contract are set up. Our guide to [teaching contracts in Vietnam](/teach-in-vietnam/english-teaching-contracts-in-vietnam) goes through every clause, and the [work permit guide](/teach-in-vietnam/vietnam-work-permit-for-english-teachers) covers the documents and the timeline."
+    }
+   ]
+  },
+  {
+   "id": "be-the-teacher-schools-call",
+   "title": "How to be the teacher schools call",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "A school that needs cover tomorrow calls the teacher it already trusts, who is free at the right time, lives close enough and can teach straight off. You can set up each of those in advance."
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Get the paperwork done before the emergency",
+       "text": "Ask the schools you want cover from to put you on a part-time contract and file a permit while things are calm. A school that has your permit can call you the same morning; one that does not, cannot."
+      },
+      {
+       "title": "Be precise about when you are free",
+       "text": "Think in blocks: weekday daytime for kindergartens and public schools, late afternoons, evenings and weekends for centres. State the blocks you can reliably take and keep them current."
+      },
+      {
+       "title": "Name your districts and your travel limit",
+       "text": "Schools and job ads still use the old district names, such as District 1, Binh Thanh, District 7 or Thu Duc, although since July 2025 official addresses use new ward names. Since the 2025 merger a job labelled Ho Chi Minh City can be 30 to more than 200 km from central Saigon, so say how far you will go. Our guide to [getting around Ho Chi Minh City](/teach-in-vietnam/getting-around-ho-chi-minh-city) helps you judge travel times."
+      },
+      {
+       "title": "Keep a cover kit ready",
+       "text": "Your own laptop (some agencies require one), a printed lesson plan and a backup activity that needs no equipment. Prepare activities by age: kindergarten English runs as 25–35-minute activities under [Circular 50/2020](https://luatvietnam.vn/tin-van-ban-moi/to-chuc-cho-tre-mau-giao-lam-quen-voi-tieng-anh-35-tuan-nam-186-29560-article.html), school periods are often 35–45 minutes, and at chains such as VUS most classes are for children aged 6 to 16. The guide to [teaching young learners](/teach-in-vietnam/teaching-young-learners-in-vietnam) has ideas."
+      },
+      {
+       "title": "Leave a good handover",
+       "text": "Note what you covered, who was absent and any problems, for the regular teacher. Keep your own record of classes taught (date, class, minutes), signed off by the centre where it can be, so the invoice or payslip is easy to check. Do not photograph class lists: they carry students' names."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "eno-cover-availability",
+   "title": "Listing your cover availability on eno.vn",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "eno.vn teacher profiles are free and include a cover-lesson setting. Only business accounts (schools, centres and companies) can message you there."
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Start your profile",
+       "text": "Fill in the short form at [teacher.eno.vn](https://teacher.eno.vn), then finish on eno.vn: sign in, add an optional intro video and your CV, give your consents and publish. The profile shows your subjects, the ages you teach, your experience, where you live and can teach, and your qualifications as typed information."
+      },
+      {
+       "title": "Mark your cover periods",
+       "text": "For each weekday and weekend day, mark the morning, afternoon or evening periods you are free for cover work."
+      },
+      {
+       "title": "Set your rate and districts",
+       "text": "Set the hourly rate you want and the districts you will travel to, so schools that need a cover teacher can find you."
+      },
+      {
+       "title": "Answer messages and share contact details when ready",
+       "text": "You are notified when a school messages you. Your phone number, email and CV stay hidden until you tap 'Share my contact' in that chat, and you can withdraw it."
+      }
+     ]
+    },
+    {
+     "type": "p",
+     "text": "eno.vn does not employ you, pay you or arrange permits. Before you say yes to a school that finds you, ask which legal entity will employ you and whether it holds a permit for you, and look it up in the [school directory](/schools), where teachers who worked or interviewed there can vote and write reviews (most schools have few or none yet). For ongoing hours, the [teaching jobs page](/jobs-vietnam-expats) links to original postings; never pay to get a job."
+    }
+   ]
+  },
+  {
+   "id": "when-hours-come-and-go",
+   "title": "When part-time and cover hours come and go",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Hourly work follows the school calendar, and that makes your income uneven. Keep a cash buffer of two to three months, as teaching guides advise."
+    },
+    {
+     "type": "table",
+     "caption": "The 2026–27 teaching year for hourly teachers in Ho Chi Minh City (city school calendar, International TEFL Academy, Government Office letter of 2 October 2026)",
+     "headers": [
+      "Period",
+      "What happens to hourly work"
+     ],
+     "rows": [
+      [
+       "Mid or late August 2026 (pupils reported on 17 or 24 August; opening ceremony 5 September) to before 31 May 2027",
+       "Public schools teach; agency hours run on weekday daytimes"
+      ],
+      [
+       "24 November 2026",
+       "Vietnam Culture Day, a new paid public holiday; whether hourly staff are paid for it depends on the contract"
+      ],
+      [
+       "Mid-December to Tet",
+       "Centres' slowest hiring period"
+      ],
+      [
+       "4 to 10 February 2027",
+       "Public-sector Tet break (Tet falls on 6 February); private employers set their own 5 Tet days, and many centres pay hourly teachers only for hours taught"
+      ],
+      [
+       "June to August 2027",
+       "Public-school hours largely stop; centres' busiest hiring season"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The public-school year opened on 5 September 2026 and must end before 31 May 2027 ([Giáo dục Việt Nam](https://giaoduc.net.vn/tphcm-ban-hanh-ke-hoach-thoi-gian-nam-hoc-2026-2027-post262099.gd)). Centres hire all year, busiest before and during the June–August holiday and slowest from mid-December until Tet ([International TEFL Academy](https://www.internationalteflacademy.com/teach-english-in-vietnam)). The 2027 public-sector Tet break was set by a [Government Office letter of 2 October 2026](https://www.vietnamplus.vn/chot-lich-nghi-dip-ngay-van-hoa-viet-nam-2026-tet-nguyen-dan-va-quoc-khanh-nam-2027-post1139707.vnp). The full 2026–27 calendar, with every public holiday and the Tet options for private employers, is in [the teaching year in Vietnam](/teach-in-vietnam/the-teaching-year-in-vietnam). Ask before signing how holidays, Tet and cancelled classes are paid; how public-holiday pay works for hourly staff is not spelled out in the sources we reviewed."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Can I teach a one-off cover class at a friend's school on my current work permit?",
+   "a": "No. A permit covers one employer, so teaching even one class for another school needs a permit filed by that school. Without it you risk a fine and deportation, and the school is fined too."
+  },
+  {
+   "q": "Can I do cover lessons while my first work permit is being processed?",
+   "a": "No. Paid work, including trial, probation and substitute classes, starts only once the permit is issued. Officials in an April 2026 case said bringing in foreigners without permits to substitute or teach trial lessons is illegal."
+  },
+  {
+   "q": "Is private tutoring a legal way to fill gaps between cover jobs?",
+   "a": "Not on your own. Paid tutoring providers must be registered businesses, foreigners cannot register a household business, and paid work needs a permit tied to an employer. Teach extra classes as an employee of a licensed centre that holds your permit."
+  },
+  {
+   "q": "Do I get paid if a cover class is cancelled?",
+   "a": "It depends on the contract and the cause. Under Labour Code Art 99 full pay is due if the employer is at fault, but hours that were never guaranteed under an hourly contract need not be paid, so ask before you agree."
+  },
+  {
+   "q": "Can parents find and book me for cover or tutoring through eno.vn?",
+   "a": "No. Only business accounts such as schools, centres and companies can message teachers on eno.vn, and your contact details stay hidden until you choose to share them."
+  },
+  {
+   "q": "Does a weekend job at a second centre count as cover or as a second job?",
+   "a": "In law it is the same thing: work for a second employer. That employer needs its own permit for you and a written labour contract signed before you start."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Decree No. 219/2025/ND-CP on foreign workers in Vietnam",
+   "publisher": "LuatVietnam",
+   "url": "https://english.luatvietnam.vn/decree-no-219-2025-nd-cp-dated-august-07-2025-of-the-government-on-foreign-workers-in-vietnam-407607-doc1.html"
+  },
+  {
+   "title": "Nghị định 283/2026/NĐ-CP (signed text)",
+   "publisher": "Government of Vietnam",
+   "url": "https://storage-vnportal.vnpt.vn/qnm-ubnd/7872/Ngh%E1%BB%8B%20%C4%91%E1%BB%8Bnh/283_2026_ND-CP_15072026_1-signed.pdf"
+  },
+  {
+   "title": "Từ 10/9/2026, lao động nước ngoài sẽ bị phạt nếu không có giấy phép lao động",
+   "publisher": "Sức khỏe & Đời sống",
+   "url": "https://suckhoedoisong.vn/tu-10-9-2026-lao-dong-nuoc-ngoai-se-bi-phat-neu-khong-co-giay-phep-lao-dong-169260824224738.htm"
+  },
+  {
+   "title": "Vi phạm trong sử dụng giáo viên nước ngoài tại cơ sở Mầm non",
+   "publisher": "Báo Thanh Hóa",
+   "url": "https://baothanhhoa.vn/vi-pham-trong-su-dung-giao-vien-nuoc-ngoai-tai-co-so-mam-non-283585.htm"
+  },
+  {
+   "title": "Quyết định 6093/QĐ-UBND TP Hồ Chí Minh 2026 (administrative procedures)",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong/quyet-dinh-6093-qd-ubnd-tp-ho-chi-minh-2026-cong-bo-danh-muc-thu-tuc-hanh-chinh-sua-doi-bo-sung-448197-d2.html"
+  },
+  {
+   "title": "Nghị quyết 09/2022/NQ-HĐND (work permit fees, Ho Chi Minh City)",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/thue/nghi-quyet-09-2022-nq-hdnd-239822-d2.html"
+  },
+  {
+   "title": "Decision 346/QĐ-BNV on administrative procedures for foreign employees",
+   "publisher": "EY Vietnam",
+   "url": "https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/decision-346-qd-bnv-on-the-amendment-and-supplementation-of-administrative-procedures-for-foreign-employees-working-in-vietnam"
+  },
+  {
+   "title": "Bộ luật Lao động 2019 (Labour Code 2019)",
+   "publisher": "Dữ liệu Pháp luật",
+   "url": "https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html"
+  },
+  {
+   "title": "Bộ luật Lao động 2019, Điều 13 khoản 1",
+   "publisher": "Hệ thống Pháp luật",
+   "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/khoan-1-dieu-13"
+  },
+  {
+   "title": "Bộ luật Lao động 2019, Điều 32 (part-time work)",
+   "publisher": "Hệ thống Pháp luật",
+   "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/dieu-32"
+  },
+  {
+   "title": "Hoạt động thỉnh giảng: tiêu chuẩn, định mức giờ và hợp đồng thỉnh giảng (Circular 59/2026/TT-BGDĐT)",
+   "publisher": "Cần Thơ legal information portal",
+   "url": "https://pbgdpl.cantho.gov.vn/hoat-dong-thinh-giang-tieu-chuan-cua-nha-giao-thinh-giang-dinh-muc-gio-thinh-giang-va-hop-dong-thinh-giang-duoc-quy-dinh-nhu-the-nao"
+  },
+  {
+   "title": "Trung tâm ngoại ngữ tại TPHCM không được thu học phí dài hạn",
+   "publisher": "VOH",
+   "url": "https://voh.com.vn/giao-duc/trung-tam-ngoai-ngu-tai-tphcm-khong-duoc-thu-hoc-phi-dai-han-510985.html"
+  },
+  {
+   "title": "TP Hồ Chí Minh rà soát năng lực, bằng cấp giáo viên chương trình liên kết",
+   "publisher": "Đại biểu Nhân dân",
+   "url": "https://daibieunhandan.vn/tp-ho-chi-minh-ra-soat-nang-luc-bang-cap-giao-vien-chuong-trinh-lien-ket-10402625.html"
+  },
+  {
+   "title": "Foreign ESL teachers for public schools in Ho Chi Minh City 2026-2027",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/foreign-esl-teachers-for-public-schools-in-ho-chi-minh-city-2026-2027/"
+  },
+  {
+   "title": "Part-time ESL teacher for kindergarten",
+   "publisher": "Teast",
+   "url": "https://teast.co/job/part-time-esl-teacher-for-kindergarten-dIUfG4eZOchx6u9HEJzC"
+  },
+  {
+   "title": "Bảng giá cung cấp giáo viên nước ngoài",
+   "publisher": "BYAN",
+   "url": "https://byan.com.vn/vn/bang-gia-cung-cap-giao-vien-nuoc-ngoai"
+  },
+  {
+   "title": "Expat primary teacher, Pathway School, District 2",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/expat-primary-teacher-pathway-school-district-2-hcmc-full-time"
+  },
+  {
+   "title": "Teach English with VUS: FAQ",
+   "publisher": "VUS",
+   "url": "https://teachenglish.vus.edu.vn/?p=979"
+  },
+  {
+   "title": "Fake job warning",
+   "publisher": "VUS",
+   "url": "https://teachenglish.vus.edu.vn/fake-job-warning"
+  },
+  {
+   "title": "Tổ chức cho trẻ mẫu giáo làm quen với tiếng Anh 35 tuần/năm (Circular 50/2020)",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/tin-van-ban-moi/to-chuc-cho-tre-mau-giao-lam-quen-voi-tieng-anh-35-tuan-nam-186-29560-article.html"
+  },
+  {
+   "title": "TPHCM ban hành kế hoạch thời gian năm học 2026-2027",
+   "publisher": "Giáo dục Việt Nam",
+   "url": "https://giaoduc.net.vn/tphcm-ban-hanh-ke-hoach-thoi-gian-nam-hoc-2026-2027-post262099.gd"
+  },
+  {
+   "title": "Teach English in Vietnam",
+   "publisher": "International TEFL Academy",
+   "url": "https://www.internationalteflacademy.com/teach-english-in-vietnam"
+  },
+  {
+   "title": "Expat part-time English teacher, public schools HCM and Binh Duong (DTP)",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/native-part-time-english-teacher-public-schools-hcm-binh-duong-vung-tau-currently-in-vietnam"
+  },
+  {
+   "title": "The average salary for teaching English in Vietnam: 2026 guide",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://blog.vietnamteachingjobs.com/average-salary-esl-teachers-vietnam/"
+  },
+  {
+   "title": "Chốt lịch nghỉ dịp Ngày Văn hóa Việt Nam 2026, Tết Nguyên đán và Quốc khánh năm 2027",
+   "publisher": "VietnamPlus",
+   "url": "https://www.vietnamplus.vn/chot-lich-nghi-dip-ngay-van-hoa-viet-nam-2026-tet-nguyen-dan-va-quoc-khanh-nam-2027-post1139707.vnp"
+  }
+ ],
+ "related": [
+  "vietnam-work-permit-for-english-teachers",
+  "language-centre-jobs-in-ho-chi-minh-city",
+  "english-teacher-salary-in-vietnam",
+  "english-teaching-contracts-in-vietnam",
+  "private-tutoring-and-online-teaching-in-vietnam",
+  "finding-a-teaching-job-in-vietnam"
+ ],
+ "lastChecked": "2026-10-11"
+}

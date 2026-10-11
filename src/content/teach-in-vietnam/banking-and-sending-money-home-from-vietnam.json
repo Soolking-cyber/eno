@@ -1,0 +1,555 @@
+{
+ "slug": "banking-and-sending-money-home-from-vietnam",
+ "title": "Opening a bank account in Vietnam and sending money home",
+ "description": "What HCMC banks ask foreign teachers for in 2026, the face-scan rules, MoMo and QR, ATM fees, and the papers a bank wants before it sends your salary abroad.",
+ "h1": "Opening a bank account in Vietnam as a foreign teacher, paying by QR and sending your salary home",
+ "eyebrow": "Pay and tax",
+ "intro": "A foreign teacher opens a Vietnamese bank account in person at a branch: banks commonly ask for your passport, work permit, labour contract and a Vietnamese SIM in your own name, and the branch records your biometrics at the counter. To send salary home, you buy foreign currency at your bank and transfer it abroad against proof that the money is legal income earned in Vietnam, usually your contract, payslips and tax papers. Wise cannot send đồng out of Vietnam.",
+ "keyPoints": [
+  "**No online opening for foreigners in practice.** Since 1 January 2025 accounts without matched ID and biometrics cannot transact online, and foreigners without a Vietnamese chip ID have their biometrics taken at a branch.",
+  "Online transfers above {{vnd:10000000}} each, or once the day's total passes {{vnd:20000000}}, need a face or fingerprint check in the app. Smaller transfers can still use an OTP.",
+  "When a document the bank holds for you expires, payments and withdrawals stop on every channel until you bring the new one to the branch. Update the bank the week anything is renewed.",
+  "MoMo accepts a foreign passport, but every e-wallet must pass a face check, be linked to a bank account in your name and keep ordinary transfers and payments within {{vnd:100000000}} a month per provider; cash top-ups have been banned since 5 November 2025.",
+  "Banks send a foreigner's money abroad only up to the documented value of legal income earned in Vietnam. Keep your contract, payslips and tax certificates together, and keep the account open until your last tax refund arrives."
+ ],
+ "sections": [
+  {
+   "id": "documents-to-open-an-account",
+   "title": "What you need to open a bank account as a foreigner",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The legal starting point is your passport. Under [Circular 17/2024/TT-NHNN, as amended by Circular 25/2025/TT-NHNN](https://luatvietnam.vn/tin-van-ban-moi/sua-doi-ho-so-mo-tai-khoan-thanh-toan-tai-to-chuc-cung-ung-dich-vu-tu-31-8-2025-186-103939-article.html) (in force since 31 August 2025), a foreigner opens a payment account with a passport or another foreign-issued identity document, together with the other papers the circular lists, or with a level-2 VNeID electronic identity account. Each bank then adds its own list, and **the bank's list is the one that decides whether you leave with an account**."
+    },
+    {
+     "type": "table",
+     "caption": "What Ho Chi Minh City banks commonly ask a foreign teacher for (State Bank circulars, HSBC Vietnam, Circular 45/2025, practitioner checklists, October 2026)",
+     "headers": [
+      "Bring",
+      "Why the bank asks",
+      "Where this comes from"
+     ],
+     "rows": [
+      [
+       "Passport with well over 60 days' validity left",
+       "The identity document the law starts from; HSBC wants at least 60 days' validity left on every document",
+       "Circular 17/2024 as amended; HSBC Vietnam"
+      ],
+      [
+       "Labour contract",
+       "HSBC lists an employment contract; it is also your proof of income when you send money home",
+       "HSBC Vietnam; PVcomBank"
+      ],
+      [
+       "Work permit",
+       "Shows the job behind the contract; commonly on branch checklists",
+       "Practitioner checklists"
+      ],
+      [
+       "Lease",
+       "Proof of address, which some branches ask for",
+       "Practitioner checklists"
+      ],
+      [
+       "A Vietnamese SIM in your own name",
+       "One-time passwords and app sign-up; for cards, the phone number must belong to the cardholder",
+       "Circular 45/2025/TT-NHNN"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Your employer arranges the rest of your paperwork once your work permit is issued — ask them exactly what they cover and what it costs. Many teachers find it simplest to open the account once that paperwork is complete, then give HR the account number for payroll. The [work permit guide](/teach-in-vietnam/vietnam-work-permit-for-english-teachers) explains the timeline."
+    },
+    {
+     "type": "p",
+     "text": "Two rules have recently changed in your favour. From 5 January 2026, [Circular 45/2025/TT-NHNN](https://vnba.org.vn/vi/quy-dinh-moi-ve-thu-tuc-phat-hanh-the-ngan-hang-tu-05-01-2026-19763.htm) stopped banks from requiring foreigners to have 12 or more months ahead of them in Vietnam before issuing a card; instead, the card cannot be valid beyond the end date the bank has on file for you. A [Vietcombank card document](https://www.vietcombank.com.vn/-/media/Project/VCB-Sites/VCB/KHCN/San-pham-Dich-vu/The/Tai-lieu-THE/Ghi-no/Thu-tuc-phat-hanh-the-GN.pdf?ts=00010101000000) dated April 2023 still asks for papers valid for 12 months or more, so check any bank's current list rather than an old PDF. The VNeID route exists in the rules, but whether HCMC branches accept it from foreign teachers in place of other documents is not yet clear, so ask before you rely on it."
+    },
+    {
+     "type": "p",
+     "text": "Use your official address on bank forms. Since 1 July 2025 Ho Chi Minh City has [no districts, only 168 wards, communes and a special zone](https://baodauthau.vn/tphcm-co-113-phuong-54-xa-va-1-dac-khu-sau-sap-xep-post180312.html), although leases and people still use the old names: the former District 7 is now Tan Thuan, Phu Thuan, Tan My and Tan Hung wards, and Thao Dien is in An Khanh ward."
+    }
+   ]
+  },
+  {
+   "id": "how-to-open-the-account",
+   "title": "How to open the account, step by step",
+   "blocks": [
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Get a Vietnamese SIM in your own name first",
+       "text": "Banks send one-time codes to a Vietnamese number, and for a card the number must be yours. Take your physical passport to a carrier store; the [eSIM and SIM guide](/esim-vietnam-guide) covers carriers, plans and the current registration rules."
+      },
+      {
+       "title": "Ask HR how and where you will be paid",
+       "text": "Ask whether salary is paid in đồng or in US dollars (the [Labour Code](https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html) allows foreign-currency pay for foreign staff, Art. 95(2)), whether payroll needs a particular bank, and when the first payment lands. A US-dollar salary needs a foreign-currency account."
+      },
+      {
+       "title": "Check the branch's current document list",
+       "text": "Call or visit before the appointment. Lists differ by bank and change; HSBC Vietnam publishes its list and says [online opening is only for new Vietnamese customers](https://www.hsbc.com.vn/en-vn/accounts/how-to-open-bank-account-online/)."
+      },
+      {
+       "title": "Open the account at the counter",
+       "text": "Bring the originals. The branch matches your documents and records your biometrics; since 1 January 2025 [foreign customers can update biometrics only at the counter](https://woori.com.vn/en/news/instructions-about-updating-information-for-foreign-customers/), not in the app. A card is issued only after an in-person meeting and biometric match."
+      },
+      {
+       "title": "Set up the app before you leave the branch",
+       "text": "Register the banking app on your own phone number, then test a small transfer, a QR payment and the face check while staff can still help. Then send the account details to HR."
+      },
+      {
+       "title": "Ask how outward transfers work at this bank",
+       "text": "If you plan to send savings abroad regularly, ask what the bank needs from you for each outward transfer, whether it can be done in the app or only at the counter, and whether a foreign-currency account would make it simpler."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "which-bank",
+   "title": "Which banks work for foreign teachers",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "No official source ranks banks for foreigners, and every bank follows the same State Bank rules on documents and biometrics. What differs is each bank's own list, its fees and how used its branch staff are to foreign customers. This is what the published sources show as of October 2026."
+    },
+    {
+     "type": "table",
+     "caption": "What banks publish about foreign customers (bank pages, notices and fee schedules, October 2026)",
+     "headers": [
+      "Bank",
+      "What the sources show",
+      "Source"
+     ],
+     "rows": [
+      [
+       "HSBC Vietnam",
+       "Passport, employment contract, at least 60 days' validity on every document, VNeID level 2 for biometrics; foreigners open at a branch, not online",
+       "[HSBC Vietnam](https://www.hsbc.com.vn/en-vn/accounts/how-to-open-bank-account-online/)"
+      ],
+      [
+       "Vietcombank",
+       "Suspends transactions on all channels when an identity document on file expires; an April 2023 card document still lists 12-month document validity, which Circular 45/2025 has since dropped for cards",
+       "[Vietcombank notice](https://www.vietcombank.com.vn/vi-VN/Trang-thong-tin-dien-tu/Articles/2024/11/07/20241107_VCB-TCBC-vv-Cap-nhat-STH-va-GTTT-de-khong-bi-gian-doan-giao-dich-tu-01012025)"
+      ],
+      [
+       "PVcomBank",
+       "A product for sending a foreigner's legal income abroad: valid passport plus proof the money is legal income, and an authorised person may make the transfer",
+       "[PVcomBank](https://www.pvcombank.com.vn/san-pham/ca-nhan/chuyen-tien-quoc-te/chuyen-thu-nhap-hop-phap-cua-ca-nhan-nguoi-nuoc-ngoai)"
+      ],
+      [
+       "Woori Bank Vietnam",
+       "Foreign customers update biometrics only at the counter, not in the app",
+       "[Woori notice](https://woori.com.vn/en/news/instructions-about-updating-information-for-foreign-customers/)"
+      ],
+      [
+       "VietinBank",
+       "Suspends card transactions when a foreign customer's documents expire; update at a branch. Charges foreign-issued cards 4% per withdrawal at its ATMs, minimum {{vnd:80000}} excluding VAT",
+       "[VietinBank notice](https://vietinbank.vn/en/thong-bao-danh-cho-khach-hang-nguoi-nuoc-ngoai-su-dung-the-vietinbank-20250708015904-00-html); [fee schedule](https://vietinbank.vn/en/ca-nhan/cong-cu-tien-ich/bieu-phi-va-bieu-mau/bieu-phi-ap-dung-cho-nghiep-vu-thanh-toan-the-tin-dung-quoc-te-40-html)"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Practical choice: a bank with a branch near your home or school (you will be back at the counter whenever a document is renewed), one your payroll can pay into without delay, and one that will handle outward transfers for foreigners without a fight. Ask colleagues at your school which bank they use for transfers home; their experience at a specific branch is worth more than any ranking."
+    }
+   ]
+  },
+  {
+   "id": "keeping-the-account-working",
+   "title": "Face scans, frozen cards and keeping the account working",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Under [State Bank Decision 2345/QĐ-NHNN](https://tapchicongthuong.vn/chinh-thuc-tu-1-7-2024--chuyen-tien-tren-10-trieu-dong-phai-xac-thuc-bang-khuon-mat--van-tay-122879.htm), in force since 1 July 2024, any online transfer above {{vnd:10000000}}, and any transfer once the day's total passes {{vnd:20000000}}, needs face or fingerprint authentication. That is why the app asks for a face scan when you pay a deposit or rent; smaller transfers can still go through on an OTP."
+    },
+    {
+     "type": "p",
+     "text": "Without biometrics on file, counter transactions still work, but online and app transfers and card-less ATM transactions are suspended; withdrawals with your physical card at an ATM still work, according to [Woori Bank's notice](https://woori.com.vn/en/news/instructions-about-updating-information-for-foreign-customers/)."
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "The account freezes the day a document on file expires",
+     "text": "When an identity document the bank holds for you expires — your passport, or any other document on your file — the bank suspends payments and withdrawals on all channels until you update it at a branch ([Vietcombank notice](https://www.vietcombank.com.vn/vi-VN/Trang-thong-tin-dien-tu/Articles/2024/11/07/20241107_VCB-TCBC-vv-Cap-nhat-STH-va-GTTT-de-khong-bi-gian-doan-giao-dich-tu-01012025), [VietinBank notice](https://vietinbank.vn/en/thong-bao-danh-cho-khach-hang-nguoi-nuoc-ngoai-su-dung-the-vietinbank-20250708015904-00-html)). Biometrics can only be updated at the counter. Take the new document and your passport to the branch the week it is issued, before rent day."
+    },
+    {
+     "type": "p",
+     "text": "Your phone number matters too. Since 15 June 2026, moving your SIM to a new phone [blocks outgoing calls and texts within 2 hours](https://luatvietnam.vn/dan-su/thong-tu-08-2026-tt-bkhcn-huong-dan-xac-thuc-thong-tin-thue-bao-di-dong-mat-dat-430575-d1.html) until you redo the face check, and after 30 days incoming service, including your bank's one-time codes, is suspended too. Re-verify the day you change phones; the [eSIM and SIM guide](/esim-vietnam-guide) explains how."
+    }
+   ]
+  },
+  {
+   "id": "e-wallets-and-qr",
+   "title": "E-wallets, MoMo and QR payments",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Day to day in Saigon you will mostly pay by scanning a VietQR code with your bank app; many teachers report that most vendors accept it. E-wallets such as MoMo work too, but only on top of a Vietnamese bank account. [MoMo's own FAQ](https://www.momo.vn/hoi-dap/ho-chieu-nuoc-ngoai-co-duoc-xac-thuc-khong) confirms it accepts a foreign passport for verification, and its rules say a wallet must be [verified and linked to a bank account](https://www.momo.vn/hoi-dap/ai-la-nguoi-phai-xac-thuc-tai-khoan-vi-momo) or it is locked."
+    },
+    {
+     "type": "table",
+     "caption": "E-wallet rules for every licensed wallet in Vietnam (Circular 41/2025/TT-NHNN, as summarised by LuatVietnam)",
+     "headers": [
+      "Rule",
+      "What it means for you",
+      "From"
+     ],
+     "rows": [
+      [
+       "Biometric check before opening",
+       "The wallet matches your face before it can be used",
+       "1 January 2026"
+      ],
+      [
+       "Documents for foreigners",
+       "The same identity rules as a bank account: a passport with the other papers the rules list, or a level-2 VNeID account",
+       "1 January 2026"
+      ],
+      [
+       "Monthly cap",
+       "Transfers and payments up to {{vnd:100000000}} a month per wallet provider",
+       "1 January 2026"
+      ],
+      [
+       "Extra allowance",
+       "Up to {{vnd:300000000}} a month more for listed payments such as utilities, tuition, hospital fees, insurance and public services",
+       "1 January 2026"
+      ],
+      [
+       "Cash top-ups and cash withdrawals",
+       "Banned; you top up from your linked bank account",
+       "5 November 2025"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The source for the table is [LuatVietnam's summary of Circular 41/2025/TT-NHNN](https://luatvietnam.vn/linh-vuc-khac/tong-hop-diem-moi-thong-tu-41-2025-tt-nhnn-ve-vi-dien-tu-883-106022-article.html). The same rules apply to ZaloPay and the other wallets; we found no official statement from ZaloPay on foreign passports, so check in the app. On Metro Line 1 you can pay with a contactless bank card or an e-wallet; the [getting-around guide](/teach-in-vietnam/getting-around-ho-chi-minh-city) covers fares and passes."
+    }
+   ]
+  },
+  {
+   "id": "sending-money-home",
+   "title": "Sending your salary home: rules, documents and fees",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The rules are in [Circular 16/2014/TT-NHNN](https://caselaw.vn/van-ban-phap-luat/264720-thong-tu-16-2014-tt-nhnn-huong-dan-su-dung-tai-khoan-ngoai-te-tai-khoan-dong-viet-nam-cua-nguoi-cu-tru-nguoi-khong-cu-tru-tai-ngan-hang-duoc-phep-do-thong-doc-ngan-hang-nha-nuoc-viet-nam-ban-hanh). A resident foreigner may receive salary into a foreign-currency account or a đồng account and send it abroad. If you are paid in đồng, you first buy foreign currency at a licensed bank, then transfer it. [Circular 39/2026/TT-NHNN](https://thitruongtaichinhtiente.vn/sua-quy-dinh-ve-su-dung-tai-khoan-ngoai-te-tai-khoan-dong-viet-nam-cua-to-chuc-tin-dung-nuoc-ngoai-84866.html), in force since 19 September 2026, amends Circular 16; under it, customers must present the required papers and are legally responsible for their authenticity."
+    },
+    {
+     "type": "p",
+     "text": "**The cap is your documented income.** [PVcomBank](https://www.pvcombank.com.vn/san-pham/ca-nhan/chuyen-tien-quoc-te/chuyen-thu-nhap-hop-phap-cua-ca-nhan-nguoi-nuoc-ngoai), for example, asks for a valid passport and proof that the money comes from legal income in Vietnam, and transfers up to the value of that income. Teachers report banks asking for these papers, sometimes for every transfer:"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "your labour contract, which states the salary;",
+      "payslips or bank statements showing the salary arriving;",
+      "your work permit;",
+      "personal income tax documents, such as the withholding certificates HR issues — see the [income tax guide](/teach-in-vietnam/personal-income-tax-for-teachers-in-vietnam)."
+     ]
+    },
+    {
+     "type": "table",
+     "caption": "Ways to move money in and out of Vietnam (Circular 16/2014, Wise help centre, expat forum reports, October 2026)",
+     "headers": [
+      "Route",
+      "How it works",
+      "Watch out for"
+     ],
+     "rows": [
+      [
+       "Buy foreign currency and send by SWIFT",
+       "Your bank converts đồng from your salary account and wires it to your account abroad",
+       "Income papers at the counter; the bank's buying and selling rates differ, so compare banks"
+      ],
+      [
+       "Salary paid into a foreign-currency account",
+       "If your school pays part of your salary in US dollars, it can go abroad without a conversion step",
+       "Agree the currency and exchange-rate date in your contract"
+      ],
+      [
+       "Wise",
+       "Can send money into Vietnam to a đồng account, but cannot send đồng out of Vietnam",
+       "Not a way to get your salary home"
+      ],
+      [
+       "Carrying cash",
+       "Possible; amounts above the thresholds below must be declared",
+       "Declaration on exit above the thresholds below; theft"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Banks set their own fees for outward transfers and do not publish one figure for all banks. Forum users report bank fees of roughly US$10–30 per SWIFT transfer, depending on the bank. Sending larger amounts less often keeps fixed fees down. Ask your bank for its fee and exchange rate before the first transfer, and check what your bank at home charges to receive."
+    },
+    {
+     "type": "p",
+     "text": "If your contract pays in US dollars, check how it will be taxed. For income tax, salary paid in foreign currency is converted to đồng at the buying rate of the bank where you hold your account on the date the income arises ([Decree 253/2026/ND-CP](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf), Art. 17). The [salary guide](/teach-in-vietnam/english-teacher-salary-in-vietnam) compares US-dollar and đồng offers, and the [contracts guide](/teach-in-vietnam/english-teaching-contracts-in-vietnam) covers what to get in writing."
+    }
+   ]
+  },
+  {
+   "id": "cash-and-atms",
+   "title": "Cash, ATMs and changing money",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Until your Vietnamese account works, you live on a home card and cash, and your first salary can be weeks away. Withdrawing with a foreign card is costly. Only VietinBank's figure below comes from the bank itself; the others are from travel-money guides and forums and are indicative."
+    },
+    {
+     "type": "table",
+     "caption": "ATM withdrawals with a foreign-issued card in Vietnam (VietinBank fee schedule from 16 November 2025; travel-money guides and forums, 2026)",
+     "headers": [
+      "Where",
+      "Fee or limit",
+      "How solid the figure is"
+     ],
+     "rows": [
+      [
+       "VietinBank ATMs",
+       "4% per withdrawal, minimum {{vnd:80000}}, excluding VAT",
+       "[VietinBank fee schedule](https://vietinbank.vn/en/ca-nhan/cong-cu-tien-ich/bieu-phi-va-bieu-mau/bieu-phi-ap-dung-cho-nghiep-vu-thanh-toan-the-tin-dung-quoc-te-40-html)"
+      ],
+      [
+       "Vietcombank, TPBank",
+       "About {{vnd:50000}} flat per withdrawal; TPBank reportedly ended fee-free foreign-card withdrawals on 21 June 2025",
+       "[Travel-money guide](https://www.you.co/sg/blog/vietnam-atm-withdrawal-guide), not checked with the banks"
+      ],
+      [
+       "VPBank",
+       "Often reported fee-free for foreign cards, with higher limits",
+       "Forum reports, not confirmed by the bank"
+      ],
+      [
+       "Most banks: per-withdrawal limit",
+       "Commonly {{vnd:2000000-5000000}}",
+       "Travel-money guides"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Withdraw the maximum per transaction, read the fee on screen before you accept, and pay by QR or card where you can. Take out cash before Tet (6 February 2027), when many small businesses close for several days; the [teaching-year guide](/teach-in-vietnam/the-teaching-year-in-vietnam) covers the holiday."
+    },
+    {
+     "type": "h3",
+     "text": "Change money only at a bank or licensed counter"
+    },
+    {
+     "type": "p",
+     "text": "Changing foreign currency at an unlicensed place, such as a gold shop or a street changer, is an offence for the person changing it, not only the shop. [Decree 340/2025/ND-CP](https://baovanhoa.vn/phap-luat/phat-toi-100-trieu-dong-neu-mua-ban-ngoai-te-tai-to-chuc-khong-duoc-phep-thu-doi-ngoai-te-193545.html), in force since 9 February 2026, sets these fines for individuals, and organisations pay double. Below US$1,000 only a first offence gets a warning: repeat or multiple offences under that amount are fined at the rate in the second row of the table below, and the currency is confiscated in trades of US$1,000 or more, so do not treat small trades as safe."
+    },
+    {
+     "type": "table",
+     "caption": "Fines for an individual changing money at an unlicensed place (Decree 340/2025/ND-CP, from 9 February 2026, as reported by Báo Văn hóa)",
+     "headers": [
+      "Amount changed",
+      "Penalty"
+     ],
+     "rows": [
+      [
+       "Under US$1,000",
+       "Warning"
+      ],
+      [
+       "US$1,000 to under US$10,000",
+       "{{vnd:10000000-20000000}}"
+      ],
+      [
+       "US$10,000 to under US$100,000",
+       "{{vnd:20000000-30000000}}"
+      ],
+      [
+       "US$100,000 or more",
+       "{{vnd:80000000-100000000}}"
+      ]
+     ]
+    },
+    {
+     "type": "h3",
+     "text": "Taking cash out when you leave"
+    },
+    {
+     "type": "p",
+     "text": "You must declare foreign cash above US$5,000 (or the equivalent in another currency) when you cross the border. For đồng, the declaration threshold is cash above {{vnd:15000000}}, and for gold jewellery and fine-art gold it is 300 g or more. From 1 July 2026, under [Decree 169/2026/ND-CP](https://hatinh.gov.vn/vi/bai-viet/khai-bao-khong-trung-thuc-ve-ngoai-te-vang-khi-xuat-nhap-canh-co-the-bi-phat-den-50-trieu-dong), failing to declare on exit can be fined from {{vnd:1000000}} up to {{vnd:50000000}} where the case is not prosecuted; at an undeclared value of {{vnd:100000000}} or more, criminal liability is possible."
+    }
+   ]
+  },
+  {
+   "id": "tax-refunds-and-leaving",
+   "title": "Tax refunds and your account when you leave Vietnam",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Do not close your account on your last day. Income tax refunds claimed through eTax Mobile or the tax portal [go only to a bank account in your own name](https://www.forvismazars.com/vn/vi/n-ph-m-s-ki-n/c-p-nh-t-v-vi-t-nam/goc-nhin-chuyen-mon/h-ng-d-n-quy-t-toan-thu-tncn-etax-mobile-2026), and a social insurance lump sum can be claimed once your contract ends or your work permit expires without renewal. Keep the account open, with your documents up to date, until both arrive; the [social and health insurance guide](/teach-in-vietnam/social-and-health-insurance-for-foreign-teachers-in-vietnam) explains the lump sum."
+    },
+    {
+     "type": "p",
+     "text": "A resident foreigner whose contract ends must finalise income tax before leaving, or authorise someone to do it ([Decree 253/2026/ND-CP](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf), Art. 50.3(c)). Since 1 July 2026 a foreigner with overdue tax [can be stopped from leaving Vietnam](https://thoibaotaichinhvietnam.vn/cac-truong-hop-tam-hoan-xuat-canh-do-no-thue-200118.html), with no minimum amount. Your employer, the tax office and your bank have the final word on your own case; the [leaving checklist](/teach-in-vietnam/leaving-vietnam-checklist-for-teachers) puts the steps in order."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Can I open a Vietnamese bank account before I start work?",
+   "a": "The law starts from a passport, but banks add their own lists, and HSBC, for example, asks for an employment contract and at least 60 days' validity on every document. Many teachers open the account once their work paperwork is complete; ask the branch for its current list before you go."
+  },
+  {
+   "q": "Can I use Wise to get money into Vietnam?",
+   "a": "Yes. Wise lists the đồng as a currency you can send to, for delivery to a bank account within Vietnam. It cannot send đồng out of Vietnam, so it does not help you send salary home."
+  },
+  {
+   "q": "Is my school allowed to pay me in US dollars?",
+   "a": "Yes. The Labour Code allows employers to pay foreign employees in foreign currency (Art. 95(2)), but income tax is still calculated in đồng. Agree in the contract which currency you are paid in and which exchange rate and date apply."
+  },
+  {
+   "q": "Can someone else make the transfer abroad for me?",
+   "a": "PVcomBank's foreign-income transfer product lets a person you authorise make the transfer, against your passport and proof of legal income. Other banks set their own rules, so ask your branch what authorisation it accepts, especially if you want it done after you leave."
+  },
+  {
+   "q": "Can I top up MoMo with cash at a convenience store?",
+   "a": "No. Cash top-ups and cash withdrawals for e-wallets have been banned since 5 November 2025. You top up from the Vietnamese bank account linked to the wallet, which must be in your own name."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Sửa đổi hồ sơ mở tài khoản thanh toán tại tổ chức cung ứng dịch vụ từ 31/8/2025 (Circular 25/2025/TT-NHNN)",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/tin-van-ban-moi/sua-doi-ho-so-mo-tai-khoan-thanh-toan-tai-to-chuc-cung-ung-dich-vu-tu-31-8-2025-186-103939-article.html"
+  },
+  {
+   "title": "Quy định mới về thủ tục phát hành thẻ ngân hàng từ 05/01/2026 (Circular 45/2025/TT-NHNN)",
+   "publisher": "Vietnam Banks Association",
+   "url": "https://vnba.org.vn/vi/quy-dinh-moi-ve-thu-tuc-phat-hanh-the-ngan-hang-tu-05-01-2026-19763.htm"
+  },
+  {
+   "title": "From 1 July 2024, online transfers above the threshold need face or fingerprint authentication (Decision 2345/QĐ-NHNN)",
+   "publisher": "Tạp chí Công Thương",
+   "url": "https://tapchicongthuong.vn/chinh-thuc-tu-1-7-2024--chuyen-tien-tren-10-trieu-dong-phai-xac-thuc-bang-khuon-mat--van-tay-122879.htm"
+  },
+  {
+   "title": "Tổng hợp 4 điểm mới Thông tư 41/2025/TT-NHNN về ví điện tử",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/linh-vuc-khac/tong-hop-diem-moi-thong-tu-41-2025-tt-nhnn-ve-vi-dien-tu-883-106022-article.html"
+  },
+  {
+   "title": "Thông tư 16/2014/TT-NHNN hướng dẫn sử dụng tài khoản ngoại tệ, tài khoản đồng Việt Nam",
+   "publisher": "State Bank of Vietnam (via Caselaw)",
+   "url": "https://caselaw.vn/van-ban-phap-luat/264720-thong-tu-16-2014-tt-nhnn-huong-dan-su-dung-tai-khoan-ngoai-te-tai-khoan-dong-viet-nam-cua-nguoi-cu-tru-nguoi-khong-cu-tru-tai-ngan-hang-duoc-phep-do-thong-doc-ngan-hang-nha-nuoc-viet-nam-ban-hanh"
+  },
+  {
+   "title": "Sửa quy định về sử dụng tài khoản ngoại tệ, tài khoản đồng Việt Nam (Circular 39/2026/TT-NHNN)",
+   "publisher": "Thị trường Tài chính Tiền tệ",
+   "url": "https://thitruongtaichinhtiente.vn/sua-quy-dinh-ve-su-dung-tai-khoan-ngoai-te-tai-khoan-dong-viet-nam-cua-to-chuc-tin-dung-nuoc-ngoai-84866.html"
+  },
+  {
+   "title": "Chuyển thu nhập hợp pháp của cá nhân người nước ngoài",
+   "publisher": "PVcomBank",
+   "url": "https://www.pvcombank.com.vn/san-pham/ca-nhan/chuyen-tien-quoc-te/chuyen-thu-nhap-hop-phap-cua-ca-nhan-nguoi-nuoc-ngoai"
+  },
+  {
+   "title": "How to open a bank account online",
+   "publisher": "HSBC Vietnam",
+   "url": "https://www.hsbc.com.vn/en-vn/accounts/how-to-open-bank-account-online/"
+  },
+  {
+   "title": "Cập nhật sinh trắc học và giấy tờ tùy thân để không bị gián đoạn giao dịch từ 01/01/2025",
+   "publisher": "Vietcombank",
+   "url": "https://www.vietcombank.com.vn/vi-VN/Trang-thong-tin-dien-tu/Articles/2024/11/07/20241107_VCB-TCBC-vv-Cap-nhat-STH-va-GTTT-de-khong-bi-gian-doan-giao-dich-tu-01012025"
+  },
+  {
+   "title": "Thủ tục phát hành thẻ ghi nợ",
+   "publisher": "Vietcombank",
+   "url": "https://www.vietcombank.com.vn/-/media/Project/VCB-Sites/VCB/KHCN/San-pham-Dich-vu/The/Tai-lieu-THE/Ghi-no/Thu-tuc-phat-hanh-the-GN.pdf?ts=00010101000000"
+  },
+  {
+   "title": "Instructions about updating information for foreign customers",
+   "publisher": "Woori Bank Vietnam",
+   "url": "https://woori.com.vn/en/news/instructions-about-updating-information-for-foreign-customers/"
+  },
+  {
+   "title": "Thông báo dành cho khách hàng người nước ngoài sử dụng thẻ VietinBank",
+   "publisher": "VietinBank",
+   "url": "https://vietinbank.vn/en/thong-bao-danh-cho-khach-hang-nguoi-nuoc-ngoai-su-dung-the-vietinbank-20250708015904-00-html"
+  },
+  {
+   "title": "Biểu phí áp dụng cho nghiệp vụ thanh toán thẻ tín dụng quốc tế",
+   "publisher": "VietinBank",
+   "url": "https://vietinbank.vn/en/ca-nhan/cong-cu-tien-ich/bieu-phi-va-bieu-mau/bieu-phi-ap-dung-cho-nghiep-vu-thanh-toan-the-tin-dung-quoc-te-40-html"
+  },
+  {
+   "title": "Hộ chiếu nước ngoài có được xác thực không?",
+   "publisher": "MoMo",
+   "url": "https://www.momo.vn/hoi-dap/ho-chieu-nuoc-ngoai-co-duoc-xac-thuc-khong"
+  },
+  {
+   "title": "Ai là người phải xác thực tài khoản Ví MoMo?",
+   "publisher": "MoMo",
+   "url": "https://www.momo.vn/hoi-dap/ai-la-nguoi-phai-xac-thuc-tai-khoan-vi-momo"
+  },
+  {
+   "title": "What currencies can I send to and from?",
+   "publisher": "Wise",
+   "url": "https://www.wise.com/help/articles/2571907/what-currencies-can-i-send-to-and-from"
+  },
+  {
+   "title": "Fines for undeclared or falsely declared foreign currency and gold at the border (Decree 169/2026/ND-CP)",
+   "publisher": "Hà Tĩnh Provincial Portal",
+   "url": "https://hatinh.gov.vn/vi/bai-viet/khai-bao-khong-trung-thuc-ve-ngoai-te-vang-khi-xuat-nhap-canh-co-the-bi-phat-den-50-trieu-dong"
+  },
+  {
+   "title": "Fines for buying or selling foreign currency at unlicensed places (Decree 340/2025/ND-CP)",
+   "publisher": "Báo Văn hóa",
+   "url": "https://baovanhoa.vn/phap-luat/phat-toi-100-trieu-dong-neu-mua-ban-ngoai-te-tai-to-chuc-khong-duoc-phep-thu-doi-ngoai-te-193545.html"
+  },
+  {
+   "title": "Nghị định 253/2026/NĐ-CP (personal income tax)",
+   "publisher": "Government of Vietnam, Official Gazette",
+   "url": "https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf"
+  },
+  {
+   "title": "Hướng dẫn quyết toán thuế TNCN trên eTax Mobile 2026",
+   "publisher": "Forvis Mazars Vietnam",
+   "url": "https://www.forvismazars.com/vn/vi/n-ph-m-s-ki-n/c-p-nh-t-v-vi-t-nam/goc-nhin-chuyen-mon/h-ng-d-n-quy-t-toan-thu-tncn-etax-mobile-2026"
+  },
+  {
+   "title": "Các trường hợp tạm hoãn xuất cảnh do nợ thuế",
+   "publisher": "Thời báo Tài chính Việt Nam",
+   "url": "https://thoibaotaichinhvietnam.vn/cac-truong-hop-tam-hoan-xuat-canh-do-no-thue-200118.html"
+  },
+  {
+   "title": "Bộ luật Lao động 2019",
+   "publisher": "National Assembly of Vietnam (via Dữ liệu pháp luật)",
+   "url": "https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html"
+  },
+  {
+   "title": "TP.HCM có 113 phường, 54 xã và 1 đặc khu sau sắp xếp",
+   "publisher": "Báo Đấu thầu",
+   "url": "https://baodauthau.vn/tphcm-co-113-phuong-54-xa-va-1-dac-khu-sau-sap-xep-post180312.html"
+  },
+  {
+   "title": "Vietnam ATM withdrawal guide",
+   "publisher": "YouTrip",
+   "url": "https://www.you.co/sg/blog/vietnam-atm-withdrawal-guide"
+  },
+  {
+   "title": "Thông tư 08/2026/TT-BKHCN hướng dẫn xác thực thông tin thuê bao di động mặt đất",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/dan-su/thong-tu-08-2026-tt-bkhcn-huong-dan-xac-thuc-thong-tin-thue-bao-di-dong-mat-dat-430575-d1.html"
+  }
+ ],
+ "related": [
+  "personal-income-tax-for-teachers-in-vietnam",
+  "your-first-weeks-in-ho-chi-minh-city",
+  "english-teacher-salary-in-vietnam",
+  "leaving-vietnam-checklist-for-teachers",
+  "cost-of-living-in-ho-chi-minh-city-for-teachers",
+  "social-and-health-insurance-for-foreign-teachers-in-vietnam"
+ ],
+ "lastChecked": "2026-10-11"
+}

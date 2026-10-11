@@ -1,0 +1,444 @@
+{
+ "slug": "teaching-job-scams-in-vietnam",
+ "title": "Teaching job scams in Vietnam and how to spot them",
+ "description": "Fake recruiters, fees, deposits, held passports, unpaid final pay: how teaching scams in Vietnam work, how to check a school, and what to do if you're not paid.",
+ "h1": "Teaching job scams in Vietnam: the patterns, the checks, and what to do if you are not paid",
+ "eyebrow": "Finding a job",
+ "intro": "A genuine teaching job in Vietnam never costs you money to get: VUS and VAS warn that a request for money, an app download or an e-wallet is a scam, and labour law bans deposits and employers keeping your original documents. In Ho Chi Minh City most documented cases involve a real employer that pays late or collapses owing wages; elsewhere, schools were caught using teachers outside their permits. Check the employer before you sign; if you are not paid, the route is a written demand, then mediation, then court.",
+ "keyPoints": [
+  "**Applying is free.** VUS and VAS say a request for money, an app download or an e-wallet is a scam, and their genuine emails come only from their own domains (@vus-etsc.edu.vn, @vas.edu.vn).",
+  "Deposits, bonds, a held-back first salary and an employer keeping your passport or degree are all banned (Labour Code Art. 17). Since 10 September 2026 a school or company is fined {{vnd:40000000-50000000}} (Decree 283/2026) and must hand them back.",
+  "Do not teach a single timetabled class before your work permit is issued, paid trial weeks included: the teacher is fined {{vnd:15000000-25000000}} and may be deported (Decree 283/2026).",
+  "Final pay is due within 14 working days of the contract ending, and hourly pay at least every 15 days. If you are not paid in full or on time, you may resign without notice.",
+  "If you are not paid: written demand, then labour mediation within 6 months, then arbitration within 9 months or court within 1 year. Wage claims carry no court fee."
+ ],
+ "sections": [
+  {
+   "id": "scams-that-target-teachers",
+   "title": "The scams that target English teachers in Vietnam",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Outright scams aimed at teachers follow a few patterns, and the best evidence for them comes from the employers being impersonated. [VUS warns](https://teachenglish.vus.edu.vn/fake-job-warning) that fake recruitment pages use its logos, that applying is free, and that 'if someone asks for money or instructs you to download an app at any stage of the process, it's a scam'. [Vietnam Australia International School (VAS)](https://vas.edu.vn/en/news/vietnam-australia-international-school-vas-warning-about-fraudulent-recruitment-information) says it charges no recruitment, training or entrance fees, never asks candidates to open e-wallets, and that scammers copy real schools' contact details to run fake 'online interviews'."
+    },
+    {
+     "type": "table",
+     "caption": "Documented scam patterns aimed at teachers in Vietnam and how to recognise them (VUS and VAS fraud warnings, Labour Code 2019, Vietnamese police cases; eno.vn research, October 2026)",
+     "headers": [
+      "Scam",
+      "How it works",
+      "What gives it away"
+     ],
+     "rows": [
+      [
+       "Cloned recruiter",
+       "A page or account copies a real school's name, logo and contact details and offers a job after a quick chat or 'online interview'",
+       "The email is not on the school's own domain; the contact is not listed on the school's official careers page or channels"
+      ],
+      [
+       "Fees to get the job",
+       "You are asked to pay a 'recruitment', 'placement', 'training', 'entrance' or paperwork fee before you start",
+       "VUS and VAS charge nothing; the city's work-permit fee is paid by the employer, not you"
+      ],
+      [
+       "Deposit or bond",
+       "A 'security deposit', a bond, or your first month's pay held back 'until you finish the contract'",
+       "Banned outright by Labour Code Art. 17, whether the employer is real or not"
+      ],
+      [
+       "Data and identity harvesting",
+       "Requests for your ID number, bank details or photos of your documents through unofficial channels, or to open an e-wallet or install an app",
+       "VUS tells applicants not to send ID numbers, bank details or document photos through unofficial channels; VAS never asks candidates to open e-wallets"
+      ],
+      [
+       "Fake credentials",
+       "Unauthorised 'CEFR-equivalent' English certificates, or forged degrees and certificates, sold to job seekers",
+       "Police broke up a fake certificate scheme in May 2026 and charged two foreigners over fake diplomas in August 2026; using forged papers is a crime"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "Money or an app request means stop",
+     "text": "If anyone in a hiring process asks you to pay, to open an e-wallet or to download an app, stop there. That is VUS's and VAS's own test for a scam, and eno.vn's rule for its job listings is the same: **never pay to get a job**. Do not send passport scans, bank details or document photos until you have confirmed the contact through the employer's official website."
+    },
+    {
+     "type": "h3",
+     "text": "Paying for your own documents is different"
+    },
+    {
+     "type": "p",
+     "text": "Paying a recruiter is one thing; paying for your own documents at home is another. The police check, the apostille or legalisation and the translations described in [getting your degree authenticated for Vietnam](/teach-in-vietnam/getting-your-degree-authenticated-for-vietnam) are documents you order yourself, and employers differ on whether they reimburse them: in 2025–26 ads ILA said the work permit was 'covered', DTP sponsored part of the work-permit cost and VUS offered 'reimbursement'. The work permit itself is different: the city's published fee is {{vnd:600000}} for a new permit, [paid by the employer](https://luatvietnam.vn/thue/nghi-quyet-09-2022-nq-hdnd-239822-d2.html). Get in writing who pays for each step, and whether anything is clawed back if you leave early."
+    },
+    {
+     "type": "h3",
+     "text": "Fake certificates are a trap for you too"
+    },
+    {
+     "type": "p",
+     "text": "Some schemes sell credentials rather than steal money, and the buyer carries the risk. On 7 May 2026 Phu Tho police broke up a scheme that had [sold unauthorised 'CEFR-equivalent' English certificates](https://vietnamnews.vn/society/1780870/viet-nam-busts-fake-english-certification-scam-worth-nearly-8-million.html) to about 80,000 candidates since 2020, and police asked organisations to review those certificates. In August 2026 Hung Yen police [charged a Bangladeshi and an Indian national](https://news.tuoitre.vn/vietnam-charges-2-foreigners-for-allegedly-forging-university-diplomas-certificates-103260824132906734.htm) with making and selling fake Vietnamese university diplomas; forgery is prosecuted under Penal Code Art. 341. A forged or altered document in a work-permit file can also lead to deportation. Be wary of any 'TEFL plus guaranteed job' package aimed at people without a degree: the work-permit route for teachers needs a real bachelor's degree, as explained in [the TEFL, TESOL and CELTA guide](/teach-in-vietnam/tefl-tesol-and-celta-for-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "bad-employer-patterns",
+   "title": "Bad-employer patterns: real schools, real problems",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Most documented teacher disputes in Ho Chi Minh City involve real, licensed employers, not fake ones, and the biggest are unpaid wages when an operator fails. The Apax Leaders children's chain [owed teachers and staff](https://news.tuoitre.vn/english-center-chain-apax-leaders-owes-38mn-to-ho-chi-minh-city-parents-10378777.htm) {{vnd:11500000000}} in salaries, according to a city report in March 2024, and the city's social insurance agency reported a further {{vnd:1300000000}} owed in social and health insurance for foreign employees. At American International School Vietnam (AISVN) in Nha Be, [foreign teachers got 70% of their January 2024 salary and none of February's](https://vietnamnews.vn/society/1652922/head-of-american-international-school-vietnam-banned-from-leaving-viet-nam.html), and the school was [dissolved in January 2026](https://tuoitre.vn/nld/american-international-school-officially-dissolved-196260114102410854.htm). A licence is no guarantee either: two licensed Úc Châu centres in Thu Duc [shut suddenly in May 2025](https://tuoitre.vn/so-giao-duc-va-dao-tao-tp-hcm-bao-cao-vu-trung-tam-ngoai-ngu-thu-hoc-phi-hang-ti-dong-roi-bien-mat-20250519213401173.htm) after collecting billions of đồng in tuition."
+    },
+    {
+     "type": "table",
+     "caption": "Common bad-employer patterns and what the law says (Labour Code 2019, Decree 219/2025/ND-CP, Decree 283/2026/ND-CP; eno.vn research, October 2026)",
+     "headers": [
+      "Pattern",
+      "Why it hurts you",
+      "What the law says"
+     ],
+     "rows": [
+      [
+       "Late or missing pay",
+       "Hourly teachers rarely have savings to wait; cases like [Apax](https://vietnamfinance.vn/he-thong-te-liet-va-giai-the-apax-leaders-dang-no-ca-tram-ty-dong-d108066.html) ran for months before collapse",
+       "Hourly pay must be settled at least every 15 days, monthly pay on a fixed cycle (Art. 97). Since 10 September 2026 organisations are fined {{vnd:10000000-100000000}} for late wages and must pay the arrears with interest (Decree 283/2026)"
+      ],
+      [
+       "Teaching before the permit, or 'trial weeks'",
+       "You carry the fine and the deportation risk, not just the school",
+       "Worker fined {{vnd:15000000-25000000}} and may be deported; the employer is fined {{vnd:30000000-75000000}}, double for a company or school, depending on how many foreign workers it uses this way"
+      ],
+      [
+       "Teaching at a site or employer not on your permit",
+       "The permit covers one employer and the job on it; a second centre needs its own permit",
+       "Decree 219 Art. 20. A Da Nang school was fined {{vnd:35000000}} in October 2025, partly for using foreign teachers outside their permits"
+      ],
+      [
+       "'Freelance' or 'service' contract from one centre",
+       "It cannot support a work permit, so you end up unpermitted",
+       "If there is paid work, a wage and supervision, it is a labour contract whatever it is called (Art. 13)"
+      ],
+      [
+       "Keeping your passport or degree",
+       "You cannot leave a bad job freely",
+       "Banned (Art. 17); organisations fined {{vnd:40000000-50000000}} and ordered to return them"
+      ],
+      [
+       "Fines for lateness, pay docked as punishment",
+       "Turns small mistakes into wage cuts",
+       "Fines and wage cuts as discipline are banned (Art. 127); deductions only for damage, capped at 30% of monthly pay (Art. 102)"
+      ],
+      [
+       "Exit fees and multi-month penalties",
+       "Traps you in the job",
+       "The Code fixes what you owe for leaving unlawfully (Art. 40) and has no basis for extra 'contract-breaking fees'"
+      ],
+      [
+       "No insurance on a 12-month-plus contract",
+       "You lose the health cover and social-insurance benefits the law gives you",
+       "Compulsory for foreign employees on contracts of 12 months or more since 1 July 2025"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Two of these deserve a closer look. On permits, officials in an April 2026 Thanh Hoa case said that [bringing in foreigners without permits to teach, substitute, work on probation or observe classes is illegal](https://baothanhhoa.vn/vi-pham-trong-su-dung-giao-vien-nuoc-ngoai-tai-co-so-mam-non-283585.htm); the teachers there held permits naming a different centre. A demo lesson at interview, often taught to staff, is a normal part of hiring, but a 'trial week' of real classes is not; since 10 September 2026, [Decree 283/2026/ND-CP](https://news.tuoitre.vn/foreign-workers-in-vietnam-what-to-know-as-new-penalty-rules-take-effect-september-10-103260824152235374.htm) fines the worker {{vnd:15000000-25000000}} and allows deportation. The [work permit guide](/teach-in-vietnam/vietnam-work-permit-for-english-teachers) covers how long the permit takes and why the employer, not you, files it."
+    },
+    {
+     "type": "p",
+     "text": "On penalty clauses, a 2018 Quang Binh private school [demanded 5 years' notice](https://news.tuoitre.vn/vietnamese-school-requires-teachers-to-give-five-years-notice-on-quitting-10346707.htm) and an exit fee of more than {{vnd:60000000}}, and held teachers' original degrees as 'collateral'; a lawyer called the terms void. We found no court ruling on such clauses in a teacher's contract, so treat a large exit fee as a reason not to sign rather than something to fight later. [What to check in a teaching contract](/teach-in-vietnam/english-teaching-contracts-in-vietnam) goes through the clauses one by one."
+    }
+   ]
+  },
+  {
+   "id": "how-to-check-an-employer",
+   "title": "How to check an employer before you sign",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "None of these checks is proof on its own, but together they filter out most fake offers and many bad employers. They take an afternoon, and they are easiest before you have bought a flight."
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Confirm the contact through the official website",
+       "text": "Find the employer's own careers page and check that the person and email address you are dealing with appear there or use the same domain. VUS, for example, lists its official channels and hotline on its [fake-job warning page](https://teachenglish.vus.edu.vn/fake-job-warning). Job boards do not do this for you: ESLbase and TEFL.org say they do not verify employers, and eno.vn has not verified the employers behind the postings it links to."
+      },
+      {
+       "title": "Get the legal name of the company that will employ you",
+       "text": "Ask which company signs your labour contract and will appear on your work permit, and ask to see its business registration and, for a language centre, its operating licence from the city's Department of Education and Training. The names on the contract, the permit and the bank transfers should match. For public-school jobs, the 'agency' that places you is often the company that employs you and sponsors your permit, so check that company, not only the school."
+      },
+      {
+       "title": "Read what teachers say about it",
+       "text": "Look the employer up in [the eno.vn school directory](/schools), which lists Ho Chi Minh City employers; teachers who worked or interviewed at one can vote and write reviews, which a moderator reads before they appear. Most schools have few or no reviews yet, so also ask in teacher communities and, best of all, speak to a teacher who works there now and ask one question: has pay been on time?"
+      },
+      {
+       "title": "Search the name in the news",
+       "text": "Search the employer's name in English and Vietnamese. Closures happen: HCMC [dissolved or revoked 112 language and IT centres](https://vietnamnet.vn/en/ho-chi-minh-city-shuts-down-112-language-and-it-centers-2556885.html) during the 2025–26 school year, and older job boards still list employers that have closed, such as ACET, which [closed on 31 December 2024](https://www.idp.com/vietnam/blog/official-acet-announcement/?lang=en)."
+      },
+      {
+       "title": "Get the offer in writing before you travel",
+       "text": "Ask for the full contract, ideally bilingual with a clause saying which version prevails: pay rate, gross or net, guaranteed minimum hours, pay dates, who pays for each paperwork step, and the start date. An 'up to' hourly rate is a ceiling, not a promise. A school that will not put these in writing is telling you something."
+      },
+      {
+       "title": "See your work permit before your first class",
+       "text": "In Ho Chi Minh City the Department of Home Affairs issues work permits, and since 15 June 2026 it has issued them as [digitally signed e-permits](https://sonoivu.hochiminhcity.gov.vn/-/thong-bao-ve-viec-trien-khai-tra-ket-qua-van-ban-dien-tu-doi-voi-giay-phep-lao-dong-giay-xac-nhan-khong-thuoc-dien-cap-giay-phep-lao-dong?inheritRedirect=true) the employer downloads from the national public-service portal. Ask for a copy and check that the employer name, job title and work location match what you will actually do."
+      }
+     ]
+    },
+    {
+     "type": "h3",
+     "text": "Red flags in an offer"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "Any fee, deposit, bond, e-wallet or app, at any stage.",
+      "Contact only through a personal messaging account or a free email address, with no match on the school's own website.",
+      "A recruiter who asks you to book your flight through their link.",
+      "'Start teaching now, the permit will come later', or a paid 'trial week' before the permit.",
+      "A 'freelance' contract from a single centre that sets your timetable.",
+      "Pay quoted only as 'up to', with no guaranteed hours. In July–October 2026 job ads, centres offered {{vnd:390000-600000}} an hour; an offer far outside that range needs a clear reason.",
+      "Heavy selling of long prepaid tuition packages to parents. [Apax](https://news.tuoitre.vn/english-center-chain-apax-leaders-owes-38mn-to-ho-chi-minh-city-parents-10378777.htm) and [Úc Châu](https://tuoitre.vn/so-giao-duc-va-dao-tao-tp-hcm-bao-cao-vu-trung-tam-ngoai-ngu-thu-hoc-phi-hang-ti-dong-roi-bien-mat-20250519213401173.htm) collapsed this way, and an HCMC directive limits tuition to months actually studied.",
+      "A request to keep your original passport or degree 'for safekeeping'."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "If a school genuinely needs your passport for a short time to file paperwork, ask for a dated receipt and a return date. The UK government's advice to its nationals goes further: [never hand over a passport](https://www.gov.uk/guidance/living-in-vietnam), even for safekeeping. For where to look for jobs in the first place, see [finding a teaching job in Vietnam](/teach-in-vietnam/finding-a-teaching-job-in-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "if-you-are-not-paid",
+   "title": "What to do if your school does not pay you",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The [Labour Code](https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html) covers foreign teachers on Vietnamese labour contracts with the same pay protections as Vietnamese staff. Hourly, daily or weekly pay must be settled at least every 15 days and monthly pay on a fixed cycle (Art. 97). When a contract ends, everything owed, including unused annual leave, must be settled within 14 working days, stretching to 30 days only in listed cases such as the employer closing down (Art. 48). There is no legal basis for holding back your final month's salary beyond that."
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Collect your evidence now",
+       "text": "Keep your signed contract, every payslip (the employer must give you one with each payment, Art. 95), bank transfers, timetables or hour logs, and the messages about pay. Save copies somewhere the school cannot reach, such as your personal email."
+      },
+      {
+       "title": "Send a written demand",
+       "text": "Email the director and HR: what is owed, for which period, the date it was due, and the date by which you expect it. Keep it factual. A delay is lawful only for force majeure the employer cannot overcome, for at most 30 days, and after 15 days it must add interest; any other late payment breaks the law."
+      },
+      {
+       "title": "Decide whether to keep working",
+       "text": "If you are not paid in full or on time, you may resign without notice (Art. 35(2)). The exception is a lawful force-majeure delay of up to 30 days: leaving without notice then can count as an unlawful resignation, which costs half a month's wage plus the notice days and forfeits severance. If in doubt, give the normal notice: 30 days on a 12–36-month contract, 3 working days if it is under 12 months."
+      },
+      {
+       "title": "Request labour mediation within 6 months",
+       "text": "An individual pay dispute normally goes to a state labour mediator first, who must finish within 5 working days ([Labour Code Chapter XIV](https://hethongphapluat.com/bo-luat-lao-dong-2019/chuong-14)). Since July 2025 there are no district offices: in Ho Chi Minh City mediators are allocated ward by ward and [managed by the Department of Home Affairs and ward offices](https://luatvietnam.vn/can-bo/ke-hoach-254-kh-ubnd-tp-hcm-2026-tuyen-chon-bo-nhiem-hoa-giai-vien-lao-dong-436340-d2.html). No published procedure names the exact office, so ask at the People's Committee of the ward where the employer is based, or at the Department of Home Affairs, and file well before the 6-month deadline."
+      },
+      {
+       "title": "Go to arbitration within 9 months or court within 1 year",
+       "text": "If mediation fails or the employer ignores the settlement, you can use labour arbitration (both sides must agree; request it within 9 months) or sue. First-instance labour cases are now heard by [regional People's Courts](https://tapchitoaan.vn/bo-luat-to-tung-dan-su-sua-doi-bo-sung-nam-2025-nhung-quy-dinh-ve-tham-quyen-cua-cac-toa-an13743.html), in Vietnamese. Employees suing for unpaid wages pay [no court fees or fee advances](https://luatvietnam.vn/thue-phi/luu-y-quan-trong-ve-theo-nghi-quyet-326-565-20400-article.html). The deadline is 1 year from when you discovered the violation."
+      },
+      {
+       "title": "Get help with language and law",
+       "text": "Embassies do not recover wages; the UK and the Australian Consulate-General in Ho Chi Minh City publish lists of local lawyers, with a note that being listed is not an endorsement. On a contract of 12 months or more you may join the workplace union, and the HCMC Labour Federation runs a legal consultation centre whose services are in Vietnamese, so bring an interpreter."
+      }
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Two things to know if the school is collapsing. First, the employer is fined as well as ordered to pay: under [Decree 283/2026](https://lsvn.vn/doanh-nghiep-tra-luong-tre-han-bi-phat-den-100-trieu-dong-a176550.html) late, short or unpaid wages cost an organisation {{vnd:10000000-100000000}} depending on how many workers are affected, and [the decree](https://storage-vnportal.vnpt.vn/qnm-ubnd/7872/Ngh%E1%BB%8B%20%C4%91%E1%BB%8Bnh/283_2026_ND-CP_15072026_1-signed.pdf) orders the arrears paid with interest. Second, recovery can be slow: in the AISVN case the city [ordered the owner to pay salaries and insurance owed](https://tuoitre.vn/nld/american-international-school-officially-dissolved-196260114102410854.htm) when it dissolved the school, and earlier the foreign teachers' January–February pay arrived only after [parents contributed](https://tienphong.vn/giao-vien-duoc-tra-luong-hoc-sinh-truong-quoc-te-my-di-hoc-tro-lai-post1625648.tpo) {{vnd:22800000000}}. Your work permit also ends with the contract, and a new employer needs a new permit for you, so line up the next job before you leave if you can."
+    },
+    {
+     "type": "p",
+     "text": "This guide explains the rules; it is not legal advice. For a large claim or a contested dismissal, speak to a lawyer, and confirm procedures with the authority, which has the final word."
+    }
+   ]
+  },
+  {
+   "id": "checklist",
+   "title": "Checklist: before you accept a teaching job in Vietnam",
+   "blocks": [
+    {
+     "type": "ul",
+     "items": [
+      "I have paid nothing to anyone to get the job, and nobody has asked me to open an e-wallet or install an app.",
+      "Every email came from the employer's own domain, and I checked the contact on the official careers page.",
+      "I know the legal name of the company that will sign my contract and apply for my work permit, and it matches the school I applied to.",
+      "I have looked the employer up in [the school directory](/schools), searched its name in the news, and spoken to at least one teacher who works there now.",
+      "I have the full contract in writing: rate, gross or net, guaranteed hours, pay dates, notice period and who pays for each paperwork step.",
+      "The contract has no deposit, bond, held-back salary, lateness fines or exit fee.",
+      "Nobody will keep my original passport or degree; I give certified copies, and get a dated receipt if the passport is needed briefly.",
+      "I will not teach any timetabled class, paid or 'trial', until my work permit is issued and I have seen a copy that names this employer, job and location.",
+      "On a contract of 12 months or more, I will check that I am enrolled in social and health insurance.",
+      "I have enough money to live on for the first weeks, because the first payday can come about a month after starting.",
+      "I am keeping every payslip and transfer from day one."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "For what normal pay looks like, so that an offer that is too good or too thin stands out, see [English teacher salary in Vietnam](/teach-in-vietnam/english-teacher-salary-in-vietnam)."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Should I ever pay a recruiter to get a teaching job in Vietnam?",
+   "a": "No. VUS and VAS both say applying is free and that a request for money is a scam, and employers may not take a deposit from you. Your own costs at home, such as a police check or apostille, are a separate matter: agree in writing who pays and whether the employer reimburses you."
+  },
+  {
+   "q": "Can my school charge me a penalty for leaving before the contract ends?",
+   "a": "If you resign without the required notice, the Labour Code says you owe half a month's salary plus pay for the notice days you did not give, and training costs only under a written training contract. It has no provision for extra contract-breaking fees, and a lawyer quoted by Tuoi Tre called such clauses void, though we found no court ruling on one in a teacher's contract."
+  },
+  {
+   "q": "Will my embassy help me get my unpaid salary back?",
+   "a": "No. Embassies do not resolve employment disputes; they give guidance and lists of local lawyers, with a disclaimer that listing is not an endorsement. The route for recovering wages is mediation, then arbitration or a regional court."
+  },
+  {
+   "q": "Are the employers on job boards checked?",
+   "a": "Generally not. ESLbase and TEFL.org say they do not verify employers, and eno.vn links to original postings without verifying the employers behind them. Check every employer yourself before you send documents or accept an offer."
+  },
+  {
+   "q": "Is a big chain safer than a small centre?",
+   "a": "Size is no guarantee: a children's chain with dozens of centres in Ho Chi Minh City collapsed owing wages in 2023–24, and in a long-running expat forum thread late pay was the problem teachers reported most with small schools. What protects you is checking pay history with current teachers, a written contract and a work permit before you teach."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Fake job warning",
+   "publisher": "VUS",
+   "url": "https://teachenglish.vus.edu.vn/fake-job-warning"
+  },
+  {
+   "title": "VAS warning about fraudulent recruitment information",
+   "publisher": "Vietnam Australia International School",
+   "url": "https://vas.edu.vn/en/news/vietnam-australia-international-school-vas-warning-about-fraudulent-recruitment-information"
+  },
+  {
+   "title": "Labour Code 2019 (No. 45/2019/QH14)",
+   "publisher": "Dữ liệu pháp luật",
+   "url": "https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html"
+  },
+  {
+   "title": "Decree 283/2026/ND-CP on administrative penalties in labour (signed text)",
+   "publisher": "Government of Vietnam",
+   "url": "https://storage-vnportal.vnpt.vn/qnm-ubnd/7872/Ngh%E1%BB%8B%20%C4%91%E1%BB%8Bnh/283_2026_ND-CP_15072026_1-signed.pdf"
+  },
+  {
+   "title": "Foreign workers in Vietnam: what to know as new penalty rules take effect September 10",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/foreign-workers-in-vietnam-what-to-know-as-new-penalty-rules-take-effect-september-10-103260824152235374.htm"
+  },
+  {
+   "title": "Doanh nghiệp trả lương trễ hạn bị phạt đến 100 triệu đồng",
+   "publisher": "Tạp chí Luật sư Việt Nam",
+   "url": "https://lsvn.vn/doanh-nghiep-tra-luong-tre-han-bi-phat-den-100-trieu-dong-a176550.html"
+  },
+  {
+   "title": "Labour Code 2019, Chapter XIV: labour disputes",
+   "publisher": "Hệ thống pháp luật",
+   "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/chuong-14"
+  },
+  {
+   "title": "Plan 254/KH-UBND (HCMC, 2026) on labour mediators",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/can-bo/ke-hoach-254-kh-ubnd-tp-hcm-2026-tuyen-chon-bo-nhiem-hoa-giai-vien-lao-dong-436340-d2.html"
+  },
+  {
+   "title": "Bộ luật Tố tụng dân sự sửa đổi 2025: thẩm quyền của các Tòa án",
+   "publisher": "Tạp chí Tòa án nhân dân",
+   "url": "https://tapchitoaan.vn/bo-luat-to-tung-dan-su-sua-doi-bo-sung-nam-2025-nhung-quy-dinh-ve-tham-quyen-cua-cac-toa-an13743.html"
+  },
+  {
+   "title": "Lưu ý quan trọng về án phí theo Nghị quyết 326",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/thue-phi/luu-y-quan-trong-ve-theo-nghi-quyet-326-565-20400-article.html"
+  },
+  {
+   "title": "HCMC Department of Home Affairs: electronic work permits",
+   "publisher": "HCMC Department of Home Affairs",
+   "url": "https://sonoivu.hochiminhcity.gov.vn/-/thong-bao-ve-viec-trien-khai-tra-ket-qua-van-ban-dien-tu-doi-voi-giay-phep-lao-dong-giay-xac-nhan-khong-thuoc-dien-cap-giay-phep-lao-dong?inheritRedirect=true"
+  },
+  {
+   "title": "Resolution 09/2022/NQ-HĐND on HCMC work-permit fees",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/thue/nghi-quyet-09-2022-nq-hdnd-239822-d2.html"
+  },
+  {
+   "title": "Living in Vietnam",
+   "publisher": "UK Government (FCDO)",
+   "url": "https://www.gov.uk/guidance/living-in-vietnam"
+  },
+  {
+   "title": "English center chain Apax Leaders owes parents in Ho Chi Minh City",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/english-center-chain-apax-leaders-owes-38mn-to-ho-chi-minh-city-parents-10378777.htm"
+  },
+  {
+   "title": "Hệ thống tê liệt và giải thể, Apax Leaders đang nợ cả trăm tỷ đồng",
+   "publisher": "VietnamFinance",
+   "url": "https://vietnamfinance.vn/he-thong-te-liet-va-giai-the-apax-leaders-dang-no-ca-tram-ty-dong-d108066.html"
+  },
+  {
+   "title": "Head of American International School Vietnam banned from leaving Viet Nam",
+   "publisher": "Viet Nam News",
+   "url": "https://vietnamnews.vn/society/1652922/head-of-american-international-school-vietnam-banned-from-leaving-viet-nam.html"
+  },
+  {
+   "title": "American International School officially dissolved",
+   "publisher": "Tuoi Tre",
+   "url": "https://tuoitre.vn/nld/american-international-school-officially-dissolved-196260114102410854.htm"
+  },
+  {
+   "title": "Giáo viên được trả lương, học sinh Trường Quốc tế Mỹ đi học trở lại",
+   "publisher": "Tiền Phong",
+   "url": "https://tienphong.vn/giao-vien-duoc-tra-luong-hoc-sinh-truong-quoc-te-my-di-hoc-tro-lai-post1625648.tpo"
+  },
+  {
+   "title": "Sở Giáo dục và Đào tạo TP.HCM báo cáo vụ trung tâm ngoại ngữ thu học phí hàng tỉ đồng rồi biến mất",
+   "publisher": "Tuổi Trẻ",
+   "url": "https://tuoitre.vn/so-giao-duc-va-dao-tao-tp-hcm-bao-cao-vu-trung-tam-ngoai-ngu-thu-hoc-phi-hang-ti-dong-roi-bien-mat-20250519213401173.htm"
+  },
+  {
+   "title": "Vi phạm trong sử dụng giáo viên nước ngoài tại cơ sở mầm non",
+   "publisher": "Báo Thanh Hóa",
+   "url": "https://baothanhhoa.vn/vi-pham-trong-su-dung-giao-vien-nuoc-ngoai-tai-co-so-mam-non-283585.htm"
+  },
+  {
+   "title": "Vietnamese school requires teachers to give five years' notice on quitting",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/vietnamese-school-requires-teachers-to-give-five-years-notice-on-quitting-10346707.htm"
+  },
+  {
+   "title": "Viet Nam busts fake English certification scam worth nearly $8 million",
+   "publisher": "Viet Nam News",
+   "url": "https://vietnamnews.vn/society/1780870/viet-nam-busts-fake-english-certification-scam-worth-nearly-8-million.html"
+  },
+  {
+   "title": "Vietnam charges 2 foreigners for allegedly forging university diplomas, certificates",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/vietnam-charges-2-foreigners-for-allegedly-forging-university-diplomas-certificates-103260824132906734.htm"
+  },
+  {
+   "title": "Ho Chi Minh City shuts down 112 language and IT centers",
+   "publisher": "VietNamNet",
+   "url": "https://vietnamnet.vn/en/ho-chi-minh-city-shuts-down-112-language-and-it-centers-2556885.html"
+  },
+  {
+   "title": "ACET will close operations on 31 December 2024",
+   "publisher": "IDP Education",
+   "url": "https://www.idp.com/vietnam/blog/official-acet-announcement/?lang=en"
+  }
+ ],
+ "related": [
+  "english-teaching-contracts-in-vietnam",
+  "finding-a-teaching-job-in-vietnam",
+  "vietnam-work-permit-for-english-teachers",
+  "language-centre-jobs-in-ho-chi-minh-city",
+  "english-teacher-salary-in-vietnam"
+ ],
+ "lastChecked": "2026-10-11"
+}
