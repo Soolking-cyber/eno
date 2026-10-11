@@ -478,6 +478,7 @@ describe('/privacy — round-2 corrections hold', () => {
   it('⛔ the location paragraph no longer extends "never shared with advertisers" to on-site behaviour', async () => {
     // With Advertising on, on-site behaviour DOES reach Meta: api/track/view/route.ts:49-58 ViewContent ·
     // api/listings/[id]/contact/route.ts:187-190 Contact · core/listings.ts:1138-1144 Lead ·
+    // api/teachers/me/route.ts PUT Lead (a new teacher profile is a listing posted) ·
     // api/profile/account-type/route.ts:234-242 CompleteRegistration (all gated by meta-capi.ts:112-114).
     const en = await policy('marketplace')
     expect(en).not.toContain('same standard')

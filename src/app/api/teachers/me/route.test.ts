@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // PUT /api/teachers/me — the profile the form was loaded for (2026-10-07). A form opened as one account and still open when
 // the session became another (a sign-in in another tab) must never write that account's profile: its cover and video bases
@@ -16,10 +16,29 @@ const h = vi.hoisted(() => ({
   decision: { ok: true } as Row,
   decisionFails: false, // the identity-gate read throws (a failed query)
   logged: [] as unknown[],
+  created: false, // the save made the profile (its FIRST save) — what the Meta conversion fires on
+  live: true, // …and left it public
+  appleThrows: false,
+  sendRejects: false,
+  afterWork: [] as Array<() => unknown>,
+  afterThrows: false, // scheduling the after-response work itself fails
+  capi: [] as Row[],
+  capiOn: true,
+  appleLinked: false,
+  appleAsked: 0,
+}))
+vi.mock('next/server', async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  after: (fn: () => unknown) => { if (h.afterThrows) throw new Error('after: outside a request scope'); h.afterWork.push(fn) },
+}))
+vi.mock('@/lib/meta-capi', async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  metaCapiConfigured: () => h.capiOn,
+  sendMetaCapiEvent: async (name: string, opts: Row) => { if (h.sendRejects) throw new Error('graph unreachable'); h.capi.push({ name, ...opts }) },
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/log', () => ({ logError: (e: unknown) => { h.logged.push(e) } }))
-vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => h.me, getCurrentProfileId: async () => h.me.id, getAdmin: async () => null, isAdminEmail: () => false }))
+vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => h.me, getCurrentProfileId: async () => h.me.id, getAdmin: async () => null, isAdminEmail: () => false, isCurrentUserAppleLinkedByClaims: async () => { h.appleAsked++; if (h.appleThrows) throw new Error('claims unreadable'); return h.appleLinked } }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true, resetSec: 0 }), kv: { set: async () => 'OK', get: async () => null } }))
 vi.mock('@/lib/db', () => ({ db: { teacherProfile: { findUnique: async () => h.mine } } }))
 vi.mock('@/lib/publish-guard', () => ({ PublishBlockedError: class extends Error {} }))
@@ -41,7 +60,7 @@ vi.mock('@/lib/teachers/publish', () => {
       if (h.changedUnderLock) throw new TeacherProfileChangedError()
       if (h.noticeChanged) throw new TeacherNoticeChangedError(h.noticeChanged)
       h.saved.push(body)
-      return { listingId: 'L1', created: false, live: true, noGoal: false, cover: null, video: null }
+      return { listingId: 'L1', created: h.created, live: h.live, noGoal: false, cover: null, video: null }
     },
   }
 })
@@ -55,6 +74,7 @@ const get = async () => (await GET(new Request('https://eno.vn/api/teachers/me')
 beforeEach(() => {
   h.mine = { id: 'tp-b' }; h.saved = []; h.opts = []; h.changedUnderLock = false; h.noticeChanged = null; h.decision = { ok: true }
   h.decisionFails = false; h.logged = []
+  h.created = false; h.live = true; h.afterWork = []; h.capi = []; h.capiOn = true; h.appleLinked = false; h.appleAsked = 0; h.appleThrows = false; h.sendRejects = false; h.afterThrows = false
   h.me = { id: 'p-b', accountType: 'individual', email: 'b@example.com' }
 })
 
@@ -128,6 +148,125 @@ describe('PUT /api/teachers/me — the profile the form was loaded for', () => {
 // What the edit form reads on load (teacher-form): the TeacherProfile id it then names on every save and Remove, the video
 // base, the visibility choice, the public URL — and only WHETHER a private video exists, never its path (gate review,
 // 2026-10-08: "if GET does not return the id, every edit save is refused" — it does, and this pins it).
+// A new teacher profile is a listing posted: it sends the Meta conversion a posted listing sends (Lead), so an ad for
+// teacher.eno.vn can be measured by the profiles it brought (2026-10-11). The sender's own consent gate is meta-capi.ts's;
+// here: WHETHER it may go is settled before the save, it goes after the response — and nothing about it can fail a save.
+describe('PUT /api/teachers/me — the Meta conversion for a NEW profile', () => {
+  /** A consent v2 answer (src/lib/consent-value.ts): bits = personalization · analytics · advertising. */
+  const consent = (bits: string) => `eno-consent-v2=v2.${bits}.${Math.floor(Date.now() / 1000) - 60}.c0ffee00-1234-4abc-8def-001122334455`
+  const ADS_ON = consent('001')
+  const create = (headers: Record<string, string> = { cookie: ADS_ON }) => {
+    h.mine = null; h.created = true
+    return PUT(new Request('https://eno.vn/api/teachers/me', { method: 'PUT', headers, body: JSON.stringify({ teachAreas: ['online'], teacherProfileId: null }) }) as never, {} as never)
+  }
+  const flush = async () => { for (const fn of h.afterWork) await fn() }
+  beforeEach(() => { vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn') })
+  afterEach(() => { vi.unstubAllEnvs() })
+
+  it('the first save sends ONE Lead, after the response: the listing, the category, no value — and who, from this request', async () => {
+    h.me = { id: 'p-b', accountType: 'individual', email: 'b@example.com', phone: '+84901234567' }
+    // The join page's address as the hand-off leaves it: with the campaign in its query.
+    const res = await create({ cookie: ADS_ON, referer: 'https://eno.vn/teachers/join?utm_source=meta&utm_campaign=teacher_profiles', 'user-agent': 'UA/1' })
+    expect(res.status).toBe(200)
+    expect(h.capi).toHaveLength(0) // nothing before the response
+    await flush()
+    expect(h.capi).toHaveLength(1)
+    expect(h.capi[0].name).toBe('Lead')
+    expect(h.capi[0].customData).toEqual({ content_ids: ['L1'], content_type: 'product', content_category: 'Teachers', value: 0, currency: 'VND' })
+    expect(h.capi[0].userData).toMatchObject({ email: 'b@example.com', phone: '+84901234567', externalId: 'p-b', appleLinked: false, userAgent: 'UA/1', adConsent: true })
+    // ⛔ The page is NAMED, never read from the request: /privacy sends a campaign to Meta only when Analytics is on too.
+    expect(h.capi[0].eventSourceUrl).toBe('https://eno.vn/teachers/join')
+    expect(JSON.stringify(h.capi[0])).not.toContain('utm_')
+    // ⛔ No event id: the account id leaves as `externalId` (hashed by the sender) or not at all.
+    expect(h.capi[0].eventId).toBeUndefined()
+  })
+  it('⛔ whatever the request says its page was — another site, a path with a secret — the event names the join page', async () => {
+    await create({ cookie: ADS_ON, referer: 'https://evil.example/steal?token=abc' }); await flush()
+    expect(h.capi[0].eventSourceUrl).toBe('https://eno.vn/teachers/join')
+    expect(JSON.stringify(h.capi[0])).not.toContain('evil.example')
+  })
+  it('a build with no app address sends the event without a page', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', '')
+    await create(); await flush()
+    expect(h.capi).toHaveLength(1)
+    expect(h.capi[0].eventSourceUrl).toBeUndefined()
+  })
+  it('⛔ Advertising not chosen (no answer, or the other two purposes only): nothing is queued, and the Apple link is not even asked', async () => {
+    expect((await create({})).status).toBe(200)
+    expect((await create({ cookie: consent('110') })).status).toBe(200)
+    await flush()
+    expect(h.capi).toHaveLength(0)
+    expect(h.afterWork).toHaveLength(0)
+    expect(h.appleAsked).toBe(0)
+  })
+  it('⛔ an edit is not a new profile — nothing is asked, nothing is sent', async () => {
+    const res = await PUT(new Request('https://eno.vn/api/teachers/me', { method: 'PUT', headers: { cookie: ADS_ON }, body: JSON.stringify({ teachAreas: ['online'], fullName: 'B', teacherProfileId: 'tp-b' }) }) as never, {} as never)
+    expect(res.status).toBe(200)
+    await flush()
+    expect(h.capi).toHaveLength(0)
+    expect(h.appleAsked).toBe(0)
+  })
+  it('⛔ a new profile the save did not leave public is not a listing posted — nothing is sent', async () => {
+    h.live = false
+    expect((await create()).status).toBe(200)
+    await flush()
+    expect(h.capi).toHaveLength(0)
+  })
+  it('⛔ an Apple-linked account says so, so its email never becomes a hash (D14)', async () => {
+    h.appleLinked = true
+    await create(); await flush()
+    expect(h.capi[0].userData.appleLinked).toBe(true)
+  })
+  it('not configured: nothing is queued and nothing is asked', async () => {
+    h.capiOn = false
+    expect((await create()).status).toBe(200)
+    await flush()
+    expect(h.capi).toHaveLength(0)
+    expect(h.appleAsked).toBe(0)
+  })
+  it('a refused save sends nothing', async () => {
+    h.changedUnderLock = true
+    expect((await create()).status).toBe(409)
+    await flush()
+    expect(h.capi).toHaveLength(0)
+    expect(h.afterWork).toHaveLength(0)
+  })
+  it('⛔ THE APPLE ANSWER IS ASKED BEFORE THE SAVE: one that cannot be read costs the event, never the save — 200, saved, logged', async () => {
+    h.appleThrows = true
+    const res = await create()
+    expect(res.status).toBe(200)
+    expect((await res.json()).listingId).toBe('L1')
+    expect(h.saved).toHaveLength(1)
+    await flush()
+    expect(h.capi).toHaveLength(0)
+    expect(h.afterWork).toHaveLength(0) // never sent without the answer
+    expect(h.logged).toHaveLength(1)
+  })
+  it('⛔ …and so does a cookie that cannot be decoded (a malformed _fbp): 200, saved, no event, logged', async () => {
+    const res = await create({ cookie: `${ADS_ON}; _fbp=%E0%A4%A` })
+    expect(res.status).toBe(200)
+    expect(h.saved).toHaveLength(1)
+    await flush()
+    expect(h.capi).toHaveLength(0)
+    expect(h.logged).toHaveLength(1)
+  })
+  it('⛔ AFTER THE COMMIT NOTHING REACHES THE SAVE\'S ERROR HANDLING: scheduling that throws still answers 200 with the saved profile, logged', async () => {
+    h.afterThrows = true
+    const res = await create()
+    expect(res.status).toBe(200)
+    expect((await res.json()).listingId).toBe('L1')
+    expect(h.capi).toHaveLength(0)
+    expect(h.logged).toHaveLength(1)
+  })
+  it('a send that rejects after the response is logged, never thrown', async () => {
+    h.sendRejects = true
+    expect((await create()).status).toBe(200)
+    await flush()
+    expect(h.capi).toHaveLength(0)
+    expect(h.logged).toHaveLength(1)
+  })
+})
+
 describe('GET /api/teachers/me — what the edit form loads', () => {
   it('returns the id and the video state the form saves against — never the private path', async () => {
     h.mine = {

@@ -1,13 +1,17 @@
 // The signed-in teacher's own profile (2026-09-30): read, create/update, delete.
 // The public side is the listing (/listings/<id>); contact data is never in any public payload.
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { route, ApiError } from '@/lib/api/handler'
 import { db } from '@/lib/db'
+import { isCurrentUserAppleLinkedByClaims } from '@/lib/admin'
+import { sendMetaCapiEvent, metaUserDataFromHeaders, metaCapiConfigured } from '@/lib/meta-capi'
 import { PublishBlockedError } from '@/lib/publish-guard'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { sellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
 import { logError } from '@/lib/log'
 import { isLegacyTeacherBody } from '@/lib/teachers/profile'
+import { TEACHERS_CATEGORY_NAME } from '@/lib/teachers/constants'
+import { apexOrigin } from '@/lib/teachers/host'
 import {
   saveTeacherProfile, deleteTeacherProfile, TeacherCoverConflictError, TeacherNoticeChangedError, TeacherProfileChangedError,
   TeacherValidationError, TeacherVideoConflictError, TeacherVideoStoreError,
@@ -87,8 +91,51 @@ export const PUT = route(
     const expected = typeof sentId === 'string' ? sentId : null
     const mine = await db.teacherProfile.findUnique({ where: { profileId: profile.id }, select: { id: true } })
     if ((mine?.id ?? null) !== expected) return NextResponse.json({ error: 'profile_changed' }, { status: 409 })
+    // A NEW teacher profile is a listing posted: it sends the Meta conversion a posted listing sends (Lead), so an ad for
+    // teacher.eno.vn can be measured by the profiles it brought. Whether this request MAY send one is settled HERE,
+    // before the save: ⛔ nothing awaited may sit between a committed save and its response (commit gate, 2026-10-11 —
+    // a throw there answers 500 for a profile that exists, and the retry is then a 409). Only a create, only when
+    // configured, only for a visitor whose Advertising choice lets the event go at all — and then the Apple answer
+    // (the locally verified token), because the email is handed over only WITH it (D14, meta-capi.ts). A failure here
+    // costs the event, never the save: null = send nothing.
+    let leadAppleLinked: boolean | null = null
+    if (expected === null) {
+      try {
+        if (metaCapiConfigured() && metaUserDataFromHeaders(req.headers).adConsent === true) leadAppleLinked = await isCurrentUserAppleLinkedByClaims()
+      } catch (e) {
+        logError(e, { op: 'teachers.me.metaLead.ask' })
+      }
+    }
     try {
-      return await saveTeacherProfile({ id: profile.id, email: profile.email ?? null }, body, { expectTeacherProfileId: expected })
+      const saved = await saveTeacherProfile({ id: profile.id, email: profile.email ?? null }, body, { expectTeacherProfileId: expected })
+      // Only the FIRST save, and only when it left the profile public (`created && live`): an edit is not a new profile
+      // and a held one is not posted. Like a job's salary, an hourly rate is not what the lead is worth: value 0.
+      // Everything else happens after the response, contained: the send is best-effort (meta-capi.ts) and logged.
+      // ⛔ THE PAGE IS NAMED, NOT READ FROM THE REQUEST: only the join form creates a profile, and its address can carry
+      // the campaign that brought the teacher (the teacher.eno.vn hand-off) — /privacy sends a campaign to Meta only
+      // when Analytics is on as well. No event id either: the account id leaves hashed (external_id) or not at all.
+      if (saved.created && saved.live && leadAppleLinked !== null) {
+        const appleLinked = leadAppleLinked
+        const listingId = saved.listingId
+        // Scheduling it is contained too: after the commit, not even this may reach the save's error handling below.
+        try {
+          after(async () => {
+            try {
+              const origin = apexOrigin(process.env.NEXT_PUBLIC_APP_URL)
+              await sendMetaCapiEvent('Lead', {
+                eventSourceUrl: origin ? `${origin}/teachers/join` : undefined,
+                userData: metaUserDataFromHeaders(req.headers, { email: profile.email, phone: profile.phone, externalId: profile.id, appleLinked }),
+                customData: { content_ids: [listingId], content_type: 'product', content_category: TEACHERS_CATEGORY_NAME, value: 0, currency: 'VND' },
+              })
+            } catch (e) {
+              logError(e, { op: 'teachers.me.metaLead.send' })
+            }
+          })
+        } catch (e) {
+          logError(e, { op: 'teachers.me.metaLead.schedule' })
+        }
+      }
+      return saved
     } catch (e) {
       if (e instanceof TeacherValidationError) {
         return NextResponse.json({ error: 'invalid_teacher_profile', fields: e.errors }, { status: 400 })

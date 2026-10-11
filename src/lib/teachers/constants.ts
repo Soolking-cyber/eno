@@ -3,6 +3,8 @@
  * server code can all read them.
  */
 export const TEACHERS_CATEGORY_SLUG = 'teachers'
+/** The category's English name as seeded (src/lib/taxonomy.ts) — what a listing's Meta conversion reports as its category. */
+export const TEACHERS_CATEGORY_NAME = 'Teachers'
 export const TEACHER_LISTING_TYPE = 'teacher'
 /** The subdomain label that serves the teacher sign-up form (teacher.eno.vn). */
 export const TEACHER_SUBDOMAIN = 'teacher'

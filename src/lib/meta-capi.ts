@@ -85,9 +85,9 @@ function userDataPayload(u: MetaUserData): Record<string, unknown> {
 
 /**
  * The first-party identifiers a caller adds. ⛔ AN EMAIL ONLY WITH THE ANSWER TO "IS THIS ACCOUNT APPLE-LINKED?" (D14):
- * the type refuses one without it, and userDataPayload drops it anyway (fail closed). Every caller, 2026-10-09 — the
- * two that send an email answer: Contact (listings/[id]/contact, isAppleLinked of GoTrue's user) and CompleteRegistration
- * (profile/account-type, the verified claims); Lead (core/listings: the seller's phone and id), ViewContent (track/view:
+ * the type refuses one without it, and userDataPayload drops it anyway (fail closed). Every caller, 2026-10-11 — three
+ * send an email, each with the answer: Contact (listings/[id]/contact, GoTrue's user), CompleteRegistration (profile/
+ * account-type) and a teacher profile's Lead (teachers/me), verified claims; Lead (core/listings: phone + id), ViewContent (track/view:
  * nothing) and InitiateCheckout (visa start, eno.forum: the profile id) send no email. The browser pixel sends no user
  * data and loads nowhere (analytics.ts).
  */
