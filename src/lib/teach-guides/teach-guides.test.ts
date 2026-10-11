@@ -1,4 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import ts from 'typescript'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { forEachInline, forEachPlain, teachGuideSchema, type TeachGuide } from './schema'
@@ -29,6 +31,28 @@ function plainStrings(g: TeachGuide): string[] {
   const out: string[] = []
   forEachPlain(g, (text) => out.push(text))
   return out
+}
+/**
+ * Every piece of text a reader could see in a TS/TSX file: string literals, template text and JSX text, read with
+ * the TypeScript parser. Comments are never nodes, so nothing has to be stripped (a regex stripper both hid text
+ * after `https://` and swallowed code after `://*`; the vocabulary in comments that explain the rule is not text).
+ */
+function visibleCodeText(file: string): string {
+  const sf = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS)
+  const out: string[] = []
+  // JSX text keeps its entities raw (`&nbsp;`, `&#118;`): decode them, or `tạm&nbsp;trú` would pass.
+  const decode = (t: string) =>
+    t.replace(/&nbsp;/g, ' ').replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+  const visit = (n: ts.Node) => {
+    if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) out.push(n.text)
+    else if (ts.isJsxText(n)) out.push(decode(n.text))
+    else if (ts.isTemplateExpression(n)) out.push(n.head.text, ...n.templateSpans.map((sp) => sp.literal.text))
+    // Identifiers too: a `<PayPalButton />` or `ROUTES.itinerary` renders a forum surface without a single literal.
+    else if (ts.isIdentifier(n)) out.push(n.text)
+    ts.forEachChild(n, visit)
+  }
+  visit(sf)
+  return out.join('\n')
 }
 /** Every string value in a parsed JSON document — the vocabulary guard reads text, not escapes. */
 const allStrings = (v: unknown): string[] =>
@@ -83,26 +107,45 @@ describe('teach guides: the library is whole', () => {
 })
 
 describe('teach guides: the edition rule (no visa / itinerary / PayPal / permission-to-stay vocabulary)', () => {
+  // Code files are read with the TypeScript parser (visibleCodeText): every string and JSX text is scanned, and the
+  // comments that explain this rule — and so name the words — are not text at all.
   // ⛔ These pages compile on the licensed marketplace. See registry.ts and CLAUDE.md (the edition split).
-  const BANNED = /\bvisas?\b|\be-?visas?\b|evisa|thị thực|itinerar|paypal|temporary residence|residence card|residence permit|\bTRCs?\b|immigration|xuất nhập cảnh|nhập cảnh|tạm trú|overstay|border run|entry permit|exit permit|extend your stay|sponsorship letter/i
+  // Multi-word terms match across any run of whitespace (a wrapped JSX line, a double or non-breaking space).
+  const BANNED = /\bvisas?\b|\be-?visas?\b|evisa|thị\s+thực|itinerar|paypal|temporary\s+residence|residence\s+card|residence\s+permit|\bTRCs?\b|immigration|nhập\s+cảnh|tạm\s+trú|overstay|border\s+run|entry\s+permit|exit\s+permit|extend\s+your\s+stay|sponsorship\s+letter/i
   it('registry.ts carries none of it — nor passport / VietKite / hộ chiếu (expat-guides.test.ts registry rule)', () => {
-    const code = readFileSync('src/lib/teach-guides/registry.ts', 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
-    expect(code.match(BANNED)).toBeNull()
-    expect(code.match(/passport|VietKite|hộ chiếu/i)).toBeNull()
+    const text = visibleCodeText('src/lib/teach-guides/registry.ts')
+    expect(text.match(BANNED)).toBeNull()
+    expect(text.match(/passport|VietKite|hộ chiếu/i)).toBeNull()
   })
   // The hub and the renderer are exempt from the i18n rule (eslint.config.mjs) and the route builds English chrome
   // too, so their own English prose is checked here as well.
   it.each(['src/app/[lang]/teach-in-vietnam/page.tsx', 'src/app/[lang]/teach-in-vietnam/[slug]/page.tsx', 'src/components/marketplace/teach-guide-body.tsx'])(
     '%s carries none of it',
     (file) => {
-      const code = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')
-      expect(code.match(BANNED)).toBeNull()
+      expect(visibleCodeText(file).match(BANNED)).toBeNull()
     },
   )
   it.each(contentSlugs() as string[])('%s carries none of it', (slug) => {
     // The PARSED strings, not the file: "\u0074ạm trú" in the JSON is "tạm trú" on the page.
     expect(allStrings(JSON.parse(raw(slug))).filter((t) => BANNED.test(t))).toEqual([])
     expect(raw(slug).match(BANNED)).toBeNull()
+  })
+  it('the code reader sees strings and JSX text, never comments — whatever slashes they contain', () => {
+    // A unique temp directory, never the source tree: a killed run leaves nothing behind in src/.
+    const dir = mkdtempSync(join(tmpdir(), 'teach-visible-text-'))
+    const tmp = join(dir, 'probe.tsx')
+    writeFileSync(tmp, "// visa in a comment\n/* paypal */\nconst a = 'https://x.example//visa'\nconst b = 'glob/*'\nconst c = <p>see */ evisa and t&#7841;m&nbsp;trú</p>\nconst d = <PayPalButton />\n")
+    try {
+      const t = visibleCodeText(tmp)
+      expect(t).toContain('https://x.example//visa')
+      expect(t).toContain('evisa')
+      expect(t).toContain('tạm trú')
+      expect(t).toContain('PayPalButton')
+      expect(t).not.toContain('in a comment')
+      expect(t).not.toMatch(/^paypal$/m)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
   it('registry labels and blurbs carry none of it', () => {
     expect(TEACH_GUIDES.flatMap((e) => [e.label, e.blurb]).filter((t) => BANNED.test(t))).toEqual([])
