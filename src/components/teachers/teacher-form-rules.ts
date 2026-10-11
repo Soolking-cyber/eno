@@ -232,6 +232,32 @@ function fromBase64Url(s: string): unknown {
 export const encodeHandoff = (t: TeacherInput): string => toBase64Url(JSON.stringify({ v: 2, t: draftPart(t) }))
 
 /**
+ * The campaign tags the hand-off carries to eno.vn, as a query — or ''. The first-visit record is per host, so without
+ * them eno.vn sees a visit from teacher.eno.vn and the campaign that brought the teacher is lost.
+ * ⛔ THE CONTRACT IS WHAT src/lib/attribution.ts READS FROM AN ADDRESS, AND NOTHING ELSE: `utm_source`, `utm_medium`,
+ * `utm_campaign` — three named tags, the first value of each, in that order. Never a click id (fbclid, gclid), another
+ * `utm_*`, or anything else in the address (commit gate, 2026-10-11: a pattern over `utm_*` needed a cap on how many,
+ * an order to keep, and still let a crafted address grow the hand-off). A tag whose value serializes past
+ * CAMPAIGN_TAG_MAX is dropped rather than cut, so the whole query is at most three times that, however it is encoded.
+ * ⚠️ Read at the tap, from this page's address: a teacher who comes back later to a bare teacher.eno.vn address hands
+ * off without them, and eno.vn then records the visit it sees. It records them under the Analytics choice made THERE.
+ */
+export function campaignQuery(search: string): string {
+  const from = new URLSearchParams(search)
+  const kept: string[] = []
+  for (const tag of CAMPAIGN_TAGS) {
+    const value = from.get(tag)?.trim()
+    if (!value) continue
+    const pair = new URLSearchParams([[tag, value]]).toString()
+    if (pair.length <= CAMPAIGN_TAG_MAX) kept.push(pair)
+  }
+  return kept.length ? `?${kept.join('&')}` : ''
+}
+const CAMPAIGN_TAGS = ['utm_source', 'utm_medium', 'utm_campaign'] as const
+/** One `tag=value`, serialized. A real campaign name is a few dozen plain characters. */
+export const CAMPAIGN_TAG_MAX = 200
+
+/**
  * A `#d=` value read back — v2 (`{ v: 2, t }`), or a v1 fragment from before the redesign (the old TeacherInput itself,
  * mapped at the input boundary by normalizeTeacherInput → fromLegacyTeacher, plan review D2). ⛔ WHATEVER IT CARRIES,
  * only the draft steps' fields survive: a crafted link can never arrive with a consent ticked, cover on, a phone or an

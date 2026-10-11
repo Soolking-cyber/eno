@@ -37,7 +37,7 @@ import { HCMC, coverReachOf, placeLabel } from '@/lib/teachers/places'
 import { type CoverPatch } from '@/components/teachers/cover-fields'
 import { CoverSummary } from '@/components/teachers/cover-summary'
 import {
-  ACCOUNT_STEPS, checkSteps, decodeHandoff, draftPart, droppedAnswers, encodeHandoff, firstStepWithError, forDraft, fromDraft,
+  ACCOUNT_STEPS, campaignQuery, checkSteps, decodeHandoff, draftPart, droppedAnswers, encodeHandoff, firstStepWithError, forDraft, fromDraft,
   isTeacherStep, nothingDropped, type DroppedField,
 } from '@/components/teachers/teacher-form-rules'
 import { makeErrText, type StepProps } from '@/components/teachers/steps/shared'
@@ -529,7 +529,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   const handOff = () => {
     if (!draftStepsOk()) return
     // teacher.eno.vn → eno.vn: the fragment carries the draft steps' answers (v2), never a consent; no server sees it.
-    window.location.assign(`${apexOrigin}/teachers/join#${TEACHER_DRAFT_HASH_KEY}=${encodeHandoff(t)}`)
+    // The query carries the campaign tags this address holds (source, medium, campaign) — the first-visit record is per host.
+    window.location.assign(`${apexOrigin}/teachers/join${campaignQuery(window.location.search)}#${TEACHER_DRAFT_HASH_KEY}=${encodeHandoff(t)}`)
   }
   const signInToContinue = () => {
     if (!draftStepsOk()) return

@@ -170,6 +170,21 @@ describe('step 1 · Your plans', () => {
 })
 
 describe('teacher.eno.vn → eno.vn', () => {
+  it('the hand-off keeps the campaign tags the visitor arrived with — source, medium, campaign; never the click id', async () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign, hash: '', pathname: '/', search: '?utm_content=reel_v3&utm_campaign=teacher_profiles&fbclid=IwAR0x&utm_medium=paid_social&utm_source=meta' })
+    putDraft({ ...COMPLETE, phone: '+84901234567' }, 'about')
+    const { user } = mount({ draftHost: true })
+    expect(await screen.findByRole('textbox', { name: 'Full name' })).toBeTruthy()
+    await user.click(action('Continue on eno.vn'))
+    expect(assign).toHaveBeenCalledTimes(1)
+    // The whole address, parsed: eno.vn's join page, exactly the three tags, and one `#d=` draft after them.
+    const to = new URL(String(assign.mock.calls[0][0]))
+    expect(to.origin + to.pathname).toBe('https://eno.vn/teachers/join')
+    expect(to.search).toBe('?utm_source=meta&utm_medium=paid_social&utm_campaign=teacher_profiles')
+    expect(to.hash.startsWith('#d=')).toBe(true)
+    expect((unb64url(to.hash.slice(3)) as { v: number }).v).toBe(2)
+  })
   it('teacher.eno.vn: 4 steps + “Finish on eno.vn”; Continue checks steps 1–4 and hands over a v2 fragment with no consent', async () => {
     const assign = vi.fn()
     vi.stubGlobal('location', { ...window.location, assign, hash: '', pathname: '/', search: '' })

@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_TEACHER, normalizeTeacherInput, type TeacherInput } from '@/lib/teachers/profile'
 import {
-  DRAFT_FIELDS, decodeHandoff, draftPart, droppedAnswers, encodeHandoff, forDraft, homeDefaultAreas, nextMonths, startChoice,
+  CAMPAIGN_TAG_MAX, DRAFT_FIELDS, campaignQuery, decodeHandoff, draftPart, droppedAnswers, encodeHandoff, forDraft, homeDefaultAreas, nextMonths, startChoice,
   suggestHeadline, withJobTypes, withRelocate, withSituation,
 } from './teacher-form-rules'
 
@@ -148,6 +148,42 @@ describe('the teacher.eno.vn hand-off (#d=)', () => {
   })
   it('a draft never keeps an upload, the cover switch or a consent — the periods and rate stay', () => {
     expect(forDraft(full)).toMatchObject({ photoUrl: null, videoUrl: null, coverOpen: false, coverConsent: false, matchEmailOptIn: false, staffContactOptIn: false, coverSlots: ['mon-am'], coverRateVnd: 300_000, phone: '+84901234567' })
+  })
+})
+
+describe('the campaign tags the hand-off carries (campaignQuery)', () => {
+  it('⛔ carries the three tags attribution.ts reads — and nothing else in the address', () => {
+    expect(campaignQuery('?utm_content=reel_v3&utm_campaign=teacher_profiles&fbclid=IwAR0x&utm_medium=paid_social&gclid=g1&utm_source=meta&utm_term=t&utm_id=1&utm_source_platform=x&step=about&d=abc'))
+      .toBe('?utm_source=meta&utm_medium=paid_social&utm_campaign=teacher_profiles')
+  })
+  it('no tags: no query at all, so the address stays exactly /teachers/join#d=…', () => {
+    expect(campaignQuery('')).toBe('')
+    expect(campaignQuery('?fbclid=IwAR0x&step=about&utm_content=x')).toBe('')
+    expect(campaignQuery('?utm_source=&utm_medium=%20')).toBe('')
+  })
+  it('the first value of each, trimmed, and encoded — a crafted address cannot inject a fragment or a second parameter', () => {
+    expect(campaignQuery('?utm_source=a&utm_source=b')).toBe('?utm_source=a')
+    expect(campaignQuery('?utm_campaign=%20spring%20')).toBe('?utm_campaign=spring')
+    expect(campaignQuery('?utm_source=' + encodeURIComponent('a#d=evil&step=finish'))).toBe('?utm_source=a%23d%3Devil%26step%3Dfinish')
+    expect(campaignQuery('?UTM_SOURCE=a&utm_Source=b')).toBe('')
+  })
+  it('⛔ bounded however it is encoded: a value that serializes past the cap is dropped, never cut — plain, non-Latin or reserved', () => {
+    expect(campaignQuery(`?utm_campaign=${'x'.repeat(CAMPAIGN_TAG_MAX)}&utm_source=meta`)).toBe('?utm_source=meta')
+    const worst = ['é'.repeat(100), '日'.repeat(100), "!'()~".repeat(40), '😀'.repeat(60)]
+    for (const v of worst) {
+      const q = campaignQuery(`?utm_source=${encodeURIComponent(v)}&utm_medium=${encodeURIComponent(v)}&utm_campaign=${encodeURIComponent(v)}`)
+      expect(q.length).toBeLessThanOrEqual(1 + 3 * CAMPAIGN_TAG_MAX + 2)
+    }
+    // …and one that fits is kept whole, whatever its script. The edge, on a two-byte letter (6 characters serialized):
+    // `utm_source=` + 31 × 6 = 197 is kept, 32 × 6 = 203 is dropped.
+    expect(campaignQuery(`?utm_campaign=${encodeURIComponent('giáo viên')}`)).toBe('?utm_campaign=gi%C3%A1o+vi%C3%AAn')
+    expect(campaignQuery(`?utm_source=${encodeURIComponent('é'.repeat(31))}`)).toBe(`?utm_source=${'%C3%A9'.repeat(31)}`)
+    expect(campaignQuery(`?utm_source=${encodeURIComponent('é'.repeat(32))}`)).toBe('')
+    // All three at their largest: the whole query stays under 3 × the cap.
+    const full = campaignQuery(`?utm_source=${'%C3%A9'.repeat(31)}&utm_medium=${'%C3%A9'.repeat(31)}&utm_campaign=${'%C3%A9'.repeat(31)}`)
+    expect(new URLSearchParams(full).get('utm_campaign')).toBe('é'.repeat(31))
+    expect(full.length).toBe(1 + 197 + 1 + 197 + 1 + 199)
+    expect(full.length).toBeLessThanOrEqual(1 + 3 * CAMPAIGN_TAG_MAX + 2)
   })
 })
 
