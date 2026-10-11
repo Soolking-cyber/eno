@@ -234,8 +234,19 @@ export const TEACHER_STEP_FIELDS = {
 } as const satisfies Record<string, readonly (keyof TeacherInput)[]>
 export type TeacherStep = keyof typeof TEACHER_STEP_FIELDS
 export const TEACHER_STEPS = Object.keys(TEACHER_STEP_FIELDS) as TeacherStep[]
-/** Steps that may be filled WITHOUT an account — the teacher.eno.vn half, and the `#d=` / draft payload. */
+/**
+ * The steps whose answers a `#d=` hand-off and `?review=draft` may carry (teacher-form-rules DRAFT_FIELDS) — never a
+ * consent, a cover field, a phone or an upload. Four steps: a fragment written by a teacher.eno.vn tab from before
+ * 2026-10-11 still carries all four.
+ */
 export const DRAFT_STEPS: readonly TeacherStep[] = ['plans', 'where', 'teaching', 'about']
+/**
+ * ⛔ WHAT A SIGNED-OUT VISITOR ANSWERS BEFORE SIGNING IN — the whole of teacher.eno.vn's half (owner, 2026-10-11: "as long
+ * as they have inputed something in 1st stage they should have teacher profile in the dashboard … every step they input
+ * should be saved"). Sign-in comes right after it, and from then on every answer is saved to the account as it is given
+ * (src/lib/teachers/draft.ts) — so the profile can be finished later, on any device.
+ */
+export const PRE_SIGNIN_STEPS: readonly TeacherStep[] = ['plans']
 
 /**
  * The cover fields a body carries — the edit page's quick panel (PATCH /api/teachers/me/cover) sends exactly these.
@@ -486,9 +497,10 @@ export function visibleFields(t: TeacherInput): ReadonlySet<keyof TeacherInput> 
  */
 export function teacherSteps(t: TeacherInput, opts: { draftHost: boolean }): TeacherStep[] {
   const steps: TeacherStep[] = ['plans']
+  // teacher.eno.vn has no session: its half is the steps answered before sign-in (PRE_SIGNIN_STEPS), then the hand-off.
+  if (opts.draftHost) return [...PRE_SIGNIN_STEPS]
   if (!whereSkipped(t)) steps.push('where')
   steps.push('teaching', 'about')
-  if (opts.draftHost) return steps
   if (homeHasCover(t)) steps.push('cover')
   steps.push('finish')
   return steps

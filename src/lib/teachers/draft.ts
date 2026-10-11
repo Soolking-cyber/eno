@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import 'server-only'
 import { db } from '@/lib/db'
 import { logError } from '@/lib/log'
@@ -12,7 +13,10 @@ import type { Prisma } from '@/generated/prisma/client'
  *   · WHAT IT HOLDS: the form's answers through forDraft — ⛔ never a consent, an upload or the cover switch (each is asked
  *     again where it is given) — and ⛔ never the phone (owner's default, 2026-10-11: asked again on the last step). The
  *     step to reopen on. Nothing ELSE happens on a save: no moderation, translation, matcher, analytics or Meta event.
- *   · CONCURRENCY: an integer revision. A save names the revision it was based on and bumps it — a conditional update
+ *   · CONCURRENCY: an integer revision AND the draft's generation (a random id given when the draft is made — a draft
+ *     deleted and made again has a new one, so revision 3 of the new draft is never mistaken for revision 3 of the old:
+ *     commit gate, opus + codex 2026-10-11/12; never a timestamp, which a clock can repeat). A save names both and
+ *     bumps the revision — a conditional update
  *     (two tabs or devices: the later one is refused `stale`, never silently overwrites); the first save inserts only if
  *     there is no row (`stale` when another got there first). A save based on a revision whose row is gone — Start over,
  *     publish, the 90-day retention — is refused `gone`: a late save never resurrects a draft.
@@ -34,22 +38,31 @@ export function draftDataOf(raw: unknown): TeacherInput {
   return { ...fromDraft(raw), phone: '' }
 }
 
-export type TeacherDraftRow = { t: TeacherInput; step: TeacherStep; rev: number; updatedAt: Date }
+export type TeacherDraftRow = { t: TeacherInput; step: TeacherStep; rev: number; gen: string; updatedAt: Date }
 
 export async function readTeacherDraft(profileId: string): Promise<TeacherDraftRow | null> {
-  const row = await db.teacherDraft.findUnique({ where: { profileId }, select: { data: true, step: true, rev: true, updatedAt: true } })
+  const row = await db.teacherDraft.findUnique({ where: { profileId }, select: { data: true, step: true, rev: true, gen: true, updatedAt: true } })
   if (!row) return null
-  return { t: draftDataOf(row.data), step: isTeacherStep(row.step) ? row.step : 'plans', rev: row.rev, updatedAt: row.updatedAt }
+  return { t: draftDataOf(row.data), step: isTeacherStep(row.step) ? row.step : 'plans', rev: row.rev, gen: row.gen, updatedAt: row.updatedAt }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+/** A generation as a client sends it back — the id it was given — or null when it is not one. */
+export function parseDraftGen(v: unknown): string | null {
+  return typeof v === 'string' && UUID.test(v.toLowerCase()) ? v.toLowerCase() : null
 }
 
 export type SaveTeacherDraftResult =
-  | { ok: true; rev: number; updatedAt: Date }
+  | { ok: true; rev: number; gen: string; updatedAt: Date }
   | { ok: false; reason: 'stale' | 'gone' | 'teacher_exists' | 'too_large' | 'bad_request' }
 
 export async function saveTeacherDraft(profileId: string, body: unknown): Promise<SaveTeacherDraftResult> {
-  const b = (body && typeof body === 'object' ? body : {}) as { t?: unknown; step?: unknown; rev?: unknown }
-  const base = typeof b.rev === 'number' && Number.isInteger(b.rev) && b.rev >= 0 ? b.rev : null
-  if (base === null || !b.t || typeof b.t !== 'object') return { ok: false, reason: 'bad_request' }
+  const b = (body && typeof body === 'object' ? body : {}) as { t?: unknown; step?: unknown; rev?: unknown; gen?: unknown }
+  const base = typeof b.rev === 'number' && Number.isInteger(b.rev) && b.rev >= 0 && b.rev < 2 ** 31 - 1 ? b.rev : null
+  // A save on top of a draft names its generation; a first save (rev 0) may propose the new draft's (the tab's, so it can
+  // recognise a cut-off one exactly) — else one is made here.
+  const gen = parseDraftGen(b.gen)
+  if (base === null || (base > 0 && !gen) || !b.t || typeof b.t !== 'object') return { ok: false, reason: 'bad_request' }
   const data = draftDataOf(b.t)
   // Nothing answered is nothing to keep — and never a "Continue" row for an empty form.
   if (isEmptyTeacher(data)) return { ok: false, reason: 'bad_request' }
@@ -63,11 +76,12 @@ export async function saveTeacherDraft(profileId: string, body: unknown): Promis
     const now = new Date()
     if (base === 0) {
       // The first save: only when there is no row — another tab or device that got there first is never overwritten.
-      const { count } = await tx.teacherDraft.createMany({ data: [{ profileId, data: value, step, rev: 1, createdAt: now, updatedAt: now }], skipDuplicates: true })
-      return count === 1 ? { ok: true, rev: 1, updatedAt: now } as const : { ok: false, reason: 'stale' } as const
+      const fresh = gen ?? randomUUID()
+      const { count } = await tx.teacherDraft.createMany({ data: [{ profileId, data: value, step, rev: 1, gen: fresh, createdAt: now, updatedAt: now }], skipDuplicates: true })
+      return count === 1 ? { ok: true, rev: 1, gen: fresh, updatedAt: now } as const : { ok: false, reason: 'stale' } as const
     }
-    const { count } = await tx.teacherDraft.updateMany({ where: { profileId, rev: base }, data: { data: value, step, rev: base + 1, updatedAt: now } })
-    if (count === 1) return { ok: true, rev: base + 1, updatedAt: now } as const
+    const { count } = await tx.teacherDraft.updateMany({ where: { profileId, rev: base, gen: gen! }, data: { data: value, step, rev: base + 1, updatedAt: now } })
+    if (count === 1) return { ok: true, rev: base + 1, gen: gen!, updatedAt: now } as const
     const still = await tx.teacherDraft.findUnique({ where: { profileId }, select: { rev: true } })
     return { ok: false, reason: still ? 'stale' : 'gone' } as const
   })
@@ -78,10 +92,19 @@ export async function saveTeacherDraft(profileId: string, body: unknown): Promis
  * delete, never after it (commit gate, codex + opus: an unlocked delete could find no row while that insert was on its
  * way, and the draft came back). The publish deletes it inside its own transaction (publish.ts).
  */
-export async function deleteTeacherDraft(profileId: string): Promise<void> {
-  await db.$transaction(async (tx) => {
+export async function deleteTeacherDraft(profileId: string, at?: { rev: number; gen: string }): Promise<'deleted' | 'stale'> {
+  return db.$transaction(async (tx) => {
     await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${'teacher:' + profileId}))`
-    await tx.teacherDraft.deleteMany({ where: { profileId } })
+    // ⛔ CONDITIONAL, LIKE A SAVE (commit gate, codex 2026-10-11): Start over deletes the revision the tab saw — never
+    // a newer one another device saved meanwhile, which the tab has not shown (that is `stale`, and the form asks).
+    // No revision (deleteTeacherProfile, the account's own cleanups): whatever is there.
+    if (at === undefined) {
+      await tx.teacherDraft.deleteMany({ where: { profileId } })
+      return 'deleted'
+    }
+    const { count } = await tx.teacherDraft.deleteMany({ where: { profileId, rev: at.rev, gen: at.gen } })
+    if (count === 1) return 'deleted'
+    return (await tx.teacherDraft.findUnique({ where: { profileId }, select: { rev: true } })) ? 'stale' : 'deleted'
   })
 }
 

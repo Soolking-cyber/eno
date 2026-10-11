@@ -28,7 +28,7 @@ import { BookOpen, CalendarDays, Camera, Check, Compass, ExternalLink, Loader2, 
 import { compressImageFile } from '@/lib/normalize-image'
 import { uploadListingVideo } from '@/lib/video-upload-client'
 import {
-  AI_NOTICE_VERSION, DRAFT_STEPS, EMPTY_TEACHER, PUBLISH_NOTICE_VERSION, TEACHER_STEPS, hasTeachingGoal, normalizeForSave,
+  AI_NOTICE_VERSION, DRAFT_STEPS, EMPTY_TEACHER, PRE_SIGNIN_STEPS, PUBLISH_NOTICE_VERSION, TEACHER_STEPS, teacherFreeTextFields, hasTeachingGoal, normalizeForSave,
   normalizeTeacherInput, splitGoalErrors, teacherSteps, type TeacherErrors, type TeacherInput, type TeacherStep,
 } from '@/lib/teachers/profile'
 import { TEACHER_DRAFT_HASH_KEY } from '@/lib/teachers/constants'
@@ -37,8 +37,8 @@ import { HCMC, coverReachOf, placeLabel } from '@/lib/teachers/places'
 import { type CoverPatch } from '@/components/teachers/cover-fields'
 import { CoverSummary } from '@/components/teachers/cover-summary'
 import {
-  ACCOUNT_STEPS, campaignQuery, checkSteps, decodeHandoff, draftPart, droppedAnswers, encodeHandoff, firstStepWithError, forDraft, fromDraft,
-  isTeacherStep, nothingDropped, type DroppedField,
+  ACCOUNT_STEPS, campaignQuery, checkSteps, decodeHandoff, draftPart, draftResumeStep, droppedAnswers, encodeHandoff, firstStepWithError,
+  forDraft, fromDraft, handoffPart, isTeacherStep, mergeReview, nothingDropped, nothingToSave, sameDraftAnswers, type DroppedField,
 } from '@/components/teachers/teacher-form-rules'
 import { makeErrText, type StepProps } from '@/components/teachers/steps/shared'
 import { PlansStep } from '@/components/teachers/steps/plans-step'
@@ -49,6 +49,7 @@ import { CoverStep } from '@/components/teachers/steps/cover-step'
 import { FinishStep } from '@/components/teachers/steps/finish-step'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { PushOptInCard } from '@/components/marketplace/push-opt-in-card'
+import { revalidateDashboard } from '@/hooks/use-dashboard'
 
 const DRAFT_KEY = 'eno.teacherDraft.v1'
 
@@ -73,24 +74,82 @@ type Mode = 'join' | 'edit'
  * nothing, so it rides beside `t`, never in it (gate review, 2026-10-08; the form's districtNotSaying below).
  */
 const DRAFT_TTL_MS = 15 * 60_000
-type StoredDraft = { v: 4; savedAt: number; step: TeacherStep; t: TeacherInput; districtNotSaying?: true }
-export type ReadDraft = { t: unknown; step: TeacherStep | null; districtNotSaying?: true }
+/**
+ * `signIn` (2026-10-11): when THIS FORM opened a sign-in for these answers — the mark that lets them become the signed-in
+ * account's saved draft (src/lib/teachers/draft.ts) when that sign-in lands, here or back from Google. Never set by a
+ * sign-in from anywhere else (the header, the tab bar), and dropped when the visitor closes the popup without signing in,
+ * so a later sign-in by someone else in this tab never takes the last person's answers as its own (plan review).
+ */
+type DraftBase = { uid: string; rev: number; gen: string }
+// `owner`: the account signed in when the copy was written — ⛔ a copy is put back only for it (commit gate, round 11).
+type StoredDraft = { v: 5; savedAt: number; step: TeacherStep; t: TeacherInput; districtNotSaying?: true; signIn?: number; base?: DraftBase; owner?: string }
+export type ReadDraft = { t: unknown; step: TeacherStep | null; districtNotSaying?: true; signIn?: number; base?: DraftBase; owner?: string }
 export const readStoredDraft = (now = Date.now()): ReadDraft | null => {
   try {
     localStorage.removeItem(DRAFT_KEY) // the old device-wide draft, kept for good: deleted unread
-    const d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null') as { v?: unknown; savedAt?: unknown; step?: unknown; t?: unknown; districtNotSaying?: unknown } | null
-    if (d && (d.v === 4 || d.v === 3) && d.t && typeof d.savedAt === 'number' && now - d.savedAt < DRAFT_TTL_MS) {
-      return { t: d.t, step: d.v === 4 && isTeacherStep(d.step) ? d.step : null, ...(d.v === 4 && d.districtNotSaying === true ? { districtNotSaying: true as const } : {}) }
+    const d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null') as { v?: unknown; savedAt?: unknown; step?: unknown; t?: unknown; districtNotSaying?: unknown; signIn?: unknown; base?: unknown; owner?: unknown } | null
+    if (d && (d.v === 5 || d.v === 4 || d.v === 3) && d.t && typeof d.savedAt === 'number' && now - d.savedAt < DRAFT_TTL_MS) {
+      // ⛔ NOTHING OWNERLESS CARRIES MORE THAN STEP 1 (commit gate, codex + opus rounds 13-14). A copy written signed out
+      // — or before copies had an owner (v3/v4: the form before 2026-10-12, which a signed-out visitor could fill through
+      // "About you") — is read as what a signed-out visitor gives: step 1. Never a previous person's name or bio on a
+      // shared tab, nor an old or crafted link's; a copy with an owner is put back only for that account (the restore).
+      const owner = d.v === 5 && typeof d.owner === 'string' && d.owner ? d.owner : null
+      return {
+        t: owner ? d.t : handoffPart(fromDraft(d.t)), step: d.v !== 3 && isTeacherStep(d.step) ? d.step : null,
+        ...(d.v !== 3 && d.districtNotSaying === true ? { districtNotSaying: true as const } : {}),
+        ...(d.v === 5 && typeof d.signIn === 'number' && now - d.signIn < DRAFT_TTL_MS ? { signIn: d.signIn } : {}),
+        ...(owner && isDraftBase(d.base) ? { base: d.base } : {}),
+        ...(owner ? { owner } : {}),
+      }
     }
     sessionStorage.removeItem(DRAFT_KEY)
     return null
   } catch { return null }
 }
-export const writeStoredDraft = (t: TeacherInput, step: TeacherStep, ui: { districtNotSaying?: boolean } = {}) => {
+export const writeStoredDraft = (t: TeacherInput, step: TeacherStep, ui: { districtNotSaying?: boolean; signIn?: number | null; base?: DraftBase | null; owner?: string | null } = {}) => {
   try {
-    const draft: StoredDraft = { v: 4, savedAt: Date.now(), step, t: forDraft(t), ...(ui.districtNotSaying ? { districtNotSaying: true as const } : {}) }
+    const draft: StoredDraft = {
+      v: 5, savedAt: Date.now(), step, t: forDraft(t),
+      ...(ui.districtNotSaying ? { districtNotSaying: true as const } : {}),
+      ...(ui.signIn ? { signIn: ui.signIn } : {}),
+      ...(ui.base ? { base: ui.base } : {}),
+      ...(ui.owner ? { owner: ui.owner } : {}),
+    }
     sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
   } catch { /* private mode: the draft just does not persist */ }
+}
+/**
+ * `base` (2026-10-11): the account and the saved-draft revision this tab's copy builds on. A reload mid-step finds the
+ * typing of that step only here (a step is saved when the teacher moves on): when the account's saved draft is STILL
+ * that revision, this copy is the newer one and wins; any later save (another device) wins over it instead.
+ */
+const isDraftBase = (v: unknown): v is DraftBase =>
+  !!v && typeof v === 'object' && typeof (v as { uid?: unknown }).uid === 'string' && Number.isInteger((v as { rev?: unknown }).rev)
+  && typeof (v as { gen?: unknown }).gen === 'string'
+
+/**
+ * ⛔ A RESTORED SIGN-IN MARK COUNTS ONLY ON THE RETURN FROM THAT SIGN-IN (commit gate, opus 2026-10-11): the form puts
+ * this parameter on its own URL before it opens a sign-in, so the OAuth `next` (read from the URL) carries it back. A
+ * page opened any other way — someone else signing in from the header, then coming here — has no marker, and a stored
+ * mark is dropped unused.
+ */
+const SIGNIN_RETURN_PARAM = 'teacher_signin'
+const setSignInReturn = (on: boolean) => {
+  try {
+    const u = new URL(window.location.href)
+    if (on === u.searchParams.has(SIGNIN_RETURN_PARAM)) return
+    if (on) u.searchParams.set(SIGNIN_RETURN_PARAM, '1')
+    else u.searchParams.delete(SIGNIN_RETURN_PARAM)
+    history.replaceState(history.state, '', `${u.pathname}${u.search}${u.hash}`)
+  } catch { /* no history API: the stored mark alone decides, within its TTL */ }
+}
+
+/** The popup closed without a sign-in: the answers stay, the mark that would let a sign-in adopt them goes. */
+const clearStoredSignIn = () => {
+  try {
+    const d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null') as Record<string, unknown> | null
+    if (d && typeof d === 'object' && 'signIn' in d) { delete d.signIn; sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d)) }
+  } catch { /* private mode: nothing stored */ }
 }
 const clearStored = () => {
   try { sessionStorage.removeItem(DRAFT_KEY); localStorage.removeItem(DRAFT_KEY) } catch { /* ignore */ }
@@ -98,6 +157,46 @@ const clearStored = () => {
 
 /** The rail's synthetic last node on teacher.eno.vn — "Finish on eno.vn", never a step of its own (never current). */
 const HANDOFF_NODE = 'handoff'
+/** The step sign-in follows (owner, 2026-10-11: sign in after step 1, then every answer is saved) — "Sign in" sits on it. */
+const LAST_PRE_SIGNIN = PRE_SIGNIN_STEPS[PRE_SIGNIN_STEPS.length - 1]
+/**
+ * Where a signed-in teacher goes from the pre-sign-in step: the first step after it that fails (draftResumeStep) — never
+ * past the first step that needs an account (Cover, where it is offered, then Photo & publish), so a complete four-step
+ * answer set (an older teacher.eno.vn tab's fragment) still meets the cover offer, as it did before 2026-10-11.
+ */
+const afterSignIn = (t: TeacherInput): TeacherStep => {
+  const steps = teacherSteps(t, { draftHost: false })
+  const bad = draftResumeStep(t, null).step
+  const firstAccount = steps.find((s) => ACCOUNT_STEPS.includes(s))
+  return firstAccount && steps.indexOf(firstAccount) < steps.indexOf(bad) ? firstAccount : bad
+}
+/**
+ * The account's saved draft (src/lib/teachers/draft.ts) is saved on every STEP CHANGE — Next, Back, the rail — and a failed
+ * save (or load) is tried again after RETRY. A load that does not answer within LOAD_TIMEOUT counts as failed.
+ */
+const DRAFT_RETRY_MS = 30_000
+const DRAFT_LOAD_TIMEOUT_MS = 10_000
+// A save waits longer: one cut off client-side may still commit, and its retry would then meet a false conflict.
+const DRAFT_SAVE_TIMEOUT_MS = 30_000
+/** A draft request that gives up after `ms`: a stalled network never holds the save queue, Publish or Start over. */
+function draftFetch(url: string, init: RequestInit = {}, ms = DRAFT_LOAD_TIMEOUT_MS): Promise<Response> {
+  const ctl = new AbortController()
+  const slow = setTimeout(() => ctl.abort(), ms)
+  return fetch(url, { ...init, signal: ctl.signal }).finally(() => clearTimeout(slow))
+}
+const DRAFT_URL = '/api/teachers/me/draft'
+/** ⛔ What a save sends: the tab draft's shape (no upload, cover switch or consent — forDraft) and never the phone. */
+const draftBody = (t: TeacherInput, step: TeacherStep, rev: number, gen: string | null) =>
+  JSON.stringify({ t: { ...forDraft(t), phone: '' }, step, rev, ...(gen ? { gen } : {}) })
+/** A fresh generation for a first save (rev 0): proposed by the tab, so a cut-off one is recognised exactly. */
+function newDraftGen(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const b = crypto.getRandomValues(new Uint8Array(16))
+  b[6] = (b[6] & 0x0f) | 0x40
+  b[8] = (b[8] & 0x3f) | 0x80
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
 
 type TeacherFormProps = { mode: Mode; draftHost: boolean; apexOrigin: string; goal?: 'cover' | null }
 
@@ -153,6 +252,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   const [loaded, setLoaded] = useState(mode === 'join')
   // Edit: the signed-in account has no teacher profile — it is offered Create, never an empty edit form.
   const [noProfile, setNoProfile] = useState(false)
+  const [noProfileDraft, setNoProfileDraft] = useState(false)
   const [existing, setExisting] = useState(false)
   // Join: answers ARRIVED — a teacher.eno.vn hand-off or a restored draft (or typed here before signing in) — so a
   // signed-in account that already has a profile is offered to review them in it, rather than having them thrown away.
@@ -171,6 +271,58 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   // Where to go once signed in: "Sign in", a hand-off, or a draft that was on a step needing an account.
   const [resumeTo, setResumeTo] = useState<TeacherStep | null>(null)
   const signInAsked = useRef(false)
+  // When THIS FORM opened a sign-in for the answers on screen (StoredDraft.signIn) — null once it lands or is closed.
+  const adoptAt = useRef<number | null>(null)
+  // A mark restored with this tab's copy (the Google round trip): honoured only if the page then loads SIGNED IN — one
+  // that loads signed out is an abandoned sign-in, and its mark goes (commit gate, opus 2026-10-11).
+  const restoredSignIn = useRef<number | null>(null)
+  const restoredBase = useRef<DraftBase | null>(null)
+  const restoredOwner = useRef<string | null>(null)
+  const [ownedPending, setOwnedPending] = useState(false)
+  const loadBackoff = useRef(0)
+  const saveBackoff = useRef(0)
+  const ownedCopy = useRef<{ stored: ReadDraft; returnedFromSignIn: boolean } | null>(null)
+  const applyStoredRef = useRef<(stored: ReadDraft, returnedFromSignIn: boolean) => void>(() => {})
+  const uidRef = useRef(uid)
+  uidRef.current = uid
+  // onDismiss fires ONLY when the visitor closes the popup without signing in (the ×, Esc, the backdrop) — never on a
+  // successful sign-in, which closes it from onAuthStateChange (auth-context.tsx SignInContext.onDismiss).
+  const dropAdoption = useCallback(() => { adoptAt.current = null; clearStoredSignIn(); setSignInReturn(false) }, [])
+  /**
+   * ⛔ THE ACCOUNT'S SAVED DRAFT (owner, 2026-10-11: "every step they input should be saved and able to resume when they
+   * want to" — src/lib/teachers/draft.ts, /api/teachers/me/draft). Join mode, signed in, on eno.vn, no profile yet:
+   *   · LOAD once the account is known. ⛔ The saved draft WINS over a `#d=` hand-off and a stranger's tab copy (plan
+   *     review: a stale or crafted link must never replace a five-step draft with step 1) — the replaced answers stay one
+   *     tap away; this tab's own copy wins only when it builds on the account's current revision (a reload mid-step).
+   *     With none saved, this tab's answers become the draft only when THIS FORM opened the sign-in for them (adoptAt),
+   *     or once the signed-in teacher moves to another step — never a stranger's answers left in a shared tab.
+   *   · SAVE on every step change, one request at a time (a revision each). Refused as stale (another tab or device
+   *     saved since) or gone (published, started over, expired): saving stops and the line under the title asks.
+   *     Network and server failures are tried again every DRAFT_RETRY_MS; a refusal of the request itself is not.
+   * `draftRev`: the revision this tab's answers build on — null until the GET answered (nothing is saved before), 0: none.
+   */
+  const draftRev = useRef<number | null>(null)
+  // The saved draft's generation (a random id made with it, src/lib/teachers/draft.ts): named with the revision on every write.
+  const draftGen = useRef<string | null>(null)
+  const [draftLoaded, setDraftLoaded] = useState(false)
+  const [draftState, setDraftState] = useState<'' | 'saving' | 'saved' | 'error' | 'failed' | 'stale' | 'gone'>('')
+  // Why the conflict choice is on screen: another tab or device saved since, or the saved draft arrived only now, after a
+  // failed load, while the teacher was already working on the page.
+  const [staleWhy, setStaleWhy] = useState<'elsewhere' | 'reconnect'>('elsewhere')
+  const [confirmStartOver, setConfirmStartOver] = useState(false)
+  // The answers and step last saved (or loaded): a save is due when either differs.
+  const savedT = useRef<TeacherInput | null>(null)
+  const savedStep = useRef<TeacherStep | null>(null)
+  const saveQ = useRef({ inFlight: null as Promise<void> | null, gen: 0 })
+  // ⛔ SAVING STOPPED — refused as stale, gone or "a profile exists", or a Publish on its way: no timer, retry or page-exit
+  // save may fire until the teacher chooses (commit gate, opus 2026-10-11: a refused save rescheduled itself every few
+  // seconds). (Another account never inherits any of this: TeacherForm remounts the form whenever an account leaves.)
+  const halted = useRef(false)
+  // REFUSED — stale, gone or "a profile exists": saving waits for the teacher's choice. Kept apart from `halted` (a
+  // Publish or Start over in progress), so ending a pause never ends a refusal (commit gate, opus 2026-10-11).
+  const refused = useRef(false)
+  // Why the last save could not be retried: an ended session (sign in again) or a refusal of the request itself.
+  const failedWhy = useRef<'session' | 'refused'>('refused')
   // Edit: a stored consent given under an OLDER notice — loaded OFF, so it is given again under today's words (D5).
   const [reconfirm, setReconfirm] = useState({ cover: false, optIns: false })
   // Edit: a hand-off's answers were filled in over the saved profile ("Review these answers in my profile"), unsaved —
@@ -287,16 +439,38 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
     setPendingChange(null)
   }
 
+  // A stored copy put back: the answers, the step, a pending sign-in mark, the revision it built on, whose it is.
+  applyStoredRef.current = (stored, returnedFromSignIn) => {
+    // ⛔ Nor from a stored draft: the uploads, the cover switch and the consents are not in it (forDraft) and are stripped
+    // again on the way in (fromDraft) — the key is per TAB, and on a shared browser a tab can be the next person's.
+    const restored = fromDraft(stored.t)
+    setT(restored)
+    if (stored.districtNotSaying) setDistrictNotSaying(true)
+    setArrived(true)
+    // A sign-in this form opened for these answers, still pending (Google's round trip): they may become its draft.
+    if (stored.signIn && returnedFromSignIn) restoredSignIn.current = stored.signIn
+    else if (stored.signIn) clearStoredSignIn()
+    if (stored.base) restoredBase.current = stored.base
+    restoredOwner.current = stored.owner ?? null
+    // Back where it was — never past the first step that fails (draftResumeStep; a v3 draft, with no step, opens there).
+    const target = draftResumeStep(restored, stored.step).step
+    // A step after sign-in is shown once signed in; until then, the step "Sign in" sits on.
+    if (!PRE_SIGNIN_STEPS.includes(target)) { setStepKey(LAST_PRE_SIGNIN); setResumeTo(target) }
+    else setStepKey(target)
+  }
+
   // ── Restore: a `#d=` hand-off from teacher.eno.vn wins, then this tab's draft ────────────────────────────────────
   useEffect(() => {
     if (mode !== 'join' || hydrated.current) return
     hydrated.current = true
     // The form that replaced a signed-in account's (TeacherForm): a fresh start, and that account's draft goes.
-    if (!restoreDraft) { clearStored(); return }
+    if (!restoreDraft) { clearStored(); setSignInReturn(false); return }
+    const returnedFromSignIn = new URLSearchParams(window.location.search).has(SIGNIN_RETURN_PARAM)
     const m = window.location.hash.match(new RegExp(`[#&]${TEACHER_DRAFT_HASH_KEY}=([^&]+)`))
     if (m) {
       // Strip the fragment first, whatever it holds, so a reload or a shared link never re-carries the draft.
       history.replaceState(null, '', window.location.pathname + window.location.search)
+      setSignInReturn(false)
       // ⛔ ONLY THE DRAFT STEPS' FIELDS CROSS (decodeHandoff): never a consent, the cover switch, a phone or an upload —
       // a crafted `#d=` link could otherwise arrive with them set (gate review, 2026-10-07). A v1 fragment from before
       // the redesign is mapped at this boundary (plan review D2).
@@ -304,55 +478,550 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
       if (handed) {
         setT(handed)
         setArrived(true)
-        // Steps 1–4 complete: sign in (opened once, below) and land on Cover — where offered — or Photo & publish.
-        // Otherwise the first step that fails.
-        const bad = firstStepWithError(checkSteps(handed, DRAFT_STEPS), DRAFT_STEPS)
-        const next = teacherSteps(handed, { draftHost: false }).find((s) => ACCOUNT_STEPS.includes(s)) ?? 'finish'
+        // The pre-sign-in step answered (a fragment from a teacher.eno.vn tab from before 2026-10-11 carries all four draft
+        // steps — still accepted): sign in (opened once, below), then on to the first step after it that fails. Otherwise
+        // the pre-sign-in step that fails. The sign-in is this form's: it may adopt these answers (StoredDraft.signIn).
+        const bad = firstStepWithError(checkSteps(handed, PRE_SIGNIN_STEPS), PRE_SIGNIN_STEPS)
+        const next = afterSignIn(handed)
         if (bad) setStepKey(bad)
-        else { setStepKey('about'); setResumeTo(next); setHandoffArrived(true) }
+        else { setStepKey(LAST_PRE_SIGNIN); setResumeTo(next); setHandoffArrived(true) }
+        // ⛔ Not adopted here: only a sign-in this form actually opens (signed out, below) may make these answers an
+        // account's draft — a link opened while signed in saves nothing until the teacher changes something.
         writeStoredDraft(handed, bad ?? next)
       }
       return
     }
     const stored = readStoredDraft()
+    // The return marker only means something with a stored mark beside it (below): otherwise it goes now.
+    if (!stored?.signIn) setSignInReturn(false)
     if (!stored) return
-    // ⛔ Nor from a stored draft: the uploads, the cover switch and the consents are not in it (forDraft) and are stripped
-    // again on the way in (fromDraft) — the key is per TAB, and on a shared browser a tab can be the next person's.
-    const restored = fromDraft(stored.t)
-    setT(restored)
-    if (stored.districtNotSaying) setDistrictNotSaying(true)
-    setArrived(true)
-    // Back where it was — never past the first draft step that fails (a v3 draft, with no step, opens there).
-    const order = (s: TeacherStep) => TEACHER_STEPS.indexOf(s)
-    const bad = firstStepWithError(checkSteps(restored, DRAFT_STEPS), DRAFT_STEPS)
-    const want = stored.step
-    const target: TeacherStep = bad && (!want || order(bad) < order(want)) ? bad : want ?? bad ?? 'plans'
-    // A step that needs an account is shown once signed in; until then, the last step before it.
-    if (ACCOUNT_STEPS.includes(target)) { setStepKey('about'); setResumeTo(target) }
-    else setStepKey(target)
+    // ⛔ A COPY WRITTEN UNDER AN ACCOUNT IS THAT ACCOUNT'S ALONE (commit gate, codex + opus round 11: a teacher who signed
+    // out on a page without this form leaves it in the tab, and the next person's form would show it, save it, publish
+    // it). It waits for the session (below) and is put back only if that is its account — never shown before. A copy
+    // written signed out holds what a signed-out visitor gives: step 1 (PRE_SIGNIN_STEPS).
+    if (stored.owner) { ownedCopy.current = { stored, returnedFromSignIn }; setOwnedPending(true); return }
+    applyStoredRef.current(stored, returnedFromSignIn)
   }, [mode, restoreDraft, setT])
+  // The copy that waited for its account: put back for it (unless the teacher has typed meanwhile); for anyone else, or
+  // no one, deleted unread — unless a newer copy has replaced it since.
+  useEffect(() => {
+    const c = ownedCopy.current
+    if (!c || authLoading) return
+    const decide = () => {
+      ownedCopy.current = null
+      setOwnedPending(false)
+      if (uid && c.stored.owner === uid) { if (tRef.current === EMPTY_TEACHER) applyStoredRef.current(c.stored, c.returnedFromSignIn) }
+      else if (readStoredDraft()?.owner === c.stored.owner) clearStored()
+    }
+    // Signed out for now: a session that lands a moment late (the sign-in callback's cookie) gets a few seconds first,
+    // as the sign-in mark does — the copy and the form wait (commit gate, opus round 15).
+    if (!uid) {
+      const wait = setTimeout(decide, 5_000)
+      return () => clearTimeout(wait)
+    }
+    decide()
+  }, [authLoading, uid])
 
-  // Signed in (in place, or back from Google): on to where the teacher was going — ⛔ only past four valid draft steps.
+  // Signed in (in place, or back from Google): on to where the teacher was going — ⛔ only past a valid pre-sign-in step.
   useEffect(() => {
     if (!resumeTo || authLoading || !uid) return
-    const bad = firstStepWithError(checkSteps(tRef.current, DRAFT_STEPS), DRAFT_STEPS)
-    setStepKey(bad ?? resumeTo)
+    const bad = firstStepWithError(checkSteps(tRef.current, PRE_SIGNIN_STEPS), PRE_SIGNIN_STEPS)
+    // …and never past the first step that fails since (an edit to step 1 can un-answer a later one — commit gate).
+    setStepKey(bad ?? draftResumeStep(tRef.current, resumeTo).step)
     setResumeTo(null)
   }, [resumeTo, uid, authLoading])
-  // A step that needs an account, with none (a session that ended): the last step before it, and resume after.
+  // A step after sign-in, with no account (a session that ended): the step "Sign in" sits on, and resume after.
   useEffect(() => {
-    if (mode !== 'join' || draftHost || authLoading || uid || !ACCOUNT_STEPS.includes(stepKey)) return
+    if (mode !== 'join' || draftHost || authLoading || uid || PRE_SIGNIN_STEPS.includes(stepKey)) return
     setResumeTo(stepKey)
-    setStepKey('about')
+    setStepKey(LAST_PRE_SIGNIN)
   }, [mode, draftHost, authLoading, uid, stepKey])
-  const signInNote = () => tr('Sign in to add cover lessons, your photo and publish your teacher profile. Your answers are kept.', 'Đăng nhập để thêm dạy thay, ảnh và đăng hồ sơ giáo viên. Câu trả lời của bạn được giữ lại.')
-  // The teacher.eno.vn hand-off arrived complete and signed out: the sign-in opens, ONCE (closing it leaves "Sign in to
-  // continue" on step 4).
+  const signInNote = () => tr('Sign in to continue — your answers are kept, and saved to your account at every step, so you can finish any time.', 'Đăng nhập để tiếp tục — câu trả lời được giữ lại và lưu vào tài khoản ở mỗi bước, để bạn hoàn tất bất cứ lúc nào.')
+  // ── The account's saved draft: load and save (see draftRev above) ─────────────────────────────────────────────────
+  // ⛔ ONE CONTRACT BOUNDS THE RACES (commit gate, codex + opus, 2026-10-11): signed in, the form is not editable until
+  // the saved draft has answered (a spinner; a failed or slow load shows the form and keeps asking), and the draft is
+  // saved on every STEP CHANGE — Next, Back, the rail — one save at a time. No typing debounce and no page-exit save: the
+  // line under the title says the answers on a step are saved when the teacher moves on, and this tab's own copy holds
+  // them for a reload meanwhile.
+  const draftStep = resumeTo ?? stepKey
+  const draftStepRef = useRef(draftStep)
+  draftStepRef.current = draftStep
+  const draftOn = mode === 'join' && !draftHost && !!uid && !existing && !done && draftLoaded && draftState !== 'stale' && draftState !== 'gone'
+  // The answers on the page when the saved draft replaced them — one tap brings them back (`useMine`).
+  const [pageAnswers, setPageAnswers] = useState<{ t: TeacherInput; step: TeacherStep } | null>(null)
+  // A load that failed: retried, and said on the page — never a silent switch-off of the saving.
+  const [loadTry, setLoadTry] = useState(0)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const loadFailedRef = useRef(false)
+  loadFailedRef.current = loadFailed
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveAbort = useRef<AbortController | null>(null)
+  const timedOut = useRef<{ base: number; gen: string; t: TeacherInput; step: TeacherStep } | null>(null)
+  // The session the server refused (401): a NEW one for this account — "Sign in again" — tries again at once.
+  const sessionLostFor = useRef<unknown>(null)
+  const userRef = useRef<unknown>(user)
+  userRef.current = user
+  const mounted = useRef(true)
+  // The answers on the page when a load first failed — what the teacher changes before it answers is saved on recovery.
+  const loadFailedT = useRef<TeacherInput | null>(null)
+  const loadFailedStep = useRef<TeacherStep | null>(null)
+  // A step change happened while a save was on its way: the save that follows it is due whatever step it lands on.
+  const movedDuringSave = useRef(false)
+  const lastSeenStep = useRef<TeacherStep | null>(null)
+  // The step of the last save SENT, landed or not: only a step not yet attempted saves at once — a failed one waits for
+  // the retry, so an outage never becomes a request loop (commit gate, 2026-10-11).
+  const sentStep = useRef<TeacherStep | null>(null)
+  const saveDraftRef = useRef<() => Promise<void>>(async () => {})
+  /**
+   * A save cut off by our own timeout (or answered without a revision) may have committed all the same: if the account
+   * now holds exactly it — same generation, one revision on — that revision is ours, and the next save builds on it
+   * instead of meeting a false conflict (commit gate, 2026-10-11). Runs INSIDE the queue (below and before Start over).
+   */
+  const reconcileLost = async (): Promise<boolean | 'session'> => {
+    const lost = timedOut.current
+    if (!lost) return true
+    try {
+      const r = await draftFetch(DRAFT_URL, { cache: 'no-store' })
+      // An ended session: said as such, and tried again with the next one (sessionLostFor) — never a poll (round 16).
+      if (r.status === 401) return 'session'
+      // Not known yet: the save waits — never one on a revision that may be stale (commit gate, opus round 13).
+      if (!r.ok) return false
+      timedOut.current = null
+      const row = ((await r.json()) as { draft?: { t: unknown; step: unknown; rev: number; gen: string } | null }).draft
+      // Its generation too — a first save proposed its own (newDraftGen): never a draft made since by someone else.
+      if (row && row.rev === lost.base + 1 && row.gen === lost.gen && row.step === lost.step
+        && sameDraftAnswers(row.t, lost.t)) {
+        draftRev.current = row.rev
+        draftGen.current = row.gen
+        savedT.current = lost.t
+        savedStep.current = lost.step
+      }
+      return true
+    } catch { return false }
+  }
+  saveDraftRef.current = async () => {
+    const q = saveQ.current
+    if (!mounted.current || draftRev.current === null || halted.current || refused.current || nothingToSave(tRef.current)) return
+    // One at a time: the one on its way re-checks what changed when it lands (below).
+    if (q.inFlight) return
+    if (retryTimer.current) { clearTimeout(retryTimer.current); retryTimer.current = null }
+    const gen = q.gen
+    setDraftState('saving')
+    const run = (async () => {
+      let retry = false
+      let unchecked = false
+      let sentGen = ''
+      // What this run sends — read after the reconciliation, which may move the revision it builds on.
+      let base = 0
+      let snapshot = tRef.current
+      let step = draftStepRef.current
+      try {
+        // Attempted, whatever the check below finds: a failing check never turns every keystroke into a request.
+        sentStep.current = draftStepRef.current
+        movedDuringSave.current = false
+        const known = await reconcileLost()
+        if (known === 'session') {
+          if (gen === q.gen) { failedWhy.current = 'session'; sessionLostFor.current = userRef.current; setDraftState('failed'); unchecked = true }
+          return
+        }
+        if (!known) {
+          // The check of a cut-off save could not be made: tried again later, never at once.
+          if (gen === q.gen) { setDraftState('error'); retry = true; unchecked = true }
+          return
+        }
+        if (gen !== q.gen || !mounted.current || draftRev.current === null) return
+        base = draftRev.current
+        snapshot = tRef.current
+        step = draftStepRef.current
+        sentStep.current = step
+        movedDuringSave.current = false
+        // A stalled save never blocks the queue (or a Publish waiting on it) for long: cut off after SAVE_TIMEOUT.
+        const ctl = new AbortController()
+        saveAbort.current = ctl
+        const slow = setTimeout(() => ctl.abort(), DRAFT_SAVE_TIMEOUT_MS)
+        const sendGen = base === 0 ? newDraftGen() : draftGen.current
+        sentGen = sendGen ?? ''
+        const r = await fetch(DRAFT_URL, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: draftBody(snapshot, step, base, sendGen), signal: ctl.signal })
+          .finally(() => clearTimeout(slow))
+        const d = await r.json().catch(() => ({}))
+        // Start over (or another choice of answers) since: this answer is not for the form on screen.
+        if (gen !== q.gen) return
+        if (r.ok && typeof d.rev === 'number' && typeof d.gen === 'string') {
+          saveBackoff.current = 0
+          draftRev.current = d.rev
+          draftGen.current = d.gen
+          savedT.current = snapshot
+          savedStep.current = step
+          setDraftState('saved')
+          // The teacher carried on with what is on the page: the answers the saved draft replaced are no longer offered.
+          setPageAnswers(null)
+          // The first save made the dashboard's "Teacher profile — Continue" row.
+          if (base === 0 && uid) revalidateDashboard(uid)
+        } else if (r.ok) {
+          // Answered 2xx but unreadable: it may have committed — checked like a timed-out save, then tried again.
+          setDraftState('error')
+          retry = true
+          if (sentGen) timedOut.current = { base, gen: sentGen, t: snapshot, step }
+        } else if (d.error === 'draft_stale') { refused.current = true; setStaleWhy('elsewhere'); setDraftState('stale') }
+        else if (d.error === 'draft_gone') { refused.current = true; setDraftState('gone') }
+        else if (d.error === 'teacher_exists') { refused.current = true; setExisting(true) }
+        // Worth trying again: the server or the network failing (5xx, 429). A refusal of the request itself (400, 401,
+        // 413) would only fail again — said, not retried (commit gate, opus 2026-10-11).
+        else {
+          retry = r.status >= 500 || r.status === 429
+          failedWhy.current = r.status === 401 ? 'session' : 'refused'
+          if (r.status === 401) sessionLostFor.current = userRef.current
+          setDraftState(retry ? 'error' : 'failed')
+        }
+      } catch (e) {
+        if (gen === q.gen) {
+          setDraftState('error')
+          retry = true
+          // Cut off by our own timeout: it may still have committed — checked before the retry (reconcileLost).
+          if ((e as Error | undefined)?.name === 'AbortError' && mounted.current && sentGen) timedOut.current = { base, gen: sentGen, t: snapshot, step }
+        }
+      } finally {
+        q.inFlight = null
+        if (gen === q.gen && !halted.current && !refused.current && mounted.current) {
+          // A step change made while it was on its way (Back and Next again included): saved now. A failure is tried
+          // again later — never at once.
+          if (!unchecked && (movedDuringSave.current || draftStepRef.current !== sentStep.current)) void saveDraftRef.current()
+          else if (retry) {
+            // Less often each time (30s, 1, 2, 4… up to 10 minutes) while it keeps failing: an outage never polls.
+            retryTimer.current = setTimeout(() => { retryTimer.current = null; void saveDraftRef.current() }, Math.min(DRAFT_RETRY_MS * 2 ** saveBackoff.current, 10 * 60_000))
+            saveBackoff.current++
+          }
+        }
+      }
+    })()
+    q.inFlight = run
+    await run
+  }
+  // Signed in again after the server refused the session: the load — or the save — is tried again at once.
+  useEffect(() => {
+    if (!sessionLostFor.current || !user || user === sessionLostFor.current) return
+    sessionLostFor.current = null
+    if (loadFailedRef.current) setLoadTry((n) => n + 1)
+    else void saveDraftRef.current()
+  }, [user])
+  // Load, once the account is known — and again after a failure, every DRAFT_RETRY_MS.
+  useEffect(() => {
+    if (mode !== 'join' || draftHost || !uid || authLoading || draftLoaded) return
+    let alive = true
+    let again: ReturnType<typeof setTimeout> | null = null
+    const ctl = new AbortController()
+    const slow = setTimeout(() => ctl.abort(), DRAFT_LOAD_TIMEOUT_MS)
+    // The page loaded signed in: a sign-in mark restored with this tab's copy belongs to it (the Google round trip).
+    if (restoredSignIn.current) { adoptAt.current = restoredSignIn.current; restoredSignIn.current = null }
+    fetch(DRAFT_URL, { cache: 'no-store', signal: ctl.signal })
+      .then((r) => (r.ok ? r.json() : Promise.reject(Object.assign(new Error(String(r.status)), { status: r.status }))))
+      .then((d: { draft?: { t: unknown; step: unknown; rev: unknown; gen: unknown } | null }) => {
+        if (!alive) return
+        const row = d?.draft
+        draftGen.current = row && typeof row.gen === 'string' ? row.gen : null
+        // Loaded after "You are signed out" (a 401 before): that line goes; the branches below say what is saved now.
+        setDraftState((s) => (s === 'failed' ? '' : s))
+        loadBackoff.current = 0
+        const shown = tRef.current
+        const shownStep = draftStepRef.current
+        const tabBase = restoredBase.current
+        restoredBase.current = null
+        const tabOwner = restoredOwner.current
+        restoredOwner.current = null
+        if (!row && tabBase && tabBase.uid === uid && shown !== EMPTY_TEACHER) {
+          // This tab's copy built on a saved draft that is gone now (started over or published elsewhere, expired): said,
+          // never brought back unasked (commit gate, opus 2026-10-11) — "Save the answers on this page" is one tap.
+          draftRev.current = 0
+          refused.current = true
+          setDraftState('gone')
+        } else if (row && typeof row.rev === 'number' && tabBase && tabBase.uid === uid && tabBase.rev === row.rev && tabBase.gen === row.gen && shown !== EMPTY_TEACHER) {
+          // This tab's copy builds on the account's CURRENT revision (a reload mid-step): it is the newer one — kept, and
+          // saved as the next revision. A later save from anywhere else would have moved the revision, and win (below).
+          draftRev.current = row.rev
+          if (sameDraftAnswers(shown, row.t) && shownStep === row.step) {
+            // …unless nothing changed since it (a reload, no edit): saved already — never a new revision that another
+            // device would then meet as a conflict (commit gate, opus round 13).
+            savedT.current = shown
+            savedStep.current = shownStep
+            sentStep.current = shownStep
+          } else {
+            savedT.current = null
+            savedStep.current = null
+            sentStep.current = null
+          }
+          setDraftState('saved')
+        } else if (row && typeof row.rev === 'number' && loadFailedRef.current && shown !== EMPTY_TEACHER
+          && !sameDraftAnswers(shown, row.t)) {
+          // A RETRY after a failed load, with answers typed meanwhile: nothing is replaced mid-typing — the choice
+          // ("Open the latest" / "Keep the answers on this page") is asked, in its own words (commit gate).
+          draftRev.current = row.rev
+          refused.current = true
+          setStaleWhy('reconnect')
+          setDraftState('stale')
+        } else if (row && typeof row.rev === 'number' && loadFailedRef.current && shown !== EMPTY_TEACHER) {
+          // A retry whose saved answers ARE the page's: nothing to choose, and the teacher stays on their step — which is
+          // saved now, so the account reopens where the teacher is (commit gate, codex 2026-10-11).
+          draftRev.current = row.rev
+          savedT.current = tRef.current
+          savedStep.current = null
+          sentStep.current = null
+          setDraftState('saved')
+        } else if (row && typeof row.rev === 'number') {
+          draftRev.current = row.rev
+          // ⛔ THE SAVED DRAFT WINS over a hand-off and this tab's copy (plan review: a stale or crafted link must never
+          // replace a five-step draft with step 1) — and the answers it replaced stay one tap away (`useMine`), never
+          // lost. The phone, which a saved draft never holds, stays this tab's own.
+          // ⛔ …only from this account's own copy (its owner): never one a signed-out visitor left (round 10-11).
+          const mine = tabOwner === uid
+          const loaded: TeacherInput = { ...fromDraft(row.t), phone: mine ? shown.phone : '' }
+          setT(loaded)
+          savedT.current = loaded
+          const back = draftResumeStep(loaded, row.step).step
+          savedStep.current = back
+          sentStep.current = back
+          setResumeTo(null)
+          setStepKey(back)
+          setArrived(true)
+          setDraftState('saved')
+          if (shown !== EMPTY_TEACHER && !sameDraftAnswers(shown, loaded)) setPageAnswers({ t: mine ? shown : { ...shown, phone: '' }, step: shownStep })
+        } else {
+          draftRev.current = 0
+          // The mark this form set for a sign-in counts for as long as the stored one would (DRAFT_TTL_MS).
+          if (adoptAt.current && Date.now() - adoptAt.current < DRAFT_TTL_MS) {
+            // The sign-in this form opened for these answers landed: they are this account's now — saved at once, so the
+            // dashboard row is there even if the teacher stops here.
+            savedT.current = null
+            savedStep.current = null
+            sentStep.current = null
+          } else if (loadFailedRef.current && loadFailedT.current !== null && (shown !== loadFailedT.current || shownStep !== loadFailedStep.current)) {
+            // Recovered after a failed load: what the teacher changed meanwhile is theirs — saved now, never left behind.
+            savedT.current = null
+            savedStep.current = null
+            sentStep.current = null
+          } else {
+            // Answers on the page that this form did not sign in for: saved only once the teacher moves to another step.
+            savedT.current = shown
+            savedStep.current = shownStep
+            sentStep.current = shownStep
+          }
+        }
+        // Decided, once: the mark goes either way (a later sign-in in this tab adopts nothing).
+        adoptAt.current = null
+        clearStoredSignIn()
+        setSignInReturn(false)
+        setLoadFailed(false)
+        setDraftLoaded(true)
+      })
+      .catch((e: { status?: number }) => {
+        if (!alive) return
+        if (loadFailedT.current === null) { loadFailedT.current = tRef.current; loadFailedStep.current = draftStepRef.current }
+        setLoadFailed(true)
+        // Offline, slow, the server failing: nothing is saved from this tab yet — it says so, and asks again. An ended
+        // session says "You are signed out" with "Sign in again" (commit gate, round 9-10); a sign-in — there or in
+        // another tab — is picked up by the next try, or at once when this tab sees it (sessionLostFor, below).
+        if (e?.status === 401) {
+          failedWhy.current = 'session'
+          sessionLostFor.current = userRef.current
+          setDraftState('failed')
+          setSignInReturn(false)
+        }
+        // Asked again — less often each time (30s, 1, 2, 4… up to 10 minutes): an abandoned tab never polls (round 13).
+        again = setTimeout(() => setLoadTry((n) => n + 1), Math.min(DRAFT_RETRY_MS * 2 ** loadBackoff.current, 10 * 60_000))
+        loadBackoff.current++
+      })
+      .finally(() => clearTimeout(slow))
+    return () => { alive = false; clearTimeout(slow); ctl.abort(); if (again) clearTimeout(again) }
+  }, [mode, draftHost, uid, authLoading, draftLoaded, loadTry, setT])
+  // Signed out with a restored mark: an abandoned sign-in (Google left half-way) — the mark goes, the answers stay. A
+  // session that lands a moment late (the callback's cookie) gets a few seconds first (commit gate, opus 2026-10-11).
+  useEffect(() => {
+    if (authLoading || uid || !restoredSignIn.current) return
+    if (signInAsked.current) return // this page opened a sign-in itself: its own mark (adoptAt) decides
+    const drop = setTimeout(() => {
+      // Signed in meanwhile, or a new sign-in opened here (its own mark): nothing to drop (commit gate, opus round 11).
+      if (uidRef.current || signInAsked.current) return
+      restoredSignIn.current = null
+      clearStoredSignIn()
+      setSignInReturn(false)
+    }, 5_000)
+    return () => clearTimeout(drop)
+  }, [authLoading, uid])
+  // Save on every step change not yet attempted (and the adoption or "use these" save, which clears `sentStep`).
+  useEffect(() => {
+    if (lastSeenStep.current !== draftStep) {
+      lastSeenStep.current = draftStep
+      if (saveQ.current.inFlight) movedDuringSave.current = true
+    }
+    if (!draftOn || t === EMPTY_TEACHER) return
+    if (draftStep !== sentStep.current) void saveDraftRef.current()
+  }, [t, draftStep, draftOn])
+  // A tab sent to the background (an app switch on a phone — often the last moment before it is closed): what is unsaved
+  // goes once, through the same one-at-a-time queue — no keepalive, nothing sent beside a save already on its way.
+  useEffect(() => {
+    if (!draftOn) return
+    const onVisibility = () => {
+      if (document.visibilityState !== 'hidden' || saveQ.current.inFlight || nothingToSave(tRef.current)) return
+      if (tRef.current !== savedT.current || draftStepRef.current !== savedStep.current) void saveDraftRef.current()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [draftOn])
+  // ⛔ UNMOUNTED (a sign-out or another account remounts the form — TeacherForm): nothing of this form fires afterwards.
+  // A save on its way is cut off and can schedule no retry, which would otherwise send the previous teacher's answers
+  // under whoever is signed in next (commit gate, codex 2026-10-11).
+  // (A `mounted` flag, not `halted`: development's StrictMode runs this cleanup once and mounts again.)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      saveQ.current.gen++
+      saveAbort.current?.abort()
+      if (retryTimer.current) clearTimeout(retryTimer.current)
+    }
+  }, [])
+  /**
+   * The saved draft replaced different answers on the page: bring those back — and where they were (never past their own
+   * first failing step) — saved over it now. A save already on its way is let finish (its revision counts).
+   */
+  const useMine = () => {
+    if (!pageAnswers) return
+    // ⛔ Over the saved draft, as "Review these answers" does (reviewPart): step 1 as a whole, the later steps only where
+    // these answers hold one — a hand-off is step 1 only, and set whole it would empty the saved name, headline and
+    // bio, and save that (commit gate, opus round 15).
+    const mine = mergeReview(tRef.current, pageAnswers.t)
+    setT(mine)
+    savedT.current = null
+    savedStep.current = null
+    sentStep.current = null
+    setResumeTo(null)
+    setStepKey(draftResumeStep(mine, pageAnswers.step).step)
+    setPageAnswers(null)
+  }
+  /** Another tab or device saved since: take the saved answers, or keep these (saving them over it). */
+  const resolveStale = async (keep: boolean) => {
+    let row: { t: unknown; step: unknown; rev: number; gen: string } | null
+    try {
+      const r = await draftFetch(DRAFT_URL, { cache: 'no-store' })
+      if (!r.ok) throw new Error(String(r.status))
+      row = ((await r.json()) as { draft?: { t: unknown; step: unknown; rev: number; gen: string } | null })?.draft ?? null
+    } catch {
+      // Nothing known: the choice stays on the screen — never a silent "keep" (commit gate, 2026-10-11).
+      setFormError(tr('Could not reach your saved profile — please try again.', 'Không thể tải hồ sơ đã lưu — vui lòng thử lại.'))
+      return
+    }
+    const q = saveQ.current
+    q.gen++
+    refused.current = false
+    setFormError('')
+    setPageAnswers(null)
+    setResumeTo(null)
+    if (!keep && !row) {
+      // Deleted elsewhere since (started over, published, expired): said — never brought back unasked (commit gate).
+      refused.current = true
+      setDraftState('gone')
+      return
+    }
+    draftRev.current = row?.rev ?? 0
+    draftGen.current = row?.gen ?? null
+    if (!keep && row) {
+      const loaded: TeacherInput = { ...fromDraft(row.t), phone: tRef.current.phone }
+      setT(loaded)
+      savedT.current = loaded
+      const back = draftResumeStep(loaded, row.step).step
+      savedStep.current = back
+      sentStep.current = back
+      setStepKey(back)
+      setDraftState('saved')
+      return
+    }
+    // Keep these: saved over it now (the teacher's own choice).
+    savedT.current = null
+    savedStep.current = null
+    sentStep.current = null
+    setDraftState('')
+  }
+  /** Saved elsewhere then deleted (published, started over, expired): keep what is on screen as a new draft. */
+  const saveAgain = () => { refused.current = false; draftRev.current = 0; draftGen.current = null; savedT.current = null; savedStep.current = null; sentStep.current = null; setDraftState('') }
+  /** "Start over": the saved draft and this tab's copy go, and the form opens empty. */
+  const startOver = async () => {
+    setConfirmStartOver(false)
+    if (busy) return // a publish on its way decides first
+    // Busy while it runs: no Publish (and no second Start over) beside it (commit gate, opus 2026-10-11).
+    setBusy('saving')
+    try { await startOverNow() } finally { setBusy('') }
+  }
+  const startOverNow = async () => {
+    const q = saveQ.current
+    // A save on its way LANDS first (its revision counts — commit gate, 2026-10-11) and so never after the delete; no
+    // other save starts while the delete is on its way. A delete that fails leaves everything as it was, retry included.
+    halted.current = true
+    if (q.inFlight) await q.inFlight.catch(() => {})
+    // A save cut off earlier may have landed: the delete names the revision the account really holds (reconcileLost) —
+    // and when that cannot be known, nothing is deleted (below: "Could not start over").
+    const known = (await reconcileLost()) === true
+    let gone = false
+    if (known) try {
+      const rev = draftRev.current ?? 0
+      const gen = draftGen.current
+      // A saved revision with no generation to name it by: it cannot be deleted safely — "Could not start over".
+      if (rev > 0 && !gen) throw new Error('no generation')
+      // Nothing saved yet: nothing to delete on the server.
+      const r = rev > 0 && gen
+        ? await draftFetch(`${DRAFT_URL}?rev=${rev}&gen=${encodeURIComponent(gen)}`, { method: 'DELETE' }, DRAFT_SAVE_TIMEOUT_MS)
+        : new Response('{}', { status: 200 })
+      if (r.status === 409) {
+        // A newer revision was saved elsewhere since this tab loaded: not deleted unseen — the choice is asked.
+        halted.current = false
+        refused.current = true
+        setStaleWhy('elsewhere')
+        setDraftState('stale')
+        return
+      }
+      gone = r.ok
+    } catch { /* below */ }
+    if (!gone) {
+      halted.current = false
+      setFormError(tr('Could not start over — please try again.', 'Không thể bắt đầu lại — vui lòng thử lại.'))
+      // Nothing changed — and saving goes on: what a retry or a save waiting on the pause would have sent goes now.
+      if (!refused.current && (tRef.current !== savedT.current || draftStepRef.current !== savedStep.current)) void saveDraftRef.current()
+      return
+    }
+    q.gen++
+    if (retryTimer.current) { clearTimeout(retryTimer.current); retryTimer.current = null }
+    halted.current = false
+    refused.current = false
+    clearStored()
+    adoptAt.current = null
+    draftRev.current = 0
+    draftGen.current = null
+    savedT.current = EMPTY_TEACHER
+    savedStep.current = null
+    // The empty form is saved when the teacher moves on from its first step — never on the first answer typed.
+    sentStep.current = PRE_SIGNIN_STEPS[0]
+    setT(EMPTY_TEACHER)
+    setErrors({})
+    setFormError('')
+    setDistrictNotSaying(false)
+    setResumeTo(null)
+    setStepKey(PRE_SIGNIN_STEPS[0])
+    setDraftState('')
+    setPageAnswers(null)
+    if (uid) revalidateDashboard(uid)
+  }
+
+  // The teacher.eno.vn hand-off arrived complete and signed out: the sign-in opens, ONCE (closing it leaves "Sign in" on
+  // the step it sits on).
   useEffect(() => {
     if (!handoffArrived || authLoading || uid || signInAsked.current) return
     signInAsked.current = true
-    openSignIn({ note: signInNote() })
-  }, [handoffArrived, authLoading, uid, openSignIn]) // once per arrival (signInNote is copy)
+    // ⛔ A hand-off is adopted at sign-in only when it carries no words of its own — what teacher.eno.vn sends now (step
+    // 1: choices, no text). One with a name, headline or bio (an older tab's four steps, or a crafted link) is saved only
+    // once the teacher moves on with it (commit gate, opus 2026-10-11).
+    adoptAt.current = teacherFreeTextFields(tRef.current).some(([, text]) => text.trim()) ? null : Date.now()
+    writeStoredDraft(tRef.current, draftStepRef.current, { signIn: adoptAt.current })
+    if (adoptAt.current) setSignInReturn(true)
+    openSignIn({ note: signInNote(), onDismiss: dropAdoption })
+  }, [handoffArrived, authLoading, uid, openSignIn]) // once per arrival (signInNote is copy; dropAdoption reads refs)
 
   // ── Edit: load the saved profile ───────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -365,7 +1034,14 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
         if (!alive) return
         if (d?.publishGate) setPublishGate(d.publishGate)
         const tp = d?.teacher
-        if (!tp) { setNoProfile(true); setLoaded(true); return }
+        if (!tp) {
+          setNoProfile(true)
+          setLoaded(true)
+          // An unfinished one is saved to this account: the screen offers it back rather than a fresh start (2026-10-11).
+          fetch('/api/teachers/me/draft', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null))
+            .then((x: { draft?: unknown } | null) => { if (alive && x?.draft) setNoProfileDraft(true) }).catch(() => {})
+          return
+        }
         // ⛔ A CONSENT COUNTS ONLY UNDER THE NOTICE IN FORCE. The cover switch and the two opt-ins load ON only when their
         // stored version is today's; an older one loads OFF and the step says why — switching it on again is the fresh
         // consent (a save of a pre-ticked old opt-in would have recorded consent to words the teacher never saw — the
@@ -387,9 +1063,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
         const params = new URLSearchParams(window.location.search)
         if (params.get('review') === 'draft') {
           const stored = readStoredDraft()
-          if (stored) {
+          // ⛔ A copy written under another account is never reviewed into this one (commit gate, round 15).
+          if (stored && (!stored.owner || stored.owner === uid)) {
             const before = next
-            next = { ...next, ...draftPart(fromDraft(stored.t)) }
+            next = mergeReview(next, fromDraft(stored.t))
             setApplied(droppedAnswers(before, next))
             if (stored.districtNotSaying) setDistrictNotSaying(true)
           }
@@ -425,8 +1102,17 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
     // and bio included — back for the next person on a shared browser (integration review, 2026-10-08).
     // Only real typing: an untouched form writes nothing (it would only replace a draft with an empty one).
     // The step written is where a reload should land: where "Sign in" is taking them, else where they are.
-    if (mode === 'join' && hydrated.current && !done && t !== EMPTY_TEACHER) writeStoredDraft(t, resumeTo ?? stepKey, { districtNotSaying })
-  }, [t, stepKey, resumeTo, mode, done, districtNotSaying])
+    if (mode === 'join' && hydrated.current && !done && t !== EMPTY_TEACHER) {
+      // No base while a conflict is open: a reload must never "win" a choice the teacher has not made (commit gate).
+      writeStoredDraft(t, resumeTo ?? stepKey, {
+        // A mark restored from the round trip stays in the copy until it is decided (adopted, or dropped after the grace):
+        // a second reload meanwhile still adopts (commit gate, opus round 16).
+        districtNotSaying, signIn: adoptAt.current ?? restoredSignIn.current, owner: uid,
+        base: uid && draftRev.current && draftGen.current && !refused.current ? { uid, rev: draftRev.current, gen: draftGen.current } : null,
+      })
+    }
+    // draftState / draftLoaded: a save or the load that moved the revision re-stamps this copy's base (commit gate).
+  }, [t, stepKey, resumeTo, mode, done, districtNotSaying, uid, draftState, draftLoaded])
 
   // /join with a profile already: saving here would overwrite it, so it is offered Edit instead. With no profile: what
   // the account can offer the form, and whether it may publish now.
@@ -532,27 +1218,35 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   }
 
   // ── Hand-off, sign-in, publish ──────────────────────────────────────────────────────────────────────────────────
-  /** Steps 1–4 must hold before the account half: what a hand-off or "Sign in" checks first. */
-  const draftStepsOk = (): boolean => {
-    const e = checkSteps(t, DRAFT_STEPS)
+  /** The pre-sign-in step must hold before the account half: what a hand-off or "Sign in" checks first. */
+  const preSignInOk = (): boolean => {
+    const e = checkSteps(t, PRE_SIGNIN_STEPS)
     if (!Object.keys(e).length) return true
     refuse(e)
     return false
   }
   const handOff = () => {
-    if (!draftStepsOk()) return
+    if (!preSignInOk()) return
     // teacher.eno.vn → eno.vn: the fragment carries the draft steps' answers (v2), never a consent; no server sees it.
-    // The query carries the campaign tags this address holds (source, medium, campaign) — the first-visit record is per host.
-    window.location.assign(`${apexOrigin}/teachers/join${campaignQuery(window.location.search)}#${TEACHER_DRAFT_HASH_KEY}=${encodeHandoff(t)}`)
+    // The query: a teacher who came for cover keeps that intent (`goal=cover`), and the campaign tags this address holds
+    // (source, medium, campaign) cross with it — the first-visit record is per host.
+    const query = [coverIntent ? 'goal=cover' : '', campaignQuery(window.location.search).slice(1)].filter(Boolean).join('&')
+    window.location.assign(`${apexOrigin}/teachers/join${query ? `?${query}` : ''}#${TEACHER_DRAFT_HASH_KEY}=${encodeHandoff(t)}`)
   }
   const signInToContinue = () => {
-    if (!draftStepsOk()) return
-    // The step after "About you" is kept in the draft, so a Google round trip lands on it; a code sign-in moves on by
-    // itself (the resume effect above).
-    const next = steps.find((s) => ACCOUNT_STEPS.includes(s)) ?? 'finish'
+    if (!preSignInOk()) return
+    // Where the teacher was (a restored draft's step), else the step after this one — kept in the draft, so a Google round
+    // trip lands on it; a code sign-in moves on by itself (the resume effect above). This sign-in is the form's own: these
+    // answers may become the account's draft.
+    const next = resumeTo && steps.includes(resumeTo) ? resumeTo : afterSignIn(t)
     setResumeTo(next)
-    writeStoredDraft(t, next, { districtNotSaying })
-    openSignIn({ note: signInNote() })
+    // This page's own sign-in: it supersedes a mark restored from an earlier round trip.
+    signInAsked.current = true
+    restoredSignIn.current = null
+    adoptAt.current = Date.now()
+    writeStoredDraft(t, next, { districtNotSaying, signIn: adoptAt.current })
+    setSignInReturn(true)
+    openSignIn({ note: signInNote(), onDismiss: dropAdoption })
   }
 
   /** ⚠️ Called with no argument (or `{ hideConfirmed: true }` from the hide dialog) — never handed a click event. */
@@ -577,6 +1271,15 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
       return
     }
     setBusy('saving'); setFormError('')
+    // No draft save while this publish is on its way (the publish deletes the draft); resumed if it does not go through.
+    let published = false
+    if (mode === 'join') {
+      // Paused first, so a draft save on its way lands BEFORE the publish (which deletes the draft) and starts nothing
+      // after it (commit gate, opus 2026-10-11).
+      halted.current = true
+      const inFlight = saveQ.current.inFlight
+      if (inFlight) await inFlight.catch(() => {})
+    }
     try {
       const body = {
         ...t,
@@ -681,10 +1384,21 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
       // No job goal and no cover left: the save went through and HID the profile (plan review D6) — the done screen says so.
       if (d.noGoal === true) setStatus('hidden')
       setDone({ listingId: d.listingId, live: d.live === true, noGoal: d.noGoal === true })
+      published = true
+      // The publish deleted the saved draft in its own transaction: the dashboard row now leads to the profile.
+      if (mode === 'join' && uid) revalidateDashboard(uid)
     } catch {
       setFormError(publishErrText(''))
       revealFirstError()
-    } finally { setBusy('') }
+    } finally {
+      setBusy('')
+      // Not published: the queue is as it was (a stale or gone halt stays), and what is unsaved is saved now — a retry the
+      // publish waited out, or a save that failed while it waited, never goes missing (commit gate, codex + opus).
+      if (mode === 'join' && !published) {
+        halted.current = false
+        if (!refused.current && (tRef.current !== savedT.current || draftStepRef.current !== savedStep.current)) void saveDraftRef.current()
+      }
+    }
   }
 
   /**
@@ -948,7 +1662,14 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   const isLast = stepIdx === steps.length - 1
   const next = () => {
     const e = checkSteps(t, [step])
-    if (Object.keys(e).length) { setErrors(e); revealFirstError(); return }
+    if (Object.keys(e).length) {
+      setErrors(e)
+      revealFirstError()
+      // The teacher asked to move on: what they gave so far is saved even though the step is not complete — a partial
+      // step 1 too ("as long as they have inputted something in 1st stage", owner 2026-10-11).
+      if (draftOn && tRef.current !== savedT.current) void saveDraftRef.current()
+      return
+    }
     setErrors({})
     setStepKey(steps[stepIdx + 1])
   }
@@ -956,9 +1677,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   // `() => publish()`, never `publish` itself: the bar hands its onClick the click event, which must not reach `opts`.
   const primary = mode === 'edit'
     ? { label: busy === 'saving' ? savingLabel : tr('Save changes', 'Lưu thay đổi'), onClick: () => { void publish() }, disabled: busy !== '' }
-    : draftHost && step === 'about'
+    : draftHost && step === LAST_PRE_SIGNIN
       ? { label: tr('Continue on eno.vn', 'Tiếp tục trên eno.vn'), onClick: handOff }
-      : !user && step === 'about'
+      : !user && step === LAST_PRE_SIGNIN
         // "Sign in", not "Sign in": the longer label wrapped to two lines in the 375px action bar (and the
         // Vietnamese is longer still) — the line above the bar already says sign-in comes next (browser run, 2026-10-09).
         ? { label: tr('Sign in', 'Đăng nhập'), onClick: signInToContinue, disabled: authLoading }
@@ -970,6 +1691,62 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
     : stepIdx > 0 ? { label: tr('Back', 'Quay lại'), onClick: () => setStepKey(steps[stepIdx - 1]) } : undefined
   // ⛔ THE PUBLISH NOTICE, beside the tap that is the consent: on the last step of a new profile, on every step of an
   // edit (Save changes publishes too). Its meaning is PUBLISH_NOTICE_VERSION (profile.ts) — sent as `publishNotice`.
+  // ⛔ WHAT THE ACCOUNT HAS SAVED, SAID WHERE THE TEACHER LOOKS (owner, 2026-10-11; plan review: a save that failed must
+  // never look saved). Join mode on eno.vn, signed in, once the saved draft is known.
+  const draftLine = mode === 'join' && !draftHost && !!user && (draftLoaded || loadFailed) && !existing ? (
+    <div className="mt-1 space-y-2" data-testid="draft-line">
+      {pageAnswers && (
+        <div role="status" className="space-y-1 rounded-xl bg-tint px-3.5 py-2.5 text-sm text-body">
+          <p>{tr('You had already started a teacher profile — it is open where you left off.', 'Bạn đã bắt đầu một hồ sơ giáo viên — hồ sơ được mở ở chỗ bạn dừng lại.')}</p>
+          <Button variant="link" size="none" type="button" className="text-sm font-semibold" onClick={useMine}>{tr('Use the answers I just gave instead', 'Dùng các câu trả lời tôi vừa nhập')}</Button>
+        </div>
+      )}
+      {draftState === 'stale' ? (
+        <div role="alert" className="space-y-2 rounded-xl bg-tint px-3.5 py-2.5 text-sm text-body">
+          <p>{staleWhy === 'reconnect'
+            ? tr('Your saved profile has just loaded, and it differs from the answers on this page.', 'Hồ sơ đã lưu vừa được tải, và khác với các câu trả lời trên trang này.')
+            : tr('Your profile was changed in another window or on another device.', 'Hồ sơ của bạn đã được thay đổi ở cửa sổ hoặc thiết bị khác.')}</p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <Button variant="link" size="none" type="button" className="text-sm font-semibold" onClick={() => { void resolveStale(false) }}>{tr('Open the latest', 'Mở bản mới nhất')}</Button>
+            <Button variant="link" size="none" type="button" className="text-sm font-semibold" onClick={() => { void resolveStale(true) }}>{tr('Keep the answers on this page', 'Giữ câu trả lời trên trang này')}</Button>
+          </div>
+        </div>
+      ) : draftState === 'gone' ? (
+        <div role="alert" className="space-y-2 rounded-xl bg-tint px-3.5 py-2.5 text-sm text-body">
+          <p>{tr('Your saved answers were deleted — published, started over, or not changed for 90 days.', 'Các câu trả lời đã lưu đã bị xoá — do đã đăng, bắt đầu lại, hoặc không thay đổi trong 90 ngày.')}</p>
+          <Button variant="link" size="none" type="button" className="text-sm font-semibold" onClick={saveAgain}>{tr('Save the answers on this page', 'Lưu câu trả lời trên trang này')}</Button>
+        </div>
+      ) : (
+        <p role="status" className="text-xs text-muted-foreground">
+          {/* ⛔ NEVER "SAVED" FOR ANSWERS THAT ARE NOT (commit gate, codex 2026-10-11): a step's answers are saved when the
+              teacher moves to another step — until then the line says so. */}
+          {draftState === 'saving' ? tr('Saving…', 'Đang lưu…')
+            : draftState === 'failed' && failedWhy.current === 'session' ? (
+              <>
+                {tr('You are signed out — sign in again to keep saving.', 'Bạn đã đăng xuất — hãy đăng nhập lại để tiếp tục lưu.')}{' '}
+                <Button variant="link" size="none" type="button" className="text-xs font-semibold" onClick={() => openSignIn({ note: signInNote() })}>{tr('Sign in again', 'Đăng nhập lại')}</Button>
+              </>
+            )
+            : draftState === 'failed' ? tr('Could not save your answers — we will try again when you move to another step. They stay on this page.', 'Không lưu được câu trả lời — chúng tôi sẽ thử lại khi bạn chuyển sang bước khác. Câu trả lời vẫn ở trên trang này.')
+            : draftState === 'error' || !draftLoaded ? tr('Not saved yet — we will try again. Your answers stay on this page.', 'Chưa lưu được — chúng tôi sẽ thử lại. Câu trả lời vẫn ở trên trang này.')
+            : draftState === 'saved' && t === savedT.current && draftStep === savedStep.current ? tr('Saved to your account — finish any time, on any device.', 'Đã lưu vào tài khoản — hoàn tất bất cứ lúc nào, trên mọi thiết bị.')
+            : draftState === 'saved' ? tr('Saved up to your last step — this step is saved when you move on.', 'Đã lưu đến bước trước — bước này được lưu khi bạn chuyển tiếp.')
+            : tr('Your answers are saved to your account each time you move to another step.', 'Câu trả lời được lưu vào tài khoản mỗi khi bạn chuyển sang bước khác.')}
+          {/* ⛔ What a saved draft never keeps is given again where it is given (forDraft) — said where that is. */}
+          {(step === 'cover' || step === 'finish') && draftLoaded && draftState !== 'error' ? (
+            <>{' '}{tr('Your photo, video, phone and the switches on this step are set again when you come back.', 'Ảnh, video, số điện thoại và các công tắc ở bước này được đặt lại khi bạn quay lại.')}</>
+          ) : null}
+          {draftRev.current ? (
+            <>
+              {' · '}
+              <Button variant="link" size="none" type="button" className="text-xs font-semibold" disabled={busy !== ''} onClick={() => setConfirmStartOver(true)}>{tr('Start over', 'Bắt đầu lại')}</Button>
+            </>
+          ) : null}
+        </p>
+      )}
+    </div>
+  ) : null
+
   const publishNote = showPublishNote ? (
     <p className="text-xs text-body" data-testid="publish-notice">
       {mode === 'edit'
@@ -996,7 +1773,13 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   ) : null
 
   // ── Screens other than the wizard ───────────────────────────────────────────────────────────────
-  if (!loaded) {
+  // Signed in on the join form: the saved draft answers first (a fraction of a second) — nothing is typed against an
+  // unknown revision (the bounding contract above). A failed load shows the form, says so and keeps asking.
+  // ⚠️ Not while auth is still deciding: the server-rendered first paint (and every signed-out visitor) keeps the form;
+  // a signed-in teacher may glimpse step 1 for a moment before the spinner (commit gate, opus 2026-10-11).
+  // …and while this tab's own copy waits for the session to say whose it is (the restore, above): nothing typed over it.
+  const draftPending = ownedPending || (mode === 'join' && !draftHost && !!uid && !authLoading && !existing && !draftLoaded && !loadFailed)
+  if (!loaded || draftPending) {
     return <div className="flex justify-center py-24"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
   }
   if (mode === 'edit' && !user) {
@@ -1012,7 +1795,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
       <div className="mx-auto max-w-md py-16 text-center">
         <h1 className="h-title text-foreground">{tr('You don’t have a teacher profile yet', 'Bạn chưa có hồ sơ giáo viên')}</h1>
         <p className="mt-2 text-sm text-body">{tr('It is free, and schools across Vietnam can find you once it is published.', 'Hồ sơ miễn phí, và các trường trên toàn Việt Nam có thể tìm thấy bạn khi hồ sơ được đăng.')}</p>
-        <Button variant="cta" className="mt-4" asChild><Link href="/teachers/join">{tr('Create my teacher profile', 'Tạo hồ sơ giáo viên')}</Link></Button>
+        <Button variant="cta" className="mt-4" asChild>
+          <Link href="/teachers/join">{noProfileDraft ? tr('Continue my teacher profile', 'Tiếp tục hồ sơ giáo viên') : tr('Create my teacher profile', 'Tạo hồ sơ giáo viên')}</Link>
+        </Button>
       </div>
     )
   }
@@ -1173,6 +1958,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
             )}
             <div>
               <h1 className="h-title text-foreground">{mode === 'edit' ? tr('Your teacher profile', 'Hồ sơ giáo viên của bạn') : tr('Create your teacher profile', 'Tạo hồ sơ giáo viên')}</h1>
+              {draftLine}
               <p className="mt-1 text-sm text-muted-foreground">{tr('Free. Schools across Vietnam see your profile; your phone, email and CV stay private until you share them.', 'Miễn phí. Các trường trên toàn Việt Nam xem được hồ sơ; số điện thoại, email và CV được giữ kín đến khi bạn chia sẻ.')}</p>
             </div>
             {mode === 'edit' && applied && (
@@ -1197,10 +1983,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
         }
       >
         <div className="space-y-8 pb-6">
-          {step === 'plans' && <PlansStep {...stepProps} coverIntent={coverIntent} signedIn={!!user} districtNotSaying={districtNotSaying} onDistrictNotSaying={setDistrictNotSaying} />}
+          {step === 'plans' && <PlansStep {...stepProps} coverIntent={coverIntent} signedIn={!!user} draftHost={draftHost} districtNotSaying={districtNotSaying} onDistrictNotSaying={setDistrictNotSaying} />}
           {step === 'where' && <WhereStep {...stepProps} coverIntent={coverIntent} onGoTo={goTo} />}
           {step === 'teaching' && <TeachingStep {...stepProps} />}
-          {step === 'about' && <AboutStep {...stepProps} prefillName={prefill?.displayName ?? null} draftHost={draftHost} signedIn={!!user} />}
+          {step === 'about' && <AboutStep {...stepProps} prefillName={prefill?.displayName ?? null} />}
           {step === 'cover' && <CoverStep t={t} errors={errors} errText={errText} onCover={setCover} onGoTo={goTo} reconsentLine={reconfirm.cover} hidesProfile={mode === 'edit' && !t.coverOpen && !t.jobTypes.length} />}
           {step === 'finish' && (
             <FinishStep
@@ -1246,6 +2032,19 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* "Start over": the saved answers are deleted from the account — confirmed first. */}
+      <AlertDialog open={confirmStartOver} onOpenChange={setConfirmStartOver}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{tr('Start your teacher profile over?', 'Bắt đầu lại hồ sơ giáo viên?')}</AlertDialogTitle>
+            <AlertDialogDescription>{tr('Your saved answers are deleted from your account and this page opens empty.', 'Các câu trả lời đã lưu bị xoá khỏi tài khoản và trang này mở trống.')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{tr('Keep my answers', 'Giữ câu trả lời')}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => { void startOver() }}>{tr('Start over', 'Bắt đầu lại')}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {/* ⛔ THE HIDE WARNING — before an edit save that would hide a shown profile, on whichever step it was tapped (gate
           review, 2026-10-08). Saving still goes through ("Save and hide", D6); the cover step is offered when cover can be
           switched on there — the switch itself stays the teacher's own act, under its notice. */}

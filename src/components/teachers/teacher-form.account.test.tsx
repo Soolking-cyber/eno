@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { readStoredDraft, useAccountLeaves, writeStoredDraft } from './teacher-form'
-import { EMPTY_TEACHER } from '@/lib/teachers/profile'
+import { EMPTY_TEACHER, type TeacherInput } from '@/lib/teachers/profile'
 
 describe('useAccountLeaves', () => {
   const run = (first: string | null) => renderHook(({ uid }: { uid: string | null }) => useAccountLeaves(uid), { initialProps: { uid: first } })
@@ -48,7 +48,7 @@ describe('the stored draft', () => {
   const draft = { ...EMPTY_TEACHER, fullName: 'Jane Doe', phone: '+84901234567' }
 
   it('lives in THIS tab — it survives a reload and the sign-in redirect, and never reaches another tab', () => {
-    writeStoredDraft(draft, 'teaching')
+    writeStoredDraft(draft, 'teaching', { owner: 'u1' })
     expect(localStorage.getItem(KEY)).toBeNull()
     expect(readStoredDraft()?.t).toMatchObject({ fullName: 'Jane Doe' })
     vi.stubGlobal('sessionStorage', store()) // another tab, or the next person after the browser closed
@@ -56,7 +56,7 @@ describe('the stored draft', () => {
   })
 
   it('for 15 minutes after its last change — then it is gone', () => {
-    writeStoredDraft(draft, 'plans')
+    writeStoredDraft(draft, 'plans', { owner: 'u1' })
     expect(readStoredDraft(Date.now() + 14 * 60_000)?.t).toMatchObject({ fullName: 'Jane Doe' })
     expect(readStoredDraft(Date.now() + 15 * 60_000 + 1)).toBeNull()
     expect(sessionStorage.getItem(KEY)).toBeNull()
@@ -68,9 +68,9 @@ describe('the stored draft', () => {
     expect(localStorage.getItem(KEY)).toBeNull()
   })
 
-  it('v4 keeps the STEP — a reload or the Google round trip lands where the teacher was going', () => {
+  it('v5 keeps the STEP — a reload or the Google round trip lands where the teacher was going', () => {
     writeStoredDraft(draft, 'cover')
-    expect(JSON.parse(sessionStorage.getItem(KEY)!)).toMatchObject({ v: 4, step: 'cover' })
+    expect(JSON.parse(sessionStorage.getItem(KEY)!)).toMatchObject({ v: 5, step: 'cover' })
     expect(readStoredDraft()?.step).toBe('cover')
   })
 
@@ -86,9 +86,23 @@ describe('the stored draft', () => {
     })
   })
 
-  it('a v3 draft from the previous form is still read once — with no step, so the form opens where it first fails', () => {
+  it('⛔ a v3 draft from an older form is read once — step 1 only, with no step, so the form opens where it first fails', () => {
     sessionStorage.setItem(KEY, JSON.stringify({ v: 3, savedAt: Date.now(), t: { fullName: 'Old Draft', preferredCities: ['ha-noi'] } }))
-    expect(readStoredDraft()).toEqual({ t: { fullName: 'Old Draft', preferredCities: ['ha-noi'] }, step: null })
+    const r = readStoredDraft()!
+    expect(r.step).toBeNull()
+    expect((r.t as TeacherInput).fullName).toBe('')
+    expect((r.t as TeacherInput).teachAreas).toContain('ha-noi') // step 1 writes the teaching areas
+  })
+
+  it('⛔ a v4 copy (the form before copies had an owner, which a signed-out visitor could fill through "About you"): step 1 only — never a previous person\'s name or bio', () => {
+    sessionStorage.setItem(KEY, JSON.stringify({ v: 4, savedAt: Date.now(), step: 'about', t: { ...draft, fullName: 'Previous Visitor', bio: 'Their bio' }, signIn: Date.now(), base: { uid: 'u9', rev: 2, gen: 'x' } }))
+    const r = readStoredDraft()!
+    expect(r).toMatchObject({ step: 'about' })
+    expect(r).not.toHaveProperty('signIn')
+    expect(r).not.toHaveProperty('base')
+    expect((r.t as TeacherInput).fullName).toBe('')
+    expect((r.t as TeacherInput).bio).toBe('')
+    expect((r.t as TeacherInput).livesIn).toBe(draft.livesIn)
   })
 
   it('"Prefer not to say" (the HCMC district — it stores nothing) rides BESIDE the answers, only when given', () => {
@@ -100,7 +114,20 @@ describe('the stored draft', () => {
   })
 
   it('a draft naming a step that does not exist is read with no step', () => {
-    sessionStorage.setItem(KEY, JSON.stringify({ v: 4, savedAt: Date.now(), step: 'qualifications', t: draft }))
+    sessionStorage.setItem(KEY, JSON.stringify({ v: 5, savedAt: Date.now(), step: 'qualifications', t: draft }))
     expect(readStoredDraft()?.step).toBeNull()
+  })
+
+  // ⛔ NOTHING OWNERLESS CARRIES MORE THAN STEP 1 (commit gate, rounds 13-14)
+  const answers: TeacherInput = { ...EMPTY_TEACHER, livesIn: 'abroad', jobTypes: ['fulltime'], fullName: 'Previous Visitor', bio: 'Their bio' }
+  it('a copy written signed out is read as step 1 — the rest of it never reaches a form', () => {
+    writeStoredDraft(answers, 'about')
+    const r = readStoredDraft()!
+    expect(r).not.toHaveProperty('owner')
+    expect(r.t).toMatchObject({ livesIn: 'abroad', jobTypes: ['fulltime'], fullName: '', bio: '' })
+  })
+  it('a copy written under an account keeps everything, and says whose it is', () => {
+    writeStoredDraft(answers, 'about', { owner: 'u1' })
+    expect(readStoredDraft()).toMatchObject({ owner: 'u1', t: { fullName: 'Previous Visitor', bio: 'Their bio' } })
   })
 })

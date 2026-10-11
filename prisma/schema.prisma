@@ -1227,6 +1227,9 @@ model TeacherDraft {
   data      Json
   step      String
   rev       Int      @default(1)
+  /// The draft's generation: a fresh random id each time a draft is made — a draft deleted and made again is never
+  /// taken for the old one (src/lib/teachers/draft.ts).
+  gen       String   @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 

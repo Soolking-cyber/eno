@@ -204,10 +204,14 @@ await client.query(`
     "data" jsonb not null,
     "step" text not null,
     "rev" integer not null default 1,
+    "gen" uuid not null default gen_random_uuid(),
     "createdAt" timestamp(3) not null default current_timestamp,
     "updatedAt" timestamp(3) not null default current_timestamp,
     constraint "TeacherDraft_pkey" primary key ("profileId")
   )`)
+// Production has no TeacherDraft before this script's first run (BEFORE the deploy): the table above is made with "gen".
+// Only a table an earlier run of this script made without it (a scratch or preview database) needs the column added.
+await client.query(`alter table "TeacherDraft" add column if not exists "gen" uuid not null default gen_random_uuid()`)
 await client.query(`alter table "TeacherDraft" enable row level security`)
 if (!(await client.query(`select relrowsecurity from pg_class where oid = 'public."TeacherDraft"'::regclass`)).rows[0].relrowsecurity) {
   console.error('RLS did not switch on for TeacherDraft — stopping.'); process.exit(1)

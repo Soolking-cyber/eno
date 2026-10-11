@@ -98,11 +98,15 @@ describe('scripts/teachers-ddl.mjs ↔ prisma/schema.prisma', () => {
   })
   it('creates TeacherDraft exactly as its Prisma model, with RLS on and the account foreign key, inside the transaction (2026-10-11)', () => {
     const fields = modelFields('TeacherDraft')
-    expect([...fields.keys()].filter((k) => k !== 'profile').sort()).toEqual(['createdAt', 'data', 'profileId', 'rev', 'step', 'updatedAt'])
+    expect([...fields.keys()].filter((k) => k !== 'profile').sort()).toEqual(['createdAt', 'data', 'gen', 'profileId', 'rev', 'step', 'updatedAt'])
     for (const col of ['"profileId" uuid not null', '"data" jsonb not null', '"step" text not null', '"rev" integer not null default 1',
+      '"gen" uuid not null default gen_random_uuid()',
       '"createdAt" timestamp(3) not null default current_timestamp', '"updatedAt" timestamp(3) not null default current_timestamp']) {
       expect(ddl, col).toContain(col)
     }
+    // a table made by an earlier run (a scratch database) gets the generation too, inside the same transaction
+    const add = ddl.indexOf('alter table "TeacherDraft" add column if not exists "gen" uuid not null default gen_random_uuid()')
+    expect(add > ddl.indexOf("client.query('begin')") && add < ddl.indexOf("client.query('commit')")).toBe(true)
     expect(ddl).toContain('alter table "TeacherDraft" enable row level security')
     expect(ddl).toContain('"TeacherDraft_updatedAt_idx" on "TeacherDraft"("updatedAt")')
     expect(ddl).toMatch(/"TeacherDraft_profileId_fkey"\s+foreign key \("profileId"\) references "Profile"\("id"\) on delete cascade/)

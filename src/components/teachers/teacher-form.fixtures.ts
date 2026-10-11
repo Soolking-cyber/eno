@@ -29,8 +29,12 @@ export const COMPLETE: TeacherInput = {
   fullName: 'Jane Doe', nationality: 'GB', englishLevel: 'native', headline: 'CELTA English teacher, five years',
 }
 
-export function putDraft(t: Partial<TeacherInput> | Record<string, unknown>, step: string | null = 'about', v = 4) {
-  sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ v, savedAt: Date.now(), ...(step ? { step } : {}), t }))
+/**
+ * This tab's copy as the form writes it. `owner`: the account signed in when it was written — by default the signed-in
+ * test account (u1); `null` for a copy written signed out, which is read as step 1 only (readStoredDraft).
+ */
+export function putDraft(t: Partial<TeacherInput> | Record<string, unknown>, step: string | null = 'about', v = 5, owner: string | null = 'u1') {
+  sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ v, savedAt: Date.now(), ...(step ? { step } : {}), t, ...(owner && v === 5 ? { owner } : {}) }))
 }
 export const storedDraft = () => JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null')
 

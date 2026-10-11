@@ -47,12 +47,13 @@ describe('the personas', () => {
       expect(normalizeForSave(x), name).toEqual(x)
     }
   })
-  it('see the step rail the plan promises: HCMC 6 · a province with no cover 5 · abroad online only 4 · teacher.eno.vn 4', () => {
+  it('see the step rail the plan promises: HCMC 6 · a province with no cover 5 · abroad online only 4 · teacher.eno.vn 1 (sign-in after it, 2026-10-11)', () => {
     const steps = (name: string, draftHost = false) => teacherSteps(t(PERSONAS[name]), { draftHost })
     expect(steps('HCMC job seeker with districts')).toEqual(['plans', 'where', 'teaching', 'about', 'cover', 'finish'])
     expect(steps('Gia Lai teacher')).toEqual(['plans', 'where', 'teaching', 'about', 'finish'])
     expect(steps('teacher abroad who only teaches online')).toEqual(['plans', 'teaching', 'about', 'finish'])
-    expect(steps('HCMC job seeker with districts', true)).toEqual(['plans', 'where', 'teaching', 'about'])
+    expect(steps('HCMC job seeker with districts', true)).toEqual(['plans'])
+    expect(steps('teacher abroad who only teaches online', true)).toEqual(['plans'])
   })
   it('re-read their relocation answer from the stored list (it is never stored itself)', () => {
     for (const [name, o] of Object.entries(PERSONAS)) {

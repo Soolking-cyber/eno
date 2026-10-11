@@ -26,11 +26,11 @@ import { suggestHeadline } from '@/components/teachers/teacher-form-rules'
 import { ENGLISH_LEVELS, LIMITS, englishMedium, type EnglishLevel } from '@/lib/teachers/profile'
 import { RADIO_CHIP, type StepProps } from '@/components/teachers/steps/shared'
 
-export function AboutStep({ t, set, errors, errText, prefillName, draftHost, signedIn }: StepProps & {
+// ⚠️ No "sign in next" note here any more (2026-10-11): sign-in comes right after "Your plans" (PRE_SIGNIN_STEPS), so this
+// step is only ever shown signed in on eno.vn — the plans step says what comes next instead.
+export function AboutStep({ t, set, errors, errText, prefillName }: StepProps & {
   /** The account's display name, offered — never filled in unasked (api/teachers/me `prefill`). */
   prefillName: string | null
-  draftHost: boolean
-  signedIn: boolean
 }) {
   const { tr, lang } = useLanguage()
   const levelLabel = (l: EnglishLevel) => (l === 'native' ? tr('Native', 'Bản ngữ') : l === 'fluent' ? tr('Fluent', 'Lưu loát') : tr('Working', 'Đủ dùng trong công việc'))
@@ -95,12 +95,6 @@ export function AboutStep({ t, set, errors, errText, prefillName, draftHost, sig
         <FieldControl id="tf-bio" render={<Textarea id="tf-bio" rows={5} value={t.bio} maxLength={LIMITS.bio} onChange={(e) => set('bio', e.target.value)} />} />
         <FieldDescription className="text-muted-foreground">{tr('Your teaching style and experience. No phone numbers or emails here.', 'Phong cách giảng dạy và kinh nghiệm của bạn. Không ghi số điện thoại hay email.')}</FieldDescription>
       </Field>
-
-      {draftHost ? (
-        <p className="text-sm text-muted-foreground">{tr('Next you continue on eno.vn: sign in there to add cover lessons, your photo and publish. Your answers come with you.', 'Tiếp theo bạn tiếp tục trên eno.vn: đăng nhập ở đó để thêm dạy thay, ảnh và đăng hồ sơ. Câu trả lời của bạn được giữ nguyên.')}</p>
-      ) : !signedIn ? (
-        <p className="text-sm text-muted-foreground">{tr('Next you sign in to add your photo and publish. Your answers are kept.', 'Tiếp theo bạn đăng nhập để thêm ảnh và đăng hồ sơ. Câu trả lời của bạn được giữ lại.')}</p>
-      ) : null}
     </div>
   )
 }

@@ -22,7 +22,9 @@ import { TeacherForm } from './teacher-form'
 import { COMPLETE } from './teacher-form.fixtures'
 
 const openSignIn = vi.hoisted(() => vi.fn())
-vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: null, loading: false, openSignIn }) }))
+// Signed in for the form test below: "About you" is a signed-in step since 2026-10-11 (sign-in comes after "Your plans").
+const authUser = vi.hoisted(() => ({ user: null as null | { id: string } }))
+vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: authUser.user, loading: false, openSignIn }) }))
 
 // Everything this file changes globally is put back after it (gate review, 2026-10-08) — per-file isolation already
 // scopes it, and this keeps it scoped even if a pool ever shares a worker.
@@ -369,10 +371,13 @@ describe('in the teacher form', () => {
   beforeEach(() => { vi.stubGlobal('localStorage', store()); vi.stubGlobal('sessionStorage', store()) })
   afterEach(() => { vi.unstubAllGlobals() })
 
-  // The nationality is asked on step 4, "About you" — the last step before the sign-in (onboarding redesign, 2026-10-08).
+  // The nationality is asked on step 4, "About you" — signed in since 2026-10-11 (sign-in comes right after "Your plans").
   // The form opens there from this tab's draft (steps 1–3 answered), as it does after a reload.
-  it('a refused "Sign in" with no nationality focuses its input (revealFirstError); a pick lets the teacher on', async () => {
-    sessionStorage.setItem('eno.teacherDraft.v1', JSON.stringify({ v: 4, savedAt: Date.now(), step: 'about', t: { ...COMPLETE, nationality: '' } }))
+  it('a refused "Next" with no nationality focuses its input (revealFirstError); a pick lets the teacher on', async () => {
+    authUser.user = { id: 'u1' }
+    // No saved draft on the account, and nothing else answers: the tab's own copy is what opens.
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => new Response(JSON.stringify(String(input).startsWith('/api/teachers/me/draft') ? { draft: null } : { teacher: null }), { status: 200 })))
+    sessionStorage.setItem('eno.teacherDraft.v1', JSON.stringify({ v: 5, savedAt: Date.now(), step: 'about', t: { ...COMPLETE, nationality: '' }, owner: 'u1' }))
     const user = userEvent.setup()
     render(
       <LanguageProvider initialLang="en" initialViDict={{}}>
@@ -380,7 +385,7 @@ describe('in the teacher form', () => {
       </LanguageProvider>,
     )
     // StepWizard renders its action twice — the phone's sticky bar first, the desktop inline twin after; jsdom shows both.
-    const go = () => user.click(screen.getAllByRole('button', { name: 'Sign in' })[0])
+    const go = () => user.click(screen.getAllByRole('button', { name: 'Next' })[0])
     const input = await screen.findByRole('combobox', { name: LABEL })
     expect(input.getAttribute('aria-invalid')).not.toBe('true')
     await go()
@@ -388,12 +393,12 @@ describe('in the teacher form', () => {
     expect(input.getAttribute('aria-invalid')).toBe('true')
     const described = (input.getAttribute('aria-describedby') ?? '').split(' ').map((id) => document.getElementById(id)?.textContent)
     expect(described).toContain('This is required.') // the error is read as the field's description
-    expect(openSignIn).not.toHaveBeenCalled()
 
     await user.type(input, 'tunis')
     await user.click(await screen.findByRole('option', { name: 'Tunisia' })) // typing only filters: the row is tapped
     await go()
-    expect(openSignIn).toHaveBeenCalledTimes(1)
-    expect(JSON.parse(sessionStorage.getItem('eno.teacherDraft.v1')!).t.nationality).toBe('TN')
+    await waitFor(() => expect(JSON.parse(sessionStorage.getItem('eno.teacherDraft.v1')!).t.nationality).toBe('TN'))
+    expect(screen.queryByRole('combobox', { name: LABEL })).toBeNull() // on to the next step
+    authUser.user = null
   })
 })

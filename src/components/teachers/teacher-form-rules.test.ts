@@ -5,7 +5,8 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_TEACHER, normalizeTeacherInput, type TeacherInput } from '@/lib/teachers/profile'
 import {
-  CAMPAIGN_TAG_MAX, DRAFT_FIELDS, campaignQuery, decodeHandoff, draftPart, draftResumeStep, droppedAnswers, encodeHandoff, forDraft, homeDefaultAreas, nextMonths, startChoice,
+  CAMPAIGN_TAG_MAX, DRAFT_FIELDS, campaignQuery, decodeHandoff, draftPart, draftResumeStep, droppedAnswers, encodeHandoff, handoffPart,
+  mergeReview, nothingToSave, HANDOFF_FIELDS, forDraft, homeDefaultAreas, nextMonths, startChoice,
   suggestHeadline, withJobTypes, withRelocate, withSituation,
 } from './teacher-form-rules'
 
@@ -127,14 +128,22 @@ describe('the teacher.eno.vn hand-off (#d=)', () => {
     headline: 'IELTS teacher in Hanoi', phone: '+84901234567', photoUrl: 'https://x/p.webp', coverOpen: true, coverConsent: true,
     coverSlots: ['mon-am'], coverRateVnd: 300_000, matchEmailOptIn: true, staffContactOptIn: true,
   })
-  it('v2 carries the draft steps’ fields only — never a consent, the cover, a phone or an upload — and round-trips', () => {
+  it('v2 carries the fields of the step the host shows only — ⛔ never what a tab kept behind it, a consent, the cover, a phone or an upload — and round-trips', () => {
     const value = encodeHandoff(full)
     const raw = JSON.parse(Buffer.from(value, 'base64url').toString())
     expect(raw.v).toBe(2)
+    // the v2 shape (every draft field), the steps the host does not show EMPTY
     expect(Object.keys(raw.t).sort()).toEqual([...DRAFT_FIELDS].sort())
+    for (const k of DRAFT_FIELDS) if (!HANDOFF_FIELDS.includes(k)) expect(raw.t[k]).toEqual(EMPTY_TEACHER[k])
+    expect(raw.t.fullName).toBe('') // a previous visitor's name on a shared tab (commit gate, round 10)
     const back = decodeHandoff(value)!
-    expect(draftPart(back)).toEqual(draftPart(full))
-    expect(back).toMatchObject({ phone: '', photoUrl: null, coverOpen: false, coverConsent: false, coverSlots: [], matchEmailOptIn: false, staffContactOptIn: false })
+    for (const k of HANDOFF_FIELDS) expect(back[k]).toEqual(full[k])
+    expect(back).toMatchObject({ fullName: '', bio: '', phone: '', photoUrl: null, coverOpen: false, coverConsent: false, coverSlots: [], matchEmailOptIn: false, staffContactOptIn: false })
+  })
+  it('⛔ a four-step v2 fragment (a host tab opened before, or a crafted link) is READ as step 1 — never a name or a bio', () => {
+    const back = decodeHandoff(b64({ v: 2, t: draftPart(full) }))!
+    for (const k of HANDOFF_FIELDS) expect(back[k]).toEqual(full[k])
+    expect(back).toMatchObject({ fullName: '', headline: '', bio: '', subjects: [] })
   })
   it('⛔ a CRAFTED v2 fragment carrying consents arrives without them', () => {
     const back = decodeHandoff(b64({ v: 2, t: { ...full, situationVersion: 9, teachAreasConfirmedAt: 'x' } }))!
@@ -142,7 +151,8 @@ describe('the teacher.eno.vn hand-off (#d=)', () => {
   })
   it('a v1 fragment (the old TeacherInput) is mapped at the boundary; garbage is null', () => {
     const v1 = { currentCity: 'ha-noi', preferredCities: ['ha-noi', 'da-nang'], openToOnline: true, nativeSpeaker: true, yearsExperience: 2, coverConsent: true, fullName: 'Jane' }
-    expect(decodeHandoff(b64(v1))).toMatchObject({ livesIn: null, teachAreas: ['online', 'ha-noi', 'da-nang'], englishLevel: 'native', experienceBand: '1-3-years', coverConsent: false, fullName: 'Jane' })
+    // mapped at the boundary, then step 1 only: the teaching areas it implies, never the name or the old answers behind it
+    expect(decodeHandoff(b64(v1))).toMatchObject({ livesIn: null, teachAreas: ['online', 'ha-noi', 'da-nang'], englishLevel: EMPTY_TEACHER.englishLevel, experienceBand: EMPTY_TEACHER.experienceBand, coverConsent: false, fullName: '' })
     expect(decodeHandoff('%%%')).toBeNull()
     expect(decodeHandoff(b64([1, 2]))).toBeNull()
   })
@@ -217,6 +227,39 @@ describe('draftResumeStep — where a saved draft reopens, and the dashboard\'s 
   it('no saved step (or one this teacher does not see): the first failing step', () => {
     expect(draftResumeStep(full({ subjects: [] }), null)).toMatchObject({ step: 'teaching' })
     expect(draftResumeStep(base(), 'nonsense')).toMatchObject({ step: 'plans', index: 1 })
+  })
+})
+
+describe('nothing to save (commit gate, opus round 12)', () => {
+  it('an answer set the account would keep nothing of is never sent: a phone alone, uploads, switches', () => {
+    expect(nothingToSave({ ...EMPTY_TEACHER })).toBe(true)
+    expect(nothingToSave({ ...EMPTY_TEACHER, phone: '+84901234567', photoUrl: 'https://x/p.webp', coverOpen: true, matchEmailOptIn: true })).toBe(true)
+    expect(nothingToSave({ ...EMPTY_TEACHER, livesIn: 'abroad' })).toBe(false)
+  })
+})
+
+describe('"Review these answers in my profile" / "Use the answers I just gave instead" (commit gate, rounds 14-16)', () => {
+  const full = normalizeTeacherInput({
+    ...base(), livesIn: 'city', currentCity: 'ha-noi', jobTypes: ['parttime'], relocate: 'no', teachAreas: ['ha-noi'], teachAreasConfirmed: true,
+    subjects: ['ielts'], ageGroups: ['adults'], experienceBand: '1-3-years', fullName: 'Jane', nationality: 'GB', englishLevel: 'native',
+    headline: 'IELTS teacher in Hanoi', bio: 'Ten years in Hanoi.',
+  })
+  it('⛔ a step-1 hand-off over a saved profile changes step 1 — never a blank over the name, the bio or the subjects', () => {
+    const merged = mergeReview(base({ ...full }), handoffPart(base({ ...full, jobTypes: ['fulltime'] })))
+    expect(merged).toMatchObject({ jobTypes: ['fulltime'], fullName: full.fullName, bio: full.bio, subjects: full.subjects })
+  })
+  it('the same step 1 naming no teaching areas keeps the confirmed ones', () => {
+    const merged = mergeReview(base({ ...full }), base({ ...full, teachAreas: [], teachAreasConfirmed: false }))
+    expect(merged.teachAreas).toEqual(full.teachAreas)
+    expect(merged.teachAreasConfirmed).toBe(true)
+  })
+  it('⛔ a NEW home brings its own areas — never the old city\'s confirmed ones beside it', () => {
+    const moved = base({ ...full, currentCity: 'ho-chi-minh-city', currentDistrictKey: 'd7', teachAreas: [], teachAreasConfirmed: false })
+    const merged = mergeReview(base({ ...full }), moved)
+    expect(merged).toMatchObject({ currentCity: 'ho-chi-minh-city', teachAreas: [], teachAreasConfirmed: false, fullName: full.fullName })
+  })
+  it('this account\'s own fuller copy brings its later answers too', () => {
+    expect(mergeReview(base({ ...full }), base({ ...full, headline: 'A new headline' })).headline).toBe('A new headline')
   })
 })
 

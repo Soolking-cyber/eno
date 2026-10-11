@@ -10,7 +10,7 @@ import {
   ANYWHERE, HCMC, ONLINE, normalizeTeachAreas, otherCityKeys, placeLabel, provinceKeyOf, relocationAllowed,
 } from '@/lib/teachers/places'
 import {
-  DRAFT_STEPS, EMPTY_TEACHER, TEACHER_OPTIONS, TEACHER_STEPS, TEACHER_STEP_FIELDS, normalizeForSave, normalizeTeacherInput,
+  DRAFT_STEPS, EMPTY_TEACHER, PRE_SIGNIN_STEPS, TEACHER_OPTIONS, TEACHER_STEPS, TEACHER_STEP_FIELDS, normalizeForSave, normalizeTeacherInput,
   teacherSteps, validateTeacherInput, type Relocate, type TeacherErrors, type TeacherInput, type TeacherStep,
 } from '@/lib/teachers/profile'
 import { storedLanguageLabel } from '@/components/teachers/language-list'
@@ -229,7 +229,43 @@ function fromBase64Url(s: string): unknown {
 }
 
 /** The `#d=` value teacher.eno.vn hands to eno.vn: base64url of `{ v: 2, t }`, `t` the draft steps' fields only. */
-export const encodeHandoff = (t: TeacherInput): string => toBase64Url(JSON.stringify({ v: 2, t: draftPart(t) }))
+/**
+ * What teacher.eno.vn hands over: the fields of the steps it SHOWS (PRE_SIGNIN_STEPS) — ⛔ never what an older tab's copy
+ * kept behind them (commit gate, codex 2026-10-11: on a shared tab, the previous visitor's name and bio would cross,
+ * unseen, into the next person's account). A four-step fragment (a host tab opened before, or a crafted link) is READ
+ * as step 1 too (decodeHandoff) — its later steps are not kept.
+ */
+export const HANDOFF_FIELDS: readonly (keyof TeacherInput)[] = [
+  ...PRE_SIGNIN_STEPS.flatMap((s) => TEACHER_STEP_FIELDS[s]),
+  // …and the teaching areas step 1 itself writes (withSituation, plans-step SITUATION_FIELDS: an online-only teacher
+  // skips Where — commit gate, opus round 11).
+  'teachAreas', 'teachAreasConfirmed',
+]
+/** Two answer sets compared as the account stores them (draftDataOf = fromDraft): never raw form state against it. */
+export const sameDraftAnswers = (a: unknown, b: unknown): boolean =>
+  JSON.stringify(draftPart(fromDraft(a))) === JSON.stringify(draftPart(fromDraft(b)))
+// Still the v2 shape — every draft step's field, the later ones EMPTY: a body without a teachAreas array reads as the
+// pre-redesign v1 (isLegacyTeacherBody) and would lose step 1 on the way in.
+export const encodeHandoff = (t: TeacherInput): string => toBase64Url(JSON.stringify({ v: 2, t: draftPart(handoffPart(t)) }))
+/**
+ * "Review these answers in my profile" and "Use the answers I just gave instead": these answers over the saved ones —
+ * step 1 as a whole (it is one decision), and of the later draft steps only what the answers hold. ⛔ Never a blank over
+ * a saved answer (a hand-off carries step 1 only: set whole, it would empty the name and bio — commit gate, round 14).
+ */
+export function mergeReview(saved: TeacherInput, t: TeacherInput): TeacherInput {
+  const same = (k: keyof TeacherInput) => JSON.stringify(saved[k]) === JSON.stringify(t[k])
+  const answered = (k: keyof TeacherInput) => JSON.stringify(t[k]) !== JSON.stringify(EMPTY_TEACHER[k])
+  const step1 = TEACHER_STEP_FIELDS.plans as readonly (keyof TeacherInput)[]
+  // The teaching areas and their confirmation go together and FOLLOW STEP 1 (commit gate, opus rounds 15-16): a new home
+  // or new work brings its own areas — none, then the teacher picks them again — never the old city's confirmed ones;
+  // the same step 1 keeps the saved areas unless these answers name some.
+  const areas: (keyof TeacherInput)[] = !step1.every(same) || answered('teachAreas') ? ['teachAreas', 'teachAreasConfirmed'] : []
+  const later = DRAFT_FIELDS.filter((k) => !step1.includes(k) && k !== 'teachAreas' && k !== 'teachAreasConfirmed' && answered(k))
+  return { ...saved, ...(Object.fromEntries([...step1, ...areas, ...later].map((k) => [k, t[k]])) as Partial<TeacherInput>) }
+}
+/** `t` cut to what a signed-out visitor gives (HANDOFF_FIELDS), every other field EMPTY. */
+export const handoffPart = (t: TeacherInput): TeacherInput =>
+  ({ ...EMPTY_TEACHER, ...(Object.fromEntries(HANDOFF_FIELDS.map((k) => [k, t[k]])) as Partial<TeacherInput>) })
 
 /**
  * The campaign tags the hand-off carries to eno.vn, as a query — or ''. The first-visit record is per host, so without
@@ -268,7 +304,9 @@ export function decodeHandoff(value: string): TeacherInput | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
   const r = raw as Record<string, unknown>
   const body = r.v === 2 && r.t && typeof r.t === 'object' ? r.t : r
-  return { ...EMPTY_TEACHER, ...draftPart(normalizeTeacherInput(body)) }
+  // ⛔ …and of those, step 1 only (handoffPart): a link — an older host tab's four steps, or a crafted one — never brings
+  // a name, a headline or a bio into an account the teacher never saw them on (commit gate, codex + opus round 14).
+  return handoffPart(normalizeTeacherInput(body))
 }
 
 /**
@@ -302,6 +340,12 @@ export function isEmptyTeacher(t: TeacherInput): boolean {
   // Field by field: a normalized body lists its keys in another order than EMPTY_TEACHER (draft.ts, 2026-10-11).
   return (Object.keys(EMPTY_TEACHER) as (keyof TeacherInput)[]).every((k) => JSON.stringify(t[k]) === JSON.stringify(EMPTY_TEACHER[k]))
 }
+/**
+ * Nothing the account would keep: these answers as a draft stores them (draftDataOf: fromDraft, no phone) are empty —
+ * a choice ticked and unticked again, a phone alone. Never sent (the server refuses an empty draft with a 400 — commit
+ * gate, opus round 12).
+ */
+export const nothingToSave = (t: TeacherInput): boolean => isEmptyTeacher({ ...fromDraft(t), phone: '' })
 
 /** A start month as the form shows it: none, "now" (this month or earlier) or a later month (YYYY-MM). */
 export function startChoice(availableFrom: string | null, now = new Date()): { kind: 'none' } | { kind: 'now' } | { kind: 'month'; month: string } {

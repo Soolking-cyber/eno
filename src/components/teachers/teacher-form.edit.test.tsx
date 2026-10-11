@@ -406,6 +406,16 @@ describe('the edit page’s other doors', () => {
     expect(calls.some((c) => c.method === 'PUT')).toBe(false)
   })
 
+  it('⛔ ?review=draft never brings ANOTHER account\'s tab copy into this profile (commit gate, round 15)', async () => {
+    putDraft({ ...COMPLETE, headline: 'Someone else, phonics' }, 'about', 5, 'u9')
+    history.replaceState(null, '', '/teachers/edit?review=draft')
+    const user = mount()
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    expect(screen.queryByText(/Your new answers are filled in below and are not saved yet/)).toBeNull()
+    await user.click(rail('About you'))
+    expect((await screen.findByRole('textbox', { name: 'Headline' }) as HTMLInputElement).value).toBe(ROW.headline)
+  })
+
   it('a reviewed hand-off that would clear saved answers says so up front (moving abroad: cover goes)', async () => {
     row = { ...ROW, ...COVER_ON }
     putDraft({ ...COMPLETE, livesIn: 'abroad', currentCity: '', currentDistrictKey: '', jobTypes: ['private'], relocate: 'online-only', teachAreas: ['online'] }, 'about')

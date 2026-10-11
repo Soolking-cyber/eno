@@ -113,8 +113,13 @@ describe('step 6 · Photo & publish', () => {
   })
 
   it('a teacher with no job goal (cover only) is asked neither opt-in', async () => {
-    putDraft({ ...COMPLETE, jobTypes: [], relocate: '' }, 'finish')
-    mount()
+    putDraft({ ...COMPLETE, jobTypes: [], relocate: '', coverSlots: ['mon-am'], coverRateVnd: 300_000 }, 'finish')
+    const user = mount()
+    // A draft holds no cover switch (forDraft), and a cover-only profile needs it: it reopens on Cover, where it is given
+    // again — never past the first step that fails (draftResumeStep, 2026-10-11).
+    const sw = await screen.findByRole('switch', { name: 'Available for cover lessons' })
+    await user.click(sw)
+    await user.click(action('Next'))
     expect(await screen.findByText('Profile photo')).toBeTruthy()
     expect(screen.queryByRole('switch', { name: 'Email me jobs that match my profile' })).toBeNull()
     expect(screen.queryByTestId('ai-note')).toBeNull()
