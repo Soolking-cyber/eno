@@ -27,6 +27,8 @@ vi.mock('@/lib/analytics', () => ({ trackSignupPrompt: track }))
 // navigation. Tests move it and window.location together through `goTo`.
 const nav = vi.hoisted(() => ({ pathname: '/' }))
 vi.mock('next/navigation', () => ({ usePathname: () => nav.pathname }))
+const host = vi.hoisted(() => ({ teacher: false }))
+vi.mock('@/lib/teachers/host', () => ({ onTeacherHost: () => host.teacher }))
 
 import { SignupPrompt } from './signup-prompt'
 
@@ -104,6 +106,23 @@ afterEach(() => {
   vi.unstubAllGlobals()
   document.body.innerHTML = ''
   document.documentElement.classList.remove('kb-open')
+})
+
+describe('SignupPrompt — never on the teacher sign-up form (owner, 2026-10-11)', () => {
+  it('⛔ never on teacher.<base>: a sign-in there returned to eno.vn home and left the answers behind', async () => {
+    host.teacher = true
+    try {
+      mount()
+      await advance(10 * 60_000)
+      expect(opens()).toBe(0)
+    } finally { host.teacher = false }
+  })
+  it('never over /teachers/join on eno.vn either: the form asks in place', async () => {
+    goTo('/teachers/join')
+    mount()
+    await advance(10 * 60_000)
+    expect(opens()).toBe(0)
+  })
 })
 
 describe('SignupPrompt — when', () => {

@@ -104,6 +104,20 @@ describe('<Price> jobMeta (card only)', () => {
     cleanup()
     expect(root(<Price native price={0} currency="₫" priceUnit="VND" listingType="teacher" jobMeta="Full-time" />).textContent).toBe('Teacher profile')
   })
+
+  // The card's price (owner, 2026-10-11 — profile.ts teacherCardPrice): a teacher with a salary or a cover rate states it
+  // like any price, with its unit; only a profile with neither still reads "Teacher profile".
+  it('a teacher with a salary or a cover rate states it, with its unit, in the price ink', () => {
+    const month = root(<Price native price={40_000_000} currency="₫" priceUnit="VND/month" listingType="teacher" />)
+    expect(month.textContent).toContain('40,000,000')
+    expect(month.textContent).toContain('/ month')
+    expect(month.textContent).not.toContain('Teacher profile')
+    expect(month.className).not.toMatch(/\btext-body\b/)
+    cleanup()
+    const hour = root(<Price native price={300_000} currency="₫" priceUnit="VND/hour" listingType="teacher" />)
+    expect(hour.textContent).toContain('300,000')
+    expect(hour.textContent).toContain('/ hour')
+  })
 })
 
 // Review fix (2026-10-04): an employer's OWN price-0 job keeps "Salary: negotiable" — the type would drop it.

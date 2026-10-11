@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { Session, User } from '@supabase/supabase-js'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { authRedirect, finishSignIn } from '@/lib/auth-finish'
+import { authFailurePath } from '@/lib/auth-landing'
 import { safeNextPath } from '@/lib/url'
 import { NATIVE_OAUTH_REDIRECT } from '@/lib/native-auth'
 import { IS_SERVICES } from '@/lib/edition'
@@ -256,7 +257,7 @@ export async function GET(request: Request) {
     // arriving in a query string; reflecting it into the page would be a content-injection vector
     // and would also show a visitor a sentence written for a developer. The client maps this to its
     // own copy.
-    return redirect(`${origin}/?auth_error=${kind}`)
+    return redirect(`${origin}${authFailurePath(next, kind)}`)
   }
 
   if (code) {
@@ -285,7 +286,7 @@ export async function GET(request: Request) {
      * from a clock skew. Diagnosing it needed a log more than it needed a guess.
      */
     console.error('[auth] exchangeCodeForSession failed', { message: error.message, status: error.status })
-    return redirect(`${origin}/?auth_error=exchange`)
+    return redirect(`${origin}${authFailurePath(next, 'exchange')}`)
   }
-  return redirect(`${origin}/?auth_error=1`)
+  return redirect(`${origin}${authFailurePath(next, '1')}`)
 }

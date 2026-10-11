@@ -16,6 +16,13 @@ describe('safeNextPath', () => {
     expect(safeNextPath('/\\evil.com', ORIGIN)).toBe('/') // WHATWG normalizes /\ → //
   })
 
+  it('rejects a path whose DOT SEGMENTS resolve to a protocol-relative one (/a/..//evil.com → //evil.com)', () => {
+    expect(safeNextPath('/a/..//evil.com', ORIGIN)).toBe('/')
+    expect(safeNextPath('/a/..//evil.com?x=1#y', ORIGIN)).toBe('/')
+    expect(safeNextPath('/x/./../%2F%2Fevil.com', ORIGIN)).not.toMatch(/^\/\//)
+    expect(safeNextPath('/a/../teachers/join', ORIGIN)).toBe('/teachers/join')
+  })
+
   it('rejects non-http schemes and falls back to /', () => {
     expect(safeNextPath('javascript:alert(1)', ORIGIN)).toBe('/')
     expect(safeNextPath(null, ORIGIN)).toBe('/')

@@ -13,6 +13,8 @@ const h = vi.hoisted(() => ({
   listingWrites: [] as Row[],
   privateWrites: [] as Row[],
   copies: [] as Row[],
+  accountWrites: [] as Row[],
+  accountCount: 1, // what the conditional account update matches (0: a type was chosen meanwhile)
 }))
 
 vi.mock('server-only', () => ({}))
@@ -43,7 +45,10 @@ const tx = {
     },
   },
   teacherPrivate: { upsert: async (args: Row) => { h.privateWrites.push(args) } },
-  listing: { update: async (args: Row) => { h.listingWrites.push(args) }, create: async (args: Row) => { h.listingWrites.push(args); return { id: 'L-new' } } },
+  profile: { updateMany: async (args: Row) => { h.accountWrites.push(args); return { count: h.accountCount } } },
+  listing: { update: async (args: Row) => { h.listingWrites.push(args) }, create: async (args: Row) => { h.listingWrites.push(args); return { id: 'L-new' } },
+    // the save reads whether schools see it INSIDE its transaction (nothing after the commit may fail the request)
+    findUnique: async () => ({ status: 'active', verified: true }) },
   storageTombstone: { deleteMany: async () => ({ count: 0 }) },
   teacherVideoShare: { updateMany: async () => ({ count: 0 }) },
 }
@@ -89,7 +94,7 @@ const profileWrite = () => h.profileWrites[0]
 const listingData = () => h.listingWrites[0].data
 
 beforeEach(() => {
-  h.existing = existing(); h.profileWrites = []; h.listingWrites = []; h.privateWrites = []; h.copies = []
+  h.existing = existing(); h.profileWrites = []; h.listingWrites = []; h.privateWrites = []; h.copies = []; h.accountWrites = []; h.accountCount = 1
 })
 
 describe('⛔ ONE SHAPE (plan review D1/D2)', () => {
@@ -280,3 +285,49 @@ describe('district pages follow a move', () => {
     expect(spy.mock.calls.map(([p]) => p).filter((p) => /^\/c\/teachers\/./.test(p))).toEqual(['/c/teachers/d7'])
   })
 })
+
+describe('the card\'s price — written onto the Listing at every save (owner, 2026-10-11)', () => {
+  it('a full-time job seeker with a 40m salary: 40.000.000 ₫ a month, never negotiable (no offers on a person)', async () => {
+    await edit(body())
+    expect(listingData()).toMatchObject({ price: 40_000_000, priceUnit: 'VND/month', negotiable: false })
+  })
+  it('no salary, cover lessons shown: the hourly rate', async () => {
+    await edit(body({ expectedSalaryM: null, coverOpen: true, coverSlots: ['mon-am'], coverRateVnd: 300_000, coverConsent: true }))
+    expect(listingData()).toMatchObject({ price: 300_000, priceUnit: 'VND/hour' })
+  })
+  it('neither: 0 ("Teacher profile")', async () => {
+    await edit(body({ jobTypes: ['private'], expectedSalaryM: null }))
+    expect(listingData()).toMatchObject({ price: 0, priceUnit: 'VND/month' })
+  })
+})
+
+// ── The one-time account step of a new account (owner, 2026-10-11; commit gate, codex: never a live profile on an untyped
+// account with no Terms record) ─────────────────────────────────────────────────────────────────────────────────────
+describe('`onboard` — written in the save\'s own transaction, conditionally', () => {
+  const data = { accountType: 'individual' as const, tosAcceptedAt: new Date('2026-10-11'), tosVersion: 'v3' }
+  const onboard = { data, nameIfNone: true }
+  it('⛔ inside the transaction, only while the account is untyped — and the save says it wrote', async () => {
+    h.existing = null
+    const r = await saveTeacherProfile({ id: 'p1', email: 'jane@example.com' }, body(), { expectTeacherProfileId: null, onboard })
+    // the display name is the name this save publishes (normalized, validated, screened) — never the raw body
+    expect(h.accountWrites).toEqual([{ where: { id: 'p1', accountType: null }, data: { ...data, displayName: 'Jane Doe' } }])
+    expect(r.onboarded).toBe(true)
+  })
+  it('an account that has a display name keeps it', async () => {
+    h.existing = null
+    await saveTeacherProfile({ id: 'p1', email: 'jane@example.com' }, body({ fullName: '  Jane   Doe ' }), { expectTeacherProfileId: null, onboard: { data, nameIfNone: false } })
+    expect(h.accountWrites[0].data.displayName).toBeUndefined()
+  })
+  it('a type chosen meanwhile is never overwritten: nothing matched, onboarded false, the profile still saved', async () => {
+    h.existing = null; h.accountCount = 0
+    const r = await saveTeacherProfile({ id: 'p1', email: 'jane@example.com' }, body(), { expectTeacherProfileId: null, onboard })
+    expect(r.onboarded).toBe(false)
+    expect(h.listingWrites).toHaveLength(1)
+  })
+  it('without `onboard` the account is never touched', async () => {
+    const r = await edit(body())
+    expect(h.accountWrites).toEqual([])
+    expect(r.onboarded).toBe(false)
+  })
+})
+

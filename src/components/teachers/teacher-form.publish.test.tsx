@@ -15,7 +15,11 @@ import { AI_NOTICE_VERSION, PUBLISH_NOTICE_VERSION } from '@/lib/teachers/profil
 import { COVER_CONSENT_VERSION } from '@/lib/teachers/cover'
 import { COMPLETE, fakeFetch, putDraft, stubBrowser, type Call } from './teacher-form.fixtures'
 
-const auth = vi.hoisted(() => ({ user: { id: 'u1' } as null | { id: string }, loading: false, openSignIn: vi.fn() }))
+const auth = vi.hoisted(() => ({
+  user: { id: 'u1' } as null | { id: string }, loading: false, openSignIn: vi.fn(),
+  // An onboarded account by default; the "new account" cases below clear it.
+  accountType: 'individual' as string | null, identityLoaded: true, markOnboarded: vi.fn(),
+}))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
 vi.mock('@/components/marketplace/push-opt-in-card', () => ({ PushOptInCard: () => <div data-testid="push-card" /> }))
 
@@ -35,6 +39,9 @@ let gate: { ok: boolean; code: string | null } = { ok: true, code: null }
 beforeEach(() => {
   stubBrowser()
   auth.user = { id: 'u1' }
+  auth.accountType = 'individual'
+  auth.identityLoaded = true
+  auth.markOnboarded = vi.fn()
   history.replaceState(null, '', '/teachers/join')
   gate = { ok: true, code: null }
   putReply = () => ({ json: { listingId: 'L1', teacherProfileId: 'tp1', live: true, noGoal: false, cover: null, video: null } })
@@ -232,5 +239,60 @@ describe('Publish', () => {
     await user.click(action('Publish profile'))
     expect(await screen.findByRole('textbox', { name: 'About you (optional)' })).toBeTruthy()
     expect(screen.getAllByText(/Please remove phone numbers, emails and links/).length).toBeGreaterThan(0)
+  })
+})
+
+// ── A new account signs in on this form and is NOT sent to /onboard (onboarding-gate.ts resumesInPlace) — so its first
+// Publish is the assent, under the Terms line, and the SERVER records the account step (api/teachers/me PUT) — owner,
+// 2026-10-11; commit gate: never from the browser, never skipped while the identity loads. ────────────────────────────
+describe('Publish for an account that has not chosen its type yet', () => {
+  const putBodies = () => calls.filter((c) => c.method === 'PUT').map((c) => c.body as Record<string, unknown>)
+
+  it('⛔ the line above Publish names the three documents, and the save carries acceptTerms — no browser-side account call', async () => {
+    auth.accountType = null
+    putReply = () => ({ json: { listingId: 'L1', teacherProfileId: 'tp1', live: true, noGoal: false, cover: null, video: null, onboarded: true } })
+    putDraft(COMPLETE, 'finish')
+    const user = mount()
+    const terms = (await screen.findAllByTestId('publish-terms'))[0]
+    expect(terms.textContent).toBe('By publishing you agree to our Terms of Service, Operating regulations and Privacy Policy.')
+    await user.click(screen.getByRole('button', { name: 'Use my account photo' }))
+    await user.click(action('Publish profile'))
+    await waitFor(() => expect(lastPut()).toBeTruthy())
+    expect(lastPut()!.acceptTerms).toBe(true)
+    expect(calls.some((c) => c.url === '/api/profile/account-type')).toBe(false)
+    // the server said it recorded the step: the session learns it, so the gate never sends this account to /onboard
+    await waitFor(() => expect(auth.markOnboarded).toHaveBeenCalledWith('individual'))
+  })
+
+  it('⛔ while the identity is still loading: no line, so no acceptTerms — the server refuses (terms_required), the line appears, and the next Publish under it goes through', async () => {
+    auth.accountType = null
+    auth.identityLoaded = false
+    let first = true
+    putReply = () => {
+      if (first) { first = false; return { status: 409, json: { error: 'terms_required' } } }
+      return { json: { listingId: 'L1', teacherProfileId: 'tp1', live: true, noGoal: false, cover: null, video: null, onboarded: true } }
+    }
+    putDraft(COMPLETE, 'finish')
+    const user = mount()
+    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    expect(screen.queryAllByTestId('publish-terms')).toHaveLength(0)
+    await user.click(action('Publish profile'))
+    expect(await screen.findByText('Please read the line below, then tap Publish again.')).toBeTruthy()
+    expect(screen.getAllByTestId('publish-terms').length).toBeGreaterThan(0)
+    expect(putBodies()[0].acceptTerms).toBeUndefined()
+    await user.click(action('Publish profile'))
+    await waitFor(() => expect(putBodies()).toHaveLength(2))
+    expect(putBodies()[1].acceptTerms).toBe(true)
+  })
+
+  it('an onboarded account sees no Terms line and sends no acceptTerms', async () => {
+    putDraft(COMPLETE, 'finish')
+    const user = mount()
+    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    expect(screen.queryAllByTestId('publish-terms')).toHaveLength(0)
+    await user.click(action('Publish profile'))
+    await waitFor(() => expect(lastPut()).toBeTruthy())
+    expect(lastPut()!.acceptTerms).toBeUndefined()
+    expect(auth.markOnboarded).not.toHaveBeenCalled()
   })
 })

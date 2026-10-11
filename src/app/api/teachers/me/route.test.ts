@@ -46,6 +46,11 @@ vi.mock('@/lib/compliance/seller-publish-gate', () => ({
   sellerPublishDecision: async () => { if (h.decisionFails) throw new Error('identity_verifications: connection reset'); return h.decision },
 }))
 vi.mock('@/lib/listing-image', () => ({ isListingImageUrl: (u: unknown) => typeof u === 'string' && u.startsWith('https://sb.eno.vn/storage/v1/object/public/listings/') }))
+const fo = vi.hoisted(() => ({ after: [] as unknown[][], committed: true }))
+vi.mock('@/lib/core/first-onboarding', () => ({
+  individualOnboardingWrite: (p: { displayName: string | null }) => ({ data: { accountType: 'individual', tos: 'stamp' }, nameIfNone: !p.displayName }),
+  afterIndividualOnboarding: async (...a: unknown[]) => { fo.after.push(a) },
+}))
 vi.mock('@/lib/teachers/publish', () => {
   class E extends Error {}
   // Its own class: the route tests the other errors first, and a shared one would be caught as a validation error.
@@ -60,7 +65,9 @@ vi.mock('@/lib/teachers/publish', () => {
       if (h.changedUnderLock) throw new TeacherProfileChangedError()
       if (h.noticeChanged) throw new TeacherNoticeChangedError(h.noticeChanged)
       h.saved.push(body)
-      return { listingId: 'L1', created: h.created, live: h.live, noGoal: false, cover: null, video: null }
+      // the account step rides the save's own transaction (publish.ts `onboard`): it commits with it, or not at all
+      const onboarded = !!(opts as { onboard?: unknown } | undefined)?.onboard && fo.committed
+      return { listingId: 'L1', created: h.created, live: h.live, noGoal: false, cover: null, video: null, onboarded }
     },
   }
 })
@@ -76,6 +83,7 @@ beforeEach(() => {
   h.decisionFails = false; h.logged = []
   h.created = false; h.live = true; h.afterWork = []; h.capi = []; h.capiOn = true; h.appleLinked = false; h.appleAsked = 0; h.appleThrows = false; h.sendRejects = false; h.afterThrows = false
   h.me = { id: 'p-b', accountType: 'individual', email: 'b@example.com' }
+  fo.after = []; fo.committed = true
 })
 
 describe('PUT /api/teachers/me — the profile the form was loaded for', () => {
@@ -313,5 +321,57 @@ describe('GET /api/teachers/me — no profile yet: what the new form may start f
   it('never prefills over an existing profile', async () => {
     h.mine = { id: 'tp-b', private: null, listing: null }
     expect(await get()).not.toHaveProperty('prefill')
+  })
+})
+
+// ── The one-time account step for a new account that signed in on the teacher form (owner, 2026-10-11) ──────────────────
+describe('PUT — a new account\'s first profile records the account step, in the publish\'s own transaction', () => {
+  const newAccount = () => { h.me = { id: 'p-new', accountType: null, email: 'n@example.com', displayName: null, tosVersion: null }; h.mine = null }
+  it('⛔ fails closed without the Terms line on screen: 409 terms_required, nothing saved, nothing recorded', async () => {
+    newAccount()
+    const res = await put({ teacherProfileId: null, fullName: 'Bea Smith' })
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toBe('terms_required')
+    expect(h.saved).toHaveLength(0)
+    expect(fo.after).toHaveLength(0)
+  })
+  it('with acceptTerms: the save carries the account write (individual + Terms), then the handle and effects run', async () => {
+    newAccount()
+    const res = await put({ teacherProfileId: null, fullName: 'Bea Smith', acceptTerms: true })
+    expect(res.status).toBe(200)
+    expect((await res.json()).onboarded).toBe(true)
+    expect((h.opts[0] as { onboard?: unknown }).onboard).toEqual({ data: { accountType: 'individual', tos: 'stamp' }, nameIfNone: true })
+    expect(fo.after).toHaveLength(1)
+    expect(fo.after[0][2]).toBe('Bea Smith') // the normalized name the save published
+  })
+  it('a type chosen meanwhile (the conditional write matched nothing): the profile saves, no effects', async () => {
+    newAccount(); fo.committed = false
+    const res = await put({ teacherProfileId: null, fullName: 'Bea Smith', acceptTerms: true })
+    expect(res.status).toBe(200)
+    expect((await res.json()).onboarded).toBe(false)
+    expect(fo.after).toHaveLength(0)
+  })
+  it('an onboarded account needs no line and writes no account step; an edit never does either', async () => {
+    h.mine = null
+    expect((await put({ teacherProfileId: null })).status).toBe(200)
+    expect((h.opts[0] as { onboard?: unknown }).onboard).toBeUndefined()
+    h.me = { id: 'p-b', accountType: null, email: 'b@example.com' }; h.mine = { id: 'tp-b' }
+    expect((await put({ teacherProfileId: 'tp-b' })).status).toBe(200)
+    expect((h.opts[1] as { onboard?: unknown }).onboard).toBeUndefined()
+    expect(fo.after).toHaveLength(0)
+  })
+})
+
+describe('PUT — any OTHER pending onboarding step still comes first (commit gate, 2026-10-11)', () => {
+  it('a create while the phone step is pending is refused: 409 onboarding_required, nothing saved', async () => {
+    vi.resetModules()
+    vi.doMock('@/lib/auth-policy', async (orig) => ({ ...(await orig<object>()), pendingOnboardingStep: () => 'phone' }))
+    const { PUT: put2 } = await import('./route')
+    h.mine = null
+    const res = await put2(new Request('https://eno.vn/api/teachers/me', { method: 'PUT', body: JSON.stringify({ teachAreas: ['online'], teacherProfileId: null, acceptTerms: true }) }) as never, {} as never)
+    expect(res.status).toBe(409)
+    expect((await res.json()).error).toBe('onboarding_required')
+    expect(h.saved).toHaveLength(0)
+    vi.doUnmock('@/lib/auth-policy')
   })
 })

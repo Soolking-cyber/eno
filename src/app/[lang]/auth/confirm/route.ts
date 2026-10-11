@@ -1,6 +1,7 @@
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { authRedirect, finishSignIn } from '@/lib/auth-finish'
+import { authFailurePath } from '@/lib/auth-landing'
 import { safeNextPath } from '@/lib/url'
 import { serverAuthUsesRequestOrigin, isLoopbackHost, loopbackOrigin } from '@/lib/auth-origin'
 
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
   const next = safeNextPath(url.searchParams.get('next'), origin)
 
   if (!tokenHash || !type || !ALLOWED.has(type)) {
-    return authRedirect(`${origin}/?auth_error=1`)
+    return authRedirect(`${origin}${authFailurePath(next, '1')}`)
   }
 
   const supabase = await createSupabaseServer()
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
     // Expired, already used, or tampered with. Never echo the reason — it would tell an
     // attacker probing tokens which guesses were structurally valid.
     console.warn('[auth/confirm] verifyOtp failed', error.message)
-    return authRedirect(`${origin}/?auth_error=1`)
+    return authRedirect(`${origin}${authFailurePath(next, '1')}`)
   }
 
   return finishSignIn(data.user, origin, next)

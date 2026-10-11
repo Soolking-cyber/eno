@@ -56,12 +56,36 @@ const wasOn = { coverOpen: true, coverSlots: ['mon-am'], coverAreas: ['d7'], cov
 beforeEach(() => { vi.clearAllMocks() })
 
 describe('saveTeacherCover', () => {
-  it('writes ONLY facetTokens and searchText on the listing — never status or verified', async () => {
+  it('writes ONLY facetTokens, searchText and the card\'s price (never negotiable) on the listing — never status or verified', async () => {
     tx.teacherProfile.findUnique.mockResolvedValue(stored())
     await saveTeacherCover('p1', on)
     expect(tx.listing.update).toHaveBeenCalledTimes(1)
     const { data } = tx.listing.update.mock.calls[0][0]
-    expect(Object.keys(data).sort()).toEqual(['facetTokens', 'searchText'])
+    expect(Object.keys(data).sort()).toEqual(['facetTokens', 'negotiable', 'price', 'priceUnit', 'searchText'])
+    expect(data.negotiable).toBe(false)
+  })
+
+  // The card's price follows the cover (owner, 2026-10-11 — profile.ts teacherCardPriceFromSaved; commit gate): switched
+  // on, the hourly rate; switched off, back to none — now, never at the next full save.
+  it('the card\'s price follows the switch: on → the rate an hour, off → none; a salary seeker keeps the salary', async () => {
+    tx.teacherProfile.findUnique.mockResolvedValue(stored())
+    await saveTeacherCover('p1', on)
+    expect(tx.listing.update.mock.calls[0][0].data).toMatchObject({ price: 300_000, priceUnit: 'VND/hour' })
+    vi.clearAllMocks()
+    tx.teacherProfile.findUnique.mockResolvedValue(stored({ ...wasOn }))
+    await saveTeacherCover('p1', { ...off, coverBase: coverStamp(wasOn) })
+    expect(tx.listing.update.mock.calls[0][0].data).toMatchObject({ price: 0, priceUnit: 'VND/month' })
+    vi.clearAllMocks()
+    tx.teacherProfile.findUnique.mockResolvedValue(stored({ expectedSalaryM: 30 }))
+    await saveTeacherCover('p1', on)
+    expect(tx.listing.update.mock.calls[0][0].data).toMatchObject({ price: 30_000_000, priceUnit: 'VND/month' })
+  })
+
+  it('a row the backfill has not migrated keeps its price (only its cover facets move — D1)', async () => {
+    tx.teacherProfile.findUnique.mockResolvedValue(stored({ situationVersion: null, teachAreas: [] }))
+    tx.listing.findUnique.mockResolvedValue({ facetTokens: null, searchText: null })
+    await saveTeacherCover('p1', off).catch(() => {})
+    for (const [a] of tx.listing.update.mock.calls) expect(a.data.price).toBeUndefined()
   })
 
   it('rebuilds the tokens from the WHOLE stored profile, so the subject and place facets survive', async () => {

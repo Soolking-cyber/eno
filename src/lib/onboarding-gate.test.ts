@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mayGateOnboarding } from './onboarding-gate'
+import { mayGateOnboarding, resumesInPlace } from './onboarding-gate'
 
 /**
  * The onboarding redirect's exemption list. Every case here is a defect that reached production
@@ -50,5 +50,22 @@ describe('the three grandfathered prefix exemptions', () => {
     // Gating it double-redirects and captures next=/signin, dropping the user's original intent.
     expect(mayGateOnboarding('/signin')).toBe(false)
     expect(mayGateOnboarding('/signin/verify')).toBe(false)
+  })
+})
+
+// ── Pages that keep their place across a sign-in (owner, 2026-10-11: the teacher form) ──────────────────────────────────
+describe('resumesInPlace — the teacher sign-up form keeps its place', () => {
+  it('is exactly /teachers/join (a trailing slash dropped) — never a look-alike, never the edit form', () => {
+    expect(resumesInPlace('/teachers/join')).toBe(true)
+    expect(resumesInPlace('/teachers/join/')).toBe(true)
+    expect(resumesInPlace('/teachers/joinx')).toBe(false)
+    expect(resumesInPlace('/teachers/join/extra')).toBe(false)
+    expect(resumesInPlace('/teachers/edit')).toBe(false)
+    expect(resumesInPlace('/')).toBe(false)
+    expect(resumesInPlace(null)).toBe(false)
+  })
+  it('so the browser onboarding gate never bounces it to /onboard', () => {
+    expect(mayGateOnboarding('/teachers/join')).toBe(false)
+    expect(mayGateOnboarding('/teachers/edit')).toBe(true)
   })
 })

@@ -702,6 +702,44 @@ export function coverIsPublic(
   return t.coverOpen && t.coverConsent && t.coverSlots.length > 0 && t.coverRateVnd != null && coverReachOf(t).length > 0
 }
 
+/**
+ * THE PRICE A TEACHER'S CARD STATES (owner, 2026-10-11: "show their hourly rate as product price ex 300,000 vnd/hour … or
+ * salary they desire like 40 million a month"; both set → the salary, for someone looking for a job). Written onto the
+ * profile's Listing at every save (publish.ts), so every card, row and page states it through <Price> — "40.000.000 ₫ /
+ * tháng", "300.000 ₫ / giờ":
+ *   · wants full-time or part-time work AND gave an expected salary → that salary a month;
+ *   · else cover lessons shown with a rate → that rate an hour. A saved row's `coverOpen` IS "shown": every save writes
+ *     it as coverIsPublic (publish.ts coverWrites), and the CHECK TeacherProfile_cover_bounds (scripts/teachers-ddl.mjs)
+ *     refuses an ON row without a rate in range, a period, an area and a recorded consent;
+ *   · else 0: the card reads "Teacher profile", as before.
+ * ⚠️ Never a "price drop": a teacher save writes the Listing directly, never through updateListingCore (price-drop.ts).
+ * One rule for the full save, the cover save (publish.ts saveTeacherCover) and profiles saved before it
+ * (scripts/teacher-card-price-backfill.ts) — the only writers of its inputs (every teacherProfile write, checked
+ * 2026-10-11: the video, status and unsubscribe writes touch none of them). The salary was already public — the profile
+ * page shows it (teacher-profile-view.tsx "Expected salary"), as /privacy says.
+ * WHERE A TEACHER'S PRICE DOES NOT GO (checked 2026-10-11): the Google/Meta product feeds take 'sell'/'service' rows only
+ * (product-feed.ts feedListingTypes); the teacher page is TeacherProfileView — no Product JSON-LD or Offer (the PDP's
+ * teacher branch); map pins drop teacher rows (map-pin-rows.ts); market-price bands are sale rows only (price-stat.ts);
+ * offers need `negotiable`, false on every teacher listing. ⚠️ A price SORT on /c/teachers orders the plain number, so
+ * hourly rates come before monthly salaries — the same as every mixed-unit category.
+ */
+export function teacherCardPriceFromSaved(
+  s: { jobTypes: readonly string[]; expectedSalaryM: number | null; coverOpen: boolean; coverRateVnd: number | null },
+): { price: number; priceUnit: 'VND/month' | 'VND/hour' } {
+  // The form allows 1–150 million (validateTeacherInput); the bound here only keeps a stray stored value from ever
+  // overflowing the price column.
+  if (s.jobTypes.some((j) => FT_PT.has(j)) && s.expectedSalaryM != null && s.expectedSalaryM > 0 && s.expectedSalaryM <= 1000) {
+    return { price: Math.round(s.expectedSalaryM * 1_000_000), priceUnit: 'VND/month' }
+  }
+  if (s.coverOpen && s.coverRateVnd != null && s.coverRateVnd > 0) return { price: s.coverRateVnd, priceUnit: 'VND/hour' }
+  return { price: 0, priceUnit: 'VND/month' }
+}
+
+/** teacherCardPriceFromSaved for a form's answers: the cover counts as shown exactly when the save will show it. */
+export function teacherCardPrice(t: TeacherInput): { price: number; priceUnit: 'VND/month' | 'VND/hour' } {
+  return teacherCardPriceFromSaved({ jobTypes: t.jobTypes, expectedSalaryM: t.expectedSalaryM, coverOpen: coverIsPublic(t), coverRateVnd: t.coverRateVnd })
+}
+
 /** The searchable prose of the public listing (title stays the teacher's name). */
 export function teacherListingDescription(t: Pick<TeacherInput, 'headline' | 'bio'>): string {
   return [t.headline, t.bio].filter(Boolean).join('\n\n').slice(0, 5000)

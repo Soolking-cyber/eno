@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { onTeacherHost } from '@/lib/teachers/host'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { trackSignupPrompt } from '@/lib/analytics'
@@ -173,6 +174,10 @@ export function SignupPrompt() {
     let inApp = false
     try { inApp = inAppHost() !== null } catch { inApp = false }
     if (inApp) return
+    // ⛔ NEVER ON THE TEACHER HOST (owner, 2026-10-11): a sign-in started there returned to eno.vn's HOME page — the
+    // form's public path there is '/' — and left the answers behind in that host's tab storage. No session can exist
+    // there anyway (host-scoped cookies); the form hands its answers to eno.vn, which asks for sign-in in place.
+    if (onTeacherHost()) return
     const againMs = override ?? AGAIN_AFTER_MS
     if (getDevice(mem).member) return
 

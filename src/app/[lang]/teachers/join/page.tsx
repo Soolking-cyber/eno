@@ -27,7 +27,10 @@ export default async function TeacherJoinPage({ searchParams }: { searchParams: 
   return (
     <div className="flex min-h-page flex-col">
       {draftHost ? <TeacherHostHeader apexOrigin={apexOrigin(APP_URL)} /> : <Header />}
-      <main id="main" tabIndex={-1} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+      {/* `data-teacher-host`: on teacher.<base> the phone tab bar is hidden (globals.css) — every tab there led off the
+          host, and its Account tab opened a sign-in that cannot hold on it. Decided here, on the server, from the Host
+          header (this page is dynamic anyway), so the first paint is already right. */}
+      <main id="main" tabIndex={-1} data-teacher-host={draftHost ? '' : undefined} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         <noscript>
           {/* No JS ⇒ no client i18n — deliberately static bilingual copy. */}
           {/* eslint-disable react/jsx-no-literals */}

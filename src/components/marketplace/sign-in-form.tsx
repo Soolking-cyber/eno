@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { resumesInPlace } from '@/lib/onboarding-gate'
 import { Mail, Phone, Loader2, ExternalLink, Eye, EyeOff } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
@@ -460,7 +461,12 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
     // The emailed code is typed where the visitor already is, so it cannot care about jars.
     // The previous comment noted the iOS PWA \"has the same broken-link problem\" and deferred it to
     // limit blast radius; the blast radius of NOT doing it is a visitor who cannot sign in.
-    const auto = isNativeApp() || isNativeTabs() || googleOauthBlocked()
+    // …and a page that must keep its place across the sign-in (onboarding-gate.ts resumesInPlace — the teacher form,
+    // owner 2026-10-11): a link opens a NEW tab, which shows that form empty. Apple, Google and password stay offered.
+    // ⚠️ ONCE PER MOUNT IS RIGHT: the popup mounts a fresh form on every open (sign-in-dialog.tsx — Base UI unmounts a
+    // closed dialog's content, and SignInCard is keyed per ask), and a mounted form never outlives its page. Re-deciding on
+    // navigation would overwrite the visitor's own link/code choice (commit gate, opus, rounds 4 and 5).
+    const auto = isNativeApp() || isNativeTabs() || googleOauthBlocked() || resumesInPlace(window.location.pathname)
     setAutoCode(auto)
     setEmailCode(auto)
   }, [])

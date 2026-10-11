@@ -1,12 +1,10 @@
-import { NextResponse, after } from 'next/server'
+import { NextResponse } from 'next/server'
+import { firstOnboardingEffects } from '@/lib/core/first-onboarding'
 import { db } from '@/lib/db'
 import { tosAcceptanceStamp } from '@/lib/site-legal'
-import { getVerifiedPhone, isCurrentUserAppleLinkedByClaims } from '@/lib/admin'
+import { getVerifiedPhone } from '@/lib/admin'
 import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
-import { sendMetaCapiEvent, metaUserDataFromHeaders, metaCapiConfigured } from '@/lib/meta-capi'
-import { parseAttributionCookie } from '@/lib/attribution'
-import { serverConsent } from '@/lib/consent-value'
 import { consolidateSellerHandle, revertToPersonalHandle } from '@/lib/handle'
 import { ApiError, route } from '@/lib/api/handler'
 import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
@@ -219,48 +217,9 @@ export const POST = route(
   // a v1 visitor re-asked under consent v2 who DECLINES may still carry an eno_attr written under the
   // old consent until the client cleanup deletes it, and this copy writes it onto their account.
   // `serverConsent` applies the browser's own rule (and forces analytics off inside the native apps).
-  const attr = firstOnboard && serverConsent(req.headers).a ? parseAttributionCookie(req.headers.get('cookie')) : null
-
-  if (firstOnboard) {
-    // Persist the channel onto the Profile — AFTER the response flushes (never delays
-    // onboarding) and wrapped so a not-yet-migrated DB (columns missing until the
-    // schema push runs) can't break signup. Exact + queryable once migrated.
-    if (attr) {
-      after(async () => {
-        try {
-          await db.profile.update({
-            where: { id: profile.id },
-            data: {
-              attrSource: attr.source,
-              attrMedium: attr.medium,
-              attrCampaign: attr.campaign ?? null,
-              attrReferrer: attr.referrer ?? null,
-              attrLandingAt: attr.landingAt ? new Date(attr.landingAt) : new Date(),
-            },
-          })
-        } catch (e) {
-          console.error('[attr] persist failed (run the Profile schema push?)', e)
-        }
-      })
-    }
-
-    // Server-side conversion (CompleteRegistration) for Meta ad optimization. Fires
-    // AFTER the response flushes (zero added latency) and no-ops until CAPI env is set.
-    // ⛔ An Apple-linked account's email never becomes `em` (Sign in with Apple D14 — meta-capi.ts); asked only
-    // when CAPI is configured, from the locally verified token — no auth-server round trip.
-    const appleLinked = metaCapiConfigured() ? await isCurrentUserAppleLinkedByClaims() : false
-    after(() =>
-      sendMetaCapiEvent('CompleteRegistration', {
-        eventSourceUrl: req.headers.get('referer') || undefined,
-        userData: metaUserDataFromHeaders(req.headers, { email: profile.email, phone, externalId: profile.id, appleLinked }),
-        customData: {
-          content_name: 'eno_account',
-          status: accountType,
-          ...(attr ? { source: attr.source, medium: attr.medium, campaign: attr.campaign } : {}),
-        },
-      }),
-    )
-  }
+  // ⛔ ONE COPY of what a first onboarding sends — the attribution and the CompleteRegistration — shared with the teacher
+  // form's own account step (src/lib/core/first-onboarding.ts), so the two flows never send different things.
+  if (firstOnboard) await firstOnboardingEffects(req, profile, accountType, phone)
 
   return { ok: true, accountType }
   },

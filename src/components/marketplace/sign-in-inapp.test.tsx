@@ -68,6 +68,26 @@ afterEach(() => {
   Object.defineProperty(window, 'location', { configurable: true, value: realLocation })
 })
 
+describe('on the teacher sign-up form, any browser: the emailed CODE, typed in place (owner, 2026-10-11)', () => {
+  it('⛔ "Send code", with no switch back to a link (a link opens a new tab with an empty form) — Google stays offered', async () => {
+    ua = CHROME
+    Object.assign(loc, { pathname: '/teachers/join', search: '', href: 'http://localhost:3000/teachers/join' })
+    popup('en', null)
+    await act(async () => {})
+    expect(screen.getByRole('button', { name: 'Send code' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Send magic link' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Use a link' })).toBeNull()
+    expect(screen.getByRole('button', { name: /Continue with Google/ })).toBeTruthy()
+  })
+  it('anywhere else in a normal browser the link stays the default', async () => {
+    ua = CHROME
+    Object.assign(loc, { pathname: '/listings/l1', search: '', href: 'http://localhost:3000/listings/l1' })
+    popup('en', null)
+    await act(async () => {})
+    expect(screen.getByRole('button', { name: 'Send magic link' })).toBeTruthy()
+  })
+})
+
 describe('in an in-app browser (Zalo), the emailed code leads', () => {
   it('⛔ the email field and "Send code" come FIRST; Google is a quiet link below that says what it does', async () => {
     popup()

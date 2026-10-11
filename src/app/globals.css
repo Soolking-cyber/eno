@@ -4411,3 +4411,17 @@ html[data-explorer-directed] #listings [data-feed-heading] {
     }
   }
 }
+
+/* ⛔ NO TAB BAR ON THE TEACHER HOST (owner, 2026-10-11). teacher.<base> serves the sign-up form and nothing else; every tab
+   led off the host, and the Account tab opened a sign-in that returned to eno.vn's home page with the form's answers left
+   behind. teachers/join/page.tsx marks <main data-teacher-host> only there, from the Host header on the server, so this is
+   right from the first paint (no hydration flip). Unlayered, like the other first-frame rules. Its spacer goes with it, and
+   the form's sticky bar takes no tab-bar offset there (--teacher-tabbar-offset, read by teacher-form.tsx `offsetBottom`),
+   so no dead strip is left. All three hang on the one `:has()`: a browser without it keeps the bar AND the clearance. */
+body:has([data-teacher-host]) .mobile-nav,
+body:has([data-teacher-host]) .bottom-nav-spacer {
+  display: none;
+}
+body:has([data-teacher-host]) {
+  --teacher-tabbar-offset: 0px;
+}

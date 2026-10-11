@@ -1,6 +1,8 @@
 // The signed-in teacher's own profile (2026-09-30): read, create/update, delete.
 // The public side is the listing (/listings/<id>); contact data is never in any public payload.
 import { after, NextResponse } from 'next/server'
+import { pendingOnboardingStep } from '@/lib/auth-policy'
+import { afterIndividualOnboarding, individualOnboardingWrite } from '@/lib/core/first-onboarding'
 import { route, ApiError } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { isCurrentUserAppleLinkedByClaims } from '@/lib/admin'
@@ -9,7 +11,7 @@ import { PublishBlockedError } from '@/lib/publish-guard'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { sellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
 import { logError } from '@/lib/log'
-import { isLegacyTeacherBody } from '@/lib/teachers/profile'
+import { isLegacyTeacherBody, normalizeTeacherInput } from '@/lib/teachers/profile'
 import { TEACHERS_CATEGORY_NAME } from '@/lib/teachers/constants'
 import { apexOrigin } from '@/lib/teachers/host'
 import {
@@ -91,6 +93,24 @@ export const PUT = route(
     const expected = typeof sentId === 'string' ? sentId : null
     const mine = await db.teacherProfile.findUnique({ where: { profileId: profile.id }, select: { id: true } })
     if ((mine?.id ?? null) !== expected) return NextResponse.json({ error: 'profile_changed' }, { status: 409 })
+    // ⛔ THE ONE-TIME ACCOUNT STEP, ON THE SERVER (owner, 2026-10-11 — onboarding-gate.ts resumesInPlace; commit gate,
+    // codex + opus: never from a possibly stale tab, never skipped while the form's identity was still loading). A new
+    // account that signed in on the teacher form was never sent to /onboard, so its FIRST profile records what /onboard
+    // records — an individual account and the Terms acceptance — and only when the page SHOWED the Terms line beside
+    // Publish (`acceptTerms`, sent with that line on screen). Without it: 409 terms_required, nothing written (fail closed);
+    // the form then shows the line and asks for Publish again.
+    // ⛔ A PAGE THAT KEEPS ITS PLACE SKIPS ONLY THE ACCOUNT-TYPE CHOOSER (onboarding-gate.ts resumesInPlace). Any other
+    // pending step — the phone, once SIGNUP_REQUIRES_PHONE is on — still comes first, and the emailed code finishes on
+    // this page without passing finishSignInPath, so the create itself refuses it (commit gate, codex + opus 2026-10-11).
+    if (expected === null && pendingOnboardingStep({ accountType: 'individual', phone: profile.phone }) !== null) {
+      return NextResponse.json({ error: 'onboarding_required' }, { status: 409 })
+    }
+    const firstOnboard = expected === null && !profile.accountType
+    if (firstOnboard && (body as { acceptTerms?: unknown } | null)?.acceptTerms !== true) {
+      return NextResponse.json({ error: 'terms_required' }, { status: 409 })
+    }
+    // Written in the publish's own transaction (publish.ts `onboard`), so the profile and the account step commit together.
+    const onboard = firstOnboard ? individualOnboardingWrite(profile) : null
     // A NEW teacher profile is a listing posted: it sends the Meta conversion a posted listing sends (Lead), so an ad for
     // teacher.eno.vn can be measured by the profiles it brought. Whether this request MAY send one is settled HERE,
     // before the save: ⛔ nothing awaited may sit between a committed save and its response (commit gate, 2026-10-11 —
@@ -107,7 +127,15 @@ export const PUT = route(
       }
     }
     try {
-      const saved = await saveTeacherProfile({ id: profile.id, email: profile.email ?? null }, body, { expectTeacherProfileId: expected })
+      const saved = await saveTeacherProfile({ id: profile.id, email: profile.email ?? null }, body, {
+        expectTeacherProfileId: expected, ...(onboard ? { onboard } : {}),
+      })
+      // The handle and the first-onboarding effects, once it committed — best-effort, never thrown (so the rule above holds:
+      // no throw between the commit and the response). The name the handle is claimed from: the account's own, else the
+      // one the save just published (normalized, as it was written).
+      if (onboard && saved.onboarded) {
+        await afterIndividualOnboarding(req, profile, profile.displayName || normalizeTeacherInput(body).fullName.trim() || null)
+      }
       // Only the FIRST save, and only when it left the profile public (`created && live`): an edit is not a new profile
       // and a held one is not posted. Like a job's salary, an hourly rate is not what the lead is worth: value 0.
       // Everything else happens after the response, contained: the send is best-effort (meta-capi.ts) and logged.

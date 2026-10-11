@@ -66,7 +66,9 @@ const tx = {
     upsert: async (args: Row) => { h.privateWrites.push(args) },
     update: async (args: Row) => { h.privateWrites.push(args) },
   },
-  listing: { update: async (args: Row) => { h.listingWrites.push(args) }, create: async (args: Row) => { h.listingWrites.push(args); return { id: 'L1' } } },
+  listing: { update: async (args: Row) => { h.listingWrites.push(args) }, create: async (args: Row) => { h.listingWrites.push(args); return { id: 'L1' } },
+    // the save reads whether schools see it INSIDE its transaction (nothing after the commit may fail the request)
+    findUnique: async () => ({ status: 'active', verified: true }) },
   storageTombstone: { deleteMany: async ({ where }: Row) => { h.deletedPending.push(where); return { count: 1 } } },
   teacherVideoShare: { updateMany: async ({ where }: Row) => { h.revoked.push(where); return { count: 2 } } },
 }

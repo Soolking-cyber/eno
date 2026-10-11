@@ -42,6 +42,28 @@ const PREFIX_EXEMPT = ['/onboard', '/auth', '/signin'] as const
  */
 export function mayGateOnboarding(pathname: string | null | undefined): boolean {
   if (!pathname) return false
-  if (EXACT_EXEMPT.has(pathname)) return false
+  if (EXACT_EXEMPT.has(pathname) || resumesInPlace(pathname)) return false
   return !PREFIX_EXEMPT.some((prefix) => pathname.startsWith(prefix))
+}
+
+/**
+ * ⛔ PAGES THAT KEEP THEIR PLACE ACROSS A SIGN-IN (owner, 2026-10-11: "after login they can resume from where they left
+ * and not redirecting to home page … continue creating profile right away without distractions"). A form the visitor is
+ * filling in when it asks for sign-in — the teacher sign-up form — comes back exactly where it was, whatever the method:
+ *   · the one-time /onboard chooser does not interrupt it: the browser gate (mayGateOnboarding, above) and the server's
+ *     finishSignInPath (src/lib/auth-finish.ts — every redirect-style sign-in and the iOS app's native Apple route) both
+ *     skip the account-type step for it, and its first Publish records that step on the server — an individual account
+ *     and the Terms acceptance, under the line above Publish (api/teachers/me PUT, src/lib/core/first-onboarding.ts);
+ *   · the emailed sign-in is the 6-digit CODE, typed in place (sign-in-form.tsx `autoCode`): a magic link opens a new tab
+ *     with an empty form;
+ *   · the timed "Join eno" prompt never opens over it (src/lib/signup-prompt.ts);
+ *   · a failed sign-in lands back on it (src/lib/auth-landing.ts authFailurePath), not on the home page.
+ * EXACT paths (a trailing slash dropped), for the same reason as EXACT_EXEMPT above.
+ */
+const RESUME_IN_PLACE = new Set(['/teachers/join'])
+
+export function resumesInPlace(pathname: string | null | undefined): boolean {
+  if (!pathname) return false
+  const p = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
+  return RESUME_IN_PLACE.has(p)
 }

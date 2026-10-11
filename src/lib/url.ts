@@ -18,6 +18,10 @@ export function safeNextPath(raw: string | null | undefined, origin: string): st
     if (u.origin !== origin) return '/'
     const path = u.pathname + u.search + u.hash
     if (!path.startsWith('/')) return '/'
+    // ⛔ ...AND THE RESOLVED PATH MUST NOT BE PROTOCOL-RELATIVE (commit gate, opus 2026-10-11). Dot segments resolve
+    // AFTER the origin check: "/a/..//evil.com" resolves on this origin to the pathname "//evil.com" — and that string,
+    // handed to a client navigation (/onboard's router.replace, the native Apple route's `to`), opens evil.com.
+    if (path.startsWith('//') || path.startsWith('/\\')) return '/'
     // Reject post-auth CONTROL routes as a destination. Following /signin, /auth/* or /onboard as
     // `next` bounces the user straight back into the auth flow — a redirect loop the reporter hit.
     // These are interstitials, never a place to "return to"; fall back to home.

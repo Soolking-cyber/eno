@@ -26,7 +26,7 @@ import {
   AI_NOTICE_VERSION, COVER_FIELDS, PUBLISH_NOTICE_VERSION, TEACHER_SITUATION_VERSION, coverIsPublic, hasTeachingGoal,
   isLegacyTeacherBody, legacyDistrictKey, normalizeCoverFields, normalizeForSave, normalizeTeacherInput, splitGoalErrors,
   teacherFacetTokens, teacherFreeTextFields, validateTeacherInput, whereSkipped, type TeacherErrors, type TeacherInput,
-} from '@/lib/teachers/profile'
+  teacherCardPrice, teacherCardPriceFromSaved } from '@/lib/teachers/profile'
 import { COVER_CONSENT_VERSION, coverStamp } from '@/lib/teachers/cover'
 import { coverReachOf } from '@/lib/teachers/places'
 import {
@@ -348,8 +348,10 @@ const LOCKED_SELECT = {
 export async function saveTeacherProfile(
   profile: { id: string; email: string | null },
   raw: unknown,
-  opts: { expectTeacherProfileId?: string | null } = {},
-): Promise<{ listingId: string; teacherProfileId: string; created: boolean; live: boolean; noGoal: boolean; cover: SavedCoverState | null; video: SavedVideoState }> {
+  // `onboard`: the one-time account step of a new account (src/lib/core/first-onboarding.ts individualOnboardingWrite),
+  // written IN this save's transaction — see below.
+  opts: { expectTeacherProfileId?: string | null; onboard?: { data: { accountType: 'individual'; tosAcceptedAt?: Date; tosVersion?: string }; nameIfNone: boolean } } = {},
+): Promise<{ listingId: string; teacherProfileId: string; created: boolean; live: boolean; noGoal: boolean; cover: SavedCoverState | null; video: SavedVideoState; onboarded: boolean }> {
   const expected = opts.expectTeacherProfileId
   // ⛔ ONE SHAPE (plan review D1/D2, 2026-10-08): a body with no teach-area list is a tab opened before the redesign. The
   // server never guesses what it meant — the route refuses it first (409 profile_changed, "reload"); this is the guarantee.
@@ -420,7 +422,7 @@ export async function saveTeacherProfile(
   }
   const status = existing?.status === 'hidden' ? 'hidden' : 'active'
 
-  const { listingId, teacherProfileId, saved, noGoal, location, districtPages, video: savedVideo } = await db.$transaction(async (tx) => {
+  const { listingId, teacherProfileId, saved, noGoal, location, districtPages, video: savedVideo, onboarded, live } = await db.$transaction(async (tx) => {
     // ⛔ ONE SAVE AT A TIME PER ACCOUNT. Two first saves racing (a double tap) both saw "no profile"
     // and both created a listing; the loser's row was left live with no profile (Opus, commit gate
     // 09-30). The lock is per profile and held to COMMIT; the row is then re-read under it.
@@ -452,7 +454,8 @@ export async function saveTeacherProfile(
     const calls = optIn(tc.staffContactOptIn, locked ? { on: locked.staffContactOptIn, at: locked.staffContactOptInAt, version: locked.staffContactNoticeVersion, withdrawnAt: locked.staffContactWithdrawnAt } : null)
     const p = teacherListingProjection(tc, category)
     const listingWrite = {
-      title: p.title, description: p.description, price: 0, priceUnit: 'VND/month', currency: '₫', negotiable: false,
+      // The card's price: the expected salary a month (job seekers) or the cover rate an hour (profile.ts teacherCardPrice).
+      title: p.title, description: p.description, ...teacherCardPrice(tc), currency: '₫', negotiable: false,
       city: p.city, district: p.district, location: p.location,
       images: JSON.stringify([tc.photoUrl]), video: finalVideoUrl, searchText: p.searchText, categoryId: category.id,
       subcategorySlug: p.subcategorySlug, listingType: TEACHER_LISTING_TYPE, attributes: null, facetTokens: p.facetTokens,
@@ -537,37 +540,56 @@ export async function saveTeacherProfile(
       create: { teacherProfileId: tp.id, phone: tc.phone || null, email: profile.email, videoPath: finalVideoPath },
       update: { phone: tc.phone || null, email: profile.email, videoPath: finalVideoPath },
     })
+    // ⛔ THE ONE-TIME ACCOUNT STEP, IN THIS TRANSACTION (owner, 2026-10-11; commit gate, codex): a new account's first
+    // profile and its account type + Terms acceptance commit together or not at all — never a live profile on an untyped
+    // account with no Terms record. Conditional, so a type chosen meanwhile (another tab's /onboard, which recorded its
+    // own Terms acceptance) is never overwritten: the profile publishes under that type, as any onboarded account's does
+    // — a teacher profile never depended on the type.
+    // The display name, where the account has none, is the name this save publishes — validated and screened above.
+    const onboarded = opts.onboard
+      ? (await tx.profile.updateMany({
+        where: { id: profile.id, accountType: null },
+        data: { ...opts.onboard.data, ...(opts.onboard.nameIfNone ? { displayName: tc.fullName.trim().slice(0, 80) || null } : {}) },
+      })).count > 0
+      : false
+    // Whether schools see it now — read here, inside the transaction, so nothing after the COMMIT can fail this request
+    // (commit gate, codex 2026-10-11: a read after it threw, the request answered 500 for a save — and an account step —
+    // already committed, and the retry met "you already have a profile").
+    const liveRow = await tx.listing.findUnique({ where: { id }, select: { status: true, verified: true } })
     const { id: teacherProfileId, videoVersion, videoOnRequest, ...saved } = tp
     return {
+      onboarded, live: liveRow?.status === 'active' && liveRow.verified === true,
       listingId: id, teacherProfileId, saved, noGoal, location: p.location,
       districtPages: [...districtPagesOf(locked), tc.currentDistrictKey],
       video: { onRequest: videoOnRequest, version: videoVersion, hasPrivate: !!finalVideoPath, url: finalVideoUrl },
     }
   })
 
+  // ⛔ COMMITTED FROM HERE: nothing below may fail the request (the account step may have been written with it), and
+  // each step has its OWN guard, so one failing never skips the next — moderation first (commit gate, opus 2026-10-11).
+  const guard = (op: string, fn: () => void) => { try { fn() } catch (e) { logError(e, { op }) } }
+  guard('teachers.moderate', () => after(() => moderateListingById(listingId)))
+  guard('teachers.translate', () => after(() => warmTranslations([t.headline, t.bio, location].filter(Boolean))))
   // The district pages the teacher left and joined: without this a teacher who moved stayed on the old district's cached
   // page until its ISR window ran out (integration, 2026-10-08).
-  revalidateTeacherPages(listingId, districtPages)
+  guard('teachers.revalidate', () => revalidateTeacherPages(listingId, districtPages))
   // The displaced video objects go now — reference-checked, so another listing that copied a public URL keeps it; what
   // this does not finish, the tombstone sweep does.
   const purgeUrls = plan.displaced.flatMap((d) => (d.bucket === 'listing-videos' ? [d.url] : []))
   const purgePaths = plan.displaced.flatMap((d) => (d.bucket === 'teacher-videos' ? [d.path] : []))
   if (purgeUrls.length || purgePaths.length) {
-    after(async () => {
+    guard('teachers.video.purge', () => after(async () => {
       try {
         const settled = [...(purgeUrls.length ? (await purgeStorageObjects(purgeUrls)).settled : []), ...(await removeUnreferencedPrivateVideos(purgePaths))]
         if (settled.length) await clearTombstones(settled)
       } catch (e) {
         logError(e, { op: 'teachers.video.purge' })
       }
-    })
+    }))
   }
-  after(() => moderateListingById(listingId))
-  after(() => warmTranslations([t.headline, t.bio, location].filter(Boolean)))
-  const live = await db.listing.findUnique({ where: { id: listingId }, select: { status: true, verified: true } })
   // The cover state AS STORED — the form keeps it as its base and its "confirmed on" date (never its own guess).
   // teacherProfileId: a form that created the profile (edit mode, none loaded) names it on its next Save and Remove.
-  return { listingId, teacherProfileId, created: !existing?.listingId, live: live?.status === 'active' && live.verified, noGoal, cover: saved, video: savedVideo }
+  return { listingId, teacherProfileId, created: !existing?.listingId, live, noGoal, cover: saved, video: savedVideo, onboarded }
 }
 
 /**
@@ -630,9 +652,17 @@ export async function saveTeacherCover(profileId: string, raw: unknown): Promise
       // live (gate review, 2026-10-09). So its cover save changes only the COVER part of what the old code wrote
       // (projection.ts withoutCoverFacets) — never a re-projection, and never the old columns read as answers (D1).
       // Cover cannot be ON here: no teach areas, no reach, refused above — so only the cover tokens and words go.
+      // The card's price follows the cover too (profile.ts teacherCardPriceFromSaved, owner 2026-10-11): a cover switched
+      // off or a new rate moves an hourly card price now, not at the next full save (commit gate, 2026-10-11). Read from
+      // the row as this save leaves it; a row the backfill has not migrated keeps its price, like its other answers (D1).
       const data = tp.situationVersion == null
         ? withoutCoverFacets((await tx.listing.findUnique({ where: { id: tp.listingId }, select: { facetTokens: true, searchText: true } })) ?? { facetTokens: null, searchText: null })
-        : { facetTokens: teacherFacetTokens(t), searchText: teacherSearchText(t, category) }
+        : {
+          facetTokens: teacherFacetTokens(t), searchText: teacherSearchText(t, category),
+          ...teacherCardPriceFromSaved({ jobTypes: tp.jobTypes, expectedSalaryM: tp.expectedSalaryM, coverOpen: cover.coverOpen, coverRateVnd: cover.coverRateVnd }),
+          // As every full save writes it: a person takes no offers, whatever price the card states (commit gate, codex).
+          negotiable: false,
+        }
       listing = await tx.listing.update({ where: { id: tp.listingId }, data: hidden ? { ...data, status: 'hidden' } : data, select: { status: true, verified: true } })
     }
     return {

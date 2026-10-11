@@ -136,7 +136,7 @@ type PendingChange = { next: TeacherInput; touched: readonly (keyof TeacherInput
 
 function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, restoreDraft = true }: TeacherFormProps & { restoreDraft?: boolean }) {
   const { tr, lang } = useLanguage()
-  const { user, loading: authLoading, openSignIn } = useAuth()
+  const { user, loading: authLoading, openSignIn, accountType, identityLoaded, markOnboarded } = useAuth()
   const uid = user?.id ?? null
   const coverIntent = goal === 'cover'
   const [t, setTState] = useState<TeacherInput>(EMPTY_TEACHER)
@@ -163,6 +163,11 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   // profile yet — what the account already knows, OFFERED, never filled in unasked.
   const [publishGate, setPublishGate] = useState<{ ok: boolean; code: string | null } | null>(null)
   const [prefill, setPrefill] = useState<{ displayName: string | null; avatarUrl: string | null; phone: string | null } | null>(null)
+  // ⛔ THE TERMS LINE BESIDE PUBLISH (owner, 2026-10-11 — onboarding-gate.ts resumesInPlace): a new account that signed in
+  // on this form never saw /onboard, so its first Publish is the assent — the line names the three documents and the
+  // save sends `acceptTerms`; the SERVER records the account step (api/teachers/me PUT). Shown when this account is known
+  // to be untyped, or once the server asked for it (409 terms_required: the identity was still loading, or stale here).
+  const [termsAsked, setTermsAsked] = useState(false)
   // Where to go once signed in: "Sign in", a hand-off, or a draft that was on a step needing an account.
   const [resumeTo, setResumeTo] = useState<TeacherStep | null>(null)
   const signInAsked = useRef(false)
@@ -237,6 +242,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
     ? stepKey
     : steps.find((s) => TEACHER_STEPS.indexOf(s) > TEACHER_STEPS.indexOf(stepKey)) ?? steps[steps.length - 1]
   const stepIdx = steps.indexOf(step)
+  // ⛔ THE PUBLISH NOTE'S PLACE — every step of an edit (Save changes publishes too), the last step of a new profile on
+  // eno.vn — and the Terms line inside it renders EXACTLY when `needsTerms` is true, so `acceptTerms` is never sent for a
+  // line the screen did not show (commit gate, opus 2026-10-11). Join: known untyped. Any mode: once the server asked
+  // (409 terms_required — the identity was still loading, or an edit form with no profile loaded is creating one).
+  const showPublishNote = mode === 'edit' || (!draftHost && stepIdx === steps.length - 1 && !!user)
+  const needsTerms = !!user && showPublishNote && ((mode === 'join' && identityLoaded && !accountType) || termsAsked)
   const errText = useMemo(() => makeErrText(tr), [tr])
 
   const clearErrorsFor = (keys: readonly string[]) => setErrors((prev) => {
@@ -437,6 +448,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
     if (code === 'account_restricted') return tr('Your account cannot publish right now.', 'Tài khoản của bạn hiện chưa thể đăng.')
     if (code.startsWith('identity_')) return tr('Please verify your identity in Account settings before publishing.', 'Vui lòng xác minh danh tính trong Cài đặt tài khoản trước khi đăng.')
     if (code === 'rate_limited') return tr('Too many saves — please wait a few minutes.', 'Lưu quá nhiều lần — vui lòng đợi vài phút.')
+    // A step of the account's own setup is still open (the phone, once required — api/teachers/me PUT).
+    if (code === 'onboarding_required') return tr('Please finish setting up your account in Account settings, then publish.', 'Vui lòng hoàn tất thiết lập tài khoản trong Cài đặt tài khoản, rồi đăng.')
     // A notice beside a consent changed while this page was open: its words must be read again (409 notice_changed).
     if (code === 'notice_changed') return tr('Some of the wording on this page has changed since you opened it. Reload the page to read it, then save again.', 'Một số nội dung trên trang đã thay đổi kể từ khi bạn mở. Hãy tải lại trang để đọc, rồi lưu lại.')
     // Join mode loaded no saved video either: the server refuses a change over a stored one (video.ts, no base).
@@ -573,6 +586,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
         ...(t.coverOpen ? { coverNotice: COVER_CONSENT_VERSION } : {}),
         // Each opt-in is its own consent, under the AI note beside them (it names Anthropic and the transfer abroad).
         ...(t.matchEmailOptIn || t.staffContactOptIn ? { aiNotice: AI_NOTICE_VERSION } : {}),
+        // The Terms line was on screen beside this Publish (`needsTerms`): the server records the one-time account step.
+        ...(needsTerms ? { acceptTerms: true } : {}),
         // `coverBase`: the cover state this form loaded — the server refuses (409 cover_changed) if another window changed it.
         coverBase: mode === 'edit' && savedCover ? coverStamp(savedCover) : null,
         videoBase: mode === 'edit' ? videoBase : null,
@@ -598,6 +613,14 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
           }
           // The server's field errors may sit on another step: go there first, or there is nothing to reveal (gate review).
           refuse(d.fields as TeacherErrors)
+          return
+        }
+        // An untyped account published without the Terms line on screen (the identity was still loading): nothing was
+        // written. The line is shown now, and the next Publish under it is the assent.
+        if (d.error === 'terms_required') {
+          setTermsAsked(true)
+          setFormError(tr('Please read the line below, then tap Publish again.', 'Vui lòng đọc dòng bên dưới, rồi nhấn Đăng lần nữa.'))
+          revealFirstError({ formLineFirst: true })
           return
         }
         // Saved under a session that is now another account's (or the profile was recreated elsewhere): nothing was written.
@@ -637,6 +660,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
       }
       // The profile is saved either way; a failed CV upload is reported on the done screen and can be
       // retried from Edit — never leave the teacher on the form thinking nothing was published.
+      // The server recorded the one-time account step with this Publish: the session knows it at once — before the CV
+      // upload, which can fail or be cut short — so the onboarding gate never sends this account to /onboard afterwards.
+      if (d.onboarded === true) markOnboarded('individual')
       if (cvFile) await uploadCv(cvFile)
       clearStored()
       // The cover AS STORED (the server returns it): the next save's base and the real "confirmed on" date —
@@ -944,13 +970,28 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
     : stepIdx > 0 ? { label: tr('Back', 'Quay lại'), onClick: () => setStepKey(steps[stepIdx - 1]) } : undefined
   // ⛔ THE PUBLISH NOTICE, beside the tap that is the consent: on the last step of a new profile, on every step of an
   // edit (Save changes publishes too). Its meaning is PUBLISH_NOTICE_VERSION (profile.ts) — sent as `publishNotice`.
-  const showPublishNote = mode === 'edit' || (!draftHost && isLast && !!user)
   const publishNote = showPublishNote ? (
     <p className="text-xs text-body" data-testid="publish-notice">
       {mode === 'edit'
         ? tr('Saving updates your public profile: schools and search engines see everything except your phone, email, CV and a private video.', 'Khi lưu, hồ sơ công khai của bạn được cập nhật: các trường và công cụ tìm kiếm thấy mọi thứ trừ số điện thoại, email, CV và video riêng tư.')
         : tr('Publishing shows your profile to schools and search engines — everything except your phone, email, CV and a private video.', 'Khi đăng, hồ sơ của bạn hiển thị với các trường và công cụ tìm kiếm — mọi thứ trừ số điện thoại, email, CV và video riêng tư.')}{' '}
       <Button variant="link" size="none" type="button" className="text-xs font-semibold" onClick={() => setWhatsPublic(true)}>{tr('What’s public?', 'Những gì được công khai?')}</Button>
+      {/* ⚠️ THIS LINE IS THE ASSENT ITSELF for an account still untyped — this Publish sends `acceptTerms` and the server
+          records the Terms acceptance with it (api/teachers/me PUT), and that record must never assert an assent the
+          screen did not ask for (onboard-client.tsx says why). Rendered exactly when `needsTerms` is true. */}
+      {needsTerms && (
+        <span className="mt-1 block" data-testid="publish-terms">
+          {tr('By publishing you agree to our ', 'Bằng việc đăng, bạn đồng ý với ')}
+          {/* A NEW tab (the app hands it to Safari): following one must never navigate this page away — the answers
+              would survive in the tab draft, but a picked CV lives only here (commit gate, opus 2026-10-11). */}
+          <a href="/terms" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">{tr('Terms of Service', 'Điều khoản dịch vụ')}</a>
+          {', '}
+          <a href="/regulations" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">{tr('Operating regulations', 'Quy chế hoạt động')}</a>
+          {tr(' and ', ' và ')}
+          <a href="/privacy" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">{tr('Privacy Policy', 'Chính sách bảo mật')}</a>
+          .
+        </span>
+      )}
     </p>
   ) : null
 
@@ -1106,7 +1147,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
         secondaryAction={secondary}
         actionNote={publishNote}
         // The action bar clears the phone's bottom MobileNav pill (the post wizard's own offset — post-wizard.tsx).
-        offsetBottom="4.5rem"
+        // The tab bar's 4.5rem, or nothing where it is hidden — the teacher host (globals.css, the same `:has()` rule, so a
+        // browser without `:has()` keeps both the bar and the clearance: never a bar over the buttons).
+        offsetBottom="var(--teacher-tabbar-offset, 4.5rem)"
         header={
           <div className="mb-4 space-y-3">
             {mode === 'edit' && step === 'plans' && (steps.includes('cover') || savedCover?.coverOpen) && (

@@ -390,3 +390,10 @@ describe('signup-prompt — per-gate sign-in counters (UX3 J1)', () => {
     expect(r.completionRate).toBeCloseTo(0.5)
   })
 })
+
+describe('isExcludedPath — the teacher sign-up form (owner, 2026-10-11)', () => {
+  it('never over /teachers/join: the form asks for sign-in itself, in place', () => {
+    expect(isExcludedPath('/teachers/join')).toBe(true)
+    expect(isExcludedPath('/teachers/join/')).toBe(true)
+  })
+})

@@ -42,3 +42,12 @@ export function teacherJoinUrl(appUrl: string | null | undefined = process.env.N
   const origin = teacherOrigin(appUrl)
   return origin ? `${origin}/` : '/teachers/join'
 }
+
+/**
+ * Client only: is this document served on the teacher host? There a sign-in can never hold (cookies are host-scoped, the
+ * proxy refuses writes), so nothing on that host may open one — the timed prompt checks this (signup-prompt.tsx).
+ * NEXT_PUBLIC_APP_URL is inlined at build, so it names this deployment's own teacher host (eno.vn or eno.forum).
+ */
+export function onTeacherHost(): boolean {
+  try { return typeof window !== 'undefined' && isTeacherHost(window.location.host, process.env.NEXT_PUBLIC_APP_URL) } catch { return false }
+}

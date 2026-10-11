@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import type { User } from '@supabase/supabase-js'
 import { ensureProfile } from '@/lib/profile'
 import { pendingOnboardingStep } from '@/lib/auth-policy'
+import { resumesInPlace } from '@/lib/onboarding-gate'
+import { nextPathname, withoutAuthError } from '@/lib/auth-landing'
 
 // The shared tail of every sign-in. Two routes complete a session — /auth/callback
 // (OAuth's ?code=) and /auth/confirm (the emailed magic link's token_hash) — and they
@@ -38,12 +40,19 @@ export async function finishSignInPath(user: User | null | undefined, next: stri
       // is a step a user skips by typing a URL.
       // ⚠️ `profile.phone` IS ALREADY PROOF, not a claim — ensureProfile mirrors it only when
       // `user.phone_confirmed_at` is set, so it can never be self-typed.
-      if (pendingOnboardingStep(profile)) return `/onboard?next=${encodeURIComponent(next)}`
+      // ⛔ A PAGE THAT KEEPS ITS PLACE (onboarding-gate.ts resumesInPlace) skips ONLY the account-type chooser — it
+      // records that step itself, at Publish. Any other pending step (the phone, once required) still comes first.
+      const step = pendingOnboardingStep(profile)
+      // The account type is the ONLY step it may skip: answered (as the page's Publish answers it), nothing else may be
+      // pending — the phone, once required, is masked by the type step in `step` (commit gate, opus 2026-10-11).
+      const keepsPlace = step === 'account-type' && resumesInPlace(nextPathname(next))
+        && pendingOnboardingStep({ ...profile, accountType: 'individual' }) === null
+      if (step && !keepsPlace) return `/onboard?next=${encodeURIComponent(withoutAuthError(next))}`
     } catch (e) {
       console.error('[auth] ensureProfile', e)
     }
   }
-  return next
+  return withoutAuthError(next)
 }
 
 /** finishSignInPath as the redirect every redirect-style sign-in route answers with. */

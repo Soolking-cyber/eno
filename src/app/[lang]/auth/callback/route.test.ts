@@ -281,6 +281,12 @@ describe('the code branch', () => {
     })
   })
 
+  it('⛔ a failed sign-in from the teacher form lands back on the form, not home (owner, 2026-10-11)', async () => {
+    h.exchange = async () => ({ data: { user: null, session: null }, error: { message: 'bad code', status: 400 } })
+    expect((await call('?code=c&p=apple&next=%2Fteachers%2Fjoin')).headers.get('location')).toBe('https://eno.vn/teachers/join?auth_error=exchange')
+    expect((await call('?error=server_error&next=%2Fteachers%2Fjoin')).headers.get('location')).toBe('https://eno.vn/teachers/join?auth_error=oauth')
+  })
+
   it('a failed exchange still answers auth_error=exchange', async () => {
     h.exchange = async () => ({ data: { user: null, session: null }, error: { message: 'bad code', status: 400 } })
     expect((await call('?code=c&p=apple')).headers.get('location')).toBe('https://eno.vn/?auth_error=exchange')

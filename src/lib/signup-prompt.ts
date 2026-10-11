@@ -416,6 +416,10 @@ export function summariseGates(
 const EXCLUDED_EXACT = new Set([
   // Legal pages — someone reading the terms is not someone to interrupt with a sign-up.
   '/privacy', '/returns', '/prohibited', '/account-deletion',
+  // The teacher sign-up form asks for sign-in itself, in place, and must keep its place (onboarding-gate.ts
+  // resumesInPlace) — like /post below. ⚠️ On teacher.<base> its PUBLIC path is '/', so the prompt also checks the
+  // host (signup-prompt.tsx, onTeacherHost): there is no session on that host at all.
+  '/teachers/join',
 ])
 /** Matched as a whole path segment prefix — `/signin` and `/signin/…`, never `/signin-help`. */
 const EXCLUDED_PREFIX = [

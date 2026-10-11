@@ -3,7 +3,8 @@ import {
   AI_NOTICE_VERSION, BAND_FLOOR, CITY_PROVINCE, DRAFT_STEPS, EMPTY_TEACHER, EXPERIENCE_BANDS, TEACHER_FORM_OPTIONS, TEACHER_OPTIONS,
   TEACHER_STEP_FIELDS, aiMatchConsented, coverIsPublic, deriveRelocate, experienceBucket, fromLegacyTeacher, hasTeachingGoal,
   isLegacyTeacherBody, legacyDistrictKey, normalizeForSave, normalizeTeacherInput, splitGoalErrors, teacherFacetTokens,
-  teacherFreeTextFields, teacherFreeTexts, teacherSteps, teacherSubcategory, validateTeacherInput, visibleFields,
+  teacherCardPrice, teacherCardPriceFromSaved, teacherFreeTextFields, teacherFreeTexts, teacherSteps, teacherSubcategory,
+  validateTeacherInput, visibleFields,
 } from './profile'
 import { HUBS } from './places'
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
@@ -395,5 +396,31 @@ describe('transitional exports', () => {
     expect(teacherSubcategory({ subjects: ['stem', 'general-english'] })).toBe('subjects')
     expect(teacherSubcategory({ subjects: ['other-language'] })).toBe('other-languages')
     expect(teacherSubcategory({ subjects: ['phonics'] })).toBe('english')
+  })
+})
+
+// ── The card's price (owner, 2026-10-11): "300,000 vnd/hour … or salary they desire like 40 million a month"; both set →
+// the salary, for someone looking for a job ──────────────────────────────────────────────────────────────────────────
+describe('teacherCardPrice — the price a teacher\'s card states', () => {
+  it('a full-time or part-time job seeker with a salary: that salary a month — even when cover lessons are shown too', () => {
+    expect(teacherCardPrice(t())).toEqual({ price: 40_000_000, priceUnit: 'VND/month' })
+    expect(teacherCardPrice(t({ jobTypes: ['parttime'], expectedSalaryM: 25, ...coverOn }))).toEqual({ price: 25_000_000, priceUnit: 'VND/month' })
+  })
+  it('otherwise the cover rate an hour — only while the cover is SHOWN (switched on, consented, complete)', () => {
+    expect(teacherCardPrice(t({ expectedSalaryM: null, ...coverOn }))).toEqual({ price: 300_000, priceUnit: 'VND/hour' })
+    expect(teacherCardPrice(t({ jobTypes: ['private'], expectedSalaryM: null, ...coverOn }))).toEqual({ price: 300_000, priceUnit: 'VND/hour' })
+    // switched on but not consented: not shown, so not the price
+    expect(teacherCardPrice(t({ expectedSalaryM: null, ...coverOn, coverConsent: false }))).toEqual({ price: 0, priceUnit: 'VND/month' })
+  })
+  it('neither: 0 — the card keeps reading "Teacher profile"', () => {
+    expect(teacherCardPrice(t({ expectedSalaryM: null }))).toEqual({ price: 0, priceUnit: 'VND/month' })
+    // a salary is the price only for a full-time or part-time seeker
+    expect(teacherCardPriceFromSaved({ jobTypes: ['private'], expectedSalaryM: 40, coverOpen: false, coverRateVnd: null })).toEqual({ price: 0, priceUnit: 'VND/month' })
+  })
+  it('the saved-row form (the backfill) agrees with the form-answers form on every persona', () => {
+    for (const [name, o] of Object.entries(PERSONAS)) {
+      const a = t(o)
+      expect(teacherCardPriceFromSaved({ jobTypes: a.jobTypes, expectedSalaryM: a.expectedSalaryM, coverOpen: coverIsPublic(a), coverRateVnd: a.coverRateVnd }), name).toEqual(teacherCardPrice(a))
+    }
   })
 })
