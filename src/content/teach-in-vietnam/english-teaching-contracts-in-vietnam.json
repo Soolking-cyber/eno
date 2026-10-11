@@ -1,0 +1,604 @@
+{
+ "slug": "english-teaching-contracts-in-vietnam",
+ "title": "English teaching contracts in Vietnam: what to check (2026)",
+ "description": "Each clause of a Vietnam teaching contract checked against 2026 law: hours, Tet and holiday pay, probation, notice, exit fees, deposits and final pay.",
+ "h1": "English teaching contracts in Vietnam: the clauses to check and what the law says about each",
+ "eyebrow": "Teaching jobs",
+ "intro": "An English teaching job in Vietnam should come with a written, fixed-term labour contract that ends no later than your work permit. Vietnam's Labour Code 2019 applies to it in full. Before you sign, check the rate and guaranteed hours, how Tet, holidays and cancelled classes are paid, probation (60 days at most, at 85% pay or more) and notice (30 days on a 12 to 36-month contract). Deposits and held passports or degrees are banned outright, and fines for lateness or extra exit fees have no basis in the Labour Code.",
+ "keyPoints": [
+  "A 'freelance' or 'service' agreement with one centre that sets your timetable is a labour contract in law, but it **cannot by itself support a work permit**. Insist on a written labour contract, signed after the permit is issued and before your first class.",
+  "On a labour contract you get 12 paid public-holiday days from 1 July 2026 (24 November added), plus your own National Day and traditional New Year, and 12 days' paid annual leave after 12 months. Many hourly contracts still pay only for hours taught, so get the Tet arrangement and a minimum of hours in writing.",
+  "Probation is optional, at most 60 days, at no less than 85% of the wage. It does not let you start before your work permit is issued: working without one costs {{vnd:15000000-25000000}} and can lead to deportation.",
+  "To resign you give 30 days' notice on a 12 to 36-month contract, or 3 working days on a shorter one, and none if you are not paid in full or on time. Quitting without the required notice costs half a month's salary plus pay for the missing days. Beyond that, the Labour Code provides only for training costs under a written training contract.",
+  "An employer may not keep your original passport or degree or take a deposit: the fine is {{vnd:20000000-25000000}}, doubled for a company. Final pay is due within 14 working days of the contract ending (30 days in a few listed cases, such as the employer closing)."
+ ],
+ "sections": [
+  {
+   "id": "labour-or-service-contract",
+   "title": "Labour contract or service contract: which one you need",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Foreign teachers are covered by Vietnam's [Labour Code 2019](https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html) on the same terms as Vietnamese employees: its rules on hours, rest, holidays, leave, notice and wages all apply (Art. 2(3)). What ties the contract to your right to work is the work permit. Under [Decree 219/2025/ND-CP](https://english.luatvietnam.vn/decree-no-219-2025-nd-cp-dated-august-07-2025-of-the-government-on-foreign-workers-in-vietnam-407607-doc1.html), in force since 7 August 2025, a teacher hired by a Vietnamese centre or school works under a **written labour contract**, signed after the permit is issued and before the start date (Art. 22(4))."
+    },
+    {
+     "type": "p",
+     "text": "The contract may not run longer than the permit, which lasts at most 2 years and can be extended once by up to 2 years (Labour Code Arts. 151(2) and 155). In practice every foreign teacher is on a fixed-term contract, usually 12 to 24 months, and you can sign one fixed-term contract after another. An open-ended contract is impossible because it would outlast the permit."
+    },
+    {
+     "type": "p",
+     "text": "Some centres offer a 'freelance', 'collaborator' or 'service' contract instead. The label does not decide what it is: under [Labour Code Art. 13(1)](https://hethongphapluat.com/bo-luat-lao-dong-2019/khoan-1-dieu-13), an agreement with paid work, a wage and the centre's management or supervision is a labour contract. Decree 219's service-contract route is for staff of a foreign company with no presence in Vietnam. So a 'freelance' deal with one centre that sets your timetable cannot support a permit, and you end up working without one. Since 10 September 2026 that means a fine of {{vnd:15000000-25000000}} and possible deportation under [Decree 283/2026/ND-CP](https://suckhoedoisong.vn/tu-10-9-2026-lao-dong-nuoc-ngoai-se-bi-phat-neu-khong-co-giay-phep-lao-dong-169260824224738.htm)."
+    },
+    {
+     "type": "table",
+     "caption": "Labour contract versus a 'freelance' or service agreement for a teaching job (Labour Code 2019, Decree 219/2025, tax rules as of October 2026)",
+     "headers": [
+      "Point",
+      "Labour contract",
+      "'Freelance' or service agreement"
+     ],
+     "rows": [
+      [
+       "Work permit",
+       "The normal basis for a teacher employed by a Vietnamese centre or school",
+       "Cannot by itself support a permit for a job where the centre sets your timetable"
+      ],
+      [
+       "Holidays, leave, notice",
+       "Full Labour Code rights, including for part-time staff (Art. 32)",
+       "Usually treated by the centre as not applying, although in law the label is not decisive (Art. 13(1))"
+      ],
+      [
+       "Income tax",
+       "Withheld monthly at progressive resident rates, or a flat 20% for a non-resident",
+       "Usually a flat 10% withheld at source, settled at year-end finalisation; see [income tax for foreign teachers](/teach-in-vietnam/personal-income-tax-for-teachers-in-vietnam)"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Schools and universities have one more rule. [Circular 59/2026/TT-BGDĐT](https://pbgdpl.cantho.gov.vn/hoat-dong-thinh-giang-tieu-chuan-cua-nha-giao-thinh-giang-dinh-muc-gio-thinh-giang-va-hop-dong-thinh-giang-duoc-quy-dinh-nhu-the-nao), in force since 1 September 2026, lets education institutions engage visiting teachers, foreigners included, under a labour contract or a civil-law service contract. A service contract fits only work done independently, outside the institution's direct management."
+    },
+    {
+     "type": "p",
+     "text": "The contract must be in writing, in two copies, and an electronic contract is valid (Art. 14). The law does not fix the language, but courts and the authorities work in Vietnamese. Ask for a **bilingual English–Vietnamese contract** with a clause saying which version prevails, and keep your signed copy."
+    }
+   ]
+  },
+  {
+   "id": "contract-checklist",
+   "title": "The clause-by-clause checklist: what good looks like and the red flags",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Read the draft against the two tables below before you sign. Job ads rarely answer these questions. Most 2026 ads say neither whether pay is gross or net nor whether an 'hour' means 60 minutes, so get the answers in writing. For what centres and schools actually pay, see [English teacher salary in Vietnam](/teach-in-vietnam/english-teacher-salary-in-vietnam)."
+    },
+    {
+     "type": "table",
+     "caption": "Pay and time clauses in a Vietnamese teaching contract (Labour Code 2019 and July–October 2026 job ads)",
+     "headers": [
+      "Clause",
+      "What good looks like",
+      "Red flag"
+     ],
+     "rows": [
+      [
+       "Employer and contract type",
+       "A labour contract with the same legal entity named on your work permit, and the campus address",
+       "'Freelance', 'collaborator' or 'service' paperwork, or a company name that differs from the permit"
+      ],
+      [
+       "Term",
+       "A fixed term ending on or before the permit's expiry; a start date after the permit is issued",
+       "A term that runs past the permit, or a 'start now, the permit will follow' plan"
+      ],
+      [
+       "Rate",
+       "Stated as gross or net, per 60-minute hour or per period, and in which currency (with the exchange-rate rule if it is quoted in dollars)",
+       "'Up to' or 'average income up to' figures, which are ceilings; 'hour' left undefined when school periods often run 35–45 minutes"
+      ],
+      [
+       "Hours",
+       "A written minimum of hours or of pay a month, and whether preparation, meetings and admin are paid",
+       "'Hours as available' with no minimum; unpaid early arrival expected"
+      ],
+      [
+       "Pay date and payslip",
+       "A fixed pay date and a payslip with every payment (Art. 95); hourly pay settled at least every 15 days (Art. 97)",
+       "Pay only at the end of a course; no payslip"
+      ],
+      [
+       "Holidays and leave",
+       "12 public-holiday days plus your own National Day and New Year; 12 days' annual leave after 12 months; the Tet arrangement written down",
+       "Silent on holidays, or 'Tet is unpaid' with no minimum hours"
+      ],
+      [
+       "Insurance",
+       "Social-insurance enrolment stated for a contract of 12 months or more",
+       "A contract of 12 months or more with no word on social insurance"
+      ],
+      [
+       "Bonuses",
+       "The completion-bonus amount, its KPI criteria and what happens if the school ends the contract early",
+       "A 'bonus' with no amount or conditions"
+      ],
+      [
+       "Workplace",
+       "The campus address and any allowance for distant campuses",
+       "A 'Ho Chi Minh City' job that turns out to be in former Binh Duong, Vung Tau or on Con Dao"
+      ]
+     ]
+    },
+    {
+     "type": "table",
+     "caption": "Leaving and protection clauses: what Vietnamese law says (Labour Code 2019; fines under Decree 283/2026)",
+     "headers": [
+      "Clause",
+      "What the law says",
+      "Red flag"
+     ],
+     "rows": [
+      [
+       "Probation",
+       "Optional, once per job, at most 60 days, paid at no less than 85% of the wage (Arts. 24–27)",
+       "Longer or repeated probation, pay under 85%, or a paid 'trial week' before the permit"
+      ],
+      [
+       "Notice",
+       "30 days on a 12–36-month contract, 3 working days under 12 months (Arts. 35–36)",
+       "Notice demands far beyond the statutory periods"
+      ],
+      [
+       "Leaving early",
+       "Nothing owed if you give the required notice; without it (and without a no-notice ground) you owe half a month's salary plus pay for the notice days not given, lose severance, and repay training costs if you signed a written training contract (Art. 40 and 62)",
+       "A 'contract-breaking fee', a bond, or a multiple of your salary"
+      ],
+      [
+       "Discipline",
+       "No fines or pay cuts as discipline; deductions only to compensate damage, capped at 30% of monthly pay (Arts. 102, 127)",
+       "Fines for lateness or pay docked as punishment"
+      ],
+      [
+       "Documents and deposits",
+       "Certified copies only; no deposit of any kind (Art. 17)",
+       "Your original passport or degree held 'for safekeeping', a cash bond, or your first month's pay held back"
+      ],
+      [
+       "Work-permit costs",
+       "The employer files the permit and pays the state fee, {{vnd:600000}} in Ho Chi Minh City",
+       "A clause making you repay permit costs if you leave: Art. 40 lists what you owe, permit costs are not on it, and whether such a clause binds you is untested"
+      ],
+      [
+       "Non-compete",
+       "A written confidentiality agreement is allowed (Art. 21)",
+       "A ban on teaching for competitors after you leave: not regulated by the Labour Code, and its enforceability is uncertain"
+      ]
+     ]
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Get the full draft before you accept",
+       "text": "Ask for the contract itself, not just the offer letter, plus the bonus policy if a bonus is mentioned. Under Labour Code Art. 104 a bonus is owed only if the contract or the employer's published bonus rules promise it."
+      },
+      {
+       "title": "Check who the employer is",
+       "text": "Confirm the legal entity and that it is a going concern: [the Apax chain](https://news.tuoitre.vn/english-center-chain-apax-leaders-owes-38mn-to-ho-chi-minh-city-parents-10378777.htm) (2024) and [the IALC centre in Dak Lak](https://tienphong.vn/cong-an-vao-cuoc-vu-trung-tam-ngoai-ngu-dong-cua-giam-doc-bien-mat-post1832476.tpo) (2026) both collapsed owing teachers' wages. [The school directory](/schools) lets teachers who worked or interviewed at a Saigon employer leave reviews, though most schools have few or no reviews so far. Our guide to [teaching job scams](/teach-in-vietnam/teaching-job-scams-in-vietnam) covers the warning signs."
+      },
+      {
+       "title": "Match the contract to the permit",
+       "text": "The employer's name, your job title, the workplace and the end date should all match your work permit. In Ho Chi Minh City it may be a digitally signed e-permit that the employer downloads; ask to see it before your first paid class."
+      },
+      {
+       "title": "Ask the money questions in writing",
+       "text": "Gross or net; per 60-minute hour or per period; currency and exchange rate; the minimum hours a month; how Tet, public holidays and cancelled classes are paid; and the pay date."
+      },
+      {
+       "title": "Sign and keep the evidence",
+       "text": "Keep a signed bilingual copy, every payslip and every bank transfer. They are what a mediator or court will ask for if anything goes wrong."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hours-holidays-and-tet",
+   "title": "Hours, overtime, public holidays and Tet",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The Labour Code's limits on normal hours, breaks, weekly rest and overtime apply to teachers on a labour contract: overtime needs your consent and is paid at no less than 150% on weekdays, 200% on weekly rest days and 300% on public holidays. The full rules, and when extra classes count as overtime, are in [English teacher workload and schedules](/teach-in-vietnam/english-teacher-workload-and-schedules-in-vietnam#legal-limits-on-hours)."
+    },
+    {
+     "type": "p",
+     "text": "A full-time centre load is usually about 78–95 contact hours a month, so most hourly teachers never reach 48 hours a week. In practice 'overtime' then just means extra hours at the normal rate, unless the contract says otherwise. Teaching on a public holiday you are entitled to take off is a different matter: under a labour contract it is paid at 300% or more."
+    },
+    {
+     "type": "p",
+     "text": "Labour Code Art. 112 gives 11 paid public-holiday days, and 24 November makes 12 for everyone, plus 2 for foreign staff. 24 November became a paid day off under [Resolution 28/2026/QH16](https://xaydungchinhsach.chinhphu.vn/ngay-24-11-hang-nam-la-ngay-van-hoa-viet-nam-nguoi-lao-dong-duoc-nghi-huong-nguyen-luong-119260113152642414.htm), in force since 1 July 2026. A bill to write it into the Labour Code is before the National Assembly's October 2026 session ([VnExpress](https://vnexpress.net/luat-hoa-quy-dinh-nguoi-lao-dong-co-12-ngay-nghi-le-5116421.html)). If a holiday falls on your weekly day off, you get the next working day off instead. The [2027 Tet and National Day dates](https://www.vietnamplus.vn/chot-lich-nghi-dip-ngay-van-hoa-viet-nam-2026-tet-nguyen-dan-va-quoc-khanh-nam-2027-post1139707.vnp) were set for the public sector on 2 October 2026; your employer decides its own plan within the 5 statutory Tet days. Every date for 2026–27, including the Tet options for private employers, is in [the teaching year in Vietnam](/teach-in-vietnam/the-teaching-year-in-vietnam#public-holidays-2026-2027)."
+    },
+    {
+     "type": "h3",
+     "text": "Annual and personal leave"
+    },
+    {
+     "type": "p",
+     "text": "After 12 months with one employer you get **12 working days' paid annual leave**, pro rata for shorter service, plus 1 day for every 5 years of service (Arts. 113–114). The employer sets the leave schedule after consulting staff, and unused days must be paid out when the job ends. Paid personal leave covers 3 days for your own marriage and 3 days for the death of a parent, parent-in-law, spouse or child (Art. 115)."
+    },
+    {
+     "type": "h3",
+     "text": "Tet, summer and cancelled classes on an hourly contract"
+    },
+    {
+     "type": "p",
+     "text": "Part-time and hourly teachers on a labour contract have the same rights as full-time staff (Art. 32). But the law does not spell out how holiday pay is worked out for someone paid by the teaching hour, and many hourly arrangements in practice pay only for hours taught. Teaching guides say centres usually close for about 7–10 days at Tet. Public-school work through agencies largely stops from June to August: the school year formally opens on 5 September and ends before 31 May, but Ho Chi Minh City pupils report on 24 August (17 August for the first and final grades of each level), so some placements start in mid or late August. Our guide to [the teaching year](/teach-in-vietnam/the-teaching-year-in-vietnam) maps the quiet months."
+    },
+    {
+     "type": "p",
+     "text": "Cancelled classes fall under the Art. 99 work-stoppage rules. If the stoppage is the employer's fault, you are paid in full. If it is caused by power or water cuts, disasters, epidemics, an ordered relocation or economic reasons, pay is as agreed but at least the minimum wage for the first 14 working days. Hours an hourly contract never guaranteed need not be paid, which is why the minimum matters."
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "The clause that costs teachers most",
+     "text": "An hourly contract with no minimum hours and nothing on Tet, public holidays or cancelled classes. The rate looks fine until a Tet month or a quiet summer. Before you sign, get a **guaranteed minimum of hours or pay** in writing, plus how holidays and cancelled sessions are paid. Some chains now advertise a 'guaranteed monthly salary' without publishing the amount, so ask for the figure."
+    }
+   ]
+  },
+  {
+   "id": "probation-notice-and-termination",
+   "title": "Probation, notice and ending the contract",
+   "blocks": [
+    {
+     "type": "h3",
+     "text": "Probation"
+    },
+    {
+     "type": "p",
+     "text": "Probation is optional and allowed once per job. For work that needs a college or university qualification, the usual case for teachers, it lasts **at most 60 days**, and pay must be at least 85% of the job's wage (Labour Code Arts. 24–27). Either side may end it without notice or compensation. At the end the employer must tell you the result, and if it is satisfactory the contract continues. Probation longer than the cap, a second probation or pay under 85% is fined {{vnd:2000000-5000000}} under Decree 283/2026, and the shortfall must be paid ([VnExpress](https://vnexpress.net/phat-den-25-trieu-dong-voi-doanh-nghiep-giu-giay-to-cua-nguoi-lao-dong-5103298.html))."
+    },
+    {
+     "type": "p",
+     "text": "Probation is not an exception to the work permit. You may not start paid work, probation and paid trial classes included, until your permit is issued. A separate probation contract is outside compulsory social insurance; if probation is written into a 12-month contract, ask HR from which month contributions start, because the rules do not settle it."
+    },
+    {
+     "type": "h3",
+     "text": "Resigning"
+    },
+    {
+     "type": "table",
+     "caption": "Notice a teacher must give to resign (Labour Code Art. 35)",
+     "headers": [
+      "Your situation",
+      "Written notice required"
+     ],
+     "rows": [
+      [
+       "Fixed-term contract of 12 to 36 months",
+       "At least 30 days"
+      ],
+      [
+       "Contract under 12 months",
+       "At least 3 working days"
+      ],
+      [
+       "Not paid in full or on time; the agreed job, place or conditions not provided; mistreatment, forced work or sexual harassment; misled when hired",
+       "None"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The 45-day period you may see quoted applies only to open-ended contracts, which a foreign teacher cannot have. One exception to the late-pay ground: an employer may lawfully delay wages by up to 30 days for force majeure it cannot overcome ([Art. 97(4)](https://hethongphapluat.com/bo-luat-lao-dong-2019/dieu-97)), and walking out in that case can count as an unlawful resignation. Send your notice by email and get a signed copy back."
+    },
+    {
+     "type": "h3",
+     "text": "When the employer ends it"
+    },
+    {
+     "type": "p",
+     "text": "An employer may end a contract early only on the grounds in Art. 36, with the same notice: 30 days on a 12–36-month contract, 3 working days under 12 months. The grounds include regularly failing to complete work against the employer's written criteria, prolonged illness, force majeure or downsizing, and dishonest information when hired. No notice is needed after 5 or more consecutive working days' absence without good reason. Dismissal as a disciplinary penalty is limited to listed grounds such as theft, sexual harassment defined in the work rules, or unexcused absence of 5 days in 30 (Art. 125)."
+    },
+    {
+     "type": "p",
+     "text": "The employer may not end the contract early while you are on approved leave, under medical treatment, pregnant, on maternity leave or raising a child under 12 months (Art. 37). That does not stop a fixed-term contract from simply expiring, though; you only get priority for a new one. A teacher laid off in a restructuring or for economic reasons is owed a job-loss allowance of 1 month's wage per year of service, at least 2 months."
+    },
+    {
+     "type": "table",
+     "caption": "What each side owes when a contract is ended unlawfully (Labour Code Arts. 40, 41 and 62)",
+     "headers": [
+      "Who broke the rules",
+      "What they owe"
+     ],
+     "rows": [
+      [
+       "You quit without the required notice or a no-notice ground",
+       "Half a month's salary plus pay for the notice days not given; no severance; training costs only if you signed a written training contract"
+      ],
+      [
+       "The employer ended the contract without a lawful ground or notice",
+       "Take you back, with back pay and insurance for the days not worked plus at least 2 months' salary; severance on top if you do not want to return; pay for any notice days not given"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "exit-fees-deposits-and-documents",
+   "title": "Exit fees, deposits and original documents: what the law allows",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The Labour Code itself fixes what an employee owes for quitting without the required notice: the Art. 40 amounts above, plus training costs under a written training contract. It has **no provision for 'contract-breaking fees', bonds or penalty multiples**. In a 2018 case a private school demanded 5 years' notice and an exit fee of 12 months' wages, and held teachers' original degrees as 'collateral'. A Da Nang Bar Association lawyer [told Tuoi Tre](https://news.tuoitre.vn/vietnamese-school-requires-teachers-to-give-five-years-notice-on-quitting-10346707.htm) the terms were void. No court ruling on teacher penalty clauses has been found, so how a court would treat an agreed penalty is untested."
+    },
+    {
+     "type": "p",
+     "text": "Fines and pay cuts as discipline are banned (Art. 127(2)), so 'fines' for lateness are unlawful. Wages may be deducted only to compensate damage to the employer's tools, equipment or property, and by no more than 30% of monthly pay after compulsory insurance and income tax (Art. 102)."
+    },
+    {
+     "type": "p",
+     "text": "An employer may not keep your original ID papers, passport, degrees or certificates, or demand a cash or property deposit to secure the contract (Art. 17). Since 10 September 2026 the fine is {{vnd:20000000-25000000}} for an individual employer and {{vnd:40000000-50000000}} for an organisation, and the documents or money must be returned, with interest on money ([VnExpress](https://vnexpress.net/phat-den-25-trieu-dong-voi-doanh-nghiep-giu-giay-to-cua-nguoi-lao-dong-5103298.html)). Holding back your first month's salary as security counts too. The UK government's [Living in Vietnam guidance](https://www.gov.uk/guidance/living-in-vietnam) says never to hand over your passport, even for safekeeping."
+    },
+    {
+     "type": "p",
+     "text": "What an employer can lawfully do is make a bonus conditional. Completion and KPI bonuses are usually lost if you leave early, so they work as the real incentive to stay. A written confidentiality agreement is allowed (Art. 21). Post-employment non-compete clauses are not regulated by the Labour Code, and whether they can be enforced is uncertain."
+    }
+   ]
+  },
+  {
+   "id": "bonuses",
+   "title": "13th-month salary, Tet bonus and completion bonuses",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Vietnamese law does not require a 13th-month salary or a Tet bonus. Under Labour Code Art. 104, the employer sets bonuses in its own bonus rules, based on business results and performance. So a Tet bonus is owed only if your contract or the published bonus policy promises one. Foreign-teacher ads mention completion, KPI, sign-on and 'holiday' bonuses rather than a 13th month."
+    },
+    {
+     "type": "table",
+     "caption": "Bonuses in Ho Chi Minh City-area teaching ads, 2025–2026 (employer ads; amounts as advertised, usually conditional)",
+     "headers": [
+      "Bonus type",
+      "Examples from ads",
+      "Usual condition"
+     ],
+     "rows": [
+      [
+       "Completion",
+       "One month's salary after a one-year contract (Wall Street English, 2026); {{vnd:11500000}} after a year (DTP, 2025)",
+       "Finish the contract"
+      ],
+      [
+       "KPI-based end of contract",
+       "{{vnd:13500000}} (Apollo, January 2026)",
+       "Finish the contract and meet the KPIs"
+      ],
+      [
+       "Sign-on or relocation",
+       "Up to {{vnd:15000000}} (Apollo, January 2026); up to {{vnd:10000000}} (ILA, July 2026)",
+       "Paid with the first salary or once conditions are met"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "For context, Ho Chi Minh City's Department of Home Affairs reported employers' planned average Tet 2026 bonus at about {{vnd:12020000}} per worker across all sectors ([Tuoi Tre](https://tuoitre.vn/tp-hcm-thuong-tet-cao-nhat-hon-1-8-ti-dong-tai-mot-doanh-nghiep-fdi-20251226163409853.htm)). That is not a teacher figure, and most centre contracts for foreign teachers include no Tet bonus. Negotiate any bonus in writing: the amount, the criteria, and whether it is paid pro rata if the school ends the contract early."
+    }
+   ]
+  },
+  {
+   "id": "final-pay-and-changing-employers",
+   "title": "Final pay, release and changing employers",
+   "blocks": [
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Final settlement within 14 working days",
+       "text": "When a contract ends, both sides must settle everything within 14 working days. The limit stretches to 30 days only in listed cases, such as the employer closing, restructuring or merging (Art. 48)."
+      },
+      {
+       "title": "Unused annual leave paid out",
+       "text": "Untaken leave days must be paid (Art. 113). Under the new income tax rules, that payout is tax-exempt when it is made on resignation or job loss ([KPMG](https://assets.kpmg.com/content/dam/kpmg/vn/pdf/2026/01/new-pit-law-en.pdf))."
+      },
+      {
+       "title": "Severance if you worked 12 months or more",
+       "text": "Half a month's average salary (from the last 6 months) per year of service, when the contract ends by expiry, agreement, lawful resignation or lawful termination (Art. 46). Foreigners are outside unemployment insurance, so their whole service usually counts, unless the employer paid an unemployment-insurance equivalent with your salary and can prove it ([Apolat Legal](https://apolatlegal.com/paying-severance-allowance-for-foreign-employees-key-considerations-for-employers/)). If the contract ends because the permit expires, the law is unclear, so ask how the employer handles it."
+      },
+      {
+       "title": "Documents back",
+       "text": "The employer must confirm your social-insurance periods, return any originals it holds, and give you copies of your work records on request, at its own cost (Art. 48(3))."
+      },
+      {
+       "title": "Keep a copy of your work permit",
+       "text": "The permit stops being valid when the contract ends, and the employer must return it to the authority within 15 days. Keep a copy: years taught in Vietnam count towards a future permit's experience test only through earlier Vietnamese work permits."
+      }
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Changing employers needs a **new work permit**, even for the same job. Since [Decision 346/QĐ-BNV](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/decision-346-qd-bnv-on-the-amendment-and-supplementation-of-administrative-procedures-for-foreign-employees-working-in-vietnam) of 24 March 2026, you re-submit your degree and experience proof, so keep your apostilled or legalised documents and certified translations. You cannot start at the new school until its permit is issued. Coordinate your last day with both employers, and ask the new one exactly which documents from your old job it needs. The [work permit guide](/teach-in-vietnam/vietnam-work-permit-for-english-teachers) covers the filing."
+    },
+    {
+     "type": "p",
+     "text": "Since July 2025 official addresses use the new ward names, so your contract and permit show the employer's registered ward rather than 'District 1' or 'Binh Thanh'. Check that the address matches the one on the employer's licence. If you are leaving the country rather than changing jobs, the [leaving Vietnam checklist](/teach-in-vietnam/leaving-vietnam-checklist-for-teachers) covers your final pay and the [social-insurance lump sum](/teach-in-vietnam/social-and-health-insurance-for-foreign-teachers-in-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "if-the-employer-breaks-the-contract",
+   "title": "If your employer does not pay or breaks the contract",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Documented teacher disputes in Ho Chi Minh City are mostly unpaid wages when an operator fails. The Apax Leaders chain owed teachers and staff {{vnd:11500000000}} in the city ([Tuoi Tre News](https://news.tuoitre.vn/english-center-chain-apax-leaders-owes-38mn-to-ho-chi-minh-city-parents-10378777.htm)). Wages may be paid late only for force majeure, by no more than 30 days, with interest once they are 15 or more days late. Any other late payment is a fined violation that lets you resign without notice."
+    },
+    {
+     "type": "p",
+     "text": "Put your claim in writing first, citing Labour Code Art. 97 on pay dates and, after the contract has ended, Art. 48's 14 working days. Deadlines run from when you discovered the violation: 6 months to request a state labour mediator, 9 months for arbitration (both sides must agree) and 1 year for a court claim ([Labour Code Arts. 187–190](https://hethongphapluat.com/bo-luat-lao-dong-2019/chuong-14)); disputes over dismissal, unlawful termination or severance can go straight to court, and employees suing for unpaid wages or severance pay [no court fees](https://ketoananpha.vn/nghi-quyet-326-2016-ubtvqh14). The step-by-step route, including where to file in Ho Chi Minh City now that districts are gone, is in [what to do if your school does not pay you](/teach-in-vietnam/teaching-job-scams-in-vietnam#if-you-are-not-paid)."
+    },
+    {
+     "type": "p",
+     "text": "Your embassy will not recover wages; it can give you a list of local lawyers. Proceedings are in Vietnamese, which is another reason to hold a bilingual contract. This guide explains the rules, but it is not legal advice: for a live dispute, speak to a Vietnamese labour lawyer, and remember the authority or court has the final word."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Can I teach at a second centre on my current contract and work permit?",
+   "a": "No. A work permit covers one employer, so a second centre or weekend school must get its own permit for you. Teaching there without one exposes you to the fine for working without a permit and possible deportation, and the centre to its own fine."
+  },
+  {
+   "q": "Do I have to pay back my work permit costs if I leave early?",
+   "a": "The Labour Code lists what an employee owes for leaving without the required notice: half a month's salary plus pay for the notice days not given, and training costs only under a written training contract. Permit costs are not on that list, and the state fee is the employer's to pay. If your contract has a repayment clause, ask a lawyer before you rely on either reading."
+  },
+  {
+   "q": "Is an electronic contract valid?",
+   "a": "Yes. The Labour Code accepts electronic labour contracts, and under Decree 337/2025/ND-CP they have the same legal value as paper. Since 1 July 2026 they are routed through a national e-contract platform and given an ID code. Keep a downloaded copy."
+  },
+  {
+   "q": "Can the school let my contract lapse if I am pregnant?",
+   "a": "It may not end the contract early while you are pregnant, on maternity leave or raising a child under 12 months. But a fixed-term contract can still expire on its end date; the law only gives you priority for a new contract."
+  },
+  {
+   "q": "Is 24 November really a paid holiday for teachers at private centres?",
+   "a": "Yes, if you are an employee. Resolution 28/2026/QH16 makes 24 November, Vietnam Culture Day, a paid day off for all employees from 1 July 2026, private sector included. The first one is Tuesday 24 November 2026; how an hourly contract pays for it depends on its terms, so ask."
+  },
+  {
+   "q": "My contract is under 12 months. Do I get any insurance contribution?",
+   "a": "You are outside compulsory social insurance. Labour Code Art. 168(3) says employees outside the compulsory schemes should receive the employer's equivalent contribution with their wages, but how that applies to foreign teachers is unsettled. Treat it as a point to raise when you negotiate, not a settled right."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Labour Code 2019 (No. 45/2019/QH14), full text",
+   "publisher": "Dữ liệu pháp luật",
+   "url": "https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html"
+  },
+  {
+   "title": "Labour Code 2019, Article 13(1): definition of a labour contract",
+   "publisher": "Hệ thống pháp luật",
+   "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/khoan-1-dieu-13"
+  },
+  {
+   "title": "Labour Code 2019, Article 97: wage payment",
+   "publisher": "Hệ thống pháp luật",
+   "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/dieu-97"
+  },
+  {
+   "title": "Labour Code 2019, Chapter XIV: labour disputes",
+   "publisher": "Hệ thống pháp luật",
+   "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/chuong-14"
+  },
+  {
+   "title": "Decree No. 219/2025/ND-CP on foreign workers in Vietnam",
+   "publisher": "LuatVietnam",
+   "url": "https://english.luatvietnam.vn/decree-no-219-2025-nd-cp-dated-august-07-2025-of-the-government-on-foreign-workers-in-vietnam-407607-doc1.html"
+  },
+  {
+   "title": "Từ 10/9/2026, lao động nước ngoài sẽ bị phạt nếu không có giấy phép lao động",
+   "publisher": "Sức khỏe & Đời sống",
+   "url": "https://suckhoedoisong.vn/tu-10-9-2026-lao-dong-nuoc-ngoai-se-bi-phat-neu-khong-co-giay-phep-lao-dong-169260824224738.htm"
+  },
+  {
+   "title": "Phạt đến 25 triệu đồng với doanh nghiệp giữ giấy tờ của người lao động",
+   "publisher": "VnExpress",
+   "url": "https://vnexpress.net/phat-den-25-trieu-dong-voi-doanh-nghiep-giu-giay-to-cua-nguoi-lao-dong-5103298.html"
+  },
+  {
+   "title": "Ngày 24/11 hằng năm là Ngày Văn hóa Việt Nam, người lao động được nghỉ, hưởng nguyên lương",
+   "publisher": "Government of Vietnam (Xây dựng chính sách)",
+   "url": "https://xaydungchinhsach.chinhphu.vn/ngay-24-11-hang-nam-la-ngay-van-hoa-viet-nam-nguoi-lao-dong-duoc-nghi-huong-nguyen-luong-119260113152642414.htm"
+  },
+  {
+   "title": "Luật hóa quy định người lao động có 12 ngày nghỉ lễ",
+   "publisher": "VnExpress",
+   "url": "https://vnexpress.net/luat-hoa-quy-dinh-nguoi-lao-dong-co-12-ngay-nghi-le-5116421.html"
+  },
+  {
+   "title": "Chốt lịch nghỉ dịp Ngày Văn hóa Việt Nam 2026, Tết Nguyên đán và Quốc khánh năm 2027",
+   "publisher": "VietnamPlus",
+   "url": "https://www.vietnamplus.vn/chot-lich-nghi-dip-ngay-van-hoa-viet-nam-2026-tet-nguyen-dan-va-quoc-khanh-nam-2027-post1139707.vnp"
+  },
+  {
+   "title": "Circular 59/2026/TT-BGDĐT on visiting teachers: standards, hours and contracts",
+   "publisher": "Cần Thơ Department of Justice (legal information portal)",
+   "url": "https://pbgdpl.cantho.gov.vn/hoat-dong-thinh-giang-tieu-chuan-cua-nha-giao-thinh-giang-dinh-muc-gio-thinh-giang-va-hop-dong-thinh-giang-duoc-quy-dinh-nhu-the-nao"
+  },
+  {
+   "title": "Decision 346/QĐ-BNV on amended administrative procedures for foreign employees",
+   "publisher": "EY Vietnam",
+   "url": "https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/decision-346-qd-bnv-on-the-amendment-and-supplementation-of-administrative-procedures-for-foreign-employees-working-in-vietnam"
+  },
+  {
+   "title": "Resolution 326/2016/UBTVQH14 on court fees and charges",
+   "publisher": "Kế toán An Pha",
+   "url": "https://ketoananpha.vn/nghi-quyet-326-2016-ubtvqh14"
+  },
+  {
+   "title": "Vietnamese school requires teachers to give five years' notice on quitting",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/vietnamese-school-requires-teachers-to-give-five-years-notice-on-quitting-10346707.htm"
+  },
+  {
+   "title": "English center chain Apax Leaders owes $38mn to Ho Chi Minh City parents",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/english-center-chain-apax-leaders-owes-38mn-to-ho-chi-minh-city-parents-10378777.htm"
+  },
+  {
+   "title": "Paying severance allowance for foreign employees: key considerations for employers",
+   "publisher": "Apolat Legal",
+   "url": "https://apolatlegal.com/paying-severance-allowance-for-foreign-employees-key-considerations-for-employers/"
+  },
+  {
+   "title": "New Personal Income Tax Law (tax alert, January 2026)",
+   "publisher": "KPMG Vietnam",
+   "url": "https://assets.kpmg.com/content/dam/kpmg/vn/pdf/2026/01/new-pit-law-en.pdf"
+  },
+  {
+   "title": "Living in Vietnam",
+   "publisher": "UK Foreign, Commonwealth & Development Office (GOV.UK)",
+   "url": "https://www.gov.uk/guidance/living-in-vietnam"
+  },
+  {
+   "title": "TP.HCM: thưởng Tết cao nhất hơn 1,8 tỉ đồng tại một doanh nghiệp FDI",
+   "publisher": "Tuổi Trẻ",
+   "url": "https://tuoitre.vn/tp-hcm-thuong-tet-cao-nhat-hon-1-8-ti-dong-tai-mot-doanh-nghiep-fdi-20251226163409853.htm"
+  },
+  {
+   "title": "Ho Chi Minh City part-time native English teachers (Wall Street English)",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/ho-chi-minh-city-part-time-native-english-teachers-2"
+  },
+  {
+   "title": "Apollo English full-time teacher package (job ad, January 2026)",
+   "publisher": "The TEFL Academy",
+   "url": "https://www.theteflacademy.com/?p=106928"
+  },
+  {
+   "title": "ILA full-time ESL/EFL teacher for overseas candidates (job ad, July 2026)",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/full-time-eslefl-teacher-at-ila-over-30-years-of-expertise-for-overseas-candidates"
+  },
+  {
+   "title": "Từ 1/7/2026, nâng cấp hợp đồng lao động điện tử gắn mã định danh",
+   "publisher": "Dân trí",
+   "url": "https://dantri.com.vn/lao-dong-viec-lam/tu-172026-nang-cap-hop-dong-lao-dong-dien-tu-gan-ma-dinh-danh-kiem-soat-20251224225008830.htm"
+  },
+  {
+   "title": "Công an vào cuộc vụ trung tâm ngoại ngữ đóng cửa, giám đốc biến mất",
+   "publisher": "Tiền Phong",
+   "url": "https://tienphong.vn/cong-an-vao-cuoc-vu-trung-tam-ngoai-ngu-dong-cua-giam-doc-bien-mat-post1832476.tpo"
+  }
+ ],
+ "related": [
+  "vietnam-work-permit-for-english-teachers",
+  "english-teacher-salary-in-vietnam",
+  "teaching-job-scams-in-vietnam",
+  "language-centre-jobs-in-ho-chi-minh-city",
+  "social-and-health-insurance-for-foreign-teachers-in-vietnam",
+  "leaving-vietnam-checklist-for-teachers"
+ ],
+ "lastChecked": "2026-10-11"
+}

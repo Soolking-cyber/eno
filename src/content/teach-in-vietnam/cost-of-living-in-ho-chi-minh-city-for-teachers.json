@@ -1,0 +1,902 @@
+{
+ "slug": "cost-of-living-in-ho-chi-minh-city-for-teachers",
+ "title": "Cost of living in Ho Chi Minh City for teachers (2026)",
+ "description": "Rent by district from 15,141 October 2026 listings, power and water tariffs, frugal and comfortable budgets, start-up cash and what a Saigon teacher can save.",
+ "h1": "What it costs to live in Ho Chi Minh City on a teacher's pay in 2026",
+ "eyebrow": "Pay and money",
+ "intro": "On a full-time language-centre income, Ho Chi Minh City is affordable: a frugal single teacher spends roughly a third to just over half of take-home pay, while a comfortable 1-bedroom lifestyle uses most or all of it. Rent decides the gap: a private room takes roughly 9–15% of net pay, a local-market 1-bedroom 17–33%, and an expat serviced flat roughly 34–49%. The figures below come from eno.vn's Rent Index (15,141 listings, October 2026), official tariffs, Numbeo's crowd-sourced prices and 2026 job ads.",
+ "keyPoints": [
+  "**Rent:** city-wide median asking rents on 10 October 2026 were {{vnd:3900000}} a month for a room, {{vnd:6800000}} for a 1-bedroom and {{vnd:13000000}} for a 2-bedroom; a 1-bedroom in District 2 (Thao Dien/An Phu) had a median of {{vnd:10000000}}.",
+  "**Two budgets:** about {{vnd:14000000-17000000}} a month living frugally in a private room, and about {{vnd:25000000-35000000}} for a comfortable life in a 1-bedroom flat.",
+  "**Income:** a full-time centre load of 78–95 contact hours a month at {{vnd:450000-550000}} an hour comes to roughly {{vnd:35000000-52000000}} gross, or about {{vnd:30500000-44300000}} after 9.5% social and health insurance and resident income tax.",
+  "**Start-up cash before your first salary:** about {{vnd:21400000-24400000}} on the room route and {{vnd:48000000-60000000}} on the 1-bedroom route, not counting flights or documents.",
+  "**Electricity is the bill to check:** the official tariff runs {{vnd:1984-3460}} per kWh before VAT, many landlords charge a flat {{vnd:3500-5000}}, and a landlord who buys at the residential price may not collect more than the EVN bill."
+ ],
+ "sections": [
+  {
+   "id": "rent-by-district",
+   "title": "How much is rent in Ho Chi Minh City, district by district?",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Rent is the number that decides your budget. eno.vn's [HCMC Rent Index](/hcmc-rent-index) pools 15,141 monthly asking prices from Batdongsan, Nhatot, Muaban, Rever, Honeycomb and eno.vn members (snapshot of 10 October 2026). City-wide, the median is **{{vnd:3900000}} a month for a room**, {{vnd:6800000}} for a 1-bedroom flat and {{vnd:13000000}} for a 2-bedroom, and the middle half of 1-bedroom listings ask {{vnd:5400000-9000000}}."
+    },
+    {
+     "type": "p",
+     "text": "The index, like most listings and job ads, uses the old district names. Since 1 July 2025 the city officially has no districts: it has 168 ward- and commune-level units (113 wards, 54 communes and one special zone), and your lease will show the new ward ([Báo Đấu thầu](https://baodauthau.vn/tphcm-co-113-phuong-54-xa-va-1-dac-khu-sau-sap-xep-post180312.html)). Thao Dien, for example, is now part of An Khanh ward, and old District 1 is split into Sai Gon, Ben Thanh, Tan Dinh and Cau Ong Lanh wards."
+    },
+    {
+     "type": "table",
+     "caption": "Median asking rent a month by legacy district, from the [eno.vn HCMC Rent Index](/hcmc-rent-index), snapshot of 10 October 2026. Middle half = 25th to 75th percentile of 1-bedroom listings. The Thu Duc City row is the whole of the former Thu Duc City, District 2 included, so it overlaps the District 2 row.",
+     "headers": [
+      "District (old name)",
+      "Room",
+      "1-bedroom",
+      "1-bedroom middle half",
+      "2-bedroom"
+     ],
+     "rows": [
+      [
+       "Whole city",
+       "{{vnd:3900000}}",
+       "{{vnd:6800000}}",
+       "{{vnd:5400000-9000000}}",
+       "{{vnd:13000000}}"
+      ],
+      [
+       "District 1",
+       "{{vnd:5300000}}",
+       "{{vnd:8600000}}",
+       "{{vnd:7300000-10900000}}",
+       "{{vnd:30000000}}"
+      ],
+      [
+       "District 2 (Thao Dien, An Phu)",
+       "{{vnd:4800000}}",
+       "{{vnd:10000000}}",
+       "{{vnd:7250000-18000000}}",
+       "{{vnd:20000000}}"
+      ],
+      [
+       "District 3",
+       "{{vnd:4650000}}",
+       "{{vnd:7500000}}",
+       "{{vnd:6325000-9000000}}",
+       "{{vnd:14000000}}"
+      ],
+      [
+       "District 4",
+       "{{vnd:4300000}}",
+       "{{vnd:13000000}}",
+       "{{vnd:8000000-14500000}}",
+       "{{vnd:17500000}}"
+      ],
+      [
+       "District 5",
+       "{{vnd:4800000}}",
+       "{{vnd:7500000}}",
+       "{{vnd:6200000-10000000}}",
+       "{{vnd:14000000}}"
+      ],
+      [
+       "District 7 (Phu My Hung)",
+       "{{vnd:4000000}}",
+       "{{vnd:7000000}}",
+       "{{vnd:6000000-9000000}}",
+       "{{vnd:15000000}}"
+      ],
+      [
+       "District 10",
+       "{{vnd:4700000}}",
+       "{{vnd:7600000}}",
+       "{{vnd:6400000-10000000}}",
+       "{{vnd:16000000}}"
+      ],
+      [
+       "Binh Thanh",
+       "{{vnd:4500000}}",
+       "{{vnd:7500000}}",
+       "{{vnd:6150000-9500000}}",
+       "{{vnd:15500000}}"
+      ],
+      [
+       "Phu Nhuan",
+       "{{vnd:4700000}}",
+       "{{vnd:7300000}}",
+       "{{vnd:6200000-9000000}}",
+       "{{vnd:16000000}}"
+      ],
+      [
+       "Tan Binh",
+       "{{vnd:4200000}}",
+       "{{vnd:6500000}}",
+       "{{vnd:5500000-8000000}}",
+       "{{vnd:11000000}}"
+      ],
+      [
+       "Thu Duc City (incl. old Districts 2 and 9)",
+       "{{vnd:4100000}}",
+       "{{vnd:6800000}}",
+       "{{vnd:5500000-10000000}}",
+       "{{vnd:15000000}}"
+      ],
+      [
+       "Go Vap",
+       "{{vnd:3800000}}",
+       "{{vnd:5200000}}",
+       "{{vnd:4500000-6300000}}",
+       "{{vnd:9000000}}"
+      ],
+      [
+       "Tan Phu",
+       "{{vnd:3800000}}",
+       "{{vnd:5000000}}",
+       "{{vnd:4400000-6000000}}",
+       "{{vnd:12000000}}"
+      ],
+      [
+       "Binh Tan",
+       "{{vnd:3300000}}",
+       "{{vnd:4400000}}",
+       "{{vnd:3600000-5500000}}",
+       "{{vnd:9800000}}"
+      ],
+      [
+       "District 12",
+       "{{vnd:3000000}}",
+       "{{vnd:4000000}}",
+       "{{vnd:3500000-4800000}}",
+       "{{vnd:7500000}}"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Read the table with three caveats. These are **asking prices, not signed leases**, so a 12-month lease or a few months paid up front commonly earns a discount. Some cells rest on small samples: District 1's 2-bedroom median comes from only 81 listings with a middle half of {{vnd:15000000-55000000}}, District 4 has just 29 room listings, and District 4's 1-bedroom median (104 listings) sits above Districts 1 and 2 because many of them are in newer riverside condos, so treat those as rough. A ‘room’ is a private room (phòng trọ) in a shared house or small building; serviced and mini apartments count in their bedroom band."
+    },
+    {
+     "type": "p",
+     "text": "If you have seen much higher figures, they are probably Numbeo's. Its crowd-sourced 1-bedroom ‘city centre’ rent is {{vnd:15200000}} a month (range {{vnd:12000000-25000000}}) and ‘outside centre’ {{vnd:7700000}} ([Numbeo, updated 5 October 2026](https://www.numbeo.com/cost-of-living/in/Ho-Chi-Minh-City)). That sample is small (1,080 entries from 109 contributors in a year) and leans towards serviced flats aimed at expats, so read Numbeo as the price of a serviced apartment and the Rent Index as the local market."
+    },
+    {
+     "type": "p",
+     "text": "Sharing gets you a better flat for less: a Binh Thanh 2-bedroom at the {{vnd:15500000}} median is about {{vnd:7750000}} each, and outside District 1 a shared 2-bedroom at the median works out at about {{vnd:3750000}} each in District 12 up to {{vnd:10000000}} in District 2. For commute, noise and flooding by area, see [where to live in Ho Chi Minh City as a teacher](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher); current homes are listed on [eno.vn rentals](/c/rentals)."
+    },
+    {
+     "type": "p",
+     "text": "Moving in usually costs a deposit of one to two months' rent plus the first month in advance. No law caps the deposit: one month is the norm on a residential lease, two is common for serviced or well-furnished flats, and serviced buildings often bill quarterly in advance ([renting an apartment in Vietnam](/renting-an-apartment-vietnam-foreigner)). Breaking a 12-month lease early ordinarily forfeits the deposit unless the contract says otherwise, so read [how to get your deposit back](/rental-deposit-vietnam) before you sign. In apartment buildings, also ask who pays the management fee; it is usually the owner or built into the rent."
+    }
+   ]
+  },
+  {
+   "id": "bills",
+   "title": "Bills: electricity, water, internet and phone",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Electricity is the bill that surprises people, because air-conditioning drives it and many landlords resell power at a flat rate. Household power is billed on the **six-tier EVN tariff** set by Decision 1279/QĐ-BCT from 10 May 2025, with no price change since ([EVN](https://www.evn.com.vn/d/vi-VN/news/Sau-dieu-chinh-gia-dien-tu-ngay-105-khach-hang-se-tra-them-bao-nhieu-tien-dien-moi-thang-60-12-502670)). A five-tier structure was approved in 2025 but applies only from the next average-price adjustment, so October 2026 bills still use six tiers. Household bills carry 8% VAT, cut from 10%, until 31 December 2026 ([Vietnam Law Magazine](https://vietnamlawmagazine.vn/two-percent-vat-reduction-extends-to-end-of-2026-74557.html))."
+    },
+    {
+     "type": "table",
+     "caption": "Residential electricity tariff in force in October 2026 (Decision 1279/QĐ-BCT), price per kWh before 8% VAT. Source: EVN.",
+     "headers": [
+      "Monthly use",
+      "Price per kWh"
+     ],
+     "rows": [
+      [
+       "0–50 kWh",
+       "{{vnd:1984}}"
+      ],
+      [
+       "51–100 kWh",
+       "{{vnd:2050}}"
+      ],
+      [
+       "101–200 kWh",
+       "{{vnd:2380}}"
+      ],
+      [
+       "201–300 kWh",
+       "{{vnd:2998}}"
+      ],
+      [
+       "301–400 kWh",
+       "{{vnd:3350}}"
+      ],
+      [
+       "401 kWh and above",
+       "{{vnd:3460}}"
+      ]
+     ]
+    },
+    {
+     "type": "table",
+     "caption": "Monthly electricity cost at the official tariff with 8% VAT ([VTC News](https://vtcnews.vn/chi-tiet-bang-gia-dien-sinh-hoat-2026-cach-tinh-gia-dien-thang-6-2026-ar1021826.html) worked example at 400 kWh; other levels calculated from the same tiers), against a flat landlord rate of {{vnd:4000}} per kWh.",
+     "headers": [
+      "Monthly use",
+      "EVN bill with VAT",
+      "At the flat landlord rate"
+     ],
+     "rows": [
+      [
+       "100 kWh",
+       "about {{vnd:218000}}",
+       "{{vnd:400000}}"
+      ],
+      [
+       "200 kWh",
+       "about {{vnd:475000}}",
+       "{{vnd:800000}}"
+      ],
+      [
+       "300 kWh (small flat with air-con)",
+       "about {{vnd:799000}}",
+       "{{vnd:1200000}}"
+      ],
+      [
+       "400 kWh",
+       "about {{vnd:1160000}}",
+       "{{vnd:1600000}}"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "A single air-conditioner running six to eight hours a night can add roughly 150–250 kWh a month, which is how a small flat reaches 300 kWh. Inverter units set to 26–27°C cut that noticeably."
+    },
+    {
+     "type": "p",
+     "text": "Many Ho Chi Minh City landlords charge a flat {{vnd:3500-5000}} per kWh, most commonly {{vnd:4000}} ([Tuổi Trẻ, May 2026](https://tuoitre.vn/chu-tro-thu-tien-dien-sai-se-bi-phat-nang-nguoi-thue-va-chu-nha-deu-co-noi-niem-rieng-20260503075052179.htm)). Since Circular 60/2025/TT-BCT took effect on 2 December 2025, **a landlord who buys power at the residential price may not collect more from tenants, in total, than the EVN bill** for the address ([the rule explained](https://pbgdpl.cantho.gov.vn/quy-dinh-ve-gia-ban-le-dien-sinh-hoat-1)); overcharging carries a fine of {{vnd:20000000-30000000}} and a refund under Decree 133/2026/NĐ-CP. Serviced buildings metered on the business tariff are different, and a {{vnd:3500-4000}} charge there can reflect real cost. Before you sign, ask which tariff the building pays and get the billing method in writing. Overcharging can be reported to EVNHCMC on 1900 545454."
+    },
+    {
+     "type": "p",
+     "text": "If you rent a room in a boarding house, ask the landlord to register the occupants with EVN. Every four registered tenants count as one household for tier pricing, and where the lease is under 12 months and the landlord cannot declare all occupants, all the metered power is billed at the 101–200 kWh rate of {{vnd:2380}} per kWh before VAT."
+    },
+    {
+     "type": "p",
+     "text": "Water is cheap at the official price: {{vnd:6700}} per m³ before tax for the first 4 m³ per registered person a month, {{vnd:12900}} for 4–6 m³ and {{vnd:14400}} above that. With VAT and the drainage fee, that is about {{vnd:9206}} per m³ within the quota, so one person using 5 m³ pays roughly {{vnd:54500}} a month ([SGGP](https://www.sggp.org.vn/don-gia-nuoc-sinh-hoat-ho-gia-dinh-tinh-theo-dinh-muc-post787873.html)). The quota depends on the residents registered on the account, and some landlords charge a flat per-person fee instead, so ask which applies."
+    },
+    {
+     "type": "p",
+     "text": "Wi-Fi is included in many rooms and serviced flats. If you set up your own line, entry-level home fibre for new subscribers was reported at {{vnd:190000-255000}} a month after the March 2026 price rises, plus an installation fee of around {{vnd:300000}} ([Báo Lào Cai](https://baolaocai.vn/ba-nha-mang-lon-dong-loat-tang-gia-cuoc-internet-co-dinh-khi-lap-dat-moi-post895224.html)); check the provider's current offer. Prepaid mobile data plans cost about {{vnd:80000-200000}} a month ([SGGP](https://www.sggp.org.vn/mobifone-cong-bo-thuong-mai-hoa-5g-post787696.html)), and Numbeo's average for a plan with calls and 10GB or more is about {{vnd:149000}}. You register a SIM with your passport, and since 15 April 2026 carriers must also run a face check; the [SIM and eSIM guide](/esim-vietnam-guide) covers which to get."
+    }
+   ]
+  },
+  {
+   "id": "food-transport-gym-insurance",
+   "title": "Food, coffee, transport, gym and insurance",
+   "blocks": [
+    {
+     "type": "h3",
+     "text": "Food and coffee"
+    },
+    {
+     "type": "p",
+     "text": "Food is where your budget bends most with your habits, and prices are rising: consumer prices were up 5.08% year on year in September 2026, and meals outside the home up 7.14% ([VietnamPlus](https://en.vietnamplus.vn/vietnams-cpi-rises-452-in-first-nine-months-of-2026-post353045.vnp)). Rice-plate shops (cơm tấm, cơm bình dân) and noodle stalls remain the cheapest full meals, commonly around {{vnd:30000-60000}}. Delivery apps often list dishes above their in-store price and add a delivery fee, so walking in saves real money over a month."
+    },
+    {
+     "type": "table",
+     "caption": "Typical prices in Ho Chi Minh City, from [Numbeo](https://www.numbeo.com/cost-of-living/in/Ho-Chi-Minh-City) (crowd-sourced, updated 5 October 2026).",
+     "headers": [
+      "Item",
+      "Typical price",
+      "Range or note"
+     ],
+     "rows": [
+      [
+       "Meal at an inexpensive restaurant",
+       "{{vnd:50000}}",
+       "{{vnd:40000-100000}}"
+      ],
+      [
+       "Three-course meal for two, mid-range restaurant",
+       "{{vnd:600000}}",
+       "{{vnd:400000-1000000}}"
+      ],
+      [
+       "McDonald's combo meal",
+       "{{vnd:120000}}",
+       "Western chains cost far more than local food"
+      ],
+      [
+       "Cappuccino",
+       "about {{vnd:47000}}",
+       "{{vnd:20000-75000}}; Vietnamese iced coffee is usually cheaper"
+      ],
+      [
+       "Domestic draught beer, 0.5 litre",
+       "about {{vnd:27000}}",
+       "Bar prices are higher"
+      ],
+      [
+       "Milk, 1 litre",
+       "about {{vnd:42000}}",
+       "Grocery price"
+      ],
+      [
+       "White rice, 1 kg",
+       "about {{vnd:27000}}",
+       "Grocery price"
+      ],
+      [
+       "Eggs, 12",
+       "about {{vnd:42000}}",
+       "Grocery price"
+      ],
+      [
+       "Chicken fillets, 1 kg",
+       "about {{vnd:94000}}",
+       "Grocery price"
+      ],
+      [
+       "Bottled water, 1.5 litres",
+       "about {{vnd:14000}}",
+       "Grocery price"
+      ]
+     ]
+    },
+    {
+     "type": "h3",
+     "text": "Getting around"
+    },
+    {
+     "type": "p",
+     "text": "Transport is cheap, although petrol jumped in September and October 2026. Most teachers either rent a scooter or combine ride-hailing with the metro and the bus; [getting around Ho Chi Minh City](/teach-in-vietnam/getting-around-ho-chi-minh-city) compares the options."
+    },
+    {
+     "type": "table",
+     "caption": "Transport costs in Ho Chi Minh City, October 2026. Sources: [Grab](https://www.grab.com/vn/en/blog/bang-thong-tin-cac-dich-vu-tren-ung-dung-grab/) official fares (8% VAT), [Tuổi Trẻ](https://tuoitre.vn/tp-hcm-chinh-thuc-chot-gia-ve-di-tau-dien-metro-so-1-20241121100826513.htm) metro fares, [HCMC press centre](https://ttbc-hcm.gov.vn/mien-phi-xe-buyt-134-tuyen-o-tphcm-tu-1-7-nguoi-dan-can-luu-y-dieu-gi-1021625.html) bus scheme, [SGGP](https://www.sggp.org.vn/tu-15-gio-ngay-8-10-xang-e10ron95-iii-gia-28254-donglit-post875522.html) fuel price.",
+     "headers": [
+      "Mode",
+      "Price",
+      "What to know"
+     ],
+     "rows": [
+      [
+       "GrabBike",
+       "{{vnd:12273}} for the first 2 km, then {{vnd:4222}} per km, plus a time charge of {{vnd:344}} a minute and a {{vnd:3000}} platform fee",
+       "The app shows the all-in price before you book"
+      ],
+      [
+       "English-speaking GrabBike",
+       "{{vnd:15955}} for the first 2 km, then {{vnd:5489}} per km",
+       "About 30% more than standard GrabBike"
+      ],
+      [
+       "GrabCar, 4 seats",
+       "{{vnd:28473}} for the first 2 km, then {{vnd:9818}} per km, plus a time charge of {{vnd:442}} a minute and a platform fee",
+       "Airport to Ben Thanh is roughly {{vnd:100000-115000}} before surge"
+      ],
+      [
+       "Metro Line 1",
+       "{{vnd:7000-20000}} a ride in cash, {{vnd:6000-19000}} cashless; monthly pass {{vnd:300000}}",
+       "Ben Thanh to Suoi Tien via Binh Thanh, Thao Dien and Thu Duc only"
+      ],
+      [
+       "City bus",
+       "Free on 134 routes until 31 December 2026",
+       "Since 1 October each trip must be verified; airport and inter-provincial routes are excluded"
+      ],
+      [
+       "Petrol, E10 RON95-III",
+       "{{vnd:28250}} a litre at Petrolimex (8 October 2026)",
+       "Prices change every Thursday"
+      ],
+      [
+       "Scooter rental",
+       "Around {{vnd:1800000}} a month",
+       "Shops set their own prices and deposits"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "To ride the free buses, tap a contactless chip bank card, Apple Pay, Google Wallet or Samsung Pay at the reader; no Vietnamese ID is needed and nothing is charged ([Tuổi Trẻ](https://tuoitre.vn/du-khach-quoc-te-di-xe-buyt-mien-phi-tai-tphcm-xac-thuc-ra-sao-100260717134130349.htm)). If you rent a scooter, see the [motorbike rental guide](/motorbike-rental-ho-chi-minh-city), never leave your original passport as a deposit, and check your licence first: riding a bike of 125cc or less without a licence valid in Vietnam is fined {{vnd:2000000-4000000}} and can void your insurance ([motorbike licence for foreigners](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners))."
+    },
+    {
+     "type": "h3",
+     "text": "Gym"
+    },
+    {
+     "type": "p",
+     "text": "Numbeo's average for a monthly gym membership in the city is about {{vnd:673000}}, with a range of {{vnd:300000-1600000}}. Budget chains sit at the bottom of that range and many apartment buildings have their own gym. Some premium chains have been closing branches, so prefer month-to-month plans to long prepaid contracts."
+    },
+    {
+     "type": "h3",
+     "text": "Health insurance"
+    },
+    {
+     "type": "p",
+     "text": "On a Vietnamese labour contract you pay into state health insurance through payroll: 1.5% of salary, part of the 9.5% deduction on contracts of 12 months or more ([EY](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/people-advisory-service-tax-alert-june-2025-notable-points-regarding-the-mandatory-social-security-from-1-july-2025)). Many centres also advertise private ‘premium health insurance’ for full-time teachers; ILA's July 2026 ads did, for example ([ILA job ad](https://vietnamteachingjobs.com/jobs/view/full-time-eslefl-teacher-at-ila-over-30-years-of-expertise-for-overseas-candidates)). Check what your employer covers before you buy your own. If you pay for a private plan yourself, the budgets below allow about {{vnd:500000}} a month for inpatient-only cover and up to {{vnd:1500000}} for fuller cover; real quotes depend on your age and the plan. [Healthcare in Ho Chi Minh City](/teach-in-vietnam/healthcare-and-health-insurance-in-ho-chi-minh-city) explains the options."
+    }
+   ]
+  },
+  {
+   "id": "monthly-budgets",
+   "title": "Two monthly budgets: frugal and comfortable",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "These two budgets are for a single teacher, built line by line from the prices above and Rent Index medians. Swap in your own rent and transport; everything else moves less than you might expect."
+    },
+    {
+     "type": "table",
+     "caption": "Frugal monthly budget for one teacher in Ho Chi Minh City, October 2026 (eno.vn estimate from Rent Index medians, official tariffs and Numbeo prices).",
+     "headers": [
+      "Item",
+      "A month",
+      "Assumption"
+     ],
+     "rows": [
+      [
+       "Rent",
+       "{{vnd:4000000-4700000}}",
+       "Private room in Tan Binh, Binh Thanh or Phu Nhuan (medians {{vnd:4200000}}, {{vnd:4500000}} and {{vnd:4700000}})"
+      ],
+      [
+       "Electricity",
+       "{{vnd:350000-760000}}",
+       "150–200 kWh; low end at the EVN tariff, high end at a flat {{vnd:3800}} per kWh"
+      ],
+      [
+       "Water",
+       "{{vnd:100000}}",
+       "A flat per-person fee, if your landlord charges one; metered use for one person is about {{vnd:55000}}"
+      ],
+      [
+       "Wi-Fi",
+       "up to {{vnd:200000}}",
+       "Often included in a room"
+      ],
+      [
+       "Mobile plan",
+       "{{vnd:150000}}",
+       "Prepaid data plan"
+      ],
+      [
+       "Food and coffee",
+       "{{vnd:5500000-6000000}}",
+       "Mostly local meals (about {{vnd:140000}} a day), coffee about {{vnd:30000}} a day, some groceries"
+      ],
+      [
+       "Transport",
+       "{{vnd:2100000}}",
+       "Rented scooter {{vnd:1800000}} plus fuel {{vnd:300000}}, or Grab plus the free bus"
+      ],
+      [
+       "Gym",
+       "{{vnd:300000}}",
+       "Budget gym"
+      ],
+      [
+       "Health insurance",
+       "up to {{vnd:500000}}",
+       "Nothing if your employer covers you; about {{vnd:500000}} for an inpatient-only plan"
+      ],
+      [
+       "Personal care, laundry, other",
+       "{{vnd:600000}}",
+       "Haircuts, toiletries, washing"
+      ],
+      [
+       "Going out",
+       "{{vnd:1000000-1500000}}",
+       "A few evenings out a month"
+      ],
+      [
+       "Total",
+       "about {{vnd:14000000-17000000}}",
+       "Numbeo's single-person estimate without rent, {{vnd:12740000}}, plus a room lands at the top of this range"
+      ]
+     ]
+    },
+    {
+     "type": "table",
+     "caption": "Comfortable monthly budget for one teacher in Ho Chi Minh City, October 2026 (eno.vn estimate from Rent Index medians, official tariffs and Numbeo prices).",
+     "headers": [
+      "Item",
+      "A month",
+      "Assumption"
+     ],
+     "rows": [
+      [
+       "Rent",
+       "{{vnd:7500000-10000000}}",
+       "1-bedroom in District 3, Binh Thanh, District 1 or District 2 (Rent Index medians)"
+      ],
+      [
+       "Electricity",
+       "{{vnd:800000-1200000}}",
+       "About 300 kWh with air-con; high end at a flat landlord rate"
+      ],
+      [
+       "Water, parking and service fees",
+       "{{vnd:300000-500000}}",
+       "Varies by building"
+      ],
+      [
+       "Internet",
+       "{{vnd:200000-250000}}",
+       "If not included"
+      ],
+      [
+       "Mobile plan",
+       "{{vnd:150000-200000}}",
+       "Prepaid or monthly plan"
+      ],
+      [
+       "Food",
+       "{{vnd:8000000-10000000}}",
+       "A mix of local and Western meals; a mid-range dinner for two is about {{vnd:600000}}"
+      ],
+      [
+       "Coffee",
+       "{{vnd:1200000}}",
+       "Café most days"
+      ],
+      [
+       "Transport",
+       "{{vnd:2000000-2500000}}",
+       "Scooter {{vnd:2000000}} plus fuel {{vnd:500000}}, or Grab"
+      ],
+      [
+       "Gym",
+       "{{vnd:600000-1500000}}",
+       "Mid-range to premium"
+      ],
+      [
+       "Health insurance",
+       "{{vnd:500000-1500000}}",
+       "A plan you buy yourself; take this off if your employer covers you"
+      ],
+      [
+       "Travel and entertainment",
+       "{{vnd:3000000-5000000}}",
+       "Weekends away, nights out"
+      ],
+      [
+       "Other",
+       "{{vnd:1000000}}",
+       "Personal care and extras"
+      ],
+      [
+       "Total",
+       "about {{vnd:25000000-35000000}}",
+       "Rounded; the low end assumes local-market rent at the bottom of the range and modest travel"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Choosing a serviced 1-bedroom in Thao Dien or the centre, at around {{vnd:15000000}}, pushes the comfortable budget to about {{vnd:33000000-40000000}}. Two more things move every budget: the 8% VAT rate on electricity, Grab and most services ends on 31 December 2026 unless it is extended, and the free bus scheme ends the same day unless the city renews it."
+    }
+   ]
+  },
+  {
+   "id": "what-teachers-earn",
+   "title": "What a teacher earns and takes home",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Most foreign teachers in the city are paid by the hour. In July–October 2026 job ads, language centres offered {{vnd:390000-600000}} an hour, most new-teacher offers {{vnd:430000-560000}} ([Vietnam Teaching Jobs, Ho Chi Minh City listings](https://vietnamteachingjobs.com/city/teaching-english-in-ho-chi-minh)). A full-time centre load is about 78–95 contact hours a month, which at {{vnd:450000-550000}} an hour comes to roughly **{{vnd:35000000-52000000}} gross**. Few ads say whether the rate is gross or net, and ‘up to’ figures are ceilings; [English teacher salary in Vietnam](/teach-in-vietnam/english-teacher-salary-in-vietnam) covers pay by employer type."
+    },
+    {
+     "type": "table",
+     "caption": "Worked example: monthly take-home pay for a tax-resident teacher with no dependants on a labour contract of 12 months or more, 2026 rules (eno.vn calculation from the PIT Law and social insurance rates).",
+     "headers": [
+      "Line",
+      "Amount"
+     ],
+     "rows": [
+      [
+       "Gross pay: 85 hours at {{vnd:500000}}",
+       "{{vnd:42500000}}"
+      ],
+      [
+       "Social and health insurance, 9.5%",
+       "minus about {{vnd:4040000}}"
+      ],
+      [
+       "Personal deduction (not paid, just untaxed)",
+       "{{vnd:15500000}}"
+      ],
+      [
+       "Taxable income",
+       "about {{vnd:22960000}}"
+      ],
+      [
+       "Income tax: 5% on the first {{vnd:10000000}}, 10% on the rest",
+       "minus about {{vnd:1800000}}"
+      ],
+      [
+       "Take-home pay",
+       "about {{vnd:36700000}}"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Across the advertised range, that works out at about {{vnd:30500000-44300000}} a month net. Under PIT Law 109/2025/QH15, 2026 resident brackets are 5/10/20/30/35% on monthly taxable income up to {{vnd:10000000}} / to {{vnd:30000000}} / to {{vnd:60000000}} / to {{vnd:100000000}} / above, after a personal deduction of {{vnd:15500000}} a month and {{vnd:6200000}} per dependant ([PIT Law summary](https://pbgdpl.cantho.gov.vn/tu-ngay-0172026-nhieu-diem-moi-cua-luat-thue-thu-nhap-ca-nhan-can-luu-y)). Social insurance is compulsory for foreign employees on contracts of 12 months or more: you pay 9.5% (8% pension plus 1.5% health insurance), capped at {{vnd:50600000}} a month of salary from 1 July 2026 ([Vietnam Briefing](https://www.vietnam-briefing.com/news/vietnam-raises-statutory-basic-salary-from-july-2026-implications-for-employers.html))."
+    },
+    {
+     "type": "p",
+     "text": "Your first months can look different. You are a tax resident once you spend 183 days or more in Vietnam in a calendar year or in the 12 consecutive months from arrival; **a non-resident pays a flat 20%** on gross pay with no deduction ([Thư viện Pháp luật](https://thuvienphapluat.vn/phap-luat-doanh-nghiep/cong-viec-phap-ly/cong-thuc-tinh-thue-thu-nhap-ca-nhan-tu-tien-luong-tien-cong-2026-512.html)). On {{vnd:42500000}} gross that is {{vnd:8500000}} in tax instead of about {{vnd:1800000}}, so ask payroll how they will withhold for you. [Personal income tax for teachers](/teach-in-vietnam/personal-income-tax-for-teachers-in-vietnam) explains the rules; your employer and the tax office have the final word on your case."
+    }
+   ]
+  },
+  {
+   "id": "what-you-can-save",
+   "title": "How much can a teacher save in Saigon?",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Subtract the budgets from take-home pay and the answer is clear: **on a frugal budget roughly 45–70% of a full-time teacher's net pay is left over; on a comfortable one, under half is, and on lower pay nothing**. The table uses the low and high ends of typical net pay for a full-time centre teacher."
+    },
+    {
+     "type": "table",
+     "caption": "What is left each month after living costs, by lifestyle, at low net pay ({{vnd:30500000}}) and high net pay ({{vnd:44300000}}). eno.vn calculation from the budgets and net-pay range above, before flights, one-off purchases and income gaps.",
+     "headers": [
+      "Lifestyle",
+      "Monthly spend",
+      "Left over, low net pay",
+      "Left over, high net pay"
+     ],
+     "rows": [
+      [
+       "Frugal, private room",
+       "{{vnd:14000000-17000000}}",
+       "{{vnd:13500000-16500000}}",
+       "{{vnd:27300000-30300000}}"
+      ],
+      [
+       "Comfortable, local-market 1-bedroom",
+       "{{vnd:25000000-35000000}}",
+       "Up to about {{vnd:5500000}}, and it can run short",
+       "{{vnd:9300000-19300000}}"
+      ],
+      [
+       "Serviced flat in Thao Dien or the centre",
+       "{{vnd:33000000-40000000}}",
+       "Short every month",
+       "{{vnd:4300000-11300000}}"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Real savings come in lower than the table for three reasons. Hourly pay usually stops when classes stop: public schools teach about 35 weeks a year, from September to May, centres close over Tet, and cancelled classes are often unpaid, so keep a buffer of two to three months' costs. A Tet or 13th-month bonus is not required by law, so count only what your contract promises. And one-off costs (flights home, a laptop, a trip) come out of the same pot."
+    },
+    {
+     "type": "p",
+     "text": "Some money comes back. Sign-on and completion bonuses are common: ILA advertised a sign-on bonus of up to {{vnd:10000000}} in 2026, and an [Apollo ad from January 2026](https://www.theteflacademy.com/?p=106928) a KPI-based completion bonus of {{vnd:13500000}}; most such bonuses are lost if you leave early or miss targets. The 8% pension contribution is not lost either: a foreigner who paid compulsory social insurance can claim it as a lump sum once the contract ends or the work permit expires without renewal ([Decree 158/2025/NĐ-CP](https://hoatieu.vn/phap-luat/nghi-dinh-158-2025-nd-cp-234065)). To move savings home, see [banking and sending money home from Vietnam](/teach-in-vietnam/banking-and-sending-money-home-from-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "start-up-costs",
+   "title": "Start-up costs for month one, and how much money to bring",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The first month is the expensive one: you pay a deposit and rent up front, set up a home and transport, and live for four to six weeks before your first salary arrives. Some employers cover your first nights: ILA's July 2026 ads offered up to 6 nights' arrival accommodation and VUS's 5 nights."
+    },
+    {
+     "type": "table",
+     "caption": "Cash needed in Ho Chi Minh City before the first salary, October 2026 (eno.vn estimate). Excludes flights and the cost of documents before you travel.",
+     "headers": [
+      "Item",
+      "Room route",
+      "1-bedroom route"
+     ],
+     "rows": [
+      [
+       "Deposit plus first month's rent",
+       "{{vnd:8400000}} (one month's deposit on a {{vnd:4200000}} room)",
+       "{{vnd:24000000-30000000}} (two months' deposit plus the first month's rent on an {{vnd:8000000-10000000}} flat)"
+      ],
+      [
+       "Scooter rental, first month",
+       "{{vnd:1800000}}",
+       "{{vnd:2000000}}"
+      ],
+      [
+       "SIM and plan, or internet set-up",
+       "about {{vnd:200000}}",
+       "about {{vnd:300000}} if internet is not included"
+      ],
+      [
+       "Bedding, kitchen and household basics",
+       "{{vnd:1000000-2000000}}",
+       "{{vnd:2000000-3000000}}"
+      ],
+      [
+       "Living costs for 4–6 weeks until payday",
+       "{{vnd:10000000-12000000}}",
+       "{{vnd:20000000-25000000}}"
+      ],
+      [
+       "Total",
+       "about {{vnd:21400000-24400000}}",
+       "about {{vnd:48000000-60000000}}"
+      ]
+     ]
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "Your first pay can come five or six weeks after you start",
+     "text": "Most centres pay monthly for the previous month's hours, and teachers commonly report pay arriving around the 5th to 10th of the following month. Ask for your exact first pay date, the payment method and whether arrival accommodation is included, and get them in writing before you fly."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Bring at least the total for your route**, plus a reserve for a slow first month of hours; two to three months of living costs is a safer cushion if your pay is hourly.",
+      "**Buying a scooter instead of renting** adds roughly {{vnd:36000000-42000000}} for a new Honda Vision or about {{vnd:20000000}} for a used one; most teachers rent month to month first.",
+      "**Furnish cheaply**: an unfurnished flat costs more to set up, and second-hand goods help; see [furnishing a home in Vietnam](/furnishing-a-home-in-vietnam).",
+      "**Ask the landlord about the residence declaration** they must make when you move in; it is a tenancy matter covered in [renting an apartment in Vietnam](/renting-an-apartment-vietnam-foreigner).",
+      "**Plan the order of your first days** with [your first weeks in Ho Chi Minh City](/teach-in-vietnam/your-first-weeks-in-ho-chi-minh-city): SIM, bank account, housing, transport."
+     ]
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Are utilities included in the rent in Ho Chi Minh City?",
+   "a": "Usually not in an ordinary flat or room: electricity and water are billed on top, and Wi-Fi varies. Serviced apartments often include cleaning, Wi-Fi and water but bill electricity at a flat per-kWh rate, so compare the total monthly cost rather than the headline rent and get the billing method in writing."
+  },
+  {
+   "q": "Why does Numbeo show much higher rents than the eno.vn Rent Index?",
+   "a": "Numbeo is crowd-sourced from about a thousand entries a year and leans towards serviced flats aimed at expats. The eno.vn Rent Index covered over 15,000 asking prices across the local market in October 2026. Neither is signed-lease data, so use Numbeo for serviced apartments and the Rent Index for typical flats and rooms."
+  },
+  {
+   "q": "Is it legal for my landlord to charge a flat rate for electricity?",
+   "a": "A flat rate is common, but since December 2025 a landlord who buys power at the residential price may not collect more from tenants in total than the EVN bill. Buildings on the business tariff are different. Ask which tariff the building pays, and report overcharging to EVNHCMC on 1900 545454."
+  },
+  {
+   "q": "Will living costs rise in January 2027?",
+   "a": "Possibly. The reduced 8% VAT rate on electricity, ride-hailing and most services ends on 31 December 2026 unless it is extended, which would add about 2% to those bills, and the free bus scheme also ends that day unless the city renews it."
+  },
+  {
+   "q": "Can I get my social insurance contributions back when I leave Vietnam?",
+   "a": "Yes. A foreigner who paid compulsory social insurance can claim a one-time lump sum once the labour contract ends or the work permit expires without renewal. Keep your social insurance number, and since some offices want you to apply in person, make the claim before you leave."
+  }
+ ],
+ "sources": [
+  {
+   "title": "HCMC Rent Index",
+   "publisher": "eno.vn",
+   "url": "https://eno.vn/hcmc-rent-index"
+  },
+  {
+   "title": "Sau điều chỉnh giá điện từ ngày 10/5, khách hàng sẽ trả thêm bao nhiêu tiền điện mỗi tháng",
+   "publisher": "Vietnam Electricity (EVN)",
+   "url": "https://www.evn.com.vn/d/vi-VN/news/Sau-dieu-chinh-gia-dien-tu-ngay-105-khach-hang-se-tra-them-bao-nhieu-tien-dien-moi-thang-60-12-502670"
+  },
+  {
+   "title": "Quy định về giá bán lẻ điện sinh hoạt (Circular 60/2025/TT-BCT)",
+   "publisher": "Can Tho legal information portal",
+   "url": "https://pbgdpl.cantho.gov.vn/quy-dinh-ve-gia-ban-le-dien-sinh-hoat-1"
+  },
+  {
+   "title": "Chủ trọ thu tiền điện sai sẽ bị phạt nặng",
+   "publisher": "Tuổi Trẻ",
+   "url": "https://tuoitre.vn/chu-tro-thu-tien-dien-sai-se-bi-phat-nang-nguoi-thue-va-chu-nha-deu-co-noi-niem-rieng-20260503075052179.htm"
+  },
+  {
+   "title": "Chi tiết bảng giá điện sinh hoạt 2026",
+   "publisher": "VTC News",
+   "url": "https://vtcnews.vn/chi-tiet-bang-gia-dien-sinh-hoat-2026-cach-tinh-gia-dien-thang-6-2026-ar1021826.html"
+  },
+  {
+   "title": "Two percent VAT reduction extends to end of 2026",
+   "publisher": "Vietnam Law Magazine",
+   "url": "https://vietnamlawmagazine.vn/two-percent-vat-reduction-extends-to-end-of-2026-74557.html"
+  },
+  {
+   "title": "Đơn giá nước sinh hoạt hộ gia đình tính theo định mức",
+   "publisher": "SGGP",
+   "url": "https://www.sggp.org.vn/don-gia-nuoc-sinh-hoat-ho-gia-dinh-tinh-theo-dinh-muc-post787873.html"
+  },
+  {
+   "title": "Ba nhà mạng lớn đồng loạt tăng giá cước internet cố định khi lắp đặt mới",
+   "publisher": "Báo Lào Cai",
+   "url": "https://baolaocai.vn/ba-nha-mang-lon-dong-loat-tang-gia-cuoc-internet-co-dinh-khi-lap-dat-moi-post895224.html"
+  },
+  {
+   "title": "MobiFone công bố thương mại hóa 5G",
+   "publisher": "SGGP",
+   "url": "https://www.sggp.org.vn/mobifone-cong-bo-thuong-mai-hoa-5g-post787696.html"
+  },
+  {
+   "title": "Cost of Living in Ho Chi Minh City",
+   "publisher": "Numbeo",
+   "url": "https://www.numbeo.com/cost-of-living/in/Ho-Chi-Minh-City"
+  },
+  {
+   "title": "Vietnam's CPI rises 4.52% in first nine months of 2026",
+   "publisher": "VietnamPlus",
+   "url": "https://en.vietnamplus.vn/vietnams-cpi-rises-452-in-first-nine-months-of-2026-post353045.vnp"
+  },
+  {
+   "title": "Bảng thông tin các dịch vụ trên ứng dụng Grab",
+   "publisher": "Grab Vietnam",
+   "url": "https://www.grab.com/vn/en/blog/bang-thong-tin-cac-dich-vu-tren-ung-dung-grab/"
+  },
+  {
+   "title": "TP.HCM chính thức chốt giá vé đi tàu điện metro số 1",
+   "publisher": "Tuổi Trẻ",
+   "url": "https://tuoitre.vn/tp-hcm-chinh-thuc-chot-gia-ve-di-tau-dien-metro-so-1-20241121100826513.htm"
+  },
+  {
+   "title": "Miễn phí xe buýt 134 tuyến ở TP.HCM từ 1/7",
+   "publisher": "Ho Chi Minh City Press Centre",
+   "url": "https://ttbc-hcm.gov.vn/mien-phi-xe-buyt-134-tuyen-o-tphcm-tu-1-7-nguoi-dan-can-luu-y-dieu-gi-1021625.html"
+  },
+  {
+   "title": "Du khách quốc tế đi xe buýt miễn phí tại TP.HCM xác thực ra sao",
+   "publisher": "Tuổi Trẻ",
+   "url": "https://tuoitre.vn/du-khach-quoc-te-di-xe-buyt-mien-phi-tai-tphcm-xac-thuc-ra-sao-100260717134130349.htm"
+  },
+  {
+   "title": "Từ 15 giờ ngày 8-10, xăng E10 RON95-III giá 28.254 đồng/lít",
+   "publisher": "SGGP",
+   "url": "https://www.sggp.org.vn/tu-15-gio-ngay-8-10-xang-e10ron95-iii-gia-28254-donglit-post875522.html"
+  },
+  {
+   "title": "Teaching English in Ho Chi Minh City: job listings",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/city/teaching-english-in-ho-chi-minh"
+  },
+  {
+   "title": "Full-time ESL/EFL teacher at ILA (job ad, July 2026)",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/full-time-eslefl-teacher-at-ila-over-30-years-of-expertise-for-overseas-candidates"
+  },
+  {
+   "title": "ESL Teachers needed now in Vietnam (Apollo English job ad, January 2026)",
+   "publisher": "The TEFL Academy jobs board",
+   "url": "https://www.theteflacademy.com/?p=106928"
+  },
+  {
+   "title": "Từ ngày 01/7/2026, nhiều điểm mới của Luật Thuế thu nhập cá nhân",
+   "publisher": "Can Tho legal information portal",
+   "url": "https://pbgdpl.cantho.gov.vn/tu-ngay-0172026-nhieu-diem-moi-cua-luat-thue-thu-nhap-ca-nhan-can-luu-y"
+  },
+  {
+   "title": "Công thức tính thuế thu nhập cá nhân từ tiền lương, tiền công 2026",
+   "publisher": "Thư viện Pháp luật",
+   "url": "https://thuvienphapluat.vn/phap-luat-doanh-nghiep/cong-viec-phap-ly/cong-thuc-tinh-thue-thu-nhap-ca-nhan-tu-tien-luong-tien-cong-2026-512.html"
+  },
+  {
+   "title": "Notable points regarding the mandatory social security from 1 July 2025",
+   "publisher": "EY Vietnam",
+   "url": "https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/people-advisory-service-tax-alert-june-2025-notable-points-regarding-the-mandatory-social-security-from-1-july-2025"
+  },
+  {
+   "title": "Vietnam raises statutory basic salary from July 2026: implications for employers",
+   "publisher": "Vietnam Briefing",
+   "url": "https://www.vietnam-briefing.com/news/vietnam-raises-statutory-basic-salary-from-july-2026-implications-for-employers.html"
+  },
+  {
+   "title": "Nghị định 158/2025/NĐ-CP về bảo hiểm xã hội bắt buộc",
+   "publisher": "Hoatieu",
+   "url": "https://hoatieu.vn/phap-luat/nghi-dinh-158-2025-nd-cp-234065"
+  },
+  {
+   "title": "TP.HCM có 113 phường, 54 xã và 1 đặc khu sau sắp xếp",
+   "publisher": "Báo Đấu thầu",
+   "url": "https://baodauthau.vn/tphcm-co-113-phuong-54-xa-va-1-dac-khu-sau-sap-xep-post180312.html"
+  }
+ ],
+ "related": [
+  "english-teacher-salary-in-vietnam",
+  "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+  "your-first-weeks-in-ho-chi-minh-city",
+  "personal-income-tax-for-teachers-in-vietnam",
+  "social-and-health-insurance-for-foreign-teachers-in-vietnam",
+  "banking-and-sending-money-home-from-vietnam"
+ ],
+ "lastChecked": "2026-10-11"
+}
