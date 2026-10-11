@@ -1,0 +1,561 @@
+{
+ "slug": "getting-around-ho-chi-minh-city",
+ "title": "Getting around Ho Chi Minh City: Grab, metro or motorbike?",
+ "description": "Grab fares, Metro Line 1 stations and prices, the free buses, motorbike licence rules and flood-prone streets, compared for a teacher's commute in Saigon.",
+ "h1": "Getting around Ho Chi Minh City: Grab, the metro, buses and motorbikes for a teacher's commute",
+ "eyebrow": "Arriving in Saigon",
+ "intro": "For most commutes in Ho Chi Minh City the practical choice is an app-booked motorbike taxi (Grab, Xanh SM or Be) or your own scooter. Metro Line 1 and the city buses help only if you live and work along their routes. Ride-hailing is the easy start: cheap, door to door, no licence needed. A motorbike is the cheapest way to work at several centres a day, but only on a licence Vietnam recognises, and American, Canadian and Australian permits are not.",
+ "keyPoints": [
+  "Grab's published Ho Chi Minh City rates (July 2026): GrabBike {{vnd:12273}} for the first 2 km, then {{vnd:4222}} a km plus {{vnd:344}} a minute. A 5 km, 15-minute ride works out at roughly {{vnd:33000}} before surcharges.",
+  "Metro Line 1 runs 14 stations from Ben Thanh to Suoi Tien, about 30 minutes end to end, for {{vnd:6000-19000}} a ride by card or {{vnd:300000}} for a monthly pass. It has **no station** in District 3, 7, 10, Phu Nhuan, Tan Binh or Go Vap.",
+  "Buses on 134 city routes are free until 31 December 2026. Since 1 October 2026 you must tap a chip (EMV) bank card such as Mastercard, or a phone wallet, to log each ride; nothing is charged.",
+  "A scooter needs a class A1 licence (up to 125 cc). International driving permits count only from 1968 Vienna Convention countries such as the UK, South Africa and the Philippines; riding without a valid licence costs {{vnd:2000000-4000000}} and can void your insurance.",
+  "The rainy season usually runs from early May to mid or late November. Tidal and rain flooding hits known streets in Thao Dien, old District 7, Binh Thanh and Go Vap, often at rush hour; the year's highest tide is forecast for 27–29 October 2026."
+ ],
+ "sections": [
+  {
+   "id": "options-compared",
+   "title": "The options compared",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "There is no single best way to commute in Saigon. The right answer depends on where you live, where your classes are and whether you hold a licence that is valid here. This table puts the options side by side; the sections below give the detail."
+    },
+    {
+     "type": "table",
+     "caption": "Ways to get around Ho Chi Minh City, October 2026 (fares from Grab's published rates, the metro operator and Ho Chi Minh City Resolution 09/2026; fuel price 8 October 2026)",
+     "headers": [
+      "Option",
+      "What it costs",
+      "Best for",
+      "Watch out for"
+     ],
+     "rows": [
+      [
+       "Motorbike taxi by app (GrabBike, Xanh SM, Be)",
+       "GrabBike {{vnd:12273}} for the first 2 km, then {{vnd:4222}} a km plus {{vnd:344}} a minute",
+       "New arrivals, short door-to-door trips, anyone without a valid licence",
+       "Rain, traffic and phone snatching; daily rides add up over a month"
+      ],
+      [
+       "Car by app (GrabCar, Xanh SM, Be)",
+       "GrabCar 4-seat {{vnd:28473}} for the first 2 km, then {{vnd:9818}} a km plus {{vnd:442}} a minute",
+       "Downpours, late nights, luggage, the airport",
+       "About two to two and a half times the bike price and slow in rush-hour traffic"
+      ],
+      [
+       "Metro Line 1",
+       "{{vnd:6000-19000}} a ride by card or app, {{vnd:7000-20000}} in cash; monthly pass {{vnd:300000}}",
+       "Living and working on the District 1 – Binh Thanh – Thao Dien – Thu Duc corridor",
+       "One line only; no stations in District 3, 7, 10, Phu Nhuan, Tan Binh or Go Vap"
+      ],
+      [
+       "City bus",
+       "Free on 134 routes until 31 December 2026 (tap a card or phone to verify)",
+       "Fixed routes when you are not in a hurry",
+       "Slower than a bike; airport-link and inter-provincial routes are not free"
+      ],
+      [
+       "Own or rented motorbike",
+       "Fuel {{vnd:28250}} a litre (E10 RON95-III); compulsory insurance {{vnd:60000}} a year; rental prices vary by shop",
+       "Teaching at two or more centres a day; the cheapest cost per trip",
+       "A licence valid in Vietnam, heavy fines, crashes, floods"
+      ],
+      [
+       "Walking",
+       "Free",
+       "Short hops in the centre and to and from metro stations",
+       "Heat, sudden rain and pavements blocked by parked motorbikes and vendors"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Old names still rule everyday speech: job ads, landlords and drivers say \"District 1\", \"Thao Dien\" or \"Phu My Hung\". Since 1 July 2025 [the districts have been abolished](https://baodauthau.vn/tphcm-co-113-phuong-54-xa-va-1-dac-khu-sau-sap-xep-post180312.html) and official addresses use the new wards: old District 1 is mainly Sai Gon and Ben Thanh wards, Thao Dien is in An Khanh ward, and Phu My Hung is split between Tan Hung and Tan My. When you type an address for a driver, give both, for example \"An Khanh Ward (Thao Dien)\"."
+    }
+   ]
+  },
+  {
+   "id": "grab-xanh-sm-be",
+   "title": "Grab, Xanh SM and Be: what rides cost and how to use them",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The main ride-hailing apps in Ho Chi Minh City are Grab, Xanh SM (Vingroup's all-electric fleet) and Be. [Gojek left Vietnam on 16 September 2024](https://vir.com.vn/ride-hailers-race-for-market-share-after-gojeks-exit-114520.html). All three offer motorbike and car rides booked and priced in the app, and the [UK government's travel advice](https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security) recommends app-booked or metered taxis such as Grab or XanhSM."
+    },
+    {
+     "type": "table",
+     "caption": "Grab's published fares in Ho Chi Minh City (page updated 8 July 2026); the app shows the final price before you book",
+     "headers": [
+      "Service",
+      "First 2 km",
+      "Each further km",
+      "Time charge (per minute)"
+     ],
+     "rows": [
+      [
+       "GrabBike",
+       "{{vnd:12273}}",
+       "{{vnd:4222}}",
+       "{{vnd:344}}"
+      ],
+      [
+       "GrabBike with an English-speaking driver",
+       "{{vnd:15955}}",
+       "{{vnd:5489}}",
+       "{{vnd:447}}"
+      ],
+      [
+       "GrabCar 4-seat (petrol or electric)",
+       "{{vnd:28473}}",
+       "{{vnd:9818}}",
+       "{{vnd:442}}"
+      ],
+      [
+       "GrabCar 6-seat",
+       "{{vnd:33382}}",
+       "{{vnd:12764}}",
+       "{{vnd:540}}"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "On top comes a platform fee of {{vnd:3000}} for GrabBike and {{vnd:5000-19000}} for cars, depending on pickup area and distance, according to [Grab's fare table](https://www.grab.com/vn/en/blog/bang-thong-tin-cac-dich-vu-tren-ung-dung-grab/). The fares already include VAT, which is 8% until 31 December 2026. By our arithmetic from those rates, reading the time charge as per minute, a 5 km GrabBike ride that takes 15 minutes comes to roughly {{vnd:33000}} with the platform fee, and the same trip by GrabCar to roughly {{vnd:70000-85000}}, before any peak-time surcharge."
+    },
+    {
+     "type": "p",
+     "text": "If you do not speak Vietnamese yet, Grab has offered [an English-speaking GrabBike option](https://www.grab.com/vn/en/blog/copy-of-grab-trien-khai-thu-nghiem-tinh-nang-dat-xe-nhom/) in Ho Chi Minh City since 18 June 2026. It costs about 30% more than standard GrabBike and is not available in the former Binh Duong and Ba Ria–Vung Tau areas."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Wear the helmet.** Grab drivers carry one for you, and the law requires passengers to wear it; an unfastened helmet is fined like no helmet.",
+      "**Put your phone away** on the back of a bike and at the kerb. Motorbike phone and bag snatching is the main crime against foreigners, and the UK advice says to keep bags on the side away from the traffic. Our [safety guide](/teach-in-vietnam/is-ho-chi-minh-city-safe) covers the rest.",
+      "**Get mobile data before you land** so the apps work at the airport; the [eSIM and SIM guide](/esim-vietnam-guide) explains your options.",
+      "**Pin the exact building**, not just the street. Many homes and some centres sit down alleys (hẻm) off the main road, so drop the pin on the door, not the street."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "metro-line-1",
+   "title": "Metro Line 1: route, fares and hours",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "[Metro Line 1](https://vietnamnews.vn/society/1689480/historic-milestone-hcm-city-s-first-metro-line-launches-after-years-of-delay.html) opened on 22 December 2024. It runs 19.7 km from Ben Thanh to Suoi Tien with 14 stations: three underground (Ben Thanh, Opera House, Ba Son) and eleven elevated along Vo Nguyen Giap and the Hanoi Highway (Van Thanh, Tan Cang, Thao Dien, An Phu, Rach Chiec, Phuoc Long, Binh Thai, Thu Duc, High-Tech Park, National University, Suoi Tien). The full trip takes about 30 minutes, and the line carried about 52,000 passengers a day in its first year."
+    },
+    {
+     "type": "table",
+     "caption": "Metro Line 1 fares and passes (Vietnam News; no change reported as of August 2026)",
+     "headers": [
+      "Ticket",
+      "Price"
+     ],
+     "rows": [
+      [
+       "Single ride, cashless (card, app or e-wallet)",
+       "{{vnd:6000-19000}} by distance"
+      ],
+      [
+       "Single ride, cash",
+       "{{vnd:7000-20000}} by distance"
+      ],
+      [
+       "1-day pass",
+       "{{vnd:40000}}"
+      ],
+      [
+       "3-day pass",
+       "{{vnd:90000}}"
+      ],
+      [
+       "Monthly pass",
+       "{{vnd:300000}} ({{vnd:150000}} for students)"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "[At the gates you can pay](https://vietnamnews.vn/society/1687512/hcm-city-announces-fares-for-its-metro-line-1.html) with a contactless card from the major networks (Mastercard, JCB, UnionPay, Amex and others), a Napas card, an e-wallet or the HCMC Metro HURC app, as well as cash. The 2026 timetable runs trains [05:00–22:00 Monday to Thursday and 05:00–23:00 Friday to Sunday](https://tuoitre.vn/nld/bieu-do-tau-metro-so-1-moi-gian-cach-va-gio-van-hanh-cap-nhat-196260105154538759.htm), about every 6 minutes at weekday peaks (7–8 minutes at weekends) and every 10–15 minutes off-peak. Check MultiGo or the 1022 hotline for the current timetable. Rides have often been free on public holidays, and the stations are packed on those days."
+    },
+    {
+     "type": "h3",
+     "text": "Who the metro actually helps"
+    },
+    {
+     "type": "table",
+     "caption": "Metro Line 1 by neighbourhood, with median asking rent for a 1-bedroom flat (eno.vn HCMC Rent Index, snapshot 10 October 2026)",
+     "headers": [
+      "Where you live",
+      "Nearest stations",
+      "1-bedroom median rent"
+     ],
+     "rows": [
+      [
+       "District 1",
+       "Ben Thanh, Opera House, Ba Son",
+       "{{vnd:8600000}} a month"
+      ],
+      [
+       "Binh Thanh (Vinhomes, Landmark 81)",
+       "Van Thanh, Tan Cang",
+       "{{vnd:7500000}} a month (Binh Thanh overall)"
+      ],
+      [
+       "District 2 (Thao Dien, An Phu)",
+       "Thao Dien, An Phu",
+       "{{vnd:10000000}} a month (a wide spread: a quarter of listings ask {{vnd:18000000}} or more)"
+      ],
+      [
+       "Old Thu Duc and District 9",
+       "Rach Chiec to Suoi Tien",
+       "{{vnd:6800000}} a month (Thu Duc City overall, District 2 listings included)"
+      ],
+      [
+       "District 3, 7, 10, Phu Nhuan, Tan Binh, Go Vap",
+       "None",
+       "See the [Rent Index](/hcmc-rent-index)"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "If you live in Thao Dien and teach in District 1, the {{vnd:300000}} monthly pass buys a cheap commute that rush-hour traffic cannot slow down. If you live or work anywhere off the line, the metro is at best one leg of the trip. Some blogs still claim it made District 7 commutes easy; it did not, because it never goes there. Our [neighbourhood guide](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher) weighs rent against the commute."
+    },
+    {
+     "type": "p",
+     "text": "[Metro Line 2](https://tuoitre.vn/plo/tphcm-chinh-thuc-khoi-cong-metro-so-2-du-an-tien-phong-trong-giai-doan-moi-post891481.html) (Ben Thanh – Tham Luong, 11 stations along Cach Mang Thang Tam and Truong Chinh) broke ground on 15 January 2026, with an official completion deadline of the end of 2030. For now it mostly costs commuters time: since 10 October 2026, [traffic around the Tao Dan and Bay Hien station sites is diverted](https://www.vietnamplus.vn/tp-ho-chi-minh-phan-luong-giao-thong-phuc-vu-thi-cong-ga-tao-dan-bay-hien-post1139640.vnp), with Cach Mang Thang Tam one-way near Tao Dan and through traffic from Truong Chinh barred at the Bay Hien junction. Allow extra time between District 1, District 3 and Tan Binh."
+    }
+   ]
+  },
+  {
+   "id": "city-buses",
+   "title": "City buses: free until 31 December 2026",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Under [Resolution 09/2026/NQ-HĐND](https://luatvietnam.vn/chinh-sach/nghi-quyet-09-2026-nq-hdnd-tp-hcm-ho-tro-nguoi-dung-phuong-tien-van-tai-cong-cong-438390-d2.html), the city pays the whole fare on 134 intra-city bus routes from 1 July to 31 December 2026, for every passenger regardless of nationality. Inter-provincial routes, open-top sightseeing buses, airport-link routes and the metro are not included. The city has not announced whether the scheme continues in 2027."
+    },
+    {
+     "type": "p",
+     "text": "Since 1 October 2026 each free ride must be logged. [Foreigners can tap](https://tuoitre.vn/tphcm-ngay-dau-xac-thuc-khi-di-xe-buyt-mien-phi-nguoi-dan-noi-da-qua-quen-100261001135119433.htm) a chip (EMV) bank card such as Mastercard, or use Apple Pay, Google Wallet or Samsung Pay; no Vietnamese ID is needed and nothing is charged. Route maps and schedules are in the MultiGo app. Buses are a good, free way to learn the city in your first weeks, but on a tight schedule between classes a motorbike taxi is usually faster."
+    },
+    {
+     "type": "p",
+     "text": "None of the free routes runs to Vung Tau. If your \"Ho Chi Minh City\" job is in former Ba Ria–Vung Tau, you pay for an inter-provincial bus."
+    }
+   ]
+  },
+  {
+   "id": "motorbike",
+   "title": "Riding your own motorbike: licence, rules and costs",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "A scooter gives you the most freedom and the lowest cost per trip. The legal side is stricter than most newcomers expect. Under the [Road Traffic Order and Safety Law](https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/3/55-vbhn-vpqh.pdf) (Law 36/2024/QH15, in force since 1 January 2025), class A1 covers two-wheelers up to 125 cc or 11 kW electric and class A covers anything bigger. The law also bans riding with any alcohol at all in your blood or breath, holding a phone while riding, and lending your bike to someone without a valid licence."
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "The permit you bought at home may be worthless here",
+     "text": "The international driving permits sold by AAA, CAA and Australian motoring clubs are issued under the 1949 Convention, which [Vietnam does not recognise](https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en). Riding on one counts as riding without a licence: a fine of {{vnd:2000000-4000000}} (up to 125 cc), the bike can be impounded, and your travel or health insurer may refuse an accident claim. Use ride-hailing until you hold a licence that is valid here."
+    },
+    {
+     "type": "p",
+     "text": "Foreigners who live and work in Vietnam can exchange a valid home licence for a Vietnamese one without a test. The traffic police have handled licences since 1 March 2025, and [Circular 108/2026/TT-BCA](https://lsvn.vn/luu-y-4-truong-hop-doi-giay-phep-lai-xe-theo-quy-dinh-moi-a175510.html) changed the procedure on 1 July 2026, with applications now made online first. The steps, the documents and the test route are in our [motorbike licence guide](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners)."
+    },
+    {
+     "type": "p",
+     "text": "International driving permits count only if a 1968 Vienna Convention country issued them (UK, South African and Philippine permits do; US, Canadian, Australian, New Zealand, Irish, Indian and Japanese ones do not), carried with your home licence. The fines that matter most are {{vnd:2000000-4000000}} for riding a bike up to 125 cc without a licence valid in Vietnam, with the bike liable to be impounded, {{vnd:4000000-6000000}} for a red light and {{vnd:400000-600000}} for no helmet; the full list is in the [motorbike licence guide](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners#traffic-fines-decree-168)."
+    },
+    {
+     "type": "h3",
+     "text": "Running costs"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Fuel:** {{vnd:28250}} a litre for E10 RON95-III and {{vnd:27700}} for E5 RON92 at Petrolimex from 8 October 2026, after six rises in a row; [prices change weekly](https://dantri.com.vn/kinh-doanh/nguyen-nhan-gia-xang-tang-toi-5220-donglit-chi-sau-hon-mot-thang-20261008185408150.htm). E10 has been the standard blend since 1 June 2026, so check the maker's advice for an older bike.",
+      "**Compulsory third-party insurance:** {{vnd:60000}} a year before VAT for bikes over 50 cc. It pays other people up to {{vnd:150000000}} per person for injury or death, not your own medical bills or bike, and riding without it is fined {{vnd:200000-300000}}.",
+      "**Renting:** many newcomers rent month to month before buying. Typical daily and monthly prices are in our [motorbike rental guide](/motorbike-rental-ho-chi-minh-city). Never leave your passport as a deposit; the UK travel advice warns against it.",
+      "**Buying:** a newly registered bike pays a 2% registration fee plus a plate fee of {{vnd:700000-2800000}} depending on its value (from 1 January 2026). Ask the seller how registration will work with your paperwork before you pay."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "split-shifts",
+   "title": "Commuting between centres and split shifts",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The commute question is sharpest for teachers who work for more than one employer. Language centres teach mostly on weekday evenings (typically 17:30–21:30) and at weekends, while agencies that place teachers in public schools offer weekday daytime hours. Combining the two gives you a split day: classes in the morning, a long gap in the afternoon, and a cross-town trip to the evening centre at rush hour. Our guides to [language-centre work](/teach-in-vietnam/language-centre-jobs-in-ho-chi-minh-city) and [workload and schedules](/teach-in-vietnam/english-teacher-workload-and-schedules-in-vietnam) cover the timetables in detail."
+    },
+    {
+     "type": "p",
+     "text": "Hourly pay usually covers contact time only. Travel between schools or campuses is typically unpaid, so a 40-minute ride between two centres is 40 minutes you are not paid for, and the fare or fuel comes out of your pocket. Some employers pay allowances for distant campuses; one September 2026 job ad offered a {{vnd:2000000}} monthly location allowance in Thu Dau Mot and Tan Uyen (former Binh Duong) to teachers who relocate or rent there."
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Get every campus address before you sign",
+       "text": "Chains run dozens of centres, and since July 2025 a job tagged \"Ho Chi Minh City\" can be in former Binh Duong or Ba Ria–Vung Tau, [30 to 200+ km from central Saigon](https://www.sggp.org.vn/thanh-lap-tphcm-moi-post801737.html). Ask which campuses you will teach at and how often that can change, and get it in writing. Our [contracts guide](/teach-in-vietnam/english-teaching-contracts-in-vietnam) lists what else to check."
+      },
+      {
+       "title": "Ask how travel is paid",
+       "text": "Ask whether travel time between campuses, or a travel or location allowance, is paid. If it is not, price the trips into your hourly rate when you compare offers."
+      },
+      {
+       "title": "Cluster your schedule along one corridor",
+       "text": "Two centres 15 minutes apart are worth more than a slightly better rate an hour away. Teachers commonly aim to live within about 20–25 minutes of their main centre."
+      },
+      {
+       "title": "Use the gap",
+       "text": "On a split day, plan lessons in a café near the evening centre rather than riding home and back through the evening rush."
+      },
+      {
+       "title": "Build in rain time",
+       "text": "In the rainy season, storms often hit in the late afternoon, just as you cross town for evening classes. Keep a poncho under the seat, or allow time for a car."
+      }
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Traffic is worst at known pinch points. The city police list [186 high-risk congestion points](https://tuoitre.vn/plo/cong-an-tphcm-chi-ra-186-diem-co-nguy-co-cao-un-tac-giao-thong-post878572.html), including the An Phu interchange (the gateway to Thao Dien and Thu Thiem), Binh Trieu bridge, Cat Lai port and National Highways 1, 13 and 22. The An Phu interchange is still under construction, [with full completion targeted for 30 April 2027](https://daibieunhandan.vn/tp-ho-chi-minh-day-nhanh-trien-khai-cac-du-an-giao-thong-trong-diem-10421447.html)."
+    }
+   ]
+  },
+  {
+   "id": "rain-and-flooding",
+   "title": "Rainy season, flooding and king tides",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The southern rainy season usually starts in early May and runs to mid or late November; in 2026 it was [forecast to end early](https://www.sggp.org.vn/mua-mua-2026-co-the-den-muon-ket-thuc-som-post848706.html), around late October or early November. Storms tend to be short, heavy bursts. Rain flooding on the worst streets is typically 10–30 cm and drains within about 30 minutes, so waiting it out in a café is often faster than pushing through."
+    },
+    {
+     "type": "p",
+     "text": "Tides are the bigger problem near the river: king tides flood riverside streets mainly in October and November, often in the 6–8am and 5–7pm rush hours, and the city counts [159 flood-prone locations](https://news.tuoitre.vn/ho-chi-minh-city-steps-up-efforts-to-tackle-159-flood-prone-locations-by-2030-103260724114124165.htm). The season's dates, the 2026 tide forecast and the streets on the official flood lists are in [the teaching year in Vietnam](/teach-in-vietnam/the-teaching-year-in-vietnam#rainy-season-and-flooding)."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Don't ride into deep water.** Engines stall, and open drains and potholes are invisible under it.",
+      "**Check your street before you rent.** If the [official list](https://news.tuoitre.vn/ho-chi-minh-city-lists-most-flood-prone-streets-including-one-in-former-thao-dien-103260626100336837.htm) names your street, or neighbours say it floods at high tide, avoid ground-floor flats and basement bike parking, and see it at peak tide before you sign.",
+      "**Switch to a car when it pours.** A GrabCar costs more but keeps your lesson materials dry; expect longer waits for any ride in a downpour."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "which-option",
+   "title": "Which option fits your commute",
+   "blocks": [
+    {
+     "type": "table",
+     "caption": "Rough monthly commuting costs for one teacher (our budget estimates, October 2026; metro and bus prices from the operator and Resolution 09/2026)",
+     "headers": [
+      "How you commute",
+      "Rough cost a month",
+      "Suits"
+     ],
+     "rows": [
+      [
+       "Metro monthly pass",
+       "{{vnd:300000}}",
+       "Living and working on the Line 1 corridor"
+      ],
+      [
+       "City bus",
+       "Free until 31 December 2026",
+       "Short, unhurried trips on fixed routes"
+      ],
+      [
+       "Rented scooter plus fuel",
+       "{{vnd:1800000-2000000}} rental plus {{vnd:300000-500000}} fuel",
+       "Several centres a day, with a licence valid in Vietnam"
+      ],
+      [
+       "Mostly Grab",
+       "About {{vnd:2000000-2500000}}",
+       "One main workplace, no licence, or the first months"
+      ]
+     ]
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Just arrived:** use GrabBike or Xanh SM for everything and learn the city before you commit to a bike or a lease. Our [first-weeks checklist](/teach-in-vietnam/your-first-weeks-in-ho-chi-minh-city) has the order of things to do.",
+      "**One centre, close to home:** walk or take GrabBike. A short daily ride usually costs less than renting a scooter.",
+      "**Living in Thao Dien, working in District 1 (or the other way round):** take Metro Line 1 on the monthly pass and walk or ride the last stretch.",
+      "**Two or more centres, or split shifts:** a scooter usually pays for itself, but only once you hold a licence valid in Vietnam. Until then, budget for Grab.",
+      "**A campus in former Binh Duong or Vung Tau:** treat it as a separate commuting area. Live near it, or get a location allowance in writing."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "For the full monthly picture, rent and food included, see our [cost of living guide](/teach-in-vietnam/cost-of-living-in-ho-chi-minh-city-for-teachers)."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Does the Saigon metro go to District 7, District 3 or Tan Binh?",
+   "a": "No. Metro Line 1 runs only from Ben Thanh in District 1 through Binh Thanh and Thao Dien to Thu Duc and Suoi Tien. District 3, 7, 10, Phu Nhuan, Tan Binh and Go Vap have no station. Line 2, along Cach Mang Thang Tam towards Tan Binh, is not due until the end of 2030."
+  },
+  {
+   "q": "Can I pay for the metro and the free buses with a foreign card?",
+   "a": "The metro gates accept contactless cards from the major international networks as well as the HURC app and cash fares. For the free buses, foreigners tap a chip (EMV) bank card such as Mastercard, or a phone wallet, to log the ride, and nothing is charged. Carry a second way to pay in case a tap fails."
+  },
+  {
+   "q": "Is Grab or Xanh SM better in Ho Chi Minh City?",
+   "a": "Both work well and show a fixed price before you book; Xanh SM's fleet is all-electric, and Be is the third option. Keeping two apps installed lets you compare prices at busy times. Grab also offers an English-speaking GrabBike option in the city."
+  },
+  {
+   "q": "Do I need a licence for an electric scooter?",
+   "a": "Only the smallest ones are licence-free: electric motors up to 4 kW with a design speed up to 50 km/h, ridden by someone aged 16 or over. Anything more powerful needs at least an A1 licence, and every bike still needs registration papers and compulsory third-party insurance."
+  },
+  {
+   "q": "Will the buses stay free after December 2026?",
+   "a": "The current scheme runs from 1 July to 31 December 2026. The city has not announced whether it will continue, so check the MultiGo app or the 1022 hotline in late December."
+  },
+  {
+   "q": "How do I get from Tan Son Nhat airport into the city?",
+   "a": "International flights land at Terminal T2 of Tan Son Nhat, because Long Thanh airport is not yet open. Book a Grab or Xanh SM car in the app from the pickup area. Airport-link buses are not part of the free bus scheme."
+  },
+  {
+   "q": "Can I lend my motorbike to a friend?",
+   "a": "Only if they hold a licence valid in Vietnam for that bike. The road law bans letting someone without the legal conditions ride your vehicle, so lending it to a friend on a non-recognised permit puts you in breach too."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Bảng thông tin các dịch vụ trên ứng dụng Grab (Grab fare table, Ho Chi Minh City)",
+   "publisher": "Grab Vietnam",
+   "url": "https://www.grab.com/vn/en/blog/bang-thong-tin-cac-dich-vu-tren-ung-dung-grab/"
+  },
+  {
+   "title": "Grab launches English-speaking GrabBike",
+   "publisher": "Grab Vietnam",
+   "url": "https://www.grab.com/vn/en/blog/copy-of-grab-trien-khai-thu-nghiem-tinh-nang-dat-xe-nhom/"
+  },
+  {
+   "title": "Road Traffic Order and Safety Law (consolidated text, Law 36/2024/QH15)",
+   "publisher": "Government of Vietnam",
+   "url": "https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/3/55-vbhn-vpqh.pdf"
+  },
+  {
+   "title": "Convention on Road Traffic, Vienna 1968: status",
+   "publisher": "United Nations Treaty Collection",
+   "url": "https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en"
+  },
+  {
+   "title": "Lưu ý 4 trường hợp đổi giấy phép lái xe theo quy định mới (Circular 108/2026/TT-BCA)",
+   "publisher": "Tạp chí Luật sư Việt Nam",
+   "url": "https://lsvn.vn/luu-y-4-truong-hop-doi-giay-phep-lai-xe-theo-quy-dinh-moi-a175510.html"
+  },
+  {
+   "title": "Historic milestone: HCM City's first metro line launches",
+   "publisher": "Vietnam News",
+   "url": "https://vietnamnews.vn/society/1689480/historic-milestone-hcm-city-s-first-metro-line-launches-after-years-of-delay.html"
+  },
+  {
+   "title": "HCM City announces fares for its Metro Line 1",
+   "publisher": "Vietnam News",
+   "url": "https://vietnamnews.vn/society/1687512/hcm-city-announces-fares-for-its-metro-line-1.html"
+  },
+  {
+   "title": "Biểu đồ tàu metro số 1 mới: giãn cách và giờ vận hành cập nhật",
+   "publisher": "Người Lao Động (Tuoi Tre)",
+   "url": "https://tuoitre.vn/nld/bieu-do-tau-metro-so-1-moi-gian-cach-va-gio-van-hanh-cap-nhat-196260105154538759.htm"
+  },
+  {
+   "title": "TP.HCM chính thức khởi công metro số 2",
+   "publisher": "Pháp Luật TP.HCM (Tuoi Tre)",
+   "url": "https://tuoitre.vn/plo/tphcm-chinh-thuc-khoi-cong-metro-so-2-du-an-tien-phong-trong-giai-doan-moi-post891481.html"
+  },
+  {
+   "title": "TP Hồ Chí Minh phân luồng giao thông phục vụ thi công ga Tao Đàn, Bảy Hiền",
+   "publisher": "VietnamPlus",
+   "url": "https://www.vietnamplus.vn/tp-ho-chi-minh-phan-luong-giao-thong-phuc-vu-thi-cong-ga-tao-dan-bay-hien-post1139640.vnp"
+  },
+  {
+   "title": "Nghị quyết 09/2026/NQ-HĐND TP.HCM hỗ trợ người dùng phương tiện vận tải công cộng",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/chinh-sach/nghi-quyet-09-2026-nq-hdnd-tp-hcm-ho-tro-nguoi-dung-phuong-tien-van-tai-cong-cong-438390-d2.html"
+  },
+  {
+   "title": "TP.HCM ngày đầu xác thực khi đi xe buýt miễn phí",
+   "publisher": "Tuoi Tre",
+   "url": "https://tuoitre.vn/tphcm-ngay-dau-xac-thuc-khi-di-xe-buyt-mien-phi-nguoi-dan-noi-da-qua-quen-100261001135119433.htm"
+  },
+  {
+   "title": "Ride-hailers race for market share after Gojek's exit",
+   "publisher": "Vietnam Investment Review",
+   "url": "https://vir.com.vn/ride-hailers-race-for-market-share-after-gojeks-exit-114520.html"
+  },
+  {
+   "title": "Vietnam travel advice: safety and security",
+   "publisher": "UK Foreign, Commonwealth & Development Office",
+   "url": "https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security"
+  },
+  {
+   "title": "Nguyên nhân giá xăng tăng tới 5.220 đồng/lít chỉ sau hơn một tháng",
+   "publisher": "Dân trí",
+   "url": "https://dantri.com.vn/kinh-doanh/nguyen-nhan-gia-xang-tang-toi-5220-donglit-chi-sau-hon-mot-thang-20261008185408150.htm"
+  },
+  {
+   "title": "Bồi thường tối đa 150 triệu đồng/người trong một vụ tai nạn (compulsory motor insurance)",
+   "publisher": "VietnamFinance",
+   "url": "https://vietnamfinance.vn/boi-thuong-toi-da-150-trieu-dongnguoi-trong-mot-vu-tai-nan-d100407.html"
+  },
+  {
+   "title": "Giảm lệ phí trước bạ xe máy về 2%",
+   "publisher": "VnExpress",
+   "url": "https://vnexpress.net/giam-le-phi-truoc-ba-xe-may-ve-2-4908434.html"
+  },
+  {
+   "title": "Ho Chi Minh City lists most flood-prone streets, including one in former Thao Dien",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/ho-chi-minh-city-lists-most-flood-prone-streets-including-one-in-former-thao-dien-103260626100336837.htm"
+  },
+  {
+   "title": "Ho Chi Minh City steps up efforts to tackle 159 flood-prone locations by 2030",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/ho-chi-minh-city-steps-up-efforts-to-tackle-159-flood-prone-locations-by-2030-103260724114124165.htm"
+  },
+  {
+   "title": "Mùa mưa 2026 có thể đến muộn, kết thúc sớm",
+   "publisher": "Sài Gòn Giải Phóng",
+   "url": "https://www.sggp.org.vn/mua-mua-2026-co-the-den-muon-ket-thuc-som-post848706.html"
+  },
+  {
+   "title": "Công an TP.HCM chỉ ra 186 điểm có nguy cơ cao ùn tắc giao thông",
+   "publisher": "Pháp Luật TP.HCM (Tuoi Tre)",
+   "url": "https://tuoitre.vn/plo/cong-an-tphcm-chi-ra-186-diem-co-nguy-co-cao-un-tac-giao-thong-post878572.html"
+  },
+  {
+   "title": "TP.HCM có 113 phường, 54 xã và 1 đặc khu sau sắp xếp",
+   "publisher": "Báo Đấu thầu",
+   "url": "https://baodauthau.vn/tphcm-co-113-phuong-54-xa-va-1-dac-khu-sau-sap-xep-post180312.html"
+  },
+  {
+   "title": "HCMC Rent Index",
+   "publisher": "eno.vn",
+   "url": "https://eno.vn/hcmc-rent-index"
+  }
+ ],
+ "related": [
+  "motorbike-licence-in-vietnam-for-foreigners",
+  "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+  "your-first-weeks-in-ho-chi-minh-city",
+  "cost-of-living-in-ho-chi-minh-city-for-teachers",
+  "english-teacher-workload-and-schedules-in-vietnam",
+  "is-ho-chi-minh-city-safe"
+ ],
+ "lastChecked": "2026-10-11"
+}

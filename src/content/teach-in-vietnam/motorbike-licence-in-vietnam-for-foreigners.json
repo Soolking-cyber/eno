@@ -1,0 +1,561 @@
+{
+ "slug": "motorbike-licence-in-vietnam-for-foreigners",
+ "title": "Motorbike licence in Vietnam for foreigners (2026)",
+ "description": "Which international driving permits Vietnam accepts (not US, Canadian or Australian ones), how to swap your licence, A1 rules and the Decree 168 fines.",
+ "h1": "Riding legally in Vietnam: which permits count, swapping your licence, A1 rules and fines",
+ "eyebrow": "Arriving in Saigon",
+ "intro": "Vietnam accepts an international driving permit only if a 1968 Vienna Convention country issued it, and only carried with your home licence for the same class: UK, South African and Philippine permits work; US, Canadian, Australian, New Zealand, Irish, Indian and Japanese ones do not. Otherwise you need a Vietnamese licence, by exchanging your valid foreign licence once you live and work here, or by passing the test. The only way to ride yourself with no licence is a moped of 50 cc or 4 kW and under.",
+ "keyPoints": [
+  "Only **1968 Vienna Convention** permits count. UK, South African and Philippine permits work with your home motorbike licence; US, Canadian, Australian, New Zealand and Irish permits give no legal cover here.",
+  "Riding a bike of up to 125 cc without a valid licence costs {{vnd:2000000-4000000}} ({{vnd:6000000-8000000}} above 125 cc), and the bike can be impounded.",
+  "If you live and work in Vietnam you can **exchange** a valid foreign licence without a test. The standard fee is {{vnd:135000}}. Circular 108/2026/TT-BCA replaced the old procedure on 1 July 2026, so confirm the current file with the traffic police (PC08) first.",
+  "Since 1 January 2025, A1 covers bikes up to 125 cc or 11 kW and bigger bikes need class A. A moped of up to 50 cc or 4 kW needs no licence.",
+  "Decree 168/2024 fines: {{vnd:4000000-6000000}} for a red light, {{vnd:400000-600000}} for no helmet, and zero alcohol tolerance, up to {{vnd:8000000-10000000}} plus a 22–24 month suspension.",
+  "Compulsory third-party insurance ({{vnd:60000}} a year before VAT for a bike over 50 cc) pays other people, not you. Check the licence clause in your own health or accident cover."
+ ],
+ "sections": [
+  {
+   "id": "which-route-fits-you",
+   "title": "Which route fits you",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Your options depend on two things: which country issued your licence, and whether that licence already covers motorbikes. Find your row, then read the section that goes with it."
+    },
+    {
+     "type": "table",
+     "caption": "Legal ways to ride in Vietnam, by the licence you arrive with. Based on Law 36/2024/QH15, Arts 56, 57 and 62 (consolidated text, March 2026), as of October 2026.",
+     "headers": [
+      "What you hold",
+      "Can you ride on it now?",
+      "Long-term route"
+     ],
+     "rows": [
+      [
+       "A motorbike licence from the UK, South Africa, the Philippines or another 1968 Convention country, plus an international permit from that country",
+       "Yes, carrying both, for up to 3 years from the permit's issue date",
+       "Exchange your home licence for a Vietnamese one once you live and work here"
+      ],
+      [
+       "A motorbike licence from the US, Canada, Australia, New Zealand, Ireland, India or Japan",
+       "No: your international permit is not recognised",
+       "Exchange your home licence for a Vietnamese one once you live and work here"
+      ],
+      [
+       "A car-only licence, or no licence",
+       "No motorbike over 50 cc or 4 kW",
+       "Pass the Vietnamese A1 test, or ride a moped of 50 cc or 4 kW and under"
+      ],
+      [
+       "A licence from another ASEAN country",
+       "Possibly, under a regional agreement: confirm with the traffic police",
+       "Exchange once you live and work here"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Until one of those routes is in place, ride pillion. Grab, Xanh SM and Be all offer motorbike rides. Our guide to [getting around Ho Chi Minh City](/teach-in-vietnam/getting-around-ho-chi-minh-city) covers the apps and the metro, and [your first weeks in Ho Chi Minh City](/teach-in-vietnam/your-first-weeks-in-ho-chi-minh-city) puts the licence in order with your other first tasks."
+    }
+   ]
+  },
+  {
+   "id": "is-my-international-driving-permit-valid",
+   "title": "Is my international driving permit valid in Vietnam?",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Only if a party to the 1968 Vienna Convention on Road Traffic issued it. Under Art 57 of the [Road Traffic Order and Safety Law 36/2024/QH15](https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/3/55-vbhn-vpqh.pdf), the permit is valid for at most 3 years from issue and only while your national licence is valid. You must carry **both**, and you may ride only the vehicle classes they cover, so a car-only licence and its permit do not let you ride a motorbike."
+    },
+    {
+     "type": "p",
+     "text": "Vietnam joined the convention in 2014, but several of the biggest teacher-sending countries never did. Check your own country in the [UN treaty record](https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en)."
+    },
+    {
+     "type": "table",
+     "caption": "1968 Convention on Road Traffic: status of common teacher home countries. Source: UN Treaty Collection, checked October 2026.",
+     "headers": [
+      "Country",
+      "1968 Convention party?",
+      "Permit valid in Vietnam?"
+     ],
+     "rows": [
+      [
+       "United Kingdom",
+       "Yes (2018)",
+       "Yes, with your UK licence"
+      ],
+      [
+       "South Africa",
+       "Yes (1977)",
+       "Yes, with your South African licence"
+      ],
+      [
+       "Philippines",
+       "Yes (1973)",
+       "Yes, with your Philippine licence"
+      ],
+      [
+       "Thailand, Germany, France, the Netherlands, Italy, Poland, Belgium, the Nordic countries, Türkiye, Israel, Russia, Ukraine",
+       "Yes",
+       "Yes, with your home licence"
+      ],
+      [
+       "United States, Canada, Australia, New Zealand, Ireland",
+       "No",
+       "No"
+      ],
+      [
+       "India, Japan, Malaysia, Singapore",
+       "No",
+       "No"
+      ],
+      [
+       "Spain, South Korea, Indonesia, Mexico",
+       "Signed but not ratified",
+       "No"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The permits sold by AAA in the US, CAA in Canada and Australian motoring clubs are 1949-Convention permits, so they give **no legal cover** in Vietnam. 'International driving licences' sold online have no legal standing either, as [Vietcetera reported in June 2026](https://vietcetera.com/en/why-many-foreigners-ride-illegally-in-vietnam-without-realizing-it)."
+    },
+    {
+     "type": "p",
+     "text": "Art 57 also recognises licences covered by bilateral or multilateral recognition treaties. A [May 2026 Viet Nam News piece](https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html) points to the 1985 ASEAN agreement, under which ASEAN national licences are valid for the classes they show. If your licence is from an ASEAN country, confirm this with the traffic police before you rely on it."
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "The mistake most new arrivals make",
+     "text": "Riding on a US, Canadian, Australian, New Zealand or Irish permit counts as riding without a licence: {{vnd:2000000-4000000}} on a bike up to 125 cc, {{vnd:6000000-8000000}} above that, and the bike can be impounded. The same fines apply to a valid 1968 permit carried without the matching home licence. Your travel or health insurer may also refuse a crash claim."
+    }
+   ]
+  },
+  {
+   "id": "licence-classes-after-the-2025-law",
+   "title": "Which licence class you need after the 2025 law",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The road law took effect on 1 January 2025 and redrew the licence classes ([Law 36/2024/QH15, Art 57](https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/3/55-vbhn-vpqh.pdf); [Nghe An public-service portal](https://hcc.nghean.gov.vn/tin-tong-hop/tu-1-1-2025-co-nhung-hang-giay-phep-lai-xe-nao-1530.html)). Law 118/2025/QH15 amended it from 1 July 2026, and the consolidated text dates from March 2026."
+    },
+    {
+     "type": "table",
+     "caption": "Licence classes for two- and three-wheelers and cars under Law 36/2024/QH15, Arts 56, 57 and 59 (consolidated text, March 2026).",
+     "headers": [
+      "Class",
+      "What it covers",
+      "Expiry"
+     ],
+     "rows": [
+      [
+       "None needed (moped, 'xe gắn máy')",
+       "Up to 50 cc petrol or an electric motor up to 4 kW, design speed up to 50 km/h; rider aged 16 or over",
+       "Not applicable"
+      ],
+      [
+       "A1",
+       "Two-wheel motorcycles up to 125 cc, or electric up to 11 kW",
+       "Never expires"
+      ],
+      [
+       "A",
+       "Two-wheelers over 125 cc or over 11 kW, plus everything in A1",
+       "Never expires"
+      ],
+      [
+       "B1",
+       "Three-wheel motorcycles, plus everything in A1",
+       "Never expires"
+      ],
+      [
+       "B",
+       "Cars with up to 8 passenger seats, trucks up to 3,500 kg",
+       "10 years"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Most scooters and many electric scooters are above the moped limits, so they need A1, and anything over 125 cc needs A. A true moped is the only motorised two-wheeler you can ride with no licence at all, but it still needs registration papers and compulsory third-party insurance."
+    },
+    {
+     "type": "h3",
+     "text": "Licences issued before 2025"
+    },
+    {
+     "type": "p",
+     "text": "Licences issued before 1 January 2025 stay valid. When an old A1 is exchanged or reissued it becomes an A licence restricted to under 175 cc (or under 14 kW); an old A2 becomes A and an old A3 becomes B1 ([Ha Tinh provincial portal](https://hatinh.gov.vn/vi/bai-viet/giay-phep-lai-xe-cap-truoc-112025-thi-duoc-cap-doi-lai-nhu-the-nao)). This matters when a rental shop or a colleague talks about 'A1 versus A2': under the old system A1 went up to 175 cc, but a newly issued A1 stops at 125 cc."
+    }
+   ]
+  },
+  {
+   "id": "converting-a-foreign-licence",
+   "title": "How to convert a foreign licence to a Vietnamese one",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "If you live, work or study in Vietnam you can exchange a valid foreign licence for the equivalent Vietnamese class **without a test** ([Law 36/2024, Art 62](https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/3/55-vbhn-vpqh.pdf)). This route is open whichever country issued your licence, including the US, Canada and Australia, whose permits are not recognised. Expired, temporary or damaged licences cannot be exchanged, and neither can an international permit."
+    },
+    {
+     "type": "p",
+     "text": "For a teacher, exchange has in practice come after the work permit, not before. Your employer arranges the rest of your paperwork once your [work permit](/teach-in-vietnam/vietnam-work-permit-for-english-teachers) is issued — ask them exactly what they cover and what it costs."
+    },
+    {
+     "type": "p",
+     "text": "Since 1 March 2025 the police, not the transport department, run tests, issuance and exchange. In Ho Chi Minh City that is the Traffic Police Division of the city police, known as PC08 ([SGGP](https://www.sggp.org.vn/tphcm-nguoi-dan-den-cap-doi-giay-phep-lai-xe-ngay-dau-tien-nhanh-thuan-loi-post784086.html)). The procedure changed again on 1 July 2026, when [Circular 108/2026/TT-BCA](https://lsvn.vn/luu-y-4-truong-hop-doi-giay-phep-lai-xe-theo-quy-dinh-moi-a175510.html) replaced Circular 12/2025/TT-BCA; some parts of the old circular apply until 28 February 2027."
+    },
+    {
+     "type": "p",
+     "text": "Under the new circular, applications go **online first**, through the National Public Service Portal, VNeID or the police app. The published summaries of Circular 108 describe exchanges of Vietnamese-issued licences; how it handles a foreign licence was not published when we checked. Filing in person at a traffic police office or a ward police reception point is limited to listed cases, such as having no Level 2 VNeID account, licence data missing from the system, or a portal error. Since 28 September 2026 any foreigner lawfully in Vietnam can request a VNeID electronic-ID account ([Decree 320/2026/ND-CP, KPMG summary](https://kpmg.com/vn/en/insights/2026/09/decree-320-on-electronic-identification-and-authentication.html))."
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Check your licence qualifies",
+       "text": "It must be a valid, permanent national licence, not expired or damaged. To get A1 or A, it must already cover motorbikes; a car-only licence exchanges to a car class."
+      },
+      {
+       "title": "Get a certified Vietnamese translation",
+       "text": "The file needs a Vietnamese translation of your licence attached to a copy. Since 1 July 2025 a translation is validated by certifying the translator's signature at a ward People's Committee or a notary practice, not by notarising the translation ([Tạp chí Luật sư](https://lsvn.vn/se-khong-con-can-thuc-hien-cong-chung-ban-dich-tu-01-7-a159826.html)). Our guide to [getting documents authenticated](/teach-in-vietnam/getting-your-degree-authenticated-for-vietnam) explains how that works."
+      },
+      {
+       "title": "Confirm the current document list",
+       "text": "Under Circular 12/2025 the file was the application (Form XIII for foreigners), the translation attached to a copy of your licence, copies of the personal documents the police listed, and a health certificate (some exchanges were exempt); originals were shown on submission ([Tạp chí Luật sư](https://lsvn.vn/quy-dinh-moi-ve-doi-giay-phep-lai-xe-nuoc-ngoai-a154640.html)). Circular 108/2026 may have changed this, so check the list on the portal or with PC08 before you start."
+      },
+      {
+       "title": "Apply and pay the fee",
+       "text": "Ask PC08 whether to file online or in person: one of the listed in-person cases is licence data missing from the national system, which may fit a foreign licence. The standard fee for issuing or exchanging a licence has been {{vnd:135000}} per issuance since 1 January 2026; the cheaper {{vnd:115000}} online rate ended on 31 December 2025 ([Báo Quốc tế](https://baoquocte.vn/le-phi-cap-doi-giay-phep-lai-xe-tu-ngay-112026-la-bao-nhieu-285546.html))."
+      },
+      {
+       "title": "Collect the licence and check its expiry date",
+       "text": "Under the old circular the licence was issued within about 3 working days and printed within about 5. Read the expiry date printed on it: an exchanged licence reportedly carried an end date despite the law's 'A1 never expires' rule, so note it and renew in time."
+      }
+     ]
+    },
+    {
+     "type": "h3",
+     "text": "Where PC08 receives applicants"
+    },
+    {
+     "type": "p",
+     "text": "PC08 kept the three former transport-department counters: 252 Lý Chính Thắng (former District 3), 8 Nguyễn Ảnh Thủ (former District 12) and 111 Tân Sơn Nhì (former Tân Phú), and added ward police reception points ([SGGP](https://www.sggp.org.vn/thoi-diem-cong-an-tiep-nhan-ho-so-sat-hach-giay-phep-lai-xe-post782354.html)). Since July 2025 official addresses use new ward names rather than districts, so search by street and number."
+    }
+   ]
+  },
+  {
+   "id": "taking-the-vietnamese-motorbike-test",
+   "title": "Taking the Vietnamese motorbike test instead",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "If you have no motorbike licence to exchange, the route is the Vietnamese A1 test. PC08 runs tests too; ask them how to apply under Circular 108/2026."
+    },
+    {
+     "type": "p",
+     "text": "[Vietcetera reported in June 2026](https://vietcetera.com/en/why-many-foreigners-ride-illegally-in-vietnam-without-realizing-it) that the theory part is in Vietnamese only, drawn from a bank of 250 questions. We could not confirm from an official source whether an English option exists or what the test currently costs, so ask PC08 or the test centre both questions before you book."
+    },
+    {
+     "type": "p",
+     "text": "The alternative for a non-rider is a moped of 50 cc or 4 kW and under, which you may ride from age 16 with no licence. Check the specification sheet, not the seller's word: many electric scooters are over 4 kW or faster than 50 km/h and so need A1."
+    }
+   ]
+  },
+  {
+   "id": "traffic-fines-decree-168",
+   "title": "Traffic fines in 2025–2026 (Decree 168/2024)",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Decree 168/2024/ND-CP took effect on 1 January 2025 and raised motorbike fines sharply: running a red light, {{vnd:800000-1000000}} before, now costs {{vnd:4000000-6000000}} ([LuatVietnam summary](https://luatvietnam.vn/giao-thong/nghi-dinh-168-doi-voi-xe-may-863-100609-article.html); [Government news portal](https://en.baochinhphu.vn/evolution-of-traffic-fines-in-viet-nam-111260327164223531.htm)). Decree 238/2026/ND-CP amended it from 15 August 2026 but left the main motorbike fines for helmets, alcohol, red lights and phones unchanged ([ketoananpha.vn](https://ketoananpha.vn/nghi-dinh-238-2026-nd-cp))."
+    },
+    {
+     "type": "table",
+     "caption": "Motorbike fines under Decree 168/2024/ND-CP, Arts 7 and 18, as summarised by LuatVietnam and Tạp chí Luật sư; Decree 238/2026 left the main motorbike fines unchanged. Licence points shown where the summaries list them. As of October 2026.",
+     "headers": [
+      "Offence on a motorbike",
+      "Fine",
+      "Licence points / other"
+     ],
+     "rows": [
+      [
+       "No helmet, or helmet unfastened (rider or passenger)",
+       "{{vnd:400000-600000}}",
+       "—"
+      ],
+      [
+       "Speeding 5 to under 10 km/h over the limit",
+       "{{vnd:400000-600000}}",
+       "—"
+      ],
+      [
+       "Holding and using a phone while riding",
+       "{{vnd:800000-1000000}}",
+       "4 points"
+      ],
+      [
+       "Speeding 10 to under 20 km/h over the limit",
+       "{{vnd:800000-1000000}}",
+       "—"
+      ],
+      [
+       "Any alcohol up to 50 mg/100 ml blood (0.25 mg/l breath)",
+       "{{vnd:2000000-3000000}}",
+       "4 points"
+      ],
+      [
+       "Riding on the pavement, or the wrong way down a one-way street",
+       "{{vnd:4000000-6000000}}",
+       "2 points"
+      ],
+      [
+       "Running a red light",
+       "{{vnd:4000000-6000000}}",
+       "4 points"
+      ],
+      [
+       "Alcohol 50–80 mg/100 ml blood",
+       "{{vnd:6000000-8000000}}",
+       "10 points"
+      ],
+      [
+       "Speeding more than 20 km/h over the limit",
+       "{{vnd:6000000-8000000}}",
+       "4 points"
+      ],
+      [
+       "Alcohol over 80 mg/100 ml blood (0.4 mg/l breath), or refusing a test",
+       "{{vnd:8000000-10000000}}",
+       "Licence suspended 22–24 months"
+      ],
+      [
+       "Causing a crash through any of the behaviours above",
+       "{{vnd:10000000-14000000}}",
+       "—"
+      ],
+      [
+       "No valid licence, bike up to 125 cc (or a 1968 permit without the matching home licence)",
+       "{{vnd:2000000-4000000}}",
+       "Bike can be impounded"
+      ],
+      [
+       "No valid licence, bike over 125 cc",
+       "{{vnd:6000000-8000000}}",
+       "Bike can be impounded"
+      ],
+      [
+       "No compulsory third-party insurance, or no registration certificate with you",
+       "{{vnd:200000-300000}}",
+       "—"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The alcohol limit is **zero**. Art 9 of the [road law](https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/3/55-vbhn-vpqh.pdf) bans riding with any alcohol in your blood or breath, and bans holding and using a phone while riding, so even one beer can put you in the lowest tier."
+    },
+    {
+     "type": "p",
+     "text": "Every Vietnamese licence carries 12 points (Art 58). They come back in full after 12 months without a deduction; lose all 12 and you may not ride on that licence until you pass a traffic-law test, no earlier than 6 months later. Deductions go into the national traffic database as soon as a penalty decision takes effect, and camera-based 'remote' fines (phạt nguội) are widely used in Ho Chi Minh City."
+    },
+    {
+     "type": "p",
+     "text": "Driving a car costs more: {{vnd:18000000-20000000}} for a red light, and up to {{vnd:30000000-40000000}} plus 22–24 months' licence revocation at the top alcohol level ([VTV](https://english.vtv.vn/news/stricter-fines-for-traffic-violations-introduced-under-new-decree-20241231110817448.htm)). Driving a car without a licence is {{vnd:18000000-20000000}}."
+    }
+   ]
+  },
+  {
+   "id": "insurance-and-helmets",
+   "title": "Insurance and helmets: what covers you after a crash",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Every motorbike owner must hold compulsory third-party liability insurance under Decree 67/2023/ND-CP. It costs {{vnd:60000}} a year for a bike over 50 cc and {{vnd:55000}} for 50 cc and under, both before VAT, and pays third parties up to {{vnd:150000000}} per person for injury or death and {{vnd:50000000}} per accident for property damage ([VietnamFinance](https://vietnamfinance.vn/boi-thuong-toi-da-150-trieu-dongnguoi-trong-mot-vu-tai-nan-d100407.html)). Decree 220/2026/ND-CP, in force from 1 July 2026, did not change these premiums or limits ([LuatVietnam](https://luatvietnam.vn/xay-dung/nghi-dinh-220-2026-nd-cp-sua-doi-bao-hiem-bat-buoc-va-trach-nhiem-dan-su-xe-co-gioi-438421-d1.html)). Riding without it costs {{vnd:200000-300000}} ([Tạp chí Luật sư](https://lsvn.vn/tang-muc-phat-doi-voi-hanh-vi-khong-co-bao-hiem-xe-may-bat-buoc-tu-nam-2025-a152421.html))."
+    },
+    {
+     "type": "p",
+     "text": "That policy pays **other people**, not your own hospital bill or your bike. For yourself you rely on health or accident cover. Foreign employees on contracts of 12 months or more are enrolled in national health insurance (see [social and health insurance for foreign teachers](/teach-in-vietnam/social-and-health-insurance-for-foreign-teachers-in-vietnam)); on a shorter contract or freelance hours, private international cover that includes motorbike accidents is the usual answer."
+    },
+    {
+     "type": "p",
+     "text": "Read the motorbike clause before you ride. Private health and accident policies usually require a locally valid licence, which is exactly what a teacher riding on a US or Australian permit lacks. For hospitals and emergency numbers, see [healthcare in Ho Chi Minh City](/teach-in-vietnam/healthcare-and-health-insurance-in-ho-chi-minh-city)."
+    },
+    {
+     "type": "h3",
+     "text": "Helmets"
+    },
+    {
+     "type": "p",
+     "text": "Rider and passenger must both wear a helmet, and fasten it: a missing or unfastened helmet costs {{vnd:400000-600000}}. Grab drivers carry a helmet for their passenger, and you are legally required to wear it."
+    }
+   ]
+  },
+  {
+   "id": "renting-or-buying-a-bike",
+   "title": "Renting or buying a bike: the papers to carry",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Whenever you ride, carry your licence (or your 1968 permit plus home licence), the bike's registration certificate and its compulsory insurance certificate. Missing registration or insurance costs {{vnd:200000-300000}} each ([Tạp chí Luật sư](https://lsvn.vn/mot-so-luu-y-ve-giay-to-xe-khi-tham-gia-giao-thong-dip-tet-nguyen-dan-2026-a169529.html))."
+    },
+    {
+     "type": "p",
+     "text": "For prices, deposits and what to check before you take a rental, see our [motorbike rental guide for Ho Chi Minh City](/motorbike-rental-ho-chi-minh-city). Never leave your passport as a deposit with a rental shop or a landlord: the [UK travel advice](https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security) warns against it, and you need the passport for your SIM, your bank and police checks."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Buying**: many teachers ride bikes still registered to a Vietnamese seller. The rules for a foreigner registering a bike in their own name were not clear when we checked, so ask the seller and the ward police before you pay.",
+      "**Lending**: Art 9 of the road law bans handing your vehicle to someone who does not meet the legal conditions to ride it, so lending your bike to a friend on an unrecognised permit is your problem too.",
+      "**Phones**: motorbike bag- and phone-snatching is the main crime against foreigners, and using a phone while riding costs points. Keep it away on the bike; more in [is Ho Chi Minh City safe?](/teach-in-vietnam/is-ho-chi-minh-city-safe)"
+     ]
+    },
+    {
+     "type": "p",
+     "text": "This page explains the rules as of October 2026; the traffic police (PC08) have the final word on your file, so confirm the current document list and fee with them before you apply."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Can I ride a scooter in Vietnam on my car licence?",
+   "a": "No. A licence and permit are valid only for the classes they cover, so a car-only licence does not cover a motorbike. You need an A1 (or A above 125 cc), or a moped of 50 cc or 4 kW and under."
+  },
+  {
+   "q": "How long is a 1968 international driving permit valid in Vietnam?",
+   "a": "At most 3 years from its issue date, and never beyond the expiry of your home licence. Carry both every time you ride."
+  },
+  {
+   "q": "Is an electric scooter licence-free in Vietnam?",
+   "a": "Only if its motor is 4 kW or less and its design speed 50 km/h or less. Above that it needs an A1 (up to 11 kW) or an A licence."
+  },
+  {
+   "q": "Does a Vietnamese A1 licence expire?",
+   "a": "Under the law, A1, A and B1 licences have no expiry. An A1 obtained by exchanging a foreign licence reportedly carried an end date under the old circular, so check the date printed on yours."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Luật Trật tự, an toàn giao thông đường bộ (Law 36/2024/QH15, consolidated text, March 2026)",
+   "publisher": "Office of the National Assembly, via the Government of Viet Nam portal",
+   "url": "https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/3/55-vbhn-vpqh.pdf"
+  },
+  {
+   "title": "Convention on Road Traffic, Vienna 1968 — status of participants",
+   "publisher": "United Nations Treaty Collection",
+   "url": "https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en"
+  },
+  {
+   "title": "Lưu ý 4 trường hợp đổi giấy phép lái xe theo quy định mới (Circular 108/2026/TT-BCA)",
+   "publisher": "Tạp chí Luật sư Việt Nam",
+   "url": "https://lsvn.vn/luu-y-4-truong-hop-doi-giay-phep-lai-xe-theo-quy-dinh-moi-a175510.html"
+  },
+  {
+   "title": "Quy định mới về đổi giấy phép lái xe nước ngoài",
+   "publisher": "Tạp chí Luật sư Việt Nam",
+   "url": "https://lsvn.vn/quy-dinh-moi-ve-doi-giay-phep-lai-xe-nuoc-ngoai-a154640.html"
+  },
+  {
+   "title": "Lệ phí cấp đổi giấy phép lái xe từ ngày 1/1/2026 là bao nhiêu?",
+   "publisher": "Báo Quốc tế",
+   "url": "https://baoquocte.vn/le-phi-cap-doi-giay-phep-lai-xe-tu-ngay-112026-la-bao-nhieu-285546.html"
+  },
+  {
+   "title": "Nghị định 168 đối với xe máy: 10 mức phạt mọi tài xế cần biết",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/giao-thong/nghi-dinh-168-doi-voi-xe-may-863-100609-article.html"
+  },
+  {
+   "title": "Evolution of traffic fines in Viet Nam",
+   "publisher": "Viet Nam Government News",
+   "url": "https://en.baochinhphu.vn/evolution-of-traffic-fines-in-viet-nam-111260327164223531.htm"
+  },
+  {
+   "title": "Một số lưu ý về giấy tờ xe khi tham gia giao thông dịp Tết Nguyên đán 2026",
+   "publisher": "Tạp chí Luật sư Việt Nam",
+   "url": "https://lsvn.vn/mot-so-luu-y-ve-giay-to-xe-khi-tham-gia-giao-thong-dip-tet-nguyen-dan-2026-a169529.html"
+  },
+  {
+   "title": "Tăng mức phạt đối với hành vi không có bảo hiểm xe máy bắt buộc từ năm 2025",
+   "publisher": "Tạp chí Luật sư Việt Nam",
+   "url": "https://lsvn.vn/tang-muc-phat-doi-voi-hanh-vi-khong-co-bao-hiem-xe-may-bat-buoc-tu-nam-2025-a152421.html"
+  },
+  {
+   "title": "Nghị định 238/2026/NĐ-CP sửa đổi Nghị định 168/2024/NĐ-CP",
+   "publisher": "ketoananpha.vn",
+   "url": "https://ketoananpha.vn/nghi-dinh-238-2026-nd-cp"
+  },
+  {
+   "title": "Stricter fines for traffic violations introduced under new decree",
+   "publisher": "VTV",
+   "url": "https://english.vtv.vn/news/stricter-fines-for-traffic-violations-introduced-under-new-decree-20241231110817448.htm"
+  },
+  {
+   "title": "Bồi thường tối đa 150 triệu đồng/người trong một vụ tai nạn",
+   "publisher": "VietnamFinance",
+   "url": "https://vietnamfinance.vn/boi-thuong-toi-da-150-trieu-dongnguoi-trong-mot-vu-tai-nan-d100407.html"
+  },
+  {
+   "title": "Nghị định 220/2026/NĐ-CP sửa đổi bảo hiểm bắt buộc và trách nhiệm dân sự xe cơ giới",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/xay-dung/nghi-dinh-220-2026-nd-cp-sua-doi-bao-hiem-bat-buoc-va-trach-nhiem-dan-su-xe-co-gioi-438421-d1.html"
+  },
+  {
+   "title": "TPHCM: Người dân đến cấp đổi giấy phép lái xe ngày đầu tiên nhanh, thuận lợi",
+   "publisher": "Sài Gòn Giải Phóng (SGGP)",
+   "url": "https://www.sggp.org.vn/tphcm-nguoi-dan-den-cap-doi-giay-phep-lai-xe-ngay-dau-tien-nhanh-thuan-loi-post784086.html"
+  },
+  {
+   "title": "Thời điểm công an tiếp nhận hồ sơ sát hạch giấy phép lái xe",
+   "publisher": "Sài Gòn Giải Phóng (SGGP)",
+   "url": "https://www.sggp.org.vn/thoi-diem-cong-an-tiep-nhan-ho-so-sat-hach-giay-phep-lai-xe-post782354.html"
+  },
+  {
+   "title": "Giấy phép lái xe cấp trước 1/1/2025 thì được cấp đổi lại như thế nào?",
+   "publisher": "Ha Tinh Provincial Portal",
+   "url": "https://hatinh.gov.vn/vi/bai-viet/giay-phep-lai-xe-cap-truoc-112025-thi-duoc-cap-doi-lai-nhu-the-nao"
+  },
+  {
+   "title": "Từ 1/1/2025 có những hạng giấy phép lái xe nào?",
+   "publisher": "Nghe An Public Administration Service Portal",
+   "url": "https://hcc.nghean.gov.vn/tin-tong-hop/tu-1-1-2025-co-nhung-hang-giay-phep-lai-xe-nao-1530.html"
+  },
+  {
+   "title": "Decree 320 on electronic identification and authentication",
+   "publisher": "KPMG Vietnam",
+   "url": "https://kpmg.com/vn/en/insights/2026/09/decree-320-on-electronic-identification-and-authentication.html"
+  },
+  {
+   "title": "Sẽ không còn cần thực hiện công chứng bản dịch từ 01/7",
+   "publisher": "Tạp chí Luật sư Việt Nam",
+   "url": "https://lsvn.vn/se-khong-con-can-thuc-hien-cong-chung-ban-dich-tu-01-7-a159826.html"
+  },
+  {
+   "title": "Why many foreigners ride illegally in Vietnam without realizing it",
+   "publisher": "Vietcetera",
+   "url": "https://vietcetera.com/en/why-many-foreigners-ride-illegally-in-vietnam-without-realizing-it"
+  },
+  {
+   "title": "Using the roads in Việt Nam as a foreigner",
+   "publisher": "Viet Nam News",
+   "url": "https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html"
+  },
+  {
+   "title": "Vietnam travel advice: safety and security",
+   "publisher": "UK Foreign, Commonwealth & Development Office (GOV.UK)",
+   "url": "https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security"
+  }
+ ],
+ "related": [
+  "getting-around-ho-chi-minh-city",
+  "your-first-weeks-in-ho-chi-minh-city",
+  "healthcare-and-health-insurance-in-ho-chi-minh-city",
+  "vietnam-work-permit-for-english-teachers",
+  "is-ho-chi-minh-city-safe"
+ ],
+ "lastChecked": "2026-10-11"
+}
