@@ -50,6 +50,7 @@ import { FinishStep } from '@/components/teachers/steps/finish-step'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { PushOptInCard } from '@/components/marketplace/push-opt-in-card'
 import { revalidateDashboard } from '@/hooks/use-dashboard'
+import { ShareButton, ShareChannels } from '@/components/marketplace/share-button'
 
 const DRAFT_KEY = 'eno.teacherDraft.v1'
 
@@ -259,6 +260,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   const [arrived, setArrived] = useState(false)
   const [handoffArrived, setHandoffArrived] = useState(false)
   const [listingLive, setListingLive] = useState(true)
+  // Edit: the profile's public page (its Listing) — what "Share my profile" shares while schools can see it.
+  const [profileListingId, setProfileListingId] = useState<string | null>(null)
+  // …and the name and headline it shows: what "Share my profile" sends with the link — never an edit not yet saved.
+  const [publicAs, setPublicAs] = useState<{ fullName: string; headline: string } | null>(null)
   // GET /api/teachers/me: whether this account may publish right now (shown at the TOP of the last step), and — with no
   // profile yet — what the account already knows, OFFERED, never filled in unasked.
   const [publishGate, setPublishGate] = useState<{ ok: boolean; code: string | null } | null>(null)
@@ -1088,6 +1093,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
         setTeacherProfileId(typeof tp.id === 'string' ? tp.id : null)
         setStatus(tp.status === 'hidden' ? 'hidden' : 'live')
         setListingLive(tp.listingLive !== false)
+        setProfileListingId(typeof tp.listingId === 'string' ? tp.listingId : null)
+        setPublicAs({ fullName: typeof tp.fullName === 'string' ? tp.fullName : '', headline: typeof tp.headline === 'string' ? tp.headline : '' })
         // A deep link (`/teachers/edit?step=finish` — the done screen's "Add more to stand out").
         const want = params.get('step')
         if (isTeacherStep(want)) setStepKey(want)
@@ -1384,6 +1391,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
       // No job goal and no cover left: the save went through and HID the profile (plan review D6) — the done screen says so.
       if (d.noGoal === true) setStatus('hidden')
       setDone({ listingId: d.listingId, live: d.live === true, noGoal: d.noGoal === true })
+      setPublicAs({ fullName: t.fullName, headline: t.headline })
+      // What schools can see NOW, as the save left it (a moderation or identity hold, the profile hidden): "Share my
+      // profile" follows it on a return to the form (commit gate, codex + opus 2026-10-12).
+      setListingLive(d.live === true)
       published = true
       // The publish deleted the saved draft in its own transaction: the dashboard row now leads to the profile.
       if (mode === 'join' && uid) revalidateDashboard(uid)
@@ -1691,6 +1702,11 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
     : stepIdx > 0 ? { label: tr('Back', 'Quay lại'), onClick: () => setStepKey(steps[stepIdx - 1]) } : undefined
   // ⛔ THE PUBLISH NOTICE, beside the tap that is the consent: on the last step of a new profile, on every step of an
   // edit (Save changes publishes too). Its meaning is PUBLISH_NOTICE_VERSION (profile.ts) — sent as `publishNotice`.
+  // ── SHARING THE PROFILE (owner, 2026-10-11: "make it easy to share on facebook and zalo or whatsapp") ─────────────────
+  // Its public page on this edition's own host — the link the page's Open Graph tags (photo, name, headline; never a
+  // price) describe when Facebook or Zalo build the card. Only a profile schools can see is offered for sharing.
+  const profileUrl = (listingId: string) => `${(process.env.NEXT_PUBLIC_APP_URL || apexOrigin).replace(/\/+$/, '')}/listings/${listingId}`
+  const named = (p: { fullName: string; headline: string }) => (p.headline ? `${p.fullName} — ${p.headline}` : p.fullName)
   // ⛔ WHAT THE ACCOUNT HAS SAVED, SAID WHERE THE TEACHER LOOKS (owner, 2026-10-11; plan review: a save that failed must
   // never look saved). Join mode on eno.vn, signed in, once the saved draft is known.
   const draftLine = mode === 'join' && !draftHost && !!user && (draftLoaded || loadFailed) && !existing ? (
@@ -1870,6 +1886,13 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
           </>
         )}
         {formError && <p role="alert" data-form-error className="mt-3 text-sm text-destructive">{formError}</p>}
+        {done.live && !done.noGoal && (
+          <section aria-labelledby="share-profile" className="mt-5 space-y-2 rounded-2xl bg-tint p-4">
+            <h2 id="share-profile" className="text-sm font-semibold text-foreground">{tr('Share your profile', 'Chia sẻ hồ sơ của bạn')}</h2>
+            <p className="text-xs text-muted-foreground">{tr('Send it to friends, colleagues and schools you know — or post it in your teaching groups.', 'Gửi cho bạn bè, đồng nghiệp và các trường bạn biết — hoặc đăng trong các nhóm giáo viên của bạn.')}</p>
+            <ShareChannels url={profileUrl(done.listingId)} text={named(publicAs ?? t)} />
+          </section>
+        )}
         {/* Push only where a school may need the teacher today: cover lessons on. */}
         {t.coverOpen && <PushOptInCard surface="teacher" className="mt-4" />}
         {more.length > 0 && (
@@ -1957,7 +1980,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
               />
             )}
             <div>
-              <h1 className="h-title text-foreground">{mode === 'edit' ? tr('Your teacher profile', 'Hồ sơ giáo viên của bạn') : tr('Create your teacher profile', 'Tạo hồ sơ giáo viên')}</h1>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                <h1 className="h-title text-foreground">{mode === 'edit' ? tr('Your teacher profile', 'Hồ sơ giáo viên của bạn') : tr('Create your teacher profile', 'Tạo hồ sơ giáo viên')}</h1>
+                {mode === 'edit' && status === 'live' && listingLive && profileListingId && (
+                  <ShareButton url={profileUrl(profileListingId)} title={named(publicAs ?? t)} subject="my-teacher-profile" className="shrink-0" />
+                )}
+              </div>
               {draftLine}
               <p className="mt-1 text-sm text-muted-foreground">{tr('Free. Schools across Vietnam see your profile; your phone, email and CV stay private until you share them.', 'Miễn phí. Các trường trên toàn Việt Nam xem được hồ sơ; số điện thoại, email và CV được giữ kín đến khi bạn chia sẻ.')}</p>
             </div>

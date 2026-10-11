@@ -178,6 +178,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // stored price IS the monthly salary (an employer's own job: salaryM × 1,000,000 — taxonomy.ts
   // paysSalary; a linked job that states one figure: that figure), so it is baked like any price.
   const isJobListing = listing.listingType === 'job'
+  // A teacher is a person: no price label ever rides on the title (2026-09-30) — NOR on the link preview Facebook and
+  // Zalo show when the profile is shared (2026-10-11: the card now states a salary or an hourly rate, profile.ts
+  // teacherCardPrice, which must not read as a sale price in an unfurl).
+  const isTeacher = listing.listingType === TEACHER_LISTING_TYPE
   const jobAttrs = isJobListing ? safeParse<Record<string, unknown>>(listing.attributes ?? '{}', {}) : {}
   const jobSalary = typeof jobAttrs.salaryText === 'string' ? jobAttrs.salaryText : null
   // ⚠️ A SALARY CARRIES ITS PERIOD: "English teacher — 45,000,000 đ" in a tab title or an unfurl reads
@@ -186,10 +190,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // construction (salaryPriceFor); a stored 'VND/hour' (an imported hourly job) keeps its own unit.
   const jobUnit = isJobListing ? (priceUnitSuffix(listing.priceUnit) ?? 'month') : null
   const jobUnitLabel = jobUnit ? ` / ${vi ? ({ hour: 'giờ', day: 'ngày', week: 'tuần' } as Record<string, string>)[jobUnit] ?? 'tháng' : jobUnit}` : ''
-  const priceLabel = isJobListing && jobSalary ? jobSalary : listing.price > 0 ? `${formatMoneyFull(listing.price, listing.currency)}${jobUnitLabel}` : ''
+  const priceLabel = isTeacher ? '' : isJobListing && jobSalary ? jobSalary : listing.price > 0 ? `${formatMoneyFull(listing.price, listing.currency)}${jobUnitLabel}` : ''
   // The titles' price: the Vietnamese variant groups it the Vietnamese way (CS-3 V2b-1); a stated salary
   // stays as the posting wrote it.
-  const titlePrice = isJobListing && jobSalary ? jobSalary : listing.price > 0 && vi ? `${formatMoneyFull(listing.price, listing.currency, 'vi')}${jobUnitLabel}` : priceLabel
+  const titlePrice = isTeacher ? '' : isJobListing && jobSalary ? jobSalary : listing.price > 0 && vi ? `${formatMoneyFull(listing.price, listing.currency, 'vi')}${jobUnitLabel}` : priceLabel
   // A linked job closes on its apply-by date, but this page is ISR-cached for 30 days. `unavailable_after`
   // tells Google the date itself, from row data, so it is stable across regenerations.
   // safeAffiliateUrl, the page's own predicate: a link the page will not trust makes it an ordinary listing.
@@ -209,8 +213,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // composed fallback sentence is English, so it keeps the English price with it.
   const ogDesc = titlePrice && bodyDesc ? `${titlePrice} · ${desc}` : desc
 
-  // A teacher is a person: the title says so, and no price label ever rides on it (2026-09-30).
-  const isTeacher = listing.listingType === TEACHER_LISTING_TYPE
   // ⛔ "IN VIETNAM" ONLY FOR A TEACHER WHO LIVES THERE (teacher onboarding redesign, 2026-10-08): a teacher abroad has no
   // city (projection.ts teacherHome writes '' — never the old Hồ Chí Minh fallback), and the title must not place them in
   // Vietnam any more than the profile's JSON-LD does (jsonld.ts homeLocation). The wording is the owner's to change.

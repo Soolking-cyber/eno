@@ -43,6 +43,7 @@ async function page(lang: 'en' | 'vi', over: Record<string, unknown> = {}, index
   el.innerHTML = html
   const ldText = el.querySelector('script[type="application/ld+json"]')?.textContent
   return {
+    el,
     text: (el.textContent ?? '').replace(/\s+/g, ' '),
     /** the "label → chips" of one row of the Teaching list */
     row: (label: string) => {
@@ -212,3 +213,12 @@ describe('TeacherAvailableFrom — after mount', () => {
     expect((await mountAt('2026-11-19T17:30:00Z', '2026-11-20')).textContent).toBe('Now') // 00:30 on 20 November in Hanoi
   })
 })
+
+describe('sharing the profile (owner, 2026-10-11)', () => {
+  it('a profile schools can see has a Share button; a hidden one does not', async () => {
+    expect((await page('en')).el.querySelector('button[aria-label="Share"]')).toBeTruthy()
+    expect((await page('vi')).el.querySelector('button[aria-label="Chia sẻ"]')).toBeTruthy()
+    expect((await page('en', {}, false)).el.querySelector('button[aria-label="Share"]')).toBeNull()
+  })
+})
+

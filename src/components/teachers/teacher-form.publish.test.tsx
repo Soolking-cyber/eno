@@ -301,3 +301,36 @@ describe('Publish for an account that has not chosen its type yet', () => {
     expect(auth.markOnboarded).not.toHaveBeenCalled()
   })
 })
+
+describe('sharing the profile (owner, 2026-10-11: "easy to share on facebook and zalo or whatsapp")', () => {
+  it('the done screen offers the public page on Zalo, WhatsApp and Facebook', async () => {
+    const open = vi.fn()
+    vi.stubGlobal('open', open)
+    putDraft({ ...COMPLETE, photoUrl: null }, 'finish')
+    const user = mount()
+    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await user.click(action('Publish profile'))
+    expect(await screen.findByText('Your profile is live')).toBeTruthy()
+    const share = within(screen.getByRole('region', { name: 'Share your profile' }))
+    // this edition's own host (the env, else the form's apexOrigin) — the page's canonical
+    const page = encodeURIComponent(`${(process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn').replace(/\/+$/, '')}/listings/L1`)
+    await user.click(share.getByRole('button', { name: 'Zalo' }))
+    await user.click(share.getByRole('button', { name: 'WhatsApp' }))
+    await user.click(share.getByRole('button', { name: 'Facebook' }))
+    const urls = open.mock.calls.map((c) => String(c[0]))
+    expect(urls[0]).toBe(`https://sp.zalo.me/plugins/share?url=${page}`)
+    expect(urls[1]).toMatch(/^https:\/\/wa\.me\/\?text=/)
+    expect(urls[1]).toContain(page)
+    expect(urls[2]).toBe(`https://www.facebook.com/sharer/sharer.php?u=${page}`)
+  })
+
+  it('a profile saved but not visible to schools is not offered for sharing', async () => {
+    putReply = () => ({ json: { listingId: 'L1', teacherProfileId: 'tp1', live: false, noGoal: false, cover: null, video: null } })
+    putDraft({ ...COMPLETE, photoUrl: null }, 'finish')
+    const user = mount()
+    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await user.click(action('Publish profile'))
+    expect(await screen.findByText('Profile saved')).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Share your profile' })).toBeNull()
+  })
+})

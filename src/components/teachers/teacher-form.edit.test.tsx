@@ -442,3 +442,55 @@ describe('the edit page’s other doors', () => {
     expect(screen.getByRole('button', { name: 'Keep my profile' })).toBeTruthy()
   })
 })
+
+describe('sharing the profile (owner, 2026-10-11)', () => {
+  it('a profile schools can see: "Share my profile" by the title', async () => {
+    mount()
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Share my profile' })).toBeTruthy()
+  })
+
+  it('⛔ "Share my profile" sends what the public page shows — never an edit not saved yet', async () => {
+    const open = vi.fn()
+    vi.stubGlobal('open', open)
+    const user = mount()
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    await user.click(rail('About you'))
+    const headline = await screen.findByRole('textbox', { name: 'Headline' })
+    await user.clear(headline)
+    await user.type(headline, 'Unsaved headline')
+    await user.click(screen.getByRole('button', { name: 'Share my profile' }))
+    await user.click(await screen.findByRole('button', { name: /WhatsApp/ }))
+    const sent = decodeURIComponent(String(open.mock.calls.at(-1)?.[0]))
+    expect(sent).toContain(ROW.headline)
+    expect(sent).not.toContain('Unsaved headline')
+  })
+
+  it('⛔ a save the server leaves held (moderation, an identity hold): "Share my profile" goes — on the done screen and back in the form', async () => {
+    const f = fakeFetch({
+      'GET /api/teachers/me': () => ({ json: { teacher: ROW, publishGate: { ok: true, code: null } } }),
+      'PUT /api/teachers/me': () => ({ json: { listingId: 'L1', teacherProfileId: 'tp1', live: false, noGoal: false, cover: null, video: { onRequest: false, version: 0, hasPrivate: false, url: null } } }),
+    })
+    vi.stubGlobal('fetch', f.fn)
+    const user = mount()
+    expect(await screen.findByRole('button', { name: 'Share my profile' })).toBeTruthy()
+    await user.click(action('Save changes'))
+    expect(await screen.findByText(/Your profile is under review and not visible right now/)).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Share your profile' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Keep editing' }))
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Share my profile' })).toBeNull()
+  })
+
+  it('held (moderation, an identity hold) or hidden: nothing to share', async () => {
+    row = { ...ROW, listingLive: false }
+    mount()
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Share my profile' })).toBeNull()
+    cleanup()
+    row = { ...ROW, status: 'hidden' }
+    mount()
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Share my profile' })).toBeNull()
+  })
+})

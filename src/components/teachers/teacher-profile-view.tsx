@@ -28,6 +28,7 @@ import { Check, Lock } from '@/components/ui/icons'
 import { COVER_CONSENT_VERSION, COVER_DAYS, COVER_PARTS, COVER_PART_LABELS, coverAreaLabel, coverSlotLabel } from '@/lib/teachers/cover'
 import { CoverDayShort } from '@/components/teachers/cover-day'
 import { formatCalendarDay } from '@/lib/calendar-day'
+import { ShareButton } from '@/components/marketplace/share-button'
 
 type Opt = { value: string; label: string }
 const labelOf = (opts: readonly Opt[], v: string) => opts.find((o) => o.value === v)?.label ?? v
@@ -188,6 +189,17 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
                     its action. Phones and tablets only — on lg the block is the sticky right column. */}
                 <TeacherContactJump listingId={listing.id} className="mt-3 lg:hidden" />
               </div>
+              {/* SHARE (owner, 2026-10-11: "make it easy to share on facebook and zalo or whatsapp") — the page's own
+                  link; Facebook and Zalo build the card from its Open Graph tags (the photo, name and headline — never a
+                  price, the PDP's generateMetadata). Only a profile schools can see is worth sharing. */}
+              {indexable && (
+                <ShareButton
+                  url={canonicalUrl}
+                  title={tp?.headline ? `${name} — ${tp.headline}` : name}
+                  subject="teacher-profile"
+                  className="ml-auto shrink-0"
+                />
+              )}
             </header>
 
             {/* COVER LESSONS — first after the name, because a school arriving from the cover filter came for exactly

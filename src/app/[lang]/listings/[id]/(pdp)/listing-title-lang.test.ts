@@ -71,6 +71,13 @@ describe('a teacher profile\'s <title>', () => {
     expect((await meta('en', { ...teacher, city: 'Hồ Chí Minh' })).title).toMatch(/^Jane Doe — Teacher in Vietnam \| /)
     expect((await meta('vi', { ...teacher, city: 'Gia Lai' })).title).toMatch(/^Jane Doe — Giáo viên tại Việt Nam \| /)
   })
+  it('⛔ a teacher whose card states a salary or a rate: the link preview never carries it (2026-10-11 — shares)', async () => {
+    const m = await meta('vi', { ...teacher, city: 'Hồ Chí Minh', price: 40_000_000, priceUnit: 'VND/month', currency: '₫', description: 'I love phonics.' })
+    const og = m.openGraph as { title?: string; description?: string }
+    expect(og.title).toBe('Jane Doe')
+    expect(og.description).not.toMatch(/40[.,]000[.,]000/)
+    expect(String(m.description)).not.toMatch(/40[.,]000[.,]000/)
+  })
   it('a teacher abroad (city \'\'): "Teacher", never "in Vietnam"', async () => {
     expect((await meta('en', { ...teacher, city: '', location: 'Not in Vietnam yet · Online' })).title).toMatch(/^Jane Doe — Teacher \| /)
     expect((await meta('vi', { ...teacher, city: '' })).title).toMatch(/^Jane Doe — Giáo viên \| /)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { Share2, Check, Link2, Mail, MoreHorizontal, MessageCircle } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -33,28 +33,15 @@ function XIcon(props: { className?: string }) {
 // and are NOT localised.
 const SHEET_WAS_PRESENTED = /share canceled|sharing is in progress/i
 
-/**
- * Share, with a deliberately split personality.
- *
- * WEB (desktop + mobile browsers): a curated, on-brand popover. The OS sheet in a browser is
- * the cluttered one (Reading List, Freeform, Simulator…), so we show only the channels that
- * matter for this audience plus Copy link, and offer the system sheet as a "More…" row where
- * navigator.share exists.
- *
- * NATIVE (Capacitor shell): the trigger opens the OS share sheet DIRECTLY — see onOpenChange.
- * In an installed app the system sheet is the expected affordance and the better one: it holds
- * the user's real targets (pinned Zalo/Messenger threads, AirDrop, every installed app), which
- * a fixed six-icon grid cannot. The popover is kept only as the fallback for a shell where the
- * sheet can't be presented.
- */
-export function ShareButton({ url, title, price, currency, className, compact = false }: { url: string; title: string; price?: number; currency?: string; className?: string; compact?: boolean }) {
-  const { lang, tr } = useLanguage()
-  const [open, setOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
+const noSubscribe = () => () => {}
 
-  // Lead with the price — it's the part people share for. Falls back to the bare
-  // title when no price is supplied.
-  const shareText = price != null && currency ? `${title} — ${formatMoneyFull(price, currency, moneyLocale(lang))}` : title
+/**
+ * What both share surfaces offer, built once: the channels (Zalo first — the dominant messenger in Vietnam — then
+ * WhatsApp and Facebook, the three the owner named for teacher profiles, 2026-10-11), Copy link and the OS sheet.
+ */
+function useShare(url: string, shareText: string) {
+  const { tr } = useLanguage()
+  const [copied, setCopied] = useState(false)
   const u = encodeURIComponent(url)
   const t = encodeURIComponent(shareText)
   const channels = [
@@ -77,7 +64,6 @@ export function ShareButton({ url, title, price, currency, className, compact = 
   // The Capacitor shell's WebView (Android especially) ships WITHOUT navigator.share, but the
   // @capacitor/share plugin is synced on both platforms — route the OS sheet through it there.
   const native = isNativeShell()
-
   /**
    * The OS share sheet. Resolves TRUE when the sheet actually reached the user, so the caller can
    * fall back to the popover when it didn't — the trigger must never become a dead tap.
@@ -108,6 +94,43 @@ export function ShareButton({ url, title, price, currency, className, compact = 
     }
     return true
   }
+
+  return { channels, copy, copied, native, osShareSheet }
+}
+
+/**
+ * Share, with a deliberately split personality.
+ *
+ * WEB (desktop + mobile browsers): a curated, on-brand popover. The OS sheet in a browser is
+ * the cluttered one (Reading List, Freeform, Simulator…), so we show only the channels that
+ * matter for this audience plus Copy link, and offer the system sheet as a "More…" row where
+ * navigator.share exists.
+ *
+ * NATIVE (Capacitor shell): the trigger opens the OS share sheet DIRECTLY — see onOpenChange.
+ * In an installed app the system sheet is the expected affordance and the better one: it holds
+ * the user's real targets (pinned Zalo/Messenger threads, AirDrop, every installed app), which
+ * a fixed six-icon grid cannot. The popover is kept only as the fallback for a shell where the
+ * sheet can't be presented.
+ */
+export function ShareButton({ url, title, price, currency, className, compact = false, subject = 'listing' }: {
+  url: string; title: string; price?: number; currency?: string; className?: string; compact?: boolean
+  /**
+   * WHAT IS SHARED (2026-10-11 — teacher profiles): the popover's heading, and for the teacher's own profile the
+   * button's words too ("Share my profile"). Literal tr() calls here, so every language gets them translated.
+   */
+  subject?: 'listing' | 'teacher-profile' | 'my-teacher-profile'
+}) {
+  const { lang, tr } = useLanguage()
+  const [open, setOpen] = useState(false)
+  const heading = subject === 'teacher-profile' ? tr('Share this teacher profile', 'Chia sẻ hồ sơ giáo viên này')
+    : subject === 'my-teacher-profile' ? tr('Share your teacher profile', 'Chia sẻ hồ sơ giáo viên của bạn')
+    : tr('Share this listing', 'Chia sẻ tin này')
+  const label = subject === 'my-teacher-profile' ? tr('Share my profile', 'Chia sẻ hồ sơ của tôi') : null
+
+  // Lead with the price — it's the part people share for. Falls back to the bare
+  // title when no price is supplied.
+  const shareText = price != null && currency ? `${title} — ${formatMoneyFull(price, currency, moneyLocale(lang))}` : title
+  const { channels, copy, copied, native, osShareSheet } = useShare(url, shareText)
 
   const nativeShare = async () => { setOpen(false); await osShareSheet() }
   // The popover's "More…" row is now WEB-only: in the shell the OS sheet is the PRIMARY action on
@@ -159,7 +182,7 @@ export function ShareButton({ url, title, price, currency, className, compact = 
               variant="bare"
               size="none"
               type="button"
-              aria-label={tr('Share', 'Chia sẻ')}
+              aria-label={label ?? tr('Share', 'Chia sẻ')}
               className={cn(
                 'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-[0.96] tap-44 relative',
                 open ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted',
@@ -167,7 +190,7 @@ export function ShareButton({ url, title, price, currency, className, compact = 
               )}
             >
               <Share2 className="h-4 w-4" />
-              <span className="hidden sm:inline">{tr('Share', 'Chia sẻ')}</span>
+              <span className={label ? undefined : 'hidden sm:inline'}>{label ?? tr('Share', 'Chia sẻ')}</span>
             </Button>
           )
         }
@@ -175,7 +198,7 @@ export function ShareButton({ url, title, price, currency, className, compact = 
 
       {/* Portaled by the primitive — survives overflow-x-auto table containers un-clipped. */}
       <PopoverContent align="end" side="bottom" sideOffset={8} className="w-64 gap-0 p-3">
-        <p className="px-1 pb-2 text-xs font-bold text-foreground">{tr('Share this listing', 'Chia sẻ tin này')}</p>
+        <p className="px-1 pb-2 text-xs font-bold text-foreground">{heading}</p>
         <div className="grid grid-cols-3 gap-1">
           {channels.map(({ key, label, href, Icon }) => (
             // Buttons (not <a href="share-url">) so ad/social blockers (EasyList
@@ -226,3 +249,39 @@ export function ShareButton({ url, title, price, currency, className, compact = 
     </Popover>
   )
 }
+
+/**
+ * THE SAME CHANNELS, INLINE — no popover, where sharing IS the next step (owner, 2026-10-11: "make it easy to share on
+ * facebook and zalo or whatsapp" — a teacher's profile that just went live). Zalo, WhatsApp and Facebook as buttons,
+ * then Copy link, then the device's own sheet ("More…") where there is one. Buttons, not share-URL anchors, for the
+ * reason ShareButton gives (blockers hide anchors to share endpoints).
+ */
+export function ShareChannels({ url, text, className }: { url: string; text: string; className?: string }) {
+  const { tr } = useLanguage()
+  const { channels, copy, copied, native, osShareSheet } = useShare(url, text)
+  const lead = channels.filter((c) => c.key === 'zalo' || c.key === 'wa' || c.key === 'fb')
+  // Read on the client only (useSyncExternalStore, as use-ios-hide-visa does): never a server/client mismatch.
+  const hasSheet = useSyncExternalStore(noSubscribe, () => native || !!navigator.share, () => false)
+  return (
+    <div className={cn('flex flex-wrap items-center justify-center gap-2', className)} data-testid="share-channels">
+      {lead.map(({ key, label, href, Icon }) => (
+        <Button key={key} variant="secondary" size="sm" type="button" onClick={() => { void openExternal(href) }}>
+          <Icon className="size-4" />
+          {label}
+        </Button>
+      ))}
+      <Button variant="secondary" size="sm" type="button" onClick={() => { void copy() }}>
+        {copied ? <Check className="bubble-in size-4 text-accent-foreground" /> : <Link2 className="size-4" />}
+        {copied ? tr('Link copied', 'Đã sao chép') : tr('Copy link', 'Sao chép liên kết')}
+      </Button>
+      {hasSheet && (
+        // A sheet that could not be shown never leaves a dead tap: the link is copied instead.
+        <Button variant="secondary" size="sm" type="button" onClick={() => { void osShareSheet().then((shown) => { if (!shown) void copy() }) }}>
+          <MoreHorizontal className="size-4" />
+          {tr('More…', 'Thêm…')}
+        </Button>
+      )}
+    </div>
+  )
+}
+
