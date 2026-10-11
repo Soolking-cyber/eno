@@ -4,11 +4,11 @@
  "description": "An 8-week plan for teachers leaving Vietnam: notice, final pay, tax finalisation before you fly, the social insurance lump sum, moving money and references.",
  "h1": "Leaving Vietnam: an 8-week checklist so you leave nothing behind",
  "eyebrow": "Leaving Vietnam",
- "intro": "Start eight weeks before you fly. If you leave before your contract ends, give written notice (at least 30 days on a 12 to 36-month contract); make sure you are paid in full within 14 working days, finalise your income tax before you leave, and claim your social insurance lump sum if you were on a contract of 12 months or more. Keep one Vietnamese bank account open for the money that arrives after you go, and take an experience letter and copies of every work permit with you.",
+ "intro": "Start eight weeks before you fly. If you leave before your contract ends, give written notice (at least 30 days on a 12 to 36-month contract); make sure you are paid in full within 14 working days, finalise your income tax before you leave, and claim your social insurance lump sum if you were enrolled and contributed on a contract of 12 months or more. Keep one Vietnamese bank account open for the money that arrives after you go, and take an experience letter and copies of every work permit with you.",
  "keyPoints": [
   "To resign you give **30 days' notice** on a 12 to 36-month contract or 3 working days on a shorter one; when the contract ends the employer must settle everything within **14 working days**.",
-  "A tax-resident foreigner must **finalise income tax before leaving** Vietnam (and within 45 days of the contract ending) or authorise someone to do it. Since 1 July 2026 any overdue tax can stop a foreigner from leaving.",
-  "On a contract of 12 months or more you can claim the **social insurance lump sum** as soon as the contract ends: 2 months of average contribution salary for each year contributed.",
+  "A tax-resident foreigner must **finalise income tax before leaving** Vietnam (and within 45 days of the contract ending) or authorise someone to do it. Since 1 July 2026 any overdue tax can stop a foreigner from leaving, so check your tax status on eTax or with your employer well before you book the flight.",
+  "If you were enrolled and contributed on a contract of 12 months or more, you can claim the **social insurance lump sum** as soon as the contract ends: 2 months of average contribution salary for each year contributed. Workers exempt from the scheme have nothing to claim.",
   "Unused annual leave is paid out and, from 2026, is tax-free; severance (half a month's pay a year after 12 months' service) is also not taxed.",
   "Keep a Vietnamese bank account and your phone number alive until the last payment lands: tax refunds go only to an account in your own name, and Wise cannot send đồng out of Vietnam."
  ],
@@ -162,7 +162,7 @@
     },
     {
      "type": "p",
-     "text": "Non-residents pay a flat 20% that is final on each payment, so there is nothing to finalise; check the residency test first, because leases adding up to 183 days in the tax year can make you resident. If you leave in 2026, finalising is the only way to recover tax over-withheld under the old scale from January to June, and since 1 July 2026 a foreigner with overdue tax can be [temporarily barred from leaving Vietnam](https://thoibaotaichinhvietnam.vn/cac-truong-hop-tam-hoan-xuat-canh-do-no-thue-200118.html), so finalise and pay weeks before your flight. The eTax steps, who can authorise the school to finalise, and the residency rules are in the [income tax guide](/teach-in-vietnam/personal-income-tax-for-teachers-in-vietnam#leaving-vietnam-tax)."
+     "text": "Non-residents pay a flat 20% that is final on each payment, so there is nothing to finalise; check the residency test first, because leases adding up to 183 days in the tax year can make you resident. If you leave in 2026, finalising is the only way to recover tax over-withheld under the old scale from January to June, and since 1 July 2026 a foreigner with overdue tax can be [temporarily barred from leaving Vietnam](https://thoibaotaichinhvietnam.vn/cac-truong-hop-tam-hoan-xuat-canh-do-no-thue-200118.html), so check your tax status on eTax Mobile, or with your employer, well before you book the flight, then finalise and pay weeks before you go. The eTax steps, who can authorise the school to finalise, and the residency rules are in the [income tax guide](/teach-in-vietnam/personal-income-tax-for-teachers-in-vietnam#leaving-vietnam-tax)."
     }
    ]
   },
@@ -172,7 +172,7 @@
    "blocks": [
     {
      "type": "p",
-     "text": "Since 1 July 2025 foreign employees on contracts of 12 months or more pay 9.5% of salary into compulsory social and health insurance, and the employer pays 20.5%. When you leave you can claim a one-time lump sum. Under the [Social Insurance Law 2024](https://english.luatvietnam.vn/lao-dong/law-41-2024-qh15-on-social-insurance-360809-d1.html) (Art. 70), a foreign contributor can claim when the labour contract ends or the work permit expires and is not renewed, with **no 12-month waiting period**. Teachers on contracts under 12 months are outside the scheme and have no lump sum to claim."
+     "text": "Since 1 July 2025 foreign employees on contracts of 12 months or more pay 9.5% of salary into compulsory social and health insurance, and the employer pays 20.5%. If you were actually enrolled and contributions were paid for you, you can claim a one-time lump sum when you leave. Under the [Social Insurance Law 2024](https://english.luatvietnam.vn/lao-dong/law-41-2024-qh15-on-social-insurance-360809-d1.html) (Art. 70), a foreign contributor can claim when the labour contract ends or the work permit expires and is not renewed, with **no 12-month waiting period**. Teachers on contracts under 12 months are normally outside the scheme and so have no lump sum to claim. Nor do workers exempt from it: intra-company transferees, anyone who had already reached retirement age when signing the contract, and anyone a treaty keeps in their home scheme, such as Korean teachers who stay in Korea's National Pension."
     },
     {
      "type": "p",

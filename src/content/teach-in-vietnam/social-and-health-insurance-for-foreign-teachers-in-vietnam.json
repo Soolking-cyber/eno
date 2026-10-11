@@ -4,9 +4,9 @@
  "description": "Who must pay Vietnam's social and health insurance, the 9.5% and 20.5% rates, what the health cover really pays, and how to claim the lump sum when you leave.",
  "h1": "Social and health insurance for foreign teachers in Vietnam: what comes off your pay and what you get back",
  "eyebrow": "Pay and tax",
- "intro": "If you teach in Vietnam on a labour contract of 12 months or more, social and health insurance are compulsory: 9.5% of your salary is deducted (8% pension, 1.5% health insurance) and your employer pays another 20.5%. Contracts shorter than 12 months are outside the scheme. In return you get national health insurance at the facility you are registered with and, when your contract or work permit ends, a lump sum of two months' average salary for each year you paid in.",
+ "intro": "If you teach in Vietnam on a labour contract of 12 months or more, social and health insurance are compulsory for most foreign employees: 9.5% of your salary is deducted (8% pension, 1.5% health insurance) and your employer pays another 20.5%. Shorter contracts are normally outside it (exceptions below). In return you get national health insurance at the facility you are registered with and, when your contract or work permit ends, a lump sum of two months' average salary for each year you paid in.",
  "keyPoints": [
-  "**Who pays:** foreign employees on definite-term labour contracts of **12 months or more**, since 1 July 2025 under Social Insurance Law 41/2024/QH15. Shorter contracts, intra-company transferees and people already at retirement age when they signed are outside it.",
+  "**Who pays:** foreign employees on definite-term labour contracts of **12 months or more**, since 1 July 2025 under Social Insurance Law 41/2024/QH15. Shorter contracts, intra-company transferees and people already at retirement age when they signed are normally outside it; see 'Who has to pay' below for when the label on the contract does not decide it and the cases still unsettled.",
   "**The deduction:** 9.5% of your contribution salary (8% pension and survivorship, 1.5% health insurance); your employer adds 20.5%. Foreigners pay no unemployment insurance.",
   "**The cap:** from 1 July 2026 contributions are worked out on at most {{vnd:50600000}} a month of salary, so the most you pay is {{vnd:4807000}} a month.",
   "**The lump sum:** 2 months of average contribution salary per year contributed, claimable once your contract ends or your work permit expires without renewal, with no 12-month wait for foreigners. Two years at an average {{vnd:40000000}} a month comes to about {{vnd:160000000}}.",
@@ -298,7 +298,7 @@
    "blocks": [
     {
      "type": "p",
-     "text": "BHYT pays within the national price list, while international hospitals and clinics charge their own prices, and you pay the difference. On a contract under 12 months, or on an hourly deal outside the scheme, you have no public cover at all, and without private insurance you pay international-hospital prices up front."
+     "text": "BHYT pays within the national price list, while international hospitals and clinics charge their own prices, and you pay the difference. On a contract under 12 months, or on an hourly deal outside the scheme, you normally have no public cover at all, and without private insurance you pay international-hospital prices up front."
     },
     {
      "type": "p",

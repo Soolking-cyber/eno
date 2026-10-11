@@ -24,7 +24,7 @@
     },
     {
      "type": "table",
-     "caption": "What teaching ads and price lists in and around Ho Chi Minh City said about nationality, English level and age, 2025–2026. Source linked in each row; ads expire, so re-check before you apply.",
+     "caption": "What teaching ads and price lists in and around Ho Chi Minh City said about nationality, English level and age, 2025–2026. Employers are described by type; each row links its source. Ads expire, so re-check before you apply.",
      "headers": [
       "Employer type and date",
       "What it asked for or offered",
@@ -39,11 +39,11 @@
       [
        "Large Vietnamese chain, campus ads (Sep–Oct 2026)",
        "Eligible passports: US, Australia, UK, Canada, Ireland, New Zealand ([the ad](https://vietnamteachingjobs.com/jobs/view/expat-esl-teachers-wanted-in-binh-duong-and-dong-nai-vietnam-join-us-now))",
-       "The same chain's own FAQ says non-native speakers are considered if they send an intro video ([VUS](https://teachenglish.vus.edu.vn/?p=979)), so an ad's list is not always the last word"
+       "The same chain's own FAQ says non-native speakers are considered if they send an intro video ([the chain's FAQ](https://teachenglish.vus.edu.vn/?p=979)), so an ad's list is not always the last word"
       ],
       [
-       "Large Vietnamese chain (Sep 2026)",
-       "'Native-level English', a bachelor's degree of at least 3 years and a 120+ hour teaching qualification ([the ad](https://www.eslbase.com/job/hiring-esl-teachers-in-vietnam-over-70-centres-and-30-years-of-experience-8/))",
+       "Another large Vietnamese chain, ad (Sep 2026)",
+       "'English proficiency level: Native', a bachelor's degree of at least 3 years and a 120+ hour teaching qualification ([the ad](https://www.eslbase.com/job/hiring-esl-teachers-in-vietnam-over-70-centres-and-30-years-of-experience-8/))",
        "Describes a level of English, not a passport; ask what proof of level they accept"
       ],
       [
@@ -62,7 +62,7 @@
        "This is what schools pay the agency, not what teachers earn, but it shows nationality priced into the market"
       ],
       [
-       "University (2026)",
+       "International university (2026)",
        "Non-native speakers need IELTS Academic 8.0 with no band below 7.5, plus CELTA or equivalent and at least 3 years' post-CELTA experience ([job description](https://www.rmit.edu.au/content/dam/rmit/au/en/careers/position-descriptions/vietnam/JD-Educator%20July%202026.pdf))",
        "An explicit, published route for non-native speakers, with a high bar"
       ]
@@ -365,7 +365,7 @@
    "url": "https://teachenglish.vus.edu.vn/?p=979"
   },
   {
-   "title": "Expat part-time English teacher, public schools HCM and Binh Duong (DTP Education Solutions)",
+   "title": "Expat part-time English teacher, public schools HCM and Binh Duong",
    "publisher": "Vietnam Teaching Jobs",
    "url": "https://vietnamteachingjobs.com/jobs/view/native-part-time-english-teacher-public-schools-hcm-binh-duong-vung-tau-currently-in-vietnam"
   },

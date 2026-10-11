@@ -9,8 +9,8 @@
   "Grab's published Ho Chi Minh City rates (July 2026): GrabBike {{vnd:12273}} for the first 2 km, then {{vnd:4222}} a km plus {{vnd:344}} a minute. A 5 km, 15-minute ride works out at roughly {{vnd:33000}} before surcharges.",
   "Metro Line 1 runs 14 stations from Ben Thanh to Suoi Tien, about 30 minutes end to end, for {{vnd:6000-19000}} a ride by card or {{vnd:300000}} for a monthly pass. It has **no station** in District 3, 7, 10, Phu Nhuan, Tan Binh or Go Vap.",
   "Buses on 134 city routes are free until 31 December 2026. Since 1 October 2026 you must tap a chip (EMV) bank card such as Mastercard, or a phone wallet, to log each ride; nothing is charged.",
-  "A scooter needs a class A1 licence (up to 125 cc). International driving permits count only from 1968 Vienna Convention countries such as the UK, South Africa and the Philippines; riding without a valid licence costs {{vnd:2000000-4000000}} and can void your insurance.",
-  "The rainy season usually runs from early May to mid or late November. Tidal and rain flooding hits known streets in Thao Dien, old District 7, Binh Thanh and Go Vap, often at rush hour; the year's highest tide is forecast for 27–29 October 2026."
+  "A scooter needs a class A1 licence (up to 125 cc). International driving permits count only from 1968 Vienna Convention countries such as the UK, South Africa and the Philippines, and a licence from another ASEAN country may be valid under a 1985 ASEAN agreement; riding without a valid licence costs {{vnd:2000000-4000000}} and can void your insurance.",
+  "The rainy season usually runs from early May to mid or late November. Tidal and rain flooding hits known streets in Thao Dien, old District 7, Binh Thanh and Go Vap, often at rush hour; king tides peak mainly in October and November."
  ],
  "sections": [
   {
@@ -268,7 +268,7 @@
     },
     {
      "type": "p",
-     "text": "International driving permits count only if a 1968 Vienna Convention country issued them (UK, South African and Philippine permits do; US, Canadian, Australian, New Zealand, Irish, Indian and Japanese ones do not), carried with your home licence. The fines that matter most are {{vnd:2000000-4000000}} for riding a bike up to 125 cc without a licence valid in Vietnam, with the bike liable to be impounded, {{vnd:4000000-6000000}} for a red light and {{vnd:400000-600000}} for no helmet; the full list is in the [motorbike licence guide](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners#traffic-fines-decree-168)."
+     "text": "International driving permits count only if a 1968 Vienna Convention country issued them (UK, South African and Philippine permits do; US, Canadian, Australian, New Zealand, Irish, Indian and Japanese ones do not), carried with your home licence. Art 57 also recognises licences covered by recognition treaties, and a [May 2026 Viet Nam News piece](https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html) points to the 1985 ASEAN agreement, under which ASEAN national licences are valid for the classes they show; if yours is from an ASEAN country, confirm this with the traffic police before you rely on it. The fines that matter most are {{vnd:2000000-4000000}} for riding a bike up to 125 cc without a licence valid in Vietnam, with the bike liable to be impounded, {{vnd:4000000-6000000}} for a red light and {{vnd:400000-600000}} for no helmet; the full list is in the [motorbike licence guide](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners#traffic-fines-decree-168)."
     },
     {
      "type": "h3",
@@ -338,7 +338,7 @@
     },
     {
      "type": "p",
-     "text": "Tides are the bigger problem near the river: king tides flood riverside streets mainly in October and November, often in the 6–8am and 5–7pm rush hours, and the city counts [159 flood-prone locations](https://news.tuoitre.vn/ho-chi-minh-city-steps-up-efforts-to-tackle-159-flood-prone-locations-by-2030-103260724114124165.htm). The season's dates, the 2026 tide forecast and the streets on the official flood lists are in [the teaching year in Vietnam](/teach-in-vietnam/the-teaching-year-in-vietnam#rainy-season-and-flooding)."
+     "text": "Tides are the bigger problem near the river: king tides flood riverside streets mainly in October and November, often in the 6–8am and 5–7pm rush hours, and the city counts [159 flood-prone locations](https://news.tuoitre.vn/ho-chi-minh-city-steps-up-efforts-to-tackle-159-flood-prone-locations-by-2030-103260724114124165.htm). The season's dates, the worst tides and the streets on the official flood lists are in [the teaching year in Vietnam](/teach-in-vietnam/the-teaching-year-in-vietnam#rainy-season-and-flooding)."
     },
     {
      "type": "ul",
@@ -425,7 +425,7 @@
   },
   {
    "q": "How do I get from Tan Son Nhat airport into the city?",
-   "a": "International flights land at Terminal T2 of Tan Son Nhat, because Long Thanh airport is not yet open. Book a Grab or Xanh SM car in the app from the pickup area. Airport-link buses are not part of the free bus scheme."
+   "a": "As of October 2026, international flights land at Terminal T2 of Tan Son Nhat; Long Thanh airport was not yet open to commercial flights, with an opening targeted for December 2026, so check which airport your ticket names. Book a Grab or Xanh SM car in the app from the pickup area. Airport-link buses are not part of the free bus scheme."
   },
   {
    "q": "Can I lend my motorbike to a friend?",
@@ -452,6 +452,11 @@
    "title": "Convention on Road Traffic, Vienna 1968: status",
    "publisher": "United Nations Treaty Collection",
    "url": "https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en"
+  },
+  {
+   "title": "Using the roads in Việt Nam as a foreigner",
+   "publisher": "Viet Nam News",
+   "url": "https://vietnamnews.vn/life-style/1781747/using-the-roads-in-viet-nam-as-a-foreigner.html"
   },
   {
    "title": "Lưu ý 4 trường hợp đổi giấy phép lái xe theo quy định mới (Circular 108/2026/TT-BCA)",
@@ -492,6 +497,11 @@
    "title": "TP.HCM ngày đầu xác thực khi đi xe buýt miễn phí",
    "publisher": "Tuoi Tre",
    "url": "https://tuoitre.vn/tphcm-ngay-dau-xac-thuc-khi-di-xe-buyt-mien-phi-nguoi-dan-noi-da-qua-quen-100261001135119433.htm"
+  },
+  {
+   "title": "Sân bay Long Thành dự kiến khai thác thương mại từ 24/12",
+   "publisher": "Dân trí",
+   "url": "https://dantri.com.vn/thoi-su/san-bay-long-thanh-du-kien-khai-thac-thuong-mai-tu-2412-20261004140856337.htm"
   },
   {
    "title": "Ride-hailers race for market share after Gojek's exit",

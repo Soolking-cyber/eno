@@ -24,7 +24,7 @@
     },
     {
      "type": "p",
-     "text": "Ha Cam Tam's study of 51 graduating English majors at Vietnam National University found dropped ending sounds to be the most common error and traced it to exactly this: Vietnamese words are single syllables with no clusters ([VNU Journal of Foreign Studies](https://js.vnu.edu.vn/FS/article/view/2072))."
+     "text": "Ha Cam Tam's study of 51 graduating English majors at Vietnam National University found dropped ending sounds to be the most common error and traced it to how Vietnamese is built: it is written syllable by syllable, each syllable follows strict rules, and none has a consonant cluster ([VNU Journal of Foreign Studies](https://js.vnu.edu.vn/FS/article/view/2072))."
     },
     {
      "type": "p",
@@ -54,8 +54,8 @@
       ],
       [
        "Word shape",
-       "Built from single syllables",
-       "Many words of two or more syllables",
+       "Written syllable by syllable; each syllable follows strict rules",
+       "Syllables run together inside longer words, clusters included",
        "Sounds lost in the middle of words, mostly inside clusters"
       ],
       [
@@ -99,7 +99,7 @@
       [
        "Final consonants, most often /z s t v ks dʒ/",
        "Dropped (25 of 51); also an extra vowel added, devoiced or left unreleased",
-       "'line' heard as 'lie', 'like' or 'light'",
+       "'line' said as 'lie'; if 'like' and 'light' lose their endings too, all three sound the same",
        "Minimal pairs that differ only in the ending; exaggerate the release at first"
       ],
       [
@@ -128,7 +128,7 @@
       ],
       [
        "th as in 'think' /θ/",
-       "Becomes a dental /t/ or /s/; the most mispronounced sound in the study",
+       "Becomes /t/ or /s/ (7 of 51); first in the study's closing list of mispronounced sounds",
        "'think' as 'tink' or 'sink'",
        "Tongue tip between the teeth; think, tink, sink triplets"
       ],
@@ -182,7 +182,7 @@
     },
     {
      "type": "p",
-     "text": "Dropping is not the only error. The Mekong Delta study found learners deleting a final consonant, adding an extra vowel after it, devoicing it, leaving a final stop unreleased so it is barely audible, and swapping it for another sound. In that study, swapping was the most common error on single final consonants, followed by devoicing and unreleased stops, and cutting a cluster down was the most common error on clusters, so listen for wrong and weak endings as well as missing ones. The cost is meaning, not just accent: **without its final /n/, 'line' can be heard as 'lie', 'like' or 'light'** ([ICHUSO 2019](https://hs.kku.ac.th/ichuso/2019/034-ICHUSO-2019.pdf))."
+     "text": "Dropping is not the only error. The Mekong Delta study found learners deleting a final consonant, adding an extra vowel after it, devoicing it, leaving a final stop unreleased so it is barely audible, and swapping it for another sound. In that study, swapping was the most common error on single final consonants, followed by devoicing and unreleased stops, and cutting a cluster down was the most common error on clusters, so listen for wrong and weak endings as well as missing ones. The cost is meaning, not just accent: **without its final /n/, 'line' comes out as 'lie', and a listener used to dropped endings can't tell whether the speaker meant 'line', 'like', 'light' or 'lie'** ([ICHUSO 2019](https://hs.kku.ac.th/ichuso/2019/034-ICHUSO-2019.pdf))."
     },
     {
      "type": "h3",
@@ -296,7 +296,7 @@
    "blocks": [
     {
      "type": "p",
-     "text": "The VNU study counted these substitutions among its 51 students: /tr/ to /tʃ/ (16 students), /ʃ/ to /s/ (15), /t/ to /tʃ/ (13), /dʒ/ to various sounds (13), /s/ to /ʃ/ or /ʒ/ (11), /ð/ to /z/ or /d/ (10) and /θ/ to /s/ or /t/ (7). **/θ/ topped the list of mispronounced sounds**, usually produced as a t made against the teeth ([Ha Cam Tam](https://js.vnu.edu.vn/FS/article/view/2072))."
+     "text": "The VNU study counted these substitutions among its 51 students: /tr/ to /tʃ/ (16 students), /ʃ/ to /s/ (15), /t/ to /tʃ/ (13), /dʒ/ to various sounds (13), /s/ to /ʃ/ or /ʒ/ (11), /ð/ to /z/ or /d/ (10) and /θ/ to /s/ or /t/ (7). The paper names **/tr/ as the most frequent of these errors**; /θ/, usually said as /t/, still comes first in its closing list of the sounds most often mispronounced ([Ha Cam Tam](https://js.vnu.edu.vn/FS/article/view/2072))."
     },
     {
      "type": "h3",
@@ -428,8 +428,8 @@
    "url": "https://js.vnu.edu.vn/FS/article/view/2072"
   },
   {
-   "title": "Errors in Word-Final Consonant Pronunciation in Vietnamese English Interlanguage",
-   "publisher": "ICHUSO 2019, Khon Kaen University",
+   "title": "Errors in Word-Final Consonant Pronunciation in Vietnamese English Interlanguage (Hanh Duc Nguyen, ICHUSO 2019)",
+   "publisher": "Khon Kaen University",
    "url": "https://hs.kku.ac.th/ichuso/2019/034-ICHUSO-2019.pdf"
   },
   {

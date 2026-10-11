@@ -353,7 +353,7 @@
      "rows": [
       [
        "Under US$1,000",
-       "Warning"
+       "Warning for a first offence; repeat offences are fined {{vnd:10000000-20000000}}"
       ],
       [
        "US$1,000 to under US$10,000",

@@ -4,11 +4,11 @@
  "description": "Consent rules for student photos, why private lessons put your work permit at risk, the ban on harsh discipline and how to report a concern, as of 2026.",
  "h1": "Safeguarding and professional conduct for English teachers in Vietnam",
  "eyebrow": "In the classroom",
- "intro": "For a foreign English teacher in Vietnam, child protection comes from a few laws plus your employer's own policies. The Law on Teachers (in force since 1 January 2026) bans discriminating among learners and forcing them into paid extra classes, Circular 19/2025 bans violent or humiliating discipline in schools, and the personal data law needs consent from a parent and any child aged 7 or over before a child's private information is published. Keep photos, messages and paid lessons inside your employer's rules.",
+ "intro": "For a foreign English teacher in Vietnam, child protection comes from a few laws plus your employer's own policies. The Law on Teachers (in force since 1 January 2026) bans discriminating among learners and forcing them into paid extra classes, Circular 19/2025 bans violent or humiliating discipline in schools, and the personal data law needs a parent's consent (and from age 7 the child's) before a child's private information is published. Keep photos, messages and paid lessons inside your employer's rules.",
  "keyPoints": [
-  "No student photo or video should leave the classroom without written consent: under Law 91/2025/QH15, publishing a child's private information needs the agreement of the parent **and** of the child if they are 7 or older, and it must stop if consent is withdrawn.",
+  "Treat every student photo or video as needing written consent before it leaves the classroom. Under Law 91/2025/QH15, publishing a child's private information needs the agreement of the parent **and** of the child if they are 7 or older, and it must stop if consent is withdrawn; whether a class photo counts as private information is unsettled, so consent for every identifiable image is the safe practice.",
   "Never post students on your personal social media, and keep parent contact on the school's official Zalo groups or channels, not your private account.",
-  "Paid private lessons are the legal trap: a school teacher may not tutor their own assigned students for pay in curriculum subjects (Circular 29/2024), and a foreigner teaching privately for cash is working without a permit, fined {{vnd:15000000-25000000}} with possible deportation.",
+  "Paid private lessons are the legal trap: a school teacher may not tutor their own assigned students for pay in curriculum subjects (Circular 29/2024), and no regulation names foreign private tutors, but the rules that do exist leave no lawful route for independent cash tutoring: private lessons for cash outside your employer expose you to the work-permit fine of {{vnd:15000000-25000000}} and possible deportation.",
   "In schools, violent or humiliating discipline is banned (Circular 19/2025); primary pupils can only be reminded and asked to apologise.",
   "Ask on day one for the work rules, the photo and communication policy, and the name of the person you report a concern to. You can only be disciplined for conduct set out in the work rules, your contract or the law."
  ],
@@ -42,7 +42,7 @@
       ],
       [
        "Law on Personal Data Protection 91/2025/QH15, Art. 24 (in force 1 January 2026)",
-       "Publishing or disclosing private information about a child aged 7 or over needs the consent of the child and the parent or legal representative; processing stops if consent is withdrawn",
+       "Publishing or disclosing private information about a child needs the consent of the parent or legal representative, and from age 7 the child's own consent too; processing stops if consent is withdrawn",
        "Written consent before any photo, video or personal detail of a student is shared beyond the class"
       ],
       [
@@ -63,7 +63,7 @@
     },
     {
      "type": "p",
-     "text": "[Circular 19/2025](https://luatvietnam.vn/tin-van-ban-moi/tu-31-10-2025-khong-con-hinh-thuc-ky-luat-dinh-chi-hoc-doi-voi-hoc-sinh-186-104157-article.html) replaced the 1988 student-discipline rules, removed suspension and expulsion, and added counselling, encouragement and monitoring as support measures. It is written for schools, but expect the same standard at a centre: any physical punishment or rough handling of a child is illegal and will end your job."
+     "text": "[Circular 19/2025](https://luatvietnam.vn/tin-van-ban-moi/tu-31-10-2025-khong-con-hinh-thuc-ky-luat-dinh-chi-hoc-doi-voi-hoc-sinh-186-104157-article.html) replaced the 1988 student-discipline rules, removed suspension and expulsion, and added counselling, encouragement and monitoring as support measures. It is written for schools, but violence against any child, hitting included, is banned outright by the [Law on Children 2016](https://thuvienphapluat.vn/hoi-dap-phap-luat/hanh-vi-nao-duoc-xem-la-bao-luc-tre-em-138067116.html) wherever you teach: expect any physical punishment or rough handling of a child to cost you your job."
     },
     {
      "type": "p",
@@ -189,7 +189,7 @@
     },
     {
      "type": "p",
-     "text": "The second rule is the work permit. Paid tutoring providers must be registered businesses, household-business registration is reserved for Vietnamese citizens ([Decree 168/2025, Art. 82](https://hethongphapluat.com/nghi-dinh-168-2025-nd-cp-ve-dang-ky-doanh-nghiep/dieu-82)), and your permit covers only your named employer. No regulation names foreign private tutors, but the effect is that private lessons for cash are work without a permit: under Decree 283/2026, in force since 10 September 2026, the worker is fined **{{vnd:15000000-25000000}} and may be deported** ([Suc Khoe & Doi Song](https://suckhoedoisong.vn/tu-10-9-2026-lao-dong-nuoc-ngoai-se-bi-phat-neu-khong-co-giay-phep-lao-dong-169260824224738.htm)). If you want more hours, take them as an employee of a centre that holds your permit; the [private tutoring and online teaching guide](/teach-in-vietnam/private-tutoring-and-online-teaching-in-vietnam) covers the options."
+     "text": "The second rule is the work permit. Paid tutoring providers must be registered businesses, household-business registration is reserved for Vietnamese citizens ([Decree 168/2025, Art. 82](https://hethongphapluat.com/nghi-dinh-168-2025-nd-cp-ve-dang-ky-doanh-nghiep/dieu-82)), and your permit covers only your named employer. No regulation names foreign private tutors, but the effect is that private lessons for cash are work without a permit: under Decree 283/2026, in force since 10 September 2026, the worker is fined **{{vnd:15000000-25000000}} and may be deported** ([Suc Khoe & Doi Song](https://suckhoedoisong.vn/tu-10-9-2026-lao-dong-nuoc-ngoai-se-bi-phat-neu-khong-co-giay-phep-lao-dong-169260824224738.htm)). If you want more hours, take them with the employer that holds your permit; the [private tutoring and online teaching guide](/teach-in-vietnam/private-tutoring-and-online-teaching-in-vietnam) covers the options."
     },
     {
      "type": "p",
@@ -250,7 +250,7 @@
       },
       {
        "title": "Follow up, and keep it confidential",
-       "text": "Ask what happens next. Do not discuss the case with other parents, in Zalo groups or on social media. If you believe the school has not acted and a child is at risk, go to the police."
+       "text": "Ask what happens next. Do not discuss the case with other parents, in Zalo groups or on social media. If you believe the school has not acted and a child is at risk, call **111**, Vietnam's national child-protection hotline, or go to the police. Calls to 111 are free and it runs 24 hours a day ([Decree 56/2017, Art. 23](https://hethongphapluat.com/nghi-dinh-56-2017-nd-cp-huong-dan-luat-tre-em/dieu-23); [Thu Vien Phap Luat](https://thuvienphapluat.vn/phap-luat/goi-den-tong-dai-dien-thoai-quoc-gia-bao-ve-tre-em-thi-co-bi-thu-phi-vien-thong-va-phi-tu-van-khong-376231-143191.html)). It was set up under the Law on Children 2016 and Decree 56/2017, and is now run by the Ministry of Health's Department of Maternal and Child Health ([its 2025 report on the 111 hotline](https://tongdai111.vn/uploads/files/B%C3%A1o%20c%C3%A1o%20T%E1%BB%95ng%20%C4%91%C3%A0i%20BVTE%20111%20%20n%C4%83m%202025.pdf))."
       }
      ]
     }
@@ -397,6 +397,21 @@
    "title": "TP.HCM ra mắt hệ thống tổng đài khẩn cấp liên thông 113-114-115",
    "publisher": "VOV",
    "url": "https://vov.vn/xa-hoi/tphcm-ra-mat-he-thong-tong-dai-khan-cap-lien-thong-113-114-115-782233.vov"
+  },
+  {
+   "title": "Báo cáo hoạt động Tổng đài điện thoại quốc gia bảo vệ trẻ em 111 năm 2025 (Số 14/BC-BMTE)",
+   "publisher": "Ministry of Health, Department of Maternal and Child Health (Cục Bà mẹ và Trẻ em)",
+   "url": "https://tongdai111.vn/uploads/files/B%C3%A1o%20c%C3%A1o%20T%E1%BB%95ng%20%C4%91%C3%A0i%20BVTE%20111%20%20n%C4%83m%202025.pdf"
+  },
+  {
+   "title": "Điều 23 Nghị định 56/2017/NĐ-CP hướng dẫn Luật trẻ em",
+   "publisher": "Hệ thống pháp luật",
+   "url": "https://hethongphapluat.com/nghi-dinh-56-2017-nd-cp-huong-dan-luat-tre-em/dieu-23"
+  },
+  {
+   "title": "Gọi đến Tổng đài điện thoại quốc gia bảo vệ trẻ em thì có bị thu phí viễn thông và phí tư vấn không?",
+   "publisher": "Thư Viện Pháp Luật",
+   "url": "https://thuvienphapluat.vn/phap-luat/goi-den-tong-dai-dien-thoai-quoc-gia-bao-ve-tre-em-thi-co-bi-thu-phi-vien-thong-va-phi-tu-van-khong-376231-143191.html"
   },
   {
    "title": "Understanding the context and its effect on assessment in EFL class in higher education in Vietnam",
