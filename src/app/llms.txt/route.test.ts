@@ -177,8 +177,9 @@ describe('/llms.txt on the marketplace', () => {
       const body = await bodyOf()
       // The one exception is the guide index naming the HCMC motorbike-RENTAL hub by its own URL
       // (src/lib/expat-guides.ts, 2026-09-29): a registry line, not a claim about for-sale stock, and
-      // the hub itself goes noindex when it has nothing live. Everything else stays banned.
-      const claims = body.split('\n').filter((l) => !/\]\(https:\/\/eno\.vn\/(motorbike-rental-ho-chi-minh-city|thue-xe-may-tphcm)\)/.test(l)).join('\n')
+      // the hub itself goes noindex when it has nothing live. The two Teach in Vietnam guides about getting around
+      // and the licence are the same kind of line (2026-10-11). Everything else stays banned.
+      const claims = body.split('\n').filter((l) => !/\]\(https:\/\/eno\.vn\/(motorbike-rental-ho-chi-minh-city|thue-xe-may-tphcm|teach-in-vietnam\/(getting-around-ho-chi-minh-city|motorbike-licence-in-vietnam-for-foreigners))\)/.test(l)).join('\n')
       expect(claims).not.toMatch(/motorbike/i)
       expect(body).not.toMatch(/moving[ -]sale/i)
     })

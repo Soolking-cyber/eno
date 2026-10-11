@@ -300,7 +300,7 @@ function teachSection(): string {
     const rows = live.filter((e) => e.cluster === c.id)
     return rows.length ? `### ${c.title}\n\n${rows.map((e) => `- [${e.label}](${SITE_ORIGIN}${teachPath(e.slug)}): ${e.blurb}`).join('\n')}` : ''
   }).filter(Boolean)
-  return `\n\n## Teaching in Vietnam\n\nGuides for teachers moving to Vietnam, Ho Chi Minh City first; start at ${SITE_ORIGIN}${TEACH_BASE}. Each lists its sources and the date its facts were checked.\n\n${groups.join('\n\n')}`
+  return `\n\n## Teaching in Vietnam\n\nGuides for teachers moving to Vietnam, Ho Chi Minh City first; start at the [Teach in Vietnam hub](${SITE_ORIGIN}${TEACH_BASE}). Each lists its sources and the date its facts were checked.\n\n${groups.join('\n\n')}`
 }
 
 function marketplaceBody(f: SiteFacts | null): string {

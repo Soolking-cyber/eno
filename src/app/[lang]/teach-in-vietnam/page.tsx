@@ -175,7 +175,7 @@ export default async function TeachHubPage() {
       <>
         <P>
           Each guide is drafted with AI assistance from a researched fact base — Vietnamese legal texts and official
-          portals first, then employers&apos; own pages and reputable reporting — checked claim by claim, and reviewed by
+          portals first, then employers&apos; own pages and reputable reporting — checked claim by claim, and approved by
           the eno.vn team before it is published. Every guide lists its sources and the date its facts were last checked.
         </P>
         <P>
