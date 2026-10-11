@@ -1,0 +1,552 @@
+{
+ "slug": "teaching-english-in-ho-chi-minh-city",
+ "title": "Teaching English in Ho Chi Minh City (2026)",
+ "description": "Saigon's teaching market on one page: who hires, 2026 pay by employer type, the work-permit basics, rent by district and the order to do things in.",
+ "h1": "Teaching English in Ho Chi Minh City: the jobs, the pay, the papers and the rent in 2026",
+ "eyebrow": "Teaching in Saigon",
+ "intro": "Ho Chi Minh City is Vietnam's largest market for foreign English teachers: it had 1,961 licensed language and IT centres in August 2025, plus international and bilingual schools, public-school programmes, kindergartens and universities. Most newcomers start at a language centre, paid by the hour for evening and weekend classes with children. To work legally you need a degree, usually 2 years' relevant experience, a teaching certificate, a clean criminal record and a work permit that your employer applies for.",
+ "keyPoints": [
+  "**Pay is mostly hourly.** In July–October 2026 job ads, centres offered {{vnd:390000-600000}} an hour, most new-teacher offers {{vnd:430000-560000}}; a full-time load of 78–95 contact hours a month at {{vnd:450000-550000}} an hour comes to roughly {{vnd:35000000-52000000}} gross.",
+  "**Centre hours are evenings and weekends**, mostly with children and teens (6–16 at VUS); public-school agency work is weekday daytime from September to May and largely stops over the summer.",
+  "**The work permit comes first.** Under Decree 219/2025/ND-CP teachers are filed as experts (a degree plus 2 years' relevant experience); your employer files it, and working before it is issued means a {{vnd:15000000-25000000}} fine and possible deportation.",
+  "**Rent depends on the area**: median one-bedroom asking rents run from {{vnd:5200000}} a month in Go Vap to {{vnd:8600000}} in District 1 and {{vnd:10000000}} in District 2 (eno.vn Rent Index, 10 October 2026).",
+  "**\"Ho Chi Minh City\" is bigger than Saigon** since July 2025: it now includes former Binh Duong and Ba Ria–Vung Tau, so check the campus address on every job ad."
+ ],
+ "sections": [
+  {
+   "id": "why-saigon",
+   "title": "Why Ho Chi Minh City is Vietnam's biggest teaching market",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Ho Chi Minh City is Vietnam's largest private English market. In August 2025 the city's education department counted [1,961 licensed foreign-language and IT centres](https://daibieunhandan.vn/tp-ho-chi-minh-nang-cao-chat-luong-nhan-su-tai-cac-trung-tam-ngoai-ngu-tin-hoc-10388655.html), 158 of them foreign-invested, which ran 49,163 classes for about 268,580 learners in 2024–25. Language and IT centres are counted together, so the number teaching English is lower."
+    },
+    {
+     "type": "p",
+     "text": "Centres are only part of the picture. Public schools buy English lessons with foreign teachers through education companies (usually called agencies), and the city also has international and bilingual schools, kindergartens, universities and corporate training. eno.vn's [school directory](/schools) listed these Ho Chi Minh City employers by type in October 2026:"
+    },
+    {
+     "type": "table",
+     "caption": "Ho Chi Minh City employers in the eno.vn school directory, October 2026 (172 in total)",
+     "headers": [
+      "Employer type",
+      "In the directory",
+      "What the work usually is"
+     ],
+     "rows": [
+      [
+       "Language centres",
+       "72",
+       "Hourly classes, mostly children and teens, on weekday evenings and at weekends"
+      ],
+      [
+       "International schools",
+       "36",
+       "Salaried posts for licensed, experienced teachers, hired well ahead of the school year"
+      ],
+      [
+       "Bilingual schools",
+       "28",
+       "Salaried weekday daytime posts; some ask for a teaching licence (B.Ed, PGCE, QTS)"
+      ],
+      [
+       "Universities",
+       "19",
+       "Hourly or contract teaching; usually CELTA or equivalent plus several years' experience, often a master's"
+      ],
+      [
+       "Teacher agencies",
+       "17",
+       "Placements in public schools and kindergartens, weekday daytime, September to May"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Teachers who have worked or interviewed at a school can vote and write reviews there, which a moderator reads before they appear. Most schools have few or no reviews yet, so treat the directory as a map of who hires rather than a ranking."
+    },
+    {
+     "type": "h3",
+     "text": "What demand looks like in 2026"
+    },
+    {
+     "type": "p",
+     "text": "The big chains were still recruiting in September–October 2026: VUS says it has about 30 centres in the city and over 2,700 teaching staff nationwide, and ILA, which reports 70+ centres and 700–750+ expat teachers, had postings open until 31 December 2026. Policy points the same way. [Decision 2371/QĐ-TTg](https://luatvietnam.vn/giao-duc/quyet-dinh-2371-qd-ttg-2025-phe-duyet-de-an-tieng-anh-thanh-ngon-ngu-thu-hai-trong-truong-hoc-416990-d1.html) of 27 October 2025 sets compulsory English from Grade 1 in all general schools as a 2025–2030 target, and in June 2026 the city approved a [2026–2030 pilot](https://giaoduc.net.vn/tphcm-246-truong-mam-non-pho-thong-duoc-tu-tuyen-giao-vien-hop-dong-voi-giao-vien-nuoc-ngoai-post260905.gd) letting 246 public preschools and schools contract foreign teachers directly."
+    },
+    {
+     "type": "p",
+     "text": "Read the policy news carefully. The national scheme mainly trains and hires Vietnamese teachers (MOET estimates about 22,000 more English-teacher posts), and no direct-hire ads from the 246-school pilot had appeared by October 2026. The market also churns: in 2025–26 the city dissolved or revoked 112 language and IT centres while 292 new centres and training facilities opened, and a MOET draft of 17 September 2026 would end university-admission bonus points for IELTS from 2027. Well-known names have closed or failed: [ACET closed at the end of 2024](https://www.idp.com/vietnam/blog/official-acet-announcement/?lang=en), the [Apax Leaders chain collapsed owing wages](https://vietnamfinance.vn/he-thong-te-liet-va-giai-the-apax-leaders-dang-no-ca-tram-ty-dong-d108066.html), and American International School Vietnam was [dissolved in January 2026](https://tuoitre.vn/nld/american-international-school-officially-dissolved-196260114102410854.htm) after a [teachers' strike over unpaid salaries](https://news.tuoitre.vn/ho-chi-minh-city-education-department-vows-support-for-students-amid-intl-school-teacher-strike-10378893.htm). **Check an employer's track record before you sign.**"
+    }
+   ]
+  },
+  {
+   "id": "teaching-week",
+   "title": "What a teaching week looks like",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Your week depends almost entirely on the type of employer. Language centres teach children around the school day, so most classes fall on **weekday evenings and at weekends**: VUS says most of its classes are for 6–16-year-olds, on weekday evenings and all day at weekends, with full-time meaning 20–25 teaching hours a week and part-time 12–18 ([VUS teacher FAQ](https://teachenglish.vus.edu.vn/?p=979)). Public-school, kindergarten and school posts run on weekday daytime hours instead."
+    },
+    {
+     "type": "table",
+     "caption": "Typical schedules by employer type in Ho Chi Minh City, from 2026 job ads and employer pages",
+     "headers": [
+      "Employer type",
+      "When you teach",
+      "Typical load",
+      "Who you teach"
+     ],
+     "rows": [
+      [
+       "Language centre",
+       "Weekday late afternoons and evenings; long days on Saturday and Sunday",
+       "20–25 teaching hours a week full-time, 12–18 part-time (VUS)",
+       "Mostly children and teens aged 6–16; some adults"
+      ],
+      [
+       "Public school through an agency",
+       "Monday to Friday, roughly 8am–5pm with a long lunch break, September to May",
+       "15–25 teaching hours a week",
+       "Large classes (regulations cap them at 35 in primary and 45 in secondary, and some exceed it), with a Vietnamese co-teacher"
+      ],
+      [
+       "Kindergarten",
+       "Weekday mornings part-time; homeroom posts Monday to Friday about 7:30–17:00",
+       "Short activities of 25–35 minutes; part-time can be a few mornings a week",
+       "Pre-school children"
+      ],
+      [
+       "Bilingual or international school",
+       "Monday to Friday, about 7:00–17:00",
+       "One 2026 primary post: 30–34 periods of 35 minutes a week",
+       "Primary and secondary pupils"
+      ],
+      [
+       "University",
+       "Set by the timetable",
+       "Hourly roles may have no guaranteed hours",
+       "University students"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Two things catch new teachers out. Hourly pay usually covers **contact time only**: planning, meetings, arriving early and travel between schools are typically unpaid, and a school \"hour\" may be a 35–45-minute period. And income follows the calendar. Centres hire all year but are busiest from June to August and slowest from mid-December to Tet (Saturday 6 February 2027), while the [2026–27 public school year](https://giaoduc.net.vn/tphcm-ban-hanh-ke-hoach-thoi-gian-nam-hoc-2026-2027-post262099.gd) opened on 5 September and must end before 31 May, so agency teaching largely stops over the summer."
+    }
+   ]
+  },
+  {
+   "id": "pay",
+   "title": "How much English teachers earn in Saigon (2026)",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Most foreign teachers in the city are paid by the hour. In July–October 2026 job ads, language centres offered {{vnd:390000-600000}} an hour, with most new-teacher offers between {{vnd:430000-560000}} ([Vietnam Teaching Jobs, Ho Chi Minh City listings](https://vietnamteachingjobs.com/city/teaching-english-in-ho-chi-minh)). Almost none of those ads say whether the rate is gross or net, and \"up to\" figures are ceilings: ILA's \"average income up to {{vnd:500000}}\" an hour for new teachers is not a base rate."
+    },
+    {
+     "type": "table",
+     "caption": "Advertised pay for foreign English teachers in Ho Chi Minh City: job ads July–October 2026 (agency rates: 2025–2026 ads); international-school range from 2026 relocation guides. Schools that quote dollars are shown in dollars.",
+     "headers": [
+      "Employer type",
+      "Advertised pay",
+      "What to know"
+     ],
+     "rows": [
+      [
+       "Language centres",
+       "{{vnd:390000-600000}} an hour; most new-teacher offers {{vnd:430000-560000}}",
+       "Full-time is about 78–95 contact hours a month"
+      ],
+      [
+       "Public schools through agencies",
+       "{{vnd:430000-600000}} an hour in 2025–2026 ads",
+       "Weekday daytime; hours depend on the schools, so monthly income varies"
+      ],
+      [
+       "Kindergartens",
+       "{{vnd:420000-500000}} an hour part-time; roughly {{vnd:44000000-60000000}} a month full-time",
+       "Some homeroom posts include social insurance and paid holidays"
+      ],
+      [
+       "Bilingual and private \"international programme\" schools",
+       "US$1,700–3,000 a month",
+       "One District 2 primary post offered US$1,900–2,350 gross with compulsory insurance"
+      ],
+      [
+       "Premium international schools",
+       "About US$2,500–4,000+ a month for licensed teachers",
+       "Usually with housing support, annual flights and medical cover"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "A full-time centre timetable of about 78–95 contact hours a month at {{vnd:450000-550000}} an hour comes to roughly {{vnd:35000000-52000000}} gross, before tax and insurance ([a 2024 Apollo full-time listing](https://www.seriousteachers.com/job_details/278256/0/vietnamesl-teacher-teachers-needed-now-in-vietnam-vietnam)). Under 2026 rules, a tax resident with no dependants, on social insurance, earning {{vnd:45000000}} gross takes home about {{vnd:38700000}}: 9.5% goes to social and health insurance, and income tax under [PIT Law 109/2025/QH15](https://assets.kpmg.com/content/dam/kpmg/vn/pdf/2026/01/new-pit-law-en.pdf) is charged in five brackets from 5% to 35% after a personal deduction of {{vnd:15500000}} a month. You are a resident after 183 days in a calendar year or in 12 consecutive months from arrival; non-residents pay a flat 20%."
+    },
+    {
+     "type": "p",
+     "text": "Bonuses are modest and conditional. Completion bonuses are the most common: Apollo's 2026 package has a KPI-based {{vnd:13500000}} at contract end, and Wall Street English pays one month's salary after a one-year contract. Sign-on and relocation bonuses in 2025–26 ads ran from about {{vnd:3000000-15000000}}. Vietnamese law does not require a 13th-month or Tet bonus ([Labour Code, Art. 104](https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html)). The [salary guide](/teach-in-vietnam/english-teacher-salary-in-vietnam) breaks pay down by employer, city and qualification."
+    },
+    {
+     "type": "p",
+     "text": "Before you compare offers, ask four questions: is the rate gross or net, is it per 60-minute hour or per 35–45-minute period, will you be paid in dollars or đồng (and at which exchange rate), and what minimum hours or pay does the contract guarantee in writing?"
+    }
+   ]
+  },
+  {
+   "id": "requirements",
+   "title": "What you need to teach legally",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The short version: a degree, a recognised teaching certificate, a clean criminal record and a work permit that your employer applies for. The detail is in [requirements to teach English in Vietnam](/teach-in-vietnam/requirements-to-teach-english-in-vietnam) and the [work permit guide](/teach-in-vietnam/vietnam-work-permit-for-english-teachers)."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Degree and experience.** Work permits are governed by [Decree 219/2025/ND-CP](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html), in force since 7 August 2025, which replaced the foreign-worker rules of Decrees 152/2020 and 70/2023. Teachers are filed as \"experts\": a bachelor's degree or higher plus at least 2 years of relevant work experience (Art. 3(3)(a)); the old rule was 3 years.",
+      "**Proof of experience.** The usual proof is a letter from a past employer abroad stating your years of experience; experience in Vietnam counts only through earlier Vietnamese work permits. For experts in education, Art. 19(3)(đ) also lists documents showing you meet the qualification standard set by education law. How Ho Chi Minh City applies that to a teacher with under 2 years' experience is not published, so ask the employer which proof they will file for you and get the answer in writing before you travel.",
+      "**Teaching certificate.** A TEFL, TESOL or CELTA does not replace the degree or the experience in the work-permit test; it is the education-side requirement (Circular 21/2018 asks foreign teachers at language centres for a \"suitable\" teaching certificate). The law sets no minimum hours; \"120 hours\" is an employer convention. In January 2026 [city inspectors](https://daibieunhandan.vn/tp-ho-chi-minh-ra-soat-nang-luc-bang-cap-giao-vien-chuong-trinh-lien-ket-10402625.html) found co-teachers in school programmes holding only course-completion certificates instead of the required teaching certificate.",
+      "**Criminal record.** It must be issued no more than 6 months before the employer files, by your home country or Vietnam. Vietnam joined the [Apostille Convention](https://www.hcch.net/en/instruments/conventions/status-table/?cid=41) with effect from 11 September 2026 (Decree 293/2026/ND-CP): documents from member countries need an apostille, others still need consular legalisation. Germany, Austria and Czechia objected, so theirs still need legalisation too, and so do Thai documents until the Convention takes effect for Thailand on 28 February 2027. Translations are made valid by certifying the translator's signature.",
+      "**Health check.** A foreign health certificate is accepted only under a mutual-recognition agreement, so in practice the check is done in Vietnam."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "In Ho Chi Minh City the permit is issued by the Department of Home Affairs (Sở Nội vụ) for employers outside export-processing zones, industrial parks and high-tech parks, which covers practically every centre and school ([Decision 6093/QĐ-UBND](https://luatvietnam.vn/lao-dong/quyet-dinh-6093-qd-ubnd-tp-ho-chi-minh-2026-cong-bo-danh-muc-thu-tuc-hanh-chinh-sua-doi-bo-sung-448197-d2.html), 21 September 2026). The employer files 60 to 10 days before your start date; the decree allows up to 10 working days for a decision and the city publishes 5. The fee is {{vnd:600000}} for a new permit, paid by the employer ([Resolution 09/2022/NQ-HĐND](https://luatvietnam.vn/thue/nghi-quyet-09-2022-nq-hdnd-239822-d2.html)). A permit lasts up to 2 years and can be extended once by up to 2 years; after that you need a new one. Your employer arranges the rest of your paperwork once your work permit is issued — ask them exactly what they cover and what it costs."
+    },
+    {
+     "type": "p",
+     "text": "Never use an experience letter that is not true: an employer that files altered or forged documents is fined {{vnd:40000000-60000000}} ({{vnd:80000000-120000000}} for a company, school or centre). The law does not limit teaching to particular nationalities, so the passport lists and age limits in some ads are employer preferences; VUS, for example, considers non-native speakers who send an intro video. At language centres, though, a non-native speaker must also show Level 5 English (about C1) or hold a degree in English or language teaching (Circular 21/2018). Your employer and the Department of Home Affairs have the final word on your file."
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "Do not start teaching before the permit is issued",
+     "text": "Some employers let new teachers start \"while the paperwork is processed\". Since 10 September 2026, [Decree 283/2026/ND-CP](https://news.tuoitre.vn/foreign-workers-in-vietnam-what-to-know-as-new-penalty-rules-take-effect-september-10-103260824152235374.htm) fines a foreign worker {{vnd:15000000-25000000}} for working without a work permit or exemption, and the worker may be deported; the employer is fined as well. Ask to see your issued permit before your first paid class."
+    }
+   ]
+  },
+  {
+   "id": "where-teachers-live",
+   "title": "Where teachers live and what rent costs",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Because centre work happens in the evenings and at weekends, many teachers find the commute matters more than the district label, and try to live within about 20–25 minutes of their main centre. The [eno.vn HCMC Rent Index](/hcmc-rent-index) (median asking rents from live listings, snapshot 10 October 2026) puts the citywide median at {{vnd:6800000}} a month for a one-bedroom apartment and {{vnd:3900000}} for a room. These are asking prices, so expect to settle a little lower. District 2's one-bedroom median tops District 1's because its listings spread much wider: the middle half ask {{vnd:7250000-18000000}} a month, against {{vnd:7300000-10900000}} in District 1."
+    },
+    {
+     "type": "table",
+     "caption": "Median asking rent a month by area, eno.vn HCMC Rent Index, 10 October 2026 (old district names, as listings use them)",
+     "headers": [
+      "Area people still call it",
+      "Official wards since July 2025",
+      "1-bedroom median",
+      "Room median",
+      "Metro Line 1"
+     ],
+     "rows": [
+      [
+       "District 1",
+       "Sai Gon, Ben Thanh, Tan Dinh, Cau Ong Lanh",
+       "{{vnd:8600000}}",
+       "{{vnd:5300000}}",
+       "Yes"
+      ],
+      [
+       "District 2 (Thao Dien, An Phu)",
+       "An Khanh (part of An Phu is in Binh Trung)",
+       "{{vnd:10000000}}",
+       "{{vnd:4800000}}",
+       "Yes"
+      ],
+      [
+       "Binh Thanh",
+       "Gia Dinh, Binh Thanh, Binh Loi Trung, Thanh My Tay, Binh Quoi",
+       "{{vnd:7500000}}",
+       "{{vnd:4500000}}",
+       "Yes (Van Thanh, Tan Cang)"
+      ],
+      [
+       "District 3",
+       "Ban Co, Xuan Hoa, Nhieu Loc",
+       "{{vnd:7500000}}",
+       "{{vnd:4650000}}",
+       "No"
+      ],
+      [
+       "District 10",
+       "Dien Hong, Vuon Lai, Hoa Hung",
+       "{{vnd:7600000}}",
+       "{{vnd:4700000}}",
+       "No"
+      ],
+      [
+       "Phu Nhuan",
+       "Duc Nhuan, Cau Kieu, Phu Nhuan",
+       "{{vnd:7300000}}",
+       "{{vnd:4700000}}",
+       "No"
+      ],
+      [
+       "District 7 (Phu My Hung)",
+       "Tan Hung, Tan My, Phu Thuan, Tan Thuan",
+       "{{vnd:7000000}}",
+       "{{vnd:4000000}}",
+       "No"
+      ],
+      [
+       "Tan Binh",
+       "Six wards, including Bay Hien and Tan Son Nhat",
+       "{{vnd:6500000}}",
+       "{{vnd:4200000}}",
+       "No"
+      ],
+      [
+       "Go Vap",
+       "Six wards, including Go Vap and An Hoi Tay",
+       "{{vnd:5200000}}",
+       "{{vnd:3800000}}",
+       "No"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "On a typical full-time take-home pay of about {{vnd:30500000-44300000}} a month, a room takes roughly 9–17% and a one-bedroom roughly 12–33%, depending on the area. Budgets built from current prices come to about {{vnd:14000000-17000000}} a month for a frugal single teacher in a room and {{vnd:25000000-35000000}} for a comfortable one with a one-bedroom. Moving in usually costs a deposit of 1–2 months' rent plus the first month in advance. Add a rented scooter, household basics and living costs until payday, and the cash you need before your first salary is about {{vnd:21400000-24400000}} on the room route and {{vnd:48000000-60000000}} on the one-bedroom route."
+    },
+    {
+     "type": "p",
+     "text": "For the neighbourhoods themselves, read [where to live in Ho Chi Minh City as a teacher](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher); for a line-by-line budget, the [cost of living guide](/teach-in-vietnam/cost-of-living-in-ho-chi-minh-city-for-teachers); and for viewings, leases and bills, [renting an apartment in Vietnam](/renting-an-apartment-vietnam-foreigner)."
+    }
+   ]
+  },
+  {
+   "id": "new-city-map",
+   "title": "Old district names, new wards and a much bigger city",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "On 1 July 2025 Vietnam abolished the district level of government, and [Resolution 202/2025/QH15](https://luatvietnam.vn/hanh-chinh/nghi-quyet-202-2025-qh15-cua-quoc-hoi-ve-viec-sap-xep-don-vi-hanh-chinh-cap-tinh-402728-d1.html) merged Ho Chi Minh City with Binh Duong and Ba Ria–Vung Tau. The new city has 168 ward- and commune-level units ([Resolution 1685/NQ-UBTVQH15](https://hoatieu.vn/phap-luat/nghi-quyet-1685-nq-ubtvqh15-2025-233560)), and official addresses now read \"number, street, ward, Ho Chi Minh City\": Thao Dien is in An Khanh ward, the Phu My Hung core in Tan Hung ward. Job ads, landlords, schools and the eno.vn Rent Index still say \"District 1\", \"Binh Thanh\" or \"District 7\", and so does this guide."
+    },
+    {
+     "type": "p",
+     "text": "The merger changes what **\"a job in HCMC\"** means. An ad tagged Ho Chi Minh City can now be in Thu Dau Mot or Di An (former Binh Duong), in Vung Tau or even on Con Dao island, anywhere from about 30 to over 200 km from central Saigon, and some job boards also file campuses in other provinces under \"Hồ Chí Minh\". Some of these jobs pay a location allowance (one public-school agency adds {{vnd:2000000}} a month for Thu Dau Mot and Tan Uyen), but always check the campus address before you accept an offer or sign a lease."
+    },
+    {
+     "type": "p",
+     "text": "Watch the ward names too. Binh Thanh, Phu Nhuan, Tan Binh, Go Vap and Thu Duc are now each also the name of one small ward, not the whole old district, and the official An Phu ward is in former Binh Duong, not the An Phu of old District 2. Papers issued before the change stay valid until they expire."
+    }
+   ]
+  },
+  {
+   "id": "how-to-start",
+   "title": "How to start: the order to do things in",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The [step-by-step guide to becoming a teacher in Vietnam](/teach-in-vietnam/how-to-become-an-english-teacher-in-vietnam) covers each stage in detail. In short:"
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Check that you qualify",
+       "text": "Confirm your degree, your years of relevant experience and the written proof you can get for them. If you have no teaching certificate, choose an accredited TEFL, TESOL or CELTA with observed teaching practice."
+      },
+      {
+       "title": "Start your documents early",
+       "text": "Get your degree apostilled or legalised, depending on the issuing country, and time your criminal record check so it is under 6 months old when the employer files. Gathering documents from abroad can take weeks to months."
+      },
+      {
+       "title": "Pick the kind of job and time your search",
+       "text": "Centre (hourly, evenings and weekends), public school through an agency (weekday daytime, September to May), kindergarten, or a licensed international-school post. Centres are busiest from June to August; apply to agencies in June–August for a September start."
+      },
+      {
+       "title": "Find openings and check the employer",
+       "text": "Browse [teaching jobs on eno.vn](/jobs-vietnam-expats): each opens the original posting, where you apply, and eno.vn has not verified the employers behind them. Read [finding a teaching job in Vietnam](/teach-in-vietnam/finding-a-teaching-job-in-vietnam) for the other channels. Never pay to get a job: VUS warns that any request for money or to download an app is a [scam](https://teachenglish.vus.edu.vn/fake-job-warning). You can also publish a free profile at [teacher.eno.vn](https://teacher.eno.vn); only schools and other business accounts can message you, and your contact details stay hidden until you choose to share them."
+      },
+      {
+       "title": "Interview and teach a demo lesson",
+       "text": "Large employers interview overseas candidates by video (VUS's HR interview takes about an hour), while many centres interview in person and demo lessons are common. Ask who will watch, the learners' age and level, how long it runs and whether it is paid."
+      },
+      {
+       "title": "Read the contract before you sign",
+       "text": "Get the rate (gross or net), the guaranteed hours, who pays for each step of the paperwork and any claw-back if you leave early in writing. An employer may not keep your original passport or degree or take a deposit. The [contracts guide](/teach-in-vietnam/english-teaching-contracts-in-vietnam) has the full checklist."
+      },
+      {
+       "title": "Wait for the work permit",
+       "text": "The employer files 60 to 10 days before your start date. Teach only once the permit is issued."
+      },
+      {
+       "title": "Arrive with a cash buffer",
+       "text": "Many teachers advise bringing enough for 2–3 months without full pay: hours build up slowly and the first payday can come about 30 days after you start. Then find a home within easy reach of your main centre."
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Can I teach English in Ho Chi Minh City without a degree?",
+   "a": "Not on the usual route. Teachers get work permits as experts, which requires a bachelor's degree or higher plus 2 years of relevant experience, and language centres must employ foreign teachers with at least a college degree. A job offered without a work permit is illegal work, and the fine and deportation risk fall on you."
+  },
+  {
+   "q": "Should I apply from home or fly to Saigon and look in person?",
+   "a": "Both work. VUS and other large employers interview overseas candidates by video, while many centres prefer to interview in person and some public-school agencies only hire people already in Vietnam. Either way, you cannot start teaching until your work permit is issued."
+  },
+  {
+   "q": "Do non-native English speakers get teaching jobs in Saigon?",
+   "a": "Yes, though fewer doors are open. The law names no eligible nationalities, so passport lists in ads are employer preferences, but at language centres a non-native speaker must show Level 5 (about C1) English or hold a degree in English or language teaching. VUS considers non-native speakers who send an intro video, and RMIT asks for IELTS Academic 8.0 with no band below 7.5."
+  },
+  {
+   "q": "When is the best time of year to look for a teaching job in Saigon?",
+   "a": "Centres hire all year but are busiest from June to August and slowest from mid-December to Tet, which falls on 6 February 2027. Apply to public-school agencies in June to August for a September start; international schools commonly recruit the autumn before an August start."
+  },
+  {
+   "q": "Is Ho Chi Minh City or Hanoi better for English teachers?",
+   "a": "Ho Chi Minh City is the bigger market, with more centres and employers, while Hanoi's hourly rates in 2026 ads were the same as or slightly above Saigon's. The choice usually comes down to lifestyle, climate and where the best offer is; our Hanoi vs Ho Chi Minh City guide compares them."
+  },
+  {
+   "q": "Can my school keep my passport or degree certificate?",
+   "a": "No. Labour Code Article 17 bans employers from keeping original identity papers, diplomas or certificates, or demanding a deposit, and Decree 283/2026 fines employers who do. Hand over certified copies; if the school needs your passport briefly for paperwork, get a dated receipt and a return date."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Decree 219/2025/ND-CP on foreign workers in Vietnam",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html"
+  },
+  {
+   "title": "Decision 6093/QĐ-UBND (2026) on work-permit procedures in Ho Chi Minh City",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong/quyet-dinh-6093-qd-ubnd-tp-ho-chi-minh-2026-cong-bo-danh-muc-thu-tuc-hanh-chinh-sua-doi-bo-sung-448197-d2.html"
+  },
+  {
+   "title": "Resolution 09/2022/NQ-HĐND on fees in Ho Chi Minh City",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/thue/nghi-quyet-09-2022-nq-hdnd-239822-d2.html"
+  },
+  {
+   "title": "Foreign workers in Vietnam: what to know as new penalty rules take effect September 10",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/foreign-workers-in-vietnam-what-to-know-as-new-penalty-rules-take-effect-september-10-103260824152235374.htm"
+  },
+  {
+   "title": "Status table: Apostille Convention",
+   "publisher": "HCCH",
+   "url": "https://www.hcch.net/en/instruments/conventions/status-table/?cid=41"
+  },
+  {
+   "title": "Labour Code 2019",
+   "publisher": "Dữ liệu pháp luật",
+   "url": "https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html"
+  },
+  {
+   "title": "Vietnam's new Personal Income Tax Law",
+   "publisher": "KPMG Vietnam",
+   "url": "https://assets.kpmg.com/content/dam/kpmg/vn/pdf/2026/01/new-pit-law-en.pdf"
+  },
+  {
+   "title": "Decision 2371/QĐ-TTg (2025): making English the second language in schools",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/giao-duc/quyet-dinh-2371-qd-ttg-2025-phe-duyet-de-an-tieng-anh-thanh-ngon-ngu-thu-hai-trong-truong-hoc-416990-d1.html"
+  },
+  {
+   "title": "HCMC: 246 preschools and schools may recruit and contract foreign teachers",
+   "publisher": "Giáo dục Việt Nam",
+   "url": "https://giaoduc.net.vn/tphcm-246-truong-mam-non-pho-thong-duoc-tu-tuyen-giao-vien-hop-dong-voi-giao-vien-nuoc-ngoai-post260905.gd"
+  },
+  {
+   "title": "Ho Chi Minh City raises staff quality at language and IT centres",
+   "publisher": "Đại biểu Nhân dân",
+   "url": "https://daibieunhandan.vn/tp-ho-chi-minh-nang-cao-chat-luong-nhan-su-tai-cac-trung-tam-ngoai-ngu-tin-hoc-10388655.html"
+  },
+  {
+   "title": "Ho Chi Minh City reviews qualifications of teachers in linked programmes",
+   "publisher": "Đại biểu Nhân dân",
+   "url": "https://daibieunhandan.vn/tp-ho-chi-minh-ra-soat-nang-luc-bang-cap-giao-vien-chuong-trinh-lien-ket-10402625.html"
+  },
+  {
+   "title": "Resolution 202/2025/QH15 on rearranging provincial-level units",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/hanh-chinh/nghi-quyet-202-2025-qh15-cua-quoc-hoi-ve-viec-sap-xep-don-vi-hanh-chinh-cap-tinh-402728-d1.html"
+  },
+  {
+   "title": "Resolution 1685/NQ-UBTVQH15 on Ho Chi Minh City's commune-level units",
+   "publisher": "Hoatieu",
+   "url": "https://hoatieu.vn/phap-luat/nghi-quyet-1685-nq-ubtvqh15-2025-233560"
+  },
+  {
+   "title": "HCMC issues its 2026–2027 school-year calendar",
+   "publisher": "Giáo dục Việt Nam",
+   "url": "https://giaoduc.net.vn/tphcm-ban-hanh-ke-hoach-thoi-gian-nam-hoc-2026-2027-post262099.gd"
+  },
+  {
+   "title": "Teach English with VUS: FAQ",
+   "publisher": "VUS",
+   "url": "https://teachenglish.vus.edu.vn/?p=979"
+  },
+  {
+   "title": "Fake job warning",
+   "publisher": "VUS",
+   "url": "https://teachenglish.vus.edu.vn/fake-job-warning"
+  },
+  {
+   "title": "Teaching English in Ho Chi Minh City: job listings",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/city/teaching-english-in-ho-chi-minh"
+  },
+  {
+   "title": "Foreign ESL teachers for public schools in Ho Chi Minh City, 2026–2027",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/foreign-esl-teachers-for-public-schools-in-ho-chi-minh-city-2026-2027/"
+  },
+  {
+   "title": "Expat primary teacher, Pathway School, District 2",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/expat-primary-teacher-pathway-school-district-2-hcmc-full-time"
+  },
+  {
+   "title": "Full-time homeroom kindergarten teacher, Go Vap",
+   "publisher": "Teast",
+   "url": "https://teast.co/job/full-time-homeroom-kindergarten-teacher-go-vap-district-Ow6XNeTaalIIPg66rO3U"
+  },
+  {
+   "title": "Apollo English: ESL teachers wanted (January 2026)",
+   "publisher": "The TEFL Academy",
+   "url": "https://www.theteflacademy.com/?p=106928"
+  },
+  {
+   "title": "Teaching in Ho Chi Minh City, Vietnam: The Complete Expat Guide",
+   "publisher": "Spill",
+   "url": "https://spill.org/en/guides/ho-chi-minh-city-vietnam-expat-guide"
+  },
+  {
+   "title": "Teach English in Vietnam",
+   "publisher": "TEFL Org",
+   "url": "https://www.tefl.org/teach-english-abroad/teach-english-in-vietnam/"
+  },
+  {
+   "title": "HCMC Rent Index",
+   "publisher": "eno.vn",
+   "url": "https://eno.vn/hcmc-rent-index"
+  },
+  {
+   "title": "Saigon schools, ranked by teachers",
+   "publisher": "eno.vn",
+   "url": "https://eno.vn/schools"
+  }
+ ],
+ "related": [
+  "types-of-english-teaching-jobs-in-vietnam",
+  "language-centre-jobs-in-ho-chi-minh-city",
+  "teaching-job-scams-in-vietnam",
+  "hanoi-vs-ho-chi-minh-city-for-teachers",
+  "your-first-weeks-in-ho-chi-minh-city",
+  "is-teaching-english-in-vietnam-worth-it"
+ ],
+ "lastChecked": "2026-10-11"
+}

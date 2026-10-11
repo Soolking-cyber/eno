@@ -1,0 +1,549 @@
+{
+ "slug": "requirements-to-teach-english-in-vietnam",
+ "title": "Requirements to teach English in Vietnam (2026)",
+ "description": "Degree plus 2 years' experience for the work permit, what a TEFL really does, and honest 2026 answers for non-native speakers, over-50s and no-degree teachers.",
+ "h1": "Requirements to teach English in Vietnam: the law, what employers ask, and the hard cases",
+ "eyebrow": "Qualify to teach",
+ "intro": "To teach English legally in Vietnam you need a work permit, which for teachers means a bachelor's degree plus at least 2 years of relevant experience (Decree 219/2025), a police check issued within 6 months of filing and a health check done in Vietnam. Language centres must also see a suitable teaching certificate; employers usually want a 120-hour TEFL, TESOL or CELTA. The law sets no maximum age, and non-native speakers are not barred, though language centres may need about C1-level English proof from them.",
+ "keyPoints": [
+  "The work permit is the real gate: teachers are filed as **experts**, which means a bachelor's degree or higher plus at least 2 years of relevant experience under Decree 219/2025 (in force since 7 August 2025; the old rule was 3 years).",
+  "A TEFL, TESOL or CELTA does not replace the degree or the experience. It is the education-side requirement for language centres, and the law sets no minimum hours: **120 hours is an employer convention**.",
+  "Your police check must be issued no more than 6 months before the employer files, the health check is done in Vietnam, and since 11 September 2026 an apostille replaces embassy legalisation for documents from Convention countries (not Germany, Austria or Czechia, which objected, nor Thailand until 28 February 2027).",
+  "There is no established legal route for teachers without a degree. Working without a permit costs the teacher {{vnd:15000000-25000000}} and possibly deportation under Decree 283/2026.",
+  "Non-native speakers are not barred by law: at language centres they need Level 5 (about C1) English proof unless their degree is in English or English teaching, and a teaching certificate unless the degree is in English teaching.",
+  "Neither the Labour Code nor Decree 219 sets a maximum age. Age bands in job ads are employer preferences, not law."
+ ],
+ "sections": [
+  {
+   "id": "requirements-at-a-glance",
+   "title": "The requirements at a glance: the law vs what employers ask",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Two sets of rules apply, and employers add a third layer. The work permit, governed by [Decree 219/2025/ND-CP](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html) since 7 August 2025, decides whether you may work at all; it replaced the foreign-worker rules of Decrees 152/2020 and 70/2023. Teachers are filed as **experts**: a bachelor's degree or higher plus at least 2 years of relevant work experience (Art 3(3)(a))."
+    },
+    {
+     "type": "p",
+     "text": "The education rules set the teaching standard on top. For language centres that is MOET's [Circular 21/2018/TT-BGDĐT](https://luatvietnam.vn/giao-duc/thong-tu-21-2018-tt-bgddt-quy-che-to-chuc-hoat-dong-cua-trung-tam-ngoai-ngu-tin-hoc-166595-d1.html), which Decree 219 Art 19(3)(đ) pulls into the permit file. Then each employer adds its own preferences."
+    },
+    {
+     "type": "table",
+     "caption": "What you need to teach at a Ho Chi Minh City language centre, as of October 2026. Sources: Decree 219/2025, Circular 21/2018 Art 18, employer job pages.",
+     "headers": [
+      "Requirement",
+      "Work-permit law (Labour Code, Decree 219)",
+      "Language-centre rules (Circular 21/2018)",
+      "What employers usually ask"
+     ],
+     "rows": [
+      [
+       "Degree",
+       "Bachelor's or higher, or equivalent",
+       "College (cao đẳng) degree or higher, any field",
+       "Bachelor's; ILA asks for a degree of at least 3 years"
+      ],
+      [
+       "Experience",
+       "At least 2 years suited to the job",
+       "Not set",
+       "Often preferred, not required, at the big chains"
+      ],
+      [
+       "Teaching certificate",
+       "No substitute for the degree or experience",
+       "A 'suitable' language-teaching certificate; no hours set",
+       "120+ hour TEFL or TESOL, or CELTA"
+      ],
+      [
+       "English level",
+       "No native-speaker or nationality rule",
+       "Non-native speakers: Level 5 (about C1) proof unless the degree is in English",
+       "'Native' or a test score; varies by employer"
+      ],
+      [
+       "Criminal record",
+       "Issued no more than 6 months before filing; home country or Vietnam",
+       "Not set",
+       "A clean check, often 'within 6 months'"
+      ],
+      [
+       "Health",
+       "Health certificate; one from abroad only under mutual recognition",
+       "Not set",
+       "Health check done in Vietnam after arrival"
+      ],
+      [
+       "Age",
+       "At least 18; no maximum",
+       "Not set",
+       "Some ads set age bands (a preference, not law)"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "In Ho Chi Minh City the permit is issued by the Department of Home Affairs (Sở Nội vụ) for employers outside export-processing zones, industrial parks and high-tech parks, which covers practically every language centre and school ([Decision 6093/QĐ-UBND](https://luatvietnam.vn/lao-dong/quyet-dinh-6093-qd-ubnd-tp-ho-chi-minh-2026-cong-bo-danh-muc-thu-tuc-hanh-chinh-sua-doi-bo-sung-448197-d2.html), 21 September 2026). The employer applies, not you: it files 60 to 10 days before your start date, the decree allows up to 10 working days for a decision and the city publishes 5, and the {{vnd:600000}} state fee is the employer's to pay."
+    },
+    {
+     "type": "p",
+     "text": "The whole procedure is in [our guide to the work permit for English teachers](/teach-in-vietnam/vietnam-work-permit-for-english-teachers). This page explains the rules; on any individual file, your employer and the authority have the final word."
+    }
+   ]
+  },
+  {
+   "id": "degree",
+   "title": "Your degree: does the subject matter, and how to get it accepted",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "For the work permit, Decree 219 asks for a bachelor's degree or higher, or equivalent, and names no subject. What has to fit the job is your **experience**, which must be 'suited to the job position'. For a native speaker at a language centre, Circular 21/2018 Art 18(5) asks for less: a college degree in any field. In practice the bachelor's needed for the permit is the binding requirement."
+    },
+    {
+     "type": "p",
+     "text": "It has to be a real degree. A course-completion certificate, a TEFL included, is not equivalent to a university degree ([LuatVietnam](https://luatvietnam.vn/linh-vuc-khac/trung-tam-ngoai-ngu-thue-giao-vien-nuoc-ngoai-can-dieu-kien-gi-883-100926-article.html)). Employers can ask for more than the law: [ILA's job pages](https://teachingenglish.ila.edu.vn/job-detail/?id=1) want a bachelor's of at least three years, and international schools look for a teaching degree or licence as well."
+    },
+    {
+     "type": "h3",
+     "text": "Getting the degree accepted: apostille, translation, certification"
+    },
+    {
+     "type": "p",
+     "text": "Foreign documents in a work-permit file must be legalised, or exempt under a treaty, then translated into Vietnamese and certified; a copy must be certified against the original before it is translated (Decree 219 Art 5). Vietnam joined the Apostille Convention with effect from 11 September 2026 under [Decree 293/2026/ND-CP](https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/7/293_2026_nd-cp_23072026_1-signed.signed.pdf), so a degree from a member country needs one apostille from the issuing country instead of embassy legalisation."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Apostille works** for the US, the UK, Canada, Australia, Ireland, New Zealand, South Africa and the Philippines, none of which objected ([HCCH status table](https://www.hcch.net/en/instruments/conventions/status-table/?cid=41)).",
+      "**Still legalisation**: Germany, Austria and Czechia objected to Vietnam's accession ([HCCH notifications](https://www.hcch.net/en/instruments/conventions/status-table/notifications/?csid=1557&disp=type)), so their documents still go through consular legalisation. Thai documents do too until the Convention takes effect for Thailand on 28 February 2027.",
+      "**Translation is still needed**: an apostille never replaces it. Since 1 July 2025 a translation is made valid by certifying the translator's signature at a ward People's Committee or a notary office ([Nhân Dân](https://nhandan.vn/nhieu-quy-dinh-moi-ve-cong-chung-post892108.html)).",
+      "**Legalised before 11 September 2026?** Those documents stay valid; you do not need to redo them as apostilles."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Ministry of Education recognition of your foreign degree is not on the Decree 219 dossier list; the authority checks the apostilled or legalised degree and its certified translation. Country-by-country steps, costs and the trap with private certificates (a TEFL from a private provider usually needs a notary or solicitor first) are in [getting your degree and documents authenticated](/teach-in-vietnam/getting-your-degree-authenticated-for-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "teaching-certificate",
+   "title": "Teaching certificate: what counts as a 'suitable' TEFL, TESOL or CELTA",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "A TEFL, TESOL or CELTA does not replace the degree or the experience in the work-permit test. It is the education-side requirement: Circular 21/2018 asks foreign teachers at language centres for a 'suitable' foreign-language teaching certificate. No Vietnamese text sets a minimum number of hours, so **'120 hours' is an employer convention**, not law."
+    },
+    {
+     "type": "p",
+     "text": "In December 2020 MOET wrote to Hanoi's labour department recommending that TESOL, TEFL and CELTA certificates be accepted for work permits, citing courses from named accredited awarding bodies ([Giáo dục Việt Nam](https://giaoduc.net.vn/bo-giao-duc-go-roi-quy-dinh-cap-phep-cho-giao-vien-tieng-anh-nuoc-ngoai-post214387.gd)). Accreditation matters: in January 2026 HCMC's education department reviewed foreign teachers in public-school linked programmes and flagged those holding only completion certificates instead of the required teaching certificate ([Đại biểu Nhân dân](https://daibieunhandan.vn/tp-ho-chi-minh-ra-soat-nang-luc-bang-cap-giao-vien-chuong-trinh-lien-ket-10402625.html))."
+    },
+    {
+     "type": "table",
+     "caption": "Certificates some Ho Chi Minh City employers ask for, from their own job pages, recruitment profiles and ads (2024-2026). Employer requirements change; check the current posting.",
+     "headers": [
+      "Employer",
+      "Certificate asked for",
+      "Notes"
+     ],
+     "rows": [
+      [
+       "ILA",
+       "120+ hours: TEFL Level 4 or higher, Ninja TESOL, AVSE TESOL, CELTA or Trinity",
+       "Teaching practice 'highly preferred', not mandatory"
+      ],
+      [
+       "VUS",
+       "TESOL, TEFL or CELTA; online courses accepted",
+       "Prefers a course with an in-class component"
+      ],
+      [
+       "Apollo English",
+       "An internationally recognised TEFL of 120+ hours (December 2025 ad)",
+       "Also a clean criminal check issued within 6 months"
+      ],
+      [
+       "International schools",
+       "A teaching licence or certification, not a TEFL",
+       "SSIS normally wants a master's and 2+ years' experience too"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "One official option is little known: MOET [Decision 4159/QĐ-BGDĐT](https://lsvn.vn/nguoi-nuoc-ngoai-day-tieng-anh-tai-trung-tam-ngoai-ngu-tin-hoc-se-duoc-cap-chung-chi-dao-tao-1709006169-a141314.html) (6 December 2023) created a 160-period course, 10 modules plus a practicum, and a certificate for foreigners who teach English at language centres without a teaching qualification. Universities with English teacher-training faculties run it; check that your target employer accepts it before you enrol."
+    },
+    {
+     "type": "p",
+     "text": "Choosing between an online TEFL, an in-class course and CELTA (Apollo IH runs CELTA in the city at {{vnd:42000000}}, or {{vnd:39500000}} if paid 6 weeks ahead) is covered in [TEFL, TESOL or CELTA for Vietnam](/teach-in-vietnam/tefl-tesol-and-celta-for-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "criminal-record-and-health-check",
+   "title": "Criminal record check and health check",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Labour Code Art 151 requires a foreign worker to meet health standards and to have no current sentence, unexpunged conviction or pending prosecution. Decree 219 turns that into two documents, and the order you get them in matters."
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Order the police check at the right time",
+       "text": "It must be issued no more than 6 months before your employer files, and the employer files 60 to 10 days before your start date. It can come from your home country or from Vietnam. Use your national check: for example, an FBI check is apostilled by the US State Department, not by a state office."
+      },
+      {
+       "title": "Apostille first, then translate",
+       "text": "Get the apostille (or legalisation) in the issuing country before the Vietnamese translation, so the translation covers the apostille page too. Then have the translator's signature certified in Vietnam."
+      },
+      {
+       "title": "Already living in Vietnam? A Vietnamese record also works",
+       "text": "Since 1 March 2025 Vietnamese criminal records come from the police, not the Department of Justice. In Ho Chi Minh City the counters are at 161 Nguyễn Du (Bến Thành ward), 681 Cách Mạng Tháng 8 (Thủ Dầu Một ward) and 4 Nguyễn Tất Thành (Bà Rịa ward) ([Tuổi Trẻ](https://tuoitre.vn/cong-an-tp-hcm-thay-doi-dia-diem-tiep-nhan-va-tra-ket-qua-ly-lich-tu-phap-20260213171448319.htm)); official addresses have used the new ward names since July 2025, not districts. With your authorisation, the employer can also request it online together with the work permit."
+      },
+      {
+       "title": "Do the health check in Vietnam",
+       "text": "A health certificate from abroad is accepted only where Vietnam has a mutual-recognition agreement with that country, so in practice the check is done after you arrive, at a facility qualified in Vietnam ([Government news portal](https://baochinhphu.vn/quy-dinh-moi-ve-cap-giay-phep-cho-lao-dong-nuoc-ngoai-tai-viet-nam-102250807172724025.htm)). Ask your employer which hospital the authority accepts. A draft amendment that would accept certificates from abroad was not in force as of October 2026."
+      }
+     ]
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "The six-month clock",
+     "text": "The 6 months run from the date your police check is **issued** to the date the employer files, not to your start date and not from the apostille date. Courier, apostille and translation time all eat into the window, and an out-of-date check gets the file rejected. Time the order backwards from the filing date."
+    },
+    {
+     "type": "p",
+     "text": "Country routes (FBI, ACRO or DBS, RCMP, AFP and others) are in [our criminal record check guide](/teach-in-vietnam/criminal-record-check-for-a-vietnam-work-permit)."
+    }
+   ]
+  },
+  {
+   "id": "without-a-degree",
+   "title": "Can you teach English in Vietnam without a degree?",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Not legally, on the route teachers use. The expert category needs a bachelor's degree or higher, and [Decree 219](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html) removed the old route that let people qualify as experts without a degree after 5 years in the field. A TEFL or CELTA does not stand in for the degree, and a college or associate degree, enough under Circular 21 at a language centre, does not meet the expert test."
+    },
+    {
+     "type": "p",
+     "text": "Decree 219 also has a 'technical worker' category (at least 1 year of training plus 2 years' relevant experience, or 3 years' experience). Teachers rarely use it, and whether Ho Chi Minh City would issue a teaching permit on that basis to someone without a bachelor's is untested, so do not plan a move around it. The under-90-days-a-year exemption is not a way round either: it covers people who already qualify as experts, managers or technical workers, and the employer must still notify the authority."
+    },
+    {
+     "type": "h3",
+     "text": "What teaching without a permit risks"
+    },
+    {
+     "type": "table",
+     "caption": "Fines for working without a work permit under Decree 283/2026/ND-CP, in force since 10 September 2026.",
+     "headers": [
+      "Who",
+      "Fine",
+      "Also"
+     ],
+     "rows": [
+      [
+       "The teacher",
+       "{{vnd:15000000-25000000}}",
+       "May be deported"
+      ],
+      [
+       "The employer",
+       "{{vnd:30000000-75000000}}, depending on how many workers",
+       "Doubled for an organisation such as a company, school or centre"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The amounts are set by [Decree 283/2026](https://luatvietnam.vn/lao-dong/nghi-dinh-283-2026-nd-cp-xu-phat-vi-pham-hanh-chinh-lao-dong-bao-hiem-xa-hoi-440485-d1.html). There is a quieter cost too. Experience gained in Vietnam counts toward the 2-year expert test only through a previous Vietnamese work permit, so years taught without one cannot be proved later."
+    },
+    {
+     "type": "p",
+     "text": "Enforcement is real. In April 2026 officials in Thanh Hoa found foreign teachers working at kindergartens their permits did not name, and said that teaching, substituting, trial lessons or observing classes without a permit is illegal ([Báo Thanh Hóa](https://baothanhhoa.vn/vi-pham-trong-su-dung-giao-vien-nuoc-ngoai-tai-co-so-mam-non-283585.htm)). In Ho Chi Minh City, the education department told centres in January 2024 to show each foreign teacher's work permit before that teacher starts in a school ([VOH](https://voh.com.vn/giao-duc/trung-tam-ngoai-ngu-tai-tphcm-khong-duoc-thu-hoc-phi-dai-han-510985.html)), and since January 2026 it has required a work permit and certified degrees in the file of every foreign teacher in public-school linked programmes ([Đại biểu Nhân dân](https://daibieunhandan.vn/tp-ho-chi-minh-ra-soat-nang-luc-bang-cap-giao-vien-chuong-trinh-lien-ket-10402625.html)). Old forum claims that 'nobody checks' are out of date, and packages selling 'TEFL plus a guaranteed job' to people without degrees do not change the law."
+    }
+   ]
+  },
+  {
+   "id": "non-native-speakers",
+   "title": "Non-native English speakers: the legal position and what employers do",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Decree 219 sets no native-speaker or nationality condition for a work permit ([Decree 219 text](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html)); the degree and the 2 years' experience apply to everyone. The education rule does distinguish. MOET has read 'native speaker' as someone whose first language is the language taught, and everyone else teaching at a language centre must meet one of three routes in Circular 21/2018 Art 18(6)."
+    },
+    {
+     "type": "table",
+     "caption": "The three routes for non-native teachers at language centres under Circular 21/2018 Art 18(6). The work permit's bachelor's degree and 2 years' experience apply on top.",
+     "headers": [
+      "Route",
+      "Degree",
+      "You also need"
+     ],
+     "rows": [
+      [
+       "1",
+       "College degree or higher in foreign-language teacher training",
+       "Nothing further under this rule"
+      ],
+      [
+       "2",
+       "College degree or higher in English",
+       "A suitable teaching certificate"
+      ],
+      [
+       "3",
+       "College degree or higher in any field",
+       "Level 5 English proof (about CEFR C1) and a suitable teaching certificate"
+      ]
+     ]
+    },
+    {
+     "type": "h3",
+     "text": "Proving Level 5 (about C1)"
+    },
+    {
+     "type": "p",
+     "text": "Vietnam's 6-level framework maps onto the CEFR, so Level 5 is about C1. No MOET-wide table converts a test score to Level 5; institutions set their own, and Hanoi University of Science and Technology's 2023 list puts Level 5 at IELTS 7.0 to 8.0 ([HUST](https://www.hust.edu.vn/uploads/sys/su-kien-noi-bat/2023_08/qd7806.2023-ban-hanh-danh-muc-quy-doi-tuong-duong-cac-chung-chi-tieng-anh.pdf)). IELTS 7.0 or above is the common working benchmark, and recruiters often cite 6.5 to 7.0+, but those numbers are employer and agency practice, not law."
+    },
+    {
+     "type": "p",
+     "text": "Use an internationally recognised test such as IELTS, TOEFL or a Cambridge exam. In May 2026 police broke up a scheme selling unauthorised 'CEFR-equivalent' English certificates and asked organisations to review any they had accepted ([Viet Nam News](https://vietnamnews.vn/society/1780870/viet-nam-busts-fake-english-certification-scam-worth-nearly-8-million.html))."
+    },
+    {
+     "type": "h3",
+     "text": "What employers actually do"
+    },
+    {
+     "type": "p",
+     "text": "Employers are stricter than the law. ILA lists 'Native' English as a requirement, and some recruiters ask for passports from English-speaking countries. Others hire non-native speakers with strong English: [VUS](https://teachenglish.vus.edu.vn/?p=979) says it considers non-native applicants who send an intro video. CELTA itself does not require native-speaker status, though International House asks candidates for C1 or above ([IH](https://ihteachenglish.com/?p=13232)). How bias shows up in ads and pay, and how to work around it, is in [hiring bias in teaching jobs](/teach-in-vietnam/discrimination-and-hiring-bias-in-teaching-jobs-in-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "over-50-and-age-limits",
+   "title": "Over 50 or 55: age limits in the rules and in practice",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "There is no upper age limit in the law. Labour Code Art 151 sets a minimum of 18, and neither the Labour Code nor Decree 219 sets a maximum for a work permit ([Decree 219 text](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html)). Any upper limit you meet comes from employer or insurer practice. Some ads set age bands, such as a 2026 Ho Chi Minh City kindergarten ad asking for teachers aged 23 to 40, but that is a preference, not a legal condition."
+    },
+    {
+     "type": "p",
+     "text": "Health is the legal test at every age: you need the work-permit health certificate described above, done in Vietnam. Two money points change with age."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Social insurance**: foreign employees on contracts of 12 months or more must join compulsory social insurance (employee 9.5%, of which 8% pension and 1.5% health insurance; employer 20.5%). Vietnam's statutory retirement age in 2026 is 61 years 6 months for men and 57 for women, and anyone who had already reached it when signing the contract is exempt ([Social Insurance Law 2024, Art 2(2)](https://english.luatvietnam.vn/lao-dong/law-41-2024-qh15-on-social-insurance-360809-d1.html)), so ask the employer how your payslip and health cover will work.",
+      "**Health cover**: ask exactly what health insurance comes with the job (some chains, such as [Apollo English](https://www.theteflacademy.com/?p=61627), advertise comprehensive health insurance) and read any age terms in the policy before you sign."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "A long working history can make the 2-year experience test easier to document, provided your letters show experience the authority accepts as relevant to the job. Hospitals, costs and insurance options are in [healthcare and health insurance in Ho Chi Minh City](/teach-in-vietnam/healthcare-and-health-insurance-in-ho-chi-minh-city)."
+    }
+   ]
+  },
+  {
+   "id": "no-teaching-experience",
+   "title": "No teaching experience: how first-timers get hired",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "There are two separate questions: will an employer take you, and will the permit file go through. On the employer side, the big chains do hire first-timers. ILA calls teaching practice 'highly preferred', not mandatory, for most locations (it makes 3 years' English-teaching experience compulsory for Da Nang, Nha Trang and Vung Tau). VUS welcomes newly certified teachers, says most new expat teachers start at {{vnd:450000}} an hour gross, and offers its 12-month contract after a probation month and once the work permit is issued. Probation is paid work, so confirm the permit is issued before that month begins: teaching without one costs {{vnd:15000000-25000000}} and possible deportation."
+    },
+    {
+     "type": "h3",
+     "text": "The permit side: the 2-year rule"
+    },
+    {
+     "type": "p",
+     "text": "The expert test still asks for 2 years of relevant experience. The usual proof is a letter from a past employer **abroad** stating your years of experience; experience in Vietnam counts only through earlier Vietnamese work permits. For experts in education, Decree 219 Art 19(3) also lists, as an alternative proof, documents showing you meet the qualification standard set by education law (point đ). How Ho Chi Minh City applies that to a teacher with under 2 years' experience is not published."
+    },
+    {
+     "type": "p",
+     "text": "So if you have less than 2 years' experience, **ask the employer which proof they will file for you, and get the answer in writing before you travel**. Whether TEFL or CELTA teaching practice counts as experience has not been confirmed either. Never use an experience letter that is not true: an employer that files altered or forged documents is fined {{vnd:40000000-60000000}} ({{vnd:80000000-120000000}} for a company, school or centre) under Decree 283/2026, and a permit issued in breach of the rules can be revoked."
+    },
+    {
+     "type": "h3",
+     "text": "What gets first-timers hired"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**A course with real teaching practice.** In Ho Chi Minh City, TEFL International Vietnam, Ninja Teacher Academy and AVSE TESOL run in-class courses with live practice, and ILA names Ninja and AVSE as acceptable; CELTA is the other route.",
+      "**Experience letters for anything relevant you did abroad**: on letterhead, with your job title, exact start and end dates, a signature and contact details. A reference letter is a private document, so it usually needs a notary or solicitor's certification before the apostille or legalisation.",
+      "**A prepared demo lesson.** Ask who will watch, the learners' age and level and how long it should run; see [the CV, interview and demo lesson guide](/teach-in-vietnam/english-teacher-cv-and-demo-lesson-in-vietnam).",
+      "**Postings you can trace.** eno.vn's [teaching jobs page](/jobs-vietnam-expats) links each posting to the original ad, where you apply, and the [school directory](/schools) lists Ho Chi Minh City employers with teachers' reviews where there are any. Never pay to get a job.",
+      "**Realistic targets.** International schools are the exception: [SSIS](https://search.openapply.com/schools/saigon-south-international-school), for example, normally hires teachers with a master's, at least 2 years' experience and home-country certification. See [international school jobs in Vietnam](/teach-in-vietnam/international-school-jobs-in-vietnam)."
+     ]
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Do I need my degree recognised by Vietnam's Ministry of Education for the work permit?",
+   "a": "No. Ministry of Education recognition is not on the Decree 219 dossier list. The authority checks your degree with an apostille (or legalisation) and a certified Vietnamese translation."
+  },
+  {
+   "q": "Is a 100-hour TEFL enough to teach in Vietnam?",
+   "a": "The law sets no minimum hours; it asks only for a suitable teaching certificate. Many employers set 120 hours as their floor, ILA among them, so check the posting before you buy a course."
+  },
+  {
+   "q": "Do I need a Vietnamese police check as well as one from home?",
+   "a": "No. Decree 219 accepts either a home-country or a Vietnamese criminal record, as long as it was issued no more than 6 months before filing. The law sets no minimum stay before a foreigner who has lived in Vietnam can request a Vietnamese one."
+  },
+  {
+   "q": "My documents were legalised by a Vietnamese embassy before September 2026. Do I need to redo them?",
+   "a": "No. Documents legalised before 11 September 2026 remain valid under Decree 293/2026, and offices may not ask you to replace them with an apostille. You still need a certified Vietnamese translation."
+  },
+  {
+   "q": "Does a job in Binh Duong or Vung Tau count as Ho Chi Minh City?",
+   "a": "Yes. Since 1 July 2025 Ho Chi Minh City includes the former Binh Duong and Ba Ria-Vung Tau provinces, so a school there files with the Ho Chi Minh City authorities."
+  },
+  {
+   "q": "Can I start teaching while my work permit is being processed?",
+   "a": "No. Teaching before the permit is issued is working without a permit, which since 10 September 2026 carries a fine for you and possible deportation, plus a fine for the employer. Wait for the permit and the signed labour contract."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Decree 219/2025/ND-CP on foreign workers in Vietnam",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html"
+  },
+  {
+   "title": "Circular 21/2018/TT-BGDĐT on the organisation and operation of foreign-language and IT centres",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/giao-duc/thong-tu-21-2018-tt-bgddt-quy-che-to-chuc-hoat-dong-cua-trung-tam-ngoai-ngu-tin-hoc-166595-d1.html"
+  },
+  {
+   "title": "Decision 6093/QĐ-UBND of Ho Chi Minh City on amended administrative procedures",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong/quyet-dinh-6093-qd-ubnd-tp-ho-chi-minh-2026-cong-bo-danh-muc-thu-tuc-hanh-chinh-sua-doi-bo-sung-448197-d2.html"
+  },
+  {
+   "title": "Decree 283/2026/ND-CP on administrative penalties in labour and social insurance",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong/nghi-dinh-283-2026-nd-cp-xu-phat-vi-pham-hanh-chinh-lao-dong-bao-hiem-xa-hoi-440485-d1.html"
+  },
+  {
+   "title": "Decree 293/2026/ND-CP implementing the Apostille Convention",
+   "publisher": "Government of Vietnam",
+   "url": "https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/7/293_2026_nd-cp_23072026_1-signed.signed.pdf"
+  },
+  {
+   "title": "Status table: Apostille Convention",
+   "publisher": "HCCH",
+   "url": "https://www.hcch.net/en/instruments/conventions/status-table/?cid=41"
+  },
+  {
+   "title": "Apostille Convention notifications: objections to Viet Nam's accession",
+   "publisher": "HCCH",
+   "url": "https://www.hcch.net/en/instruments/conventions/status-table/notifications/?csid=1557&disp=type"
+  },
+  {
+   "title": "New rules on work permits for foreign workers in Vietnam",
+   "publisher": "Báo Chính phủ (Government news portal)",
+   "url": "https://baochinhphu.vn/quy-dinh-moi-ve-cap-giay-phep-cho-lao-dong-nuoc-ngoai-tai-viet-nam-102250807172724025.htm"
+  },
+  {
+   "title": "Conditions for language centres hiring foreign teachers",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/linh-vuc-khac/trung-tam-ngoai-ngu-thue-giao-vien-nuoc-ngoai-can-dieu-kien-gi-883-100926-article.html"
+  },
+  {
+   "title": "MOET clears the way on licensing foreign English teachers",
+   "publisher": "Giáo dục Việt Nam",
+   "url": "https://giaoduc.net.vn/bo-giao-duc-go-roi-quy-dinh-cap-phep-cho-giao-vien-tieng-anh-nuoc-ngoai-post214387.gd"
+  },
+  {
+   "title": "Foreigners teaching English at language centres to receive a training certificate (Decision 4159/QĐ-BGDĐT)",
+   "publisher": "Tạp chí Luật sư Việt Nam",
+   "url": "https://lsvn.vn/nguoi-nuoc-ngoai-day-tieng-anh-tai-trung-tam-ngoai-ngu-tin-hoc-se-duoc-cap-chung-chi-dao-tao-1709006169-a141314.html"
+  },
+  {
+   "title": "Ho Chi Minh City reviews qualifications of teachers in linked programmes",
+   "publisher": "Đại biểu Nhân dân",
+   "url": "https://daibieunhandan.vn/tp-ho-chi-minh-ra-soat-nang-luc-bang-cap-giao-vien-chuong-trinh-lien-ket-10402625.html"
+  },
+  {
+   "title": "Many new rules on notarisation",
+   "publisher": "Nhân Dân",
+   "url": "https://nhandan.vn/nhieu-quy-dinh-moi-ve-cong-chung-post892108.html"
+  },
+  {
+   "title": "HCMC Police change where criminal record applications are received",
+   "publisher": "Tuổi Trẻ",
+   "url": "https://tuoitre.vn/cong-an-tp-hcm-thay-doi-dia-diem-tiep-nhan-va-tra-ket-qua-ly-lich-tu-phap-20260213171448319.htm"
+  },
+  {
+   "title": "Law 41/2024/QH15 on Social Insurance",
+   "publisher": "LuatVietnam",
+   "url": "https://english.luatvietnam.vn/lao-dong/law-41-2024-qh15-on-social-insurance-360809-d1.html"
+  },
+  {
+   "title": "English certificate equivalence list (Decision 7806/2023)",
+   "publisher": "Hanoi University of Science and Technology",
+   "url": "https://www.hust.edu.vn/uploads/sys/su-kien-noi-bat/2023_08/qd7806.2023-ban-hanh-danh-muc-quy-doi-tuong-duong-cac-chung-chi-tieng-anh.pdf"
+  },
+  {
+   "title": "Viet Nam busts fake English certification scam worth nearly $8 million",
+   "publisher": "Viet Nam News",
+   "url": "https://vietnamnews.vn/society/1780870/viet-nam-busts-fake-english-certification-scam-worth-nearly-8-million.html"
+  },
+  {
+   "title": "Violations in the use of foreign teachers at preschools",
+   "publisher": "Báo Thanh Hóa",
+   "url": "https://baothanhhoa.vn/vi-pham-trong-su-dung-giao-vien-nuoc-ngoai-tai-co-so-mam-non-283585.htm"
+  },
+  {
+   "title": "ILA teaching jobs: requirements",
+   "publisher": "ILA Vietnam",
+   "url": "https://teachingenglish.ila.edu.vn/job-detail/?id=1"
+  },
+  {
+   "title": "Teach English with VUS: FAQ",
+   "publisher": "VUS",
+   "url": "https://teachenglish.vus.edu.vn/?p=979"
+  },
+  {
+   "title": "Apollo English: ESL teachers needed in Vietnam (job advert, December 2025)",
+   "publisher": "The TEFL Academy",
+   "url": "https://www.theteflacademy.com/?p=61627"
+  },
+  {
+   "title": "Centres in HCMC may not collect long-term tuition (DOET directive on foreign teachers)",
+   "publisher": "VOH",
+   "url": "https://voh.com.vn/giao-duc/trung-tam-ngoai-ngu-tai-tphcm-khong-duoc-thu-hoc-phi-dai-han-510985.html"
+  },
+  {
+   "title": "CELTA course in Ho Chi Minh City",
+   "publisher": "Apollo IH (International House)",
+   "url": "https://ihteachenglish.com/?p=13232"
+  },
+  {
+   "title": "Saigon South International School profile",
+   "publisher": "OpenApply",
+   "url": "https://search.openapply.com/schools/saigon-south-international-school"
+  },
+  {
+   "title": "Retirement age in 2026",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong-tien-luong/tuoi-nghi-huu-nam-2026-thay-doi-the-nao-562-106488-article.html"
+  }
+ ],
+ "related": [
+  "vietnam-work-permit-for-english-teachers",
+  "tefl-tesol-and-celta-for-vietnam",
+  "getting-your-degree-authenticated-for-vietnam",
+  "criminal-record-check-for-a-vietnam-work-permit",
+  "how-to-become-an-english-teacher-in-vietnam",
+  "finding-a-teaching-job-in-vietnam"
+ ],
+ "lastChecked": "2026-10-11"
+}

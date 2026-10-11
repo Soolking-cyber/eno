@@ -1,0 +1,702 @@
+{
+ "slug": "vietnam-work-permit-for-english-teachers",
+ "title": "Vietnam work permit for English teachers (2026)",
+ "description": "Decree 219 rules, the Saigon office, the document checklist, the apostille switch, the 6-month police check, fees, timing and fines for teaching without one.",
+ "h1": "How English teachers get a Vietnam work permit in 2026, and what your school has to do",
+ "eyebrow": "Work permit",
+ "intro": "You need a work permit (or one of a few narrow exemptions) before your first paid class in Vietnam, and your school applies for it, not you. Under Decree 219/2025/ND-CP, in force since 7 August 2025, teachers are filed as 'experts': a bachelor's degree plus at least 2 years of relevant experience, a criminal record issued within 6 months of filing and a health check done in Vietnam. In Ho Chi Minh City the Department of Home Affairs issues it, with 5 working days published for a decision, for up to 2 years.",
+ "keyPoints": [
+  "**Decree 219/2025/ND-CP** (since 7 August 2025) is the law. Guides that cite Decrees 152/2020 or 70/2023, '3 years' experience' or Decree 12/2022 fines are out of date.",
+  "Teachers are filed as **experts**: a bachelor's degree plus at least 2 years' relevant experience. A TEFL, TESOL or CELTA does not replace either.",
+  "Your criminal record must be issued **no more than 6 months before the employer files**, and the health check is in practice done in Vietnam after you arrive.",
+  "The employer files 60 to 10 days before your start date. Ho Chi Minh City publishes 5 working days for a decision and a fee of {{vnd:600000}}, paid by the employer.",
+  "A permit covers **one employer and one position**: a new school, a second centre or a new role means a new permit.",
+  "Teaching without one costs the teacher {{vnd:15000000-25000000}} and possibly deportation under Decree 283/2026, in force since 10 September 2026."
+ ],
+ "sections": [
+  {
+   "id": "which-law-and-who-issues-it",
+   "title": "Which law applies and who issues the permit in Ho Chi Minh City",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Work permits rest on the Labour Code 2019 (Articles 151–157) and [Decree 219/2025/ND-CP](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html), which took effect on 7 August 2025 and replaced the foreign-worker rules of Decrees 152/2020 and 70/2023. Permits issued under the old decrees stay valid until they expire; everything after that follows Decree 219. The Ministry of Home Affairs publishes the national procedures, currently in [Decision 346/QĐ-BNV](https://luatvietnam.vn/lao-dong/quyet-dinh-346-qd-bnv-2026-cong-bo-thu-tuc-hanh-chinh-sua-doi-cho-lao-dong-nuoc-ngoai-tai-viet-nam-430146-d1.html) of 24 March 2026."
+    },
+    {
+     "type": "p",
+     "text": "Old guides send you to the labour ministry (MOLISA) or the city's labour department (DOLISA). Neither handles permits any more: the Ministry of Home Affairs took over labour in the 2025 restructuring, issuing moved to provincial level in mid-2025, and under Decree 219 (Article 4) each provincial People's Committee issues permits or delegates the job. In Ho Chi Minh City, [Decision 6093/QĐ-UBND](https://luatvietnam.vn/lao-dong/quyet-dinh-6093-qd-ubnd-tp-ho-chi-minh-2026-cong-bo-danh-muc-thu-tuc-hanh-chinh-sua-doi-bo-sung-448197-d2.html) of 21 September 2026 gives the job to the **Department of Home Affairs (Sở Nội vụ)** for every employer outside export-processing zones, industrial parks and high-tech parks, which covers practically every language centre and school. Employers inside those zones file with the zone authorities instead."
+    },
+    {
+     "type": "p",
+     "text": "Since 1 July 2025 the city also covers former Binh Duong and Ba Ria-Vung Tau, so teachers employed there now fall under the Ho Chi Minh City authorities. Job ads still say 'District 1' or 'Thao Dien', but official addresses now use the new ward names, so the paperwork should carry your employer's registered address exactly as it appears on its licence."
+    },
+    {
+     "type": "p",
+     "text": "Your employer is the applicant. It files online through the National Public Service Portal (dichvucong.gov.vn) or on paper at the city's Public Administration Service Centre, which has offices at 43 Nguyễn Văn Bá (Thủ Đức ward), the Administrative Centre Building on Lê Lợi Street (Bình Dương ward) and 4 Nguyễn Tất Thành (Bà Rịa ward), or at a commune-level service centre. Since 15 June 2026 the Department issues permits as digitally signed e-permits, downloaded from the portal, with the same legal force as paper ([Notice 8864/TB-SNV](https://sonoivu.hochiminhcity.gov.vn/-/thong-bao-ve-viec-trien-khai-tra-ket-qua-van-ban-dien-tu-doi-voi-giay-phep-lao-dong-giay-xac-nhan-khong-thuoc-dien-cap-giay-phep-lao-dong?inheritRedirect=true)). The employer and the authority have the final word on any individual file."
+    }
+   ]
+  },
+  {
+   "id": "who-qualifies",
+   "title": "Who qualifies: the expert category, degree, experience and TEFL",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Decree 219 has four permit categories: manager, executive director, expert and technical worker. Foreign teachers are normally filed as experts; the decree's own rule for 'experts working in education and training' confirms that this is the teachers' route."
+    },
+    {
+     "type": "table",
+     "caption": "Work-permit categories under Decree 219/2025/ND-CP, Article 3",
+     "headers": [
+      "Category",
+      "What the decree requires",
+      "Who uses it"
+     ],
+     "rows": [
+      [
+       "Expert (chuyên gia)",
+       "A bachelor's degree or higher (or equivalent) plus at least 2 years of work experience suited to the job. The old rule was 3 years.",
+       "Classroom teachers: the normal route"
+      ],
+      [
+       "Expert, priority sectors",
+       "A degree in the right specialisation plus at least 1 year of experience",
+       "Finance, science, technology, innovation, digital transformation and designated priority sectors; not normally language teaching"
+      ],
+      [
+       "Technical worker",
+       "At least 1 year of training plus 2 years' experience, or at least 3 years' experience",
+       "Rarely teachers; untested for a teacher without a bachelor's degree"
+      ],
+      [
+       "Manager or executive director",
+       "An enterprise manager or head of an organisation; an executive director needs 3 years' relevant experience",
+       "Possibly a Director of Studies or centre manager"
+      ]
+     ]
+    },
+    {
+     "type": "h3",
+     "text": "Proving your 2 years' experience"
+    },
+    {
+     "type": "p",
+     "text": "The usual proof is a letter from a past employer **abroad** stating your years of experience. Experience in Vietnam counts only through earlier Vietnamese work permits or exemption certificates, so years taught here without a permit cannot be proved this way. A letter from abroad is a foreign document: it must be apostilled or legalised, then translated. Ask for letterhead, your job title, exact start and end dates, a signature and contact details."
+    },
+    {
+     "type": "p",
+     "text": "For experts in education, [Article 19(3) of Decree 219](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html) also lists, at point đ, documents showing you meet the qualification standard set by education law as an alternative proof. How Ho Chi Minh City applies that to a teacher with under 2 years' experience is not published. If you have less than 2 years, ask the employer which proof it will file for you, and get the answer in writing before you travel. Never offer an experience letter that is not true: an employer filing altered or forged documents is fined {{vnd:40000000-60000000}} ({{vnd:80000000-120000000}} for a school or centre run as an organisation, as in the table below), and a teacher whose file holds a forged document can be deported and prosecuted."
+    },
+    {
+     "type": "h3",
+     "text": "Where TEFL, TESOL or CELTA fits"
+    },
+    {
+     "type": "p",
+     "text": "A teaching certificate does not replace the degree or the experience in the work-permit test. It is the education-side requirement: [Circular 21/2018](https://luatvietnam.vn/giao-duc/thong-tu-21-2018-tt-bgddt-quy-che-to-chuc-hoat-dong-cua-trung-tam-ngoai-ngu-tin-hoc-166595-d1.html) asks a native speaker teaching at a language centre for a college degree or higher plus a 'suitable' foreign-language teaching certificate. The law sets no minimum hours; '120 hours' is an employer convention. More in [TEFL, TESOL or CELTA for Vietnam](/teach-in-vietnam/tefl-tesol-and-celta-for-vietnam)."
+    },
+    {
+     "type": "p",
+     "text": "Non-native speakers face the same permit test. On the education side, Circular 21/2018 accepts one of three: a foreign-language teacher-training degree; a foreign-language degree plus a teaching certificate; or a college degree plus level 5 on Vietnam's six-level framework (roughly C1) plus a teaching certificate. What employers add on top is in [requirements to teach English in Vietnam](/teach-in-vietnam/requirements-to-teach-english-in-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "document-checklist",
+   "title": "The document checklist",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Decree 219 Article 18 sets the dossier. Your employer prepares the form and files; you supply most of the rest. Foreign documents must be apostilled or legalised, then translated into Vietnamese with the translation certified, and a copy must be certified against the original before it is translated ([Decree 219, Article 5](https://congbaocdn.chinhphu.vn/CongBaoCP/VanBan/2025/8/45798/58141-1-20251073-1074219-2025-nd-cp.pdf))."
+    },
+    {
+     "type": "table",
+     "caption": "Work-permit dossier for a teacher hired on a labour contract (Decree 219/2025/ND-CP, Articles 5, 18 and 19)",
+     "headers": [
+      "Document",
+      "Where it comes from",
+      "Time limit",
+      "Authentication"
+     ],
+     "rows": [
+      [
+       "Form No. 03 (application plus the explanation of why a foreign worker is needed)",
+       "Your employer",
+       "None",
+       "None"
+      ],
+      [
+       "Valid passport",
+       "You",
+       "Must be valid",
+       "Ask the employer what copy it needs"
+      ],
+      [
+       "Degree (bachelor's or higher)",
+       "Your university",
+       "None",
+       "Apostille or legalisation in the issuing country, then a certified Vietnamese translation"
+      ],
+      [
+       "Experience letters covering 2+ years",
+       "Past employers abroad, or your earlier Vietnamese work permits",
+       "None",
+       "A private letter usually needs notarising first, then apostille or legalisation, then translation"
+      ],
+      [
+       "Teaching certificate (TEFL, TESOL, CELTA)",
+       "The course provider",
+       "None",
+       "Private certificates usually need notary or solicitor certification before the apostille, then translation"
+      ],
+      [
+       "Criminal record",
+       "A national check from your home country, or a Vietnamese one from Ho Chi Minh City Police",
+       "Issued no more than 6 months before filing",
+       "Foreign: apostille or legalisation, then translation. Vietnamese: none"
+      ],
+      [
+       "Health certificate",
+       "A qualified medical facility in Vietnam (a foreign one only under a mutual-recognition agreement)",
+       "Foreign certificates: no more than 12 months old",
+       "None if issued in Vietnam"
+      ],
+      [
+       "Two photos",
+       "A photo studio",
+       "None set",
+       "4x6 cm, colour, white background, facing forward, bare-headed, no glasses"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "No labour contract goes into the file: you sign it after the permit is issued."
+    },
+    {
+     "type": "h3",
+     "text": "Apostille or legalisation: it depends where the document comes from"
+    },
+    {
+     "type": "p",
+     "text": "Vietnam joined the Apostille Convention with effect from **11 September 2026** ([Decree 293/2026/ND-CP](https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/7/293_2026_nd-cp_23072026_1-signed.signed.pdf)). For documents from member countries, one apostille from the issuing country replaces the old notarise, authenticate and embassy-legalise chain, and Vietnamese offices may not demand legalisation on top of a valid apostille. Documents from other countries still need consular legalisation."
+    },
+    {
+     "type": "table",
+     "caption": "Authenticating foreign documents for a Vietnam work permit, as of October 2026 (HCCH status table; Decree 293/2026/ND-CP)",
+     "headers": [
+      "Documents issued in",
+      "What they need now",
+      "Why"
+     ],
+     "rows": [
+      [
+       "USA, UK, Canada, Australia, Ireland, New Zealand, South Africa, the Philippines",
+       "An apostille from the issuing country",
+       "None of them objected; Vietnamese embassies stopped legalising such documents on 11 September 2026"
+      ],
+      [
+       "Germany, Austria, Czechia",
+       "Full consular legalisation",
+       "They objected, so the Convention does not apply between them and Vietnam"
+      ],
+      [
+       "Thailand",
+       "Consular legalisation",
+       "Its membership takes effect only on 28 February 2027"
+      ],
+      [
+       "Any country, legalised before 11 September 2026",
+       "Nothing more",
+       "Earlier legalisations stay valid"
+      ],
+      [
+       "A copy certified by your own embassy or consulate in Vietnam",
+       "Consular legalisation",
+       "Documents made by consular officers fall outside the Convention"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Check the [HCCH status table](https://www.hcch.net/en/instruments/conventions/status-table/?cid=41) if your country is not listed. An apostille does not replace translation: get the apostille first and translate afterwards, so the apostille page is translated too. Since 1 July 2025 notaries no longer 'notarise translations'; instead the translator's signature is certified (chứng thực chữ ký người dịch) at a ward People's Committee or a notary office ([Tạp chí Luật sư](https://lsvn.vn/se-khong-con-can-thuc-hien-cong-chung-ban-dich-tu-01-7-a159826.html)). Since 1 November 2025 any ward can also certify copies of foreign-issued documents, wherever you live ([Tạp chí Luật sư](https://lsvn.vn/tu-01-11-2025-ubnd-cap-xa-chung-thuc-cac-loai-giay-to-nao-a165222.html)). Country-by-country routes are in [getting your degree and documents authenticated](/teach-in-vietnam/getting-your-degree-authenticated-for-vietnam)."
+    },
+    {
+     "type": "h3",
+     "text": "The criminal record: time it to the filing date"
+    },
+    {
+     "type": "p",
+     "text": "The record can come from your home country or from Vietnam, but it must be issued **no more than 6 months before your employer files**. The clock runs from the issue date, not from the apostille date or your start date. Courier and apostille delays are what push home-country checks past the limit, so order it close to when you expect the file to go in."
+    },
+    {
+     "type": "p",
+     "text": "If you already live in Vietnam, a Vietnamese record is an option. Ho Chi Minh City Police issue it, not the Department of Justice, which stopped on 1 March 2025. The counters are at 161 Nguyễn Du (Bến Thành ward), 681 Cách Mạng Tháng 8 (Thủ Dầu Một ward) and 4 Nguyễn Tất Thành (Bà Rịa ward) ([Tuổi Trẻ](https://tuoitre.vn/cong-an-tp-hcm-thay-doi-dia-diem-tiep-nhan-va-tra-ket-qua-ly-lich-tu-phap-20260213171448319.htm)). It costs {{vnd:200000}} ([Ministry of Public Security](https://dichvucong.bocongan.gov.vn/bocongan/bothutuc/tthc?matt=61555)), and the standard time has been 5 working days since 1 July 2026 ([Xây dựng chính sách](https://xaydungchinhsach.chinhphu.vn/tu-1-7-thoi-han-cap-phieu-ly-lich-tu-phap-5-ngay-lam-viec-119260403092607993.htm)). The law sets no minimum period of living here before you can ask for one. With your authorisation, your employer can also request it online together with the permit; the two processing times then add up. More in [criminal record check for a Vietnam work permit](/teach-in-vietnam/criminal-record-check-for-a-vietnam-work-permit)."
+    }
+   ]
+  },
+  {
+   "id": "health-check",
+   "title": "The health check: where, what it costs and how long it lasts",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The health certificate must come from a medical facility qualified in Vietnam. A certificate from abroad counts only if Vietnam has a treaty or mutual-recognition agreement with that country, and only for 12 months from issue, so **in practice you do the check in Ho Chi Minh City after you arrive** ([Decree 219, Article 18(2)](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html)). Do not pay for a medical certificate at home unless your employer confirms it will be accepted."
+    },
+    {
+     "type": "p",
+     "text": "Where: we found no official list of hospitals for work-permit checks. A Ho Chi Minh City work-permit consultancy lists People's Hospital 115, Thu Duc Hospital, Cho Ray, Van Hanh, An Sinh, Trung Vuong and Thong Nhat hospitals for reference. Ask your employer which facility it uses and which one the authority accepts before you book."
+    },
+    {
+     "type": "p",
+     "text": "Cost: each hospital sets its own price and there is no official tariff, so ask the employer for the current price and whether it pays. Validity: the decree states 12 months only for certificates issued abroad. A Vietnamese employment health check is commonly treated as valid for 12 months, but confirm with your employer. You need a fresh certificate for an extension and for a new permit after the extension."
+    },
+    {
+     "type": "p",
+     "text": "Two proposals would change this: a Ministry of Home Affairs draft amending Decree 219 that would accept health certificates issued abroad ([Tạp chí Luật sư](https://lsvn.vn/sua-doi-bo-sung-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-lam-viec-tai-viet-nam-a173452.html)), and a draft change to the Labour Code's health wording ([Dân trí](https://dantri.com.vn/lao-dong-viec-lam/de-xuat-bo-thu-tuc-kham-suc-khoe-khi-cap-phep-lao-dong-nuoc-ngoai-20260803142519637.htm)). Neither was in force as of 10 October 2026."
+    }
+   ]
+  },
+  {
+   "id": "step-by-step",
+   "title": "Step by step: from job offer to your first class",
+   "blocks": [
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Before you accept, get the paperwork terms in writing",
+       "text": "Ask which category and which proof of experience the employer will file, who pays for each document and what start date it will file against. An employer that suggests you start teaching 'while the permit is processed' is asking you to break the law; see [teaching job scams in Vietnam](/teach-in-vietnam/teaching-job-scams-in-vietnam)."
+      },
+      {
+       "title": "Authenticate your home-country documents",
+       "text": "Apostille or legalise your degree, experience letters and teaching certificate in the country that issued them. Order the criminal record so it will still be under 6 months old on the filing date, and authenticate it too. Keep the originals: you will need them again for an extension or a new job."
+      },
+      {
+       "title": "In Ho Chi Minh City: health check, copies and translations",
+       "text": "Do the health check at the facility your employer names. Get certified copies, and have the translations made with the translator's signature certified, at a ward People's Committee or a notary office. Make sure your name, passport number, job title and dates match across every document and the form; mismatches are a common reason for rejection."
+      },
+      {
+       "title": "The employer advertises the job and files",
+       "text": "For a labour-contract hire, the employer declares on Form No. 03 that it advertised the job to Vietnamese workers at least 5 days before filing. It then files between 60 and 10 days before your start date ([Decree 219, Article 22](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html))."
+      },
+      {
+       "title": "The decision",
+       "text": "The decree allows up to 10 working days from a complete dossier; Ho Chi Minh City's published procedure lists 5. A refusal must come in writing with reasons within 3 working days. The permit arrives as a digitally signed e-permit."
+      },
+      {
+       "title": "Sign the contract, check the permit, then start",
+       "text": "After the permit is issued and before your start date, you and the employer sign a written labour contract, and its term may not run past the permit's. Check that the employer, position and workplace on the permit match the job you will do. What else belongs in the contract is in [English teaching contracts in Vietnam](/teach-in-vietnam/english-teaching-contracts-in-vietnam)."
+      },
+      {
+       "title": "The rest of your paperwork",
+       "text": "Your employer arranges the rest of your paperwork once your work permit is issued. Ask them exactly what they cover and what it costs."
+      }
+     ]
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "Do not teach before the permit is issued",
+     "text": "Probation and paid trial classes are not an exception: a foreigner may not start paid work until the permit or an exemption is in place. In an April 2026 enforcement case in Thanh Hoa, officials said bringing in foreigners without permits to teach, substitute, give trial lessons or observe classes is illegal ([Báo Thanh Hóa](https://baothanhhoa.vn/vi-pham-trong-su-dung-giao-vien-nuoc-ngoai-tai-co-so-mam-non-283585.htm)). For you, that means a fine of {{vnd:15000000-25000000}} and possible deportation."
+    },
+    {
+     "type": "p",
+     "text": "Plan on more than the official 5 to 10 working days. End to end, including gathering and authenticating documents from abroad, practitioners report anything from 1 to 6 months."
+    }
+   ]
+  },
+  {
+   "id": "costs-and-who-pays",
+   "title": "What the work permit costs and who pays",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The state fee is small and is the employer's to pay. Most of the money goes on your home-country documents."
+    },
+    {
+     "type": "table",
+     "caption": "Work-permit costs in Ho Chi Minh City as of October 2026 (fees: HCMC People's Council Resolution 09/2022/NQ-HĐND; criminal record: Circular 16/2025/TT-BTC)",
+     "headers": [
+      "Item",
+      "Cost",
+      "Who usually pays"
+     ],
+     "rows": [
+      [
+       "State fee, new permit",
+       "{{vnd:600000}}",
+       "The employer, by law"
+      ],
+      [
+       "State fee, extension or re-issue",
+       "{{vnd:450000}} each",
+       "The employer, by law"
+      ],
+      [
+       "Vietnamese criminal record (if you use one)",
+       "{{vnd:200000}}",
+       "Agree it in writing"
+      ],
+      [
+       "Health check in Ho Chi Minh City",
+       "Set by the hospital",
+       "Varies; ask before you book"
+      ],
+      [
+       "Home-country police check, apostilles or legalisation, courier",
+       "Paid abroad in that country's currency",
+       "Usually you"
+      ],
+      [
+       "Certified translations, copies and any agency service fee",
+       "Varies",
+       "Agree it in writing"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The city fee comes from [Resolution 09/2022/NQ-HĐND](https://luatvietnam.vn/thue/nghi-quyet-09-2022-nq-hdnd-239822-d2.html). No newer fee resolution for the merged city has been found, and consultancies still quote the same figure in 2026."
+    },
+    {
+     "type": "p",
+     "text": "The home-country side is where costs vary. For a US teacher, the [FBI Identity History Summary](https://www.fbi.gov/how-we-can-help-you/more-fbi-services-and-information/identity-history-summary-checks/identity-history-summary-checks-faqs) costs US$18. The [State Department apostille](https://travel.state.gov/en/replace-certify/authenticate-documents/request-services.html) on it costs US$20 per document. Other countries are covered in the criminal record and authentication guides linked above."
+    },
+    {
+     "type": "p",
+     "text": "Ask whether the contract makes you repay permit costs if you leave early, and treat such a clause as a red flag: the Labour Code's list of what you owe for leaving (Art. 40) does not include permit costs, the state fee is the employer's to pay, and whether such a clause binds you is untested (see [what to check in a teaching contract](/teach-in-vietnam/english-teaching-contracts-in-vietnam)). An employer may not take a deposit from you or keep your original documents."
+    }
+   ]
+  },
+  {
+   "id": "validity-and-extension",
+   "title": "How long it lasts, extending it and starting again",
+   "blocks": [
+    {
+     "type": "table",
+     "caption": "Work-permit time limits (Labour Code 2019 Articles 151, 155 and 156; Decree 219/2025/ND-CP Articles 20, 21, 28, 29 and 31)",
+     "headers": [
+      "What",
+      "Rule"
+     ],
+     "rows": [
+      [
+       "Validity",
+       "The term of your planned contract, up to 2 years"
+      ],
+      [
+       "Extension",
+       "Once only, for up to 2 years"
+      ],
+      [
+       "Extension filing window",
+       "10 to 45 days before expiry, decided within 10 working days; an expired permit cannot be extended"
+      ],
+      [
+       "After the one extension",
+       "A new permit, with a shorter dossier if you stay in the same job with the same employer"
+      ],
+      [
+       "When it ends early",
+       "When your contract ends, or when the contract or the actual work no longer matches the permit; the employer returns it within 15 days"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "An extension needs a fresh health certificate, two photos, the valid permit and your passport, but no new criminal record. Since [Decision 346/QĐ-BNV](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/decision-346-qd-bnv-on-the-amendment-and-supplementation-of-administrative-procedures-for-foreign-employees-working-in-vietnam) you also re-submit proof of your degree and experience at an extension and for a new permit after it, so keep the authenticated originals and certified translations safe."
+    },
+    {
+     "type": "p",
+     "text": "Your contract may not run past the permit's end date ([Labour Code, Chapter XI](https://hethongphapluat.com/bo-luat-lao-dong-2019/chuong-11)). Put the extension window in your calendar the day the permit is issued: miss it and you are back to a full new application."
+    }
+   ]
+  },
+  {
+   "id": "changing-jobs-second-jobs-exemptions",
+   "title": "Changing schools, second jobs, tutoring and exemptions",
+   "blocks": [
+    {
+     "type": "h3",
+     "text": "Changing schools"
+    },
+    {
+     "type": "p",
+     "text": "A permit belongs to one employer. Moving to a new school, even in the same job, needs **a new work permit** filed by the new school before you start. Your old permit stops being valid when that contract ends, and the old employer must return it within 15 days."
+    },
+    {
+     "type": "p",
+     "text": "Decree 219 gives a shorter dossier for a move made while your current permit is valid: the current employer's confirmation that you work there, a copy of the existing permit, your passport, photos and the new employer's form. It lists no new criminal record or health certificate. Since 24 March 2026, though, Decision 346/QĐ-BNV makes experts re-submit their degree and experience proof in this case. Line up the end and start dates with both schools, and ask the new one exactly what it will file."
+    },
+    {
+     "type": "h3",
+     "text": "A second employer, part-time work and cover lessons"
+    },
+    {
+     "type": "p",
+     "text": "Teaching for a second school or centre, even a few hours a week, needs a separate permit for that employer. Teaching there on your first employer's permit is unpermitted work for you and a fine for the school that uses you. The same applies to cover lessons at another school; see [cover lessons and substitute teaching](/teach-in-vietnam/cover-lessons-and-substitute-teaching-in-ho-chi-minh-city). If an agency places you in a public school or kindergarten, the permit must match where you actually teach: in the April 2026 Thanh Hoa case, foreign teachers were working at kindergartens while their permits named a language centre in another ward."
+    },
+    {
+     "type": "p",
+     "text": "Moving to a new position with the same employer, for example from teacher to academic manager, also needs a new permit. If the same employer sends you to teach in another province, no extra permit is needed, but it must notify the authority at least 3 days before you start there."
+    },
+    {
+     "type": "h3",
+     "text": "Private tutoring and online teaching"
+    },
+    {
+     "type": "p",
+     "text": "There is no work-permit route for freelance tutoring: a permit needs an employer, and foreigners cannot register a household business. No regulation names foreign private tutors, but read together these rules make paid private lessons unpermitted work, with the same fine and deportation risk. Calling a centre job 'freelance' or a 'service contract' changes nothing: if the centre sets your timetable and pays you, it is a labour contract in law, yet a 'freelance' agreement on its own cannot support a permit. Teaching online for a Vietnamese company or platform needs a permit; teaching online for a foreign company while living here has no permit category and is a grey area. More in [private tutoring and online teaching](/teach-in-vietnam/private-tutoring-and-online-teaching-in-vietnam)."
+    },
+    {
+     "type": "h3",
+     "text": "Exemptions and the transition rule"
+    },
+    {
+     "type": "table",
+     "caption": "Exemptions relevant to teachers and the transition rule (Decree 219/2025/ND-CP Articles 7, 9 and 34)",
+     "headers": [
+      "Case",
+      "Who it fits",
+      "What is still needed"
+     ],
+     "rows": [
+      [
+       "Under 90 days in a calendar year",
+       "Short jobs such as a summer camp, for people who already meet the expert, manager or technical-worker tests; the 90 days count across the whole year",
+       "No permit, but the employer notifies the authority at least 3 working days before you start"
+      ],
+      [
+       "Confirmed by the Ministry of Education (MOET)",
+       "People MOET confirms are coming to teach, research or transfer international education programmes",
+       "An exemption certificate, issued within 5 working days; not a route for ordinary centre jobs"
+      ],
+      [
+       "Sent by a foreign government authority",
+       "Teachers at schools set up at a diplomatic mission's or intergovernmental organisation's request, or under an international agreement",
+       "Not available for private language centres"
+      ],
+      [
+       "Permit issued under Decree 152/2020 or 70/2023",
+       "Anyone whose permit predates 7 August 2025",
+       "Valid until it expires; what follows is under Decree 219"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "penalties",
+   "title": "What happens if you teach without a work permit",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Since 10 September 2026 the fines come from [Decree 283/2026/ND-CP](https://luatvietnam.vn/lao-dong/nghi-dinh-283-2026-nd-cp-xu-phat-vi-pham-hanh-chinh-lao-dong-bao-hiem-xa-hoi-440485-d1.html), which replaced Decree 12/2022; the headline amounts did not change. A teacher who works without a permit or exemption, or with an expired or invalid one, is fined {{vnd:15000000-25000000}} and may also be deported ([Sức khỏe & Đời sống](https://suckhoedoisong.vn/tu-10-9-2026-lao-dong-nuoc-ngoai-se-bi-phat-neu-khong-co-giay-phep-lao-dong-169260824224738.htm)). Altered or forged documents in a permit file can also lead to deportation."
+    },
+    {
+     "type": "p",
+     "text": "The decree lists amounts for individuals and makes organisations pay double (Article 7(1)), so a school or centre run as a company pays the right-hand column."
+    },
+    {
+     "type": "table",
+     "caption": "Employer fines for foreign-worker violations under Decree 283/2026/ND-CP, in force since 10 September 2026",
+     "headers": [
+      "Violation",
+      "Individual employer",
+      "School or centre run as an organisation"
+     ],
+     "rows": [
+      [
+       "Using foreign workers without permits: 1–10 workers",
+       "{{vnd:30000000-45000000}}",
+       "{{vnd:60000000-90000000}}"
+      ],
+      [
+       "Using foreign workers without permits: 11–20 workers",
+       "{{vnd:45000000-60000000}}",
+       "{{vnd:90000000-120000000}}"
+      ],
+      [
+       "Using foreign workers without permits: 21 or more",
+       "{{vnd:60000000-75000000}}",
+       "{{vnd:120000000-150000000}}"
+      ],
+      [
+       "Using a teacher outside the permit, or not returning a revoked permit",
+       "{{vnd:5000000-10000000}} per worker, up to {{vnd:75000000}}",
+       "{{vnd:10000000-20000000}} per worker, up to {{vnd:150000000}}"
+      ],
+      [
+       "Altered or forged documents in the permit file",
+       "{{vnd:40000000-60000000}} plus confiscation",
+       "{{vnd:80000000-120000000}} plus confiscation"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "For you, the fine is not the worst of it. Deportation ends the job, and years taught without a permit never count toward the experience test for your next one. A school that will not get you a permit is not a school to work for."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Is there a maximum age for a Vietnam work permit?",
+   "a": "No. The Labour Code and Decree 219 set a minimum age of 18 and no upper limit. Any age cap you meet comes from an employer's or an insurer's own policy, not from work-permit law."
+  },
+  {
+   "q": "My work permit was issued under Decree 152/2020. Is it still valid?",
+   "a": "Yes, until it expires. Permits and exemption certificates issued under Decrees 152/2020 and 70/2023 stay valid to their end date; whatever comes next, including any renewal, follows Decree 219."
+  },
+  {
+   "q": "Can non-native English speakers get a work permit to teach?",
+   "a": "The permit test is the same for everyone: a bachelor's degree plus at least 2 years' relevant experience. On the education side, Circular 21/2018 lets language centres hire non-native teachers through set routes, one of which is a college degree plus level 5 proficiency (about C1) plus a teaching certificate."
+  },
+  {
+   "q": "Do I need my foreign degree recognised by the Ministry of Education first?",
+   "a": "Not for the work permit. Ministry of Education recognition is not part of the Decree 219 dossier; the authority takes your apostilled or legalised degree with a certified Vietnamese translation."
+  },
+  {
+   "q": "Are the work-permit rules about to change?",
+   "a": "Possibly. A Ministry of Home Affairs draft amending Decree 219 would accept health certificates from abroad and stop asking for some documents already held in government databases, and the education ministry has drafted standards for foreign teachers. Neither was in force on 10 October 2026, so follow the current rules."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Nghị định 219/2025/NĐ-CP quy định về người lao động nước ngoài làm việc tại Việt Nam",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html"
+  },
+  {
+   "title": "Decree 219/2025/ND-CP (Official Gazette text)",
+   "publisher": "Government of Vietnam (Công báo)",
+   "url": "https://congbaocdn.chinhphu.vn/CongBaoCP/VanBan/2025/8/45798/58141-1-20251073-1074219-2025-nd-cp.pdf"
+  },
+  {
+   "title": "Quyết định 6093/QĐ-UBND TP Hồ Chí Minh 2026 công bố danh mục thủ tục hành chính",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong/quyet-dinh-6093-qd-ubnd-tp-ho-chi-minh-2026-cong-bo-danh-muc-thu-tuc-hanh-chinh-sua-doi-bo-sung-448197-d2.html"
+  },
+  {
+   "title": "Quyết định 346/QĐ-BNV 2026 công bố thủ tục hành chính cho lao động nước ngoài",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong/quyet-dinh-346-qd-bnv-2026-cong-bo-thu-tuc-hanh-chinh-sua-doi-cho-lao-dong-nuoc-ngoai-tai-viet-nam-430146-d1.html"
+  },
+  {
+   "title": "Thông báo về việc triển khai trả kết quả văn bản điện tử đối với giấy phép lao động",
+   "publisher": "Ho Chi Minh City Department of Home Affairs",
+   "url": "https://sonoivu.hochiminhcity.gov.vn/-/thong-bao-ve-viec-trien-khai-tra-ket-qua-van-ban-dien-tu-doi-voi-giay-phep-lao-dong-giay-xac-nhan-khong-thuoc-dien-cap-giay-phep-lao-dong?inheritRedirect=true"
+  },
+  {
+   "title": "Nghị quyết 09/2022/NQ-HĐND (fees in Ho Chi Minh City)",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/thue/nghi-quyet-09-2022-nq-hdnd-239822-d2.html"
+  },
+  {
+   "title": "Nghị định 283/2026/NĐ-CP xử phạt vi phạm hành chính lao động, bảo hiểm xã hội",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong/nghi-dinh-283-2026-nd-cp-xu-phat-vi-pham-hanh-chinh-lao-dong-bao-hiem-xa-hoi-440485-d1.html"
+  },
+  {
+   "title": "Decree 293/2026/ND-CP on apostille certification",
+   "publisher": "Government of Vietnam",
+   "url": "https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/7/293_2026_nd-cp_23072026_1-signed.signed.pdf"
+  },
+  {
+   "title": "Status table: Apostille Convention",
+   "publisher": "Hague Conference on Private International Law (HCCH)",
+   "url": "https://www.hcch.net/en/instruments/conventions/status-table/?cid=41"
+  },
+  {
+   "title": "Apostille Convention notifications: objections to Viet Nam's accession",
+   "publisher": "Hague Conference on Private International Law (HCCH)",
+   "url": "https://www.hcch.net/en/instruments/conventions/status-table/notifications/?csid=1557&disp=type"
+  },
+  {
+   "title": "Notice: application of Apostille in place of consular legalisation from 11 September 2026",
+   "publisher": "Embassy of Viet Nam in the United States",
+   "url": "https://vietnamembassy-usa.org/news/2026/09/notice-application-apostille-place-consular-legalisation-11-september-2026"
+  },
+  {
+   "title": "Thông tư 21/2018/TT-BGDĐT quy chế tổ chức và hoạt động của trung tâm ngoại ngữ, tin học",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/giao-duc/thong-tu-21-2018-tt-bgddt-quy-che-to-chuc-hoat-dong-cua-trung-tam-ngoai-ngu-tin-hoc-166595-d1.html"
+  },
+  {
+   "title": "Bộ luật Lao động 2019, Chương XI (foreign workers)",
+   "publisher": "Hệ thống pháp luật",
+   "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/chuong-11"
+  },
+  {
+   "title": "Decision 346/QĐ-BNV on the amendment of administrative procedures for foreign employees",
+   "publisher": "EY Vietnam",
+   "url": "https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/decision-346-qd-bnv-on-the-amendment-and-supplementation-of-administrative-procedures-for-foreign-employees-working-in-vietnam"
+  },
+  {
+   "title": "Từ 10/9/2026, lao động nước ngoài sẽ bị phạt nếu không có giấy phép lao động",
+   "publisher": "Sức khỏe & Đời sống",
+   "url": "https://suckhoedoisong.vn/tu-10-9-2026-lao-dong-nuoc-ngoai-se-bi-phat-neu-khong-co-giay-phep-lao-dong-169260824224738.htm"
+  },
+  {
+   "title": "Công an TP.HCM thay đổi địa điểm tiếp nhận và trả kết quả lý lịch tư pháp",
+   "publisher": "Tuổi Trẻ",
+   "url": "https://tuoitre.vn/cong-an-tp-hcm-thay-doi-dia-diem-tiep-nhan-va-tra-ket-qua-ly-lich-tu-phap-20260213171448319.htm"
+  },
+  {
+   "title": "Thủ tục cấp phiếu lý lịch tư pháp",
+   "publisher": "Ministry of Public Security",
+   "url": "https://dichvucong.bocongan.gov.vn/bocongan/bothutuc/tthc?matt=61555"
+  },
+  {
+   "title": "Từ 1/7, thời hạn cấp phiếu lý lịch tư pháp 5 ngày làm việc",
+   "publisher": "Xây dựng chính sách (Government portal)",
+   "url": "https://xaydungchinhsach.chinhphu.vn/tu-1-7-thoi-han-cap-phieu-ly-lich-tu-phap-5-ngay-lam-viec-119260403092607993.htm"
+  },
+  {
+   "title": "Sẽ không còn cần thực hiện công chứng bản dịch từ 01/7",
+   "publisher": "Tạp chí Luật sư Việt Nam",
+   "url": "https://lsvn.vn/se-khong-con-can-thuc-hien-cong-chung-ban-dich-tu-01-7-a159826.html"
+  },
+  {
+   "title": "Từ 01/11/2025, UBND cấp xã chứng thực các loại giấy tờ nào",
+   "publisher": "Tạp chí Luật sư Việt Nam",
+   "url": "https://lsvn.vn/tu-01-11-2025-ubnd-cap-xa-chung-thuc-cac-loai-giay-to-nao-a165222.html"
+  },
+  {
+   "title": "Vi phạm trong sử dụng giáo viên nước ngoài tại cơ sở mầm non",
+   "publisher": "Báo Thanh Hóa",
+   "url": "https://baothanhhoa.vn/vi-pham-trong-su-dung-giao-vien-nuoc-ngoai-tai-co-so-mam-non-283585.htm"
+  },
+  {
+   "title": "Sửa đổi, bổ sung quy định về người lao động nước ngoài làm việc tại Việt Nam (draft)",
+   "publisher": "Tạp chí Luật sư Việt Nam",
+   "url": "https://lsvn.vn/sua-doi-bo-sung-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-lam-viec-tai-viet-nam-a173452.html"
+  },
+  {
+   "title": "Đề xuất bỏ thủ tục khám sức khỏe khi cấp phép lao động nước ngoài",
+   "publisher": "Dân trí",
+   "url": "https://dantri.com.vn/lao-dong-viec-lam/de-xuat-bo-thu-tuc-kham-suc-khoe-khi-cap-phep-lao-dong-nuoc-ngoai-20260803142519637.htm"
+  },
+  {
+   "title": "Identity History Summary Checks: FAQs",
+   "publisher": "FBI",
+   "url": "https://www.fbi.gov/how-we-can-help-you/more-fbi-services-and-information/identity-history-summary-checks/identity-history-summary-checks-faqs"
+  },
+  {
+   "title": "Request authentication services",
+   "publisher": "US Department of State",
+   "url": "https://travel.state.gov/en/replace-certify/authenticate-documents/request-services.html"
+  }
+ ],
+ "related": [
+  "requirements-to-teach-english-in-vietnam",
+  "getting-your-degree-authenticated-for-vietnam",
+  "criminal-record-check-for-a-vietnam-work-permit",
+  "english-teaching-contracts-in-vietnam",
+  "how-to-become-an-english-teacher-in-vietnam",
+  "teaching-job-scams-in-vietnam"
+ ],
+ "lastChecked": "2026-10-11"
+}
