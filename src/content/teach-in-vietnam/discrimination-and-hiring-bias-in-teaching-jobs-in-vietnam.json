@@ -1,0 +1,437 @@
+{
+ "slug": "discrimination-and-hiring-bias-in-teaching-jobs-in-vietnam",
+ "title": "Discrimination in English teaching jobs in Vietnam",
+ "description": "Native-only ads, passport lists, age bands and pay gaps in Vietnam teaching jobs: what the law says, which employers hire on proficiency, how to get hired.",
+ "h1": "Hiring bias in English teaching jobs in Vietnam: what is real, what the law says and how to get hired",
+ "eyebrow": "Finding work",
+ "intro": "Hiring bias in Vietnam's English-teaching market is real, but it comes from employers, not from the law. Many ads ask for 'native' speakers, list eligible passports or set age bands, and in the one ad we found that published separate rates, non-native teachers were offered less. Vietnam's work-permit rules set no nationality, native-speaker or upper-age condition, and several employers publish a proficiency route, so qualifications and a strong test score can get you hired.",
+ "keyPoints": [
+  "Vietnam's work-permit rules ([Decree 219/2025/ND-CP](https://congbaocdn.chinhphu.vn/CongBaoCP/VanBan/2025/8/45798/58141-1-20251073-1074219-2025-nd-cp.pdf)) set **no nationality, native-speaker or upper-age condition**: the 'expert' test (a bachelor's degree plus at least 2 years' relevant experience) is the same whatever your passport.",
+  "The education rules do draw a line: at a language centre, a non-native teacher with a degree in another subject needs Level 5 (about C1) proof plus a teaching certificate; a degree in English (plus a certificate) or in language-teacher training is the alternative.",
+  "Passport lists, 'native only' wording and age bands such as 23–40 are **employer preferences**, not legal requirements. The Labour Code prohibits discrimination on grounds including race, national origin and age, except where a job's specific requirements justify it, but no published case has tested a teaching ad.",
+  "Pay gaps are rarely written down: a 2025 public-school agency ad (now expired) offered non-natives up to {{vnd:525000}} an hour against {{vnd:550000}} for native speakers, and the same agency's 2026 ad lists one range for everyone.",
+  "Universities, international schools and some chains screen on proficiency or licences: RMIT takes non-native speakers with IELTS Academic 8.0, and VUS considers non-natives who send an intro video.",
+  "Never answer a filter with fake paper: forged degrees are prosecuted, and police shut down a fake 'CEFR-equivalent' certificate scheme in May 2026."
+ ],
+ "sections": [
+  {
+   "id": "what-job-ads-show",
+   "title": "What job ads and published sources show",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "No official body publishes data on who gets hired as an English teacher in Vietnam, so the clearest evidence is what employers write in their own ads. In Ho Chi Minh City in 2025–2026 the screening shows up in four places: the word 'native', lists of eligible passports, age bands and, less often, separate pay rates. Here is what a sample of real ads and one agency price list said."
+    },
+    {
+     "type": "table",
+     "caption": "What teaching ads and price lists in and around Ho Chi Minh City said about nationality, English level and age, 2025–2026. Source linked in each row; ads expire, so re-check before you apply.",
+     "headers": [
+      "Employer type and date",
+      "What it asked for or offered",
+      "What it tells you"
+     ],
+     "rows": [
+      [
+       "International chain, part-time ad (May 2026)",
+       "A degree from, and a passport of, the US, UK, Canada, Australia, New Zealand, Ireland or South Africa ([the ad](https://vietnamteachingjobs.com/jobs/view/ho-chi-minh-city-part-time-native-english-teachers-2))",
+       "A hard passport filter: non-native speakers are screened out at the first step"
+      ],
+      [
+       "Large Vietnamese chain, campus ads (Sep–Oct 2026)",
+       "Eligible passports: US, Australia, UK, Canada, Ireland, New Zealand ([the ad](https://vietnamteachingjobs.com/jobs/view/expat-esl-teachers-wanted-in-binh-duong-and-dong-nai-vietnam-join-us-now))",
+       "The same chain's own FAQ says non-native speakers are considered if they send an intro video ([VUS](https://teachenglish.vus.edu.vn/?p=979)), so an ad's list is not always the last word"
+      ],
+      [
+       "Large Vietnamese chain (Sep 2026)",
+       "'Native-level English', a bachelor's degree of at least 3 years and a 120+ hour teaching qualification ([the ad](https://www.eslbase.com/job/hiring-esl-teachers-in-vietnam-over-70-centres-and-30-years-of-experience-8/))",
+       "Describes a level of English, not a passport; ask what proof of level they accept"
+      ],
+      [
+       "Kindergarten group (closing 5 Aug 2026)",
+       "'Native English speakers' aged 23–40, with a degree, a teaching certificate and 1–2 years' experience ([the ad](https://vieclam.tuoitre.vn/en/search-job/expat-teacher-kindergarten.35C74DBA.html))",
+       "Age bands appear in ads although the work-permit law sets no upper age"
+      ],
+      [
+       "Public-school agency (Sep 2025)",
+       "Up to {{vnd:550000}} an hour for native speakers and up to {{vnd:525000}} for non-natives, who also needed a C1 certificate ([the ad](https://teast.co/job/expat-english-teachers-part-time-in-hcmc-sep-2025-Loyb1krhwvW4nfFHJFHR), now expired)",
+       "Separate rates exist; the same agency's September 2026 ad lists one range for everyone ([the ad](https://vietnamteachingjobs.com/jobs/view/native-part-time-english-teacher-public-schools-hcm-binh-duong-vung-tau-currently-in-vietnam)), so ask whether one rate applies to every teacher in the role"
+      ],
+      [
+       "Teacher-supply agency, price list to schools (2026)",
+       "Charges schools {{vnd:65000000-75000000}} a month for a full-time native-speaker teacher and {{vnd:39000000-49000000}} for a Filipino teacher ([price list](https://byan.com.vn/vn/bang-gia-cung-cap-giao-vien-nuoc-ngoai))",
+       "This is what schools pay the agency, not what teachers earn, but it shows nationality priced into the market"
+      ],
+      [
+       "University (2026)",
+       "Non-native speakers need IELTS Academic 8.0 with no band below 7.5, plus CELTA or equivalent and at least 3 years' post-CELTA experience ([job description](https://www.rmit.edu.au/content/dam/rmit/au/en/careers/position-descriptions/vietnam/JD-Educator%20July%202026.pdf))",
+       "An explicit, published route for non-native speakers, with a high bar"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Pay evidence is patchy. Most ads publish one 'up to' rate and never say who gets the top of it, so a gap can exist without appearing in writing. For what centres, agencies and schools actually pay in 2026, see [English teacher salary in Vietnam](/teach-in-vietnam/english-teacher-salary-in-vietnam)."
+    },
+    {
+     "type": "h3",
+     "text": "Race, accent and appearance"
+    },
+    {
+     "type": "p",
+     "text": "None of the sources we reviewed measures how race, skin colour or accent affects hiring in Vietnam, so this guide does not put a number on it. Prospective teachers ask about it often, along with whether Filipino, South African or Indian teachers are paid less. What is documented is the set of stand-ins in the table above: passport, the word 'native' and age."
+    },
+    {
+     "type": "p",
+     "text": "One documented reason appearance matters to some centres is marketing. In September 2025 Ho Chi Minh City's education department said some centres had hired foreign teachers who did not meet professional requirements and had **used their photos in advertising without approval** ([Tuoi Tre News](https://news.tuoitre.vn/ho-chi-minh-city-warns-language-centers-over-teacher-quality-especially-foreign-hires-103250925172100232.htm)). Accent preferences are rarely written into ads. They tend to come up in the intro video, the interview and the demo lesson, which is why those are worth preparing well."
+    }
+   ]
+  },
+  {
+   "id": "what-the-law-says",
+   "title": "What Vietnamese law says about nationality, native speakers and age",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The work permit is the legal gate for every foreign teacher, and it does not ask where you are from. Decree 219/2025/ND-CP, in force since 7 August 2025 (it replaced Decrees 152/2020 and 70/2023), sets **no native-speaker or nationality condition**: the criteria are the job category, your degree and experience, and your documents ([official gazette text](https://congbaocdn.chinhphu.vn/CongBaoCP/VanBan/2025/8/45798/58141-1-20251073-1074219-2025-nd-cp.pdf)). Teachers are filed as 'experts', which means a bachelor's degree or higher plus at least 2 years of relevant work experience, whatever your passport. The full test is in our [work permit guide](/teach-in-vietnam/vietnam-work-permit-for-english-teachers)."
+    },
+    {
+     "type": "p",
+     "text": "Age works the same way. The legal minimum is 18, and neither the Labour Code nor Decree 219 sets a maximum age for a work permit ([Thư Viện Pháp Luật](https://thuvienphapluat.vn/lao-dong-tien-luong/co-duoc-gia-han-giay-phep-lao-dong-cho-nguoi-nuoc-ngoai-da-het-hieu-luc-khong-9382.html)). An upper limit you meet comes from an employer's or insurer's practice, not from work-permit law."
+    },
+    {
+     "type": "h3",
+     "text": "Where the rules do treat native and non-native speakers differently"
+    },
+    {
+     "type": "p",
+     "text": "The education rules for language centres are the one place the law itself distinguishes. [Circular 21/2018/TT-BGDĐT](https://luatvietnam.vn/giao-duc/thong-tu-21-2018-tt-bgddt-quy-che-to-chuc-hoat-dong-cua-trung-tam-ngoai-ngu-tin-hoc-166595-d1.html), Art 18, sets one standard for native speakers and a stricter one for everyone else. In December 2020 the Ministry of Education said 'native speaker' here means a foreign teacher whose **first language** is the language taught ([Giáo dục Việt Nam](https://giaoduc.net.vn/bo-giao-duc-go-roi-quy-dinh-cap-phep-cho-giao-vien-tieng-anh-nuoc-ngoai-post214387.gd)), not a holder of a particular passport. In short, a native speaker needs a college degree plus a suitable teaching certificate, while a non-native speaker needs a degree in language-teacher training, a degree in English plus a certificate, or any degree plus Level 5 (about C1) English and a certificate; the routes, and how to prove Level 5, are set out in [requirements to teach English in Vietnam](/teach-in-vietnam/requirements-to-teach-english-in-vietnam#non-native-speakers)."
+    },
+    {
+     "type": "p",
+     "text": "The rules for teaching other subjects in English are framed around proficiency rather than nationality. Integrated programmes ask foreign teachers for a degree matching their subject, a pedagogy certificate and at least Level 5 English ([Decree 86/2018](https://vcci.com.vn/legal-document/nghi-dinh-862018nd-cp-quy-dinh-ve-hop-tac-dau-tu-cua-nuoc-ngoai-trong-linh-vuc-giao-duc), Art 7(3)). [Decree 222/2025/ND-CP](https://luatvietnam.vn/giao-duc/nghi-dinh-222-2025-nd-cp-cua-chinh-phu-quy-dinh-viec-day-va-hoc-bang-tieng-nuoc-ngoai-trong-co-so-giao-duc-407851-d1.html) sets Level 4 for teaching subjects in a foreign language at primary and lower-secondary level and Level 5 at upper-secondary and university. The full list of requirements is in [requirements to teach English in Vietnam](/teach-in-vietnam/requirements-to-teach-english-in-vietnam)."
+    },
+    {
+     "type": "h3",
+     "text": "What the Labour Code gives you"
+    },
+    {
+     "type": "p",
+     "text": "The Labour Code 2019 covers foreign workers (Art 2(3)), so once you are employed you have the same core protections as Vietnamese staff on hours, rest, holidays, leave, notice and pay ([Labour Code text](https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html)). For part-time and hourly teachers on a labour contract, Art 32 is explicit: they have the same rights as full-time staff, including **equal treatment and no discrimination** ([Art 32](https://hethongphapluat.com/bo-luat-lao-dong-2019/dieu-32))."
+    },
+    {
+     "type": "p",
+     "text": "More broadly, the Labour Code lists **discrimination in labour** among its prohibited acts (Art 8(1)) and defines it (Art 3(8)) as distinguishing, excluding or preferring someone on grounds that include race, skin colour, national origin, age and gender, where this affects equal opportunity in employment or occupation. A distinction that stems from the specific requirements of a job is not counted as discrimination. We found no published case or official guidance on whether a 'native speaker', passport or age requirement in a teaching ad falls under that exception, and no case in which a foreign teacher challenged a hiring decision. In practice the law's strongest lever is on what happens after you sign: pay, hours and termination."
+    }
+   ]
+  },
+  {
+   "id": "treated-unequally-at-work",
+   "title": "If you are treated unequally once you are working",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Unequal treatment inside a job is easier to act on than a rejection, because it usually turns into something the Labour Code covers: pay below what your contract says, hours cut, or a termination without lawful grounds. The route and deadlines are set in the Labour Code's disputes chapter ([Arts 187–190](https://hethongphapluat.com/bo-luat-lao-dong-2019/chuong-14))."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "Keep every payslip, bank transfer, timetable and message. Your employer must give a payslip with each payment, and these records are your evidence.",
+      "Raise it in writing first, and keep a copy. Compare what you are paid with the rate in your contract, not with what you think others earn.",
+      "If that fails, an individual dispute normally goes to a state labour mediator first, then to arbitration or a court. You have **6 months** to request mediation and 1 year to go to court, counted from when you discovered the problem.",
+      "Disputes over dismissal, unlawful termination or severance can go straight to court.",
+      "Embassies give lists of local lawyers; they do not resolve employment disputes."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The clauses that protect you are easier to agree before you sign. [What to check in a teaching contract](/teach-in-vietnam/english-teaching-contracts-in-vietnam) covers pay, notice and the clauses to refuse."
+    }
+   ]
+  },
+  {
+   "id": "more-open-employers",
+   "title": "Which employers are more open (by type)",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Openness varies more by employer type than by city. Based on the ads above and employers' published criteria, this is how the main types tend to screen as of October 2026. Individual employers differ, so read each ad."
+    },
+    {
+     "type": "table",
+     "caption": "How Ho Chi Minh City employer types tend to screen foreign teachers, from 2025–2026 ads and published criteria. A pattern, not a rule for every employer.",
+     "headers": [
+      "Employer type",
+      "What they usually screen on",
+      "Open to non-native or older teachers?"
+     ],
+     "rows": [
+      [
+       "Universities and pathway programmes",
+       "Degree, CELTA or equivalent, years of experience; sometimes a master's",
+       "Can be: at least one publishes an explicit non-native route with a high IELTS bar"
+      ],
+      [
+       "International schools",
+       "A home-country teaching licence, classroom experience, sometimes a master's",
+       "Published criteria centre on licences and experience; without a licence it is a hard door for anyone"
+      ],
+      [
+       "Bilingual and integrated programmes (maths and science in English)",
+       "Subject degree, pedagogy certificate, Level 4–5 English",
+       "The legal standard is proficiency; check who the employer of record is"
+      ],
+      [
+       "Big language-centre chains",
+       "Degree, 120+ hour TEFL, 'native' or 'native-level' English",
+       "Mixed: some campus ads list passports, while the same chain may consider non-natives who send an intro video"
+      ],
+      [
+       "Public-school agencies",
+       "Degree, TEFL, sometimes proof you are already in Vietnam",
+       "Some accept non-natives with C1 proof, sometimes at a lower published rate"
+      ],
+      [
+       "Kindergartens and young-learner centres",
+       "'Native' wording, age bands, teaching experience",
+       "The kindergarten ad in our sample was the most restrictive: native speakers aged 23–40 only"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The practical reading: aim first at employers that test a level (an IELTS or Cambridge score, an intro video, a demo lesson) rather than a passport. The differences between these job types are set out in [types of English teaching jobs in Vietnam](/teach-in-vietnam/types-of-english-teaching-jobs-in-vietnam). The eno.vn [school directory](/schools) lists Ho Chi Minh City employers by type, and teachers who worked or interviewed there can write reviews; most schools have few or none yet, so a factual review of your own hiring experience helps the next applicant."
+    }
+   ]
+  },
+  {
+   "id": "practical-strategies",
+   "title": "How to get hired anyway: practical strategies",
+   "blocks": [
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Read the filter before you apply",
+       "text": "'Native-level English' describes a level; a list of passports is a hard filter that is rarely waived. Spend your applications where the test is a level, and ask in one line what proof of level the employer accepts."
+      },
+      {
+       "title": "Get proof of your English before you need it",
+       "text": "If you are not a native speaker, sit IELTS Academic, TOEFL or a Cambridge exam. Circular 21/2018 asks for Level 5 (about C1); no ministry table fixes the IELTS equivalent, but 7.0 or above is the common working benchmark, and RMIT asks for 8.0. Use a recognised test only."
+      },
+      {
+       "title": "Add a teaching qualification with observed practice",
+       "text": "A 120+ hour TEFL with real teaching practice, or a CELTA, is what most employers ask for. CELTA does not require native-speaker status; International House in Ho Chi Minh City asks for a proficient, advanced level of English ([IH](https://ihteachenglish.com/?p=13232)). The Ministry of Education's 160-period course under Decision 4159/QĐ-BGDĐT is an official route for centre teachers without a teaching qualification, open to foreigners with a college degree or higher in any field plus a Level 5 certificate ([LSVN](https://lsvn.vn/nguoi-nuoc-ngoai-day-tieng-anh-tai-trung-tam-ngoai-ngu-tin-hoc-se-duoc-cap-chung-chi-dao-tao-1709006169-a141314.html)). Compare the options in [TEFL, TESOL or CELTA for Vietnam](/teach-in-vietnam/tefl-tesol-and-celta-for-vietnam)."
+      },
+      {
+       "title": "Let them hear you early",
+       "text": "Record a short intro video and attach it to every application; VUS says it may consider a non-native speaker's application if they send one. Prepare a demo lesson that shows clear models and good classroom control. Our [CV, interview and demo lesson guide](/teach-in-vietnam/english-teacher-cv-and-demo-lesson-in-vietnam) shows what Saigon employers look for."
+      },
+      {
+       "title": "Lead with qualifications, not labels",
+       "text": "Put your degree, certificate, test score and years of teaching at the top of your CV. A free teacher profile started at [teacher.eno.vn](https://teacher.eno.vn) shows your subjects, the ages you teach, your experience and your qualifications; only business accounts such as schools and centres can message you, and your contact details stay hidden until you choose to share them."
+      },
+      {
+       "title": "Get the rate in writing and compare",
+       "text": "Ask for the hourly or monthly rate, guaranteed hours and gross or net in writing, and ask whether the same rate applies to every teacher in the role. Check live postings on [eno.vn's jobs page](/jobs-vietnam-expats), which link to the original ads."
+      },
+      {
+       "title": "Talk to teachers who work there",
+       "text": "Before you sign, ask current teachers whether pay is on time and how teachers from different backgrounds are treated. It is the quickest way to find out what an ad does not say."
+      }
+     ]
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "Don't buy your way past the filter",
+     "text": "Fake papers turn a rejection into a criminal case. In May 2026 police broke up a scheme that sold unauthorised 'CEFR-equivalent' English certificates to about 80,000 candidates and asked organisations to review certificates issued through it ([Viet Nam News](https://vietnamnews.vn/society/1780870/viet-nam-busts-fake-english-certification-scam-worth-nearly-8-million.html)). Forged degrees are prosecuted under Penal Code Art 341: in August 2026 police charged two foreign nationals with making and selling fake Vietnamese university diplomas to job seekers ([Tuoi Tre News](https://news.tuoitre.vn/vietnam-charges-2-foreigners-for-allegedly-forging-university-diplomas-certificates-103260824132906734.htm)). An employer filing altered or forged documents is fined {{vnd:40000000-60000000}} ({{vnd:80000000-120000000}} for a company, school or centre), and a worker whose permit file contains them can be deported. Never use an experience letter that is not true, and never pay anyone who promises to get you round a 'native only' rule; that is a [common scam](/teach-in-vietnam/teaching-job-scams-in-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "where-it-is-improving",
+   "title": "Where things are improving",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Change is slow and job ads still say 'native', but several signals point the same way: towards testing what you can do rather than where you are from."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**National policy speaks of proficiency.** Decision 2371/QĐ-TTg of 27 October 2025, the plan to make English a second language in schools, orders research into policies that would let foreigners **proficient in English** teach in public schools and universities ([Decision 2371](https://luatvietnam.vn/giao-duc/quyet-dinh-2371-qd-ttg-2025-phe-duyet-de-an-tieng-anh-thanh-ngon-ngu-thu-hai-trong-truong-hoc-416990-d1.html)). It sets no quota or timeline, and no implementing regulation had been found as of October 2026.",
+      "**Direct hiring by public schools.** A 2026–2030 Ho Chi Minh City pilot lets 246 preschools and schools recruit their own staff and sign contracts, including with foreign teachers ([Giáo dục Việt Nam](https://giaoduc.net.vn/tphcm-246-truong-mam-non-pho-thong-duoc-tu-tuyen-giao-vien-hop-dong-voi-giao-vien-nuoc-ngoai-post260905.gd)). No new standards for foreign teachers were stated, and no such ads had been seen by October 2026.",
+      "**Published proficiency routes.** A university's IELTS 8.0 route, a large chain's intro-video route, CELTA's openness to proficient non-native speakers and the Ministry's Decision 4159 course all give non-native teachers a documented way in. The public-school agency that published separate native and non-native rates in 2025 listed a single range in its September 2026 ad, with C1 proof for non-natives.",
+      "**More checking of papers.** The city's education department told centres in September 2025 to make sure foreign teachers meet the required standards. Checks like these put the weight on qualifications any applicant can earn."
+     ]
+    },
+    {
+     "type": "h3",
+     "text": "What to watch"
+    },
+    {
+     "type": "p",
+     "text": "A November 2025 Ministry of Education draft decree on foreigners teaching in Vietnamese schools sets standards for 'native-speaker language teachers', such as a bachelor's degree plus TESOL or another recognised certificate ([Báo Chính phủ](https://baochinhphu.vn/tieu-chuan-nguoi-nuoc-ngoai-giang-day-nghien-cuu-khoa-hoc-tai-co-so-giao-duc-cua-viet-nam-102251128171033482.htm)). At last report it was still a draft, so how the final text treats non-native teachers is not known. Your employer and the issuing authority have the final word on what is accepted in your case."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Can a non-native English speaker get a work permit to teach in Vietnam?",
+   "a": "Nationality is not a condition. Decree 219/2025 sets no native-speaker or nationality condition, and the expert test of a bachelor's degree plus at least 2 years' relevant experience is the same for everyone. At a language centre you also need Level 5 (about C1) proof and a teaching certificate, unless your degree is in language-teacher training, or in English (then you need only the certificate)."
+  },
+  {
+   "q": "Is there an age limit for teaching English in Vietnam?",
+   "a": "Not in the law. The minimum is 18, and neither the Labour Code nor Decree 219 sets a maximum age for a work permit. Age bands in job ads, such as 23 to 40, are employer preferences."
+  },
+  {
+   "q": "Can I teach English in Vietnam as a South African, Indian or Filipino teacher?",
+   "a": "Nothing in Vietnam's work-permit rules bars any nationality. Employers differ: some passport lists include South Africa and others do not, and some ads are open to anyone who proves Level 5 English. How your documents are certified depends on your country, so check that before you apply."
+  },
+  {
+   "q": "Are Filipino or other non-native teachers paid less in Vietnam?",
+   "a": "There is no official pay data by nationality. In the one ad we found that published both rates (2025), the non-native rate was lower, and one agency's 2026 price list charges schools less for a Filipino teacher than for a native-speaker teacher. Get your own rate and guaranteed hours in writing and compare them with the employer's advertised rate."
+  },
+  {
+   "q": "Can I complain if a school rejects me because of my nationality or age?",
+   "a": "The Labour Code prohibits discrimination on grounds including national origin and age, but excepts distinctions based on a job's specific requirements, and we found no published case of a foreign teacher challenging a hiring decision. Once you are employed, unequal pay or treatment under your contract can go to a labour mediator within 6 months and then to court within 1 year."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Decree 219/2025/ND-CP on foreign workers in Vietnam (Official Gazette text)",
+   "publisher": "Government of Vietnam (Công báo)",
+   "url": "https://congbaocdn.chinhphu.vn/CongBaoCP/VanBan/2025/8/45798/58141-1-20251073-1074219-2025-nd-cp.pdf"
+  },
+  {
+   "title": "Circular 21/2018/TT-BGDĐT on the organisation and operation of foreign-language and IT centres",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/giao-duc/thong-tu-21-2018-tt-bgddt-quy-che-to-chuc-hoat-dong-cua-trung-tam-ngoai-ngu-tin-hoc-166595-d1.html"
+  },
+  {
+   "title": "Bộ Giáo dục 'gỡ rối' quy định cấp phép cho giáo viên tiếng Anh nước ngoài",
+   "publisher": "Giáo dục Việt Nam",
+   "url": "https://giaoduc.net.vn/bo-giao-duc-go-roi-quy-dinh-cap-phep-cho-giao-vien-tieng-anh-nuoc-ngoai-post214387.gd"
+  },
+  {
+   "title": "Labour Code 2019 (No. 45/2019/QH14), full text",
+   "publisher": "Dữ liệu pháp luật",
+   "url": "https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html"
+  },
+  {
+   "title": "Labour Code 2019, Article 32: part-time work",
+   "publisher": "Hệ thống pháp luật",
+   "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/dieu-32"
+  },
+  {
+   "title": "Labour Code 2019, Chapter XIV: labour disputes",
+   "publisher": "Hệ thống pháp luật",
+   "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/chuong-14"
+  },
+  {
+   "title": "Có được gia hạn giấy phép lao động cho người nước ngoài đã hết hiệu lực không?",
+   "publisher": "Thư Viện Pháp Luật",
+   "url": "https://thuvienphapluat.vn/lao-dong-tien-luong/co-duoc-gia-han-giay-phep-lao-dong-cho-nguoi-nuoc-ngoai-da-het-hieu-luc-khong-9382.html"
+  },
+  {
+   "title": "Decree 86/2018/ND-CP on foreign cooperation and investment in education",
+   "publisher": "VCCI",
+   "url": "https://vcci.com.vn/legal-document/nghi-dinh-862018nd-cp-quy-dinh-ve-hop-tac-dau-tu-cua-nuoc-ngoai-trong-linh-vuc-giao-duc"
+  },
+  {
+   "title": "Decree 222/2025/ND-CP on teaching and learning in foreign languages in educational institutions",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/giao-duc/nghi-dinh-222-2025-nd-cp-cua-chinh-phu-quy-dinh-viec-day-va-hoc-bang-tieng-nuoc-ngoai-trong-co-so-giao-duc-407851-d1.html"
+  },
+  {
+   "title": "Ho Chi Minh City warns language centers over teacher quality, especially foreign hires",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/ho-chi-minh-city-warns-language-centers-over-teacher-quality-especially-foreign-hires-103250925172100232.htm"
+  },
+  {
+   "title": "[Ho Chi Minh City] Part-time native English teachers",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/ho-chi-minh-city-part-time-native-english-teachers-2"
+  },
+  {
+   "title": "Expat ESL teachers wanted in Binh Duong and Dong Nai",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/expat-esl-teachers-wanted-in-binh-duong-and-dong-nai-vietnam-join-us-now"
+  },
+  {
+   "title": "Teach English with VUS: FAQ",
+   "publisher": "VUS",
+   "url": "https://teachenglish.vus.edu.vn/?p=979"
+  },
+  {
+   "title": "Expat part-time English teacher, public schools HCM and Binh Duong (DTP Education Solutions)",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/native-part-time-english-teacher-public-schools-hcm-binh-duong-vung-tau-currently-in-vietnam"
+  },
+  {
+   "title": "Hiring ESL teachers in Vietnam: over 70 centres and 30 years of experience",
+   "publisher": "ESLbase",
+   "url": "https://www.eslbase.com/job/hiring-esl-teachers-in-vietnam-over-70-centres-and-30-years-of-experience-8/"
+  },
+  {
+   "title": "Expat teacher, kindergarten",
+   "publisher": "Tuổi Trẻ Việc làm",
+   "url": "https://vieclam.tuoitre.vn/en/search-job/expat-teacher-kindergarten.35C74DBA.html"
+  },
+  {
+   "title": "Expat English teachers part-time in HCMC, Sep 2025",
+   "publisher": "Teast",
+   "url": "https://teast.co/job/expat-english-teachers-part-time-in-hcmc-sep-2025-Loyb1krhwvW4nfFHJFHR"
+  },
+  {
+   "title": "Bảng giá cung cấp giáo viên nước ngoài",
+   "publisher": "BYAN",
+   "url": "https://byan.com.vn/vn/bang-gia-cung-cap-giao-vien-nuoc-ngoai"
+  },
+  {
+   "title": "Position description: Educator, School of English and University Pathways (July 2026)",
+   "publisher": "RMIT University",
+   "url": "https://www.rmit.edu.au/content/dam/rmit/au/en/careers/position-descriptions/vietnam/JD-Educator%20July%202026.pdf"
+  },
+  {
+   "title": "Người nước ngoài dạy tiếng Anh tại trung tâm ngoại ngữ, tin học sẽ được cấp chứng chỉ đào tạo",
+   "publisher": "Tạp chí Luật sư Việt Nam",
+   "url": "https://lsvn.vn/nguoi-nuoc-ngoai-day-tieng-anh-tai-trung-tam-ngoai-ngu-tin-hoc-se-duoc-cap-chung-chi-dao-tao-1709006169-a141314.html"
+  },
+  {
+   "title": "Viet Nam busts fake English certification scam worth nearly 8 million",
+   "publisher": "Viet Nam News",
+   "url": "https://vietnamnews.vn/society/1780870/viet-nam-busts-fake-english-certification-scam-worth-nearly-8-million.html"
+  },
+  {
+   "title": "Vietnam charges 2 foreigners for allegedly forging university diplomas, certificates",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/vietnam-charges-2-foreigners-for-allegedly-forging-university-diplomas-certificates-103260824132906734.htm"
+  },
+  {
+   "title": "Decision 2371/QĐ-TTg approving the scheme to make English the second language in schools, 2025–2035",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/giao-duc/quyet-dinh-2371-qd-ttg-2025-phe-duyet-de-an-tieng-anh-thanh-ngon-ngu-thu-hai-trong-truong-hoc-416990-d1.html"
+  },
+  {
+   "title": "TP.HCM: 246 trường mầm non, phổ thông được tự tuyển giáo viên, hợp đồng với giáo viên nước ngoài",
+   "publisher": "Giáo dục Việt Nam",
+   "url": "https://giaoduc.net.vn/tphcm-246-truong-mam-non-pho-thong-duoc-tu-tuyen-giao-vien-hop-dong-voi-giao-vien-nuoc-ngoai-post260905.gd"
+  },
+  {
+   "title": "Tiêu chuẩn người nước ngoài giảng dạy, nghiên cứu khoa học tại cơ sở giáo dục của Việt Nam",
+   "publisher": "Báo Chính phủ",
+   "url": "https://baochinhphu.vn/tieu-chuan-nguoi-nuoc-ngoai-giang-day-nghien-cuu-khoa-hoc-tai-co-so-giao-duc-cua-viet-nam-102251128171033482.htm"
+  }
+ ],
+ "related": [
+  "requirements-to-teach-english-in-vietnam",
+  "tefl-tesol-and-celta-for-vietnam",
+  "english-teacher-salary-in-vietnam",
+  "english-teacher-cv-and-demo-lesson-in-vietnam",
+  "finding-a-teaching-job-in-vietnam",
+  "types-of-english-teaching-jobs-in-vietnam"
+ ],
+ "lastChecked": "2026-10-11"
+}

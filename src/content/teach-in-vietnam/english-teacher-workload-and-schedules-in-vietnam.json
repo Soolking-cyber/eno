@@ -1,0 +1,626 @@
+{
+ "slug": "english-teacher-workload-and-schedules-in-vietnam",
+ "title": "English Teacher Schedules in Vietnam: Hours and Workload",
+ "description": "Typical weekly timetables for centre, public-school and private-school jobs in Saigon, what an hourly rate covers, your legal limits and how to avoid burnout.",
+ "h1": "English teacher schedules in Vietnam: typical weekly timetables, unpaid hours and how to avoid burning out",
+ "eyebrow": "In the classroom",
+ "intro": "A full-time English teacher in Ho Chi Minh City typically has 15 to 25 hours of class a week, and when those hours fall depends on the job: language centres teach on weekday evenings and all day at weekends, public-school placements run Monday to Friday in the daytime, and private schools keep you on site for the whole school day. Hourly pay normally covers class time only, so preparation, travel between campuses and the gaps in split shifts come on top. Count those hours before you sign.",
+ "keyPoints": [
+  "Language centres define full-time as **20–25 teaching hours a week** and part-time as 12–18, mostly on weekday evenings and weekends with children aged about 6–16.",
+  "Public-school placements through agencies run Monday to Friday in the daytime from September to May; a private school can mean 30–34 periods of 35 minutes a week while you are on site from about 7:00 to 17:00.",
+  "Hourly rates of {{vnd:430000-560000}} an hour (most new-teacher offers in 2026 ads) usually pay for contact time only. Count prep, early arrival, travel and gaps, and in our worked example the real rate falls by more than a third.",
+  "The Labour Code gives you at least 24 consecutive hours off a week, makes overtime voluntary and caps it at 40 hours a month, and bans fines or pay cuts as discipline, lateness included.",
+  "Filling gaps with a second employer needs a second work permit. Working without one is fined {{vnd:15000000-25000000}} and can lead to deportation (Decree 283/2026)."
+ ],
+ "sections": [
+  {
+   "id": "weekly-schedules-by-job-type",
+   "title": "What a teaching week looks like, by job type",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Your timetable depends on the kind of employer far more than on the city. The table sums up what 2024–2026 job ads, mostly for Ho Chi Minh City, actually state (the public-school load is TEFL Org's figure); our guide to the [types of teaching jobs](/teach-in-vietnam/types-of-english-teaching-jobs-in-vietnam) compares the jobs themselves."
+    },
+    {
+     "type": "table",
+     "caption": "Weekly timetables by job type, as stated in employer job ads 2024–2026, mostly for Ho Chi Minh City, and TEFL Org's guide for the public-school load (linked). Loads are what the sources say, not legal limits.",
+     "headers": [
+      "Job type",
+      "When you teach",
+      "Stated load",
+      "Paid by"
+     ],
+     "rows": [
+      [
+       "Language centre, full-time",
+       "Weekday evenings and all day at weekends, mostly children aged 6–16",
+       "20–25 teaching hours a week ([VUS](https://teachenglish.vus.edu.vn/?p=979)); about 78–95 contact hours a month ([a 2024 Apollo listing](https://www.seriousteachers.com/job_details/278256/0/vietnamesl-teacher-teachers-needed-now-in-vietnam-vietnam))",
+       "The teaching hour"
+      ],
+      [
+       "Language centre, part-time",
+       "The same evening and weekend slots",
+       "12–18 teaching hours a week (VUS)",
+       "The teaching hour"
+      ],
+      [
+       "Public school, through an agency",
+       "Monday to Friday in the daytime, September to May",
+       "15–25 teaching hours a week ([TEFL Org](https://www.tefl.org/teach-english-abroad/teach-english-in-vietnam/)); one 2026 ad asks for at least 3 weekdays ([DTP](https://teast.co/job/part-time-english-teacher-ho-chi-minh-city-vietnam-7Qmx5WWpL4QLXDXiQKO2))",
+       "The teaching hour"
+      ],
+      [
+       "Bilingual or private school",
+       "Monday to Friday, about 7:00–17:00",
+       "30–34 periods of 35 minutes a week, plus 1–2 Saturday admissions mornings a month ([Pathway School ad](https://vietnamteachingjobs.com/jobs/view/expat-primary-teacher-pathway-school-district-2-hcmc-full-time))",
+       "Monthly salary"
+      ],
+      [
+       "Kindergarten, full-time homeroom",
+       "Monday to Friday, 7:30–17:00 ([EIV ad](https://teast.co/job/full-time-homeroom-kindergarten-teacher-go-vap-district-Ow6XNeTaalIIPg66rO3U))",
+       "The whole school day with one group of children",
+       "Monthly salary"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "International schools pay a monthly salary for a full school day on a contract that follows the school year. None of the ads in our research publishes a contact-period count, so ask for it at interview."
+    },
+    {
+     "type": "h3",
+     "text": "Sample week 1: full-time at a language centre"
+    },
+    {
+     "type": "p",
+     "text": "This is an illustration, not any employer's real timetable. It puts together what the ads describe: evening classes, long weekend days with gaps, 20–25 hours in total. An Apollo ad for its Bien Hoa centre from about 2024 listed classes from **16:00 to 22:00 on weekdays and 7:45 to 20:15 at weekends** ([Apollo ad](https://teast.co/job/teaching-english-in-vietnam-bien-hoa-PYVxr1cMRTKp9amJSRu9))."
+    },
+    {
+     "type": "table",
+     "caption": "Illustrative full-time language-centre week, about 23 contact hours. Built from the patterns in VUS and Apollo ads; your centre's days and slots will differ.",
+     "headers": [
+      "Day",
+      "Classes",
+      "Contact hours"
+     ],
+     "rows": [
+      [
+       "Monday",
+       "Day off (your weekly rest day)",
+       "0"
+      ],
+      [
+       "Tuesday",
+       "Two evening classes, about 17:30–21:30",
+       "4"
+      ],
+      [
+       "Wednesday",
+       "One evening class",
+       "2"
+      ],
+      [
+       "Thursday",
+       "Two evening classes",
+       "4"
+      ],
+      [
+       "Friday",
+       "One evening class",
+       "2"
+      ],
+      [
+       "Saturday",
+       "Four classes between about 8:00 and 18:00, with gaps",
+       "6"
+      ],
+      [
+       "Sunday",
+       "Three classes between about 8:00 and 17:00, with gaps",
+       "5"
+      ],
+      [
+       "Week",
+       "Six working days, two of them long split days",
+       "23"
+      ]
+     ]
+    },
+    {
+     "type": "h3",
+     "text": "Sample week 2: public-school placement through an agency"
+    },
+    {
+     "type": "p",
+     "text": "Public-school English periods last **35 minutes at primary and 45 at secondary** ([school teaching plan](https://hoatieu.vn/phan-phoi-chuong-trinh-tieng-anh-lop-6-sach-ket-noi-tri-thuc-voi-cuoc-song-209463)). Agencies place you in one or more schools, commonly for one or two periods per class per week, with a Vietnamese co-teacher in the room and classes of 35–50 pupils."
+    },
+    {
+     "type": "table",
+     "caption": "Illustrative primary-school agency week. Built from TEFL Org's description (Monday to Friday, about 8:00–17:00 with a long lunch break) and official period lengths.",
+     "headers": [
+      "Day",
+      "Where",
+      "Periods"
+     ],
+     "rows": [
+      [
+       "Monday",
+       "School A, morning and early afternoon",
+       "6 × 35 minutes"
+      ],
+      [
+       "Tuesday",
+       "School A",
+       "6 × 35 minutes"
+      ],
+      [
+       "Wednesday",
+       "School B, across the city",
+       "5 × 35 minutes"
+      ],
+      [
+       "Thursday",
+       "School B",
+       "5 × 35 minutes"
+      ],
+      [
+       "Friday",
+       "School A",
+       "6 × 35 minutes"
+      ],
+      [
+       "Week",
+       "Evenings and weekends free",
+       "28 periods, about 16 hours of contact"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Check how the agency counts an hour. Some pay per 60-minute hour ([Power English ad](https://teast.co/job/esl-teacher-at-public-school-in-hcmc-vietnam-LU2vMMeEQiAPFK0HzRoH)), so 28 periods of 35 minutes is about 16 paid hours, not 28. These contracts follow the school year, so the income stops over the summer."
+    },
+    {
+     "type": "h3",
+     "text": "Sample week 3: bilingual or private school"
+    },
+    {
+     "type": "p",
+     "text": "The Pathway School ad from October 2026 shows the salaried model: 30–34 periods of 35 minutes is about 17.5 to 20 hours in front of a class, but you are on site Monday to Friday from about 7:00 to 17:00, plus one or two Saturday admissions mornings a month. The rest of the school day is not teaching time, but you are still at work, and the monthly salary is meant to cover it."
+    }
+   ]
+  },
+  {
+   "id": "contact-paid-and-prep-hours",
+   "title": "Contact hours, paid hours and unpaid preparation",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "In July–October 2026 job ads, centres offered {{vnd:390000-600000}} an hour, with most new-teacher offers at {{vnd:430000-560000}} ([Vietnam Teaching Jobs](https://vietnamteachingjobs.com/city/teaching-english-in-ho-chi-minh)). That rate normally pays for **contact time only**. Around every class sits time that is usually unpaid:"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "Lesson preparation, printing and making materials.",
+      "Arriving 15–20 minutes before class to set up and brief your teaching assistant, which centres commonly expect.",
+      "Progress comments and report cards, often translated and sent to parents.",
+      "Observations, training and meetings (ask whether these are paid).",
+      "Travel between campuses or schools, and the gaps between classes on split days.",
+      "Messages from parents and the academic team, mostly on Zalo."
+     ]
+    },
+    {
+     "type": "table",
+     "caption": "Worked example: what an hourly rate is worth once unpaid time is counted. The unpaid hours are assumptions; put in your own.",
+     "headers": [
+      "Item",
+      "Hours a week",
+      "Paid?"
+     ],
+     "rows": [
+      [
+       "Contact hours at {{vnd:500000}} an hour",
+       "22",
+       "Yes: {{vnd:11000000}} a week"
+      ],
+      [
+       "Preparation and marking (your estimate)",
+       "5",
+       "No"
+      ],
+      [
+       "Arriving early for 12 classes",
+       "3",
+       "No"
+      ],
+      [
+       "Travel between campuses and split-shift gaps",
+       "4",
+       "No"
+      ],
+      [
+       "Total time given to the job",
+       "34",
+       "Effective rate about {{vnd:320000}} an hour"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Cancelled classes are where hourly contracts bite. Under the [Labour Code](https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html), Art. 99, full pay is due if the stoppage is the employer's fault; for power cuts, disasters, epidemics or economic reasons the pay is agreed, but is at least the minimum wage for the first 14 working days. **Hours an hourly contract never guaranteed need not be paid**, which is why a written minimum matters."
+    },
+    {
+     "type": "p",
+     "text": "Teachers commonly report that centres treat lateness strictly, sometimes with pay deductions. The law is clear that an employer may not fine you or cut your wages as a disciplinary measure (Art. 127); pay can be deducted only to compensate damage to the employer's property, by no more than 30% of monthly pay (Art. 102). Ask too how Tet and public holidays are paid: many hourly arrangements pay only for hours actually taught, so the Tet month is short."
+    }
+   ]
+  },
+  {
+   "id": "legal-limits-on-hours",
+   "title": "What the Labour Code says about your hours",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "A teaching job where the centre sets your timetable and pays you a wage is a labour contract, whatever the paperwork calls it (Art. 13), and part-timers on labour contracts have the same rights as full-timers (Art. 32). These limits therefore apply to you."
+    },
+    {
+     "type": "table",
+     "caption": "Working-time rules for employees in Vietnam, Labour Code 2019 and Resolution 28/2026/QH16, as of October 2026.",
+     "headers": [
+      "Rule",
+      "What the law says",
+      "Where"
+     ],
+     "rows": [
+      [
+       "Normal hours",
+       "At most 8 a day and 48 a week, or up to 10 a day if the employer schedules by the week; the state encourages a 40-hour week",
+       "Art. 105"
+      ],
+      [
+       "Breaks",
+       "At least 30 minutes in a working day of 6 hours or more",
+       "Art. 109"
+      ],
+      [
+       "Weekly rest",
+       "At least 24 consecutive hours a week, or an average of at least 4 days a month where that is impossible; the employer fixes the day in its work rules",
+       "[Art. 111](https://hethongphapluat.com/bo-luat-lao-dong-2019/dieu-111)"
+      ],
+      [
+       "Overtime",
+       "Only with your consent; at most 40 hours a month and 200 a year; paid at least 150% on weekdays, 200% on rest days, 300% on public holidays",
+       "Arts. 98, 107"
+      ],
+      [
+       "Public holidays",
+       "12 paid days from 1 July 2026 (24 November added), plus your own traditional New Year and National Day",
+       "Art. 112 (11 days); [Resolution 28/2026/QH16](https://baochinhphu.vn/ngay-van-hoa-viet-nam-24-11-nguoi-lao-dong-duoc-nghi-lam-huong-nguyen-luong-102260424093821937.htm)"
+      ],
+      [
+       "Annual leave",
+       "12 working days' paid leave after 12 months with one employer, pro rata before that",
+       "Art. 113"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Whether extra classes count as overtime, paid at 150% or more, depends on the normal hours fixed in your contract and the employer's work rules, so get both in writing. What you can insist on is consent: **overtime is voluntary**. How public-holiday pay is worked out for hourly part-timers is not spelled out in the law, so get it written into your contract. Your employer, and in a dispute the authorities, have the final word on how these rules apply to your contract; our guide to [teaching contracts](/teach-in-vietnam/english-teaching-contracts-in-vietnam) goes through the clauses."
+    }
+   ]
+  },
+  {
+   "id": "split-shifts-and-commuting",
+   "title": "Split shifts, several campuses and the commute",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Split shifts are built into centre work. A weekend day can run from early morning to evening with unpaid gaps between classes, often too short to go home and too long to waste. Chains also move teachers between branches: ILA's 2026 ad mentions rotation between locations ([ILA ad](https://www.eslbase.com/job/hiring-esl-teachers-in-vietnam-over-70-centres-and-30-years-of-experience-8/)). Public-school days have a long lunch break and may involve two schools. See [working at a language centre](/teach-in-vietnam/language-centre-jobs-in-ho-chi-minh-city) for how the chains organise this."
+    },
+    {
+     "type": "p",
+     "text": "Stacking jobs makes it worse. Agency mornings plus centre evenings and weekends can mean 12-hour days and no rest day at all, and it raises a legal problem most new teachers do not see coming."
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "A second employer needs its own work permit",
+     "text": "Your work permit covers one employer. Teaching for a second centre or school, even in the same job, needs a new permit that the second employer applies for ([Decree 219/2025](https://english.luatvietnam.vn/decree-no-219-2025-nd-cp-dated-august-07-2025-of-the-government-on-foreign-workers-in-vietnam-407607-doc1.html), Art. 20). Since 10 September 2026, working without one is fined {{vnd:15000000-25000000}} and can lead to deportation ([Tuoi Tre News](https://news.tuoitre.vn/foreign-workers-in-vietnam-what-to-know-as-new-penalty-rules-take-effect-september-10-103260824152235374.htm)). There is no lawful freelance-tutor route for foreigners either. To fill gaps, ask your permit-holding employer for more hours; our [work permit guide](/teach-in-vietnam/vietnam-work-permit-for-english-teachers) explains the rest."
+    },
+    {
+     "type": "h3",
+     "text": "The commute"
+    },
+    {
+     "type": "p",
+     "text": "Commute time matters more than the district name. Teachers commonly advise living within about **20–25 minutes of your main centre**, because evening classes finish late and weekend days start early. Ask where every campus you may teach at is before you sign a lease; [where to live as a teacher](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher) compares the neighbourhoods."
+    },
+    {
+     "type": "p",
+     "text": "Metro Line 1 serves only the District 1–Binh Thanh–Thao Dien–Thu Duc corridor, rainy-season storms and king tides tend to hit just as evening classes start, and since 1 July 2025 an 'HCMC' job can be an hour or more away in former Binh Duong or Ba Ria–Vung Tau, so ask about any location allowance. Official addresses now use new ward names, although ads still say 'District 1' or 'District 7'. Routes, fares, the free buses and the flood-prone streets are in [getting around Ho Chi Minh City](/teach-in-vietnam/getting-around-ho-chi-minh-city)."
+    }
+   ]
+  },
+  {
+   "id": "busy-and-quiet-seasons",
+   "title": "Busy and quiet seasons through the year",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Your workload is not flat across the year. Centres fill up when schools close, agency work follows the public-school calendar, and Tet empties the timetable for a week or more. The [teaching year guide](/teach-in-vietnam/the-teaching-year-in-vietnam) has the full calendar."
+    },
+    {
+     "type": "table",
+     "caption": "How the year shapes a teacher's week in Ho Chi Minh City. Sources: HCMC school calendar, Ministry of Home Affairs Tet notice, employer and forum reports.",
+     "headers": [
+      "Period",
+      "What happens",
+      "Effect on your week"
+     ],
+     "rows": [
+      [
+       "June–August",
+       "Centres' busiest season; public schools have ended (before 31 May); IELTS enrolment peaks in July–August ([Tiền Phong](https://tienphong.vn/bo-cong-diem-chung-chi-ielts-mieng-banh-nghin-ti-se-ra-sao-post1879043.tpo))",
+       "More centre hours; agency public-school work pauses"
+      ],
+      [
+       "Mid-August to May",
+       "HCMC pupils report on 24 August (17 August for first and final grades), the year opens on 5 September and ends before 31 May ([Thanh Nien](https://thanhnien.vn/tphcm-cong-bo-ngay-tuu-truong-khai-giang-nam-hoc-2026-2027-va-cac-nam-tiep-theo-185260812151153867.htm))",
+       "Agency weekday timetables run; centre classes move back to evenings and weekends"
+      ],
+      [
+       "Mid-December to Tet",
+       "The slowest hiring period at centres, by teachers' forum reports",
+       "Few new classes; a poor time to look for extra hours"
+      ],
+      [
+       "Tet (Lunar New Year, 6 February 2027)",
+       "Private employers choose 3–9, 4–10 or 5–11 February and must tell staff at least 30 days ahead ([Kenh14](https://kenh14.vn/bo-noi-vu-thong-bao-lich-nghi-tet-nguyen-dan-dinh-mui-2027-215261010094122211.chn)); public schools close longer than centres",
+       "Hourly teachers often earn little or nothing for closed days"
+      ],
+      [
+       "Early May to November",
+       "Rainy season",
+       "Slower, wetter evening commutes"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "negotiating-your-timetable",
+   "title": "How to negotiate a better timetable",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The best moment is before you sign, and the best season is June to August, when centres need teachers most. After that, contract renewal is your next chance to renegotiate. Work through these points with the academic manager and get the answers in writing."
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Ask for a real sample timetable",
+       "text": "Ask to see last term's timetable for a teacher at your level: which days, which slots, which campuses. 'Weekday evenings and weekends' can mean three evenings or five."
+      },
+      {
+       "title": "Get a guaranteed minimum in writing",
+       "text": "Some employers now advertise a 'guaranteed monthly salary' or a 'teaching hours guarantee' but publish no figure. Ask for the number of hours a week or month, and what you are paid when classes are cancelled."
+      },
+      {
+       "title": "Fix your rest day",
+       "text": "The law gives you at least 24 consecutive hours off a week. Ask which day it is, whether it stays fixed from term to term, and whether two days off can sit together."
+      },
+      {
+       "title": "Limit campuses and gaps",
+       "text": "Ask to be based at one or two campuses near where you live, and for classes back to back rather than spread across the day."
+      },
+      {
+       "title": "Ask what is paid outside class",
+       "text": "Training, observations, meetings, open lessons for parents and events: which are paid, and at what rate? Ask how long a paid hour is, and whether preparation is paid."
+      },
+      {
+       "title": "Check Tet, holiday and summer pay",
+       "text": "Ask how the Tet closure, the 12 public holidays and your two home-country days are paid, and whether summer brings extra hours or fewer."
+      },
+      {
+       "title": "Check the employer and sign",
+       "text": "Talk to teachers who work there now, and read any reviews on [the school directory](/schools) (most schools have few or none yet). Then put the agreed hours, rest day and pay rules into a bilingual contract that says which language prevails."
+      }
+     ]
+    },
+    {
+     "type": "p",
+     "text": "If the timetable changes after you start, remember that overtime needs your consent and that a cut below the written guarantee is a contract matter, not a favour to ask for."
+    }
+   ]
+  },
+  {
+   "id": "burnout-signs-and-prevention",
+   "title": "Burnout: the warning signs and how to prevent it",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Burnout here rarely comes from the teaching hours alone. It is the mix: evenings and weekends out of step with friends, unpaid time around every class, hot and wet commutes, constant messages, and an income that drops whenever classes do. In 2024 VnExpress reported one HCMC teacher whose load fell from 20–30 hours a week to 3–5 between April and August ([VnExpress](https://vnexpress.net/giao-vien-nguoi-nuoc-ngoai-qua-thoi-hoang-kim-o-viet-nam-4766310.html)). Insecurity like that pushes people to take every slot they are offered."
+    },
+    {
+     "type": "h3",
+     "text": "Warning signs"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "You dread the weekend by Thursday, and your day off goes on recovering rather than living.",
+      "Your voice is hoarse by Sunday afternoon, or you catch every cold the children bring in.",
+      "You have stopped preparing and run the same game in every class.",
+      "You sleep in the gaps between weekend classes, or eat on the motorbike.",
+      "You snap at children or teaching assistants, or check work chats the moment you wake.",
+      "You accept every extra slot because you fear the next quiet month."
+     ]
+    },
+    {
+     "type": "h3",
+     "text": "What helps"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Protect one full day a week.** The law gives you at least 24 consecutive hours of rest; treat it as fixed, not as spare capacity.",
+      "**Take your leave.** After 12 months you have 12 days' paid annual leave, plus the public holidays and your two home-country days. Plan breaks around Tet and the summer rush.",
+      "**Build a bank of materials.** Keep lesson frames, games and worksheets by course and level so preparation shrinks each time you repeat a course.",
+      "**Set boundaries on Zalo.** Use a work profile, keep messages short, and take problems to your coordinator privately rather than in group chats. Class groups in HCMC schools can carry hundreds of messages a day for some parents ([SGGP](https://www.sggp.org.vn/nhom-tro-chuyen-tren-mang-phien-phuc-cho-ca-phu-huynh-lan-hoc-sinh-post713190.html)).",
+      "**Keep a cash buffer.** Teachers commonly advise bringing enough for 2–3 months without full pay, because hours build slowly and the first payday can come about 30 days after you start. A buffer lets you turn down a punishing timetable.",
+      "**Look after the basics.** Sleep, water in the heat, a poncho under the motorbike seat in the rainy season, and routines and signals in class instead of raising your voice.",
+      "**Consider a lighter load.** VUS's part-time load is 12–18 hours a week: less income, but room to recover, study or learn the language.",
+      "**Build a life outside work** with people who keep the same odd hours; [learning Vietnamese and finding your people](/teach-in-vietnam/learning-vietnamese-and-finding-your-people-in-saigon) is a good place to start."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "If low mood or exhaustion lasts for weeks, see a doctor. Ho Chi Minh City's international hospitals and clinics have English-speaking doctors, and a contract of 12 months or more brings compulsory health insurance."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "How many hours is full-time for an English teacher in Vietnam?",
+   "a": "At language centres, full-time usually means 20 to 25 teaching hours a week and part-time 12 to 18. TEFL Org puts public-school placements at 15 to 25 teaching hours a week, and salaried private schools count periods instead, for example 30 to 34 periods of 35 minutes."
+  },
+  {
+   "q": "Are evening and weekend shifts normal at language centres?",
+   "a": "Yes. Most centre students are school-age children, so teaching runs on weekday evenings and through the weekend. If you want weekdays only, look at public-school placements, private schools or kindergartens."
+  },
+  {
+   "q": "Is lesson preparation paid?",
+   "a": "Usually not at hourly-paid centres and agencies, where the rate covers class time. Salaried school jobs keep you on site for the school day and the salary covers that time. Ask before signing, and ask how long a paid hour is."
+  },
+  {
+   "q": "Can I work for two schools to fill my timetable?",
+   "a": "Only if each employer holds a work permit for you. Teaching for a second employer on the first employer's permit counts as working without a permit, which is fined and can lead to deportation."
+  },
+  {
+   "q": "Can my centre make me teach extra classes?",
+   "a": "Overtime needs your consent under the Labour Code and is capped at 40 hours a month and 200 a year. Extra classes within your normal hours depend on your contract, so get your guaranteed and maximum hours written in."
+  },
+  {
+   "q": "Do I get paid when classes are cancelled?",
+   "a": "If the stoppage is the employer's fault, full pay is due. For power cuts, disasters and similar causes, pay is agreed but at least the minimum wage for the first 14 working days. Hours an hourly contract never guaranteed need not be paid, which is why a written minimum matters."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Bộ luật Lao động 2019 (Labour Code No. 45/2019/QH14)",
+   "publisher": "Dữ liệu pháp luật",
+   "url": "https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html"
+  },
+  {
+   "title": "Labour Code 2019, Article 111: weekly rest",
+   "publisher": "Hệ thống pháp luật",
+   "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/dieu-111"
+  },
+  {
+   "title": "Decree No. 219/2025/ND-CP on foreign workers in Vietnam",
+   "publisher": "LuatVietnam",
+   "url": "https://english.luatvietnam.vn/decree-no-219-2025-nd-cp-dated-august-07-2025-of-the-government-on-foreign-workers-in-vietnam-407607-doc1.html"
+  },
+  {
+   "title": "Foreign workers in Vietnam: what to know as new penalty rules take effect September 10",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/foreign-workers-in-vietnam-what-to-know-as-new-penalty-rules-take-effect-september-10-103260824152235374.htm"
+  },
+  {
+   "title": "Ngày Văn hóa Việt Nam 24/11: người lao động được nghỉ làm, hưởng nguyên lương",
+   "publisher": "Báo Chính phủ",
+   "url": "https://baochinhphu.vn/ngay-van-hoa-viet-nam-24-11-nguoi-lao-dong-duoc-nghi-lam-huong-nguyen-luong-102260424093821937.htm"
+  },
+  {
+   "title": "VUS teacher FAQ",
+   "publisher": "VUS",
+   "url": "https://teachenglish.vus.edu.vn/?p=979"
+  },
+  {
+   "title": "ESL Teachers needed now in Vietnam (Apollo)",
+   "publisher": "Serious Teachers",
+   "url": "https://www.seriousteachers.com/job_details/278256/0/vietnamesl-teacher-teachers-needed-now-in-vietnam-vietnam"
+  },
+  {
+   "title": "Teaching English in Vietnam, Bien Hoa (Apollo)",
+   "publisher": "Teast",
+   "url": "https://teast.co/job/teaching-english-in-vietnam-bien-hoa-PYVxr1cMRTKp9amJSRu9"
+  },
+  {
+   "title": "Teach English in Vietnam",
+   "publisher": "The TEFL Org",
+   "url": "https://www.tefl.org/teach-english-abroad/teach-english-in-vietnam/"
+  },
+  {
+   "title": "Part-time English Teacher, Ho Chi Minh City (DTP Education Solutions)",
+   "publisher": "Teast",
+   "url": "https://teast.co/job/part-time-english-teacher-ho-chi-minh-city-vietnam-7Qmx5WWpL4QLXDXiQKO2"
+  },
+  {
+   "title": "ESL Teacher at Public School in HCMC (Power English)",
+   "publisher": "Teast",
+   "url": "https://teast.co/job/esl-teacher-at-public-school-in-hcmc-vietnam-LU2vMMeEQiAPFK0HzRoH"
+  },
+  {
+   "title": "Expat Primary Teacher, Pathway School, HCMC (full-time)",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/expat-primary-teacher-pathway-school-district-2-hcmc-full-time"
+  },
+  {
+   "title": "Full-time Homeroom Kindergarten Teacher, Go Vap (EIV)",
+   "publisher": "Teast",
+   "url": "https://teast.co/job/full-time-homeroom-kindergarten-teacher-go-vap-district-Ow6XNeTaalIIPg66rO3U"
+  },
+  {
+   "title": "Teaching English in Ho Chi Minh City: job listings",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/city/teaching-english-in-ho-chi-minh"
+  },
+  {
+   "title": "Hiring ESL teachers in Vietnam: over 70 centres (ILA)",
+   "publisher": "ESLbase",
+   "url": "https://www.eslbase.com/job/hiring-esl-teachers-in-vietnam-over-70-centres-and-30-years-of-experience-8/"
+  },
+  {
+   "title": "Phân phối chương trình Tiếng Anh lớp 6 (Global Success)",
+   "publisher": "Hoatieu",
+   "url": "https://hoatieu.vn/phan-phoi-chuong-trinh-tieng-anh-lop-6-sach-ket-noi-tri-thuc-voi-cuoc-song-209463"
+  },
+  {
+   "title": "TP.HCM công bố ngày tựu trường, khai giảng năm học 2026-2027 và các năm tiếp theo",
+   "publisher": "Thanh Niên",
+   "url": "https://thanhnien.vn/tphcm-cong-bo-ngay-tuu-truong-khai-giang-nam-hoc-2026-2027-va-cac-nam-tiep-theo-185260812151153867.htm"
+  },
+  {
+   "title": "Bộ Nội vụ thông báo lịch nghỉ Tết Nguyên đán Đinh Mùi 2027",
+   "publisher": "Kenh14",
+   "url": "https://kenh14.vn/bo-noi-vu-thong-bao-lich-nghi-tet-nguyen-dan-dinh-mui-2027-215261010094122211.chn"
+  },
+  {
+   "title": "Bỏ cộng điểm chứng chỉ IELTS: miếng bánh nghìn tỉ sẽ ra sao?",
+   "publisher": "Tiền Phong",
+   "url": "https://tienphong.vn/bo-cong-diem-chung-chi-ielts-mieng-banh-nghin-ti-se-ra-sao-post1879043.tpo"
+  },
+  {
+   "title": "Nhóm trò chuyện trên mạng phiền phức cho cả phụ huynh lẫn học sinh",
+   "publisher": "SGGP",
+   "url": "https://www.sggp.org.vn/nhom-tro-chuyen-tren-mang-phien-phuc-cho-ca-phu-huynh-lan-hoc-sinh-post713190.html"
+  },
+  {
+   "title": "Giáo viên người nước ngoài qua thời hoàng kim ở Việt Nam",
+   "publisher": "VnExpress",
+   "url": "https://vnexpress.net/giao-vien-nguoi-nuoc-ngoai-qua-thoi-hoang-kim-o-viet-nam-4766310.html"
+  }
+ ],
+ "related": [
+  "language-centre-jobs-in-ho-chi-minh-city",
+  "english-teaching-contracts-in-vietnam",
+  "english-teacher-salary-in-vietnam",
+  "the-teaching-year-in-vietnam",
+  "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+  "types-of-english-teaching-jobs-in-vietnam"
+ ],
+ "lastChecked": "2026-10-11"
+}
