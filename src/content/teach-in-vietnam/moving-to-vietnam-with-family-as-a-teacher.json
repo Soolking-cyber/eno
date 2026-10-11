@@ -1,0 +1,519 @@
+{
+ "slug": "moving-to-vietnam-with-family-as-a-teacher",
+ "title": "Teaching in Vietnam with a family: costs and schools (2026)",
+ "description": "Family rents by Saigon district from eno.vn's Rent Index, what one teacher's pay covers, school options, tax breaks for children and your partner's work permit.",
+ "h1": "Moving to Ho Chi Minh City with a family as a teacher: budget, schools, childcare and your partner's work",
+ "eyebrow": "Living in Saigon",
+ "intro": "You can teach in Vietnam with a family, but the job you take decides how comfortable it is. A full-time language-centre salary can cover the rent on a local-market two-bedroom flat in Ho Chi Minh City with money left for daily costs; school fees are the cost it is least likely to stretch to, so look for a school job whose package pays your children's tuition, or plan on a second income. Your partner needs their own work permit through their own Vietnamese employer before doing any paid work.",
+ "keyPoints": [
+  "Family homes, median asking rent a month (eno.vn Rent Index, 10 October 2026): two-bedroom flat {{vnd:13000000}} city-wide, {{vnd:15000000}} in District 7 and {{vnd:20000000}} in District 2 (Thao Dien); three-plus bedrooms {{vnd:23000000}} city-wide.",
+  "A full-time language-centre teacher takes home roughly {{vnd:30500000-44300000}} a month, so a three-bedroom flat in District 7 would eat more than half of a mid-range salary; a two-bedroom outside the expat hubs is what one centre salary comfortably carries.",
+  "We found no reliable published international-school fees, and none of the 2026 school ads we checked mention tuition for teachers' children, so ask. School fees an employer pays for your children (kindergarten to grade 12) are **tax-free** for you.",
+  "Each registered dependant child cuts your taxable income by {{vnd:6200000}} a month, but only while you are a tax resident; non-residents pay a flat 20% with no family deductions.",
+  "Your partner cannot work on your work permit. Working without one costs the worker a {{vnd:15000000-25000000}} fine and possible deportation (Decree 283/2026/ND-CP), and private tutoring for cash has no simple freelance route: it is paid work that needs a permit."
+ ],
+ "sections": [
+  {
+   "id": "can-one-salary-support-a-family",
+   "title": "Can one teacher's salary support a family in Ho Chi Minh City?",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "It depends on which of three kinds of job you take. They differ in pay, in benefits that matter to a family (housing, flights, children's tuition) and, just as important with children, in **when you work**. See [English teacher salary in Vietnam](/teach-in-vietnam/english-teacher-salary-in-vietnam) for the full pay picture."
+    },
+    {
+     "type": "table",
+     "caption": "Advertised pay and hours by type of teaching job, Ho Chi Minh City, in the currency each employer quotes (job ads and guides, 2025-2026)",
+     "headers": [
+      "Job type",
+      "Advertised pay",
+      "Family extras",
+      "Working hours"
+     ],
+     "rows": [
+      [
+       "Language centre",
+       "{{vnd:430000-560000}} an hour for most new teachers (July-October 2026 ads)",
+       "Sometimes a housing allowance (amount rarely stated)",
+       "Weekday evenings and all day at weekends"
+      ],
+      [
+       "Bilingual or private 'international programme' school",
+       "US$1,700-3,000 a month (September-October 2026 ads)",
+       "Varies; ask",
+       "Monday to Friday, daytime (Pathway School: 7:00-17:00)"
+      ],
+      [
+       "Premium international school (licensed teachers)",
+       "US$2,500-4,000+ a month",
+       "Usually housing support, annual flights and medical cover; ask whether your children's tuition is included",
+       "Monday to Friday, daytime"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Centre and school pay come from July–October 2026 job ads such as [Pathway School's](https://vietnamteachingjobs.com/jobs/view/expat-primary-teacher-pathway-school-district-2-hcmc-full-time); international-school figures come from 2026 recruitment guides. International-school housing support varies widely, roughly US$400-1,800 a month, with the top of that range the exception rather than the norm. International schools generally expect a home-country teaching licence and experience (SSIS, for example, asks for a master's, at least 2 years' experience and a licence); see [international school jobs in Vietnam](/teach-in-vietnam/international-school-jobs-in-vietnam)."
+    },
+    {
+     "type": "h3",
+     "text": "A worked example on a language-centre salary"
+    },
+    {
+     "type": "p",
+     "text": "Take 85 teaching hours at {{vnd:500000}}: {{vnd:42500000}} gross a month. On a 12-month contract, 9.5% social and health insurance ({{vnd:4037500}}) comes off first. As a tax resident with no dependants you pay about {{vnd:1800000}} in tax and take home about {{vnd:36700000}}. Register two children as dependants and taxable income falls by {{vnd:12400000}}, tax drops to about {{vnd:556000}} and take-home rises to about {{vnd:37900000}} (our calculation from the 2026 rules: [PIT Law 109/2025/QH15 summary](https://pbgdpl.cantho.gov.vn/tu-ngay-0172026-nhieu-diem-moi-cua-luat-thue-thu-nhap-ca-nhan-can-luu-y))."
+    },
+    {
+     "type": "p",
+     "text": "Against that {{vnd:37900000}}, a District 7 two-bedroom at the median {{vnd:15000000}} is about 40% of take-home, a Tan Binh two-bedroom at {{vnd:11000000}} about 29%, and a District 7 three-bedroom at {{vnd:24000000}} about 63%. A District 2 three-bedroom at {{vnd:48500000}} is more than the whole salary. International-school fees come on top of all this, which is why the package matters more than the hourly rate."
+    }
+   ]
+  },
+  {
+   "id": "what-a-family-home-costs",
+   "title": "What a family home costs, by district",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The [eno.vn HCMC Rent Index](/hcmc-rent-index) pools asking prices from live listings and groups them by the old district names that listings still use. Since July 2025 official addresses use new ward names instead: Thao Dien is in An Khanh ward, and the Phu My Hung core of District 7 is Tan Hung ward. These are asking rents, not signed leases, so expect to negotiate below them."
+    },
+    {
+     "type": "table",
+     "caption": "Median asking rent a month for family-sized homes, by legacy district (eno.vn HCMC Rent Index, snapshot 10 October 2026)",
+     "headers": [
+      "District",
+      "2-bedroom flat",
+      "3+ bedroom flat",
+      "House",
+      "Worth knowing"
+     ],
+     "rows": [
+      [
+       "City-wide",
+       "{{vnd:13000000}}",
+       "{{vnd:23000000}}",
+       "{{vnd:25000000}}",
+       "Middle half for 3+ bedrooms: {{vnd:15000000-37000000}}"
+      ],
+      [
+       "District 2 (Thao Dien, An Phu)",
+       "{{vnd:20000000}}",
+       "{{vnd:48500000}}",
+       "{{vnd:60000000}}",
+       "International-school cluster; Metro Line 1 stations"
+      ],
+      [
+       "District 7 (Phu My Hung)",
+       "{{vnd:15000000}}",
+       "{{vnd:24000000}}",
+       "{{vnd:50000000}}",
+       "International schools nearby; no metro"
+      ],
+      [
+       "Binh Thanh",
+       "{{vnd:15500000}}",
+       "{{vnd:33000000}}",
+       "{{vnd:28000000}}",
+       "Central; Metro Line 1 at Van Thanh and Tan Cang"
+      ],
+      [
+       "Phu Nhuan",
+       "{{vnd:16000000}}",
+       "{{vnd:21000000}}",
+       "{{vnd:23000000}}",
+       "Central, between District 1 and the airport"
+      ],
+      [
+       "Tan Binh",
+       "{{vnd:11000000}}",
+       "{{vnd:18000000}}",
+       "{{vnd:22000000}}",
+       "Cheaper, near the airport"
+      ],
+      [
+       "District 9 (Thu Duc)",
+       "{{vnd:9000000}}",
+       "{{vnd:12000000}}",
+       "{{vnd:22000000}}",
+       "Cheapest of the eastern areas; only 32 three-bedroom listings"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Crowd-sourced figures differ: [Numbeo](https://www.numbeo.com/cost-of-living/in/Ho-Chi-Minh-City) lists a three-bedroom at {{vnd:33000000}} in the centre and {{vnd:18800000}} outside it, and its contributors skew towards expat serviced flats. Use the Rent Index for a typical local-market flat and Numbeo's centre figure as a guide to serviced ones. Browse current family homes in [rentals](/c/rentals), and read [where to live in Ho Chi Minh City as a teacher](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher) to match a neighbourhood to your commute."
+    },
+    {
+     "type": "h3",
+     "text": "Move-in cash, power and water"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Deposit**: one month is the norm on a residential lease; two months is common for furnished flats and terms over a year. On a {{vnd:24000000}} three-bedroom with two months' deposit plus the first month, that is {{vnd:72000000}} before you move in. Breaking a 12-month lease early usually forfeits the deposit unless the contract has a break clause ([eno.vn renting guide](/renting-an-apartment-vietnam-foreigner), [deposits](/rental-deposit-vietnam)).",
+      "**Electricity**: air-conditioning in several bedrooms pushes a family into the top tiers. At the official tariff with 8% VAT a household pays about {{vnd:799000}} at 300 kWh, {{vnd:1160460}} at 400 kWh and about {{vnd:1530000}} at 500 kWh a month ([VTC News](https://vtcnews.vn/chi-tiet-bang-gia-dien-sinh-hoat-2026-cach-tinh-gia-dien-thang-6-2026-ar1021826.html)). Ask whether the landlord passes through the EVN bill or charges a flat rate per kWh, and get it in writing.",
+      "**Water**: about {{vnd:9206}} per m³ all-in within a quota of 4 m³ per person a month, but the quota depends on the residents registered on the account; unregistered occupants push usage into higher tiers ([SGGP](https://www.sggp.org.vn/don-gia-nuoc-sinh-hoat-ho-gia-dinh-tinh-theo-dinh-muc-post787873.html)). Your landlord's residence declaration for each of you is a tenancy matter covered in the [renting guide](/renting-an-apartment-vietnam-foreigner).",
+      "**Floods**: the city lists Nguyen Van Huong in Thao Dien, and Tran Xuan Soan, Huynh Tan Phat and Pham Huu Lau in old District 7, among roads that flood at high tide ([Tuoi Tre](https://news.tuoitre.vn/ho-chi-minh-city-lists-most-flood-prone-streets-including-one-in-former-thao-dien-103260626100336837.htm)). With small children, avoid ground-floor homes on those streets and visit at peak tide before signing."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "schools-for-your-children",
+   "title": "Schools for your children: international, bilingual or Vietnamese",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "International schools cluster in two areas. In An Khanh ward (old District 2: Thao Dien, An Phu) are [BIS HCMC](https://www.nordangliaeducation.com/bis-hcmc) and ISHCMC; in old District 7 are SSIS in Tan Hung ward ([SSIS](https://osticket.ssis.edu.vn/kb/faq.php?id=13)) and Canadian International School in Tan My. eno.vn's [school directory](/schools) lists international and bilingual schools among the Ho Chi Minh City employers it covers, built for teachers rating employers; most have few or no reviews yet."
+    },
+    {
+     "type": "table",
+     "caption": "School options for a foreign teacher's children in Ho Chi Minh City (official texts and school pages; fees not verified)",
+     "headers": [
+      "Option",
+      "What it is",
+      "Fees",
+      "Check"
+     ],
+     "rows": [
+      [
+       "International school",
+       "Foreign curriculum taught in English",
+       "Not published in a form we could verify; get the full schedule in writing",
+       "Whether your own employer's package pays tuition for your children"
+      ],
+      [
+       "Bilingual or 'international programme' school",
+       "Vietnamese programme with subjects taught in English",
+       "Ask each school",
+       "How much of the week is in English"
+      ],
+      [
+       "Vietnamese public school",
+       "National curriculum, taught in Vietnamese",
+       "Tuition waived for Vietnamese citizens since 2025-2026; foreign children are not named in the law",
+       "Ask the school whether the waiver applies to your child"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The public-school waiver comes from [National Assembly Resolution 217/2025/QH15](https://hoatieu.vn/phap-luat/nghi-quyet-217-2025-qh15-ve-mien-ho-tro-hoc-phi-trong-he-thong-giao-duc-pho-thong-244290), which covers Vietnamese citizens and people of Vietnamese origin with undetermined nationality. Vietnamese pupils at private schools get a subsidy instead of a waiver."
+    },
+    {
+     "type": "h3",
+     "text": "Teacher discounts and tuition in your package"
+    },
+    {
+     "type": "p",
+     "text": "None of the 2026 school ads we checked mention tuition for teachers' children or a staff discount, so ask before you accept and get the answer into the contract: which children, which year groups, full or partial, and what happens if you leave mid-year. If the school pays the fees, the benefit is not taxed: [Decree 253/2026/ND-CP](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf) Art. 8 exempts school fees an employer pays for a foreign employee's children studying in Vietnam, kindergarten to grade 12."
+    },
+    {
+     "type": "p",
+     "text": "Check a school's stability as you would an employer's. At American International School Vietnam in Nha Be, teachers struck over unpaid salaries and insurance in March 2024 and classes for its more than 1,200 students were suspended ([Tuoi Tre News](https://news.tuoitre.vn/ho-chi-minh-city-education-department-vows-support-for-students-amid-intl-school-teacher-strike-10378893.htm)); the city dissolved the school in January 2026 ([Tuoi Tre](https://tuoitre.vn/nld/american-international-school-officially-dissolved-196260114102410854.htm))."
+    }
+   ]
+  },
+  {
+   "id": "childcare-and-help-at-home",
+   "title": "Kindergartens, childcare and help at home",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Kindergartens are plentiful: at the city's 2024-25 review, 2,093 of its 5,593 kindergartens offered English familiarisation ([Dai Bieu Nhan Dan](https://daibieunhandan.vn/tp-ho-chi-minh-nang-cao-chat-luong-nhan-su-tai-cac-trung-tam-ngoai-ngu-tin-hoc-10388655.html)). At foreign-invested preschools the law sets staffing of 5 children per teacher at nursery age and 10-12 at kindergarten age, and preschool teachers need at least a college-level preschool-teaching qualification ([Decree 86/2018/ND-CP](https://vcci.com.vn/legal-document/nghi-dinh-862018nd-cp-quy-dinh-ve-hop-tac-dau-tu-cua-nuoc-ngoai-trong-linh-vuc-giao-duc), Art. 38). Ask a kindergarten for its ratio and its teachers' qualifications."
+    },
+    {
+     "type": "p",
+     "text": "We found no reliable published rates for nannies or home helpers in Ho Chi Minh City, so we do not quote one. Ask parents at your children's school what they pay, and agree hours, duties, days off and pay in writing before the first day."
+    },
+    {
+     "type": "p",
+     "text": "Plan childcare around your timetable. A language centre's peak is weekday evenings and weekends, exactly when school and kindergarten are closed, so a centre teacher with young children needs evening and weekend cover. School jobs run Monday to Friday in the daytime, which lines up with your children's school day. See [English teacher workload and schedules](/teach-in-vietnam/english-teacher-workload-and-schedules-in-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "your-partners-work",
+   "title": "Your partner's work: they need their own work permit",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "A work permit is tied to one employer and one job; changing employer, or even position with the same employer, needs a new permit ([Decree 219/2025/ND-CP](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html), Art. 20). Nothing in it covers a partner. Before your partner does any paid work for a Vietnamese employer, that employer must normally obtain a work permit for them under Decree 219/2025/ND-CP, in force since 7 August 2025."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**If your partner also teaches**, they face the same test as you: a bachelor's degree or higher plus at least 2 years of relevant experience, usually proved with a letter from a past employer abroad; with less than 2 years, ask the employer in writing which proof it will file. Their employer files 60 to 10 days before the start date and pays the city's {{vnd:600000}} fee; the decree allows up to 10 working days for a decision, and Ho Chi Minh City's Department of Home Affairs publishes 5. See [the work permit guide](/teach-in-vietnam/vietnam-work-permit-for-english-teachers).",
+      "**Private tutoring for cash** is paid work, so it needs a work permit tied to an employer. The simplest sole-trader form, a household business, is reserved for Vietnamese citizens, so there is no simple freelance route for a foreigner.",
+      "**Working online for a company abroad** while living in Vietnam has no permit category and is a legal grey area; teaching online for a Vietnamese company or platform needs a work permit ([Luat Viet An](https://luatvietan.vn/nguoi-nuoc-ngoai-lam-viec-online-co-can-giay-phep-lao-dong-khong.html)). Count days: at 183 or more in Vietnam your partner is tax-resident and taxed on worldwide income, with no Vietnamese employer withholding it. See [private tutoring and online teaching](/teach-in-vietnam/private-tutoring-and-online-teaching-in-vietnam)."
+     ]
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "The family mistake that costs most",
+     "text": "A partner picking up cash lessons or a few hours at a centre 'until the paperwork comes through'. Since 10 September 2026 the worker is fined {{vnd:15000000-25000000}} and may be deported ([Decree 283/2026/ND-CP](https://suckhoedoisong.vn/tu-10-9-2026-lao-dong-nuoc-ngoai-se-bi-phat-neu-khong-co-giay-phep-lao-dong-169260824224738.htm)), which can end the whole family's move. No paid work until the permit is issued."
+    }
+   ]
+  },
+  {
+   "id": "tax-breaks-for-a-family",
+   "title": "Tax breaks for a family",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Under PIT Law 109/2025/QH15, a resident's 2026 salary is taxed at 5/10/20/30/35% after a personal deduction of {{vnd:15500000}} a month and {{vnd:6200000}} for each registered dependant ([EY on Resolution 110/2025/UBTVQH15](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/resolution-110-2025-ubtvqh15-regarding-the-adjustment-of-family-relief-for-personal-income-tax)). You are resident with 183 or more days in Vietnam in a calendar year or in the 12 months from arrival, or with rental contracts totalling 183 days or more in the tax year. Non-residents pay a flat 20% with no family deductions, so in your first months confirm your status with the employer. Details are in [personal income tax for teachers](/teach-in-vietnam/personal-income-tax-for-teachers-in-vietnam)."
+    },
+    {
+     "type": "table",
+     "caption": "Family-related tax rules for a resident teacher in 2026 (Decree 253/2026/ND-CP; Resolution 110/2025/UBTVQH15)",
+     "headers": [
+      "Rule",
+      "Amount",
+      "The catch"
+     ],
+     "rows": [
+      [
+       "Dependant deduction",
+       "{{vnd:6200000}} a month each",
+       "Children under 18 qualify; a working-age partner only if unable to work (81%+ loss of capacity) and earning no more than {{vnd:3000000}} a month"
+      ],
+      [
+       "Education fees in Vietnam",
+       "Up to {{vnd:24000000}} a year",
+       "For you and your dependants; invoices in your or the dependant's name; needs self-finalisation"
+      ],
+      [
+       "Medical costs in Vietnam",
+       "Up to {{vnd:23000000}} a year",
+       "Within the health-insurance list, not paid by insurance or the employer; needs self-finalisation"
+      ],
+      [
+       "School fees paid by the employer",
+       "Tax-free",
+       "Kindergarten to grade 12 in Vietnam; cannot also be claimed as an education deduction"
+      ],
+      [
+       "Employer-provided housing",
+       "Taxed only up to 15% of other taxable income",
+       "A cash housing allowance is taxed in full as salary; ask the school to pay the landlord directly"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Register dependants with your employer, with documents, before 31 December of the tax year ([Vialto Partners](https://vialtopartners.com/regional-alerts/vietnam-employment-tax-decree-no-253-2026-nd-cp-and-circular-no-87-2026-tt-btc-guiding-the-new-personal-income-tax-pit-law)). Foreign papers such as birth certificates need an apostille if your country is a party to the Apostille Convention, which applies to Vietnam from 11 September 2026 ([Decree 293/2026/ND-CP](https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/7/293_2026_nd-cp_23072026_1-signed.signed.pdf)), or consular legalisation if not; Germany, Austria and Czechia objected, and Thailand joins only on 28 February 2027, so their documents still need legalisation ([HCCH status table](https://www.hcch.net/en/instruments/conventions/status-table/?cid=41)). Translations need a certified translator's signature. The housing cap is in [Decree 253/2026/ND-CP](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf) Art. 8."
+    }
+   ]
+  },
+  {
+   "id": "health-and-safety-with-children",
+   "title": "Health, safety and daily life with children",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "On a labour contract of 12 months or more you are enrolled in national health insurance, 4.5% of salary split 3% employer and 1.5% you ([Tuoi Tre](https://news.tuoitre.vn/foreign-workers-in-vietnam-required-to-join-national-health-insurance-10326041315262424.htm)). That scheme is for you as the employee: ask in writing whether the employer's private policy covers your partner and children, and price family cover before you fly. See [healthcare and health insurance in Ho Chi Minh City](/teach-in-vietnam/healthcare-and-health-insurance-in-ho-chi-minh-city)."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Clinics**: Family Medical Practice's 24/7 centre at 95 Thao Dien (An Khanh ward) lists paediatrics and vaccinations; FV Hospital (Tan My ward, District 7) and Vinmec Central Park (Thanh My Tay ward, Binh Thanh) run 24-hour emergency care ([Australian government hospital list, July 2026](https://hcmc.vietnam.embassy.gov.au/files/hchi/list_of_hospitals_jul_2026.pdf)).",
+      "**Vaccines**: the [CDC](https://wwwnc.cdc.gov/travel/destinations/traveler/none/vietnam) recommends routine vaccines plus hepatitis A and B and typhoid, Japanese encephalitis for anyone moving there, and rabies pre-exposure based on risk. A dengue vaccine, Qdenga, is licensed for ages 4 and over, two doses 3 months apart ([Tuoi Tre](https://news.tuoitre.vn/vietnam-launches-vaccination-against-dengue-fever-nationwide-for-first-time-10382064.htm)); ask a travel clinic.",
+      "**Dengue and rabies**: dengue peaks in the rainy season; for a fever give paracetamol only, never ibuprofen or aspirin, and get tested. After any dog or cat bite, wash the wound with soap under running water for at least 15 minutes and get same-day care for vaccination ([VnExpress](https://vnexpress.net/vi-sao-so-ca-dai-tang-5092402.html)).",
+      "**Medicines**: without an import licence, luggage may carry at most 30 days of ordinary prescription medicine; check stimulant ADHD medicines with the Drug Administration or a Vietnamese embassy before travel.",
+      "**On the road**: the helmet rule covers passengers as well as riders. Since 15 August 2026 carrying a child under 10 and under 1.35 m in a car without a suitable restraint draws a warning ([Decree 238/2026/ND-CP](https://ketoananpha.vn/nghi-dinh-238-2026-nd-cp)). Children under 6 ride Metro Line 1 free."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "questions-to-ask-before-you-accept",
+   "title": "Questions to ask before you accept a job",
+   "blocks": [
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Is the pay gross or net, and what is guaranteed?",
+       "text": "Ask for minimum hours or a monthly figure in writing, and whether the contract is 12 months or more, which brings social and health insurance."
+      },
+      {
+       "title": "What does the package give a family?",
+       "text": "Housing (provided or cash), flights for whom, medical cover for dependants, and tuition for your children: which school, which year groups, full or partial."
+      },
+      {
+       "title": "When and where will you teach?",
+       "text": "Evenings and weekends, or school hours? Which campuses? A job advertised as Ho Chi Minh City may be in former Binh Duong or Ba Ria-Vung Tau, far from the international schools."
+      },
+      {
+       "title": "What does the employer arrange for paperwork?",
+       "text": "Your employer arranges the rest of your paperwork once your work permit is issued; ask them exactly what they cover and what it costs."
+      },
+      {
+       "title": "Will they register your dependants for tax?",
+       "text": "Confirm they will apply the {{vnd:6200000}} monthly deduction for each child, and which documents they need from you."
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Do international schools give teachers' children free places?",
+   "a": "None of the 2026 school ads we checked mention tuition for teachers' children or a staff discount, so ask and get the answer written into the contract. If the school pays the fees, that benefit is tax-free for you."
+  },
+  {
+   "q": "Can my children go to a Vietnamese public school?",
+   "a": "Public schools teach the national curriculum in Vietnamese. The 2025 tuition waiver names Vietnamese citizens, not foreign children, so ask the school directly what it charges and whether it can take your child."
+  },
+  {
+   "q": "When should a family plan the move?",
+   "a": "Many school jobs start in August (Ho Chi Minh City's public schools bring pupils back from 17 to 24 August), so apply months ahead. Avoid moving over Tet, which falls on 6 February 2027, when offices, landlords and many services close."
+  },
+  {
+   "q": "Can my partner be counted as a dependant for tax?",
+   "a": "Only if they are of working age and unable to work (81% or more loss of working capacity) and have little or no income, or are past working age and meet the income test. A healthy partner who is not working does not qualify."
+  },
+  {
+   "q": "Which area is best for a family?",
+   "a": "To be near an international school, look at Thao Dien and An Phu (old District 2), where three-bedroom rents are the city's highest, or Phu My Hung (old District 7), where the median three-bedroom rent is close to the city-wide figure. Tan Binh and Phu Nhuan are cheaper still for three-bedroom flats and central for a language-centre job."
+  }
+ ],
+ "sources": [
+  {
+   "title": "HCMC Rent Index",
+   "publisher": "eno.vn",
+   "url": "https://eno.vn/hcmc-rent-index"
+  },
+  {
+   "title": "Decree 219/2025/ND-CP on foreign workers in Vietnam",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html"
+  },
+  {
+   "title": "From 10 September 2026 foreign workers without a work permit will be fined (Decree 283/2026)",
+   "publisher": "Sức khỏe & Đời sống",
+   "url": "https://suckhoedoisong.vn/tu-10-9-2026-lao-dong-nuoc-ngoai-se-bi-phat-neu-khong-co-giay-phep-lao-dong-169260824224738.htm"
+  },
+  {
+   "title": "Decree 253/2026/ND-CP guiding the Personal Income Tax Law",
+   "publisher": "Official Gazette (Công báo), Government of Vietnam",
+   "url": "https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf"
+  },
+  {
+   "title": "Resolution 110/2025/UBTVQH15 on the adjustment of family relief for personal income tax",
+   "publisher": "EY Vietnam",
+   "url": "https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/resolution-110-2025-ubtvqh15-regarding-the-adjustment-of-family-relief-for-personal-income-tax"
+  },
+  {
+   "title": "Vietnam employment tax: Decree 253/2026/ND-CP and Circular 87/2026/TT-BTC",
+   "publisher": "Vialto Partners",
+   "url": "https://vialtopartners.com/regional-alerts/vietnam-employment-tax-decree-no-253-2026-nd-cp-and-circular-no-87-2026-tt-btc-guiding-the-new-personal-income-tax-pit-law"
+  },
+  {
+   "title": "New points of the Personal Income Tax Law from 1 July 2026",
+   "publisher": "Cần Thơ legal information portal",
+   "url": "https://pbgdpl.cantho.gov.vn/tu-ngay-0172026-nhieu-diem-moi-cua-luat-thue-thu-nhap-ca-nhan-can-luu-y"
+  },
+  {
+   "title": "Resolution 217/2025/QH15 on tuition exemption and support",
+   "publisher": "Hoatieu.vn",
+   "url": "https://hoatieu.vn/phap-luat/nghi-quyet-217-2025-qh15-ve-mien-ho-tro-hoc-phi-trong-he-thong-giao-duc-pho-thong-244290"
+  },
+  {
+   "title": "Decree 86/2018/ND-CP on foreign investment in education",
+   "publisher": "VCCI",
+   "url": "https://vcci.com.vn/legal-document/nghi-dinh-862018nd-cp-quy-dinh-ve-hop-tac-dau-tu-cua-nuoc-ngoai-trong-linh-vuc-giao-duc"
+  },
+  {
+   "title": "Decree 293/2026/ND-CP implementing the Apostille Convention",
+   "publisher": "Government of Vietnam",
+   "url": "https://datafiles.chinhphu.vn/cpp/files/vbpq/2026/7/293_2026_nd-cp_23072026_1-signed.signed.pdf"
+  },
+  {
+   "title": "Household water prices by quota",
+   "publisher": "Sài Gòn Giải Phóng",
+   "url": "https://www.sggp.org.vn/don-gia-nuoc-sinh-hoat-ho-gia-dinh-tinh-theo-dinh-muc-post787873.html"
+  },
+  {
+   "title": "Ho Chi Minh City raises the quality of staff at foreign-language and IT centres",
+   "publisher": "Đại biểu Nhân dân",
+   "url": "https://daibieunhandan.vn/tp-ho-chi-minh-nang-cao-chat-luong-nhan-su-tai-cac-trung-tam-ngoai-ngu-tin-hoc-10388655.html"
+  },
+  {
+   "title": "Apostille Convention status table",
+   "publisher": "HCCH",
+   "url": "https://www.hcch.net/en/instruments/conventions/status-table/?cid=41"
+  },
+  {
+   "title": "Do foreigners working online need a work permit?",
+   "publisher": "Luật Việt An",
+   "url": "https://luatvietan.vn/nguoi-nuoc-ngoai-lam-viec-online-co-can-giay-phep-lao-dong-khong.html"
+  },
+  {
+   "title": "Foreign workers in Vietnam required to join national health insurance",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/foreign-workers-in-vietnam-required-to-join-national-health-insurance-10326041315262424.htm"
+  },
+  {
+   "title": "List of hospitals and clinics in Ho Chi Minh City (July 2026)",
+   "publisher": "Australian Consulate-General, Ho Chi Minh City",
+   "url": "https://hcmc.vietnam.embassy.gov.au/files/hchi/list_of_hospitals_jul_2026.pdf"
+  },
+  {
+   "title": "Vietnam: traveller view",
+   "publisher": "US Centers for Disease Control and Prevention",
+   "url": "https://wwwnc.cdc.gov/travel/destinations/traveler/none/vietnam"
+  },
+  {
+   "title": "Vietnam launches vaccination against dengue fever nationwide",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/vietnam-launches-vaccination-against-dengue-fever-nationwide-for-first-time-10382064.htm"
+  },
+  {
+   "title": "Why rabies cases are rising",
+   "publisher": "VnExpress",
+   "url": "https://vnexpress.net/vi-sao-so-ca-dai-tang-5092402.html"
+  },
+  {
+   "title": "Decree 238/2026/ND-CP amending Decree 168/2024",
+   "publisher": "Kế toán Anpha",
+   "url": "https://ketoananpha.vn/nghi-dinh-238-2026-nd-cp"
+  },
+  {
+   "title": "American International School officially dissolved",
+   "publisher": "Tuoi Tre",
+   "url": "https://tuoitre.vn/nld/american-international-school-officially-dissolved-196260114102410854.htm"
+  },
+  {
+   "title": "Ho Chi Minh City lists most flood-prone streets",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/ho-chi-minh-city-lists-most-flood-prone-streets-including-one-in-former-thao-dien-103260626100336837.htm"
+  },
+  {
+   "title": "2026 household electricity price table and bill calculation",
+   "publisher": "VTC News",
+   "url": "https://vtcnews.vn/chi-tiet-bang-gia-dien-sinh-hoat-2026-cach-tinh-gia-dien-thang-6-2026-ar1021826.html"
+  },
+  {
+   "title": "Expat primary teacher, Pathway School, District 2",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/expat-primary-teacher-pathway-school-district-2-hcmc-full-time"
+  },
+  {
+   "title": "Cost of living in Ho Chi Minh City",
+   "publisher": "Numbeo",
+   "url": "https://www.numbeo.com/cost-of-living/in/Ho-Chi-Minh-City"
+  }
+ ],
+ "related": [
+  "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+  "cost-of-living-in-ho-chi-minh-city-for-teachers",
+  "international-school-jobs-in-vietnam",
+  "personal-income-tax-for-teachers-in-vietnam",
+  "healthcare-and-health-insurance-in-ho-chi-minh-city",
+  "vietnam-work-permit-for-english-teachers"
+ ],
+ "lastChecked": "2026-10-11"
+}

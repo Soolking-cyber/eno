@@ -1,0 +1,466 @@
+{
+ "slug": "teaching-ielts-in-vietnam",
+ "title": "IELTS Teacher Jobs in Vietnam: Pay and Demand (2026)",
+ "description": "Who sits IELTS in Vietnam, what employers ask of IELTS teachers, what 2026 pay data shows, where candidates lose marks, and the 2027 bonus-point risk.",
+ "h1": "Teaching IELTS in Vietnam: demand, requirements, pay and what your students need",
+ "eyebrow": "IELTS teaching",
+ "intro": "IELTS teaching jobs in Vietnam are real, and most of the students are teenagers and young adults: in figures reported in 2023, 62% of Vietnamese test-takers were aged 16 to 22, chasing university bonus points and exam exemptions. Employers want the usual degree and TEFL or CELTA (non-native speakers also need C1-level proof), and no 2026 ad we could verify pays an IELTS premium. The risk to plan around is a September 2026 draft that would end IELTS bonus points in university admissions from 2027.",
+ "keyPoints": [
+  "**Who you teach:** an estimated 300,000 IELTS tests were taken in Vietnam in 2025, and in figures reported in 2023, 62% of candidates were aged 16–22 and 30% were 16–18 ([Tiền Phong](https://tienphong.vn/bo-cong-diem-chung-chi-ielts-mieng-banh-nghin-ti-se-ra-sao-post1879043.tpo); [Viet Nam News](https://vietnamnews.vn/society/1638637/vietnamese-students-rank-23rd-globally-in-ielts-exam-annual-report.html)).",
+  "**Pay:** no 2026 ad we could verify pays an IELTS premium. Plan on the ordinary centre range: {{vnd:390000-600000}} an hour in July–October 2026 ads, with most new-teacher offers at {{vnd:430000-560000}}.",
+  "**The weak skill is Speaking:** Vietnamese candidates averaged 6.2 overall but 5.8 in Speaking (2022 data). Dropped ending sounds, sound substitutions such as /θ/ to /s/ or /t/, and English stress timing are the documented pronunciation problems to work on.",
+  "**The 2027 risk:** a Ministry of Education draft announced on 17 September 2026 would end university bonus points for IELTS from 2027, though converting IELTS into the English subject score would still be allowed. It was still a draft on 10 October 2026.",
+  "**Examiner route:** IELTS examiners need a degree, a TEFL/TESOL qualification and 3–5 years' teaching. They are recruited by the test centres (the British Council and IDP in Vietnam), and each centre sets its own pay.",
+  "**The test is computer-only** in Vietnam since 30 March 2025, apart from special arrangements and limited sessions for schools and universities, so build typing and on-screen reading into every course."
+ ],
+ "sections": [
+  {
+   "id": "who-studies-ielts-in-vietnam",
+   "title": "Who studies IELTS in Vietnam, and why",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "IELTS demand in Vietnam is large and young. An estimated 300,000 IELTS tests were taken in the country in 2025, according to the Vietnam Association of Universities and Colleges ([Tiền Phong](https://tienphong.vn/bo-cong-diem-chung-chi-ielts-mieng-banh-nghin-ti-se-ra-sao-post1879043.tpo)). In figures reported in 2023, 62% of test-takers were aged 16–22 and 30% were 16–18, a share that grew about twentyfold from roughly 1.5% in 2018 ([Viet Nam News](https://vietnamnews.vn/society/1638637/vietnamese-students-rank-23rd-globally-in-ielts-exam-annual-report.html))."
+    },
+    {
+     "type": "p",
+     "text": "Two rules created that demand. A certificate such as **IELTS 4.0 or above** exempts a student from the foreign-language paper of the national graduation exam: 7,952 of 1,223,776 candidates were exempted that way in 2026 ([Tuổi Trẻ](https://tuoitre.vn/plo/hon-12-trieu-thi-sinh-lam-thu-tuc-du-thi-tot-nghiep-thpt-nam-2026-post911951.html)). The bigger driver is **university admission**: in 2026 more than 37,300 applicants used English certificates for bonus points, over 35,900 of them IELTS, at more than 100 universities ([VnExpress](https://vnexpress.net/khi-96-thi-sinh-chon-ielts-5125959.html))."
+    },
+    {
+     "type": "table",
+     "caption": "What drives IELTS demand in Vietnam (press reports of official figures and estimates, 2025–2026)",
+     "headers": [
+      "Driver",
+      "How IELTS is used",
+      "Latest figure"
+     ],
+     "rows": [
+      [
+       "University admission",
+       "Bonus points or conversion into a subject score; the same IELTS 6.0 maps to 26 different bonus levels across universities",
+       "37,300+ applicants used English certificates in 2026, 35,900+ of them IELTS"
+      ],
+      [
+       "Graduation exam",
+       "IELTS 4.0+ (one of 22 accepted certificates) exempts the foreign-language paper",
+       "7,952 candidates exempted in 2026 (0.65%)"
+      ],
+      [
+       "Test volume",
+       "Computer-delivered tests run by the British Council and IDP",
+       "An estimated 300,000 tests in 2025"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "In the classroom that means your IELTS group is often 15- to 18-year-olds whose parents are paying and closely involved, not adults who chose the course. IELTS-funded research on 'IELTS juniors' in Vietnam surveyed 198 learners aged 14–18, 106 parents and 35 course providers. It found that providers design their courses with near-total autonomy and that families feel financial pressure from IELTS costs ([IELTS research report](https://ielts.org/researchers/our-research/research-reports/ielts-juniors-in-vietnam-perceptions-of-learners-parents-and-ielts-preparation-course-providers))."
+    },
+    {
+     "type": "p",
+     "text": "In Ho Chi Minh City centres, adult and IELTS classes commonly run on weekday evenings. One IELTS centre manager says students look for classes in July and August, during the summer holiday, and fewer enrol from September ([Tiền Phong](https://tienphong.vn/bo-cong-diem-chung-chi-ielts-mieng-banh-nghin-ti-se-ra-sao-post1879043.tpo))."
+    }
+   ]
+  },
+  {
+   "id": "will-ielts-demand-last",
+   "title": "Will IELTS demand last? The 2027 bonus-point draft",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "On the evening of 17 September 2026 the Ministry of Education and Training announced that it plans to stop using foreign-language certificates for **bonus points** in university admissions from 2027 ([Tiền Phong](https://tienphong.vn/bo-cong-diem-chung-chi-ielts-mieng-banh-nghin-ti-se-ra-sao-post1879043.tpo)). The ministry considers there is not yet a scientific basis for a single national IELTS conversion scale, and the draft would still let universities convert IELTS into the foreign-language subject score ([VnExpress](https://vnexpress.net/khi-96-thi-sinh-chon-ielts-5125959.html)). As of 10 October 2026 it is a draft, not a final rule, and centre managers quoted in the press expect enrolment to fall in the long term, especially among students who need IELTS only for admission."
+    },
+    {
+     "type": "p",
+     "text": "The IELTS segment was already under pressure. In November 2024 one District 1 centre reported IELTS enrolment more than 30% below pre-pandemic levels, with growing competition from online tutors ([Tuổi Trẻ News](https://news.tuoitre.vn/news/education/20241101/shift-to-online-learning-presents-major-challenge-for-traditional-ielts-centers-in-vietnam/82681.html)). IDP closed ACET, its academic English and IELTS centre in Vietnam, on 31 December 2024 ([IDP](https://www.idp.com/vietnam/blog/official-acet-announcement/?lang=en)); an IDP representative cited falling student numbers and rising operating costs ([Tuổi Trẻ News](https://news.tuoitre.vn/news/education/20241101/shift-to-online-learning-presents-major-challenge-for-traditional-ielts-centers-in-vietnam/82681.html)). Older guides still list ACET as an employer."
+    },
+    {
+     "type": "p",
+     "text": "So treat IELTS as a **strong specialism, not a whole career**. Teachers who can also take general English for teenagers, Cambridge Young Learners classes or preparation for the 90-minute English paper of Ho Chi Minh City's Grade-10 entrance exam keep their hours if IELTS classes shrink ([SGGP](https://www.sggp.org.vn/tphcm-cong-bo-chi-tiet-lich-thi-tuyen-sinh-lop-10-nam-hoc-2026-2027-post848417.html)). [Working at a language centre](/teach-in-vietnam/language-centre-jobs-in-ho-chi-minh-city) covers the rest of a typical centre timetable."
+    }
+   ]
+  },
+  {
+   "id": "what-ielts-employers-ask-for",
+   "title": "What employers ask of an IELTS teacher",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The legal floor is the same as for any centre job. Ministry of Education [Circular 21/2018](https://luatvietnam.vn/giao-duc/thong-tu-21-2018-tt-bgddt-quy-che-to-chuc-hoat-dong-cua-trung-tam-ngoai-ngu-tin-hoc-166595-d1.html) asks a native-speaker teacher at a language centre for a college degree or higher plus a 'suitable' teaching certificate (Art. 18(5)). It sets no minimum course length; the [120-hour TEFL](/teach-in-vietnam/tefl-tesol-and-celta-for-vietnam) is an employer convention, and a TEFL or CELTA does not replace the degree or the experience in the work-permit test."
+    },
+    {
+     "type": "p",
+     "text": "The work permit has its own test under [Decree 219/2025/ND-CP](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html), in force since 7 August 2025. Teachers are filed as 'experts', which means a **bachelor's degree or higher plus at least 2 years of relevant work experience** (Art. 3(3)), usually proved by a letter from a past employer abroad. If you have less than 2 years, ask the employer which proof they will file for you and get the answer in writing before you travel."
+    },
+    {
+     "type": "p",
+     "text": "Non-native speakers need one more piece. Art. 18(6) of Circular 21/2018 asks for Level 5 (about CEFR C1) proof plus a teaching certificate. A degree in English replaces the Level 5 proof (you still need the certificate), and a degree in English-language teaching covers both. The rule names no test; IELTS 7.0 or above is the common working benchmark, and one Vietnamese university's equivalence list puts C1 at IELTS 7.0–8.0 ([HUST](https://www.hust.edu.vn/uploads/sys/su-kien-noi-bat/2023_08/qd7806.2023-ban-hanh-danh-muc-quy-doi-tuong-duong-cac-chung-chi-tieng-anh.pdf)). For exam teaching the bar can sit higher: RMIT Vietnam asks non-native educators for IELTS Academic 8.0 with no band below 7.5 ([RMIT](https://www.rmit.edu.au/content/dam/rmit/au/en/careers/position-descriptions/vietnam/JD-Educator%20July%202026.pdf))."
+    },
+    {
+     "type": "table",
+     "caption": "What IELTS teaching employers ask for, and where each requirement comes from (as of October 2026)",
+     "headers": [
+      "Requirement",
+      "Where it comes from",
+      "Law or preference"
+     ],
+     "rows": [
+      [
+       "College degree or higher (centre rule); bachelor's or higher (work permit)",
+       "Circular 21/2018 Art. 18; Decree 219/2025 Art. 3(3)",
+       "Law"
+      ],
+      [
+       "At least 2 years' relevant experience",
+       "Decree 219/2025 Art. 3(3), the 'expert' category",
+       "Law; how the city treats teachers with less is not published"
+      ],
+      [
+       "A suitable teaching certificate (TEFL, TESOL, CELTA)",
+       "Circular 21/2018 Art. 18",
+       "Law; the 120-hour length is an employer convention"
+      ],
+      [
+       "Level 5 (about C1) proof for non-native speakers",
+       "Circular 21/2018 Art. 18(6)",
+       "Law; which IELTS score counts is the employer's call"
+      ],
+      [
+       "CELTA or equivalent plus 3 years' post-CELTA experience",
+       "RMIT Vietnam's 2026 educator role",
+       "Employer preference"
+      ],
+      [
+       "IELTS teaching and examining experience",
+       "RMIT Vietnam's 2026 educator role (listed as desirable)",
+       "Employer preference; varies by employer"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Demo lessons are common in Ho Chi Minh City hiring. Ask in advance whether the centre wants an IELTS lesson, for which part of the test, who will watch and how long it should run. The [CV and demo lesson guide](/teach-in-vietnam/english-teacher-cv-and-demo-lesson-in-vietnam) covers the format."
+    }
+   ]
+  },
+  {
+   "id": "ielts-teacher-salary",
+   "title": "What IELTS teaching pays in Ho Chi Minh City",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "There is no reliable evidence of an IELTS pay premium. In July–October 2026 job ads, Ho Chi Minh City centres offered foreign teachers **{{vnd:390000-600000}} an hour**, with most new-teacher offers at {{vnd:430000-560000}} ([Vietnam Teaching Jobs](https://vietnamteachingjobs.com/city/teaching-english-in-ho-chi-minh)). The three IELTS-centre ads in our research could not be re-checked, and one dates from about 2024, so we do not quote them."
+    },
+    {
+     "type": "p",
+     "text": "Qualifications open doors more than they raise rates. No 2025–2026 Ho Chi Minh City ad publishes a pay premium for CELTA, but the best-paying employers require it or strongly prefer it, among them RMIT and Wall Street English ([Wall Street English ad](https://vietnamteachingjobs.com/jobs/view/ho-chi-minh-city-part-time-native-english-teachers-2)). Tax, social insurance and take-home pay are in [English teacher salary in Vietnam](/teach-in-vietnam/english-teacher-salary-in-vietnam)."
+    },
+    {
+     "type": "table",
+     "caption": "IELTS-related work and what is known about the pay (job ads and official pages, as of October 2026)",
+     "headers": [
+      "Work",
+      "What is known",
+      "Source"
+     ],
+     "rows": [
+      [
+       "IELTS classes at a chain or independent centre",
+       "Paid at the centre's hourly rate: {{vnd:390000-600000}} an hour in 2026 ads",
+       "July–October 2026 job ads"
+      ],
+      [
+       "IELTS-specialist centres",
+       "No verified 2026 figure; get the rate, guaranteed hours and pay date in writing",
+       "Our research"
+      ],
+      [
+       "University English programmes (e.g. RMIT)",
+       "Paid by the hour; no public 2025–2026 rate",
+       "RMIT 2026 role description"
+      ],
+      [
+       "IELTS examining",
+       "Each test centre sets its own pay and hours; no official rate for Vietnam",
+       "ielts.org"
+      ],
+      [
+       "Private IELTS tutoring",
+       "Must be covered by a work permit; published rates are unverified",
+       "Decree 219/2025; Decree 283/2026"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Ask four questions about any IELTS offer: is the rate gross or net; is it per 60-minute hour or per shorter period; are preparation and marking of Writing tasks paid; and is it paid in đồng or dollars, at which exchange rate. Most 2026 ads do not say. Hourly pay usually covers contact time only, so unpaid preparation and marking lower your real hourly rate."
+    },
+    {
+     "type": "p",
+     "text": "Private IELTS tutoring is where many teachers hope to earn more, and it is legally the riskiest. Foreigners cannot register a household business ([LuatVietnam](https://luatvietnam.vn/doanh-nghiep/nguoi-nuoc-ngoai-co-duoc-thanh-lap-ho-kinh-doanh-561-31579-article.html)). Paid teaching without a work permit is unauthorised work: since 10 September 2026, Decree 283/2026/ND-CP fines the worker **{{vnd:15000000-25000000}}** and the worker may be deported ([Tuổi Trẻ News](https://news.tuoitre.vn/foreign-workers-in-vietnam-what-to-know-as-new-penalty-rules-take-effect-september-10-103260824152235374.htm)). Read [private tutoring and online teaching](/teach-in-vietnam/private-tutoring-and-online-teaching-in-vietnam) before you take on students."
+    }
+   ]
+  },
+  {
+   "id": "what-vietnamese-candidates-need",
+   "title": "What to teach: where Vietnamese candidates lose marks",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The published data points at **Speaking**. Vietnamese candidates averaged 6.2 overall in 2022, 23rd of 40 countries, and Speaking was the weakest skill at 5.8 ([Viet Nam News](https://vietnamnews.vn/society/1638637/vietnamese-students-rank-23rd-globally-in-ielts-exam-annual-report.html)). Pronunciation is one of the four Speaking criteria, and research on Vietnamese learners describes the same problems again and again."
+    },
+    {
+     "type": "table",
+     "caption": "Documented pronunciation problems of Vietnamese learners and what to drill for IELTS Speaking (research linked in each row)",
+     "headers": [
+      "Problem",
+      "What the research found",
+      "What to drill"
+     ],
+     "rows": [
+      [
+       "Dropped ending sounds",
+       "25 of 51 graduating English majors left out final sounds such as /z s t v ks dʒ/; the author links it to Vietnamese having no consonant clusters ([Ha Cam Tam, 2005](https://js.vnu.edu.vn/FS/article/view/2072/1973))",
+       "Plural and past endings inside chunks Part 1 answers use: 'he wants it', 'she worked hard'"
+      ],
+      [
+       "Grammatical -s",
+       "16 adult learners left out 28.4% of final /s/ and /z/, and about half of grammatical -s after a consonant ([Disney and Le, 2024](https://www.mdpi.com/2226-471X/9/10/327))",
+       "Third-person and plural -s in high-frequency phrases until it is automatic"
+      ],
+      [
+       "Sound substitutions",
+       "/θ/ said as /s/ or /t/, /ʃ/ as /s/, /tr/ as /tʃ/; everyday words such as job, country, centre, the and English were mispronounced most ([Ha Cam Tam, 2005](https://js.vnu.edu.vn/FS/article/view/2072/1973))",
+       "Minimal pairs for /θ/–/t/, /ʃ/–/s/ and /tr/–/tʃ/"
+      ],
+      [
+       "Stress timing",
+       "Learners hit pitch and loudness targets for stress fairly well but adapt imperfectly to English timing ([Nguyen and Ingram, 2002](https://www.isca-archive.org/icslp_2002/nguyen02b_icslp.html))",
+       "Lengthening stressed syllables and weak forms, with clapping and backchaining"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "[Pronunciation problems of Vietnamese learners](/teach-in-vietnam/pronunciation-problems-of-vietnamese-learners) has the full set of drills. One thing the data does not tell you: we found no comparable sourced breakdown of Writing, Reading or Listening weaknesses for Vietnamese candidates, so start each course with a mock test and let your own group's results set the balance."
+    },
+    {
+     "type": "p",
+     "text": "The format matters too. Since 30 March 2025, IELTS in Vietnam has been **computer-delivered only**, apart from candidates who need special arrangements and limited paper sessions for schools and universities ([IDP](https://ielts.idp.com/vietnam/about/news-and-articles/article-ielts-ioc-transition)). Speaking is still an interview with an examiner, face to face or online; results take about 2 days, and the One Skill Retake exists only for the computer test ([Tuổi Trẻ](https://tuoitre.vn/tu-29-3-bo-thi-ielts-tren-giay-chi-con-thi-tren-may-tinh-20250107093536508.htm)). Practise reading on screen and typing Writing answers under time."
+    },
+    {
+     "type": "p",
+     "text": "Classroom habits shape Speaking practice. Vietnamese students usually stay quiet and wait to be called on, which foreign teachers often misread as passivity; interrupting or challenging the teacher can seem disrespectful, and face matters to students and their families ([Pham Thi My Hanh](https://fass.nus.edu.sg/cls/wp-content/uploads/sites/32/2020/10/pham_thimyhanh.pdf)). Students also tend to expect clear structure, a model to follow and explicit correction. So rehearse in pairs before anyone speaks to the class, show a model answer before asking for one, and give individual feedback privately. [Vietnamese classroom culture](/teach-in-vietnam/vietnamese-classroom-culture-for-english-teachers) goes further."
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "Never promise a band score",
+     "text": "Parents of teenage candidates are paying for a result, and research in Vietnam records the financial pressure IELTS puts on families. A promised band that does not arrive turns into a complaint to the academic team. Give a diagnostic score, a realistic target range and the conditions it depends on (attendance, homework, time), and put them in writing through the centre."
+    }
+   ]
+  },
+  {
+   "id": "becoming-an-ielts-examiner",
+   "title": "From IELTS teacher to IELTS examiner",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Examining is the natural next step. IELTS lists three minimums: **an undergraduate degree or equivalent, a TEFL/TESOL qualification and 3–5 years of teaching experience**. Examiners are recruited directly by test centres, which in Vietnam means the British Council and IDP; shortlisted applicants are interviewed, then trained and certified, and must be approved by a qualified Examiner Trainer ([IELTS](https://ielts.org/organisations/ielts-for-organisations/ielts-for-your-sector/ielts-for-teachers/become-an-ielts-examiner)). Each test centre sets its own examiner pay and working hours, and no official rate is published for Vietnam, so ask the centre."
+    },
+    {
+     "type": "p",
+     "text": "Cambridge English speaking examining can come sooner, with recent experience ideally equivalent to at least 1,800 teaching hours ([Cambridge English](https://www.cambridgeenglish.org/teaching-english/professional-development/become-a-cambridge-english-examiner/)), so log your hours from your first class. Examining is paid work for an organisation other than your employer, so before you accept sessions ask the test centre and your employer in writing how your work permit covers it ([Decree 219/2025](https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html), Art. 20)."
+    },
+    {
+     "type": "p",
+     "text": "The IELTS and Cambridge examiner routes, speaking and writing, are compared in [career paths for English teachers in Vietnam](/teach-in-vietnam/english-teacher-career-path-in-vietnam#examiner), with the Delta, senior-teacher and academic-manager routes."
+    }
+   ]
+  },
+  {
+   "id": "finding-ielts-jobs",
+   "title": "Finding an IELTS teaching job in Ho Chi Minh City",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "IELTS work comes in two forms: IELTS classes on a general centre timetable, alongside children's and teenagers' English, and jobs at IELTS-specialist centres. eno.vn's [teaching jobs page](/jobs-vietnam-expats) gathers postings from job boards and schools' own careers pages and opens the original posting, where you apply. eno.vn has not verified the employers behind linked postings and does not handle applications, and you should never pay to get a job."
+    },
+    {
+     "type": "p",
+     "text": "Time your search for the summer. IELTS enrolment peaks in July and August, according to one centre manager ([Tiền Phong](https://tienphong.vn/bo-cong-diem-chung-chi-ielts-mieng-banh-nghin-ti-se-ra-sao-post1879043.tpo)). Centres hire all year ([International TEFL Academy](https://www.internationalteflacademy.com/teach-english-in-vietnam)), most before and during the June–August holiday; teachers on forums report a slow period from mid-December until Tet, which falls on Saturday 6 February 2027."
+    },
+    {
+     "type": "p",
+     "text": "Before you sign, look the centre up in eno.vn's [school directory](/schools), which lists the city's language centres among its employers. Teachers who worked or interviewed there can vote and leave reviews, read by a moderator before they appear; most centres have few or no reviews yet. Ads still use old district names such as District 1 or Binh Thanh, but since July 2025 official addresses use new ward names, and a job tagged Ho Chi Minh City may be in former Binh Duong or Ba Ria–Vung Tau, so check the campus address."
+    },
+    {
+     "type": "p",
+     "text": "Do not take paid classes before your work permit is issued. Your employer files it, then arranges the rest of your paperwork once it is issued; ask them exactly what they cover and what it costs. The [work permit guide](/teach-in-vietnam/vietnam-work-permit-for-english-teachers) has the documents and timeline, and your employer and the authority have the final word."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Can I teach IELTS in Vietnam without a degree?",
+   "a": "Not legally. A language-centre teacher needs a college degree or higher under Circular 21/2018, and the work permit's expert category needs a bachelor's degree or higher plus at least 2 years of relevant experience under Decree 219/2025."
+  },
+  {
+   "q": "Do I need an IELTS score myself to teach IELTS?",
+   "a": "Native speakers have no legal requirement to sit IELTS. Non-native speakers need Level 5 (about C1) proof unless their degree is in English or in teaching it; IELTS 7.0 or above is the common working benchmark, and some employers ask for more, such as RMIT's 8.0 with no band below 7.5."
+  },
+  {
+   "q": "Is IELTS still available on paper in Vietnam?",
+   "a": "Only for candidates who need special arrangements and limited sessions for schools and universities. Since 30 March 2025 the British Council and IDP deliver IELTS in Vietnam on computer; the Speaking test is still a live interview with an examiner."
+  },
+  {
+   "q": "Does a CELTA get me a higher rate for IELTS classes?",
+   "a": "Not on any published 2025–2026 Ho Chi Minh City pay scale. CELTA matters because the best-paying employers require or prefer it, and it counts towards the examiner and senior-teacher routes."
+  },
+  {
+   "q": "Will IELTS jobs disappear if bonus points end in 2027?",
+   "a": "Nobody knows yet. The draft covers university bonus points: the graduation-exam exemption is a separate rule, and universities could still convert IELTS into the English subject score. Centre managers expect a long-term fall in enrolment, so keep general English and school-exam classes on your timetable."
+  },
+  {
+   "q": "How much do IELTS examiners earn in Vietnam?",
+   "a": "There is no official figure: IELTS says each test centre sets its own examiner pay and working hours. Ask the British Council or IDP in Vietnam for their current per-session fees before you apply."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Become an IELTS examiner",
+   "publisher": "IELTS",
+   "url": "https://ielts.org/organisations/ielts-for-organisations/ielts-for-your-sector/ielts-for-teachers/become-an-ielts-examiner"
+  },
+  {
+   "title": "Khi 96% thí sinh chọn IELTS",
+   "publisher": "VnExpress",
+   "url": "https://vnexpress.net/khi-96-thi-sinh-chon-ielts-5125959.html"
+  },
+  {
+   "title": "Bỏ cộng điểm chứng chỉ IELTS: Miếng bánh nghìn tỉ sẽ ra sao?",
+   "publisher": "Tiền Phong",
+   "url": "https://tienphong.vn/bo-cong-diem-chung-chi-ielts-mieng-banh-nghin-ti-se-ra-sao-post1879043.tpo"
+  },
+  {
+   "title": "Thông tư 21/2018/TT-BGDĐT: Quy chế tổ chức và hoạt động của trung tâm ngoại ngữ, tin học",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/giao-duc/thong-tu-21-2018-tt-bgddt-quy-che-to-chuc-hoat-dong-cua-trung-tam-ngoai-ngu-tin-hoc-166595-d1.html"
+  },
+  {
+   "title": "Nghị định 219/2025/NĐ-CP quy định về người lao động nước ngoài tại Việt Nam",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong/nghi-dinh-219-2025-nd-cp-quy-dinh-ve-nguoi-lao-dong-nuoc-ngoai-tai-viet-nam-407607-d1.html"
+  },
+  {
+   "title": "Become a Cambridge English examiner",
+   "publisher": "Cambridge English",
+   "url": "https://www.cambridgeenglish.org/teaching-english/professional-development/become-a-cambridge-english-examiner/"
+  },
+  {
+   "title": "IELTS juniors in Vietnam: perceptions of learners, parents and IELTS preparation course providers",
+   "publisher": "IELTS",
+   "url": "https://ielts.org/researchers/our-research/research-reports/ielts-juniors-in-vietnam-perceptions-of-learners-parents-and-ielts-preparation-course-providers"
+  },
+  {
+   "title": "Vietnamese students rank 23rd globally in IELTS exam: annual report",
+   "publisher": "Viet Nam News",
+   "url": "https://vietnamnews.vn/society/1638637/vietnamese-students-rank-23rd-globally-in-ielts-exam-annual-report.html"
+  },
+  {
+   "title": "Hơn 1,2 triệu thí sinh làm thủ tục dự thi tốt nghiệp THPT năm 2026",
+   "publisher": "Tuổi Trẻ",
+   "url": "https://tuoitre.vn/plo/hon-12-trieu-thi-sinh-lam-thu-tuc-du-thi-tot-nghiep-thpt-nam-2026-post911951.html"
+  },
+  {
+   "title": "Từ 29-3: Bỏ thi IELTS trên giấy, chỉ còn thi trên máy tính",
+   "publisher": "Tuổi Trẻ",
+   "url": "https://tuoitre.vn/tu-29-3-bo-thi-ielts-tren-giay-chi-con-thi-tren-may-tinh-20250107093536508.htm"
+  },
+  {
+   "title": "IELTS on Computer transition notice",
+   "publisher": "IDP IELTS Vietnam",
+   "url": "https://ielts.idp.com/vietnam/about/news-and-articles/article-ielts-ioc-transition"
+  },
+  {
+   "title": "Shift to online learning presents major challenge for traditional IELTS centers in Vietnam",
+   "publisher": "Tuổi Trẻ News",
+   "url": "https://news.tuoitre.vn/news/education/20241101/shift-to-online-learning-presents-major-challenge-for-traditional-ielts-centers-in-vietnam/82681.html"
+  },
+  {
+   "title": "ACET will close operations on 31 December 2024",
+   "publisher": "IDP Education",
+   "url": "https://www.idp.com/vietnam/blog/official-acet-announcement/?lang=en"
+  },
+  {
+   "title": "TP.HCM công bố chi tiết lịch thi tuyển sinh lớp 10 năm học 2026-2027",
+   "publisher": "SGGP",
+   "url": "https://www.sggp.org.vn/tphcm-cong-bo-chi-tiet-lich-thi-tuyen-sinh-lop-10-nam-hoc-2026-2027-post848417.html"
+  },
+  {
+   "title": "Decision 7806/2023: equivalence list for English certificates",
+   "publisher": "Hanoi University of Science and Technology",
+   "url": "https://www.hust.edu.vn/uploads/sys/su-kien-noi-bat/2023_08/qd7806.2023-ban-hanh-danh-muc-quy-doi-tuong-duong-cac-chung-chi-tieng-anh.pdf"
+  },
+  {
+   "title": "RMIT Vietnam Educator position description (July 2026)",
+   "publisher": "RMIT University Vietnam",
+   "url": "https://www.rmit.edu.au/content/dam/rmit/au/en/careers/position-descriptions/vietnam/JD-Educator%20July%202026.pdf"
+  },
+  {
+   "title": "English Teaching Jobs in Ho Chi Minh City",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/city/teaching-english-in-ho-chi-minh"
+  },
+  {
+   "title": "[Ho Chi Minh City] Part-time native English teachers (Wall Street English)",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/ho-chi-minh-city-part-time-native-english-teachers-2"
+  },
+  {
+   "title": "Common Pronunciation Problems of Vietnamese Learners of English (Ha Cam Tam)",
+   "publisher": "VNU Journal of Foreign Studies",
+   "url": "https://js.vnu.edu.vn/FS/article/view/2072/1973"
+  },
+  {
+   "title": "Word-Final /s/-/z/ Omission in Vietnamese English (Disney and Le, 2024)",
+   "publisher": "Languages (MDPI)",
+   "url": "https://www.mdpi.com/2226-471X/9/10/327"
+  },
+  {
+   "title": "Native and Vietnamese production of compound and phrasal stress patterns (Nguyen and Ingram, 2002)",
+   "publisher": "ISCA Archive",
+   "url": "https://www.isca-archive.org/icslp_2002/nguyen02b_icslp.html"
+  },
+  {
+   "title": "Understanding the context and its effect on assessment in EFL class in higher education in Vietnam (Pham Thi My Hanh)",
+   "publisher": "National University of Singapore, Centre for Language Studies",
+   "url": "https://fass.nus.edu.sg/cls/wp-content/uploads/sites/32/2020/10/pham_thimyhanh.pdf"
+  },
+  {
+   "title": "Foreign workers in Vietnam: what to know as new penalty rules take effect September 10",
+   "publisher": "Tuổi Trẻ News",
+   "url": "https://news.tuoitre.vn/foreign-workers-in-vietnam-what-to-know-as-new-penalty-rules-take-effect-september-10-103260824152235374.htm"
+  },
+  {
+   "title": "Người nước ngoài có được thành lập hộ kinh doanh tại Việt Nam?",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/doanh-nghiep/nguoi-nuoc-ngoai-co-duoc-thanh-lap-ho-kinh-doanh-561-31579-article.html"
+  },
+  {
+   "title": "Teach English in Vietnam",
+   "publisher": "International TEFL Academy",
+   "url": "https://www.internationalteflacademy.com/teach-english-in-vietnam"
+  }
+ ],
+ "related": [
+  "english-teacher-career-path-in-vietnam",
+  "language-centre-jobs-in-ho-chi-minh-city",
+  "pronunciation-problems-of-vietnamese-learners",
+  "english-teacher-salary-in-vietnam",
+  "tefl-tesol-and-celta-for-vietnam",
+  "private-tutoring-and-online-teaching-in-vietnam"
+ ],
+ "lastChecked": "2026-10-11"
+}
