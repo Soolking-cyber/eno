@@ -1,0 +1,454 @@
+{
+ "slug": "your-first-weeks-in-ho-chi-minh-city",
+ "title": "First week in Ho Chi Minh City: a teacher's checklist",
+ "description": "What to do in your first days and weeks in Saigon: a SIM with a face scan, cash without big ATM fees, a lease and the landlord's declaration, a bank, a clinic.",
+ "h1": "Your first weeks in Ho Chi Minh City: what to sort out, and in what order",
+ "eyebrow": "Arriving in Saigon",
+ "intro": "In your first three days, get a local SIM (bring your physical passport, because every new SIM now needs a face scan), install Grab, Xanh SM or Be, and take cash from a bank ATM after checking the fee. In weeks one and two, sign a lease and make sure your landlord files your residence declaration, pick a clinic and do the work-permit health check at the facility your employer names. Do not teach a paid class until your work permit is issued; open a bank account in person once it is.",
+ "keyPoints": [
+  "Since 15 April 2026 every new SIM, including one registered to a foreign passport, must pass a **face check at activation**, and since 15 June 2026 moving your SIM to a new phone blocks outgoing calls within 2 hours until you re-verify (Circular 08/2026/TT-BKHCN).",
+  "Foreign-card ATM withdrawals are expensive: VietinBank charges 4%, at least {{vnd:80000}} plus VAT, per withdrawal. Changing foreign cash at a gold shop is an offence; use a bank or a licensed counter.",
+  "Your landlord, not you, must make your residence declaration when you move in and again after every move: agree it before you pay a deposit and ask for proof once it is done.",
+  "Banks take a foreigner's biometrics **only at the counter**; without them, app transfers stop. Plan a branch visit rather than an online sign-up.",
+  "Emergency numbers are 113 (police), 114 (fire) and 115 (ambulance); 112 is for disasters and search-and-rescue. Save a private clinic's emergency line on day one.",
+  "Your employer files the work permit with the Department of Home Affairs; the city publishes 5 working days for a decision. Working without one costs the worker {{vnd:15000000-25000000}} and can mean deportation."
+ ],
+ "sections": [
+  {
+   "id": "checklist-step-by-step",
+   "title": "Your first-weeks checklist, step by step",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "This is the order that avoids dead ends: the phone number comes first because the bank and the ride apps need it, the lease comes before the bank because banks commonly ask for your lease and a missing residence declaration can hold up banking and work-permit paperwork, and the health check comes early because your work permit cannot be filed without it. Each step is explained in the sections below."
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Before you fly: pack the paperwork and the medicines properly",
+       "text": "Carry your physical passport, the originals of your authenticated degree and your criminal record check, a contactless bank card and your prescriptions with a doctor's letter. Install a travel eSIM so you have data at the airport."
+      },
+      {
+       "title": "Day 1: land, get online, ride an app",
+       "text": "International flights arrive at Tan Son Nhat (SGN). Book a Grab, Xanh SM or Be car from inside the app rather than accepting a ride or a free transfer you did not arrange."
+      },
+      {
+       "title": "Days 1-3: buy a local SIM in your own name",
+       "text": "Go to a Viettel, Vinaphone or Mobifone store with your passport and expect a face scan. Banks send one-time codes to a Vietnamese number registered in your own name. Details in the [eno.vn eSIM and SIM guide](/esim-vietnam-guide)."
+      },
+      {
+       "title": "Days 1-3: get cash the cheap way",
+       "text": "Take the largest amount a bank ATM allows per withdrawal, read the on-screen fee before you accept it, and never change foreign cash at a gold shop."
+      },
+      {
+       "title": "Days 1-3: save the numbers that matter",
+       "text": "113 police, 114 fire and rescue, 115 ambulance, plus the emergency line of the international clinic nearest to where you will live."
+      },
+      {
+       "title": "Week 1: view flats near your main centre",
+       "text": "Stay somewhere short-term while you view. Check prices against the [eno.vn HCMC Rent Index](/hcmc-rent-index) and aim to live within about 20-25 minutes of the centre where you will teach most."
+      },
+      {
+       "title": "Weeks 1-2: sign the lease and get the residence declaration",
+       "text": "Before you hand over a deposit, confirm the landlord will make your residence declaration, and ask for a screenshot or copy once it is done."
+      },
+      {
+       "title": "Weeks 1-2: do the work-permit health check",
+       "text": "Go to the hospital or clinic your employer names, and let HR copy your original documents. They may not keep them."
+      },
+      {
+       "title": "Before your first paid class: see the work permit",
+       "text": "Ask HR for a copy of the issued permit. Then ask which health-insurance facility you are registered at, if your contract runs 12 months or more."
+      },
+      {
+       "title": "Once the permit is issued: open a bank account at a branch",
+       "text": "Many banks ask for your work permit, labour contract and lease as well. Bring your passport, your Vietnamese SIM and the documents the branch lists; your biometrics are taken at the counter."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "before-you-fly",
+   "title": "Before you fly: what to pack and what to leave at home",
+   "blocks": [
+    {
+     "type": "ul",
+     "items": [
+      "**Originals of your work-permit documents.** Your employer files the permit, but it needs your degree and your criminal record check in their certified form. The record must be issued no more than 6 months before the employer files ([Decree 219/2025/ND-CP](https://congbaocdn.chinhphu.vn/CongBaoCP/VanBan/2025/8/45798/58141-1-20251073-1074219-2025-nd-cp.pdf)), so time it with your start date; see [getting a criminal record check for a Vietnam work permit](/teach-in-vietnam/criminal-record-check-for-a-vietnam-work-permit).",
+      "**Medicines within the personal allowance.** Without an import licence your luggage may carry at most 30 days' use of an ordinary prescription medicine, 10 days of a psychotropic medicine and 7 days of a narcotic one, each matching your prescription ([Decree 163/2025/ND-CP, Article 60](https://hethongphapluat.com/nghi-dinh-163-2025-nd-cp-huong-dan-va-bien-phap-de-to-chuc-thi-hanh-luat-duoc/dieu-60)). If you take stimulant ADHD medication, check with Vietnam's Drug Administration or a Vietnamese embassy before you travel; we found no official guidance on bringing it in.",
+      "**A contactless chip bank card.** It works at the metro gates and for the free city buses.",
+      "**A plan for vaccines.** The [CDC](https://wwwnc.cdc.gov/travel/destinations/traveler/none/vietnam) recommends routine vaccines plus hepatitis A, hepatitis B and typhoid, and Japanese encephalitis for anyone moving to Vietnam or staying a month or more; rabies pre-exposure vaccination depends on your risk. See a travel clinic a few weeks before you fly."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "days-1-3-phone-apps-cash",
+   "title": "Days 1-3: phone, apps and cash",
+   "blocks": [
+    {
+     "type": "h3",
+     "text": "A SIM in your own name, with a face scan"
+    },
+    {
+     "type": "p",
+     "text": "Since 15 April 2026 every new mobile subscription, including a SIM registered to a foreign passport, must pass facial verification at activation, checked electronically against national records, in the carrier's app or in person at a carrier store ([Circular 08/2026/TT-BKHCN](https://luatvietnam.vn/dan-su/thong-tu-08-2026-tt-bkhcn-huong-dan-xac-thuc-thong-tin-thue-bao-di-dong-mat-dat-430575-d1.html)). Bring the passport itself, not a photocopy. A travel eSIM is the easy way to have data when you land; the [eno.vn eSIM guide](/esim-vietnam-guide) compares the options."
+    },
+    {
+     "type": "p",
+     "text": "The rule that catches people later: since 15 June 2026, when you move your SIM into a new phone, the carrier blocks outgoing calls and texts within 2 hours until you redo the face check. You have 30 days before calls are blocked both ways and, 5 days after that, the contract ends. **Re-verify the same day you change phones**, in the carrier's app or at a store."
+    },
+    {
+     "type": "h3",
+     "text": "Apps to install in week one"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Grab, Xanh SM and Be** for motorbike and car rides. App-booked rides are the safe default until you have your own transport.",
+      "**Google Maps**, but expect a mix of old district names and new ward names on screen and in addresses.",
+      "**Your bank's app** once your account is open. Many shops and street stalls take QR payments straight from a Vietnamese banking app, which saves carrying cash."
+     ]
+    },
+    {
+     "type": "h3",
+     "text": "Cash without losing money on fees"
+    },
+    {
+     "type": "p",
+     "text": "Withdrawing with a foreign card is costly. VietinBank's official fee for foreign-issued cards is 4% per withdrawal, at least {{vnd:80000}} before VAT ([VietinBank fee schedule](https://vietinbank.vn/en/ca-nhan/cong-cu-tien-ich/bieu-phi-va-bieu-mau/bieu-phi-ap-dung-cho-nghiep-vu-thanh-toan-the-tin-dung-quoc-te-40-html)), and many banks cap a single withdrawal at about {{vnd:2000000-5000000}}. Withdraw the maximum each time and read the fee on screen before you confirm."
+    },
+    {
+     "type": "p",
+     "text": "Change foreign banknotes only at a bank or a licensed exchange counter. Buying or selling foreign currency at an unlicensed place such as a gold shop is an offence under [Decree 340/2025/ND-CP](https://baovanhoa.vn/phap-luat/phat-toi-100-trieu-dong-neu-mua-ban-ngoai-te-tai-to-chuc-khong-duoc-phep-thu-doi-ngoai-te-193545.html), in force since 9 February 2026. A first small offence gets a warning; larger sums are fined from {{vnd:10000000-20000000}} upward."
+    }
+   ]
+  },
+  {
+   "id": "weeks-1-2-housing",
+   "title": "Weeks 1-2: find a place to live and get the residence declaration",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Most language-centre work is on weekday evenings and weekends, so the commute to your main centre matters more than the district's reputation. Ask your employer exactly where its centres are before you sign anything, and read [where to live in Ho Chi Minh City as a teacher](/teach-in-vietnam/where-to-live-in-ho-chi-minh-city-as-a-teacher) for the area-by-area trade-offs. Since the 2025 merger with Binh Duong and Ba Ria-Vung Tau, a job advertised as Ho Chi Minh City can be in Thu Dau Mot or Vung Tau, far from central Saigon."
+    },
+    {
+     "type": "p",
+     "text": "City-wide median asking rents were {{vnd:6800000}} a month for a one-bedroom and {{vnd:3900000}} for a room on 10 October 2026; use them as a negotiating anchor, because they are asking prices, not signed rents. The live figures are on the [HCMC Rent Index](/hcmc-rent-index) and current listings are in [eno.vn rentals](/c/rentals). For viewings, contracts and bills, follow eno.vn's [guide to renting an apartment in Vietnam as a foreigner](/renting-an-apartment-vietnam-foreigner), and read [how rental deposits work and how to get them back](/rental-deposit-vietnam) before you pay one."
+    },
+    {
+     "type": "p",
+     "text": "Two checks before you sign. First, flooding: the city's own lists name streets such as Nguyen Van Huong in Thao Dien and Tran Xuan Soan, Huynh Tan Phat and Pham Huu Lau in old District 7 for tidal flooding, and the Thanh Da peninsula floods at king tides, so visit a ground-floor flat there at high tide. Second, never leave your passport with a landlord or a bike-rental shop as a deposit; [UK travel advice](https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security) warns against it, and you need it for your SIM, your bank and your employer."
+    },
+    {
+     "type": "h3",
+     "text": "The new ward names on your lease"
+    },
+    {
+     "type": "p",
+     "text": "Since 1 July 2025 the city has had no districts officially, only 168 wards and communes in all, one of them a special zone ([Resolution 1685/NQ-UBTVQH15](https://hoatieu.vn/phap-luat/nghi-quyet-1685-nq-ubtvqh15-2025-233560)). People, listings and this guide still use the old names. On a lease you will see the new ones: old District 1 is mainly Sai Gon and Ben Thanh wards (plus Tan Dinh and Cau Ong Lanh), Thao Dien is in An Khanh ward, and Phu My Hung is split mainly between Tan My and Tan Hung wards. A 2026 review of the wards had changed no names as of October 2026. Give drivers both, for example An Khanh (Thao Dien)."
+    },
+    {
+     "type": "p",
+     "text": "Your landlord, not you, must make the residence declaration when you move in and after every move, so agree it before you pay a deposit and ask for a copy once it is done; eno.vn's [renting guide](/renting-an-apartment-vietnam-foreigner) covers it with the rest of the lease."
+    }
+   ]
+  },
+  {
+   "id": "open-a-bank-account",
+   "title": "Opening a bank account",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Since 1 January 2025, a foreign customer's biometrics can be collected **only at a bank counter**, not in the app. Without them, online and app transfers and card-less ATM transactions are suspended, and an expired passport on file freezes transfers and withdrawals on every channel ([Woori Bank Vietnam notice](https://woori.com.vn/en/news/instructions-about-updating-information-for-foreign-customers/)). So plan a branch visit, and if your passport is renewed, take the new one to the branch that week."
+    },
+    {
+     "type": "p",
+     "text": "Each bank sets its own document list, and many ask for your work permit, labour contract and lease, so the account usually comes after your permit is issued. Ask the branch for its current list before you go, and bring the Vietnamese SIM registered in your name, because the bank sends its codes there. Your employer arranges the rest of your paperwork once your work permit is issued; ask them exactly what they cover and what it costs."
+    },
+    {
+     "type": "p",
+     "text": "Until your first salary arrives, budget for the deposit, a month's rent and daily costs out of savings; [the cost of living in Ho Chi Minh City for a teacher](/teach-in-vietnam/cost-of-living-in-ho-chi-minh-city-for-teachers) has the figures. For getting salary out of the country later, see [banking and sending money home from Vietnam](/teach-in-vietnam/banking-and-sending-money-home-from-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "getting-around-from-day-one",
+   "title": "Getting around from day one",
+   "blocks": [
+    {
+     "type": "table",
+     "caption": "Ways to get around Ho Chi Minh City in your first weeks, with official fares and fines as of October 2026",
+     "headers": [
+      "Option",
+      "What it costs",
+      "Good for",
+      "The catch"
+     ],
+     "rows": [
+      [
+       "Grab, Xanh SM or Be",
+       "Priced in the app before you book",
+       "Door to door, any hour; motorbike or car",
+       "Hold your phone away from the kerb while you wait"
+      ],
+      [
+       "Metro Line 1",
+       "{{vnd:7000-20000}} a ride in cash, {{vnd:6000-19000}} by card or app; {{vnd:300000}} a month",
+       "District 1, Binh Thanh, Thao Dien, An Phu and Thu Duc",
+       "No station in District 3, 10, Phu Nhuan, Tan Binh, Go Vap or District 7"
+      ],
+      [
+       "City buses",
+       "Free on 134 routes until 31 December 2026",
+       "Cheap trips across the centre",
+       "Since 1 October 2026 you must tap a card or phone; airport and inter-provincial routes are not free"
+      ],
+      [
+       "Your own motorbike",
+       "Licence, bike and compulsory third-party insurance ({{vnd:60000}} a year above 50 cc)",
+       "Flexible commutes between centres",
+       "Riding without a valid licence costs {{vnd:2000000-4000000}} up to 125 cc, and many international driving permits are not valid"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Metro Line 1, open since 22 December 2024, runs from Ben Thanh to Suoi Tien with 14 stations, and contactless bank cards work at the gates ([fares announcement](https://vietnamnews.vn/society/1687512/hcm-city-announces-fares-for-its-metro-line-1.html)). City buses are free under [Resolution 09/2026/NQ-HĐND](https://luatvietnam.vn/chinh-sach/nghi-quyet-09-2026-nq-hdnd-tp-hcm-ho-tro-nguoi-dung-phuong-tien-van-tai-cong-cong-438390-d2.html), and since 1 October 2026 every rider taps to log the trip; a foreign contactless chip bank card, Apple Pay or Google Wallet works, and nothing is charged ([Tuoi Tre](https://tuoitre.vn/tphcm-ngay-dau-xac-thuc-khi-di-xe-buyt-mien-phi-nguoi-dan-noi-da-qua-quen-100261001135119433.htm))."
+    },
+    {
+     "type": "p",
+     "text": "Do not rent a scooter in week one on the strength of an international driving permit. Apart from licences covered by recognition treaties, Vietnam recognises only international permits issued under the 1968 Vienna Convention, carried with your home licence. The UK, South Africa and the Philippines are parties; the United States, Canada, Australia, New Zealand, Ireland, India and Japan are not ([UN Treaty Collection](https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en)). Without a valid licence the fine is {{vnd:2000000-4000000}} up to 125 cc and the bike can be impounded. The routes to a legal licence are in [motorbike licences in Vietnam for foreigners](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners), renting a bike is covered in eno.vn's [motorbike rental guide](/motorbike-rental-ho-chi-minh-city), and commuting in general in [getting around Ho Chi Minh City](/teach-in-vietnam/getting-around-ho-chi-minh-city)."
+    },
+    {
+     "type": "p",
+     "text": "If you do ride, the limit for alcohol is zero, and fines under [Decree 168/2024/ND-CP](https://luatvietnam.vn/giao-thong/nghi-dinh-168-doi-voi-xe-may-863-100609-article.html) start at {{vnd:2000000-3000000}} for the lowest alcohol level. Running a red light costs {{vnd:4000000-6000000}} and riding without a fastened helmet {{vnd:400000-600000}}; cameras catch many offences."
+    }
+   ]
+  },
+  {
+   "id": "health-basics",
+   "title": "Health basics: a clinic, your insurance and dengue",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Choose a clinic before you need one and save its number: FV Hospital (Tan My ward, old District 7) and Vinmec Central Park (Thanh My Tay ward, old Binh Thanh) run 24-hour emergency departments, and Family Medical Practice's Thao Dien clinic (An Khanh ward) is open 24/7 on *9999 or 028 3744 9000 ([DFAT hospital list, July 2026](https://hcmc.vietnam.embassy.gov.au/files/hchi/list_of_hospitals_jul_2026.pdf)). Addresses, phone numbers and what a visit costs are in [healthcare and health insurance in Ho Chi Minh City](/teach-in-vietnam/healthcare-and-health-insurance-in-ho-chi-minh-city#international-hospitals-and-clinics)."
+    },
+    {
+     "type": "p",
+     "text": "For emergencies, 113 is police, 114 fire and rescue and 115 ambulance; 112 is a separate line for disasters and search-and-rescue ([Ministry of Agriculture and Environment](https://en.mae.gov.vn/hotline-112-to-receive-disaster-and-emergency-reports-nationwide-9018.htm)). English on the public lines is limited, which is why a private clinic's emergency number is worth saving."
+    },
+    {
+     "type": "p",
+     "text": "National health insurance is compulsory only for foreign employees on contracts of 12 months or more: 4.5% of salary, of which you pay 1.5% and the employer 3% ([Tuoi Tre](https://news.tuoitre.vn/foreign-workers-in-vietnam-required-to-join-national-health-insurance-10326041315262424.htm)). Ask HR which facility you are registered at, because reimbursement is highest there. On a contract under 12 months, or on 'freelance' hours outside a labour contract, you are not covered, so buy private cover that includes outpatient care and motorbike accidents. Being paid by the hour on a labour contract of 12 months or more does not take you out of the scheme. More in [healthcare and health insurance in Ho Chi Minh City](/teach-in-vietnam/healthcare-and-health-insurance-in-ho-chi-minh-city)."
+    },
+    {
+     "type": "p",
+     "text": "Dengue is the health risk to take seriously in the rainy season: the city recorded 24,651 cases in 2026 up to 2 August ([VOV](https://vov.vn/xa-hoi/ca-sot-xuat-huyet-o-tphcm-tang-20-benh-nhan-can-chu-y-giai-doan-nguy-hiem-post1320192.vov)). Use repellent, and if you get a fever take paracetamol only, never aspirin or ibuprofen, and get tested; days 3 to 7 are the dangerous phase. Any dog or cat bite needs at least 15 minutes of washing with soap and a same-day visit to a clinic about rabies vaccination. Drink bottled or filtered water, or boil tap water."
+    }
+   ]
+  },
+  {
+   "id": "work-permit-in-your-first-weeks",
+   "title": "Your work permit: what happens while you settle in",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Your employer applies for the work permit, not you. The rules are in [Decree 219/2025/ND-CP](https://congbaocdn.chinhphu.vn/CongBaoCP/VanBan/2025/8/45798/58141-1-20251073-1074219-2025-nd-cp.pdf), in force since 7 August 2025, and in Ho Chi Minh City the Department of Home Affairs (Sở Nội vụ) issues it for practically every language centre and school ([Decision 6093/QĐ-UBND](https://luatvietnam.vn/lao-dong/quyet-dinh-6093-qd-ubnd-tp-ho-chi-minh-2026-cong-bo-danh-muc-thu-tuc-hanh-chinh-sua-doi-bo-sung-448197-d2.html)). What you do in your first weeks:"
+    },
+    {
+     "type": "ol",
+     "items": [
+      "**Do the health check in Vietnam.** A foreign health certificate is accepted only under a mutual-recognition agreement, so in practice the check is done here, at a qualified facility; go where your employer tells you ([Decree 219/2025/ND-CP](https://congbaocdn.chinhphu.vn/CongBaoCP/VanBan/2025/8/45798/58141-1-20251073-1074219-2025-nd-cp.pdf)).",
+      "**Show your originals, keep your originals.** HR copies your authenticated degree and criminal record check, but an employer may not keep your original passport, degree or certificates, or take a deposit from you ([Labour Code, Article 17](https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html)).",
+      "**Know the timeline.** The employer files 60 to 10 days before your start date; the decree allows up to 10 working days for a decision and the city publishes 5. The city's fee is {{vnd:600000}} for a new permit, paid by the employer ([Resolution 09/2022/NQ-HĐND](https://luatvietnam.vn/thue/nghi-quyet-09-2022-nq-hdnd-239822-d2.html)).",
+      "**Wait for the permit before paid teaching.** Since 10 September 2026 a worker without a permit is fined {{vnd:15000000-25000000}} and may be deported ([Decree 283/2026/ND-CP](https://suckhoedoisong.vn/tu-10-9-2026-lao-dong-nuoc-ngoai-se-bi-phat-neu-khong-co-giay-phep-lao-dong-169260824224738.htm))."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Your employer arranges the rest of your paperwork once your work permit is issued; ask them exactly what they cover and what it costs. The full procedure, documents and timings are in [the Vietnam work permit for English teachers](/teach-in-vietnam/vietnam-work-permit-for-english-teachers). Your employer and the Department of Home Affairs have the final word on your case."
+    }
+   ]
+  },
+  {
+   "id": "rules-and-dates-that-catch-newcomers",
+   "title": "Local rules and dates that catch newcomers",
+   "blocks": [
+    {
+     "type": "ul",
+     "items": [
+      "**Phone snatching** from passing motorbikes is the most common crime against foreigners. Do not use your phone at the kerb, carry your bag on the side away from the road, and hand things over rather than resist ([UK travel advice](https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security)).",
+      "**Drugs**: police raid nightlife venues and also test people at private parties; a positive test can lead to charges. Watch your drink, and avoid spirits of unknown origin, since methanol poisoning has killed people.",
+      "**Vapes and heated tobacco** are banned, including possession and use, and you cannot bring them in. Since 31 December 2025 a user is fined {{vnd:3000000-5000000}} and the device is destroyed ([Tuoi Tre News](https://news.tuoitre.vn/vietnam-sets-fines-of-up-to-190-for-e-cigarette-use-under-new-decree-103260102160231276.htm)).",
+      "**Tet 2027 falls on Saturday 6 February**, with a public-sector break from 4 to 10 February ([Suc Khoe & Doi Song](https://suckhoedoisong.vn/chinh-thuc-tet-nguyen-dan-2027-nghi-7-ngay-quoc-khanh-nghi-4-ngay-169261002184541968.htm)). Language centres and many schools commonly close for one to two weeks around Tet, many small shops and repair services shut for several days and prices rise, so do not plan to move house or open a bank account that week.",
+      "**24 November is a new paid public holiday** from 2026 (Vietnamese Culture Day), bringing the statutory holidays to 12 days a year; the first one is Tuesday 24 November 2026 ([Suc Khoe & Doi Song](https://suckhoedoisong.vn/chinh-thuc-tet-nguyen-dan-2027-nghi-7-ngay-quoc-khanh-nghi-4-ngay-169261002184541968.htm)). Ask your centre whether it closes."
+     ]
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Can I just use a travel eSIM instead of a local SIM?",
+   "a": "For data in your first days, yes. For a bank account and banking apps you need a Vietnamese number registered in your own name, because the bank sends its one-time codes there. Every new local SIM needs a face check, so bring your passport."
+  },
+  {
+   "q": "Is 112 the emergency number in Vietnam?",
+   "a": "Not for everyday emergencies. Call 113 for police, 114 for fire and rescue and 115 for an ambulance. 112 is a national line for disasters, incidents and search-and-rescue."
+  },
+  {
+   "q": "Can I ride a motorbike on my international driving permit?",
+   "a": "Only if it was issued by a country that is party to the 1968 Vienna Convention (or your licence is covered by a recognition treaty), such as the UK, South Africa or the Philippines, and you carry your home licence too. Permits from the US, Canada, Australia, New Zealand, Ireland, India and Japan have no legal force here."
+  },
+  {
+   "q": "Does my school have to give me health insurance?",
+   "a": "Yes, if you are on a labour contract of 12 months or more: since 1 July 2025 national health insurance is compulsory on such a contract, with 1.5% of salary from you and 3% from the employer. Contracts under 12 months and 'freelance' hours outside a labour contract are not covered, so buy private insurance; being paid by the hour on a 12-month labour contract does not remove you from the scheme."
+  },
+  {
+   "q": "What are the new names for District 1, Thao Dien and Phu My Hung?",
+   "a": "Old District 1 is mainly Sai Gon and Ben Thanh wards, plus Tan Dinh and Cau Ong Lanh. Thao Dien is in An Khanh ward. Phu My Hung is split mainly between Tan My and Tan Hung wards. People still use the old names day to day."
+  },
+  {
+   "q": "My SIM stopped making calls after I bought a new phone. Why?",
+   "a": "Since 15 June 2026 carriers block outgoing calls and texts within 2 hours of a SIM moving to a new phone, until you redo the face check in the carrier's app or at a store. After 30 days both directions are blocked."
+  },
+  {
+   "q": "Can I start teaching while my work permit is being processed?",
+   "a": "Not paid teaching. Working without a permit is fined and can lead to deportation. Use the time for the health check, housing and your bank, and ask your employer for a copy of the permit once it is issued."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Circular 08/2026/TT-BKHCN on verifying mobile subscriber information",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/dan-su/thong-tu-08-2026-tt-bkhcn-huong-dan-xac-thuc-thong-tin-thue-bao-di-dong-mat-dat-430575-d1.html"
+  },
+  {
+   "title": "Decree 219/2025/ND-CP on foreign workers in Vietnam (official gazette)",
+   "publisher": "Government of Vietnam",
+   "url": "https://congbaocdn.chinhphu.vn/CongBaoCP/VanBan/2025/8/45798/58141-1-20251073-1074219-2025-nd-cp.pdf"
+  },
+  {
+   "title": "Quyết định 6093/QĐ-UBND TP Hồ Chí Minh 2026",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong/quyet-dinh-6093-qd-ubnd-tp-ho-chi-minh-2026-cong-bo-danh-muc-thu-tuc-hanh-chinh-sua-doi-bo-sung-448197-d2.html"
+  },
+  {
+   "title": "Từ 10/9/2026, lao động nước ngoài sẽ bị phạt nếu không có giấy phép lao động",
+   "publisher": "Suc Khoe & Doi Song",
+   "url": "https://suckhoedoisong.vn/tu-10-9-2026-lao-dong-nuoc-ngoai-se-bi-phat-neu-khong-co-giay-phep-lao-dong-169260824224738.htm"
+  },
+  {
+   "title": "Labour Code 2019",
+   "publisher": "Du Lieu Phap Luat",
+   "url": "https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html"
+  },
+  {
+   "title": "Instructions about updating information for foreign customers",
+   "publisher": "Woori Bank Vietnam",
+   "url": "https://woori.com.vn/en/news/instructions-about-updating-information-for-foreign-customers/"
+  },
+  {
+   "title": "Fee schedule for international card services",
+   "publisher": "VietinBank",
+   "url": "https://vietinbank.vn/en/ca-nhan/cong-cu-tien-ich/bieu-phi-va-bieu-mau/bieu-phi-ap-dung-cho-nghiep-vu-thanh-toan-the-tin-dung-quoc-te-40-html"
+  },
+  {
+   "title": "Phạt tới 100 triệu đồng nếu mua bán ngoại tệ tại tổ chức không được phép thu đổi ngoại tệ",
+   "publisher": "Bao Van Hoa",
+   "url": "https://baovanhoa.vn/phap-luat/phat-toi-100-trieu-dong-neu-mua-ban-ngoai-te-tai-to-chuc-khong-duoc-phep-thu-doi-ngoai-te-193545.html"
+  },
+  {
+   "title": "List of hospitals and medical facilities, Ho Chi Minh City (July 2026)",
+   "publisher": "Australian Consulate-General, Ho Chi Minh City (DFAT)",
+   "url": "https://hcmc.vietnam.embassy.gov.au/files/hchi/list_of_hospitals_jul_2026.pdf"
+  },
+  {
+   "title": "Foreign workers in Vietnam required to join national health insurance",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/foreign-workers-in-vietnam-required-to-join-national-health-insurance-10326041315262424.htm"
+  },
+  {
+   "title": "Hotline 112 to receive disaster and emergency reports nationwide",
+   "publisher": "Ministry of Agriculture and Environment",
+   "url": "https://en.mae.gov.vn/hotline-112-to-receive-disaster-and-emergency-reports-nationwide-9018.htm"
+  },
+  {
+   "title": "Ca sốt xuất huyết ở TPHCM tăng 20%",
+   "publisher": "VOV",
+   "url": "https://vov.vn/xa-hoi/ca-sot-xuat-huyet-o-tphcm-tang-20-benh-nhan-can-chu-y-giai-doan-nguy-hiem-post1320192.vov"
+  },
+  {
+   "title": "Decree 163/2025/ND-CP, Article 60",
+   "publisher": "He Thong Phap Luat",
+   "url": "https://hethongphapluat.com/nghi-dinh-163-2025-nd-cp-huong-dan-va-bien-phap-de-to-chuc-thi-hanh-luat-duoc/dieu-60"
+  },
+  {
+   "title": "Convention on Road Traffic (Vienna, 1968): status",
+   "publisher": "United Nations Treaty Collection",
+   "url": "https://treaties.un.org/Pages/ViewDetailsIII.aspx?src=TREATY&mtdsg_no=XI-B-19&chapter=11&Temp=mtdsg3&clang=_en"
+  },
+  {
+   "title": "Nghị định 168 đối với xe máy",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/giao-thong/nghi-dinh-168-doi-voi-xe-may-863-100609-article.html"
+  },
+  {
+   "title": "HCM City announces fares for its Metro Line 1",
+   "publisher": "Viet Nam News",
+   "url": "https://vietnamnews.vn/society/1687512/hcm-city-announces-fares-for-its-metro-line-1.html"
+  },
+  {
+   "title": "Resolution 09/2026/NQ-HĐND on support for public transport users",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/chinh-sach/nghi-quyet-09-2026-nq-hdnd-tp-hcm-ho-tro-nguoi-dung-phuong-tien-van-tai-cong-cong-438390-d2.html"
+  },
+  {
+   "title": "TP.HCM ngày đầu xác thực khi đi xe buýt miễn phí",
+   "publisher": "Tuoi Tre",
+   "url": "https://tuoitre.vn/tphcm-ngay-dau-xac-thuc-khi-di-xe-buyt-mien-phi-nguoi-dan-noi-da-qua-quen-100261001135119433.htm"
+  },
+  {
+   "title": "Resolution 1685/NQ-UBTVQH15 on commune-level units of Ho Chi Minh City",
+   "publisher": "Hoa Tieu",
+   "url": "https://hoatieu.vn/phap-luat/nghi-quyet-1685-nq-ubtvqh15-2025-233560"
+  },
+  {
+   "title": "HCMC Rent Index",
+   "publisher": "eno.vn",
+   "url": "https://eno.vn/hcmc-rent-index"
+  },
+  {
+   "title": "Vietnam travel advice: safety and security",
+   "publisher": "UK Foreign, Commonwealth & Development Office",
+   "url": "https://www.gov.uk/foreign-travel-advice/vietnam/safety-and-security"
+  },
+  {
+   "title": "Chính thức: Tết Nguyên đán 2027 nghỉ 7 ngày, Quốc khánh nghỉ 4 ngày",
+   "publisher": "Suc Khoe & Doi Song",
+   "url": "https://suckhoedoisong.vn/chinh-thuc-tet-nguyen-dan-2027-nghi-7-ngay-quoc-khanh-nghi-4-ngay-169261002184541968.htm"
+  },
+  {
+   "title": "Vietnam: traveler view",
+   "publisher": "US Centers for Disease Control and Prevention",
+   "url": "https://wwwnc.cdc.gov/travel/destinations/traveler/none/vietnam"
+  },
+  {
+   "title": "Vietnam sets fines for e-cigarette use under new decree",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/vietnam-sets-fines-of-up-to-190-for-e-cigarette-use-under-new-decree-103260102160231276.htm"
+  }
+ ],
+ "related": [
+  "getting-around-ho-chi-minh-city",
+  "where-to-live-in-ho-chi-minh-city-as-a-teacher",
+  "vietnam-work-permit-for-english-teachers",
+  "healthcare-and-health-insurance-in-ho-chi-minh-city",
+  "banking-and-sending-money-home-from-vietnam",
+  "cost-of-living-in-ho-chi-minh-city-for-teachers"
+ ],
+ "lastChecked": "2026-10-11"
+}

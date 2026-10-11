@@ -1,0 +1,490 @@
+{
+ "slug": "vietnamese-classroom-culture-for-english-teachers",
+ "title": "Teaching in Vietnam: Classroom Culture, TAs and Parents",
+ "description": "How Vietnamese students, TAs, parents and managers expect you to teach: quiet classes and face, the 2025 discipline rules, 40-pupil classes, dress and lateness.",
+ "h1": "Vietnamese classroom culture: what students, assistants, parents and managers expect of you",
+ "eyebrow": "In the classroom",
+ "intro": "Vietnamese students are usually quiet out of respect, not boredom: they wait to be called on, care a great deal about face, and expect a teacher who is structured, warm and clearly in charge. Praise in public and correct in private, tie every game to language students can show, treat your Vietnamese teaching assistant as a co-teacher, and expect parents to judge you through the school. Violent or humiliating discipline has been banned in schools since 31 October 2025, so routines and rewards do the work.",
+ "keyPoints": [
+  "Silence usually signals respect, not weakness. Let students rehearse with a partner, give wait time, and use choral answers and mini-whiteboards before you call on anyone alone.",
+  "Under **Circular 19/2025**, in force since 31 October 2025, primary pupils can only be reminded and asked to apologise, suspension and expulsion are gone, and violent or humiliating discipline is prohibited. Any physical punishment of a child will end your job.",
+  "Public-school classes are big: the legal cap is 35 at primary and 45 at secondary, but Ho Chi Minh City primary classes averaged 38 in 2022 and passed 40 in several areas. Periods last 35 minutes at primary and 45 at secondary.",
+  "Brief your teaching assistant before every class and agree when Vietnamese is used. Behaviour is a shared job; do not hand it over or ignore them.",
+  "Parents follow closely, mostly through Zalo and the academic team. Since 1 January 2026, publishing or disclosing private information about a child aged 7 or over needs consent from the child and a parent, so get written consent before any photo or video leaves the classroom.",
+  "Dress neat and conservative and arrive 15–20 minutes early. Teachers report that centres commonly treat lateness strictly, but the Labour Code bans fines or wage cuts used as discipline (Art. 127(2))."
+ ],
+ "sections": [
+  {
+   "id": "students-by-age-group",
+   "title": "What Vietnamese students are like at each age",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Most of your students will be children and teenagers. Under the 2018 General Education Programme, English is compulsory in public schools from Grade 3 to Grade 12 and is taught communicatively, with targets of roughly CEFR A1 by the end of primary, A2 by the end of lower secondary and B1 by the end of upper secondary ([the national English curriculum](https://hoatieu.vn/chuong-trinh-giao-duc-pho-thong-mon-tieng-anh-1399)). In Grades 1–2 it is still an optional familiarisation programme. An August 2026 draft would make it compulsory from Grade 1, starting in 2028–29, but as of October 2026 it is only a draft ([the draft circular](https://xaydungchinhsach.chinhphu.vn/toan-van-du-thao-thong-tu-sua-doi-bo-sung-mot-so-noi-dung-trong-chuong-trinh-giao-duc-pho-thong-119260820174117596.htm))."
+    },
+    {
+     "type": "p",
+     "text": "From 2026–27 every public school uses one national textbook set, and its English book is **Global Success** ([LSVN](https://lsvn.vn/bo-gd-dt-thong-tin-ve-phuong-an-su-dung-mot-bo-sgk-thong-nhat-tu-nam-hoc-2026-2027-a168007.html)). Exams shape what families want from you more than any textbook does, and they change with age."
+    },
+    {
+     "type": "table",
+     "caption": "Students by age group. Timetable and exam facts from MOET, Cambridge English, Ho Chi Minh City sources and Viet Nam News (IELTS); the last column is common practitioner advice.",
+     "headers": [
+      "Age group",
+      "Where you meet them",
+      "What families care about",
+      "What tends to work"
+     ],
+     "rows": [
+      [
+       "Preschool, 3–6",
+       "Kindergartens and centre kids' programmes; from 2026–27 a voluntary integrated-English pilot in the city's public kindergartens, with 4 English activities a week for ages 3–5 and 6 for ages 5–6",
+       "Visible progress: songs, words and short performances they can show at home",
+       "Very short activities, songs and TPR, fixed routines; the assistant uses Vietnamese for safety and comfort"
+      ],
+      [
+       "Primary, about 6–11 (Grades 1–5)",
+       "Public schools (35-minute periods; 4 English periods a week in Grades 3–5) and weekend centre classes",
+       "Cambridge Starters, Movers and Flyers certificates",
+       "Team points and games tied to the target language, chants, clear routines and plenty of praise"
+      ],
+      [
+       "Lower secondary, about 11–15 (Grades 6–9)",
+       "Public schools (45-minute periods; 3 English periods a week) and evening centre classes",
+       "The city's Grade-10 entrance exam: Literature, Maths and a 90-minute foreign-language paper",
+       "Pair work before whole-class answers, exam-style tasks, no public put-downs"
+      ],
+      [
+       "Upper secondary, about 15–18",
+       "Public schools, integrated programmes and centre IELTS classes",
+       "IELTS: in 2023, 30% of Vietnam's IELTS candidates were aged 16–18",
+       "Speaking practice, the weakest IELTS skill, and on-screen practice for the computer-only test"
+      ],
+      [
+       "Adults",
+       "Evening and weekend centre classes, often IELTS",
+       "Scores and practical speaking",
+       "Clear goals, structure and explicit correction; the same face rules apply"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Parents of young children care about Cambridge's Young Learners exams, which have no pass or fail: children earn up to 5 shields in each of three papers, and everyone who completes the test gets a certificate ([Cambridge English](https://www.cambridgeenglish.org/exams-and-tests/qualifications/young-learners/)). For Grades 8–9 the pressure is the Grade-10 entrance exam, whose three papers carry equal weight ([SGGP](https://www.sggp.org.vn/tphcm-cong-bo-chi-tiet-lich-thi-tuyen-sinh-lop-10-nam-hoc-2026-2027-post848417.html)). Older teenagers chase IELTS: Vietnamese candidates averaged 6.2 overall in 2022 data, with Speaking lowest at 5.8, and 30% of 2023 candidates were 16–18 ([Viet Nam News](https://vietnamnews.vn/society/1638637/vietnamese-students-rank-23rd-globally-in-ielts-exam-annual-report.html); [Viet Nam News](https://vietnamnews.vn/society/1519107/ielts-students-getting-younger.html))."
+    },
+    {
+     "type": "p",
+     "text": "Three recent changes affect older students. English has been an elective in the national graduation exam since 2025, IELTS in Vietnam has been computer-only since 30 March 2025 ([Tuoi Tre](https://tuoitre.vn/tu-29-3-bo-thi-ielts-tren-giay-chi-con-thi-tren-may-tinh-20250107093536508.htm)), and a draft rule would end university bonus points for certificates such as IELTS from 2027 ([VnExpress](https://vnexpress.net/khi-96-thi-sinh-chon-ielts-5125959.html)). Exam classes have their own guide, [teaching IELTS in Vietnam](/teach-in-vietnam/teaching-ielts-in-vietnam); for the youngest learners, see [teaching young learners and kindergarten](/teach-in-vietnam/teaching-young-learners-in-vietnam)."
+    },
+    {
+     "type": "p",
+     "text": "Whatever the age, expect the same pronunciation patterns: dropped ending sounds such as plural -s and past -ed, and substitutions for th, sh and tr. In one study of 51 graduating English majors, dropping ending sounds was the most common error ([VNU Journal of Foreign Studies](https://js.vnu.edu.vn/FS/article/view/2072/1973)). The fixes are in [pronunciation problems of Vietnamese learners](/teach-in-vietnam/pronunciation-problems-of-vietnamese-learners)."
+    }
+   ]
+  },
+  {
+   "id": "respect-and-face",
+   "title": "Respect, face and why students go quiet",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "For many new teachers the first surprise is silence. Studies of Vietnamese learning culture report that students usually stay quiet and wait to be called on rather than volunteer, because being talkative, interrupting or challenging the teacher is seen as disrespectful ([Pham Thi My Hanh, NUS](https://fass.nus.edu.sg/cls/wp-content/uploads/sites/32/2020/10/pham_thimyhanh.pdf)). Face-saving matters to students and to their families. **A quiet class is usually a respectful one**, not a bored or weak one."
+    },
+    {
+     "type": "p",
+     "text": "Teachers hold high social status, summed up in the proverb 'Không thầy đố mày làm nên' ('without a teacher you cannot succeed'), and many students come from teacher-centred, exam-focused lessons. They tend to expect a clear structure, a model to follow and explicit correction (same source). Teachers commonly find that structure is what gets students talking: drop it in the name of student-centred teaching and many classes go quieter, not louder."
+    },
+    {
+     "type": "h3",
+     "text": "What gets quiet classes talking"
+    },
+    {
+     "type": "p",
+     "text": "These are the techniques experienced teachers in Vietnam commonly rely on:"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Pair first, then share.** Let students rehearse an answer with a partner before anyone speaks to the whole class.",
+      "**Warn, then wait.** Tell a student a question is coming, or name them and give real wait time. Calling on someone without warning puts their face at risk.",
+      "**Everyone answers at once.** Choral response, mini-whiteboards and answer cards let the whole class show what they know without anyone being exposed.",
+      "**Praise in public, correct in private.** Students want correction, but not to be singled out: fix common errors through whole-class feedback and take individual problems aside.",
+      "**Design group work deliberately.** Research on cooperative learning in Vietnam warns that a collectivist culture does not make Western-style group work succeed on its own; tasks need to be built around in-group dynamics, hierarchy and harmony ([Nguyen, Terlouw and Pilot, Asia Europe Journal](https://ideas.repec.org/a/kap/asiaeu/v3y2005i3p403-419.html)). Give each member a role and the group a product you can see."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "rewards-and-discipline",
+   "title": "Rewards, discipline and gifts: the norms and the rules",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Reward systems are standard in children's centres: points, stickers and class 'money' that add up to a prize. They work as long as every game is tied to the language you are teaching, because managers and parents ask what the children learned, not whether they had fun. Reward teams and effort as well as top scorers, so nobody's place at the bottom of a chart is on public display."
+    },
+    {
+     "type": "p",
+     "text": "Discipline is now set out in law for schools. **Circular 19/2025/TT-BGDĐT**, in force since 31 October 2025, replaced the 1988 student-discipline rules, removed suspension and expulsion, prohibited violent or humiliating discipline and added support measures such as counselling, encouragement and monitoring ([LuatVietnam](https://luatvietnam.vn/tin-van-ban-moi/tu-31-10-2025-khong-con-hinh-thuc-ky-luat-dinh-chi-hoc-doi-voi-hoc-sinh-186-104157-article.html); [SGGP](https://www.sggp.org.vn/muc-ky-luat-nang-nhat-voi-hoc-sinh-chi-la-viet-ban-kiem-diem-post813497.html))."
+    },
+    {
+     "type": "table",
+     "caption": "Student discipline in Vietnamese schools under Circular 19/2025/TT-BGDĐT (in force 31 October 2025)",
+     "headers": [
+      "Level",
+      "Measures a school may use",
+      "Not allowed"
+     ],
+     "rows": [
+      [
+       "Primary",
+       "A reminder; asking the pupil to apologise",
+       "Violent or humiliating discipline; suspension; expulsion"
+      ],
+      [
+       "Lower and upper secondary",
+       "A reminder; criticism; a written self-criticism",
+       "Violent or humiliating discipline; suspension; expulsion"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Those measures belong to the school, not to you. The usual practice is that you manage behaviour in the moment with routines and rewards, and pass anything serious to your assistant, the Vietnamese teacher or the academic team. The Law on Teachers (73/2025/QH15, in force since 1 January 2026) also bans teachers from discriminating among learners, forcing them into paid extra classes or demanding payments beyond lawful fees ([full text](https://xaydungchinhsach.chinhphu.vn/toan-van-luat-nha-giao-119250703171419548.htm)). Whether every provision covers a foreign teacher at a private language centre is not settled, so treat it as your standard anyway."
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "The mistake that ends jobs",
+     "text": "Never use physical punishment, rough handling, sarcasm or public shaming, even as a joke at a student's expense. Humiliating discipline is banned in schools under Circular 19/2025, any physical punishment of a child is illegal and will end your job, and a public put-down costs the student face and tends to come back to you as a parent complaint."
+    },
+    {
+     "type": "h3",
+     "text": "Gifts on Teachers' Day and at Tết"
+    },
+    {
+     "type": "p",
+     "text": "20 November is Vietnamese Teachers' Day, now written into Article 32 of the Law on Teachers ([full text](https://xaydungchinhsach.chinhphu.vn/toan-van-luat-nha-giao-119250703171419548.htm)). Schools and centres hold ceremonies, and students and parents bring flowers, cards and small gifts; at Tết, red envelopes (lì xì) are common. Accept small tokens graciously and follow your employer's policy on cash or anything expensive. Four days later, 24 November is Vietnam Culture Day, a paid day off from 2026 ([Báo Chính phủ](https://baochinhphu.vn/ngay-van-hoa-viet-nam-24-11-nguoi-lao-dong-duoc-nghi-lam-huong-nguyen-luong-102260424093821937.htm)); [the teaching year in Vietnam](/teach-in-vietnam/the-teaching-year-in-vietnam) has the full calendar."
+    }
+   ]
+  },
+  {
+   "id": "teaching-assistants",
+   "title": "Working with your Vietnamese teaching assistant",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "In children's classes at centres you will usually have a Vietnamese teaching assistant, and in public-school placements a Vietnamese teacher is commonly in the room. By teachers' accounts, assistants take attendance, explain instructions in Vietnamese, help with behaviour and check homework; in some centres they are also expected to film children for parents, which pulls them away from the class. Duties vary by employer, so ask what your assistant is and is not there to do."
+    },
+    {
+     "type": "p",
+     "text": "Can they translate for you? Yes, within limits you agree together. The two common failures are opposite ones: ignoring the assistant, or letting them run your class in Vietnamese while you stand at the board. A short routine avoids both."
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Brief them before class",
+       "text": "Two minutes on the lesson flow, the target language and the activities where you need their help. Arriving 15–20 minutes early makes room for this."
+      },
+      {
+       "title": "Agree when Vietnamese is used",
+       "text": "The usual list: children under 6, safety, complex instructions and behaviour. Everything else stays in English, carried by gestures, modelling and visuals."
+      },
+      {
+       "title": "Share behaviour management",
+       "text": "Agree a signal and who deals with what. Behaviour is a shared job: do not hand it over entirely, and do not override the assistant in front of the class."
+      },
+      {
+       "title": "Give them a part in the lesson",
+       "text": "Model a dialogue together, let them monitor one side of the room, or have them run a team during a game."
+      },
+      {
+       "title": "Debrief after class",
+       "text": "Ask what they noticed. They hear what students say to each other in Vietnamese and often know who is struggling or upset before you do."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "parents-and-observations",
+   "title": "Parents, feedback and observations",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Parents follow their children's English closely and judge it by what they can see: worksheets, videos, short performances and certificates. At centres, their feedback usually reaches you through the academic team rather than directly. In public schools, homeroom teachers in Ho Chi Minh City commonly run class groups with parents on Zalo, Vietnam's main messaging app, which VNG says has 77.7 million monthly active users ([VNG](https://vng.com.vn/product/connecting-users-in-everyday-life/zalo-and-ai.html?lang=en)). Some parents receive hundreds of group messages a day, group disputes can escalate into attacks on teachers, and the city's Department of Education has urged schools to set codes of conduct ([SGGP](https://www.sggp.org.vn/nhom-tro-chuyen-tren-mang-phien-phuc-cho-ca-phu-huynh-lan-hoc-sinh-post713190.html))."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Keep Zalo professional.** Use a work profile, keep messages brief and polite, and raise problems privately with your coordinator, never in a group chat.",
+      "**Write comments for translation.** Progress notes and report cards are often translated for parents: be specific, start with something positive, give one clear next step, and avoid idioms and sarcasm.",
+      "**Never promise exam results.** Parents' expectations are high, and a promised IELTS band in a few months turns into a complaint quickly.",
+      "**Get consent before images leave the room.** Under the Law on Personal Data Protection, in force since 1 January 2026, publishing or disclosing private information about a child aged 7 or over needs consent from both the child and a parent ([LSVN](https://lsvn.vn/cong-bo-du-lieu-ca-nhan-cua-tre-tu-07-tuoi-phai-duoc-nguoi-dai-dien-dong-y-a167752.html)). Get written consent, follow your employer's policy, and never post students on your personal social media."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "More on images, one-to-one situations and conduct is in [safeguarding and professional conduct](/teach-in-vietnam/safeguarding-and-professional-conduct-for-teachers-in-vietnam)."
+    },
+    {
+     "type": "p",
+     "text": "Sooner or later a parent will ask you to tutor their child. If you teach in a school, check first: Circular 29/2024, in force since 14 February 2025, bars a teacher from giving paid extra classes outside school, online included, to students the school assigns them to teach, and allows no extra classes for primary pupils except arts, sports and life skills ([LuatVietnam](https://luatvietnam.vn/tin-van-ban-moi/da-co-thong-tu-29-2024-tt-bgddt-quy-dinh-ve-day-them-hoc-them-tu-14-02-2025-186-100582-article.html)). Since 15 May 2026, [Circular 19/2026](https://luatvietnam.vn/tin-van-ban-moi/da-co-thong-tu-19-2026-tt-bgddt-sua-thong-tu-29-2024-tt-bgddt-ve-day-them-hoc-them-186-108257-article.html) has taken foreign-language enrichment outside the Ministry's subject programmes out of these rules, so the ban mainly bites when private lessons re-teach the school's English programme. Either way, lessons the parents pay you for are work outside your work permit, which risks a {{vnd:15000000-25000000}} fine and deportation; see [private tutoring and online teaching](/teach-in-vietnam/private-tutoring-and-online-teaching-in-vietnam)."
+    },
+    {
+     "type": "h3",
+     "text": "Observations"
+    },
+    {
+     "type": "p",
+     "text": "Expect to be observed, on a schedule and unannounced. Some centres have classroom cameras that academic managers can watch, and parent feedback is passed on to you. On day one, ask for the observation rubric and any KPIs your pay or renewal depends on, such as re-enrolment or parent satisfaction. Observers tend to look for what parents look for: a clear language target, students talking and output you can show."
+    },
+    {
+     "type": "p",
+     "text": "How hard all this lands varies a lot by employer. eno.vn's [school directory](/schools) lists Ho Chi Minh City employers, where teachers who worked or interviewed there can vote and write reviews that a moderator reads before they appear; most schools have few or no reviews yet, so also ask current teachers directly."
+    }
+   ]
+  },
+  {
+   "id": "large-classes",
+   "title": "Managing large public-school classes",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Public-school work, usually through an agency, is a different job from centre teaching. The legal cap is 35 pupils a class at primary (Circular 28/2020) and 45 at secondary (Circular 32/2020) ([Hoatieu](https://hoatieu.vn/phap-luat/quy-dinh-ve-si-so-lop-hoc-bac-tieu-hoc-131948); [Thu Vien Phap Luat](https://thuvienphapluat.vn/hoi-dap-phap-luat/mot-lop-hoc-co-48-hoc-sinh-thi-co-dung-quy-dinh-347073.html)), and public preschool groups are capped at 25, 30 and 35 by age. Reality runs higher: in 2022 Ho Chi Minh City primary classes averaged 38.16 pupils, with averages above 40 in Thu Duc, Districts 8, 10 and 12, Go Vap, Tan Phu, Binh Tan and Hoc Mon, which reached 47.17 ([VnExpress](https://vnexpress.net/truong-cong-qua-tai-4507502.html)). Those are the old district names; since 1 July 2025 official addresses use new ward names."
+    },
+    {
+     "type": "table",
+     "caption": "Class sizes and lesson lengths by setting. Legal caps from MOET circulars; Ho Chi Minh City figures from VnExpress (2022); other class sizes from teacher guides; period lengths from the national curriculum.",
+     "headers": [
+      "Setting",
+      "Legal cap",
+      "What you will typically find",
+      "Period length"
+     ],
+     "rows": [
+      [
+       "Public primary",
+       "35 pupils (Circular 28/2020)",
+       "City average 38.16 in 2022; above 40 in several areas",
+       "35 minutes"
+      ],
+      [
+       "Public lower and upper secondary",
+       "45 pupils (Circular 32/2020)",
+       "Teacher guides put public-school English classes at 30–50 or more",
+       "45 minutes"
+      ],
+      [
+       "Private language centres",
+       "None found in the centre rules (Circular 21/2018)",
+       "Roughly 10–20 students, by teacher guides",
+       "Set by the centre"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "A typical placement means one or two periods a week with each class, 35–50 pupils, a Vietnamese teacher in the room and desks you cannot move. In Ho Chi Minh City, fee-paying 'linked' English classes with foreign teachers must be voluntary: pupils who opt out get a free alternative activity in the same slot and must not be treated differently ([Giao duc Thu do](https://giaoducthudo.giaoducthoidai.vn/chuong-trinh-lien-ket-o-tphcm-khong-phai-cu-duoc-phep-la-dua-vao-truong-223264.html)), so class lists can change and enrolment can fall. More of this work is coming: in June 2026 the city approved a 2026–2030 pilot letting 246 public preschools and schools contract foreign teachers directly ([Giao duc Viet Nam](https://giaoduc.net.vn/tphcm-246-truong-mam-non-pho-thong-duoc-tu-tuyen-giao-vien-hop-dong-voi-giao-vien-nuoc-ngoai-post260905.gd)). How agency placements compare with centre jobs is covered in [types of English teaching jobs](/teach-in-vietnam/types-of-english-teaching-jobs-in-vietnam)."
+    },
+    {
+     "type": "h3",
+     "text": "What works with 40 or more"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Routines before content.** Teach the same opening, attention signal (a clap pattern or a countdown) and closing in week one, and use them every lesson.",
+      "**Whole-class participation.** TPR, chants, choral drilling and call-and-response work at any class size without moving furniture.",
+      "**Teams, not individuals.** Split the room by rows into teams for points: it rewards cooperation and protects face.",
+      "**Visuals for the back row.** Big flashcards and board drawings; ask in advance whether there is a working projector.",
+      "**Check everyone at once.** Mini-whiteboards or answer cards show you who has understood without a line of individual questions.",
+      "**A tight lesson arc.** Warm-up, one language target, controlled practice, a game that uses it, a two-minute review: at primary all of it has to fit into 35 minutes.",
+      "**Agree roles with the Vietnamese teacher.** Before the first lesson, settle who handles behaviour and when Vietnamese is used, exactly as you would with an assistant."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "dress-and-punctuality",
+   "title": "Dress code and punctuality",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Your employer's handbook sets the dress code, and many centres have written dress rules or a uniform. The safe default is neat and conservative. Saigon is hot all year, so choose light fabrics rather than shorter hems."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "A collared shirt or a blouse.",
+      "Long trousers or a knee-length skirt.",
+      "Closed shoes.",
+      "Visible tattoos: best covered in public schools. Centres vary, so ask at interview rather than on your first day."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Arrive 15–20 minutes before class to set up and brief your assistant. Teachers commonly report that centres treat lateness strictly, sometimes with pay deductions. Lateness 'fines' have no legal basis: the Labour Code bans fines or wage cuts in place of discipline (Art. 127(2)) and allows deductions only to compensate damage to the employer's property ([Labour Code 2019](https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html)). Lateness can still lead to formal discipline if your work rules or contract cover it, so read that clause before you sign; [what to check in a teaching contract](/teach-in-vietnam/english-teaching-contracts-in-vietnam) goes through the rest."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Will I have a teaching assistant in every class?",
+   "a": "Commonly in young-learner classes at centres, less often with teenagers and adults. In public-school placements a Vietnamese teacher is commonly in the room. It varies by employer, so ask at interview."
+  },
+  {
+   "q": "Is it OK to use Vietnamese in an English class?",
+   "a": "A little, by agreement: most teachers let the assistant use Vietnamese for children under 6, safety, complex instructions and behaviour, and keep everything else in English. A few words of Vietnamese from you can build rapport, but it should not replace modelling and gestures."
+  },
+  {
+   "q": "Can I post photos of my students on social media?",
+   "a": "No, not on your personal accounts. Since 1 January 2026, disclosing private information about a child aged 7 or over needs consent from both the child and a parent, so get written consent and follow your employer's policy for any official use."
+  },
+  {
+   "q": "Do I have to cover tattoos to teach in Vietnam?",
+   "a": "In public schools, visible tattoos are best covered. Centres set their own rules, so ask at interview and check the staff handbook."
+  },
+  {
+   "q": "What textbooks do Vietnamese schools use?",
+   "a": "From the 2026–27 school year every public school uses one national textbook set, and its English book is Global Success. Centres choose their own materials, so ask which course books you will teach from."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Từ 31/10/2025, không còn hình thức kỷ luật đình chỉ học đối với học sinh (Circular 19/2025/TT-BGDĐT)",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/tin-van-ban-moi/tu-31-10-2025-khong-con-hinh-thuc-ky-luat-dinh-chi-hoc-doi-voi-hoc-sinh-186-104157-article.html"
+  },
+  {
+   "title": "Mức kỷ luật nặng nhất với học sinh chỉ là viết bản kiểm điểm",
+   "publisher": "Sài Gòn Giải Phóng",
+   "url": "https://www.sggp.org.vn/muc-ky-luat-nang-nhat-voi-hoc-sinh-chi-la-viet-ban-kiem-diem-post813497.html"
+  },
+  {
+   "title": "Toàn văn Luật Nhà giáo (Law on Teachers 73/2025/QH15)",
+   "publisher": "Government of Vietnam (Xây dựng chính sách, pháp luật)",
+   "url": "https://xaydungchinhsach.chinhphu.vn/toan-van-luat-nha-giao-119250703171419548.htm"
+  },
+  {
+   "title": "Công bố dữ liệu cá nhân của trẻ từ 07 tuổi phải được người đại diện đồng ý",
+   "publisher": "Tạp chí Luật sư Việt Nam (LSVN)",
+   "url": "https://lsvn.vn/cong-bo-du-lieu-ca-nhan-cua-tre-tu-07-tuoi-phai-duoc-nguoi-dai-dien-dong-y-a167752.html"
+  },
+  {
+   "title": "Đã có Thông tư 29/2024/TT-BGDĐT quy định về dạy thêm, học thêm",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/tin-van-ban-moi/da-co-thong-tu-29-2024-tt-bgddt-quy-dinh-ve-day-them-hoc-them-tu-14-02-2025-186-100582-article.html"
+  },
+  {
+   "title": "Bộ luật Lao động 2019 (Labour Code)",
+   "publisher": "Dữ liệu pháp luật",
+   "url": "https://dulieuphapluat.vn/van-ban/lao-dong/bo-luat-lao-dong-2019-45716.html"
+  },
+  {
+   "title": "Chương trình giáo dục phổ thông môn Tiếng Anh",
+   "publisher": "Hoatieu",
+   "url": "https://hoatieu.vn/chuong-trinh-giao-duc-pho-thong-mon-tieng-anh-1399"
+  },
+  {
+   "title": "Toàn văn dự thảo Thông tư sửa đổi, bổ sung một số nội dung trong Chương trình giáo dục phổ thông",
+   "publisher": "Government of Vietnam (Xây dựng chính sách, pháp luật)",
+   "url": "https://xaydungchinhsach.chinhphu.vn/toan-van-du-thao-thong-tu-sua-doi-bo-sung-mot-so-noi-dung-trong-chuong-trinh-giao-duc-pho-thong-119260820174117596.htm"
+  },
+  {
+   "title": "Bộ GD-ĐT thông tin về phương án sử dụng một bộ SGK thống nhất từ năm học 2026-2027",
+   "publisher": "Tạp chí Luật sư Việt Nam (LSVN)",
+   "url": "https://lsvn.vn/bo-gd-dt-thong-tin-ve-phuong-an-su-dung-mot-bo-sgk-thong-nhat-tu-nam-hoc-2026-2027-a168007.html"
+  },
+  {
+   "title": "Quy định về sĩ số lớp học bậc tiểu học mới nhất",
+   "publisher": "Hoatieu",
+   "url": "https://hoatieu.vn/phap-luat/quy-dinh-ve-si-so-lop-hoc-bac-tieu-hoc-131948"
+  },
+  {
+   "title": "Một lớp học có 48 học sinh thì có đúng quy định không?",
+   "publisher": "Thư Viện Pháp Luật",
+   "url": "https://thuvienphapluat.vn/hoi-dap-phap-luat/mot-lop-hoc-co-48-hoc-sinh-thi-co-dung-quy-dinh-347073.html"
+  },
+  {
+   "title": "Trường công quá tải",
+   "publisher": "VnExpress",
+   "url": "https://vnexpress.net/truong-cong-qua-tai-4507502.html"
+  },
+  {
+   "title": "Chương trình liên kết ở TPHCM: Không phải cứ được phép là đưa vào trường",
+   "publisher": "Giáo dục Thủ đô",
+   "url": "https://giaoducthudo.giaoducthoidai.vn/chuong-trinh-lien-ket-o-tphcm-khong-phai-cu-duoc-phep-la-dua-vao-truong-223264.html"
+  },
+  {
+   "title": "TPHCM: 246 trường mầm non, phổ thông được tự tuyển giáo viên, hợp đồng với giáo viên nước ngoài",
+   "publisher": "Giáo dục Việt Nam",
+   "url": "https://giaoduc.net.vn/tphcm-246-truong-mam-non-pho-thong-duoc-tu-tuyen-giao-vien-hop-dong-voi-giao-vien-nuoc-ngoai-post260905.gd"
+  },
+  {
+   "title": "TPHCM triển khai tiếng Anh tích hợp bậc mầm non trên nguyên tắc tự nguyện",
+   "publisher": "Giáo dục và Thời đại",
+   "url": "https://giaoducthoidai.vn/tphcm-trien-khai-tieng-anh-tich-hop-bac-mam-non-tren-nguyen-tac-tu-nguyen-post794467.html"
+  },
+  {
+   "title": "Understanding the context and its effect on assessment in EFL class in higher education in Vietnam (Pham Thi My Hanh)",
+   "publisher": "Centre for Language Studies, National University of Singapore",
+   "url": "https://fass.nus.edu.sg/cls/wp-content/uploads/sites/32/2020/10/pham_thimyhanh.pdf"
+  },
+  {
+   "title": "Cooperative learning vs Confucian heritage culture's collectivism: confrontation to reveal some cultural conflicts and mismatch (Asia Europe Journal 3(3), 2005)",
+   "publisher": "RePEc / Springer",
+   "url": "https://ideas.repec.org/a/kap/asiaeu/v3y2005i3p403-419.html"
+  },
+  {
+   "title": "Common pronunciation problems of Vietnamese learners of English (Ha Cam Tam, 2005)",
+   "publisher": "VNU Journal of Foreign Studies",
+   "url": "https://js.vnu.edu.vn/FS/article/view/2072/1973"
+  },
+  {
+   "title": "Pre A1 Starters, A1 Movers and A2 Flyers",
+   "publisher": "Cambridge English",
+   "url": "https://www.cambridgeenglish.org/exams-and-tests/qualifications/young-learners/"
+  },
+  {
+   "title": "TPHCM công bố chi tiết lịch thi tuyển sinh lớp 10 năm học 2026-2027",
+   "publisher": "Sài Gòn Giải Phóng",
+   "url": "https://www.sggp.org.vn/tphcm-cong-bo-chi-tiet-lich-thi-tuyen-sinh-lop-10-nam-hoc-2026-2027-post848417.html"
+  },
+  {
+   "title": "Vietnamese students rank 23rd globally in IELTS exam: annual report",
+   "publisher": "Viet Nam News",
+   "url": "https://vietnamnews.vn/society/1638637/vietnamese-students-rank-23rd-globally-in-ielts-exam-annual-report.html"
+  },
+  {
+   "title": "IELTS students getting younger",
+   "publisher": "Viet Nam News",
+   "url": "https://vietnamnews.vn/society/1519107/ielts-students-getting-younger.html"
+  },
+  {
+   "title": "Từ 29-3: Bỏ thi IELTS trên giấy, chỉ còn thi trên máy tính",
+   "publisher": "Tuổi Trẻ",
+   "url": "https://tuoitre.vn/tu-29-3-bo-thi-ielts-tren-giay-chi-con-thi-tren-may-tinh-20250107093536508.htm"
+  },
+  {
+   "title": "Zalo and AI",
+   "publisher": "VNG",
+   "url": "https://vng.com.vn/product/connecting-users-in-everyday-life/zalo-and-ai.html?lang=en"
+  },
+  {
+   "title": "Nhóm trò chuyện trên mạng: phiền phức cho cả phụ huynh lẫn học sinh",
+   "publisher": "Sài Gòn Giải Phóng",
+   "url": "https://www.sggp.org.vn/nhom-tro-chuyen-tren-mang-phien-phuc-cho-ca-phu-huynh-lan-hoc-sinh-post713190.html"
+  }
+ ],
+ "related": [
+  "teaching-young-learners-in-vietnam",
+  "pronunciation-problems-of-vietnamese-learners",
+  "safeguarding-and-professional-conduct-for-teachers-in-vietnam",
+  "english-teacher-workload-and-schedules-in-vietnam",
+  "types-of-english-teaching-jobs-in-vietnam",
+  "the-teaching-year-in-vietnam"
+ ],
+ "lastChecked": "2026-10-11"
+}
