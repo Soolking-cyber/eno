@@ -238,6 +238,13 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // — rendered by ONE component, so the prose lives in the component, not the page files. Exempt for
     // both reasons above at once: each branch is one page's own language, never a tr() pair.
     "src/components/marketplace/vehicle-hub.tsx",
+    // THE TEACH-IN-VIETNAM LIBRARY (src/lib/teach-guides/*) — English-only SEO prose for English
+    // queries, like the guides above: the hub's own copy, and the renderer whose only JSX text is the
+    // English article chrome around each guide's data ("Key points", the sources line). The guides
+    // themselves are JSON, not JSX, so this rule never sees their words — their vocabulary is policed by
+    // teach-guides.test.ts instead (both editions, so no visa / itinerary / PayPal wording).
+    "src/app/\\[lang\\]/teach-in-vietnam/page.tsx",
+    "src/components/marketplace/teach-guide-body.tsx",
     // THE PHONE-BUYING CLUSTER (src/lib/phone-guides.ts) — sixteen articles, eight topics, each
     // topic written twice: once in English for English queries, once in Vietnamese for Vietnamese
     // ones.

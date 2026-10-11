@@ -57,6 +57,9 @@ const RESERVED = new Set([
   // /schools is the teacher-ranked school directory and schools.eno.vn its name (2026-10-04): a seller
   // holding `schools` would own both. `school` too, so the singular cannot pose as the directory.
   'schools', 'school',
+  // /teach-in-vietnam is the teacher guide library (2026-10-10). Separator-free, so one entry also
+  // covers teach-in-vietnam, teach_in_vietnam and teachinvietnam (isReservedHandle folds `-`/`_`).
+  'teachinvietnam',
   // ⚠️ `docs` IS NOT AN app ROUTE — IT IS A REWRITE, WHICH IS EXACTLY WHY IT IS EASY TO MISS.
   // next.config.ts rewrites /docs -> /developers in `afterFiles`, which Next resolves BEFORE
   // dynamic routes, so it outranks src/app/[lang]/[handle]. A seller holding `docs` would have a

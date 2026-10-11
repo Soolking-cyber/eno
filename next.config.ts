@@ -981,6 +981,19 @@ const nextConfig: NextConfig = {
         ? [{ source: '/travel', destination: '/vietnam-evisa', permanent: false }]
         : []),
       /**
+       * The teacher guide library lives on eno.vn ALONE, SERVICES EDITION 308s IT THERE (2026-10-10).
+       * Its routes are ordinary pages, so without this the forum would serve a second, self-canonical copy
+       * of every guide — the "same content across multiple sites" shape Google's scaled-content policy
+       * names, and a copy that would compete with the original. eno.forum → eno.vn is the allowed direction
+       * (the edition rule restricts what eno.vn links to, not what links to it).
+       */
+      ...(EDITION_ENV === "services"
+        ? [
+            { source: '/teach-in-vietnam', destination: 'https://eno.vn/teach-in-vietnam', permanent: true },
+            { source: '/teach-in-vietnam/:slug', destination: 'https://eno.vn/teach-in-vietnam/:slug', permanent: true },
+          ]
+        : []),
+      /**
        * `/c/vehicles` (+ district pages) and `/motorbikes-for-sale-vietnam` → the HCMC motorbike-rental
        * hub, 308, BOTH EDITIONS (second-hand focus, owner 2026-10-03). The rules, and why there is no
        * language twin, are in src/lib/retired-categories.ts.

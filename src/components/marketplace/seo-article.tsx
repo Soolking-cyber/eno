@@ -165,6 +165,19 @@ export type ArticleContent = {
    * The node brings its own top margin.
    */
   ledeRow?: React.ReactNode
+  /**
+   * The trail above the eyebrow — `Home › Teach in Vietnam › This guide` — AND, from the same list, the
+   * BreadcrumbList JSON-LD. One list, two consumers, so what a reader sees and what Google is told cannot
+   * disagree (the C-DATES argument, applied to the trail). The last crumb is this page: rendered as text,
+   * not a link. Optional: the single-page guides have no section above them to show.
+   */
+  breadcrumb?: { label: string; href: string }[]
+  /**
+   * A block after the last section and before "Keep reading" — the teach guides' "next step on eno.vn"
+   * aside. Kept out of `sections` on purpose: it is not part of the article, so it does not belong in
+   * "On this page", and a repeated block inside the prose column would read as boilerplate in the text.
+   */
+  afterSections?: React.ReactNode
 }
 
 /** The prose column. Two of them only when `railAfter` puts the page-width rail between the sections. */
@@ -299,6 +312,7 @@ const DATE_LINE = {
  */
 const ARTICLE_CHROME = {
   en: {
+    breadcrumb: 'Breadcrumb',
     onThisPage: 'On this page',
     keepReading: 'Keep reading',
     faq: 'Frequently asked questions',
@@ -309,6 +323,7 @@ const ARTICLE_CHROME = {
     ],
   },
   vi: {
+    breadcrumb: 'Đường dẫn',
     onThisPage: 'Trên trang này',
     keepReading: 'Đọc thêm',
     faq: 'Câu hỏi thường gặp',
@@ -368,6 +383,19 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
     ...(content.alternate ? { workTranslation: { '@type': 'Article', inLanguage: content.alternate.lang, url: `${SITE_ORIGIN}${content.alternate.href}` } } : {}),
   }
 
+  const breadcrumbLd = content.breadcrumb?.length
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: content.breadcrumb.map((c, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          name: c.label,
+          item: `${SITE_ORIGIN}${c.href}`,
+        })),
+      }
+    : null
+
   const faqLd = {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
@@ -384,6 +412,7 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
       {content.faqs.length > 0 && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(faqLd) }} />
       )}
+      {breadcrumbLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(breadcrumbLd) }} />}
       {content.jsonLd?.map((node, i) => (
         <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(node) }} />
       ))}
@@ -391,6 +420,24 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
       <Header />
 
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
+        {content.breadcrumb && content.breadcrumb.length > 1 && (
+          <nav aria-label={chrome.breadcrumb} className="mb-4">
+            <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-ink-4">
+              {content.breadcrumb.map((c, i, all) => (
+                <li key={c.href} className="flex items-center gap-x-1.5">
+                  {i < all.length - 1 ? (
+                    <>
+                      <Link href={c.href} prefetch={false} className="hover:text-accent-foreground hover:underline">{c.label}</Link>
+                      <ChevronRight className="size-3.5 text-ink-4" aria-hidden />
+                    </>
+                  ) : (
+                    <span aria-current="page" className="text-body">{c.label}</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </nav>
+        )}
         <p className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
         <h1 className="h-display max-w-3xl text-foreground">{content.h1}</h1>
         {/* The date, as ContentPage places its "Last updated" line: under the title, before the lede.
@@ -440,6 +487,8 @@ export async function SeoArticle({ content }: { content: ArticleContent }) {
         {rail && <SeoListingRail {...rail} className="mt-14" heading="h-title" />}
 
         {restSections.length > 0 && <ArticleSections sections={restSections} className="mt-14" />}
+
+        {content.afterSections}
 
         {content.cta?.repeatAtEnd && <ArticleCta cta={content.cta} className="mt-10" />}
 

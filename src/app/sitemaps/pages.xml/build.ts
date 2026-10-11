@@ -11,6 +11,7 @@ import { SERVICES_SITEMAP_PATHS } from '@/lib/edition-services-copy'
 import { EXPAT_GUIDE_PATHS, MARKETPLACE_GUIDE_PATHS, guideDates } from '@/lib/expat-guides'
 import { vehicleHubLiveCount, VEHICLE_HUB_KIND_BY_SLUG } from '@/lib/vehicle-hubs'
 import { PHONE_GUIDE_PATHS } from '@/lib/phone-guides'
+import { releasedGuides, TEACH_BASE, teachGuideDates, teachPath } from '@/lib/teach-guides/registry'
 import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
 import { seoLandingWhere, type SeoLandingTarget } from '@/components/marketplace/seo-landing-where'
 import { LANDING_TARGET as JOBS_TARGET } from '@/app/[lang]/jobs-vietnam-expats/landing-target'
@@ -600,6 +601,27 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
    */
   for (const path of PHONE_GUIDE_PATHS) {
     urls.push(`  <url><loc>${hostUrl}/${path}</loc>${lm(guideLastmod(path))}</url>\n`)
+  }
+
+  /**
+   * The teacher guide library (src/lib/teach-guides/registry.ts) — RELEASED guides only, read at request
+   * time, so a wave reaches the sitemap (and the IndexNow cron, which diffs it) the hour it opens, with no
+   * deploy. ⛔ ON eno.vn ONLY: the services edition 308s the whole path to eno.vn (next.config.ts), and a
+   * submitted URL that redirects is a Search Console error. The hub is dated by its newest guide, and is
+   * submitted only once a guide is live — it 404s before that.
+   */
+  if (!IS_SERVICES) {
+    const live = releasedGuides()
+    if (live.length) {
+      // The RELEASE date, not the wave date (registry.ts `teachGuideDates`): a guide reviewed late went live late.
+      const lastmod = (slug: string) => {
+        const t = teachGuideDates(slug)
+        return t.updated ?? t.published
+      }
+      const newest = live.map((e) => lastmod(e.slug)).sort().at(-1)
+      urls.push(`  <url><loc>${hostUrl}${TEACH_BASE}</loc>${lm(newest)}</url>\n`)
+      for (const e of live) urls.push(`  <url><loc>${hostUrl}${teachPath(e.slug)}</loc>${lm(lastmod(e.slug))}</url>\n`)
+    }
   }
 
   // Indexing decoupled from PRELAUNCH (owner, 2026-07-18): the full data-driven

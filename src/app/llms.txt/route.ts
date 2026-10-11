@@ -3,6 +3,7 @@ import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { SERVICES_LLMS_WHEN_TO_USE, SERVICES_SITE_DESCRIPTION } from '@/lib/edition-services-copy'
 import { EXPAT_GUIDES, MARKETPLACE_GUIDES, expatGuidePath } from '@/lib/expat-guides'
 import { PHONE_GUIDES } from '@/lib/phone-guides'
+import { releasedGuides, TEACH_BASE, TEACH_CLUSTERS, teachPath } from '@/lib/teach-guides/registry'
 import { LANGUAGES } from '@/lib/i18n/langs'
 import { CATEGORY_BY_SLUG } from '@/lib/taxonomy'
 import { RETIRED_NAV_CATEGORIES } from '@/lib/retired-categories'
@@ -287,6 +288,21 @@ ${guideLines(MARKETPLACE_GUIDES)}
 
 ${guideLines(PHONE_GUIDES)}`
 
+/**
+ * The teacher guide library — RELEASED guides only (registry.ts), grouped as the hub groups them, so a guide
+ * appears here the day its wave opens. Marketplace only: the services edition 308s the path to eno.vn.
+ * ⚠️ A FUNCTION, NOT A MODULE CONSTANT LIKE THE SECTION ABOVE: the release gate reads the clock.
+ */
+function teachSection(): string {
+  const live = releasedGuides()
+  if (!live.length) return ''
+  const groups = TEACH_CLUSTERS.map((c) => {
+    const rows = live.filter((e) => e.cluster === c.id)
+    return rows.length ? `### ${c.title}\n\n${rows.map((e) => `- [${e.label}](${SITE_ORIGIN}${teachPath(e.slug)}): ${e.blurb}`).join('\n')}` : ''
+  }).filter(Boolean)
+  return `\n\n## Teaching in Vietnam\n\nGuides for teachers moving to Vietnam, Ho Chi Minh City first; start at ${SITE_ORIGIN}${TEACH_BASE}. Each lists its sources and the date its facts were checked.\n\n${groups.join('\n\n')}`
+}
+
 function marketplaceBody(f: SiteFacts | null): string {
   return `# ${SITE_NAME}
 
@@ -314,7 +330,7 @@ ${marketplaceAbout(f)}
 
 ${marketplaceCategories(f)}
 
-${MARKETPLACE_GUIDES_SECTION}
+${MARKETPLACE_GUIDES_SECTION}${teachSection()}
 
 ${DEVELOPER_SECTION}
 
