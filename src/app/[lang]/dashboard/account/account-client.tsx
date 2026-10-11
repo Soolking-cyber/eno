@@ -67,7 +67,11 @@ function NavRow({ item }: { item: ResolvedNavItem }) {
           system. Blue in this hub now appears only where it means something: the count
           Badge (user-state) and the identity row's TrustScore seal. */}
       <Icon className={cn(ICON_SIZE.lg, 'shrink-0')} strokeWidth={STROKE_NAV} aria-hidden />
-      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{item.label}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold text-foreground">{item.label}</span>
+        {/* "Step 3 of 6 · Continue" — an unfinished teacher profile (dashboard-nav-resolve.ts teacherDraft). */}
+        {item.hint && <span className="block truncate text-xs text-muted-foreground">{item.hint}</span>}
+      </span>
       {/* A real count, never a zero-filled dot — an empty badge is noise. */}
       {!!item.badge && item.badge > 0 && <Badge variant="brand">{item.badge > 99 ? '99+' : item.badge}</Badge>}
       <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" aria-hidden />
@@ -105,6 +109,7 @@ export function AccountClient() {
     isAdmin: dash?.isAdmin === true,
     hasVisa: dash?.hasVisa === true,
     hasTeacher: dash?.hasTeacher === true,
+    teacherDraft: dash?.teacherDraft ?? null,
     seller: dash?.seller ?? null,
     counters: { unread, saved: savedCount },
     label: tr,

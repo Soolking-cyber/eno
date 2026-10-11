@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   copies: [] as Row[],
   accountWrites: [] as Row[],
   accountCount: 1, // what the conditional account update matches (0: a type was chosen meanwhile)
+  draftDeletes: [] as Row[],
 }))
 
 vi.mock('server-only', () => ({}))
@@ -45,6 +46,7 @@ const tx = {
     },
   },
   teacherPrivate: { upsert: async (args: Row) => { h.privateWrites.push(args) } },
+  teacherDraft: { deleteMany: async (args: Row) => { h.draftDeletes.push(args); return { count: 1 } } },
   profile: { updateMany: async (args: Row) => { h.accountWrites.push(args); return { count: h.accountCount } } },
   listing: { update: async (args: Row) => { h.listingWrites.push(args) }, create: async (args: Row) => { h.listingWrites.push(args); return { id: 'L-new' } },
     // the save reads whether schools see it INSIDE its transaction (nothing after the commit may fail the request)
@@ -94,7 +96,7 @@ const profileWrite = () => h.profileWrites[0]
 const listingData = () => h.listingWrites[0].data
 
 beforeEach(() => {
-  h.existing = existing(); h.profileWrites = []; h.listingWrites = []; h.privateWrites = []; h.copies = []; h.accountWrites = []; h.accountCount = 1
+  h.existing = existing(); h.profileWrites = []; h.listingWrites = []; h.privateWrites = []; h.copies = []; h.accountWrites = []; h.accountCount = 1; h.draftDeletes = []
 })
 
 describe('⛔ ONE SHAPE (plan review D1/D2)', () => {
@@ -328,6 +330,18 @@ describe('`onboard` — written in the save\'s own transaction, conditionally', 
     const r = await edit(body())
     expect(h.accountWrites).toEqual([])
     expect(r.onboarded).toBe(false)
+  })
+})
+
+describe('the unfinished profile goes with the publish (2026-10-11 — src/lib/teachers/draft.ts)', () => {
+  it('⛔ every save deletes the account\'s draft IN its transaction — a late autosave cannot bring it back beside the profile', async () => {
+    h.existing = null
+    await create(body())
+    expect(h.draftDeletes).toEqual([{ where: { profileId: 'p1' } }])
+  })
+  it('a refused save deletes nothing', async () => {
+    await expect(edit(body({ publishNotice: undefined }))).rejects.toBeTruthy()
+    expect(h.draftDeletes).toEqual([])
   })
 })
 

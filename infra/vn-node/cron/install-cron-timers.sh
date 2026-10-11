@@ -30,6 +30,9 @@ declare -A SCHED=(
   # /schools proofs of employment (src/lib/schools/employment.ts sweepProofRetention): LinkedIn URLs and
   # codes erased 30 days after a decision, undecided ones closed after 60 days. Between the other PII sweeps.
   [school-proof-retention]="*-*-* 08:30:00 UTC"
+  # Unfinished teacher profiles (src/lib/teachers/draft.ts, 2026-10-11): a draft untouched for 90 days is deleted, as
+  # /privacy says. After the other PII sweeps, before the 09:00 storage sweep.
+  [teacher-draft-retention]="*-*-* 08:45:00 UTC"
   # /schools Teachers' Choice (src/lib/schools/awards.ts): closes LAST year's awards once, 17:10 UTC = 00:10 in
   # Saigon, ten minutes after the year ends there. Daily, so a missed night is caught up; later runs write nothing.
   # Installed NOT enabled (POLICY below): a moderator closes the year by default.
@@ -94,6 +97,8 @@ declare -A SCHED=(
 # tombstone existed before 2026-10-01 (measured that day: 0 rows with status 'removed', 0 listing.removed
 # audit rows), so nothing can be past its retention before 2029-10-01. It is enabled now precisely so
 # that date does not depend on anyone remembering it. Until then every run is a 200 with {scrubbed:0}.
+# ⚠️ teacher-draft-retention is SAFE to enable at once: it deletes only TeacherDraft rows untouched for 90 days — the
+# table reaches production empty, so for 90 days it cannot delete anything.
 # ⚠️ school-proof-retention is SAFE to enable at once: the proof and review tables reach production EMPTY (the
 # importer loads only the directory), so its first run has nothing to act on, and every later run applies exactly what each teacher agreed to when submitting a proof —
 # the LinkedIn link erased 30 days after the check, an undecided proof closed at 60, a review without a live proof
@@ -105,7 +110,7 @@ declare -A SCHED=(
 # scripts/apple-siwa-ddl.mjs has run, 200 {skipped:'no_table'} (a logged warning) while still unconfigured. So a full
 # run of this installer may enable it before I11, harmlessly. Once APPLE_SIWA_* is in the env a missing table is RED
 # (every Apple sign-in would keep no token) — that is the DDL step (I2) left undone, and the unit says so.
-SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices partner-stock indexnow listing-tombstone-retention school-proof-retention apple-revocations)
+SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices partner-stock indexnow listing-tombstone-retention school-proof-retention apple-revocations teacher-draft-retention)
 # Installed, NOT enabled: these send email to real people. They are enabled at cutover, by the line printed at the end.
 EMAIL=(daily-reminders saved-search-alerts weekly-digest)
 # ⛔ STARTED BY HAND, NEVER ON A SCHEDULE: a SERVICE and NO TIMER (gate review, 2026-10-08 — codex + Opus). The teacher

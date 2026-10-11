@@ -55,6 +55,7 @@ export function LadderCompactRow({
   facets,
   subcategoryCounts = {},
   teacherProfile = false,
+  teacherDraft = false,
 }: {
   categories: SerializedCategory[]
   activeCategory: string
@@ -71,6 +72,8 @@ export function LadderCompactRow({
   subcategoryCounts?: Record<string, number>
   /** The viewer already has a teacher profile: the teachers row's first chip opens it instead of the sign-up form. */
   teacherProfile?: boolean
+  /** An unfinished teacher profile is saved to this account: the chip continues it (category-rail.tsx, the same rule). */
+  teacherDraft?: boolean
 }) {
   const { lang, tr } = useLanguage()
   // tr(name, nameVi): the authored Vietnamese for vi, a translation of the English for the nine others
@@ -140,6 +143,11 @@ export function LadderCompactRow({
                     <a href={localizedHref('/teachers/edit', lang)} data-cross-link="teacher-profile-edit">
                       <UserRound className="size-4 shrink-0" aria-hidden />
                       {tr('Your teacher profile', 'Hồ sơ giáo viên của bạn')}
+                    </a>
+                  ) : teacherDraft ? (
+                    <a href={localizedHref('/teachers/join', lang)} data-cross-link="teacher-profile-continue">
+                      <UserRound className="size-4 shrink-0" aria-hidden />
+                      {tr('Continue your teacher profile', 'Tiếp tục hồ sơ giáo viên')}
                     </a>
                   ) : (
                     <a href={teacherJoinUrl()} data-cross-link="teacher-profile" onClick={(e) => keepTeacherJoinInApp(e, lang)}>

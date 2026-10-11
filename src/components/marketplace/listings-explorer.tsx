@@ -507,6 +507,9 @@ export function ListingsExplorer({
   // 2026-10-09, "apply recommended"). The shared dashboard store — nothing is fetched for a visitor who is signed out.
   const { dash } = useDashboard()
   const hasTeacherProfile = dash?.hasTeacher === true
+  // …and who has an UNFINISHED one (owner, 2026-10-11): the chip then reads "Continue your teacher profile" and reopens
+  // it on this host (/teachers/join), where the session is — the teacher host has none.
+  const hasTeacherDraft = !hasTeacherProfile && !!dash?.teacherDraft
   // Desktop ← / → arrows for the horizontally-scrollable category grid (same primitive as the rails).
   const { scrollerRef: catScrollerRef, canLeft: catCanLeft, canRight: catCanRight, page: catPage } = useScrollArrows()
   /**
@@ -4503,12 +4506,14 @@ export function ListingsExplorer({
                 facets={facetCounts}
                 subcategoryCounts={subcategoryCounts}
                 teacherProfile={hasTeacherProfile}
+                teacherDraft={hasTeacherDraft}
               />
             }
           >
           <CategoryRail
             categories={categories}
             teacherProfile={hasTeacherProfile}
+            teacherDraft={hasTeacherDraft}
             activeCategory={activeCategory}
             activeSubcategory={activeSubcategory}
             subcategoryCounts={subcategoryCounts}

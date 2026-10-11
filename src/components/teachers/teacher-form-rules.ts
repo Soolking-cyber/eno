@@ -11,7 +11,7 @@ import {
 } from '@/lib/teachers/places'
 import {
   DRAFT_STEPS, EMPTY_TEACHER, TEACHER_OPTIONS, TEACHER_STEPS, TEACHER_STEP_FIELDS, normalizeForSave, normalizeTeacherInput,
-  validateTeacherInput, type Relocate, type TeacherErrors, type TeacherInput, type TeacherStep,
+  teacherSteps, validateTeacherInput, type Relocate, type TeacherErrors, type TeacherInput, type TeacherStep,
 } from '@/lib/teachers/profile'
 import { storedLanguageLabel } from '@/components/teachers/language-list'
 
@@ -283,8 +283,24 @@ export function forDraft(t: TeacherInput): TeacherInput {
 /** A draft read back — any shape the form ever wrote (v4 now, the old v3), normalised, the same things stripped again. */
 export const fromDraft = (raw: unknown): TeacherInput => forDraft(normalizeTeacherInput(raw))
 
+/**
+ * ⛔ WHERE A SAVED DRAFT REOPENS — ONE RULE for the form and the dashboard's "Step X of Y" (owner, 2026-10-11; plan review,
+ * opus: computed from the first failing step). Where the teacher was, never past the first step that fails — over EVERY
+ * step they see on eno.vn, because a draft carries no photo, cover switch or consent (forDraft): one saved on Photo &
+ * publish reopens on the first of those it lacks, and the dashboard says that step, not the one they left.
+ */
+export function draftResumeStep(t: TeacherInput, saved: unknown): { step: TeacherStep; index: number; total: number } {
+  const steps = teacherSteps(t, { draftHost: false })
+  const bad = firstStepWithError(checkSteps(t, steps), steps)
+  const want = isTeacherStep(saved) && steps.includes(saved) ? saved : null
+  const at = (s: TeacherStep) => steps.indexOf(s)
+  const step = bad && (!want || at(bad) < at(want)) ? bad : want ?? bad ?? steps[0]
+  return { step, index: at(step) + 1, total: steps.length }
+}
+
 export function isEmptyTeacher(t: TeacherInput): boolean {
-  return JSON.stringify(t) === JSON.stringify(EMPTY_TEACHER)
+  // Field by field: a normalized body lists its keys in another order than EMPTY_TEACHER (draft.ts, 2026-10-11).
+  return (Object.keys(EMPTY_TEACHER) as (keyof TeacherInput)[]).every((k) => JSON.stringify(t[k]) === JSON.stringify(EMPTY_TEACHER[k]))
 }
 
 /** A start month as the form shows it: none, "now" (this month or earlier) or a later month (YYYY-MM). */

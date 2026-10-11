@@ -176,7 +176,9 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
     // rail and the config cannot disagree about which count is which.
     const badgeVariant = it.badgeTone === 'neutral' ? 'counter-neutral' : 'counter'
     // aria-label REPLACES the element's content for AT, which silenced the badge count — fold it in.
-    const accessibleName = badgeLabel ? fillTemplate(tr('{label}, {badgeLabel} new', '{label}, {badgeLabel} mới'), '{label}, {badgeLabel} new', { label: String(it.label), badgeLabel: String(badgeLabel) }) : it.label
+    const named = badgeLabel ? fillTemplate(tr('{label}, {badgeLabel} new', '{label}, {badgeLabel} mới'), '{label}, {badgeLabel} new', { label: String(it.label), badgeLabel: String(badgeLabel) }) : it.label
+    // The hint line ("Step 3 of 6 · Continue" — an unfinished teacher profile) is part of the row's name too.
+    const accessibleName = it.hint ? `${named}, ${it.hint}` : named
     const inner = (
       <>
         {/* `flex`, not the bare inline box it used to be: the child is now an inline-flex
@@ -212,7 +214,10 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
             <Badge aria-hidden variant={badgeVariant} size="count" className={cn('pointer-events-none absolute -right-1.5 -top-1.5 hidden', expanded ? 'lg:hidden' : 'lg:flex')}>{badgeLabel}</Badge>
           )}
         </span>
-        <span className={labelCls}>{it.label}</span>
+        <span className={labelCls}>
+          {it.label}
+          {it.hint && <span className="block text-2xs font-normal text-muted-foreground">{it.hint}</span>}
+        </span>
         {/* The expanded-rail pill: same counter, bigger box. h-5/min-w-5/px-1.5/text-2xs are the
             override ui/badge's `count` size documents for exactly this case ("callers that want a
             bigger bubble pass a hard height"), so the geometry is unchanged from the span this
@@ -251,6 +256,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
     // the dashboard payload loads → false → the row simply appears once it resolves.
     hasVisa: dash?.hasVisa === true,
     hasTeacher: dash?.hasTeacher === true,
+    teacherDraft: dash?.teacherDraft ?? null,
     seller: dash?.seller ?? null,
     counters: { unread, saved: savedCount },
     label: tr,

@@ -540,6 +540,9 @@ export async function saveTeacherProfile(
       create: { teacherProfileId: tp.id, phone: tc.phone || null, email: profile.email, videoPath: finalVideoPath },
       update: { phone: tc.phone || null, email: profile.email, videoPath: finalVideoPath },
     })
+    // The unfinished profile this save publishes has done its job (src/lib/teachers/draft.ts): deleted IN the save's
+    // transaction, under the lock a draft save also takes — so no late autosave can bring it back beside the profile.
+    await tx.teacherDraft.deleteMany({ where: { profileId: profile.id } })
     // ⛔ THE ONE-TIME ACCOUNT STEP, IN THIS TRANSACTION (owner, 2026-10-11; commit gate, codex): a new account's first
     // profile and its account type + Terms acceptance commit together or not at all — never a live profile on an untyped
     // account with no Terms record. Conditional, so a type chosen meanwhile (another tab's /onboard, which recorded its
@@ -775,6 +778,8 @@ export async function deleteTeacherProfile(profileId: string): Promise<boolean> 
     if (refs.length) await writeTombstones(tx, refs, 'teacher_profile_deleted')
     // deleteMany: deleteListingCore above already removes the profile with its listing.
     await tx.teacherProfile.deleteMany({ where: { id: tp.id } })
+    // And any unfinished copy (normally gone at publish): a deleted profile leaves nothing of the teacher's behind.
+    await tx.teacherDraft.deleteMany({ where: { profileId } })
   })
   revalidateTeacherPages(tp.listingId, districtPagesOf(tp))
   return true

@@ -1,0 +1,162 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+/**
+ * The server-saved teacher draft (owner, 2026-10-11: "every step they input should be saved and able to resume when they
+ * want to") — src/lib/teachers/draft.ts. An in-memory TeacherDraft table stands in for Postgres; the transaction runs its
+ * callback, so these test the RULES: what a draft may hold, the revision every save compares and bumps, the publish's
+ * lock, the 90-day retention and the dashboard's metadata.
+ */
+type Row = { profileId: string; data: unknown; step: string; rev: number; createdAt: Date; updatedAt: Date }
+const h = vi.hoisted(() => ({ rows: new Map<string, Row>(), teacher: false, locks: [] as unknown[] }))
+vi.mock('server-only', () => ({}))
+vi.mock('@/lib/log', () => ({ logError: () => {} }))
+vi.mock('@/lib/db', () => {
+  const draft = {
+    findUnique: async ({ where }: { where: { profileId: string } }) => h.rows.get(where.profileId) ?? null,
+    createMany: async ({ data: [row] }: { data: Row[]; skipDuplicates: boolean }) => {
+      if (h.rows.has(row.profileId)) return { count: 0 }
+      h.rows.set(row.profileId, { ...row })
+      return { count: 1 }
+    },
+    updateMany: async ({ where, data }: { where: { profileId: string; rev: number }; data: Partial<Row> }) => {
+      const r = h.rows.get(where.profileId)
+      if (!r || r.rev !== where.rev) return { count: 0 }
+      Object.assign(r, data)
+      return { count: 1 }
+    },
+    deleteMany: async ({ where }: { where: { profileId?: string; updatedAt?: { lt: Date } } }) => {
+      let count = 0
+      for (const [k, r] of h.rows) {
+        if ((where.profileId && k === where.profileId) || (where.updatedAt && r.updatedAt < where.updatedAt.lt)) { h.rows.delete(k); count++ }
+      }
+      return { count }
+    },
+  }
+  const tx = {
+    $executeRaw: async (...a: unknown[]) => { h.locks.push(a); return 1 },
+    teacherProfile: { findUnique: async () => (h.teacher ? { id: 'tp1' } : null) },
+    teacherDraft: draft,
+  }
+  return { db: { teacherDraft: draft, $transaction: async (cb: (t: typeof tx) => unknown) => cb(tx) } }
+})
+
+const { draftDataOf, saveTeacherDraft, readTeacherDraft, deleteTeacherDraft, purgeStaleTeacherDrafts, teacherDraftProgress, teacherDraftExportOf, TEACHER_DRAFT_MAX_BYTES } = await import('./draft')
+
+/** An HCMC full-time job seeker, steps 1–4 answered — and every field a draft must NEVER keep, set. */
+const answers = (o: Record<string, unknown> = {}) => ({
+  livesIn: 'city', currentCity: 'ho-chi-minh-city', currentDistrictKey: 'd7', currentProvince: '', jobTypes: ['fulltime'], relocate: 'no',
+  teachAreas: ['d7'], teachAreasConfirmed: true, availableFrom: null, expectedSalaryM: 40,
+  subjects: ['general-english'], teachLanguages: [], ageGroups: ['kids'], experienceBand: '5-10-years', experience: [],
+  degreeLevel: null, degreeMajor: '', degreeInstitution: '', degreeYear: null, certificates: [],
+  fullName: 'Jane Doe', nationality: 'GB', englishLevel: 'native', languages: [], headline: 'CELTA-certified English teacher', bio: '',
+  coverOpen: true, coverSlots: ['mon-am'], coverRateVnd: 300_000, coverConsent: true,
+  photoUrl: 'https://sb.eno.vn/storage/v1/object/public/listings/a.webp', videoUrl: 'https://x/v.mp4', videoOnRequest: false,
+  phone: '+84 901 234 567', matchEmailOptIn: true, staffContactOptIn: true,
+  ...o,
+})
+
+beforeEach(() => { h.rows.clear(); h.teacher = false; h.locks = [] })
+
+describe('what a draft may hold', () => {
+  it('⛔ never a consent, an upload, the cover switch or the phone — the rest of the answers stay', () => {
+    const d = draftDataOf(answers())
+    expect([d.coverOpen, d.coverConsent, d.matchEmailOptIn, d.staffContactOptIn]).toEqual([false, false, false, false])
+    expect([d.photoUrl, d.videoUrl, d.phone]).toEqual([null, null, ''])
+    expect([d.fullName, d.expectedSalaryM, d.coverRateVnd, d.coverSlots]).toEqual(['Jane Doe', 40, 300_000, ['mon-am']])
+  })
+  it('a stored row is re-cleaned on every read', async () => {
+    h.rows.set('p1', { profileId: 'p1', data: answers(), step: 'teaching', rev: 3, createdAt: new Date(), updatedAt: new Date() })
+    const d = await readTeacherDraft('p1')
+    expect(d?.t.phone).toBe('')
+    expect(d?.t.coverConsent).toBe(false)
+    expect(d?.rev).toBe(3)
+  })
+})
+
+describe('the revision — two tabs or devices never overwrite each other, a late save never resurrects', () => {
+  it('first save (rev 0) creates rev 1; the next names rev 1 and gets rev 2', async () => {
+    expect(await saveTeacherDraft('p1', { t: answers(), step: 'where', rev: 0 })).toMatchObject({ ok: true, rev: 1 })
+    expect(await saveTeacherDraft('p1', { t: answers(), step: 'teaching', rev: 1 })).toMatchObject({ ok: true, rev: 2 })
+    expect(h.rows.get('p1')?.step).toBe('teaching')
+  })
+  it('⛔ a second device\'s FIRST save, after another one got there: stale — never an overwrite', async () => {
+    await saveTeacherDraft('p1', { t: answers(), step: 'where', rev: 0 })
+    expect(await saveTeacherDraft('p1', { t: answers({ fullName: 'Other' }), step: 'plans', rev: 0 })).toEqual({ ok: false, reason: 'stale' })
+    expect((h.rows.get('p1')?.data as { fullName: string }).fullName).toBe('Jane Doe')
+  })
+  it('⛔ a save based on an older revision: stale', async () => {
+    await saveTeacherDraft('p1', { t: answers(), step: 'where', rev: 0 })
+    await saveTeacherDraft('p1', { t: answers(), step: 'teaching', rev: 1 })
+    expect(await saveTeacherDraft('p1', { t: answers(), step: 'where', rev: 1 })).toEqual({ ok: false, reason: 'stale' })
+  })
+  it('⛔ a save after Start over (or publish, or retention): gone — the draft is not brought back', async () => {
+    await saveTeacherDraft('p1', { t: answers(), step: 'where', rev: 0 })
+    await deleteTeacherDraft('p1')
+    expect(await saveTeacherDraft('p1', { t: answers(), step: 'teaching', rev: 1 })).toEqual({ ok: false, reason: 'gone' })
+    expect(h.rows.has('p1')).toBe(false)
+  })
+  it('⛔ under the publish\'s lock: once a profile exists, refused — nothing written', async () => {
+    h.teacher = true
+    expect(await saveTeacherDraft('p1', { t: answers(), step: 'where', rev: 0 })).toEqual({ ok: false, reason: 'teacher_exists' })
+    expect(h.rows.size).toBe(0)
+    expect(JSON.stringify(h.locks[0])).toContain('teacher:p1')
+  })
+  it('refuses a body with no revision or no answers — and an empty answer set (no "Continue" row for nothing)', async () => {
+    expect(await saveTeacherDraft('p1', { t: answers(), step: 'where' })).toEqual({ ok: false, reason: 'bad_request' })
+    expect(await saveTeacherDraft('p1', { step: 'where', rev: 0 })).toEqual({ ok: false, reason: 'bad_request' })
+    expect(await saveTeacherDraft('p1', { t: {}, step: 'plans', rev: 0 })).toEqual({ ok: false, reason: 'bad_request' })
+    expect(h.rows.size).toBe(0)
+  })
+  it('⛔ Start over takes the save\'s lock — a first save holding it lands before the delete, never after', async () => {
+    await saveTeacherDraft('p1', { t: answers(), step: 'where', rev: 0 })
+    h.locks = []
+    await deleteTeacherDraft('p1')
+    expect(JSON.stringify(h.locks[0])).toContain('teacher:p1')
+    expect(h.rows.has('p1')).toBe(false)
+  })
+  it('the byte cap is a backstop a real teacher never meets: every field is capped first, the fullest answer set fits', async () => {
+    const huge = answers({
+      bio: 'Ừ'.repeat(10_000), headline: 'Ừ'.repeat(500), fullName: 'Ừ'.repeat(500),
+      experience: Array.from({ length: 50 }, () => ({ role: 'Ừ'.repeat(300), employer: 'Ừ'.repeat(300), city: 'Ừ'.repeat(300), from: '2020-01', to: '2024-06' })),
+      certificates: Array.from({ length: 50 }, () => ({ type: 'celta', hours: 120, provider: 'Ừ'.repeat(300), year: 2019 })),
+    })
+    expect(Buffer.byteLength(JSON.stringify(draftDataOf(huge)), 'utf8')).toBeLessThan(TEACHER_DRAFT_MAX_BYTES)
+    expect(await saveTeacherDraft('p1', { t: huge, step: 'about', rev: 0 })).toMatchObject({ ok: true })
+  })
+})
+
+describe('retention, the dashboard and the export', () => {
+  it('deletes drafts untouched for 90 days — and only those', async () => {
+    const now = new Date('2026-12-31T00:00:00Z')
+    h.rows.set('old', { profileId: 'old', data: {}, step: 'plans', rev: 1, createdAt: now, updatedAt: new Date('2026-10-01T00:00:00Z') })
+    h.rows.set('new', { profileId: 'new', data: {}, step: 'plans', rev: 1, createdAt: now, updatedAt: new Date('2026-10-03T00:00:00Z') })
+    expect(await purgeStaleTeacherDrafts(now)).toBe(1)
+    expect([...h.rows.keys()]).toEqual(['new'])
+  })
+  it('the dashboard gets "Step X of Y" only — where the form will reopen (never past the first failing step)', async () => {
+    // saved on Photo & publish, but a draft has no photo: it reopens there, the last of the six steps
+    await saveTeacherDraft('p1', { t: answers(), step: 'finish', rev: 0 })
+    expect(await teacherDraftProgress('p1')).toEqual({ index: 6, total: 6 })
+    // a draft whose "Where you teach" is incomplete reopens on it, wherever it was left
+    await saveTeacherDraft('p2', { t: answers({ teachAreas: [], teachAreasConfirmed: false }), step: 'about', rev: 0 })
+    expect(await teacherDraftProgress('p2')).toEqual({ index: 2, total: 6 })
+    expect(await teacherDraftProgress('none')).toBeNull()
+  })
+  it('the export carries the draft as stored', async () => {
+    await saveTeacherDraft('p1', { t: answers(), step: 'teaching', rev: 0 })
+    const e = await teacherDraftExportOf('p1')
+    expect(e?.step).toBe('teaching')
+    expect(e?.answers.fullName).toBe('Jane Doe')
+    expect(e?.answers.phone).toBe('')
+  })
+})
+
+describe('the dashboard never fails on a draft', () => {
+  it('an unreadable draft (no table yet, a bad row) costs only the Continue row', async () => {
+    const { db } = await import('@/lib/db')
+    const spy = vi.spyOn(db.teacherDraft, 'findUnique').mockRejectedValueOnce(new Error('relation "TeacherDraft" does not exist'))
+    expect(await teacherDraftProgress('p1')).toBeNull()
+    spy.mockRestore()
+  })
+})
+

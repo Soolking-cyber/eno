@@ -96,4 +96,18 @@ describe('scripts/teachers-ddl.mjs ↔ prisma/schema.prisma', () => {
       expect(at > begin && at < commit, marker).toBe(true)
     }
   })
+  it('creates TeacherDraft exactly as its Prisma model, with RLS on and the account foreign key, inside the transaction (2026-10-11)', () => {
+    const fields = modelFields('TeacherDraft')
+    expect([...fields.keys()].filter((k) => k !== 'profile').sort()).toEqual(['createdAt', 'data', 'profileId', 'rev', 'step', 'updatedAt'])
+    for (const col of ['"profileId" uuid not null', '"data" jsonb not null', '"step" text not null', '"rev" integer not null default 1',
+      '"createdAt" timestamp(3) not null default current_timestamp', '"updatedAt" timestamp(3) not null default current_timestamp']) {
+      expect(ddl, col).toContain(col)
+    }
+    expect(ddl).toContain('alter table "TeacherDraft" enable row level security')
+    expect(ddl).toContain('"TeacherDraft_updatedAt_idx" on "TeacherDraft"("updatedAt")')
+    expect(ddl).toMatch(/"TeacherDraft_profileId_fkey"\s+foreign key \("profileId"\) references "Profile"\("id"\) on delete cascade/)
+    const at = ddl.indexOf('create table if not exists "TeacherDraft"')
+    expect(at > ddl.indexOf("client.query('begin')") && at < ddl.indexOf("client.query('commit')")).toBe(true)
+  })
 })
+

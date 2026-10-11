@@ -135,3 +135,19 @@ describe('the "Teacher profile" row (cover lessons, 2026-10-07)', () => {
     expect(hrefs(ctx({ hasTeacher: true }))).toContain('/teachers/edit')
   })
 })
+
+describe('…and for an UNFINISHED teacher profile (owner, 2026-10-11)', () => {
+  const teacherRow = (c: NavResolveCtx) => resolveNavGroups(DASHBOARD_NAV, c).flatMap((g) => g.items).find((i) => i.href.startsWith('/teachers/'))
+  it('a saved draft with no profile: the row shows, goes back into the form, and says where it reopens', () => {
+    const row = teacherRow(ctx({ teacherDraft: { index: 3, total: 6 } }))
+    expect(row?.href).toBe('/teachers/join')
+    expect(row?.hint).toBe('Bước 3/6 · Tiếp tục')
+  })
+  it('a profile wins: /teachers/edit, no hint — and neither: no row', () => {
+    const row = teacherRow(ctx({ hasTeacher: true, teacherDraft: { index: 3, total: 6 } }))
+    expect(row?.href).toBe('/teachers/edit')
+    expect(row?.hint).toBeUndefined()
+    expect(teacherRow(ctx({ teacherDraft: null }))).toBeUndefined()
+  })
+})
+

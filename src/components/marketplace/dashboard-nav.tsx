@@ -136,6 +136,9 @@ export type NavItem = {
   /** Show ONLY to a viewer who has a teacher profile (dash.hasTeacher) — the way back to /teachers/edit, where a
    *  teacher updates their cover availability or withdraws it (cover lessons, 2026-10-07). */
   requiresTeacher?: boolean
+  /** With no profile but a saved draft, the `requiresTeacher` row's second line — `{n}` and `{total}` filled by the
+   *  resolver (dashboard-nav-resolve.ts `teacherDraft`), which also points the row at /teachers/join. */
+  draftHint?: { en: string; vi?: string }
   /** Renderer-computed href: 'storefront' → the signed-in seller's public storefront URL
    *  (/{handle} when a handle exists, else /sellers/{id}). */
   dynamic?: 'storefront'
@@ -196,7 +199,8 @@ export const DASHBOARD_NAV: NavGroup[] = [
        * teacher could not update their cover lessons or switch them off — withdrawal must be reachable (PDP Law
        * 91/2025). Both editions, like the teacher feature itself.
        */
-      { href: '/teachers/edit', ...tr('Teacher profile', 'Hồ sơ giáo viên'), icon: GraduationCap, requiresTeacher: true },
+      // An unfinished one shows here too (owner, 2026-10-11): "Step X of Y · Continue" → /teachers/join (the resolver).
+      { href: '/teachers/edit', ...tr('Teacher profile', 'Hồ sơ giáo viên'), icon: GraduationCap, requiresTeacher: true, draftHint: tr('Step {n} of {total} · Continue', 'Bước {n}/{total} · Tiếp tục') },
       // Label matches the page's own name ("Availability review" / "còn hàng").
       /**
        * ⛔ THE ROW THAT DID NOT EXIST, AND ITS ABSENCE WAS THE WHOLE PROBLEM. Owner, 2026-08-31:

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { teacherDraftProgress } from '@/lib/teachers/draft'
 import { db } from '@/lib/db'
 import { getAdmin, getCurrentProfile, isCurrentUserAdminByClaims, missingProfileReason } from '@/lib/admin'
 import { computeTrustV2 } from '@/lib/trust'
@@ -96,11 +97,14 @@ export async function GET() {
   ])
   // Sequential (needs the core's seller id) but cheap: 2–3 indexed PK reads on an
   // authed, owner-scoped route — never a public hot path.
-  const [enforcement, teacher] = await Promise.all([
+  const [enforcement, teacher, teacherDraft] = await Promise.all([
     enforcementPayload(profile.id, dashboard.seller?.id ?? null),
     // Gates the "Teacher profile" row — the way back to /teachers/edit (cover lessons, 2026-10-07). Read beside the
     // enforcement payload, never after it: every dashboard load would pay one more round-trip (gate review).
     db.teacherProfile.findUnique({ where: { profileId: profile.id }, select: { id: true } }),
+    // An unfinished one (owner, 2026-10-11): the same row, "Step X of Y · Continue" → /teachers/join. METADATA ONLY —
+    // this response is cached in the browser (use-dashboard.ts), so it never carries an answer (src/lib/teachers/draft.ts).
+    teacherDraftProgress(profile.id),
   ])
   const i = breakdown?.inputs
   // Days since the most recent DEMOTION-RELEVANT confirmed report (the dual-threshold
@@ -120,6 +124,7 @@ export async function GET() {
       // Gates the "My e-Visa" rail row to people who have actually applied (chat-only flow).
       hasVisa: await userHasVisaApplication(profile.id),
       hasTeacher: !!teacher,
+      teacherDraft: teacher ? null : teacherDraft,
       enforcement,
       trustProgress: i
         ? {

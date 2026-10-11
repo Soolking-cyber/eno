@@ -173,3 +173,39 @@ describe('a teacher who already has a profile gets THEIRS — on both surfaces (
     expect(cta()).toBeNull()
   })
 })
+
+describe('an UNFINISHED teacher profile is continued — on both surfaces, on this host (owner, 2026-10-11)', () => {
+  it('the rail plate: "Continue your teacher profile" → /teachers/join here, never the session-less teacher host', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    render(
+      <LanguageProvider>
+        <CategoryRail categories={cats} activeCategory="teachers" activeSubcategory="all" subcategoryCounts={{}}
+          onCategory={() => {}} onSubcategory={() => {}} teacherDraft />
+      </LanguageProvider>,
+    )
+    expect(screen.getByRole('link', { name: 'Continue your teacher profile' }).getAttribute('href')).toBe('/teachers/join')
+    expect(cta()).toBeNull()
+  })
+
+  it('the phone row: the same; a profile still wins over a draft', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    render(
+      <LanguageProvider>
+        <Collapsible>
+          <LadderCompactRow categories={cats} activeCategory="teachers" activeSubcategory="all" onCategory={() => {}} onSubcategory={() => {}}
+            expanded={false} subcategoryCounts={{}} teacherDraft />
+        </Collapsible>
+      </LanguageProvider>,
+    )
+    expect(screen.getByRole('link', { name: 'Continue your teacher profile' }).getAttribute('href')).toBe('/teachers/join')
+    cleanup()
+    render(
+      <LanguageProvider>
+        <CategoryRail categories={cats} activeCategory="teachers" activeSubcategory="all" subcategoryCounts={{}}
+          onCategory={() => {}} onSubcategory={() => {}} teacherProfile teacherDraft />
+      </LanguageProvider>,
+    )
+    expect(screen.getByRole('link', { name: 'Your teacher profile' })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Continue your teacher profile' })).toBeNull()
+  })
+})

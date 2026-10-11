@@ -6,6 +6,7 @@
 // shell, forum mirror) can call resolveNavGroups() with its own ctx.
 
 import { IS_SERVICES } from '@/lib/edition'
+import { fillTemplate } from '@/lib/i18n/placeholders'
 import type { NavGroup, NavItem, NavRole } from './dashboard-nav'
 
 /** A concrete, renderable rail row (account-panel's RailItem shape). */
@@ -24,6 +25,8 @@ export type ResolvedNavItem = {
   badgeTone?: 'alert' | 'neutral'
   /** Hide inside the iOS app — the renderer adds the `ios-app-hidden` CSS hook (globals.css). */
   iosAppHidden?: boolean
+  /** A second, quieter line under the label — "Step 3 of 6 · Continue" on an unfinished teacher profile (2026-10-11). */
+  hint?: string
 }
 
 export type ResolvedNavGroup = { caption: string; items: ResolvedNavItem[] }
@@ -37,6 +40,13 @@ export type NavResolveCtx = {
   hasVisa: boolean
   /** Does the viewer have a teacher profile? Gates the `requiresTeacher` row (/teachers/edit). */
   hasTeacher: boolean
+  /**
+   * ⛔ AN UNFINISHED TEACHER PROFILE ALSO SHOWS THAT ROW (owner, 2026-10-11: "show in the dashboard teacher profile even
+   * if they didnt finish … so they can continue setting up"): with no profile, a saved draft turns it into "Teacher
+   * profile — Step X of Y · Continue" → /teachers/join, where the form reopens on it. `hasTeacher` keeps meaning a
+   * profile EXISTS (the chips and tests read it). Absent/null: no draft.
+   */
+  teacherDraft?: { index: number; total: number } | null
   /** The signed-in user's seller profile, when one exists (drives 'seller' role + storefront). */
   seller: { id: string; handle: string | null } | null
   /** Live badge counters, bound to config `badge` keys. */
@@ -74,7 +84,13 @@ const toRail = (it: NavItem, ctx: NavResolveCtx): ResolvedNavItem | null => {
      */
     href = ctx.seller.handle ? `/${ctx.seller.handle}` : `/sellers/${ctx.seller.id}`
   }
+  // The teacher row with no profile yet but a saved draft: back into the form, where it reopens (see teacherDraft above).
+  const draft = it.requiresTeacher && ctx.hasTeacher !== true ? ctx.teacherDraft ?? null : null
+  if (draft) href = '/teachers/join'
   return {
+    ...(draft && it.draftHint ? {
+      hint: fillTemplate(it.draftHint.vi ? ctx.label(it.draftHint.en, it.draftHint.vi) : it.draftHint.en, it.draftHint.en, { n: String(draft.index), total: String(draft.total) }),
+    } : {}),
     href,
     label: it.vi ? ctx.label(it.en, it.vi) : it.en,
     icon: it.icon,
@@ -99,7 +115,7 @@ export function resolveNavGroups(nav: NavGroup[], ctx: NavResolveCtx): ResolvedN
         // requiresVisa only ever gated "My e-Visa" — "My Trips" had NO gate at all, and the admin
         // "Visas" row was missed by the first sweep entirely. An explicit edition predicate is
         // checkable by reading the item; inferring it from requiresVisa was not.
-        .filter((it) => roleOk(ctx, it.role) && (!it.requiresVisa || ctx.hasVisa) && (!it.requiresTeacher || ctx.hasTeacher === true) && (!it.servicesOnly || IS_SERVICES))
+        .filter((it) => roleOk(ctx, it.role) && (!it.requiresVisa || ctx.hasVisa) && (!it.requiresTeacher || ctx.hasTeacher === true || !!ctx.teacherDraft) && (!it.servicesOnly || IS_SERVICES))
         .flatMap((it) => { const r = toRail(it, ctx); return r ? [r] : [] }),
     }))
 }

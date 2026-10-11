@@ -62,6 +62,7 @@ const tx = {
     upsert: async (args: Row) => { h.profileWrites.push(args); return { id: h.upsertId, coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, coverConfirmedAt: null, coverConsentVersion: null, videoVersion: 4, videoOnRequest: true } },
     update: async (args: Row) => { h.profileWrites.push(args); return { videoVersion: 4, videoOnRequest: true } },
   },
+  teacherDraft: { deleteMany: async () => ({ count: 0 }) },
   teacherPrivate: {
     upsert: async (args: Row) => { h.privateWrites.push(args) },
     update: async (args: Row) => { h.privateWrites.push(args) },

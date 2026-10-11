@@ -90,6 +90,7 @@ export function CategoryRail({
   onShortcut,
   hrefFor,
   teacherProfile = false,
+  teacherDraft = false,
 }: {
   categories: SerializedCategory[]
   activeCategory: string
@@ -166,6 +167,8 @@ export function CategoryRail({
   hrefFor?: (param: { category?: string; type?: string } | null) => string
   /** The viewer already has a teacher profile: the teachers plate's last chip opens it instead of the sign-up form. */
   teacherProfile?: boolean
+  /** An unfinished teacher profile is saved to this account (dash.teacherDraft): the chip continues it. */
+  teacherDraft?: boolean
 }) {
   const { lang, tr } = useLanguage()
   /**
@@ -750,6 +753,12 @@ export function CategoryRail({
                         <a href={localizedHref('/teachers/edit', lang)} data-cross-link="teacher-profile-edit">
                           <UserRound className="mr-1 size-3.5 shrink-0 align-[-2px]" aria-hidden />
                           {tr('Your teacher profile', 'Hồ sơ giáo viên của bạn')}
+                        </a>
+                      ) : teacherDraft ? (
+                        // An unfinished one, saved to this account (owner, 2026-10-11): back into it, on THIS host.
+                        <a href={localizedHref('/teachers/join', lang)} data-cross-link="teacher-profile-continue">
+                          <UserRound className="mr-1 size-3.5 shrink-0 align-[-2px]" aria-hidden />
+                          {tr('Continue your teacher profile', 'Tiếp tục hồ sơ giáo viên')}
                         </a>
                       ) : (
                         <a href={teacherJoinUrl()} data-cross-link="teacher-profile" onClick={(e) => keepTeacherJoinInApp(e, lang)}>

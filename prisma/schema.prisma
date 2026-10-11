@@ -86,6 +86,8 @@ model Profile {
   sentMessages            Message[]
   /// Teachers (2026-09-30): one public teacher profile per account. See TeacherProfile.
   teacherProfile          TeacherProfile?
+  /// An unfinished teacher profile (2026-10-11) — PRIVATE, see the TeacherDraft model.
+  teacherDraft            TeacherDraft?
   messageReactions        MessageReaction[]
   notifications           Notification[]          @relation("RecipientNotifications")
   trustEvents             TrustEvent[]            @relation("SubjectTrustEvents")
@@ -1214,6 +1216,21 @@ model TeacherVideoShare {
   requestedAt    DateTime?
   sharedAt       DateTime?
   revokedAt      DateTime?
+}
+
+/// A teacher's UNFINISHED profile (owner, 2026-10-11: every step saved and resumable). PRIVATE — the account's own; never
+/// a consent, an upload, the cover switch or the phone (src/lib/teachers/draft.ts). `rev`: the compare-and-swap revision
+/// every save checks and bumps (/api/teachers/me/draft). DDL: scripts/teachers-ddl.mjs (RLS on, no policies).
+model TeacherDraft {
+  profileId String   @id @db.Uuid
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  data      Json
+  step      String
+  rev       Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([updatedAt])
 }
 
 /// Written by the LOCAL matcher (~/eno-lead-pipeline teachersMatch). Exactly one of

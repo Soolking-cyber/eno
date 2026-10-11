@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { teacherExportOf } from '@/lib/teachers/export'
+import { teacherDraftExportOf } from '@/lib/teachers/draft'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
@@ -77,6 +78,9 @@ export async function GET() {
 
   // Teacher profile (2026-09-30), cover lessons and the private intro video (2026-10-07) — src/lib/teachers/export.ts.
   const teacher = await teacherExportOf(profile.id)
+  // An unfinished teacher profile (2026-10-11) — src/lib/teachers/draft.ts. Its own key: the profile export above is empty
+  // when no profile was published.
+  const teacherDraft = await teacherDraftExportOf(profile.id)
 
   // The Profile row minus purely-internal fields the user didn't provide and that
   // aren't "their" personal data (denormalized trust internals stay out).
@@ -106,6 +110,7 @@ export async function GET() {
     conversations: { asBuyer: buyerConvos, asSeller: sellerConvos },
     messagesSent: messages,
     teacherProfile: teacher,
+    teacherProfileDraft: teacherDraft,
     schools: { votes: schoolVotes, voteLog: schoolVoteLog, reviews: schoolReviews, helpfulVotes: schoolHelpfulVotes, proofsOfEmployment: schoolProofs, reportsFiled: schoolReports, suggestions: schoolSuggestions },
   }
 

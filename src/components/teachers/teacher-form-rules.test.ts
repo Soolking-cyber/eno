@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_TEACHER, normalizeTeacherInput, type TeacherInput } from '@/lib/teachers/profile'
 import {
-  CAMPAIGN_TAG_MAX, DRAFT_FIELDS, campaignQuery, decodeHandoff, draftPart, droppedAnswers, encodeHandoff, forDraft, homeDefaultAreas, nextMonths, startChoice,
+  CAMPAIGN_TAG_MAX, DRAFT_FIELDS, campaignQuery, decodeHandoff, draftPart, draftResumeStep, droppedAnswers, encodeHandoff, forDraft, homeDefaultAreas, nextMonths, startChoice,
   suggestHeadline, withJobTypes, withRelocate, withSituation,
 } from './teacher-form-rules'
 
@@ -199,3 +199,24 @@ describe('the start month', () => {
     expect(nextMonths(4, now)).toEqual(['2026-11', '2026-12', '2027-01', '2027-02'])
   })
 })
+
+describe('draftResumeStep — where a saved draft reopens, and the dashboard\'s "Step X of Y" (2026-10-11)', () => {
+  const full = (o: Record<string, unknown> = {}) => forDraft(normalizeTeacherInput({
+    livesIn: 'city', currentCity: 'ho-chi-minh-city', currentDistrictKey: 'd7', jobTypes: ['fulltime'], relocate: 'no',
+    teachAreas: ['d7'], teachAreasConfirmed: true, expectedSalaryM: 40, subjects: ['general-english'], ageGroups: ['kids'],
+    experienceBand: '5-10-years', fullName: 'Jane Doe', nationality: 'GB', englishLevel: 'native', headline: 'CELTA-certified English teacher',
+    ...o,
+  }))
+  it('where the teacher was, when nothing before it fails', () => {
+    expect(draftResumeStep(full(), 'teaching')).toEqual({ step: 'teaching', index: 3, total: 6 })
+  })
+  it('⛔ never past the first failing step — a draft has no photo, so one left on Photo & publish reopens there; an incomplete step before it wins', () => {
+    expect(draftResumeStep(full(), 'finish')).toEqual({ step: 'finish', index: 6, total: 6 })
+    expect(draftResumeStep(full({ teachAreas: [], teachAreasConfirmed: false }), 'finish')).toEqual({ step: 'where', index: 2, total: 6 })
+  })
+  it('no saved step (or one this teacher does not see): the first failing step', () => {
+    expect(draftResumeStep(full({ subjects: [] }), null)).toMatchObject({ step: 'teaching' })
+    expect(draftResumeStep(base(), 'nonsense')).toMatchObject({ step: 'plans', index: 1 })
+  })
+})
+

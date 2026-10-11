@@ -360,6 +360,9 @@ export type NicheApiErrorCode =
   | 'no_teaching_goal' // PATCH /api/teachers/me/status → live: no work picked and cover off, so nothing to show schools (D6, 2026-10-09)
   | 'terms_required' // PUT /api/teachers/me: a new account's first profile published without the Terms line on screen (2026-10-11)
   | 'onboarding_required' // PUT /api/teachers/me: a create while an onboarding step other than the account type is pending (the phone, once required)
+  | 'draft_stale' // PUT /api/teachers/me/draft: another tab or device saved the teacher draft since this revision (2026-10-11)
+  | 'draft_gone' // PUT /api/teachers/me/draft: the draft was deleted (published, started over, expired) — never brought back
+  | 'teacher_exists' // PUT /api/teachers/me/draft: the account has a teacher profile — no draft beside it
   | 'not_offered' // POST /api/saved-searches: a search this site offers no alert for (teachers — saved-search.ts savedSearchOffered, 2026-10-09)
   // Teacher intro video, shown or sent on request (2026-10-07):
   | 'video_changed' // the video state changed since the form loaded it (videoBase), or a change came with no base
@@ -758,6 +761,9 @@ const ALL = [
   'no_teaching_goal',
   'terms_required',
   'onboarding_required',
+  'draft_stale',
+  'draft_gone',
+  'teacher_exists',
   'not_offered',
   'video_changed',
   'video_store_failed',

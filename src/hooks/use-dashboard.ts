@@ -49,6 +49,8 @@ export type Dash = {
   hasVisa: boolean
   /** Viewer has a teacher profile → the "Teacher profile" row shows. Legacy cached payloads lack it (false). */
   hasTeacher?: boolean
+  /** An UNFINISHED teacher profile (2026-10-11): where it reopens, as "Step X of Y" — never an answer. Legacy caches: null. */
+  teacherDraft?: { index: number; total: number } | null
 }
 
 const CACHE_KEY = 'eno-dashboard'
@@ -173,7 +175,7 @@ function load(uid: string) {
       // isAdmin is FORCED false from cache: a revoked admin must never see the Admin
       // rail group replayed from localStorage (offline, or before revalidate lands).
       // Real admins get it back one fetch later — the safe direction to flash.
-      if (c?.userId === uid && c.dashboard) cached = { ...c.dashboard, isAdmin: false, hasVisa: c.dashboard.hasVisa ?? false, hasTeacher: c.dashboard.hasTeacher ?? false }
+      if (c?.userId === uid && c.dashboard) cached = { ...c.dashboard, isAdmin: false, hasVisa: c.dashboard.hasVisa ?? false, hasTeacher: c.dashboard.hasTeacher ?? false, teacherDraft: c.dashboard.teacherDraft ?? null }
     } catch { /* corrupt cache — ignore */ }
     set({ userId: uid, dash: cached, loading: !cached, error: null, fresh: false })
   }
@@ -183,6 +185,15 @@ function load(uid: string) {
 /** Cache-first dashboard data, shared across the app. `dash` is null until loaded; `loading`
  *  is true only on a first load with no cache; `refresh()` re-pulls after a mutation; `error` says why
  *  the last fetch failed (see DashError) — on 'failed' `dash` is still the cached copy, on 'auth' never. */
+/**
+ * Re-pull the dashboard for `uid` from outside a dashboard surface (the teacher form, 2026-10-11: after its first draft
+ * save the "Teacher profile — Continue" row exists, after publish it points at the profile). Dropped unless the store
+ * already holds `uid` — revalidate() drops an answer for another account — so it never loads one nobody asked for.
+ */
+export function revalidateDashboard(uid: string): void {
+  if (state.userId === uid) revalidate(uid, true)
+}
+
 export function useDashboard(): { dash: Dash | null; refresh: () => void; loading: boolean; error: DashError; fresh: boolean } {
   const { user, loading: authLoading } = useAuth()
   const snap = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)

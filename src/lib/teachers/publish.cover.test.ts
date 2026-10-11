@@ -13,6 +13,7 @@ const tx = {
   $executeRaw: vi.fn(),
   teacherProfile: { findUnique: vi.fn(), update: vi.fn() },
   listing: { update: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
+  teacherDraft: { deleteMany: vi.fn() },
 }
 /** The reads outside the transaction (setTeacherStatus). */
 const outside = { teacherProfile: { findUnique: vi.fn() } }

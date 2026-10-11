@@ -5,7 +5,8 @@
 // Run AFTER the teacher tables exist (the safe flow in prisma/CLAUDE.md creates them from
 // schema.prisma). Adds CHECK constraints (TeacherJobMatch's owner rule; TeacherProfile's cover-lesson bounds,
 // 2026-10-07; its teach-area bounds, 2026-10-08), the later TeacherProfile columns (cover lessons, the intro video, the
-// onboarding redesign), TeacherContactShare.phoneShared (2026-10-09) and the PRIVATE storage buckets. Nothing existing
+// onboarding redesign), TeacherContactShare.phoneShared (2026-10-09), the TeacherDraft table (2026-10-11) and the PRIVATE
+// storage buckets. Nothing existing
 // is altered or dropped.
 //
 // ⛔ THE CHECK IS THE ONLY THING THAT MAKES `TeacherJobMatch` DEDUPE. Its two unique keys are
@@ -187,6 +188,39 @@ console.log('ok  TeacherProfile_teach_bounds')
 // thread open, so the new code against the old table breaks every conversation, not only teacher threads.
 await client.query(`alter table "TeacherContactShare" add column if not exists "phoneShared" boolean not null default true`)
 console.log('ok  TeacherContactShare.phoneShared')
+
+// ⛔ SAVED, RESUMABLE TEACHER DRAFTS (owner, 2026-10-11: "every step they input should be saved and able to resume when
+// they want to", and a "continue" row in the dashboard once step 1 has answers). One row per account: the form's answers
+// so far — ⛔ never a consent, an upload, the cover switch or the phone (src/lib/teachers/draft.ts draftDataOf) — the
+// step to reopen on, and an integer revision every save compares and bumps (/api/teachers/me/draft). PRIVATE: no public,
+// matcher, school or feed reader touches it; RLS on, no policies. Deleted with the account (the foreign key), by the
+// publish (in its transaction), by "Start over", and 90 days after its last change (/api/cron/teacher-draft-retention).
+// Exactly Prisma's own DDL for the TeacherDraft model, made idempotent. ⚠️ RUN THIS ON PRODUCTION BEFORE THE DEPLOY:
+// every teacher publish, edit and profile delete deletes from it inside its transaction, and the account export reads
+// it — all fail without the table (only the dashboard's read is guarded, as a backstop: it costs just the row).
+await client.query(`
+  create table if not exists "TeacherDraft" (
+    "profileId" uuid not null,
+    "data" jsonb not null,
+    "step" text not null,
+    "rev" integer not null default 1,
+    "createdAt" timestamp(3) not null default current_timestamp,
+    "updatedAt" timestamp(3) not null default current_timestamp,
+    constraint "TeacherDraft_pkey" primary key ("profileId")
+  )`)
+await client.query(`alter table "TeacherDraft" enable row level security`)
+if (!(await client.query(`select relrowsecurity from pg_class where oid = 'public."TeacherDraft"'::regclass`)).rows[0].relrowsecurity) {
+  console.error('RLS did not switch on for TeacherDraft — stopping.'); process.exit(1)
+}
+await client.query(`create index if not exists "TeacherDraft_updatedAt_idx" on "TeacherDraft"("updatedAt")`)
+await client.query(`
+  do $$ begin
+    if not exists (select 1 from pg_constraint where conname = 'TeacherDraft_profileId_fkey' and conrelid = '"TeacherDraft"'::regclass) then
+      alter table "TeacherDraft" add constraint "TeacherDraft_profileId_fkey"
+        foreign key ("profileId") references "Profile"("id") on delete cascade on update cascade;
+    end if;
+  end $$`)
+console.log('ok  TeacherDraft (RLS on)')
 
 // Storage lives in the `storage` schema only on Supabase; a scratch Postgres has none.
 const hasStorage = await client.query(`select to_regclass('storage.buckets') as t`)
