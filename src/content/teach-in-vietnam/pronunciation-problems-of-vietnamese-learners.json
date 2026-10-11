@@ -1,0 +1,484 @@
+{
+ "slug": "pronunciation-problems-of-vietnamese-learners",
+ "title": "Pronunciation Problems of Vietnamese Learners of English",
+ "description": "Why Vietnamese learners drop ending sounds and swap th, sh and tr, what the research counts, and a classroom fix for each sound, -s/-ed ending and stress.",
+ "h1": "Pronunciation problems of Vietnamese learners of English, and a fix for each one",
+ "eyebrow": "In the classroom",
+ "intro": "The biggest pronunciation problem for Vietnamese learners of English is ending sounds. Vietnamese allows only six word-final consonants and no consonant clusters, so learners drop, swap or blur the ends of English words, including plural and third-person -s and past -ed. Next come th, sh and tr substitutions, then word stress and intonation carried over from tonal Vietnamese. The practical fix is short, regular drilling inside high-frequency phrases.",
+ "keyPoints": [
+  "**The root cause is syllable shape:** Vietnamese allows only six word-final consonants (/m n ŋ p t k/) and no clusters, while English can end a word with most of its 24 consonants and stack up to four, as in 'twelfths' ([ICHUSO 2019 study](https://hs.kku.ac.th/ichuso/2019/034-ICHUSO-2019.pdf)).",
+  "**Ending sounds come first:** in a study of 51 graduating English majors at Vietnam National University, dropped final sounds were the most common error, made by 25 of them ([Ha Cam Tam](https://js.vnu.edu.vn/FS/article/view/2072)).",
+  "**-s goes missing a lot:** adult learners in a 2024 study dropped 28.4% of expected final /s/ and /z/, and about half of grammatical -s after a consonant, as in 'books' or 'wants' ([Disney & Le](https://www.mdpi.com/2226-471X/9/10/327)).",
+  "**The consonant swaps are predictable:** /θ/ becomes /t/ or /s/, /ð/ becomes /z/ or /d/, /ʃ/ and /s/ trade places, /tr/ becomes /tʃ/ and /r/ can become /z/, so minimal pairs on exactly those contrasts pay off.",
+  "**Stress is a timing problem more than a pitch problem:** in a study of English compound and phrase stress, learners hit pitch and loudness fairly well but not timing, so stretch stressed syllables and shrink weak ones.",
+  "**Little and often, without costing face:** a five-minute ending-sounds slot in every lesson, choral drilling before individuals, and correction through whole-class feedback."
+ ],
+ "sections": [
+  {
+   "id": "why-vietnamese-learners-find-english-sounds-hard",
+   "title": "Why Vietnamese learners find English sounds hard",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Most of the problems trace back to how syllables are built. Vietnamese allows only six consonants at the end of a word, /m n ŋ p t k/, plus two semivowels, and it has **no consonant clusters at all**. English can end a word with most of its 24 consonants and pile up to four at the end, as in 'twelfths' ([word-final consonant study, ICHUSO 2019](https://hs.kku.ac.th/ichuso/2019/034-ICHUSO-2019.pdf); [study of English consonant clusters](https://www.vjol.info.vn/index.php/tctbgd/article/download/99155/83692/)). So every English word ending in /s/, /z/, /v/, /d/ or a cluster asks a Vietnamese speaker for a syllable their first language never makes."
+    },
+    {
+     "type": "p",
+     "text": "Ha Cam Tam's study of 51 graduating English majors at Vietnam National University found dropped ending sounds to be the most common error and traced it to exactly this: Vietnamese words are single syllables with no clusters ([VNU Journal of Foreign Studies](https://js.vnu.edu.vn/FS/article/view/2072))."
+    },
+    {
+     "type": "p",
+     "text": "The second source is rhythm. Vietnamese is a tonal language, where pitch tells one word from another, and it has no word-level timing rules like English stress. A phonetic study of compound and phrase stress (a 'GREENhouse' against a 'green HOUSE') found that Vietnamese learners, beginners and advanced alike, hit English pitch and loudness targets fairly well but adapt imperfectly to English timing ([Nguyen & Ingram, ICSLP 2002](https://www.isca-archive.org/icslp_2002/nguyen02b_icslp.html)). The same authors' later paper in TESOL Quarterly (2005) looks at how prosody from tonal Vietnamese carries over into English word stress ([TIRF reference list](https://www.tirfonline.org/wp-content/uploads/2025/06/Vietnamese-speakingLearnersOfEnglish_SelectedReferences_2June2025.docx))."
+    },
+    {
+     "type": "table",
+     "caption": "Vietnamese and English sound systems compared, and what it sounds like in class (ICHUSO 2019; Ha Cam Tam 2005; Nguyen & Ingram 2002; Luu Thi Kim Nhung 2010)",
+     "headers": [
+      "Feature",
+      "Vietnamese",
+      "English",
+      "What you hear in class"
+     ],
+     "rows": [
+      [
+       "Word-final consonants",
+       "Six: /m n ŋ p t k/, plus two semivowels",
+       "Most of its 24 consonants",
+       "Endings dropped or swapped: 'five', 'bus', 'love'"
+      ],
+      [
+       "Consonant clusters",
+       "None",
+       "Up to four at the end ('twelfths')",
+       "Clusters cut down: 'next', 'asked', 'months'"
+      ],
+      [
+       "Word shape",
+       "Built from single syllables",
+       "Many words of two or more syllables",
+       "Sounds lost in the middle of words, mostly inside clusters"
+      ],
+      [
+       "Pitch",
+       "Tones tell words apart",
+       "Pitch marks stress and intonation",
+       "An intonation contour that changes the meaning"
+      ],
+      [
+       "Timing",
+       "No word-level timing rules",
+       "Stressed syllables longer, weak syllables shorter",
+       "Stress marked by pitch but not by length"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "These are not beginner problems that fade on their own. Ha Cam Tam's subjects were about to graduate in English, and a study at a Mekong Delta university found learners with a lot of English experience and learners with little making **many of the same types of final-consonant error** ([ICHUSO 2019](https://hs.kku.ac.th/ichuso/2019/034-ICHUSO-2019.pdf)). The words most often mispronounced in the VNU study were everyday ones: job, country, centre, the, English and tradition."
+    }
+   ]
+  },
+  {
+   "id": "the-problem-sounds-at-a-glance",
+   "title": "The problem sounds at a glance",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The table pulls together the errors the research documents, with a fix for each. Counts are from Ha Cam Tam's study of 51 English majors unless another study is named. Most of the examples, and the activities, are standard classroom practice, not research findings."
+    },
+    {
+     "type": "table",
+     "caption": "Common pronunciation errors of Vietnamese learners of English and fixes to try (findings: Ha Cam Tam 2005, Disney & Le 2024, ICHUSO 2019, Nguyen & Ingram 2002, Luu Thi Kim Nhung 2010)",
+     "headers": [
+      "Sound or feature",
+      "Typical error",
+      "Example",
+      "Fix to try"
+     ],
+     "rows": [
+      [
+       "Final consonants, most often /z s t v ks dʒ/",
+       "Dropped (25 of 51); also an extra vowel added, devoiced or left unreleased",
+       "'line' heard as 'lie', 'like' or 'light'",
+       "Minimal pairs that differ only in the ending; exaggerate the release at first"
+      ],
+      [
+       "Final clusters",
+       "Cut down to one consonant",
+       "'next', 'asked', 'twelfths'",
+       "Build the cluster from the end: s, ts, nts, wants"
+      ],
+      [
+       "Plural and third-person -s",
+       "Dropped about half the time after a consonant (Disney & Le)",
+       "'two books', 'he wants it'",
+       "Drill inside high-frequency chunks and link into the next vowel"
+      ],
+      [
+       "Past -ed",
+       "Dropped, so past sounds like present",
+       "'she worked hard', 'we played'",
+       "Sort verbs into /t/, /d/ and /ɪd/ endings; chunk drills"
+      ],
+      [
+       "Extra /s/ or /z/",
+       "Added where none belongs (13 of 51)",
+       "'hobby' with a /z/ inside; 'peoples'",
+       "Contrast pairs with the spelling in view"
+      ],
+      [
+       "th as in 'think' /θ/",
+       "Becomes a dental /t/ or /s/; the most mispronounced sound in the study",
+       "'think' as 'tink' or 'sink'",
+       "Tongue tip between the teeth; think, tink, sink triplets"
+      ],
+      [
+       "th as in 'the' /ð/",
+       "Becomes /z/ or /d/ (10 of 51)",
+       "'the', 'this', 'they'",
+       "Same tongue position with voice; then, den and Zen"
+      ],
+      [
+       "sh /ʃ/ and s /s/",
+       "/ʃ/ to /s/ (15 of 51) and /s/ to /ʃ/ or /ʒ/ (11)",
+       "'she' and 'see', 'ship' and 'sip'",
+       "Minimal pairs in both directions; rounded lips for sh"
+      ],
+      [
+       "tr /tr/ and t /t/",
+       "Both become ch /tʃ/ (16 and 13 of 51)",
+       "'train' as 'chain', 'tip' as 'chip'",
+       "trip and chip, tip and chip pairs; a crisp /t/ before the /r/"
+      ],
+      [
+       "r /r/",
+       "Becomes /z/ (7 of 51)",
+       "'rip' as 'zip'",
+       "rip and zip, rest and zest pairs; tongue tip curled back, not touching"
+      ],
+      [
+       "Word stress",
+       "Pitch right, length wrong (Nguyen & Ingram, on compound and phrase stress)",
+       "'PHOtograph', 'phoTOgraphy'",
+       "Clap or hum the pattern; stretch the stressed vowel"
+      ],
+      [
+       "Intonation",
+       "A contour that changes the meaning (Luu Thi Kim Nhung)",
+       "'Really.' against 'Really?'",
+       "Hum the tune first; draw arrows on the board"
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "id": "final-consonants-and-ending-sounds",
+   "title": "Final consonants and ending sounds",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "In the VNU study, 25 of the 51 students dropped final /z/, /s/, /t/, /v/, /ks/ or /dʒ/, and 19 also dropped sounds in the middle of words, mostly inside clusters. The author's recommendation is simple: put the emphasis on ending and medial consonants ([Ha Cam Tam](https://js.vnu.edu.vn/FS/article/view/2072))."
+    },
+    {
+     "type": "p",
+     "text": "Dropping is not the only error. The Mekong Delta study found learners deleting a final consonant, adding an extra vowel after it, devoicing it, leaving a final stop unreleased so it is barely audible, and swapping it for another sound. In that study, swapping was the most common error on single final consonants, followed by devoicing and unreleased stops, and cutting a cluster down was the most common error on clusters, so listen for wrong and weak endings as well as missing ones. The cost is meaning, not just accent: **without its final /n/, 'line' can be heard as 'lie', 'like' or 'light'** ([ICHUSO 2019](https://hs.kku.ac.th/ichuso/2019/034-ICHUSO-2019.pdf))."
+    },
+    {
+     "type": "h3",
+     "text": "A five-minute ending-sounds routine"
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Pick one ending per lesson",
+       "text": "Choose a single target from the table, for example final /s/ after a consonant, and six to eight words or chunks from that day's material. Choose frequent ones: in the 2024 -s study, learners were more accurate on more frequent words ([Disney & Le](https://www.mdpi.com/2226-471X/9/10/327))."
+      },
+      {
+       "title": "Exaggerate, then bring it back to normal",
+       "text": "Model the ending long and clearly released, have the class repeat it chorally, then shorten it to natural length. Exaggerating final releases and linking at first gives learners a target they can actually hear."
+      },
+      {
+       "title": "Link the ending into the next word",
+       "text": "Put the word before a vowel so the ending starts the next syllable: 'he wants it' runs together as wan-tsit, 'she worked on it' as work-ton-it. That takes the sound out of the position Vietnamese does not allow."
+      },
+      {
+       "title": "Hear it before saying it",
+       "text": "Read out one word from a minimal set (line, lie, light, like) and have students show which one on mini-whiteboards or with fingers. Only then ask them to produce the set."
+      },
+      {
+       "title": "Recycle the same chunks",
+       "text": "Come back to the same chunks at the end of the lesson and at the start of the next one, and praise endings you hear in freer speaking."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "s-and-ed-endings",
+   "title": "-s and -ed endings",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The -s ending gets its own research. Disney and Le (2024) analysed real speech from 16 Vietnamese adult learners and found they left out **28.4% of expected word-final /s/ and /z/**. Omission was most likely for grammatical -s after a consonant, plurals and third-person verbs, where the error rate was about 50.7%, and inside clusters. The authors conclude that first-language transfer alone does not explain the pattern, and how frequent a word is went closely with how accurately it was said ([Languages, MDPI](https://www.mdpi.com/2226-471X/9/10/327)). In practice: treat -s as grammar and sound together, and drill it in high-frequency phrases rather than word lists."
+    },
+    {
+     "type": "p",
+     "text": "Watch for the opposite error too. In the VNU study 13 of 51 students added an /s/ or /z/ where none belongs, such as a /z/ inside 'hobby' or 'peoples' for 'people' ([Ha Cam Tam](https://js.vnu.edu.vn/FS/article/view/2072)). Learners who have been drilled hard on endings can start adding them everywhere, so keep meaning in the drill."
+    },
+    {
+     "type": "table",
+     "caption": "How English -s and -ed endings are pronounced (standard English phonology), and why each one is hard for Vietnamese speakers (final-consonant inventory from ICHUSO 2019)",
+     "headers": [
+      "Ending and sound",
+      "Used after",
+      "Examples",
+      "Why it is hard"
+     ],
+     "rows": [
+      [
+       "-s as /s/",
+       "Voiceless sounds other than /s ʃ tʃ/",
+       "books, wants, stops",
+       "/s/ never ends a Vietnamese syllable, and here it forms a cluster"
+      ],
+      [
+       "-s as /z/",
+       "Voiced sounds and vowels other than /z ʒ dʒ/",
+       "dogs, plays, lives",
+       "/z/ never ends a Vietnamese syllable"
+      ],
+      [
+       "-es as /ɪz/",
+       "/s z ʃ ʒ tʃ dʒ/",
+       "buses, watches, changes",
+       "An extra syllable that ends in /z/"
+      ],
+      [
+       "-ed as /t/",
+       "Voiceless sounds other than /t/",
+       "worked, stopped, watched",
+       "Makes a final cluster such as /kt/ or /pt/"
+      ],
+      [
+       "-ed as /d/",
+       "Voiced sounds and vowels other than /d/",
+       "played, lived, called",
+       "/d/ never ends a Vietnamese syllable"
+      ],
+      [
+       "-ed as /ɪd/",
+       "/t/ and /d/",
+       "wanted, needed",
+       "An extra syllable that ends in /d/"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "None of these six endings fits a Vietnamese syllable, which is why they need steady practice rather than one explanation. Teach the three-way rule once, then switch to activities:"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Sorting:** verbs on cards go into /t/, /d/ and /ɪd/ columns, then students read each column aloud in chorus.",
+      "**Yesterday chains:** each student adds a past-tense action to a growing sentence ('Yesterday I walked, cooked and wanted…'), so the endings repeat many times.",
+      "**Third-person routines:** describe a classmate's day ('She gets up, brushes her teeth, takes the bus') with the -s endings stretched at first.",
+      "**Deliberate mistakes:** say 'two book' or 'yesterday I play' and let the class correct you, which practises hearing the ending without putting any student on the spot."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "th-sh-tr-v-z-and-r",
+   "title": "th, sh, tr, v, z and r: the consonant swaps",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The VNU study counted these substitutions among its 51 students: /tr/ to /tʃ/ (16 students), /ʃ/ to /s/ (15), /t/ to /tʃ/ (13), /dʒ/ to various sounds (13), /s/ to /ʃ/ or /ʒ/ (11), /ð/ to /z/ or /d/ (10) and /θ/ to /s/ or /t/ (7). **/θ/ topped the list of mispronounced sounds**, usually produced as a t made against the teeth ([Ha Cam Tam](https://js.vnu.edu.vn/FS/article/view/2072))."
+    },
+    {
+     "type": "h3",
+     "text": "th: /θ/ and /ð/"
+    },
+    {
+     "type": "p",
+     "text": "Show the mouth: the tongue tip rests lightly between the teeth and air flows over it. Without voice it is /θ/ (think, three, month); add voice and it is /ð/ (the, this, they). Use triplets that hold everything else steady, such as think, tink and sink, or then, den and Zen. Because 'the' was among the most frequently mispronounced words in the VNU study, practise it inside chunks students say every day: 'in the morning', 'on the table', 'at the weekend'."
+    },
+    {
+     "type": "h3",
+     "text": "sh and s: /ʃ/ and /s/"
+    },
+    {
+     "type": "p",
+     "text": "The swap runs both ways, so the problem is telling the two apart rather than making either sound. Drill pairs in both directions: she and see, ship and sip, sheet and seat, shoe and Sue. For /ʃ/ the lips round and push forward; for /s/ they spread into a slight smile, which students can check in a mirror."
+    },
+    {
+     "type": "h3",
+     "text": "tr and t: /tr/ and /t/"
+    },
+    {
+     "type": "p",
+     "text": "Both /tr/ and plain /t/ can drift towards ch /tʃ/, so 'train' sounds like 'chain' and 'tip' like 'chip'. Contrast trip and chip, true and chew, tip and chip, and model a short, crisp /t/ released before the /r/ starts. Exaggerate the gap between the two sounds at first, then close it."
+    },
+    {
+     "type": "h3",
+     "text": "v, z and r"
+    },
+    {
+     "type": "p",
+     "text": "/v/ and /z/ show up in the research mainly as **ending sounds**: both are in the list of finals most often dropped, and /z/ is also what /ð/ often turns into. Practise them where they cause trouble, at the ends of words: five, love, have, lives, goes, was. For /v/, the top teeth stay on the lower lip while the voice keeps buzzing; for /z/, students touch their throat to feel the buzz and contrast it with /s/ in pairs such as rice and rise, place and plays."
+    },
+    {
+     "type": "p",
+     "text": "/r/ shows up too: in the VNU study 7 of 51 students said /r/ as /z/, and /r/ was among the sounds dropped in the middle of words ([Ha Cam Tam](https://js.vnu.edu.vn/FS/article/view/2072)). Where you hear it, use the same hear-then-say routine with pairs such as rip and zip, rest and zest, and keep the tongue tip curled back without touching the roof of the mouth."
+    }
+   ]
+  },
+  {
+   "id": "word-stress-rhythm-and-intonation",
+   "title": "Word stress, rhythm and intonation",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Nguyen and Ingram found that Vietnamese learners hit English pitch and loudness targets for stress fairly well, but adapt imperfectly to English timing, which Vietnamese has no equivalent rules for ([ICSLP 2002](https://www.isca-archive.org/icslp_2002/nguyen02b_icslp.html)). So the fix is mostly about **length**: the stressed syllable gets longer, and the unstressed ones shrink, often to a weak vowel. The same goes for small grammar words: in natural connected speech 'to', 'and', 'of', 'can' and 'for' are usually said in weak forms, so practise them that way."
+    },
+    {
+     "type": "p",
+     "text": "Intonation can matter as much as the sounds. Luu Thi Kim Nhung (2010) argues that a wrong intonation contour can change what a Vietnamese learner means even when every consonant and vowel is correct, traces the likely problems to differences between the two intonation systems, and proposes teaching remedies ([VNU Journal of Foreign Studies](https://js.vnu.edu.vn/FS/article/view/2554)). A falling 'Really.' and a rising 'Really?' are different answers."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Clap or hum** the stress pattern before saying the word, then say it with the stressed syllable deliberately long.",
+      "**Sort by pattern:** group new words under stress shapes such as Oo (teacher), oO (begin) and Ooo (family).",
+      "**Backchain** long sentences from the end: 'weekend', 'at the weekend', 'went out at the weekend', so the rhythm stays natural.",
+      "**Chunk sentences** into thought groups with a slash on the board, one stress per group.",
+      "**Hum the tune** of a question or a list first, then add the words; draw rising and falling arrows over model sentences."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "This matters in exam classes. Vietnamese IELTS candidates averaged 6.2 overall in 2022 data, and Speaking was their weakest skill at 5.8 ([Viet Nam News](https://vietnamnews.vn/society/1638637/vietnamese-students-rank-23rd-globally-in-ielts-exam-annual-report.html)). The guide to [teaching IELTS in Vietnam](/teach-in-vietnam/teaching-ielts-in-vietnam) covers that market in detail."
+    }
+   ]
+  },
+  {
+   "id": "correcting-pronunciation-in-a-vietnamese-classroom",
+   "title": "Correcting pronunciation without costing students face",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Studies of Vietnamese learning culture report that students usually stay quiet and wait to be called on, and that face-saving is extremely important to students and their families ([Pham Thi My Hanh, NUS](https://fass.nus.edu.sg/cls/wp-content/uploads/sites/32/2020/10/pham_thimyhanh.pdf)). So correction works best when it does not single anyone out. The guide to [Vietnamese classroom culture](/teach-in-vietnam/vietnamese-classroom-culture-for-english-teachers) goes further into this."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Drill chorally first,** then in groups, then in pairs, and only then call on individuals, by name and after some wait time.",
+      "**Correct through whole-class feedback:** note the errors you hear during speaking, then model and drill the right forms with everyone.",
+      "**Recast rather than interrupt** during fluency work: repeat the student's sentence back with the ending in place and move on.",
+      "**Use mini-whiteboards** for minimal-pair listening, so every student answers and no one is exposed.",
+      "**Praise in public,** especially the first time a quiet student gets an ending right in free speech."
+     ]
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "Don't fix every ending mid-sentence",
+     "text": "Stopping a student in front of the class to correct each dropped ending is an easy way to make a pronunciation focus backfire. It costs face, and quiet students go quieter. Save the correction for whole-class feedback and the next day's five-minute routine."
+    },
+    {
+     "type": "p",
+     "text": "Class size shapes the method. Primary classes in Ho Chi Minh City averaged 38 pupils in 2022, above the legal cap of 35 ([VnExpress](https://vnexpress.net/truong-cong-qua-tai-4507502.html)), so public-school work leans on choral drilling, chants and actions. With young children, keep it physical and sound-based rather than symbol-based; the guide to [teaching young learners](/teach-in-vietnam/teaching-young-learners-in-vietnam) covers that age group. At a [language centre](/teach-in-vietnam/language-centre-jobs-in-ho-chi-minh-city), smaller groups leave room for pair work and individual feedback."
+    },
+    {
+     "type": "p",
+     "text": "Two more things help. A short minimal-pair warm-up on ending sounds is a natural segment for a [demo lesson](/teach-in-vietnam/english-teacher-cv-and-demo-lesson-in-vietnam), because it shows you know these learners. And [learning some Vietnamese](/teach-in-vietnam/learning-vietnamese-and-finding-your-people-in-saigon) yourself makes the source of the errors easier to hear."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Should I aim to remove my students' Vietnamese accent?",
+   "a": "No. Aim for intelligibility, not a native accent. Put the errors that change meaning or grammar first: dropped endings (line, lie, light), missing -s and -ed, and the th, sh and tr swaps."
+  },
+  {
+   "q": "Why do my advanced students still drop ending sounds?",
+   "a": "The habit comes from Vietnamese syllable structure, which allows only six final consonants and no clusters, and research shows it persists at high levels: the VNU study's subjects were graduating English majors. Accuracy on -s also tracked how often a word is used, so drill endings in frequent phrases."
+  },
+  {
+   "q": "Should I teach phonemic symbols to Vietnamese students?",
+   "a": "Many teachers find that, for teens and adults, a handful of symbols for the target sounds, such as the two th sounds, sh, s and z, makes minimal-pair work faster. Young learners need sounds, mouth shapes and actions rather than symbols. Check what your coursebook uses so you do not contradict it."
+  },
+  {
+   "q": "Does pronunciation affect IELTS scores?",
+   "a": "Yes. Pronunciation is one of the four criteria marked in the IELTS Speaking test, and Speaking was Vietnamese candidates' weakest skill in 2022 data, averaging 5.8 against 6.2 overall."
+  },
+  {
+   "q": "How much class time should pronunciation get?",
+   "a": "There is no official figure. A short, regular slot of about five minutes in every lesson, recycling the same chunks, usually works better than an occasional full pronunciation lesson, because the habit being replaced is built into the learners' first language."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Common Pronunciation Problems of Vietnamese Learners of English (Ha Cam Tam)",
+   "publisher": "VNU Journal of Foreign Studies",
+   "url": "https://js.vnu.edu.vn/FS/article/view/2072"
+  },
+  {
+   "title": "Errors in Word-Final Consonant Pronunciation in Vietnamese English Interlanguage",
+   "publisher": "ICHUSO 2019, Khon Kaen University",
+   "url": "https://hs.kku.ac.th/ichuso/2019/034-ICHUSO-2019.pdf"
+  },
+  {
+   "title": "Word-Final /s/-/z/ Omission in Vietnamese English (Disney & Le, 2024)",
+   "publisher": "Languages (MDPI)",
+   "url": "https://www.mdpi.com/2226-471X/9/10/327"
+  },
+  {
+   "title": "Native and Vietnamese production of compound and phrasal stress patterns (Nguyen & Ingram, 2002)",
+   "publisher": "ISCA Archive, ICSLP 2002",
+   "url": "https://www.isca-archive.org/icslp_2002/nguyen02b_icslp.html"
+  },
+  {
+   "title": "A brief comparison of Vietnamese intonation and English intonation and its implications for teaching English intonation to Vietnamese EFL learners (Luu Thi Kim Nhung, 2010)",
+   "publisher": "VNU Journal of Foreign Studies",
+   "url": "https://js.vnu.edu.vn/FS/article/view/2554"
+  },
+  {
+   "title": "English consonant clusters in the pronunciation of Vietnamese learners: a study on two students at Ha Long University",
+   "publisher": "Journal of Educational Equipment (via VJOL)",
+   "url": "https://www.vjol.info.vn/index.php/tctbgd/article/download/99155/83692/"
+  },
+  {
+   "title": "Vietnamese-speaking Learners of English: Selected References",
+   "publisher": "TIRF",
+   "url": "https://www.tirfonline.org/wp-content/uploads/2025/06/Vietnamese-speakingLearnersOfEnglish_SelectedReferences_2June2025.docx"
+  },
+  {
+   "title": "Understanding the context and its effect on assessment in EFL class in higher education in Vietnam (Pham Thi My Hanh)",
+   "publisher": "Centre for Language Studies, National University of Singapore",
+   "url": "https://fass.nus.edu.sg/cls/wp-content/uploads/sites/32/2020/10/pham_thimyhanh.pdf"
+  },
+  {
+   "title": "Vietnamese students rank 23rd globally in IELTS exam: annual report",
+   "publisher": "Viet Nam News",
+   "url": "https://vietnamnews.vn/society/1638637/vietnamese-students-rank-23rd-globally-in-ielts-exam-annual-report.html"
+  },
+  {
+   "title": "Trường công quá tải",
+   "publisher": "VnExpress",
+   "url": "https://vnexpress.net/truong-cong-qua-tai-4507502.html"
+  }
+ ],
+ "related": [
+  "vietnamese-classroom-culture-for-english-teachers",
+  "teaching-young-learners-in-vietnam",
+  "teaching-ielts-in-vietnam",
+  "english-teacher-cv-and-demo-lesson-in-vietnam",
+  "language-centre-jobs-in-ho-chi-minh-city"
+ ],
+ "lastChecked": "2026-10-11"
+}

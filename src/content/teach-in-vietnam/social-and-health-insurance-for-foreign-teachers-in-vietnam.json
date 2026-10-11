@@ -1,0 +1,481 @@
+{
+ "slug": "social-and-health-insurance-for-foreign-teachers-in-vietnam",
+ "title": "Social insurance for foreign teachers in Vietnam (2026)",
+ "description": "Who must pay Vietnam's social and health insurance, the 9.5% and 20.5% rates, what the health cover really pays, and how to claim the lump sum when you leave.",
+ "h1": "Social and health insurance for foreign teachers in Vietnam: what comes off your pay and what you get back",
+ "eyebrow": "Pay and tax",
+ "intro": "If you teach in Vietnam on a labour contract of 12 months or more, social and health insurance are compulsory: 9.5% of your salary is deducted (8% pension, 1.5% health insurance) and your employer pays another 20.5%. Contracts shorter than 12 months are outside the scheme. In return you get national health insurance at the facility you are registered with and, when your contract or work permit ends, a lump sum of two months' average salary for each year you paid in.",
+ "keyPoints": [
+  "**Who pays:** foreign employees on definite-term labour contracts of **12 months or more**, since 1 July 2025 under Social Insurance Law 41/2024/QH15. Shorter contracts, intra-company transferees and people already at retirement age when they signed are outside it.",
+  "**The deduction:** 9.5% of your contribution salary (8% pension and survivorship, 1.5% health insurance); your employer adds 20.5%. Foreigners pay no unemployment insurance.",
+  "**The cap:** from 1 July 2026 contributions are worked out on at most {{vnd:50600000}} a month of salary, so the most you pay is {{vnd:4807000}} a month.",
+  "**The lump sum:** 2 months of average contribution salary per year contributed, claimable once your contract ends or your work permit expires without renewal, with no 12-month wait for foreigners. Two years at an average {{vnd:40000000}} a month comes to about {{vnd:160000000}}.",
+  "**Health cover has limits:** it pays within the national price list at your registered facility (about 80% of that price for most employees), so most teachers want private insurance on top for international hospitals."
+ ],
+ "sections": [
+  {
+   "id": "who-has-to-pay",
+   "title": "Who has to pay social insurance in Vietnam?",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Since 1 July 2025 the test is your contract: a foreign employee working for an employer in Vietnam under a **definite-term labour contract of 12 months or more** must join compulsory social insurance ([Social Insurance Law 41/2024/QH15, Art. 2(2)](https://english.luatvietnam.vn/lao-dong/law-41-2024-qh15-on-social-insurance-360809-d1.html), guided by Decree 158/2025/ND-CP). The amended Health Insurance Law 51/2024/QH15 applies the same test and the same exceptions to compulsory health insurance ([EY Vietnam](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/people-advisory-service-tax-alert-june-2025-notable-points-regarding-the-mandatory-social-security-from-1-july-2025))."
+    },
+    {
+     "type": "p",
+     "text": "None of this is brand new. Foreigners with a work permit on contracts of a year or more have been covered for sickness, maternity and workplace accidents since 1 December 2018, and the 8% pension deduction has applied since 1 January 2022 ([Vietnam Law Magazine](https://vietnamlawmagazine.vn/foreign-workers-required-to-participate-in-compulsory-social-insurance-6436.html)). Ho Chi Minh City Social Security still describes eligible foreign workers as those on contracts of at least one year who hold a work permit ([Tuoi Tre News](https://news.tuoitre.vn/foreign-workers-in-vietnam-required-to-join-national-health-insurance-10326041315262424.htm)); a teacher legally employed on such a contract has one anyway (see [the work permit guide](/teach-in-vietnam/vietnam-work-permit-for-english-teachers))."
+    },
+    {
+     "type": "table",
+     "caption": "Who is in the compulsory scheme, as of October 2026 (Social Insurance Law 41/2024/QH15 Art. 2(2); Health Insurance Law 51/2024/QH15; KPMG on VSS Letter 862/BHXH-TST)",
+     "headers": [
+      "Your situation",
+      "Compulsory social and health insurance?",
+      "What it means for you"
+     ],
+     "rows": [
+      [
+       "Definite-term labour contract of 12 months or more",
+       "Yes",
+       "9.5% comes off your pay; employer pays 20.5%; you can claim the lump sum later"
+      ],
+      [
+       "Contract under 12 months (6 or 11 months, for example)",
+       "No",
+       "No deduction, but no public health cover and no lump sum; buy private insurance"
+      ],
+      [
+       "Separate probation contract",
+       "No",
+       "Probation contracts are excluded"
+      ],
+      [
+       "Intra-company transferee",
+       "No",
+       "Exempt under Art. 2(2)(a)"
+      ],
+      [
+       "Already at retirement age when you signed (in 2026: 61 years 6 months for men, 57 for women)",
+       "No",
+       "Age is judged on the day the contract is signed"
+      ],
+      [
+       "Korean teacher hired locally",
+       "Pension part can stay in Korea",
+       "Korea's National Pension can apply instead of Vietnam's for up to 60 months under the Korea–Vietnam agreement in force since 1 January 2024; ask Korea's NPS for a Certificate of Coverage before you start"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The label on the paper does not decide it. Under [Labour Code Art. 13(1)](https://hethongphapluat.com/bo-luat-lao-dong-2019/khoan-1-dieu-13), an agreement with paid work, a wage and supervision is a labour contract whatever it is called, so a 'freelance' deal with one centre that sets your timetable is a labour contract in substance. If you are outside the scheme, [Labour Code Art. 168(3)](https://hethongphapluat.com/bo-luat-lao-dong-2019/khoan-3-dieu-168) says the employer should pay you, with your wages, an amount equal to what it would have contributed. No official guidance applies that to foreigners on contracts under 12 months and practice is inconsistent, so treat it as a point to raise when you [check the contract](/teach-in-vietnam/english-teaching-contracts-in-vietnam), not a settled right."
+    },
+    {
+     "type": "p",
+     "text": "Probation contracts are excluded from the scheme, but the sources do not settle exactly when contributions start if probation is written into a 12-month contract. Check your first payslips and ask HR in writing."
+    }
+   ]
+  },
+  {
+   "id": "rates",
+   "title": "How much comes off your pay: the rates",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Foreign employees pay **9.5%** of their contribution salary and employers pay **20.5%** ([EY, June 2025](https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/people-advisory-service-tax-alert-june-2025-notable-points-regarding-the-mandatory-social-security-from-1-july-2025)). Unemployment insurance, which Vietnamese staff pay, does not apply to foreigners."
+    },
+    {
+     "type": "table",
+     "caption": "Compulsory contribution rates for foreign employees, as of October 2026 (EY rate table, June 2025)",
+     "headers": [
+      "Fund",
+      "You pay",
+      "Employer pays"
+     ],
+     "rows": [
+      [
+       "Pension and survivorship",
+       "8%",
+       "14%"
+      ],
+      [
+       "Sickness and maternity",
+       "0%",
+       "3%"
+      ],
+      [
+       "Occupational accident and disease",
+       "0%",
+       "0.5%"
+      ],
+      [
+       "Health insurance",
+       "1.5%",
+       "3%"
+      ],
+      [
+       "Unemployment insurance",
+       "Not applicable",
+       "Not applicable"
+      ],
+      [
+       "Total",
+       "9.5%",
+       "20.5%"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Contributions are capped at 20 times the reference level. [Decree 161/2026/ND-CP](https://hatinh.gov.vn/vi/bai-viet/tang-luong-co-so-tu-0172026) raised the base salary from {{vnd:2340000}} to {{vnd:2530000}} from 1 July 2026, so the cap rose from {{vnd:46800000}} to **{{vnd:50600000}} a month** ([Báo Pháp luật](https://doanhnhan.baophapluat.vn/tang-muc-tran-dong-bao-hiem-xa-hoi-bat-buoc-len-50-6-trieu-dong-thang.html)). Salary above the cap carries no further contributions."
+    },
+    {
+     "type": "table",
+     "caption": "Monthly contributions at typical teacher salaries from 1 July 2026 (our calculation from the rates and the cap above)",
+     "headers": [
+      "Contribution salary a month",
+      "You pay (9.5%)",
+      "Employer pays (20.5%)"
+     ],
+     "rows": [
+      [
+       "{{vnd:30000000}}",
+       "{{vnd:2850000}}",
+       "{{vnd:6150000}}"
+      ],
+      [
+       "{{vnd:40000000}}",
+       "{{vnd:3800000}}",
+       "{{vnd:8200000}}"
+      ],
+      [
+       "{{vnd:50000000}}",
+       "{{vnd:4750000}}",
+       "{{vnd:10250000}}"
+      ],
+      [
+       "{{vnd:60000000}} (capped at {{vnd:50600000}})",
+       "{{vnd:4807000}}",
+       "{{vnd:10373000}}"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Your 9.5% comes off before income tax: compulsory social and health insurance contributions are deductible from taxable income ([Decree 253/2026/ND-CP, Art. 46.2(a)](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf)). The [income tax guide](/teach-in-vietnam/personal-income-tax-for-teachers-in-vietnam) works through the rest, and the [salary guide](/teach-in-vietnam/english-teacher-salary-in-vietnam) shows what these deductions do to a real offer. When you compare jobs, ask whether the figure is gross or net and which part of your pay counts as contribution salary; HR sets the base, and you can ask to see it."
+    }
+   ]
+  },
+  {
+   "id": "what-you-get",
+   "title": "What your contributions pay for",
+   "blocks": [
+    {
+     "type": "ul",
+     "items": [
+      "**Pension and survivorship** (8% from you, 14% from the employer): few teachers stay long enough for a Vietnamese pension, so for most this is the fund behind the lump sum you claim when you leave.",
+      "**Sickness and maternity** (3%, employer only): the benefits set by the Social Insurance Law; ask HR how a claim is made at your school.",
+      "**Occupational accident and disease** (0.5%, employer only): cover for injuries and illness caused by your work.",
+      "**Health insurance** (1.5% from you, 3% from the employer): national health insurance (bảo hiểm y tế, BHYT) at the facility you are registered with; see the next section.",
+      "**No unemployment insurance:** the Employment Law 2025 widened it to contracts of one month or more from 1 January 2026, but foreign employees remain outside it ([LuatVietnam](https://luatvietnam.vn/bao-hiem/doi-tuong-nao-phai-tham-gia-bao-hiem-that-nghiep-nam-2026-563-106881-article.html))."
+     ]
+    }
+   ]
+  },
+  {
+   "id": "health-insurance",
+   "title": "Health insurance: what it covers and which hospital you register with",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "On a 12-month contract you are enrolled in BHYT through payroll: 4.5% of your contribution salary, 3% from the employer and 1.5% from you ([Tuoi Tre News](https://news.tuoitre.vn/foreign-workers-in-vietnam-required-to-join-national-health-insurance-10326041315262424.htm)). Each insured person is registered at one **initial-registration facility**, the hospital or clinic where they are treated first. Your employer handles the registration, so ask which facility you are on."
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**At your registered facility:** no referral needed, and you get your full BHYT entitlement.",
+      "**In an emergency:** no referral needed.",
+      "**At another hospital for non-emergency care:** you generally need a valid referral (transfer paper) to get your entitlement.",
+      "**Only within the BHYT list:** cover is limited to BHYT-listed services at BHYT prices, not a hospital's own price list."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "'Full entitlement' is not the full bill. For most employees BHYT pays **about 80% of the BHYT-listed price** for covered services (80% to 100% depending on your category and registration), and you pay the co-payment plus any difference between the hospital's own prices and the BHYT price ([Báo Đầu tư](https://baodautu.vn/benh-vien-fv-benh-nhan-duoc-bhyt-chi-tra-100-quyen-loi-khi-kham-chua-benh-d319012.html))."
+    },
+    {
+     "type": "p",
+     "text": "If you want an international hospital as your facility: since 1 July 2025 **FV Hospital** (6 Nguyen Luong Bang, Tan My ward, in the former District 7, per the [Australian consulate's hospital list](https://hcmc.vietnam.embassy.gov.au/files/hchi/list_of_hospitals_jul_2026.pdf)) has been an initial-registration facility for BHYT. You can ask your employer to register you there, subject to quota and availability. Since July 2025 official addresses use new ward names, though most people still say District 7 or Phu My Hung."
+    },
+    {
+     "type": "p",
+     "text": "Medical bills that insurance or your employer did not pay can still help at tax time: residents can deduct medical costs in Vietnam within the health-insurance list up to {{vnd:23000000}} a year, with invoices in their name, but only if they finalise their tax themselves ([Decree 253/2026/ND-CP, Art. 49](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf))."
+    }
+   ]
+  },
+  {
+   "id": "lump-sum",
+   "title": "Claiming your social insurance lump sum when you leave",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Foreign contributors can ask for their social insurance as a one-off payment (bảo hiểm xã hội một lần) when their **labour contract ends, or their work permit expires and is not renewed** ([Government portal on SI Law Art. 70](https://xaydungchinhsach.chinhphu.vn/chinh-phu-quy-dinh-chi-tiet-huong-bao-hiem-xa-hoi-mot-lan-119250628072850982.htm)). The other grounds are reaching retirement age with under 15 years of contributions, specified serious illnesses, losing 81% or more of working capacity, and meeting pension conditions while no longer living in Vietnam. The 12-month waiting period you may read about applies only to Vietnamese contributors with periods before July 2025, not to foreigners."
+    },
+    {
+     "type": "p",
+     "text": "The amount is **2 months of your average contribution salary for each year** contributed from 2014 (1.5 months a year before 2014). For less than a year, you get the amount contributed, capped at 2 months. It is calculated on the date the social insurance agency makes its decision ([SI Law Art. 70(3)](https://english.luatvietnam.vn/lao-dong/law-41-2024-qh15-on-social-insurance-360809-d1.html))."
+    },
+    {
+     "type": "table",
+     "caption": "Example lump sums under SI Law Art. 70(3) for contributions from 2014 (our calculation; the agency's decision is final)",
+     "headers": [
+      "Years contributed",
+      "Average contribution salary a month",
+      "Lump sum, about"
+     ],
+     "rows": [
+      [
+       "1 year",
+       "{{vnd:40000000}}",
+       "{{vnd:80000000}}"
+      ],
+      [
+       "2 years",
+       "{{vnd:40000000}}",
+       "{{vnd:160000000}}"
+      ],
+      [
+       "3 years",
+       "{{vnd:40000000}}",
+       "{{vnd:240000000}}"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Two months a year is about a sixth of a year's contribution salary, roughly twice the 8% pension share taken from your pay. We found no specific official guidance on whether the lump sum is taxed, so ask your payroll team or a tax adviser if it matters to you."
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Check your record before your last month",
+       "text": "Ask HR for your social insurance number and contribution history, and confirm that contributions are paid up to your final month."
+      },
+      {
+       "title": "Wait for the trigger",
+       "text": "You can claim once your labour contract has ended or your work permit has expired without renewal."
+      },
+      {
+       "title": "Prepare the application",
+       "text": "Fill in the lump-sum application form (sources call it Form 14-HSB; use the version the office gives you). Forvis Mazars lists your social insurance book, the form, your passport and your work permit, plus the other papers your employer arranged for you, and says the office may ask for more."
+      },
+      {
+       "title": "Submit it to BHXH TP. Hồ Chí Minh",
+       "text": "[Forvis Mazars (June 2026)](https://www.forvismazars.com/vn/en/insights/vietnam-updates/thought-catalysts/social-insurance-refund-for-expats) says applicants must attend the social insurance office in person; [Vietcetera](https://vietcetera.com/en/what-happens-to-your-social-insurance-when-you-leave-vietnam) also lists post and the online public-service portal. Practice varies by office, so ask before you go."
+      },
+      {
+       "title": "Wait for the decision and payment",
+       "text": "Forvis Mazars reports that processing typically takes 7 to 10 working days. Keep your Vietnamese bank account open until the money arrives."
+      }
+     ]
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "File before you fly",
+     "text": "Claiming after you have left is harder. The old authorisation form 13-HSB was abolished on 27 March 2026 (Decision 313/QĐ-BHXH); someone can still claim for you with a **certified written authorisation**, valid for up to 12 months. One made abroad must be certified by a Vietnamese embassy or consulate, or notarised where you are and then legalised unless exempt ([Vietnam Social Security answer on the Ministry of Finance portal, 17 July 2026](https://portal.mof.gov.vn/hoidapcstc/home/cthoidap/163570)). Since 11 September 2026 an apostille replaces legalisation for documents from most Apostille Convention member countries (Decree 293/2026/ND-CP; [Vietnamese embassy notice](https://vietnamembassydelhi.in/?p=6927)). Signing the authorisation before you leave avoids all of that. Whether the city office accepts postal or online claims from people already abroad is not confirmed, so file in person while you are still here if you can."
+    },
+    {
+     "type": "p",
+     "text": "Do the tax side at the same time: a resident foreigner whose contract ends must finalise income tax before leaving or authorise someone to do it. The [leaving Vietnam checklist](/teach-in-vietnam/leaving-vietnam-checklist-for-teachers) puts both in order with your final pay and bank account."
+    }
+   ]
+  },
+  {
+   "id": "private-insurance",
+   "title": "Private health insurance on top",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "BHYT pays within the national price list, while international hospitals and clinics charge their own prices, and you pay the difference. On a contract under 12 months, or on an hourly deal outside the scheme, you have no public cover at all, and without private insurance you pay international-hospital prices up front."
+    },
+    {
+     "type": "p",
+     "text": "Some chains advertise private cover: ILA's July 2026 ads list 'premium health insurance' ([Vietnam Teaching Jobs](https://vietnamteachingjobs.com/jobs/view/full-time-eslefl-teacher-at-ila-over-30-years-of-expertise-for-overseas-candidates)) and Apollo English's December 2025 ads list 'comprehensive health insurance' ([The TEFL Academy jobs board](https://www.theteflacademy.com/?p=99828)). Ask what that means: outpatient or inpatient only, dental, which hospitals bill the insurer directly, and whether motorbike accidents are covered. An employer-paid health policy with no savings element is not taxable income for you ([Decree 253/2026/ND-CP, Art. 8.4(h)](https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf))."
+    },
+    {
+     "type": "p",
+     "text": "Read the clause on riding a motorbike: practitioners warn that riding without a valid licence can void accident cover, so check the policy and the [motorbike licence guide](/teach-in-vietnam/motorbike-licence-in-vietnam-for-foreigners). For hospitals, clinics and emergency numbers in the city, see [healthcare and health insurance in Ho Chi Minh City](/teach-in-vietnam/healthcare-and-health-insurance-in-ho-chi-minh-city)."
+    }
+   ]
+  },
+  {
+   "id": "check-it-is-paid",
+   "title": "Making sure your contributions are actually paid",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "A deduction on your payslip does not prove the money reached the fund. In March 2024 the city's social insurance agency reported that the Apax Leaders chain owed {{vnd:1300000000}} in social and health insurance premiums for foreign staff alone, on top of unpaid salaries ([Tuoi Tre News](https://news.tuoitre.vn/english-center-chain-apax-leaders-owes-38mn-to-ho-chi-minh-city-parents-10378777.htm)). Ask HR for your social insurance number early, check your contribution history every few months, and raise gaps in writing straight away."
+    },
+    {
+     "type": "p",
+     "text": "Disputes over social or health insurance can go **straight to court** without labour mediation first; the deadline is one year from when you discover the violation ([Labour Code, Chapter XIV](https://hethongphapluat.com/bo-luat-lao-dong-2019/chuong-14))."
+    },
+    {
+     "type": "p",
+     "text": "The agency is **BHXH TP. Hồ Chí Minh**, the city office of Vietnam Social Security, which has sat under the Ministry of Finance since 1 March 2025. The Ho Chi Minh City, Binh Duong and Ba Ria–Vung Tau offices merged on 1 June 2025 and the merged office took its current name on 18 July 2025; it works through 36 local units, and its headquarters is at 5 Nguyễn Đổng Chi, Tân Mỹ ward ([Doanh nghiệp Hội nhập](https://doanhnghiephoinhap.vn/bao-hiem-xa-hoi-khu-vuc-xxvii-doi-ten-thanh-bao-hiem-xa-hoi-tp-ho-chi-minh-110602.html)). This guide explains the rules; for your own case, your employer's payroll team and that office have the final word."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Can I opt out of social insurance to keep more of my pay?",
+   "a": "Not if you are covered: it is compulsory on a definite-term contract of 12 months or more. The only exits are the legal exceptions, such as intra-company transfer, being at retirement age when you signed, or a treaty such as the Korea–Vietnam agreement."
+  },
+  {
+   "q": "Do I get my employer's contributions back too?",
+   "a": "The lump sum is calculated from your average contribution salary rather than from a running total of what you and the school paid in: 2 months for each year contributed from 2014. That works out at about twice the 8% pension share deducted from your pay."
+  },
+  {
+   "q": "Does national health insurance work at international hospitals?",
+   "a": "Only within the BHYT list and prices. FV Hospital has accepted BHYT registration since July 2025, but you still pay the co-payment and the gap between the hospital's own prices and BHYT prices."
+  },
+  {
+   "q": "Is social insurance deducted before or after income tax?",
+   "a": "Before. Compulsory social and health insurance contributions are deducted from your income before tax is worked out, under Decree 253/2026/ND-CP."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Law 41/2024/QH15 on Social Insurance (English translation)",
+   "publisher": "LuatVietnam",
+   "url": "https://english.luatvietnam.vn/lao-dong/law-41-2024-qh15-on-social-insurance-360809-d1.html"
+  },
+  {
+   "title": "Chính phủ quy định chi tiết hưởng bảo hiểm xã hội một lần",
+   "publisher": "Government of Vietnam (Xây dựng chính sách)",
+   "url": "https://xaydungchinhsach.chinhphu.vn/chinh-phu-quy-dinh-chi-tiet-huong-bao-hiem-xa-hoi-mot-lan-119250628072850982.htm"
+  },
+  {
+   "title": "Hỏi đáp chính sách: ủy quyền hưởng BHXH một lần sau khi bãi bỏ Mẫu 13-HSB",
+   "publisher": "Ministry of Finance",
+   "url": "https://portal.mof.gov.vn/hoidapcstc/home/cthoidap/163570"
+  },
+  {
+   "title": "Decree 253/2026/ND-CP on personal income tax",
+   "publisher": "Official Gazette (Công báo)",
+   "url": "https://congbaocdn.chinhphu.vn/180507251028987904/2026/7/16/469959-1784171413_v1_1784174315_signed.pdf"
+  },
+  {
+   "title": "Tăng lương cơ sở từ 01/7/2026",
+   "publisher": "Ha Tinh Provincial Portal",
+   "url": "https://hatinh.gov.vn/vi/bai-viet/tang-luong-co-so-tu-0172026"
+  },
+  {
+   "title": "People Advisory Service Tax Alert, June 2025: mandatory social security from 1 July 2025",
+   "publisher": "EY Vietnam",
+   "url": "https://www.ey.com/en_vn/technical/tax/tax-and-law-updates/people-advisory-service-tax-alert-june-2025-notable-points-regarding-the-mandatory-social-security-from-1-july-2025"
+  },
+  {
+   "title": "Tăng mức trần đóng bảo hiểm xã hội bắt buộc lên 50,6 triệu đồng/tháng",
+   "publisher": "Báo Pháp luật Việt Nam",
+   "url": "https://doanhnhan.baophapluat.vn/tang-muc-tran-dong-bao-hiem-xa-hoi-bat-buoc-len-50-6-trieu-dong-thang.html"
+  },
+  {
+   "title": "Bộ luật Lao động 2019, Điều 13 khoản 1",
+   "publisher": "Hệ thống Pháp luật",
+   "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/khoan-1-dieu-13"
+  },
+  {
+   "title": "Bộ luật Lao động 2019, Điều 168 khoản 3",
+   "publisher": "Hệ thống Pháp luật",
+   "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/khoan-3-dieu-168"
+  },
+  {
+   "title": "Bộ luật Lao động 2019, Chương XIV (labour disputes)",
+   "publisher": "Hệ thống Pháp luật",
+   "url": "https://hethongphapluat.com/bo-luat-lao-dong-2019/chuong-14"
+  },
+  {
+   "title": "Lump-sum Social Insurance refund for expats in Vietnam",
+   "publisher": "Forvis Mazars Vietnam",
+   "url": "https://www.forvismazars.com/vn/en/insights/vietnam-updates/thought-catalysts/social-insurance-refund-for-expats"
+  },
+  {
+   "title": "What Happens To Your Social Insurance When You Leave Vietnam?",
+   "publisher": "Vietcetera",
+   "url": "https://vietcetera.com/en/what-happens-to-your-social-insurance-when-you-leave-vietnam"
+  },
+  {
+   "title": "Foreign workers in Vietnam required to join national health insurance",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/foreign-workers-in-vietnam-required-to-join-national-health-insurance-10326041315262424.htm"
+  },
+  {
+   "title": "Bệnh viện FV: bệnh nhân được BHYT chi trả 100% quyền lợi khi khám chữa bệnh",
+   "publisher": "Báo Đầu tư",
+   "url": "https://baodautu.vn/benh-vien-fv-benh-nhan-duoc-bhyt-chi-tra-100-quyen-loi-khi-kham-chua-benh-d319012.html"
+  },
+  {
+   "title": "List of hospitals and clinics in Ho Chi Minh City (July 2026)",
+   "publisher": "Australian Consulate-General, Ho Chi Minh City",
+   "url": "https://hcmc.vietnam.embassy.gov.au/files/hchi/list_of_hospitals_jul_2026.pdf"
+  },
+  {
+   "title": "Foreign workers required to participate in compulsory social insurance",
+   "publisher": "Vietnam Law Magazine",
+   "url": "https://vietnamlawmagazine.vn/foreign-workers-required-to-participate-in-compulsory-social-insurance-6436.html"
+  },
+  {
+   "title": "Bảo hiểm xã hội khu vực XXVII đổi tên thành Bảo hiểm xã hội TP. Hồ Chí Minh",
+   "publisher": "Doanh nghiệp Hội nhập",
+   "url": "https://doanhnghiephoinhap.vn/bao-hiem-xa-hoi-khu-vuc-xxvii-doi-ten-thanh-bao-hiem-xa-hoi-tp-ho-chi-minh-110602.html"
+  },
+  {
+   "title": "Đối tượng nào phải tham gia bảo hiểm thất nghiệp năm 2026?",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/bao-hiem/doi-tuong-nao-phai-tham-gia-bao-hiem-that-nghiep-nam-2026-563-106881-article.html"
+  },
+  {
+   "title": "Tax Alert April 2024: Official Letter 862/BHXH-TST on the Korea–Vietnam Social Security Agreement",
+   "publisher": "KPMG Vietnam",
+   "url": "https://assets.kpmg.com/content/dam/kpmg/vn/pdf/tax-alert/2024/04/tax-alert-april-2024-en.pdf"
+  },
+  {
+   "title": "Tuổi nghỉ hưu năm 2026 thay đổi thế nào?",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/lao-dong-tien-luong/tuoi-nghi-huu-nam-2026-thay-doi-the-nao-562-106488-article.html"
+  },
+  {
+   "title": "English centre chain Apax Leaders owes $38mn to Ho Chi Minh City parents",
+   "publisher": "Tuoi Tre News",
+   "url": "https://news.tuoitre.vn/english-center-chain-apax-leaders-owes-38mn-to-ho-chi-minh-city-parents-10378777.htm"
+  },
+  {
+   "title": "Apostille notice",
+   "publisher": "Embassy of Vietnam in India",
+   "url": "https://vietnamembassydelhi.in/?p=6927"
+  },
+  {
+   "title": "Full-time ESL/EFL teacher at ILA",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/jobs/view/full-time-eslefl-teacher-at-ila-over-30-years-of-expertise-for-overseas-candidates"
+  },
+  {
+   "title": "Apollo English teaching job advertisement (December 2025)",
+   "publisher": "The TEFL Academy",
+   "url": "https://www.theteflacademy.com/?p=99828"
+  }
+ ],
+ "related": [
+  "personal-income-tax-for-teachers-in-vietnam",
+  "english-teacher-salary-in-vietnam",
+  "healthcare-and-health-insurance-in-ho-chi-minh-city",
+  "leaving-vietnam-checklist-for-teachers",
+  "english-teaching-contracts-in-vietnam",
+  "banking-and-sending-money-home-from-vietnam"
+ ],
+ "lastChecked": "2026-10-11"
+}

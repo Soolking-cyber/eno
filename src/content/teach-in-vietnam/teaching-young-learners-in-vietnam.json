@@ -1,0 +1,506 @@
+{
+ "slug": "teaching-young-learners-in-vietnam",
+ "title": "Teaching Kids English in Vietnam: Kindergarten to Flyers",
+ "description": "When you teach Vietnamese children, the games and phonics that work, Starters, Movers and Flyers explained, a sample lesson and what parents expect to see.",
+ "h1": "Teaching kids English in Vietnam: kindergarten, primary and the Cambridge exams",
+ "eyebrow": "In the classroom",
+ "intro": "Teaching kids is the core of English teaching in Ho Chi Minh City: most centre hours are with children and teens on weekday evenings and weekends, plus daytime kindergarten and public-school classes. What works is short, lively activities tied to one clear language goal, a daily routine for the ending sounds Vietnamese children drop, and a teaching assistant you treat as a co-teacher. Parents judge you on what their child can show: worksheets, videos and Cambridge Starters, Movers and Flyers results.",
+ "keyPoints": [
+  "**Your timetable follows school hours:** centre classes for children run mostly on weekday evenings (about 17:30–21:30) and at weekends; kindergarten and public-school work is daytime, in 25–35-minute activities (kindergarten) or 35-minute periods (primary).",
+  "**Class size depends on the setting:** centres commonly run groups of about 10–20, but Ho Chi Minh City public primary classes averaged 38 pupils in 2022, against a legal cap of 35.",
+  "**Phonics with a Vietnamese twist:** Vietnamese allows only six final consonants and no consonant clusters, so build a short ending-sounds routine (-s, -ed, final clusters) into every lesson from the start.",
+  "**Starters, Movers and Flyers have no pass or fail:** children earn up to 5 shields in each of Listening, Reading & Writing and Speaking, and every child who completes the test gets a certificate.",
+  "**Photos need consent:** under the Personal Data Protection Law (in force since 1 January 2026), publishing or disclosing private information about a child aged 7 or over needs consent from both the child and a parent."
+ ],
+ "sections": [
+  {
+   "id": "who-the-children-are",
+   "title": "Who the children are and when you teach them",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "English is a compulsory school subject from Grade 3 to Grade 12 under the [2018 General Education Programme](https://hoatieu.vn/chuong-trinh-giao-duc-pho-thong-mon-tieng-anh-1399), and Grades 1–2 have an optional familiarisation programme. Primary pupils in Grades 3–5 get 140 periods a year, which is **4 periods a week** ([MOET Official Letter 3818](https://luatvietnam.vn/giao-duc/cong-van-3818-bgddt-gdth-2023-huong-dan-day-hoc-cac-mon-ngoai-ngu-1-cap-tieu-hoc-262413-d6.html)), taught communicatively, and the national target is CEFR A1 by the end of primary. Families who want more pay for it, at centres or through fee-paying school programmes, and that is where much of the work for foreign teachers comes from."
+    },
+    {
+     "type": "p",
+     "text": "So the children in your centre class at 17:30 have usually already done a school day. Primary schools that run two sessions a day can teach up to 7 periods of 35 minutes a day, so expect tired children on weekday evenings and fresher ones at weekend morning classes. Centres take children young: one of the British Council's Ho Chi Minh City centres, for example, runs [courses for ages 3–17](https://www.britishcouncil.vn/en/english-courses/teaching-centre/district-7)."
+    },
+    {
+     "type": "table",
+     "caption": "Where you teach children in Ho Chi Minh City and what each setting looks like (as of October 2026; sources: MOET circulars, HCMC Department of Education, teacher guides)",
+     "headers": [
+      "Setting",
+      "Ages",
+      "When",
+      "Group and lesson length",
+      "What to expect"
+     ],
+     "rows": [
+      [
+       "Language centre, kids' and teens' courses",
+       "Young learners and teens",
+       "Weekday evenings (about 17:30–21:30) and weekend daytime",
+       "Commonly 10–20 children; lesson length set by the centre",
+       "Points systems, a Vietnamese teaching assistant (TA), observations and parent feedback"
+      ],
+      [
+       "Kindergarten (private, or the public-kindergarten pilot)",
+       "3–6",
+       "Daytime",
+       "Activities of 25–35 minutes; public groups capped at 25 (ages 3–4), 30 (4–5) and 35 (5–6)",
+       "Songs, movement and routines; the programme follows Circular 50/2020"
+      ],
+      [
+       "Public primary school, through an agency or a 'linked' programme",
+       "6–11",
+       "Weekday daytime",
+       "35-minute periods; 35–50 pupils; one or two periods per class a week",
+       "A Vietnamese co-teacher in the room; whole-class activities that work without moving around"
+      ],
+      [
+       "International and bilingual schools",
+       "From kindergarten up",
+       "Weekday daytime",
+       "Set by the school",
+       "Often a homeroom or subject role, with stricter teaching-qualification demands"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Kindergarten English follows [Circular 50/2020](https://luatvietnam.vn/tin-van-ban-moi/to-chuc-cho-tre-mau-giao-lam-quen-voi-tieng-anh-35-tuan-nam-186-29560-article.html): 35 weeks a year with at least two activities a week of 25–35 minutes each. From 2026–2027 Ho Chi Minh City is also [piloting integrated English in public kindergartens](https://giaoducthoidai.vn/tphcm-trien-khai-tieng-anh-tich-hop-bac-mam-non-tren-nguyen-tac-tu-nguyen-post794467.html) for three years: it is voluntary for families, the provider supplies the foreign teachers, and children aged 3–5 get 4 English activities a week and those aged 5–6 get 6."
+    },
+    {
+     "type": "p",
+     "text": "Public-school 'linked' classes with foreign teachers are [voluntary and fee-paying](https://giaoducthudo.giaoducthoidai.vn/chuong-trinh-lien-ket-o-tphcm-khong-phai-cu-duoc-phep-la-dua-vao-truong-223264.html): pupils who opt out must get a free alternative in the same slot, so enrolment can drop. For how centre jobs work day to day, see [working at a language centre in Ho Chi Minh City](/teach-in-vietnam/language-centre-jobs-in-ho-chi-minh-city)."
+    }
+   ]
+  },
+  {
+   "id": "activities-that-work",
+   "title": "Activity types that work with Vietnamese children",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Children here respond to the same things children everywhere do: movement, rhythm, competition and a predictable routine. Two local factors change how you use them. Vietnamese pupils are often quiet and wait to be called on, because silence shows respect for the teacher, and losing face in front of classmates matters to them and their families ([Pham Thi My Hanh, NUS](https://fass.nus.edu.sg/cls/wp-content/uploads/sites/32/2020/10/pham_thimyhanh.pdf)). And parents and managers will ask what the children learned, so **every game needs a language outcome you can name**."
+    },
+    {
+     "type": "table",
+     "caption": "Activities that work with young learners in Vietnam and how to adapt them (practitioner advice, matched to the research cited on this page)",
+     "headers": [
+      "Activity",
+      "Best for",
+      "How to make it work here"
+     ],
+     "rows": [
+      [
+       "Songs, chants and Total Physical Response (TPR)",
+       "Ages 3–8; big public classes",
+       "Whole-class, no moving furniture; repeat the same opening song every lesson as a signal to start"
+      ],
+      [
+       "Team games with points",
+       "All primary ages",
+       "Points, stickers and class 'money' are standard in kids' centres; award points for using the target language, not just for winning"
+      ],
+      [
+       "Choral, then pairs, then individuals",
+       "Shy or quiet classes",
+       "Let children rehearse together before anyone answers alone; call on named children after wait time, never by surprise"
+      ],
+      [
+       "Mini-whiteboards",
+       "Checking the whole class at once",
+       "Everyone answers, nobody is exposed; good for spelling and phonics"
+      ],
+      [
+       "Short performances and role plays",
+       "Ages 6–12",
+       "Gives parents something to see; rehearse in groups first"
+      ],
+      [
+       "Group projects",
+       "Ages 9 and up",
+       "Give each child a defined role; research on Vietnamese classrooms warns that Western-style group work does not succeed automatically"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "That last point comes from [research on cooperative learning in Vietnam](https://ideas.repec.org/a/kap/asiaeu/v3y2005i3p403-419.html), which found that group tasks need to be designed around hierarchy and group harmony. In practice that means clear roles, a model to follow and a visible product. For the wider picture of how Vietnamese students learn, read [Vietnamese classroom culture for English teachers](/teach-in-vietnam/vietnamese-classroom-culture-for-english-teachers)."
+    },
+    {
+     "type": "h3",
+     "text": "Working with your teaching assistant"
+    },
+    {
+     "type": "p",
+     "text": "In many centre and kindergarten classes you will have a Vietnamese TA. Brief them on the lesson flow before class and agree when Vietnamese is acceptable: for under-6s, safety, complex instructions and behaviour. Keep behaviour management a shared job rather than handing it over, and do not let the TA end up running the class in Vietnamese. In some centres TAs are also expected to film the children for parents, which takes them away from the lesson, so plan for moments when you are on your own."
+    },
+    {
+     "type": "h3",
+     "text": "Behaviour: what you may and may not do"
+    },
+    {
+     "type": "p",
+     "text": "[Circular 19/2025](https://luatvietnam.vn/tin-van-ban-moi/tu-31-10-2025-khong-con-hinh-thuc-ky-luat-dinh-chi-hoc-doi-voi-hoc-sinh-186-104157-article.html), in force since 31 October 2025, bans violent or humiliating discipline in schools; primary pupils can only be reminded and asked to apologise. Any physical punishment or rough handling of a child is illegal and will end your job. Sarcasm and public reprimands cause loss of face and parent complaints, so praise in public and correct privately or through whole-class feedback. The rules on touching, being alone with a child and reporting concerns are in [safeguarding and professional conduct for teachers](/teach-in-vietnam/safeguarding-and-professional-conduct-for-teachers-in-vietnam)."
+    }
+   ]
+  },
+  {
+   "id": "phonics",
+   "title": "Phonics for Vietnamese children: where to focus",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Phonics teaches children to link letters to sounds, then blend sounds into words to read and split words into sounds to spell. Children who already read Vietnamese know the Latin alphabet, but the same letters carry different sounds in Vietnamese, so expect them to read English letters the Vietnamese way at first. Ask your centre before your first class whether it uses a set phonics scheme, and if it does, follow it."
+    },
+    {
+     "type": "p",
+     "text": "The bigger issue is the ends of words. Vietnamese allows only six word-final consonants (/m n ŋ p t k/) and no consonant clusters, while English allows most of its consonants at the end of a word and clusters of up to four ([Mekong Delta study](https://hs.kku.ac.th/ichuso/2019/034-ICHUSO-2019.pdf)). Research on older learners shows where this leads: dropping ending sounds was the most common error among graduating English majors at Vietnam National University ([Ha Cam Tam, 2005](https://js.vnu.edu.vn/FS/article/view/2072/1973)), and adult learners left out 28.4% of word-final /s/–/z/, about half of the time for plural and third-person -s after a consonant ([Disney and Le, 2024](https://www.mdpi.com/2226-471X/9/10/327)). Much of this traces back to the Vietnamese sound system, so give word endings as much attention as beginnings from a child's first phonics lessons."
+    },
+    {
+     "type": "table",
+     "caption": "The sound problems research finds in Vietnamese learners of English, with illustrative examples and a quick classroom fix for children (sources: VNU Journal of Foreign Studies; Languages, 2024; ICHUSO 2019)",
+     "headers": [
+      "Problem",
+      "What you hear",
+      "Quick fix with children"
+     ],
+     "rows": [
+      [
+       "Dropped final consonants",
+       "'line' heard as 'lie' or 'like'",
+       "Exaggerate the final sound and 'catch' it with a hand movement"
+      ],
+      [
+       "Dropped -s and -ed",
+       "'two cat', 'he play'",
+       "Chant high-frequency chunks: 'he wants it', 'she played'"
+      ],
+      [
+       "Reduced final clusters",
+       "'nex' for 'next'",
+       "Build clusters up one sound at a time: ne-x, ne-x-t"
+      ],
+      [
+       "/θ/ and /ð/",
+       "'think' as 'sink' or 'tink'; 'the' as 'de'",
+       "Mirror work: tongue between the teeth; minimal pairs"
+      ],
+      [
+       "/ʃ/ and /s/; /tr/ and /tʃ/",
+       "'she' as 'see'; 'tree' as 'chee'",
+       "Picture minimal pairs and a sorting game"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "Add clapping or stamping for word stress and rhythm: research suggests Vietnamese learners manage English pitch better than English timing. The full list of problems and drills for all ages is in [pronunciation problems of Vietnamese learners of English](/teach-in-vietnam/pronunciation-problems-of-vietnamese-learners)."
+    }
+   ]
+  },
+  {
+   "id": "cambridge-exams",
+   "title": "Cambridge Starters, Movers and Flyers, and what comes after",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "The [Cambridge Young Learners exams](https://www.cambridgeenglish.org/exams-and-tests/qualifications/young-learners/) are the children's exams to learn first. Ask your centre whether its courses prepare for them and when its pupils sit them, and learn the formats before your first term."
+    },
+    {
+     "type": "table",
+     "caption": "The three Cambridge Young Learners exams compared with Vietnam's national targets (sources: Cambridge English; 2018 General Education Programme; Circular 33/2026)",
+     "headers": [
+      "Exam",
+      "CEFR level",
+      "Papers",
+      "Results",
+      "Where it sits in Vietnam's system"
+     ],
+     "rows": [
+      [
+       "Pre A1 Starters",
+       "Pre-A1",
+       "Listening; Reading & Writing; Speaking",
+       "Up to 5 shields per paper; no pass or fail",
+       "Pre-A1 is now a level in the national framework (Circular 33/2026)"
+      ],
+      [
+       "A1 Movers",
+       "A1",
+       "Listening; Reading & Writing; Speaking",
+       "Up to 5 shields per paper; certificate for every child",
+       "The national target for the end of primary"
+      ],
+      [
+       "A2 Flyers",
+       "A2",
+       "Listening; Reading & Writing; Speaking",
+       "Up to 5 shields per paper; certificate for every child",
+       "The national target for the end of lower secondary"
+      ]
+     ]
+    },
+    {
+     "type": "p",
+     "text": "The shields are per skill, so a child can do well in Listening and poorly in Speaking, and the certificate shows it. That makes them useful for feedback to parents: tell them which skill to work on, not just the total. Paper-based and digital versions of the tests exist. Since 31 May 2026 Vietnam's own [foreign-language framework](https://daibieunhandan.vn/dieu-chinh-khung-nang-luc-ngoai-ngu-dung-cho-viet-nam-10413829.html) (Circular 33/2026) is aligned to the 2020 update of the CEFR and adds a Pre-A1 level for young beginners, so Starters, Movers and Flyers line up with the levels Vietnamese schools use."
+    },
+    {
+     "type": "h3",
+     "text": "After Flyers: KET, PET, the Grade 10 exam and IELTS"
+    },
+    {
+     "type": "p",
+     "text": "Cambridge's next steps are A2 Key and B1 Preliminary, still widely called KET and PET. Not every centre prepares for them, so ask which exams a centre's teen courses lead to before you assume you will be teaching them. What is certain is the pressure later on: Ho Chi Minh City's public Grade 10 entrance exam has a [90-minute foreign-language paper](https://www.sggp.org.vn/tphcm-cong-bo-chi-tiet-lich-thi-tuyen-sinh-lop-10-nam-hoc-2026-2027-post848417.html), mostly English, alongside Literature and Maths, and older teenagers move on to IELTS, which has been [computer-only in Vietnam](https://ielts.idp.com/vietnam/about/news-and-articles/article-ielts-ioc-transition) since 30 March 2025. Teen IELTS is a separate market with its own demands."
+    }
+   ]
+  },
+  {
+   "id": "sample-lesson",
+   "title": "A sample 60-minute lesson for 6- to 9-year-olds",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "This is one workable shape for an evening centre class of about 12 children learning 'He likes…/She likes…' with food words. Your centre will have its own lesson plan template, so treat the timings as a guide. For a 35-minute public-school period, keep steps 2, 3, 4, 5 and 8; for a 25–35-minute kindergarten activity, swap the worksheet for a song and a movement game."
+    },
+    {
+     "type": "steps",
+     "items": [
+      {
+       "title": "Before class (15–20 minutes early)",
+       "text": "Set up flashcards and the points board, and brief your TA: the target language, when Vietnamese is allowed and who needs extra help. Teachers commonly report that centres treat lateness strictly, sometimes with pay deductions, so check your contract."
+      },
+      {
+       "title": "Warm-up routine (5 minutes)",
+       "text": "The same hello song every lesson, then a quick flashcard review of last week's words. Routine settles tired children after a school day."
+      },
+      {
+       "title": "Ending-sounds routine (5 minutes)",
+       "text": "Chant 'he likes / she likes / it's red' with an exaggerated final s, catching the sound with a hand movement. Keep it fast and the same each week."
+      },
+      {
+       "title": "Present the language (10 minutes)",
+       "text": "Show it with pictures and mime: a puppet 'likes' some foods and not others. Children repeat chorally, then in rows, then a few named children."
+      },
+      {
+       "title": "Controlled practice (10 minutes)",
+       "text": "Pairs ask 'Does he like…?' with picture cards before anyone speaks alone. Walk round and listen for the final s."
+      },
+      {
+       "title": "Game with a language rule (15 minutes)",
+       "text": "A team game where a team scores only for a full sentence with the s ending: 'She likes noodles'. Award points for the language, not just the speed."
+      },
+      {
+       "title": "Visible output (10 minutes)",
+       "text": "A short worksheet or a mini-survey of the class ('Lan likes mangoes'), something the child can take home or the TA can photograph, with consent, for parents."
+      },
+      {
+       "title": "Wrap-up (5 minutes)",
+       "text": "Count the points, praise specific children for specific things, and give one homework task the parents can see and check."
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "parents",
+   "title": "What parents expect, and how to keep them on your side",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Parents of young learners follow progress closely, and most of that contact runs through Zalo, Vietnam's main messaging app: school classes commonly have [parent Zalo groups](https://www.sggp.org.vn/nhom-tro-chuyen-tren-mang-phien-phuc-cho-ca-phu-huynh-lan-hoc-sinh-post713190.html), and some parents receive hundreds of group messages a day. At a centre, complaints usually reach you through the academic team rather than directly. Expect scheduled and unannounced observations, and in some centres cameras that managers can watch; ask on day one for the observation rubric and any targets, such as re-enrolment. Two things keep parents on your side:"
+    },
+    {
+     "type": "ul",
+     "items": [
+      "**Visible output:** parents judge a lesson by what the child brings home: worksheets, videos, short performances, Cambridge shields.",
+      "**Honest promises:** never promise fast results. Expectations are high and complaints escalate quickly."
+     ]
+    },
+    {
+     "type": "p",
+     "text": "How to write progress comments that survive translation, what to do with gifts on Teachers' Day and at Tết, and how to answer a parent who asks you to tutor their child are covered in [Vietnamese classroom culture](/teach-in-vietnam/vietnamese-classroom-culture-for-english-teachers#parents-and-observations)."
+    },
+    {
+     "type": "callout",
+     "tone": "warning",
+     "title": "Photos and videos of children need consent",
+     "text": "Under the [Personal Data Protection Law](https://lsvn.vn/cong-bo-du-lieu-ca-nhan-cua-tre-tu-07-tuoi-phai-duoc-nguoi-dai-dien-dong-y-a167752.html), in force since 1 January 2026, publishing private information about a child aged 7 or over needs consent from both the child and a parent, and must stop if consent is withdrawn. Parents want photos and centres want marketing videos, but get written consent before any image leaves the classroom, follow your employer's policy, and never post students on your own social media."
+    }
+   ]
+  },
+  {
+   "id": "what-employers-ask",
+   "title": "What employers ask of a kids' teacher",
+   "blocks": [
+    {
+     "type": "p",
+     "text": "Centres hiring for young learners generally ask for the same degree and TEFL, TESOL or CELTA certificate as any other English teaching job. A certificate does not replace the degree and experience the [work permit](/teach-in-vietnam/vietnam-work-permit-for-english-teachers) is judged on; it is the education-side requirement, and the law sets no minimum number of hours. Kindergarten is stricter on paper: native-speaker teachers in MOET's kindergarten English programme need a college degree or higher, a recognised English-teaching certificate and at least 120 hours of early-childhood training, at least 45 of them practical hours at a preschool; that course is separate from a TEFL certificate ([Circular 50/2020](https://luatvietnam.vn/tin-van-ban-moi/to-chuc-cho-tre-mau-giao-lam-quen-voi-tieng-anh-35-tuan-nam-186-29560-article.html))."
+    },
+    {
+     "type": "p",
+     "text": "If you want a young-learner qualification, note that Cambridge [discontinued the CELTA Young Learner extension](https://www.cambridgeenglish.org/teaching-english/teaching-courses-and-modules-discontinued) in December 2016; ads that still ask for it are out of date. TKT: Young Learners and Trinity's TYLEC are the usual substitutes. [TEFL, TESOL or CELTA for Vietnam](/teach-in-vietnam/tefl-tesol-and-celta-for-vietnam) compares the main certificates."
+    },
+    {
+     "type": "p",
+     "text": "Pay for children's classes sits in the ordinary centre band: in July–October 2026 job ads, Ho Chi Minh City centres offered {{vnd:390000-600000}} an hour, most new-teacher offers {{vnd:430000-560000}} ([Vietnam Teaching Jobs listings](https://vietnamteachingjobs.com/city/teaching-english-in-ho-chi-minh)). The full breakdown is in [English teacher salary in Vietnam](/teach-in-vietnam/english-teacher-salary-in-vietnam). To see which employers run kids' programmes, browse [the school directory](/schools), where teachers who worked or interviewed there can leave reviews, and the current [teaching jobs](/jobs-vietnam-expats)."
+    }
+   ]
+  }
+ ],
+ "faqs": [
+  {
+   "q": "Is English compulsory from Grade 1 in Vietnam?",
+   "a": "Not yet. English is compulsory from Grade 3, and Grades 1–2 have an optional familiarisation programme. A Ministry of Education draft from August 2026 would make it compulsory from Grade 1, starting in 2028–2029 in schools not yet ready, but as of October 2026 it is still a draft."
+  },
+  {
+   "q": "Which textbook do Vietnamese primary schools use for English?",
+   "a": "From 2026–2027 the Ministry has chosen one national textbook set, whose English book is Global Success; whether other approved English series may still be used alongside it is not settled. At a language centre, ask what course books it uses."
+  },
+  {
+   "q": "When does the school year start and end in Ho Chi Minh City?",
+   "a": "Pupils report on 24 August (17 August for the first and final grade of each level), the opening ceremony is on 5 September and the year ends before 31 May. Summer runs roughly June to mid-August, and the city sets the pupils' Tết break each year."
+  },
+  {
+   "q": "What should I wear to teach children in Vietnam?",
+   "a": "Dress neatly and conservatively: a collared shirt or blouse, long trousers or a knee-length skirt and closed shoes. Many centres have written dress rules, and in public schools it is best to cover visible tattoos."
+  },
+  {
+   "q": "Can I speak Vietnamese to the children?",
+   "a": "Agree it with your employer and teaching assistant. A common arrangement is English for the lesson, with Vietnamese from the TA for under-6s, safety, complex instructions and behaviour."
+  }
+ ],
+ "sources": [
+  {
+   "title": "Pre A1 Starters, A1 Movers and A2 Flyers",
+   "publisher": "Cambridge English",
+   "url": "https://www.cambridgeenglish.org/exams-and-tests/qualifications/young-learners/"
+  },
+  {
+   "title": "Chương trình giáo dục phổ thông môn Tiếng Anh (Circular 32/2018)",
+   "publisher": "Hoatieu.vn",
+   "url": "https://hoatieu.vn/chuong-trinh-giao-duc-pho-thong-mon-tieng-anh-1399"
+  },
+  {
+   "title": "Công văn 3818/BGDĐT-GDTH 2023 hướng dẫn dạy học các môn ngoại ngữ 1 cấp tiểu học",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/giao-duc/cong-van-3818-bgddt-gdth-2023-huong-dan-day-hoc-cac-mon-ngoai-ngu-1-cap-tieu-hoc-262413-d6.html"
+  },
+  {
+   "title": "Tổ chức cho trẻ mẫu giáo làm quen với tiếng Anh 35 tuần/năm (Circular 50/2020)",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/tin-van-ban-moi/to-chuc-cho-tre-mau-giao-lam-quen-voi-tieng-anh-35-tuan-nam-186-29560-article.html"
+  },
+  {
+   "title": "TPHCM triển khai tiếng Anh tích hợp bậc mầm non trên nguyên tắc tự nguyện",
+   "publisher": "Giáo dục và Thời đại",
+   "url": "https://giaoducthoidai.vn/tphcm-trien-khai-tieng-anh-tich-hop-bac-mam-non-tren-nguyen-tac-tu-nguyen-post794467.html"
+  },
+  {
+   "title": "Điều chỉnh khung năng lực ngoại ngữ dùng cho Việt Nam (Circular 33/2026)",
+   "publisher": "Đại biểu Nhân dân",
+   "url": "https://daibieunhandan.vn/dieu-chinh-khung-nang-luc-ngoai-ngu-dung-cho-viet-nam-10413829.html"
+  },
+  {
+   "title": "Từ 31/10/2025, không còn hình thức kỷ luật đình chỉ học đối với học sinh (Circular 19/2025)",
+   "publisher": "LuatVietnam",
+   "url": "https://luatvietnam.vn/tin-van-ban-moi/tu-31-10-2025-khong-con-hinh-thuc-ky-luat-dinh-chi-hoc-doi-voi-hoc-sinh-186-104157-article.html"
+  },
+  {
+   "title": "Công bố dữ liệu cá nhân của trẻ từ 07 tuổi phải được người đại diện đồng ý",
+   "publisher": "Luật sư Việt Nam",
+   "url": "https://lsvn.vn/cong-bo-du-lieu-ca-nhan-cua-tre-tu-07-tuoi-phai-duoc-nguoi-dai-dien-dong-y-a167752.html"
+  },
+  {
+   "title": "Chương trình liên kết ở TPHCM không phải cứ được phép là đưa vào trường",
+   "publisher": "Giáo dục Thủ đô",
+   "url": "https://giaoducthudo.giaoducthoidai.vn/chuong-trinh-lien-ket-o-tphcm-khong-phai-cu-duoc-phep-la-dua-vao-truong-223264.html"
+  },
+  {
+   "title": "Common errors in pronunciation of English by Vietnamese students (Ha Cam Tam)",
+   "publisher": "VNU Journal of Foreign Studies",
+   "url": "https://js.vnu.edu.vn/FS/article/view/2072/1973"
+  },
+  {
+   "title": "Word-final /s/–/z/ omission by Vietnamese learners of English (Disney and Le)",
+   "publisher": "Languages (MDPI)",
+   "url": "https://www.mdpi.com/2226-471X/9/10/327"
+  },
+  {
+   "title": "English final consonants produced by Vietnamese learners (ICHUSO 2019)",
+   "publisher": "Khon Kaen University",
+   "url": "https://hs.kku.ac.th/ichuso/2019/034-ICHUSO-2019.pdf"
+  },
+  {
+   "title": "Understanding the context and its effect on assessment in EFL class (Pham Thi My Hanh)",
+   "publisher": "National University of Singapore",
+   "url": "https://fass.nus.edu.sg/cls/wp-content/uploads/sites/32/2020/10/pham_thimyhanh.pdf"
+  },
+  {
+   "title": "Cooperative learning vs Confucian heritage culture's collectivism",
+   "publisher": "Asia Europe Journal",
+   "url": "https://ideas.repec.org/a/kap/asiaeu/v3y2005i3p403-419.html"
+  },
+  {
+   "title": "Nhóm trò chuyện trên mạng: phiền phức cho cả phụ huynh lẫn học sinh",
+   "publisher": "Sài Gòn Giải Phóng",
+   "url": "https://www.sggp.org.vn/nhom-tro-chuyen-tren-mang-phien-phuc-cho-ca-phu-huynh-lan-hoc-sinh-post713190.html"
+  },
+  {
+   "title": "TPHCM công bố chi tiết lịch thi tuyển sinh lớp 10 năm học 2026-2027",
+   "publisher": "Sài Gòn Giải Phóng",
+   "url": "https://www.sggp.org.vn/tphcm-cong-bo-chi-tiet-lich-thi-tuyen-sinh-lop-10-nam-hoc-2026-2027-post848417.html"
+  },
+  {
+   "title": "IELTS on computer transition in Vietnam",
+   "publisher": "IDP IELTS Vietnam",
+   "url": "https://ielts.idp.com/vietnam/about/news-and-articles/article-ielts-ioc-transition"
+  },
+  {
+   "title": "Teaching courses and modules discontinued",
+   "publisher": "Cambridge English",
+   "url": "https://www.cambridgeenglish.org/teaching-english/teaching-courses-and-modules-discontinued"
+  },
+  {
+   "title": "British Council teaching centre, District 7",
+   "publisher": "British Council Vietnam",
+   "url": "https://www.britishcouncil.vn/en/english-courses/teaching-centre/district-7"
+  },
+  {
+   "title": "Teaching English in Ho Chi Minh City: job listings",
+   "publisher": "Vietnam Teaching Jobs",
+   "url": "https://vietnamteachingjobs.com/city/teaching-english-in-ho-chi-minh"
+  },
+  {
+   "title": "TPHCM công bố ngày tựu trường, khai giảng năm học 2026-2027 và các năm tiếp theo",
+   "publisher": "Thanh Niên",
+   "url": "https://thanhnien.vn/tphcm-cong-bo-ngay-tuu-truong-khai-giang-nam-hoc-2026-2027-va-cac-nam-tiep-theo-185260812151153867.htm"
+  },
+  {
+   "title": "Toàn văn dự thảo Thông tư sửa đổi chương trình giáo dục phổ thông",
+   "publisher": "Xây dựng chính sách (Government portal)",
+   "url": "https://xaydungchinhsach.chinhphu.vn/toan-van-du-thao-thong-tu-sua-doi-bo-sung-mot-so-noi-dung-trong-chuong-trinh-giao-duc-pho-thong-119260820174117596.htm"
+  },
+  {
+   "title": "Bộ GD-ĐT thông tin về phương án sử dụng một bộ SGK thống nhất từ năm học 2026-2027",
+   "publisher": "Luật sư Việt Nam",
+   "url": "https://lsvn.vn/bo-gd-dt-thong-tin-ve-phuong-an-su-dung-mot-bo-sgk-thong-nhat-tu-nam-hoc-2026-2027-a168007.html"
+  },
+  {
+   "title": "Trường công quá tải",
+   "publisher": "VnExpress",
+   "url": "https://vnexpress.net/truong-cong-qua-tai-4507502.html"
+  }
+ ],
+ "related": [
+  "vietnamese-classroom-culture-for-english-teachers",
+  "pronunciation-problems-of-vietnamese-learners",
+  "safeguarding-and-professional-conduct-for-teachers-in-vietnam",
+  "language-centre-jobs-in-ho-chi-minh-city",
+  "tefl-tesol-and-celta-for-vietnam",
+  "the-teaching-year-in-vietnam"
+ ],
+ "lastChecked": "2026-10-11"
+}
