@@ -27,7 +27,10 @@ type Reader = Pick<Db, 'conversation' | '$queryRaw'>
  * some cases let a busy school or a backlog through — so the bounds are now unconditional):
  *   · one email per teacher per run, covering every thread due — each stage's own line, so a third-stage thread always
  *     gets its "last email" wording even beside a new school;
- *   · TEACHER_GAP: an hour between two emails to a teacher (the state row's compare-and-set);
+ *   · TEACHER_GAP: an hour between two emails to a teacher (the state row's compare-and-set). Read at the run's start
+ *     against the last claim's time, which was taken minutes into ITS run, so on the 30-minute timer the second email
+ *     usually lands 90 minutes after the first — kept: a recipient-facing gap is never shortened (codex, review of the
+ *     slack that briefly read it as 55 minutes);
  *   · THREAD_GAP: a day between two emails about the same thread, in ANY episode — so a school that writes right after
  *     each read is emailed about at most once a day, and stage 2 lands a day after stage 1 as well as after the message;
  *   · MAX_PER_24H: four per teacher in any 24 h, counted from the thread rows plus the state's last email — exact because

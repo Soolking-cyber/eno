@@ -10,6 +10,7 @@ import { useLanguage } from '@/context/language-context'
 import { haptic } from '@/lib/haptics'
 import { timeAgo } from '@/lib/types'
 import { openersFor, openerString, type OpenerListing } from '@/lib/openers'
+import { teacherOpener } from '@/lib/teachers/first-message'
 
 /**
  * Who has said what so far — the two facts the chip set keys off (inbox-13). Messages are in the
@@ -25,6 +26,44 @@ export function chipContext(messages: readonly { mine: boolean }[], isSeller: bo
   const firstBuyer = messages.findIndex(isBuyerMsg)
   if (firstBuyer < 0) return { buyerHasSent: false, sellerRepliedAfterBuyer: false }
   return { buyerHasSent: true, sellerRepliedAfterBuyer: messages.slice(firstBuyer + 1).some((m) => !isBuyerMsg(m)) }
+}
+
+/**
+ * The chips of a TEACHER thread (owner, 2026-10-12: "is it still available … is not fit to reach out to a teacher").
+ * Pure, so it is pinned by a test. ⛔ ONLY A CHIP THAT GOES AWAY ONCE USED SENDS ON TAP: a school's openers (gone once it
+ * has written) and a teacher's first answers (gone once they have replied). A chip that stays — the school's follow-ups,
+ * the teacher's ask about hours and pay — FILLS THE COMPOSER instead, so a stray or second tap can never post the same
+ * message twice (Opus, gate review: each duplicate is also a fresh unread message for the teacher-email cron).
+ */
+export function teacherThreadChips(
+  o: { isSeller: boolean; buyerHasSent: boolean; sellerRepliedAfterBuyer: boolean; teacherShared: boolean },
+  tr: (en: string, vi: string) => string,
+): { label: string; text: string; complete: boolean }[] {
+  if (o.isSeller) {
+    return [
+      // The teacher's first answer to a school — gone once they have replied.
+      ...(o.sellerRepliedAfterBuyer
+        ? []
+        : [
+            { label: tr('Interested — tell me more', 'Quan tâm — cho mình biết thêm'), text: tr('Thank you for reaching out — I am interested. Could you tell me more about the role?', 'Cảm ơn bạn đã liên hệ — mình rất quan tâm. Bạn có thể cho mình biết thêm về vị trí này không?'), complete: true },
+            { label: tr('Not available right now', 'Hiện chưa nhận thêm'), text: tr('Thank you for thinking of me — I am not available at the moment.', 'Cảm ơn bạn đã nghĩ đến mình — hiện tại mình chưa thể nhận thêm.'), complete: true },
+          ]),
+      { label: tr('Ask: hours, place and pay', 'Hỏi giờ dạy, địa điểm và lương'), text: tr('Could you share the teaching hours, the location and the pay?', 'Bạn có thể cho mình biết giờ dạy, địa điểm và mức lương không?'), complete: false },
+      // An interview or a demo lesson — the same meet template (and locate glyph) as a sale's "Can meet in …".
+      { label: tr('Can meet in …', 'Có thể gặp ở …'), text: tr('Can meet in ', 'Có thể gặp ở '), complete: false },
+    ]
+  }
+  // The school: before it writes, the hiring openers (src/lib/teachers/first-message.ts); after, the two asks every hire
+  // comes down to — the CV one gone once the teacher has shared their contact and CV in this thread.
+  return o.buyerHasSent
+    ? [
+        ...(o.teacherShared ? [] : [{ label: tr('Ask for their CV', 'Xin CV'), text: tr('Could you share your CV and contact details here when you are ready?', 'Khi tiện, bạn có thể chia sẻ CV và thông tin liên hệ tại đây không?'), complete: false }]),
+        { label: tr('Suggest a call', 'Hẹn gọi điện'), text: tr('Are you free for a short call or an interview this week?', 'Tuần này bạn có thời gian cho một cuộc gọi ngắn hoặc buổi phỏng vấn không?'), complete: false },
+      ]
+    : [
+        { label: tr('We are hiring', 'Chúng tôi đang tuyển'), text: teacherOpener(tr), complete: true },
+        { label: tr('Ask: start date and schedule', 'Hỏi ngày bắt đầu và lịch dạy'), text: tr('Two questions: when could you start, and what teaching schedule are you looking for?', 'Cho mình hỏi bạn có thể bắt đầu từ khi nào và mong muốn lịch dạy như thế nào ạ?'), complete: true },
+      ]
 }
 
 // The one chip look, shared by the quick-reply chips, the "Keep it live" dismiss below and the
@@ -47,6 +86,8 @@ export function chipContext(messages: readonly { mine: boolean }[], isSeller: bo
 export function QuickReplyChips({
   isSeller,
   job = false,
+  teacher = false,
+  teacherShared = false,
   hasPendingBuyerOffer,
   availabilityConfirmedAt,
   onInsert,
@@ -65,6 +106,15 @@ export function QuickReplyChips({
    *  chips are hiring replies — "Still hiring", "Send your CV" — never "Price is firm" or "Is it still
    *  available?" (a job takes no offers and has no price to be firm about; review, 2026-10-01). */
   job?: boolean
+  /**
+   * A TEACHER thread (listingType 'teacher', owner 2026-10-12: "is it still available … is not fit to reach out to a
+   * teacher — need new quick messaging for teachers specifically"). The "seller" is the teacher and the "buyer" a school
+   * that is hiring: the school's chips hire (and, once it has written, ask for the CV or a call) and the teacher's answer
+   * the school — never "Is it still available?", "Price is firm" or "Deal! Mark as sold?". A teacher is not an item.
+   */
+  teacher?: boolean
+  /** The teacher has shared their contact and CV in this thread: the school is not offered "Ask for their CV". */
+  teacherShared?: boolean
   hasPendingBuyerOffer: boolean
   availabilityConfirmedAt?: string | null
   /** Insert chip text into the composer (parent focuses it, cursor at the end). */
@@ -147,7 +197,9 @@ export function QuickReplyChips({
     if (onSend) { haptic(); onSend(text) } else onInsert(text)
   }
 
-  const sellerChips: { label: string; text: string; complete: boolean }[] = job
+  const sellerChips: { label: string; text: string; complete: boolean }[] = teacher
+    ? teacherThreadChips({ isSeller: true, buyerHasSent, sellerRepliedAfterBuyer, teacherShared }, tr)
+    : job
     ? [
         { label: tr('Yes, still hiring', 'Vẫn đang tuyển nhé'), text: tr('Yes, still hiring', 'Vẫn đang tuyển nhé'), complete: true },
         { label: tr('Please send your CV', 'Bạn gửi CV giúp mình nhé'), text: tr('Please send your CV', 'Bạn gửi CV giúp mình nhé'), complete: true },
@@ -173,9 +225,12 @@ export function QuickReplyChips({
 
   // Fresh buyer thread only (see `openerListing`). The clock is read at render: this component is
   // client-only data (the thread is fetched in the browser), so there is no server HTML to mismatch.
-  const openers = !isSeller && !buyerHasSent && openerListing
+  const openers = !isSeller && !teacher && !buyerHasSent && openerListing
     ? openersFor(openerListing, Date.now()).filter((o) => o.kind !== 'offer')
     : []
+
+  // The school's chips in a teacher thread (teacherThreadChips).
+  const schoolChips = teacher && !isSeller ? teacherThreadChips({ isSeller: false, buyerHasSent, sellerRepliedAfterBuyer, teacherShared }, tr) : []
 
   const askAvailability = () => {
     if (confirmedFresh && availabilityConfirmedAt) {
@@ -186,8 +241,9 @@ export function QuickReplyChips({
     fire(job ? tr('Is this job still open?', 'Vị trí này còn tuyển không ạ?') : tr('Is it still available?', 'Còn hàng không?'))
   }
 
-  // A buyer who has already written has no chips left — render nothing rather than an empty padded row.
-  if (!isSeller && buyerHasSent && note !== 'shown') return null
+  // A buyer who has already written has no chips left — render nothing rather than an empty padded row. (A school in a
+  // teacher thread keeps its follow-ups.)
+  if (!isSeller && buyerHasSent && !teacher && note !== 'shown') return null
 
   return (
     <div className={className}>
@@ -208,7 +264,7 @@ export function QuickReplyChips({
         </div>
       )}
       <div className="flex gap-1 overflow-x-auto scrollbar-none">
-        {isSeller && !job && dealAgreed && onMarkSold && (
+        {isSeller && !job && !teacher && dealAgreed && onMarkSold && (
           <Chip size="xs" tone="ghost" onClick={onMarkSold}>
             {tr('Deal! Mark as sold?', 'Chốt đơn! Đánh dấu đã bán?')}
           </Chip>
@@ -228,6 +284,12 @@ export function QuickReplyChips({
                 (locating
                   ? <Loader2 className="ml-1.5 size-3.5 animate-spin text-accent-foreground" />
                   : <LocateFixed className="ml-1.5 size-3.5 text-accent-foreground" />)}
+            </Chip>
+          ))
+        ) : teacher ? (
+          schoolChips.map((c) => (
+            <Chip key={c.label} size="xs" tone="ghost" onClick={() => (c.complete ? fire(c.text) : onInsert(c.text))}>
+              {c.label}
             </Chip>
           ))
         ) : buyerHasSent ? null : (

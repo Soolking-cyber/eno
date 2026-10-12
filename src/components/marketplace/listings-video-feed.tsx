@@ -22,6 +22,7 @@ import { optimizedImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { scrollBehavior } from '@/lib/reduced-motion'
+import { quickChatOpener } from '@/lib/teachers/first-message'
 
 // Full-screen TikTok-style vertical feed of the listings (in the current search/filters) that
 // carry a video. It TAKES OVER the viewport (portal → <body>, black canvas) rather than sitting
@@ -301,7 +302,8 @@ function VideoFeedItem({
   }
 
   const chat = () => {
-    const body = tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?')
+    // A teacher's intro video is a teacher: hired, never asked whether "this" is still available.
+    const body = quickChatOpener(listing.listingType, tr)
     // A guest's chat is remembered and finished on the listing's page after sign-in (UX3 J5) — the same
     // quick-action gate as the card and the list row.
     if (!user) { if (!authLoading) openSignIn({ listingTitle: title, listingImage: listing.images[0] ?? null, ...quickActionSignIn(listing, { body }) }); return }

@@ -10,6 +10,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { stashCompose } from '@/lib/quick-contact'
+import { teacherOpener } from '@/lib/teachers/first-message'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { cn } from '@/lib/utils'
 
@@ -69,9 +70,7 @@ export function TeacherContact({ listingId, name, image, cover = false }: {
     setBusy(true)
     stashCompose({
       listingId,
-      body: intent.current === 'cover'
-        ? tr('Hello, we need a cover teacher — could you cover a lesson for us? We will send the day, time and place next.', 'Xin chào, chúng tôi cần giáo viên dạy thay — bạn có thể dạy thay một buổi cho chúng tôi không? Chúng tôi sẽ gửi ngày, giờ và địa điểm ngay sau đây.')
-        : tr('Hello, we are hiring a teacher and your profile looks like a good fit — are you open to talking?', 'Xin chào, chúng tôi đang tuyển giáo viên và hồ sơ của bạn rất phù hợp — bạn có muốn trao đổi thêm không?'),
+      body: teacherOpener(tr, intent.current === 'cover' ? 'cover' : 'hire'),
       listingTitle: name,
       listingImage: image,
       currency: '₫',

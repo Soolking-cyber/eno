@@ -3511,6 +3511,10 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
               isSeller={!!thread.iAmSeller}
               // A job thread is an employer and a candidate: hiring replies, not "Price is firm".
               job={thread.listing.listingType === 'job'}
+              // A teacher thread is a school hiring a teacher (owner, 2026-10-12): its own chips on both sides — never
+              // "Is it still available?", "Price is firm" or "Deal!" (quick-reply-chips.tsx `teacher`).
+              teacher={thread.listing.listingType === TEACHER_LISTING_TYPE}
+              teacherShared={!!thread.teacher?.shared}
               hasPendingBuyerOffer={hasPendingBuyerOffer}
               negotiable={thread.listing.negotiable !== false}
               {...chipContext(thread.messages, !!thread.iAmSeller)}

@@ -29,8 +29,9 @@ export const maxDuration = 900
  *                 refusal (`stopRun`: quota, key, sender) RELEASES the claim (conditionally — only if it is still ours) for
  *                 a later run and fails the unit, `stopRun` ending the run. A refusal of THIS message (validation — the
  *                 address comes from sign-in, so in practice a header or template fault) PARKS the claim: counted `invalid`,
- *                 the unit fails, and that thread is tried again only at its next stage — never every 30 minutes (Opus,
- *                 gate rounds 1–3: released, a bad row retried and reddened the unit; a "fail only if every send failed"
+ *                 the unit fails, and that thread is tried again only at its next stage — never every 30 minutes, and
+ *                 a parked THIRD email, which has no next stage, not at all (Opus, gate rounds 1–3 and 5: released, a
+ *                 bad row retried and reddened the unit; a "fail only if every send failed"
  *                 rule stayed green for a real fault at low volume);
  *   · 'unknown' → retried ONCE with the same key; still not 'sent' → the claim is KEPT: at worst an email is lost, never
  *                 doubled. Logged with ids only (no address).

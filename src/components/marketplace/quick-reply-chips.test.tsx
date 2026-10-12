@@ -16,7 +16,7 @@ vi.mock('@/context/language-context', () => ({
   useLanguage: () => ({ lang: LANG, tr: (en: string, vi?: string) => (LANG === 'vi' && vi != null ? vi : en) }),
 }))
 
-import { QuickReplyChips, chipContext } from './quick-reply-chips'
+import { QuickReplyChips, chipContext, teacherThreadChips } from './quick-reply-chips'
 import type { OpenerListing } from '@/lib/openers'
 
 const text = (html: string) => html.replace(/<!-- -->/g, '').replace(/<[^>]+>/g, ' ').replace(/&#x27;/g, "'").replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
@@ -112,5 +112,71 @@ describe('buyer chips', () => {
   it('no openers without the listing facts (an older cached thread)', () => {
     const count = (renderToString(<QuickReplyChips isSeller={false} hasPendingBuyerOffer={false} onInsert={() => {}} />).match(/<button/g) ?? []).length
     expect(count).toBe(1)
+  })
+})
+
+describe('a TEACHER thread — a school hiring a teacher (owner, 2026-10-12: "is it still available … is not fit to reach out to a teacher")', () => {
+  const teacherListing: OpenerListing = { categorySlug: 'teachers', listingType: 'teacher', price: 0, currency: '₫', priceUnit: 'VND', negotiable: false }
+
+  it('⛔ the school never gets "Is it still available?" — it gets the hiring openers', () => {
+    LANG = 'en'
+    const out = chips({ teacher: true, openerListing: teacherListing })
+    expect(out).not.toMatch(/still available/i)
+    expect(out).toContain('We are hiring')
+    expect(out).toContain('Ask: start date and schedule')
+  })
+
+  it('once the school has written: the CV and call follow-ups — the CV ask gone once the teacher shared it', () => {
+    LANG = 'en'
+    expect(chips({ teacher: true, buyerHasSent: true })).toContain('Ask for their CV')
+    expect(chips({ teacher: true, buyerHasSent: true })).toContain('Suggest a call')
+    expect(chips({ teacher: true, buyerHasSent: true, teacherShared: true })).not.toContain('Ask for their CV')
+  })
+
+  it('⛔ the teacher answers a school — never "Yes, still available", "Price is firm" or "Deal! Mark as sold?"', () => {
+    LANG = 'en'
+    const out = chips({ isSeller: true, teacher: true, negotiable: false, dealAgreed: true, onMarkSold: () => {} })
+    expect(out).toContain('Interested — tell me more')
+    expect(out).toContain('Not available right now')
+    expect(out).toContain('Ask: hours, place and pay')
+    expect(out).not.toMatch(/still available|Price is firm|Mark as sold/i)
+  })
+
+  it('the teacher’s first answers go once they have replied; the asks stay', () => {
+    LANG = 'en'
+    const out = chips({ isSeller: true, teacher: true, sellerRepliedAfterBuyer: true })
+    expect(out).not.toContain('Interested')
+    expect(out).not.toContain('Not available')
+    expect(out).toContain('Ask: hours, place and pay')
+    expect(out).toContain('Can meet in')
+  })
+
+  it('in Vietnamese too', () => {
+    LANG = 'vi'
+    expect(chips({ teacher: true })).toContain('Chúng tôi đang tuyển')
+    expect(chips({ isSeller: true, teacher: true })).toContain('Quan tâm — cho mình biết thêm')
+  })
+})
+
+describe('teacherThreadChips — ⛔ only a chip that goes away once used sends on tap (Opus, gate review)', () => {
+  const en = (e: string) => e
+  const base = { isSeller: false, buyerHasSent: false, sellerRepliedAfterBuyer: false, teacherShared: false }
+  const sends = (o: Partial<typeof base>) => teacherThreadChips({ ...base, ...o }, en).filter((c) => c.complete).map((c) => c.label)
+  const fills = (o: Partial<typeof base>) => teacherThreadChips({ ...base, ...o }, en).filter((c) => !c.complete).map((c) => c.label)
+
+  it('the school’s openers send (gone once it has written); its follow-ups fill the composer — a second tap never posts twice', () => {
+    expect(sends({})).toEqual(['We are hiring', 'Ask: start date and schedule'])
+    expect(sends({ buyerHasSent: true })).toEqual([])
+    expect(fills({ buyerHasSent: true })).toEqual(['Ask for their CV', 'Suggest a call'])
+  })
+
+  it('the teacher’s first answers send (gone once they have replied); the asks that stay fill the composer', () => {
+    expect(sends({ isSeller: true })).toEqual(['Interested — tell me more', 'Not available right now'])
+    expect(fills({ isSeller: true })).toEqual(['Ask: hours, place and pay', 'Can meet in …'])
+    expect(sends({ isSeller: true, sellerRepliedAfterBuyer: true })).toEqual([])
+  })
+
+  it('the hiring opener is the one the profile and the cards send', () => {
+    expect(teacherThreadChips(base, en)[0].text).toMatch(/^Hello, we are hiring a teacher/)
   })
 })

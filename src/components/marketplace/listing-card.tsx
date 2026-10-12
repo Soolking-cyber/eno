@@ -56,6 +56,8 @@ const CardVideo = dynamic(() => import('./card-video').then((m) => m.CardVideo),
 const Slider = dynamic(() => import('@/components/ui/slider').then((m) => m.Slider), { ssr: false })
 
 import { quickActionSignIn, stashQuickCompose } from '@/lib/quick-contact'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { quickChatOpener } from '@/lib/teachers/first-message'
 
 /**
  * ⛔ THE BLUR PLACEHOLDER IS GONE, AND ITS OWN COMMENT IS WHY. It said "matches the card's bg" and
@@ -948,13 +950,14 @@ function ListingCardImpl({
             // a photo — not docked to an edge, which is the case globals.css actually bans. Opacity
             // clamps at 1, so its overshoot is unobservable by definition. The scale is what the
             // spring is FOR. Narrowing the property list would be a separate, visually-tested change.
-            <Tooltip content={tr('Chat with seller', 'Nhắn tin với người bán')} side="top">
+            <Tooltip content={listing.listingType === TEACHER_LISTING_TYPE ? tr('Message teacher', 'Nhắn tin cho giáo viên') : tr('Chat with seller', 'Nhắn tin với người bán')} side="top">
               <IconButton
                 size="sm"
                 variant="overlay"
                 tapTarget={false}
-                aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
-                onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
+                aria-label={listing.listingType === TEACHER_LISTING_TYPE ? tr('Message teacher', 'Nhắn tin cho giáo viên') : tr('Chat with seller', 'Nhắn tin với người bán')}
+                // A teacher is hired, never asked whether "this" is still available (src/lib/teachers/first-message.ts).
+                onClick={(e) => { e.stopPropagation(); quickGo({ body: quickChatOpener(listing.listingType, tr) }) }}
                 /**
                  * ⛔ `[overflow:visible]` IS THE WHOLE FIX, AND TWO WRONG ONES CAME FIRST. Owner,
                  * 2026-08-29: *"message icon is clipping over backplate"*, then 2026-08-30 with a

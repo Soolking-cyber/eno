@@ -207,6 +207,12 @@ describe('planMessageEmails — at most three per episode, every bound exact', (
     expect(plan([thread('a', [2 * H])], { state: { lastEmailAt: new Date(three[0]), optedOutAt: null }, times: three })).toMatchObject([{ due: [{ stage: 1 }] }])
   })
 
+  it('⛔ the hour between emails is a full hour — never shortened to fit the timer (codex review)', () => {
+    const last = (min: number) => ({ state: { lastEmailAt: ago(min * 60 * 1000), optedOutAt: null }, times: [NOW - min * 60 * 1000] })
+    expect(plan([thread('a', [2 * H])], last(59))).toEqual([])
+    expect(plan([thread('a', [2 * H])], last(60))).toMatchObject([{ due: [{ stage: 1 }] }])
+  })
+
   it('⛔ one email records at most 50 threads — the rest ride the next (codex, gate round 4: a claim must stay bounded)', () => {
     const many = Array.from({ length: 55 }, (_, i) => thread(`c${i}`, [2 * H]))
     const [p] = plan(many)

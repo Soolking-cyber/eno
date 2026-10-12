@@ -21,6 +21,7 @@ import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vn
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
 import { quickActionSignIn, stashQuickCompose } from '@/lib/quick-contact'
+import { quickChatOpener } from '@/lib/teachers/first-message'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
@@ -345,12 +346,13 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           // the trust-badge column stays aligned, same as the no-offer placeholder above.
           <span aria-hidden className={cn('h-9 w-9 shrink-0', offer === null ? 'block' : 'hidden')} />
         ) : (
-        <Tooltip content={tr('Chat with seller', 'Nhắn tin với người bán')} side="top">
+        <Tooltip content={teacher ? tr('Message teacher', 'Nhắn tin cho giáo viên') : tr('Chat with seller', 'Nhắn tin với người bán')} side="top">
           <IconButton
             size="md"
             tapTarget={false}
-            aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
-            onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
+            aria-label={teacher ? tr('Message teacher', 'Nhắn tin cho giáo viên') : tr('Chat with seller', 'Nhắn tin với người bán')}
+            // A teacher is hired, never asked whether "this" is still available (src/lib/teachers/first-message.ts).
+            onClick={(e) => { e.stopPropagation(); quickGo({ body: quickChatOpener(l.listingType, tr) }) }}
             className={cn('press text-foreground hover:bg-accent', offer === null ? 'flex' : 'hidden')}
           >
             <MessageCircle className="h-5 w-5" />
