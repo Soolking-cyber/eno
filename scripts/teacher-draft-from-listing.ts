@@ -65,9 +65,10 @@ async function main(): Promise<number> {
   if (!file || !file.endsWith('.answers.json')) { console.error('Usage: --answers <listingId>.answers.json [--apply] (see the header).'); return 1 }
   const spec = JSON.parse(readFileSync(file, 'utf8')) as AnswersFile
   if (!spec.listingId || !/^sha256:[0-9a-f]{64}$/.test(spec.reviewed ?? '') || !spec.answers) { console.error('The answers file needs listingId, reviewed (sha256:…) and answers.'); return 1 }
-  // The name, headline and bio are always the live ones — a mapped value for them would be silently replaced.
-  const live = (['fullName', 'headline', 'bio'] as const).filter((k) => k in spec.answers)
-  if (live.length) { console.error(`The answers file must not set ${live.join(', ')}: they are read live from the account and the post.`); return 1 }
+  // The name, headline and bio are always the live ones — a mapped value for them would be silently replaced — and the
+  // nationality is the teacher's to state (the post never says it; the form asks).
+  const live = (['fullName', 'headline', 'bio', 'nationality'] as const).filter((k) => k in spec.answers)
+  if (live.length) { console.error(`The answers file must not set ${live.join(', ')}: the name, headline and bio are read live, and the nationality is the teacher's to give.`); return 1 }
   const url = process.env.DIRECT_URL || process.env.DATABASE_URL
   if (!url) { console.error('Set DIRECT_URL (set -a; . ~/eno.vn/.env; set +a).'); return 1 }
 
