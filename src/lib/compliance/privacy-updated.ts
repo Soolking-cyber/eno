@@ -10,9 +10,10 @@
  * paragraph — none of them part of an amendment. And, the same Vietnamese day (2026-10-09), teacher job matching: the
  * Anthropic (Claude) recipient row, its purpose and the automated-decisions paragraph (owner: "apply recommended" —
  * immediate; its own record, PRIVACY_AMENDMENT, was dropped for this one). And 2026-10-11: the Meta row names
- * publishing a teacher profile among the actions reported (it is a listing posted — api/teachers/me PUT); and the
- * unfinished teacher profile saved to the account — the "Teacher profiles" paragraph, the on-device row and the
- * sign-out line (owner: live with the deploy, no 5-day notice — "Live with the deploy").
+ * publishing a teacher profile among the actions reported (it is a listing posted — api/teachers/me PUT; deployed
+ * c4b833d6e, 2026-10-11 20:03 in Vietnam). And 2026-10-12, in the deploy that carries this date: the unfinished
+ * teacher profile saved to the account — the "Teacher profiles" paragraph, the on-device row and the sign-out line
+ * (owner: live with the deploy, no 5-day notice — "Live with the deploy").
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -21,7 +22,7 @@
  * line, `export const PRIVACY_TEXT_PUBLISHED: string = 'YYYY-MM-DD'`: that is the shape the gate reads.
  * ⚠️ Typed, never read from the clock: the page prerenders, and a build-time date would move with every rebuild.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-11'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-12'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -30,4 +31,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-11'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '103b783674e99564'
+export const PRIVACY_TEXT_FINGERPRINT = 'b2a190c328eb5df3'
