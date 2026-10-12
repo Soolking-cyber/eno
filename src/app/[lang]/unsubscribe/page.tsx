@@ -30,7 +30,9 @@ function UnsubscribeInner() {
   const params = useSearchParams()
   const token = params.get('token') ?? ''
   const teacherMatches = params.get('list') === 'teacher-matches'
-  const list = teacherMatches ? '&list=teacher-matches' : ''
+  // The emails telling a teacher a school messaged them (2026-10-12): a service notice, so they CAN be switched back on here.
+  const teacherMessages = params.get('list') === 'teacher-messages'
+  const list = teacherMatches ? '&list=teacher-matches' : teacherMessages ? '&list=teacher-messages' : ''
   const [state, setState] = useState<'idle' | 'saving' | 'unsubscribed' | 'resubscribed' | 'retry' | 'error'>('idle')
   // The action a 'retry' repeats: the unsubscribe, or the digest's re-subscribe.
   const [lastOptIn, setLastOptIn] = useState(false)
@@ -71,9 +73,39 @@ function UnsubscribeInner() {
     </Link>
   )
 
-  // One heading, one line and one action per state — the match emails' own words, or the weekly digest's.
+  const resubscribeButton = (
+    <Button
+      variant="outline"
+      size="none"
+      onClick={() => set(true)}
+      className="mt-6 border-border px-5 py-2.5 font-bold text-accent-foreground hover:bg-tint hover:text-accent-foreground cursor-pointer"
+    >
+      {tr('Re-subscribe', 'Đăng ký lại')}
+    </Button>
+  )
+
+  // One heading, one line and one action per state — each list's own words, or the weekly digest's.
   const view: { title: string; body: string; action: ReactNode } =
-    state === 'unsubscribed' && teacherMatches
+    state === 'unsubscribed' && teacherMessages
+      ? {
+          title: tr("You're unsubscribed", 'Bạn đã hủy đăng ký'),
+          body: tr("You won't get emails when a school messages you. New messages still arrive in your eno.vn inbox.", 'Bạn sẽ không nhận email khi có trường nhắn tin cho bạn. Tin nhắn mới vẫn hiện trong hộp thư eno.vn của bạn.'),
+          action: resubscribeButton,
+        }
+    : state === 'resubscribed' && teacherMessages
+      ? {
+          title: tr("You're back in", 'Bạn đã đăng ký lại'),
+          body: tr("We'll email you again when a school messages you.", 'Chúng tôi sẽ lại gửi email cho bạn khi có trường nhắn tin.'),
+          action: null,
+        }
+    // Idle AND saving (Opus, gate): mid-click this list must keep its own words, never fall through to the digest's.
+    : (state === 'idle' || state === 'saving') && teacherMessages
+      ? {
+          title: tr('Stop emails about new messages?', 'Ngừng nhận email về tin nhắn mới?'),
+          body: tr("You'll stop getting an email when a school messages you on eno.vn. Messages still arrive in your inbox.", 'Bạn sẽ không còn nhận email khi có trường nhắn tin cho bạn trên eno.vn. Tin nhắn vẫn đến hộp thư của bạn.'),
+          action: unsubscribeButton,
+        }
+    : state === 'unsubscribed' && teacherMatches
       ? {
           title: tr("You're unsubscribed", 'Bạn đã hủy đăng ký'),
           body: tr('You won’t get teaching-job match emails anymore.', 'Bạn sẽ không nhận email gợi ý việc làm giảng dạy nữa.'),
@@ -83,16 +115,7 @@ function UnsubscribeInner() {
         ? {
             title: tr("You're unsubscribed", 'Bạn đã hủy đăng ký'),
             body: tr("You won't get the weekly eno.vn digest anymore. Changed your mind?", 'Bạn sẽ không nhận bản tin hằng tuần của eno.vn nữa. Đổi ý?'),
-            action: (
-              <Button
-                variant="outline"
-                size="none"
-                onClick={() => set(true)}
-                className="mt-6 border-border px-5 py-2.5 font-bold text-accent-foreground hover:bg-tint hover:text-accent-foreground cursor-pointer"
-              >
-                {tr('Re-subscribe', 'Đăng ký lại')}
-              </Button>
-            ),
+            action: resubscribeButton,
           }
         : state === 'resubscribed'
           ? {
@@ -109,6 +132,12 @@ function UnsubscribeInner() {
                     {tr('Try again', 'Thử lại')}
                   </Button>
                 ),
+              }
+          : state === 'error' && teacherMessages
+            ? {
+                title: tr("That link didn't work", 'Liên kết không hợp lệ'),
+                body: tr('The unsubscribe link is invalid or expired. Use the link in the latest message email from eno.vn.', 'Liên kết hủy đăng ký không hợp lệ hoặc đã hết hạn. Hãy dùng liên kết trong email thông báo tin nhắn mới nhất từ eno.vn.'),
+                action: null,
               }
           : state === 'error' && teacherMatches
             ? {

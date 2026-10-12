@@ -88,6 +88,9 @@ model Profile {
   teacherProfile          TeacherProfile?
   /// An unfinished teacher profile (2026-10-11) — PRIVATE, see the TeacherDraft model.
   teacherDraft            TeacherDraft?
+  /// When this teacher was last emailed about school messages, and their opt-out (2026-10-12).
+  teacherMessageEmailState TeacherMessageEmailState?
+  teacherMessageEmailThreads TeacherMessageEmailThread[]
   messageReactions        MessageReaction[]
   notifications           Notification[]          @relation("RecipientNotifications")
   trustEvents             TrustEvent[]            @relation("SubjectTrustEvents")
@@ -1236,6 +1239,36 @@ model TeacherDraft {
   @@index([updatedAt])
 }
 
+/// Message emails to teachers (owner, 2026-10-12: "receive an email … within 1 hour … 1 per day … new email only if someone
+/// new messages"). One row per teacher: `lastEmailAt` paces the daily reminder (src/lib/teachers/message-emails.ts) and is
+/// the compare-and-set the cron claims on; `optedOutAt` is the List-Unsubscribe switch (list=teacher-messages). Holds no
+/// address and no message text. DDL: scripts/teachers-ddl.mjs (RLS on, no policies) — run on production BEFORE the deploy.
+model TeacherMessageEmailState {
+  profileId   String    @id @db.Uuid
+  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  lastEmailAt DateTime?
+  optedOutAt  DateTime?
+  updatedAt   DateTime  @default(now())
+}
+
+/// The teacher threads (one per school, Conversation @@unique([listingId, buyerProfileId])) whose school has already
+/// triggered a message email: a thread with no row here is "someone new" and is emailed at once; one with a row only rides
+/// the daily reminder. `emailedAt` is the claim time, so an undo after a refused send removes only its own rows.
+model TeacherMessageEmailThread {
+  conversationId String       @id
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  /// The teacher — cascades with the account (Opus, plan review: Conversation.sellerProfile is SetNull, so without this
+  /// key the row would outlive a deleted account).
+  profileId      String       @db.Uuid
+  profile        Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  emailedAt      DateTime
+  /// 'new' (a "someone new" email) or 'reminder' (a morning reminder that covered this school) — only 'new' counts toward
+  /// the 8-per-24-h cap.
+  kind           String       @default("new")
+
+  @@index([profileId])
+}
+
 /// Written by the LOCAL matcher (~/eno-lead-pipeline teachersMatch). Exactly one of
 /// teacherProfileId / leadId is set (CHECK in scripts/teachers-ddl.mjs): FB job-seeker leads have
 /// no eno account.
@@ -1299,6 +1332,8 @@ model Conversation {
   /// Teachers: the teacher's revocable "share my phone, email & CV" grant for THIS thread.
   teacherContactShare TeacherContactShare?
   teacherVideoShare   TeacherVideoShare?
+  /// Teachers: set once this thread's school has triggered a message email (the "a different person" rule).
+  teacherMessageEmail TeacherMessageEmailThread?
   lastMessageAt     DateTime  @default(now())
   lastMessageText   String?
   buyerUnread       Int       @default(0)

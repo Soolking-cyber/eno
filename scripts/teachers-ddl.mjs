@@ -5,7 +5,8 @@
 // Run AFTER the teacher tables exist (the safe flow in prisma/CLAUDE.md creates them from
 // schema.prisma). Adds CHECK constraints (TeacherJobMatch's owner rule; TeacherProfile's cover-lesson bounds,
 // 2026-10-07; its teach-area bounds, 2026-10-08), the later TeacherProfile columns (cover lessons, the intro video, the
-// onboarding redesign), TeacherContactShare.phoneShared (2026-10-09), the TeacherDraft table (2026-10-11) and the PRIVATE
+// onboarding redesign), TeacherContactShare.phoneShared (2026-10-09), the TeacherDraft table (2026-10-11), the two
+// message-email tables (2026-10-12) and the PRIVATE
 // storage buckets. Nothing existing
 // is altered or dropped.
 //
@@ -225,6 +226,54 @@ await client.query(`
     end if;
   end $$`)
 console.log('ok  TeacherDraft (RLS on)')
+
+// ⛔ MESSAGE EMAILS TO TEACHERS (owner, 2026-10-12) — the cron's state (src/lib/teachers/message-emails.ts): one row per
+// teacher (`lastEmailAt`, the compare-and-set the send claims; `optedOutAt`, list=teacher-messages) and one row per teacher
+// thread whose school has triggered an email. Ids and times only — no address, no message text. NEW TABLES, never a column on
+// an existing one, so a deploy that lands before this script breaks only the new cron and the new unsubscribe list, never a
+// teacher or chat query. Exactly Prisma's own DDL for the two models, made idempotent. ⚠️ RUN THIS ON PRODUCTION BEFORE THE
+// DEPLOY, then scripts/rls-guard.sql.
+await client.query(`
+  create table if not exists "TeacherMessageEmailState" (
+    "profileId" uuid not null,
+    "lastEmailAt" timestamp(3),
+    "optedOutAt" timestamp(3),
+    "updatedAt" timestamp(3) not null default current_timestamp,
+    constraint "TeacherMessageEmailState_pkey" primary key ("profileId")
+  )`)
+await client.query(`
+  create table if not exists "TeacherMessageEmailThread" (
+    "conversationId" text not null,
+    "profileId" uuid not null,
+    "emailedAt" timestamp(3) not null,
+    "kind" text not null default 'new',
+    constraint "TeacherMessageEmailThread_pkey" primary key ("conversationId")
+  )`)
+// A scratch database an earlier run of this script made before "kind" existed: add it (production has neither table yet).
+await client.query(`alter table "TeacherMessageEmailThread" add column if not exists "kind" text not null default 'new'`)
+for (const t of ['TeacherMessageEmailState', 'TeacherMessageEmailThread']) {
+  await client.query(`alter table "${t}" enable row level security`)
+  if (!(await client.query(`select relrowsecurity from pg_class where oid = 'public."${t}"'::regclass`)).rows[0].relrowsecurity) {
+    console.error(`RLS did not switch on for ${t} — stopping.`); process.exit(1)
+  }
+}
+await client.query(`create index if not exists "TeacherMessageEmailThread_profileId_idx" on "TeacherMessageEmailThread"("profileId")`)
+await client.query(`
+  do $$ begin
+    if not exists (select 1 from pg_constraint where conname = 'TeacherMessageEmailState_profileId_fkey' and conrelid = '"TeacherMessageEmailState"'::regclass) then
+      alter table "TeacherMessageEmailState" add constraint "TeacherMessageEmailState_profileId_fkey"
+        foreign key ("profileId") references "Profile"("id") on delete cascade on update cascade;
+    end if;
+    if not exists (select 1 from pg_constraint where conname = 'TeacherMessageEmailThread_conversationId_fkey' and conrelid = '"TeacherMessageEmailThread"'::regclass) then
+      alter table "TeacherMessageEmailThread" add constraint "TeacherMessageEmailThread_conversationId_fkey"
+        foreign key ("conversationId") references "Conversation"("id") on delete cascade on update cascade;
+    end if;
+    if not exists (select 1 from pg_constraint where conname = 'TeacherMessageEmailThread_profileId_fkey' and conrelid = '"TeacherMessageEmailThread"'::regclass) then
+      alter table "TeacherMessageEmailThread" add constraint "TeacherMessageEmailThread_profileId_fkey"
+        foreign key ("profileId") references "Profile"("id") on delete cascade on update cascade;
+    end if;
+  end $$`)
+console.log('ok  TeacherMessageEmailState + TeacherMessageEmailThread (RLS on)')
 
 // Storage lives in the `storage` schema only on Supabase; a scratch Postgres has none.
 const hasStorage = await client.query(`select to_regclass('storage.buckets') as t`)

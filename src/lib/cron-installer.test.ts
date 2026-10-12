@@ -47,6 +47,13 @@ describe('install-cron-timers.sh — the teacher job-match emails are never on a
     expect(r.out).not.toContain('teacher-match-emails')
   })
 
+  it('⛔ teacher-message-emails is POLICY — never EMAIL, which every full re-run disables — every 30 min, on eno.vn only', () => {
+    expect(list('POLICY').words).toContain('teacher-message-emails')
+    for (const name of ['SAFE', 'EMAIL', 'MANUAL']) expect(list(name).words, `${name} holds it`).not.toContain('teacher-message-emails')
+    expect(SCRIPT).toMatch(/^\s*\[teacher-message-emails\]="\*-\*-\* \*:07,37:00 UTC"$/m)
+    expect(SCRIPT).toContain('[ "$job" = teacher-message-emails ] && TARGET="eno.vn 3001"')
+  })
+
   it('in_list (the loop the branches use) answers yes and no under set -euo pipefail', () => {
     expect(IN_LIST).not.toBe('')
     const r = bash(`${list('MANUAL').line}\n${IN_LIST}\nin_list teacher-match-emails "\${MANUAL[@]}" && echo yes\nin_list weekly-digest "\${MANUAL[@]}" || echo no`)

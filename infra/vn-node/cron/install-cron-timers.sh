@@ -47,6 +47,11 @@ declare -A SCHED=(
   [daily-reminders]="*-*-* 02:00:00 UTC"
   [saved-search-alerts]="*-*-* 05:00:00 UTC"
   [weekly-digest]="Thu *-*-* 02:00:00 UTC"
+  # Teacher message emails (2026-10-12): every 30 minutes, so a school's first message reaches the teacher's inbox within
+  # the hour — someone new at once, otherwise one reminder a day while anything is unread (src/lib/teachers/message-emails.ts).
+  # :07 and :37, off the :00 marks the daily email crons hold on Resend's shared 10 req/s. POLICY class (below): installed
+  # disabled, enabled once by hand, and never switched off again by a re-run.
+  [teacher-message-emails]="*-*-* *:07,37:00 UTC"
   # Teacher job-match emails (2026-09-30). ⛔ NO SCHEDULE SINCE 2026-10-08 — it is in MANUAL below: its SERVICE is written
   # and NO TIMER. The owner's daily /teachers skill STARTS eno-cron-teacher-match-emails.service itself, and only after the
   # owner approved that day's plan (~/eno-lead-pipeline scripts/teachers-send.sh). One email per teacher per 3 days,
@@ -128,7 +133,11 @@ in_list(){ local x=$1 j; shift; for j in "$@"; do [ "$j" = "$x" ] && return 0; d
 # school-awards too (diff review): closing a Teachers' Choice year FREEZES public awards for good, so by default a
 # moderator closes it (admin → Schools → Directory → "Close {year}") after looking at it. Enable this only to make
 # that automatic:   systemctl enable --now eno-cron-school-awards.timer
-POLICY=(business-verification-retention school-awards)
+# teacher-message-emails (2026-10-12) emails teachers when schools message them. POLICY, not EMAIL (Opus, plan review):
+# every full re-run DISABLES the EMAIL timers, which would silently stop an email the owner asked for; a re-run never
+# touches a POLICY timer. Enable it once, after scripts/teachers-ddl.mjs ran on production and `?dryRun=1` looks right:
+#   systemctl enable --now eno-cron-teacher-message-emails.timer
+POLICY=(business-verification-retention school-awards teacher-message-emails)
 
 # ⚠️ ONE JOB ONLY: `ENO_CRON_ONLY=<job> bash install-cron-timers.sh` writes, reloads and enables just
 # that job's units (if it is in SAFE) and leaves every other unit as it is. A full re-run DISABLES the
@@ -180,6 +189,9 @@ for job in "${!SCHED[@]}"; do
   # ⚠️ apple-revocations runs ONCE, on eno.vn, whatever host this installer was run for: the token table is in the
   # shared database, so a second edition's run would only repeat the probes against Apple.
   [ "$job" = apple-revocations ] && TARGET="eno.vn 3001"
+  # ⚠️ teacher-message-emails sends from eno.vn ONLY (teachers live there, and both editions share the database): the
+  # route answers {skipped:'marketplace_only'} on eno.forum, and the unit never calls it there.
+  [ "$job" = teacher-message-emails ] && TARGET="eno.vn 3001"
   cat > "/etc/systemd/system/eno-cron-$job.service" <<UNIT
 [Unit]
 Description=eno cron: $job

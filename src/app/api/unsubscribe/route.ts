@@ -10,7 +10,7 @@ const ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
 // Token-scoped, NO auth session required (the token IS the credential, per-Profile and
 // unguessable). Flips Profile.weeklyDigestOptIn — or, with `list=teacher-matches`, switches the
-// teacher job-match emails off (below).
+// teacher job-match emails off, and with `list=teacher-messages` the teacher message emails (below).
 //
 // POST /api/unsubscribe?token=… — RFC 8058 one-click target (mail clients POST here) and
 //   the /unsubscribe page's fetch. Body {optIn:true} re-subscribes the weekly digest; default unsubscribes.
@@ -62,6 +62,13 @@ export async function POST(req: NextRequest) {
     return unsubscribeTeacherMatches(signedProfileId)
   }
 
+  // `list=teacher-messages` (2026-10-12): the emails that tell a teacher a school messaged them — their own list again.
+  // A service notice, not a consent (src/lib/teachers/message-emails.ts), so the page MAY switch it back on in one tap.
+  if (new URL(req.url).searchParams.get('list') === 'teacher-messages') {
+    if (!signedProfileId) return NextResponse.json({ error: 'invalid_token' }, { status: 404 })
+    return setTeacherMessageEmails(signedProfileId, optIn)
+  }
+
   const res = signedProfileId
     ? await db.profile.updateMany({ where: { id: signedProfileId }, data: { weeklyDigestOptIn: optIn } })
     // ⚠️ LEGACY FALLBACK, DELIBERATELY KEPT AND DELIBERATELY TEMPORARY. Emails already
@@ -104,9 +111,39 @@ async function unsubscribeTeacherMatches(profileId: string) {
   return NextResponse.json({ error: 'retry' }, { status: 409 })
 }
 
+/**
+ * The teacher message emails' switch: TeacherMessageEmailState.optedOutAt (stamped off, cleared on). An upsert, because a
+ * teacher who was never emailed has no row. A valid signature for an account that no longer exists (the row's foreign key
+ * refuses it) answers ok, as the match list does: there is nothing left to email.
+ */
+async function setTeacherMessageEmails(profileId: string, optIn: boolean) {
+  const now = new Date()
+  // An upsert racing the cron's first create can lose with a unique violation (P2002): the row exists now, so once more.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await db.teacherMessageEmailState.upsert({
+        where: { profileId },
+        create: { profileId, optedOutAt: optIn ? null : now, updatedAt: now },
+        update: { optedOutAt: optIn ? null : now, updatedAt: now },
+      })
+      break
+    } catch (e) {
+      const code = (e as { code?: string })?.code
+      if (code === 'P2003') break
+      if (code === 'P2002' && attempt === 0) continue
+      throw e
+    }
+  }
+  return NextResponse.json({ ok: true, optIn })
+}
+
+/** The lists the confirm page knows; anything else is the weekly digest. */
+const LISTS = new Set(['teacher-matches', 'teacher-messages'])
+
 export function GET(req: NextRequest) {
   const q = new URL(req.url).searchParams
   const token = q.get('token') ?? ''
-  const list = q.get('list') === 'teacher-matches' ? '&list=teacher-matches' : ''
+  const name = q.get('list') ?? ''
+  const list = LISTS.has(name) ? `&list=${name}` : ''
   return NextResponse.redirect(`${ORIGIN}/unsubscribe?token=${encodeURIComponent(token)}${list}`)
 }

@@ -86,3 +86,29 @@ describe('/unsubscribe — the weekly digest is unchanged', () => {
     expect(calls[0].url).toBe('/api/unsubscribe?token=t1')
   })
 })
+
+describe('/unsubscribe — teacher message emails (2026-10-12)', () => {
+  it('names the message emails, unsubscribes that list only — and, a service notice, offers a one-tap way back', async () => {
+    const { container } = open('token=t1&list=teacher-messages')
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Stop emails about new messages?')
+    expect(container.textContent).not.toMatch(/weekly|job match/i)
+    fireEvent.click(screen.getByRole('button', { name: 'Unsubscribe' }))
+    await waitFor(() => expect(screen.getByText(/You won't get emails when a school messages you/)).toBeTruthy())
+    expect(calls).toEqual([{ url: '/api/unsubscribe?token=t1&list=teacher-messages', body: { optIn: false } }])
+    fireEvent.click(screen.getByRole('button', { name: 'Re-subscribe' }))
+    await waitFor(() => expect(screen.getByText("We'll email you again when a school messages you.")).toBeTruthy())
+    expect(calls[1]).toEqual({ url: '/api/unsubscribe?token=t1&list=teacher-messages', body: { optIn: true } })
+  })
+
+  it('⛔ mid-click it keeps this list’s own words — never the weekly digest’s (Opus, gate)', async () => {
+    let release: () => void = () => {}
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((r) => { release = () => r(new Response('{"ok":true,"optIn":false}', { status: 200 })) })))
+    const { container } = open('token=t1&list=teacher-messages')
+    fireEvent.click(screen.getByRole('button', { name: 'Unsubscribe' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Saving…' })).toBeTruthy())
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Stop emails about new messages?')
+    expect(container.textContent).not.toMatch(/weekly/i)
+    release()
+    await waitFor(() => expect(screen.getByText(/You won't get emails when a school messages you/)).toBeTruthy())
+  })
+})

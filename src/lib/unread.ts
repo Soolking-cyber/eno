@@ -55,7 +55,9 @@ import { blockedConversationIds } from '@/lib/user-blocks'
 const liveForBuyer = () => ({
   OR: [{ buyerDeletedAt: null }, { lastMessageAt: { gt: db.conversation.fields.buyerDeletedAt } }],
 })
-const liveForSeller = () => ({
+/** Exported for the teacher message emails (src/lib/teachers/message-emails.ts): an email that counts a thread the inbox
+ *  hides would be the same phantom this module exists to prevent — import it, never re-derive it. */
+export const liveForSeller = () => ({
   OR: [{ sellerDeletedAt: null }, { lastMessageAt: { gt: db.conversation.fields.sellerDeletedAt } }],
 })
 

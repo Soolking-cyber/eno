@@ -10,6 +10,10 @@ const h = vi.hoisted(() => ({
   updates: [] as { where: Record<string, unknown>; data: Record<string, unknown> }[],
   digest: [] as { where: unknown; data: unknown }[],
   raceOnce: false,
+  /** teacher message emails (2026-10-12): the upserts written, and a profile that no longer exists */
+  msgUpserts: [] as { where: { profileId: string }; create: Record<string, unknown>; update: Record<string, unknown> }[],
+  goneProfile: null as string | null,
+  raceCreateOnce: false,
 }))
 
 vi.mock('server-only', () => ({}))
@@ -39,6 +43,16 @@ vi.mock('@/lib/db', () => ({
       },
     },
     profile: { updateMany: async (args: { where: unknown; data: unknown }) => { h.digest.push(args); return { count: 1 } } },
+    teacherMessageEmailState: {
+      upsert: async (args: { where: { profileId: string }; create: Record<string, unknown>; update: Record<string, unknown> }) => {
+        // The row's foreign key refuses an account that no longer exists.
+        if (args.where.profileId === h.goneProfile) throw Object.assign(new Error('fk'), { code: 'P2003' })
+        // The cron's first create landed between the upsert's read and its insert.
+        if (h.raceCreateOnce) { h.raceCreateOnce = false; throw Object.assign(new Error('dup'), { code: 'P2002' }) }
+        h.msgUpserts.push(args)
+        return {}
+      },
+    },
   },
 }))
 
@@ -50,7 +64,51 @@ const post = (qs: string, body?: BodyInit, type = 'application/json') =>
 
 beforeEach(() => {
   h.teacher = { id: 'tp1', matchEmailOptIn: true, matchEmailOptInAt: GRANTED, matchEmailNoticeVersion: AI_NOTICE_VERSION, matchEmailWithdrawnAt: null }
-  h.updates = []; h.digest = []; h.raceOnce = false
+  h.updates = []; h.digest = []; h.raceOnce = false; h.msgUpserts = []; h.goneProfile = null; h.raceCreateOnce = false
+})
+
+describe('POST /api/unsubscribe?list=teacher-messages (2026-10-12)', () => {
+  it('⛔ the one-click POST stops the message emails — and touches neither the digest nor the match emails', async () => {
+    const before = Date.now()
+    const res = await post('token=good-p1&list=teacher-messages', 'List-Unsubscribe=One-Click', 'application/x-www-form-urlencoded')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true, optIn: false })
+    expect(h.msgUpserts).toHaveLength(1)
+    const u = h.msgUpserts[0]
+    expect(u.where).toEqual({ profileId: 'p1' })
+    expect((u.create.optedOutAt as Date).getTime()).toBeGreaterThanOrEqual(before) // a teacher never emailed has no row yet
+    expect((u.update.optedOutAt as Date).getTime()).toBeGreaterThanOrEqual(before)
+    expect(h.digest).toHaveLength(0)
+    expect(h.updates).toHaveLength(0)
+  })
+
+  it('a service notice, not a consent: the page may switch it back on in one tap', async () => {
+    const res = await post('token=good-p1&list=teacher-messages', JSON.stringify({ optIn: true }))
+    expect(await res.json()).toEqual({ ok: true, optIn: true })
+    expect(h.msgUpserts[0].update.optedOutAt).toBeNull()
+    expect(h.msgUpserts[0].create.optedOutAt).toBeNull()
+  })
+
+  it('a forged token is refused; a valid one for an account that no longer exists is ok (nothing left to email)', async () => {
+    expect((await post('token=forged&list=teacher-messages')).status).toBe(404)
+    h.goneProfile = 'p9'
+    const res = await post('token=good-p9&list=teacher-messages')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ ok: true, optIn: false })
+  })
+
+  it('an upsert that races the cron’s first create (unique violation) is tried once more — never a 500 (Opus, gate)', async () => {
+    h.raceCreateOnce = true
+    const res = await post('token=good-p1&list=teacher-messages')
+    expect(res.status).toBe(200)
+    expect(h.msgUpserts).toHaveLength(1)
+  })
+
+  it('GET keeps the list on its way to the confirm page, and still mutates nothing', async () => {
+    const res = GET(new Request('https://eno.vn/api/unsubscribe?token=good-p1&list=teacher-messages') as never)
+    expect(res.headers.get('location')).toMatch(/\/unsubscribe\?token=good-p1&list=teacher-messages$/)
+    expect(h.msgUpserts).toHaveLength(0)
+  })
 })
 
 describe('POST /api/unsubscribe?list=teacher-matches', () => {
