@@ -112,6 +112,10 @@ export const JOB_BOARDS = {
   // makes — underscores and (decoded) Vietnamese letters included; a narrower class refused such a job without a word
   // (gate review). A published slug survives a title edit (EIV's retitled post kept its own, 2026-10-12).
   languagelink: { sellerId: 'teachatlanguagelink-com-import-seller-0001', name: 'Language Link Vietnam', hosts: ['teachatlanguagelink.com', 'www.teachatlanguagelink.com'], id: /^\/job\/([^/]+)$/ },
+  // ⚠️ PUBLISHED ON THE OWNER'S WORD (2026-10-12: "yes add them"). ESLbase's terms allow short credited extracts with a
+  // link and ask for written permission beyond that — requested by email the same day; the permission is the owner's
+  // until they answer, and the board comes off if they object. The id is the job's slug.
+  eslbase: { sellerId: 'eslbase-com-import-seller-0001', name: 'ESLbase', hosts: ['www.eslbase.com', 'eslbase.com'], id: /^\/job\/([^/]+)$/ },
 } as const satisfies Record<string, Board>
 export type BoardKey = keyof typeof JOB_BOARDS
 
@@ -122,7 +126,7 @@ export const JOB_SOURCES: Record<string, BoardKey> = {
   eslcafe: 'eslcafe', teast: 'teast', vtj: 'vtj', eslgorilla: 'eslgorilla', eslboards: 'eslboards',
   'tefl-org': 'teflorg', vas: 'vas', eiv: 'eiv', nordanglia: 'nordanglia', inspired: 'inspired',
   'vieclam24h-teach': 'vieclam24h', 'vieclam24h-english': 'vieclam24h', rmit: 'rmit', tta: 'tta',
-  vietnamworks: 'vietnamworks', tesljobs: 'tesljobs', fpt: 'fpt', wish: 'wish', asq: 'asq', languagelink: 'languagelink',
+  vietnamworks: 'vietnamworks', tesljobs: 'tesljobs', fpt: 'fpt', wish: 'wish', asq: 'asq', languagelink: 'languagelink', eslbase: 'eslbase',
 }
 
 export const JOB_SELLER_IDS: string[] = Object.values(JOB_BOARDS).map((b) => b.sellerId)
