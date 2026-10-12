@@ -58,10 +58,26 @@ describe('the teachers plate: "Create a teacher profile" → the sign-up host', 
     expect(teacherJoinUrl()).toBe('/teachers/join')
   })
 
-  it('teachers only: another category\'s plate has no such chip', () => {
+  it('Jobs carries the same door, last (owner, 2026-10-12); any other category\'s plate has none', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
     rail('jobs')
+    const a = cta()!
+    expect(a.getAttribute('href')).toBe('https://teacher.eno.vn/')
+    expect(a.parentElement!.lastElementChild).toBe(a)
+    expect(a.parentElement!.querySelectorAll('[data-subcat]').length).toBeGreaterThan(0)
+    cleanup()
+    rail('rentals')
     expect(cta()).toBeNull()
+  })
+
+  it('⛔ Jobs with NO aisle offered keeps the plate and the way in (review, 2026-10-12)', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    const zero = Object.fromEntries((SUBCATEGORIES.jobs ?? []).map((s) => [s.slug, 0]))
+    rail('jobs', zero)
+    expect(document.querySelectorAll('[data-subcat]').length).toBe(0)
+    expect(cta()?.getAttribute('href')).toBe('https://teacher.eno.vn/')
+    const box = cta()!.closest('[style*="--sub-col-m"]') as HTMLElement
+    expect(Number(box.style.getPropertyValue('--sub-col-m'))).toBeGreaterThan(1)
   })
 
   it('⛔ shown even when no teacher subcategory is offered — the plate keeps "All" and the way in', () => {
@@ -138,8 +154,33 @@ describe('the phone\'s compact row (what the results view shows below 640px) car
 
   it('another category\'s row has no such chip', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
-    row('jobs')
+    row('rentals')
     expect(cta()).toBeNull()
+  })
+
+  it('⛔ Jobs with NO aisle offered keeps the subcategory shape — "All" and the way in, first (review, 2026-10-12)', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    const zero = Object.fromEntries((SUBCATEGORIES.jobs ?? []).map((s) => [s.slug, 0]))
+    render(
+      <LanguageProvider>
+        <Collapsible>
+          <LadderCompactRow categories={cats} activeCategory="jobs" activeSubcategory="all" onCategory={() => {}} onSubcategory={() => {}}
+            expanded={false} subcategoryCounts={zero} />
+        </Collapsible>
+      </LanguageProvider>,
+    )
+    const group = screen.getByRole('group', { name: 'Subcategories' })
+    expect(within(group).getAllByRole('button').map((b) => b.textContent)).toEqual(['All'])
+    expect(group.firstElementChild).toBe(within(group).getByRole('link', { name: 'Create a teacher profile' }))
+  })
+
+  it('Jobs: the row STARTS with the same door (owner, 2026-10-12)', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    row('jobs')
+    const group = screen.getByRole('group', { name: 'Subcategories' })
+    const a = within(group).getByRole('link', { name: 'Create a teacher profile' })
+    expect(a.getAttribute('href')).toBe('https://teacher.eno.vn/')
+    expect(group.firstElementChild).toBe(a)
   })
 })
 

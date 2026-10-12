@@ -265,6 +265,55 @@ describe('O-34b on the server — the visa slot is an official partner’s on en
   })
 })
 
+/** A Jobs create — `listingType` 'job' (hiring) or 'wanted' (looking for work), into `subcategorySlug` ('' = the server guesses). */
+function createJob(listingType: 'job' | 'wanted', subcategorySlug: string, title = 'ESL teacher') {
+  return createListingCore({
+    seller: { id: 'seller-1', ownerId: 'owner-1', trustTier: 'standard', trustScore: 100, phone: null },
+    guestCreate: false,
+    category: { id: 'c-jobs', slug: 'jobs', name: 'Jobs', nameVi: 'Việc làm' },
+    title,
+    price: 450_000,
+    body: { listingType, subcategorySlug, description: 'TEFL-certified English teacher with 4+ years of teaching experience.', attributes: {} },
+    headers: new Headers(),
+  })
+}
+
+describe('a teacher looking for work is a teacher profile, never a Jobs post (owner, 2026-10-12)', () => {
+  it('⛔ refuses Jobs › Teaching + "looking for work" when PICKED — nothing is written', async () => {
+    await expect(createJob('wanted', 'teaching')).rejects.toThrow('teacher_profile_instead')
+    expect(h.creates).toHaveLength(0)
+  })
+
+  it('⛔ refuses it on a keyword GUESS too — "ESL teacher" files under Teaching from the poster\'s own words', async () => {
+    await expect(createJob('wanted', '')).rejects.toThrow('teacher_profile_instead')
+    expect(h.creates).toHaveLength(0)
+  })
+
+  it('keeps hiring in Teaching, and "looking for work" in every other Jobs aisle', async () => {
+    await createJob('job', 'teaching', 'English teacher wanted, District 7')
+    expect(h.creates[0]).toMatchObject({ listingType: 'job', subcategorySlug: 'teaching' })
+    h.creates = []
+    await createJob('wanted', 'hospitality', 'Barista looking for weekend shifts')
+    expect(h.creates[0]).toMatchObject({ listingType: 'wanted', subcategorySlug: 'hospitality' })
+  })
+
+  it('⛔ refuses an edit that MOVES a listing into the pair — by subcategory or by intent; nothing is written', async () => {
+    h.current = row({ category: { slug: 'jobs', name: 'Jobs', nameVi: 'Việc làm' }, listingType: 'wanted', subcategorySlug: 'remote-freelance' })
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'teaching' })).toEqual({ ok: false, code: 400, error: 'teacher_profile_instead' })
+    h.current = row({ category: { slug: 'jobs', name: 'Jobs', nameVi: 'Việc làm' }, listingType: 'job', subcategorySlug: 'teaching', priceUnit: 'VND/month' })
+    expect(await updateListingCore('listing-1', { listingType: 'wanted' })).toEqual({ ok: false, code: 400, error: 'teacher_profile_instead' })
+    expect(h.updates).toHaveLength(0)
+  })
+
+  it('a listing ALREADY in the pair (posted before the rule) edits as usual, and may move out', async () => {
+    h.current = row({ category: { slug: 'jobs', name: 'Jobs', nameVi: 'Việc làm' }, listingType: 'wanted', subcategorySlug: 'teaching' })
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'teaching', title: 'ESL teacher, evenings' })).toEqual({ ok: true })
+    h.updates = []
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'job-other' })).toEqual({ ok: true })
+    expect(h.updates[0].subcategorySlug).toBe('job-other')
+  })
+})
+
 describe('the price unit across the RENT boundary (updateListingCore)', () => {
   const rental = (overrides: Row = {}) => row({ category: { slug: 'rentals', name: 'Rentals', nameVi: 'Cho thuê' }, subcategorySlug: 'motorbike-rental', ...overrides })
 

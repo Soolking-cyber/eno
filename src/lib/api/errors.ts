@@ -351,6 +351,7 @@ export type NicheApiErrorCode =
   | 'location_required'
   | 'category_not_postable' // teachers: written only by the teacher form (2026-09-30)
   | 'subcategory_partner_only' // eno.vn: the visa slot takes an official partner's listings only (O-34b, 2026-10-05)
+  | 'teacher_profile_instead' // Jobs › Teaching "looking for work" is a teacher profile, never a post (2026-10-12)
   | 'invalid_teacher_profile'
   | 'teacher_profile_missing'
   | 'cover_changed' // cover lessons: the cover state changed in another window since the form loaded (2026-10-07)
@@ -752,6 +753,7 @@ const ALL = [
   'location_required',
   'category_not_postable',
   'subcategory_partner_only',
+  'teacher_profile_instead',
   'invalid_teacher_profile',
   'teacher_profile_missing',
   'cover_changed',

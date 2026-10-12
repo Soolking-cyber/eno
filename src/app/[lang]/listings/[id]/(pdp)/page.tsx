@@ -2,9 +2,10 @@ import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
 import { categoryBrowsePath } from '@/lib/retired-categories'
 import { pdpBreadcrumbLd, subcategoryCrumb } from '@/lib/pdp-breadcrumb'
-import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, facetsFor, isVisaProductSlot, salaryPriceFor } from '@/lib/taxonomy'
+import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, TEACHER_SEEKING_POST, facetsFor, isVisaProductSlot, salaryPriceFor } from '@/lib/taxonomy'
 import { TeacherProfileView } from '@/components/teachers/teacher-profile-view'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { TeacherProfileLink } from '@/app/[lang]/c/[category]/teaching-links'
 import { plainSnippet } from '@/lib/strip-md'
 import { feedIdentifiers } from '@/lib/product-feed'
 import { listingJsonLd } from '@/lib/listing-jsonld'
@@ -1396,6 +1397,11 @@ export default async function ListingPage({ params }: Props) {
                 the forum's duplicate copy of the directory. */}
             {!IS_SERVICES && listing.listingType === 'job' && (
               <SchoolLinkForJob employer={listing.attributes?.employer} sellerId={listing.sellerId} city={listing.city} className="order-12 flex items-start gap-2 text-sm" />
+            )}
+            {/* A TEACHING job's reader may be a teacher who would rather be found (owner, 2026-10-12): the profile form's
+                door, the line /c/jobs carries (teaching-links.tsx). Both editions — the teacher form is on both. */}
+            {listing.listingType === 'job' && rawListing.category.slug === TEACHER_SEEKING_POST.category && rawListing.subcategorySlug === TEACHER_SEEKING_POST.subcategory && (
+              <TeacherProfileLink href={localizedHref('/teachers/join', pageVariant)} className="order-12 mt-0" />
             )}
             {safetyNote && (
               <p className="order-12 flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">

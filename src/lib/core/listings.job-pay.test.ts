@@ -192,8 +192,10 @@ describe('updateListingCore — a job edit re-derives the price from the salary'
     expect(h.updates[0].priceUnit).toBe('VND/month')
     expect(h.updates[0].price).toBe(18_000_000)
 
+    // Job → Wanted in another aisle: Teaching + Wanted is a teacher profile, refused (taxonomy.ts TEACHER_SEEKING_POST —
+    // listings.sell-rules.test.ts); the money rule under test is the same in every Jobs aisle.
     h.updates = []
-    h.current = jobRow()
+    h.current = jobRow({ subcategorySlug: 'hospitality' })
     await updateListingCore('listing-1', { listingType: 'wanted', price: 4_000_000 })
     expect(h.updates[0].priceUnit).toBe('VND')
     expect(h.updates[0].price).toBe(4_000_000)
@@ -241,7 +243,8 @@ describe('updateListingCore — a job edit re-derives the price from the salary'
   })
 
   it('Job → Wanted clears the salary and ends a hiring-urgency run', async () => {
-    h.current = jobRow({ urgentUntil: new Date(Date.now() + 86_400_000) })
+    // Not in Teaching: Teaching + Wanted is a teacher profile, refused (TEACHER_SEEKING_POST — sell-rules test).
+    h.current = jobRow({ subcategorySlug: 'hospitality', urgentUntil: new Date(Date.now() + 86_400_000) })
     await updateListingCore('listing-1', { listingType: 'wanted' })
     expect(h.updates[0].salaryM).toBeNull()
     expect((h.updates[0].urgentUntil as Date).getTime()).toBeLessThanOrEqual(Date.now())

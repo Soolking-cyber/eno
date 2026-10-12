@@ -9,6 +9,8 @@ import {
   MARKETPLACE_CATEGORY_DESCRIPTIONS,
   PARTNER_ONLY_ON_MARKETPLACE,
   PARTNER_ONLY_REFUSAL,
+  TEACHER_PROFILE_REFUSAL,
+  isTeacherSeekingPost,
   partnerOnlyFallback,
   TAXONOMY,
   visaProductKeyAllowed,
@@ -129,6 +131,21 @@ describe('the visa slot is an official partner’s on eno.vn (O-34b)', () => {
     const wizard = readFileSync(join(__dirname, '../components/marketplace/post-wizard.tsx'), 'utf8')
     const quoted = (x: string) => `'${x}'`
     expect(wizard).toContain([`msg === ${quoted('subcategory_partner_only')}`, `          ? t(${quoted(PARTNER_ONLY_REFUSAL.vi)}, ${quoted(PARTNER_ONLY_REFUSAL.en)})`].join('\n'))
+  })
+
+  it('a teacher looking for work: Jobs › Teaching + wanted only (2026-10-12), refused in the words the wizard types', () => {
+    expect(isTeacherSeekingPost('jobs', 'wanted', 'teaching')).toBe(true)
+    expect(isTeacherSeekingPost('jobs', 'job', 'teaching')).toBe(false)
+    expect(isTeacherSeekingPost('jobs', 'wanted', 'hospitality')).toBe(false)
+    expect(isTeacherSeekingPost('jobs', 'wanted', null)).toBe(false)
+    expect(isTeacherSeekingPost('services', 'wanted', 'teaching')).toBe(false)
+    // The pair exists in the taxonomy: Jobs offers both intents and the Teaching aisle.
+    const jobs = TAXONOMY.find((c) => c.slug === 'jobs')!
+    expect(jobs.types).toEqual(expect.arrayContaining(['job', 'wanted']))
+    expect(subcategoriesFor('jobs').some((s) => s.slug === 'teaching')).toBe(true)
+    const wizard = readFileSync(join(__dirname, '../components/marketplace/post-wizard.tsx'), 'utf8')
+    const quoted = (x: string) => `'${x}'`
+    expect(wizard).toContain([`msg === ${quoted('teacher_profile_instead')}`, `          ? t(${quoted(TEACHER_PROFILE_REFUSAL.vi)}, ${quoted(TEACHER_PROFILE_REFUSAL.en)})`].join('\n'))
   })
 
   it('the wizard asks the picker with the poster’s partner flag, and keeps the slot only for an edit or an unknown account', () => {

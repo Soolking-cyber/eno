@@ -1755,6 +1755,41 @@ export const PARTNER_ONLY_REFUSAL = {
   vi: 'Trên eno.vn, dịch vụ visa chỉ do đối tác chính thức đăng. Các dịch vụ pháp lý khác (giấy phép lao động, thuế…) hãy đăng trong Dịch vụ › Khác.',
 } as const
 
+/**
+ * ⛔ A TEACHER LOOKING FOR WORK IS A TEACHER PROFILE, NEVER A JOBS POST (owner, 2026-10-12: "someone created a job post
+ * as a teacher profile which is our mistake so we have to mitigate it wont happen again"). Jobs › Teaching with the
+ * "looking for work" intent (`wanted`) is the post a teacher makes when they meant /teachers/join: it lands where schools
+ * do not look (they search /c/teachers), without the profile's protections — contact shared only on the teacher's own
+ * tap, business-only messaging. Refused wherever a listing is written:
+ *  · the post wizard (post-wizard.tsx): a card with the way in, and Publish held while the pair is chosen;
+ *  · the create path (core/listings.ts createListingCore): an explicit pick AND a keyword guess — a guess of Teaching on
+ *    a "looking for work" post comes from the poster's own words ("ESL teacher"), so it is the same post;
+ *  · the edit path (updateListingCore): a MOVE into the pair, by subcategory or by intent. A row already there (posted
+ *    before the rule) edits as usual.
+ *  (The bulk core — CSV, /api/v1 bulk, MCP bulk, a sync — stores every Jobs row as hiring, `job`, so it cannot make one.)
+ * Hiring (`job`) in Teaching, and "looking for work" in every other Jobs subcategory, are unchanged. Both editions: the
+ * teacher form is live on both (teacher.eno.vn, teacher.eno.forum).
+ */
+export const TEACHER_SEEKING_POST = { category: 'jobs', subcategory: 'teaching', listingType: 'wanted' } as const
+
+/** Is this the Jobs › Teaching "looking for work" post a teacher profile replaces (TEACHER_SEEKING_POST)? */
+export function isTeacherSeekingPost(categorySlug: string, listingType: string | null | undefined, subcategorySlug: string | null | undefined): boolean {
+  return categorySlug === TEACHER_SEEKING_POST.category && listingType === TEACHER_SEEKING_POST.listingType && subcategorySlug === TEACHER_SEEKING_POST.subcategory
+}
+
+/**
+ * The refusal beside the code `teacher_profile_instead` (POST + PATCH /api/listings as `message`; /api/v1 in English).
+ * It NAMES BOTH WAYS OUT (gate, 2026-10-12): a school that picked the wrong intent chooses Hiring; a keyword guess of
+ * Teaching that refused a poster who never picked it — "Looking for work as an English-speaking receptionist" — picks
+ * any other aisle. The post wizard types the same
+ * sentences inline for the i18n harvest (taxonomy.post-picker.test.ts holds them equal). No apostrophes in the English
+ * half: the harvester reads single-quoted strings only.
+ */
+export const TEACHER_PROFILE_REFUSAL = {
+  en: 'Teachers looking for work: create a teacher profile instead. Schools search teacher profiles and message you directly. Hiring a teacher? Choose Hiring. Not looking for teaching work? Pick another subcategory.',
+  vi: 'Giáo viên tìm việc: hãy tạo hồ sơ giáo viên. Các trường tìm hồ sơ giáo viên và nhắn tin trực tiếp cho bạn. Bạn đang tuyển giáo viên? Hãy chọn Tuyển dụng. Không tìm việc dạy học? Hãy chọn danh mục con khác.',
+} as const
+
 /** Is this subcategory offered in the post picker on this edition, to this poster? `marketplace` is a
  *  parameter (defaulting to the build's edition) so the test can pin both editions in one process.
  *  `poster.officialPartner` opens the partner-only subcategories (O-34b); left out it is false — the safe

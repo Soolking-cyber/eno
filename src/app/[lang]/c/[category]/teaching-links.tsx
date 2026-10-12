@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { cn } from '@/lib/utils'
 import { ArrowRight } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { formatCountFull } from './category-copy'
@@ -36,11 +37,14 @@ export function TeachingJobsLink({ count, href }: { count: number; href: string 
   )
 }
 
-/** /c/jobs → the teacher profile form (the other half of the pair above). */
-export function TeacherProfileLink({ href }: { href: string }) {
+/**
+ * /c/jobs → the teacher profile form (the other half of the pair above). Also under a TEACHING JOB's details (owner,
+ * 2026-10-12: a teacher reading a job may rather be found — the PDP passes its `order-*` slot as `className`).
+ */
+export function TeacherProfileLink({ href, className }: { href: string; className?: string }) {
   const { tr } = useLanguage()
   return (
-    <p className="mt-3 max-w-prose text-sm text-body">
+    <p className={cn('mt-3 max-w-prose text-sm text-body', className)}>
       {tr('Want schools to find you?', 'Muốn trường học tìm đến bạn?')}{' '}
       <Link href={href} data-cross-link="teacher-profile" className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
         {tr('Create a teacher profile', 'Tạo hồ sơ giáo viên')} <ArrowRight className="h-4 w-4 shrink-0" />

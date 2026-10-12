@@ -35,7 +35,7 @@ import { trackPostListing } from '@/lib/analytics'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { isNativeShell } from '@/lib/native-browser'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
-import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isPartnerOnlySubcategory, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText, VISA_PRODUCT_FACET_KEYS } from '@/lib/taxonomy'
+import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isPartnerOnlySubcategory, isTeacherSeekingPost, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText, VISA_PRODUCT_FACET_KEYS } from '@/lib/taxonomy'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
@@ -44,6 +44,7 @@ import { usePostMedia } from '@/hooks/use-post-media'
 import { PublishButton, PublishLabel, Section, Field, Chips, Preview, DraftNotice } from './post-wizard-parts'
 import { MediaSection, PriceSection, SalarySection, LocationSection, ContactSection, PostSuccess } from './post-wizard-sections'
 import { publishSteps } from './post-wizard-steps'
+import { TeacherProfileInstead, TeacherProfileLine } from './post-wizard-teacher'
 import { brandModelPayload, draftHasContent, rangeColumnsPayload } from './post-wizard-payload'
 import { categoryChangeLosesAnswers, categoryChangeReset, orderPostCategories, subcategoryChangeReset } from './post-wizard-category'
 import { postCopyFor } from '@/lib/post-copy'
@@ -972,6 +973,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       ? t('Giá mỗi sản phẩm', 'Price per unit')
       : ''
 
+  // ⛔ A TEACHER LOOKING FOR WORK IS A TEACHER PROFILE (owner, 2026-10-12 — taxonomy.ts TEACHER_SEEKING_POST): Jobs ›
+  // Teaching + "Looking for work" holds Publish and shows the way in (post-wizard-teacher.tsx); the server refuses the
+  // pair as well. An edit of a row ALREADY there (posted before the rule) is not held — the server lets it save too.
+  const teacherSeeking = isTeacherSeekingPost(categorySlug, listingType, subcategorySlug) &&
+    !(edit && isTeacherSeekingPost(edit.categorySlug, edit.listingType, edit.subcategorySlug))
   // Required-field checklist (drives the Publish button + the "what's left" hint).
   const checks = [
     // Services sell WORK, not an object, so one photo is the bar there (owner
@@ -985,6 +991,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // A photo-optional category (jobs: minPhotos 0) has no photo row at all — "Add 0 photos" is not a step.
     ...(minPhotos > 0 ? [{ key: 'photo', ok: photos.length >= minPhotos, label: minPhotos === 1 ? t('Thêm 1 ảnh', 'Add 1 photo') : t('Thêm 3 ảnh', 'Add 3 photos') }] : []),
     { key: 'category', ok: !!categorySlug, label: t('Chọn danh mục', 'Pick a category') },
+    // Only while it holds: an unknown key is its own step (post-wizard-steps.ts), so an always-present row would print a
+    // struck-through "create a teacher profile" on every listing. Its target is the card, `pw-teacher`.
+    ...(teacherSeeking ? [{ key: 'teacher', ok: false, label: t('Giáo viên tìm việc: hãy tạo hồ sơ giáo viên', 'Teachers looking for work: create a teacher profile') }] : []),
     { key: 'title', ok: title.trim().length >= 3, label: t('Nhập tiêu đề', 'Add a title') },
     // Details are REQUIRED (user decision 2026-07-14): listings without a real
     // description or specifics read as low-effort/scammy and stall in chat with
@@ -1112,6 +1121,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     if (code === 'banned_words') return findBannedWord(title) ? 'title' : findBannedWord(description) ? 'description' : null
     if (code === 'upload_type' || code === 'upload_size' || code === 'upload_broken' || code === 'photo_required' || code === 'photos_min') return 'photo'
     if (code === 'location_required') return 'location'
+    // The keyword-guess case: the subcategory the server read is not on screen, so the jump goes to the category section.
+    if (code === 'teacher_profile_instead') return teacherSeeking ? 'teacher' : 'category'
     if (code === 'phone_taken') return 'contactPhone'
     return null
   }
@@ -1462,6 +1473,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           // (the server's `message`), typed here for the i18n harvest.
           : msg === 'subcategory_partner_only'
           ? t('Trên eno.vn, dịch vụ visa chỉ do đối tác chính thức đăng. Các dịch vụ pháp lý khác (giấy phép lao động, thuế…) hãy đăng trong Dịch vụ › Khác.', 'On eno.vn, visa services are listed by official partners only. Post other legal services (work permits, tax…) in Services › Other.')
+          // A teacher's job-seeker post (taxonomy.ts TEACHER_SEEKING_POST): the form holds it, so this is a keyword guess of
+          // Teaching or a stale form — hence the way out at the end. The same sentences as TEACHER_PROFILE_REFUSAL, typed
+          // here for the i18n harvest.
+          : msg === 'teacher_profile_instead'
+          ? t('Giáo viên tìm việc: hãy tạo hồ sơ giáo viên. Các trường tìm hồ sơ giáo viên và nhắn tin trực tiếp cho bạn. Bạn đang tuyển giáo viên? Hãy chọn Tuyển dụng. Không tìm việc dạy học? Hãy chọn danh mục con khác.', 'Teachers looking for work: create a teacher profile instead. Schools search teacher profiles and message you directly. Hiring a teacher? Choose Hiring. Not looking for teaching work? Pick another subcategory.')
           : msg === 'photo_required'
           ? t('Cần ít nhất một ảnh để đăng tin.', 'You need at least one photo to post.')
           : msg === 'photos_min'
@@ -1804,13 +1820,17 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   )}
                 </div>
                 {err.category && <p id="pw-category-error" role="alert" className="mt-2 text-xs font-semibold text-destructive">{t('Chọn một danh mục', 'Pick a category')}</p>}
+                {/* A teacher who came to post THEMSELVES: the teacher form, before they pick a category (2026-10-12). */}
+                {!edit && <TeacherProfileLine />}
               </>
             )}
 
             {categorySlug && typeOptions.length > 1 && (
               <Field group label={t('Loại tin', 'Listing type')}>
-                {/* In Rentals a Wanted post is someone LOOKING TO RENT — "Cần mua" there read as buying the flat. */}
-                <Chips options={LISTING_TYPES.filter((lt) => typeOptions.includes(lt.value)).map((lt) => ({ value: lt.value, label: categorySlug === 'rentals' && lt.value === 'wanted' ? t('Cần thuê', 'Looking to rent') : tr(lt.label, lt.labelVi), icon: lt.icon }))} value={listingType} onPick={setListingType} />
+                {/* In Rentals a Wanted post is someone LOOKING TO RENT — "Cần mua" there read as buying the flat. In Jobs the
+                    two intents are HIRING and LOOKING FOR WORK: "Job" / "Wanted (Cần mua)" is how a teacher came to post
+                    themselves as a job ad (owner, 2026-10-12). */}
+                <Chips options={LISTING_TYPES.filter((lt) => typeOptions.includes(lt.value)).map((lt) => ({ value: lt.value, label: categorySlug === 'rentals' && lt.value === 'wanted' ? t('Cần thuê', 'Looking to rent') : categorySlug === 'jobs' && lt.value === 'wanted' ? t('Tìm việc', 'Looking for work') : categorySlug === 'jobs' && lt.value === 'job' ? t('Tuyển dụng', 'Hiring') : tr(lt.label, lt.labelVi), icon: lt.icon }))} value={listingType} onPick={setListingType} />
               </Field>
             )}
             {/* Once a subcategory is picked it joins the category summary above, and its chips fold
@@ -1832,6 +1852,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 />
               </Field>
             )}
+            {/* Jobs + "Looking for work" (2026-10-12): the teacher form's door — it HOLDS Publish on Teaching (teacherSeeking),
+                and is a pointer on every other aisle and on an edit of a post already there. */}
+            {categorySlug === 'jobs' && listingType === 'wanted' && <TeacherProfileInstead blocking={teacherSeeking} />}
             {/* ⚠️ Base UI COMBOBOX, NOT <input list>. The native datalist drew a different widget in every
                 browser (Chrome's ▼, nothing at all on iOS Safari) and could not lead with the brands
                 that sell in THIS subcategory. Same creatable pattern as visa-cards' checkpoint field:

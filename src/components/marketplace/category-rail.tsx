@@ -15,7 +15,7 @@ import { STROKE_UI } from '@/lib/icon-tokens'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { cn } from '@/lib/utils'
-import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
+import { TEACHER_DOOR_CATEGORIES } from '@/lib/teachers/constants'
 import { teacherJoinUrl } from '@/lib/teachers/host'
 import { localizedHref } from '@/lib/lang-pinned'
 import { keepTeacherJoinInApp } from '@/components/teachers/teacher-join-click'
@@ -490,7 +490,8 @@ export function CategoryRail({
   // ⛔ ONE PREDICATE FOR THE PLATE — its layout column (`activeAt` below) AND its render (pill verification, 2026-10-09):
   // teachers open it even with no subcategory offered (its last chip is the way in), and when only the render knew that,
   // the plate got `--sub-col-*: 0` — an invalid grid line, so it auto-placed after the tile and every later tile reflowed.
-  const plateOpen = subs.length > 0 || activeCategory === TEACHERS_CATEGORY_SLUG
+  // Jobs too (TEACHER_DOOR_CATEGORIES, 2026-10-12): its last chip is the same way in, so it never disappears with the aisles.
+  const plateOpen = subs.length > 0 || TEACHER_DOOR_CATEGORIES.includes(activeCategory)
 
 
   /**
@@ -745,8 +746,10 @@ export function CategoryRail({
                       2026-10-09: "on home page add a button here as subcat that will redirect to teacher.eno.vn to create
                       their profile"). So the plate shows for teachers even with no subcategory offered (the condition
                       above). A LINK, not a filter: an <a> with no pressed state, the chip's look in the action colour.
-                      `size-3.5` on the glyph keeps ui/button's size-4 inflation off it (CLAUDE.md). */}
-                  {cat.slug === TEACHERS_CATEGORY_SLUG && (
+                      `size-3.5` on the glyph keeps ui/button's size-4 inflation off it (CLAUDE.md).
+                      JOBS carries the same door, last (owner, 2026-10-12 — TEACHER_DOOR_CATEGORIES): a teacher browsing
+                      work had posted themselves as a job ad. */}
+                  {TEACHER_DOOR_CATEGORIES.includes(cat.slug) && (
                     <Button variant="bare" size="none" asChild className={cn('block', subChip(false), 'text-accent-foreground')}>
                       {/* A teacher who already has a profile: theirs, on this host (owner, 2026-10-09 — "apply recommended"). */}
                       {teacherProfile ? (

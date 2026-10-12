@@ -10,7 +10,7 @@ import { CategoryIcon } from './category-icons'
 import { offeredCategories, offeredIntents, offeredSubcategories } from './count-chip'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
-import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
+import { TEACHER_DOOR_CATEGORIES } from '@/lib/teachers/constants'
 import { teacherJoinUrl } from '@/lib/teachers/host'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { localizedHref } from '@/lib/lang-pinned'
@@ -94,8 +94,10 @@ export function LadderCompactRow({
   // Teachers keep the SUBCATEGORY shape even with none offered — "All" and the way in — exactly as the rail's plate does
   // (category-rail.tsx `plateOpen`); otherwise the link sank to the end of every category chip, in a "Categories" group
   // (pill verification, 2026-10-09).
-  const teachers = active?.slug === TEACHERS_CATEGORY_SLUG
-  const subRow = subs.length > 0 || teachers
+  // The teacher form's door: Teachers and Jobs (TEACHER_DOOR_CATEGORIES — owner, 2026-10-12, for Jobs). Both keep the
+  // subcategory shape with none offered, so the door never sinks into the category list.
+  const teacherDoor = !!active && TEACHER_DOOR_CATEGORIES.includes(active.slug)
+  const subRow = subs.length > 0 || teacherDoor
 
   // One chip look for every rung. 44px tall so the whole visible pill is the hit area (the facet
   // pills directly below are 48px); pressed = the same brand-50 tint the rail uses for "chosen".
@@ -136,8 +138,9 @@ export function LadderCompactRow({
               {/* ⛔ TEACHERS: THE WAY IN, FIRST in this row (owner, 2026-10-09: "add a button here as subcat that will
                   redirect to teacher.eno.vn to create their profile" — and "apply recommended": first, so a phone shows it
                   without a swipe). The rail plate's last chip in this row's pill look. A link: no pressed state; in the
-                  app it stays in the app (keepTeacherJoinInApp); a teacher who already has a profile gets theirs. */}
-              {teachers && (
+                  app it stays in the app (keepTeacherJoinInApp); a teacher who already has a profile gets theirs. JOBS carries the
+                  same door, first too (owner, 2026-10-12 — TEACHER_DOOR_CATEGORIES). */}
+              {teacherDoor && (
                 <Button variant="bare" size="none" asChild className={cn(chipCls, 'inline-flex items-center gap-1 text-accent-foreground')}>
                   {teacherProfile ? (
                     <a href={localizedHref('/teachers/edit', lang)} data-cross-link="teacher-profile-edit">

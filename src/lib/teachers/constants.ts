@@ -6,6 +6,13 @@ export const TEACHERS_CATEGORY_SLUG = 'teachers'
 /** The category's English name as seeded (src/lib/taxonomy.ts) — what a listing's Meta conversion reports as its category. */
 export const TEACHERS_CATEGORY_NAME = 'Teachers'
 export const TEACHER_LISTING_TYPE = 'teacher'
+/**
+ * The category plates that carry the teacher form's door — "Create a teacher profile" (or the viewer's own / "Continue")
+ * — on the home rail and the phone's compact row: Teachers (owner, 2026-10-09) and Jobs (owner, 2026-10-12: "add here
+ * create a teacher profile button somewhere nicely so teachers who want to create profile will find it" — a teacher
+ * browsing work had posted themselves as a job ad).
+ */
+export const TEACHER_DOOR_CATEGORIES: readonly string[] = [TEACHERS_CATEGORY_SLUG, 'jobs']
 /** The subdomain label that serves the teacher sign-up form (teacher.eno.vn). */
 export const TEACHER_SUBDOMAIN = 'teacher'
 /**

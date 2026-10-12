@@ -28,7 +28,7 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
   }
 }
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
-import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isPartnerOnlySubcategory, partnerOnlyFallback, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, withoutDisallowedVisaAttrs } from '@/lib/taxonomy'
+import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isPartnerOnlySubcategory, partnerOnlyFallback, isTeacherSeekingPost, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, withoutDisallowedVisaAttrs } from '@/lib/taxonomy'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { syndicateListingIfPublic } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
@@ -563,6 +563,13 @@ export async function updateListingCore(
   const reqType = body.listingType !== undefined ? String(body.listingType).trim() : undefined
   const nextType = reqType !== undefined && (typesFor(current.category.slug) as string[]).includes(reqType) ? reqType : current.listingType
   const salaryPaid = paysSalary(nextType)
+  // ⛔ A TEACHER LOOKING FOR WORK IS A TEACHER PROFILE (owner, 2026-10-12 — taxonomy.ts TEACHER_SEEKING_POST): an edit
+  // that MOVES a listing into Jobs › Teaching + "looking for work" — by its subcategory or by its intent — is refused
+  // before anything is written; the route adds the bilingual refusal. A row already there edits as usual (not a move).
+  const nextSub = body.subcategorySlug !== undefined ? (body.subcategorySlug ? String(body.subcategorySlug).trim() : null) : current.subcategorySlug
+  if (isTeacherSeekingPost(current.category.slug, nextType, nextSub) && !isTeacherSeekingPost(current.category.slug, current.listingType, current.subcategorySlug)) {
+    return { ok: false, code: 400, error: 'teacher_profile_instead' }
+  }
   // ⛔ THE SALARY→PRICE RULE IS FOR JOBS POSTED ON eno, PAID PER MONTH. A LINKED job's salaryM is the FLOOR
   // of a range (its price stays 0 with the range in salaryText — job-listing.ts), and an imported HOURLY job
   // is priced per hour: deriving either would print "10.000.000 đ / month" for a 10–30 tr job, or wipe an
@@ -1203,6 +1210,11 @@ export async function createListingCore(input: {
     if (subcategoryPicked) throw new PublishBlockedError('subcategory_partner_only')
     subcategorySlug = partnerOnlyFallback(categorySlug, subcategorySlug)
   }
+  // ⛔ A TEACHER LOOKING FOR WORK IS A TEACHER PROFILE (owner, 2026-10-12 — taxonomy.ts TEACHER_SEEKING_POST): Jobs ›
+  // Teaching + "looking for work" is refused on the RESOLVED subcategory — an explicit pick and a keyword guess alike,
+  // since the guess comes from the poster's own words ("ESL teacher"). The route adds the bilingual refusal; the wizard
+  // holds Publish on the pair and shows the way in, so this is the backstop for every other caller.
+  if (isTeacherSeekingPost(categorySlug, listingType, subcategorySlug)) throw new PublishBlockedError('teacher_profile_instead')
   // Currency + price unit — ₫ for EVERY listing, unit follows the intent (monthly for
   // rent/job, per-service for a service). Derived in one place so create and the taxonomy
   // can't drift; `money.currency` is typed as the literal '₫', so tsc, not a reviewer,

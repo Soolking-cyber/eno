@@ -65,6 +65,7 @@ export const PUBLISH_OUTCOME_COPY: Record<string, string> = {
   location_required: 'No location set',
   category_not_postable: 'Tried to post into a form-only category (teachers)',
   subcategory_partner_only: 'Picked the visa slot without being an official partner (eno.vn)',
+  teacher_profile_instead: 'A teacher posted Jobs › Teaching "looking for work" (sent to the teacher form)',
   // ⚠️ These four come from branches OUTSIDE publish-guard — resolve-seller.ts and the
   // enforcement gate in enforcement.ts. A reviewer's privacy challenge sent me to read every
   // remaining branch of the route, which is how they were found missing: they would have shown
