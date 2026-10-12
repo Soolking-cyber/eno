@@ -11,12 +11,13 @@
  * ⛔ NO PERSON'S DATA IN THIS REPOSITORY. The hand-mapped answers live in an ANSWERS FILE outside it (--answers; under
  * ~/eno-import-journals/), and the name, headline and bio are read live from the account and the post.
  * ⛔ ONLY THE POST THAT WAS REVIEWED. The answers file pins `reviewed` = sha256 of the post as it was mapped (reviewedHash);
- * a post edited since refuses, so a stale mapping is never written. The post must still be live: the draft comes first.
+ * a post edited since refuses, so a stale mapping is never written. The post must not be removed yet: the draft comes
+ * first. Live or HIDDEN both qualify — hiding (the seller's, or the admin console's Hide) keeps the row as it was.
  * ⛔ THE SAME WRITE AS THE FORM'S FIRST SAVE (draft.ts saveTeacherDraft): under the per-account advisory lock, refused when
  * the account already has a teacher profile, inserted only when there is no draft (an existing draft is never touched).
  * ⛔ RE-CHECKED UNDER LOCKS. Inside the write's transaction the post is re-read FOR SHARE (no edit can land until the
  * commit) and its hash and status checked again; the account's draft/profile under draft.ts's advisory lock.
- * ⛔ IT WRITES AT MOST ONCE, AND NEVER AFTER THE POST IS GONE. --apply writes only while the post is still LIVE and the
+ * ⛔ IT WRITES AT MOST ONCE, AND NEVER AFTER THE POST IS GONE. --apply writes only while the post is LIVE OR HIDDEN and the
  * account has no draft and no teacher profile; a draft already there is the account's own and is never touched (the
  * post's text is not lost either: a removal keeps the row as a tombstone). So a re-run can never re-create a draft the
  * teacher discarded once the post is removed, and confirming is a plain dry run.
@@ -95,7 +96,10 @@ async function main(): Promise<number> {
     if (r.profiles > 0) { console.log('the account has a published teacher profile — nothing to draft'); return remaining() }
     if (r.draftGen) { console.log(`the account has a teacher draft (gen ${r.draftGen}) — never touched`); return remaining() }
 
-    if (r.status !== 'active') { console.log(`STOP — the post is ${r.status}: a draft is written only while the post is live`); return 1 }
+    // Live or hidden: either way the row is the reviewed post (the hash checks it). Removed (a tombstone), expired or
+    // anything else: no draft — the step that writes comes BEFORE the removal.
+    const writable = (st: string) => st === 'active' || st === 'hidden'
+    if (!writable(r.status)) { console.log(`STOP — the post is ${r.status}: a draft is written only while the post is live or hidden`); return 1 }
     if (reviewedHash(post) !== spec.reviewed) { console.log(`STOP — the post changed since it was mapped (${reviewedHash(post)} ≠ reviewed ${spec.reviewed}): map it again`); return 1 }
     const { t, dropped } = draftFor(spec.answers, { fullName: r.name ?? '', title: post.title, description: post.description })
     if (dropped.length) { console.log(`STOP — the form's normalization dropped: ${dropped.join(', ')}`); return 1 }
@@ -115,7 +119,7 @@ async function main(): Promise<number> {
           WHERE l.id = $1 FOR SHARE OF l`, [spec.listingId])).rows[0]
       const now: Post | null = again ? { title: again.title ?? '', description: again.description ?? '', city: again.city ?? '', category: again.category, subcategorySlug: again.subcategorySlug, listingType: again.listingType } : null
       // …and still the same account's: the draft goes to the owner read above, or nowhere.
-      if (!now || reviewedHash(now) !== spec.reviewed || again.status !== 'active' || again.ownerId !== r.ownerId) {
+      if (!now || reviewedHash(now) !== spec.reviewed || !writable(again.status) || again.ownerId !== r.ownerId) {
         await c.query('ROLLBACK'); console.log('STOP — the post changed while this ran: nothing written; map it again'); return 1
       }
       // draft.ts saveTeacherDraft's lock key, verbatim: 'teacher:' + profileId.
