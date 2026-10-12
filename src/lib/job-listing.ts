@@ -104,6 +104,14 @@ export const JOB_BOARDS = {
   // alone forbid display (vietnamworks.com/thoa-thuan-su-dung); the permission is the owner's, not the terms'.
   // The id is the number before "-jv", not the title slug before it.
   vietnamworks: { sellerId: 'vietnamworks-com-import-seller-0001', name: 'VietnamWorks', hosts: ['www.vietnamworks.com', 'vietnamworks.com'], id: /^\/[^/]+-(\d{6,9})-jv$/ },
+  // Added 2026-10-12 on the owner's word ("2 yes", after the source-discovery sweep): neither site has terms of use, and
+  // robots allows the job paths. ASQ is a UK recruiter for international schools — the school goes unnamed, so the
+  // employer is ASQ; its id is the ReferenceNumber before ".aspx" (the slug before it can change with the title).
+  asq: { sellerId: 'asq-international-com-import-seller-0001', name: 'ASQ International', hosts: ['jobs.asq-international.com'], id: /^\/job\/[^/]*-(\d{3,})\.aspx$/ },
+  // Language Link Vietnam's own foreign-teacher hiring site (WordPress): the id is the job's slug, ANY slug WordPress
+  // makes — underscores and (decoded) Vietnamese letters included; a narrower class refused such a job without a word
+  // (gate review). A published slug survives a title edit (EIV's retitled post kept its own, 2026-10-12).
+  languagelink: { sellerId: 'teachatlanguagelink-com-import-seller-0001', name: 'Language Link Vietnam', hosts: ['teachatlanguagelink.com', 'www.teachatlanguagelink.com'], id: /^\/job\/([^/]+)$/ },
 } as const satisfies Record<string, Board>
 export type BoardKey = keyof typeof JOB_BOARDS
 
@@ -114,7 +122,7 @@ export const JOB_SOURCES: Record<string, BoardKey> = {
   eslcafe: 'eslcafe', teast: 'teast', vtj: 'vtj', eslgorilla: 'eslgorilla', eslboards: 'eslboards',
   'tefl-org': 'teflorg', vas: 'vas', eiv: 'eiv', nordanglia: 'nordanglia', inspired: 'inspired',
   'vieclam24h-teach': 'vieclam24h', 'vieclam24h-english': 'vieclam24h', rmit: 'rmit', tta: 'tta',
-  vietnamworks: 'vietnamworks', tesljobs: 'tesljobs', fpt: 'fpt', wish: 'wish',
+  vietnamworks: 'vietnamworks', tesljobs: 'tesljobs', fpt: 'fpt', wish: 'wish', asq: 'asq', languagelink: 'languagelink',
 }
 
 export const JOB_SELLER_IDS: string[] = Object.values(JOB_BOARDS).map((b) => b.sellerId)

@@ -195,6 +195,15 @@ describe('ids and urls', () => {
     expect(id('tesljobs', 'https://tesljobs.com/teaching-jobs/vietnam')).toBeNull()
     expect(id('tesljobs', 'https://tesljobs.com/jobs/esl-teachers-in-vietnam-vietnam-U_yj-lBU3SJM')).toBe('U_yj-lBU3SJM')
     expect(id('fpt', 'https://career.fpt.edu.vn/Job/Detail/79795')).toBe('79795')
+    // 2026-10-12: ASQ keys on its ReferenceNumber (the slug before it carries commas and can change with the title).
+    expect(id('asq', 'https://jobs.asq-international.com/job/esl-teachers-british-international-school-in-lao-cai,-vietnam-immediate-start-5964.aspx')).toBe('5964')
+    expect(id('asq', 'https://jobs.asq-international.com/job/esl-teachers-british-international-school-in-lao-cai,-vietnam-immediate-start-5964/apply.aspx')).toBeNull()
+    expect(id('asq', 'https://jobs.asq-international.com.evil.example/job/x-5964.aspx')).toBeNull()
+    expect(id('languagelink', 'https://teachatlanguagelink.com/job/thai-nguyen-teacher-trainers-nov2026/')).toBe('thai-nguyen-teacher-trainers-nov2026')
+    expect(id('languagelink', 'https://teachatlanguagelink.com/jobs/teaching-jobs/')).toBeNull()
+    expect(id('languagelink', 'https://teachatlanguagelink.com/job/esl_teachers_hanoi/')).toBe('esl_teachers_hanoi')
+    expect(id('languagelink', 'https://teachatlanguagelink.com/job/gi%e1%ba%a3ng-vi%c3%aan-ti%e1%ba%bfng-anh/')).toBe('giảng-viên-tiếng-anh')
+    expect(id('languagelink', 'https://teachatlanguagelink.com/job/a/b')).toBeNull()
     expect(jobNativeId('wish', normaliseJobUrl('https://www.wishlistjobs.com/teaching-jobs-in-vietnam#job-post-25658')!, '#job-post-25658')).toBe('25658')
     expect(jobNativeId('wish', normaliseJobUrl('https://www.wishlistjobs.com/teaching-jobs-in-vietnam')!, '')).toBeNull()
     expect(jobNativeId('wish', normaliseJobUrl('https://www.wishlistjobs.com/teaching-jobs-in-thailand#job-post-1')!, '#job-post-1')).toBeNull()
@@ -239,6 +248,8 @@ describe('stage, expiry, sellers', () => {
   it('maps a gone posting to the row it would have created', () => {
     expect(jobExternalId('careerlink-english', 'https://www.careerlink.vn/tim-viec-lam/x/3612880?source=site')).toEqual({ sellerId: 'careerlink-vn-import-seller-0001', externalId: 'careerlink:3612880' })
     expect(jobExternalId('topcv', 'https://www.topcv.vn/x')).toBeNull()
+    expect(jobExternalId('asq', 'https://jobs.asq-international.com/job/secondary-maths-teacher-international-school,-vietnam-october-2026-start-5950.aspx')).toEqual({ sellerId: 'asq-international-com-import-seller-0001', externalId: 'asq:5950' })
+    expect(jobExternalId('languagelink', 'https://teachatlanguagelink.com/job/thai-nguyen-teacher-trainers-nov2026/')).toEqual({ sellerId: 'teachatlanguagelink-com-import-seller-0001', externalId: 'languagelink:thai-nguyen-teacher-trainers-nov2026' })
   })
 
   it('tombstones both language variants of the PDP', () => {
