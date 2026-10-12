@@ -4,7 +4,8 @@
 //       the visitor's on-site searches and views. The view/category history is not even SAVED
 //       without it (src/lib/reco-signals.ts).
 //   a — analytics: Google Analytics 4 and the first-touch attribution cookie `eno_attr`.
-//   d — advertising: Meta Conversions API (browser beacon + server) and Google ad signals.
+//   d — advertising: Meta Conversions API (browser beacon + server), TikTok Events API (server, and only an answer
+//       given to words that name TikTok — src/lib/tiktok-consent.ts) and Google ad signals.
 // Nothing non-essential runs before an answer, and "no answer" is never read as a yes (PDPL
 // 91/2025 Art 9(4)(d): silence is not consent; Decree 356/2025 Art 6(3): no default consent).
 //

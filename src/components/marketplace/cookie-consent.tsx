@@ -730,8 +730,8 @@ export function CookieConsent() {
                       'Bạn cho phép eno dùng hoạt động trong ứng dụng để gợi ý tin đăng không? Theo luật Việt Nam, đây là dữ liệu cá nhân nhạy cảm, nên mục này tắt đến khi bạn chọn. Đổi bất cứ lúc nào trong Cài đặt cookie. Phân tích và quảng cáo luôn tắt trong ứng dụng.',
                     )
                   : tr(
-                      'Can we use cookies for listing suggestions, analytics (Google Analytics) and ad measurement (Meta, Google)? Your activity is sensitive personal data under Vietnamese law, so all stay off until you choose. Change anytime in Cookie settings.',
-                      'Bạn cho phép eno dùng cookie để gợi ý tin đăng, phân tích (Google Analytics) và đo lường quảng cáo (Meta, Google) không? Theo luật Việt Nam, hoạt động của bạn là dữ liệu cá nhân nhạy cảm, nên tất cả đều tắt đến khi bạn chọn. Đổi bất cứ lúc nào trong Cài đặt cookie.',
+                      'Can we use cookies for listing suggestions, analytics (Google Analytics) and ad measurement (Meta, TikTok, Google)? Your activity is sensitive personal data under Vietnamese law, so all stay off until you choose. Change anytime in Cookie settings.',
+                      'Bạn cho phép eno dùng cookie để gợi ý tin đăng, phân tích (Google Analytics) và đo lường quảng cáo (Meta, TikTok, Google) không? Theo luật Việt Nam, hoạt động của bạn là dữ liệu cá nhân nhạy cảm, nên tất cả đều tắt đến khi bạn chọn. Đổi bất cứ lúc nào trong Cài đặt cookie.',
                     )}
                   tail={<Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</Link>}
                 />
@@ -807,10 +807,11 @@ export function CookieConsent() {
                     ? tr('Always off in the app.', 'Luôn tắt trong ứng dụng.')
                     /* ⚠️ "AND GOOGLE" ONLY WITH ANALYTICS: Google's ad signals travel inside Google
                        Analytics, which is never loaded without the Analytics switch, so Advertising
-                       alone reaches Meta and nobody else. And the Vietnamese says "băm" (hashed),
+                       alone reaches Meta and TikTok and nobody else. TikTok gets ONE thing — a teacher's sign-up — and only for an
+                       answer given to a card that named it (src/lib/tiktok-consent.ts). And the Vietnamese says "băm" (hashed),
                        never "mã hoá" — hashing is not encryption, and the sentence must not promise
                        it is. */
-                    : tr('Helps us measure our ads, so we spend on the ones that bring people here: shares actions like views, contacts and sign-ups with Meta (and with Google, if Analytics is on too) — your email or phone is scrambled (hashed) first.', 'Giúp chúng tôi đo hiệu quả quảng cáo, để chỉ chi cho những quảng cáo thật sự đưa mọi người đến đây: chia sẻ các hành động như lượt xem, liên hệ và đăng ký với Meta (và với Google, nếu Phân tích cũng bật) — email hoặc số điện thoại được xáo trộn (băm) trước.')}
+                    : tr('Helps us measure our ads, so we spend on the ones that bring people here: shares actions like views, contacts and sign-ups with Meta, and teacher sign-ups with TikTok (and with Google, if Analytics is on too) — your email or phone is scrambled (hashed) first.', 'Giúp chúng tôi đo hiệu quả quảng cáo, để chỉ chi cho những quảng cáo thật sự đưa mọi người đến đây: chia sẻ các hành động như lượt xem, liên hệ và đăng ký với Meta, và lượt đăng ký của giáo viên với TikTok (và với Google, nếu Phân tích cũng bật) — email hoặc số điện thoại được xáo trộn (băm) trước.')}
                   checked={isNative ? false : flags.d}
                   onChange={setFlag('d')}
                   locked={isNative}

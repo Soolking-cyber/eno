@@ -14,6 +14,8 @@ import { logError } from '@/lib/log'
 import { isLegacyTeacherBody, normalizeTeacherInput } from '@/lib/teachers/profile'
 import { TEACHERS_CATEGORY_NAME } from '@/lib/teachers/constants'
 import { apexOrigin } from '@/lib/teachers/host'
+import { sendTikTokEvent, tiktokConsent, tiktokEventsConfigured, tiktokUserFromHeaders } from '@/lib/tiktok-events'
+import { consentRecordNamesTikTok } from '@/lib/tiktok-consent-record'
 import {
   saveTeacherProfile, deleteTeacherProfile, TeacherCoverConflictError, TeacherNoticeChangedError, TeacherProfileChangedError,
   TeacherValidationError, TeacherVideoConflictError, TeacherVideoStoreError,
@@ -111,19 +113,41 @@ export const PUT = route(
     }
     // Written in the publish's own transaction (publish.ts `onboard`), so the profile and the account step commit together.
     const onboard = firstOnboard ? individualOnboardingWrite(profile) : null
-    // A NEW teacher profile is a listing posted: it sends the Meta conversion a posted listing sends (Lead), so an ad for
-    // teacher.eno.vn can be measured by the profiles it brought. Whether this request MAY send one is settled HERE,
-    // before the save: ⛔ nothing awaited may sit between a committed save and its response (commit gate, 2026-10-11 —
-    // a throw there answers 500 for a profile that exists, and the retry is then a 409). Only a create, only when
-    // configured, only for a visitor whose Advertising choice lets the event go at all — and then the Apple answer
-    // (the locally verified token), because the email is handed over only WITH it (D14, meta-capi.ts). A failure here
-    // costs the event, never the save: null = send nothing.
-    let leadAppleLinked: boolean | null = null
+    // A NEW teacher profile is a listing posted: it sends the Meta conversion a posted listing sends (Lead), and tells
+    // TikTok a registration completed (src/lib/tiktok-events.ts) — so an ad for teacher.eno.vn can be measured by the
+    // profiles it brought. Whether this request MAY report one, and to whom, is settled HERE, before the save:
+    // ⛔ nothing awaited may sit between a committed save and its response (commit gate, 2026-10-11 — a throw there
+    // answers 500 for a profile that exists, and the retry is then a 409). Only a create; and per platform, each
+    // decided on its own, so a failure deciding one never costs the other:
+    //   · Meta — configured, and the visitor's Advertising choice is on;
+    //   · TikTok — configured, Advertising on in an answer no older than the day the card named TikTok, AND the
+    //     consent RECORDS show Advertising was switched on under a card that named TikTok (tiktok-consent-record.ts):
+    //     a "yes" to the words "Meta, Google" never reaches TikTok, whenever it was given or re-saved.
+    // Then the Apple answer (the locally verified token), because the email is handed over only WITH it (D14) — and
+    // an answer that cannot be read is treated as "linked": the events still go, WITHOUT the email (fail closed on the
+    // email alone, the helper's own rule). A failure here never costs the save: null = report nothing.
+    let conversion: { appleLinked: boolean; meta: boolean; tiktok: boolean } | null = null
     if (expected === null) {
+      let meta = false
+      let tiktok = false
       try {
-        if (metaCapiConfigured() && metaUserDataFromHeaders(req.headers).adConsent === true) leadAppleLinked = await isCurrentUserAppleLinkedByClaims()
+        meta = metaCapiConfigured() && metaUserDataFromHeaders(req.headers).adConsent === true
       } catch (e) {
-        logError(e, { op: 'teachers.me.metaLead.ask' })
+        logError(e, { op: 'teachers.me.conversion.ask.meta' })
+      }
+      try {
+        tiktok = tiktokEventsConfigured() && tiktokConsent(req.headers) && (await consentRecordNamesTikTok(req.headers))
+      } catch (e) {
+        logError(e, { op: 'teachers.me.conversion.ask.tiktok' })
+      }
+      if (meta || tiktok) {
+        let appleLinked = true
+        try {
+          appleLinked = await isCurrentUserAppleLinkedByClaims()
+        } catch (e) {
+          logError(e, { op: 'teachers.me.conversion.ask.apple' })
+        }
+        conversion = { appleLinked, meta, tiktok }
       }
     }
     try {
@@ -138,29 +162,54 @@ export const PUT = route(
       }
       // Only the FIRST save, and only when it left the profile public (`created && live`): an edit is not a new profile
       // and a held one is not posted. Like a job's salary, an hourly rate is not what the lead is worth: value 0.
-      // Everything else happens after the response, contained: the send is best-effort (meta-capi.ts) and logged.
+      // Everything else happens after the response, contained: the two sends run SIDE BY SIDE, each best-effort and
+      // logged on its own, so one platform failing — or stalling — never costs the other.
       // ⛔ THE PAGE IS NAMED, NOT READ FROM THE REQUEST: only the join form creates a profile, and its address can carry
       // the campaign that brought the teacher (the teacher.eno.vn hand-off) — /privacy sends a campaign to Meta only
-      // when Analytics is on as well. No event id either: the account id leaves hashed (external_id) or not at all.
-      if (saved.created && saved.live && leadAppleLinked !== null) {
-        const appleLinked = leadAppleLinked
+      // when Analytics is on as well. No event id built from the account: its id leaves hashed or not at all.
+      if (saved.created && saved.live && conversion) {
+        const { appleLinked, meta, tiktok } = conversion
         const listingId = saved.listingId
         // Scheduling it is contained too: after the commit, not even this may reach the save's error handling below.
         try {
           after(async () => {
+            // Contained like the sends below: a page that cannot be named costs the page, never the events.
+            let page: string | undefined
             try {
               const origin = apexOrigin(process.env.NEXT_PUBLIC_APP_URL)
-              await sendMetaCapiEvent('Lead', {
-                eventSourceUrl: origin ? `${origin}/teachers/join` : undefined,
-                userData: metaUserDataFromHeaders(req.headers, { email: profile.email, phone: profile.phone, externalId: profile.id, appleLinked }),
-                customData: { content_ids: [listingId], content_type: 'product', content_category: TEACHERS_CATEGORY_NAME, value: 0, currency: 'VND' },
-              })
+              page = origin ? `${origin}/teachers/join` : undefined
             } catch (e) {
-              logError(e, { op: 'teachers.me.metaLead.send' })
+              logError(e, { op: 'teachers.me.conversion.page' })
             }
+            const toMeta = async () => {
+              if (!meta) return
+              try {
+                await sendMetaCapiEvent('Lead', {
+                  eventSourceUrl: page,
+                  userData: metaUserDataFromHeaders(req.headers, { email: profile.email, phone: profile.phone, externalId: profile.id, appleLinked }),
+                  customData: { content_ids: [listingId], content_type: 'product', content_category: TEACHERS_CATEGORY_NAME, value: 0, currency: 'VND' },
+                })
+              } catch (e) {
+                logError(e, { op: 'teachers.me.metaLead.send' })
+              }
+            }
+            const toTikTok = async () => {
+              if (!tiktok) return
+              try {
+                await sendTikTokEvent('CompleteRegistration', {
+                  recordNamesTikTok: tiktok, // true only when consentRecordNamesTikTok said so, above
+                  pageUrl: page,
+                  user: tiktokUserFromHeaders(req.headers, { email: profile.email, phone: profile.phone, externalId: profile.id, appleLinked }),
+                  properties: { content_type: 'product', contents: [{ content_id: listingId, content_category: TEACHERS_CATEGORY_NAME }] },
+                })
+              } catch (e) {
+                logError(e, { op: 'teachers.me.tiktok.send' })
+              }
+            }
+            await Promise.all([toMeta(), toTikTok()])
           })
         } catch (e) {
-          logError(e, { op: 'teachers.me.metaLead.schedule' })
+          logError(e, { op: 'teachers.me.conversion.schedule' })
         }
       }
       return saved

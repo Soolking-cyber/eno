@@ -335,11 +335,11 @@ describe('CookieConsent — the switches (consent v2)', () => {
     expect(beacons).toEqual(['/api/consent', '/api/consent'])
   })
 
-  it('⛔ Advertising alone reaches META: Google is named only "if Analytics is on too" (GA is never loaded without it)', async () => {
+  it('⛔ Advertising alone reaches META AND TIKTOK: Google is named only "if Analytics is on too" (GA is never loaded without it)', async () => {
     await openFirstVisitSettings()
     const desc = document.getElementById(sw(/^Advertising$/).getAttribute('aria-describedby')!)!.textContent ?? ''
-    expect(desc).toContain('with Meta (and with Google, if Analytics is on too)')
-    expect(desc).not.toMatch(/Meta and Google/)
+    expect(desc).toContain('with Meta, and teacher sign-ups with TikTok (and with Google, if Analytics is on too)')
+    expect(desc).not.toMatch(/Meta and Google|TikTok and Google/)
   })
 
   it('⛔ the Vietnamese says the email is HASHED ("băm"), never "mã hoá" — hashing is not encryption', async () => {
@@ -634,6 +634,7 @@ const COPY_FINGERPRINTS: Record<string, string> = {
   '2026-10-01b': 'a2d0ceff8ab7b8ca',
   '2026-10-01c': '428474a228f1b272',
   '2026-10-03': 'a671c046917e1412',
+  '2026-10-12': '68cef635b4884427',
 }
 
 describe('CookieConsent — the copy version is held to the words', () => {

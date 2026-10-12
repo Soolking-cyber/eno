@@ -13,7 +13,10 @@
  * publishing a teacher profile among the actions reported (it is a listing posted — api/teachers/me PUT; deployed
  * c4b833d6e, 2026-10-11 20:03 in Vietnam). And 2026-10-12, in the deploy that carries this date: the unfinished
  * teacher profile saved to the account — the "Teacher profiles" paragraph, the on-device row and the sign-out line
- * (owner: live with the deploy, no 5-day notice — "Live with the deploy").
+ * (owner: live with the deploy, no 5-day notice — "Live with the deploy"). And, the same day (2026-10-12): TikTok as
+ * a recipient (a new teacher profile's sign-up, sent by our server) — its recipients row, the Advertising paragraph and
+ * the cross-border list; the consent card names TikTok the same day (CONSENT_COPY_VERSION).
+ * ⛔ If that deploy slips past 2026-10-12, re-date BOTH this and TIKTOK_NAMED_FROM_S (src/lib/tiktok-consent.ts).
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -31,4 +34,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-12'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = 'b2a190c328eb5df3'
+export const PRIVACY_TEXT_FINGERPRINT = '186f3c76146dbe2f'

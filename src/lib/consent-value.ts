@@ -59,8 +59,13 @@ export const CONSENT_VERSION = 2
  *                “Help us improve eno”. The in-app sentence is cut the same way. Buttons, aria-labels,
  *                the Privacy Policy link and the Choose view are unchanged. Recorded only: existing
  *                answers stand and nobody is re-asked.
+ *   2026-10-12 — Advertising names TikTok beside Meta: the question reads "ad measurement (Meta, TikTok, Google)"
+ *                and the Advertising line "…with Meta, and teacher sign-ups with TikTok (and with Google, if
+ *                Analytics is on too)". Nobody is re-asked — and a "yes" given to the earlier words never reaches
+ *                TikTok: the server holds the consent RECORD of the answer to this version or later
+ *                (TIKTOK_COPY_VERSION, src/lib/tiktok-consent.ts), with a date floor under it.
  */
-export const CONSENT_COPY_VERSION = '2026-10-03'
+export const CONSENT_COPY_VERSION = '2026-10-12'
 
 /**
  * A choice is remembered for 12 months from the moment it was made, then asked again. The cookie's
@@ -187,6 +192,17 @@ export function cookieFromHeader(cookieHeader: string | null | undefined, name: 
  * grant, and the v2 value is always written to a cookie.
  */
 export function serverConsent(headers: Headers, nowMs: number = Date.now()): ConsentFlags {
+  const { p, a, d } = serverConsentAt(headers, nowMs)
+  return { p, a, d }
+}
+
+/**
+ * The same answer, with WHEN it was given (`ts`, unix SECONDS — the cookie's own unit, never milliseconds). For a
+ * recipient the notice names only from a date (src/lib/tiktok-events.ts): a "yes" given to earlier words is not a
+ * "yes" to a recipient added later, so that sender asks for an answer at or after the day it was named.
+ * `ts` is null when nothing is granted: no answer, an expired one, or a legacy value.
+ */
+export function serverConsentAt(headers: Headers, nowMs: number = Date.now()): ConsentFlags & { ts: number | null } {
   const cookie = headers.get('cookie')
   const answer = resolveConsent(
     {
@@ -195,9 +211,9 @@ export function serverConsent(headers: Headers, nowMs: number = Date.now()): Con
     },
     Math.floor(nowMs / 1000),
   )
-  if (!answer) return { ...NO_PURPOSES }
+  if (!answer) return { ...NO_PURPOSES, ts: null }
   const native = NATIVE_UA_RE.test(headers.get('user-agent') || '')
-  return { p: answer.p, a: answer.a && !native, d: answer.d && !native }
+  return { p: answer.p, a: answer.a && !native, d: answer.d && !native, ts: answer.ts }
 }
 
 /**

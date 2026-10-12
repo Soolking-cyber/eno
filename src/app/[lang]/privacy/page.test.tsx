@@ -475,6 +475,44 @@ describe('/privacy — round-2 corrections hold', () => {
     expect(text).toContain('only if Analytics is on as well — the link or campaign that first brought you here')
   })
 
+  it('⛔ TikTok is named as a recipient on BOTH editions, outside Vietnam — what it gets, the click id, and from when — in both languages', async () => {
+    // src/lib/tiktok-events.ts (server-side: tiktokConsent + the consent record) · api/teachers/me/route.ts PUT →
+    // CompleteRegistration · src/lib/tiktok-consent.ts TIKTOK_NAMED_FROM_S / TIKTOK_COPY_VERSION.
+    for (const edition of ['marketplace', 'services'] as const) {
+      const en = await policy(edition)
+      expect(en).toContain('TikTok (Events API) — only if you switch on Advertising')
+      expect(en).toContain('That you published a teacher profile, with the listing involved (its identifier and category)')
+      expect(en).toContain('each scrambled (hashed) first — never your email address if you use Sign in with Apple')
+      expect(en).not.toMatch(/click identifier|ttclid/) // not carried in this release: nothing here may say it is
+      expect(en).toContain('Only for an Advertising choice made on or after 13 October 2026, the first full day our consent question named TikTok.')
+      // …the Advertising paragraph, the consent sentence and the cross-border list say the same.
+      expect(en).toContain('we also tell TikTok that a sign-up was completed')
+      expect(en).toContain('advertising measurement signals to Meta and TikTok (and to Google, when Analytics is on as well)')
+      expect(en).toContain('Telegram, Meta, TikTok, LinkedIn')
+      expect(en).toContain('the Meta, TikTok and Google advertising signals')
+      cleanup()
+      const vi = await policy(edition, 'vi')
+      expect(vi).toContain('TikTok (Events API) — chỉ khi bạn bật Quảng cáo')
+      expect(vi).toContain('Chỉ áp dụng với lựa chọn Quảng cáo được thực hiện từ ngày 13 tháng 10 năm 2026, ngày trọn vẹn đầu tiên câu hỏi xin đồng ý của chúng tôi nêu tên TikTok.')
+      expect(vi).toContain('chúng tôi cũng báo cho TikTok rằng một lượt đăng ký đã hoàn tất')
+      expect(vi).not.toMatch(/lượt nhấp|ttclid/)
+      cleanup()
+    }
+  })
+  it('⛔ the day /privacy gives for TikTok is the day the code starts from (TIKTOK_NAMED_FROM_S), in Vietnam', async () => {
+    const { TIKTOK_NAMED_FROM_S } = await import('@/lib/tiktok-consent')
+    const day = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(TIKTOK_NAMED_FROM_S * 1000))
+    expect(day).toBe('13 October 2026')
+    expect(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(TIKTOK_NAMED_FROM_S * 1000))).toBe('00:00')
+    // …in both editions and both languages (the Vietnamese date is written out).
+    for (const edition of ['marketplace', 'services'] as const) {
+      expect(await policy(edition)).toContain(`on or after ${day}`)
+      cleanup()
+      expect(await policy(edition, 'vi')).toContain('từ ngày 13 tháng 10 năm 2026')
+      cleanup()
+    }
+  })
+
   it('⛔ the location paragraph no longer extends "never shared with advertisers" to on-site behaviour', async () => {
     // With Advertising on, on-site behaviour DOES reach Meta: api/track/view/route.ts:49-58 ViewContent ·
     // api/listings/[id]/contact/route.ts:187-190 Contact · core/listings.ts:1138-1144 Lead ·

@@ -20,6 +20,12 @@ const h = vi.hoisted(() => ({
   live: true, // …and left it public
   appleThrows: false,
   sendRejects: false,
+  tiktok: [] as Row[],
+  ttOn: false, // TikTok's pixel + token are set
+  ttRejects: false,
+  consentRows: [] as Row[], // the consent.recorded rows of the cookie's consent id, NEWEST FIRST (as the log returns them)
+  consentRowFails: false,
+  metaStalls: null as null | Promise<void>,
   afterWork: [] as Array<() => unknown>,
   afterThrows: false, // scheduling the after-response work itself fails
   capi: [] as Row[],
@@ -31,16 +37,24 @@ vi.mock('next/server', async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   after: (fn: () => unknown) => { if (h.afterThrows) throw new Error('after: outside a request scope'); h.afterWork.push(fn) },
 }))
+vi.mock('@/lib/tiktok-events', async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  tiktokEventsConfigured: () => h.ttOn,
+  sendTikTokEvent: async (name: string, opts: Row) => { if (h.ttRejects) throw new Error('tiktok unreachable'); h.tiktok.push({ name, ...opts }) },
+}))
 vi.mock('@/lib/meta-capi', async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   metaCapiConfigured: () => h.capiOn,
-  sendMetaCapiEvent: async (name: string, opts: Row) => { if (h.sendRejects) throw new Error('graph unreachable'); h.capi.push({ name, ...opts }) },
+  sendMetaCapiEvent: async (name: string, opts: Row) => { if (h.metaStalls) await h.metaStalls; if (h.sendRejects) throw new Error('graph unreachable'); h.capi.push({ name, ...opts }) },
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/log', () => ({ logError: (e: unknown) => { h.logged.push(e) } }))
 vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => h.me, getCurrentProfileId: async () => h.me.id, getAdmin: async () => null, isAdminEmail: () => false, isCurrentUserAppleLinkedByClaims: async () => { h.appleAsked++; if (h.appleThrows) throw new Error('claims unreadable'); return h.appleLinked } }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true, resetSec: 0 }), kv: { set: async () => 'OK', get: async () => null } }))
-vi.mock('@/lib/db', () => ({ db: { teacherProfile: { findUnique: async () => h.mine } } }))
+vi.mock('@/lib/db', () => ({ db: {
+  teacherProfile: { findUnique: async () => h.mine },
+  complianceAudit: { findMany: async () => { if (h.consentRowFails) throw new Error('compliance_audit: connection reset'); return h.consentRows } },
+} }))
 vi.mock('@/lib/publish-guard', () => ({ PublishBlockedError: class extends Error {} }))
 vi.mock('@/lib/compliance/seller-publish-gate', () => ({
   sellerPublishDecision: async () => { if (h.decisionFails) throw new Error('identity_verifications: connection reset'); return h.decision },
@@ -81,7 +95,7 @@ const get = async () => (await GET(new Request('https://eno.vn/api/teachers/me')
 beforeEach(() => {
   h.mine = { id: 'tp-b' }; h.saved = []; h.opts = []; h.changedUnderLock = false; h.noticeChanged = null; h.decision = { ok: true }
   h.decisionFails = false; h.logged = []
-  h.created = false; h.live = true; h.afterWork = []; h.capi = []; h.capiOn = true; h.appleLinked = false; h.appleAsked = 0; h.appleThrows = false; h.sendRejects = false; h.afterThrows = false
+  h.created = false; h.live = true; h.afterWork = []; h.capi = []; h.capiOn = true; h.appleLinked = false; h.appleAsked = 0; h.appleThrows = false; h.sendRejects = false; h.afterThrows = false; h.tiktok = []; h.ttOn = false; h.ttRejects = false; h.consentRows = []; h.consentRowFails = false; h.metaStalls = null
   h.me = { id: 'p-b', accountType: 'individual', email: 'b@example.com' }
   fo.after = []; fo.committed = true
 })
@@ -239,18 +253,18 @@ describe('PUT /api/teachers/me — the Meta conversion for a NEW profile', () =>
     expect(h.capi).toHaveLength(0)
     expect(h.afterWork).toHaveLength(0)
   })
-  it('⛔ THE APPLE ANSWER IS ASKED BEFORE THE SAVE: one that cannot be read costs the event, never the save — 200, saved, logged', async () => {
+  it('⛔ THE APPLE ANSWER IS ASKED BEFORE THE SAVE: one that cannot be read never costs the save — the event goes WITHOUT the email (treated as linked), logged', async () => {
     h.appleThrows = true
     const res = await create()
     expect(res.status).toBe(200)
     expect((await res.json()).listingId).toBe('L1')
     expect(h.saved).toHaveLength(1)
     await flush()
-    expect(h.capi).toHaveLength(0)
-    expect(h.afterWork).toHaveLength(0) // never sent without the answer
+    expect(h.capi).toHaveLength(1)
+    expect(h.capi[0].userData.appleLinked).toBe(true) // so meta-capi.ts hashes no email
     expect(h.logged).toHaveLength(1)
   })
-  it('⛔ …and so does a cookie that cannot be decoded (a malformed _fbp): 200, saved, no event, logged', async () => {
+  it('⛔ a cookie that cannot be decoded (a malformed _fbp) costs the event, never the save: 200, saved, no event, logged', async () => {
     const res = await create({ cookie: `${ADS_ON}; _fbp=%E0%A4%A` })
     expect(res.status).toBe(200)
     expect(h.saved).toHaveLength(1)
@@ -272,6 +286,129 @@ describe('PUT /api/teachers/me — the Meta conversion for a NEW profile', () =>
     await flush()
     expect(h.capi).toHaveLength(0)
     expect(h.logged).toHaveLength(1)
+  })
+})
+
+// …and tells TikTok a registration completed (2026-10-12) — the same moment, decided the same way, but ONLY for an
+// Advertising answer given to words that name TikTok (src/lib/tiktok-events.ts TIKTOK_NAMED_FROM_S).
+describe('PUT /api/teachers/me — the TikTok conversion for a NEW profile', () => {
+  const NOW = new Date('2026-10-14T03:00:00Z') // after the card named TikTok
+  const at = (iso: string) => Math.floor(new Date(iso).getTime() / 1000)
+  const consent = (bits: string, ts: number) => `eno-consent-v2=v2.${bits}.${ts}.c0ffee00-1234-4abc-8def-001122334455`
+  const NAMED_TS = at('2026-10-13T08:00:00Z')
+  const NAMED = consent('001', NAMED_TS) // a "yes" given to "Meta, TikTok, Google"…
+  /** …and the RECORD of it (api/consent): the copy version the card on that screen carried, for THIS answer. */
+  const record = (copyVersion: string, over: Row = {}, occurredAt: Date = new Date((NAMED_TS + 2) * 1000)) =>
+    ({ detail: { p: false, a: false, d: true, version: 2, copyVersion, clientTs: NAMED_TS, ...over }, occurredAt })
+  const BEFORE = consent('001', at('2026-10-11T08:00:00Z')) // a "yes" given to "Meta, Google"
+  const create = (cookie: string, body: Row = {}, headers: Record<string, string> = {}) => {
+    h.mine = null; h.created = true
+    return PUT(new Request('https://eno.vn/api/teachers/me', { method: 'PUT', headers: { cookie, ...headers }, body: JSON.stringify({ teachAreas: ['online'], teacherProfileId: null, ...body }) }) as never, {} as never)
+  }
+  const flush = async () => { for (const fn of h.afterWork) await fn() }
+  beforeEach(() => {
+    vi.useFakeTimers({ now: NOW, toFake: ['Date'] })
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    h.ttOn = true
+    h.consentRows = [record('2026-10-12')]
+    h.me = { id: 'p-b', accountType: 'individual', email: 'b@example.com', phone: '+84901234567' }
+  })
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
+
+  it('the first save tells TikTok ONE CompleteRegistration, after the response — the named page, who, and the listing', async () => {
+    const res = await create(NAMED, { ttclid: 'E.C.P.abc-123_x' }, { 'user-agent': 'UA/1', referer: 'https://eno.vn/teachers/join?utm_source=tiktok&ttclid=E.C.P.abc-123_x' })
+    expect(res.status).toBe(200)
+    expect(h.tiktok).toHaveLength(0) // nothing before the response
+    await flush()
+    expect(h.tiktok).toHaveLength(1)
+    expect(h.tiktok[0].name).toBe('CompleteRegistration')
+    expect(h.tiktok[0].pageUrl).toBe('https://eno.vn/teachers/join') // named, never the Referer
+    expect(h.tiktok[0].recordNamesTikTok).toBe(true) // the sender's own second gate, attested from the record
+    expect(h.tiktok[0].user).toMatchObject({ email: 'b@example.com', phone: '+84901234567', externalId: 'p-b', appleLinked: false, userAgent: 'UA/1', consent: true })
+    // ⛔ No click id in this release: whatever a body or an address carries under that name goes nowhere.
+    expect(JSON.stringify(h.tiktok[0])).not.toContain('E.C.P.abc-123_x')
+    expect(h.tiktok[0].properties).toEqual({ content_type: 'product', contents: [{ content_id: 'L1', content_category: 'Teachers' }] })
+    expect(h.tiktok[0].eventId).toBeUndefined() // no id built from the account
+    expect(JSON.stringify(h.tiktok[0])).not.toContain('utm_')
+    // Meta is told as before.
+    expect(h.capi).toHaveLength(1)
+    expect(JSON.stringify(h.capi[0])).not.toContain('E.C.P.abc-123_x')
+    expect(h.appleAsked).toBe(1) // asked once, for both
+  })
+  it('⛔ a "yes" given BEFORE the card named TikTok reaches Meta as before — and never TikTok', async () => {
+    expect((await create(BEFORE, { ttclid: 'E.C.P.abc' })).status).toBe(200)
+    await flush()
+    expect(h.capi).toHaveLength(1)
+    expect(h.tiktok).toHaveLength(0)
+  })
+  it('⛔ THE RECORDS DECIDE: an answer made AFTER the day, but to a card that still read "Meta, Google" (an old tab, a cached page, a clock ahead) — or a "yes" merely carried through a later save — never reaches TikTok', async () => {
+    const early = record('2026-10-12', {}, new Date('2026-10-12T10:00:00Z')) // OUR server wrote it before the day
+    const carried = [record('2026-10-12'), record('2026-10-03', { clientTs: NAMED_TS - 86400 * 8 }, new Date((NAMED_TS - 86400 * 8) * 1000))]
+    const cases: Row[][] = [[record('2026-10-03')], [record('2026-10-01c')], [], [record('2026-10-12', { d: false })], [record('2026-10-12', { clientTs: NAMED_TS - 5 })], [record('junk')], [early], [record('2031-01-01')], carried, [{ detail: null }], [{ detail: 'x' }]]
+    for (const rows of cases) {
+      h.consentRows = rows; h.tiktok = []; h.capi = []; h.afterWork = []
+      expect((await create(NAMED, { ttclid: 'E.C.P.abc' })).status).toBe(200)
+      await flush()
+      expect(h.tiktok).toHaveLength(0)
+      expect(h.capi).toHaveLength(1) // Meta is told as before
+    }
+    // …and switched off, then on again under the card that names TikTok, it is.
+    h.consentRows = [record('2026-10-12'), record('2026-10-12', { d: false, clientTs: NAMED_TS - 600 }, new Date((NAMED_TS - 600) * 1000)), record('2026-10-03', { clientTs: NAMED_TS - 86400 * 8 }, new Date((NAMED_TS - 86400 * 8) * 1000))]
+    h.tiktok = []; h.afterWork = []
+    await create(NAMED); await flush()
+    expect(h.tiktok).toHaveLength(1)
+  })
+  it('⛔ the record cannot be read: TikTok is told nothing, Meta is told as before, the save answers 200 — logged', async () => {
+    h.consentRowFails = true
+    const res = await create(NAMED)
+    expect(res.status).toBe(200)
+    await flush()
+    expect(h.tiktok).toHaveLength(0)
+    expect(h.capi).toHaveLength(1)
+    expect(h.logged).toHaveLength(1)
+  })
+  it('⛔ Meta stalling does not hold TikTok back: the two are sent side by side', async () => {
+    let release = () => {}
+    h.metaStalls = new Promise<void>((r) => { release = r })
+    await create(NAMED)
+    const work = flush()
+    await vi.waitFor(() => expect(h.tiktok).toHaveLength(1)) // TikTok has gone while Meta is still pending
+    expect(h.capi).toHaveLength(0)
+    release(); await work
+    expect(h.capi).toHaveLength(1)
+  })
+  it('TikTok alone (Meta not configured): only TikTok is told', async () => {
+    h.capiOn = false
+    await create(NAMED); await flush()
+    expect(h.capi).toHaveLength(0)
+    expect(h.tiktok).toHaveLength(1)
+  })
+  it('one platform failing never costs the other: each send is contained and logged on its own', async () => {
+    h.ttRejects = true
+    await create(NAMED); await flush()
+    expect(h.capi).toHaveLength(1)
+    expect(h.tiktok).toHaveLength(0)
+    expect(h.logged).toHaveLength(1)
+    h.ttRejects = false; h.sendRejects = true; h.capi = []; h.afterWork = []; h.logged = []
+    await create(NAMED); await flush()
+    expect(h.capi).toHaveLength(0)
+    expect(h.tiktok).toHaveLength(1)
+    expect(h.logged).toHaveLength(1)
+  })
+  it('⛔ an Apple-linked account says so to both, so its email becomes a hash for neither (D14)', async () => {
+    h.appleLinked = true
+    await create(NAMED); await flush()
+    expect(h.capi[0].userData.appleLinked).toBe(true)
+    expect(h.tiktok[0].user.appleLinked).toBe(true)
+  })
+  it('an edit, a profile not left public, a refused save, or no Advertising: TikTok is told nothing', async () => {
+    const edit = await PUT(new Request('https://eno.vn/api/teachers/me', { method: 'PUT', headers: { cookie: NAMED }, body: JSON.stringify({ teachAreas: ['online'], teacherProfileId: 'tp-b' }) }) as never, {} as never)
+    expect(edit.status).toBe(200)
+    h.live = false; await create(NAMED)
+    h.live = true; h.changedUnderLock = true; await create(NAMED)
+    h.changedUnderLock = false; await create(consent('110', at('2026-10-13T08:00:00Z')))
+    await flush()
+    expect(h.tiktok).toHaveLength(0)
   })
 })
 
