@@ -1239,10 +1239,10 @@ model TeacherDraft {
   @@index([updatedAt])
 }
 
-/// Message emails to teachers (owner, 2026-10-12: "receive an email … within 1 hour … 1 per day … new email only if someone
-/// new messages"). One row per teacher: `lastEmailAt` paces the daily reminder (src/lib/teachers/message-emails.ts) and is
-/// the compare-and-set the cron claims on; `optedOutAt` is the List-Unsubscribe switch (list=teacher-messages). Holds no
-/// address and no message text. DDL: scripts/teachers-ddl.mjs (RLS on, no policies) — run on production BEFORE the deploy.
+/// Message emails to teachers (owner, 2026-10-12; v2 the same day: "maximum 3 reminders 1 hr 24 hours 3 days"). One row per
+/// teacher: `lastEmailAt` keeps two emails at least an hour apart and is the compare-and-set the cron claims on; `optedOutAt`
+/// is the List-Unsubscribe switch (list=teacher-messages). Holds no address and no message text. Rule:
+/// src/lib/teachers/message-emails.ts. DDL: scripts/teachers-ddl.mjs (RLS on, no policies).
 model TeacherMessageEmailState {
   profileId   String    @id @db.Uuid
   profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
@@ -1251,9 +1251,11 @@ model TeacherMessageEmailState {
   updatedAt   DateTime  @default(now())
 }
 
-/// The teacher threads (one per school, Conversation @@unique([listingId, buyerProfileId])) whose school has already
-/// triggered a message email: a thread with no row here is "someone new" and is emailed at once; one with a row only rides
-/// the daily reminder. `emailedAt` is the claim time, so an undo after a refused send removes only its own rows.
+/// One row per teacher thread (one per school, Conversation @@unique([listingId, buyerProfileId])): the LAST email about it —
+/// `emailedAt` when, `kind` which stage of which episode. An episode starts at the oldest unread school message (or, after
+/// its third email, at the next message) and is over once the teacher reads. A row is never moved on within 24 h of its email, which is what
+/// makes counting these rows an exact 4-in-24-h cap. An undo after a refused send moves the row back only while it still
+/// holds that claim's time.
 model TeacherMessageEmailThread {
   conversationId String       @id
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -1262,8 +1264,10 @@ model TeacherMessageEmailThread {
   profileId      String       @db.Uuid
   profile        Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
   emailedAt      DateTime
-  /// 'new' (a "someone new" email) or 'reminder' (a morning reminder that covered this school) — only 'new' counts toward
-  /// the 8-per-24-h cap.
+  /// The stage this email recorded and its episode's anchor: 'first' (an hour after the anchor), 'second' (a day after),
+  /// 'third' (three days after — the last), written as `first@<anchor ISO time>` (src/lib/teachers/message-emails.ts
+  /// kindFor). v1 wrote 'new' (≡ first) and 'reminder' (≡ second), with no anchor. The column default is v1's and is never
+  /// relied on: every write names its kind.
   kind           String       @default("new")
 
   @@index([profileId])
@@ -1332,7 +1336,7 @@ model Conversation {
   /// Teachers: the teacher's revocable "share my phone, email & CV" grant for THIS thread.
   teacherContactShare TeacherContactShare?
   teacherVideoShare   TeacherVideoShare?
-  /// Teachers: set once this thread's school has triggered a message email (the "a different person" rule).
+  /// Teachers: the last message email about this thread's current unread episode (src/lib/teachers/message-emails.ts).
   teacherMessageEmail TeacherMessageEmailThread?
   lastMessageAt     DateTime  @default(now())
   lastMessageText   String?

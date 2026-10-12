@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // claim → no send. Resend and the database are faked — nothing reaches the network, a database or an inbox.
 type Once = { outcome: 'sent' | 'refused' | 'unknown'; stopRun: boolean; name: string | null; retryAfterMs: number | null }
 const h = vi.hoisted(() => ({
-  plan: [] as { teacherProfileId: string; kind: 'new' | 'reminder'; threadIds: string[]; newThreadIds: string[]; hadState: boolean; prevLastEmailAt: Date | null }[],
+  plan: [] as { teacherProfileId: string; due: { conversationId: string; stage: 1 | 2 | 3; prev: null; anchor: Date }[]; threadIds: string[]; hadState: boolean; prevLastEmailAt: Date | null }[],
   teachers: [] as { profileId: string; fullName: string; private: { email: string | null } | null; profile: { email: string | null } }[],
   claimOk: true,
   claimThrowsFor: null as string | null,
@@ -18,6 +18,8 @@ const h = vi.hoisted(() => ({
   sends: [] as { msg: { to: string; subject: string; headers: Record<string, string> }; opts: { idempotencyKey: string; afterUnknown?: boolean } }[],
   answers: [] as Once[],
   mailOn: true,
+  /** The quiet hours, pinned per test — the real clock would make this suite depend on the time of day. */
+  quiet: false,
 }))
 
 vi.mock('server-only', () => ({}))
@@ -43,13 +45,18 @@ vi.mock('@/lib/teachers/message-emails', async (orig) => {
   ...real,
   // A small ceiling, so the cap is testable: two sends per run here (200 in production).
   MESSAGE_EMAIL_RULES: { ...real.MESSAGE_EMAIL_RULES, maxSendsPerRun: 2 },
-  loadUnreadTeacherThreads: async () => h.plan.flatMap((p) => p.threadIds.map((conversationId) => ({ conversationId, teacherProfileId: p.teacherProfileId, unread: 1, lastSchoolMessageAt: new Date() }))),
-  loadNewEmailsLast24h: async () => new Map(),
+  loadUnreadTeacherThreads: async () => h.plan.flatMap((p) => p.threadIds.map((conversationId) => ({ conversationId, teacherProfileId: p.teacherProfileId, unread: 1, window: [] }))),
+  loadEmailsLast24h: async () => new Map(),
+  quietSoon: () => h.quiet,
   planMessageEmails: () => h.plan,
-  claimMessageEmail: async (_db: unknown, e: { teacherProfileId: string; threadIds: string[]; newThreadIds: string[] }) => {
+  // The claim as production builds it: per-stage counts FROM THE DUE THREADS (codex, gate round 1: a plan-level stage let
+  // the test pass an impossible mixed plan).
+  claimMessageEmail: async (_db: unknown, e: { teacherProfileId: string; threadIds: string[]; due: { stage: 1 | 2 | 3 }[] }) => {
     h.claims.push(e.teacherProfileId)
     if (h.claimThrowsFor === e.teacherProfileId) throw new Error('transaction timeout')
-    return h.claimOk ? { threads: e.threadIds.length, newThreads: e.newThreadIds.length } : null
+    const counts = { 1: 0, 2: 0, 3: 0 }
+    for (const d of e.due) counts[d.stage]++
+    return h.claimOk ? { counts, unreadThreads: e.threadIds.length, applied: e.due } : null
   },
   releaseMessageEmail: async (_db: unknown, e: { teacherProfileId: string }) => {
     h.releases.push(e.teacherProfileId)
@@ -63,9 +70,13 @@ vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
 const { GET } = await import('./route')
 const req = (qs = '', auth: string | null = 'Bearer cron-secret') =>
   new Request(`https://eno.vn/api/cron/teacher-message-emails${qs}`, { headers: auth ? { authorization: auth } : {} })
-const one = (o: Partial<(typeof h.plan)[number]> = {}) => ({ teacherProfileId: 'p1', kind: 'new' as const, threadIds: ['c1'], newThreadIds: ['c1'], hadState: false, prevLastEmailAt: null, ...o })
+const due = (conversationId: string, stage: 1 | 2 | 3 = 1) => ({ conversationId, stage, prev: null, anchor: new Date() })
+const one = (o: Partial<(typeof h.plan)[number]> = {}) => ({
+  teacherProfileId: 'p1', threadIds: ['c1'], due: [due('c1')], hadState: false, prevLastEmailAt: null, ...o,
+})
 
 beforeEach(() => {
+  h.quiet = false
   process.env.CRON_SECRET = 'cron-secret'
   h.plan = [one()]
   // The account's current address wins over the copy the profile save took (Opus, gate).
@@ -79,9 +90,12 @@ describe('GET /api/cron/teacher-message-emails', () => {
   })
 
   it('⛔ a dry run counts what it would send — and claims and sends nothing', async () => {
-    h.plan = [one(), one({ teacherProfileId: 'p2', kind: 'reminder', newThreadIds: [] })]
+    h.plan = [one(), one({ teacherProfileId: 'p2', threadIds: ['c2', 'c3'], due: [due('c2', 3), due('c3', 1)] })]
     const res = await GET(req('?dryRun=1') as never)
-    expect(await res.json()).toMatchObject({ ok: true, dryRun: true, teachers: 2, new: 1, reminders: 1, tokens: true })
+    const body = await res.json()
+    // Threads per stage, and whether the run fell in the quiet hours.
+    expect(body).toMatchObject({ ok: true, dryRun: true, teachers: 2, first: 2, second: 0, third: 1, tokens: true })
+    expect(typeof body.quiet).toBe('boolean')
     expect(h.claims).toEqual([])
     expect(h.sends).toEqual([])
   })
@@ -229,5 +243,17 @@ describe('GET /api/cron/teacher-message-emails', () => {
     h.plan = [one(), one({ teacherProfileId: 'p2' })]
     const body = await (await GET(req() as never)).text()
     expect(Buffer.byteLength(body)).toBeLessThan(200)
+  })
+})
+
+describe('the quiet hours begin mid-run (codex, gate round 2)', () => {
+  it('⛔ stops before the next claim — a planned pause: 200, nothing claimed or sent, the rest left for the morning', async () => {
+    h.plan = [one(), one({ teacherProfileId: 'p2' })]
+    h.quiet = true
+    const res = await GET(req() as never)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ ok: true, sent: 0, stopped: 'quiet', left: 2 })
+    expect(h.claims).toEqual([])
+    expect(h.sends).toEqual([])
   })
 })
