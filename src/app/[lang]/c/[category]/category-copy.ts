@@ -241,17 +241,23 @@ const TEACHERS_DESCRIPTION: Record<PageLang, string> = {
  * What a /c/teachers/<district> lede says after its count, where any other category states
  * REPORT_SENTENCE (owner 2026-09-30: teachers are people, not listings; CS-3 claim 6). It is the
  * /c/teachers lede's own second sentence, word for word in both languages (category-lede.tsx — the
- * test holds the two together). True by code: only a business account may open a thread with a
- * teacher (api/conversations/route.ts, "ONLY A BUSINESS ACCOUNT MAY MESSAGE A TEACHER"), and the
- * phone, email and CV reach that thread only after the teacher taps Share in it
- * (src/lib/teachers/share.ts).
+ * test holds the two together), and DistrictLede's English tr() literal (category-text.tsx).
+ * ⛔ WHO MAY WRITE IS A DAILY LADDER, NOT A BUSINESS-ONLY GATE (owner, 2026-10-13 — the teacher DM
+ * ladder, src/lib/teachers/dm-quota.ts): any signed-in account may start chats with a few new
+ * teachers a day, more with a live identity check, most as a verified business (teachers/constants.ts
+ * TEACHER_DM_LIMITS). So the sentence names schools and companies first and "other members" after
+ * them. It said "Schools and companies can message a teacher" while only a business account could
+ * open a teacher thread (2026-09-30 → 2026-10-13); that is no longer true by code. It states no
+ * limit, so a changed number cannot make it stale. What IS still true by code, and all it promises
+ * about contact details: the phone, email and CV reach a thread only after the teacher taps Share in
+ * it (src/lib/teachers/share.ts).
  * ⚠️ THE PAGE ONLY. The district DESCRIPTION keeps no tail for teachers (CS-3 V2-9b, approved as "the
  * count, nothing after it"), so here — and only here — the lede says more than the meta; it says
  * nothing the meta contradicts. category-text.test.tsx pins both shapes.
  */
 export const TEACHERS_CONTACT_SENTENCE: Record<PageLang, string> = {
-  en: 'Schools and companies can message a teacher; their phone, email and CV are shared only when the teacher chooses to.',
-  vi: 'Trường học và công ty có thể nhắn tin cho giáo viên; số điện thoại, email và CV chỉ được chia sẻ khi giáo viên đồng ý.',
+  en: 'Schools, companies and other members can message a teacher; their phone, email and CV are shared only when the teacher chooses to.',
+  vi: 'Trường học, công ty và các thành viên khác có thể nhắn tin cho giáo viên; số điện thoại, email và CV chỉ được chia sẻ khi giáo viên đồng ý.',
 }
 
 /**

@@ -116,7 +116,7 @@ function Provenance({ slug, linked }: { slug?: string; linked: 'all' | 'most' | 
   if (slug === 'teachers') {
     return (
       <>
-        {tr('English and subject teachers looking for work in Vietnam. Schools and companies can message a teacher; their phone, email and CV are shared only when the teacher chooses to. ', 'Giáo viên tiếng Anh và các môn học đang tìm việc tại Việt Nam. Trường học và công ty có thể nhắn tin cho giáo viên; số điện thoại, email và CV chỉ được chia sẻ khi giáo viên đồng ý. ')}
+        {tr('English and subject teachers looking for work in Vietnam. Schools, companies and other members can message a teacher; their phone, email and CV are shared only when the teacher chooses to. ', 'Giáo viên tiếng Anh và các môn học đang tìm việc tại Việt Nam. Trường học, công ty và các thành viên khác có thể nhắn tin cho giáo viên; số điện thoại, email và CV chỉ được chia sẻ khi giáo viên đồng ý. ')}
         <Link href="/teachers/join" className="font-semibold text-brand underline">{tr('Teachers: create your free profile', 'Giáo viên: tạo hồ sơ miễn phí')}</Link>
         {/* The schools' cover-lesson door is NOT here: this paragraph is clamped on a phone — TeacherCoverLink below. */}
       </>

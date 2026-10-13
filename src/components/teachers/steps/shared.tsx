@@ -59,7 +59,7 @@ export function makeErrText(tr: (en: string, vi: string) => string) {
       case 'goal_required': return tr('Switch on cover lessons — or go back to step 1 and pick the work you want.', 'Hãy bật nhận dạy thay — hoặc quay lại bước 1 và chọn công việc bạn muốn.')
       // The publish screens' refusals, on the FIELD they refused (publish.ts PublishBlockedError names it, never the word).
       case 'contact_in_text':
-      case 'contact_in_name': return tr('Please remove phone numbers, emails and links here — schools get your contact only when you share it in chat.', 'Vui lòng xoá số điện thoại, email và liên kết ở đây — trường chỉ nhận liên hệ khi bạn chia sẻ trong tin nhắn.')
+      case 'contact_in_name': return tr('Please remove phone numbers, emails and links here — the person you are chatting with gets your contact only when you share it in that chat.', 'Vui lòng xoá số điện thoại, email và liên kết ở đây — người đang trò chuyện với bạn chỉ nhận được liên hệ khi bạn chia sẻ trong tin nhắn với họ.')
       case 'banned_words': return tr('This contains a word we do not allow. Please rephrase it.', 'Nội dung này có từ không được phép. Vui lòng viết lại.')
       case 'reach_required': return tr('Add a place near you on the “Where you teach” step first — that is where schools find you for cover.', 'Hãy thêm một nơi gần bạn ở bước “Nơi bạn dạy” trước — đó là nơi các trường tìm bạn để dạy thay.')
       default: return code ? tr('Please check this value.', 'Vui lòng kiểm tra lại.') : ''

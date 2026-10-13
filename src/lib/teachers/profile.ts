@@ -97,8 +97,11 @@ const RELOCATE_ABROAD: readonly Relocate[] = ['anywhere', 'some', 'online-only']
  * Publish tap IS the consent; the client echoes the version it showed as `publishNotice`, the server stamps it into
  * TeacherProfile.consentPublicVersion and refuses any other (409 notice_changed). ⛔ BUMP IT WHEN THE NOTICE'S MEANING
  * CHANGES (what is public, to whom) — the record must say which words each teacher accepted (PDP Law 91/2025).
+ * 2026-10-13: any account may message a teacher (the daily ladder), so the notice names other members beside schools
+ * and search engines, and "What's public?" says the person the teacher is chatting with — not "a school" — gets what
+ * they share.
  */
-export const PUBLISH_NOTICE_VERSION = '2026-10-08'
+export const PUBLISH_NOTICE_VERSION = '2026-10-13'
 /**
  * The AI note beside the two opt-ins — job matching by Claude Haiku 5.5 (Anthropic), the transfer abroad (owner,
  * 2026-10-08 — never Google Gemini). Stamped as matchEmailNoticeVersion / staffContactNoticeVersion when an opt-in is

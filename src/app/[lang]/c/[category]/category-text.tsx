@@ -410,7 +410,7 @@ export function DistrictLede({
       <>
         {n} {what} {place.en}.{' '}
         {teachers
-          ? tr('Schools and companies can message a teacher; their phone, email and CV are shared only when the teacher chooses to.')
+          ? tr('Schools, companies and other members can message a teacher; their phone, email and CV are shared only when the teacher chooses to.')
           : tr('Members can report any listing that breaks the rules.')}
         {cross}
       </>

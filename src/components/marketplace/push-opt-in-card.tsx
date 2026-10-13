@@ -193,8 +193,9 @@ export function PushOptInCard({ surface, offers = true, className }: { surface: 
 
   const benefit =
     surface === 'teacher'
-      // A teacher offering cover lessons (2026-10-07): the bell + push rings when a school messages them.
-      ? tr('Get notified when a school messages you about a cover lesson', 'Nhận thông báo khi có trường nhắn tin cho bạn về buổi dạy thay')
+      // A teacher offering cover lessons (2026-10-07): the bell + push rings when someone messages them — any signed-in
+      // account may write since the DM ladder (2026-10-13), within notify.ts's caps.
+      ? tr('Get notified when someone messages you about a cover lesson or a job', 'Nhận thông báo khi có người nhắn tin cho bạn về buổi dạy thay hoặc việc làm')
       : surface === 'job-post'
       ? tr('Get notified when the first candidate messages you', 'Nhận thông báo khi ứng viên đầu tiên nhắn tin cho bạn')
       : surface === 'post'

@@ -208,9 +208,11 @@ export function TeachKeyPoints({ g, isLiveHref }: { g: TeachGuide; isLiveHref: (
 /**
  * The "next step" aside after a guide's last section (SeoArticle `afterSections`) — what eno.vn itself offers a
  * teacher, stated only as far as it is true (CLAUDE.md claims rules; src/lib/teachers/*): the profile is free,
- * schools message you there and your phone, email and CV stay hidden until you choose to share them; the
- * school pages carry reviews written by teachers; jobs link to the original posting, where you apply.
- * ⛔ No "we find you a job", no "verified schools", no "parents book you" — none of it is true.
+ * schools message you there (since 2026-10-13 any signed-in account may, within a daily limit on new chats; only a
+ * business can ask about a cover lesson) and your phone, email and CV stay hidden until you choose to share them;
+ * the school pages carry reviews written by teachers; jobs link to the original posting, where you apply.
+ * ⛔ No "we find you a job", no "verified schools", no "parents book you" — none of it is true (a parent may
+ * message a teacher now, but nothing is booked through eno.vn).
  */
 /** English chrome, as a constant (the guides' chrome follows the article, never `tr()` — see the file header). */
 const NEXT_STEP = 'Your next step on eno.vn'

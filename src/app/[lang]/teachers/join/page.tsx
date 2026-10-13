@@ -14,7 +14,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL
 // ONE canonical — the teacher host — so the two URLs never compete in search.
 export const metadata: Metadata = {
   title: `Teach in Vietnam — create your teacher profile | ${SITE_NAME}`,
-  description: 'Free teacher profile for English and subject teachers in Vietnam: experience, qualifications and an intro video. Schools message you; your contact stays private until you share it.',
+  description: 'Free teacher profile for English and subject teachers in Vietnam: experience, qualifications and an intro video. Schools and others looking for a teacher can message you; your contact stays private until you share it.',
   alternates: { canonical: teacherOrigin(APP_URL) ? `${teacherOrigin(APP_URL)}/` : '/teachers/join' },
 }
 

@@ -150,19 +150,19 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
             <video src={t.videoUrl} controls className="h-40 max-w-full rounded-xl bg-black" />
             <Button variant="ghost" size="sm" type="button" onClick={() => set('videoUrl', null)}><X className="size-4" />{tr('Remove', 'Xoá')}</Button>
             {/* A new upload over a private video: say what Save will do — Remove brings the private one's card back. */}
-            {media.privateVideo && <p className="w-full text-xs text-muted-foreground">{tr('Saving replaces your private intro video with this one. Schools you sent the old one to will need you to send it again.', 'Khi lưu, video này sẽ thay video giới thiệu riêng tư của bạn. Các trường đã nhận video cũ sẽ cần bạn gửi lại.')}</p>}
+            {media.privateVideo && <p className="w-full text-xs text-muted-foreground">{tr('Saving replaces your private intro video with this one. Anyone you sent the old one to will need you to send it again.', 'Khi lưu, video này sẽ thay video giới thiệu riêng tư của bạn. Những người đã nhận video cũ sẽ cần bạn gửi lại.')}</p>}
           </div>
         ) : media.privateVideo ? (
           // A private video: the form never holds its address — what it is, and a Remove that is its own call.
           <div className="flex flex-wrap items-center gap-3 rounded-xl bg-tint p-3">
             <Lock className="size-4 shrink-0 text-muted-foreground" />
             <p className="min-w-0 flex-1 text-sm text-body">{t.videoOnRequest
-              ? tr('Your intro video is saved privately. A school sees it only when you send it in your chat.', 'Video giới thiệu của bạn được lưu riêng tư. Trường chỉ xem được khi bạn gửi trong tin nhắn.')
+              ? tr('Your intro video is saved privately. The person you are chatting with sees it only when you send it in that chat.', 'Video giới thiệu của bạn được lưu riêng tư. Người bạn đang trò chuyện chỉ xem được khi bạn gửi trong tin nhắn với họ.')
               : tr('Your private intro video will be shown on your profile when you save.', 'Video giới thiệu riêng tư sẽ được hiển thị trên hồ sơ khi bạn lưu.')}</p>
             {!media.ownVideoUrl && <Button variant="ghost" size="sm" type="button" onClick={media.onWatchOwnVideo} loading={media.ownVideoBusy}><Play className="size-4" />{tr('Watch', 'Xem')}</Button>}
             {media.confirmVideoRemove ? (
               <span className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground">{tr('Schools you sent it to will lose access.', 'Các trường bạn đã gửi sẽ không xem được nữa.')}</span>
+                <span className="text-xs text-muted-foreground">{tr('Anyone you sent it to will lose access.', 'Những người bạn đã gửi sẽ không xem được nữa.')}</span>
                 <Button variant="destructive" size="sm" type="button" onClick={media.onRemovePrivateVideo} loading={media.videoRemoving}>{tr('Remove for good', 'Xoá vĩnh viễn')}</Button>
                 <Button variant="ghost" size="sm" type="button" onClick={() => media.setConfirmVideoRemove(false)}>{tr('Cancel', 'Huỷ')}</Button>
               </span>
@@ -199,7 +199,7 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
                 <RadioDot className="mt-0.5" />
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-foreground">{tr('Keep it private — send it on request', 'Giữ riêng tư — gửi khi được đề nghị')}</span>
-                  <span className="block text-xs text-muted-foreground">{tr('Schools ask in chat. You choose who gets it, and can stop sharing any time.', 'Trường đề nghị trong tin nhắn. Bạn chọn gửi cho ai và có thể ngừng chia sẻ bất cứ lúc nào.')}</span>
+                  <span className="block text-xs text-muted-foreground">{tr('People ask in chat. You choose who gets it, and can stop sharing any time.', 'Mọi người đề nghị trong tin nhắn. Bạn chọn gửi cho ai và có thể ngừng chia sẻ bất cứ lúc nào.')}</span>
                 </span>
               </Radio>
             </RadioGroup>
@@ -216,7 +216,7 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
       <section className="space-y-3">
         <div>
           <h2 className="text-base font-semibold text-foreground">{tr('CV (optional)', 'CV (không bắt buộc)')}</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">{tr('PDF, up to 10 MB. Private: a school gets it only when you tap the Share button in your chat with them.', 'PDF, tối đa 10 MB. Riêng tư: trường chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ.')}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{tr('PDF, up to 10 MB. Private: the person you are chatting with gets it only when you tap the Share button in that chat.', 'PDF, tối đa 10 MB. Riêng tư: người đang trò chuyện với bạn chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ.')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {(media.cvFile || media.cvName) && <span className="inline-flex items-center gap-2 text-sm text-body"><FileText className="size-4" />{media.cvFile?.name ?? media.cvName}</span>}
@@ -245,7 +245,7 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
             {tr('Use my number:', 'Dùng số của tôi:')} {prefillPhone}
           </Chip>
         )}
-        <FieldDescription className="text-muted-foreground">{tr('Never shown publicly. A school gets it only when you tap the Share button in your chat — and our staff use it only if you let them call you.', 'Không bao giờ công khai. Trường chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn — và nhân viên của chúng tôi chỉ dùng khi bạn cho phép gọi.')}</FieldDescription>
+        <FieldDescription className="text-muted-foreground">{tr('Never shown publicly. The person you are chatting with gets it only when you tap the Share button in that chat — and our staff use it only if you let them call you.', 'Không bao giờ công khai. Người bạn đang trò chuyện chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ — và nhân viên của chúng tôi chỉ dùng khi bạn cho phép gọi.')}</FieldDescription>
         {errors.phone && <FieldError>{errText('phone', errors.phone)}</FieldError>}
       </Field>
 

@@ -1136,7 +1136,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   }, [mode, uid])
 
   const publishErrText = (code: string): string => {
-    if (code === 'contact_in_text' || code === 'contact_in_name') return tr('Please remove phone numbers, emails and links from your profile text — schools get your contact only when you share it in chat.', 'Vui lòng xoá số điện thoại, email và liên kết khỏi hồ sơ — trường chỉ nhận liên hệ khi bạn chia sẻ trong tin nhắn.')
+    if (code === 'contact_in_text' || code === 'contact_in_name') return tr('Please remove phone numbers, emails and links from your profile text — the person you are chatting with gets your contact only when you share it in that chat.', 'Vui lòng xoá số điện thoại, email và liên kết khỏi hồ sơ — người đang trò chuyện với bạn chỉ nhận được liên hệ khi bạn chia sẻ trong tin nhắn với họ.')
     if (code === 'banned_words') return tr('Your profile contains a word we do not allow. Please rephrase.', 'Hồ sơ có từ không được phép. Vui lòng viết lại.')
     if (code === 'account_restricted') return tr('Your account cannot publish right now.', 'Tài khoản của bạn hiện chưa thể đăng.')
     if (code.startsWith('identity_')) return tr('Please verify your identity in Account settings before publishing.', 'Vui lòng xác minh danh tính trong Cài đặt tài khoản trước khi đăng.')
@@ -1766,8 +1766,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   const publishNote = showPublishNote ? (
     <p className="text-xs text-body" data-testid="publish-notice">
       {mode === 'edit'
-        ? tr('Saving updates your public profile: schools and search engines see everything except your phone, email, CV and a private video.', 'Khi lưu, hồ sơ công khai của bạn được cập nhật: các trường và công cụ tìm kiếm thấy mọi thứ trừ số điện thoại, email, CV và video riêng tư.')
-        : tr('Publishing shows your profile to schools and search engines — everything except your phone, email, CV and a private video.', 'Khi đăng, hồ sơ của bạn hiển thị với các trường và công cụ tìm kiếm — mọi thứ trừ số điện thoại, email, CV và video riêng tư.')}{' '}
+        ? tr('Saving updates your public profile: schools, other members and search engines see everything except your phone, email, CV and a private video. Any signed-in account can message you, within a daily limit that rises with its verification.', 'Khi lưu, hồ sơ công khai của bạn được cập nhật: các trường, các thành viên khác và công cụ tìm kiếm thấy mọi thứ trừ số điện thoại, email, CV và video riêng tư. Mọi tài khoản đã đăng nhập đều có thể nhắn tin cho bạn, trong giới hạn hằng ngày tăng theo mức xác minh của tài khoản đó.')
+        : tr('Publishing shows your profile publicly — to schools, other members and search engines — everything except your phone, email, CV and a private video. Any signed-in account can message you, within a daily limit that rises with its verification.', 'Khi đăng, hồ sơ của bạn hiển thị công khai — với các trường, các thành viên khác và công cụ tìm kiếm — mọi thứ trừ số điện thoại, email, CV và video riêng tư. Mọi tài khoản đã đăng nhập đều có thể nhắn tin cho bạn, trong giới hạn hằng ngày tăng theo mức xác minh của tài khoản đó.')}{' '}
       <Button variant="link" size="none" type="button" className="text-xs font-semibold" onClick={() => setWhatsPublic(true)}>{tr('What’s public?', 'Những gì được công khai?')}</Button>
       {/* ⚠️ THIS LINE IS THE ASSENT ITSELF for an account still untyped — this Publish sends `acceptTerms` and the server
           records the Terms acceptance with it (api/teachers/me PUT), and that record must never assert an assent the
@@ -1862,7 +1862,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
         <h1 className="mt-4 h-title text-foreground">{mode === 'edit' || !done.live ? tr('Profile saved', 'Đã lưu hồ sơ') : tr('Your profile is live', 'Hồ sơ của bạn đã được đăng')}</h1>
         {done.live ? (
           <p className="mt-2 text-sm text-body">
-            {tr('Schools can now find you. When one messages you, reply — and tap', 'Các trường giờ có thể tìm thấy bạn. Khi có trường nhắn tin, hãy trả lời — và bấm')} “{shareWords}” {tr('if you want them to have your contact details and CV.', 'nếu bạn muốn gửi thông tin liên hệ và CV.')}
+            {tr('Schools can now find you. When someone messages you, reply — and tap', 'Các trường giờ có thể tìm thấy bạn. Khi có người nhắn tin, hãy trả lời — và bấm')} “{shareWords}” {tr('if you want them to have your contact details and CV.', 'nếu bạn muốn gửi thông tin liên hệ và CV.')}
           </p>
         ) : done.noGoal ? (
           <>
@@ -2103,7 +2103,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
         <DrawerContent>
           <DrawerHeader className="text-left">
             <DrawerTitle className="text-left text-base font-bold">{tr('What’s public?', 'Những gì được công khai?')}</DrawerTitle>
-            <DrawerDescription className="text-left">{tr('Your profile is a public page: schools and search engines can see it.', 'Hồ sơ của bạn là một trang công khai: các trường và công cụ tìm kiếm có thể xem.')}</DrawerDescription>
+            <DrawerDescription className="text-left">{tr('Your profile is a public page: anyone, including schools and search engines, can see it.', 'Hồ sơ của bạn là một trang công khai: bất kỳ ai, kể cả các trường và công cụ tìm kiếm, đều có thể xem.')}</DrawerDescription>
           </DrawerHeader>
           <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain px-4 pt-4 text-sm text-body">
             <div className="space-y-2">
@@ -2122,8 +2122,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
             <div className="space-y-2">
               <p className="font-semibold text-foreground">{tr('Never public', 'Không bao giờ công khai')}</p>
               <ul className="list-disc space-y-1 pl-5">
-                <li>{tr('Your phone number, email and CV — a school gets them only when you tap the Share button in your chat', 'Số điện thoại, email và CV — trường chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn')}</li>
-                <li>{tr('An intro video you keep private — you send it to the schools you choose', 'Video giới thiệu bạn giữ riêng tư — bạn gửi cho trường bạn chọn')}</li>
+                <li>{tr('Your phone number, email and CV — the person you are chatting with gets them only when you tap Share in that chat', 'Số điện thoại, email và CV — người đang trò chuyện với bạn chỉ nhận được khi bạn bấm Chia sẻ trong tin nhắn với họ')}</li>
+                <li>{tr('An intro video you keep private — you send it to the people you choose', 'Video giới thiệu bạn giữ riêng tư — bạn gửi cho những người bạn chọn')}</li>
               </ul>
             </div>
             <p>{tr('Hide or delete your profile at any time in your profile settings.', 'Bạn có thể ẩn hoặc xoá hồ sơ bất cứ lúc nào trong phần cài đặt hồ sơ.')}</p>

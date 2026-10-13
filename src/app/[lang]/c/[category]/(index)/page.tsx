@@ -387,13 +387,16 @@ export default async function CategoryPage({ params }: Props) {
           media={<Mascot name="search" className="h-40 w-40" />}
           // ⚠️ /c/teachers speaks to TEACHERS, not sellers: a profile is not a listing that "reaches
           // buyers", and its way in is /teachers/join, not /post (disc-03 / rentals-01).
-          // ⚠️ "SCHOOLS AND COMPANIES", NEVER "FAMILIES": only a business account may message a teacher
-          // (owner, 2026-09-30 — teacher-contact.tsx, POST /api/conversations → 403 business_only).
+          // ⚠️ WHO MAY WRITE TO A TEACHER IS A DAILY LADDER, NOT "BUSINESSES ONLY" (owner, 2026-10-13 — the teacher
+          // DM ladder, src/lib/teachers/dm-quota.ts): any signed-in account may start chats with a few new teachers a
+          // day, so the subtitle names schools and companies first and "others looking for a teacher" after them — it
+          // must not read as schools only. It promises no contact details: the phone, email and CV reach a chat only
+          // when the teacher taps Share in it (src/lib/teachers/share.ts).
           title={isTeachers
             ? <Bilingual en="No teacher profiles here yet — be the first." vi="Chưa có hồ sơ giáo viên nào — hãy là người đầu tiên." />
             : <Tr text="No listings here yet — be the first to post one." />}
           subtitle={isTeachers
-            ? <Bilingual en="Create a free profile, and schools and companies hiring teachers can message you on eno." vi="Tạo hồ sơ miễn phí để các trường học và công ty đang tuyển giáo viên có thể nhắn tin cho bạn trên eno." />
+            ? <Bilingual en="Create a free profile, and schools, companies and others looking for a teacher can message you on eno." vi="Tạo hồ sơ miễn phí để các trường học, công ty và những người đang tìm giáo viên có thể nhắn tin cho bạn trên eno." />
             : <Tr text="Your listing goes live in minutes and reaches buyers across Vietnam." />}
           action={
             <div className="flex max-w-2xl flex-col items-center gap-6">

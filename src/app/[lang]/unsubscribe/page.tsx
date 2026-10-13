@@ -30,7 +30,8 @@ function UnsubscribeInner() {
   const params = useSearchParams()
   const token = params.get('token') ?? ''
   const teacherMatches = params.get('list') === 'teacher-matches'
-  // The emails telling a teacher a school messaged them (2026-10-12): a service notice, so they CAN be switched back on here.
+  // The emails telling a teacher someone messaged them about their profile (2026-10-12; any signed-in account may write since
+  // the DM ladder, 2026-10-13): a service notice, so they CAN be switched back on here.
   const teacherMessages = params.get('list') === 'teacher-messages'
   const list = teacherMatches ? '&list=teacher-matches' : teacherMessages ? '&list=teacher-messages' : ''
   const [state, setState] = useState<'idle' | 'saving' | 'unsubscribed' | 'resubscribed' | 'retry' | 'error'>('idle')
@@ -89,20 +90,20 @@ function UnsubscribeInner() {
     state === 'unsubscribed' && teacherMessages
       ? {
           title: tr("You're unsubscribed", 'Bạn đã hủy đăng ký'),
-          body: tr("You won't get emails when a school messages you. New messages still arrive in your eno.vn inbox.", 'Bạn sẽ không nhận email khi có trường nhắn tin cho bạn. Tin nhắn mới vẫn hiện trong hộp thư eno.vn của bạn.'),
+          body: tr("You won't get emails when someone messages you about your teacher profile. New messages still arrive in your eno.vn inbox.", 'Bạn sẽ không nhận email khi có người nhắn tin cho bạn về hồ sơ giáo viên. Tin nhắn mới vẫn hiện trong hộp thư eno.vn của bạn.'),
           action: resubscribeButton,
         }
     : state === 'resubscribed' && teacherMessages
       ? {
           title: tr("You're back in", 'Bạn đã đăng ký lại'),
-          body: tr("We'll email you again when a school messages you.", 'Chúng tôi sẽ lại gửi email cho bạn khi có trường nhắn tin.'),
+          body: tr("We'll email you again when someone messages you about your teacher profile.", 'Chúng tôi sẽ lại gửi email khi có người nhắn tin cho bạn về hồ sơ giáo viên.'),
           action: null,
         }
     // Idle AND saving (Opus, gate): mid-click this list must keep its own words, never fall through to the digest's.
     : (state === 'idle' || state === 'saving') && teacherMessages
       ? {
           title: tr('Stop emails about new messages?', 'Ngừng nhận email về tin nhắn mới?'),
-          body: tr("You'll stop getting an email when a school messages you on eno.vn. Messages still arrive in your inbox.", 'Bạn sẽ không còn nhận email khi có trường nhắn tin cho bạn trên eno.vn. Tin nhắn vẫn đến hộp thư của bạn.'),
+          body: tr("You'll stop getting an email when someone messages you about your teacher profile on eno.vn. Messages still arrive in your inbox.", 'Bạn sẽ không còn nhận email khi có người nhắn tin cho bạn về hồ sơ giáo viên trên eno.vn. Tin nhắn vẫn đến hộp thư của bạn.'),
           action: unsubscribeButton,
         }
     : state === 'unsubscribed' && teacherMatches

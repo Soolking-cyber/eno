@@ -29,7 +29,7 @@ export default function PendingComposePage() {
   const ran = useRef(false)
   // ⚠️ The effect below runs ONCE (`ran`), and its answer can land before /api/me does — on a full document load (every
   // deploy turns router.push into one) the first render is hydration. So the account is read through a ref when the answer
-  // arrives and again when a step is tapped, never from the first render's closure (pre-review, 2026-10-13).
+  // arrives, never from the first render's closure (pre-review, 2026-10-13).
   const account = useRef({ accountType, identityLoaded })
   useEffect(() => { account.current = { accountType, identityLoaded } })
 
@@ -67,20 +67,16 @@ export default function PendingComposePage() {
           const ladder = error === 'teacher_thread_cap' ? teacherDmLimitMessage(refusal, tr) : null
           // The gate is read LIVE: the hook's first render is hydration, where it answers false (use-ios-hide-kyc.ts).
           const hideKyc = iosHideKycClient()
-          // The label from the account as it stands now — an account not loaded yet is taken as onboarded, the common
-          // case; the step's TARGET is decided again on the tap, when it has loaded ('switch_to_business' differs by type).
+          // The step — label AND target — from the account as known when the answer arrived: this page unmounts right
+          // after the toast, so nothing newer can reach the tap. An account not loaded by then is taken as onboarded, the
+          // common case (sign-in sends an account with no type to /onboard first); 'switch_to_business' differs by type.
           const now = account.current
           const step = ladder ? teacherDmStep(refusal.next, now.identityLoaded ? now.accountType : 'individual', tr) : null
           const showStep = step && !(step.kyc && hideKyc)
           if (ladder || error === 'teacher_awaiting_reply') {
             refusalToast(
               ladder ? (step?.kyc && hideKyc ? `${ladder} ${iosVerifyElsewhereText(step.kyc, tr)}` : ladder) : teacherAwaitingReplyMessage(tr),
-              // The target from the account as it stands at the tap — with the label's own fallback while it has not loaded,
-              // so the two never disagree (gate review, 2026-10-13).
-              { id: 'teacher-dm-limit', step: showStep ? { label: step.label, onClick: () => {
-                const at = account.current
-                router.push(teacherDmStep(refusal.next, at.identityLoaded ? at.accountType : 'individual', tr)?.href ?? step.href)
-              } } : null },
+              { id: 'teacher-dm-limit', step: showStep ? { label: step.label, onClick: () => router.push(step.href) } : null },
             )
           } else toast.error(
             error === 'own_listing' ? tr("That's your own listing.", 'Đây là tin của chính bạn.')

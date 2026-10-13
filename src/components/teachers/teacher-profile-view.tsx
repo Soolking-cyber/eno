@@ -263,13 +263,14 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
                 <video src={publicVideo} controls preload="metadata" playsInline className="aspect-video w-full rounded-2xl bg-black" />
               </section>
             )}
-            {/* Kept private, sent on request (2026-10-07): a school asks in the chat, and the teacher sends it there. */}
+            {/* Kept private, sent on request (2026-10-07): whoever messages the teacher asks in the chat — any account since
+                2026-10-13, not only a school — and the teacher sends it there. */}
             {videoOnRequest && (
               <section aria-labelledby="t-video">
                 <h2 id="t-video" className="mb-2 text-lg font-semibold text-foreground"><Tr text="Intro video" /></h2>
                 <p className="flex items-center gap-2 text-sm text-body">
                   <Lock className="size-4 shrink-0 text-muted-foreground" />
-                  <Bilingual en="Sent on request — schools can message this teacher and ask for it in the chat." vi="Gửi khi được đề nghị — trường có thể nhắn tin cho giáo viên và đề nghị xem trong cuộc trò chuyện." />
+                  <Bilingual en="Sent on request — message this teacher and ask for it in the chat." vi="Gửi khi được đề nghị — hãy nhắn tin cho giáo viên và đề nghị xem trong cuộc trò chuyện." />
                 </p>
               </section>
             )}

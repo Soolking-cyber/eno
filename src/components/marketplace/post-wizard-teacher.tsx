@@ -18,8 +18,10 @@ import { localizedHref } from '@/lib/lang-pinned'
  *    `id="pw-teacher"`: the "Still needed" list and the server's refusal jump here (post-wizard.tsx scrollToField).
  *  · TeacherProfileLine — one line under the category grid, for a teacher who has not picked anything yet.
  *
- * The copy is the schools sidebar's (schools-sidebar.tsx), so the promise is the one made everywhere: schools message
- * you, and your contact stays private until you share it (teacher-contact.tsx — the teacher's own "Share my contact").
+ * The copy is the schools sidebar's (schools-sidebar.tsx), so the promise is the one made everywhere: schools and others
+ * looking for a teacher can message you, and your contact stays private until you share it (teacher-contact.tsx — the
+ * teacher's own "Share my contact"). Never "schools message you" alone: any signed-in account may start chats with a
+ * few new teachers a day (owner, 2026-10-13 — the teacher DM ladder, src/lib/teachers/dm-quota.ts).
  * ⚠️ ENGLISH IN LITERAL tr() PAIRS: scripts/gen-ui-strings.mjs pre-translates only literals.
  */
 export function TeacherProfileInstead({ blocking }: { blocking: boolean }) {
@@ -38,7 +40,7 @@ export function TeacherProfileInstead({ blocking }: { blocking: boolean }) {
         : tr('A teacher looking for work?', 'Bạn là giáo viên đang tìm việc?')}
       className="max-w-xl"
     >
-      <p>{tr('Create a free teacher profile: schools message you, and your contact stays private until you share it.', 'Tạo hồ sơ giáo viên miễn phí: trường sẽ nhắn cho bạn, và thông tin liên hệ của bạn được giữ kín cho đến khi bạn chia sẻ.')}</p>
+      <p>{tr('Create a free teacher profile: schools and others looking for a teacher can message you, and your contact stays private until you share it.', 'Tạo hồ sơ giáo viên miễn phí: các trường và những người đang tìm giáo viên có thể nhắn tin cho bạn, và thông tin liên hệ của bạn được giữ kín cho đến khi bạn chia sẻ.')}</p>
       <Button asChild variant="cta" size="sm" className="mt-2 w-fit">
         <a href={localizedHref('/teachers/join', lang)} data-cross-link="teacher-profile">
           {tr('Create a teacher profile', 'Tạo hồ sơ giáo viên')}

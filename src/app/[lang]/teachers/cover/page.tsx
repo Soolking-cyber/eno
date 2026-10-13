@@ -72,7 +72,7 @@ export default function TeacherCoverPage() {
               <Point Icon={MessageSquare} en="Message them in the app. A teacher's phone, email and CV are shared only if they choose to." vi="Nhắn tin trong ứng dụng. Số điện thoại, email và CV của giáo viên chỉ được chia sẻ nếu họ đồng ý." />
             </ul>
             <Button variant="cta" asChild><LocalizedLink href={SCHOOLS_URL} rel="nofollow" prefetch={false}><Bilingual en="Find a cover teacher" vi="Tìm giáo viên dạy thay" /></LocalizedLink></Button>
-            <p className="text-xs text-muted-foreground"><Bilingual en="Messaging teachers needs a school or company account." vi="Cần tài khoản trường học hoặc công ty để nhắn tin cho giáo viên." /></p>
+            <p className="text-xs text-muted-foreground"><Bilingual en="Any account can message teachers — verify your identity or your business to message more each day. Asking a teacher for a cover lesson is for school and business accounts." vi="Mọi tài khoản đều có thể nhắn tin cho giáo viên — xác minh danh tính hoặc doanh nghiệp để nhắn cho nhiều giáo viên hơn mỗi ngày. Hỏi giáo viên dạy thay dành cho tài khoản trường học và doanh nghiệp." /></p>
           </section>
 
           <section aria-labelledby="cover-teachers" className="space-y-4 rounded-2xl bg-tint p-5">
