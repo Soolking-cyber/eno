@@ -557,26 +557,38 @@ describe('the 7-day rule in mapRecord — ⛔ created_at, judged by judgeCreated
 describe('existingRowPlan — revival and re-dating at --apply', () => {
   const apt = (postedAt: number) => ({ postedAt: new Date(postedAt), mutable: { subcategorySlug: 'apartment-rental' } as never })
   const at = (status: string, postedAt: number) => ({ status, postedAt: new Date(postedAt) })
+  /** Judged at the write's clock — here the set's own moment unless a case says otherwise. */
+  const plan = (row: ReturnType<typeof apt>, ex: ReturnType<typeof at>, writeAt = SET_AT) => existingRowPlan(row, ex, writeAt)
 
   it('⛔ revives only from expired/stale — never hidden, removed, sold — and re-dates on revival', () => {
-    expect(existingRowPlan(apt(SET_AT - DAY), at('expired', SET_AT - 9 * DAY))).toEqual({ revive: true, redate: true })
-    expect(existingRowPlan(apt(SET_AT - DAY), at('stale', SET_AT))).toEqual({ revive: true, redate: true })     // even to an older date
-    for (const s of ['hidden', 'removed', 'sold', 'active']) expect(existingRowPlan(apt(SET_AT - 2 * DAY), at(s, SET_AT)).revive).toBe(false)
+    expect(plan(apt(SET_AT - DAY), at('expired', SET_AT - 9 * DAY))).toEqual({ revive: true, late: false, redate: true })
+    expect(plan(apt(SET_AT - DAY), at('stale', SET_AT))).toEqual({ revive: true, late: false, redate: true })     // even to an older date
+    for (const s of ['hidden', 'removed', 'sold', 'active']) expect(plan(apt(SET_AT - 2 * DAY), at(s, SET_AT)).revive).toBe(false)
   })
 
   it('re-dates a live row only when the source date is NEWER (a re-post)', () => {
-    expect(existingRowPlan(apt(SET_AT), at('active', SET_AT - DAY))).toEqual({ revive: false, redate: true })
-    expect(existingRowPlan(apt(SET_AT - DAY), at('active', SET_AT - DAY))).toEqual({ revive: false, redate: false })
+    expect(plan(apt(SET_AT), at('active', SET_AT - DAY))).toEqual({ revive: false, late: false, redate: true })
+    expect(plan(apt(SET_AT - DAY), at('active', SET_AT - DAY))).toEqual({ revive: false, late: false, redate: false })
     // the legacy rows: postedAt was publish_at, which is never older than created_at — not moved back
-    expect(existingRowPlan(apt(SET_AT - 5 * DAY), at('active', SET_AT - DAY))).toEqual({ revive: false, redate: false })
+    expect(plan(apt(SET_AT - 5 * DAY), at('active', SET_AT - DAY))).toEqual({ revive: false, late: false, redate: false })
   })
 
   it('⛔ revives every type since 2026-10-13 (the daily age sweep expires houses, rooms and offices too)', () => {
     for (const subcategorySlug of ['house-rental', 'room-rental', 'office-rental', null]) {
       const row = { postedAt: new Date(SET_AT), mutable: { subcategorySlug } as never }
-      expect(existingRowPlan(row, at('expired', SET_AT - 9 * DAY)), String(subcategorySlug)).toEqual({ revive: true, redate: true })
-      for (const s of ['hidden', 'removed', 'sold']) expect(existingRowPlan(row, at(s, SET_AT - 9 * DAY)).revive).toBe(false)
+      expect(plan(row, at('expired', SET_AT - 9 * DAY)), String(subcategorySlug)).toEqual({ revive: true, late: false, redate: true })
+      for (const s of ['hidden', 'removed', 'sold']) expect(plan(row, at(s, SET_AT - 9 * DAY)).revive).toBe(false)
     }
+  })
+
+  it('⛔ A DAY TO LIVE: a revival with under a day of the window left AT THE WRITE is not made (late) — the row is refreshed like any other', () => {
+    const row = apt(SET_AT - 5.5 * DAY)
+    expect(plan(row, at('expired', SET_AT - 9 * DAY))).toEqual({ revive: true, late: false, redate: true })                       // 1.5 d left
+    expect(plan(row, at('expired', SET_AT - 9 * DAY), SET_AT + 0.75 * DAY)).toEqual({ revive: false, late: true, redate: true })   // 0.75 d left: the newer date still moves
+    expect(plan(row, at('stale', SET_AT - DAY), SET_AT + DAY)).toEqual({ revive: false, late: true, redate: false })               // an older one never moves back
+    expect(plan(apt(SET_AT - 6 * DAY), at('expired', SET_AT - 9 * DAY)).revive).toBe(true)                                      // exactly 6 d: still a day
+    expect(plan(apt(SET_AT - 6 * DAY - 1), at('expired', SET_AT - 9 * DAY))).toMatchObject({ revive: false, late: true })
+    expect(plan(row, at('active', SET_AT - 9 * DAY), SET_AT + DAY).late).toBe(false)                                             // a live row is never late
   })
 
   it('the re-dated rank is the create formula from the source date, never now', () => {

@@ -6,7 +6,7 @@
   of every run too; this agent exists because launchd never starts a second instance of a job that is still running,
   so a refresh that outlasts a day (a long first import, a hung headed Chrome) would otherwise cost the daily sweep.
   A sweep-only run never takes the refresh lock, waits for nothing, and alerts when a refresh has held that lock for
-  over 36 hours. The two sweeps never overlap (a sweep lock).
+  over 36 hours. The two sweeps never overlap (a sweep lock). It imports nothing, so APT_PLACES does not apply here.
   Install (after ~/eno-apartments-job is fast-forwarded to the commit that carries this file):
     mkdir -p ~/eno-import-journals/apartments   # launchd will not start a job whose log dir is missing
     cp scripts/vn.eno.rentals-sweep.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/vn.eno.rentals-sweep.plist

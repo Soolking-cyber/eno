@@ -26,9 +26,6 @@ args=("$@")
 for ((i=0; i<\${#args[@]}; i++)); do
   case "\${args[$i]}" in --save|--fresh-out|--stage) touch "\${args[$((i+1))]}" ;; esac
 done
-case "$*" in *"import-nhatot-com.ts --cg"*)
-  if [ -f "$SANDBOX/nhatot-incomplete" ]; then for ((i=0; i<\${#args[@]}; i++)); do [ "\${args[$i]}" = --save ] && echo '{"ads":[],"complete":false}' > "\${args[$((i+1))]}"; done; fi ;;
-esac
 case "$*" in *"expire-rentals.ts --sweep"*)
   if [ -f "$SANDBOX/sweep-writes-journal" ]; then for ((i=0; i<\${#args[@]}; i++)); do [ "\${args[$i]}" = --journal-dir ] && mkdir -p "\${args[$((i+1))]}" && touch "\${args[$((i+1))]}/rental-expiry-places-test.json"; done; fi ;;
 esac
@@ -98,8 +95,10 @@ function run(box: string, args: string[], o: { exits?: string[]; env?: Record<st
 const stamps = (box: string) => readdirSync(join(box, 'journal/state')).filter((f) => f.startsWith('last-success-')).sort()
 const stampOf = (box: string, src: string) => readFileSync(join(box, 'journal/state', `last-success-${src}`), 'utf8')
 const idx = (calls: string[], needle: string) => calls.findIndex((c) => c.includes(needle))
-/** The gate units, sorted (each its own success stamp; muaban's houses, rooms and offices are muaban-places). */
-const SOURCES = ['batdongsan', 'honeycomb', 'muaban', 'muaban-places', 'nhatot', 'rever']
+/** The gate units run by default (APT_PLACES=0: apartments only), sorted — each its own success stamp. */
+const SOURCES = ['batdongsan', 'honeycomb', 'muaban', 'nhatot', 'rever']
+/** …and with APT_PLACES=1: Nhà Tốt's and Muaban's houses, rooms and offices as their own units. */
+const ALL_SOURCES = ['batdongsan', 'honeycomb', 'muaban', 'muaban-places', 'nhatot', 'nhatot-places', 'rever']
 /** A live process whose command line names the job — what a running refresh looks like to `ps` (a reused pid does not). */
 const holder = () => spawn('bash', ['-c', 'exec -a apartments-weekly-holder sleep 120'], { stdio: 'ignore' })
 
@@ -110,14 +109,22 @@ describe('the job, run end to end on stubs — a first --apply run (every source
   const box = sandbox()
   const first = run(box, ['--apply'])
 
-  it('runs every source, classify, then the sweep — and exits 0', () => {
+  it('runs every apartment source, classify, then the sweep — and exits 0', () => {
     expect(first.code, first.out).toBe(0)
-    for (const step of ['import-nhatot-com.ts --cg', 'import-muaban-net.ts --types apartment', 'import-muaban-net.ts --types house,room,office', 'import-honeycomb-com-vn.ts --since-days', 'retire-rever-rentals.ts --save', 'scraper.py', 'import-batdongsan-rentals.ts', 'classify-apartment-rentals.ts']) {
+    for (const step of ['import-nhatot-com.ts --cg 1010', 'import-muaban-net.ts --types apartment', 'import-honeycomb-com-vn.ts --since-days', 'retire-rever-rentals.ts --save', 'scraper.py', 'import-batdongsan-rentals.ts', 'classify-apartment-rentals.ts']) {
       expect(idx(first.calls, step), step).toBeGreaterThan(-1)
     }
     const sweep = idx(first.calls, 'expire-rentals.ts --sweep')
     expect(sweep).toBe(first.calls.length - 1)                                   // the sweep is the LAST step
     expect(idx(first.calls, 'classify-apartment-rentals.ts')).toBeLessThan(sweep)
+  })
+
+  it('⛔ APT_PLACES unset = APARTMENTS ONLY: no houses/rooms/offices unit runs, Batdongsan reads its two apartment lists', () => {
+    expect(first.out).toMatch(/houses, rooms and offices are not imported \(APT_PLACES=0/)
+    expect(idx(first.calls, '--cg 1020,1030,1050')).toBe(-1)
+    expect(idx(first.calls, '--types house,room,office')).toBe(-1)
+    expect(first.calls.find((x) => x.includes('bds-python scraper.py'))).toBe('bds-python scraper.py --apartments --to-end --new')
+    expect(first.calls.find((x) => x.includes('import-batdongsan-rentals.ts'))).toContain('--max-age-days 7 --subcat apartment-rental --fresh-out ')
   })
 
   it('⛔ writes a success stamp per gate unit holding the run START, and points the sweep at them', () => {
@@ -129,18 +136,21 @@ describe('the job, run end to end on stubs — a first --apply run (every source
     expect(first.calls.at(-1)).toMatch(/ --apply$/)
   })
 
-  it('asks each source for every place type, at 7 days', () => {
+  it('asks each source for its apartments, at 7 days — and Nhà Tốt for its SET in a second read, after the apply, right before the expiry', () => {
     const c = (needle: string) => first.calls.find((x) => x.includes(needle)) ?? ''
-    expect(c('import-nhatot-com.ts --cg')).toContain('--cg 1010,1020,1030,1050 --max-age-days 7 --save ')
+    expect(c('import-nhatot-com.ts --cg 1010 --max-age-days 7 --save')).toMatch(/--save \S+nhatot-stage\.json --fresh-crawl$/)
     expect(c('import-nhatot-com.ts --src')).toContain('--max-age-days 7 --journal-dir ')
-    expect(c('import-muaban-net.ts --types house,room,office')).toMatch(/--stage \S+muaban-places-stage\.jsonl --fresh-crawl$/)
+    expect(c('import-nhatot-com.ts --cg 1010 --max-age-days 7 --fresh-out')).toMatch(/--fresh-out \S+nhatot-fresh\.json --no-probe$/)
+    const stage = idx(first.calls, 'nhatot-stage.json --fresh-crawl'), apply = idx(first.calls, 'import-nhatot-com.ts --src')
+    const set = idx(first.calls, 'nhatot-fresh.json --no-probe'), expire = idx(first.calls, 'expire-apartment-rentals.ts --seller nhatot-import-seller-0001 --fresh')
+    expect(stage).toBeLessThan(apply)
+    expect(apply).toBeLessThan(set)
+    expect(set).toBe(expire - 1)                                                                                   // read, then at once the expiry
     expect(c('import-muaban-net.ts --types apartment')).toMatch(/--fresh-out \S+muaban-fresh\.json$/)
-    expect(first.calls.filter((x) => x.includes('import-muaban-net.ts --src')).length).toBe(2)                  // both stages applied
+    expect(first.calls.filter((x) => x.includes('import-muaban-net.ts --src')).length).toBe(1)
     expect(c('import-honeycomb-com-vn.ts --since-days')).toMatch(/--since-days 30 --save \S+ --fresh-out \S+$/)      // the set: its 30-day window
     expect(c('import-honeycomb-com-vn.ts --src')).toContain('--since-days 7 --journal-dir ')                          // the apply: 7 days
-    expect(c('bds-python scraper.py')).toBe('bds-python scraper.py --to-end --new')                                   // the whole list, its .venv python
-    expect(c('import-batdongsan-rentals.ts')).toContain('--max-age-days 7 --fresh-out ')
-    expect(c('import-batdongsan-rentals.ts')).not.toContain('--subcat')
+    expect(c('import-batdongsan-rentals.ts')).toContain('--max-age-days 7 ')
     expect(first.calls.filter((x) => x.includes('expire-apartment-rentals.ts --seller') && x.includes('--backstop')).length).toBe(5)   // per seller, not per unit
   })
 
@@ -156,6 +166,31 @@ describe('the job, run end to end on stubs — a first --apply run (every source
     const forced = run(box, ['--apply', '--force-imports'], { env: { APT_SOURCES: 'rever' } })
     expect(forced.code, forced.out).toBe(0)
     expect(idx(forced.calls, 'retire-rever-rentals.ts --save')).toBeGreaterThan(-1)
+  })
+})
+
+describe('the job with APT_PLACES=1 — houses, rooms and offices too (the owner\'s call on photo storage)', SLOW, () => {
+  const box = sandbox()
+  const r = run(box, ['--apply'], { env: { APT_PLACES: '1' } })
+
+  it('runs the places units LAST, after every apartment source, each with its time-bounded set-less read', () => {
+    expect(r.code, r.out).toBe(0)
+    expect(r.out).not.toMatch(/are not imported/)
+    const places = [idx(r.calls, 'import-nhatot-com.ts --cg 1020,1030,1050'), idx(r.calls, 'import-muaban-net.ts --types house,room,office')]
+    for (const at of places) expect(at).toBeGreaterThan(idx(r.calls, 'import-batdongsan-rentals.ts'))
+    const c = (needle: string) => r.calls.find((x) => x.includes(needle)) ?? ''
+    expect(c('import-nhatot-com.ts --cg 1020,1030,1050')).toMatch(/--cg 1020,1030,1050 --max-age-days 7 --save \S+nhatot-places-stage\.json --fresh-crawl$/)
+    expect(r.calls.filter((x) => x.includes('import-nhatot-com.ts --src')).map((x) => /--src (\S+)/.exec(x)![1].split('/').pop())).toEqual(['nhatot-stage.json', 'nhatot-places-stage.json'])
+    expect(c('import-muaban-net.ts --types house,room,office')).toMatch(/--stage \S+muaban-places-stage\.jsonl --fresh-crawl$/)
+    expect(r.calls.filter((x) => x.includes('import-muaban-net.ts --src')).length).toBe(2)
+    expect(c('bds-python scraper.py')).toBe('bds-python scraper.py --to-end --new')                    // the whole list
+    expect(c('import-batdongsan-rentals.ts')).not.toContain('--subcat')
+    // no set, no expiry and no second backstop for a places unit
+    expect(r.calls.filter((x) => x.includes('expire-apartment-rentals.ts --seller') && x.includes('--fresh ')).length).toBe(5)
+    expect(r.calls.filter((x) => x.includes('expire-apartment-rentals.ts --seller') && x.includes('--backstop')).length).toBe(5)
+  })
+  it('stamps every unit, the places units included', () => {
+    expect(stamps(box)).toEqual(ALL_SOURCES.map((s) => `last-success-${s}`))
   })
 })
 
@@ -178,29 +213,43 @@ describe('the job — failures, the gate and the tunnel', SLOW, () => {
 
   it('a coverage refusal (exit 3) imports, skips that expiry, and fails the unit; a partial places crawl is applied and retried — without re-crawling the apartments', () => {
     const box = sandbox()
-    const r = run(box, ['--apply'], { env: { APT_SOURCES: 'muaban muaban-places' }, exits: ['--types house,room,office=3'] })
+    const r = run(box, ['--apply'], { env: { APT_PLACES: '1', APT_SOURCES: 'muaban muaban-places' }, exits: ['--types house,room,office=3'] })
     expect(r.code).toBe(1)
     expect(r.out).toMatch(/✗ muaban-places-incomplete FAILED at: a house\/room\/office list was not read whole — what was read is imported, the rest retried tomorrow/)
     expect(idx(r.calls, 'muaban-places-stage.jsonl --journal')).toBeGreaterThan(-1)                            // what was read is applied
     expect(stamps(box)).toEqual(['last-success-muaban'])                                                       // the apartments unit is done
-    const again = run(box, ['--apply'], { env: { APT_SOURCES: 'muaban muaban-places' } })
+    const again = run(box, ['--apply'], { env: { APT_PLACES: '1', APT_SOURCES: 'muaban muaban-places' } })
     expect(idx(again.calls, '--types house,room,office')).toBeGreaterThan(-1)                                  // the places retry the next morning…
     expect(idx(again.calls, '--types apartment')).toBe(-1)                                                     // …the apartments wait their 66 h
-    const refused = run(sandbox(), ['--apply'], { env: { APT_SOURCES: 'nhatot' }, exits: ['import-nhatot-com.ts --cg=3'] })
-    expect(refused.out).toMatch(/✗ nhatot FAILED at: coverage not proven — imported, expiry skipped/)
+    const refused = run(sandbox(), ['--apply'], { env: { APT_SOURCES: 'nhatot' }, exits: ['nhatot-stage.json --fresh-crawl=3'] })
+    expect(refused.out).toMatch(/✗ nhatot FAILED at: a list was not read whole — imported, expiry skipped/)
     expect(idx(refused.calls, 'import-nhatot-com.ts --src')).toBeGreaterThan(-1)
+    expect(idx(refused.calls, '--fresh-out')).toBe(-1)                                                       // no set read either
     expect(idx(refused.calls, 'expire-apartment-rentals.ts --seller nhatot-import-seller-0001 --fresh')).toBe(-1)
     expect(stamps(refused.sandbox)).toEqual([])
   })
 
-  it('⛔ a Nhà Tốt read cut short in a later category still applies and expires — but gets no stamp, so it runs again tomorrow', () => {
-    const box = sandbox()
-    writeFileSync(join(box, 'nhatot-incomplete'), '')
-    const r = run(box, ['--apply'], { env: { APT_SOURCES: 'nhatot' } })
+  it('⛔ Nhà Tốt\'s SET read not proven whole (exit 3): the apply stands, the expiry is skipped, no stamp', () => {
+    const r = run(sandbox(), ['--apply'], { env: { APT_SOURCES: 'nhatot' }, exits: ['nhatot-fresh.json --no-probe=3'] })
     expect(r.code).toBe(1)
-    expect(r.out).toMatch(/✗ nhatot-read-incomplete FAILED at: a list was cut short/)
-    expect(idx(r.calls, 'expire-apartment-rentals.ts --seller nhatot-import-seller-0001 --fresh')).toBeGreaterThan(-1)
-    expect(stamps(box)).toEqual([])
+    expect(r.out).toMatch(/✗ nhatot FAILED at: the set's read did not prove the window covered \(exit 3\) — expiry skipped/)
+    expect(idx(r.calls, 'import-nhatot-com.ts --src')).toBeGreaterThan(-1)
+    expect(idx(r.calls, 'expire-apartment-rentals.ts --seller nhatot-import-seller-0001 --fresh')).toBe(-1)
+    expect(stamps(r.sandbox)).toEqual([])
+  })
+
+  it('⛔ a Nhà Tốt houses/offices/rooms read cut short (exit 3) is applied and retried tomorrow — without re-reading the apartments', () => {
+    const box = sandbox()
+    const env = { APT_PLACES: '1', APT_SOURCES: 'nhatot nhatot-places' }
+    const r = run(box, ['--apply'], { env, exits: ['nhatot-places-stage.json --fresh-crawl=3'] })
+    expect(r.code).toBe(1)
+    expect(r.out).toMatch(/✗ nhatot-places-incomplete FAILED at: a house\/office\/room list was not read whole — what was read is imported, the rest retried tomorrow/)
+    expect(idx(r.calls, 'nhatot-places-stage.json --max-age-days 7 --journal-dir')).toBeGreaterThan(-1)    // what was read is applied
+    expect(stamps(box)).toEqual(['last-success-nhatot'])                                                       // the apartments unit is done
+    const again = run(box, ['--apply'], { env })
+    expect(idx(again.calls, '--cg 1020,1030,1050')).toBeGreaterThan(-1)                                        // the places retry the next morning…
+    expect(idx(again.calls, 'import-nhatot-com.ts --cg 1010')).toBe(-1)                                        // …the apartments wait their 66 h
+    expect(stamps(box)).toEqual(['last-success-nhatot', 'last-success-nhatot-places'])
   })
 
   it('⛔ an apply that finished with row errors still expires, but gets no stamp (the rows are retried tomorrow)', () => {
@@ -211,7 +260,7 @@ describe('the job — failures, the gate and the tunnel', SLOW, () => {
     const box2 = sandbox()
     writeFileSync(join(box2, 'bin/npx'), readFileSync(join(box2, 'bin/npx'), 'utf8').replace('*"import-nhatot-com.ts --src"*) echo "APPLY COMPLETED" ;;', '*"import-nhatot-com.ts --src"*) echo "APPLY COMPLETED"; exit 1 ;;'))
     const e = run(box2, ['--apply'], { env: { APT_SOURCES: 'nhatot' } })
-    expect(e.out).toMatch(/✗ nhatot-apply-row-errors FAILED at: the apply finished with row errors — retried tomorrow; the expiry still runs/)
+    expect(e.out).toMatch(/✗ nhatot-apply-row-errors FAILED at: the apply finished with row errors — retried tomorrow/)
     expect(idx(e.calls, 'expire-apartment-rentals.ts --seller nhatot-import-seller-0001 --fresh')).toBeGreaterThan(-1)
     expect(stamps(box2)).toEqual([])
   })
@@ -299,6 +348,48 @@ describe('the job — failures, the gate and the tunnel', SLOW, () => {
     expect(stamps(dead)).toEqual([])
   })
 
+  it('⛔ APT_PLACES is the ONE switch: an APT_SOURCES naming a places unit without APT_PLACES=1 is refused before anything runs', () => {
+    for (const unit of ['nhatot-places', 'muaban-places']) {
+      const r = run(sandbox(), ['--apply'], { env: { APT_SOURCES: `nhatot ${unit}` } })
+      expect(r.code, unit).toBe(1)
+      expect(r.out).toMatch(new RegExp(`${unit} imports houses, rooms and offices — that is APT_PLACES=1, the owner's call \\(the header\\); this run did nothing`))
+      expect(r.calls).toEqual([])
+    }
+    const ok = run(sandbox(), ['--apply'], { env: { APT_PLACES: '1', APT_SOURCES: 'nhatot-places' } })
+    expect(ok.code, ok.out).toBe(0)
+    expect(idx(ok.calls, '--cg 1020,1030,1050')).toBeGreaterThan(-1)
+  })
+
+  it('⛔ a refresh that finds the lock held only sweeps — so a bad APT_PLACES does not stop it either', () => {
+    const box = sandbox()
+    const lock = join(box, 'journal/.weekly.lock')
+    mkdirSync(lock, { recursive: true })
+    const h = holder()
+    try {
+      writeFileSync(join(lock, 'pid'), String(h.pid))
+      const r = run(box, ['--apply'], { env: { APT_PLACES: 'yes' } })
+      expect(r.code, r.out).toBe(0)
+      expect(r.calls.filter((c) => c.startsWith('npx'))).toEqual([expect.stringContaining('expire-rentals.ts --sweep --stamps-dir ')])
+      expect(readFileSync(join(lock, 'pid'), 'utf8')).toBe(String(h.pid))
+    } finally { h.kill() }
+  })
+
+  it('⛔ the places units run LAST whatever order APT_SOURCES gives', () => {
+    const r = run(sandbox(), ['--apply'], { env: { APT_PLACES: '1', APT_SOURCES: 'nhatot-places rever nhatot' } })
+    expect(r.code, r.out).toBe(0)
+    const order = ['retire-rever-rentals.ts --save', 'import-nhatot-com.ts --cg 1010', 'import-nhatot-com.ts --cg 1020,1030,1050'].map((n) => idx(r.calls, n))
+    expect(order.every((at) => at > -1)).toBe(true)
+    expect([...order].sort((a, b) => a - b)).toEqual(order)
+  })
+
+  it('⛔ a --sweep-only run imports nothing, so a bad APT_PLACES or a places APT_SOURCES never costs the day\'s sweep', () => {
+    for (const env of [{ APT_PLACES: 'yes' }, { APT_SOURCES: 'nhatot nhatot-places' }] as Record<string, string>[]) {
+      const r = run(sandbox(), ['--apply', '--sweep-only'], { env })
+      expect(r.code, `${JSON.stringify(env)}\n${r.out}`).toBe(0)
+      expect(r.calls.filter((c) => c.startsWith('npx'))).toEqual([expect.stringContaining('expire-rentals.ts --sweep --stamps-dir ')])
+    }
+  })
+
   it('a sweep that held a seller back (exit 3) is reported and alerts; --sweep-only runs nothing else', () => {
     const box = sandbox()
     const r = run(box, ['--apply', '--sweep-only'], { exits: ['expire-rentals.ts --sweep=3'] })
@@ -327,6 +418,10 @@ describe('the job — failures, the gate and the tunnel', SLOW, () => {
     const l = run(sandbox(), ['--apply'], { env: { LOCK_ALERT_HOURS: 'x' } })
     expect(l.code).toBe(1)
     expect(l.out).toMatch(/LOCK_ALERT_HOURS must be a whole number/)
+    const p = run(sandbox(), ['--apply'], { env: { APT_PLACES: 'yes' } })
+    expect(p.code).toBe(1)
+    expect(p.out).toMatch(/APT_PLACES must be 0 or 1, not "yes" — this run did nothing/)
+    expect(p.calls).toEqual([])
   })
 
 
@@ -422,6 +517,12 @@ describe('the job script — wiring', () => {
     expect(body).not.toMatch(/Weekday/)
     expect(body).toMatch(/<string>\/Users\/mk1e3\/eno-apartments-job\/scripts\/apartments-weekly\.sh<\/string>\s*<string>--apply<\/string>\s*<string>--sweep-only<\/string>/)
     expect(body).toMatch(/eno-import-journals\/apartments\/sweep\.log/)
+  })
+
+  it('⛔ the refresh plist ships APT_PLACES=0 (apartments only) until the owner says otherwise; the sweep agent, which imports nothing, carries none', () => {
+    const places = (f: string) => /<key>APT_PLACES<\/key><string>([^<]*)<\/string>/.exec(readFileSync(join(REPO, f), 'utf8').replace(/<!--[\s\S]*?-->/g, ''))?.[1]
+    expect(places('scripts/vn.eno.apartments-weekly.plist')).toBe('0')
+    expect(places('scripts/vn.eno.rentals-sweep.plist')).toBeUndefined()
   })
 
   it('the plist: a DAILY 06:00 trigger (no Weekday), --apply, the same label and log', () => {

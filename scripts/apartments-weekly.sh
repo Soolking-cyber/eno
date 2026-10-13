@@ -10,8 +10,8 @@
 # ⛔ SCHEDULE: launchd starts this DAILY at 06:00 (scripts/vn.eno.apartments-weekly.plist), and — so a refresh that
 # outlasts a day cannot cost the daily sweep (launchd never starts a second instance of a running job) — its own
 # `--sweep-only` agent daily at 05:30 (scripts/vn.eno.rentals-sweep.plist), which also alerts on a refresh stuck for
-# LOCK_ALERT_HOURS. Each GATE UNIT (a source;
-# Muaban is two: its apartments with their set, and its houses/rooms/offices) runs only when its last SUCCESS is ≥ 66 h
+# LOCK_ALERT_HOURS. Each GATE UNIT (a source; Nhà Tốt and Muaban are two each: their apartments, with the fresh set,
+# and their houses/rooms/offices) runs only when its last SUCCESS is ≥ 66 h
 # old (scripts/apartments-gate.sh — one stamp per unit in the state dir, written only when that unit's refresh fully
 # succeeded, holding this run's START), so a healthy unit refreshes every 3 days, a failed, partial or missed one
 # retries the next morning, and a run the Mac slept through fires on wake. THE DAILY SWEEP
@@ -19,17 +19,36 @@
 # at the end of EVERY run — on the days the gate skips every import too, and on a morning when the previous run is
 # still refreshing (it holds the lock): that run then does the sweep alone.
 #
+# ⛔ NHÀ TỐT'S, MUABAN'S AND BATDONGSAN'S HOUSES, ROOMS AND OFFICES ARE IMPORTED ONLY WITH APT_PLACES=1 — THE OWNER'S
+# CALL ON PHOTO STORAGE (review of 2026-10-13; Honeycomb's handful of houses, ≤ 7 a run, come in either way). Each
+# created Nhà Tốt / Muaban row stores ≈5.5 photos of ≈120 KB on the box (150 GB, Postgres on the same disk; rows — and
+# their photos — are kept ≥ 1 year). Nhà Tốt's three other categories bring ≈1.9× its apartments'
+# ≈1,100 new ads a day (HCMC newest-3000 on 09-24: apartments 1,028 · houses 684 · offices 400 · rooms 888), Muaban's
+# ≈2× its own: with them the intake goes from ≈0.7 to ≈2 GB a day (≈60 GB a month), and Nhà Tốt's places apply alone
+# runs ≈20 h every 3 days (≈40 h the first time), at ≈300 creates an hour. APT_PLACES=0 (the default): the import scope
+# of before 2026-10-13 — Nhà Tốt cg 1010, Muaban's apartments, Batdongsan's two apartment lists — but THE SWEEP takes
+# every place type down past 7 days, so with 0 the site lists no imported house, room or office (none is live since
+# the 10-13 one-off expiry). APT_PLACES=1 adds the units nhatot-places and muaban-places (run LAST) and Batdongsan's
+# whole rentals list; it is the ONE switch — APT_SOURCES cannot name a places unit without it. Turned from 1 back to
+# 0, a places unit's rows drain, and the sweep holds its last cohort back (every sweep, alerting) until a person runs
+# `npx tsx scripts/expire-rentals.ts --sweep --stamps-dir <state> --journal-dir <dir> --allow-mass-expiry --apply` —
+# which releases EVERY unit held that morning: read the SWEEP lines first. (A first install meets none: the 10-13
+# one-off expired every Nhà Tốt and Muaban house/room/office — newest dated 09-23, ~/eno-import-journals/
+# rentals-freshness — and no importer has written one since 09-24.)
+#
 # Per source, in this order:
-#   1. read the source → stage (+ the apartment FRESH SET: every apartment ad dated inside the window)
-#   2. apply the stage: create, update, REVIVE (expired/stale → active) and re-date ads of EVERY place type dated
-#      inside 7 days — Nhà Tốt cg 1010/1020/1030/1050, Muaban apartments (+ set) and, as its own unit, house/room/office
-#      (--fresh-crawl, no set), Batdongsan's whole rentals list, Honeycomb (apply at --since-days 7), Rever's check
+#   1. read the source → stage (time-bounded to the window; + the apartment FRESH SET where it comes with the read)
+#   2. apply the stage: create, update, REVIVE (expired/stale → active) and re-date the ads dated inside 7 days —
+#      ⛔ Nhà Tốt, Muaban and Batdongsan never create or revive a row with under a day of its window left AT THE WRITE
+#      (tooLateToWrite, src/lib/apartment-freshness.ts): the sweep would take it down again within the day. (Honeycomb,
+#      ≤ 7 creates a run, and Rever's revivals are not judged so.)
 #   3. expire every live APARTMENT of that source NOT in its fresh set (scripts/expire-apartment-rentals.ts — share
 #      guard against a short crawl, carry-over for a rolling window like Honeycomb's, journal + rollback first,
 #      per-page ISR tombstones). Apartments only by design: every coverage proof describes the apartment lists; the
-#      daily sweep enforces the 7-day maximum on every type.
+#      daily sweep enforces the 7-day maximum on every type. ⛔ Nhà Tốt's set is READ AGAIN right before this step
+#      (run_nhatot): its apply can outlast the 24 h a set is trusted for.
 #   4. the BACKSTOP, whatever 1–3 did (expire-apartment-rentals.ts --backstop; a seller with no state file is
-#      reported and skipped — the sweep covers it)
+#      reported and skipped — the sweep covers it), once per seller (not again for its places unit)
 # then classify-apartment-rentals.ts once if any source ran (every import rewrites `attributes`), then THE SWEEP.
 #
 # ⛔ THE DB TUNNEL IS RE-CHECKED BEFORE EVERY DATABASE STEP (dbrun → scripts/db-tunnel.sh start, the SUPERVISED
@@ -49,8 +68,10 @@
 #   ENO_REPO       checkout whose scripts run (default ~/eno-apartments-job — a CLEAN detached worktree at
 #                  origin/main; ~/eno.vn is a working tree and may be dirty or behind)
 #   APT_ENV_FILE   env file for DB + storage (default ~/eno.vn/.env; "none" = caller's environment, no tunnel)
-#   APT_SOURCES    space-separated subset of the gate units: nhatot muaban muaban-places honeycomb rever batdongsan
-#                  (default: all; muaban = its apartments + their set, muaban-places = its houses/rooms/offices)
+#   APT_PLACES     1 = also import houses, rooms and offices (above — the owner's call); 0 or unset = apartments only
+#   APT_SOURCES    space-separated subset of the gate units: nhatot muaban honeycomb rever batdongsan, and — only with
+#                  APT_PLACES=1 — the places units nhatot-places muaban-places (default: the first five, + the places
+#                  units with APT_PLACES=1; nhatot/muaban = apartments + their set, *-places = houses/rooms/offices)
 #   BDS_DIR        Batdongsan dataset dir (default ~/batdongsan_rentals_hcmc)
 #   BDS_PY         its interpreter (default $BDS_DIR/.venv/bin/python — playwright lives there, not in /usr/bin/python3)
 #   GATE_HOURS     the success gate (default 66)
@@ -73,7 +94,7 @@ for a in "$@"; do
 done
 ENO="${ENO_REPO:-$HOME/eno-apartments-job}"
 ENVF="${APT_ENV_FILE:-$HOME/eno.vn/.env}"
-SOURCES="${APT_SOURCES:-nhatot muaban muaban-places honeycomb rever batdongsan}"
+PLACES="${APT_PLACES:-0}"
 BDS="${BDS_DIR:-$HOME/batdongsan_rentals_hcmc}"
 BDS_PY="${BDS_PY:-$BDS/.venv/bin/python}"
 JROOT="${APT_JOURNAL:-$HOME/eno-import-journals/apartments}"
@@ -89,6 +110,29 @@ AGE_DAYS=7
 # Every way this job can end badly notifies — including the early exits below, before any source runs.
 notify() { [ "${APT_NOTIFY:-1}" = 0 ] || /usr/bin/osascript -e "display notification \"$1\" with title \"eno property-rentals FAILED\" sound name \"Basso\"" 2>/dev/null; }
 die() { echo "── $1"; notify "$1"; exit 1; }
+# The places units run LAST: a long houses/rooms/offices apply never holds the apartments' refresh back.
+# ⚠️ A bad import configuration is judged only where imports would run (CONFIG_PROBLEM, after the lock below): a sweep —
+# the 05:30 agent, or a run that finds the refresh lock held — imports nothing, so it can never cost the day's sweep;
+# a refresh run with one dies, alerting.
+CONFIG_PROBLEM=""
+case "$PLACES" in
+  0) SOURCES_DEFAULT="nhatot muaban honeycomb rever batdongsan" ;;
+  1) SOURCES_DEFAULT="nhatot muaban honeycomb rever batdongsan nhatot-places muaban-places" ;;
+  *) CONFIG_PROBLEM="APT_PLACES must be 0 or 1, not \"$PLACES\" — this run did nothing"; SOURCES_DEFAULT="" ;;
+esac
+SOURCES="${APT_SOURCES:-$SOURCES_DEFAULT}"
+# ⛔ THE PLACES UNITS RUN LAST WHATEVER ORDER APT_SOURCES GIVES: a ≈20 h houses/rooms/offices apply must never hold the
+# apartments' refresh (and their sets) back.
+ordered=""; places=""
+for src in $SOURCES; do case "$src" in *-places) places="${places:+$places }$src" ;; *) ordered="${ordered:+$ordered }$src" ;; esac; done
+SOURCES="$ordered${places:+${ordered:+ }$places}"
+# ⛔ APT_PLACES IS THE ONE SWITCH for houses, rooms and offices: a hand-run or an inherited APT_SOURCES cannot bring the
+# photo intake back behind the owner's back.
+if [ "$PLACES" != 1 ]; then
+  for src in $SOURCES; do
+    case "$src" in *-places) [ -n "$CONFIG_PROBLEM" ] || CONFIG_PROBLEM="$src imports houses, rooms and offices — that is APT_PLACES=1, the owner's call (the header); this run did nothing" ;; esac
+  done
+fi
 mkdir -p "$RUN" "$STATE" || die "cannot create $RUN"
 # ⛔ ONE REFRESH AT A TIME, whoever starts it (launchd or a hand-run): two would both archive and re-scrape the
 # Batdongsan dataset and apply the same stages. mkdir is atomic; a lock whose pid is dead is cleared.
@@ -141,7 +185,10 @@ if [ -n "$SWEEP_ONLY_ASKED" ] && [ -f "$LOCKDIR/pid" ]; then
 fi
 echo "── $(date '+%F %T') property-rentals ${APPLY:-(dry run)}${FORCE:+ --force-imports}${SWEEP_ONLY:+ --sweep-only}  repo $ENO @ $(git -C "$ENO" rev-parse --short HEAD 2>/dev/null)"
 [ -n "$HELD_BY" ] && echo "── another property-rentals run (pid $HELD_BY) holds the refresh lock — this run does the daily sweep only"
+[ -n "$SWEEP_ONLY" ] || [ "$PLACES" != 0 ] || echo "── houses, rooms and offices are not imported (APT_PLACES=0 — the owner's call on photo storage); the sweep still takes every type down past $AGE_DAYS days"
 [ -n "$HELD_LONG" ] && echo "── ⚠️ that run has held the lock for over $LOCK_ALERT_HOURS h — the imports are not refreshing; look at it"
+# A refresh with a bad import configuration stops here (alerting; the EXIT trap frees the lock it took); a sweep goes on.
+[ -n "$SWEEP_ONLY" ] || [ -z "$CONFIG_PROBLEM" ] || die "$CONFIG_PROBLEM"
 
 cd "$ENO" || die "repo $ENO missing — install the job worktree"
 # shellcheck source=scripts/apartments-gate.sh
@@ -218,31 +265,55 @@ summary() { grep -E "live apartments|marked|REFUSED|coverage" "$RUN/$1-expire.lo
 # other non-zero exit is a plain failure of that source (TUNNEL_DOWN: the step never ran).
 COVERAGE_REFUSED=3
 
+# apply_nhatot <unit> <stage> — one Nhà Tốt apply. Exit 1 also means "finished, but some rows errored" (a photo
+# upload blip): the importer then prints APPLY COMPLETED as its last line — flagged (no stamp, retried tomorrow), and
+# the unit goes on; only an apply that never finished stops it (returns 1). --max-age-days on the apply too, or it
+# creates 7.x-day-old ads the sweep removes minutes later.
+apply_nhatot() {
+  local unit="$1" stage="$2"
+  dbrun "$RUN/$unit-apply.log" npx tsx scripts/import-nhatot-com.ts --src "$stage" --max-age-days "$AGE_DAYS" ${JOURNAL[@]+"${JOURNAL[@]}"} --apply && return 0
+  grep -qx "APPLY COMPLETED" "$RUN/$unit-apply.log" || { fail "$unit" apply; return 1; }
+  fail "$unit-apply-row-errors" "the apply finished with row errors — retried tomorrow"
+  return 0
+}
+
+# Nhà Tốt's APARTMENTS (gate unit `nhatot`): the stage read (time-bounded, no set: --fresh-crawl), its apply, then
+# ⛔ A SECOND READ FOR THE FRESH SET, right before the expiry (review of 2026-10-13). The expiry refuses a set over 24 h
+# old, counted from its read's START, and this apply creates rows photo by photo (≈300 an hour — the 10-12 plan alone
+# was 6,934 creates, ≈23 h): a set that came with the stage could be refused after a long apply, every time. Read again
+# (minutes), the set's age no longer depends on the apply's length, and the expiry's guards see the rows the apply
+# just wrote. All three cities (the default) in both reads: the expiry acts on the whole seller, so a city left out of
+# the set would expire every live apartment there.
 run_nhatot() {
   local S=nhatot-import-seller-0001 STAGE="$RUN/nhatot-stage.json" FRESH="$RUN/nhatot-fresh.json" rc
-  # All three cities (the default): the expiry acts on the whole seller, so a city left out of the set
-  # would expire every live apartment there. Every place category (apartments 1010, houses 1020, offices 1030,
-  # rooms 1050) — the read takes every city's apartments first; the set is cg 1010 only.
-  dbrun "$RUN/nhatot-stage.log" npx tsx scripts/import-nhatot-com.ts --cg 1010,1020,1030,1050 --max-age-days "$AGE_DAYS" --save "$STAGE" --fresh-out "$FRESH"; rc=$?
+  dbrun "$RUN/nhatot-stage.log" npx tsx scripts/import-nhatot-com.ts --cg 1010 --max-age-days "$AGE_DAYS" --save "$STAGE" --fresh-crawl; rc=$?
   [ "$rc" -eq 0 ] || [ "$rc" -eq "$COVERAGE_REFUSED" ] || { fail nhatot stage; return; }
-  # The set stands on the apartment lists alone (read first), so a house/office/room list cut short (a stop, a gap)
-  # does not stop this source's apply or expiry — but the unit runs again tomorrow (the stage records "complete": false).
-  if [ -f "$STAGE" ] && grep -qE '"complete":[[:space:]]*false' "$STAGE"; then fail nhatot-read-incomplete "a list was cut short (a stop or a gap) — what was read is imported, the rest retried tomorrow"; fi
-  if [ -n "$APPLY" ] && [ -f "$STAGE" ]; then
-    # --max-age-days on the apply too, or it creates 7.x-day-old ads the expiry removes minutes later.
-    # Exit 1 also means "finished, but some rows errored" (a photo upload blip): the importer then prints
-    # APPLY COMPLETED as its last line. That run still expires — the expiry's own guards stand — and is
-    # flagged; only an apply that never finished skips it.
-    if ! dbrun "$RUN/nhatot-apply.log" npx tsx scripts/import-nhatot-com.ts --src "$STAGE" --max-age-days "$AGE_DAYS" ${JOURNAL[@]+"${JOURNAL[@]}"} --apply; then
-      grep -qx "APPLY COMPLETED" "$RUN/nhatot-apply.log" || { fail nhatot apply; return; }
-      fail nhatot-apply-row-errors "the apply finished with row errors — retried tomorrow; the expiry still runs"
-    fi
+  if [ -n "$APPLY" ]; then
+    [ -f "$STAGE" ] || { fail nhatot "the stage file was not written"; return; }
+    apply_nhatot nhatot "$STAGE" || return
   fi
-  [ "$rc" -eq 0 ] || { fail nhatot "coverage not proven — imported, expiry skipped"; return; }
-  # The set AND the stage it came with: never expire on a set whose ads were not (or could not be) applied.
-  [ -f "$FRESH" ] && [ -f "$STAGE" ] || { fail nhatot "stage or fresh set missing — expiry skipped"; return; }
+  # A stage read not proven whole (exit 3): what it read is imported, and nothing is expired on this run.
+  [ "$rc" -eq 0 ] || { fail nhatot "a list was not read whole — imported, expiry skipped"; return; }
+  dbrun "$RUN/nhatot-set.log" npx tsx scripts/import-nhatot-com.ts --cg 1010 --max-age-days "$AGE_DAYS" --fresh-out "$FRESH" --no-probe; rc=$?
+  [ "$rc" -eq 0 ] && [ -f "$FRESH" ] || { fail nhatot "the set's read did not prove the window covered (exit $rc) — expiry skipped"; return; }
   expire nhatot "$S" "$FRESH" || { fail nhatot expire; return; }
   summary nhatot
+}
+
+# Nhà Tốt's HOUSES, OFFICES AND ROOMS (gate unit `nhatot-places` — only with APT_PLACES=1): the same time-bounded read
+# with no set (--fresh-crawl), then its apply; no expiry (the daily sweep takes them down past 7 days), no backstop.
+# A list it cannot read whole (exit 3): what was read is still applied, the unit gets no stamp and runs again the next
+# morning — without re-reading the apartments.
+run_nhatot_places() {
+  local STAGE="$RUN/nhatot-places-stage.json" rc
+  dbrun "$RUN/nhatot-places-stage.log" npx tsx scripts/import-nhatot-com.ts --cg 1020,1030,1050 --max-age-days "$AGE_DAYS" --save "$STAGE" --fresh-crawl; rc=$?
+  [ "$rc" -eq 0 ] || [ "$rc" -eq "$COVERAGE_REFUSED" ] || { fail nhatot-places stage; return; }
+  if [ -n "$APPLY" ]; then
+    # No set to fall back on here: a stage that was not written is a refresh that did not happen, never a success.
+    [ -f "$STAGE" ] || { fail nhatot-places "the stage file was not written"; return; }
+    apply_nhatot nhatot-places "$STAGE" || return
+  fi
+  [ "$rc" -eq 0 ] || fail nhatot-places-incomplete "a house/office/room list was not read whole — what was read is imported, the rest retried tomorrow"
 }
 
 # Muaban's apartments: the fresh set's crawl (HCMC read district by district, every city), then its expiry.
@@ -314,6 +385,9 @@ run_rever() {
 
 run_batdongsan() {
   local S=bds-vn-import-seller-0001 FRESH="$RUN/batdongsan-fresh.json" PREV STAMPED rc f
+  # Its scope follows APT_PLACES: the two apartment lists and their rows (as before 2026-10-13), or every type.
+  local BDS_LIST=(--apartments) BDS_SUBCAT=(--subcat apartment-rental)
+  [ "$PLACES" = 1 ] && { BDS_LIST=(); BDS_SUBCAT=(); }
   # ⛔ A DRY RUN LEAVES THE DATASET ALONE. Archiving and re-scraping are real state: a dry run (or a same-day
   # rerun) would make an hours-old crawl the next --previous, every card would match "last time's" label,
   # and the carry-over check would call the whole market stale. The dry run only re-judges the scrape on disk.
@@ -330,10 +404,10 @@ run_batdongsan() {
       mv "$BDS/all_rentals.json" "$BDS/all_rentals.$STAMPED.json" || { fail batdongsan archive; return; }
       [ -f "$BDS/all_rentals.crawl.json" ] && { mv "$BDS/all_rentals.crawl.json" "$BDS/all_rentals.$STAMPED.crawl.json" || { fail batdongsan archive; return; }; }
     fi
-    # The WHOLE rentals list (scraper.py's `all` list: every property type, since 2026-10-13 — it was --apartments,
-    # the two apartment lists), to the end, plus a catch-up pass; a HEADED Chrome in the GUI session (Cloudflare
+    # The two APARTMENT lists (--apartments) — or, with APT_PLACES=1, the WHOLE rentals list (scraper.py's `all`
+    # list: every property type) — to the end, plus a catch-up pass; a HEADED Chrome in the GUI session (Cloudflare
     # refuses headless). Writes all_rentals.json + all_rentals.crawl.json (per-page outcomes).
-    ( cd "$BDS" && "$BDS_PY" scraper.py --to-end --new > "$RUN/batdongsan-scrape.log" 2>&1 ) || { fail batdongsan scrape; return; }
+    ( cd "$BDS" && "$BDS_PY" scraper.py ${BDS_LIST[@]+"${BDS_LIST[@]}"} --to-end --new > "$RUN/batdongsan-scrape.log" 2>&1 ) || { fail batdongsan scrape; return; }
     ( cd "$BDS" && "$BDS_PY" enrich_dataset.py > "$RUN/batdongsan-enrich.log" 2>&1 ) || { fail batdongsan enrich; return; }
   fi
   # --previous (the carry-over check) must be a crawl from an EARLIER run: the newest archive at least 5 days
@@ -344,11 +418,12 @@ run_batdongsan() {
     if [ -n "$(find "$f" -mtime +4 -print 2>/dev/null)" ]; then PREV="$f"; break; fi
   done
   [ -n "$PREV" ] || { fail batdongsan "no scrape at least 5 days old for the carry-over check"; return; }
-  # No --subcat: every type is imported by the same 7-day judgement; the fresh set covers apartments.
+  # --subcat apartment-rental (APT_PLACES=0) or none (APT_PLACES=1: every type imported by the same 7-day judgement);
+  # the fresh set covers apartments either way.
   # Exit codes: 0 ok · 3 coverage refused (import applied, no set) · 4 page tombstones owed, set written
   # (a .retombstone.sql sits in the journal) · 5 tombstones owed AND set refused · anything else: failure.
   dbrun "$RUN/batdongsan-import.log" npx tsx scripts/import-batdongsan-rentals.ts --src "$BDS/all_rentals.json" --previous "$PREV" --max-age-days "$AGE_DAYS" \
-    --fresh-out "$FRESH" --crawl-log "$BDS/all_rentals.crawl.json" \
+    ${BDS_SUBCAT[@]+"${BDS_SUBCAT[@]}"} --fresh-out "$FRESH" --crawl-log "$BDS/all_rentals.crawl.json" \
     ${JOURNAL[@]+"${JOURNAL[@]}"} $APPLY; rc=$?
   case "$rc" in 0|3|4|5) ;; *) fail batdongsan import; return ;; esac
   if [ -n "$APPLY" ] && { [ "$rc" -eq 4 ] || [ "$rc" -eq 5 ]; }; then
@@ -374,8 +449,8 @@ run_batdongsan() {
 
 seller_of() {
   case "$1" in
-    nhatot) echo nhatot-import-seller-0001 ;; muaban) echo muaban-net-import-seller-0001 ;;
-    muaban-places) echo muaban-net-import-seller-0001 ;;
+    nhatot|nhatot-places) echo nhatot-import-seller-0001 ;;
+    muaban|muaban-places) echo muaban-net-import-seller-0001 ;;
     honeycomb) echo honeycomb-import-seller-0001 ;; rever) echo cmub0wead0000zrq418bqq27m ;;
     batdongsan) echo bds-vn-import-seller-0001 ;; *) return 1 ;;
   esac
@@ -398,8 +473,8 @@ if [ -z "$SWEEP_ONLY" ]; then
     SRC_OK=1
     RAN+=("$src")
     "run_$(printf '%s' "$src" | tr '-' '_')"
-    # The backstop is per SELLER: muaban's runs with its apartment unit, not again with its places.
-    [ "$src" = muaban-places ] || backstop "$src" "$seller"
+    # The backstop is per SELLER: Nhà Tốt's and Muaban's run with their apartment units, not again with their places.
+    case "$src" in *-places) ;; *) backstop "$src" "$seller" ;; esac
     # ⛔ The success stamp — only after the source's whole refresh succeeded, and only for --apply runs.
     if [ -n "$APPLY" ] && [ "$SRC_OK" = 1 ]; then
       stamp_write "$STATE/last-success-$src" "$START_EPOCH" || { echo "  ✗ could not write $STATE/last-success-$src"; FAILED+=("$src-stamp"); }

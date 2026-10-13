@@ -27,7 +27,13 @@
  *   ⚠️ EVERY TYPE, ONE GATE (2026-10-13): houses, rooms, offices and untyped rows are created, revived and re-dated
  *   by the same 7-day judgement as apartments (judgeBdsRow — the body below was always type-blind; only --subcat
  *   narrowed it); only the SET is apartments-only. The daily age sweep (scripts/expire-rentals.ts --sweep) takes
- *   every type down past 7 days.
+ *   every type down past 7 days. (The 3-day job imports every type only with its APT_PLACES=1; otherwise it passes
+ *   --subcat apartment-rental and scrapes the two apartment lists, as before 2026-10-13.)
+ *   ⛔ A DAY TO LIVE, AT THE WRITE (review of 2026-10-13; tooLateToWrite, src/lib/apartment-freshness.ts): a row whose
+ *   worst-case date leaves it under a day of the window when the write reaches it is neither created nor revived —
+ *   "Đăng 6 ngày trước" is dated 7 days back at the read, so such a row was created (and given its photos) only for
+ *   the same run's sweep to expire it; "5 ngày trước" (6 days back) would have lived under a day. The SET is unchanged
+ *   (judged at the read), and a row that exists is still refreshed and re-dated.
  *   ⚠️ THE `all` LIST IS CLASSIFIED BY scraper.py's KEYWORD RULE (title + url), where the apartment lists were
  *   classified by the list itself. coverageOfLog accepts it for the apartment set (it carries both apartment lists;
  *   batdongsan-crawl.test.ts). Structurally the keyword rule cannot call an apartment anything else: its FIRST test
@@ -110,7 +116,7 @@
 import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { APARTMENT_SUBCAT, FRESH_DAYS, REVIVABLE_STATUSES, freshSetProblem, type FreshSet } from '../src/lib/apartment-freshness'
+import { APARTMENT_SUBCAT, FRESH_DAYS, REVIVABLE_STATUSES, WRITE_MIN_LIFE_DAYS, freshSetProblem, tooLateToWrite, type FreshSet } from '../src/lib/apartment-freshness'
 import { bdsAgeDays, bdsScrapeStartMs } from '../src/lib/batdongsan-age'
 import { applyBdsDatedChanges, bdsTombstoneSql, isBdsRepost, owedTombstonesOf, type BdsDatedChange, type BdsDatedOutcome } from '../src/lib/batdongsan-apply'
 import { buildBdsFreshSet, coverageOfLog, crawlBindingProblem, judgeBdsRow, parseCrawlLog, type BdsVerdict, type CrawlCoverage, type ParsedCrawlLog } from '../src/lib/batdongsan-crawl'
@@ -521,12 +527,25 @@ async function main() {
      * the create's way. Applied by src/lib/batdongsan-apply.ts (journal → guarded write → rollback → tombstone).
      */
     const planned: BdsDatedChange[] = []
+    /**
+     * ⛔ A DAY TO LIVE (tooLateToWrite, src/lib/apartment-freshness.ts — review of 2026-10-13): a row whose source date
+     * leaves it under a day of its window is neither CREATED nor REVIVED — the daily age sweep would take it down again
+     * within the day (a "Đăng 6 ngày trước" label is dated 7 days back at the read, so it was created and expired by the
+     * same run). Counted here at this clock for the report; each create is judged again at its own write, and the
+     * revivals once more right before their pass.
+     */
+    let lateCreate = 0, lateRevive = 0
+    // Only the 7-day rule's runs (a dated import, --max-age-days ≤ FRESH_DAYS — the job's 7): a row is dated only
+    // there, and a wider manual backfill keeps the window it asked for.
+    const writeMargin = MAX_AGE_DAYS !== null && MAX_AGE_DAYS <= FRESH_DAYS
     for (const r of batch) {
       const externalId = `bds:${r.code}`
       const b = existing.get(externalId)
       const d = (r._sourceDate as Date | undefined) ?? null
+      if (writeMargin && !b && d && tooLateToWrite(d, NOW)) lateCreate++
       if (!b || !d || b.status === 'removed') continue
       const revive = isRevivable(b.status)
+      if (writeMargin && revive && tooLateToWrite(d, NOW)) { lateRevive++; continue }
       // A re-date is for LIVE rows only: a hidden (moderated) or sold row keeps its date and rank.
       if (!revive && (b.status !== 'active' || !isBdsRepost(d, b.postedAt))) continue
       planned.push({ id: b.id, externalId, sellerId: SELLER_ID, action: revive ? 'revive' : 'repost', oldStatus: b.status, oldPostedAt: b.postedAt, oldRankScore: b.rankScore, newPostedAt: d, newRankScore: rankOf(d) })
@@ -542,7 +561,8 @@ async function main() {
     console.log(`seller            ${seller ? `${seller.name} (${seller.id})` : `(will be created as ${SELLER_ID})`}`)
     console.log(`rows on seller    ${already}`)
     if (MAX_AGE_DAYS !== null) {
-      console.log(`freshness         ≤${MAX_AGE_DAYS} days worst-case at the fetch moment (labels read from ${new Date(readAtMs).toISOString()}, ${scrapeAgeHours.toFixed(1)} h ago) · ${batch.length - batchIds.filter((x) => existing.has(x)).length} new (postedAt = source date) · ${wouldRevive} ${REVIVABLE_STATUSES.join('/')} rows fresh again → re-activated · ${wouldRepost} re-posted ≥1 day after their postedAt → postedAt moves forward`)
+      console.log(`freshness         ≤${MAX_AGE_DAYS} days worst-case at the fetch moment (labels read from ${new Date(readAtMs).toISOString()}, ${scrapeAgeHours.toFixed(1)} h ago) · ${batch.length - batchIds.filter((x) => existing.has(x)).length - lateCreate} new (postedAt = source date) · ${wouldRevive} ${REVIVABLE_STATUSES.join('/')} rows fresh again → re-activated · ${wouldRepost} re-posted ≥1 day after their postedAt → postedAt moves forward`)
+      console.log(`  too late        ${lateCreate} new and ${lateRevive} revivable row(s) left out — under ${WRITE_MIN_LIFE_DAYS} d of their ${FRESH_DAYS} left at this clock (tooLateToWrite; e.g. "Đăng 5/6 ngày trước", dated 6/7 days back)`)
     }
     console.log(`images            NONE — see the header; agent headshots + rival watermarks`)
     console.log(`mode              ${o.apply ? 'APPLY — WRITES TO PRODUCTION' : 'DRY RUN (read-only session)'}`)
@@ -574,12 +594,16 @@ async function main() {
       }
 
       // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated, not re-dated.
-      let created = 0, updated = 0, skippedRemoved = 0
+      let created = 0, updated = 0, skippedRemoved = 0, tooLateCreate = 0
       const leftAlone = new Set<string>()
       for (const r of batch) {
         const externalId = `bds:${r.code}`
         const before = existing.get(externalId)
         if (before?.status === 'removed') { skippedRemoved++; leftAlone.add(externalId); continue }
+        /** ⛔ A NEW row too late AT THIS WRITE (tooLateToWrite) is not created — and so never gets a photo. On the 7-day
+         *  rule's runs every row of the batch is dated (judgeBdsRow: an unreadable label is dropped before here). */
+        const newDate = (r._sourceDate as Date | undefined) ?? null
+        if (writeMargin && !before && newDate && tooLateToWrite(newDate, Date.now())) { tooLateCreate++; continue }
         const price = r.price_vnd as number
         /** The four text columns only — `missing` is a report (the `untranslated` line above), never a column. */
         const { title, titleVi, description, descriptionVi } = compose(r, price)
@@ -640,7 +664,11 @@ async function main() {
       }
 
       // The dated changes, in their own pass (src/lib/batdongsan-apply.ts): planned → journaled → guarded write → rollback line → tombstone.
-      const todo = planned.filter((ch) => !leftAlone.has(ch.externalId))
+      // A revival is judged once more at this clock (tooLateToWrite) — the upserts above took their time.
+      const reviveAt = Date.now()
+      const lateNow = (ch: BdsDatedChange) => writeMargin && ch.action === 'revive' && tooLateToWrite(ch.newPostedAt, reviveAt)
+      const todo = planned.filter((ch) => !leftAlone.has(ch.externalId) && !lateNow(ch))
+      const tooLateRevive = lateRevive + planned.filter((ch) => !leftAlone.has(ch.externalId) && lateNow(ch)).length
       const stamp = new Date(NOW).toISOString().replace(/[:.]/g, '-')
       const JOURNAL = journal ? join(journal, `batdongsan-revive-repost-${stamp}.jsonl`) : null
       const ROLLBACK = journal ? join(journal, `batdongsan-revive-repost-${stamp}.rollback.sql`) : null
@@ -680,7 +708,7 @@ async function main() {
       if (outcome.owed.length) reportOwed(outcome.owed)
 
       const active = await db.listing.count({ where: { sellerId: SELLER_ID, status: 'active' } })
-      console.log(`\ncreated ${created}   updated ${updated}   revived ${outcome.revived.length}   re-posted (postedAt moved forward) ${outcome.reposted.length}${outcome.notMoved ? `   changed since the read (left as they are) ${outcome.notMoved}` : ''}   removed (left alone) ${skippedRemoved}   active now ${active}`)
+      console.log(`\ncreated ${created}   updated ${updated}   revived ${outcome.revived.length}   re-posted (postedAt moved forward) ${outcome.reposted.length}${outcome.notMoved ? `   changed since the read (left as they are) ${outcome.notMoved}` : ''}   removed (left alone) ${skippedRemoved}   too late to create ${tooLateCreate}   too late to revive ${tooLateRevive}   active now ${active}`)
       console.log(`\nROLLBACK (safe, reversible):\n  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" = '${SELLER_ID}' AND status <> 'removed';`)
       if (outcome.revived.length || outcome.reposted.length) console.log(`  revivals / re-posts only: psql -v ON_ERROR_STOP=1 -f ${ROLLBACK}   (each line undoes only a row still exactly as this run left it, with its ISR tombstone)`)
       console.log(`  -- hard delete is NOT paste-safe: Order is onDelete:Restrict and six relations Cascade.`)

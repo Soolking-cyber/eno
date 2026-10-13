@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   BACKSTOP_MISSED_DAYS, BACKSTOP_SLACK_DAYS, BASELINE_RUNS, CARRY_MIN_DATED, EXTERNAL_ID_PREFIX, FRESH_DAYS, MIN_SHARE, SHARE_FLOOR, WINDOW_DAYS_BY_SELLER,
-  backstopDaysFor, backstopDaysProblem, backstopSkipReason, baselineOf, freshSetProblem, isInWindow, isRollingWindow, makeFreshSet, planBackstop, planExpiry,
-  rollingWindowFrom, windowDaysFor,
+  WRITE_MIN_LIFE_DAYS, backstopDaysFor, backstopDaysProblem, backstopSkipReason, baselineOf, freshSetProblem, isInWindow, isRollingWindow, makeFreshSet, planBackstop,
+  planExpiry, rollingWindowFrom, tooLateToWrite, windowDaysFor,
 } from './apartment-freshness'
 import { RENTAL_IMPORT_SELLERS } from './import-sellers'
 
@@ -23,6 +23,34 @@ describe('isInWindow', () => {
     expect(isInWindow(new Date(NOW - FRESH_DAYS * DAY - 1), NOW)).toBe(false)
     expect(isInWindow(new Date(NOW + 3_600_000), NOW)).toBe(false)
     expect(isInWindow(new Date(NaN), NOW)).toBe(false)
+  })
+})
+
+describe('⛔ tooLateToWrite — a create or a revival must leave the row a day of its window, at the WRITE', () => {
+  it('a day of the 7: a row is written up to FRESH_DAYS − 1 days old, never older', () => {
+    expect(WRITE_MIN_LIFE_DAYS).toBe(1)
+    expect(tooLateToWrite(new Date(NOW), NOW)).toBe(false)
+    expect(tooLateToWrite(new Date(NOW - 3 * DAY), NOW)).toBe(false)                    // the steady state: first seen at 0–3 days
+    expect(tooLateToWrite(new Date(NOW - (FRESH_DAYS - 1) * DAY), NOW)).toBe(false)     // exactly a day left
+    expect(tooLateToWrite(new Date(NOW - (FRESH_DAYS - 1) * DAY - 1), NOW)).toBe(true)
+    expect(tooLateToWrite(new Date(NOW - 6.9 * DAY), NOW)).toBe(true)                   // inside the window, but gone by the next sweep
+    expect(tooLateToWrite(new Date(NOW - 8 * DAY), NOW)).toBe(true)
+  })
+  it('⛔ judged at the moment of the write — a long apply makes the same row too late hours after the read', () => {
+    const listed = new Date(NOW - 5.5 * DAY)
+    expect(isInWindow(listed, NOW)).toBe(true)
+    expect(tooLateToWrite(listed, NOW)).toBe(false)                                      // written as the read ends
+    expect(tooLateToWrite(listed, NOW + 13 * 3_600_000)).toBe(true)                      // 13 h into the apply
+  })
+  it('Batdongsan\'s worst-case dating: "Đăng 5 ngày trước" (6 d back) and "6 ngày trước" (7 d back) are too late hours after the read', () => {
+    const readAt = NOW, writeAt = NOW + 2 * 3_600_000
+    expect(tooLateToWrite(new Date(readAt - 5 * DAY), writeAt)).toBe(false)              // "4 ngày trước"
+    expect(tooLateToWrite(new Date(readAt - 6 * DAY), writeAt)).toBe(true)               // "5 ngày trước"
+    expect(tooLateToWrite(new Date(readAt - 7 * DAY), writeAt)).toBe(true)               // "6 ngày trước"
+  })
+  it('an unreadable date is too late — never written on a guess; a future one (clamped by the mappers) is not', () => {
+    expect(tooLateToWrite(new Date(NaN), NOW)).toBe(true)
+    expect(tooLateToWrite(new Date(NOW + DAY), NOW)).toBe(false)
   })
 })
 
@@ -471,8 +499,10 @@ describe('⛔ the 3-day job and the expiry read the window from this table, neve
     // 2026-10-13: the apply creates / revives / re-dates only within the 7-day rule — never the 8–30-day ads its set keeps listed
     expect(shCode).toMatch(/npx tsx scripts\/import-honeycomb-com-vn\.ts --src "\$STAGE" --since-days "\$AGE_DAYS"/)
     expect(Number(/^AGE_DAYS=(\d+)$/m.exec(shCode)?.[1])).toBe(FRESH_DAYS)
-    expect(shCode).toMatch(/import-nhatot-com\.ts --cg 1010,1020,1030,1050 --max-age-days "\$AGE_DAYS" --save/)
-    expect(shCode).toMatch(/import-nhatot-com\.ts --src "\$STAGE" --max-age-days "\$AGE_DAYS"/)
+    expect(shCode).toMatch(/import-nhatot-com\.ts --cg 1010 --max-age-days "\$AGE_DAYS" --save "\$STAGE" --fresh-crawl/)
+    expect(shCode).toMatch(/import-nhatot-com\.ts --cg 1010 --max-age-days "\$AGE_DAYS" --fresh-out "\$FRESH"/)
+    expect(shCode).toMatch(/import-nhatot-com\.ts --cg 1020,1030,1050 --max-age-days "\$AGE_DAYS" --save "\$STAGE" --fresh-crawl/)
+    expect(shCode).toMatch(/import-nhatot-com\.ts --src "\$stage" --max-age-days "\$AGE_DAYS"/)
     expect(shCode).toMatch(/import-batdongsan-rentals\.ts --src "\$BDS\/all_rentals\.json" --previous "\$PREV" --max-age-days "\$AGE_DAYS"/)
   })
   it('the expiry: --backstop is backstopDaysFor(seller), --backstop-days N is checked against the seller\'s window, a set by freshSetProblem', () => {

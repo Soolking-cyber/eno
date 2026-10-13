@@ -8,16 +8,24 @@
  *         [--probe-photos]   (dry run only: fetch + judge every candidate photo of the batch, upload nothing)
  *         [--cover-by-mark]  (with --probe-photos or --apply: lead with the photo Chợ Tốt's stamp shows least — 4-bis)
  *         [--fresh-out <fresh.json>]  (the 7-day rule's FRESH SET — needs --max-age-days ≥ 7, every city, cg 1010; see 8)
+ *         [--fresh-crawl]             (the same time-bounded read with NO set; exit 3 when a list was not read whole; see 8)
  *   Write (only from a STAGED, reviewed file — never straight off the network):
  *     … scripts/import-nhatot-com.ts --src <staged.json> --journal-dir <durable dir> [--max-age-days 7] [--allow-no-isr] --apply
  *         (--allow-no-isr: ONLY on a scratch copy with no next_cache_tag table — otherwise --apply refuses)
  *
  * THE 7-DAY RULE, EVERY 3 DAYS (src/lib/apartment-freshness.ts, src/lib/nhatot-fresh.ts; scripts/apartments-weekly.sh)
- *   … --cg 1010,1020,1030,1050 --max-age-days 7 --save <stage.json> --fresh-out <fresh.json>  (stage: live read, DRY)
+ *   apartments (gate unit `nhatot`):
+ *   … --cg 1010 --max-age-days 7 --save <stage.json> --fresh-crawl                     (stage: live read, DRY)
  *   … --src <stage.json> --max-age-days 7 --journal-dir <dir> --apply                  (create / update / REVIVE)
+ *   … --cg 1010 --max-age-days 7 --fresh-out <fresh.json> --no-probe                    (the SET: a second read, now)
  *   npx tsx scripts/expire-apartment-rentals.ts --seller nhatot-import-seller-0001 --fresh <fresh.json> …
- *   (since 2026-10-13 every place category is read and revived; the set — and so that expiry — stays cg 1010,
- *   and scripts/expire-rentals.ts --sweep takes every place row past 7 days down daily)
+ *   houses, offices, rooms (gate unit `nhatot-places`, only with the job's APT_PLACES=1):
+ *   … --cg 1020,1030,1050 --max-age-days 7 --save <stage.json> --fresh-crawl, then the same --apply (no set, no expiry)
+ *   ⛔ THE SET IS READ AFTER THE APPLY, NOT WITH THE STAGE (review of 2026-10-13): the expiry refuses a set over 24 h
+ *   old, counted from its read's start, and an apply creating thousands of rows photo by photo (≈300 an hour) can
+ *   outlast that — the 10-12 plan alone was 6,934 creates. A second time-bounded read (minutes) right before the
+ *   expiry makes the set's age independent of the apply's length; the expiry's guards (knownInDb among them) then
+ *   see the rows the apply just wrote. scripts/expire-rentals.ts --sweep takes every place row past 7 days down daily.
  *
  * RETIRE (hide rows whose source ad is gone — never deletes)
  *   Check (DRY): … scripts/import-nhatot-com.ts --retire [--limit N | --ids 1,2] [--save <status.json>]
@@ -98,7 +106,7 @@
  * ⛔ 8. THE 7-DAY RULE (owner, 2026-10-01). An imported apartment stays live only while Nhà Tốt shows it
  * listed or re-listed (`list_time`) within 7 days. Three parts here; the expiry itself is
  * scripts/expire-apartment-rentals.ts.
- *  · TIME-BOUNDED READ — ONLY ON A --fresh-out RUN (never because --max-age-days was passed: a plain dry
+ *  · TIME-BOUNDED READ — ONLY ON A --fresh-out OR --fresh-crawl RUN (never because --max-age-days was passed: a plain dry
  *    run with --max-age-days 30 still reads every slice to its end). It reads each newest-first slice only
  *    down to the --max-age-days window (src/lib/nhatot-fresh.ts says why that is whole: overlapping pages
  *    each anchored to the pages before, a head re-read for ads re-listed DURING the read, pinned ads unable
@@ -119,11 +127,15 @@
  *    is written atomically: temp file, fsync, rename, fsync of the directory.
  *  · THE READ ORDER: every city's apartments (cg 1010) first, then the other categories (nhatotWindowReadOrder)
  *    — a StopRead ends the whole read, and must not land between two cities' apartment slices.
+ *  · --fresh-crawl: the same time-bounded read, and NO set (nhatotFreshCrawlProblem) — the job's stage reads. A list
+ *    not read whole (complete: false) exits 3 after the stage is written: what was read may still be applied.
  *  · REVIVAL at --apply: an existing PLACE row (apartment, house, office, room — nhatotIsPlace, since 2026-10-13)
  *    whose list_time is inside the window at the STAGE's
  *    fetch time and whose status is 'expired' or 'stale' (REVIVABLE_STATUSES) goes back to 'active' —
  *    never a 'hidden', 'removed' or 'sold' row. The CREATE age limit is judged at that same fetch time
- *    (mapNhatotAd ageAt), so the apply creates and revives exactly what the set calls fresh. --apply
+ *    (mapNhatotAd ageAt), so the apply creates and revives what the stage calls fresh — ⛔ except a row with
+ *    under a day of its window left AT THE WRITE (tooLateToWrite, src/lib/apartment-freshness.ts): neither
+ *    created (no photo is fetched) nor revived, as the daily sweep would take it down again within the day. --apply
  *    refuses before its first status write when the database has no next_cache_tag table (--allow-no-isr
  *    on a scratch copy only). Each revival: the PLAN is journalled (fsync) before the write; only after the
  *    write moved the row does its rollback line go down (guarded on status 'active' AND the postedAt it
@@ -133,7 +145,8 @@
  *
  * EXIT CODES. Stage (--fresh-out): 0 · 3 = read and staged, but whole-window coverage NOT proven — a stop,
  * gap, inversion, unconfirmed end… — so no fresh set was written · 1 = a crash (or a refused argument);
- * (2 = a --probe-photos dry run stopped). --apply: 0 · 1 = some row failed on our side (an error, an upload,
+ * (2 = a --probe-photos dry run stopped). Stage (--fresh-crawl): 0 · 3 = a list was not read whole (the stage
+ * holds what was read). --apply: 0 · 1 = some row failed on our side (an error, an upload,
  * an ISR tombstone) · 2 = a StopRead ended the batch early · 1 from a crash. The apply's LAST line is
  * `APPLY COMPLETED` exactly when its row loop reached the end of the batch (row errors included) — never
  * after a crash or a StopRead — so a finished apply with row errors is told apart from one that died.
@@ -166,10 +179,10 @@ import {
   type NhatotCityKey, type NhatotLiveness, type NhatotMapped, type NhatotPhotoPlan, type NhatotStagedAd,
 } from '../src/lib/nhatot-listing'
 // The 7-day rule for imported apartments (header ⛔ 8).
-import { FRESH_DAYS, FRESH_SET_KIND, REVIVABLE_STATUSES } from '../src/lib/apartment-freshness'
+import { FRESH_DAYS, FRESH_SET_KIND, REVIVABLE_STATUSES, WRITE_MIN_LIFE_DAYS, tooLateToWrite } from '../src/lib/apartment-freshness'
 import { tombstonePdps } from '../src/lib/pdp-tombstone'
 import {
-  NHATOT_APARTMENT_CG, NHATOT_WINDOW_OVERLAP, nhatotExistingRowPlan, nhatotFreshDecision, nhatotFreshOutProblem,
+  NHATOT_APARTMENT_CG, NHATOT_WINDOW_OVERLAP, nhatotExistingRowPlan, nhatotFreshCrawlProblem, nhatotFreshDecision, nhatotFreshOutProblem,
   nhatotRepostRollbackSql, nhatotRevivalRollbackSql, nhatotSqlLit, nhatotTombstoneSql,
   nhatotWindowCutoff, nhatotWindowReadOrder, nhatotWindowRow, readNhatotWindowSlice,
   type NhatotSliceWindow, type NhatotWindowParams,
@@ -177,7 +190,7 @@ import {
 
 const argv = process.argv.slice(2)
 /** ⛔ AN UNKNOWN FLAG IS AN ERROR. `--limt 30` silently meaning "no limit" is how a sample becomes a full crawl. */
-const FLAGS = new Set(['--apply', '--retire', '--no-probe', '--probe-photos', '--cover-by-mark', '--allow-no-isr'])
+const FLAGS = new Set(['--apply', '--retire', '--no-probe', '--probe-photos', '--cover-by-mark', '--allow-no-isr', '--fresh-crawl'])
 const VALUED = new Set(['--limit', '--max-photos', '--max-age-days', '--gap-ms', '--src', '--save', '--journal-dir', '--city', '--cg', '--cap', '--ids', '--fresh-out'])
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
@@ -213,6 +226,9 @@ const int = (k: string, d: number) => {
 const LIMIT = int('--limit', 0)
 const MAX_PHOTOS = int('--max-photos', 6)
 const MAX_AGE_DAYS = int('--max-age-days', 30)
+/** ⛔ The 7-day rule's runs (the job passes 7) skip a create/revival too late AT THE WRITE (tooLateToWrite); a run
+ *  with a wider --max-age-days (a manual backfill) keeps the window it asked for. */
+const WRITE_MARGIN = MAX_AGE_DAYS <= FRESH_DAYS
 /** ⛔ Never below the floor, and a value that does not parse is the DEFAULT — never NaN = no delay. */
 const GAP_RAW = str('--gap-ms')
 const GAP_MS = nhatotRateArg(GAP_RAW, NHATOT_GAP_MS_DEFAULT, NHATOT_GAP_MS_MIN)
@@ -225,12 +241,14 @@ const CAPS = parseNhatotCaps(str('--cap'))
 const HAS_CAPS = Object.keys(CAPS).length > 0
 const MAX_AGE_GIVEN = str('--max-age-days') !== null
 const FRESH_OUT = str('--fresh-out')
+/** The time-bounded read with NO set (header ⛔ 8, nhatotFreshCrawlProblem) — the 3-day job's stage reads. */
+const FRESH_CRAWL = argv.includes('--fresh-crawl')
 /**
- * The time-bounded read (header ⛔ 8) is the --fresh-out run's read and nothing else — never switched on
- * by --max-age-days alone, so a plain dry run keeps the full read and its meaning of `complete`.
- * (nhatotFreshOutProblem refuses --fresh-out with --src/--limit/--cap before any request.)
+ * The time-bounded read (header ⛔ 8) is the --fresh-out or --fresh-crawl run's read and nothing else — never
+ * switched on by --max-age-days alone, so a plain dry run keeps the full read and its meaning of `complete`.
+ * (nhatotFreshOutProblem / nhatotFreshCrawlProblem refuse them with --src/--limit/--cap before any request.)
  */
-const TIME_BOUNDED = FRESH_OUT !== null && !SRC && !RETIRE && !LIMIT && !HAS_CAPS
+const TIME_BOUNDED = (FRESH_OUT !== null || FRESH_CRAWL) && !SRC && !RETIRE && !LIMIT && !HAS_CAPS
 
 const CITY_ALIASES: Record<string, NhatotCityKey> = {
   hcm: 'hcm', hcmc: 'hcm', 'ho-chi-minh': 'hcm', saigon: 'hcm',
@@ -915,6 +933,11 @@ async function importMain() {
     freshOut: canonicalPath(FRESH_OUT), save: SAVE === null ? null : canonicalPath(SAVE),
   })
   if (freshOutProblem) throw new Error(freshOutProblem)
+  const freshCrawlProblem = FRESH_CRAWL ? nhatotFreshCrawlProblem({
+    src: !!SRC, apply: APPLY, retire: false, limit: LIMIT, caps: HAS_CAPS, freshOut: FRESH_OUT !== null,
+    maxAgeDaysGiven: MAX_AGE_GIVEN, maxAgeDays: MAX_AGE_DAYS,
+  }) : null
+  if (freshCrawlProblem) throw new Error(freshCrawlProblem)
   if (FRESH_OUT !== null) clearPreviousFreshSet(FRESH_OUT)
   /** ⛔ FIRST, before the file, the DB or the network. */
   const journal = APPLY ? prepareJournalDir() : null
@@ -930,6 +953,11 @@ async function importMain() {
   if (SAVE) writeFileAtomic(SAVE, JSON.stringify(staged, null, 1))
   /** Written from THIS read, in memory, right after it — before the database is opened. */
   if (FRESH_OUT !== null) writeFreshOut(FRESH_OUT, staged)
+  /** --fresh-crawl: no set, but the same verdict on the read — a list not read whole exits 3 (what was read is staged). */
+  if (FRESH_CRAWL && !staged.complete) {
+    console.error(`⚠️ --fresh-crawl: a list was not read whole (a stop, a gap, an unproven end — the slices below say which); what was read is staged${SAVE ? ` in ${SAVE}` : ''} and may be applied — exit 3`)
+    process.exitCode = 3
+  }
   /** The 7-day rule's window is judged at the STAGE's fetch time — the set's fetchedAt, the read's START
    *  (fetchLive) — for the age limit at create (mapNhatotAd ageAt) and for a revival alike, so --apply acts on
    *  exactly what the set calls fresh. */
@@ -975,12 +1003,15 @@ async function importMain() {
       if (r.externalId) existing.set(r.externalId, { status: r.status, postedAt: r.postedAt })
     }
   }
-  /** What the 7-day rule would do at --apply: revivals, and postedAt moved forward on re-listed ads. */
-  const datePlans = { revive: 0, repost: 0 }
+  /** What the 7-day rule would do at --apply: revivals, and postedAt moved forward on re-listed ads — and, judged at
+   *  THIS clock (the apply judges each row at its own write), the creates and revivals too late to write. */
+  const datePlans = { revive: 0, repost: 0, lateRevive: 0, lateCreate: 0 }
   for (const r of batch) {
     const cur = existing.get(r.externalId)
-    if (!cur || cur.status === 'removed') continue
-    const p = nhatotExistingRowPlan(cur, { postedAt: r.postedAt, subcategorySlug: r.mutable.subcategorySlug }, stagedAt)
+    if (!cur) { if (WRITE_MARGIN && tooLateToWrite(r.postedAt, now)) datePlans.lateCreate++; continue }
+    if (cur.status === 'removed') continue
+    const p = nhatotExistingRowPlan(cur, { postedAt: r.postedAt, subcategorySlug: r.mutable.subcategorySlug }, stagedAt, WRITE_MARGIN ? now : null)
+    if (p.late) datePlans.lateRevive++
     if (p.revive) datePlans.revive++
     else if (p.postedAt) datePlans.repost++
   }
@@ -1008,8 +1039,9 @@ async function importMain() {
   console.log(`staged ads        ${staged.ads.length} unique (personal fields stripped; a street is kept only as a bare street NAME)${SAVE ? ` → saved ${SAVE}` : ''}`)
   console.log(`dropped           ${JSON.stringify(drop)}`)
   screen.report()
-  console.log(`TO IMPORT         ${batch.length}  (would create ${newRows.length}, refresh ${batch.length - newRows.length})`)
+  console.log(`TO IMPORT         ${batch.length}  (would create ${newRows.length - datePlans.lateCreate}${datePlans.lateCreate ? ` — and leave ${datePlans.lateCreate} too late (below)` : ''}, refresh ${batch.length - newRows.length})`)
   console.log(`7-day rule        would REVIVE ${datePlans.revive} place row(s) (apartment/house/office/room, expired/stale, listed within ${FRESH_DAYS} d of the stage's fetch) · move postedAt forward on ${datePlans.repost} re-listed row(s)`)
+  console.log(`  too late        ${WRITE_MARGIN ? `${datePlans.lateCreate} create(s) and ${datePlans.lateRevive} revival(s) skipped at this clock — under ${WRITE_MIN_LIFE_DAYS} d of their ${FRESH_DAYS} left (tooLateToWrite; --apply judges each row again at its own write)` : `not judged — --max-age-days ${MAX_AGE_DAYS} is wider than the ${FRESH_DAYS}-day rule (a backfill keeps the window it asked for)`}`)
   console.log(`  by city         ${JSON.stringify(hist((r) => r.mutable.city))}`)
   console.log(`  by district     ${JSON.stringify(hist((r) => r.mutable.district ?? '(none)'))}`)
   console.log(`  by subcategory  ${JSON.stringify(hist((r) => r.mutable.subcategorySlug ?? '(none)'))}`)
@@ -1110,6 +1142,8 @@ async function importMain() {
   const stat = {
     created: 0, refreshed: 0, unchanged: 0, photoFailed: 0, tooFewRealPhotos: 0, uploadFailed: 0, raced: 0, errored: 0, uploaded: 0,
     duplicatePhotos: 0, coverByMark: 0, imagesRefused: {} as Record<string, number>, revived: 0, reposted: 0,
+    /** Not created (no photo fetched) / not revived: under a day of the window left at the write (tooLateToWrite). */
+    tooLateCreate: 0, tooLateRevive: 0,
   }
   /** Rows THIS run moved back to 'active' — each tombstoned as it lands, and all once more in the finally. */
   const revivedIds: string[] = []
@@ -1134,8 +1168,11 @@ async function importMain() {
         if (cur?.status === 'removed') { stat.unchanged++; continue }
         if (cur) {
           const was = cur as Record<string, unknown>, next = data as Record<string, unknown>
-          /** The 7-day rule: revive an expired/stale apartment the source shows fresh; move postedAt forward on a re-list. */
-          const plan = nhatotExistingRowPlan(cur, { postedAt: r.postedAt, subcategorySlug: r.mutable.subcategorySlug }, stagedAt)
+          /** The 7-day rule: revive an expired/stale place row the source shows fresh — unless too late at THIS write
+           *  (it would be expired again within the day: then it is treated like any other existing row); move postedAt
+           *  forward on a re-list. */
+          const plan = nhatotExistingRowPlan(cur, { postedAt: r.postedAt, subcategorySlug: r.mutable.subcategorySlug }, stagedAt, WRITE_MARGIN ? Date.now() : null)
+          if (plan.late) stat.tooLateRevive++
           if (MUTABLE_KEYS.every((k) => was[k] === next[k]) && !plan.revive && !plan.postedAt) { stat.unchanged++; continue }
           /** postedAt and rankScore move TOGETHER, from the source date, the way create sets them. */
           const dates = plan.postedAt ? { postedAt: plan.postedAt, rankScore: rankAt(plan.postedAt) } : {}
@@ -1178,6 +1215,10 @@ async function importMain() {
           if (plan.postedAt) stat.reposted++
           continue
         }
+        /** ⛔ TOO LATE AT THIS WRITE (tooLateToWrite): the window was judged at the stage's fetch, hours ago on a long
+         *  apply — a row with under a day of it left is not photographed, uploaded and created only for the sweep to
+         *  expire it again. Checked before a single photo is fetched. */
+        if (WRITE_MARGIN && tooLateToWrite(r.postedAt, Date.now())) { stat.tooLateCreate++; continue }
         /** ⛔ Judged BEFORE anything uploads, by the same plan the dry-run probe prints. */
         const { judged, plan } = await judgeRow(r, mark)
         for (const [k, n] of Object.entries(plan.refused)) stat.imagesRefused[k] = (stat.imagesRefused[k] ?? 0) + (n ?? 0)
@@ -1218,7 +1259,7 @@ async function importMain() {
         if ((e as { code?: string }).code === 'P2002') stat.raced++
         else { stat.errored++; console.warn(`  ! ${r.externalId}: ${(e as Error).message.slice(0, 160)}`) }
       }
-      const done = stat.created + stat.refreshed + stat.revived + stat.unchanged + stat.photoFailed + stat.tooFewRealPhotos + stat.uploadFailed + stat.raced + stat.errored
+      const done = stat.created + stat.refreshed + stat.revived + stat.unchanged + stat.photoFailed + stat.tooFewRealPhotos + stat.uploadFailed + stat.raced + stat.errored + stat.tooLateCreate
       if (done % 100 === 0) console.log(`  ${done}/${batch.length}  ${JSON.stringify(stat)}`)
     }
   } finally {
@@ -1318,6 +1359,7 @@ async function retireMain() {
   if (APPLY && !SRC) throw new Error('--retire --apply needs --src <status.json> from a reviewed --retire --save run')
   if (HAS_CAPS) throw new Error('--cap is an import option')
   if (FRESH_OUT !== null) throw new Error(nhatotFreshOutProblem({ src: !!SRC, apply: APPLY, retire: true, limit: LIMIT, caps: HAS_CAPS, maxAgeDaysGiven: MAX_AGE_GIVEN, maxAgeDays: MAX_AGE_DAYS, cities: CITIES, cgs: CGS }) ?? '--fresh-out is not a --retire option')
+  if (FRESH_CRAWL) throw new Error(nhatotFreshCrawlProblem({ src: !!SRC, apply: APPLY, retire: true, limit: LIMIT, caps: HAS_CAPS, freshOut: FRESH_OUT !== null, maxAgeDaysGiven: MAX_AGE_GIVEN, maxAgeDays: MAX_AGE_DAYS }) ?? '--fresh-crawl is not a --retire option')
   const IDS = str('--ids')
   if (IDS && (SRC || APPLY)) throw new Error('--ids is for a dry liveness probe only')
   /** ⛔ FIRST, before the file, the DB or the network. */

@@ -36,17 +36,23 @@
  * properties that are 7 days older every 3 days it should check and update up to 7 day old ones no older than 7
  * days". Three layers, each with one job:
  *   · THE IMPORTERS (every 3 days, scripts/apartments-weekly.sh) create, REVIVE (REVIVABLE_STATUSES) and re-date
- *     every PLACE type their source lists — apartment, house, room, office — and only ads dated inside FRESH_DAYS:
- *     Nhà Tốt cg 1010/1020/1030/1050, Muaban apartment/house/room/office (the non-apartment crawl writes no set),
- *     Batdongsan's whole rentals list, Honeycomb's apartments and houses (its apply runs with --since-days
- *     FRESH_DAYS: its 30-day set below only drives the expiry of ads its sitemap stopped listing). Rever has no
- *     new rentals; its check (apartments) is unchanged.
+ *     every PLACE type they read — apartment, house, room, office — and only ads dated inside FRESH_DAYS. Apartments
+ *     always: Nhà Tốt cg 1010, Muaban's apartments, Batdongsan's two apartment lists, Honeycomb's apartments and
+ *     houses (its apply runs with --since-days FRESH_DAYS: its 30-day set below only drives the expiry of ads its
+ *     sitemap stopped listing — its few houses come in either way); Rever has no new rentals and its check (apartments)
+ *     is unchanged. Houses, rooms and offices from Nhà Tốt (cg 1020/1030/1050), Muaban and Batdongsan's whole list only
+ *     with the job's APT_PLACES=1
+ *     (the owner's call: ≈5.5 photos per Nhà Tốt/Muaban row, roughly tripling the photo intake — the job's header).
  *   · THE DAILY AGE SWEEP (scripts/expire-rentals.ts --sweep, src/lib/rental-sweep.ts) expires every live imported
  *     place row whose postedAt is older than FRESH_DAYS — every seller, every place type — so nothing stays past 7
  *     days whatever a source's window or refresh does.
  *   · THE FRESH-SET EXPIRY (this file's sets, scripts/expire-apartment-rentals.ts) stays APARTMENTS ONLY: each
  *     coverage proof describes the apartment lists. It only takes an apartment down EARLIER than the sweep, when its
  *     source stops listing it inside the window; a non-apartment ad removed at its source waits for the sweep.
+ *   · ⛔ A DAY TO LIVE, AT THE WRITE (tooLateToWrite, review of 2026-10-13): a create or a revival is skipped when the
+ *     row's source date is already more than FRESH_DAYS − WRITE_MIN_LIFE_DAYS old at the moment of the write — the
+ *     window itself is judged at the read, hours before a long apply reaches the row, and the sweep would take the
+ *     row down again within hours of its photos being uploaded.
  */
 import { RENTAL_IMPORT_SELLERS } from './import-sellers'
 
@@ -227,6 +233,31 @@ export function makeFreshSet(sellerId: string, fetchedAt: Date, coverage: string
 export function isInWindow(sourceDate: Date, at: number, windowDays = FRESH_DAYS): boolean {
   const t = sourceDate.getTime()
   return Number.isFinite(t) && t <= at + SKEW_MS && at - t <= windowDays * DAY_MS
+}
+
+/** A row an importer creates or revives must have at least this long left before it turns FRESH_DAYS old. */
+export const WRITE_MIN_LIFE_DAYS = 1
+/**
+ * ⛔ TOO LATE TO WRITE: true when a row dated `sourceDate` has less than WRITE_MIN_LIFE_DAYS left of its FRESH_DAYS at
+ * `now` — the moment of the WRITE (Date.now() as the importer reaches the row), never the read's. Review of 2026-10-13:
+ * the 7-day window is judged at the stage's fetch (and the fresh set with it — unchanged), but an apply runs for hours
+ * (Nhà Tốt creates ≈300 rows an hour, photo by photo), and the daily age sweep (scripts/expire-rentals.ts --sweep, at
+ * the end of the same run and every morning) expires every place row whose postedAt is past FRESH_DAYS. A row created
+ * at 6.9 days was photographed, uploaded and then taken down the same day. Nhà Tốt, Muaban and Batdongsan skip such a
+ * CREATE (before any photo is fetched) and such a REVIVAL; refreshing or re-dating a row that exists is unaffected.
+ * On the 7-day rule's runs only: Muaban always (its window is FRESH_DAYS), Nhà Tốt and Batdongsan with --max-age-days
+ * ≤ FRESH_DAYS (the job's 7) — a wider manual backfill keeps the window it asked for.
+ *   · THE GUARANTEE: every row they create or revive stays live at least WRITE_MIN_LIFE_DAYS before it turns FRESH_DAYS
+ *     old — however long the run lasts (a later closing sweep only means a longer life).
+ *   · WHOM IT SKIPS: in the steady state (a refresh every 3 days) a new ad is first seen at 0–3 days, well inside the
+ *     margin; it bites on a first run, a catch-up after failed refreshes, and Batdongsan's worst-case dating — its
+ *     "Đăng 5 ngày trước" and "6 ngày trước" labels date a row 6 and 7 days back at the read, so those are never
+ *     created or revived (they would live at most a day, and "6 ngày" not at all).
+ * An unreadable date is too late (never written on a guess).
+ */
+export function tooLateToWrite(sourceDate: Date, now: number): boolean {
+  const t = sourceDate.getTime()
+  return !Number.isFinite(t) || now - t > (FRESH_DAYS - WRITE_MIN_LIFE_DAYS) * DAY_MS
 }
 
 /**

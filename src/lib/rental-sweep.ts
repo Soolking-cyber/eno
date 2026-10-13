@@ -22,7 +22,7 @@
  *
  * ⛔ UNATTENDED, SO ITS ONE REFUSAL IS WRITTEN DOWN HERE (sweepRefusal), PER GATE UNIT (planSweep), and nothing
  * else stops it. The sweep needs no `--expect` count: a day's departures are whatever crossed the line since
- * yesterday. A UNIT's rows (unitOf: a seller's, or for Muaban its apartments vs its other place rows) are held back —
+ * yesterday. A UNIT's rows (unitOf: a seller's, or for Nhà Tốt and Muaban their apartments vs their other place rows) are held back —
  * the rest of the sweep still runs, and it exits SWEEP_REFUSED_EXIT so the job alerts — only when the sweep would take
  * MORE THAN SWEEP_MAX_SHARE of that unit's live rows at once (from SWEEP_MIN_LIVE of them) WHILE that unit's refresh
  * has not succeeded for over SWEEP_STALE_IMPORT_DAYS (or never). On a daily cadence a healthy source loses about a
@@ -35,8 +35,10 @@
  * apartment crawl).
  * ⚠️ IT DOES NOT SLOW A DRAIN: with a source dead, the daily sweep takes its rows as they age (a seventh a day) and
  * only the last slice trips the guard. That is the 7-day rule working; the dead source itself alerts daily (the job).
+ * ⚠️ A UNIT SWITCHED OFF (APT_PLACES 1 → 0) drains the same way, and its last cohort waits for --allow-mass-expiry
+ * (planSweep) — ⚠️ which releases EVERY unit held that morning: read the SWEEP lines first.
  */
-import { FRESH_DAYS, SHARE_FLOOR } from './apartment-freshness'
+import { APARTMENT_SUBCAT, FRESH_DAYS, SHARE_FLOOR } from './apartment-freshness'
 import { RENTAL_IMPORT_SELLERS } from './import-sellers'
 
 /** The age past which a live imported place row is expired — the 7-day rule's own window. */
@@ -57,15 +59,22 @@ const SKEW_MS = 5 * 60_000
 type RentalSellerId = (typeof RENTAL_IMPORT_SELLERS)[number]
 /**
  * The 3-day job's gate units (scripts/apartments-weekly.sh SOURCES — one success stamp each, `last-success-<unit>`)
- * and the seller each refreshes. Muaban has two units (its apartments with their set; houses, rooms and offices).
+ * and the seller each refreshes. Nhà Tốt and Muaban have two units each (PLACES_UNITS): their apartments, with the
+ * fresh set; their houses, rooms and offices (no set — and run only with the job's APT_PLACES=1).
  */
 export const SOURCE_SELLERS: Readonly<Record<string, RentalSellerId>> = Object.freeze({
   nhatot: 'nhatot-import-seller-0001',
+  'nhatot-places': 'nhatot-import-seller-0001',
   muaban: 'muaban-net-import-seller-0001',
   'muaban-places': 'muaban-net-import-seller-0001',
   honeycomb: 'honeycomb-import-seller-0001',
   rever: 'cmub0wead0000zrq418bqq27m',
   batdongsan: 'bds-vn-import-seller-0001',
+})
+/** The sellers refreshed by TWO units — apartment rows by the first, every other place row by the second. */
+export const PLACES_UNITS: Readonly<Partial<Record<RentalSellerId, { apartments: string; places: string }>>> = Object.freeze({
+  'nhatot-import-seller-0001': { apartments: 'nhatot', places: 'nhatot-places' },
+  'muaban-net-import-seller-0001': { apartments: 'muaban', places: 'muaban-places' },
 })
 
 /**
@@ -92,12 +101,13 @@ export function lastImportByUnit(stamps: readonly { unit: string; text: string }
 }
 
 /**
- * The gate unit whose refresh keeps a live row fresh — its seller's, and for Muaban its apartments' (`muaban`, the set's
- * crawl) or its other place rows' (`muaban-places`). null for a seller no unit refreshes (its rows are then guarded as
- * never imported).
+ * The gate unit whose refresh keeps a live row fresh — its seller's, and for Nhà Tốt and Muaban (PLACES_UNITS) its
+ * apartments' unit (`nhatot` / `muaban`, the set's read) or its other place rows' (`nhatot-places` / `muaban-places`,
+ * an untyped row included). null for a seller no unit refreshes (its rows are then guarded as never imported).
  */
 export function unitOf(sellerId: string, subcat: string | null): string | null {
-  if (sellerId === SOURCE_SELLERS['muaban-places']) return subcat === 'apartment-rental' ? 'muaban' : 'muaban-places'
+  const split = (PLACES_UNITS as Readonly<Record<string, { apartments: string; places: string } | undefined>>)[sellerId]
+  if (split) return subcat === APARTMENT_SUBCAT ? split.apartments : split.places
   return Object.keys(SOURCE_SELLERS).find((u) => SOURCE_SELLERS[u] === sellerId) ?? null
 }
 
@@ -124,6 +134,13 @@ export type SweepGroup = { unit: string | null; sellerId: string; live: number; 
  * THE SWEEP, PLANNED from ONE read of the live rows in scope (each marked `old` when its postedAt is past SWEEP_DAYS
  * — one query, so a group's `expire` can never exceed its `live` however a refresh moves rows meanwhile): per gate
  * unit (unitOf) its counts and refusal, and the ids to expire — the old rows of every group not held back.
+ * ⚠️ A UNIT SWITCHED OFF (nhatot-places / muaban-places when the job's APT_PLACES goes from 1 to 0) is guarded like a
+ * dead one: its rows drain a seventh a day, and its LAST cohort (all of what is left) is held back on every sweep,
+ * alerting, until a person releases it with `--allow-mass-expiry` — the rule above, kept on purpose: two automatic
+ * releases were tried in the 2026-10-13 review (after N days without a success; when no row was dated within N days)
+ * and each could empty storefronts unattended (a Mac asleep for N days, corrupted dates). A first install meets none:
+ * the 10-13 one-off expired every Nhà Tốt and Muaban house/room/office (newest dated 09-23 — ~/eno-import-journals/
+ * rentals-freshness), and no importer has written one since 09-24.
  */
 export function planSweep(o: {
   rows: readonly { id: string; sellerId: string; subcat: string | null; old: boolean }[]

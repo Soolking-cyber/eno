@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { APARTMENT_SUBCAT, FRESH_DAYS, freshSetProblem } from './apartment-freshness'
 import { NHATOT_CATEGORIES, stageNhatotAd, type NhatotStagedAd } from './nhatot-listing'
 import {
-  NHATOT_APARTMENT_CG, NHATOT_PLACE_SUBCATS, NHATOT_WINDOW_MARGIN_MS, nhatotAnchors, nhatotBuildFreshSet, nhatotEndProblem, nhatotExistingRowPlan, nhatotFreshCoverage,
+  NHATOT_APARTMENT_CG, NHATOT_PLACE_SUBCATS, NHATOT_WINDOW_MARGIN_MS, nhatotAnchors, nhatotBuildFreshSet, nhatotEndProblem, nhatotExistingRowPlan, nhatotFreshCoverage, nhatotFreshCrawlProblem,
   nhatotFreshDecision, nhatotFreshOutProblem, nhatotIsApartment, nhatotIsBoundaryPage, nhatotIsPlace, nhatotLastTime, nhatotNewest, nhatotOrderProblem, nhatotRepostRollbackSql, nhatotRevivalRollbackSql,
   nhatotSamePage, nhatotSqlLit, nhatotTombstoneSql, nhatotWindowCutoff, nhatotWindowReadOrder, nhatotWindowRow,
   nhatotWindowStep, readNhatotWindowSlice, type NhatotWindowRow, type NhatotWindowSlice,
@@ -454,8 +454,18 @@ describe('nhatotFreshOutProblem — refused before any request', () => {
   it('accepts an unsampled time-bounded read of every city with apartments', () => {
     expect(nhatotFreshOutProblem({ ...ok, cities: [...ok.cities] })).toBeNull()
     expect(nhatotFreshOutProblem({ ...ok, cities: [...ok.cities], maxAgeDays: 30, cgs: [1010, 1020] })).toBeNull()
-    // the 3-day job's line since 2026-10-13: every place category, the set still cg 1010's
+    // a read of every place category may still write the cg 1010 set
     expect(nhatotFreshOutProblem({ ...ok, cities: [...ok.cities], cgs: [1010, 1020, 1030, 1050] })).toBeNull()
+  })
+  it('⛔ the 3-day job\'s SET read — `--cg 1010 --max-age-days 7 --fresh-out <set> --no-probe`, no --save, after the apply — is accepted', () => {
+    // exactly what scripts/apartments-weekly.sh run_nhatot passes (every city by default; --no-probe touches no argument rule)
+    expect(nhatotFreshOutProblem({ src: false, apply: false, retire: false, limit: 0, caps: false, maxAgeDaysGiven: true, maxAgeDays: 7, cities: ['hcm', 'hn', 'dn'], cgs: [1010], freshOut: '/run/nhatot-fresh.json', save: null })).toBeNull()
+    const sh = readFileSync('scripts/apartments-weekly.sh', 'utf8')
+    expect(sh).toMatch(/import-nhatot-com\.ts --cg 1010 --max-age-days "\$AGE_DAYS" --fresh-out "\$FRESH" --no-probe; rc=\$\?/)
+    // and --no-probe only skips the dry run's sample probes — it is read nowhere else
+    const src = readFileSync('scripts/import-nhatot-com.ts', 'utf8')
+    expect(src.match(/NO_PROBE/g)?.length).toBe(3)                       // the declaration, the --probe-photos clash, the sample probes
+    expect(src).toMatch(/if \(!NO_PROBE && !SRC\) \{\n\s+console\.log\(`\\n── probes \(read-only, 1 request each\) ──`\)/)
   })
   it('refuses a replay, an apply, --retire, a sample, an unbounded or too-short read, a missing city or cg 1010', () => {
     const c = [...ok.cities]
@@ -630,30 +640,62 @@ describe('nhatotExistingRowPlan — what --apply does to an existing row', () =>
   const at = NOW
   const src = { postedAt: new Date(NOW - 2 * DAY), subcategorySlug: APARTMENT_SUBCAT }
   const stored = new Date(NOW - 20 * DAY)
+  /** The plan as the apply makes it: the window judged at the stage's fetch, the margin at this write (here the same instant). */
+  const plan = (cur: { status: string; postedAt: Date }, row: { postedAt: Date; subcategorySlug: string | null }, stagedAt = at, writeAt: number | null = stagedAt) => nhatotExistingRowPlan(cur, row, stagedAt, writeAt)
   it('REVIVES an expired or stale apartment the source shows inside the window, with postedAt = the source date', () => {
-    expect(nhatotExistingRowPlan({ status: 'expired', postedAt: stored }, src, at)).toEqual({ revive: true, postedAt: src.postedAt })
-    expect(nhatotExistingRowPlan({ status: 'stale', postedAt: stored }, src, at)).toEqual({ revive: true, postedAt: src.postedAt })
+    expect(plan({ status: 'expired', postedAt: stored }, src)).toEqual({ revive: true, late: false, postedAt: src.postedAt })
+    expect(plan({ status: 'stale', postedAt: stored }, src)).toEqual({ revive: true, late: false, postedAt: src.postedAt })
     // even when the stored date is LATER (a row created before postedAt was the source date)
-    expect(nhatotExistingRowPlan({ status: 'expired', postedAt: new Date(NOW) }, src, at)).toEqual({ revive: true, postedAt: src.postedAt })
+    expect(plan({ status: 'expired', postedAt: new Date(NOW) }, src)).toEqual({ revive: true, late: false, postedAt: src.postedAt })
   })
   it('⛔ REVIVES every place type since 2026-10-13 — a house, an office, a room — exactly like an apartment', () => {
     for (const subcategorySlug of ['house-rental', 'office-rental', 'room-rental']) {
-      expect(nhatotExistingRowPlan({ status: 'expired', postedAt: stored }, { ...src, subcategorySlug }, at), subcategorySlug).toEqual({ revive: true, postedAt: src.postedAt })
-      expect(nhatotExistingRowPlan({ status: 'expired', postedAt: stored }, { ...src, subcategorySlug, postedAt: new Date(NOW - 8 * DAY) }, at).revive).toBe(false)
+      expect(plan({ status: 'expired', postedAt: stored }, { ...src, subcategorySlug }), subcategorySlug).toEqual({ revive: true, late: false, postedAt: src.postedAt })
+      expect(plan({ status: 'expired', postedAt: stored }, { ...src, subcategorySlug, postedAt: new Date(NOW - 8 * DAY) }).revive).toBe(false)
     }
   })
   it('never revives a hidden, sold, active or removed row, a row of no Chợ Tốt place type, or one outside the window at the stage’s fetch', () => {
-    for (const status of ['hidden', 'sold', 'active', 'removed']) expect(nhatotExistingRowPlan({ status, postedAt: stored }, src, at).revive).toBe(false)
-    for (const subcategorySlug of [null, 'car-rental', 'homestay-serviced']) expect(nhatotExistingRowPlan({ status: 'expired', postedAt: stored }, { ...src, subcategorySlug }, at).revive, String(subcategorySlug)).toBe(false)
-    expect(nhatotExistingRowPlan({ status: 'expired', postedAt: stored }, { ...src, postedAt: new Date(NOW - 8 * DAY) }, at).revive).toBe(false)
+    for (const status of ['hidden', 'sold', 'active', 'removed']) expect(plan({ status, postedAt: stored }, src).revive).toBe(false)
+    for (const subcategorySlug of [null, 'car-rental', 'homestay-serviced']) expect(plan({ status: 'expired', postedAt: stored }, { ...src, subcategorySlug }).revive, String(subcategorySlug)).toBe(false)
+    expect(plan({ status: 'expired', postedAt: stored }, { ...src, postedAt: new Date(NOW - 8 * DAY) }).revive).toBe(false)
     // judged at the STAGE's fetch time, not the apply's clock
-    expect(nhatotExistingRowPlan({ status: 'expired', postedAt: stored }, { ...src, postedAt: new Date(NOW - 6 * DAY) }, NOW + 2 * DAY).revive).toBe(false)
+    expect(plan({ status: 'expired', postedAt: stored }, { ...src, postedAt: new Date(NOW - 6 * DAY) }, NOW + 2 * DAY).revive).toBe(false)
+  })
+  it('⛔ A DAY TO LIVE: inside the window at the stage, but under a day of it left AT THE WRITE → not revived (late), handled like any other row', () => {
+    const row = { ...src, postedAt: new Date(NOW - 5.5 * DAY) }
+    expect(plan({ status: 'expired', postedAt: stored }, row)).toEqual({ revive: true, late: false, postedAt: row.postedAt })        // written at once: 1.5 d left
+    expect(plan({ status: 'expired', postedAt: stored }, row, at, at + 0.75 * DAY)).toEqual({ revive: false, late: true, postedAt: row.postedAt })   // 18 h into the apply: 0.75 d left → late, the newer date still moves
+    expect(plan({ status: 'stale', postedAt: new Date(NOW - DAY) }, row, at, at + DAY)).toEqual({ revive: false, late: true, postedAt: null })        // and an older one never moves back
+    // the boundary: exactly FRESH_DAYS − 1 day old at the write still revives; a millisecond more does not
+    expect(plan({ status: 'expired', postedAt: stored }, { ...src, postedAt: new Date(NOW - 6 * DAY) }).revive).toBe(true)
+    expect(plan({ status: 'expired', postedAt: stored }, { ...src, postedAt: new Date(NOW - 6 * DAY - 1) })).toMatchObject({ revive: false, late: true })
+    // `late` is only ever about a revival: a live row is never late
+    expect(plan({ status: 'active', postedAt: stored }, row, at, at + DAY).late).toBe(false)
+    // no margin (writeAt null — a run wider than the 7-day rule): revived on the stage's judgement alone
+    expect(plan({ status: 'expired', postedAt: stored }, row, at, null)).toEqual({ revive: true, late: false, postedAt: row.postedAt })
   })
   it('moves postedAt only FORWARD on an update (a re-list), whatever the status or category', () => {
-    expect(nhatotExistingRowPlan({ status: 'active', postedAt: stored }, src, at)).toEqual({ revive: false, postedAt: src.postedAt })
-    expect(nhatotExistingRowPlan({ status: 'hidden', postedAt: stored }, { ...src, subcategorySlug: 'room-rental' }, at)).toEqual({ revive: false, postedAt: src.postedAt })
-    expect(nhatotExistingRowPlan({ status: 'active', postedAt: src.postedAt }, src, at).postedAt).toBeNull()
-    expect(nhatotExistingRowPlan({ status: 'active', postedAt: new Date(NOW - DAY) }, src, at).postedAt).toBeNull()
+    expect(plan({ status: 'active', postedAt: stored }, src)).toEqual({ revive: false, late: false, postedAt: src.postedAt })
+    expect(plan({ status: 'hidden', postedAt: stored }, { ...src, subcategorySlug: 'room-rental' })).toEqual({ revive: false, late: false, postedAt: src.postedAt })
+    expect(plan({ status: 'active', postedAt: src.postedAt }, src).postedAt).toBeNull()
+    expect(plan({ status: 'active', postedAt: new Date(NOW - DAY) }, src).postedAt).toBeNull()
+  })
+})
+
+describe('nhatotFreshCrawlProblem — the time-bounded read with no set (the 3-day job\'s stage reads)', () => {
+  const base = { src: false, apply: false, retire: false, limit: 0, caps: false, freshOut: false, maxAgeDaysGiven: true, maxAgeDays: 7 }
+  it('a stage read with --max-age-days passes — any city, any category (it writes no set)', () => {
+    expect(nhatotFreshCrawlProblem(base)).toBeNull()
+  })
+  it('refuses where it would not be a whole time-bounded stage read', () => {
+    expect(nhatotFreshCrawlProblem({ ...base, retire: true })).toMatch(/not --retire/)
+    expect(nhatotFreshCrawlProblem({ ...base, src: true })).toMatch(/not a --src replay or --apply/)
+    expect(nhatotFreshCrawlProblem({ ...base, apply: true })).toMatch(/not a --src replay or --apply/)
+    expect(nhatotFreshCrawlProblem({ ...base, freshOut: true })).toMatch(/pass one/)
+    expect(nhatotFreshCrawlProblem({ ...base, limit: 30 })).toMatch(/--limit is a sample/)
+    expect(nhatotFreshCrawlProblem({ ...base, caps: true })).toMatch(/--cap reads only the newest N/)
+    expect(nhatotFreshCrawlProblem({ ...base, maxAgeDaysGiven: false, maxAgeDays: 30 })).toMatch(/pass --max-age-days 7/)
+    expect(nhatotFreshCrawlProblem({ ...base, maxAgeDays: 0 })).toMatch(/reads no window at all/)
   })
 })
 
@@ -762,9 +804,39 @@ describe('scripts/import-nhatot-com.ts — the 7-day rule wiring', () => {
     expect(main).toMatch(/mapNhatotAd\(ad, \{ now, ageAt: stagedAt, maxAgeDays: MAX_AGE_DAYS, maxPhotos: MAX_PHOTOS \}\)/)
     expect(main.indexOf('const stagedAt = Date.parse(staged.fetchedAt)')).toBeLessThan(main.indexOf('mapNhatotAd(ad,'))
   })
-  it('the time-bounded read is the --fresh-out run\'s read — never switched on by --max-age-days alone', () => {
-    expect(src).toMatch(/const TIME_BOUNDED = FRESH_OUT !== null && !SRC && !RETIRE && !LIMIT && !HAS_CAPS/)
+  it('the time-bounded read is the --fresh-out or --fresh-crawl run\'s read — never switched on by --max-age-days alone', () => {
+    expect(src).toMatch(/const TIME_BOUNDED = \(FRESH_OUT !== null \|\| FRESH_CRAWL\) && !SRC && !RETIRE && !LIMIT && !HAS_CAPS/)
     expect(src).not.toMatch(/TIME_BOUNDED = [^\n]*MAX_AGE_GIVEN/)
+  })
+  it('--fresh-crawl: refused (nhatotFreshCrawlProblem) BEFORE any request; a read not proven whole exits 3 only AFTER the stage is written', () => {
+    const check = main.indexOf('if (freshCrawlProblem) throw new Error(freshCrawlProblem)')
+    expect(check).toBeGreaterThan(0)
+    expect(check).toBeLessThan(main.indexOf('await sitePolicy()'))
+    const save = main.indexOf('if (SAVE) writeFileAtomic(SAVE, JSON.stringify(staged, null, 1))')
+    const exit3 = main.indexOf('if (FRESH_CRAWL && !staged.complete) {')
+    expect(save).toBeGreaterThan(0)                                                       // both anchors present: no vacuous order
+    expect(exit3).toBeGreaterThan(save)
+    expect(main.slice(exit3, exit3 + 400)).toMatch(/process\.exitCode = 3/)
+    // ⛔ and nothing later in a stage run sets it back: the only later writes are the --probe-photos stop (2) and the apply's
+    expect(main.slice(exit3)).not.toMatch(/process\.exitCode = 0/)
+    const later = [...main.slice(exit3 + 400).matchAll(/process\.exitCode = ([^\n]+)/g)].map((m) => m[1])
+    expect(later).toEqual(['nhatotApplyExitCode(stat, stopped)', '1'])                   // both inside the --apply path, past the dry run's return
+    const dryReturn = main.indexOf("console.log('\\nDRY RUN — nothing written, nothing uploaded.")
+    expect(dryReturn).toBeGreaterThan(0)
+    expect(main.indexOf('process.exitCode = nhatotApplyExitCode(stat, stopped)')).toBeGreaterThan(dryReturn)
+    // and it is no --retire option
+    expect(src.slice(src.indexOf('async function retireMain('))).toMatch(/if \(FRESH_CRAWL\) throw new Error\(nhatotFreshCrawlProblem\(\{[^\n]*retire: true/)
+  })
+  it('⛔ a DAY TO LIVE at the write: a create too late is skipped BEFORE any photo is fetched; a revival is judged at the write\'s clock', () => {
+    const late = main.indexOf('if (WRITE_MARGIN && tooLateToWrite(r.postedAt, Date.now())) { stat.tooLateCreate++; continue }')
+    expect(late).toBeGreaterThan(0)
+    expect(late).toBeLessThan(main.indexOf('const { judged, plan } = await judgeRow(r, mark)'))
+    expect(late).toBeLessThan(main.indexOf('await db.listing.create('))
+    expect(main).toMatch(/const plan = nhatotExistingRowPlan\(cur, \{ postedAt: r\.postedAt, subcategorySlug: r\.mutable\.subcategorySlug \}, stagedAt, WRITE_MARGIN \? Date\.now\(\) : null\)/)
+    // the dry run reports what this clock would skip
+    expect(main).toMatch(/const p = nhatotExistingRowPlan\(cur, \{ postedAt: r\.postedAt, subcategorySlug: r\.mutable\.subcategorySlug \}, stagedAt, WRITE_MARGIN \? now : null\)/)
+    // only on the 7-day rule's runs: a wider --max-age-days (a manual backfill) keeps the window it asked for
+    expect(src).toMatch(/^const WRITE_MARGIN = MAX_AGE_DAYS <= FRESH_DAYS$/m)
   })
   it('refuses a --fresh-out that is the --save file, canonicalised, before any request', () => {
     expect(main).toMatch(/freshOut: canonicalPath\(FRESH_OUT\), save: SAVE === null \? null : canonicalPath\(SAVE\)/)

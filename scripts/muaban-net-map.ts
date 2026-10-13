@@ -17,7 +17,7 @@
  */
 import vnUnits from '../src/data/vn-units.json'
 import {
-  FRESH_DAYS, FRESH_SET_MAX_AGE_MS, MAX_UNKNOWN_SHARE, REVIVABLE_STATUSES, freshSetProblem, isInWindow, makeFreshSet, type FreshItem, type FreshSet,
+  FRESH_DAYS, FRESH_SET_MAX_AGE_MS, MAX_UNKNOWN_SHARE, REVIVABLE_STATUSES, freshSetProblem, isInWindow, makeFreshSet, tooLateToWrite, type FreshItem, type FreshSet,
 } from '../src/lib/apartment-freshness'
 import { buildSearchText } from '../src/lib/fold'
 import { localizeImportText, type MissingSegment } from '../src/lib/import-i18n'
@@ -1768,10 +1768,15 @@ export function buildFreshSet(setAt: Date, coverage: string, items: FreshItem[],
  * type; apartments only before). `redate`: postedAt becomes the source date — on a revival, and whenever the
  * source date is NEWER than the stored one (a re-post); rankScore follows it (createOnlyFields). A re-dated row
  * is written even when every text field is unchanged.
+ * ⛔ NO REVIVAL WHEN IT IS TOO LATE AT `writeAt` (tooLateToWrite — the moment of the write, not the set's): a row with
+ * under a day of its window left would be revived and expired again by the next sweep. `late` says so; such a row is
+ * then handled like any other existing row (its text refreshed, a newer date moved forward).
  */
-export function existingRowPlan(row: Pick<MappedRow, 'postedAt' | 'mutable'>, ex: { status: string; postedAt: Date }): { revive: boolean; redate: boolean } {
-  const revive = (REVIVABLE_STATUSES as readonly string[]).includes(ex.status)
-  return { revive, redate: revive || row.postedAt.getTime() > ex.postedAt.getTime() }
+export function existingRowPlan(row: Pick<MappedRow, 'postedAt' | 'mutable'>, ex: { status: string; postedAt: Date }, writeAt: number): { revive: boolean; late: boolean; redate: boolean } {
+  const revivable = (REVIVABLE_STATUSES as readonly string[]).includes(ex.status)
+  const late = revivable && tooLateToWrite(row.postedAt, writeAt)
+  const revive = revivable && !late
+  return { revive, late, redate: revive || row.postedAt.getTime() > ex.postedAt.getTime() }
 }
 
 // ─── The fresh crawl itself: orchestration over an INJECTED page getter (tested against fake pages) ───

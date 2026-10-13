@@ -52,7 +52,7 @@
  * skew) cannot be judged at that instant: it goes to `unknown` (kept live), never to an item.
  */
 import {
-  APARTMENT_SUBCAT, EXTERNAL_ID_SHAPE, FRESH_DAYS, REVIVABLE_STATUSES, freshSetProblem, isInWindow, makeFreshSet,
+  APARTMENT_SUBCAT, EXTERNAL_ID_SHAPE, FRESH_DAYS, REVIVABLE_STATUSES, freshSetProblem, isInWindow, makeFreshSet, tooLateToWrite,
   type FreshItem, type FreshSet,
 } from './apartment-freshness'
 import { pdpTombstoneTags } from './job-listing'
@@ -423,6 +423,28 @@ export function nhatotFreshOutProblem(o: {
 }
 
 /**
+ * Why `--fresh-crawl` cannot be honoured on this run, or null. Checked BEFORE any request. --fresh-crawl is the
+ * TIME-BOUNDED READ with NO SET (2026-10-13 review): the 3-day job's stage reads — its apartments (cg 1010, whose set
+ * comes from a second, --fresh-out read taken right before the expiry) and, with APT_PLACES=1, its houses, offices and
+ * rooms (cg 1020/1030/1050, no set at all) — down to the window only, each list proved whole the same way as for a
+ * set. A list it cannot prove whole makes the run exit 3: what was read is staged and may be applied, nothing rests
+ * on it. It writes no set, so it needs no particular city or category.
+ */
+export function nhatotFreshCrawlProblem(o: {
+  src: boolean; apply: boolean; retire: boolean; limit: number; caps: boolean; freshOut: boolean
+  maxAgeDaysGiven: boolean; maxAgeDays: number
+}): string | null {
+  if (o.retire) return '--fresh-crawl is a stage read, not --retire'
+  if (o.src || o.apply) return '--fresh-crawl is the run that READS the source (with --save) — not a --src replay or --apply'
+  if (o.freshOut) return '--fresh-crawl and --fresh-out are two kinds of the same read — pass one (--fresh-out also writes the set)'
+  if (o.limit) return '--fresh-crawl reads the whole window, and --limit is a sample'
+  if (o.caps) return '--fresh-crawl reads the whole window, and --cap reads only the newest N'
+  if (!o.maxAgeDaysGiven) return `--fresh-crawl needs the window to read down to: pass --max-age-days ${FRESH_DAYS}`
+  if (!(o.maxAgeDays >= 1)) return `--max-age-days ${o.maxAgeDays} reads no window at all`
+  return null
+}
+
+/**
  * Did the read provably cover the window for apartments in every city? The coverage string is the
  * evidence (it goes into the set); a refusal names what is missing.
  */
@@ -569,6 +591,10 @@ export const nhatotIsPlace = (subcat: string | null) => subcat !== null && NHATO
  *    window at the STAGE's fetch time (the read's START — the set's fetchedAt), sitting in a status the 7-day
  *    rule (the fresh-set expiry, the daily age sweep, or a retire-to-stale) put it in → 'active'. Never
  *    'hidden' (moderation, the retire pass's gone signal, the content screen), 'sold' or 'active'.
+ *    ⛔ AND NOT WHEN IT IS TOO LATE AT `writeAt` (tooLateToWrite — the moment of the write, not the stage's): a row
+ *    with under a day of its window left would be revived and expired again by the next sweep. `late` says so — the
+ *    row is then handled like any other existing row (its fields refreshed, a newer date moved forward). `writeAt`
+ *    null = no such margin (a run that does not follow the 7-day rule: --max-age-days over FRESH_DAYS).
  *  · postedAt — the source date on a revival; otherwise only when the source date is NEWER than the stored
  *    one (re-posted). null = unchanged. The caller recomputes rankScore from it whenever it changes.
  */
@@ -576,11 +602,14 @@ export function nhatotExistingRowPlan(
   cur: { status: string; postedAt: Date },
   row: { postedAt: Date; subcategorySlug: string | null },
   stagedFetchedAt: number,
-): { revive: boolean; postedAt: Date | null } {
+  writeAt: number | null,
+): { revive: boolean; late: boolean; postedAt: Date | null } {
   const fresh = nhatotIsPlace(row.subcategorySlug) && isInWindow(row.postedAt, stagedFetchedAt)
-  const revive = fresh && (REVIVABLE_STATUSES as readonly string[]).includes(cur.status)
-  if (revive) return { revive, postedAt: row.postedAt }
-  return { revive, postedAt: row.postedAt.getTime() > cur.postedAt.getTime() ? row.postedAt : null }
+  const revivable = fresh && (REVIVABLE_STATUSES as readonly string[]).includes(cur.status)
+  const late = revivable && writeAt !== null && tooLateToWrite(row.postedAt, writeAt)
+  const revive = revivable && !late
+  if (revive) return { revive, late, postedAt: row.postedAt }
+  return { revive, late, postedAt: row.postedAt.getTime() > cur.postedAt.getTime() ? row.postedAt : null }
 }
 
 // ─── --apply: the rollback lines (written only AFTER a write moved the row) ─────────────────────

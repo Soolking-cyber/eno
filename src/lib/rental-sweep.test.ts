@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { FRESH_DAYS, SHARE_FLOOR } from './apartment-freshness'
 import { RENTAL_IMPORT_SELLERS } from './import-sellers'
 import {
-  SOURCE_SELLERS, SWEEP_DAYS, SWEEP_MAX_SHARE, SWEEP_MIN_LIVE, SWEEP_REFUSED_EXIT, SWEEP_STALE_IMPORT_DAYS, lastImportByUnit, parseStamp, planSweep,
-  sweepRefusal, unitOf,
+  PLACES_UNITS, SOURCE_SELLERS, SWEEP_DAYS, SWEEP_MAX_SHARE, SWEEP_MIN_LIVE, SWEEP_REFUSED_EXIT, SWEEP_STALE_IMPORT_DAYS, lastImportByUnit,
+  parseStamp, planSweep, sweepRefusal, unitOf,
 } from './rental-sweep'
 
 const DAY = 86_400_000
@@ -24,8 +24,10 @@ describe('the daily sweep — constants are the 7-day rule\'s own', () => {
   it('every gate unit of the job names a rental import seller, and every seller has a unit', () => {
     for (const [unit, seller] of Object.entries(SOURCE_SELLERS)) expect((RENTAL_IMPORT_SELLERS as readonly string[]).includes(seller), unit).toBe(true)
     expect(new Set(Object.values(SOURCE_SELLERS))).toEqual(new Set(RENTAL_IMPORT_SELLERS))
-    expect(Object.keys(SOURCE_SELLERS).sort()).toEqual(['batdongsan', 'honeycomb', 'muaban', 'muaban-places', 'nhatot', 'rever'])
+    expect(Object.keys(SOURCE_SELLERS).sort()).toEqual(['batdongsan', 'honeycomb', 'muaban', 'muaban-places', 'nhatot', 'nhatot-places', 'rever'])
     expect(Object.isFrozen(SOURCE_SELLERS)).toBe(true)
+    // the split sellers' two units are both gate units of THAT seller
+    for (const [seller, u] of Object.entries(PLACES_UNITS)) for (const unit of [u!.apartments, u!.places]) expect(SOURCE_SELLERS[unit], unit).toBe(seller)
   })
 })
 
@@ -92,9 +94,11 @@ describe('the job\'s success stamps, as the sweep reads them — per seller, nev
     expect(m.get('muaban-places')).toBe(Math.floor((NOW - DAY) / 1000) * 1000)
     expect(m.has('batdongsan')).toBe(false)
   })
-  it('unitOf: a seller\'s unit; Muaban\'s apartments ← muaban, its other place rows ← muaban-places', () => {
-    expect(unitOf(NHATOT, 'house-rental')).toBe('nhatot')
+  it('unitOf: a seller\'s unit; Nhà Tốt\'s and Muaban\'s apartments ← nhatot / muaban, their other place rows ← the places units', () => {
+    expect(unitOf(NHATOT, 'apartment-rental')).toBe('nhatot')
+    for (const sub of ['house-rental', 'room-rental', 'office-rental', null]) expect(unitOf(NHATOT, sub), String(sub)).toBe('nhatot-places')
     expect(unitOf(BDS, null)).toBe('batdongsan')
+    expect(unitOf(BDS, 'house-rental')).toBe('batdongsan')
     expect(unitOf(MUABAN, 'apartment-rental')).toBe('muaban')
     for (const sub of ['house-rental', 'room-rental', 'office-rental', null]) expect(unitOf(MUABAN, sub), String(sub)).toBe('muaban-places')
     expect(unitOf('cmub0wead0000zrq418bqq27m', 'apartment-rental')).toBe('rever')
@@ -133,5 +137,17 @@ describe('⛔ planSweep — one read, planned per gate unit: a stale unit is hel
   })
   it('nothing live: nothing planned', () => {
     expect(planSweep({ rows: [], lastImport: new Map(), now: NOW, allowMass: false })).toEqual({ groups: [], expire: [] })
+  })
+  it('⚠️ APT_PLACES 1 → 0: Nhà Tốt\'s houses drain apart from its apartments; the last cohort is held, alerting, until a person releases it', () => {
+    const r = [...rows(NHATOT, 100, 14), ...rows(NHATOT, 30, 30, 'house-rental')]
+    for (const placesDays of [9, 30]) {                                                               // held however long ago — no timer releases it
+      const held = planSweep({ rows: r, lastImport: new Map([['nhatot', NOW - DAY], ['nhatot-places', NOW - placesDays * DAY]]), now: NOW, allowMass: false })
+      expect(held.groups.find((g) => g.unit === 'nhatot-places')!.refusal, String(placesDays)).toMatch(/30 of its 30 live rows/)
+      expect(held.expire).toHaveLength(14)                                                            // the apartments still go
+    }
+    // never stamped at all (APT_PLACES=0 from the start): held the same way
+    expect(planSweep({ rows: rows(NHATOT, 30, 30, 'room-rental'), lastImport: new Map(), now: NOW, allowMass: false }).expire).toEqual([])
+    // --allow-mass-expiry releases it — and every other unit held that run, which is why the SWEEP lines come first
+    expect(planSweep({ rows: r, lastImport: new Map([['nhatot', NOW - DAY]]), now: NOW, allowMass: true }).expire).toHaveLength(44)
   })
 })

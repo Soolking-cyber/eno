@@ -54,6 +54,9 @@
  *     tombstoned as it lands (src/lib/pdp-tombstone.ts) and again in a `finally`. No revival runs on a
  *     database without the next_cache_tag table. By created_at an expired row can hardly re-enter the
  *     window, so revival is there for symmetry with the other sources.
+ *   - ⛔ A DAY TO LIVE, AT THE WRITE (review of 2026-10-13; tooLateToWrite, src/lib/apartment-freshness.ts): a row
+ *     whose created_at leaves it under a day of its window AT THE MOMENT --apply reaches it is neither created (no
+ *     photo is fetched) nor revived — the daily age sweep would take it down again within the day.
  *
  * Pipeline contract followed (see import-rever-rentals.ts / import-batdongsan-rentals.ts):
  *   - seller PINNED BY ID, refused when renamed, owned or badged, created ownerless and unbadged;
@@ -110,7 +113,7 @@ import { isOverlayImageUrl } from '../src/lib/image-mark-url'
 import { HOST_EDGE, measureImage } from '../src/lib/import-photo-check'
 import { MARK_SEED_ROWS, coverByMark, fetchStoredImage, markScore, markSeedUrls, markTemplateFromUrls, type MarkTemplate } from '../src/lib/import-photo-mark'
 import { untranslatedSummary } from '../src/lib/import-i18n'
-import { APARTMENT_SUBCAT, FRESH_DAYS } from '../src/lib/apartment-freshness'
+import { APARTMENT_SUBCAT, FRESH_DAYS, WRITE_MIN_LIFE_DAYS, tooLateToWrite } from '../src/lib/apartment-freshness'
 import { tombstonePdps } from '../src/lib/pdp-tombstone'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
@@ -671,13 +674,16 @@ async function main() {
         },
       })).map((r) => [r.externalId!, r]),
     )
-    const plan = { create: 0, update: 0, unchanged: 0, removed: 0, revive: 0, redate: 0 }
+    /** `late*`: judged at THIS clock — the apply judges each row again at its own write (tooLateToWrite). */
+    const plan = { create: 0, update: 0, unchanged: 0, removed: 0, revive: 0, redate: 0, lateCreate: 0, lateRevive: 0 }
+    const planAt = Date.now()
     for (const r of batch) {
       const ex = existing.get(r.externalId)
       if (ex?.status === 'removed') plan.removed++
-      else if (!ex) plan.create++
+      else if (!ex) { if (tooLateToWrite(r.postedAt, planAt)) plan.lateCreate++; else plan.create++ }
       else {
-        const d = existingRowPlan(r, ex)
+        const d = existingRowPlan(r, ex, planAt)
+        if (d.late) plan.lateRevive++
         if (sameMutable(r.mutable, ex) && !d.revive && !d.redate) plan.unchanged++
         else { plan.update++; if (d.revive) plan.revive++; else if (d.redate) plan.redate++ }
       }
@@ -738,6 +744,7 @@ async function main() {
     }
     console.log(`  photos to judge ${batch.reduce((n, r) => n + r.imageSources.length, 0)} (≤5/row; text cards refused; kept ones re-hosted clean under listings/affiliate/m/, never hotlinked)`)
     console.log(`plan              create ${plan.create}   update ${plan.update} (incl. revive ${plan.revive} back from expired/stale, re-date ${plan.redate} to a newer source date)   unchanged ${plan.unchanged} (skipped: no write, updatedAt untouched)${plan.removed ? `   removed ${plan.removed} (left alone)` : ''}`)
+    console.log(`  too late        ${plan.lateCreate} create(s) and ${plan.lateRevive} revival(s) skipped at this clock — under ${WRITE_MIN_LIFE_DAYS} d of their ${FRESH_DAYS} left (tooLateToWrite; --apply judges each row again at its own write)`)
     console.log(`category          ${category.name} (${category.id})`)
     console.log(`seller            ${sellerLine}`)
     console.log(`seller refusal    ${sellerRefusal(seller) ?? 'none — writable'}`)
@@ -852,7 +859,8 @@ async function main() {
     const mark = COVER_BY_MARK ? await learnMark(db) : null
     /** ⛔ Before the first revival — a status write that brings an existing page back. */
     if (plan.revive) await requireIsrTable(db, `${plan.revive} revived page(s), cached as gone,`)
-    const stat = { created: 0, updated: 0, unchanged: 0, removed: 0, revived: 0, redated: 0, raced: 0, noRealPhotos: 0, photoFailed: 0, uploadFailed: 0, errored: 0, coverReplaced: 0, coverByMark: 0, imagesRefused: {} as Record<string, number> }
+    /** tooLate*: not created (no photo fetched) / not revived — under a day of the window left at the write (tooLateToWrite). */
+    const stat = { created: 0, updated: 0, unchanged: 0, removed: 0, revived: 0, redated: 0, raced: 0, noRealPhotos: 0, photoFailed: 0, uploadFailed: 0, errored: 0, coverReplaced: 0, coverByMark: 0, tooLateCreate: 0, tooLateRevive: 0, imagesRefused: {} as Record<string, number> }
     const revivedIds: string[] = []
     let stopped: string | null = null
     try {
@@ -861,7 +869,9 @@ async function main() {
         const ex = existing.get(r.externalId)
         // ⛔ A TOMBSTONE IS LEFT AS IT IS (src/lib/listing-removed.ts): a listing a moderator or admin REMOVED keeps its externalId, so this SKU lands on it — refreshing its text, price or photos would rewrite the record kept as evidence (Law 122/2025). Not refreshed, not recreated.
         if (ex?.status === 'removed') { stat.removed++; continue }
-        const d = ex ? existingRowPlan(r, ex) : null
+        /** Judged at THIS write's clock: a revival too late to live a day is not made (the row is then refreshed like any other). */
+        const d = ex ? existingRowPlan(r, ex, Date.now()) : null
+        if (d?.late) stat.tooLateRevive++
         if (ex && sameMutable(r.mutable, ex) && !d!.revive && !d!.redate) { stat.unchanged++; continue }
         const mutable = { ...r.mutable, sellerId: SELLER_ID, categoryId: category.id }
         if (ex) {
@@ -907,6 +917,9 @@ async function main() {
           if (dated) stat.redated++
           continue
         }
+        /** ⛔ TOO LATE AT THIS WRITE (tooLateToWrite): the window was judged at the set's moment; a row with under a day
+         *  of it left is not photographed, uploaded and created only for the sweep to expire it again. Before any fetch. */
+        if (tooLateToWrite(r.postedAt, Date.now())) { stat.tooLateCreate++; continue }
         /**
          * ⛔ ALL-OR-NOTHING PER LISTING, BY THE SAME galleryPlan THE DRY RUN PRINTS. Every source photo
          * is fetched and judged first; a fetch or decode failure skips the whole row (re-tried next

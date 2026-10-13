@@ -17,10 +17,12 @@
  *   npx tsx scripts/expire-rentals.ts --sweep [--stamps-dir <the job's state dir>] [--journal-dir <durable dir> --apply] [--allow-mass-expiry]
  * = --places-older-than FRESH_DAYS (7) with NO --expect: a day's departures are whatever aged past the window since
  * yesterday. ONE read of the live place rows (each marked old or not), planned per GATE UNIT by src/lib/rental-sweep.ts
- * planSweep (a seller's rows; Muaban's apartments and its other place rows apart). Its one refusal, per unit
+ * planSweep (a seller's rows; Nhà Tốt's and Muaban's apartments and their other place rows apart). Its one refusal, per unit
  * (sweepRefusal): over 95% of that unit's live rows at once while its last successful refresh (the job's
  * `last-success-<unit>` stamps in --stamps-dir; none = never) is over 4 days old — those rows are HELD BACK, the others
- * still expire, and the run exits 3 (SWEEP_REFUSED_EXIT) so the job alerts; --allow-mass-expiry overrides it. The SWEEP lines it prints are the job's log. A row a refresh changed
+ * still expire, and the run exits 3 (SWEEP_REFUSED_EXIT) so the job alerts; --allow-mass-expiry overrides it — for EVERY
+ * unit held that run (read the SWEEP lines first; e.g. a places unit's last cohort after the job's APT_PLACES went from 1
+ * to 0). The SWEEP lines it prints are the job's log. A row a refresh changed
  * between the read and the write is left as it is (reported, not a failure). Its journal, --rollback and --tombstone
  * are the ones below.
  * ⚠️ Category and hub pages are not purged by the sweep: /c/rentals fetches live listings client-side (its ISR HTML
@@ -50,34 +52,20 @@ import { PrismaClient } from '../src/generated/prisma/client'
 import { RENTAL_IMPORT_SELLERS } from '../src/lib/import-sellers'
 import { EXPIRED_STATUS } from '../src/lib/apartment-freshness'
 import { tombstonePdps } from '../src/lib/pdp-tombstone'
-import { pdpTombstoneTags } from '../src/lib/job-listing'
 import { VEHICLE_RENTAL_SUBCATS } from '../src/lib/rental-places'
 import { SWEEP_DAYS, SWEEP_REFUSED_EXIT, lastImportByUnit, planSweep } from '../src/lib/rental-sweep'
+import { EXPIRE_WITH_TOMBSTONES_SQL, expireStatementParams, parseExpireRentalsArgs } from '../src/lib/rental-expiry'
 import { VEHICLE_SELLERS } from '../src/lib/vehicle-rental-listing'
 
-const argv = process.argv.slice(2)
-const val = (f: string) => { const i = argv.indexOf(f); return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : null }
-const APPLY = argv.includes('--apply')
-/** The daily sweep: --places-older-than SWEEP_DAYS, unattended (no --expect), guarded by sweepRefusal. */
-const SWEEP = argv.includes('--sweep')
-const ALLOW_MASS = argv.includes('--allow-mass-expiry')
-const PLACES_DAYS = val('--places-older-than') === null ? null : Number(val('--places-older-than'))
-const VEHICLE_IDS = val('--vehicle-ids')
-const ROLLBACK = val('--rollback')
-const RETOMB = val('--tombstone')
-const EXPECT_SHA = val('--expect-sha')
-const JOURNAL_DIR = val('--journal-dir')
-const EXPECT = val('--expect') === null ? null : Number(val('--expect'))
-const modes = [SWEEP, PLACES_DAYS !== null, VEHICLE_IDS !== null, ROLLBACK !== null, RETOMB !== null].filter(Boolean).length
-if (modes !== 1) { console.error('pick exactly one of --sweep | --places-older-than N | --vehicle-ids <file> | --rollback <journal> | --tombstone <journal>'); process.exit(1) }
-if (PLACES_DAYS !== null && !(Number.isInteger(PLACES_DAYS) && PLACES_DAYS >= 1)) { console.error('--places-older-than needs a whole number of days ≥ 1'); process.exit(1) }
-/** The 3-day job's state dir: its `last-success-<unit>` stamps say when each seller last imported (the sweep's guard). */
-const STAMPS_DIR = val('--stamps-dir')
-if ((ALLOW_MASS || argv.includes('--stamps-dir')) && !SWEEP) { console.error('--allow-mass-expiry and --stamps-dir belong to --sweep'); process.exit(1) }
-if (argv.includes('--stamps-dir') && STAMPS_DIR === null) { console.error('--stamps-dir needs a value (the job\'s state dir)'); process.exit(1) }
-// The sweep is unattended: --apply needs a journal dir, never an --expect count (sweepRefusal guards it instead).
-if (APPLY && !ROLLBACK && (!JOURNAL_DIR || (EXPECT === null && !SWEEP))) { console.error(`--apply needs --journal-dir <durable dir>${SWEEP ? '' : ' and --expect <count from the dry run>'}`); process.exit(1) }
-if (APPLY && VEHICLE_IDS && !EXPECT_SHA) { console.error('--vehicle-ids --apply needs --expect-sha <sha256 printed by the dry run>'); process.exit(1) }
+// ⛔ THE ARGUMENT RULES ARE src/lib/rental-expiry.ts parseExpireRentalsArgs (unit-tested): one mode, --apply with a
+// journal dir (and --expect, but for the unattended sweep), the sweep's own flags only with --sweep, no unknown argument.
+// A refusal exits 1 here — before a database is named, let alone opened.
+const parsed = parseExpireRentalsArgs(process.argv.slice(2))
+if (!parsed.ok) { console.error(parsed.error); process.exit(1) }
+const {
+  apply: APPLY, sweep: SWEEP, allowMass: ALLOW_MASS, placesDays: PLACES_DAYS, vehicleIds: VEHICLE_IDS, rollback: ROLLBACK,
+  retomb: RETOMB, expectSha: EXPECT_SHA, journalDir: JOURNAL_DIR, expect: EXPECT, stampsDir: STAMPS_DIR,
+} = parsed.args
 
 const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL
 if (!connectionString) { console.error('DIRECT_URL (or DATABASE_URL) is not set — source .env first'); process.exit(1) }
@@ -228,29 +216,14 @@ async function expire() {
   console.log(`TOMBSTONE RETRY: npx tsx scripts/expire-rentals.ts --tombstone ${path}`)
   const done: string[] = []
   for (const part of chunks(journal.rows)) {
-    const ids = part.map((x) => x.id)
-    const tags = ids.flatMap(pdpTombstoneTags)
-    const tagIds = ids.flatMap((id) => pdpTombstoneTags(id).map(() => id))
-    // ⛔ ONE STATEMENT: each row's expiry and its pages' ISR tombstones (en/vi — the same tags and upsert as
+    // ⛔ ONE STATEMENT (src/lib/rental-expiry.ts EXPIRE_WITH_TOMBSTONES_SQL — executed against fixture rows in PGlite by
+    // its test): each row's expiry and its pages' ISR tombstones (en/vi — the same tags and upsert as
     // src/lib/pdp-tombstone.ts) commit together, for exactly the rows the conditional UPDATE moved. Nothing can die
     // between the two — and the daily sweep never selects an expired row again, so a tombstone owed after a crash
     // would otherwise keep that page cached live for its 30-day ISR life. ⚠️ Its stamp is taken a moment BEFORE the
     // commit, so a page rendered in that moment would outlive it (the cache keeps an entry newer than every stamp of
     // its tags): the same pages are tombstoned once more right after the commit, below.
-    const r = await db.$queryRawUnsafe<{ id: string }[]>(
-      `WITH moved AS (
-         UPDATE "Listing" l SET status = $4, "updatedAt" = $5::timestamp
-         FROM unnest($1::text[], $2::text[], $3::text[]) AS j(id, prior, upd)
-         WHERE l.id = j.id AND l.status = j.prior AND l."updatedAt"::text = j.upd RETURNING l.id
-       ), tombstoned AS (
-         INSERT INTO next_cache_tag (tag, stamp, expires_at)
-         SELECT t.tag, (extract(epoch from clock_timestamp()) * 1000)::bigint, now() + interval '40 days'
-         FROM unnest($6::text[], $7::text[]) AS t(id, tag) JOIN moved ON moved.id = t.id
-         ON CONFLICT (tag) DO UPDATE SET stamp = greatest(next_cache_tag.stamp, excluded.stamp), expires_at = greatest(next_cache_tag.expires_at, excluded.expires_at)
-         RETURNING 1
-       )
-       SELECT id FROM moved`,
-      ids, part.map((x) => x.priorStatus), part.map((x) => x.updatedAt), EXPIRED_STATUS, now, tagIds, tags)
+    const r = await db.$queryRawUnsafe<{ id: string }[]>(EXPIRE_WITH_TOMBSTONES_SQL, ...expireStatementParams(part, EXPIRED_STATUS, now))
     done.push(...r.map((x) => x.id))
     await tombstoneAll(r.map((x) => x.id)) // …and once more after the commit (a crash before it: the in-statement ones stand)
   }

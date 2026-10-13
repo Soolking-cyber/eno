@@ -8,6 +8,11 @@
   one retries the next morning; the daily 7-day sweep (scripts/expire-rentals.ts in its sweep mode) runs at the end of
   EVERY run — and, so a refresh that outlasts a day cannot cost it, on its own agent too (vn.eno.rentals-sweep, 05:30,
   scripts/vn.eno.rentals-sweep.plist: install both).
+  ⛔ APT_PLACES (EnvironmentVariables below) is the owner's call on photo storage: 0 = apartments only (the import scope
+  of before 2026-10-13; the daily sweep still takes every type down past 7 days, so no imported house, room or office
+  is listed), 1 = houses, rooms and offices too (≈2 GB of photos a day instead of ≈0.7 — the job's header has the
+  numbers). Change it here and reload this agent. From 1 back to 0: the sweep holds the places units' last cohort back
+  (an alert every morning) until a person releases it with expire-rentals.ts --sweep --allow-mass-expiry (the header).
   The vehicle job starts at 05:00; the two crawl different hosts.
   It runs from ~/eno-apartments-job, a CLEAN detached worktree at origin/main — fast-forward it
   (a detached checkout of origin/main, then prisma generate) after a change to any
@@ -35,7 +40,7 @@
   <key>StartCalendarInterval</key>
   <dict><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
   <key>EnvironmentVariables</key>
-  <dict><key>ENO_REPO</key><string>/Users/mk1e3/eno-apartments-job</string><key>APT_ENV_FILE</key><string>/Users/mk1e3/eno.vn/.env</string><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+  <dict><key>ENO_REPO</key><string>/Users/mk1e3/eno-apartments-job</string><key>APT_ENV_FILE</key><string>/Users/mk1e3/eno.vn/.env</string><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string><key>APT_PLACES</key><string>0</string></dict>
   <key>WorkingDirectory</key><string>/Users/mk1e3/eno-apartments-job</string>
   <key>StandardOutPath</key><string>/Users/mk1e3/eno-import-journals/apartments/weekly.log</string>
   <key>StandardErrorPath</key><string>/Users/mk1e3/eno-import-journals/apartments/weekly.log</string>

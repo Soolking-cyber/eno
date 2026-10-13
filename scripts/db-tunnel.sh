@@ -35,6 +35,21 @@ SSH_PORT=24700
 KEY=${ENO_BOX_KEY:-$HOME/.ssh/CS-Linux-20260920135129228.pem}
 LOG=/tmp/eno-db-tunnel.log
 PIDFILE=/tmp/eno-db-tunnel.pid
+STARTLOCK=/tmp/eno-db-tunnel.start.lock
+START_WAIT_S=60        # a second starter waits this long for the first one's tunnel
+SUPERVISOR_WAIT_S=45   # …and for a running supervisor to reconnect
+UP_WAIT_S=30           # a new supervisor's first connection
+# ⚠️ ONE TEST SWITCH, FOR src/lib/db-tunnel.test.ts ONLY: with NODE_ENV=test AND ENO_TUNNEL_SANDBOX=<an existing dir>,
+# the lock, pid and log files live in THAT dir under fixed names (start.lock is the one path `start` may delete) and
+# ENO_TUNNEL_*_WAIT_S (whole seconds ≥ 1) may shorten the waits — so the test never touches, or waits on, this machine's
+# real tunnel. Without both, nothing here can be redirected or shortened from the environment.
+seconds() { case "$1" in ''|*[!0-9]*|0|0*) echo "$2" ;; *) echo "$1" ;; esac; }
+if [ "${NODE_ENV:-}" = test ] && [ -n "${ENO_TUNNEL_SANDBOX:-}" ] && [ -d "$ENO_TUNNEL_SANDBOX" ]; then
+  LOG="$ENO_TUNNEL_SANDBOX/tunnel.log"; PIDFILE="$ENO_TUNNEL_SANDBOX/tunnel.pid"; STARTLOCK="$ENO_TUNNEL_SANDBOX/start.lock"
+  START_WAIT_S=$(seconds "${ENO_TUNNEL_START_WAIT_S:-}" "$START_WAIT_S")
+  SUPERVISOR_WAIT_S=$(seconds "${ENO_TUNNEL_SUPERVISOR_WAIT_S:-}" "$SUPERVISOR_WAIT_S")
+  UP_WAIT_S=$(seconds "${ENO_TUNNEL_UP_WAIT_S:-}" "$UP_WAIT_S")
+fi
 
 up() { nc -z 127.0.0.1 "$PORT" >/dev/null 2>&1; }
 
@@ -44,9 +59,8 @@ case "${1:-status}" in
     # ⛔ ONE STARTER AT A TIME: two scheduled jobs a waking Mac fires together (the 05:30 sweep and the 06:00 refresh)
     # would both see no supervisor and both fork one. mkdir is atomic; the loser waits for the winner's tunnel. A lock
     # left by a starter that died is cleared after two minutes.
-    STARTLOCK=/tmp/eno-db-tunnel.start.lock
     if ! mkdir "$STARTLOCK" 2>/dev/null; then
-      for _ in $(seq 1 60); do up && { echo "  tunnel up on :$PORT (another caller started it)"; exit 0; }; [ -d "$STARTLOCK" ] || break; sleep 1; done
+      for _ in $(seq 1 "$START_WAIT_S"); do up && { echo "  tunnel up on :$PORT (another caller started it)"; exit 0; }; [ -d "$STARTLOCK" ] || break; sleep 1; done
       [ -n "$(find "$STARTLOCK" -maxdepth 0 -mmin +2 2>/dev/null)" ] && rm -rf "$STARTLOCK"
       mkdir "$STARTLOCK" 2>/dev/null || { echo "  another caller is starting the tunnel and :$PORT is still down" >&2; exit 1; }
     fi
@@ -56,10 +70,10 @@ case "${1:-status}" in
     # 2 s for ever). The scheduled jobs call `start` before every database step (scripts/apartments-weekly.sh), so
     # this is the common path after a lid-close, not a corner case.
     if pgrep -f 'eno-db-tunnel-supervisor' >/dev/null 2>&1; then
-      for _ in $(seq 1 45); do up && { echo "  tunnel back up on :$PORT (the running supervisor reconnected)"; exit 0; }; sleep 1; done
+      for _ in $(seq 1 "$SUPERVISOR_WAIT_S"); do up && { echo "  tunnel back up on :$PORT (the running supervisor reconnected)"; exit 0; }; sleep 1; done
       # Still down after 45 s: that supervisor is wedged (a key or host it was started with no longer works) — replace
       # it with one started from THIS environment's key, rather than fail every step behind it for ever.
-      echo "  a supervisor is running but :$PORT has not come back in 45 s — replacing it" >&2
+      echo "  a supervisor is running but :$PORT has not come back in $SUPERVISOR_WAIT_S s — replacing it" >&2
       "$0" stop >/dev/null 2>&1
     fi
     [ -r "$KEY" ] || { echo "  key not readable: $KEY" >&2; echo "  (on macOS an empty ls/find under ~/Desktop is NOT proof of absence — try mdfind -name CS-Linux)" >&2; exit 1; }
@@ -95,7 +109,7 @@ os.dup2(fd, 1); os.dup2(fd, 2)
 os.dup2(os.open(os.devnull, os.O_RDONLY), 0)
 os.execvp("bash", ["bash", "-c", os.environ["SUPERVISOR"]])
 PY
-    for _ in $(seq 1 30); do up && break; sleep 1; done
+    for _ in $(seq 1 "$UP_WAIT_S"); do up && break; sleep 1; done
     if up; then
       echo "  tunnel up on :$PORT (supervisor $(cat "$PIDFILE"), log $LOG)"
     else
