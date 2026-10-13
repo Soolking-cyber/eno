@@ -21,7 +21,7 @@
  * a daily limit set by identity / business verification, two messages until the teacher replies, the writer's
  * verification shown to the teacher; shared details and the private video go to "the account you are talking to"; the
  * identity-verification paragraph names the new use of the result. ⛔ If that deploy slips past 2026-10-13, re-date it —
- * AND TEACHER_DM_NOTICE_DAY (src/lib/emails/teacher-dm-ladder-notice.ts), the date the teachers' notice prints.
+ * AND TEACHER_DM_NOTICE_DAY (src/lib/teachers/dm-ladder-notice.ts), the date the teachers' notice prints.
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
