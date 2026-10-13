@@ -10,6 +10,8 @@
   importer change: git -C ~/eno-vehicles-job fetch && git -C ~/eno-vehicles-job checkout --detach origin/main, then
   prisma generate there. The env (DB + storage) comes from ~/eno.vn/.env (VEH_ENV_FILE); the DB tunnel is
   scripts/db-tunnel.sh (supervised).
+  ⛔ ORDER: fast-forward ~/eno-vehicles-job FIRST, then load this plist. The pre-2026-10-13 script there has no 66 h
+  gate: under this daily trigger it would scrape and import every single day.
   Install / reload (owner):
     mkdir -p ~/eno-import-journals/vehicles   # launchd will not start a job whose log dir is missing
     launchctl unload ~/Library/LaunchAgents/vn.eno.vehicle-rentals-weekly.plist 2>/dev/null

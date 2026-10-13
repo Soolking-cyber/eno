@@ -33,12 +33,12 @@ import { EXPIRED_STATUS } from '../src/lib/apartment-freshness'
 import { invokedDirectly } from '../src/lib/cli-entry'
 import { tombstonePdps } from '../src/lib/pdp-tombstone'
 import { VEHICLE_SELLERS, type SellerKey } from '../src/lib/vehicle-rental-listing'
-import { PRESENCE_KIND, PRESENCE_VERSION, parsePresenceEntry, type DbRow, type Move, type PresenceEntry } from '../src/lib/vehicle-status-plan'
+import {
+  PRESENCE_KIND, PRESENCE_VERSION, STATUS_JOURNAL_KIND, parsePresenceEntry, statusJournalProblem,
+  type DbRow, type Move, type PresenceEntry, type StatusJournal,
+} from '../src/lib/vehicle-status-plan'
 
 type RawDb = Pick<PrismaClient, '$queryRaw' | '$executeRaw' | '$queryRawUnsafe'>
-export const STATUS_JOURNAL_KIND = 'vehicle-status'
-type JournalRow = { id: string; externalId: string; seller: string; from: string; to: string; updatedAt: string; code: string; reason: string }
-export type StatusJournal = { kind: typeof STATUS_JOURNAL_KIND; version: 1; createdAt: string; stamp: string; rows: JournalRow[] }
 const CHUNK = 500
 const chunks = <T>(xs: readonly T[]) => Array.from({ length: Math.ceil(xs.length / CHUNK) }, (_, i) => xs.slice(i * CHUNK, i * CHUNK + CHUNK))
 const SELLER_IDS = Object.values(VEHICLE_SELLERS).map((s) => s.id)
@@ -170,12 +170,12 @@ export async function applyMoves(
 
 // ── CLI: rollback / tombstone retry ───────────────────────────────────────────────────────────────
 
+/** ⛔ Refused whole, before any database work, unless it is exactly what applyMoves wrote (statusJournalProblem). */
 function readJournal(path: string): StatusJournal {
-  const j = JSON.parse(readFileSync(path, 'utf8')) as StatusJournal
-  if (j.kind !== STATUS_JOURNAL_KIND || !Array.isArray(j.rows) || !j.stamp) throw new Error(`${path} is not a ${STATUS_JOURNAL_KIND} journal`)
-  const bad = j.rows.find((r) => !/^c[a-z0-9]{20,30}$/.test(r.id) || ![`active>${EXPIRED_STATUS}`, `${EXPIRED_STATUS}>active`].includes(`${r.from}>${r.to}`) || !r.updatedAt)
-  if (bad || new Set(j.rows.map((r) => r.id)).size !== j.rows.length) throw new Error(`${path}: a malformed or duplicate journal row — refusing`)
-  return j
+  const raw = JSON.parse(readFileSync(path, 'utf8'))
+  const problem = statusJournalProblem(raw, VEHICLE_SELLERS)
+  if (problem) throw new Error(`${path}: ${problem} — refusing`)
+  return raw as StatusJournal
 }
 
 async function main() {
@@ -193,8 +193,17 @@ async function main() {
   try {
     const j = readJournal((ROLLBACK ?? RETOMB)!)
     if (RETOMB) {
-      for (const part of chunks(j.rows.map((r) => r.id))) await tombstoneAll(db, part)
-      console.log(`tombstoned ${j.rows.length} pages (en/vi)`)
+      // Only pages of the rows the journal names — the same id AND externalId on that row's own storefront — never
+      // whatever ids a wrong file carries.
+      let n = 0
+      for (const part of chunks(j.rows)) {
+        const ids = (await db.$queryRawUnsafe<{ id: string }[]>(
+          `SELECT l.id FROM "Listing" l, unnest($1::text[], $2::text[], $3::text[]) AS j(id, ext, seller) WHERE l.id = j.id AND l."externalId" = j.ext AND l."sellerId" = j.seller`,
+          part.map((r) => r.id), part.map((r) => r.externalId), part.map((r) => VEHICLE_SELLERS[r.seller as SellerKey].id))).map((x) => x.id)
+        await tombstoneAll(db, ids)
+        n += ids.length
+      }
+      console.log(`tombstoned ${n} of the journal's ${j.rows.length} pages (en/vi)${n < j.rows.length ? ' — the rest match no vehicle storefront row of that id and externalId' : ''}`)
       return
     }
     console.log(`${APPLY ? 'APPLY' : 'DRY RUN'} — rollback of ${j.rows.length} moves stamped ${j.stamp}`)

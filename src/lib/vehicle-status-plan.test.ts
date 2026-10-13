@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   BIKE_MISS_MIN_SPAN_DAYS, BIKE_MISS_RUNS, CAR_ABSENT_RUNS, EXPIRE_SHARE_FLOOR, MAX_SCRAPE_AGE_DAYS, PRESENCE_ABS_SLACK, PRESENCE_KIND, PRESENCE_MIN_SHARE,
-  bikePresence, guardFor, latestScrapedAt, missStreak, parsePresenceEntry, planVehicleStatus, presenceGuard, recordedRuns,
+  bikePresence, guardFor, latestScrapedAt, missStreak, parsePresenceEntry, planVehicleStatus, presenceGuard, recordedRuns, statusJournalProblem,
   type DbRow, type PlanInput, type PresenceEntry, type SourceRun,
 } from './vehicle-status-plan'
 import { bonbonVerdicts, miotoVerdicts, type Verdict } from './vehicle-reliability'
@@ -85,6 +85,18 @@ describe('the presence history', () => {
     const at = Date.parse('2026-10-13T01:00:00Z')
     expect(guardFor('janmotorbike', [e1], { scrapedAt: at, count: 100 }, null, false, at + 1.5 * DAY).guard).toMatchObject({ judged: true })
     expect(guardFor('janmotorbike', [e1], { scrapedAt: at, count: 100 }, null, true, at + 2.5 * DAY).guard).toMatchObject({ judged: false, accepted: false })
+  })
+
+  it('refuses a scrape stamped in the future (a skewed clock) — and a refused run never blocks the next real one', () => {
+    const at = Date.parse('2026-10-13T01:00:00Z')
+    expect(guardFor('janmotorbike', [e1], { scrapedAt: at + DAY, count: 100 }, null, true, at).guard).toMatchObject({ judged: false, accepted: false })
+    expect(guardFor('janmotorbike', [e1], { scrapedAt: at + 5 * 60_000, count: 100 }, null, false, at).guard).toMatchObject({ judged: true })
+    // that skewed run was recorded as refused: it must not make the next real scrape "older than the last"
+    const skewed = entry('2026-10-13T02:00:00Z', { janmotorbike: src('2026-10-20T01:00:00Z', 100, [], false) })
+    expect(guardFor('janmotorbike', [e1, skewed], { scrapedAt: at, count: 100 }, null, false, at + DAY).guard).toMatchObject({ judged: true })
+    // …while a REAL newer run, even a refused one, still forbids going back in time
+    const shortNewer = entry('2026-10-14T02:00:00Z', { janmotorbike: src('2026-10-14T01:00:00Z', 40, [], false) })
+    expect(guardFor('janmotorbike', [e1, shortNewer], { scrapedAt: at, count: 100 }, null, false, at + DAY).guard).toMatchObject({ judged: false })
   })
 
   it('an operator-accepted run starts the reference over, so ONE --accept really accepts a lower level', () => {
@@ -337,5 +349,36 @@ describe('the plan’s keys ARE the importer’s externalIds (a mismatch would r
     const staged = stageShopBike(r, { ...deps, fx: null })
     expect(staged.ok).toBe(true)
     expect(bikePresence([r], 0).janmotorbike.present.has(staged.ok ? staged.row.externalId : '')).toBe(true)
+  })
+})
+
+describe('statusJournalProblem — a journal is replayed only if it is exactly what applyMoves wrote', () => {
+  const sellers = { mioto: {}, janmotorbike: {} }
+  const row = { id: 'cmv6bs8vi00kzn9q4a66uo07d', externalId: 'mioto:K24HK8', seller: 'mioto', from: 'active', to: 'expired', updatedAt: '2026-10-13 06:54:10.452', code: 'fewTrips', reason: 'x' }
+  const journal = (over: Record<string, unknown> = {}, rows: unknown[] = [row]) => ({ kind: 'vehicle-status', version: 1, createdAt: '2026-10-13T06:55:46.739Z', stamp: '2026-10-13 06:55:46.738', rows, ...over })
+
+  it('accepts what applyMoves writes (a timestamp with or without its fraction)', () => {
+    expect(statusJournalProblem(journal(), sellers)).toBeNull()
+    expect(statusJournalProblem(journal({}, [{ ...row, from: 'expired', to: 'active', updatedAt: '2026-10-13 06:54:10' }]), sellers)).toBeNull()
+  })
+
+  it('refuses the wrong kind, version or stamp', () => {
+    expect(statusJournalProblem(journal({ version: 2 }), sellers)).toMatch(/v1/)
+    expect(statusJournalProblem(journal({ kind: 'rental-expiry' }), sellers)).toMatch(/v1/)
+    expect(statusJournalProblem(journal({ stamp: '2026-10-13T06:55:46Z' }), sellers)).toMatch(/stamp/)
+    expect(statusJournalProblem(journal({ stamp: '2026-99-99 99:99:99' }), sellers)).toMatch(/stamp/)
+    expect(statusJournalProblem(journal({ stamp: '2026-02-31 10:00:00' }), sellers)).toMatch(/stamp/) // not rolled into March
+  })
+
+  it('refuses any malformed row — whole file, before any database work', () => {
+    const bad = (over: Record<string, unknown>) => statusJournalProblem(journal({}, [{ ...row, ...over }]), sellers)
+    expect(bad({ id: 'x' })).toMatch(/bad id/)
+    expect(bad({ from: 'hidden', to: 'active' })).toMatch(/not an expiry or a revival/)
+    expect(bad({ updatedAt: 'yesterday' })).toMatch(/updatedAt/)
+    expect(bad({ externalId: ' ' })).toMatch(/externalId/)
+    expect(bad({ seller: 'someone' })).toMatch(/storefront/)
+    expect(bad({ seller: 'constructor' })).toMatch(/storefront/) // own keys only, never the prototype's
+    expect(statusJournalProblem(journal({}, [row, row]), sellers)).toMatch(/twice/)
+    expect(statusJournalProblem(journal({}, [null]), sellers)).toMatch(/not an object/)
   })
 })

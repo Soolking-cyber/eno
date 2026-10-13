@@ -58,6 +58,11 @@ export const BIKE_MISS_MIN_SPAN_DAYS = 5.5
  * missed check that never happened.
  */
 export const MAX_SCRAPE_AGE_DAYS = 2
+/**
+ * A scrape stamped further ahead of the clock than this is a skewed clock, not a check: refused, never clamped —
+ * a clamped stamp would turn ONE scrape into a "new" check on every re-import of it (review 2026-10-13).
+ */
+export const FUTURE_SCRAPE_TOLERANCE_DAYS = 10 / 1440
 /** A car is expired for ABSENCE only after this many complete scrapes in a row without it… */
 export const CAR_ABSENT_RUNS = 2
 /** …spanning at least this many days (two runs of a failed-then-retried day do not count twice). */
@@ -88,6 +93,9 @@ export function presenceGuard(a: { count: number; priorAccepted: readonly number
   if (a.newest === false) return { judged: false, accepted: false, reference: null, reason: 'a newer scrape of this source is already recorded — refusing to go back in time' }
   if (a.ageDays !== undefined && !(a.ageDays <= MAX_SCRAPE_AGE_DAYS)) {
     return { judged: false, accepted: false, reference: null, reason: `the scrape is ${Number.isFinite(a.ageDays) ? a.ageDays.toFixed(1) : '?'} days old (> ${MAX_SCRAPE_AGE_DAYS}) — a re-used dataset is not a new check` }
+  }
+  if (a.ageDays !== undefined && a.ageDays < -FUTURE_SCRAPE_TOLERANCE_DAYS) {
+    return { judged: false, accepted: false, reference: null, reason: `the scrape is stamped ${(-a.ageDays * 24).toFixed(1)} h in the future — a skewed clock; nothing is judged on it` }
   }
   const recent = a.priorAccepted.slice(0, PRESENCE_BASELINE_RUNS)
   const reference = recent.length ? Math.max(...recent) : a.fallback
@@ -154,8 +162,11 @@ export function guardFor(
   source: string, entries: readonly PresenceEntry[], current: { scrapedAt: number; count: number }, fallback: number | null, force: boolean, now?: number,
 ): { guard: Guard; prior: SourceRun[] } {
   const prior = recordedRuns(source, entries).filter((r) => r.scrapedAt !== current.scrapedAt)
-  const newest = prior.every((r) => r.scrapedAt < current.scrapedAt)
   const accepted = prior.filter((r) => r.accepted)
+  // Any recorded scrape newer than this one refuses it (no going back in time) — except one stamped in the FUTURE at
+  // `now`: a skewed clock's run, refused when it came, must not block every real scrape until the clock catches up.
+  const skewed = (r: SourceRun) => now !== undefined && r.scrapedAt - now > FUTURE_SCRAPE_TOLERANCE_DAYS * DAY_MS
+  const newest = prior.every((r) => skewed(r) || r.scrapedAt < current.scrapedAt)
   const lastForced = accepted.findIndex((r) => r.forced)
   const window = lastForced >= 0 ? accepted.slice(0, lastForced + 1) : accepted
   const ageDays = now === undefined ? undefined : (now - current.scrapedAt) / DAY_MS
@@ -213,6 +224,44 @@ export function latestScrapedAt(records: readonly Record<string, unknown>[], fal
     if (Number.isFinite(t) && t > at) at = t
   }
   return Number.isFinite(at) ? at : fallback
+}
+
+// ── The status journal (written by scripts/vehicle-rentals-status.ts applyMoves) ───────────────────
+
+export const STATUS_JOURNAL_KIND = 'vehicle-status'
+export type StatusJournalRow = { id: string; externalId: string; seller: string; from: string; to: string; updatedAt: string; code: string; reason: string }
+export type StatusJournal = { kind: typeof STATUS_JOURNAL_KIND; version: 1; createdAt: string; stamp: string; rows: StatusJournalRow[] }
+/** A Postgres `timestamp::text` ('2026-10-13 06:55:46.738'), the only time shape the journal stores — and a real date. */
+const isPgTimestamp = (v: unknown): v is string => {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,6})?$/.test(v)) return false
+  // Round trip, not just "parses": V8 rolls 2026-02-31 over into March instead of refusing it.
+  const t = Date.parse(`${v.slice(0, 19).replace(' ', 'T')}Z`)
+  return Number.isFinite(t) && new Date(t).toISOString().slice(0, 19) === v.slice(0, 19).replace(' ', 'T')
+}
+
+/**
+ * Why a status journal is refused, or null. ⛔ Whole or nothing, before any database work: every row must be the
+ * shape applyMoves wrote — a listing id, one of the two moves, a real timestamp, a non-empty externalId and one of
+ * the vehicle storefronts (own keys only), with no id twice.
+ */
+export function statusJournalProblem(raw: unknown, sellers: Readonly<Record<string, unknown>>): string | null {
+  if (!raw || typeof raw !== 'object') return 'not an object'
+  const j = raw as Partial<StatusJournal>
+  if (j.kind !== STATUS_JOURNAL_KIND || j.version !== 1) return `not a ${STATUS_JOURNAL_KIND} v1 journal`
+  if (!isPgTimestamp(j.stamp)) return 'stamp is not a timestamp'
+  if (!Array.isArray(j.rows)) return 'rows is not a list'
+  const ids = new Set<string>()
+  for (const [i, r] of j.rows.entries()) {
+    if (!r || typeof r !== 'object') return `row ${i} is not an object`
+    if (typeof r.id !== 'string' || !/^c[a-z0-9]{20,30}$/.test(r.id)) return `row ${i}: bad id`
+    if (ids.has(r.id)) return `row ${i}: ${r.id} twice`
+    ids.add(r.id)
+    if (!((r.from === ACTIVE_STATUS && r.to === EXPIRED_STATUS) || (r.from === EXPIRED_STATUS && r.to === ACTIVE_STATUS))) return `row ${i}: not an expiry or a revival`
+    if (!isPgTimestamp(r.updatedAt)) return `row ${i}: updatedAt is not a timestamp`
+    if (typeof r.externalId !== 'string' || !r.externalId.trim()) return `row ${i}: no externalId`
+    if (typeof r.seller !== 'string' || !Object.hasOwn(sellers, r.seller)) return `row ${i}: not a vehicle storefront`
+  }
+  return null
 }
 
 // ── The plan ──────────────────────────────────────────────────────────────────────────────────────

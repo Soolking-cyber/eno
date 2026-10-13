@@ -619,25 +619,29 @@ async function statusStep(db: import('../src/generated/prisma/client').PrismaCli
   const bikes: PlanInput['bikes'] = {}
   const accepted = new Map<string, boolean>()
   const iso = (ms: number) => new Date(ms).toISOString()
+  // The guard refuses a scrape stamped in the future or older than MAX_SCRAPE_AGE_DAYS at this moment.
+  const now = Date.now()
 
   for (const src of CAR_SOURCES) {
     const p = presence.cars[src]
     if (!p) continue
-    const { guard, prior } = guardFor(src, entries, { scrapedAt: p.scrapedAt, count: p.verdicts.size }, fallback[src] ?? null, ACCEPT.has(src), Date.now())
-    const thisRun: SourceRun = { scrapedAt: p.scrapedAt, count: p.verdicts.size, accepted: guard.accepted, present: new Set(p.verdicts.keys()) }
+    const at = p.scrapedAt
+    const { guard, prior } = guardFor(src, entries, { scrapedAt: at, count: p.verdicts.size }, fallback[src] ?? null, ACCEPT.has(src), now)
+    const thisRun: SourceRun = { scrapedAt: at, count: p.verdicts.size, accepted: guard.accepted, present: new Set(p.verdicts.keys()) }
     cars[src] = { judged: guard.judged, verdicts: p.verdicts, runs: [...(guard.accepted ? [thisRun] : []), ...prior.filter((r) => r.accepted)] }
     accepted.set(src, guard.accepted)
-    current[src] = { scrapedAt: iso(p.scrapedAt), count: p.verdicts.size, accepted: guard.accepted, forced: guard.accepted && ACCEPT.has(src), present: [...p.verdicts.keys()] }
+    current[src] = { scrapedAt: iso(at), count: p.verdicts.size, accepted: guard.accepted, forced: guard.accepted && ACCEPT.has(src), present: [...p.verdicts.keys()] }
     console.log(`  guard ${src.padEnd(15)} ${guard.judged ? 'judged' : 'NOT judged'} — ${guard.reason}`)
   }
   if (presence.bikes) {
     for (const shop of SHOP_KEYS) {
       const p = presence.bikes[shop]
-      const { guard, prior } = guardFor(shop, entries, { scrapedAt: p.scrapedAt, count: p.count }, fallback[shop] ?? null, ACCEPT.has(shop), Date.now())
-      const thisRun: SourceRun = { scrapedAt: p.scrapedAt, count: p.count, accepted: guard.accepted, present: p.present }
+      const at = p.scrapedAt
+      const { guard, prior } = guardFor(shop, entries, { scrapedAt: at, count: p.count }, fallback[shop] ?? null, ACCEPT.has(shop), now)
+      const thisRun: SourceRun = { scrapedAt: at, count: p.count, accepted: guard.accepted, present: p.present }
       bikes[shop] = { judged: guard.judged, runs: [...(guard.accepted ? [thisRun] : []), ...prior.filter((r) => r.accepted)], present: p.present }
       accepted.set(shop, guard.accepted)
-      current[shop] = { scrapedAt: iso(p.scrapedAt), count: p.count, accepted: guard.accepted, forced: guard.accepted && ACCEPT.has(shop), present: [...p.present] }
+      current[shop] = { scrapedAt: iso(at), count: p.count, accepted: guard.accepted, forced: guard.accepted && ACCEPT.has(shop), present: [...p.present] }
       console.log(`  guard ${shop.padEnd(15)} ${guard.judged ? 'judged' : 'NOT judged'} — ${guard.reason}`)
     }
   }
