@@ -26,6 +26,8 @@ const h = vi.hoisted(() => ({
   storageTombstones: [] as Row[],
   purgedUrls: [] as string[],
   cleared: [] as Row[],
+  /** Every page purge (revalidatePublicPath), in order. */
+  purgedPages: [] as string[],
 }))
 
 function matchReport(r: Row, where: Row): boolean {
@@ -72,7 +74,13 @@ vi.mock('@/lib/db', () => {
     profile: { findUnique: async (a: Row) => { rec('profile.findUnique', a); return h.owner } },
     // The teacher branch: the CV path, and the profile that goes with its listing.
     teacherPrivate: { findUnique: async (a: Row) => { rec('teacherPrivate.findUnique', a); return { cvPath: 'cv/tp1.pdf' } } },
-    teacherProfile: { deleteMany: async (a: Row) => { rec('teacherProfile.deleteMany', a); return { count: 1 } } },
+    teacherProfile: {
+      deleteMany: async (a: Row) => { rec('teacherProfile.deleteMany', a); return { count: 1 } },
+      // setStatusCore's half, when a held teacher's delete becomes a hide: the profile follows the listing, and its
+      // district is read for the purge.
+      updateMany: async (a: Row) => { rec('teacherProfile.updateMany', a); return { count: 1 } },
+      findUnique: async (a: Row) => { rec('teacherProfile.findUnique', a); return h.listing?.teacherProfile ?? null },
+    },
     report: {
       count: async (a: Row) => { rec('report.count', a); return h.reports.filter((r) => matchReport(r, a.where)).length },
       updateMany: async (a: Row) => {
@@ -103,7 +111,7 @@ vi.mock('@/lib/compliance/audit', () => ({ appendAudit: async (_tx: unknown, inp
 // ── The dependency wall (same as listings.republish.test.ts): stubbed, not exercised. ─────────────
 vi.mock('next/server', () => ({ after: (fn: () => unknown) => { h.afters.push(fn) } }))
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
-vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: () => {} }))
+vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: (p: string) => { h.purgedPages.push(p) } }))
 vi.mock('@/lib/listing-index', () => ({ reindexListing: async () => {}, removeFromIndex: async () => {} }))
 vi.mock('@/lib/trust', () => ({ recordEngagement: async () => {} }))
 vi.mock('@/lib/stale', () => ({ canBump: () => false }))
@@ -157,6 +165,7 @@ beforeEach(() => {
   h.storageTombstones = []
   h.purgedUrls = []
   h.cleared = []
+  h.purgedPages = []
 })
 
 describe('a seller under investigation cannot hard-delete — the listing is hidden instead', () => {
@@ -268,7 +277,7 @@ describe('⛔ a TEACHER\'s profile listing is a person: its tombstone is SCRUBBE
   const VIDEO = `${STORE}listing-videos/1700000000000-clip.mp4`
   const teacher = () => ({
     id: 'L1', brandSlug: null, sellerId: 's1', status: 'active', verified: true, externalId: null, seller: { ownerId: 'p1' },
-    listingType: 'teacher', teacherProfile: { id: 'tp1' },
+    listingType: 'teacher', teacherProfile: { id: 'tp1', currentDistrictKey: 'd2', currentDistrict: null },
     title: 'Jane Doe', titleVi: null, description: 'CELTA-certified English teacher, 6 years in Saigon', descriptionVi: null,
     images: JSON.stringify([PHOTO, 'https://lh3.googleusercontent.com/a/foreign']), video: VIDEO,
     location: 'Thảo Điền, Hồ Chí Minh', district: 'Thảo Điền', searchText: 'jane doe celta english teacher', facetTokens: '|subject:english|',
@@ -313,5 +322,34 @@ describe('⛔ a TEACHER\'s profile listing is a person: its tombstone is SCRUBBE
     expect(h.storageTombstones).toEqual([])
     for (const fn of h.afters) await fn()
     expect(h.purgedUrls).toEqual([])
+    expect(h.purgedPages).toEqual(['/listings/L1']) // its own page only: the teacher pages are a teacher's
+  })
+
+  /**
+   * ⛔ …AND THE NAME LEAVES EVERY PAGE THE PROFILE WAS ON, NOW (review of the home shelf, 2026-10-13). The dashboard's
+   * Delete, /api/v1 and MCP reach this core, not the teacher routes: it purged the listing's page only, so the home
+   * page's "Find a teacher" shelf (6h ISR, no client fetch), /c/teachers and the district page kept the deleted
+   * teacher's name and photo for their windows — after a form that promises deletion "for good".
+   */
+  it('purges /c/teachers, the profile\'s district page and the HOME page with the listing\'s own', async () => {
+    h.listing = teacher()
+    expect(await deleteListingCore('L1')).toEqual({ ok: true, deleted: true })
+    expect(h.purgedPages).toEqual(['/listings/L1', '/c/teachers', '/c/teachers/d2', '/'])
+    expect(called('teacherProfile.findUnique')).toHaveLength(0) // the district came with the first read
+  })
+
+  it('a teacher listing whose profile row is already gone still leaves /c/teachers and the home page', async () => {
+    h.listing = { ...teacher(), teacherProfile: null }
+    expect(await deleteListingCore('L1')).toEqual({ ok: true, deleted: true })
+    expect(h.purgedPages).toEqual(['/listings/L1', '/c/teachers', '/'])
+  })
+
+  it('a held teacher\'s delete becomes a hide — and the hide purges the same pages (setStatusCore\'s teacher branch)', async () => {
+    h.listing = teacher()
+    h.owner = { enforcementState: 'held' }
+    expect(await deleteListingCore('L1')).toEqual({ ok: true, deleted: false, hidden: true, reason: 'account_held' })
+    expect(h.listing).toMatchObject({ status: 'hidden', title: 'Jane Doe' }) // a hide, not a scrub
+    expect(called('teacherProfile.updateMany')[0].args).toEqual({ where: { listingId: 'L1', status: { in: ['live', 'hidden'] } }, data: { status: 'hidden' } })
+    expect(h.purgedPages).toEqual(['/listings/L1', '/c/teachers', '/c/teachers/d2', '/'])
   })
 })

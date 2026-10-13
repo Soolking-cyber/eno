@@ -4,6 +4,7 @@ import { clearTombstones, writeTombstones } from '@/lib/core/storage-tombstones'
 import { purgeStorageObjects } from '@/lib/core/storage-purge'
 import { TEACHER_CVS_BUCKET, TEACHER_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { districtPagesOf, revalidateTeacherPages } from '@/lib/teachers/revalidate'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { db } from '@/lib/db'
 import { reindexListing, removeFromIndex } from '@/lib/listing-index'
@@ -394,8 +395,49 @@ export async function setStatusCore(
   // TeacherProfile in step, or /teachers/edit would say "live" for a hidden card (and vice versa).
   if (listingType === TEACHER_LISTING_TYPE && status !== 'sold') {
     await db.teacherProfile.updateMany({ where: { listingId, status: { in: ['live', 'hidden'] } }, data: { status: status === 'active' ? 'live' : 'hidden' } })
+    // …and every public page the profile is on, as the teacher routes' own hide/show purge them (see purgeTeacherPages).
+    // ⚠️ AFTER EVERY WRITE THAT LANDED — NO CAP, AND NO "DID IT CHANGE?" TEST (review, 2026-10-13: both were tried and
+    // withdrawn). A cap left a hide past it on the home shelf for six hours; a test against the status read BEFORE the
+    // write could skip the purge a concurrent relist had made necessary, or a re-send meant to repair a row another door
+    // desynced. A purge buys at most ONE home regeneration, on the next request that reaches the origin — for a signed-in
+    // caller, what reloading any force-dynamic page already buys with no write at all (teachers/revalidate.ts).
+    await purgeTeacherPages(listingId, 'listings.status')
   }
   return { ok: true, status }
+}
+
+/**
+ * ⛔ A TEACHER'S LISTING CHANGED WHAT THE PUBLIC SEES THROUGH A GENERIC DOOR — the dashboard row's Hide / Relist / Delete,
+ * /api/v1 or the MCP tools reach setStatusCore and deleteListingCore, not the teacher routes — so the pages the teacher
+ * publish core purges on its own writes are purged here too (teachers/revalidate.ts): /c/teachers, the profile's
+ * district page and the HOME PAGE, whose "Find a teacher" shelf bakes up to eight teacher cards into its 6h-ISR HTML with
+ * no client fetch behind it. Without this, a profile deleted "for good" from My listings kept its name and photo on the
+ * home page for up to six hours, and a hidden one stayed clickable (review of the home shelf, 2026-10-13); with it they
+ * leave within the edge cache's freshness window (infra/cloudflare/eno-html-edge-cache.js FRESH_TTL, five minutes).
+ * The listing's own page is the caller's purge. `row`: the profile's district, when the caller has already read it —
+ * else read here.
+ * ⚠️ AFTER THE WRITE AND NEVER FAILING IT: the status or the tombstone has landed, so a failed read narrows the purge to
+ * the pages that need no district, and a failed purge is logged — a stale page heals on its own window.
+ */
+async function purgeTeacherPages(
+  listingId: string,
+  op: string,
+  row?: { currentDistrictKey: string | null; currentDistrict: string | null } | null,
+): Promise<void> {
+  let tp = row
+  if (tp === undefined) {
+    try {
+      tp = await db.teacherProfile.findUnique({ where: { listingId }, select: { currentDistrictKey: true, currentDistrict: true } })
+    } catch (e) {
+      logError(e, { op: `${op}.teacherRow`, listingId })
+      tp = null
+    }
+  }
+  try {
+    revalidateTeacherPages(null, districtPagesOf(tp))
+  } catch (e) {
+    logError(e, { op: `${op}.teacherPages`, listingId })
+  }
 }
 
 /**
@@ -1491,8 +1533,9 @@ export async function deleteListingCore(listingId: string): Promise<DeleteListin
     where: { id: listingId },
     select: {
       brandSlug: true, sellerId: true, status: true, listingType: true, seller: { select: { ownerId: true } },
-      // A teacher's listing IS their profile — deleting it deletes the profile too (below).
-      teacherProfile: { select: { id: true } },
+      // A teacher's listing IS their profile — deleting it deletes the profile too (below). Its district: the page the
+      // profile is listed on, purged after the delete (purgeTeacherPages) — read now, the row goes with the profile.
+      teacherProfile: { select: { id: true, currentDistrictKey: true, currentDistrict: true } },
     },
   })
   // Vanished, or ALREADY a tombstone (a second delete, a concurrent one) — a typed not-found; callers
@@ -1565,6 +1608,10 @@ export async function deleteListingCore(listingId: string): Promise<DeleteListin
     })
   }
   revalidatePublicPath(`/listings/${listingId}`)
+  // A teacher's card is on /c/teachers, their district page and the home shelf too — the scrubbed name and photo must
+  // leave those within the edge cache's five minutes, not each page's ISR hours. (deleteTeacherProfile purges them again
+  // after: harmless. A delete cannot loop — a second one is a 404.)
+  if (personal) await purgeTeacherPages(listingId, 'listings.delete', gone.teacherProfile)
   after(() => removeFromIndex(listingId)) // drop the deleted listing from AI search
   after(() => dispatchListingEvent('listing.deleted', listingId, gone.sellerId)) // the listing is gone — pass sellerId explicitly
   return { ok: true, deleted: true }

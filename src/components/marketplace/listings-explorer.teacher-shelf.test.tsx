@@ -134,6 +134,8 @@ const grid = () => document.querySelector('.feed-grid') as HTMLElement
 /** The grid's children as the reader meets them: a card id, 'shelf', 'capture', or another tag. */
 const gridOrder = (g: Element = grid()) => [...g.children].map((el) =>
   el.getAttribute('data-feed-card') ?? (el.hasAttribute('data-teacher-shelf') ? 'shelf' : el.getAttribute('data-testid') === 'capture-row' ? 'capture' : el.tagName))
+/** Every h2 on the page in document order, with whether it is the screen-reader-only kind. */
+const h2s = () => [...document.querySelectorAll('h2')].map((el) => `${el.textContent}${el.classList.contains('sr-only') ? ' (sr-only)' : ''}`)
 
 beforeEach(() => {
   __resetExplorerCommittedForTests()
@@ -162,14 +164,17 @@ describe('the server HTML and its hydration', () => {
       </QueryClientProvider>
     )
     const container = document.body.appendChild(document.createElement('div'))
-    container.innerHTML = renderToString(el)
-    // In the server HTML already — crawlers and a cold phone see it without JS.
-    const serverGrid = container.querySelector('.feed-grid')!
-    expect(gridOrder(serverGrid)).toEqual([...SEED().map((l) => l.id), 'shelf', 'capture'])
     const errors: unknown[] = []
     let root: Root | null = null
-    await act(async () => { root = hydrateRoot(container, el, { onRecoverableError: (e) => errors.push(e) }) })
+    // ONE try for the whole test: a failure before the hydration must still take its container away, or every later
+    // test of this file reads that stale server HTML from document.body (`shelfEl()` is document-wide).
     try {
+      container.innerHTML = renderToString(el)
+      // In the server HTML already — crawlers and a cold phone see it without JS. Ends at the capture row: no sr-only
+      // feed heading after the shelf while it closes page one (the seed is exactly one page).
+      const serverGrid = container.querySelector('.feed-grid')!
+      expect(gridOrder(serverGrid)).toEqual([...SEED().map((l) => l.id), 'shelf', 'capture'])
+      await act(async () => { root = hydrateRoot(container, el, { onRecoverableError: (e) => errors.push(e) }) })
       expect(errors).toEqual([])
       expect(gridOrder(container.querySelector('.feed-grid')!)).toEqual([...SEED().map((l) => l.id), 'shelf', 'capture'])
       // The shelf's cards are in it, and none of them is a feed card (the e2e suites count those).
@@ -285,7 +290,41 @@ describe('signed in (no guest capture row)', () => {
     mount(newClient())
     expect(gridOrder()).toEqual([...SEED().map((l) => l.id), 'shelf'])
     act(() => { screen.getByRole('button', { name: 'Browse everything' }).click() })
-    await waitFor(() => expect(gridOrder().slice(11, 15)).toEqual(['r11', 'shelf', 'r12', 'r13']))
-    expect(gridOrder()).toHaveLength(12 + 1 + 12)
+    await waitFor(() => expect(gridOrder().slice(11, 15)).toEqual(['r11', 'shelf', 'H2', 'r12']))
+    expect(gridOrder()).toHaveLength(12 + 1 + 1 + 12)
+  })
+})
+
+/**
+ * THE OUTLINE (canon §3b, WCAG 1.3.1 — review, 2026-10-13). The shelf's <h2> sits inside the grid, so the cards AFTER it
+ * would be outlined under "Find a teacher". Once cards follow it, an sr-only <h2> naming the feed (the heading above the
+ * grid says it) hands them back — after the capture row for a guest, so globals.css's `[data-teacher-shelf] + …` hairline
+ * rule still lands on that row. None while the shelf is the end of page one (the server HTML), and none without a shelf.
+ */
+describe('the feed\'s heading after the shelf', () => {
+  it('a guest after "Browse everything": shelf → capture row → the feed\'s sr-only <h2> → page two', async () => {
+    mount(newClient())
+    expect(h2s()).toEqual(['Recommended', 'Find a teacher'])
+    act(() => { screen.getByRole('button', { name: 'Browse everything' }).click() })
+    await waitFor(() => expect(gridOrder().slice(11, 16)).toEqual(['r11', 'shelf', 'capture', 'H2', 'r12']))
+    expect(h2s()).toEqual(['Recommended', 'Find a teacher', 'Recommended (sr-only)'])
+  })
+
+  it('names the order the feed is in, as the heading above does (Newest → "Latest listings")', async () => {
+    h.auth.user = { id: 'u1' }
+    window.history.replaceState({}, '', '/?sort=recent')
+    mount(newClient())
+    await waitFor(() => expect(listingsRequests().some((u) => u.searchParams.get('sort') === 'recent')).toBe(true))
+    act(() => { screen.getByRole('button', { name: 'Browse everything' }).click() })
+    await waitFor(() => expect(gridOrder().slice(11, 15)).toEqual(['r11', 'shelf', 'H2', 'r12']))
+    expect(h2s()).toEqual(['Latest listings', 'Find a teacher', 'Latest listings (sr-only)'])
+  })
+
+  it('no shelf, no second heading: page two simply continues the feed', async () => {
+    h.auth.user = { id: 'u1' }
+    mount(newClient(), { initialTeachers: TEACHERS(2) })
+    act(() => { screen.getByRole('button', { name: 'Browse everything' }).click() })
+    await waitFor(() => expect(gridOrder().slice(11, 13)).toEqual(['r11', 'r12']))
+    expect(h2s()).toEqual(['Recommended'])
   })
 })

@@ -636,7 +636,7 @@ describe('approve / reject / unpublish — the listing actions', () => {
   })
 
   it('approve → 200 {"ok":true}: publishes and dismisses its open reports in ONE transaction', async () => {
-    h.listing = { id: 'l1' }
+    h.listing = { id: 'l1', verified: false }
     const r = await post({ action: 'approve', id: 'l1' })
     expect(r.status).toBe(200)
     expect(r.text).toBe('{"ok":true}')
@@ -647,7 +647,21 @@ describe('approve / reject / unpublish — the listing actions', () => {
     expect(upd.where).toEqual({ listingId: 'l1', status: 'open' })
     expect(upd.data.status).toBe('dismissed')
     expect(upd.data.resolvedBy).toBe('mod@eno.vn')
-    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1'])
+    // The listing's page — and the home page (2026-10-13): the takedowns' purge in the other direction, so an approved
+    // teacher is back on the "Find a teacher" shelf (no client fetch) within the edge cache's window, not the ISR's 6h.
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en', '/vi'])
+  })
+
+  // After EVERY approval, whatever the row looked like when read: that read is BEFORE the write, so a "did this one
+  // publish?" test on it could race a concurrent relist — and an approval that published nothing costs one regeneration.
+  it.each<[string, Row, boolean]>([
+    ['already public', { id: 'l1', verified: true }, false],
+    ['parked by the identity gate', { id: 'l1', verified: false }, true],
+  ])('approve of a listing %s still purges the home page — no decision on a pre-write read', async (_label, listing, gated) => {
+    h.listing = listing
+    h.identityHeld = gated
+    await post({ action: 'approve', id: 'l1' })
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en', '/vi'])
   })
 
   // ⚖️ SELLER IDENTITY GATE (only while IDENTITY_GATE_ENFORCED is on). An approval is a content

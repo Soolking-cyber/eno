@@ -336,6 +336,11 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // A verification that landed between the decision and the park: released now, and not held.
       if (held && (await settleHolds([id]))) held = 0
       revalidatePublicPath(`/listings/${id}`)
+      // …and the home page, as every takedown here purges it: the other direction, so an approved teacher is back on the
+      // "Find a teacher" shelf — which has no client fetch — within the edge cache's window rather than the home page's
+      // six hours (review, 2026-10-13). After EVERY approval: a "did this one publish?" test on the row read before the
+      // write could race a concurrent relist, and an approval that published nothing costs one regeneration.
+      purgeHome('moderate.approve.home')
       // `held` only when non-zero: with the gate off the body stays byte-for-byte `{"ok":true}`.
       return NextResponse.json(held ? { ok: true, held } : { ok: true })
     }

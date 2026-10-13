@@ -5187,6 +5187,19 @@ export function ListingsExplorer({
                         <TeacherShelf listings={initialTeachers ?? []} onOpen={openFromShelf} teacherProfile={hasTeacherProfile} teacherDraft={hasTeacherDraft} />
                       )}
                       {index === FIRST_PAGE_SIZE - 1 && <CaptureCard />}
+                      {/* ⚠️ THE FEED'S OWN HEADING AGAIN, FOR A SCREEN READER, ONCE CARDS FOLLOW THE SHELF (canon §3b, WCAG
+                          1.3.1 — review, 2026-10-13). The shelf's <h2> "Find a teacher" sits INSIDE the grid, so after
+                          "Browse everything" every later card's <h3> was outlined under it. This hands them back to the
+                          feed (h1 → h2 → h3 cards, as the heading above says) with the copy that heading already shows.
+                          `sr-only` is absolutely positioned, so it takes no grid cell: no gap and no hairline. It IS an
+                          element child for the selectors, and none of them moves: globals.css's nth-child rule counts
+                          the first twelve, which sit before it, and it is never `:last-child` (cards follow it). After
+                          the capture row, not before it, so `[data-teacher-shelf] + …` still lands on that row — signed
+                          in, on this heading, where `border-top-width: 0` changes nothing. Never in the server HTML: the
+                          seed is exactly one page. */}
+                      {index === FIRST_PAGE_SIZE - 1 && showTeacherShelf && index < gridListings.length - 1 && (
+                        <h2 className="sr-only">{homeFeedHeading}</h2>
+                      )}
                     </Fragment>
                   ))}
                   {/* The next page's reserved cells — see `pendingRows`. Decorative: the rows

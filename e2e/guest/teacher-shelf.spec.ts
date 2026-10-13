@@ -40,10 +40,11 @@ const shelf = (page: Page) => page.locator('[data-teacher-shelf]')
  * a page has none — a catalogue state, not a regression (the guest capture row has the same rule): skipped, visibly.
  */
 async function openHome(page: Page, path = '/') {
-  await page.goto(path)
+  const res = await page.goto(path)
   await dismissOverlays(page)
   const feedCards = await page.locator('.feed-grid > [data-feed-card]').count()
   test.skip(feedCards < 12, `the home feed holds ${feedCards} cards — fewer than a page, so there is no slot after the twelfth`)
+  return res
 }
 
 test.describe('Guest · home "Find a teacher" shelf', () => {
@@ -111,6 +112,35 @@ test.describe('Guest · home "Find a teacher" shelf', () => {
     await openHome(page, viPilotOn(edition) ? '/vi' : '/')
     await expect(page.locator('html')).toHaveAttribute('lang', 'vi')
     await expect(shelf(page).getByRole('heading', { level: 2 })).toHaveText('Tìm giáo viên')
+  })
+
+  /**
+   * ⛔ A PERSON'S NAME IS NEVER MACHINE-TRANSLATED (src/lib/core/teacher-shelf.ts). Korean is one of the languages whose
+   * listing titles the nightly cron pre-warms, so before the pin a teacher's name arrived ALREADY TRANSLATED inside the
+   * page's own embed — deterministic, no client request to wait for. `html[lang=ko]` is set by the provider's effect
+   * after the commit in which every card re-rendered in Korean, so once it holds, the titles are the Korean ones.
+   * ⚠️ THE ORACLE IS THE SAME DOCUMENT'S SERVER HTML — the English variant, where every name renders as typed — not the
+   * listings API: the API reads the database live, so a teacher who renamed themselves since this copy was baked would
+   * fail a correct page. Same document, same cards, before and after the switch.
+   * (The languages translated on view, and English for a Vietnamese-letter name, are client requests — an absence an
+   * e2e cannot time; the unit test drives the card's own localizedPlan through all eleven instead.)
+   */
+  test('under Korean, every card keeps the name its server HTML printed — never a translation of it', async ({ page }) => {
+    await page.addInitScript(() => { try { localStorage.setItem('lang', 'ko') } catch { /* private mode */ } })
+    const res = await openHome(page)
+    const serverHtml = await res!.text()
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ko', { timeout: 20_000 })
+    const [served, shown] = await page.evaluate((html) => {
+      // Each shelf card's link and full title (the h3's `title` — the line itself may be shortened, card-title.ts).
+      const read = (root: ParentNode) => [...root.querySelectorAll('[data-teacher-shelf] [data-card-root]')].map((card) => [
+        card.querySelector('a[data-card-link]')?.getAttribute('href') ?? '',
+        card.querySelector('h3')?.getAttribute('title') ?? '',
+      ])
+      return [read(new DOMParser().parseFromString(html, 'text/html')), read(document)]
+    }, serverHtml)
+    expect(served.length, 'shelf cards in the server HTML').toBeGreaterThanOrEqual(3)
+    expect(served.every(([href, name]) => href.startsWith('/listings/') && name !== ''), 'every served card has a link and a name').toBe(true)
+    expect(shown, 'the Korean page shows the names the server printed, card for card').toEqual(served)
   })
 
   test('after hydration: gone on a search and on a category, still there under a sort', async ({ page }) => {

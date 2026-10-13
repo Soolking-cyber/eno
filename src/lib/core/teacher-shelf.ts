@@ -2,7 +2,7 @@ import 'server-only'
 import { db } from '@/lib/db'
 import { scopedListingWhere, teachersCategoryId } from '@/lib/edition-scope'
 import { LISTING_CARD_SELECT, serializeListingCard } from '@/lib/serialize'
-import { localizeListingTitles } from '@/lib/translate'
+import { LANGS } from '@/lib/i18n/langs'
 import { HOME_HIDDEN_TEACHER_LISTING_IDS, HOME_TEACHER_SHELF_TAKE } from '@/lib/teachers/constants'
 import type { SerializedListingCard } from '@/lib/types'
 
@@ -20,12 +20,20 @@ import type { SerializedListingCard } from '@/lib/types'
  * the `categoryId` beside it is what keeps every other listing out; the desk / allow-list scope still applies.
  * ⚠️ ONLY CARD FIELDS LEAVE THE SERVER: LISTING_CARD_SELECT + serializeListingCard — no description or bio, nothing of
  * TeacherPrivate, and no ownerId on the wire.
- * ⚠️ A PERSON'S NAME IS NEVER MACHINE-TRANSLATED ON /vi. A teacher row has no titleVi (projection.ts writes the name as
- * the title only), so the card's useLocalized would send the name through the translator on a Vietnamese page; the
- * profile page shows the name as typed (teacher-profile-view.tsx), and so does this card. The nine MT languages keep
- * whatever is already cached for the title, exactly as on /c/teachers (localizeListingTitles reads pre-warmed rows only
- * and never pays for a translation).
- * Cost: one findMany of at most TAKE + 2 rows on the [verified, status, categoryId, sellerId] index.
+ * ⛔ A PERSON'S NAME IS NEVER MACHINE-TRANSLATED — IN ANY OF THE ELEVEN LANGUAGES (seller-info.tsx: "a name translated is
+ * a different name"; the profile page shows it as typed, teacher-profile-view.tsx). A teacher row's title IS the name
+ * (projection.ts) with no authored twin, so the card's useLocalized (listing-content.tsx localizedPlan) translated it in
+ * the nine MT languages — from the nightly warm-translations cache, which localizeListingTitles embedded into this 6h
+ * page (zh-Hans / ko / ja / ru), else by a paid /api/translate call on view (km / ms / th / fr / hi) — and in English too
+ * for a name with a Vietnamese letter, Hangul or Cyrillic (useMachineEn: "Nguyễn Thị Hoa" reads as Vietnamese text). So
+ * every language is PINNED to the name, in the embed each one reads first: `titleVi` for /vi, `titleI18n` for the ten
+ * others, `en` included — no translation is embedded and no client request is made (review, 2026-10-13).
+ * localizeListingTitles is not called (it could only add translations to overwrite), and a stored titleVi is overwritten
+ * too: no teacher code writes one (projection.ts), so it could only be a bulk title translation.
+ * ⚠️ /c/teachers renders the same cards UNPINNED (pre-existing): the fix there belongs in ListingCard, a landmine file —
+ * a separate change.
+ * Cost: one findMany of at most TAKE + 2 rows on the [verified, status, categoryId, sellerId] index; ten more copies of
+ * each name in the page's RSC payload (eight cards ≈ 2 KB, less the cached translations it no longer carries).
  */
 export async function homeTeacherShelf(): Promise<SerializedListingCard[]> {
   // Memoised per process (edition-scope.ts); null = no teachers category, so no teacher listing can exist.
@@ -42,11 +50,15 @@ export async function homeTeacherShelf(): Promise<SerializedListingCard[]> {
     take: HOME_TEACHER_SHELF_TAKE + 2,
     select: LISTING_CARD_SELECT,
   })
-  const cards = rows
+  return rows
     .map(serializeListingCard)
     // A card without its photo is a grey box with a name under it — on the home page, not worth the slot.
     .filter((c) => typeof c.images[0] === 'string' && c.images[0] !== '')
     .slice(0, HOME_TEACHER_SHELF_TAKE)
-    .map((c) => ({ ...c, titleVi: c.titleVi ?? c.title }))
-  return localizeListingTitles(cards)
+    .map((c) => ({ ...c, titleVi: c.title, titleI18n: nameInEveryLanguage(c.title) }))
+}
+
+/** The name as typed, as the embedded title of every language but Vietnamese (whose slot is `titleVi`) — see above. */
+function nameInEveryLanguage(name: string): Record<string, string> {
+  return Object.fromEntries(LANGS.filter((l) => l !== 'vi').map((l) => [l, name]))
 }

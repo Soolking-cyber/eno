@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 /**
  * The home "Find a teacher" shelf's seed (owner, 2026-10-13). Pinned: it reads /c/teachers' own predicate and default
  * order with the opt-in pinned to the teachers category, the owner's demo profile never comes back, a card without its
- * photo is dropped (and the shelf still fills), a person's name is its own Vietnamese title, and only card fields go out.
+ * photo is dropped (and the shelf still fills), a person's name is pinned in every language (never machine-translated —
+ * proved through the card's own localizedPlan), and only card fields go out.
  */
 const h = vi.hoisted(() => ({
   teachersId: 'cat-teachers' as string | null,
@@ -17,9 +18,12 @@ vi.mock('@/lib/edition-scope', () => ({
   teachersCategoryId: async () => h.teachersId,
   scopedListingWhere: (w: unknown, opts: unknown) => h.scoped(w, opts),
 }))
+// A regression guard, not a dependency: the shelf must never embed the translation cache's names (see the last test).
 vi.mock('@/lib/translate', () => ({ localizeListingTitles: (cards: unknown[], onlyLang?: string) => h.localize(cards, onlyLang) }))
 
 const { homeTeacherShelf } = await import('./teacher-shelf')
+const { localizedPlan } = await import('@/components/marketplace/listing-content')
+const { LANGS } = await import('@/lib/i18n/langs')
 const { LISTING_CARD_SELECT } = await import('@/lib/serialize')
 const { HOME_HIDDEN_TEACHER_LISTING_IDS, HOME_TEACHER_SHELF_TAKE } = await import('@/lib/teachers/constants')
 
@@ -89,11 +93,29 @@ describe('homeTeacherShelf', () => {
     expect(cards.every((c) => typeof c.images[0] === 'string' && c.images[0] !== '')).toBe(true)
   })
 
-  it('a person\'s name is its own Vietnamese title (never machine-translated on /vi); a stored titleVi is kept', async () => {
-    h.rows = [row('t0', { title: 'Jane Doe' }), row('t1', { title: 'Nguyễn Văn An', titleVi: 'Nguyễn Văn An (VI)' })]
+  it('a person\'s name is pinned in every language: titleVi for /vi, titleI18n for the ten others — a stored titleVi too', async () => {
+    h.rows = [row('t0', { title: 'Jane Doe' }), row('t1', { title: 'Nguyễn Văn An', titleVi: 'Văn An (bản dịch máy)' })]
     const cards = await homeTeacherShelf()
-    expect(cards[0]).toMatchObject({ title: 'Jane Doe', titleVi: 'Jane Doe' })
-    expect(cards[1]).toMatchObject({ title: 'Nguyễn Văn An', titleVi: 'Nguyễn Văn An (VI)' })
+    const others = LANGS.filter((l) => l !== 'vi')
+    expect(others).toHaveLength(10)
+    expect(cards[0]).toMatchObject({ title: 'Jane Doe', titleVi: 'Jane Doe', titleI18n: Object.fromEntries(others.map((l) => [l, 'Jane Doe'])) })
+    // No teacher code writes a titleVi (projection.ts), so a stored one is a bulk translation: the name wins.
+    expect(cards[1]).toMatchObject({ title: 'Nguyễn Văn An', titleVi: 'Nguyễn Văn An', titleI18n: Object.fromEntries(others.map((l) => [l, 'Nguyễn Văn An'])) })
+  })
+
+  // What the card itself does with those fields (listing-card.tsx → useLocalized → localizedPlan): in EVERY language it
+  // renders the name as typed, and asks /api/translate for nothing — `tr` is useTr's text, `en` useMachineEn's.
+  it.each([
+    ['a Latin name', 'Jane Doe'],
+    ['a Vietnamese name (English would have sent it to vi→en)', 'Nguyễn Thị Hoa'],
+    ['a Hangul name', '김민수'],
+    ['a Cyrillic name', 'Иван Петров'],
+  ])('%s renders as typed in all eleven languages, with no translation request', async (_label, name) => {
+    h.rows = [row('t0', { title: name })]
+    const [card] = await homeTeacherShelf()
+    for (const lang of LANGS) {
+      expect(localizedPlan(card.title, card.titleVi, card.titleI18n, lang), lang).toEqual({ embedded: name, tr: '', en: '' })
+    }
   })
 
   it('only card fields leave the server: no description, no owner id', async () => {
@@ -105,10 +127,10 @@ describe('homeTeacherShelf', () => {
     }
   })
 
-  it('embeds the cached titles for every language (language-neutral ISR) — no single-language cut', async () => {
+  it('never embeds the translation cache: a pre-warmed (machine-translated) name is not read, let alone shown', async () => {
     h.localize.mockImplementation(async (cards: Array<{ id: string }>) => cards.map((c) => ({ ...c, titleI18n: { ko: `ko:${c.id}` } })))
     const cards = await homeTeacherShelf()
-    expect(h.localize).toHaveBeenCalledWith(expect.any(Array), undefined)
-    expect(cards[0].titleI18n).toEqual({ ko: 'ko:t0' })
+    expect(h.localize).not.toHaveBeenCalled()
+    expect(cards[0].titleI18n?.ko).toBe('Teacher t0')
   })
 })
