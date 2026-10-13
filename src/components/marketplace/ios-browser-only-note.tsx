@@ -44,9 +44,13 @@ function siteHost(): string {
  */
 export function IosVerifyElsewhereNote({ kind, className }: { kind: 'identity' | 'business'; className?: string }) {
   const { tr } = useLanguage()
+  return <IosBrowserOnlyNote text={iosVerifyElsewhereText(kind, tr)} className={className} />
+}
+
+/** The same sentence as text — for a toast (the teacher DM ladder's refusal on /messages/pending, 2026-10-13). */
+export function iosVerifyElsewhereText(kind: 'identity' | 'business', tr: (en: string, vi: string) => string): string {
   const lead = kind === 'identity'
     ? tr('Identity verification is available on our website, in a web browser:', 'Bạn có thể xác minh danh tính trên website của chúng tôi, bằng trình duyệt web:')
     : tr('Business verification is available on our website, in a web browser:', 'Bạn có thể xác minh doanh nghiệp trên website của chúng tôi, bằng trình duyệt web:')
-  const text = lead + ' ' + siteHost()
-  return <IosBrowserOnlyNote text={text} className={className} />
+  return lead + ' ' + siteHost()
 }

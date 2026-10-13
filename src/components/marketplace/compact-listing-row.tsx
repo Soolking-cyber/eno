@@ -21,7 +21,7 @@ import { formatMoneyFull, formatCount, moneyLocale, dropPercent } from '@/lib/vn
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/context/auth-context'
 import { quickActionSignIn, stashQuickCompose } from '@/lib/quick-contact'
-import { quickChatOpener } from '@/lib/teachers/first-message'
+import { openerVoice, quickChatOpener } from '@/lib/teachers/first-message'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
@@ -57,7 +57,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
   // Quick-offer: pressing the Tag rolls a discount slider open to the LEFT of the
   // action icons; confirm hands off to the composer's offer mode (?offer=N#contact).
   const [offer, setOffer] = useState<number | null>(null)
-  const { user, loading: authLoading, openSignIn } = useAuth()
+  const { user, loading: authLoading, openSignIn, accountType } = useAuth()
   const quickGo = (opts: { body?: string; offerAmount?: number | null }) => {
     // A guest's quick action is remembered and finished on the listing's page after sign-in (UX3 J5).
     if (!user) { if (!authLoading) openSignIn({ listingTitle: displayTitle, listingImage: cover ?? null, ...quickActionSignIn(l, opts) }); return }
@@ -352,7 +352,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             tapTarget={false}
             aria-label={teacher ? tr('Message teacher', 'Nhắn tin cho giáo viên') : tr('Chat with seller', 'Nhắn tin với người bán')}
             // A teacher is hired, never asked whether "this" is still available (src/lib/teachers/first-message.ts).
-            onClick={(e) => { e.stopPropagation(); quickGo({ body: quickChatOpener(l.listingType, tr) }) }}
+            onClick={(e) => { e.stopPropagation(); quickGo({ body: quickChatOpener(l.listingType, tr, openerVoice(accountType)) }) }}
             className={cn('press text-foreground hover:bg-accent', offer === null ? 'flex' : 'hidden')}
           >
             <MessageCircle className="h-5 w-5" />

@@ -37,6 +37,8 @@ import { ReportButton } from '@/components/marketplace/report-button'
 import { BlockUserButton } from '@/components/marketplace/block-user-button'
 import { ClosedThreadBanner } from '@/components/marketplace/closed-thread-banner'
 import { OBJECTIONABLE_CONTENT, composerFreeForRefused, objectionableCopy } from '@/lib/ugc-copy'
+import { teacherAwaitingReplyMessage } from '@/lib/teachers/dm-limit-copy'
+import { openerVoice } from '@/lib/teachers/first-message'
 import { TrustMeta } from '@/components/marketplace/trust-meta'
 import { QuickReplyChips, MarkSoldPrompt, chipContext } from '@/components/marketplace/quick-reply-chips'
 import { MarkSoldFlow, soldSheetApplies, type MarkSoldRequest } from '@/components/marketplace/mark-sold-flow'
@@ -372,7 +374,7 @@ type Thread = {
   /** A thread about a teacher profile (2026-09-30); optional — pending stubs and cached threads omit it. */
   // `hasPhone` reaches the TEACHER side only (A3, 2026-10-08) — what their Share button names; so does `phoneShared`
   // (gate review, 2026-10-09) — whether the standing share included the phone.
-  teacher?: { shared: boolean; live?: boolean; hasPhone?: boolean; phoneShared?: boolean; video?: TeacherVideoFlags | null } | null
+  teacher?: { shared: boolean; live?: boolean; hasPhone?: boolean; phoneShared?: boolean; video?: TeacherVideoFlags | null; writerVerified?: 'business' | 'identity' | 'unverified' | null } | null
   /**
    * App Store gate `ugc-safety`: the thread is CLOSED by a block between its two people — 'you_blocked'
    * (I blocked them; the banner offers the way back) or 'blocked' (the other side did). Absent while the
@@ -433,7 +435,7 @@ export default function ThreadPage() {
 function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { user, loading } = useAuth()
+  const { user, loading, accountType } = useAuth()
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang) // offer amounts follow the viewer's language
   const { getCachedThread, cacheThread, prefetchThread, refreshUnread, refreshConvos, convos } = useChat()
@@ -1368,7 +1370,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
         // App Store gate `ugc-safety` (R3): a block is not a network blip. "Tap to retry" could never
         // succeed, so the bubble goes and the reason is said (codex, review). Never fires while the gate
         // is off — the route cannot answer `blocked` then.
-        const code = res.status === 403 || res.status === 400 ? ((await res.json().catch(() => null)) as { error?: string } | null)?.error : undefined
+        const code = res.status === 403 || res.status === 400 || res.status === 429 ? ((await res.json().catch(() => null)) as { error?: string } | null)?.error : undefined
         if (code === 'blocked') {
           sendClientIds.current.delete(tempId)
           sendReplyTargets.current.delete(tempId)
@@ -1397,6 +1399,19 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
           }
           // 26 words, and the user has to rephrase: long enough to read, not the 4s default (refusal-toast.ts).
           refusalToast(objectionableCopy('message', tr), { id: `chat-refusal:${id}` })
+        } else if (code === 'teacher_awaiting_reply') {
+          // The teacher DM ladder's "2 until reply" (owner, 2026-10-13): nothing was sent. The words come back into an
+          // empty composer — the word filter's rule above — so nothing typed is lost, and the reason is said.
+          if (composerFreeForRefused(composerRef.current?.getValue() ?? '', replyToNow.current?.id, quoted?.id)) {
+            sendClientIds.current.delete(tempId)
+            sendReplyTargets.current.delete(tempId)
+            setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== tempId) } : t))
+            setText(body)
+            if (quoted) armReply(quoted)
+          } else {
+            markFailed(tempId)
+          }
+          refusalToast(teacherAwaitingReplyMessage(tr), { id: `chat-refusal:${id}` })
         } else {
           markFailed(tempId)
         }
@@ -2741,7 +2756,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
               TEACHER'S OWN STRIP — "Stop sharing" must stay reachable while the block stands (the server still
               accepts an unshare), or a share made before the block would quietly come back with an unblock. */}
           {thread && thread.listing && thread.teacher && (!thread.closed || thread.iAmSeller) && (
-            <TeacherThreadStrip conversationId={thread.id} iAmTeacher={!!thread.iAmSeller} shared={thread.teacher.shared} live={thread.teacher.live !== false} shareSignal={(thread.messages ?? []).filter((m) => /^(📇|🔒)/.test(m.body ?? '')).length} closed={!!thread.closed} video={thread.teacher.video ?? null} videoReadAt={threadReadAt} videoSignal={(thread.messages ?? []).filter((m) => /^🎬/.test(m.body ?? '')).length} hasPhone={thread.teacher.hasPhone !== false} phoneShared={thread.teacher.phoneShared !== false} />
+            <TeacherThreadStrip conversationId={thread.id} iAmTeacher={!!thread.iAmSeller} shared={thread.teacher.shared} live={thread.teacher.live !== false} shareSignal={(thread.messages ?? []).filter((m) => /^(📇|🔒)/.test(m.body ?? '')).length} closed={!!thread.closed} video={thread.teacher.video ?? null} videoReadAt={threadReadAt} videoSignal={(thread.messages ?? []).filter((m) => /^🎬/.test(m.body ?? '')).length} hasPhone={thread.teacher.hasPhone !== false} phoneShared={thread.teacher.phoneShared !== false} writerVerified={thread.teacher.writerVerified ?? null} />
           )}
           {/* The REQUEST button itself now lives in the item strip above (stripContact); this row keeps the
               two states that need a row — the revealed number, and the hint before the seller replies. */}
@@ -3515,6 +3530,7 @@ function ThreadView({ accountRef }: { accountRef: RefObject<string | null> }) {
               // "Is it still available?", "Price is firm" or "Deal!" (quick-reply-chips.tsx `teacher`).
               teacher={thread.listing.listingType === TEACHER_LISTING_TYPE}
               teacherShared={!!thread.teacher?.shared}
+              voice={openerVoice(accountType)}
               hasPendingBuyerOffer={hasPendingBuyerOffer}
               negotiable={thread.listing.negotiable !== false}
               {...chipContext(thread.messages, !!thread.iAmSeller)}

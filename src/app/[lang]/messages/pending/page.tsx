@@ -10,6 +10,10 @@ import { COMPOSE_KEY } from '@/components/marketplace/contact-composer'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { OBJECTIONABLE_CONTENT, objectionableCopy } from '@/lib/ugc-copy'
+import { refusalToast } from '@/lib/refusal-toast'
+import { teacherAwaitingReplyMessage, teacherDmLimitMessage, teacherDmStep } from '@/lib/teachers/dm-limit-copy'
+import { iosVerifyElsewhereText } from '@/components/marketplace/ios-browser-only-note'
+import { iosHideKycClient } from '@/lib/ios-hide-kyc'
 
 type Compose = { listingId: string; body: string; offerAmount?: number | null; listingTitle: string; listingImage: string | null; trackPrice: number | null; currency: string; plan?: boolean }
 
@@ -19,10 +23,15 @@ type Compose = { listingId: string; body: string; offerAmount?: number | null; l
 // shows while it resolves, so the user feels a redirect, not a button spinner.
 export default function PendingComposePage() {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, accountType, identityLoaded } = useAuth()
   const { cacheThread } = useChat()
   const { tr } = useLanguage()
   const ran = useRef(false)
+  // ⚠️ The effect below runs ONCE (`ran`), and its answer can land before /api/me does — on a full document load (every
+  // deploy turns router.push into one) the first render is hydration. So the account is read through a ref when the answer
+  // arrives and again when a step is tapped, never from the first render's closure (pre-review, 2026-10-13).
+  const account = useRef({ accountType, identityLoaded })
+  useEffect(() => { account.current = { accountType, identityLoaded } })
 
   useEffect(() => {
     if (ran.current) return
@@ -49,8 +58,31 @@ export default function PendingComposePage() {
       .then(async (res) => {
         if (res.status === 401) { router.replace(`/listings/${d.listingId}`); return }
         if (!res.ok) {
-          const { error } = await res.json().catch(() => ({}))
-          toast.error(
+          const refusal = await res.json().catch(() => ({}))
+          const { error } = refusal
+          // ⛔ THE TEACHER DM LADDER (owner, 2026-10-13 — src/lib/teachers/dm-quota.ts): a new teacher over today's limit
+          // is told why and offered the one step that lifts it — verify identity, switch to or verify a business — or to
+          // come back after midnight. In the iOS app with `ios-hide-kyc` on, a verification step is a sentence naming the
+          // website, never a button. A body without `tier` (an older server mid-deploy) falls through to the plain line.
+          const ladder = error === 'teacher_thread_cap' ? teacherDmLimitMessage(refusal, tr) : null
+          // The gate is read LIVE: the hook's first render is hydration, where it answers false (use-ios-hide-kyc.ts).
+          const hideKyc = iosHideKycClient()
+          // The label from the account as it stands now — an account not loaded yet is taken as onboarded, the common
+          // case; the step's TARGET is decided again on the tap, when it has loaded ('switch_to_business' differs by type).
+          const now = account.current
+          const step = ladder ? teacherDmStep(refusal.next, now.identityLoaded ? now.accountType : 'individual', tr) : null
+          const showStep = step && !(step.kyc && hideKyc)
+          if (ladder || error === 'teacher_awaiting_reply') {
+            refusalToast(
+              ladder ? (step?.kyc && hideKyc ? `${ladder} ${iosVerifyElsewhereText(step.kyc, tr)}` : ladder) : teacherAwaitingReplyMessage(tr),
+              // The target from the account as it stands at the tap — with the label's own fallback while it has not loaded,
+              // so the two never disagree (gate review, 2026-10-13).
+              { id: 'teacher-dm-limit', step: showStep ? { label: step.label, onClick: () => {
+                const at = account.current
+                router.push(teacherDmStep(refusal.next, at.identityLoaded ? at.accountType : 'individual', tr)?.href ?? step.href)
+              } } : null },
+            )
+          } else toast.error(
             error === 'own_listing' ? tr("That's your own listing.", 'Đây là tin của chính bạn.')
             // App Store gate `ios-hide-visa` (D5 = b) — only ever answered to the iOS app while the gate is on. NEUTRAL on
             // purpose: this page is shared with eno.vn, so no e-Visa word may sit in it; the listing page it bounces to
@@ -59,7 +91,6 @@ export default function PendingComposePage() {
             // Enforcement gates (trust Phase 2) — specific, calm copy over a generic failure.
             : error === 'account_suspended' ? tr('Your account is suspended — messaging is paused while we review it. Details are in your dashboard.', 'Tài khoản của bạn đang tạm ngưng — nhắn tin tạm dừng trong khi chúng tôi xem xét. Xem chi tiết trong trang quản lý.')
             : error === 'teacher_thread_cap' ? tr('You have reached today’s limit for new chats. Please try again tomorrow.', 'Bạn đã đạt giới hạn cuộc trò chuyện mới hôm nay. Vui lòng thử lại vào ngày mai.')
-            : error === 'business_only' ? tr('Only school and company accounts can message teachers.', 'Chỉ tài khoản trường học hoặc công ty mới nhắn tin được cho giáo viên.')
             : error === 'probation_conversation_cap' ? tr('New accounts can start up to 15 chats a day — please try again tomorrow.', 'Tài khoản mới có thể bắt đầu tối đa 15 cuộc trò chuyện mỗi ngày — hãy thử lại vào ngày mai.')
             // App Store gate `ugc-safety` (R3) — only ever answered while the gate is on.
             : error === 'blocked' ? tr('You can’t message this seller.', 'Bạn không thể nhắn tin cho người bán này.')
@@ -74,7 +105,10 @@ export default function PendingComposePage() {
           router.replace(`/listings/${d.listingId}`)
           return
         }
-        const { id, created, message } = await res.json()
+        const { id, created, message, held } = await res.json()
+        // A teacher who has not answered the writer's two messages (DM ladder, owner 2026-10-13): the thread opens and the
+        // opener was not sent — say why, once, as the chat appears.
+        if (held === 'teacher_awaiting_reply') refusalToast(teacherAwaitingReplyMessage(tr), { id: 'teacher-dm-limit', step: null })
         cacheThread(id, {
           id,
           me: user?.id ?? '',

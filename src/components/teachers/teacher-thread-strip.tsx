@@ -9,20 +9,19 @@
 // Its second row (2026-10-07, owner: "hide and send upon request") is the intro video a teacher keeps private:
 //   · teacher: "Send my intro video" / "Stop sharing video", with the school's ask shown when there is one;
 //   · school: "Ask for their intro video" → asked (a day later: "Ask again") → "Watch intro video", inline, on a 10-minute link.
-// Only a school or company buyer is offered any of it (`forBusiness`, gate review 2026-10-08).
+// Any account the teacher shares with — the teacher DM ladder (owner, 2026-10-13) opened teacher chats to every account; the
+// 2026-10-08 business-only video rule went with it. The teacher sees whether the writer is verified (`writerVerified`).
 // The server re-derives every rule from the conversation row (src/lib/teachers/share.ts).
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { FileText, Mail, Phone, Play, Video } from '@/components/ui/icons'
 import { isNativeShell, openExternal } from '@/lib/native-browser'
+import { teacherAwaitingReplyMessage } from '@/lib/teachers/dm-limit-copy'
 
 type Contact = { phone: string | null; email: string | null; hasCv: boolean }
-/**
- * The thread payload's `teacher.video` (api/conversations/[id] → teacherVideoState). A payload without the last two reads
- * as `forBusiness` true and `askAgain` false.
- */
-export type TeacherVideoFlags = { available: boolean; shareOn: boolean; shared: boolean; requested: boolean; askAgain?: boolean; forBusiness?: boolean }
+/** The thread payload's `teacher.video` (api/conversations/[id] → teacherVideoState). A payload without `askAgain` reads it as false. */
+export type TeacherVideoFlags = { available: boolean; shareOn: boolean; shared: boolean; requested: boolean; askAgain?: boolean }
 
 /** A playback error re-mints the link at most this many times per Watch (an expired link mid-seek, not a loop). */
 const MAX_REMINTS = 2
@@ -42,8 +41,11 @@ const REMINT_WITHIN_MS = 60_000
  * sharing" while a share stands and nothing otherwise — a Share button there could only be refused
  * (codex, gate round 3). The video row follows the same rule.
  * `videoReadAt` — when the page's read that brought `video` STARTED (performance.now(), readThread); absent = now.
+ * `writerVerified` — TEACHER ONLY (the thread payload's `teacher.writerVerified`): whether the account writing is a
+ * verified business, has a live identity check, or is not verified yet — said before the teacher taps Share (the DM
+ * ladder, owner 2026-10-13). Null/absent shows nothing.
  */
-export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedProp, live = true, shareSignal, closed = false, video: videoProp = null, videoReadAt, videoSignal = 0, hasPhone = true, phoneShared: phoneSharedProp = true }: { conversationId: string; iAmTeacher: boolean; shared: boolean; live?: boolean; shareSignal: number; closed?: boolean; video?: TeacherVideoFlags | null; videoReadAt?: number; videoSignal?: number; hasPhone?: boolean; phoneShared?: boolean }) {
+export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedProp, live = true, shareSignal, closed = false, video: videoProp = null, videoReadAt, videoSignal = 0, hasPhone = true, phoneShared: phoneSharedProp = true, writerVerified = null }: { conversationId: string; iAmTeacher: boolean; shared: boolean; live?: boolean; shareSignal: number; closed?: boolean; video?: TeacherVideoFlags | null; videoReadAt?: number; videoSignal?: number; hasPhone?: boolean; phoneShared?: boolean; writerVerified?: 'business' | 'identity' | 'unverified' | null }) {
   const { tr } = useLanguage()
   const [shared, setShared] = useState(sharedProp)
   const [phoneShared, setPhoneShared] = useState(phoneSharedProp)
@@ -68,12 +70,11 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
         if (!alive) return
         if (r.ok) { setContact(d as Contact); setShared(true); setError('') }
         else if (r.status === 429) setError(tr('Too many requests — the contact details will load again in a few minutes.', 'Quá nhiều yêu cầu — thông tin liên hệ sẽ tải lại sau vài phút.'))
-        // Any REFUSAL (403/404: not shared, not business, suspended, gone) clears what is on screen.
+        // Any REFUSAL (403/404: not shared, suspended, gone) clears what is on screen.
         // Only a rate limit or a network failure keeps it — those are not a change of permission.
         else if (r.status === 403 || r.status === 404) {
           setContact(null)
           if (d.error === 'share_required' || d.error === 'not_found') setShared(false)
-          if (d.error === 'business_only') setError(tr('Only school and company accounts can see teacher contact details.', 'Chỉ tài khoản trường học hoặc công ty mới xem được liên hệ của giáo viên.'))
         }
       })
       .catch(() => {})
@@ -129,7 +130,7 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
   /** An action or a state-changing refusal just landed: the newest word — only a read that starts after it is newer. */
   const actionLanded = () => { shownAt.current = stamp() }
   // As shown: a missing flag reads as its default, and `askAgain` counts only while an ask stands.
-  const flagsKey = (f: TeacherVideoFlags | null) => (f ? `${+f.available}${+f.shareOn}${+f.shared}${+f.requested}${+(f.requested && f.askAgain === true)}${+(f.forBusiness !== false)}` : '-')
+  const flagsKey = (f: TeacherVideoFlags | null) => (f ? `${+f.available}${+f.shareOn}${+f.shared}${+f.requested}${+(f.requested && f.askAgain === true)}` : '-')
   const applyServerFlags = (next: TeacherVideoFlags | null, at: Stamp) => {
     if (isOlder(at, shownAt.current)) return // began before the newest word shown: older, dropped
     shownAt.current = at
@@ -139,9 +140,9 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
   // EVERY payload, not only one whose flags differ from the last payload: after a local refusal the shown state differs
   // from both, and a newer poll repeating the earlier payload must still bring it back (gate review, 2026-10-08).
   useEffect(() => { applyServerFlags(videoProp, { t: videoReadAt ?? performance.now(), seq: 0 }) }, [videoProp, videoReadAt])
-  // Not watchable any more — by a 🎬 line, a refused Watch, or a payload refresh (hiding a profile sends no line, nor does
-  // the buyer's account ceasing to be a business): the player goes, and coming back starts from a fresh Watch.
-  const watchable = !!video?.shared && video.forBusiness !== false
+  // Not watchable any more — by a 🎬 line, a refused Watch, or a payload refresh (hiding a profile sends no line): the
+  // player goes, and coming back starts from a fresh Watch.
+  const watchable = !!video?.shared
   useEffect(() => { if (!watchable) closePlayer() }, [watchable])
   const mounted = useRef(false)
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
@@ -171,6 +172,9 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
   }, [conversationId, videoSignal])
 
   const videoErrText = (code: string, status: number): string => {
+    // The ask is a message: "2 until reply" (the DM ladder, owner 2026-10-13) holds it like any other — a 429 of its own,
+    // read before the rate limit's.
+    if (code === 'teacher_awaiting_reply') return teacherAwaitingReplyMessage(tr)
     if (status === 429) return tr('Too many requests — please try again in a few minutes.', 'Quá nhiều yêu cầu — vui lòng thử lại sau vài phút.')
     if (code === 'blocked') return tr('This conversation is closed — the intro video can’t be shared here.', 'Cuộc trò chuyện này đã đóng — không thể chia sẻ video giới thiệu ở đây.')
     if (code === 'profile_hidden') return iAmTeacher
@@ -180,9 +184,6 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
     if (code === 'video_missing' || code === 'video_not_on_request') return iAmTeacher
       ? tr('There is no private intro video on your profile to send. Add one in your teacher profile.', 'Hồ sơ của bạn chưa có video giới thiệu riêng tư để gửi. Hãy thêm video trong hồ sơ giáo viên.')
       : tr('This teacher no longer sends their video on request — if they show it, it’s on their profile.', 'Giáo viên này không còn gửi video theo yêu cầu — nếu họ công khai, video sẽ có trên hồ sơ của họ.')
-    if (code === 'business_only') return iAmTeacher
-      ? tr('Only school and company accounts can receive your intro video.', 'Chỉ tài khoản trường học hoặc công ty mới nhận được video giới thiệu của bạn.')
-      : tr('Only school and company accounts can ask for a teacher’s intro video.', 'Chỉ tài khoản trường học hoặc công ty mới đề nghị xem được video giới thiệu của giáo viên.')
     if (code === 'share_required') return tr('The teacher stopped sharing their intro video.', 'Giáo viên đã ngừng chia sẻ video giới thiệu.')
     if (code === 'account_suspended') return tr('Your account can’t do this right now.', 'Tài khoản của bạn hiện chưa thể thực hiện thao tác này.')
     return tr('Something went wrong. Please try again.', 'Đã có lỗi. Vui lòng thử lại.')
@@ -190,15 +191,13 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
 
   /**
    * A refusal that says what the state now is hides the action it refused, rather than leave it there to fail again (gate
-   * review, 2026-10-08). Each patch keeps the server's derivation: `shared` needs shareOn, available and forBusiness.
+   * review, 2026-10-08). Each patch keeps the server's derivation: `shared` needs shareOn and available.
    * Any other refusal (a rate limit, a block, a suspension) changes no flag.
    */
   const refusalPatch = (code: string): Partial<TeacherVideoFlags> | null => {
     // Not watchable or sendable for a reason that is not a stop (a hidden profile, a video now public or gone): the
     // teacher's grant may well stand, so only availability goes — and no Ask or Send is offered over it.
     if (code === 'video_missing' || code === 'video_not_on_request' || code === 'profile_hidden') return { available: false, shared: false }
-    // The buyer is not a school or company account: the video row is not for this thread at all.
-    if (code === 'business_only') return { forBusiness: false, shared: false }
     // Watch: the teacher's grant is what is missing. A stop answers the school's ask too, so it may ask again.
     if (code === 'share_required') return { shareOn: false, shared: false, requested: false }
     return null
@@ -222,7 +221,7 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
         const on = d.shared === true
         actionLanded()
         // A stop answers the school's ask too: it may ask again (teacherVideoState `requested`).
-        setVideo((v) => v && { ...v, shareOn: on, shared: on && v.available && v.forBusiness !== false, requested: on ? v.requested : false })
+        setVideo((v) => v && { ...v, shareOn: on, shared: on && v.available, requested: on ? v.requested : false })
         rereadFlags()
       } else refused(String(d.error ?? ''), r.status)
     } catch {
@@ -262,7 +261,7 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
         return
       }
       // Refused: no player stays up on a link that no longer works — Watch comes back for a fresh try, unless the refusal
-      // says what changed (a stop, a hidden profile, not a business): then that state shows instead (refusalPatch).
+      // says what changed (a stop, a hidden profile): then that state shows instead (refusalPatch).
       closePlayer()
       refused(String(d.error ?? ''), r.status)
     } catch {
@@ -340,8 +339,6 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
   }
 
   const videoShareOn = !!video?.shareOn
-  // The thread's buyer is a school or company account: anyone else is sent nothing and asks for nothing (gate review, 2026-10-08).
-  const videoForBusiness = video?.forBusiness !== false
   if (closed && (!iAmTeacher || (!shared && !videoShareOn))) return null
 
   // The video row: closed → only a standing share, to withdraw it; otherwise what each side can do now.
@@ -349,26 +346,24 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
     videoShareOn ? (
       <>
         <p className="text-2xs text-body">{closed
-          ? tr('Your intro video is still shared, but this school can’t watch it while the conversation is closed.', 'Video giới thiệu vẫn đang được chia sẻ, nhưng trường không xem được khi cuộc trò chuyện đang đóng.')
-          // Before availability, which is about the teacher's PROFILE: this share can't reach this buyer at all.
-          : !videoForBusiness ? tr('This account is no longer a school or company, so it can’t watch your video.', 'Tài khoản này không còn là trường học hoặc công ty nên không xem được video của bạn.')
+          ? tr('Your intro video is still shared, but this account can’t watch it while the conversation is closed.', 'Video giới thiệu vẫn đang được chia sẻ, nhưng tài khoản này không xem được khi cuộc trò chuyện đang đóng.')
           // ⚠️ Said where the teacher decides to stop: a link already handed out is a 10-minute bearer URL — stopping ends
           // new views, not one already open (api/teachers/video; gate review, 2026-10-07).
           // `!available` while the share stands = the profile is not live: removing or publishing the private video revokes
           // every sent grant server-side (publish.ts), so the share would be off.
-          : video.available ? tr('This school can watch your intro video. If you stop, a video they already opened can keep playing for up to 10 minutes.', 'Trường này xem được video giới thiệu của bạn. Nếu bạn ngừng, video trường đã mở vẫn có thể phát thêm tối đa 10 phút.') : tr('Paused while your profile is hidden — the school can’t watch your video until it is visible again.', 'Tạm dừng khi hồ sơ bị ẩn — trường không xem được video cho đến khi hồ sơ hiển thị lại.')}</p>
+          : video.available ? tr('This account can watch your intro video. If you stop, a video they already opened can keep playing for up to 10 minutes.', 'Tài khoản này xem được video giới thiệu của bạn. Nếu bạn ngừng, video họ đã mở vẫn có thể phát thêm tối đa 10 phút.') : tr('Paused while your profile is hidden — they can’t watch your video until it is visible again.', 'Tạm dừng khi hồ sơ bị ẩn — họ không xem được video cho đến khi hồ sơ hiển thị lại.')}</p>
         <Button variant="ghost" size="sm" onClick={() => toggleVideo(false)} loading={videoBusy}>{tr('Stop sharing video', 'Ngừng chia sẻ video')}</Button>
       </>
-    ) : !closed && video.available && videoForBusiness ? (
+    ) : !closed && video.available ? (
       <>
         <Button variant="secondary" size="sm" onClick={() => toggleVideo(true)} loading={videoBusy}>
           <Video className="size-4" />
           {tr('Send my intro video', 'Gửi video giới thiệu')}
         </Button>
-        {video.requested && <p className="text-2xs font-semibold text-foreground">{tr('This school asked to see your intro video.', 'Trường này muốn xem video giới thiệu của bạn.')}</p>}
+        {video.requested && <p className="text-2xs font-semibold text-foreground">{tr('They asked to see your intro video.', 'Người này muốn xem video giới thiệu của bạn.')}</p>}
       </>
     ) : null
-  ) : !videoForBusiness ? null : video.shared ? (
+  ) : video.shared ? (
     watchUrl ? (
       <div className="w-full space-y-2">
         <video
@@ -409,18 +404,26 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-t border-border bg-background px-4 py-2">
+      {/* Who is writing, before the teacher shares anything (the DM ladder, owner 2026-10-13): the rung, never a document. */}
+      {iAmTeacher && !closed && writerVerified && (
+        <span className="rounded-full bg-tint px-2.5 py-1 text-2xs font-semibold text-body">
+          {writerVerified === 'business' ? tr('Verified business', 'Doanh nghiệp đã xác minh')
+            : writerVerified === 'identity' ? tr('Identity verified', 'Đã xác minh danh tính')
+            : tr('Not verified yet', 'Chưa xác minh')}
+        </span>
+      )}
       {closed && !shared ? null : iAmTeacher ? (
         shared ? (
           <>
             <p className="text-2xs text-body">{closed
-              ? tr('Your details are still shared, but this school can’t see them while the conversation is closed.', 'Thông tin của bạn vẫn đang được chia sẻ, nhưng trường không xem được khi cuộc trò chuyện đang đóng.')
+              ? tr('Your details are still shared, but this account can’t see them while the conversation is closed.', 'Thông tin của bạn vẫn đang được chia sẻ, nhưng tài khoản này không xem được khi cuộc trò chuyện đang đóng.')
               : live
-                // ⛔ WHAT THIS SCHOOL SEES NOW (gate review, 2026-10-09): the phone only when this share included it AND one
+                // ⛔ WHAT THIS ACCOUNT SEES NOW (gate review, 2026-10-09): the phone only when this share included it AND one
                 // is on file — an "email & CV" share keeps saying so after a phone is added (the contact route withholds it).
                 ? (phoneShared && hasPhone
-                  ? tr('This school can see your phone, email and CV.', 'Trường này xem được số điện thoại, email và CV của bạn.')
-                  : tr('This school can see your email and CV.', 'Trường này xem được email và CV của bạn.'))
-                : tr('Paused while your profile is hidden — the school sees nothing until it is visible again.', 'Tạm dừng khi hồ sơ bị ẩn — trường không xem được gì cho đến khi hồ sơ hiển thị lại.')}</p>
+                  ? tr('This account can see your phone, email and CV.', 'Tài khoản này xem được số điện thoại, email và CV của bạn.')
+                  : tr('This account can see your email and CV.', 'Tài khoản này xem được email và CV của bạn.'))
+                : tr('Paused while your profile is hidden — they see nothing until it is visible again.', 'Tạm dừng khi hồ sơ bị ẩn — họ không xem được gì cho đến khi hồ sơ hiển thị lại.')}</p>
             {/* A phone added since an "email & CV" share is never handed over by it: one tap here, never automatic. Not on a
                 closed thread or a hidden profile — the share route refuses a share there. */}
             {!phoneShared && hasPhone && live && !closed && (
@@ -438,7 +441,7 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
               {hasPhone ? <Phone className="h-3.5 w-3.5" /> : <Mail className="h-3.5 w-3.5" />}
               {hasPhone ? tr('Share my phone, email & CV', 'Chia sẻ số điện thoại, email và CV') : tr('Share my email & CV', 'Chia sẻ email và CV')}
             </Button>
-            <p className="text-2xs text-muted-foreground">{tr('Only this school sees them, and you can stop any time.', 'Chỉ trường này xem được, và bạn có thể ngừng bất cứ lúc nào.')}</p>
+            <p className="text-2xs text-muted-foreground">{tr('Only this account sees them, and you can stop any time.', 'Chỉ tài khoản này xem được, và bạn có thể ngừng bất cứ lúc nào.')}</p>
           </>
         )
       ) : contact ? (

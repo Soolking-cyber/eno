@@ -10,7 +10,7 @@ import { useLanguage } from '@/context/language-context'
 import { haptic } from '@/lib/haptics'
 import { timeAgo } from '@/lib/types'
 import { openersFor, openerString, type OpenerListing } from '@/lib/openers'
-import { teacherOpener } from '@/lib/teachers/first-message'
+import { teacherOpener, type OpenerVoice } from '@/lib/teachers/first-message'
 
 /**
  * Who has said what so far — the two facts the chip set keys off (inbox-13). Messages are in the
@@ -36,7 +36,9 @@ export function chipContext(messages: readonly { mine: boolean }[], isSeller: bo
  * message twice (Opus, gate review: each duplicate is also a fresh unread message for the teacher-email cron).
  */
 export function teacherThreadChips(
-  o: { isSeller: boolean; buyerHasSent: boolean; sellerRepliedAfterBuyer: boolean; teacherShared: boolean },
+  // `voice` — the writer's (first-message.ts openerVoice): a personal account opens as a person looking for a teacher,
+  // never "We are hiring" for a school it is not (teacher DM ladder, owner 2026-10-13). Absent = a school, as before.
+  o: { isSeller: boolean; buyerHasSent: boolean; sellerRepliedAfterBuyer: boolean; teacherShared: boolean; voice?: OpenerVoice },
   tr: (en: string, vi: string) => string,
 ): { label: string; text: string; complete: boolean }[] {
   if (o.isSeller) {
@@ -61,7 +63,9 @@ export function teacherThreadChips(
         { label: tr('Suggest a call', 'Hẹn gọi điện'), text: tr('Are you free for a short call or an interview this week?', 'Tuần này bạn có thời gian cho một cuộc gọi ngắn hoặc buổi phỏng vấn không?'), complete: false },
       ]
     : [
-        { label: tr('We are hiring', 'Chúng tôi đang tuyển'), text: teacherOpener(tr), complete: true },
+        o.voice === 'person'
+          ? { label: tr('Looking for a teacher', 'Đang tìm giáo viên'), text: teacherOpener(tr, 'hire', 'person'), complete: true }
+          : { label: tr('We are hiring', 'Chúng tôi đang tuyển'), text: teacherOpener(tr, 'hire', 'school'), complete: true },
         { label: tr('Ask: start date and schedule', 'Hỏi ngày bắt đầu và lịch dạy'), text: tr('Two questions: when could you start, and what teaching schedule are you looking for?', 'Cho mình hỏi bạn có thể bắt đầu từ khi nào và mong muốn lịch dạy như thế nào ạ?'), complete: true },
       ]
 }
@@ -88,6 +92,7 @@ export function QuickReplyChips({
   job = false,
   teacher = false,
   teacherShared = false,
+  voice = 'school',
   hasPendingBuyerOffer,
   availabilityConfirmedAt,
   onInsert,
@@ -115,6 +120,8 @@ export function QuickReplyChips({
   teacher?: boolean
   /** The teacher has shared their contact and CV in this thread: the school is not offered "Ask for their CV". */
   teacherShared?: boolean
+  /** The writer's voice in a teacher thread (first-message.ts openerVoice) — a personal account's opener chip. */
+  voice?: OpenerVoice
   hasPendingBuyerOffer: boolean
   availabilityConfirmedAt?: string | null
   /** Insert chip text into the composer (parent focuses it, cursor at the end). */
@@ -230,7 +237,7 @@ export function QuickReplyChips({
     : []
 
   // The school's chips in a teacher thread (teacherThreadChips).
-  const schoolChips = teacher && !isSeller ? teacherThreadChips({ isSeller: false, buyerHasSent, sellerRepliedAfterBuyer, teacherShared }, tr) : []
+  const schoolChips = teacher && !isSeller ? teacherThreadChips({ isSeller: false, buyerHasSent, sellerRepliedAfterBuyer, teacherShared, voice }, tr) : []
 
   const askAvailability = () => {
     if (confirmedFresh && availabilityConfirmedAt) {

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { teacherAwaitingReplyMessage } from '@/lib/teachers/dm-limit-copy'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { LanguageProvider } from '@/context/language-context'
 import { TeacherThreadStrip, type TeacherVideoFlags } from './teacher-thread-strip'
@@ -27,7 +28,7 @@ beforeEach(() => { fetchMock.mockReset(); vi.stubGlobal('fetch', fetchMock) })
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 describe('TeacherThreadStrip on a closed thread', () => {
-  it('a standing share can be withdrawn — and says the school cannot see it meanwhile', async () => {
+  it('a standing share can be withdrawn — and says this account cannot see it meanwhile', async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ ok: true, shared: false }) })
     const { container } = mount({ shared: true, closed: true })
     expect(container.textContent).toContain('can’t see them while the conversation is closed')
@@ -43,9 +44,10 @@ describe('TeacherThreadStrip on a closed thread', () => {
     expect(container.textContent).toBe('')
   })
 
-  it('an open thread is unchanged: the Share action is there', () => {
+  it('an open thread is unchanged: the Share action is there, saying who sees what it shares', () => {
     mount({ shared: false })
     expect(screen.getByRole('button', { name: /Share my phone/ })).toBeTruthy()
+    expect(screen.getByText('Only this account sees them, and you can stop any time.')).toBeTruthy()
   })
 })
 
@@ -102,6 +104,8 @@ describe('TeacherThreadStrip — Download CV', () => {
 // ── The intro video kept private, sent on request (owner, 2026-10-07: "hide and send upon request") ──────────────────
 // Teacher: Send / Stop, with the school's ask shown. School: Ask → asked → Watch, inline, on a 10-minute link that a
 // playback error re-mints a bounded number of times. A 🎬 line (videoSignal) re-reads the state from the server.
+// "School" is the account writing — any account since the teacher DM ladder (owner, 2026-10-13), which also retired the
+// 2026-10-08 business-only video rule (`forBusiness`, `business_only`): the teacher's share is the only key.
 describe('TeacherThreadStrip — intro video', () => {
   const flags = (o: Partial<TeacherVideoFlags> = {}): TeacherVideoFlags => ({ available: true, shareOn: false, shared: false, requested: false, ...o })
   const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body })
@@ -128,13 +132,13 @@ describe('TeacherThreadStrip — intro video', () => {
   )
   const calls = (path: string) => fetchMock.mock.calls.filter(([u]) => String(u).split('?')[0] === path)
 
-  it('teacher: the school\'s ask is shown, and Send turns the grant on', async () => {
+  it('teacher: the writer\'s ask is shown, and Send turns the grant on', async () => {
     routes['/api/teachers/video-share'] = () => ok({ ok: true, shared: true })
     const { container } = render(strip({ video: flags({ requested: true }) }))
-    expect(container.textContent).toContain('This school asked to see your intro video.')
+    expect(container.textContent).toContain('They asked to see your intro video.')
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Send my intro video/ })) })
     expect(JSON.parse(calls('/api/teachers/video-share')[0][1].body)).toEqual({ conversationId: 'c1', share: true })
-    expect(container.textContent).toContain('This school can watch your intro video.')
+    expect(container.textContent).toContain('This account can watch your intro video.')
     // Where the teacher decides to stop: a link already opened is a 10-minute bearer URL, and the line says so.
     expect(container.textContent).toContain('up to 10 minutes')
     expect(screen.getByRole('button', { name: 'Stop sharing video' })).toBeTruthy()
@@ -324,7 +328,7 @@ describe('TeacherThreadStrip — intro video', () => {
     const { container, rerender } = render(strip({ video: flags(), videoReadAt: 10 }))
     perfNow = 50
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Send my intro video/ })) })
-    expect(container.textContent).toContain('This school can watch your intro video.')
+    expect(container.textContent).toContain('This account can watch your intro video.')
     await act(async () => { rerender(strip({ video: flags({ shareOn: true, available: false }), videoReadAt: 60 })) })
     expect(container.textContent).toContain('Paused while your profile is hidden')
     expect(screen.getByRole('button', { name: 'Stop sharing video' })).toBeTruthy()
@@ -412,6 +416,15 @@ describe('TeacherThreadStrip — intro video', () => {
   })
 
   // ── Refusals that mean "this can't succeed" hide the action, and say why on the right side (gate review, 2026-10-08) ──
+  it('school: an Ask held by "2 until reply" says to wait for the teacher — never "too many requests" (its 429 is read first)', async () => {
+    routes['/api/teachers/video-request'] = () => no(429, 'teacher_awaiting_reply')
+    render(strip({ iAmTeacher: false, video: flags() }))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Ask for their intro video/ })) })
+    const said = screen.getByRole('alert').textContent ?? ''
+    expect(said).toContain(teacherAwaitingReplyMessage((en) => en))
+    expect(said).not.toContain('Too many requests')
+  })
+
   it('school: an Ask refused because the profile is hidden takes the Ask away, saying why', async () => {
     routes['/api/teachers/video-request'] = () => no(409, 'profile_hidden')
     render(strip({ iAmTeacher: false, video: flags() }))
@@ -433,25 +446,6 @@ describe('TeacherThreadStrip — intro video', () => {
     render(strip({ iAmTeacher: false, video: flags({ shareOn: true, shared: true }) }))
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Watch intro video/ })) })
     expect(screen.getByRole('alert').textContent).toContain('no longer sends their video on request — if they show it, it’s on their profile')
-    expect(screen.queryByRole('button', { name: /intro video/ })).toBeNull()
-  })
-
-  it('teacher: a Send refused as business_only says who can receive it — and Send goes', async () => {
-    routes['/api/teachers/video-share'] = () => no(403, 'business_only')
-    render(strip({ video: flags() }))
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Send my intro video/ })) })
-    expect(screen.getByRole('alert').textContent).toBe('Only school and company accounts can receive your intro video.')
-    expect(screen.queryByRole('button', { name: /Send my intro video/ })).toBeNull()
-  })
-
-  it.each([
-    ['Ask', '/api/teachers/video-request', flags(), /Ask for their intro video/],
-    ['Watch', '/api/teachers/video', flags({ shareOn: true, shared: true }), /Watch intro video/],
-  ])('school: %s refused as business_only says why, and the video row goes', async (_, path, video, button) => {
-    routes[path] = () => no(403, 'business_only')
-    render(strip({ iAmTeacher: false, video }))
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: button })) })
-    expect(screen.getByRole('alert').textContent).toBe('Only school and company accounts can ask for a teacher’s intro video.')
     expect(screen.queryByRole('button', { name: /intro video/ })).toBeNull()
   })
 
@@ -477,20 +471,17 @@ describe('TeacherThreadStrip — intro video', () => {
     expect(screen.getByRole('button', { name: /Watch intro video/ })).toBeTruthy()
   })
 
-  // ── Business accounts only (teacherVideoState `forBusiness`) ───────────────────────────────────────────────────────
-  it('school: a buyer that is not a school or company account gets no video row at all', () => {
-    const { container } = render(strip({ iAmTeacher: false, video: flags({ shareOn: true, forBusiness: false }) }))
-    expect(container.textContent).not.toContain('intro video')
-  })
-
-  it('teacher: nothing to Send to a buyer that is not a business; a standing share keeps Stop, saying why it is idle', async () => {
-    const { container, rerender } = render(strip({ video: flags({ requested: true, forBusiness: false }) }))
-    expect(screen.queryByRole('button', { name: /Send my intro video/ })).toBeNull()
-    expect(container.textContent).not.toContain('intro video')
-    await act(async () => { rerender(strip({ video: flags({ shareOn: true, forBusiness: false }) })) })
-    expect(container.textContent).toContain('This account is no longer a school or company, so it can’t watch your video.')
-    expect(container.textContent).not.toContain('This school can watch your intro video.')
-    expect(screen.getByRole('button', { name: 'Stop sharing video' })).toBeTruthy()
+  it('teacher, in Vietnamese: the ask and the standing share name the person writing, never "this school"', async () => {
+    const inVietnamese = (video: TeacherVideoFlags) => (
+      <LanguageProvider initialLang="vi" initialViDict={{}}>
+        <TeacherThreadStrip conversationId="c1" iAmTeacher shared={false} shareSignal={0} video={video} />
+      </LanguageProvider>
+    )
+    const { container, rerender } = render(inVietnamese(flags({ requested: true })))
+    expect(container.textContent).toContain('Người này muốn xem video giới thiệu của bạn.')
+    perfNow = 10
+    await act(async () => { rerender(inVietnamese(flags({ shareOn: true, shared: true }))) })
+    expect(container.textContent).toContain('Tài khoản này xem được video giới thiệu của bạn.')
   })
 })
 
@@ -505,7 +496,7 @@ describe('TeacherThreadStrip — a teacher with no phone on file', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share my email & CV' })) })
     // `phone: false` — the label did not name the phone (gate review, 2026-10-09: the server hands one over only then).
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ conversationId: 'c1', share: true, phone: false })
-    expect(container.textContent).toContain('This school can see your email and CV.')
+    expect(container.textContent).toContain('This account can see your email and CV.')
     expect(container.textContent).not.toContain('phone')
     expect(screen.getByRole('button', { name: 'Stop sharing' })).toBeTruthy()
   })
@@ -525,6 +516,7 @@ describe('TeacherThreadStrip — a teacher with no phone on file', () => {
       </LanguageProvider>,
     )
     expect(screen.getByRole('button', { name: 'Chia sẻ email và CV' })).toBeTruthy()
+    expect(screen.getByText('Chỉ tài khoản này xem được, và bạn có thể ngừng bất cứ lúc nào.')).toBeTruthy()
   })
 
   it('a closed thread still offers no Share, phone or not', () => {
@@ -542,11 +534,11 @@ describe('TeacherThreadStrip — a share that did not include the phone', () => 
   it('keeps saying "email and CV" after a phone is added — and offers "Share my phone too", which adds it', async () => {
     fetchMock.mockResolvedValue(answer({ ok: true, shared: true, phoneShared: true }))
     const { container } = mount({ shared: true, hasPhone: true, phoneShared: false })
-    expect(container.textContent).toContain('This school can see your email and CV.')
+    expect(container.textContent).toContain('This account can see your email and CV.')
     expect(container.textContent).not.toContain('phone, email and CV')
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share my phone too' })) })
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ conversationId: 'c1', share: true, phone: true, addPhone: true })
-    expect(container.textContent).toContain('This school can see your phone, email and CV.')
+    expect(container.textContent).toContain('This account can see your phone, email and CV.')
     expect(screen.queryByRole('button', { name: 'Share my phone too' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Stop sharing' })).toBeTruthy()
   })
@@ -555,13 +547,13 @@ describe('TeacherThreadStrip — a share that did not include the phone', () => 
     fetchMock.mockResolvedValue(answer({ ok: true, shared: false, phoneShared: false }))
     const { container } = mount({ shared: true, hasPhone: true, phoneShared: false })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share my phone too' })) })
-    expect(container.textContent).not.toContain('This school can see')
+    expect(container.textContent).not.toContain('This account can see')
     expect(screen.queryByRole('button', { name: 'Stop sharing' })).toBeNull()
   })
 
   it('a share that included the phone reads in full, with nothing to add', () => {
     const { container } = mount({ shared: true, hasPhone: true, phoneShared: true })
-    expect(container.textContent).toContain('This school can see your phone, email and CV.')
+    expect(container.textContent).toContain('This account can see your phone, email and CV.')
     expect(screen.queryByRole('button', { name: 'Share my phone too' })).toBeNull()
   })
 
@@ -578,7 +570,7 @@ describe('TeacherThreadStrip — a share that did not include the phone', () => 
     fetchMock.mockResolvedValue(answer({ ok: true, shared: true, phoneShared: false }))
     const { container } = mount({ shared: true, hasPhone: true, phoneShared: false })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share my phone too' })) })
-    expect(container.textContent).toContain('This school can see your email and CV.')
+    expect(container.textContent).toContain('This account can see your email and CV.')
   })
 
   it('the Share tap says whether its label named the phone', async () => {
@@ -586,7 +578,7 @@ describe('TeacherThreadStrip — a share that did not include the phone', () => 
     const { container } = mount({ shared: false, hasPhone: true })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Share my phone, email & CV' })) })
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ conversationId: 'c1', share: true, phone: true })
-    expect(container.textContent).toContain('This school can see your phone, email and CV.')
+    expect(container.textContent).toContain('This account can see your phone, email and CV.')
   })
 
   it('in Vietnamese', () => {
@@ -596,6 +588,69 @@ describe('TeacherThreadStrip — a share that did not include the phone', () => 
       </LanguageProvider>,
     )
     expect(screen.getByRole('button', { name: 'Chia sẻ thêm số điện thoại' })).toBeTruthy()
-    expect(screen.getByText('Trường này xem được email và CV của bạn.')).toBeTruthy()
+    expect(screen.getByText('Tài khoản này xem được email và CV của bạn.')).toBeTruthy()
+  })
+})
+
+// ── Who is writing (the teacher DM ladder, owner 2026-10-13: any account may start a teacher chat) ───────────────────
+// The teacher sees the writer's rung — a verified business, a live identity check, or not verified yet — before they tap
+// Share; the rung, never a document. Only on the teacher's side of an open thread: never to the writer, and never on a
+// thread closed by a block (the strip is there only to withdraw a share).
+describe('TeacherThreadStrip — who is writing (writerVerified)', () => {
+  const CHIPS = ['Verified business', 'Identity verified', 'Not verified yet']
+  const chipsIn = (el: HTMLElement) => CHIPS.filter((c) => el.textContent?.includes(c))
+  const RUNGS = ['business', 'identity', 'unverified'] as const
+
+  it.each([
+    ['business', 'Verified business', 'Doanh nghiệp đã xác minh'],
+    ['identity', 'Identity verified', 'Đã xác minh danh tính'],
+    ['unverified', 'Not verified yet', 'Chưa xác minh'],
+  ] as const)('the teacher sees writerVerified=%s as "%s" on an open thread — before and after sharing', (writerVerified, en, vi) => {
+    let r = mount({ shared: false, writerVerified })
+    expect(chipsIn(r.container)).toEqual([en])
+    expect(screen.getByRole('button', { name: /Share my phone/ })).toBeTruthy()
+    cleanup()
+    r = mount({ shared: true, writerVerified })
+    expect(chipsIn(r.container)).toEqual([en])
+    expect(screen.getByRole('button', { name: 'Stop sharing' })).toBeTruthy()
+    cleanup()
+    render(
+      <LanguageProvider initialLang="vi" initialViDict={{}}>
+        <TeacherThreadStrip conversationId="c1" iAmTeacher shared={false} shareSignal={0} writerVerified={writerVerified} />
+      </LanguageProvider>,
+    )
+    expect(screen.getByText(vi)).toBeTruthy()
+  })
+
+  it('never to the writer — whatever the payload says', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: 'share_required' }) })
+    for (const writerVerified of RUNGS) {
+      const { container } = mount({ iAmTeacher: false, writerVerified })
+      await act(async () => {})
+      expect(chipsIn(container), writerVerified).toEqual([])
+      expect(container.textContent).toContain('appear here if they choose to share them with you')
+      cleanup()
+    }
+  })
+
+  it('never on a closed thread — the strip is there only to withdraw a standing share', () => {
+    for (const writerVerified of RUNGS) {
+      const { container } = mount({ shared: true, closed: true, writerVerified })
+      expect(screen.getByRole('button', { name: 'Stop sharing' })).toBeTruthy()
+      expect(chipsIn(container), writerVerified).toEqual([])
+      cleanup()
+      // …and with nothing shared, nothing at all.
+      expect(mount({ shared: false, closed: true, writerVerified }).container.textContent, writerVerified).toBe('')
+      cleanup()
+    }
+  })
+
+  it('nothing when the payload does not say (null, or an older payload without it)', () => {
+    for (const props of [{ writerVerified: null }, {}]) {
+      const { container } = mount({ shared: false, ...props })
+      expect(chipsIn(container), JSON.stringify(props)).toEqual([])
+      expect(screen.getByRole('button', { name: /Share my phone/ })).toBeTruthy()
+      cleanup()
+    }
   })
 })

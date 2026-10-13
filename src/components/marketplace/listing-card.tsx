@@ -57,7 +57,7 @@ const Slider = dynamic(() => import('@/components/ui/slider').then((m) => m.Slid
 
 import { quickActionSignIn, stashQuickCompose } from '@/lib/quick-contact'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
-import { quickChatOpener } from '@/lib/teachers/first-message'
+import { openerVoice, quickChatOpener } from '@/lib/teachers/first-message'
 
 /**
  * ⛔ THE BLUR PLACEHOLDER IS GONE, AND ITS OWN COMMENT IS WHY. It said "matches the card's bg" and
@@ -190,7 +190,7 @@ function ListingCardImpl({
   // in offer mode via ?offer=N#contact. null = collapsed.
   const [quickOffer, setQuickOffer] = useState<number | null>(null)
   const router = useRouter()
-  const { user, loading: authLoading, openSignIn } = useAuth()
+  const { user, loading: authLoading, openSignIn, accountType } = useAuth()
   // Gates the meta row's relative time — see the comment at its render site for why this route
   // in particular cannot afford an ungated client-clock value.
   const mounted = useMounted()
@@ -957,7 +957,7 @@ function ListingCardImpl({
                 tapTarget={false}
                 aria-label={listing.listingType === TEACHER_LISTING_TYPE ? tr('Message teacher', 'Nhắn tin cho giáo viên') : tr('Chat with seller', 'Nhắn tin với người bán')}
                 // A teacher is hired, never asked whether "this" is still available (src/lib/teachers/first-message.ts).
-                onClick={(e) => { e.stopPropagation(); quickGo({ body: quickChatOpener(listing.listingType, tr) }) }}
+                onClick={(e) => { e.stopPropagation(); quickGo({ body: quickChatOpener(listing.listingType, tr, openerVoice(accountType)) }) }}
                 /**
                  * ⛔ `[overflow:visible]` IS THE WHOLE FIX, AND TWO WRONG ONES CAME FIRST. Owner,
                  * 2026-08-29: *"message icon is clipping over backplate"*, then 2026-08-30 with a
