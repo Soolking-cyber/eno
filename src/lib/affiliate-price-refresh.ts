@@ -69,10 +69,12 @@ export type FeedRow = {
  * wrong regardless of who can trigger it. A Map has no prototype chain to fall through.
  * (Found by all three review seats, 2026-09-09.)
  */
-const MERCHANT_NAMES = new Map<string, string>([
-  ['cellphones_cps', 'CellphoneS'],
-  ['dienthoaivui', 'Điện Thoại Vui'],
-])
+/* ⛔ EMPTY SINCE THE ACCESSTRADE REMOVAL (owner, 2026-10-13: "remove all accesstrade products from the website"):
+ * CellphoneS' used shelf and Điện Thoại Vui — the two campaigns the second-hand focus had kept — were hidden too
+ * (scripts/hide-accesstrade.ts), so every campaign now resolves to its bare slug, finds no storefront and reports
+ * `no_storefront` before any AccessTrade call. Bringing one back is a code change here that names the owner's
+ * decision, plus the env and the timer (install-cron-timers.sh POLICY). */
+const MERCHANT_NAMES = new Map<string, string>()
 
 export function merchantNameFor(campaign: string): string {
   return MERCHANT_NAMES.get(campaign) ?? campaign

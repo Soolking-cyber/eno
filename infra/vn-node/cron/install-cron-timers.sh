@@ -60,8 +60,10 @@ declare -A SCHED=(
   # Merchant price refresh for the imported affiliate catalogue. 20:00 UTC = 03:00 ICT, after
   # CellphoneS's own overnight repricing and well outside VN shopping hours — a ~50-page datafeed
   # walk plus a few thousand row updates should not compete with real traffic.
-  # ⚠️ SINCE THE SECOND-HAND FOCUS (2026-10-03) it walks two campaigns, ACCESSTRADE_CAMPAIGNS=
-  # cellphones_cps,dienthoaivui (the kept used stock); unset or empty walks NOTHING (campaignsFromEnv).
+  # ⛔ SINCE THE ACCESSTRADE REMOVAL (owner, 2026-10-13: "remove all accesstrade products from the website") every
+  # AccessTrade row is hidden (scripts/hide-accesstrade.ts) and NO campaign maps to a storefront any more
+  # (affiliate-price-refresh.ts) — so the job is in POLICY below: written, never enabled by a re-run. It was disabled on
+  # the box the same day. Unset or empty ACCESSTRADE_CAMPAIGNS walks NOTHING (campaignsFromEnv).
   [affiliate-prices]="*-*-* 20:00:00 UTC"
   # Availability + price refresh for the thirteen SCRAPED partner shops (owner, 2026-09-08: "a
   # daily cron to fetch availability for all partner stores and price updates for existing
@@ -81,12 +83,10 @@ declare -A SCHED=(
   # {skipped:"no_key"} and reads and writes nothing.
   [indexnow]="*-*-* 01,13:30:00 UTC"
 )
-# ⚠️ affiliate-prices reaches OUT to api.accesstrade.vn and can run for minutes. It is safe to
-# enable because it writes only price/affiliateUrl on imported rows and emails nobody — never on a
-# hidden row (prices land on active|sold, restores take sold only), so the 2026-10-03 new-goods hide
-# survives it and stays in SAFE — and it
-# NO-OPS with `{skipped:"no_key"}` until ACCESSTRADE_KEY is present in the container env, so
-# installing it before the secret lands is harmless. eno-cron.sh already allows 900s.
+# ⚠️ affiliate-prices reaches OUT to api.accesstrade.vn and can run for minutes. It writes only price/affiliateUrl
+# on imported rows and emails nobody — never on a hidden row (prices land on active|sold, restores take sold only).
+# It sat in SAFE until the 2026-10-13 AccessTrade removal; it is POLICY now (see POLICY below).
+# It NO-OPS with `{skipped:"no_key"}` until ACCESSTRADE_KEY is present in the container env. eno-cron.sh allows 900s.
 # Enabled now: they only touch this box's own data.
 # ⚠️ partner-stock reaches OUT to thirteen third-party shops and can run for many minutes. Safe to
 # enable for the same reasons as affiliate-prices, plus one of its own: it NEVER creates a listing
@@ -115,7 +115,7 @@ declare -A SCHED=(
 # scripts/apple-siwa-ddl.mjs has run, 200 {skipped:'no_table'} (a logged warning) while still unconfigured. So a full
 # run of this installer may enable it before I11, harmlessly. Once APPLE_SIWA_* is in the env a missing table is RED
 # (every Apple sign-in would keep no token) — that is the DDL step (I2) left undone, and the unit says so.
-SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations affiliate-prices partner-stock indexnow listing-tombstone-retention school-proof-retention apple-revocations teacher-draft-retention)
+SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations partner-stock indexnow listing-tombstone-retention school-proof-retention apple-revocations teacher-draft-retention)
 # Installed, NOT enabled: these send email to real people. They are enabled at cutover, by the line printed at the end.
 EMAIL=(daily-reminders saved-search-alerts weekly-digest)
 # ⛔ STARTED BY HAND, NEVER ON A SCHEDULE: a SERVICE and NO TIMER (gate review, 2026-10-08 — codex + Opus). The teacher
@@ -137,7 +137,11 @@ in_list(){ local x=$1 j; shift; for j in "$@"; do [ "$j" = "$x" ] && return 0; d
 # every full re-run DISABLES the EMAIL timers, which would silently stop an email the owner asked for; a re-run never
 # touches a POLICY timer. Enable it once, after scripts/teachers-ddl.mjs ran on production and `?dryRun=1` looks right:
 #   systemctl enable --now eno-cron-teacher-message-emails.timer
-POLICY=(business-verification-retention school-awards teacher-message-emails)
+# affiliate-prices (2026-10-13): POLICY since the AccessTrade removal — every AccessTrade row is hidden and no campaign
+# maps to a storefront, so there is nothing to refresh; a SAFE job would be re-enabled by every installer re-run. Enable
+# it only if the owner brings AccessTrade back (map the campaign in affiliate-price-refresh.ts and set the env first):
+#   systemctl enable --now eno-cron-affiliate-prices.timer
+POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices)
 
 # ⚠️ ONE JOB ONLY: `ENO_CRON_ONLY=<job> bash install-cron-timers.sh` writes, reloads and enables just
 # that job's units (if it is in SAFE) and leaves every other unit as it is. A full re-run DISABLES the

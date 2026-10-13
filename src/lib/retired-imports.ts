@@ -13,9 +13,11 @@
  * So these imports are REFUSED, not merely "not scheduled" (none of them is on a timer; that was never
  * the risk — a person re-running a documented command is).
  *
- * ⚠️ THE NIGHTLY PRICE REFRESH IS A DIFFERENT JOB AND KEEPS RUNNING for the shops whose used stock was
- * kept (`cellphones_cps`, `dienthoaivui` — src/lib/affiliate-price-refresh.ts). It writes price and link
- * on active|sold rows only and never creates, never relabels, never touches a hidden row.
+ * ⛔ AND SINCE 2026-10-13 THE KEPT USED STOCK IS GONE TOO — owner: "remove all accesstrade products from the
+ * website". CellphoneS' used shelf and Điện Thoại Vui were hidden (scripts/hide-accesstrade.ts,
+ * src/lib/accesstrade-removal.ts; VinWonders kept by the owner's answer), the nightly price refresh lost its last
+ * two campaigns (affiliate-price-refresh.ts MERCHANT_NAMES is empty) and its timer is POLICY, not SAFE
+ * (infra/vn-node/cron/install-cron-timers.sh). It only ever wrote price and link on active|sold rows.
  */
 
 const DECISION = 'second-hand focus, owner 2026-10-03: new-goods catalogues are hidden and not re-imported'

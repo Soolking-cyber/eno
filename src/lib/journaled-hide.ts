@@ -49,8 +49,9 @@ export type HideJournalRow = {
 }
 
 export type HideJournal = {
-  /** `retire-new-retail`: the second-hand focus' retirement of new-goods catalogues (scripts/retire-new-retail.ts). */
-  kind: 'hide-ad-banned' | 'import-screen-hide' | 'retire-new-retail'
+  /** `retire-new-retail`: the second-hand focus' retirement of new-goods catalogues (scripts/retire-new-retail.ts).
+   *  `hide-accesstrade`: the removal of every AccessTrade-linked product, owner 2026-10-13 (scripts/hide-accesstrade.ts). */
+  kind: 'hide-ad-banned' | 'import-screen-hide' | 'retire-new-retail' | 'hide-accesstrade'
   createdAt: string
   importer?: string
   rows: HideJournalRow[]

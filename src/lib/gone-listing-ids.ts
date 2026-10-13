@@ -12,12 +12,22 @@ import ids from '@/data/gone-listing-ids.json'
  *  · scripts/journals/new-goods-hide-20261003T040816Z.csv — 68,250 rows, "keep used, remove else" (2026-10-03);
  *  · ~/eno-ux2-work/tgs-new100-hidden.txt — 31 "[New 100%]" laptops (2026-10-05).
  * NOT included, on purpose: SuperSports (2026-10-02, "remove all supersports products from website" — nothing of
- * theirs may show), the warranty packages and the ad-banned hide. A later cleanup that should get the page adds
+ * theirs may show), the warranty packages and the ad-banned hide. ⛔ AND, SINCE 2026-10-13, NO ACCESSTRADE ROW: the
+ * owner's "remove all accesstrade products from the website" is the SuperSports wording, so the 61,334 journal ids
+ * whose buy link is an AccessTrade tracker (Tiki, CellphoneS' new goods, BỀN COMPUTER — isCommissionLink) were
+ * subtracted and their URLs 404 like SuperSports; the 6,947 left are the scraped shops' new goods + the laptops. A later cleanup that should get the page adds
  * its journal's ids here deliberately; anything else hidden stays a 404.
  * Server-only (the 1.9 MB set never reaches a client bundle); the ids are public listing URLs anyway.
  * ⚠️ VERIFIABLE, NOT TRUSTED: the file is excluded from what the commit gate's reviewers READ (it is still in the
  * hash), so gone-listing-ids.test.ts pins its SHA-256. Regenerate — and compare — with:
  *   python3 -c "import json,re; ids=set(); [ids.add(l.split(',')[0]) for l in open('scripts/journals/new-goods-hide-20261003T040816Z.csv') if re.fullmatch(r'c[a-z0-9]{20,30}', l.split(',')[0].strip())]; [ids.add(l.strip()) for l in open('tgs-new100-hidden.txt') if re.fullmatch(r'c[a-z0-9]{20,30}', l.strip())]; print(len(ids))"
+ *   then subtract the 2026-10-13 AccessTrade set, kept as a journal so the list stays reproducible:
+ *   ~/eno-import-journals/accesstrade/gone-ids-subtracted-2026-10-13.txt — 61,334 ids, sha256 (sorted, "\n"-joined)
+ *   d2498a5b61a9c3c7a99f29470240c8b63959d2a48a970410d55251c623518357; built from the ids whose affiliateUrl matched
+ *   the AccessTrade host rule that day (isCommissionLink: go.isclix.com, shorten.asia, click.accesstrade.vn). The
+ *   hide (scripts/hide-accesstrade.ts) also goes by PROVENANCE — every row of the five AccessTrade-sourced storefronts
+ *   (src/lib/accesstrade-removal.ts); measured the same day, 0 of the 6,947 ids left belong to those storefronts, so the
+ *   two rules agree on this list. (Copy of the journal: ~/eno-journals/accesstrade/.)
  */
 const GONE_IDS: ReadonlySet<string> = new Set(ids as string[])
 

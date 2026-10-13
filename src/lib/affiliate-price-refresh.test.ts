@@ -144,8 +144,7 @@ describe('applyPriceChanges', () => {
 })
 
 describe('merchantNameFor', () => {
-  it('maps the campaign to the storefront the importer created', () => {
-    expect(merchantNameFor('cellphones_cps')).toBe('CellphoneS')
+  it('an unmapped campaign falls back to its slug', () => {
     expect(merchantNameFor('other_cps')).toBe('other_cps')
   })
 
@@ -155,9 +154,11 @@ describe('merchantNameFor', () => {
    * `no_storefront`, and those listings keep their import-day price forever. Measured
    * 2026-09-09 — `ben` and `dienthoaivui` had never once been refreshed.
    */
-  it('knows every storefront imported under a display name that is still refreshed', () => {
-    expect(merchantNameFor('cellphones_cps')).toBe('CellphoneS')
-    expect(merchantNameFor('dienthoaivui')).toBe('Điện Thoại Vui')
+  it('⛔ the AccessTrade removal (owner, 2026-10-13): no campaign maps to a storefront any more', () => {
+    // CellphoneS and Điện Thoại Vui were the last two; every AccessTrade row is hidden (scripts/hide-accesstrade.ts),
+    // so a stale env entry must end at no_storefront, never walk a feed.
+    expect(merchantNameFor('cellphones_cps')).toBe('cellphones_cps')
+    expect(merchantNameFor('dienthoaivui')).toBe('dienthoaivui')
   })
 
   /**

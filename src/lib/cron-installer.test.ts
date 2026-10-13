@@ -47,6 +47,11 @@ describe('install-cron-timers.sh — the teacher job-match emails are never on a
     expect(r.out).not.toContain('teacher-match-emails')
   })
 
+  it('⛔ affiliate-prices is POLICY since the AccessTrade removal (2026-10-13) — a SAFE job is re-enabled by every re-run', () => {
+    expect(list('POLICY').words).toContain('affiliate-prices')
+    for (const name of ['SAFE', 'EMAIL', 'MANUAL']) expect(list(name).words, `${name} holds it`).not.toContain('affiliate-prices')
+  })
+
   it('⛔ teacher-message-emails is POLICY — never EMAIL, which every full re-run disables — every 30 min, on eno.vn only', () => {
     expect(list('POLICY').words).toContain('teacher-message-emails')
     for (const name of ['SAFE', 'EMAIL', 'MANUAL']) expect(list(name).words, `${name} holds it`).not.toContain('teacher-message-emails')
