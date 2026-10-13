@@ -37,6 +37,8 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/edition-scope', () => ({
   scopedListingWhere: async (w: object) => w,
   marketplaceListingScope: async () => ({}),
+  // The businesses rail's teacher exclusion (business-rail.ts, 2026-10-13): null = no teachers category, nothing added.
+  teacherExclusion: async () => null,
 }))
 vi.mock('@/lib/serialize', () => ({ serializeListing: (l: unknown) => l }))
 

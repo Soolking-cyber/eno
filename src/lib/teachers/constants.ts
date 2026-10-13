@@ -16,6 +16,22 @@ export const TEACHER_DOOR_CATEGORIES: readonly string[] = [TEACHERS_CATEGORY_SLU
 /** The subdomain label that serves the teacher sign-up form (teacher.eno.vn). */
 export const TEACHER_SUBDOMAIN = 'teacher'
 /**
+ * The home page's "Find a teacher" shelf (owner, 2026-10-13: "make teacher profiles more visible on the home page" —
+ * the option picked was a shelf after the feed's first twelve listings): how many teacher cards it holds at most.
+ * Eight is two pages of the widest row (four cards from `lg`). The 3-card floor is the rails' own MIN_RAIL_ITEMS,
+ * applied client-side (teacher-shelf.tsx), so there is no second constant for it.
+ */
+export const HOME_TEACHER_SHELF_TAKE = 8
+/**
+ * ⛔ LISTINGS THE HOME SHELF NEVER SHOWS, BY ID. One today: the owner's DEMO teacher profile, created 2026-10-08 on the
+ * owner's own business account (seller ENO COMPANY LIMITED) — a real name with mock details and "Demo profile" in its
+ * headline. It is not a teacher a school can hire, and its high-trust business seller would likely rank it FIRST.
+ * By its id, not by "no business accounts": an account's type is never switched (src/lib/core/first-onboarding.ts), so a rule on
+ * the type would silently hide every real teacher who holds a business account. If the owner deletes the demo, this
+ * entry can go.
+ */
+export const HOME_HIDDEN_TEACHER_LISTING_IDS = ['cmuzccru60000wvq4mojalida'] as const
+/**
  * teacher.eno.vn has no session (cookies are host-scoped), so its half of the form hands the draft to
  * eno.vn in the URL FRAGMENT: `https://eno.vn/teachers/join#d=<base64url JSON>`. A fragment never
  * reaches any server, so there is no anonymous write endpoint and no origin-guard exemption.

@@ -63,6 +63,16 @@ const h = vi.hoisted(() => ({
   /** appleStatusAfterErasure's two questions: GoTrue's word on the auth user, and the daily retry's queue. */
   authUser: 'gone' as 'present' | 'gone' | 'unknown',
   queuedLeft: false as boolean | null,
+  /**
+   * The public pages (2026-10-13): the account's TeacherProfile as read before the transaction (or a read that fails),
+   * every path purged — and whether the transaction had committed when it was — the ids re-synced to AI search, and a
+   * purge that throws (outside a request scope every revalidatePath does).
+   */
+  teacherRow: null as null | { listingId: string | null; currentDistrictKey: string | null; currentDistrict: string | null },
+  teacherRowFails: false,
+  revalidated: [] as Array<{ path: string; committed: boolean }>,
+  reindexed: [] as string[],
+  revalidateThrows: false,
 }))
 
 vi.mock('server-only', () => ({}))
@@ -95,6 +105,7 @@ vi.mock('@/lib/db', () => {
       profile: { findUnique: async () => h.profile },
       seller: { findUnique: async () => h.seller },
       report: { count: async () => h.openReports },
+      teacherProfile: { findUnique: async () => { if (h.teacherRowFails) throw new Error('db blip'); return h.teacherRow } },
       $transaction: async (fn: (t: typeof tx) => Promise<void>, _opts?: unknown) => {
         h.pendingTx = []
         try {
@@ -129,6 +140,15 @@ vi.mock('@/lib/business-verification-store', () => ({ parseVerificationDocs: (v:
 vi.mock('@/lib/compliance/audit', () => ({ appendAudit: async (_tx: unknown, input: Record<string, unknown>) => { h.events.push('audited'); h.audits.push(input) } }))
 vi.mock('@/lib/visa-admin', () => ({ VISA_BUCKET: 'visa-documents' }))
 vi.mock('@/lib/log', () => ({ logError: () => {}, logWarn: () => {} }))
+// The purge after the commit runs the REAL refreshListingSurfaces and teachers/revalidate.ts; only their two ends are
+// stand-ins — the cache purge (recorded, with whether the erasure had committed by then) and the AI-search re-sync.
+vi.mock('@/lib/revalidate-lang', () => ({
+  revalidatePublicPath: (path: string) => {
+    if (h.revalidateThrows) throw new Error('static generation store missing')
+    h.revalidated.push({ path, committed: h.events.includes('committed') })
+  },
+}))
+vi.mock('@/lib/listing-index', () => ({ reindexListing: async (id: string) => { h.reindexed.push(id) } }))
 vi.mock('@/lib/auth/apple-siwa', async (importOriginal) => {
   // The real 404 reading — one implementation, tested in apple-siwa.test.ts; everything else here is a stand-in.
   const { isGoTrueUserNotFound } = await importOriginal<typeof import('@/lib/auth/apple-siwa')>()
@@ -218,6 +238,7 @@ beforeEach(() => {
   h.appleRows = []; h.appleMissingTable = false; h.appleQueueTxFails = false; h.appleIdentity = 'none'
   h.appleOutcome = new Map(); h.appleSettleThrows = false; h.appleSweepFails = false; h.appleQueueTx = null; h.settleCalls = []
   h.duringIdentityRead = null; h.appleSettleSkips = false; h.authUser = 'gone'; h.queuedLeft = false
+  h.teacherRow = null; h.teacherRowFails = false; h.revalidated = []; h.reindexed = []; h.revalidateThrows = false
 })
 
 describe('eraseAccount', () => {
@@ -678,5 +699,70 @@ describe('eraseAccount — Sign in with Apple', () => {
     expect(await eraseAccount('p1', { kind: 'self' })).toEqual({ ok: false, code: 'under_review' })
     expect(h.events).toEqual([])
     expect(activeRows()).toHaveLength(1)
+  })
+})
+
+/**
+ * ⛔ THE PUBLIC PAGES THE ACCOUNT WAS ON (2026-10-13). The erasure deleted every listing and purged nothing — each
+ * listing page kept its cached copy for its 30-day ISR window and the home page (its "Find a teacher" shelf, trending
+ * and businesses rails) kept the person's card for up to six hours. Purged once the transaction has committed, never
+ * when it rolls back, and never at the cost of the erasure.
+ */
+describe('eraseAccount — the public pages the account was on', () => {
+  const paths = () => h.revalidated.map((r) => r.path)
+
+  it('after the commit: every deleted listing\'s page (both languages are revalidatePublicPath\'s job) and the home page; AI search re-synced', async () => {
+    h.listings = [
+      { id: 'l1', images: JSON.stringify(['https://proj/listings/1.webp']), video: null },
+      { id: 'l2', images: JSON.stringify(['https://proj/listings/2.webp']), video: null },
+    ]
+    expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
+    expect(paths()).toEqual(['/listings/l1', '/listings/l2', '/'])
+    expect(h.revalidated.every((r) => r.committed)).toBe(true)
+    await vi.waitFor(() => expect(h.reindexed).toEqual(['l1', 'l2']))
+  })
+
+  it('a teacher: /c/teachers and their district page go too (the district read BEFORE the profile is deleted)', async () => {
+    h.teacherRow = { listingId: 'l1', currentDistrictKey: 'd7', currentDistrict: null }
+    expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
+    expect(paths()).toEqual(expect.arrayContaining(['/listings/l1', '/', '/c/teachers', '/c/teachers/d7']))
+    expect(h.revalidated.every((r) => r.committed)).toBe(true)
+  })
+
+  it('a row the backfill has not migrated: the district its old text names', async () => {
+    h.teacherRow = { listingId: 'l1', currentDistrictKey: null, currentDistrict: 'Thủ Đức' }
+    await eraseAccount('p1', { kind: 'self' })
+    expect(paths()).toContain('/c/teachers/thu-duc')
+  })
+
+  it('nothing is purged when the transaction rolls back — or when the erasure is refused', async () => {
+    h.teacherRow = { listingId: 'l1', currentDistrictKey: 'd7', currentDistrict: null }
+    h.txFails = true
+    await expect(eraseAccount('p1', { kind: 'self' })).rejects.toThrow()
+    expect(h.revalidated).toEqual([])
+    h.txFails = false
+    h.openReports = 1
+    expect(await eraseAccount('p1', { kind: 'self' })).toEqual({ ok: false, code: 'under_review' })
+    expect(h.revalidated).toEqual([])
+  })
+
+  it('a purge that throws, or a teacher row that cannot be read, never fails the erasure', async () => {
+    h.teacherRow = { listingId: 'l1', currentDistrictKey: 'd7', currentDistrict: null }
+    h.revalidateThrows = true
+    const r = await eraseAccount('p1', { kind: 'self' })
+    expect(r.ok).toBe(true)
+    expect(h.events).toContain('auth-user-deleted') // everything after the purge still ran
+    await vi.waitFor(() => expect(h.reindexed).toEqual(['l1'])) // and the AI-search de-index is not skipped by it
+    h.revalidateThrows = false
+    h.teacherRowFails = true
+    h.revalidated = []
+    expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
+    expect(paths()).toEqual(['/listings/l1', '/']) // the listing pages still go; only the teacher pages are unknown
+  })
+
+  it('an account with no storefront deletes no listing and purges nothing', async () => {
+    h.seller = null
+    expect((await eraseAccount('p1', { kind: 'self' })).ok).toBe(true)
+    expect(h.revalidated).toEqual([])
   })
 })

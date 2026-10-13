@@ -11,7 +11,7 @@ vi.mock('@/lib/trust', () => ({ initialSellerTrust: async () => ({}) }))
 
 const tx = {
   $executeRaw: vi.fn(),
-  teacherProfile: { findUnique: vi.fn(), update: vi.fn() },
+  teacherProfile: { findUnique: vi.fn(), update: vi.fn(), deleteMany: vi.fn() },
   listing: { update: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
   teacherDraft: { deleteMany: vi.fn() },
 }
@@ -27,7 +27,7 @@ vi.mock('@/lib/db', () => ({
 }))
 
 const {
-  saveTeacherCover, saveTeacherProfile, setTeacherStatus, coverWrites, coverPartOf, isLegacyCoverBody,
+  saveTeacherCover, saveTeacherProfile, setTeacherStatus, deleteTeacherProfile, coverWrites, coverPartOf, isLegacyCoverBody,
   TeacherValidationError, TeacherCoverConflictError, TeacherNoticeChangedError, TeacherNoGoalError,
 } = await import('./publish')
 const { COVER_CONSENT_VERSION, coverStamp } = await import('./cover')
@@ -186,6 +186,8 @@ describe('saveTeacherCover', () => {
     tx.teacherProfile.findUnique.mockResolvedValue(stored({ ...wasOn, jobTypes: [], currentDistrictKey: 'd7', currentDistrict: 'Quận 7 (Phú Mỹ Hưng)' }))
     await saveTeacherCover('p1', { ...off, coverBase: coverStamp(wasOn) })
     expect(purged()).toEqual(expect.arrayContaining(['/listings/l1', '/c/teachers', '/c/teachers/d7']))
+    // …and the home page, whose "Find a teacher" shelf carries the card (owner, 2026-10-13 — teachers/revalidate.ts).
+    expect(purged()).toContain('/')
     // …and a row the backfill has not reached: the district its old free text names.
     vi.mocked(revalidatePublicPath).mockClear()
     tx.teacherProfile.findUnique.mockResolvedValue(stored({ situationVersion: null, livesIn: null, teachAreas: [], currentDistrict: 'Thủ Đức' }))
@@ -335,6 +337,8 @@ describe('setTeacherStatus', () => {
       vi.mocked(revalidatePublicPath).mockClear()
       expect(await setTeacherStatus('p1', status)).toBe(true)
       expect(purged()).toEqual(expect.arrayContaining(['/listings/l1', '/c/teachers', '/c/teachers/d4']))
+      // The home page's teacher shelf (owner, 2026-10-13): a hidden profile must leave it, a shown one may return.
+      expect(purged()).toContain('/')
     }
   })
 
@@ -377,5 +381,22 @@ describe('setTeacherStatus', () => {
     tx.listing.updateMany.mockResolvedValue({ count: 1 })
     expect(await setTeacherStatus('p1', 'hidden')).toBe(true)
     expect(tx.listing.updateMany.mock.calls[0][0].data).toEqual({ status: 'hidden' })
+  })
+})
+
+// Delete: every page the teacher was on goes with the profile — the home page's "Find a teacher" shelf included (owner,
+// 2026-10-13), whose 6h-ISR HTML would otherwise keep a deleted teacher's card.
+describe('deleteTeacherProfile', () => {
+  it('purges the listing, /c/teachers, the district page and the home page', async () => {
+    outside.teacherProfile.findUnique.mockResolvedValue({ id: 'tp1', listingId: 'l1', currentDistrictKey: 'd4', currentDistrict: 'Quận 4', private: null })
+    expect(await deleteTeacherProfile('p1')).toBe(true)
+    expect(purged()).toEqual(expect.arrayContaining(['/listings/l1', '/c/teachers', '/c/teachers/d4', '/']))
+    expect(tx.teacherProfile.deleteMany).toHaveBeenCalledWith({ where: { id: 'tp1' } })
+  })
+
+  it('no profile: nothing deleted, nothing purged', async () => {
+    outside.teacherProfile.findUnique.mockResolvedValue(null)
+    expect(await deleteTeacherProfile('p1')).toBe(false)
+    expect(purged()).toEqual([])
   })
 })

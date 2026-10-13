@@ -561,7 +561,9 @@ describe('bulk-confirm — the batch that docks trust', () => {
       { where: { id: 'l1' }, data: { verified: false, identityHold: false } },
       { where: { id: 'l2' }, data: { verified: false, identityHold: false } },
     ])
-    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en/listings/l2', '/vi/listings/l2'])
+    // …and the home page after EACH landed takedown (its ISR HTML carries cards — the "Find a teacher" shelf has no client
+    // fetch). Next keeps one pending entry per tag, stamped with the last call, so the repeats cost nothing.
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en', '/vi', '/en/listings/l2', '/vi/listings/l2', '/en', '/vi'])
   })
 
   /**
@@ -575,6 +577,7 @@ describe('bulk-confirm — the batch that docks trust', () => {
     const r = await post({ action: 'bulk-confirm', ids: ['r1', 'r2'] })
     expect(r.status).toBe(500)
     expect(r.text).toBe('{"error":"takedown_failed","confirmed":2,"skipped":0,"stillPublic":["l1","l2"]}')
+    expect(h.revalidated).toEqual([]) // nothing came down, so nothing — the home page included — is purged
   })
 
   it('caps the batch at 100 ids, and `skipped` counts against the CAPPED length', async () => {
@@ -692,7 +695,9 @@ describe('approve / reject / unpublish — the listing actions', () => {
     expect(r.text).toBe('{"ok":true,"removed":1,"resolved":2}')
     expect(called('listing.delete')).toHaveLength(0)
     expect(args('tombstone')).toMatchObject({ ids: ['l1'], reason: 'moderation_rejected', note: 'counterfeit', actor: { kind: 'moderator', email: expect.any(String) } })
-    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1'])
+    // The listing's page AND the home page (both languages): its ISR HTML carries cards — the feed, the rails and the
+    // "Find a teacher" shelf (2026-10-13) — so a removal leaves it within the edge cache's window, not the ISR's 6h.
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en', '/vi'])
   })
 
   // ⛔ The old hard delete CLOSED THE CASE by cascading its reports away. A tombstone keeps them, so the
@@ -747,7 +752,8 @@ describe('approve / reject / unpublish — the listing actions', () => {
     expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: false, identityHold: false } })
     // A pulled listing that keeps serving its cached page is still for sale to every visitor
     // holding the ISR copy — the revalidate is the second half of the takedown, not a nicety.
-    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1'])
+    // The home page too (2026-10-13): its ISR HTML carries cards, the teacher shelf's with no client fetch behind them.
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en', '/vi'])
   })
 
   it('unpublish on a missing listing surfaces the Prisma rejection as internal_error 500', async () => {
@@ -824,7 +830,8 @@ describe('confirm-report — the single most consequential action', () => {
     h.locale = 'vi'
     await post({ action: 'confirm-report', id: 'r1' })
     expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: false, identityHold: false } })
-    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1'])
+    // The listing's page and the home page (2026-10-13 — its ISR HTML carries cards; the teacher shelf has no client fetch).
+    expect(h.revalidated).toEqual(['/en/listings/l1', '/vi/listings/l1', '/en', '/vi'])
     const notif = args('notification.create')!.data
     // `toEqual` on the whole row: the appeal notice is the reported party's ONLY route to a
     // dispute, so a dropped `body` (the sentence that says an appeal exists) or a dropped `url`
@@ -853,6 +860,7 @@ describe('confirm-report — the single most consequential action', () => {
     expect(r.text).toBe('{"error":"takedown_failed","listingId":"l1"}')
     expect(effects('applyTrustEvent')).toHaveLength(1) // the dock DID land — that is the point
     expect(effects('notifyDispute')).toHaveLength(1)   // and both sides were still told
+    expect(h.revalidated).toEqual([]) // the listing did not come down: no home purge either
   })
 
   /**

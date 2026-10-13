@@ -8,6 +8,8 @@ import { localizeListingTitles } from '@/lib/translate'
 import { getCategoriesByDemand } from '@/lib/categories'
 import { topBusinessListings } from '@/lib/core/business-rail'
 import { trendingRailListings } from '@/lib/core/trending-rail'
+import { homeTeacherShelf } from '@/lib/core/teacher-shelf'
+import { logError } from '@/lib/log'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
 import { homeMetadata } from './home-metadata'
@@ -22,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ lang: str
   return homeMetadata(lang)
 }
 
-async function getData(): Promise<{ categories: SerializedCategory[]; listings: SerializedListingCard[]; total: number; businesses: Awaited<ReturnType<typeof topBusinessListings>>; trending: Awaited<ReturnType<typeof trendingRailListings>> }> {
+async function getData(): Promise<{ categories: SerializedCategory[]; listings: SerializedListingCard[]; total: number; businesses: Awaited<ReturnType<typeof topBusinessListings>>; trending: Awaited<ReturnType<typeof trendingRailListings>>; teachers: SerializedListingCard[] }> {
   try {
     // verified:true AND status:'active' matches the /api/listings response (GET
     // forces verified+active-only), so this SSR data can seed React Query's
@@ -33,7 +35,7 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
      * literal evaluates left to right, so that await suspended CONSTRUCTION of the array. The count,
      * the businesses rail and the trending rail were not merely awaited later, they had not been
      * STARTED: `Promise.all` cannot run what does not exist yet. Only `getCategoriesByDemand()`
-     * overlapped it. Hoisting it means all five actually begin together, which is what this
+     * overlapped it. Hoisting it means all six actually begin together, which is what this
      * `Promise.all` was always meant to say.
      *
      * ⚠️ The cost was bounded because `scopedListingWhere`'s seller lookups are `cache()`d, so this
@@ -44,7 +46,7 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
      * ⚠️ AND THE ONE QUERY THAT DOES NOT NEED THE SCOPE IS STARTED BEFORE IT (reviewer). Hoisting
      * the await alone would have made this measurably SLOWER, not faster: `getCategoriesByDemand()`
      * used to overlap the scope lookup, and putting the await first serialised it behind. Kicking it
-     * off without awaiting keeps that overlap while the other four still begin together — strictly
+     * off without awaiting keeps that overlap while the other five still begin together — strictly
      * better than either arrangement.
      */
     const categoriesPromise = getCategoriesByDemand()
@@ -79,7 +81,7 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
       // would hand the reorder the same monopolised twelve rows.
       .then((head) => head.slice(0, 12))
 
-    const [serializedCategories, firstPage, total, businesses, trending] = await Promise.all([
+    const [serializedCategories, firstPage, total, businesses, trending, teachers] = await Promise.all([
       // Categories ordered by live DEMAND — most-wanted lead the rail + home grid. Already in
       // flight, above.
       categoriesPromise,
@@ -104,11 +106,17 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
       // visit) the client keeps this seed (for-you-rail.tsx skips the fetch), so this exclusion is
       // what they see, not a first paint that hydration replaces.
       trendingRailListings({ excludeIds: firstPagePromise.then((rows) => rows.map((r) => r.id)) }).catch(() => []),
+      // The "Find a teacher" shelf after the feed's first page (owner, 2026-10-13 — teacher-shelf.ts): /c/teachers' own
+      // first cards, minus the owner's demo. Same fail-soft as the rails: a failed read is a page without the shelf. (A
+      // desk-resolution failure cannot hide here — `publicScope` above already rethrew it.) ⚠️ LOGGED, unlike the rails'
+      // silent catches (reviewer): the shelf has no client fetch behind it, so a failed read is a home page without
+      // teachers for the whole 6h ISR window, and only the log says why.
+      homeTeacherShelf().catch((e) => { logError(e, { op: 'home.teacherShelf' }); return [] }),
     ])
 
     const serializedListings: SerializedListingCard[] = await localizeListingTitles(firstPage.map(serializeListingCard))
 
-    return { categories: serializedCategories, listings: serializedListings, total, businesses, trending }
+    return { categories: serializedCategories, listings: serializedListings, total, businesses, trending, teachers }
   } catch (e) {
     /**
      * ⚠️ A DESK-RESOLUTION FAILURE MUST NOT BE SWALLOWED HERE. This catch exists so a transient
@@ -120,7 +128,7 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
     if (e instanceof DeskResolutionError) throw e
     // DB unreachable at build → prerender empty and let ISR (revalidate) fill it
     // on the first request, so a transient build-time DB error never fails the deploy.
-    return { categories: [], listings: [], total: 0, businesses: [], trending: [] }
+    return { categories: [], listings: [], total: 0, businesses: [], trending: [], teachers: [] }
   }
 }
 
@@ -136,7 +144,7 @@ export default async function Home() {
    * 8f78172 if a data-driven strip is ever wanted — the part worth re-reading there is that the
    * deny-list and allow-list must be one `id` object, not two spreads that overwrite each other.
    */
-  const { categories, listings, total, businesses, trending } = await getData()
+  const { categories, listings, total, businesses, trending, teachers } = await getData()
 
   /**
    * ⛔ THE WRAPPER, HEADER, `<main>`, H1 AND FOOTER ARE IN `(home)/layout.tsx` SINCE SEO WAVE B, H1c,
@@ -154,6 +162,7 @@ export default async function Home() {
       initialFetchedAt={Date.now()}
       initialBusinesses={businesses}
       initialTrending={trending}
+      initialTeachers={teachers}
       siteHeading={false}
     />
   )

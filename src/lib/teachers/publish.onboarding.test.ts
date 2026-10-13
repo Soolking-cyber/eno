@@ -280,6 +280,8 @@ describe('district pages follow a move', () => {
     await edit(body({ currentDistrictKey: 'd4' }))
     const paths = spy.mock.calls.map(([p]) => p)
     expect(paths).toEqual(expect.arrayContaining(['/c/teachers/d7', '/c/teachers/d4', '/c/teachers']))
+    // …and the home page, whose "Find a teacher" shelf bakes the card into its ISR HTML (owner, 2026-10-13).
+    expect(paths).toContain('/')
     spy.mockClear()
     h.existing = existing({ currentDistrictKey: 'd7' })
     h.profileWrites = []; h.listingWrites = []; h.privateWrites = []

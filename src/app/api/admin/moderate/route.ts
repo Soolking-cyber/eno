@@ -65,6 +65,16 @@ async function settleAppeal(reportIds: string[], onHeld?: (n: number) => void): 
   await settleReportCharges(reportIds, { onHeld }).catch((e) => logError(e, { op: 'moderate.settleAppealCharge' }))
 }
 
+/**
+ * ⛔ A TAKEDOWN PURGES THE HOME PAGE TOO (2026-10-13). Its 6h-ISR HTML carries cards — the feed's first page, the rails
+ * and, since that day, the "Find a teacher" shelf, which has NO client fetch behind it — so a listing pulled here stayed
+ * on the home page, clickable, for up to six hours. Called after each takedown write that landed (reject goes through
+ * refreshListingSurfaces' `home` instead); best effort: the takedown itself has, and a stale home heals on its window.
+ */
+function purgeHome(op: string): void {
+  try { revalidatePublicPath('/') } catch (e) { logError(e, { op }) }
+}
+
 // Single admin endpoint for the moderation queue. Every action re-checks the
 // session server-side via getAdmin() — never trust a client-side gate.
 //
@@ -258,6 +268,12 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
           try {
             await db.listing.update({ where: { id: report.listingId }, data: { verified: false, identityHold: false } })
             revalidatePublicPath(`/listings/${report.listingId}`)
+            // ⚠️ AFTER EVERY LANDED TAKEDOWN, not once after the loop. A later step that throws (a notice, a dock) ends
+            // the request as internal_error, and a purge waiting for the loop's end would never be asked for. Not once
+            // at the first one either: Next keeps ONE pending entry per tag, applied when the response completes and
+            // stamped with the LAST call's time — the stamp is what decides which cached copies are stale — so a home
+            // page regenerated between two takedowns of this batch must be older than the last of them.
+            purgeHome('moderate.bulkConfirm.home')
           } catch (e) {
             logError(e, { op: 'moderate.unverifyListing', reportId: rid, listingId: report.listingId })
             // Do NOT throw: the trust dock above already landed for THIS report, and aborting the
@@ -363,7 +379,9 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       })
       // The cached page (/listings/<id>, both languages) AND AI search — refreshListingSurfaces purges
       // and de-indexes anything no longer public. The old hard delete purged the page only.
-      refreshListingSurfaces([id], 'moderate.reject')
+      // `home`: the home page's 6h-ISR HTML carries cards too — its feed, rails and, since 2026-10-13, its "Find a
+      // teacher" shelf — so a removed listing leaves it within the edge cache's five minutes, not its six hours.
+      refreshListingSurfaces([id], 'moderate.reject', { home: true })
       // The reporters' case rooms now survive the removal, so tell them how it ended — only for the
       // rows THIS call resolved (matched by the resolve stamp), as notifyDismissedReporters does.
       // Best-effort: the decision has landed.
@@ -392,6 +410,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
     case 'unpublish': {
       await db.listing.update({ where: { id }, data: { verified: false, identityHold: false } })
       revalidatePublicPath(`/listings/${id}`)
+      purgeHome('moderate.unpublish.home')
       return NextResponse.json({ ok: true })
     }
 
@@ -498,6 +517,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
           logError(e, { op: 'moderate.unverifyListing', reportId: id, listingId: report.listingId })
           takedownFailed = true
         }
+        if (!takedownFailed) purgeHome('moderate.confirm.home')
         // ⛔ …AND OUT OF EVERY HOLD'S RESTORE LIST (review of the scam-hold release, 2026-09-24). The
         // sync above ran FIRST, so a hold it applied (a confirmed scam) has just pulled this very
         // listing and recorded it — and a listing an earlier hold pulled is recorded already. Both are

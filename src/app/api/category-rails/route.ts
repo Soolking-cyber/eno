@@ -81,9 +81,10 @@ export const GET = route({ auth: 'public' }, async () => {
      * ⛔ THE OWNER'S LEAD ORDER FIRST, THEN DEMAND (owner, 2026-10-10: "put find a teacher to number 4
      * everywhere so rentals jobs services and then electronics" — src/lib/category-lead.ts). These shelves
      * were pure demand, so they led with electronics while every other list led with rentals.
-     * ⚠️ THERE IS NO TEACHERS SHELF, so here electronics follows services. Teacher profiles are not in this
-     * groupBy (scopedListingWhere keeps them out of listing shelves) and the live profiles are below
-     * MIN_LISTINGS anyway; a "Find a teacher" shelf would be a new surface for the owner to ask for.
+     * ⚠️ THERE IS NO TEACHERS SHELF HERE, so here electronics follows services. Teacher profiles are not in this
+     * groupBy (scopedListingWhere keeps them out of listing shelves), and Browse by category stays teacher-free:
+     * they have their own "Find a teacher" shelf on the home page, after the feed's first page (owner, 2026-10-13 —
+     * src/components/marketplace/teacher-shelf.tsx, seeded by src/lib/core/teacher-shelf.ts).
      * ⚠️ BEFORE THE CUT, so a lead category is never sliced off — which means past MAX_RAILS qualifying
      * categories a lead shelf takes the place of the tenth by demand. Nine qualified on 2026-10-10.
      */

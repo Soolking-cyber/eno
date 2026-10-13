@@ -85,6 +85,9 @@ const ON_ARRIVAL = [
   'src/components/marketplace/business-rail.tsx',
   'src/app/[lang]/c/[category]/category-filters-link.tsx',
   'src/components/marketplace/facet-bar.tsx',
+  // The home page's "Find a teacher" shelf (2026-10-13): in the SSR HTML of '/', so its header glyph and door arrow paint
+  // on arrival — User and ArrowRight, never the plate's UserRound or a GraduationCap.
+  'src/components/marketplace/teacher-shelf.tsx',
 ]
 
 function iconImports(file: string): string[] {

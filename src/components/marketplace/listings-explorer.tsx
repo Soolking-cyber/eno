@@ -33,6 +33,7 @@ import { ForYouRail } from './for-you-rail'
 import { RecentlyViewedRail } from './recently-viewed-rail'
 import { useNearViewport } from '@/hooks/use-near-viewport'
 import { BusinessRail } from './business-rail'
+import { TeacherShelf } from './teacher-shelf'
 import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE } from './shelf'
 import { DISTRICTS, DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
 import { queryChips } from '@/lib/district-query'
@@ -469,6 +470,11 @@ type Props = {
   // Server-known rail seeds (perf Phase 1) — rail geometry decided at first paint.
   initialBusinesses?: SerializedListingCard[]
   initialTrending?: SerializedListingCard[]
+  /**
+   * Home only — the "Find a teacher" shelf's cards, `homeTeacherShelf()` from (home)/page.tsx (owner, 2026-10-13). A
+   * storefront never passes it. Rendered after the twelfth feed card while `showTeacherShelf` holds.
+   */
+  initialTeachers?: SerializedListingCard[]
   listingsRef?: React.RefObject<HTMLDivElement | null>
   /**
    * Whether this component renders the page's sr-only `<h1>{SITE_NAME}</h1>`. Default: ON for the
@@ -493,6 +499,7 @@ export function ListingsExplorer({
   initialFetchedAt,
   initialBusinesses,
   initialTrending,
+  initialTeachers,
   listingsRef,
   sellerId,
   siteHeading = !sellerId,
@@ -3391,7 +3398,7 @@ export function ListingsExplorer({
 
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
-  const handleOpen = useCallback((l: SerializedListingCard) => {
+  const handleOpen = useCallback((l: SerializedListingCard, opts?: { anchored?: boolean }) => {
     // Snapshot the feed so a back-nav lands the buyer exactly where they left off
     // (rows + page + scroll), not at the top of a reset feed. Cap the payload so a
     // very deep scroll can't bloat sessionStorage.
@@ -3416,7 +3423,11 @@ export function ListingsExplorer({
           // to 108 restored rows with the budget reset to 100 would strand the buyer behind a
           // "Load more" they already pressed.
           ceiling: autoLoadCeiling,
-          anchorId: l.id,
+          // ⚠️ `anchored: false` — a card tapped OUTSIDE the grid (the home teacher shelf, `openFromShelf` below) has no
+          // `[data-feed-card]` to realign, and naming it made the restore hunt for it for RESTORE_FIND_FRAMES (~2/3 s of
+          // the feed's top) before it took the raw offset. With no anchor the raw offset is restored the moment the page
+          // can hold it (feed-restore.ts runRestore). Every other caller is unchanged.
+          anchorId: opts?.anchored === false ? null : l.id,
           anchorTop: card ? card.getBoundingClientRect().top : null,
         }))
         // A snapshot now waits for this entry: hold the browser's own scroll restoration off it, or on
@@ -3427,6 +3438,8 @@ export function ListingsExplorer({
     } catch { /* ignore quota/serialization */ }
     router.push(`/listings/${l.id}`)
   }, [listings, page, totalCount, feedSig, feedUnlocked, autoLoadCeiling, router])
+  /** A tap on the home teacher shelf: the same snapshot and push, minus the anchor (see `anchored` above). */
+  const openFromShelf = useCallback((l: SerializedListingCard) => handleOpen(l, { anchored: false }), [handleOpen])
   /**
    * What `commitView` snapshots (NAV-1, `entrySnaps`): the same fields as the card tap's snapshot above, with
    * the ANCHOR being the first card on screen below the pinned chrome — there is no tapped card — so Back
@@ -3691,6 +3704,13 @@ export function ListingsExplorer({
    */
   const recentTerms = useMemo(() => recentSearchTerms(recentSearches).slice(0, 8), [recentSearches])
   const showRecentsRow = showDiscovery && !sellerId
+  /**
+   * ⛔ THE HOME "FIND A TEACHER" SHELF (owner, 2026-10-13 — teacher-shelf.tsx): the undirected home only, exactly as the
+   * recents row above — never a search, a filter, an area, the map or video view (`showDiscovery`), and never a storefront.
+   * A sort is not a filter, so it survives one, and "Browse everything" too. Its seed comes from (home)/page.tsx alone,
+   * and below the rails' floor it does not render. Placed after the twelfth card in the grid below (`FIRST_PAGE_SIZE`).
+   */
+  const showTeacherShelf = showDiscovery && !sellerId && (initialTeachers?.length ?? 0) >= MIN_RAIL_ITEMS
   useEffect(() => {
     if (!showRecentsRow) return
     let stored: string[] = []
@@ -5158,6 +5178,14 @@ export function ListingsExplorer({
                           on the undirected home it sits directly above "Browse everything", on a
                           search between page one and page two, and a feed shorter than a page has
                           none. */}
+                      {/* ⛔ THE HOME "FIND A TEACHER" SHELF (owner, 2026-10-13 — teacher-shelf.tsx): one full-width row
+                          right AFTER the twelfth card, before the guest capture row and "Browse everything" — so the
+                          first twelve grid children stay listing cards (globals.css) and nothing on the first screen
+                          moves. Never `data-feed-card` (it is no restore anchor, and the e2e suites count those). Its
+                          taps snapshot the feed like a card's, without an anchor (`openFromShelf`). */}
+                      {index === FIRST_PAGE_SIZE - 1 && showTeacherShelf && (
+                        <TeacherShelf listings={initialTeachers ?? []} onOpen={openFromShelf} teacherProfile={hasTeacherProfile} teacherDraft={hasTeacherDraft} />
+                      )}
                       {index === FIRST_PAGE_SIZE - 1 && <CaptureCard />}
                     </Fragment>
                   ))}

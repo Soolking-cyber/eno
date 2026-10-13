@@ -1,4 +1,4 @@
-import { marketplaceListingScope } from '@/lib/edition-scope'
+import { marketplaceListingScope, teacherExclusion } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 
@@ -16,11 +16,22 @@ export async function topBusinessListings() {
    * take the slot instead — the rail stays full, which is the whole point of a fixed-geometry rail
    * that exists to prevent CLS.
    */
-  const editionScope = await marketplaceListingScope()
+  /**
+   * ⛔ AND NO TEACHER PROFILE IS EVER A FLAGSHIP (2026-10-13). This file reads the edition scope directly rather than
+   * through scopedListingWhere, so the default teacher exclusion never applied here: a business account's teacher
+   * profile — the owner's demo, on ENO COMPANY LIMITED, is one — could be its "Outstanding businesses" card, and once
+   * the home page gained its "Find a teacher" shelf the same person could appear on the page twice. The exclusion goes
+   * on BOTH reads, each as its own AND element (never spread beside another key — edition-scope.ts teacherExclusion):
+   * on the seller pick, so a storefront whose only live listing is a teacher profile takes no slot (the reason the desk
+   * exclusion sits there too, above), and on each flagship read, so a business with goods AND a teacher profile shows
+   * its goods.
+   */
+  const [editionScope, noTeachers] = await Promise.all([marketplaceListingScope(), teacherExclusion()])
+  const live = { verified: true, status: 'active' as const }
   const sellers = await db.seller.findMany({
     where: {
       OR: [{ owner: { accountType: 'business' } }, { trustScore: { gte: 110 } }],
-      listings: { some: { verified: true, status: 'active' } },
+      listings: { some: noTeachers ? { AND: [live, noTeachers] } : live },
       ...(editionScope.sellerId ? { id: editionScope.sellerId } : {}),
     },
     orderBy: [{ trustScore: 'desc' }, { reviewCount: 'desc' }, { id: 'desc' }],
@@ -32,7 +43,7 @@ export async function topBusinessListings() {
   const rows = await Promise.all(
     sellers.map((s) =>
       db.listing.findFirst({
-        where: { sellerId: s.id, verified: true, status: 'active' },
+        where: noTeachers ? { AND: [{ sellerId: s.id, ...live }, noTeachers] } : { sellerId: s.id, ...live },
         orderBy: [{ views: 'desc' }, { postedAt: 'desc' }, { id: 'desc' }],
         include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
       }),

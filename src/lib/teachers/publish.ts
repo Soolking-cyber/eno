@@ -22,9 +22,10 @@ import {
   removeUnreferencedPrivateVideos,
 } from '@/lib/teachers/video-store'
 import { TEACHERS_CATEGORY_SLUG, TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { districtPagesOf, revalidateTeacherPages } from '@/lib/teachers/revalidate'
 import {
   AI_NOTICE_VERSION, COVER_FIELDS, PUBLISH_NOTICE_VERSION, TEACHER_SITUATION_VERSION, coverIsPublic, hasTeachingGoal,
-  isLegacyTeacherBody, legacyDistrictKey, normalizeCoverFields, normalizeForSave, normalizeTeacherInput, splitGoalErrors,
+  isLegacyTeacherBody, normalizeCoverFields, normalizeForSave, normalizeTeacherInput, splitGoalErrors,
   teacherFacetTokens, teacherFreeTextFields, validateTeacherInput, whereSkipped, type TeacherErrors, type TeacherInput,
   teacherCardPrice, teacherCardPriceFromSaved } from '@/lib/teachers/profile'
 import { COVER_CONSENT_VERSION, coverStamp } from '@/lib/teachers/cover'
@@ -290,21 +291,8 @@ const STORED_COVER_SELECT = {
   coverConsentAt: true, coverConsentVersion: true, coverConfirmedAt: true, coverWithdrawnAt: true,
 } as const
 
-/** The district a stored teacher row shows on — its key, or (a row the backfill has not migrated) its old district text's. */
-const districtPagesOf = (row: { currentDistrictKey?: string | null; currentDistrict?: string | null } | null | undefined): (string | null)[] =>
-  row ? [row.currentDistrictKey ?? null, legacyDistrictKey(row.currentDistrict)] : []
-
-/**
- * ⛔ EVERY PUBLIC PAGE A TEACHER ROW IS ON, PURGED BY EVERY WRITER THAT CHANGES WHAT IT SHOWS: the profile's own page,
- * /c/teachers and the district page of each district given (a DISTRICTS key IS the /c/teachers/<district> slug). One
- * list for the full save, the cover save, hide/show and delete — a cover save that HID a profile purged only the first
- * two, so the teacher stayed on their district page for its 24-hour ISR window (gate review, 2026-10-09).
- */
-function revalidateTeacherPages(listingId: string | null, districts: (string | null | undefined)[]) {
-  if (listingId) revalidatePublicPath(`/listings/${listingId}`)
-  revalidatePublicPath(`/c/${TEACHERS_CATEGORY_SLUG}`)
-  for (const key of new Set(districts.filter((k): k is string => !!k))) revalidatePublicPath(`/c/${TEACHERS_CATEGORY_SLUG}/${key}`)
-}
+// districtPagesOf / revalidateTeacherPages — every public page a teacher row is on, the home page's "Find a teacher"
+// shelf included — live in src/lib/teachers/revalidate.ts since 2026-10-13: the account erasure purges the same list.
 
 /**
  * Screen every field a teacher typed. Throws PublishBlockedError with the listing wizard's codes — and as its detail

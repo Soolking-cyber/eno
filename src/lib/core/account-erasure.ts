@@ -8,6 +8,8 @@ import { appendAudit } from '@/lib/compliance/audit'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
 import { VISA_BUCKET } from '@/lib/visa-admin'
 import { logError } from '@/lib/log'
+import { refreshListingSurfaces } from '@/lib/listing-surfaces'
+import { districtPagesOf, revalidateTeacherPages } from '@/lib/teachers/revalidate'
 import { isAppleRelayEmail } from '@/lib/apple-signin'
 import {
   APPLE_MIN_CALL_MS,
@@ -116,6 +118,20 @@ export async function eraseAccount(profileId: string, actor: EraseActor, signals
   /** What the transaction handed to the daily retry (queueTokensForErasure) — "failed" until it has run. */
   let appleQueue: AppleQueue = { keys: [], missingTable: false, failed: true }
 
+  /**
+   * ⛔ THE CARDS' PAGES ARE PURGED ONCE THE ACCOUNT IS GONE (2026-10-13). The erasure deleted every listing and purged
+   * nothing: each listing page kept serving its cached copy for its 30-day ISR window, and the home page — whose "Find a
+   * teacher" shelf, trending and businesses rails bake cards into its 6h-ISR HTML — kept the erased person's card for up
+   * to six hours. Purged after the commit: every deleted listing's page, the home page, and for a teacher /c/teachers and
+   * their district page. ⚠️ NOT EVERY PAGE THE ACCOUNT WAS ON: the other /c/<category> pages and the storefront page still
+   * heal on their own ISR windows (a follow-up, not this change). The district needs the teacher row, which goes with the
+   * profile, so it is read here, before anything is deleted, and OUTSIDE the transaction on purpose: a failed read there
+   * would abort the erasure, here it only narrows the purge.
+   */
+  const teacherRow = await readTeacherRow(profile.id)
+  /** The listings the transaction deletes — purged after it commits, never when it rolls back. */
+  let erasedListingIds: string[] = []
+
   // Interactive transaction: re-resolve the seller INSIDE the tx (a storefront
   // created concurrently must not survive as an orphan), then reports → reviews →
   // listings → storefront → profile. FK cascades take the rest (conversations +
@@ -129,6 +145,7 @@ export async function eraseAccount(profileId: string, actor: EraseActor, signals
     const s = await tx.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, avatarUrl: true, bannerUrl: true } })
     if (s) {
       const listings = await tx.listing.findMany({ where: { sellerId: s.id }, select: { id: true, images: true, video: true } })
+      erasedListingIds = listings.map((l) => l.id)
       for (const l of listings) {
         try { imageUrls.push(...(JSON.parse(l.images) as string[])) } catch {}
         // ⚠️ THE LISTING VIDEO TOO — it was never queued, so a deleted seller's clips stayed public.
@@ -233,6 +250,9 @@ export async function eraseAccount(profileId: string, actor: EraseActor, signals
     appleQueue = await queueTokensForErasure(tx, profile.id)
     await tx.profile.delete({ where: { id: profile.id } })
   }, { timeout: 30_000 }) // an account with hundreds of listings writes hundreds of tombstones; Prisma's 5s default is for a form save
+
+  // COMMITTED: what the world sees follows the database now (see `teacherRow` above). Best effort, never thrown.
+  purgeErasedSurfaces(erasedListingIds, teacherRow)
 
   // ⛔ THE DESK'S OBJECTS ARE QUEUED BEFORE THE AUTH USER GOES. `visa_applications.user_id`
   // references auth.users ON DELETE CASCADE (measured 2026-09-05), and the document rows cascade
@@ -357,6 +377,40 @@ async function readAppleIdentity(userId: string): Promise<AppleIdentity> {
     // It answers rather than throws; this is the last guard of "Apple never blocks an erasure".
     logError(e, { op: 'account-erasure.apple-identity' })
     return 'unknown'
+  }
+}
+
+type TeacherRow = { listingId: string | null; currentDistrictKey: string | null; currentDistrict: string | null }
+
+/** The account's teacher profile, for its public pages — null when there is none, or when it cannot be read (logged). */
+async function readTeacherRow(profileId: string): Promise<TeacherRow | null> {
+  try {
+    return await db.teacherProfile.findUnique({ where: { profileId }, select: { listingId: true, currentDistrictKey: true, currentDistrict: true } })
+  } catch (e) {
+    logError(e, { op: 'account-erasure.teacher-row' })
+    return null
+  }
+}
+
+/**
+ * After the commit: every deleted listing's page and the home page purged, and AI search re-synced (refreshListingSurfaces
+ * — it de-indexes a row that no longer exists); for a teacher, /c/teachers and their district page too (teachers/
+ * revalidate.ts — the profile's own listing page is in the first purge already, being one of the storefront's listings).
+ * Each step on its own guard: the rows are gone either way, and a stale page heals on its own window, so nothing here
+ * may fail the erasure.
+ */
+function purgeErasedSurfaces(listingIds: string[], teacher: TeacherRow | null): void {
+  try {
+    refreshListingSurfaces(listingIds, 'accountErasure', { home: true })
+  } catch (e) {
+    logError(e, { op: 'account-erasure.surfaces' })
+  }
+  if (!teacher) return
+  try {
+    const listingPurged = !teacher.listingId || listingIds.includes(teacher.listingId)
+    revalidateTeacherPages(listingPurged ? null : teacher.listingId, districtPagesOf(teacher))
+  } catch (e) {
+    logError(e, { op: 'account-erasure.teacher-pages' })
   }
 }
 

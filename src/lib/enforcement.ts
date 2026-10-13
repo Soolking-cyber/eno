@@ -538,6 +538,10 @@ export async function applyEnforcement(
       return { touched, parked }
     })
     for (const id of revalidateIds) { try { revalidatePublicPath(`/listings/${id}`) } catch { /* no request scope */ } }
+    // …and the home page when any listing was pulled or restored: its 6h-ISR HTML carries cards — the feed, the rails and,
+    // since 2026-10-13, the "Find a teacher" shelf — so a held seller's cards leave it within the edge cache's five
+    // minutes, not its six hours (a pull purged only the listing pages before). Once per transition, both languages.
+    if (revalidateIds.length) { try { revalidatePublicPath('/') } catch { /* no request scope */ } }
     // A downgrade restore the identity gate parked instead of publishing — the admin set-state
     // console reports it; system callers (syncEnforcement) pass no callback and it is logged.
     // AFTER the commit: settleHolds re-checks the owner, closing the window between the decision
