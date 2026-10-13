@@ -41,6 +41,27 @@ const h = vi.hoisted(() => ({
     offerThreads: [] as string[],
     // Buyers docked by the fixed-price offer guard (recordFixedPriceOfferAttempt).
     docked: [] as string[],
+    // Every `where` conversation.findFirst was handed — the P2002 fallback is held to its filter, not just its result.
+    findFirstWheres: [] as Row[],
+    // The teacher DM ladder (src/lib/teachers/dm-quota.ts), faked at its module in the teacher section below: what it
+    // answers, and every question the route asked it.
+    dm: {
+      /** teacherDmStanding's answer — the route's early check. */
+      standing: null as TeacherDmStanding | null,
+      /** Set: openTeacherThread's recount under its lock refuses, with this standing. */
+      lockedStanding: null as TeacherDmStanding | null,
+      /** Set: a concurrent request's thread lands AFTER the route's own lookups, and the lock's re-read finds it. */
+      concurrentThread: null as string | null,
+      /** mayWriteToTeacher's answer — false: the teacher has not answered and the writer's two messages are in. */
+      mayWrite: true,
+      /** Set: the guard riding with the insert aborts it — a concurrent send took the last place (sendToTeacherGuarded). */
+      guardRefuses: false as false | 'cap' | 'repeat',
+      /** openerAgainst's answer about an EXISTING teacher thread: still empty (its opener never landed), or a re-sent opener. */
+      tail: { empty: false, repeat: false },
+      /** The threads openTeacherThread created. */
+      created: [] as string[],
+      asked: { standing: [] as Row[], open: [] as Row[], mayWrite: [] as Row[], guarded: [] as Row[], tail: [] as Row[] },
+    },
   },
 }))
 
@@ -58,10 +79,22 @@ function assertUnique(listingId: string, buyerProfileId: string, exceptId?: stri
   }
 }
 
+/**
+ * One branch of the listing-KIND `OR` the route puts on a seller-level lookup (sellerThreads and the P2002 fallback):
+ * `{ listingId: null }` or `{ listing: { listingType: { not } } }`. Evaluated the way Postgres would, or a fake that
+ * ignored it would retarget a teacher thread by itself and fail correct code: a relation filter needs a listing, and
+ * `listingType` defaults to 'sell' (schema.prisma), which is what an unset fixture stands for.
+ */
+const matchesKind = (c: Row, branch: Row) =>
+  (branch.listingId === undefined || c.listingId === branch.listingId) &&
+  (branch.listing?.listingType?.not === undefined ||
+    (c.listingId != null && (h.state.listings[c.listingId]?.listingType ?? 'sell') !== branch.listing.listingType.not))
+
 const matchesConvo = (c: Row, where: Row) =>
   (where.sellerId === undefined || c.sellerId === where.sellerId) &&
   (where.buyerProfileId === undefined || c.buyerProfileId === where.buyerProfileId) &&
-  (where.listingId === undefined || c.listingId === where.listingId)
+  (where.listingId === undefined || c.listingId === where.listingId) &&
+  (where.OR === undefined || (where.OR as Row[]).some((branch) => matchesKind(c, branch)))
 
 // The edition scope is identity here: these tests are about thread routing, not about which
 // edition is running. scopedListingWhere passes the predicate straight through.
@@ -98,11 +131,13 @@ vi.mock('@/lib/db', () => ({
         }
         return Promise.resolve(h.state.convos.find((c) => c.id === where.id) ?? null)
       },
-      findFirst: ({ where }: Row) =>
-        Promise.resolve(
+      findFirst: ({ where }: Row) => {
+        h.state.findFirstWheres.push(where)
+        return Promise.resolve(
           [...h.state.convos].sort((a, b) => b.lastMessageAt - a.lastMessageAt).find((c) => matchesConvo(c, where)) ??
             null,
-        ),
+        )
+      },
       findMany: ({ where, take }: Row) => {
         const rows = [...h.state.convos]
           .sort((a, b) => b.lastMessageAt - a.lastMessageAt)
@@ -194,6 +229,9 @@ vi.mock('next/server', async (importOriginal) => {
 })
 
 import { POST } from './route'
+// The MOCKED module (teacher section below): its database-reading functions are fakes, teacherDmRefusal is the real one.
+import { teacherDmRefusal, type TeacherDmStanding } from '@/lib/teachers/dm-quota'
+import { TEACHER_DM_LIMITS } from '@/lib/teachers/constants'
 
 function listing(id: string, sellerId: string, extra: Row = {}) {
   return { id, title: `Listing ${id}`, verified: true, negotiable: true, sellerId, seller: { ownerId: 'desk-owner' }, ...extra }
@@ -203,15 +241,38 @@ function convo(id: string, listingId: string, sellerId: string, lastMessageAt: n
   return { id, listingId, buyerProfileId: BUYER, sellerId, sellerProfileId: 'desk-owner', lastMessageAt }
 }
 
-async function post(body: Row): Promise<{ status: number; json: Row }> {
-  const res = await POST(
+/** The raw response — a teacher refusal is held to its headers as well as its body. */
+function postRes(body: Row, headers: Record<string, string> = {}): Promise<Response> {
+  return POST(
     new Request('http://test/api/conversations', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...headers },
       body: JSON.stringify(body),
     }),
   )
+}
+
+async function post(body: Row, headers: Record<string, string> = {}): Promise<{ status: number; json: Row }> {
+  const res = await postRes(body, headers)
   return { status: res.status, json: (await res.json()) as Row }
+}
+
+/** Any instant ahead of now — the Vietnam midnight teacherDmRefusal turns into Retry-After. */
+const RESET_AT = new Date(Date.now() + 6 * 3_600_000).toISOString()
+
+/** The ladder's bottom rung — any account, a personal one included — with `used` of its new teachers spent today. */
+function unverifiedDay(used: number): TeacherDmStanding {
+  const limit = TEACHER_DM_LIMITS.unverified
+  return {
+    tier: 'unverified', limit, next: 'verify_identity', nextLimit: TEACHER_DM_LIMITS.identity, needsPhone: false, pooled: true,
+    used, remaining: Math.max(0, limit - used), resetAt: RESET_AT, reason: used >= limit ? 'limit' : null, hasThread: false,
+  }
+}
+
+/** A revoked identity: 0, and no way up. */
+const REVOKED: TeacherDmStanding = {
+  tier: 'revoked', limit: TEACHER_DM_LIMITS.revoked, next: 'none', nextLimit: null, needsPhone: false, pooled: false,
+  used: 0, remaining: 0, resetAt: RESET_AT, reason: 'revoked', hasThread: false,
 }
 
 beforeEach(() => {
@@ -223,6 +284,14 @@ beforeEach(() => {
   h.state.seq = 0
   h.state.raceLosesThenVanishes = false
   h.state.docked = []
+  // Reset with the rest: the pending-offer test used to leave its thread id behind for every later test.
+  h.state.offerThreads = []
+  h.state.findFirstWheres = []
+  h.state.dm = {
+    standing: unverifiedDay(0), lockedStanding: null, concurrentThread: null, mayWrite: true, guardRefuses: false,
+    tail: { empty: false, repeat: false },
+    created: [], asked: { standing: [], open: [], mayWrite: [], guarded: [], tail: [] },
+  }
   h.state.listings = {
     [TRIP_ANCHOR]: listing(TRIP_ANCHOR, SELLER),
     [VISA_PRODUCT]: listing(VISA_PRODUCT, SELLER),
@@ -361,6 +430,34 @@ describe('the create race: the constraint fires for a thread that is already gon
     expect(h.state.delivered).toEqual([expect.objectContaining({ body: 'hi' })])
     expect(h.state.convos).toHaveLength(1)
   })
+
+  it('never falls back onto the buyer’s TEACHER thread with that storefront — its lookup carries the non-teacher filter', async () => {
+    // ⛔ A storefront can list a teacher card AND products. The fallback's same-seller lookup used to take ANY thread of
+    // the seller, so losing this race on a product would have retargeted the teacher thread onto it — out of the teacher
+    // DM count, its shares dropped (codex + opus, plan review 2026-10-13). Same filter as the sellerThreads reuse.
+    h.state.listings['listing-tutor'] = listing('listing-tutor', 'seller-tutor', { listingType: 'teacher', status: 'active', negotiable: false, seller: { ownerId: 'tutor-owner' } })
+    h.state.listings['listing-tutor-book'] = listing('listing-tutor-book', 'seller-tutor', { seller: { ownerId: 'tutor-owner' } })
+    h.state.convos = [{ ...convo('tutor-thread', 'listing-tutor', 'seller-tutor', 1000), sellerProfileId: 'tutor-owner' }]
+    h.state.raceLosesThenVanishes = true
+
+    const { status, json } = await post({ listingId: 'listing-tutor-book', message: 'Is the workbook still available?' })
+
+    // The fallback's lookup — the only conversation.findFirst on this path — excludes teacher threads in its `where`.
+    expect(h.state.findFirstWheres).toEqual([
+      expect.objectContaining({
+        sellerId: 'seller-tutor',
+        buyerProfileId: BUYER,
+        OR: [{ listingId: null }, { listing: { listingType: { not: 'teacher' } } }],
+      }),
+    ])
+    // …so the buyer lands in a fresh product thread and the teacher thread keeps its teacher.
+    expect(status).toBe(200)
+    expect(json.created).toBe(true)
+    expect(json.id).not.toBe('tutor-thread')
+    expect(h.state.convos.find((c) => c.id === 'tutor-thread')!.listingId).toBe('listing-tutor')
+    // A product is not a teacher: the ladder is never asked about it.
+    expect(h.state.dm.asked).toEqual({ standing: [], open: [], mayWrite: [], guarded: [], tail: [] })
+  })
 })
 
 describe('an opening OFFER on a listing that takes none', () => {
@@ -409,67 +506,359 @@ describe('the word filter on the message that opens a thread', () => {
   })
 })
 
-// ── COVER LESSONS (2026-10-07): teacher threads ────────────────────────────────────────────────────
-// A hidden teacher is unreachable; a school's NEW thread rings the teacher (and the "First interested buyer!"
-// milestone no longer fires for a person); a school's message into a thread that went quiet rings them again.
+// ── TEACHER THREADS ──────────────────────────────────────────────────────────────────────────────────
+// Cover lessons (2026-10-07): a hidden teacher is unreachable; a NEW thread rings the teacher (and the "First interested
+// buyer!" milestone no longer fires for a person); a message into a thread that went quiet rings them again.
+// The DM ladder (owner, 2026-10-13): "only a business account may message a teacher" is GONE — any signed-in account
+// may; the ladder says how many NEW teachers a day, and a teacher who has not answered gets at most two messages.
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/teachers/notify', async (importOriginal) => {
   const mod = await importOriginal<typeof import('@/lib/teachers/notify')>()
   return { ...mod, notifyTeacherOfSchoolMessage: (a: Row) => { ((h.state as Row).notified ??= []).push(a); return Promise.resolve() } }
 })
+/**
+ * ⚠️ THE LADDER IS FAKED AT ITS MODULE, LIKE notify.ts ABOVE, SO THIS STAYS A ROUTE TEST. Its rules — the tiers, the
+ * Vietnam-day count, the advisory lock, the IP pool — belong to src/lib/teachers/dm-quota.ts; what is pinned here is
+ * what the ROUTE does with each answer. The three functions that read the database are fakes that record every
+ * question; teacherDmRefusal stays REAL, because answering with the refusal exactly as it was built — status, body,
+ * Retry-After — is the route's half of the contract the pending page reads (tier / next / reason → dm-limit-copy.ts).
+ */
+vi.mock('@/lib/teachers/dm-quota', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@/lib/teachers/dm-quota')>()
+  return {
+    ...mod,
+    teacherDmStanding: (profileId: string, opts: Row) => {
+      h.state.dm.asked.standing.push({ profileId, opts })
+      return Promise.resolve(h.state.dm.standing)
+    },
+    openTeacherThread: (a: Row) => {
+      h.state.dm.asked.open.push(a)
+      // A concurrent request's thread, landing AFTER the route's own lookups — what the lock's re-read is there to find.
+      if (h.state.dm.concurrentThread) {
+        h.state.convos.push({ id: h.state.dm.concurrentThread, listingId: a.listingId, buyerProfileId: a.profileId, sellerId: a.sellerId, sellerProfileId: a.sellerProfileId, lastMessageAt: Date.now() })
+        h.state.dm.concurrentThread = null
+      }
+      const existing = h.state.convos.find((c) => c.listingId === a.listingId && c.buyerProfileId === a.profileId)
+      if (existing) return Promise.resolve({ outcome: 'existing', id: existing.id })
+      if (h.state.dm.lockedStanding) return Promise.resolve({ outcome: 'refused', standing: h.state.dm.lockedStanding })
+      const row = { id: `ladder-thread-${++h.state.seq}`, listingId: a.listingId, buyerProfileId: a.profileId, sellerId: a.sellerId, sellerProfileId: a.sellerProfileId, lastMessageAt: Date.now() }
+      h.state.convos.push(row)
+      h.state.dm.created.push(row.id)
+      return Promise.resolve({ outcome: 'created', id: row.id })
+    },
+    mayWriteToTeacher: (conversationId: string, buyerProfileId: string, teacherProfileId: string | null) => {
+      h.state.dm.asked.mayWrite.push({ conversationId, buyerProfileId, teacherProfileId })
+      return Promise.resolve(h.state.dm.mayWrite)
+    },
+    // The guard's statements are the ladder's (unit-tested there); what is pinned here is that every insert into a
+    // teacher thread carries them, and what the route does when they abort it.
+    openerAgainst: (conversationId: string, writerProfileId: string, teacherProfileId: string | null, text: string | null) => {
+      h.state.dm.asked.tail.push({ conversationId, writerProfileId, teacherProfileId, text })
+      return Promise.resolve(h.state.dm.tail)
+    },
+    sendToTeacherGuarded: async (thread: Row, send: (alongside: unknown[]) => Promise<unknown>) => {
+      h.state.dm.asked.guarded.push(thread)
+      if (h.state.dm.guardRefuses) return { sent: false, reason: h.state.dm.guardRefuses }
+      return { sent: true, value: await send(['teacher-unanswered-guard']) }
+    },
+  }
+})
 
-describe('teacher threads (cover lessons)', () => {
+describe('teacher threads', () => {
   const TEACHER = 'listing-teacher-1'
   const TEACHER_SELLER = 'seller-teacher-1'
+  const HOUR = 3_600_000
+  /** The buyer's thread with the teacher, its last message `quietFor` ago. */
+  const teacherThread = (id: string, quietFor: number) => ({ ...convo(id, TEACHER, TEACHER_SELLER, Date.now() - quietFor), sellerProfileId: 'teacher-owner' })
+  const notified = () => (h.state as Row).notified as Row[]
+
   beforeEach(() => {
-    h.state.profile = { id: BUYER, accountType: 'business' }
+    // A PERSONAL account. Until 2026-10-13 only a business could write to a teacher; now anyone can, and the ladder
+    // (faked: an unverified day with nothing spent yet) decides how many new teachers a day.
+    h.state.profile = { id: BUYER, accountType: 'individual' }
     ;(h.state as Row).notified = []
     ;(h.state as Row).notifications = []
     h.state.listings[TEACHER] = listing(TEACHER, TEACHER_SELLER, { listingType: 'teacher', status: 'active', negotiable: false, seller: { ownerId: 'teacher-owner' } })
   })
+  afterEach(() => vi.unstubAllEnvs())
 
-  it('refuses a HIDDEN teacher with the same 404 as an unverified row, and creates nothing', async () => {
-    h.state.listings[TEACHER].status = 'hidden'
-    const { status, json } = await post({ listingId: TEACHER, message: 'Can you cover Monday?' })
-    expect(status).toBe(404)
-    expect(json.error).toBe('not_found')
-    expect(h.state.convos).toHaveLength(0)
+  describe('cover lessons (2026-10-07): a hidden teacher, and when the teacher is rung', () => {
+    it('refuses a HIDDEN teacher with the same 404 as an unverified row, creates nothing — and the ladder never answers first', async () => {
+      // An account with nothing left today still gets the 404: a ladder refusal here would reveal the hidden profile.
+      h.state.dm.standing = unverifiedDay(TEACHER_DM_LIMITS.unverified)
+      h.state.listings[TEACHER].status = 'hidden'
+      const { status, json } = await post({ listingId: TEACHER, message: 'Can you cover Monday?' })
+      expect(status).toBe(404)
+      expect(json.error).toBe('not_found')
+      expect(h.state.convos).toHaveLength(0)
+      expect(h.state.dm.asked.standing).toEqual([])
+      expect(h.state.dm.asked.open).toEqual([])
+    })
+
+    it('lets an account that already has its thread reach a HIDDEN teacher — the same thread, and no ring', async () => {
+      h.state.listings[TEACHER].status = 'hidden'
+      h.state.convos = [teacherThread('t-thread', 7 * HOUR)]
+      const { status, json } = await post({ listingId: TEACHER, message: 'Still free on Monday?' })
+      expect(status).toBe(200)
+      expect(json.id).toBe('t-thread')
+      expect(h.state.convos).toHaveLength(1)
+      expect(notified()).toEqual([])
+    })
+
+    it('rings again only when the existing thread had gone quiet — a personal account’s message too', async () => {
+      h.state.convos = [teacherThread('t-thread', 7 * HOUR)]
+      await post({ listingId: TEACHER, message: 'Another cover this week?' })
+      expect(notified()).toEqual([{ teacherProfileId: 'teacher-owner', conversationId: 't-thread', listingId: TEACHER }])
+
+      ;(h.state as Row).notified = []
+      h.state.convos = [teacherThread('t-thread', HOUR)]
+      await post({ listingId: TEACHER, message: 'And Thursday?' })
+      expect(notified()).toEqual([])
+    })
   })
 
-  it('lets a school that already has its thread reach a HIDDEN teacher — the same thread, and no ring', async () => {
-    h.state.listings[TEACHER].status = 'hidden'
-    h.state.convos = [{ ...convo('t-thread', TEACHER, TEACHER_SELLER, Date.now() - 7 * 3_600_000), sellerProfileId: 'teacher-owner' }]
-    const { status, json } = await post({ listingId: TEACHER, message: 'Still free on Monday?' })
-    expect(status).toBe(200)
-    expect(json.id).toBe('t-thread')
-    expect(h.state.convos).toHaveLength(1)
-    expect((h.state as Row).notified).toEqual([])
+  describe('the DM ladder (owner, 2026-10-13): anyone may write, the ladder counts NEW teachers', () => {
+    it('a personal account under its limit gets its thread from openTeacherThread — with the client IP for the pool — and the teacher is rung', async () => {
+      // As Cloudflare forwards it: the edge proof clientIp() checks, then the visitor's address. The address must reach
+      // BOTH ladder calls — without it the unverified rung's shared per-connection pool never applies.
+      vi.stubEnv('EDGE_SECRET', 'edge-proof')
+      const { status, json } = await post(
+        { listingId: TEACHER, message: 'Can you cover Monday?' },
+        { 'x-eno-edge': 'edge-proof', 'cf-connecting-ip': '203.0.113.7' },
+      )
+      expect(status).toBe(200)
+      expect(json.created).toBe(true)
+      expect(h.state.dm.asked.standing).toEqual([{ profileId: BUYER, opts: expect.objectContaining({ ip: '203.0.113.7' }) }])
+      expect(h.state.dm.asked.open).toEqual([
+        expect.objectContaining({ profileId: BUYER, listingId: TEACHER, sellerId: TEACHER_SELLER, sellerProfileId: 'teacher-owner', ip: '203.0.113.7' }),
+      ])
+      // The thread is the one made under the ladder's lock — never by the route's own create.
+      expect(h.state.dm.created).toEqual([json.id])
+      expect(h.state.convos.map((c) => c.id)).toEqual([json.id])
+      expect(h.state.delivered).toEqual([expect.objectContaining({ conversationId: json.id, body: 'Can you cover Monday?' })])
+      expect(notified()).toEqual([{ teacherProfileId: 'teacher-owner', conversationId: json.id, listingId: TEACHER }])
+      // A teacher is a person, not a listing: no "First interested buyer!" milestone.
+      expect(((h.state as Row).notifications as Row[]).filter((n) => n.type === 'milestone')).toEqual([])
+    })
+
+    it('⛔ a NEW teacher thread opens only with its first message: an empty open is 400, spends nothing, rings nobody (gate 2026-10-13)', async () => {
+      const { status, json } = await post({ listingId: TEACHER })
+      expect(status).toBe(400)
+      expect(json.error).toBe('empty')
+      expect(h.state.dm.asked.standing).toEqual([])
+      expect(h.state.dm.asked.open).toEqual([])
+      expect(h.state.convos).toHaveLength(0)
+      expect(notified()).toEqual([])
+    })
+
+    it('a double tap at the last slot is never refused: the early check sees the first tap’s thread (hasThread) and the lock reuses it', async () => {
+      h.state.dm.standing = { ...unverifiedDay(TEACHER_DM_LIMITS.unverified), hasThread: true }
+      h.state.dm.concurrentThread = 'first-tap-thread'
+      const { status, json } = await post({ listingId: TEACHER, message: 'hi' })
+      expect(status).toBe(200)
+      expect(json).toMatchObject({ id: 'first-tap-thread', created: false })
+      expect(h.state.dm.asked.standing).toEqual([{ profileId: BUYER, opts: expect.objectContaining({ listingId: TEACHER }) }])
+      expect(notified()).toEqual([])
+    })
+
+    it('⛔ the new-account cap is waived for a TEACHER thread only (the ladder governs those); an ordinary listing keeps it', async () => {
+      h.state.gate = { error: 'probation_conversation_cap', limit: 15 }
+      expect(await post({ listingId: TEACHER, message: 'hi' })).toMatchObject({ status: 200, json: { created: true } })
+      const { status, json } = await post({ listingId: SHOP_A, message: 'hi' })
+      expect(status).toBe(403)
+      expect(json.error).toBe('probation_conversation_cap')
+    })
+
+    it('suspension is never waived, teacher thread or not', async () => {
+      h.state.gate = { error: 'account_suspended' }
+      const { status, json } = await post({ listingId: TEACHER, message: 'hi' })
+      expect(status).toBe(403)
+      expect(json.error).toBe('account_suspended')
+      expect(h.state.dm.asked.open).toEqual([])
+    })
+
+    it('an unverified PERSONAL account opens a thread under its limit and is refused with the ladder’s body over it (was: business accounts only)', async () => {
+      expect(await post({ listingId: TEACHER, message: 'hi' })).toMatchObject({ status: 200, json: { created: true } })
+
+      const TEACHER_2 = 'listing-teacher-2'
+      h.state.listings[TEACHER_2] = listing(TEACHER_2, 'seller-teacher-2', { listingType: 'teacher', status: 'active', negotiable: false, seller: { ownerId: 'teacher-2-owner' } })
+      const spent = unverifiedDay(TEACHER_DM_LIMITS.unverified)
+      h.state.dm.standing = spent
+      ;(h.state as Row).notified = []
+      const res = await postRes({ listingId: TEACHER_2, message: 'hi' })
+      const body = await res.json()
+      // teacherDmRefusal's own response, untouched: its status, its body (what the pending page words), its Retry-After.
+      const refusal = teacherDmRefusal(spent, { error: 'teacher_thread_cap' })
+      expect(res.status).toBe(429)
+      expect(res.status).toBe(refusal.status)
+      expect(body).toEqual(await refusal.json())
+      expect(body).toMatchObject({ error: 'teacher_thread_cap', tier: 'unverified', remaining: 0, next: 'verify_identity', reason: 'limit' })
+      expect(Number(res.headers.get('retry-after'))).toBeGreaterThan(0)
+      // Nothing behind it: no thread, no message, no ring — the lock is never even taken.
+      expect(h.state.dm.asked.open.map((a) => a.listingId)).toEqual([TEACHER])
+      expect(h.state.convos.filter((c) => c.listingId === TEACHER_2)).toEqual([])
+      expect(h.state.delivered.filter((d) => d.listingId === TEACHER_2)).toEqual([])
+      expect(notified()).toEqual([])
+    })
+
+    it('a revoked identity is answered with the refusal’s own 403 — the route does not choose the status', async () => {
+      h.state.dm.standing = REVOKED
+      const res = await postRes({ listingId: TEACHER, message: 'hi' })
+      expect(res.status).toBe(403)
+      expect(await res.json()).toEqual(await teacherDmRefusal(REVOKED, { error: 'teacher_thread_cap' }).json())
+      expect(h.state.convos).toEqual([])
+      expect(h.state.dm.asked.open).toEqual([])
+    })
+
+    it('an existing teacher thread never asks the ladder — not even with nothing left today', async () => {
+      h.state.dm.standing = unverifiedDay(TEACHER_DM_LIMITS.unverified)
+      h.state.convos = [teacherThread('t-thread', HOUR)]
+      const { status, json } = await post({ listingId: TEACHER, message: 'And Thursday?' })
+      expect(status).toBe(200)
+      expect(json).toMatchObject({ id: 't-thread', created: false })
+      expect(h.state.delivered).toEqual([expect.objectContaining({ conversationId: 't-thread', body: 'And Thursday?' })])
+      expect(h.state.dm.asked.standing).toEqual([])
+      expect(h.state.dm.asked.open).toEqual([])
+    })
+
+    it('the recount under the lock refuses what the early check let through — with the LOCKED standing, and nothing is written', async () => {
+      // Two taps at once: the early check saw one chat left; the other tap's thread spent it before this one took the lock.
+      h.state.dm.standing = unverifiedDay(TEACHER_DM_LIMITS.unverified - 1)
+      const locked = unverifiedDay(TEACHER_DM_LIMITS.unverified)
+      h.state.dm.lockedStanding = locked
+      const res = await postRes({ listingId: TEACHER, message: 'Can you cover Monday?' })
+      const body = await res.json()
+      expect(res.status).toBe(429)
+      expect(body).toEqual(await teacherDmRefusal(locked, { error: 'teacher_thread_cap' }).json())
+      expect(body.used).toBe(TEACHER_DM_LIMITS.unverified) // the locked count, not the early one
+      expect(h.state.dm.asked.open).toHaveLength(1)
+      expect(h.state.convos).toEqual([])
+      expect(h.state.delivered).toEqual([])
+      expect(notified()).toEqual([])
+    })
+
+    it('a concurrent request’s thread found under the lock is reused: created:false, the opener goes into it, no second ring', async () => {
+      h.state.dm.concurrentThread = 'raced-thread'
+      const { status, json } = await post({ listingId: TEACHER, message: 'Can you cover Monday?' })
+      expect(status).toBe(200)
+      // `created` drives the contact conversion event — the request that made the thread already counted it, and rang.
+      expect(json).toMatchObject({ id: 'raced-thread', created: false })
+      expect(h.state.convos.map((c) => c.id)).toEqual(['raced-thread'])
+      expect(h.state.delivered).toEqual([expect.objectContaining({ conversationId: 'raced-thread', body: 'Can you cover Monday?' })])
+      expect(notified()).toEqual([])
+    })
+
+    it('a PRODUCT thread with the same storefront is never retargeted onto its teacher — the teacher thread still comes from the ladder', async () => {
+      // Retargeting would walk around the ladder — its count is threads CREATED today on a teacher listing, and the lock
+      // is only taken by openTeacherThread — as well as drop the teacher strip (Opus, commit gate 09-30).
+      h.state.listings['listing-teacher-book'] = listing('listing-teacher-book', TEACHER_SELLER, { seller: { ownerId: 'teacher-owner' } })
+      h.state.convos = [{ ...convo('book-thread', 'listing-teacher-book', TEACHER_SELLER, Date.now() - HOUR), sellerProfileId: 'teacher-owner' }]
+      const { status, json } = await post({ listingId: TEACHER, message: 'Can you cover Monday?' })
+      expect(status).toBe(200)
+      expect(json.created).toBe(true)
+      expect(h.state.dm.created).toEqual([json.id])
+      expect(h.state.convos.find((c) => c.id === 'book-thread')!.listingId).toBe('listing-teacher-book')
+    })
   })
 
-  it('rings the teacher on a school\'s new thread — and sends no "First interested buyer!" milestone', async () => {
-    const { status, json } = await post({ listingId: TEACHER, message: 'Can you cover Monday?' })
-    expect(status).toBe(200)
-    expect(json.created).toBe(true)
-    expect((h.state as Row).notified).toEqual([{ teacherProfileId: 'teacher-owner', conversationId: json.id, listingId: TEACHER }])
-    expect(((h.state as Row).notifications as Row[]).filter((n) => n.type === 'milestone')).toEqual([])
-  })
+  describe('two messages until the teacher answers (owner, 2026-10-13)', () => {
+    it('⛔ an opener into a thread already holding the writer\'s two unanswered messages OPENS it — nothing sent, nobody rung, and `held` says why (Opus, gate 2026-10-13)', async () => {
+      // The profile's Message button sends its opener into the existing thread. At the cap it must still reach the chat:
+      // a bare 429 carries no thread to go to. The thread is quiet: a delivered message WOULD have rung.
+      h.state.convos = [teacherThread('t-thread', 7 * HOUR)]
+      h.state.dm.mayWrite = false
+      const { status, json } = await post({ listingId: TEACHER, message: 'Hello, are you open to talking?' })
+      expect(status).toBe(200)
+      expect(json).toEqual({ id: 't-thread', created: false, message: null, held: 'teacher_awaiting_reply' })
+      expect(h.state.dm.asked.mayWrite).toEqual([{ conversationId: 't-thread', buyerProfileId: BUYER, teacherProfileId: 'teacher-owner' }])
+      expect(h.state.delivered).toEqual([])
+      expect(notified()).toEqual([])
+    })
 
-  it('rings again only when the existing thread had gone quiet', async () => {
-    h.state.convos = [{ ...convo('t-thread', TEACHER, TEACHER_SELLER, Date.now() - 7 * 3_600_000), sellerProfileId: 'teacher-owner' }]
-    await post({ listingId: TEACHER, message: 'Another cover this week?' })
-    expect((h.state as Row).notified).toHaveLength(1)
+    it('holds a thread found under the lock to the same cap — opened, nothing sent', async () => {
+      h.state.dm.concurrentThread = 'raced-thread'
+      h.state.dm.mayWrite = false
+      const { status, json } = await post({ listingId: TEACHER, message: 'Hello again' })
+      expect(status).toBe(200)
+      expect(json).toEqual({ id: 'raced-thread', created: false, message: null, held: 'teacher_awaiting_reply' })
+      expect(h.state.dm.asked.mayWrite).toEqual([{ conversationId: 'raced-thread', buyerProfileId: BUYER, teacherProfileId: 'teacher-owner' }])
+      expect(h.state.delivered).toEqual([])
+    })
 
-    ;(h.state as Row).notified = []
-    h.state.convos = [{ ...convo('t-thread', TEACHER, TEACHER_SELLER, Date.now() - 3_600_000), sellerProfileId: 'teacher-owner' }]
-    await post({ listingId: TEACHER, message: 'And Thursday?' })
-    expect((h.state as Row).notified).toEqual([])
-  })
+    it('⛔ every insert into a teacher thread carries the guard — the checks above are reads (codex, gate 2026-10-13)', async () => {
+      h.state.convos = [teacherThread('t-thread', HOUR)]
+      expect(await post({ listingId: TEACHER, message: 'Hello' })).toMatchObject({ status: 200 })
+      expect(h.state.dm.asked.guarded).toEqual([{ conversationId: 't-thread', buyerProfileId: BUYER, teacherProfileId: 'teacher-owner', repeatOf: 'Hello' }])
+      expect(h.state.delivered).toEqual([expect.objectContaining({ conversationId: 't-thread', body: 'Hello', alongside: ['teacher-unanswered-guard'] })])
+    })
 
-  it('still lets only a business account message a teacher', async () => {
-    h.state.profile = { id: BUYER, accountType: 'individual' }
-    const { status, json } = await post({ listingId: TEACHER, message: 'hi' })
-    expect(status).toBe(403)
-    expect(json.error).toBe('business_only')
-    expect((h.state as Row).notified).toEqual([])
+    it('⛔ a concurrent send that took the last place between the check and the insert: the thread opens `held`, nothing delivered, nobody rung', async () => {
+      h.state.convos = [teacherThread('t-thread', 7 * HOUR)]
+      h.state.dm.guardRefuses = 'cap'
+      const { status, json } = await post({ listingId: TEACHER, message: 'Hello' })
+      expect(status).toBe(200)
+      expect(json).toEqual({ id: 't-thread', created: false, message: null, held: 'teacher_awaiting_reply' })
+      expect(h.state.delivered).toEqual([])
+      expect(notified()).toEqual([])
+    })
+
+    it('⛔ the double tap on a NEW teacher: the guard finds the other tap\'s identical opener — this tap opens the thread, sends nothing, rings nobody (codex + Opus, gate 2026-10-13)', async () => {
+      h.state.dm.concurrentThread = 'raced-thread'
+      h.state.dm.tail = { empty: true, repeat: false } // its read ran before the other tap's opener committed
+      h.state.dm.guardRefuses = 'repeat'
+      const { status, json } = await post({ listingId: TEACHER, message: 'Hello' })
+      expect(status).toBe(200)
+      expect(json).toEqual({ id: 'raced-thread', created: false, message: null })
+      expect(h.state.dm.asked.guarded).toEqual([{ conversationId: 'raced-thread', buyerProfileId: BUYER, teacherProfileId: 'teacher-owner', repeatOf: 'Hello' }])
+      expect(notified()).toEqual([])
+    })
+
+    it('⛔ a re-sent opener (the thread\'s newest message is this writer\'s own, word for word) opens the thread and sends nothing — even at the cap (Opus, gate 2026-10-13)', async () => {
+      // The profile's Message button tapped again: the opener already sits in the thread, and the teacher has not answered.
+      h.state.convos = [teacherThread('t-thread', 7 * HOUR)]
+      h.state.dm.tail = { empty: false, repeat: true }
+      h.state.dm.mayWrite = false
+      expect(await post({ listingId: TEACHER, message: 'Hello, are you open to talking?' })).toEqual({ status: 200, json: { id: 't-thread', created: false, message: null } })
+      expect(h.state.dm.asked.tail).toEqual([{ conversationId: 't-thread', writerProfileId: BUYER, teacherProfileId: 'teacher-owner', text: 'Hello, are you open to talking?' }])
+      expect(h.state.dm.asked.mayWrite).toEqual([]) // asked BEFORE the cap: a repeat never reaches a refusal
+      expect(h.state.delivered).toEqual([])
+      expect(notified()).toEqual([])
+    })
+
+    it('the same for a thread found under the ladder\'s lock', async () => {
+      h.state.dm.concurrentThread = 'raced-thread'
+      h.state.dm.tail = { empty: false, repeat: true }
+      expect(await post({ listingId: TEACHER, message: 'Hello' })).toEqual({ status: 200, json: { id: 'raced-thread', created: false, message: null } })
+      expect(h.state.delivered).toEqual([])
+    })
+
+    it('a thread still EMPTY (its opener never landed) rings the teacher on the first message into it, though it is not quiet', async () => {
+      h.state.convos = [teacherThread('t-thread', 0)]
+      h.state.dm.tail = { empty: true, repeat: false }
+      expect(await post({ listingId: TEACHER, message: 'Hello' })).toMatchObject({ status: 200, json: { id: 't-thread' } })
+      expect(notified()).toEqual([{ teacherProfileId: 'teacher-owner', conversationId: 't-thread', listingId: TEACHER }])
+      ;(h.state as Row).notified = []
+      h.state.convos = []
+      h.state.dm.concurrentThread = 'raced-thread'
+      await post({ listingId: TEACHER, message: 'Hello' })
+      expect(notified()).toEqual([{ teacherProfileId: 'teacher-owner', conversationId: 'raced-thread', listingId: TEACHER }])
+    })
+
+    it('a NEW thread\'s opener carries the guard too; an ordinary listing\'s message never does', async () => {
+      const { json } = await post({ listingId: TEACHER, message: 'Hi' })
+      expect(h.state.dm.asked.guarded).toEqual([{ conversationId: json.id, buyerProfileId: BUYER, teacherProfileId: 'teacher-owner', repeatOf: 'Hi' }])
+      h.state.dm.asked.guarded = []
+      h.state.delivered = []
+      await post({ listingId: SHOP_A, message: 'Still available?' })
+      expect(h.state.dm.asked.guarded).toEqual([])
+      expect(h.state.delivered).toEqual([expect.not.objectContaining({ alongside: expect.anything() })])
+    })
+
+    it('opening the thread with nothing to send is not a message: the cap is not asked and the thread comes back', async () => {
+      h.state.convos = [teacherThread('t-thread', HOUR)]
+      h.state.dm.mayWrite = false
+      expect(await post({ listingId: TEACHER })).toEqual({ status: 200, json: { id: 't-thread', created: false, message: null } })
+      expect(h.state.dm.asked.mayWrite).toEqual([])
+    })
   })
 })

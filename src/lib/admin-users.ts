@@ -2,6 +2,7 @@ import 'server-only'
 import { db } from '@/lib/db'
 import { appendAudit } from '@/lib/compliance/audit'
 import { recomputeVerification } from '@/lib/compliance/recompute-verification'
+import { teacherDmLock } from '@/lib/teachers/dm-lock'
 
 // ── THE USERS CONSOLE (admin, 2026-09-05: "manage the existing userbase") ──────────────────────
 //
@@ -199,6 +200,9 @@ export async function revokeIdentity(input: { profileId: string; admin: string; 
   if (!profile) return { ok: false, code: 'not_found' }
   if (!['verified', 'expired'].includes(profile.verificationStatus)) return { ok: false, code: 'nothing_to_revoke' }
   await db.$transaction(async (tx) => {
+    // The teacher DM ladder's lock first (dm-lock.ts): a thread being opened under the old rung commits before this
+    // revocation, and one opened after it sees it — never a thread made on a read this revocation already overtook.
+    await teacherDmLock(tx, profile.id)
     await tx.identityVerification.updateMany({
       where: { profileId: profile.id, status: { in: ['verified', 'expired'] } },
       data: { status: 'revoked', decidedAt: now, decidedBy: input.admin, rejectReason: 'manual' },

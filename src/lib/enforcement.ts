@@ -1062,7 +1062,8 @@ export async function bulkPostingBudget(profileId: string, sellerId: string): Pr
 /**
  * Gate for POST /api/conversations: suspended blocks all conversation activity;
  * a probation account may INITIATE at most 15 new conversations per day (the route
- * exempts existing threads — the cap is on new outreach, not on replying).
+ * exempts existing threads — the cap is on new outreach, not on replying). A TEACHER thread is the exception the route
+ * makes (the teacher DM ladder governs those — api/conversations/route.ts), never this gate.
  */
 export async function conversationGate(profileId: string): Promise<GateError | null> {
   const { state } = await getEnforcement(profileId)

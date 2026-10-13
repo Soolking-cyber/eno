@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { kv } from '@/lib/ratelimit'
-import { insertMessage } from '@/lib/messages'
+import { insertMessage, type SendOpts } from '@/lib/messages'
+import { mayWriteToTeacher, sendToTeacherGuarded } from '@/lib/teachers/dm-quota'
 import { messagingGate } from '@/lib/enforcement'
 import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
 import { logError } from '@/lib/log'
@@ -136,6 +137,12 @@ export const POST = route(
     // gate off isBlockedBetween answers false WITHOUT a query — this is the hot send path admin.ts
     // warns about. A support operator is not a party to a block (the desk has no profile).
     if (!iAmSupport && await isBlockedBetween(convo.buyerProfileId, convo.sellerProfileId)) { await release(); throw new ApiError('blocked', 403) }
+    // ⛔ A TEACHER WHO HAS NOT ANSWERED GETS AT MOST TWO MESSAGES (owner, 2026-10-13: "2 until reply" — dm-quota.ts
+    // mayWriteToTeacher). Anyone may now start a teacher chat, so the cap on NEW chats alone would let an account keep
+    // writing into every teacher who never answered.
+    if (iAmBuyer && convo.listing?.listingType === TEACHER_LISTING_TYPE && !(await mayWriteToTeacher(id, convo.buyerProfileId, convo.sellerProfileId))) {
+      await release(); throw new ApiError('teacher_awaiting_reply', 429)
+    }
     // Fixed-price listing → offers are off. The UI hides the offer control, so this is
     // the abuse/stale-tab path: reject the offer. Only a BUYER spamming offers is abuse
     // worth a trust dock — offers here are bidirectional (insertMessage supports seller
@@ -207,12 +214,20 @@ export const POST = route(
 
     let message: Awaited<ReturnType<typeof insertMessage>>
     try {
-      message = await insertMessage(
-        { id, buyerProfileId: convo.buyerProfileId, sellerProfileId: convo.sellerProfileId, listingId: convo.listing?.id ?? null },
-        meId,
-        text,
-        isOffer ? { kind: 'offer', offerAmount, replyToId } : replyToId ? { replyToId } : undefined,
-      )
+      const target = { id, buyerProfileId: convo.buyerProfileId, sellerProfileId: convo.sellerProfileId, listingId: convo.listing?.id ?? null }
+      const opts: SendOpts | undefined = isOffer ? { kind: 'offer', offerAmount, replyToId } : replyToId ? { replyToId } : undefined
+      if (iAmBuyer && convo.listing?.listingType === TEACHER_LISTING_TYPE) {
+        // ⛔ The send carries "2 until reply"'s atomic half (dm-quota.ts teacherUnansweredGuard): the check above is a
+        // read, and two sends at the same instant both passed it (codex, gate 2026-10-13).
+        const r = await sendToTeacherGuarded(
+          { conversationId: id, buyerProfileId: convo.buyerProfileId, teacherProfileId: convo.sellerProfileId },
+          (alongside) => insertMessage(target, meId, text, { ...opts, alongside }),
+        )
+        if (!r.sent) throw new ApiError('teacher_awaiting_reply', 429)
+        message = r.value
+      } else {
+        message = await insertMessage(target, meId, text, opts)
+      }
     } catch (e) {
       await release() // the insert did NOT commit — the retry must be allowed to run
       throw e
@@ -221,18 +236,14 @@ export const POST = route(
     // duplicate on the exact old failure pattern, never a lost message).
     if (idemKey) await kv.set(idemKey, message, { ex: 86_400 }).catch((e) => logError(e, { op: 'messages.set' }))
 
-    // A school writing into a teacher thread that had gone quiet rings the teacher — a fresh cover request in an
-    // old chat must not wait for them to open the app (src/lib/teachers/notify.ts; `lastMessageAt` is pre-send).
+    // A message into a teacher thread that had gone quiet rings the teacher — a fresh cover request in an old chat must
+    // not wait for them to open the app (src/lib/teachers/notify.ts; `lastMessageAt` is pre-send). Any sender since the
+    // DM ladder (2026-10-13): the alert no longer says "a school or company", so the account type is not re-read.
     // Only while the profile is LIVE: a teacher who hid it keeps the thread but is not rung (gate review).
     if (iAmBuyer && convo.sellerProfileId && convo.listing?.listingType === TEACHER_LISTING_TYPE && convo.listing.status === 'active' && isQuietGap(convo.lastMessageAt)) {
       const teacherProfileId = convo.sellerProfileId
       const listingId = convo.listing.id
-      after(async () => {
-        // Only a sender who is STILL a school or company rings (an account that switched back to personal keeps its
-        // thread, but the alert says "a school or company" — gate review, 2026-10-07).
-        const sender = await db.profile.findUnique({ where: { id: meId }, select: { accountType: true } })
-        if (sender?.accountType === 'business') await notifyTeacherOfSchoolMessage({ teacherProfileId, conversationId: id, listingId })
-      })
+      after(() => notifyTeacherOfSchoolMessage({ teacherProfileId, conversationId: id, listingId }))
     }
 
     /**

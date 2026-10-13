@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const h = vi.hoisted(() => ({
   profile: null as null | { id: string; verificationStatus: string },
   updates: [] as Array<Record<string, unknown>>,
+  // Every statement the revocation's transaction ran, in order.
+  steps: [] as string[],
   audits: [] as Array<Record<string, unknown>>,
   recomputed: [] as string[],
   recomputeResult: { status: 'revoked', sourceId: 'v1', changed: true } as Record<string, unknown>,
@@ -14,7 +16,8 @@ vi.mock('@/lib/db', () => ({
   db: {
     profile: { findUnique: async () => h.profile },
     $transaction: async (fn: (tx: unknown) => Promise<void>) => fn({
-      identityVerification: { updateMany: async ({ where, data }: { where: unknown; data: unknown }) => { h.updates.push({ where, data }); return { count: 1 } } },
+      $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => { h.steps.push(`${strings.join('?')} ${String(values[0])}`); return 1 },
+      identityVerification: { updateMany: async ({ where, data }: { where: unknown; data: unknown }) => { h.steps.push('updateMany'); h.updates.push({ where, data }); return { count: 1 } } },
     }),
   },
 }))
@@ -23,7 +26,7 @@ vi.mock('@/lib/compliance/recompute-verification', () => ({ recomputeVerificatio
 
 const { revokeIdentity } = await import('./admin-users')
 
-beforeEach(() => { h.profile = { id: 'p1', verificationStatus: 'verified' }; h.updates = []; h.audits = []; h.recomputed = []; h.recomputeResult = { status: 'revoked', sourceId: 'v1', changed: true } })
+beforeEach(() => { h.profile = { id: 'p1', verificationStatus: 'verified' }; h.updates = []; h.steps = []; h.audits = []; h.recomputed = []; h.recomputeResult = { status: 'revoked', sourceId: 'v1', changed: true } })
 
 describe('revokeIdentity', () => {
   it('revokes the live rows, writes the audit row with the reason, then recomputes the profile', async () => {
@@ -47,5 +50,12 @@ describe('revokeIdentity', () => {
     expect(await revokeIdentity({ profileId: 'x', admin: 'a', reason: 'x' })).toEqual({ ok: false, code: 'not_found' })
     h.profile = { id: 'p1', verificationStatus: 'verified' }; h.recomputeResult = { status: 'verified', sourceId: 'v1', changed: false, illegalTransition: { from: 'verified', to: 'weird' } }
     expect(await revokeIdentity({ profileId: 'p1', admin: 'a', reason: 'x' })).toEqual({ ok: false, code: 'illegal_transition' })
+  })
+})
+
+describe('revokeIdentity and the teacher DM ladder', () => {
+  it('⛔ takes the account\'s teacher-DM lock BEFORE it writes, so a thread being opened on the old rung commits first and one opened after sees the revocation (codex, gate 2026-10-13)', async () => {
+    await revokeIdentity({ profileId: 'p1', admin: 'admin@eno.vn', reason: 'passport reported stolen' })
+    expect(h.steps).toEqual(['select pg_advisory_xact_lock(hashtext(?)) teacher-dm:p1', 'updateMany', 'updateMany'])
   })
 })

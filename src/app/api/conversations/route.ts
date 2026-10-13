@@ -2,6 +2,8 @@ import { getAdmin } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { isQuietGap, notifyTeacherOfSchoolMessage } from '@/lib/teachers/notify'
+import { mayWriteToTeacher, openTeacherThread, openerAgainst, sendToTeacherGuarded, teacherDmRefusal, teacherDmStanding } from '@/lib/teachers/dm-quota'
+import { clientIp } from '@/lib/client-ip'
 import { editionSellerScope, scopedListingWhere } from '@/lib/edition-scope'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { NextResponse } from 'next/server'
@@ -10,7 +12,7 @@ import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
 import { blockedConversationIds, isBlockedBetween } from '@/lib/user-blocks'
 import { refuseObjectionable } from '@/lib/ugc-filter'
-import { insertMessage, type SerializedMessage } from '@/lib/messages'
+import { insertMessage, type SendOpts, type SerializedMessage } from '@/lib/messages'
 import { sendPushToProfile } from '@/lib/push'
 import { rateLimit } from '@/lib/ratelimit'
 import { conversationGate } from '@/lib/enforcement'
@@ -24,6 +26,11 @@ import { startVisaDmFlow } from '@/lib/visa/dm-flow'
 import { cutText } from '@/lib/feed-text'
 import { IOS_APP_UNAVAILABLE, iosHideVisaFor } from '@/lib/ios-hide-visa'
 import { isEVisaProductListing } from '@/lib/evisa-listing'
+
+/** A guarded opener the guard refused under the thread's lock — the route answers with the thread, nothing sent. */
+class TeacherOpenedOnly extends Error {
+  constructor(readonly check: 'repeat' | 'held') { super(check) }
+}
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -82,8 +89,8 @@ export const POST = route(
   // field, which ListingWhereUniqueInput rejects. On eno.vn a desk listing now resolves to null, so
   // no conversation can be opened against a service the licensed marketplace does not offer.
   const listing = await db.listing.findFirst({
-    // `{ teachers: true }`: a recruiter messaging a teacher profile is the Teachers feature's only
-    // door into chat (2026-09-30); the business-only rule below decides who may walk through it.
+    // `{ teachers: true }`: messaging a teacher profile is the Teachers feature's only door into chat (2026-09-30); the
+    // daily ladder below decides how many new teachers an account may walk through it to (owner, 2026-10-13).
     where: await scopedListingWhere({ id: listingId }, { teachers: true }),
     // subcategorySlug is the local "is this a visa product?" second opinion the uncertainty check
     // below needs — see the note there; it costs nothing on a row we already fetch.
@@ -124,18 +131,25 @@ export const POST = route(
   if (await isBlockedBetween(profile.id, listing.seller.ownerId)) throw new ApiError('blocked', 403)
 
   /**
-   * ⛔ ONLY A BUSINESS ACCOUNT MAY MESSAGE A TEACHER (owner, 2026-09-30) — schools and companies, not
-   * any signed-in stranger. And a cap on reaching out: a scraper with a business account could
-   * otherwise message every teacher to collect whatever they share. Strict (fail-closed) and
-   * counted per account per day; a recruiter's real outreach is well under it.
+   * ⛔ THE TEACHER DM LADDER (owner, 2026-10-13 — src/lib/teachers/dm-quota.ts): any signed-in account may start chats
+   * with a few NEW teachers a day — 3 unverified, 10 with a live identity check, 30 as a verified business with a live
+   * identity check; a revoked identity none. It replaced "only a business account may message a teacher" (2026-09-30)
+   * and its flat 20 a day. Re-opening a teacher you already talk to never counts. This early check answers before the
+   * other gates; the guarantee is the locked recount where the thread is created (openTeacherThread below).
    */
+  let teacherCanonical: { id: string; lastMessageAt: Date } | null = null
   if (listing.listingType === TEACHER_LISTING_TYPE) {
-    if (profile.accountType !== 'business') throw new ApiError('business_only', 403)
-    // Only a NEW thread spends the cap — re-opening a teacher you already talk to never does.
-    const already = await db.conversation.findFirst({ where: { listingId: listing.id, buyerProfileId: profile.id }, select: { id: true } })
-    if (!already) {
-      const cap = await rateLimit('teacher-thread', profile.id, 20, '1 d', { strict: true })
-      if (!cap.success) throw new ApiError('teacher_thread_cap', 429)
+    teacherCanonical = await db.conversation.findUnique({
+      where: { listingId_buyerProfileId: { listingId: listing.id, buyerProfileId: profile.id } },
+      select: { id: true, lastMessageAt: true },
+    })
+    if (!teacherCanonical) {
+      // A NEW teacher thread opens only WITH its first message: an empty open would spend a slot and ring the teacher about
+      // nothing (codex + opus, gate 2026-10-13). Every door sends an opener; only a crafted request arrives empty.
+      if (!initialMessage && !isOffer) throw new ApiError('empty', 400)
+      // `hasThread`: a double tap at the last slot — the first tap's thread may exist by now, and reusing it is never refused.
+      const standing = await teacherDmStanding(profile.id, { ip: clientIp(req), listingId: listing.id })
+      if (standing.remaining <= 0 && !standing.hasThread) return teacherDmRefusal(standing, { error: 'teacher_thread_cap' })
     }
   }
 
@@ -149,7 +163,12 @@ export const POST = route(
   // Suspension blocks outright; probation caps NEW outreach but exempts a seller this buyer
   // already has a thread with — which is why the visa branch is safe underneath it, since
   // startVisaDmFlow reuses an existing case rather than opening fresh outreach.
-  const gate = await conversationGate(profile.id)
+  // ⛔ A TEACHER THREAD IS GOVERNED BY THE LADDER, NOT BY THE NEW-ACCOUNT CAP (codex + opus, gate 2026-10-13): the probation
+  // cap of 15 new chats a day would stop a newly verified school short of its 30. Waived for a teacher listing ONLY — the
+  // ladder's own count (stricter below the top rung) applies there; every other listing keeps the cap. Suspension is
+  // never waived.
+  const rawGate = await conversationGate(profile.id)
+  const gate = rawGate && !(listing.listingType === TEACHER_LISTING_TYPE && rawGate.error === 'probation_conversation_cap') ? rawGate : null
   if (gate) {
     const existing = gate.error === 'account_suspended'
       ? null
@@ -301,7 +320,7 @@ export const POST = route(
 
   // App Store gate `ugc-safety` (plan R5): the first message is filtered like every other one — refused
   // BEFORE the thread exists, so a refusal leaves no empty conversation behind; and AFTER every eligibility
-  // rule (business-only teachers, enforcement, the visa branch that drops the text anyway, the fixed-price
+  // rule (the teacher DM ladder, enforcement, the visa branch that drops the text anyway, the fixed-price
   // offer accounting), so those still answer first (codex, gate round 3). Off ⇒ nothing is scanned.
   if (initialMessage && await refuseObjectionable('chat', initialMessage)) throw new ApiError('objectionable_content', 400)
 
@@ -321,12 +340,25 @@ export const POST = route(
   const deliverFirstMessage = async (conv: {
     id: string; buyerProfileId: string; sellerProfileId: string | null; listingId: string
   }): Promise<SerializedMessage | null> => {
+    // ⛔ Into a teacher thread every insert carries "2 until reply"'s atomic half (dm-quota.ts teacherUnansweredGuard) —
+    // and, for an opener, its repeat check — under the thread's lock: the reads before this (mayWriteToTeacher,
+    // openerAgainst) are reads, and two requests at the same instant both passed them. A refusal there OPENS the thread
+    // without sending (TeacherOpenedOnly, caught by both teacher paths): an opener only opens a chat.
+    const put = async (text: string, opts?: SendOpts): Promise<SerializedMessage> => {
+      if (listing.listingType !== TEACHER_LISTING_TYPE) return insertMessage(conv, profile.id, text, opts)
+      const r = await sendToTeacherGuarded(
+        { conversationId: conv.id, buyerProfileId: profile.id, teacherProfileId: conv.sellerProfileId, repeatOf: opts?.kind === 'offer' ? null : text },
+        (alongside) => insertMessage(conv, profile.id, text, { ...opts, alongside }),
+      )
+      if (!r.sent) throw new TeacherOpenedOnly(r.reason === 'repeat' ? 'repeat' : 'held')
+      return r.value
+    }
     let message: SerializedMessage | null = null
     if (isOffer) {
-      message = await insertMessage(conv, profile.id, '', { kind: 'offer', offerAmount })
-      if (initialMessage) await insertMessage(conv, profile.id, initialMessage)
+      message = await put('', { kind: 'offer', offerAmount })
+      if (initialMessage) await put(initialMessage)
     } else if (initialMessage) {
-      message = await insertMessage(conv, profile.id, initialMessage)
+      message = await put(initialMessage)
     }
     return message
   }
@@ -406,6 +438,26 @@ export const POST = route(
     }
   }
 
+  /**
+   * Before a message goes into an EXISTING teacher thread (dm-quota.ts openerAgainst):
+   *   · 'repeat' — unanswered, and the thread's newest message is this writer's own, word for word: a re-sent opener. The
+   *     thread opens and nothing is sent — asked BEFORE the cap, so a second tap of the profile's Message button reaches
+   *     the chat rather than a refusal (Opus, gate 2026-10-13).
+   *   · 'held' — "2 until reply" (owner, 2026-10-13): the writer's two are in, unanswered. The thread opens, nothing is
+   *     sent, and the answer says why (`held`) — never a bare 429 with no thread to go to: every door here is a generated
+   *     opener (a teacher's page has no free-text composer), and an opener only OPENS a chat (Opus, gate 2026-10-13).
+   *   · 'first' — the thread is still empty (its opener never landed): this message rings the teacher as a first contact.
+   */
+  const teacherOpenerCheck = async (conversationId: string): Promise<'repeat' | 'held' | 'first' | 'more'> => {
+    const tail = await openerAgainst(conversationId, profile.id, sellerProfileId, isOffer ? null : initialMessage)
+    if (tail.repeat) return 'repeat'
+    if (!(await mayWriteToTeacher(conversationId, profile.id, sellerProfileId))) return 'held'
+    return tail.empty ? 'first' : 'more'
+  }
+  /** The thread, opened without sending — with the reason when "2 until reply" held the opener. */
+  const openedOnly = (id: string, check: 'repeat' | 'held') =>
+    ({ id, created: false, message: null, ...(check === 'held' ? { held: 'teacher_awaiting_reply' as const } : {}) })
+
   // ⚠️ THE BUYER'S EXISTING THREAD ON THIS LISTING WINS, AND ASKING FIRST IS THE 500 FIX. The rule
   // below reuses a thread with the same SELLER and retargets its listing — which is a write to the
   // unique (listingId, buyerProfileId) index, and therefore throws the moment the buyer already
@@ -416,14 +468,59 @@ export const POST = route(
     select: { id: true, lastMessageAt: true },
   })
   if (canonical) {
-    const message = await deliverFirstMessage({ id: canonical.id, buyerProfileId: profile.id, sellerProfileId, listingId })
-    // A school's fresh message into a teacher thread that had gone quiet rings the teacher (src/lib/teachers/notify.ts).
-    // A teacher thread is always this exact (listing, school) row — the seller-level reuse below never applies to it.
-    if (message && sellerProfileId && listing.listingType === TEACHER_LISTING_TYPE && listing.status === 'active' && isQuietGap(canonical.lastMessageAt)) {
+    let firstContact = false
+    if ((initialMessage || isOffer) && listing.listingType === TEACHER_LISTING_TYPE) {
+      const check = await teacherOpenerCheck(canonical.id)
+      if (check === 'repeat' || check === 'held') return openedOnly(canonical.id, check)
+      firstContact = check === 'first'
+    }
+    let message: SerializedMessage | null
+    try {
+      message = await deliverFirstMessage({ id: canonical.id, buyerProfileId: profile.id, sellerProfileId, listingId })
+    } catch (e) {
+      if (e instanceof TeacherOpenedOnly) return openedOnly(canonical.id, e.check)
+      throw e
+    }
+    // A fresh message into a teacher thread that had gone quiet rings the teacher (src/lib/teachers/notify.ts) — and so
+    // does the first message into a thread still empty. A teacher thread is always this exact (listing, writer) row — the
+    // seller-level reuse below never applies to it.
+    if (message && sellerProfileId && listing.listingType === TEACHER_LISTING_TYPE && listing.status === 'active' && (firstContact || isQuietGap(canonical.lastMessageAt))) {
       const teacherProfileId = sellerProfileId
       after(() => notifyTeacherOfSchoolMessage({ teacherProfileId, conversationId: canonical.id, listingId }))
     }
     return { id: canonical.id, created: false, message }
+  }
+
+  // ⛔ A NEW TEACHER THREAD IS CREATED ONLY UNDER THE LADDER'S LOCK (dm-quota.ts openTeacherThread): the thread re-read
+  // and the day recounted in the transaction that creates the row, the tier re-derived just before it. A concurrent
+  // request's thread is reused (with the two-message check), never refused. A teacher listing never reaches the
+  // seller-level reuse, the generic create or its P2002 fallback below — the reuse could only ever find this same thread,
+  // and finding it there skipped the two-message check (tests agent, 2026-10-13).
+  if (listing.listingType === TEACHER_LISTING_TYPE) {
+    const opened = await openTeacherThread({ profileId: profile.id, listingId, sellerId: listing.sellerId, sellerProfileId, ip: clientIp(req) })
+    if (opened.outcome === 'refused') return teacherDmRefusal(opened.standing, { error: 'teacher_thread_cap' })
+    let firstContact = opened.outcome === 'created'
+    if (opened.outcome === 'existing' && (initialMessage || isOffer)) {
+      const check = await teacherOpenerCheck(opened.id)
+      if (check === 'repeat' || check === 'held') return openedOnly(opened.id, check)
+      firstContact = check === 'first'
+    }
+    let message: SerializedMessage | null
+    try {
+      message = await deliverFirstMessage({ id: opened.id, buyerProfileId: profile.id, sellerProfileId, listingId })
+    } catch (e) {
+      // The double tap on a NEW teacher: the other tap's identical opener landed first — this one opens the thread.
+      if (e instanceof TeacherOpenedOnly) return openedOnly(opened.id, e.check)
+      throw e
+    }
+    // A first contact rings the teacher — every new thread, and a thread whose opener never landed — within notify.ts's
+    // daily cap and its one-per-thread pair limit.
+    if (message && firstContact && sellerProfileId && listing.status === 'active') {
+      const teacherProfileId = sellerProfileId
+      const newConvoId = opened.id
+      after(() => notifyTeacherOfSchoolMessage({ teacherProfileId, conversationId: newConvoId, listingId }))
+    }
+    return { id: opened.id, created: opened.outcome === 'created', message }
   }
 
   // One thread per buyer↔seller (user decision 2026-07-14): inquiring about a
@@ -486,6 +583,7 @@ export const POST = route(
     return { id: thread.id, created: false, message }
   }
 
+
   try {
     const convo = await db.conversation.create({
       data: {
@@ -501,13 +599,9 @@ export const POST = route(
     // conversation, celebrate it once for the seller (bell + best-effort push).
     // Out of the hot path (after the response flushes), fail-quiet by design —
     // one thread per buyer per listing, so "count === 1" means exactly this one.
-    // ⛔ A TEACHER IS A PERSON, NOT A LISTING (2026-10-07): "First interested buyer!" was the wrong copy for them.
-    // A school's new thread rings the teacher instead — every new thread, within notify.ts's daily cap.
-    if (sellerProfileId && listing.listingType === TEACHER_LISTING_TYPE) {
-      const teacherProfileId = sellerProfileId
-      const newConvoId = convo.id
-      after(() => notifyTeacherOfSchoolMessage({ teacherProfileId, conversationId: newConvoId, listingId }))
-    } else if (sellerProfileId) {
+    // ⛔ A TEACHER IS A PERSON, NOT A LISTING (2026-10-07): "First interested buyer!" was the wrong copy for them — and
+    // a teacher listing never reaches this create (openTeacherThread above rings the teacher instead).
+    if (sellerProfileId) {
       const newConvoId = convo.id
       const listingTitle = listing.title
       after(async () => {
@@ -540,7 +634,9 @@ export const POST = route(
           select: { id: true, listingId: true },
         })) ??
         (await db.conversation.findFirst({
-          where: { sellerId: listing.sellerId, buyerProfileId: profile.id },
+          // ⛔ Never a teacher thread: retargeting it onto this (product) listing would take it out of the teacher DM
+          // count and drop its shares — the same filter as sellerThreads above (codex + opus, plan review 2026-10-13).
+          where: { sellerId: listing.sellerId, buyerProfileId: profile.id, OR: [{ listingId: null }, { listing: { listingType: { not: TEACHER_LISTING_TYPE } } }] },
           orderBy: { lastMessageAt: 'desc' },
           select: { id: true, listingId: true },
         }))

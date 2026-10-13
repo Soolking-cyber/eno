@@ -21,3 +21,30 @@ export const TEACHER_SUBDOMAIN = 'teacher'
  * reaches any server, so there is no anonymous write endpoint and no origin-guard exemption.
  */
 export const TEACHER_DRAFT_HASH_KEY = 'd'
+
+/**
+ * ⛔ HOW MANY NEW TEACHERS AN ACCOUNT MAY START A CHAT WITH PER DAY (owner, 2026-10-13: "an account without
+ * verification can do 3 DMs a day if wants more ask to KYC so they can DM up to 10 accounts a day and if wants more ask
+ * them to register as business and go through business kyc then 30 dms a day"). The ladder replaced the 2026-09-30
+ * rule that only business accounts could message a teacher (owner, same day: "Anyone"). A day is the Vietnam calendar
+ * day; only a NEW teacher counts — replies and re-opening a chat never do. The rules: src/lib/teachers/dm-quota.ts.
+ *   · unverified — any account (individual, business without verification): 3
+ *   · identity   — the account's identity check (KYC) is live: 10
+ *   · business   — a business account whose business verification is live AND whose identity check is live: 30
+ *   · revoked    — the identity was revoked (confirmed fraud or an authority order): 0, no way up
+ */
+export const TEACHER_DM_LIMITS = { revoked: 0, unverified: 3, identity: 10, business: 30 } as const
+export type TeacherDmTier = keyof typeof TEACHER_DM_LIMITS
+/**
+ * Throwaway accounts (owner, 2026-10-13: "Phone later + IP pool"): while phone sign-in is off (auth-policy.ts
+ * PHONE_OTP_ENABLED), the UNVERIFIED accounts on one internet connection share this many new teacher chats a day. Once
+ * phone sign-in is back, an unverified account needs a confirmed phone number instead, and the pool stops applying.
+ */
+export const TEACHER_DM_IP_POOL = 6
+/** A teacher who has not answered gets at most this many messages from the person who wrote (owner, 2026-10-13: "2 until reply"). */
+export const TEACHER_UNANSWERED_MAX = 2
+/** The step that raises the limit — what the refusal offers. */
+export type TeacherDmNext =
+  | 'verify_identity' | 'identity_pending' | 'renew_identity' | 'add_phone'
+  | 'switch_to_business' | 'verify_business' | 'business_pending' | 'renew_business'
+  | 'tomorrow' | 'none'
