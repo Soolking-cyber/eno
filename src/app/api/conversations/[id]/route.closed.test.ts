@@ -15,6 +15,8 @@ const h = vi.hoisted(() => ({
   convo: null as Row | null,
   blocks: [] as Row[],
   blockReads: 0,
+  // writerVerified (src/lib/teachers/writer-verified.ts): whose verification each read was for.
+  tierReads: [] as string[],
 }))
 
 vi.mock('next/server', async (orig) => {
@@ -36,6 +38,13 @@ vi.mock('@/lib/reaction-tally', () => ({ globalTopReactions: async () => [] }))
 vi.mock('@/lib/native-push', () => ({ syncBadgeToProfile: async () => {} }))
 vi.mock('@/lib/messages', () => ({ MESSAGE_ROW_SELECT: {}, serializeMessage: (m: Row) => m }))
 vi.mock('@/lib/storefront-gone', () => ({ isPublicListing: () => true, isStorefrontGone: async () => false }))
+// The writer's public verification — what the TEACHER's side shows as `writerVerified`.
+vi.mock('@/lib/teachers/writer-verified', () => ({
+  writerVerified: async (profileId: string) => {
+    h.tierReads.push(profileId)
+    return 'identity'
+  },
+}))
 vi.mock('@/lib/db', () => ({
   db: {
     conversation: { findUnique: async () => h.convo, update: async () => ({}) },
@@ -76,6 +85,7 @@ beforeEach(() => {
   h.convo = thread()
   h.blocks = []
   h.blockReads = 0
+  h.tierReads = []
 })
 afterEach(() => vi.unstubAllEnvs())
 
@@ -121,13 +131,13 @@ describe('the closed flag', () => {
 
 // The intro video in a teacher thread (gate review, 2026-10-08): the SCHOOL (buyer) of a thread closed by a block is told
 // nothing about it — as the watch route and GET /api/teachers/video-share; the TEACHER keeps the flags, so a share made
-// before the block stays withdrawable.
+// before the block stays withdrawable. The buyer may be any account since the DM ladder (owner, 2026-10-13): no flag
+// depends on its account type, and the thread read selects none.
 describe('a teacher thread closed by a block — the intro video', () => {
   const teacherThread = (): Row => thread({
     listing: { ...thread().listing, listingType: 'teacher', teacherProfile: { status: 'live', videoOnRequest: true, private: { videoPath: 'p1/intro.mp4' } } },
     teacherVideoShare: { requestedAt: null, sharedAt: new Date(), revokedAt: null },
     teacherContactShare: { sharedAt: new Date(), revokedAt: null },
-    buyer: { ...thread().buyer, accountType: 'business' },
   })
   beforeEach(() => { vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety'); h.convo = teacherThread() })
 
@@ -149,7 +159,28 @@ describe('a teacher thread closed by a block — the intro video', () => {
   it('an open thread still carries the school\'s flags', async () => {
     const { body } = await get()
     expect('closed' in body).toBe(false)
-    expect(body.teacher.video).toMatchObject({ shareOn: true, shared: true, forBusiness: true })
+    // Exactly these — `forBusiness` went with the business-only rule (2026-10-13).
+    expect(body.teacher.video).toEqual({ available: true, shareOn: true, shared: true, requested: false, askAgain: false })
+  })
+  // Who is writing (`writerVerified`, DM ladder 2026-10-13) is the TEACHER's view, like hasPhone/phoneShared below: a block
+  // takes it from nobody who had it, and the school's read neither carries it nor pays for it, open or closed.
+  it('writerVerified: the teacher keeps the WRITER\'s rung in a closed thread; the school never gets it', async () => {
+    h.blocks = [{ blockerProfileId: 'seller-1', blockedProfileId: 'buyer-1' }]
+    h.me = 'seller-1'
+    const asTeacher = await get()
+    expect(asTeacher.status).toBe(200)
+    expect('closed' in asTeacher.body).toBe(true)
+    expect(asTeacher.body.teacher.writerVerified).toBe('identity')
+    expect(h.tierReads).toEqual(['buyer-1']) // the buyer's rung — never the caller's
+    h.tierReads = []
+    h.me = 'buyer-1'
+    for (const blocks of [h.blocks, []]) {
+      h.blocks = blocks
+      const asSchool = await get()
+      expect(asSchool.status).toBe(200)
+      expect('writerVerified' in asSchool.body.teacher).toBe(false)
+    }
+    expect(h.tierReads).toEqual([])
   })
 })
 
@@ -159,7 +190,6 @@ describe('a teacher thread closed by a block — the intro video', () => {
 describe('a teacher thread — hasPhone, for the teacher only', () => {
   const withPhone = (phone: string | null): Row => thread({
     listing: { ...thread().listing, listingType: 'teacher', teacherProfile: { status: 'live', videoOnRequest: false, private: { videoPath: null, phone } } },
-    buyer: { ...thread().buyer, accountType: 'business' },
   })
   afterEach(() => { h.me = 'buyer-1' })
 
@@ -187,7 +217,6 @@ describe('a teacher thread — phoneShared, for the teacher only', () => {
   const sharedAs = (phoneShared: boolean, revokedAt: Date | null = null): Row => thread({
     listing: { ...thread().listing, listingType: 'teacher', teacherProfile: { status: 'live', videoOnRequest: false, private: { videoPath: null, phone: '+84 90 123 4567' } } },
     teacherContactShare: { revokedAt, phoneShared },
-    buyer: { ...thread().buyer, accountType: 'business' },
   })
   afterEach(() => { h.me = 'buyer-1' })
 

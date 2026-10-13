@@ -107,7 +107,7 @@ describe('GET /api/cron/teacher-message-emails', () => {
     expect(h.claims).toEqual(['p1'])
     const { msg, opts } = h.sends[0]
     expect(msg.to).toBe('jane@example.com')
-    expect(msg.subject).toBe('A school sent you a message on eno.vn')
+    expect(msg.subject).toBe('You have a new message about your teacher profile on eno.vn')
     expect(msg.headers['List-Unsubscribe']).toBe('<https://eno.vn/api/unsubscribe?token=signed-p1&list=teacher-messages>')
     expect(msg.headers['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click')
     expect(opts.idempotencyKey).toMatch(/^teacher-messages\/p1\/\d{13}$/)

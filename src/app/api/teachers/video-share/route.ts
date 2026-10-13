@@ -28,9 +28,6 @@ export const POST = route(
       // Sending announces itself and hands a video over: a suspended account does neither. STOPPING is always allowed —
       // a hold must never leave a teacher unable to take their video back (review, 2026-10-07).
       if ((await conversationGate(profile.id))?.error === 'account_suspended') throw new ApiError('account_suspended', 403)
-      // ⛔ Business-only, like the ask and the watch: a personal account (a parent) can never watch the video, so it is
-      // never sent one — the grant would sit there unusable (gate review, 2026-10-08). The thread's buyer, as re-read.
-      if (!t.videoForBusiness) throw new ApiError('business_only', 403)
       if (!t.profileLive) throw new ApiError('profile_hidden', 409)
       if (!t.videoAvailable) throw new ApiError('video_missing', 404)
       if (await isBlockedBetween(t.convo.buyerProfileId, t.convo.sellerProfileId)) throw new ApiError('blocked', 403)
@@ -81,7 +78,7 @@ export const GET = route(
     if (t.recruiterUserId === profile.id && (await isBlockedBetween(t.recruiterUserId, t.teacherUserId))) throw new ApiError('blocked', 403)
     const res = NextResponse.json({
       available: t.videoAvailable, shareOn: t.videoShareOn, shared: t.videoShared, requested: t.videoRequested,
-      askAgain: t.videoAskAgain, forBusiness: t.videoForBusiness,
+      askAgain: t.videoAskAgain,
     })
     res.headers.set('Cache-Control', 'private, no-store')
     return res

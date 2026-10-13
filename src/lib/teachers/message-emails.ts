@@ -13,11 +13,16 @@ type Reader = Pick<Db, 'conversation' | '$queryRaw'>
  * message and 3 days you forgot to reply to the school … duolingo style". It REPLACES v1's "someone new at once, then one
  * reminder a day forever". The cron (/api/cron/teacher-message-emails, every 30 min) runs THIS rule.
  *
+ * ⚠️ "SCHOOL" IN THESE COMMENTS (and SchoolRow) = THE THREAD'S BUYER SIDE (Conversation.buyerProfileId), WHOEVER WROTE TO
+ * THE TEACHER: any signed-in account since the DM ladder (owner, 2026-10-13 — teachers/constants.ts TEACHER_DM_LIMITS), no
+ * longer only a school or company. The emails themselves name no kind of sender (src/lib/emails/teacher-messages.ts).
+ *
  * AN EPISODE per thread (one thread per school): it starts at the OLDEST UNREAD school message (the anchor) and gets at most
  * THREE emails, each only while that message is still unread —
- *     1 — an hour after it:   "A school sent you a message"
+ *     1 — an hour after it:   "You have a new message about your teacher profile"
  *     2 — a day after it:     "Remember to check your new message"
- *     3 — three days after:   "You haven't replied to a school yet" (and it says it is the last email about it)
+ *     3 — three days after:   "You haven’t replied to a message about your teacher profile yet" (and it says it is the
+ *                             last email about it)
  * Opening the thread ends the episode. A new one starts when the school writes again after the teacher read, or after
  * the episode's third email (a follow-up is a new notice, not a fourth reminder). Further messages inside an episode ride
  * its remaining emails. A missed slot is never sent late as an extra email: an email records the latest stage due WHEN
@@ -43,8 +48,8 @@ type Reader = Pick<Db, 'conversation' | '$queryRaw'>
  *     it — so a stale unread message never mutes the school's newer ones (Opus, gate round 3: anchoring on it skipped the
  *     thread for good — measured on production: a thread whose unread window starts at a recalled 10-02 message);
  *   · at most MAX_THREADS_PER_EMAIL threads recorded by one email (the rest ride the next) — a claim's work stays bounded.
- * Names no school and quotes no message (business names are self-declared — src/lib/teachers/notify.ts carries no sender
- * name for the same reason).
+ * Names no sender and quotes no message (names are self-declared — src/lib/teachers/notify.ts carries no sender name for
+ * the same reason).
  *
  * ⛔ ONE ROW PER THREAD = THE LAST EMAIL ABOUT IT (TeacherMessageEmailThread): `emailedAt` when, and `kind` = the stage it
  * recorded AND ITS EPISODE'S ANCHOR — `first@2026-10-12T08:00:00.000Z` (kindFor/parseKind; no column was added for it —

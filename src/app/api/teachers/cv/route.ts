@@ -16,7 +16,6 @@ export const GET = route(
     const conversationId = new URL(req.url).searchParams.get('conversationId') ?? ''
     const t = conversationId ? await teacherThread(conversationId) : null
     if (!t || t.recruiterUserId !== profile.id) throw new ApiError('not_found', 404)
-    if (profile.accountType !== 'business') throw new ApiError('business_only', 403)
     // A recruiter suspended after the teacher shared reads nothing more.
     if ((await conversationGate(profile.id))?.error === 'account_suspended') throw new ApiError('account_suspended', 403)
     if (!t.shared) throw new ApiError('share_required', 403)

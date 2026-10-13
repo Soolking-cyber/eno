@@ -189,7 +189,7 @@ export function NotificationBell() {
                       <div className="flex items-center justify-between gap-2">
                         <span className={cn('flex min-w-0 items-center gap-1.5 truncate text-sm', n.read ? 'font-medium text-body' : 'font-bold text-foreground')}>
                           {!n.read && <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-accent-foreground" />}
-                          <span className="truncate">{n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.type === 'price_drop' ? tr('Price drop', 'Giảm giá') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : n.type === 'sale_confirm' ? tr('Did you buy this?', 'Bạn đã mua món này chưa?') : n.type === 'teacher_message' ? tr('A school or company messaged you', 'Một trường học hoặc công ty đã nhắn tin cho bạn') : notificationTextAsWritten(n.type, n.url, 'title') ? n.title : <Tr text={n.title} />}</span>
+                          <span className="truncate">{n.type === 'offer' ? tr('New offer', 'Đề nghị mới') : n.type === 'price_drop' ? tr('Price drop', 'Giảm giá') : n.type === 'milestone' ? tr('First interested buyer!', 'Người mua đầu tiên quan tâm!') : n.type === 'sale_confirm' ? tr('Did you buy this?', 'Bạn đã mua món này chưa?') : n.type === 'teacher_message' ? tr('New message about your teacher profile', 'Tin nhắn mới về hồ sơ giáo viên') : notificationTextAsWritten(n.type, n.url, 'title') ? n.title : <Tr text={n.title} />}</span>
                         </span>
                         <span className="shrink-0 text-3xs text-ink-4">{timeAgo(n.createdAt, lang)}</span>
                       </div>

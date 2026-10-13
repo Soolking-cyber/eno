@@ -9,6 +9,7 @@ import { teacherThread } from '@/lib/teachers/share'
 import { conversationGate } from '@/lib/enforcement'
 import { isBlockedBetween } from '@/lib/user-blocks'
 import { notifyTeacherOfSchoolMessage } from '@/lib/teachers/notify'
+import { mayWriteToTeacher, sendToTeacherGuarded } from '@/lib/teachers/dm-quota'
 
 export const runtime = 'nodejs'
 
@@ -20,7 +21,6 @@ export const POST = route(
     if (!conversationId) throw new ApiError('bad_request', 400)
     const t = await teacherThread(conversationId)
     if (!t || t.recruiterUserId !== profile.id) throw new ApiError('not_found', 404)
-    if (profile.accountType !== 'business') throw new ApiError('business_only', 403)
     if ((await conversationGate(profile.id))?.error === 'account_suspended') throw new ApiError('account_suspended', 403)
     if (await isBlockedBetween(t.recruiterUserId, t.teacherUserId)) throw new ApiError('blocked', 403)
     if (!t.videoAvailable) throw new ApiError('video_not_on_request', 409)
@@ -33,15 +33,24 @@ export const POST = route(
     // teacher's ring to one; the contact share route has the same shape.
     const askedRecently = t.videoRequested && !t.videoAskAgain
     if (askedRecently) return { ok: true, requested: true, shared: false }
+    // ⛔ THE ASK IS A MESSAGE TO THE TEACHER — it posts a line as the writer, so "2 until reply" (owner, 2026-10-13 —
+    // dm-quota.ts mayWriteToTeacher) holds here too: a third message must not arrive as a request card (opus, gate).
+    if (!(await mayWriteToTeacher(t.convo.id, profile.id, t.convo.sellerProfileId))) throw new ApiError('teacher_awaiting_reply', 429)
     const now = new Date()
     // ⛔ ONE TRANSACTION (SendOpts.alongside): never a request the teacher was not told about — two steps left one after a
     // crash between them, and the "asked recently" rule above then silenced every retry for a day (gate review, 2026-10-07).
-    await insertMessage(
-      { id: t.convo.id, buyerProfileId: t.convo.buyerProfileId, sellerProfileId: t.convo.sellerProfileId, listingId: t.convo.listingId, sellerId: t.convo.sellerId },
-      profile.id,
-      '🎬 Bạn có thể gửi video giới thiệu không? · Could you send your intro video?',
-      { alongside: [db.teacherVideoShare.upsert({ where: { conversationId }, create: { conversationId, requestedAt: now }, update: { requestedAt: now } })] },
+    // The guard first (dm-quota.ts teacherUnansweredGuard — "2 until reply", the half that cannot be raced): a refusal
+    // writes neither the line nor the request.
+    const sent = await sendToTeacherGuarded(
+      { conversationId: t.convo.id, buyerProfileId: profile.id, teacherProfileId: t.convo.sellerProfileId },
+      (guard) => insertMessage(
+        { id: t.convo.id, buyerProfileId: t.convo.buyerProfileId, sellerProfileId: t.convo.sellerProfileId, listingId: t.convo.listingId, sellerId: t.convo.sellerId },
+        profile.id,
+        '🎬 Bạn có thể gửi video giới thiệu không? · Could you send your intro video?',
+        { alongside: [...guard, db.teacherVideoShare.upsert({ where: { conversationId }, create: { conversationId, requestedAt: now }, update: { requestedAt: now } })] },
+      ),
     )
+    if (!sent.sent) throw new ApiError('teacher_awaiting_reply', 429)
     // The teacher's bell + push — notify.ts's own pair limit (1 per thread per 6 h) and 20/day cap apply.
     const teacherProfileId = t.teacherUserId
     const listingId = t.convo.listingId

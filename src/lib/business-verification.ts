@@ -75,6 +75,16 @@ export type VerificationFacts = TaxFacts &
   }
 
 /**
+ * The Seller columns isBusinessVerified() reads — EVERY key of VerificationFacts, held so by the compiler: a field added to
+ * the facts and not to this select fails the build, never a badge read on a row that lacks it (gate review, 2026-10-13).
+ */
+export const VERIFICATION_FACTS_SELECT = {
+  name: true, legalName: true, legalAddress: true, idNumber: true, taxCode: true,
+  taxCheckedAt: true, taxRegisteredName: true, taxActive: true,
+  verifiedIdentityHash: true, verifiedUntil: true,
+} as const satisfies { [K in keyof VerificationFacts]-?: true }
+
+/**
  * Is this seller's "Business verified" badge live RIGHT NOW? True only when all hold:
  *   1. an approval stamped an identity hash that still equals the CURRENT identity hash
  *      (no edit since approval), 2. the validity window has not lapsed, and 3. Channel 1

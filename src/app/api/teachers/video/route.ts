@@ -17,8 +17,6 @@ export const GET = route(
     const conversationId = new URL(req.url).searchParams.get('conversationId') ?? ''
     const t = conversationId ? await teacherThread(conversationId) : null
     if (!t || t.recruiterUserId !== profile.id) throw new ApiError('not_found', 404)
-    // teacherThread refuses no account type (it only folds the buyer's into the video flags) — every read route checks, here too.
-    if (profile.accountType !== 'business') throw new ApiError('business_only', 403)
     if ((await conversationGate(profile.id))?.error === 'account_suspended') throw new ApiError('account_suspended', 403)
     // A block closes a grant made BEFORE it too, in either direction (the CV route's rule). ⛔ BEFORE every state check:
     // a school the teacher blocked must learn nothing more about the profile — answered after them, `profile_hidden`

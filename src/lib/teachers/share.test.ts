@@ -6,11 +6,12 @@ vi.mock('@/lib/db', () => ({ db: { conversation: { findUnique: async () => h.row
 const { teacherThread, teacherVideoState, ASK_AGAIN_MS } = await import('./share')
 
 const T = 'teacher-uuid'
+// The row as teacherThread selects it. No `buyer`: since the teacher DM ladder (owner, 2026-10-13) the buyer's account
+// type is not read at all — the teacher's own tap in the thread is the only key.
 const row = (over: Record<string, unknown> = {}) => ({
   id: 'c1', buyerProfileId: 'recruiter-uuid', sellerProfileId: T, listingId: 'l1', sellerId: 's1',
   listing: { id: 'l1', listingType: 'teacher', status: 'active', verified: true, teacherProfile: { id: 'tp1', profileId: T, fullName: 'Jane', status: 'live' } },
   teacherContactShare: null,
-  buyer: { accountType: 'business' },
   ...over,
 })
 
@@ -107,20 +108,29 @@ describe('teacherThread — the intro video sent on request (2026-10-07)', () =>
     expect(t?.videoShared).toBe(false)
     expect(t?.videoShareOn).toBe(true)
   })
-  it('⛔ business-only: a personal buyer (a parent) is never shown a watchable video — but the teacher can still Stop', async () => {
+  it('⛔ any account the teacher shared with gets it — a personal buyer (a parent) as much as a business (owner, 2026-10-13)', async () => {
     const sent = { requestedAt: null, sharedAt: new Date(), revokedAt: null }
-    for (const accountType of ['individual', null]) {
-      h.row = row({ listing: live(), teacherVideoShare: sent, buyer: { accountType } })
+    const contact = { sharedAt: new Date(), revokedAt: null, phoneShared: true }
+    // `undefined`: the row as selected now. The others: a row still carrying the buyer's account type, as the
+    // 2026-10-08 select did to pause the grant for a non-business buyer — it changes nothing.
+    for (const buyer of [undefined, { accountType: 'individual' }, { accountType: null }, { accountType: 'business' }]) {
+      h.row = row({ listing: live(), teacherVideoShare: sent, teacherContactShare: contact, buyer })
       const t = await teacherThread('c1')
-      expect(t?.videoForBusiness).toBe(false)
-      expect(t?.videoShared).toBe(false) // a grant sent before the rule watches nothing
-      expect(t?.videoShareOn).toBe(true) // …and stays revocable
-      expect(t?.videoAvailable).toBe(true) // `available` is the profile's state, not the buyer's: the teacher's copy stays true
+      expect(t?.videoShared).toBe(true) // the intro video…
+      expect(t?.shared).toBe(true) // …and the phone, email and CV the teacher shared
+      expect(t?.phoneShared).toBe(true)
+      expect(t?.videoShareOn).toBe(true)
+      expect(t?.videoAvailable).toBe(true)
+      expect(t).not.toHaveProperty('videoForBusiness') // no flag left to pause a grant on
     }
-    h.row = row({ listing: live(), teacherVideoShare: sent })
-    const t = await teacherThread('c1')
-    expect(t?.videoForBusiness).toBe(true)
-    expect(t?.videoShared).toBe(true)
+    // The teacher's Send stays the only key: without it a personal buyer watches nothing — its own ask included…
+    h.row = row({ listing: live(), teacherVideoShare: { requestedAt: new Date(), sharedAt: null, revokedAt: null }, buyer: { accountType: 'individual' } })
+    expect((await teacherThread('c1'))?.videoShared).toBe(false)
+    // …and the teacher's Stop ends it for every account.
+    h.row = row({ listing: live(), teacherVideoShare: { requestedAt: null, sharedAt: new Date(Date.now() - 60_000), revokedAt: new Date() }, buyer: { accountType: 'individual' } })
+    const stopped = await teacherThread('c1')
+    expect(stopped?.videoShared).toBe(false)
+    expect(stopped?.videoShareOn).toBe(false)
   })
   it('an ask may be repeated a day later: askAgain comes on at ASK_AGAIN_MS', async () => {
     h.row = row({ listing: live(), teacherVideoShare: { requestedAt: new Date(Date.now() - 3600_000), sharedAt: null, revokedAt: null } })
@@ -137,21 +147,38 @@ describe('teacherThread — the intro video sent on request (2026-10-07)', () =>
 describe('teacherVideoState — the one derivation behind the strip and the video routes', () => {
   const tp = { videoOnRequest: true, private: { videoPath: 'tp/v.mp4' } }
   const at = Date.UTC(2026, 9, 8, 12)
+  // (vs, tp, profileLive, now) — the 4th argument is the clock since the buyer's account type left (owner, 2026-10-13).
   it('asks again exactly ASK_AGAIN_MS (a day) after the last ask — never sooner', () => {
     expect(ASK_AGAIN_MS).toBe(24 * 3600 * 1000)
     const asked = { requestedAt: new Date(at - ASK_AGAIN_MS), sharedAt: null, revokedAt: null }
-    expect(teacherVideoState(asked, tp, true, true, at).askAgain).toBe(true)
-    expect(teacherVideoState(asked, tp, true, true, at - 1).askAgain).toBe(false)
+    expect(teacherVideoState(asked, tp, true, at).askAgain).toBe(true)
+    expect(teacherVideoState(asked, tp, true, at - 1).askAgain).toBe(false)
   })
   it('no standing ask, no askAgain: never asked, or answered by a stop since (the school may simply ask)', () => {
-    expect(teacherVideoState(null, tp, true, true, at)).toMatchObject({ requested: false, askAgain: false })
+    expect(teacherVideoState(null, tp, true, at)).toMatchObject({ requested: false, askAgain: false })
     const stopped = { requestedAt: new Date(at - 3 * ASK_AGAIN_MS), sharedAt: new Date(at - 2 * ASK_AGAIN_MS), revokedAt: new Date(at - ASK_AGAIN_MS) }
-    expect(teacherVideoState(stopped, tp, true, true, at)).toMatchObject({ requested: false, askAgain: false })
+    expect(teacherVideoState(stopped, tp, true, at)).toMatchObject({ requested: false, askAgain: false })
   })
-  it('shared needs the teacher\'s grant, a watchable video AND a business buyer', () => {
+  it('shared = the teacher\'s grant AND a watchable video — nothing about who the buyer is (owner, 2026-10-13)', () => {
     const sent = { requestedAt: null, sharedAt: new Date(at), revokedAt: null }
-    expect(teacherVideoState(sent, tp, true, true, at)).toMatchObject({ shared: true, forBusiness: true })
-    expect(teacherVideoState(sent, tp, true, false, at)).toMatchObject({ shared: false, shareOn: true, available: true, forBusiness: false })
-    expect(teacherVideoState(sent, tp, false, true, at)).toMatchObject({ shared: false, shareOn: true, available: false })
+    const asked = { requestedAt: new Date(at), sharedAt: null, revokedAt: null }
+    const stopped = { requestedAt: null, sharedAt: new Date(at - 60_000), revokedAt: new Date(at) }
+    const noVideo = { videoOnRequest: true, private: { videoPath: null } }
+    const keptPublic = { videoOnRequest: false, private: { videoPath: 'tp/v.mp4' } }
+    expect(teacherVideoState(sent, tp, true, at)).toMatchObject({ shared: true, shareOn: true, available: true })
+    // A profile not live: nothing to watch — but the teacher's grant still shows, so Stop can revoke it.
+    expect(teacherVideoState(sent, tp, false, at)).toMatchObject({ shared: false, shareOn: true, available: false })
+    // No private video, or one no longer kept on request.
+    expect(teacherVideoState(sent, noVideo, true, at)).toMatchObject({ shared: false, shareOn: true, available: false })
+    expect(teacherVideoState(sent, keptPublic, true, at)).toMatchObject({ shared: false, shareOn: true, available: false })
+    // An ask alone, a stop, no row at all: no grant, whatever the video.
+    for (const vs of [asked, stopped, null]) expect(teacherVideoState(vs, tp, true, at)).toMatchObject({ shared: false, shareOn: false, available: true })
+    // The whole table: shared is exactly shareOn && available.
+    for (const vs of [sent, asked, stopped, null]) for (const p of [tp, noVideo, keptPublic]) for (const live of [true, false]) {
+      const v = teacherVideoState(vs, p, live, at)
+      expect(v.shared).toBe(v.shareOn && v.available)
+    }
+    // No buyer input, no buyer flag: `forBusiness` is gone with the business-only rule.
+    expect(teacherVideoState(sent, tp, true, at)).not.toHaveProperty('forBusiness')
   })
 })

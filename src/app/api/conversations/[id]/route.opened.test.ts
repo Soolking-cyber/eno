@@ -25,6 +25,10 @@ const h = vi.hoisted(() => ({
   badgeSyncs: 0,
   // Something AFTER the bell clear's old position throws while the response is being built.
   reactionsThrow: false,
+  // writerVerified (src/lib/teachers/writer-verified.ts): each profile's answer, whose each read was for, a failing read.
+  tiers: {} as Record<string, string>,
+  tierReads: [] as string[],
+  tierThrows: false,
 }))
 
 vi.mock('next/server', async (orig) => {
@@ -45,6 +49,15 @@ vi.mock('@/lib/reaction-tally', () => ({ globalTopReactions: async () => { if (h
 vi.mock('@/lib/native-push', () => ({ syncBadgeToProfile: async () => { h.badgeSyncs += 1 } }))
 vi.mock('@/lib/messages', () => ({ MESSAGE_ROW_SELECT: {}, serializeMessage: (m: Row) => m }))
 vi.mock('@/lib/storefront-gone', () => ({ isPublicListing: () => true, isStorefrontGone: async () => false }))
+// The writer's public verification (its own rules — a revoked identity, the badge — are writer-verified.test.ts's) — what
+// the TEACHER's side shows as `writerVerified`.
+vi.mock('@/lib/teachers/writer-verified', () => ({
+  writerVerified: async (profileId: string) => {
+    h.tierReads.push(profileId)
+    if (h.tierThrows) throw new Error('identity read down')
+    return h.tiers[profileId] ?? 'unverified'
+  },
+}))
 vi.mock('@/lib/db', () => ({
   db: {
     conversation: { findUnique: async () => h.convo, update: async () => { h.convoUpdates += 1; return {} } },
@@ -89,6 +102,9 @@ beforeEach(() => {
   h.convoUpdates = 0
   h.badgeSyncs = 0
   h.reactionsThrow = false
+  h.tiers = {}
+  h.tierReads = []
+  h.tierThrows = false
 })
 
 describe('?opened=1 clears this thread\'s bell — and only the caller\'s rows', () => {
@@ -234,31 +250,92 @@ describe('the listing carries the opener facts', () => {
 })
 
 // The intro video sent on request (2026-10-07): a teacher thread's payload carries the FLAGS the strip needs — never
-// where the private video is stored (the select reads the path only to know one exists).
+// where the private video is stored (the select reads the path only to know one exists). Any account the teacher sends
+// it to may watch (owner, 2026-10-13 — the DM ladder): the teacher's Send in THAT conversation is the only key, and the
+// 2026-10-08 `forBusiness` flag went with the business-only rule it served.
 describe('a teacher thread\'s intro video', () => {
   const teacherThread = (over: Row = {}) => thread({
     listing: { ...thread().listing as Row, listingType: 'teacher', teacherProfile: { status: 'live', videoOnRequest: true, private: { videoPath: 'p1/secret-intro.mp4' } } },
-    buyer: { ...thread().buyer as Row, accountType: 'business' },
     ...over,
   })
   it('is flags only — the stored path never reaches either side', async () => {
     h.convo = teacherThread({ teacherVideoShare: { requestedAt: new Date(), sharedAt: null, revokedAt: null } })
     const { status, body } = await get()
     expect(status).toBe(200)
-    expect(body.teacher.video).toEqual({ available: true, shareOn: false, shared: false, requested: true, askAgain: false, forBusiness: true })
+    expect(body.teacher.video).toEqual({ available: true, shareOn: false, shared: false, requested: true, askAgain: false })
     expect(JSON.stringify(body)).not.toContain('secret-intro')
   })
-  it('the same derivation as the video routes: a day-old ask may be repeated; a personal buyer is never shown a watchable video', async () => {
+  it('the same derivation as the video routes: a day-old ask may be repeated; whoever the teacher sent it to may watch it', async () => {
     h.convo = teacherThread({ teacherVideoShare: { requestedAt: new Date(Date.now() - 25 * 3600_000), sharedAt: null, revokedAt: null } })
     expect((await get()).body.teacher.video).toMatchObject({ requested: true, askAgain: true })
+    // A personal account's thread. The read selects no account type any more; one on the row changes nothing — and
+    // never reaches the payload.
+    const sentToPersonal = () => teacherThread({ teacherVideoShare: { requestedAt: null, sharedAt: new Date(), revokedAt: null }, buyer: { ...thread().buyer as Row, accountType: 'individual' } })
     // Read by the teacher (the seller side), whose counterpart block describes the buyer.
     h.me = 'seller-1'
-    h.convo = teacherThread({ teacherVideoShare: { requestedAt: null, sharedAt: new Date(), revokedAt: null }, buyer: { ...thread().buyer as Row, accountType: 'individual' } })
+    h.convo = sentToPersonal()
+    const asTeacher = await get()
+    expect(asTeacher.status).toBe(200)
+    expect(asTeacher.body.teacher.video).toEqual({ available: true, shareOn: true, shared: true, requested: false, askAgain: false })
+    expect(JSON.stringify(asTeacher.body)).not.toContain('individual')
+    // …and by the person it was sent to: watchable.
+    h.me = 'buyer-1'
+    h.convo = sentToPersonal()
+    const asWriter = await get()
+    expect(asWriter.body.teacher.video).toEqual({ available: true, shareOn: true, shared: true, requested: false, askAgain: false })
+    expect(JSON.stringify(asWriter.body)).not.toContain('individual')
+  })
+})
+
+/**
+ * WHO IS WRITING, FOR THE TEACHER ONLY (teacher DM ladder, owner 2026-10-13): any account may now start a teacher chat,
+ * so the teacher's side carries the WRITER's public verification — 'business' | 'identity' | 'unverified' — derived live
+ * for the thread's buyer (writer-verified.ts), before the teacher taps Share. The writer's own read
+ * carries no such key and pays no read; nor does any other thread on this most-polled route.
+ */
+describe('a teacher thread — writerVerified, for the teacher only', () => {
+  const teacherThread = () => thread({
+    listing: { ...thread().listing as Row, listingType: 'teacher', teacherProfile: { status: 'live', videoOnRequest: false, private: { videoPath: null, phone: null } } },
+  })
+  beforeEach(() => { h.convo = teacherThread() })
+
+  it('the teacher is told the writer\'s verification — read for the BUYER, never for the caller', async () => {
+    h.me = 'seller-1'
+    h.tiers = { 'seller-1': 'business' } // the teacher's own rung must never be what is shown
+    const cases = [['business', 'business'], ['identity', 'identity'], ['unverified', 'unverified']] as const
+    for (const [tier, shown] of cases) {
+      h.tiers['buyer-1'] = tier
+      h.tierReads = []
+      const { status, body } = await get()
+      expect(status).toBe(200)
+      expect(body.teacher.writerVerified).toBe(shown)
+      expect(h.tierReads).toEqual(['buyer-1'])
+    }
+  })
+  it('a failed rung read fails soft: null, and the thread still opens', async () => {
+    h.me = 'seller-1'
+    h.tierThrows = true
     const { status, body } = await get()
     expect(status).toBe(200)
-    expect(body.teacher.video).toEqual({ available: true, shareOn: true, shared: false, requested: false, askAgain: false, forBusiness: false })
-    // The buyer's account type feeds the flags only — never the counterpart payload.
-    expect(JSON.stringify(body)).not.toContain('individual')
+    expect(body.teacher.writerVerified).toBeNull()
+  })
+  it('the writer\'s own read carries no writerVerified — and pays no rung read', async () => {
+    h.tiers = { 'buyer-1': 'business' }
+    const { status, body } = await get()
+    expect(status).toBe(200)
+    expect(body.teacher).not.toBeNull()
+    expect('writerVerified' in body.teacher).toBe(false)
+    expect(h.tierReads).toEqual([])
+  })
+  it('an ordinary thread pays no rung read on either side', async () => {
+    for (const who of ['buyer-1', 'seller-1']) {
+      h.me = who
+      h.convo = thread()
+      const { status, body } = await get()
+      expect(status).toBe(200)
+      expect(body.teacher).toBeNull()
+    }
+    expect(h.tierReads).toEqual([])
   })
 })
 

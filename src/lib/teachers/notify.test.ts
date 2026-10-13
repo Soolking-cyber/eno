@@ -27,7 +27,7 @@ describe('notifyTeacherOfSchoolMessage', () => {
     await notifyTeacherOfSchoolMessage({ teacherProfileId: 't1', conversationId: 'c1', listingId: 'L1' })
     expect(h.rows).toEqual([expect.objectContaining({ recipientId: 't1', type: 'teacher_message', conversationId: 'c1', listingId: 'L1' })])
     expect(h.pushes).toEqual([expect.objectContaining({ url: '/messages/c1' })])
-    expect(String(h.rows[0].title)).toMatch(/A school or company messaged you/)
+    expect(String(h.rows[0].title)).toMatch(/New message about your teacher profile/)
     expect(h.rows[0].actorName).toBeUndefined()
   })
   it('rings a thread once per quiet gap, even when two messages race past it', async () => {

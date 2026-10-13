@@ -11,7 +11,8 @@ import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
  *   · the thread's CURRENT listing is a teacher listing (a thread retargeted to another listing of the
  *     same storefront carries no teacher contact, even if a share row survives on it);
  *   · the teacher is that listing's TeacherProfile owner and the thread's seller side;
- *   · the recruiter is the thread's buyer and still a business account.
+ *   · the other side is the thread's buyer. Any account since the teacher DM ladder (owner, 2026-10-13: "Anyone") —
+ *     the teacher's own tap in THAT conversation stays the only key; who may write first is dm-quota.ts's business.
  */
 export async function teacherThread(conversationId: string) {
   const convo = await db.conversation.findUnique({
@@ -21,8 +22,6 @@ export async function teacherThread(conversationId: string) {
       listing: { select: { id: true, listingType: true, status: true, verified: true, teacherProfile: { select: { id: true, profileId: true, fullName: true, status: true, videoOnRequest: true, private: { select: { videoPath: true, phone: true } } } } } },
       teacherContactShare: { select: { sharedAt: true, revokedAt: true, phoneShared: true } },
       teacherVideoShare: { select: { requestedAt: true, sharedAt: true, revokedAt: true } },
-      // The thread's buyer side — whether the intro video can reach it at all (teacherVideoState `forBusiness`).
-      buyer: { select: { accountType: true } },
     },
   })
   if (!convo?.listing || convo.listing.listingType !== TEACHER_LISTING_TYPE || !convo.listing.teacherProfile) return null
@@ -34,8 +33,7 @@ export async function teacherThread(conversationId: string) {
   // held → nothing more is served, even to a recruiter it was shared with (Opus, commit gate 09-30).
   // (A deleted profile deletes its listing, so its threads fail the listing check above.)
   const profileLive = convo.listing.status === 'active' && convo.listing.verified && tp.status === 'live'
-  // `buyer` is a required relation (Conversation.buyerProfileId, onDelete: Cascade): a thread without one does not exist.
-  const video = teacherVideoState(convo.teacherVideoShare, tp, profileLive, convo.buyer.accountType === 'business')
+  const video = teacherVideoState(convo.teacherVideoShare, tp, profileLive)
   return {
     convo,
     teacherProfileId: tp.id,
@@ -71,7 +69,6 @@ export async function teacherThread(conversationId: string) {
     videoRequested: video.requested,
     videoRequestedAt: video.requestedAt,
     videoAskAgain: video.askAgain,
-    videoForBusiness: video.forBusiness,
   }
 }
 
@@ -88,19 +85,15 @@ export const ASK_AGAIN_MS = 24 * 3600 * 1000
  * offers what a route then refuses.
  * ⛔ A request alone unlocks nothing: shared means `sharedAt` set and not revoked (review, 2026-10-07 — the contact
  * idiom `row && !revokedAt` would have let a school's own request open the video).
- * ⛔ BUSINESS-ONLY (gate review, 2026-10-08): only a school or company may ask for, be sent, or watch the video. The
- * flags ignored the BUYER's account type, so a parent writing to a teacher was offered "Ask for their intro video" and
- * then refused, and a teacher could send to an account that can never watch. `forBusiness` = the thread's buyer is a
- * business account; `available` deliberately does NOT carry it, so the teacher's "profile hidden" copy stays true.
- * ⚠️ A buyer that is no longer a business PAUSES a grant already sent: `shareOn` stays, so the teacher still sees it and
- * keeps Stop, and it plays again if the account becomes a business again — exactly as the contact share pauses while
- * the profile is hidden and resumes on un-hide. Deliberate, not dangling: the teacher sent it to this account.
+ * ANY ACCOUNT the teacher sends it to (owner, 2026-10-13 — the DM ladder opened teacher chats to every account): the
+ * 2026-10-08 business-only rule (`forBusiness`, which paused a grant for a buyer who was not a business) is gone with
+ * the rule it served. The teacher's Send in THAT conversation is the only key, as for the contact share. No grant
+ * existed in production when it went (measured 2026-10-13: 0 video and 0 contact shares), so none resumed.
  */
 export function teacherVideoState(
   vs: { requestedAt: Date | null; sharedAt: Date | null; revokedAt: Date | null } | null | undefined,
   tp: { videoOnRequest?: boolean | null; private?: { videoPath: string | null } | null },
   profileLive: boolean,
-  forBusiness: boolean,
   now = Date.now(),
 ) {
   /** A private intro video exists, the teacher keeps it on request, and the profile is live. */
@@ -113,8 +106,8 @@ export function teacherVideoState(
   return {
     available,
     shareOn,
-    /** What the school may watch now. */
-    shared: shareOn && available && forBusiness,
+    /** What the other side may watch now. */
+    shared: shareOn && available,
     requested,
     requestedAt,
     /**
@@ -123,6 +116,5 @@ export function teacherVideoState(
      * "You asked…" for good, while the route would have taken a fresh ask (gate review, 2026-10-08).
      */
     askAgain: requested && requestedAt !== null && now - requestedAt.getTime() >= ASK_AGAIN_MS,
-    forBusiness,
   }
 }

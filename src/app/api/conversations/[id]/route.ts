@@ -2,6 +2,7 @@ import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { teacherVideoState } from '@/lib/teachers/share'
+import { writerVerified as writerVerification } from '@/lib/teachers/writer-verified'
 import { getAdmin } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { RENTAL_DESK_SELLER_IDS } from '@/lib/rental-check/desk-ids'
@@ -167,8 +168,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
       // Belt: the server is authoritative either way, so the failure is a missing affordance, not
       // a leak.
       seller: { select: { id: true, ownerId: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true, officialPartner: true, owner: { select: { lastSeenAt: true, locale: true } } } },
-      // `accountType` feeds ONLY the teacher video flags (teacherVideoState `forBusiness`) — never the counterpart payload.
-      buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true, lastSeenAt: true, locale: true, accountType: true } },
+      buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true, lastSeenAt: true, locale: true } },
       // Bounded (audit P2): the full history shipped on EVERY call × a 15s poll per
       // open tab. Last 200 in reverse, un-reversed below — covers any realistic
       // active thread; older history is simply not re-sent.
@@ -350,6 +350,15 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
    */
   const blockState = iAmSupport ? 'none' : await blockStateBetween(meId, iAmBuyer ? convo.sellerProfileId : convo.buyerProfileId)
   /**
+   * WHO IS WRITING, FOR THE TEACHER ONLY (teacher DM ladder, owner 2026-10-13): any account may now start a teacher chat,
+   * so the teacher sees whether this one is a verified business, has a live identity check, or is not verified yet —
+   * before they tap Share. The PUBLIC verification (writer-verified.ts), never the DM rung and never a document; a revoked
+   * identity reads as not verified. The teacher's side of a teacher thread only — nobody else pays the reads.
+   */
+  const writerVerified = iAmSeller && convo.listing?.listingType === TEACHER_LISTING_TYPE
+    ? await writerVerification(convo.buyerProfileId).catch(() => null)
+    : null
+  /**
    * ⚠️ APP STORE GATE `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — off by default: no read, no field, the
    * payload is byte-identical. On, for the iOS app only, an ordinary-kind thread about a PARTNER's e-Visa product
    * (isEVisaProductListing — VietKite's live listings) is flagged, because that chat is where the partner takes the
@@ -387,9 +396,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
           const live = convo.listing.status === 'active' && convo.listing.verified && convo.listing.teacherProfile?.status === 'live'
           // The intro video kept private and sent on request — the derivation the video routes enforce
           // (teacherVideoState): flags only, never the stored path; the school watches via /api/teachers/video.
-          // `forBusiness` from the thread's buyer, as teacherThread reads it: only a school or company may ask, be sent, or watch.
-          // (`buyer` is a required relation — Conversation.buyerProfileId, onDelete: Cascade — never null here.)
-          const v = teacherVideoState(convo.teacherVideoShare, convo.listing.teacherProfile ?? {}, live, convo.buyer.accountType === 'business')
+          const v = teacherVideoState(convo.teacherVideoShare, convo.listing.teacherProfile ?? {}, live)
           // ⛔ A thread closed by a block tells the SCHOOL nothing the teacher shares — the contact share nor the video (as the
           // read routes answer only `blocked`); the TEACHER keeps both, so a share made before the block stays withdrawable
           // (gate review, 2026-10-08).
@@ -404,12 +411,13 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
             // the flag /api/teachers/contact serves the phone by): an "email & CV" share keeps saying so after a phone is
             // added, and offers "Share my phone too". Teacher only, like hasPhone — the school's own read already shows it.
             ...(iAmSeller ? {
+              writerVerified,
               hasPhone: !!convo.listing.teacherProfile?.private?.phone,
               phoneShared: !!convo.teacherContactShare && !convo.teacherContactShare.revokedAt && convo.teacherContactShare.phoneShared === true,
             } : {}),
             video: closedToSchool
               ? null
-              : { available: v.available, shareOn: v.shareOn, shared: v.shared, requested: v.requested, askAgain: v.askAgain, forBusiness: v.forBusiness },
+              : { available: v.available, shareOn: v.shareOn, shared: v.shared, requested: v.requested, askAgain: v.askAgain },
           }
         })()
       : null,
