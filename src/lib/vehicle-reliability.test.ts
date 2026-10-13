@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
-  BONBON_MIN_REAL_PHOTOS, MAX_NO_REFERENCE_SHARE, MIOTO_MIN_RATING, TRIPS_REFERENCE_MAX_DAYS, TRIPS_REFERENCE_MIN_DAYS,
-  bonbonReliability, bonbonVerdicts, buildTripsSnapshot, miotoReliability, miotoVerdicts, parseTripsSnapshot,
-  pickTripsReference, realPhotoCount, recordTime, snapshotReplaces, sourceKeyOf, tripsSnapshotFile, tripsSnapshotFileName,
-  type TripsSnapshot,
+  BONBON_MIN_REAL_PHOTOS, MAX_NO_REFERENCE_SHARE, MAX_TRIPS_DECREASE_SHARE, MIOTO_MIN_RATING, TRIPS_REFERENCE_MAX_DAYS, TRIPS_REFERENCE_MIN_DAYS,
+  SCRAPE_TIME_QUANTILE, TRIPS_REFERENCE_TARGET_DAYS,
+  bonbonReliability, bonbonSkuOf, bonbonVerdicts, buildTripsSnapshot, carStageBlock, earliestRecordTime, miotoIdOf, miotoReliability, miotoVerdicts,
+  parseTripsSnapshot, pickTripsReference, realPhotoCount, recordTime, screenTripsSnapshots, snapshotReplaces, sourceKeyOf, tripsSnapshotFile,
+  tripsSnapshotFileName, type TripsSnapshot,
 } from './vehicle-reliability'
 
 const DAY = 86_400_000
@@ -18,8 +19,8 @@ function mioto(over: Record<string, unknown> = {}) {
   }
 }
 
-describe('pickTripsReference — the newest snapshot 12–21 days old that holds the car', () => {
-  it('takes the newest eligible snapshot, never a younger one', () => {
+describe('pickTripsReference — the snapshot closest to 14 days among those 12–21 days old that hold the car', () => {
+  it('takes the eligible snapshot closest to 14 days, never a younger one', () => {
     const s = [snap(18, { K2D7ZE: 10 }), snap(13, { K2D7ZE: 20 }), snap(4, { K2D7ZE: 24 })]
     expect(pickTripsReference('K2D7ZE', s, T0)).toEqual({ takenAt: T0 - 13 * DAY, trips: 20 })
   })
@@ -47,6 +48,62 @@ describe('pickTripsReference — the newest snapshot 12–21 days old that holds
   it('ignores the order of the snapshot list', () => {
     const s = [snap(4, { K2D7ZE: 24 }), snap(13, { K2D7ZE: 20 }), snap(18, { K2D7ZE: 10 })]
     expect(pickTripsReference('K2D7ZE', s, T0)?.trips).toBe(20)
+  })
+
+  it(`⛔ on the 3-day cadence it is the 15-day snapshot, not the 12.0x-day one — whatever minutes the runs start at`, () => {
+    // A run every 3 days; each snapshot is dated by its earliest fetch, the record by its own fetch hours later.
+    const cadence = (lagMin: number) => [3, 6, 9, 12, 15, 18, 21].map((d) => snap(d + lagMin / 1440, { K2D7ZE: 30 - d }))
+    expect(TRIPS_REFERENCE_TARGET_DAYS).toBe(14)
+    // the record fetched 27 min after the old run's first fetch (12.02 d): the newest-≥12 rule took that one
+    expect(pickTripsReference('K2D7ZE', cadence(27), T0)).toMatchObject({ takenAt: T0 - (15 + 27 / 1440) * DAY })
+    // this run started a minute EARLIER than that one (11.999 d): still the 15-day snapshot, not a flip
+    expect(pickTripsReference('K2D7ZE', cadence(-1), T0)).toMatchObject({ takenAt: T0 - (15 - 1 / 1440) * DAY })
+  })
+
+  it('a tie goes to the OLDER snapshot (the longer window)', () => {
+    expect(pickTripsReference('K2D7ZE', [snap(13, { K2D7ZE: 20 }), snap(15, { K2D7ZE: 18 })], T0)).toEqual({ takenAt: T0 - 15 * DAY, trips: 18 })
+  })
+
+  it('⛔ never lets a reference count fall below what an older snapshot in the window saw (totalTrips never goes down)', () => {
+    // the 15-day snapshot read 0 for this car (a broken scrape): the 18-day one already saw 24
+    const s = [snap(18, { K2D7ZE: 24 }), snap(15, { K2D7ZE: 0 })]
+    expect(pickTripsReference('K2D7ZE', s, T0)).toEqual({ takenAt: T0 - 15 * DAY, trips: 24 })
+    // older than the window does not count, and neither does a NEWER snapshot
+    expect(pickTripsReference('K2D7ZE', [snap(25, { K2D7ZE: 24 }), snap(15, { K2D7ZE: 0 })], T0)?.trips).toBe(0)
+    expect(pickTripsReference('K2D7ZE', [snap(13, { K2D7ZE: 99 }), snap(15, { K2D7ZE: 5 })], T0)?.trips).toBe(5)
+  })
+})
+
+describe('screenTripsSnapshots — a snapshot showing fewer trips than the one before it is never a reference', () => {
+  const ids = Array.from({ length: 100 }, (_, i) => `KCAR${String(i).padStart(2, '0')}`)
+  const fleet = (daysBefore: number, f: (i: number) => number) => snap(daysBefore, Object.fromEntries(ids.map((id, i) => [id, f(i)])))
+
+  it('refuses a scrape that read 0 trips for the fleet — and not the snapshot after it, which rises from zero', () => {
+    const r = screenTripsSnapshots([fleet(21, (i) => 20 + i), fleet(18, () => 0), fleet(15, (i) => 22 + i)])
+    expect(r.usable.map((s) => (T0 - s.takenAt) / DAY)).toEqual([21, 15])
+    expect(r.refused).toHaveLength(1)
+    expect(r.refused[0].reason).toMatch(/100 of the 100 cars .* show FEWER trips/)
+  })
+
+  it('⛔ refuses TWO zeroed scrapes in a row (a scraper that stays broken) — the second shows no drop against the first', () => {
+    const r = screenTripsSnapshots([fleet(21, (i) => 20 + i), fleet(18, () => 0), fleet(15, () => 0), fleet(12, (i) => 25 + i)])
+    expect(r.usable.map((s) => (T0 - s.takenAt) / DAY)).toEqual([21, 12])
+    expect(r.refused).toHaveLength(2)
+  })
+
+  it(`tolerates up to ${MAX_TRIPS_DECREASE_SHARE * 100}% of shared cars going down (a correction on Mioto's side)`, () => {
+    const atLimit = screenTripsSnapshots([fleet(18, () => 30), fleet(15, (i) => (i < 5 ? 29 : 31))])
+    expect(atLimit.refused).toEqual([])
+    const over = screenTripsSnapshots([fleet(18, () => 30), fleet(15, (i) => (i < 6 ? 29 : 31))])
+    expect(over.refused).toHaveLength(1)
+  })
+
+  it('miotoVerdicts judges only with usable snapshots: a zeroed scrape 15 days ago does not pass the fleet', () => {
+    const recs = ids.slice(0, 10).map((id) => mioto({ id, totalTrips: 25 }))
+    const history = [fleet(18, () => 25), fleet(15, () => 0)]
+    const r = miotoVerdicts(recs, history, T0)
+    expect(r.refusedSnapshots).toHaveLength(1)
+    expect([...r.verdicts.values()].every((v) => v.kind === 'drop' && v.reason === 'noRecentTrip')).toBe(true)
   })
 })
 
@@ -209,6 +266,11 @@ describe('the trips history files', () => {
     { id: 'KAAAA3', totalTrips: 2 },
   ]
 
+  it('files a padded id under the trimmed id the importer and the verdicts use', () => {
+    const s = buildTripsSnapshot([{ id: ' K2D7ZE ', totalTrips: 7, _fetched_at: '2026-09-28T01:21:42+07:00' }])!
+    expect([...s.trips.keys()]).toEqual(['K2D7ZE'])
+  })
+
   it('builds a snapshot dated by its EARLIEST record fetch, skipping malformed records', () => {
     const s = buildTripsSnapshot(recs)!
     expect(s.takenAt).toBe(Date.parse('2026-09-28T01:21:42+07:00'))
@@ -251,9 +313,67 @@ describe('the trips history files', () => {
     expect(snapshotReplaces({ takenAt: 1, count: 9 }, { takenAt: 2, count: 5 })).toBe(false)
   })
 
+  it('earliestRecordTime: a scrape is dated by its records\' own EARLIEST fetch — never Mioto\'s build stamp', () => {
+    const D = ['detail_fetched_at']
+    const recs = [
+      { detail_fetched_at: '2026-10-12T05:33:23+07:00', scraped_at: '2026-10-12T07:38:46+07:00' },
+      { detail_fetched_at: '2026-10-12T07:37:46+07:00', scraped_at: '2026-10-12T07:38:46+07:00' },
+    ]
+    expect(earliestRecordTime(recs, D, 0)).toBe(Date.parse('2026-10-12T05:33:23+07:00'))
+    // last run's details re-built today (a checkpoint that did not move): still last run's fetches…
+    expect(earliestRecordTime([{ detail_fetched_at: '2026-10-05T07:00:00+07:00', scraped_at: '2026-10-12T07:38:46+07:00' }], D, 0)).toBe(Date.parse('2026-10-05T07:00:00+07:00'))
+    // …and ONE car fetched today does not make last week's dataset fresh
+    expect(earliestRecordTime([{ detail_fetched_at: '2026-10-05T07:00:00+07:00' }, { detail_fetched_at: '2026-10-12T06:00:00+07:00' }], D, 0)).toBe(Date.parse('2026-10-05T07:00:00+07:00'))
+    // ⛔ a Mioto record with only the build stamp is no evidence: none at all = the caller's fallback (0 — stale)
+    expect(earliestRecordTime([{ scraped_at: '2026-10-12T07:38:46+07:00' }], D, 0)).toBe(0)
+    expect(earliestRecordTime([{}], D, 42)).toBe(42)
+    // BonbonCar's scraped_at is per record
+    expect(earliestRecordTime([{ scraped_at: '2026-10-12T07:40:14+07:00' }, { scraped_at: '2026-10-12T07:41:17+07:00' }], ['scraped_at'], 0)).toBe(Date.parse('2026-10-12T07:40:14+07:00'))
+  })
+
+  it(`earliestRecordTime looks past the oldest ${SCRAPE_TIME_QUANTILE * 100}% — one odd record never freezes a source, a stale share still shows`, () => {
+    const D = ['detail_fetched_at']
+    const fresh = (n: number) => Array.from({ length: n }, (_, i) => ({ detail_fetched_at: new Date(T0 + i * 1000).toISOString() }))
+    const old = { detail_fetched_at: new Date(T0 - 7 * DAY).toISOString() }
+    expect(earliestRecordTime([old, ...fresh(199)], D, 0)).toBe(T0) // 1 of 200: looked past
+    expect(earliestRecordTime([old, old, old, old, ...fresh(196)], D, 0)).toBe(T0 - 7 * DAY) // 2% old: old
+    expect(earliestRecordTime([old, ...fresh(40)], D, 0)).toBe(T0 - 7 * DAY) // a small source: the minimum
+  })
+
   it('recordTime prefers the detail fetch, then the build, then the fallback', () => {
     expect(recordTime({ detail_fetched_at: '2026-10-12T06:48:50+07:00', scraped_at: '2026-10-12T07:38:46+07:00' }, 0)).toBe(Date.parse('2026-10-12T06:48:50+07:00'))
     expect(recordTime({ scraped_at: '2026-10-12T07:38:46+07:00' }, 0)).toBe(Date.parse('2026-10-12T07:38:46+07:00'))
     expect(recordTime({}, 42)).toBe(42)
+  })
+})
+
+describe('⛔ the staging gate — an HCMC car is staged only with a keep verdict under the key the stage writes', () => {
+  const history = [snap(14, { K2D7ZE: 24 })]
+
+  it('Mioto: a padded id is judged under its trimmed id — a 3-trip 3★ car is NOT staged', () => {
+    const bad = mioto({ id: ' K2D7ZE', totalTrips: 3, rating: 3 })
+    expect(miotoIdOf(bad)).toBe('K2D7ZE')
+    const v = miotoVerdicts([bad], history, T0)
+    expect(v.verdicts.get('mioto:K2D7ZE')).toMatchObject({ kind: 'drop', reason: 'fewTrips' })
+    expect(carStageBlock('mioto', bad, v.verdicts)).toBe('unreliable:fewTrips')
+    // the same car passing the rule is staged
+    const good = mioto({ id: 'K2D7ZE ' })
+    expect(carStageBlock('mioto', good, miotoVerdicts([good], history, T0).verdicts)).toBeNull()
+  })
+
+  it('BonbonCar: a padded SKU of a B2B, 2★, 1-photo car is NOT staged', () => {
+    const bad = bonbon({ sku: 'ACCENT_039 ', is_b2b: true, rating: 2, image_meta: [{ width: 2560, height: 1920 }] })
+    expect(bonbonSkuOf(bad)).toBe('ACCENT_039')
+    const v = bonbonVerdicts([bad])
+    expect([...v.keys()]).toEqual(['bonboncar:ACCENT_039'])
+    expect(carStageBlock('bonboncar', bad, v)).toBe('unreliable:notOwnFleet')
+  })
+
+  it('an HCMC record with NO verdict is not staged; a record outside HCMC goes on to the stage (notHcmc there)', () => {
+    expect(carStageBlock('mioto', mioto({ id: 'K2D7ZE' }), new Map())).toBe('notJudged:noVerdict')
+    expect(carStageBlock('mioto', mioto({ id: 'bad id' }), new Map())).toBe('notJudged:noVerdict')
+    expect(carStageBlock('mioto', mioto({ city: 'Bình Dương' }), new Map())).toBeNull()
+    expect(carStageBlock('bonboncar', bonbon(), new Map())).toBe('notJudged:noVerdict')
+    expect(carStageBlock('mioto', mioto(), new Map([['mioto:K2D7ZE', { kind: 'unknown', reason: 'noStats', detail: '' }]]))).toBe('notJudged:noStats')
   })
 })

@@ -3,8 +3,9 @@
 <!--
   eno.vn HCMC vehicle-rental refresh (scripts/vehicle-rentals-weekly.sh) — EVERY 3 DAYS, triggered DAILY at 04:30.
   Owner 2026-10-13: "every 3 days it should check and update". launchd has no "every N days": the trigger is daily and
-  the script runs only when the last SUCCESSFUL run is ≥ 66 h old (src/lib/vehicle-job-gate.ts) — a failed or refused
-  run retries the next morning, and a trigger missed while the Mac slept fires on wake. A not-due day logs one line.
+  the script runs only when the last SUCCESSFUL run STARTED ≥ 66 h ago (src/lib/vehicle-job-gate.ts) — a failed or
+  refused run retries the next morning, and a trigger missed while the Mac slept fires on wake. A not-due day logs one
+  line. One run at a time: the lock is ~/.eno-vehicle-refresh.lock (a holder that is not a running refresh is cleared).
   The label and file name keep "weekly" so the installed agent's label and the worktree path stay valid.
   It runs from ~/eno-vehicles-job, a CLEAN detached worktree at origin/main (ENO_REPO) — fast-forward it after an
   importer change: git -C ~/eno-vehicles-job fetch && git -C ~/eno-vehicles-job checkout --detach origin/main, then

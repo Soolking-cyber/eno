@@ -3,12 +3,16 @@
  *
  * Owner, 2026-10-13: "every 3 days it should check and update". launchd has no "every N days", so the LaunchAgent
  * fires DAILY (04:30) and scripts/vehicle-rentals-weekly.sh asks this first: run only when the last SUCCESSFUL run
- * is at least SUCCESS_GATE_HOURS old. The stamp is written only after a fully successful --apply run, so:
+ * STARTED at least SUCCESS_GATE_HOURS ago. The stamp — that run's START — is written only after a fully successful
+ * --apply run, so:
  *   · a run that failed (or stopped at a guard) leaves the old stamp → the next day's trigger runs again;
  *   · a trigger missed while the Mac slept fires on wake (launchd's StartCalendarInterval), and the gate decides;
- *   · 66 h, not 72: a run that started at 04:30 and finished ~08:00 leaves a stamp the third morning's 04:30
- *     trigger must already pass (72 h would wait for the FOURTH morning). 66 h keeps every-third-day while a slow
- *     run (up to ~6 h) still clears it.
+ *   · ⛔ THE START, NOT THE END (review 2026-10-13): stamped at its end, a run that finished after ~10:30 (a late start
+ *     on wake, a 4–6 h scrape — 10-05's took 4 h 02 min) was not due at the third morning's 04:30 trigger, and the
+ *     cadence slipped to 4 days (bikes then expired ~12 days after last seen). From its start, any run that STARTS by
+ *     10:30 is due again at the third morning's 04:30;
+ *   · 66 h, not 72: launchd's 04:30 and the stamp's few seconds after it must not push a 3-day cadence to the fourth
+ *     morning.
  * ⛔ A STAMP THAT CANNOT BE TRUSTED NEVER BLOCKS. Missing, unreadable as a date, or in the future (a clock that went
  * backwards) all read as due: the gate exists to space runs out, not to stop them, and a corrupt stamp would
  * otherwise freeze the refresh forever while every day looked "not due".

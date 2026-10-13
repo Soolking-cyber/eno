@@ -1,7 +1,9 @@
 /**
  * The Mioto TRIPS HISTORY: one snapshot (car id → totalTrips) per scrape. The reliability rule's 14-day trip test
- * compares each car with the newest snapshot at least 12 days old that holds it (src/lib/vehicle-reliability.ts).
+ * compares each car with the snapshot closest to 14 days old (12–21) that holds it (src/lib/vehicle-reliability.ts).
  * Owner, 2026-10-13: keep only Mioto cars with "at least one completed trip in the last 14 days".
+ * The history is a RAW record: every scrape is filed as read. Which snapshots may be a reference (none that shows
+ * fewer trips than the one before it) is decided where it is read — screenTripsSnapshots.
  *
  *   npx tsx scripts/vehicle-trips-history.ts --mioto ~/mioto_rentals_vn --out ~/eno-import-journals/vehicles/trips [--apply]
  *
@@ -47,7 +49,7 @@ export function loadTripsSnapshots(dir: string): { snapshots: TripsSnapshot[]; p
  * measured 2026-10-13, two 10-12 records split into 14 unparseable fragments and those two cars silently fell
  * out of the history — and a car the history lacks can never pass the trip test.
  */
-async function snapshotOf(file: string) {
+export async function snapshotOf(file: string) {
   const records: Record<string, unknown>[] = []
   let bad = 0, rest = ''
   const take = (line: string) => {
@@ -76,6 +78,50 @@ function writeDurably(dir: string, name: string, body: string) {
   try { fsyncSync(dfd) } finally { closeSync(dfd) }
 }
 
+export type PlannedSnapshot = { body: string; takenAt: number; count: number; source: string }
+
+/**
+ * What --apply would write into `out`, file name → snapshot: every details file not already filed (the size:mtime
+ * cache key), one snapshot per ICT date — a date already holding the same scrape is skipped, and of two scrapes on
+ * one date the fuller one is kept (snapshotReplaces).
+ */
+export async function planTripsHistory(files: readonly string[], out: string, log: (line: string) => void = console.log): Promise<Map<string, PlannedSnapshot>> {
+  // What is on disk, then what this run plans — two scrapes landing on one date keep the fuller one.
+  const filed = new Map<string, { takenAt: number; count: number }>()
+  /** size:mtime of every details file a filed snapshot was built from — those are not read again. */
+  const filedSources = new Set<string>()
+  for (const name of existsSync(out) ? readdirSync(out).filter((n) => /^\d{4}-\d{2}-\d{2}\.json$/.test(n)) : []) {
+    try {
+      const raw = JSON.parse(readFileSync(join(out, name), 'utf8'))
+      const s = parseTripsSnapshot(raw)
+      if (typeof s === 'string') { log(`  ! ${name} on disk does not parse (${s}) — it will be replaced`); continue }
+      filed.set(name, { takenAt: s.takenAt, count: s.trips.size })
+      const key = sourceKeyOf(raw)
+      if (key) filedSources.add(key)
+    } catch (e) { log(`  ! ${name} on disk is unreadable (${(e as Error).message.slice(0, 80)}) — it will be replaced`) }
+  }
+  const planned = new Map<string, PlannedSnapshot>()
+  for (const f of files) {
+    const st = statSync(f)
+    if (filedSources.has(`${st.size}:${st.mtimeMs}`)) { log(`  ${f}: unchanged since it was filed — not re-read`); continue }
+    const s = await snapshotOf(f)
+    if (!s) { log(`  ! ${f}: no record with an id, a trip count and a fetch time — skipped`); continue }
+    const name = tripsSnapshotFileName(s.takenAt)
+    const next = { takenAt: s.takenAt, count: s.trips.size }
+    const current = planned.get(name) ?? filed.get(name) ?? null
+    const verdict = snapshotReplaces(current, next)
+    log(`  ${name}  ${String(s.trips.size).padStart(6)} cars  taken ${new Date(s.takenAt).toISOString()}${s.skipped ? `  (${s.skipped} record(s) skipped)` : ''}  ← ${f}  ${verdict ? (current ? 'REPLACES a smaller snapshot' : 'new') : 'already filed'}`)
+    if (verdict) planned.set(name, { body: JSON.stringify(tripsSnapshotFile(s, f, { bytes: st.size, mtimeMs: st.mtimeMs })) + '\n', ...next, source: f })
+  }
+  return planned
+}
+
+/** Write the planned snapshots into `out`, each write-then-rename and fsynced. */
+export function writeTripsHistory(out: string, planned: ReadonlyMap<string, PlannedSnapshot>) {
+  mkdirSync(out, { recursive: true })
+  for (const [name, p] of planned) writeDurably(out, name, p.body)
+}
+
 async function main() {
   const argv = process.argv.slice(2)
   const val = (f: string) => { const i = argv.indexOf(f); return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith('--') ? argv[i + 1] : null }
@@ -88,38 +134,10 @@ async function main() {
     .filter((f) => existsSync(f))
   if (!existsSync(join(state, 'details.jsonl'))) console.warn(`  ! ${join(state, 'details.jsonl')} is missing — this run adds no snapshot of its own`)
   console.log(`${APPLY ? 'APPLY — writes snapshots' : 'DRY RUN'} · ${files.length} details file(s) · history ${OUT}`)
-
-  // What is on disk, then what this run plans — two scrapes landing on one date keep the fuller one.
-  const filed = new Map<string, { takenAt: number; count: number }>()
-  /** size:mtime of every details file a filed snapshot was built from — those are not read again. */
-  const filedSources = new Set<string>()
-  for (const name of existsSync(OUT) ? readdirSync(OUT).filter((n) => /^\d{4}-\d{2}-\d{2}\.json$/.test(n)) : []) {
-    try {
-      const raw = JSON.parse(readFileSync(join(OUT, name), 'utf8'))
-      const s = parseTripsSnapshot(raw)
-      if (typeof s === 'string') { console.warn(`  ! ${name} on disk does not parse (${s}) — it will be replaced`); continue }
-      filed.set(name, { takenAt: s.takenAt, count: s.trips.size })
-      const key = sourceKeyOf(raw)
-      if (key) filedSources.add(key)
-    } catch (e) { console.warn(`  ! ${name} on disk is unreadable (${(e as Error).message.slice(0, 80)}) — it will be replaced`) }
-  }
-  const planned = new Map<string, { body: string; takenAt: number; count: number; source: string }>()
-  for (const f of files) {
-    const st = statSync(f)
-    if (filedSources.has(`${st.size}:${st.mtimeMs}`)) { console.log(`  ${f}: unchanged since it was filed — not re-read`); continue }
-    const s = await snapshotOf(f)
-    if (!s) { console.warn(`  ! ${f}: no record with an id, a trip count and a fetch time — skipped`); continue }
-    const name = tripsSnapshotFileName(s.takenAt)
-    const next = { takenAt: s.takenAt, count: s.trips.size }
-    const current = planned.get(name) ?? filed.get(name) ?? null
-    const verdict = snapshotReplaces(current, next)
-    console.log(`  ${name}  ${String(s.trips.size).padStart(6)} cars  taken ${new Date(s.takenAt).toISOString()}${s.skipped ? `  (${s.skipped} record(s) skipped)` : ''}  ← ${f}  ${verdict ? (current ? 'REPLACES a smaller snapshot' : 'new') : 'already filed'}`)
-    if (verdict) planned.set(name, { body: JSON.stringify(tripsSnapshotFile(s, f, { bytes: st.size, mtimeMs: st.mtimeMs })) + '\n', ...next, source: f })
-  }
+  const planned = await planTripsHistory(files, OUT)
   if (!planned.size) { console.log('nothing to write — the history already holds every snapshot on disk'); return }
   if (!APPLY) { console.log(`DRY RUN — would write ${planned.size} snapshot file(s). Re-run with --apply.`); return }
-  mkdirSync(OUT, { recursive: true })
-  for (const [name, p] of planned) writeDurably(OUT, name, p.body)
+  writeTripsHistory(OUT, planned)
   console.log(`wrote ${planned.size} snapshot file(s) → ${OUT}`)
 }
 

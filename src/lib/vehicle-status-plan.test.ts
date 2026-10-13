@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
-  BIKE_MISS_MIN_SPAN_DAYS, BIKE_MISS_RUNS, CAR_ABSENT_RUNS, EXPIRE_SHARE_FLOOR, MAX_SCRAPE_AGE_DAYS, PRESENCE_ABS_SLACK, PRESENCE_KIND, PRESENCE_MIN_SHARE,
-  bikePresence, guardFor, latestScrapedAt, missStreak, parsePresenceEntry, planVehicleStatus, presenceGuard, recordedRuns, statusJournalProblem,
+  BIKE_MISS_MIN_SPAN_DAYS, BIKE_MISS_RUNS, CAR_ABSENT_RUNS, EXPIRE_ALLOWANCE, GROWTH_ALLOWANCE, MAX_SCRAPE_AGE_DAYS, PRESENCE_ABS_SLACK, PRESENCE_KIND,
+  PRESENCE_MIN_SHARE,
+  baselineCountsFrom, bikePresence, growthBaseline, growthRefusal, guardFor, guardRefusals, heldCreations, latestScrapedAt, missStreak, parsePresenceEntry,
+  planVehicleStatus, presenceGuard, recordedRuns, shrinkRefusal, statusInputs, statusJournalProblem,
   type DbRow, type PlanInput, type PresenceEntry, type SourceRun,
 } from './vehicle-status-plan'
 import { bonbonVerdicts, miotoVerdicts, type Verdict } from './vehicle-reliability'
@@ -114,6 +116,30 @@ describe('the presence history', () => {
     expect(guard.reference).toBe(100)
   })
 
+  it('guardFor hands missStreak EVERY run — this one first, refused ones too — and never a run stamped in the future', () => {
+    const at = Date.parse('2026-10-16T01:00:00Z')
+    const skewed = entry('2026-10-14T02:00:00Z', { janmotorbike: src('2026-10-25T01:00:00Z', 100, ['janmotorbike:a'], false) })
+    const { runs } = guardFor('janmotorbike', [e1, e2, skewed], { scrapedAt: at, count: 90, present: new Set(['janmotorbike:z']) }, null, false, at + 3_600_000)
+    expect(runs.map((r) => [new Date(r.scrapedAt).toISOString().slice(0, 10), r.accepted])).toEqual([['2026-10-16', true], ['2026-10-13', false], ['2026-10-10', true]])
+    expect([...runs[0].present]).toEqual(['janmotorbike:z'])
+  })
+
+  it('a re-record of an accepted scrape that is refused (stale by then) does not un-accept the check it was', () => {
+    const late = entry('2026-10-20T09:00:00Z', { janmotorbike: src('2026-10-10T01:00:00Z', 100, ['janmotorbike:a'], false) })
+    expect(recordedRuns('janmotorbike', [e1, late])).toMatchObject([{ accepted: true }])
+    // …while an operator's later accepted record of a refused scrape does replace it
+    const accepted = entry('2026-10-13T12:00:00Z', { janmotorbike: { ...src('2026-10-13T01:00:00Z', 60, ['janmotorbike:b']), forced: true } })
+    expect(recordedRuns('janmotorbike', [e2, accepted])).toMatchObject([{ accepted: true, forced: true }])
+  })
+
+  it('fresh = this run\'s own evidence: a stale, future-stamped or older-than-recorded scrape is not', () => {
+    const at = Date.parse('2026-10-13T01:00:00Z')
+    expect(guardFor('janmotorbike', [e1], { scrapedAt: at, count: 50 }, null, false, at).guard).toMatchObject({ judged: false, fresh: true }) // short, but fresh
+    expect(guardFor('janmotorbike', [e1], { scrapedAt: at, count: 100 }, null, false, at + 2.5 * DAY).guard.fresh).toBe(false)
+    expect(guardFor('janmotorbike', [e1], { scrapedAt: at + DAY, count: 100 }, null, false, at).guard.fresh).toBe(false)
+    expect(guardFor('janmotorbike', [e1], { scrapedAt: Date.parse('2026-10-09T01:00:00Z'), count: 100 }, null, false).guard.fresh).toBe(false)
+  })
+
   it('parsePresenceEntry refuses anything malformed', () => {
     expect(parsePresenceEntry(JSON.parse(JSON.stringify(e1)))).not.toBeNull()
     expect(parsePresenceEntry({ ...e1, kind: 'x' })).toBeNull()
@@ -130,6 +156,17 @@ describe('missStreak — consecutive accepted checks a bike is missing from', ()
     expect(missStreak('b', [run(0, ['b']), run(3, [])])).toEqual({ streak: 0, spanDays: 0 })
     expect(missStreak('never', [run(0, []), run(1, [])])).toEqual({ streak: 2, spanDays: 1 })
   })
+
+  it('⛔ a SHORT (refused) run is no missed check — but a bike it lists was SEEN there, which ends the streak', () => {
+    // absent, seen in a refused run, absent, absent: last seen 6 days ago — not three misses over 9 days
+    const runs = [run(0, []), run(3, []), run(6, ['b'], { accepted: false }), run(9, []), run(12, ['b'])]
+    expect(missStreak('b', runs)).toEqual({ streak: 2, spanDays: 3 })
+    // a refused run that does not list it is skipped, not counted, and does not break the streak either
+    const skipped = [run(0, []), run(3, [], { accepted: false }), run(6, []), run(9, []), run(12, ['b'])]
+    expect(missStreak('b', skipped)).toEqual({ streak: 3, spanDays: 9 })
+    // the span runs between ACCEPTED misses — a refused newest run does not stretch it
+    expect(missStreak('b', [run(0, [], { accepted: false }), run(3, []), run(6, []), run(9, ['b'])])).toEqual({ streak: 2, spanDays: 3 })
+  })
 })
 
 describe('bikePresence — listed, and in stock where the shop says', () => {
@@ -145,8 +182,11 @@ describe('bikePresence — listed, and in stock where the shop says', () => {
     ], T0)
     expect(p.janmotorbike.count).toBe(2)
     expect([...p.janmotorbike.present]).toEqual(['janmotorbike:a'])
-    expect(p.janmotorbike.scrapedAt).toBe(Date.parse('2026-10-16T02:00:00Z'))
+    // the shop's EARLIEST listing time (one fresh listing never makes an old dataset fresh)
+    expect(p.janmotorbike.scrapedAt).toBe(Date.parse('2026-10-16T01:00:00Z'))
     expect([...p.dungmotorbikes.present]).toEqual(['dungmotorbikes:d'])
+    // listings with no scrape time at all: stale (0) — never "now"; a shop listing nothing: this run's empty scrape
+    expect(p.dungmotorbikes.scrapedAt).toBe(0)
     expect(p.tuanmotorbike).toMatchObject({ count: 0, scrapedAt: T0 })
     expect(p.theextramile.count).toBe(0)
   })
@@ -172,7 +212,7 @@ describe('planVehicleStatus — cars', () => {
   })
 
   it(`expires a vanished car only after ${CAR_ABSENT_RUNS} complete scrapes in a row without it — one absence is a booked-out car`, () => {
-    const rows = [car('mioto:GONE01')]
+    const rows = [car('mioto:GONE01'), car('mioto:KEEP01')] // (a second live row: a source never loses its whole list at once)
     const once = plan({ rows, cars: { mioto: { judged: true, verdicts, runs: carRuns(listed, ['mioto:GONE01', ...listed]) } } })
     expect(once.expire).toEqual([])
     expect(once.tally.mioto).toMatchObject({ 'held: absent from 1 scrape(s) — booked out, or gone (the gone probe decides that)': 1 })
@@ -227,19 +267,24 @@ describe('planVehicleStatus — motorbikes (3 checks, ~7–10 days)', () => {
     expect(p.tally.janmotorbike).toMatchObject({ 'keep: missing 1 check(s)': 1, keep: 1 })
   })
 
+  // A second bike listed in every check: a shop never loses its whole list at once (the shrink guard), so these
+  // tests of the miss rule keep one row that stays.
+  const stay = (rs: SourceRun[]) => rs.map((r) => ({ ...r, present: new Set([...r.present, 'janmotorbike:stay']) }))
+  const twoBikes = () => [bike('janmotorbike:a'), bike('janmotorbike:stay')]
+
   it('does not expire on three checks squeezed into a few days (failed-run retries)', () => {
-    const runs = [run(0, []), run(1, []), run(2, []), run(5, ['janmotorbike:a'])]
-    const p = plan({ rows: [bike('janmotorbike:a')], bikes: { janmotorbike: { judged: true, runs, present: new Set() } } })
+    const runs = stay([run(0, []), run(1, []), run(2, []), run(5, ['janmotorbike:a'])])
+    const p = plan({ rows: twoBikes(), bikes: { janmotorbike: { judged: true, runs, present: runs[0].present } } })
     expect(p.expire).toEqual([])
     // …and does once the misses span the minimum
-    const later = [run(0, []), run(1, []), run(2, []), run(6, []), run(9, ['janmotorbike:a'])]
-    expect(plan({ rows: [bike('janmotorbike:a')], bikes: { janmotorbike: { judged: true, runs: later, present: new Set() } } }).expire).toHaveLength(1)
+    const later = stay([run(0, []), run(1, []), run(2, []), run(6, []), run(9, ['janmotorbike:a'])])
+    expect(plan({ rows: twoBikes(), bikes: { janmotorbike: { judged: true, runs: later, present: later[0].present } } }).expire).toHaveLength(1)
   })
 
   it('a span a few minutes short of 6 days still counts — scrape timing jitters from run to run', () => {
-    const jitter = [run(0, []), run(3, []), run(5.99, []), run(9, ['janmotorbike:a'])]
+    const jitter = stay([run(0, []), run(3, []), run(5.99, []), run(9, ['janmotorbike:a'])])
     expect(BIKE_MISS_MIN_SPAN_DAYS).toBeLessThan(5.99)
-    expect(plan({ rows: [bike('janmotorbike:a')], bikes: { janmotorbike: { judged: true, runs: jitter, present: new Set() } } }).expire).toHaveLength(1)
+    expect(plan({ rows: twoBikes(), bikes: { janmotorbike: { judged: true, runs: jitter, present: jitter[0].present } } }).expire).toHaveLength(1)
   })
 
   it('needs three recorded checks: a short history expires nothing', () => {
@@ -269,7 +314,7 @@ describe('planVehicleStatus — motorbikes (3 checks, ~7–10 days)', () => {
 describe('planVehicleStatus — the expire-share guard', () => {
   const many = (k: number, status = 'active') => Array.from({ length: k }, (_, i) => car(`mioto:C${String(i).padStart(5, '0')}`, status))
 
-  it(`refuses a source's expiries when they exceed half its live rows (from ${EXPIRE_SHARE_FLOOR} live rows)`, () => {
+  it('refuses a source\'s expiries when they exceed half its live rows', () => {
     const rows = many(40)
     const verdicts = new Map(rows.map((r, i) => [r.externalId!, i < 21 ? fewTrips : keep] as [string, Verdict]))
     const p = plan({ rows, cars: { mioto: { judged: true, verdicts, runs: [] } } })
@@ -278,23 +323,61 @@ describe('planVehicleStatus — the expire-share guard', () => {
     expect(p.tally.mioto['held: expire-share guard (fewTrips)']).toBe(21)
   })
 
-  it('lets exactly half through, and lets a small source empty out', () => {
+  it('lets exactly half through', () => {
     const rows = many(40)
     const half = new Map(rows.map((r, i) => [r.externalId!, i < 20 ? fewTrips : keep] as [string, Verdict]))
     expect(plan({ rows, cars: { mioto: { judged: true, verdicts: half, runs: [] } } }).expire).toHaveLength(20)
-    const small = many(5)
-    const absentTwice = [run(0, []), run(3, [])]
-    expect(plan({ rows: small, cars: { mioto: { judged: true, verdicts: new Map(), runs: absentTwice } } }).expire).toHaveLength(5)
   })
 
-  it('--accept <source> overrides it; revivals are never held by it', () => {
+  it(`⛔ caps a SMALL source too — half its rows, or ${EXPIRE_ALLOWANCE} — and never its whole list in one run`, () => {
+    const absentTwice = [run(0, []), run(3, [])]
+    const small = many(5)
+    const p = plan({ rows: small, cars: { mioto: { judged: true, verdicts: new Map(), runs: absentTwice } } })
+    expect(p.expire).toEqual([])
+    expect(p.refused.mioto).toMatch(/would expire 5 of 5 live rows/)
+    // 3 of 4 may go; all 4 may not — nor the only row of a 1-row source
+    const four = many(4)
+    const threeGone = new Map<string, Verdict>([[four[3].externalId!, keep]])
+    expect(plan({ rows: four, cars: { mioto: { judged: true, verdicts: threeGone, runs: [run(0, [four[3].externalId!]), run(3, [four[3].externalId!])] } } }).expire).toHaveLength(EXPIRE_ALLOWANCE)
+    expect(plan({ rows: many(4), cars: { mioto: { judged: true, verdicts: new Map(), runs: absentTwice } } }).expire).toEqual([])
+    expect(plan({ rows: many(1), cars: { mioto: { judged: true, verdicts: new Map(), runs: absentTwice } } }).expire).toEqual([])
+    // a 14-bike shop whose every bike missed three checks: refused (alert), not emptied
+    const shop = Array.from({ length: 14 }, (_, i) => bike(`janmotorbike:b${i}`))
+    const runs = [run(0, []), run(3, []), run(6, [])]
+    const s = plan({ rows: shop, bikes: { janmotorbike: { judged: true, runs, present: new Set() } } })
+    expect(s.expire).toEqual([])
+    expect(s.refused.janmotorbike).toMatch(/would expire 14 of 14/)
+    expect(shrinkRefusal(7, 14)).toBeNull()
+    expect(shrinkRefusal(8, 14)).toMatch(/would expire 8 of 14/)
+    expect(shrinkRefusal(1, 2)).toBeNull()
+    expect(shrinkRefusal(2, 2)).toMatch(/never all/)
+    expect(shrinkRefusal(1, 1)).toMatch(/would expire 1 of 1/)
+  })
+
+  it('⛔ a source the guard refuses moves NOTHING this run — its revivals are held too; --accept <source> overrides', () => {
     const rows = [...many(40), car('mioto:BACK01', 'expired')]
     const verdicts = new Map<string, Verdict>([['mioto:BACK01', keep]])
     const runs = [run(0, ['mioto:BACK01']), run(3, ['mioto:BACK01'])]
     const p = plan({ rows, cars: { mioto: { judged: true, verdicts, runs } }, ready: new Set(['mioto:BACK01']) })
     expect(p.expire).toEqual([])
-    expect(p.revive).toHaveLength(1)
-    expect(plan({ rows, cars: { mioto: { judged: true, verdicts, runs } }, ready: new Set(['mioto:BACK01']), force: new Set(['mioto']) }).expire).toHaveLength(40)
+    expect(p.revive).toEqual([])
+    expect(p.tally.mioto).toMatchObject({ 'held: expire-share guard (absent)': 40, 'held: source refused this run (qualifies)': 1 })
+    const forced = plan({ rows, cars: { mioto: { judged: true, verdicts, runs } }, ready: new Set(['mioto:BACK01']), force: new Set(['mioto']) })
+    expect([forced.expire.length, forced.revive.length]).toEqual([40, 1])
+  })
+
+  it('a source whose revivals the growth guard holds expires nothing either, and one held upstream moves nothing', () => {
+    const live = many(40), expired = Array.from({ length: 21 }, (_, i) => car(`mioto:X${String(i).padStart(5, '0')}`, 'expired'))
+    const verdicts = new Map<string, Verdict>([...live.map((r, i) => [r.externalId!, i < 2 ? fewTrips : keep] as [string, Verdict]), ...expired.map((r) => [r.externalId!, keep] as [string, Verdict])])
+    const input = { rows: [...live, ...expired], cars: { mioto: { judged: true, verdicts, runs: [] } }, ready: new Set(expired.map((r) => r.externalId!)) }
+    const p = plan(input)
+    expect([p.expire.length, p.revive.length]).toEqual([0, 0])
+    expect(p.tally.mioto).toMatchObject({ 'held: source refused this run (fewTrips)': 2, 'held: growth guard (qualifies)': 21 })
+    // the importer held its creations: no message here (the importer reports it), and nothing moves
+    const few = { ...input, rows: [...live, ...expired.slice(0, 3)] }
+    expect(plan(few).revive).toHaveLength(3)
+    const held = plan({ ...few, held: new Set(['mioto']) })
+    expect([held.expire.length, held.revive.length, held.refused]).toEqual([0, 0, {}])
   })
 
   it('judges each source on its own', () => {
@@ -380,5 +463,148 @@ describe('statusJournalProblem — a journal is replayed only if it is exactly w
     expect(bad({ seller: 'constructor' })).toMatch(/storefront/) // own keys only, never the prototype's
     expect(statusJournalProblem(journal({}, [row, row]), sellers)).toMatch(/twice/)
     expect(statusJournalProblem(journal({}, [null]), sellers)).toMatch(/not an object/)
+  })
+})
+
+describe('planVehicleStatus — the growth guard (revivals) and stale scrapes', () => {
+  const many = (k: number, status = 'active', prefix = 'C') => Array.from({ length: k }, (_, i) => car(`mioto:${prefix}${String(i).padStart(5, '0')}`, status))
+
+  it('⛔ holds a source\'s revivals when they exceed max(20, half its live rows) — a broken trips history passes cars in bulk', () => {
+    const live = many(40), expired = many(21, 'expired', 'X')
+    const verdicts = new Map<string, Verdict>([...live, ...expired].map((r) => [r.externalId!, keep]))
+    const ready = new Set(expired.map((r) => r.externalId!))
+    const p = plan({ rows: [...live, ...expired], cars: { mioto: { judged: true, verdicts, runs: [] } }, ready })
+    expect(p.revive).toEqual([])
+    expect(p.refused.mioto).toMatch(/would revive 21 rows against 40 live/)
+    expect(p.tally.mioto['held: growth guard (qualifies)']).toBe(21)
+    // exactly the cap goes through; --accept overrides
+    const twenty = plan({ rows: [...live, ...expired.slice(0, 20)], cars: { mioto: { judged: true, verdicts, runs: [] } }, ready })
+    expect(twenty.revive).toHaveLength(20)
+    expect(plan({ rows: [...live, ...expired], cars: { mioto: { judged: true, verdicts, runs: [] } }, ready, force: new Set(['mioto']) }).revive).toHaveLength(21)
+  })
+
+  it(`lets a small or empty source come back by up to ${GROWTH_ALLOWANCE}`, () => {
+    const expired = Array.from({ length: GROWTH_ALLOWANCE }, (_, i) => bike(`janmotorbike:e${i}`, 'expired'))
+    const present = new Set(expired.map((r) => r.externalId!))
+    const p = plan({ rows: expired, bikes: { janmotorbike: { judged: true, runs: [], present } }, ready: present })
+    expect(p.revive).toHaveLength(GROWTH_ALLOWANCE)
+    expect(growthRefusal('revive', GROWTH_ALLOWANCE + 1, 0)).toMatch(/would revive 21 rows against 0 live/)
+    expect(growthRefusal('create', 50, 100)).toBeNull()
+    expect(growthRefusal('create', 51, 100)).toMatch(/would create 51/)
+  })
+
+  it('⛔ ONE growth budget: the importer\'s creations this run count against the revivals', () => {
+    const live = many(40), expired = many(6, 'expired', 'X')
+    const verdicts = new Map<string, Verdict>([...live, ...expired].map((r) => [r.externalId!, keep]))
+    const ready = new Set(expired.map((r) => r.externalId!))
+    const input = { rows: [...live, ...expired], cars: { mioto: { judged: true, verdicts, runs: [] } }, ready }
+    expect(plan(input).revive).toHaveLength(6) // 6 ≤ 20
+    // 15 created already this run on 40 live before it: 15 + 6 > 20
+    const p = plan({ ...input, growth: { mioto: { liveBefore: 40, created: 15 } } })
+    expect(p.revive).toEqual([])
+    expect(p.refused.mioto).toMatch(/would revive 6 rows \(\+ 15 created\) against 40 live/)
+    expect(plan({ ...input, growth: { mioto: { liveBefore: 40, created: 14 } } }).revive).toHaveLength(6)
+    expect(growthRefusal('revive', 380, 761, 1)).toMatch(/\+ 1 created/)
+  })
+
+  it('joins a shrink and a growth refusal of one source instead of losing one', () => {
+    const live = many(40), expired = many(25, 'expired', 'X')
+    const verdicts = new Map<string, Verdict>([...live.map((r) => [r.externalId!, fewTrips] as [string, Verdict]), ...expired.map((r) => [r.externalId!, keep] as [string, Verdict])])
+    const p = plan({ rows: [...live, ...expired], cars: { mioto: { judged: true, verdicts, runs: [] } }, ready: new Set(expired.map((r) => r.externalId!)) })
+    expect(p.refused.mioto).toMatch(/would expire 40 of 40 .*; would revive 25 rows/)
+  })
+
+  it('⛔ revives nothing from a STALE scrape (a re-imported old dataset is not this run\'s evidence)', () => {
+    const rows = [car('mioto:KEEP01', 'expired'), bike('janmotorbike:a', 'expired')]
+    const ready = new Set(['mioto:KEEP01', 'janmotorbike:a'])
+    const p = plan({
+      rows, ready,
+      cars: { mioto: { judged: false, fresh: false, verdicts: new Map([['mioto:KEEP01', keep]]), runs: [] } },
+      bikes: { janmotorbike: { judged: false, fresh: false, runs: [], present: new Set(['janmotorbike:a']) } },
+    })
+    expect(p.revive).toEqual([])
+    expect(p.tally.mioto).toMatchObject({ 'stays expired: qualifies in a stale scrape': 1 })
+    expect(p.tally.janmotorbike).toMatchObject({ 'stays expired: listed in a stale scrape': 1 })
+  })
+
+  it('heldCreations: per source, more new rows than the cap are held — unless accepted', () => {
+    const planned = new Map([['mioto', 380], ['bonboncar', 5], ['janmotorbike', 30]])
+    const live = new Map([['mioto', 761], ['bonboncar', 221]])
+    expect(Object.keys(heldCreations(planned, live, new Set()))).toEqual(['janmotorbike']) // 30 new against 0 live
+    expect(heldCreations(new Map([['mioto', 381]]), live, new Set())).toMatchObject({ mioto: expect.stringMatching(/would create 381 rows against 761 live/) })
+    expect(heldCreations(new Map([['mioto', 381]]), live, new Set(['mioto']))).toEqual({})
+  })
+})
+
+describe('statusInputs — this run + the recorded runs → the plan\'s input and this run\'s record', () => {
+  const at = Date.parse('2026-10-16T01:00:00Z')
+  const prior = entry('2026-10-13T05:00:00Z', {
+    mioto: src('2026-10-13T01:00:00Z', 3, ['mioto:A', 'mioto:B']),
+    janmotorbike: src('2026-10-13T01:00:00Z', 40, ['janmotorbike:x'], false),
+  })
+
+  it('guards each loaded source, combines this run with every recorded run, and records forced only when accepted', () => {
+    const verdicts = new Map<string, Verdict>([['mioto:A', keep], ['mioto:C', keep], ['mioto:D', fewTrips]])
+    const r = statusInputs({
+      cars: { mioto: { verdicts, scrapedAt: at } },
+      bikes: { janmotorbike: { count: 100, present: new Set(['janmotorbike:y']), scrapedAt: at } },
+      entries: [prior], fallback: { janmotorbike: 100 }, accept: new Set(['mioto']), now: at + 3_600_000,
+    })
+    expect(Object.keys(r.guards)).toEqual(['mioto', 'janmotorbike'])
+    expect(r.cars.mioto).toMatchObject({ judged: true, fresh: true })
+    expect(r.cars.mioto!.runs.map((x) => [x.scrapedAt, x.accepted])).toEqual([[at, true], [Date.parse('2026-10-13T01:00:00Z'), true]])
+    expect(r.current.mioto).toMatchObject({ count: 3, accepted: true, forced: true, present: ['mioto:A', 'mioto:C', 'mioto:D'] })
+    // the shop's only recorded run was refused: no reference but the baseline (100) — judged; the refused run is in `runs`
+    expect(r.guards.janmotorbike).toMatchObject({ judged: true, reference: 100 })
+    expect(r.bikes.janmotorbike!.runs.map((x) => x.accepted)).toEqual([true, false])
+    expect(r.current.janmotorbike).toMatchObject({ count: 100, accepted: true, forced: false, present: ['janmotorbike:y'] })
+    // a source not loaded this run is neither guarded nor recorded
+    expect(r.cars.bonboncar).toBeUndefined()
+    expect(r.current.bonboncar).toBeUndefined()
+  })
+
+  it('a refused (short) scrape is recorded NOT accepted and never forced', () => {
+    const r = statusInputs({ cars: {}, bikes: { janmotorbike: { count: 10, present: new Set(), scrapedAt: at } }, entries: [], fallback: { janmotorbike: 100 }, accept: new Set(), now: at })
+    expect(r.current.janmotorbike).toMatchObject({ accepted: false, forced: false })
+    expect(r.bikes.janmotorbike).toMatchObject({ judged: false, fresh: true })
+  })
+
+  it('guardRefusals: only a refused source that HAS live rows is a refusal', () => {
+    const g = (accepted: boolean) => ({ judged: accepted, accepted, fresh: true, reference: 1, reason: '' })
+    expect(guardRefusals({ mioto: g(false), tuanmotorbike: g(false), bonboncar: g(true) }, new Set(['mioto', 'bonboncar']))).toEqual(['mioto: scrape not accepted (see its guard line)'])
+  })
+})
+
+describe('baselineCountsFrom — the first run\'s reference', () => {
+  it('counts what the gone helper SAW last run, never the rows it carried forward unseen (_carried)', () => {
+    const out = baselineCountsFrom({
+      mioto: [{ id: 'A' }, { id: 'B', _carried: 1 }, { id: 'C' }],
+      bonbon: 'not a list',
+      bikes: [{ shop: 'janmotorbike' }, { shop: 'janmotorbike', _carried: 2 }, { shop: 'tuanmotorbike' }, { shop: 'someoneelse' }],
+    })
+    expect(out).toMatchObject({ mioto: 2, janmotorbike: 1, tuanmotorbike: 1, rentabikevn: 0 })
+    expect(out.bonboncar).toBeUndefined()
+    expect(baselineCountsFrom({})).toEqual({})
+  })
+})
+
+describe('growthBaseline — the growth budget survives the job\'s one import retry', () => {
+  const start = Date.parse('2026-10-16T21:30:00Z')
+  it('rows created since the run began are this run\'s own creations, not live rows of before', () => {
+    const rows = [
+      { seller: 'mioto', status: 'active', createdAt: start - DAY },
+      { seller: 'mioto', status: 'active', createdAt: start - DAY },
+      { seller: 'mioto', status: 'expired', createdAt: start - DAY },
+      { seller: 'mioto', status: 'active', createdAt: start + 3_600_000 }, // the first attempt created it
+      { seller: undefined, status: 'active', createdAt: 0 },
+    ]
+    const b = growthBaseline(rows, start)
+    expect(Object.fromEntries(b.liveBefore)).toEqual({ mioto: 2 })
+    expect(Object.fromEntries(b.createdEarlier)).toEqual({ mioto: 1 })
+    // no run start (a hand run without the job): every row is "before"
+    expect(Object.fromEntries(growthBaseline(rows, NaN).liveBefore)).toEqual({ mioto: 3 })
+    // and the earlier attempt's creations count against the same budget
+    expect(heldCreations(new Map([['mioto', 20]]), new Map([['mioto', 2]]), new Set(), b.createdEarlier)).toMatchObject({ mioto: expect.stringMatching(/\(\+ 1 created\)/) })
+    expect(heldCreations(new Map([['mioto', 19]]), new Map([['mioto', 2]]), new Set(), b.createdEarlier)).toEqual({})
   })
 })

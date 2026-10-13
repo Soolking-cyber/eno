@@ -5,7 +5,7 @@
  *   npx tsx scripts/vehicle-job-gate.ts --stamp ~/eno-import-journals/vehicles/.last-success
  *
  * exit 0  = due: run (also when no stamp exists yet, or it cannot be read as a date)
- * exit 10 = not due: the last successful run is under 66 h old — the job stops quietly
+ * exit 10 = not due: the last successful run started under 66 h ago — the job stops quietly
  * exit 1  = the stamp file exists but cannot be read (permissions, a directory): the job fails loudly
  */
 import { readFileSync } from 'node:fs'
