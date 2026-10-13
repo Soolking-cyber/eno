@@ -57,13 +57,26 @@ import {
 } from './apartment-freshness'
 import { pdpTombstoneTags } from './job-listing'
 import {
-  NHATOT_CITIES, NHATOT_LIST_ID_MAX, NHATOT_PAGE_MAX, NHATOT_SELLER_ID, NHATOT_TOTAL_CAP,
+  NHATOT_CATEGORIES, NHATOT_CITIES, NHATOT_LIST_ID_MAX, NHATOT_PAGE_MAX, NHATOT_SELLER_ID, NHATOT_TOTAL_CAP,
   stageNhatotAd, type NhatotCityKey, type NhatotStagedAd,
 } from './nhatot-listing'
 
 const DAY_MS = 86_400_000
 /** Chợ Tốt's apartment category — the ONLY one the fresh set speaks for (its subcat is APARTMENT_SUBCAT). */
 export const NHATOT_APARTMENT_CG = 1010
+
+/**
+ * The ORDER a time-bounded read takes its (city × category) slices in: every city's APARTMENT slice first
+ * (NHATOT_APARTMENT_CG — the only lists the fresh set's coverage proof reads), then each other category city
+ * by city. Since 2026-10-13 the 3-day job reads houses, offices and rooms (cg 1020/1030/1050) too, and a
+ * StopRead (a 429, a challenge) ends the WHOLE read wherever it lands: city-major order would let a later
+ * category's stop cut off another city's apartments and cost the week's set. Apartments first, the set's
+ * evidence is complete before the first extra request. `cgs` keep their given order after the apartments.
+ */
+export function nhatotWindowReadOrder(cities: readonly NhatotCityKey[], cgs: readonly number[]): { city: NhatotCityKey; cg: number }[] {
+  const ordered = [...new Set(cgs)].sort((a, b) => Number(b === NHATOT_APARTMENT_CG) - Number(a === NHATOT_APARTMENT_CG))
+  return ordered.flatMap((cg) => cities.map((city) => ({ city, cg })))
+}
 /** Rows each page shares with the one before: up to OVERLAP-1 deletions between two requests are absorbed. */
 export const NHATOT_WINDOW_OVERLAP = 10
 /** The read goes this much past the window, so our clock against the server's cannot cut it short. */
@@ -535,15 +548,27 @@ export function nhatotFreshDecision(staged: {
 
 // ─── --apply: an existing row the source shows fresh ─────────────────────────────────────────────
 
-/** Is this subcategory the one the 7-day rule (and so revival) governs? Pinned to Chợ Tốt's 1010 mapping. */
+/** Is this subcategory the one the fresh SET (and so the fresh-set expiry) speaks for? Pinned to Chợ Tốt's 1010 mapping. */
 export const nhatotIsApartment = (subcat: string | null) => subcat === APARTMENT_SUBCAT
 
 /**
+ * The PLACE subcategories this importer writes — every Chợ Tốt rentals category it maps (apartment 1010, house
+ * 1020, office 1030, room 1050). Since 2026-10-13 (owner: every rental property, 7 days at most, checked every
+ * 3 days) revival covers all of them: the daily age sweep (scripts/expire-rentals.ts --sweep) expires every
+ * place type past FRESH_DAYS, so a house, an office or a room the source shows fresh again comes back exactly
+ * like an apartment. Only the fresh set stays apartments-only (nhatotIsApartment).
+ */
+export const NHATOT_PLACE_SUBCATS: readonly string[] = Object.freeze(
+  [...new Set(Object.values(NHATOT_CATEGORIES).map((c) => c.subcat).filter((x): x is string => x !== null))],
+)
+export const nhatotIsPlace = (subcat: string | null) => subcat !== null && NHATOT_PLACE_SUBCATS.includes(subcat)
+
+/**
  * What --apply does to an EXISTING (not 'removed') row beyond its refreshable fields:
- *  · REVIVE — an apartment whose source date is inside the window at the STAGE's fetch time (the read's
- *    START — the set's fetchedAt), sitting in a
- *    status the 7-day rule (or a retire-to-stale) put it in → 'active'. Never 'hidden' (moderation, the
- *    retire pass's gone signal, the content screen), 'sold' or 'active'.
+ *  · REVIVE — a PLACE row (nhatotIsPlace: apartment, house, office, room) whose source date is inside the
+ *    window at the STAGE's fetch time (the read's START — the set's fetchedAt), sitting in a status the 7-day
+ *    rule (the fresh-set expiry, the daily age sweep, or a retire-to-stale) put it in → 'active'. Never
+ *    'hidden' (moderation, the retire pass's gone signal, the content screen), 'sold' or 'active'.
  *  · postedAt — the source date on a revival; otherwise only when the source date is NEWER than the stored
  *    one (re-posted). null = unchanged. The caller recomputes rankScore from it whenever it changes.
  */
@@ -552,7 +577,7 @@ export function nhatotExistingRowPlan(
   row: { postedAt: Date; subcategorySlug: string | null },
   stagedFetchedAt: number,
 ): { revive: boolean; postedAt: Date | null } {
-  const fresh = nhatotIsApartment(row.subcategorySlug) && isInWindow(row.postedAt, stagedFetchedAt)
+  const fresh = nhatotIsPlace(row.subcategorySlug) && isInWindow(row.postedAt, stagedFetchedAt)
   const revive = fresh && (REVIVABLE_STATUSES as readonly string[]).includes(cur.status)
   if (revive) return { revive, postedAt: row.postedAt }
   return { revive, postedAt: row.postedAt.getTime() > cur.postedAt.getTime() ? row.postedAt : null }

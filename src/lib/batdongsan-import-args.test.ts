@@ -25,9 +25,13 @@ describe('parseArgs', () => {
     expect(() => parseArgs(['--src', 'x', '--previous', 'p', '--max-age-days', '1.5'])).toThrow(/positive integer/)
     expect(() => parseArgs(['--src', 'x', '--limit', '-1'])).toThrow(/--limit/)
   })
-  it('--fresh-out is the 7-day apartment judgement and nothing else', () => {
+  it('--fresh-out is the 7-day judgement: every type imported with no --subcat (the set covers apartments), never another --subcat', () => {
     const without = (flag: string) => { const a = [...WEEKLY]; a.splice(a.indexOf(flag), 2); return a }
-    expect(() => parseArgs(without('--subcat'))).toThrow(/--subcat apartment-rental/)
+    // the 3-day job since 2026-10-13: the whole rentals list, every type imported, the apartment set written
+    expect(parseArgs(without('--subcat'))).toMatchObject({ subcat: null, maxAgeDays: 7, freshOut: '/run/bds-fresh.json' })
+    expect(parseArgs([...without('--subcat'), '--journal-dir', '/j', '--apply']).apply).toBe(true)
+    expect(() => parseArgs([...without('--subcat'), '--subcat', 'house-rental'])).toThrow(/--fresh-out takes no --subcat .* or --subcat apartment-rental — not house-rental/)
+    expect(() => parseArgs([...without('--subcat'), '--subcat', 'room-rental'])).toThrow(/not room-rental/)
     expect(() => parseArgs([...without('--max-age-days'), '--max-age-days', '5'])).toThrow(/--max-age-days 7/)
     expect(() => parseArgs(['--src', 'x', '--crawl-log', 'c.json'])).toThrow(/only with --fresh-out/)
   })

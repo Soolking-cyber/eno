@@ -70,9 +70,10 @@ const DETAIL = {
   ],
   merge_address: '867, Đường Lũy Bán Bích, Phường Phú Thọ Hòa, TP.HCM',
 }
-const ALL = { cities: parseCities(null), types: parseTypes(null) }
-/** A day after the fixture's created_at (2026-06-02): an APARTMENT is mapped only inside the 7-day window. */
+/** A day after the fixture's created_at (2026-06-02): an ad is mapped only inside the 7-day window — since
+ *  2026-10-13 an ad of ANY type (the fixture is a house), so every mapping below is judged at this moment. */
 const FIXTURE_NOW = Date.parse('2026-06-03T00:00:00Z')
+const ALL = { cities: parseCities(null), types: parseTypes(null), now: FIXTURE_NOW }
 /** The id-only outbound link for the fixture: muaban's category segment + the id, no title slug. */
 const LINK = 'https://muaban.net/bat-dong-san/nha-mat-tien-quan-tan-phu-ho-chi-minh/id70946042'
 const card = (over: Partial<MuabanListItem> = {}): MuabanListItem => ({ ...stageItem(CARD), ...over })
@@ -452,13 +453,17 @@ describe('postedAt + rankScore — ⛔ the SOURCE\'s own post date, clamped to n
   })
 
   it('⛔ mapRecord carries the detail page\'s created_at as postedAt — never publish_at — and drops a row with no readable date', () => {
-    const m = mapRecord(card({ publish_at: '2026-09-24T00:00:02+07:00' }), detail({ created_at: '2026-09-14T08:00:00+07:00' }), opts)
+    /** Judged inside the 7-day window (every type since 2026-10-13): the moment the crawl read it, a day later. */
+    const read = { ...opts, windowAt: Date.parse('2026-09-15T00:00:00Z') }
+    const m = mapRecord(card({ publish_at: '2026-09-24T00:00:02+07:00' }), detail({ created_at: '2026-09-14T08:00:00+07:00' }), read)
     expect(m.ok && m.row.postedAt.toISOString()).toBe('2026-09-14T01:00:00.000Z')
-    expect(mapRecord(card(), detail({ created_at: undefined }), opts)).toEqual({ ok: false, reason: 'postDate' })
-    expect(mapRecord(card(), detail({ created_at: 'garbage' }), opts)).toEqual({ ok: false, reason: 'postDate' })
-    expect(mapRecord(card(), null, opts)).toEqual({ ok: false, reason: 'postDate' })
-    const future = mapRecord(card(), detail({ created_at: '2027-01-01T00:00:00Z' }), opts)
-    expect(future.ok && future.row.postedAt.getTime()).toBe(now)
+    expect(mapRecord(card(), detail({ created_at: undefined }), read)).toEqual({ ok: false, reason: 'postDate' })
+    expect(mapRecord(card(), detail({ created_at: 'garbage' }), read)).toEqual({ ok: false, reason: 'postDate' })
+    expect(mapRecord(card(), null, read)).toEqual({ ok: false, reason: 'postDate' })
+    // ⛔ a created_at later than the read is undetermined (judgeCreated) — never imported, whatever the clamp would make of it
+    expect(mapRecord(card(), detail({ created_at: '2027-01-01T00:00:00Z' }), read)).toEqual({ ok: false, reason: 'window' })
+    // …and one 10 days before the moment it is judged at is outside the window
+    expect(mapRecord(card(), detail({ created_at: '2026-09-14T08:00:00+07:00' }), opts)).toEqual({ ok: false, reason: 'window' })
   })
 
   it('createOnlyFields: the importer\'s own formula, from the source date — a 10-day-old ad does not start as new', () => {
@@ -472,7 +477,7 @@ describe('postedAt + rankScore — ⛔ the SOURCE\'s own post date, clamped to n
   })
 
   it('end to end: the mapped row\'s create-only fields are the detail page\'s created_at and its rank', () => {
-    const m = mapRecord(card(), detail({ created_at: '2026-09-10T00:00:00Z' }), opts)
+    const m = mapRecord(card(), detail({ created_at: '2026-09-10T00:00:00Z' }), { ...opts, windowAt: Date.parse('2026-09-11T00:00:00Z') })
     if (!m.ok) throw new Error(m.reason)
     const f = createOnlyFields(m.row, 100, now)
     expect(f.postedAt.toISOString()).toBe('2026-09-10T00:00:00.000Z')

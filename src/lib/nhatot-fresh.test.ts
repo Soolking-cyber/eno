@@ -3,9 +3,9 @@ import { readFileSync } from 'node:fs'
 import { APARTMENT_SUBCAT, FRESH_DAYS, freshSetProblem } from './apartment-freshness'
 import { NHATOT_CATEGORIES, stageNhatotAd, type NhatotStagedAd } from './nhatot-listing'
 import {
-  NHATOT_APARTMENT_CG, NHATOT_WINDOW_MARGIN_MS, nhatotAnchors, nhatotBuildFreshSet, nhatotEndProblem, nhatotExistingRowPlan, nhatotFreshCoverage,
-  nhatotFreshDecision, nhatotFreshOutProblem, nhatotIsBoundaryPage, nhatotLastTime, nhatotNewest, nhatotOrderProblem, nhatotRepostRollbackSql, nhatotRevivalRollbackSql,
-  nhatotSamePage, nhatotSqlLit, nhatotTombstoneSql, nhatotWindowCutoff, nhatotWindowRow,
+  NHATOT_APARTMENT_CG, NHATOT_PLACE_SUBCATS, NHATOT_WINDOW_MARGIN_MS, nhatotAnchors, nhatotBuildFreshSet, nhatotEndProblem, nhatotExistingRowPlan, nhatotFreshCoverage,
+  nhatotFreshDecision, nhatotFreshOutProblem, nhatotIsApartment, nhatotIsBoundaryPage, nhatotIsPlace, nhatotLastTime, nhatotNewest, nhatotOrderProblem, nhatotRepostRollbackSql, nhatotRevivalRollbackSql,
+  nhatotSamePage, nhatotSqlLit, nhatotTombstoneSql, nhatotWindowCutoff, nhatotWindowReadOrder, nhatotWindowRow,
   nhatotWindowStep, readNhatotWindowSlice, type NhatotWindowRow, type NhatotWindowSlice,
 } from './nhatot-fresh'
 
@@ -17,6 +17,27 @@ describe('the apartment category', () => {
   it('cg 1010 is the 7-day rule’s subcategory', () => {
     expect(NHATOT_APARTMENT_CG).toBe(1010)
     expect(NHATOT_CATEGORIES[NHATOT_APARTMENT_CG].subcat).toBe(APARTMENT_SUBCAT)
+  })
+  it('the place types revival covers are every category the importer maps; the set stays apartments only', () => {
+    expect([...NHATOT_PLACE_SUBCATS].sort()).toEqual(['apartment-rental', 'house-rental', 'office-rental', 'room-rental'])
+    expect(Object.isFrozen(NHATOT_PLACE_SUBCATS)).toBe(true)
+    for (const s of NHATOT_PLACE_SUBCATS) expect(nhatotIsPlace(s), s).toBe(true)
+    expect(nhatotIsPlace(null)).toBe(false)
+    expect(nhatotIsPlace('motorbike-rental')).toBe(false)
+    expect(nhatotIsApartment('apartment-rental')).toBe(true)
+    expect(nhatotIsApartment('house-rental')).toBe(false)
+  })
+  it('⛔ nhatotWindowReadOrder: every city\'s apartments first, then each other category city by city', () => {
+    expect(nhatotWindowReadOrder(['hcm', 'hn', 'dn'], [1010, 1020, 1030, 1050])).toEqual([
+      { city: 'hcm', cg: 1010 }, { city: 'hn', cg: 1010 }, { city: 'dn', cg: 1010 },
+      { city: 'hcm', cg: 1020 }, { city: 'hn', cg: 1020 }, { city: 'dn', cg: 1020 },
+      { city: 'hcm', cg: 1030 }, { city: 'hn', cg: 1030 }, { city: 'dn', cg: 1030 },
+      { city: 'hcm', cg: 1050 }, { city: 'hn', cg: 1050 }, { city: 'dn', cg: 1050 },
+    ])
+    // apartments lead wherever --cg names them; the rest keep their given order; a repeat is read once
+    expect(nhatotWindowReadOrder(['hn'], [1050, 1020, 1010, 1020]).map((x) => x.cg)).toEqual([1010, 1050, 1020])
+    expect(nhatotWindowReadOrder(['hcm', 'dn'], [1010])).toEqual([{ city: 'hcm', cg: 1010 }, { city: 'dn', cg: 1010 }])
+    expect(nhatotWindowReadOrder(['hcm'], [1020, 1030])).toEqual([{ city: 'hcm', cg: 1020 }, { city: 'hcm', cg: 1030 }])
   })
 })
 
@@ -433,6 +454,8 @@ describe('nhatotFreshOutProblem — refused before any request', () => {
   it('accepts an unsampled time-bounded read of every city with apartments', () => {
     expect(nhatotFreshOutProblem({ ...ok, cities: [...ok.cities] })).toBeNull()
     expect(nhatotFreshOutProblem({ ...ok, cities: [...ok.cities], maxAgeDays: 30, cgs: [1010, 1020] })).toBeNull()
+    // the 3-day job's line since 2026-10-13: every place category, the set still cg 1010's
+    expect(nhatotFreshOutProblem({ ...ok, cities: [...ok.cities], cgs: [1010, 1020, 1030, 1050] })).toBeNull()
   })
   it('refuses a replay, an apply, --retire, a sample, an unbounded or too-short read, a missing city or cg 1010', () => {
     const c = [...ok.cities]
@@ -565,6 +588,20 @@ describe('nhatotFreshDecision — coverage, set, and the expiry’s own check', 
     unjudged: [] as number[],
     ...over,
   })
+  it('⛔ every place category read (2026-10-13): a later category that failed or stopped leaves the apartment set intact — the read took every city\'s apartments first', () => {
+    const cgs = [1010, 1020, 1030, 1050]
+    // nhatotWindowReadOrder: hcm/hn/dn 1010, then hcm 1020 — which hit a gap (or a StopRead ended the read there: nothing after it exists)
+    const after = [{ city: 'hcm' as const, cg: 1020, area: null, window: win('gap') }]
+    const rooms = Array.from({ length: 5 }, (_, i) => ad(134300000 + i, NOW - i * HOUR, 1050))
+    const d = nhatotFreshDecision(staged({ params: { ...staged().params, cgs }, slices: [...staged().slices, ...after], ads: [...staged().ads, ...rooms] }), NOW + 60_000)
+    expect(d.ok).toBe(true)
+    if (!d.ok) return
+    expect(d.set.items).toHaveLength(29)                                                             // apartments only — never a room
+    expect(d.set.items.every((i) => !i.externalId.startsWith('nhatot:1343'))).toBe(true)
+    // the order matters: had the stop come between two cities' apartments (city-major), the set would be lost
+    const cityMajor = [region('hcm'), { city: 'hcm' as const, cg: 1020, area: null, window: win('gap') }]
+    expect(nhatotFreshDecision(staged({ params: { ...staged().params, cgs }, slices: cityMajor }), NOW + 60_000)).toMatchObject({ ok: false, why: expect.stringMatching(/hn\/1010: no time-bounded region slice/) })
+  })
   it('a covered read gives a set that passes freshSetProblem as written', () => {
     const d = nhatotFreshDecision(staged(), NOW + 60_000)
     expect(d.ok).toBe(true)
@@ -599,9 +636,15 @@ describe('nhatotExistingRowPlan — what --apply does to an existing row', () =>
     // even when the stored date is LATER (a row created before postedAt was the source date)
     expect(nhatotExistingRowPlan({ status: 'expired', postedAt: new Date(NOW) }, src, at)).toEqual({ revive: true, postedAt: src.postedAt })
   })
-  it('never revives a hidden, sold, active or removed row, a non-apartment, or one outside the window at the stage’s fetch', () => {
+  it('⛔ REVIVES every place type since 2026-10-13 — a house, an office, a room — exactly like an apartment', () => {
+    for (const subcategorySlug of ['house-rental', 'office-rental', 'room-rental']) {
+      expect(nhatotExistingRowPlan({ status: 'expired', postedAt: stored }, { ...src, subcategorySlug }, at), subcategorySlug).toEqual({ revive: true, postedAt: src.postedAt })
+      expect(nhatotExistingRowPlan({ status: 'expired', postedAt: stored }, { ...src, subcategorySlug, postedAt: new Date(NOW - 8 * DAY) }, at).revive).toBe(false)
+    }
+  })
+  it('never revives a hidden, sold, active or removed row, a row of no Chợ Tốt place type, or one outside the window at the stage’s fetch', () => {
     for (const status of ['hidden', 'sold', 'active', 'removed']) expect(nhatotExistingRowPlan({ status, postedAt: stored }, src, at).revive).toBe(false)
-    expect(nhatotExistingRowPlan({ status: 'expired', postedAt: stored }, { ...src, subcategorySlug: 'house-rental' }, at).revive).toBe(false)
+    for (const subcategorySlug of [null, 'car-rental', 'homestay-serviced']) expect(nhatotExistingRowPlan({ status: 'expired', postedAt: stored }, { ...src, subcategorySlug }, at).revive, String(subcategorySlug)).toBe(false)
     expect(nhatotExistingRowPlan({ status: 'expired', postedAt: stored }, { ...src, postedAt: new Date(NOW - 8 * DAY) }, at).revive).toBe(false)
     // judged at the STAGE's fetch time, not the apply's clock
     expect(nhatotExistingRowPlan({ status: 'expired', postedAt: stored }, { ...src, postedAt: new Date(NOW - 6 * DAY) }, NOW + 2 * DAY).revive).toBe(false)

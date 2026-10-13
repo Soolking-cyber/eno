@@ -4,7 +4,7 @@
  *
  * Run (DRY by default — a read-only database session):
  *   set -a; . ./.env; set +a; npx tsx scripts/import-batdongsan-rentals.ts --src <all_rentals.json> [--apply]
- *     [--max-age-days 7 --previous <the archived earlier all_rentals.json>] [--subcat apartment-rental]
+ *     [--max-age-days 7 --previous <the archived earlier all_rentals.json>] [--subcat apartment-rental | house-rental | …]
  *     [--fresh-out <fresh set.json> [--crawl-log <all_rentals.crawl.json>]] [--journal-dir <durable dir>]
  *
  * ⚠️ FRESH-ONLY RE-IMPORT (owner, 2026-10-01: "batdongsan 1 photo apartments still fetch only 7 days fresh
@@ -20,8 +20,22 @@
  *                   in the database and rows the mapper below refuses for other reasons (negotiable
  *                   price, no coordinates, the content screen) — written atomically for
  *                   scripts/expire-apartment-rentals.ts, AFTER the import below succeeded (a set on disk
- *                   means its rows were created / revived first). Needs --max-age-days 7 (FRESH_DAYS) and
- *                   --subcat apartment-rental. Written in a dry run too; it is a file, not a write.
+ *                   means its rows were created / revived first). Needs --max-age-days 7 (FRESH_DAYS), and
+ *                   no --subcat (every type imported — the 3-day job since 2026-10-13, crawling Batdongsan's
+ *                   WHOLE rentals list: scraper.py --to-end --new, its `all` list) or --subcat apartment-rental.
+ *                   Written in a dry run too; it is a file, not a write.
+ *   ⚠️ EVERY TYPE, ONE GATE (2026-10-13): houses, rooms, offices and untyped rows are created, revived and re-dated
+ *   by the same 7-day judgement as apartments (judgeBdsRow — the body below was always type-blind; only --subcat
+ *   narrowed it); only the SET is apartments-only. The daily age sweep (scripts/expire-rentals.ts --sweep) takes
+ *   every type down past 7 days.
+ *   ⚠️ THE `all` LIST IS CLASSIFIED BY scraper.py's KEYWORD RULE (title + url), where the apartment lists were
+ *   classified by the list itself. coverageOfLog accepts it for the apartment set (it carries both apartment lists;
+ *   batdongsan-crawl.test.ts). Structurally the keyword rule cannot call an apartment anything else: its FIRST test
+ *   is 'can-ho' / 'chung-cu' in title + url, and both apartment categories' urls carry it — `cho-thue-can-ho-chung-cu-…`
+ *   and the mini flats' `cho-thue-can-ho-chung-cu-mini-…`. Measured on the 2026-09-21 all-list scrape (23,026 rows):
+ *   all 13,352 such rows (8,029 + 5,323 mini) were classified 'Căn hộ / Chung cư'. The rule over-detects (~415
+ *   house/room/office urls called apartments) and never under-detects, so the set leaves out no apartment the two
+ *   apartment lists would have listed.
  *   ⛔ ONLY WITH THE SCRAPER'S CRAWL LOG (--crawl-log, default <src minus .json>.crawl.json), which
  *   scraper.py writes next to all_rentals.json. src/lib/batdongsan-crawl.ts re-derives from its per-page
  *   records that BOTH apartment lists (căn hộ chung cư + chung cư mini — the mapper below puts both in
@@ -151,7 +165,10 @@ export function parseArgs(argv: readonly string[]) {
   if (o.maxAgeDays !== null && !o.previous) throw new Error('--max-age-days needs --previous <the archived earlier scrape> — the carry-over check below')
   if (o.freshOut) {
     if (o.maxAgeDays !== FRESH_DAYS) throw new Error(`--fresh-out needs --max-age-days ${FRESH_DAYS} — the set and the import gate are one judgement`)
-    if (o.subcat !== APARTMENT_SUBCAT) throw new Error(`--fresh-out needs --subcat ${APARTMENT_SUBCAT} — the 7-day rule covers apartments only`)
+    // The SET covers apartments (isApartment below) whatever is imported: with no --subcat every type is imported and
+    // judged by the same 7-day gate (the 3-day job since 2026-10-13); a non-apartment --subcat would import none of the
+    // rows the set keeps live.
+    if (o.subcat !== null && o.subcat !== APARTMENT_SUBCAT) throw new Error(`--fresh-out takes no --subcat (every type imported, the set covers apartments) or --subcat ${APARTMENT_SUBCAT} — not ${o.subcat}`)
     // The set keeps live every fresh apartment of the scrape; a --limit import would create / revive only part of them.
     if (limitRaw !== null) throw new Error('--limit cannot be used with --fresh-out — the set must follow an import of every row it keeps live')
   } else if (o.crawlLog) throw new Error('--crawl-log is read only with --fresh-out')

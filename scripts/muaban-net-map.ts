@@ -17,7 +17,7 @@
  */
 import vnUnits from '../src/data/vn-units.json'
 import {
-  APARTMENT_SUBCAT, FRESH_DAYS, FRESH_SET_MAX_AGE_MS, REVIVABLE_STATUSES, freshSetProblem, isInWindow, makeFreshSet, type FreshItem, type FreshSet,
+  FRESH_DAYS, FRESH_SET_MAX_AGE_MS, MAX_UNKNOWN_SHARE, REVIVABLE_STATUSES, freshSetProblem, isInWindow, makeFreshSet, type FreshItem, type FreshSet,
 } from '../src/lib/apartment-freshness'
 import { buildSearchText } from '../src/lib/fold'
 import { localizeImportText, type MissingSegment } from '../src/lib/import-i18n'
@@ -113,7 +113,11 @@ export const PROPERTY_TYPES: Record<number, { key: string; listSlug: string; sub
   2815: { key: 'warehouse', listSlug: 'cho-thue-nha-xuong-kho-dat', subcat: null, en: 'Warehouse / land', vi: 'Nhà xưởng, kho, đất' },
 }
 export const DEFAULT_TYPES = [2812, 2811, 1614, 2814]
-/** 'Căn hộ' — the only type the 7-day rule (src/lib/apartment-freshness.ts) applies to. */
+/**
+ * 'Căn hộ' — the only type the FRESH SET (and so the fresh-set expiry) speaks for. Since 2026-10-13 the 7-day
+ * window itself applies to every type (mapRecord), and the other types are crawled the same way without a set
+ * (--fresh-crawl); the daily age sweep (scripts/expire-rentals.ts --sweep) expires them past FRESH_DAYS.
+ */
 export const APARTMENT_TYPE = 2812
 
 export function parseCities(arg: string | null): CityKey[] {
@@ -200,12 +204,19 @@ export type RunArgs = {
    * modeRefusal pins what it may be combined with (apartments only, every city, no --limit/--cap).
    */
   freshOut: string | null
+  /**
+   * --fresh-crawl (2026-10-13): the SAME crawl (every list of --types read whole, created_at down to the id floor)
+   * for the types the set does not cover — house, room, office — staging every ad it finds, and writing NO set.
+   * A list it cannot read whole is reported and skipped (the others are still read and walked): nothing is
+   * expired from this crawl, so a partial one only means some fresh ads wait for the next run. Exit 3 then.
+   */
+  freshCrawl: boolean
 }
 
 /** Every flag this importer reads. ⛔ Anything else THROWS: a typo'd `--fresh-ot` must not run a crawl
  *  that silently writes no set, nor a mistyped safety flag pass as accepted. */
 const VALUED_FLAGS = ['--limit', '--src', '--stage', '--journal', '--city', '--types', '--cap', '--max-pages', '--delay-ms', '--fresh-out']
-const BOOLEAN_FLAGS = ['--apply', '--retire', '--probe-images', '--cover-by-mark', '--list-only', '--force-mass-retire']
+const BOOLEAN_FLAGS = ['--apply', '--retire', '--probe-images', '--cover-by-mark', '--list-only', '--force-mass-retire', '--fresh-crawl']
 
 /**
  * The whole command line, parsed in one tested place. The importer calls exactly this, so the
@@ -248,6 +259,7 @@ export function parseRunArgs(argv: string[]): RunArgs {
     listOnly: flag('--list-only'),
     forceMassRetire: flag('--force-mass-retire'),
     freshOut: arg('--fresh-out'),
+    freshCrawl: flag('--fresh-crawl'),
   }
 }
 
@@ -276,6 +288,15 @@ export function modeRefusal(a: RunArgs): string | null {
     if (a.limit) return '--limit cuts the crawl short; a fresh set must be whole'
     if (Object.keys(a.caps).length) return '--cap cuts the crawl short; a fresh set must be whole'
     if (a.listOnly) return '--list-only reads no detail page, and the date this rule uses (created_at) is only on the detail page'
+  }
+  if (a.freshCrawl) {
+    /** The same crawl, no set: for the types the apartment set does not cover (the 3-day job: house,room,office). */
+    if (a.freshOut) return '--fresh-crawl is the set-less crawl; --fresh-out runs its own (apartments) — pass one'
+    if (a.src || a.apply || a.retire) return '--fresh-crawl is a live crawl (a dry run, with --stage); not with --src, --apply or --retire'
+    if (!a.stage) return '--fresh-crawl needs --stage <file>: what it finds is imported from that stage'
+    if (a.limit) return '--limit cuts the crawl short; --fresh-crawl reads every list whole'
+    if (Object.keys(a.caps).length) return '--cap cuts the crawl short; --fresh-crawl reads every list whole'
+    if (a.listOnly) return '--list-only reads no detail page, and the window (created_at) is only on the detail page'
   }
   return null
 }
@@ -852,9 +873,9 @@ export {
 // ─── The mapping ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * 'window': an APARTMENT whose `created_at` is older than FRESH_DAYS at `windowAt` — the 7-day rule
- * (src/lib/apartment-freshness.ts). Such a row is neither created nor refreshed; the expiry step takes
- * an existing one down.
+ * 'window': an ad — of ANY type since 2026-10-13 (apartments only before) — whose `created_at` is older than
+ * FRESH_DAYS at `windowAt`: the 7-day rule (src/lib/apartment-freshness.ts). Such a row is neither created nor
+ * refreshed; the daily age sweep (and, for an apartment, the fresh-set expiry) takes an existing one down.
  */
 export type DropReason =
   | 'notRental' | 'city' | 'type' | 'target' | 'location' | PriceDrop
@@ -862,7 +883,7 @@ export type DropReason =
 
 /**
  * `now` (epoch ms, default Date.now()) is the ceiling a source post date is clamped to. `windowAt` (epoch
- * ms, default `now`) is the moment an APARTMENT's created_at is judged against the 7-day window, and
+ * ms, default `now`) is the moment an ad's created_at is judged against the 7-day window (every type), and
  * `readAt` (default `windowAt`) the moment its detail page was read. The importer passes the record's
  * `setAt` (a --fresh-out crawl: the fresh set's own fetchedAt) or else its `fetchedAt` as windowAt, and its
  * fetchedAt as readAt — and the judgement is judgeCreated(), the very function that built the set. So an
@@ -1045,9 +1066,10 @@ function mapCore(item: MuabanListItem, detail: MuabanDetail | null, opts: MapOpt
   /** ⛔ created_at, never publish_at (sourcePostedAt says why). listLevel: the card has no created_at. */
   const postedAt = listLevel ? new Date(now) : sourcePostedAt(detail?.created_at, now)
   if (!postedAt) return { ok: false, reason: 'postDate' }
-  /** ⛔ THE 7-DAY RULE, apartments only: an ad first posted more than FRESH_DAYS before the set's moment is
-   *  not imported, refreshed or revived. judgeCreated — the set's own verdict — at the set's moment. */
-  if (!listLevel && type.subcat === APARTMENT_SUBCAT) {
+  /** ⛔ THE 7-DAY RULE, EVERY TYPE (owner 2026-10-13: "no older than 7 days" for every rental property —
+   *  apartments only before): an ad first posted more than FRESH_DAYS before the set's moment is not imported,
+   *  refreshed or revived. judgeCreated — the set's own verdict — at the set's (or the crawl's) moment. */
+  if (!listLevel) {
     const at = opts.windowAt ?? now
     if (judgeCreated(detail?.created_at, opts.readAt ?? at, at).kind !== 'fresh') return { ok: false, reason: 'window' }
   }
@@ -1303,6 +1325,8 @@ export function emptyStageNoop(records: readonly unknown[], src: string): string
  * The exit code of a --fresh-out run that read muaban but could NOT prove whole-window coverage
  * (freshCoverageProblem / the set's own validation): no set is written, the finished stage is KEPT (what was
  * read is still applied), and the weekly job skips this source's expiry and alerts. Distinct from 1, a crash.
+ * ONE MEANING for --fresh-crawl too (freshCrawlGap): "read, not provably whole — apply what was read". That crawl
+ * has no expiry to skip, so the 3-day job only notes it (scripts/apartments-weekly.sh muaban_places).
  */
 export const COVERAGE_REFUSED_EXIT = 3
 
@@ -1406,7 +1430,12 @@ const DAY_MS = 86_400_000
 const SKEW_MS = 5 * 60_000
 
 export type Band = [number, number]
-export type FreshSeed = { city: CityKey; district: { id: number; path: string } | null; band: Band | null }
+/** `type`: the muaban property_type the list is for — absent = APARTMENT_TYPE (the fresh set's own lists). */
+export type FreshSeed = { city: CityKey; district: { id: number; path: string } | null; band: Band | null; type?: number }
+/** A seed's property type (APARTMENT_TYPE unless it names another). */
+export const seedType = (s: Pick<FreshSeed, 'type'>): number => s.type ?? APARTMENT_TYPE
+/** The `type` key a seed of this property type carries: none for apartments, so their seeds read as before. */
+const typeField = (type: number): Pick<FreshSeed, 'type'> => (type === APARTMENT_TYPE ? {} : { type })
 
 export function priceRange([i, j]: Band): [number, number] {
   return [i === 0 ? 0 : PRICE_LADDER[i] + 1, PRICE_LADDER[j]]
@@ -1422,12 +1451,13 @@ export function splitBand(band: Band | null): [Band, Band] | null {
 
 export function seedLabel(s: FreshSeed): string {
   const band = s.band ? ` price ${priceRange(s.band).join('-')}` : ''
-  return `${s.city}${s.district ? ` district ${s.district.id}` : ''}${band}`
+  const type = seedType(s) === APARTMENT_TYPE ? '' : ` ${PROPERTY_TYPES[seedType(s)]?.key ?? seedType(s)}`
+  return `${s.city}${type}${s.district ? ` district ${s.district.id}` : ''}${band}`
 }
 
-/** The apartment list of a seed, price-ordered: the city list, a district list, either narrowed to a band. */
+/** The list of a seed (its property type's), price-ordered: the city list, a district list, either narrowed to a band. */
 export function freshSeedUrl(s: FreshSeed, page: number): string {
-  const path = s.district ? s.district.path : `/bat-dong-san/${PROPERTY_TYPES[APARTMENT_TYPE].listSlug}-${CITIES[s.city].slug}`
+  const path = s.district ? s.district.path : `/bat-dong-san/${PROPERTY_TYPES[seedType(s)].listSlug}-${CITIES[s.city].slug}`
   const q = [`sort=${FRESH_SORT}`]
   if (s.band) q.push(`price=${priceRange(s.band).join('-')}`)
   if (page > 1) q.push(`page=${page}`)
@@ -1435,19 +1465,22 @@ export function freshSeedUrl(s: FreshSeed, page: number): string {
 }
 
 /**
- * The city page's district lists (`quicklink.district.items`) as seeds. ⛔ null when absent or when ANY
- * entry is not a plain apartment-list path of this city — a skipped district would be a hole the
- * parts-sum check has to catch; refusing the list outright is clearer.
+ * The city page's district lists (`quicklink.district.items`) as seeds of the same property type. ⛔ null when
+ * absent or when ANY entry is not a plain list path of this type and city — a skipped district would be a hole
+ * the parts-sum check has to catch; refusing the list outright is clearer. (A path of another type that the
+ * pattern lets through — 'cho-thue-nha-…' also prefixes the rooms' 'cho-thue-nha-tro-phong-tro-…' — is caught by
+ * that page's own echo: seedEchoProblem checks its property_type.)
  */
-export function districtSeeds(pageProps: any, city: CityKey): FreshSeed[] | null {
+export function districtSeeds(pageProps: any, city: CityKey, type: number = APARTMENT_TYPE): FreshSeed[] | null {
   const items = pageProps?.quicklink?.district?.items
-  if (!Array.isArray(items) || !items.length) return null
-  const re = new RegExp(`^/bat-dong-san/${PROPERTY_TYPES[APARTMENT_TYPE].listSlug}-[a-z0-9-]+-${CITIES[city].slug}$`)
+  const slug = PROPERTY_TYPES[type]?.listSlug
+  if (!slug || !Array.isArray(items) || !items.length) return null
+  const re = new RegExp(`^/bat-dong-san/${slug}-[a-z0-9-]+-${CITIES[city].slug}$`)
   const out: FreshSeed[] = []
   for (const d of items) {
     const id = Number(d?.id)
     if (!Number.isSafeInteger(id) || id <= 0 || typeof d?.url !== 'string' || !re.test(d.url)) return null
-    if (!out.some((o) => o.district!.id === id)) out.push({ city, district: { id, path: d.url }, band: null })
+    if (!out.some((o) => o.district!.id === id)) out.push({ city, district: { id, path: d.url }, band: null, ...typeField(type) })
   }
   return out
 }
@@ -1455,7 +1488,7 @@ export function districtSeeds(pageProps: any, city: CityKey): FreshSeed[] | null
 /** The parts a seed splits into: a city by its districts (when the page lists them), anything else by price. */
 export function splitSeed(s: FreshSeed, pageProps: any): FreshSeed[] | null {
   if (!s.district && !s.band) {
-    const ds = districtSeeds(pageProps, s.city)
+    const ds = districtSeeds(pageProps, s.city, seedType(s))
     if (ds) return ds
   }
   const halves = splitBand(s.band)
@@ -1463,7 +1496,7 @@ export function splitSeed(s: FreshSeed, pageProps: any): FreshSeed[] | null {
 }
 
 /**
- * ⛔ THE PAGE MUST BE THE LIST WE ASKED FOR: rentals, apartments, this city, this district (or none),
+ * ⛔ THE PAGE MUST BE THE LIST WE ASKED FOR: rentals, the seed's property type, this city, this district (or none),
  * this price band (or none), price order. A redirect to a broader list, or a filter muaban stopped
  * honouring, would otherwise pass another list's cards — and its total — off as this seed's.
  */
@@ -1472,7 +1505,7 @@ export function seedEchoProblem(pageProps: any, s: FreshSeed): string | null {
   if (!f) return 'the page echoes no filters'
   if (f.subcategory_id?.id !== RENT_SUBCATEGORY_ID) return `not the rentals list (subcategory ${JSON.stringify(f.subcategory_id?.id)})`
   if (f.city_id?.id !== CITIES[s.city].sourceId) return `city ${JSON.stringify(f.city_id?.id)}, expected ${CITIES[s.city].sourceId}`
-  if (f.property_type?.id !== APARTMENT_TYPE) return `property_type ${JSON.stringify(f.property_type?.id)}, expected ${APARTMENT_TYPE}`
+  if (f.property_type?.id !== seedType(s)) return `property_type ${JSON.stringify(f.property_type?.id)}, expected ${seedType(s)}`
   if (f.sort?.id !== FRESH_SORT) return `sort ${JSON.stringify(f.sort?.id)}, expected ${FRESH_SORT}`
   if (s.district ? f.district_id?.id !== s.district.id : f.district_id !== undefined) return `district ${JSON.stringify(f.district_id?.id ?? null)}, expected ${s.district?.id ?? 'none'}`
   if (s.band) {
@@ -1489,14 +1522,40 @@ export function leafPageVerdict(ids: readonly number[], prevIds: readonly number
 }
 
 /**
+ * ⛔ A RE-READ THAT IS STILL AT MOST THIS MANY CARDS SHORT IS TOLERATED (2026-10-13). Measured on the weekly runs
+ * of 2026-10-05 and 2026-10-12: one HCMC district list each time read one card short of its own total on BOTH reads
+ * (670 of 671, 436 of 437) — a card the count includes and no page shows — and because a failed list ends the list
+ * phase, the crawl staged NOTHING for all three cities two weeks running. So the FIRST read must still be whole (a
+ * card a mid-read deletion shifted behind the reader is caught, and the cheap re-read recovers it); only the
+ * re-read may come up LEAF_SHORTFALL_MAX short — and never empty: a list that shows none of its cards is broken.
+ * One card is safe to let go: a row WE hold that a list missed is read on its own page by the db net (planDbNet:
+ * above the floor and on no list page), so it is judged, kept if fresh and counted as a hole if live; only an ad
+ * we do not hold yet can be missed, and the next run lists it.
+ */
+export const LEAF_SHORTFALL_MAX = 1
+/**
+ * …and at most this many cards short over the WHOLE crawl (2026-10-13 review): a split crawl reads dozens of
+ * district and price-band lists, and one card per list could otherwise add up to dozens of new ads missed in one
+ * run while the set still passes. Five covers the measured runs (one list one card short each) with room to spare.
+ */
+export const LEAF_SHORTFALL_CRAWL_MAX = 5
+/** The cards the crawl's accepted lists were short by, all lists together. */
+const crawlShortfall = (seeds: readonly FreshSeedReport[]): number => seeds.reduce((n, s) => n + (s.short ?? 0), 0)
+
+/**
  * ⛔ A LIST READ TO ITS END STILL HAS TO ADD UP: its distinct ids must reach the total it reported on its
  * first AND its last page. A card that moved behind the reader (an ad deleted from an earlier page shifts
  * the next one back onto it; an ad leaving the live block) shows as a shortfall, and the list is re-read.
+ * `tolerance` (the re-read's: LEAF_SHORTFALL_MAX, never more) lets a read that many cards short pass — but not
+ * one that read nothing. leafShortfall says how short an accepted read was (0 = whole).
  */
-export function leafProblem(distinct: number, firstTotal: number, lastTotal: number): string | null {
+export function leafProblem(distinct: number, firstTotal: number, lastTotal: number, tolerance = 0): string | null {
   const need = Math.max(firstTotal, lastTotal)
-  return distinct >= need ? null : `${distinct} distinct cards read, the list reported ${firstTotal === lastTotal ? firstTotal : `${firstTotal} then ${lastTotal}`}`
+  const slack = distinct > 0 ? Math.max(0, Math.min(tolerance, LEAF_SHORTFALL_MAX)) : 0
+  return distinct >= need - slack ? null : `${distinct} distinct cards read, the list reported ${firstTotal === lastTotal ? firstTotal : `${firstTotal} then ${lastTotal}`}`
 }
+/** How many cards a list read is short of its larger reported total (0 when whole or over). */
+export const leafShortfall = (distinct: number, firstTotal: number, lastTotal: number): number => Math.max(0, Math.max(firstTotal, lastTotal) - distinct)
 
 /**
  * ⛔ THE PARTS MUST ADD UP TO THE WHOLE: a split is proven only when its parts' totals sum to at least the
@@ -1555,7 +1614,8 @@ export class IdFloor {
   }
 }
 
-export type FreshSeedReport = { city: CityKey; label: string; ok: boolean; why?: string; total: number; pages: number; split: boolean }
+/** `short`: a leaf accepted that many cards short of its reported total (≤ LEAF_SHORTFALL_MAX; absent when whole). */
+export type FreshSeedReport = { city: CityKey; label: string; ok: boolean; why?: string; total: number; pages: number; split: boolean; short?: number }
 
 /** The read-only db net (FreshCrawler.dbNet): what it had to read, and what the pages said. */
 export type DbNetReport = {
@@ -1588,6 +1648,8 @@ export type FreshCoverage = {
   floor: number | null
   floorCreated: string | null
   detailCapHit: boolean
+  /** The detail-page cap the walk ran under (MAX_FRESH_DETAILS per property type crawled; absent = MAX_FRESH_DETAILS). */
+  detailCap?: number
   cards: number
   belowFloor: number
   details: { read: number; fresh: number; old: number; gone: number; unknown: number }
@@ -1607,7 +1669,33 @@ export function listsProblem(c: Omit<FreshCoverage, 'db'>): string | null {
   }
   const bad = c.seeds.find((s) => !s.ok)
   if (bad) return `${bad.label}: ${bad.why ?? 'not read whole'}`
-  if (c.detailCapHit) return `over ${MAX_FRESH_DETAILS} detail pages without ${FLOOR_CONFIRM} consecutive cards created before the window — the id floor never formed`
+  const short = crawlShortfall(c.seeds)
+  if (short > LEAF_SHORTFALL_CRAWL_MAX) return `${short} cards short over the crawl's lists (each list ≤ ${LEAF_SHORTFALL_MAX}) — over ${LEAF_SHORTFALL_CRAWL_MAX}: too many fresh ads could be missed`
+  if (c.detailCapHit) return `over ${c.detailCap ?? MAX_FRESH_DETAILS} detail pages without ${FLOOR_CONFIRM} consecutive cards created before the window — the id floor never formed`
+  return null
+}
+
+/**
+ * --fresh-crawl's verdict, or null when the crawl was whole for what it was asked (no set rests on it: this decides
+ * exit 3 and the report only). Not whole: a stopped crawl, a requested city × type whose list was never read, any
+ * list not read whole, the detail cap (the walk stopped above the id floor — highest ids first, so the ads cut are
+ * the older ones of the window), or over MAX_UNKNOWN_SHARE (from 6) of its detail pages undetermined.
+ */
+export function freshCrawlGap(c: Omit<FreshCoverage, 'db'>, o: { cities: readonly CityKey[]; types: readonly number[] }): string | null {
+  if (c.stopped) return `the crawl stopped: ${c.stopped}`
+  for (const type of o.types) {
+    for (const city of o.cities) {
+      const label = seedLabel({ city, district: null, band: null, ...typeField(type) })
+      if (!c.seeds.some((s) => s.label === label)) return `no list of ${label} was read`
+    }
+  }
+  const bad = c.seeds.filter((s) => !s.ok)
+  if (bad.length) return `${bad.length} list(s) not read whole — ${bad.slice(0, 3).map((s) => `${s.label}: ${s.why ?? 'not read whole'}`).join('; ')}${bad.length > 3 ? '; …' : ''}`
+  const short = crawlShortfall(c.seeds)
+  if (short > LEAF_SHORTFALL_CRAWL_MAX) return `${short} cards short over the crawl's lists (each list ≤ ${LEAF_SHORTFALL_MAX}) — over ${LEAF_SHORTFALL_CRAWL_MAX}`
+  if (c.detailCapHit) return `over ${c.detailCap ?? MAX_FRESH_DETAILS} detail pages without ${FLOOR_CONFIRM} consecutive cards created before the window — the walk stopped above the id floor`
+  const d = c.details
+  if (d.unknown > 5 && d.unknown > MAX_UNKNOWN_SHARE * d.read) return `${d.unknown} of ${d.read} detail pages undetermined — over ${MAX_UNKNOWN_SHARE * 100}%`
   return null
 }
 
@@ -1639,7 +1727,9 @@ export function freshCoverageEvidence(c: FreshCoverage): string {
     const leaves = mine.filter((s) => !s.split)
     const splits = mine.filter((s) => s.split)
     const top = mine.find((s) => s.label === city)
-    return `${city} ${top?.total ?? '?'} cards: ${leaves.length} list(s) read to their last page (${leaves.reduce((n, s) => n + s.pages, 0)} pages, each ≤ ${LEAF_MAX} cards, distinct kept ids ≥ reported total)${splits.length ? `, ${splits.length} split(s) whose parts summed to the whole` : ''}`
+    const short = leaves.filter((s) => s.short)
+    const except = short.length ? ` — except ${short.map((s) => `${s.label} (${s.short} short on its re-read too)`).join(', ')}, tolerated: ≤ ${LEAF_SHORTFALL_MAX} per list, and a held row a list missed is read by the db net` : ''
+    return `${city} ${top?.total ?? '?'} cards: ${leaves.length} list(s) read to their last page (${leaves.reduce((n, s) => n + s.pages, 0)} pages, each ≤ ${LEAF_MAX} cards, distinct kept ids ≥ reported total${except})${splits.length ? `, ${splits.length} split(s) whose parts summed to the whole` : ''}`
   })
   const d = c.details
   const db = c.db
@@ -1670,14 +1760,15 @@ export function buildFreshSet(setAt: Date, coverage: string, items: FreshItem[],
 }
 
 /**
- * What --apply does to an EXISTING row beyond the text refresh. `revive`: an apartment row the rule took
- * down (REVIVABLE_STATUSES — never hidden/removed/sold) whose ad maps again, i.e. its created_at is inside
- * this run's window (mapRecord refuses it otherwise). `redate`: postedAt becomes the source date — on a
- * revival, and whenever the source date is NEWER than the stored one (a re-post); rankScore follows it
- * (createOnlyFields). A re-dated row is written even when every text field is unchanged.
+ * What --apply does to an EXISTING row beyond the text refresh. `revive`: a row the rule took down
+ * (REVIVABLE_STATUSES — never hidden/removed/sold) whose ad maps again, i.e. its created_at is inside this run's
+ * window (mapRecord refuses it otherwise) — of ANY type since 2026-10-13 (the daily age sweep expires every place
+ * type; apartments only before). `redate`: postedAt becomes the source date — on a revival, and whenever the
+ * source date is NEWER than the stored one (a re-post); rankScore follows it (createOnlyFields). A re-dated row
+ * is written even when every text field is unchanged.
  */
 export function existingRowPlan(row: Pick<MappedRow, 'postedAt' | 'mutable'>, ex: { status: string; postedAt: Date }): { revive: boolean; redate: boolean } {
-  const revive = row.mutable.subcategorySlug === APARTMENT_SUBCAT && (REVIVABLE_STATUSES as readonly string[]).includes(ex.status)
+  const revive = (REVIVABLE_STATUSES as readonly string[]).includes(ex.status)
   return { revive, redate: revive || row.postedAt.getTime() > ex.postedAt.getTime() }
 }
 
@@ -1745,12 +1836,20 @@ export function idOrderInversions(pairs: readonly (readonly [number, number])[],
 }
 
 type Head = { ok: true; pp: any; total: number; items: any[] } | { ok: false; why: string }
-type Card = { raw: any; city: CityKey }
+type Card = { raw: any; city: CityKey; type: number }
 type Tally = { read: number; fresh: number; old: number; gone: number; unknown: number }
 type DetailRead = { verdict: CreatedVerdict | 'gone'; detail: MuabanDetail | null; status: number; liveness: Liveness }
 
 export type FreshCrawlOptions = {
   cities: readonly CityKey[]
+  /** The property types whose lists are read — default [APARTMENT_TYPE], the fresh set's (--fresh-out). */
+  types?: readonly number[]
+  /**
+   * --fresh-crawl (no set): a list that cannot be read whole is reported and the crawl goes on with the others,
+   * then walks the cards it did read. Off (the set's crawl): the first failed list ends the list phase and no
+   * detail page is requested — that set could not be written anyway.
+   */
+  partialOk?: boolean
   /** The clock (epoch ms) — the set's moment is its value when the crawler is built. */
   now?: () => number
   log?: (line: string) => void
@@ -1763,6 +1862,9 @@ export type FreshCrawlOptions = {
  * ⛔ THE FRESH SET'S CRAWL: EVERY apartment card of every city, then a detail page for every card above
  * the id floor, then (dbNet) the held rows the lists and the floor cannot vouch for. The measurements behind
  * each step are in "THE 7-DAY RULE" above.
+ * ⚠️ `types` (2026-10-13): the same crawl reads houses, rooms and offices for --fresh-crawl — the lists of each
+ * type in turn, ONE detail walk over all their cards (ids are site-wide, so one floor serves them all) — with
+ * `partialOk`, since no set is written from it: a list that fails is reported and the rest are still read.
  *   1. Each city's apartment list, price-ordered. Over LEAF_MAX cards → split (a city by its districts,
  *      anything else by price): the parts' page 1 in one sweep, then the whole re-read, and the parts must
  *      add up to the whole (splitProblem). At or under LEAF_MAX → read to its last page, and its distinct
@@ -1803,13 +1905,19 @@ export class FreshCrawler {
     this.setAt = this.now()
   }
 
+  /** The property types read, in order (default: apartments only — the set's crawl). */
+  get types(): readonly number[] { return this.o.types?.length ? this.o.types : [APARTMENT_TYPE] }
+  /** MAX_FRESH_DETAILS per property type: one walk over three types' cards must not hit a cap sized for one. */
+  get detailCap(): number { return MAX_FRESH_DETAILS * this.types.length }
+  private get partialOk(): boolean { return this.o.partialOk === true }
+
   /** Every card id a list showed (its age is settled by its detail page, or by the floor). */
   get listed(): ReadonlySet<number> { return new Set(this.cards.keys()) }
 
   coverage(): FreshCoverage {
     return {
       seeds: this.seeds, stopped: this.stopped, floor: this.floor.floor, floorCreated: this.floor.floorCreated,
-      detailCapHit: this.detailCapHit, cards: this.cards.size, belowFloor: this.belowFloor, details: { ...this.details },
+      detailCapHit: this.detailCapHit, detailCap: this.detailCap, cards: this.cards.size, belowFloor: this.belowFloor, details: { ...this.details },
       inversions: idOrderInversions(this.dated), retries: this.retries, db: this.db && { ...this.db },
     }
   }
@@ -1818,11 +1926,18 @@ export class FreshCrawler {
   async run(): Promise<this> {
     try {
       let whole = true
-      for (const city of this.o.cities) {
-        if (!(await this.expand({ city, district: null, band: null }))) { whole = false; break }
+      lists: for (const type of this.types) {
+        for (const city of this.o.cities) {
+          if (!(await this.expand({ city, district: null, band: null, ...typeField(type) }))) {
+            whole = false
+            if (!this.partialOk) break lists
+          }
+        }
       }
-      this.log(`fresh crawl       ${this.pages} list pages, ${this.cards.size} apartment cards${this.offSeed ? ` (${this.offSeed} off-filter card slots not counted)` : ''}${whole ? '' : ' — ⛔ a list was not read whole; no detail pages requested'}`)
-      if (whole) await this.walk()
+      const kinds = this.types.length === 1 && this.types[0] === APARTMENT_TYPE ? 'apartment' : this.types.map((t) => PROPERTY_TYPES[t]?.key ?? t).join('/')
+      const verdict = whole ? '' : this.partialOk ? ' — ⚠️ a list was not read whole; the cards that were read are still walked (this crawl writes no set)' : ' — ⛔ a list was not read whole; no detail pages requested'
+      this.log(`fresh crawl       ${this.pages} list pages, ${this.cards.size} ${kinds} cards${this.offSeed ? ` (${this.offSeed} off-filter card slots not counted)` : ''}${verdict}`)
+      if (whole || this.partialOk) await this.walk()
     } catch (e) {
       if (!(e instanceof Infeasible)) throw e
       this.stopped = e.message
@@ -1853,18 +1968,19 @@ export class FreshCrawler {
 
   /**
    * A page's card ids: `all` (every slot, for the page verdict — a short page ends the list, a repeat is the
-   * cap) and `kept` (this seed's city and apartment type, with a real id — the only ones that count toward
+   * cap) and `kept` (this seed's city and property type, with a real id — the only ones that count toward
    * the list's total and go on to be judged).
    */
   keep(seed: FreshSeed, list: readonly any[]): { all: number[]; kept: number[] } {
     const all: number[] = []
     const kept: number[] = []
+    const type = seedType(seed)
     for (const it of list) {
       const id = Number(it?.id)
       all.push(id)
-      if (!Number.isSafeInteger(id) || id <= 0 || Number(it?.city_id) !== CITIES[seed.city].sourceId || Number(it?.property_type) !== APARTMENT_TYPE) { this.offSeed++; continue }
+      if (!Number.isSafeInteger(id) || id <= 0 || Number(it?.city_id) !== CITIES[seed.city].sourceId || Number(it?.property_type) !== type) { this.offSeed++; continue }
       kept.push(id)
-      if (!this.cards.has(id)) this.cards.set(id, { raw: it, city: seed.city })
+      if (!this.cards.has(id)) this.cards.set(id, { raw: it, city: seed.city, type })
     }
     return { all, kept }
   }
@@ -1899,8 +2015,13 @@ export class FreshCrawler {
         lastTotal = next.total
         pageItems = next.items
       }
-      fail ??= leafProblem(seen.size, h.total, lastTotal)
-      if (!fail) return { city: seed.city, label, ok: true, total: lastTotal, pages: used, split: false }
+      // ⛔ The first read must be whole; only the re-read may come up LEAF_SHORTFALL_MAX short (never empty).
+      fail ??= leafProblem(seen.size, h.total, lastTotal, attempt === 2 ? LEAF_SHORTFALL_MAX : 0)
+      if (!fail) {
+        const short = leafShortfall(seen.size, h.total, lastTotal)
+        if (short) this.log(`  ⚠️ ${label}: ${seen.size} distinct cards read again, the list reported ${h.total === lastTotal ? h.total : `${h.total} then ${lastTotal}`} — ${short} short on the re-read too, tolerated (≤ ${LEAF_SHORTFALL_MAX}; the db net reads any held row a list missed)`)
+        return { city: seed.city, label, ok: true, total: lastTotal, pages: used, split: false, ...(short ? { short } : {}) }
+      }
       why = fail
       if (attempt === 1) this.log(`  ⚠️ ${label}: ${fail} — reading it once more`)
     }
@@ -1928,16 +2049,20 @@ export class FreshCrawler {
     const why = failed ? `a part failed: ${failed.why}` : !again.ok ? `re-read failed: ${again.why}` : splitProblem(sum, h.total, again.total)
     this.seeds.push({ city: seed.city, label, ok: !why, ...(why ? { why } : {}), total: h.total, pages: 2, split: true })
     this.log(`  ${label}: ${h.total} cards → ${parts.length} parts (Σ ${sum}${again.ok ? `, whole re-read ${again.total}` : ''})${why ? ` ⛔ ${why}` : ''}`)
-    if (why) return false
-    for (const [i, p] of parts.entries()) if (!(await this.expand(p, heads[i]))) return false
-    return true
+    if (why && !this.partialOk) return false
+    // partialOk (no set): a split that does not add up still has parts worth reading — each is judged on its own.
+    let ok = !why
+    for (const [i, p] of parts.entries()) {
+      if (!(await this.expand(p, heads[i]))) { ok = false; if (!this.partialOk) return false }
+    }
+    return ok
   }
 
-  /** Step 2: every card's detail page, highest id first, until the floor forms (or MAX_FRESH_DETAILS). */
+  /** Step 2: every card's detail page, highest id first, until the floor forms (or detailCap: MAX_FRESH_DETAILS per type). */
   async walk(): Promise<void> {
     for (const id of [...this.cards.keys()].sort((a, b) => b - a)) {
       if (this.floor.below(id)) { this.belowFloor++; continue }
-      if (this.details.read >= MAX_FRESH_DETAILS) { this.detailCapHit = true; break }
+      if (this.details.read >= this.detailCap) { this.detailCapHit = true; break }
       const card = this.cards.get(id)!
       const url = sourcePageUrl(id, card.raw?.url)
       if (!url) { this.unknown.add(id); this.details.unknown++; continue }
@@ -2021,7 +2146,7 @@ export class FreshCrawler {
   private stage(card: Card, j: DetailRead): void {
     const rec: StagedRecord = {
       v: 1, fetchedAt: new Date(this.now()).toISOString(), setAt: new Date(this.setAt).toISOString(),
-      seed: { city: card.city, type: APARTMENT_TYPE }, item: stageItem(card.raw), detail: j.detail, detailStatus: j.status,
+      seed: { city: card.city, type: card.type }, item: stageItem(card.raw), detail: j.detail, detailStatus: j.status,
     }
     this.records.push(rec)
     this.o.onRecord?.(rec)

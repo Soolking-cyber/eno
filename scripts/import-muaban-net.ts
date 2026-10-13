@@ -10,9 +10,12 @@
  * Write (ONLY from a reviewed stage): ... --src <staged.jsonl> --journal <durable dir> --apply [--cover-by-mark]
  * Liveness (dry):                    ... --retire [--limit N]
  * Liveness (write, hides only):      ... --retire --journal <durable dir> --apply
- * The 7-day rule (weekly job):       ... --types apartment --stage <out.jsonl> --fresh-out <fresh.json>
+ * The 7-day rule (3-day job):        ... --types apartment --stage <out.jsonl> --fresh-out <fresh.json>
  *                                    then --src <out.jsonl> --journal <dir> --apply, then
  *                                    scripts/expire-apartment-rentals.ts --seller muaban-net-import-seller-0001 --fresh <fresh.json>
+ * The other place types (3-day job): ... --types house,room,office --stage <places.jsonl> --fresh-crawl
+ *                                    then --src <places.jsonl> --journal <dir> --apply   (no set; the daily
+ *                                    age sweep, scripts/expire-rentals.ts --sweep, expires them past 7 days)
  * ⛔ Unknown flags throw (parseRunArgs).
  *
  * ⛔ THE 7-DAY RULE (owner, 2026-10-01; src/lib/apartment-freshness.ts). An imported APARTMENT stays live
@@ -35,11 +38,15 @@
  *     an empty stage (a crawl whose lists could not be proven stages nothing) is a clean no-op, exit 0.
  *   - every rollback line (a retire hide, a revival / re-date) carries `"updatedAt" <=` the stamp its write
  *     returned (updateManyAndReturn), so an old rollback file cannot undo a later change.
- *   - mapRecord drops an apartment whose created_at is outside the window ('window'), judged by the set's
+ *   - SINCE 2026-10-13 (owner: every rental property, 7 days at most, checked every 3 days) the window and the
+ *     revival below cover EVERY type, and --fresh-crawl runs this crawl for house/room/office with no set (the
+ *     daily age sweep takes them down past 7 days); the set and its expiry stay apartments only. A list read one
+ *     card short of its own total (LEAF_SHORTFALL_MAX) no longer fails the crawl: the db net covers our rows.
+ *   - mapRecord drops an ad (any type) whose created_at is outside the window ('window'), judged by the set's
  *     own judgeCreated AT THE SET'S MOMENT (each staged record carries the crawl's setAt). A created_at with
  *     no explicit offset (`Z` / `±hh:mm`) is unreadable everywhere (parseZonedInstant): undetermined in the
  *     set, never imported — `Date.parse` would read it in the machine's own zone.
- *   - --apply REVIVES an existing apartment row in REVIVABLE_STATUSES ('expired'/'stale', never hidden/
+ *   - --apply REVIVES an existing row (any type) in REVIVABLE_STATUSES ('expired'/'stale', never hidden/
  *     removed/sold) whose ad is in the window again, and RE-DATES a row whose created_at is newer than its
  *     stored postedAt; both rewrite postedAt + rankScore exactly as create does. The planned change is
  *     journaled first (fsync); the write is conditional on the status just read (never a removed row); a
@@ -108,10 +115,10 @@ import { tombstonePdps } from '../src/lib/pdp-tombstone'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
 import {
-  ALLOWED_HOSTS, CITIES, EXTERNAL_PREFIX, FreshCrawler, Infeasible, LEAF_MAX, MAX_FRESH_DETAILS, MAX_STAGE_AGE_HOURS, PLACEHOLDER_ENTROPY,
+  ALLOWED_HOSTS, APARTMENT_TYPE, CITIES, EXTERNAL_PREFIX, FreshCrawler, Infeasible, LEAF_MAX, MAX_FRESH_DETAILS, MAX_STAGE_AGE_HOURS, PLACEHOLDER_ENTROPY,
   PLACEHOLDER_FLAT, PROPERTY_TYPES, RENT_PRICE_UNIT, SELLER_ID, SELLER_LOGO_URL, SELLER_NAME,
   COVERAGE_REFUSED_EXIT, affiliateUrlFor, buildFreshSet, coverToDetail, createOnlyFields, datedEntryProblem, datedRollbackSql, emptyStageNoop, existingRowPlan, freshCoverageEvidence,
-  freshCoverageProblem, galleryPlan, imageVerdict, isChallenge, journalDirProblem, listLevelDrop, listPageUrl, livenessVerdict,
+  freshCoverageProblem, freshCrawlGap, galleryPlan, imageVerdict, isChallenge, journalDirProblem, listLevelDrop, listPageUrl, livenessVerdict,
   mapRecord, massRetireRefusal, modeRefusal, newestHead, oldestStageAgeHours, parseNextData, parseRunArgs, parseStage,
   retireRollbackSql, robotsAllows, robotsRules, sameMutable, sellerRefusal, sourcePageUrl, stageAgeRefusal, stageDetail, stageItem,
   compareNewest,
@@ -125,7 +132,7 @@ const A = parseRunArgs(process.argv)
  * anything runs) refuses it where it would silently do nothing — --retire, or a run that judges no photo.
  */
 const COVER_BY_MARK = A.coverByMark
-const { apply: APPLY, retire: RETIRE, src: SRC, stage: STAGE, journalDir: JOURNAL_DIR, cities: CITY_KEYS, types: TYPES, freshOut: FRESH_OUT } = A
+const { apply: APPLY, retire: RETIRE, src: SRC, stage: STAGE, journalDir: JOURNAL_DIR, cities: CITY_KEYS, types: TYPES, freshOut: FRESH_OUT, freshCrawl: FRESH_CRAWL } = A
 const { caps: CAPS, limit: LIMIT, maxPages: MAX_PAGES, delayMs: DELAY_MS, probeImages: PROBE_IMAGES, listOnly: LIST_ONLY } = A
 /**
  * ⚠️ A TRUTHFUL USER-AGENT. Whoever reads muaban's logs can see what this is and block it if they
@@ -600,8 +607,13 @@ async function main() {
      *  so a run that refuses to write one can never leave the last run's set for the expiry to read. */
     if (FRESH_OUT && existsSync(FRESH_OUT)) unlinkSync(FRESH_OUT)
     const onRecord = (r: StagedRecord) => stage?.append(r)
-    if (FRESH_OUT) {
-      freshInfo = await new FreshCrawler(getPage, { cities: CITY_KEYS, log: (l) => console.log(l), onRecord, onDrop: (k) => bump(drops, k) }).run()
+    if (FRESH_OUT || FRESH_CRAWL) {
+      /** --fresh-out: the apartment set's crawl, exactly as before. --fresh-crawl: the same crawl over --types (the
+       *  3-day job: house,room,office), no set, a failed list reported and skipped (partialOk). */
+      freshInfo = await new FreshCrawler(getPage, {
+        cities: CITY_KEYS, types: FRESH_OUT ? [APARTMENT_TYPE] : TYPES, partialOk: !FRESH_OUT,
+        log: (l) => console.log(l), onRecord, onDrop: (k) => bump(drops, k),
+      }).run()
       records = freshInfo.records
     } else {
       crawlInfo = await crawl(drops, onRecord)
@@ -619,7 +631,9 @@ async function main() {
   /** --fresh-out: settled before anything else reads the DB — the db net (which may stage a few more
    *  records), the coverage verdict, the set. A refusal is reported at the end of the run, which then exits
    *  COVERAGE_REFUSED_EXIT (3) — never a throw: the stage, renamed into place right after this, is kept. */
-  const freshRefusal = freshInfo ? await settleFreshSet(db, freshInfo) : null
+  const freshRefusal = freshInfo && FRESH_OUT ? await settleFreshSet(db, freshInfo) : null
+  /** --fresh-crawl writes no set: its lists' verdict is only reported, and an incomplete crawl exits 3 at the end. */
+  const crawlGap = freshInfo && FRESH_CRAWL ? freshCrawlGap(freshInfo.coverage(), { cities: CITY_KEYS, types: TYPES }) : null
   stage?.finish()
   const screen = new ImportScreen('muaban-net', { db, sellerIds: [SELLER_ID] })
   for (const r of records) {
@@ -693,10 +707,13 @@ async function main() {
       const reqs = [...requestCount].map(([h, n]) => `${h} ${n}`).join(', ')
       const c = freshInfo.coverage()
       console.log(`fresh crawl       ${freshInfo.pages} list pages (sort=2, price order; every list ≤ ${LEAF_MAX} cards; ${c.retries} re-read after a timeout/5xx), requests: ${reqs}, delay ${DELAY_MS}ms/host, UA "${UA}"`)
-      console.log(`  details         ${JSON.stringify(c.details)}; ${c.belowFloor} cards below the id floor ${c.floor ?? '(none)'}${c.floorCreated ? ` (created ${c.floorCreated})` : ''}${c.detailCapHit ? ` — ⛔ stopped at ${MAX_FRESH_DETAILS}` : ''}; ${c.inversions} id/created_at inversion(s)`)
+      console.log(`  details         ${JSON.stringify(c.details)}; ${c.belowFloor} cards below the id floor ${c.floor ?? '(none)'}${c.floorCreated ? ` (created ${c.floorCreated})` : ''}${c.detailCapHit ? ` — ⛔ stopped at ${c.detailCap ?? MAX_FRESH_DETAILS}` : ''}; ${c.inversions} id/created_at inversion(s)`)
       console.log(`  db net          ${c.db ? JSON.stringify(c.db) : 'not run'}`)
       if (c.stopped) console.log(`⛔ CRAWL STOPPED   ${c.stopped}`)
-      console.log(freshRefusal ? `⛔ FRESH SET NOT WRITTEN — ${freshRefusal}` : `fresh set         written: ${FRESH_OUT}`)
+      if (FRESH_CRAWL) {
+        for (const s of c.seeds) console.log(`  ${s.ok ? '✓' : '⛔'} ${s.label.padEnd(36)} ${String(s.total).padStart(5)} cards${s.split ? ' (split)' : `, ${s.pages} pages`}${s.short ? ` (${s.short} short, tolerated)` : ''}${s.why ? ` — ${s.why}` : ''}`)
+        console.log(crawlGap ? `⚠️ CRAWL INCOMPLETE — ${crawlGap} (no set is written from --fresh-crawl; what was read is staged)` : 'fresh crawl       every list read whole (no set is written from --fresh-crawl)')
+      } else console.log(freshRefusal ? `⛔ FRESH SET NOT WRITTEN — ${freshRefusal}` : `fresh set         written: ${FRESH_OUT}`)
     }
     console.log(`examined          ${records.length}`)
     console.log(`dropped           ${JSON.stringify(drops)}`)
@@ -800,6 +817,11 @@ async function main() {
         console.error(`   exit ${COVERAGE_REFUSED_EXIT} (coverage refused) — the stage ${STAGE ? `${STAGE} (${records.length} records) is kept and may be applied` : 'was not asked for'}; skip this source's expiry`)
         process.exitCode = COVERAGE_REFUSED_EXIT
       }
+      if (crawlGap) {
+        console.error(`⚠️ --fresh-crawl incomplete: ${crawlGap}`)
+        console.error(`   exit ${COVERAGE_REFUSED_EXIT} — the stage ${STAGE} (${records.length} records) holds what was read and may be applied; no expiry rests on it`)
+        process.exitCode = COVERAGE_REFUSED_EXIT
+      }
       return
     }
 
@@ -865,7 +887,7 @@ async function main() {
            */
           const guard = { id: ex.id, sellerId: SELLER_ID, status: ex.status }
           if (d!.revive) {
-            /** ⛔ REVIVAL: an apartment the 7-day rule took down whose ad is inside the set's window again. */
+            /** ⛔ REVIVAL: a row (any type since 2026-10-13) the 7-day rule took down whose ad is inside the window again. */
             /** Owed its tombstone BEFORE the write (a commit whose reply is lost must not strand a cached 404);
              *  a tombstone on a row the write did not move only re-renders its current state. */
             revivedIds.push(ex.id)

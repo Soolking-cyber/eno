@@ -12,10 +12,12 @@
  *     … scripts/import-nhatot-com.ts --src <staged.json> --journal-dir <durable dir> [--max-age-days 7] [--allow-no-isr] --apply
  *         (--allow-no-isr: ONLY on a scratch copy with no next_cache_tag table — otherwise --apply refuses)
  *
- * THE WEEKLY 7-DAY RULE (src/lib/apartment-freshness.ts, src/lib/nhatot-fresh.ts)
- *   … --cg 1010 --max-age-days 7 --save <stage.json> --fresh-out <fresh.json>       (stage: live read, DRY)
+ * THE 7-DAY RULE, EVERY 3 DAYS (src/lib/apartment-freshness.ts, src/lib/nhatot-fresh.ts; scripts/apartments-weekly.sh)
+ *   … --cg 1010,1020,1030,1050 --max-age-days 7 --save <stage.json> --fresh-out <fresh.json>  (stage: live read, DRY)
  *   … --src <stage.json> --max-age-days 7 --journal-dir <dir> --apply                  (create / update / REVIVE)
  *   npx tsx scripts/expire-apartment-rentals.ts --seller nhatot-import-seller-0001 --fresh <fresh.json> …
+ *   (since 2026-10-13 every place category is read and revived; the set — and so that expiry — stays cg 1010,
+ *   and scripts/expire-rentals.ts --sweep takes every place row past 7 days down daily)
  *
  * RETIRE (hide rows whose source ad is gone — never deletes)
  *   Check (DRY): … scripts/import-nhatot-com.ts --retire [--limit N | --ids 1,2] [--save <status.json>]
@@ -115,7 +117,10 @@
  *    previous set at that path is removed first, so a failed run can never leave last run's set behind;
  *    a --fresh-out that names the --save file is refused. Every file a later step reads (--save, the set)
  *    is written atomically: temp file, fsync, rename, fsync of the directory.
- *  · REVIVAL at --apply: an existing apartment row whose list_time is inside the window at the STAGE's
+ *  · THE READ ORDER: every city's apartments (cg 1010) first, then the other categories (nhatotWindowReadOrder)
+ *    — a StopRead ends the whole read, and must not land between two cities' apartment slices.
+ *  · REVIVAL at --apply: an existing PLACE row (apartment, house, office, room — nhatotIsPlace, since 2026-10-13)
+ *    whose list_time is inside the window at the STAGE's
  *    fetch time and whose status is 'expired' or 'stale' (REVIVABLE_STATUSES) goes back to 'active' —
  *    never a 'hidden', 'removed' or 'sold' row. The CREATE age limit is judged at that same fetch time
  *    (mapNhatotAd ageAt), so the apply creates and revives exactly what the set calls fresh. --apply
@@ -166,7 +171,7 @@ import { tombstonePdps } from '../src/lib/pdp-tombstone'
 import {
   NHATOT_APARTMENT_CG, NHATOT_WINDOW_OVERLAP, nhatotExistingRowPlan, nhatotFreshDecision, nhatotFreshOutProblem,
   nhatotRepostRollbackSql, nhatotRevivalRollbackSql, nhatotSqlLit, nhatotTombstoneSql,
-  nhatotWindowCutoff, nhatotWindowRow, readNhatotWindowSlice,
+  nhatotWindowCutoff, nhatotWindowReadOrder, nhatotWindowRow, readNhatotWindowSlice,
   type NhatotSliceWindow, type NhatotWindowParams,
 } from '../src/lib/nhatot-fresh'
 
@@ -497,26 +502,25 @@ async function readWindow(city: NhatotCityKey, cg: number, area: number | null, 
  */
 async function fetchWindowed(into: Map<number, NhatotStagedAd>, unjudged: Set<number>, slices: SliceReport[], cutoff: number): Promise<boolean> {
   let truncated = false
-  for (const city of CITIES) {
-    for (const cg of CGS) {
-      const rep = await readWindow(city, cg, null, cutoff, into, unjudged)
-      slices.push(rep)
-      if (rep.stopped) return true
-      if (rep.window!.outcome !== 'capped') { if (!rep.window!.covered) truncated = true; continue }
-      let areas: number[] = []
-      try { areas = await areaIds(NHATOT_CITIES[city].region) } catch (e) {
-        rep.note += ` — and the district list failed (${(e as Error).message})`
-        if (e instanceof StopRead) { rep.districts = null; return true }
-      }
-      rep.districts = areas.length ? areas : null
-      if (!areas.length) { truncated = true; continue }
-      rep.note += ` — re-read by its ${areas.length} districts below`
-      for (const area of areas) {
-        const sub = await readWindow(city, cg, area, cutoff, into, unjudged)
-        slices.push(sub)
-        if (sub.stopped) return true
-        if (!sub.window!.covered) truncated = true
-      }
+  /** Every city's apartments FIRST (nhatotWindowReadOrder): a stop in a later category must not cost the set. */
+  for (const { city, cg } of nhatotWindowReadOrder(CITIES, CGS)) {
+    const rep = await readWindow(city, cg, null, cutoff, into, unjudged)
+    slices.push(rep)
+    if (rep.stopped) return true
+    if (rep.window!.outcome !== 'capped') { if (!rep.window!.covered) truncated = true; continue }
+    let areas: number[] = []
+    try { areas = await areaIds(NHATOT_CITIES[city].region) } catch (e) {
+      rep.note += ` — and the district list failed (${(e as Error).message})`
+      if (e instanceof StopRead) { rep.districts = null; return true }
+    }
+    rep.districts = areas.length ? areas : null
+    if (!areas.length) { truncated = true; continue }
+    rep.note += ` — re-read by its ${areas.length} districts below`
+    for (const area of areas) {
+      const sub = await readWindow(city, cg, area, cutoff, into, unjudged)
+      slices.push(sub)
+      if (sub.stopped) return true
+      if (!sub.window!.covered) truncated = true
     }
   }
   return truncated
@@ -1005,7 +1009,7 @@ async function importMain() {
   console.log(`dropped           ${JSON.stringify(drop)}`)
   screen.report()
   console.log(`TO IMPORT         ${batch.length}  (would create ${newRows.length}, refresh ${batch.length - newRows.length})`)
-  console.log(`7-day rule        would REVIVE ${datePlans.revive} apartment row(s) (expired/stale, listed within ${FRESH_DAYS} d of the stage's fetch) · move postedAt forward on ${datePlans.repost} re-listed row(s)`)
+  console.log(`7-day rule        would REVIVE ${datePlans.revive} place row(s) (apartment/house/office/room, expired/stale, listed within ${FRESH_DAYS} d of the stage's fetch) · move postedAt forward on ${datePlans.repost} re-listed row(s)`)
   console.log(`  by city         ${JSON.stringify(hist((r) => r.mutable.city))}`)
   console.log(`  by district     ${JSON.stringify(hist((r) => r.mutable.district ?? '(none)'))}`)
   console.log(`  by subcategory  ${JSON.stringify(hist((r) => r.mutable.subcategorySlug ?? '(none)'))}`)

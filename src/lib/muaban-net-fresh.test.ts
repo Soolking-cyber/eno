@@ -4,13 +4,13 @@ import { describe, expect, it } from 'vitest'
 import { FRESH_DAYS, freshSetProblem, type FreshItem } from '@/lib/apartment-freshness'
 import { browseRankScore } from '@/lib/ranking-formula'
 import {
-  APARTMENT_TYPE, CITIES, COVERAGE_REFUSED_EXIT, DB_MISS_MAX, DB_RECHECK_MAX, FLOOR_CONFIRM, LEAF_MAX, MAX_FRESH_DETAILS, PAGE_SIZE, PRICE_LADDER, SELLER_ID,
+  APARTMENT_TYPE, CITIES, COVERAGE_REFUSED_EXIT, DB_MISS_MAX, DB_RECHECK_MAX, FLOOR_CONFIRM, LEAF_MAX, LEAF_SHORTFALL_CRAWL_MAX, LEAF_SHORTFALL_MAX, MAX_FRESH_DETAILS, PAGE_SIZE, PRICE_LADDER, PROPERTY_TYPES, SELLER_ID,
   SOURCE_PAGE_CAP, FreshCrawler, IdFloor, Infeasible, buildFreshSet, createOnlyFields, datedEntryProblem, datedRollbackSql, districtSeeds,
   emptyStageNoop, existingRowPlan, freshCoverageEvidence, freshCoverageProblem, freshItemOf, freshSeedUrl, idOrderInversions, isTransient,
-  isrTombstoneSql, judgeCreated, leafPageVerdict, leafProblem, listsProblem, mapRecord, modeRefusal, parseRunArgs, parseStage,
-  parseZonedInstant, planDbNet, priceRange, restageRecord, retireRollbackSql, seedEchoProblem, seedLabel, sourcePostedAt, splitBand,
+  freshCrawlGap, isrTombstoneSql, judgeCreated, leafPageVerdict, leafProblem, leafShortfall, listsProblem, mapRecord, modeRefusal, parseRunArgs, parseStage,
+  parseZonedInstant, planDbNet, priceRange, restageRecord, retireRollbackSql, seedEchoProblem, seedLabel, seedType, sourcePostedAt, splitBand,
   splitProblem, splitSeed, stageAgeRefusal, stageDetail, stageItem,
-  type CityKey, type DbNetReport, type FreshCoverage, type FreshSeed, type GetPage, type HeldRow, type MuabanDetail, type MuabanListItem,
+  type CityKey, type DbNetReport, type FreshCoverage, type FreshSeed, type GetPage, type HeldRow, type MuabanDetail, type MuabanListItem, type StagedRecord,
 } from '../../scripts/muaban-net-map'
 
 /**
@@ -57,6 +57,29 @@ describe('--fresh-out arguments — ⛔ a set must describe the whole window', (
     expect(p(...ok, '--list-only')).toMatch(/created_at/)
     expect(p('--src', '/s', '--types', 'apartment', '--fresh-out', '/f')).toMatch(/live crawl/)
     expect(p('--retire', '--types', 'apartment', '--fresh-out', '/f')).toMatch(/live crawl/)
+  })
+})
+
+describe('--fresh-crawl arguments — the set-less crawl for the other place types (2026-10-13)', () => {
+  const p = (...a: string[]) => modeRefusal(parseRunArgs(['node', 'x', ...a]))
+  const ok = ['--types', 'house,room,office', '--stage', '/p.jsonl', '--fresh-crawl']
+
+  it('parses, and accepts the 3-day job\'s line (any types, any cities — nothing is expired from it)', () => {
+    expect(parseRunArgs(['node', 'x', ...ok]).freshCrawl).toBe(true)
+    expect(parseRunArgs(['node', 'x']).freshCrawl).toBe(false)
+    expect(p(...ok)).toBeNull()
+    expect(p(...ok, '--city', 'hcm')).toBeNull()
+    expect(p('--stage', '/p.jsonl', '--fresh-crawl')).toBeNull()                                   // the four default types
+  })
+
+  it('refuses it with --fresh-out, a write/retire/replay mode, no stage, or a cut-short crawl', () => {
+    expect(p('--types', 'apartment', '--stage', '/s', '--fresh-out', '/f', '--fresh-crawl')).toMatch(/pass one/)
+    expect(p('--src', '/s', '--fresh-crawl')).toMatch(/live crawl/)
+    expect(p('--retire', '--fresh-crawl')).toMatch(/live crawl/)
+    expect(p('--types', 'room', '--fresh-crawl')).toMatch(/needs --stage/)
+    expect(p(...ok, '--limit', '5')).toMatch(/--limit/)
+    expect(p(...ok, '--cap', 'hcm=10')).toMatch(/--cap/)
+    expect(p(...ok, '--list-only')).toMatch(/created_at/)
   })
 })
 
@@ -209,6 +232,23 @@ describe('reading a list to its end — and proving it', () => {
     expect(leafProblem(119, 120, 119)).toMatch(/120 then 119/)                                     // one deleted ahead of us: refused, re-read
   })
 
+  it('⛔ the RE-READ may be one card short (LEAF_SHORTFALL_MAX) — the measured 670/671 and 436/437 that staged nothing two weeks running — never more, never empty', () => {
+    expect(LEAF_SHORTFALL_MAX).toBe(1)
+    const reRead = (distinct: number, first: number, last = first) => leafProblem(distinct, first, last, LEAF_SHORTFALL_MAX)
+    expect(reRead(670, 671)).toBeNull()                                                              // hcm district 380, 2026-10-05
+    expect(reRead(436, 437)).toBeNull()                                                              // hcm district 378, 2026-10-12
+    expect(reRead(119, 119, 120)).toBeNull()
+    expect(reRead(117, 119)).toMatch(/117 distinct cards read, the list reported 119/)               // two short: still a broken list
+    expect(reRead(118, 120, 119)).toMatch(/120 then 119/)
+    expect(reRead(0, 1)).toMatch(/0 distinct cards read, the list reported 1/)                      // ⛔ a list that shows none of its cards
+    expect(leafProblem(117, 119, 119, 5)).toMatch(/117 distinct/)                                   // the slack is capped at LEAF_SHORTFALL_MAX
+    expect(leafProblem(118, 119, 119, -1)).toMatch(/118 distinct/)
+    expect(leafShortfall(670, 671, 671)).toBe(1)
+    expect(leafShortfall(119, 119, 120)).toBe(1)
+    expect(leafShortfall(119, 119, 119)).toBe(0)
+    expect(leafShortfall(121, 119, 119)).toBe(0)                                                    // more than the total: whole, never negative
+  })
+
   it('the leaf ceiling leaves headroom under the source cap', () => {
     expect(SOURCE_PAGE_CAP * PAGE_SIZE).toBe(1020)
     expect(LEAF_MAX).toBeLessThan(SOURCE_PAGE_CAP * PAGE_SIZE)
@@ -269,6 +309,33 @@ describe('splitting a list over the cap — ⛔ the parts must add up to the who
     const bt: FreshSeed = { city: 'hcm', district: { id: 376, path: '/bat-dong-san/cho-thue-can-ho-quan-binh-thanh-ho-chi-minh' }, band: null }
     expect(splitSeed(bt, { quicklink: QUICKLINK })!.map((s) => [s.district!.id, s.band])).toEqual([[376, [0, 8]], [376, [8, 17]]])
     expect(splitSeed({ ...bt, band: [7, 8] }, {})).toBeNull()
+  })
+
+  it('⛔ seeds of another property type carry it — their own list paths, labels and district pattern; apartment seeds read as before', () => {
+    const room: FreshSeed = { city: 'hn', district: null, band: null, type: 1614 }
+    expect(seedType(room)).toBe(1614)
+    expect(seedType({ type: undefined })).toBe(APARTMENT_TYPE)
+    expect(freshSeedUrl(room, 2)).toBe('https://muaban.net/bat-dong-san/cho-thue-nha-tro-phong-tro-ha-noi?sort=2&page=2')
+    expect(seedLabel(room)).toBe('hn room')
+    expect(seedLabel({ city: 'hcm', district: { id: 380, path: '/x' }, band: [0, 8], type: 2814 })).toBe('hcm office district 380 price 0-8000000')
+    const ROOMS = { district: { items: [
+      { id: 363, url: '/bat-dong-san/cho-thue-nha-tro-phong-tro-quan-1-ho-chi-minh' },
+      { id: 376, url: '/bat-dong-san/cho-thue-nha-tro-phong-tro-quan-binh-thanh-ho-chi-minh' },
+    ] } }
+    expect(districtSeeds({ quicklink: ROOMS }, 'hcm', 1614)).toEqual([
+      { city: 'hcm', district: { id: 363, path: '/bat-dong-san/cho-thue-nha-tro-phong-tro-quan-1-ho-chi-minh' }, band: null, type: 1614 },
+      { city: 'hcm', district: { id: 376, path: '/bat-dong-san/cho-thue-nha-tro-phong-tro-quan-binh-thanh-ho-chi-minh' }, band: null, type: 1614 },
+    ])
+    expect(districtSeeds({ quicklink: ROOMS }, 'hcm')).toBeNull()                                    // rooms are not apartment paths
+    expect(districtSeeds({ quicklink: QUICKLINK }, 'hcm', 1614)).toBeNull()                         // nor apartments room paths
+    expect(districtSeeds({ quicklink: ROOMS }, 'hcm', 999)).toBeNull()                              // an unknown type has no paths
+    expect(splitSeed(room, {})!.map((x) => [x.type, x.band])).toEqual([[1614, [0, 8]], [1614, [8, 17]]])
+    expect(splitSeed({ ...room, city: 'hcm' }, { quicklink: ROOMS })!.map((x) => [x.type, x.district!.id])).toEqual([[1614, 363], [1614, 376]])
+    // the page's echo must name the seed's type
+    const echo = { subcategory_id: { id: 46 }, city_id: { id: 24 }, property_type: { id: 1614 }, sort: { id: 2 } }
+    expect(seedEchoProblem({ filterResult: { filters: echo } }, room)).toBeNull()
+    expect(seedEchoProblem({ filterResult: { filters: { ...echo, property_type: { id: 2812 } } } }, room)).toMatch(/property_type 2812, expected 1614/)
+    expect(seedEchoProblem({ filterResult: { filters: echo } }, { ...room, type: undefined })).toMatch(/expected 2812/)
   })
 
   it('freshSeedUrl: price order, the band, the page — muaban\'s own query shape', () => {
@@ -348,6 +415,34 @@ describe('coverage — ⛔ when the set may be written, and the evidence it carr
     expect(freshCoverageProblem(cov({ db: net({ missed: 40, aboveFloor: 1000 }) }))).toBeNull()       // 4% of a large source
     // deleted ads are churn, not holes: any number of them passes
     expect(freshCoverageProblem(cov({ db: net({ unlisted: 300, toRead: 303, read: 303, gone: 299, missed: 1 }) }))).toBeNull()
+  })
+
+  it('⛔ freshCrawlGap (--fresh-crawl, no set): stopped, a requested list never read, a list not whole, the detail cap, too many undetermined pages', () => {
+    const seed = (label: string, city: 'hcm' | 'hn' | 'dn', ok = true, why?: string) => ({ city, label, ok, total: 10, pages: 1, split: false, ...(why ? { why } : {}) })
+    const places = (over: Partial<FreshCoverage> = {}) => cov({
+      seeds: [seed('hcm house', 'hcm'), seed('hn house', 'hn'), seed('dn house', 'dn'), seed('hcm room', 'hcm'), seed('hn room', 'hn'), seed('dn room', 'dn')],
+      details: { read: 400, fresh: 300, old: 80, gone: 10, unknown: 10 }, db: null, ...over,
+    })
+    const ask = { cities: ['hcm', 'hn', 'dn'] as CityKey[], types: [2811, 1614] }
+    expect(freshCrawlGap(places(), ask)).toBeNull()
+    expect(freshCrawlGap(places({ stopped: 'HTTP 429 at …' }), ask)).toBe('the crawl stopped: HTTP 429 at …')
+    expect(freshCrawlGap(places(), { ...ask, types: [2811, 1614, 2814] })).toBe('no list of hcm office was read')
+    expect(freshCrawlGap(places({ seeds: places().seeds.map((x) => (x.label === 'hn room' ? { ...x, ok: false, why: 'HTTP 0 on page 1' } : x)) }), ask)).toBe('1 list(s) not read whole — hn room: HTTP 0 on page 1')
+    expect(freshCrawlGap(places({ detailCapHit: true }), ask)).toMatch(new RegExp(`over ${MAX_FRESH_DETAILS} detail pages .* the walk stopped above the id floor`))
+    expect(freshCrawlGap(places({ details: { read: 400, fresh: 300, old: 60, gone: 10, unknown: 30 } }), ask)).toBe('30 of 400 detail pages undetermined — over 5%')
+    expect(freshCrawlGap(places({ details: { read: 40, fresh: 30, old: 0, gone: 5, unknown: 5 } }), ask)).toBeNull()      // five or fewer: never refused
+    expect(freshCrawlGap(places({ detailCapHit: true, detailCap: 12_000 }), ask)).toMatch(/over 12000 detail pages/)
+  })
+
+  it(`⛔ at most LEAF_SHORTFALL_CRAWL_MAX (${LEAF_SHORTFALL_CRAWL_MAX}) cards short over a whole crawl — one per list must not add up to dozens of missed ads`, () => {
+    expect(LEAF_SHORTFALL_CRAWL_MAX).toBe(5)
+    const shortBy = (n: number) => cov().seeds.map((x, i) => (i > 0 && i <= n ? { ...x, short: 1 } : x))
+    expect(listsProblem(cov({ seeds: shortBy(5) }))).toBeNull()
+    expect(listsProblem(cov({ seeds: shortBy(6) }))).toBe('6 cards short over the crawl\'s lists (each list ≤ 1) — over 5: too many fresh ads could be missed')
+    expect(freshCoverageProblem(cov({ seeds: shortBy(6) }))).toMatch(/^6 cards short/)
+    const ask = { cities: ['hcm', 'hn', 'dn'] as CityKey[], types: [APARTMENT_TYPE] }
+    expect(freshCrawlGap(cov({ seeds: shortBy(5) }), ask)).toBeNull()
+    expect(freshCrawlGap(cov({ seeds: shortBy(6) }), ask)).toMatch(/^6 cards short over the crawl's lists/)
   })
 
   it('the evidence names pages, the leaf ceiling, the splits, the floor, its inversions and the db net — concretely', () => {
@@ -447,9 +542,15 @@ describe('the 7-day rule in mapRecord — ⛔ created_at, judged by judgeCreated
     expect(mapRecord(card(), detail(iso(readAt + 10 * 60_000)), { ...opts, windowAt: SET_AT, readAt })).toEqual({ ok: false, reason: 'window' })
   })
 
-  it('applies to apartments only: an old house still maps', () => {
-    const house = mapRecord(card({ property_type: 2811 }), detail('2026-06-02T15:35:52+07:00', { property_type: 2811 }), { ...opts, types: [2811], windowAt: SET_AT })
-    expect(house.ok).toBe(true)
+  it('⛔ applies to EVERY type since 2026-10-13: an old house, room or office is dropped as \'window\'; a fresh one maps', () => {
+    for (const [type, subcat] of [[2811, 'house-rental'], [1614, 'room-rental'], [2814, 'office-rental']] as const) {
+      const old = mapRecord(card({ property_type: type }), detail('2026-06-02T15:35:52+07:00', { property_type: type }), { ...opts, types: [type], windowAt: SET_AT })
+      expect(old, String(type)).toEqual({ ok: false, reason: 'window' })
+      const fresh = mapRecord(card({ property_type: type }), detail(iso(SET_AT - 2 * DAY), { property_type: type }), { ...opts, types: [type], windowAt: SET_AT })
+      expect(fresh.ok && fresh.row.mutable.subcategorySlug, String(type)).toBe(subcat)
+    }
+    // the warehouse type (NULL subcategory, off by default) is a property too
+    expect(mapRecord(card({ property_type: 2815 }), detail('2026-06-02T15:35:52+07:00', { property_type: 2815 }), { ...opts, types: [2815], windowAt: SET_AT })).toEqual({ ok: false, reason: 'window' })
   })
 })
 
@@ -470,9 +571,12 @@ describe('existingRowPlan — revival and re-dating at --apply', () => {
     expect(existingRowPlan(apt(SET_AT - 5 * DAY), at('active', SET_AT - DAY))).toEqual({ revive: false, redate: false })
   })
 
-  it('never revives a non-apartment row (the rule never expired one)', () => {
-    const house = { postedAt: new Date(SET_AT), mutable: { subcategorySlug: 'house-rental' } as never }
-    expect(existingRowPlan(house, at('expired', SET_AT - 9 * DAY)).revive).toBe(false)
+  it('⛔ revives every type since 2026-10-13 (the daily age sweep expires houses, rooms and offices too)', () => {
+    for (const subcategorySlug of ['house-rental', 'room-rental', 'office-rental', null]) {
+      const row = { postedAt: new Date(SET_AT), mutable: { subcategorySlug } as never }
+      expect(existingRowPlan(row, at('expired', SET_AT - 9 * DAY)), String(subcategorySlug)).toEqual({ revive: true, redate: true })
+      for (const s of ['hidden', 'removed', 'sold']) expect(existingRowPlan(row, at(s, SET_AT - 9 * DAY)).revive).toBe(false)
+    }
   })
 
   it('the re-dated rank is the create formula from the source date, never now', () => {
@@ -579,12 +683,21 @@ describe('scripts/import-muaban-net.ts — exit codes and rollback guards, as wi
     expect(code).not.toMatch(/throw new Error\(`--fresh-out NOT written/)
     expect(code).toMatch(/if \(freshRefusal\) \{[\s\S]*?process\.exitCode = COVERAGE_REFUSED_EXIT[\s\S]*?\}\s*return/)
     // the stage is renamed into place right after the set is settled — before anything that could still fail the run
-    const settled = code.indexOf('const freshRefusal = freshInfo ? await settleFreshSet(db, freshInfo) : null')
+    const settled = code.indexOf('const freshRefusal = freshInfo && FRESH_OUT ? await settleFreshSet(db, freshInfo) : null')
     expect(settled).toBeGreaterThan(-1)
     expect(code.indexOf('stage?.finish()')).toBeGreaterThan(settled)
     expect(code.indexOf('stage?.finish()')).toBeLessThan(code.indexOf('new ImportScreen('))
     // nothing turns the refusal into a crash
     expect(code).not.toMatch(/throw[^\n]*freshRefusal/)
+  })
+
+  it('⛔ --fresh-crawl: the same crawl over --types with partialOk, no set, its gap reported — an incomplete crawl exits 3, never throws', () => {
+    expect(code).toMatch(/types: FRESH_OUT \? \[APARTMENT_TYPE\] : TYPES, partialOk: !FRESH_OUT/)
+    const gap = code.indexOf('const crawlGap = freshInfo && FRESH_CRAWL ? freshCrawlGap(freshInfo.coverage(), { cities: CITY_KEYS, types: TYPES }) : null')
+    expect(gap).toBeGreaterThan(-1)
+    expect(code.indexOf('stage?.finish()')).toBeGreaterThan(gap)                                    // the stage is kept either way
+    expect(code).toMatch(/if \(crawlGap\) \{[\s\S]*?process\.exitCode = COVERAGE_REFUSED_EXIT[\s\S]*?\}\s*return/)
+    expect(code).not.toMatch(/throw[^\n]*crawlGap/)
   })
 
   it('⛔ --apply of an empty stage returns before the age check and before the database is opened (exit 0)', () => {
@@ -631,12 +744,15 @@ describe('idOrderInversions — per-run evidence on the order the id floor rests
 // ─── FreshCrawler against a fake muaban ────────────────────────────────────────────────────────
 
 /** A fake muaban.net: the list and detail pages as the crawl reads them (shapes as measured 2026-10-01). */
-type Ad = { id: number; city: CityKey; district: number; price: number; created: number; gone?: boolean; expired?: boolean; unlisted?: boolean }
+/** `type`: the ad's muaban property_type — absent = an apartment (every test before 2026-10-13). */
+type Ad = { id: number; city: CityKey; district: number; price: number; created: number; gone?: boolean; expired?: boolean; unlisted?: boolean; type?: number }
 const CITY_SLUG: Record<CityKey, string> = { hcm: 'ho-chi-minh', hn: 'ha-noi', dn: 'da-nang' }
 const DSLUG: Record<number, string> = { 363: 'quan-1', 376: 'quan-binh-thanh', 1: 'quan-ba-dinh', 2: 'quan-hai-chau', 999: 'quan-moi' }
 const QUICK: Record<CityKey, number[]> = { hcm: [363, 376], hn: [1], dn: [2] }
-const pathOf = (city: CityKey, d?: number) => `/bat-dong-san/cho-thue-can-ho-${d !== undefined ? `${DSLUG[d]}-` : ''}${CITY_SLUG[city]}`
-const cardOf = (a: Ad) => ({ id: a.id, city_id: CITIES[a.city].sourceId, district_id: a.district, subcategory_id: 46, property_type: APARTMENT_TYPE, price: a.price, price_display: `${a.price / 1e6} triệu/tháng`, url: `${pathOf(a.city, a.district)}/can-ho-id${a.id}` })
+const FAKE_TYPES = [APARTMENT_TYPE, 2811, 1614, 2814]
+const typeOf = (a: Ad) => a.type ?? APARTMENT_TYPE
+const pathOf = (city: CityKey, d?: number, type: number = APARTMENT_TYPE) => `/bat-dong-san/${PROPERTY_TYPES[type].listSlug}-${d !== undefined ? `${DSLUG[d]}-` : ''}${CITY_SLUG[city]}`
+const cardOf = (a: Ad) => ({ id: a.id, city_id: CITIES[a.city].sourceId, district_id: a.district, subcategory_id: 46, property_type: typeOf(a), price: a.price, price_display: `${a.price / 1e6} triệu/tháng`, url: `${pathOf(a.city, a.district, typeOf(a))}/can-ho-id${a.id}` })
 type Answer = { status: number; data: any | null }
 type Hook = (u: URL, nth: number) => Answer | undefined
 
@@ -651,19 +767,25 @@ function fakeSite(ads: Ad[], hook?: Hook) {
       return { status: 200, data: { props: { pageProps: { classified: { ...cardOf(a), created_at: new Date(a.created).toISOString(), is_expired: !!a.expired, is_outdate: false, publish: true } } } } }
     }
     const city = (Object.keys(CITY_SLUG) as CityKey[]).find((c) => u.pathname.endsWith(CITY_SLUG[c]))!
-    const did = Object.keys(DSLUG).map(Number).find((d) => u.pathname === pathOf(city, d))
+    /** The list's type and district, by EXACT path ('cho-thue-nha-' also prefixes the rooms' 'cho-thue-nha-tro-…'). */
+    let type = APARTMENT_TYPE
+    let did: number | undefined
+    for (const t of FAKE_TYPES) {
+      if (u.pathname === pathOf(city, undefined, t)) type = t
+      for (const d of Object.keys(DSLUG).map(Number)) if (u.pathname === pathOf(city, d, t)) { type = t; did = d }
+    }
     const district = did ?? null
     const priceQ = u.searchParams.get('price')
     const band = priceQ ? priceQ.split('-').map(Number) : null
     const page = Math.min(Number(u.searchParams.get('page') ?? 1), SOURCE_PAGE_CAP)                   // page 52 repeats page 51
     const all = ads
-      .filter((a) => !a.gone && !a.unlisted && a.city === city && (district === null || a.district === district) && (!band || (a.price >= band[0] && a.price <= band[1])))
+      .filter((a) => !a.gone && !a.unlisted && a.city === city && typeOf(a) === type && (district === null || a.district === district) && (!band || (a.price >= band[0] && a.price <= band[1])))
       .sort((a, b) => a.price - b.price || a.id - b.id)
     const filters = {
-      subcategory_id: { id: 46 }, city_id: { id: CITIES[city].sourceId }, property_type: { id: APARTMENT_TYPE }, sort: { id: Number(u.searchParams.get('sort')) },
+      subcategory_id: { id: 46 }, city_id: { id: CITIES[city].sourceId }, property_type: { id: type }, sort: { id: Number(u.searchParams.get('sort')) },
       ...(district !== null ? { district_id: { id: district } } : {}), ...(band ? { price: { min: band[0], max: band[1] } } : {}),
     }
-    const quicklink = district === null && !band ? { district: { items: QUICK[city].map((id) => ({ id, url: pathOf(city, id) })) } } : undefined
+    const quicklink = district === null && !band ? { district: { items: QUICK[city].map((id) => ({ id, url: pathOf(city, id, type) })) } } : undefined
     return { status: 200, data: { props: { pageProps: { filterResult: { filters }, quicklink, classified: { total: all.length, items: all.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map(cardOf) } } } } }
   }
   const get: GetPage = async (url) => {
@@ -677,13 +799,13 @@ function fakeSite(ads: Ad[], hook?: Hook) {
 const H = 3_600_000
 /** Ads whose ids rise with created_at: id BASE+k, 3 h apart, the newest 2.5 h old at SET_AT (no age falls on a boundary). */
 const BASE = 71_000_000
-function ads(groups: { city: CityKey; district: number; n: number; price?: (k: number) => number }[]): Ad[] {
+function ads(groups: { city: CityKey; district: number; n: number; price?: (k: number) => number; type?: number }[]): Ad[] {
   const slots = groups.flatMap((g) => Array.from({ length: g.n }, () => g))
   // a fixed shuffle, so every list holds old and new ads alike
   const order = slots.map((_, i) => i).sort((a, b) => ((a * 7919) % 1009) - ((b * 7919) % 1009) || a - b)
   return order.map((slot, k) => {
     const g = slots[slot]
-    return { id: BASE + k, city: g.city, district: g.district, price: g.price ? g.price(k) : 3_000_000 + (k % 9) * 1_000_000, created: SET_AT - (slots.length - k) * 3 * H + 30 * 60_000 }
+    return { id: BASE + k, city: g.city, district: g.district, price: g.price ? g.price(k) : 3_000_000 + (k % 9) * 1_000_000, created: SET_AT - (slots.length - k) * 3 * H + 30 * 60_000, ...(g.type ? { type: g.type } : {}) }
   })
 }
 const SMALL = () => ads([{ city: 'hcm', district: 363, n: 40 }, { city: 'hcm', district: 376, n: 30 }, { city: 'hn', district: 1, n: 50 }, { city: 'dn', district: 2, n: 70 }])
@@ -767,7 +889,42 @@ describe('FreshCrawler — ⛔ every list read whole, then the detail walk down 
     const fc = await crawler(site.get, log).run()
     expect(log.some((l) => /hn: 49 distinct cards read, the list reported 50 then 49 — reading it once more/.test(l))).toBe(true)
     expect(seedOf(fc, 'hn')).toMatchObject({ ok: true, total: 49 })
-    expect(fc.cards.has(hn[1].id)).toBe(true)                                                         // the card that slid back onto page 1
+    expect(seedOf(fc, 'hn')!.short).toBeUndefined()                                                   // the re-read was whole: nothing tolerated
+    expect(fc.cards.has(hn[20].id)).toBe(true)                                                        // the card that slid back onto page 1
+  })
+
+  /** hn's list keeps reporting 50 cards while its pages never show `hide` of them (a card the count includes and no page shows). */
+  const hiding = (all: Ad[], hide: (hn: Ad[]) => number[]) => {
+    const hn = all.filter((a) => a.city === 'hn').sort((a, b) => a.price - b.price || a.id - b.id)
+    const gone = new Set(hide(hn))
+    return fakeSite(all, (u) => {
+      if (u.pathname !== pathOf('hn')) return undefined
+      const a = fakeSite(all).answer(u)
+      a.data.props.pageProps.classified.items = (a.data.props.pageProps.classified.items as { id: number }[]).filter((it) => !gone.has(it.id))
+      return a
+    })
+  }
+
+  it('⛔ a list still ONE card short on its re-read is accepted (LEAF_SHORTFALL_MAX) — recorded on the seed and, honestly, in the evidence', async () => {
+    const all = SMALL()
+    const log: string[] = []
+    const fc = await crawler(hiding(all, (hn) => [hn[49].id]).get, log).run()
+    expect(log.some((l) => /hn: 49 distinct cards read, the list reported 50 — reading it once more/.test(l))).toBe(true)   // the first read must be whole
+    expect(log.some((l) => /hn: 49 distinct cards read again, the list reported 50 — 1 short on the re-read too, tolerated/.test(l))).toBe(true)
+    expect(seedOf(fc, 'hn')).toMatchObject({ ok: true, total: 50, short: 1 })
+    expect(fc.details.read).toBeGreaterThan(0)                                                         // the walk ran: the crawl staged its fresh ads
+    await fc.dbNet([])
+    const cov = fc.coverage()
+    expect(freshCoverageProblem(cov)).toBeNull()
+    expect(freshCoverageEvidence(cov)).toContain('hn 50 cards: 1 list(s) read to their last page (6 pages, each ≤ 960 cards, distinct kept ids ≥ reported total — except hn (1 short on its re-read too), tolerated: ≤ 1 per list, and a held row a list missed is read by the db net)')
+  })
+
+  it('⛔ two cards short, or a list that shows none of its cards, still fails after the re-read', async () => {
+    const two = await crawler(hiding(SMALL(), (hn) => [hn[48].id, hn[49].id]).get).run()
+    expect(seedOf(two, 'hn')).toMatchObject({ ok: false, why: '48 distinct cards read, the list reported 50' })
+    const lone = ads([{ city: 'hcm', district: 363, n: 30 }, { city: 'hn', district: 1, n: 1 }, { city: 'dn', district: 2, n: 5 }])
+    const empty = await crawler(hiding(lone, (hn) => [hn[0].id]).get).run()
+    expect(seedOf(empty, 'hn')).toMatchObject({ ok: false, why: '0 distinct cards read, the list reported 1' })
   })
 
   it('⛔ an off-filter card (another city, no id) never pads a list\'s count over a card it hides', async () => {
@@ -780,11 +937,11 @@ describe('FreshCrawler — ⛔ every list read whole, then the detail walk down 
       const page = u.searchParams.get('page') ?? '1'
       if (page === '1') items.unshift({ ...cardOf(all.find((x) => x.city === 'hcm')!), id: 69_000_001 })   // a pinned VIP card from HCMC
       if (page === '2') items.unshift({ id: 'vip' })
-      if (page === '3') a.data.props.pageProps.classified.items = items.filter((it) => it.id !== hn[49].id) // and one real card never shown
+      if (page === '3') a.data.props.pageProps.classified.items = items.filter((it) => it.id !== hn[48].id && it.id !== hn[49].id) // and two real cards never shown
       return a
     })
     const fc = await crawler(site.get).run()
-    expect(seedOf(fc, 'hn')).toMatchObject({ ok: false, why: expect.stringMatching(/49 distinct cards read, the list reported 50/) })
+    expect(seedOf(fc, 'hn')).toMatchObject({ ok: false, why: expect.stringMatching(/48 distinct cards read, the list reported 50/) })
     expect(fc.offSeed).toBeGreaterThanOrEqual(4)                                                      // 2 per attempt
     expect(fc.cards.has(69_000_001)).toBe(false)
   })
@@ -868,6 +1025,72 @@ describe('FreshCrawler — ⛔ every list read whole, then the detail walk down 
       expect(drops.filter((k) => k === 'detailHttp')).toHaveLength(0)
       expect(freshCoverageEvidence(fc.coverage())).toContain('(1 page(s) re-read after a timeout/5xx)')
     }
+  })
+
+  describe('⛔ --fresh-crawl: the other place types — every type\'s lists in turn, ONE walk over all their cards', () => {
+    const PLACES = () => ads([
+      { city: 'hcm', district: 363, n: 40 },                                                            // apartments: never this crawl's
+      { city: 'hcm', district: 363, n: 30, type: 2811 }, { city: 'hn', district: 1, n: 25, type: 2811 }, { city: 'dn', district: 2, n: 20, type: 2811 },
+      { city: 'hcm', district: 376, n: 35, type: 1614 }, { city: 'hn', district: 1, n: 30, type: 1614 }, { city: 'dn', district: 2, n: 20, type: 1614 },
+    ])
+    const dead = pathOf('hn', undefined, 1614)
+
+    it('partialOk: a failed list is reported and skipped, the rest are read and walked; no apartment is touched', async () => {
+      const all = PLACES()
+      const site = fakeSite(all, (u) => (u.pathname === dead ? { status: 0, data: null } : undefined))
+      const records: StagedRecord[] = []
+      const log: string[] = []
+      const fc = await new FreshCrawler(site.get, { cities: ['hcm', 'hn', 'dn'], types: [2811, 1614], partialOk: true, now: clock(), log: (l) => log.push(l), onRecord: (r) => records.push(r) }).run()
+      expect(fc.stopped).toBeNull()
+      expect(fc.seeds.map((x) => [x.label, x.ok])).toEqual([
+        ['hcm house', true], ['hn house', true], ['dn house', true], ['hcm room', true], ['hn room', false], ['dn room', true],
+      ])
+      expect(seedOf(fc, 'hn room')).toMatchObject({ ok: false, why: 'HTTP 0 on page 1' })
+      expect(log.some((l) => /fresh crawl .* house\/room cards — ⚠️ a list was not read whole; the cards that were read are still walked/.test(l))).toBe(true)
+      const read = all.filter((a) => a.type !== undefined && !(a.city === 'hn' && a.type === 1614))
+      expect([...fc.cards.keys()].sort()).toEqual(read.map((a) => a.id).sort())
+      expect([...fc.cards.values()].map((c) => c.type).filter((t) => t === APARTMENT_TYPE)).toEqual([])
+      // one floor over every read card: exactly the fresh ads of the lists that were read are found
+      expect([...fc.items.keys()].sort()).toEqual(FRESH_IDS(read, fc.setAt))
+      expect(fc.items.size).toBeGreaterThan(0)
+      expect(fc.floor.floor).not.toBeNull()
+      // each staged record names its card's own type, and the stage re-reads cleanly
+      expect(records.length).toBeGreaterThan(0)
+      for (const r of records) expect(r.seed.type).toBe(read.find((a) => a.id === r.item.id)!.type)
+      expect(parseStage(records.map((r) => JSON.stringify(r)).join('\n'))).toHaveLength(records.length)
+      expect(site.calls.some((c) => c.includes('cho-thue-can-ho'))).toBe(false)
+      // the verdict names the gap: the importer exits 3 on it, and no set rests on this crawl
+      expect(freshCrawlGap(fc.coverage(), { cities: ['hcm', 'hn', 'dn'], types: [2811, 1614] })).toBe('1 list(s) not read whole — hn room: HTTP 0 on page 1')
+    })
+
+    it('a whole places crawl has no gap; its detail cap is MAX_FRESH_DETAILS per type crawled', async () => {
+      const fc = await new FreshCrawler(fakeSite(PLACES()).get, { cities: ['hcm', 'hn', 'dn'], types: [2811, 1614, 2814], partialOk: true, now: clock() }).run()
+      expect(fc.detailCap).toBe(3 * MAX_FRESH_DETAILS)
+      expect(fc.coverage().detailCap).toBe(3 * MAX_FRESH_DETAILS)
+      expect(crawler(fakeSite([]).get).detailCap).toBe(MAX_FRESH_DETAILS)                                     // the set's crawl: one type
+      expect(fc.seeds.every((x) => x.ok)).toBe(true)
+      expect(fc.seeds.map((x) => x.label)).toEqual(['hcm house', 'hn house', 'dn house', 'hcm room', 'hn room', 'dn room', 'hcm office', 'hn office', 'dn office'])
+      expect(freshCrawlGap(fc.coverage(), { cities: ['hcm', 'hn', 'dn'], types: [2811, 1614, 2814] })).toBeNull()
+      expect(freshCrawlGap(fc.coverage(), { cities: ['hcm'], types: [2811] })).toBeNull()                 // only what was asked
+    })
+
+    it('⛔ without partialOk (the set\'s own crawl) the same failure ends the list phase — no detail page is requested', async () => {
+      const site = fakeSite(PLACES(), (u) => (u.pathname === dead ? { status: 0, data: null } : undefined))
+      const fc = await new FreshCrawler(site.get, { cities: ['hcm', 'hn', 'dn'], types: [2811, 1614], now: clock() }).run()
+      expect(fc.seeds.map((x) => x.label)).toEqual(['hcm house', 'hn house', 'dn house', 'hcm room', 'hn room'])
+      expect(fc.details.read).toBe(0)
+      expect(site.details()).toHaveLength(0)
+    })
+
+    it('partialOk reads the parts of a split that does not add up; the set\'s crawl does not', async () => {
+      const big = () => ads([{ city: 'hcm', district: 363, n: 900, type: 2811 }, { city: 'hcm', district: 376, n: 60, type: 2811 }, { city: 'hcm', district: 999, n: 1, type: 2811 }, { city: 'hn', district: 1, n: 5, type: 2811 }, { city: 'dn', district: 2, n: 5, type: 2811 }])
+      const partial = await new FreshCrawler(fakeSite(big()).get, { cities: ['hcm', 'hn', 'dn'], types: [2811], partialOk: true, now: clock() }).run()
+      expect(seedOf(partial, 'hcm house')).toMatchObject({ ok: false, split: true, why: 'the parts total 960, the whole 961 — 1 card(s) in no part' })
+      expect(partial.seeds.map((x) => [x.label, x.ok])).toEqual([['hcm house', false], ['hcm house district 363', true], ['hcm house district 376', true], ['hn house', true], ['dn house', true]])
+      expect(partial.cards.size).toBe(970)                                                              // all but the one in no district
+      const strict = await new FreshCrawler(fakeSite(big()).get, { cities: ['hcm', 'hn', 'dn'], types: [2811], now: clock() }).run()
+      expect(strict.seeds.map((x) => x.label)).toEqual(['hcm house'])
+    })
   })
 
   it('⛔ the db net\'s own reads get the same one re-read', async () => {
