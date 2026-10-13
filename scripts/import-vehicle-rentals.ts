@@ -32,20 +32,45 @@
  * server for the stage, the import and the build, against a scratch database. It is refused unless
  * NEXT_PUBLIC_SUPABASE_URL is loopback, so a preview manifest can never hold production-looking urls,
  * and the import refuses any manifest url outside `${NEXT_PUBLIC_SUPABASE_URL}/…/listings/affiliate/m/`.
+ *
+ * ⛔ ONLY RELIABLE CARS, ONLY FRESH BIKES (owner, 2026-10-13: "remove most of car rental leave only reliable fresh
+ * ones same with motorbike rentals maybe 7-10 days old ones"). Both stages judge every HCMC car by the reliability
+ * rule (src/lib/vehicle-reliability.ts — Mioto: ≥10 trips, ≥4.8★, ≥5 reviews and a trip in the last ~14 days read
+ * from the trips history `--trips <dir>`, scripts/vehicle-trips-history.ts; BonbonCar: own fleet, ≥3 real photos,
+ * ≥4★): a car that does not pass is neither photographed, created nor updated. Then the import stage, after its
+ * upserts and the --gone hides, runs the STATUS STEP (src/lib/vehicle-status-plan.ts, written by
+ * scripts/vehicle-rentals-status.ts): live cars that fail the rule or vanished from 2 complete scrapes in a row, and
+ * bikes missing from their shop's last 3 checks, → 'expired'; expired rows that are fresh again → 'active'. Journal first,
+ * per-page tombstones, per-source count guards — `--presence <dir>` holds the run history the guards and the bike
+ * checks read, `--prev <dir>` the weekly baseline the first run's guard falls back to, `--journal-dir <dir>` the
+ * journals (both required with --apply), `--accept <source,…>` overrides a guard for one run, `--no-status` skips
+ * the step. Exit 3 = written, but a source's status step was refused (a short scrape with live rows, the
+ * expire-share guard): the job reports it and retries the next day. A trips history too young to judge Mioto is a
+ * WARNING line instead (a retry cannot age a snapshot): those cars are left exactly as they are.
  */
-import { readFileSync, existsSync, statSync, openSync, writeSync, fsyncSync, closeSync, mkdirSync, writeFileSync } from 'node:fs'
+import { readFileSync, existsSync, statSync, openSync, writeSync, fsyncSync, closeSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs'
 import { dirname, join, resolve as resolvePath } from 'node:path'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { invokedDirectly } from '../src/lib/cli-entry'
 import { createHash } from 'node:crypto'
 import {
   VEHICLE_SELLERS, SHOP_KEYS, stageMioto, stageBonbon, stageShopBike, miotoOwnerBlock, shopTexts, usableTranslation,
-  type StagedVehicle, type StageResult, type SellerKey, type Fx, type StageDeps,
+  type StagedVehicle, type StageResult, type SellerKey, type ShopKey, type Fx, type StageDeps,
 } from '../src/lib/vehicle-rental-listing'
-import { VND_PER_USD_BAND, vndPerUsdFrom } from '../src/lib/honeycomb-listing'
+import { VND_PER_USD_BAND, vndPerUsdFrom, journalDirProblem } from '../src/lib/honeycomb-listing'
 import { browseRankScore } from '../src/lib/ranking-formula'
 // ⛔ Every importer screens a row before it writes it — banned words + advertising-banned goods.
 import { ImportScreen } from '../src/lib/import-screen'
+import {
+  BONBON_HCMC, MIOTO_HCMC, TRIPS_REFERENCE_MAX_DAYS, TRIPS_REFERENCE_MIN_DAYS, bonbonVerdicts, miotoVerdicts, type Verdict,
+} from '../src/lib/vehicle-reliability'
+import {
+  CAR_SOURCES, PRESENCE_KIND, PRESENCE_VERSION, bikePresence, guardFor, latestScrapedAt, planVehicleStatus,
+  type CarSource, type PlanInput, type PresenceEntry, type SourceRun,
+} from '../src/lib/vehicle-status-plan'
+import { tombstonePdps } from '../src/lib/pdp-tombstone'
+import { loadTripsSnapshots } from './vehicle-trips-history'
+import { applyMoves, loadPresenceEntries, readVehicleRows, writePresenceEntry } from './vehicle-rentals-status'
 
 const argv = process.argv
 const APPLY = argv.includes('--apply')
@@ -65,6 +90,21 @@ const LIMIT = Number(str('--limit', '0'))
 const ONLY = str('--only')?.split(',').map((s) => s.trim()).filter(Boolean) ?? null
 const FX_OVERRIDE = str('--vnd-per-usd')
 const CONCURRENCY = Math.max(1, Math.min(8, Number(str('--concurrency', '4'))))
+/** The Mioto trips history (scripts/vehicle-trips-history.ts) — the reliability rule's 14-day trip test reads it. */
+const TRIPS = expand(str('--trips'))
+/** The status step's run history (one entry per applied run): the count guards and the bike checks read it. */
+const PRESENCE = expand(str('--presence'))
+/** The gone helper's weekly baseline (`latest/`): the count guard's reference before any run is recorded. */
+const PREV = expand(str('--prev'))
+const JOURNAL_DIR = expand(str('--journal-dir'))
+/** Sources whose count / expire-share guard an operator overrides for this one run. */
+const ACCEPT = new Set((str('--accept') ?? '').split(',').map((s) => s.trim()).filter(Boolean))
+const NO_STATUS = argv.includes('--no-status')
+const ALLOW_NO_ISR = argv.includes('--allow-no-isr')
+/** The import finished its writes but a source's status step was refused: the job retries the next day. */
+const EXIT_PARTIAL = 3
+/** Above this share of a car source's HCMC records left not judged, the run warns (it changed nothing there). */
+const MAX_UNJUDGED_SHARE = 0.5
 /** A scrape older than this cannot be applied: prices and availability both come from it. */
 const MAX_AGE_DAYS = 7
 
@@ -138,9 +178,34 @@ export async function readCachedTranslations(wanted: { text: string; target: 'en
   return (t, target) => found.get(`${target} ${translationHash(t)}`) ?? null
 }
 
-export async function stageAll(): Promise<{ rows: StagedVehicle[]; drops: Record<string, Record<string, number>>; fx: Fx | null }> {
+/**
+ * What this scrape says about each source, for the status step: per car source the verdict of every HCMC record
+ * (absent from the map = not listed) and when it was scraped; per shop the listed count and the present set.
+ */
+export type Presence = {
+  cars: Partial<Record<CarSource, { verdicts: Map<string, Verdict>; scrapedAt: number }>>
+  bikes: Record<ShopKey, { count: number; present: Set<string>; scrapedAt: number }> | null
+  /** false when the trips history could not judge Mioto (most live cars have no snapshot ≥ 12 days old). */
+  tripsHealthy: boolean | null
+}
+
+/** "keep 761 · drop {fewTrips: 3113, …} · unknown {…}" for one source's verdicts. */
+function verdictLine(verdicts: ReadonlyMap<string, Verdict>): string {
+  let keep = 0
+  const drop: Record<string, number> = {}, unknown: Record<string, number> = {}
+  for (const v of verdicts.values()) {
+    if (v.kind === 'keep') keep++
+    else if (v.kind === 'drop') drop[v.reason] = (drop[v.reason] ?? 0) + 1
+    else unknown[v.reason] = (unknown[v.reason] ?? 0) + 1
+  }
+  return `${verdicts.size} HCMC · keep ${keep} · drop ${JSON.stringify(drop)}${Object.keys(unknown).length ? ` · not judged ${JSON.stringify(unknown)}` : ''}`
+}
+
+export async function stageAll(): Promise<{ rows: StagedVehicle[]; drops: Record<string, Record<string, number>>; fx: Fx | null; presence: Presence }> {
   const drops: Record<string, Record<string, number>> = {}
   const rows: StagedVehicle[] = []
+  const presence: Presence = { cars: {}, bikes: null, tripsHealthy: null }
+  const now = Date.now()
   const tally = (src: string, res: StageResult) => {
     if (res.ok) {
       if (ONLY && !ONLY.includes(res.row.seller)) return
@@ -171,20 +236,42 @@ export async function stageAll(): Promise<{ rows: StagedVehicle[]; drops: Record
     for (const m of Object.values(manifest)) for (const h of new Set(m.sha1 ?? [])) if (h) carsBySha.set(h, (carsBySha.get(h) ?? 0) + 1)
     const shared = new Set([...carsBySha].filter(([, n]) => n > 1).map(([h]) => h))
     const deps = { resolve: (rel: string) => join(MIOTO, rel), fileOk, cached, sharedSha1: shared, sha1Of: (id: string) => manifest[id]?.sha1 ?? [] }
-    for (const r of src) tally('mioto', stageMioto(r, deps))
+    // ⛔ THE RELIABILITY RULE FIRST: a car that does not pass is not staged — no photo upload, no create, no update.
+    const { snapshots, problems } = loadTripsSnapshots(TRIPS!)
+    for (const p of problems) console.warn(`  ! trips history: ${p}`)
+    const mv = miotoVerdicts(src, snapshots, now)
+    presence.cars.mioto = { verdicts: mv.verdicts, scrapedAt: latestScrapedAt(src.filter((r) => r.city === MIOTO_HCMC), now) }
+    presence.tripsHealthy = mv.tripsHealthy
+    console.log(`  mioto reliability     ${verdictLine(mv.verdicts)}`)
+    console.log(`  mioto trips history   ${snapshots.length} snapshot(s) in ${TRIPS}; ${mv.withReference} of ${mv.considered} active HCMC cars have one ${TRIPS_REFERENCE_MIN_DAYS}–${TRIPS_REFERENCE_MAX_DAYS} days old${mv.tripsHealthy ? '' : ' — ⛔ UNUSABLE: the trip test judges nobody this run (not judged ≠ dropped)'}`)
+    for (const r of src) {
+      const v = r.city === MIOTO_HCMC ? mv.verdicts.get(`mioto:${r.id}`) : undefined
+      if (v && v.kind !== 'keep') { tally('mioto', { ok: false, reason: `${v.kind === 'drop' ? 'unreliable' : 'notJudged'}:${v.reason}` }); continue }
+      tally('mioto', stageMioto(r, deps))
+    }
     console.log(`  mioto shared images   ${shared.size} sha1s appear on >1 car (dropped)`)
   }
   if (BONBON) {
     const src: Row[] = readJson(join(BONBON, 'all_rentals.json'))
-    for (const r of src) tally('bonboncar', stageBonbon(r, { resolve: (rel) => join(BONBON, rel), fileOk }))
+    const bv = bonbonVerdicts(src)
+    presence.cars.bonboncar = { verdicts: bv, scrapedAt: latestScrapedAt(src.filter((r) => r.city === BONBON_HCMC), now) }
+    console.log(`  bonboncar reliability ${verdictLine(bv)}`)
+    for (const r of src) {
+      const v = r.city === BONBON_HCMC ? bv.get(`bonboncar:${r.sku}`) : undefined
+      if (v && v.kind !== 'keep') { tally('bonboncar', { ok: false, reason: `${v.kind === 'drop' ? 'unreliable' : 'notJudged'}:${v.reason}` }); continue }
+      tally('bonboncar', stageBonbon(r, { resolve: (rel) => join(BONBON, rel), fileOk }))
+    }
   }
   let fx: Fx | null = null
   if (BIKES) {
     fx = await usdRate()
     // bikesSrc holds only the five HCMC shops: other shops/cities are out of scope, not a drop.
     for (const r of bikesSrc) tally(r.shop, stageShopBike(r, { resolve: (rel) => join(BIKES, rel), fileOk, cached, fx }))
+    // Presence for the 3-check rule: listed in HCMC, and in stock where the shop says (Jan's).
+    presence.bikes = bikePresence(bikesSrc, now)
+    console.log(`  shop presence         ${SHOP_KEYS.map((s) => `${s} ${presence.bikes![s].present.size}/${presence.bikes![s].count}`).join(' · ')} (in stock / listed)`)
   }
-  return { rows: LIMIT ? rows.slice(0, LIMIT) : rows, drops, fx }
+  return { rows: LIMIT ? rows.slice(0, LIMIT) : rows, drops, fx, presence }
 }
 
 function report(rows: StagedVehicle[], drops: Record<string, Record<string, number>>, fx: Fx | null) {
@@ -294,7 +381,7 @@ async function photos(rows: StagedVehicle[]) {
 
 // ── Stage 2: import ──────────────────────────────────────────────────────────────────────────────
 
-async function importRows(rows: StagedVehicle[]) {
+async function importRows(rows: StagedVehicle[], presence: Presence): Promise<StatusOutcome> {
   if (!MANIFEST) throw new Error('--manifest <file.jsonl> is required')
   // Without it HOSTED_PREFIX is a bare path and every row is dropped as "foreign url" — say so instead.
   if (!SUPABASE_URL) throw new Error('NEXT_PUBLIC_SUPABASE_URL is required (the prefix every hosted url is checked against)')
@@ -364,7 +451,10 @@ async function importRows(rows: StagedVehicle[]) {
 
     const stale = [...oldest].filter(([, d]) => d > MAX_AGE_DAYS)
     if (APPLY && stale.length) throw new Error(`scrape too old for ${stale.map(([s, d]) => `${s} (${d.toFixed(1)}d)`).join(', ')} — re-scrape before --apply`)
-    if (!APPLY) { console.log('\n  DRY RUN — nothing written. Re-run with --apply.'); return }
+    if (!APPLY) {
+      console.log('\n  DRY RUN — no row written. The status step below is the plan the --apply run would write.')
+      return await statusStep(db, ready.map((r) => r.row), presence)
+    }
 
     /**
      * ⛔ SELLERS: PINNED BY ID, NAME-CHECKED, AND NEVER OWNED. A seller row with an owner means a real
@@ -465,29 +555,168 @@ async function importRows(rows: StagedVehicle[]) {
     let retired = 0
     if (GONE) {
       const gone = readFileSync(GONE, 'utf8').split('\n').map((s) => s.trim()).filter(Boolean)
-      const res = await db.listing.updateMany({
-        where: { sellerId: { in: Object.values(VEHICLE_SELLERS).map((s) => s.id) }, status: 'active', externalId: { in: gone } },
-        data: { status: 'hidden' },
-      })
-      retired = res.count
+      const where = { sellerId: { in: Object.values(VEHICLE_SELLERS).map((s) => s.id) }, status: 'active', externalId: { in: gone } }
+      const targets = (await db.listing.findMany({ where, select: { id: true } })).map((t) => t.id)
+      /**
+       * The PDP is ISR for 30 days: without a tombstone a confirmed-gone car kept rendering for weeks. Tombstoned
+       * BEFORE the hide as well as after (review 2026-10-13): a hidden row is never selected again, so a tombstone
+       * that failed only after the write would have had no retry.
+       */
+      if (targets.length) await tombstonePdps(db, targets)
+      const hidden = await db.listing.updateManyAndReturn({ where: { ...where, id: { in: targets } }, data: { status: 'hidden' }, select: { id: true } })
+      retired = hidden.length
+      if (hidden.length) console.log(`  gone → hidden tombstones: ${await tombstonePdps(db, hidden.map((h) => h.id))}`)
     }
     console.log(`\ncreated ${created}   updated ${updated}   unchanged ${unchanged} (not written)   retired ${retired}`)
     console.log(`\nROLLBACK (soft, reversible — takes every row off every public surface):`)
     console.log(`  UPDATE "Listing" SET status = 'hidden' WHERE "sellerId" IN (${used.map((s) => `'${VEHICLE_SELLERS[s].id}'`).join(', ')}) AND status <> 'removed';`)
     console.log(`  -- hard DELETE is NOT paste-safe: Order is onDelete:Restrict and six relations Cascade.`)
+    // After the upserts (an expired car that qualifies has just been refreshed) and the gone hides (a hidden row is
+    // never expired or revived): the status step.
+    return await statusStep(db, ready.map((r) => r.row), presence)
   } finally {
     await db.$disconnect()
   }
 }
 
+/** Each source's count in the gone helper's weekly baseline (`latest/`) — the guard's reference on the first run. */
+function baselineCounts(dir: string): Record<string, number> {
+  const out: Record<string, number> = {}
+  const read = (f: string): Row[] | null => { try { const v = readJson(join(dir, f)); return Array.isArray(v) ? v : null } catch { return null } }
+  // Rows the helper carried forward without seeing them (`_carried`) are not last run's fresh scrape.
+  const fresh = (rows: Row[] | null) => (rows ?? []).filter((r) => !r._carried)
+  const m = read('mioto.json'), b = read('bonbon.json'), k = read('bikes.json')
+  if (m) out.mioto = fresh(m).length
+  if (b) out.bonboncar = fresh(b).length
+  if (k) for (const s of SHOP_KEYS) out[s] = fresh(k).filter((r) => r.shop === s).length
+  return out
+}
+
+/**
+ * `refusals` — a source's status step was refused (a short or empty scrape with live rows, the expire-share guard):
+ * the caller exits EXIT_PARTIAL and the job retries the next day, when the scrape is likely whole again.
+ * `warnings` — the run went through but something needs a look that a retry tomorrow cannot fix (a trips history
+ * too young or wiped to judge Mioto — it heals only as snapshots age past 12 days; rows a moderator changed mid-run).
+ */
+type StatusOutcome = { refusals: string[]; warnings: string[] }
+
+/**
+ * THE STATUS STEP: expire the live rows that are no longer reliable / fresh, revive the expired ones that are
+ * (src/lib/vehicle-status-plan.ts), journal first (scripts/vehicle-rentals-status.ts).
+ */
+async function statusStep(db: import('../src/generated/prisma/client').PrismaClient, readyRows: StagedVehicle[], presence: Presence): Promise<StatusOutcome> {
+  console.log('\n── status: expire what is no longer reliable / fresh, revive what is again')
+  const none: StatusOutcome = { refusals: [], warnings: [] }
+  if (NO_STATUS) { console.log('  SKIPPED (--no-status)'); return none }
+  if (ONLY || LIMIT) { console.log('  SKIPPED — under --only / --limit a missing row means nothing'); return none }
+  const { entries, problems } = PRESENCE ? loadPresenceEntries(PRESENCE) : { entries: [] as PresenceEntry[], problems: [] as string[] }
+  for (const p of problems) console.warn(`  ! presence history: ${p}`)
+  if (!PRESENCE) console.log('  ⚠️ no --presence: no run history — bikes cannot miss checks and the guards fall back to --prev')
+  const fallback = PREV ? baselineCounts(PREV) : {}
+  const refusals: string[] = [], warnings: string[] = []
+  const current: PresenceEntry['sources'] = {}
+  const cars: PlanInput['cars'] = {}
+  const bikes: PlanInput['bikes'] = {}
+  const accepted = new Map<string, boolean>()
+  const iso = (ms: number) => new Date(ms).toISOString()
+
+  for (const src of CAR_SOURCES) {
+    const p = presence.cars[src]
+    if (!p) continue
+    const { guard, prior } = guardFor(src, entries, { scrapedAt: p.scrapedAt, count: p.verdicts.size }, fallback[src] ?? null, ACCEPT.has(src), Date.now())
+    const thisRun: SourceRun = { scrapedAt: p.scrapedAt, count: p.verdicts.size, accepted: guard.accepted, present: new Set(p.verdicts.keys()) }
+    cars[src] = { judged: guard.judged, verdicts: p.verdicts, runs: [...(guard.accepted ? [thisRun] : []), ...prior.filter((r) => r.accepted)] }
+    accepted.set(src, guard.accepted)
+    current[src] = { scrapedAt: iso(p.scrapedAt), count: p.verdicts.size, accepted: guard.accepted, forced: guard.accepted && ACCEPT.has(src), present: [...p.verdicts.keys()] }
+    console.log(`  guard ${src.padEnd(15)} ${guard.judged ? 'judged' : 'NOT judged'} — ${guard.reason}`)
+  }
+  if (presence.bikes) {
+    for (const shop of SHOP_KEYS) {
+      const p = presence.bikes[shop]
+      const { guard, prior } = guardFor(shop, entries, { scrapedAt: p.scrapedAt, count: p.count }, fallback[shop] ?? null, ACCEPT.has(shop), Date.now())
+      const thisRun: SourceRun = { scrapedAt: p.scrapedAt, count: p.count, accepted: guard.accepted, present: p.present }
+      bikes[shop] = { judged: guard.judged, runs: [...(guard.accepted ? [thisRun] : []), ...prior.filter((r) => r.accepted)], present: p.present }
+      accepted.set(shop, guard.accepted)
+      current[shop] = { scrapedAt: iso(p.scrapedAt), count: p.count, accepted: guard.accepted, forced: guard.accepted && ACCEPT.has(shop), present: [...p.present] }
+      console.log(`  guard ${shop.padEnd(15)} ${guard.judged ? 'judged' : 'NOT judged'} — ${guard.reason}`)
+    }
+  }
+
+  const rows = await readVehicleRows(db)
+  const updatedAt = new Map(rows.map((r) => [r.id, r.updatedAt]))
+  const live = (s: string) => rows.some((r) => r.seller === s && r.status === 'active')
+  // A refusal matters only where there are live rows it leaves unjudged; a shop with none has nothing to expire.
+  for (const [s, ok] of accepted) if (!ok && live(s)) refusals.push(`${s}: scrape not accepted (see its guard line)`)
+  if (presence.tripsHealthy === false && live('mioto')) warnings.push(`mioto: the trips history cannot judge most cars (no snapshot ${TRIPS_REFERENCE_MIN_DAYS}–${TRIPS_REFERENCE_MAX_DAYS} days old — wiped, or a gap in runs) — those cars were neither expired, revived nor updated`)
+  // A source whose records mostly could not be judged (BonbonCar's detail pages all failing) changes nothing and
+  // would otherwise stamp a "successful" run while its prices go stale: say so.
+  for (const src of CAR_SOURCES) {
+    const p = presence.cars[src]
+    if (!p || !live(src)) continue
+    const unjudged = [...p.verdicts.values()].filter((v) => v.kind === 'unknown').length
+    if (p.verdicts.size && unjudged / p.verdicts.size > MAX_UNJUDGED_SHARE) warnings.push(`${src}: ${unjudged} of ${p.verdicts.size} HCMC cars could not be judged this run — neither updated, expired nor revived`)
+  }
+
+  const plan = planVehicleStatus({ rows, cars, bikes, ready: new Set(readyRows.map((r) => r.externalId)), force: ACCEPT })
+  for (const [s, why] of Object.entries(plan.refused)) refusals.push(`${s}: ${why}`)
+  for (const [s, t] of Object.entries(plan.tally)) {
+    console.log(`  ${s.padEnd(21)} ${Object.entries(t).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(' · ')}`)
+  }
+  const sample = (moves: typeof plan.expire) => moves.slice(0, 5).map((m) => `${m.externalId} (${m.reason})`).join('; ')
+  console.log(`  → expire ${plan.expire.length}${plan.expire.length ? `  e.g. ${sample(plan.expire)}` : ''}`)
+  console.log(`  → revive ${plan.revive.length}${plan.revive.length ? `  e.g. ${sample(plan.revive)}` : ''}`)
+  for (const r of refusals) console.log(`  ⛔ REFUSED ${r}`)
+  for (const w of warnings) console.log(`  ⚠️ WARNING ${w}`)
+
+  if (!APPLY) { console.log('  DRY RUN — no status written, no run recorded.'); return { refusals, warnings } }
+  const moves = [...plan.expire, ...plan.revive].map((m) => ({ ...m, updatedAt: updatedAt.get(m.id)! }))
+  const res = await applyMoves(db, moves, { journalDir: JOURNAL_DIR!, allowNoIsr: ALLOW_NO_ISR })
+  const movedSet = new Set(res.moved)
+  console.log(`  EXPIRED ${plan.expire.filter((m) => movedSet.has(m.id)).length} of ${plan.expire.length} · REVIVED ${plan.revive.filter((m) => movedSet.has(m.id)).length} of ${plan.revive.length} · tombstoned before and after each chunk`)
+  if (res.moved.length !== moves.length) {
+    warnings.push(`${moves.length - res.moved.length} row(s) changed between the read and the write — left as they are; the next run re-plans them`)
+    console.log(`  ⚠️ WARNING ${warnings.at(-1)}`)
+  }
+  // The run is recorded only once its writes are through: a crashed step leaves no entry, so it never counts as a check.
+  const entry: PresenceEntry = { kind: PRESENCE_KIND, version: PRESENCE_VERSION, recordedAt: new Date().toISOString(), sources: current }
+  if (PRESENCE) console.log(`  run recorded          ${writePresenceEntry(PRESENCE, entry)}`)
+  return { refusals, warnings }
+}
+
+function tmpRoots() {
+  const roots = ['/tmp', '/private/tmp', '/var/folders', '/private/var/folders', tmpdir()]
+  try { roots.push(realpathSync(tmpdir())) } catch { /* the plain path is still checked */ }
+  return roots
+}
+
 async function main() {
   if (!MIOTO && !BONBON && !BIKES) throw new Error('pass at least one of --mioto <dir> --bonbon <dir> --bikes <dir>')
+  if (STAGE !== 'photos' && STAGE !== 'import') throw new Error(`--stage ${STAGE}: expected photos | import`)
   if (ONLY) for (const k of ONLY) if (!(k in VEHICLE_SELLERS)) throw new Error(`--only ${k}: not one of ${Object.keys(VEHICLE_SELLERS).join(', ')}`)
-  const { rows, drops, fx } = await stageAll()
+  for (const k of ACCEPT) if (!(k in VEHICLE_SELLERS)) throw new Error(`--accept ${k}: not one of ${Object.keys(VEHICLE_SELLERS).join(', ')}`)
+  // ⛔ No Mioto car is judged without its trips history — and an unjudged car must never be staged as if it passed.
+  if (MIOTO && !TRIPS) throw new Error('--trips <dir> is required with --mioto: the reliability rule’s 14-day trip test reads it (scripts/vehicle-trips-history.ts writes it)')
+  if (ALLOW_NO_ISR) {
+    // ⛔ Scratch databases only: without the tag table a moved page keeps its cached state for 30 days.
+    const u = (() => { try { return new URL(process.env.DIRECT_URL || process.env.DATABASE_URL || '') } catch { return null } })()
+    if (!u || !['127.0.0.1', 'localhost', '::1', '[::1]'].includes(u.hostname) || u.port === '5433') throw new Error('--allow-no-isr is for a scratch database on loopback (never :5433, the production tunnel)')
+  }
+  const statusRuns = STAGE === 'import' && !NO_STATUS && !ONLY && !LIMIT
+  if (APPLY && statusRuns) {
+    // The status step writes: it needs its run history (the guards and the bike checks) and a durable journal.
+    if (!PRESENCE) throw new Error('--stage import --apply needs --presence <durable dir> (the status step’s run history), or --no-status')
+    const problem = journalDirProblem(JOURNAL_DIR, tmpRoots()) ?? journalDirProblem(PRESENCE, tmpRoots())?.replace('--journal-dir', '--presence') ?? null
+    if (problem) throw new Error(problem)
+  }
+  const { rows, drops, fx, presence } = await stageAll()
   report(rows, drops, fx)
-  if (STAGE === 'photos') await photos(rows)
-  else if (STAGE === 'import') await importRows(rows)
-  else throw new Error(`--stage ${STAGE}: expected photos | import`)
+  if (STAGE === 'photos') { await photos(rows); return }
+  const { refusals, warnings } = await importRows(rows, presence)
+  if (warnings.length) console.log(`\nSTATUS STEP WARNINGS: ${warnings.join(' | ')}`)
+  if (refusals.length) {
+    console.log(`\nSTATUS STEP REFUSED for: ${refusals.join(' | ')}`)
+    process.exitCode = EXIT_PARTIAL
+  }
 }
 
 if (invokedDirectly(import.meta.url)) {

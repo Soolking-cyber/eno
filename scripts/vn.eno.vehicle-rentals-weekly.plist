@@ -1,14 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Weekly eno.vn HCMC vehicle-rental refresh (scripts/vehicle-rentals-weekly.sh) — Mondays 05:00.
-  It runs the script from ~/eno.vn AS CHECKED OUT at 05:00 (like jobs-daily), so install only after the
-  branch is merged AND deployed, and keep ~/eno.vn on a clean main.
-  Install (owner):
+  eno.vn HCMC vehicle-rental refresh (scripts/vehicle-rentals-weekly.sh) — EVERY 3 DAYS, triggered DAILY at 04:30.
+  Owner 2026-10-13: "every 3 days it should check and update". launchd has no "every N days": the trigger is daily and
+  the script runs only when the last SUCCESSFUL run is ≥ 66 h old (src/lib/vehicle-job-gate.ts) — a failed or refused
+  run retries the next morning, and a trigger missed while the Mac slept fires on wake. A not-due day logs one line.
+  The label and file name keep "weekly" so the installed agent's label and the worktree path stay valid.
+  It runs from ~/eno-vehicles-job, a CLEAN detached worktree at origin/main (ENO_REPO) — fast-forward it after an
+  importer change: git -C ~/eno-vehicles-job fetch && git -C ~/eno-vehicles-job checkout --detach origin/main, then
+  prisma generate there. The env (DB + storage) comes from ~/eno.vn/.env (VEH_ENV_FILE); the DB tunnel is
+  scripts/db-tunnel.sh (supervised).
+  Install / reload (owner):
     mkdir -p ~/eno-import-journals/vehicles   # launchd will not start a job whose log dir is missing
-    cp ~/eno.vn/scripts/vn.eno.vehicle-rentals-weekly.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/vn.eno.vehicle-rentals-weekly.plist
+    launchctl unload ~/Library/LaunchAgents/vn.eno.vehicle-rentals-weekly.plist 2>/dev/null
+    cp ~/eno-vehicles-job/scripts/vn.eno.vehicle-rentals-weekly.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/vn.eno.vehicle-rentals-weekly.plist
   Remove: launchctl unload ~/Library/LaunchAgents/vn.eno.vehicle-rentals-weekly.plist
-  A run missed while the Mac sleeps fires on wake. Scraping takes ~3 h (1 req/s per host).
+  The script holds its own caffeinate (-i, and -s on AC) for the hours a run takes (1 req/s per host).
 -->
 <plist version="1.0">
 <dict>
@@ -16,14 +23,14 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/Users/mk1e3/eno.vn/scripts/vehicle-rentals-weekly.sh</string>
+    <string>/Users/mk1e3/eno-vehicles-job/scripts/vehicle-rentals-weekly.sh</string>
     <string>--apply</string>
   </array>
   <key>StartCalendarInterval</key>
-  <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>5</integer><key>Minute</key><integer>0</integer></dict>
+  <dict><key>Hour</key><integer>4</integer><key>Minute</key><integer>30</integer></dict>
   <key>EnvironmentVariables</key>
-  <dict><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
-  <key>WorkingDirectory</key><string>/Users/mk1e3/eno.vn</string>
+  <dict><key>ENO_REPO</key><string>/Users/mk1e3/eno-vehicles-job</string><key>VEH_ENV_FILE</key><string>/Users/mk1e3/eno.vn/.env</string><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+  <key>WorkingDirectory</key><string>/Users/mk1e3/eno-vehicles-job</string>
   <key>StandardOutPath</key><string>/Users/mk1e3/eno-import-journals/vehicles/weekly.log</string>
   <key>StandardErrorPath</key><string>/Users/mk1e3/eno-import-journals/vehicles/weekly.log</string>
 </dict>

@@ -13,8 +13,12 @@ in every window we asked about. So a row is written only on a POSITIVE answer fr
                 error or API error, or the car's own status is no longer 2 (active);
   · BonbonCar — absent from the fresh fleet AND /detail/<SKU> no longer carries a car (the site
                 answers 200 for any SKU; see bonbon_gone), or its status is not 'Onboard';
-  · shops     — the product is out of stock in the fresh scrape, or absent AND its page answers
-                404/410.
+  · shops     — absent AND its page answers 404/410 (confirmed by the shop's homepage answering).
+⛔ OUT OF STOCK IS NOT GONE (owner, 2026-10-13: keep a bike "still listed (and in stock, for Jan's) on its
+shop's site in the last 3 checks"). It used to be a gone signal here, and 'hidden' is one-way — so a bike
+rented out for a week stayed down for good. Now an out-of-stock bike is simply not PRESENT for the status
+step's 3-check rule (src/lib/vehicle-status-plan.ts): out of stock three checks running → 'expired', back
+in stock → revived.
 A network failure (timeout, DNS, 5xx), any other API error, or a missing status field is UNKNOWN,
 never gone — and every probe run is controlled by re-checking a known-live car (see `controlled`).
 
@@ -219,7 +223,8 @@ def main():
     cur = load(a.bikes and os.path.join(a.bikes, 'all_rentals.json'), hcmc_bikes)
     lines.append(source('shops', load(os.path.join(a.prev, 'bikes.json'), hcmc_bikes), cur, out, nxt,
                         lambda k, r: probe and bool(r.get('source_url')) and page_gone(r['source_url'], r.get('shop_url')),
-                        lambda r: 'out of stock' in (r.get('availability') or '').lower()))
+                        # ⛔ never "gone" for being out of stock — the 3-check rule expires it, revivably (docstring)
+                        lambda r: False))
 
     with open(a.out, 'w', encoding='utf-8') as f:
         for k in out:
