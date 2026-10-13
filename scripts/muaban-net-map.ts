@@ -209,6 +209,8 @@ export type RunArgs = {
    * for the types the set does not cover — house, room, office — staging every ad it finds, and writing NO set.
    * A list it cannot read whole is reported and skipped (the others are still read and walked): nothing is
    * expired from this crawl, so a partial one only means some fresh ads wait for the next run. Exit 3 then.
+   * No db net either, for the same reason: the net protects a SET's expiry from a list's hole, and this crawl
+   * writes none — a held row it misses is simply not refreshed this run (the age sweep dates it by its postedAt).
    */
   freshCrawl: boolean
 }

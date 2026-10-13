@@ -31,6 +31,22 @@
  * ⛔ THE SET RECORDS ITS WINDOW (`windowDays`) AND IS REFUSED UNLESS THAT IS THE SELLER'S WINDOW HERE: a
  * 7-day set applied to Honeycomb would expire every 8–30-day-old flat; a 30-day set applied to a 7-day
  * source would keep flats the rule takes down.
+ *
+ * ⛔ SINCE 2026-10-13 — EVERY PLACE TYPE, 7 DAYS AT MOST, CHECKED EVERY 3 DAYS. Owner: "remove all rental
+ * properties that are 7 days older every 3 days it should check and update up to 7 day old ones no older than 7
+ * days". Three layers, each with one job:
+ *   · THE IMPORTERS (every 3 days, scripts/apartments-weekly.sh) create, REVIVE (REVIVABLE_STATUSES) and re-date
+ *     every PLACE type their source lists — apartment, house, room, office — and only ads dated inside FRESH_DAYS:
+ *     Nhà Tốt cg 1010/1020/1030/1050, Muaban apartment/house/room/office (the non-apartment crawl writes no set),
+ *     Batdongsan's whole rentals list, Honeycomb's apartments and houses (its apply runs with --since-days
+ *     FRESH_DAYS: its 30-day set below only drives the expiry of ads its sitemap stopped listing). Rever has no
+ *     new rentals; its check (apartments) is unchanged.
+ *   · THE DAILY AGE SWEEP (scripts/expire-rentals.ts --sweep, src/lib/rental-sweep.ts) expires every live imported
+ *     place row whose postedAt is older than FRESH_DAYS — every seller, every place type — so nothing stays past 7
+ *     days whatever a source's window or refresh does.
+ *   · THE FRESH-SET EXPIRY (this file's sets, scripts/expire-apartment-rentals.ts) stays APARTMENTS ONLY: each
+ *     coverage proof describes the apartment lists. It only takes an apartment down EARLIER than the sweep, when its
+ *     source stops listing it inside the window; a non-apartment ad removed at its source waits for the sweep.
  */
 import { RENTAL_IMPORT_SELLERS } from './import-sellers'
 
@@ -378,6 +394,19 @@ export function backstopDaysProblem(sellerId: string, days: number | null): stri
     return `--backstop-days for ${sellerId} must be an integer ≥ ${min} (its ${windowDaysFor(sellerId)}-day window plus at least a day)`
   }
   return null
+}
+
+/**
+ * ⛔ WITH NO STATE FILE THE BACKSTOP SKIPS — it reports and exits 0 — and never reads the missing history as
+ * "never refreshed" (which would expire every live row older than its cutoff). Before 2026-10-13 that was a
+ * thrown error, and it failed every weekly run of a seller whose fresh-set expiry had never applied
+ * (Batdongsan: its first set is still to come). Skipping is safe now that the daily age sweep
+ * (scripts/expire-rentals.ts --sweep, src/lib/rental-sweep.ts) takes every live imported place row past
+ * FRESH_DAYS down whatever the backstop does. The line the backstop prints, or null when there is a state.
+ */
+export function backstopSkipReason(o: { sellerId: string; hasState: boolean; stateDir: string | null }): string | null {
+  if (o.hasState) return null
+  return `no state file for ${o.sellerId} in ${o.stateDir ?? '(no --state-dir)'} — no applied fresh set to measure a missed refresh from, so nothing is judged (a missing history is never read as "never refreshed"); skipped. The daily age sweep (expire-rentals.ts --sweep) still takes every live row past ${FRESH_DAYS} days down`
 }
 
 /**

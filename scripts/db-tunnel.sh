@@ -41,6 +41,27 @@ up() { nc -z 127.0.0.1 "$PORT" >/dev/null 2>&1; }
 case "${1:-status}" in
   start)
     if up; then echo "  tunnel already up on :$PORT"; exit 0; fi
+    # ⛔ ONE STARTER AT A TIME: two scheduled jobs a waking Mac fires together (the 05:30 sweep and the 06:00 refresh)
+    # would both see no supervisor and both fork one. mkdir is atomic; the loser waits for the winner's tunnel. A lock
+    # left by a starter that died is cleared after two minutes.
+    STARTLOCK=/tmp/eno-db-tunnel.start.lock
+    if ! mkdir "$STARTLOCK" 2>/dev/null; then
+      for _ in $(seq 1 60); do up && { echo "  tunnel up on :$PORT (another caller started it)"; exit 0; }; [ -d "$STARTLOCK" ] || break; sleep 1; done
+      [ -n "$(find "$STARTLOCK" -maxdepth 0 -mmin +2 2>/dev/null)" ] && rm -rf "$STARTLOCK"
+      mkdir "$STARTLOCK" 2>/dev/null || { echo "  another caller is starting the tunnel and :$PORT is still down" >&2; exit 1; }
+    fi
+    trap 'rm -rf "$STARTLOCK"' EXIT
+    # ⛔ A SUPERVISOR ALREADY RUNNING IS MID-RECONNECT (a dropped connection, a Mac waking from sleep): WAIT for it,
+    # never start a second one. Two supervisors fight over :$PORT (ExitOnForwardFailure makes the loser redial every
+    # 2 s for ever). The scheduled jobs call `start` before every database step (scripts/apartments-weekly.sh), so
+    # this is the common path after a lid-close, not a corner case.
+    if pgrep -f 'eno-db-tunnel-supervisor' >/dev/null 2>&1; then
+      for _ in $(seq 1 45); do up && { echo "  tunnel back up on :$PORT (the running supervisor reconnected)"; exit 0; }; sleep 1; done
+      # Still down after 45 s: that supervisor is wedged (a key or host it was started with no longer works) — replace
+      # it with one started from THIS environment's key, rather than fail every step behind it for ever.
+      echo "  a supervisor is running but :$PORT has not come back in 45 s — replacing it" >&2
+      "$0" stop >/dev/null 2>&1
+    fi
     [ -r "$KEY" ] || { echo "  key not readable: $KEY" >&2; echo "  (on macOS an empty ls/find under ~/Desktop is NOT proof of absence — try mdfind -name CS-Linux)" >&2; exit 1; }
     # The supervisor loop is the point: `ssh -N` returns whenever the connection drops, and a
     # build must not notice. ServerAlive* makes a half-open socket fail fast enough to restart.

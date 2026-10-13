@@ -15,6 +15,12 @@
  * WHAT IT DOES: every `active` apartment-rental row of ONE ownerless rental import seller (pinned by id),
  * with an affiliateUrl, whose externalId is NOT in the source step's fresh set → EXPIRED_STATUS. Rows the
  * step could not judge (`unknown`) stay. Then per-id ISR tombstones, so the page stops rendering now.
+ * ⚠️ STILL APARTMENTS ONLY (2026-10-13), BY DESIGN: every source's fresh set and its coverage proof describe the
+ * apartment lists (Nhà Tốt cg 1010, Muaban property_type 2812, Batdongsan's apartment rows, Rever's apartment
+ * check). Houses, rooms, offices and untyped rows are created, revived and re-dated by the importers like
+ * apartments, and taken down by the DAILY AGE SWEEP (scripts/expire-rentals.ts --sweep), which enforces the
+ * 7-day maximum on every place type — this script only takes an apartment down earlier, when its source stops
+ * listing it inside the window.
  *
  * ⛔ STRICTLY active → expired. Never touches hidden (moderation, imageless, a source's own gone signal),
  * removed (the compliance tombstone), sold or stale rows; never DELETEs (Law 122/2025 keep ≥1 year).
@@ -37,7 +43,8 @@
  * older than N days (planBackstop). Both halves matter: the importers keep postedAt at the LATEST source date they have
  * seen (create, revival, an update whose source date is newer), so while refreshes succeed postedAt is
  * NOT an age signal on its own (a row kept fresh by the weekly set may still carry an older postedAt from
- * before that rule) — the normal expiry handles those weeks. No state file = refused, never "never".
+ * before that rule) — the normal expiry handles those weeks. No state file = skipped and reported (exit 0,
+ * backstopSkipReason), never "never".
  * ⚠️ Prisma updateMany, so updatedAt moves — wanted: stale-noindex.ts counts departures by it, and imported
  * rows are never in the listing sitemaps (sitemap.ts filters affiliateUrl), so nothing reorders there.
  */
@@ -50,7 +57,7 @@ import { PrismaClient } from '../src/generated/prisma/client'
 import { journalDirProblem } from '../src/lib/honeycomb-listing'
 import { RENTAL_IMPORT_SELLERS } from '../src/lib/import-sellers'
 import {
-  APARTMENT_SUBCAT, EXPIRED_STATUS, backstopDaysFor, backstopDaysProblem, baselineOf, freshSetProblem, planBackstop, planExpiry, rollingWindowFrom,
+  APARTMENT_SUBCAT, EXPIRED_STATUS, backstopDaysFor, backstopDaysProblem, backstopSkipReason, baselineOf, freshSetProblem, planBackstop, planExpiry, rollingWindowFrom,
   type FreshSet,
 } from '../src/lib/apartment-freshness'
 import { tombstonePdps } from '../src/lib/pdp-tombstone'
@@ -214,7 +221,10 @@ async function main() {
       expire = plan.expire
       keptCount = plan.keep
     } else {
-      if (!state) throw new Error(`no state file for ${SELLER} in ${stateDir ?? '(no --state-dir)'} — the backstop will not read a missing history as "never refreshed"`)
+      // ⛔ No state file: REPORT AND SKIP (exit 0) — never read the missing history as "never refreshed"
+      // (backstopSkipReason; the daily age sweep enforces the 7-day maximum on every live row meanwhile).
+      const skip = backstopSkipReason({ sellerId: SELLER, hasState: !!state, stateDir })
+      if (skip || !state) { console.log(`seller            ${seller.name} (${SELLER})\nBACKSTOP          ${skip}`); return }
       const lastFresh = state.runs.filter((r) => r.mode === 'fresh').at(-1)
       const bp = planBackstop({ active, lastFreshAt: lastFresh?.at ?? null, now, days: BACKSTOP_DAYS! })
       if (!bp.act) {

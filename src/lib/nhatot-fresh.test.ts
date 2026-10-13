@@ -591,7 +591,7 @@ describe('nhatotFreshDecision — coverage, set, and the expiry’s own check', 
   it('⛔ every place category read (2026-10-13): a later category that failed or stopped leaves the apartment set intact — the read took every city\'s apartments first', () => {
     const cgs = [1010, 1020, 1030, 1050]
     // nhatotWindowReadOrder: hcm/hn/dn 1010, then hcm 1020 — which hit a gap (or a StopRead ended the read there: nothing after it exists)
-    const after = [{ city: 'hcm' as const, cg: 1020, area: null, window: win('gap') }]
+    const after = [{ city: 'hcm' as const, cg: 1020, area: null, window: win('gap') }, { city: 'hn' as const, cg: 1020, area: null, window: null }]
     const rooms = Array.from({ length: 5 }, (_, i) => ad(134300000 + i, NOW - i * HOUR, 1050))
     const d = nhatotFreshDecision(staged({ params: { ...staged().params, cgs }, slices: [...staged().slices, ...after], ads: [...staged().ads, ...rooms] }), NOW + 60_000)
     expect(d.ok).toBe(true)

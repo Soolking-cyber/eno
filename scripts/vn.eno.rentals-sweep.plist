@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  eno.vn daily 7-day SWEEP of imported property rentals, on its own (scripts/apartments-weekly.sh in its sweep-only
+  mode) — 05:30 every day, since 2026-10-13. The property refresh (vn.eno.apartments-weekly, 06:00) sweeps at the end
+  of every run too; this agent exists because launchd never starts a second instance of a job that is still running,
+  so a refresh that outlasts a day (a long first import, a hung headed Chrome) would otherwise cost the daily sweep.
+  A sweep-only run never takes the refresh lock, waits for nothing, and alerts when a refresh has held that lock for
+  over 36 hours. The two sweeps never overlap (a sweep lock).
+  Install (after ~/eno-apartments-job is fast-forwarded to the commit that carries this file):
+    mkdir -p ~/eno-import-journals/apartments   # launchd will not start a job whose log dir is missing
+    cp scripts/vn.eno.rentals-sweep.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/vn.eno.rentals-sweep.plist
+  Remove: launchctl unload ~/Library/LaunchAgents/vn.eno.rentals-sweep.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>vn.eno.rentals-sweep</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/mk1e3/eno-apartments-job/scripts/apartments-weekly.sh</string>
+    <string>--apply</string>
+    <string>--sweep-only</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>5</integer><key>Minute</key><integer>30</integer></dict>
+  <key>EnvironmentVariables</key>
+  <dict><key>ENO_REPO</key><string>/Users/mk1e3/eno-apartments-job</string><key>APT_ENV_FILE</key><string>/Users/mk1e3/eno.vn/.env</string><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+  <key>WorkingDirectory</key><string>/Users/mk1e3/eno-apartments-job</string>
+  <key>StandardOutPath</key><string>/Users/mk1e3/eno-import-journals/apartments/sweep.log</string>
+  <key>StandardErrorPath</key><string>/Users/mk1e3/eno-import-journals/apartments/sweep.log</string>
+</dict>
+</plist>

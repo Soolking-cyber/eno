@@ -1,18 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Weekly eno.vn imported-apartment refresh (scripts/apartments-weekly.sh) — Mondays 06:00. The vehicle
-  job starts at 05:00 and runs for hours; the two crawl different hosts. The 7-day rule (owner 2026-10-01).
+  eno.vn imported PROPERTY-rental refresh (scripts/apartments-weekly.sh) — started DAILY at 06:00 since 2026-10-13
+  (owner: every rental property, 7 days at most, refreshed every 3 days). The label and file keep their old
+  "apartments-weekly" name so the installed agent is replaced in place. Each source inside runs only when its last
+  SUCCESS is at least 66 h old (scripts/apartments-gate.sh), so a healthy source refreshes every 3 days and a failed
+  one retries the next morning; the daily 7-day sweep (scripts/expire-rentals.ts in its sweep mode) runs at the end of
+  EVERY run — and, so a refresh that outlasts a day cannot cost it, on its own agent too (vn.eno.rentals-sweep, 05:30,
+  scripts/vn.eno.rentals-sweep.plist: install both).
+  The vehicle job starts at 05:00; the two crawl different hosts.
   It runs from ~/eno-apartments-job, a CLEAN detached worktree at origin/main — fast-forward it
   (a detached checkout of origin/main, then prisma generate) after a change to any
   importer, as with ~/eno-vehicles-job.
-  Install:
+  Install (or update — the schedule changed from weekly to daily, so the agent must be reloaded):
     mkdir -p ~/eno-import-journals/apartments   # launchd will not start a job whose log dir is missing
+    launchctl unload ~/Library/LaunchAgents/vn.eno.apartments-weekly.plist 2>/dev/null
     cp scripts/vn.eno.apartments-weekly.plist ~/Library/LaunchAgents/ && launchctl load ~/Library/LaunchAgents/vn.eno.apartments-weekly.plist
   Remove: launchctl unload ~/Library/LaunchAgents/vn.eno.apartments-weekly.plist
   A LaunchAgent runs in the logged-in GUI session, which the Batdongsan step needs (a headed Chrome:
-  Cloudflare refuses headless). caffeinate keeps the Mac awake for the whole run; a run missed while the
-  Mac sleeps fires on wake.
+  Cloudflare refuses headless). caffeinate keeps the Mac from idle-sleeping for the whole run (a lid-close still
+  sleeps it: every database step re-checks the supervised tunnel); a run missed while the Mac sleeps fires on wake.
 -->
 <plist version="1.0">
 <dict>
@@ -26,7 +33,7 @@
     <string>--apply</string>
   </array>
   <key>StartCalendarInterval</key>
-  <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
+  <dict><key>Hour</key><integer>6</integer><key>Minute</key><integer>0</integer></dict>
   <key>EnvironmentVariables</key>
   <dict><key>ENO_REPO</key><string>/Users/mk1e3/eno-apartments-job</string><key>APT_ENV_FILE</key><string>/Users/mk1e3/eno.vn/.env</string><key>PATH</key><string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
   <key>WorkingDirectory</key><string>/Users/mk1e3/eno-apartments-job</string>

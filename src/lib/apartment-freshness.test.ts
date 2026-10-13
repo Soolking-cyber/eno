@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   BACKSTOP_MISSED_DAYS, BACKSTOP_SLACK_DAYS, BASELINE_RUNS, CARRY_MIN_DATED, EXTERNAL_ID_PREFIX, FRESH_DAYS, MIN_SHARE, SHARE_FLOOR, WINDOW_DAYS_BY_SELLER,
-  backstopDaysFor, backstopDaysProblem, baselineOf, freshSetProblem, isInWindow, isRollingWindow, makeFreshSet, planBackstop, planExpiry,
+  backstopDaysFor, backstopDaysProblem, backstopSkipReason, baselineOf, freshSetProblem, isInWindow, isRollingWindow, makeFreshSet, planBackstop, planExpiry,
   rollingWindowFrom, windowDaysFor,
 } from './apartment-freshness'
 import { RENTAL_IMPORT_SELLERS } from './import-sellers'
@@ -244,6 +244,14 @@ describe('⛔ the backstop, per source: the seller\'s window + the same slack', 
     expect(nt).toMatchObject({ act: true, cutoff: new Date(NOW - 14 * DAY) })
     expect(nt.act && nt.expire).toEqual(['L15', 'L20', 'L31', 'L36', 'L38', 'L60'])
   })
+  it('⛔ no state file: the backstop SKIPS and says so (it used to throw and fail the run) — never reads it as "never refreshed"', () => {
+    expect(backstopSkipReason({ sellerId: 'bds-vn-import-seller-0001', hasState: true, stateDir: '/j/state' })).toBeNull()
+    const why = backstopSkipReason({ sellerId: 'bds-vn-import-seller-0001', hasState: false, stateDir: '/j/state' })
+    expect(why).toMatch(/^no state file for bds-vn-import-seller-0001 in \/j\/state — /)
+    expect(why).toMatch(/never read as "never refreshed"\); skipped/)
+    expect(why).toMatch(/daily age sweep \(expire-rentals\.ts --sweep\) still takes every live row past 7 days down/)
+    expect(backstopSkipReason({ sellerId: 'x', hasState: false, stateDir: null })).toMatch(/in \(no --state-dir\)/)
+  })
 })
 
 describe('⛔ a ROLLING window (Honeycomb) is guarded by carry-over, never by the count guards', () => {
@@ -447,7 +455,7 @@ describe('⛔ a ROLLING window (Honeycomb) is guarded by carry-over, never by th
   })
 })
 
-describe('⛔ the weekly job and the expiry read the window from this table, never a copy', () => {
+describe('⛔ the 3-day job and the expiry read the window from this table, never a copy', () => {
   const sh = readFileSync(join(process.cwd(), 'scripts/apartments-weekly.sh'), 'utf8')
   const shCode = sh.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n')
   const expire = readFileSync(join(process.cwd(), 'scripts/expire-apartment-rentals.ts'), 'utf8')
@@ -456,13 +464,16 @@ describe('⛔ the weekly job and the expiry read the window from this table, nev
     expect(shCode).toMatch(/npx tsx scripts\/expire-apartment-rentals\.ts --seller "\$seller" --backstop --state-dir "\$STATE"/)
     expect(shCode).not.toMatch(/--backstop-days|BACKSTOP_DAYS/)
   })
-  it("Honeycomb's stage reads its --since-days from windowDaysFor; the 7-day sources keep their 7", () => {
+  it("Honeycomb's STAGE reads its --since-days (the set's window) from windowDaysFor; its APPLY and the 7-day sources judge by the job's 7 (AGE_DAYS)", () => {
     expect(shCode).toMatch(/days="\$\(npx tsx -e "import \{ windowDaysFor \} from '\.\/src\/lib\/apartment-freshness'; console\.log\(windowDaysFor\('\$S'\)\)"/)
     expect(shCode).toMatch(/npx tsx scripts\/import-honeycomb-com-vn\.ts --since-days "\$days" --save "\$STAGE" --fresh-out "\$FRESH"/)
     expect(shCode).not.toMatch(/import-honeycomb-com-vn\.ts --since-days 7/)
-    expect(shCode).toMatch(/import-nhatot-com\.ts --cg 1010 --max-age-days 7 --save/)
-    expect(shCode).toMatch(/import-nhatot-com\.ts --src "\$STAGE" --max-age-days 7/)
-    expect(shCode).toMatch(/import-batdongsan-rentals\.ts --src "\$BDS\/all_rentals\.json" --previous "\$PREV" --max-age-days 7/)
+    // 2026-10-13: the apply creates / revives / re-dates only within the 7-day rule — never the 8–30-day ads its set keeps listed
+    expect(shCode).toMatch(/npx tsx scripts\/import-honeycomb-com-vn\.ts --src "\$STAGE" --since-days "\$AGE_DAYS"/)
+    expect(Number(/^AGE_DAYS=(\d+)$/m.exec(shCode)?.[1])).toBe(FRESH_DAYS)
+    expect(shCode).toMatch(/import-nhatot-com\.ts --cg 1010,1020,1030,1050 --max-age-days "\$AGE_DAYS" --save/)
+    expect(shCode).toMatch(/import-nhatot-com\.ts --src "\$STAGE" --max-age-days "\$AGE_DAYS"/)
+    expect(shCode).toMatch(/import-batdongsan-rentals\.ts --src "\$BDS\/all_rentals\.json" --previous "\$PREV" --max-age-days "\$AGE_DAYS"/)
   })
   it('the expiry: --backstop is backstopDaysFor(seller), --backstop-days N is checked against the seller\'s window, a set by freshSetProblem', () => {
     expect(expireCode).toMatch(/const BACKSTOP_DAYS = BACKSTOP_DEFAULT \? backstopDaysFor\(SELLER\) : BACKSTOP_DAYS_ARG/)
