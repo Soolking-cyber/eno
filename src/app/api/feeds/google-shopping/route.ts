@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import { plainSnippet } from '@/lib/strip-md'
 import { SITE_NAME } from '@/lib/edition'
 import {
-  feedCategories, feedListingTypes, isMockImages, feedExcluded, feedAuthError, feedCacheHeaders,
+  feedCategories, feedListingTypes, FEED_EXCLUDED_PRICE_UNITS, isMockImages, feedExcluded, feedAuthError, feedCacheHeaders,
   feedStock, gpcFor, feedIdentifiers, feedApparel, isApparel,
 } from '@/lib/product-feed'
 
@@ -89,6 +89,8 @@ export async function GET(req: Request) {
         affiliateUrl: null,
         listingType: { in: feedListingTypes() },
         category: { slug: { in: feedCategories() } },
+        // A rate (an hourly service) is not a product price — product-feed.ts FEED_EXCLUDED_PRICE_UNITS.
+        priceUnit: { notIn: [...FEED_EXCLUDED_PRICE_UNITS] },
       }),
       /**
        * ⚠️ `select`, NOT `include`, AND AN EXPLICIT `take`. This was

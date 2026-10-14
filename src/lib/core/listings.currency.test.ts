@@ -120,7 +120,7 @@ describe('createListingCore — stamps ₫, and can stamp nothing else', () => {
 
   it('stamps the rent unit from the SANITIZED rentalPeriod, read before the stamp', () => {
     // Since 2026-10-14 nothing sits between the two (the O-34 e-visa chip strip was retired with O-34b).
-    const clean = create.indexOf('const cleanAttributes = sanitizeAttributes(body.attributes)')
+    const clean = create.indexOf('const cleanAttributes = withoutInapplicablePriceBasis(sanitizeAttributes(body.attributes), categorySlug, subcategorySlug)')
     const stamp = create.indexOf('const money = listingMoneyFor(')
     expect(clean).toBeGreaterThan(-1)
     expect(stamp).toBeGreaterThan(clean)
@@ -154,16 +154,23 @@ describe('updateListingCore — never touches the currency', () => {
     expect(update).not.toMatch(/^\s*currency:/m)
   })
 
-  it('writes `priceUnit` ONLY on a job- or rent-boundary crossing or a changed rent period, and only from listingMoneyFor', () => {
+  it('writes `priceUnit` ONLY on a job- or rent-boundary crossing, a changed rent period, or a services edit — always from listingMoneyFor', () => {
     // ⚠️ The unit is otherwise never re-stamped on edit: a vehicle rental's stored 'VND/day' must not
-    // come back monthly from a later save (taxonomy.ts listingMoneyFor). Three exceptions: a post switched
+    // come back monthly from a later save (taxonomy.ts listingMoneyFor). Four exceptions: a post switched
     // into a JOB (Wanted → Job) kept its bare 'VND', so its salary printed without "/ month" — that
     // switch re-stamps it, and the reverse takes it back (review, 2026-10-01); a switch across RENT
-    // (Rent → "Cần thuê" kept 'VND/day' on a budget, Wanted → Rent kept a bare 'VND'); and a RENT row
-    // whose `rentalPeriod` attribute this edit actually changes takes the unit of its new period (A5).
+    // (Rent → "Cần thuê" kept 'VND/day' on a budget, Wanted → Rent kept a bare 'VND'); a RENT row
+    // whose `rentalPeriod` attribute this edit actually changes takes the unit of its new period (A5);
+    // and every edit of a SERVICES row takes the unit its Pricing basis, subcategory and intent give
+    // (2026-10-14) — written only when it differs from the stored one.
     // The behaviour itself is pinned against the real function in listings.sell-rules.test.ts.
     const writes = update.match(/data\.priceUnit\s*=/g) ?? []
-    expect(writes).toHaveLength(1)
+    expect(writes).toHaveLength(2)
+    const services = update.indexOf("if (current.category.slug === 'services' && (nextType === 'service' || nextType === 'wanted') && SERVICE_UNITS.includes(current.priceUnit ?? '')) {")
+    expect(services).toBeGreaterThan(-1)
+    const block = update.slice(services, update.indexOf('\n  }\n', services))
+    expect(block).toMatch(/const unit = listingMoneyFor\(\{[^}]*listingType: nextType, priceBasis \}\)\.priceUnit/)
+    expect(block).toContain('if (unit !== ((data.priceUnit as string | undefined) ?? current.priceUnit)) data.priceUnit = unit')
     const at = update.indexOf('data.priceUnit =')
     const guard = update.lastIndexOf('if (', at)
     expect(update.slice(guard, at)).toMatch(/^if \(jobCrossed \|\| rentCrossed \|\| periodMoved\) \{\s*$/)

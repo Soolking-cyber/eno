@@ -60,6 +60,14 @@ export function feedListingTypes(): string[] {
 }
 
 /**
+ * ⛔ PRICE UNITS NO AD CATALOGUE MAY CARRY — RATES. Both feeds print `<price>` as a flat amount, so an hourly service
+ * (services › Pricing, owner 2026-10-14: stored 'VND/hour') would be advertised on eno.forum's catalogue as a one-off
+ * price of its hourly rate. A rate is not a product price on either platform; it stays out. (Goods keep 'VND' and
+ * 'VND/kg'; rents and jobs never reach these feeds.)
+ */
+export const FEED_EXCLUDED_PRICE_UNITS: readonly string[] = ['VND/hour', 'VND/day', 'VND/week', 'VND/month']
+
+/**
  * ⛔ AVAILABILITY WAS A STRING LITERAL IN BOTH FEEDS, AND THAT IS THE WHOLE DEFECT. Google and
  * Meta both crawl the landing page and compare it against the feed; a row that says `in_stock`
  * about a product the merchant delisted is a price/availability mismatch, and enough of them

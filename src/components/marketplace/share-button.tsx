@@ -1,5 +1,6 @@
 'use client'
 
+import { priceUnitSuffix } from '@/lib/price-unit'
 import { useState, useSyncExternalStore } from 'react'
 import { Share2, Check, Link2, Mail, MoreHorizontal, MessageCircle } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
@@ -112,8 +113,11 @@ function useShare(url: string, shareText: string) {
  * a fixed six-icon grid cannot. The popover is kept only as the fallback for a shell where the
  * sheet can't be presented.
  */
-export function ShareButton({ url, title, price, currency, className, compact = false, subject = 'listing' }: {
-  url: string; title: string; price?: number; currency?: string; className?: string; compact?: boolean
+export function ShareButton({ url, title, price, currency, priceUnit, className, compact = false, subject = 'listing' }: {
+  url: string; title: string; price?: number; currency?: string
+  /** The stored unit ('VND/hour', 'VND/month'…): a RATE is shared with its period, or "150,000 đ" reads as a flat price. */
+  priceUnit?: string | null
+  className?: string; compact?: boolean
   /**
    * WHAT IS SHARED (2026-10-11 — teacher profiles): the popover's heading, and for the teacher's own profile the
    * button's words too ("Share my profile"). Literal tr() calls here, so every language gets them translated.
@@ -129,7 +133,9 @@ export function ShareButton({ url, title, price, currency, className, compact = 
 
   // Lead with the price — it's the part people share for. Falls back to the bare
   // title when no price is supplied.
-  const shareText = price != null && currency ? `${title} — ${formatMoneyFull(price, currency, moneyLocale(lang))}` : title
+  const unit = priceUnitSuffix(priceUnit)
+  const unitWord = unit === 'hour' ? tr('hour', 'giờ') : unit === 'day' ? tr('day', 'ngày') : unit === 'week' ? tr('week', 'tuần') : unit === 'month' ? tr('month', 'tháng') : unit
+  const shareText = price != null && currency ? `${title} — ${formatMoneyFull(price, currency, moneyLocale(lang))}${unitWord ? ` / ${unitWord}` : ''}` : title
   const { channels, copy, copied, native, osShareSheet } = useShare(url, shareText)
 
   const nativeShare = async () => { setOpen(false); await osShareSheet() }

@@ -20,6 +20,8 @@ export type DigestItem = {
   title: string
   price: number
   currency: string
+  /** The stored unit ('VND/hour', 'VND/month'…) — a rate is printed with its period (an hourly service, 2026-10-14). */
+  priceUnit?: string | null
   image: string | null
   district: string | null
   drop: string | null // "−20%" when an active drop, else null
@@ -110,6 +112,7 @@ type Row = {
   title: string
   price: number
   currency: string
+  priceUnit: string
   images: string
   district: string | null
   city: string | null
@@ -121,7 +124,7 @@ type Row = {
 }
 
 const SELECT = {
-  id: true, title: true, price: true, currency: true, images: true, district: true, city: true,
+  id: true, title: true, price: true, currency: true, priceUnit: true, images: true, district: true, city: true,
   previousPrice: true, priceDropAt: true, urgentUntil: true,
   seller: { select: { trustScore: true } },
   category: { select: { name: true } },
@@ -155,6 +158,7 @@ function toItem(l: Row): DigestItem {
     title: l.title,
     price: l.price,
     currency: l.currency,
+    priceUnit: l.priceUnit,
     image: firstImage(l.images),
     district: l.district || l.city || null,
     drop: hasDrop ? dropPercent(l.previousPrice as number, l.price) : null,

@@ -35,7 +35,7 @@ import { trackPostListing } from '@/lib/analytics'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { isNativeShell } from '@/lib/native-browser'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
-import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isTeacherSeekingPost, isVisaProductSlot, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText } from '@/lib/taxonomy'
+import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isTeacherSeekingPost, isVisaProductSlot, servicePriceBasisOf, servicePriceBasisApplies, servicePriceBasisOfUnit, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText } from '@/lib/taxonomy'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
@@ -153,6 +153,18 @@ function initAttrsFromEdit(edit?: ListingEditData): Record<string, string> {
   const attrs = { ...edit.attributes }
   const stored = edit.listingType === 'rent' ? rentalPeriodOfUnit(edit.priceUnit) : null
   if (stored && stored !== rentalPeriodOf(attrs)) attrs.rentalPeriod = stored
+  // A SERVICE'S Pricing chip (2026-10-14) FOLLOWS THE STORED UNIT the same way, when the two disagree or there is no
+  // answer: the unit is what buyers see ('VND/hour' → hourly, any other service unit → one-time), rows posted before the
+  // chip existed carry no answer (and the chip is required), and a stale answer must not open the form on a basis that
+  // an unrelated save would then publish (gate, 2026-10-14).
+  if ((edit.listingType === 'service' || edit.listingType === 'wanted') && servicePriceBasisApplies(edit.categorySlug, edit.subcategorySlug)) {
+    const fromUnit = servicePriceBasisOfUnit(edit.priceUnit)
+    if (servicePriceBasisOf(attrs) !== fromUnit) attrs.priceBasis = fromUnit
+  } else if ('priceBasis' in attrs) {
+    // Where the chip is not asked (e-Visa, eSIM) an answer is stale: dropped, so moving the row to an aisle that asks
+    // starts the chip EMPTY (it is required) instead of pre-picking a basis nobody chose there (gate, 2026-10-14).
+    delete attrs.priceBasis
+  }
   return attrs
 }
 
@@ -948,7 +960,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // (rentalPeriodOf: 'long-term' and no answer both read monthly), so the field never says "/ tháng"
   // over a price the listing will store per day. Literal t() calls — gen-ui-strings harvests them.
   const rentPeriod = listingType === 'rent' ? rentalPeriodOf(attrs) : null
-  const priceUnit = rentPeriod === 'hourly' ? t('/ giờ', '/ hour')
+  // An HOURLY service (services › Pricing, 2026-10-14) is stamped 'VND/hour' exactly where the server stamps it
+  // (listingMoneyFor: a service or a Wanted, where the facet applies), so the field reads "/ giờ" over that price too.
+  const serviceHourly = (listingType === 'service' || listingType === 'wanted') && servicePriceBasisOf(attrs) === 'hourly' && servicePriceBasisApplies(categorySlug, subcategorySlug)
+  const priceUnit = rentPeriod === 'hourly' || serviceHourly ? t('/ giờ', '/ hour')
     : rentPeriod === 'daily' ? t('/ ngày', '/ day')
       : rentPeriod === 'weekly' ? t('/ tuần', '/ week')
         : listingType === 'rent' || listingType === 'job' ? t('/ tháng', '/ month') : ''

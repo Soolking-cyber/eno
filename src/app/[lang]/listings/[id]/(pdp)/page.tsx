@@ -190,12 +190,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // as a sale price, so a job's figure is baked with " / month" (" / tháng" on the Vietnamese render)
   // — the unit <Price> prints after it on the page (review, 2026-10-01). A job's salary is monthly by
   // construction (salaryPriceFor); a stored 'VND/hour' (an imported hourly job) keeps its own unit.
-  const jobUnit = isJobListing ? (priceUnitSuffix(listing.priceUnit) ?? 'month') : null
-  const jobUnitLabel = jobUnit ? ` / ${vi ? ({ hour: 'giờ', day: 'ngày', week: 'tuần' } as Record<string, string>)[jobUnit] ?? 'tháng' : jobUnit}` : ''
-  const priceLabel = isTeacher ? '' : isJobListing && jobSalary ? jobSalary : listing.price > 0 ? `${formatMoneyFull(listing.price, listing.currency)}${jobUnitLabel}` : ''
+  // The same for an HOURLY SERVICE (services › Pricing, 2026-10-14): "Dog walking — 150,000 đ" in an unfurl reads as a
+  // flat price, so its stored 'VND/hour' is baked as " / hour". A rent's title is unchanged (no unit), as before.
+  const rateUnit = isJobListing ? (priceUnitSuffix(listing.priceUnit) ?? 'month')
+    : listing.listingType === 'service' || listing.listingType === 'wanted' ? priceUnitSuffix(listing.priceUnit) : null
+  // Every unit the code stores, named; an unknown one is printed as stored, never guessed as a month (gate, 2026-10-14).
+  const rateUnitLabel = rateUnit ? ` / ${vi ? ({ hour: 'giờ', day: 'ngày', week: 'tuần', month: 'tháng' } as Record<string, string>)[rateUnit] ?? rateUnit : rateUnit}` : ''
+  const priceLabel = isTeacher ? '' : isJobListing && jobSalary ? jobSalary : listing.price > 0 ? `${formatMoneyFull(listing.price, listing.currency)}${rateUnitLabel}` : ''
   // The titles' price: the Vietnamese variant groups it the Vietnamese way (CS-3 V2b-1); a stated salary
   // stays as the posting wrote it.
-  const titlePrice = isTeacher ? '' : isJobListing && jobSalary ? jobSalary : listing.price > 0 && vi ? `${formatMoneyFull(listing.price, listing.currency, 'vi')}${jobUnitLabel}` : priceLabel
+  const titlePrice = isTeacher ? '' : isJobListing && jobSalary ? jobSalary : listing.price > 0 && vi ? `${formatMoneyFull(listing.price, listing.currency, 'vi')}${rateUnitLabel}` : priceLabel
   // A linked job closes on its apply-by date, but this page is ISR-cached for 30 days. `unavailable_after`
   // tells Google the date itself, from row data, so it is stable across regenerations.
   // safeAffiliateUrl, the page's own predicate: a link the page will not trust makes it an ordinary listing.
@@ -870,7 +874,7 @@ export default async function ListingPage({ params }: Props) {
           <div className="relative order-2 -mx-3 sm:-mx-6 md:hidden">
             <ListingGallery variant="mobile" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
             <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
-              <ShareButton url={canonicalUrl} title={displayTitle} price={listing.listingType === 'job' ? undefined : listing.price} currency={listing.currency} compact />
+              <ShareButton url={canonicalUrl} title={displayTitle} price={listing.listingType === 'job' ? undefined : listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact />
               <SaveListingButton id={listing.id} compact />
               {/* Owner-only, and it renders nothing for everyone else — see owner-edit-button.tsx.
                   Sits AFTER Save so the control order is identical for every viewer and the shared
@@ -1268,7 +1272,7 @@ export default async function ListingPage({ params }: Props) {
             <div className="relative order-2 hidden md:block">
               <ListingGallery variant="desktop" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
               <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
-                <ShareButton url={canonicalUrl} title={displayTitle} price={listing.listingType === 'job' ? undefined : listing.price} currency={listing.currency} compact />
+                <ShareButton url={canonicalUrl} title={displayTitle} price={listing.listingType === 'job' ? undefined : listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact />
                 <SaveListingButton id={listing.id} compact />
                 {/* Owner-only, and it renders nothing for everyone else — see owner-edit-button.tsx.
                     Sits AFTER Save so the control order is identical for every viewer and the shared

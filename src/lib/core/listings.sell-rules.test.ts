@@ -31,6 +31,8 @@ const h = vi.hoisted(() => ({
   partnerReads: 0,
   /** The seller is eno's own desk (edition-scope.ts deskSellerIds). */
   desk: false,
+  /** New prices the price-drop pipeline was asked about (priceChangeEffects). */
+  dropCalls: [] as number[],
 }))
 
 vi.mock('next/server', () => ({ after: () => {} }))
@@ -88,7 +90,7 @@ vi.mock('@/lib/publish-guard', () => ({
 vi.mock('@/lib/duplicate-guard', () => ({ findDuplicateListing: async () => null }))
 vi.mock('@/lib/ai-moderation', () => ({ moderateListingById: async () => {} }))
 vi.mock('@/lib/image-provenance', () => ({ indexAndCheckProvenance: async () => {} }))
-vi.mock('@/lib/price-drop', () => ({ priceChangeEffects: async () => ({ data: {}, audit: null, notify: null }) }))
+vi.mock('@/lib/price-drop', () => ({ priceChangeEffects: async (_c: unknown, p: number) => { h.dropCalls.push(p); return { data: { previousPrice: 999_999 }, audit: null, notify: null } } }))
 vi.mock('@/lib/urgent', () => ({ activateUrgentGate: async () => ({ ok: true }), urgentQuotaFree: async () => true, URGENT: {} }))
 
 const { createListingCore, updateListingCore } = await import('@/lib/core/listings')
@@ -132,6 +134,7 @@ beforeEach(() => {
   h.partner = false
   h.partnerReads = 0
   h.desk = false
+  h.dropCalls = []
   h.current = row()
 })
 
@@ -265,6 +268,114 @@ describe('the licence check — the e-Visa subcategory is open to every poster, 
     h.current = row({ subcategorySlug: 'visa-legal', listingType: 'service', priceUnit: 'VND/service' })
     expect(await updateListingCore('listing-1', { price: 600_000 })).toEqual({ ok: true })
     expect(h.updates[0]).not.toHaveProperty('verified')
+  })
+})
+
+describe('services › Pricing stamps the unit — on create, and on EVERY edit of a service (2026-10-14)', () => {
+  it('a new hourly service is stored per hour; a one-time or unanswered one per service', async () => {
+    await createService('cleaning', { priceBasis: 'hourly', serviceLocation: 'at-customer' }, 'House cleaning')
+    expect(h.creates[0].priceUnit).toBe('VND/hour')
+    h.creates = []
+    await createService('cleaning', { priceBasis: 'one-time' }, 'House cleaning')
+    expect(h.creates[0].priceUnit).toBe('VND/service')
+    h.creates = []
+    await createService('cleaning', {}, 'House cleaning')
+    expect(h.creates[0].priceUnit).toBe('VND/service')
+  })
+
+  it('⛔ a stray hourly answer on an e-Visa product is not a rate', async () => {
+    await createVisaLegal({ priceBasis: 'hourly' })
+    expect(h.creates[0].priceUnit).toBe('VND/service')
+  })
+
+  it('an edit that changes the basis re-stamps the unit', async () => {
+    h.current = row({ subcategorySlug: 'cleaning', listingType: 'service', priceUnit: 'VND/service', attributes: JSON.stringify({ priceBasis: 'one-time' }) })
+    await updateListingCore('listing-1', { attributes: { priceBasis: 'hourly', serviceLocation: 'online' } })
+    expect(h.updates[0].priceUnit).toBe('VND/hour')
+  })
+
+  it('⛔ a sparse move of an hourly service into eSIM (no attributes sent) drops the rate', async () => {
+    h.current = row({ subcategorySlug: 'cleaning', listingType: 'service', priceUnit: 'VND/hour', attributes: JSON.stringify({ priceBasis: 'hourly' }) })
+    await updateListingCore('listing-1', { subcategorySlug: 'esim' })
+    expect(h.updates[0]).toMatchObject({ subcategorySlug: 'esim', priceUnit: 'VND/service' })
+  })
+
+  it('a Wanted switched to Service, or a legacy bare-VND service edited at all, settles on the service unit', async () => {
+    h.current = row({ subcategorySlug: 'cleaning', listingType: 'wanted', priceUnit: 'VND' })
+    await updateListingCore('listing-1', { listingType: 'service' })
+    expect(h.updates[0].priceUnit).toBe('VND/service')
+    h.updates = []
+    h.current = row({ subcategorySlug: 'cleaning', listingType: 'service', priceUnit: 'VND' })
+    await updateListingCore('listing-1', { title: 'Weekly cleaning, Thao Dien' })
+    expect(h.updates[0].priceUnit).toBe('VND/service')
+  })
+
+  it('⛔ an edit whose attributes omit the basis (an API client, an older form) keeps the hourly unit it has', async () => {
+    h.current = row({ subcategorySlug: 'cleaning', listingType: 'service', priceUnit: 'VND/hour', attributes: JSON.stringify({ priceBasis: 'hourly' }) })
+    await updateListingCore('listing-1', { attributes: { serviceLocation: 'online' } })
+    expect(h.updates[0]).not.toHaveProperty('priceUnit')
+  })
+
+  it('⛔ a stale hourly answer left on an e-Visa row does not become a rate when the row moves to an aisle that asks', async () => {
+    h.desk = true // no licence check in the way: this is about the unit
+    h.current = row({ subcategorySlug: 'visa-legal', listingType: 'service', priceUnit: 'VND/service', attributes: JSON.stringify({ priceBasis: 'hourly' }) })
+    await updateListingCore('listing-1', { subcategorySlug: 'cleaning' })
+    expect(h.updates[0].subcategorySlug).toBe('cleaning')
+    expect(h.updates[0]).not.toHaveProperty('priceUnit')
+    // …and the answer is rewritten to what the unit says, so specs and the Pricing filter agree with the price.
+    expect(attrsOf(h.updates[0].attributes)?.priceBasis).toBe('one-time')
+  })
+
+  it('the stored answer always mirrors the unit: an omitted one is added, a contradicting one corrected', async () => {
+    await createService('cleaning', {}, 'House cleaning')
+    expect(attrsOf(h.creates[0].attributes)?.priceBasis).toBe('one-time')
+    h.current = row({ subcategorySlug: 'cleaning', listingType: 'service', priceUnit: 'VND/hour', attributes: null })
+    await updateListingCore('listing-1', { title: 'Cleaning, by the hour' })
+    expect(attrsOf(h.updates[0].attributes)?.priceBasis).toBe('hourly')
+  })
+
+  it('a unit the services rule does not own (an import stamped per month) is left alone, answer and all', async () => {
+    h.current = row({ subcategorySlug: 'service-other', listingType: 'service', priceUnit: 'VND/month', attributes: null })
+    await updateListingCore('listing-1', { title: 'Monthly retainer' })
+    expect(h.updates[0]).not.toHaveProperty('priceUnit')
+    expect(h.updates[0]).not.toHaveProperty('attributes')
+  })
+
+  it('a services row with another intent (a bulk sell row) is not re-stamped', async () => {
+    h.current = row({ subcategorySlug: null, listingType: 'sell', priceUnit: '' })
+    await updateListingCore('listing-1', { title: 'Old bulk row' })
+    expect(h.updates[0]).not.toHaveProperty('priceUnit')
+  })
+
+  it('⛔ a basis switch is no price drop: one-time 1,000,000 đ → 150,000 đ an hour is recorded, but no badge (or alert)', async () => {
+    h.current = row({ subcategorySlug: 'cleaning', listingType: 'service', price: 1_000_000, priceUnit: 'VND/service', previousPrice: 1_200_000, priceDropAt: new Date('2026-10-01'), attributes: JSON.stringify({ priceBasis: 'one-time' }) })
+    await updateListingCore('listing-1', { price: 150_000, attributes: { priceBasis: 'hourly' } })
+    expect(h.dropCalls).toEqual([150_000]) // asked — for the price history
+    expect(h.updates[0]).toMatchObject({ priceUnit: 'VND/hour', price: 150_000, previousPrice: null, priceDropAt: null })
+    // …while a price change in the same unit takes the drop rules' result.
+    h.updates = []
+    h.current = row({ subcategorySlug: 'cleaning', listingType: 'service', price: 150_000, priceUnit: 'VND/hour', attributes: JSON.stringify({ priceBasis: 'hourly' }) })
+    await updateListingCore('listing-1', { price: 120_000 })
+    expect(h.updates[0].previousPrice).toBe(999_999)
+    // …and a legacy bare-VND service settling on 'VND/service' is no change of unit: its drop counts.
+    h.updates = []
+    h.current = row({ subcategorySlug: 'cleaning', listingType: 'service', price: 200_000, priceUnit: 'VND' })
+    await updateListingCore('listing-1', { price: 150_000 })
+    expect(h.updates[0]).toMatchObject({ priceUnit: 'VND/service', previousPrice: 999_999 })
+  })
+
+  it('a Pricing answer is not stored where the aisle does not ask one (e-Visa, eSIM)', async () => {
+    await createService('esim', { priceBasis: 'hourly', planType: 'data' }, 'Travel eSIM')
+    expect(JSON.parse(h.creates[0].attributes)).not.toHaveProperty('priceBasis')
+    h.current = row({ subcategorySlug: 'esim', listingType: 'service', priceUnit: 'VND/service' })
+    await updateListingCore('listing-1', { attributes: { priceBasis: 'hourly', planType: 'data' } })
+    expect(JSON.parse(h.updates[0].attributes)).not.toHaveProperty('priceBasis')
+  })
+
+  it('an edit that leaves the unit as it is writes no unit', async () => {
+    h.current = row({ subcategorySlug: 'cleaning', listingType: 'service', priceUnit: 'VND/hour', attributes: JSON.stringify({ priceBasis: 'hourly' }) })
+    await updateListingCore('listing-1', { title: 'Cleaning by the hour' })
+    expect(h.updates[0]).not.toHaveProperty('priceUnit')
   })
 })
 

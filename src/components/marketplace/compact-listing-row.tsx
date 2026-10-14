@@ -10,6 +10,7 @@ import { TrustScore } from './trust-score'
 import { Badge } from './card-badges'
 import { Badge as UiBadge } from '@/components/ui/badge'
 import { Price } from './price'
+import { priceUnitSuffix } from '@/lib/price-unit'
 import { CategoryIcon } from './category-icons'
 import { FavoriteHeart } from './favorite-heart'
 import { useLanguage, Tr } from '@/context/language-context'
@@ -222,9 +223,11 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               A container query on the text column is the correct tool if the size ever needs to
               scale here — `container-type: inline-size` plus `@sm:text-lg` — not a viewport
               breakpoint that cannot see the column it is sizing text for. */}
-          {/* ⛔ EXCEPT ON A RENTAL: "/ month" is what separates a rent from a sale price, so hiding it
+          {/* ⛔ EXCEPT ON A RATE: "/ month" is what separates a rent from a sale price, so hiding it
               below sm changed the meaning of the number (price.tsx's `unit` doc forbids exactly that
               on cards). The row can afford it now that the map button yields its 36px on phones.
+              Since 2026-10-14 every RATE keeps it — an hourly service's or a teacher's "/ giờ", a job's
+              "/ tháng" — read from the unit itself (priceUnitSuffix), not from the intent.
               ⚠️ AND BELOW sm THE PRICE MAY WRAP, NOT CLIP — `shrink-0` only from sm up. With the unit
               shown, a commercial rent outgrows a phone column: measured at 360px, "1,368,000,000 đ /
               month" ran 20px past the 176px column (54–60px at 320) and `overflow-hidden` below cut
@@ -233,7 +236,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               sm nothing else on this line competes for the width (the place and the trust chip are
               sm-only here), so an ordinary price never wraps; from sm up it stays one line, as the
               note above requires. */}
-          <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} compact dual="sm" unit={l.listingType === 'rent' ? true : 'sm'} className="text-base sm:shrink-0" />
+          <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} compact dual="sm" unit={l.listingType === 'rent' || priceUnitSuffix(l.priceUnit) ? true : 'sm'} className="text-base sm:shrink-0" />
           {/* Urgent — RIGHT of the price (user-picked 2026-07-14): the bare black
               bolt on EVERY breakpoint. The desktop chip (outline + "Urgent" word)
               is gone — one glyph reads the same everywhere and keeps the one-line

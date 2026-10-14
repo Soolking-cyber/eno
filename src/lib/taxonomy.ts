@@ -1408,6 +1408,15 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'at-provider', label: 'At theirs', labelVi: 'Tại cơ sở' },
         { value: 'online', label: 'Online', labelVi: 'Trực tuyến' },
       ] },
+      // ⛔ HOW THE SERVICE IS CHARGED (owner, 2026-10-14: "service price if its hourly or one time payment"). The answer stamps
+      // the price unit (servicePriceBasisOf → listingMoneyFor): 'hourly' → 'VND/hour', which <Price> prints "/ giờ" on every
+      // surface and JSON-LD marks HUR; 'one-time' keeps the service unit. Not asked where the price is a product's (e-Visa,
+      // eSIM). Required in the wizard (a provider says which); the server reads an absent answer as one-time, which is
+      // what every service was before, so old rows and API posts need nothing.
+      { key: 'priceBasis', label: 'Pricing', labelVi: 'Cách tính giá', kind: 'toggle', excludeSubcats: ['visa-legal', 'esim'], options: [
+        { value: 'hourly', label: 'Hourly', labelVi: 'Theo giờ' },
+        { value: 'one-time', label: 'One-time', labelVi: 'Trọn gói' },
+      ] },
       // DERIVED from the account, never asked. Profile.accountType already records whether
       // this seller onboarded as a business or an individual, so a chip here is a question
       // the app can answer itself — and one the seller could answer INCONSISTENTLY, ticking
@@ -1822,8 +1831,16 @@ export function listingMoneyFor(input: {
    * so a stored 'VND/day' cannot drift to monthly. (listings.currency.test.ts holds the guard.)
    */
   rentalPeriod?: RentalPeriod | null
+  /**
+   * How a SERVICE is charged — the `priceBasis` facet, read through servicePriceBasisOf() (owner, 2026-10-14). 'hourly'
+   * stamps 'VND/hour' on a service or a services Wanted (a budget per hour), and ONLY where the facet applies
+   * (servicePriceBasisApplies): sanitizeAttributes keeps any key, so a stray 'hourly' on an e-Visa or eSIM row — or on
+   * another category — must not make its price a rate. Anything else keeps the type's unit.
+   */
+  priceBasis?: ServicePriceBasis | null
 }): ListingMoney {
   const t = input.listingType
+  const hourly = input.priceBasis === 'hourly' && (t === 'service' || t === 'wanted') && servicePriceBasisApplies(input.categorySlug, input.subcategorySlug)
   return {
     currency: '₫',
     // A service price is the price OF that service, not a starting bid (owner, 2026-07-22:
@@ -1831,7 +1848,7 @@ export function listingMoneyFor(input: {
     // offered and made every service card read as an estimate.
     // teacher: `price` stays 0; the expected monthly salary lives in salaryM (a range facet).
     priceUnit: t === 'rent' ? `VND/${RENT_UNIT[input.rentalPeriod ?? 'monthly']}`
-      : t === 'job' || t === 'teacher' ? 'VND/month' : t === 'service' ? 'VND/service' : 'VND',
+      : t === 'job' || t === 'teacher' ? 'VND/month' : hourly ? 'VND/hour' : t === 'service' ? 'VND/service' : 'VND',
     isoCode: 'VND',
   }
 }
@@ -1968,6 +1985,48 @@ export function rentalPeriodOf(attributes: unknown): RentalPeriod | null {
  * see: a row stamped 'VND/month' before the period chip counted must open saying "/ tháng", not the
  * "/ ngày" its forgotten chip would suggest (post-wizard.tsx initAttrsFromEdit).
  */
+/** How a service is charged (the services › Pricing facet, 2026-10-14). */
+export type ServicePriceBasis = 'hourly' | 'one-time'
+
+/** The basis a listing's attributes state — the JSON string a row stores, or the object a client sends; null when absent
+ *  or not one of the two (an absent basis is read as one-time by listingMoneyFor). */
+export function servicePriceBasisOf(attributes: unknown): ServicePriceBasis | null {
+  const v = attributeBag(attributes)?.priceBasis
+  return v === 'hourly' || v === 'one-time' ? v : null
+}
+
+/** Whether this category/subcategory is charged by the `priceBasis` facet at all — services, but not e-Visa or eSIM. */
+export function servicePriceBasisApplies(categorySlug: string, subcategorySlug?: string | null): boolean {
+  return facetsFor(categorySlug, subcategorySlug).some((f) => f.key === 'priceBasis')
+}
+
+/** The attributes JSON minus a `priceBasis` this category/subcategory does not ask (e-Visa, eSIM, any other category): a
+ *  stale answer is never STORED where it stamps nothing, so it cannot surface later on a move (gate, 2026-10-14). The
+ *  SAME string when nothing is dropped; null when nothing is left. */
+export function withoutInapplicablePriceBasis(json: string | null, categorySlug: string, subcategorySlug?: string | null): string | null {
+  const bag = attributeBag(json)
+  if (!bag || !('priceBasis' in bag) || servicePriceBasisApplies(categorySlug, subcategorySlug)) return json
+  delete bag.priceBasis
+  return Object.keys(bag).length ? JSON.stringify(bag) : null
+}
+
+/** The attributes JSON with `priceBasis` set to `basis`, or removed when `basis` is null — the rest untouched. The SAME
+ *  string when it already says so; null when nothing is left. */
+export function withPriceBasis(json: unknown, basis: ServicePriceBasis | null): string | null {
+  const bag = attributeBag(json) ?? {}
+  const had = typeof json === 'string' ? json : json == null ? null : JSON.stringify(json)
+  if ((bag.priceBasis ?? null) === basis) return had
+  if (basis) bag.priceBasis = basis
+  else delete bag.priceBasis
+  return Object.keys(bag).length ? JSON.stringify(bag) : null
+}
+
+/** The basis a STORED unit says, for the wizard's edit seed: 'VND/hour' is hourly, any other service unit one-time
+ *  (rows posted before the chip existed carry 'VND/service', a bare 'VND' or nothing). */
+export function servicePriceBasisOfUnit(priceUnit: string | null | undefined): ServicePriceBasis {
+  return priceUnit === 'VND/hour' ? 'hourly' : 'one-time'
+}
+
 export function rentalPeriodOfUnit(priceUnit: string | null | undefined): RentalPeriod | null {
   const unit = typeof priceUnit === 'string' ? priceUnit.replace(/^VND\//, '') : ''
   return (Object.keys(RENT_UNIT) as RentalPeriod[]).find((p) => RENT_UNIT[p] === unit) ?? null

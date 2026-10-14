@@ -75,6 +75,9 @@ describe('the caption\'s money line — a JOB is posted as a salary, never as a 
   it('a job with a salary carries its period; one without says the pay is negotiable, never "0 đ"', () => {
     expect(priceLine({ price: 45_000_000, currency: '₫', listingType: 'job', priceUnit: 'VND/month' })).toBe('Lương: 45.000.000 đ / tháng')
     expect(priceLine({ price: 0, currency: '₫', listingType: 'job', priceUnit: 'VND/month' })).toBe('Lương: thỏa thuận')
+    // An hourly service keeps its period (services › Pricing, 2026-10-14); a one-time one is a plain figure.
+    expect(priceLine({ price: 150_000, currency: '₫', listingType: 'service', priceUnit: 'VND/hour' })).toBe('150.000 đ / giờ')
+    expect(priceLine({ price: 150_000, currency: '₫', listingType: 'service', priceUnit: 'VND/service' })).toBe('150.000 đ')
     // A job whose unit was never stamped (switched from Wanted before the unit rule) is still monthly.
     expect(priceLine({ price: 12_000_000, currency: '₫', listingType: 'job', priceUnit: 'VND' })).toBe('Lương: 12.000.000 đ / tháng')
   })

@@ -53,7 +53,9 @@ export function priceLine(l: Pick<SyndicationInput, 'price' | 'currency' | 'list
   // ⚠️ A RENT CARRIES ITS PERIOD (A5, 2026-10-04): human rentals are now stamped per hour, day or week
   // as well as per month, and "150.000 đ" for a scooter by the day reads as a sale price. No unit
   // stored (a bare 'VND') → no period claimed.
-  if (l.listingType === 'rent') {
+  // The same for an HOURLY SERVICE (services › Pricing, 2026-10-14): "Dắt chó đi dạo — 150.000 đ" reads as a flat
+  // fee when the stored unit says "/ giờ".
+  if (l.listingType === 'rent' || l.listingType === 'service' || l.listingType === 'wanted') {
     const unit = priceUnitSuffix(l.priceUnit)
     const money = formatMoneyFull(l.price, l.currency, 'vi')
     return unit ? `${money} / ${VI_UNIT[unit] ?? unit}` : money

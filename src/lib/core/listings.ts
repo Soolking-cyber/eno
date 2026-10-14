@@ -29,7 +29,8 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
   }
 }
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
-import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, isVisaProductSlot, licenceCheckHold, SUBCATEGORY_FALLBACK } from '@/lib/taxonomy'
+import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, isVisaProductSlot, licenceCheckHold, SUBCATEGORY_FALLBACK, servicePriceBasisOf, servicePriceBasisOfUnit, withoutInapplicablePriceBasis, withPriceBasis, servicePriceBasisApplies } from '@/lib/taxonomy'
+import { priceUnitSuffix } from '@/lib/price-unit'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { deskSellerIds } from '@/lib/edition-scope'
 import { syndicateListingIfPublic } from '@/lib/syndicate'
@@ -823,11 +824,14 @@ export async function updateListingCore(
   // individual to business. Uses the subcategory being written if the edit changes it,
   // otherwise the stored one.
   if (body.attributes !== undefined) {
+    // `!== undefined`, not `??`: a subcategory this edit CLEARS (null) is the one the row will have.
+    const attrSub = data.subcategorySlug !== undefined ? (data.subcategorySlug as string | null) : current.subcategorySlug
     data.attributes = await withDerivedAttributes(
-      sanitizeAttributes(body.attributes),
+      // A Pricing answer where the aisle does not ask one (e-Visa, eSIM) is not stored (taxonomy.ts withoutInapplicablePriceBasis).
+      withoutInapplicablePriceBasis(sanitizeAttributes(body.attributes), current.category.slug, attrSub),
       current.sellerId,
       current.category.slug,
-      (data.subcategorySlug as string | null | undefined) ?? current.subcategorySlug,
+      attrSub,
     )
   }
   // Precise pin from "use my current location".
@@ -891,6 +895,31 @@ export async function updateListingCore(
   const jobCrossed = nextType !== current.listingType && salaryPaid !== paysSalary(current.listingType)
   if (jobCrossed || rentCrossed || periodMoved) {
     data.priceUnit = listingMoneyFor({ categorySlug: current.category.slug, subcategorySlug: current.subcategorySlug, listingType: nextType, rentalPeriod: nextPeriod }).priceUnit
+  }
+  // ⛔ A SERVICE'S UNIT IS RE-STAMPED ON EVERY EDIT (the services › Pricing facet, owner 2026-10-14) — from the subcategory,
+  // intent and attributes the row WILL have, not only when the basis changes: a sparse PATCH that moves an hourly service
+  // into e-Visa or eSIM (no basis there) must not keep 'VND/hour', a Wanted switched to Service must not keep a bare
+  // 'VND', and a legacy bare-'VND' service settles on 'VND/service' (plan review, 2026-10-14). Written only on a change.
+  // ⚠️ THE STORED UNIT IS THE TRUTH, THE ATTRIBUTE ONLY AN ANSWER (gate, 2026-10-14). A basis counts when THIS edit sends
+  // one; otherwise the row keeps the basis its unit already states — so an edit whose attributes omit `priceBasis` (an
+  // API client, an older wizard) cannot drop an hourly price to a flat one, and a stale 'hourly' left on an e-Visa or
+  // eSIM row (where it stamps nothing) cannot turn into a rate when the row moves to an aisle that asks. Rows with any
+  // other intent (a bulk 'sell' row in services) are not touched.
+  // Only the units this rule OWNS are re-stamped ('', a bare 'VND', 'VND/service', 'VND/hour'): a row an importer stamped
+  // per month or per day keeps it, rather than becoming a flat price on a title fix (gate, 2026-10-14).
+  const SERVICE_UNITS = ['', 'VND', 'VND/service', 'VND/hour']
+  if (current.category.slug === 'services' && (nextType === 'service' || nextType === 'wanted') && SERVICE_UNITS.includes(current.priceUnit ?? '')) {
+    const unitSub = data.subcategorySlug !== undefined ? (data.subcategorySlug as string | null) : current.subcategorySlug
+    const priceBasis = (data.attributes !== undefined ? servicePriceBasisOf(data.attributes) : null) ?? servicePriceBasisOfUnit(current.priceUnit)
+    const unit = listingMoneyFor({ categorySlug: current.category.slug, subcategorySlug: unitSub, listingType: nextType, priceBasis }).priceUnit
+    // Against what the row will hold, not only what it holds: a unit an earlier block of this edit wrote is not left behind.
+    if (unit !== ((data.priceUnit as string | undefined) ?? current.priceUnit)) data.priceUnit = unit
+    // ⛔ THE ANSWER MIRRORS THE UNIT: the stored `priceBasis` is set to what the unit now says (or dropped where the aisle
+    // asks none), so the spec rows and the Pricing browse filter can never disagree with the price — whatever a client
+    // sent, omitted or left behind on an aisle that did not ask (gate, 2026-10-14).
+    const attrsNow = data.attributes !== undefined ? data.attributes : current.attributes
+    const mirrored = withPriceBasis(attrsNow, servicePriceBasisApplies(current.category.slug, unitSub) ? servicePriceBasisOfUnit(unit) : null)
+    if (mirrored !== (attrsNow ?? null)) data.attributes = mirrored
   }
 
   // ⛔ A JOB'S PRICE IS ITS SALARY — re-derived from the salary it will have (this edit's, else the
@@ -1024,7 +1053,12 @@ export async function updateListingCore(
   // ⛔ NOT ON A JOB. A changed salary is not a price drop: no "-20%" badge, no "price dropped"
   // notification to the candidates who messaged, no PriceChange audit row. A badge a job row may still
   // carry from before the salary rule is cleared instead.
-  if (salaryPaid && data.price !== undefined && (current.previousPrice != null || current.priceDropAt != null)) {
+  // ⛔ NOR WHEN THE UNIT CHANGES (services › Pricing, 2026-10-14; a rent's period too): "Deep clean" at 1,000,000 đ once
+  // re-priced at 150,000 đ an hour is not an 85% discount, so it sends no alert and records no drop; any badge the row
+  // carries is cleared, since it measured a price in the old unit (gate, 2026-10-14).
+  // The unit buyers SEE ("/ giờ" vs none): a legacy bare 'VND' service settling on 'VND/service' is no change.
+  const unitChanged = data.priceUnit !== undefined && priceUnitSuffix(data.priceUnit as string) !== priceUnitSuffix(current.priceUnit)
+  if (((salaryPaid && data.price !== undefined) || unitChanged) && (current.previousPrice != null || current.priceDropAt != null)) {
     data.previousPrice = null
     data.priceDropAt = null
   }
@@ -1041,8 +1075,11 @@ export async function updateListingCore(
       },
       data.price as number,
     )
-    Object.assign(data, effects.data)
-    dropNotify = effects.notify
+    // A change of unit is RECORDED (the price history keeps every move) but is not a drop: no badge, no alert.
+    if (!unitChanged) {
+      Object.assign(data, effects.data)
+      dropNotify = effects.notify
+    }
     dropAudit = effects.audit
   }
 
@@ -1267,13 +1304,19 @@ export async function createListingCore(input: {
   // chip used to be stored and ignored: every rent post was stamped monthly, so a scooter at
   // 150.000 đ a day printed "150.000 đ / tháng". rentalPeriodOf normalises 'long-term' → monthly and
   // anything unknown → null (= monthly), so the unit can never read "VND/undefined".
-  const cleanAttributes = sanitizeAttributes(body.attributes)
-  const money = listingMoneyFor({ categorySlug, subcategorySlug, listingType, rentalPeriod: rentalPeriodOf(cleanAttributes) })
+  // A Pricing answer where the aisle does not ask one (e-Visa, eSIM) is not stored (taxonomy.ts withoutInapplicablePriceBasis).
+  const cleanAttributes = withoutInapplicablePriceBasis(sanitizeAttributes(body.attributes), categorySlug, subcategorySlug)
+  const money = listingMoneyFor({ categorySlug, subcategorySlug, listingType, rentalPeriod: rentalPeriodOf(cleanAttributes), priceBasis: servicePriceBasisOf(cleanAttributes) })
   const priceUnit = money.priceUnit
+  // ⛔ THE PRICING ANSWER MIRRORS THE UNIT FROM THE START (as on every edit): a service posted with no answer (an API
+  // client) is stored 'one-time', so the Pricing browse filter finds it.
+  const pricedAttributes = (listingType === 'service' || listingType === 'wanted') && servicePriceBasisApplies(categorySlug, subcategorySlug)
+    ? withPriceBasis(cleanAttributes, servicePriceBasisOfUnit(priceUnit))
+    : cleanAttributes
   // Whitelisted, stringly-typed attribute facets (taxonomy values), then the DERIVED ones
   // (providerType from the account) layered on top so a client value can never win.
   const attributes = await withDerivedAttributes(
-    cleanAttributes,
+    pricedAttributes,
     seller.id,
     categorySlug,
     subcategorySlug,

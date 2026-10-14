@@ -57,4 +57,17 @@ describe('sharing a teacher profile (owner, 2026-10-11: "easy to share on facebo
     await user.click(screen.getByRole('button', { name: 'Share' }))
     expect(await screen.findByText('Share this listing')).toBeTruthy()
   })
+
+  it('a RATE is shared with its period ("150,000 ₫ / hour" — an hourly service, 2026-10-14); a flat price without one', async () => {
+    const user = userEvent.setup()
+    wrap(<ShareButton url={URL_} title="Dog walking" price={150_000} currency="₫" priceUnit="VND/hour" />)
+    await user.click(screen.getByRole('button', { name: 'Share' }))
+    await user.click(await screen.findByRole('button', { name: 'WhatsApp' }))
+    expect(decodeURIComponent(opened[0])).toMatch(/Dog walking — 150,000 .*\/ hour/)
+    cleanup(); opened.length = 0
+    wrap(<ShareButton url={URL_} title="Sofa" price={12_000_000} currency="₫" priceUnit="VND/service" />)
+    await user.click(screen.getByRole('button', { name: 'Share' }))
+    await user.click(await screen.findByRole('button', { name: 'WhatsApp' }))
+    expect(decodeURIComponent(opened[0])).not.toContain(' / ')
+  })
 })

@@ -1,4 +1,5 @@
 import { formatMoneyFull } from '@/lib/vnd'
+import { priceUnitSuffix } from '@/lib/price-unit'
 import type { DigestContent, DigestHome, DigestItem } from '@/lib/digest'
 import { renderBrandEmail, emailCta, esc, EMAIL } from './layout'
 
@@ -63,8 +64,13 @@ export function emailThumb(url: string): string {
 // By code point, not UTF-16 unit: a cut through an emoji would leave a lone surrogate ("�").
 const shortTitle = (t: string) => { const c = Array.from(t); return c.length > 70 ? `${c.slice(0, 67).join('').trimEnd()}…` : t }
 
-/** A free partner product (an eSIM at 0 đ) reads "Free", never "0 đ". */
-const priceLabel = (price: number, currency: string) => (price > 0 ? formatMoneyFull(price, currency, 'en') : 'Free')
+/** A free partner product (an eSIM at 0 đ) reads "Free", never "0 đ". A RATE carries its period ("150,000 đ / hour" — an
+ *  hourly service, 2026-10-14), or it reads as a flat price. */
+const priceLabel = (price: number, currency: string, priceUnit?: string | null) => {
+  if (!(price > 0)) return 'Free'
+  const unit = priceUnitSuffix(priceUnit)
+  return `${formatMoneyFull(price, currency, 'en')}${unit ? ` / ${unit}` : ''}`
+}
 
 function homeCard(h: DigestHome, i: number, origin: string): string {
   const url = track(`${origin}/listings/${h.id}`, `home-${i + 1}`)
@@ -83,7 +89,7 @@ function homeCard(h: DigestHome, i: number, origin: string): string {
 
 function itemCard(item: DigestItem, i: number, origin: string, slot: string): string {
   const url = track(`${origin}/listings/${item.id}`, `${slot}-${i + 1}`)
-  const price = priceLabel(item.price, item.currency)
+  const price = priceLabel(item.price, item.currency, item.priceUnit)
   // Only a pick is labelled with its category — that label is what makes the variety visible.
   const label = slot === 'pick' ? item.category : null
   const badge = item.drop
@@ -178,8 +184,8 @@ function textVersion(c: DigestContent, origin: string, unsubscribeUrl: string, s
       track(`${origin}/c/rentals`, 'cta-check'),
     )
   }
-  const line = (i: DigestItem, k: number, slot: string) => `• ${shortTitle(i.title)} — ${priceLabel(i.price, i.currency)}${i.drop ? ` (${i.drop})` : i.urgent ? ' (Urgent)' : ''}\n  ${track(`${origin}/listings/${i.id}`, `${slot}-${k + 1}`)}`
-  const pickLine = (i: DigestItem, k: number) => `• ${i.category ? `[${i.category}] ` : ''}${shortTitle(i.title)} — ${priceLabel(i.price, i.currency)}${i.drop ? ` (${i.drop})` : i.urgent ? ' (Urgent)' : ''}\n  ${track(`${origin}/listings/${i.id}`, `pick-${k + 1}`)}`
+  const line = (i: DigestItem, k: number, slot: string) => `• ${shortTitle(i.title)} — ${priceLabel(i.price, i.currency, i.priceUnit)}${i.drop ? ` (${i.drop})` : i.urgent ? ' (Urgent)' : ''}\n  ${track(`${origin}/listings/${i.id}`, `${slot}-${k + 1}`)}`
+  const pickLine = (i: DigestItem, k: number) => `• ${i.category ? `[${i.category}] ` : ''}${shortTitle(i.title)} — ${priceLabel(i.price, i.currency, i.priceUnit)}${i.drop ? ` (${i.drop})` : i.urgent ? ' (Urgent)' : ''}\n  ${track(`${origin}/listings/${i.id}`, `pick-${k + 1}`)}`
   if (c.picks.length) parts.push('', `MORE ON ${site.toUpperCase()}`, ...c.picks.map(pickLine))
   if (c.sales.length) parts.push('', 'MOVING SALES', ...c.sales.map((it, k) => line(it, k, 'sale')))
   parts.push('', `Moving out? Selling your things on ${site} is free: ${track(`${origin}/post`, 'sell')}`, '', `Unsubscribe: ${unsubscribeUrl}`)

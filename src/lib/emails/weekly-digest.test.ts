@@ -66,6 +66,12 @@ describe('weekly digest email', () => {
     expect(render(full, null).text.startsWith('Hi there,')).toBe(true)
   })
 
+  it('prints an hourly service with its period (services › Pricing, 2026-10-14)', () => {
+    const { html, text } = render({ ...full, picks: [{ ...item, title: 'Dog walking', price: 150_000, priceUnit: 'VND/hour' }] })
+    expect(text).toContain(`${formatMoneyFull(150_000, '₫', 'en')} / hour`)
+    expect(html).toContain(`${formatMoneyFull(150_000, '₫', 'en')} / hour`)
+  })
+
   it('shows a free partner product as "Free", not "0 đ"', () => {
     const { html, text } = render({ ...full, picks: [{ ...item, price: 0 }] })
     expect(html).toContain('>Free</div>')
