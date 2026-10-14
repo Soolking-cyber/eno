@@ -1378,12 +1378,14 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'airport-transfer', name: 'Airport', nameVi: 'Sân bay', icon: 'PlaneTakeoff', keywords: ['airport transfer', 'airport pickup', 'private transfer', 'driver', 'car with driver', 'đưa đón sân bay', 'tài xế', 'thuê xe có tài'] },
       { slug: 'cleaning', name: 'Cleaning', nameVi: 'Dọn dẹp', icon: 'BrushCleaning', keywords: ['cleaning', 'maid', 'housekeeping', 'dọn dẹp', 'giúp việc', 'vệ sinh'] },
       { slug: 'moving-delivery', name: 'Moving', nameVi: 'Chuyển nhà', icon: 'Truck', keywords: ['moving', 'delivery', 'transport', 'chuyển nhà', 'vận chuyển', 'giao hàng'] },
-      { slug: 'repair', name: 'Repair', nameVi: 'Sửa chữa', icon: 'Hammer', keywords: ['repair', 'handyman', 'plumber', 'electrician', 'fix', 'sửa chữa', 'thợ'] },
+      // + plumbing / sửa ống nước / thợ điện nước (owner, 2026-10-14: "dog walking baby sitting plumbing etc."). ⚠️ Never a bare
+      // 'điện nước': it is "utilities" ("giá đã bao gồm điện nước") and would file a cleaning or moving post here (gate).
+      { slug: 'repair', name: 'Repair', nameVi: 'Sửa chữa', icon: 'Hammer', keywords: ['repair', 'handyman', 'plumber', 'plumbing', 'electrician', 'fix', 'sửa chữa', 'thợ', 'sửa ống nước', 'thợ điện nước', 'thợ điện'] },
       { slug: 'beauty-wellness', name: 'Beauty', nameVi: 'Làm đẹp', icon: 'Flower2', keywords: ['salon', 'spa', 'massage', 'nails', 'làm đẹp', 'thư giãn'] },
       { slug: 'fitness-pt', name: 'Fitness', nameVi: 'Thể hình', icon: 'BicepsFlexed', keywords: ['personal trainer', 'pt', 'yoga', 'fitness', 'gym', 'huấn luyện viên'] },
       { slug: 'photography', name: 'Photography', nameVi: 'Chụp ảnh', icon: 'Camera', keywords: ['photographer', 'photography', 'video', 'chụp ảnh', 'quay phim'] },
-      { slug: 'childcare', name: 'Childcare', nameVi: 'Trông trẻ', icon: 'Baby', keywords: ['nanny', 'babysitter', 'childcare', 'trông trẻ', 'giữ trẻ'] },
-      { slug: 'pet-services', name: 'Pets', nameVi: 'Thú cưng', icon: 'PawPrint', keywords: ['pet grooming', 'pet sitting', 'vet', 'grooming', 'thú y', 'chăm sóc thú cưng'] },
+      { slug: 'childcare', name: 'Childcare', nameVi: 'Trông trẻ', icon: 'Baby', keywords: ['nanny', 'babysitter', 'babysitting', 'childcare', 'trông trẻ', 'giữ trẻ', 'bảo mẫu'] },
+      { slug: 'pet-services', name: 'Pets', nameVi: 'Thú cưng', icon: 'PawPrint', keywords: ['pet grooming', 'pet sitting', 'pet sitter', 'dog walking', 'dog walker', 'vet', 'grooming', 'thú y', 'chăm sóc thú cưng', 'dắt chó', 'dắt chó đi dạo', 'trông thú cưng'] },
       // Mobile carriers' eSIMs and the plans that ride on them (scripts/import-esim.ts).
       // ⚠️ LAST BEFORE 'service-other', AND ONLY eSIM-SPECIFIC KEYWORDS. suggestSubcategory() files a
       // post under the subcategory whose LONGEST whole-word keyword it mentions, a tie going to the

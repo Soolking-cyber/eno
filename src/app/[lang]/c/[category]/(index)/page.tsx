@@ -12,6 +12,7 @@ import { CategoryGuides, OtherRentalsLink, PlaceName, RentalsDistricts } from '.
 import { CategoryFiltersLink } from '../category-filters-link'
 import { JobCityChips } from '../job-city-chips'
 import { TeacherProfileLink, TeachingJobsLink } from '../teaching-links'
+import { OfferServiceLink } from '../services-links'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { leadFirst } from '@/lib/category-lead'
 import { CategoryLedeBlock } from './category-lede-block'
@@ -253,6 +254,9 @@ export default async function CategoryPage({ params }: Props) {
   // N8: the teaching cross-links, in the page's language (localizedHref — the `/vi` twin on a Vietnamese page).
   const teachingJobsHref = localizedHref(`/?${new URLSearchParams(TEACHING_JOBS).toString()}`, pageLang(lang))
   const teacherJoinHref = localizedHref('/teachers/join', pageLang(lang))
+  // The post form with THIS category already picked (the wizard preselects a postable `?category=` when there is no
+  // draft to resume) — /c/services' "Post your service" line and every empty page's "Post a listing".
+  const postHereHref = localizedHref(`/post?${new URLSearchParams({ category: cat.slug }).toString()}`, pageLang(lang))
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -306,6 +310,8 @@ export default async function CategoryPage({ params }: Props) {
           jobs at the profile form — one line each, above the grid or the empty state (teaching-links.tsx). */}
       {isTeachers && <TeachingJobsLink count={teachingJobs} href={teachingJobsHref} />}
       {cat.slug === TEACHING_JOBS.category && <TeacherProfileLink href={teacherJoinHref} />}
+      {/* Owner, 2026-10-14: a provider's way in — "Post your service", Services already picked. */}
+      {cat.slug === 'services' && <OfferServiceLink href={postHereHref} />}
 
       {/* Masthead boundary — on the content box, like the sort strip's own hairline below and the
           home toolbar's (C1-HAIRLINE); it used to bleed to the page frame with negative margins.
@@ -402,7 +408,7 @@ export default async function CategoryPage({ params }: Props) {
             <div className="flex max-w-2xl flex-col items-center gap-6">
               <div className="flex flex-col items-center gap-3">
                 <Button asChild variant="cta" size="none">
-                  <Link href={isTeachers ? '/teachers/join' : '/post'} className="px-5 py-2.5">
+                  <Link href={isTeachers ? teacherJoinHref : postHereHref} className="px-5 py-2.5">
                     {isTeachers
                       ? <Bilingual en="Create your free teacher profile" vi="Tạo hồ sơ giáo viên miễn phí" />
                       : <Tr text="Post a listing" />}

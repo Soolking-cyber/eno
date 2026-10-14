@@ -18,6 +18,7 @@ export const VI_OVERRIDES: Record<string, string> = {
   "Source": "Nguồn",
   "Visit in person and check the owner's papers before paying any deposit. eno.vn never asks for a deposit via a link.": "Hãy đến xem tận nơi và kiểm tra giấy tờ của chủ sở hữu trước khi đặt cọc. eno.vn không bao giờ yêu cầu đặt cọc qua đường link.",
   "Agree what is included and the price in chat before paying, and never send a deposit through a link. eno.vn never asks for one.": "Thống nhất nội dung và giá dịch vụ trong khung chat trước khi thanh toán, và đừng bao giờ chuyển tiền cọc qua đường link. eno.vn không bao giờ yêu cầu điều đó.",
+  "Each provider is responsible for holding any licence or work permit they need to offer their service.": "Mỗi nhà cung cấp tự chịu trách nhiệm có đủ giấy phép hoặc giấy phép lao động cần thiết để cung cấp dịch vụ của mình.",
   "Scan to open this rental on your phone": "Quét để mở tin cho thuê này trên điện thoại",
   "(fixed when editing)": "(không đổi khi sửa)",
   "(no title)": "(chưa có tiêu đề)",

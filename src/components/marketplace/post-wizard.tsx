@@ -35,7 +35,7 @@ import { trackPostListing } from '@/lib/analytics'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { isNativeShell } from '@/lib/native-browser'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
-import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isTeacherSeekingPost, isVisaProductSlot, servicePriceBasisOf, servicePriceBasisApplies, servicePriceBasisOfUnit, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText } from '@/lib/taxonomy'
+import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, isVisaProductSlot, servicePriceBasisOf, servicePriceBasisApplies, servicePriceBasisOfUnit, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText } from '@/lib/taxonomy'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
@@ -623,6 +623,19 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         if (resuming && typeof at === 'number' && Date.now() - at >= 0 && Date.now() - at < PUBLISH_INTENT_TTL_MS) setPublishIntentAt(at)
       }
     } catch {}
+    // ⛔ A WAY IN WITH A CATEGORY (owner, 2026-10-14: /c/services' "Post your service" and every empty page's "Post a
+    // listing" link to `/post?category=<slug>`): with no draft to resume, the form opens on that category — only a
+    // POSTABLE one this page was handed (teachers never are), its first intent picked as a manual pick would. A draft
+    // wins: the seller's own unfinished post is never replaced by a link.
+    // Only the stand-alone /post page reads the address: an EMBEDDED wizard sits on someone else's URL (gate, 2026-10-14).
+    if (!restoring && !embedded && !edit) {
+      const wanted = new URLSearchParams(window.location.search).get('category')
+      // Postable by the taxonomy's own rule as well as handed over by the page — the guard does not lean on the caller.
+      if (wanted && isPostableCategory(wanted) && categories.some((c) => c.slug === wanted)) {
+        setCategorySlug(wanted)
+        setListingType(typesFor(wanted)[0])
+      }
+    }
     // `?resume=publish` has done its job once read: a later reload of this tab is not a sign-in return.
     stripResumeParam()
     draftId.current = restoredId || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
@@ -1868,6 +1881,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 and is a pointer on every other aisle and on an edit of a post already there. */}
             {categorySlug === 'jobs' && listingType === 'wanted' && <TeacherProfileInstead blocking={teacherSeeking} />}
             {evisaHold && <EVisaLicenceNote />}
+            {/* A teacher offering lessons (owner, 2026-10-14: "a teacher should remain" — teachers have their own surface):
+                the teacher-profile door, as a POINTER — a language school may still post its classes here. */}
+            {categorySlug === 'services' && subcategorySlug === 'language-lessons' && <TeacherProfileInstead blocking={false} />}
             {/* ⚠️ Base UI COMBOBOX, NOT <input list>. The native datalist drew a different widget in every
                 browser (Chrome's ▼, nothing at all on iOS Safari) and could not lead with the brands
                 that sell in THIS subcategory. Same creatable pattern as visa-cards' checkpoint field:

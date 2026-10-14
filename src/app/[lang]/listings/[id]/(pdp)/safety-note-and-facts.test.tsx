@@ -13,8 +13,12 @@ const UI_STRINGS = readFileSync(join(process.cwd(), 'src/generated/ui-strings.ts
 /** The bottom safety note's expression, from its declaration to the blank line that ends it. */
 const NOTE = PAGE.slice(PAGE.indexOf('const safetyNote ='), PAGE.indexOf('\n\n', PAGE.indexOf('const safetyNote =')))
 
-/** Every tr('English', 'Tiếng Việt') pair in the note, whichever quote each side uses. */
-const pairs = [...NOTE.matchAll(/\btr\(\s*(["'])((?:(?!\1).)*)\1,\s*(["'])((?:(?!\3).)*)\3\)/g)].map((m) => ({ en: m[2], vi: m[4] }))
+/** The site-neutral provider sentence the services line carries since 2026-10-14 (owner: providers may be "foreign
+ *  workers") — the one pair that names no site. */
+const PROVIDER_EN = 'Each provider is responsible for holding any licence or work permit they need to offer their service.'
+/** Every tr('English', 'Tiếng Việt') pair in the note, whichever quote each side uses — the site lines, without it. */
+const allPairs = [...NOTE.matchAll(/\btr\(\s*(["'])((?:(?!\1).)*)\1,\s*(["'])((?:(?!\3).)*)\3\)/g)].map((m) => ({ en: m[2], vi: m[4] }))
+const pairs = allPairs.filter((p) => p.en !== PROVIDER_EN)
 
 /**
  * ⛔ THE BOTTOM SAFETY NOTE NAMES THE SITE THE READER IS ON (review, 2026-09-29). The per-type lines
@@ -33,6 +37,15 @@ describe('PDP safety note — one copy per edition', () => {
   it('the scan is not vacuous', () => {
     expect(NOTE).toContain('listing.listingType === \'job\'')
     expect(pairs).toHaveLength(3)
+    expect(allPairs).toHaveLength(4) // + the provider sentence (below)
+  })
+
+  it('the services line adds who holds a licence or work permit — the provider — on both editions, in each one\'s voice', () => {
+    // ⚠️ Assembled, never written as a Tr/tr call: the string harvester scans test files and would catalogue a placeholder.
+    expect(NOTE).toContain(['tr(', "'", PROVIDER_EN, "'"].join('')) // eno.forum: an authored pair
+    expect(NOTE).toContain(['<Tr', ' text="', PROVIDER_EN, '" />'].join('')) // eno.vn: <Tr> with a curated vi-override
+    expect(VI_OVERRIDES[PROVIDER_EN]).toBe('Mỗi nhà cung cấp tự chịu trách nhiệm có đủ giấy phép hoặc giấy phép lao động cần thiết để cung cấp dịch vụ của mình.')
+    expect(UI_STRINGS).toContain(JSON.stringify(PROVIDER_EN))
   })
 
   it('each eno.forum line is an authored pair that names eno.forum in BOTH languages, behind IS_SERVICES', () => {
@@ -48,7 +61,7 @@ describe('PDP safety note — one copy per edition', () => {
     }
     expect(NOTE.match(/IS_SERVICES/g)).toHaveLength(3)
     expect(NOTE).toMatch(/IS_SERVICES\s*\n?\s*\?\s*tr\("Visit in person/)
-    expect(NOTE).toMatch(/IS_SERVICES\s*\n?\s*\?\s*tr\('Agree what is included/)
+    expect(NOTE).toMatch(/IS_SERVICES\s*\n?\s*\?\s*<>\{tr\('Agree what is included/)
     expect(NOTE).toMatch(/IS_SERVICES && !visaCopyHeld\s*\n?\s*\?\s*tr\('Meet in a public place/)
   })
 

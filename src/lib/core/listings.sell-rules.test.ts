@@ -191,7 +191,7 @@ describe('the licence check — the e-Visa subcategory is open to every poster, 
   })
 
   it('a post nobody filed falls back to Services › Other — never the e-Visa subcategory (its first aisle)', async () => {
-    await createService('', {}, 'Dog walking, two hours')
+    await createService('', {}, 'Help around the house, two hours') // no aisle's keyword
     expect(h.creates[0].subcategorySlug).toBe('service-other')
     h.creates = []
     await createService('not-a-subcategory', {}, 'Help in English')

@@ -688,9 +688,13 @@ export default async function ListingPage({ params }: Props) {
         ? tr("Visit in person and check the owner's papers before paying any deposit. eno.forum never asks for a deposit via a link.", 'Hãy đến xem tận nơi và kiểm tra giấy tờ của chủ sở hữu trước khi đặt cọc. eno.forum không bao giờ yêu cầu đặt cọc qua đường link.')
         : <Tr text="Visit in person and check the owner's papers before paying any deposit. eno.vn never asks for a deposit via a link." />)
     : (catSlug === 'services' || listing.listingType === 'service') && !visaCopyHeld
+      // + who answers for the service itself (owner, 2026-10-14: providers can be "local businesses, individuals … or
+      // foreign workers"): the provider holds any licence or work permit THEY need — not the marketplace. Each edition
+      // words it the way its neighbour sentence is worded (eno.vn: <Tr> with a curated vi-override, so the nine MT
+      // languages translate both sentences; eno.forum: an authored pair).
       ? (IS_SERVICES
-        ? tr('Agree what is included and the price in chat before paying, and never send a deposit through a link. eno.forum never asks for one.', 'Thống nhất nội dung và giá dịch vụ trong khung chat trước khi thanh toán, và đừng bao giờ chuyển tiền cọc qua đường link. eno.forum không bao giờ yêu cầu điều đó.')
-        : <Tr text="Agree what is included and the price in chat before paying, and never send a deposit through a link. eno.vn never asks for one." />)
+        ? <>{tr('Agree what is included and the price in chat before paying, and never send a deposit through a link. eno.forum never asks for one.', 'Thống nhất nội dung và giá dịch vụ trong khung chat trước khi thanh toán, và đừng bao giờ chuyển tiền cọc qua đường link. eno.forum không bao giờ yêu cầu điều đó.')}{' '}{tr('Each provider is responsible for holding any licence or work permit they need to offer their service.', 'Mỗi nhà cung cấp tự chịu trách nhiệm có đủ giấy phép hoặc giấy phép lao động cần thiết để cung cấp dịch vụ của mình.')}</>
+        : <><Tr text="Agree what is included and the price in chat before paying, and never send a deposit through a link. eno.vn never asks for one." />{' '}<Tr text="Each provider is responsible for holding any licence or work permit they need to offer their service." /></>)
     : IS_SERVICES && !visaCopyHeld
       ? tr('Meet in a public place and inspect the item before paying. eno.forum never asks for a deposit via a link.', 'Hãy gặp ở nơi công cộng và kiểm tra món hàng trước khi trả tiền. eno.forum không bao giờ yêu cầu đặt cọc qua đường link.')
     : <Tr text="Meet in a public place and inspect the item before paying. eno.vn never asks for a deposit via a link." />

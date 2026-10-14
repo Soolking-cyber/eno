@@ -12,6 +12,9 @@
 import { renderToString } from 'react-dom/server'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+// Each test cold-loads the whole post wizard under an edition re-import: seconds under a loaded suite.
+vi.setConfig({ testTimeout: 60_000 })
 import type { ListingEditData } from './post-wizard'
 import type { SerializedCategory } from '@/lib/types'
 
