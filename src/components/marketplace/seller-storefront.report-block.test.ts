@@ -14,7 +14,8 @@ vi.mock('@/lib/db', () => ({
     review: { findMany: async () => [] },
     conversation: { count: async () => 0 },
     // The marketplace count, and the chat anchor: no listing here that chat works for.
-    listing: { count: async () => 10, findFirst: async () => null },
+    // findMany: the storefront's teacher section (loadStorefrontTeachers) — none here.
+    listing: { count: async () => 10, findFirst: async () => null, findMany: async () => [] },
   },
 }))
 vi.mock('@/lib/edition-scope', () => ({ isSellerHiddenHere: async () => false, scopedListingWhere: async (w: object) => w }))

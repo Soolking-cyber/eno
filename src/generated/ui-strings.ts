@@ -87,7 +87,6 @@ export const UI_STRINGS: string[] = [
   "A Vietnamese company still completing its business registration.",
   "A brand-new, empty account",
   "A case concerning you was closed with no action against you.",
-  "A change to who can message teachers",
   "A clear, friendly headshot.",
   "A confirmed scam is different: waiting does nothing, and neither does marking items as sold. The seller's listings stay hidden until our team releases them — no sooner than 14 days after the report was confirmed, and only for a seller who has verified their identity and sent us a written plan. Time alone never launders fraud.",
   "A dispute case concerns you",

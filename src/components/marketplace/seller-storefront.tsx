@@ -38,6 +38,7 @@ import { storefrontDescription } from '@/lib/storefront-description'
 import { isLinkedShop, isUnratedStorefront, partnerShown } from '@/lib/linked-seller'
 import { SellerInfo } from '@/components/marketplace/seller-info'
 import { buildSellerInfo } from '@/lib/seller-info'
+import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { isStorefrontGone } from '@/lib/storefront-gone'
 import { getInitials } from '@/lib/utils'
 
@@ -261,6 +262,22 @@ export async function storefrontChatListingId(sellerId: string): Promise<string 
   }))?.id ?? null
 }
 
+/**
+ * The seller's live TEACHER profile — shown in its own section, above the products (owner, 2026-10-14: "the storefront
+ * doesnt show teacher profiles"). scopedListingWhere keeps teachers out of every listing query unless the caller opts in
+ * (owner, 2026-09-30: a teacher is a person, never a 0 ₫ product in a grid), so the shop's grid, its count and its search
+ * stay products only, and this one read opts in for the seller's own teacher rows. Published (verified) and live only: a
+ * hidden profile is not shown. The same card /c/teachers renders (LISTING_CARD_SELECT).
+ */
+export async function loadStorefrontTeachers(sellerId: string) {
+  return db.listing.findMany({
+    where: await scopedListingWhere({ sellerId, verified: true, status: 'active', listingType: TEACHER_LISTING_TYPE }, { teachers: true }),
+    select: LISTING_CARD_SELECT,
+    orderBy: [{ postedAt: 'desc' }, { id: 'desc' }],
+    take: 3,
+  })
+}
+
 export async function SellerStorefront({ id }: { id: string }) {
   // The share address: the subdomain where `/s/<handle>` will actually serve this shop, otherwise the
   // path — this component is also the fallback for handles the subdomain rejects (brand-slug collisions).
@@ -269,7 +286,7 @@ export async function SellerStorefront({ id }: { id: string }) {
   // 90d conversation count → the responsiveness bucket's honesty gate (suppressed
   // below RESPONSE_MIN_CONVOS so a fresh seller never shows a fake "100%"). Same
   // window + query shape the trust engine uses; one cheap indexed count, batched.
-  const [seller, reviews, convoCount, marketplaceTotal, otherRows] = await Promise.all([
+  const [seller, reviews, convoCount, marketplaceTotal, otherRows, teacherRows] = await Promise.all([
     loadSeller(id),
     loadReviews(id),
     db.conversation.count({ where: { sellerId: id, createdAt: { gte: new Date(Date.now() - 90 * 86400000) } } }),
@@ -326,6 +343,7 @@ export async function SellerStorefront({ id }: { id: string }) {
       // Same seat rule as /api/listings for an unfiltered feed (sharedSeatsFor(null)).
       { sharedSeats: true },
     ),
+    loadStorefrontTeachers(id),
   ])
   if (!seller) notFound()
   const shareUrl = await shareUrlFor(seller.handle?.handle)
@@ -346,6 +364,7 @@ export async function SellerStorefront({ id }: { id: string }) {
   // ⚠️ `diversifyBySeller` on top of the window, and sliced AFTER the reorder — see the home feed's
   // note: the window picks WHICH rows, this interleaves them, and the window's fallback paths (a
   // groupBy failure, one seller, an under-filled fan-out) return a plain top-N nobody interleaved.
+  const teacherListings = await localizeListingTitles(teacherRows.map(serializeListingCard))
   const otherListings = await localizeListingTitles(
     diversifyBySeller(otherRows, { sharedSeats: true }).slice(0, OTHER_LISTINGS).map(serializeListingCard),
   )
@@ -574,6 +593,16 @@ export async function SellerStorefront({ id }: { id: string }) {
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+
+        {/* The seller's TEACHER profile: its own section, never the product grid below — see loadStorefrontTeachers. Above
+            the products, so a teacher's storefront leads with the profile; a teacher with no products shows it instead of
+            nothing. */}
+        {teacherListings.length > 0 && (
+          <section className="mt-10 space-y-4">
+            <h2 className="h-section text-foreground"><Bilingual en="Teacher profile" vi="Hồ sơ giáo viên" /></h2>
+            <SellerListings listings={teacherListings} />
           </section>
         )}
 
