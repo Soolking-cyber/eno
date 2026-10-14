@@ -29,8 +29,9 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
   }
 }
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
-import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isPartnerOnlySubcategory, partnerOnlyFallback, isTeacherSeekingPost, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, withoutDisallowedVisaAttrs } from '@/lib/taxonomy'
+import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, isVisaProductSlot, licenceCheckHold, SUBCATEGORY_FALLBACK } from '@/lib/taxonomy'
 import { IS_MARKETPLACE } from '@/lib/edition'
+import { deskSellerIds } from '@/lib/edition-scope'
 import { syndicateListingIfPublic } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
@@ -557,7 +558,7 @@ export type ListingUpdateErrorCode =
 export async function updateListingCore(
   listingId: string,
   body: Record<string, unknown>,
-): Promise<{ ok: true } | { ok: false; code: number; error: ListingUpdateErrorCode }> {
+): Promise<{ ok: true; held?: true } | { ok: false; code: number; error: ListingUpdateErrorCode }> {
   const current = await db.listing.findUnique({
     where: { id: listingId },
     select: {
@@ -575,8 +576,7 @@ export async function updateListingCore(
       negotiable: true, salaryM: true, affiliateUrl: true, priceUnit: true,
       // A rent row's unit is re-stamped only when its `rentalPeriod` attribute changes (below).
       attributes: true,
-      // officialPartner: an official partner's listing may carry e-visa product attributes (O-34, below).
-      seller: { select: { trustTier: true, officialPartner: true } }, category: { select: { slug: true, name: true, nameVi: true } },
+      seller: { select: { trustTier: true } }, category: { select: { slug: true, name: true, nameVi: true } },
       status: true,
     },
   })
@@ -584,19 +584,9 @@ export async function updateListingCore(
   if (!current || current.status === LISTING_REMOVED) return { ok: false, code: 404, error: 'not_found' }
   // ⛔ A teacher profile is edited through the teacher form only; to every generic editor it does not exist.
   if (!isPostableCategory(current.category.slug)) return { ok: false, code: 404, error: 'not_found' }
-  // ⛔ O-34b (owner, 2026-10-05): on eno.vn the visa slot (services/visa-legal) takes an OFFICIAL PARTNER's
-  // listings only (taxonomy.ts PARTNER_ONLY_ON_MARKETPLACE). An edit that MOVES another seller's listing into
-  // it is refused — first, before anything is read or written, so nothing is half-applied; the route adds the
-  // bilingual PARTNER_ONLY_REFUSAL. A listing ALREADY in the slot (posted before the rule) edits as usual —
-  // resending its own subcategory is not a move — and may move out.
-  if (body.subcategorySlug !== undefined) {
-    const sc = body.subcategorySlug ? String(body.subcategorySlug).trim() : null
-    if (sc && sc !== current.subcategorySlug && isPartnerOnlySubcategory(current.category.slug, sc) && !current.seller.officialPartner) {
-      return { ok: false, code: 400, error: 'subcategory_partner_only' }
-    }
-  }
-
   const data: Record<string, unknown> = {}
+  // Set when a MOVE into the e-Visa subcategory unpublished the listing for the licence check (below).
+  let licenceHold = false
 
   // ⛔ THE INTENT THIS LISTING WILL HAVE AFTER THE EDIT (validated exactly as the listingType block
   // below writes it), decided up front because a JOB is edited by different money rules: its price
@@ -802,10 +792,23 @@ export async function updateListingCore(
   // Subcategory — must belong to the listing's (unchanged) category.
   if (body.subcategorySlug !== undefined) {
     const sc = body.subcategorySlug ? String(body.subcategorySlug).trim() : null
-    // O-34: an edit may KEEP a withheld subcategory the listing already has, never switch INTO one. A move into
-    // the partner-only visa slot by anyone else was refused above (O-34b); a partner's is allowed here.
-    const allowed = !sc || sc === current.subcategorySlug || isPostableSubcategory(current.category.slug, sc, IS_MARKETPLACE, { officialPartner: current.seller.officialPartner })
+    // An edit may KEEP a withheld subcategory the listing already has (a visa run on eno.vn), never switch INTO one.
+    const allowed = !sc || sc === current.subcategorySlug || isPostableSubcategory(current.category.slug, sc, IS_MARKETPLACE)
     if (allowed && (!sc || subcategoriesFor(current.category.slug).some((s) => s.slug === sc))) data.subcategorySlug = sc
+    // ⛔ THE LICENCE CHECK ON A MOVE (taxonomy.ts licenceCheckHold, owner 2026-10-14): a listing MOVED into the e-Visa
+    // subcategory by anyone but eno's desk is unpublished until an admin has seen the provider's licence and approves it
+    // (`held` tells the wizard to say so). A listing already there edits as usual
+    // — resending its own subcategory is not a move, and an approved one stays live through later edits.
+    // ⚠️ A MOVE OUT NEVER PUBLISHES. An unpublished row cannot say why it is unpublished — a confirmed report writes the
+    // same verified=false (admin/moderate) — so letting "leave the e-Visa aisle" republish would let a pulled listing
+    // put itself back live. It stays in the admin's pending queue, whose approval publishes it.
+    if (typeof data.subcategorySlug === 'string' && data.subcategorySlug !== current.subcategorySlug && isVisaProductSlot(current.category.slug, data.subcategorySlug)) {
+      const desk = (await deskSellerIds()).includes(current.sellerId)
+      if (licenceCheckHold(current.category.slug, data.subcategorySlug, { desk }) && current.verified) {
+        data.verified = false
+        licenceHold = true
+      }
+    }
   }
   // Intent (listingType) — must be valid for the category.
   if (body.listingType !== undefined) {
@@ -821,10 +824,7 @@ export async function updateListingCore(
   // otherwise the stored one.
   if (body.attributes !== undefined) {
     data.attributes = await withDerivedAttributes(
-      // ⛔ O-34, THE SERVER HALF (eno.vn): a listing whose seller is not an official partner keeps the
-      // e-visa product attributes it ALREADY carries but cannot gain one — the wizard does not offer
-      // them, and a direct API call must not add them either. VietKite (a partner) is untouched.
-      withoutDisallowedVisaAttrs(sanitizeAttributes(body.attributes), { officialPartner: current.seller.officialPartner, existing: current.attributes }),
+      sanitizeAttributes(body.attributes),
       current.sellerId,
       current.category.slug,
       (data.subcategorySlug as string | null | undefined) ?? current.subcategorySlug,
@@ -968,13 +968,16 @@ export async function updateListingCore(
   // premise that verified=false meant "created below the photo bar, let them fix it". That premise
   // is dead: EVERY create path now writes `verified: true` (createListingCore's own insert, and
   // bulk.ts:168; sync writes no verified at all) and a publish violation THROWS PublishBlockedError
-  // instead of saving a held row. So nothing produces a photo-held listing.
+  // instead of saving a held row. So nothing produces a photo-held listing. (The one create that writes
+  // `false` — an e-Visa listing waiting for the licence check, 2026-10-14 — is published by an admin's
+  // approval too, never by an edit.)
   //
   // What DOES produce verified=false is, exhaustively: an admin unverify
   // (api/admin/listings/route.ts:87), the moderation queue (api/admin/moderate/route.ts:133,168,205),
   // the duplicate/provenance auto-hold (lib/image-provenance.ts:85), the AI moderation auto-hold
-  // (lib/ai-moderation.ts:156), and the enforcement ladder pulling a seller's catalogue
-  // (lib/enforcement.ts:283). Every one of those is a TAKEDOWN. Auto-republishing any of them
+  // (lib/ai-moderation.ts:156), the enforcement ladder pulling a seller's catalogue
+  // (lib/enforcement.ts:283), and — since 2026-10-14 — the e-Visa licence check (createListingCore, and a
+  // move into the e-Visa subcategory above). Every one but the last is a TAKEDOWN. Auto-republishing any of them
   // because the seller edited the row is exactly the bypass this removal closes — and the old guard
   // could not tell them apart, because all six write the same single boolean and nothing else.
   //
@@ -1106,7 +1109,7 @@ export async function updateListingCore(
     after(() => indexAndCheckProvenance(listingId))
   }
 
-  return { ok: true }
+  return licenceHold ? { ok: true, held: true } : { ok: true }
 }
 
 /**
@@ -1145,13 +1148,9 @@ export async function createListingCore(input: {
   price: number
   body: Record<string, unknown>
   headers: Headers
-}): Promise<{ id: string; verified: boolean }> {
+}): Promise<{ id: string; verified: boolean; held?: true }> {
   const { seller, guestCreate, category, title, price, body, headers } = input
   const categorySlug = category.slug
-  // Seller.officialPartner, read at most once and only when an answer depends on it (O-34 / O-34b below).
-  let officialPartner: boolean | undefined
-  const sellerIsOfficialPartner = async () =>
-    (officialPartner ??= (await db.seller.findUnique({ where: { id: seller.id }, select: { officialPartner: true } }))?.officialPartner === true)
   // ⛔ Teacher profiles are written ONLY by src/lib/teachers/publish.ts (2026-09-30). The web wizard, /api/v1 and
   // MCP create end here; the BULK core does NOT — it creates on its own (CSV, /api/v1 bulk, MCP bulk, a sync's
   // creates) and, since 2026-10-09, asks this same `isPostableCategory` per row with this same code (bulk.ts). This
@@ -1231,9 +1230,7 @@ export async function createListingCore(input: {
   // ⛔ A NEW listing can only take a POSTABLE subcategory (O-34, 2026-09-30): the marketplace edition
   // withholds `tickets-travel/visa-runs` from the picker, and a restored draft or a crafted request must
   // not get it past the server either. Editing an existing listing is a different path (updateListing).
-  // `{ officialPartner: true }` here is the EDITION rule alone: whether THIS seller may use a partner-only
-  // subcategory is decided just below, with at most one read.
-  const subs = subcategoriesFor(categorySlug).filter((s) => isPostableSubcategory(categorySlug, s.slug, IS_MARKETPLACE, { officialPartner: true }))
+  const subs = subcategoriesFor(categorySlug).filter((s) => isPostableSubcategory(categorySlug, s.slug, IS_MARKETPLACE))
   let subcategorySlug: string | null = String(body.subcategorySlug || '').trim()
   const subcategoryPicked = subs.some((s) => s.slug === subcategorySlug)
   if (!subcategoryPicked) {
@@ -1241,16 +1238,21 @@ export async function createListingCore(input: {
     // "Honda Vision 2022" + "kèm mũ bảo hiểm" must stay a motorbike. The description is read only when the
     // title alone matches nothing, which is all it was ever needed for.
     const suggested = suggestSubcategory(categorySlug, title) ?? suggestSubcategory(categorySlug, `${title} ${body.description || ''}`)
-    subcategorySlug = (suggested && subs.some((s) => s.slug === suggested) ? suggested : null) || (subs[0]?.slug ?? null)
+    // The category's catch-all when it has one (SUBCATEGORY_FALLBACK: Services › Other), else its first subcategory.
+    const fallback = subs.find((s) => s.slug === SUBCATEGORY_FALLBACK[categorySlug])?.slug ?? subs[0]?.slug ?? null
+    subcategorySlug = (suggested && subs.some((s) => s.slug === suggested) ? suggested : null) || fallback
   }
-  // ⛔ O-34b (owner, 2026-10-05): on eno.vn the visa slot (services/visa-legal) takes an OFFICIAL PARTNER's
-  // listings only (taxonomy.ts PARTNER_ONLY_ON_MARKETPLACE). A seller who PICKED it is refused — they chose it,
-  // so they are told, with the bilingual PARTNER_ONLY_REFUSAL the route adds; a keyword GUESS (or the
-  // first-subcategory fallback) that lands there is re-filed to Services › Other — the place that refusal
-  // names — because the seller never asked for the slot. VietKite (a partner) posts there as before.
-  if (subcategorySlug && isPartnerOnlySubcategory(categorySlug, subcategorySlug) && !(await sellerIsOfficialPartner())) {
-    if (subcategoryPicked) throw new PublishBlockedError('subcategory_partner_only')
-    subcategorySlug = partnerOnlyFallback(categorySlug, subcategorySlug)
+  // ⛔ THE LICENCE CHECK (taxonomy.ts licenceCheckHold — owner, 2026-10-14: "Anyone posts, live after check"). A listing
+  // in the e-Visa subcategory from anyone but eno's own desk is stored UNPUBLISHED until an admin has seen the provider's
+  // licence. Only an explicit PICK goes there: a keyword GUESS ("cleaning for visa holders") files such a poster under the
+  // catch-all instead, so nobody's post is held for a check they never asked for. Nothing extra is read outside the slot.
+  let licenceHold = false
+  if (isVisaProductSlot(categorySlug, subcategorySlug)) {
+    const poster = { desk: (await deskSellerIds()).includes(seller.id) }
+    if (licenceCheckHold(categorySlug, subcategorySlug, poster)) {
+      if (subcategoryPicked) licenceHold = true
+      else subcategorySlug = subs.find((s) => s.slug === SUBCATEGORY_FALLBACK[categorySlug])?.slug ?? null
+    }
   }
   // ⛔ A TEACHER LOOKING FOR WORK IS A TEACHER PROFILE (owner, 2026-10-12 — taxonomy.ts TEACHER_SEEKING_POST): Jobs ›
   // Teaching + "looking for work" is refused on the RESOLVED subcategory — an explicit pick and a keyword guess alike,
@@ -1265,16 +1267,7 @@ export async function createListingCore(input: {
   // chip used to be stored and ignored: every rent post was stamped monthly, so a scooter at
   // 150.000 đ a day printed "150.000 đ / tháng". rentalPeriodOf normalises 'long-term' → monthly and
   // anything unknown → null (= monthly), so the unit can never read "VND/undefined".
-  const sanitized = sanitizeAttributes(body.attributes)
-  // ⛔ O-34, THE SERVER HALF (eno.vn): an ordinary seller's NEW post carries no e-visa product
-  // attributes — the wizard does not ask for them (askableFacetsFor), and a direct API call must not get
-  // them in either. An official partner (VietKite) keeps them. The seller's flag is read only when such
-  // a key was actually sent (the stripped value then differs) — and at most once per create, shared with
-  // the visa-slot check above — so an ordinary create costs no query.
-  const forNonPartner = withoutDisallowedVisaAttrs(sanitized, { officialPartner: false })
-  const cleanAttributes = forNonPartner === sanitized || (await sellerIsOfficialPartner())
-    ? sanitized
-    : forNonPartner
+  const cleanAttributes = sanitizeAttributes(body.attributes)
   const money = listingMoneyFor({ categorySlug, subcategorySlug, listingType, rentalPeriod: rentalPeriodOf(cleanAttributes) })
   const priceUnit = money.priceUnit
   // Whitelisted, stringly-typed attribute facets (taxonomy values), then the DERIVED ones
@@ -1393,7 +1386,10 @@ export async function createListingCore(input: {
       // Balanced feed rank at age≈0 (recency=1) — matches the SQL re-decay exactly. New
       // listings land fresh; the daily cron + trust changes re-decay it afterwards.
       rankScore: browseRankScore({ sellerTrustScore: seller.trustScore, postedAt: new Date(), featured: false }),
-      verified: true,
+      // Unpublished while an e-Visa listing waits for the licence check (licenceHold above); live otherwise. The ternary of
+      // literals, not `!licenceHold`: compliance/public-state-writes.test.ts audits every write that can publish by its
+      // `verified: true`, and this insert still is one.
+      ...(licenceHold ? { verified: false } : { verified: true }),
     },
   })
   if (brandSlug) after(() => { bumpBrandCount(brandSlug!); enrichBrandLogoIfMissing(brandSlug!).catch((e) => logError(e, { op: 'listings.enrichBrandLogoIfMissing' })) })
@@ -1454,7 +1450,9 @@ export async function createListingCore(input: {
   }
 
   after(() => dispatchListingEvent('listing.created', listing.id, seller.id)) // notify the shop's partner webhooks
-  return { id: listing.id, verified: true }
+  // `held` = unpublished for the licence check (the same flag updateListingCore returns for a move into the slot), so an
+  // API client can tell it from any other unpublished state; the post wizard says so instead of "Your listing is live!".
+  return licenceHold ? { id: listing.id, verified: false, held: true } : { id: listing.id, verified: true }
 }
 
 /** Why a seller's DELETE was turned into a hide (deleteListingCore). */

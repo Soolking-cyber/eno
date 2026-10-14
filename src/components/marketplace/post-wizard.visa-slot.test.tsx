@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
 /**
- * O-34b (owner, 2026-10-05: "apply best recommended") — WHAT THE POST WIZARD OFFERS in the visa slot
- * (services/visa-legal), read from its render the way post-wizard.sell.test.tsx reads it:
- *   · eno.vn, an ordinary seller: the slot ("Legal & permits") is not a subcategory chip;
- *   · eno.vn, an official partner (VietKite — /api/me says seller.officialPartner): it is, once the account
- *     has answered;
- *   · eno.vn, a listing ALREADY in the slot: its own chip stays on the edit screen (editing without moving);
- *   · eno.forum: offered to everyone, named "Visa".
+ * THE e-VISA SUBCATEGORY IN THE POST WIZARD (owner, 2026-10-14: "also have an evisa dedicated subcategory", then
+ * "Anyone posts, live after check") — read from its render the way post-wizard.sell.test.tsx reads it:
+ *   · both editions, every poster: the chip is offered, named "e-Visa", beside "Legal & permits";
+ *   · picking it announces the licence check before Publish (EVisaLicenceNote) — to an official partner too: only
+ *     eno's own desk is exempt (taxonomy.ts licenceCheckHold), and it does not post through this form;
+ *   · a listing ALREADY in the slot keeps its chip on the edit screen, and is not re-announced (no move).
  * The edit screen is used because its subcategory chips always render (the category is frozen there).
- * The server half — refusing a pick or a move — is core/listings.sell-rules.test.ts.
+ * The server half — the hold itself — is core/listings.sell-rules.test.ts. This retires O-34b's partner-only picker.
  */
 import { renderToString } from 'react-dom/server'
 import { act, cleanup, render, screen } from '@testing-library/react'
@@ -56,8 +55,8 @@ const services = (subcategorySlug: string): ListingEditData => ({
   areaM2: null, salaryM: null, district: 'Quận 1', city: 'Hồ Chí Minh', lat: null, lng: null, images: [], video: null,
 })
 
-/** The labels of the subcategory chips, as rendered (React escapes `&`). */
-const SLOT_EN = 'Legal &amp; permits'
+/** The licence-check note's title (post-wizard-evisa.tsx). */
+const NOTE = 'e-Visa listings go live after a licence check'
 
 beforeEach(() => {
   h.partner = false
@@ -77,44 +76,36 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe('the post wizard and the visa slot on eno.vn (marketplace)', () => {
-  it('⛔ an ordinary seller is not offered the slot — every other services aisle is', async () => {
-    const PostWizard = await wizardFor('marketplace')
-    const page = renderToString(<PostWizard categories={CATS} edit={services('cleaning')} />)
-    expect(page).not.toContain(SLOT_EN)
-    expect(page).toContain('>Other<')
-    expect(page).toContain('>Cleaning<')
-  })
+for (const edition of ['marketplace', 'services'] as const) {
+  describe(`the post wizard and the e-Visa subcategory (${edition})`, () => {
+    it('offers it to an ordinary seller, named “e-Visa”, beside “Legal & permits”', async () => {
+      const PostWizard = await wizardFor(edition)
+      const page = renderToString(<PostWizard categories={CATS} edit={services('cleaning')} />)
+      expect(page).toContain('>e-Visa<')
+      expect(page).toContain('Legal &amp; permits')
+      expect(page).toContain('>Cleaning<')
+      expect(page).not.toContain(NOTE) // nothing picked, nothing announced
+    })
 
-  it('⛔ …and still not once /api/me has answered that the seller is not a partner', async () => {
-    const PostWizard = await wizardFor('marketplace')
-    render(<PostWizard categories={CATS} edit={services('cleaning')} />)
-    await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
-    expect(screen.getByRole('button', { name: /Cleaning/ })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /Legal & permits/ })).toBeNull()
-  })
+    it('a listing ALREADY in it keeps its chip, picked — and is not re-announced (resending its own subcategory is no move)', async () => {
+      const PostWizard = await wizardFor(edition)
+      const page = renderToString(<PostWizard categories={CATS} edit={services('visa-legal')} />)
+      expect(page).toMatch(/aria-pressed="true"[^>]*>(?:(?!<\/button>)[\s\S])*e-Visa/)
+      expect(page).not.toContain(NOTE)
+    })
 
-  it('an official partner is offered the slot, named “Legal & permits”, once the account has answered', async () => {
-    h.partner = true
-    const PostWizard = await wizardFor('marketplace')
-    render(<PostWizard categories={CATS} edit={services('cleaning')} />)
-    expect(await screen.findByRole('button', { name: /Legal & permits/ })).toBeTruthy()
+    it('moving a listing into it announces the licence check — to an official partner too (only eno’s desk is exempt)', async () => {
+      const PostWizard = await wizardFor(edition)
+      render(<PostWizard categories={CATS} edit={services('cleaning')} />)
+      await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
+      await act(async () => { screen.getByRole('button', { name: /e-Visa/ }).click() })
+      expect(screen.getByText(NOTE)).toBeTruthy()
+      cleanup()
+      h.partner = true
+      render(<PostWizard categories={CATS} edit={services('cleaning')} />)
+      await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
+      await act(async () => { screen.getByRole('button', { name: /e-Visa/ }).click() })
+      expect(screen.getByText(NOTE)).toBeTruthy()
+    })
   })
-
-  it('a listing ALREADY in the slot keeps its own chip on the edit screen (editing without moving)', async () => {
-    const PostWizard = await wizardFor('marketplace')
-    const page = renderToString(<PostWizard categories={CATS} edit={services('visa-legal')} />)
-    expect(page).toContain(SLOT_EN)
-    // …and it is the picked one.
-    expect(page).toMatch(/aria-pressed="true"[^>]*>(?:(?!<\/button>)[\s\S])*Legal &amp; permits/)
-  })
-})
-
-describe('the post wizard and the visa slot on eno.forum (services) — unchanged', () => {
-  it('offers the slot, named “Visa”, to an ordinary seller', async () => {
-    const PostWizard = await wizardFor('services')
-    const page = renderToString(<PostWizard categories={CATS} edit={services('cleaning')} />)
-    expect(page).toContain('>Visa<')
-    expect(page).not.toContain(SLOT_EN)
-  })
-})
+}

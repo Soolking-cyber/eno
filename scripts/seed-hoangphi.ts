@@ -54,9 +54,9 @@ const OWNER_EMAIL = 'lawyer-review@eno.vn'
 const HANDLE = 'luathoangphi'
 const EXTERNAL_ID = 'hoangphi:company-formation'
 const CATEGORY_SLUG = 'services'
-// ⚠️ `service-other` until a business/legal aisle exists — `visa-legal` renders as "Visa" and is a boundary
-// surface on eno.vn (taxonomy.ts), so it is the one services aisle this must NOT go in.
-const SUBCATEGORY = arg('subcategory') ?? 'service-other'
+// Legal & permits (`legal-permits`, since 2026-10-14) is the aisle for a law firm's services. `visa-legal` is the e-Visa
+// subcategory — never this listing's place.
+const SUBCATEGORY = arg('subcategory') ?? 'legal-permits'
 const BUCKET = 'listings'
 
 const SELLER = {
@@ -217,7 +217,7 @@ async function main() {
   console.log(`copy screens: clean · title en ${TITLE_EN.length} / vi ${TITLE_VI.length} · desc en ${DESC_EN.length} / vi ${DESC_VI.length}`)
 
   if (!subcategoriesFor(CATEGORY_SLUG).some((sc) => sc.slug === SUBCATEGORY)) { console.error(`"${SUBCATEGORY}" is not a ${CATEGORY_SLUG} subcategory — refusing`); process.exit(1) }
-  if (SUBCATEGORY === 'visa-legal') { console.error('visa-legal renders as "Visa" — a boundary aisle on eno.vn; refusing'); process.exit(1) }
+  if (SUBCATEGORY === 'visa-legal') { console.error('visa-legal is the e-Visa subcategory, not a law firm\'s aisle; refusing'); process.exit(1) }
 
   // 2. The seller — by id AND owner email, never by name.
   const seller = await db.seller.findUnique({

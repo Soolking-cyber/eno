@@ -10,6 +10,7 @@ import { plainSnippet } from '@/lib/strip-md'
 import { feedIdentifiers } from '@/lib/product-feed'
 import { listingJsonLd } from '@/lib/listing-jsonld'
 import { VisaDisclosure } from '@/components/marketplace/visa-disclosure'
+import { EVisaSellerNote } from '@/components/marketplace/evisa-seller-note'
 import { NOT_GOVERNMENT } from '@/lib/visa-provider'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { getListing } from './get-listing'
@@ -654,8 +655,8 @@ export default async function ListingPage({ params }: Props) {
   const visaCopyHeld = isVisaProduct || isVisaProductSlot(catSlug, rawListing.subcategorySlug)
   /**
    * ⚠️ APP STORE GATE `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — off by default, and then `false` here and the
-   * page is byte-identical. On, an e-Visa product — the desk's, or a partner's (isEVisaProductListing: the visa slot plus
-   * an e-Visa chip; work-permit/legal listings in the same slot are untouched) — offers no way to apply in the iOS app:
+   * page is byte-identical. On, an e-Visa product — the desk's, or any seller's (isEVisaProductListing: the e-Visa
+   * subcategory, which since 2026-10-14 holds e-visa listings only) — offers no way to apply in the iOS app:
    * the start button or the chat that takes the order is wrapped in `ios-app-hidden`, and an `ios-app-only` line says
    * where applying happens. CSS, not the user agent, because this page is ISR and the edge cache shares its HTML between
    * the app and the web; the disclosure above it (who we are not, the official portal) stays on both.
@@ -1142,7 +1143,12 @@ export default async function ListingPage({ params }: Props) {
                       */}
                       <IosAppHidden when={iosHideContact}><VisaStart listingId={listing.id} className="mt-4 w-full" /></IosAppHidden>
                     </>
-                  : <IosAppHidden when={iosHideContact}><ContactComposer
+                  : <>
+                    {/* Any other seller's e-Visa listing (owner, 2026-10-14: the subcategory is open to every poster, live
+                        after a licence check): who the site is not, and the official portal. The desk's page carries its
+                        own disclosure in the branch above, so this never doubles it. */}
+                    {isVisaProductSlot(catSlug, rawListing.subcategorySlug) && <EVisaSellerNote seller={listing.seller.name} className="mb-4" />}
+                    <IosAppHidden when={iosHideContact}><ContactComposer
                       listingId={listing.id}
                       listingTitle={displayTitle}
                       listingTitleVi={listing.titleVi}
@@ -1161,7 +1167,8 @@ export default async function ListingPage({ params }: Props) {
                       intent={isTripProduct ? 'plan' : 'buy'}
                       /* A partner shares no number (phoneForSeller) — the footnote must not offer one. */
                       sellerIsPartner={listing.seller.officialPartner}
-                    /></IosAppHidden>}
+                    /></IosAppHidden>
+                    </>}
                 {iosHideContact && <VisaInAppNote kind="apply" className="ios-app-only mt-4" />}
                 {/* The availability check (owner, 2026-09-25): add this rental to the basket the eno team
                     checks for free. Under whichever contact block rendered above — a partner rental still

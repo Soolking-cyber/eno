@@ -95,8 +95,8 @@ export function buildItineraryResourceGroups(result: GeneratedItineraryResponse)
      */
     {
       title: 'eno Visa Services', titleVi: 'Dịch vụ visa eno', kind: 'visa',
-      description: 'Browse visa and legal-service listings, or contact eno if you need help choosing the right next step.',
-      descriptionVi: 'Xem dịch vụ visa và pháp lý, hoặc liên hệ eno nếu bạn cần hỗ trợ chọn bước tiếp theo.',
+      description: 'Browse e-visa listings, or contact eno if you need help choosing the right next step.',
+      descriptionVi: 'Xem các dịch vụ e-Visa, hoặc liên hệ eno nếu bạn cần hỗ trợ chọn bước tiếp theo.',
       url: 'https://www.eno.forum/?category=services&subcategory=visa-legal',
     },
     {

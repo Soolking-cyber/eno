@@ -340,8 +340,18 @@ this replaces. `apps/forum` (a separate 102-file app sharing no code with the ro
 | | eno.vn | eno.forum |
 |---|---|---|
 | marketplace | ✅ | ✅ (identical) |
-| visa · itinerary | ⛔ **not even a mention** | ✅ |
+| visa · itinerary | ⛔ **not even a mention** — EXCEPT the e-Visa subcategory (below) | ✅ |
+| e-Visa subcategory (`services/visa-legal`) | ✅ **since 2026-10-14** — third parties only, live after eno's licence check | ✅ same rule |
 | PayPal / online visa payment | ⛔ | ⛔ **off since 2026-09-13** — owner: "no paypal … admin will resolve payment through chat"; the forum is an exact copy of eno.vn plus the e-Visa desk, and the visa application is photos + entry date |
+
+⛔ **THE e-VISA SUBCATEGORY IS THE OWNER'S DELIBERATE EXCEPTION (2026-10-14) — DO NOT "FIX" IT BACK.** Owner: "also have an
+evisa dedicated subcategory", then, asked twice with the licensing and scam risk and the forum's own /prohibited rule in
+front of them: "Both sites, anyone posts" → "Anyone posts, live after check". So `services/visa-legal` is named "e-Visa"
+on BOTH editions, ANY account may post there, and a listing from anyone but eno's own desk is stored unpublished until
+an admin has seen the provider's licence (taxonomy.ts `licenceCheckHold`). This retired O-34's eno.vn relabel ("Legal &
+permits") and O-34b's partner-only posting. What did NOT change: eno's OWN visa desk stays hidden from eno.vn
+(`HIDDEN_DESK_OWNER_EMAILS` — eno itself still does not offer e-visa there), `/visa` + `/itinerary` stay forum-only,
+no PayPal. Visa runs (tickets-travel/visa-runs) are still not offered for posting on eno.vn.
 
 ⚠️ **This is a legal boundary, not a feature flag.** The failure mode is a LEAK: any place
 eno.vn still shows, links to, describes, indexes, emails or serves one of those surfaces

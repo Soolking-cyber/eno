@@ -50,6 +50,19 @@ const row = (image: string) => ({
   verified: true, status: 'active', views: 3, contactCount: 0, savedCount: 0,
 }) as unknown as SerializedListing
 
+describe('DashboardListingRow status chip', () => {
+  const IMG = 'https://sb.example.test/storage/v1/object/public/listings/a/b.webp'
+  it('every unpublished row reads "Held" — an e-Visa one too: the row cannot tell a licence check from a takedown', () => {
+    const held = (subcategorySlug: string) => ({ ...row(IMG), verified: false, category: { slug: 'services' }, subcategorySlug }) as unknown as SerializedListing
+    for (const sub of ['visa-legal', 'cleaning']) {
+      render(<DashboardListingRow listing={held(sub)} onChanged={() => {}} />)
+      expect(screen.getAllByText('Held').length, sub).toBeGreaterThan(0)
+      expect(screen.queryByText('Licence check')).toBeNull()
+      cleanup()
+    }
+  })
+})
+
 describe('DashboardListingRow thumbnail', () => {
   it('sends a first-party image through the optimizer at a fixed 80px, quality 60', () => {
     const { container } = render(<DashboardListingRow listing={row('https://sb.example.test/storage/v1/object/public/listings/a/b.webp')} onChanged={() => {}} />)

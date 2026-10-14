@@ -563,7 +563,6 @@ export const UI_STRINGS_SERVICES: string[] = [
   "days",
   "details below",
   "documents",
-  "e-Visa",
   "e-Visa (PDF)",
   "e-Visa applications are not available in the app. You can apply in a web browser.",
   "e-Visa photo check",

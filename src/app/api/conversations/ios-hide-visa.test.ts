@@ -75,7 +75,10 @@ beforeEach(() => {
   h.listings = {
     'desk-visa': { ...base, id: 'desk-visa', sellerId: 'seller-desk', subcategorySlug: 'visa-legal', categorySlug: 'services', attributes: '{"visaEntryType":"single","visaSpeed":"1H"}', seller: { ownerId: 'desk-owner' } },
     'partner-visa': { ...base, id: 'partner-visa', sellerId: 'seller-vk', subcategorySlug: 'visa-legal', categorySlug: 'services', attributes: '{"visaEntryType":"multiple","visaSpeed":"1D","providerType":"business"}', seller: { ownerId: 'vk-owner' } },
-    'work-permit': { ...base, id: 'work-permit', sellerId: 'seller-agent', subcategorySlug: 'visa-legal', categorySlug: 'services', attributes: '{"providerType":"business"}', seller: { ownerId: 'agent-owner' } },
+    // Since 2026-10-14 a work permit is Legal & permits, and the e-Visa subcategory is e-visa only (isEVisaProductListing:
+    // the slot alone) — so an ordinary seller's e-Visa listing without chips is still an e-Visa product.
+    'work-permit': { ...base, id: 'work-permit', sellerId: 'seller-agent', subcategorySlug: 'legal-permits', categorySlug: 'services', attributes: '{"providerType":"business"}', seller: { ownerId: 'agent-owner' } },
+    'plain-visa': { ...base, id: 'plain-visa', sellerId: 'seller-agent', subcategorySlug: 'visa-legal', categorySlug: 'services', attributes: '{"providerType":"individual"}', seller: { ownerId: 'agent-owner' } },
     'bike': { ...base, id: 'bike', negotiable: true, sellerId: 'seller-shop', subcategorySlug: 'bicycles', categorySlug: 'sports', attributes: null, seller: { ownerId: 'shop-owner' } },
   }
 })
@@ -112,7 +115,13 @@ describe('gate ON', () => {
     expect(h.created).toEqual([])
   })
 
-  it('iOS app + a work-permit listing in the same slot, or an ordinary listing: unchanged', async () => {
+  it('iOS app + any seller\'s e-Visa listing, chips or none: 403, no conversation created', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
+    expect(await post('plain-visa', IOS_APP)).toEqual({ status: 403, json: { error: 'ios_app_unavailable' } })
+    expect(h.created).toEqual([])
+  })
+
+  it('iOS app + a Legal & permits listing, or an ordinary listing: unchanged', async () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
     expect((await post('work-permit', IOS_APP)).status).toBe(200)
     expect((await post('bike', IOS_APP)).status).toBe(200)

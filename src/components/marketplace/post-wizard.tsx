@@ -35,7 +35,7 @@ import { trackPostListing } from '@/lib/analytics'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { isNativeShell } from '@/lib/native-browser'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
-import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isPartnerOnlySubcategory, isTeacherSeekingPost, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText, VISA_PRODUCT_FACET_KEYS } from '@/lib/taxonomy'
+import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isTeacherSeekingPost, isVisaProductSlot, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText } from '@/lib/taxonomy'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
@@ -45,6 +45,7 @@ import { PublishButton, PublishLabel, Section, Field, Chips, Preview, DraftNotic
 import { MediaSection, PriceSection, SalarySection, LocationSection, ContactSection, PostSuccess } from './post-wizard-sections'
 import { publishSteps } from './post-wizard-steps'
 import { TeacherProfileInstead, TeacherProfileLine } from './post-wizard-teacher'
+import { EVisaLicenceNote } from './post-wizard-evisa'
 import { brandModelPayload, draftHasContent, rangeColumnsPayload } from './post-wizard-payload'
 import { categoryChangeLosesAnswers, categoryChangeReset, orderPostCategories, subcategoryChangeReset } from './post-wizard-category'
 import { postCopyFor } from '@/lib/post-copy'
@@ -174,6 +175,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [submitted, setSubmitted] = useState(false)
   // Success-screen context: link to the live listing + a distinct first-ever moment.
   const [createdId, setCreatedId] = useState<string | null>(null)
+  const [heldForCheck, setHeldForCheck] = useState(false)
   const [firstListing, setFirstListing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   // What a running Publish is doing, shown beside the button (publishProgress below). Photos and the video only
@@ -254,13 +256,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         return
       }
       if (d.categorySlug) {
-        // AI must not pick a subcategory this edition does not offer for new posts (O-34) — nor, for a seller
-        // who is not an official partner, the partner-only visa slot (O-34b).
-        // ⚠️ While /api/me has not answered, a partner-only pick is KEPT (gate, 2026-10-05: a partner's AI fill was
-        // cleared by the not-yet-known `officialPartner`); the render guard below (keepSub / partnerKnown) drops it
-        // once the account is known not to be a partner.
-        const aiSubOk = !!d.subcategorySlug && (isPostableSubcategory(d.categorySlug, d.subcategorySlug, IS_MARKETPLACE, { officialPartner })
-          || (!meKnown && isPartnerOnlySubcategory(d.categorySlug, d.subcategorySlug)))
+        // AI must not pick a subcategory this edition does not offer for new posts (O-34: a visa run on eno.vn) — nor the
+        // e-Visa subcategory: like the server's keyword guess (createListingCore), a GUESS never files a post where it
+        // would wait for a licence check; only the seller's own pick does.
+        const aiSubOk = !!d.subcategorySlug && isPostableSubcategory(d.categorySlug, d.subcategorySlug, IS_MARKETPLACE)
+          && !isVisaProductSlot(d.categorySlug, d.subcategorySlug)
         // ⚠️ IT OVERWRITES WHAT THE SELLER HAD CHOSEN — the category, its specifics (ranges are wiped outright),
         // condition, brand, model — so it comes with an Undo whenever something they had is replaced, as a manual
         // category change already does (offerCategoryUndo). Emil-skills audit, missing confirmations.
@@ -505,8 +505,6 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [postingAs, setPostingAs] = useState<string | null>(null)
   // Whose account the contact fields above were filled for (the /api/me effect). See the note there.
   const contactOwner = useRef<string | null | undefined>(undefined)
-  // An official partner (VietKite, GMBR) keeps the e-visa product chips on a new post (O-34).
-  const [officialPartner, setOfficialPartner] = useState(false)
   // ⚠️ "LOADED" IS PER USER, NOT ONCE PER MOUNT. A guest's /api/me answers `{ user: null }` and used to
   // flip a plain boolean true for good — so after an in-dialog sign-in the form believed the profile
   // had arrived while name and phone were still '' for a round trip, and a Publish tap in that window
@@ -690,7 +688,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // (a token refresh) keeps what the seller typed.
     if (contactOwner.current !== forId) {
       contactOwner.current = forId
-      setContactName(''); setContactPhone(''); setPostingAs(null); setOfficialPartner(false)
+      setContactName(''); setContactPhone(''); setPostingAs(null)
     }
     // ⏱ NEVER WAIT FOREVER (review, 2026-10-04): a hung /api/me kept Publish on "Loading your details…"
     // with no way out. After ME_TIMEOUT_MS the read is abandoned and the profile counts as loaded with an
@@ -711,7 +709,6 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         setContactName(publicSafeName(u.seller?.name || u.displayName || ''))
         setContactPhone(u.seller?.phone || u.phone || '')
         if (u.accountType === 'business') setPostingAs(u.businessName || u.seller?.name || null)
-        setOfficialPartner(u.seller?.officialPartner === true)
       }
       setMe({ for: forId, known: true })
     })
@@ -802,27 +799,23 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   }, [categorySlug, subcategorySlug, listingType, brand, model, condition, bandYear])
 
   const cat = categories.find((c) => c.slug === categorySlug)
-  // Edition-aware (taxonomy.ts POST_HIDDEN_ON_MARKETPLACE) and poster-aware (O-34b, owner 2026-10-05: on eno.vn
-  // the visa slot takes an OFFICIAL PARTNER's listings only — PARTNER_ONLY_ON_MARKETPLACE; `officialPartner`
-  // comes from /api/me); the value already on the form stays listed.
+  // Edition-aware (taxonomy.ts POST_HIDDEN_ON_MARKETPLACE); the value already on the form stays listed.
   // A hidden subcategory is kept on screen only when EDITING a listing that already has it — never for a
-  // new post or a restored draft (the create route refuses it too) — or, for the partner-only slot, while
-  // the account is not known yet: a partner's restored draft must not lose it before /api/me answers.
-  // (A guest is known at once: a guest is never a partner.)
-  const partnerKnown = meKnown || (!authLoading && !user)
-  const keepSub = edit || (!partnerKnown && isPartnerOnlySubcategory(categorySlug, subcategorySlug)) ? subcategorySlug : undefined
-  const subOptions = postableSubcategoriesFor(categorySlug, keepSub, IS_MARKETPLACE, { officialPartner })
+  // new post or a restored draft (the create route refuses it too).
+  const keepSub = edit ? subcategorySlug : undefined
+  const subOptions = postableSubcategoriesFor(categorySlug, keepSub, IS_MARKETPLACE)
   // A restored draft or an AI fill can still hold a withheld subcategory (O-34) — drop it so the chips
-  // show the truth and the seller picks again, instead of the server silently re-filing (or refusing) it on publish.
-  if (!edit && subcategorySlug && categorySlug && subcategorySlug !== keepSub && !isPostableSubcategory(categorySlug, subcategorySlug, IS_MARKETPLACE, { officialPartner })) setSubcategorySlug('')
+  // show the truth and the seller picks again, instead of the server silently re-filing it on publish.
+  if (!edit && subcategorySlug && categorySlug && subcategorySlug !== keepSub && !isPostableSubcategory(categorySlug, subcategorySlug, IS_MARKETPLACE)) setSubcategorySlug('')
+  // ⛔ e-VISA: an explicit pick waits for eno's licence check (taxonomy.ts licenceCheckHold — anyone but eno's own desk,
+  // which does not post through this form) — said here, before Publish. An edit that keeps the listing's own subcategory
+  // is not a move.
+  const evisaHold = isVisaProductSlot(categorySlug, subcategorySlug) && !(edit && edit.subcategorySlug === subcategorySlug)
   const typeOptions = typesFor(categorySlug)
   // askableFacetsFor, not facetsFor: a DERIVED facet (providerType) is computed from the
   // account server-side, so asking would be redundant — and lets a seller contradict their
   // own registration by ticking "Individual" on a business account. Browse still filters on it.
-  // On the marketplace edition a non-partner is not asked the e-visa product chips (O-34) — on an edit,
-  // only one the listing already carries stays. The server stores by the same rule (visaProductKeyAllowed).
-  // `edit.attributes`, not the live `attrs`: what the LISTING has, not what this form has typed.
-  const catFacets = askableFacetsFor(categorySlug, subcategorySlug, { newPost: !edit, officialPartner, existing: edit?.attributes })
+  const catFacets = askableFacetsFor(categorySlug, subcategorySlug)
   const hasCondition = catFacets.some((f) => f.key === 'condition')
   const attrFacets = catFacets.filter((f) => f.key !== 'condition')
   // In Rentals only a vehicle rental has a brand; an apartment asked for one read as a broken form.
@@ -1203,7 +1196,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // Kept context, not a draft: the autosave waits until the seller changes something.
     carriedDescription.current = movingSale ? description : ''
     setCatExpanded(false); setTouched({}); setAttempted(false); setError(''); setErrorAction(null)
-    setCreatedId(null); setFirstListing(false); setPublishIntentAt(null); setDraftNotice(null)
+    setCreatedId(null); setHeldForCheck(false); setFirstListing(false); setPublishIntentAt(null); setDraftNotice(null)
     setSubmitted(false)
     window.scrollTo({ top: 0, behavior: scrollBehavior() })
   }
@@ -1330,9 +1323,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         categorySlug,
         subcategorySlug: subcategorySlug || null,
         listingType,
-        // An e-visa product chip the form did not ASK (a non-partner's new post on eno.vn, O-34) is not
-        // sent either: an AI fill or a draft saved before the rule can still hold one, invisibly.
-        attributes: Object.fromEntries(Object.entries(attrs).filter(([k, v]) => v && !(VISA_PRODUCT_FACET_KEYS.has(k) && !catFacets.some((f) => f.key === k)))),
+        attributes: Object.fromEntries(Object.entries(attrs).filter(([, v]) => v)),
         // Precise numeric specs → dedicated columns (year/mileageKm/engineL/salaryM). A spec cleared on
         // an edit is sent as null, and a JOB'S SALARY is sent on every edit — the rules and why are in
         // post-wizard-payload.ts.
@@ -1373,11 +1364,19 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       })
       if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'Failed')
       if (edit) {
+        // ⛔ A MOVE INTO e-VISA unpublished it for the licence check (`held`, updateListingCore): its page is not public
+        // now, so the seller goes to the dashboard (where its chip reads "Licence check") with the reason, not to a 404.
+        const saved = (await res.json().catch(() => ({}))) as { held?: boolean }
+        if (saved.held) {
+          subtleToast(t('Đã lưu. Tin e-Visa được hiển thị sau khi đội ngũ eno kiểm tra giấy phép của nhà cung cấp.', 'Saved. e-Visa listings go live after eno’s team has checked the provider’s licence.'))
+          router.push('/dashboard')
+          return
+        }
         // landing on the updated listing IS the confirmation
         router.push(`/listings/${edit.id}`)
         return
       }
-      const created = (await res.json().catch(() => ({}))) as { id?: string }
+      const created = (await res.json().catch(() => ({}))) as { id?: string; verified?: boolean }
       // A job's salary is not a sale value — the post event carries 0 for one (as the server's CAPI Lead does).
       trackPostListing({ id: created.id, title: title.trim(), price: salaryPaid ? 0 : Number(price), currency: 'VND', category: cat?.name || categorySlug, district: district || undefined })
       try { localStorage.removeItem('eno-listing-draft') } catch {}
@@ -1393,6 +1392,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         localStorage.setItem('eno-posted-before', '1')
       } catch {}
       setCreatedId(created.id ?? null)
+      // `verified: false` = an e-Visa listing waiting for eno's licence check (createListingCore): the success
+      // screen says so instead of "Your listing is live!".
+      setHeldForCheck(created.verified === false)
       // hapticConfirm, NOT haptic(18). haptics.ts names this exact case in its own docblock —
       // "a listing published" — and this line is the moment it describes. It used to fire a plain
       // tap: the screen threw a party (mascot + "Your first listing is live!") while the hand got
@@ -1468,11 +1470,6 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ? (salaryPaid
               ? t('Hãy chọn vị trí cho tin tuyển dụng — ứng viên cần biết nơi làm việc.', 'Pick a location for your job — candidates need to know where the work is.')
               : t('Hãy chọn vị trí cho tin đăng — người mua cần biết món đồ ở đâu.', 'Pick a location for your listing — buyers need to know where the item is.'))
-          // O-34b: the visa slot is an official partner's on eno.vn — the picker does not offer it to anyone else,
-          // so this is a stale form or a revoked badge. The same two sentences as taxonomy.ts PARTNER_ONLY_REFUSAL
-          // (the server's `message`), typed here for the i18n harvest.
-          : msg === 'subcategory_partner_only'
-          ? t('Trên eno.vn, dịch vụ visa chỉ do đối tác chính thức đăng. Các dịch vụ pháp lý khác (giấy phép lao động, thuế…) hãy đăng trong Dịch vụ › Khác.', 'On eno.vn, visa services are listed by official partners only. Post other legal services (work permits, tax…) in Services › Other.')
           // A teacher's job-seeker post (taxonomy.ts TEACHER_SEEKING_POST): the form holds it, so this is a keyword guess of
           // Teaching or a stale form — hence the way out at the end. The same sentences as TEACHER_PROFILE_REFUSAL, typed
           // here for the i18n harvest.
@@ -1535,7 +1532,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   }
 
   if (submitted) {
-    return <PostSuccess firstListing={firstListing} createdId={createdId} title={title} price={salaryPaid ? '' : price} job={salaryPaid} takesOffers={takesOffers({ negotiable, listingType })} onPostAnother={embedded ? undefined : postAnother} t={t} />
+    return <PostSuccess firstListing={firstListing} createdId={createdId} held={heldForCheck} title={title} price={salaryPaid ? '' : price} job={salaryPaid} takesOffers={takesOffers({ negotiable, listingType })} onPostAnother={embedded ? undefined : postAnother} t={t} />
   }
 
   // What the running Publish is doing — beside the button, in the mobile bar's slot and under the desktop button.
@@ -1855,6 +1852,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             {/* Jobs + "Looking for work" (2026-10-12): the teacher form's door — it HOLDS Publish on Teaching (teacherSeeking),
                 and is a pointer on every other aisle and on an edit of a post already there. */}
             {categorySlug === 'jobs' && listingType === 'wanted' && <TeacherProfileInstead blocking={teacherSeeking} />}
+            {evisaHold && <EVisaLicenceNote />}
             {/* ⚠️ Base UI COMBOBOX, NOT <input list>. The native datalist drew a different widget in every
                 browser (Chrome's ▼, nothing at all on iOS Safari) and could not lead with the brands
                 that sell in THIS subcategory. Same creatable pattern as visa-cards' checkpoint field:

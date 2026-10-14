@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * O-34b on eno.forum — UNCHANGED (owner, 2026-10-05: the visa slot is an official partner's on eno.vn only).
- * The services edition sells the e-visa through its desk and has no visa-slot rule: any seller may create in
- * services/visa-legal or move a listing into it, exactly as before. Same dependency wall as
- * listings.sell-rules.test.ts (the marketplace half), with the edition stubbed the other way.
+ * THE LICENCE CHECK ON eno.forum TOO (owner, 2026-10-14: the e-Visa subcategory on BOTH sites, "Anyone posts, live after
+ * check" — the forum's own /prohibited page already said a visa service goes live only once its licence is shown).
+ * Any seller may create in services/visa-legal or move a listing into it; anyone but an official partner or eno's own
+ * desk is written unpublished until an admin approves. Same dependency wall as listings.sell-rules.test.ts (the
+ * marketplace half), with the edition stubbed the other way.
  */
 
 // ⚠️ BEFORE the import below: the edition is read once, when @/lib/edition first loads.
@@ -20,6 +21,8 @@ const h = vi.hoisted(() => ({
   partner: false,
   /** How often createListingCore asked for the seller's partner flag. */
   partnerReads: 0,
+  /** The seller is eno's own desk (edition-scope.ts deskSellerIds) — the forum's e-visa desk posts live. */
+  desk: false,
 }))
 
 vi.mock('next/server', () => ({ after: () => {} }))
@@ -42,6 +45,10 @@ vi.mock('@/lib/db', () => ({
     priceChange: { create: () => ({}) },
     $transaction: async (ops: unknown[]) => ops,
   },
+}))
+vi.mock('@/lib/edition-scope', async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  deskSellerIds: async () => (h.desk ? ['seller-1'] : []),
 }))
 vi.mock('@/lib/listing-index', () => ({ reindexListing: async () => {}, removeFromIndex: async () => {} }))
 vi.mock('@/lib/trust', () => ({ recordEngagement: async () => {} }))
@@ -112,6 +119,7 @@ beforeEach(() => {
   h.creates = []
   h.partner = false
   h.partnerReads = 0
+  h.desk = false
   h.current = row()
 })
 
@@ -119,27 +127,33 @@ it('runs as the services edition (eno.forum)', () => {
   expect(IS_MARKETPLACE).toBe(false)
 })
 
-describe('O-34b leaves eno.forum alone', () => {
-  it('an ordinary seller creates in services/visa-legal, with no partner read', async () => {
-    const r = await createService('visa-legal')
-    expect(r.id).toBe('new-1')
-    expect(h.creates[0].subcategorySlug).toBe('visa-legal')
-    expect(h.partnerReads).toBe(0)
+describe('the e-Visa licence check on eno.forum', () => {
+  it('⛔ an ordinary seller creates in services/visa-legal — unpublished, waiting for the check', async () => {
+    expect(await createService('visa-legal')).toEqual({ id: 'new-1', verified: false, held: true })
+    expect(h.creates[0]).toMatchObject({ subcategorySlug: 'visa-legal', verified: false })
   })
 
-  it('a keyword guess still lands in the slot', async () => {
-    await createService('', 'Vietnam e-visa, 1 hour')
-    expect(h.creates[0].subcategorySlug).toBe('visa-legal')
-  })
-
-  it('an official partner creates there too', async () => {
+  it('eno’s e-visa desk posts there live; an official partner waits for the check like anyone', async () => {
+    h.desk = true
+    expect((await createService('visa-legal')).verified).toBe(true)
+    h.desk = false
     h.partner = true
-    await createService('visa-legal')
+    h.creates = []
+    expect((await createService('visa-legal')).verified).toBe(false)
     expect(h.creates[0].subcategorySlug).toBe('visa-legal')
   })
 
-  it('an ordinary seller may move a listing into the slot', async () => {
-    expect(await updateListingCore('listing-1', { subcategorySlug: 'visa-legal' })).toEqual({ ok: true })
-    expect(h.updates[0].subcategorySlug).toBe('visa-legal')
+  it('an ordinary seller’s keyword guess files under Services › Other, live; the desk’s stays in the slot', async () => {
+    await createService('', 'Vietnam e-visa, 1 hour')
+    expect(h.creates[0]).toMatchObject({ subcategorySlug: 'service-other', verified: true })
+    h.desk = true
+    h.creates = []
+    await createService('', 'Vietnam e-visa, 1 hour')
+    expect(h.creates[0]).toMatchObject({ subcategorySlug: 'visa-legal', verified: true })
+  })
+
+  it('⛔ an ordinary seller’s move into the slot unpublishes the listing with the move', async () => {
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'visa-legal' })).toEqual({ ok: true, held: true })
+    expect(h.updates[0]).toMatchObject({ subcategorySlug: 'visa-legal', verified: false })
   })
 })

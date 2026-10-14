@@ -8,7 +8,7 @@ import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { updateListingCore, deleteListingCore } from '@/lib/core/listings'
 import { DELETE_HOLD_COPY } from '@/lib/delete-hold-copy'
-import { PARTNER_ONLY_REFUSAL, TEACHER_PROFILE_REFUSAL } from '@/lib/taxonomy'
+import { TEACHER_PROFILE_REFUSAL } from '@/lib/taxonomy'
 import { serializeListing } from '@/lib/serialize'
 import { getPriceBand } from '@/lib/price-stat'
 import { topSellerReviews, sameSellerListings } from '@/lib/seller-metrics'
@@ -120,10 +120,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const r = await updateListingCore(id, body)
-  // O-34b: a move into the visa slot by a non-partner carries its bilingual sentence (as POST /api/listings does); so
-  // does a move into a teacher's job-seeker post (taxonomy.ts TEACHER_SEEKING_POST, 2026-10-12).
-  if (!r.ok) return NextResponse.json({ error: r.error, ...(r.error === 'subcategory_partner_only' ? { message: PARTNER_ONLY_REFUSAL } : r.error === 'teacher_profile_instead' ? { message: TEACHER_PROFILE_REFUSAL } : {}) }, { status: r.code })
-  return NextResponse.json({ ok: true })
+  // A move into a teacher's job-seeker post (taxonomy.ts TEACHER_SEEKING_POST, 2026-10-12) carries its bilingual sentence,
+  // as POST /api/listings does.
+  if (!r.ok) return NextResponse.json({ error: r.error, ...(r.error === 'teacher_profile_instead' ? { message: TEACHER_PROFILE_REFUSAL } : {}) }, { status: r.code })
+  // `held`: a move into the e-Visa subcategory unpublished the listing for the licence check — the wizard says so.
+  return NextResponse.json(r.held ? { ok: true, held: true } : { ok: true })
 }
 
 // DELETE — a seller removes their OWN listing (a tombstone: gone for them and the public, its reports

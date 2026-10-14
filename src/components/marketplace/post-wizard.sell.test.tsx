@@ -156,6 +156,15 @@ describe('post wizard — success, draft notice, loading label (sell-04 / si-10 
     expect(renderToString(<PostSuccess firstListing={false} createdId="l9" title="Tutor" price="" job onPostAnother={() => {}} t={t} />)).toContain('Post another job')
   })
 
+  it('an e-Visa listing waiting for the licence check (held): says what happens next, never "live", and offers no Share', () => {
+    const held = renderToString(<PostSuccess firstListing createdId="l9" title="e-Visa, 3 days" price="800000" held onPostAnother={() => {}} t={t} />)
+    expect(held).toContain('Sent for a licence check')
+    expect(held).toMatch(/support@eno\.(vn|forum)/) // the edition's operator inbox (COMPANY.email)
+    expect(held).toContain('href="/dashboard"')
+    expect(held).not.toMatch(/is live|List another item|View your listing/)
+    expect(renderToString(<PostSuccess firstListing={false} createdId="l9" title="Sofa" price="1" t={t} />)).not.toContain('Sent for a licence check')
+  })
+
   it('says what came back with the draft, as a status callout (ui/alert), and offers Discard', () => {
     const kept = renderToString(<DraftNotice photosKept={3} askPhotos={false} onDiscard={() => {}} onDismiss={() => {}} t={t} />)
     expect(kept).toContain('data-slot="alert"')
@@ -216,9 +225,11 @@ describe('post wizard — brand and model on an EDIT (review, 2026-10-04)', () =
     expect(brandModelPayload({ showBrand: true, brand: '  ', model: '', edit: false })).toEqual({ brand: null, model: null })
   })
 
-  it('O-34: the wizard asks the visa chips by the listing’s OWN attributes on an edit (the server’s rule)', () => {
+  it('every poster is asked the e-visa chips since O-34 was retired (owner, 2026-10-14), and every answer is sent', () => {
     const src = readFileSync(join(__dirname, 'post-wizard.tsx'), 'utf8')
-    expect(src).toContain('askableFacetsFor(categorySlug, subcategorySlug, { newPost: !edit, officialPartner, existing: edit?.attributes })')
+    expect(src).toContain('const catFacets = askableFacetsFor(categorySlug, subcategorySlug)')
+    expect(src).toContain('attributes: Object.fromEntries(Object.entries(attrs).filter(([, v]) => v)),')
+    expect(src).not.toMatch(/VISA_PRODUCT_FACET_KEYS|officialPartner, existing/)
   })
 
   it('is what the wizard actually sends', () => {

@@ -102,10 +102,16 @@ describe('eVisaProduct on the thread payload', () => {
     expect(h.extraReads).toBe(0)
   })
 
-  it('gate ON, iOS app, a work-permit listing in the same slot: no field', async () => {
+  it('gate ON, iOS app, a Legal & permits listing (work permits since 2026-10-14): no field', async () => {
     vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
-    h.listing = { subcategorySlug: 'visa-legal', attributes: '{"providerType":"business"}', category: { slug: 'services' } }
+    h.listing = { subcategorySlug: 'legal-permits', attributes: '{"providerType":"business"}', category: { slug: 'services' } }
     expect('eVisaProduct' in (await get(IOS_APP))).toBe(false)
+  })
+
+  it('gate ON, iOS app, an e-Visa listing with no chips (any seller, since 2026-10-14): flagged like a chipped one', async () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ios-hide-visa')
+    h.listing = { subcategorySlug: 'visa-legal', attributes: '{"providerType":"individual"}', category: { slug: 'services' } }
+    expect((await get(IOS_APP)).eVisaProduct).toBe(true)
   })
 
   it('gate ON, iOS app, a desk thread (kind visa) is already read-only by kind: no extra read', async () => {

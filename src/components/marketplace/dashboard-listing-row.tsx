@@ -62,6 +62,9 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   // disowns — so it stays a bespoke span and carries the raw token pair in `cls`.
   const statusChip: { label: string; variant: 'warning' | 'brand' | 'neutral'; className: string; cls: string } =
     !listing.verified && status === 'active'
+      // ⚠️ ONE "Held" FOR EVERY UNPUBLISHED ROW, an e-Visa listing waiting for the licence check included (2026-10-14): the
+      // row cannot say WHY it is unpublished — a takedown writes the same verified=false — so a "Licence check" chip would
+      // tell a pulled seller the wrong story (gate review). The post wizard says it at the moment it happens instead.
       ? { label: tr('Held', 'Đang giữ'), variant: 'warning', className: 'text-2xs', cls: 'bg-warning/15 text-warning' }
       : status === 'sold'
         ? { label: tr('Sold', 'Đã bán'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }

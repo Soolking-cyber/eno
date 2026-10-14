@@ -1,15 +1,15 @@
 import { isVisaProductSlot } from './taxonomy'
 
 /**
- * Is this listing an e-Visa PRODUCT, whoever sells it — the visa slot (services / visa-legal) AND an e-Visa chip
- * (`visaEntryType` or `visaSpeed`)?
+ * Is this listing an e-Visa PRODUCT, whoever sells it — a listing in the e-Visa subcategory (services / visa-legal)?
  *
- * ⚠️ THE SLOT ALONE IS NOT ENOUGH, and that is why the chips are part of the test. `visa-legal` also holds work-permit,
- * tax and legal listings from ordinary sellers (taxonomy.ts isVisaProductSlot), and those are not visa applications.
- * The chips are what an e-Visa product carries: measured read-only 2026-10-05, all 14 live VietKite e-Visa listings on
- * eno.forum have both (`{"visaEntryType":"multiple","visaSpeed":"1D",…}`).
+ * ⛔ THE SLOT ALONE, SINCE 2026-10-14. Until then `visa-legal` also held work-permit, tax and legal listings, so the test
+ * also wanted an e-Visa chip (`visaEntryType` or `visaSpeed`). The owner then made the slot a dedicated e-Visa
+ * subcategory open to every poster (legal work moved to `legal-permits`), and both chips are optional — so a chip test
+ * would let an ordinary seller's unchipped e-Visa listing escape every check that reads this (gate review, 2026-10-14).
+ * `attributes` is still accepted, so callers need not change, and is no longer read.
  * ⚠️ The DESK's own products are answered by isVisaShopListing (visa-shop.ts) — callers OR the two together; this one
- * exists for the partner listings that the desk check correctly says are not the desk's.
+ * exists for the listings that the desk check correctly says are not the desk's.
  *
  * Used by App Store gate `ios-hide-visa` (src/lib/ios-hide-visa.ts): in the iOS app an e-Visa product offers no way to
  * start an application in the app, because its chat is where the seller takes one.
@@ -17,16 +17,8 @@ import { isVisaProductSlot } from './taxonomy'
 export function isEVisaProductListing(l: {
   categorySlug: string
   subcategorySlug?: string | null
-  /** The raw column (a JSON string) or the parsed object — both shapes reach the callers. */
+  /** No longer read (see above); accepted so the callers that pass it keep compiling. */
   attributes?: string | Record<string, unknown> | null
 }): boolean {
-  if (!isVisaProductSlot(l.categorySlug, l.subcategorySlug)) return false
-  let attrs: unknown = l.attributes ?? null
-  if (typeof attrs === 'string') {
-    try { attrs = JSON.parse(attrs) } catch { return false }
-  }
-  if (!attrs || typeof attrs !== 'object') return false
-  const a = attrs as Record<string, unknown>
-  const set = (v: unknown) => typeof v === 'string' && v.trim() !== ''
-  return set(a.visaEntryType) || set(a.visaSpeed)
+  return isVisaProductSlot(l.categorySlug, l.subcategorySlug)
 }

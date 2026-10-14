@@ -191,7 +191,7 @@ describe('the App Review demo thread — the listing passes the app\'s own publi
     expect(cat).toBeDefined()
     expect(isPostableCategory(LISTING.categorySlug)).toBe(true)
     expect(cat.subcategories.map((s) => s.slug)).toContain(LISTING.subcategorySlug)
-    expect(isPostableSubcategory(LISTING.categorySlug, LISTING.subcategorySlug, true, { officialPartner: false })).toBe(true)
+    expect(isPostableSubcategory(LISTING.categorySlug, LISTING.subcategorySlug, true)).toBe(true)
     expect(resolveListingType(LISTING.categorySlug, LISTING.listingType)).toBe(LISTING.listingType)
     // The app's own keyword classifier puts the title in the same aisle.
     expect(suggestSubcategory(LISTING.categorySlug, LISTING.title)).toBe(LISTING.subcategorySlug)

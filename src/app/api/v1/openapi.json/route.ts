@@ -1033,9 +1033,8 @@ export const SPEC = {
             'The payload was refused by validation or by a publish gate. Fix the content and re-post.',
             // ⚠️ The identity codes moved to 403 on 2026-09-23 with the seller identity gate: they are a
             // legal block, not a content one, and publish-block-response.ts fixes 403 for them.
-            // `subcategory_partner_only`: a subcategory only an official partner may post into on this site (O-34b).
             // `teacher_profile_instead`: Jobs › Teaching + `wanted` — a teacher looking for work makes a teacher profile.
-            ['invalid_input', 'unknown_category', 'category_not_postable', 'subcategory_partner_only', 'teacher_profile_instead', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required'],
+            ['invalid_input', 'unknown_category', 'category_not_postable', 'teacher_profile_instead', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required'],
           ),
         },
       },
@@ -1071,7 +1070,7 @@ export const SPEC = {
           '409': fail('A retryable state conflict — the shop\'s "urgent" quota is already spent, so the boost was not applied.', ['urgent_quota']),
           '422': fail(
             'Validation or a publish gate refused the edit. ⚠️ This status collapses several core-level 400s: the route maps everything that is not 404 or 409 onto 422.',
-            ['title_too_short', 'invalid_price', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required', 'subcategory_partner_only', 'teacher_profile_instead', 'account_restricted', 'duplicate_listing', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
+            ['title_too_short', 'invalid_price', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required', 'teacher_profile_instead', 'account_restricted', 'duplicate_listing', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
         },
       },

@@ -59,8 +59,8 @@ const CONTENT: SeoContent = {
     // src/lib/visa-provider.ts for the three claims this statement may never make.
     { title: 'Who provides the e-visa service', body: PROVIDER_OF_RECORD.en },
     {
-      title: 'Visa, work permits, tax and legal',
-      body: 'The Visa category is not visa-only: work-permit, tax and legal services belong in it too, and anyone can post one — it is an ordinary marketplace category, not a desk we run. Right now e-visa products are the only listings in it, so if you need a work permit or a tax filing, ask in chat rather than assuming it is on the shelf.',
+      title: 'e-Visa, work permits, tax and legal',
+      body: 'e-Visa services have their own subcategory, and work-permit, tax and legal services have theirs (Legal & permits). Anyone can post in either — they are ordinary marketplace categories, not desks we run — but a visa service goes live only after we have seen the provider’s licence. If you need a work permit or a tax filing and the shelf is empty, ask in chat rather than assuming it is on the shelf.',
     },
     {
       title: 'What is not here yet',
@@ -87,7 +87,7 @@ const CONTENT: SeoContent = {
   faqs: [
     {
       q: 'What services can I actually find here right now?',
-      a: 'Vietnam e-visa applications at seven processing speeds. The other service categories — including work permits, tax and legal, which share the Visa category — exist but have no listings in Vietnam yet.',
+      a: 'Vietnam e-visa applications at seven processing speeds. The other service categories — including work permits, tax and legal (Legal & permits) — exist but have few or no listings in Vietnam yet.',
     },
     {
       q: 'How much does a Vietnam e-visa cost here?',

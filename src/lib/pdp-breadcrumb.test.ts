@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { pdpBreadcrumbLd, subcategoryCrumb } from './pdp-breadcrumb'
-import { MARKETPLACE_SUBCAT_LABELS, PARTNER_ONLY_ON_MARKETPLACE, POST_HIDDEN_ON_MARKETPLACE, TAXONOMY } from './taxonomy'
+import { POST_HIDDEN_ON_MARKETPLACE, TAXONOMY } from './taxonomy'
 import { isHubCity, vehicleHubPathFor } from './vehicle-hub-slugs'
 
 /**
@@ -72,19 +72,15 @@ describe('subcategoryCrumb', () => {
     expect(subcategoryCrumb(run, 'en', false)?.href).toBe('/?category=tickets-travel&subcategory=visa-runs')
   })
 
-  it('names the subcategory as the edition does (O-34: services/visa-legal is "Legal & permits" on eno.vn)', () => {
-    const legal = { categorySlug: 'services', subcategorySlug: 'visa-legal', city: null }
-    expect(subcategoryCrumb(legal, 'vi', true)).toMatchObject({ name: 'Legal & permits', nameVi: 'Giấy tờ & pháp lý' })
-    expect(subcategoryCrumb(legal, 'en', true)).toMatchObject({ name: 'Legal & permits', nameVi: 'Giấy tờ & pháp lý' })
-    expect(subcategoryCrumb(legal, 'vi', false)).toMatchObject({ name: 'Visa', nameVi: 'Visa' })
-  })
-
-  it('a partner-only slot keeps its crumb on eno.vn: O-34b decides who may POST there, not what browse shows', () => {
-    // UX2 0b67f870c closed services/visa-legal to ordinary sellers on eno.vn and left browse untouched — VietKite's
-    // listings stay there, named "Giấy tờ & pháp lý". The crumb is browse chrome, so it follows browse; gating it on
-    // isPostableSubcategory (which now asks who posts) dropped it (codex, gate 2026-10-05).
-    const legal = { categorySlug: 'services', subcategorySlug: 'visa-legal', city: null }
-    expect(subcategoryCrumb(legal, 'vi', true)?.href).toBe('/?category=services&subcategory=visa-legal')
+  it('names the e-Visa subcategory the same on both editions (owner, 2026-10-14 — the eno.vn relabel of O-34 retired)', () => {
+    const evisa = { categorySlug: 'services', subcategorySlug: 'visa-legal', city: null }
+    for (const marketplace of [true, false]) {
+      for (const lang of ['en', 'vi'] as const) {
+        expect(subcategoryCrumb(evisa, lang, marketplace)).toMatchObject({ name: 'e-Visa', nameVi: 'Visa điện tử', href: '/?category=services&subcategory=visa-legal' })
+      }
+    }
+    expect(subcategoryCrumb({ categorySlug: 'services', subcategorySlug: 'legal-permits', city: null }, 'vi', true))
+      .toMatchObject({ name: 'Legal & permits', nameVi: 'Giấy tờ & pháp lý' })
   })
 
   it('every subcategory, both editions: eno.forum crumbs them all; eno.vn withholds exactly POST_HIDDEN_ON_MARKETPLACE', () => {
@@ -103,27 +99,22 @@ describe('subcategoryCrumb', () => {
     expect(pairs).toBeGreaterThan(50)
   })
 
-  it('the licensed edition\'s crumbs never carry visa, itinerary or PayPal wording — checked on the words, not the list', () => {
+  it('the licensed edition\'s crumbs never carry itinerary or PayPal wording, and visa wording only on the e-Visa aisle', () => {
     // Independent of POST_HIDDEN_ON_MARKETPLACE (codex, gate: a test that mirrors the hide-list is circular): whatever
-    // the lists say, no crumb eno.vn renders may name a service it is not licensed to offer, in either language.
-    const BANNED = /visa|thị thực|itinerar|lịch trình|paypal/i
+    // the lists say, no crumb eno.vn renders may name a service it is not licensed to offer, in either language. The
+    // ONE exception is the e-Visa subcategory, which the owner opened on eno.vn on 2026-10-14 (third parties sell
+    // there, live after a licence check — eno itself still offers no visa service there).
+    const BANNED = /itinerar|lịch trình|paypal/i
+    const VISA = /visa|thị thực/i
     for (const c of TAXONOMY) {
       for (const sub of c.subcategories ?? []) {
         for (const lang of ['en', 'vi'] as const) {
           const crumb = subcategoryCrumb({ categorySlug: c.slug, subcategorySlug: sub.slug, city: null }, lang, true)
-          if (crumb) expect(`${crumb.name} ${crumb.nameVi}`, `${c.slug}/${sub.slug} ${lang}`).not.toMatch(BANNED)
+          if (!crumb) continue
+          const words = `${crumb.name} ${crumb.nameVi}`
+          expect(words, `${c.slug}/${sub.slug} ${lang}`).not.toMatch(BANNED)
+          if (!(c.slug === 'services' && sub.slug === 'visa-legal')) expect(words, `${c.slug}/${sub.slug} ${lang}`).not.toMatch(VISA)
         }
-      }
-    }
-  })
-
-  it('a partner-only slot that eno.vn crumbs always carries the edition\'s own name (no raw visa wording)', () => {
-    for (const key of PARTNER_ONLY_ON_MARKETPLACE.keys()) {
-      expect(MARKETPLACE_SUBCAT_LABELS[key], key).toBeDefined()
-      const [categorySlug, subcategorySlug] = key.split('/')
-      for (const lang of ['en', 'vi'] as const) {
-        expect(subcategoryCrumb({ categorySlug, subcategorySlug, city: null }, lang, true), `${key} ${lang}`)
-          .toMatchObject({ name: MARKETPLACE_SUBCAT_LABELS[key]!.name, nameVi: MARKETPLACE_SUBCAT_LABELS[key]!.nameVi })
       }
     }
   })

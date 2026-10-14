@@ -150,33 +150,13 @@ export function isRequiredFacet(f: FacetDef): boolean {
 /** Facets the POST WIZARD shows as chips. `derived` ones are computed from the account,
  *  so asking would be redundant at best and contradictory at worst (a seller could tick
  *  "Individual" on a registered business account). They stay in facetsFor() because
- *  browse still filters on them. */
-export function askableFacetsFor(
-  categorySlug: string,
-  subcategorySlug?: string | null,
-  opts: {
-    /** A NEW post (true) or an edit (false). Omitted = today's behaviour, every facet. */
-    newPost?: boolean
-    /** The poster's seller is an official partner (Seller.officialPartner — VietKite, GMBR). */
-    officialPartner?: boolean
-    /** On an EDIT: the attributes the listing already has — an e-visa chip it carries stays askable. */
-    existing?: Record<string, unknown> | null
-    /** Defaults to the build's edition; a parameter so the test can pin both. */
-    marketplace?: boolean
-  } = {},
-): FacetDef[] {
-  const facets = facetsFor(categorySlug, subcategorySlug).filter((f) => !f.derived)
-  if (opts.newPost === undefined) return facets
-  // O-34 (marketplace edition): an ordinary seller is not asked e-visa product chips — the licensed sàn
-  // does not invite visa products. An OFFICIAL PARTNER keeps them (the partner's visa desk, dm-flow,
-  // reads both from VietKite's listings), and an EDIT keeps any one the listing already carries. The
-  // server applies the same rule to what it stores (visaProductKeyAllowed, core/listings.ts).
-  const existing = opts.newPost ? null : opts.existing
-  return facets.filter((f) => visaProductKeyAllowed(f.key, { officialPartner: opts.officialPartner, existing, marketplace: opts.marketplace }))
+ *  browse still filters on them.
+ *  ⚠️ The e-visa product chips (entry type, speed) are asked of EVERY poster since 2026-10-14: the owner opened the
+ *  e-Visa subcategory to anyone on both editions ("Anyone posts, live after check"), which retired O-34's rule that only
+ *  an official partner was asked them on eno.vn. */
+export function askableFacetsFor(categorySlug: string, subcategorySlug?: string | null): FacetDef[] {
+  return facetsFor(categorySlug, subcategorySlug).filter((f) => !f.derived)
 }
-
-/** The two facets that describe an e-visa PRODUCT (services/visa-legal). See askableFacetsFor. */
-export const VISA_PRODUCT_FACET_KEYS: ReadonlySet<string> = new Set(['visaEntryType', 'visaSpeed'])
 
 /** A listing's attributes as a plain object — the JSON string a row stores, or the object a client
  *  sends; null when it is neither (absent, junk, an array). A fresh object for a string input. */
@@ -186,42 +166,6 @@ function attributeBag(attributes: unknown): Record<string, unknown> | null {
     try { bag = JSON.parse(bag) } catch { return null }
   }
   return bag && typeof bag === 'object' && !Array.isArray(bag) ? (bag as Record<string, unknown>) : null
-}
-
-/**
- * O-34 — MAY A LISTING CARRY THIS E-VISA PRODUCT ATTRIBUTE? The ONE rule behind the wizard's chips
- * (askableFacetsFor) and the server's writes (core/listings.ts createListingCore + updateListingCore),
- * so a direct API call cannot do what the form does not offer:
- *   · not an e-visa product key, or the services edition (eno.forum) → yes;
- *   · an official partner's listing (VietKite, GMBR) → yes — dm-flow reads both from VietKite's rows;
- *   · anyone else on eno.vn → only a key the listing ALREADY carries (an edit never strips one), never
- *     a new one. Both facets are `optional`, so dropping them can never fail a publish.
- */
-export function visaProductKeyAllowed(
-  key: string,
-  opts: { officialPartner?: boolean; existing?: unknown; marketplace?: boolean },
-): boolean {
-  if (!VISA_PRODUCT_FACET_KEYS.has(key)) return true
-  if (!(opts.marketplace ?? IS_MARKETPLACE) || opts.officialPartner) return true
-  const had = attributeBag(opts.existing)?.[key]
-  return typeof had === 'string' && had !== ''
-}
-
-/**
- * The attributes JSON (as sanitizeAttributes produced it) minus the e-visa product keys this listing
- * may not carry (visaProductKeyAllowed). The SAME string when nothing is dropped — callers compare by
- * identity to learn whether anything was — and null when nothing is left.
- */
-export function withoutDisallowedVisaAttrs(
-  json: string | null,
-  opts: { officialPartner?: boolean; existing?: unknown; marketplace?: boolean },
-): string | null {
-  const bag = attributeBag(json)
-  if (!bag) return json
-  const drop = [...VISA_PRODUCT_FACET_KEYS].filter((k) => k in bag && !visaProductKeyAllowed(k, opts))
-  if (!drop.length) return json
-  for (const k of drop) delete bag[k]
-  return Object.keys(bag).length ? JSON.stringify(bag) : null
 }
 
 // Newest selectable model year — current year + 1 (dealers list next-year models).
@@ -341,39 +285,24 @@ const COND = CONDITION_FACET
 export const VISA_CATEGORY_SLUG = 'services'
 export const VISA_SUBCATEGORY_SLUG = 'visa-legal'
 
-/** Is this category+subcategory the slot an e-visa PRODUCT is sold from? Says nothing
- *  about WHO posted it — services/visa-legal is a perfectly ordinary subcategory that
- *  also holds work-permit, tax and legal listings from ordinary sellers. */
+/** Is this category+subcategory the slot an e-visa PRODUCT is sold from — the e-Visa subcategory? Says nothing
+ *  about WHO posted it. Since 2026-10-14 the slot is e-visa only: work-permit, tax and legal services have their own
+ *  subcategory, `legal-permits` (Legal & permits). */
 export function isVisaProductSlot(categorySlug: string, subcategorySlug?: string | null): boolean {
   return categorySlug === VISA_CATEGORY_SLUG && subcategorySlug === VISA_SUBCATEGORY_SLUG
 }
 
 /**
- * O-34 (owner, 2026-09-30), done narrowly: on the MARKETPLACE edition `services/visa-legal` is NAMED
- * "Legal & permits" / "Giấy tờ & pháp lý" — the licensed sàn TMĐT does not advertise a visa service in
- * its own chrome. ⚠️ A NAME ONLY: the slug, browse, search (the `visa` keyword stays), VietKite's
- * listings and storefront are untouched — VietKite's visa results on eno.vn are INTENDED (owner
- * 2026-08-13). The TAXONOMY entry reads this when the build is the marketplace, so every display of
- * the name (post picker, browse chips, breadcrumbs, PDP, /api/categories) follows from one place.
- * `name` literals on purpose — scripts/gen-ui-strings.mjs harvests `name: '…'` from this file.
- * ⚠️ POSTING INTO IT IS AN OFFICIAL PARTNER'S ONLY since O-34b (2026-10-05, PARTNER_ONLY_ON_MARKETPLACE);
- * the name is unchanged.
- */
-export const MARKETPLACE_SUBCAT_LABELS: Readonly<Record<string, { name: string; nameVi: string }>> = {
-  [`${VISA_CATEGORY_SLUG}/${VISA_SUBCATEGORY_SLUG}`]: { name: 'Legal & permits', nameVi: 'Giấy tờ & pháp lý' },
-}
-
-/**
- * O-34, the same chrome rule for the CATEGORY descriptions: the marketplace edition says what these two
- * shelves hold without the visa wording their canonical descriptions carry ("Visa & legal, …", "…, and
- * visa runs"). eno.forum keeps the canonical text.
+ * The marketplace edition's own CATEGORY descriptions, where it has one. O-34 (2026-09-30) began this to keep visa
+ * wording out of eno.vn's chrome; the owner reversed that for the e-Visa subcategory on 2026-10-14 (both editions,
+ * anyone posts), so `services` reads the canonical text again. tickets-travel keeps its own: visa runs are still not
+ * offered for posting on eno.vn (POST_HIDDEN_ON_MARKETPLACE).
  * ⚠️ READ THROUGH categoryDescriptionFor(), NEVER BAKED INTO TAXONOMY. Unlike the subcategory names,
  * `description` is DATA: scripts/sync-categories.ts writes it into Category.description in the ONE
  * database both editions share, so an edition-dependent value there would flip with whichever env last
  * ran the sync. TAXONOMY keeps the canonical text; each edition applies its own at read time.
  */
 export const MARKETPLACE_CATEGORY_DESCRIPTIONS: Readonly<Record<string, string>> = {
-  services: 'Language lessons, legal & permits, cleaning, moving, repairs, beauty, fitness, photography, childcare & more.',
   'tickets-travel': 'Event tickets, tours & experiences, and transport.',
 }
 
@@ -1431,11 +1360,19 @@ export const TAXONOMY: CategoryDef[] = [
     nameVi: 'Dịch vụ',
     icon: 'Wrench',
     color: 'cyan',
-    description: 'Visa & legal, language lessons, cleaning, moving, repairs, beauty, fitness, photography, childcare & more.',
+    description: 'e-Visa, legal & permits, language lessons, cleaning, moving, repairs, beauty, fitness, photography, childcare & more.',
     types: ['service', 'wanted'],
     subcategories: [
-      // The marketplace edition names it "Legal & permits" (MARKETPLACE_SUBCAT_LABELS, O-34).
-      { slug: 'visa-legal', ...(IS_MARKETPLACE ? MARKETPLACE_SUBCAT_LABELS['services/visa-legal'] : { name: 'Visa', nameVi: 'Visa' }), icon: 'Stamp', keywords: ['visa', 'work permit', 'legal', 'tax', 'permit', 'giấy tờ', 'thuế', 'pháp lý'] },
+      // ⛔ THE e-VISA SUBCATEGORY, ONE NAME ON BOTH EDITIONS (owner, 2026-10-14: "also have an evisa dedicated subcategory",
+      // then "Anyone posts, live after check"). The slug stays `visa-legal` — URLs, saved searches and the forum desk's
+      // catalogue key on it. Anyone may post here; a listing from anyone but eno's own desk goes live only after eno's team
+      // has checked the provider's licence (licenceCheckHold). A keyword GUESS never files such a post here
+      // (core/listings.ts): only an explicit pick does. ⚠️ Visa keywords only — a bare
+      // 'visa' does not match inside "evisa", so the longer spellings are listed too.
+      { slug: 'visa-legal', name: 'e-Visa', nameVi: 'Visa điện tử', icon: 'Stamp', keywords: ['visa', 'e-visa', 'evisa', 'thị thực', 'visa điện tử', 'xin visa', 'làm visa', 'gia hạn visa', 'visa extension'] },
+      // Work permits, residence cards, tax and legal help — out of the visa slot since 2026-10-14. Right after e-Visa: a
+      // four-letter tie ('visa' against 'thuế') goes to the earlier subcategory.
+      { slug: 'legal-permits', name: 'Legal & permits', nameVi: 'Giấy tờ & pháp lý', icon: 'ClipboardList', keywords: ['work permit', 'legal', 'tax', 'permit', 'giấy tờ', 'thuế', 'pháp lý', 'thẻ tạm trú', 'giấy phép lao động'] },
       { slug: 'language-lessons', name: 'Languages', nameVi: 'Ngoại ngữ', icon: 'Languages', keywords: ['vietnamese lesson', 'english class', 'language', 'học tiếng việt', 'dạy tiếng', 'ngoại ngữ'] },
       { slug: 'coworking', name: 'Coworking', nameVi: 'Coworking', icon: 'LampDesk', keywords: ['coworking', 'co-working', 'hot desk', 'day pass', 'dedicated desk', 'shared office', 'workspace', 'không gian làm việc chung', 'văn phòng chia sẻ'] },
       { slug: 'airport-transfer', name: 'Airport', nameVi: 'Sân bay', icon: 'PlaneTakeoff', keywords: ['airport transfer', 'airport pickup', 'private transfer', 'driver', 'car with driver', 'đưa đón sân bay', 'tài xế', 'thuê xe có tài'] },
@@ -1466,7 +1403,7 @@ export const TAXONOMY: CategoryDef[] = [
       // in-person case is something the applicant and the desk settle in the chat thread —
       // a chip that always reads "Online" is a required field that carries no information.
       // eSIM is excluded for the same reason: an eSIM is delivered as a QR code, always "Online".
-      { key: 'serviceLocation', label: 'Location type', labelVi: 'Địa điểm', kind: 'toggle', excludeSubcats: ['visa-legal', 'esim'], options: [
+      { key: 'serviceLocation', label: 'Location type', labelVi: 'Địa điểm', kind: 'toggle', excludeSubcats: ['visa-legal', 'legal-permits', 'esim'], options: [
         { value: 'at-customer', label: 'At yours', labelVi: 'Tận nơi' },
         { value: 'at-provider', label: 'At theirs', labelVi: 'Tại cơ sở' },
         { value: 'online', label: 'Online', labelVi: 'Trực tuyến' },
@@ -1488,13 +1425,10 @@ export const TAXONOMY: CategoryDef[] = [
       // here encodes an amount. Scoped to `visa-legal` so cleaning/fitness/etc never
       // see them (same mechanism as motorbike `cc` vs car `litre`).
       //
-      // ⚠️ BOTH ARE `optional`. `visa-legal` is not a visa-products-only subcategory:
-      // its keywords are visa / work permit / legal / tax / permit / giấy tờ / thuế /
-      // pháp lý, and suggestSubcategory() drops a Services listing in here whenever one
-      // of them is the longest keyword it mentions. Without the flag, a Vietnamese
-      // agent posting "gia hạn work permit" could not publish until they picked an
-      // e-visa entry type — exactly the kind of gate the owner's launch-leniency
-      // policy forbids. The e-visa surfaces
+      // ⚠️ BOTH ARE `optional`. Since 2026-10-14 the slot is e-visa only (legal work has its own
+      // `legal-permits`) and open to every poster, but a visa EXTENSION or a provider who sells one
+      // service for every entry type still has no single answer to give — and the owner's
+      // launch-leniency policy forbids a gate that stops a publish for it. The e-visa surfaces
       // read these attributes defensively (parseVisaEntryType / parseVisaSpeedCode
       // answer null, never a guessed default), so an unset chip costs a product its
       // auto-fill, never a wrong government form.
@@ -1699,61 +1633,39 @@ export function subcategoriesFor(categorySlug: string): SubcatDef[] {
  * `category/subcategory`. Owner, 2026-09-30 (O-34, "do what's recommended"): a visa run is a
  * visa service, which the licensed sàn TMĐT does not offer, so eno.vn stops inviting new ones.
  * ⚠️ POSTING ONLY. The subcategory stays in TAXONOMY — browse, search, facets, storefronts and
- * every existing row are untouched, and eno.forum still offers it. services/visa-legal (VietKite's
- * own category) is NOT in this set: it stays open to OFFICIAL PARTNERS (PARTNER_ONLY_ON_MARKETPLACE
- * below, O-34b) and is renamed on this edition (MARKETPLACE_SUBCAT_LABELS) — and nobody's listings are
- * hidden.
+ * every existing row are untouched, and eno.forum still offers it. The e-Visa subcategory
+ * (services/visa-legal) is NOT in this set: the owner opened it to every poster on both editions on
+ * 2026-10-14, behind a licence check (licenceCheckHold) — which retired O-34b's partner-only posting.
+ * Visa runs were not part of that decision and stay hidden here.
  */
 export const POST_HIDDEN_ON_MARKETPLACE: ReadonlySet<string> = new Set(['tickets-travel/visa-runs'])
 
 /**
- * O-34b (owner, 2026-10-05: "apply best recommended") — SUBCATEGORIES ONLY AN OFFICIAL PARTNER MAY POST
- * INTO on the marketplace edition, keyed `category/subcategory`, each with where an ordinary seller's
- * listing goes instead. services/visa-legal is the VISA PRODUCT SLOT (isVisaProductSlot): VietKite's
- * e-visa listings live there and stay (its visa results on eno.vn are intended — owner 2026-08-13), but
- * the licensed sàn does not offer visa services itself, so an ordinary seller can no longer post one
- * there. The slot keeps its eno.vn name ("Legal & permits", MARKETPLACE_SUBCAT_LABELS) and the work-permit
- * and tax listings ordinary sellers posted before — they edit as usual, and may move out — while new
- * legal services go to Services › Other, the subcategory the refusal names (PARTNER_ONLY_REFUSAL).
- * ⚠️ POSTING ONLY, LIKE POST_HIDDEN_ON_MARKETPLACE: browse, search, facets, storefronts and every
- * existing row are untouched, and eno.forum offers the slot to everyone.
- * ⚠️ ONE RULE, THREE PLACES: the post picker (isPostableSubcategory / postableSubcategoriesFor, given the
- * poster's Seller.officialPartner), the create path (core/listings.ts createListingCore — refuses an
- * explicit pick, re-files a keyword guess to the fallback) and the edit path (updateListingCore — refuses
- * a MOVE into the slot). /api/categories (the native apps' cached, anonymous post schema) still lists it;
- * the server refusal is what a native post meets.
+ * ⛔ e-VISA LISTINGS GO LIVE AFTER A LICENCE CHECK (owner, 2026-10-14: "Anyone posts, live after check"). The /prohibited
+ * page's visa rules say only a licensed business may list a visa service, and must show eno its licence before the
+ * listing goes live. So ANY account may post into the e-Visa subcategory (services/visa-legal) on either edition, and
+ * a listing written there by anyone but eno's own desk is stored UNPUBLISHED (verified=false): the admin console's
+ * pending queue lists it and an admin's approval (moderate 'approve', or Activate) publishes it. Replaces O-34b
+ * (2026-10-05), under which an ordinary seller could not post there on eno.vn at all.
+ * ⚠️ AN OFFICIAL PARTNER WAITS TOO (gate review, 2026-10-14): Seller.officialPartner says eno signed the business, not that
+ * eno has seen a VISA licence (GMBR plans trips, Hoàng Phi is a law firm) — the owner's rule is "until eno's team has
+ * seen the provider's licence". VietKite's approvals are one tap; its existing listings are untouched (no move).
+ * ⚠️ ONE PREDICATE, TWO WRITE PATHS: createListingCore (a new listing in the slot) and updateListingCore (a MOVE into
+ * the slot). An approved listing stays live through later edits — the check is of the provider, not the wording.
  */
-export const PARTNER_ONLY_ON_MARKETPLACE: ReadonlyMap<string, string> = new Map([
-  [`${VISA_CATEGORY_SLUG}/${VISA_SUBCATEGORY_SLUG}`, 'service-other'],
-])
-
-/** Is this a subcategory only an official partner may post into, on this edition (PARTNER_ONLY_ON_MARKETPLACE)? */
-export function isPartnerOnlySubcategory(
-  categorySlug: string, subcategorySlug: string | null | undefined, marketplace: boolean = IS_MARKETPLACE,
+export function licenceCheckHold(
+  categorySlug: string, subcategorySlug: string | null | undefined, poster: { desk: boolean },
 ): boolean {
-  return !!subcategorySlug && marketplace && PARTNER_ONLY_ON_MARKETPLACE.has(`${categorySlug}/${subcategorySlug}`)
-}
-
-/** Where an ordinary seller's listing goes when a keyword guess lands in a partner-only subcategory —
- *  the subcategory PARTNER_ONLY_REFUSAL names; null for any other subcategory. */
-export function partnerOnlyFallback(categorySlug: string, subcategorySlug: string): string | null {
-  return PARTNER_ONLY_ON_MARKETPLACE.get(`${categorySlug}/${subcategorySlug}`) ?? null
+  return isVisaProductSlot(categorySlug, subcategorySlug) && !poster.desk
 }
 
 /**
- * The refusal an ordinary seller meets for the visa slot on eno.vn — it states the RULE (visa services come
- * from official partners only) and does not claim a content block: a slot rule cannot see a visa offer typed
- * into Services › Other, which the /prohibited list and reports handle (gate, 2026-10-05: the first wording,
- * "cannot be posted on eno.vn", promised more than the code enforces). The server's JSON `message` beside
- * the code `subcategory_partner_only` (POST + PATCH /api/listings) and, in English, /api/v1's. The post
- * wizard types the same two sentences inline for the i18n harvest (taxonomy.post-picker.test.ts holds them
- * equal). Marketplace-only by construction: no eno.forum path emits that code. "cannot", not "can't": the
- * harvester reads single-quoted strings only.
+ * WHERE A POST GOES WHEN NEITHER THE POSTER NOR A KEYWORD PICKED A SUBCATEGORY, for the categories that have a
+ * catch-all. Services used to take its FIRST subcategory, which is the e-Visa slot — so "Dog walking, 2 hours" with no
+ * pick filed as e-Visa (eno.forum did that already; with the slot open, eno.vn would have too). Every other category
+ * keeps its first subcategory, as before.
  */
-export const PARTNER_ONLY_REFUSAL = {
-  en: 'On eno.vn, visa services are listed by official partners only. Post other legal services (work permits, tax…) in Services › Other.',
-  vi: 'Trên eno.vn, dịch vụ visa chỉ do đối tác chính thức đăng. Các dịch vụ pháp lý khác (giấy phép lao động, thuế…) hãy đăng trong Dịch vụ › Khác.',
-} as const
+export const SUBCATEGORY_FALLBACK: Readonly<Record<string, string>> = { services: 'service-other' }
 
 /**
  * ⛔ A TEACHER LOOKING FOR WORK IS A TEACHER PROFILE, NEVER A JOBS POST (owner, 2026-10-12: "someone created a job post
@@ -1790,38 +1702,25 @@ export const TEACHER_PROFILE_REFUSAL = {
   vi: 'Giáo viên tìm việc: hãy tạo hồ sơ giáo viên. Các trường tìm hồ sơ giáo viên và nhắn tin trực tiếp cho bạn. Bạn đang tuyển giáo viên? Hãy chọn Tuyển dụng. Không tìm việc dạy học? Hãy chọn danh mục con khác.',
 } as const
 
-/** Is this subcategory offered in the post picker on this edition, to this poster? `marketplace` is a
- *  parameter (defaulting to the build's edition) so the test can pin both editions in one process.
- *  `poster.officialPartner` opens the partner-only subcategories (O-34b); left out it is false — the safe
- *  default, so a caller that does not know who is posting offers them to nobody. */
+/** Is this subcategory offered in the post picker on this edition? `marketplace` is a parameter (defaulting to the
+ *  build's edition) so the test can pin both editions in one process. */
 export function isPostableSubcategory(
   categorySlug: string, subcategorySlug: string | null | undefined, marketplace: boolean = IS_MARKETPLACE,
-  poster: { officialPartner?: boolean } = {},
 ): boolean {
   if (!subcategorySlug) return true
-  if (marketplace && POST_HIDDEN_ON_MARKETPLACE.has(`${categorySlug}/${subcategorySlug}`)) return false
-  return poster.officialPartner === true || !isPartnerOnlySubcategory(categorySlug, subcategorySlug, marketplace)
+  return !(marketplace && POST_HIDDEN_ON_MARKETPLACE.has(`${categorySlug}/${subcategorySlug}`))
 }
 
 /**
  * The post wizard's subcategory chips: `subcategoriesFor` minus what this edition does not offer
- * for NEW posts — and, for a poster who is not an official partner, minus the partner-only ones
- * (O-34b). `keep` is the subcategory already on the form — an edited listing, a restored
+ * for NEW posts. `keep` is the subcategory already on the form — an edited listing, a restored
  * draft — and stays listed even when hidden, so the chip row never loses the value it is showing
- * and a seller editing an old visa-run (or visa-slot) listing is not silently moved out of it.
+ * and a seller editing an old visa-run listing is not silently moved out of it.
  */
 export function postableSubcategoriesFor(
   categorySlug: string, keep?: string | null, marketplace: boolean = IS_MARKETPLACE,
-  poster: { officialPartner?: boolean } = {},
 ): SubcatDef[] {
-  return subcategoriesFor(categorySlug)
-    .filter((s) => s.slug === keep || isPostableSubcategory(categorySlug, s.slug, marketplace, poster))
-    // The edition's display name (MARKETPLACE_SUBCAT_LABELS). TAXONOMY already carries it on a
-    // marketplace build; applying it here too is what lets the test pin the marketplace picker.
-    .map((s) => {
-      const relabel = marketplace ? MARKETPLACE_SUBCAT_LABELS[`${categorySlug}/${s.slug}`] : undefined
-      return relabel ? { ...s, ...relabel } : s
-    })
+  return subcategoriesFor(categorySlug).filter((s) => s.slug === keep || isPostableSubcategory(categorySlug, s.slug, marketplace))
 }
 
 // Facets for a category, narrowed to a subcategory when given. A facet with

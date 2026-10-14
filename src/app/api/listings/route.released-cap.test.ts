@@ -28,8 +28,8 @@ vi.mock('@/lib/core/listings', () => ({
 vi.mock('@/lib/publish-funnel', () => ({ publishOutcome: () => 'x', recordPublishOutcome: async () => {} }))
 vi.mock('./feed-query', () => ({}))
 vi.mock('@/lib/taxonomy', async (importOriginal) => {
-  const { PARTNER_ONLY_REFUSAL } = await importOriginal<typeof import('@/lib/taxonomy')>()
-  return { migrateLegacyCategoryParams: (p: URLSearchParams) => p, paysSalary: () => false, resolveListingType: () => 'sell', PARTNER_ONLY_REFUSAL }
+  const { TEACHER_PROFILE_REFUSAL } = await importOriginal<typeof import('@/lib/taxonomy')>()
+  return { migrateLegacyCategoryParams: (p: URLSearchParams) => p, paysSalary: () => false, resolveListingType: () => 'sell', TEACHER_PROFILE_REFUSAL }
 })
 vi.mock('@/lib/feed-diversity', () => ({}))
 vi.mock('@/lib/feed-window', () => ({}))
@@ -74,15 +74,15 @@ describe('POST /api/listings', () => {
     expect((await post()).status).toBe(400)
   })
 
-  // O-34b (owner, 2026-10-05): a non-partner's pick of the visa slot on eno.vn — fixable in the form, so a 400,
-  // with the bilingual sentence for the native apps (whose cached post schema still lists the slot).
-  it('subcategory_partner_only → 400 with the code and the bilingual sentence', async () => {
-    h.createError = new PublishBlockedError('subcategory_partner_only')
-    const { PARTNER_ONLY_REFUSAL } = await import('@/lib/taxonomy')
+  // A teacher's job-seeker post (2026-10-12) — fixable in the form, so a 400, with the bilingual sentence for the native
+  // apps, whose cached post schema offers the pair. (O-34b's `subcategory_partner_only`, the other such code, was
+  // retired 2026-10-14 when the owner opened the e-Visa subcategory behind a licence check.)
+  it('teacher_profile_instead → 400 with the code and the bilingual sentence', async () => {
+    h.createError = new PublishBlockedError('teacher_profile_instead')
+    const { TEACHER_PROFILE_REFUSAL } = await import('@/lib/taxonomy')
     const r = await post()
     expect(r.status).toBe(400)
-    expect(r.body).toMatchObject({ error: 'subcategory_partner_only', message: PARTNER_ONLY_REFUSAL })
-    expect(r.body.message.vi).toContain('Dịch vụ › Khác')
+    expect(r.body).toMatchObject({ error: 'teacher_profile_instead', message: TEACHER_PROFILE_REFUSAL })
   })
 
   it('every other content refusal carries no message', async () => {

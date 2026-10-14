@@ -119,11 +119,10 @@ describe('createListingCore — stamps ₫, and can stamp nothing else', () => {
   const create = bodyOf('createListingCore')
 
   it('stamps the rent unit from the SANITIZED rentalPeriod, read before the stamp', () => {
-    const sanitize = create.indexOf('sanitizeAttributes(body.attributes)')
-    const clean = create.indexOf('const cleanAttributes =')
+    // Since 2026-10-14 nothing sits between the two (the O-34 e-visa chip strip was retired with O-34b).
+    const clean = create.indexOf('const cleanAttributes = sanitizeAttributes(body.attributes)')
     const stamp = create.indexOf('const money = listingMoneyFor(')
-    expect(sanitize).toBeGreaterThan(-1)
-    expect(clean).toBeGreaterThan(sanitize)
+    expect(clean).toBeGreaterThan(-1)
     expect(stamp).toBeGreaterThan(clean)
     expect(create.slice(stamp, create.indexOf('\n', stamp))).toContain('rentalPeriod: rentalPeriodOf(cleanAttributes)')
   })

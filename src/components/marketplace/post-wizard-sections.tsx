@@ -1,6 +1,7 @@
 'use client'
 
 import { fillTemplate } from '@/lib/i18n/placeholders'
+import { COMPANY } from '@/lib/site-legal'
 // Step sections of the PostWizard with FLAT prop seams (photos/media, price,
 // location, contact) + the success screen, moved out of post-wizard.tsx verbatim.
 // Hoisted to module scope so React keeps stable component identity across the
@@ -862,11 +863,15 @@ export function PostSuccess({
   price,
   job = false,
   takesOffers = true,
+  held = false,
   onPostAnother,
   t,
 }: {
   firstListing: boolean
   createdId: string | null
+  /** Stored UNPUBLISHED, waiting for eno's licence check (an e-Visa listing — taxonomy.ts licenceCheckHold): the screen
+   *  says what happens next instead of "Your listing is live!", and offers nothing that needs a public page (Share). */
+  held?: boolean
   title: string
   price: string
   /** A job post: candidates, not buyers, will message the poster. */
@@ -881,6 +886,22 @@ export function PostSuccess({
   return (
     <div className="bubble-in flex flex-col items-center gap-4 py-16 text-center">
       <Mascot name="success" className="h-52 w-52 animate-in fade-in zoom-in-90 duration-500 ease-bounce" />
+      {held ? (
+        <>
+          <h1 className="h-title text-foreground">{t('Đã gửi để kiểm tra giấy phép', 'Sent for a licence check')}</h1>
+          <p className="max-w-md text-sm text-body">
+            {fillTemplate(
+              t('Tin e-Visa được hiển thị sau khi đội ngũ eno kiểm tra giấy phép của nhà cung cấp. Hãy gửi bản sao giấy phép và đăng ký kinh doanh tới {email}: tin sẽ hiển thị ngay khi được kiểm tra.', 'e-Visa listings go live after eno’s team has checked the provider’s licence. Send a copy of your licence and business registration to {email}: your listing goes live as soon as it is checked.'),
+              'e-Visa listings go live after eno’s team has checked the provider’s licence. Send a copy of your licence and business registration to {email}: your listing goes live as soon as it is checked.',
+              { email: COMPANY.email },
+            )}
+          </p>
+          <Button asChild variant="cta" size="none">
+            <Link href="/dashboard" className="px-6 py-2.5">{t('Tới bảng điều khiển', 'Go to dashboard')}</Link>
+          </Button>
+        </>
+      ) : (
+      <>
       <h1 className="h-title text-foreground">
         {firstListing ? t('Tin đầu tiên của bạn đã lên sóng! 🎉', 'Your first listing is live! 🎉') : job ? t('Tin tuyển dụng của bạn đã được đăng!', 'Your job post is live!') : t('Tin của bạn đã được đăng!', 'Your listing is live!')}
       </h1>
@@ -917,6 +938,8 @@ export function PostSuccess({
       <Link href="/dashboard" className="text-sm font-semibold text-accent-foreground hover:underline">
         {t('Tới bảng điều khiển', 'Go to dashboard')}
       </Link>
+      </>
+      )}
     </div>
   )
 }

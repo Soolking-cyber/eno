@@ -53,12 +53,10 @@ export function minPhotosFor(categorySlug: string | null | undefined): number {
 // ⚠️ `identity_unverified` / `identity_expired` are LEGAL blocks, not quality blocks, and they are
 // listed first because they are checked first (see assertPublishable). Verification is required to
 // publish under NĐ 248/2026 — see docs/compliance-2026.md §1 and src/lib/compliance/account-state.ts.
-export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'identity_sign_in_required' | 'account_restricted' | 'released_charge_listing_cap' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required' | 'category_not_postable' | 'subcategory_partner_only' | 'teacher_profile_instead'
+export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'identity_sign_in_required' | 'account_restricted' | 'released_charge_listing_cap' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required' | 'category_not_postable' | 'teacher_profile_instead'
 
-// ⚠️ `subcategory_partner_only` (O-34b, owner 2026-10-05) — on eno.vn the visa slot (services/visa-legal) takes
-// an OFFICIAL PARTNER's listings only (taxonomy.ts PARTNER_ONLY_ON_MARKETPLACE). Thrown by createListingCore
-// for an explicit pick of it, and returned by updateListingCore for a MOVE into it; the routes answer 400 with
-// the bilingual PARTNER_ONLY_REFUSAL as `message`. Fixable in the form (pick Services › Other), so not 403.
+// (`subcategory_partner_only` — O-34b's refusal of the visa slot to non-partners on eno.vn — was retired 2026-10-14: the
+// owner opened the e-Visa subcategory to every poster behind a licence check, taxonomy.ts licenceCheckHold.)
 // ⚠️ `teacher_profile_instead` (owner 2026-10-12) — Jobs › Teaching "looking for work" is a teacher profile, never a post
 // (taxonomy.ts TEACHER_SEEKING_POST). Thrown by createListingCore, returned by updateListingCore for a MOVE into the pair;
 // the routes answer 400 with the bilingual TEACHER_PROFILE_REFUSAL as `message`. Fixable (the teacher form, or another

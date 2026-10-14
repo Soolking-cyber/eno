@@ -12,8 +12,9 @@
  * ⚠️ PLACES ARE FROM THE 2025 WARD DATASET ONLY. Bình Thạnh exists there; the pre-merger districts
  * and wards (Quận 1, Thảo Điền) do not, and an example the area picker cannot find reads as a bug.
  *
- * ⛔ NO VISA WORDING, in any entry. services/visa-legal is an ordinary subcategory of Services, and
- * eno.vn may not describe visa services at all (the edition boundary in CLAUDE.md).
+ * ⛔ NO VISA WORDING, in any entry: these are generic posting examples for every category. (The e-Visa subcategory is
+ * open on both editions since 2026-10-14 — the owner's decision — but an example here would invite visa posts from
+ * everyone, and those wait for a licence check.)
  */
 
 export type PostCopy = {
