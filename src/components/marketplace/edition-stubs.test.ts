@@ -261,16 +261,16 @@ describe('the stubs stay inert', () => {
     )
   })
 
-  it('the prohibited stub carries no visa listing rules', () => {
-    // /prohibited is served on BOTH editions — the licensed marketplace publishes the same
-    // banned-goods policy — so this stub is what keeps eno.vn's copy of it from carrying rules
-    // about a service it may not offer. `guaranteed` and `licence` are in the pattern because the
-    // three rules the real module exists for are recognisable from those words alone, even with
-    // the word "visa" removed by a well-meaning edit.
+  it('the prohibited stub carries no visa listing rules and no link to eno.vn', () => {
+    // /prohibited is served on BOTH editions. Since 2026-10-14 eno.vn publishes the e-Visa listing rules itself
+    // (the owner's exception — the page's own VISA_RULES), so the aliased module holds only eno.forum's note about
+    // eno.vn, which on eno.vn would be the page linking to itself. The stub must carry neither that note (its URL,
+    // "classifieds") nor anything that once lived in the module (`guaranteed` and `licence` recognise the old rules
+    // even with the word "visa" removed by a well-meaning edit).
     const p = 'src/lib/prohibited-services-copy.stub.ts'
     const body = read(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
-    expect(body, `${p} leaks visa listing-rule vocabulary outside its comments`).not.toMatch(
-      /VietKite|visa|thị thực|hộ chiếu|immigration|lữ hành|guaranteed|licen[cs]e|government fee/i,
+    expect(body, `${p} leaks visa listing-rule vocabulary or the eno.vn note outside its comments`).not.toMatch(
+      /VietKite|visa|thị thực|hộ chiếu|immigration|lữ hành|guaranteed|licen[cs]e|government fee|https?:\/\/|classifieds|rao vặt/i,
     )
   })
 

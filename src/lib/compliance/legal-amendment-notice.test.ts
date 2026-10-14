@@ -1,8 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { AMENDED, LEGAL_AMENDMENT } from './legal-amendment'
-import { AMENDMENT_NOTICE, AMENDMENT_NOTICE_ID_PREFIX, AMENDMENT_NOTICE_URL, noticeIdPrefix, noticeSendable, retractable } from './legal-amendment-notice'
+import { AMENDED, LEGAL_AMENDMENT, PROHIBITED_AMENDED, PROHIBITED_AMENDMENT } from './legal-amendment'
+import {
+  AMENDMENT_NOTICE, AMENDMENT_NOTICE_ID_PREFIX, AMENDMENT_NOTICE_URL, PROHIBITED_NOTICE, PROHIBITED_NOTICE_ID_PREFIX, PROHIBITED_NOTICE_PATH,
+  PROHIBITED_NOTICE_URL, noticeIdPrefix, noticeSendable, retractable,
+} from './legal-amendment-notice'
 
 /**
  * The notice to registered users (Quy chế Article 15) — the bell copy scripts/notify-legal-amendment.ts
@@ -138,7 +141,7 @@ describe('the amendment notice to registered users', () => {
   it('refuses to send for an immediate amendment, dry run included, before touching the database', () => {
     const script = readFileSync(join(ROOT, 'scripts/notify-legal-amendment.ts'), 'utf8')
     const main = script.slice(script.indexOf('async function main()'))
-    const refuse = main.indexOf('if (LEGAL_AMENDMENT.immediate) {')
+    const refuse = main.indexOf('if (a.record.immediate) {')
     expect(refuse).toBeGreaterThan(0)
     expect(main.slice(refuse, main.indexOf('}', refuse))).toContain('throw new Error(`refusing:')
     expect(refuse).toBeLessThan(main.indexOf('new pg.Client'))
@@ -159,5 +162,59 @@ describe('the amendment notice to registered users', () => {
     // …asked about the batch it would delete (--published), not only about the current amendment.
     expect(retract).toContain('const allowed = retractable(LEGAL_AMENDMENT, published)')
     expect(retract.indexOf('if (!apply) {')).toBeLessThan(retract.indexOf('DELETE FROM'))
+  })
+
+  // ⛔ Owner, 2026-10-14: the e-Visa rules join eno.vn's /prohibited — "dated amendment, 5-day notice". Its own
+  // record, with a window, so its notice is really sent (scripts/notify-legal-amendment.ts --record=prohibited).
+  describe('the /prohibited amendment (PROHIBITED_AMENDMENT)', () => {
+    it('says exactly what the strip says on eno.vn, and links the e-Visa section the amendment adds', () => {
+      const strip = readFileSync(join(ROOT, 'src/components/marketplace/tos-change-notice.tsx'), 'utf8')
+      const [en, vi] = [...strip.matchAll(/^\s*'((?:The list of prohibited|Danh mục hàng hóa)[^']+)',$/gm)].map((m) => m[1])
+      expect(en).toBeTruthy()
+      expect(vi).toBeTruthy()
+      expect(PROHIBITED_NOTICE.en.body).toBe(en.replace('{date}', PROHIBITED_AMENDED.inForceEn))
+      expect(PROHIBITED_NOTICE.vi.body).toBe(vi.replace('{date}', PROHIBITED_AMENDED.inForceVi))
+      expect(PROHIBITED_NOTICE_PATH).toBe('/prohibited#visa-services')
+      expect(strip).toContain('href={PROHIBITED_NOTICE_PATH}')
+    })
+
+    // codex, plan review: one row per account is read on BOTH editions, and eno.forum's list has carried these rules
+    // since August — so the notice names eno.vn and links there, true wherever it is read.
+    it('names eno.vn — the list it amends — and points there, absolute and apex; it names no service', () => {
+      expect(PROHIBITED_NOTICE_URL).toBe('https://eno.vn/prohibited#visa-services')
+      for (const l of ['en', 'vi'] as const) {
+        expect(PROHIBITED_NOTICE[l].title).toContain('eno.vn')
+        expect(PROHIBITED_NOTICE[l].body).toContain('eno.vn')
+      }
+      const all = JSON.stringify(PROHIBITED_NOTICE)
+      expect(all).not.toMatch(/eno\.forum|www\.|visa|thị thực|itinerar|PayPal/i)
+      // It names the list alone — not the Terms, the Quy chế or the privacy policy.
+      expect(all).not.toMatch(/Terms|Điều khoản|Quy chế|Operating Regulations|Privacy|dữ liệu/)
+    })
+
+    it('has its own id scheme, disjoint from the Terms notices', () => {
+      expect(PROHIBITED_NOTICE_ID_PREFIX).toBe(`prohibited-amendment-${PROHIBITED_AMENDMENT.published}-`)
+      expect(PROHIBITED_NOTICE_ID_PREFIX.startsWith(AMENDMENT_NOTICE_ID_PREFIX)).toBe(false)
+      expect(AMENDMENT_NOTICE_ID_PREFIX.startsWith(PROHIBITED_NOTICE_ID_PREFIX)).toBe(false)
+    })
+
+    it('may be sent only inside its window, in Vietnam time — and never retracted', () => {
+      const published = Date.parse(`${PROHIBITED_AMENDMENT.published}T00:00:00+07:00`)
+      const effective = Date.parse(`${PROHIBITED_AMENDMENT.inForce}T00:00:00+07:00`)
+      expect(noticeSendable(new Date(published - 1), PROHIBITED_AMENDMENT).ok).toBe(false)
+      expect(noticeSendable(new Date(published), PROHIBITED_AMENDMENT).ok).toBe(true)
+      expect(noticeSendable(new Date(effective - 1), PROHIBITED_AMENDMENT).ok).toBe(true)
+      expect(noticeSendable(new Date(effective), PROHIBITED_AMENDMENT).ok).toBe(false)
+      expect(retractable(PROHIBITED_AMENDMENT).ok).toBe(false)
+    })
+
+    it('the script sends it with --record=prohibited, and --retract refuses it', () => {
+      const script = readFileSync(join(ROOT, 'scripts/notify-legal-amendment.ts'), 'utf8')
+      expect(script).toContain("const key = arg('record') ?? 'terms'")
+      expect(script).toContain('record: PROHIBITED_AMENDMENT, notice: PROHIBITED_NOTICE, url: PROHIBITED_NOTICE_URL, prefix: PROHIBITED_NOTICE_ID_PREFIX,')
+      const retract = script.slice(script.indexOf('async function retract('), script.indexOf('async function main()'))
+      expect(retract.indexOf("if ((arg('record') ?? 'terms') !== 'terms') throw")).toBeGreaterThan(-1)
+      expect(retract.indexOf("if ((arg('record') ?? 'terms') !== 'terms') throw")).toBeLessThan(retract.indexOf('new pg.Client'))
+    })
   })
 })

@@ -732,16 +732,13 @@ const nextConfig: NextConfig = {
             // catalogue. Two modules rather than one shared "legal copy" module on purpose — each
             // page's copy is aliasable, testable and editable without touching the other's.
             "@/lib/terms-services-copy": "./src/lib/terms-services-copy.stub.ts",
-            // The services-only addendum to /prohibited — the visa & immigration listing rules
-            // (only a licensed business may list them, no guaranteed-approval claims, the
-            // government fee shown separately from the service fee) plus the related-site note.
-            // Same shared-page problem as the two directly above, with one addition worth stating
-            // because it is the reason this page needed a module at all rather than an inline
-            // `IS_SERVICES &&` block: the four prohibited-goods groups are rendered from ARRAY
-            // DATA via `<Tr text={variable}>`, which gen-ui-strings.mjs does not harvest — so an
-            // author adding visa rules to that page naturally reaches for the same array, and the
-            // strings land in eno.vn's SERVER chunks instead of its client ones. Less visible,
-            // same standard: not in the artifact.
+            // eno.forum's related-site note on /prohibited — its sentence about eno.vn and the
+            // absolute eno.vn URL, which on eno.vn would be the page linking to itself. (Until
+            // 2026-10-14 this module also held the visa & immigration listing rules as a
+            // services-only addendum; since the owner opened the e-Visa subcategory to every
+            // seller on both sites, eno.vn's /prohibited publishes those rules itself, from the
+            // page's own array data.) Same shared-page problem as the two directly above: the
+            // page compiles on eno.vn, so only this alias keeps the note out of its artifact.
             "@/lib/prohibited-services-copy": "./src/lib/prohibited-services-copy.stub.ts",
 
             /**

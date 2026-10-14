@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { LEGAL_AMENDMENT, REGULATIONS_AMENDMENT } from '@/lib/compliance/legal-amendment'
+import { LEGAL_AMENDMENT, PROHIBITED_AMENDMENT, REGULATIONS_AMENDMENT } from '@/lib/compliance/legal-amendment'
 import { PRIVACY_TEXT_PUBLISHED } from '@/lib/compliance/privacy-updated'
 
 /**
@@ -14,10 +14,11 @@ import { PRIVACY_TEXT_PUBLISHED } from '@/lib/compliance/privacy-updated'
  * Each case runs the real script against a throwaway git repository whose "deployed commit" carries
  * whatever dates the case needs, with the clock replaced by ENO_GATE_TODAY.
  *
- * ⚠️ TWO RECORDS SINCE 2026-10-05 (legal-amendment.ts): LEGAL_AMENDMENT and REGULATIONS_AMENDMENT, each held
- * to the same rules. The cases written for one amendment set BOTH records to the same dates (withDates'
- * default), so each of them proves the rule for both records at once; the REGULATIONS_AMENDMENT block
- * further down moves the Quy chế's record on its own.
+ * ⚠️ THREE RECORDS SINCE 2026-10-14 (legal-amendment.ts): LEGAL_AMENDMENT, REGULATIONS_AMENDMENT and
+ * PROHIBITED_AMENDMENT, each held to the same rules. The cases written for one amendment set ALL records to the
+ * same dates (withDates' defaults), so each of them proves the rule for every record at once; the
+ * REGULATIONS_AMENDMENT block further down moves the Quy chế's record (and /prohibited's with it) on its own, and the
+ * PROHIBITED_AMENDMENT block moves /prohibited's alone.
  */
 const ROOT = join(__dirname, '..', '..')
 const GATE = join(ROOT, 'infra/vn-node/legal-amendment-gate.sh')
@@ -25,7 +26,7 @@ const F = 'src/lib/compliance/legal-amendment.ts'
 const SOURCE = readFileSync(join(ROOT, F), 'utf8')
 
 type Dates = [published: string, inForce: string, immediate?: boolean]
-const RECORDS = ['LEGAL_AMENDMENT', 'REGULATIONS_AMENDMENT'] as const
+const RECORDS = ['LEGAL_AMENDMENT', 'REGULATIONS_AMENDMENT', 'PROHIBITED_AMENDMENT'] as const
 type Rec = (typeof RECORDS)[number]
 
 /** The `immediate: true` field line — the only form the gate reads as the flag. */
@@ -52,11 +53,15 @@ function setRecord(src: string, name: Rec, [published, inForce, immediate = fals
 }
 
 /**
- * The real module's source with LEGAL_AMENDMENT set to `legal` and REGULATIONS_AMENDMENT to `regs` — by
- * default THE SAME, so the two records move together and a case reads as one amendment. It edits the real
- * text in place: the gate must parse the file as it is written.
+ * The real module's source with LEGAL_AMENDMENT set to `legal`, REGULATIONS_AMENDMENT to `regs` and
+ * PROHIBITED_AMENDMENT to `prohibited` — by default THE SAME, so the records move together and a case reads as one
+ * amendment. ⚠️ `prohibited` defaults to `regs`, not `legal`: a case that moves the Quy chế's record alone (the
+ * 1cf99b2 deployed shape, the Quy chế block) then moves /prohibited's with it, so every case written before the
+ * third record existed reads exactly as it did. It edits the real text in place: the gate must parse the file as
+ * it is written.
  */
-const withDates = (legal: Dates, regs: Dates = legal) => setRecord(setRecord(SOURCE, 'LEGAL_AMENDMENT', legal), 'REGULATIONS_AMENDMENT', regs)
+const withDates = (legal: Dates, regs: Dates = legal, prohibited: Dates = regs) =>
+  setRecord(setRecord(setRecord(SOURCE, 'LEGAL_AMENDMENT', legal), 'REGULATIONS_AMENDMENT', regs), 'PROHIBITED_AMENDMENT', prohibited)
 
 /** The source without one record's object — a deployed commit from before that record existed. */
 function without(src: string, name: Rec): string {
@@ -524,6 +529,48 @@ describe('legal-amendment-gate.sh', () => {
       const none = gate(privacyBox(null, null), '2026-10-09')
       expect(none.status).toBe(0)
       expect(none.out).toContain('has no date of its own to hold')
+    })
+  })
+
+  // ⛔ /prohibited's OWN RECORD (owner, 2026-10-14: the e-Visa rules on eno.vn, "dated amendment, 5-day notice").
+  // Windowed, so its publishing deploy needs no ack on its own day; the box's deployed commit has no such object yet.
+  describe('the /prohibited record (PROHIBITED_AMENDMENT), moved on its own', () => {
+    const PRE = without(SOURCE, 'PROHIBITED_AMENDMENT') // the box today: the record does not exist yet
+    const D = PROHIBITED_AMENDMENT.published
+    const shift = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
+
+    it('publishes on its own day with no ack, the Terms and Quy chế records staying routine', () => {
+      const r = gate(boxSrc(SOURCE, PRE), D)
+      expect(r.status, r.out).toBe(0)
+      expect(r.out).toContain(`publishes the /prohibited amendment (PROHIBITED_AMENDMENT) today (${D}); in force ${PROHIBITED_AMENDMENT.inForce}`)
+      expect(r.out).toContain(`legal amendment published ${LEGAL_AMENDMENT.published} (in force ${LEGAL_AMENDMENT.inForce}, immediate) is already live`)
+      expect(r.out).toContain(`Quy chế amendment (REGULATIONS_AMENDMENT) published ${REGULATIONS_AMENDMENT.published} (in force ${REGULATIONS_AMENDMENT.inForce}, immediate) is already live`)
+    })
+
+    it('refuses the day after — even with an immediate ack — and says to re-date it', () => {
+      const late = gate(boxSrc(SOURCE, PRE), shift(D, 1), { LEGAL_AMENDMENT_IMMEDIATE: D })
+      expect(late.status).toBe(1)
+      expect(late.out).toContain('/prohibited and /regulations would print a false publication date')
+      expect(late.out).toContain(`set published: '${shift(D, 1)}' and inForce: at least '+6 days' in ${F} (PROHIBITED_AMENDMENT)`)
+    })
+
+    it('refuses the day before: a publication date that has not happened yet', () => {
+      expect(gate(boxSrc(SOURCE, PRE), shift(D, -1)).out).toContain('has not happened yet')
+    })
+
+    it('passes every later deploy once deployed, with no ack', () => {
+      const live = boxSrc(SOURCE, SOURCE)
+      for (const day of [D, shift(D, 1), PROHIBITED_AMENDMENT.inForce, '2027-03-01']) {
+        const r = gate(live, day)
+        expect(r.status, day).toBe(0)
+        expect(r.out, day).toContain(`/prohibited amendment (PROHIBITED_AMENDMENT) published ${D} (in force ${PROHIBITED_AMENDMENT.inForce}) is already live`)
+      }
+    })
+
+    it('holds it to the default 6 days', () => {
+      const short = gate(boxSrc(setRecord(SOURCE, 'PROHIBITED_AMENDMENT', [D, shift(D, 5)]), PRE), D)
+      expect(short.status).toBe(1)
+      expect(short.out).toContain(`${F} (PROHIBITED_AMENDMENT): in force ${shift(D, 5)} is only 5 day(s) after publication ${D}`)
     })
   })
 

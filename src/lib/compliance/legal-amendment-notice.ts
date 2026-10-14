@@ -21,8 +21,12 @@
 // ⛔ THE TERMS' VERSION 3 IS IMMEDIATE (owner, 2026-10-07: published and in force 07/10/2026, no window), so
 // noticeSendable() refuses at every instant and no row is ever written for it. The copy below still names the
 // Terms and /terms#changes, ready for the next amendment that has a window.
+//
+// ⚠️ /prohibited's OWN AMENDMENT HAS A WINDOW (PROHIBITED_AMENDMENT — owner, 2026-10-14: the e-Visa rules on eno.vn,
+// "dated amendment, 5-day notice"). Its notice is the PROHIBITED_NOTICE* below, sent with
+// `scripts/notify-legal-amendment.ts --record=prohibited` on its publication day, after the deploy that publishes it.
 
-import { AMENDED, LEGAL_AMENDMENT, MIN_NOTICE_DAYS, daysBetween, type LegalAmendment } from './legal-amendment'
+import { AMENDED, LEGAL_AMENDMENT, MIN_NOTICE_DAYS, PROHIBITED_AMENDED, PROHIBITED_AMENDMENT, daysBetween, type LegalAmendment } from './legal-amendment'
 
 /**
  * Where the notice points: the change log of the text the amendment changed, which lists every edit — the
@@ -56,6 +60,37 @@ export const AMENDMENT_NOTICE = {
  */
 export const noticeIdPrefix = (published: string) => `legal-amendment-${published}-`
 export const AMENDMENT_NOTICE_ID_PREFIX = noticeIdPrefix(LEGAL_AMENDMENT.published)
+
+/**
+ * The /prohibited amendment (PROHIBITED_AMENDMENT) is eno.vn's: eno.forum has had these rules since August. So its
+ * notice NAMES eno.vn and points THERE — one row per account is read on both editions, and on eno.forum a sentence
+ * about "our list" with a relative link would announce, for eno.forum's own list, a change that binds nothing there
+ * (codex, plan review). The path is the e-Visa section the amendment adds; the strip (eno.vn only) links it relatively.
+ * Absolute and APEX (`https://eno.vn`, never `www.` — next.config.ts 301s it), like the eno.forum note about eno.vn.
+ */
+export const PROHIBITED_NOTICE_PATH = '/prohibited#visa-services'
+export const PROHIBITED_NOTICE_URL = `https://eno.vn${PROHIBITED_NOTICE_PATH}`
+
+/**
+ * Its bell copy — the strip's /prohibited sentence, word for word (legal-amendment-notice.test.ts holds them). It
+ * names eno.vn (true wherever it is read) and no service.
+ */
+export const PROHIBITED_NOTICE = {
+  en: {
+    title: 'The prohibited items list on eno.vn has been amended',
+    body: `The list of prohibited items and services on eno.vn has been amended. The changes take effect on ${PROHIBITED_AMENDED.inForceEn}.`,
+  },
+  vi: {
+    title: 'Danh mục hàng cấm trên eno.vn đã được sửa đổi',
+    body: `Danh mục hàng hóa và dịch vụ cấm đăng trên eno.vn đã được sửa đổi. Nội dung sửa đổi có hiệu lực từ ngày ${PROHIBITED_AMENDED.inForceVi}.`,
+  },
+} as const
+
+/**
+ * Its own id scheme. Under `legal-amendment-<published>-` a Terms record published the same day would share the ids,
+ * and ON CONFLICT DO NOTHING would silently send nothing for the second of the two.
+ */
+export const PROHIBITED_NOTICE_ID_PREFIX = `prohibited-amendment-${PROHIBITED_AMENDMENT.published}-`
 
 /** Midnight in Vietnam (UTC+7, no DST) at the start of an ISO date. */
 const vnMidnight = (iso: string) => Date.parse(`${iso}T00:00:00+07:00`)

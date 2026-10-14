@@ -27,6 +27,7 @@ import { AppSplash } from "@/components/marketplace/app-splash";
 import { InstallHint } from "@/components/marketplace/install-hint";
 import { ImageShield } from "@/components/marketplace/image-shield";
 import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
+import { TosChangeNotice } from "@/components/marketplace/tos-change-notice";
 import { AccountPanelShell } from "@/components/marketplace/account-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NativeBootstrap } from "@/components/native/native-bootstrap";
@@ -57,12 +58,12 @@ export function Providers({
               ThemeProvider, so status-bar theming is unchanged. */}
           <NativeBootstrap />
           <SkipLink />
-          {/* NO AMENDMENT STRIP (owner, 2026-10-07, for the Terms' version 3: "Immediately (Recommended)" — in
-              force on the deploy day, no notice window, no announcement; the 2026-10-01 precedent —
-              LEGAL_AMENDMENT.immediate). For an amendment WITH a notice window, TosChangeNotice
-              (tos-change-notice.tsx) mounts exactly here: after SkipLink so the skip link stays the first
-              tab stop, inside LanguageProvider because it renders the visitor's language.
-              legal-amendment.test.ts holds the mount to the flag, both ways. */}
+          {/* THE AMENDMENT STRIP — mounted again since /prohibited's own amendment (PROHIBITED_AMENDMENT, owner
+              2026-10-14: the e-Visa rules on eno.vn, with 5 days' notice), whose window it announces on eno.vn.
+              It renders nothing outside any window (the Terms' version 3 is immediate and has none). After
+              SkipLink so the skip link stays the first tab stop, inside LanguageProvider because it renders the
+              visitor's language. legal-amendment.test.ts holds the mount to "some record has a window". */}
+          <TosChangeNotice />
           <CurrencyProvider>
           <AuthProvider>
             {/* Native push registration — no-op on web + until the plugin is wired (dormant). */}

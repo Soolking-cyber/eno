@@ -29,8 +29,9 @@
 // printing the newer amendment's dates as its own. legal-archive.test.ts fails until that is done:
 //   · V1_SUPERSEDED_BY — LITERALS since the Terms' version 3 re-used LEGAL_AMENDMENT (2026-10-07): the October
 //     2026 amendment's real dates, published and in force 01/10/2026 (immediate). They are also the dates
-//     of every text that amendment changed and version 3 did not — /returns, /prohibited, the Quy chế's first
-//     Article 17 entry, the version-2 note in /terms' change log — so those read V1_SUPERSEDED now;
+//     of every text that amendment changed and version 3 did not — /returns, the Quy chế's first Article 17
+//     entry, the version-2 note in /terms' change log — so those read V1_SUPERSEDED now (/prohibited did too,
+//     until its own amendment of 2026-10-14 — PROHIBITED_AMENDMENT dates it since);
 //   · TERMS_V2_SUPERSEDED_BY borrows LEGAL_AMENDMENT while TOS_VERSION is '3';
 //   · V2_SUPERSEDED_BY borrows REGULATIONS_AMENDMENT while REGULATIONS_VERSION is '3'.
 

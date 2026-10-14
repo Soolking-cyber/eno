@@ -38,29 +38,69 @@
 // Quy chế promises — retractable()), and unless the live /terms already shows the immediate version
 // (deleting first would leave the strip naming the old in-force date and no bell) — --skip-live-check
 // skips that, say why in the deploy notes. (For October's amendment that check read /regulations.)
+//
+// --record=terms|prohibited — WHICH AMENDMENT (2026-10-14). `terms` (the default) is LEGAL_AMENDMENT, everything
+// above. `prohibited` is /prohibited's own amendment (PROHIBITED_AMENDMENT — the e-Visa rules on eno.vn, with 5
+// days' notice): the same count, window, live check and INSERT, with its own copy, url and id scheme
+// (`prohibited-amendment-<published>-<profile id>`), checked against the live /prohibited. Run it ON ITS PUBLICATION
+// DAY, after the deploy that publishes it:
+//   set -a; . ./.env; set +a; npx tsx scripts/notify-legal-amendment.ts --record=prohibited            # count
+//   set -a; . ./.env; set +a; npx tsx scripts/notify-legal-amendment.ts --record=prohibited --apply    # write
+// ⛔ --retract is the Terms record's alone: a windowed notice is the announcement Article 15 promises.
+// ⛔ --apply sends ON THE PUBLICATION DAY only (Vietnam time); --after-publication-day overrides, said out loud.
 import pg from 'pg'
 import { invokedDirectly } from '../src/lib/cli-entry'
-import { AMENDED, LEGAL_AMENDMENT } from '../src/lib/compliance/legal-amendment'
-import { AMENDMENT_NOTICE, AMENDMENT_NOTICE_ID_PREFIX, AMENDMENT_NOTICE_URL, noticeIdPrefix, noticeSendable, retractable } from '../src/lib/compliance/legal-amendment-notice'
+import { AMENDED, LEGAL_AMENDMENT, PROHIBITED_AMENDED, PROHIBITED_AMENDMENT, type LegalAmendment } from '../src/lib/compliance/legal-amendment'
+import { AMENDMENT_NOTICE, AMENDMENT_NOTICE_ID_PREFIX, AMENDMENT_NOTICE_URL, PROHIBITED_NOTICE, PROHIBITED_NOTICE_ID_PREFIX, PROHIBITED_NOTICE_URL, noticeIdPrefix, noticeSendable, retractable } from '../src/lib/compliance/legal-amendment-notice'
 
 const arg = (name: string) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3)
 
+type Notice = { readonly en: { readonly title: string; readonly body: string }; readonly vi: { readonly title: string; readonly body: string } }
+type Announced = { key: string; record: LegalAmendment; notice: Notice; url: string; prefix: string; page: string; accept: string; markers: string[] }
+
+/** The amendment this run announces (--record, default `terms`), with everything the send mode reads for it. */
+function announced(): Announced {
+  const key = arg('record') ?? 'terms'
+  if (key === 'terms') {
+    return {
+      key, record: LEGAL_AMENDMENT, notice: AMENDMENT_NOTICE, url: AMENDMENT_NOTICE_URL, prefix: AMENDMENT_NOTICE_ID_PREFIX,
+      page: '/terms', accept: 'text/markdown, text/html;q=0.9', markers: [`published on ${AMENDED.publishedEn}`, `công bố ngày ${AMENDED.publishedVi}`],
+    }
+  }
+  if (key === 'prohibited') {
+    // /prohibited has no markdown twin. eno.vn's e-Visa section prints "published on <date>" in English and
+    // "công bố ngày <date>" in Vietnamese (its dated line), so either language of the HTML counts.
+    return {
+      key, record: PROHIBITED_AMENDMENT, notice: PROHIBITED_NOTICE, url: PROHIBITED_NOTICE_URL, prefix: PROHIBITED_NOTICE_ID_PREFIX,
+      page: '/prohibited', accept: 'text/html', markers: [`published on ${PROHIBITED_AMENDED.publishedEn}`, `công bố ngày ${PROHIBITED_AMENDED.publishedVi}`],
+    }
+  }
+  throw new Error(`--record must be terms or prohibited (got ${key})`)
+}
+
 /**
- * Does the live /terms show the amendment? Asked for markdown, but the edge may answer with cached HTML
- * (next.config.ts, the markdown-negotiation deploy note) in either language — so any of the three forms
- * of "published on <date>" the page or its markdown prints counts. `?d=` defeats the edge cache.
+ * Does the live page show the amendment? For the Terms it is asked for markdown, but the edge may answer with cached
+ * HTML (next.config.ts, the markdown-negotiation deploy note) in either language — so any form of "published on
+ * <date>" the page or its markdown prints counts. `?d=` defeats the edge cache.
  */
-async function liveCheck(origin: string): Promise<string | null> {
-  const markers = [`published on ${AMENDED.publishedEn}`, `công bố ngày ${AMENDED.publishedVi}`]
+async function liveCheck(origin: string, a: Announced): Promise<string | null> {
   try {
-    const res = await fetch(`${origin}/terms?d=${Date.now()}`, { headers: { accept: 'text/markdown, text/html;q=0.9', 'accept-language': 'en' } })
-    if (!res.ok) return `${origin}/terms answered ${res.status}`
-    const page = await res.text()
-    return markers.some((m) => page.includes(m)) ? null : `${origin}/terms does not show the amendment published on ${AMENDED.publishedEn} — is it deployed?`
+    const res = await fetch(`${origin}${a.page}?d=${Date.now()}`, { headers: { accept: a.accept, 'accept-language': 'en' } })
+    if (!res.ok) return `${origin}${a.page} answered ${res.status}`
+    // Matched on the page's VISIBLE TEXT, not its markup: a date in its own element or split by React's `<!-- -->` text
+    // separators would hide the marker from a raw-HTML search (opus), and the serialized page data inside <script> would
+    // show it even where nothing renders it (codex) — so scripts and styles go first, then comments and tags.
+    const page = (await res.text())
+      .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, ' ')
+    return a.markers.some((m) => page.includes(m)) ? null : `${origin}${a.page} does not show the amendment published on ${dateOf(a)} — is it deployed?`
   } catch (e) {
-    return `${origin}/terms could not be fetched (${(e as Error).message})`
+    return `${origin}${a.page} could not be fetched (${(e as Error).message})`
   }
 }
+const dateOf = (a: Announced) => (a.key === 'prohibited' ? PROHIBITED_AMENDED : AMENDED).publishedEn
 
 /**
  * Does the live /terms show the amendment as in force from its publication day? Made immediate, the Terms'
@@ -84,6 +124,8 @@ async function liveImmediateCheck(origin: string): Promise<string | null> {
 
 /** --retract: count (read-only) or delete exactly the rows the send mode wrote for one amendment. */
 async function retract(url: string, apply: boolean) {
+  // A windowed notice is the announcement Article 15 promises; only the Terms record was ever retractable (immediate).
+  if ((arg('record') ?? 'terms') !== 'terms') throw new Error('refusing: --retract applies to the Terms record only (--record=terms)')
   const published = arg('published') ?? LEGAL_AMENDMENT.published
   if (!/^\d{4}-\d{2}-\d{2}$/.test(published)) throw new Error(`--published must be YYYY-MM-DD (got ${published})`)
   const prefix = noticeIdPrefix(published)
@@ -145,20 +187,30 @@ async function main() {
   const apply = process.argv.includes('--apply')
   if (process.argv.includes('--retract')) return retract(url, apply)
 
-  const window = noticeSendable(new Date())
+  const a = announced()
+  const window = noticeSendable(new Date(), a.record)
   // Dry run included: there is nothing to count either.
-  if (LEGAL_AMENDMENT.immediate) {
+  if (a.record.immediate) {
     throw new Error(`refusing: ${window.ok ? 'the amendment is immediate' : window.reason}. To remove notices already sent: --retract`)
   }
   if (!window.ok) {
     if (apply) throw new Error(`refusing to send: ${window.reason}`)
     console.log(`⚠️  outside the notice window: ${window.reason}`)
   }
+  // ⛔ ON THE PUBLICATION DAY (Vietnam time), not just inside the window (opus, commit gate): Article 15 promises the
+  // notice at least 5 days ahead, and a bell sent on the window's last evening would announce a change hours away.
+  // --after-publication-day sends later anyway — an operator's decision, said out loud (the notice is still owed).
+  const todayVn = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10)
+  if (window.ok && todayVn !== a.record.published) {
+    const late = `today in Vietnam is ${todayVn}, not the publication day ${a.record.published} — fewer clear days of notice remain than the amendment promises`
+    if (apply && !process.argv.includes('--after-publication-day')) throw new Error(`refusing to send: ${late} (--after-publication-day to send anyway)`)
+    console.log(`⚠️  ${late}`)
+  }
   if (apply && !process.argv.includes('--skip-live-check')) {
     const origin = arg('site') ?? 'https://eno.vn'
-    const why = await liveCheck(origin)
+    const why = await liveCheck(origin, a)
     if (why) throw new Error(`refusing to send: ${why} (--skip-live-check to override)`)
-    console.log(`live: ${origin}/terms shows the amendment published on ${AMENDED.publishedEn}`)
+    console.log(`live: ${origin}${a.page} shows the amendment published on ${dateOf(a)}`)
   }
 
   // A count cannot write: without --apply the session itself is read-only.
@@ -171,13 +223,13 @@ async function main() {
               count(n.id) AS done
          FROM "Profile" p
          LEFT JOIN "Notification" n ON n.id = $1 || p.id::text`,
-      [AMENDMENT_NOTICE_ID_PREFIX],
+      [a.prefix],
     )
     const { vi, other, done } = rows[0]
-    console.log(`accounts still to notify: ${Number(vi) + Number(other)} (${vi} in Vietnamese, ${other} in English); already notified: ${done}`)
-    console.log(`  en: ${AMENDMENT_NOTICE.en.title} — ${AMENDMENT_NOTICE.en.body}`)
-    console.log(`  vi: ${AMENDMENT_NOTICE.vi.title} — ${AMENDMENT_NOTICE.vi.body}`)
-    console.log(`  → ${AMENDMENT_NOTICE_URL}`)
+    console.log(`[${a.key}] accounts still to notify: ${Number(vi) + Number(other)} (${vi} in Vietnamese, ${other} in English); already notified: ${done}`)
+    console.log(`  en: ${a.notice.en.title} — ${a.notice.en.body}`)
+    console.log(`  vi: ${a.notice.vi.title} — ${a.notice.vi.body}`)
+    console.log(`  → ${a.url}`)
     if (!apply) {
       console.log('dry run — re-run with --apply to send')
       return
@@ -190,7 +242,7 @@ async function main() {
               $6, false, now()
          FROM "Profile" p
        ON CONFLICT (id) DO NOTHING`,
-      [AMENDMENT_NOTICE_ID_PREFIX, AMENDMENT_NOTICE.en.title, AMENDMENT_NOTICE.en.body, AMENDMENT_NOTICE.vi.title, AMENDMENT_NOTICE.vi.body, AMENDMENT_NOTICE_URL],
+      [a.prefix, a.notice.en.title, a.notice.en.body, a.notice.vi.title, a.notice.vi.body, a.url],
     )
     console.log(`sent ${r.rowCount ?? 0} notice(s)`)
   } finally {

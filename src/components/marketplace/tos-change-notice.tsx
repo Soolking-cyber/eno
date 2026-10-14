@@ -5,20 +5,32 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { useLanguage } from '@/context/language-context'
-import { AMENDED, LEGAL_AMENDMENT } from '@/lib/compliance/legal-amendment'
+import { IS_MARKETPLACE } from '@/lib/edition'
+import { AMENDED, LEGAL_AMENDMENT, PROHIBITED_AMENDED, PROHIBITED_AMENDMENT } from '@/lib/compliance/legal-amendment'
+import { PROHIBITED_NOTICE_PATH, noticeSendable } from '@/lib/compliance/legal-amendment-notice'
 import { tosInNoticeWindow } from '@/lib/site-legal'
 
+/** Every instant the strip's answer can change: each window's opening and closing, midnight Vietnam time. */
+const vnMidnight = (iso: string) => Date.parse(`${iso}T00:00:00+07:00`)
+const WINDOW_EDGES = [LEGAL_AMENDMENT.published, LEGAL_AMENDMENT.inForce, PROHIBITED_AMENDMENT.published, PROHIBITED_AMENDMENT.inForce].map(vnMidnight)
+/** A day: past setTimeout's 2^31-1 ms ceiling a wait fires at once, so a far edge is reached in day-long hops. */
+const MAX_TIMER_MS = 24 * 60 * 60 * 1_000
+
 /**
- * The on-platform announcement of a Terms / Quy chế amendment, shown on every page during its notice
- * window — [LEGAL_AMENDMENT.published, LEGAL_AMENDMENT.inForce) in Vietnam time.
+ * The on-platform announcement of an amendment, shown on every page during its notice window, in Vietnam time:
+ *   · a Terms amendment's — [LEGAL_AMENDMENT.published, LEGAL_AMENDMENT.inForce), on both editions;
+ *   · /prohibited's own amendment's — [PROHIBITED_AMENDMENT.published, PROHIBITED_AMENDMENT.inForce), on eno.vn ONLY
+ *     (owner, 2026-10-14: the e-Visa rules join eno.vn's list; eno.forum has had them since August, and gains only
+ *     their Vietnamese and a corrected note, so nothing binds anew there).
+ * The Terms' window wins if both are ever open at once (impossible while LEGAL_AMENDMENT is immediate).
  *
- * ⛔ NOT MOUNTED FOR THE TERMS' VERSION 3 EITHER: the owner made it IMMEDIATE (2026-10-07 — published and in
- * force 07/10/2026, no window), as the October 2026 amendment before it was (owner, 2026-10-01: "just change now
- * we dont have users so its safe to implement just new terms no need for announcement") — nothing to announce.
- * legal-amendment.test.ts fails unless the mount in providers.tsx matches the flag: the next amendment WITH a
- * window mounts it again, after SkipLink. ⚠️ ONE PART IS THAT AMENDMENT'S:
- * the list of amended texts in the sentence below, and where "See what changed" points — rewrite both for
- * each amendment (with the bell copy in legal-amendment-notice.ts, which must stay word for word the same).
+ * ⛔ THE TERMS' VERSION 3 IS IMMEDIATE (owner, 2026-10-07 — published and in force 07/10/2026, no window), as the
+ * October 2026 amendment before it was (owner, 2026-10-01: "just change now we dont have users so its safe to
+ * implement just new terms no need for announcement") — nothing to announce for it. The strip is MOUNTED again for
+ * /prohibited's window (providers.tsx; legal-amendment.test.ts holds the mount to "some record has a window").
+ * ⚠️ ONE PART OF EACH SENTENCE IS ITS AMENDMENT'S: the list of amended texts and where "See what changed" points —
+ * rewrite both for each amendment, with the bell copy in legal-amendment-notice.ts (AMENDMENT_NOTICE for the Terms,
+ * PROHIBITED_NOTICE for /prohibited), which must stay word for word the same.
  *
  * ⚠️ IT EXISTS BECAUSE PUBLISHING THE NEW TEXTS IS NOT ANNOUNCING THEM. Quy chế Article 15 and the
  * Terms' "Changes" section promise that a material change is announced on the platform at least 5
@@ -26,8 +38,11 @@ import { tosInNoticeWindow } from '@/lib/site-legal'
  * nobody — an existing user does not open the terms page unprompted — so the announcement goes to
  * them (recovered from d067d756, where an external review made the same point).
  *
- * It removes itself: {@link tosInNoticeWindow} turns false at midnight Vietnam time on
- * LEGAL_AMENDMENT.inForce, so there is no flag to remember to flip.
+ * It removes itself: {@link tosInNoticeWindow} turns false at midnight Vietnam time on LEGAL_AMENDMENT.inForce, and
+ * noticeSendable(PROHIBITED_AMENDMENT) — the window the bell is sent in — on PROHIBITED_AMENDMENT.inForce, so there is
+ * no flag to remember to flip. ⚠️ AND IT RE-DECIDES AT EACH WINDOW EDGE, not only on navigation (codex, plan review,
+ * 2026-10-14): a page left open over midnight would otherwise keep the strip after the change took effect, until the
+ * next client navigation. One timer, to the next edge still ahead; none once every edge has passed.
  *
  * ⛔ A CLIENT COMPONENT, AND THAT IS THE WHOLE POINT — DO NOT "OPTIMISE" IT INTO A SERVER ONE.
  * Its visibility depends on the CLOCK, and it renders on every page, including every statically
@@ -38,9 +53,10 @@ import { tosInNoticeWindow } from '@/lib/site-legal'
  * server component, correctly, because PRELAUNCH_BANNER is a build-time constant: the difference is
  * the clock, not the styling.
  *
- * ⚠️ BOTH EDITIONS, ON PURPOSE. The amended Terms render on eno.forum too (as the Quy chế articles,
- * /returns and /prohibited did in October), so its users are owed the same notice. The copy names
- * no service, so nothing here leaks across the edition boundary.
+ * ⚠️ A TERMS AMENDMENT IS ANNOUNCED ON BOTH EDITIONS, ON PURPOSE. The amended Terms render on eno.forum too (as the
+ * Quy chế articles, /returns and /prohibited did in October), so its users are owed the same notice. /prohibited's
+ * 2026-10-14 amendment is eno.vn's alone (above). Neither sentence names a service, so nothing here leaks across the
+ * edition boundary.
  *
  * ⚠️ NOT ON /messages. The chat layout sizes itself to the viewport minus a measured
  * `--banner-h` (messages/layout.tsx), which only knows #prelaunch-banner; an unmeasured strip above
@@ -64,10 +80,21 @@ import { tosInNoticeWindow } from '@/lib/site-legal'
 export function TosChangeNotice() {
   const { lang } = useLanguage()
   const pathname = usePathname()
-  const [show, setShow] = useState(false)
-  // Re-read the clock on every navigation, not just on mount: the providers persist across client
-  // navigations, so a tab left open over the in-force instant would otherwise keep the strip.
-  useEffect(() => { setShow(tosInNoticeWindow()) }, [pathname])
+  const [show, setShow] = useState<'terms' | 'prohibited' | null>(null)
+  // Re-read the clock on every navigation, not just on mount (the providers persist across client navigations),
+  // and again at the next window edge while the page stays open.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const decide = () => {
+      setShow(tosInNoticeWindow() ? 'terms' : IS_MARKETPLACE && noticeSendable(new Date(), PROHIBITED_AMENDMENT).ok ? 'prohibited' : null)
+      const now = Date.now()
+      const next = WINDOW_EDGES.filter((t) => t > now).sort((a, b) => a - b)[0]
+      // +1 s so the decision lands just past the edge; a capped wait simply decides again and re-arms.
+      if (next !== undefined) timer = setTimeout(decide, Math.min(next - now + 1_000, MAX_TIMER_MS))
+    }
+    decide()
+    return () => clearTimeout(timer)
+  }, [pathname])
   if (!show || pathname?.startsWith('/messages')) return null
 
   // Literal `tr(en, vi)` calls so gen-ui-strings harvests the English for the nine machine-translated
@@ -76,13 +103,15 @@ export function TosChangeNotice() {
   // en and vi print the legal forms; inside a translated line the nine machine-translated languages get
   // their own month name (<Bilingual datesIso>) — the English "1 October 2026" was the one untranslated
   // word in this banner for them, and an English line keeps the English date.
-  const date = lang === 'vi' ? AMENDED.inForceVi : AMENDED.inForceEn
+  const dates = show === 'prohibited' ? PROHIBITED_AMENDED : AMENDED
+  const date = lang === 'vi' ? dates.inForceVi : dates.inForceEn
 
   // ⚠️ REWRITE THE DOCUMENT LIST FOR EACH AMENDMENT: "Terms of Service" is the text the Terms' version 3
   // changed with effect from its in-force date (October's named "Terms of Service, Operating Regulations,
   // Returns policy and Prohibited items list" and linked the Quy chế's Article 17). The link goes to the
-  // Terms' own change log, whose last note lists version 3's edits. Change the bell copy (AMENDMENT_NOTICE,
-  // legal-amendment-notice.ts) in the same edit — its test holds the two word for word.
+  // Terms' own change log, whose last note lists version 3's edits. /prohibited's sentence names its list and
+  // links the e-Visa section the amendment adds. Change the bell copy (AMENDMENT_NOTICE / PROHIBITED_NOTICE,
+  // legal-amendment-notice.ts) in the same edit — its test holds each pair word for word.
 
   return (
     <div
@@ -90,15 +119,31 @@ export function TosChangeNotice() {
       role="status"
       className="border-b border-border bg-muted px-4 pb-2 pt-[calc(env(safe-area-inset-top)+0.5rem)] text-center text-xs leading-snug text-foreground"
     >
-      {tr(
-        'Our Terms of Service have been amended. The changes take effect on {date}.',
-        'Điều khoản dịch vụ đã được sửa đổi. Nội dung sửa đổi có hiệu lực từ ngày {date}.',
-        { date },
-        { date: LEGAL_AMENDMENT.inForce },
-      )}{' '}
-      <Link href="/terms#changes" className="font-semibold underline underline-offset-2">
-        {tr('See what changed', 'Xem nội dung sửa đổi')}
-      </Link>
+      {show === 'terms' ? (
+        <>
+          {tr(
+            'Our Terms of Service have been amended. The changes take effect on {date}.',
+            'Điều khoản dịch vụ đã được sửa đổi. Nội dung sửa đổi có hiệu lực từ ngày {date}.',
+            { date },
+            { date: LEGAL_AMENDMENT.inForce },
+          )}{' '}
+          <Link href="/terms#changes" className="font-semibold underline underline-offset-2">
+            {tr('See what changed', 'Xem nội dung sửa đổi')}
+          </Link>
+        </>
+      ) : (
+        <>
+          {tr(
+            'The list of prohibited items and services on eno.vn has been amended. The changes take effect on {date}.',
+            'Danh mục hàng hóa và dịch vụ cấm đăng trên eno.vn đã được sửa đổi. Nội dung sửa đổi có hiệu lực từ ngày {date}.',
+            { date },
+            { date: PROHIBITED_AMENDMENT.inForce },
+          )}{' '}
+          <Link href={PROHIBITED_NOTICE_PATH} className="font-semibold underline underline-offset-2">
+            {tr('See what changed', 'Xem nội dung sửa đổi')}
+          </Link>
+        </>
+      )}
     </div>
   )
 }

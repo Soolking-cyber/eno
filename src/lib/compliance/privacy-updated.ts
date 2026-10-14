@@ -22,6 +22,10 @@
  * verification shown to the teacher; shared details and the private video go to "the account you are talking to"; the
  * identity-verification paragraph names the new use of the result. Deployed 2026-10-13 (b4d398f74); the teachers were
  * told the same day by a one-off in-app notice (37, no email — owner), whose route was then removed.
+ * And 2026-10-15 (planned — the deploy day of the e-Visa subcategory, owner 2026-10-14: open to any seller on both
+ * editions, live after eno's licence check): the shared "Messages to e-Visa sellers" paragraph and the partner e-Visa
+ * section's narrowed first sentence — live with the deploy, no notice window (they describe what chat already does).
+ * The /prohibited amendment in the same deploy has its own record and window (PROHIBITED_AMENDMENT).
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -30,7 +34,7 @@
  * line, `export const PRIVACY_TEXT_PUBLISHED: string = 'YYYY-MM-DD'`: that is the shape the gate reads.
  * ⚠️ Typed, never read from the clock: the page prerenders, and a build-time date would move with every rebuild.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-13'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-15'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -39,4 +43,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-13'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '3dc8c6f288e45a47'
+export const PRIVACY_TEXT_FINGERPRINT = '3d0fb2d972df60c4'

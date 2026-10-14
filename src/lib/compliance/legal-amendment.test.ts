@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { AMENDED, LEGAL_AMENDMENT, MIN_NOTICE_DAYS, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT, amendmentDatesProblem, dateEn, dateVi } from './legal-amendment'
+import { AMENDED, LEGAL_AMENDMENT, MIN_NOTICE_DAYS, PROHIBITED_AMENDED, PROHIBITED_AMENDMENT, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT, amendmentDatesProblem, dateEn, dateVi, daysBetween } from './legal-amendment'
 
 const ROOT = join(__dirname, '..', '..', '..')
 
@@ -9,6 +9,7 @@ describe('legal-amendment', () => {
   it('the amendments typed in the module pass their own rule', () => {
     expect(amendmentDatesProblem(LEGAL_AMENDMENT)).toBeNull()
     expect(amendmentDatesProblem(REGULATIONS_AMENDMENT)).toBeNull()
+    expect(amendmentDatesProblem(PROHIBITED_AMENDMENT)).toBeNull()
   })
 
   // Civil Code 2015 Art 147–148: the publication day is not counted, so "at least 5 days" needs the
@@ -51,7 +52,8 @@ describe('legal-amendment', () => {
 
   // ⛔ A Terms-only amendment re-dates the Terms and /privacy only. Every other text the October amendment dated
   // reads its literals now (legal-archive.ts V1_SUPERSEDED): a page still importing LEGAL_AMENDMENT or AMENDED
-  // would print 7 or 13 October for an October-1 change (/returns, /prohibited, /regulations, the archives).
+  // would print 7 or 13 October for an October-1 change (/returns, /regulations, the archives). /prohibited reads
+  // its own record since 2026-10-14 (PROHIBITED_AMENDMENT, below).
   // So the readers are a closed list — a new one is a decision about which amendment dates it.
   it('is read by exactly the texts and machinery the Terms’ newest amendment dates', () => {
     const readers: string[] = []
@@ -78,17 +80,19 @@ describe('legal-amendment', () => {
   })
 
   // The strip is the announcement; an immediate amendment has none, a windowed one must have it. A source
-  // check, because the mount is one line in providers.tsx that nothing else would notice missing.
-  it('mounts the site-wide strip exactly when the amendment has a notice window', () => {
+  // check, because the mount is one line in providers.tsx that nothing else would notice missing. Two records
+  // can have a window now — the Terms' and /prohibited's (2026-10-14) — so the strip is mounted while either does.
+  it('mounts the site-wide strip exactly when some amendment has a notice window', () => {
     // Comments out first (the providers.tsx note names the component), then ANY JSX use counts as a
     // mount: `<TosChangeNotice/>`, with props, or conditional (`{x && <TosChangeNotice />}`).
     const providers = readFileSync(join(ROOT, 'src/app/[lang]/providers.tsx'), 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/^\s*\/\/.*$/gm, '')
     const mounted = /<TosChangeNotice\b/.test(providers)
-    expect(mounted, LEGAL_AMENDMENT.immediate
-      ? 'an immediate amendment announces nothing: remove <TosChangeNotice /> from providers.tsx'
-      : 'an amendment with a notice window must be announced: mount <TosChangeNotice /> in providers.tsx').toBe(!LEGAL_AMENDMENT.immediate)
+    const windowed = !LEGAL_AMENDMENT.immediate || !PROHIBITED_AMENDMENT.immediate
+    expect(mounted, windowed
+      ? 'an amendment with a notice window must be announced: mount <TosChangeNotice /> in providers.tsx'
+      : 'immediate amendments announce nothing: remove <TosChangeNotice /> from providers.tsx').toBe(windowed)
   })
 
   it('formats both languages from the one ISO date', () => {
@@ -98,6 +102,8 @@ describe('legal-amendment', () => {
     expect(AMENDED.publishedEn).toBe(dateEn(LEGAL_AMENDMENT.published))
     expect(REGULATIONS_AMENDED.inForceVi).toBe(dateVi(REGULATIONS_AMENDMENT.inForce))
     expect(REGULATIONS_AMENDED.publishedEn).toBe(dateEn(REGULATIONS_AMENDMENT.published))
+    expect(PROHIBITED_AMENDED.inForceVi).toBe(dateVi(PROHIBITED_AMENDMENT.inForce))
+    expect(PROHIBITED_AMENDED.publishedEn).toBe(dateEn(PROHIBITED_AMENDMENT.published))
     expect(() => dateVi('07/10/2026')).toThrow()
   })
 
@@ -130,6 +136,54 @@ describe('legal-amendment', () => {
         REGULATIONS_AMENDMENT.immediate === LEGAL_AMENDMENT.immediate
       expect(REGULATIONS_AMENDMENT.immediate === true || sameAsTerms,
         'a windowed Quy chế-only amendment needs its own strip + bell notice first (tos-change-notice.tsx, legal-amendment-notice.ts)').toBe(true)
+    })
+  })
+
+  // ⛔ Owner, 2026-10-14: "eno.vn's /prohibited gets the same visa rules (dated amendment, 5-day notice)". /prohibited's
+  // OWN record — windowed, announced by the strip (eno.vn) and the bell — moving neither the Terms' switch nor the
+  // Quy chế's record.
+  describe('the /prohibited amendment (PROHIBITED_AMENDMENT)', () => {
+    it('has its notice window: at least 5 clear days, publication day not counted', () => {
+      expect(PROHIBITED_AMENDMENT.immediate).toBeUndefined()
+      expect(PROHIBITED_AMENDMENT.published).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      expect(PROHIBITED_AMENDMENT.inForce).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      expect(daysBetween(PROHIBITED_AMENDMENT.published, PROHIBITED_AMENDMENT.inForce)).toBeGreaterThanOrEqual(MIN_NOTICE_DAYS + 1)
+      // The decision is of 2026-10-14; its publication cannot be earlier.
+      expect(PROHIBITED_AMENDMENT.published >= '2026-10-14').toBe(true)
+    })
+
+    it('moves neither the Terms’ runtime switch nor the Quy chế’s record', () => {
+      expect(LEGAL_AMENDMENT).toEqual({ published: '2026-10-07', inForce: '2026-10-07', immediate: true })
+      expect(REGULATIONS_AMENDMENT).toEqual({ published: '2026-10-05', inForce: '2026-10-05', immediate: true })
+    })
+
+    // A closed list, like LEGAL_AMENDMENT's: a new reader is a decision about which amendment dates it.
+    it('is read by exactly /prohibited, eno.vn’s Article 17 entry, the strip and the bell', () => {
+      const readers: string[] = []
+      const walk = (dir: string) => {
+        for (const name of readdirSync(join(ROOT, dir))) {
+          const rel = `${dir}/${name}`
+          if (statSync(join(ROOT, rel)).isDirectory()) { if (name !== 'generated') walk(rel); continue }
+          if (!/\.tsx?$/.test(name) || /\.test\.tsx?$/.test(name)) continue
+          for (const m of readFileSync(join(ROOT, rel), 'utf8').matchAll(/import\s*\{([^}]*)\}\s*from\s*'(?:@\/lib\/compliance|\.)\/legal-amendment'/g)) {
+            if (/\b(PROHIBITED_AMENDMENT|PROHIBITED_AMENDED)\b/.test(m[1])) readers.push(rel)
+          }
+        }
+      }
+      walk('src')
+      expect(readers.sort()).toEqual([
+        'src/app/[lang]/prohibited/page.tsx',
+        'src/app/[lang]/regulations/page.tsx', // Article 17's entry for it (eno.vn)
+        'src/components/marketplace/tos-change-notice.tsx',
+        'src/lib/compliance/legal-amendment-notice.ts',
+      ])
+    })
+
+    it('the strip announces it on eno.vn only, in the window the bell is sent in, linking the e-Visa section', () => {
+      const strip = readFileSync(join(ROOT, 'src/components/marketplace/tos-change-notice.tsx'), 'utf8')
+      expect(strip).toContain('IS_MARKETPLACE && noticeSendable(new Date(), PROHIBITED_AMENDMENT).ok')
+      expect(strip).toContain('href={PROHIBITED_NOTICE_PATH}')
+      expect(readFileSync(join(ROOT, 'src/app/[lang]/prohibited/page.tsx'), 'utf8')).toContain('<ContentSection id="visa-services"')
     })
   })
 })

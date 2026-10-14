@@ -1,6 +1,6 @@
 // ── The amendments of the published legal texts — their dates, typed ONCE ────────────────────────
 //
-// ⚠️ TWO RECORDS SINCE 2026-10-05, because the two amendments that stand did not change the same texts:
+// ⚠️ THREE RECORDS SINCE 2026-10-14, because the amendments that stand did not change the same texts:
 //   · LEGAL_AMENDMENT — the Terms' newest amendment: since 2026-10-07 the Terms' VERSION 3 (App Store
 //     Guideline 1.2 — decision D8), which also dates the /privacy text that changed with it. /terms ("Last
 //     updated", the "not yet in force" line, its change note), /md/terms, /privacy, the /terms/v2 banner
@@ -12,15 +12,20 @@
 //     (V1_SUPERSEDED_BY), and every text version 3 did not change reads them there — /returns,
 //     /prohibited, the Quy chế's FIRST Article 17 entry, the version-1 and version-2 archives and the
 //     version-2 note in /terms' change log. A text that read LEGAL_AMENDMENT for a date version 3 did not
-//     give it would now print 7 October for an October-1 change.
+//     give it would now print 7 October for an October-1 change. (/prohibited read them too until its own
+//     amendment, 2026-10-14 — PROHIBITED_AMENDMENT below.)
 //   · REGULATIONS_AMENDMENT — the Quy chế's OWN newest amendment: version 3 (Article 14 — UX program 2's
 //     ranking), which changed no other text. /regulations (META + Article 17's newest entry), the
 //     /regulations/v2 archive ("replaced from …") and /legal/ranking's date (ranking-disclosure.ts
 //     RANKING_DISCLOSURE_UPDATED, tied to it for this deploy) read it. It switches nothing at runtime:
 //     Profile.tosVersion stamps the TERMS version, which this amendment did not change.
+//   · PROHIBITED_AMENDMENT — /prohibited's OWN amendment (owner, 2026-10-14: the e-Visa rules join eno.vn's
+//     list): /prohibited ("Last updated", eno.vn's dated line in its e-Visa section), eno.vn's Article 17
+//     entry for it, the strip and the bell read it. It switches nothing at runtime either.
 //   An amendment that changes both kinds of text (as October's did) sets BOTH records to its dates; a
-//   Terms-only one moves LEGAL_AMENDMENT alone, a Quy chế-only one REGULATIONS_AMENDMENT alone. The deploy
-//   gate (infra/vn-node/legal-amendment-gate.sh) holds EACH record to the same rules, independently.
+//   Terms-only one moves LEGAL_AMENDMENT alone, a Quy chế-only one REGULATIONS_AMENDMENT alone, a
+//   /prohibited-only one PROHIBITED_AMENDMENT alone. The deploy gate (infra/vn-node/legal-amendment-gate.sh)
+//   holds EACH record to the same rules, independently.
 //
 // ⛔ `published` MUST BE THE DAY THE AMENDMENT IS ACTUALLY DEPLOYED, NOT THE DAY IT WAS WRITTEN.
 // Deploys happen only on the owner's word (CLAUDE.md), so both dates are set on the deploy day, here
@@ -36,10 +41,10 @@
 // "in force", and whether a notice window exists at all (tosInNoticeWindow — the site-wide strip,
 // tos-change-notice.tsx, and the bell notice, legal-amendment-notice.ts). Moving it moves all of those
 // at once — which is the point, and also why it must never be edited casually.
-// ⚠️ THE STRIP AND THE BELL NOTICE KNOW ONLY LEGAL_AMENDMENT. A Quy chế-only amendment WITH a notice window
-// would be announced by nothing, breaking the very promise Article 15 makes — so until they learn
-// REGULATIONS_AMENDMENT, that record is immediate or carries LEGAL_AMENDMENT's own dates
-// (legal-amendment.test.ts fails otherwise).
+// ⚠️ THE STRIP AND THE BELL NOTICE KNOW LEGAL_AMENDMENT AND PROHIBITED_AMENDMENT — NOT REGULATIONS_AMENDMENT.
+// A Quy chế-only amendment WITH a notice window would be announced by nothing, breaking the very promise
+// Article 15 makes — so until they learn REGULATIONS_AMENDMENT, that record is immediate or carries
+// LEGAL_AMENDMENT's own dates (legal-amendment.test.ts fails otherwise).
 //
 // ⚠️ THE DEFAULT: inForce ≥ published + 6 CALENDAR DAYS. The texts promise at least 5 days' notice, and
 // under the Civil Code 2015 Art 147–148 the day of publication is not counted: published 01/10 → notice
@@ -103,11 +108,9 @@ export const LEGAL_AMENDMENT: LegalAmendment = {
  * left it; the change list is Article 17's newest entry). The Terms stay at version 2 and LEGAL_AMENDMENT
  * keeps October's dates: nothing else was amended.
  *
- * ⛔ '2026-10-06' IS A PLACEHOLDER, NOT THE PUBLICATION DATE. The DEPLOYER sets BOTH dates to the real
- * deploy day (Vietnam time) in the commit that ships it — the same day, because it is immediate — and runs
- * the deploy with LEGAL_AMENDMENT_IMMEDIATE=<that day>; the gate refuses any other day and any deploy
- * without that ack. /legal/ranking's "Last updated" (RANKING_DISCLOSURE_UPDATED) is tied to `published`
- * here, so it moves with it — there is no second date to set.
+ * Published and in force 05/10/2026 (deployed in commit 2cd70d7e2, that day in Vietnam). /legal/ranking's
+ * "Last updated" (RANKING_DISCLOSURE_UPDATED) is tied to `published` here, so it moved with it — there is no
+ * second date to set.
  *
  * ⛔ OWNER, 2026-10-05: "apply best recommended" — the recommendation being the 2026-10-01 precedent (Terms
  * v2: "just change now we dont have users so its safe to implement just new terms no need for
@@ -119,6 +122,30 @@ export const REGULATIONS_AMENDMENT: LegalAmendment = {
   published: '2026-10-05',
   inForce: '2026-10-05',
   immediate: true,
+}
+
+/**
+ * /prohibited's OWN AMENDMENT (owner, 2026-10-14: "eno.vn's /prohibited gets the same visa rules (dated amendment,
+ * 5-day notice)"): the six visa & immigration listing rules join eno.vn's /prohibited, in curated Vietnamese on both
+ * editions, and eno.forum's note about eno.vn is corrected. /prohibited is an inseparable part of the Quy chế
+ * (Articles 9 and 16), so this is a Quy chế amendment in Article 15's sense: it is LOGGED in Article 17 with these
+ * dates (eno.vn's /regulations — codex + opus, plan review), but it is NOT a new Quy chế version (Articles 1–16 are
+ * unchanged, REGULATIONS_VERSION stays). It moves neither LEGAL_AMENDMENT (the Terms' runtime switch) nor
+ * REGULATIONS_AMENDMENT.
+ * Read by /prohibited ("Last updated" on both editions; eno.vn's dated line in #visa-services), eno.vn's Article 17
+ * entry for it on /regulations (Article 15 dates every amendment there — codex + opus, plan review), the strip
+ * (tos-change-notice.tsx, eno.vn only) and the bell (legal-amendment-notice.ts PROHIBITED_NOTICE*,
+ * scripts/notify-legal-amendment.ts --record=prohibited). Held by infra/vn-node/legal-amendment-gate.sh.
+ *
+ * ⛔ NOT IMMEDIATE: inForce ≥ published + 6. Both are the PLANNED deploy day, not yet a fact — the deployer re-dates
+ * them to the real deploy day (Vietnam time) in the commit that ships it, and the gate refuses any other day.
+ * ⛔ BEFORE THIS RECORD IS RE-USED for a later /prohibited amendment, type its two dates into
+ * src/app/[lang]/prohibited/page.tsx and the Article 17 entry in src/app/[lang]/regulations/page.tsx as literals,
+ * or both print the next amendment's dates for this one's rules.
+ */
+export const PROHIBITED_AMENDMENT: LegalAmendment = {
+  published: '2026-10-15',
+  inForce: '2026-10-21',
 }
 
 /** The advance notice the texts promise (Quy chế Art 15, Terms "Changes"). */
@@ -158,6 +185,9 @@ export const AMENDED = amendedDates(LEGAL_AMENDMENT)
 
 /** REGULATIONS_AMENDMENT's dates in both printed forms — what /regulations' META and newest Article 17 entry print. */
 export const REGULATIONS_AMENDED = amendedDates(REGULATIONS_AMENDMENT)
+
+/** PROHIBITED_AMENDMENT's dates in both printed forms — what /prohibited, the strip and the bell print. */
+export const PROHIBITED_AMENDED = amendedDates(PROHIBITED_AMENDMENT)
 
 /** Days from one ISO date to another (UTC calendar arithmetic — both are plain dates). */
 export const daysBetween = (from: string, to: string) => {

@@ -1,16 +1,16 @@
-import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
+import { IS_MARKETPLACE, IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { withShare } from '@/lib/site-identity'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { LegalLanguageNote } from '@/components/legal/legal-language-note'
-// ⚠️ "LAST UPDATED" IS THE OCTOBER 2026 AMENDMENT'S DATE (01/10/2026) — a literal in legal-archive.ts
-// (V1_SUPERSEDED) since LEGAL_AMENDMENT moved on to the Terms' version 3 (2026-10-07), which did not change
-// this list. Never point it back at LEGAL_AMENDMENT: a Terms-only amendment would re-date it.
-import { V1_SUPERSEDED, V1_SUPERSEDED_BY } from '@/lib/compliance/legal-archive'
+// ⚠️ "LAST UPDATED" IS /prohibited's OWN AMENDMENT (PROHIBITED_AMENDMENT, owner 2026-10-14 — the e-Visa rules on
+// eno.vn) — never LEGAL_AMENDMENT or REGULATIONS_AMENDMENT, whose amendments do not change this list. (Until then it
+// was the October 2026 amendment's date, a literal in legal-archive.ts.)
+import { PROHIBITED_AMENDED, PROHIBITED_AMENDMENT } from '@/lib/compliance/legal-amendment'
 import { CROSS_SITE_REL } from '@/lib/cross-site-links'
-import { PROHIBITED_SERVICES_CROSSLINK, PROHIBITED_SERVICES_SECTION } from '@/lib/prohibited-services-copy'
+import { PROHIBITED_SERVICES_CROSSLINK } from '@/lib/prohibited-services-copy'
 
 export const metadata: Metadata = withShare({
   title: `Prohibited items & services | Hàng hóa & dịch vụ cấm | ${SITE_NAME}`,
@@ -33,17 +33,25 @@ export const metadata: Metadata = withShare({
 //
 // ⚠️ THIS PAGE RENDERS ON BOTH EDITIONS. eno.vn (the licensed sàn TMĐT) and eno.forum share this one
 // file, so every shared string has to be true on both — which is why the site names itself through
-// SITE_NAME rather than saying "eno.vn". The services-only visa addendum lives in
-// @/lib/prohibited-services-copy, aliased to an empty stub on a marketplace build: the IS_SERVICES
-// gate stops it RENDERING, the alias stops the vocabulary reaching eno.vn's artifact, and both are
-// required (src/lib/edition.ts has the measurement).
+// SITE_NAME rather than saying "eno.vn".
+//
+// ⛔ THE e-VISA RULES (VISA_RULES) RENDER ON BOTH EDITIONS SINCE 2026-10-14 — the owner's exception
+// (CLAUDE.md, the e-Visa subcategory: "Anyone posts, live after check"; eno.vn's /prohibited gets the same visa
+// rules, dated, with 5 days' notice — PROHIBITED_AMENDMENT). Before, they were eno.forum-only, in the aliased
+// @/lib/prohibited-services-copy. Rules for them:
+//   · They stay OUT of the four collision-checked GROUPS and out of publish-guard's BANNED_WORDS: they are enforced
+//     by eno's licence check, reports and removal, and the page never says they are screened automatically.
+//   · They are OBLIGATIONS ON WHOEVER POSTS, never claims of checks already made ("the business must give us a copy
+//     of its licence" is a rule; PROVIDER_LICENCE_ON_FILE in src/lib/visa-provider.ts is what we hold).
+//   · They name no company, partner or licence number.
+//   · They reach the page through say() from variables, and this directory is outside gen-ui-strings' PAIR_SCOPE,
+//     so none of it enters the shared catalogue.
+// Only eno.forum's note about eno.vn stays in the aliased module: on eno.vn it would be the page linking to itself.
 //
 // ⚠️ CURATED VIETNAMESE, RENDERED ON THE SERVER (2026-10-01). Every shared string is an {en, vi} pair:
 // the `vi` variant prints the curated text into the server HTML, `en` and the nine machine-translated
 // languages keep `<Tr text={en}>`. Those `<Tr>` calls take a VARIABLE, so scripts/gen-ui-strings.mjs
-// still harvests none of this copy (it only sees literals) — which is also what keeps the services
-// addendum out of the shared catalogue: do not "fix" that by inlining the visa strings as literals.
-// The addendum itself stays English-only (its aliased module carries no Vietnamese).
+// harvests none of this copy (it only sees literals): do not inline it as literals.
 
 type Pair = { en: string; vi: string }
 
@@ -170,17 +178,57 @@ const ENFORCEMENT: Pair = {
   vi: 'Mọi tin mới đăng trực tiếp trên sàn đều qua bước sàng lọc tự động (bộ lọc từ khoá hàng cấm, yêu cầu về ảnh, kiểm tra thông tin liên hệ chèn trong nội dung) trước khi hiển thị, và bất kỳ người dùng nào cũng có thể báo cáo một tin đăng. Vi phạm đã được xác nhận sẽ bị gỡ, người bán bị trừ điểm uy tín theo bảng trừ điểm đã công bố, và vi phạm lặp lại hoặc nghiêm trọng bị xử lý tăng dần từ hạn chế tính năng đến khoá tài khoản vĩnh viễn. Nội dung do cơ quan nhà nước có thẩm quyền xác định là vi phạm được gỡ trong vòng 24 giờ kể từ khi nhận được yêu cầu. Nếu thấy nội dung không nên có ở đây, hãy dùng nút Báo cáo — việc đó thực sự có ích.',
 }
 
-// Both the section and its rail entry hang off this one boolean. The `items.length` half is not
-// belt-and-braces theatre: on a marketplace build the module resolves to the stub, so without it the
-// rail would render an anchor to `#` above an empty, untitled section.
-const HAS_SERVICES_ADDENDUM = IS_SERVICES && PROHIBITED_SERVICES_SECTION.items.length > 0
+/**
+ * THE VISA & IMMIGRATION LISTING RULES — on both editions since 2026-10-14 (the header says why). Written in the
+ * register of the rest of the page: a plain rule first, then the reason it exists. Licence, no promised outcome and
+ * the government fee shown separately are items 1, 2 and 4; the others close the routes a reader would otherwise
+ * find open (impersonating an official channel, working around the process, moving documents or money off the
+ * route the listing describes). The English is eno.forum's text since August, moved here — the intro now states the
+ * rule ("may be listed here only by …") where it used to state a fact ("are listed here by …"; codex, commit gate).
+ * ⛔ DRAFT FOR COUNSEL — the Vietnamese is curated, and like the rest of this page it is under review
+ * (LEGAL_VI_APPROVED, <LegalLanguageNote />).
+ */
+const VISA_RULES: { title: string; titleVi: string; intro: Pair; items: Pair[] } = {
+  title: 'Visa & immigration services — extra rules',
+  titleVi: 'Dịch vụ thị thực và xuất nhập cảnh — quy định bổ sung',
+  intro: {
+    en: 'Vietnam e-visa and immigration services may be listed here only by licensed third-party providers: the provider named on a listing does the work under its own licence, and this site is the platform the listing sits on. A mistake in this category costs someone a trip or an entry refusal, so these listings carry rules on top of everything above — and the rules apply to the listing, its photos, its price and to what is said in chat.',
+    vi: 'Dịch vụ thị thực điện tử (e-Visa) và xuất nhập cảnh Việt Nam chỉ được đăng tại đây bởi các nhà cung cấp là bên thứ ba có giấy phép: nhà cung cấp có tên trên tin đăng thực hiện công việc theo giấy phép của chính mình, còn website này là nền tảng nơi tin đăng được hiển thị. Một sai sót trong nhóm dịch vụ này có thể khiến người khác lỡ chuyến đi hoặc bị từ chối nhập cảnh, vì vậy ngoài mọi quy định nêu trên, các tin đăng này còn phải tuân thủ các quy định dưới đây — áp dụng cho tin đăng, ảnh, giá và cả nội dung trao đổi trong cuộc trò chuyện.',
+  },
+  items: [
+    {
+      en: 'Only a licensed business may list them. Vietnam visa, immigration, residence-card and work-permit services may be listed only by a business holding the Vietnamese licence that work requires — for visa and travel services, a valid international travel-service licence. That business must be named as the provider on the listing itself and must give us a copy of its licence and its business registration before the listing goes live. Individuals, unlicensed "visa agents" and resellers may not offer these services here, and a listing we cannot tie to a current licence is removed.',
+      vi: 'Chỉ doanh nghiệp có giấy phép mới được đăng. Dịch vụ thị thực, xuất nhập cảnh, thẻ tạm trú và giấy phép lao động tại Việt Nam chỉ được đăng bởi doanh nghiệp có giấy phép mà pháp luật Việt Nam yêu cầu đối với công việc đó — với dịch vụ thị thực và du lịch là giấy phép kinh doanh dịch vụ lữ hành quốc tế còn hiệu lực. Doanh nghiệp đó phải được ghi tên là nhà cung cấp ngay trên tin đăng và phải gửi cho chúng tôi bản sao giấy phép và giấy chứng nhận đăng ký doanh nghiệp trước khi tin đăng được hiển thị. Cá nhân, “đại lý visa” không có giấy phép và người bán lại không được cung cấp các dịch vụ này tại đây; tin đăng mà chúng tôi không đối chiếu được với một giấy phép còn hiệu lực sẽ bị gỡ.',
+    },
+    {
+      en: 'No promised outcome. No listing, title, photo or chat message may claim a guaranteed result — "guaranteed visa", "100% approval", "bao đậu" / "bảo đậu", "no refusal" or anything equivalent. Only the Vietnamese immigration authorities decide an application, and nobody on this platform can promise, buy or hurry that decision. Offering to refund the service fee if an application is refused is a different thing and is allowed; claiming the decision itself is certain is not.',
+      vi: 'Không hứa hẹn kết quả. Tin đăng, tiêu đề, ảnh hay tin nhắn không được khẳng định kết quả chắc chắn — “bao đậu”, “bảo đậu”, “đậu 100%”, “cam kết có visa”, “không bị từ chối” hoặc bất kỳ cách nói tương tự nào. Chỉ cơ quan quản lý xuất nhập cảnh Việt Nam mới quyết định một hồ sơ, và không ai trên nền tảng này có thể hứa hẹn, mua hoặc đẩy nhanh quyết định đó. Cam kết hoàn phí dịch vụ nếu hồ sơ bị từ chối là một việc khác và được phép; khẳng định chính quyết định đó là chắc chắn thì không.',
+    },
+    {
+      en: 'No pretending to be an official channel. A listing, storefront name, logo or photo may not present itself as a government body, an official e-visa portal, an embassy or a consulate, and may not use a state emblem or an official seal. Claiming to have contacts inside an immigration office, or to be able to reach one, is banned outright.',
+      vi: 'Không giả danh kênh chính thức. Tin đăng, tên gian hàng, logo hoặc ảnh không được tự giới thiệu là cơ quan nhà nước, cổng thông tin e-Visa chính thức, đại sứ quán hay lãnh sự quán, và không được dùng quốc huy hoặc con dấu của cơ quan nhà nước. Tuyệt đối cấm việc tự nhận có người quen trong cơ quan quản lý xuất nhập cảnh hoặc có thể tác động tới cơ quan đó.',
+    },
+    {
+      en: 'The government fee must be shown separately. A visa listing must state the official government fee and the service fee charged by the provider as two separate amounts, before anyone pays anything. The government fee is set by the State and is paid for the application itself; it is generally not refundable once an application has been submitted. A listing must not fold it into one unexplained total, present it as the provider’s own charge, or reveal it only at checkout — and it must say what the service fee actually buys.',
+      vi: 'Lệ phí nhà nước phải được nêu riêng. Tin đăng dịch vụ thị thực phải nêu lệ phí chính thức của nhà nước và phí dịch vụ của nhà cung cấp thành hai khoản riêng, trước khi bất kỳ ai thanh toán. Lệ phí nhà nước do Nhà nước quy định và được nộp cho chính hồ sơ; thông thường không được hoàn lại sau khi hồ sơ đã nộp. Tin đăng không được gộp lệ phí này vào một tổng số tiền không được giải thích rõ, không được trình bày lệ phí như khoản thu của chính nhà cung cấp và không được chỉ cho biết khi thanh toán — đồng thời phải nêu rõ phí dịch vụ bao gồm những gì.',
+    },
+    {
+      en: 'Nothing that works around the process instead of going through it. Arranging or covering up an overstay other than by paying the official penalty, obtaining a stamp, approval letter or entry record outside the official process, or paying an official to move a file, may not be offered, advertised or hinted at. Forged and altered documents are already banned further up this page; this is the same rule applied to the process itself.',
+      vi: 'Không lách quy trình thay vì đi đúng quy trình. Không được chào bán, quảng cáo hay ám chỉ việc thu xếp hoặc che giấu tình trạng ở quá hạn bằng cách nào khác ngoài nộp phạt theo quy định, việc lấy dấu, công văn chấp thuận hoặc dữ liệu nhập cảnh ngoài quy trình chính thức, hay việc chi tiền cho cán bộ để “chạy” hồ sơ. Giấy tờ giả và giấy tờ bị sửa chữa đã bị cấm ở phần trên của trang này; đây là cùng quy định đó, áp dụng cho chính quy trình.',
+    },
+    {
+      en: 'Documents and payment stay on the route the listing describes. A provider may not ask you to send passport scans, portrait photos or personal details through a private channel outside the application flow shown on the listing, and may not ask you to pay by a route the listing does not describe. If someone asks you to do either, report the listing — that request is the most reliable scam signal there is.',
+      vi: 'Giấy tờ và thanh toán phải đi đúng cách thức tin đăng mô tả. Nhà cung cấp không được yêu cầu bạn gửi bản chụp hộ chiếu, ảnh chân dung hay thông tin cá nhân qua một kênh riêng nằm ngoài quy trình nộp hồ sơ được nêu trên tin đăng, và không được yêu cầu bạn thanh toán theo cách tin đăng không mô tả. Nếu có người yêu cầu bạn làm một trong hai việc đó, hãy báo cáo tin đăng — đó là dấu hiệu lừa đảo đáng tin cậy nhất.',
+    },
+  ],
+}
 
 const sections = [
   { id: 'illegal', label: 'Illegal — never allowed', labelVi: 'Bị cấm — không được đăng' },
   { id: 'regulated', label: 'Regulated — cannot be sold P2P', labelVi: 'Có điều kiện — không bán giữa cá nhân' },
   { id: 'policy', label: 'Platform policy bans', labelVi: 'Cấm theo chính sách của sàn' },
   { id: 'services', label: 'Banned services', labelVi: 'Dịch vụ bị cấm' },
-  ...(HAS_SERVICES_ADDENDUM ? [{ id: PROHIBITED_SERVICES_SECTION.id, label: PROHIBITED_SERVICES_SECTION.label }] : []),
+  { id: 'visa-services', label: 'Visa & immigration rules', labelVi: 'Quy định về thị thực' },
   { id: 'enforcement', label: 'Enforcement', labelVi: 'Xử lý vi phạm' },
 ]
 
@@ -195,7 +243,7 @@ export default async function ProhibitedPage({ params }: { params: Promise<{ lan
       meta={
         <>
           <p className="mt-3 text-sm text-ink-4">
-            <Bilingual en="Part of the Operating Regulations · Last updated: {date}" vi="Một phần của Quy chế hoạt động · Cập nhật lần cuối: {date}" values={{ date: vi ? V1_SUPERSEDED.publishedVi : V1_SUPERSEDED.publishedEn }} datesIso={{ date: V1_SUPERSEDED_BY.published }} />
+            <Bilingual en="Part of the Operating Regulations · Last updated: {date}" vi="Một phần của Quy chế hoạt động · Cập nhật lần cuối: {date}" values={{ date: vi ? PROHIBITED_AMENDED.publishedVi : PROHIBITED_AMENDED.publishedEn }} datesIso={{ date: PROHIBITED_AMENDMENT.published }} />
           </p>
           <LegalLanguageNote />
         </>
@@ -212,21 +260,31 @@ export default async function ProhibitedPage({ params }: { params: Promise<{ lan
           </ul>
         </ContentSection>
       ))}
-      {HAS_SERVICES_ADDENDUM && (
-        <ContentSection id={PROHIBITED_SERVICES_SECTION.id} title={PROHIBITED_SERVICES_SECTION.title}>
-          <p className="text-sm leading-relaxed text-body"><Tr text={PROHIBITED_SERVICES_SECTION.intro} /></p>
-          <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-body">
-            {PROHIBITED_SERVICES_SECTION.items.map((it) => (
-              <li key={it}><Tr text={it} /></li>
-            ))}
-          </ul>
-        </ContentSection>
-      )}
+      <ContentSection id="visa-services" title={VISA_RULES.title} titleVi={VISA_RULES.titleVi}>
+        {/* eno.vn only: the rules apply there from PROHIBITED_AMENDMENT.inForce (eno.forum has had them since
+            August). Typed dates, so the sentence stays true before and after that day on this static prerender. */}
+        {IS_MARKETPLACE && (
+          <p className="text-sm leading-relaxed text-body">
+            <Bilingual
+              en="These rules were published on {published} and apply on {site} from {inForce}, including to listings posted before that date."
+              vi="Các quy định này được công bố ngày {published} và áp dụng trên {site} từ ngày {inForce}, kể cả đối với tin đã đăng trước ngày đó."
+              values={{ site: SITE_NAME, published: vi ? PROHIBITED_AMENDED.publishedVi : PROHIBITED_AMENDED.publishedEn, inForce: vi ? PROHIBITED_AMENDED.inForceVi : PROHIBITED_AMENDED.inForceEn }}
+              datesIso={{ published: PROHIBITED_AMENDMENT.published, inForce: PROHIBITED_AMENDMENT.inForce }}
+            />
+          </p>
+        )}
+        <p className="text-sm leading-relaxed text-body">{say(VISA_RULES.intro)}</p>
+        <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-body">
+          {VISA_RULES.items.map((it) => (
+            <li key={it.en}>{say(it)}</li>
+          ))}
+        </ul>
+      </ContentSection>
       <ContentSection id="enforcement" title="Enforcement" titleVi="Xử lý vi phạm">
         <p className="text-sm leading-relaxed text-body">{say(ENFORCEMENT)}</p>
         {IS_SERVICES && !!PROHIBITED_SERVICES_CROSSLINK.href && (
           <p className="text-sm leading-relaxed text-body">
-            <Tr text={PROHIBITED_SERVICES_CROSSLINK.lead} />{' '}
+            {vi ? PROHIBITED_SERVICES_CROSSLINK.leadVi : <Tr text={PROHIBITED_SERVICES_CROSSLINK.lead} />}{' '}
             <a href={PROHIBITED_SERVICES_CROSSLINK.href} rel={CROSS_SITE_REL} className="font-semibold text-accent-foreground hover:underline">
               {PROHIBITED_SERVICES_CROSSLINK.label}
             </a>

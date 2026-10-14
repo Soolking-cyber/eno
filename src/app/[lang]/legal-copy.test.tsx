@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { AMENDED, LEGAL_AMENDMENT, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT, dateEn, dateVi, type LegalAmendment } from '@/lib/compliance/legal-amendment'
+import { AMENDED, LEGAL_AMENDMENT, PROHIBITED_AMENDED, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT, dateEn, dateVi, type LegalAmendment } from '@/lib/compliance/legal-amendment'
 import { PRIVACY_TEXT_PUBLISHED } from '@/lib/compliance/privacy-updated'
 import { V1_SUPERSEDED } from '@/lib/compliance/legal-archive'
 import { RANKING_DISCLOSURE_UPDATED } from '@/lib/compliance/ranking-disclosure'
@@ -364,13 +364,46 @@ describe('/returns', () => {
 describe('/prohibited', () => {
   it('renders the curated Vietnamese list on the vi variant', async () => {
     const html = await renderLang('./prohibited/page', 'vi')
-    // Last updated by the October 2026 amendment — the Terms' version 3 did not change this list.
-    expect(html).toContain('Một phần của Quy chế hoạt động · Cập nhật lần cuối: 01/10/2026')
-    expect(text(await renderLang('./prohibited/page', 'en'))).toContain('Part of the Operating Regulations · Last updated: 1 October 2026')
+    // Last updated by its own amendment (PROHIBITED_AMENDMENT, owner 2026-10-14 — the e-Visa rules on eno.vn); the
+    // Terms' and the Quy chế's amendments do not date this list.
+    expect(html).toContain(`Một phần của Quy chế hoạt động · Cập nhật lần cuối: ${PROHIBITED_AMENDED.publishedVi}`)
+    expect(text(await renderLang('./prohibited/page', 'en'))).toContain(`Part of the Operating Regulations · Last updated: ${PROHIBITED_AMENDED.publishedEn}`)
     expect(html).toContain('Hàng hoá và dịch vụ cấm đăng')
     expect(html).toContain('Ma tuý, tiền chất ma tuý')
     expect(html).toContain('<h2>Xử lý vi phạm</h2>')
     expect(html).toContain('đang được luật sư rà soát')
+  })
+
+  // ⛔ Owner, 2026-10-14: "eno.vn's /prohibited gets the same visa rules (dated amendment, 5-day notice)".
+  it('eno.vn publishes the e-Visa rules, in curated Vietnamese, with the dates they apply from', async () => {
+    const vi = await renderLang('./prohibited/page', 'vi')
+    expect(vi).toMatch(/<section id="visa-services"><h2>Dịch vụ thị thực và xuất nhập cảnh — quy định bổ sung<\/h2>/)
+    expect(vi).toContain('<a href="#visa-services">Quy định về thị thực</a>')
+    expect(vi).toContain('Chỉ doanh nghiệp có giấy phép mới được đăng.')
+    expect(vi).toContain(`Các quy định này được công bố ngày ${PROHIBITED_AMENDED.publishedVi} và áp dụng trên eno.vn từ ngày ${PROHIBITED_AMENDED.inForceVi}, kể cả đối với tin đã đăng trước ngày đó.`)
+    const en = text(await renderLang('./prohibited/page', 'en'))
+    expect(en).toContain(`These rules were published on ${PROHIBITED_AMENDED.publishedEn} and apply on eno.vn from ${PROHIBITED_AMENDED.inForceEn}, including to listings posted before that date.`)
+    expect(en).toContain('Only a licensed business may list them.')
+    // eno.forum's note about eno.vn is not on eno.vn (the alias stub in a build; the IS_SERVICES gate here).
+    expect(en).not.toContain('related classifieds marketplace')
+  })
+
+  it('eno.forum keeps the rules — now in curated Vietnamese — with no dated line, and its note about eno.vn corrected', async () => {
+    type P = { default: (p: { params: Promise<{ lang: string }> }) => Promise<React.ReactElement> }
+    const forum = async (lang: 'en' | 'vi') => {
+      const mod = await page<P>('./prohibited/page', lang, 'services')
+      return renderToStaticMarkup(await mod.default({ params: Promise.resolve({ lang }) }))
+    }
+    const vi = await forum('vi')
+    expect(vi).toContain('<h2>Dịch vụ thị thực và xuất nhập cảnh — quy định bổ sung</h2>')
+    expect(vi).toContain('Chỉ doanh nghiệp có giấy phép mới được đăng.')
+    expect(vi).toContain('eno.vn là một sàn rao vặt có liên quan, cùng hệ thống thương hiệu')
+    expect(vi).not.toContain('Các quy định này được công bố ngày')
+    const en = text(await forum('en'))
+    expect(en).toContain(`Last updated: ${PROHIBITED_AMENDED.publishedEn}`)
+    expect(en).toContain('the visa and immigration rules above included')
+    expect(en).not.toContain('no visa or immigration services on it at all')
+    expect(en).not.toContain('These rules were published on')
   })
 })
 
@@ -481,6 +514,21 @@ describe('/regulations', () => {
     expect(lists[0].length).toBe(lists[1].length)
     expect(lists[2]).toEqual([1, 2, 3, 4])
     expect(lists[3]).toEqual([1, 2, 3, 4])
+  })
+
+  // ⛔ /prohibited is an inseparable part of the Quy chế (Articles 9, 16) and Article 15 dates every amendment in
+  // Article 17 (codex + opus, plan review, 2026-10-14): eno.vn's list amendment is logged there, with its window and no
+  // new version; eno.forum's list changed only editorially, so its log does not move.
+  it('Article 17 logs eno.vn’s /prohibited amendment with its window — not a version — and eno.forum’s does not', async () => {
+    const log = text(section(await regs(), 'changelog'))
+    expect(log).toContain(`Sửa đổi, bổ sung Danh mục hàng hoá, dịch vụ cấm đăng — một phần không tách rời của Quy chế này theo Điều 9 và Điều 16 — được công bố ngày ${PROHIBITED_AMENDED.publishedVi} và có hiệu lực từ ngày ${PROHIBITED_AMENDED.inForceVi}`)
+    expect(log).toContain(`An amendment to the list of prohibited goods and services — an inseparable part of these Regulations under Articles 9 and 16 — published on ${PROHIBITED_AMENDED.publishedEn} and in force from ${PROHIBITED_AMENDED.inForceEn}`)
+    // Newest last (append-only): after version 3's entry.
+    expect(log.indexOf('(phiên bản 2)')).toBeLessThan(log.indexOf('Sửa đổi, bổ sung Danh mục hàng hoá'))
+    expect(REGULATIONS_VERSION).toBe('3')
+    const forum = text(section(await regs('services'), 'changelog'))
+    expect(forum).not.toContain('Danh mục hàng hoá, dịch vụ cấm đăng — một phần không tách rời')
+    expect(forum).not.toContain(PROHIBITED_AMENDED.inForceVi)
   })
 
   it('claims on eno.forum only the Article 2 additions eno.forum actually got', async () => {

@@ -605,15 +605,51 @@ describe('/privacy — the edition boundary', () => {
     expect(vi).toContain('Ảnh hồ sơ e-Visa bạn gửi cho người bán')
   })
 
-  it('⛔ a marketplace build WITHOUT the partner flow (the stub next.config.ts aliases in) never mentions visa at all', async () => {
+  // ⛔ Owner, 2026-10-14: the e-Visa subcategory is open to any seller on both editions — so the shared "Messages to
+  // e-Visa sellers" paragraph is the ONE place a marketplace build without the partner flow names e-Visa.
+  it('⛔ a marketplace build WITHOUT the partner flow (the stub next.config.ts aliases in) mentions visa only in the shared e-Visa sellers paragraph', async () => {
     vi.doMock('@/lib/privacy-partner-visa-copy', () => import('@/lib/privacy-partner-visa-copy.stub'))
     try {
-      expect(await policy('marketplace')).not.toMatch(/visa/i)
+      const en = await policy('marketplace')
+      const enPara = en.slice(en.indexOf('Messages to e-Visa sellers:'), en.indexOf('https://evisa.gov.vn.') + 'https://evisa.gov.vn.'.length)
+      expect(enPara.startsWith('Messages to e-Visa sellers:')).toBe(true)
+      expect(en.replace(enPara, '')).not.toMatch(/visa/i)
       cleanup()
-      expect(await policy('marketplace', 'vi')).not.toMatch(/visa|thị thực/i)
+      const vi = await policy('marketplace', 'vi')
+      const viPara = vi.slice(vi.indexOf('Tin nhắn với người bán dịch vụ e-Visa:'), vi.indexOf('https://evisa.gov.vn.') + 'https://evisa.gov.vn.'.length)
+      expect(viPara.startsWith('Tin nhắn với người bán dịch vụ e-Visa:')).toBe(true)
+      expect(vi.replace(viPara, '')).not.toMatch(/visa|thị thực/i)
     } finally {
       vi.doUnmock('@/lib/privacy-partner-visa-copy')
     }
+  })
+
+  // What chat does with what a buyer types to an e-Visa seller — true on both editions (prisma Message has no file
+  // column; deleting is recall, not erasure; a report of the conversation, the listing or the seller can be read).
+  it('the e-Visa sellers paragraph says what chat does, on both editions, in both languages', async () => {
+    for (const edition of ['marketplace', 'services'] as const) {
+      const en = await policy(edition, 'en')
+      expect(en, edition).toContain('Messages to e-Visa sellers: sellers on this site may offer help with a Vietnam e-Visa.')
+      expect(en, edition).toContain('an ordinary chat, which cannot carry photos or files')
+      expect(en, edition).toContain('deleting a message hides it from both of you but does not erase it')
+      expect(en, edition).toContain('if a report involves the conversation, the listing or the seller, our team can read it and may ask an AI model for a suggestion')
+      cleanup()
+      const vi = await policy(edition, 'vi')
+      expect(vi, edition).toContain('Tin nhắn với người bán dịch vụ e-Visa:')
+      expect(vi, edition).toContain('không gửi được ảnh hay tệp')
+      expect(vi, edition).toContain('chứ không xóa hẳn')
+      cleanup()
+    }
+  })
+
+  // The partner section's first sentence no longer says every e-Visa seller takes photos in chat (only the listings
+  // with the in-chat application do) — the shared paragraph above would contradict it.
+  it('the partner e-Visa section opens with the listings that take an application in chat', async () => {
+    const en = await policy('marketplace')
+    expect(en).toContain('Some e-Visa listings on eno.vn let you apply in the chat. If you use one, you send the seller two photos in the chat:')
+    expect(en).not.toContain('Some sellers on eno.vn offer help')
+    cleanup()
+    expect(await policy('marketplace', 'vi')).toContain('Một số tin đăng e-Visa trên eno.vn cho phép bạn nộp hồ sơ ngay trong cuộc trò chuyện.')
   })
 
   it('eno.forum states its tag-manager exception; eno.vn states that declining stops all third-party tracking', async () => {

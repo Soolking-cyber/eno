@@ -5,6 +5,18 @@ production database, for review by Vietnamese counsel before lodgement with A05,
 Three [OWNER INPUT] fields cannot be filled until the ERC is issued (expected week of 2026-08-21).
 Section 7 lists what blocks filing. The owner deferred those to nearer MOIT issuance (2026-08-14):
 the 14 VietKite e-visa listings stay visible for now, and the pre-launch purge runs later.
+
+⛔ 2026-10-14 — OWNER DECISION THAT CHANGES §1, §2.3 AND §7.1 BEFORE FILING: eno.vn now has a dedicated e-Visa
+subcategory (Services › e-Visa) open to ANY seller, each listing live only after eno's team has seen the provider's
+licence ("Anyone posts, live after check"); /prohibited carries the visa listing rules on both sites (eno.vn's dated
+amendment, PROHIBITED_AMENDMENT). eno itself still operates no visa service on eno.vn (HIDDEN_DESK_OWNER_EMAILS).
+The dossier's description of a marketplace "with no visa services" is therefore no longer accurate, and the hiding fix
+in §7.1 no longer applies: rewrite §1/§2.3 to describe third-party e-visa listings — counsel to review that wording.
+The data that flows: (a) to an ORDINARY e-Visa seller, only what a buyer chooses to type in an ordinary chat, which
+carries no photos or files (/privacy "Messages to e-Visa sellers"); (b) to the PARTNER listings with the in-chat
+application (VietKite, MARKETPLACE_HOSTS_SERVICES), the passport and portrait photos /privacy's partner section
+describes. ⚠️ From the amendment's in-force date /prohibited rule 1 wants the provider's licence on file before an
+e-Visa listing is live — VietKite's is not yet (src/lib/visa-provider.ts PROVIDER_LICENCE_ON_FILE = false).
 -->
 
 # HỒ SƠ BẢO VỆ DỮ LIỆU CÁ NHÂN — eno.vn
@@ -467,6 +479,12 @@ All rows MEASURED against `prisma/schema.prisma` and `information_schema` on 14/
 
 **Cách sửa nhỏ nhất:** đặt `status='hidden'` cho 14 tin đó, **hoặc** thêm địa chỉ của gian hàng vận hành desk vào `HIDDEN_DESK_OWNER_EMAILS`. ⚠️ Đọc cảnh báo trong `edition-scope.ts` trước: biến đó là **công cụ cấp phép, không phải định tuyến** — đặt địa chỉ của một đối tác được cấp phép vào đó sẽ xóa toàn bộ gian hàng của họ khỏi sàn. Cách an toàn hơn là ẩn từng tin.
 **Chặn nộp hồ sơ: CÓ.**
+
+> ⛔ **2026-10-14 — ĐÃ THAY ĐỔI / SUPERSEDED.** Chủ sở hữu quyết định mở danh mục con e-Visa trên eno.vn cho mọi người bán,
+> mỗi tin chỉ hiển thị sau khi đội ngũ eno kiểm tra giấy phép của nhà cung cấp. Cách sửa "ẩn 14 tin" ở trên không còn áp
+> dụng; thay vào đó hồ sơ phải mô tả đúng: sàn có tin dịch vụ e-Visa của bên thứ ba được cấp phép, eno không tự vận hành dịch
+> vụ thị thực trên eno.vn. *(The owner opened an e-Visa subcategory on eno.vn to all sellers behind a licence check, so the
+> fix above no longer applies: the dossier must describe third-party, licence-checked e-visa listings instead.)*
 
 ### 2. ⛔ Số CCCD/ĐKKD của người bán lưu dạng rõ
 **MEASURED:** `Seller.idNumber` nhận chuỗi chữ số và ghi thẳng (`src/lib/core/seller.ts:71–75`); 4/12 gian hàng đang có giá trị. Thiết kế `identity_verifications` trong chính repo này ghi rõ lý do không được làm thế: *"a national ID is low-entropy and structured, so a leaked plain sha256 column is equivalent to leaking the numbers themselves"* — rồi cột bên cạnh lại lưu số gốc.

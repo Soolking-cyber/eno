@@ -57,6 +57,9 @@ export const metadata: Metadata = withShare({
 // behind an `IS_SERVICES ?` ternary: next.config.ts aliases that module to an empty stub on a
 // marketplace build, which is the only thing that removes the words from the artifact. The gates
 // here control what RENDERS; the alias controls what SHIPS. Nothing below may name that service.
+// ⚠️ ONE EXCEPTION (owner, 2026-10-14 — the e-Visa subcategory is open to any seller on BOTH editions, live after
+// eno's licence check; CLAUDE.md): the shared "Messages to e-Visa sellers" paragraph in "What personal data we
+// collect". It names no desk, partner, site or flow; eno's own desk and the partner flow stay in the aliased modules.
 //
 // ⚠️ AND KEEP THE COPY OUT OF tr('…') / <Tr text="…"> LITERALS. scripts/gen-ui-strings.mjs harvests
 // those into src/generated/ui-strings.ts, which ships to every browser. Data fields rendered through
@@ -500,6 +503,19 @@ const SECTIONS: Section[] = [
         vi: 'Tin nhắn: các cuộc trò chuyện của bạn với người dùng khác qua tính năng chat trên nền tảng, và với bộ phận hỗ trợ của chúng tôi (kể cả qua WhatsApp nếu bạn nhắn cho chúng tôi ở đó). Chúng tôi lưu giữ để cả hai bên có bằng chứng và để báo cáo gian lận hay lạm dụng được xem xét công bằng.',
       },
       {
+        // e-Visa SELLERS (owner, 2026-10-14: the e-Visa subcategory is open to any seller on both editions, live after
+        // eno's licence check — taxonomy.ts licenceCheckHold). An ordinary thread carries no attachment (prisma Message:
+        // a text body, no file column); the only upload in a thread is the in-chat e-Visa application
+        // (messages/[id]/page.tsx uploadVisaDocument), on the visa-shop listings alone (thread-kind.ts). No pointer to
+        // "the next section": a marketplace build without the partner flow has none (codex, commit gate). Deleting is
+        // recall, not erasure (Message.deletedAt). Translation: the
+        // Microsoft row. Report review: the Google row and "Automated decisions" — api/admin/ai-review reads the last 40
+        // messages of the reporter↔seller thread for a report of the conversation, the listing or the seller, deleted
+        // ones included (opus, plan review: not only "if the conversation is reported").
+        en: 'Messages to e-Visa sellers: sellers on this site may offer help with a Vietnam e-Visa. Unless the listing offers an e-Visa application inside the chat, your conversation with its seller is an ordinary chat, which cannot carry photos or files. Whatever you choose to type in it — your passport details, for example — is handled like any other message: it is stored (see “Messages” above; deleting a message hides it from both of you but does not erase it), it may be machine-translated for the seller when the two of you use different languages, and if a report involves the conversation, the listing or the seller, our team can read it and may ask an AI model for a suggestion (see “Automated decisions”). The seller receives it and handles it under its own responsibility and its own obligations under Vietnamese law; anything you send a seller outside this site does not reach us. We are the marketplace — not a government agency — and do not decide visa applications. The official e-Visa portal is https://evisa.gov.vn.',
+        vi: 'Tin nhắn với người bán dịch vụ e-Visa: người bán trên website này có thể cung cấp dịch vụ hỗ trợ xin e-Visa Việt Nam. Trừ khi tin đăng có quy trình nộp hồ sơ e-Visa ngay trong cuộc trò chuyện, cuộc trò chuyện của bạn với người bán là cuộc trò chuyện thông thường, không gửi được ảnh hay tệp. Những gì bạn chọn nhập vào đó — ví dụ thông tin hộ chiếu — được xử lý như mọi tin nhắn khác: được lưu (xem mục “Tin nhắn” ở trên; xóa một tin nhắn chỉ ẩn tin đó với cả hai bên chứ không xóa hẳn), có thể được dịch máy cho người bán khi hai bên dùng ngôn ngữ khác nhau, và nếu có báo cáo liên quan đến cuộc trò chuyện, tin đăng hoặc người bán đó, đội ngũ của chúng tôi có thể đọc nội dung này và có thể yêu cầu mô hình AI đưa ra gợi ý (xem mục “Quyết định tự động”). Người bán nhận và xử lý nội dung đó theo trách nhiệm và nghĩa vụ pháp lý của chính mình theo pháp luật Việt Nam; những gì bạn gửi cho người bán bên ngoài website này không đến tay chúng tôi. Chúng tôi là sàn giao dịch — không phải cơ quan nhà nước — và không quyết định kết quả hồ sơ thị thực. Cổng thông tin e-Visa chính thức là https://evisa.gov.vn.',
+      },
+      {
         // KYC: src/lib/kyc/service.ts (kycSubmitSchema — tier A/B, challenge selfie, MRZ fields, consentVersion;
         // never returns `verified`, an admin reviews) · src/lib/kyc/store.ts (private bucket) · business:
         // src/lib/business-verification-store.ts:12 ('identity' | 'bank' | 'authorization') · tax code →
@@ -868,6 +884,10 @@ const isTable = (b: Block): b is { table: Table } => 'table' in b
  * automated-decisions paragraph shipped the same Vietnamese day as the Apple rows, so PRIVACY_TEXT_PUBLISHED
  * (2026-10-09) dates them too — the owner's call ("apply recommended": immediate). Its parallel record
  * (PRIVACY_AMENDMENT) was dropped for this one, already live.
+ * ⛔ AND THE e-VISA SUBCATEGORY (owner, 2026-10-14) rides it too: the shared "Messages to e-Visa sellers" paragraph and
+ * the partner e-Visa section's narrowed first sentence (src/lib/privacy-partner-visa-copy.ts), live with the deploy —
+ * PRIVACY_TEXT_PUBLISHED is that deploy's day. (The /prohibited amendment in the same deploy has its own record and
+ * window, PROHIBITED_AMENDMENT — it does not date this page.)
  */
 // ISO dates compare as strings.
 const LAST_UPDATED_ON = LEGAL_AMENDMENT.published > PRIVACY_TEXT_PUBLISHED ? LEGAL_AMENDMENT.published : PRIVACY_TEXT_PUBLISHED
