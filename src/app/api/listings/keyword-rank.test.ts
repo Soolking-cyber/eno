@@ -53,7 +53,7 @@ const { searchScore } = await import('@/lib/ranking-formula')
 const WHERE = { AND: [{ verified: true }, { status: 'active' }] }
 const ORDER = [{ rankScore: 'desc' as const }, { id: 'desc' as const }]
 const page = (offset: number, over: Partial<Parameters<typeof keywordRank>[0]> = {}) =>
-  keywordRank({ q: 'iphone', looseMatch: false, featuredOnly: false, sort: 'newest', offset, limit: 12, where: WHERE, orderBy: ORDER, ...over })
+  keywordRank({ q: 'iphone', looseMatch: false, featuredOnly: false, sort: 'newest', offset, limit: 12, where: WHERE, orderBy: ORDER, teachers: false, ...over })
 
 beforeEach(() => {
   __resetKeywordRankCache()

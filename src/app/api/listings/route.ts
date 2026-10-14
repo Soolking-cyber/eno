@@ -106,7 +106,7 @@ async function buildFeedPayload(searchParams: URLSearchParams, opts: { noAi?: bo
   // ONE reference instant for the grid AND every count below, so a time-window filter (Posted) cannot
   // put the chips and the results on opposite sides of a 5-minute step (src/lib/posted-filter.ts).
   const now = new Date()
-  const { category, q, inferredDistrict, sort, featuredOnly, limit, offset, priceMin, priceMax, histogram, looseMatch, priorityCategory, andFilters, pgTextFilter, saleScopeFromWords, subcategoryFilter, where } =
+  const { category, q, inferredDistrict, sort, featuredOnly, limit, offset, priceMin, priceMax, histogram, looseMatch, priorityCategory, andFilters, pgTextFilter, saleScopeFromWords, subcategoryFilter, where, teachersIn } =
     await resolveFeedFilters(searchParams, { now })
 
   /**
@@ -193,7 +193,7 @@ async function buildFeedPayload(searchParams: URLSearchParams, opts: { noAi?: bo
   // Semantic ranking via Vertex AI Search — falls back to the keyword query in `where`.
   const { semanticListings, semanticTotal, aiSkipped } = await semanticRank({
     q, looseMatch, featuredOnly, sort, category, priceMin, priceMax, offset, limit, andFilters, pgTextFilter, orderBy,
-    noAi: opts.noAi,
+    noAi: opts.noAi, teachers: teachersIn,
   })
 
   // Parallel fetch: Listings, total count, and subcategory counts (if category is set)
@@ -297,7 +297,7 @@ async function buildFeedPayload(searchParams: URLSearchParams, opts: { noAi?: bo
        * ⚠️ Created here, inside the array the Promise.all below joins, with no await in between — the
        * unhandled-rejection note on `facetsPromise` applies to any promise left unwatched.
        */
-      : keywordRank({ q, looseMatch, featuredOnly, sort, offset, limit, where, orderBy }).then(({ keywordListings, matchClassOf: classOf }) => {
+      : keywordRank({ q, looseMatch, featuredOnly, sort, offset, limit, where, orderBy, teachers: teachersIn }).then(({ keywordListings, matchClassOf: classOf }) => {
         matchClassOf = classOf
         return keywordListings
       }).then((keywordListings) => keywordListings ?? (
@@ -364,9 +364,9 @@ async function buildFeedPayload(searchParams: URLSearchParams, opts: { noAi?: bo
               const fromHead = plan.fromHead ? head.slice(plan.fromHead.start, plan.fromHead.end) : []
               if (plan.tailTake <= 0) return fromHead
               const tail = await db.listing.findMany({
-                // `{ teachers: true }`: `where` already carries buildFeedFilters' teacher decision —
-                // the default exclusion here would drop every /c/teachers row past the head window.
-                where: { AND: [await scopedListingWhere(where, { teachers: true }), { id: { notIn: head.map((r) => r.id) } }] },
+                // `teachersIn`: the decision `where` carries (buildFeedFilters) — the default exclusion here
+                // would drop every /c/teachers row past the head window.
+                where: { AND: [await scopedListingWhere(where, { teachers: teachersIn }), { id: { notIn: head.map((r) => r.id) } }] },
                 orderBy, skip: plan.tailSkip, take: plan.tailTake, select: LISTING_CARD_SELECT,
               })
               return [...fromHead, ...tail]

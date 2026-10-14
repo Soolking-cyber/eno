@@ -195,16 +195,21 @@ export async function keywordRank(args: {
   limit: number
   where: Prisma.ListingWhereInput
   orderBy: Prisma.ListingOrderByWithRelationInput[]
+  /**
+   * The teacher decision `where` carries (buildFeedFilters' `teachersIn`), passed to every re-scope below. A literal
+   * false re-added the exclusion a teachers search had lifted, so a words search inside teachers ranked nothing.
+   */
+  teachers: boolean
 }): Promise<{ keywordListings: Awaited<ReturnType<typeof pageRankedThenTail>> | null; matchClassOf?: (id: string) => MatchClass }> {
-  const { q, looseMatch, featuredOnly, sort, offset, limit, where, orderBy } = args
+  const { q, looseMatch, featuredOnly, sort, offset, limit, where, orderBy, teachers } = args
   if (!q || looseMatch || featuredOnly || sort !== DEFAULT_FEED_SORT) return { keywordListings: null }
   const query = parseSearchQuery(q)
   if (!query.units.length) return { keywordListings: null }
   try {
-    const { ids: rankedIds, titleCount } = await rankedIdsFor(await scopedListingWhere(where), q, query)
+    const { ids: rankedIds, titleCount } = await rankedIdsFor(await scopedListingWhere(where, { teachers }), q, query)
     const titleIds = new Set(rankedIds.slice(0, titleCount))
     return {
-      keywordListings: await pageRankedThenTail({ rankedIds, pageWhere: where, tailWhere: where, orderBy, offset, limit }),
+      keywordListings: await pageRankedThenTail({ rankedIds, pageWhere: where, tailWhere: where, orderBy, offset, limit, teachers }),
       // Per row, for the explorer's results strip (B1): 'title' = in the ranked title tier; everything
       // else is 'aside' — the ranked 'aside' rows, the weak rows AND every row past the candidate pools
       // (POOL_A + POOL_B), whose titles were never scored. 'aside' never means "the title does not match".

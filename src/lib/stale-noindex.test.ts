@@ -60,9 +60,11 @@ vi.mock('@/lib/db', () => ({
     },
   },
 }))
-// The marketplace scope: the desk's rows never count toward a marketplace page, departures included.
+// The marketplace scope: the desk's rows never count toward a marketplace page, departures included — and teacher
+// rows only when the caller lifts the default exclusion, as the real scopedListingWhere does.
 vi.mock('@/lib/edition-scope', () => ({
-  scopedListingWhere: async (w: object) => ({ AND: [w, { sellerId: { notIn: ['desk'] } }] }),
+  scopedListingWhere: async (w: object, opts?: { teachers?: boolean }) =>
+    ({ AND: [w, { sellerId: { notIn: ['desk'] } }, ...(opts?.teachers ? [] : [{ NOT: { categoryId: 'teachers' } }])] }),
 }))
 
 import { staleBelowFloor } from './stale-noindex'
@@ -144,6 +146,26 @@ describe('an empty category page', () => {
   })
 })
 
+/**
+ * A TEACHERS PAGE (2026-10-14). The count re-scopes its `where`, and the default teacher exclusion zeroed it on every
+ * teachers page, so the grace window never applied there; the pages pass `teachers` for the teachers category only.
+ */
+describe('a teachers page', () => {
+  const teachers = (live: number, lift?: boolean) =>
+    staleBelowFloor({ where: { categoryId: 'teachers' }, live, floor: MIN_CATEGORY_LISTINGS, now: NOW, ...(lift === undefined ? {} : { teachers: lift }) })
+
+  it('counts a teacher who left inside the window when the page lifts the exclusion', async () => {
+    h.rows = [row({ categoryId: 'teachers', status: 'hidden', updatedAt: new Date(NOW - 86_400_000) })]
+    expect(await teachers(0, true)).toBe(false)
+  })
+
+  it('keeps the exclusion by default — the same departure does not count', async () => {
+    h.rows = [row({ categoryId: 'teachers', status: 'hidden', updatedAt: new Date(NOW - 86_400_000) })]
+    expect(await teachers(0)).toBe(true)
+    expect(await teachers(0, false)).toBe(true)
+  })
+})
+
 describe('a district page under the floor of 10', () => {
   const inQ1 = (over: Partial<Row>) => row({ district: 'Quận 1', ...over })
   const recent = new Date(NOW - 3 * 86_400_000)
@@ -199,7 +221,7 @@ describe('the category and district pages read it', () => {
 
   it('/c/<slug>: its live count against one listing, over the whole category', () => {
     const meta = metadataOf(readFileSync(join(APP, '(index)/page.tsx'), 'utf8'))
-    expect(meta).toMatch(/const emptyForTheWindow = await staleBelowFloor\(\{ where: \{ categoryId: cat\.id \}, live, floor: MIN_CATEGORY_LISTINGS \}\)/)
+    expect(meta).toMatch(/const emptyForTheWindow = await staleBelowFloor\(\{ where: \{ categoryId: cat\.id \}, live, floor: MIN_CATEGORY_LISTINGS, teachers: cat\.slug === TEACHERS_CATEGORY_SLUG \}\)/)
     // …or a retired shelf whatever its count (second-hand focus, 2026-10-03 — src/lib/retired-categories.ts).
     expect(meta).toMatch(/\.\.\.\(emptyForTheWindow \|\| isRetiredNavCategory\(cat\.slug\) \? \{ robots: \{ index: false, follow: true \} \} : \{\}\)/)
     expect(meta.match(/robots:/g)).toHaveLength(1)
@@ -208,7 +230,7 @@ describe('the category and district pages read it', () => {
 
   it('/c/<slug>/<district>: its full count against the floor of 10, over its own scope without liveness', () => {
     const src = readFileSync(join(APP, '[district]/page.tsx'), 'utf8')
-    expect(src).toMatch(/staleBelowFloor\(\{\s*where: \{ AND: \[placesOnly \? \{ AND: \[\{ categoryId: cat\.id \}, RENTAL_PLACES\] \} : \{ categoryId: cat\.id \}, scope\] \},\s*live: total,\s*floor: MIN_INDEXABLE_LISTINGS,\s*\}\)/)
+    expect(src).toMatch(/staleBelowFloor\(\{\s*where: \{ AND: \[placesOnly \? \{ AND: \[\{ categoryId: cat\.id \}, RENTAL_PLACES\] \} : \{ categoryId: cat\.id \}, scope\] \},\s*live: total,\s*floor: MIN_INDEXABLE_LISTINGS,\s*teachers: categorySlug === TEACHERS_CATEGORY_SLUG,\s*\}\)/)
     const meta = metadataOf(src)
     expect(meta).toMatch(/\.\.\.\(data\.noindex \|\| isRetiredNavCategory\(data\.cat\.slug\) \? \{ robots: \{ index: false, follow: true \} \} : \{\}\)/)
     expect(meta.match(/robots:/g)).toHaveLength(1)

@@ -21,6 +21,7 @@ import { districtScopeForSlug } from '@/lib/district-slug'
 import { canonicalDistrictSlug, districtLabel, isCuratedDistrict, mergeDistrictGroups } from '@/lib/district-canonical'
 import { MIN_INDEXABLE_LISTINGS, isIndexableCount } from '@/lib/index-floor'
 import { staleBelowFloor } from '@/lib/stale-noindex'
+import { TEACHERS_CATEGORY_SLUG } from '@/lib/teachers/constants'
 import { localizedHref } from '@/lib/lang-pinned'
 import { crumbNames, districtMetadata, districtRentalsHeadline, homeFacts, linkedTier, listsHomesOnly, pageLang, rentalsPlaceLabel } from '../category-copy'
 import { DistrictHeading, DistrictLede, OtherRentalsLink, PlaceName, RentalsDistrictHeading, RentIndexLink } from '../category-text'
@@ -146,7 +147,10 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
    * the page renders <ListingCard> slots only. The window re-scopes `where` itself (feed-window.ts).
    */
   const sharedSeats = sharedSeatsFor(null, categorySlug)
-  const head = await diverseFeedWindow(listed, [{ rankScore: 'desc' }, { id: 'desc' }], LISTING_CARD_SELECT, { sharedSeats })
+  // `teachers: true` like every read on this page (see the import): the window RE-APPLIES the scope, and without the
+  // flag it re-added the teacher exclusion — every /c/teachers/<district> page counted its teachers, then listed none
+  // and 404ed (measured 2026-10-14: /c/teachers/d7 404 with three live teachers in District 7).
+  const head = await diverseFeedWindow(listed, [{ rankScore: 'desc' }, { id: 'desc' }], LISTING_CARD_SELECT, { sharedSeats, teachers: true })
   const rows = diversifyBySeller(head, { sharedSeats }).slice(0, DISTRICT_PAGE_SIZE)
   if (rows.length === 0) return null
   const [groups, linked, noindex] = await Promise.all([
@@ -176,6 +180,7 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
       where: { AND: [placesOnly ? { AND: [{ categoryId: cat.id }, RENTAL_PLACES] } : { categoryId: cat.id }, scope] },
       live: total,
       floor: MIN_INDEXABLE_LISTINGS,
+      teachers: categorySlug === TEACHERS_CATEGORY_SLUG,
     }),
   ])
   /**

@@ -53,6 +53,26 @@ describe('/c/<category>/<district> status contract', () => {
    * ⛔ ONCE 14 DAYS UNDER IT (I1b, decision I-g): load() folds the window in as `data.noindex`
    * (src/lib/stale-noindex.test.ts pins how).
    */
+  /**
+   * ⛔ EVERY LISTING READ HERE CARRIES `teachers: true` (2026-10-14). The window re-applies the scope itself
+   * (feed-window.ts): without the flag it re-added the teacher exclusion, so /c/teachers/<district> counted its
+   * teachers, listed none and 404ed (/c/teachers/d7 with three live teachers). Each read is pinned to one category,
+   * so the flag hides nothing anywhere else.
+   */
+  it('passes the teacher decision to every helper that re-scopes its where', () => {
+    const src = readFileSync(join(APP, 'c/[category]/[district]/page.tsx'), 'utf8')
+    // One line per call (this file has no semicolons to stop a wider match).
+    const windows = [...src.matchAll(/await diverseFeedWindow\(([^\n]*)\)$/gm)].map((m) => m[1])
+    expect(windows.length).toBeGreaterThan(0)
+    for (const args of windows) expect(args).toMatch(/teachers: true/)
+    // Every scopedListingWhere call here carries the flag (one today: `base`, which every other read composes).
+    const scoped = src.split('await scopedListingWhere(').slice(1).map((rest) => rest.slice(0, rest.indexOf('\n  const ')))
+    expect(scoped.length).toBeGreaterThan(0)
+    for (const call of scoped) expect(call).toMatch(/\{ teachers: true \}\)/)
+    // The stale-noindex count re-scopes too: it lifts the exclusion on the teachers category only.
+    expect(src).toMatch(/staleBelowFloor\(\{[\s\S]*?teachers: categorySlug === TEACHERS_CATEGORY_SLUG,[\s\S]*?\}\)/)
+  })
+
   it('applies the indexing floor to its own count, in generateMetadata, and regenerates at least daily', () => {
     const src = readFileSync(join(APP, 'c/[category]/[district]/page.tsx'), 'utf8')
     const meta = src.slice(src.indexOf('export async function generateMetadata('), src.indexOf('export default async function'))

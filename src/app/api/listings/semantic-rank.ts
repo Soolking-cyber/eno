@@ -44,6 +44,8 @@ export async function semanticRank(args: {
   andFilters: Prisma.ListingWhereInput[]
   pgTextFilter: Prisma.ListingWhereInput | null
   orderBy: Prisma.ListingOrderByWithRelationInput[]
+  /** The teacher decision `andFilters` carries (buildFeedFilters' `teachersIn`), for pageRankedThenTail's re-scopes. */
+  teachers: boolean
   /**
    * App Store gate `app-ai-notice` (route.ts decides: the gate is on AND the request comes from either app). The search
    * words must not go to Google, so the semantic path is skipped whole — no Vertex call and no cached Vertex ranking
@@ -120,7 +122,10 @@ export async function semanticRank(args: {
       // rankScore-ordered keyword matches that are not ranked (ranked-page.ts).
       const [tailTotal, page] = await Promise.all([
         db.listing.count({ where: { AND: [...andFilters, { id: { notIn: rankedIds } }] } }),
-        pageRankedThenTail({ rankedIds, tailWhere: { AND: andFilters }, orderBy, offset, limit }),
+        // pageWhere = the same structural filters the ids were just read through (no text filter: a Vertex match need
+        // not contain the words), so the page read stands on its own — category and liveness included — whatever the
+        // teacher decision lifts (agy/codex + Opus, gate 2026-10-14).
+        pageRankedThenTail({ rankedIds, pageWhere: { AND: structural }, tailWhere: { AND: andFilters }, orderBy, offset, limit, teachers: args.teachers }),
       ])
       semanticTotal = R + tailTotal
       semanticListings = page

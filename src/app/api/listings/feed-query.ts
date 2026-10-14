@@ -261,7 +261,8 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
   // ⛔ TEACHER PROFILES ONLY ON THE TEACHERS CATEGORY (2026-09-30). This feed composes its own AND
   // array, so it does not inherit scopedListingWhere's default exclusion — without this, teacher
   // cards would fill the home "all" feed, search and every facet count. Own element, as above.
-  const teacherScope = await teacherExclusion({ teachers: category === TEACHERS_CATEGORY_SLUG || opts.includeTeachers === true })
+  const teachersIn = category === TEACHERS_CATEGORY_SLUG || opts.includeTeachers === true
+  const teacherScope = await teacherExclusion({ teachers: teachersIn })
   if (teacherScope) andFilters.push(teacherScope)
   /**
    * STOREFRONT SCOPE — `?seller=<id>`, sent by every query a shop's subdomain makes.
@@ -642,6 +643,12 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
     saleScopeFromWords,
     subcategoryFilter,
     where,
+    /**
+     * The teacher decision `andFilters` carries (teacherExclusion above). Every later re-scope of these filters
+     * (scopedListingWhere) passes THIS, never a literal: true lets a teachers search keep its rows, false re-adds the
+     * default exclusion as a backstop on any other search.
+     */
+    teachersIn,
   }
 }
 
@@ -675,9 +682,8 @@ export async function buildFeedFilters(searchParams: URLSearchParams, opts: Feed
 export async function resolveFeedFilters(searchParams: URLSearchParams, opts: { now?: Date } = {}) {
   const f = await buildFeedFilters(searchParams, { now: opts.now })
   if (!f.districtInference || !hasPlainTextFallback(f.districtInference)) return f
-  const anyRow = async (x: { andFilters: Prisma.ListingWhereInput[]; priceFilter: Prisma.ListingWhereInput | null }) =>
-    // `{ teachers: true }`: andFilters already carries buildFeedFilters' teacher decision.
-    anyListingCached(await scopedListingWhere({ AND: x.andFilters.filter((c) => c !== x.priceFilter) }, { teachers: true }))
+  const anyRow = async (x: { andFilters: Prisma.ListingWhereInput[]; priceFilter: Prisma.ListingWhereInput | null; teachersIn: boolean }) =>
+    anyListingCached(await scopedListingWhere({ AND: x.andFilters.filter((c) => c !== x.priceFilter) }, { teachers: x.teachersIn }))
   // ⚠️ A FAILED PROBE KEEPS THE DISTRICT READING (opus): the net must not turn a search that would
   // have answered into a 500. Failures are not cached, so the next request asks again.
   if (await anyRow(f).catch(() => true)) return f

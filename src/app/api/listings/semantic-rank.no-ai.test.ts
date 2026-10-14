@@ -21,7 +21,7 @@ import { semanticRank } from './semantic-rank'
 
 const base = {
   looseMatch: false, featuredOnly: false, sort: 'newest', category: undefined, priceMin: NaN, priceMax: NaN,
-  offset: 0, limit: 24, andFilters: [], pgTextFilter: null, orderBy: [],
+  offset: 0, limit: 24, andFilters: [], pgTextFilter: null, orderBy: [], teachers: false,
 }
 
 beforeEach(() => {

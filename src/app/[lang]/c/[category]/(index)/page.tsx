@@ -112,7 +112,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Every other category keeps its old wording only while none of its stock is linked (category-copy.ts).
   const { title, description } = rentals ?? categoryMetadata(cat, live > 0 ? linkedTier(await loadLinkedCount(cat.id), live) : 'none', SITE_NAME, pageLang(lang))
   // Empty, and empty for the whole window (src/lib/stale-noindex.ts). Queries only when `live` is 0.
-  const emptyForTheWindow = await staleBelowFloor({ where: { categoryId: cat.id }, live, floor: MIN_CATEGORY_LISTINGS })
+  const emptyForTheWindow = await staleBelowFloor({ where: { categoryId: cat.id }, live, floor: MIN_CATEGORY_LISTINGS, teachers: cat.slug === TEACHERS_CATEGORY_SLUG })
   /**
    * ⛔ THE `/vi` PILOT (SEO wave B, V3b — dormant until V5 lists `/c/furniture-appliances`, marketplace
    * only): the plain URL is the English variant and `/vi/c/<slug>` the Vietnamese one, each self-canonical,

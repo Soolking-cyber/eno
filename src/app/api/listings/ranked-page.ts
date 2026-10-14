@@ -32,8 +32,9 @@ export async function pageRankedThenTail(args: {
   /**
    * Re-applied to the page's ranked rows. The keyword path passes its `where`: its ranked list is
    * cached, so a listing hidden or sold since then must drop out rather than be served from memory.
-   * The semantic path omits it — its ids were filtered fresh on this request, and they are Vertex's
-   * matches, which the keyword text filter would wrongly remove.
+   * The semantic path passes its STRUCTURAL filters — the feed's without the keyword text filter,
+   * which would wrongly remove Vertex's matches — so its page read keeps the category and liveness
+   * scope even where `teachers` lifts the default exclusion (gate 2026-10-14).
    */
   pageWhere?: Prisma.ListingWhereInput
   /** Everything the query matches; the tail is this minus the ranked ids. */
@@ -41,13 +42,19 @@ export async function pageRankedThenTail(args: {
   orderBy: Prisma.ListingOrderByWithRelationInput[]
   offset: number
   limit: number
+  /**
+   * The feed's teacher decision (buildFeedFilters' `teachersIn`), for both re-scopes below. True only on a teachers
+   * search, whose filters already admit teacher rows; false re-adds the default exclusion as a backstop everywhere
+   * else — the semantic path's page read has no `pageWhere` and leans on it.
+   */
+  teachers: boolean
 }): Promise<CardRow[]> {
-  const { rankedIds, pageWhere, tailWhere, orderBy, offset, limit } = args
+  const { rankedIds, pageWhere, tailWhere, orderBy, offset, limit, teachers } = args
   const plan = feedPagePlan(rankedIds.length, offset, limit)
   const pageIds = plan.fromHead ? rankedIds.slice(plan.fromHead.start, plan.fromHead.end) : []
   const idIn: Prisma.ListingWhereInput = { id: { in: [...pageIds] } }
   const pageRows = pageIds.length
-    ? await db.listing.findMany({ where: await scopedListingWhere(pageWhere ? { AND: [pageWhere, idIn] } : idIn), select: LISTING_CARD_SELECT })
+    ? await db.listing.findMany({ where: await scopedListingWhere(pageWhere ? { AND: [pageWhere, idIn] } : idIn, { teachers }), select: LISTING_CARD_SELECT })
     : []
   // Restore the ranked order — `id IN (…)` returns rows in whatever order Postgres likes.
   const byId = new Map(pageRows.map((r) => [r.id, r] as const))
@@ -55,7 +62,7 @@ export async function pageRankedThenTail(args: {
   if (plan.tailTake <= 0) return ranked
   // Past the ranked set: the rest of the matches in the feed's own order, never a ranked row again.
   const tail = await db.listing.findMany({
-    where: await scopedListingWhere({ AND: [tailWhere, { id: { notIn: [...rankedIds] } }] }),
+    where: await scopedListingWhere({ AND: [tailWhere, { id: { notIn: [...rankedIds] } }] }, { teachers }),
     orderBy,
     skip: plan.tailSkip,
     take: plan.tailTake,

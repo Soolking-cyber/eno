@@ -57,11 +57,16 @@ import { belowFloorThroughWindow, staleWindowStart } from '@/lib/index-floor'
  */
 const NOT_LIVE: Prisma.ListingWhereInput = { OR: [{ verified: false }, { status: { not: 'active' } }] }
 
-export async function staleBelowFloor({ where, live, floor, now = Date.now() }: {
+export async function staleBelowFloor({ where, live, floor, now = Date.now(), teachers = false }: {
   where: Prisma.ListingWhereInput
   live: number
   floor: number
   now?: number
+  /**
+   * True on a TEACHERS page only (its rows are teacher rows). The default exclusion otherwise: it zeroed this count on
+   * every teachers page, so the grace window never applied there.
+   */
+  teachers?: boolean
 }): Promise<boolean> {
   // At or over the floor now (or not a number): nothing to decide, and no query.
   if (!belowFloorThroughWindow(live, 0, floor)) return false
@@ -69,7 +74,7 @@ export async function staleBelowFloor({ where, live, floor, now = Date.now() }: 
   const leftInWindow = await db.listing.count({
     where: await scopedListingWhere({
       AND: [where, NOT_LIVE, { OR: [{ updatedAt: { gt: since } }, { soldAt: { gt: since } }, { takenDownAt: { gt: since } }] }],
-    }),
+    }, { teachers }),
     take: floor - live,
   })
   return belowFloorThroughWindow(live, leftInWindow, floor)
