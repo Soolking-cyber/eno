@@ -225,6 +225,9 @@ export type SerializedListing = {
   }
   verified: boolean
   status: string
+  // ⛔ Always null — reserved (2026-10-14). The Listing columns behind these four hold eno's private licence stamp
+  // (src/lib/licence-stamp.ts), and serializeListing never emits them. The type stays `string | null`, so the OpenAPI
+  // shape is unchanged.
   verificationMethod: string | null
   verifiedAt: string | null
   verifiedBy: string | null

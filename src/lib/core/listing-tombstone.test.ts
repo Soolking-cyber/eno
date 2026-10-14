@@ -146,4 +146,15 @@ describe('PERSONAL_SCRUB_DATA fits the Listing columns', () => {
     expect(PERSONAL_SCRUB_DATA).toMatchObject({ title: '[removed]', description: '', images: '[]', searchText: '', location: '' })
     expect(JSON.parse(PERSONAL_SCRUB_DATA.images)).toEqual([])
   })
+
+  // The licence stamp (2026-10-14, src/lib/licence-stamp.ts) hashes the seller's registered business name and licence
+  // number, so a scrub blanks it with the attributes that carried them; the it.each above checks each is nullable.
+  it('blanks the repurposed licence-stamp columns, all nullable', () => {
+    expect(PERSONAL_SCRUB_DATA).toMatchObject({ verificationMethod: null, verifiedAt: null, verifiedBy: null, verificationNotes: null, attributes: null })
+    for (const c of ['verificationMethod', 'verifiedAt', 'verifiedBy', 'verificationNotes']) expect(fields.get(c)?.optional, c).toBe(true)
+  })
+
+  it('TOMBSTONE_DATA leaves the stamp alone — a tombstone is never revived', () => {
+    expect(Object.keys(TOMBSTONE_DATA).sort()).toEqual(['featured', 'identityHold', 'status', 'verified'])
+  })
 })

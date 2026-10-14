@@ -353,6 +353,13 @@ permits") and O-34b's partner-only posting. What did NOT change: eno's OWN visa 
 (`HIDDEN_DESK_OWNER_EMAILS` — eno itself still does not offer e-visa there), `/visa` + `/itinerary` stay forum-only,
 no PayPal. Visa runs (tickets-travel/visa-runs) are still not offered for posting on eno.vn.
 
+⛔ **THE LICENCE CHECK (owner, 2026-10-14) — `src/lib/licence-stamp.ts` is the map:**
+- **Legal & permits (`services/legal-permits`) is held the same way** ("Check them too"); a keyword GUESS into either aisle counts as a pick. A Wanted ad is never filed in either.
+- A non-desk listing in either aisle carries the provider's registered name and licence no. (`providerLegalName` / `providerLicenceNo`, `src/lib/provider-licence.ts`), printed on its page; any change of either, or of the aisle, re-holds it. Approval is Admin › Catalogue › Licence checks only (`scripts/licence-fill-seller.ts` enters values for a provider who cannot; it never approves).
+- ⛔ The approval stamp lives in the **REPURPOSED** `Listing.verificationMethod` (+ `verifiedAt`). `serializeListing` must keep all four `verification*` fields null; only 'licence-approve' writes a stamp.
+- ⛔ Every existing-row publish — `verified: true` OR a status change back to `active` — ANDs `licenceClearedWhere` / `licenceClearedSql` (tripwire: `compliance/public-state-writes.test.ts`). `/api/cron/licence-holds` (00:05 ICT) is the backstop.
+- VietKite's grandfather (`LICENCE_GRANDFATHER`) ends on the /prohibited in-force date — re-date both together.
+
 ⚠️ **This is a legal boundary, not a feature flag.** The failure mode is a LEAK: any place
 eno.vn still shows, links to, describes, indexes, emails or serves one of those surfaces
 means the licensed company is advertising a service it is not licensed for. ⚠️ **Visa

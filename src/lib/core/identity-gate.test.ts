@@ -58,7 +58,9 @@ vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: (p: string) => {
 vi.mock('@/lib/db', () => ({
   db: {
     listing: {
-      findUnique: async () => { h.reads.push('listing.findUnique'); return h.current },
+      // A row these cases relist was published (`verified: true` unless the case says otherwise): the licence gate on a
+      // revive guards only a verified row's write (core/listings.ts licenceGateForRevive).
+      findUnique: async () => { h.reads.push('listing.findUnique'); return h.current ? { verified: true, ...h.current } : h.current },
       findMany: async () => { h.reads.push('listing.findMany'); return h.existing },
       update: async (a: Row) => { h.updates.push(a); return { id: a.where.id } },
       // setStatusCore / confirmCore write through updateMany by ONE id, conditional on not-removed: one
@@ -97,6 +99,7 @@ vi.mock('@/lib/price-drop', () => ({ priceChangeEffects: async () => ({ data: {}
 vi.mock('@/lib/urgent', () => ({ activateUrgentGate: async () => ({ ok: true }), urgentQuotaFree: () => true, URGENT: {} }))
 
 const { setStatusCore, confirmCore, createListingCore } = await import('@/lib/core/listings')
+const { licenceClearedWhere } = await import('@/lib/licence-stamp')
 const { bulkImportCore } = await import('@/lib/core/bulk')
 const { syncListingsCore } = await import('@/lib/core/sync')
 
@@ -298,8 +301,10 @@ describe('setStatusCore — relisting is refused, never held', () => {
     expect(h.updates).toHaveLength(1)
     // The write is conditional on "not a tombstone" (a removal racing the read is never overwritten) and,
     // since the trade loop (2026-10-05), on the status it read — a relist clears the whole sale, so a sale
-    // committing after the read must make it miss rather than be erased.
-    expect(h.updates[0].where).toEqual({ id: 'l1', status: { not: 'removed', equals: 'sold' } })
+    // committing after the read must make it miss rather than be erased. Since 2026-10-14 a relist also
+    // matches only a row eno's licence check clears (R1) — with no desk read outside the two aisles, whose
+    // subcategory branches match this row.
+    expect(h.updates[0].where).toEqual({ id: 'l1', status: { not: 'removed', equals: 'sold' }, AND: [licenceClearedWhere([])] })
     expect(h.updates[0].data).toMatchObject({ status: 'active', marketPosition: null, soldAt: null, soldChannel: null, soldToProfileId: null, soldPlatform: null })
   })
 })

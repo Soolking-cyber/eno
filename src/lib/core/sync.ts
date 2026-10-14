@@ -10,6 +10,8 @@ import { dispatchListingEventsBatch } from '@/lib/webhooks'
 import { sellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
 import type { IdentityBlockCode } from '@/lib/publish-guard'
 import { LISTING_REMOVED } from '@/lib/listing-removed'
+import { licenceBlockedIds } from '@/lib/core/licence-check'
+import { LICENCE_CHECK_SUBCATEGORIES } from '@/lib/taxonomy'
 
 // Catalogue sync core (Phase 3). Upserts the shop's listings by the partner's OWN id
 // (externalId, unique per shop). `partial` only touches the rows you send; `full` also
@@ -78,10 +80,12 @@ export async function syncListingsCore(
 
   // Which externalIds already exist for THIS shop → update; the rest → create.
   const existing = extIds.length
-    ? await db.listing.findMany({ where: { sellerId: seller.id, externalId: { in: extIds } }, select: { id: true, externalId: true, status: true } })
+    ? await db.listing.findMany({ where: { sellerId: seller.id, externalId: { in: extIds } }, select: { id: true, externalId: true, status: true, subcategorySlug: true, verified: true } })
     : []
   const idByExt = new Map(existing.map((l) => [l.externalId!, l.id]))
   const statusByExt = new Map(existing.map((l) => [l.externalId!, l.status]))
+  const subByExt = new Map(existing.map((l) => [l.externalId!, l.subcategorySlug]))
+  const verifiedByExt = new Map(existing.map((l) => [l.externalId!, l.verified]))
 
   const toCreate = valid.filter((v) => !idByExt.has(v.ext))
   const toUpdate = valid.filter((v) => idByExt.has(v.ext))
@@ -118,6 +122,19 @@ export async function syncListingsCore(
   // refusal below, for the same reason; setStatusCore re-checks each revive, so a race cannot pass it.
   const releasedStanding = toUpdate.length ? await releasedChargeStanding(seller.ownerId) : null
 
+  // ⛔ THE LICENCE CHECK ON A REVIVE (R1, plan review 2026-10-14). A sync creates no row in e-Visa or Legal & permits
+  // (bulk rows carry no subcategory) and sends none on an update, but a row it created can be MOVED into one in the
+  // dashboard editor — and re-sending it as 'active' would then put an unchecked listing back on sale. setStatusCore
+  // refuses that revive itself (licence_check_required) and ANDs licenceClearedWhere into its write; this asks first, in
+  // ONE read for the whole call, so the refused row fails BEFORE any write, as a refused identity revive does above.
+  // Only revives of VERIFIED rows filed in an aisle are asked about — an unverified row still waiting for the check does
+  // not become public by going active, so it is un-hidden like any held listing, as setStatusCore does (commit gate).
+  // Every other sync reads nothing more.
+  const aisleRevives = toUpdate
+    .filter(({ row, ext }) => row.status === 'active' && statusByExt.get(ext) !== 'active' && verifiedByExt.get(ext) === true && (LICENCE_CHECK_SUBCATEGORIES as readonly string[]).includes(subByExt.get(ext) ?? ''))
+    .map(({ ext }) => idByExt.get(ext)!)
+  const licenceBlocked = await licenceBlockedIds(aisleRevives)
+
   // UPDATE — sparse, by id. Re-host any provided images, then reuse updateListingCore
   // (searchText rebuild + reindex + its own 'listing.updated' webhook). Status via setStatusCore.
   for (const { row, ext } of toUpdate) {
@@ -138,6 +155,10 @@ export async function syncListingsCore(
     }
     if (revives && releasedStanding && (await releasedChargeGateFor(releasedStanding, seller.id)).remaining <= 0) {
       results.push({ external_id: ext, id, action: 'failed', error: 'released_charge_listing_cap' })
+      continue
+    }
+    if (revives && licenceBlocked.has(id)) {
+      results.push({ external_id: ext, id, action: 'failed', error: 'licence_check_required' })
       continue
     }
     try {

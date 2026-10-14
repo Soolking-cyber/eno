@@ -53,7 +53,7 @@ export function minPhotosFor(categorySlug: string | null | undefined): number {
 // ⚠️ `identity_unverified` / `identity_expired` are LEGAL blocks, not quality blocks, and they are
 // listed first because they are checked first (see assertPublishable). Verification is required to
 // publish under NĐ 248/2026 — see docs/compliance-2026.md §1 and src/lib/compliance/account-state.ts.
-export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'identity_sign_in_required' | 'account_restricted' | 'released_charge_listing_cap' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required' | 'category_not_postable' | 'teacher_profile_instead'
+export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'identity_sign_in_required' | 'account_restricted' | 'released_charge_listing_cap' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required' | 'category_not_postable' | 'teacher_profile_instead' | 'provider_licence_required' | 'provider_licence_invalid'
 
 // (`subcategory_partner_only` — O-34b's refusal of the visa slot to non-partners on eno.vn — was retired 2026-10-14: the
 // owner opened the e-Visa subcategory to every poster behind a licence check, taxonomy.ts licenceCheckHold.)
@@ -61,6 +61,13 @@ export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'ide
 // (taxonomy.ts TEACHER_SEEKING_POST). Thrown by createListingCore, returned by updateListingCore for a MOVE into the pair;
 // the routes answer 400 with the bilingual TEACHER_PROFILE_REFUSAL as `message`. Fixable (the teacher form, or another
 // subcategory), so not 403.
+// ⚠️ `provider_licence_required` / `provider_licence_invalid` (owner 2026-10-14, "seller enters") — thrown ONLY in a licence
+// aisle (e-Visa or Legal & permits, taxonomy.ts isLicenceCheckSlot): createListingCore throws them, updateListingCore
+// returns them. `required` = a non-desk post without BOTH the provider's registered name and licence number; `invalid` =
+// a value that cannot be accepted as written, with detail '<field>:<reason>' (provider-licence.ts
+// providerLicenceProblems) — the desk included. The values keep the phone / contact / banned-word screen; the phone
+// screen is waived ONLY for the bare enterprise code in Legal & permits. The session routes answer 400 with the
+// bilingual PROVIDER_LICENCE_REFUSAL as `message`.
 // ⚠️ `identity_sign_in_required` IS THE GUEST'S CODE, AND IT IS DISTINCT FROM `identity_unverified` ON
 // PURPOSE. Both mean "verify before you sell", but a guest has no account to verify: sending them to
 // /dashboard/account/verify bounces them through sign-in with no explanation of why. The wizard turns

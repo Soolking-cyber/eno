@@ -351,6 +351,12 @@ export type NicheApiErrorCode =
   | 'location_required'
   | 'category_not_postable' // teachers: written only by the teacher form (2026-09-30)
   | 'teacher_profile_instead' // Jobs › Teaching "looking for work" is a teacher profile, never a post (2026-10-12)
+  | 'provider_licence_required' // e-Visa / Legal & permits: the provider's registered name + licence number are needed (2026-10-14)
+  | 'provider_licence_invalid' // …and one of them cannot be accepted as written; detail '<field>:<reason>' (2026-10-14)
+  | 'licence_check_required' // a licence-aisle row eno has not checked cannot go live — moderate 'approve', or a status change back to active (relist, confirm): approve it under Licence checks (409, 2026-10-14)
+  | 'listing_changed' // PATCH /api/listings/[id] (and v1): the listing changed while it was being edited — reload and try again (409, 2026-10-14)
+  | 'desk_unresolved' // /api/cron/licence-holds: eno's desk did not resolve, so the sweep refused to run (500, 2026-10-14)
+  | 'grandfather_unresolved' // /api/cron/licence-holds: LICENCE_GRANDFATHER's seller id no longer names VietKite's storefront, so the sweep refused (500, 2026-10-14)
   | 'teacher_awaiting_reply' // a teacher who has not answered gets at most 2 messages (owner, 2026-10-13)
   | 'invalid_teacher_profile'
   | 'teacher_profile_missing'
@@ -753,6 +759,12 @@ const ALL = [
   'location_required',
   'category_not_postable',
   'teacher_profile_instead',
+  'provider_licence_required',
+  'provider_licence_invalid',
+  'licence_check_required',
+  'listing_changed',
+  'desk_unresolved',
+  'grandfather_unresolved',
   'teacher_awaiting_reply',
   'invalid_teacher_profile',
   'teacher_profile_missing',

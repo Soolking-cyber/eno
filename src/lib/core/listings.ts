@@ -29,7 +29,9 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
   }
 }
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
-import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, isVisaProductSlot, licenceCheckHold, SUBCATEGORY_FALLBACK, servicePriceBasisOf, servicePriceBasisOfUnit, withoutInapplicablePriceBasis, withPriceBasis, servicePriceBasisApplies } from '@/lib/taxonomy'
+import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, isLicenceCheckSlot, licenceCheckHold, SUBCATEGORY_FALLBACK, servicePriceBasisOf, servicePriceBasisOfUnit, withoutInapplicablePriceBasis, withPriceBasis, servicePriceBasisApplies } from '@/lib/taxonomy'
+import { PROVIDER_LICENCE_KEYS, checkProviderLicence, providerLicenceFromInput, providerLicenceOf, sameProviderLicence, withProviderLicence, withoutProviderLicence, type ProviderLicence } from '@/lib/provider-licence'
+import { LICENCE_STAMP_CLEARED, licenceCleared, licenceClearedWhere } from '@/lib/licence-stamp'
 import { priceUnitSuffix } from '@/lib/price-unit'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { deskSellerIds } from '@/lib/edition-scope'
@@ -78,7 +80,10 @@ export const LISTING_STATUSES = new Set(['active', 'sold', 'hidden'])
 /** Whitelisted, stringly-typed attribute facets (taxonomy values) → the persisted
  *  JSON string, or null when nothing survives. Keys must be simple identifiers
  *  (/^[a-z0-9_]+$/i); values are non-empty strings capped at 40 chars. Non-object /
- *  array / falsy input → null. */
+ *  array / falsy input → null. ⛔ Never the provider's registered name or licence number
+ *  (PROVIDER_LICENCE_KEYS, owner 2026-10-14): a licence number cut to 40 is another licence,
+ *  and both carry their own screen — the licence blocks in createListingCore and
+ *  updateListingCore write them, uncut, and only inside a licence aisle. */
 /**
  * DERIVED facets — computed from what the app already knows, never asked of the poster.
  *
@@ -113,6 +118,10 @@ async function withDerivedAttributes(
   return Object.keys(parsed).length ? JSON.stringify(parsed) : null
 }
 
+/** One of the provider's licence keys (provider-licence.ts PROVIDER_LICENCE_KEYS) — skipped by every generic attribute
+ *  path: the 40-character cut, the generic content screen, the duplicate guard's facets, translation warming. */
+const isProviderLicenceKey = (k: string): boolean => (PROVIDER_LICENCE_KEYS as readonly string[]).includes(k)
+
 export function sanitizeAttributes(raw: unknown): string | null {
   const clean: Record<string, string> = {}
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
@@ -120,6 +129,8 @@ export function sanitizeAttributes(raw: unknown): string | null {
       // `posted` is a filter-only facet (src/lib/posted-filter.ts) that reads `postedAt`; a stored
       // copy would be dead state nothing reads, so it is never kept.
       if (k === POSTED_FACET_KEY) continue
+      // The provider's licence values: never through this generic path (see the doc above).
+      if (isProviderLicenceKey(k)) continue
       if (typeof v === 'string' && v && /^[a-z0-9_]+$/i.test(k)) clean[k] = cutText(v, 40)
     }
   }
@@ -206,10 +217,12 @@ export type SoldMeta = {
  * same two codes, and the same 403, that postingGate answers a held or suspended poster with.
  * `released_charge_listing_cap` is the released-scam-charge cap (src/lib/released-charge-gate.ts): a
  * relist that would take the storefront past its active-listing limit while a released charge stands.
+ * `licence_check_required` (409, 2026-10-14) is a relist of an e-Visa or Legal & permits listing eno has
+ * not checked (licenceGateForRevive) — waiting, not refused for good: it goes live with the approval.
  * ⚠️ Spelled out as literals, not as `EnforcementBlockCode`: src/lib/api/errors.test.ts harvests this
  * union's string LITERALS to decide what is on the wire, and a named alias would be invisible to it.
  */
-export type ListingStatusErrorCode = 'invalid_status' | 'not_found' | 'account_held' | 'account_suspended' | 'released_charge_listing_cap' | IdentityBlockCode
+export type ListingStatusErrorCode = 'invalid_status' | 'not_found' | 'account_held' | 'account_suspended' | 'released_charge_listing_cap' | 'licence_check_required' | IdentityBlockCode
 
 /** The enforcement refusal a revive or a confirm gets while the storefront owner is held or suspended. */
 export type EnforcementBlockCode = 'account_held' | 'account_suspended'
@@ -263,6 +276,36 @@ async function identityGateForRevive(
   return d.ok ? null : d.code
 }
 
+/** What the licence gate reads off the row a revive has already loaded (setStatusCore, confirmCore). */
+type LicenceReviveRow = { verified: boolean; sellerId: string; subcategorySlug: string | null; attributes: string | null; verificationMethod: string | null; category: { slug: string } }
+
+/**
+ * ⛔ A STATUS CHANGE BACK TO ACTIVE IS A PUBLISH (R1, plan review 2026-10-14). A verified row that is sold or hidden
+ * goes public by its status alone, so an e-Visa or Legal & permits listing eno has not checked — a legacy row, a row
+ * whose values changed while it was hidden, VietKite's once its grandfather ends — would be one Relist, one "still
+ * available" or one sync row away from public. Both revives (setStatusCore's relist, confirmCore's revive) therefore
+ * refuse a non-desk aisle row that is not cleared (`licence_check_required`, 409 — waiting for the check, not refused
+ * for good) and AND licenceClearedWhere(desk) into their write, so an edit or a revoke that clears the stamp after
+ * this read makes the write match nothing.
+ * The decision is licenceBlockedIds's own predicate (core/licence-check.ts: licence-stamp.ts licenceCleared) on the
+ * row the caller has just read — the revives already read it for the hold and identity gates, so no second read.
+ * Outside the two aisles nothing is read and `desk` is empty: the guard's subcategory branches match such a row.
+ * An unresolved desk fails closed — the desk's own aisle row then waits like anyone's.
+ * ⚠️ ONLY A VERIFIED ROW IS GATED (commit gate, 2026-10-14). An UNVERIFIED one — a listing still waiting for the check —
+ * does not become public by going active, so its seller may un-hide it like any held listing (it stays held); `guard`
+ * says whether the caller's write must carry the licence guard at all. A row unverified at the read cannot turn public
+ * before the write without the approval that clears it: every publisher of an aisle row is guarded.
+ */
+async function licenceGateForRevive(row: LicenceReviveRow): Promise<{ blocked: boolean; desk: string[]; guard: boolean }> {
+  if (!row.verified || !row.subcategorySlug || !isLicenceCheckSlot(row.category.slug, row.subcategorySlug)) return { blocked: false, desk: [], guard: row.verified }
+  const desk = await deskSellerIds()
+  const cleared = licenceCleared(
+    { categorySlug: row.category.slug, subcategorySlug: row.subcategorySlug, sellerId: row.sellerId, attributes: row.attributes, verificationMethod: row.verificationMethod },
+    { desk: desk.includes(row.sellerId) },
+  )
+  return { blocked: !cleared, desk, guard: true }
+}
+
 export async function setStatusCore(
   listingId: string,
   status: string,
@@ -273,15 +316,22 @@ export async function setStatusCore(
   let listingType: string | null | undefined
   // The status a relist READ — the write below is conditional on it (see `where`).
   let readStatus: string | null = null
+  // The desk the licence gate resolved for a relist (licenceGateForRevive) — the write's licence guard reuses it — and
+  // whether the write carries that guard at all (a verified row's relist).
+  let licenceDesk: string[] = []
+  let licenceGuard = false
   // Only 'active' can publish; sold/hidden are never gated — taking a listing DOWN is always allowed,
-  // held or not. Both refusals below apply only to a TRANSITION into active (sold/hidden → active): a
+  // held or not. Every refusal below applies only to a TRANSITION into active (sold/hidden → active): a
   // row already active stays where it is (a held seller's active rows are the ones the hold pulled).
   if (status === 'active') {
-    // ONE read serves both gates: the row's status and its storefront owner's enforcement state (and
-    // the owner id, which the identity gate would otherwise read a second time).
+    // ONE read serves every gate: the row's status and its storefront owner's enforcement state (and
+    // the owner id, which the identity gate would otherwise read a second time), and the licence facts.
     const row = await db.listing.findUnique({
       where: { id: listingId },
-      select: { status: true, sellerId: true, listingType: true, seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } } },
+      select: {
+        status: true, sellerId: true, listingType: true, seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } },
+        verified: true, subcategorySlug: true, attributes: true, verificationMethod: true, category: { select: { slug: true } },
+      },
     })
     listingType = row?.listingType
     readStatus = row?.status ?? null
@@ -299,6 +349,11 @@ export async function setStatusCore(
       // The released-scam-charge cap (released-charge-gate.ts): a relist makes one more listing active.
       const cap = await releasedChargeGate(row.seller.ownerId, row.sellerId)
       if (cap && cap.remaining <= 0) return { ok: false, code: 403, error: 'released_charge_listing_cap' }
+      // ⛔ The licence check (licenceGateForRevive, R1): the account's gates first, then the listing's own.
+      const licence = await licenceGateForRevive(row)
+      if (licence.blocked) return { ok: false, code: 409, error: 'licence_check_required' }
+      licenceDesk = licence.desk
+      licenceGuard = licence.guard
     }
   }
   // ⚠️ A RE-MARK OF A LISTING ALREADY SOLD IS NOT A NEW SALE (review of #26, 2026-09-23). Trust
@@ -374,10 +429,17 @@ export async function setStatusCore(
    * fact the question withdrawal below keys on — is exact rather than a guess.
    */
   const relistGuard = status === 'active' && readStatus ? { status: { not: LISTING_REMOVED, equals: readStatus } } : NOT_REMOVED
+  // ⛔ …AND A REAL RELIST (sold/hidden → active) MATCHES ONLY A ROW THE LICENCE CHECK CLEARS (R1, licenceGateForRevive):
+  // an edit or a revoke that cleared the stamp after the read above makes this write miss — the race's 404. Not on an
+  // active → active re-send (the partner sync's every-row 'active'): nothing becomes public there.
+  const revive = status === 'active' && !!readStatus && readStatus !== 'active'
   const { count } = await db.listing.updateMany({
     // `soldMeta.expect`: the attributing route's compare-and-swap (see SoldMeta) — AND-composed, so it can
     // never replace the tombstone guard beside it.
-    where: soldMeta?.expect ? { AND: [{ id: listingId, ...NOT_REMOVED }, soldMeta.expect] } : { id: listingId, ...relistGuard },
+    // The licence guard rides on BOTH branches (commit gate, 2026-10-14): a revive carrying soldMeta.expect is a revive too.
+    where: soldMeta?.expect
+      ? { AND: [{ id: listingId, ...NOT_REMOVED }, soldMeta.expect, ...(revive && licenceGuard ? [licenceClearedWhere(licenceDesk)] : [])] }
+      : { id: listingId, ...relistGuard, ...(revive && licenceGuard ? { AND: [licenceClearedWhere(licenceDesk)] } : {}) },
     // ⚠️ marketPosition is cleared on REACTIVATION for the same reason the edit path clears it on a
     // price change: it is the denormalized "Good price / Gia tot" verdict, the nightly cron only
     // recomputes rows with status='active', and a hidden/sold row therefore keeps a FROZEN verdict.
@@ -388,7 +450,7 @@ export async function setStatusCore(
   if (count === 0) return { ok: false, code: 404, error: 'not_found' }
   // A REAL reactivation (sold/hidden → active) asks nobody any more. Not on an active → active re-send — the
   // partner sync's every-row 'active' — where the guard above proves there was nothing to clear.
-  if (status === 'active' && readStatus && readStatus !== 'active') after(() => withdrawSaleQuestions([listingId]))
+  if (revive) after(() => withdrawSaleQuestions([listingId]))
   revalidatePublicPath(`/listings/${listingId}`) // sold/hidden must drop from the cached page (it 404s non-active)
   after(() => reindexListing(listingId)) // active → (re)index for AI search; sold/hidden → remove
   if (status === 'active') after(() => recomputeRankScoreForListing(listingId)) // re-decay on re-activation
@@ -450,7 +512,7 @@ async function purgeTeacherPages(
  * the day's activity earns a (daily-capped) trust reward. Intentionally does NOT
  * revalidate the cached page (recency surfaces live via the client feed).
  */
-export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean } | { ok: false; code: 404; error: 'not_found' } | { ok: false; code: 403; error: IdentityBlockCode | EnforcementBlockCode | 'released_charge_listing_cap' }> {
+export async function confirmCore(listingId: string, profileId: string): Promise<{ ok: true; bumped: boolean } | { ok: false; code: 404; error: 'not_found' } | { ok: false; code: 403; error: IdentityBlockCode | EnforcementBlockCode | 'released_charge_listing_cap' } | { ok: false; code: 409; error: 'licence_check_required' }> {
   const now = new Date()
   const current = await db.listing.findUnique({
     where: { id: listingId },
@@ -458,6 +520,8 @@ export async function confirmCore(listingId: string, profileId: string): Promise
       postedAt: true, status: true, sellerTrustScore: true, featured: true, views: true, contactCount: true, sellerId: true,
       // The storefront owner — for the enforcement refusal below and the identity gate (one read).
       seller: { select: { ownerId: true, owner: { select: { enforcementState: true } } } },
+      // The licence facts — a revive of an e-Visa / Legal & permits row is gated (licenceGateForRevive), same read.
+      verified: true, subcategorySlug: true, attributes: true, verificationMethod: true, category: { select: { slug: true } },
     },
   })
   // Typed 404 instead of letting the update's P2025 surface as a 500 — the row can
@@ -476,6 +540,9 @@ export async function confirmCore(listingId: string, profileId: string): Promise
   // Otherwise the listing goes live still de-indexed, its page still 404ing, carrying a
   // stale buyer/channel.
   const wasInactive = current.status !== 'active'
+  // The desk the licence gate resolved for a revive — the write's licence guard reuses it — and whether it applies.
+  let licenceDesk: string[] = []
+  let licenceGuard = false
   // Seller identity gate — ONLY when this confirm would REVIVE a sold/hidden listing (owner,
   // 2026-09-23). The ordinary confirm, on a listing that is already live, is untouched in every
   // state of the switch; with the switch off, the revive is untouched too (no read is made).
@@ -489,6 +556,12 @@ export async function confirmCore(listingId: string, profileId: string): Promise
     // active. A confirm on a listing that is ALREADY active adds nothing and is never capped.
     const cap = await releasedChargeGate(current.seller.ownerId, current.sellerId)
     if (cap && cap.remaining <= 0) return { ok: false, code: 403, error: 'released_charge_listing_cap' }
+    // ⛔ The licence check, as on setStatusCore's relist (licenceGateForRevive, R1). An ordinary confirm of a listing
+    // that is already active is not gated: it changes nothing about whether the listing is public.
+    const licence = await licenceGateForRevive(current)
+    if (licence.blocked) return { ok: false, code: 409, error: 'licence_check_required' }
+    licenceDesk = licence.desk
+    licenceGuard = licence.guard
   }
   const bump = canBump(current.postedAt, now.getTime())
   // ⛔ CONDITIONAL ON "NOT A TOMBSTONE" IN THE WRITE ITSELF (review, 2026-10-01) — a removal that
@@ -498,8 +571,10 @@ export async function confirmCore(listingId: string, profileId: string): Promise
   // mark-sold committing in between turned an ordinary confirm into a silent revive that kept the buyer,
   // the price and the open question on an ACTIVE listing. Now that write misses — the same 404 — so
   // `wasInactive` is exactly what the write did, and only a real revive clears the sale.
+  // ⛔ …AND A REVIVE ON THE LICENCE CHECK (R1): it matches only a row licenceClearedWhere clears, so a stamp cleared
+  // after the read above makes it miss too.
   const { count: confirmed } = await db.listing.updateMany({
-    where: { id: listingId, status: { not: LISTING_REMOVED, equals: current.status } },
+    where: { id: listingId, status: { not: LISTING_REMOVED, equals: current.status }, ...(wasInactive && licenceGuard ? { AND: [licenceClearedWhere(licenceDesk)] } : {}) },
     data: {
       status: 'active',
       availabilityConfirmedAt: now,
@@ -527,7 +602,8 @@ export async function confirmCore(listingId: string, profileId: string): Promise
  * Edit an OWNED listing (title/description/price/district/condition/images/subcategory/
  * intent/attributes/pin/brand/model/range specs). Category isn't editable. Re-runs the
  * create-time guards (phone-in-text block, image allowlist, taxonomy validation),
- * rebuilds searchText, re-publishes a held listing once it's eligible, and re-warms
+ * rebuilds searchText, never re-publishes a held listing (see the note before the write),
+ * holds an e-Visa / Legal & permits listing for eno's licence check (`held`), and re-warms
  * translations + reindexes for AI search. `body` is the raw parsed JSON (sparse: only
  * present keys are touched). Returns a validation error code or { ok: true }.
  */
@@ -552,14 +628,17 @@ export type ListingUpdateErrorCode =
   | 'no_phone_in_listing'
   | 'invalid_price'
   | 'urgent_quota'
+  // 409 (2026-10-14, R2 of the plan review): an e-Visa / Legal & permits row's licence facts changed between this
+  // edit's read and its write — nothing was written; reload and try again (the compare-and-set before the write).
+  | 'listing_changed'
   // The catch re-emits a blocked publish verbatim (`error: e.code`), so the whole guard union is
-  // reachable from here too.
+  // reachable from here too — `provider_licence_invalid` with its '<field>:<reason>' as `detail`.
   | PublishBlockCode
 
 export async function updateListingCore(
   listingId: string,
   body: Record<string, unknown>,
-): Promise<{ ok: true; held?: true } | { ok: false; code: number; error: ListingUpdateErrorCode }> {
+): Promise<{ ok: true; held?: true } | { ok: false; code: number; error: ListingUpdateErrorCode; detail?: string }> {
   const current = await db.listing.findUnique({
     where: { id: listingId },
     select: {
@@ -579,6 +658,9 @@ export async function updateListingCore(
       attributes: true,
       seller: { select: { trustTier: true } }, category: { select: { slug: true, name: true, nameVi: true } },
       status: true,
+      // eno's licence-check stamp and its time (src/lib/licence-stamp.ts) — the licence block below decides on them, and
+      // the write is a compare-and-set on the stamp it read.
+      verificationMethod: true, verifiedAt: true,
     },
   })
   // ⛔ A tombstone cannot be edited back to life (src/lib/listing-removed.ts).
@@ -586,8 +668,6 @@ export async function updateListingCore(
   // ⛔ A teacher profile is edited through the teacher form only; to every generic editor it does not exist.
   if (!isPostableCategory(current.category.slug)) return { ok: false, code: 404, error: 'not_found' }
   const data: Record<string, unknown> = {}
-  // Set when a MOVE into the e-Visa subcategory unpublished the listing for the licence check (below).
-  let licenceHold = false
 
   // ⛔ THE INTENT THIS LISTING WILL HAVE AFTER THE EDIT (validated exactly as the listingType block
   // below writes it), decided up front because a JOB is edited by different money rules: its price
@@ -796,20 +876,17 @@ export async function updateListingCore(
     // An edit may KEEP a withheld subcategory the listing already has (a visa run on eno.vn), never switch INTO one.
     const allowed = !sc || sc === current.subcategorySlug || isPostableSubcategory(current.category.slug, sc, IS_MARKETPLACE)
     if (allowed && (!sc || subcategoriesFor(current.category.slug).some((s) => s.slug === sc))) data.subcategorySlug = sc
-    // ⛔ THE LICENCE CHECK ON A MOVE (taxonomy.ts licenceCheckHold, owner 2026-10-14): a listing MOVED into the e-Visa
-    // subcategory by anyone but eno's desk is unpublished until an admin has seen the provider's licence and approves it
-    // (`held` tells the wizard to say so). A listing already there edits as usual
-    // — resending its own subcategory is not a move, and an approved one stays live through later edits.
-    // ⚠️ A MOVE OUT NEVER PUBLISHES. An unpublished row cannot say why it is unpublished — a confirmed report writes the
-    // same verified=false (admin/moderate) — so letting "leave the e-Visa aisle" republish would let a pulled listing
-    // put itself back live. It stays in the admin's pending queue, whose approval publishes it.
-    if (typeof data.subcategorySlug === 'string' && data.subcategorySlug !== current.subcategorySlug && isVisaProductSlot(current.category.slug, data.subcategorySlug)) {
-      const desk = (await deskSellerIds()).includes(current.sellerId)
-      if (licenceCheckHold(current.category.slug, data.subcategorySlug, { desk }) && current.verified) {
-        data.verified = false
-        licenceHold = true
-      }
-    }
+    // A move into, out of or between the licence aisles is decided in the licence block below, once every attribute
+    // this edit writes is known.
+  }
+  // ⛔ A WANTED AD IS NEVER IN A LICENCE AISLE — create's rule, held on an edit too (commit gate, 2026-10-14): a service
+  // switched to Wanted, or a Wanted moved into e-Visa / Legal & permits, goes to the category's catch-all (Services ›
+  // Other), and the licence block below reads that as a move out (both values and any stamp dropped; never a publish).
+  // Decided here, before the services unit block, so the unit follows the subcategory the row will really have.
+  {
+    const subAfter = data.subcategorySlug !== undefined ? (data.subcategorySlug as string | null) : current.subcategorySlug
+    const catchAll = SUBCATEGORY_FALLBACK[current.category.slug]
+    if (nextType === 'wanted' && catchAll && isLicenceCheckSlot(current.category.slug, subAfter)) data.subcategorySlug = catchAll
   }
   // Intent (listingType) — must be valid for the category.
   if (body.listingType !== undefined) {
@@ -934,7 +1011,85 @@ export async function updateListingCore(
     if (derived !== current.price) { data.price = derived; data.marketPosition = null }
   }
 
-  if (Object.keys(data).length === 0) return { ok: true }
+  /**
+   * ⛔ THE LICENCE CHECK ON AN EDIT (owner, 2026-10-14 — taxonomy.ts licenceCheckHold, src/lib/licence-stamp.ts). A row
+   * in e-Visa or Legal & permits from anyone but eno's own desk carries the provider's registered name and licence
+   * number (provider-licence.ts), and is public only while an admin's approval stamp is the stamp of exactly those
+   * values, this seller and this aisle. LAST among the blocks that build `data`, so it sees every attribute this edit
+   * writes (the services Pricing mirror above can rewrite them without the body sending any).
+   *   · A MOVE OUT strips both keys and the stamp. ⚠️ It never publishes: an unpublished row cannot say why it is
+   *     unpublished — a confirmed report writes the same verified=false — so leaving an aisle must not put a pulled
+   *     listing back live. It stays in the admin's pending queue, whose Publish needs no licence outside the aisles.
+   *   · INSIDE, a non-desk row needs BOTH values whenever this edit sends attributes or moves it (in, or between the
+   *     two aisles); every value is screened, the desk's too (they are printed on the listing page); a change of
+   *     either value, or of the aisle, clears the stamp — Quy chế Article 5: a changed licence is checked again; and
+   *     a row this edit leaves uncleared is written verified=false WHATEVER the read said (an approval that published
+   *     it after the read is undone, not overwritten with a stale "live") and whatever its status (a hidden or sold
+   *     row is one status change away from public). That includes VietKite's grandfathered rows: an edit of an
+   *     unapproved row sends it to the check. An APPROVED row stays live through edits that change neither value nor
+   *     its aisle — the check is of the provider, not the wording.
+   * Never writes verified:true or identityHold. `held` tells the wizard and the API that the row waits for the check.
+   * `licenceSub` is the subcategory the row WILL have — the validated `data` value, not the raw `nextSub` above.
+   */
+  const licenceSub = data.subcategorySlug !== undefined ? (data.subcategorySlug as string | null) : current.subcategorySlug
+  const wasAisle = isLicenceCheckSlot(current.category.slug, current.subcategorySlug)
+  const inAisle = isLicenceCheckSlot(current.category.slug, licenceSub)
+  let licenceHeld = false
+  if (wasAisle || inAisle) {
+    const base = data.attributes !== undefined ? (data.attributes as string | null) : current.attributes
+    if (!inAisle) {
+      const stripped = withoutProviderLicence(base)
+      if (stripped !== base) data.attributes = stripped
+      // All four stamp columns, unconditionally (commit gate): a row leaving the aisles keeps no trace of a check.
+      Object.assign(data, LICENCE_STAMP_CLEARED)
+      // ⛔ …AND A LIVE ROW THE CHECK HAD NOT CLEARED DOES NOT STAY LIVE ON ITS WAY OUT (commit gate, 2026-10-14): moving a
+      // grandfathered or legacy visa offer to Services › Other (or switching it to Wanted) would otherwise keep it public
+      // as an unchecked offer the sweep never looks at again. It goes to the admin's pending queue instead — a move out
+      // still never PUBLISHES; it only stops an unchecked listing escaping. An approved row moves out live.
+      if (current.verified) {
+        const desk = (await deskSellerIds()).includes(current.sellerId)
+        const wasCleared = licenceCleared(
+          { categorySlug: current.category.slug, subcategorySlug: current.subcategorySlug, sellerId: current.sellerId, attributes: current.attributes, verificationMethod: current.verificationMethod },
+          { desk },
+        )
+        if (!wasCleared) data.verified = false
+      }
+    } else {
+      const desk = (await deskSellerIds()).includes(current.sellerId)
+      const stored = providerLicenceOf(current.attributes)
+      // The values this edit sends: '' halves when `attributes` came without the keys; undefined when it sent none.
+      const sent = body.attributes !== undefined ? providerLicenceFromInput(body.attributes) : undefined
+      const moved = licenceSub !== current.subcategorySlug
+      const next = sent !== undefined ? (sent.legalName || sent.licenceNo ? sent : null) : stored
+      if (!desk && (body.attributes !== undefined || moved) && !(next?.legalName && next.licenceNo)) {
+        return { ok: false, code: 400, error: 'provider_licence_required' }
+      }
+      // Screened only when this edit CHANGES them (or moves the row): values an admin approved are not re-judged on every
+      // title fix, so a later tightening of the screen never locks an approved listing out of its own edit form (gate).
+      if (next && (moved || !sameProviderLicence(next, stored))) {
+        const p = checkProviderLicence(next, licenceSub)
+        if (p) return { ok: false, code: 400, error: 'provider_licence_invalid', detail: `${p.field}:${p.reason}` }
+      }
+      // sanitizeAttributes dropped the keys from what the body sent; they go back here, normalised and uncut — and on ANY
+      // attributes this edit writes (the Pricing mirror included), so no path can drop an approved row's values (gate).
+      if (data.attributes !== undefined || body.attributes !== undefined) data.attributes = withProviderLicence(base, next)
+      const changed = moved || !sameProviderLicence(next, stored)
+      if (changed) Object.assign(data, LICENCE_STAMP_CLEARED)
+      const attrsAfter = data.attributes !== undefined ? (data.attributes as string | null) : current.attributes
+      const cleared = licenceCleared(
+        { categorySlug: current.category.slug, subcategorySlug: licenceSub, sellerId: current.sellerId, attributes: attrsAfter, verificationMethod: changed ? null : current.verificationMethod },
+        { desk },
+      )
+      licenceHeld = !cleared
+      // A save that writes nothing else still pulls a LIVE uncleared row; an already-held one with nothing to write is
+      // answered `held` below without a write.
+      if (licenceHeld && (Object.keys(data).length > 0 || current.verified)) data.verified = false
+    }
+  }
+
+  // An unchanged save of a row still waiting for the check answers `held` too — the wizard then goes to the dashboard,
+  // not to a listing page that 404s.
+  if (Object.keys(data).length === 0) return licenceHeld ? { ok: true, held: true } : { ok: true }
 
   // ⚠️ NO CURRENCY WRITE HERE, DELIBERATELY. Every listing on eno is stored in ₫
   // (listingMoneyFor) and create is the only path that ever sets `currency` — so an edit
@@ -949,7 +1104,11 @@ export async function updateListingCore(
   // the secondary fields too (model/condition/district/city/attribute values —
   // all publicly rendered).
   try {
-    const attrTexts = data.attributes ? Object.values(JSON.parse(data.attributes as string) as Record<string, string>) : []
+    // Not the provider's licence values: they had their own screen in the licence block (provider-licence.ts), which
+    // the bare enterprise code in Legal & permits passes and the generic phone screen would not.
+    const attrTexts = data.attributes
+      ? Object.entries(JSON.parse(data.attributes as string) as Record<string, string>).filter(([k]) => !isProviderLicenceKey(k)).map(([, v]) => v)
+      : []
     // Same split as create: the contact name gets its own code so the edit screen can
     // point at Settings rather than at the listing body.
     assertCleanContactName(contactName)
@@ -995,20 +1154,23 @@ export async function updateListingCore(
   //
   // This branch used to flip `verified` back to true when a seller edited a held listing, on the
   // premise that verified=false meant "created below the photo bar, let them fix it". That premise
-  // is dead: EVERY create path now writes `verified: true` (createListingCore's own insert, and
-  // bulk.ts:168; sync writes no verified at all) and a publish violation THROWS PublishBlockedError
+  // is dead: every create path writes `verified: true` (createListingCore's own insert, and
+  // bulkImportCore's; sync writes no verified at all) and a publish violation THROWS PublishBlockedError
   // instead of saving a held row. So nothing produces a photo-held listing. (The one create that writes
-  // `false` — an e-Visa listing waiting for the licence check, 2026-10-14 — is published by an admin's
-  // approval too, never by an edit.)
+  // `false` — an e-Visa or Legal & permits listing waiting for eno's licence check, 2026-10-14 — is
+  // published by an admin's 'licence-approve', never by an edit.)
   //
-  // What DOES produce verified=false is, exhaustively: an admin unverify
-  // (api/admin/listings/route.ts:87), the moderation queue (api/admin/moderate/route.ts:133,168,205),
-  // the duplicate/provenance auto-hold (lib/image-provenance.ts:85), the AI moderation auto-hold
-  // (lib/ai-moderation.ts:156), the enforcement ladder pulling a seller's catalogue
-  // (lib/enforcement.ts:283), and — since 2026-10-14 — the e-Visa licence check (createListingCore, and a
-  // move into the e-Visa subcategory above). Every one but the last is a TAKEDOWN. Auto-republishing any of them
-  // because the seller edited the row is exactly the bypass this removal closes — and the old guard
-  // could not tell them apart, because all six write the same single boolean and nothing else.
+  // What DOES produce verified=false is, exhaustively (by function — line numbers rot): an admin
+  // unverify (api/admin/listings 'unverify'), the moderation queue (api/admin/moderate: bulk-confirm,
+  // confirm-report, unpublish), the duplicate/provenance auto-hold (image-provenance.ts
+  // indexAndCheckProvenance), the AI moderation auto-hold (ai-moderation.ts moderateListingById), the
+  // enforcement ladder pulling a seller's catalogue (enforcement.ts applyEnforcement), and — since
+  // 2026-10-14 — the licence check on BOTH aisles, e-Visa and Legal & permits: createListingCore's held
+  // insert, the licence block above (a move in or between the aisles, a changed value, any edit of a row
+  // still waiting), the daily sweep (core/licence-check.ts sweepLicenceHolds) and an admin's
+  // 'licence-revoke' (api/admin/listings). Every one but the licence check is a TAKEDOWN. Auto-republishing
+  // any of them because the seller edited the row is exactly the bypass this removal closes — and the old
+  // guard could not tell them apart, because all of them write the same single boolean and nothing else.
   //
   // ⚠️ Two "smarter" fixes were tried and rejected with evidence before landing on deletion: a
   // `heldReason` column (fails closed only if every one of those six paths is updated AND legacy
@@ -1017,8 +1179,9 @@ export async function updateListingCore(
   // held listing in production carried 1 image while its category required 3).
   //
   // The escape hatch is real and already built: an operator re-publishes with the admin `verify`
-  // action (api/admin/listings/route.ts:86). Restoring a listing a human or a moderation system
-  // pulled should take a human, which is the whole point.
+  // action (api/admin/listings 'verify' — which skips an aisle row eno has not checked; that one is
+  // published by 'licence-approve' under Admin › Catalogue › Licence checks). Restoring a listing a
+  // human or a moderation system pulled should take a human, which is the whole point.
 
   // ⚠️ THE "Good price" VERDICT IS ALSO VOID WHEN THE LISTING CHANGES BAND, not only price. The band
   // is keyed on brand + model + shelf (subcategory) + condition + year band (listingSegment), and
@@ -1095,7 +1258,18 @@ export async function updateListingCore(
    * array transaction back, so no PriceChange row is left for an edit that never landed. P2025 is
    * answered as the read path answers a tombstone: 404 not_found.
    */
-  const where = { id: listingId, ...NOT_REMOVED }
+  /**
+   * ⛔ …AND, FOR A ROW THAT IS OR BECOMES A LICENCE-AISLE ROW, ON THE LICENCE FACTS IT READ (R2, plan review
+   * 2026-10-14): the stamp, the attributes and the subcategory of `current`, which the licence block decided on. An
+   * admin's approval or revoke, the sweep, or another save of the same row committing in between would otherwise be
+   * overwritten by a write decided on stale facts — two saves straddling an approval could leave a public row whose
+   * values no longer match its stamp. Zero rows is then 409 `listing_changed` (nothing written: reload and try again),
+   * unless a re-read finds the row gone or a tombstone — the 404 above. Every other edit keeps the plain guard.
+   */
+  const licenceCas = wasAisle || inAisle
+  const where = licenceCas
+    ? { id: listingId, ...NOT_REMOVED, verificationMethod: current.verificationMethod, attributes: current.attributes, subcategorySlug: current.subcategorySlug }
+    : { id: listingId, ...NOT_REMOVED }
   try {
     if (dropAudit) {
       await db.$transaction([
@@ -1106,8 +1280,12 @@ export async function updateListingCore(
       await db.listing.update({ where, data })
     }
   } catch (e) {
-    if ((e as { code?: string })?.code === 'P2025') return { ok: false, code: 404, error: 'not_found' }
-    throw e
+    if ((e as { code?: string })?.code !== 'P2025') throw e
+    if (licenceCas) {
+      const still = await db.listing.findUnique({ where: { id: listingId }, select: { status: true } })
+      if (still && still.status !== LISTING_REMOVED) return { ok: false, code: 409, error: 'listing_changed' }
+    }
+    return { ok: false, code: 404, error: 'not_found' }
   }
   if (dropNotify) after(dropNotify) // buyer fan-out never delays the response
   // The replaced/removed clip is only NOW (post-commit) safe to evict — and only if no other
@@ -1146,7 +1324,7 @@ export async function updateListingCore(
     after(() => indexAndCheckProvenance(listingId))
   }
 
-  return licenceHold ? { ok: true, held: true } : { ok: true }
+  return licenceHeld ? { ok: true, held: true } : { ok: true }
 }
 
 /**
@@ -1209,7 +1387,8 @@ export async function createListingCore(input: {
   const lng = parseGeoCoord(body.lng, 180)
 
   // Publish gate — NO held-for-review queue (manual verification removed; nothing waits on
-  // an admin). A Restricted (low-trust) account can't post until its score recovers; a
+  // an admin — except an e-Visa or Legal & permits listing, held for eno's licence check below).
+  // A Restricted (low-trust) account can't post until its score recovers; a
   // missing photo / banned words / contact info in the text are REJECTED so the seller fixes
   // them (the wizard maps these codes to inline messages). Throws PublishBlockedError; the
   // caller turns it into an HTTP error. Pass → the listing goes live instantly.
@@ -1279,16 +1458,31 @@ export async function createListingCore(input: {
     const fallback = subs.find((s) => s.slug === SUBCATEGORY_FALLBACK[categorySlug])?.slug ?? subs[0]?.slug ?? null
     subcategorySlug = (suggested && subs.some((s) => s.slug === suggested) ? suggested : null) || fallback
   }
-  // ⛔ THE LICENCE CHECK (taxonomy.ts licenceCheckHold — owner, 2026-10-14: "Anyone posts, live after check"). A listing
-  // in the e-Visa subcategory from anyone but eno's own desk is stored UNPUBLISHED until an admin has seen the provider's
-  // licence. Only an explicit PICK goes there: a keyword GUESS ("cleaning for visa holders") files such a poster under the
-  // catch-all instead, so nobody's post is held for a check they never asked for. Nothing extra is read outside the slot.
+  // ⛔ A WANTED AD IS NEVER FILED IN A LICENCE AISLE (owner note, 2026-10-14). "Looking for a visa agent" offers no
+  // service, so it has no licence to show — filed in e-Visa or Legal & permits, a buyer would be asked for a provider's
+  // licence number. Picked or guessed, it goes to the category's catch-all (Services › Other), live.
+  if (listingType === 'wanted' && isLicenceCheckSlot(categorySlug, subcategorySlug)) {
+    subcategorySlug = subs.find((s) => s.slug === SUBCATEGORY_FALLBACK[categorySlug])?.slug ?? null
+  }
+  // ⛔ THE LICENCE CHECK (taxonomy.ts licenceCheckHold — owner, 2026-10-14: "Anyone posts, live after check", then for
+  // Legal & permits "Check them too"). A listing in either licence aisle from anyone but eno's own desk carries the
+  // provider's registered business name and licence number (provider-licence.ts) and is stored UNPUBLISHED until an
+  // admin has compared them with the licence and approved them (Admin › Catalogue › Licence checks, licence-stamp.ts).
+  // ⛔ A KEYWORD GUESS COUNTS AS A PICK (R3, plan review 2026-10-14). It used to file such a poster under Services › Other
+  // instead, LIVE — which published an unchecked visa or work-permit offer, the thing /prohibited rule 1 forbids. The
+  // words that guessed the aisle are the poster's own, so the post needs both values and waits for the check as if it
+  // had picked the aisle. Nothing extra is read outside the aisles.
   let licenceHold = false
-  if (isVisaProductSlot(categorySlug, subcategorySlug)) {
-    const poster = { desk: (await deskSellerIds()).includes(seller.id) }
-    if (licenceCheckHold(categorySlug, subcategorySlug, poster)) {
-      if (subcategoryPicked) licenceHold = true
-      else subcategorySlug = subs.find((s) => s.slug === SUBCATEGORY_FALLBACK[categorySlug])?.slug ?? null
+  // The values the body sent for an aisle post ('' halves when absent); null outside the aisles, where they are dropped.
+  let provider: ProviderLicence | null = null
+  if (isLicenceCheckSlot(categorySlug, subcategorySlug)) {
+    licenceHold = licenceCheckHold(categorySlug, subcategorySlug, { desk: (await deskSellerIds()).includes(seller.id) })
+    provider = providerLicenceFromInput(body.attributes) ?? { legalName: '', licenceNo: '' }
+    if (licenceHold && !(provider.legalName && provider.licenceNo)) throw new PublishBlockedError('provider_licence_required')
+    // Any value sent is screened — the desk's too: both are printed on the listing page.
+    if (provider.legalName || provider.licenceNo) {
+      const p = checkProviderLicence(provider, subcategorySlug)
+      if (p) throw new PublishBlockedError('provider_licence_invalid', `${p.field}:${p.reason}`)
     }
   }
   // ⛔ A TEACHER LOOKING FOR WORK IS A TEACHER PROFILE (owner, 2026-10-12 — taxonomy.ts TEACHER_SEEKING_POST): Jobs ›
@@ -1315,12 +1509,17 @@ export async function createListingCore(input: {
     : cleanAttributes
   // Whitelisted, stringly-typed attribute facets (taxonomy values), then the DERIVED ones
   // (providerType from the account) layered on top so a client value can never win.
-  const attributes = await withDerivedAttributes(
+  const derivedAttributes = await withDerivedAttributes(
     pricedAttributes,
     seller.id,
     categorySlug,
     subcategorySlug,
   )
+  // …then, in a licence aisle, the provider's values — screened above, normalised and uncut (sanitizeAttributes dropped
+  // the two keys, so a post anywhere else never stores them). No stamp: only an admin's approval writes one.
+  const attributes = provider
+    ? withProviderLicence(derivedAttributes, provider.legalName && provider.licenceNo ? provider : null)
+    : derivedAttributes
 
   // Structured numeric specs (range facets) → dedicated columns, each clamped to the
   // category's declared range (non-sparse: every declared column is read).
@@ -1366,7 +1565,9 @@ export async function createListingCore(input: {
   assertCleanTexts([
     district, conditionText, model, city, location,
     body.brand ? String(body.brand) : undefined,
-    ...(attributes ? Object.values(JSON.parse(attributes) as Record<string, string>) : []),
+    // Not the provider's licence values: screened above by their own rules, which the bare enterprise code in Legal &
+    // permits passes and this generic phone screen would not.
+    ...(attributes ? Object.entries(JSON.parse(attributes) as Record<string, string>).filter(([k]) => !isProviderLicenceKey(k)).map(([, v]) => v) : []),
   ])
 
   // Duplicate-listing protection: the same product can't be posted again while a copy of
@@ -1380,9 +1581,14 @@ export async function createListingCore(input: {
   // `attributes` is the taxonomy facet set — two listings that differ by facet are variants,
   // not reposts. It is the JSON string built above, so parse it back to the shape the guard
   // compares; a malformed value degrades to "no facets", i.e. the guard's old behaviour.
+  // The provider's licence values are not a facet: a repost with another licence number is the same offer.
   const dupFacets = (() => {
     if (!attributes) return null
-    try { return JSON.parse(attributes) as Record<string, string> } catch { return null }
+    try {
+      const facets = JSON.parse(attributes) as Record<string, string>
+      for (const k of PROVIDER_LICENCE_KEYS) delete facets[k]
+      return facets
+    } catch { return null }
   })()
   const dup = await findDuplicateListing({ sellerId: seller.id, categoryId: category.id, title, searchText, price: storedPrice, images, attributes: dupFacets })
   if (dup) throw new PublishBlockedError('duplicate_listing', dup.id)
@@ -1429,9 +1635,9 @@ export async function createListingCore(input: {
       // Balanced feed rank at age≈0 (recency=1) — matches the SQL re-decay exactly. New
       // listings land fresh; the daily cron + trust changes re-decay it afterwards.
       rankScore: browseRankScore({ sellerTrustScore: seller.trustScore, postedAt: new Date(), featured: false }),
-      // Unpublished while an e-Visa listing waits for the licence check (licenceHold above); live otherwise. The ternary of
-      // literals, not `!licenceHold`: compliance/public-state-writes.test.ts audits every write that can publish by its
-      // `verified: true`, and this insert still is one.
+      // Unpublished while an e-Visa or Legal & permits listing waits for the licence check (licenceHold above); live
+      // otherwise. The ternary of literals, not `!licenceHold`: compliance/public-state-writes.test.ts audits every write
+      // that can publish by its `verified: true`, and this insert still is one.
       ...(licenceHold ? { verified: false } : { verified: true }),
     },
   })
@@ -1469,7 +1675,8 @@ export async function createListingCore(input: {
   const attrValues: string[] = (() => {
     try {
       const a = listing.attributes ? JSON.parse(listing.attributes) : {}
-      return Object.values(a).map((v) => String(v))
+      // Not the provider's registered name and licence number: printed verbatim (translate="no"), never translated.
+      return Object.entries(a).filter(([k]) => !isProviderLicenceKey(k)).map(([, v]) => String(v))
     } catch { return [] }
   })()
   const warmFields = [listing.title, listing.description, listing.location, ...attrValues].filter(Boolean)
@@ -1493,8 +1700,9 @@ export async function createListingCore(input: {
   }
 
   after(() => dispatchListingEvent('listing.created', listing.id, seller.id)) // notify the shop's partner webhooks
-  // `held` = unpublished for the licence check (the same flag updateListingCore returns for a move into the slot), so an
-  // API client can tell it from any other unpublished state; the post wizard says so instead of "Your listing is live!".
+  // `held` = unpublished for eno's licence check in e-Visa or Legal & permits (the same flag updateListingCore returns for
+  // an edit that leaves such a row waiting), so an API client can tell it from any other unpublished state; the post
+  // wizard says so instead of "Your listing is live!".
   return licenceHold ? { id: listing.id, verified: false, held: true } : { id: listing.id, verified: true }
 }
 

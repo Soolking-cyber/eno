@@ -23,7 +23,8 @@ const h = vi.hoisted(() => ({
 vi.mock('@/lib/db', () => ({
   db: {
     listing: {
-      findUnique: async () => (h.read ? { ...h.read } : null),
+      // Published unless the case says otherwise — the licence gate guards only a verified row's revive write.
+      findUnique: async () => (h.read ? { verified: true, ...h.read } : null),
       updateMany: async (a: Row) => { h.writes.push(a); return { count: h.count } },
       count: async () => 0,
     },
@@ -55,6 +56,10 @@ vi.mock('@/lib/webhooks', () => ({ dispatchListingEvent: async () => {}, dispatc
 vi.mock('@/lib/ranking', () => ({ browseRankScore: () => 0, recomputeRankScoreForListing: async () => {} }))
 
 const { setStatusCore, confirmCore } = await import('@/lib/core/listings')
+// A real relist or revive also matches only a row eno's licence check clears (R1, 2026-10-14) — with no desk read for a
+// row outside the two licence aisles, as these are.
+const { licenceClearedWhere } = await import('@/lib/licence-stamp')
+const LICENCE_GUARD = { AND: [licenceClearedWhere([])] }
 
 const BUYER = '00000000-0000-4000-8000-000000000002'
 
@@ -106,7 +111,7 @@ describe('relist (setStatusCore → active) clears the WHOLE sale', () => {
     h.read = soldRow('hidden')
     h.count = 0 // the row is no longer 'hidden': a sale committed after the read
     expect(await setStatusCore('L1', 'active')).toEqual({ ok: false, code: 404, error: 'not_found' })
-    expect(h.writes[0].where).toEqual({ id: 'L1', status: { not: 'removed', equals: 'hidden' } })
+    expect(h.writes[0].where).toEqual({ id: 'L1', status: { not: 'removed', equals: 'hidden' }, ...LICENCE_GUARD })
     await flushAfter()
     expect(h.withdrawn).toEqual([])
   })
@@ -154,7 +159,7 @@ describe('revive (confirmCore on a sold listing) clears the WHOLE sale', () => {
     expect(data.status).toBe('active')
     for (const col of SALE_COLUMNS) expect(data[col], col).toBeNull()
     expect(data.marketPosition).toBeNull()
-    expect(h.writes[0].where).toEqual({ id: 'L1', status: { not: 'removed', equals: 'sold' } })
+    expect(h.writes[0].where).toEqual({ id: 'L1', status: { not: 'removed', equals: 'sold' }, ...LICENCE_GUARD })
     await flushAfter()
     expect(h.withdrawn).toEqual([ALL_FOR_L1])
   })

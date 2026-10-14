@@ -142,6 +142,10 @@ export const REGULATIONS_AMENDMENT: LegalAmendment = {
  * ⛔ BEFORE THIS RECORD IS RE-USED for a later /prohibited amendment, type its two dates into
  * src/app/[lang]/prohibited/page.tsx and the Article 17 entry in src/app/[lang]/regulations/page.tsx as literals,
  * or both print the next amendment's dates for this one's rules.
+ * ⛔ AND VIETKITE'S LICENCE GRANDFATHER ENDS ON THIS `inForce` (owner, 2026-10-14): LICENCE_GRANDFATHER.until in
+ * src/lib/licence-stamp.ts is the same date, and the daily licence sweep pulls VietKite's unapproved e-Visa listings at
+ * 00:05 ICT that day. licence-stamp.test.ts holds the two equal only until that date passes (then it skips), so a
+ * re-date on the deploy day must move BOTH, in the same commit.
  */
 export const PROHIBITED_AMENDMENT: LegalAmendment = {
   published: '2026-10-15',

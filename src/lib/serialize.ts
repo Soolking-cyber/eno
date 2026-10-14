@@ -131,10 +131,13 @@ export function serializeListing(
     },
     verified: l.verified,
     status: l.status,
-    verificationMethod: l.verificationMethod,
-    verifiedAt: l.verifiedAt ? l.verifiedAt.toISOString() : null,
-    verifiedBy: l.verifiedBy,
-    verificationNotes: l.verificationNotes,
+    // ⛔ Reserved, never emitted (2026-10-14). The columns hold eno's private licence stamp (licence-stamp.ts) — the
+    // approval of an e-Visa / Legal & permits provider's values and when it was given — so the wire carries constant
+    // nulls whatever the row holds. The fields stay in the shape (OpenAPI unchanged).
+    verificationMethod: null,
+    verifiedAt: null,
+    verifiedBy: null,
+    verificationNotes: null,
     postedAt: listedAt(l).toISOString(),
     views: l.views,
     savedCount: l.savedCount,

@@ -159,8 +159,9 @@ export function askableFacetsFor(categorySlug: string, subcategorySlug?: string 
 }
 
 /** A listing's attributes as a plain object — the JSON string a row stores, or the object a client
- *  sends; null when it is neither (absent, junk, an array). A fresh object for a string input. */
-function attributeBag(attributes: unknown): Record<string, unknown> | null {
+ *  sends; null when it is neither (absent, junk, an array). A fresh object for a string input.
+ *  Exported for src/lib/provider-licence.ts (2026-10-14), which reads the two licence keys the same way. */
+export function attributeBag(attributes: unknown): Record<string, unknown> | null {
   let bag: unknown = attributes
   if (typeof bag === 'string') {
     try { bag = JSON.parse(bag) } catch { return null }
@@ -290,6 +291,21 @@ export const VISA_SUBCATEGORY_SLUG = 'visa-legal'
  *  subcategory, `legal-permits` (Legal & permits). */
 export function isVisaProductSlot(categorySlug: string, subcategorySlug?: string | null): boolean {
   return categorySlug === VISA_CATEGORY_SLUG && subcategorySlug === VISA_SUBCATEGORY_SLUG
+}
+
+/**
+ * ⛔ THE LICENCE AISLES (owner, 2026-10-14: "Check them too"): e-Visa AND Legal & permits. Both are conditional
+ * services under the /prohibited page's rule, so a listing in either is shown only after eno's team has checked the
+ * provider's licence (licenceCheckHold below; the values and the stamp in src/lib/provider-licence.ts and
+ * src/lib/licence-stamp.ts). The SQL guards (licenceClearedWhere / licenceClearedSql) spell the same two slugs.
+ * ⚠️ NOT isVisaProductSlot: that one still means "an e-visa PRODUCT is sold here" (the entry-type and speed chips, the
+ * desk's catalogue), which Legal & permits is not.
+ */
+export const LICENCE_CHECK_SUBCATEGORIES = ['visa-legal', 'legal-permits'] as const
+
+/** Is this category+subcategory one of the licence aisles (LICENCE_CHECK_SUBCATEGORIES)? Says nothing about WHO posted. */
+export function isLicenceCheckSlot(categorySlug: string, subcategorySlug?: string | null): boolean {
+  return categorySlug === VISA_CATEGORY_SLUG && (LICENCE_CHECK_SUBCATEGORIES as readonly string[]).includes(subcategorySlug ?? '')
 }
 
 /**
@@ -1366,13 +1382,19 @@ export const TAXONOMY: CategoryDef[] = [
       // ⛔ THE e-VISA SUBCATEGORY, ONE NAME ON BOTH EDITIONS (owner, 2026-10-14: "also have an evisa dedicated subcategory",
       // then "Anyone posts, live after check"). The slug stays `visa-legal` — URLs, saved searches and the forum desk's
       // catalogue key on it. Anyone may post here; a listing from anyone but eno's own desk goes live only after eno's team
-      // has checked the provider's licence (licenceCheckHold). A keyword GUESS never files such a post here
-      // (core/listings.ts): only an explicit pick does. ⚠️ Visa keywords only — a bare
+      // has checked the provider's licence (licenceCheckHold). A keyword GUESS that lands here counts as a pick (R3, plan
+      // review 2026-10-14 — core/listings.ts): it needs the provider's values and waits for the check, never re-filed
+      // under Services › Other and published. ⚠️ Visa keywords only — a bare
       // 'visa' does not match inside "evisa", so the longer spellings are listed too.
       { slug: 'visa-legal', name: 'e-Visa', nameVi: 'Visa điện tử', icon: 'Stamp', keywords: ['visa', 'e-visa', 'evisa', 'thị thực', 'visa điện tử', 'xin visa', 'làm visa', 'gia hạn visa', 'visa extension'] },
-      // Work permits, residence cards, tax and legal help — out of the visa slot since 2026-10-14. Right after e-Visa: a
-      // four-letter tie ('visa' against 'thuế') goes to the earlier subcategory.
-      { slug: 'legal-permits', name: 'Legal & permits', nameVi: 'Giấy tờ & pháp lý', icon: 'ClipboardList', keywords: ['work permit', 'legal', 'tax', 'permit', 'giấy tờ', 'thuế', 'pháp lý', 'thẻ tạm trú', 'giấy phép lao động'] },
+      // Work permits, residence cards, tax and legal help — out of the visa slot since 2026-10-14, and a LICENCE AISLE like
+      // e-Visa (owner, 2026-10-14: "Check them too"): a listing from anyone but eno's own desk goes live only after eno's
+      // team has checked the provider's licence (licenceCheckHold), and a keyword GUESS that lands here counts as a pick
+      // (R3 — core/listings.ts). Right after e-Visa: a tie goes to the earlier subcategory.
+      // ⚠️ SPECIFIC PHRASES ONLY (commit gate, 2026-10-14): now that a guess here asks for a licence, the bare words it
+      // used to carry ('legal', 'tax', 'permit', 'giấy tờ', 'thuế') filed "Legal document translation" or a parking permit
+      // here and asked its poster for a licence number. An explicit pick of the aisle still works for anything legal.
+      { slug: 'legal-permits', name: 'Legal & permits', nameVi: 'Giấy tờ & pháp lý', icon: 'ClipboardList', keywords: ['work permit', 'work permits', 'residence card', 'temporary residence card', 'trc', 'lawyer', 'legal services', 'tax advisor', 'giấy phép lao động', 'thẻ tạm trú', 'luật sư', 'dịch vụ pháp lý', 'tư vấn pháp lý', 'tư vấn thuế'] },
       { slug: 'language-lessons', name: 'Languages', nameVi: 'Ngoại ngữ', icon: 'Languages', keywords: ['vietnamese lesson', 'english class', 'language', 'học tiếng việt', 'dạy tiếng', 'ngoại ngữ'] },
       { slug: 'coworking', name: 'Coworking', nameVi: 'Coworking', icon: 'LampDesk', keywords: ['coworking', 'co-working', 'hot desk', 'day pass', 'dedicated desk', 'shared office', 'workspace', 'không gian làm việc chung', 'văn phòng chia sẻ'] },
       { slug: 'airport-transfer', name: 'Airport', nameVi: 'Sân bay', icon: 'PlaneTakeoff', keywords: ['airport transfer', 'airport pickup', 'private transfer', 'driver', 'car with driver', 'đưa đón sân bay', 'tài xế', 'thuê xe có tài'] },
@@ -1652,22 +1674,34 @@ export function subcategoriesFor(categorySlug: string): SubcatDef[] {
 export const POST_HIDDEN_ON_MARKETPLACE: ReadonlySet<string> = new Set(['tickets-travel/visa-runs'])
 
 /**
- * ⛔ e-VISA LISTINGS GO LIVE AFTER A LICENCE CHECK (owner, 2026-10-14: "Anyone posts, live after check"). The /prohibited
- * page's visa rules say only a licensed business may list a visa service, and must show eno its licence before the
- * listing goes live. So ANY account may post into the e-Visa subcategory (services/visa-legal) on either edition, and
- * a listing written there by anyone but eno's own desk is stored UNPUBLISHED (verified=false): the admin console's
- * pending queue lists it and an admin's approval (moderate 'approve', or Activate) publishes it. Replaces O-34b
- * (2026-10-05), under which an ordinary seller could not post there on eno.vn at all.
+ * ⛔ e-VISA AND LEGAL & PERMITS LISTINGS GO LIVE AFTER A LICENCE CHECK (owner, 2026-10-14: "Anyone posts, live after
+ * check", then for Legal & permits: "Check them too"). The /prohibited page says only a licensed business may list such
+ * a service, and must show eno its licence before the listing goes live (Quy chế Article 5). So ANY account may post
+ * into either licence aisle (LICENCE_CHECK_SUBCATEGORIES) on either edition, and a listing written there by anyone but
+ * eno's own desk:
+ *   · carries the provider's registered business name and licence number (providerLegalName / providerLicenceNo —
+ *     src/lib/provider-licence.ts), both shown on its page;
+ *   · is stored UNPUBLISHED (verified=false) and is published ONLY by Admin › Catalogue › Licence checks →
+ *     'licence-approve', which compares the values with the copies the provider emailed and writes the approval stamp —
+ *     the one stamp writer (src/lib/licence-stamp.ts);
+ *   · goes back to the check whenever either value or the aisle changes (updateListingCore re-holds it).
+ * Generic Activate never sets `verified` (api/admin/listings 'activate' writes the status only), and moderate 'approve'
+ * — which has no UI — answers 409 licence_check_required for an unchecked row. Every publish of an EXISTING row ANDs
+ * licenceClearedWhere / licenceClearedSql (the tripwire is in compliance/public-state-writes.test.ts), and
+ * /api/cron/licence-holds (00:05 ICT) is the daily backstop that unpublishes any unchecked live row. Replaces O-34b
+ * (2026-10-05), under which an ordinary seller could not post in the e-Visa aisle on eno.vn at all.
  * ⚠️ AN OFFICIAL PARTNER WAITS TOO (gate review, 2026-10-14): Seller.officialPartner says eno signed the business, not that
- * eno has seen a VISA licence (GMBR plans trips, Hoàng Phi is a law firm) — the owner's rule is "until eno's team has
- * seen the provider's licence". VietKite's approvals are one tap; its existing listings are untouched (no move).
- * ⚠️ ONE PREDICATE, TWO WRITE PATHS: createListingCore (a new listing in the slot) and updateListingCore (a MOVE into
- * the slot). An approved listing stays live through later edits — the check is of the provider, not the wording.
+ * eno has seen a licence (GMBR plans trips, Hoàng Phi is a law firm) — the owner's rule is "until eno's team has seen the
+ * provider's licence". VietKite's existing e-Visa listings are grandfathered by seller id only until the /prohibited
+ * in-force date (LICENCE_GRANDFATHER, licence-stamp.ts); the sweep pulls any it has not had approved by then.
+ * ⚠️ ONE PREDICATE, TWO WRITE PATHS: createListingCore (a new listing in an aisle) and updateListingCore (a move into or
+ * between the aisles, a change of either value, or any edit of a row still waiting). An APPROVED listing stays live
+ * through edits that change neither value nor its aisle — the check is of the provider, not the wording.
  */
 export function licenceCheckHold(
   categorySlug: string, subcategorySlug: string | null | undefined, poster: { desk: boolean },
 ): boolean {
-  return isVisaProductSlot(categorySlug, subcategorySlug) && !poster.desk
+  return isLicenceCheckSlot(categorySlug, subcategorySlug) && !poster.desk
 }
 
 /**

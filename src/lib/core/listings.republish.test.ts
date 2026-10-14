@@ -100,13 +100,18 @@ vi.mock('@/lib/meta-capi', () => ({ sendMetaCapiEvent: async () => {}, metaUserD
 vi.mock('@/lib/webhooks', () => ({ dispatchListingEvent: async () => {} }))
 vi.mock('@/lib/ranking', () => ({ browseRankScore: () => 0, recomputeRankScoreForListing: async () => {} }))
 vi.mock('@/lib/compliance/account-state', () => ({ identityGateEnforced: () => false }))
-vi.mock('@/lib/publish-guard', () => ({
+// The real module underneath: provider-licence.ts screens an e-Visa row's licence values with its contact and
+// banned-word checks (the licence case below). The gates around this file's one property stay stubbed.
+vi.mock('@/lib/publish-guard', async (orig) => ({
+  ...(await orig<typeof import('@/lib/publish-guard')>()),
   assertPublishable: async () => {},
   assertCleanTexts: async () => {},
   assertCleanContactName: async () => {},
   assertEnoughAngles: async () => {},
   PublishBlockedError: class PublishBlockedError extends Error {},
 }))
+// eno's desk resolves to nobody here: the licence case below is about an ordinary seller's row.
+vi.mock('@/lib/edition-scope', async (orig) => ({ ...(await orig<Record<string, unknown>>()), deskSellerIds: async () => [] }))
 vi.mock('@/lib/duplicate-guard', () => ({ findDuplicateListing: async () => null }))
 vi.mock('@/lib/ai-moderation', () => ({ moderateListingById: async () => {} }))
 vi.mock('@/lib/image-provenance', () => ({ indexAndCheckProvenance: async () => {} }))
@@ -116,6 +121,7 @@ vi.mock('@/lib/price-drop', () => ({
 vi.mock('@/lib/urgent', () => ({ activateUrgentGate: async () => ({ ok: true }), urgentQuotaFree: () => true, URGENT: {} }))
 
 const { updateListingCore } = await import('@/lib/core/listings')
+const { licenceStampFor } = await import('@/lib/licence-stamp')
 
 /** A listing that a takedown has already pulled down. `verified: false` is the whole setup. */
 function heldListing(overrides: Row = {}): Row {
@@ -210,6 +216,42 @@ describe('an edit cannot republish a listing, whatever put it down', () => {
     // Pinned as a count: an eighth path added later without a matching thought about republishing
     // should break this test and force the author to read the note above. (The prose here said
     // "SIX" while the list held seven and the assertion said seven — corrected 2026-08-05.)
+    expect(TAKEDOWN_PATHS).toHaveLength(7)
+  })
+})
+
+/**
+ * ⛔ THE ONE `verified` AN EDIT EVER WRITES IS `false` (2026-10-14). e-Visa and Legal & permits listings from anyone
+ * but eno's desk wait for eno's licence check (taxonomy.ts licenceCheckHold): an edit of a row eno has not checked, a
+ * changed provider value, or a move into or between the two aisles UNPUBLISHES the row — the opposite of a republish.
+ * So the property above holds unchanged for every other listing, and here in the form that matters: `verified` may
+ * appear in the payload, but only ever as false, whatever pulled the row down and whatever the seller sends.
+ */
+describe('a licence-aisle row: an edit may write verified:false, never verified:true', () => {
+  const VALUES = { providerLegalName: 'CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ DU LỊCH VIETKITE', providerLicenceNo: '79-123/2019/TCDL-GP LHQT' }
+  const aisle = (overrides: Row = {}) => heldListing({
+    category: { slug: 'services', name: 'Services', nameVi: 'Dịch vụ' },
+    subcategorySlug: 'visa-legal', listingType: 'service', priceUnit: 'VND/service',
+    attributes: JSON.stringify(VALUES), verificationMethod: null, verifiedAt: null, status: 'active',
+    ...overrides,
+  })
+
+  it.each(TAKEDOWN_PATHS)('a row eno has not checked, pulled by %s and edited, is written verified:false — never true', async () => {
+    h.current = aisle()
+    const res = await updateListingCore('listing-1', { title: 'An edited title', verified: true })
+    expect(res).toEqual({ ok: true, held: true })
+    expect(h.updates[0].verified).toBe(false)
+  })
+
+  it('an APPROVED row pulled by a takedown, edited without touching its values, stays down: no verified key at all', async () => {
+    // Approved (its stamp matches its values) but taken down afterwards — verified=false. Only an admin puts it back.
+    const stamp = licenceStampFor({ sellerId: 'seller-1', subcategorySlug: 'visa-legal' }, { legalName: VALUES.providerLegalName, licenceNo: VALUES.providerLicenceNo })
+    h.current = aisle({ verificationMethod: stamp })
+    expect(await updateListingCore('listing-1', { title: 'An edited title', verified: true })).toEqual({ ok: true })
+    expect('verified' in h.updates[0]).toBe(false)
+  })
+
+  it('the takedown paths are still seven — the licence check is a hold, not an eighth takedown', () => {
     expect(TAKEDOWN_PATHS).toHaveLength(7)
   })
 })

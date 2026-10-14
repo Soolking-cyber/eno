@@ -1,19 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * A5-SELL's two SERVER rules, against the real createListingCore / updateListingCore with a faked db
- * (the same dependency wall as listings.republish.test.ts), on the MARKETPLACE edition:
+ * A5-SELL's SERVER rules, against the real createListingCore / updateListingCore with a faked db (the same
+ * dependency wall as listings.republish.test.ts), on the MARKETPLACE edition:
  *
  *   1. The e-visa product attributes (`visaEntryType`, `visaSpeed`) are stored for EVERY poster since the owner
  *      opened the e-Visa subcategory (2026-10-14) — O-34's strip for ordinary sellers on eno.vn is retired.
  *   2. The price unit follows the intent across the RENT boundary: a daily rental switched to
  *      "Cần thuê" (Wanted) states a budget, so it must not keep 'VND/day'; a Wanted switched to Rent
  *      takes the unit of its period instead of keeping a bare 'VND'.
- *   3. THE LICENCE CHECK (owner, 2026-10-14: "Anyone posts, live after check" — taxonomy.ts licenceCheckHold) —
- *      a create that PICKS the e-Visa subcategory, or an edit that MOVES a listing into it, by a seller who is
- *      neither an official partner nor eno's desk is written UNPUBLISHED (verified=false); a keyword GUESS of it
- *      files such a poster under Services › Other instead; a post nobody filed falls back to Services › Other.
- *      Replaces O-34b's refusal. eno.forum: listings.visa-slot.forum.test.ts.
+ *   3. THE LICENCE CHECK (owner, 2026-10-14: "Anyone posts, live after check", then for Legal & permits "Check them
+ *      too" — taxonomy.ts licenceCheckHold, provider-licence.ts, licence-stamp.ts). A listing in e-Visa or Legal &
+ *      permits from anyone but eno's desk carries the provider's registered name and licence number and is written
+ *      UNPUBLISHED (verified=false, `held`) until an admin approves exactly those values. A keyword GUESS of either
+ *      aisle counts as a pick (R3 of the plan review); a Wanted ad never lands in one. An edit re-holds on a move into
+ *      or between the aisles, on a changed value, and on any edit of a row still waiting; a move out strips the values
+ *      and the stamp and never publishes; the final write is a compare-and-set on the licence facts it read (R2).
+ *      eno.forum: listings.visa-slot.forum.test.ts.
  */
 
 // ⚠️ BEFORE the import below: the edition is read once, when @/lib/edition first loads.
@@ -23,8 +26,16 @@ type Row = Record<string, any>
 
 const h = vi.hoisted(() => ({
   updates: [] as Row[],
+  /** The WHERE of every db.listing.update — the edit's compare-and-set (R2). */
+  wheres: [] as Row[],
   creates: [] as Row[],
   current: {} as Row,
+  /** db.listing.findUnique calls: the first is the edit's own read; a later one is the P2025 re-read. */
+  finds: 0,
+  /** What a re-read after a missed write sees (undefined: the same row as the first read). */
+  afterMiss: undefined as Row | null | undefined,
+  /** The row the database holds when the WRITE arrives — the race (R2). null: every write lands. */
+  dbRow: null as Row | null,
   /** Seller.officialPartner as the faked db answers it. */
   partner: false,
   /** How often createListingCore asked for the seller's partner flag. */
@@ -33,15 +44,39 @@ const h = vi.hoisted(() => ({
   desk: false,
   /** New prices the price-drop pipeline was asked about (priceChangeEffects). */
   dropCalls: [] as number[],
+  /** Every text the generic content screen (assertCleanTexts) was handed; `realScreen` also runs the real one. */
+  screened: [] as Array<string | null | undefined>,
+  realScreen: false,
+  /** What the duplicate guard was asked to compare, and what translation warming was handed. */
+  dupInputs: [] as Row[],
+  warmed: [] as string[],
+  afters: [] as Array<() => unknown>,
 }))
 
-vi.mock('next/server', () => ({ after: () => {} }))
+/** Prisma's conditional-update semantics on the one row (the edit's where: id, not-removed, the licence facts). */
+function casMatches(row: Row, where: Row): boolean {
+  return Object.entries(where).every(([k, v]) => {
+    if (k === 'id') return true
+    if (k === 'status' && v && typeof v === 'object') return row.status !== (v as Row).not
+    return (row[k] ?? null) === (v ?? null)
+  })
+}
+
+vi.mock('next/server', () => ({ after: (fn: () => unknown) => { h.afters.push(fn) } }))
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
 vi.mock('@/lib/db', () => ({
   db: {
     listing: {
-      findUnique: async () => h.current,
-      update: async ({ data }: Row) => { h.updates.push(data); return { id: 'listing-1' } },
+      findUnique: async () => {
+        h.finds++
+        return h.finds > 1 && h.afterMiss !== undefined ? h.afterMiss : h.current
+      },
+      update: async ({ where, data }: Row) => {
+        h.wheres.push(where)
+        if (h.dbRow && !casMatches(h.dbRow, where)) throw Object.assign(new Error('No record was found for an update.'), { code: 'P2025' })
+        h.updates.push(data)
+        return { id: 'listing-1' }
+      },
       create: async ({ data }: Row) => { h.creates.push(data); return { id: 'new-1', ...data } },
       count: async () => 0,
     },
@@ -63,7 +98,7 @@ vi.mock('@/lib/edition-scope', async (orig) => ({
 vi.mock('@/lib/listing-index', () => ({ reindexListing: async () => {}, removeFromIndex: async () => {} }))
 vi.mock('@/lib/trust', () => ({ recordEngagement: async () => {} }))
 vi.mock('@/lib/stale', () => ({ canBump: () => false }))
-vi.mock('@/lib/translate', () => ({ warmTranslations: async () => {} }))
+vi.mock('@/lib/translate', () => ({ warmTranslations: async (texts: string[]) => { h.warmed.push(...texts) } }))
 vi.mock('@/lib/listing-image', () => ({ isListingImageUrl: () => true }))
 vi.mock('@/lib/core/media', () => ({ isCanonicalVideoUrl: () => true, removeListingVideoByUrl: async () => {} }))
 vi.mock('@/lib/brand', () => ({
@@ -79,15 +114,22 @@ vi.mock('@/lib/ranking', () => ({ browseRankScore: () => 0, recomputeRankScoreFo
 vi.mock('@/lib/compliance/account-state', () => ({ identityGateEnforced: () => false }))
 vi.mock('@/lib/compliance/seller-publish-gate', () => ({ assertSellerMayPublish: async () => {}, sellerPublishDecision: async () => ({ ok: true }) }))
 vi.mock('@/lib/released-charge-gate', () => ({ releasedChargeGate: async () => null }))
-vi.mock('@/lib/publish-guard', () => ({
-  assertPublishable: () => {},
-  assertCleanTexts: async () => {},
-  assertCleanContactName: () => {},
-  assertEnoughAngles: () => {},
-  // The real class's shape: the message IS the code (publish-guard.ts), which is what the refusals assert on.
-  PublishBlockedError: class PublishBlockedError extends Error { code: string; constructor(code: string) { super(code); this.code = code } },
-}))
-vi.mock('@/lib/duplicate-guard', () => ({ findDuplicateListing: async () => null }))
+// The REAL module underneath (PublishBlockedError, containsContactInfo, findBannedWord — provider-licence.ts screens the
+// licence values with those, through this same module); only the publish gates around the rules under test are stubbed.
+vi.mock('@/lib/publish-guard', async (orig) => {
+  const actual = await orig<typeof import('@/lib/publish-guard')>()
+  return {
+    ...actual,
+    assertPublishable: () => {},
+    assertCleanTexts: (texts: Array<string | null | undefined>) => {
+      h.screened.push(...texts)
+      if (h.realScreen) actual.assertCleanTexts(texts)
+    },
+    assertCleanContactName: () => {},
+    assertEnoughAngles: () => {},
+  }
+})
+vi.mock('@/lib/duplicate-guard', () => ({ findDuplicateListing: async (input: Row) => { h.dupInputs.push(input); return null } }))
 vi.mock('@/lib/ai-moderation', () => ({ moderateListingById: async () => {} }))
 vi.mock('@/lib/image-provenance', () => ({ indexAndCheckProvenance: async () => {} }))
 vi.mock('@/lib/price-drop', () => ({ priceChangeEffects: async (_c: unknown, p: number) => { h.dropCalls.push(p); return { data: { previousPrice: 999_999 }, audit: null, notify: null } } }))
@@ -95,18 +137,26 @@ vi.mock('@/lib/urgent', () => ({ activateUrgentGate: async () => ({ ok: true }),
 
 const { createListingCore, updateListingCore } = await import('@/lib/core/listings')
 const { IS_MARKETPLACE } = await import('@/lib/edition')
+// Imported here, not at the top: a static import would load the taxonomy (and the edition) before the stub above.
+const { LICENCE_STAMP_CLEARED, licenceStampFor } = await import('@/lib/licence-stamp')
+const { providerLicenceOf } = await import('@/lib/provider-licence')
 
 const attrsOf = (json: unknown) => (typeof json === 'string' ? JSON.parse(json) : json) as Record<string, string> | null
 
+/** Real-shaped provider values (the plan's probe table): an international travel-service licence, and a law firm's. */
+const VISA = { providerLegalName: 'CÔNG TY TNHH THƯƠNG MẠI DỊCH VỤ DU LỊCH VIETKITE', providerLicenceNo: '79-123/2019/TCDL-GP LHQT' }
+const LEGAL = { providerLegalName: 'CÔNG TY LUẬT TNHH HOÀNG PHI VÀ CỘNG SỰ TẠI THÀNH PHỐ HỒ CHÍ MINH', providerLicenceNo: '01021234/TP/ĐKHĐ' }
+const PROVIDER_KEYS = ['providerLegalName', 'providerLicenceNo']
+
 /** A services create — into `subcategorySlug` ('' = none picked, the server guesses from the words). */
-function createService(subcategorySlug: string, attributes: Record<string, string> = {}, title = 'Work permit and visa paperwork help') {
+function createService(subcategorySlug: string, attributes: Record<string, string> = {}, title = 'Work permit and visa paperwork help', listingType = 'service') {
   return createListingCore({
     seller: { id: 'seller-1', ownerId: 'owner-1', trustTier: 'standard', trustScore: 100, phone: null },
     guestCreate: false,
     category: { id: 'c-services', slug: 'services', name: 'Services', nameVi: 'Dịch vụ' },
     title,
     price: 500_000,
-    body: { listingType: 'service', subcategorySlug, description: 'We prepare the paperwork with you, in English or Vietnamese.', attributes },
+    body: { listingType, subcategorySlug, description: 'We prepare the paperwork with you, in English or Vietnamese.', attributes },
     headers: new Headers(),
   })
 }
@@ -124,17 +174,37 @@ function row(overrides: Row = {}): Row {
     seller: { trustTier: 'standard', officialPartner: false },
     category: { slug: 'services', name: 'Services', nameVi: 'Dịch vụ' },
     status: 'active',
+    verificationMethod: null, verifiedAt: null,
     ...overrides,
   }
 }
 
+/** An e-Visa service row carrying `values` (none: null attributes). */
+const aisleRow = (overrides: Row = {}, values: Record<string, string> | null = VISA) =>
+  row({ subcategorySlug: 'visa-legal', listingType: 'service', priceUnit: 'VND/service', attributes: values ? JSON.stringify(values) : null, ...overrides })
+
+/** An e-Visa row an admin APPROVED: its stamp is the stamp of its own values, this seller and this aisle. */
+function stampedRow(overrides: Row = {}): Row {
+  const r = aisleRow(overrides)
+  return { ...r, verificationMethod: licenceStampFor({ sellerId: r.sellerId, subcategorySlug: r.subcategorySlug }, providerLicenceOf(r.attributes)!), verifiedAt: new Date('2026-10-15') }
+}
+
 beforeEach(() => {
   h.updates = []
+  h.wheres = []
   h.creates = []
+  h.finds = 0
+  h.afterMiss = undefined
+  h.dbRow = null
   h.partner = false
   h.partnerReads = 0
   h.desk = false
   h.dropCalls = []
+  h.screened = []
+  h.realScreen = false
+  h.dupInputs = []
+  h.warmed = []
+  h.afters = []
   h.current = row()
 })
 
@@ -144,50 +214,132 @@ it('runs as the marketplace edition (eno.vn)', () => {
 
 describe('e-visa product attributes are stored for every poster (O-34 retired, 2026-10-14)', () => {
   it('an ordinary seller’s new e-Visa listing keeps visaEntryType + visaSpeed, and everything else', async () => {
-    await createVisaLegal({ visaEntryType: 'single', visaSpeed: '1H', providerType: 'business' })
+    await createVisaLegal({ visaEntryType: 'single', visaSpeed: '1H', providerType: 'business', ...VISA })
     expect(attrsOf(h.creates[0].attributes)).toMatchObject({ visaEntryType: 'single', visaSpeed: '1H' })
   })
 
-  it('an edit may add them to an ordinary seller’s listing', async () => {
-    h.current = row({ subcategorySlug: 'visa-legal', listingType: 'service', priceUnit: 'VND/service', attributes: null })
-    await updateListingCore('listing-1', { attributes: { visaEntryType: 'multiple', visaSpeed: '1H' } })
+  it('an edit may add them to an ordinary seller’s listing (with the licence values the aisle needs)', async () => {
+    h.current = aisleRow({}, null)
+    await updateListingCore('listing-1', { attributes: { visaEntryType: 'multiple', visaSpeed: '1H', ...VISA } })
     expect(attrsOf(h.updates[0].attributes)).toMatchObject({ visaEntryType: 'multiple', visaSpeed: '1H' })
   })
 })
 
-describe('the licence check — the e-Visa subcategory is open to every poster, live after a check (2026-10-14)', () => {
-  it('⛔ an ordinary seller who PICKS it: written UNPUBLISHED, and told so (verified: false)', async () => {
-    const r = await createVisaLegal({})
-    expect(r).toEqual({ id: 'new-1', verified: false, held: true })
-    expect(h.creates[0]).toMatchObject({ subcategorySlug: 'visa-legal', verified: false })
+describe('the licence check on CREATE — e-Visa and Legal & permits, open to every poster, live after a check (2026-10-14)', () => {
+  it('⛔ an ordinary seller who picks e-Visa without the provider’s values: provider_licence_required, nothing written', async () => {
+    await expect(createVisaLegal({})).rejects.toMatchObject({ code: 'provider_licence_required' })
+    await expect(createVisaLegal({ providerLegalName: VISA.providerLegalName })).rejects.toMatchObject({ code: 'provider_licence_required' })
+    await expect(createService('legal-permits', { providerLicenceNo: LEGAL.providerLicenceNo }, 'Work permit renewal help')).rejects.toMatchObject({ code: 'provider_licence_required' })
+    expect(h.creates).toHaveLength(0)
   })
 
-  it('eno’s own desk: live at once — an official partner (VietKite) waits for the check like anyone (gate, 2026-10-14)', async () => {
+  it('⛔ a Legal & permits pick WITH valid values: written UNPUBLISHED and told so — the values stored normalised and uncut, no stamp', async () => {
+    // NFD, doubled spaces and a copied "Số:" label in, NFC single-spaced and bare out — and a name far past the
+    // generic 40-character cut, kept whole.
+    const r = await createService('legal-permits', {
+      providerLegalName: `  ${LEGAL.providerLegalName.normalize('NFD').replace(/ /g, '  ')} `,
+      providerLicenceNo: `Số: ${LEGAL.providerLicenceNo}`,
+    }, 'Work permit renewal help')
+    expect(r).toEqual({ id: 'new-1', verified: false, held: true })
+    expect(h.creates[0]).toMatchObject({ subcategorySlug: 'legal-permits', verified: false })
+    expect(attrsOf(h.creates[0].attributes)).toMatchObject(LEGAL)
+    expect(LEGAL.providerLegalName.length).toBeGreaterThan(40)
+    // Only an admin's approval writes a stamp (licence-stamp.ts) — never a create.
+    for (const k of ['verificationMethod', 'verifiedAt', 'verifiedBy', 'verificationNotes']) expect(h.creates[0]).not.toHaveProperty(k)
+  })
+
+  it('an e-Visa pick with valid values: held the same way', async () => {
+    expect(await createVisaLegal({ ...VISA })).toEqual({ id: 'new-1', verified: false, held: true })
+    expect(attrsOf(h.creates[0].attributes)).toMatchObject(VISA)
+  })
+
+  it('⛔ a value that cannot be accepted: provider_licence_invalid with detail "<field>:<reason>", nothing written', async () => {
+    await expect(createVisaLegal({ providerLegalName: VISA.providerLegalName, providerLicenceNo: '079123456789' }))
+      .rejects.toMatchObject({ code: 'provider_licence_invalid', detail: 'providerLicenceNo:personal_id' })
+    await expect(createVisaLegal({ providerLegalName: 'Zalo 0903 123 456', providerLicenceNo: VISA.providerLicenceNo }))
+      .rejects.toMatchObject({ code: 'provider_licence_invalid', detail: expect.stringMatching(/^providerLegalName:/) })
+    expect(h.creates).toHaveLength(0)
+  })
+
+  it('eno’s own desk posts live WITHOUT values — and any value it does send is screened like anyone’s', async () => {
     h.desk = true
     expect(await createVisaLegal({})).toEqual({ id: 'new-1', verified: true })
     expect(h.creates[0]).toMatchObject({ subcategorySlug: 'visa-legal', verified: true })
-    h.desk = false
+    await expect(createVisaLegal({ providerLegalName: VISA.providerLegalName, providerLicenceNo: '0903123456' }))
+      .rejects.toMatchObject({ code: 'provider_licence_invalid' })
+  })
+
+  it('an official partner (VietKite) waits for the check like anyone (gate, 2026-10-14) — the partner flag is never read', async () => {
     h.partner = true
-    h.creates = []
-    expect(await createVisaLegal({})).toEqual({ id: 'new-1', verified: false, held: true })
+    expect(await createVisaLegal({ ...VISA })).toEqual({ id: 'new-1', verified: false, held: true })
     expect(h.creates[0].verified).toBe(false)
+    await createService('cleaning', { serviceLocation: 'online' }, 'Weekly flat cleaning')
+    await createService('legal-permits', { ...LEGAL }, 'Tax return help')
+    expect(h.partnerReads).toBe(0)
   })
 
-  it('⛔ a keyword GUESS never holds an ordinary post for a check it did not ask for — it files under Services › Other, live', async () => {
-    const r = await createService('', {}, 'Vietnam e-visa, 1 hour')
-    expect(h.creates[0]).toMatchObject({ subcategorySlug: 'service-other', verified: true })
-    expect(r.verified).toBe(true)
+  // ⛔ R3 (plan review, 2026-10-14): a guess used to file such a post under Services › Other, LIVE — an unchecked visa or
+  // work-permit offer on the public feed, the thing /prohibited rule 1 forbids. The words are the poster's own.
+  it.each([
+    ['Work permit renewal help', 'legal-permits', LEGAL],
+    ['Thẻ tạm trú cho người nước ngoài', 'legal-permits', LEGAL],
+    ['Vietnam e-visa, 1 hour', 'visa-legal', VISA],
+  ])('⛔ a keyword GUESS counts as a pick — "%s" needs the values (provider_licence_required), and with them waits in %s', async (title, aisle, values) => {
+    await expect(createService('', {}, title)).rejects.toMatchObject({ code: 'provider_licence_required' })
+    expect(h.creates).toHaveLength(0)
+    expect(await createService('', { ...values }, title)).toEqual({ id: 'new-1', verified: false, held: true })
+    expect(h.creates[0]).toMatchObject({ subcategorySlug: aisle, verified: false })
   })
 
-  it('keeps the desk’s keyword guess in the e-Visa subcategory, live; a partner’s guess files under Other like anyone’s', async () => {
+  // The guess asks for a licence now, so Legal & permits guesses only on specific phrases (commit gate, 2026-10-14): a
+  // translator or a tax-return helper is not filed there by a bare 'legal' / 'tax' and goes live under Other.
+  it.each(['Legal document translation', 'Tax return help', 'Parking permit help'])('"%s" is not guessed into a licence aisle', async (title) => {
+    expect(await createService('', {}, title)).toEqual({ id: 'new-1', verified: true })
+    expect(h.creates[0].subcategorySlug).not.toMatch(/^(visa-legal|legal-permits)$/)
+  })
+
+  it('the desk’s keyword guess stays in the aisle, live; a partner’s guess waits like anyone’s', async () => {
     h.desk = true
     await createService('', {}, 'Vietnam e-visa, 1 hour')
     expect(h.creates[0]).toMatchObject({ subcategorySlug: 'visa-legal', verified: true })
     h.desk = false
     h.partner = true
-    h.creates = []
-    await createService('', {}, 'Vietnam e-visa, 1 hour')
-    expect(h.creates[0]).toMatchObject({ subcategorySlug: 'service-other', verified: true })
+    await expect(createService('', {}, 'Vietnam e-visa, 1 hour')).rejects.toMatchObject({ code: 'provider_licence_required' })
+  })
+
+  it('⛔ a WANTED ad never lands in a licence aisle — picked or guessed, it goes to Services › Other, live, the keys dropped', async () => {
+    expect(await createService('visa-legal', { ...VISA }, 'Looking for a visa agent', 'wanted')).toEqual({ id: 'new-1', verified: true })
+    expect(h.creates[0]).toMatchObject({ subcategorySlug: 'service-other', listingType: 'wanted', verified: true })
+    for (const k of PROVIDER_KEYS) expect(attrsOf(h.creates[0].attributes) ?? {}).not.toHaveProperty(k)
+    await createService('legal-permits', {}, 'Need help with a work permit', 'wanted')
+    expect(h.creates[1]).toMatchObject({ subcategorySlug: 'service-other', verified: true })
+    await createService('', {}, 'Work permit renewal help', 'wanted')
+    expect(h.creates[2]).toMatchObject({ subcategorySlug: 'service-other', verified: true })
+  })
+
+  it('⛔ the keys sent on a post outside the aisles are dropped — the generic attribute path never stores them', async () => {
+    await createService('cleaning', { serviceLocation: 'online', ...VISA }, 'Weekly flat cleaning')
+    expect(h.creates[0]).toMatchObject({ subcategorySlug: 'cleaning', verified: true })
+    for (const k of PROVIDER_KEYS) expect(attrsOf(h.creates[0].attributes)).not.toHaveProperty(k)
+  })
+
+  it('⛔ a bare enterprise code in Legal & permits raises no contact_in_text: the values have their own screen, not the generic one', async () => {
+    h.realScreen = true
+    const r = await createService('legal-permits', { providerLegalName: LEGAL.providerLegalName, providerLicenceNo: '0312345678' }, 'Work permit renewal help')
+    expect(r).toEqual({ id: 'new-1', verified: false, held: true })
+    expect(attrsOf(h.creates[0].attributes)?.providerLicenceNo).toBe('0312345678')
+    expect(h.screened).not.toContain('0312345678')
+    expect(h.screened).not.toContain(LEGAL.providerLegalName)
+  })
+
+  it('the duplicate guard’s facets and the translation warm leave both values out (a new licence number is no new offer)', async () => {
+    await createVisaLegal({ visaEntryType: 'single', ...VISA })
+    expect(h.dupInputs[0].attributes).toMatchObject({ visaEntryType: 'single' })
+    for (const k of PROVIDER_KEYS) expect(h.dupInputs[0].attributes).not.toHaveProperty(k)
+    for (const f of h.afters) await f()
+    expect(h.warmed.length).toBeGreaterThan(0)
+    expect(h.warmed).not.toContain(VISA.providerLegalName)
+    expect(h.warmed).not.toContain(VISA.providerLicenceNo)
   })
 
   it('a post nobody filed falls back to Services › Other — never the e-Visa subcategory (its first aisle)', async () => {
@@ -196,14 +348,6 @@ describe('the licence check — the e-Visa subcategory is open to every poster, 
     h.creates = []
     await createService('not-a-subcategory', {}, 'Help in English')
     expect(h.creates[0].subcategorySlug).toBe('service-other')
-  })
-
-  it('work permits, tax and legal file under Legal & permits by their words', async () => {
-    await createService('', {}, 'Work permit renewal help')
-    expect(h.creates[0]).toMatchObject({ subcategorySlug: 'legal-permits', verified: true })
-    h.creates = []
-    await createService('', {}, 'Tax return help')
-    expect(h.creates[0].subcategorySlug).toBe('legal-permits')
   })
 
   it('⛔ files by the TITLE first — a longer keyword in the description (the extras) does not win (gate, 2026-10-05)', async () => {
@@ -220,54 +364,242 @@ describe('the licence check — the e-Visa subcategory is open to every poster, 
     })
     expect(h.creates[0].subcategorySlug).toBe('cleaning')
   })
+})
 
-  it('never reads the partner flag — the check exempts eno’s desk only', async () => {
-    await createService('cleaning', { serviceLocation: 'online' }, 'Weekly flat cleaning')
-    await createService('legal-permits', {}, 'Tax return help')
-    await createVisaLegal({})
-    expect(h.partnerReads).toBe(0)
+describe('the licence check on EDIT (2026-10-14)', () => {
+  it('⛔ an APPROVED row whose licence number changes → unpublished, the stamp cleared, `held` — live, hidden or sold alike', async () => {
+    for (const status of ['active', 'hidden', 'sold']) {
+      h.updates = []
+      h.current = stampedRow({ status })
+      const changed = { ...VISA, providerLicenceNo: '79-124/2019/TCDL-GP LHQT' }
+      expect(await updateListingCore('listing-1', { attributes: changed }), status).toEqual({ ok: true, held: true })
+      expect(h.updates[0], status).toMatchObject({ verified: false, ...LICENCE_STAMP_CLEARED })
+      expect(attrsOf(h.updates[0].attributes), status).toMatchObject(changed)
+    }
   })
 
-  it('⛔ an edit that MOVES an ordinary seller’s listing into it unpublishes it with the move, and says so (held)', async () => {
+  it('an approved row edited without touching its values or aisle stays live — no verified key, no stamp key', async () => {
+    h.current = stampedRow()
+    expect(await updateListingCore('listing-1', { title: 'e-Visa in 3 days' })).toEqual({ ok: true })
+    // The wizard round-trips every attribute: the same values resent are no change.
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'visa-legal', attributes: { visaSpeed: '1H', ...VISA } })).toEqual({ ok: true })
+    for (const u of h.updates) {
+      expect(u).not.toHaveProperty('verified')
+      for (const k of Object.keys(LICENCE_STAMP_CLEARED)) expect(u).not.toHaveProperty(k)
+    }
+    expect(attrsOf(h.updates[1].attributes)).toMatchObject({ visaSpeed: '1H', ...VISA })
+  })
+
+  it('values resent with other whitespace, in NFD or behind a copied label are the same values — no hold', async () => {
+    h.current = stampedRow()
+    const res = await updateListingCore('listing-1', {
+      attributes: {
+        providerLegalName: ` ${VISA.providerLegalName.normalize('NFD').replace(/ /g, '   ')}  `,
+        providerLicenceNo: `Số:  ${VISA.providerLicenceNo.replace(' ', '    ')}`,
+      },
+    })
+    expect(res).toEqual({ ok: true })
+    expect(h.updates[0]).not.toHaveProperty('verified')
+    expect(h.updates[0]).not.toHaveProperty('verificationMethod')
+    expect(attrsOf(h.updates[0].attributes)).toMatchObject(VISA) // stored normalised
+  })
+
+  it('⛔ e-Visa → Legal & permits is a move: the values travel, the stamp is cleared, the row waits again', async () => {
+    h.current = stampedRow()
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'legal-permits' })).toEqual({ ok: true, held: true })
+    expect(h.updates[0]).toMatchObject({ subcategorySlug: 'legal-permits', verified: false, ...LICENCE_STAMP_CLEARED })
+    // The stored values were not re-sent; whatever this edit writes keeps them.
+    if (h.updates[0].attributes !== undefined) expect(attrsOf(h.updates[0].attributes)).toMatchObject(VISA)
+  })
+
+  it('⛔ a move IN without the values — no attributes, or attributes without the keys — is provider_licence_required; nothing written', async () => {
     h.current = row({ subcategorySlug: 'service-other', listingType: 'service', priceUnit: 'VND/service' })
-    expect(await updateListingCore('listing-1', { subcategorySlug: 'visa-legal', title: 'Visa help' })).toEqual({ ok: true, held: true })
-    expect(h.updates[0]).toMatchObject({ subcategorySlug: 'visa-legal', verified: false })
+    const REQUIRED = { ok: false, code: 400, error: 'provider_licence_required' }
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'visa-legal' })).toEqual(REQUIRED)
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'legal-permits', attributes: { serviceLocation: 'online' } })).toEqual(REQUIRED)
+    // …and attributes sent WITHOUT the keys on a row already in an aisle (a replace would drop them).
+    h.current = stampedRow()
+    expect(await updateListingCore('listing-1', { attributes: { visaSpeed: '1H' } })).toEqual(REQUIRED)
+    expect(h.updates).toHaveLength(0)
   })
 
-  it('a move of a listing that is ALREADY unpublished (pulled) is no new hold — nothing claims the check pulled it', async () => {
-    h.current = row({ subcategorySlug: 'service-other', listingType: 'service', priceUnit: 'VND/service', verified: false })
-    expect(await updateListingCore('listing-1', { subcategorySlug: 'visa-legal' })).toEqual({ ok: true })
+  it('a move IN with the values: written uncut, held, no stamp', async () => {
+    h.current = row({ subcategorySlug: 'service-other', listingType: 'service', priceUnit: 'VND/service' })
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'legal-permits', attributes: { ...LEGAL } })).toEqual({ ok: true, held: true })
+    expect(h.updates[0]).toMatchObject({ subcategorySlug: 'legal-permits', verified: false })
+    expect(attrsOf(h.updates[0].attributes)).toMatchObject(LEGAL)
+  })
+
+  // Commit gate, 2026-10-14: stored, approved values are not re-judged on every edit — a later tightening of the screen
+  // must not lock an approved listing out of a title fix. Only values the edit CHANGES (or a move) are screened.
+  it('stored values the edit does not change are not re-screened — a title fix on a row whose stored number fails today’s screen saves', async () => {
+    h.current = stampedRow({ attributes: JSON.stringify({ ...VISA, providerLicenceNo: 'CCCD 079123456789' }) })
+    const r = await updateListingCore('listing-1', { title: 'e-Visa 1 hour — now with weekend processing' })
+    expect(r).not.toMatchObject({ error: 'provider_licence_invalid' })
+  })
+
+  it('⛔ an invalid value on an edit: provider_licence_invalid with its detail; nothing written', async () => {
+    h.current = stampedRow()
+    expect(await updateListingCore('listing-1', { attributes: { ...VISA, providerLicenceNo: 'CCCD 079123456789' } }))
+      .toEqual({ ok: false, code: 400, error: 'provider_licence_invalid', detail: 'providerLicenceNo:personal_id' })
+    expect(h.updates).toHaveLength(0)
+  })
+
+  // ⛔ Commit gate, 2026-10-14: moving a LIVE row the check never cleared out of the aisles (a grandfathered or legacy
+  // visa offer to Services › Other) must not keep it public — it goes to the admin's pending queue. An approved row
+  // moves out live.
+  it('⛔ a live UNCLEARED aisle row that moves out is unpublished (verified=false) — it cannot escape the check', async () => {
+    h.current = aisleRow({ verified: true })
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'service-other' })).toEqual({ ok: true })
+    expect(h.updates[0]).toMatchObject({ subcategorySlug: 'service-other', verified: false, ...LICENCE_STAMP_CLEARED })
+  })
+
+  it('an APPROVED live row moves out live — no verified write', async () => {
+    h.current = stampedRow()
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'service-other' })).toEqual({ ok: true })
     expect(h.updates[0]).not.toHaveProperty('verified')
   })
 
-  it('eno’s desk’s move stays live (no verified write); an official partner’s waits for the check like anyone’s', async () => {
+  // ⛔ Commit gate, 2026-10-14: create's Wanted rule holds on an edit too — a Wanted ad is never in a licence aisle.
+  it('⛔ an aisle service switched to Wanted goes to Services › Other — a move out: values and stamp dropped, never published', async () => {
+    h.current = stampedRow()
+    expect(await updateListingCore('listing-1', { listingType: 'wanted' })).toEqual({ ok: true })
+    expect(h.updates[0]).toMatchObject({ listingType: 'wanted', subcategorySlug: 'service-other', ...LICENCE_STAMP_CLEARED })
+    expect(h.updates[0]).not.toHaveProperty('verified')
+    for (const k of PROVIDER_KEYS) expect(attrsOf(h.updates[0].attributes) ?? {}).not.toHaveProperty(k)
+  })
+
+  it('⛔ a Wanted ad moved INTO an aisle lands in Services › Other instead — no licence asked of a buyer', async () => {
+    h.current = row({ subcategorySlug: 'service-other', listingType: 'wanted', priceUnit: 'VND' })
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'visa-legal' })).toEqual({ ok: true })
+    expect(h.updates[0]?.subcategorySlug ?? 'service-other').toBe('service-other')
+  })
+
+  it('⛔ a move OUT strips both values and the stamp — and never publishes (no verified key)', async () => {
+    h.current = stampedRow({ attributes: JSON.stringify({ visaSpeed: '1H', ...VISA }) })
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'service-other' })).toEqual({ ok: true })
+    expect(h.updates[0]).toMatchObject({ subcategorySlug: 'service-other', ...LICENCE_STAMP_CLEARED })
+    expect(h.updates[0]).not.toHaveProperty('verified')
+    for (const k of PROVIDER_KEYS) expect(attrsOf(h.updates[0].attributes) ?? {}).not.toHaveProperty(k)
+    // A held row (no stamp) moving out stays unpublished: nothing about verified or the stamp is written.
+    h.updates = []
+    h.current = aisleRow({ verified: false })
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'cleaning' })).toEqual({ ok: true })
+    expect(h.updates[0]).not.toHaveProperty('verified')
+    // All four stamp columns are cleared on any move out (commit gate) — null, never a stamp.
+    expect(h.updates[0]).toMatchObject(LICENCE_STAMP_CLEARED)
+  })
+
+  it('⛔ VietKite’s grandfathered row (live, no values) is pulled by a title-only edit — an edit sends it to the check', async () => {
+    h.current = aisleRow({ sellerId: 'b6b7b817-6af9-4d37-a762-cf54f6ec74e6' }, null)
+    expect(await updateListingCore('listing-1', { title: 'Vietnam e-visa in 1 hour' })).toEqual({ ok: true, held: true })
+    expect(h.updates[0]).toMatchObject({ title: 'Vietnam e-visa in 1 hour', verified: false })
+  })
+
+  it('a row ALREADY waiting: a title edit answers held; an empty body answers held with NO write (no 404 for the wizard)', async () => {
+    h.current = aisleRow({ verified: false })
+    expect(await updateListingCore('listing-1', { title: 'e-Visa, 2 days' })).toEqual({ ok: true, held: true })
+    expect(h.updates[0]).toMatchObject({ title: 'e-Visa, 2 days', verified: false })
+    h.updates = []
+    expect(await updateListingCore('listing-1', {})).toEqual({ ok: true, held: true })
+    expect(h.updates).toHaveLength(0)
+  })
+
+  it('a LIVE row that was never approved is pulled even by a save that changes nothing else', async () => {
+    h.current = aisleRow({ verified: true })
+    expect(await updateListingCore('listing-1', {})).toEqual({ ok: true, held: true })
+    expect(h.updates[0]).toEqual(expect.objectContaining({ verified: false }))
+  })
+
+  it('eno’s desk is exempt: a move in needs no values and stays live; an edit never writes verified', async () => {
     h.desk = true
     h.current = row({ subcategorySlug: 'service-other', listingType: 'service', priceUnit: 'VND/service' })
     expect(await updateListingCore('listing-1', { subcategorySlug: 'visa-legal' })).toEqual({ ok: true })
     expect(h.updates[0].subcategorySlug).toBe('visa-legal')
     expect(h.updates[0]).not.toHaveProperty('verified')
     h.updates = []
-    h.desk = false
-    h.current = row({ subcategorySlug: 'service-other', listingType: 'service', priceUnit: 'VND/service', seller: { trustTier: 'standard', officialPartner: true } })
-    expect(await updateListingCore('listing-1', { subcategorySlug: 'visa-legal' })).toEqual({ ok: true, held: true })
-    expect(h.updates[0].verified).toBe(false)
-  })
-
-  it('a listing ALREADY in it edits as usual (its own subcategory resent is not a move) and may move out — nothing published', async () => {
-    h.current = row({ subcategorySlug: 'visa-legal', listingType: 'service', priceUnit: 'VND/service' })
-    expect(await updateListingCore('listing-1', { subcategorySlug: 'visa-legal', title: 'e-Visa in 3 days' })).toEqual({ ok: true })
-    expect(h.updates[0].title).toBe('e-Visa in 3 days')
-    expect(h.updates[0]).not.toHaveProperty('verified')
-    h.updates = []
-    expect(await updateListingCore('listing-1', { subcategorySlug: 'service-other' })).toEqual({ ok: true })
-    expect(h.updates[0].subcategorySlug).toBe('service-other')
+    h.current = aisleRow({}, null)
+    expect(await updateListingCore('listing-1', { title: 'e-Visa desk', attributes: { visaSpeed: '1H' } })).toEqual({ ok: true })
     expect(h.updates[0]).not.toHaveProperty('verified')
   })
 
-  it('an edit that does not touch the subcategory is unaffected', async () => {
-    h.current = row({ subcategorySlug: 'visa-legal', listingType: 'service', priceUnit: 'VND/service' })
+  it('⛔ an edit never writes verified:true or identityHold — whatever the row, the move or the body', async () => {
+    const cases: Array<[Row, Row]> = [
+      [aisleRow({ verified: false }), { title: 'New title', verified: true, identityHold: false }],
+      [stampedRow({ verified: false }), { title: 'New title' }],
+      [stampedRow(), { attributes: { ...VISA } }],
+      [aisleRow({ verified: false }), { subcategorySlug: 'service-other' }],
+      [row({ subcategorySlug: 'service-other', listingType: 'service', priceUnit: 'VND/service', verified: false }), { subcategorySlug: 'visa-legal', attributes: { ...VISA } }],
+    ]
+    for (const [current, body] of cases) {
+      h.current = current
+      await updateListingCore('listing-1', body)
+    }
+    expect(h.updates.length).toBe(cases.length)
+    for (const u of h.updates) {
+      expect(u.verified).not.toBe(true)
+      expect(u).not.toHaveProperty('identityHold')
+    }
+  })
+
+  it('an edit that does not touch an approved row’s values or aisle is unaffected', async () => {
+    h.current = stampedRow()
     expect(await updateListingCore('listing-1', { price: 600_000 })).toEqual({ ok: true })
     expect(h.updates[0]).not.toHaveProperty('verified')
+  })
+})
+
+describe('⛔ the edit is a compare-and-set on the licence facts it read (R2, plan review 2026-10-14)', () => {
+  it('an aisle row’s write matches the stamp, attributes and subcategory it read', async () => {
+    h.current = stampedRow()
+    await updateListingCore('listing-1', { title: 'e-Visa in 3 days' })
+    expect(h.wheres[0]).toEqual({
+      id: 'listing-1', status: { not: 'removed' },
+      verificationMethod: h.current.verificationMethod, attributes: h.current.attributes, subcategorySlug: 'visa-legal',
+    })
+  })
+
+  it('so does a move INTO an aisle (the row becomes one) — the facts of the row as read', async () => {
+    h.current = row({ subcategorySlug: 'service-other', listingType: 'service', priceUnit: 'VND/service' })
+    await updateListingCore('listing-1', { subcategorySlug: 'visa-legal', attributes: { ...VISA } })
+    expect(h.wheres[0]).toMatchObject({ verificationMethod: null, attributes: null, subcategorySlug: 'service-other' })
+  })
+
+  it('every other edit keeps the plain guard', async () => {
+    h.current = row({ subcategorySlug: 'cleaning', listingType: 'service', priceUnit: 'VND/service' })
+    await updateListingCore('listing-1', { title: 'Weekly cleaning' })
+    expect(h.wheres[0]).toEqual({ id: 'listing-1', status: { not: 'removed' } })
+  })
+
+  it('⛔ an approval, a revoke or another save landing between the read and the write: 409 listing_changed, NOTHING written', async () => {
+    // Read: held, no stamp. Meanwhile an admin approves (the stamp lands).
+    h.current = aisleRow({ verified: false })
+    const approved = stampedRow({ verified: true })
+    h.dbRow = approved
+    expect(await updateListingCore('listing-1', { title: 'e-Visa, 2 days' })).toEqual({ ok: false, code: 409, error: 'listing_changed' })
+    // Read: approved. Meanwhile another save changed the number (and cleared the stamp).
+    h.current = stampedRow()
+    h.dbRow = { ...h.current, attributes: JSON.stringify({ ...VISA, providerLicenceNo: '79-999/2019/TCDL-GP LHQT' }), verificationMethod: null }
+    h.finds = 0
+    expect(await updateListingCore('listing-1', { attributes: { ...VISA } })).toEqual({ ok: false, code: 409, error: 'listing_changed' })
+    expect(h.updates).toHaveLength(0)
+  })
+
+  it('a miss on a row that is gone or removed is still the 404', async () => {
+    h.current = stampedRow()
+    h.dbRow = { ...h.current, status: 'removed' }
+    h.afterMiss = { ...h.current, status: 'removed' }
+    expect(await updateListingCore('listing-1', { title: 'e-Visa in 3 days' })).toEqual({ ok: false, code: 404, error: 'not_found' })
+    h.finds = 0
+    h.afterMiss = null
+    expect(await updateListingCore('listing-1', { title: 'e-Visa in 3 days' })).toEqual({ ok: false, code: 404, error: 'not_found' })
+  })
+
+  it('an unchanged row writes as usual', async () => {
+    h.current = stampedRow()
+    h.dbRow = { ...h.current }
+    expect(await updateListingCore('listing-1', { title: 'e-Visa in 3 days' })).toEqual({ ok: true })
+    expect(h.updates).toHaveLength(1)
   })
 })
 
@@ -284,7 +616,7 @@ describe('services › Pricing stamps the unit — on create, and on EVERY edit 
   })
 
   it('⛔ a stray hourly answer on an e-Visa product is not a rate', async () => {
-    await createVisaLegal({ priceBasis: 'hourly' })
+    await createVisaLegal({ priceBasis: 'hourly', ...VISA })
     expect(h.creates[0].priceUnit).toBe('VND/service')
   })
 
