@@ -45,6 +45,8 @@ export async function refreshShopPicturePdps(
   op = 'shopPicture',
 ): Promise<void> {
   try {
+    // edition-lint-allow: the caller's OWN storefront, by ownerId — read only to decide whether to purge its own listing
+    // pages; nothing it returns is shown, listed or fed anywhere (so the marketplace scope has nothing to keep out).
     const seller = await db.seller.findUnique({
       where: { ownerId: profileId },
       select: { id: true, avatarUrl: true, owner: { select: { avatarUrl: true, accountType: true } } },
