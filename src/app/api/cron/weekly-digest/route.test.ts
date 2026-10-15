@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The weekly digest cron. What this file pins is the 2026-09-24 failure and everything built to stop
 // it recurring: that run fired 20 sends at once into Resend's 10/s limit, 11 of 21 recipients got a
@@ -25,11 +25,8 @@ vi.mock('@/lib/digest', () => ({
   getDigestContent: async () => {
     h.contentCalls++
     return {
-      homes: [{ id: 'h1', heading: 'Apartment · 1 bed', price: 9_000_000, currency: '₫', image: 'https://sb.eno.vn/i.webp', area: 'District 1' }],
-      homeCounts: { apartments: 1, houses: 0, rooms: 0, total: 1 },
-      districts: [{ slug: 'd1', label: 'District 1' }],
-      picks: [],
-      sales: [],
+      apartments: [{ id: 'h1', heading: 'Apartment · 1 bed', price: 9_000_000, currency: '₫', image: 'https://sb.eno.vn/i.webp', area: 'District 1' }],
+      teachers: [{ id: 't1', name: 'Jane Doe', headline: 'IELTS 8.0', image: 'https://sb.eno.vn/t.webp' }],
     }
   },
 }))
@@ -51,6 +48,9 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
+// The digest is marketplace-only (the route gates on IS_MARKETPLACE). Force the marketplace edition so
+// the GET under test isn't skipped; the dedicated gate test below re-imports under services.
+vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
 const { GET } = await import('./route')
 const { SITE_NAME } = await import('@/lib/edition')
 // The route's own rule — a shell that exports the repo .env pins NEXT_PUBLIC_APP_URL, CI does not.
@@ -65,6 +65,7 @@ beforeEach(() => {
   Object.assign(h, { recipients: people(3), batches: [], batchAnswers: [], singles: [], findManyWhere: null, contentCalls: 0 })
 })
 afterEach(() => { vi.useRealTimers() })
+afterAll(() => { vi.unstubAllEnvs() })
 
 describe('GET /api/cron/weekly-digest', () => {
   it('refuses without the cron bearer and sends nothing', async () => {
@@ -194,7 +195,7 @@ describe('?trial=', () => {
     expect(h.batches).toHaveLength(1)
     expect(h.batches[0].msgs).toHaveLength(1)
     expect(h.batches[0].msgs[0].to).toBe('support@eno.vn')
-    expect(h.batches[0].msgs[0].subject).toBe(`[Trial] 1 home for rent added to ${SITE_NAME} this week`)
+    expect(h.batches[0].msgs[0].subject).toBe(`[Trial] 1 new apartment & 1 new teacher on ${SITE_NAME} this week`)
     expect(h.batches[0].key.startsWith(`weekly-digest-trial:${SITE_NAME}:`)).toBe(true)
     expect(h.findManyWhere).toBeNull()
   })
@@ -203,5 +204,23 @@ describe('?trial=', () => {
     await GET(req('?trial=support@eno.vn'))
     await GET(req('?trial=support@eno.vn'))
     expect(h.batches[0].key).not.toBe(h.batches[1].key)
+  })
+})
+
+describe('edition gate', () => {
+  it('eno.forum (services edition) sends NO digest — skipped before reading content', async () => {
+    vi.resetModules()
+    vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'services')
+    try {
+      const { GET: ForumGET } = await import('./route')
+      const res = await ForumGET(req())
+      expect(res.status).toBe(200)
+      expect(await res.json()).toMatchObject({ ok: true, skipped: 'not_marketplace' })
+      expect(h.contentCalls).toBe(0)
+      expect(h.batches).toHaveLength(0)
+    } finally {
+      vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
+      vi.resetModules()
+    }
   })
 })

@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { strFromU8, unzipSync } from 'fflate'
 import type { GeneratedItineraryResponse } from '@/lib/itinerary-data'
 import type { SavedItineraryDocxInput } from '@/lib/itinerary-docx'
-import type { DigestItem } from '@/lib/digest'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
 
 /**
@@ -60,9 +59,6 @@ function expectClean(label: string, value: string) {
   }
 }
 
-const item: DigestItem = {
-  id: 'l1', title: 'Sofa', price: 1_000_000, currency: 'VND', image: null, district: 'D1', drop: '-10%', urgent: false, trustScore: 80, category: 'Home',
-}
 
 const activity = (title: string) => ({
   time: '09:00', title, place: 'Old Quarter', details: 'Walk', travelMinutes: 10, estimatedCostVnd: 100_000, bookingAdvice: 'Book early',
@@ -159,10 +155,11 @@ describe('services edition — no email names the licensed marketplace', () => {
   it('the digest and both verification outcomes stay on eno.forum too', async () => {
     const { ed, digest, biz, idv } = await loadEdition('services')
     const site = ed.SITE_NAME
-    const home = { id: 'h1', heading: 'Apartment · 1 bed · 1 bath · 30 m²', price: 9_000_000, currency: '₫', image: `${FORUM_ORIGIN}/i.jpg`, area: 'District 1' }
+    const apt = { id: 'h1', heading: 'Apartment · 1 bed · 1 bath · 30 m²', price: 9_000_000, currency: '₫', image: `${FORUM_ORIGIN}/i.jpg`, area: 'District 1' }
+    const teacher = { id: 't1', name: 'Jane Doe', headline: 'IELTS 8.0', image: `${FORUM_ORIGIN}/t.jpg` }
     const outs = [
-      digest.renderWeeklyDigest({ content: { homes: [home, home], homeCounts: { apartments: 2, houses: 1, rooms: 0, total: 3 }, districts: [{ slug: 'd1', label: 'District 1' }], picks: [item, item], sales: [item] }, origin: FORUM_ORIGIN, unsubscribeUrl: `${FORUM_ORIGIN}/u`, recipientName: 'Minh', siteName: site }),
-      digest.renderWeeklyDigest({ content: { homes: [], homeCounts: { apartments: 0, houses: 0, rooms: 0, total: 0 }, districts: [], picks: [item], sales: [] }, origin: FORUM_ORIGIN, unsubscribeUrl: `${FORUM_ORIGIN}/u`, siteName: site }),
+      digest.renderWeeklyDigest({ content: { apartments: [apt, apt], teachers: [teacher, teacher] }, origin: FORUM_ORIGIN, unsubscribeUrl: `${FORUM_ORIGIN}/u`, recipientName: 'Minh', siteName: site }),
+      digest.renderWeeklyDigest({ content: { apartments: [], teachers: [] }, origin: FORUM_ORIGIN, unsubscribeUrl: `${FORUM_ORIGIN}/u`, siteName: site }),
       ...(['approved', 'rejected'] as const).flatMap((outcome) => (['en', 'vi'] as const).flatMap((lang) => [
         biz.renderVerificationOutcomeEmail({ outcome, note: 'n', lang, origin: FORUM_ORIGIN, siteName: site }),
         idv.renderIdentityOutcomeEmail({ outcome, reason: null, note: 'n', tier: 'B', lang, origin: FORUM_ORIGIN, siteName: site }),

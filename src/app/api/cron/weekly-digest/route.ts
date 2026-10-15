@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { sendMailBatch, mailEnabled } from '@/lib/mail'
 import { getDigestContent } from '@/lib/digest'
 import { renderWeeklyDigest } from '@/lib/emails/weekly-digest'
-import { SITE_NAME } from '@/lib/edition'
+import { SITE_NAME, IS_MARKETPLACE } from '@/lib/edition'
 import { isAdminEmail } from '@/lib/admin'
 
 export const runtime = 'nodejs'
@@ -92,16 +92,22 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 //   · run → `{"ok":…,"recipients":…,"sent":…,"failed":…,"skippedInvalid":…,…}` 200, or 500 if
 //     anything failed
 export const GET = route({ auth: 'cron' }, async ({ req }) => {
+  // ⛔ eno.forum does NOT send the weekly digest — it carries only the necessary transactional mail
+  // (sign-in/OTP, visa). The marketing digest is the marketplace's (owner, 2026-10-15). The route
+  // compiles into both editions, so gate it here, not just by not scheduling the forum cron.
+  if (!IS_MARKETPLACE) {
+    return { ok: true, skipped: 'not_marketplace' }
+  }
+
   const trial = new URL(req.url).searchParams.get('trial')?.trim().toLowerCase() ?? null
   if (trial !== null && !isAdminEmail(trial)) {
     return Response.json({ ok: false, error: 'trial_address_not_allowed' }, { status: 400 })
   }
 
   const content = await getDigestContent()
-  const counts = { homes: content.homes.length, picks: content.picks.length, sales: content.sales.length }
-  // Nothing worth sending (e.g. an empty catalogue) — skip the whole run. A week of moving sales
-  // alone is still worth an email.
-  if (content.homes.length === 0 && content.picks.length === 0 && content.sales.length === 0) {
+  const counts = { apartments: content.apartments.length, teachers: content.teachers.length }
+  // Nothing worth sending (quiet catalogue) — skip the whole run.
+  if (content.apartments.length === 0 && content.teachers.length === 0) {
     return { ok: true, skipped: 'no_content', ...counts }
   }
   // Key not set yet → don't loop recipients; report the no-op so a manual hit is legible.
