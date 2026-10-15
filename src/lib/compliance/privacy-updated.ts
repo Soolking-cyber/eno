@@ -26,6 +26,11 @@
  * editions, live after eno's licence check): the shared "Messages to e-Visa sellers" paragraph and the partner e-Visa
  * section's narrowed first sentence — live with the deploy, no notice window (they describe what chat already does).
  * The /prohibited amendment in the same deploy has its own record and window (PROHIBITED_AMENDMENT).
+ * And 2026-10-16 (planned — the deploy day of the teacher CV reader and Sign in with LinkedIn, owner 2026-10-15: "Add
+ * LinkedIn sign-in too", "Gemini on Vertex"): Google reading a CV the teacher chooses (its recipients row, the teacher
+ * paragraph, automated decisions), LinkedIn as a recipient (its row, the account information, withdrawing it), and the
+ * email hash never sent for a LinkedIn account (D14). Live with the deploy — they describe new, opt-in features.
+ * ⛔ If that deploy slips past 2026-10-16, re-date this (the deploy gate refuses until it matches the day).
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -34,7 +39,7 @@
  * line, `export const PRIVACY_TEXT_PUBLISHED: string = 'YYYY-MM-DD'`: that is the shape the gate reads.
  * ⚠️ Typed, never read from the clock: the page prerenders, and a build-time date would move with every rebuild.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-15'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-16'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -43,4 +48,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-15'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '3d0fb2d972df60c4'
+export const PRIVACY_TEXT_FINGERPRINT = 'e944c8bdd3ff370b'

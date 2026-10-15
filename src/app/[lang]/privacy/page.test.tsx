@@ -360,13 +360,35 @@ describe('/privacy — Sign in with Apple', () => {
     expect(text).toContain('Cloudflare, Microsoft, Google, Apple, Anthropic, Resend')
   })
 
-  it('⛔ D14: the Meta row and the Advertising paragraph say the email hash is never sent for an Apple account or a relay address', async () => {
+  it('⛔ D14: the Meta row and the Advertising paragraph say the email hash is never sent for an Apple or LinkedIn account or a relay address', async () => {
     const en = await policy('marketplace')
-    expect(en).toContain('never your email address if you use Sign in with Apple, or if it is an Apple private relay address')
-    expect(en).toContain('with your email address (never if you use Sign in with Apple, or for an Apple private relay address), phone number and account identifier scrambled (hashed) first')
+    expect(en).toContain('never your email address if you use Sign in with Apple or Sign in with LinkedIn, or if it is an Apple private relay address')
+    expect(en).toContain('with your email address (never if you use Sign in with Apple or Sign in with LinkedIn, or for an Apple private relay address), phone number and account identifier scrambled (hashed) first')
     cleanup()
     const vi = await policy('marketplace', 'vi')
-    expect(vi).toContain('không bao giờ gửi email của bạn nếu bạn dùng Đăng nhập bằng Apple')
+    expect(vi).toContain('không bao giờ gửi email của bạn nếu bạn dùng Đăng nhập bằng Apple hoặc Đăng nhập bằng LinkedIn')
+  })
+
+  // Teacher CV import + Sign in with LinkedIn (owner, 2026-10-15) — both editions (one codebase, one database).
+  it.each(['marketplace', 'services'] as const)('%s: LinkedIn is a recipient — what it sends, what we keep, and that the photo is never shown', async (site) => {
+    const en = await policy(site)
+    expect(en).toContain('LinkedIn (Sign in with LinkedIn)')
+    expect(en).toContain('sends us an identifier for your LinkedIn account, your name, your email address (and whether LinkedIn has confirmed it), a link to your LinkedIn profile photo and your language')
+    expect(en).toContain('never LinkedIn’s access token')
+    expect(en).toContain('LinkedIn does not send us your jobs, education or skills')
+    expect(en).toContain('if you use Sign in with LinkedIn, an identifier for your LinkedIn account, your name, email address, language and a link to your LinkedIn profile photo (which we never show)')
+    expect(en).toContain('under LinkedIn › Settings › Data privacy › Permitted services')
+  })
+  it.each(['marketplace', 'services'] as const)('%s: the CV reading — Google reads the whole file, we keep neither the file nor its text, and it decides nothing', async (site) => {
+    const en = await policy(site)
+    expect(en).toContain('only when you choose “Fill it in from my CV” in the teacher profile form, the CV you choose — or your LinkedIn profile saved as a PDF; for a Word file, the text your browser reads from it — which the AI reads in full; we keep neither the file nor its text, Google does not use it to train its AI')
+    expect(en).toContain('filling in a teacher profile from a CV you choose')
+    expect(en).toContain('A phone number in the file is only offered to you on the last step.')
+    expect(en).toContain('Filling in a teacher profile from a CV: when you ask, an AI model (Google Gemini) reads the CV you choose')
+    cleanup()
+    const vi = await policy(site, 'vi')
+    expect(vi).toContain('Điền hồ sơ giáo viên từ CV')
+    expect(vi).toContain('LinkedIn (Đăng nhập bằng LinkedIn)')
   })
 
   it('the sign-up reminder lists Apple among the methods it remembers choosing', async () => {
