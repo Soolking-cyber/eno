@@ -45,7 +45,7 @@ vi.mock('@/lib/admin', () => ({
   getCurrentProfileId: async () => 'p1',
   getAdmin: async () => null,
   getVerifiedPhone: async () => null,
-  isCurrentUserAppleLinkedByClaims: async () => h.appleLinked,
+  isCurrentUserAdEmailWithheldByClaims: async () => h.appleLinked,
 }))
 vi.mock('@/lib/db', () => ({
   db: {

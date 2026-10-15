@@ -19,6 +19,11 @@ import { HANDOFF_NEXT_KEY, handoffNonce } from '@/lib/auth/handoff-client'
 import { isNativeApp, nativeAppleSignIn, nativeAuthErrorCode, nativeOAuth, type NativeOAuthProvider } from '@/lib/native-auth'
 import { appReviewGate, inAppSheetDocument, IN_APP_SHEET_PARAM, nativeAppGate } from '@/lib/app-review-gates'
 import { appleAvailableHere, appleFlagSet, appleSignInTokens, appleWebEnabled, iosGoogleHidden, iosNativeAppleReady, iosSignInPluginPresent } from '@/lib/apple-signin'
+import { PROVIDER_BUTTON, PROVIDER_TITLE } from './provider-button-classes'
+import { LinkedInNotice } from '@/components/teachers/linkedin-notice'
+import { linkedinAvailableHere, linkedinStartPath } from '@/lib/linkedin-signin'
+import { useLinkedInSignInHere } from '@/lib/linkedin-flag'
+import { LINKEDIN_NOTICE_VERSION } from '@/lib/teachers/import-notice'
 import { googleFirstPartyEnabled } from '@/lib/google-identity'
 import { useTurnstile } from './turnstile'
 import { canonicalEmail } from '@/lib/email-alias'
@@ -390,6 +395,24 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
    */
   const emailFirst = oauthBlocked
   const googleNoteId = useId()
+  /**
+   * SIGN IN WITH LINKEDIN (owner, 2026-10-15) — only where a teacher page says LinkedIn is on (useLinkedInSignInHere,
+   * the server's GoTrue probe) AND this is a real browser (linkedinAvailableHere: never the apps, in-app browsers, the
+   * iOS home-screen app or the in-app sheet — no LinkedIn session there, and LinkedIn's own Google sign-in is refused in
+   * a webview). Its notice stands beside it (LinkedIn API Terms 5.2). ⚠️ Deliberately UNCOUNTED in the sign-up
+   * counters (SignInMethod stays google | apple | email): the counters' /privacy wording names those three.
+   */
+  const linkedinOnPage = useLinkedInSignInHere()
+  const [linkedinHere, setLinkedinHere] = useState(false)
+  const [linkedinBusy, setLinkedinBusy] = useState(false)
+  const linkedinNoteId = useId()
+  // Back from LinkedIn: Safari and Chrome restore this page from the back-forward cache with the LinkedIn press still
+  // spinning and every button disabled — the restore lets them go (gate review, 2026-10-16).
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => { if (e.persisted) { setLinkedinBusy(false); setLoading(false) } }
+    window.addEventListener('pageshow', onShow)
+    return () => window.removeEventListener('pageshow', onShow)
+  }, [])
   // The form's own box, so the fold can find its email field (ui/input takes no ref).
   const formRef = useRef<HTMLDivElement>(null)
   /**
@@ -439,6 +462,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
     setHideGoogle((isNativeTabs() && !isNativeApp()) || iosGoogleHidden() || inAppSheetDocument())
     const appleHere = appleAvailableHere()
     setShowApple(appleHere)
+    setLinkedinHere(linkedinAvailableHere())
     setAppleWebHere(appleWebEnabled())
     // ⛔ RECONCILE THE PRE-PAINT CLASS (commit gate, codex + opus): `no-apple-web` is set once per document
     // (src/lib/apple-web-head.ts), but the in-app sheet's marker belongs to ONE URL — a client-side navigation away
@@ -831,6 +855,15 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   const pressGoogle = () => { onMethod?.('google'); reportGateMethod('google'); void oauth('google') }
   /** Apple pressed — the same accounting as Google. */
   const pressApple = () => { onMethod?.('apple'); reportGateMethod('apple'); void oauth('apple') }
+  // A full-page navigation to the server start route (it records the consent and lands the PKCE verifier on this host),
+  // with the SAME `next` Google's button uses — so the teacher form's sign-in mark and resume intent ride back.
+  const pressLinkedIn = () => {
+    if (loading) return
+    setError(null)
+    setLoading(true)
+    setLinkedinBusy(true)
+    window.location.assign(linkedinStartPath(nextPath, LINKEDIN_NOTICE_VERSION))
+  }
 
   // Magic link goes through OUR endpoint, not supabase.auth.signInWithOtp — see the
   // header of api/auth/email-link for why (Supabase's SMTP credentials silently expired
@@ -1397,6 +1430,15 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
             )}
           </ProviderPair>
 
+          {linkedinOnPage && linkedinHere && (
+            <div className="space-y-1">
+              <Button variant="bare" size="none" disabled={loading} loading={linkedinBusy} onClick={pressLinkedIn} aria-describedby={linkedinNoteId} className={restyleGoogle ? cn(PROVIDER_BUTTON, PROVIDER_TITLE) : 'flex min-h-11 w-full items-center justify-center rounded-xl border border-line-strong bg-popover px-4 text-sm font-bold text-foreground transition-colors hover:bg-tint disabled:opacity-50 cursor-pointer'}>
+                {t('Sign in with LinkedIn', 'Đăng nhập bằng LinkedIn')}
+              </Button>
+              <LinkedInNotice id={linkedinNoteId} />
+            </div>
+          )}
+
           {/* The divider shows whenever a provider does, with Google's own first-frame hook: under the gate
               in the iOS app, a provider can only paint with `native-siwa`. */}
           {!emailCollapsed && (
@@ -1874,7 +1916,7 @@ function SecondarySwitchRow({ show, items, replaceWith = null, announce = '' }: 
 // needs 231px for Google and 221px for Apple, so BOTH take two lines there; Vietnamese needs 209 and 199 and fits. At
 // 360px (256px inside), and on /signin at 320px (240px), both fit (measured in Chromium, 2026-10-09). Longer languages
 // (fr, ru, ms, th) wrap at 320px too. Whatever wraps, ProviderPair keeps the two buttons the same height.
-const PROVIDER_TITLE = 'text-[19px] font-bold leading-tight' // design-lint-allow: Apple HIG custom button — title = 43% of the 44px height (19px)
+// PROVIDER_TITLE lives in ./provider-button-classes (shared with the teacher form's LinkedIn door, 2026-10-15).
 /**
  * THE TWO PROVIDER BUTTONS AS ONE PAIR (`pair`: the flag is set) — a grid whose rows are always equal (`auto-rows-fr`),
  * so when one label wraps the other button grows with it. At one shared size "Continue with Google" is ~10px longer
@@ -1907,7 +1949,7 @@ function ProviderPair({ pair, firstFrameHook, children }: { pair: boolean; first
  * inside its button instead of spilling out (B3: grow, never clip). No `transition-colors`: ui/button drops it and
  * keeps its own transition list (the press scale included).
  */
-const PROVIDER_BUTTON = 'flex min-h-11 w-full items-center justify-center whitespace-normal rounded-xl inset-ring inset-ring-black bg-white px-4 text-center text-black hover:bg-neutral-100 disabled:opacity-50 cursor-pointer dark:inset-ring-transparent'
+// PROVIDER_BUTTON lives in ./provider-button-classes (shared with the teacher form's LinkedIn door, 2026-10-15).
 /** Google beside Apple (only while NEXT_PUBLIC_APPLE_SIGNIN has a token — plan B3/B4): the shared look, the G 10px
  *  from its label, and Apple's title typography on the label. */
 const GOOGLE_BUTTON = `${PROVIDER_BUTTON} gap-2.5 ${PROVIDER_TITLE}`
