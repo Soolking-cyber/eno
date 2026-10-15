@@ -4,6 +4,7 @@ import { resolveApiKey, listingOwnedBy } from '@/lib/api/auth'
 import { apiOk, apiError, apiAuthError } from '@/lib/api/respond'
 import { isIdentityBlockCode, publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
+import { LICENCE_CHECK_REQUIRED_COPY } from '@/lib/licence-check-copy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -26,6 +27,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   // A confirm that would revive a sold/hidden listing past the released-scam-charge cap (confirmCore).
   if (!res.ok && res.error === 'released_charge_listing_cap') return apiError(403, res.error, RELEASED_CHARGE_CAP_MESSAGE, r.rate)
+  // A confirm that would revive an e-Visa / Legal & permits listing eno has not checked (2026-10-14): the 409, never the
+  // 404 below — the listing exists and waits for eno's licence check.
+  if (!res.ok && res.error === 'licence_check_required') return apiError(409, res.error, LICENCE_CHECK_REQUIRED_COPY.en, r.rate)
   if (!res.ok) return apiError(404, 'not_found', 'Listing not found.', r.rate)
   return apiOk({ ok: true, bumped: res.bumped }, r.rate)
 }

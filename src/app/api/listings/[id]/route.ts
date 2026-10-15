@@ -9,6 +9,8 @@ import { phoneTakenByOther } from '@/lib/phone-unique'
 import { updateListingCore, deleteListingCore } from '@/lib/core/listings'
 import { DELETE_HOLD_COPY } from '@/lib/delete-hold-copy'
 import { TEACHER_PROFILE_REFUSAL } from '@/lib/taxonomy'
+import { PROVIDER_LICENCE_REFUSAL } from '@/lib/provider-licence'
+import { LISTING_CHANGED_COPY } from '@/lib/licence-check-copy'
 import { serializeListing } from '@/lib/serialize'
 import { getPriceBand } from '@/lib/price-stat'
 import { topSellerReviews, sameSellerListings } from '@/lib/seller-metrics'
@@ -92,8 +94,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 // PATCH — a seller edits their OWN listing (title/description/price/district/
 // condition/images…). Category isn't editable here. auth → core → respond; the edit
-// logic (validation, searchText rebuild, republish gate, reindex) lives in the shared
-// core so the future /api/v1 PATCH reuses it verbatim.
+// logic (validation, searchText rebuild, the licence hold, reindex) lives in the shared
+// core so /api/v1's PATCH reuses it verbatim.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const auth = await checkListingOwner(id)
@@ -121,10 +123,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const r = await updateListingCore(id, body)
   // A move into a teacher's job-seeker post (taxonomy.ts TEACHER_SEEKING_POST, 2026-10-12) carries its bilingual sentence,
-  // as POST /api/listings does.
-  if (!r.ok) return NextResponse.json({ error: r.error, ...(r.error === 'teacher_profile_instead' ? { message: TEACHER_PROFILE_REFUSAL } : {}) }, { status: r.code })
-  // `held`: a move into the e-Visa subcategory unpublished the listing for the licence check — the wizard says so.
+  // as POST /api/listings does; so do the two provider-licence refusals (with `detail` '<field>:<reason>' for an invalid
+  // value) and `listing_changed`, the 409 of an e-Visa / Legal & permits edit that raced an approval (owner, 2026-10-14).
+  if (!r.ok) return NextResponse.json({ error: r.error, ...(r.detail ? { detail: r.detail } : {}), ...refusalMessage(r.error) }, { status: r.code })
+  // `held`: the listing is waiting for eno's licence check in e-Visa or Legal & permits — moved there, a value changed, or
+  // not yet approved — and is unpublished until an admin approves it. The wizard says so and goes to the dashboard.
   return NextResponse.json(r.held ? { ok: true, held: true } : { ok: true })
+}
+
+/** The bilingual sentence a native client shows for an edit refusal it cannot word itself — none for the rest. */
+function refusalMessage(code: string): { message?: { en: string; vi: string } } {
+  if (code === 'teacher_profile_instead') return { message: TEACHER_PROFILE_REFUSAL }
+  if (code === 'provider_licence_required' || code === 'provider_licence_invalid') return { message: PROVIDER_LICENCE_REFUSAL }
+  if (code === 'listing_changed') return { message: LISTING_CHANGED_COPY }
+  return {}
 }
 
 // DELETE — a seller removes their OWN listing (a tombstone: gone for them and the public, its reports

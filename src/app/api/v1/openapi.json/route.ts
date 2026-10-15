@@ -230,9 +230,8 @@ const OAUTH_SCOPE_DESCRIPTIONS = {
 // against the document, and a promised field that never arrives is a crash at the call site
 // with nothing in our logs. Two facts that survived that pass and would not have survived a
 // tidy-up:
-//   · `POST /listings` returns `{ listing: { id, verified } }` — NOT a serialized Listing.
-//     `createListingCore` ends `return { id: listing.id, verified: true }`. A client that
-//     wanted the created row has to GET it.
+//   · `POST /listings` returns `{ listing: { id, verified, held? } }` — NOT a serialized Listing
+//     (createListingCore's own return). A client that wanted the created row has to GET it.
 //   · `ListingInput` used to advertise `externalId` ("Your own id (for sync/upsert)") on
 //     `POST /listings`. `createListingCore` never reads `body.externalId` — verified by
 //     enumerating every `body.*` access in it — so the field was silently discarded, and a
@@ -537,15 +536,16 @@ export const SPEC = {
           category: schemaRef('Category'),
           sellerId: { type: 'string' },
           seller: schemaRef('ListingSeller'),
-          verified: { type: 'boolean', description: 'False means the listing exists but is not publicly visible — it did not clear the auto-publish gate.' },
+          verified: { type: 'boolean', description: 'False means the listing exists but is not publicly visible: it is waiting for eno’s licence check (an e-Visa or Legal & permits listing — see `ListingInput.attributes`), or it was taken down. A listing is public only while `verified` is true AND `status` is "active".' },
           status: {
             type: 'string',
             description: 'active | sold | hidden. Stored as a free string column, so treat it as an open set and default unknown values to "not active".',
           },
-          verificationMethod: { type: ['string', 'null'] },
-          verifiedAt: { type: ['string', 'null'], format: 'date-time' },
-          verifiedBy: { type: ['string', 'null'] },
-          verificationNotes: { type: ['string', 'null'] },
+          // ⛔ Always null since 2026-10-14 (serializeListing): the columns behind them hold eno's private licence stamp.
+          verificationMethod: { type: ['string', 'null'], description: 'Always null (reserved).' },
+          verifiedAt: { type: ['string', 'null'], format: 'date-time', description: 'Always null (reserved).' },
+          verifiedBy: { type: ['string', 'null'], description: 'Always null (reserved).' },
+          verificationNotes: { type: ['string', 'null'], description: 'Always null (reserved).' },
           postedAt: { type: 'string', format: 'date-time', description: 'Recency anchor. A successful `/confirm` bump moves it to now.' },
           views: { type: 'integer' },
           savedCount: { type: 'integer' },
@@ -555,7 +555,7 @@ export const SPEC = {
           attributes: {
             type: ['object', 'null'],
             additionalProperties: true,
-            description: 'Category-specific facets, free-form by design — the key set differs per category and grows with the taxonomy.',
+            description: 'Category-specific facets, free-form by design — the key set differs per category and grows with the taxonomy. An e-Visa or Legal & permits listing also carries `providerLegalName` and `providerLicenceNo` — the provider’s registered business name and licence number, shown on its public page.',
           },
           year: { type: ['integer', 'null'], description: 'Vehicles only; null when not applicable.' },
           mileageKm: { type: ['integer', 'null'], description: 'Vehicles only.' },
@@ -570,14 +570,34 @@ export const SPEC = {
           id: { type: 'string' },
           verified: {
             type: 'boolean',
-            const: true,
             description: [
-              '⚠️ ALWAYS `true` here — this is NOT a live/held discriminator, and reading it as one is a branch that can never be taken.',
-              '`createListingCore` writes `verified: true` on the insert and ends `return { id: listing.id, verified: true }`; there is no path through it that returns false.',
-              'Anything that would have produced a held row THROWS `PublishBlockedError` instead of saving one, and this endpoint answers that as 422 (or 403 `account_restricted`, or 409 `duplicate_listing`).',
-              'So a 201 from this endpoint means the listing is publicly visible, full stop.',
-              'The field is not redundant on `Listing` — `verified` really can be false there, because an admin unverify, the moderation queue, the duplicate/provenance auto-hold, the AI-moderation auto-hold and the enforcement ladder all set it — but every one of those happens AFTER creation, so `getListing` is where you would see it.',
+              'Whether the listing is publicly visible now.',
+              '`true` for every listing except one stored unpublished for eno’s licence check — an e-Visa (services/visa-legal) or Legal & permits (services/legal-permits) listing from any shop but eno’s own — which answers `false` together with `held: true`. Anything else that cannot publish is refused (422, 403 or 409) rather than saved.',
+              '`verified` can also turn false LATER, on `Listing` (an admin, the moderation queue, an automatic hold, the enforcement ladder or the licence check) — `getListing` is where you would see that.',
             ].join(' '),
+          },
+          held: {
+            type: 'boolean',
+            const: true,
+            description: 'Present only when the listing was stored unpublished, waiting for eno’s licence check (e-Visa / Legal & permits). It goes live, with no further call, once eno has checked the provider’s licence against the values you sent.',
+          },
+        },
+      },
+      /**
+       * ⚠️ WHAT `PATCH /listings/{id}` RETURNS. A bare `Ack` until 2026-10-14; now an edit of an e-Visa or Legal & permits
+       * listing that leaves it waiting for eno's licence check says so (`held`), since a plain `{ ok: true }` would read
+       * as "still live" (updateListingCore / src/app/api/v1/listings/[id]/route.ts).
+       */
+      ListingPatchAck: {
+        type: 'object',
+        description: 'Acknowledgement of an edit. `held` is present only when the listing is waiting for eno’s licence check and is unpublished.',
+        required: ['ok'],
+        properties: {
+          ok: { type: 'boolean', const: true },
+          held: {
+            type: 'boolean',
+            const: true,
+            description: 'An e-Visa or Legal & permits listing that is not (or no longer) approved: it was moved into either aisle, one of its two provider values changed, or it had not been approved yet. It stays unpublished until eno has checked the provider’s licence.',
           },
         },
       },
@@ -607,10 +627,23 @@ export const SPEC = {
           lng: { type: 'number', minimum: -180, maximum: 180 },
           condition: { type: 'string', maxLength: 60 },
           listingType: { type: 'string', description: 'sell | rent, where the category allows it.' },
-          subcategorySlug: { type: 'string', description: 'Inferred from the title and description when omitted.' },
+          subcategorySlug: {
+            type: 'string',
+            description: 'Inferred from the title and description when omitted (or not one of the category’s subcategories). ⚠️ An inference that lands in services/visa-legal (e-Visa) or services/legal-permits counts exactly like sending that slug: the listing needs `attributes.providerLegalName` and `attributes.providerLicenceNo` (422 `provider_licence_required` without them) and is stored unpublished for eno’s licence check. A `listingType` "wanted" post never lands in either of those two — it is filed under services/service-other, live.',
+          },
           brand: { type: 'string', description: 'Resolved against the brand catalogue (typo-tolerant). Only read for categories that have brands.' },
           model: { type: 'string', maxLength: 60, description: 'Only stored when a brand resolved.' },
-          attributes: { type: 'object', additionalProperties: true, description: 'Category-specific facets. Unknown keys are dropped.' },
+          attributes: {
+            type: 'object',
+            additionalProperties: true,
+            description: [
+              'Category-specific facets. Keys must be simple identifiers (letters, digits, underscore) and values non-empty strings — other entries are dropped, and every value is cut to 40 characters. Two keys are the exception, and are read only in a licence aisle:',
+              '`providerLegalName` (≤160 characters) and `providerLicenceNo` (≤60) — the provider’s registered business name and its licence number (in Legal & permits: a licence or registration number, or the 10-digit enterprise code), exactly as written on the licence.',
+              'REQUIRED for a listing in services/visa-legal (e-Visa) or services/legal-permits — picked, or inferred from the words (see `subcategorySlug`) — from any shop but eno’s own: without both, the create is refused with 422 `provider_licence_required`; with them, the listing is stored unpublished (`held`) until eno has checked them against the licence.',
+              'Validated, never cut: a value that cannot be accepted (a personal ID number, a phone number or other contact details, a disallowed word, a malformed number) is refused with 422 `provider_licence_invalid`, `error.detail` "<field>:<reason>".',
+              'Shown publicly on the listing page. Dropped everywhere else.',
+            ].join(' '),
+          },
           negotiable: { type: 'boolean' },
           urgent: { type: 'boolean', description: 'Requests the "Bán gấp" boost. Granted only if the shop\'s urgent quota is free; a PATCH that exceeds the quota is refused with 409 `urgent_quota`.' },
           contactName: { type: 'string', maxLength: 80, description: 'Checked against the contact-in-name publish gate.' },
@@ -637,7 +670,7 @@ export const SPEC = {
         type: 'object',
         description: [
           'Sparse edit. Every field is optional and only the ones PRESENT are touched — `updateListingCore` keys on `!== undefined`, so sending `null` is a different instruction from omitting the key (where a null is meaningful the field below says so).',
-          'A body whose keys are all unreadable is not an error: the handler returns `{"ok":true}` having written nothing.',
+          'A body whose keys are all unreadable is not an error: the handler returns `{"ok":true}` having written nothing (`{"ok":true,"held":true}` for an e-Visa or Legal & permits listing still waiting for eno’s licence check).',
           '⛔ NOT READABLE HERE, THOUGH `POST /listings` ACCEPTS THEM: `categorySlug` (an edit CANNOT move a listing between categories — send it and it is ignored, and you still get 200) and `location` (derived from `district`, never read from the body). `externalId` is not readable on this path either; it exists only on /listings/bulk and /listings/sync.',
         ].join(' '),
         properties: {
@@ -657,11 +690,19 @@ export const SPEC = {
             description: 'Read ONLY when it is a JSON array (a string is ignored, not an error). Entries that are not recognised first-party URLs are dropped, then the first 8 are kept, and the surviving set must still clear the per-category different-angles bar — so an edit cannot quietly strip a live listing down to one photo (`photos_min` / `photo_required`). Send the full set you want, not a delta.',
           },
           video: { type: ['string', 'null'], format: 'uri', description: 'A canonical first-party video URL sets it; `null` or `""` clears it; ⚠️ anything else is IGNORED and the stored clip is left alone — deliberately, so a malformed URL cannot delete a live video.' },
-          subcategorySlug: { type: ['string', 'null'], description: 'Must belong to the listing\'s (unchangeable) category; a slug from another category is ignored silently. `null`/`""` clears it.' },
+          subcategorySlug: { type: ['string', 'null'], description: 'Must belong to the listing\'s (unchangeable) category; a slug from another category is ignored silently. `null`/`""` clears it. ⚠️ A move INTO services/visa-legal or services/legal-permits, or between the two, needs `attributes.providerLegalName` and `attributes.providerLicenceNo` (sent in this body, or already on the listing when moving between the two) and unpublishes the listing until eno has checked them (`held`). A move OUT drops both keys and never republishes.' },
           listingType: { type: 'string', description: 'sell | rent (job | wanted in the jobs category). Ignored silently when the value is not one the listing\'s category allows. Switching into or out of a job re-stamps the price unit (`VND/month` for a job) and re-derives a job\'s price from its salary.' },
           brand: { type: ['string', 'null'], description: 'Read ONLY for categories that have brands; ignored entirely elsewhere. Resolved against the brand catalogue (typo-tolerant); an unresolvable name clears the brand rather than failing. Clearing the brand also clears `model`.' },
           model: { type: ['string', 'null'], maxLength: 60, description: 'Read ONLY for categories that have brands. Stored only while a brand is set — with no brand it is written as null whatever you send.' },
-          attributes: { type: 'object', additionalProperties: true, description: 'Category-specific facets. Unknown keys are dropped; a derived layer (e.g. providerType) is re-applied on top, so this is a replace-with-sanitized-set, not a merge with what is stored.' },
+          attributes: {
+            type: 'object',
+            additionalProperties: true,
+            description: [
+              'Category-specific facets, under the same rules as `ListingInput.attributes`: identifier keys and non-empty string values are kept, every value cut to 40 characters; a derived layer (e.g. providerType) is re-applied on top, so this is a replace-with-sanitized-set, not a merge with what is stored.',
+              '⛔ On an e-Visa or Legal & permits listing (services/visa-legal, services/legal-permits) `providerLegalName` (≤160) and `providerLicenceNo` (≤60) are read too, uncut and validated as on create (422 `provider_licence_invalid`, `error.detail` "<field>:<reason>"), and shown publicly. Attributes sent WITHOUT both keys on such a listing — from any shop but eno’s own — are refused with 422 `provider_licence_required`, since a replace would otherwise drop them.',
+              'A change of either value, or a move into or between the two aisles, unpublishes the listing until eno has checked them again (`held`); an edit of a listing that was never approved keeps it unpublished. An approved listing whose values and aisle stay the same stays live.',
+            ].join(' '),
+          },
           negotiable: { type: 'boolean', description: 'Coerced to a boolean. ⚠️ Forced to `false` for the `services` category and for a job whatever you send. Setting it false also ends an in-progress "urgent" run, because urgency promises price flexibility — except on a job, which is never negotiable and whose urgent-hiring run it leaves alone.' },
           urgent: { type: 'boolean', description: 'Requests (or ends) the "Bán gấp" boost; the string `"true"` is accepted as well. Activation runs the full server gate: over the per-shop quota is 409 `urgent_quota`; inside the 7-day re-arm cooldown the boost is simply not re-armed and the REST of the edit still saves. A successful activation also forces `negotiable: true` — except on a job, whose urgency ("Tuyển gấp", urgent hiring) opens no offers.' },
           year: { type: ['integer', 'null'], description: 'Range facet — read only when the listing\'s current category+subcategory declares it (vehicles). `null`/`""` clears it; out-of-range numbers are CLAMPED to the facet\'s bounds, not refused.' },
@@ -674,7 +715,7 @@ export const SPEC = {
       },
       BulkListingInput: {
         type: 'object',
-        description: 'One row of `POST /listings/bulk`. ⚠️ A NARROWER FIELD SET than `ListingInput`: the bulk mapper reads only these, so listingType, subcategorySlug, brand, model, attributes, city, lat, lng, video, negotiable and urgent are discarded here even though the single-create path honours them.',
+        description: 'One row of `POST /listings/bulk`. ⚠️ A NARROWER FIELD SET than `ListingInput`: the bulk mapper reads only these, so listingType, subcategorySlug, brand, model, attributes, city, lat, lng, video, negotiable and urgent are discarded here even though the single-create path honours them. With no subcategory, a bulk row never lands in e-Visa or Legal & permits (the two subcategories that wait for eno’s licence check) — post those with `createListing`.',
         properties: {
           categorySlug: { type: 'string', description: 'Also accepted as `category_slug`.' },
           title: { type: 'string', minLength: 3 },
@@ -774,7 +815,7 @@ export const SPEC = {
           active: { type: 'integer' },
           sold: { type: 'integer' },
           hidden: { type: 'integer' },
-          held: { type: 'integer', description: 'Listings that are `active` but NOT `verified` — they failed the auto-publish gate and are not publicly visible. Not a `status` value; a derived count.' },
+          held: { type: 'integer', description: 'Listings that are `active` but NOT `verified` — waiting for eno’s licence check (e-Visa / Legal & permits) or taken down, and not publicly visible. Not a `status` value; a derived count.' },
         },
       },
       ListingAnalyticsRow: {
@@ -821,7 +862,7 @@ export const SPEC = {
           external_id: { type: ['string', 'null'], description: 'Null only for a row that had no usable externalId.' },
           id: { type: 'string', description: 'Present for created and updated rows; absent when the row failed before a listing existed.' },
           action: { type: 'string', enum: ['created', 'updated', 'failed'] },
-          error: { type: 'string', description: 'Present only when `action` is "failed". Free prose, not a stable code.' },
+          error: { type: 'string', description: 'Present only when `action` is "failed". Free prose, not a stable code — except the refusals of a re-activation, which carry their code verbatim: the `identity_*` codes, `released_charge_listing_cap`, and `licence_check_required` (an e-Visa or Legal & permits listing waiting for eno’s licence check — say, one moved there in the dashboard — cannot be put back on sale until eno approves it).' },
         },
       },
       AccessToken: {
@@ -1003,7 +1044,7 @@ export const SPEC = {
         summary: 'Create a listing',
         description: [
           'Runs the exact same path as the seller-facing post wizard: auto-publish gate, brand resolution, translation warm, search reindex and webhook dispatch.',
-          '⚠️ Returns `{ listing: { id, verified } }`, not the serialized listing — fetch `getListing` if you need the row. `verified` is ALWAYS `true` on a 201: this endpoint either publishes the listing or refuses it (422/403/409), it never creates a held one.',
+          '⚠️ Returns `{ listing: { id, verified, held? } }`, not the serialized listing — fetch `getListing` if you need the row. Every listing either publishes at once (`verified: true`) or is refused (422/403/409) — except one in services/visa-legal (e-Visa) or services/legal-permits from any shop but eno’s own: it needs `attributes.providerLegalName` and `attributes.providerLicenceNo`, and is created UNPUBLISHED (`verified: false, held: true`) until eno has checked the provider’s licence against them.',
           'Send an `Idempotency-Key` so a network retry cannot create the listing twice.',
         ].join(' '),
         security: requires('listings:write'),
@@ -1011,7 +1052,7 @@ export const SPEC = {
         requestBody: { required: true, content: json(schemaRef('ListingInput')) },
         responses: {
           '201': ok(
-            'Created AND published — a 201 from this endpoint is always a publicly visible listing. `verified` is `true` on every one of them; it is not a discriminator to branch on.',
+            'Created. Published at once (`verified: true`) — or, for an e-Visa / Legal & permits listing, stored unpublished and waiting for eno’s licence check (`verified: false, held: true`); it goes live when eno approves it, with no further call.',
             { type: 'object', required: ['listing'], properties: { listing: schemaRef('CreatedListing') } },
             { 'Idempotency-Replayed': headerRef('Idempotency-Replayed') },
           ),
@@ -1034,7 +1075,8 @@ export const SPEC = {
             // ⚠️ The identity codes moved to 403 on 2026-09-23 with the seller identity gate: they are a
             // legal block, not a content one, and publish-block-response.ts fixes 403 for them.
             // `teacher_profile_instead`: Jobs › Teaching + `wanted` — a teacher looking for work makes a teacher profile.
-            ['invalid_input', 'unknown_category', 'category_not_postable', 'teacher_profile_instead', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required'],
+            // `provider_licence_required` / `provider_licence_invalid` (2026-10-14): e-Visa / Legal & permits — see ListingInput.attributes.
+            ['invalid_input', 'unknown_category', 'category_not_postable', 'teacher_profile_instead', 'provider_licence_required', 'provider_licence_invalid', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required'],
           ),
         },
       },
@@ -1056,21 +1098,24 @@ export const SPEC = {
         operationId: 'updateListing',
         summary: 'Edit a listing',
         description: [
-          'Sparse update with the same validation, republish gate and reindex as the dashboard editor. Naturally idempotent: the same body twice gives the same result. Returns a bare acknowledgement.',
+          'Sparse update with the same validation, licence hold and reindex as the dashboard editor. Naturally idempotent: the same body twice gives the same result. Returns an acknowledgement — with `held: true` when the listing is an e-Visa or Legal & permits listing waiting for eno’s licence check, and so unpublished.',
           '⚠️ The body is `ListingPatch`, NOT `ListingInput` — a narrower field set with nothing required. In particular an edit CANNOT move a listing between categories: `categorySlug` is not read here, and sending it still returns 200.',
         ].join(' '),
         security: requires('listings:write'),
         parameters: [{ name: 'id', in: 'path', required: true, description: 'The listing id.', schema: { type: 'string' } }],
         requestBody: { required: true, content: json(schemaRef('ListingPatch')) },
         responses: {
-          '200': ok('Saved.', OK_ACK),
+          '200': ok('Saved. `held: true` — the listing is waiting for eno’s licence check (e-Visa / Legal & permits) and is unpublished.', schemaRef('ListingPatchAck')),
           ...authFailures(),
           '400': fail('The body was not valid JSON.', ['bad_request']),
           '404': NOT_FOUND_LISTING,
-          '409': fail('A retryable state conflict — the shop\'s "urgent" quota is already spent, so the boost was not applied.', ['urgent_quota']),
+          '409': fail(
+            'A retryable state conflict: the shop\'s "urgent" quota is already spent, so the boost was not applied (`urgent_quota`); or an e-Visa / Legal & permits listing changed while this edit was being made — eno approved or revoked its licence check, or another edit landed — and NOTHING was written (`listing_changed`): read it again and resend.',
+            ['urgent_quota', 'listing_changed'],
+          ),
           '422': fail(
-            'Validation or a publish gate refused the edit. ⚠️ This status collapses several core-level 400s: the route maps everything that is not 404 or 409 onto 422.',
-            ['title_too_short', 'invalid_price', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required', 'teacher_profile_instead', 'account_restricted', 'duplicate_listing', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
+            'Validation or a publish gate refused the edit. ⚠️ This status collapses several core-level 400s: the route maps everything that is not 404 or 409 onto 422. `provider_licence_invalid` carries `error.detail` "<field>:<reason>".',
+            ['title_too_short', 'invalid_price', 'no_phone_in_listing', 'photo_required', 'photos_min', 'banned_words', 'contact_in_text', 'contact_in_name', 'location_required', 'teacher_profile_instead', 'provider_licence_required', 'provider_licence_invalid', 'account_restricted', 'duplicate_listing', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
         },
       },
@@ -1127,8 +1172,12 @@ export const SPEC = {
             ['insufficient_scope', 'account_held', 'account_suspended', 'released_charge_listing_cap', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
           '404': NOT_FOUND_LISTING,
+          '409': fail(
+            'Re-activating an e-Visa or Legal & permits listing (services/visa-legal, services/legal-permits) that is waiting for eno’s licence check: it cannot be put back on sale until eno has checked the provider’s licence and approved it. Not retryable as it stands; marking it sold or hidden never is refused.',
+            ['licence_check_required'],
+          ),
           '422': fail(
-            '`status` was absent or not one of the three allowed values. ⚠️ `invalid_status` is the ONLY code this status can carry: `setStatusCore`\'s error union also names `not_found`, but it never returns it (the row is proven to exist by the route\'s ownership check, which answers 404 above), and the route maps every other core failure onto 422 — the account-hold (`account_held`, `account_suspended`), released-charge cap (`released_charge_listing_cap`) and seller identity gate (`identity_*`) refusals are the exceptions and answer 403 above.',
+            '`status` was absent or not one of the three allowed values. ⚠️ `invalid_status` is the ONLY code this status can carry: `setStatusCore`\'s error union also names `not_found`, but it never returns it (the row is proven to exist by the route\'s ownership check, which answers 404 above), and the route maps every other core failure onto 422 — the account-hold (`account_held`, `account_suspended`), released-charge cap (`released_charge_listing_cap`) and seller identity gate (`identity_*`) refusals are the exceptions and answer 403 above, and the licence check (`licence_check_required`) answers 409.',
             ['invalid_status'],
           ),
         },
@@ -1157,6 +1206,10 @@ export const SPEC = {
             ['insufficient_scope', 'account_held', 'account_suspended', 'released_charge_listing_cap', 'identity_unverified', 'identity_pending', 'identity_expired', 'identity_suspended'],
           ),
           '404': NOT_FOUND_LISTING,
+          '409': fail(
+            'The confirm would have re-activated a sold or hidden e-Visa or Legal & permits listing that is waiting for eno’s licence check. A confirm of a listing that is already active is never refused for this.',
+            ['licence_check_required'],
+          ),
         },
       },
     },
@@ -1224,6 +1277,7 @@ export const SPEC = {
           'mode `partial` (the default) touches only the rows you send. mode `full` additionally RETIRES — hides, not deletes — every active listing of yours whose externalId is absent from this payload, making your storefront a mirror of your system in one call.',
           'Naturally idempotent, so no `Idempotency-Key` is needed. Up to 200 rows.',
           'While the seller identity gate is enforced and refuses the shop\'s owner, every CREATE and every re-activation of a sold/hidden row fails with the `identity_*` code in its result, the rest of the sync still applies, and `publish_blocked` names the refusal once.',
+          'A re-activation of a row filed under e-Visa or Legal & permits (moved there in the dashboard) that is waiting for eno’s licence check fails with `licence_check_required`, before anything on that row is written.',
         ].join(' '),
         security: requires('listings:write'),
         requestBody: {

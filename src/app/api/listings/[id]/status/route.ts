@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkListingOwner } from '@/lib/listing-owner'
 import { setStatusCore } from '@/lib/core/listings'
 import { isIdentityBlockCode, publishBlockedJson, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
+import { LICENCE_CHECK_REQUIRED_COPY } from '@/lib/licence-check-copy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -33,6 +34,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const r = await setStatusCore(id, String(body.status || ''))
   // A relist the identity gate refused (gate on only): the structured 403, `error` still the code.
   if (!r.ok && isIdentityBlockCode(r.error)) return NextResponse.json(publishBlockedJson(r.error), { status: PUBLISH_BLOCKED_STATUS })
-  if (!r.ok) return NextResponse.json({ error: r.error }, { status: r.code })
+  // A relist of an e-Visa / Legal & permits listing eno has not checked (409, 2026-10-14) carries its bilingual sentence
+  // for the native dashboards, which call this same route.
+  if (!r.ok) return NextResponse.json({ error: r.error, ...(r.error === 'licence_check_required' ? { message: LICENCE_CHECK_REQUIRED_COPY } : {}) }, { status: r.code })
   return NextResponse.json({ ok: true, status: r.status })
 }

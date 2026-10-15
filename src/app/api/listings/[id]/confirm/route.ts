@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkListingOwner } from '@/lib/listing-owner'
 import { confirmCore } from '@/lib/core/listings'
 import { isIdentityBlockCode, publishBlockedJson, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
+import { LICENCE_CHECK_REQUIRED_COPY } from '@/lib/licence-check-copy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,7 +25,9 @@ export const dynamic = 'force-dynamic'
 // unknown listing → 404 not_found · someone else's listing → 403 forbidden · row deleted between
 // the ownership check and the update (confirmCore's P2025 path) → 404 not_found · success → 200
 // {"ok":true}. Note the success body deliberately drops confirmCore's `bumped` flag; that is the
-// existing contract and a wrapper would not change it either way.
+// existing contract and a wrapper would not change it either way. Added 2026-10-14: a revive of an
+// e-Visa / Legal & permits listing eno has not checked → 409 licence_check_required with
+// `message: { en, vi }`.
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const auth = await checkListingOwner(id)
@@ -33,6 +36,8 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const res = await confirmCore(id, auth.profileId)
   // A confirm that would REVIVE a sold/hidden listing, refused by the identity gate (gate on only).
   if (!res.ok && isIdentityBlockCode(res.error)) return NextResponse.json(publishBlockedJson(res.error), { status: PUBLISH_BLOCKED_STATUS })
-  if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.code })
+  // …or by the licence check: an e-Visa / Legal & permits listing eno has not checked (409, 2026-10-14) — with the
+  // bilingual sentence for the native dashboards.
+  if (!res.ok) return NextResponse.json({ error: res.error, ...(res.error === 'licence_check_required' ? { message: LICENCE_CHECK_REQUIRED_COPY } : {}) }, { status: res.code })
   return NextResponse.json({ ok: true })
 }

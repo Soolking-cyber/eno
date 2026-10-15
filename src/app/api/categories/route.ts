@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { TAXONOMY, LISTING_TYPES, categoryHasBrand, NON_POSTING_CATEGORIES } from '@/lib/taxonomy'
+import { TAXONOMY, LISTING_TYPES, categoryHasBrand, NON_POSTING_CATEGORIES, isLicenceCheckSlot } from '@/lib/taxonomy'
 import { route } from '@/lib/api/handler'
 
 // Lightweight taxonomy read for client surfaces that can't receive categories
@@ -34,7 +34,14 @@ export const GET = route({ auth: 'public' }, async () => {
     TAXONOMY.map((c) => [
       c.slug,
       {
-        subcategories: c.subcategories.map((s) => ({ slug: s.slug, name: s.name, nameVi: s.nameVi, icon: s.icon })),
+        // `licenceCheck` (owner, 2026-10-14): a listing posted here — e-Visa or Legal & permits — needs the provider's
+        // registered business name and licence number (attributes.providerLegalName / providerLicenceNo) and waits for
+        // eno's licence check before it goes live; posted without them it is refused (400 provider_licence_required,
+        // with a bilingual `message`). A real boolean on every subcategory, and ADDITIVE: Swift Codable and Android's
+        // `ignoreUnknownKeys` drop it, so today's builds are unchanged; the next native release reads it to hide these
+        // two aisles or to ask for the two fields. Kept even though the apps also BROWSE from this list (plan review
+        // R8): removing the aisles here would remove them from the apps' browse chips too.
+        subcategories: c.subcategories.map((s) => ({ slug: s.slug, name: s.name, nameVi: s.nameVi, icon: s.icon, licenceCheck: isLicenceCheckSlot(c.slug, s.slug) })),
         types: c.types.map((v) => {
           const t = typeLabel.get(v)
           return { value: v, label: t?.label ?? v, labelVi: t?.labelVi ?? v }

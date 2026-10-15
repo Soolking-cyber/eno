@@ -16,6 +16,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { createListingCore } from '@/lib/core/listings'
 import { RELEASED_CHARGE_MAX_ACTIVE } from '@/lib/released-charge-copy'
 import { migrateLegacyCategoryParams, paysSalary, resolveListingType, TEACHER_PROFILE_REFUSAL } from '@/lib/taxonomy'
+import { PROVIDER_LICENCE_REFUSAL } from '@/lib/provider-licence'
 import { idsFastPath, buildFeedFilters, resolveFeedFilters, buildFeedOrderBy, getSubcategoryCounts, countListingsCached } from './feed-query'
 import { computeFacetCounts, releasedParams, subcategoryDimension, subcategoryDropPlan, type FacetCounts } from '@/lib/facet-counts'
 import { PROVINCE_NAMES_EN } from '@/lib/province-match'
@@ -643,7 +644,15 @@ async function createListing(req: NextRequest) {
       return NextResponse.json(
         // A teacher's job-seeker post (taxonomy.ts TEACHER_SEEKING_POST, 2026-10-12) carries its bilingual sentence for the
         // native apps, whose post schema (/api/categories) offers the pair — the web wizard words it itself (tr).
-        { error: e.code, detail: e.detail, ...(e.code === 'teacher_profile_instead' ? { message: TEACHER_PROFILE_REFUSAL } : {}) },
+        // So does an e-Visa / Legal & permits post without the provider's registered name and licence number, or with one
+        // that cannot be accepted (owner, 2026-10-14; `detail` '<field>:<reason>'): the current native builds still offer
+        // both aisles but send no values, so they get "post from the website" rather than a bare code.
+        {
+          error: e.code,
+          detail: e.detail,
+          ...(e.code === 'teacher_profile_instead' ? { message: TEACHER_PROFILE_REFUSAL } : {}),
+          ...(e.code === 'provider_licence_required' || e.code === 'provider_licence_invalid' ? { message: PROVIDER_LICENCE_REFUSAL } : {}),
+        },
         { status: e.code === 'account_restricted' ? 403 : e.code === 'duplicate_listing' ? 409 : 400 },
       )
     }

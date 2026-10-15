@@ -6,6 +6,7 @@ import { resolveApiKey, listingOwnedBy } from '@/lib/api/auth'
 import { apiOk, apiError, apiAuthError } from '@/lib/api/respond'
 import { LISTING_REMOVED } from '@/lib/listing-removed'
 import { TEACHER_PROFILE_REFUSAL } from '@/lib/taxonomy'
+import { LISTING_CHANGED_COPY, providerLicenceApiMessage } from '@/lib/licence-check-copy'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 // PATCH /api/v1/listings/{id} — edit a listing (sparse; only present fields change).
-// Same validation + republish gate + reindex as the dashboard edit (updateListingCore).
+// Same validation + licence hold + reindex as the dashboard edit (updateListingCore).
 // Scope: listings:write. Naturally idempotent (same body → same result).
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const r = await resolveApiKey(req, 'listings:write')
@@ -41,11 +42,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return apiError(400, 'bad_request', 'Invalid JSON body.', r.rate) }
   const res = await updateListingCore(id, body)
-  // Pass through the real status: 404 not-found and 409 conflict (e.g. urgent_quota —
-  // a retryable state conflict) must not be flattened to 422 "invalid payload".
-  if (!res.ok) return apiError(res.code === 404 ? 404 : res.code === 409 ? 409 : 422, res.error, res.error === 'teacher_profile_instead' ? TEACHER_PROFILE_REFUSAL.en : res.error, r.rate)
-  // `held`: a move into the e-Visa subcategory unpublished the listing until eno's licence check (taxonomy.ts
-  // licenceCheckHold) — an API client must not read a plain success as "still live".
+  if (!res.ok) {
+    // Pass through the real status: 404 not-found and 409 conflict (urgent_quota, or listing_changed — the
+    // e-Visa / Legal & permits edit that raced an approval, 2026-10-14; both retryable) must not be flattened to 422
+    // "invalid payload".
+    const status = res.code === 404 ? 404 : res.code === 409 ? 409 : 422
+    const message = res.error === 'teacher_profile_instead' ? TEACHER_PROFILE_REFUSAL.en
+      : res.error === 'provider_licence_required' || res.error === 'provider_licence_invalid' ? providerLicenceApiMessage(res.error, res.detail)
+      : res.error === 'listing_changed' ? LISTING_CHANGED_COPY.en
+      : res.error
+    // `detail` ('<field>:<reason>' on provider_licence_invalid) rides in the error envelope, as on POST /listings.
+    return res.detail ? apiOk({ error: { code: res.error, message, detail: res.detail } }, r.rate, status) : apiError(status, res.error, message, r.rate)
+  }
+  // `held`: the listing waits for eno's licence check in e-Visa or Legal & permits (moved there, a value changed, or not
+  // yet approved — taxonomy.ts licenceCheckHold) and is unpublished — an API client must not read a plain success as
+  // "still live".
   return apiOk(res.held ? { ok: true, held: true } : { ok: true }, r.rate)
 }
 

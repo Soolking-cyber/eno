@@ -8,6 +8,7 @@ import { postingGate } from '@/lib/enforcement'
 import { PublishBlockedError } from '@/lib/publish-guard'
 import { isIdentityBlockCode, publishBlockedV1, PUBLISH_BLOCKED_STATUS } from '@/lib/compliance/publish-block-response'
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
+import { providerLicenceApiMessage } from '@/lib/licence-check-copy'
 import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiAuthError } from '@/lib/api/respond'
 import { withIdempotency } from '@/lib/api/idempotency'
@@ -41,8 +42,10 @@ export async function GET(req: NextRequest) {
 // title, price, and the same optional fields the post wizard accepts (description, images,
 // district, condition, listingType, subcategorySlug, attributes, brand, model, …). Runs
 // the EXACT session create path via createListingCore (auto-publish gate, brand catalogue,
-// translation warm, syndication, CAPI, reindex). Send an `Idempotency-Key` header to make
-// retries safe. Scope: listings:write.
+// translation warm, syndication, CAPI, reindex). An e-Visa / Legal & permits listing needs
+// attributes.providerLegalName + attributes.providerLicenceNo and is created `held` (unpublished
+// until eno's licence check). Send an `Idempotency-Key` header to make retries safe.
+// Scope: listings:write.
 export async function POST(req: NextRequest) {
   const r = await resolveApiKey(req, 'listings:write')
   if (!r.ok) return apiAuthError(r)
@@ -86,6 +89,9 @@ export async function POST(req: NextRequest) {
     try {
       // Never a guest: a key is a credential. An ownerless shop here is a platform import, which the
       // identity gate lets through — exactly as /bulk and /sync treat the same shop.
+      // ⚠️ A 201 is NOT always a live listing (2026-10-14): an e-Visa / Legal & permits listing from anyone but eno's
+      // desk answers `{ id, verified: false, held: true }` — stored unpublished until eno has checked the provider's
+      // licence (taxonomy.ts licenceCheckHold).
       const created = await createListingCore({ seller, guestCreate: false, category, title, price, body, headers: req.headers })
       return { status: 201, body: { listing: created } }
     } catch (e) {
@@ -104,6 +110,9 @@ export async function POST(req: NextRequest) {
           : e.code === 'duplicate_listing' ? 'Duplicate of a live listing on this shop (see detail for its id) — update or bump the existing listing instead of re-posting it.'
           // A teacher's job-seeker post (Jobs › Teaching + wanted) is a teacher profile (2026-10-12).
           : e.code === 'teacher_profile_instead' ? TEACHER_PROFILE_REFUSAL.en
+          // e-Visa / Legal & permits (2026-10-14): which attribute keys to send — or which value cannot be accepted, and why
+          // (`detail` '<field>:<reason>' stays in the body for a client that branches on it).
+          : e.code === 'provider_licence_required' || e.code === 'provider_licence_invalid' ? providerLicenceApiMessage(e.code, e.detail)
           : 'Remove phone numbers, contact info or addresses from the title/description.'
         return { status: e.code === 'account_restricted' || e.code === 'released_charge_listing_cap' ? 403 : e.code === 'duplicate_listing' ? 409 : 422, body: { error: { code: e.code, message, ...(e.detail ? { detail: e.detail } : {}) } } }
       }

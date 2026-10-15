@@ -54,3 +54,70 @@ describe('the partner API spec', () => {
     expect(ops.every((o) => o.responses), 'an operation with no documented response is unusable for codegen').toBe(true)
   })
 })
+
+/**
+ * THE LICENCE CHECK ON THE WIRE (owner, 2026-10-14). An e-Visa or Legal & permits listing from any shop but eno's own is
+ * created UNPUBLISHED until eno has checked the provider's licence — so the document must stop promising that a 201 is
+ * always live, describe `held` on create and edit, name the two attribute keys, and list every new refusal where a
+ * client looks for it. Each assertion below is a sentence a partner would otherwise have coded against wrongly.
+ */
+describe('the partner API spec — e-Visa and Legal & permits wait for eno’s licence check', () => {
+  type Obj = Record<string, any>
+  const schemas = async () => (await load()).SPEC.components.schemas as unknown as Obj
+  const op = async (path: string, method: string) => ((await load()).SPEC.paths as unknown as Obj)[path][method] as Obj
+
+  it('⛔ CreatedListing.verified is a real boolean — no const:true, no "full stop", no "no path returns false" — and `held` is documented', async () => {
+    const created = (await schemas()).CreatedListing
+    expect(created.properties.verified.type).toBe('boolean')
+    expect(created.properties.verified).not.toHaveProperty('const')
+    expect(created.properties.held).toMatchObject({ type: 'boolean', const: true })
+    expect(created.properties.held.description).toMatch(/licence check/)
+    const spec = JSON.stringify((await load()).SPEC)
+    expect(spec).not.toMatch(/full stop/)
+    expect(spec).not.toMatch(/no path through it that returns false/)
+    expect(spec).not.toMatch(/ALWAYS `true`/)
+  })
+
+  it('createListing says a 201 may be held, and its 422 lists both provider-licence codes', async () => {
+    const create = await op('/listings', 'post')
+    expect(create.description).toMatch(/held: true/)
+    expect(create.responses['201'].description).toMatch(/held: true/)
+    for (const code of ['provider_licence_required', 'provider_licence_invalid']) expect(create.responses['422'].description).toContain(`\`${code}\``)
+  })
+
+  it('ListingInput and ListingPatch document both keys; subcategorySlug says a guess counts and a Wanted post never lands there', async () => {
+    const s = await schemas()
+    for (const schema of [s.ListingInput, s.ListingPatch]) {
+      for (const key of ['providerLegalName', 'providerLicenceNo', 'provider_licence_required', 'provider_licence_invalid']) expect(schema.properties.attributes.description).toContain(key)
+    }
+    expect(s.ListingInput.properties.attributes.description).not.toMatch(/Unknown keys are dropped/)
+    expect(s.ListingInput.properties.subcategorySlug.description).toMatch(/inference that lands in services\/visa-legal/)
+    expect(s.ListingInput.properties.subcategorySlug.description).toMatch(/"wanted" post never lands/)
+    expect(s.ListingPatch.properties.attributes.description).toMatch(/unpublishes the listing until eno has checked them again/)
+  })
+
+  it('updateListing answers ListingPatchAck (with `held`), no longer mentions a "republish gate", and lists its new codes', async () => {
+    const update = await op('/listings/{id}', 'patch')
+    expect(update.responses['200'].content['application/json'].schema).toEqual({ $ref: '#/components/schemas/ListingPatchAck' })
+    expect((await schemas()).ListingPatchAck.properties).toMatchObject({ ok: { type: 'boolean', const: true }, held: { type: 'boolean', const: true } })
+    expect(update.description).not.toMatch(/republish gate/)
+    for (const code of ['provider_licence_required', 'provider_licence_invalid']) expect(update.responses['422'].description).toContain(`\`${code}\``)
+    expect(update.responses['409'].description).toContain('`listing_changed`')
+  })
+
+  it('setListingStatus and confirmListing document the 409 licence_check_required', async () => {
+    for (const [path, method] of [['/listings/{id}/status', 'post'], ['/listings/{id}/confirm', 'post']] as const) {
+      expect((await op(path, method)).responses['409'].description, path).toContain('`licence_check_required`')
+    }
+  })
+
+  it('Listing: `verified` explains the licence wait, and the four verification fields say they are always null', async () => {
+    const listing = (await schemas()).Listing.properties
+    expect(listing.verified.description).toMatch(/licence check/)
+    for (const k of ['verificationMethod', 'verifiedAt', 'verifiedBy', 'verificationNotes']) expect(listing[k].description, k).toBe('Always null (reserved).')
+  })
+
+  it('BulkListingInput says a bulk row can never land in a licence aisle', async () => {
+    expect((await schemas()).BulkListingInput.description).toMatch(/never lands in e-Visa or Legal & permits/)
+  })
+})

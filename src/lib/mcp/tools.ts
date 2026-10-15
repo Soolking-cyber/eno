@@ -19,6 +19,7 @@ import { after } from 'next/server'
 import { isIdentityBlockCode, publishBlockedBody } from '@/lib/compliance/publish-block-response'
 import { PublishBlockedError } from '@/lib/publish-guard'
 import { RELEASED_CHARGE_CAP_MESSAGE } from '@/lib/released-charge-copy'
+import { LICENCE_CHECK_REQUIRED_COPY, LISTING_CHANGED_COPY } from '@/lib/licence-check-copy'
 import { NOT_REMOVED } from '@/lib/listing-removed'
 import { isStorefrontGone } from '@/lib/storefront-gone'
 import { cutText } from '@/lib/feed-text'
@@ -161,13 +162,21 @@ export const TOOLS: McpTool[] = [
         // The released-scam-charge cap is an ACCOUNT limit with its own code — surfaced as a tool error
         // the agent can explain. (The other content refusals keep the MCP route's existing mapping.)
         if (e instanceof PublishBlockedError && e.code === 'released_charge_listing_cap') throw new ToolError(e.code, RELEASED_CHARGE_CAP_MESSAGE)
+        // ⛔ AN e-VISA OR LEGAL & PERMITS SERVICE (2026-10-14). Its title or description files it in a licence aisle (a
+        // keyword guess counts as a pick — core/listings.ts), which needs the provider's registered name and licence
+        // number — attributes this tool cannot send. A coded answer naming the way that can, not an internal_error.
+        if (e instanceof PublishBlockedError && e.code === 'provider_licence_required') {
+          throw new ToolError(e.code, 'This reads as an e-Visa or Legal & permits service, and those listings need the provider’s registered business name and licence number, which this tool cannot send. Create it with POST /api/v1/listings (attributes.providerLegalName and attributes.providerLicenceNo) or from the website; it then stays unpublished until eno has checked the licence.')
+        }
         throw e
       }
     },
   },
   {
     name: 'update_listing',
-    description: 'Edit one of the shop\'s listings (sparse). Image URLs may be public — re-hosted automatically. A job\'s pay is `salaryM`; a `price` sent for a job is read as its monthly salary in VND.',
+    // ⚠️ No aisle named here: tools/list is published to anonymous callers on both editions, and eno.vn's must carry no
+    // visa vocabulary (src/app/api/mcp/discovery-auth.test.ts, the licensing pin).
+    description: 'Edit one of the shop\'s listings (sparse). Image URLs may be public — re-hosted automatically. A job\'s pay is `salaryM`; a `price` sent for a job is read as its monthly salary in VND. An edit of a listing that is waiting for eno\'s licence check answers `held: true`: the listing stays unpublished until eno approves it (this tool cannot change a subcategory or the licence values).',
     scope: 'listings:write',
     input: z.object({
       id: z.string(), title: z.string().optional(), description: z.string().optional(), price: z.number().nonnegative().optional(), district: z.string().optional(), condition: z.string().optional(), images: z.array(z.string()).optional(),
@@ -180,13 +189,15 @@ export const TOOLS: McpTool[] = [
       for (const k of ['title', 'description', 'price', 'district', 'condition', 'salaryM'] as const) if (args[k] !== undefined) body[k] = args[k]
       if (Array.isArray(args.images)) body.images = await rehostAll(args.images as string[])
       const res = await updateListingCore(id, body)
-      if (!res.ok) throw new ToolError(res.error, res.error)
-      return { ok: true }
+      // `listing_changed` (2026-10-14): eno's licence check changed the listing mid-edit — a sentence, since retrying is right.
+      if (!res.ok) throw new ToolError(res.error, res.error === 'listing_changed' ? LISTING_CHANGED_COPY.en : res.error)
+      // `held`: an e-Visa / Legal & permits listing still waiting for eno's licence check — unpublished, as on /api/v1.
+      return res.held ? { ok: true, held: true } : { ok: true }
     },
   },
   {
     name: 'set_listing_status',
-    description: 'Set a listing\'s availability: active | sold | hidden.',
+    description: 'Set a listing\'s availability: active | sold | hidden. Re-activating a listing that is waiting for eno\'s licence check is refused with `licence_check_required` until eno approves it.',
     scope: 'listings:write',
     input: z.object({ id: z.string(), status: z.enum(['active', 'sold', 'hidden']) }),
     handler: async (auth, args) => {
@@ -199,7 +210,9 @@ export const TOOLS: McpTool[] = [
         const message = isIdentityBlockCode(res.error) ? publishBlockedBody(res.error).message.en
           : res.error === 'account_held' || res.error === 'account_suspended' ? 'This account is held or suspended, so its listings cannot be put back on sale right now.'
             : res.error === 'released_charge_listing_cap' ? RELEASED_CHARGE_CAP_MESSAGE
-              : res.error
+              // An e-Visa / Legal & permits listing eno has not checked (2026-10-14).
+              : res.error === 'licence_check_required' ? LICENCE_CHECK_REQUIRED_COPY.en
+                : res.error
         throw new ToolError(res.error, message)
       }
       return { ok: true, status: res.status }

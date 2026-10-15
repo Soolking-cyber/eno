@@ -90,3 +90,29 @@ describe('POST /api/listings', () => {
     expect((await post()).body).not.toHaveProperty('message')
   })
 })
+
+// e-Visa / Legal & permits (owner, 2026-10-14): a post without the provider's registered name and licence number, or with
+// one that cannot be accepted. The current native builds still offer both aisles but send no values, so the 400 carries
+// the bilingual "post from the website" sentence beside the code — and `detail` names the field and the reason.
+describe('POST /api/listings — the provider-licence refusals', () => {
+  it('provider_licence_required → 400 with the code and PROVIDER_LICENCE_REFUSAL', async () => {
+    h.createError = new PublishBlockedError('provider_licence_required')
+    const { PROVIDER_LICENCE_REFUSAL } = await import('@/lib/provider-licence')
+    const r = await post()
+    expect(r.status).toBe(400)
+    expect(r.body).toMatchObject({ error: 'provider_licence_required', message: PROVIDER_LICENCE_REFUSAL })
+  })
+
+  it('provider_licence_invalid → 400 with the code, its detail "<field>:<reason>" and the same sentence', async () => {
+    h.createError = new PublishBlockedError('provider_licence_invalid', 'providerLicenceNo:personal_id')
+    const { PROVIDER_LICENCE_REFUSAL } = await import('@/lib/provider-licence')
+    expect(await post()).toEqual({ status: 400, body: { error: 'provider_licence_invalid', detail: 'providerLicenceNo:personal_id', message: PROVIDER_LICENCE_REFUSAL } })
+  })
+
+  it('a held create is the 201 it always was, `held` included', async () => {
+    const created = { id: 'new', verified: false, held: true as const }
+    const core = await import('@/lib/core/listings')
+    vi.spyOn(core, 'createListingCore').mockResolvedValueOnce(created)
+    expect(await post()).toEqual({ status: 201, body: created })
+  })
+})
