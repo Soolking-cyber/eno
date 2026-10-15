@@ -103,6 +103,17 @@ export const COVER_RATE_PRESETS = [200_000, 300_000, 400_000, 500_000] as const
  * teacher agrees to changed. The re-projection is scripts/teachers-backfill.ts: it rebuilds every migrated row's
  * tokens with coverConsent = (coverConsentVersion === this), so a '2026-10-07' grant leaves cover search until the
  * teacher switches cover on again under the new notice.
+ * ⛔ REWORDED WITHOUT A BUMP 2026-10-15 — OWNER'S DECISION, not an oversight: "dont bother teachers with notif just fix
+ * it so everyone can see their profiles … and no notice things in the app". The notice now names the audience the
+ * public profile always had and /privacy already states ("anyone browsing teachers") — schools, other members and
+ * search engines (the publish notice's own list since 2026-10-13) — instead of "schools and search engines", and reads
+ * as plain English. What is shown did not change. 51 grants (all on this version) stay valid and visible; no teacher
+ * is notified or asked again. For the consent record, a grant stamped before the deploy of this change saw:
+ * EN "Switching this on shows your free periods, your hourly rate and the places where schools find you for cover on
+ * your public profile, where schools and search engines can see them — never your phone, email or address. Switch it
+ * off any time." VI "Khi bật, các buổi rảnh, mức phí theo giờ và những nơi các trường tìm bạn để dạy thay sẽ hiển thị
+ * trên hồ sơ công khai của bạn, nơi các trường và công cụ tìm kiếm có thể xem — không bao giờ hiển thị số điện thoại,
+ * email hay địa chỉ. Bạn có thể tắt bất cứ lúc nào."
  */
 export const COVER_CONSENT_VERSION = '2026-10-08'
 

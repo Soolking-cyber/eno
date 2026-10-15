@@ -2707,7 +2707,7 @@ export const UI_STRINGS: string[] = [
   "Switch to a business account",
   "Switch to business",
   "Switch to individual",
-  "Switching this on shows your free periods, your hourly rate and the places where schools find you for cover on your public profile, where schools and search engines can see them — never your phone, email or address. Switch it off any time.",
+  "Switching this on adds a cover-lessons section to your public profile: your free periods, your hourly rate and the places where schools find you for cover — never your phone, email or address. Anyone can see your profile: schools, other members and search engines. Switch it off any time.",
   "Switching to business adds a storefront, analytics and bulk upload.",
   "Switching to individual hides the business storefront tools.",
   "TEFL",

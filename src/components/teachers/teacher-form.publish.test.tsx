@@ -72,7 +72,7 @@ describe('step 5 · Cover lessons', () => {
     const sw = await screen.findByRole('switch', { name: 'Available for cover lessons' })
     // The notice is the switch's DESCRIPTION, read with it — and not part of its name.
     const desc = (sw.getAttribute('aria-describedby') ?? '').split(' ').map((id) => document.getElementById(id)?.textContent ?? '').join(' ')
-    expect(desc).toMatch(/public profile, where schools and search engines can see them/)
+    expect(desc).toMatch(/Anyone can see your profile: schools, other members and search engines/)
     expect(screen.queryByRole('checkbox')).toBeNull()
     await user.click(sw)
     expect(sw.getAttribute('aria-checked')).toBe('true')

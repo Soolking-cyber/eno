@@ -59,12 +59,13 @@ function Block({ title, hint, children }: { title: string; hint?: string; childr
 /**
  * The notice beside the switch — ⛔ ITS MEANING IS COVER_CONSENT_VERSION (src/lib/teachers/cover.ts): change what it
  * says is shown, to whom, or for how long, and that version must be bumped in the same change. Wording: owner to
- * approve before deploy (plan amendment A5).
+ * approve before deploy (plan amendment A5). The 2026-10-15 rewording (audience = anyone) shipped WITHOUT a bump on the
+ * owner's word — the record of the old text is beside COVER_CONSENT_VERSION.
  */
 export function CoverNotice() {
   const { tr } = useLanguage()
   return (
-    <>{tr('Switching this on shows your free periods, your hourly rate and the places where schools find you for cover on your public profile, where schools and search engines can see them — never your phone, email or address. Switch it off any time.', 'Khi bật, các buổi rảnh, mức phí theo giờ và những nơi các trường tìm bạn để dạy thay sẽ hiển thị trên hồ sơ công khai của bạn, nơi các trường và công cụ tìm kiếm có thể xem — không bao giờ hiển thị số điện thoại, email hay địa chỉ. Bạn có thể tắt bất cứ lúc nào.')}</>
+    <>{tr('Switching this on adds a cover-lessons section to your public profile: your free periods, your hourly rate and the places where schools find you for cover — never your phone, email or address. Anyone can see your profile: schools, other members and search engines. Switch it off any time.', 'Khi bật, hồ sơ công khai của bạn có thêm mục dạy thay: các buổi rảnh, mức phí theo giờ và những nơi các trường tìm bạn để dạy thay — không bao giờ có số điện thoại, email hay địa chỉ. Ai cũng có thể xem hồ sơ của bạn: các trường, các thành viên khác và công cụ tìm kiếm. Bạn có thể tắt bất cứ lúc nào.')}</>
   )
 }
 
