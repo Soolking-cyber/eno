@@ -291,6 +291,7 @@ describe('⛔ POST /api/consent writes ONLY on the live site', () => {
     'evil-eno.vn',
     'eno.vnx',
     'a.b.eno.vn', // storefronts are exactly one label deep
+    'a.b.eno.forum',
     'shop.eno.forum.evil.com',
   ])('a production build answering on %s: nothing written, the database not touched', async (host) => {
     const r = await call(valid, { host })
@@ -309,8 +310,29 @@ describe('⛔ POST /api/consent writes ONLY on the live site', () => {
     expect(h.audits).toEqual([])
   })
 
-  it.each(['eno.vn', 'www.eno.vn', 'eno.forum', 'www.eno.forum', 'gmbr.eno.vn', 'ENO.VN', 'eno.vn:443'])('the live host %s IS recorded', async (host) => {
+  it.each(['eno.vn', 'www.eno.vn', 'eno.forum', 'www.eno.forum', 'gmbr.eno.vn', 'ENO.VN', 'eno.vn:443', 'teacher.eno.vn', 'teacher.eno.forum', 'gmbr.eno.forum'])('the live host %s IS recorded', async (host) => {
     await call(valid, { host })
     expect(h.audits).toHaveLength(1)
+  })
+
+  /**
+   * ⛔ A SUBDOMAIN PAGE'S RECORD NAMES NO ACCOUNT (2026-10-15). src/proxy.ts now lets a storefront or teacher page post
+   * here, and that carve-out is safe only because nothing it admits acts as the visitor — so the session is not even
+   * READ off the apex/www, and the record stays anonymous once the cookie follows buyers onto storefronts.
+   */
+  it('⛔ names the signed-in account only on the apex or www — never from a storefront or teacher page', async () => {
+    h.profileId = 'profile-1'
+    for (const host of ['gmbr.eno.vn', 'teacher.eno.vn', 'teacher.eno.forum', 'gmbr.eno.forum']) {
+      h.audits = []
+      expect((await call(valid, { host })).status, host).toBe(204)
+      expect(h.audits, host).toHaveLength(1)
+      expect(h.audits[0].actorId, host).toBeNull()
+    }
+    expect(h.profileLookups).toBe(0)
+    for (const host of ['eno.vn', 'www.eno.forum']) {
+      h.audits = []
+      await call(valid, { host })
+      expect(h.audits[0].actorId, host).toBe('profile-1')
+    }
   })
 })

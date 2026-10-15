@@ -151,18 +151,42 @@ export function resolveConsent(src: ConsentSources, nowS: number): ConsentAnswer
   return null
 }
 
+/** The two production sites, apex and www — the only hosts a signed-in session is ever meant to write from. */
+const CANONICAL_HOSTS = new Set(['eno.vn', 'www.eno.vn', 'eno.forum', 'www.eno.forum'])
 /**
- * The two production sites, apex and www — and eno.forum's teacher sign-up page, which the storefront pattern below
- * cannot match (it is `.eno.vn` only; teacher.eno.vn already passes through it). Without it a choice made on
- * teacher.eno.forum was never recorded once the proxy let it through (2026-10-15, src/proxy.ts teacherSelfWrite).
+ * One DNS label under either site: every storefront (`<handle>.eno.vn` / `.eno.forum` — storefront-host.ts) and both
+ * teacher sign-up pages. ⚠️ BOTH ZONES SINCE 2026-10-15: a page on any of them may now post its consent record
+ * (src/proxy.ts subdomainSelfWrite), and the `.eno.vn`-only pattern silently dropped every eno.forum one.
+ * ⚠️ A PATTERN, NOT storefrontHandleFromHost: this module is a dependency-free leaf shipped to every browser (the cookie
+ * card), and the infra labels the stricter check would exclude (sb, mail…) never reach the app — nginx serves them
+ * from their own vhosts.
  */
-const PRODUCTION_HOSTS = new Set(['eno.vn', 'www.eno.vn', 'eno.forum', 'www.eno.forum', 'teacher.eno.forum'])
-/** A shop storefront: exactly one DNS label under eno.vn (`<handle>.eno.vn` — see storefront-host.ts). */
-const STOREFRONT_HOST_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.eno\.vn$/
+const SUBDOMAIN_HOST_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.eno\.(?:vn|forum)$/
+
+/**
+ * A Host header's name, lowercased, port dropped — or null for anything that is not a plain `name[:port]`.
+ * ⛔ NOT PARSED AS A URL: `new URL('http://x@eno.vn').hostname` is `eno.vn`, so userinfo, a path or a space in a Host
+ * would have read as the apex — and isCanonicalEnoHost decides whether a session is read (review, 2026-10-15).
+ */
+function hostName(host: string | null | undefined): string | null {
+  const m = host ? /^([A-Za-z0-9.-]+)(?::(\d{1,5}))?$/.exec(host) : null
+  if (!m || (m[2] !== undefined && Number(m[2]) > 65535)) return null // an impossible port is malformed too
+  return m[1].toLowerCase()
+}
+
+/**
+ * Is this Host the apex or www of either site? ⛔ /api/consent takes a record's actorId (the signed-in account) ONLY
+ * here, so a record posted from a subdomain page is anonymous — today because subdomains carry no session, and after the
+ * planned cookie widening because of this check (src/proxy.ts subdomainSelfWrite relies on it).
+ */
+export function isCanonicalEnoHost(host: string | null | undefined): boolean {
+  const name = hostName(host)
+  return name !== null && CANONICAL_HOSTS.has(name)
+}
 
 /**
  * Is this Host header one of the real production sites? (eno.vn, www.eno.vn, eno.forum,
- * www.eno.forum, teacher.eno.forum, or a `<shop>.eno.vn` storefront — teacher.eno.vn among them.)
+ * www.eno.forum, or one label under either — the storefronts and both teacher pages.)
  *
  * ⛔ THIS IS HOW /api/consent TELLS PRODUCTION FROM A LOCAL RUN THAT IS WIRED TO PRODUCTION. A local
  * `npm run preview:vn` is a production build (NODE_ENV=production) and its DATABASE_URL is the SSH
@@ -174,10 +198,8 @@ const STOREFRONT_HOST_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.eno\.vn$/
  * is ignored, and so is case.
  */
 export function isProductionEnoHost(host: string | null | undefined): boolean {
-  if (!host) return false
-  let name: string
-  try { name = new URL(`http://${host}`).hostname.toLowerCase() } catch { return false }
-  return PRODUCTION_HOSTS.has(name) || STOREFRONT_HOST_RE.test(name)
+  const name = hostName(host)
+  return name !== null && (CANONICAL_HOSTS.has(name) || SUBDOMAIN_HOST_RE.test(name))
 }
 
 /** One cookie's value from a Cookie header (the FIRST occurrence), or null. */

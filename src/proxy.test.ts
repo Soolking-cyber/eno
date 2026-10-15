@@ -255,12 +255,12 @@ describe('fixed-language guides', () => {
 })
 
 /**
- * ⛔ teacher.<base> MAY WRITE TO ITSELF — POSTS TO FOUR NAMED ANONYMOUS ENDPOINTS AND NOTHING ELSE (2026-10-15). Every
- * background POST from the teacher sign-up page used to 403 here, so its paid-ad visitors were never counted and their
+ * ⛔ A SUBDOMAIN PAGE MAY POST ITS FOUR ANONYMOUS BEACONS TO ITSELF — teacher.<base> and every storefront, nothing else
+ * (2026-10-15). Every background POST from those pages used to 403 here, so their visitors were never counted and their
  * consent choices never recorded. ⚠️ A CARVE-OUT FROM A SECURITY BOUNDARY, so most of these cases pin what it still
  * REFUSES. (CSP reports are their own rule: any origin — see the next describe.)
  */
-describe('teacher host self-writes', () => {
+describe('subdomain self-writes', () => {
   const run = async (host: string | null, path: string, origin: string | null, app = 'https://eno.vn', method = 'POST') => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', app)
     const { NextRequest } = await import('next/server')
@@ -273,47 +273,101 @@ describe('teacher host self-writes', () => {
   const PATHS = ['/api/site-stats', '/api/translate', '/api/consent', '/api/signup-prompt']
   const FORUM = 'https://www.eno.forum'
 
-  it('lets the teacher page post its background calls to its own host, on both editions', async () => {
+  const VN_PAGES = ['teacher.eno.vn', 'apple.eno.vn', 'eno-trading.eno.vn', 'sdcstore.eno.vn', 'luathoangphi.eno.vn']
+  const FORUM_PAGES = ['teacher.eno.forum', 'apple.eno.forum']
+
+  it('lets a teacher or storefront page post its beacons to its own host, on both editions', async () => {
     for (const p of PATHS) {
-      expect(await run('teacher.eno.vn', p, 'https://teacher.eno.vn'), p).toBe(200)
-      expect(await run('teacher.eno.forum', p, 'https://teacher.eno.forum', FORUM), p).toBe(200)
+      for (const h of VN_PAGES) expect(await run(h, p, `https://${h}`), `${h} ${p}`).toBe(200)
+      for (const h of FORUM_PAGES) expect(await run(h, p, `https://${h}`, FORUM), `${h} ${p}`).toBe(200)
+    }
+    // A Host header in another case, or carrying the default port, is the same host; a browser's Origin is lowercase and
+    // portless.
+    expect(await run('Apple.ENO.vn', '/api/site-stats', 'https://apple.eno.vn')).toBe(200)
+    expect(await run('apple.eno.vn:443', '/api/site-stats', 'https://apple.eno.vn')).toBe(200)
+  })
+
+  it('⛔ every other path from those pages is still refused — exact paths, not a prefix', async () => {
+    for (const h of ['teacher.eno.vn', 'apple.eno.vn']) {
+      for (const p of ['/api/teachers/profile', '/api/listings', '/api/conversations', '/api/consent/', '/api/consent/x', '/API/consent', '/api/site-stats-x', '/']) {
+        expect(await run(h, p, `https://${h}`), `${h} ${p}`).toBe(403)
+      }
     }
   })
 
-  it('⛔ every other path from the teacher page is still refused — exact paths, not a prefix', async () => {
-    for (const p of ['/api/teachers/profile', '/api/listings', '/api/conversations', '/api/consent/', '/api/consent/x', '/API/consent', '/api/site-stats-x', '/']) {
-      expect(await run('teacher.eno.vn', p, 'https://teacher.eno.vn'), p).toBe(403)
+  it('⛔ a subdomain page cannot write to the apex, www, or ANOTHER subdomain', async () => {
+    for (const [host, origin] of [
+      ['eno.vn', 'https://teacher.eno.vn'], ['www.eno.vn', 'https://teacher.eno.vn'], ['apple.eno.vn', 'https://teacher.eno.vn'],
+      ['eno.vn', 'https://apple.eno.vn'], ['www.eno.vn', 'https://apple.eno.vn'], ['banana.eno.vn', 'https://apple.eno.vn'],
+      ['teacher.eno.vn', 'https://apple.eno.vn'],
+    ]) expect(await run(host, '/api/consent', origin), `${origin} → ${host}`).toBe(403)
+    expect(await run('www.eno.forum', '/api/consent', 'https://apple.eno.forum', FORUM)).toBe(403)
+  })
+
+  it('⛔ infra, nested, reserved, underscore and look-alike hosts are not subdomain pages', async () => {
+    for (const h of ['sb.eno.vn', 'mail.eno.vn', 'schools.eno.vn', 'a.b.eno.vn', 'sdc_store.eno.vn', 'evil-eno.vn', 'eno.vn.evil.com']) {
+      expect(await run(h, '/api/site-stats', `https://${h}`), h).toBe(403)
     }
   })
 
-  it('⛔ the teacher origin cannot write to the apex, www, or a shop', async () => {
-    for (const host of ['eno.vn', 'www.eno.vn', 'apple.eno.vn']) {
-      expect(await run(host, '/api/consent', 'https://teacher.eno.vn'), host).toBe(403)
-    }
-    expect(await run('www.eno.forum', '/api/consent', 'https://teacher.eno.forum', FORUM)).toBe(403)
-  })
-
-  it('⛔ a storefront still cannot write to itself, even on the four paths', async () => {
-    for (const p of PATHS) expect(await run('apple.eno.vn', p, 'https://apple.eno.vn'), p).toBe(403)
-  })
-
-  it('⛔ POST only — a PUT, PATCH or DELETE from the teacher page is refused, whatever the route would do', async () => {
+  it('⛔ POST only — a PUT, PATCH or DELETE from those pages is refused, whatever the route would do', async () => {
     for (const method of ['PUT', 'PATCH', 'DELETE']) {
-      for (const p of PATHS) expect(await run('teacher.eno.vn', p, 'https://teacher.eno.vn', 'https://eno.vn', method), `${method} ${p}`).toBe(403)
+      for (const h of ['teacher.eno.vn', 'apple.eno.vn']) {
+        for (const p of PATHS) expect(await run(h, p, `https://${h}`, 'https://eno.vn', method), `${method} ${h}${p}`).toBe(403)
+      }
     }
   })
 
-  it('⛔ host and origin must BOTH be THIS edition\'s teacher host, exactly', async () => {
-    const origins = ['https://evil.example', 'http://teacher.eno.vn', 'https://teacher.eno.vn.evil.com', 'https://teacher.eno.forum', 'null', 'https://teacher.eno.vn:8443']
+  it('⛔ the Origin must be exactly this page\'s own scheme and host', async () => {
+    const origins = ['https://evil.example', 'http://teacher.eno.vn', 'https://teacher.eno.vn.evil.com', 'https://teacher.eno.forum', 'null', 'not a url', 'https://teacher.eno.vn:8443']
     for (const o of origins) expect(await run('teacher.eno.vn', '/api/consent', o), o).toBe(403)
-    // The other edition's teacher host is not this build's: an eno.vn image never answers for teacher.eno.forum.
-    expect(await run('teacher.eno.forum', '/api/consent', 'https://teacher.eno.forum')).toBe(403)
+    for (const o of ['http://apple.eno.vn', 'https://apple.eno.vn:8443', 'https://apple.eno.vn.evil.com', 'https://evil@apple.eno.vn', 'https://apple.eno.vn/path', 'https://apple.eno.vn?x', 'https://apple.eno.vn/']) {
+      expect(await run('apple.eno.vn', '/api/consent', o), o).toBe(403)
+    }
+    // …and a non-default port in the HOST is another origin too (only :443 — the default — is the same page).
+    for (const h of ['apple.eno.vn:8443', 'apple.eno.vn:80', 'teacher.eno.vn:3000']) {
+      expect(await run(h, '/api/consent', `https://${h.replace(/:\d+$/, '')}`), h).toBe(403)
+    }
+    // The other edition's subdomains are not this build's: an eno.vn image never answers for teacher/apple.eno.forum.
+    for (const h of FORUM_PAGES) expect(await run(h, '/api/consent', `https://${h}`), h).toBe(403)
   })
 
-  it('⛔ no Host header, or an unconfigured build, is refused rather than thrown on', async () => {
+  it('⛔ no Host header, or an unconfigured or malformed build, is refused or stands down — never throws', async () => {
     expect(await run(null, '/api/consent', 'https://teacher.eno.vn')).toBe(403)
     // No NEXT_PUBLIC_APP_URL: the guard as a whole stands down (it invents no boundary), so nothing here can be 403.
     expect(await run('teacher.eno.vn', '/api/consent', 'https://teacher.eno.vn', '')).toBe(200)
+    expect(await run('apple.eno.vn', '/api/consent', 'https://apple.eno.vn', 'not a url')).toBe(200)
+  })
+
+  it('⛔ nothing the carve-out admits acts as the signed-in visitor (the reason it is safe)', async () => {
+    const { SUBDOMAIN_SELF_WRITES } = await import('./proxy')
+    const { readFileSync, existsSync } = await import('node:fs')
+    // ⚠️ A TRIPWIRE, NOT A PROOF (see subdomainSelfWrite): the route and every module it imports directly.
+    const SESSION = /getCurrentProfileId|currentClaims|getClaims|getUser\(|getSession\(|requireUser|createServerClient|\.auth\.|cookies\(\)|req\.cookies|headers\(\)|from\s*['"]@\/lib\/supabase/g
+    const IMPORT = /from\s*['"]([^'"]+)['"]/g
+    const libSource = (rel: string) => {
+      const file = [`src/lib/${rel}.ts`, `src/lib/${rel}/index.ts`].find((f) => existsSync(f))
+      expect(file, `@/lib/${rel} resolves`).toBeTruthy()
+      return readFileSync(file!, 'utf8')
+    }
+    for (const p of SUBDOMAIN_SELF_WRITES) {
+      const src = readFileSync(`src/app${p}/route.ts`, 'utf8')
+      for (const [, spec] of src.matchAll(IMPORT)) {
+        // Only packages and '@/lib' — a relative or other alias import would be a module this scan never reads.
+        expect(spec.startsWith('.') || (spec.startsWith('@/') && !spec.startsWith('@/lib/')), `${p} imports ${spec}`).toBe(false)
+        if (!spec.startsWith('@/lib/')) continue
+        const rel = spec.slice('@/lib/'.length)
+        if (p === '/api/consent' && rel === 'admin') continue // the account lookup — gated below
+        expect(libSource(rel).match(SESSION) ?? [], `${p} → ${spec}`).toEqual([])
+      }
+      const reads = src.match(SESSION) ?? []
+      if (p !== '/api/consent') { expect(reads, p).toEqual([]); continue }
+      // /api/consent names the account on its record — but reads it ONLY on the apex/www (its own test pins the behaviour):
+      // no session read but that lookup (its import and its one call), and the call is the gated one.
+      expect(reads, p).toEqual(['getCurrentProfileId', 'getCurrentProfileId'])
+      expect(src.match(/getCurrentProfileId\(/g), p).toHaveLength(1)
+      expect(src, p).toMatch(/isCanonicalEnoHost\(req\.headers\.get\('host'\)\) \? await getCurrentProfileId\(\)/)
+    }
   })
 })
 

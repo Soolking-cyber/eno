@@ -5,7 +5,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
 import { getCurrentProfileId } from '@/lib/admin'
 import { appendAudit } from '@/lib/compliance/audit'
-import { CONSENT_V2_KEY, CONSENT_VERSION, NATIVE_UA_RE, cookieFromHeader, isConsentExpired, isConsentId, isProductionEnoHost, parseConsentV2 } from '@/lib/consent-value'
+import { CONSENT_V2_KEY, CONSENT_VERSION, NATIVE_UA_RE, cookieFromHeader, isCanonicalEnoHost, isConsentExpired, isConsentId, isProductionEnoHost, parseConsentV2 } from '@/lib/consent-value'
 import { EDITION } from '@/lib/edition'
 import { LANGS } from '@/lib/i18n/langs'
 import { logError } from '@/lib/log'
@@ -70,8 +70,9 @@ export const dynamic = 'force-dynamic'
 // then gives up and logs `consent.record` — a lost record, never a queue of held pool connections in
 // front of a KYC decision. A dedicated consent table (a schema change) removes the shared lock
 // entirely and is the planned follow-up, not an "if junk appears" item.
-// ⚠️ A STOREFRONT HOST (`<shop>.eno.vn`) CANNOT POST HERE: src/proxy.ts refuses cross-origin writes,
-// by design. Storefronts are not live; when they are, their choices are stored but not yet recorded.
+// ✅ A STOREFRONT OR TEACHER PAGE POSTS HERE TOO, since 2026-10-15 (src/proxy.ts subdomainSelfWrite): until then the
+// proxy refused it and a choice made on one of those pages was stored in the cookie but never recorded. Its record
+// names no account (actorId) — see the profileId line below.
 
 const Body = z.object({
   cid: z.string().refine(isConsentId),
@@ -162,7 +163,10 @@ export async function POST(req: Request) {
     return noContent()
   }
 
-  const profileId = await getCurrentProfileId().catch(() => null)
+  // ⛔ THE ACCOUNT IS NAMED ONLY ON THE APEX / www. A storefront or teacher page may post its record here too
+  // (src/proxy.ts subdomainSelfWrite), and that carve-out is safe only because nothing it admits acts as the visitor —
+  // so a subdomain record stays anonymous even once the session cookie follows buyers onto storefronts.
+  const profileId = isCanonicalEnoHost(req.headers.get('host')) ? await getCurrentProfileId().catch(() => null) : null
   const native = NATIVE_UA_RE.test(req.headers.get('user-agent') || '')
 
   try {

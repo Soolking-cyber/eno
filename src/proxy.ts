@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { isTeacherHost, apexOrigin, teacherOrigin } from '@/lib/teachers/host'
+import { isTeacherHost, apexOrigin } from '@/lib/teachers/host'
 import { isSchoolsHost, schoolsRedirectUrl } from '@/lib/schools/host'
 import { IS_SERVICES } from '@/lib/edition'
 import { storefrontBaseHost, storefrontHandleFromHost, storefrontLabelUrl, underscoreHost } from '@/lib/storefront-host'
@@ -58,7 +58,8 @@ function withCors(res: NextResponse, origin: string | null): NextResponse {
  * storefront is a READ surface — browse, search, view — and every action that writes (save, chat,
  * offer, post) must navigate the visitor to the canonical host, where they arrive already signed in
  * thanks to the very cookie this guards. That keeps the UX the owner asked for and denies a shop
- * the ability to act as its own visitor.
+ * the ability to act as its own visitor. (The page's own anonymous beacons — the visit counter,
+ * translation, the consent record, gate counts — are the one exception: subdomainSelfWrite.)
  *
  * ⛔ THAT NAVIGATION IS NOT BUILT YET, AND A STOREFRONT CANNOT BE REACHED UNTIL IT IS. Reviewers
  * were right that the sentence above describes an intention rather than code: `<Header>` and
@@ -67,6 +68,9 @@ function withCors(res: NextResponse, origin: string | null): NextResponse {
  * shop that passes the verification gate — so the ordering is safe rather than lucky. It is also
  * the reason the cookie must not be widened before those call sites are moved: the two changes are
  * one feature and must not be separated in the other direction.
+ * ⚠️ STALE SINCE (AT LATEST) 2026-10-15: storefronts ARE reachable — `luathoangphi.eno.vn` and others serve
+ * real visitors. The cookie is still host-scoped, so a shop page carries no session and its save/chat/
+ * sign-in calls 403 here as described; the cookie-widening rule above is unchanged.
  *
  * ⚠️ ABSENT `Origin` IS ALLOWED, DELIBERATELY. Browsers send it on every mutating fetch, so its
  * absence means a non-browser caller — a cron, a shop's backend on `/api/v1`, Stripe, the Supabase
@@ -150,29 +154,49 @@ function writeOrigins(): Set<string> | null {
 }
 
 /**
- * ⛔ teacher.<base> MAY WRITE TO ITSELF — BUT ONLY ITS PAGE'S ANONYMOUS BACKGROUND CALLS (2026-10-15).
- * "Nothing on this host writes" was the design, and the PAGE honours it: the form hands its draft to the apex in a URL
- * fragment. But the app shell around it still makes background POSTs to its own host, and this guard refused every one.
- * Measured on teacher.eno.vn over 7 days (Cloudflare, all origin 403): 3,226 machine-translation calls, 2,301 visitor
- * heartbeats, 107 cookie-banner consent records and 12 sign-in-gate counts (and 1,147 CSP reports — see
- * isCspReport) — so the paid-ad visitors that page exists for were never counted, their consent choices never reached
- * the evidence log, and their translations failed.
- * ⚠️ EXACT PATHS, NOT "SAME-ORIGIN ON THIS HOST". None of the four reads a session (and this host has none: cookies are
- * host-scoped), so letting them through hands a page nothing it could act with. A blanket rule would also admit every
- * FUTURE route here without anyone deciding it should be — a new background write from this page is a 403 until it is
- * named below, which is the failure this list was found by, and the safe one.
- * ⚠️ POST ONLY, HOST *AND* ORIGIN BOTH THE TEACHER HOST. Every one of these is a POST beacon, so a PUT/PATCH/DELETE from
- * the page stays refused rather than leaning on each route to reject the method. A teacher-origin write to the apex, any
- * other path, and a storefront writing to itself all stay refused; `teacher` is a reserved handle, so no shop can be
- * this host.
+ * ⛔ A PAGE ON AN eno SUBDOMAIN MAY POST ITS OWN ANONYMOUS BACKGROUND BEACONS TO ITSELF — teacher.<base> and every
+ * storefront (2026-10-15; the storefronts that afternoon — owner: "the individual stores visits should count as well …
+ * make visitors count universal across all subdomains of the website").
+ * Every background POST those pages make goes to their own host, and this guard refused every one. Measured over 7 days
+ * (Cloudflare, origin 403) on teacher.eno.vn alone: 3,226 machine-translation calls, 2,301 visitor heartbeats, 107
+ * cookie-banner consent records, 12 sign-in-gate counts (and 1,147 CSP reports — see isCspReport). On the storefronts the
+ * only heartbeats that EVER got through in 3 days were Meta's crawler (no Origin; zeroed as a bot): a real shop visitor
+ * was never counted, never had a consent choice recorded, never got a translation.
+ * ⚠️ EXACT PATHS, NOT "SAME-ORIGIN ON THESE HOSTS". These four act as nobody: three never read a session, and /api/consent
+ * takes its record's actorId ONLY on the apex/www (`isCanonicalEnoHost` in that route) — so a subdomain record is
+ * anonymous even after the planned cookie widening that the guard above exists for. src/proxy.test.ts pins that. A
+ * blanket rule would admit every FUTURE route without anyone deciding it should be — a new background write from these
+ * pages is a 403 until it is named below, which is how this list was found, and the safe failure.
+ * ⚠️ POST ONLY, AND THE PAGE'S OWN HOST ONLY: the Origin must be exactly `<scheme>//<this request's Host>`. One shop's page
+ * cannot beacon into another shop's host or the apex; infra labels (www, sb, mail…), nested labels, underscore hosts and
+ * the other edition's subdomains are never storefronts (`storefrontHandleFromHost`), and `teacher` is reserved. The test
+ * is the host's SHAPE (no database here), so a shop that does not exist counts too — it is still our page, showing our
+ * 404, read by a real visitor.
+ * ⛔ WHOEVER WIDENS THE SESSION COOKIE TO THE SUBDOMAINS must re-prove "acts as nobody" with a request carrying that cookie
+ * to each of the four paths on a storefront host. The source scan in src/proxy.test.ts is a tripwire, not a proof.
  */
-const TEACHER_HOST_WRITES = new Set(['/api/site-stats', '/api/translate', '/api/consent', '/api/signup-prompt'])
+export const SUBDOMAIN_SELF_WRITES: ReadonlySet<string> = new Set(['/api/site-stats', '/api/translate', '/api/consent', '/api/signup-prompt'])
 
-function teacherSelfWrite(req: NextRequest, origin: string): boolean {
-  if (req.method !== 'POST' || !TEACHER_HOST_WRITES.has(req.nextUrl.pathname)) return false
+function subdomainSelfWrite(req: NextRequest, origin: string): boolean {
+  if (req.method !== 'POST' || !SUBDOMAIN_SELF_WRITES.has(req.nextUrl.pathname)) return false
+  const host = req.headers.get('host')
+  if (!host) return false
   const app = process.env.NEXT_PUBLIC_APP_URL
-  const own = teacherOrigin(app)
-  return own !== '' && origin === own && isTeacherHost(req.headers.get('host'), app)
+  if (!isTeacherHost(host, app) && !storefrontHandleFromHost(host, canonicalHost())) return false
+  try {
+    const o = new URL(origin)
+    // A serialized origin and nothing else — `https://x@apple.eno.vn`, a path or a query parse to the same hostname.
+    if (o.origin !== origin) return false
+    // ⚠️ DEFAULT PORTS ONLY, ON BOTH SIDES. A browser's Origin carries no default port, but a proxy may forward
+    // `apple.eno.vn:443` as the Host — comparing whole hosts would 403 every beacon again, silently. Any other port, in
+    // either header, is another origin and is refused.
+    const m = /^(.*?)(?::(\d+))?$/.exec(host.toLowerCase())!
+    const defaultPort = o.protocol === 'https:' ? '443' : '80'
+    if (m[2] !== undefined && m[2] !== defaultPort) return false
+    return o.protocol === new URL(app ?? '').protocol && o.port === '' && o.hostname === m[1]
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -206,10 +230,10 @@ function crossOriginWrite(req: NextRequest): boolean {
    * occur there.
    * ⛔ AND IT IS NOT A GENERAL SAME-ORIGIN RULE. Allowing same-origin everywhere would re-open the
    * exact hole this guard exists for: a storefront host writing as its own visitor. Loopback only —
-   * the one other self-write is teacher.<base>'s, POSTs to four named anonymous endpoints (teacherSelfWrite).
+   * the one other self-write is a subdomain page's, POSTs to four named anonymous beacons (subdomainSelfWrite).
    */
   if (isLoopbackSelfOrigin(req, origin)) return false
-  if (teacherSelfWrite(req, origin)) return false
+  if (subdomainSelfWrite(req, origin)) return false
 
   const allowed = writeOrigins()
   if (!allowed) return false // unconfigured build: do not invent a boundary that can lock the app

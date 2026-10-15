@@ -3,6 +3,7 @@ import {
   CONSENT_MAX_AGE_S,
   consentModeState,
   cookieFromHeader,
+  isCanonicalEnoHost,
   isProductionEnoHost,
   parseConsentV2,
   resolveConsent,
@@ -134,15 +135,39 @@ describe('serverConsent — the server gate (fails closed)', () => {
  * recorded (2026-10-15).
  */
 describe('isProductionEnoHost', () => {
-  it('accepts the live hosts, both teacher pages included, port and case aside', () => {
-    for (const h of ['eno.vn', 'www.eno.vn', 'eno.forum', 'www.eno.forum', 'teacher.eno.vn', 'teacher.eno.forum', 'apple.eno.vn', 'TEACHER.ENO.FORUM:443']) {
+  it('accepts the live hosts — both sites\' storefronts and teacher pages included, port and case aside', () => {
+    for (const h of ['eno.vn', 'www.eno.vn', 'eno.forum', 'www.eno.forum', 'teacher.eno.vn', 'teacher.eno.forum', 'apple.eno.vn', 'apple.eno.forum', 'eno-trading.eno.vn', 'TEACHER.ENO.FORUM:443']) {
       expect(isProductionEnoHost(h), h).toBe(true)
     }
   })
 
-  it('⛔ refuses a local run and look-alikes — no forum storefronts, no suffix tricks', () => {
-    for (const h of ['localhost:3000', '127.0.0.1', 'apple.eno.forum', 'teacher.eno.forum.evil.com', 'evil-teacher.eno.forum', 'eno.vn.evil.com', 'a.b.eno.vn', '', null, undefined]) {
+  it('⛔ refuses a local run and look-alikes — one label deep, no suffix tricks', () => {
+    for (const h of ['localhost:3000', '127.0.0.1', 'teacher.eno.forum.evil.com', 'evil-eno.forum', 'eno.vn.evil.com', 'a.b.eno.vn', 'a.b.eno.forum', 'sdc_store.eno.vn', '', null, undefined]) {
       expect(isProductionEnoHost(h), String(h)).toBe(false)
+    }
+  })
+})
+
+/**
+ * ⛔ ONLY THE APEX AND www MAY NAME A SIGNED-IN ACCOUNT ON A CONSENT RECORD (2026-10-15) — a storefront or teacher page
+ * posts its record anonymously, which is what makes src/proxy.ts's subdomain carve-out safe.
+ */
+describe('isCanonicalEnoHost', () => {
+  it('is the apex or www of either site, port and case aside', () => {
+    for (const h of ['eno.vn', 'www.eno.vn', 'eno.forum', 'www.eno.forum', 'ENO.VN:443', 'eno.vn:65535', 'eno.vn:0']) expect(isCanonicalEnoHost(h), h).toBe(true)
+  })
+
+  it('⛔ and nothing else — no storefront, no teacher page, no look-alike', () => {
+    for (const h of ['teacher.eno.vn', 'apple.eno.vn', 'teacher.eno.forum', 'apple.eno.forum', 'eno.vn.evil.com', 'localhost:3000', '', null, undefined]) {
+      expect(isCanonicalEnoHost(h), String(h)).toBe(false)
+    }
+  })
+
+  it('⛔ a Host that is not a plain name[:port] is nobody — userinfo, a path or a space never reads as the apex', () => {
+    // As URLs every one of these has the hostname eno.vn; as Host headers they are malformed, so no session is read.
+    for (const h of ['apple.eno.vn@eno.vn', 'x@eno.vn', 'eno.vn/x', 'eno.vn ', ' eno.vn', 'eno.vn:x', 'eno.vn?a', 'eno.vn#a', 'eno.vn:65536', 'eno.vn:99999', 'eno.vn:123456']) {
+      expect(isCanonicalEnoHost(h), JSON.stringify(h)).toBe(false)
+      expect(isProductionEnoHost(h), JSON.stringify(h)).toBe(false)
     }
   })
 })
