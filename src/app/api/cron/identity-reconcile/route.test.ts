@@ -64,6 +64,25 @@ describe('GET /api/cron/identity-reconcile', () => {
     for (const k of ['"checked":3', '"failed":0', '"changed":1', '"illegal":0', '"purged":1']) expect(head).toContain(k)
   })
 
+  // The card-tick pass (C4) answers `marks` right after the leading counts — the journal's 200 bytes still carry them.
+  it('with the card pass\'s `marks` in the answer, the first 200 bytes still carry the main counts — and `marks` follows them', async () => {
+    h.result = { ...CLEAN, marks: { checked: 2, changed: 1, purged: 1, failed: 0 } }
+    const text = await (await GET(req())).text()
+    const head = text.slice(0, 200)
+    for (const k of ['"checked":3', '"recomputed":3', '"changed":1', '"failed":0', '"illegal":0', '"trustMoved":2', '"purged":1']) expect(head).toContain(k)
+    expect(head).toContain('"marks":{"checked":2,"changed":1,"purged":1,"failed":0}')
+    expect(Object.keys(JSON.parse(text))).toEqual(['ok', 'checked', 'recomputed', 'changed', 'failed', 'illegal', 'trustMoved', 'purged', 'marks', 'checkedAt'])
+  })
+
+  it('a card-pass failure is the same 500 partial_failure — `failed` first, `marks` saying where', async () => {
+    h.result = { ...CLEAN, failed: 1, marks: { checked: 2, changed: 0, purged: 0, failed: 1 } }
+    const res = await GET(req())
+    expect(res.status).toBe(500)
+    const text = await res.text()
+    expect(Object.keys(JSON.parse(text)).slice(0, 3)).toEqual(['ok', 'error', 'failed'])
+    expect(text.slice(0, 200)).toContain('"marks":{"checked":2,"changed":0,"purged":0,"failed":1}')
+  })
+
   it('?dryRun=1 asks for a dry run, and its answer is passed through', async () => {
     h.result = { ...CLEAN, recomputed: 0, changed: 0, trustMoved: 0, purged: 0, dryRun: true, mismatched: 1, teachers: 0, profiles: [] }
     const r = await run('?dryRun=1')

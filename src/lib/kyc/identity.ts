@@ -1,8 +1,11 @@
 import 'server-only'
 import { cache } from 'react'
+import type { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { IS_SERVICES } from '@/lib/edition'
 import { logWarn } from '@/lib/log'
+import type { VerificationStatus } from '@/lib/compliance/account-state'
+import { foldName, nameWithinDocument } from '@/lib/identity/verify-decision'
 // ⚠️ FROM THE PURE MODULE, NOT recompute-verification (2026-10-15). trust.ts imports this file — a LIVE verified
 // identity is V_KYC and moves rater credibility (verifiedProfileIds) — and recompute-verification runs the identity
 // effects, which import trust (identity-effects.ts): importing the derivation from there closed a cycle
@@ -435,6 +438,83 @@ export async function verifiedProfileIds(profileIds: readonly string[], now: Dat
   const out = new Set<string>()
   for (const [profileId, history] of byProfile) if (deriveVerification(history, now).status === 'verified') out.add(profileId)
   return out
+}
+
+/**
+ * What the teacher's "Identity verified" mark is decided from (src/lib/teachers/identity-mark.ts) — three facts, and
+ * NOTHING ELSE leaves this module: no name, no tier, no method, no expiry, no document fact.
+ *   · `status` — deriveVerification over the profile's whole history at `now` (revoked outranks everything, a standing
+ *     verification survives a later rejection, a document is good through its expiry day — the ONE derivation);
+ *   · `resubmitted` — a pending submission is in flight (an expired identity being renewed reads "pending", not "expired");
+ *   · `name` — is the shown name within the name on the document that VERIFIED it (nameWithinDocument, the strict rule):
+ *     'match' / 'mismatch', or 'none' when there is no usable name to compare (no surname recorded).
+ */
+export type IdentityMarkFacts = {
+  status: VerificationStatus
+  resubmitted: boolean
+  name: 'match' | 'mismatch' | 'none'
+}
+
+/** The facts a profile with no identity row at all stands on. */
+export const NO_IDENTITY_MARK_FACTS: IdentityMarkFacts = { status: 'unverified', resubmitted: false, name: 'none' }
+
+/**
+ * THE BATCH FORM OF THE MARK'S FACTS: one read for every entry, decided with the SAME derivation as everything above.
+ * `displayName` is the name the mark would sit beside (TeacherProfile.fullName). Every entry gets a value (no rows →
+ * NO_IDENTITY_MARK_FACTS).
+ *
+ * ⛔ THE NAMES COME FROM THE *SOURCE* ROW'S evidence.decisionInput — what decideTierB was given at submission and a
+ * reviewer then approved (service.ts carries it; review.ts re-runs the decision from it) — and only while the derived
+ * status is `verified`: a pending row's names are the applicant's claim, a rejected row's were refused, and the row that
+ * speaks for a verified profile can be an OLDER one than its latest rejection. Any other status reads 'none' (the mark's
+ * state never looks at the name then).
+ * ⛔ NEVER SPLIT `fullName` INTO A SURNAME. service.ts says why, at the `decisionInput` it writes: splitting turned
+ * "VAN DER BILT" into the surname "BILT" — which is why review.ts re-runs the decision from the carried input too. A row
+ * without decisionInput (written before it existed, or by hand) has no name to compare: 'none', and the mark stays off
+ * — fail closed.
+ * ⚠️ `client`: a transaction passes itself, so a save judges the identity in the same transaction that writes the
+ * card's cache (src/lib/teachers/identity-mark-card.ts). UNCACHED, like verifiedProfileIds: an approval or a revocation
+ * must be seen by the very next read. ⚠️ `evidence` is read here and never leaves — the rule in this module's header.
+ */
+export async function identityMarkFacts(
+  entries: readonly { profileId: string; displayName: string }[],
+  now: Date = new Date(),
+  client: Pick<Prisma.TransactionClient, 'identityVerification'> = db,
+): Promise<Map<string, IdentityMarkFacts>> {
+  const out = new Map<string, IdentityMarkFacts>()
+  const ids = [...new Set(entries.map((e) => e.profileId))].filter(Boolean)
+  if (ids.length === 0) return out
+  const rows = await client.identityVerification.findMany({
+    where: { profileId: { in: ids } },
+    select: {
+      id: true, profileId: true, tier: true, method: true, status: true, decidedAt: true, documentExpiresAt: true,
+      assuranceLevel: true, evidence: true,
+    },
+  })
+  const byProfile = new Map<string, typeof rows>()
+  for (const r of rows) if (r.profileId) byProfile.set(r.profileId, [...(byProfile.get(r.profileId) ?? []), r])
+  for (const e of entries) {
+    if (!e.profileId) continue
+    const history = byProfile.get(e.profileId) ?? []
+    const { status, source } = deriveVerification(history, now)
+    out.set(e.profileId, {
+      status,
+      resubmitted: history.some((r) => r.status === 'pending'),
+      name: status === 'verified' ? nameOnDocument(source?.evidence, e.displayName) : 'none',
+    })
+  }
+  return out
+}
+
+/** The shown name against the verified row's carried decision input. Read defensively: `evidence` is free-form JSON. */
+function nameOnDocument(evidence: unknown, displayName: string): IdentityMarkFacts['name'] {
+  const di = evidence && typeof evidence === 'object' ? (evidence as { decisionInput?: unknown }).decisionInput : undefined
+  const input = di && typeof di === 'object' ? (di as { surname?: unknown; givenNames?: unknown }) : {}
+  const surname = typeof input.surname === 'string' ? input.surname : ''
+  const given = typeof input.givenNames === 'string' ? input.givenNames : ''
+  // No letter in the surname (absent, empty, MRZ filler only): nothing a name could be compared with.
+  if (!foldName(surname)) return 'none'
+  return nameWithinDocument(surname, given, displayName) ? 'match' : 'mismatch'
 }
 
 /**

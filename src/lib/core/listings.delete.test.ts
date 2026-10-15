@@ -14,6 +14,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 type Row = Record<string, any>
 
 const h = vi.hoisted(() => ({
+  /** The hide path's guarded NULL of the teacher card's identity-mark cache throws. */
+  markClearThrows: false,
   listing: null as Row | null,
   owner: null as Row | null,
   reports: [] as Row[],
@@ -41,6 +43,12 @@ function matchReport(r: Row, where: Row): boolean {
 vi.mock('@/lib/db', () => {
   const rec = (m: string, args: unknown) => { h.calls.push({ m, args }) }
   const db: Row = {
+    // The hide path nulls the teacher card's "Identity verified" cache (a raw, guarded NULL write — listings.ts).
+    $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
+      rec('$executeRaw', { sql: strings.join('?'), values })
+      if (h.markClearThrows) throw new Error('mark clear failed')
+      return 0
+    },
     listing: {
       findUnique: async (a: Row) => { rec('listing.findUnique', a); return h.listing ? { ...h.listing } : null },
       update: async (a: Row) => { rec('listing.update', a); if (h.listing) Object.assign(h.listing, a.data); return {} },
@@ -155,6 +163,7 @@ const called = (m: string) => h.calls.filter((c) => c.m === m)
 const hidWith = (status = 'hidden') => called('listing.updateMany').some((c) => c.args.data.status === status)
 
 beforeEach(() => {
+  h.markClearThrows = false
   h.listing = { id: 'L1', brandSlug: null, sellerId: 's1', video: null, status: 'active', verified: true, externalId: null, soldAt: null, updatedAt: new Date(), seller: { ownerId: 'p1' } }
   h.owner = { enforcementState: 'good_standing' }
   h.reports = []
@@ -176,6 +185,18 @@ describe('a seller under investigation cannot hard-delete — the listing is hid
     expect(called('listing.deleteMany')).toHaveLength(0)
     expect(called('listing.updateManyAndReturn')).toHaveLength(0)
     expect(called('report.updateMany')).toHaveLength(0)
+  })
+
+  // Commit gate, 2026-10-16: a hidden teacher listing keeps no "Identity verified" cache — nulled at the source, and a
+  // failure there never turns the done delete into an error (the nightly orphan sweep is the backstop).
+  it('the hide nulls the identity-mark cache — and a failure of that write still answers the hide', async () => {
+    h.owner = { enforcementState: 'held' }
+    await deleteListingCore('L1')
+    const clear = called('$executeRaw').map((c) => (c.args as { sql: string }).sql)
+    expect(clear.some((q) => q.includes('"identityMarkNotice" = NULL'))).toBe(true)
+    h.calls = []
+    h.markClearThrows = true
+    expect(await deleteListingCore('L1')).toEqual({ ok: true, deleted: false, hidden: true, reason: 'account_held' })
   })
 
   it('suspended → hidden', async () => {

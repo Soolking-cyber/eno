@@ -357,13 +357,14 @@ export type NicheApiErrorCode =
   | 'listing_changed' // PATCH /api/listings/[id] (and v1): the listing changed while it was being edited — reload and try again (409, 2026-10-14)
   | 'desk_unresolved' // /api/cron/licence-holds: eno's desk did not resolve, so the sweep refused to run (500, 2026-10-14)
   | 'grandfather_unresolved' // /api/cron/licence-holds: LICENCE_GRANDFATHER's seller id no longer names VietKite's storefront, so the sweep refused (500, 2026-10-14)
-  | 'partial_failure' // /api/cron/identity-reconcile: a profile's recompute threw or its effects did not complete — the rest WERE reconciled; the unit stays red until a clean run (500, 2026-10-15)
+  | 'partial_failure' // /api/cron/identity-reconcile: a profile's recompute threw or its effects did not complete — the rest WERE reconciled; the unit stays red until a clean run (500, 2026-10-15). /api/cron/identity-marks: a teacher's card sync or purge threw, or its selection could not be read (500, 2026-10-16)
   | 'teacher_awaiting_reply' // a teacher who has not answered gets at most 2 messages (owner, 2026-10-13)
   | 'invalid_teacher_profile'
   | 'teacher_profile_missing'
   | 'cover_changed' // cover lessons: the cover state changed in another window since the form loaded (2026-10-07)
   | 'profile_changed' // a teacher form loaded for one TeacherProfile, saved under a session that is now another's (2026-10-07)
-  | 'notice_changed' // a teacher save under an older publish / cover / AI notice than the one now in force (2026-10-08)
+  | 'notice_changed' // a teacher save under an older publish / cover / AI notice than the one now in force (2026-10-08); `identity`: the "Identity verified" switch (2026-10-16)
+  | 'identity_mark_changed' // PUT /api/teachers/me/identity-mark: the switch changed in another window since the form loaded it — a switch-ON over a stale base is refused, never a re-grant of a withdrawal (409, 2026-10-16)
   | 'resubscribe_in_profile' // /api/unsubscribe: teacher job-match emails are turned back ON only in the profile, under the AI notice (2026-10-08)
   | 'no_teaching_goal' // PATCH /api/teachers/me/status → live: no work picked and cover off, so nothing to show schools (D6, 2026-10-09)
   | 'terms_required' // PUT /api/teachers/me: a new account's first profile published without the Terms line on screen (2026-10-11)
@@ -773,6 +774,7 @@ const ALL = [
   'cover_changed',
   'profile_changed',
   'notice_changed',
+  'identity_mark_changed',
   'resubscribe_in_profile',
   'no_teaching_goal',
   'terms_required',

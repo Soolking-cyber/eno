@@ -101,6 +101,15 @@ declare -A SCHED=(
   # then `ENO_CRON_ONLY=identity-reconcile bash install-cron-timers.sh` — and run the route once by hand right after the
   # deploy: a normal run IS the backfill (no ?all mode).
   [identity-reconcile]="*-*-* 02:05:00 UTC"
+  # The teacher card's "Identity verified" tick, re-derived at 00:05 ICT (review, 2026-10-16 —
+  # src/app/api/cron/identity-marks/route.ts): identity-reconcile's card-tick pass run ALONE. A document lapses at 00:00
+  # ICT and the mark with it ("only while the identity check is LIVE" — owner), but a lapse is a clock, not an event, and
+  # the reconcile above runs at 09:05 — so without this run a card and a baked profile line would keep the tick for nine
+  # hours after every lapse. It syncs every teacher whose switch is on or whose card carries the tick, and purges their
+  # pages when it changed; no recompute, no trust, no enforcement — it sends nothing at night. 17:05 UTC = 00:05 ICT,
+  # five minutes after licence-holds. Deploy day: `?dryRun=1` first, then `ENO_CRON_ONLY=identity-marks bash
+  # install-cron-timers.sh`.
+  [identity-marks]="*-*-* 17:05:00 UTC"
 )
 # ⚠️ affiliate-prices reaches OUT to api.accesstrade.vn and can run for minutes. It writes only price/affiliateUrl
 # on imported rows and emails nobody — never on a hidden row (prices land on active|sold, restores take sold only).
@@ -152,7 +161,14 @@ declare -A SCHED=(
 # under 60, the restricted tier). It purges a teacher's pages (shared invalidations) and a failed recompute leaves the
 # unit FAILED (500 partial_failure) for someone to read. Installed before the deploy, its unit fails (the route 404s)
 # until the deploy lands, harmlessly. One edition is enough: the database is shared.
-SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations partner-stock indexnow listing-tombstone-retention school-proof-retention apple-revocations teacher-draft-retention licence-holds identity-reconcile)
+# ⚠️ identity-marks is SAFE to enable (review, 2026-10-16 — SAFE, so any full re-run enables it): it rewrites only the
+# teacher card's display cache (Listing.identityMarkNotice, through its one writer, src/lib/teachers/identity-mark-card.ts)
+# to what the live identity, the teacher's own switch and their name already say, and purges those teachers' pages. It is
+# idempotent, emails and notifies nobody, and touches only teachers whose switch is on or whose card carries the tick. So,
+# unlike identity-reconcile, it IS replayed at boot when missed (the default Persistent=true): a sync and a purge are
+# silent at any hour. Installed before the deploy, its unit fails (the route 404s) until the deploy lands, harmlessly. One
+# edition is enough: the database and the ISR invalidations are shared.
+SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations partner-stock indexnow listing-tombstone-retention school-proof-retention apple-revocations teacher-draft-retention licence-holds identity-reconcile identity-marks)
 # Installed, NOT enabled: these send email to real people. They are enabled at cutover, by the line printed at the end.
 EMAIL=(daily-reminders saved-search-alerts weekly-digest)
 # ⛔ STARTED BY HAND, NEVER ON A SCHEDULE: a SERVICE and NO TIMER (gate review, 2026-10-08 — codex + Opus). The teacher
@@ -239,6 +255,8 @@ for job in "${!SCHED[@]}"; do
   # ⚠️ identity-reconcile runs ONCE, on eno.vn, whatever host this installer was run for: the identity rows, the trust
   # columns and the ISR invalidations are all in the shared database — a second run on eno.forum would find nothing.
   [ "$job" = identity-reconcile ] && TARGET="eno.vn 3001"
+  # ⚠️ identity-marks too: the card caches and the ISR invalidations are in the shared database — once, on eno.vn.
+  [ "$job" = identity-marks ] && TARGET="eno.vn 3001"
   cat > "/etc/systemd/system/eno-cron-$job.service" <<UNIT
 [Unit]
 Description=eno cron: $job
@@ -262,6 +280,7 @@ UNIT
   # ⚠️ identity-reconcile is NOT replayed at boot (commit review, 2026-10-15): it runs at 09:05 ICT so the enforcement bell
   # or push a lost +10 can trigger lands in the day, and Persistent=true would fire a missed run the moment the box
   # boots, whatever the hour. Nothing is lost — the next 09:05 run reconciles every identity holder again (idempotent).
+  # identity-marks keeps the default (replayed at boot): it sends nothing, and a lapse it missed should go at once.
   [ "$job" = identity-reconcile ] && PERSIST=false
   cat > "/etc/systemd/system/eno-cron-$job.timer" <<UNIT
 [Unit]

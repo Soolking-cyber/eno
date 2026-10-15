@@ -1898,5 +1898,17 @@ async function hideInsteadOfDelete(listingId: string, currentStatus: string, rea
     const r = await setStatusCore(listingId, 'hidden')
     if (!r.ok) return r
   }
+  // ⛔ A DELETED TEACHER LISTING DROPS ITS "Identity verified" CACHE WHEN IT IS HIDDEN (commit gate, 2026-10-16). Held
+  // back by an open report the row stays — and the TeacherProfile that judged the mark may be gone with the delete, so no
+  // pass that starts from TeacherProfile would reach the cache before a relist could show the tick. (Should the profile
+  // survive, the nightly card pass may write a still-valid mark back — it is still that teacher's, and a hidden listing
+  // shows no card.) A NULL write (the MARK_WRITERS tripwire allows it anywhere), raw so @updatedAt stays.
+  // ⚠️ FAIL-QUIET: the listing is already hidden — a failed write must not turn a done delete into an error; the nightly
+  // orphan sweep (identity-mark-card.ts clearOrphanIdentityMarks) is the backstop.
+  try {
+    await db.$executeRaw`UPDATE "Listing" SET "identityMarkNotice" = NULL WHERE "id" = ${listingId} AND "identityMarkNotice" IS NOT NULL`
+  } catch (e) {
+    logError(e, { op: 'listings.delete.identityMark', listingId })
+  }
   return { ok: true, deleted: false, hidden: true, reason }
 }

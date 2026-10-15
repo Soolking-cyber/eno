@@ -4,6 +4,7 @@ import { logError } from '@/lib/log'
 import { recomputeTrust } from '@/lib/trust'
 import { syncEnforcement } from '@/lib/enforcement'
 import { districtPagesOf, revalidateTeacherPages } from '@/lib/teachers/revalidate'
+import { syncIdentityMarkCard } from '@/lib/teachers/identity-mark-card'
 import type { VerificationStatus } from './account-state'
 
 // ── WHAT AN IDENTITY RECOMPUTE MOVES BESIDE THE CACHE (owner, 2026-10-15) ───────────────────────────────────────────
@@ -11,11 +12,12 @@ import type { VerificationStatus } from './account-state'
 // "A live verified identity counts in trust (+10) for every seller, on both editions — flat while current, gone on
 // expiry or revocation, no penalty." So every identity recompute — an approval, a rejection, a submission, a
 // revocation, the nightly reconcile — re-derives what reads that identity: the trust score (V_KYC) and, through it,
-// the listings' rank key; the enforcement state built on the score; and a teacher's public pages, which bake both in.
+// the listings' rank key; the enforcement state built on the score; a teacher's "Identity verified" card tick (the
+// card's display cache, src/lib/teachers/identity-mark-card.ts); and a teacher's public pages, which bake all of it in.
 //
 // ⛔ CALLED ONLY BY recomputeVerification (recompute-verification.ts), WITH THE DERIVED STATUS — never the cache's
 // answer, which an illegal transition leaves where it was. Trust does not even read the status: it re-reads the rows
-// (computeTrustV2 → verifiedProfileIds). `derived` is here for the log line and for the mark sync C4 adds.
+// (computeTrustV2 → verifiedProfileIds), and so does the mark sync (identityMarkFacts) — `derived` is for the log line.
 // ⛔ NO FLAG IN EITHER DIRECTION. An approval needs no "uncapped" or "approved": recomputeTrust lands the identity's own
 // step in full on ANY recompute and keeps everything else capped (trust.ts, R1) — an uncapped recompute would land a
 // whole review backlog beside the +10. A revocation or a lapse needs none either: downward moves always land in full.
@@ -38,7 +40,7 @@ import type { VerificationStatus } from './account-state'
 export type IdentityEffects = {
   /** The persisted trust score moved (recomputeTrust's score differs from the one it found cached). */
   trustMoved: boolean
-  /** The teacher card's identity tick changed — the mark sync C4 adds before the purge; false until it does. */
+  /** The teacher card's "Identity verified" cache was rewritten (syncIdentityMarkCard's `changed`), before the purge. */
   markChanged: boolean
   /** A teacher account's public pages were purged (revalidateTeacherPages). */
   purged: boolean
@@ -48,10 +50,11 @@ export type IdentityEffects = {
 
 /**
  * Re-derive what reads this profile's identity, in order: trust, then enforcement on that breakdown, then — for an
- * account that owns a TeacherProfile — its pages, LAST. Never throws.
+ * account that owns a TeacherProfile — the card's "Identity verified" tick, and its pages, LAST. Never throws.
  *
- * `now` is the instant the status was derived at (recomputeVerification's clock), for the mark sync C4 adds. Trust
- * reads the wall clock, as every recompute does — the same call, so the same ICT day.
+ * `now` is the instant the status was derived at (recomputeVerification's clock), and the mark sync judges the identity
+ * at it — the same document clock as the cache write. Trust reads the wall clock, as every recompute does — the same
+ * call, so the same ICT day.
  */
 export async function applyIdentityEffects(profileId: string, derived: VerificationStatus, now: Date): Promise<IdentityEffects> {
   const out: IdentityEffects = { trustMoved: false, markChanged: false, purged: false, failed: false }
@@ -83,7 +86,14 @@ export async function applyIdentityEffects(profileId: string, derived: Verificat
     null,
   )
   if (!tp) return out
-  // [C4: the identity-mark card sync goes HERE — after trust, before the purge, which carries its change too.]
+  // 4. THE CARD'S "IDENTITY VERIFIED" TICK (owner, 2026-10-15) — re-derived from the LIVE identity, the stored switch
+  // and the stored name, under the teacher saves' own lock, by the card cache's one writer (identity-mark-card.ts). An
+  // approval can turn it on, a revocation or a lapse off. BEFORE the purge, which carries its change: the pages then
+  // regenerate from a cache that already says what the identity says. Its own guard: a failed sync (logged as
+  // identity.effects.mark, `failed`) still purges — the trust and the order moved anyway — and the nightly reconcile
+  // re-runs it. The sync never purges itself.
+  const s = await step('mark', () => syncIdentityMarkCard(profileId, now), null)
+  out.markChanged = s?.changed === true
   await step('purge', () => {
     revalidateTeacherPages(tp.listingId, districtPagesOf(tp))
     out.purged = true

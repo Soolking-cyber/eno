@@ -5,10 +5,16 @@
 // Run AFTER the teacher tables exist (the safe flow in prisma/CLAUDE.md creates them from
 // schema.prisma). Adds CHECK constraints (TeacherJobMatch's owner rule; TeacherProfile's cover-lesson bounds,
 // 2026-10-07; its teach-area bounds, 2026-10-08), the later TeacherProfile columns (cover lessons, the intro video, the
-// onboarding redesign), TeacherContactShare.phoneShared (2026-10-09), the TeacherDraft table (2026-10-11), the two
-// message-email tables (2026-10-12) and the PRIVATE
+// onboarding redesign, the "Identity verified" opt-in of 2026-10-16), TeacherContactShare.phoneShared (2026-10-09), the
+// TeacherDraft table (2026-10-11), the two message-email tables (2026-10-12) and the PRIVATE
 // storage buckets. Nothing existing
 // is altered or dropped.
+//
+// ⛔ THE ONE LISTING COLUMN THE IDENTITY MARK NEEDS (Listing."identityMarkNotice", the card's display cache) IS NOT
+// HERE, ON PURPOSE: scripts/listing-identity-mark-ddl.mjs adds it in its own short transaction. `ALTER TABLE "Listing"`
+// takes an ACCESS EXCLUSIVE lock before `IF NOT EXISTS` is even checked, and this script is "re-run any time" in ONE
+// transaction that also locks Conversation — every future run would stall Listing reads site-wide. Run BOTH on
+// production BEFORE the deploy that declares the columns.
 //
 // ⛔ THE CHECK IS THE ONLY THING THAT MAKES `TeacherJobMatch` DEDUPE. Its two unique keys are
 // (teacherProfileId, listingId) and (leadId, listingId); a row with BOTH ids null satisfies both
@@ -189,6 +195,23 @@ console.log('ok  TeacherProfile_teach_bounds')
 // thread open, so the new code against the old table breaks every conversation, not only teacher threads.
 await client.query(`alter table "TeacherContactShare" add column if not exists "phoneShared" boolean not null default true`)
 console.log('ok  TeacherContactShare.phoneShared')
+
+// ⛔ "IDENTITY VERIFIED" — THE TEACHER'S OPT-IN (owner, 2026-10-15) — the switch and its consent evidence: when and
+// under which IDENTITY_MARK_NOTICE_VERSION it was last switched on, and when it was last switched off (PDP Law 91/2025:
+// a separate, specific, provable consent). EXACTLY the four `ADD COLUMN`s `prisma migrate diff` prints for
+// schema.prisma's TeacherProfile.identityMark* fields, made idempotent and ADDITIVE ONLY. Every existing row reads the
+// switch OFF (`not null default false` — on Postgres 11+ a constant default is catalogue-only, no table rewrite) and
+// the three records NULL: the consent is never backfilled — a teacher who has not switched it on has not consented.
+// The card's display cache is Listing."identityMarkNotice" — scripts/listing-identity-mark-ddl.mjs (see the header).
+// ⚠️ RUN THIS ON PRODUCTION BEFORE THE DEPLOY: GET /api/teachers/me and every teacher save read every TeacherProfile
+// column, so the new code against the old table answers 42703. The old code is unaffected by the new columns.
+await client.query(`
+  alter table "TeacherProfile"
+    add column if not exists "identityMarkAt" timestamp(3),
+    add column if not exists "identityMarkNoticeVersion" text,
+    add column if not exists "identityMarkOn" boolean not null default false,
+    add column if not exists "identityMarkWithdrawnAt" timestamp(3)`)
+console.log('ok  TeacherProfile identity-mark columns')
 
 // ⛔ SAVED, RESUMABLE TEACHER DRAFTS (owner, 2026-10-11: "every step they input should be saved and able to resume when
 // they want to", and a "continue" row in the dashboard once step 1 has answers). One row per account: the form's answers

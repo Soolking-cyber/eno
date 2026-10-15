@@ -86,6 +86,18 @@ describe('install-cron-timers.sh — the teacher job-match emails are never on a
     expect(SCRIPT).toContain('Persistent=$PERSIST')
   })
 
+  it('⛔ identity-marks (2026-10-16) is SAFE — at 00:05 ICT, once, on eno.vn — and, sending nothing, IS replayed at boot', () => {
+    // The card's "Identity verified" must go when a document lapses at 00:00 ICT; the reconcile runs at 09:05, so this run
+    // is what clears it in the night. It may not drift into a list a re-run leaves off, nor into EMAIL.
+    expect(list('SAFE').words).toContain('identity-marks')
+    for (const name of ['EMAIL', 'MANUAL', 'POLICY']) expect(list(name).words, `${name} holds it`).not.toContain('identity-marks')
+    expect(SCRIPT).toMatch(/^\s*\[identity-marks\]="\*-\*-\* 17:05:00 UTC"$/m)
+    expect(SCRIPT).toContain('[ "$job" = identity-marks ] && TARGET="eno.vn 3001"')
+    // The default spread AND the default Persistent=true: no override names this job.
+    expect(SCRIPT).not.toMatch(/\[ "\$job" = identity-marks \] && (\{ )?(DELAY|ACCURACY|PERSIST)=/)
+    expect(SCRIPT).toMatch(/^\s*DELAY=120; ACCURACY=1min; PERSIST=true$/m)
+  })
+
   it('in_list (the loop the branches use) answers yes and no under set -euo pipefail', () => {
     expect(IN_LIST).not.toBe('')
     const r = bash(`${list('MANUAL').line}\n${IN_LIST}\nin_list teacher-match-emails "\${MANUAL[@]}" && echo yes\nin_list weekly-digest "\${MANUAL[@]}" || echo no`)

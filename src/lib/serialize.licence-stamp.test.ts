@@ -51,3 +51,14 @@ describe('serializeListing — the verification fields', () => {
     expect(listing().attributes).toMatchObject({ providerLegalName: V.legalName, providerLicenceNo: V.licenceNo })
   })
 })
+
+// ⛔ Commit gate, 2026-10-16: Listing.identityMarkNotice is the teacher card's private DISPLAY CACHE for "Identity
+// verified" (src/lib/teachers/identity-mark-card.ts) — it never leaves the server except as the card's `identityMark:
+// true`. serializeListing maps field by field (the /api/v1, MCP and PDP shape), so the column must never appear in it.
+describe('serializeListing — the identity-mark cache', () => {
+  it('never carries Listing.identityMarkNotice, nor its value', () => {
+    const out = listing({ listingType: 'teacher', identityMarkNotice: '2026-10-16' })
+    expect(out).not.toHaveProperty('identityMarkNotice')
+    expect(JSON.stringify(out)).not.toContain('2026-10-16')
+  })
+})

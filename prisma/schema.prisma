@@ -819,6 +819,18 @@ model Listing {
   /// verifying would republish a listing a moderator pulled. Always false while the gate is off.
   /// Added additively by scripts/listing-identity-hold-ddl.mjs — never via `prisma db push`.
   identityHold            Boolean            @default(false)
+  /// THE TEACHER CARD'S "IDENTITY VERIFIED" TICK — a DISPLAY CACHE, never a fact: the IDENTITY_MARK_NOTICE_VERSION under
+  /// which src/lib/teachers/identity-mark-card.ts last computed the mark SHOWN for this (teacher) listing; NULL = not
+  /// shown. The truth is TeacherProfile.identityMark* plus identity_verifications, and every writer of either re-derives
+  /// this — and the clock, which no writer moves (a document lapses at 00:00 ICT), by the card pass at 00:05 ICT
+  /// (/api/cron/identity-marks). The card shows the tick only while the cached version is today's constant, so a notice
+  /// bump hides every older grant at once, with no data migration.
+  /// ⛔ ONLY identity-mark-card.ts WRITES A NON-NULL VALUE (src/lib/compliance/public-state-writes.test.ts MARK_WRITERS),
+  /// by raw SQL so Listing.updatedAt never moves (a display cache is not an edit); a scrub clears it with the person's
+  /// other content (listing-tombstone.ts PERSONAL_SCRUB_DATA). It never leaves the server except as a card's
+  /// `identityMark: true` — never the version, never a reason.
+  /// Added additively by scripts/listing-identity-mark-ddl.mjs — never via `prisma db push`.
+  identityMarkNotice      String?
   verificationMethod      String?
   verifiedAt              DateTime?
   verifiedBy              String?
@@ -1164,6 +1176,21 @@ model TeacherProfile {
   coverConsentAt      DateTime?
   coverConsentVersion String?
   coverWithdrawnAt    DateTime?
+  /// "IDENTITY VERIFIED" (owner, 2026-10-15) — the teacher's OPT-IN to show that eno checked their identity: on the
+  /// profile, on its card in lists, and as a chip to the school or member chatting with them. A SEPARATE consent (VN PDP
+  /// Law 91/2025 — specific, unbundled, provable), OFF by default, saved only by its own switch (src/lib/teachers/
+  /// publish.ts saveTeacherIdentityMark — never the profile save, never in TeacherInput, never in a draft). The switch
+  /// is the consent, NEVER the evidence: the mark shows only while the identity check is LIVE and fullName is within the
+  /// ID's name (src/lib/teachers/identity-mark.ts), and nothing about the document ever leaves the server.
+  identityMarkOn            Boolean   @default(false)
+  /// ⛔ THE THREE BELOW ARE SERVER-WRITTEN AND NEVER BACKFILLED: when and under which IDENTITY_MARK_NOTICE_VERSION the
+  /// switch was last turned on, and when it was last turned off (publish.ts optInWrites). An edit form sends the two
+  /// times it loaded as the switch-on's compare-and-set base, so a stale tab can never re-grant a withdrawal.
+  /// ⚠️ identityMarkWithdrawnAt is HISTORY, not state (as coverWithdrawnAt): the switch is on iff identityMarkOn; a
+  /// re-grant shows as an identityMarkAt later than identityMarkWithdrawnAt. Columns: scripts/teachers-ddl.mjs.
+  identityMarkAt            DateTime?
+  identityMarkNoticeVersion String?
+  identityMarkWithdrawnAt   DateTime?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   private            TeacherPrivate?

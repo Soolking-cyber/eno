@@ -57,6 +57,9 @@ export const TOMBSTONE_DATA = { status: LISTING_REMOVED, verified: false, identi
  * Legal & permits approval (src/lib/licence-stamp.ts), and the stamp hashes the seller's registered business name and
  * licence number — blanked with the `attributes` that carried them. TOMBSTONE_DATA leaves them: a tombstone is never
  * revived, so a stamp left on one can publish nothing.
+ * ⚠️ AND THE TEACHER CARD'S "IDENTITY VERIFIED" CACHE (2026-10-16): `identityMarkNotice` records that eno checked this
+ * person's identity and that they chose to show it (src/lib/teachers/identity-mark-card.ts) — a statement about the
+ * person, so an erasure blanks it with the rest. NULL is also its "not shown" value, so a cleared row claims nothing.
  */
 export const PERSONAL_SCRUB_DATA = {
   title: '[removed]', titleVi: null, description: '', descriptionVi: null,
@@ -64,6 +67,7 @@ export const PERSONAL_SCRUB_DATA = {
   location: '', district: null, lat: null, lng: null,
   verificationMethod: null, verifiedAt: null, verifiedBy: null,
   verificationNotes: null, soldPlatform: null, soldToProfileId: null, saleBuyerHistory: null,
+  identityMarkNotice: null,
 } as const
 
 /** The first-party storage objects a row's images + video name (foreign URLs are not ours to delete). */

@@ -32,6 +32,9 @@ const h = vi.hoisted(() => ({
   capiOn: true,
   appleLinked: false,
   appleAsked: 0,
+  markState: { shown: false, reason: 'off' } as Row, // what identityMarkState answers (the "Identity verified" state line)
+  markThrows: false,
+  markInputs: [] as Row[],
 }))
 vi.mock('next/server', async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
@@ -60,6 +63,9 @@ vi.mock('@/lib/compliance/seller-publish-gate', () => ({
   sellerPublishDecision: async () => { if (h.decisionFails) throw new Error('identity_verifications: connection reset'); return h.decision },
 }))
 vi.mock('@/lib/listing-image', () => ({ isListingImageUrl: (u: unknown) => typeof u === 'string' && u.startsWith('https://sb.eno.vn/storage/v1/object/public/listings/') }))
+vi.mock('@/lib/teachers/identity-mark', () => ({
+  identityMarkState: async (m: Row) => { h.markInputs.push(m); if (h.markThrows) throw new Error('identity_verifications: connection reset'); return h.markState },
+}))
 const fo = vi.hoisted(() => ({ after: [] as unknown[][], committed: true }))
 vi.mock('@/lib/core/first-onboarding', () => ({
   individualOnboardingWrite: (p: { displayName: string | null }) => ({ data: { accountType: 'individual', tos: 'stamp' }, nameIfNone: !p.displayName }),
@@ -97,6 +103,7 @@ beforeEach(() => {
   h.decisionFails = false; h.logged = []
   h.created = false; h.live = true; h.afterWork = []; h.capi = []; h.capiOn = true; h.appleLinked = false; h.appleAsked = 0; h.appleThrows = false; h.sendRejects = false; h.afterThrows = false; h.tiktok = []; h.ttOn = false; h.ttRejects = false; h.consentRows = []; h.consentRowFails = false; h.metaStalls = null
   h.me = { id: 'p-b', accountType: 'individual', email: 'b@example.com' }
+  h.markState = { shown: false, reason: 'off' }; h.markThrows = false; h.markInputs = []
   fo.after = []; fo.committed = true
 })
 
@@ -444,6 +451,49 @@ describe('GET /api/teachers/me — what the edit form loads', () => {
     expect(h.logged).toHaveLength(1)
     h.mine = null // the join form's read too
     expect(await get()).toMatchObject({ teacher: null, publishGate: null })
+  })
+})
+
+// The "Identity verified" switch's state line and its CAS base (owner, 2026-10-15; plan review R2): advisory, the
+// teacher's own, judged on the stored switch and name — and never able to take the page down.
+describe('GET /api/teachers/me — the "Identity verified" state line and the switch\'s consent stamps', () => {
+  const GRANT = new Date('2026-10-10T01:00:00.000Z')
+  const WITHDRAWN = new Date('2026-10-12T02:00:00.000Z')
+  it('judges the STORED switch and name, and hands back { shown, reason } with the stamps the form sends as its base', async () => {
+    h.mine = {
+      id: 'tp-b', fullName: 'Bea Tran', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16', identityMarkAt: GRANT, identityMarkWithdrawnAt: WITHDRAWN,
+      private: null, listing: { status: 'active', verified: true },
+    }
+    h.markState = { shown: true, reason: null }
+    const body = await get()
+    expect(h.markInputs).toEqual([{ profileId: 'p-b', fullName: 'Bea Tran', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16' }])
+    expect(body.identityMark).toEqual({ shown: true, reason: null })
+    expect(body.identityMarkStamps).toEqual({ at: GRANT.toISOString(), withdrawnAt: WITHDRAWN.toISOString() })
+  })
+  it('never granted: both stamps null', async () => {
+    h.mine = { id: 'tp-b', fullName: 'Bea Tran', identityMarkOn: false, identityMarkNoticeVersion: null, identityMarkAt: null, identityMarkWithdrawnAt: null, private: null, listing: null }
+    expect((await get()).identityMarkStamps).toEqual({ at: null, withdrawnAt: null })
+  })
+  it('no profile yet: judged as "no profile" (never shown — the reason says whether the identity is the missing step), no stamps', async () => {
+    h.mine = null
+    h.markState = { shown: false, reason: 'unverified' }
+    const body = await get()
+    expect(h.markInputs).toEqual([{ profileId: 'p-b', fullName: null, identityMarkOn: false, identityMarkNoticeVersion: null }])
+    expect(body).toMatchObject({ teacher: null, identityMark: { shown: false, reason: 'unverified' }, identityMarkStamps: { at: null, withdrawnAt: null } })
+  })
+  it('⚠️ ADVISORY: a failed read answers `identityMark: null` with a 200 — logged, the rest of the page intact', async () => {
+    h.markThrows = true
+    h.mine = { id: 'tp-b', fullName: 'Bea Tran', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16', identityMarkAt: GRANT, identityMarkWithdrawnAt: null, private: null, listing: null }
+    const res = await GET(new Request('https://eno.vn/api/teachers/me') as never, {} as never)
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.identityMark).toBeNull()
+    expect(body.identityMarkStamps).toEqual({ at: GRANT.toISOString(), withdrawnAt: null })
+    expect(body.teacher).toMatchObject({ id: 'tp-b', fullName: 'Bea Tran' })
+    expect(body.publishGate).toEqual({ ok: true, code: null })
+    expect(h.logged).toHaveLength(1)
+    h.mine = null // the join form's read too
+    expect(await get()).toMatchObject({ teacher: null, identityMark: null })
   })
 })
 

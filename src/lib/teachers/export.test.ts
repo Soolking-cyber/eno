@@ -21,10 +21,12 @@ vi.mock('@/lib/db', () => ({
 const { teacherExportOf } = await import('./export')
 
 const GRANT = new Date('2026-10-09T01:00:00Z')
+const WITHDRAWN = new Date('2026-10-12T01:00:00Z')
 beforeEach(() => {
   h.row = {
     id: 'tp1', fullName: 'Jane Doe', videoOnRequest: true, videoUrl: null,
     matchEmailOptIn: true, matchEmailOptInAt: GRANT, matchEmailNoticeVersion: '2026-10-08', matchEmailWithdrawnAt: null,
+    identityMarkOn: false, identityMarkAt: GRANT, identityMarkNoticeVersion: '2026-10-16', identityMarkWithdrawnAt: WITHDRAWN,
     private: { phone: '+84901234567', email: 'jane@example.com', cvFileName: 'cv.pdf', videoPath: 'p1/aaaa.mp4', updatedAt: new Date(0) },
   }
   h.shares = [{ conversationId: 'c1', requestedAt: new Date(1), sharedAt: new Date(2), revokedAt: null }]
@@ -63,6 +65,13 @@ describe('teacherExportOf', () => {
   it('carries the consent evidence of each opt-in along with the row', async () => {
     const out = await teacherExportOf('p1')
     expect(out).toMatchObject({ matchEmailOptIn: true, matchEmailOptInAt: GRANT, matchEmailNoticeVersion: '2026-10-08', matchEmailWithdrawnAt: null })
+  })
+
+  // The "Identity verified" switch (2026-10-16) is its own consent: its grant, notice version and withdrawal are the
+  // teacher's record of what they agreed to show, so the access copy carries all four columns.
+  it('carries the "Identity verified" switch and its consent record — grant, notice version, withdrawal', async () => {
+    const out = await teacherExportOf('p1')
+    expect(out).toMatchObject({ identityMarkOn: false, identityMarkAt: GRANT, identityMarkNoticeVersion: '2026-10-16', identityMarkWithdrawnAt: WITHDRAWN })
   })
 
   it('no teacher profile: null', async () => {

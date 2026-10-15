@@ -399,4 +399,15 @@ describe('deleteTeacherProfile', () => {
     expect(await deleteTeacherProfile('p1')).toBe(false)
     expect(purged()).toEqual([])
   })
+
+  // "Identity verified" (2026-10-16): no profile, no mark — the card cache is cleared in the delete's transaction, so a
+  // listing the delete only HID (an open report) keeps no claim a later relist could show.
+  it('clears the card\'s "Identity verified" cache with the profile — a NULL write, never a value', async () => {
+    outside.teacherProfile.findUnique.mockResolvedValue({ id: 'tp1', listingId: 'l1', currentDistrictKey: null, currentDistrict: null, private: null })
+    await deleteTeacherProfile('p1')
+    const cardWrites = tx.$executeRaw.mock.calls
+      .map(([q]) => q as { values?: unknown[]; text?: string })
+      .filter((q) => q && typeof q === 'object' && !Array.isArray(q) && typeof q.text === 'string' && q.text.includes('"identityMarkNotice"'))
+    expect(cardWrites.map((q) => q.values!.slice(0, 2))).toEqual([[null, 'l1']])
+  })
 })

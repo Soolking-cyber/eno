@@ -55,6 +55,8 @@ const ONBOARDING = [
   'staffContactOptInAt', 'staffContactNoticeVersion', 'staffContactWithdrawnAt',
 ]
 const EARLIER = ['coverOpen', 'coverSlots', 'coverAreas', 'coverRateVnd', 'coverConfirmedAt', 'coverConsentAt', 'coverConsentVersion', 'coverWithdrawnAt', 'videoOnRequest', 'videoVersion']
+/** The "Identity verified" opt-in (owner, 2026-10-15): the switch and its three server-written consent records. */
+const IDENTITY_MARK = ['identityMarkOn', 'identityMarkAt', 'identityMarkNoticeVersion', 'identityMarkWithdrawnAt']
 /** TeacherContactShare's later columns: whether the share's tap included the phone (gate review, 2026-10-09). */
 const CONTACT_SHARE = ['phoneShared']
 
@@ -67,8 +69,16 @@ describe('scripts/teachers-ddl.mjs ↔ prisma/schema.prisma', () => {
     }
   })
   it('adds nothing the schema does not declare, with exactly Prisma\'s type — the earlier columns included', () => {
-    expect([...added.keys()].sort()).toEqual([...ONBOARDING, ...EARLIER].sort())
+    expect([...added.keys()].sort()).toEqual([...ONBOARDING, ...EARLIER, ...IDENTITY_MARK].sort())
     for (const [name, sql] of added) expect(sql, name).toBe(sqlFor(model.get(name)!))
+  })
+  it('adds the identity-mark opt-in exactly as the schema declares it: the switch OFF for every existing row, its records NULL (never backfilled)', () => {
+    for (const f of IDENTITY_MARK) {
+      expect(model.has(f), `schema.prisma has ${f}`).toBe(true)
+      expect(added.get(f), `the DDL adds ${f}`).toBe(sqlFor(model.get(f)!))
+    }
+    expect(added.get('identityMarkOn')).toBe('boolean not null default false')
+    for (const f of ['identityMarkAt', 'identityMarkNoticeVersion', 'identityMarkWithdrawnAt']) expect(added.get(f), f).not.toMatch(/not null|default/)
   })
   it('adds TeacherContactShare.phoneShared exactly as the schema declares it — and nothing else on that table', () => {
     const share = modelFields('TeacherContactShare')
@@ -91,10 +101,41 @@ describe('scripts/teachers-ddl.mjs ↔ prisma/schema.prisma', () => {
   it('runs the new columns and the teach-area CHECK inside the one transaction, before its COMMIT', () => {
     const begin = ddl.indexOf("client.query('begin')")
     const commit = ddl.indexOf("client.query('commit')")
-    for (const marker of ['"teachAreas" text[]', 'TeacherProfile_teach_bounds', '"phoneShared" boolean']) {
+    for (const marker of ['"teachAreas" text[]', 'TeacherProfile_teach_bounds', '"phoneShared" boolean', '"identityMarkOn" boolean']) {
       const at = ddl.indexOf(marker)
       expect(at > begin && at < commit, marker).toBe(true)
     }
+  })
+  // ⛔ THE CARD'S DISPLAY CACHE HAS ITS OWN SCRIPT (plan conflict 2, 2026-10-15): `ALTER TABLE "Listing"` takes ACCESS
+  // EXCLUSIVE before IF NOT EXISTS is checked, and this "re-run any time" script runs in one transaction that also locks
+  // Conversation — so it must never touch Listing.
+  it('⛔ never alters "Listing" — the identity mark\'s card cache is scripts/listing-identity-mark-ddl.mjs', () => {
+    const code = ddl.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n')
+    expect(code).not.toMatch(/alter\s+table\s+"?Listing"?\b/i)
+  })
+  it('scripts/listing-identity-mark-ddl.mjs adds exactly Listing."identityMarkNotice" text (as the schema declares it), under a lock_timeout, between BEGIN and COMMIT — and nothing else', () => {
+    const script = readFileSync(join(process.cwd(), 'scripts/listing-identity-mark-ddl.mjs'), 'utf8')
+    const code = script.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n')
+    const listing = modelFields('Listing')
+    expect(listing.get('identityMarkNotice'), 'schema.prisma declares Listing.identityMarkNotice').toBe('String?')
+    // Every column it adds, on any table: exactly the one, with Prisma's own type (nullable, no default).
+    const adds = [...code.matchAll(/ALTER TABLE "(\w+)" ADD COLUMN IF NOT EXISTS "(\w+)" ([^'"`\n]+)/gi)].map((m) => [m[1], m[2], m[3].trim()])
+    expect(adds).toEqual([['Listing', 'identityMarkNotice', sqlFor(listing.get('identityMarkNotice')!)]])
+    expect(sqlFor(listing.get('identityMarkNotice')!)).toBe('text')
+    // ⛔ additive only
+    expect(code).not.toMatch(/\bdrop\b/i)
+    expect(code).not.toMatch(/alter\s+column/i)
+    expect(code).not.toMatch(/\btruncate\b/i)
+    // the ALTER runs inside its own short transaction, after SET LOCAL lock_timeout (a queued ALTER would stall every
+    // Listing read behind it), and the script verifies the column afterwards
+    const begin = code.indexOf("client.query('BEGIN')")
+    const timeout = code.indexOf("SET LOCAL lock_timeout = '5s'")
+    const alter = code.indexOf('ALTER TABLE "Listing"')
+    const commit = code.indexOf("client.query('COMMIT')")
+    expect(begin).toBeGreaterThan(-1)
+    expect(begin < timeout && timeout < alter && alter < commit, 'BEGIN → SET LOCAL lock_timeout → ALTER → COMMIT').toBe(true)
+    expect(code).toMatch(/information_schema\.columns[\s\S]*column_name = 'identityMarkNotice'/)
+    expect(code).toContain("'55P03'")
   })
   it('creates TeacherDraft exactly as its Prisma model, with RLS on and the account foreign key, inside the transaction (2026-10-11)', () => {
     const fields = modelFields('TeacherDraft')

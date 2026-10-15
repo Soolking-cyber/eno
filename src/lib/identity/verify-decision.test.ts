@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { decideTierB, describeAssurance, foldName, minimumValidityDate, namesCorrespond, LIMITATION, TIER_B_LIMITATIONS } from './verify-decision'
+import { decideTierB, describeAssurance, foldName, minimumValidityDate, nameWithinDocument, namesCorrespond, LIMITATION, TIER_B_LIMITATIONS } from './verify-decision'
 
 /** Explicit fields now — no faked MRZ struct. See the note in verify-decision.ts. */
 const base = (over: Record<string, unknown> = {}) => ({
@@ -381,5 +381,107 @@ describe('tier-aware decision', () => {
     // ⚠️ Reported as UNREADABLE, not expired: no expiry was extracted, which is almost always a bad
     // scan of a perfectly valid passport. "Expired" would send that seller to check a fine date.
     expect(d.rejectReason).toBe('document_expiry_unreadable')
+  })
+})
+
+// ── nameWithinDocument — the STRICT rule behind the public "Identity verified" (teacher card, profile, chat chip) ────────
+// The shown name may leave out given/middle names, but may add NOTHING the document does not carry, and must carry every
+// surname word. ⛔ namesCorrespond (above) stays lenient in both directions — KYC routing relies on it — and the two
+// superset cases below are exactly where they must differ.
+describe('nameWithinDocument — a public claim, so subset in ONE direction only', () => {
+  // Commit gate, 2026-10-16: "you can leave out MIDDLE names" — not all of them. A bare surname vouches for nobody.
+  it('⛔ a bare surname is NOT within the document when it carries given names', () => {
+    expect(nameWithinDocument('NGUYEN', 'VAN AN', 'Nguyễn')).toBe(false)
+    expect(nameWithinDocument('ERIKSSON', 'ANNA MARIA', 'Eriksson')).toBe(false)
+    expect(nameWithinDocument('NGUYEN', 'VAN AN', 'An Nguyễn')).toBe(true)
+    expect(nameWithinDocument('NGUYEN', 'VAN AN', 'Nguyễn Văn An')).toBe(true)
+    // A document with no given names at all needs only the surname.
+    expect(nameWithinDocument('SUKARNO', '', 'Sukarno')).toBe(true)
+  })
+
+  // Commit gate, 2026-10-16: Văn and Thị say gender, not who — a surname plus one of them fits millions.
+  it('⛔ Văn or Thị alone is not the given name the rule asks for', () => {
+    expect(nameWithinDocument('NGUYEN', 'THI MINH KHAI', 'Nguyễn Thị')).toBe(false)
+    expect(nameWithinDocument('NGUYEN', 'VAN AN', 'Nguyễn Văn')).toBe(false)
+    expect(nameWithinDocument('TRAN', 'THI HUONG', 'Trần Thị')).toBe(false)
+    expect(nameWithinDocument('NGUYEN', 'THI MINH KHAI', 'Nguyễn Thị Minh Khai')).toBe(true)
+    expect(nameWithinDocument('NGUYEN', 'THI MINH KHAI', 'Khai Nguyễn')).toBe(true)
+    expect(nameWithinDocument('NGUYEN', 'VAN AN', 'Nguyễn Văn An')).toBe(true)
+    // A document whose given names are nothing but Văn/Thị needs one of them.
+    expect(nameWithinDocument('LE', 'VAN', 'Lê Văn')).toBe(true)
+  })
+
+  it('an omitted middle name is fine, in any order', () => {
+    expect(nameWithinDocument('ERIKSSON', 'ANNA MARIA', 'Anna Eriksson')).toBe(true)
+    expect(nameWithinDocument('ERIKSSON', 'ANNA MARIA', 'Eriksson Anna Maria')).toBe(true)
+  })
+  it('⛔ a name with a word the document does not carry is NOT within it — where namesCorrespond says yes', () => {
+    // namesCorrespond's own superset case (the routing test above): lenient there, refused here.
+    expect(namesCorrespond('ERIKSSON', 'ANNA', 'Anna Maria Eriksson')).toBe(true)
+    expect(nameWithinDocument('ERIKSSON', 'ANNA', 'Anna Maria Eriksson')).toBe(false)
+    // A title is a word the document does not carry.
+    expect(namesCorrespond('ERIKSSON', 'ANNA', 'Dr Anna Eriksson')).toBe(true)
+    expect(nameWithinDocument('ERIKSSON', 'ANNA', 'Dr Anna Eriksson')).toBe(false)
+    // …and so is an initial.
+    expect(nameWithinDocument('ERIKSSON', 'ANNA MARIA', 'Anna M. Eriksson')).toBe(false)
+  })
+  it('every surname word must be shown — a compound surname included', () => {
+    expect(nameWithinDocument('NGUYEN<DUC', 'ANH', 'Anh Nguyen Duc')).toBe(true)
+    expect(nameWithinDocument('NGUYEN<DUC', 'ANH', 'Anh Duc')).toBe(false)
+    expect(nameWithinDocument('ERIKSSON', 'ANNA', 'Anna')).toBe(false)
+  })
+  it('hyphens split, as the MRZ writes them with "<"', () => {
+    expect(nameWithinDocument('PICARD', 'JEAN<LUC', 'Jean-Luc Picard')).toBe(true)
+    expect(nameWithinDocument('PICARD', 'JEAN-LUC', 'Jean Luc Picard')).toBe(true)
+  })
+  it('folds Vietnamese diacritics and đ, as namesCorrespond does', () => {
+    expect(nameWithinDocument('Nguyễn', 'Thị Minh Khai', 'Khai Nguyen')).toBe(true)
+    expect(nameWithinDocument('NGUYEN', 'DUC ANH', 'Nguyễn Đức Anh')).toBe(true)
+  })
+  it('a punctuation-only difference is no difference (a comma, a surname written first)', () => {
+    expect(nameWithinDocument('ERIKSSON', 'ANNA', 'Eriksson, Anna')).toBe(true)
+  })
+  it('nothing to compare is never a match: an empty surname, an empty shown name', () => {
+    expect(nameWithinDocument('', 'ANNA', 'Anna')).toBe(false)
+    expect(nameWithinDocument('<<<', 'ANNA', 'Anna')).toBe(false)
+    expect(nameWithinDocument('ERIKSSON', 'ANNA', '')).toBe(false)
+    expect(nameWithinDocument('ERIKSSON', 'ANNA', ' - ')).toBe(false)
+  })
+  it('a wholly different person is not within the document', () => {
+    expect(nameWithinDocument('ERIKSSON', 'ANNA MARIA', 'Tran Van Minh')).toBe(false)
+  })
+
+  // ⛔ (review, 2026-10-16) foldName keeps A–Z and DELETES everything else, so every one of these used to fold to ANNA
+  // ERIKSSON and pass — the "Dr" case in another script, a digit, a symbol, a flag — with the public tick beside it.
+  it.each([
+    'Доктор Anna Eriksson', 'Δρ Anna Eriksson', '博士 Anna Eriksson', 'Anna Eriksson 王老师', 'Anna Eriksson Ὁ Διδάσκαλος',
+    'Anna Eriksson معلم', 'Anna Eriksson (Анна)', 'Anna Eriksson Иванова', 'Anna Eriksson 李娜',
+    'Anna Eriksson 2', 'Anna Eriksson #1', 'Anna Eriksson ✅', 'Anna Eriksson 🇬🇧',
+    'Annaя Eriksson', 'Anna2 Eriksson', 'Ａｎｎａ Eriksson', 'Anna Eriksson​', 'Anna‮ Eriksson',
+  ])('⛔ nothing the fold would DROP may ride along: %j is NOT within ERIKSSON / ANNA', (shown) => {
+    expect(nameWithinDocument('ERIKSSON', 'ANNA', shown)).toBe(false)
+  })
+  it('(namesCorrespond, the KYC routing rule, is untouched: still lenient there)', () => {
+    expect(namesCorrespond('ERIKSSON', 'ANNA', 'Доктор Anna Eriksson')).toBe(true)
+  })
+  it('⛔ a word shown more often than the document carries it is a word added — a count, not a set', () => {
+    expect(nameWithinDocument('ERIKSSON', 'ANNA', 'Anna Anna Eriksson')).toBe(false)
+    expect(nameWithinDocument('ERIKSSON', 'ANNA', 'Anna Eriksson Eriksson')).toBe(false)
+    // …but a word the document itself carries twice may be shown twice
+    expect(nameWithinDocument('GARCIA<GARCIA', 'JOSE', 'José García García')).toBe(true)
+    // …and every surname WORD shown once is enough (the surname rule is a set)
+    expect(nameWithinDocument('GARCIA<GARCIA', 'JOSE', 'José García')).toBe(true)
+  })
+  it('what a written name carries and the MRZ drops still matches: apostrophes (straight or curly), a full stop, a comma, diacritics', () => {
+    expect(nameWithinDocument('OBRIEN', 'SEAN', "Seán O'Brien")).toBe(true)
+    expect(nameWithinDocument('OBRIEN', 'SEAN', 'Seán O’Brien')).toBe(true)
+    expect(nameWithinDocument('ST<JOHN', 'MARY', 'Mary St. John')).toBe(true)
+    expect(nameWithinDocument('ERIKSSON', 'ANNA', 'ERIKSSON, Anna')).toBe(true)
+    expect(nameWithinDocument('Đặng', 'Văn Lâm', 'Đặng Văn Lâm')).toBe(true)
+    expect(nameWithinDocument('DANG', 'VAN LAM', 'Lâm Đặng')).toBe(true)
+  })
+  it('⚠️ a Latin letter NFD cannot take apart is refused too — the MRZ spells it out, so the fold never matched it to one', () => {
+    expect(nameWithinDocument('KIERKEGAARD', 'SOEREN', 'Søren Kierkegaard')).toBe(false)
+    expect(nameWithinDocument('KIERKEGAARD', 'SOEREN', 'Soeren Kierkegaard')).toBe(true)
   })
 })

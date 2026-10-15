@@ -4,9 +4,9 @@ import { db } from '@/lib/db'
 /**
  * A teacher's part of the account export (PDPL access right; src/app/api/account/export).
  * Teacher profile (2026-09-30) + cover lessons (2026-10-07): what the teacher entered and what eno recorded about it
- * (cover consent and withdrawal timestamps; since 2026-10-08 also each opt-in's grant, AI notice version and withdrawal —
- * they come along with the row), and their own private contact row. The CV is named, not its storage path (a bucket key
- * is not their data).
+ * (cover consent and withdrawal timestamps; since 2026-10-08 also each opt-in's grant, AI notice version and withdrawal;
+ * since 2026-10-16 the "Identity verified" switch and its own grant, notice version and withdrawal — they come along with
+ * the row), and their own private contact row. The CV is named, not its storage path (a bucket key is not their data).
  * ⛔ THE JOB MATCHES ARE IN IT (2026-10-08): what the AI judge (Claude Haiku 5.5, Anthropic) concluded about a teacher —
  * score, reasons, concerns, the judge's version — and what eno did with it (emailed, the staff status) is that teacher's
  * personal data, so the access copy carries every TeacherJobMatch row of theirs, with the job's public title.

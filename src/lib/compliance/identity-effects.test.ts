@@ -3,11 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // ── applyIdentityEffects — what an identity recompute moves beside the cache (owner, 2026-10-15) ────────────────────
 //
 // Pinned: the ORDER (trust → enforcement on that breakdown and the PERSISTED score, re-synced even when the score did
-// not move → the teacher read → the purge, LAST); that the trust recompute takes NO flag (R1: the identity's step is
-// never capped and nothing else is uncapped — an "approved" option would land a whole backlog); that every step is
-// fail-quiet on its own (a throw is logged, marks `failed`, and the next step still runs); and that the purge is
-// unconditional for a teacher account — whatever the derived status — and absent for everyone else. Trust,
-// enforcement, the db and the purge are faked; districtPagesOf is the real one.
+// not move → the teacher read → the card's "Identity verified" sync (C4) → the purge, LAST); that the trust recompute
+// takes NO flag (R1: the identity's step is never capped and nothing else is uncapped — an "approved" option would land a
+// whole backlog); that every step is fail-quiet on its own (a throw is logged, marks `failed`, and the next step still
+// runs); that `markChanged` is the sync's own `changed`; and that the purge is unconditional for a teacher account —
+// whatever the derived status or the sync's outcome — and absent, with the sync, for everyone else. Trust, enforcement,
+// the db, the card sync and the purge are faked; districtPagesOf is the real one.
 
 type Row = Record<string, any>
 const h = vi.hoisted(() => ({
@@ -19,6 +20,9 @@ const h = vi.hoisted(() => ({
   teacherThrows: false,
   purgeThrows: false,
   logThrows: false,
+  /** What syncIdentityMarkCard answers (null: no profile or no listing — nothing to write). */
+  mark: null as Row | null,
+  markThrows: false,
 }))
 const rec = (m: string, ...args: any[]) => { h.calls.push({ m, args }) }
 
@@ -34,6 +38,9 @@ vi.mock('@/lib/db', () => ({
       findUnique: async (a: Row) => { rec('teacherProfile.findUnique', a); if (h.teacherThrows) throw new Error('read down'); return h.teacher },
     },
   },
+}))
+vi.mock('@/lib/teachers/identity-mark-card', () => ({
+  syncIdentityMarkCard: async (...a: any[]) => { rec('syncIdentityMarkCard', ...a); if (h.markThrows) throw new Error('mark down'); return h.mark },
 }))
 vi.mock('@/lib/teachers/revalidate', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/teachers/revalidate')>()),
@@ -67,13 +74,15 @@ beforeEach(() => {
   h.teacherThrows = false
   h.purgeThrows = false
   h.logThrows = false
+  h.mark = { listingId: 'lst-1', districts: ['d7'], changed: false, shown: false, reason: 'off', on: false }
+  h.markThrows = false
 })
 
 describe('applyIdentityEffects', () => {
-  it('a teacher: trust → enforcement on THAT breakdown → the teacher read → the purge, LAST', async () => {
+  it('a teacher: trust → enforcement on THAT breakdown → the teacher read → the card sync → the purge, LAST', async () => {
     h.teacher = TEACHER
     const out = await applyIdentityEffects('p1', 'verified', NOW)
-    expect(names()).toEqual(['recomputeTrust', 'syncEnforcement', 'teacherProfile.findUnique', 'revalidateTeacherPages'])
+    expect(names()).toEqual(['recomputeTrust', 'syncEnforcement', 'teacherProfile.findUnique', 'syncIdentityMarkCard', 'revalidateTeacherPages'])
     expect(out).toEqual({ trustMoved: true, markChanged: false, purged: true, failed: false })
     // The PERSISTED (capped) 96, never the composite's 120.
     expect(callsOf('syncEnforcement')[0].args).toEqual(['p1', BREAKDOWN, { persistedScore: 96 }])
@@ -111,7 +120,7 @@ describe('applyIdentityEffects', () => {
     h.trust = null
     h.teacher = TEACHER
     const out = await applyIdentityEffects('p1', 'revoked', NOW)
-    expect(names()).toEqual(['recomputeTrust', 'teacherProfile.findUnique', 'revalidateTeacherPages'])
+    expect(names()).toEqual(['recomputeTrust', 'teacherProfile.findUnique', 'syncIdentityMarkCard', 'revalidateTeacherPages'])
     expect(out).toMatchObject({ trustMoved: false, purged: true, failed: false })
   })
 
@@ -128,12 +137,49 @@ describe('applyIdentityEffects', () => {
     expect(callsOf('revalidateTeacherPages')[0].args[0]).toBeNull()
   })
 
+  describe('C4 — the card\'s "Identity verified" tick', () => {
+    it('a teacher: synced with the run\'s clock, AFTER trust and enforcement and BEFORE the purge', async () => {
+      h.teacher = TEACHER
+      await applyIdentityEffects('p1', 'revoked', NOW)
+      expect(callsOf('syncIdentityMarkCard')[0].args).toEqual(['p1', NOW])
+      const n = names()
+      expect(n.indexOf('syncEnforcement')).toBeLessThan(n.indexOf('syncIdentityMarkCard'))
+      expect(n.indexOf('syncIdentityMarkCard')).toBeLessThan(n.indexOf('revalidateTeacherPages'))
+    })
+    it('`markChanged` is the sync\'s own `changed` — and the purge runs either way (no "nothing changed" skip)', async () => {
+      h.teacher = TEACHER
+      h.mark = { ...h.mark, changed: true, shown: false, reason: 'revoked', on: true }
+      expect(await applyIdentityEffects('p1', 'revoked', NOW)).toEqual({ trustMoved: true, markChanged: true, purged: true, failed: false })
+      h.calls = []
+      h.mark = { ...h.mark, changed: false }
+      expect(await applyIdentityEffects('p1', 'revoked', NOW)).toEqual({ trustMoved: true, markChanged: false, purged: true, failed: false })
+      expect(callsOf('revalidateTeacherPages')).toHaveLength(1)
+    })
+    it('a sync that finds nothing to write (no listing) is no change, and still purges', async () => {
+      h.teacher = { ...TEACHER, listingId: null }
+      h.mark = null
+      expect(await applyIdentityEffects('p1', 'verified', NOW)).toMatchObject({ markChanged: false, purged: true, failed: false })
+    })
+    it('⚠️ a SYNC throw: logged as identity.effects.mark, failed — and the teacher is STILL purged', async () => {
+      h.teacher = TEACHER
+      h.markThrows = true
+      const out = await applyIdentityEffects('p1', 'verified', NOW)
+      expect(out).toEqual({ trustMoved: true, markChanged: false, purged: true, failed: true })
+      expect(callsOf('logError')[0].args[1]).toMatchObject({ op: 'identity.effects.mark', profileId: 'p1' })
+      expect(callsOf('revalidateTeacherPages')).toHaveLength(1)
+    })
+    it('a non-teacher is never synced', async () => {
+      await applyIdentityEffects('p1', 'verified', NOW)
+      expect(callsOf('syncIdentityMarkCard')).toHaveLength(0)
+    })
+  })
+
   describe('⚠️ fail-quiet, step by step', () => {
     it('a TRUST throw: logged, failed — enforcement skipped (no breakdown), the teacher still purged', async () => {
       h.trustThrows = true
       h.teacher = TEACHER
       const out = await applyIdentityEffects('p1', 'verified', NOW)
-      expect(names()).toEqual(['recomputeTrust', 'logError', 'teacherProfile.findUnique', 'revalidateTeacherPages'])
+      expect(names()).toEqual(['recomputeTrust', 'logError', 'teacherProfile.findUnique', 'syncIdentityMarkCard', 'revalidateTeacherPages'])
       expect(out).toEqual({ trustMoved: false, markChanged: false, purged: true, failed: true })
       expect(callsOf('logError')[0].args[1]).toMatchObject({ op: 'identity.effects.trust', profileId: 'p1', derived: 'verified' })
     })
@@ -146,10 +192,11 @@ describe('applyIdentityEffects', () => {
       expect(callsOf('logError')[0].args[1]).toMatchObject({ op: 'identity.effects.enforcement' })
     })
 
-    it('a TEACHER-READ throw: logged, failed — and NO purge (it cannot know the listing or the districts)', async () => {
+    it('a TEACHER-READ throw: logged, failed — and NO purge (it cannot know the listing or the districts), nor a sync', async () => {
       h.teacherThrows = true
       const out = await applyIdentityEffects('p1', 'verified', NOW)
       expect(callsOf('revalidateTeacherPages')).toHaveLength(0)
+      expect(callsOf('syncIdentityMarkCard')).toHaveLength(0)
       expect(out).toMatchObject({ purged: false, failed: true })
       expect(callsOf('logError')[0].args[1]).toMatchObject({ op: 'identity.effects.teacher' })
     })

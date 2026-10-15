@@ -1,6 +1,11 @@
 import 'server-only'
+import type { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { logError } from '@/lib/log'
+import { IDENTITY_MARK_NOTICE_VERSION } from '@/lib/teachers/constants'
+import { IDENTITY_MARK_TP_SELECT, identityMarkState } from '@/lib/teachers/identity-mark'
+import { clearOrphanIdentityMarks, countOrphanIdentityMarks, syncIdentityMarkCard } from '@/lib/teachers/identity-mark-card'
+import { revalidateTeacherPages } from '@/lib/teachers/revalidate'
 import { canTransition, type VerificationStatus } from './account-state'
 import { asStatus, deriveVerification } from './derive-verification'
 import { recomputeVerification } from './recompute-verification'
@@ -27,6 +32,38 @@ import { recomputeVerification } from './recompute-verification'
 // effects still ran on the derived status. A profile whose effects did not complete IS failed (the unit goes red).
 // ⛔ A DRY RUN READS ONLY: it derives each status from the rows, compares the cache, and says which accounts are
 // teachers — no recompute, no cache write, no trust or enforcement write, no purge. Its test pins zero writes.
+//
+// ── AND THE CARD-TICK PASS (C4, owner 2026-10-15 — the teacher card's "Identity verified", identity-mark-card.ts) ────
+// After the loop, every teacher whose switch is ON or whose card cache still carries a value is synced once more —
+// skipping those whose recompute above ran its effects clean (those effects already synced the card and purged the
+// pages). It is what puts right what no identity recompute ever revisits: a teacher with no identity row at all, the
+// stale caches a notice bump leaves (IDENTITY_MARK_NOTICE_VERSION — the pass clears them), and any teacher whose
+// recompute threw or whose effects failed tonight. One at a time, each its own guard; a failure is counted into the
+// run's `failed` (the unit goes red) and the pass goes on.
+// ⚖️ IT PURGES WHEN IT REWROTE THE CACHE, AND EVERY NIGHT FOR EVERY TEACHER WHOSE SWITCH IS ON OR WHO WITHDREW IN THE
+// LAST 7 DAYS (commit gate, 2026-10-16): a purge that threw after its sync committed — a lapse's, a revocation's, a
+// withdrawal's own — is otherwise never retried, because the next night finds the cache already right, and a 30-day ISR
+// page keeps a claim the cache dropped. Bounded by the teachers who use the switch; a cheap, idempotent revalidation each.
+// ⚖️ AND IT CLEARS ORPHANED CACHES: a teacher listing deleted outside the teacher form (the dashboard, /api/v1, MCP — all
+// deleteListingCore) can be HIDDEN instead of scrubbed when a report is open, and nothing selected through TeacherProfile
+// reaches it again; any cache left on a listing with no TeacherProfile behind it is nulled (and its pages purged), so a
+// later relist can never show the tick.
+// revalidatePath records the purge in-process, so it has no I/O of its own to fail on; the count keeps a failure loud.
+// ⛔ ITS DRY RUN WRITES NOTHING EITHER (plan review codex #5): it judges each selected teacher's mark with the same
+// predicate (identityMarkState, read-only) and compares it with the stored cache — no sync, no cache write, no purge —
+// over EVERY selected teacher, since no loop ran before it.
+//
+// ── AND THE SAME PASS ALONE, AT 00:05 ICT (review, 2026-10-16 — reconcileIdentityMarks, /api/cron/identity-marks) ──────
+// A document lapses at 00:00 ICT the day after its expiry date (deriveVerification), and the mark with it: "only while the
+// identity check is LIVE" (owner). But a lapse is a CLOCK, not an event — no decision, no save, no recompute happens at
+// midnight — and this reconcile runs at 09:05. Left to it, a card would keep "Identity verified" for nine hours after
+// every lapse (a day and more when its timer misses a morning: it is not replayed at boot), and so would the profile line
+// an ISR page baked in. So the card-tick pass ALSO runs alone, five minutes after midnight, on its own timer: every
+// teacher whose switch is on or whose card cache carries a value, synced — and purged — exactly as above (nobody is
+// skipped: no loop ran). The chat chip needs none of this: it judges the live identity on every poll.
+// ⛔ IT DOES NOTHING ELSE — no recompute, no verification cache, no trust, no enforcement — so it sends nothing in the
+// night; the rest of a lapse still lands at 09:05 (the route's header says why then). Idempotent, so it IS replayed at
+// boot when its timer was missed (a sync and a purge are silent at any hour).
 
 /** The columns deriveVerification reads — the same selection recompute-verification makes — plus the owner. */
 const ROW_SELECT = {
@@ -49,9 +86,27 @@ export type IdentityReconcilePreview = {
   teacher: boolean
 }
 
+/** The card-tick pass (C4 — see the header): what it looked at and did. A dry run: what it WOULD do. */
+export type IdentityMarkPass = {
+  /**
+   * Teachers the pass judged: after the reconcile's loop, the selected ones it did not handle cleanly; run alone
+   * (reconcileIdentityMarks) or in a dry run, every one selected.
+   */
+  checked: number
+  /** Card caches rewritten (a dry run: that disagree with the mark today). */
+  changed: number
+  /** Teachers whose pages were purged (a dry run: would be). */
+  purged: number
+  /** A selection, sync, purge or (dry run) read that threw — logged as identity.reconcile.mark, and counted in the run's `failed`. */
+  failed: number
+  /** Dry run only: the teacher cards that would show the tick. */
+  shown?: number
+}
+
 /**
  * ⚠️ THE COUNTS LEAD, IN THIS ORDER: the route spreads this into its body and eno-cron.sh keeps only the first 200 bytes
- * of the response in the journal — `checked` and `failed` must be among them. The dry run's extras come after.
+ * of the response in the journal — `checked` and `failed` must be among them. `marks` comes right after (about 60 bytes);
+ * the dry run's extras come after that.
  */
 export type IdentityReconcileResult = {
   /** Distinct profiles with at least one identity row. */
@@ -60,7 +115,7 @@ export type IdentityReconcileResult = {
   recomputed: number
   /** Cache writes (RecomputeResult.changed). */
   changed: number
-  /** A recompute that threw, or whose effects did not complete. Any → the route answers 500. */
+  /** A recompute that threw, or whose effects did not complete — plus the card pass's failures. Any → the route answers 500. */
   failed: number
   /** Cache moves refused as impossible (reported, never failed). A dry run: the moves a real run would refuse. */
   illegal: number
@@ -68,6 +123,8 @@ export type IdentityReconcileResult = {
   trustMoved: number
   /** Teacher accounts whose pages were purged. */
   purged: number
+  /** The card-tick pass (C4). Its failures are already in `failed`. */
+  marks: IdentityMarkPass
   dryRun?: true
   /** Dry run: profiles whose cache disagrees with the rows. */
   mismatched?: number
@@ -88,11 +145,18 @@ export async function reconcileIdentities(opts: { now?: Date; dryRun?: boolean }
     orderBy: { profileId: 'asc' },
   })
   const ids = [...new Set(owners.map((o) => o.profileId).filter((x): x is string => !!x))]
-  const out: IdentityReconcileResult = { checked: ids.length, recomputed: 0, changed: 0, failed: 0, illegal: 0, trustMoved: 0, purged: 0 }
-  if (!ids.length) return opts.dryRun ? { ...out, dryRun: true, mismatched: 0, teachers: 0, profiles: [] } : out
+  const out: IdentityReconcileResult = { checked: ids.length, recomputed: 0, changed: 0, failed: 0, illegal: 0, trustMoved: 0, purged: 0, marks: noMarks() }
 
-  if (opts.dryRun) return preview(ids, now, out)
+  if (opts.dryRun) {
+    const res = ids.length ? await preview(ids, now, out) : { ...out, dryRun: true as const, mismatched: 0, teachers: 0, profiles: [] }
+    res.marks = await markPreview(now)
+    res.failed += res.marks.failed
+    return res
+  }
 
+  // The profiles whose recompute ran its identity effects CLEAN — the card sync and the purge among them. The card pass
+  // below skips exactly these; a recompute that threw, or whose effects did not run or failed, gets its own sync there.
+  const handled = new Set<string>()
   for (const profileId of ids) {
     try {
       const r = await recomputeVerification(profileId, now)
@@ -104,12 +168,169 @@ export async function reconcileIdentities(opts: { now?: Date; dryRun?: boolean }
       // Effects that could not run at all, or a step that threw: the trust / enforcement / purge this profile needed
       // may not have happened. Tomorrow's run retries; today's unit says so.
       if (!r.effects || r.effects.failed) out.failed++
+      else handled.add(profileId)
     } catch (e) {
       out.failed++
       try { logError(e, { op: 'identity.reconcile', profileId }) } catch { /* the logger never throws; belt and braces */ }
     }
   }
+  out.marks = await markPass(handled, now)
+  out.failed += out.marks.failed
   return out
+}
+
+/** The card-tick pass run alone (/api/cron/identity-marks): its counts — `failed` among them — and a dry run's extras. */
+export type IdentityMarksResult = IdentityMarkPass & { dryRun?: true }
+
+/**
+ * THE CARD-TICK PASS ALONE, at 00:05 ICT (the header's last section): the moment a document lapses, every selected
+ * teacher's card cache is re-derived from the live identity and their pages purged when it changed — NOTHING else (no
+ * recompute, no trust, no enforcement: nothing that can send a notice at night). Never throws; a failure is counted in
+ * `failed` (the route answers 500) and the pass goes on. `dryRun`: the same judgement, read only (markPreview).
+ */
+export async function reconcileIdentityMarks(opts: { now?: Date; dryRun?: boolean } = {}): Promise<IdentityMarksResult> {
+  const now = opts.now ?? new Date()
+  if (opts.dryRun) return { ...(await markPreview(now)), dryRun: true }
+  return markPass(new Set(), now)
+}
+
+const noMarks = (): IdentityMarkPass => ({ checked: 0, changed: 0, purged: 0, failed: 0 })
+
+/**
+ * The card pass's selection: a teacher whose switch is ON (the mark may have to appear), or whose card cache carries a
+ * value (it may have to go). Anyone else's card is NULL and stays NULL — the mark cannot show with the switch off. A
+ * TeacherProfile read, the listing reached through its relation (by primary key); never a read of db.listing.
+ */
+const WITHDRAWAL_RETRY_DAYS = 7
+const recentWithdrawalSince = (now: Date) => new Date(now.getTime() - WITHDRAWAL_RETRY_DAYS * 86_400_000)
+const markSelection = (now: Date): Prisma.TeacherProfileWhereInput => ({
+  OR: [
+    { identityMarkOn: true },
+    { listing: { is: { identityMarkNotice: { not: null } } } },
+    // A withdrawal in the last 7 days: its pages are purged again each night, in case the save's own purge failed.
+    { identityMarkWithdrawnAt: { gte: recentWithdrawalSince(now) } },
+  ],
+})
+
+/** The selected teachers, with what a dry run judges from: the mark's inputs, the withdrawal and the stored cache. */
+function selectMarked(now: Date) {
+  return db.teacherProfile.findMany({
+    where: markSelection(now),
+    select: { ...IDENTITY_MARK_TP_SELECT, identityMarkWithdrawnAt: true, listing: { select: { identityMarkNotice: true, status: true } } },
+    orderBy: { profileId: 'asc' },
+  })
+}
+
+const withdrewRecently = (t: { identityMarkWithdrawnAt: Date | null }, now: Date) =>
+  t.identityMarkWithdrawnAt !== null && t.identityMarkWithdrawnAt >= recentWithdrawalSince(now)
+
+const logMark = (e: unknown, profileId?: string) => {
+  try { logError(e, { op: 'identity.reconcile.mark', ...(profileId ? { profileId } : {}) }) } catch { /* the logger never throws; belt and braces */ }
+}
+
+/**
+ * THE CARD-TICK PASS (header): sync each selected teacher the loop did not handle (run alone at 00:05, `handled` is
+ * empty), one at a time; purge when the cache changed, or when a revoked teacher's switch is still on. Never throws — a
+ * failure is counted and logged.
+ * The sync re-reads the switch, the name and the identity under the teacher lock (syncIdentityMarkCard), so `r.on` —
+ * not the selection's copy — decides the revoked purge.
+ */
+async function markPass(handled: ReadonlySet<string>, now: Date): Promise<IdentityMarkPass> {
+  const marks = noMarks()
+  let teachers: Awaited<ReturnType<typeof selectMarked>>
+  try {
+    teachers = await selectMarked(now)
+  } catch (e) {
+    marks.failed++
+    logMark(e)
+    return marks
+  }
+  for (const t of teachers) {
+    if (handled.has(t.profileId)) continue
+    marks.checked++
+    try {
+      const r = await syncIdentityMarkCard(t.profileId, now)
+      if (!r) continue // no profile any more, or no listing: no card to write, no page of its own
+      if (r.changed) marks.changed++
+      // ⚖️ PURGED WHEN THE CACHE CHANGED, AND EVERY NIGHT WHILE THE SWITCH IS ON (commit gate, 2026-10-16): a purge that
+      // threw after its sync committed is otherwise never retried — the next night finds the cache already right — and
+      // the 30-day ISR profile page keeps a claim the cache dropped (a lapse, a revocation). Bounded by the teachers who
+      // switched the mark on; a cheap, idempotent revalidation each.
+      if (r.changed || r.on || withdrewRecently(t, now)) {
+        revalidateTeacherPages(r.listingId, r.districts)
+        marks.purged++
+      }
+    } catch (e) {
+      marks.failed++
+      logMark(e, t.profileId)
+    }
+  }
+  // Orphaned caches (header): nulled in one guarded write, then each listing's pages purged — each purge its own guard,
+  // so one that throws neither stops the rest nor goes uncounted.
+  let orphans: string[] = []
+  try {
+    orphans = await clearOrphanIdentityMarks()
+  } catch (e) {
+    marks.failed++
+    logMark(e)
+  }
+  for (const listingId of orphans) {
+    marks.changed++
+    try {
+      revalidateTeacherPages(listingId, [])
+      marks.purged++
+    } catch (e) {
+      marks.failed++
+      logMark(e)
+    }
+  }
+  return marks
+}
+
+/**
+ * The card pass's DRY RUN: the same selection, every teacher in it, judged with the same predicate — READ ONLY (no
+ * sync, no cache write, no purge). `changed` counts the caches that disagree with the mark today; `purged`, the purges a
+ * real pass would make; `shown`, the cards that would carry the tick.
+ */
+async function markPreview(now: Date): Promise<IdentityMarkPass> {
+  const marks: IdentityMarkPass = { ...noMarks(), shown: 0 }
+  let teachers: Awaited<ReturnType<typeof selectMarked>>
+  try {
+    teachers = await selectMarked(now)
+  } catch (e) {
+    marks.failed++
+    logMark(e)
+    return marks
+  }
+  for (const t of teachers) {
+    marks.checked++
+    try {
+      const state = await identityMarkState(
+        { profileId: t.profileId, fullName: t.fullName, identityMarkOn: t.identityMarkOn, identityMarkNoticeVersion: t.identityMarkNoticeVersion },
+        now,
+      )
+      if (!t.listing) continue // as the real pass: no listing, nothing to write or purge
+      if (state.shown) marks.shown = (marks.shown ?? 0) + 1
+      // A removed listing never takes a value (the writer's guard): only clearing one counts as a change there.
+      const target = state.shown && t.listing.status !== 'removed' ? IDENTITY_MARK_NOTICE_VERSION : null
+      const changed = (t.listing.identityMarkNotice ?? null) !== target
+      if (changed) marks.changed++
+      if (changed || t.identityMarkOn || withdrewRecently(t, now)) marks.purged++
+    } catch (e) {
+      marks.failed++
+      logMark(e, t.profileId)
+    }
+  }
+  // The orphans the real pass would clear and purge — read only (the same predicate as clearOrphanIdentityMarks).
+  try {
+    const orphans = await countOrphanIdentityMarks()
+    marks.changed += orphans
+    marks.purged += orphans
+  } catch (e) {
+    marks.failed++
+    logMark(e)
+  }
+  return marks
 }
 
 /** The dry run: three batched reads (rows, cache, teachers), no write of any kind. */

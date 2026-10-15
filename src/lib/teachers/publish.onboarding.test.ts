@@ -16,6 +16,8 @@ const h = vi.hoisted(() => ({
   accountWrites: [] as Row[],
   accountCount: 1, // what the conditional account update matches (0: a type was chosen meanwhile)
   draftDeletes: [] as Row[],
+  identity: [] as Row[], // identity_verifications rows the card re-derivation reads on the transaction
+  order: [] as string[],
 }))
 
 vi.mock('server-only', () => ({}))
@@ -37,10 +39,17 @@ vi.mock('@/lib/teachers/video-store', () => ({
 }))
 
 const tx = {
-  $executeRaw: vi.fn(),
+  $executeRaw: vi.fn(async (q: unknown) => {
+    // A tagged template is an array of strings: the advisory lock, or the mark judgement's SAVEPOINT bookkeeping.
+    const text = Array.isArray(q) ? (q as string[]).join('?') : ''
+    h.order.push(q && typeof q === 'object' && 'strings' in (q as object) && !Array.isArray(q) ? 'card UPDATE' : /SAVEPOINT/.test(text) ? `savepoint: ${text.trim()}` : 'lock')
+    return 1
+  }),
+  identityVerification: { findMany: vi.fn(async () => { h.order.push('identityVerification.findMany'); return h.identity }) },
   teacherProfile: {
     findUnique: async () => h.existing,
     upsert: async (args: Row) => {
+      h.order.push('teacherProfile.upsert')
       h.profileWrites.push(args)
       return { id: h.existing?.id ?? 'tp-new', coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, coverConfirmedAt: null, coverConsentVersion: null, videoVersion: 0, videoOnRequest: false }
     },
@@ -60,12 +69,14 @@ vi.mock('@/lib/db', () => ({
     seller: { findUnique: async () => ({ id: 's1', trustTier: 'standard', trustScore: 50 }) },
     category: { findUnique: async () => ({ id: 'cat-teachers', name: 'Teachers', nameVi: 'Giáo viên' }) },
     listing: { findUnique: async () => ({ status: 'active', verified: true }) },
+    // ⛔ NO identityVerification HERE ON PURPOSE: the save's mark judgement must read on the TRANSACTION (inside a
+    // SAVEPOINT — publish.ts), never on a second connection; a regression to `db` finds no rows here and the tick drops.
     $transaction: async (cb: (t: typeof tx) => unknown) => cb(tx),
   },
 }))
 
 const { saveTeacherProfile, TeacherNoticeChangedError, TeacherProfileChangedError, TeacherValidationError } = await import('./publish')
-const { AI_NOTICE_VERSION, PUBLISH_NOTICE_VERSION, TEACHER_SITUATION_VERSION } = await import('./profile')
+const { AI_NOTICE_VERSION, IDENTITY_MARK_NOTICE_VERSION, PUBLISH_NOTICE_VERSION, TEACHER_SITUATION_VERSION } = await import('./profile')
 const { COVER_CONSENT_VERSION } = await import('./cover')
 
 /** A complete v2 body: an HCMC full-time job seeker (District 7) who can teach in two districts, Online, and Hanoi. */
@@ -97,6 +108,7 @@ const listingData = () => h.listingWrites[0].data
 
 beforeEach(() => {
   h.existing = existing(); h.profileWrites = []; h.listingWrites = []; h.privateWrites = []; h.copies = []; h.accountWrites = []; h.accountCount = 1; h.draftDeletes = []
+  h.identity = []; h.order = []; tx.$executeRaw.mockClear(); tx.identityVerification.findMany.mockClear()
 })
 
 describe('⛔ ONE SHAPE (plan review D1/D2)', () => {
@@ -347,3 +359,84 @@ describe('the unfinished profile goes with the publish (2026-10-11 — src/lib/t
   })
 })
 
+// ── "Identity verified" (owner, 2026-10-15) — ⛔ THE SWITCH HAS ITS OWN ENDPOINT (plan review R2) ─────────────────────────
+// The full save never carries or changes the switch: no body field reaches TeacherInput, and none of the four
+// identityMark* columns is written. But it writes the NAME the card's tick vouches for, so the card cache is re-derived
+// in the save's transaction from the STORED switch and the new name — a rename the ID does not carry takes the tick off
+// with the rename. Zero identity reads while the switch is off.
+describe('⛔ the "Identity verified" switch is never the profile save\'s — but the card\'s tick follows the name it writes', () => {
+  const VERIFIED = {
+    id: 'iv-1', profileId: 'p1', tier: 'B', method: 'passport_mrz', status: 'verified', decidedAt: new Date('2026-09-01T00:00:00+07:00'),
+    documentExpiresAt: new Date('2030-01-01T00:00:00+07:00'), assuranceLevel: 'manual_review',
+    evidence: { decisionInput: { surname: 'DOE', givenNames: 'JANE' } },
+  }
+  const switchedOn = { identityMarkOn: true, identityMarkNoticeVersion: IDENTITY_MARK_NOTICE_VERSION }
+  const cardValues = () => tx.$executeRaw.mock.calls
+    .map(([q]) => q as { values?: unknown[]; strings?: unknown })
+    .filter((q) => q && typeof q === 'object' && 'strings' in q && !Array.isArray(q))
+    .map((q) => q.values)
+
+  it('⛔ a body carrying the switch, its notice and a base writes NONE of the four identityMark* columns — and never turns the tick on — edit or create', async () => {
+    // A LIVE verification whose name is the body's ("Jane Doe" ↔ DOE / JANE): the one thing between this save and a tick
+    // on the card is the STORED switch, which is off — so a save that judged the card from the BODY's switch and notice
+    // would write today's version here (review, 2026-10-16: with no identity row this test could not tell).
+    h.identity = [VERIFIED]
+    const sneaky = { identityMarkOn: true, identityNotice: IDENTITY_MARK_NOTICE_VERSION, identityMarkAt: new Date().toISOString(), identityMarkNoticeVersion: IDENTITY_MARK_NOTICE_VERSION, identityMarkWithdrawnAt: null }
+    await edit(body(sneaky))
+    h.existing = null
+    await create(body(sneaky))
+    for (const w of h.profileWrites) {
+      for (const half of [w.create, w.update]) {
+        expect(Object.keys(half).filter((k) => k.startsWith('identityMark'))).toEqual([])
+      }
+    }
+    // Both saves clear the card (the guarded NULL), and neither so much as reads the identity: the stored switch is off.
+    expect(cardValues()).toEqual([[null, 'L1', null, null, 'removed'], [null, 'L-new', null, null, 'removed']])
+    expect(tx.identityVerification.findMany).not.toHaveBeenCalled()
+  })
+  it('switched OFF: zero identity reads, and the guarded UPDATE of NULL (a no-op for a card that never had the tick)', async () => {
+    h.identity = [VERIFIED]
+    await edit(body())
+    expect(tx.identityVerification.findMany).not.toHaveBeenCalled()
+    expect(cardValues()).toEqual([[null, 'L1', null, null, 'removed']])
+  })
+  it('switched ON, the name within the ID: the card keeps today\'s version — judged AFTER the profile write, written on the transaction', async () => {
+    h.existing = existing(switchedOn)
+    h.identity = [VERIFIED]
+    await edit(body())
+    expect(cardValues()).toEqual([[IDENTITY_MARK_NOTICE_VERSION, 'L1', IDENTITY_MARK_NOTICE_VERSION, IDENTITY_MARK_NOTICE_VERSION, 'removed']])
+    expect(h.order.indexOf('teacherProfile.upsert')).toBeLessThan(h.order.indexOf('identityVerification.findMany'))
+    expect(h.order.indexOf('identityVerification.findMany')).toBeLessThan(h.order.indexOf('card UPDATE'))
+    expect(h.order[0]).toBe('lock') // all of it under the saves' lock, taken first
+  })
+  // Commit gate, 2026-10-16: an opted-in teacher's ordinary edit used to fail whenever the identity read failed.
+  it('⛔ the identity read FAILING hides the tick (fail closed) — and never fails the save', async () => {
+    h.existing = existing(switchedOn)
+    tx.identityVerification.findMany.mockRejectedValueOnce(new Error('identity read down'))
+    await expect(edit(body())).resolves.toBeTruthy()
+    expect(cardValues()).toEqual([[null, 'L1', null, null, 'removed']])
+    // On THIS transaction, inside its savepoint — rolled back to it, so the save's later statements still run.
+    expect(h.order.filter((o) => o.startsWith('savepoint'))).toEqual(['savepoint: SAVEPOINT identity_mark', 'savepoint: ROLLBACK TO SAVEPOINT identity_mark'])
+  })
+  it('⛔ a RENAME the ID does not carry takes the tick off the card IN THE SAME SAVE — and the switch itself stays as stored', async () => {
+    h.existing = existing(switchedOn)
+    h.identity = [VERIFIED]
+    await edit(body({ fullName: 'Dr Jane Doe' }))
+    expect(cardValues()).toEqual([[null, 'L1', null, null, 'removed']])
+    expect(Object.keys(profileWrite().update).filter((k) => k.startsWith('identityMark'))).toEqual([])
+  })
+  it('the switch on under an OLDER notice shows nothing — no identity read, the card cleared', async () => {
+    h.existing = existing({ ...switchedOn, identityMarkNoticeVersion: '2026-10-01' })
+    h.identity = [VERIFIED]
+    await edit(body())
+    expect(tx.identityVerification.findMany).not.toHaveBeenCalled()
+    expect(cardValues()).toEqual([[null, 'L1', null, null, 'removed']])
+  })
+  it('a first save (no stored switch) writes the new listing\'s cache as NULL — never a tick', async () => {
+    h.existing = null
+    h.identity = [VERIFIED]
+    await create(body())
+    expect(cardValues()).toEqual([[null, 'L-new', null, null, 'removed']])
+    expect(tx.identityVerification.findMany).not.toHaveBeenCalled()
+  })
+})

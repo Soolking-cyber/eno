@@ -39,6 +39,23 @@ export const HOME_HIDDEN_TEACHER_LISTING_IDS = ['cmuzccru60000wvq4mojalida'] as 
 export const TEACHER_DRAFT_HASH_KEY = 'd'
 
 /**
+ * ⛔ THE "IDENTITY VERIFIED" NOTICE (owner, 2026-10-15) — the version of the words shown beside the teacher's switch
+ * (the IdentityMarkNote on Photo & publish): what the mark shows, where (the profile, its card in lists, the chip a school
+ * or member sees in chat), to whom, on which conditions, and that it never shows the document. Switching it ON is the
+ * consent, and counts only under the version the page showed (publish.ts saveTeacherIdentityMark: 409 notice_changed
+ * otherwise); TeacherProfile.identityMarkNoticeVersion records it.
+ * ⛔ BUMP IT WHEN THAT NOTICE'S MEANING CHANGES — and know what a bump does: it hides EVERY older grant at once, because
+ * src/lib/teachers/identity-mark.ts identityMarkStateOf shows the mark only under THIS version, and a card shows the tick
+ * only while Listing.identityMarkNotice (the card cache) equals it. Each teacher sees the switch OFF with a re-confirm
+ * line until they switch it on again under the new words.
+ * ⚠️ AFTER A BUMP DEPLOY, run /api/cron/identity-marks once (or wait for its 00:05 ICT run): the card pass clears the
+ * old version from every card cache and purges the HTML that baked the tick in (the ISR cache survives a deploy).
+ * Here, not in profile.ts, because this file is import-free (the card serializer reads it); profile.ts re-exports it
+ * beside PUBLISH_NOTICE_VERSION.
+ */
+export const IDENTITY_MARK_NOTICE_VERSION = '2026-10-16'
+
+/**
  * ⛔ HOW MANY NEW TEACHERS AN ACCOUNT MAY START A CHAT WITH PER DAY (owner, 2026-10-13: "an account without
  * verification can do 3 DMs a day if wants more ask to KYC so they can DM up to 10 accounts a day and if wants more ask
  * them to register as business and go through business kyc then 30 dms a day"). The ladder replaced the 2026-09-30

@@ -243,6 +243,85 @@ export function namesCorrespond(mrzSurname: string, mrzGiven: string, accountNam
   return [...small].every((t) => large.has(t))
 }
 
+/** What a name's words are split on: whitespace, the MRZ's '<' filler AND hyphens (the MRZ writes JEAN-LUC as JEAN<LUC). */
+const NAME_WORD_SEPARATORS = /[\s<\-‐‑–—]+/
+
+/** A DOCUMENT name's folded tokens. Dropping what does not fold can only make the document's set smaller — stricter. */
+const docNameTokens = (s: string): string[] => s.split(NAME_WORD_SEPARATORS).map(foldName).filter(Boolean)
+
+/**
+ * What one word of a SHOWN name may be made of once its diacritics are off (NFD, the combining marks and đ, exactly as
+ * foldName takes them off): Latin letters, and the apostrophes, full stops and commas a written name carries and an
+ * ID's MRZ leaves out ("O'Brien" → OBRIEN, "St." → ST, "Eriksson, Anna"). Nothing else.
+ */
+const SHOWN_NAME_WORD = /^[A-Za-z'’‘ʼ.,]+$/
+
+/**
+ * A SHOWN name's folded tokens — or null when any word holds something foldName would silently DROP (a letter of
+ * another script, a digit, a symbol, an emoji, an invisible character): that word is not on the document, and so the
+ * name is not within it. A word of punctuation alone (the comma in "Eriksson , Anna") folds to nothing and is no word.
+ */
+function shownNameTokens(s: string): string[] | null {
+  const out: string[] = []
+  for (const word of s.split(NAME_WORD_SEPARATORS)) {
+    if (!word) continue
+    if (!SHOWN_NAME_WORD.test(word.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd'))) return null
+    const t = foldName(word)
+    if (t) out.push(t)
+  }
+  return out
+}
+
+/**
+ * Is a name SHOWN TO THE PUBLIC within the name on the identity document? STRICTER THAN namesCorrespond, because it backs
+ * a public claim — the teacher card's and profile's "Identity verified" (src/lib/teachers/identity-mark.ts) says the name
+ * beside it matches an ID eno checked.
+ *   · the shown name may LEAVE OUT given or middle names ("Anna Eriksson" for ERIKSSON / ANNA MARIA), in any order;
+ *   · but it may ADD NOTHING: every word shown is on the document, and every surname word is shown.
+ * ⛔ namesCorrespond ACCEPTS A SUBSET IN EITHER DIRECTION — "Anna Maria Eriksson" for ERIKSSON / ANNA, and so "Dr Anna
+ * Eriksson" too — which is right for routing a KYC case (a mismatch only sends it to a human) and wrong for a claim a
+ * stranger reads. It stays exactly as it is: KYC routing relies on its leniency. Never "simplify" one into the other.
+ * Folded as namesCorrespond folds (diacritics and đ, so "Nguyễn" matches NGUYEN); hyphens split, so "Jean-Luc Picard"
+ * matches PICARD / JEAN<LUC. An initial or a title is a word the document does not carry, so it does not match.
+ * ⛔ AND NOTHING IS DROPPED FROM THE SHOWN NAME TO MAKE IT FIT (review, 2026-10-16). foldName keeps A–Z and deletes the
+ * rest — right for an MRZ, which is A–Z already, and fatal for a name a teacher typed: "Доктор Anna Eriksson", "博士 Anna
+ * Eriksson", "Anna Eriksson 王老师", "Anna Eriksson 2", "Anna Eriksson ✅" and "Annaя Eriksson" all folded to ANNA
+ * ERIKSSON and were "within" ERIKSSON / ANNA — the "Dr" case above in another script, with the public tick beside it.
+ * So a shown word may hold only what folds to a letter, and the punctuation SHOWN_NAME_WORD lists; anything else makes
+ * the name NOT within the document (the teacher's form says name_mismatch, and they write it as on the ID). ⚠️ That
+ * includes a Latin letter NFD cannot take apart (ø, æ, ß, ł, ı): an MRZ spells those out (OE, AE, SS, L, I), so foldName
+ * never matched them to one anyway — the refusal costs no name an MRZ could match.
+ * ⛔ AND A COUNT, NOT A SET, on the shown side: a word the document carries once may be shown once — "Anna Anna Eriksson"
+ * adds a word. (The surname rule stays a set: GARCIA GARCIA / JOSE may be shown as "José García".)
+ * ⛔ AND AT LEAST ONE GIVEN NAME when the document carries any (commit gate, 2026-10-16): the form promises "you can
+ * leave out MIDDLE names", not all of them — a bare "Nguyen" or "Eriksson" beside a public tick vouches for almost
+ * nobody (on a Vietnamese marketplace, for millions). A document with no given names (rare) needs only the surname.
+ * ⛔ AND THAT GIVEN NAME MAY NOT BE VĂN OR THỊ ALONE (commit gate, 2026-10-16): the two Vietnamese middle names mark
+ * gender far more than they name anyone — "Nguyễn Thị" for NGUYEN / THI MINH KHAI and "Nguyễn Văn" for NGUYEN / VAN AN
+ * passed the rule above while fitting millions. The given name shown must be another of the document's (KHAI, MINH, AN,
+ * ANNA…); only a document whose given names are nothing but Văn/Thị needs one of those.
+ */
+/** Folded forms of the two Vietnamese middle names that say gender, not who (Văn, Thị) — nameWithinDocument. */
+const GENERIC_VN_MIDDLE_NAMES: ReadonlySet<string> = new Set(['VAN', 'THI'])
+
+export function nameWithinDocument(docSurname: string, docGiven: string, displayName: string): boolean {
+  const surname = docNameTokens(docSurname)
+  const given = docNameTokens(docGiven)
+  const shown = shownNameTokens(displayName)
+  if (!shown || surname.length === 0 || shown.length === 0) return false
+  if (!surname.every((t) => shown.includes(t))) return false
+  const telling = given.filter((t) => !GENERIC_VN_MIDDLE_NAMES.has(t))
+  const needOneOf = telling.length > 0 ? telling : given
+  if (given.length > 0 && !shown.some((t) => needOneOf.includes(t))) return false
+  const onDocument = new Map<string, number>()
+  for (const t of [...surname, ...given]) onDocument.set(t, (onDocument.get(t) ?? 0) + 1)
+  return shown.every((t) => {
+    const left = onDocument.get(t) ?? 0
+    onDocument.set(t, left - 1)
+    return left > 0
+  })
+}
+
 /**
  * Decide a Tier-B verification, server-side.
  *

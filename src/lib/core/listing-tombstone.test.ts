@@ -154,6 +154,13 @@ describe('PERSONAL_SCRUB_DATA fits the Listing columns', () => {
     for (const c of ['verificationMethod', 'verifiedAt', 'verifiedBy', 'verificationNotes']) expect(fields.get(c)?.optional, c).toBe(true)
   })
 
+  // The teacher card's "Identity verified" cache (2026-10-16, src/lib/teachers/identity-mark-card.ts) is a statement
+  // about the person — eno checked their identity and they chose to show it — so an erasure blanks it with the rest.
+  it('blanks the card\'s "Identity verified" cache — nullable, and NULL is its "not shown"', () => {
+    expect(PERSONAL_SCRUB_DATA).toMatchObject({ identityMarkNotice: null })
+    expect(fields.get('identityMarkNotice')).toEqual({ type: 'String', optional: true })
+  })
+
   it('TOMBSTONE_DATA leaves the stamp alone — a tombstone is never revived', () => {
     expect(Object.keys(TOMBSTONE_DATA).sort()).toEqual(['featured', 'identityHold', 'status', 'verified'])
   })

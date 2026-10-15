@@ -103,6 +103,12 @@ const RELOCATE_ABROAD: readonly Relocate[] = ['anywhere', 'some', 'online-only']
  */
 export const PUBLISH_NOTICE_VERSION = '2026-10-13'
 /**
+ * The "Identity verified" switch's own notice (constants.ts, where its rules are) — re-exported here beside the other
+ * notices. ⛔ ITS OWN CONSENT, ITS OWN ENDPOINT (plan review R2, 2026-10-15): nothing in TeacherInput, a draft or the
+ * profile save carries the switch, and PUBLISH_NOTICE_VERSION does not cover it.
+ */
+export { IDENTITY_MARK_NOTICE_VERSION } from '@/lib/teachers/constants'
+/**
  * The AI note beside the two opt-ins — job matching by Claude Haiku 5.5 (Anthropic), the transfer abroad (owner,
  * 2026-10-08 — never Google Gemini). Stamped as matchEmailNoticeVersion / staffContactNoticeVersion when an opt-in is
  * switched on; ⛔ AN OPT-IN COUNTS FOR AI MATCHING ONLY UNDER THIS VERSION (aiMatchConsented, plan review D5): the

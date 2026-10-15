@@ -15,6 +15,14 @@ export const maxDuration = 300
 // profile with an identity row actually BE recomputed, nightly: the Profile.verification* cache (so a document that
 // lapsed is recorded `expired`), the trust score and rank, the enforcement state, and a teacher's pages — catching
 // lapses of any age, revocations, and any decision whose own effects failed. Idempotent.
+// ⚖️ AND THE TEACHER CARD'S "IDENTITY VERIFIED" TICK (C4, owner 2026-10-15): every identity recompute re-derives it
+// (identity-effects.ts), and a card-tick pass after the loop syncs every teacher whose switch is on or whose card cache
+// carries a value, skipping those the loop handled cleanly — a teacher with no identity row, the stale caches a notice bump
+// leaves, a recompute that failed — purging when the cache changed or a revoked teacher's switch is still on
+// (src/lib/compliance/identity-reconcile.ts). ⚠️ That pass ALSO runs alone at 00:05 ICT (/api/cron/identity-marks, its
+// own timer): a document lapses at midnight, and the tick may not wait for this 09:05 run. After an
+// IDENTITY_MARK_NOTICE_VERSION bump deploy, run that one by hand: it clears the old version from every card and purges
+// the HTML that baked it in.
 //
 // ⏰ 02:05 UTC = 09:05 ICT, daily — NOT AT MIDNIGHT, ON PURPOSE (infra/vn-node/cron/install-cron-timers.sh). A document
 // lapses at 00:00 ICT the day after its expiry date, but what this run causes can reach the seller: losing the +10 can
@@ -36,13 +44,17 @@ export const maxDuration = 300
 //
 // `?dryRun=1` reads only: per profile, the status the rows derive, the cached one, whether a real run would write or
 // refuse the cache move, and whether it is a teacher — zero recomputes, zero writes, zero purges. The deploy-day check.
+// Its card-tick pass judges each selected teacher's mark against the stored cache — zero syncs, zero purges — and says
+// how many caches would change, how many pages would be purged, and how many cards would show the tick.
 //
 // Response — eno-cron.sh marks any non-200 FAILED, and keeps only the first 200 bytes, so the counts come first:
-//   · 200 `{ ok: true, checked, recomputed, changed, failed: 0, illegal, trustMoved, purged, checkedAt }`
-//     (a dry run adds `dryRun: true, mismatched, teachers, profiles` after the counts);
-//   · 500 `{ ok: false, error: 'partial_failure', failed, … }` — a recompute threw or its effects did not complete. The
-//     rest WERE reconciled; the unit stays red until a run finishes clean (each failure is in the log as
-//     identity.reconcile or identity.effects.<step>).
+//   · 200 `{ ok: true, checked, recomputed, changed, failed: 0, illegal, trustMoved, purged,
+//     marks: { checked, changed, purged, failed }, checkedAt }` — `marks` is the card-tick pass, right after the leading
+//     counts (in a dry run `marks` also carries `shown`, and `dryRun: true, mismatched, teachers, profiles` follow it);
+//   · 500 `{ ok: false, error: 'partial_failure', failed, … }` — a recompute threw or its effects did not complete, or the
+//     card-tick pass failed for a teacher (its failures are inside `failed` and `marks.failed`). The rest WERE reconciled;
+//     the unit stays red until a run finishes clean (each failure is in the log as identity.reconcile,
+//     identity.effects.<step> or identity.reconcile.mark).
 //   · `illegal` (a cache move refused — out of `revoked`, say) is reported, NOT a failure: the cache is left as it was
 //     for a person to look at, and the effects still ran on the derived status.
 // Auth failures are route()'s 401; anything thrown is its generic 500.

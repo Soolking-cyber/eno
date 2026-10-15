@@ -13,6 +13,7 @@ import { sellerPublishDecision } from '@/lib/compliance/seller-publish-gate'
 import { logError } from '@/lib/log'
 import { isLegacyTeacherBody, normalizeTeacherInput } from '@/lib/teachers/profile'
 import { TEACHERS_CATEGORY_NAME } from '@/lib/teachers/constants'
+import { identityMarkState } from '@/lib/teachers/identity-mark'
 import { apexOrigin } from '@/lib/teachers/host'
 import { sendTikTokEvent, tiktokConsent, tiktokEventsConfigured, tiktokUserFromHeaders } from '@/lib/tiktok-events'
 import { consentRecordNamesTikTok } from '@/lib/tiktok-consent-record'
@@ -35,6 +36,14 @@ export const dynamic = 'force-dynamic'
  *   · `prefill` (no profile only) — the account's display name, its photo only when it is stored on eno.vn (a listing
  *     photo must be), and its phone (Profile.phone is only ever an auth-VERIFIED number). The form offers them; it never
  *     saves them unasked.
+ *   · `identityMark` — the "Identity verified" switch's state line (owner, 2026-10-15; src/lib/teachers/identity-mark.ts):
+ *     `{ shown, reason }`, judged on the LIVE identity with the stored switch and name — for a new form too (no profile:
+ *     never shown; the reason says whether the identity check is the missing step). Only to the teacher themself (auth
+ *     'profile'). ⚠️ ADVISORY like publishGate: a failed read answers `identityMark: null` (not known — the form shows no
+ *     state line) and is logged; it never takes the page down, and nothing is shown on the strength of this answer;
+ *   · `identityMarkStamps` — `{ at, withdrawnAt }`, the switch's consent stamps as stored (ISO, or null — both null with
+ *     no profile): what the form sends back as `base` when it switches the mark ON (PUT /api/teachers/me/identity-mark),
+ *     so a tab that is no longer current is refused instead of re-granting a withdrawal.
  * ⛔ No runtime adapter (plan review D1): a row the backfill has not migrated comes back as stored (`situationVersion`
  * null, an empty teach-area list) and the edit form asks for what is missing.
  */
@@ -50,10 +59,25 @@ export const GET = route({ auth: 'profile' }, async ({ profile }) => {
     }),
   ])
   const publishGate = !decision ? null : decision.ok ? { ok: true as const, code: null } : { ok: false as const, code: decision.code }
+  // After the profile read, because it judges the stored switch and name (one indexed identity read).
+  const identityMark = await identityMarkState(
+    tp
+      ? { profileId: profile.id, fullName: tp.fullName, identityMarkOn: tp.identityMarkOn, identityMarkNoticeVersion: tp.identityMarkNoticeVersion }
+      : { profileId: profile.id, fullName: null, identityMarkOn: false, identityMarkNoticeVersion: null },
+  ).catch((e: unknown) => {
+    logError(e, { op: 'teachers.me.identityMark' })
+    return null
+  })
+  const identityMarkStamps = {
+    at: tp?.identityMarkAt ? tp.identityMarkAt.toISOString() : null,
+    withdrawnAt: tp?.identityMarkWithdrawnAt ? tp.identityMarkWithdrawnAt.toISOString() : null,
+  }
   if (!tp) {
     return {
       teacher: null,
       publishGate,
+      identityMark,
+      identityMarkStamps,
       prefill: {
         displayName: profile.displayName ?? null,
         avatarUrl: profile.avatarUrl && isListingImageUrl(profile.avatarUrl) ? profile.avatarUrl : null,
@@ -66,7 +90,7 @@ export const GET = route({ auth: 'profile' }, async ({ profile }) => {
   const listingLive = !!listing && listing.status === 'active' && listing.verified
   // The owner's own phone + whether a CV or a private intro video exists — never either path (neither is a URL anyone
   // needs; the private video is watched only through a school's signed link). videoVersion is the form's video base.
-  return { teacher: { ...rest, listingLive, phone: priv?.phone ?? '', cvFileName: priv?.cvFileName ?? null, hasPrivateVideo: !!priv?.videoPath }, publishGate }
+  return { teacher: { ...rest, listingLive, phone: priv?.phone ?? '', cvFileName: priv?.cvFileName ?? null, hasPrivateVideo: !!priv?.videoPath }, publishGate, identityMark, identityMarkStamps }
 })
 
 export const PUT = route(

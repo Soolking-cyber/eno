@@ -39,6 +39,9 @@ import { join, relative, sep } from 'node:path'
  * And, for the LICENCE CHECK (owner, 2026-10-14 — src/lib/licence-stamp.ts), two more: every existing-row
  * publish must carry its guard (`publishesWithoutLicenceGuard`, exemptions in LICENCE_GUARD_EXEMPT), and a
  * non-null approval stamp is written in one place only (`stampWrites`, STAMP_WRITERS).
+ * And for the teacher card's "Identity verified" tick (owner, 2026-10-15 — src/lib/teachers/identity-mark-card.ts): a
+ * non-null Listing.identityMarkNotice — the card cache that makes a card claim "eno checked this person's ID" — is
+ * written in one place only (`markWrites`, MARK_WRITERS).
  *
  * ── WHAT IT CANNOT SEE (stated so nobody mistakes it for a proof) ────────────────────────────────
  *   · A value that is not a literal: `data: { status }` (setStatusCore's shorthand), a status read
@@ -149,6 +152,17 @@ const LICENCE_GUARD_EXEMPT: Record<string, { count: number; why: string }> = {
  */
 const STAMP_WRITERS: Record<string, { count: number; why: string }> = {
   'src/app/api/admin/listings/route.ts': { count: 1, why: '‘licence-approve’ — the compare-and-set stamp of exactly the values the admin’s screen showed, with a compliance_audit row naming the admin' },
+}
+
+/**
+ * ⛔ THE ONE WRITER OF THE TEACHER CARD'S "IDENTITY VERIFIED" TICK (owner, 2026-10-15). Listing.identityMarkNotice is a
+ * display cache, and a non-null value in it makes a teacher's card tell every reader "eno checked this person's ID" — so
+ * only the file that derives it from the ONE predicate (src/lib/teachers/identity-mark.ts: a live identity, the name
+ * within the ID, the teacher's own switch under today's notice) may write one. Every other writer only clears it (null —
+ * the erasure scrub, PERSONAL_SCRUB_DATA). The count is exact: a second non-null write is a second source of truth.
+ */
+const MARK_WRITERS: Record<string, { count: number; why: string }> = {
+  'src/lib/teachers/identity-mark-card.ts': { count: 1, why: 'writeIdentityMarkCard — the raw, IS DISTINCT FROM-guarded UPDATE of today’s IDENTITY_MARK_NOTICE_VERSION while identityMarkState says shown (NULL otherwise; never a value onto a tombstone), inside the caller’s transaction under the teacher lock; its callers are the switch, the profile save, the identity effects and the nightly reconcile (and the profile delete, NULL only)' },
 }
 
 // ── The scanner ──────────────────────────────────────────────────────────────────────────────────
@@ -487,6 +501,33 @@ export function stampWrites(source: string): string[] {
   return hits
 }
 
+/** Any Prisma write, on ANY model — `<x>.<model>.<write>(` — so a nested `listing: { update: … }` through another is seen. */
+const ANY_WRITE_CALL = /\b\w+\.(\w+\.(?:create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert))\s*\(/g
+
+/**
+ * Writes of a NON-NULL teacher-card identity mark (owner, 2026-10-15). Listing.identityMarkNotice is the card's display
+ * cache of "Identity verified" (src/lib/teachers/identity-mark-card.ts), so a value written to it is a public claim: a
+ * Prisma write on any model (reads blanked — a `where`/`select` naming it is a read) with `identityMarkNotice:` anything
+ * but `null`, or its `{ identityMarkNotice }` shorthand — through a nested relation write included — or a raw
+ * `UPDATE "Listing" SET "identityMarkNotice" =` anything but NULL. TeacherProfile.identityMarkNoticeVersion (the
+ * consent's record) is another column and is not matched. Clearing it (`null`, the erasure scrub) is not counted. A raw
+ * INSERT is not read (its values are positional); none writes the column.
+ */
+export function markWrites(source: string): string[] {
+  const src = stripComments(source)
+  const hits: string[] = []
+  const lineOf = (i: number) => src.slice(0, i).split('\n').length
+  for (const { open, close, method } of calls(src, ANY_WRITE_CALL)) {
+    const args = blankReads(src.slice(open, close + 1))
+    // ⚠️ The lookahead sits right after the colon, spaces inside it — as in stampWrites.
+    for (const h of args.matchAll(/\bidentityMarkNotice\s*:(?!\s*null\b)|[{,]\s*identityMarkNotice\s*(?=[,}])/g)) hits.push(`${lineOf(open)}: ${method} ${h[0].replace(/\s+/g, ' ').trim()}`)
+  }
+  for (const m of src.matchAll(new RegExp(RAW_LISTING_UPDATE, 'gi'))) {
+    if (/"?identityMarkNotice"?\s*=(?!\s*NULL\b)/i.test(m[1])) hits.push(`${lineOf(m.index!)}: UPDATE "Listing" SET "identityMarkNotice"`)
+  }
+  return hits
+}
+
 /**
  * Every scanned file (src/ and scripts/), read ONCE for the whole file in beforeAll — six scanners walk the same tree,
  * and each re-reading thousands of files took ~1s alone and past vitest's 5s per-test limit under a parallel run
@@ -566,6 +607,18 @@ describe('⛔ the licence check (owner, 2026-10-14): every existing-row publish 
   it('⛔ a non-null licence stamp is written in ONE place — admin listings ‘licence-approve’', () => {
     const bad = drift(scanWith(stampWrites), STAMP_WRITERS)
     expect(bad, `A write puts a value into Listing.verificationMethod — the licence check's APPROVAL STAMP (src/lib/licence-stamp.ts). Only 'licence-approve' may: clear it with LICENCE_STAMP_CLEARED instead:\n  ${bad.join('\n  ')}`).toEqual([])
+  })
+})
+
+describe('⛔ the teacher card\'s "Identity verified" tick (owner, 2026-10-15): one writer of a non-null value', () => {
+  it('a non-null Listing.identityMarkNotice is written in ONE place — src/lib/teachers/identity-mark-card.ts', () => {
+    const found = scanWith(markWrites)
+    const bad = [
+      ...[...found.entries()].filter(([f]) => !MARK_WRITERS[f]).map(([f, h]) => `${f} (unlisted)\n    ${h.join('\n    ')}`),
+      ...Object.entries(MARK_WRITERS).filter(([f, a]) => (found.get(f)?.length ?? 0) !== a.count)
+        .map(([f, a]) => `${f}: expected ${a.count}, found ${found.get(f)?.length ?? 0}\n    ${(found.get(f) ?? []).join('\n    ')}`),
+    ]
+    expect(bad, `A write puts a value into Listing.identityMarkNotice — the teacher card's "Identity verified" claim. Only src/lib/teachers/identity-mark-card.ts may (writeIdentityMarkCard, from the one predicate); call it, or clear the column with null:\n  ${bad.join('\n  ')}`).toEqual([])
   })
 })
 
@@ -696,6 +749,22 @@ describe('the scanner itself — so a refactor of it cannot quietly make it blin
     expect(publishesWithoutLicenceGuard(`UPDATE "Listing" SET status = 'active' WHERE id = 'x'; UPDATE "Listing" SET verified = true WHERE \${licenceClearedSql()}`)).toHaveLength(1)
     // A raw takedown, and a status read in the WHERE, are not publishes.
     expect(publishesWithoutLicenceGuard(`UPDATE "Listing" SET status = 'hidden' WHERE status = 'active'`)).toEqual([])
+  })
+  it('flags a non-null identity-mark write, Prisma (any model, nested, shorthand) or raw — and never a cleared one, a read or the consent\'s own version column', () => {
+    expect(markWrites(`tx.listing.update({ where: { id }, data: { identityMarkNotice: version } })`)).toHaveLength(1)
+    expect(markWrites(`db.listing.updateMany({ where: { id }, data: { identityMarkNotice } })`)).toHaveLength(1)
+    expect(markWrites(`db.listing.create({ data: { title, identityMarkNotice: '2026-10-16' } })`)).toHaveLength(1)
+    expect(markWrites(`tx.teacherProfile.update({ where: { id }, data: { listing: { update: { identityMarkNotice: v } } } })`)).toHaveLength(1)
+    expect(markWrites('UPDATE "Listing" SET "identityMarkNotice" = ${value}::text WHERE "id" = ${id}')).toHaveLength(1)
+    expect(markWrites('update public."Listing" l set "identityMarkNotice" = $1 where l.id = $2')).toHaveLength(1)
+    // clears, reads and the other column are not writes of the claim
+    expect(markWrites(`db.listing.updateMany({ where: { id }, data: { identityMarkNotice: null } })`)).toEqual([])
+    expect(markWrites(`db.listing.updateMany({ where: { id }, data: { ...PERSONAL_SCRUB_DATA, verified: false } })`)).toEqual([])
+    expect(markWrites('UPDATE "Listing" SET "identityMarkNotice" = NULL WHERE "id" = $1')).toEqual([])
+    expect(markWrites(`db.teacherProfile.findMany({ where: { listing: { is: { identityMarkNotice: { not: null } } } } })`)).toEqual([])
+    expect(markWrites(`db.listing.updateManyAndReturn({ where: { identityMarkNotice: { not: null } }, data: { featured: false }, select: { identityMarkNotice: true } })`)).toEqual([])
+    expect(markWrites(`tx.teacherProfile.update({ where: { id }, data: { identityMarkOn: true, identityMarkNoticeVersion: version } })`)).toEqual([])
+    expect(markWrites(`// db.listing.update({ data: { identityMarkNotice: v } })`)).toEqual([])
   })
   it('flags a non-null stamp write, Prisma or raw — and never a cleared one', () => {
     expect(stampWrites(`tx.listing.updateMany({ where: { id, verificationMethod: r.verificationMethod }, data: { verificationMethod: stamp, verifiedAt: now } })`)).toHaveLength(1)
