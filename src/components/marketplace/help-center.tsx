@@ -162,7 +162,7 @@ const POLICY_PAGES: { href: string; en: string; vi: string; k: string }[] = [
   { href: '/prohibited', en: 'Prohibited items', vi: 'Hàng hóa bị cấm', k: 'banned prohibited illegal hàng cấm' },
   { href: '/disputes', en: 'Dispute resolution', vi: 'Giải quyết tranh chấp', k: 'dispute complaint tranh chấp khiếu nại' },
   { href: '/terms', en: 'Terms of Service', vi: 'Điều khoản dịch vụ', k: 'terms rules account điều khoản quy định' },
-  { href: '/privacy', en: 'Privacy policy', vi: 'Chính sách quyền riêng tư', k: 'privacy data delete export dữ liệu xóa tài khoản' },
+  { href: '/privacy', en: 'Privacy policy', vi: 'Chính sách bảo vệ dữ liệu cá nhân', k: 'privacy data delete export dữ liệu xóa tài khoản quyền riêng tư bảo mật' },
   { href: '/contact', en: 'Contact us', vi: 'Liên hệ', k: 'contact email phone support liên hệ hỗ trợ' },
 ]
 

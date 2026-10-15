@@ -305,7 +305,7 @@ export function OnboardClient() {
             </Link>
             {t(' and ', ' và ')}
             <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
-              {t('Privacy Policy', 'Chính sách bảo mật')}
+              {t('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}
             </Link>
             .
           </p>

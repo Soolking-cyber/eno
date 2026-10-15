@@ -588,6 +588,57 @@ describe('/privacy — round-2 corrections hold', () => {
     const call = ['{tr', `('${en}', '${vi}')}`].join('')
     expect(card).toContain(`<Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">${call}</Link>`)
   })
+
+  it('⛔ every other "Privacy Policy" link and label names the page by its own Vietnamese title (2026-10-15: sign-in, onboarding, the rental check and the help center said "Chính sách bảo mật" / "Chính sách quyền riêng tư")', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const vi = readFileSync(join(__dirname, 'page.tsx'), 'utf8').match(/titleVi="([^"]+)"/)?.[1]
+    expect(vi).toBeTruthy()
+    const src = join(__dirname, '..', '..', '..')
+    const files = [
+      'components/marketplace/sign-in-form.tsx', 'app/[lang]/onboard/onboard-client.tsx', 'app/[lang]/rentals/check/rental-check-view.tsx',
+      'components/teachers/teacher-form.tsx', 'components/teachers/steps/finish-step.tsx',
+    ]
+    for (const f of files) {
+      // ⚠️ No literal `tr` + `('` here: scripts/gen-ui-strings.mjs walks test files too (see the test above).
+      const named = [...readFileSync(join(src, f), 'utf8').matchAll(/'Privacy [Pp]olicy', '([^']+)'/g)].map((m) => m[1])
+      expect(named.length, f).toBeGreaterThan(0)
+      expect(named, f).toEqual(named.map(() => vi))
+    }
+    const help = readFileSync(join(src, 'components/marketplace/help-center.tsx'), 'utf8')
+    expect(help).toContain(`{ href: '/privacy', en: 'Privacy policy', vi: '${vi}',`)
+    const overrides = readFileSync(join(src, 'generated/vi-overrides.ts'), 'utf8')
+    for (const key of ['Privacy Policy', 'Privacy policy']) expect(overrides).toContain(`"${key}": "${vi}",`)
+  })
+
+  it('⛔ no shipped file calls eno\'s policy "Chính sách bảo mật" or "Chính sách quyền riêng tư" — only OTHER parties\' policies may use those words', async () => {
+    const { readFileSync, readdirSync, statSync } = await import('node:fs')
+    const { join, relative } = await import('node:path')
+    const src = join(__dirname, '..', '..', '..')
+    // Only two LINES may use those words, and neither is eno's /privacy: the visa partner's own policy (services copy),
+    // and the note that the OTHER site has its own terms and privacy policy.
+    const ALLOWED_LINE: Record<string, string> = {
+      'lib/privacy-services-copy.ts': 'xử lý hồ sơ theo chính sách quyền riêng tư cũng như nghĩa vụ',
+      'generated/vi-overrides.ts': 'its own operator details, terms and privacy policy',
+    }
+    const OLD = /chính sách (bảo mật|quyền riêng tư)/iu
+    const hits: string[] = []
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const p = join(dir, name)
+        if (statSync(p).isDirectory()) { walk(p); continue }
+        if (!/\.(ts|tsx|json|md|mdx)$/.test(name) || /\.(test|spec)\.tsx?$/.test(name)) continue
+        const rel = relative(src, p).split('\\').join('/')
+        const text = readFileSync(p, 'utf8').normalize('NFC')
+        if (!OLD.test(text)) continue
+        const lines = text.split('\n').filter((l) => OLD.test(l))
+        const allowed = ALLOWED_LINE[rel]
+        if (!allowed || !lines.every((l) => l.includes(allowed))) hits.push(rel)
+      }
+    }
+    walk(src)
+    expect(hits).toEqual([])
+  })
 })
 
 describe('/privacy — the edition boundary', () => {

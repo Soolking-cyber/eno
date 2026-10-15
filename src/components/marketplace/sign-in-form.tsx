@@ -1780,7 +1780,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
         {', '}
         <a href="/regulations" target={legalInApp ? undefined : '_blank'} onClick={openLegal} rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Operating regulations', 'Quy chế hoạt động')}</a>
         {' '}{t('and', 'và')}{' '}
-        <a href="/privacy" target={legalInApp ? undefined : '_blank'} onClick={openLegal} rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Privacy Policy', 'Chính sách bảo mật')}</a>.
+        <a href="/privacy" target={legalInApp ? undefined : '_blank'} onClick={openLegal} rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</a>.
       </p>
     </div>
   )

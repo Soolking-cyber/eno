@@ -622,7 +622,7 @@ export function RentalCheckView() {
             'Thông tin liên hệ của bạn chỉ gửi tới bộ phận hỗ trợ eno, để kiểm tra các căn này và trả lời bạn.',
           )}{' '}
           <Link href="/privacy" className="font-semibold text-accent-foreground underline-offset-2 hover:underline">
-            {tr('Privacy policy', 'Chính sách quyền riêng tư')}
+            {tr('Privacy policy', 'Chính sách bảo vệ dữ liệu cá nhân')}
           </Link>
         </p>
 
