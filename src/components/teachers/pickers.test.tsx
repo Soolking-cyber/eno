@@ -150,7 +150,7 @@ describe('the language adder', () => {
     languages(['Korean', 'French'], 2)
     expect(screen.getByText('2/2')).toBeTruthy()
     expect(input2().disabled).toBe(true)
-    expect(input2().placeholder).toMatch(/most you can add/)
+    expect(input2().placeholder).toMatch(/reached the maximum/)
     function input2() { return screen.getByRole('combobox', { name: 'Other languages you speak' }) as HTMLInputElement }
   })
 })

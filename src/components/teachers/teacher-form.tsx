@@ -1329,7 +1329,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
         // written. The line is shown now, and the next Publish under it is the assent.
         if (d.error === 'terms_required') {
           setTermsAsked(true)
-          setFormError(tr('Please read the line below, then tap Publish again.', 'Vui lòng đọc dòng bên dưới, rồi nhấn Đăng lần nữa.'))
+          setFormError(tr('Please read the line below, then tap Publish again.', 'Vui lòng đọc dòng bên dưới, rồi bấm Đăng lần nữa.'))
           revealFirstError({ formLineFirst: true })
           return
         }
@@ -1505,7 +1505,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   }
   const profileChangedLine = () => tr('Your teacher profile changed in another window or account. Reload this page before saving.', 'Hồ sơ giáo viên đã thay đổi ở cửa sổ hoặc tài khoản khác. Hãy tải lại trang trước khi lưu.')
   const staleVideoLine = (r: 'ok' | 'failed' | 'other') => r === 'other' ? profileChangedLine() : r === 'ok'
-    ? tr('Your intro video was changed in another window — this form now shows the saved video. Make your video change again if you still want it, then save.', 'Video giới thiệu đã được thay đổi ở cửa sổ khác — biểu mẫu này đang hiển thị video đã lưu. Hãy thay đổi lại video nếu bạn vẫn muốn, rồi lưu.')
+    ? tr('Your intro video was changed in another window — this form now shows the saved video. If you still want your change, make it again, then save.', 'Video giới thiệu đã được thay đổi ở cửa sổ khác — biểu mẫu này đang hiển thị video đã lưu. Hãy thay đổi lại video nếu bạn vẫn muốn, rồi lưu.')
     : tr('Your intro video was changed in another window, and the saved version could not be loaded. Try again in a moment.', 'Video giới thiệu đã được thay đổi ở cửa sổ khác và không tải được bản đã lưu. Hãy thử lại sau giây lát.')
   /** A PRIVATE video is removed by its own call (a save never holds its address), under the version this form loaded. */
   const removePrivateVideo = async () => {
@@ -1723,7 +1723,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
             ? tr('Your saved profile has just loaded, and it differs from the answers on this page.', 'Hồ sơ đã lưu vừa được tải, và khác với các câu trả lời trên trang này.')
             : tr('Your profile was changed in another window or on another device.', 'Hồ sơ của bạn đã được thay đổi ở cửa sổ hoặc thiết bị khác.')}</p>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
-            <Button variant="link" size="none" type="button" className="text-sm font-semibold" onClick={() => { void resolveStale(false) }}>{tr('Open the latest', 'Mở bản mới nhất')}</Button>
+            <Button variant="link" size="none" type="button" className="text-sm font-semibold" onClick={() => { void resolveStale(false) }}>{tr('Open the latest version', 'Mở bản mới nhất')}</Button>
             <Button variant="link" size="none" type="button" className="text-sm font-semibold" onClick={() => { void resolveStale(true) }}>{tr('Keep the answers on this page', 'Giữ câu trả lời trên trang này')}</Button>
           </div>
         </div>
@@ -1750,7 +1750,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
             : tr('Your answers are saved to your account each time you move to another step.', 'Câu trả lời được lưu vào tài khoản mỗi khi bạn chuyển sang bước khác.')}
           {/* ⛔ What a saved draft never keeps is given again where it is given (forDraft) — said where that is. */}
           {(step === 'cover' || step === 'finish') && draftLoaded && draftState !== 'error' ? (
-            <>{' '}{tr('Your photo, video, phone and the switches on this step are set again when you come back.', 'Ảnh, video, số điện thoại và các công tắc ở bước này được đặt lại khi bạn quay lại.')}</>
+            <>{' '}{tr('The draft does not keep your photo, video, phone or the switches on this step — you set them again when you come back.', 'Bản nháp không lưu ảnh, video, số điện thoại và các công tắc ở bước này — bạn sẽ đặt lại khi quay lại.')}</>
           ) : null}
           {draftRev.current ? (
             <>
@@ -1781,7 +1781,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
           {', '}
           <a href="/regulations" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">{tr('Operating regulations', 'Quy chế hoạt động')}</a>
           {tr(' and ', ' và ')}
-          <a href="/privacy" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">{tr('Privacy Policy', 'Chính sách bảo mật')}</a>
+          <a href="/privacy" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">{tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</a>
           .
         </span>
       )}
@@ -2043,7 +2043,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{tr('This change clears some of your answers', 'Thay đổi này sẽ xoá một số câu trả lời')}</AlertDialogTitle>
-            <AlertDialogDescription>{tr('When you save, these go from your profile:', 'Khi bạn lưu, những mục này sẽ bị xoá khỏi hồ sơ:')}</AlertDialogDescription>
+            <AlertDialogDescription>{tr('When you save, these are removed from your profile:', 'Khi bạn lưu, những mục này sẽ bị xoá khỏi hồ sơ:')}</AlertDialogDescription>
           </AlertDialogHeader>
           {pendingChange && (
             <ul className="list-disc space-y-1 pl-5 text-sm text-body">
@@ -2112,7 +2112,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
                 <li>{tr('Your name, photo, headline and about text', 'Tên, ảnh, tiêu đề và phần giới thiệu')}</li>
                 <li>{tr('Your nationality, your English level and the languages you speak', 'Quốc tịch, trình độ tiếng Anh và các ngôn ngữ bạn nói')}</li>
                 <li>{tr('Where you live — your city or province, and your HCMC district if you gave one — or “Not in Vietnam yet”', 'Nơi bạn sống — thành phố hoặc tỉnh, và quận ở TP.HCM nếu bạn cho biết — hoặc “Chưa ở Việt Nam”')}</li>
-                <li>{tr('The places you can teach, Online included', 'Những nơi bạn có thể dạy, kể cả trực tuyến')}</li>
+                <li>{tr('The places you can teach, online included', 'Những nơi bạn có thể dạy, kể cả trực tuyến')}</li>
                 <li>{tr('What you teach, who you teach and how long you have taught; your teaching jobs, degree and certificates', 'Môn dạy, đối tượng và thời gian giảng dạy; công việc giảng dạy, bằng cấp và chứng chỉ')}</li>
                 <li>{tr('The work you want, when you can start and your expected salary', 'Công việc bạn muốn, thời gian có thể bắt đầu và mức lương mong muốn')}</li>
                 <li>{tr('Your intro video — only if you choose to show it', 'Video giới thiệu — chỉ khi bạn chọn hiển thị')}</li>

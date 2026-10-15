@@ -57,7 +57,7 @@ export function LanguagePicker({ id, value, onChange, max, exclude = NONE }: {
         onChange={(code) => { if (code && !full) onChange([...value, languageStoredName(code)]) }}
         labelOf={labelOf}
         matches={matches}
-        placeholder={full ? tr('That is the most you can add — remove one to add another', 'Đã đạt số lượng tối đa — xoá một ngôn ngữ để thêm') : tr('Type or choose a language', 'Nhập hoặc chọn ngôn ngữ')}
+        placeholder={full ? tr('You have reached the maximum — remove one to add another', 'Đã đạt số lượng tối đa — xoá một ngôn ngữ để thêm') : tr('Type or choose a language', 'Nhập hoặc chọn ngôn ngữ')}
         emptyText={tr('No language matches.', 'Không có ngôn ngữ phù hợp.')}
         triggerLabel={tr('Open the language list', 'Mở danh sách ngôn ngữ')}
         disabled={full}

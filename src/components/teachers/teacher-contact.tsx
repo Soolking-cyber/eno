@@ -178,7 +178,7 @@ export function TeacherContact({ listingId, name, image, cover = false }: {
         </div>
       )}
       <p className="text-xs text-muted-foreground">
-        {tr('The teacher’s phone, email and CV are shared with you only if they choose to, in your chat.', 'Số điện thoại, email và CV của giáo viên chỉ được chia sẻ nếu họ đồng ý, trong cuộc trò chuyện.')}
+        {tr('The teacher’s phone, email and CV are shared with you only if they choose to share them in your chat.', 'Số điện thoại, email và CV của giáo viên chỉ được chia sẻ với bạn trong cuộc trò chuyện nếu giáo viên đồng ý.')}
       </p>
     </div>
   )

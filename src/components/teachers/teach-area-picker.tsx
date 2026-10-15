@@ -113,7 +113,7 @@ export function TeachAreaPicker({ t, onAreas, onConfirm, onChangeAnswer, coverIn
     <div className="space-y-4">
       <Fieldset
         legend={tr('Where can you teach?', 'Bạn có thể dạy ở đâu?')}
-        hint={tr('Schools find you by these places — this is the list your profile shows.', 'Các trường tìm bạn theo những nơi này — đây là danh sách hồ sơ của bạn hiển thị.')}
+        hint={tr('Schools find you by these places — this is the list your profile shows.', 'Các trường tìm bạn theo những nơi này — đây là danh sách hiển thị trên hồ sơ của bạn.')}
         error={error}
         className="space-y-5"
       >

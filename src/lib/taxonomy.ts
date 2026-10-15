@@ -1320,7 +1320,7 @@ export const TAXONOMY: CategoryDef[] = [
         { value: '1-3-years', label: '1–3 yrs', labelVi: '1–3 năm' },
         { value: '3-5-years', label: '3–5 yrs', labelVi: '3–5 năm' },
         { value: '5-10-years', label: '5–10 yrs', labelVi: '5–10 năm' },
-        { value: 'over-10-years', label: '10+ yrs', labelVi: 'Trên 10 năm' },
+        { value: 'over-10-years', label: '10+ yrs', labelVi: '10 năm trở lên' },
       ] },
       { key: 'cert', label: 'Certificate', labelVi: 'Chứng chỉ', derived: true, options: [
         { value: 'tefl', label: 'TEFL', labelVi: 'TEFL' },

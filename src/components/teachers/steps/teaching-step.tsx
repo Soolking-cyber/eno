@@ -41,7 +41,7 @@ export function TeachingStep({ t, set, update, errors, errText }: StepProps) {
       case '1-3-years': return tr('1–3 years', '1–3 năm')
       case '3-5-years': return tr('3–5 years', '3–5 năm')
       case '5-10-years': return tr('5–10 years', '5–10 năm')
-      default: return tr('10+ years', 'Trên 10 năm')
+      default: return tr('10+ years', '10 năm trở lên')
     }
   }
   const setJob = (i: number, patch: Partial<ExperienceEntry>) => set('experience', t.experience.map((y, j) => (j === i ? { ...y, ...patch } : y)))
@@ -165,7 +165,7 @@ export function TeachingStep({ t, set, update, errors, errText }: StepProps) {
           <p className="mt-0.5 text-sm text-muted-foreground">{tr('Just tell us — please do not upload certificates or diplomas. Schools check documents directly with you.', 'Chỉ cần cho biết — vui lòng không tải lên chứng chỉ hay bằng. Các trường sẽ xác minh trực tiếp với bạn.')}</p>
         </div>
 
-        <Fieldset legend={tr('Highest degree', 'Bằng cấp cao nhất')} legendId={`${uid}-degree`} hint={tr('Tap it again to clear it.', 'Chạm lần nữa để bỏ chọn.')}>
+        <Fieldset legend={tr('Highest degree', 'Bằng cấp cao nhất')} legendId={`${uid}-degree`} hint={tr('Tap it again to clear it.', 'Bấm lần nữa để bỏ chọn.')}>
           <ToggleGroup
             value={t.degreeLevel ? [t.degreeLevel] : []}
             onValueChange={(v) => update({ ...t, degreeLevel: v[0] ?? null }, ['degreeLevel', 'degreeMajor', 'degreeInstitution', 'degreeYear'])}

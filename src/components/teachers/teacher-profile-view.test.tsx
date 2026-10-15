@@ -5,6 +5,7 @@ import { renderToString } from 'react-dom/server'
 import { act, cleanup, render } from '@testing-library/react'
 import { LanguageProvider } from '@/context/language-context'
 import { COVER_CONSENT_VERSION } from '@/lib/teachers/cover'
+import { TEACHER_OPTIONS } from '@/lib/teachers/profile'
 
 // The server component reads one TeacherProfile row; the header, footer and contact block are their own suites.
 const h = vi.hoisted(() => ({ row: null as Record<string, unknown> | null }))
@@ -116,6 +117,46 @@ describe('teaching details', () => {
   })
   it('a cover-only teacher (no job type) gets no empty "Looking for" row', async () => {
     expect((await page('en', { jobTypes: [] })).row('Looking for')).toBeNull()
+  })
+  it('⛔ in Vietnamese, labels and option chips are the taxonomy\'s own Vietnamese — never <Tr> (English in the HTML, then MT)', async () => {
+    const p = await page('vi', {
+      subjects: ['general-english', 'phonics'], ageGroups: ['kids', 'adults'], jobTypes: ['parttime', 'private'], expectedSalaryM: 20,
+      degreeLevel: 'phd', certificates: [{ type: 'celta', hours: 120, provider: 'Cambridge', year: 2020 }],
+      experience: [{ role: 'Teacher', employer: 'ILA', city: 'HCMC', from: '2020', to: '' }],
+    })
+    expect(p.row('Môn dạy')).toEqual(['Tiếng Anh tổng quát', 'Ngữ âm'])
+    expect(p.row('Dạy lứa tuổi')).toEqual(['Trẻ em', 'Người lớn'])
+    expect(p.row('Tìm việc')).toEqual(['Bán thời gian', 'Gia sư'])
+    expect(p.row('Mức lương mong muốn')).toEqual([])
+    expect(p.text).toContain('Kinh nghiệm')
+    expect(p.text).not.toContain('Trải nghiệm') // the UI-string "Experience" — an experience you go on, not work history
+    expect(p.text).toContain('HCMC · 2020 – nay')
+    expect(p.text).toContain('Bằng cấp và chứng chỉTiến sĩ')
+    expect(p.text).toContain('Bằng cấp và chứng chỉ do giáo viên tự khai.')
+    expect(p.text).toContain('Giảng dạy')
+    expect(p.row('Ngôn ngữ')).toEqual([])
+    expect(p.text).toContain('/ tháng')
+    expect(p.text).not.toMatch(/Subjects|Teaches|Teaching|Looking for|Expected salary|Languages|Qualifications|present|\bmonth\b|Private tutoring|Phonics/)
+  })
+  it('EVERY teacher option, in both languages, is its own label / labelVi — and a value the taxonomy does not know prints as stored', async () => {
+    const { subject, ageGroup, jobType, cert, degree } = TEACHER_OPTIONS
+    const over = {
+      subjects: [...subject.map((o) => o.value), 'made-up-subject'], ageGroups: ageGroup.map((o) => o.value), jobTypes: jobType.map((o) => o.value),
+      certificates: cert.map((o) => ({ type: o.value, hours: null, provider: '', year: null })),
+    }
+    for (const lang of ['en', 'vi'] as const) {
+      const say = (o: { label: string; labelVi: string }) => (lang === 'vi' ? o.labelVi : o.label)
+      const p = await page(lang, over)
+      expect(p.row(lang === 'vi' ? 'Môn dạy' : 'Subjects')).toEqual([...subject.map(say), 'made-up-subject'])
+      expect(p.row(lang === 'vi' ? 'Dạy lứa tuổi' : 'Teaches')).toEqual(ageGroup.map(say))
+      expect(p.row(lang === 'vi' ? 'Tìm việc' : 'Looking for')).toEqual(jobType.map(say))
+      const quals = [...p.el.querySelectorAll('section[aria-labelledby="t-quals"] li')].map((li) => li.textContent?.trim())
+      expect(quals).toEqual(cert.map(say))
+      for (const d of degree) {
+        const q = await page(lang, { degreeLevel: d.value })
+        expect(q.el.querySelector('section[aria-labelledby="t-quals"] li')?.textContent?.trim()).toBe(say(d))
+      }
+    }
   })
   it('the start month as a month — "Now" is decided only after mount, never in the cached HTML', async () => {
     const p = await page('en', { availableFrom: new Date('2020-01-01T00:00:00Z') })

@@ -445,7 +445,7 @@ describe('TeacherThreadStrip — intro video', () => {
     routes['/api/teachers/video'] = () => no(409, 'video_not_on_request')
     render(strip({ iAmTeacher: false, video: flags({ shareOn: true, shared: true }) }))
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Watch intro video/ })) })
-    expect(screen.getByRole('alert').textContent).toContain('no longer sends their video on request — if they show it, it’s on their profile')
+    expect(screen.getByRole('alert').textContent).toContain('no longer sends their video on request — if they make it public, it’s on their profile')
     expect(screen.queryByRole('button', { name: /intro video/ })).toBeNull()
   })
 

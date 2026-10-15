@@ -30,8 +30,19 @@ import { CoverDayShort } from '@/components/teachers/cover-day'
 import { formatCalendarDay } from '@/lib/calendar-day'
 import { ShareButton } from '@/components/marketplace/share-button'
 
-type Opt = { value: string; label: string }
+type Opt = { value: string; label: string; labelVi?: string }
 const labelOf = (opts: readonly Opt[], v: string) => opts.find((o) => o.value === v)?.label ?? v
+/**
+ * A taxonomy option's name — its own Vietnamese (`labelVi`), never `<Tr>`: `<Tr>` looks the English up as a UI string,
+ * so most teacher options ("Phonics", "Private tutoring", "PhD") reached a Vietnamese reader machine-translated, and a
+ * curated word could differ from the one the /c/teachers filter shows (2026-10-15). Same rule as a category name
+ * (bilingual.tsx). A value the taxonomy does not know prints exactly as stored — never sent to translation as copy.
+ */
+function OptionLabel({ opts, value }: { opts: readonly Opt[]; value: string }) {
+  const o = opts.find((x) => x.value === value)
+  if (!o) return <>{value}</>
+  return o.labelVi ? <Bilingual en={o.label} vi={o.labelVi} /> : <Tr text={o.label} />
+}
 const ldJson = (o: object) => JSON.stringify(o).replace(/</g, '\\u003c')
 
 type Experience = { role: string; employer: string; city: string; from: string; to: string }
@@ -49,12 +60,13 @@ const EXPERIENCE_BAND: Record<string, { en: string; vi: string }> = {
   '1-3-years': { en: '1–3 years teaching', vi: 'Dạy 1–3 năm' },
   '3-5-years': { en: '3–5 years teaching', vi: 'Dạy 3–5 năm' },
   '5-10-years': { en: '5–10 years teaching', vi: 'Dạy 5–10 năm' },
-  'over-10-years': { en: '10+ years teaching', vi: 'Dạy hơn 10 năm' },
+  'over-10-years': { en: '10+ years teaching', vi: 'Dạy 10 năm trở lên' },
 }
 
 /**
- * One chip. `text` is taxonomy copy and goes through <Tr>; `node` is rendered as given — a place name (⛔ never
- * machine-translated, places.ts placeLabel), an authored pair, or the teacher's own words (a taught language).
+ * One chip. `text` goes through <Tr>; `node` is rendered as given — a taxonomy option (OptionLabel, its own
+ * Vietnamese), a place name (⛔ never machine-translated, places.ts placeLabel), an authored pair, or the teacher's own
+ * words (a taught language).
  */
 type Chip = { key: string; text?: string; node?: React.ReactNode }
 function Chips({ items }: { items: Chip[] }) {
@@ -118,7 +130,8 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
   const teachLanguages = tp?.teachLanguages ?? []
   const experience = (Array.isArray(tp?.experience) ? tp.experience : []) as Experience[]
   const certificates = (Array.isArray(tp?.certificates) ? tp.certificates : []) as Certificate[]
-  const degreeLabel = tp?.degreeLevel ? labelOf(cat?.facets.find((f) => f.key === 'degree')?.options ?? [], tp.degreeLevel) : null
+  const degreeOpts = cat?.facets.find((f) => f.key === 'degree')?.options ?? []
+  const degreeLabel = tp?.degreeLevel ? labelOf(degreeOpts, tp.degreeLevel) : null
   // A place — its own name, never machine-translated; Online and "Anywhere in Vietnam" are words, authored in both.
   const placeChip = (k: string): Chip => ({
     key: k,
@@ -129,7 +142,7 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
   // "Other language" reads as the languages taught (the teacher's own words, as typed) once they are named.
   const subjectChips: Chip[] = (tp?.subjects ?? []).flatMap((s): Chip[] => (s === 'other-language' && teachLanguages.length
     ? teachLanguages.map((l) => ({ key: `language:${l}`, node: l }))
-    : [{ key: s, text: labelOf(TEACHER_OPTIONS.subject, s) }]))
+    : [{ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.subject} value={s} /> }]))
   // Online is a PLACE since 2026-10-08 ("Can teach in"): an old row's 'online' job type is not printed as a job.
   const jobTypes = (tp?.jobTypes ?? []).filter((j) => TEACHER_OPTIONS.jobType.some((o) => o.value === j))
   // The start DAY ('YYYY-MM-DD'): the page names its month; an old row's day (any day, before 2026-10-08) still decides
@@ -252,14 +265,14 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
                 </div>
                 <p className="text-xs text-muted-foreground">
                   <Bilingual en="This is the teacher's usual week. Message them to agree a date, time and place." vi="Đây là lịch thường lệ của giáo viên. Hãy nhắn tin để thống nhất ngày, giờ và địa điểm." />
-                  {cover.confirmedAt && <>{' '}<Bilingual en="Confirmed on {date}." vi="Xác nhận ngày {date}." values={{ date: formatCalendarDay(cover.confirmedAt.toISOString(), lang) }} datesIso={{ date: cover.confirmedAt.toISOString().slice(0, 10) }} /></>}
+                  {cover.confirmedAt && <>{' '}<Bilingual en="Confirmed on {date}." vi="Đã xác nhận ngày {date}." values={{ date: formatCalendarDay(cover.confirmedAt.toISOString(), lang) }} datesIso={{ date: cover.confirmedAt.toISOString().slice(0, 10) }} /></>}
                 </p>
               </section>
             )}
 
             {publicVideo && (
               <section aria-labelledby="t-video">
-                <h2 id="t-video" className="mb-3 text-lg font-semibold text-foreground"><Tr text="Intro video" /></h2>
+                <h2 id="t-video" className="mb-3 text-lg font-semibold text-foreground"><Bilingual en="Intro video" vi="Video giới thiệu" /></h2>
                 <video src={publicVideo} controls preload="metadata" playsInline className="aspect-video w-full rounded-2xl bg-black" />
               </section>
             )}
@@ -267,28 +280,29 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
                 2026-10-13, not only a school — and the teacher sends it there. */}
             {videoOnRequest && (
               <section aria-labelledby="t-video">
-                <h2 id="t-video" className="mb-2 text-lg font-semibold text-foreground"><Tr text="Intro video" /></h2>
+                <h2 id="t-video" className="mb-2 text-lg font-semibold text-foreground"><Bilingual en="Intro video" vi="Video giới thiệu" /></h2>
                 <p className="flex items-center gap-2 text-sm text-body">
                   <Lock className="size-4 shrink-0 text-muted-foreground" />
-                  <Bilingual en="Sent on request — message this teacher and ask for it in the chat." vi="Gửi khi được đề nghị — hãy nhắn tin cho giáo viên và đề nghị xem trong cuộc trò chuyện." />
+                  <Bilingual en="Sent on request — message this teacher and ask for it in the chat." vi="Gửi theo yêu cầu — hãy nhắn tin cho giáo viên và đề nghị xem trong cuộc trò chuyện." />
                 </p>
               </section>
             )}
 
             {tp?.bio && (
               <section aria-labelledby="t-about">
-                <h2 id="t-about" className="mb-2 text-lg font-semibold text-foreground"><Tr text="About" /></h2>
+                <h2 id="t-about" className="mb-2 text-lg font-semibold text-foreground"><Bilingual en="About" vi="Giới thiệu" /></h2>
                 <p className="max-w-prose whitespace-pre-line text-body"><LocalizedText text={tp.bio} /></p>
               </section>
             )}
 
             {tp && (
               <section aria-labelledby="t-teaching" className="space-y-4">
-                <h2 id="t-teaching" className="text-lg font-semibold text-foreground"><Tr text="Teaching" /></h2>
+                <h2 id="t-teaching" className="text-lg font-semibold text-foreground"><Bilingual en="Teaching" vi="Giảng dạy" /></h2>
                 <dl className="divide-y divide-border">
-                  <Row label={<Tr text="Subjects" />}><Chips items={subjectChips} /></Row>
-                  <Row label={<Tr text="Teaches" />}><Chips items={tp.ageGroups.map((s) => ({ key: s, text: labelOf(TEACHER_OPTIONS.ageGroup, s) }))} /></Row>
-                  {jobTypes.length > 0 && <Row label={<Tr text="Looking for" />}><Chips items={jobTypes.map((s) => ({ key: s, text: labelOf(TEACHER_OPTIONS.jobType, s) }))} /></Row>}
+                  {/* Row labels say what the /c/teachers filter calls the same facet (taxonomy labelVi). */}
+                  <Row label={<Bilingual en="Subjects" vi="Môn dạy" />}><Chips items={subjectChips} /></Row>
+                  <Row label={<Bilingual en="Teaches" vi="Dạy lứa tuổi" />}><Chips items={tp.ageGroups.map((s) => ({ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.ageGroup} value={s} /> }))} /></Row>
+                  {jobTypes.length > 0 && <Row label={<Bilingual en="Looking for" vi="Tìm việc" />}><Chips items={jobTypes.map((s) => ({ key: s, node: <OptionLabel opts={TEACHER_OPTIONS.jobType} value={s} /> }))} /></Row>}
                   {/* THE ONE TEACH-AREA LIST (2026-10-08), split by the home area: where they can teach from home (and
                       Online), and where they would move. A school's "Can teach in" filter matches the whole list. */}
                   {places.canTeachIn.length > 0 && <Row label={<Bilingual en="Can teach in" vi="Có thể dạy tại" />}><Chips items={places.canTeachIn.map(placeChip)} /></Row>}
@@ -296,20 +310,21 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
                   {/* "Available: From November 2026", or "Now" once the start has come — decided after mount, on the
                       reader's clock (TeacherAvailableFrom): no clock in this ISR-cached HTML. */}
                   {startDay && <Row label={<Bilingual en="Available" vi="Có thể bắt đầu" />}><TeacherAvailableFrom from={startDay} /></Row>}
-                  {tp.expectedSalaryM != null && tp.expectedSalaryM > 0 && <Row label={<Tr text="Expected salary" />}>{formatMoneyFull(tp.expectedSalaryM * 1_000_000, '₫', moneyLocale(lang))} / <Tr text="month" /></Row>}
-                  {tp.languages.length > 0 && <Row label={<Tr text="Languages" />}>{tp.languages.join(', ')}</Row>}
+                  {tp.expectedSalaryM != null && tp.expectedSalaryM > 0 && <Row label={<Bilingual en="Expected salary" vi="Mức lương mong muốn" />}>{formatMoneyFull(tp.expectedSalaryM * 1_000_000, '₫', moneyLocale(lang))} / <Bilingual en="month" vi="tháng" /></Row>}
+                  {tp.languages.length > 0 && <Row label={<Bilingual en="Languages" vi="Ngôn ngữ" />}>{tp.languages.join(', ')}</Row>}
                 </dl>
               </section>
             )}
 
             {experience.length > 0 && (
               <section aria-labelledby="t-exp">
-                <h2 id="t-exp" className="mb-3 text-lg font-semibold text-foreground"><Tr text="Experience" /></h2>
+                {/* ⛔ Not <Tr>: the UI-string "Experience" is "Trải nghiệm" (an experience you go on); this is work history. */}
+                <h2 id="t-exp" className="mb-3 text-lg font-semibold text-foreground"><Bilingual en="Experience" vi="Kinh nghiệm" /></h2>
                 <ol className="space-y-3">
                   {experience.map((x, i) => (
                     <li key={i}>
                       <p className="font-medium text-foreground">{x.role} · {x.employer}</p>
-                      <p className="text-sm text-muted-foreground">{[x.city, [x.from, x.to || null].filter(Boolean).join(' – ')].filter(Boolean).join(' · ')}{x.from && !x.to ? <> – <Tr text="present" /></> : null}</p>
+                      <p className="text-sm text-muted-foreground">{[x.city, [x.from, x.to || null].filter(Boolean).join(' – ')].filter(Boolean).join(' · ')}{x.from && !x.to ? <> – <Bilingual en="present" vi="nay" /></> : null}</p>
                     </li>
                   ))}
                 </ol>
@@ -318,19 +333,19 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
 
             {tp && (degreeLabel || certificates.length > 0) && (
               <section aria-labelledby="t-quals">
-                <h2 id="t-quals" className="mb-3 text-lg font-semibold text-foreground"><Tr text="Qualifications" /></h2>
+                <h2 id="t-quals" className="mb-3 text-lg font-semibold text-foreground"><Bilingual en="Qualifications" vi="Bằng cấp và chứng chỉ" /></h2>
                 <ul className="space-y-2 text-sm text-body">
-                  {degreeLabel && (
-                    <li><Tr text={degreeLabel} />{tp.degreeMajor ? `, ${tp.degreeMajor}` : ''}{tp.degreeInstitution ? ` — ${tp.degreeInstitution}` : ''}{tp.degreeYear ? ` (${tp.degreeYear})` : ''}</li>
+                  {degreeLabel && tp.degreeLevel && (
+                    <li><OptionLabel opts={degreeOpts} value={tp.degreeLevel} />{tp.degreeMajor ? `, ${tp.degreeMajor}` : ''}{tp.degreeInstitution ? ` — ${tp.degreeInstitution}` : ''}{tp.degreeYear ? ` (${tp.degreeYear})` : ''}</li>
                   )}
                   {certificates.filter((c) => c.type).map((c, i) => (
                     <li key={i}>
-                      <Tr text={labelOf(TEACHER_OPTIONS.cert, c.type)} />
+                      <OptionLabel opts={TEACHER_OPTIONS.cert} value={c.type} />
                       {c.hours ? ` · ${c.hours}h` : ''}{c.provider ? ` · ${c.provider}` : ''}{c.year ? ` (${c.year})` : ''}
                     </li>
                   ))}
                 </ul>
-                <p className="mt-2 text-xs text-muted-foreground"><Tr text="Qualifications are as stated by the teacher. Ask to see documents before hiring." /></p>
+                <p className="mt-2 text-xs text-muted-foreground"><Bilingual en="Qualifications are as stated by the teacher. Ask to see documents before hiring." vi="Bằng cấp và chứng chỉ do giáo viên tự khai. Hãy đề nghị xem giấy tờ trước khi tuyển dụng." /></p>
               </section>
             )}
           </div>

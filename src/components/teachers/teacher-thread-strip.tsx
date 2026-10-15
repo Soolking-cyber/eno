@@ -183,7 +183,7 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
     // School side: never "no video" — a teacher who just made it PUBLIC still has one, on their profile.
     if (code === 'video_missing' || code === 'video_not_on_request') return iAmTeacher
       ? tr('There is no private intro video on your profile to send. Add one in your teacher profile.', 'Hồ sơ của bạn chưa có video giới thiệu riêng tư để gửi. Hãy thêm video trong hồ sơ giáo viên.')
-      : tr('This teacher no longer sends their video on request — if they show it, it’s on their profile.', 'Giáo viên này không còn gửi video theo yêu cầu — nếu họ công khai, video sẽ có trên hồ sơ của họ.')
+      : tr('This teacher no longer sends their video on request — if they make it public, it’s on their profile.', 'Giáo viên này không còn gửi video theo yêu cầu — nếu họ công khai, video sẽ có trên hồ sơ của họ.')
     if (code === 'share_required') return tr('The teacher stopped sharing their intro video.', 'Giáo viên đã ngừng chia sẻ video giới thiệu.')
     if (code === 'account_suspended') return tr('Your account can’t do this right now.', 'Tài khoản của bạn hiện chưa thể thực hiện thao tác này.')
     return tr('Something went wrong. Please try again.', 'Đã có lỗi. Vui lòng thử lại.')
@@ -333,7 +333,7 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
           // Names the conversation, never the person.
           : code === 'blocked'
             ? tr('This conversation is closed — contact details can’t be shared here.', 'Cuộc trò chuyện này đã đóng — không thể chia sẻ thông tin liên hệ ở đây.')
-            : tr('Could not update sharing. Please try again.', 'Không cập nhật được. Vui lòng thử lại.'))
+            : tr('Could not update sharing. Please try again.', 'Không cập nhật được chế độ chia sẻ. Vui lòng thử lại.'))
       }
     } finally { setBusy(null) }
   }
@@ -457,7 +457,7 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
       ) : (
         <p className="flex items-center gap-1.5 text-2xs text-body">
           <Phone className="h-3.5 w-3.5 shrink-0 text-ink-4" />
-          {tr('The teacher’s phone, email and CV appear here if they choose to share them with you.', 'Số điện thoại, email và CV của giáo viên sẽ hiện ở đây nếu họ đồng ý chia sẻ.')}
+          {tr('The teacher’s phone, email and CV appear here if they choose to share them with you.', 'Số điện thoại, email và CV của giáo viên sẽ hiện ở đây nếu họ chọn chia sẻ với bạn.')}
         </p>
       )}
       {error && <p role="alert" className="w-full text-2xs text-destructive">{error}</p>}

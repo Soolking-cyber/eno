@@ -65,7 +65,7 @@ export function WhereStep({ t, set, patch, errors, errText, coverIntent, onGoTo 
             aria-labelledby={`${uid}-start`}
           >
             <ToggleGroupItem value="now">{tr('Now', 'Ngay bây giờ')}</ToggleGroupItem>
-            <ToggleGroupItem value="month">{tr('From a month', 'Từ một tháng')}</ToggleGroupItem>
+            <ToggleGroupItem value="month">{tr('Pick a month', 'Chọn tháng')}</ToggleGroupItem>
           </ToggleGroup>
           {start.kind === 'month' && (
             <Field>

@@ -12,7 +12,7 @@ describe('makeErrText', () => {
     // Only a draft from the previous form holds one: it added a row before its type was picked.
     expect(errText('certificates.0', 'incomplete')).toBe('It has no type — remove it, then tap the right certificate above.')
     expect(errText('certificates.3', 'incomplete')).not.toMatch(/role|school|job/)
-    expect(errText('experience.0', 'incomplete')).toBe('Fill in the role and the school, or remove this job.')
+    expect(errText('experience.0', 'incomplete')).toBe('Fill in the role and the school or company, or remove this job.')
   })
 
   it('the other certificate codes keep their own words', () => {

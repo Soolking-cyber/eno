@@ -46,7 +46,7 @@ export function makeErrText(tr: (en: string, vi: string) => string) {
       case 'required': return tr('This is required.', 'Mục này là bắt buộc.')
       case 'too_short': return tr('Please write a little more (at least 10 characters).', 'Vui lòng viết thêm (ít nhất 10 ký tự).')
       case 'invalid': return tr('Please check this value.', 'Vui lòng kiểm tra lại.')
-      case 'incomplete': return tr('Fill in the role and the school, or remove this job.', 'Điền vị trí và nơi làm việc, hoặc xoá công việc này.')
+      case 'incomplete': return tr('Fill in the role and the school or company, or remove this job.', 'Điền vị trí và trường hoặc công ty, hoặc xoá công việc này.')
       case 'dates': return tr('The end date is before the start date.', 'Ngày kết thúc trước ngày bắt đầu.')
       case 'not_owned': return tr('That upload has expired — please upload your video again.', 'Video tải lên đã hết hạn — vui lòng tải lại video.')
       case 'rate_range': return tr('Please enter a rate between 50,000 đ and 2,000,000 đ an hour.', 'Vui lòng nhập mức phí từ 50.000 đ đến 2.000.000 đ một giờ.')
@@ -82,14 +82,14 @@ export function makeErrText(tr: (en: string, vi: string) => string) {
         case 'englishLevel': return tr('Please pick your English level.', 'Vui lòng chọn trình độ tiếng Anh của bạn.')
         case 'photoUrl': return tr('Please add a profile photo.', 'Vui lòng thêm ảnh hồ sơ.')
         case 'phone': return tr('Please add your phone number — our staff need it to call you.', 'Vui lòng thêm số điện thoại — nhân viên cần số này để gọi cho bạn.')
-        case 'coverSlots': return tr('Please tap at least one period you are usually free.', 'Vui lòng chạm vào ít nhất một buổi bạn thường rảnh.')
+        case 'coverSlots': return tr('Please tap at least one period you are usually free.', 'Vui lòng bấm chọn ít nhất một buổi bạn thường rảnh.')
         case 'coverRateVnd': return tr('Please set your hourly rate.', 'Vui lòng đặt mức phí theo giờ.')
       }
     }
     // A certificate row with NO TYPE — only a draft from the previous form holds one (it added a row before its type
     // was picked; the chips here add typed rows): the generic `incomplete` is the teaching-job words ("Fill in the role
     // and the school"), which told the teacher nothing they could do (gate review, 2026-10-08).
-    if (code === 'incomplete' && field.startsWith('certificates.')) return tr('It has no type — remove it, then tap the right certificate above.', 'Chưa có loại chứng chỉ — hãy xoá mục này rồi chạm vào chứng chỉ đúng ở trên.')
+    if (code === 'incomplete' && field.startsWith('certificates.')) return tr('It has no type — remove it, then tap the right certificate above.', 'Chưa có loại chứng chỉ — hãy xoá mục này rồi bấm chọn chứng chỉ đúng ở trên.')
     return generic(code)
   }
 }

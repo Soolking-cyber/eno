@@ -43,7 +43,7 @@ export function CoverSummary({ savedOpen, slots, areas, rateVnd, confirmedAt, di
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-tint p-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground">{tr('New: cover lessons', 'Mới: dạy thay')}</p>
-          <p className="text-sm text-body">{tr('Schools look for teachers free for a one-off lesson. Show when you are free and what you charge.', 'Các trường tìm giáo viên rảnh để dạy thay một buổi. Hãy cho biết khi nào bạn rảnh và mức phí của bạn.')}</p>
+          <p className="text-sm text-body">{tr('Schools look for teachers available for a one-off lesson. Show when you are free and what you charge.', 'Các trường tìm giáo viên rảnh để dạy thay một buổi. Hãy cho biết khi nào bạn rảnh và mức phí của bạn.')}</p>
           {noticeLine}
         </div>
         <Button variant="secondary" size="sm" type="button" onClick={onEdit}><CalendarDays className="size-4" />{tr('Set up cover lessons', 'Thiết lập dạy thay')}</Button>

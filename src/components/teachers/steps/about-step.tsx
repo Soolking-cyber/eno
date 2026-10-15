@@ -33,7 +33,7 @@ export function AboutStep({ t, set, errors, errText, prefillName }: StepProps & 
   prefillName: string | null
 }) {
   const { tr, lang } = useLanguage()
-  const levelLabel = (l: EnglishLevel) => (l === 'native' ? tr('Native', 'Bản ngữ') : l === 'fluent' ? tr('Fluent', 'Lưu loát') : tr('Working', 'Đủ dùng trong công việc'))
+  const levelLabel = (l: EnglishLevel) => (l === 'native' ? tr('Native', 'Bản ngữ') : l === 'fluent' ? tr('Fluent', 'Lưu loát') : tr('Working level', 'Đủ dùng trong công việc'))
   const suggestion = suggestHeadline(t, lang)
   const taughtCodes = t.teachLanguages.map(languageCodeOf).filter((c): c is string => !!c)
 
@@ -80,7 +80,7 @@ export function AboutStep({ t, set, errors, errText, prefillName }: StepProps & 
       <Field invalid={!!errors.headline}>
         <Label htmlFor="tf-headline">{tr('Headline', 'Tiêu đề')}</Label>
         <FieldControl id="tf-headline" render={<Input id="tf-headline" value={t.headline} maxLength={LIMITS.headline} onChange={(e) => set('headline', e.target.value)} />} />
-        <FieldDescription className="text-muted-foreground">{tr('One line schools read first — at least 10 characters.', 'Một dòng các trường đọc đầu tiên — ít nhất 10 ký tự.')}</FieldDescription>
+        <FieldDescription className="text-muted-foreground">{tr('One line schools read first — at least 10 characters.', 'Dòng đầu tiên các trường sẽ đọc — ít nhất 10 ký tự.')}</FieldDescription>
         {suggestion && suggestion !== t.headline && (
           <Chip size="sm" tone="neutral" className="relative tap-44 max-w-full self-start whitespace-normal text-left" onClick={() => set('headline', suggestion)}>
             <Sparkles className="size-3.5 shrink-0" aria-hidden />
@@ -93,7 +93,7 @@ export function AboutStep({ t, set, errors, errText, prefillName }: StepProps & 
       <Field>
         <Label htmlFor="tf-bio">{tr('About you (optional)', 'Giới thiệu (không bắt buộc)')}</Label>
         <FieldControl id="tf-bio" render={<Textarea id="tf-bio" rows={5} value={t.bio} maxLength={LIMITS.bio} onChange={(e) => set('bio', e.target.value)} />} />
-        <FieldDescription className="text-muted-foreground">{tr('Your teaching style and experience. No phone numbers or emails here.', 'Phong cách giảng dạy và kinh nghiệm của bạn. Không ghi số điện thoại hay email.')}</FieldDescription>
+        <FieldDescription className="text-muted-foreground">{tr('Your teaching style and experience. No phone numbers or emails here.', 'Phong cách giảng dạy và kinh nghiệm của bạn. Không ghi số điện thoại hay email vào đây.')}</FieldDescription>
       </Field>
     </div>
   )

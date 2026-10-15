@@ -116,7 +116,7 @@ export function CoverFields({ value, onChange, errors, onChangePlaces, errText }
 
       {value.coverOpen && (
         <>
-          <Block title={tr('When are you usually free?', 'Bạn thường rảnh khi nào?')} hint={tr('Tap every period you can usually teach.', 'Chạm vào mọi buổi bạn thường có thể dạy.')}>
+          <Block title={tr('When are you usually free?', 'Bạn thường rảnh khi nào?')} hint={tr('Tap every period you can usually teach.', 'Bấm chọn mọi buổi bạn thường có thể dạy.')}>
             {/* gap-y-3, not gap-2: each small chip's tap-44 hit area reaches 6px past it, so two rows 8px apart overlapped
                 and a tap just under "Weekday afternoons" hit Clear and wiped every period (preview check, 2026-10-07). */}
             <div className="flex flex-wrap gap-x-2 gap-y-3">
@@ -127,7 +127,7 @@ export function CoverFields({ value, onChange, errors, onChangePlaces, errText }
               ))}
               {value.coverSlots.length > 0 && (
                 <Chip size="sm" tone="ghost" type="button" className="relative tap-44" onClick={() => onChange({ coverSlots: [] })}>
-                  {tr('Clear', 'Xóa hết')}
+                  {tr('Clear', 'Xoá hết')}
                 </Chip>
               )}
             </div>

@@ -120,7 +120,7 @@ export function PlansStep({ t, update, errors, errText, coverIntent, signedIn, d
           <RadioGroup value={t.relocate} onValueChange={(v) => update(withRelocate(t, v as Relocate), ['relocate', 'teachAreas'])} className="grid gap-2">
             <Radio value="no" className={RADIO_CARD}>
               <RadioDot className="mt-0.5" />
-              <span className="text-sm font-semibold text-foreground">{tr('No, only around', 'Không, chỉ quanh')} {homeName}</span>
+              <span className="text-sm font-semibold text-foreground">{tr('No, only around', 'Không, chỉ trong khu vực')} {homeName}</span>
             </Radio>
             <Radio value="some" className={RADIO_CARD}>
               <RadioDot className="mt-0.5" />

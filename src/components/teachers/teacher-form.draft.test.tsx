@@ -146,7 +146,7 @@ describe('loading the account\'s saved draft', () => {
 })
 
 describe('a save that is refused or fails', () => {
-  it('stale (another window or device saved since): saving stops; "Open the latest" brings the saved answers', async () => {
+  it('stale (another window or device saved since): saving stops; "Open the latest version" brings the saved answers', async () => {
     putReply = () => ({ status: 409, json: { error: 'draft_stale' } })
     putDraft(COMPLETE, 'where')
     const user = mount()
@@ -160,7 +160,7 @@ describe('a save that is refused or fails', () => {
     expect(draftPuts()).toHaveLength(sent)
     expect(screen.getByText('Your profile was changed in another window or on another device.')).toBeTruthy()
     saved = { t: { ...COMPLETE, fullName: 'From the phone' }, step: 'about', rev: 7, updatedAt: '2026-10-11T09:00:00.000Z', gen: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b' }
-    await user.click(screen.getByRole('button', { name: 'Open the latest' }))
+    await user.click(screen.getByRole('button', { name: 'Open the latest version' }))
     expect(await screen.findByDisplayValue('From the phone')).toBeTruthy()
     expect(screen.queryByText('Your profile was changed in another window or on another device.')).toBeNull()
   })
@@ -248,7 +248,7 @@ describe('saved on every step change — and the line never says "saved" for ans
     expect(draftPuts()[0]).toMatchObject({ rev: 2, step: 'about' })
   })
 
-  it('"Open the latest" that cannot reach the saved profile keeps the choice on screen — never a silent "keep"', async () => {
+  it('"Open the latest version" that cannot reach the saved profile keeps the choice on screen — never a silent "keep"', async () => {
     putReply = () => ({ status: 409, json: { error: 'draft_stale' } })
     putDraft(COMPLETE, 'where')
     const user = mount()
@@ -257,7 +257,7 @@ describe('saved on every step change — and the line never says "saved" for ans
     expect(await screen.findByText('Your profile was changed in another window or on another device.')).toBeTruthy()
     const f = fakeFetch({ 'GET /api/teachers/me/draft': () => ({ status: 503, json: { error: 'unavailable' } }) })
     vi.stubGlobal('fetch', f.fn)
-    await user.click(screen.getByRole('button', { name: 'Open the latest' }))
+    await user.click(screen.getByRole('button', { name: 'Open the latest version' }))
     expect(await screen.findByText('Could not reach your saved profile — please try again.')).toBeTruthy()
     expect(screen.getByText('Your profile was changed in another window or on another device.')).toBeTruthy()
     expect(f.calls.some((c) => c.method === 'PUT')).toBe(false)
@@ -364,7 +364,7 @@ describe('reloads and failures (commit gate, 2026-10-11)', () => {
 })
 
 describe('round-4 review cases (commit gate, 2026-10-11)', () => {
-  it('"Open the latest" when nothing is saved any more (deleted elsewhere): the deleted state — never brought back unasked', async () => {
+  it('"Open the latest version" when nothing is saved any more (deleted elsewhere): the deleted state — never brought back unasked', async () => {
     putReply = () => ({ status: 409, json: { error: 'draft_stale' } })
     putDraft(COMPLETE, 'where')
     const user = mount()
@@ -373,7 +373,7 @@ describe('round-4 review cases (commit gate, 2026-10-11)', () => {
     expect(await screen.findByText('Your profile was changed in another window or on another device.')).toBeTruthy()
     saved = null
     const before = draftPuts().length
-    await user.click(screen.getByRole('button', { name: 'Open the latest' }))
+    await user.click(screen.getByRole('button', { name: 'Open the latest version' }))
     expect(await screen.findByText('Your saved answers were deleted — published, started over, or not changed for 90 days.')).toBeTruthy()
     await new Promise((r) => setTimeout(r, 100))
     expect(draftPuts()).toHaveLength(before)
