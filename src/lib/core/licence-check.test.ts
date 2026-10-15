@@ -22,6 +22,15 @@ const LP = { legalName: 'CÔNG TY LUẬT ABC', licenceNo: '0312345678' }
 const attrs = (v: { legalName: string; licenceNo: string } | null) =>
   JSON.stringify({ visaSpeed: 'standard', ...(v ? { providerLegalName: v.legalName, providerLicenceNo: v.licenceNo } : {}) })
 
+// The licence WHITELIST (src/lib/licence-whitelist.ts — owner, 2026-10-15) is switchable here: EMPTY by default, so the
+// tests below pin the check as it runs for everyone else (VietKite's grandfather included); the whitelist's own tests
+// turn it on.
+const wl = vi.hoisted(() => ({ list: [] as Array<{ sellerId: string; name: string; aisles: string[] }> }))
+vi.mock('@/lib/licence-whitelist', () => ({
+  get LICENCE_WHITELIST() { return wl.list },
+  isLicenceWhitelisted: (sellerId: string | null | undefined, sub: string | null | undefined) =>
+    !!sellerId && !!sub && wl.list.some((w) => w.sellerId === sellerId && w.aisles.includes(sub)),
+}))
 const h = vi.hoisted(() => ({
   rows: [] as Row[],
   desk: [] as string[],
@@ -113,6 +122,7 @@ const ids = (rows: Row[]) => rows.map((r) => r.id).sort()
 const row = (id: string) => h.rows.find((r) => r.id === id)!
 
 beforeEach(() => {
+  wl.list = []
   h.rows = []
   h.desk = [DESK]
   h.deskCalls = 0
@@ -306,6 +316,55 @@ describe('sweepLicenceHolds', () => {
     expect(r.pulled).toBe(0)
     expect(h.writes).toHaveLength(0)
     expect(ids(h.rows.filter((x) => x.verified))).toEqual(['cleaning', 'cleared', 'desk', 'tombstone', 'vk-1', 'vk-2'])
+  })
+})
+
+// ⛔ Owner, 2026-10-15: "whitelist vietkite" (src/lib/licence-whitelist.ts) — VietKite's e-Visa rows are exempt before and
+// after the grandfather's end (which no longer decides anything for them).
+describe('sweepLicenceHolds — the licence whitelist', () => {
+  const before = new Date(END - 60_000)
+  const after = new Date(END + 60_000)
+
+  beforeEach(() => {
+    wl.list = [{ sellerId: VK, name: 'vietkite', aisles: ['visa-legal'] }]
+    h.rows = [
+      listing('active', { attributes: attrs(null) }),
+      listing('desk', { sellerId: DESK, attributes: null }),
+      listing('vk-1', { sellerId: VK, attributes: attrs(null) }),
+      listing('vk-values', { sellerId: VK }),
+      listing('vk-lp', { sellerId: VK, subcategorySlug: 'legal-permits', attributes: attrs(null) }),
+    ]
+  })
+
+  it.each([['before', before], ['after', after]] as const)('%s the grandfather’s end: VietKite’s e-Visa rows are exempt and counted; its Legal & permits row is pulled like anyone’s', async (_label, now) => {
+    const r = await sweepLicenceHolds({ now })
+    expect(r.refused).toBeUndefined()
+    expect(r).toMatchObject({ deskExempt: 1, whitelisted: 2, grandfathered: 0 })
+    expect(r.pulledIds.sort()).toEqual(['active', 'vk-lp'])
+    for (const id of ['vk-1', 'vk-values', 'desk']) expect(row(id).verified, id).toBe(true)
+  })
+
+  it('reads no storefront: the id is the identity (claim-once ownership) — and the moot grandfather is never read', async () => {
+    await sweepLicenceHolds({ now: before })
+    await sweepLicenceHolds({ now: after })
+    expect(h.sellerReads).toEqual([])
+  })
+
+  // Commit gate, 2026-10-15: a vanished id (a restore that re-created the storefront) exempts NOBODY — VietKite is then
+  // checked like anyone, fail closed by construction.
+  it('⛔ a restore that gave VietKite a new id: the whitelist matches nothing — its unchecked rows are swept like anyone’s', async () => {
+    for (const id of ['vk-1', 'vk-values', 'vk-lp']) row(id).sellerId = 'vk-restored'
+    const r = await sweepLicenceHolds({ now: after })
+    expect(r).toMatchObject({ whitelisted: 0 })
+    expect(r.refused).toBeUndefined()
+    expect(r.pulledIds.sort()).toEqual(['active', 'vk-1', 'vk-lp', 'vk-values'])
+  })
+
+  it('an empty whitelist exempts nothing', async () => {
+    wl.list = []
+    const r = await sweepLicenceHolds({ now: after })
+    expect(r.whitelisted).toBe(0)
+    expect(r.pulledIds.sort()).toEqual(['active', 'vk-1', 'vk-lp', 'vk-values'])
   })
 })
 

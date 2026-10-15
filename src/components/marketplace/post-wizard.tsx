@@ -28,6 +28,7 @@ import { Combobox, ComboboxClear, ComboboxContent, ComboboxEmpty, ComboboxInput,
 import { haptic, hapticConfirm, hapticError } from '@/lib/haptics'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
+import { isLicenceWhitelisted } from '@/lib/licence-whitelist'
 import { containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord, minPhotosFor, publicSafeName } from '@/lib/publish-guard'
 import type { ClientPublishOutcome } from '@/lib/publish-funnel-codes'
@@ -143,7 +144,7 @@ export type ListingEditData = {
    * eno's own desk, which is never checked and is not asked the provider's values. It drives the note and the fields
    * only: the server decides the hold. Absent → an unapproved, non-desk listing.
    */
-  licence?: { approved: boolean; exempt: boolean }
+  licence?: { approved: boolean; exempt: boolean; exemptAisles?: readonly string[] }
 }
 
 /** The attributes without the provider's two licence keys (provider-licence.ts) — what an AI fill or a draft from before
@@ -544,6 +545,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [contactName, setContactName] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [postingAs, setPostingAs] = useState<string | null>(null)
+  // The signed-in account's storefront (/api/me `sellerId`) — read only to know a LICENCE-WHITELISTED poster (src/lib/
+  // licence-whitelist.ts, owner 2026-10-15) is not asked for the provider's values; the server decides on its own read.
+  const [mySellerId, setMySellerId] = useState<string | null>(null)
   // Whose account the contact fields above were filled for (the /api/me effect). See the note there.
   const contactOwner = useRef<string | null | undefined>(undefined)
   // ⚠️ "LOADED" IS PER USER, NOT ONCE PER MOUNT. A guest's /api/me answers `{ user: null }` and used to
@@ -748,7 +752,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // (a token refresh) keeps what the seller typed.
     if (contactOwner.current !== forId) {
       contactOwner.current = forId
-      setContactName(''); setContactPhone(''); setPostingAs(null)
+      setContactName(''); setContactPhone(''); setPostingAs(null); setMySellerId(null)
     }
     // ⏱ NEVER WAIT FOREVER (review, 2026-10-04): a hung /api/me kept Publish on "Loading your details…"
     // with no way out. After ME_TIMEOUT_MS the read is abandoned and the profile counts as loaded with an
@@ -769,6 +773,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         setContactName(publicSafeName(u.seller?.name || u.displayName || ''))
         setContactPhone(u.seller?.phone || u.phone || '')
         if (u.accountType === 'business') setPostingAs(u.businessName || u.seller?.name || null)
+        setMySellerId(typeof u.sellerId === 'string' ? u.sellerId : null)
       }
       setMe({ for: forId, known: true })
     })
@@ -890,7 +895,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // …and a Wanted ad being EDITED in an aisle (filed there before the rule) is never asked for a licence: the server files
   // it under Other on save (core/listings.ts — a Wanted ad is never in a licence aisle; commit gate, 2026-10-14).
   const licenceSlot = inLicenceAisle && listingType !== 'wanted'
-  const licenceExempt = !!edit?.licence?.exempt
+  // Exempt IN THE AISLE PICKED NOW (commit gate, 2026-10-15): on an edit, the aisles the edit page says the storefront is
+  // exempt in (eno's desk: all; a whitelisted storefront: its own); on a new post, the whitelist for the signed-in
+  // storefront (/api/me). No values asked, no check announced. A whitelisted poster still MAY type them (printed).
+  const licenceExempt = edit
+    ? (edit.licence?.exemptAisles ? edit.licence.exemptAisles.includes(subcategorySlug) : !!edit.licence?.exempt)
+    : isLicenceWhitelisted(mySellerId, subcategorySlug)
   const providerValues = { legalName: attrs[PROVIDER_LEGAL_NAME] ?? '', licenceNo: attrs[PROVIDER_LICENCE_NO] ?? '' }
   const providerProblems = licenceSlot && !licenceExempt ? providerLicenceProblems(providerValues, subcategorySlug) : []
   // Normalised (NFC, whitespace): a value resent as it was is no change — the server compares the same way.

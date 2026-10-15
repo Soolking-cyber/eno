@@ -359,7 +359,8 @@ no PayPal. Visa runs (tickets-travel/visa-runs) are still not offered for postin
 - ⛔ The approval stamp lives in the **REPURPOSED** `Listing.verificationMethod` (+ `verifiedAt`). `serializeListing` must keep all four `verification*` fields null; only 'licence-approve' writes a stamp.
 - ⛔ `verificationNotes = 'licence:held'` (`LICENCE_HELD_NOTE`) marks a row the licence check itself took down — the only kind 'licence-approve' publishes. Every licence hold writes it through `licenceHeldMark` (kept only for a row that was live, identity-parked or already marked); every publish of an existing row nulls it (tripwire: `compliance/public-state-writes.test.ts`), and so must a takedown that files no report (admin Unverify, moderation Unpublish).
 - ⛔ Every existing-row publish — `verified: true` OR a status change back to `active` — ANDs `licenceClearedWhere` / `licenceClearedSql` (tripwire: `compliance/public-state-writes.test.ts`). `/api/cron/licence-holds` (00:00 ICT sharp) is the backstop.
-- VietKite's grandfather (`LICENCE_GRANDFATHER`) ends on the /prohibited in-force date — re-date both together.
+- ⛔ `LICENCE_WHITELIST` (`src/lib/licence-whitelist.ts`, owner 2026-10-15: "whitelist vietkite") — VietKite is exempt in e-Visa ONLY, exactly like the desk (no values asked, never held, swept or revoked) and NEVER hidden (that is `HIDDEN_DESK_OWNER_EMAILS` — never a partner). By SELLER ID — the id is the identity: storefront ownership is claim-once (`ownerId: null` guards), so the id never names someone else, and a vanished id exempts nobody (fail closed). The module ships in the client bundle: no contact data in it.
+- VietKite's grandfather (`LICENCE_GRANDFATHER`) is moot since the whitelist; it ends on the /prohibited in-force date — re-date both together.
 
 ⚠️ **This is a legal boundary, not a feature flag.** The failure mode is a LEAK: any place
 eno.vn still shows, links to, describes, indexes, emails or serves one of those surfaces

@@ -31,7 +31,7 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
 import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, isLicenceCheckSlot, licenceCheckHold, SUBCATEGORY_FALLBACK, servicePriceBasisOf, servicePriceBasisOfUnit, withoutInapplicablePriceBasis, withPriceBasis, servicePriceBasisApplies } from '@/lib/taxonomy'
 import { PROVIDER_LICENCE_KEYS, checkProviderLicence, providerLicenceFromInput, providerLicenceOf, sameProviderLicence, withProviderLicence, withoutProviderLicence, type ProviderLicence } from '@/lib/provider-licence'
-import { LICENCE_HELD_NOTE, LICENCE_STAMP_CLEARED, licenceCleared, licenceClearedWhere, licenceHeldMark } from '@/lib/licence-stamp'
+import { LICENCE_HELD_NOTE, LICENCE_STAMP_CLEARED, isLicenceWhitelisted, licenceCleared, licenceClearedWhere, licenceHeldMark } from '@/lib/licence-stamp'
 import { priceUnitSuffix } from '@/lib/price-unit'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { deskSellerIds } from '@/lib/edition-scope'
@@ -1050,7 +1050,7 @@ export async function updateListingCore(
       // as an unchecked offer the sweep never looks at again. It goes to the admin's pending queue instead — a move out
       // still never PUBLISHES; it only stops an unchecked listing escaping. An approved row moves out live.
       if (current.verified) {
-        const desk = (await deskSellerIds()).includes(current.sellerId)
+        const desk = (await deskSellerIds()).includes(current.sellerId) || isLicenceWhitelisted(current.sellerId, current.subcategorySlug)
         const wasCleared = licenceCleared(
           { categorySlug: current.category.slug, subcategorySlug: current.subcategorySlug, sellerId: current.sellerId, attributes: current.attributes, verificationMethod: current.verificationMethod },
           { desk },
@@ -1059,7 +1059,9 @@ export async function updateListingCore(
         if (!wasCleared) { data.verified = false; licenceHeld = true }
       }
     } else {
-      const desk = (await deskSellerIds()).includes(current.sellerId)
+      // eno's desk, or a storefront whitelisted for the aisle the row WILL be in (licence-stamp.ts LICENCE_WHITELIST): exempt
+      // — no values asked, never held. A move to an aisle the whitelist does not cover is checked like anyone's.
+      const desk = (await deskSellerIds()).includes(current.sellerId) || isLicenceWhitelisted(current.sellerId, licenceSub)
       const stored = providerLicenceOf(current.attributes)
       // The values this edit sends: '' halves when `attributes` came without the keys; undefined when it sent none.
       const sent = body.attributes !== undefined ? providerLicenceFromInput(body.attributes) : undefined
@@ -1488,7 +1490,8 @@ export async function createListingCore(input: {
   // The values the body sent for an aisle post ('' halves when absent); null outside the aisles, where they are dropped.
   let provider: ProviderLicence | null = null
   if (isLicenceCheckSlot(categorySlug, subcategorySlug)) {
-    licenceHold = licenceCheckHold(categorySlug, subcategorySlug, { desk: (await deskSellerIds()).includes(seller.id) })
+    // Exempt like the desk: a whitelisted storefront (licence-stamp.ts LICENCE_WHITELIST — owner, 2026-10-15).
+    licenceHold = licenceCheckHold(categorySlug, subcategorySlug, { desk: (await deskSellerIds()).includes(seller.id) || isLicenceWhitelisted(seller.id, subcategorySlug) })
     provider = providerLicenceFromInput(body.attributes) ?? { legalName: '', licenceNo: '' }
     if (licenceHold && !(provider.legalName && provider.licenceNo)) throw new PublishBlockedError('provider_licence_required')
     // Any value sent is screened — the desk's too: both are printed on the listing page.

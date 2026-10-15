@@ -45,7 +45,7 @@ function wizardIn(node: ReactNode): Record<string, unknown> | null {
 async function editFor(listing: Record<string, unknown>) {
   h.listing = listing
   const props = wizardIn(await EditListingPage({ params: Promise.resolve({ id: 'l1' }) }))
-  return props?.edit as { licence?: { approved: boolean; exempt: boolean }; attributes: Record<string, string> } & Record<string, unknown>
+  return props?.edit as { licence?: { approved: boolean; exempt: boolean; exemptAisles?: string[] }; attributes: Record<string, string> } & Record<string, unknown>
 }
 
 const VALUES = { legalName: 'CÔNG TY TNHH VISA5S.VN', licenceNo: '79-123/2019/TCDL-GP LHQT' }
@@ -68,7 +68,7 @@ describe('the edit screen and the licence check', () => {
   it('a listing stamped for exactly its values is approved — and the stamp itself is not handed to the client', async () => {
     const stamp = licenceStampFor({ sellerId: 'seller-1', subcategorySlug: 'visa-legal' }, VALUES)
     const edit = await editFor(row({ verificationMethod: stamp }))
-    expect(edit.licence).toEqual({ approved: true, exempt: false })
+    expect(edit.licence).toEqual({ approved: true, exempt: false, exemptAisles: [] })
     expect(JSON.stringify(edit)).not.toContain(stamp)
     expect(edit.attributes).toEqual({ providerLegalName: VALUES.legalName, providerLicenceNo: VALUES.licenceNo }) // the fields open prefilled
   })
@@ -77,21 +77,21 @@ describe('the edit screen and the licence check', () => {
     const otherNo = licenceStampFor({ sellerId: 'seller-1', subcategorySlug: 'visa-legal' }, { ...VALUES, licenceNo: '79-124/2019/TCDL-GP LHQT' })
     const otherAisle = licenceStampFor({ sellerId: 'seller-1', subcategorySlug: 'legal-permits' }, VALUES)
     for (const verificationMethod of [null, otherNo, otherAisle, 'manual']) {
-      expect((await editFor(row({ verificationMethod }))).licence, String(verificationMethod)).toEqual({ approved: false, exempt: false })
+      expect((await editFor(row({ verificationMethod }))).licence, String(verificationMethod)).toEqual({ approved: false, exempt: false, exemptAisles: [] })
     }
   })
 
   it('eno’s own desk is exempt — approved whatever its stamp, and asked nothing', async () => {
     h.desk = ['seller-1']
-    expect((await editFor(row({ attributes: null }))).licence).toEqual({ approved: true, exempt: true })
+    expect((await editFor(row({ attributes: null }))).licence).toEqual({ approved: true, exempt: true, exemptAisles: ['visa-legal', 'legal-permits'] })
   })
 
   it('a desk that cannot be read fails CLOSED: not exempt, so the form asks for the values (the server decides the hold)', async () => {
     h.desk = new Error('connection reset')
-    expect((await editFor(row({ attributes: null }))).licence).toEqual({ approved: false, exempt: false })
+    expect((await editFor(row({ attributes: null }))).licence).toEqual({ approved: false, exempt: false, exemptAisles: [] })
   })
 
   it('outside the two aisles there is nothing to check: approved', async () => {
-    expect((await editFor(row({ subcategorySlug: 'cleaning', attributes: null }))).licence).toEqual({ approved: true, exempt: false })
+    expect((await editFor(row({ subcategorySlug: 'cleaning', attributes: null }))).licence).toEqual({ approved: true, exempt: false, exemptAisles: [] })
   })
 })

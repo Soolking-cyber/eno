@@ -37,6 +37,8 @@ const h = vi.hoisted(() => ({
   auth: { user: { id: 'u1' } as { id: string } | null, profile: null, loading: false, openSignIn: () => {} },
   /** Seller.officialPartner as /api/me answers it. */
   partner: false,
+  /** The signed-in account's storefront as /api/me answers it (`sellerId`). */
+  sellerId: null as string | null,
   /** sonner's toast (and so subtleToast's): every call, message and options. */
   toast: vi.fn(),
   /** What a save answers (POST /api/listings, PATCH /api/listings/l1), and what /api/ai/classify reads off a photo. */
@@ -127,6 +129,7 @@ let scrolledTo: string[] = []
 
 beforeEach(() => {
   h.partner = false
+  h.sellerId = null
   h.auth = { user: { id: 'u1' }, profile: null, loading: false, openSignIn: () => {} }
   h.toast.mockReset()
   h.router.push.mockReset()
@@ -144,7 +147,7 @@ beforeEach(() => {
     const path = String(url)
     const method = init?.method ?? 'GET'
     if (path.startsWith('/api/me')) {
-      return { ok: true, json: async () => ({ user: { id: 'u1', displayName: 'Shop', phone: '0901234567', seller: { name: 'Shop', phone: '0901234567', officialPartner: h.partner } } }) }
+      return { ok: true, json: async () => ({ user: { id: 'u1', displayName: 'Shop', phone: '0901234567', sellerId: h.sellerId, seller: { name: 'Shop', phone: '0901234567', officialPartner: h.partner } } }) }
     }
     if (path === '/api/ai/classify') return { ok: true, json: async () => h.classify }
     if (method !== 'GET') {
@@ -378,6 +381,35 @@ for (const edition of ['marketplace', 'services'] as const) {
       expect(screen.queryByRole('button', { name: 'e-Visa' })).toBeNull()
       expect(screen.queryByRole('button', { name: 'Legal & permits' })).toBeNull()
       expect(chip('Cleaning')).toBeTruthy()
+    })
+
+    // ⛔ Owner, 2026-10-15: "whitelist vietkite" (src/lib/licence-whitelist.ts — the REAL list here): a whitelisted
+    // storefront posting in e-Visa is not asked for the two values, and is not told it waits for a check.
+    it('a WHITELISTED storefront’s new e-Visa post asks no licence values and publishes without them', async () => {
+      const PostWizard = await wizardFor(edition)
+      h.sellerId = 'b6b7b817-6af9-4d37-a762-cf54f6ec74e6'
+      h.save = { ok: true, body: { id: 'n1', verified: true } }
+      draft({ subcategorySlug: 'visa-legal', title: 'Vietnam e-visa, 3 days', attrs: {} })
+      render(<PostWizard categories={CATS} />)
+      await settle()
+      expect(document.getElementById('pw-providerLegalName')).toBeNull()
+      expect(document.getElementById('pw-providerLicenceNo')).toBeNull()
+      await publish()
+      expect(saves()[0]).toMatchObject({ method: 'POST', body: { subcategorySlug: 'visa-legal' } })
+      expect(saves()[0].body.attributes ?? {}).not.toHaveProperty('providerLegalName')
+    })
+
+    // Commit gate, 2026-10-15: on an edit the exemption is per AISLE — a whitelisted storefront's listing moved to Legal &
+    // permits is asked for the values the server will require there.
+    it('an edit exempt only in e-Visa asks for the values in Legal & permits, and not in e-Visa', async () => {
+      const PostWizard = await wizardFor(edition)
+      render(<PostWizard categories={CATS} edit={services('legal-permits', { licence: { approved: true, exempt: false, exemptAisles: ['visa-legal'] } })} />)
+      await settle()
+      expect(document.getElementById('pw-providerLegalName')).not.toBeNull()
+      cleanup()
+      render(<PostWizard categories={CATS} edit={services('visa-legal', { licence: { approved: true, exempt: true, exemptAisles: ['visa-legal'] } })} />)
+      await settle()
+      expect(document.getElementById('pw-providerLegalName')).toBeNull()
     })
 
     it('a new listing held for the check lands on the success screen in its aisle’s words', async () => {

@@ -460,7 +460,8 @@ async function renderLicenceChecks(now: number) {
     <section aria-labelledby="licence-checks-title">
       <h2 id="licence-checks-title" className="sr-only">Licence checks</h2>
       <p className="max-w-3xl text-sm text-muted-foreground">
-        e-Visa and Legal &amp; permits listings from anyone but eno&apos;s own desk go live only after an admin has compared the
+        e-Visa and Legal &amp; permits listings from anyone but eno&apos;s own desk and the whitelisted partners (VietKite&apos;s
+        e-Visa) go live only after an admin has compared the
         provider&apos;s registered business name and licence number with the licence and business registration the provider
         emailed to the support mailbox (Quy chế Article 5). Approve binds the approval to exactly the values shown: any change
         by the seller, or a move between the two aisles, sends the listing back here. A daily sweep at 00:00 ICT unpublishes

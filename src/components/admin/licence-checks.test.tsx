@@ -14,6 +14,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * 'licence-approve' compares `seen` against.
  */
 
+// The licence WHITELIST (src/lib/licence-whitelist.ts — owner, 2026-10-15) is switchable here: EMPTY by default, so the
+// tests below pin the check as it runs for everyone else (VietKite's grandfather included); the whitelist's own tests
+// turn it on.
+const wl = vi.hoisted(() => ({ list: [] as Array<{ sellerId: string; name: string; aisles: string[] }> }))
+vi.mock('@/lib/licence-whitelist', () => ({
+  get LICENCE_WHITELIST() { return wl.list },
+  isLicenceWhitelisted: (sellerId: string | null | undefined, sub: string | null | undefined) =>
+    !!sellerId && !!sub && wl.list.some((w) => w.sellerId === sellerId && w.aisles.includes(sub)),
+}))
 const { findMany, deskSellerIds, licenceGrandfatherProblem } = vi.hoisted(() => ({
   findMany: vi.fn(),
   deskSellerIds: vi.fn(async (): Promise<string[]> => ['desk-seller']),
@@ -126,6 +135,7 @@ function groups(doc: Document, section: string) {
 }
 
 beforeEach(() => {
+  wl.list = []
   findMany.mockReset()
   findMany.mockResolvedValue(ROWS)
   deskSellerIds.mockReset()
@@ -280,6 +290,24 @@ describe('LicenceChecks — the sections', () => {
     expect(doc.getElementById('licence-breach')!.textContent).toContain('None, as expected.')
     expect(doc.querySelectorAll('[data-licence-action]')).toHaveLength(0)
   })
+})
+
+// ⛔ Owner, 2026-10-15: "whitelist vietkite" (src/lib/licence-whitelist.ts) — its e-Visa rows are exempt: in no section, in
+// no count.
+describe('LicenceChecks — the licence whitelist', () => {
+  it('a whitelisted storefront’s e-Visa rows are in no section and no count; its Legal & permits row is checked as usual', async () => {
+    wl.list = [{ sellerId: 'seller-wl', name: 'wl', aisles: ['visa-legal'] }]
+    findMany.mockResolvedValue([
+      row({ id: 'wl1', sellerId: 'seller-wl', sub: 'visa-legal', verified: true, values: null }),
+      row({ id: 'wllp', sellerId: 'seller-wl', sub: 'legal-permits', values: null }),
+    ])
+    const doc = await render(BEFORE)
+    expect(doc.body.innerHTML).not.toContain('wl1')
+    expect(groups(doc, 'licence-missing')!.map((g) => g.listings)).toEqual([['wllp']])
+    findMany.mockResolvedValue([row({ id: 'wl1', sellerId: 'seller-wl', sub: 'visa-legal', verified: true, values: null })])
+    expect(await licenceQueueCounts(BEFORE)).toMatchObject({ waiting: 0, breach: 0 })
+  })
+
 })
 
 describe('LicenceChecks — the rest of a group', () => {

@@ -4,9 +4,9 @@
 // check ("Anyone posts, live after check"); Legal & permits (services/legal-permits) gets the same hold ("Check them
 // too"); the seller enters the provider's registered business name and licence number (src/lib/provider-licence.ts),
 // eno checks them against the copies the provider emails, and ANY change of either value or of the aisle re-holds the
-// listing (Quy chế Article 5: an expired, revoked or changed licence). eno's own desk (deskSellerIds) is exempt.
-// VietKite (LICENCE_GRANDFATHER) keeps its existing e-Visa listings live without a checked licence only until 00:00
-// ICT on the /prohibited in-force date; the daily sweep (core/licence-check.ts) pulls any still unapproved after that.
+// listing (Quy chế Article 5: an expired, revoked or changed licence). eno's own desk (deskSellerIds) is exempt, and so
+// is every storefront on LICENCE_WHITELIST (owner, 2026-10-15: "whitelist vietkite") — exempt the same way, never hidden.
+// (LICENCE_GRANDFATHER, VietKite's window until the /prohibited in-force date, is moot since the whitelist and expires.)
 //
 // ⛔ FOUR LEGACY COLUMNS ARE REPURPOSED, NOT ADDED (no DDL, nothing under prisma/ changes):
 //   · Listing.verificationMethod — THE STAMP: LICENCE_STAMP_PREFIX + sha256(seller, aisle, name, number). It binds the
@@ -28,6 +28,7 @@ import { createHash } from 'node:crypto'
 import type { Prisma } from '../generated/prisma/client'
 import { LICENCE_CHECK_SUBCATEGORIES, VISA_CATEGORY_SLUG, attributeBag, isLicenceCheckSlot } from './taxonomy'
 import { checkProviderLicence, normalizeLegalName, normalizeLicenceNo, providerLicenceFromInput, providerLicenceOf, type ProviderLicence } from './provider-licence'
+import { LICENCE_WHITELIST, isLicenceWhitelisted } from './licence-whitelist'
 
 /** Every stamp starts with this — the SQL guards test for it (a legacy verificationMethod value never carries it). */
 export const LICENCE_STAMP_PREFIX = 'licence:v1:'
@@ -37,6 +38,13 @@ export const LICENCE_STAMP_PREFIX = 'licence:v1:'
 export function licenceStampFor(row: { sellerId: string; subcategorySlug: string | null }, v: ProviderLicence): string {
   const parts = ['v1', row.sellerId, row.subcategorySlug ?? '', normalizeLegalName(v.legalName), normalizeLicenceNo(v.licenceNo)]
   return LICENCE_STAMP_PREFIX + createHash('sha256').update(parts.join('\u0000')).digest('hex')
+}
+
+export { LICENCE_WHITELIST, isLicenceWhitelisted }
+
+/** The whitelisted rows as a Prisma filter — an OR of (seller, aisles); matches nothing when the list is empty. */
+export function licenceWhitelistWhere(): Prisma.ListingWhereInput {
+  return { OR: LICENCE_WHITELIST.map((w) => ({ sellerId: w.sellerId, subcategorySlug: { in: [...w.aisles] } })) }
 }
 
 /** What every licence decision reads off a listing. */
@@ -49,12 +57,12 @@ export type LicenceRow = {
 }
 
 /**
- * May this row be public as far as the licence check goes? Outside the aisles, and for eno's own desk, always; inside,
- * only when its values are there and its stamp is the stamp of exactly those values (an admin approved them).
+ * May this row be public as far as the licence check goes? Outside the aisles, for eno's own desk and for a whitelisted
+ * storefront, always; inside, only when its values are there and its stamp is the stamp of exactly those values.
  */
 export function licenceCleared(row: LicenceRow, opts: { desk: boolean }): boolean {
   if (!isLicenceCheckSlot(row.categorySlug, row.subcategorySlug)) return true
-  if (opts.desk) return true
+  if (opts.desk || isLicenceWhitelisted(row.sellerId, row.subcategorySlug)) return true
   const v = providerLicenceOf(row.attributes)
   return !!v && row.verificationMethod === licenceStampFor(row, v)
 }
@@ -75,6 +83,8 @@ export function licenceClearedWhere(desk: readonly string[]): Prisma.ListingWher
       { subcategorySlug: null },
       { subcategorySlug: { notIn: [...LICENCE_CHECK_SUBCATEGORIES] } },
       ...(desk.length ? [{ sellerId: { in: [...desk] } }] : []),
+      // The whitelist (owner, 2026-10-15): exempt like the desk, by seller AND aisle.
+      ...(LICENCE_WHITELIST.length ? [licenceWhitelistWhere()] : []),
       { verificationMethod: { startsWith: LICENCE_STAMP_PREFIX } },
     ],
   }
@@ -86,12 +96,13 @@ const SQL_ALIAS = /^(?:[A-Za-z_][A-Za-z0-9_]*\.)?$/
  * licenceClearedWhere for a raw `UPDATE "Listing" … SET verified = true` (scripts/publish-held.ts,
  * scripts/release-identity-holds.ts): `alias` is the table prefix ('l.'). A CONSTANT — no parameters, and NO DESK
  * BRANCH: a script cannot resolve the desk the way the app does, so it fails closed and leaves an unstamped desk row
- * held rather than guess.
+ * held rather than guess. The WHITELIST is inlined (its ids are UUIDs, checked at load): exempt here as everywhere.
  */
 export function licenceClearedSql(alias = ''): string {
   if (!SQL_ALIAS.test(alias)) throw new Error(`licenceClearedSql: not a table alias: ${alias}`)
   const aisles = LICENCE_CHECK_SUBCATEGORIES.map((s) => `'${s}'`).join(',')
-  return `(${alias}"subcategorySlug" IS NULL OR ${alias}"subcategorySlug" NOT IN (${aisles}) OR ${alias}"verificationMethod" LIKE '${LICENCE_STAMP_PREFIX}%')`
+  const whitelist = LICENCE_WHITELIST.map((w) => ` OR (${alias}"sellerId" = '${w.sellerId}' AND ${alias}"subcategorySlug" IN (${w.aisles.map((a) => `'${a}'`).join(',')}))`).join('')
+  return `(${alias}"subcategorySlug" IS NULL OR ${alias}"subcategorySlug" NOT IN (${aisles})${whitelist} OR ${alias}"verificationMethod" LIKE '${LICENCE_STAMP_PREFIX}%')`
 }
 
 /** What every re-hold, revoke and move out writes: no stamp, no approval time — and the two never-used columns null too. */
@@ -187,7 +198,7 @@ export type LicenceState = 'not_aisle' | 'exempt' | 'approved' | 'grandfathered'
 
 export function licenceStateOf(row: LicenceRow & { verified: boolean }, opts: { desk: boolean; now?: Date | number }): LicenceState {
   if (!isLicenceCheckSlot(row.categorySlug, row.subcategorySlug)) return 'not_aisle'
-  if (opts.desk) return 'exempt'
+  if (opts.desk || isLicenceWhitelisted(row.sellerId, row.subcategorySlug)) return 'exempt'
   if (licenceCleared(row, { desk: false })) return 'approved'
   if (licenceGrandfathered(row, opts.now)) return 'grandfathered'
   const v = providerLicenceOf(row.attributes)

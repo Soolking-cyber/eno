@@ -20,7 +20,7 @@ import { REACTIVATION_SALE_RESET } from '@/lib/trade-loop'
 import { withdrawSaleQuestions } from '@/lib/core/sale-withdraw'
 import { attributeBag, isLicenceCheckSlot, LICENCE_CHECK_SUBCATEGORIES, VISA_CATEGORY_SLUG } from '@/lib/taxonomy'
 import { checkProviderLicence, isEnterpriseCodeForm, providerLicenceFromInput, providerLicenceOf } from '@/lib/provider-licence'
-import { LICENCE_HELD_NOTE, LICENCE_STAMP_CLEARED, LICENCE_STAMP_PREFIX, licenceClearedWhere, licenceStampFor, licenceStateOf } from '@/lib/licence-stamp'
+import { LICENCE_HELD_NOTE, LICENCE_STAMP_CLEARED, LICENCE_STAMP_PREFIX, isLicenceWhitelisted, licenceClearedWhere, licenceWhitelistWhere, licenceStampFor, licenceStateOf } from '@/lib/licence-stamp'
 
 export const dynamic = 'force-dynamic'
 
@@ -396,7 +396,8 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       const already: Array<(typeof rows)[number]> = []
       for (const r of rows) {
         const v = providerLicenceOf(r.attributes)
-        if (!isLicenceCheckSlot(r.category.slug, r.subcategorySlug) || desk.includes(r.sellerId) || !v || checkProviderLicence(v, r.subcategorySlug)) { invalid++; continue }
+        // A whitelisted storefront is exempt like the desk (licence-stamp.ts LICENCE_WHITELIST): nothing to approve.
+        if (!isLicenceCheckSlot(r.category.slug, r.subcategorySlug) || desk.includes(r.sellerId) || isLicenceWhitelisted(r.sellerId, r.subcategorySlug) || !v || checkProviderLicence(v, r.subcategorySlug)) { invalid++; continue }
         const stamp = licenceStampFor(r, v)
         if (seen[r.id] !== stamp) { stale++; continue }
         if (r.verificationMethod === stamp) already.push(r)
@@ -481,9 +482,11 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // An unresolved desk refuses (commit gate): with no desk ids, eno's own e-Visa rows would read as anyone's and be
       // revoked — the sweep refuses in the same state.
       if (!desk.length) return NextResponse.json({ error: 'desk_unresolved' }, { status: 500 })
+      // …and never a whitelisted row (licence-stamp.ts LICENCE_WHITELIST): exempt like the desk, no stamp to revoke.
+      const notExempt = { sellerId: { notIn: desk }, NOT: licenceWhitelistWhere() }
       affected = await db.$transaction(async (tx) => {
         const rows = await tx.listing.findMany({
-          where: { id: { in: [...new Set(ids)] }, ...NOT_REMOVED, category: { slug: VISA_CATEGORY_SLUG }, subcategorySlug: { in: [...LICENCE_CHECK_SUBCATEGORIES] }, sellerId: { notIn: desk } },
+          where: { id: { in: [...new Set(ids)] }, ...NOT_REMOVED, category: { slug: VISA_CATEGORY_SLUG }, subcategorySlug: { in: [...LICENCE_CHECK_SUBCATEGORIES] }, ...notExempt },
           select: { id: true, subcategorySlug: true },
         })
         let revoked = 0
@@ -493,7 +496,7 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
           // would publish by, nor as "it was public" in the record. Three conditional writes, first match wins: the row
           // PUBLIC now; else live in another status, parked or marked — both go down for their licence, so approving
           // corrected values puts them back; else any other — already down for another reason, it stays down after that.
-          const target = { id: r.id, ...NOT_REMOVED, subcategorySlug: r.subcategorySlug, sellerId: { notIn: desk } }
+          const target = { id: r.id, ...NOT_REMOVED, subcategorySlug: r.subcategorySlug, ...notExempt }
           const marked = { ...LICENCE_STAMP_CLEARED, verificationNotes: LICENCE_HELD_NOTE, verified: false, identityHold: false }
           const wasPublic = (await tx.listing.updateMany({ where: { ...target, verified: true, status: 'active' }, data: marked })).count === 1
           let count = wasPublic ? 1 : (await tx.listing.updateMany({ where: { ...target, OR: [{ verified: true }, { identityHold: true }, { verificationNotes: LICENCE_HELD_NOTE }] }, data: marked })).count

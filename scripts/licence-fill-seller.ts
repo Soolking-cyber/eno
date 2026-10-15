@@ -23,9 +23,11 @@
  * ⛔ IT NEVER STAMPS AND NEVER PUBLISHES. Approval stays the admin's act, against the copies the provider emailed, in the
  * one place that writes a stamp (POST /api/admin/listings 'licence-approve' — compliance/public-state-writes.test.ts pins
  * it). Typing the values here is not checking them.
- * ⛔ RUN IT, THEN APPROVE THE GROUP IMMEDIATELY: the rows are OFFLINE in between — VietKite's live e-Visa listings
- * included. Each row's page is tombstoned so it stops showing at once (src/lib/pdp-tombstone.ts); the approval
- * republishes them and purges the pages and the home page again.
+ * ⛔ RUN IT, THEN APPROVE THE GROUP IMMEDIATELY: the rows are OFFLINE in between. Each row's page is tombstoned so it
+ * stops showing at once (src/lib/pdp-tombstone.ts); the approval republishes them and purges the pages and the home page.
+ * ✅ EXCEPT A WHITELISTED STOREFRONT IN THAT AISLE (licence-stamp.ts LICENCE_WHITELIST — VietKite's e-Visa, owner
+ * 2026-10-15): exempt from the check, so only the values are written — the listings stay live, nothing waits for an
+ * approval, and the pages are tombstoned only so they print the values at once.
  * ⛔ REFUSES eno's own desk (HIDDEN_DESK_OWNER_EMAILS, or the visa/trip desk owners it falls back to — the same list
  * src/lib/edition-scope.ts deskSellerIds reads, rebuilt here because that module is server-only; support@eno.forum is
  * refused whatever the env says): the desk is exempt from the check, and this run would take its listings offline.
@@ -42,7 +44,7 @@ import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { attributeBag, LICENCE_CHECK_SUBCATEGORIES, VISA_CATEGORY_SLUG } from '../src/lib/taxonomy'
 import { isEnterpriseCodeForm, normalizeLegalName, normalizeLicenceNo, providerLicenceFromInput, providerLicenceOf, providerLicenceProblems, sameProviderLicence, withProviderLicence } from '../src/lib/provider-licence'
-import { LICENCE_STAMP_CLEARED, licenceHeldMark, licenceStateOf } from '../src/lib/licence-stamp'
+import { LICENCE_STAMP_CLEARED, isLicenceWhitelisted, licenceHeldMark, licenceStateOf } from '../src/lib/licence-stamp'
 import { NOT_REMOVED } from '../src/lib/listing-removed'
 import { tombstonePdps } from '../src/lib/pdp-tombstone'
 
@@ -109,6 +111,11 @@ async function main() {
     if (!seller) refuse(`no storefront has the id ${sellerId}`)
     const email = seller.owner?.email?.toLowerCase() ?? null
     if (!seller.ownerId || !email) refuse(`storefront ${sellerId} ("${seller.name}") has no owner account — there is no provider to have sent the licence; refusing`)
+    // A storefront WHITELISTED for this aisle (licence-stamp.ts LICENCE_WHITELIST — owner, 2026-10-15) is exempt from the
+    // check: its values are written for the listing page to print, and its listings STAY LIVE — nothing is held, nothing
+    // waits for an approval. (Still the operator's route to put a partner's real licence on its listings.)
+    const whitelisted = isLicenceWhitelisted(sellerId, aisle)
+    if (whitelisted) console.log(`  whitelisted     : yes — values written, listings stay live, nothing to approve`)
     if (deskOwnerEmails().has(email)) refuse(`storefront ${sellerId} ("${seller.name}") is eno's own desk (${email}) — the desk is exempt from the licence check and this run would take its listings offline; refusing`)
     console.log(`  storefront      : "${seller.name}"${seller.handle ? ` /${seller.handle.handle}` : ''} — owner ${email}`)
 
@@ -129,10 +136,10 @@ async function main() {
       if (!same) toWrite.push(r)
       console.log(`  ${r.id}  [${r.status}${r.verified ? ', verified' : ''}${r.identityHold ? ', identityHold' : ''}${live ? ' — LIVE' : ''}]  licence: ${state}  ${r.title.slice(0, 60)}`)
       console.log(`      now: ${stored.legalName || '—'} · ${stored.licenceNo || '—'}`)
-      console.log(`      ${same ? 'unchanged — already these values; left as it is' : `→ these values, stamp cleared, unpublished until approved${live ? ' (goes OFFLINE now)' : ''}`}`)
+      console.log(`      ${same ? 'unchanged — already these values; left as it is' : whitelisted ? `→ these values; ${live ? 'stays live' : 'stays as it is — NOT live: Publish it under Listings if it should be'} (whitelisted)` : `→ these values, stamp cleared, unpublished until approved${live ? ' (goes OFFLINE now)' : ''}`}`)
     }
     if (!toWrite.length) { console.log('\nevery row already carries these values — nothing to write'); return }
-    if (!APPLY) { console.log(`\nDRY RUN — nothing written. Re-run with --apply to write ${toWrite.length} row(s), then approve the group at once under Catalogue › Licence checks.`); return }
+    if (!APPLY) { console.log(`\nDRY RUN — nothing written. Re-run with --apply to write ${toWrite.length} row(s)${whitelisted ? '' : ', then approve the group at once under Catalogue › Licence checks'}.`); return }
 
     // ── 5. The writes: one transaction per row, compare-and-set on what step 4 read (header).
     const written: string[] = []
@@ -146,8 +153,12 @@ async function main() {
             // …and the stamp and publication it read (commit gate): an admin's approval or revoke landing in between wins.
             where: { id: r.id, sellerId, subcategorySlug: aisle, ...NOT_REMOVED, attributes: r.attributes, verificationMethod: r.verificationMethod, verified: r.verified, identityHold: r.identityHold, verificationNotes: r.verificationNotes },
             // The licence hold's mark (licence-stamp.ts licenceHeldMark): a live row is held for the check, so the approval
-            // puts it back; a row something else had taken down stays down after it.
-            data: { attributes: withProviderLicence(r.attributes, values), ...LICENCE_STAMP_CLEARED, ...licenceHeldMark(r), verified: false, identityHold: false },
+            // puts it back; a row something else had taken down stays down after it. A whitelisted row is not held at all.
+            // A whitelisted row keeps its publication, its identity park AND its mark exactly as they are (commit gate): only
+            // the values change, and the three stamp columns that bind them (never `verificationNotes`, the hold's own mark).
+            data: whitelisted
+              ? { attributes: withProviderLicence(r.attributes, values), verificationMethod: null, verifiedAt: null, verifiedBy: null }
+              : { attributes: withProviderLicence(r.attributes, values), ...LICENCE_STAMP_CLEARED, ...licenceHeldMark(r), verified: false, identityHold: false },
           })
           if (count !== 1) return false
           await appendAudit(tx, {
@@ -173,8 +184,11 @@ async function main() {
         process.exitCode = 1
       }
     }
-    console.log('\nNEXT, NOW: Admin › Catalogue › Licence checks → compare the values with the emailed licence → Approve the group.')
-    console.log('The rows stay offline until then.')
+    if (whitelisted) console.log('\nWhitelisted: nothing to approve — each listing kept its state (the list above says which are live) and prints these values.')
+    else {
+      console.log('\nNEXT, NOW: Admin › Catalogue › Licence checks → compare the values with the emailed licence → Approve the group.')
+      console.log('The rows stay offline until then.')
+    }
   } finally {
     await db.$disconnect()
   }

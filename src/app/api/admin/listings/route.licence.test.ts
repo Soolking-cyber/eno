@@ -25,6 +25,15 @@ const LPV = { legalName: 'CÔNG TY LUẬT XYZ', licenceNo: '0312345678' }
 const attrs = (v: { legalName: string; licenceNo: string } | null, extra: Row = {}) =>
   JSON.stringify({ ...extra, ...(v ? { providerLegalName: v.legalName, providerLicenceNo: v.licenceNo } : {}) })
 
+// The licence WHITELIST (src/lib/licence-whitelist.ts — owner, 2026-10-15) is switchable here: EMPTY by default, so the
+// tests below pin the check as it runs for everyone else (VietKite's grandfather included); the whitelist's own tests
+// turn it on.
+const wl = vi.hoisted(() => ({ list: [] as Array<{ sellerId: string; name: string; aisles: string[] }> }))
+vi.mock('@/lib/licence-whitelist', () => ({
+  get LICENCE_WHITELIST() { return wl.list },
+  isLicenceWhitelisted: (sellerId: string | null | undefined, sub: string | null | undefined) =>
+    !!sellerId && !!sub && wl.list.some((w) => w.sellerId === sellerId && w.aisles.includes(sub)),
+}))
 const h = vi.hoisted(() => ({
   rows: [] as Record<string, any>[],
   clock: 1_000,
@@ -60,6 +69,7 @@ function matches(row: Row, where: Row | undefined): boolean {
   return Object.entries(where ?? {}).every(([k, c]: [string, any]) => {
     if (k === 'AND') return (c as Row[]).every((x) => matches(row, x))
     if (k === 'OR') return (c as Row[]).some((x) => matches(row, x))
+    if (k === 'NOT') return !matches(row, c as Row)
     const v = row[k]
     if (c && typeof c === 'object' && 'none' in c) return Array.isArray(v) && !v.some((x: Row) => matches(x, c.none))
     if (c && typeof c === 'object' && !(c instanceof Date) && !Object.keys(c).some((op) => OPS.includes(op))) return v != null && matches(v, c)
@@ -155,6 +165,7 @@ const writes = () => h.calls.filter((c) => c.m === 'updateMany' || c.m === 'upda
 const GUARD = licenceClearedWhere([DESK])
 
 beforeEach(() => {
+  wl.list = []
   h.rows = []
   h.clock = 1_000
   h.desk = [DESK]
@@ -458,6 +469,37 @@ describe('licence-approve — the one stamp writer', () => {
     expect(byId('visa-1')).toMatchObject({ verified: false, verificationNotes: null })
     expect(await json({ action: 'licence-approve', ids: ['visa-1'], seen: { 'visa-1': stampOf(w) } })).toEqual({ ok: true, affected: 0, approved: 1, stillHeld: 1 })
     expect(byId('visa-1').verified).toBe(false)
+  })
+})
+
+// ⛔ Owner, 2026-10-15: "whitelist vietkite" — a whitelisted e-Visa row is exempt like the desk: nothing to approve or
+// revoke; its Legal & permits row is checked like anyone's.
+describe('the licence whitelist in approve and revoke', () => {
+  const VK = LICENCE_GRANDFATHER.sellerId
+  beforeEach(() => { wl.list = [{ sellerId: VK, name: 'vietkite', aisles: ['visa-legal'] }] })
+
+  it('approve answers `invalid` for a whitelisted e-Visa row — and writes nothing', async () => {
+    const vk = listingRow('vk-1', { sellerId: VK, verified: true })
+    h.rows = [vk]
+    expect(await json({ action: 'licence-approve', ids: ['vk-1'], seen: { 'vk-1': stampOf(vk) } })).toEqual({ ok: true, affected: 0, approved: 0, invalid: 1 })
+    expect(h.audits).toEqual([])
+  })
+
+  it('revoke leaves a whitelisted e-Visa row alone, and still revokes its Legal & permits row', async () => {
+    const vk = listingRow('vk-1', { sellerId: VK, verified: true })
+    const lp = listingRow('vk-lp', { sellerId: VK, subcategorySlug: 'legal-permits', verified: true })
+    lp.verificationMethod = stampOf(lp)
+    h.rows = [vk, lp]
+    expect(await json({ action: 'licence-revoke', ids: ['vk-1', 'vk-lp'] })).toEqual({ ok: true, affected: 1 })
+    expect(byId('vk-1').verified).toBe(true)
+    expect(byId('vk-lp')).toMatchObject({ verified: false, verificationMethod: null })
+  })
+
+  it('Publish no longer leaves a whitelisted e-Visa row out — it is not blocked', async () => {
+    h.rows = [listingRow('vk-1', { sellerId: VK, verified: false, verificationNotes: null })]
+    const body = await json({ action: 'verify', ids: ['vk-1'] })
+    expect(body).not.toHaveProperty('licenceCheck')
+    expect(byId('vk-1').verified).toBe(true)
   })
 })
 

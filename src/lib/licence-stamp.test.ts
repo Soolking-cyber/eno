@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   LICENCE_GRANDFATHER,
   LICENCE_HELD_NOTE,
@@ -12,9 +12,22 @@ import {
   licenceHeldMark,
   licenceStampFor,
   licenceStateOf,
+  licenceWhitelistWhere,
   type LicenceRow,
 } from './licence-stamp'
 import { PROHIBITED_AMENDMENT } from './compliance/legal-amendment'
+
+// The licence WHITELIST (src/lib/licence-whitelist.ts — owner, 2026-10-15) is switchable here: EMPTY by default, so the
+// tests below pin the check as it runs for everyone else (VietKite's grandfather included); the whitelist's own tests
+// turn it on.
+const wl = vi.hoisted(() => ({ list: [] as Array<{ sellerId: string; name: string; aisles: string[] }> }))
+vi.mock('@/lib/licence-whitelist', () => ({
+  get LICENCE_WHITELIST() { return wl.list },
+  isLicenceWhitelisted: (sellerId: string | null | undefined, sub: string | null | undefined) =>
+    !!sellerId && !!sub && wl.list.some((w) => w.sellerId === sellerId && w.aisles.includes(sub)),
+}))
+beforeEach(() => { wl.list = [] })
+
 import { TAXONOMY, subcategoriesFor } from './taxonomy'
 
 /**
@@ -100,6 +113,7 @@ function matches(r: LicenceRow, w: Where): boolean {
     if (k === 'OR') return (cond as Where[]).some((c) => matches(r, c))
     const v = (r as Record<string, unknown>)[k]
     if (cond === null) return v === null
+    if (typeof cond === 'string') return v === cond
     if (cond.in) return v != null && cond.in.includes(v)
     // SQL: NULL NOT IN (…) is not true — the separate `subcategorySlug: null` branch covers it.
     if (cond.notIn) return v != null && !cond.notIn.includes(v)
@@ -165,6 +179,56 @@ describe('licenceClearedSql', () => {
 
   it('takes a table alias only', () => {
     for (const bad of ['l', 'l.;DROP', `l." OR 1=1 --`, '1l.']) expect(() => licenceClearedSql(bad), bad).toThrow()
+  })
+})
+
+// ⛔ Owner, 2026-10-15: "whitelist vietkite" — exempt like the desk, in e-Visa only, never hidden (licence-whitelist.ts).
+describe('the licence WHITELIST', () => {
+  const VK_ENTRY = { sellerId: VIETKITE_ID, name: 'vietkite', aisles: ['visa-legal'] }
+  beforeEach(() => { wl.list = [VK_ENTRY] })
+
+  it('the real list is VietKite in e-Visa only, by seller id — no contact data in the client-safe module', async () => {
+    const real = await vi.importActual<typeof import('./licence-whitelist')>('./licence-whitelist')
+    expect(real.LICENCE_WHITELIST).toEqual([{ sellerId: 'b6b7b817-6af9-4d37-a762-cf54f6ec74e6', name: 'vietkite', aisles: ['visa-legal'] }])
+    expect(real.isLicenceWhitelisted(VIETKITE_ID, 'visa-legal')).toBe(true)
+    expect(real.isLicenceWhitelisted(VIETKITE_ID, 'legal-permits')).toBe(false)
+    expect(real.isLicenceWhitelisted('s-2', 'visa-legal')).toBe(false)
+    expect(real.isLicenceWhitelisted(null, 'visa-legal')).toBe(false)
+    expect(JSON.stringify(real.LICENCE_WHITELIST)).not.toContain('@')
+  })
+
+  it('a whitelisted e-Visa row is cleared and exempt — no values, no stamp; its Legal & permits row and other sellers are not', () => {
+    const vk = row({ sellerId: VIETKITE_ID, attributes: null })
+    expect(licenceCleared(vk, { desk: false })).toBe(true)
+    expect(licenceStateOf({ ...vk, verified: true }, { desk: false })).toBe('exempt')
+    const vkLp = row({ sellerId: VIETKITE_ID, subcategorySlug: 'legal-permits', attributes: null })
+    expect(licenceCleared(vkLp, { desk: false })).toBe(false)
+    expect(licenceStateOf({ ...vkLp, verified: false }, { desk: false })).toBe('missing')
+    expect(licenceCleared(row({ sellerId: 's-2', attributes: null }), { desk: false })).toBe(false)
+  })
+
+  it('the Prisma and SQL guards carry it by seller AND aisle — and every row the exact check clears passes them', () => {
+    const where = licenceClearedWhere([])
+    expect(where.OR).toContainEqual({ OR: [{ sellerId: VIETKITE_ID, subcategorySlug: { in: ['visa-legal'] } }] })
+    expect(licenceClearedSql('l.')).toBe(`(l."subcategorySlug" IS NULL OR l."subcategorySlug" NOT IN ('visa-legal','legal-permits') OR (l."sellerId" = '${VIETKITE_ID}' AND l."subcategorySlug" IN ('visa-legal')) OR l."verificationMethod" LIKE 'licence:v1:%')`)
+    let cleared = 0
+    for (const subcategorySlug of ['visa-legal', 'legal-permits', 'cleaning', null]) {
+      for (const sellerId of [VIETKITE_ID, 's-2']) {
+        for (const attributes of [null, attrs(V)]) {
+          const r = row({ sellerId, subcategorySlug, attributes })
+          if (!licenceCleared(r, { desk: false })) { expect(matches(r, where), JSON.stringify(r)).toBe(false); continue }
+          cleared++
+          expect(matches(r, where), JSON.stringify(r)).toBe(true)
+        }
+      }
+    }
+    expect(cleared).toBeGreaterThan(4)
+  })
+
+  it('an empty list adds a branch that matches nothing', () => {
+    wl.list = []
+    expect(licenceWhitelistWhere()).toEqual({ OR: [] })
+    expect(matches(row({ sellerId: VIETKITE_ID, attributes: null }), licenceClearedWhere([]))).toBe(false)
   })
 })
 

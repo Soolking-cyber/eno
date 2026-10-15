@@ -24,6 +24,15 @@ vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
 
 type Row = Record<string, any>
 
+// The licence WHITELIST (src/lib/licence-whitelist.ts — owner, 2026-10-15) is switchable here: EMPTY by default, so the
+// tests below pin the check as it runs for everyone else (VietKite's grandfather included); the whitelist's own tests
+// turn it on.
+const wl = vi.hoisted(() => ({ list: [] as Array<{ sellerId: string; name: string; aisles: string[] }> }))
+vi.mock('@/lib/licence-whitelist', () => ({
+  get LICENCE_WHITELIST() { return wl.list },
+  isLicenceWhitelisted: (sellerId: string | null | undefined, sub: string | null | undefined) =>
+    !!sellerId && !!sub && wl.list.some((w) => w.sellerId === sellerId && w.aisles.includes(sub)),
+}))
 const h = vi.hoisted(() => ({
   updates: [] as Row[],
   /** The WHERE of every db.listing.update — the edit's compare-and-set (R2). */
@@ -190,6 +199,7 @@ function stampedRow(overrides: Row = {}): Row {
 }
 
 beforeEach(() => {
+  wl.list = []
   h.updates = []
   h.wheres = []
   h.creates = []
@@ -365,6 +375,40 @@ describe('the licence check on CREATE — e-Visa and Legal & permits, open to ev
       headers: new Headers(),
     })
     expect(h.creates[0].subcategorySlug).toBe('cleaning')
+  })
+})
+
+// ⛔ Owner, 2026-10-15: "whitelist vietkite" (src/lib/licence-whitelist.ts) — a storefront whitelisted for e-Visa posts and
+// edits there like the desk: no values asked, never held. Another aisle is checked like anyone's.
+describe('the licence WHITELIST on create and edit (2026-10-15)', () => {
+  beforeEach(() => { wl.list = [{ sellerId: 'seller-1', name: 'whitelisted', aisles: ['visa-legal'] }] })
+
+  it('a whitelisted e-Visa post goes live with no values — not held, no mark', async () => {
+    expect(await createService('visa-legal', {}, 'Vietnam e-visa in 3 days')).toEqual({ id: 'new-1', verified: true })
+    expect(h.creates[0]).toMatchObject({ subcategorySlug: 'visa-legal', verified: true })
+    expect(h.creates[0]).not.toHaveProperty('verificationNotes')
+  })
+
+  it('its Legal & permits post is checked like anyone’s — the values are required', async () => {
+    await expect(createService('legal-permits', {}, 'Work permit renewal help')).rejects.toMatchObject({ code: 'provider_licence_required' })
+  })
+
+  it('an edit of its live e-Visa row with no values stays live — no hold, no verified write', async () => {
+    h.current = aisleRow({ verified: true }, null)
+    expect(await updateListingCore('listing-1', { title: 'e-Visa in 3 days, all nationalities' })).toEqual({ ok: true })
+    expect(h.updates[0]).not.toHaveProperty('verified')
+  })
+
+  it('a move of it to Legal & permits needs the values, like anyone’s', async () => {
+    h.current = aisleRow({ verified: true }, null)
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'legal-permits' })).toEqual({ ok: false, code: 400, error: 'provider_licence_required' })
+    expect(h.updates).toHaveLength(0)
+  })
+
+  it('a move of it OUT of the aisles keeps it live — it was cleared', async () => {
+    h.current = aisleRow({ verified: true }, null)
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'service-other' })).toEqual({ ok: true })
+    expect(h.updates[0]).not.toHaveProperty('verified')
   })
 })
 

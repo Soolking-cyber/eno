@@ -6,10 +6,10 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { PostWizard, type ListingEditData } from '@/components/marketplace/post-wizard'
 import { safeParse, serializeCategoryBasic } from '@/lib/serialize'
-import { categoryHasBrand, isPostableCategory, NON_POSTING_CATEGORIES, paysSalary, salaryMFromPrice } from '@/lib/taxonomy'
+import { categoryHasBrand, isPostableCategory, LICENCE_CHECK_SUBCATEGORIES, NON_POSTING_CATEGORIES, paysSalary, salaryMFromPrice } from '@/lib/taxonomy'
 import { LISTING_REMOVED } from '@/lib/listing-removed'
 import { deskSellerIds } from '@/lib/edition-scope'
-import { licenceCleared } from '@/lib/licence-stamp'
+import { LICENCE_WHITELIST, licenceCleared } from '@/lib/licence-stamp'
 
 /** A pre-salary-rule job's monthly price as whole millions on the salary facet's scale, or null.
  *  ⚠️ ROUNDED DOWN (salaryMFromPrice), never to the nearest: an untouched 12,500,000 ₫ job opened and
@@ -73,10 +73,17 @@ export default async function EditListingPage({ params }: Props) {
   // stamp is the stamp of exactly its values (always true outside the two aisles, and for the desk). It decides only what
   // the wizard SHOWS — the resubmit note, or the quiet "changing either sends it back" hint — and the stamp itself stays
   // on the server; updateListingCore decides the hold.
-  const desk = deskIds.includes(listing.sellerId)
+  // The AISLES this storefront is exempt in: every one for eno's desk; a whitelisted storefront's own (licence-whitelist.ts —
+  // owner, 2026-10-15). Per aisle, so the form asks for the values again when the seller picks an aisle the whitelist
+  // does not cover — the server decides the same way (updateListingCore, by the row's TARGET aisle).
+  const exemptAisles: string[] = deskIds.includes(listing.sellerId)
+    ? [...LICENCE_CHECK_SUBCATEGORIES]
+    : LICENCE_WHITELIST.filter((w) => w.sellerId === listing.sellerId).flatMap((w) => [...w.aisles])
+  const desk = exemptAisles.includes(listing.subcategorySlug ?? '')
   const licence = {
     approved: licenceCleared({ categorySlug: listing.category.slug, subcategorySlug: listing.subcategorySlug, sellerId: listing.sellerId, attributes: listing.attributes, verificationMethod: listing.verificationMethod }, { desk }),
     exempt: desk,
+    exemptAisles,
   }
 
   const edit: ListingEditData = {

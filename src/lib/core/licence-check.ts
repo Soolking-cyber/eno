@@ -5,7 +5,7 @@ import { deskSellerIds } from '@/lib/edition-scope'
 import { NOT_REMOVED } from '@/lib/listing-removed'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
 import { LICENCE_CHECK_SUBCATEGORIES, VISA_CATEGORY_SLUG } from '@/lib/taxonomy'
-import { LICENCE_GRANDFATHER, LICENCE_HELD_NOTE, LICENCE_STAMP_PREFIX, licenceCleared, licenceGrandfatherEndsAt, licenceGrandfathered } from '@/lib/licence-stamp'
+import { LICENCE_GRANDFATHER, LICENCE_HELD_NOTE, LICENCE_STAMP_PREFIX, isLicenceWhitelisted, licenceCleared, licenceGrandfatherEndsAt, licenceGrandfathered } from '@/lib/licence-stamp'
 
 // ── THE LICENCE CHECK'S TWO SERVER HALVES (owner, 2026-10-14) ───────────────────────────────────────────────────────
 //
@@ -69,6 +69,9 @@ export async function licenceGrandfatherProblem(): Promise<string | null> {
  */
 async function grandfatherIdentity(): Promise<{ problem: string | null; storefrontIds: string[] }> {
   const g = LICENCE_GRANDFATHER
+  // A whitelisted grandfather is moot (owner, 2026-10-15: "whitelist vietkite"): its rows are exempt before the window is
+  // ever consulted, so a broken identity must not refuse the sweep — or alarm the tab — over nothing.
+  if (isLicenceWhitelisted(g.sellerId, g.subcategorySlug)) return { problem: null, storefrontIds: [] }
   // edition-lint-allow: resolves the ONE storefront the cron sweep exempts, by its id, handle and owner; it returns no
   // listing and nothing is rendered — the identity check scripts/fix-vietkite-visa-claims.mjs runs before it writes.
   const found = await db.seller.findMany({
@@ -91,6 +94,8 @@ export type LicenceSweepResult = {
   checked: number
   /** Of those, eno's own desk's — exempt. */
   deskExempt: number
+  /** Of those, a whitelisted storefront's in its whitelisted aisle (licence-stamp.ts LICENCE_WHITELIST) — exempt. */
+  whitelisted: number
   /** Of those, VietKite's grandfathered rows (before LICENCE_GRANDFATHER.until). 0 when the grandfather is unresolved. */
   grandfathered: number
   /** Unpublished by this run — on a dry run, what a real run would unpublish now; 0 on a grandfather refusal (a mass-pull
@@ -150,17 +155,19 @@ export async function sweepLicenceHolds({ dryRun = false, now = new Date(), maxP
     select: { id: true, sellerId: true, subcategorySlug: true, attributes: true, verificationMethod: true, verified: true, category: { select: { slug: true } } },
   })
   let deskExempt = 0
+  let whitelisted = 0
   let grandfathered = 0
   const toPull: typeof rows = []
   for (const r of rows) {
     if (desk.includes(r.sellerId)) { deskExempt++; continue }
+    if (isLicenceWhitelisted(r.sellerId, r.subcategorySlug)) { whitelisted++; continue }
     const row = { categorySlug: r.category.slug, subcategorySlug: r.subcategorySlug, sellerId: r.sellerId, attributes: r.attributes, verificationMethod: r.verificationMethod, verified: r.verified }
     if (licenceCleared(row, { desk: false })) continue
     // An unresolved grandfather exempts no row (R7) — the counts then show what honouring nobody would pull.
     if (!grandfatherProblem && licenceGrandfathered(row, now)) { grandfathered++; continue }
     toPull.push(r)
   }
-  const counts = { checked: rows.length, deskExempt, grandfathered, grandfatherUntil: LICENCE_GRANDFATHER.until }
+  const counts = { checked: rows.length, deskExempt, whitelisted, grandfathered, grandfatherUntil: LICENCE_GRANDFATHER.until }
   // ⚠️ AN UNRESOLVED GRANDFATHER HOLDS BACK ONLY THE ROWS IT MIGHT COVER (commit gate, 2026-10-14): those under its seller
   // id and under every storefront its handle or owner names (a restore can change the id) stay live (refused, `wouldPull`
   // counts them), and every OTHER unchecked row is still pulled — one broken identity must not suspend the takedowns of
