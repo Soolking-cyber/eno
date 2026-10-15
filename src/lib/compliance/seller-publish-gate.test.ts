@@ -347,6 +347,36 @@ describe('AUTO-PUBLISH ON VERIFY — recomputeVerification releases the holds', 
     expect(h.calls.some((c) => c.m === 'listing.updateMany')).toBe(false)
   })
 
+  // ⛔ 2026-10-15: lapsed verification, a rejected renewal, then a THIRD attempt — the cache reads `pending` while it
+  // waits. Rejected too, the account returns to the lapse: pending → expired, written (it was illegal and stranded).
+  it('⛔ a third attempt rejected after a lapse: the cache moves pending → expired, nothing is released', async () => {
+    const NOW = new Date('2026-10-15T12:00:00+07:00')
+    h.profiles.set('p', { createdAt: OLD, verificationStatus: 'pending' })
+    h.ivs.set('p', [
+      verifiedRow('p', { id: 'iv-third', status: 'rejected', decidedAt: new Date('2026-10-15T10:00:00+07:00') }),
+      verifiedRow('p', { id: 'iv-second', status: 'rejected', decidedAt: new Date('2026-10-01T10:00:00+07:00') }),
+      verifiedRow('p', { id: 'iv-old', decidedAt: new Date('2025-01-10T00:00:00+07:00'), documentExpiresAt: new Date('2026-09-30T00:00:00+07:00') }),
+    ])
+    h.sellers = [{ id: 's1', ownerId: 'p' }]
+    h.listings = [{ id: 'l1' }]
+    const r = await recomputeVerification('p', NOW)
+    expect(r).toMatchObject({ status: 'expired', changed: true, sourceId: 'iv-old' })
+    expect(r.illegalTransition).toBeUndefined()
+    expect(h.calls.some((c) => c.m === 'listing.updateMany')).toBe(false)
+  })
+
+  it('⛔ a cache written `rejected` by the old derivation follows to `expired` (rejected → expired)', async () => {
+    const NOW = new Date('2026-10-15T12:00:00+07:00')
+    h.profiles.set('p', { createdAt: OLD, verificationStatus: 'rejected' })
+    h.ivs.set('p', [
+      verifiedRow('p', { id: 'iv-renewal', status: 'rejected', decidedAt: new Date('2026-10-10T10:00:00+07:00') }),
+      verifiedRow('p', { id: 'iv-old', decidedAt: new Date('2025-01-10T00:00:00+07:00'), documentExpiresAt: new Date('2026-09-30T00:00:00+07:00') }),
+    ])
+    const r = await recomputeVerification('p', NOW)
+    expect(r).toMatchObject({ status: 'expired', changed: true, sourceId: 'iv-old' })
+    expect(r.illegalTransition).toBeUndefined()
+  })
+
   it('a profile that is NOT verified releases nothing and never reads its listings', async () => {
     h.profiles.set('p', { createdAt: OLD, verificationStatus: 'unverified' })
     h.ivs.set('p', [verifiedRow('p', { status: 'pending', decidedAt: null })])

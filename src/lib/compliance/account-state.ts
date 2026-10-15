@@ -113,9 +113,16 @@ export function canMessage(status: VerificationStatus): boolean { return status 
 // bug. Rejecting it here means the log can only contain journeys that were actually possible.
 const TRANSITIONS: Record<VerificationStatus, readonly VerificationStatus[]> = {
   unverified: ['pending'],
-  pending: ['verified', 'rejected'],
+  // ⚠️ `pending → expired`: a resubmission REJECTED after an earlier verification lapsed returns the account to that
+  // lapse (derive-verification.ts — a rejection is additive-only). The cache reads `pending` while a third attempt
+  // waits after a rejection; refusing the move stranded it there.
+  pending: ['verified', 'rejected', 'expired'],
   // A rejection is retryable — straight back into review.
-  rejected: ['pending', 'revoked'],
+  // ⚠️ `rejected → expired` (2026-10-15): a cache written `rejected` before a rejection after a lapsed verification
+  // derived `expired` (derive-verification.ts) must be able to follow. With `verified → expired` and `pending → expired`
+  // this makes a lapse reachable from EVERY state that can precede it — the derivation decides; the table only refuses
+  // the impossible (nothing leaves `revoked`; nothing jumps from `unverified`).
+  rejected: ['pending', 'expired', 'revoked'],
   // ⚠️ `verified → expired` is driven by the DOCUMENT CLOCK, not by any user action, so it must be
   // reachable without a submission. That is why expiry is a state and not a boolean.
   verified: ['expired', 'revoked'],
@@ -125,7 +132,8 @@ const TRANSITIONS: Record<VerificationStatus, readonly VerificationStatus[]> = {
   // approval derives `verified` from `expired`. Refused, it stranded the cache in `expired` for good: no hold
   // release, no notice, no wallet, a stale admin badge. It is safe because `verified` derives only from a row
   // reviewKycCase approved (src/lib/kyc/review.ts) — no review is skipped. ⛔ `expired → rejected` stays refused:
-  // revokeIdentity's guard reads this cache (src/lib/admin-users.ts), and widening it would hide Revoke.
+  // revokeIdentity's guard reads this cache (src/lib/admin-users.ts), and widening it would hide Revoke. It is also
+  // unreachable now: a rejection after a lapsed verification derives `expired` (derive-verification.ts).
   expired: ['pending', 'verified', 'revoked'],
   // ⚠️ NO SELF-SERVICE PATH OUT OF `revoked`. Restoration is an admin/authority act that writes its
   // own audit row; allowing revoked → pending here would let a suspended seller resubmit documents

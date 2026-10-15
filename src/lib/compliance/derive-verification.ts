@@ -76,6 +76,18 @@ export function deriveVerification<R extends VerificationRow>(rows: R[], now: Da
   const pending = rows.find((r) => r.status === 'pending')
   if (pending) return { status: 'pending', source: pending }
 
+  // ⛔ A REJECTION AFTER A VERIFICATION THAT HAS SINCE LAPSED LEAVES THE ACCOUNT `expired`, NOT `rejected`
+  // (2026-10-15, commit-gate review). A rejection is additive-only (above): it says "this submission does not
+  // qualify", never that the earlier record was wrong — so the standing state is the earlier verification's, and
+  // that has lapsed. Deriving `rejected` here stranded the cache: verified → rejected and expired → rejected are
+  // both illegal (account-state.ts), so a profile whose lapse the sweep had not yet recorded stayed `verified` for
+  // good — a stale admin badge, `verified` filter and Revoke guard on an account that is not verified. Any verified
+  // row found here has lapsed: a standing one returned above.
+  if (latest?.status === 'rejected') {
+    const lapsed = decided.find((r) => r.status === 'verified')
+    if (lapsed) return { status: 'expired', source: lapsed }
+  }
+
   if (latest) {
     const s = asStatus(latest.status)
     if (s) return { status: s, source: latest }

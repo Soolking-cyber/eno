@@ -49,6 +49,12 @@ describe('state transitions', () => {
     expect(canTransition('expired', 'rejected')).toBe(false)
   })
 
+  it('a lapse is reachable from every state that can precede it — and from neither unverified nor revoked', () => {
+    for (const from of ['verified', 'pending', 'rejected'] as const) expect(canTransition(from, 'expired'), from).toBe(true)
+    expect(canTransition('unverified', 'expired')).toBe(false)
+    expect(canTransition('revoked', 'expired')).toBe(false)
+  })
+
   it('cannot jump straight from unverified to verified — review is not skippable', () => {
     expect(canTransition('unverified', 'verified')).toBe(false)
     expect(() => assertTransition('unverified', 'verified')).toThrow(/illegal/)

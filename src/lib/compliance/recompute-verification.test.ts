@@ -115,12 +115,31 @@ describe('a standing verification survives a later rejection', () => {
     expect(out.source?.id).toBe('a')
   })
 
-  it('⚠️ BUT NOT IF THAT ROW’S OWN DOCUMENT HAS EXPIRED', () => {
+  it('⚠️ BUT NOT IF THAT ROW’S OWN DOCUMENT HAS EXPIRED — the account is then EXPIRED, not rejected', () => {
+    // 2026-10-15: a rejection after a lapsed verification derives `expired` (the earlier record's own state).
+    // `rejected` stranded the cache: verified → rejected and expired → rejected are both illegal transitions.
     const out = deriveVerification([
       { id: 'a', status: 'verified', decidedAt: march, documentExpiresAt: new Date('2026-04-01T00:00:00Z'), submittedAt: march },
       { id: 'b', status: 'rejected', decidedAt: august, documentExpiresAt: null, submittedAt: august },
     ] as never, now)
-    expect(out.status).not.toBe('verified')
+    expect(out.status).toBe('expired')
+    expect(out.source?.id).toBe('a')
+  })
+
+  it('a later attempt rejected too still derives EXPIRED from the lapsed row — never `rejected`', () => {
+    const out = deriveVerification([
+      { id: 'a', status: 'verified', decidedAt: march, documentExpiresAt: new Date('2026-04-01T00:00:00Z'), submittedAt: march },
+      { id: 'b', status: 'rejected', decidedAt: august, documentExpiresAt: null, submittedAt: august },
+      { id: 'c', status: 'rejected', decidedAt: new Date('2026-08-15T00:00:00Z'), documentExpiresAt: null, submittedAt: august },
+    ] as never, now)
+    expect(out).toMatchObject({ status: 'expired', source: { id: 'a' } })
+  })
+
+  it('with no verified row at all, a rejection is still `rejected`', () => {
+    const out = deriveVerification([
+      { id: 'b', status: 'rejected', decidedAt: august, documentExpiresAt: null, submittedAt: august },
+    ] as never, now)
+    expect(out.status).toBe('rejected')
   })
 
   it('⛔ AND revoked STILL OUTRANKS IT — that is the escape hatch', () => {
