@@ -261,5 +261,11 @@ describe('"Review these answers in my profile" / "Use the answers I just gave in
   it('this account\'s own fuller copy brings its later answers too', () => {
     expect(mergeReview(base({ ...full }), base({ ...full, headline: 'A new headline' })).headline).toBe('A new headline')
   })
+  it('⛔ an import-only copy (steps 3-4 filled, step 1 EMPTY) never blanks the saved step 1 or its areas (CV import, 2026-10-15)', () => {
+    const importOnly = normalizeTeacherInput({ ...EMPTY_TEACHER, bio: 'From my CV.', subjects: ['phonics'] })
+    const merged = mergeReview(base({ ...full }), importOnly)
+    expect(merged).toMatchObject({ livesIn: 'city', currentCity: 'ha-noi', jobTypes: ['parttime'], relocate: 'no', teachAreas: ['ha-noi'], teachAreasConfirmed: true })
+    expect(merged).toMatchObject({ bio: 'From my CV.', subjects: ['phonics'], fullName: full.fullName })
+  })
 })
 

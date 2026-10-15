@@ -313,6 +313,13 @@ describe('Sign in with LinkedIn (2026-10-15)', () => {
     }
   })
 
+  it('only a LinkedIn attempt spends the LinkedIn consent cookie — a cancelled Google sign-in leaves it be', async () => {
+    let res = await liCall(`?p=google&next=${TEACHER_NEXT}&error=access_denied`, 'eno_li_consent=11111111-2222-4333-8444-555555555555')
+    expect(res.headers.get('set-cookie') ?? '').not.toMatch(/eno_li_consent=;/)
+    res = await liCall(`?p=linkedin&next=${TEACHER_NEXT}&error=user_cancelled_login`, 'eno_li_consent=11111111-2222-4333-8444-555555555555')
+    expect(res.headers.get('set-cookie') ?? '').toMatch(/eno_li_consent=;/)
+  })
+
   it('a LinkedIn cancel elsewhere still goes to /signin', async () => {
     const res = await liCall('?p=linkedin&next=%2Flistings%2Fx&error=user_cancelled_login')
     expect(res.headers.get('location')).toBe('https://eno.vn/signin?next=%2Flistings%2Fx')

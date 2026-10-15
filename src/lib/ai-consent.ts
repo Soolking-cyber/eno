@@ -27,6 +27,10 @@
  *                 with `automatic_image_check_declined` and calls no Google (never blocking). Its words live in
  *                 visa-ai-consent.tsx, real only where the e-Visa flow is (MARKETPLACE_HOSTS_SERVICES / eno.forum).
  *
+ *   teacher_cv    the teacher form's "Fill it in from my CV" (2026-10-15) → POST /api/teachers/me/import: the CV or LinkedIn
+ *                 profile PDF the teacher chooses (Gemini on Vertex reads it to fill the form; nothing is kept).
+ *                 "Not now": unavailable — the teacher fills the form in, which is how it works without AI anyway.
+ *
  * Handled without a question: typed SEARCH (/api/listings → semanticRank → Vertex AI Search). In the apps with the gate
  * on, the route never sends search words to Google (semantic-rank.ts `noAi`), so there is nothing to ask permission for.
  * Not gated, and why (docs/ios-appstore-release.md §6): the visa concierge — refused on eno.vn's build
@@ -57,7 +61,7 @@
  */
 import { nativeAppGate } from './app-review-gates'
 
-export const AI_FAMILIES = ['assistant', 'listing', 'photo_search', 'trip', 'document_check'] as const
+export const AI_FAMILIES = ['assistant', 'listing', 'photo_search', 'trip', 'document_check', 'teacher_cv'] as const
 export type AiFamily = (typeof AI_FAMILIES)[number]
 
 /** 'on' = allowed (in the notice or in Settings); 'off' = "Not now" / turned off; null = not asked yet. */

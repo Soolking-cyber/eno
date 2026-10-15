@@ -310,7 +310,9 @@ export async function GET(request: Request) {
       })
       // A teacher who backed out at LinkedIn goes back to the doors they started from, not to /signin (which has none).
       const back = p === 'linkedin' ? linkedinBack(origin, next, 'cancelled') : null
-      return spendLinkedInConsent(redirect(back ?? `${origin}/signin?next=${encodeURIComponent(next)}`))
+      // Only a LinkedIn attempt spends the LinkedIn consent cookie — a cancelled Google sign-in leaves a pending one be.
+      const res = redirect(back ?? `${origin}/signin?next=${encodeURIComponent(next)}`)
+      return p === 'linkedin' ? spendLinkedInConsent(res) : res
     }
     console.error('[auth] oauth callback error', {
       error: oauthError,
@@ -322,7 +324,8 @@ export async function GET(request: Request) {
     // and would also show a visitor a sentence written for a developer. The client maps this to its
     // own copy.
     const back = p === 'linkedin' ? linkedinBack(origin, next, kind === 'email_unverified' ? 'email' : 'failed') : null
-    return spendLinkedInConsent(redirect(back ?? `${origin}${authFailurePath(next, kind)}`))
+    const res = redirect(back ?? `${origin}${authFailurePath(next, kind)}`)
+    return p === 'linkedin' ? spendLinkedInConsent(res) : res
   }
 
   if (code) {

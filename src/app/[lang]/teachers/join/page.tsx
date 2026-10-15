@@ -5,7 +5,15 @@ import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { TeacherForm } from '@/components/teachers/teacher-form'
 import { TeacherHostHeader } from '@/components/teachers/teacher-host-header'
+import { LinkedInSignInFlag } from '@/components/teachers/linkedin-signin-flag'
 import { apexOrigin, isTeacherHost, teacherOrigin } from '@/lib/teachers/host'
+import { linkedinSignInEnabled } from '@/lib/auth/linkedin'
+import { linkedinAvailableForUA } from '@/lib/linkedin-signin'
+import { getGeminiVertex } from '@/lib/gemini'
+import { IN_APP_UA_RE } from '@/lib/in-app-browser'
+import { NATIVE_UA_RE } from '@/lib/consent-value'
+import { campaignQuery } from '@/components/teachers/teacher-form-rules'
+import type { LinkedInOutcome, TeacherStartProps } from '@/components/teachers/teacher-start'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL
 
@@ -21,9 +29,37 @@ export const metadata: Metadata = {
 // `?goal=cover` — arrived from the cover-lessons page (/teachers/cover): the work question reads "Also looking for a
 // job? (optional)" and HCMC opens on its districts. Read here, on the server, so the first paint already says it (the
 // page is dynamic anyway: it reads the Host header).
-export default async function TeacherJoinPage({ searchParams }: { searchParams: Promise<{ goal?: string | string[] }> }) {
-  const draftHost = isTeacherHost((await headers()).get('host'), APP_URL)
-  const goal = (await searchParams).goal === 'cover' ? 'cover' : null
+// THE START SCREEN (owner, 2026-10-15: LinkedIn / "Fill it in from my CV" / "Fill it in myself") is decided HERE, for the
+// first paint — never swapped in after hydration over a step 1 a finger is already on (teacher-start.tsx): `?import=`
+// opens the reading panel (eno.vn only — the teacher host has no session to read under), `?start=self` (the "myself"
+// door, the hand-off) skips the doors, `?li=` says how a LinkedIn sign-in ended, the user agent says whether LinkedIn can
+// work here (never in the apps; Facebook/Zalo… browsers are told, on the start screen, to open a real one), and a
+// session cookie means "wait for the account" rather than the signed-out doors.
+type JoinParams = Record<string, string | string[] | undefined>
+const LI_OUTCOMES: readonly LinkedInOutcome[] = ['cancelled', 'failed', 'off', 'notice', 'signed_in', 'email']
+const one = (v: string | string[] | undefined) => (typeof v === 'string' ? v : undefined)
+export default async function TeacherJoinPage({ searchParams }: { searchParams: Promise<JoinParams> }) {
+  const h = await headers()
+  const draftHost = isTeacherHost(h.get('host'), APP_URL)
+  const q = await searchParams
+  const goal = one(q.goal) === 'cover' ? 'cover' : null
+  const ua = h.get('user-agent') ?? ''
+  const linkedinOn = await linkedinSignInEnabled()
+  const imp = one(q.import)
+  const li = LI_OUTCOMES.find((o) => o === one(q.li)) ?? null
+  const cvImport = getGeminiVertex() !== null
+  const start: TeacherStartProps = {
+    // No reader configured: no panel either — a stale link opens the doors (or the form), never a dead end.
+    importIntent: !draftHost && cvImport && (imp === 'cv' || imp === 'linkedin') ? imp : null,
+    startSelf: one(q.start) === 'self',
+    li,
+    // Supabase's session cookie (`sb-<ref>-auth-token`, or its `.0` chunk — never the PKCE verifier), or the app.
+    sessionHint: /(?:^|;\s*)sb-[^=;]*-auth-token(?:\.\d+)?=/.test(h.get('cookie') ?? '') || NATIVE_UA_RE.test(ua),
+    cvImport,
+    linkedin: !linkedinOn ? 'off' : linkedinAvailableForUA(ua) ? 'on' : IN_APP_UA_RE.test(ua) ? 'browser' : 'off',
+    mobile: /Mobi|Android|iPhone|iPad|iPod/i.test(ua),
+    campaign: campaignQuery(`?${new URLSearchParams(Object.entries(q).flatMap(([k, v]) => (typeof v === 'string' ? [[k, v]] : [])))}`).slice(1),
+  }
   return (
     <div className="flex min-h-page flex-col">
       {draftHost ? <TeacherHostHeader apexOrigin={apexOrigin(APP_URL)} /> : <Header />}
@@ -40,7 +76,8 @@ export default async function TeacherJoinPage({ searchParams }: { searchParams: 
           </div>
           {/* eslint-enable react/jsx-no-literals */}
         </noscript>
-        <TeacherForm mode="join" draftHost={draftHost} apexOrigin={apexOrigin(APP_URL)} goal={goal} />
+        <LinkedInSignInFlag enabled={linkedinOn} />
+        <TeacherForm mode="join" draftHost={draftHost} apexOrigin={apexOrigin(APP_URL)} goal={goal} start={start} />
       </main>
       <Footer />
     </div>

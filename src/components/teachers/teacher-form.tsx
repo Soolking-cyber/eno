@@ -4,12 +4,16 @@
 // The teacher sign-up + edit flow (owner, 2026-09-30), SITUATION FIRST since the onboarding redesign (owner,
 // 2026-10-08): the teacher taps where they are now and what work they want, and every later screen shows only what
 // fits them. One StepWizard, six steps (profile.ts teacherSteps decides which of them a teacher sees):
-//   1 Your plans · 2 Where you teach · 3 Your teaching · 4 About you — need no account: teacher.eno.vn serves these;
-//   5 Cover lessons (only where the home province has cover) · 6 Photo & publish — need a session on eno.vn.
-// ⛔ teacher.eno.vn has no session (cookies are host-scoped), so after step 4 it hands the answers to eno.vn in the URL
-// FRAGMENT (`#d=`, v2: the draft steps' fields only), which no server ever sees. On eno.vn the sign-in comes right
-// after "About you", so the cover switch, the two opt-ins and Publish — each one act, with its notice beside it —
-// happen once, on eno.vn, and nothing is lost in the hand-off or a Google sign-in.
+//   1 Your plans — needs no account: teacher.eno.vn serves it (PRE_SIGNIN_STEPS, since 2026-10-11);
+//   2 Where you teach · 3 Your teaching · 4 About you · 5 Cover lessons (only where the home province has cover) ·
+//   6 Photo & publish — on eno.vn, signed in, every step saved to the account's draft.
+// ⛔ teacher.eno.vn has no session (cookies are host-scoped), so after step 1 it hands the answers to eno.vn in the URL
+// FRAGMENT (`#d=`, v2: step 1's fields only), which no server ever sees. On eno.vn the sign-in comes right after step 1,
+// so the cover switch, the two opt-ins and Publish — each one act, with its notice beside it — happen once, on eno.vn,
+// and nothing is lost in the hand-off or a Google sign-in.
+// Before step 1 of a NEW profile: THE START SCREEN (owner, 2026-10-15 — teacher-start.tsx): LinkedIn, the CV, or "myself".
+// The LinkedIn and CV doors end in the reading panel (teacher-import-panel.tsx), which fills only EMPTY answers from the
+// teacher's own file (import-map.ts mergeImport), saves them to the account's draft and says what it filled, with Undo.
 // Validation is src/lib/teachers/profile.ts — the same functions the server runs; the screens are ./steps/*.tsx; the
 // form's own derivations (one answer re-deriving another, the edit warnings, the hand-off) are teacher-form-rules.ts.
 
@@ -28,7 +32,7 @@ import { BookOpen, CalendarDays, Camera, Check, Compass, ExternalLink, Loader2, 
 import { compressImageFile } from '@/lib/normalize-image'
 import { uploadListingVideo } from '@/lib/video-upload-client'
 import {
-  AI_NOTICE_VERSION, DRAFT_STEPS, EMPTY_TEACHER, PRE_SIGNIN_STEPS, PUBLISH_NOTICE_VERSION, TEACHER_STEPS, teacherFreeTextFields, hasTeachingGoal, normalizeForSave,
+  AI_NOTICE_VERSION, DRAFT_STEPS, EMPTY_TEACHER, PRE_SIGNIN_STEPS, PUBLISH_NOTICE_VERSION, TEACHER_STEPS, TEACHER_STEP_FIELDS, teacherFreeTextFields, hasTeachingGoal, normalizeForSave,
   normalizeTeacherInput, splitGoalErrors, teacherSteps, type TeacherErrors, type TeacherInput, type TeacherStep,
 } from '@/lib/teachers/profile'
 import { TEACHER_DRAFT_HASH_KEY } from '@/lib/teachers/constants'
@@ -51,6 +55,11 @@ import { scrollBehavior } from '@/lib/reduced-motion'
 import { PushOptInCard } from '@/components/marketplace/push-opt-in-card'
 import { revalidateDashboard } from '@/hooks/use-dashboard'
 import { ShareButton, ShareChannels } from '@/components/marketplace/share-button'
+import { TeacherStart, doorsFor, initialDoor, liLine, type Door, type TeacherStartProps } from '@/components/teachers/teacher-start'
+import { TeacherImportPanel, type ImportResult, type LastImport } from '@/components/teachers/teacher-import-panel'
+import { untouchedImport, undoImport } from '@/components/teachers/import-summary'
+import { mergeImport } from '@/lib/teachers/import-map'
+import { signedUpWithLinkedIn } from '@/lib/linkedin-signin'
 
 const DRAFT_KEY = 'eno.teacherDraft.v1'
 
@@ -199,7 +208,8 @@ function newDraftGen(): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
 }
 
-type TeacherFormProps = { mode: Mode; draftHost: boolean; apexOrigin: string; goal?: 'cover' | null }
+/** `start`: the join page's first-paint decisions for the start screen (teachers/join/page.tsx) — absent, no doors. */
+type TeacherFormProps = { mode: Mode; draftHost: boolean; apexOrigin: string; goal?: 'cover' | null; start?: TeacherStartProps }
 
 /**
  * How many times a SIGNED-IN account has left this page — a sign-out, or another account. A sign-in (none → an account) is
@@ -234,7 +244,7 @@ export function TeacherForm(props: TeacherFormProps) {
 
 type PendingChange = { next: TeacherInput; touched: readonly (keyof TeacherInput)[]; fields: DroppedField[]; places: string[] }
 
-function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, restoreDraft = true }: TeacherFormProps & { restoreDraft?: boolean }) {
+function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start, restoreDraft = true }: TeacherFormProps & { restoreDraft?: boolean }) {
   const { tr, lang } = useLanguage()
   const { user, loading: authLoading, openSignIn, accountType, identityLoaded, markOnboarded } = useAuth()
   const uid = user?.id ?? null
@@ -243,6 +253,17 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   // The step BY KEY, never by index: when an answer adds or removes a step (a home with cover, "Online only"), the rail
   // re-counts around the step the teacher is on — it never moves them silently.
   const [stepKey, setStepKey] = useState<TeacherStep>('plans')
+  // THE START SCREEN'S DOOR (teacher-start.tsx): the doors, the form ("myself"), or the reading panel (CV / LinkedIn).
+  const [door, setDoorState] = useState<Door>(() => (mode === 'join' ? initialDoor(start, draftHost) : 'self'))
+  // The last reading the form applied (teacher-import-panel.tsx): what it filled, what was there before (Undo), the file.
+  const [lastImport, setLastImport] = useState<LastImport | null>(null)
+  // Join, signed in: GET /api/teachers/me has answered — no door shows before it is known whether a profile exists.
+  const [meKnown, setMeKnown] = useState(false)
+  // ⛔ HOW A LINKEDIN SIGN-IN CAME BACK IS SAID WHEREVER THE PAGE OPENS (review, 2026-10-16) — the doors, the reading
+  // panel or the form itself (a sign-in from step 1's popup returns to the form): never stripped from the address unread.
+  const [liOutcome, setLiOutcome] = useState(start?.li && start.li !== 'signed_in' ? start.li : null)
+  // Undo of a reading is on its way: the summary's buttons wait for it (a Continue meanwhile would be wiped by it).
+  const [undoing, setUndoing] = useState(false)
   const [errors, setErrors] = useState<TeacherErrors>({})
   const [formError, setFormError] = useState('')
   const [busy, setBusy] = useState<'' | 'photo' | 'video' | 'saving'>('')
@@ -311,6 +332,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   const draftGen = useRef<string | null>(null)
   const [draftLoaded, setDraftLoaded] = useState(false)
   const [draftState, setDraftState] = useState<'' | 'saving' | 'saved' | 'error' | 'failed' | 'stale' | 'gone'>('')
+  // A save landed: what the screen says about it reads `savedT` (a ref), so a landing always renders — even when the
+  // answer came back before "Saving…" did, and React folded saved → saving → saved into no change at all.
+  const [, setSaveLanded] = useState(0)
   // Why the conflict choice is on screen: another tab or device saved since, or the saved draft arrived only now, after a
   // failed load, while the teacher was already working on the page.
   const [staleWhy, setStaleWhy] = useState<'elsewhere' | 'reconnect'>('elsewhere')
@@ -392,6 +416,34 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   // The success screen replaces a long wizard: bring its heading into view (preview check, 2026-10-07 — after Publish
   // or Save it sat above the viewport, wherever the last step had been scrolled to).
   useEffect(() => { if (done) window.scrollTo({ top: 0, behavior: scrollBehavior() }) }, [done])
+  // A screen of this page replaced by another in place (a door, Continue, Undo): focus goes to the new screen's heading.
+  const screenSwitched = useRef(false)
+  /** A door chosen: the address follows (`?import=` / `?start=self`), so a reload — or Google's round trip — reopens it. */
+  const setDoor = useCallback((d: Door) => {
+    setDoorState(d)
+    setLiOutcome(null)
+    screenSwitched.current = true
+    try {
+      const u = new URL(window.location.href)
+      for (const k of ['import', 'start', 'li']) u.searchParams.delete(k)
+      if (d === 'cv' || d === 'linkedin') u.searchParams.set('import', d)
+      else if (d === 'self') u.searchParams.set('start', 'self')
+      history.replaceState(history.state, '', `${u.pathname}${u.search}${u.hash}`)
+    } catch { /* no history API: the screen still switches */ }
+    window.scrollTo({ top: 0, behavior: scrollBehavior() })
+  }, [])
+  // Signed in since: the outcome of an earlier LinkedIn attempt is no longer news.
+  useEffect(() => { if (uid) setLiOutcome(null) }, [uid])
+  // How a LinkedIn sign-in ended is said once (liOutcome keeps the line): a reload or a shared link never repeats it.
+  useEffect(() => {
+    if (!start?.li) return
+    try {
+      const u = new URL(window.location.href)
+      if (!u.searchParams.has('li')) return
+      u.searchParams.delete('li')
+      history.replaceState(history.state, '', `${u.pathname}${u.search}${u.hash}`)
+    } catch { /* no history API */ }
+  }, [start?.li])
 
   // ── The steps this teacher sees — re-derived from their answers (profile.ts teacherSteps) ─────────────────────────
   const steps = useMemo(() => teacherSteps(t, { draftHost }), [t, draftHost])
@@ -578,6 +630,13 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   const sentStep = useRef<TeacherStep | null>(null)
   const saveDraftRef = useRef<() => Promise<void>>(async () => {})
   /**
+   * ⛔ ANSWERS ON THE PAGE THE ACCOUNT HAS NOT TAKEN YET — the load found answers this form did not sign in for (a tab copy
+   * left signed out, a hand-off opened signed in) and holds them back until the teacher moves on from a step with them on
+   * screen. Set there, cleared by the first save that lands. A CV reading must not carry them into the account unseen
+   * (review, 2026-10-16: the panel replaces the form, so step 1 was never on screen before the reading saved it).
+   */
+  const heldBack = useRef(false)
+  /**
    * A save cut off by our own timeout (or answered without a revision) may have committed all the same: if the account
    * now holds exactly it — same generation, one revision on — that revision is ours, and the next save builds on it
    * instead of meeting a false conflict (commit gate, 2026-10-11). Runs INSIDE the queue (below and before Start over).
@@ -658,6 +717,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
           savedT.current = snapshot
           savedStep.current = step
           setDraftState('saved')
+          setSaveLanded((n) => n + 1)
+          heldBack.current = false
           // The teacher carried on with what is on the page: the answers the saved draft replaced are no longer offered.
           setPageAnswers(null)
           // The first save made the dashboard's "Teacher profile — Continue" row.
@@ -808,6 +869,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
             savedT.current = shown
             savedStep.current = shownStep
             sentStep.current = shownStep
+            heldBack.current = shown !== EMPTY_TEACHER
           }
         }
         // Decided, once: the mark goes either way (a later sign-in in this tab adopts nothing).
@@ -955,7 +1017,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
     setBusy('saving')
     try { await startOverNow() } finally { setBusy('') }
   }
-  const startOverNow = async () => {
+  const startOverNow = async (failLine = tr('Could not start over — please try again.', 'Không thể bắt đầu lại — vui lòng thử lại.')) => {
     const q = saveQ.current
     // A save on its way LANDS first (its revision counts — commit gate, 2026-10-11) and so never after the delete; no
     // other save starts while the delete is on its way. A delete that fails leaves everything as it was, retry included.
@@ -986,7 +1048,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
     } catch { /* below */ }
     if (!gone) {
       halted.current = false
-      setFormError(tr('Could not start over — please try again.', 'Không thể bắt đầu lại — vui lòng thử lại.'))
+      setFormError(failLine)
       // Nothing changed — and saving goes on: what a retry or a save waiting on the pause would have sent goes now.
       if (!refused.current && (tRef.current !== savedT.current || draftStepRef.current !== savedStep.current)) void saveDraftRef.current()
       return
@@ -1011,7 +1073,62 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
     setStepKey(PRE_SIGNIN_STEPS[0])
     setDraftState('')
     setPageAnswers(null)
+    // A reading started over from is gone with its answers: its phone and file are no longer offered.
+    setLastImport(null)
+    heldBack.current = false
     if (uid) revalidateDashboard(uid)
+  }
+
+  // ── "Fill it in from my CV" (2026-10-15): apply, undo, carry on ──────────────────────────────────────────────────────
+  /**
+   * A reading arrived: ⛔ ONLY EMPTY ANSWERS ARE FILLED (mergeImport) — whatever the teacher gave, now or in their saved
+   * draft, stays — and what it filled is saved at once (the reading was the teacher's act; the line under the title and
+   * the summary say whether the save landed). The phone and the file are only OFFERED, on Photo & publish.
+   */
+  const applyImport = (r: ImportResult, file: File | null) => {
+    const before = tRef.current
+    const { next, filled } = mergeImport(before, r.fields)
+    setLastImport({ ...r, filled, before: Object.fromEntries(filled.map((k) => [k, before[k]])) as Partial<TeacherInput>, file })
+    if (!filled.length) return
+    setT(next)
+    clearErrorsFor(filled)
+    // Saved now — unless answers the account has not taken are on the page (heldBack): then, as for any answers, when the
+    // teacher moves on from a step with them on screen.
+    if (heldBack.current) return
+    savedT.current = null
+    savedStep.current = null
+    sentStep.current = null
+  }
+  /**
+   * Undo: each imported answer the teacher has not changed goes back to what it was. ⛔ When that leaves nothing to save
+   * (a first reading, undone), the account's saved draft is DELETED — Start over's own path, which first lets a save on
+   * its way land — never left holding the answers the teacher just took back (a wrong file can be someone else's CV).
+   */
+  const undoLastImport = async () => {
+    const li = lastImport
+    if (!li || busy) return
+    const back = undoImport(tRef.current, li.fields, li.filled, li.before)
+    if (nothingToSave(back)) {
+      setBusy('saving')
+      setUndoing(true)
+      setFormError('')
+      try { await startOverNow(tr('Could not undo — please try again.', 'Không hoàn tác được — vui lòng thử lại.')) } finally { setBusy(''); setUndoing(false) }
+      // Not deleted: a failure says so on the panel; a newer save elsewhere (409) leaves the choice on the summary.
+      if (tRef.current !== EMPTY_TEACHER) return
+      screenSwitched.current = true
+      setLastImport(null)
+      return
+    }
+    screenSwitched.current = true
+    setLastImport(null)
+    if (back === tRef.current) return
+    setT(back)
+    // ⛔ Not forced into the account while answers it has not taken are on the page (heldBack) — the reading never
+    // carried them, and neither does taking it back (gate review, 2026-10-16).
+    if (heldBack.current) return
+    savedT.current = null
+    savedStep.current = null
+    sentStep.current = null
   }
 
   // The teacher.eno.vn hand-off arrived complete and signed out: the sign-in opens, ONCE (closing it leaves "Sign in" on
@@ -1126,13 +1243,16 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   useEffect(() => {
     if (mode !== 'join' || !uid) return
     let alive = true
+    // The doors wait for this answer (doorWaits) — never for long: a slow one lets them show (the answer still lands).
+    const slow = setTimeout(() => { if (alive) setMeKnown(true) }, DRAFT_LOAD_TIMEOUT_MS)
     fetch('/api/teachers/me').then((r) => r.json()).then((d) => {
       if (!alive) return
       if (d?.publishGate) setPublishGate(d.publishGate)
       if (d?.teacher) setExisting(true)
       else if (d?.prefill) setPrefill(d.prefill)
-    }).catch(() => {})
-    return () => { alive = false }
+      setMeKnown(true)
+    }).catch(() => { if (alive) setMeKnown(true) })
+    return () => { alive = false; clearTimeout(slow) }
   }, [mode, uid])
 
   const publishErrText = (code: string): string => {
@@ -1237,7 +1357,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
     // teacher.eno.vn → eno.vn: the fragment carries the draft steps' answers (v2), never a consent; no server sees it.
     // The query: a teacher who came for cover keeps that intent (`goal=cover`), and the campaign tags this address holds
     // (source, medium, campaign) cross with it — the first-visit record is per host.
-    const query = [coverIntent ? 'goal=cover' : '', campaignQuery(window.location.search).slice(1)].filter(Boolean).join('&')
+    // `start=self`: the teacher already chose how to start — eno.vn opens the form, never the doors again.
+    const query = ['start=self', coverIntent ? 'goal=cover' : '', campaignQuery(window.location.search).slice(1)].filter(Boolean).join('&')
     window.location.assign(`${apexOrigin}/teachers/join${query ? `?${query}` : ''}#${TEACHER_DRAFT_HASH_KEY}=${encodeHandoff(t)}`)
   }
   const signInToContinue = () => {
@@ -1794,8 +1915,29 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   // ⚠️ Not while auth is still deciding: the server-rendered first paint (and every signed-out visitor) keeps the form;
   // a signed-in teacher may glimpse step 1 for a moment before the spinner (commit gate, opus 2026-10-11).
   // …and while this tab's own copy waits for the session to say whose it is (the restore, above): nothing typed over it.
+  // After an in-place switch (screenSwitched), the new screen's heading takes the focus — a door, Continue or Undo unmounts
+  // the control that had it, and focus would fall to <body> with nothing announced (review, 2026-10-16).
+  // ⚠️ Shown as focused only to a KEYBOARD (gate review, 2026-10-16): after a tap, WebKit would ring the new title of every
+  // screen; after a key press — an iPad with a keyboard included — the ring is how the person sees where they are.
+  const lastPointerAt = useRef(0)
+  useEffect(() => {
+    const onPointer = () => { lastPointerAt.current = Date.now() }
+    window.addEventListener('pointerdown', onPointer, { capture: true, passive: true })
+    return () => window.removeEventListener('pointerdown', onPointer, { capture: true })
+  }, [])
+  useEffect(() => {
+    if (!screenSwitched.current) return
+    screenSwitched.current = false
+    const byPointer = Date.now() - lastPointerAt.current < 2_000
+    requestAnimationFrame(() => document.querySelector<HTMLElement>('main [data-screen-heading]')
+      ?.focus({ preventScroll: true, focusVisible: !byPointer } as FocusOptions & { focusVisible?: boolean }))
+  })
   const draftPending = ownedPending || (mode === 'join' && !draftHost && !!uid && !authLoading && !existing && !draftLoaded && !loadFailed)
-  if (!loaded || draftPending) {
+  // ⛔ NO DOOR, NO PANEL, NO STEP 1 FOR A SESSION STILL BEING READ (2026-10-15): a request that came with a session cookie
+  // waits for the account — never the signed-out doors first, then something else under the finger — and a signed-in
+  // account waits for /api/teachers/me before any door (it may already have a profile).
+  const doorWaits = mode === 'join' && door !== 'self' && ((!!start?.sessionHint && authLoading) || (door === 'start' && !!uid && !meKnown))
+  if (!loaded || draftPending || doorWaits) {
     return <div className="flex justify-center py-24"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
   }
   if (mode === 'edit' && !user) {
@@ -1920,6 +2062,53 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
     )
   }
 
+  // ── Before step 1: the start screen, and the reading panel ──────────────────────────────────────────────────────
+  // The doors only for a NEW profile with nothing on the page yet (a hand-off, this tab's copy or a saved draft opens the
+  // form where it was), and only when there is a door worth a screen (doorsFor).
+  if (mode === 'join' && door === 'start' && start && doorsFor(start, !!uid) && t === EMPTY_TEACHER && !arrived && !handoffArrived) {
+    return <TeacherStart start={start} draftHost={draftHost} apexOrigin={apexOrigin} coverIntent={coverIntent} signedIn={!!uid} outcome={liOutcome && liLine(liOutcome, tr)} onDoor={setDoor} />
+  }
+  if (mode === 'join' && !draftHost && (door === 'cv' || door === 'linkedin')) {
+    // Answers the account has not taken (heldBack — left in this tab signed out) are not the teacher's yet: their step
+    // is still to answer, and Continue opens on it.
+    const stillToAnswer = steps.filter((s) => Object.keys(checkSteps(t, [s])).length > 0 || (heldBack.current && PRE_SIGNIN_STEPS.includes(s)))
+    return (
+      <>
+        <TeacherImportPanel
+          source={door}
+          userId={uid}
+          ready={draftOn}
+          // Why reading cannot start yet, when waiting is not the answer (the form's draft line, said here).
+          blocked={!uid || draftOn ? null
+            : draftState === 'stale' || draftState === 'gone' ? 'conflict'
+            : draftState === 'failed' && failedWhy.current === 'session' ? 'signed_out'
+            : loadFailed ? 'retrying' : 'loading'}
+          outcome={liOutcome && liLine(liOutcome, tr)}
+          undoing={undoing}
+          linkedinEmail={user && signedUpWithLinkedIn(user.app_metadata) ? user.email ?? '' : null}
+          lastImport={lastImport}
+          saveState={draftState === 'saved' && t === savedT.current ? 'saved'
+            : draftState === 'stale' || draftState === 'gone' ? 'conflict'
+            : draftState === 'failed' && failedWhy.current === 'session' ? 'signed_out'
+            : !draftOn || draftState === 'error' || draftState === 'failed' ? 'not_saved'
+            : draftState === 'saving' || sentStep.current === null ? 'saving' : 'later'}
+          stillToAnswer={stillToAnswer}
+          stepLabel={stepLabel}
+          canGoBack={!!start && doorsFor(start, !!uid) && t === EMPTY_TEACHER && !arrived}
+          onBack={() => setDoor('start')}
+          onSignIn={() => openSignIn({ note: tr('Sign in to read your file — it takes a few seconds, and your answers are then saved to your account as you go.', 'Đăng nhập để đọc tệp — chỉ mất vài giây, sau đó câu trả lời được lưu vào tài khoản khi bạn điền.') })}
+          onImported={applyImport}
+          onUndo={() => { void undoLastImport() }}
+          onContinue={() => setDoor('self')}
+          onSelf={() => setDoor('self')}
+          onOpenForm={() => setDoor('self')}
+          onExisting={() => setExisting(true)}
+        />
+        {formError && <p role="alert" data-form-error className="mx-auto mt-4 max-w-xl text-sm text-destructive">{formError}</p>}
+      </>
+    )
+  }
+
   const stepProps: StepProps = { t, set, patch, update, errors, errText, mode }
   const droppedWords = (f: DroppedField): string => {
     switch (f) {
@@ -1942,6 +2131,29 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   const reconfirmOptInLine = reconfirm.optIns && t.jobTypes.length > 0 && !(t.matchEmailOptIn && t.staffContactOptIn) && !optInStepLine
   // What the hide dialog says: cover off because its notice changed (no act of the teacher's), or simply off.
   const hideForNotice = reconfirm.cover && !t.coverOpen
+  // ⛔ WHAT A FILE FILLED IS SAID WHERE IT IS (2026-10-15): on a step holding imported answers the teacher has not changed
+  // yet, the line asks them to check those; before those steps, it says they are coming.
+  const importedLeft = lastImport && mode === 'join' ? untouchedImport(t, lastImport.fields, lastImport.filled) : []
+  const importedHere = importedLeft.filter((k) => (TEACHER_STEP_FIELDS[step] as readonly string[]).includes(k))
+  const fromLinkedInPdf = lastImport?.source === 'linkedin-pdf'
+  const importLine = importedHere.length > 0 ? (
+    <p role="status" className="rounded-xl bg-tint px-3.5 py-2.5 text-sm text-body" data-testid="import-line">
+      {fromLinkedInPdf
+        ? tr('Some answers on this step came from your LinkedIn profile — check each one, and change anything that isn’t right.', 'Một số câu trả lời ở bước này lấy từ hồ sơ LinkedIn của bạn — hãy kiểm tra từng câu và sửa nếu chưa đúng.')
+        : tr('Some answers on this step came from your CV — check each one, and change anything that isn’t right.', 'Một số câu trả lời ở bước này lấy từ CV của bạn — hãy kiểm tra từng câu và sửa nếu chưa đúng.')}
+    </p>
+  ) : importedLeft.length > 0 && (step === 'plans' || step === 'where') ? (
+    <p role="status" className="rounded-xl bg-tint px-3.5 py-2.5 text-sm text-body" data-testid="import-line">
+      {fromLinkedInPdf
+        ? tr('Your LinkedIn profile filled in later steps — answer these questions first, then check those answers.', 'Hồ sơ LinkedIn đã điền các bước sau — hãy trả lời các câu hỏi này trước, rồi kiểm tra những câu trả lời đó.')
+        : tr('Your CV filled in later steps — answer these questions first, then check those answers.', 'CV của bạn đã điền các bước sau — hãy trả lời các câu hỏi này trước, rồi kiểm tra những câu trả lời đó.')}
+    </p>
+  ) : null
+  // "Use my LinkedIn name" only for a name that IS LinkedIn's: an account made with LinkedIn whose name was not changed.
+  const linkedinName = String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').replace(/\s+/g, ' ').trim()
+  const nameIsLinkedIns = !!user && signedUpWithLinkedIn(user.app_metadata) && !!linkedinName && prefill?.displayName === linkedinName
+  // The reader offered again where a CV helps most — for a teacher who chose "myself" first.
+  const cvHandy = mode === 'join' && !draftHost && !!start?.cvImport && !lastImport && !!uid && draftOn && (step === 'teaching' || step === 'about')
 
   return (
     <>
@@ -1981,7 +2193,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
             )}
             <div>
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-                <h1 className="h-title text-foreground">{mode === 'edit' ? tr('Your teacher profile', 'Hồ sơ giáo viên của bạn') : tr('Create your teacher profile', 'Tạo hồ sơ giáo viên')}</h1>
+                <h1 data-screen-heading tabIndex={-1} className="h-title text-foreground outline-none">{mode === 'edit' ? tr('Your teacher profile', 'Hồ sơ giáo viên của bạn') : tr('Create your teacher profile', 'Tạo hồ sơ giáo viên')}</h1>
                 {mode === 'edit' && status === 'live' && listingLive && profileListingId && (
                   <ShareButton url={profileUrl(profileListingId)} title={named(publicAs ?? t)} subject="my-teacher-profile" className="shrink-0" />
                 )}
@@ -1989,6 +2201,13 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
               {draftLine}
               <p className="mt-1 text-sm text-muted-foreground">{tr('Free. Schools across Vietnam see your profile; your phone, email and CV stay private until you share them.', 'Miễn phí. Các trường trên toàn Việt Nam xem được hồ sơ; số điện thoại, email và CV được giữ kín đến khi bạn chia sẻ.')}</p>
             </div>
+            {liOutcome && <p role="alert" className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">{liLine(liOutcome, tr)}</p>}
+            {importLine}
+            {cvHandy && (
+              <Button variant="link" size="none" type="button" className="inline-flex min-h-11 items-center text-sm font-semibold" onClick={() => setDoor('cv')} data-testid="cv-handy">
+                {tr('Have your CV? Fill these steps in from it', 'Có CV? Điền tự động các bước này từ CV')}
+              </Button>
+            )}
             {mode === 'edit' && applied && (
               <div role="status" className="space-y-1 rounded-xl bg-tint px-3.5 py-2.5 text-sm text-body">
                 <p>{tr('Your new answers are filled in below and are not saved yet. Check each step, then tap “Save changes” to keep them.', 'Các câu trả lời mới đã được điền bên dưới và chưa được lưu. Hãy kiểm tra từng bước rồi bấm “Lưu thay đổi” để giữ lại.')}</p>
@@ -2014,7 +2233,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
           {step === 'plans' && <PlansStep {...stepProps} coverIntent={coverIntent} signedIn={!!user} draftHost={draftHost} districtNotSaying={districtNotSaying} onDistrictNotSaying={setDistrictNotSaying} />}
           {step === 'where' && <WhereStep {...stepProps} coverIntent={coverIntent} onGoTo={goTo} />}
           {step === 'teaching' && <TeachingStep {...stepProps} />}
-          {step === 'about' && <AboutStep {...stepProps} prefillName={prefill?.displayName ?? null} />}
+          {step === 'about' && <AboutStep {...stepProps} prefillName={prefill?.displayName ?? null} prefillNameFromLinkedIn={nameIsLinkedIns} />}
           {step === 'cover' && <CoverStep t={t} errors={errors} errText={errText} onCover={setCover} onGoTo={goTo} reconsentLine={reconfirm.cover} hidesProfile={mode === 'edit' && !t.coverOpen && !t.jobTypes.length} />}
           {step === 'finish' && (
             <FinishStep
@@ -2023,6 +2242,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
               publishGate={publishGate}
               prefillAvatar={mode === 'join' ? prefill?.avatarUrl ?? null : null}
               prefillPhone={mode === 'join' ? prefill?.phone ?? null : null}
+              imported={mode === 'join' && lastImport ? { phone: lastImport.phone, file: lastImport.file } : null}
               optInsNoticeChanged={reconfirm.optIns}
               media={{
                 busy, onPhoto: uploadPhoto, onVideo: uploadVideo, privateVideo, savedPublicUrl, ownVideoUrl, ownVideoBusy, videoRemoving,
