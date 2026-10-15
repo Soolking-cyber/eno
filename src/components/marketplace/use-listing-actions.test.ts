@@ -23,6 +23,7 @@ const auth = vi.hoisted(() => ({ user: { id: 'p1' } as { id: string } | null }))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
 
 const { useListingActions } = await import('./use-listing-actions')
+const { LICENCE_CHECK_REQUIRED_COPY } = await import('@/lib/licence-check-copy')
 
 const listing = { id: 'L1', status: 'active' } as never
 const DELETE_INIT = { method: 'DELETE', keepalive: true, headers: { 'x-eno-acting-account': 'p1' } }
@@ -226,6 +227,17 @@ describe('useListingActions.setStatus — a relist refused by the account HOLD i
     const { hook } = await relist()
     expect(hook.result.current.status).toBe('sold')
     expect(toastFn.error).toHaveBeenCalledWith('Your hold was released, but the confirmed report stays on your record, so you can keep up to 10 active listings. Mark one sold or hide one before putting this back on sale.', expect.objectContaining({ duration: 10_000 }))
+  })
+
+  it('⛔ licence_check_required → rolled back, with the licence check named — the route’s own sentence (owner, 2026-10-14)', async () => {
+    // An e-Visa / Legal & permits listing eno has not checked: setStatusCore refuses its relist (409, R1 of the plan
+    // review). The toast says the same as the route's `message` for the native apps (licence-check-copy.ts).
+    answer({ error: 'licence_check_required', message: LICENCE_CHECK_REQUIRED_COPY }, false)
+    const { hook, onChanged } = await relist()
+    expect(hook.result.current.status).toBe('sold')
+    expect(onChanged).toHaveBeenCalled()
+    expect(toastFn.error).toHaveBeenCalledWith(LICENCE_CHECK_REQUIRED_COPY.en, expect.objectContaining({ id: 'relist-refusal:L1', duration: expect.any(Number) }))
+    expect((toastFn.error.mock.lastCall![1] as { duration: number }).duration).toBeGreaterThan(4000)
   })
 
   it('any other failure keeps its silent rollback', async () => {

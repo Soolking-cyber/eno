@@ -35,7 +35,7 @@ import { trackPostListing } from '@/lib/analytics'
 import { identityBlockAction, identityBlockMessage, IDENTITY_VERIFY_PATH } from '@/lib/identity-block-copy'
 import { isNativeShell } from '@/lib/native-browser'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
-import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, isVisaProductSlot, servicePriceBasisOf, servicePriceBasisApplies, servicePriceBasisOfUnit, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText } from '@/lib/taxonomy'
+import { takesOffers, postableSubcategoriesFor, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, isLicenceCheckSlot, servicePriceBasisOf, servicePriceBasisApplies, servicePriceBasisOfUnit, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES, paysSalary, salaryPriceFor, rentalPeriodOf, rentalPeriodOfUnit, CONDITION_FACET, suggestSubcategory, subcategoryMatchesText } from '@/lib/taxonomy'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
@@ -45,7 +45,8 @@ import { PublishButton, PublishLabel, Section, Field, Chips, Preview, DraftNotic
 import { MediaSection, PriceSection, SalarySection, LocationSection, ContactSection, PostSuccess } from './post-wizard-sections'
 import { publishSteps } from './post-wizard-steps'
 import { TeacherProfileInstead, TeacherProfileLine } from './post-wizard-teacher'
-import { EVisaLicenceNote } from './post-wizard-evisa'
+import { LicenceCheckNote, ProviderLicenceFields, licenceGuessHint, licenceHeldToast, licenceMovedOutToast, type LicenceSlot } from './post-wizard-evisa'
+import { PROVIDER_LEGAL_NAME, PROVIDER_LICENCE_KEYS, PROVIDER_LICENCE_NO, providerLicenceOf, providerLicenceProblems, sameProviderLicence } from '@/lib/provider-licence'
 import { brandModelPayload, draftHasContent, rangeColumnsPayload } from './post-wizard-payload'
 import { categoryChangeLosesAnswers, categoryChangeReset, orderPostCategories, subcategoryChangeReset } from './post-wizard-category'
 import { postCopyFor } from '@/lib/post-copy'
@@ -136,6 +137,19 @@ export type ListingEditData = {
   lng: number | null
   images: string[]
   video: string | null
+  /**
+   * Where the listing stands with eno's licence check (owner, 2026-10-14 — e-Visa and Legal & permits, src/lib/licence-stamp.ts),
+   * from the edit page: `approved` — cleared for exactly its values (licenceCleared; true outside the aisles), `exempt` —
+   * eno's own desk, which is never checked and is not asked the provider's values. It drives the note and the fields
+   * only: the server decides the hold. Absent → an unapproved, non-desk listing.
+   */
+  licence?: { approved: boolean; exempt: boolean }
+}
+
+/** The attributes without the provider's two licence keys (provider-licence.ts) — what an AI fill or a draft from before
+ *  the licence aisles may not bring in. */
+function withoutProviderKeys(attrs: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(attrs).filter(([k]) => !(PROVIDER_LICENCE_KEYS as readonly string[]).includes(k)))
 }
 
 // Seed the range-facet state (keyed by facet key) from the listing's dedicated columns.
@@ -187,7 +201,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [submitted, setSubmitted] = useState(false)
   // Success-screen context: link to the live listing + a distinct first-ever moment.
   const [createdId, setCreatedId] = useState<string | null>(null)
-  const [heldForCheck, setHeldForCheck] = useState(false)
+  // The licence aisle a new listing waits in for eno's check (createListingCore answered `verified: false`) — the success
+  // screen says so in that aisle's words (PostSuccess `held`). Null = live.
+  const [heldSlot, setHeldSlot] = useState<LicenceSlot | null>(null)
   const [firstListing, setFirstListing] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   // What a running Publish is doing, shown beside the button (publishProgress below). Photos and the video only
@@ -268,11 +284,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         return
       }
       if (d.categorySlug) {
-        // AI must not pick a subcategory this edition does not offer for new posts (O-34: a visa run on eno.vn) — nor the
-        // e-Visa subcategory: like the server's keyword guess (createListingCore), a GUESS never files a post where it
-        // would wait for a licence check; only the seller's own pick does.
+        // AI must not pick a subcategory this edition does not offer for new posts (O-34: a visa run on eno.vn) — nor either
+        // licence aisle (e-Visa, Legal & permits — owner 2026-10-14): a photo's GUESS never files a post where it would
+        // wait for a licence check and be asked for the provider's values; only the seller's own pick does (Opus #7). A post
+        // whose words read as an aisle is asked for that pick before Publish instead (`licenceGuess` below).
         const aiSubOk = !!d.subcategorySlug && isPostableSubcategory(d.categorySlug, d.subcategorySlug, IS_MARKETPLACE)
-          && !isVisaProductSlot(d.categorySlug, d.subcategorySlug)
+          && !isLicenceCheckSlot(d.categorySlug, d.subcategorySlug)
         // ⚠️ IT OVERWRITES WHAT THE SELLER HAD CHOSEN — the category, its specifics (ranges are wiped outright),
         // condition, brand, model — so it comes with an Undo whenever something they had is replaced, as a manual
         // category change already does (offerCategoryUndo). Emil-skills audit, missing confirmations.
@@ -284,11 +301,23 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         //    is the seller's newer word, and putting back half a snapshot would pair one category with another's
         //    specifics (review, 2026-10-07). The title is filled only when empty, so it is never lost.
         const snap = latestForm.current
+        // ⛔ A FORM ALREADY IN A LICENCE AISLE KEEPS IT through a photo fill of the same category, and keeps its two values
+        // (Opus #7): the seller picked the aisle and typed them, and a photo read as "cleaning" must neither move the post
+        // out of the check nor wipe a licence number. The AI's own answers are taken only where the kept aisle asks them
+        // (the subcategory change's one rule), and the licence keys never from the AI — only the seller's typing writes those.
+        const keepAisle = isLicenceCheckSlot(snap.categorySlug, snap.subcategorySlug) && d.categorySlug === snap.categorySlug
+        const aiAttrs: Record<string, string> = d.attributes && typeof d.attributes === 'object' ? withoutProviderKeys(d.attributes) : {}
         const next = {
           ...snap,
           categorySlug: d.categorySlug as string,
-          subcategorySlug: aiSubOk ? (d.subcategorySlug as string) : '',
-          attrs: rentalSub ? snap.attrs : d.attributes && typeof d.attributes === 'object' ? d.attributes : {},
+          subcategorySlug: keepAisle ? snap.subcategorySlug : aiSubOk ? (d.subcategorySlug as string) : '',
+          attrs: rentalSub ? snap.attrs
+            : keepAisle
+              ? {
+                ...subcategoryChangeReset({ categorySlug: snap.categorySlug, attrs: aiAttrs, ranges: {}, condition: '', brand: '', model: '' }, snap.subcategorySlug, { brandShown: false }).attrs,
+                ...Object.fromEntries(PROVIDER_LICENCE_KEYS.filter((k) => snap.attrs[k]).map((k) => [k, snap.attrs[k]])),
+              }
+              : aiAttrs,
           ranges: rentalSub ? snap.ranges : {},
           // Editing, autofill never switches the listing type: the type chips are the seller's (a photo must not quietly
           // turn a sale into a wanted ad), and the sale/rent switch is create-only.
@@ -600,10 +629,15 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         if (typeof d.draftId === 'string') restoredId = d.draftId
         hadPhotos = !(d.photoCount === 0)
         if (typeof d.photoCount === 'number' && d.photoCount > 0) lostPhotoCount.current = d.photoCount
+        // ⛔ A DRAFT FROM BEFORE THE LICENCE AISLES (no `v: 2` — owner, 2026-10-14) comes back WITHOUT an aisle pick: it was
+        // made before e-Visa and Legal & permits held a listing for a check and asked for the provider's values, so that
+        // pick was never made knowing either. The seller picks again (and a title that reads as an aisle asks for it —
+        // `licenceGuess`); the licence keys could not be in such a draft, and are dropped all the same.
+        const legacyDraft = d.v !== 2
         if (d.categorySlug != null) setCategorySlug(d.categorySlug)
-        if (d.subcategorySlug != null) setSubcategorySlug(d.subcategorySlug)
+        if (d.subcategorySlug != null) setSubcategorySlug(legacyDraft && isLicenceCheckSlot(String(d.categorySlug ?? ''), d.subcategorySlug) ? '' : d.subcategorySlug)
         if (d.listingType) setListingType(d.listingType)
-        if (d.attrs) setAttrs(d.attrs)
+        if (d.attrs) setAttrs(legacyDraft ? withoutProviderKeys(d.attrs) : d.attrs)
         if (d.ranges) setRanges(d.ranges)
         if (d.title) setTitle(d.title)
         if (d.description) setDescription(d.description)
@@ -692,7 +726,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       if (photos.length) lostPhotoCount.current = 0
       // `publishIntent` is PART OF THE SHAPE, not a one-off write beside it: this effect rewrites the
       // whole draft on every keystroke, and a flag written anywhere else would be gone by the next one.
-      localStorage.setItem('eno-listing-draft', JSON.stringify({ savedAt: Date.now(), draftId: draftId.current, photoCount: photos.length || lostPhotoCount.current, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, urgent, condition, brand, model, province, ward, nearby, ...(publishIntentAt ? { publishIntent: { at: publishIntentAt } } : {}) }))
+      // `v: 2` — the shape since the licence aisles (2026-10-14): a draft without it gives up an aisle pick on restore.
+      localStorage.setItem('eno-listing-draft', JSON.stringify({ v: 2, savedAt: Date.now(), draftId: draftId.current, photoCount: photos.length || lostPhotoCount.current, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, urgent, condition, brand, model, province, ward, nearby, ...(publishIntentAt ? { publishIntent: { at: publishIntentAt } } : {}) }))
     } catch {}
   }, [edit, submitted, photos.length, categorySlug, subcategorySlug, listingType, attrs, ranges, title, description, price, negotiable, urgent, condition, brand, model, province, ward, nearby, publishIntentAt])
 
@@ -829,13 +864,58 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // new post or a restored draft (the create route refuses it too).
   const keepSub = edit ? subcategorySlug : undefined
   const subOptions = postableSubcategoriesFor(categorySlug, keepSub, IS_MARKETPLACE)
+    // ⛔ A WANTED AD IS NEVER FILED IN A LICENCE AISLE (owner decision, 2026-10-14 — core/listings.ts files one under
+    // Services › Other): "looking for a visa agent" offers no service and must not be asked for a licence number. So
+    // neither aisle is offered to a Wanted post — except the one an EDITED listing is already in, which its chips keep.
+    .filter((s) => listingType !== 'wanted' || !isLicenceCheckSlot(categorySlug, s.slug) || s.slug === edit?.subcategorySlug)
   // A restored draft or an AI fill can still hold a withheld subcategory (O-34) — drop it so the chips
   // show the truth and the seller picks again, instead of the server silently re-filing it on publish.
   if (!edit && subcategorySlug && categorySlug && subcategorySlug !== keepSub && !isPostableSubcategory(categorySlug, subcategorySlug, IS_MARKETPLACE)) setSubcategorySlug('')
-  // ⛔ e-VISA: an explicit pick waits for eno's licence check (taxonomy.ts licenceCheckHold — anyone but eno's own desk,
-  // which does not post through this form) — said here, before Publish. An edit that keeps the listing's own subcategory
-  // is not a move.
-  const evisaHold = isVisaProductSlot(categorySlug, subcategorySlug) && !(edit && edit.subcategorySlug === subcategorySlug)
+  /**
+   * ⛔ THE LICENCE AISLES (owner, 2026-10-14: e-Visa — "Anyone posts, live after check" — and Legal & permits — "Check
+   * them too"; taxonomy.ts licenceCheckHold). A listing in either from anyone but eno's own desk is stored unpublished
+   * until eno's team has checked the provider's registered business name and licence number, which the seller types here
+   * ("seller enters") and the listing shows; a change of either, or of the aisle, sends it back (licence-stamp.ts). So in
+   * an aisle the form asks both values — on EVERY in-aisle form, approved edits included (Opus #8a) — runs the server's
+   * own rules on them (provider-licence.ts), and announces the check before Publish (post-wizard-evisa.tsx):
+   *   · 'new' — a new post, or an edit moving a listing in from OUTSIDE the aisles: the whole rule, and where to send
+   *     the copies (a listing that was never checked has sent none);
+   *   · 'resubmit' — an edit the save sends back: a move between the aisles, a changed value, a row not approved yet;
+   *   · none — an approved listing whose aisle and values stay as they are (the fields carry a quiet hint instead).
+   * eno's own desk is exempt (`edit.licence.exempt`); it does not post new listings through this form.
+   */
+  const inLicenceAisle = isLicenceCheckSlot(categorySlug, subcategorySlug)
+  // A Wanted post drops an aisle picked before its type changed (the server would file it under Other anyway).
+  if (!edit && listingType === 'wanted' && inLicenceAisle) setSubcategorySlug('')
+  // …and a Wanted ad being EDITED in an aisle (filed there before the rule) is never asked for a licence: the server files
+  // it under Other on save (core/listings.ts — a Wanted ad is never in a licence aisle; commit gate, 2026-10-14).
+  const licenceSlot = inLicenceAisle && listingType !== 'wanted'
+  const licenceExempt = !!edit?.licence?.exempt
+  const providerValues = { legalName: attrs[PROVIDER_LEGAL_NAME] ?? '', licenceNo: attrs[PROVIDER_LICENCE_NO] ?? '' }
+  const providerProblems = licenceSlot && !licenceExempt ? providerLicenceProblems(providerValues, subcategorySlug) : []
+  // Normalised (NFC, whitespace): a value resent as it was is no change — the server compares the same way.
+  const providerChanged = !!edit && !sameProviderLicence(providerValues, providerLicenceOf(edit.attributes))
+  const licenceNoteMode: 'new' | 'resubmit' | null = !licenceSlot || licenceExempt ? null
+    : !edit || !isLicenceCheckSlot(edit.categorySlug, edit.subcategorySlug) ? 'new'
+      : edit.subcategorySlug !== subcategorySlug || providerChanged || !edit.licence?.approved ? 'resubmit'
+        : null
+  /**
+   * ⛔ A POST THE SERVER WOULD FILE IN A LICENCE AISLE BY ITS WORDS (R3, plan review 2026-10-14). With no subcategory
+   * picked, createListingCore guesses one from the title (then title + description), and a guess into e-Visa or Legal &
+   * permits now counts as a PICK there: both of the provider's values are required (provider_licence_required) and the
+   * listing is held — never re-filed under Services › Other and published, which would be an unchecked visa or permit
+   * offer (/prohibited). Sent unpicked, such a post would come back refused with no licence fields on screen: a dead end.
+   * So the form runs the SAME guess on the same text and holds Publish for a subcategory pick (the `subcategory` row
+   * below) — the SELLER's pick, never the form's (Opus #7: a guess is not a pick; the AI fill above picks no aisle
+   * either). The chips are on screen whenever it holds (no subcategory yet), and the title's suggestion chip offers the
+   * aisle in one tap. Not on an edit (the edit route never guesses), nor on a Wanted post (filed under Services › Other).
+   */
+  const guessedSub = !edit && categorySlug && !subcategorySlug && listingType !== 'wanted' && title.trim().length >= 3
+    ? suggestSubcategory(categorySlug, title.trim()) ?? suggestSubcategory(categorySlug, `${title.trim()} ${description.trim()}`)
+    : undefined
+  const licenceGuess: LicenceSlot | null = guessedSub && isLicenceCheckSlot(categorySlug, guessedSub) && subOptions.some((s) => s.slug === guessedSub)
+    ? (guessedSub as LicenceSlot)
+    : null
   const typeOptions = typesFor(categorySlug)
   // askableFacetsFor, not facetsFor: a DERIVED facet (providerType) is computed from the
   // account server-side, so asking would be redundant — and lets a seller contradict their
@@ -1012,6 +1092,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // A photo-optional category (jobs: minPhotos 0) has no photo row at all — "Add 0 photos" is not a step.
     ...(minPhotos > 0 ? [{ key: 'photo', ok: photos.length >= minPhotos, label: minPhotos === 1 ? t('Thêm 1 ảnh', 'Add 1 photo') : t('Thêm 3 ảnh', 'Add 3 photos') }] : []),
     { key: 'category', ok: !!categorySlug, label: t('Chọn danh mục', 'Pick a category') },
+    // The licence aisles (owner, 2026-10-14): a post its words file in one waits for the seller's pick (licenceGuess, only
+    // while it holds), and a post in one needs both of the provider's values, acceptable as written — except an exempt
+    // desk edit, which is never asked them. Both are steps right after the category (post-wizard-steps.ts).
+    ...(licenceGuess ? [{ key: 'subcategory', ok: false, label: t('Chọn danh mục con', 'Pick a subcategory') }] : []),
+    ...(licenceSlot && !licenceExempt ? [{ key: 'provider', ok: providerProblems.length === 0, label: t('Thêm thông tin giấy phép', 'Add the licence details') }] : []),
     // Only while it holds: an unknown key is its own step (post-wizard-steps.ts), so an always-present row would print a
     // struck-through "create a teacher profile" on every listing. Its target is the card, `pw-teacher`.
     ...(teacherSeeking ? [{ key: 'teacher', ok: false, label: t('Giáo viên tìm việc: hãy tạo hồ sơ giáo viên', 'Teachers looking for work: create a teacher profile') }] : []),
@@ -1055,6 +1140,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     missingFacetLabels: attrFacets.filter((f) => isRequiredFacet(f) && !attrs[f.key]).map((f) => tr(f.label, f.labelVi)),
     showContact: !authLoading && !isGuest && meLoaded,
     contactMissing: { name: contactName.trim().length < 2, phone: !phoneOk },
+    provider: providerProblems[0] ?? null,
     t,
   })
   const pendingSteps = steps.filter((s) => !s.ok)
@@ -1092,6 +1178,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // only one was wrong — and pointed the screen reader at the wrong one.
     contactName: attempted && !isGuest && contactName.trim().length < 2,
     contactPhone: attempted && !isGuest && !phoneOk,
+    // The provider's two values in a licence aisle — on leaving the field or a failed attempt, like the title — and the
+    // subcategory pick a post read into an aisle waits for (licenceGuess), on a failed attempt.
+    providerLegalName: (touched[PROVIDER_LEGAL_NAME] || attempted) && providerProblems.some((p) => p.field === PROVIDER_LEGAL_NAME),
+    providerLicenceNo: (touched[PROVIDER_LICENCE_NO] || attempted) && providerProblems.some((p) => p.field === PROVIDER_LICENCE_NO),
+    subcategory: attempted && !!licenceGuess,
   }
   const titleErr = err.title
     ? (title.trim().length === 0 ? t('Hãy nhập tiêu đề', 'Add a title') : t('Tiêu đề cần tối thiểu 3 ký tự', 'Title needs at least 3 characters'))
@@ -1135,8 +1226,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
    * the message. It mirrors the check that ran, field by field, and names nothing it cannot point at: a banned
    * word in the CONTACT NAME (part of that check, not editable here) jumps nowhere rather than to a clean
    * description (review, 2026-10-07).
+   * `detail`: the server's own pointer where it sends one (provider_licence_invalid's '<field>:<reason>').
    */
-  const fieldFor = (code: string): string | null => {
+  const fieldFor = (code: string, detail?: string): string | null => {
     const hasContact = (s: string) => containsPhoneNumber(s) || containsContactInfo(s)
     if (code === 'contact_in_text' || code === 'no_phone_in_listing') return hasContact(title) ? 'title' : hasContact(description) ? 'description' : null
     if (code === 'banned_words') return findBannedWord(title) ? 'title' : findBannedWord(description) ? 'description' : null
@@ -1145,6 +1237,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // The keyword-guess case: the subcategory the server read is not on screen, so the jump goes to the category section.
     if (code === 'teacher_profile_instead') return teacherSeeking ? 'teacher' : 'category'
     if (code === 'phone_taken') return 'contactPhone'
+    // The provider's values (licence aisles, 2026-10-14): the field the server named, else the first the form finds at
+    // fault. With no aisle on screen the server read one from the words (licenceGuess's case, should the two guesses ever
+    // differ) — the jump goes to the subcategory chips, where the seller picks it and the fields appear.
+    if (code === 'provider_licence_required' || code === 'provider_licence_invalid') {
+      if (!licenceSlot) return subcategorySlug ? 'category' : 'subcategory'
+      const named = detail?.split(':')[0]
+      return named === PROVIDER_LEGAL_NAME || named === PROVIDER_LICENCE_NO ? named : providerProblems[0]?.field ?? PROVIDER_LEGAL_NAME
+    }
     return null
   }
   // The first step the seller SEES as outstanding, in form order. The gate's own first miss is the
@@ -1224,7 +1324,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // Kept context, not a draft: the autosave waits until the seller changes something.
     carriedDescription.current = movingSale ? description : ''
     setCatExpanded(false); setTouched({}); setAttempted(false); setError(''); setErrorAction(null)
-    setCreatedId(null); setHeldForCheck(false); setFirstListing(false); setPublishIntentAt(null); setDraftNotice(null)
+    setCreatedId(null); setHeldSlot(null); setFirstListing(false); setPublishIntentAt(null); setDraftNotice(null)
     setSubmitted(false)
     window.scrollTo({ top: 0, behavior: scrollBehavior() })
   }
@@ -1390,13 +1490,25 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'Failed')
+      if (!res.ok) {
+        // The code is the message (the catch below words it); `detail` rides along — provider_licence_invalid names the
+        // field at fault there ('<field>:<reason>'), and the jump follows it.
+        const refused = (await res.json().catch(() => ({}))) as { error?: string; detail?: unknown }
+        throw Object.assign(new Error(refused?.error || 'Failed'), { detail: typeof refused?.detail === 'string' ? refused.detail : undefined })
+      }
+      // The aisle a held save waits in: the form's own (the edit's, or the seller's pick). The form never sends a post its
+      // words file in an aisle unpicked (licenceGuess), so the fallback is only for a server that read one anyway.
+      const heldAisle: LicenceSlot = licenceSlot ? (subcategorySlug as LicenceSlot) : 'visa-legal'
       if (edit) {
-        // ⛔ A MOVE INTO e-VISA unpublished it for the licence check (`held`, updateListingCore): its page is not public
-        // now, so the seller goes to the dashboard (where its chip reads "Licence check") with the reason, not to a 404.
+        // ⛔ AN EDIT THE SERVER HOLDS FOR THE LICENCE CHECK (`held`, updateListingCore — owner 2026-10-14): a move into or
+        // between e-Visa and Legal & permits, a changed licence value, or any save of a listing not approved yet. Its page
+        // is not public now, so the seller goes to the dashboard (where its chip reads the generic "Held") with the reason,
+        // in that aisle's words — not to a 404.
         const saved = (await res.json().catch(() => ({}))) as { held?: boolean }
         if (saved.held) {
-          subtleToast(t('Đã lưu. Tin e-Visa được hiển thị sau khi đội ngũ eno kiểm tra giấy phép của nhà cung cấp.', 'Saved. e-Visa listings go live after eno’s team has checked the provider’s licence.'))
+          // A held save on a form no longer in either aisle is a move OUT of an unchecked listing: off the site, but not
+          // waiting for a licence any more — its own words (commit gate).
+          subtleToast(licenceSlot ? licenceHeldToast(heldAisle, t) : licenceMovedOutToast(t))
           router.push('/dashboard')
           return
         }
@@ -1420,9 +1532,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         localStorage.setItem('eno-posted-before', '1')
       } catch {}
       setCreatedId(created.id ?? null)
-      // `verified: false` = an e-Visa listing waiting for eno's licence check (createListingCore): the success
-      // screen says so instead of "Your listing is live!".
-      setHeldForCheck(created.verified === false)
+      // `verified: false` = a listing waiting for eno's licence check in e-Visa or Legal & permits (createListingCore): the
+      // success screen says so, in that aisle's words, instead of "Your listing is live!".
+      setHeldSlot(created.verified === false ? heldAisle : null)
       // hapticConfirm, NOT haptic(18). haptics.ts names this exact case in its own docblock —
       // "a listing published" — and this line is the moment it describes. It used to fire a plain
       // tap: the screen threw a party (mascot + "Your first listing is live!") while the hand got
@@ -1444,6 +1556,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       // localStorage, photos in IndexedDB) expires after DRAFT_TTL_MS — 15 minutes — while a pending
       // review takes up to a working day, so navigating this tab away would lose the photos and the
       // text alike. Keeping this tab open is the only thing that actually keeps the work.
+      const detail = e instanceof Error && typeof (e as Error & { detail?: unknown }).detail === 'string' ? (e as Error & { detail: string }).detail : undefined
       const identityMsg = identityBlockMessage(msg, tr)
       setErrorAction(identityBlockAction(msg))
       if (identityMsg) { setError(identityMsg); hapticError(); console.error(e); return }
@@ -1529,6 +1642,18 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ? `${t('Tạm dừng đã được gỡ, nhưng báo cáo đã xác nhận vẫn còn trong hồ sơ của bạn, nên bạn chỉ được giữ tối đa', 'Your hold was released, but the confirmed report stays on your record, so you can keep up to')} ${ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS} ${t('tin đang đăng. Hãy đánh dấu đã bán hoặc ẩn một tin để đăng tin mới.', 'active listings. Mark one sold or hide one to post a new listing.')}`
           : msg === 'phone_taken'
           ? t('Số điện thoại này đã được một tài khoản khác sử dụng. Mỗi số chỉ dùng cho một tài khoản.', 'This phone number is already used by another account. Each number belongs to one account.')
+          // The licence aisles (owner, 2026-10-14): the server's word on the provider's two values — the form runs the same
+          // rules first, so these arrive only if the two ever disagree; the jump below goes to the field (fieldFor).
+          : msg === 'provider_licence_required'
+          ? t('Hãy nhập tên doanh nghiệp đã đăng ký và số giấy phép — tin e-Visa và Giấy tờ & pháp lý cần cả hai.', 'Add the business’s registered name and licence number — e-Visa and Legal & permits listings need both.')
+          : msg === 'provider_licence_invalid'
+          ? t('Hãy kiểm tra thông tin giấy phép: có một mục chưa hợp lệ.', 'Check the licence details: one of them cannot be accepted as written.')
+          // The listing changed between the save's read and its write (R2, plan review 2026-10-14: updateListingCore writes
+          // only over the row as it read it, so a save racing eno's licence approval cannot leave a public listing showing
+          // values nobody checked) — nothing was written; a reload shows the listing as it now is. The SAME sentences as the
+          // route's `message` (licence-check-copy.ts LISTING_CHANGED_COPY), so the web and the native apps say one thing.
+          : msg === 'listing_changed'
+          ? t('Tin này đã thay đổi trong lúc bạn chỉnh sửa — hãy tải lại rồi thử lại.', 'This listing changed while you were editing it — reload it and try again.')
           : t('Không gửi được, vui lòng thử lại.', 'Could not submit — please try again.'),
       )
       // ⚠️ THE REJECTION HAS TO BE FELT, NOT JUST PRINTED — this is the FIRST call site
@@ -1542,7 +1667,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       hapticError()
       console.error(e)
       // The jump that comes with the message, to the field it is about (fieldFor) — after the paint that shows it.
-      const field = fieldFor(msg)
+      const field = fieldFor(msg, detail)
       if (field) requestAnimationFrame(() => scrollToField(field))
     } finally {
       submittingRef.current = false
@@ -1560,7 +1685,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   }
 
   if (submitted) {
-    return <PostSuccess firstListing={firstListing} createdId={createdId} held={heldForCheck} title={title} price={salaryPaid ? '' : price} job={salaryPaid} takesOffers={takesOffers({ negotiable, listingType })} onPostAnother={embedded ? undefined : postAnother} t={t} />
+    return <PostSuccess firstListing={firstListing} createdId={createdId} held={heldSlot} title={title} price={salaryPaid ? '' : price} job={salaryPaid} takesOffers={takesOffers({ negotiable, listingType })} onPostAnother={embedded ? undefined : postAnother} t={t} />
   }
 
   // What the running Publish is doing — beside the button, in the mobile bar's slot and under the desktop button.
@@ -1862,8 +1987,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 away with the grid — "Change" reopens both. Not in edit mode: there the category is
                 frozen and has no summary row, so these chips are the only place the subcategory
                 shows or can be changed. */}
+            {/* `pw-subcategory`: the jump target of the `subcategory` step — a post its words file in a licence aisle waits
+                here for the seller's pick (licenceGuess), with the reason under the chips once Publish was tried. */}
             {categorySlug && subOptions.length > 0 && (!!edit || !subcategorySlug || catExpanded) && (
-              <Field group label={t('Danh mục con', 'Subcategory')}>
+              <Field group id="pw-subcategory" label={t('Danh mục con', 'Subcategory')} error={err.subcategory && licenceGuess ? licenceGuessHint(licenceGuess, t) : undefined}>
                 <Chips
                   options={subOptions.map((s) => ({ value: s.slug, label: tr(s.name, s.nameVi), icon: s.icon }))}
                   value={subcategorySlug}
@@ -1880,7 +2007,22 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             {/* Jobs + "Looking for work" (2026-10-12): the teacher form's door — it HOLDS Publish on Teaching (teacherSeeking),
                 and is a pointer on every other aisle and on an edit of a post already there. */}
             {categorySlug === 'jobs' && listingType === 'wanted' && <TeacherProfileInstead blocking={teacherSeeking} />}
-            {evisaHold && <EVisaLicenceNote />}
+            {/* The licence aisles (owner, 2026-10-14 — see licenceSlot): the check announced before Publish, then the
+                provider's two values, on every in-aisle form but an exempt desk edit. */}
+            {licenceNoteMode && <LicenceCheckNote slot={subcategorySlug as LicenceSlot} mode={licenceNoteMode} />}
+            {licenceSlot && !licenceExempt && (
+              <ProviderLicenceFields
+                slot={subcategorySlug as LicenceSlot}
+                values={providerValues}
+                errors={{
+                  [PROVIDER_LEGAL_NAME]: err.providerLegalName ? providerProblems.find((p) => p.field === PROVIDER_LEGAL_NAME)?.reason : undefined,
+                  [PROVIDER_LICENCE_NO]: err.providerLicenceNo ? providerProblems.find((p) => p.field === PROVIDER_LICENCE_NO)?.reason : undefined,
+                }}
+                onChange={(field, value) => setAttrs((prev) => ({ ...prev, [field]: value }))}
+                onBlur={touch}
+                approvedHint={!!edit && !licenceNoteMode}
+              />
+            )}
             {/* A teacher offering lessons (owner, 2026-10-14: "a teacher should remain" — teachers have their own surface):
                 the teacher-profile door, as a POINTER — a language school may still post its classes here. */}
             {categorySlug === 'services' && subcategorySlug === 'language-lessons' && <TeacherProfileInstead blocking={false} />}
@@ -2255,9 +2397,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             {/* First-party protection claim ("your number stays private") → the eno seal,
                 not a generic lucide lock: §0b reserves exactly this moment for the
                 signature, at the inline 14px echo tier. */}
+            {/* Never "instantly" for a save the licence check holds (licenceNoteMode): the note above says otherwise. */}
             <p className="flex items-start gap-1.5 pt-1 text-2xs leading-relaxed text-ink-4">
               <ShieldCheck className="mt-px h-3.5 w-3.5" />
-              {t('Tin hiển thị ngay. Số của bạn được giữ kín.', 'Goes live instantly. Your number stays private.')}
+              {licenceNoteMode
+                ? t('Tin hiển thị sau khi eno kiểm tra giấy phép. Số của bạn được giữ kín.', 'Goes live after eno’s licence check. Your number stays private.')
+                : t('Tin hiển thị ngay. Số của bạn được giữ kín.', 'Goes live instantly. Your number stays private.')}
             </p>
           </div>
         </aside>

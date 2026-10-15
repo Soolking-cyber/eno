@@ -76,6 +76,11 @@ export function useListingActions(
           // After a scam-hold RELEASE (released-charge-gate.ts): relisting is allowed, but only under the
           // active-listing cap while the confirmed report stands. The number from the constant.
           refusalToast(`${tr('Your hold was released, but the confirmed report stays on your record, so you can keep up to', 'Tạm dừng đã được gỡ, nhưng báo cáo đã xác nhận vẫn còn trong hồ sơ của bạn, nên bạn chỉ được giữ tối đa')} ${ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS} ${tr('active listings. Mark one sold or hide one before putting this back on sale.', 'tin đang đăng. Hãy đánh dấu đã bán hoặc ẩn một tin trước khi mở bán lại tin này.')}`, { id: `relist-refusal:${listing.id}` })
+        } else if (d.error === 'licence_check_required') {
+          // ⛔ THE LICENCE CHECK (owner, 2026-10-14; R1 of the plan review): an e-Visa or Legal & permits listing eno has
+          // not checked cannot be put back on sale by a Relist — it goes live with eno's approval, nothing the seller
+          // taps. The route's own sentence (licence-check-copy.ts LICENCE_CHECK_REQUIRED_COPY), as a literal pair.
+          refusalToast(tr('This listing is waiting for eno’s licence check, so it can’t be put back on sale yet. It goes live once eno’s team has checked the provider’s licence.', 'Tin này đang chờ eno kiểm tra giấy phép nên chưa thể mở bán lại. Tin sẽ được hiển thị sau khi đội ngũ eno kiểm tra giấy phép của nhà cung cấp.'), { id: `relist-refusal:${listing.id}` })
         }
         return false
       })

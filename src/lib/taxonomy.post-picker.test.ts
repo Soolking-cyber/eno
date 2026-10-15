@@ -60,9 +60,10 @@ describe('post picker — visa runs on the marketplace edition', () => {
 })
 
 // ⛔ THE e-VISA SUBCATEGORY (owner, 2026-10-14: "also have an evisa dedicated subcategory", then "Anyone posts, live
-// after check"). One name on both editions, open to every poster, a licence check before a non-partner's listing goes
+// after check"). One name on both editions, open to every poster, a licence check before anyone but eno's desk goes
 // live (taxonomy.ts licenceCheckHold; the write paths are pinned in core/listings.sell-rules.test.ts). Retires O-34's
-// eno.vn name ("Legal & permits") and O-34b's partner-only posting. Work permits, tax and legal have their own aisle.
+// eno.vn name ("Legal & permits") and O-34b's partner-only posting. Work permits, tax and legal have their own aisle —
+// a licence aisle too ("Check them too"; taxonomy.licence.test.ts).
 describe('the e-Visa subcategory (2026-10-14)', () => {
   const visa = () => subcategoriesFor(VISA_CATEGORY_SLUG).find((s) => s.slug === VISA_SUBCATEGORY_SLUG)!
   const legal = () => subcategoriesFor(VISA_CATEGORY_SLUG).find((s) => s.slug === 'legal-permits')!
@@ -87,19 +88,24 @@ describe('the e-Visa subcategory (2026-10-14)', () => {
     })
   })
 
-  it('Legal & permits sits right after it, holds the legal keywords, and asks no location chip', () => {
+  it('Legal & permits sits right after it, holds specific legal phrases (no bare legal/tax/permit), and asks no location chip', () => {
     const order = slugs(subcategoriesFor(VISA_CATEGORY_SLUG))
     expect(order.indexOf('legal-permits')).toBe(order.indexOf(VISA_SUBCATEGORY_SLUG) + 1)
     expect(legal()).toMatchObject({ name: 'Legal & permits', nameVi: 'Giấy tờ & pháp lý', icon: 'ClipboardList' })
-    expect(legal().keywords).toEqual(expect.arrayContaining(['work permit', 'legal', 'tax', 'permit', 'giấy tờ', 'thuế', 'pháp lý']))
+    expect(legal().keywords).toEqual(expect.arrayContaining(['work permit', 'residence card', 'trc', 'giấy phép lao động', 'thẻ tạm trú', 'luật sư', 'dịch vụ pháp lý']))
+    // A guess here asks for a licence (R3), so no bare word that ordinary services use (commit gate, 2026-10-14).
+    for (const k of ['legal', 'tax', 'permit', 'giấy tờ', 'thuế', 'pháp lý']) expect(legal().keywords, k).not.toContain(k)
     expect(isVisaProductSlot(VISA_CATEGORY_SLUG, 'legal-permits')).toBe(false)
     expect(facetsFor(VISA_CATEGORY_SLUG, 'legal-permits').map((f) => f.key)).not.toContain('serviceLocation')
   })
 
-  it('holds a listing for the licence check unless the poster is eno’s own desk — an official partner waits too', () => {
-    expect(licenceCheckHold(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG, { desk: false })).toBe(true)
-    expect(licenceCheckHold(VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG, { desk: true })).toBe(false)
-    for (const sub of ['legal-permits', 'service-other', 'cleaning', null]) {
+  // Legal & permits is a licence aisle too since 2026-10-14 (owner: "Check them too") — held for non-desk posters.
+  it('holds a listing in e-Visa AND Legal & permits for the licence check unless the poster is eno’s own desk — an official partner waits too', () => {
+    for (const sub of [VISA_SUBCATEGORY_SLUG, 'legal-permits']) {
+      expect(licenceCheckHold(VISA_CATEGORY_SLUG, sub, { desk: false }), sub).toBe(true)
+      expect(licenceCheckHold(VISA_CATEGORY_SLUG, sub, { desk: true }), sub).toBe(false)
+    }
+    for (const sub of ['service-other', 'cleaning', null]) {
       expect(licenceCheckHold(VISA_CATEGORY_SLUG, sub, { desk: false }), String(sub)).toBe(false)
     }
     expect(licenceCheckHold('electronics', VISA_SUBCATEGORY_SLUG, { desk: false })).toBe(false)
@@ -118,15 +124,20 @@ describe('the e-Visa subcategory (2026-10-14)', () => {
     expect(askableFacetsFor('electronics', 'phones')).toEqual(facetsFor('electronics', 'phones').filter((f) => !f.derived))
   })
 
-  it('the wizard offers the plain picker and announces the check before Publish', () => {
+  // ⚠️ SOURCE ASSERTIONS ON THE WIZARD, kept to the identifiers the licence-aisle commit names (2026-10-14); the
+  // behaviour itself is rendered in components/marketplace/post-wizard.licence-aisles.test.tsx.
+  it('the wizard offers the plain picker, asks the provider’s values in both aisles and announces the check before Publish', () => {
     const wizard = readFileSync(join(__dirname, '../components/marketplace/post-wizard.tsx'), 'utf8')
-    expect(wizard).toContain('const subOptions = postableSubcategoriesFor(categorySlug, keepSub, IS_MARKETPLACE)')
-    expect(wizard).toContain('const evisaHold = isVisaProductSlot(categorySlug, subcategorySlug) && !(edit && edit.subcategorySlug === subcategorySlug)')
-    expect(wizard).toContain('{evisaHold && <EVisaLicenceNote />}')
-    // An AI photo-fill is a GUESS: it never files a non-partner into the slot (the server's keyword rule, alike).
-    expect(wizard).toContain('&& !isVisaProductSlot(d.categorySlug, d.subcategorySlug)')
-    // A move into the slot on an edit lands on the dashboard with the reason, not on a page that is no longer public.
-    expect(wizard).toMatch(/if \(saved\.held\) \{[\s\S]{0,400}router\.push\('\/dashboard'\)/)
+    expect(wizard).toContain('postableSubcategoriesFor(categorySlug, keepSub, IS_MARKETPLACE)')
+    // Both aisles from the one predicate — not the e-Visa product slot — and the values on every in-aisle form.
+    expect(wizard).toMatch(/\bisLicenceCheckSlot\(categorySlug, subcategorySlug\)/)
+    expect(wizard).toMatch(/<LicenceCheckNote\b/)
+    expect(wizard).toMatch(/<ProviderLicenceFields\b/)
+    expect(wizard).not.toMatch(/\bevisaHold\b|<EVisaLicenceNote\b/)
+    // An AI photo-fill is a GUESS: it never files a post into either aisle (the server's keyword rule, alike).
+    expect(wizard).toMatch(/aiSubOk[\s\S]{0,400}?!isLicenceCheckSlot\(/)
+    // An edit the server holds lands on the dashboard with the reason, not on a page that is no longer public.
+    expect(wizard).toMatch(/if \(saved\.held\) \{[\s\S]{0,1200}?router\.push\('\/dashboard'\)/)
     expect(wizard).not.toMatch(/subcategory_partner_only|isPartnerOnlySubcategory/)
   })
 

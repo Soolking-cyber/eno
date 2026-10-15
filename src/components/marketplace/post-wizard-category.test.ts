@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { categoryHasBrand, facetsFor, TAXONOMY, isPostableCategory } from '@/lib/taxonomy'
+import { categoryHasBrand, facetsFor, freeTextAttributesFor, TAXONOMY, isPostableCategory } from '@/lib/taxonomy'
 import { UNLINKED_CATEGORIES } from '@/lib/retired-categories'
 import { categoryChangeLosesAnswers, categoryChangeReset, orderPostCategories, POST_CATEGORY_RANK, subcategoryChangeReset, type CategoryAnswers } from './post-wizard-category'
 
@@ -88,6 +88,32 @@ describe('post wizard — a SUBCATEGORY change (the picker and the "Gợi ý" su
     expect(pens.lost).toBe(true)
     // Nor anywhere outside books — e.g. a "sizes" run left on a phone.
     expect(subcategoryChangeReset({ ...phone, attrs: { sizes: 'S–XXL' } }, 'laptops', { brandShown: true }).attrs).toEqual({})
+  })
+
+  /**
+   * ⛔ THE PROVIDER'S LICENCE VALUES (owner, 2026-10-14 — e-Visa and Legal & permits). They are not facets, so the facet
+   * rule alone would drop them on every change — including e-Visa ↔ Legal & permits, where the seller must not type them
+   * again (Opus #8b; the server still re-holds the move). And they ride on providerLicenceKeysFor, NOT on
+   * freeTextAttributesFor, which listing-enrich reads to decide what it may write.
+   */
+  it('⛔ the provider’s two values stay between the licence aisles, and go — with Undo — anywhere else', () => {
+    const licence = { providerLegalName: 'CÔNG TY TNHH VISA5S.VN', providerLicenceNo: '79-123/2019/TCDL-GP LHQT' }
+    const inVisa = { categorySlug: 'services', attrs: { ...licence, visaSpeed: '3D' }, ranges: {} as Record<string, number | null>, condition: '', brand: '', model: '' }
+    // e-Visa → Legal & permits: both values kept; only the e-visa chip (not asked there) goes.
+    const toLegal = subcategoryChangeReset(inVisa, 'legal-permits', { brandShown: false })
+    expect(toLegal.attrs).toEqual(licence)
+    // …and back: nothing to lose.
+    expect(subcategoryChangeReset({ ...inVisa, attrs: licence }, 'visa-legal', { brandShown: false })).toMatchObject({ attrs: licence, lost: false })
+    expect(subcategoryChangeReset({ ...inVisa, attrs: licence }, 'legal-permits', { brandShown: false })).toMatchObject({ attrs: licence, lost: false })
+    // Cleaning, eSIM, Other: dropped, and the seller is offered Undo.
+    for (const sub of ['cleaning', 'esim', 'service-other']) {
+      const r = subcategoryChangeReset({ ...inVisa, attrs: licence }, sub, { brandShown: false })
+      expect(r.attrs, sub).toEqual({})
+      expect(r.lost, sub).toBe(true)
+    }
+    // Never through the enrichment list.
+    expect(freeTextAttributesFor('services', 'visa-legal')).not.toContain('providerLegalName')
+    expect(freeTextAttributesFor('services', 'legal-permits')).not.toContain('providerLicenceNo')
   })
 
   it('brand and model go only when the new shelf HIDES the Brand field (a vehicle rental → an apartment)', () => {

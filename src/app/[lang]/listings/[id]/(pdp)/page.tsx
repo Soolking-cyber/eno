@@ -2,7 +2,9 @@ import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { localizedHref } from '@/lib/lang-pinned'
 import { categoryBrowsePath } from '@/lib/retired-categories'
 import { pdpBreadcrumbLd, subcategoryCrumb } from '@/lib/pdp-breadcrumb'
-import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, TEACHER_SEEKING_POST, facetsFor, isVisaProductSlot, salaryPriceFor } from '@/lib/taxonomy'
+import { FREE_TEXT_ATTRIBUTES, JOB_TEXT_ATTRIBUTES, TEACHER_SEEKING_POST, facetsFor, isLicenceCheckSlot, isVisaProductSlot, salaryPriceFor } from '@/lib/taxonomy'
+import { PROVIDER_LICENCE_KEYS, providerLicenceOf } from '@/lib/provider-licence'
+import { ProviderLicenceRows } from './provider-licence-rows'
 import { TeacherProfileView } from '@/components/teachers/teacher-profile-view'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { TeacherProfileLink } from '@/app/[lang]/c/[category]/teaching-links'
@@ -526,10 +528,19 @@ export default async function ListingPage({ params }: Props) {
   // chip: the chips sit between the title and the CTA, and every one of them is spent from the phone fold.
   const detailOnlySpecs: { label: string; value: ReactNode }[] = []
   if (rawListing.areaM2 != null && rawListing.areaM2 > 0) detailOnlySpecs.push({ label: 'Area', value: <><CountValue value={rawListing.areaM2} /> m²</> })
+  // ⛔ THE PROVIDER'S LICENCE ON AN e-VISA OR LEGAL & PERMITS LISTING (owner, 2026-10-14): its registered name and licence
+  // no., as the first Details rows (provider-licence-rows.tsx) — only inside the two aisles, and only when both are there
+  // (VietKite's grandfathered rows have none yet, and print nothing).
+  const licenceAisle = isLicenceCheckSlot(rawListing.category.slug, rawListing.subcategorySlug)
+  const providerValues = licenceAisle ? providerLicenceOf(rawListing.attributes) : null
   // Details rows that say nothing to a reader: an eSIM's "Service location: Online" (the facet is
   // excluded for eSIM, so it printed its raw key), a partner row's DERIVED "Provider: Business" facet
   // (taxonomy's providerType), and a Network row that repeats the Carrier beside it.
-  const hiddenAttrs = new Set<string>()
+  // + the two licence keys EVERYWHERE — they have their own rows above, and a stray pair outside the aisles is never
+  // printed under its raw camelCase key — and, in the aisles, providerType (the licensed provider row says who) and
+  // serviceLocation (excluded there, so it printed its raw key — taxonomy.ts).
+  const hiddenAttrs = new Set<string>(PROVIDER_LICENCE_KEYS)
+  if (licenceAisle) { hiddenAttrs.add('providerType'); hiddenAttrs.add('serviceLocation') }
   if (rawListing.subcategorySlug === 'esim') hiddenAttrs.add('serviceLocation')
   if (affiliateUrl) hiddenAttrs.add('providerType')
   if (listing.attributes?.network != null && listing.attributes.network === listing.attributes.carrier) hiddenAttrs.add('network')
@@ -538,7 +549,7 @@ export default async function ListingPage({ params }: Props) {
   // it is the Decree 248 statement of who the reader deals with.
   if (sellerInfo?.kind === 'source' && sellerInfo.source.trim()) hiddenAttrs.add('source')
   const detailAttrs = attrs.filter(([k]) => !hiddenAttrs.has(k))
-  const showDetails = detailAttrs.length > 0 || numericSpecs.length > 0 || detailOnlySpecs.length > 0
+  const showDetails = !!providerValues || detailAttrs.length > 0 || numericSpecs.length > 0 || detailOnlySpecs.length > 0
   // The Details rows this page renders, by the name rich-text.tsx gives each (the spec label lower-cased,
   // the attribute key as stored): the description hides its own row for any of them, so an imported
   // rental's Area / Bedrooms / Bathrooms are not printed twice, one table above the other.
@@ -1312,6 +1323,8 @@ export default async function ListingPage({ params }: Props) {
                       with no spaces ("256GB-ChínhHãngVN/A-KhôngLock") pushed the row past a 320px screen;
                       the Seller-information block below already does this (seller-info.tsx). */}
                   <dl className="divide-y divide-border text-sm [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
+                    {/* First: who holds the licence (e-Visa, Legal & permits) — verbatim, never translated. */}
+                    {providerValues && <ProviderLicenceRows subcategorySlug={rawListing.subcategorySlug} values={providerValues} />}
                     {[...numericSpecs, ...detailOnlySpecs].map((s) => (
                       <div key={s.label} className="flex items-start justify-between gap-4 py-2.5">
                         <dt className="text-muted-foreground"><Tr text={s.label} /></dt>

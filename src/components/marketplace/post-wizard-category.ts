@@ -1,4 +1,5 @@
 import { facetsFor, freeTextAttributesFor, typesFor } from '@/lib/taxonomy'
+import { providerLicenceKeysFor } from '@/lib/provider-licence'
 import { UNLINKED_CATEGORIES } from '@/lib/retired-categories'
 
 /**
@@ -57,6 +58,11 @@ export function categoryChangeLosesAnswers(cur: CategoryAnswers): boolean {
  * book's author) stays only on a shelf that carries it (taxonomy.ts freeTextAttributesFor). Brand +
  * model go only when the new shelf HIDES the Brand field (a vehicle rental → an apartment); within one
  * category a brand still names the item.
+ * ⛔ THE PROVIDER'S LICENCE VALUES (owner, 2026-10-14 — provider-licence.ts) stay only where the new shelf is a licence
+ * aisle too: e-Visa ↔ Legal & permits keeps both (Opus #8b: the switch used to wipe them — the server still re-holds the
+ * move, licence-stamp.ts), any other shelf drops them, with Undo. Through providerLicenceKeysFor, ⚠️ NOT
+ * freeTextAttributesFor: listing-enrich reads that list to decide which keys it may WRITE (listing-enrich.ts), and
+ * nothing but the seller's own typing may put a licence on a listing.
  * `lost` says whether an answer the seller gave was dropped — the wizard offers Undo exactly then.
  */
 export function subcategoryChangeReset<R>(
@@ -68,8 +74,10 @@ export function subcategoryChangeReset<R>(
   // A free-text fact (a book's author) stays only where the new shelf carries it — taxonomy.ts
   // freeTextAttributesFor, the same rule enrichment writes by — never as a hidden value on any shelf.
   const freeText = freeTextAttributesFor(cur.categorySlug, nextSub || null)
+  const licenceKeys = providerLicenceKeysFor(cur.categorySlug, nextSub || null)
   const asked = (k: string, v: string) =>
     freeText.includes(k) ||
+    licenceKeys.includes(k) ||
     facets.some((f) => f.key === k && f.kind !== 'range' && (f.options.length === 0 || f.options.some((o) => o.value === v)))
   const attrs = Object.fromEntries(Object.entries(cur.attrs).filter(([k, v]) => asked(k, v)))
   const ranges = Object.fromEntries(Object.entries(cur.ranges).filter(([k]) => facets.some((f) => f.key === k && f.kind === 'range'))) as Record<string, R>

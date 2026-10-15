@@ -12,6 +12,7 @@ import { DROP } from '@/lib/price-drop-rules'
 import { formatMoneyFull, parseVnd, groupVnd, dropPercent, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { subtleToast } from '@/lib/subtle-toast'
 
 // Discount % model shared by the single-listing dialog + the bulk-discount bar.
 export const DISCOUNT_PRESETS = [10, 20, 30] as const
@@ -164,7 +165,12 @@ export function QuickDiscount({
         body: JSON.stringify({ price: newPrice }),
       })
       if (!res.ok) throw new Error('failed')
-      toast.success(tr('Price lowered', 'Đã giảm giá'))
+      // ⛔ `held` (owner, 2026-10-14 — core/listings.ts updateListingCore): an e-Visa or Legal & permits listing eno has
+      // not approved yet is unpublished by ANY edit, a price cut included — VietKite's grandfathered rows too. Saying only
+      // "Price lowered" would hide that the listing just left the site, so the toast says it waits for the check.
+      const saved = (await res.json().catch(() => ({}))) as { held?: boolean }
+      if (saved.held) subtleToast(tr('Price lowered. This listing stays unpublished until eno’s team has checked the provider’s licence.', 'Đã giảm giá. Tin này sẽ tạm ẩn cho đến khi đội ngũ eno kiểm tra giấy phép của nhà cung cấp.'))
+      else toast.success(tr('Price lowered', 'Đã giảm giá'))
       setOpen(false)
       reset()
       onChanged()

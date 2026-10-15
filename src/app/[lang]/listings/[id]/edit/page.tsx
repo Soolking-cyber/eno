@@ -8,6 +8,8 @@ import { PostWizard, type ListingEditData } from '@/components/marketplace/post-
 import { safeParse, serializeCategoryBasic } from '@/lib/serialize'
 import { categoryHasBrand, isPostableCategory, NON_POSTING_CATEGORIES, paysSalary, salaryMFromPrice } from '@/lib/taxonomy'
 import { LISTING_REMOVED } from '@/lib/listing-removed'
+import { deskSellerIds } from '@/lib/edition-scope'
+import { licenceCleared } from '@/lib/licence-stamp'
 
 /** A pre-salary-rule job's monthly price as whole millions on the salary facet's scale, or null.
  *  ⚠️ ROUNDED DOWN (salaryMFromPrice), never to the nearest: an untouched 12,500,000 ₫ job opened and
@@ -30,9 +32,9 @@ export default async function EditListingPage({ params }: Props) {
   const profile = await getCurrentProfile()
   if (!profile) redirect(`/signin?next=/listings/${id}/edit`)
 
-  // The three lookups are independent — run them in parallel (force-dynamic route,
+  // The four lookups are independent — run them in parallel (force-dynamic route,
   // every request pays these round-trips serially otherwise).
-  const [seller, listing, cats] = await Promise.all([
+  const [seller, listing, cats, deskIds] = await Promise.all([
     db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } }),
     db.listing.findUnique({
       where: { id },
@@ -42,11 +44,16 @@ export default async function EditListingPage({ params }: Props) {
         brandSlug: true, model: true, attributes: true, priceUnit: true,
         year: true, mileageKm: true, engineL: true, engineCc: true, areaM2: true, salaryM: true,
         district: true, city: true, lat: true, lng: true, images: true, video: true, status: true,
+        // The licence-check stamp (src/lib/licence-stamp.ts) — read for `edit.licence` below, never sent to the client.
+        verificationMethod: true,
         category: { select: { slug: true } },
       },
     }),
     // Categories for the wizard's (locked-in-edit) picker — same shape as /post.
     db.category.findMany({ where: { slug: { notIn: [...NON_POSTING_CATEGORIES] } }, orderBy: { name: 'asc' } }),
+    // eno's own desk is exempt from the licence check. A failed read counts as "not the desk": the form then asks for the
+    // provider's values, which is the fail-closed side — and only the UI's; the save decides on the server.
+    deskSellerIds().catch(() => [] as string[]),
   ])
   // A tombstone (src/lib/listing-removed.ts) cannot be edited back to life — 404 like a missing row.
   if (!listing || listing.status === LISTING_REMOVED) notFound()
@@ -61,6 +68,16 @@ export default async function EditListingPage({ params }: Props) {
     : null
 
   const categories: SerializedCategory[] = cats.map(serializeCategoryBasic)
+
+  // ⛔ WHERE THE LISTING STANDS WITH eno'S LICENCE CHECK (owner, 2026-10-14 — e-Visa and Legal & permits): approved = its
+  // stamp is the stamp of exactly its values (always true outside the two aisles, and for the desk). It decides only what
+  // the wizard SHOWS — the resubmit note, or the quiet "changing either sends it back" hint — and the stamp itself stays
+  // on the server; updateListingCore decides the hold.
+  const desk = deskIds.includes(listing.sellerId)
+  const licence = {
+    approved: licenceCleared({ categorySlug: listing.category.slug, subcategorySlug: listing.subcategorySlug, sellerId: listing.sellerId, attributes: listing.attributes, verificationMethod: listing.verificationMethod }, { desk }),
+    exempt: desk,
+  }
 
   const edit: ListingEditData = {
     id: listing.id,
@@ -94,6 +111,7 @@ export default async function EditListingPage({ params }: Props) {
     lng: listing.lng,
     images: safeParse<string[]>(listing.images, []),
     video: listing.video,
+    licence,
   }
 
   return (

@@ -1,7 +1,6 @@
 'use client'
 
 import { fillTemplate } from '@/lib/i18n/placeholders'
-import { COMPANY } from '@/lib/site-legal'
 // Step sections of the PostWizard with FLAT prop seams (photos/media, price,
 // location, contact) + the success screen, moved out of post-wizard.tsx verbatim.
 // Hoisted to module scope so React keeps stable component identity across the
@@ -35,6 +34,7 @@ import { salaryPriceFor, parseSalaryInput, type RangeMeta } from '@/lib/taxonomy
 import { RangeSpecInput } from './range-spec-input'
 import type { PostMedia } from '@/hooks/use-post-media'
 import { Section, Field } from './post-wizard-parts'
+import { licenceHeldSuccessBody, type LicenceSlot } from './post-wizard-evisa'
 import { VndInput } from './vnd-input'
 import { Mascot } from './mascot'
 import { ShareButton } from './share-button'
@@ -863,15 +863,17 @@ export function PostSuccess({
   price,
   job = false,
   takesOffers = true,
-  held = false,
+  held = null,
   onPostAnother,
   t,
 }: {
   firstListing: boolean
   createdId: string | null
-  /** Stored UNPUBLISHED, waiting for eno's licence check (an e-Visa listing — taxonomy.ts licenceCheckHold): the screen
-   *  says what happens next instead of "Your listing is live!", and offers nothing that needs a public page (Share). */
-  held?: boolean
+  /** Stored UNPUBLISHED, waiting for eno's licence check — the aisle it waits in (e-Visa or Legal & permits, taxonomy.ts
+   *  licenceCheckHold; owner 2026-10-14): the screen says what happens next, in that aisle's words
+   *  (post-wizard-evisa.tsx licenceHeldSuccessBody), instead of "Your listing is live!", and offers nothing that needs a
+   *  public page (Share). */
+  held?: LicenceSlot | null
   title: string
   price: string
   /** A job post: candidates, not buyers, will message the poster. */
@@ -889,13 +891,7 @@ export function PostSuccess({
       {held ? (
         <>
           <h1 className="h-title text-foreground">{t('Đã gửi để kiểm tra giấy phép', 'Sent for a licence check')}</h1>
-          <p className="max-w-md text-sm text-body">
-            {fillTemplate(
-              t('Tin e-Visa được hiển thị sau khi đội ngũ eno kiểm tra giấy phép của nhà cung cấp. Hãy gửi bản sao giấy phép và đăng ký kinh doanh tới {email}: tin sẽ hiển thị ngay khi được kiểm tra.', 'e-Visa listings go live after eno’s team has checked the provider’s licence. Send a copy of your licence and business registration to {email}: your listing goes live as soon as it is checked.'),
-              'e-Visa listings go live after eno’s team has checked the provider’s licence. Send a copy of your licence and business registration to {email}: your listing goes live as soon as it is checked.',
-              { email: COMPANY.email },
-            )}
-          </p>
+          <p className="max-w-md text-sm text-body">{licenceHeldSuccessBody(held, t)}</p>
           <Button asChild variant="cta" size="none">
             <Link href="/dashboard" className="px-6 py-2.5">{t('Tới bảng điều khiển', 'Go to dashboard')}</Link>
           </Button>

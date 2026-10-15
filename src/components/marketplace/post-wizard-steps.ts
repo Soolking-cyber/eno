@@ -24,6 +24,10 @@
  *   · `signin` is never a step: sign-in is how Publish ends for a guest, not a field to fill, and
  *     the aside says so in words instead.
  *   · `contact` is a step only once the account is known (`showContact`).
+ *   · `provider` — the provider's licence values in e-Visa or Legal & permits (owner, 2026-10-14) — is
+ *     a step right after the category, named by the first value at fault and jumping to that field.
+ *   · `subcategory` — a Services post with no subcategory whose words read as one of those two aisles
+ *     (post-wizard.tsx `licenceGuess`) — is a step right after the category too, jumping to the chips.
  *   · any gate row this file does not know is shown as its own step, labelled with its gate label,
  *     so a check added to the gate later can never be invisible.
  *
@@ -47,7 +51,7 @@ export type PublishStep = {
 }
 
 /** Gate rows this file groups or hides. Anything else passes through as its own step. */
-const KNOWN = new Set(['photo', 'category', 'title', 'description', 'condition', 'details', 'price', 'location', 'contact', 'signin'])
+const KNOWN = new Set(['photo', 'category', 'subcategory', 'provider', 'title', 'description', 'condition', 'details', 'price', 'location', 'contact', 'signin'])
 
 export function publishSteps(i: {
   /** The wizard's publish gate, verbatim. */
@@ -60,6 +64,9 @@ export function publishSteps(i: {
   showContact: boolean
   /** Which half of the contact gate is unmet, so the step names it. Omitted = both (the old wording). */
   contactMissing?: { name: boolean; phone: boolean }
+  /** The FIRST problem with the provider's licence values (provider-licence.ts providerLicenceProblems), or null — what
+   *  the `provider` step names and jumps to. */
+  provider?: { field: 'providerLegalName' | 'providerLicenceNo'; reason: string } | null
   t: (vi: string, en: string) => string
 }): PublishStep[] {
   const { checks, t } = i
@@ -89,6 +96,22 @@ export function publishSteps(i: {
 
   if (gate.has('category')) {
     steps.push({ key: 'category', ok: ok('category'), name: t('Danh mục', 'Category'), todo: t('Chọn danh mục', 'Pick a category'), target: 'category' })
+  }
+
+  // The two licence-aisle rows sit with the category they belong to (both on screen in its section). They never hold
+  // together: `subcategory` waits for a pick, `provider` exists only once an aisle IS picked.
+  if (gate.has('subcategory')) {
+    steps.push({ key: 'subcategory', ok: ok('subcategory'), name: t('Danh mục con', 'Subcategory'), todo: t('Chọn danh mục con', 'Pick a subcategory'), target: 'subcategory' })
+  }
+
+  if (gate.has('provider')) {
+    const p = i.provider
+    const todo = p?.reason === 'missing' && p.field === 'providerLegalName'
+      ? t('Nhập tên doanh nghiệp đã đăng ký', 'Add the registered business name')
+      : p?.reason === 'missing' && p.field === 'providerLicenceNo'
+        ? t('Nhập số giấy phép', 'Add the licence number')
+        : t('Kiểm tra thông tin giấy phép', 'Check the licence details')
+    steps.push({ key: 'provider', ok: ok('provider'), name: t('Giấy phép', 'Licence'), todo, target: p?.field ?? 'providerLegalName' })
   }
 
   if (gate.has('title') || gate.has('description')) {

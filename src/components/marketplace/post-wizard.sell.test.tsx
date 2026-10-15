@@ -157,12 +157,24 @@ describe('post wizard — success, draft notice, loading label (sell-04 / si-10 
   })
 
   it('an e-Visa listing waiting for the licence check (held): says what happens next, never "live", and offers no Share', () => {
-    const held = renderToString(<PostSuccess firstListing createdId="l9" title="e-Visa, 3 days" price="800000" held onPostAnother={() => {}} t={t} />)
+    const held = renderToString(<PostSuccess firstListing createdId="l9" title="e-Visa, 3 days" price="800000" held="visa-legal" onPostAnother={() => {}} t={t} />)
     expect(held).toContain('Sent for a licence check')
+    expect(held).toContain('e-Visa listings go live after eno’s team has checked the provider’s licence.')
     expect(held).toMatch(/support@eno\.(vn|forum)/) // the edition's operator inbox (COMPANY.email)
     expect(held).toContain('href="/dashboard"')
     expect(held).not.toMatch(/is live|List another item|View your listing/)
     expect(renderToString(<PostSuccess firstListing={false} createdId="l9" title="Sofa" price="1" t={t} />)).not.toContain('Sent for a licence check')
+    expect(renderToString(<PostSuccess firstListing={false} createdId="l9" title="Sofa" price="1" held={null} t={t} />)).toContain('Your listing is live!')
+  })
+
+  // Legal & permits is a licence aisle too (owner, 2026-10-14: "Check them too") — its own words, and none of them visa.
+  it('a Legal & permits listing waiting for the check: the same screen in that aisle’s words — the licence OR registration', () => {
+    const held = renderToString(<PostSuccess firstListing createdId="l9" title="Work permit renewal" price="1500000" held="legal-permits" onPostAnother={() => {}} t={t} />)
+    expect(held).toContain('Sent for a licence check')
+    expect(held).toContain('Legal &amp; permits listings go live after eno’s team has checked the provider’s licence.')
+    expect(held).toContain('Send a copy of the licence or registration and the business registration to')
+    expect(held).toMatch(/support@eno\.(vn|forum)/)
+    expect(held).not.toMatch(/visa|is live|List another item|View your listing/i)
   })
 
   it('says what came back with the draft, as a status callout (ui/alert), and offers Discard', () => {

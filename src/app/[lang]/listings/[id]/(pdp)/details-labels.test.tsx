@@ -42,6 +42,25 @@ describe('PDP Details labels', () => {
     expect(html(<Tr text={rawKey} />)).toBe('bedrooms')
   })
 
+  /**
+   * ⛔ THE LICENCE ROWS ARE LABELLED THE SAME WAY (owner, 2026-10-14 — e-Visa and Legal & permits). The provider's
+   * registered name and licence no. ride in `attributes` under raw camelCase keys; through the attribute rows they would
+   * be exactly the defect above ("provider legal name" in a Vietnamese page). They have their own rows
+   * (provider-licence-rows.tsx) under authored pairs, and the page never gives the raw keys an attribute row.
+   */
+  it('the licence rows are labelled by authored pairs, and their raw keys never get a Details row of their own', () => {
+    const rowsSrc = readFileSync(join(process.cwd(), 'src/app/[lang]/listings/[id]/(pdp)/provider-licence-rows.tsx'), 'utf8')
+    // Assembled: a literal Bilingual tag in a test file would be harvested into the string catalogue.
+    const pairs = [...rowsSrc.matchAll(new RegExp(['<Bilingual', ' en="([^"]+)" vi="([^"]+)" />'].join(''), 'g'))].map((m) => ({ en: m[1], vi: m[2] }))
+    expect(pairs.map((p) => p.en)).toEqual(['Licensed provider', 'Licence / registration no.', 'Licence no.'])
+    for (const { en, vi } of pairs) expect(html(<Bilingual en={en} vi={vi} />)).toBe(vi)
+    // The code, not its comment (which says why each of these is absent).
+    expect(rowsSrc.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/<Tr\b|FacetValue|first-letter/)
+    expect(PAGE).toContain('const hiddenAttrs = new Set<string>(PROVIDER_LICENCE_KEYS)')
+    const rawKey = 'provider legal name'
+    expect(html(<Tr text={rawKey} />)).toBe(rawKey) // what the hide spares a Vietnamese reader
+  })
+
   it('every rental facet has Vietnamese of its own, and that is what a Vietnamese reader gets', () => {
     const facets = facetsFor('rentals', 'house-rental')
     expect(facets.map((f) => f.key)).toEqual(expect.arrayContaining(['bedrooms', 'bathrooms']))
