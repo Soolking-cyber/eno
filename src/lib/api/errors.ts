@@ -381,6 +381,18 @@ export type NicheApiErrorCode =
   | 'cv_size'
   | 'cv_store_failed'
   | 'cv_missing'
+  // Teacher CV import (POST /api/teachers/me/import, 2026-10-15):
+  | 'import_unavailable' // CV reading is off on this server (no Vertex credentials) — the form hides the door; a stale tab gets this
+  | 'import_capacity' // the CV reader's site-wide daily budget is spent — never the teacher's fault
+  | 'import_rate_hour' // this account's CV readings for the hour are used
+  | 'import_rate_day' // this account's CV readings for the day are used
+  | 'import_busy' // this account already has a CV being read
+  | 'import_size' // the uploaded CV is over the size cap
+  | 'import_type' // not a PDF, a photo or Word text
+  | 'import_locked' // a password-protected PDF
+  | 'import_too_long' // too many pages / too much to read for a CV
+  | 'import_unreadable' // the model refused the file itself (Vertex 400)
+  | 'import_failed' // the model failed to answer (both attempts)
   | 'share_required'
   | 'teacher_thread_cap'
   | 'profile_hidden'
@@ -788,6 +800,17 @@ const ALL = [
   'cv_size',
   'cv_store_failed',
   'cv_missing',
+  'import_unavailable',
+  'import_capacity',
+  'import_rate_hour',
+  'import_rate_day',
+  'import_busy',
+  'import_size',
+  'import_type',
+  'import_locked',
+  'import_too_long',
+  'import_unreadable',
+  'import_failed',
   'share_required',
   'teacher_thread_cap',
   'profile_hidden',
