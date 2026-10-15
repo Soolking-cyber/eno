@@ -174,7 +174,7 @@ function row(overrides: Row = {}): Row {
     seller: { trustTier: 'standard', officialPartner: false },
     category: { slug: 'services', name: 'Services', nameVi: 'Dịch vụ' },
     status: 'active',
-    verificationMethod: null, verifiedAt: null,
+    verificationMethod: null, verifiedAt: null, verificationNotes: null, identityHold: false,
     ...overrides,
   }
 }
@@ -244,8 +244,10 @@ describe('the licence check on CREATE — e-Visa and Legal & permits, open to ev
     expect(h.creates[0]).toMatchObject({ subcategorySlug: 'legal-permits', verified: false })
     expect(attrsOf(h.creates[0].attributes)).toMatchObject(LEGAL)
     expect(LEGAL.providerLegalName.length).toBeGreaterThan(40)
-    // Only an admin's approval writes a stamp (licence-stamp.ts) — never a create.
-    for (const k of ['verificationMethod', 'verifiedAt', 'verifiedBy', 'verificationNotes']) expect(h.creates[0]).not.toHaveProperty(k)
+    // Only an admin's approval writes a stamp (licence-stamp.ts) — never a create. The create carries the licence hold's
+    // mark instead (LICENCE_HELD_NOTE): the approval publishes it.
+    for (const k of ['verificationMethod', 'verifiedAt', 'verifiedBy']) expect(h.creates[0]).not.toHaveProperty(k)
+    expect(h.creates[0].verificationNotes).toBe('licence:held')
   })
 
   it('an e-Visa pick with valid values: held the same way', async () => {
@@ -373,7 +375,8 @@ describe('the licence check on EDIT (2026-10-14)', () => {
       h.current = stampedRow({ status })
       const changed = { ...VISA, providerLicenceNo: '79-124/2019/TCDL-GP LHQT' }
       expect(await updateListingCore('listing-1', { attributes: changed }), status).toEqual({ ok: true, held: true })
-      expect(h.updates[0], status).toMatchObject({ verified: false, ...LICENCE_STAMP_CLEARED })
+      // It was live (verified), so it goes down for its licence: the hold's mark — approving the new number puts it back.
+      expect(h.updates[0], status).toMatchObject({ verified: false, ...LICENCE_STAMP_CLEARED, verificationNotes: 'licence:held' })
       expect(attrsOf(h.updates[0].attributes), status).toMatchObject(changed)
     }
   })
@@ -407,7 +410,7 @@ describe('the licence check on EDIT (2026-10-14)', () => {
   it('⛔ e-Visa → Legal & permits is a move: the values travel, the stamp is cleared, the row waits again', async () => {
     h.current = stampedRow()
     expect(await updateListingCore('listing-1', { subcategorySlug: 'legal-permits' })).toEqual({ ok: true, held: true })
-    expect(h.updates[0]).toMatchObject({ subcategorySlug: 'legal-permits', verified: false, ...LICENCE_STAMP_CLEARED })
+    expect(h.updates[0]).toMatchObject({ subcategorySlug: 'legal-permits', verified: false, ...LICENCE_STAMP_CLEARED, verificationNotes: 'licence:held' })
     // The stored values were not re-sent; whatever this edit writes keeps them.
     if (h.updates[0].attributes !== undefined) expect(attrsOf(h.updates[0].attributes)).toMatchObject(VISA)
   })
@@ -450,8 +453,27 @@ describe('the licence check on EDIT (2026-10-14)', () => {
   // moves out live.
   it('⛔ a live UNCLEARED aisle row that moves out is unpublished (verified=false) — it cannot escape the check', async () => {
     h.current = aisleRow({ verified: true })
-    expect(await updateListingCore('listing-1', { subcategorySlug: 'service-other' })).toEqual({ ok: true })
+    // `held`: not public now, so the wizard goes to the dashboard rather than to a listing page that 404s.
+    expect(await updateListingCore('listing-1', { subcategorySlug: 'service-other' })).toEqual({ ok: true, held: true })
     expect(h.updates[0]).toMatchObject({ subcategorySlug: 'service-other', verified: false, ...LICENCE_STAMP_CLEARED })
+  })
+
+  // ⛔ Commit gate, 2026-10-14: the licence hold's mark (licence-stamp.ts licenceHeldMark) is what 'licence-approve' publishes
+  // by. A re-hold keeps it for a row that was LIVE or already held for the check — never for one something else had taken
+  // down (an admin Unverify, a moderation Unpublish), which an approval must then leave down.
+  it.each<[string, Row, string | null]>([
+    ['a row still held for the check (marked), edited', { verified: false, verificationNotes: 'licence:held' }, 'licence:held'],
+    ['an UNVERIFIED unmarked row (taken down by an admin), edited', { verified: false, verificationNotes: null }, null],
+  ])('⛔ the re-hold of %s writes verificationNotes = %s', async (_label, over, mark) => {
+    h.current = aisleRow(over)
+    expect(await updateListingCore('listing-1', { title: 'e-Visa in 3 days, all nationalities' })).toEqual({ ok: true, held: true })
+    expect(h.updates[0]).toMatchObject({ verified: false, verificationNotes: mark })
+  })
+
+  it('⛔ an APPROVED row an admin had unverified, whose number then changes: the stamp goes, and no mark — the approval leaves it down', async () => {
+    h.current = stampedRow({ verified: false })
+    expect(await updateListingCore('listing-1', { attributes: { ...VISA, providerLicenceNo: '79-124/2019/TCDL-GP LHQT' } })).toEqual({ ok: true, held: true })
+    expect(h.updates[0]).toMatchObject({ verified: false, ...LICENCE_STAMP_CLEARED, verificationNotes: null })
   })
 
   it('an APPROVED live row moves out live — no verified write', async () => {
@@ -583,6 +605,24 @@ describe('⛔ the edit is a compare-and-set on the licence facts it read (R2, pl
     h.finds = 0
     expect(await updateListingCore('listing-1', { attributes: { ...VISA } })).toEqual({ ok: false, code: 409, error: 'listing_changed' })
     expect(h.updates).toHaveLength(0)
+  })
+
+  // ⛔ Commit gate, 2026-10-14: a re-hold decides the licence hold's mark on the row's publication (licence-stamp.ts
+  // licenceHeldMark) — so its CAS covers verified, the identity park and the mark. An Unverify landing between the read
+  // (live) and the write must not come back as a mark an approval would publish by.
+  it('⛔ a re-hold’s CAS covers the publication facts: an Unverify landing in between → 409, nothing written', async () => {
+    h.current = aisleRow({ verified: true }) // live, unapproved (a grandfathered VietKite row): this edit re-holds it
+    h.dbRow = { ...h.current, verified: false, identityHold: false, verificationNotes: null }
+    expect(await updateListingCore('listing-1', { title: 'e-Visa in 3 days, all nationalities' })).toEqual({ ok: false, code: 409, error: 'listing_changed' })
+    expect(h.updates).toHaveLength(0)
+    expect(h.wheres[0]).toMatchObject({ verified: true, identityHold: false, verificationNotes: null })
+  })
+
+  it('an edit that decides no mark keeps the CAS on the licence facts only (an approved row’s title fix)', async () => {
+    h.current = stampedRow()
+    await updateListingCore('listing-1', { title: 'e-Visa in 3 days' })
+    expect(h.wheres[0]).not.toHaveProperty('verified')
+    expect(h.wheres[0]).not.toHaveProperty('verificationNotes')
   })
 
   it('a miss on a row that is gone or removed is still the 404', async () => {

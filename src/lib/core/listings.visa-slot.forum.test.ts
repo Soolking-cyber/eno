@@ -188,6 +188,7 @@ describe('the licence check on eno.forum — edit', () => {
     expect(await updateListingCore('listing-1', { title: 'e-Visa in 3 days' })).toEqual({ ok: true })
     expect(h.updates[0]).not.toHaveProperty('verified')
     expect(await updateListingCore('listing-1', { attributes: { ...VISA, providerLegalName: 'CÔNG TY TNHH VISA6S.VN' } })).toEqual({ ok: true, held: true })
-    expect(h.updates[1]).toMatchObject({ verified: false, ...LICENCE_STAMP_CLEARED })
+    // It was live, so it goes down for its licence: the hold's mark (licence-stamp.ts LICENCE_HELD_NOTE).
+    expect(h.updates[1]).toMatchObject({ verified: false, ...LICENCE_STAMP_CLEARED, verificationNotes: 'licence:held' })
   })
 })

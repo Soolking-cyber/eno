@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   LICENCE_GRANDFATHER,
+  LICENCE_HELD_NOTE,
   LICENCE_STAMP_CLEARED,
   LICENCE_STAMP_PREFIX,
   licenceCleared,
@@ -8,6 +9,7 @@ import {
   licenceClearedWhere,
   licenceGrandfatherEndsAt,
   licenceGrandfathered,
+  licenceHeldMark,
   licenceStampFor,
   licenceStateOf,
   type LicenceRow,
@@ -232,5 +234,25 @@ describe('the aisles the stamp is about', () => {
       if (c.slug === 'services') expect(slugs).toEqual(expect.arrayContaining(['visa-legal', 'legal-permits']))
       else expect(slugs.filter((s) => s === 'visa-legal' || s === 'legal-permits'), c.slug).toEqual([])
     }
+  })
+})
+
+// ⛔ Commit gate, 2026-10-14: what 'licence-approve' publishes by. `verified: false` is also an admin Unverify, a moderation
+// Unpublish, an auto-hold or an enforcement pull; only a row the licence check itself took down carries the mark.
+describe('licenceHeldMark — the licence hold keeps its own mark only for a row that was live, parked or already held', () => {
+  it.each<[string, { verified: boolean; identityHold: boolean; verificationNotes: string | null }, string | null]>([
+    ['a live row the check pulls', { verified: true, identityHold: false, verificationNotes: null }, LICENCE_HELD_NOTE],
+    // A publish waiting on its owner's identity: the approval's publish re-parks it if they are still unverified.
+    ['a row the identity gate parked', { verified: false, identityHold: true, verificationNotes: null }, LICENCE_HELD_NOTE],
+    ['a row still waiting (marked)', { verified: false, identityHold: false, verificationNotes: LICENCE_HELD_NOTE }, LICENCE_HELD_NOTE],
+    ['a row something else took down (unmarked)', { verified: false, identityHold: false, verificationNotes: null }, null],
+    ['a row carrying anything else in the column', { verified: false, identityHold: false, verificationNotes: 'legacy note' }, null],
+  ])('%s → %s', (_label, row, mark) => {
+    expect(licenceHeldMark(row)).toEqual({ verificationNotes: mark })
+  })
+
+  it('is not a stamp: no publish guard reads it as cleared, in Prisma or in SQL', () => {
+    expect(LICENCE_HELD_NOTE.startsWith(LICENCE_STAMP_PREFIX)).toBe(false)
+    expect(LICENCE_STAMP_CLEARED.verificationNotes).toBeNull()
   })
 })

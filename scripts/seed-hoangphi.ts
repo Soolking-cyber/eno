@@ -28,6 +28,17 @@
  *
  * ⛔ IDEMPOTENT ON (sellerId, externalId='hoangphi:company-formation'). status / verified / rankScore are
  * CREATE-ONLY so a moderator's hide survives a re-run; images are re-uploaded only with --reimage.
+ *
+ * ⛔ LEGAL & PERMITS IS A LICENCE AISLE (owner, 2026-10-14: "Check them too" — taxonomy.ts licenceCheckHold). So:
+ *   · the row is CREATED UNPUBLISHED (verified=false, status active) — it goes live only once the firm has entered its
+ *     registered name and licence/registration number (the post form, or scripts/licence-fill-seller.ts when eno enters
+ *     what the firm sent) and an admin has approved them under Admin › Catalogue › Licence checks;
+ *   · a re-run's update MERGES the provider values already on the row (withProviderLicence), so the firm's values — and
+ *     the approval stamp, which binds exactly those values (src/lib/licence-stamp.ts) — survive it; it never writes
+ *     verified or status, as before;
+ *   · it NEVER MOVES THE ROW: the update leaves subcategorySlug alone, and a stored row in another aisle is refused —
+ *     scripts/services-offer-backfill.ts does that move, and re-holds the row as it does;
+ *   · serviceLocation is not written in either licence aisle (the facet is excluded there — taxonomy.ts).
  */
 import 'dotenv/config'
 import { readFileSync, existsSync } from 'node:fs'
@@ -41,8 +52,10 @@ import { browseRankScore } from '../src/lib/ranking-formula'
 import { assertCleanTexts } from '../src/lib/publish-guard'
 import { validateHandle } from '../src/lib/handle-format'
 import { subdomainKey } from '../src/lib/storefront-host'
-import { listingMoneyFor, subcategoriesFor } from '../src/lib/taxonomy'
+import { isLicenceCheckSlot, listingMoneyFor, servicePriceBasisApplies, servicePriceBasisOfUnit, subcategoriesFor, withPriceBasis } from '../src/lib/taxonomy'
 import { detectContentLang } from '../src/lib/detect-lang'
+import { providerLicenceOf, withProviderLicence } from '../src/lib/provider-licence'
+import { LICENCE_HELD_NOTE } from '../src/lib/licence-stamp'
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
@@ -245,8 +258,12 @@ async function main() {
   // 4. Category + existing row.
   const category = await db.category.findUnique({ where: { slug: CATEGORY_SLUG }, select: { id: true, name: true, nameVi: true } })
   if (!category) { console.error(`category "${CATEGORY_SLUG}" not found`); process.exit(1) }
-  const existing = await db.listing.findFirst({ where: { sellerId: SELLER_ID, externalId: EXTERNAL_ID }, select: { id: true, images: true, status: true } })
+  const existing = await db.listing.findFirst({ where: { sellerId: SELLER_ID, externalId: EXTERNAL_ID }, select: { id: true, images: true, status: true, attributes: true, subcategorySlug: true } })
+  // Never a move (header): the stored row must already sit where this run would put it.
+  if (existing && existing.subcategorySlug !== SUBCATEGORY) { console.error(`listing ${existing.id} is in "${existing.subcategorySlug ?? '(none)'}", not "${SUBCATEGORY}" — refusing to move it; scripts/services-offer-backfill.ts makes that move`); process.exit(1) }
   console.log(`listing: ${existing ? `exists (${existing.id}, ${existing.status}) — will update copy${REIMAGE ? ' and images' : ''}` : 'new'}`)
+  const licenceAisle = isLicenceCheckSlot(CATEGORY_SLUG, SUBCATEGORY)
+  if (licenceAisle && !existing) console.log('licence aisle: the new row is stored UNPUBLISHED — it waits for the firm\'s registered name and licence number, then an admin approval (Catalogue › Licence checks)')
 
   // 5. Assets.
   if (!ASSETS) { console.error('--assets <dir> required'); process.exit(1) }
@@ -295,11 +312,16 @@ async function main() {
   const bannerUrl = !fresh ? current!.bannerUrl! : await put(`partner/banner-${SELLER_ID}-${ts}.webp`, await sharp(join(ASSETS, 'bn.png')).resize(2560, 600, { fit: 'cover' }).webp({ quality: 88 }).toBuffer())
   const bannerMobileUrl = !fresh ? (current!.bannerMobileUrl ?? null) : await put(`partner/banner-m-${SELLER_ID}-${ts}.webp`, await sharp(join(ASSETS, 'bm.png')).resize(732, 376, { fit: 'cover' }).webp({ quality: 88 }).toBuffer())
 
-  const attributes = JSON.stringify({ serviceLocation: 'online', providerType: 'business' })
+  // No serviceLocation in a licence aisle: the facet is excluded there, and the listing page printed it raw.
+  const baseAttributes = JSON.stringify(licenceAisle ? { providerType: 'business' } : { serviceLocation: 'online', providerType: 'business' })
+  // …with the row's price basis (taxonomy.ts withPriceBasis — what every edit and scripts/services-offer-backfill.ts
+  // write), so a re-run never drops the listing out of the Hourly / One-time filter (commit gate, 2026-10-14).
+  const attributes = servicePriceBasisApplies(CATEGORY_SLUG, SUBCATEGORY) ? withPriceBasis(baseAttributes, servicePriceBasisOfUnit(money.priceUnit)) : baseAttributes
+  // ⚠️ NO subcategorySlug HERE: `fields` is the UPDATE too, and a re-run never moves the row (header). The create sets it.
   const fields = {
     title: TITLE_EN, titleVi: TITLE_VI, description: DESC_EN, descriptionVi: DESC_VI,
     price: PRICE, priceUnit: money.priceUnit, currency: money.currency, negotiable: false,
-    condition: null, listingType: 'service', categoryId: category.id, subcategorySlug: SUBCATEGORY,
+    condition: null, listingType: 'service', categoryId: category.id,
     brandSlug: null, model: null, attributes,
     // The HCMC office is in the former Tân Bình district (now phường Tân Sơn Hòa); the area chips key on
     // the district name. No coordinates: a wrong pin is worse than the approximate-area map.
@@ -314,15 +336,22 @@ async function main() {
     if (!seller.handle) await tx.handle.create({ data: { handle: HANDLE, sellerId: SELLER_ID } })
     await tx.listing.upsert({
       where: { sellerId_externalId: { sellerId: SELLER_ID, externalId: EXTERNAL_ID } },
-      update: fields,
+      // The firm's provider values (and so its approval stamp) are carried over, never wiped by a re-run (header) — in a
+      // licence aisle only: anywhere else the two keys are never stored (src/lib/provider-licence.ts).
+      update: { ...fields, attributes: licenceAisle ? withProviderLicence(attributes, providerLicenceOf(existing?.attributes)) : attributes },
       create: {
-        ...fields, sellerId: SELLER_ID, externalId: EXTERNAL_ID, verified: true, status: 'active',
+        ...fields, subcategorySlug: SUBCATEGORY, sellerId: SELLER_ID, externalId: EXTERNAL_ID,
+        // ⛔ Held in a licence aisle until the firm's values are approved (header) — a literal, so the publish-path audit
+        // (compliance/public-state-writes.test.ts) still sees both branches.
+        // …carrying the licence hold's mark, so the approval publishes it (src/lib/licence-stamp.ts LICENCE_HELD_NOTE).
+        ...(isLicenceCheckSlot(CATEGORY_SLUG, SUBCATEGORY) ? { verified: false, verificationNotes: LICENCE_HELD_NOTE } : { verified: true }), status: 'active',
         rankScore: browseRankScore({ sellerTrustScore: seller.trustScore, postedAt: new Date(), featured: false }),
       },
     })
   })
   const row = await db.listing.findFirst({ where: { sellerId: SELLER_ID, externalId: EXTERNAL_ID }, select: { id: true } })
   console.log(`\nAPPLIED: storefront /${seller.handle?.handle ?? HANDLE} · listing /listings/${row?.id}`)
+  if (licenceAisle) console.log('licence aisle: the listing goes live once the firm\'s registered name and licence number are entered and approved under Catalogue › Licence checks')
   console.log('Rollback: UPDATE "Listing" SET status=\'hidden\' WHERE "externalId"=\'hoangphi:company-formation\';')
   await db.$disconnect()
 }

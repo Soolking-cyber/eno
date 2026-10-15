@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { beforeAll, describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 
@@ -36,6 +36,9 @@ import { join, relative, sep } from 'node:path'
  * And, in its own list (AUDITED_CLAIMS), every write that hands an existing STOREFRONT to an account
  * (`ownerId` set by seller.update/updateMany/upsert, or raw `UPDATE "Seller" SET "ownerId"`): a claim
  * re-parents every live listing on it, and the gate's first wiring found two of the three.
+ * And, for the LICENCE CHECK (owner, 2026-10-14 — src/lib/licence-stamp.ts), two more: every existing-row
+ * publish must carry its guard (`publishesWithoutLicenceGuard`, exemptions in LICENCE_GUARD_EXEMPT), and a
+ * non-null approval stamp is written in one place only (`stampWrites`, STAMP_WRITERS).
  *
  * ── WHAT IT CANNOT SEE (stated so nobody mistakes it for a proof) ────────────────────────────────
  *   · A value that is not a literal: `data: { status }` (setStatusCore's shorthand), a status read
@@ -62,15 +65,18 @@ const ROOT = process.cwd()
  */
 const AUDITED: Record<string, { count: number; why: string }> = {
   // ── Gated ──
-  'src/lib/core/listings.ts': { count: 2, why: 'createListingCore insert (assertSellerMayPublish, guests refused) + confirmCore revive (identityGateForRevive → refuse)' },
+  // (Since 2026-10-14 every EXISTING-row publish below also carries the licence check's guard — licenceClearedWhere /
+  // licenceClearedSql, held to it by `publishesWithoutLicenceGuard` further down — and the creates hold a licence-aisle
+  // row unpublished: owner, "Anyone posts, live after check".)
+  'src/lib/core/listings.ts': { count: 2, why: 'createListingCore insert (assertSellerMayPublish, guests refused; a non-desk e-Visa / Legal & permits post is inserted verified:false — licenceCheckHold) + confirmCore revive (identityGateForRevive → refuse; licenceClearedWhere in the write, R1)' },
   'src/lib/teachers/publish.ts': { count: 1, why: 'saveTeacherProfile insert — assertSellerMayPublish (signed-in owner only); edits never touch status/verified, and setTeacherStatus(live) passes the same gate and cannot lift a moderation pull (verified:false) nor re-show a profile with no job goal and no public cover (D6 — TeacherNoGoalError, under the account lock)' },
   'src/lib/core/bulk.ts': { count: 1, why: 'bulkImportCore insert — whole batch refused before the loop (sellerPublishDecision)' },
-  'src/app/api/admin/listings/route.ts': { count: 4, why: 'admin activate/verify — partitionByIdentityGate, refused owners are HELD (identityHold)' },
-  'src/app/api/admin/moderate/route.ts': { count: 1, why: 'moderation approve — partitionByIdentityGate, refused owner HELD' },
-  'src/lib/enforcement.ts': { count: 2, why: 'restoreListings (lift/expiry) + applyEnforcement downgrade restore — refused owners HELD' },
-  'src/lib/compliance/identity-holds.ts': { count: 1, why: 'releaseIdentityHolds — the gate’s own release, only after the owner is verified' },
-  'scripts/publish-held.ts': { count: 2, why: 'bulk publish of held rows — refused owners PARKED unless --gate=off; + the post-park re-check release for owners verified mid-run' },
-  'scripts/release-identity-holds.ts': { count: 1, why: 'manual release of identity holds after the gate is switched OFF; refuses while enforced' },
+  'src/app/api/admin/listings/route.ts': { count: 4, why: 'admin activate/verify — partitionByIdentityGate, refused owners are HELD (identityHold); uncleared licence-aisle rows left out (licenceBlockedIds) and every write ANDs licenceClearedWhere (activate since R1, 2026-10-14); verify is publishListings, which licence-approve reuses' },
+  'src/app/api/admin/moderate/route.ts': { count: 1, why: 'moderation approve — partitionByIdentityGate, refused owner HELD; an uncleared licence-aisle row answers 409 licence_check_required before any write, and the write ANDs NOT_REMOVED + licenceClearedWhere' },
+  'src/lib/enforcement.ts': { count: 2, why: 'restoreListings (lift/expiry) + applyEnforcement downgrade restore — refused owners HELD; uncleared licence-aisle rows neither published nor parked, both writes AND licenceClearedWhere' },
+  'src/lib/compliance/identity-holds.ts': { count: 1, why: 'releaseIdentityHolds — the gate’s own release, only after the owner is verified; an uncleared licence-aisle row stays parked (licenceBlockedIds + licenceClearedWhere)' },
+  'scripts/publish-held.ts': { count: 2, why: 'bulk publish of held rows — refused owners PARKED unless --gate=off; + the post-park re-check release for owners verified mid-run; uncleared licence-aisle rows skipped, both UPDATEs AND licenceClearedSql (no desk branch: fails closed)' },
+  'scripts/release-identity-holds.ts': { count: 1, why: 'manual release of identity holds after the gate is switched OFF; refuses while enforced; only licenceCleared rows, the UPDATE ANDs licenceClearedSql' },
   'scripts/seed-app-review-thread.mjs': { count: 1, why: 'App Review demo seat (docs/ios-appstore-release.md P11): ONE create-only listing on the script’s own test storefront (owner app-review-seller@eno.vn, seed-marked auth user) so the reviewer can test Block on a non-staff seller — --apply needs the operator to state --gate=off and REFUSES --gate=on, the gate’s own answer for this account (created on/after 2026-09-28, never verified → decideOwned refuses); a re-run never republishes a hidden row' },
   // ── Outside the gate by design ──
   'src/app/api/cron/partner-stock/route.ts': { count: 1, why: 'restock of OWNERLESS partner storefronts only — no person to verify' },
@@ -95,7 +101,7 @@ const AUDITED: Record<string, { count: number; why: string }> = {
   'scripts/import-supersports.ts': { count: 1, why: 'affiliate importer — payload literal; refuses a storefront with an ownerId' },
   'scripts/import-accesstrade.ts': { count: 1, why: 'affiliate importer — payload literal; refuses a storefront with an ownerId' },
   'scripts/seed-vinwonders.ts': { count: 1, why: 'partner storefront seed — payload literal; the seller stays ownerless (refuses an owned one)' },
-  'scripts/seed-hoangphi.ts': { count: 2, why: 'owner-requested offer (2026-10-01) on ONE owned official-partner storefront pinned by seller id AND owner email (lawyer-review@eno.vn); create-only status/verified; operator act — a signed partner, outside the seller identity gate like the other partner seeds' },
+  'scripts/seed-hoangphi.ts': { count: 2, why: 'owner-requested offer (2026-10-01) on ONE owned official-partner storefront pinned by seller id AND owner email (lawyer-review@eno.vn); create-only status/verified — and in a licence aisle (Legal & permits) the create is verified:false until the firm’s values are approved; the update never writes verified/status nor moves the row, and keeps the provider values (and so the stamp); operator act — a signed partner, outside the seller identity gate like the other partner seeds' },
   'scripts/import-esim.ts': { count: 2, why: 'carrier eSIM/plan reference listings onto ownerless partner storefronts — the upsert’s create-only status/verified; refuses an owned or ambiguously named storefront' },
   'scripts/e2e-seed.mjs': { count: 1, why: 'e2e fixture on a disposable target' },
   'scripts/test-account-delete.mjs': { count: 1, why: 'throwaway listing for the account-deletion test' },
@@ -105,6 +111,44 @@ const AUDITED: Record<string, { count: number; why: string }> = {
 const AUDITED_CLAIMS: Record<string, { count: number; why: string }> = {
   'src/lib/compliance/seller-publish-gate.ts': { count: 2, why: 'claimGuestStorefront — the ONE claim path (login auto-claim, post-time claim, business onboarding all call it); parks live listings in the claim transaction when the gate refuses the account' },
   'scripts/ci-fixtures.ts': { count: 2, why: 'CI fixture seller on a disposable database (the update and create halves of one upsert)' },
+}
+
+/**
+ * ⛔ EXISTING-ROW PUBLISHES THAT NEED NO LICENCE GUARD — each one a write that can never touch an e-Visa or Legal &
+ * permits listing BY CONSTRUCTION (owner, 2026-10-14; R5, plan review 2026-10-14). Everything else that sets
+ * `verified: true` or `status: 'active'` on an existing listing carries licenceClearedWhere / licenceClearedSql, or this
+ * test fails (`publishesWithoutLicenceGuard`). "Not today" is not a reason: name the construction that keeps it out.
+ * The counts are exact, as AUDITED's are.
+ */
+const LICENCE_GUARD_EXEMPT: Record<string, { count: number; why: string }> = {
+  // eno's own desk — exempt from the check by the owner's decision (deskSellerIds), and these seeds write only its rows.
+  'scripts/seed-visa-shop.mjs': { count: 2, why: 'the services-edition e-Visa DESK seed — only the desk storefront’s own rows (resolved by owner email), which the licence check exempts; its products and its generic anchor' },
+  'scripts/seed-trip-desk.mjs': { count: 1, why: 'the trip DESK seed — only the desk storefront’s anchor row (hidden, price 0)' },
+  // Ownerless goods storefronts: their rows are placed by src/lib/feed-taxonomy.ts categoryFor, which has no services
+  // rule at all, and an ownerless storefront has nobody to edit a row into another aisle.
+  'src/app/api/cron/partner-stock/route.ts': { count: 1, why: 'restock (sold → active) of the ownerless scraped partner shops’ imported goods — placed by feed-taxonomy (no services rule), never in a licence aisle' },
+  'src/lib/affiliate-price-refresh.ts': { count: 1, why: 'restore (sold → active) of the ownerless affiliate storefronts’ datafeed goods — placed by feed-taxonomy (no services rule), never in a licence aisle' },
+  // The reference-listing pipelines: ownerless import storefronts pinned by id (src/lib/import-sellers.ts and the
+  // vehicle sellers), each writing only its own real-estate, vehicle or job rows — never a services row.
+  'scripts/expire-apartment-rentals.ts': { count: 1, why: 'the 7-day rule’s rollback .sql over the ownerless rental import sellers’ apartments (pinned by id)' },
+  'scripts/hide-imageless-imports.ts': { count: 2, why: '--restore and the printed rollback, over IMPORT_SELLERS’ rows only (the rental storefronts; job rows excluded) — no services row' },
+  'scripts/import-batdongsan-rentals.ts': { count: 1, why: 'the revival of its own ownerless Batdongsan rental rows (sellerId pinned in the write)' },
+  'scripts/import-honeycomb-com-vn.ts': { count: 2, why: 'the revival and the retire rollback .sql of its own ownerless Honeycomb rental rows (sellerId pinned in the write)' },
+  'scripts/import-muaban-net.ts': { count: 1, why: 'the revival of its own ownerless Muaban rental rows (sellerId pinned in the guard)' },
+  'scripts/import-nhatot-com.ts': { count: 2, why: 'the revival and the retire rollback .sql line of its own ownerless Nhà Tốt rental rows (sellerId pinned in the write)' },
+  'scripts/muaban-net-map.ts': { count: 1, why: 'retireRollbackSql — the printed undo of a Muaban retire pass, pinned to that ownerless seller' },
+  'scripts/retire-rever-rentals.ts': { count: 2, why: 'the rollback .sql and the revival of the ownerless Rever seller’s apartment rows (sellerId + apartment subcategory pinned)' },
+  'scripts/retire-stale-batdongsan.ts': { count: 1, why: 'the rollback .sql of a stale retire over the ownerless Batdongsan seller (pinned by id)' },
+  'scripts/vehicle-rentals-status.ts': { count: 2, why: 'the revival and the expiry rollback over the ownerless vehicle import storefronts (VEHICLE_SELLERS, pinned by id) — car and motorbike hire' },
+}
+
+/**
+ * ⛔ THE ONE STAMP WRITER (owner, 2026-10-14 — src/lib/licence-stamp.ts). Listing.verificationMethod is REPURPOSED as the
+ * licence check's approval stamp, so a non-null write to it IS an approval. Only 'licence-approve' may make one, after an
+ * admin compared the values with the provider's licence; every other writer only clears it (null).
+ */
+const STAMP_WRITERS: Record<string, { count: number; why: string }> = {
+  'src/app/api/admin/listings/route.ts': { count: 1, why: '‘licence-approve’ — the compare-and-set stamp of exactly the values the admin’s screen showed, with a compliance_audit row naming the admin' },
 }
 
 // ── The scanner ──────────────────────────────────────────────────────────────────────────────────
@@ -119,36 +163,42 @@ function walk(dir: string, out: string[] = []): string[] {
   return out
 }
 
-/** Blank comments (keeping offsets and newlines) so a file that TALKS about a write is not one. */
+/**
+ * Blank comments (keeping offsets and newlines) so a file that TALKS about a write is not one. A string literal is kept
+ * whole (a quote inside it opens nothing), so `'//'` is not a comment.
+ * ⚠️ MEMOISED PER SOURCE, AND CHUNKED (2026-10-14): six scanners read the same ~22 MB, and the char-by-char version,
+ * run six times, took this file past vitest's 5s per test under a parallel run. The chunked form was checked byte-for-
+ * byte against the char-by-char one over every scanned file before it replaced it.
+ */
+const stripped = new Map<string, string>()
 function stripComments(src: string): string {
-  let out = ''
-  for (let i = 0; i < src.length; i++) {
-    const c = src[i]
-    if (c === "'" || c === '"' || c === '`') {
-      const q = c
+  let out = stripped.get(src)
+  if (out === undefined) stripped.set(src, (out = stripCommentsOnce(src)))
+  return out
+}
+function stripCommentsOnce(src: string): string {
+  const parts: string[] = []
+  let last = 0
+  const special = /['"`]|\/[/*]/g
+  for (let m = special.exec(src); m; m = special.exec(src)) {
+    const i = m.index
+    const q = src[i]
+    if (q !== '/') {
+      // A string: skip to its closing quote (escapes honoured) and keep it as it is.
       let j = i + 1
       while (j < src.length && src[j] !== q) { if (src[j] === '\\') j++; j++ }
-      out += src.slice(i, j + 1)
-      i = j
+      special.lastIndex = j + 1
       continue
     }
-    if (c === '/' && src[i + 1] === '/') {
-      const j = src.indexOf('\n', i)
-      const end = j < 0 ? src.length : j
-      out += ' '.repeat(end - i)
-      i = end - 1
-      continue
-    }
-    if (c === '/' && src[i + 1] === '*') {
-      const j = src.indexOf('*/', i + 2)
-      const end = j < 0 ? src.length : j + 2
-      out += src.slice(i, end).replace(/[^\n]/g, ' ')
-      i = end - 1
-      continue
-    }
-    out += c
+    // `//` to the end of the line, or `/* … */` — blanked, newlines kept.
+    const close = src[i + 1] === '/' ? src.indexOf('\n', i) : src.indexOf('*/', i + 2)
+    const end = close < 0 ? src.length : src[i + 1] === '/' ? close : close + 2
+    parts.push(src.slice(last, i), src.slice(i, end).replace(/[^\n]/g, ' '))
+    last = end
+    special.lastIndex = end
   }
-  return out
+  parts.push(src.slice(last))
+  return parts.join('')
 }
 
 /** Index of the bracket closing the one at `open`, skipping string contents; -1 if unbalanced. */
@@ -308,18 +358,27 @@ export function storefrontClaimWrites(source: string): string[] {
  *
  * Creates are not checked (a new row's identityHold defaults to false), nor is an upsert's `create`.
  */
+/** Blank every `create: {…}` (an upsert's insert branch) in place, offsets kept: a create is a fresh row, not a publish. */
+function blankCreates(args: string): string {
+  let out = args
+  for (const c of out.matchAll(/\bcreate\s*:\s*\{/g)) {
+    const o = c.index! + c[0].length - 1
+    const e = matchBalanced(out, o)
+    if (e > 0) out = out.slice(0, c.index!) + ' '.repeat(e + 1 - c.index!) + out.slice(e + 1)
+  }
+  return out
+}
+
+/** A raw `UPDATE "Listing" [alias] SET …`; group 1 is the SET clause (up to WHERE/FROM/RETURNING/the literal's end). */
+const RAW_LISTING_UPDATE = String.raw`UPDATE\s+${LISTING_TABLE}\s+(?:AS\s+\w+\s+|\w+\s+)?SET\b([\s\S]*?)(?=\bWHERE\b|\bFROM\b|\bRETURNING\b|\x60|;|$)`
+
 export function publishesKeepingHold(source: string): string[] {
   const src = stripComments(source)
   const hits: string[] = []
   const lineOf = (i: number) => src.slice(0, i).split('\n').length
   for (const { open, close, method } of calls(src, /\b\w+\.listing\.(update|updateMany|updateManyAndReturn|upsert)\s*\(/g)) {
-    let args = blankReads(src.slice(open, close + 1))
     // An upsert's `create` inserts a fresh row — outside this rule, as every create is.
-    for (const c of args.matchAll(/\bcreate\s*:\s*\{/g)) {
-      const o = c.index! + c[0].length - 1
-      const e = matchBalanced(args, o)
-      if (e > 0) args = args.slice(0, c.index!) + ' '.repeat(e + 1 - c.index!) + args.slice(e + 1)
-    }
+    const args = blankCreates(blankReads(src.slice(open, close + 1)))
     for (const v of args.matchAll(/\bverified\s*:\s*true\b/g)) {
       const o = enclosingBrace(args, v.index!)
       const c = o < 0 ? -1 : matchBalanced(args, o)
@@ -327,20 +386,130 @@ export function publishesKeepingHold(source: string): string[] {
       if (!/\bidentityHold\s*:\s*false\b/.test(obj)) hits.push(`${lineOf(open)}: listing.${method} verified: true without identityHold: false`)
     }
   }
-  for (const m of src.matchAll(new RegExp(String.raw`UPDATE\s+${LISTING_TABLE}\s+(?:AS\s+\w+\s+|\w+\s+)?SET\b([\s\S]*?)(?=\bWHERE\b|\bFROM\b|\bRETURNING\b|\x60|;|$)`, 'gi'))) {
+  for (const m of src.matchAll(new RegExp(RAW_LISTING_UPDATE, 'gi'))) {
     if (/\bverified"?\s*=\s*true\b/i.test(m[1]) && !/"?identityHold"?\s*=\s*false\b/i.test(m[1])) hits.push(`${lineOf(m.index!)}: UPDATE "Listing" SET verified = true without "identityHold" = false`)
   }
   return hits
 }
 
-function scanRepo(): Map<string, string[]> {
-  const files = [...walk(join(ROOT, 'src')), ...walk(join(ROOT, 'scripts'))]
+/**
+ * Writes that PUBLISH AN EXISTING ROW (`verified: true` in an update, or a raw `SET verified = true`) without also dropping
+ * the LICENCE HOLD'S MARK — `verificationNotes: null` / `"verificationNotes" = NULL` in the same object or SET clause
+ * (commit gate, 2026-10-14 — src/lib/licence-stamp.ts LICENCE_HELD_NOTE).
+ *
+ * ⛔ WHY: 'licence-approve' publishes only a row carrying the mark, which must mean "the licence check itself took this
+ * row down". A row published by any other path and still marked would, once taken down again by something that leaves no
+ * report, read as the licence check's hold — and the next approval would undo that takedown. So the mark sits only on an
+ * unpublished row: every write that makes a row public drops it, exactly as it drops identityHold above. Status-only
+ * writes are outside it for the same reason as there: a marked row is never verified.
+ */
+export function publishesKeepingLicenceMark(source: string): string[] {
+  const src = stripComments(source)
+  const hits: string[] = []
+  const lineOf = (i: number) => src.slice(0, i).split('\n').length
+  for (const { open, close, method } of calls(src, /\b\w+\.listing\.(update|updateMany|updateManyAndReturn|upsert)\s*\(/g)) {
+    const args = blankCreates(blankReads(src.slice(open, close + 1)))
+    for (const v of args.matchAll(/\bverified\s*:\s*true\b/g)) {
+      const o = enclosingBrace(args, v.index!)
+      const c = o < 0 ? -1 : matchBalanced(args, o)
+      const obj = c < 0 ? args : args.slice(o, c + 1)
+      if (!/\bverificationNotes\s*:\s*null\b/.test(obj)) hits.push(`${lineOf(open)}: listing.${method} verified: true without verificationNotes: null`)
+    }
+  }
+  for (const m of src.matchAll(new RegExp(RAW_LISTING_UPDATE, 'gi'))) {
+    if (/\bverified"?\s*=\s*true\b/i.test(m[1]) && !/"?verificationNotes"?\s*=\s*NULL\b/i.test(m[1])) hits.push(`${lineOf(m.index!)}: UPDATE "Listing" SET verified = true without "verificationNotes" = NULL`)
+  }
+  return hits
+}
+
+/** Files allowed to publish without dropping the mark, each with why its rows can never carry one. */
+const LICENCE_MARK_EXEMPT: Record<string, string> = {
+  'scripts/seed-visa-shop.mjs': "eno's own desk rows only — the desk is exempt from the licence check, so nothing ever marks them",
+  'scripts/seed-trip-desk.mjs': "eno's own trip desk rows only — exempt from the licence check like the visa desk, never marked",
+}
+
+/**
+ * Writes that PUBLISH AN EXISTING ROW without the LICENCE CHECK's guard (owner, 2026-10-14 — src/lib/licence-stamp.ts).
+ * A non-desk e-Visa or Legal & permits listing may be public only once eno has approved its provider's licence, and
+ * every publish of an existing row decides that with a pre-filter (licenceBlockedIds / licenceCleared) and then ANDs
+ * the guard into the write itself, against an edit clearing the stamp in between. This flags:
+ *   · a Prisma `listing.update|updateMany|updateManyAndReturn|upsert` whose arguments — reads blanked, an upsert's
+ *     `create` blanked (R5: a create is a fresh row, which the create paths hold themselves) — set `verified: true` OR
+ *     `status: 'active'` (R1/R5: a verified hidden or sold row goes public on its status alone), and whose call text
+ *     does not carry `licenceClearedWhere(` — spelled IN the call, where this can see it;
+ *   · a raw `UPDATE "Listing" … SET … verified = true | status = 'active'` whose statement (to the closing backtick or
+ *     ';') does not carry `licenceClearedSql(`.
+ * Per write, one hit. What it cannot see is what `publicStateWrites` cannot see (the header): a value that is not a
+ * literal (setStatusCore's `data: { status }` — gated in code, R1), a payload built away from the call, a guard held
+ * in a variable. The daily sweep (/api/cron/licence-holds) is the backstop for those.
+ */
+export function publishesWithoutLicenceGuard(source: string): string[] {
+  const src = stripComments(source)
+  const hits: string[] = []
+  const lineOf = (i: number) => src.slice(0, i).split('\n').length
+  for (const { open, close, method } of calls(src, /\b\w+\.listing\.(update|updateMany|updateManyAndReturn|upsert)\s*\(/g)) {
+    const raw = src.slice(open, close + 1)
+    const set = blankCreates(blankReads(raw)).match(/\bverified\s*:\s*true\b|\bstatus\s*:\s*['"]active['"]/)
+    // Present, and not negated (commit gate): `NOT: licenceClearedWhere(…)` would publish exactly the rows it should keep out.
+    if (set && (!raw.includes('licenceClearedWhere(') || /\bNOT\s*:\s*\[?\s*licenceClearedWhere\(/.test(raw))) hits.push(`${lineOf(open)}: listing.${method} ${set[0]} without licenceClearedWhere`)
+  }
+  for (const m of src.matchAll(new RegExp(RAW_LISTING_UPDATE, 'gi'))) {
+    const set = /\bverified"?\s*=\s*true\b|\bstatus"?\s*=\s*'active'/i.exec(m[1])
+    if (!set) continue
+    const rest = src.slice(m.index!)
+    const end = rest.search(/[`;]/)
+    if (!(end < 0 ? rest : rest.slice(0, end)).includes('licenceClearedSql(')) hits.push(`${lineOf(m.index!)}: UPDATE "Listing" SET ${set[0]} without licenceClearedSql`)
+  }
+  return hits
+}
+
+/**
+ * Writes of a NON-NULL licence stamp (owner, 2026-10-14). Listing.verificationMethod is the repurposed approval stamp
+ * (src/lib/licence-stamp.ts), so a value written to it is an approval: a listing write (any of LISTING_WRITE_CALL, an
+ * upsert's `create` included — reads blanked) with `verificationMethod:` anything but `null`, its `{ verificationMethod }`
+ * shorthand, or a raw `UPDATE "Listing" SET "verificationMethod" =` anything but NULL. Clearing it (`null`,
+ * LICENCE_STAMP_CLEARED spread in) is every other writer's job and is not counted. A raw INSERT is not read (its values
+ * are positional); none writes the column.
+ */
+export function stampWrites(source: string): string[] {
+  const src = stripComments(source)
+  const hits: string[] = []
+  const lineOf = (i: number) => src.slice(0, i).split('\n').length
+  for (const { open, close, method } of calls(src, LISTING_WRITE_CALL)) {
+    const args = blankReads(src.slice(open, close + 1))
+    // ⚠️ The lookahead sits right after the colon, spaces inside it: `:\s*(?!null)` would backtrack \s* to nothing and
+    // read `verificationMethod: null` as a stamp.
+    for (const h of args.matchAll(/\bverificationMethod\s*:(?!\s*null\b)|[{,]\s*verificationMethod\s*(?=[,}])/g)) hits.push(`${lineOf(open)}: listing.${method} ${h[0].replace(/\s+/g, ' ').trim()}`)
+  }
+  for (const m of src.matchAll(new RegExp(RAW_LISTING_UPDATE, 'gi'))) {
+    if (/"?verificationMethod"?\s*=(?!\s*NULL\b)/i.test(m[1])) hits.push(`${lineOf(m.index!)}: UPDATE "Listing" SET "verificationMethod"`)
+  }
+  return hits
+}
+
+/**
+ * Every scanned file (src/ and scripts/), read ONCE for the whole file in beforeAll — six scanners walk the same tree,
+ * and each re-reading thousands of files took ~1s alone and past vitest's 5s per-test limit under a parallel run
+ * (measured 2026-10-14, when the licence tripwires made it six). A hook has its own, longer limit.
+ */
+let SOURCES: Array<{ rel: string; src: string }> = []
+beforeAll(() => {
+  SOURCES = [...walk(join(ROOT, 'src')), ...walk(join(ROOT, 'scripts'))].map((f) => ({ rel: relative(ROOT, f).split(sep).join('/'), src: readFileSync(f, 'utf8') }))
+  for (const { src } of SOURCES) stripComments(src) // the memo, warmed here rather than in whichever test runs first
+}, 120_000)
+
+/** Every repo file's hits for one scanner, keyed by repo-relative path. */
+function scanWith(scan: (source: string) => string[]): Map<string, string[]> {
   const found = new Map<string, string[]>()
-  for (const f of files) {
-    const hits = publicStateWrites(readFileSync(f, 'utf8'))
-    if (hits.length) found.set(relative(ROOT, f).split(sep).join('/'), hits)
+  for (const { rel, src } of SOURCES) {
+    const hits = scan(src)
+    if (hits.length) found.set(rel, hits)
   }
   return found
+}
+
+function scanRepo(): Map<string, string[]> {
+  return scanWith(publicStateWrites)
 }
 
 describe('writes that put a Listing into public state', () => {
@@ -362,23 +531,47 @@ describe('writes that put a Listing into public state', () => {
 
 describe('a publish of an existing row clears identityHold in the same write', () => {
   it('⛔ no update sets `verified: true` and leaves identityHold alone — a live row must never carry a hold', () => {
-    const bad: string[] = []
-    for (const f of [...walk(join(ROOT, 'src')), ...walk(join(ROOT, 'scripts'))]) {
-      const hits = publishesKeepingHold(readFileSync(f, 'utf8'))
-      if (hits.length) bad.push(`${relative(ROOT, f).split(sep).join('/')}\n    ${hits.join('\n    ')}`)
-    }
+    const bad = [...scanWith(publishesKeepingHold).entries()].map(([f, hits]) => `${f}\n    ${hits.join('\n    ')}`)
     expect(bad, `A write publishes an existing listing without clearing identityHold. Add \`identityHold: false\` (raw SQL: \`"identityHold" = false\`) to the same data object:\n  ${bad.join('\n  ')}`).toEqual([])
+  })
+})
+
+describe('⛔ a publish of an existing row drops the licence hold’s mark in the same write (commit gate, 2026-10-14)', () => {
+  it('no update sets `verified: true` and leaves verificationNotes alone — a public row is never the licence check’s hold', () => {
+    const bad = [...scanWith(publishesKeepingLicenceMark).entries()].filter(([f]) => !LICENCE_MARK_EXEMPT[f]).map(([f, hits]) => `${f}\n    ${hits.join('\n    ')}`)
+    expect(bad, `A write publishes an existing listing without dropping the licence hold's mark. Add \`verificationNotes: null\` (raw SQL: \`"verificationNotes" = NULL\`) to the same data object (src/lib/licence-stamp.ts LICENCE_HELD_NOTE):\n  ${bad.join('\n  ')}`).toEqual([])
+  })
+
+  it('every exemption still names a file that publishes — a stale one is removed, not kept', () => {
+    const found = scanWith(publishesKeepingLicenceMark)
+    expect(Object.keys(LICENCE_MARK_EXEMPT).filter((f) => !found.has(f))).toEqual([])
+  })
+})
+
+describe('⛔ the licence check (owner, 2026-10-14): every existing-row publish carries its guard, and one place stamps', () => {
+  /** A file's hits against an exact-count list: unlisted files and drifted counts, as one list of problems. */
+  function drift(found: Map<string, string[]>, listed: Record<string, { count: number }>): string[] {
+    return [
+      ...[...found.entries()].filter(([f]) => !listed[f]).map(([f, h]) => `${f} (unlisted)\n    ${h.join('\n    ')}`),
+      ...Object.entries(listed).filter(([f, a]) => (found.get(f)?.length ?? 0) !== a.count)
+        .map(([f, a]) => `${f}: expected ${a.count}, found ${found.get(f)?.length ?? 0}\n    ${(found.get(f) ?? []).join('\n    ')}`),
+    ]
+  }
+
+  it('⛔ no existing-row publish without licenceClearedWhere / licenceClearedSql — unless listed as non-aisle by construction', () => {
+    const bad = drift(scanWith(publishesWithoutLicenceGuard), LICENCE_GUARD_EXEMPT)
+    expect(bad, `A write can publish an existing listing — \`verified: true\` or \`status: 'active'\` — without the licence check's guard, so an e-Visa or Legal & permits listing eno has not checked could go live through it. Pre-filter with licenceBlockedIds (src/lib/core/licence-check.ts) and AND \`licenceClearedWhere(desk)\` into the write's WHERE (raw SQL: \`AND \${licenceClearedSql()}\`); or, only if the write can never touch either aisle BY CONSTRUCTION, list the file in LICENCE_GUARD_EXEMPT with that construction:\n  ${bad.join('\n  ')}`).toEqual([])
+  })
+
+  it('⛔ a non-null licence stamp is written in ONE place — admin listings ‘licence-approve’', () => {
+    const bad = drift(scanWith(stampWrites), STAMP_WRITERS)
+    expect(bad, `A write puts a value into Listing.verificationMethod — the licence check's APPROVAL STAMP (src/lib/licence-stamp.ts). Only 'licence-approve' may: clear it with LICENCE_STAMP_CLEARED instead:\n  ${bad.join('\n  ')}`).toEqual([])
   })
 })
 
 describe('writes that hand a storefront to an account (claims)', () => {
   function scanClaims(): Map<string, string[]> {
-    const found = new Map<string, string[]>()
-    for (const f of [...walk(join(ROOT, 'src')), ...walk(join(ROOT, 'scripts'))]) {
-      const hits = storefrontClaimWrites(readFileSync(f, 'utf8'))
-      if (hits.length) found.set(relative(ROOT, f).split(sep).join('/'), hits)
-    }
-    return found
+    return scanWith(storefrontClaimWrites)
   }
   it('⛔ EVERY CLAIM GOES THROUGH claimGuestStorefront — or is listed here with the reason', () => {
     const found = scanClaims()
@@ -417,6 +610,11 @@ describe('the scanner itself — so a refactor of it cannot quietly make it blin
   it('does not count a write that only appears in a comment', () => {
     expect(publicStateWrites(`// db.listing.update({ data: { verified: true } })\n/* UPDATE "Listing" SET verified = true */`)).toEqual([])
   })
+  it('a "//" or "/*" inside a string is not a comment — the write after it is still seen', () => {
+    expect(publicStateWrites(`db.listing.update({ where: { id }, data: { affiliateUrl: 'https://x.vn/a', verified: true } })`)).toHaveLength(1)
+    expect(publicStateWrites('const g = "/* not a comment"\ndb.listing.update({ where: { id }, data: { verified: true } })')).toHaveLength(1)
+    expect(publicStateWrites('c.query(`UPDATE "Listing" SET verified = true WHERE url LIKE \'%//%\'`)')).toHaveLength(1)
+  })
   it('sees a payload literal built beside the write, including a ternary status', () => {
     expect(publicStateWrites(`const payload = { title, verified: true, status: 'active' }\nawait db.listing.update({ where: { id }, data: payload })`)).toHaveLength(1)
     expect(publicStateWrites(`const f = { verified: true, status: inStock ? 'active' : 'sold' }\nawait db.listing.upsert({ where: { id }, update: f, create: f })`)).toHaveLength(1)
@@ -448,8 +646,70 @@ describe('the scanner itself — so a refactor of it cannot quietly make it blin
     expect(publishesKeepingHold(`db.listing.create({ data: { verified: true } })`)).toEqual([])
     expect(publishesKeepingHold(`db.listing.upsert({ where: { id }, create: { verified: true }, update: { title } })`)).toEqual([])
   })
+  it('flags a publish of an existing row that keeps the licence hold’s mark — and nothing else', () => {
+    expect(publishesKeepingLicenceMark(`db.listing.updateMany({ where: { id: { in: ids } }, data: { verified: true, identityHold: false } })`)).toHaveLength(1)
+    expect(publishesKeepingLicenceMark(`tx.listing.update({ where: { id }, data: held ? { verified: false, identityHold: true } : { verified: true, identityHold: false } })`)).toHaveLength(1)
+    expect(publishesKeepingLicenceMark('UPDATE "Listing" SET verified = true, "identityHold" = false WHERE id = ANY($1)')).toHaveLength(1)
+    expect(publishesKeepingLicenceMark(`db.listing.updateMany({ where: { id: { in: ids } }, data: { verified: true, identityHold: false, verificationNotes: null } })`)).toEqual([])
+    expect(publishesKeepingLicenceMark(`tx.listing.update({ where: { id }, data: held ? { verified: false, identityHold: true } : { verified: true, identityHold: false, verificationNotes: null } })`)).toEqual([])
+    expect(publishesKeepingLicenceMark('UPDATE "Listing" SET verified = true, "identityHold" = false, "verificationNotes" = NULL WHERE "identityHold"')).toEqual([])
+    // A mark in the WHERE is a read, not a drop; status-only writes, creates and takedowns are outside it.
+    expect(publishesKeepingLicenceMark(`db.listing.updateMany({ where: { verificationNotes: null }, data: { verified: true, identityHold: false } })`)).toHaveLength(1)
+    expect(publishesKeepingLicenceMark(`db.listing.updateMany({ where: { verified: true }, data: { status: 'active' } })`)).toEqual([])
+    expect(publishesKeepingLicenceMark(`db.listing.create({ data: { verified: true } })`)).toEqual([])
+    expect(publishesKeepingLicenceMark(`db.listing.updateMany({ where: { id }, data: { verified: false, identityHold: false, verificationNotes: 'licence:held' } })`)).toEqual([])
+  })
   it('flags every raw INSERT and the build-then-write assignment', () => {
     expect(publicStateWrites('INSERT INTO "Listing" (id, title) VALUES ($1, $2)')).toHaveLength(1)
     expect(publicStateWrites(`if (x) { data.status = 'active' }`)).toHaveLength(1)
+  })
+  it('flags a Prisma publish of an existing row without the licence guard — and passes a guarded one', () => {
+    expect(publishesWithoutLicenceGuard(`db.listing.updateMany({ where: { id: { in: ids } }, data: { verified: true, identityHold: false } })`)).toHaveLength(1)
+    expect(publishesWithoutLicenceGuard(`db.listing.updateMany({ where: { id: { in: ids }, ...NOT_REMOVED, AND: [licenceClearedWhere(desk)] }, data: { verified: true, identityHold: false } })`)).toEqual([])
+    // A ternary and a transaction client, as moderate 'approve' writes it.
+    expect(publishesWithoutLicenceGuard(`tx.listing.updateMany({ where: { id }, data: held ? { verified: false, identityHold: true } : { verified: true, identityHold: false } })`)).toHaveLength(1)
+    // ⛔ A STATUS-ONLY write publishes a verified row too (R1/R5): flagged without the guard, passed with it.
+    expect(publishesWithoutLicenceGuard(`db.listing.updateMany({ where: { id: { in: ids } }, data: { status: 'active', ...REACTIVATION_SALE_RESET } })`)).toHaveLength(1)
+    expect(publishesWithoutLicenceGuard(`db.listing.updateManyAndReturn({ where: { id: { in: ids }, AND: [licenceClearedWhere(desk)] }, data: { status: 'active' }, select: { id: true } })`)).toEqual([])
+    // One hit per write, whatever it sets.
+    expect(publishesWithoutLicenceGuard(`db.listing.update({ where: { id }, data: { verified: true, status: 'active', identityHold: false } })`)).toHaveLength(1)
+  })
+  it('a NEGATED guard is no guard', () => {
+    expect(publishesWithoutLicenceGuard(`db.listing.updateMany({ where: { id: { in: ids }, NOT: licenceClearedWhere(desk) }, data: { verified: true, identityHold: false } })`)).toHaveLength(1)
+    expect(publishesWithoutLicenceGuard(`db.listing.updateMany({ where: { id: { in: ids }, NOT: [licenceClearedWhere(desk)] }, data: { verified: true, identityHold: false } })`)).toHaveLength(1)
+  })
+  it('the licence guard scan ignores reads, creates, takedowns, comments and a guard named only in a comment', () => {
+    // R5: an upsert's create is a fresh row (the create paths hold a licence-aisle row themselves) — its update is not.
+    expect(publishesWithoutLicenceGuard(`db.listing.upsert({ where: { id }, create: { verified: true, status: 'active' }, update: { title } })`)).toEqual([])
+    expect(publishesWithoutLicenceGuard(`db.listing.upsert({ where: { id }, create: { title }, update: { verified: true } })`)).toHaveLength(1)
+    expect(publishesWithoutLicenceGuard(`db.listing.create({ data: { verified: true, status: 'active' } })`)).toEqual([])
+    expect(publishesWithoutLicenceGuard(`db.listing.updateMany({ where: { verified: true, status: 'active' }, data: { verified: false, identityHold: false } })`)).toEqual([])
+    expect(publishesWithoutLicenceGuard(`// db.listing.updateMany({ data: { verified: true } })`)).toEqual([])
+    expect(publishesWithoutLicenceGuard(`db.listing.updateMany({ where: { id } /* licenceClearedWhere(desk) */, data: { verified: true, identityHold: false } })`)).toHaveLength(1)
+  })
+  it('flags a raw publish without licenceClearedSql — and passes a guarded one, aliased or not', () => {
+    expect(publishesWithoutLicenceGuard('c.query(`UPDATE "Listing" SET verified = true, "identityHold" = false WHERE id = ANY($1::text[])`, [ids])')).toHaveLength(1)
+    expect(publishesWithoutLicenceGuard('c.query(`UPDATE "Listing" SET verified = true, "identityHold" = false WHERE id = ANY($1::text[]) AND ${licenceClearedSql()}`, [ids])')).toEqual([])
+    expect(publishesWithoutLicenceGuard('c.query(`UPDATE "Listing" l SET verified = true, "identityHold" = false FROM "Seller" s WHERE s.id = l."sellerId" AND ${licenceClearedSql(\'l.\')}`)')).toEqual([])
+    expect(publishesWithoutLicenceGuard(`UPDATE "Listing" SET status = 'active' WHERE id = 'x';`)).toHaveLength(1)
+    // The guard of the NEXT statement does not cover this one: the statement ends at its own ';'.
+    expect(publishesWithoutLicenceGuard(`UPDATE "Listing" SET status = 'active' WHERE id = 'x'; UPDATE "Listing" SET verified = true WHERE \${licenceClearedSql()}`)).toHaveLength(1)
+    // A raw takedown, and a status read in the WHERE, are not publishes.
+    expect(publishesWithoutLicenceGuard(`UPDATE "Listing" SET status = 'hidden' WHERE status = 'active'`)).toEqual([])
+  })
+  it('flags a non-null stamp write, Prisma or raw — and never a cleared one', () => {
+    expect(stampWrites(`tx.listing.updateMany({ where: { id, verificationMethod: r.verificationMethod }, data: { verificationMethod: stamp, verifiedAt: now } })`)).toHaveLength(1)
+    expect(stampWrites(`db.listing.update({ where: { id }, data: { verificationMethod } })`)).toHaveLength(1)
+    expect(stampWrites(`db.listing.create({ data: { title, verificationMethod: 'manual' } })`)).toHaveLength(1)
+    expect(stampWrites('UPDATE "Listing" SET "verificationMethod" = $1 WHERE id = $2')).toHaveLength(1)
+    // Cleared: null (with or without spaces), the shared constant spread in, raw NULL — and a read is not a write.
+    expect(stampWrites(`db.listing.updateMany({ where: { id }, data: { verificationMethod: null, verifiedAt: null } })`)).toEqual([])
+    expect(stampWrites(`db.listing.updateMany({ where: { id }, data: { verificationMethod:null } })`)).toEqual([])
+    expect(stampWrites(`db.listing.updateMany({ where: { id }, data: { ...LICENCE_STAMP_CLEARED, verified: false } })`)).toEqual([])
+    expect(stampWrites('update "Listing" set "verificationMethod" = NULL, "verifiedAt" = NULL where "id" = $1')).toEqual([])
+    expect(stampWrites(`db.listing.findMany({ where: { verificationMethod: { startsWith: 'licence:v1:' } }, select: { verificationMethod: true } })`)).toEqual([])
+    expect(stampWrites(`db.listing.updateManyAndReturn({ where: { id }, data: { verified: false }, select: { verificationMethod: true } })`)).toEqual([])
+    // Another model's column of the same name (Profile.verificationMethod — the identity check) is not the stamp.
+    expect(stampWrites(`db.profile.update({ where: { id }, data: { verificationMethod: source.method } })`)).toEqual([])
   })
 })

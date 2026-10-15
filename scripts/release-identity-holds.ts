@@ -26,8 +26,15 @@
 // ⚠️ SEARCH IS NOT REFRESHED BY THIS SCRIPT. Parking dropped these listings from the Vertex AI
 // Search index (the app's reindex deletes non-public rows); a raw UPDATE does not put them back.
 // It prints the released ids and the backfill to run afterwards.
+//
+// ⛔ AN e-VISA / LEGAL & PERMITS ROW eno HAS NOT CHECKED STAYS PARKED (owner, 2026-10-14 — src/lib/licence-stamp.ts),
+// exactly as releaseIdentityHolds() leaves it: the gate being off says nothing about the provider's licence. Only rows
+// licenceCleared() passes are released, and the UPDATE ANDs licenceClearedSql against an edit between the read and the
+// write. No desk exemption in a script (it cannot resolve the desk): an unstamped desk row stays parked — fail closed.
+// Those rows go live through Admin › Catalogue › Licence checks.
 import pg from 'pg'
 import { identityGateEnforced } from '../src/lib/compliance/account-state'
+import { licenceCleared, licenceClearedSql } from '../src/lib/licence-stamp'
 
 const APPLY = process.argv.includes('--apply')
 const ACK_OFF = process.argv.includes('--gate-is-off')
@@ -45,8 +52,20 @@ const ACK_OFF = process.argv.includes('--gate-is-off')
     for (const r of rows) console.log(`  ${String(r.status).padEnd(8)} ${r.n}  (${r.sellers} seller(s))`)
     if (!total) return
 
+    // The licence check, per row (header): only what licenceCleared() passes is released.
+    const held = await c.query(
+      `SELECT l.id, l."sellerId", l."subcategorySlug", l.attributes, l."verificationMethod", cat.slug AS "categorySlug"
+         FROM "Listing" l JOIN "Category" cat ON cat.id = l."categoryId" WHERE l."identityHold"`,
+    )
+    const releasable = held.rows
+      .filter((r) => licenceCleared({ categorySlug: r.categorySlug, subcategorySlug: r.subcategorySlug, sellerId: r.sellerId, attributes: r.attributes, verificationMethod: r.verificationMethod }, { desk: false }))
+      .map((r) => r.id as string)
+    const waiting = held.rows.length - releasable.length
+    if (waiting) console.log(`${waiting} stay parked: waiting for a licence check (approve under Catalogue › Licence checks)`)
+    if (!releasable.length) return
+
     if (!APPLY) {
-      console.log('(dry run — re-run with --apply to publish them)')
+      console.log(`(dry run — re-run with --apply to publish ${releasable.length})`)
       return
     }
     if (!ACK_OFF) {
@@ -63,7 +82,7 @@ const ACK_OFF = process.argv.includes('--gate-is-off')
     // DATABASE_URL, and an UPDATE queued behind a long transaction must give up, not stall the site.
     await c.query('BEGIN')
     await c.query(`SET LOCAL lock_timeout = '5s'`)
-    const res = await c.query(`UPDATE "Listing" SET verified = true, "identityHold" = false WHERE "identityHold" RETURNING id`)
+    const res = await c.query(`UPDATE "Listing" SET verified = true, "identityHold" = false, "verificationNotes" = NULL WHERE "identityHold" AND id = ANY($1::text[]) AND ${licenceClearedSql()} RETURNING id`, [releasable])
     await c.query('COMMIT')
     const ids = res.rows.map((r) => r.id as string)
     console.log(`RELEASED ${res.rowCount} listing(s):`)

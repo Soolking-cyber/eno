@@ -59,6 +59,18 @@ describe('install-cron-timers.sh — the teacher job-match emails are never on a
     expect(SCRIPT).toContain('[ "$job" = teacher-message-emails ] && TARGET="eno.vn 3001"')
   })
 
+  it('⛔ licence-holds (2026-10-14) is SAFE — any full re-run enables it — at 00:00 ICT sharp, once, on eno.vn', () => {
+    // Without the timer VietKite's grandfather never ends, so the job may not drift into a list a re-run leaves off.
+    expect(list('SAFE').words).toContain('licence-holds')
+    for (const name of ['EMAIL', 'MANUAL', 'POLICY']) expect(list(name).words, `${name} holds it`).not.toContain('licence-holds')
+    // 17:00 UTC = 00:00 ICT: the instant the grandfather ends (src/lib/licence-stamp.ts) — and nothing delays it (gate).
+    expect(SCRIPT).toMatch(/^\s*\[licence-holds\]="\*-\*-\* 17:00:00 UTC"$/m)
+    expect(SCRIPT).toContain('[ "$job" = licence-holds ] && { DELAY=0; ACCURACY=1s; }')
+    expect(SCRIPT).toMatch(/^RandomizedDelaySec=\$DELAY$/m)
+    expect(SCRIPT).toMatch(/^AccuracySec=\$ACCURACY$/m)
+    expect(SCRIPT).toContain('[ "$job" = licence-holds ] && TARGET="eno.vn 3001"')
+  })
+
   it('in_list (the loop the branches use) answers yes and no under set -euo pipefail', () => {
     expect(IN_LIST).not.toBe('')
     const r = bash(`${list('MANUAL').line}\n${IN_LIST}\nin_list teacher-match-emails "\${MANUAL[@]}" && echo yes\nin_list weekly-digest "\${MANUAL[@]}" || echo no`)

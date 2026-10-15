@@ -29,12 +29,20 @@
 // documented invocation it always read "off", and --apply published every held listing of every
 // unverified owner while production enforced the gate. Now --apply refuses to run without an explicit
 // --gate=on|off, and a dry run without one shows the gate-ON split (the fail-closed answer).
+//
+// ⛔ AND NEVER AN e-VISA / LEGAL & PERMITS ROW eno HAS NOT CHECKED (owner, 2026-10-14 — src/lib/licence-stamp.ts). Such a
+// row is held for eno's licence check, not for a quality rule, and goes live only through Admin › Catalogue › Licence
+// checks: it is skipped and counted under `licence`, and both UPDATEs AND licenceClearedSql — the SQL half of the same
+// rule, against an edit landing between this read and the write. NO DESK EXEMPTION HERE: a script cannot resolve eno's
+// desk the way the app does (deskSellerIds), so it fails closed — an unstamped desk row stays held, which its own seed
+// (scripts/seed-visa-shop.mjs) and the app already handle.
 import pg from 'pg'
 import { containsPhoneNumber } from '../src/lib/phone'
 import { containsContactInfo, findBannedWord } from '../src/lib/publish-guard'
 import { identityGateEnforced } from '../src/lib/compliance/account-state'
 import { deriveVerification, type VerificationRow } from '../src/lib/compliance/derive-verification'
 import { decideBeforeStatus, decideOwned } from '../src/lib/compliance/seller-publish-decision'
+import { licenceCleared, licenceClearedSql } from '../src/lib/licence-stamp'
 
 const APPLY = process.argv.includes('--apply')
 const GATE_ARG = process.argv.find((a) => a.startsWith('--gate='))?.slice('--gate='.length)
@@ -52,8 +60,9 @@ if (APPLY && !GATE_ARG) {
   await c.connect()
 
   const { rows } = await c.query(
-    `SELECT l.id, l.title, l.description, l.images, s."trustTier", s."ownerId", s.phone
-     FROM "Listing" l JOIN "Seller" s ON s.id = l."sellerId"
+    `SELECT l.id, l.title, l.description, l.images, s."trustTier", s."ownerId", s.phone,
+            l."sellerId", l."subcategorySlug", l.attributes, l."verificationMethod", cat.slug AS "categorySlug"
+     FROM "Listing" l JOIN "Seller" s ON s.id = l."sellerId" JOIN "Category" cat ON cat.id = l."categoryId"
      WHERE l.verified = false AND l.status = 'active' AND l."identityHold" = false`,
   )
 
@@ -74,8 +83,10 @@ if (APPLY && !GATE_ARG) {
   // `guest`: ownerless AND carrying a phone — see the header. Any non-null phone counts, so a malformed
   // one fails closed (stays held) rather than open.
   const eligible: { id: string; ownerId: string | null; guest: boolean }[] = []
-  const skip = { restricted: 0, noPhoto: 0, content: 0 }
+  const skip = { licence: 0, restricted: 0, noPhoto: 0, content: 0 }
   for (const r of rows) {
+    // First: whatever else is true of it, an unchecked licence-aisle row is not this script's to publish (header).
+    if (!licenceCleared({ categorySlug: r.categorySlug, subcategorySlug: r.subcategorySlug, sellerId: r.sellerId, attributes: r.attributes, verificationMethod: r.verificationMethod }, { desk: false })) { skip.licence++; continue }
     if (r.trustTier === 'restricted') { skip.restricted++; continue }
     let imgs: unknown[] = []
     try { imgs = JSON.parse(r.images || '[]') } catch { /* treat as none */ }
@@ -107,13 +118,15 @@ if (APPLY && !GATE_ARG) {
   const toHold = eligible.filter((e) => e.ownerId && refused.has(e.ownerId)).map((e) => e.id)
 
   console.log(`held(active)=${rows.length}  →  WOULD PUBLISH=${toPublish.length}  |  stays hidden: restricted=${skip.restricted} noPhoto=${skip.noPhoto} content=${skip.content}`)
+  console.log(`licence check: ${skip.licence} stay held (approve under Catalogue › Licence checks)`)
   console.log(`identity gate ${enforced ? 'ON' : 'off'} (--gate=${GATE_ARG ?? 'unset → on'})  →  WOULD PARK (identityHold)=${toHold.length} across ${refused.size} unverified owner(s)`)
   if (enforced) console.log(`guest storefronts (ownerless + phone)  →  SKIPPED, left held=${guestSkipped}${guestCode ? ` (${guestCode})` : ''}`)
   if (APPLY) {
     if (toPublish.length) {
       // `"identityHold" = false` rides the publish (the selection read identityHold = false, but a park
       // can land between that read and this write): a row made live must never carry a hold.
-      const res = await c.query(`UPDATE "Listing" SET verified = true, "identityHold" = false WHERE id = ANY($1::text[])`, [toPublish])
+      // licenceClearedSql: the licence skip above, re-checked IN the write (header).
+      const res = await c.query(`UPDATE "Listing" SET verified = true, "identityHold" = false, "verificationNotes" = NULL WHERE id = ANY($1::text[]) AND ${licenceClearedSql()}`, [toPublish])
       console.log(`PUBLISHED ${res.rowCount} listing(s).`)
     }
     if (toHold.length) {
@@ -130,9 +143,10 @@ if (APPLY && !GATE_ARG) {
       let released = 0
       for (const ownerId of refused.keys()) {
         if (!(await decide(ownerId, new Date())).ok) continue
+        // …and the licence guard, as releaseIdentityHolds() has it: a parked aisle row eno has not checked stays parked.
         const r = await c.query(
-          `UPDATE "Listing" l SET verified = true, "identityHold" = false FROM "Seller" s
-            WHERE s.id = l."sellerId" AND s."ownerId" = $1 AND l."identityHold"`,
+          `UPDATE "Listing" l SET verified = true, "identityHold" = false, "verificationNotes" = NULL FROM "Seller" s
+            WHERE s.id = l."sellerId" AND s."ownerId" = $1 AND l."identityHold" AND ${licenceClearedSql('l.')}`,
           [ownerId],
         )
         released += r.rowCount ?? 0

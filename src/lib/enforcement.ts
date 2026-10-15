@@ -7,6 +7,9 @@ import { pickLocale } from './admin-macros'
 import { DAY_MS, TRUST } from './trust-math'
 import { isVerifiedCatalogueSeller } from './catalogue-seller'
 import { partitionByIdentityGate, settleHolds } from './compliance/seller-publish-gate'
+import { licenceBlockedIds } from './core/licence-check'
+import { deskSellerIds } from './edition-scope'
+import { licenceClearedWhere } from './licence-stamp'
 import {
   ENFORCEMENT,
   ENFORCEMENT_REASON,
@@ -233,16 +236,23 @@ function parsePulled(json: string | null | undefined): string[] {
 // releaseIdentityHolds() publishes them when the seller verifies. Returns how many were parked.
 // Gate off → `held` is empty with no read, and the write is the one this function always made,
 // plus `identityHold: false` — a row this restore publishes must never go live still carrying a hold.
+//
+// ⛔ NOR AN e-VISA / LEGAL & PERMITS ROW eno HAS NOT CHECKED (owner, 2026-10-14 — licence-stamp.ts). A lift is not a
+// licence check: such a row (licenceBlockedIds) is neither published nor parked — it simply stays unpublished after the
+// lift and waits under Catalogue › Licence checks, whose approval publishes it. Both writes AND licenceClearedWhere,
+// against an edit that re-held one between that read and the write.
 async function restoreListings(ids: string[], client: Pick<typeof db, 'listing'> = db): Promise<{ held: number }> {
   if (!ids.length) return { held: 0 }
-  const { allowed, held } = await partitionByIdentityGate(ids)
-  if (allowed.length) await client.listing.updateMany({ where: { id: { in: allowed }, status: 'active', verified: false }, data: { verified: true, identityHold: false } })
+  const desk = await deskSellerIds()
+  const blocked = await licenceBlockedIds(ids, desk)
+  const { allowed, held } = await partitionByIdentityGate(blocked.size ? ids.filter((id) => !blocked.has(id)) : ids)
+  if (allowed.length) await client.listing.updateMany({ where: { id: { in: allowed }, status: 'active', verified: false, AND: [licenceClearedWhere(desk)] }, data: { verified: true, identityHold: false, verificationNotes: null } })
   // ⚠️ THE IDS THE PARK WROTE, NOT THE DECISION SET `held` — for the count AND for the re-check. The
   // guard skips rows sold/hidden/re-approved since the pull and rows ALREADY parked, and handing the
   // whole set to settleHolds let a pre-existing hold it released cancel out a row parked HERE (the
   // cap below `parked` hid that only while every id shared one owner). Same fix as the admin batch.
   const parked = held.length
-    ? (await client.listing.updateManyAndReturn({ where: { id: { in: held }, status: 'active', verified: false, identityHold: false }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id)
+    ? (await client.listing.updateManyAndReturn({ where: { id: { in: held }, status: 'active', verified: false, identityHold: false, AND: [licenceClearedWhere(desk)] }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id)
     : []
   // A verification that landed between the decision and the park is released here (settleHolds).
   const released = parked.length ? await settleHolds(parked) : 0
@@ -401,7 +411,12 @@ export async function applyEnforcement(
     // restores anything, and a restore for an owner the gate refuses PARKS the rows (identityHold)
     // instead of publishing them. Gate off → nothing is read and every id is `allowed`.
     const restoring = nextSev < ENFORCEMENT_SEVERITY.held ? prevActive.flatMap((a) => parsePulled(a.pulledListingIds)) : []
-    const identityHeld = new Set((await partitionByIdentityGate(restoring)).held)
+    // ⛔ …AND THE LICENCE CHECK (owner, 2026-10-14 — restoreListings says why): an e-Visa / Legal & permits row eno has
+    // not approved is neither published nor parked by a downgrade, and both writes AND licenceClearedWhere. Also read
+    // before the transaction; eno's desk only when there is something to restore.
+    const desk = restoring.length ? await deskSellerIds() : []
+    const licenceBlocked = await licenceBlockedIds(restoring, desk)
+    const identityHeld = new Set((await partitionByIdentityGate(restoring.filter((id) => !licenceBlocked.has(id)))).held)
     const { touched: revalidateIds, parked } = await db.$transaction(async (tx) => {
       const touched: string[] = []
       // Rows the identity gate ACTUALLY parked — the ids the park write itself returned. Not
@@ -448,12 +463,14 @@ export async function applyEnforcement(
         if (!ids.length) continue
         if (nextSev >= ENFORCEMENT_SEVERITY.held) carried.push(...ids)
         else {
-          const publish = ids.filter((id) => !identityHeld.has(id))
-          const park = ids.filter((id) => identityHeld.has(id))
-          if (publish.length) await tx.listing.updateMany({ where: { id: { in: publish }, status: 'active', verified: false }, data: { verified: true, identityHold: false } })
+          // A row the licence check blocks is in neither list: it stays unpublished, under Licence checks.
+          const publish = ids.filter((id) => !identityHeld.has(id) && !licenceBlocked.has(id))
+          const park = ids.filter((id) => identityHeld.has(id) && !licenceBlocked.has(id))
+          if (publish.length) await tx.listing.updateMany({ where: { id: { in: publish }, status: 'active', verified: false, AND: [licenceClearedWhere(desk)] }, data: { verified: true, identityHold: false, verificationNotes: null } })
           // `identityHold: false` in the guard: a row already parked is not "held by this restore", so it
           // is neither re-written nor counted — the same meaning `held` has in the admin batch.
-          if (park.length) parked.push(...(await tx.listing.updateManyAndReturn({ where: { id: { in: park }, status: 'active', verified: false, identityHold: false }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id))
+          if (park.length) parked.push(...(await tx.listing.updateManyAndReturn({ where: { id: { in: park }, status: 'active', verified: false, identityHold: false, AND: [licenceClearedWhere(desk)] }, data: { identityHold: true }, select: { id: true } })).map((r) => r.id))
+          // Every id, the blocked ones too: revalidating a page whose state did not change costs one render.
           touched.push(...ids)
         }
       }

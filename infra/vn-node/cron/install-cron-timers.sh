@@ -82,6 +82,16 @@ declare -A SCHED=(
   # ⛔ DORMANT UNTIL INDEXNOW_KEY IS IN THE eno-vn CONTAINER: without it every run answers 200
   # {skipped:"no_key"} and reads and writes nothing.
   [indexnow]="*-*-* 01,13:30:00 UTC"
+  # The licence check's daily backstop (owner, 2026-10-14 — src/app/api/cron/licence-holds/route.ts): unpublishes any
+  # live e-Visa / Legal & permits listing, not eno's own desk's, whose provider licence eno has not approved. 17:00 UTC
+  # = 00:00 ICT, THE SECOND VietKite's grandfather ends on the /prohibited in-force date (LICENCE_GRANDFATHER,
+  # src/lib/licence-stamp.ts — `now < end`, so a run at the instant sees it ended): no random delay and 1s accuracy for
+  # this one timer (below), so its unapproved rows go down as the amendment takes force, not minutes after (gate). Without
+  # this timer installed and enabled the grandfather NEVER ends — `systemctl list-timers 'eno-cron-licence-holds*'`.
+  # Deploy day: read the sweep's ?dryRun=1 first, then `ENO_CRON_ONLY=licence-holds bash install-cron-timers.sh`. The dry
+  # run is a check, not a precondition — this job is SAFE (below), so a full re-run of the installer before the deploy
+  # installs it early, and its unit then FAILS nightly (the route 404s) until the deploy lands, harmlessly.
+  [licence-holds]="*-*-* 17:00:00 UTC"
 )
 # ⚠️ affiliate-prices reaches OUT to api.accesstrade.vn and can run for minutes. It writes only price/affiliateUrl
 # on imported rows and emails nobody — never on a hidden row (prices land on active|sold, restores take sold only).
@@ -115,7 +125,16 @@ declare -A SCHED=(
 # scripts/apple-siwa-ddl.mjs has run, 200 {skipped:'no_table'} (a logged warning) while still unconfigured. So a full
 # run of this installer may enable it before I11, harmlessly. Once APPLE_SIWA_* is in the env a missing table is RED
 # (every Apple sign-in would keep no token) — that is the DDL step (I2) left undone, and the unit says so.
-SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations partner-stock indexnow listing-tombstone-retention school-proof-retention apple-revocations teacher-draft-retention)
+# ⚠️ licence-holds is SAFE to enable (owner, 2026-10-14 — SAFE, so any full re-run of this installer enables it; the
+# alternative was POLICY): it only UNPUBLISHES, and only what the published rule already forbids — a non-desk e-Visa or
+# Legal & permits listing live without eno's licence check (/prohibited, Quy chế Article 5). It emails nobody, writes one
+# compliance_audit row per listing it pulls, is idempotent (a second run finds nothing), and REFUSES rather than guesses,
+# leaving the unit FAILED for someone to read: an unresolved desk (500 desk_unresolved — eno's own e-Visa rows would
+# otherwise read as anyone's; writes nothing); an unresolved grandfather inside its window (500 grandfather_unresolved —
+# the rows of the storefronts it names stay live); more than 50 rows whose STAMP no longer matches (500, refused
+# mass_pull — those stay live). ⚠️ The last two still pull every OTHER unchecked row: a listing that never carried a
+# stamp is never kept public by a refusal. One edition is enough: the database is shared.
+SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations partner-stock indexnow listing-tombstone-retention school-proof-retention apple-revocations teacher-draft-retention licence-holds)
 # Installed, NOT enabled: these send email to real people. They are enabled at cutover, by the line printed at the end.
 EMAIL=(daily-reminders saved-search-alerts weekly-digest)
 # ⛔ STARTED BY HAND, NEVER ON A SCHEDULE: a SERVICE and NO TIMER (gate review, 2026-10-08 — codex + Opus). The teacher
@@ -196,6 +215,9 @@ for job in "${!SCHED[@]}"; do
   # ⚠️ teacher-message-emails sends from eno.vn ONLY (teachers live there, and both editions share the database): the
   # route answers {skipped:'marketplace_only'} on eno.forum, and the unit never calls it there.
   [ "$job" = teacher-message-emails ] && TARGET="eno.vn 3001"
+  # ⚠️ licence-holds runs ONCE, on eno.vn, whatever host this installer was run for: the listings and the ISR
+  # invalidations are in the shared database, so a pull there is a pull on both sites; a second run would find nothing.
+  [ "$job" = licence-holds ] && TARGET="eno.vn 3001"
   cat > "/etc/systemd/system/eno-cron-$job.service" <<UNIT
 [Unit]
 Description=eno cron: $job
@@ -212,13 +234,18 @@ UNIT
     rm -f "/etc/systemd/system/eno-cron-$job.timer"
     continue
   fi
+  # Every timer is spread over two minutes and coalesced to the minute (systemd's own default) — except licence-holds, which
+  # must fire ON 00:00 ICT, when the grandfather ends: no spread, one-second accuracy (commit gate, 2026-10-14).
+  DELAY=120; ACCURACY=1min
+  [ "$job" = licence-holds ] && { DELAY=0; ACCURACY=1s; }
   cat > "/etc/systemd/system/eno-cron-$job.timer" <<UNIT
 [Unit]
 Description=eno cron timer: $job (${SCHED[$job]})
 [Timer]
 OnCalendar=${SCHED[$job]}
 Persistent=true
-RandomizedDelaySec=120
+RandomizedDelaySec=$DELAY
+AccuracySec=$ACCURACY
 [Install]
 WantedBy=timers.target
 UNIT

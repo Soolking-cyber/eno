@@ -10,6 +10,10 @@ import { APPEAL_NOTICE, pickLocale } from '@/lib/admin-macros'
 import { DISPUTE_BODY_MAX, DISPUTE_WINDOW_MS, addDisputeMessage, notifyDispute, respondentProfileId } from '@/lib/dispute'
 import { logError } from '@/lib/log'
 import { tombstoneListingsTx } from '@/lib/core/listing-tombstone'
+import { licenceBlockedIds } from '@/lib/core/licence-check'
+import { deskSellerIds } from '@/lib/edition-scope'
+import { licenceClearedWhere } from '@/lib/licence-stamp'
+import { NOT_REMOVED } from '@/lib/listing-removed'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
 import { takeDownReportedContent } from '@/lib/reported-content'
 
@@ -305,6 +309,12 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       // Publish a held listing and dismiss any open reports against it.
       const listing = await db.listing.findUnique({ where: { id }, select: { id: true, verified: true } })
       if (!listing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+      // ⛔ NOT AN e-VISA / LEGAL & PERMITS ROW eno HAS NOT CHECKED (owner, 2026-10-14 — licence-stamp.ts). A content
+      // verdict is not a licence check: such a row goes live only through Catalogue › Licence checks, which compares the
+      // provider's values with the copies it emailed. 409 BEFORE any write, so its reports stay open as they are. This
+      // action has no button in the console; the refusal is for the API caller who reaches for it anyway.
+      const desk = await deskSellerIds()
+      if ((await licenceBlockedIds([id], desk)).size) return NextResponse.json({ error: 'licence_check_required' }, { status: 409 })
       // ⚖️ SELLER IDENTITY GATE (gate on only): the approval is a CONTENT verdict and still dismisses
       // the reports, but if the owner cannot publish yet the listing is PARKED (identityHold) rather
       // than published — releaseIdentityHolds() publishes it when they verify. `held: 1` tells the
@@ -315,16 +325,29 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
       const { held: gated } = await partitionByIdentityGate([id])
       let held = gated.length && !listing.verified ? 1 : 0
       const dismissStamp = new Date()
-      await db.$transaction([
+      // ⛔ ONE TRANSACTION, AND THE REPORTS ARE DISMISSED ONLY IF THE LISTING WRITE MATCHED (commit gate, 2026-10-14): a
+      // write the guards below make miss (a tombstone, or an e-Visa / Legal & permits row an edit re-held after the check
+      // above) must not close the complaints while nothing was approved — it answers like the check would have.
+      const approved = await db.$transaction(async (tx) => {
         // The publish clears identityHold: a row parked earlier for an owner the gate now allows must
         // not go live still carrying a hold (a live row with identityHold=true is one a later release
         // or a takedown that forgot the column could mis-handle). The response is unchanged.
-        db.listing.update({ where: { id }, data: held ? { verified: false, identityHold: true } : { verified: true, identityHold: false } }),
-        db.report.updateMany({
+        // ⛔ updateMany, CONDITIONAL (2026-10-14): never a tombstone (NOT_REMOVED — the guard this write lacked: an
+        // approve used to republish a removed listing), and licenceClearedWhere — an edit that re-held an e-Visa /
+        // Legal & permits row between the check above and this write makes it match nothing.
+        const { count } = await tx.listing.updateMany({ where: { id, ...NOT_REMOVED, AND: [licenceClearedWhere(desk)] }, data: held ? { verified: false, identityHold: true } : { verified: true, identityHold: false, verificationNotes: null } })
+        if (count !== 1) return false
+        await tx.report.updateMany({
           where: { listingId: id, status: 'open' },
           data: { status: 'dismissed', resolvedBy: admin, resolvedAt: dismissStamp },
-        }),
-      ])
+        })
+        return true
+      })
+      if (!approved) {
+        return (await licenceBlockedIds([id], desk)).size
+          ? NextResponse.json({ error: 'licence_check_required' }, { status: 409 })
+          : NextResponse.json({ error: 'Not found' }, { status: 404 })
+      }
       // Approving the listing clears an APPEALED report on it too — that is a won appeal, so
       // its charge (and the enforcement it drove) lifts now (#15). Only the rows THIS call
       // dismissed (matched by the resolve stamp); settleReportCharges ignores un-appealed ones.
@@ -413,7 +436,9 @@ export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
     }
 
     case 'unpublish': {
-      await db.listing.update({ where: { id }, data: { verified: false, identityHold: false } })
+      // A takedown that leaves no report, so it also drops the licence hold's mark (licence-stamp.ts LICENCE_HELD_NOTE):
+      // approving the listing's licence later must not publish what a moderator unpublished.
+      await db.listing.update({ where: { id }, data: { verified: false, identityHold: false, verificationNotes: null } })
       revalidatePublicPath(`/listings/${id}`)
       purgeHome('moderate.unpublish.home')
       return NextResponse.json({ ok: true })

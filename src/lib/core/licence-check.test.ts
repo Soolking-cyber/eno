@@ -224,7 +224,8 @@ describe('sweepLicenceHolds', () => {
     const w = h.writes.find((x) => x.where.id === 'sold')!
     expect(w).toEqual({
       where: { id: 'sold', verified: true, status: { not: 'removed' }, verificationMethod: null, subcategorySlug: 'legal-permits', attributes: attrs(LP) },
-      data: { verified: false, identityHold: false },
+      // …marked as the licence check's own hold (licence-stamp.ts LICENCE_HELD_NOTE): approving its values puts it back.
+      data: { verified: false, identityHold: false, verificationNotes: 'licence:held' },
     })
   })
 

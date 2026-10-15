@@ -1688,7 +1688,7 @@ export const POST_HIDDEN_ON_MARKETPLACE: ReadonlySet<string> = new Set(['tickets
  * Generic Activate never sets `verified` (api/admin/listings 'activate' writes the status only), and moderate 'approve'
  * — which has no UI — answers 409 licence_check_required for an unchecked row. Every publish of an EXISTING row ANDs
  * licenceClearedWhere / licenceClearedSql (the tripwire is in compliance/public-state-writes.test.ts), and
- * /api/cron/licence-holds (00:05 ICT) is the daily backstop that unpublishes any unchecked live row. Replaces O-34b
+ * /api/cron/licence-holds (00:00 ICT) is the daily backstop that unpublishes any unchecked live row. Replaces O-34b
  * (2026-10-05), under which an ordinary seller could not post in the e-Visa aisle on eno.vn at all.
  * ⚠️ AN OFFICIAL PARTNER WAITS TOO (gate review, 2026-10-14): Seller.officialPartner says eno signed the business, not that
  * eno has seen a licence (GMBR plans trips, Hoàng Phi is a law firm) — the owner's rule is "until eno's team has seen the

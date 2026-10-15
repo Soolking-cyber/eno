@@ -10,6 +10,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // Only the database and the cache/search side effects are faked. recomputeVerification,
 // verificationStatusForDecision and the derivation run for real, so a regression in how the gate
 // reads identity_verifications fails here and not only in production.
+// …and the licence check's two reads (2026-10-14): no row here is an e-Visa / Legal & permits row eno has not checked,
+// and the release's write carries the check's guard (GUARD) — compliance/identity-holds.licence.test.ts pins the rest.
 
 type Row = Record<string, any>
 
@@ -36,6 +38,8 @@ vi.mock('@/lib/compliance/account-state', async (orig) => ({
 vi.mock('next/server', () => ({ after: (fn: () => unknown) => { void fn() } }))
 vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: (p: string) => { h.calls.push({ m: 'revalidate', args: p }) } }))
 vi.mock('@/lib/listing-index', () => ({ reindexListing: async (id: string) => { h.calls.push({ m: 'reindex', args: id }) } }))
+vi.mock('@/lib/edition-scope', () => ({ deskSellerIds: async () => ['desk-seller'] }))
+vi.mock('@/lib/core/licence-check', () => ({ licenceBlockedIds: async () => new Set<string>() }))
 vi.mock('@/lib/db', () => {
   const rec = (m: string, args: any) => { h.calls.push({ m, args }) }
   const mock = {
@@ -75,6 +79,9 @@ vi.mock('@/lib/db', () => {
 const gate = await import('./seller-publish-gate')
 const { recomputeVerification } = await import('./recompute-verification')
 const { PublishBlockedError } = await import('@/lib/publish-guard')
+const { licenceClearedWhere } = await import('@/lib/licence-stamp')
+/** The licence check's guard the release ANDs into its write, for the desk mocked above. */
+const GUARD = licenceClearedWhere(['desk-seller'])
 
 const OLD = new Date('2026-05-01T10:00:00+07:00')
 const AFTER_ALL_DEADLINES = new Date('2027-02-01T12:00:00+07:00')
@@ -236,7 +243,7 @@ describe('settleHolds — the re-check that closes the decide-then-park race', (
     h.listings = [{ id: 'l1', seller: { ownerId: 'plain-owner' } }]
     h.updateManyCount = 1
     expect(await gate.settleHolds(['l1'], AFTER_ALL_DEADLINES)).toBe(1)
-    expect(h.calls.find((c) => c.m === 'listing.updateMany')!.args).toEqual({ where: { id: { in: ['l1'] }, identityHold: true }, data: { verified: true, identityHold: false } })
+    expect(h.calls.find((c) => c.m === 'listing.updateMany')!.args).toEqual({ where: { id: { in: ['l1'] }, identityHold: true, AND: [GUARD] }, data: { verified: true, identityHold: false, verificationNotes: null } })
   })
 
   it('an owner still refused: nothing is released or written', async () => {
@@ -290,7 +297,7 @@ describe('AUTO-PUBLISH ON VERIFY — recomputeVerification releases the holds', 
     expect(r.status).toBe('verified')
     const upd = h.calls.find((c) => c.m === 'listing.updateMany')!.args
     // identityHold IS the only selector — a takedown (identityHold false) can never be released here.
-    expect(upd).toEqual({ where: { id: { in: ['l1', 'l2'] }, identityHold: true }, data: { verified: true, identityHold: false } })
+    expect(upd).toEqual({ where: { id: { in: ['l1', 'l2'] }, identityHold: true, AND: [GUARD] }, data: { verified: true, identityHold: false, verificationNotes: null } })
     expect(h.calls.find((c) => c.m === 'listing.findMany')!.args.where).toEqual({ sellerId: { in: ['s1'] }, identityHold: true })
     expect(h.calls.filter((c) => c.m === 'reindex').map((c) => c.args)).toEqual(['l1', 'l2'])
   })

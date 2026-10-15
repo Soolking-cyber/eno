@@ -10,6 +10,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // meantime is never touched — and, on every path (lift, expiry, a downgrade through
 // applyEnforcement), the held count is what the park WROTE, never the size of the decision set, and
 // only the ids the park wrote go to the post-write re-check (settleHolds).
+// Since 2026-10-14 both halves also AND the licence check's guard (licenceClearedWhere — GUARD below); what the check
+// leaves out of a restore is pinned in enforcement.licence.test.ts.
+
+import { licenceClearedWhere } from './licence-stamp'
 
 type Row = Record<string, any>
 
@@ -66,8 +70,12 @@ vi.mock('./db', () => {
 vi.mock('./push', () => ({ sendPushToProfile: async () => 0 }))
 vi.mock('next/server', () => ({ after: () => {} }))
 vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: () => {} }))
+// The licence check: no row here is an unchecked e-Visa / Legal & permits row.
+vi.mock('./edition-scope', () => ({ deskSellerIds: async () => ['desk-seller'] }))
+vi.mock('./core/licence-check', () => ({ licenceBlockedIds: async () => new Set<string>() }))
 
 const { liftAction, expireEnforcement, applyEnforcement } = await import('./enforcement')
+const GUARD = licenceClearedWhere(['desk-seller'])
 
 const action = (pulled: string[]) => ({ id: 'a1', profileId: 'p1', state: 'held', reason: 'admin_manual', status: 'active', pulledListingIds: JSON.stringify(pulled), appealedAt: null, appealOutcome: null })
 
@@ -83,8 +91,8 @@ beforeEach(() => {
   h.profileState = 'good_standing'
 })
 
-const park = (ids: string[]) => ({ andReturn: true, where: { id: { in: ids }, status: 'active', verified: false, identityHold: false }, data: { identityHold: true }, select: { id: true } })
-const publish = (ids: string[]) => ({ where: { id: { in: ids }, status: 'active', verified: false }, data: { verified: true, identityHold: false } })
+const park = (ids: string[]) => ({ andReturn: true, where: { id: { in: ids }, status: 'active', verified: false, identityHold: false, AND: [GUARD] }, data: { identityHold: true }, select: { id: true } })
+const publish = (ids: string[]) => ({ where: { id: { in: ids }, status: 'active', verified: false, AND: [GUARD] }, data: { verified: true, identityHold: false, verificationNotes: null } })
 const rows = (ids: string[]) => ids.map((id) => ({ id }))
 
 describe('liftAction', () => {

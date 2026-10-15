@@ -98,6 +98,38 @@ export function licenceClearedSql(alias = ''): string {
 export const LICENCE_STAMP_CLEARED = { verificationMethod: null, verifiedAt: null, verifiedBy: null, verificationNotes: null } as const
 
 /**
+ * ⛔ THE LICENCE HOLD'S OWN MARK (commit gate, 2026-10-14) — `verificationNotes = 'licence:held'`.
+ *
+ * `verified: false` is overloaded: an admin Unverify, the moderation queue, the provenance and AI auto-holds and the
+ * enforcement pull all write the same boolean the licence check does. 'licence-approve' publishes only a row whose
+ * unpublished state the licence check ITSELF caused — a licence verdict is not a content verdict, and must never undo a
+ * takedown — and this mark is how it knows. Written by every licence hold (a held create, an edit's re-hold, the sweep,
+ * a revoke, the fill script, the backfill) through licenceHeldMark, which keeps it only for a row that was LIVE, PARKED
+ * by the identity gate (a publish waiting on the owner's verification — the approval's publish re-parks it if need be)
+ * or already marked: holding a row something else had already taken down must not launder that takedown into a pure
+ * licence hold. Each of those writes decides on the row AS IT WRITES IT (a compare-and-set, or a conditional write), so
+ * a takedown landing between a read and the write is never overwritten with a mark.
+ * Dropped by EVERY write that publishes an existing row — the approval's own (which also requires it in its WHERE, so an
+ * Unverify landing in between wins), admin Publish, moderation approve, the identity releases, the enforcement restores
+ * and the operator scripts (compliance/public-state-writes.test.ts holds them to it, as it does identityHold) — so it
+ * only ever sits on an UNPUBLISHED row; and by a move out of the aisles and the two takedowns that leave no other trace
+ * (admin Unverify, moderation Unpublish) — the others leave a report or an owner state the approval checks itself. A row
+ * the approval stamped but could not publish (a report, a held owner, a Restricted storefront) keeps it until then.
+ *
+ * Fails closed: a row without it is approved but stays down (`stillHeld`, "Publish (Listings tab) makes it live").
+ * Never public: serializeListing nulls all four verification* columns.
+ */
+export const LICENCE_HELD_NOTE = 'licence:held'
+
+/** What licenceHeldMark decides on: the row's publication and its mark, as the write that carries the mark sees them. */
+export type LicenceMarkFacts = { verified: boolean; identityHold: boolean; verificationNotes: string | null }
+
+/** The mark a licence hold writes: the hold's own only for a row that was live, identity-parked or already marked. */
+export function licenceHeldMark(row: LicenceMarkFacts): { verificationNotes: string | null } {
+  return { verificationNotes: row.verified || row.identityHold || row.verificationNotes === LICENCE_HELD_NOTE ? LICENCE_HELD_NOTE : null }
+}
+
+/**
  * ⛔ VIETKITE'S GRANDFATHER (owner, 2026-10-14). Its e-Visa listings were live before the check existed; they stay live
  * WITHOUT values until 00:00 ICT on `until` — the /prohibited amendment's in-force date (PROHIBITED_AMENDMENT.inForce,
  * compliance/legal-amendment.ts; licence-stamp.test.ts holds the two equal until that day passes, so re-date both

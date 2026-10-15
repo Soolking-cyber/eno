@@ -31,7 +31,7 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
 import { facetsFor, rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, rentalPeriodOf, isPostableSubcategory, isPostableCategory, isTeacherSeekingPost, paysSalary, salaryPriceFor, salaryMFromPrice, resolveListingType, isLicenceCheckSlot, licenceCheckHold, SUBCATEGORY_FALLBACK, servicePriceBasisOf, servicePriceBasisOfUnit, withoutInapplicablePriceBasis, withPriceBasis, servicePriceBasisApplies } from '@/lib/taxonomy'
 import { PROVIDER_LICENCE_KEYS, checkProviderLicence, providerLicenceFromInput, providerLicenceOf, sameProviderLicence, withProviderLicence, withoutProviderLicence, type ProviderLicence } from '@/lib/provider-licence'
-import { LICENCE_STAMP_CLEARED, licenceCleared, licenceClearedWhere } from '@/lib/licence-stamp'
+import { LICENCE_HELD_NOTE, LICENCE_STAMP_CLEARED, licenceCleared, licenceClearedWhere, licenceHeldMark } from '@/lib/licence-stamp'
 import { priceUnitSuffix } from '@/lib/price-unit'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { deskSellerIds } from '@/lib/edition-scope'
@@ -661,6 +661,9 @@ export async function updateListingCore(
       // eno's licence-check stamp and its time (src/lib/licence-stamp.ts) — the licence block below decides on them, and
       // the write is a compare-and-set on the stamp it read.
       verificationMethod: true, verifiedAt: true,
+      // …and the licence hold's mark (licence-stamp.ts LICENCE_HELD_NOTE) with the identity park: a re-hold keeps the mark
+      // only on a live, parked or marked row — and the write is a compare-and-set on all three (below).
+      verificationNotes: true, identityHold: true,
     },
   })
   // ⛔ A tombstone cannot be edited back to life (src/lib/listing-removed.ts).
@@ -1052,7 +1055,8 @@ export async function updateListingCore(
           { categorySlug: current.category.slug, subcategorySlug: current.subcategorySlug, sellerId: current.sellerId, attributes: current.attributes, verificationMethod: current.verificationMethod },
           { desk },
         )
-        if (!wasCleared) data.verified = false
+        // `held` too (commit gate): the row is not public now, so the wizard goes to the dashboard rather than a 404.
+        if (!wasCleared) { data.verified = false; licenceHeld = true }
       }
     } else {
       const desk = (await deskSellerIds()).includes(current.sellerId)
@@ -1083,7 +1087,9 @@ export async function updateListingCore(
       licenceHeld = !cleared
       // A save that writes nothing else still pulls a LIVE uncleared row; an already-held one with nothing to write is
       // answered `held` below without a write.
-      if (licenceHeld && (Object.keys(data).length > 0 || current.verified)) data.verified = false
+      // The write carries the hold's mark (licence-stamp.ts licenceHeldMark): kept for a row that was live or held for the
+      // check already — never given to a row something else took down, which the approval must not then publish.
+      if (licenceHeld && (Object.keys(data).length > 0 || current.verified)) Object.assign(data, { verified: false }, licenceHeldMark(current))
     }
   }
 
@@ -1267,8 +1273,14 @@ export async function updateListingCore(
    * unless a re-read finds the row gone or a tombstone — the 404 above. Every other edit keeps the plain guard.
    */
   const licenceCas = wasAisle || inAisle
+  // A write that decides the licence hold's mark (licence-stamp.ts licenceHeldMark) decided it on the row's publication
+  // too: an admin Unverify or a moderation Unpublish landing in between must not come back as a mark that lets an
+  // approval publish what they took down (commit gate) — so the CAS covers verified, the identity park and the mark.
+  const markCas = licenceCas && 'verificationNotes' in data
+    ? { verified: current.verified, identityHold: current.identityHold, verificationNotes: current.verificationNotes }
+    : {}
   const where = licenceCas
-    ? { id: listingId, ...NOT_REMOVED, verificationMethod: current.verificationMethod, attributes: current.attributes, subcategorySlug: current.subcategorySlug }
+    ? { id: listingId, ...NOT_REMOVED, verificationMethod: current.verificationMethod, attributes: current.attributes, subcategorySlug: current.subcategorySlug, ...markCas }
     : { id: listingId, ...NOT_REMOVED }
   try {
     if (dropAudit) {
@@ -1638,7 +1650,8 @@ export async function createListingCore(input: {
       // Unpublished while an e-Visa or Legal & permits listing waits for the licence check (licenceHold above); live
       // otherwise. The ternary of literals, not `!licenceHold`: compliance/public-state-writes.test.ts audits every write
       // that can publish by its `verified: true`, and this insert still is one.
-      ...(licenceHold ? { verified: false } : { verified: true }),
+      // A held create carries the licence hold's mark: what the approval publishes (licence-stamp.ts LICENCE_HELD_NOTE).
+      ...(licenceHold ? { verified: false, verificationNotes: LICENCE_HELD_NOTE } : { verified: true }),
     },
   })
   if (brandSlug) after(() => { bumpBrandCount(brandSlug!); enrichBrandLogoIfMissing(brandSlug!).catch((e) => logError(e, { op: 'listings.enrichBrandLogoIfMissing' })) })

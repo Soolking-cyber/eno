@@ -5,7 +5,7 @@ import { deskSellerIds } from '@/lib/edition-scope'
 import { NOT_REMOVED } from '@/lib/listing-removed'
 import { refreshListingSurfaces } from '@/lib/listing-surfaces'
 import { LICENCE_CHECK_SUBCATEGORIES, VISA_CATEGORY_SLUG } from '@/lib/taxonomy'
-import { LICENCE_GRANDFATHER, LICENCE_STAMP_PREFIX, licenceCleared, licenceGrandfatherEndsAt, licenceGrandfathered } from '@/lib/licence-stamp'
+import { LICENCE_GRANDFATHER, LICENCE_HELD_NOTE, LICENCE_STAMP_PREFIX, licenceCleared, licenceGrandfatherEndsAt, licenceGrandfathered } from '@/lib/licence-stamp'
 
 // ── THE LICENCE CHECK'S TWO SERVER HALVES (owner, 2026-10-14) ───────────────────────────────────────────────────────
 //
@@ -17,7 +17,7 @@ import { LICENCE_GRANDFATHER, LICENCE_STAMP_PREFIX, licenceCleared, licenceGrand
 //     relist and confirmCore's revive have already read the row, so they apply its predicate (licence-stamp.ts
 //     licenceCleared) to that read instead of a second one. The write itself ANDs licenceClearedWhere, the necessary
 //     condition that closes the race with an edit;
-//   · sweepLicenceHolds — the daily backstop (/api/cron/licence-holds, 00:05 ICT): it unpublishes any live row that is
+//   · sweepLicenceHolds — the daily backstop (/api/cron/licence-holds, 00:00 ICT): it unpublishes any live row that is
 //     not cleared, whatever its status. It is also what ends VietKite's grandfather on the /prohibited in-force date,
 //     and before that date it honours the grandfather only while its seller id still names VietKite's storefront.
 
@@ -186,7 +186,9 @@ export async function sweepLicenceHolds({ dryRun = false, now = new Date(), maxP
       // The compare-and-set: exactly the row the decision above was made on, still live and not a tombstone.
       const unchanged = { id: r.id, verified: true, ...NOT_REMOVED, verificationMethod: r.verificationMethod, subcategorySlug: r.subcategorySlug, attributes: r.attributes }
       const pulled = await db.$transaction(async (tx) => {
-        const { count } = await tx.listing.updateMany({ where: unchanged, data: { verified: false, identityHold: false } })
+        // Marked as the licence check's own hold (licence-stamp.ts LICENCE_HELD_NOTE): the row was live, so approving its
+        // values puts it back.
+        const { count } = await tx.listing.updateMany({ where: unchanged, data: { verified: false, identityHold: false, verificationNotes: LICENCE_HELD_NOTE } })
         if (count !== 1) return false
         await appendAudit(tx, {
           actorType: 'system',

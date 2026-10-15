@@ -11,6 +11,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 //     something verifying would republish;
 //   · `held` counts only what THIS request parked, and only those ids go to the re-check — a row the
 //     gate had parked BEFORE the request is reported apart (`alreadyHeld`), never as activated/held.
+// Since 2026-10-14 every publishing write here also ANDs the licence check's guard (licenceClearedWhere — GUARD below);
+// what the check itself leaves out, and the licence actions, are pinned in route.licence.test.ts.
+
+import { licenceClearedWhere } from '@/lib/licence-stamp'
 
 type Row = Record<string, any>
 
@@ -39,7 +43,16 @@ const h = vi.hoisted(() => ({
   notifyFails: [] as string[],
   /** Whether a call ran INSIDE the delete's transaction callback. */
   inTx: false,
+  /** eno's desk (deskSellerIds) and the ids the licence pre-filter blocks — none here: route.licence.test.ts covers them. */
+  desk: ['desk-seller'] as string[],
+  blocked: [] as string[],
 }))
+vi.mock('@/lib/edition-scope', () => ({ deskSellerIds: async () => h.desk }))
+vi.mock('@/lib/core/licence-check', () => ({
+  licenceBlockedIds: async (ids: string[]) => new Set(ids.filter((i) => h.blocked.includes(i))),
+}))
+/** The licence check's guard every publishing write ANDs, for the desk above. */
+const GUARD = licenceClearedWhere(['desk-seller'])
 
 vi.mock('@/lib/admin', () => ({
   getAdmin: async () => 'mod@eno.vn',
@@ -130,16 +143,17 @@ beforeEach(() => {
 
 describe('activate', () => {
   it('⛔ gate off (nobody held): one write, and the body is byte-for-byte the old one', async () => {
-    h.counts = [2]
+    h.returns = [[{ id: 'a' }, { id: 'b' }]]
     const r = await post({ action: 'activate', ids: ['a', 'b'] })
     expect(r.text).toBe('{"ok":true,"affected":2}')
-    expect(updates()).toEqual([{ where: { id: { in: ['a', 'b'] }, status: { not: 'removed' } }, data: { status: 'active', ...SALE_CLEARED } }])
+    // Returns the ids it activated (commit gate, 2026-10-14): the sale questions are withdrawn for those only.
+    expect(writes()).toEqual([['updateManyAndReturn', { where: { id: { in: ['a', 'b'] }, status: { not: 'removed' }, AND: [GUARD] }, data: { status: 'active', ...SALE_CLEARED }, select: { id: true } }]])
   })
 
   it('⛔ activating a SOLD row clears its buyer, agreed price and pending "did you buy this?" — it is back on sale', async () => {
-    h.counts = [1]
+    h.returns = [[{ id: 'sold-1' }]]
     await post({ action: 'activate', ids: ['sold-1'] })
-    const data = updates()[0].data as Record<string, unknown>
+    const data = (writes()[0][1] as Record<string, any>).data as Record<string, unknown>
     for (const col of ['soldChannel', 'soldToProfileId', 'salePrice', 'saleConfirmedAt', 'saleDeclinedAt', 'saleBuyerHistory', 'saleConfirmPromptedAt']) {
       expect(data[col], col).toBeNull()
     }
@@ -147,16 +161,29 @@ describe('activate', () => {
 
   it('⛔ …and withdraws EVERY "did you buy this?" bell row for the activated listings, in the same request — after the writes', async () => {
     h.held = ['b']
-    h.counts = [1]
-    h.returns = [[], [{ id: 'b' }]]
+    h.returns = [[{ id: 'a' }], [], [{ id: 'b' }]]
     await post({ action: 'activate', ids: ['a', 'b'] })
     const order = h.calls.map((c) => c.m).filter((m) => m.startsWith('updateMany') || m === 'notification.deleteMany')
-    expect(order).toEqual(['updateMany', 'updateManyAndReturn', 'updateManyAndReturn', 'notification.deleteMany'])
+    expect(order).toEqual(['updateManyAndReturn', 'updateManyAndReturn', 'updateManyAndReturn', 'notification.deleteMany'])
     expect(h.calls.find((c) => c.m === 'notification.deleteMany')!.args).toEqual({ where: { type: 'sale_confirm', listingId: { in: ['a', 'b'] } } })
   })
 
+  // ⛔ Commit gate, 2026-10-14: a row a guard made the write MISS (an e-Visa / Legal & permits row re-held by an edit
+  // after the pre-filter, a tombstone) is not back on sale — its buyer keeps the question.
+  it('⛔ only the rows a write really activated lose their questions — a row the write missed keeps them', async () => {
+    h.returns = [[{ id: 'a' }]]
+    await post({ action: 'activate', ids: ['a', 'b'] })
+    expect(h.calls.find((c) => c.m === 'notification.deleteMany')!.args).toEqual({ where: { type: 'sale_confirm', listingId: 'a' } })
+  })
+
+  it('a write that activated nothing withdraws nothing', async () => {
+    h.returns = [[]]
+    await post({ action: 'activate', ids: ['a'] })
+    expect(h.calls.some((c) => c.m === 'notification.deleteMany')).toBe(false)
+  })
+
   it('a single-listing activate withdraws by that id', async () => {
-    h.counts = [1]
+    h.returns = [[{ id: 'solo' }]]
     await post({ action: 'activate', ids: ['solo'] })
     expect(h.calls.find((c) => c.m === 'notification.deleteMany')!.args).toEqual({ where: { type: 'sale_confirm', listingId: 'solo' } })
   })
@@ -169,25 +196,23 @@ describe('activate', () => {
 
   it('a refused owner: rows about to go public are PARKED; unverified or already-live rows are left un-held', async () => {
     h.held = ['b']
-    h.counts = [1] // allowed
-    h.returns = [[], [{ id: 'b' }]] // rest, parked
+    h.returns = [[{ id: 'a' }], [], [{ id: 'b' }]] // allowed, rest, parked
     const r = await post({ action: 'activate', ids: ['a', 'b'] })
     // `affected` excludes the parked row — the same meaning `verify` gives it.
     expect(r.text).toBe('{"ok":true,"affected":1,"held":1}')
     expect(h.settleCalls).toEqual([['b']])
     expect(writes()).toEqual([
-      ['updateMany', { where: { id: { in: ['a'] }, status: { not: 'removed' } }, data: { status: 'active', ...SALE_CLEARED } }],
+      ['updateManyAndReturn', { where: { id: { in: ['a'] }, status: { not: 'removed' }, AND: [GUARD] }, data: { status: 'active', ...SALE_CLEARED }, select: { id: true } }],
       // Not public either way (unverified), or public already (active) — status only, no hold.
-      ['updateManyAndReturn', { where: { id: { in: ['b'] }, OR: [{ verified: false }, { status: 'active' }], status: { not: 'removed' } }, data: { status: 'active', ...SALE_CLEARED }, select: { verified: true, identityHold: true } }],
+      ['updateManyAndReturn', { where: { id: { in: ['b'] }, OR: [{ verified: false }, { status: 'active' }], status: { not: 'removed' }, AND: [GUARD] }, data: { status: 'active', ...SALE_CLEARED }, select: { id: true, verified: true, identityHold: true } }],
       // Verified and NOT yet active: activating would publish it → parked, and the ids come back.
-      ['updateManyAndReturn', { where: { id: { in: ['b'] }, verified: true, status: { notIn: ['active', 'removed'] } }, data: { status: 'active', verified: false, identityHold: true, ...SALE_CLEARED }, select: { id: true } }],
+      ['updateManyAndReturn', { where: { id: { in: ['b'] }, verified: true, status: { notIn: ['active', 'removed'] }, AND: [GUARD] }, data: { status: 'active', verified: false, identityHold: true, ...SALE_CLEARED }, select: { id: true } }],
     ])
   })
 
   it('a gated row that is merely unverified, or already live, counts as affected — as it would ungated', async () => {
     h.held = ['b', 'c']
-    h.counts = [1]
-    h.returns = [[{ verified: false, identityHold: false }, { verified: true, identityHold: false }], []]
+    h.returns = [[{ id: 'a' }], [{ id: 'b', verified: false, identityHold: false }, { id: 'c', verified: true, identityHold: false }], []]
     const r = await post({ action: 'activate', ids: ['a', 'b', 'c'] })
     expect(r.text).toBe('{"ok":true,"affected":3}')
     expect(h.settleCalls).toEqual([]) // nothing parked → nothing to re-check
@@ -198,8 +223,7 @@ describe('activate — a row the gate had ALREADY parked before this request', (
   it('⛔ is neither activated nor held-now: reported as `alreadyHeld`, and never handed to the re-check', async () => {
     // 'b' was parked earlier (verified=false, identityHold=true); 'c' is parked by THIS request.
     h.held = ['b', 'c']
-    h.counts = [1]
-    h.returns = [[{ verified: false, identityHold: true }], [{ id: 'c' }]]
+    h.returns = [[{ id: 'a' }], [{ id: 'b', verified: false, identityHold: true }], [{ id: 'c' }]]
     const r = await post({ action: 'activate', ids: ['a', 'b', 'c'] })
     expect(r.text).toBe('{"ok":true,"affected":1,"held":1,"alreadyHeld":1}')
     expect(h.settleCalls).toEqual([['c']])
@@ -210,8 +234,7 @@ describe('activate — a row the gate had ALREADY parked before this request', (
     // counted as a release and subtracted from the one row actually parked, 'c', which then showed
     // up nowhere. Only 'c' reaches the re-check now, and its owner is still refused.
     h.held = ['b', 'c']
-    h.counts = [1]
-    h.returns = [[{ verified: false, identityHold: true }], [{ id: 'c' }]]
+    h.returns = [[{ id: 'a' }], [{ id: 'b', verified: false, identityHold: true }], [{ id: 'c' }]]
     h.releasable = ['b']
     const r = await post({ action: 'activate', ids: ['a', 'b', 'c'] })
     expect(r.text).toBe('{"ok":true,"affected":1,"held":1,"alreadyHeld":1}')
@@ -221,15 +244,14 @@ describe('activate — a row the gate had ALREADY parked before this request', (
 describe('activate — a verification that raced the park', () => {
   it('a row the post-write re-check released counts as affected, not held', async () => {
     h.held = ['b']
-    h.counts = [1] // allowed
-    h.returns = [[], [{ id: 'b' }]] // rest, parked
+    h.returns = [[{ id: 'a' }], [], [{ id: 'b' }]] // allowed, rest, parked
     h.releasable = ['b']
     const r = await post({ action: 'activate', ids: ['a', 'b'] })
     expect(r.text).toBe('{"ok":true,"affected":2}')
   })
 
   it('⛔ gate off: the re-check is never called', async () => {
-    h.counts = [2]
+    h.returns = [[{ id: 'a' }, { id: 'b' }]]
     await post({ action: 'activate', ids: ['a', 'b'] })
     expect(h.settleCalls).toEqual([])
   })
@@ -240,7 +262,7 @@ describe('verify ("Publish")', () => {
     h.counts = [3]
     const r = await post({ action: 'verify', ids: ['a', 'b', 'c'] })
     expect(r.text).toBe('{"ok":true,"affected":3}')
-    expect(updates()).toEqual([{ where: { id: { in: ['a', 'b', 'c'] }, status: { not: 'removed' } }, data: { verified: true, identityHold: false } }])
+    expect(updates()).toEqual([{ where: { id: { in: ['a', 'b', 'c'] }, status: { not: 'removed' }, AND: [GUARD] }, data: { verified: true, identityHold: false, verificationNotes: null } }])
   })
 
   it('⛔ a publish for an owner the gate ALLOWS clears identityHold — a live row never carries a hold', async () => {
@@ -249,7 +271,7 @@ describe('verify ("Publish")', () => {
     // forgetting the column, or a release, would mis-handle.
     h.counts = [1]
     await post({ action: 'verify', ids: ['a'] })
-    expect(updates()).toEqual([{ where: { id: { in: ['a'] }, status: { not: 'removed' } }, data: { verified: true, identityHold: false } }])
+    expect(updates()).toEqual([{ where: { id: { in: ['a'] }, status: { not: 'removed' }, AND: [GUARD] }, data: { verified: true, identityHold: false, verificationNotes: null } }])
     expect(h.settleCalls).toEqual([])
   })
 
@@ -262,8 +284,8 @@ describe('verify ("Publish")', () => {
     expect(r.text).toBe('{"ok":true,"affected":2,"held":1}')
     expect(h.settleCalls).toEqual([['b']])
     expect(writes()).toEqual([
-      ['updateMany', { where: { id: { in: ['a'] }, status: { not: 'removed' } }, data: { verified: true, identityHold: false } }],
-      ['updateManyAndReturn', { where: { id: { in: ['b', 'c'] }, verified: false, identityHold: false, status: { not: 'removed' } }, data: { identityHold: true }, select: { id: true } }],
+      ['updateMany', { where: { id: { in: ['a'] }, status: { not: 'removed' }, AND: [GUARD] }, data: { verified: true, identityHold: false, verificationNotes: null } }],
+      ['updateManyAndReturn', { where: { id: { in: ['b', 'c'] }, verified: false, identityHold: false, status: { not: 'removed' }, AND: [GUARD] }, data: { identityHold: true }, select: { id: true } }],
     ])
   })
 
@@ -295,7 +317,8 @@ describe('unverify — a takedown', () => {
   it('⛔ clears identityHold too, or verifying would republish what the moderator pulled', async () => {
     h.counts = [1]
     await post({ action: 'unverify', ids: ['a'] })
-    expect(updates()).toEqual([{ where: { id: { in: ['a'] }, status: { not: 'removed' } }, data: { verified: false, identityHold: false } }])
+    // …and the licence hold's mark (licence-stamp.ts LICENCE_HELD_NOTE): an approval of its licence must not undo this.
+    expect(updates()).toEqual([{ where: { id: { in: ['a'] }, status: { not: 'removed' } }, data: { verified: false, identityHold: false, verificationNotes: null } }])
   })
 })
 

@@ -20,10 +20,10 @@ const MAX_PULL_CEILING = 500
 // raw-SQL repair, two edits racing an approval — and unpublishes it (src/lib/core/licence-check.ts sweepLicenceHolds:
 // verified rows in either aisle, in ANY status, that are neither the desk's, nor cleared, nor grandfathered).
 //
-// ⏰ 17:05 UTC = 00:05 ICT, daily (infra/vn-node/cron/install-cron-timers.sh). Five minutes after midnight in Vietnam on
-// purpose: VietKite's grandfather (LICENCE_GRANDFATHER — its e-Visa rows stay live without a checked licence) ends at
-// 00:00 ICT on the /prohibited in-force date, so the first run after it is this one, and any VietKite row not yet
-// approved goes down then. Before that date the sweep honours the grandfather only while its seller id still names
+// ⏰ 17:00 UTC = 00:00 ICT, daily, with no random delay and 1s accuracy (infra/vn-node/cron/install-cron-timers.sh): ON
+// the instant VietKite's grandfather (LICENCE_GRANDFATHER — its e-Visa rows stay live without a checked licence) ends,
+// 00:00 ICT on the /prohibited in-force date (`now < end`, so this run sees it ended) — any VietKite row not yet
+// approved goes down as the amendment takes force, not minutes after it (commit gate). Before that date the sweep honours the grandfather only while its seller id still names
 // VietKite's storefront (R7): otherwise it refuses, writing nothing.
 //
 // ⚠️ ONE EDITION IS ENOUGH: both apps share the one database and the ISR invalidation table, so a run on eno.vn

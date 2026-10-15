@@ -42,6 +42,8 @@ const h = vi.hoisted(() => ({
   /** db.report.updateMany → { count }. A queue lets one request return different counts per call. */
   updateManyCount: 1,
   updateManyQueue: [] as number[],
+  /** What `approve`'s guarded listing write matches (commit gate, 2026-10-14): 0 = a guard made it miss. */
+  approveCount: 1,
   /** db.report.findMany, dispatched on `where.status` — the route uses it three different ways. */
   dismissedRows: [] as Row[],
   batchReports: [] as Row[],
@@ -61,6 +63,11 @@ const h = vi.hoisted(() => ({
   notifyFails: [] as string[],
   /** The TrustEvent ledger chargedReportIds reads: `report_confirmed` rows already written. */
   ledger: [] as Row[],
+  /** Listing ids the licence pre-filter (licenceBlockedIds) finds uncleared — an e-Visa / Legal & permits row eno has
+   *  not checked (2026-10-14). */
+  licenceBlocked: [] as string[],
+  /** Successive licenceBlockedIds answers before falling back to `licenceBlocked` — a row whose state changes mid-request. */
+  licenceBlockedQueue: [] as string[][],
 }))
 
 // ── the database ────────────────────────────────────────────────────────────────
@@ -93,6 +100,8 @@ vi.mock('@/lib/db', () => {
           if (h.listingUpdateThrows) throw new Error('takedown write failed')
           return {}
         },
+        // `approve`'s write since 2026-10-14 — conditional (never a tombstone, the licence guard).
+        updateMany: async (a: Row) => { rec('listing.updateMany', a); return { count: 1 } },
         delete: async (a: Row) => { rec('listing.delete', a); return {} },
       },
       profile: {
@@ -117,14 +126,18 @@ vi.mock('@/lib/db', () => {
       $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
         rec('$executeRaw', { sql: strings.join('${}'), values }); return 1
       },
-      // The array form is what `approve` uses. Prisma's members are lazy; ours are already-invoked
-      // promises, which is harmless here and lets the two writes be asserted individually.
+      // The array form: Prisma's members are lazy; ours are already-invoked promises, which is harmless here and lets
+      // the writes be asserted individually.
       $transaction: async (ops: unknown) => {
         rec('$transaction', { n: Array.isArray(ops) ? ops.length : 1 })
-        // The callback form is what `reject` uses (the tombstone, its audit row and the case's report
-        // resolutions commit together). The tx records into the same log as the plain client.
+        // The callback form is what `reject` uses (the tombstone, its audit row and the case's report resolutions commit
+        // together) and, since 2026-10-14, `approve` (its reports are dismissed only if the guarded listing write
+        // matched). The tx records into the same log as the plain client, each call marked inTx.
         if (typeof ops === 'function') {
           return (ops as (tx: unknown) => unknown)({
+            listing: {
+              updateMany: async (a: Row) => { rec('listing.updateMany', { ...a, inTx: true }); return { count: h.approveCount } },
+            },
             report: {
               updateMany: async (a: Row) => {
                 rec('report.updateMany', a)
@@ -214,6 +227,16 @@ vi.mock('@/lib/compliance/seller-publish-gate', () => ({
   // The post-write re-check: the owner is still refused, so nothing is released.
   settleHolds: async () => 0,
 }))
+// The licence check (2026-10-14): eno's desk and the exact pre-filter — their own rules are tested in
+// src/lib/core/licence-check.test.ts; here only what `approve` does with the answer.
+vi.mock('@/lib/edition-scope', () => ({ deskSellerIds: async () => ['desk-seller'] }))
+vi.mock('@/lib/core/licence-check', () => ({
+  licenceBlockedIds: async (ids: string[], desk?: string[]) => {
+    h.calls.push({ m: 'licenceBlockedIds', args: { ids, desk } })
+    const blocked = h.licenceBlockedQueue.length ? h.licenceBlockedQueue.shift()! : h.licenceBlocked
+    return new Set(ids.filter((i) => blocked.includes(i)))
+  },
+}))
 vi.mock('@/lib/mail', () => ({ sendMail: async () => true, mailEnabled: () => false }))
 vi.mock('@/lib/log', () => ({ logError: () => {}, logWarn: () => {}, logInfo: () => {} }))
 vi.mock('next/cache', () => ({ revalidatePath: (p: string) => { h.revalidated.push(p) } }))
@@ -226,6 +249,10 @@ import { POST } from './route'
 import { SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
 import { standingConductEvents } from '@/lib/trust-math'
 import { DISPUTE_BODY_MAX, DISPUTE_WINDOW_MS } from '@/lib/dispute'
+import { licenceClearedWhere } from '@/lib/licence-stamp'
+
+/** `approve`'s write: never a tombstone, and the licence check's guard for the desk mocked above. */
+const APPROVE_WHERE = { id: 'l1', status: { not: 'removed' }, AND: [licenceClearedWhere(['desk-seller'])] }
 
 /** Returns status + the RAW body text, because the contract is bytes, not a deep-equal shape. */
 async function post(body?: unknown, raw?: string) {
@@ -262,6 +289,9 @@ beforeEach(() => {
   h.syncHeld = 0
   h.notifyFails = []
   h.ledger = []
+  h.licenceBlocked = []
+  h.licenceBlockedQueue = []
+  h.approveCount = 1
 })
 
 // ────────────────────────────────────────────────────────────────────────────────
@@ -640,9 +670,11 @@ describe('approve / reject / unpublish — the listing actions', () => {
     const r = await post({ action: 'approve', id: 'l1' })
     expect(r.status).toBe(200)
     expect(r.text).toBe('{"ok":true}')
-    expect(args('$transaction')).toEqual({ n: 2 })
+    // ONE callback transaction (commit gate, 2026-10-14): the listing write, then the dismissal only if it matched.
+    expect(args('$transaction')).toEqual({ n: 1 })
     // `identityHold: false` rides the publish (a live row never carries a hold); the body is unchanged.
-    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: true, identityHold: false } })
+    expect(args('listing.updateMany')).toEqual({ where: APPROVE_WHERE, data: { verified: true, identityHold: false, verificationNotes: null }, inTx: true })
+    expect(called('listing.update')).toHaveLength(0)
     const upd = args('report.updateMany')!
     expect(upd.where).toEqual({ listingId: 'l1', status: 'open' })
     expect(upd.data.status).toBe('dismissed')
@@ -673,7 +705,7 @@ describe('approve / reject / unpublish — the listing actions', () => {
     const r = await post({ action: 'approve', id: 'l1' })
     expect(r.status).toBe(200)
     expect(r.text).toBe('{"ok":true,"held":1}')
-    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: false, identityHold: true } })
+    expect(args('listing.updateMany')).toEqual({ where: APPROVE_WHERE, data: { verified: false, identityHold: true }, inTx: true })
     expect(args('report.updateMany')!.data.status).toBe('dismissed')
   })
 
@@ -682,7 +714,7 @@ describe('approve / reject / unpublish — the listing actions', () => {
     h.identityHeld = true
     const r = await post({ action: 'approve', id: 'l1' })
     expect(r.text).toBe('{"ok":true}')
-    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: true, identityHold: false } })
+    expect(args('listing.updateMany')).toEqual({ where: APPROVE_WHERE, data: { verified: true, identityHold: false, verificationNotes: null }, inTx: true })
   })
 
   it('⛔ approve of a row parked earlier, for an owner the gate now ALLOWS, publishes it WITHOUT the hold', async () => {
@@ -690,7 +722,62 @@ describe('approve / reject / unpublish — the listing actions', () => {
     h.identityHeld = false
     const r = await post({ action: 'approve', id: 'l1' })
     expect(r.text).toBe('{"ok":true}')
-    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: true, identityHold: false } })
+    expect(args('listing.updateMany')).toEqual({ where: APPROVE_WHERE, data: { verified: true, identityHold: false, verificationNotes: null }, inTx: true })
+  })
+
+  // ⛔ THE LICENCE CHECK (owner, 2026-10-14 — src/lib/licence-stamp.ts). A content verdict is not a licence check: an
+  // e-Visa / Legal & permits row eno has not checked goes live only through Catalogue › Licence checks.
+  it('⛔ approve of an UNCHECKED licence-aisle row → 409 {"error":"licence_check_required"} before ANY write — its reports stay open', async () => {
+    h.listing = { id: 'l1', verified: false }
+    h.licenceBlocked = ['l1']
+    const r = await post({ action: 'approve', id: 'l1' })
+    expect(r.status).toBe(409)
+    expect(r.text).toBe('{"error":"licence_check_required"}')
+    // The exact pre-filter, for this id, with eno's desk resolved once.
+    expect(args('licenceBlockedIds')).toEqual({ ids: ['l1'], desk: ['desk-seller'] })
+    // Nothing written, nothing dismissed, nothing decided about the owner, nothing purged.
+    expect(called('$transaction')).toHaveLength(0)
+    expect(called('listing.updateMany')).toHaveLength(0)
+    expect(called('listing.update')).toHaveLength(0)
+    expect(called('report.updateMany')).toHaveLength(0)
+    expect(called('partitionByIdentityGate')).toHaveLength(0)
+    expect(h.revalidated).toEqual([])
+  })
+
+  it('approve of a checked (or non-aisle) row publishes as before — the write ANDs NOT_REMOVED and the licence guard', async () => {
+    h.listing = { id: 'l1', verified: false }
+    const r = await post({ action: 'approve', id: 'l1' })
+    expect(r.text).toBe('{"ok":true}')
+    expect(args('licenceBlockedIds')).toEqual({ ids: ['l1'], desk: ['desk-seller'] })
+    const w = args('listing.updateMany')!
+    expect(w.where.status).toEqual({ not: 'removed' })
+    expect(w.where.AND).toEqual([licenceClearedWhere(['desk-seller'])])
+    // …in the same transaction as the report dismissal.
+    expect(args('$transaction')).toEqual({ n: 1 })
+    expect(w.inTx).toBe(true)
+  })
+
+  // ⛔ Commit gate, 2026-10-14: a guarded write that matches nothing (an edit re-held the aisle row after the check, or
+  // the listing was removed meanwhile) approves nothing — so the complaints are NOT closed, and the answer says why.
+  it.each<[string, string[], number, string]>([
+    ['an aisle row an edit re-held after the check', ['l1'], 409, '{"error":"licence_check_required"}'],
+    ['a listing removed meanwhile', [], 404, '{"error":"Not found"}'],
+  ])('⛔ approve whose guarded write matches nothing (%s) dismisses NO report and says so', async (_label, blockedAfter, status, body) => {
+    h.listing = { id: 'l1', verified: false }
+    h.approveCount = 0
+    // The pre-check passes; the re-check after the missed write sees the row's state now.
+    h.licenceBlockedQueue = [[], blockedAfter]
+    const r = await post({ action: 'approve', id: 'l1' })
+    expect(r.status).toBe(status)
+    expect(r.text).toBe(body)
+    expect(called('report.updateMany')).toHaveLength(0)
+    expect(h.revalidated).toEqual([])
+  })
+
+  it('approve of an unknown listing answers 404 before it asks the licence check anything', async () => {
+    h.listing = null
+    expect((await post({ action: 'approve', id: 'l1' })).status).toBe(404)
+    expect(called('licenceBlockedIds')).toHaveLength(0)
   })
 
   it('reject on an unknown listing → 404, and deletes NOTHING', async () => {
@@ -763,7 +850,8 @@ describe('approve / reject / unpublish — the listing actions', () => {
     const r = await post({ action: 'unpublish', id: 'l1' })
     expect(r.text).toBe('{"ok":true}')
     expect(called('listing.findUnique')).toHaveLength(0)
-    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: false, identityHold: false } })
+    // verificationNotes: null — a takedown with no report drops the licence hold's mark (licence-stamp.ts LICENCE_HELD_NOTE).
+    expect(args('listing.update')).toEqual({ where: { id: 'l1' }, data: { verified: false, identityHold: false, verificationNotes: null } })
     // A pulled listing that keeps serving its cached page is still for sale to every visitor
     // holding the ISR copy — the revalidate is the second half of the takedown, not a nicety.
     // The home page too (2026-10-13): its ISR HTML carries cards, the teacher shelf's with no client fetch behind them.
