@@ -119,7 +119,14 @@ const TRANSITIONS: Record<VerificationStatus, readonly VerificationStatus[]> = {
   // ⚠️ `verified → expired` is driven by the DOCUMENT CLOCK, not by any user action, so it must be
   // reachable without a submission. That is why expiry is a state and not a boolean.
   verified: ['expired', 'revoked'],
-  expired: ['pending', 'revoked'],
+  // ⚠️ `expired → verified` IS A RENEWAL APPROVED AFTER THE LAPSE (2026-10-15) — or a corrected expiry date on the
+  // approved row (an admin fix of a misread date), which derives `verified` again the same way. The renewal's own submission
+  // writes the lapse — deriveVerification keeps the lapsed verdict while the renewal waits in review — so its
+  // approval derives `verified` from `expired`. Refused, it stranded the cache in `expired` for good: no hold
+  // release, no notice, no wallet, a stale admin badge. It is safe because `verified` derives only from a row
+  // reviewKycCase approved (src/lib/kyc/review.ts) — no review is skipped. ⛔ `expired → rejected` stays refused:
+  // revokeIdentity's guard reads this cache (src/lib/admin-users.ts), and widening it would hide Revoke.
+  expired: ['pending', 'verified', 'revoked'],
   // ⚠️ NO SELF-SERVICE PATH OUT OF `revoked`. Restoration is an admin/authority act that writes its
   // own audit row; allowing revoked → pending here would let a suspended seller resubmit documents
   // and quietly re-enter review.

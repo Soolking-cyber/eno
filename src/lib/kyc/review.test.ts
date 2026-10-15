@@ -971,21 +971,25 @@ describe('reviewKycCase — two admins, one case', () => {
   })
 })
 
-describe('listKycQueue — the freshness code', () => {
-  // ⛔ WITHOUT THIS THE CHALLENGE IS DECORATIVE. The reviewer has to compare six characters against
-  // the paper in the photo; being told to look for "a handwritten code" accepts any handwriting,
-  // including a selfie taken last year.
-  it('⛔ SHOWS THE REVIEWER THE ACTUAL CODE TO COMPARE', async () => {
+// ⛔ The paper code left the selfie step on 2026-09-04; the reviewer screen kept asking for it and, with
+// none recorded, told the reviewer to reject — every honest applicant (owner, 2026-10-15). The code is
+// still written at submission as the spent consent receipt, and never reaches the reviewer.
+describe('listKycQueue — no selfie code (retired 2026-09-04)', () => {
+  it('⛔ never hands the reviewer the stored code, and never says "reject"', async () => {
     h.s.queue = [{ ...caseRow(), submittedAt: new Date('2026-08-19T08:00:00Z'),
       evidence: { ...(caseRow().evidence as object), challengeCode: 'ACD349' } }]
     const [item] = await listKycQueue()
-    expect(item.expectedNote).toBe('ACD349')
+    expect(item).not.toHaveProperty('expectedNote')
+    expect(JSON.stringify(item)).not.toContain('ACD349')
+    expect(JSON.stringify(item)).not.toContain('none recorded')
   })
 
-  it('says so loudly when no code was recorded', async () => {
-    h.s.queue = [{ ...caseRow(), submittedAt: new Date('2026-08-19T08:00:00Z'), evidence: {} }]
+  it('a case with no code recorded is an ordinary case', async () => {
+    h.s.queue = [{ ...caseRow(), submittedAt: new Date('2026-08-19T08:00:00Z'),
+      evidence: { ...(caseRow().evidence as object) } }]
     const [item] = await listKycQueue()
-    expect(item.expectedNote).toMatch(/none recorded/)
+    expect(item).not.toHaveProperty('expectedNote')
+    expect(item.documentUrl).not.toBeNull()
   })
 })
 

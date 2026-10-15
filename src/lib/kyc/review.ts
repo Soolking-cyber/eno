@@ -68,8 +68,6 @@ export type KycQueueItem = {
   email: string | null
   phone: string | null
   accountName: string | null
-  /** What the seller was told to write on the paper in the selfie. */
-  expectedNote: string
   checksPassed: string[]
 }
 
@@ -79,8 +77,6 @@ type Evidence = {
   checksPassed?: string[]
   consentVersion?: string
   consentAt?: string
-  /** The code the seller was told to write, as verified at submission. */
-  challengeCode?: string
   /** MRZ issuing state, recorded at submission when the nationality field could not be read. */
   nationalitySuggested?: string
   nationalitySuggestedFrom?: string
@@ -172,13 +168,13 @@ export async function listKycQueue(limit = 50): Promise<KycQueueItem[]> {
       // resolve to a link.
       documentUrl: await signOwned(r.profileId, ev.documentPath),
       selfieUrl: await signOwned(r.profileId, ev.selfiePath),
-      // ⛔ THE ACTUAL CODE, AND THIS IS THE WHOLE FRESHNESS MECHANISM. It used to read "A
-      // handwritten code, written for this submission" — which asked the reviewer to confirm that
-      // SOME handwriting existed, not that it matched. External review pointed out the obvious
-      // consequence: a selfie from last year holding any string passes, because the code in the
-      // JSON and the code in the photo were never compared by anyone. The reviewer must read these
-      // six characters off the paper. If they do not match, the photo predates the request.
-      expectedNote: ev.challengeCode ?? '(none recorded — reject and ask for a new submission)',
+      // ⛔ NO CODE GOES TO THE REVIEWER, AND NOTHING HERE SAYS "REJECT". The paper code left the selfie
+      // step on 2026-09-04 (owner; dashboard/account/verify/verify-client.tsx) — no applicant has been
+      // shown one since — yet this screen kept asking for it and, with none recorded, told the reviewer
+      // to reject: a careful reviewer would have refused every honest applicant. The reviewer now
+      // compares the face in the selfie with the document's photograph (review-panel.tsx).
+      // `evidence.challengeCode` is still written at submission (service.ts — the spent, single-use
+      // consent receipt) and is deliberately not surfaced here.
       checksPassed: ev.checksPassed ?? [],
     }
   }))

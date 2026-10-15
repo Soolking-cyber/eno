@@ -120,6 +120,15 @@ unverified ──submit──▶ pending ──auto/manual approve──▶ veri
    expired / rejected / revoked ──re-submit──▶ pending ◀───────────┘
 ```
 
+A renewal approved after the document lapsed goes `expired → verified` directly (2026-10-15): its own submission
+writes the lapse — the lapsed verdict stands while the renewal waits in review — so its approval arrives from
+`expired` (`src/lib/compliance/account-state.ts`) — as does a corrected expiry date on the approved row.
+
+⚠️ Review is a face match since 2026-09-04: the paper code left the selfie step then (owner), so the reviewer
+compares the face in the selfie with the document's photograph (Admin › Identity). There is no liveness, chip or
+registry check — a borrowed document plus a matching selfie can pass. Anything that rewards a verified identity
+(trust, the teacher mark) rests on that check and claims no more than it.
+
 **`expired` is not `unverified`.** A TRC that lapsed means the person was real and their
 right to reside changed — a different remediation (renew the document) from someone who
 never verified. Collapsing them sends the wrong email and loses the audit trail.

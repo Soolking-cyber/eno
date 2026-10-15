@@ -19,7 +19,7 @@ import { approveIdentityAction, refreshIdentityCapturesAction, rejectIdentityAct
  * act of looking a separate click keeps it a visible decision. Owner, 2026-09-06: *"in admin
  * verification show photo and passport here and enable fullview mode so admin can quickly verify
  * no need for doenloading"*. Reviewing a queue by opening two tabs per case and tabbing back to
- * compare a six-character code against handwriting is how a reviewer starts approving on half the
+ * compare a face against the document's photograph is how a reviewer starts approving on half the
  * evidence, so the exposure buys real accuracy rather than only convenience.
  *
  * ⚠️ WHAT DID NOT CHANGE, AND MUST NOT. The URLs are the same short-lived signed links the route
@@ -73,7 +73,6 @@ type ReviewCase = {
     method: string
     documentUrl: string | null
     selfieUrl: string | null
-    expectedNote: string
     checksPassed: string[]
     email: string | null
     phone: string | null
@@ -387,12 +386,15 @@ function IdentityReviewPanelCase({ item }: { item: ReviewCase }) {
         </div>
         <div>
           {/*
-            ⛔ THE ONE THING THE REVIEWER IS ACTUALLY CHECKING BY EYE. The selfie must show this exact
-            code written on paper and held by the person. It is what makes the pair of images harder
-            to forge than either alone — a stolen passport photo cannot produce it.
+            ⛔ THE ONE THING THE REVIEWER CHECKS BY EYE: the same person in both images. The paper code
+            left the selfie step on 2026-09-04, so this no longer asks for one — it asked for a code no
+            applicant had been shown and, with none recorded, said to reject. It is not a liveness, chip
+            or registry check (a borrowed document plus any selfie can still pass), and it does not
+            steer toward Reject: a mismatch is the reviewer's call, written in Reject's reason.
           */}
-          <dt className="text-xs text-muted-foreground">Code that must appear in the selfie</dt>
-          <dd className="font-mono font-semibold tracking-widest">{item.expectedNote}</dd>
+          <dt className="text-xs text-muted-foreground">Check by eye</dt>
+          <dd className="font-medium">The selfie shows the same person as the photo on the document.</dd>
+          <dd className="text-xs text-muted-foreground">No code or paper is needed in the selfie — applicants have not been asked for one since 2026-09-04. An older selfie may still show one: ignore it.</dd>
         </div>
       </dl>
 

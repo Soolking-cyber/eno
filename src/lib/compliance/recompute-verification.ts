@@ -72,6 +72,8 @@ export async function recomputeVerification(profileId: string, now: Date = new D
   // illegal transition the cache write is refused and the profile keeps its old state (say `revoked`,
   // set by another path); releasing then would republish every parked listing of an account the rest
   // of the app still treats as suspended.
+  // A renewal approved after the lapse (expired → verified, legal since 2026-10-15 — account-state.ts) releases
+  // like any approval; the only illegal moves left into `verified` come out of `revoked`, and those must strand.
   if (derived === 'verified' && result.status === 'verified') {
     try {
       const released = await releaseIdentityHolds(profileId)

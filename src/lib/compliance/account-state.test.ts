@@ -41,6 +41,14 @@ describe('state transitions', () => {
     expect(canTransition('expired', 'pending')).toBe(true)
   })
 
+  // 2026-10-15: the renewal's own submission writes the lapse, so its approval arrives from `expired`.
+  it('a renewal approved after the lapse goes expired → verified; expired → rejected stays refused', () => {
+    expect(canTransition('expired', 'verified')).toBe(true)
+    expect(() => assertTransition('expired', 'verified')).not.toThrow()
+    // revokeIdentity's guard reads the cache — widening this would hide Revoke for a lapsed, refused account.
+    expect(canTransition('expired', 'rejected')).toBe(false)
+  })
+
   it('cannot jump straight from unverified to verified — review is not skippable', () => {
     expect(canTransition('unverified', 'verified')).toBe(false)
     expect(() => assertTransition('unverified', 'verified')).toThrow(/illegal/)

@@ -313,6 +313,40 @@ describe('AUTO-PUBLISH ON VERIFY — recomputeVerification releases the holds', 
     expect(h.calls.some((c) => c.m === 'listing.updateMany')).toBe(true)
   })
 
+  // ⛔ 2026-10-15: THE RENEWAL APPROVED AFTER THE LAPSE. Its own submission writes the lapse (the lapsed verdict
+  // stands while the renewal is pending), so its approval arrives from `expired`. Before `expired → verified` was
+  // legal, the cache stayed `expired` for good and nothing was released — this test failed on main.
+  it('⛔ a renewal approved after the lapse: expired → verified, the cache follows and the holds are released', async () => {
+    const NOW = new Date('2026-10-15T12:00:00+07:00')
+    h.profiles.set('p', { createdAt: OLD, verificationStatus: 'expired' })
+    h.ivs.set('p', [
+      verifiedRow('p', { id: 'iv-new', decidedAt: new Date('2026-10-15T10:00:00+07:00'), documentExpiresAt: new Date('2034-08-06T00:00:00+07:00') }),
+      verifiedRow('p', { id: 'iv-old', decidedAt: new Date('2025-01-10T00:00:00+07:00'), documentExpiresAt: new Date('2026-09-30T00:00:00+07:00') }),
+    ])
+    h.sellers = [{ id: 's1', ownerId: 'p' }]
+    h.listings = [{ id: 'l1' }]
+    h.updateManyCount = 1
+    const r = await recomputeVerification('p', NOW)
+    expect(r).toMatchObject({ status: 'verified', changed: true, sourceId: 'iv-new' })
+    expect(r.illegalTransition).toBeUndefined()
+    expect(h.calls.find((c) => c.m === 'profile.update')!.args.data).toMatchObject({ verificationStatus: 'verified' })
+    expect(h.calls.some((c) => c.m === 'listing.updateMany')).toBe(true)
+  })
+
+  it('while the renewal waits in review, the lapse is what the cache records — and nothing is released', async () => {
+    const NOW = new Date('2026-10-15T12:00:00+07:00')
+    h.profiles.set('p', { createdAt: OLD, verificationStatus: 'verified' })
+    h.ivs.set('p', [
+      verifiedRow('p', { id: 'iv-new', status: 'pending', decidedAt: null, documentExpiresAt: new Date('2034-08-06T00:00:00+07:00') }),
+      verifiedRow('p', { id: 'iv-old', decidedAt: new Date('2025-01-10T00:00:00+07:00'), documentExpiresAt: new Date('2026-09-30T00:00:00+07:00') }),
+    ])
+    h.sellers = [{ id: 's1', ownerId: 'p' }]
+    h.listings = [{ id: 'l1' }]
+    const r = await recomputeVerification('p', NOW)
+    expect(r).toMatchObject({ status: 'expired', changed: true })
+    expect(h.calls.some((c) => c.m === 'listing.updateMany')).toBe(false)
+  })
+
   it('a profile that is NOT verified releases nothing and never reads its listings', async () => {
     h.profiles.set('p', { createdAt: OLD, verificationStatus: 'unverified' })
     h.ivs.set('p', [verifiedRow('p', { status: 'pending', decidedAt: null })])
