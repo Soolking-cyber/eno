@@ -19,9 +19,12 @@ export const TRUST = {
   BASE: 60, // every account starts here — Building is neutral probation, not shame
   MAX: 150, // 60 + V(25) + Q(40) + T(25) at perfection; floor 0
 
-  // ── V · Verification (0–25) — permanent one-time gates ──
+  // ── V · Verification (0–25) — phone and age are permanent gates; the identity counts while it is LIVE ──
   V_PHONE: 10, // verified phone (auth-confirmed, never self-typed)
-  V_KYC: 10, // business identity verification
+  // A LIVE verified identity (owner, 2026-10-15): identity_verifications through deriveVerification — a revoked or
+  // lapsed one counts 0 from that day, with no penalty beyond the +10 it stops adding. Flat: tier A and B alike.
+  // Read live by computeTrustV2 (verifiedProfileIds), never from Profile.verificationStatus or a ledger event.
+  V_KYC: 10,
   V_AGE: 5, // account age ≥ V_AGE_DAYS — time-in-community is weak but real signal
   V_AGE_DAYS: 90,
 
@@ -78,7 +81,7 @@ export const TRUST = {
   MANUAL_HALF_LIFE_DAYS: 365,
 
   // ── Source credibility (mini-EigenTrust, centralized) — weights reviews AND reports ──
-  CRED_FULL: 1.0, // trust ≥ 85 ∧ (KYC ∨ age ≥ 180d)
+  CRED_FULL: 1.0, // trust ≥ 85 ∧ (a live verified identity ∨ age ≥ 180d)
   CRED_DEFAULT: 0.6, // age ≥ 30d ∧ no strikes (also the fallback when the author is unreachable)
   CRED_LOW: 0.25, // everyone else — day-old burners can't mint/destroy reputation
   CRED_FULL_TRUST: 85,
@@ -88,7 +91,9 @@ export const TRUST = {
   CRED_FLOOR: 0.1, // …down to this floor
 
   // ── Anti-gaming rails ──
-  DAILY_POSITIVE_CAP: 6, // max upward score movement per rolling 24h (verification one-times exempt)
+  // Max upward score movement per rolling 24h. Exempt: a phone verification (its caller passes `uncapped`) and
+  // the LIVE identity's own step (recomputeTrust caps only the non-identity movement — identityCapBase below).
+  DAILY_POSITIVE_CAP: 6,
 
   // ── Tier gates (volume-gated, cadenced) ──
   TIER: {
@@ -175,7 +180,7 @@ export function freshnessScore(freshActive: number, totalActive: number): number
   return TRUST.FRESH_MAX * clamp01(freshActive / totalActive)
 }
 
-/** V · Verification (0–25): phone +10 · business KYC +10 · account age ≥90d +5. */
+/** V · Verification (0–25): phone +10 · a LIVE verified identity +10 · account age ≥90d +5. */
 export function verificationScore(v: { phoneVerified: boolean; kycVerified: boolean; accountAgeDays: number }): number {
   return (
     (v.phoneVerified ? TRUST.V_PHONE : 0) +
@@ -275,7 +280,8 @@ export function composeScore(parts: { V: number; Q: number; T: number; C: number
 
 /**
  * Anti-gaming daily cap: upward movement is limited to +6 per rolling 24h
- * (verification one-times exempt — handled by the caller passing uncapped).
+ * (a phone verification is exempt — its caller passes uncapped; the live identity's
+ * step is kept out of `current` and `target` by recomputeTrust — see identityCapBase).
  * Downward movement is NEVER capped — penalties bite immediately (asymmetry by
  * design: trust is slow to earn, fast to lose). Returns the persisted score and
  * the lift actually granted (ledgered for the rolling-window accounting).
@@ -285,6 +291,58 @@ export function applyDailyCap(current: number, target: number, liftedInLast24h: 
   const allowance = Math.max(0, TRUST.DAILY_POSITIVE_CAP - Math.max(0, liftedInLast24h))
   const score = Math.min(target, current + allowance)
   return { score, lift: score - current }
+}
+
+// ── The live identity's step, exempt from the daily cap (owner, 2026-10-15) ───────────────────────
+
+/**
+ * ⚖️ THE IDENTITY STEP IS NEVER CAPPED, AND NOTHING ELSE IS UNCAPPED (plan review R1, 2026-10-15). A live verified
+ * identity is worth V_KYC; recomputeTrust lands that step in full on ANY recompute — the approval's, the nightly
+ * reconcile's, the daily pass's, the deploy-day backfill's — and runs the ordinary cap on everything else: the
+ * score WITHOUT the identity (computeTrustV2 composes it twice, kycVerified on and off, from the same inputs).
+ *
+ * ⛔ WHICH NEEDS ONE FACT THE CACHED SCORE CANNOT GIVE: whether it already carries the step. 90 cached is either
+ * 80 + a counted identity or 90 with the identity not yet in it, and no arithmetic on (cached, target with,
+ * target without) tells them apart. Assuming "not in it" counts the step twice on every recompute of a verified
+ * seller — a +30 backlog then lands within three recomputes, which is no cap at all; assuming "in it" queues the
+ * identity's own +10 behind the cap. So recomputeTrust writes a ledger marker when the step goes in or comes out
+ * (only on a flip), and the latest marker answers. It rides computeTrustV2's one ledger read — no extra query.
+ * ⚠️ BOOKKEEPING FOR THE CAP, NOT AN INPUT: V reads the identity LIVE. Its own type, so it can reach neither M
+ * (which sums 'manual_adjust') nor the cap's window (which sums 'recompute_lift'). Delta = the step's points,
+ * + going in and − coming out, which is what the PDPL export shows (describeTrustEvent).
+ */
+export const IDENTITY_GATE_EVENT = 'identity_gate'
+export const IDENTITY_GATE_ON = 'identity_on'
+export const IDENTITY_GATE_OFF = 'identity_off'
+
+/**
+ * Does the persisted score carry the live identity's step? Yes when the LATEST identity_gate marker (by
+ * createdAt) is ON. No marker → no: every score persisted before 2026-10-15 left the identity out (the 'kyc'
+ * event that was meant to carry it was never written).
+ * ⚠️ Two concurrent recomputes may both write the same marker — harmless, the latest still answers; a TIE
+ * between an ON and an OFF in one millisecond would need the identity to flip between two parallel reads.
+ */
+export function identityGateCounted(events: ReadonlyArray<{ type: string; reason: string | null; createdAt: Date }>): boolean {
+  let latest: { at: number; on: boolean } | null = null
+  for (const e of events) {
+    if (e.type !== IDENTITY_GATE_EVENT) continue
+    const at = e.createdAt.getTime()
+    if (!latest || at >= latest.at) latest = { at, on: e.reason === IDENTITY_GATE_ON }
+  }
+  return latest?.on ?? false
+}
+
+/**
+ * The NON-IDENTITY part of a persisted score — the `current` applyDailyCap measures the non-identity target
+ * from. `identityWorth` is the step at today's inputs: composeScore with the identity on minus off, i.e.
+ * V_KYC, less only where the 0/150 clamp eats it.
+ * ⚠️ EXACT EXCEPT NEAR THE 150 CEILING, where the step that landed earlier can have been larger than today's
+ * (the clamp moved): the rest then reads up to V_KYC higher than it was, so a backlog lands that much sooner —
+ * once, only above 140, converging on the same score. Floored at 0, because the score without the identity is
+ * itself a composeScore — clamped at 0.
+ */
+export function identityCapBase(cached: number, identityCounted: boolean, identityWorth: number): number {
+  return identityCounted ? Math.max(0, cached - identityWorth) : cached
 }
 
 /** One report window's demotion inputs (confirmed reports inside the window). */

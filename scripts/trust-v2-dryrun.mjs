@@ -1,3 +1,11 @@
+// ⛔ STALE MIRROR — NEVER RUN WITH --write (2026-10-15). This script mirrors the trust math BY HAND, and the app has
+// moved past what a one-shot backfill can reproduce: the daily cap, which this writes straight past, now exempts ONLY the
+// live identity's step and remembers whether a stored score carries it in a ledger marker this script never writes
+// (recomputeTrust, src/lib/trust.ts — identity_gate). A --write would land every capped backlog at once and leave each
+// verified seller's marker unwritten, so their next recompute would add the +10 a second time beside any backlog. The
+// app re-scores itself (recomputeTrust on every event, runTrustMaintenance daily, the nightly identity reconcile); use
+// this READ-ONLY, to look. scripts/trust-v2-backfill.mjs invokes --write: do not run it either.
+//
 // Trust v2 dry-run — READ-ONLY. Computes the v2 composite for every profile that
 // owns a Seller (plus a guest-seller section) and prints the old→new tier
 // distribution and the top 15 movers with a full component breakdown. NOTHING is
@@ -17,6 +25,14 @@
 //   set -a; . ./.env; set +a; node scripts/trust-v2-dryrun.mjs --write    # BACKFILL
 // (--write is what scripts/trust-v2-backfill.mjs invokes — ONE code path, so the
 //  dry-run's predictions and the backfill's writes can never diverge.)
+// ⛔ --write IS REFUSED IN CODE, not only in this banner (commit gate, 2026-10-15): it would land every capped backlog
+// at once and write no identity_gate marker, so the app's next recompute would add each verified seller's +10 twice.
+// Re-score through the app instead: recomputeTrust (src/lib/trust.ts) — /api/cron/identity-reconcile, the daily pass.
+if (process.argv.includes('--write')) {
+  console.error('⛔ trust-v2-dryrun.mjs --write is retired (2026-10-15): this hand mirror skips the daily cap and the identity_gate marker. Re-score through the app (recomputeTrust).')
+  process.exit(2)
+}
+
 import pg from 'pg'
 
 const url = process.env.DIRECT_URL || process.env.DATABASE_URL
@@ -80,7 +96,7 @@ const freshnessScore = (fresh, total) => (total <= 0 ? T.FRESH_MAX : T.FRESH_MAX
 // trackRecordScore(): 12·log10(1+tx365) capped at 25 — log-diminishing.
 const trackRecordScore = (tx) => Math.min(T.TRACK_MAX, T.TRACK_LOG_COEF * Math.log10(1 + Math.max(0, tx)))
 
-// verificationScore(): phone +10 · KYC +10 · age≥90d +5.
+// verificationScore(): phone +10 · a LIVE verified identity +10 · age≥90d +5.
 const verificationScore = (v) =>
   (v.phoneVerified ? T.V_PHONE : 0) + (v.kycVerified ? T.V_KYC : 0) + (v.accountAgeDays >= T.V_AGE_DAYS ? T.V_AGE : 0)
 
@@ -155,6 +171,26 @@ function tierFor(i) {
 // composeScore(): clamp(0, 150, round(60 + V + Q + T − C + M)).
 const composeScore = (p) => Math.round(Math.min(T.MAX, Math.max(0, T.BASE + p.V + p.Q + p.T - p.C + (p.M ?? 0))))
 
+// startOfIctDay(): midnight ICT as epoch ms — MIRROR of src/lib/compliance/derive-verification.ts startOfIctDay.
+const startOfIctDay = (ms) => {
+  const ict = new Date(ms + 7 * 3600_000)
+  return Date.UTC(ict.getUTCFullYear(), ict.getUTCMonth(), ict.getUTCDate()) - 7 * 3600_000
+}
+
+// liveVerified(): does deriveVerification (src/lib/compliance/derive-verification.ts) say `verified` for these rows?
+// The V_KYC input since 2026-10-15 (src/lib/kyc/identity.ts verifiedProfileIds). Rows carry EPOCH MS (decided_ms,
+// expires_ms — see the query): a revoked row outranks everything; the newest DECIDED row is the verdict; a verified
+// row whose document expired before today (ICT) has lapsed; a still-valid verification survives a later rejection.
+function liveVerified(rows, nowMs) {
+  if (!rows.length || rows.some((r) => r.status === 'revoked')) return false
+  const lapsed = (r) => r.expires_ms != null && r.expires_ms < startOfIctDay(nowMs)
+  const decided = rows.filter((r) => r.decided_ms != null).sort((a, b) => b.decided_ms - a.decided_ms)
+  const latest = decided[0]
+  if (!latest) return false
+  if (latest.status === 'verified') return !lapsed(latest)
+  return decided.some((r) => r.status === 'verified' && !lapsed(r))
+}
+
 // ── Data pull (set-based; one round-trip per table) ────────────────────────────────
 
 const client = new pg.Client({ connectionString: url })
@@ -196,15 +232,29 @@ for (const r of reviews) (reviewsBySeller.get(r.seller_id) ?? reviewsBySeller.se
 
 // Rater credibility inputs (reviewers + reporters), single batch.
 const raterIds = [...new Set([...reviews.map((r) => r.author_id), ...reports.map((r) => r.reporter_id)].filter(Boolean))]
+
+// The LIVE identity of every owner and rater — ONE query (mirror of verifiedProfileIds, src/lib/kyc/identity.ts).
+// ⚠️ EPOCH MS, NOT DATES: node-postgres parses a timestamp(3) column (no time zone) as LOCAL time, which on a box in ICT
+// moves every instant by seven hours — exactly the size of the ICT day boundary the expiry rule turns on. EXTRACT(EPOCH)
+// reads the stored UTC value as it is.
+const identityIds = [...new Set([...ownerIds, ...raterIds])]
+const identityRows = identityIds.length ? (await client.query(`
+  SELECT "profileId" AS pid, status,
+         (extract(epoch from "decidedAt") * 1000)::float8 AS decided_ms,
+         (extract(epoch from "documentExpiresAt") * 1000)::float8 AS expires_ms
+  FROM identity_verifications WHERE "profileId" = ANY($1::uuid[])`, [identityIds])).rows : []
+const identityByPid = new Map()
+for (const r of identityRows) (identityByPid.get(r.pid) ?? identityByPid.set(r.pid, []).get(r.pid)).push(r)
+const liveIdentity = new Set([...identityByPid].filter(([, rows]) => liveVerified(rows, now)).map(([pid]) => pid))
+
 const raters = raterIds.length ? (await client.query(`
-  SELECT p.id, p."trustScore", p."createdAt", p."falseReportStrikes",
-         EXISTS(SELECT 1 FROM "TrustEvent" te WHERE te."subjectProfileId" = p.id AND te.reason = 'kyc') AS kyc
+  SELECT p.id, p."trustScore", p."createdAt", p."falseReportStrikes"
   FROM "Profile" p WHERE p.id = ANY($1::uuid[])`, [raterIds])).rows : []
 const credByPid = new Map(raters.map((p) => [p.id, credibilityWeight({
   trustScore: p.trustScore,
   accountAgeDays: (now - p.createdAt.getTime()) / DAY_MS,
   falseReportStrikes: p.falseReportStrikes,
-  kycVerified: p.kyc,
+  kycVerified: liveIdentity.has(p.id),
 })]))
 
 // Responsiveness n: conversations opened in the last 90d, per seller.
@@ -290,7 +340,8 @@ for (const o of owned) {
   const accountAgeDays = (now - o.createdAt.getTime()) / DAY_MS
   const evts = eventsByPid.get(o.owner_id) ?? []
   const phoneVerified = !!o.phone || evts.some((e) => e.reason === 'phone_verified')
-  const kycVerified = evts.some((e) => e.reason === 'kyc')
+  // LIVE, as computeTrustV2 reads it — never the (never-written) 'kyc' ledger event.
+  const kycVerified = liveIdentity.has(o.owner_id)
   const V = verificationScore({ phoneVerified, kycVerified, accountAgeDays })
   const s = sellerComponents(o.seller_id, o.responseRate)
   const { C, win90, win180, hasScamHold } = conductFor(o.owner_id)

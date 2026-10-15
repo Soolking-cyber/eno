@@ -5,9 +5,16 @@ import { recomputeRankScoreForSeller } from './ranking'
 import { RESPONSE_METRIC_IS_REAL } from './seller-metrics'
 import { ENFORCEMENT_REASON, VELOCITY, velocitySpike } from './enforcement-machine'
 import { expireEnforcement, flagForReview, syncEnforcement } from './enforcement'
+// ⛔ THE LIVE IDENTITY (owner, 2026-10-15): the uncached batch read, never verifiedIdentityFor / hasVerifiedIdentity
+// (request-memoised — computeTrustV2 below). kyc/identity takes its derivation from the PURE derive-verification,
+// not from recompute-verification, which is what keeps this import free of a cycle (kyc/identity.ts, at that import).
+import { verifiedProfileIds } from './kyc/identity'
 import {
   CHARGE_REVERSAL_PREFIX,
   DAY_MS,
+  IDENTITY_GATE_EVENT,
+  IDENTITY_GATE_OFF,
+  IDENTITY_GATE_ON,
   TRUST,
   applyDailyCap,
   composeScore,
@@ -16,6 +23,8 @@ import {
   dedupeReviewPairs,
   freshnessScore,
   GUEST_SELLER_TRUST,
+  identityCapBase,
+  identityGateCounted,
   manualAdjustSum,
   reportClearsCharge,
   responseScore,
@@ -47,7 +56,8 @@ import {
  *
  *   score = clamp(0, 150, 60 + V + Q + T − C)
  *
- *  • V Verification (0–25): permanent one-time gates — phone +10 · KYC +10 · age≥90d +5.
+ *  • V Verification (0–25): phone +10 and age≥90d +5 (permanent gates) · a LIVE verified identity +10, for
+ *    as long as it is current (read from identity_verifications on every recompute — owner, 2026-10-15).
  *  • Q Quality (0–40): Bayesian-smoothed verified reviews (IMDb, m=5 prior 4.6) +
  *    Wilson-lower-bound responsiveness (z=1.28, 90d) + availability freshness (<14d).
  *  • T Track record (0–25): 12·log10(1+tx) over the trailing 365d — log-diminishing
@@ -58,7 +68,8 @@ import {
  *    (won appeal / overturn) or an admin release marker (scamStage, trust-math.ts).
  *
  * The TrustEvent LEDGER stays the audit trail (report resolutions, manual adjusts,
- * one-time verification lifts all still write events) — but the score is no longer
+ * one-time verification lifts all still write events, and the live identity's step
+ * entering or leaving the score writes an identity_gate marker) — but the score is no longer
  * Σdeltas: the recompute READS the source tables + the decayed ledger. There is NO
  * calendar drift: no +1/day recovery, no inactivity dock — decay + shifting windows
  * keep scores current, and staleness costs the freshness component endogenously.
@@ -84,16 +95,20 @@ export const FALSE_REPORT_PENALTY = 10
 export const REPORT_COOLDOWN_DAYS = 14
 
 // v2 baseline: every account starts at 60 (Building — neutral probation, not shame)
-// and verification lifts it: phone +10, business KYC +10 (age≥90d adds +5 later).
+// and verification lifts it: phone +10, a live verified identity +10 (age≥90d adds +5 later).
 export const BASE_SCORE = TRUST.BASE
 export const PHONE_VERIFIED_BONUS = TRUST.V_PHONE
-export const KYC_BONUS = TRUST.V_KYC
+// ⛔ KYC_BONUS IS GONE (2026-10-15), with recordKyc (below): the identity is no longer a ledger grant but a live
+// input worth TRUST.V_KYC — read that constant. Nothing imported this one.
 
 // Reasons that must apply AT MOST ONCE per account. The DB partial unique index on
 // (subjectProfileId, reason) for these reasons is the belt; this set is the suspenders
 // AND the daily-cap exemption list (verification one-times lift the score immediately).
 // zalo_linked / profile_complete are kept for audit but no longer score (v2's V counts
-// phone / KYC / age only — spec'd 0–25).
+// phone / identity / age only — spec'd 0–25).
+// ⚠️ 'kyc' STAYS, THOUGH NOTHING WRITES IT ANY MORE (recordKyc is gone — the identity is read live): the DB's
+// partial unique index names it (scripts/unique-constraints.mjs), and listing it here keeps a legacy 'kyc' row —
+// were one ever found — out of M, so it can never add a second +10 beside the live identity.
 const ONE_TIME_REASONS = new Set(['new_account', 'phone_verified', 'zalo_linked', 'kyc', 'profile_complete'])
 
 const isUniqueViolation = (e: unknown): boolean =>
@@ -134,7 +149,22 @@ export type TrustBreakdown = {
   M: number // decayed admin manual adjustments (signed)
   inputs: TierInputs & {
     phoneVerified: boolean
+    /**
+     * A LIVE verified identity (owner, 2026-10-15) — verifiedProfileIds: deriveVerification over this profile's
+     * identity_verifications rows, at this recompute. True while current; false from the day after the document's
+     * expiry date, on a revocation, and for pending/rejected-only histories. Worth TRUST.V_KYC in V.
+     */
     kycVerified: boolean
+    /**
+     * The composite with the identity gate OFF — the same inputs, V without V_KYC (`score` when kycVerified is
+     * false). recomputeTrust runs the daily cap on THIS and lands the identity's step on top in full (R1).
+     */
+    scoreWithoutIdentity: number
+    /**
+     * The identity's step at these inputs: the composite with the gate on minus off — TRUST.V_KYC, less only where
+     * the 0/150 clamp eats it. Computed whether or not the identity is live (a lapse needs it to take the step OUT).
+     */
+    identityWorth: number
     verifiedReviewCount: number
     /**
      * Every STANDING severe charge and whether a human has released it — the same derivation that
@@ -149,6 +179,12 @@ export type TrustBreakdown = {
      * the floor — a seller restricted by other confirmed conduct too stays restricted.
      */
     scoreWithoutReleasedScams: number
+    /**
+     * A RELEASED scam charge is on record (one of the conduct items scoreWithoutReleasedScams leaves out). The
+     * enforcement ladder then ignores the identity's step (syncEnforcement — the caution stays; owner default,
+     * plan Q2, 2026-10-15).
+     */
+    hasReleasedScam: boolean
     conversations90: number
     activeListings: number
     freshActiveListings: number
@@ -156,24 +192,30 @@ export type TrustBreakdown = {
     // loaded (zero extra queries); runTrustMaintenance feeds them to velocitySpike.
     velocity: { reviews24h: number; reviews30d: number; tx24h: number; tx30d: number }
   }
-  cached: { score: number; tier: string } // current Profile values (pre-recompute)
+  /**
+   * Current Profile values (pre-recompute), and whether that cached score already carries the live identity's
+   * step — the latest identity_gate marker in the ledger (trust-math identityGateCounted). The score is one
+   * number; only the marker says how much of it is the identity, which is what the daily cap must leave out.
+   */
+  cached: { score: number; tier: string; identityCounted: boolean }
 }
 
-/** Author standing for credibility weighting — batched fetch, 0.6 when unreachable. */
+/**
+ * Author standing for credibility weighting — batched fetch, 0.6 when unreachable.
+ * ⛔ THE AUTHOR'S IDENTITY IS LIVE TOO (owner, 2026-10-15): verifiedProfileIds over the same ids, in place of the
+ * 'kyc' ledger lookup that stood here — no row ever carried that reason (recordKyc was never called), so CRED_FULL's
+ * identity arm was dead. Still two batched reads, run in parallel.
+ */
 async function credibilityByProfileId(ids: string[], now: number): Promise<Map<string, number>> {
   const map = new Map<string, number>()
   if (!ids.length) return map
-  const [profiles, kycEvents] = await Promise.all([
+  const [profiles, kyc] = await Promise.all([
     db.profile.findMany({
       where: { id: { in: ids } },
       select: { id: true, trustScore: true, createdAt: true, falseReportStrikes: true },
     }),
-    db.trustEvent.findMany({
-      where: { subjectProfileId: { in: ids }, reason: 'kyc' },
-      select: { subjectProfileId: true },
-    }),
+    verifiedProfileIds(ids, new Date(now)),
   ])
-  const kyc = new Set(kycEvents.map((e) => e.subjectProfileId))
   for (const p of profiles) {
     map.set(
       p.id,
@@ -190,8 +232,9 @@ async function credibilityByProfileId(ids: string[], now: number): Promise<Map<s
 
 /**
  * Compute the full v2 breakdown for a profile from source tables + the decayed
- * ledger. A BOUNDED number of indexed queries (~10): profile + its events (PK /
- * subjectProfileId index), the linked Reports (PK), the owned Seller (ownerId
+ * ledger. A BOUNDED number of indexed queries (~11): profile + its events (PK /
+ * subjectProfileId index) and its live identity (identity_verifications by profileId,
+ * in parallel), the linked Reports (PK), the owned Seller (ownerId
  * unique), its verified Reviews / Conversations / Listings (sellerId indexes),
  * transactions (sellerId+status / conversation join), and two batched
  * author-credibility lookups. Also feeds the dashboard's tier-progress panel.
@@ -206,16 +249,33 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   const accountAgeDays = (now - profile.createdAt.getTime()) / DAY_MS
 
   // Ledger reads: conduct events + manual adjustments + one-time verification gates.
-  // report_dismissed rides along for the charge-REVERSAL markers only (standingConductEvents).
-  const events = await db.trustEvent.findMany({
-    where: { subjectProfileId: profileId, type: { in: ['report_confirmed', 'manual_adjust', 'report_dismissed'] } },
-    select: { id: true, type: true, delta: true, reason: true, reportId: true, createdAt: true },
-  })
+  // report_dismissed rides along for the charge-REVERSAL markers only (standingConductEvents), and
+  // identity_gate for recomputeTrust's cap accounting only (TrustBreakdown.cached.identityCounted).
+  // The live identity is read beside it, in parallel — one more indexed read per recompute.
+  //
+  // ⛔ IDENTITY IS LIVE (owner, 2026-10-15): "a live verified identity counts in trust (+10) for every seller, on both
+  // editions — flat while current, gone on expiry or revocation, no penalty". So V_KYC is verifiedProfileIds — the
+  // app's one derivation (deriveVerification) over identity_verifications, at this recompute: a revocation outranks
+  // everything, a verification survives a later rejection, a document is good through its expiry date (ICT).
+  //   · NEVER hasVerifiedIdentity / verifiedIdentityFor: they are cache()-memoised per request (kyc/identity.ts), and
+  //     a recompute run in the request that approved or revoked must see that decision.
+  //   · NEVER Profile.verificationStatus: a cache recomputeVerification writes, which lags a lapse until the nightly
+  //     reconcile (/api/cron/identity-reconcile, 09:05 ICT).
+  //   · NEVER a 'kyc' TrustEvent: its only writer (recordKyc) was never called, and is gone. A legacy row would
+  //     count for nothing here, and nothing in M either (ONE_TIME_REASONS).
+  const [events, liveIdentity] = await Promise.all([
+    db.trustEvent.findMany({
+      where: { subjectProfileId: profileId, type: { in: ['report_confirmed', 'manual_adjust', 'report_dismissed', IDENTITY_GATE_EVENT] } },
+      select: { id: true, type: true, delta: true, reason: true, reportId: true, createdAt: true },
+    }),
+    verifiedProfileIds([profileId], new Date(now)),
+  ])
 
-  // V — permanent verification gates. Phone: the mirrored verified number OR the
-  // one-time event (covers a number later released); KYC: the one-time event.
+  // V — phone: the mirrored verified number OR the one-time event (covers a number later released), landing in
+  // full through that event's uncapped recompute (applyTrustEvent); identity: LIVE, above, its step landing in
+  // full on ANY recompute (recomputeTrust).
   const phoneVerified = !!profile.phone || events.some((e) => e.reason === 'phone_verified')
-  const kycVerified = events.some((e) => e.reason === 'kyc')
+  const kycVerified = liveIdentity.has(profileId)
   const V = verificationScore({ phoneVerified, kycVerified, accountAgeDays })
 
   // Conduct events → join Report for severity + reporter identity. Legacy events
@@ -480,6 +540,10 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   const scoreWithoutReleasedScams = releasedItem.some(Boolean)
     ? composeScore({ V, Q, T, C: conductPenalty(conductItems.filter((_, i) => !releasedItem[i])), M })
     : score
+  // …and with the identity gate off and on — the same inputs, the same pure composition, no second read. The
+  // difference is the identity's step, which recomputeTrust lands in full while it caps the rest (R1).
+  const scoreWithoutIdentity = composeScore({ V: verificationScore({ phoneVerified, kycVerified: false, accountAgeDays }), Q, T, C, M })
+  const identityWorth = composeScore({ V: verificationScore({ phoneVerified, kycVerified: true, accountAgeDays }), Q, T, C, M }) - scoreWithoutIdentity
   const inputs: TrustBreakdown['inputs'] = {
     score,
     transactions365: tx365,
@@ -491,9 +555,12 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
     hasScamHold,
     phoneVerified,
     kycVerified,
+    scoreWithoutIdentity,
+    identityWorth,
     verifiedReviewCount: deduped.length,
     scamCharges,
     scoreWithoutReleasedScams,
+    hasReleasedScam: releasedItem.some(Boolean),
     conversations90,
     activeListings,
     freshActiveListings,
@@ -501,15 +568,21 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   }
   // No `tier` here on purpose: recomputeTrust derives the tier from the PERSISTED
   // (possibly daily-capped) score — keeping it the single tier authority.
-  return { score, V, Q, T, C, M, inputs, cached: { score: profile.trustScore, tier: profile.trustTier } }
+  return {
+    score, V, Q, T, C, M, inputs,
+    cached: { score: profile.trustScore, tier: profile.trustTier, identityCounted: identityGateCounted(events) },
+  }
 }
 
 /**
  * Recompute the cached score+tier on the Profile and mirror onto its Seller +
  * listings. Applies the anti-gaming daily cap: upward movement is limited to +6
  * per rolling 24h (ledgered as recompute_lift events for airtight accounting) —
- * EXCEPT one-time verification lifts (`uncapped`), which land immediately.
- * Downward movement always lands in full (penalties bite immediately).
+ * EXCEPT a one-time verification lift (`uncapped` — the phone path, which lands
+ * everything pending, as it always has) and the LIVE identity's own step, which
+ * lands in full on every recompute while the rest stays capped (owner, 2026-10-15).
+ * Downward movement always lands in full (penalties bite immediately — and a lapsed
+ * or revoked identity's step leaves at once).
  */
 export async function recomputeTrust(
   profileId: string,
@@ -518,24 +591,42 @@ export async function recomputeTrust(
   const breakdown = await computeTrustV2(profileId)
   if (!breakdown) return null
 
-  let score = breakdown.score
-  if (!opts?.uncapped && score > breakdown.cached.score) {
+  // ⚖️ THE IDENTITY STEP IS NEVER CAPPED, AND NOTHING ELSE IS UNCAPPED (owner, 2026-10-15; plan review R1). The cap
+  // runs on the score WITHOUT the identity (computeTrustV2 composes it from the same inputs), measured from the
+  // part of the cached score that is not the identity's step (identityCapBase); the step is then added in full
+  // while the identity is live. So an approval lands its +10 at once with no flag — and so do the nightly
+  // reconcile, the daily pass and the deploy-day backfill — while a review backlog beside it stays capped and
+  // ledgered exactly as before; a lapse or a revocation takes the step out at once (it is simply not added).
+  // An account with no identity on either side has `from` = the cached score and the target = the composite:
+  // byte-for-byte the cap this always was.
+  // ⛔ NO "approved" (uncapped-for-identity) OPTION: an uncapped recompute lands EVERY pending capped lift — a +30
+  // review backlog beside the +10 — which is the bypass R1 refused. `uncapped` stays with the phone path
+  // (applyTrustEvent) and the charge reversals, exactly as it was.
+  const live = breakdown.inputs.kycVerified
+  const worth = breakdown.inputs.identityWorth
+  const target = breakdown.inputs.scoreWithoutIdentity
+  const from = identityCapBase(breakdown.cached.score, breakdown.cached.identityCounted, worth)
+  let base = target
+  // The cap's spend, ledgered as recompute_lift — written below in ONE batch with the score it allowed.
+  let liftDelta = 0
+  if (!opts?.uncapped && target > from) {
     // Rolling-24h lift already granted — the ledger is the accounting, so a burst
     // of recomputes (many events in one day) can't stack past the cap.
     const lifted = await db.trustEvent.aggregate({
       where: { subjectProfileId: profileId, type: 'recompute_lift', createdAt: { gt: new Date(Date.now() - DAY_MS) } },
       _sum: { delta: true },
     })
-    const capped = applyDailyCap(breakdown.cached.score, score, lifted._sum.delta ?? 0)
-    score = capped.score
-    if (capped.lift > 0) {
-      await db.trustEvent.create({
-        data: { subjectProfileId: profileId, type: 'recompute_lift', delta: capped.lift, reason: 'daily_cap' },
-      })
-    }
+    const capped = applyDailyCap(from, target, lifted._sum.delta ?? 0)
+    base = capped.score
+    liftDelta = capped.lift
   }
+  const score = base + (live ? worth : 0)
   // Tier keys off the PERSISTED (possibly capped) score so display stays consistent.
   const tier = tierFor({ ...breakdown.inputs, score })
+
+  // The cap's memory of whether the persisted score carries the identity's step (trust-math.ts IDENTITY_GATE_EVENT
+  // says why nothing else can know) — one row per flip, none on a steady recompute. Written below, WITH the score.
+  const flip = live !== breakdown.cached.identityCounted
 
   // Good-standing insurance clock (enforcement Phase 2): an unbroken ≥85 streak.
   // ≥85 starts it (only if not already running — the WHERE keeps it a no-write no-op),
@@ -548,9 +639,23 @@ export async function recomputeTrust(
   }
 
   // Profile unchanged → no Profile write (keeps the daily recompute-all pass cheap).
-  if (score !== breakdown.cached.score || tier !== breakdown.cached.tier) {
-    await db.profile.update({ where: { id: profileId }, data: { trustScore: score, trustTier: tier } })
-  }
+  // ⚖️ THE identity_gate MARKER COMMITS WITH THE SCORE IT DESCRIBES — both or neither (commit gate, 2026-10-15). Written
+  // alone, a marker without its score (a failed Profile write) said "the step is in" over a score that lacks it: the
+  // next recompute measured the cap from 10 points too low and the +10 came back through the cap, days late; the other
+  // order would add the step twice beside a capped backlog. A flip with no score change (the 150 clamp ate the step)
+  // writes the marker alone — there is no score for it to disagree with.
+  // ⚖️ …AND SO DOES THE CAP'S recompute_lift ROW (commit gate round 2): written alone before a score write that then
+  // failed, it spent up to +6 of the seller's 24-hour allowance on a score that never moved. One batch, both or neither.
+  const changed = score !== breakdown.cached.score || tier !== breakdown.cached.tier
+  const writes = [
+    liftDelta > 0 ? db.trustEvent.create({ data: { subjectProfileId: profileId, type: 'recompute_lift', delta: liftDelta, reason: 'daily_cap' } }) : null,
+    flip ? db.trustEvent.create({
+      data: { subjectProfileId: profileId, type: IDENTITY_GATE_EVENT, delta: live ? worth : -worth, reason: live ? IDENTITY_GATE_ON : IDENTITY_GATE_OFF },
+    }) : null,
+    changed ? db.profile.update({ where: { id: profileId }, data: { trustScore: score, trustTier: tier } }) : null,
+  ].filter((w): w is NonNullable<typeof w> => w !== null)
+  if (writes.length > 1) await db.$transaction(writes)
+  else if (writes.length === 1) await writes[0]
 
   // ⚠️ THE STOREFRONT MIRROR RUNS EVEN WHEN THE PROFILE DID NOT CHANGE (audit 2026-09-23, #13).
   // It used to sit behind the no-change early return, so it only ever fired on a PROFILE
@@ -777,7 +882,12 @@ export function describeTrustEvent(type: string, reason?: string | null): string
     case 'new_account': return 'Automatic: new account opened'
     case 'phone_verified': return 'Automatic: phone number verified'
     case 'zalo_linked': return 'Automatic: Zalo account linked'
+    // Legacy: the one-time grant that was meant to carry the identity (recordKyc, removed 2026-10-15; never written).
     case 'kyc': return 'Automatic: identity verified'
+    // The live identity's step entering and leaving the score (recomputeTrust's identity_gate marker, 2026-10-15).
+    // ⚠️ "no longer counts", never "penalty": a lapse is not a punishment (owner) — the score just stops carrying it.
+    case IDENTITY_GATE_ON: return 'Automatic: your verified identity now counts toward your trust score'
+    case IDENTITY_GATE_OFF: return 'Automatic: your identity verification no longer counts toward your trust score (the document expired or the verification was withdrawn)'
     case 'profile_complete': return 'Automatic: profile completed'
     case 'nonneg_offer_spam': return 'Automatic penalty: repeated offers on listings with a fixed price'
     case 'conduct_warning': return 'Warning issued about conduct'
@@ -801,8 +911,10 @@ export function describeTrustEvent(type: string, reason?: string | null): string
 /**
  * Append a trust event (the AUDIT LEDGER) and recompute the composite. In v2 the
  * delta is informational for most types — the recompute reads source tables — but
- * report_confirmed / manual_adjust events DO feed C/M, and one-time verification
- * reasons feed V (and bypass the daily cap: verifying is always instant).
+ * report_confirmed / manual_adjust events DO feed C/M, and the phone_verified one-time
+ * reason feeds V (and bypasses the daily cap: verifying a phone is always instant).
+ * The identity is not an event here: it is read live, and its step is exempt from the
+ * cap inside recomputeTrust itself (owner, 2026-10-15).
  */
 export async function applyTrustEvent(
   subjectProfileId: string,
@@ -916,12 +1028,15 @@ export async function recordZaloLinked(profileId: string): Promise<boolean> {
   return applyOnce(profileId, 'manual_adjust', 0, 'zalo_linked')
 }
 
-/** One-time verification gate: identity verification / KYC (V +10 — the business trust step). */
-export async function recordKyc(profileId: string): Promise<boolean> {
-  const existing = await db.trustEvent.count({ where: { subjectProfileId: profileId, reason: 'kyc' } })
-  if (existing > 0) return false
-  return applyOnce(profileId, 'manual_adjust', KYC_BONUS, 'kyc')
-}
+/*
+ * ⛔ recordKyc IS GONE (2026-10-15) — DO NOT REINTRODUCE IT. It wrote a one-time 'kyc' manual_adjust (+10) and V
+ * read that event; nothing ever called it, so no identity ever counted. A one-time grant was also the wrong shape
+ * for what the owner decided: a verified identity counts WHILE IT IS CURRENT and stops on expiry or revocation,
+ * which a write-once ledger row cannot express. V now reads the live identity (computeTrustV2 → verifiedProfileIds),
+ * the recompute that follows any identity decision is recomputeVerification's (compliance/identity-effects.ts), and
+ * its step lands in full on any recompute (recomputeTrust). 'kyc' stays in ONE_TIME_REASONS and describeTrustEvent
+ * for any legacy row.
+ */
 
 // Daily maintenance bounds: the cron shares a 60s budget with reminders/rank/stats,
 // so the recompute pass is bounded by count AND a soft deadline (it resumes next run).

@@ -57,7 +57,7 @@ export function deriveVerification<R extends VerificationRow>(rows: R[], now: Da
   // two must not be conflated on an account someone is trying to sell from.
   if (latest && latest.status !== 'verified') {
     const standing = decided.find((r) => r.status === 'verified'
-      && !(r.documentExpiresAt && r.documentExpiresAt.getTime() < startOfDay(now)))
+      && !(r.documentExpiresAt && r.documentExpiresAt.getTime() < startOfIctDay(now)))
     if (standing) return { status: 'verified', source: standing }
   }
 
@@ -67,7 +67,7 @@ export function deriveVerification<R extends VerificationRow>(rows: R[], now: Da
     // today. Strictly BEFORE, so a document expiring today is still good today — the same calendar
     // -day leniency verify-decision.ts applies at submission.
     const exp = latest.documentExpiresAt
-    if (exp && exp.getTime() < startOfDay(now)) return { status: 'expired', source: latest }
+    if (exp && exp.getTime() < startOfIctDay(now)) return { status: 'expired', source: latest }
     return { status: 'verified', source: latest }
   }
 
@@ -95,8 +95,15 @@ export function deriveVerification<R extends VerificationRow>(rows: R[], now: Da
   return { status: 'unverified', source: null }
 }
 
-/** Midnight ICT as a UTC instant. Every compliance date in this codebase is +07:00. */
-function startOfDay(now: Date): number {
+/**
+ * Midnight ICT as a UTC instant (epoch ms). Every compliance date in this codebase is +07:00.
+ *
+ * ⛔ THE DOCUMENT CLOCK'S ONE DEFINITION — exported (2026-10-15) so nothing that reasons about "lapsed
+ * yet?" writes a second one: a document expiring on day D is good through D, and lapses at this instant
+ * of D+1. scripts/trust-v2-dryrun.mjs mirrors it by hand (a plain-JS script cannot import TypeScript).
+ * ⚠️ THIS FILE STAYS PURE — no db, no server-only: scripts/publish-held.ts imports it.
+ */
+export function startOfIctDay(now: Date): number {
   const ict = new Date(now.getTime() + 7 * 3600_000)
   return Date.UTC(ict.getUTCFullYear(), ict.getUTCMonth(), ict.getUTCDate()) - 7 * 3600_000
 }

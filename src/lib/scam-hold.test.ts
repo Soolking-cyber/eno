@@ -26,6 +26,12 @@ const h = vi.hoisted(() => ({
   audit: [] as Row[],
   disputeNotices: [] as Row[],
   verified: true,
+  /**
+   * Whether p1's identity counts in TRUST (verifiedProfileIds, +10 — owner 2026-10-15). Separate from `verified` (the
+   * release's own identity check) and OFF by default, so the documented arithmetic below (60 + 15 V + 5 − 27 = 53)
+   * stays what every older case was written against.
+   */
+  kycTrust: false,
   linked: [] as string[],
   seq: 0,
   pending: [] as Promise<unknown>[],
@@ -103,9 +109,12 @@ vi.mock('./db', () => {
     $executeRaw: async () => 0,
   }
   // A transaction that throws is ROLLED BACK — the property the overturn's single transaction relies on.
-  db.$transaction = async (fn: (tx: Row) => unknown) => {
+  // Both forms: an interactive transaction (a callback) and a batch (recomputeTrust commits the identity_gate marker
+  // with the score — trust.ts; these mocks are eager, so the batch's ops have already run when it arrives).
+  db.$transaction = async (fn: ((tx: Row) => unknown) | Promise<unknown>[]) => {
     const snap = structuredClone({ profile: h.profile, seller: h.seller, events: h.events, reports: h.reports, listings: h.listings, actions: h.actions, audit: h.audit })
     try {
+      if (Array.isArray(fn)) return await Promise.all(fn)
       return await fn(db)
     } catch (e) {
       Object.assign(h, snap)
@@ -127,6 +136,8 @@ vi.mock('@/lib/revalidate-lang', () => ({ revalidatePublicPath: () => {} }))
 vi.mock('./kyc/identity', () => ({
   hasVerifiedIdentity: async () => h.verified,
   sanctionedProfilesSharingIdentity: async () => h.linked,
+  // Trust's live identity (computeTrustV2 + rater credibility): only the seller p1, and only when a case says so.
+  verifiedProfileIds: async (ids: readonly string[]) => new Set(h.kycTrust ? ids.filter((id) => id === 'p1') : []),
 }))
 vi.mock('./compliance/audit', () => ({ appendAudit: async (_tx: unknown, input: Row) => { h.audit.push(input) } }))
 vi.mock('./dispute', () => ({ notifyDispute: async (pid: string, rid: string, key: string) => { h.disputeNotices.push({ pid, rid, key }) } }))
@@ -183,6 +194,7 @@ beforeEach(() => {
   h.audit = []
   h.disputeNotices = []
   h.verified = true
+  h.kycTrust = false
   h.linked = []
   h.seq = 0
   h.pending = []
@@ -324,6 +336,35 @@ describe('RELEASE', () => {
     await releaseScamHold({ actionId: scamAction().id, admin: ADMIN, plan: PLAN })
     confirmScam('r2', 0)
     expect(await dailySync()).toBe('held')
+  })
+})
+
+/**
+ * ⚖️ A LIVE VERIFIED IDENTITY IS +10 (owner, 2026-10-15) — and a release requires one, so every released seller now
+ * carries it. Run through the REAL recompute and sync: the frozen charge keeps its 27, the identity adds its 10, and
+ * the account's trust number lands at 63 — but the ENFORCEMENT LADDER ignores the identity's step while a released
+ * charge is on record (owner default, plan Q2: the caution stays), so the state is `throttled`, exactly where a
+ * released seller stood before identity counted, and buyers keep the caution note. The posting regime is
+ * computeTrustV2's own derivation, so the released-charge cap must hold all the same.
+ */
+describe('RELEASE with a live verified identity counted in trust', () => {
+  it('lands at 63 (60 + 25 V + 5 − 27), tier standard — but STAYS throttled (the caution), and the released-charge cap still holds', async () => {
+    h.kycTrust = true
+    confirmScam('r1', 20)
+    expect(await dailySync()).toBe('held') // the hold does not care about the score
+    expect(h.profile.trustScore).toBe(63) // the step landed at once (no cap on the identity's own +10)
+    expect(h.profile.trustTier).toBe('restricted') // held → restricted whatever the number
+    const r = await releaseScamHold({ actionId: scamAction().id, admin: ADMIN, plan: PLAN })
+    await Promise.all(h.pending)
+    expect(r).toEqual({ ok: true, state: 'throttled', charges: 1 })
+    expect(h.profile.trustScore).toBe(63)
+    expect(h.profile.trustTier).toBe('standard')
+    expect(await dailySync()).toBe('throttled') // and the next daily pass does not move it
+    expect(h.profile.trustScore).toBe(63)
+    const LIMIT = ENFORCEMENT.SCAM_RELEASED.MAX_ACTIVE_LISTINGS
+    expect(await releasedChargeGate('p1', 's1')).toEqual({ waivesRestricted: true, limit: LIMIT, active: 2, remaining: LIMIT - 2 })
+    // The step's ledger marker went in once — no second +10 on the re-derive or the daily pass.
+    expect(h.events.filter((e) => e.type === 'identity_gate').map((e) => [e.reason, e.delta])).toEqual([['identity_on', 10]])
   })
 })
 

@@ -657,8 +657,18 @@ export async function syncEnforcement(
         expiresAtMs: f.expiresAt?.getTime() ?? null,
       })),
     )
+    // ⚖️ A RELEASED SCAM CHARGE KEEPS ITS CAUTION — THE IDENTITY'S +10 DOES NOT LIFT IT (owner default, plan Q2,
+    // 2026-10-15). A release requires a verified identity, so every released seller now carries the identity's step:
+    // 53 becomes 63, out of `throttled` — the state whose public caution note buyers see — into `warned`. A verified
+    // identity makes a seller identifiable, not less of a risk, so while a released charge is on record the LADDER
+    // reads the score without that step: the seller stands exactly where they did before identity counted. The trust
+    // number shown is unchanged (the +10 is real); only the enforcement state ignores it. Everyone else is unaffected.
+    const shownScore = opts?.persistedScore ?? breakdown.score
+    const ladderScore = breakdown.inputs.hasReleasedScam && breakdown.inputs.kycVerified
+      ? shownScore - breakdown.inputs.identityWorth
+      : shownScore
     const derived = deriveState({
-      score: opts?.persistedScore ?? breakdown.score,
+      score: ladderScore,
       hasScamHold: breakdown.inputs.hasScamHold,
       conductPenalty: breakdown.C,
       reports90: breakdown.inputs.reports90,

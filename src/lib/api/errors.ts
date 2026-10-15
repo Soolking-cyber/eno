@@ -357,6 +357,7 @@ export type NicheApiErrorCode =
   | 'listing_changed' // PATCH /api/listings/[id] (and v1): the listing changed while it was being edited — reload and try again (409, 2026-10-14)
   | 'desk_unresolved' // /api/cron/licence-holds: eno's desk did not resolve, so the sweep refused to run (500, 2026-10-14)
   | 'grandfather_unresolved' // /api/cron/licence-holds: LICENCE_GRANDFATHER's seller id no longer names VietKite's storefront, so the sweep refused (500, 2026-10-14)
+  | 'partial_failure' // /api/cron/identity-reconcile: a profile's recompute threw or its effects did not complete — the rest WERE reconciled; the unit stays red until a clean run (500, 2026-10-15)
   | 'teacher_awaiting_reply' // a teacher who has not answered gets at most 2 messages (owner, 2026-10-13)
   | 'invalid_teacher_profile'
   | 'teacher_profile_missing'
@@ -765,6 +766,7 @@ const ALL = [
   'listing_changed',
   'desk_unresolved',
   'grandfather_unresolved',
+  'partial_failure',
   'teacher_awaiting_reply',
   'invalid_teacher_profile',
   'teacher_profile_missing',

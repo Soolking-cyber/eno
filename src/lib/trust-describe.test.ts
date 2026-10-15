@@ -64,6 +64,19 @@ describe('describeTrustEvent — the export must not claim a human acted', () =>
     expect(describeTrustEvent('manual_adjust', 'scam_release:event:ev42')).toBe(s)
   })
 
+  it('describes the live identity\'s step entering and leaving the score as automatic — and a lapse never as a penalty', () => {
+    const on = describeTrustEvent('identity_gate', 'identity_on')
+    const off = describeTrustEvent('identity_gate', 'identity_off')
+    for (const s of [on, off]) {
+      expect(s.toLowerCase()).toContain('automatic')
+      expect(s.toLowerCase()).not.toContain('manual')
+      // Owner, 2026-10-15: gone on expiry or revocation, "no penalty" — the export must not call it one.
+      expect(s.toLowerCase()).not.toContain('penalty')
+    }
+    expect(on).toContain('identity')
+    expect(off.toLowerCase()).toContain('no longer counts')
+  })
+
   it('always returns a non-empty human sentence', () => {
     for (const [type, reason] of [['manual_adjust', 'nonneg_offer_spam'], ['engagement', null],
                                   ['unknown_type', null], ['manual_adjust', '']] as const) {

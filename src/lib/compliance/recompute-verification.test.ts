@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { deriveVerification } from './recompute-verification'
+import { startOfIctDay } from './derive-verification'
 
 // ── What the CACHE should say, given the identity_verifications history ─────────────────────────
 //
@@ -148,5 +149,24 @@ describe('a standing verification survives a later rejection', () => {
       { id: 'b', status: 'revoked', decidedAt: august, documentExpiresAt: null, submittedAt: august },
     ] as never, now)
     expect(out.status).toBe('revoked')
+  })
+})
+
+// ── The document clock's day boundary (startOfIctDay, exported 2026-10-15) ─────────────────────────────────────────
+// A document expiring on day D is good through D (ICT) and lapses at this instant of D+1 — the one definition the
+// derivation uses and scripts/trust-v2-dryrun.mjs mirrors by hand.
+describe('startOfIctDay', () => {
+  const at = (iso: string) => startOfIctDay(new Date(iso))
+  it('the last second of an ICT day belongs to that day', () => {
+    expect(at('2026-10-15T23:59:59+07:00')).toBe(new Date('2026-10-15T00:00:00+07:00').getTime())
+  })
+  it('ICT midnight is its own start', () => {
+    expect(at('2026-10-16T00:00:00+07:00')).toBe(new Date('2026-10-16T00:00:00+07:00').getTime())
+  })
+  it('17:05 UTC is already the NEXT day in Saigon (00:05 ICT)', () => {
+    expect(at('2026-10-15T17:05:00Z')).toBe(new Date('2026-10-16T00:00:00+07:00').getTime())
+  })
+  it('16:59 UTC is still the same ICT day', () => {
+    expect(at('2026-10-15T16:59:59Z')).toBe(new Date('2026-10-15T00:00:00+07:00').getTime())
   })
 })

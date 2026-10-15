@@ -206,7 +206,10 @@ export default async function CategoryPage({ params }: Props) {
     // Card projection: this page only renders <ListingCard> slots — the full row (description,
     // attributes, searchText, whole Seller) tripled the ISR payload. The order is buildFeedOrderBy('newest').
     // `teachers: true` again inside the window, which re-applies the scope: without it /c/teachers was empty.
-    diverseFeedWindow(scopedWhere, [{ rankScore: 'desc' }, { id: 'desc' }], LISTING_CARD_SELECT, { sharedSeats, teachers: true }),
+    // ⛔ `fresh` on /c/teachers (2026-10-15, feed-window.ts WindowOptions.fresh): the window memo is process-local and
+    // no purge clears it, so a regeneration right after a teacher purge (an identity decision, a hide) re-baked the old
+    // rows into this page's 6h ISR HTML. Every other category keeps the memo.
+    diverseFeedWindow(scopedWhere, [{ rankScore: 'desc' }, { id: 'desc' }], LISTING_CARD_SELECT, { sharedSeats, teachers: true, fresh: cat.slug === TEACHERS_CATEGORY_SLUG }),
     // ⛔ Not the shelves no browse surface links (src/lib/retired-categories.ts — the footer reads the same
     // set): /c/vehicles redirects to a rental hub, and the empty ones are noindex dead ends.
     db.category.findMany({ where: { NOT: { id: cat.id }, slug: { notIn: [...UNLINKED_CATEGORIES] } }, orderBy: { name: 'asc' } }),

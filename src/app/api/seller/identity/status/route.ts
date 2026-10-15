@@ -10,8 +10,9 @@ export const dynamic = 'force-dynamic'
  * WHERE THIS PERSON STANDS ON STAGE 1 — the read the verification hub renders from.
  *
  * ⛔ DERIVED, NOT READ OFF THE CACHED COLUMN. `Profile.verificationStatus` is written by
- * `recomputeVerification` and nothing sweeps it on a schedule, so a lapsed document still reads
- * `verified` there until something happens to recompute. `deriveVerification` evaluates expiry
+ * `recomputeVerification` — on each KYC decision, and by the nightly reconcile at 09:05 ICT
+ * (/api/cron/identity-reconcile) — so a document that lapsed at midnight still reads `verified` there
+ * until that run, and for as long as its timer is down. `deriveVerification` evaluates expiry
  * against today and lets `revoked` outrank everything — which is the difference between a page that
  * tells someone they are verified and a page that is right.
  *

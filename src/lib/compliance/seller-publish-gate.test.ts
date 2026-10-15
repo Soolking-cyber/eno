@@ -29,6 +29,19 @@ const h = vi.hoisted(() => ({
   claimCount: 1,
   /** listing ids a release (identityHold → false) has touched. */
   released: new Set<string>(),
+  /** The identity effects (identity-effects.ts) throw when they are called — the lazy import's guard. */
+  effectsThrow: false,
+}))
+
+// ⚖️ THE IDENTITY EFFECTS ARE FAKED (2026-10-15): recomputeVerification lazily imports them, and the real module would
+// run trust, enforcement and a teacher purge against this file's database — which knows none of those tables. Recorded
+// into h.calls as 'effects', so a test can see their arguments and their place after the release.
+vi.mock('./identity-effects', () => ({
+  applyIdentityEffects: async (...args: unknown[]) => {
+    h.calls.push({ m: 'effects', args })
+    if (h.effectsThrow) throw new Error('effects down')
+    return { trustMoved: true, markChanged: false, purged: false, failed: false }
+  },
 }))
 
 vi.mock('@/lib/compliance/account-state', async (orig) => ({
@@ -105,6 +118,7 @@ beforeEach(() => {
   h.updateManyCount = 0
   h.claimCount = 1
   h.released = new Set()
+  h.effectsThrow = false
 })
 
 describe('sellerPublishDecision — OFF MEANS OFF', () => {
@@ -394,5 +408,78 @@ describe('AUTO-PUBLISH ON VERIFY — recomputeVerification releases the holds', 
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     await expect(recomputeVerification('p')).resolves.toMatchObject({ status: 'verified', changed: true })
     spy.mockRestore(); err.mockRestore()
+  })
+})
+
+/**
+ * ⚖️ EVERY IDENTITY RECOMPUTE RUNS THE IDENTITY EFFECTS (owner, 2026-10-15 — identity-effects.ts): trust, enforcement
+ * and a teacher's pages follow the live status. recomputeVerification hands them the DERIVED status — not the cache's
+ * answer, which an illegal transition leaves where it was — AFTER the hold release, and never fails over them.
+ */
+describe('recomputeVerification → the identity effects', () => {
+  const effects = () => h.calls.filter((c) => c.m === 'effects')
+
+  it('get (profile, the DERIVED status, now) once, AFTER the release, and their result rides on the answer', async () => {
+    const NOW = new Date('2026-10-15T09:05:00+07:00')
+    h.profiles.set('p', { createdAt: OLD, verificationStatus: 'pending' })
+    h.ivs.set('p', [verifiedRow('p')])
+    h.sellers = [{ id: 's1', ownerId: 'p' }]
+    h.listings = [{ id: 'l1' }]
+    h.updateManyCount = 1
+    const r = await recomputeVerification('p', NOW)
+    expect(effects().map((c) => c.args)).toEqual([['p', 'verified', NOW]])
+    const order = h.calls.map((c) => c.m)
+    expect(order.lastIndexOf('listing.updateMany')).toBeLessThan(order.indexOf('effects'))
+    expect(r.effects).toEqual({ trustMoved: true, markChanged: false, purged: false, failed: false })
+    expect(r).toMatchObject({ status: 'verified', changed: true })
+  })
+
+  it('the renewal approved after the lapse: the effects get `verified` (expired → verified)', async () => {
+    const NOW = new Date('2026-10-15T12:00:00+07:00')
+    h.profiles.set('p', { createdAt: OLD, verificationStatus: 'expired' })
+    h.ivs.set('p', [
+      verifiedRow('p', { id: 'iv-new', decidedAt: new Date('2026-10-15T10:00:00+07:00'), documentExpiresAt: new Date('2034-08-06T00:00:00+07:00') }),
+      verifiedRow('p', { id: 'iv-old', decidedAt: new Date('2025-01-10T00:00:00+07:00'), documentExpiresAt: new Date('2026-09-30T00:00:00+07:00') }),
+    ])
+    await recomputeVerification('p', NOW)
+    expect(effects().map((c) => c.args[1])).toEqual(['verified'])
+  })
+
+  it('a lapse the cache already recorded still re-derives (unchanged cache, effects run all the same)', async () => {
+    const NOW = new Date('2026-10-15T12:00:00+07:00')
+    h.profiles.set('p', { createdAt: OLD, verificationStatus: 'expired' })
+    h.ivs.set('p', [verifiedRow('p', { documentExpiresAt: new Date('2026-09-30T00:00:00+07:00') })])
+    const r = await recomputeVerification('p', NOW)
+    expect(r.changed).toBe(false)
+    expect(effects().map((c) => c.args[1])).toEqual(['expired'])
+  })
+
+  it('⛔ keyed on the DERIVED status: an illegal transition (cache revoked, rows verified) still hands the effects `verified`', async () => {
+    h.profiles.set('p', { createdAt: OLD, verificationStatus: 'revoked' })
+    h.ivs.set('p', [verifiedRow('p')])
+    const r = await recomputeVerification('p')
+    expect(r.status).toBe('revoked')
+    expect(r.illegalTransition).toEqual({ from: 'revoked', to: 'verified' })
+    expect(effects().map((c) => c.args[1])).toEqual(['verified'])
+  })
+
+  it('a revocation hands them `revoked` — no flag either way (downward trust always lands in full)', async () => {
+    h.profiles.set('p', { createdAt: OLD, verificationStatus: 'verified' })
+    h.ivs.set('p', [verifiedRow('p', { status: 'revoked' })])
+    await recomputeVerification('p')
+    expect(effects().map((c) => c.args)).toEqual([['p', 'revoked', expect.any(Date)]])
+    expect(effects()[0].args).toHaveLength(3)
+  })
+
+  it('⚠️ FAIL-QUIET: effects that throw still resolve with the status — and no `effects` on the answer', async () => {
+    h.effectsThrow = true
+    h.profiles.set('p', { createdAt: OLD, verificationStatus: 'pending' })
+    h.ivs.set('p', [verifiedRow('p')])
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const r = await recomputeVerification('p')
+    expect(r).toMatchObject({ status: 'verified', changed: true })
+    expect(r.effects).toBeUndefined()
+    expect(err).toHaveBeenCalled()
+    err.mockRestore()
   })
 })

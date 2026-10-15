@@ -127,6 +127,18 @@ type WindowOptions<S> = SeatOptions & {
    * though the page passed `{ teachers: true }` to its own scopedListingWhere (disc-03 / rentals-01).
    */
   teachers?: boolean
+  /**
+   * ⛔ SKIP THE MEMO — READ AND WRITE (2026-10-15): build this window from the database, and neither take an entry nor
+   * leave one. ONLY for an ISR page whose rows carry a public claim a purge must be able to withdraw: the two teacher
+   * pages (/c/teachers and its district pages: the trust score and the order a live identity moves, and — with the
+   * identity mark — a consent-bound tick).
+   * The memo is PROCESS-LOCAL and no purge clears it (the note above), so a purged teacher page regenerating within
+   * 60s of an earlier build baked the OLD rows back in for its 6h / 24h ISR window — and each edition runs its own
+   * process, so even a purge that cleared one memo would leave the other. The cost: one window build per regeneration
+   * of those two pages, which ISR bounds to one per purge or per window. /api/listings keeps the memo (s-maxage 60,
+   * SWR 300 — it lags a purge by minutes, and cannot be purged by path anyway). Seat rules, scope and build: unchanged.
+   */
+  fresh?: boolean
 } & ([S] extends [GoodsReadable] ? unknown : { goodsSeats?: false })
 
 /**
@@ -171,7 +183,10 @@ export async function diverseFeedWindow<S extends Prisma.ListingSelect & { id: t
   const sharedSeats = !!opts?.sharedSeats
   const goodsSeats = !!opts?.goodsSeats
   const key = JSON.stringify([scoped, orderBy, select, sharedSeats, goodsSeats])
-  const hit = windowCache.get(key)
+  // ⛔ A `fresh` window neither reads nor writes the memo (WindowOptions.fresh): it would otherwise serve, or leave
+  // behind, rows a purge has just withdrawn. Not part of the key — a fresh call simply never touches the cache.
+  const fresh = !!opts?.fresh
+  const hit = fresh ? undefined : windowCache.get(key)
   /**
    * ⚠️ EVERY CALLER GETS ITS OWN ARRAY. The memo holds one array that would otherwise be handed by
    * reference to every concurrent request and to the home render — the old route pointedly passed
@@ -192,6 +207,8 @@ export async function diverseFeedWindow<S extends Prisma.ListingSelect & { id: t
   const built: Promise<WindowBuild> = buildWindow(scoped, orderBy, select, sharedSeats)
     .then((w) => (goodsSeats ? withGoodsCandidates(w, scoped, orderBy, select) : w))
   const rows = built.then((r) => r.rows as WindowRow[])
+  // A fresh build stored nothing, and must not delete a memoized caller's entry under the same key either.
+  if (fresh) return rows as Promise<Prisma.ListingGetPayload<{ select: S }>[]>
   // Neither a rejection nor a fallback window may stay cached — the next request must be free to
   // try again rather than inherit a head that no other page agrees with.
   built.then((r) => { if (!r.diverse) windowCache.delete(key) }, () => windowCache.delete(key))

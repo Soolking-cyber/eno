@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
-import { browseRankScore, RANK, rankScoreExprSql } from './ranking-formula'
+import { browseRankScore, RANK, rankScoreExprSql, searchScore } from './ranking-formula'
+import { TRUST } from './trust-math'
 
 describe('rankScore single source', () => {
   // 30s timeout: the recursive grep scans the whole tree and can exceed the 5s
@@ -26,5 +27,20 @@ describe('rankScore single source', () => {
     const now = Date.now()
     const v = browseRankScore({ sellerTrustScore: RANK.TRUST_FLOOR + RANK.TRUST_SPAN, postedAt: new Date(now), featured: false }, now)
     expect(v).toBeCloseTo(RANK.BROWSE_TRUST_W + RANK.BROWSE_RECENCY_W, 10)
+  })
+})
+
+/**
+ * ⚖️ WHAT A LIVE VERIFIED IDENTITY IS WORTH IN THE ORDER (owner, 2026-10-15): +V_KYC trust points, a flat step — the same
+ * ~0.086 of browse rank and ~0.057 of search score wherever the seller sits in the trust span. No sort, pin, filter or
+ * tie-break reads the identity itself: it reaches the order only through sellerTrustScore, like every other trust input.
+ */
+describe('a live verified identity in the rank (+V_KYC trust points)', () => {
+  it.each([50, 60, 85, 110])('from trust %i: +0.0857 browse, +0.0571 search', (t) => {
+    const now = Date.now()
+    const at = (score: number) => ({ sellerTrustScore: score, postedAt: new Date(now) })
+    expect(browseRankScore(at(t + TRUST.V_KYC), now) - browseRankScore(at(t), now)).toBeCloseTo(RANK.BROWSE_TRUST_W * TRUST.V_KYC / RANK.TRUST_SPAN, 10)
+    expect(browseRankScore(at(t + TRUST.V_KYC), now) - browseRankScore(at(t), now)).toBeCloseTo(0.0857, 4)
+    expect(searchScore({ ...at(t + TRUST.V_KYC), relevance: 0.5 }, now) - searchScore({ ...at(t), relevance: 0.5 }, now)).toBeCloseTo(0.0571, 4)
   })
 })

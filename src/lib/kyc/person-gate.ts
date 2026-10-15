@@ -30,8 +30,9 @@ export function personBeforeBusinessEnforced(): boolean {
  * Has the human behind this storefront completed stage 1?
  *
  * ⛔ DERIVED FROM THE VERIFICATION ROWS, NOT READ OFF `Profile.verificationStatus`. That column is a
- * CACHE written by `recomputeVerification`, and nothing sweeps it on a schedule — so a lapsed
- * document still reads `verified` there until something happens to recompute it. `readVerifiedIdentity`
+ * CACHE written by `recomputeVerification` — on each decision, and by the nightly reconcile at 09:05 ICT
+ * (/api/cron/identity-reconcile) — so a document that lapsed at midnight still reads `verified` there
+ * until that run, and for as long as its timer is down. `readVerifiedIdentity`
  * applies `deriveVerification`, where `revoked` outranks everything and expiry is evaluated against
  * today. A gate that trusts a stale cache is not a gate.
  *
@@ -84,10 +85,11 @@ export async function ownerPersonVerified(ownerId: string | null | undefined): P
  *    expires or their verification is revoked the day after approval, the business badge stays lit.
  *    The fix is a FIFTH condition on `isBusinessVerified()` — it is a live predicate, so adding one
  *    makes the badge drop the moment the person's does. That is almost certainly right, and it is
- *    NOT free: nothing sweeps `recomputeVerification` on a schedule today, so the cascade would
- *    fire only when something else happened to recompute, and it would fire silently with no
- *    notification path. Ship the cron and the notice with it, or the failure mode is a seller whose
- *    badge vanishes with no explanation.
+ *    NOT free. The schedule half exists since 2026-10-15 — the nightly reconcile
+ *    (/api/cron/identity-reconcile, 09:05 ICT) runs `recomputeVerification` for every profile with an
+ *    identity row, so a cascade hung off it would fire within a day — but it would still fire silently:
+ *    there is no notification path for a lapsed person behind a business badge. Ship the notice with
+ *    it, or the failure mode is a seller whose badge vanishes with no explanation.
  *
  * 2. TIME-OF-CHECK vs TIME-OF-USE INSIDE `approveVerification`. The person check and the Seller
  *    stamp are not in one transaction, so an identity revoked in the milliseconds between them is

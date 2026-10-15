@@ -7,7 +7,10 @@ import { legacyDistrictKey } from '@/lib/teachers/profile'
  * THE PUBLIC PAGES A TEACHER ROW IS ON — one list, shared by the writers that own a teacher row: the teacher publish core
  * (src/lib/teachers/publish.ts — the full save, the cover save, hide/show and delete), the generic listing cores when the
  * listing is a teacher's (src/lib/core/listings.ts purgeTeacherPages — the dashboard row's Hide / Relist / Delete,
- * /api/v1 and MCP reach setStatusCore and deleteListingCore) and the account erasure (src/lib/core/account-erasure.ts).
+ * /api/v1 and MCP reach setStatusCore and deleteListingCore), the account erasure (src/lib/core/account-erasure.ts)
+ * and, since 2026-10-15, every identity recompute of a teacher account (src/lib/compliance/identity-effects.ts — a
+ * KYC submission, decision or revocation, and the nightly reconcile, /api/cron/identity-reconcile): a live verified
+ * identity moves trust, which the pages bake into the order and the score, so the purge follows unconditionally.
  * Moved out of publish.ts on 2026-10-13, when the home page gained its "Find a teacher" shelf.
  * ⚠️ NOT EVERY WRITER: moderation (reject, unpublish, a confirmed report, an approval), an enforcement hold and the AI /
  * provenance auto-holds purge a teacher's listing page and the home page, but not /c/teachers or the district page, which

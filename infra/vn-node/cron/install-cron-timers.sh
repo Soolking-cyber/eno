@@ -92,6 +92,15 @@ declare -A SCHED=(
   # run is a check, not a precondition — this job is SAFE (below), so a full re-run of the installer before the deploy
   # installs it early, and its unit then FAILS nightly (the route 404s) until the deploy lands, harmlessly.
   [licence-holds]="*-*-* 17:00:00 UTC"
+  # The nightly identity reconcile (owner, 2026-10-15 — src/app/api/cron/identity-reconcile/route.ts): every profile with
+  # an identity_verifications row is recomputed — the verification cache, trust (a LIVE verified identity is +10), the
+  # enforcement state and a teacher's pages. 02:05 UTC = 09:05 ICT, NOT midnight: a document lapses at 00:00 ICT, but
+  # losing the +10 can drop a seller under 60 (restricted) and the enforcement ladder then sends a bell + push — so this
+  # run's notices land in the day. Five minutes after daily-reminders' 09:00 pass. ⛔ Never fold it into daily-reminders (EMAIL: every
+  # full re-run disables it; a 60s budget shared with reminders, rank and stats). Deploy day: read `?dryRun=1` first,
+  # then `ENO_CRON_ONLY=identity-reconcile bash install-cron-timers.sh` — and run the route once by hand right after the
+  # deploy: a normal run IS the backfill (no ?all mode).
+  [identity-reconcile]="*-*-* 02:05:00 UTC"
 )
 # ⚠️ affiliate-prices reaches OUT to api.accesstrade.vn and can run for minutes. It writes only price/affiliateUrl
 # on imported rows and emails nobody — never on a hidden row (prices land on active|sold, restores take sold only).
@@ -134,7 +143,16 @@ declare -A SCHED=(
 # the rows of the storefronts it names stay live); more than 50 rows whose STAMP no longer matches (500, refused
 # mass_pull — those stay live). ⚠️ The last two still pull every OTHER unchecked row: a listing that never carried a
 # stamp is never kept public by a refusal. One edition is enough: the database is shared.
-SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations partner-stock indexnow listing-tombstone-retention school-proof-retention apple-revocations teacher-draft-retention licence-holds)
+# ⚠️ identity-reconcile is SAFE to enable (owner, 2026-10-15 — SAFE, so any full re-run enables it): it applies only
+# what the decided rule already says — the verification cache follows the identity rows, and a LIVE verified identity
+# is +10 in trust, gone on expiry or revocation — through the same recomputeVerification every KYC decision runs. It
+# is idempotent (a profile in sync costs its reads), emails nobody, and touches only accounts that have an identity row
+# (2–3 on 2026-10-15). ⚠️ NOT SILENT, which is why 09:05 ICT: a score that crosses a ladder line moves the
+# enforcement state, and syncEnforcement sends that transition's bell + web push (losing the +10 can take a seller
+# under 60, the restricted tier). It purges a teacher's pages (shared invalidations) and a failed recompute leaves the
+# unit FAILED (500 partial_failure) for someone to read. Installed before the deploy, its unit fails (the route 404s)
+# until the deploy lands, harmlessly. One edition is enough: the database is shared.
+SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations partner-stock indexnow listing-tombstone-retention school-proof-retention apple-revocations teacher-draft-retention licence-holds identity-reconcile)
 # Installed, NOT enabled: these send email to real people. They are enabled at cutover, by the line printed at the end.
 EMAIL=(daily-reminders saved-search-alerts weekly-digest)
 # ⛔ STARTED BY HAND, NEVER ON A SCHEDULE: a SERVICE and NO TIMER (gate review, 2026-10-08 — codex + Opus). The teacher
@@ -218,6 +236,9 @@ for job in "${!SCHED[@]}"; do
   # ⚠️ licence-holds runs ONCE, on eno.vn, whatever host this installer was run for: the listings and the ISR
   # invalidations are in the shared database, so a pull there is a pull on both sites; a second run would find nothing.
   [ "$job" = licence-holds ] && TARGET="eno.vn 3001"
+  # ⚠️ identity-reconcile runs ONCE, on eno.vn, whatever host this installer was run for: the identity rows, the trust
+  # columns and the ISR invalidations are all in the shared database — a second run on eno.forum would find nothing.
+  [ "$job" = identity-reconcile ] && TARGET="eno.vn 3001"
   cat > "/etc/systemd/system/eno-cron-$job.service" <<UNIT
 [Unit]
 Description=eno cron: $job
@@ -236,14 +257,18 @@ UNIT
   fi
   # Every timer is spread over two minutes and coalesced to the minute (systemd's own default) — except licence-holds, which
   # must fire ON 00:00 ICT, when the grandfather ends: no spread, one-second accuracy (commit gate, 2026-10-14).
-  DELAY=120; ACCURACY=1min
+  DELAY=120; ACCURACY=1min; PERSIST=true
   [ "$job" = licence-holds ] && { DELAY=0; ACCURACY=1s; }
+  # ⚠️ identity-reconcile is NOT replayed at boot (commit review, 2026-10-15): it runs at 09:05 ICT so the enforcement bell
+  # or push a lost +10 can trigger lands in the day, and Persistent=true would fire a missed run the moment the box
+  # boots, whatever the hour. Nothing is lost — the next 09:05 run reconciles every identity holder again (idempotent).
+  [ "$job" = identity-reconcile ] && PERSIST=false
   cat > "/etc/systemd/system/eno-cron-$job.timer" <<UNIT
 [Unit]
 Description=eno cron timer: $job (${SCHED[$job]})
 [Timer]
 OnCalendar=${SCHED[$job]}
-Persistent=true
+Persistent=$PERSIST
 RandomizedDelaySec=$DELAY
 AccuracySec=$ACCURACY
 [Install]

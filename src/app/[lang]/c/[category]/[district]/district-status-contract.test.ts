@@ -58,6 +58,10 @@ describe('/c/<category>/<district> status contract', () => {
    * (feed-window.ts): without the flag it re-added the teacher exclusion, so /c/teachers/<district> counted its
    * teachers, listed none and 404ed (/c/teachers/d7 with three live teachers). Each read is pinned to one category,
    * so the flag hides nothing anywhere else.
+   * ⛔ …AND THE WINDOW IS `fresh` ON THE TEACHERS CATEGORY ONLY (B2, 2026-10-15 — feed-window.ts WindowOptions.fresh).
+   * The memo is process-local and no purge clears it, so a teacher district page regenerating right after a purge (an
+   * identity decision, a hide) re-baked the old rows for its 24h. Keyed on the slug: dropped, the re-bake is back;
+   * `fresh: true`, every category's district pages lose the memo. The category page's twin: feed-window.test.ts.
    */
   it('passes the teacher decision to every helper that re-scopes its where', () => {
     const src = readFileSync(join(APP, 'c/[category]/[district]/page.tsx'), 'utf8')
@@ -65,6 +69,7 @@ describe('/c/<category>/<district> status contract', () => {
     const windows = [...src.matchAll(/await diverseFeedWindow\(([^\n]*)\)$/gm)].map((m) => m[1])
     expect(windows.length).toBeGreaterThan(0)
     for (const args of windows) expect(args).toMatch(/teachers: true/)
+    for (const args of windows) expect(args).toMatch(/\bfresh: categorySlug === TEACHERS_CATEGORY_SLUG\b/)
     // Every scopedListingWhere call here carries the flag (one today: `base`, which every other read composes).
     const scoped = src.split('await scopedListingWhere(').slice(1).map((rest) => rest.slice(0, rest.indexOf('\n  const ')))
     expect(scoped.length).toBeGreaterThan(0)

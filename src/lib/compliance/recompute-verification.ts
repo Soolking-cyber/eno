@@ -3,6 +3,8 @@ import { db } from '@/lib/db'
 import { assertTransition, canTransition, type VerificationStatus } from './account-state'
 import { asStatus, deriveVerification, type VerificationRow as Row } from './derive-verification'
 import { releaseIdentityHolds } from './identity-holds'
+// Type-only, so erased: the module itself is imported LAZILY below (a static import is a cycle).
+import type { IdentityEffects } from './identity-effects'
 
 // ── THE ONLY SANCTIONED WRITER OF Profile.verification* ─────────────────────────────────────────
 //
@@ -19,7 +21,10 @@ import { releaseIdentityHolds } from './identity-holds'
 // ⚠️ EXPIRY IS COMPUTED, NOT STORED. A verified passport becomes `expired` because the clock moved,
 // with no user action and no new row. That is why the transition table has `verified → expired`
 // reachable without a submission — and why calling this on a schedule is part of the design rather
-// than an optimisation. Nothing else notices a document lapsing.
+// than an optimisation. The schedule (2026-10-15): /api/cron/identity-reconcile runs this for EVERY
+// profile that has an identity_verifications row, nightly at 09:05 ICT (02:05 UTC — a SAFE timer in
+// infra/vn-node/cron/install-cron-timers.sh). Between a lapse at midnight and that run the cache still
+// reads `verified` — which is why every decision that matters derives from the rows instead (below).
 
 /** Newest-first, because "the record that speaks for this profile" is almost always the latest. */
 const ROW_SELECT = {
@@ -36,6 +41,11 @@ export type RecomputeResult = {
   changed: boolean
   /** Set when the derived status was NOT reachable from the stored one — see the note below. */
   illegalTransition?: { from: VerificationStatus; to: VerificationStatus }
+  /**
+   * What the identity effects did (identity-effects.ts): trust, enforcement, a teacher's pages. Absent when the
+   * effects module could not run at all — the reconcile counts that as a failure, like `effects.failed`.
+   */
+  effects?: IdentityEffects
 }
 
 // ⚠️ THE DERIVATION MOVED TO derive-verification.ts (pure, no db, no server-only) so that a SCRIPT can
@@ -44,8 +54,10 @@ export type RecomputeResult = {
 export { deriveVerification } from './derive-verification'
 
 /**
- * Recompute and persist the cache for one profile. Safe to call repeatedly — it writes only when
- * the derived status differs from the stored one.
+ * Recompute and persist the cache for one profile, then run the identity effects (trust, enforcement,
+ * a teacher's pages — identity-effects.ts). Safe to call repeatedly: the cache is written only when the
+ * derived status differs from the stored one, a trust recompute already in sync writes nothing, and a
+ * purge costs one regeneration.
  *
  * ⚠️ AN ILLEGAL TRANSITION IS REPORTED, NOT THROWN. `assertTransition` exists to stop an impossible
  * journey reaching the audit log, and that is right for a REQUEST. But this function also runs from
@@ -82,7 +94,21 @@ export async function recomputeVerification(profileId: string, now: Date = new D
       console.error('[recompute-verification] identity-hold release failed', { profileId }, e)
     }
   }
-  return result
+  // ⚖️ TRUST, RANK, ENFORCEMENT AND A TEACHER'S PAGES FOLLOW THE LIVE STATUS (owner, 2026-10-15) — identity-effects.ts.
+  // ⛔ KEYED ON `derived`, NOT result.status / changed (the release above needs both): an illegal transition leaves the
+  // cache where it was, but trust reads the ROWS, so it must move all the same — and an unchanged cache (a lapse the
+  // reconcile recorded last night, a failed effects run) must still re-derive.
+  // ⚠️ LAZY, AND IT MUST STAY LAZY: identity-effects → trust → enforcement → seller-publish-gate imports THIS file. A
+  // static import closes that cycle — "tidying" it into one is the regression this comment is here to stop.
+  // ⚠️ FAIL-QUIET: a KYC decision, a revocation or the reconcile never fails over a side effect. Each step is guarded
+  // inside; this catch is for the import itself, and leaves `effects` absent, which the reconcile counts as failed.
+  try {
+    const { applyIdentityEffects } = await import('./identity-effects')
+    return { ...result, effects: await applyIdentityEffects(profileId, derived, now) }
+  } catch (e) {
+    console.error('[recompute-verification] identity effects failed', { profileId }, e)
+    return result
+  }
 }
 
 /** The cache write itself; returns the derived status alongside, for the release above. */
@@ -129,8 +155,8 @@ async function recomputeCache(profileId: string, now: Date): Promise<{ result: R
  * a verified badge." The cache is for rendering a badge without a join; it is not evidence.
  *
  * ⚠️ AND THE DRIFT IS NOT HYPOTHETICAL, because expiry is derived rather than stored: a passport
- * that lapsed this morning still reads `verified` in the cache until a sweep runs. Reading the
- * cache here would let exactly that seller publish.
+ * that lapsed at midnight still reads `verified` in the cache until the reconcile runs at 09:05 ICT
+ * (longer if that timer is down). Reading the cache here would let exactly that seller publish.
  *
  * One indexed query, and only when the gate is actually enforced — see the call site.
  */

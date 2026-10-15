@@ -25,6 +25,8 @@ const h = vi.hoisted(() => ({
     queue: [] as Record<string, unknown>[],
     updates: [] as Record<string, unknown>[],
     recomputed: [] as string[],
+    /** Every argument list recomputeVerification was called with — the "no flag" pin (R1, 2026-10-15). */
+    recomputeArgs: [] as unknown[][],
     provisioned: [] as string[],
     provisionFails: false,
     notified: [] as Record<string, unknown>[],
@@ -82,7 +84,9 @@ vi.mock('@/lib/db', () => {
   return { db }
 })
 vi.mock('@/lib/compliance/recompute-verification', () => ({
-  recomputeVerification: async (id: string) => {
+  recomputeVerification: async (...args: unknown[]) => {
+    const id = args[0] as string
+    h.s.recomputeArgs.push(args)
     if (h.s.recomputeThrows) throw new Error('db down')
     h.s.recomputed.push(id); return { status: h.s.recomputedStatus, sourceId: null, changed: true }
   },
@@ -132,7 +136,7 @@ const caseRow = (over: Record<string, unknown> = {}) => ({
   profile: { displayName: 'Anna Maria Eriksson' }, ...over,
 })
 
-beforeEach(() => { h.s.row = caseRow(); h.s.clash = null; h.s.pendingById = caseRow(); h.s.storage = 'present'; h.s.signFails = false; h.s.raced = false; h.s.writeConflict = false; h.s.txIsolation = null; h.s.updateThrows = null; h.s.queue = []; h.s.updates = []; h.s.lastWhere = null; h.s.recomputed = []; h.s.provisioned = []; h.s.provisionFails = false; h.s.notified = []; h.s.recomputeThrows = false; h.s.recomputedStatus = 'verified'; h.s.audits = [] })
+beforeEach(() => { h.s.row = caseRow(); h.s.clash = null; h.s.pendingById = caseRow(); h.s.storage = 'present'; h.s.signFails = false; h.s.raced = false; h.s.writeConflict = false; h.s.txIsolation = null; h.s.updateThrows = null; h.s.queue = []; h.s.updates = []; h.s.lastWhere = null; h.s.recomputed = []; h.s.recomputeArgs = []; h.s.provisioned = []; h.s.provisionFails = false; h.s.notified = []; h.s.recomputeThrows = false; h.s.recomputedStatus = 'verified'; h.s.audits = [] })
 
 describe('reviewKycCase', () => {
   it('approving a good case verifies it and records WHO decided', async () => {
@@ -250,6 +254,18 @@ describe('reviewKycCase', () => {
   it('the profile cache is recomputed after every decision, never before', async () => {
     await reviewKycCase({ verificationId: 'iv1', admin: 'a@eno.vn', decision: 'approve', now: NOW })
     expect(h.s.recomputed).toEqual(['p1'])
+  })
+
+  // ⛔ R1 (plan review, 2026-10-15): an approval passes NO "approved" / uncapped flag. The identity's +10 lands in full
+  // inside recomputeTrust on ANY recompute (identity-effects.ts → trust.ts); a flag here would land the account's whole
+  // capped backlog beside it. Approve and reject alike call (profileId, now) — nothing more.
+  it('⛔ no decision passes a flag to the recompute — approve and reject alike are (profileId, now)', async () => {
+    await reviewKycCase({ verificationId: 'iv1', admin: 'a@eno.vn', decision: 'approve', now: NOW })
+    expect(h.s.recomputeArgs).toEqual([['p1', NOW]])
+    h.s.recomputeArgs = []
+    h.s.row = caseRow()
+    await reviewKycCase({ verificationId: 'iv1', admin: 'a@eno.vn', decision: 'reject', note: 'blurred', now: NOW })
+    expect(h.s.recomputeArgs).toEqual([['p1', NOW]])
   })
 
   it('a long reviewer note is truncated rather than rejected', async () => {

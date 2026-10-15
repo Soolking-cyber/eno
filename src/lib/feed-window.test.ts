@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { feedPagePlan, seatOrder } from './feed-window'
 import { JOB_SELLER_IDS } from './job-listing'
 import { GOODS_CATEGORY_SLUGS, SHARED_SEAT_SELLERS } from './feed-diversity'
@@ -239,6 +241,77 @@ describe('the window memo', () => {
     const before = groupBy.mock.calls.length
     await diverseFeedWindow({ status: 'active' }, RANK_DESC, SELECT)
     expect(groupBy.mock.calls.length).toBe(before + 1)
+  })
+})
+
+/**
+ * ⛔ A `fresh` WINDOW NEVER TOUCHES THE MEMO (2026-10-15) — the teacher ISR pages. The memo is process-local and no purge
+ * clears it, so a purged /c/teachers regenerating within its TTL re-baked the rows the purge withdrew (a trust change, a
+ * hidden profile, the identity tick) for six or 24 hours. Fresh = read the database every time, store nothing, and
+ * leave every other caller's entry alone.
+ */
+describe('the window memo — `fresh` (teacher ISR pages)', () => {
+  const T_WHERE = { status: 'active', categoryId: 'teachers' }
+  const diverse = () => {
+    groupBy.mockResolvedValue([{ sellerId: 'a' }, { sellerId: 'b' }])
+    findMany.mockImplementation(async ({ where }: any) => stock(where?.AND?.[1]?.sellerId ?? 'x', 30))
+  }
+
+  it('two identical fresh calls BOTH read the database', async () => {
+    diverse()
+    await diverseFeedWindow(T_WHERE, RANK_DESC, SELECT, { teachers: true, fresh: true })
+    const after = groupBy.mock.calls.length
+    await diverseFeedWindow(T_WHERE, RANK_DESC, SELECT, { teachers: true, fresh: true })
+    expect(groupBy.mock.calls.length).toBe(after + 1)
+  })
+
+  it('a fresh call leaves NO entry a later non-fresh call could hit', async () => {
+    diverse()
+    await diverseFeedWindow(T_WHERE, RANK_DESC, SELECT, { teachers: true, fresh: true })
+    const after = groupBy.mock.calls.length
+    await diverseFeedWindow(T_WHERE, RANK_DESC, SELECT, { teachers: true })
+    expect(groupBy.mock.calls.length).toBe(after + 1)
+  })
+
+  it('a fresh call ignores the entry a non-fresh call left — it reads the rows a purge just changed', async () => {
+    diverse()
+    await diverseFeedWindow(T_WHERE, RANK_DESC, SELECT, { teachers: true })
+    // The data moves (a purge's reason): the fresh page must see it, while the memo still holds the old head.
+    findMany.mockImplementation(async ({ where }: any) => stock(`${where?.AND?.[1]?.sellerId ?? 'x'}-new`, 30))
+    const fresh = await diverseFeedWindow(T_WHERE, RANK_DESC, SELECT, { teachers: true, fresh: true })
+    expect(fresh.every((r: any) => r.sellerId.endsWith('-new'))).toBe(true)
+    // …and the memoized caller keeps its own entry, untouched (no extra build).
+    const after = groupBy.mock.calls.length
+    const memo = await diverseFeedWindow(T_WHERE, RANK_DESC, SELECT, { teachers: true })
+    expect(groupBy.mock.calls.length).toBe(after)
+    expect(memo.some((r: any) => r.sellerId.endsWith('-new'))).toBe(false)
+  })
+
+  it('a fresh FALLBACK build does not evict a memoized caller\'s entry under the same key', async () => {
+    diverse()
+    await diverseFeedWindow(T_WHERE, RANK_DESC, SELECT, { teachers: true })
+    groupBy.mockRejectedValueOnce(new Error('transient'))
+    await diverseFeedWindow(T_WHERE, RANK_DESC, SELECT, { teachers: true, fresh: true })
+    await Promise.resolve() // let the build's settle handlers run, were any attached
+    const after = groupBy.mock.calls.length
+    await diverseFeedWindow(T_WHERE, RANK_DESC, SELECT, { teachers: true })
+    expect(groupBy.mock.calls.length).toBe(after) // still a hit
+  })
+
+  /**
+   * ⛔ …AND THE PAGE HAS TO ASK FOR IT (review, 2026-10-16). Every case above stays green with the option unused: drop
+   * `fresh` from /c/teachers and the re-bake is back; set it for every category and the memo is gone from every
+   * category page. So the call is pinned, keyed on the teachers slug — never a constant. Read as source: an async server
+   * page over a live database. The district page's twin sits beside its `teachers: true` pin
+   * (c/[category]/[district]/district-status-contract.test.ts).
+   */
+  it('⛔ /c/teachers asks for it: every window call on the category page keys `fresh` on the teachers slug', () => {
+    const src = readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]/(index)/page.tsx'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1')
+    const calls = [...src.matchAll(/\bdiverseFeedWindow\(([^\n]*)$/gm)].map((m) => m[1])
+    expect(calls.length).toBeGreaterThan(0)
+    for (const args of calls) expect(args).toMatch(/\bfresh: cat\.slug === TEACHERS_CATEGORY_SLUG\b/)
   })
 })
 

@@ -10,6 +10,11 @@ import {
   dedupeReviewPairs,
   freshnessScore,
   GUEST_SELLER_TRUST,
+  IDENTITY_GATE_EVENT,
+  IDENTITY_GATE_OFF,
+  IDENTITY_GATE_ON,
+  identityCapBase,
+  identityGateCounted,
   REPORT_NOT_CONFIRMED_STATUSES,
   REPORT_WITHDRAWN_BY_REPORTER,
   reportClearsCharge,
@@ -217,6 +222,60 @@ describe('applyDailyCap (anti-gaming rail)', () => {
 
   it('NEVER caps downward movement — penalties bite immediately', () => {
     expect(applyDailyCap(80, 40, 0)).toEqual({ score: 40, lift: 0 })
+  })
+})
+
+/**
+ * ⚖️ THE LIVE IDENTITY'S STEP AND THE CAP (owner, 2026-10-15 — R1). recomputeTrust caps the score WITHOUT the identity,
+ * measured from identityCapBase(cached), and adds the step in full; identityGateCounted reads the ledger marker that
+ * says whether the cached score already carries the step (a single number cannot say it).
+ */
+describe('identityGateCounted / identityCapBase (the identity step is exempt from the cap)', () => {
+  const at = (iso: string) => new Date(iso)
+  const mark = (on: boolean, iso: string) => ({ type: IDENTITY_GATE_EVENT, reason: on ? IDENTITY_GATE_ON : IDENTITY_GATE_OFF, createdAt: at(iso) })
+
+  it('no marker → not counted: every score persisted before 2026-10-15 left the identity out', () => {
+    expect(identityGateCounted([])).toBe(false)
+    // Other ledger rows never count — the legacy 'kyc' grant included.
+    expect(identityGateCounted([{ type: 'manual_adjust', reason: 'kyc', createdAt: at('2026-10-01T00:00:00Z') }])).toBe(false)
+  })
+
+  it('the LATEST marker decides, whatever order the rows come back in', () => {
+    expect(identityGateCounted([mark(true, '2026-10-01T00:00:00Z')])).toBe(true)
+    expect(identityGateCounted([mark(true, '2026-10-01T00:00:00Z'), mark(false, '2026-10-05T00:00:00Z')])).toBe(false)
+    expect(identityGateCounted([mark(true, '2026-10-09T00:00:00Z'), mark(false, '2026-10-05T00:00:00Z'), mark(true, '2026-10-01T00:00:00Z')])).toBe(true)
+    // Two concurrent recomputes writing the same marker change nothing.
+    expect(identityGateCounted([mark(true, '2026-10-01T00:00:00Z'), mark(true, '2026-10-01T00:00:00Z')])).toBe(true)
+  })
+
+  it('identityCapBase: the cached score minus the step when it carries one — else the cached score as it is', () => {
+    expect(identityCapBase(90, true, TRUST.V_KYC)).toBe(80)
+    expect(identityCapBase(90, false, TRUST.V_KYC)).toBe(90)
+    // Floored at 0: the score without the identity is itself clamped at 0.
+    expect(identityCapBase(4, true, TRUST.V_KYC)).toBe(0)
+    // At the 150 ceiling the step can be worth less than V_KYC — and nothing at all at a full 150 without it.
+    expect(identityCapBase(150, true, 0)).toBe(150)
+  })
+
+  it('composed as recomputeTrust composes it: the step lands in full beside a backlog that stays capped', () => {
+    // cached 80, no step in it; without the identity the target is 110 (a +30 backlog); the step is worth 10.
+    const first = applyDailyCap(identityCapBase(80, false, 10), 110, 0)
+    expect(first.score + 10).toBe(96)
+    // The next recompute that day: 96 now carries the step; the 24h window holds 6.
+    const second = applyDailyCap(identityCapBase(96, true, 10), 110, first.lift)
+    expect(second).toEqual({ score: 86, lift: 0 })
+    expect(second.score + 10).toBe(96) // not 106 — the step is never added twice
+  })
+
+  it('the identity step is exactly V_KYC wherever the clamp does not bite (flat: tier A and B alike)', () => {
+    const parts = { Q: 5, T: 0, C: 0, M: 0 }
+    const off = composeScore({ ...parts, V: verificationScore({ phoneVerified: true, kycVerified: false, accountAgeDays: 400 }) })
+    const on = composeScore({ ...parts, V: verificationScore({ phoneVerified: true, kycVerified: true, accountAgeDays: 400 }) })
+    expect(on - off).toBe(TRUST.V_KYC)
+    // Near the ceiling it shrinks — never past 150: +5 of headroom left, then none.
+    const nearMax = (M: number) => ({ Q: 40, T: 25, C: 0, M })
+    expect(composeScore({ ...nearMax(5), V: 25 }) - composeScore({ ...nearMax(5), V: 15 })).toBe(5)
+    expect(composeScore({ ...nearMax(10), V: 25 }) - composeScore({ ...nearMax(10), V: 15 })).toBe(0)
   })
 })
 

@@ -3,7 +3,12 @@ import { cache } from 'react'
 import { db } from '@/lib/db'
 import { IS_SERVICES } from '@/lib/edition'
 import { logWarn } from '@/lib/log'
-import { deriveVerification } from '@/lib/compliance/recompute-verification'
+// ⚠️ FROM THE PURE MODULE, NOT recompute-verification (2026-10-15). trust.ts imports this file — a LIVE verified
+// identity is V_KYC and moves rater credibility (verifiedProfileIds) — and recompute-verification runs the identity
+// effects, which import trust (identity-effects.ts): importing the derivation from there closed a cycle
+// trust → kyc/identity → recompute-verification → … → trust. It is the same function — recompute-verification only
+// re-exports it — imported where scripts/publish-held.ts imports it from.
+import { deriveVerification } from '@/lib/compliance/derive-verification'
 import { availableRails, ISO_ALPHA3, type PartyIdentity, type PaymentRailId } from '@/lib/payments/eligibility'
 
 /**
@@ -399,11 +404,17 @@ export async function hasVerifiedIdentity(profileId: string): Promise<boolean> {
  * verified identity per human is already enforced at submit (kyc/service.ts duplicate_identity), so this
  * is what makes it one person, one vote. A page of a few hundred voters cannot ask hasVerifiedIdentity
  * one profile at a time.
+ * ⚖️ AND BY TRUST (owner, 2026-10-15): computeTrustV2 asks it for the seller (V_KYC, +10 while the identity is
+ * live) and for every reviewer and reporter (credibility) — src/lib/trust.ts. ⛔ UNCACHED ON PURPOSE: a recompute
+ * that runs right after an approval or a revocation must see that decision, so trust never goes through
+ * verifiedIdentityFor / hasVerifiedIdentity (cache(), above).
  * ⛔ THE SAME DERIVATION AS readVerifiedIdentity, NOT A SECOND PREDICATE: every row of each profile's
  * history goes through `deriveVerification`, so revocation outranks everything and a lapsed document
  * stops counting on the day it lapses. It deliberately does not read `Profile.verificationStatus` — that
- * column is a cache nothing sweeps (kyc/person-gate.ts). Only the decision leaves this module: ids, never
- * a name, a nationality or a hash.
+ * column is a CACHE: recomputed on each decision and by the nightly reconcile at 09:05 ICT
+ * (/api/cron/identity-reconcile), so it lags a lapse (midnight ICT) by nine hours, and longer whenever that
+ * timer is down.
+ * Only the decision leaves this module: ids, never a name, a nationality or a hash.
  */
 export async function verifiedProfileIds(profileIds: readonly string[], now: Date = new Date(), opts: { asOf?: Date } = {}): Promise<Set<string>> {
   const ids = [...new Set(profileIds)].filter(Boolean)

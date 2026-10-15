@@ -71,6 +71,21 @@ describe('install-cron-timers.sh — the teacher job-match emails are never on a
     expect(SCRIPT).toContain('[ "$job" = licence-holds ] && TARGET="eno.vn 3001"')
   })
 
+  it('⛔ identity-reconcile (2026-10-15) is SAFE — any full re-run enables it — at 09:05 ICT, never midnight, once, on eno.vn', () => {
+    // The identity backstop: a lapse, a revocation or a failed decision effect is put right only while this timer runs,
+    // so it may not drift into a list a re-run leaves off — nor into EMAIL, which every full re-run disables.
+    expect(list('SAFE').words).toContain('identity-reconcile')
+    for (const name of ['EMAIL', 'MANUAL', 'POLICY']) expect(list(name).words, `${name} holds it`).not.toContain('identity-reconcile')
+    // 02:05 UTC = 09:05 ICT: losing the +10 can move the enforcement ladder, whose bell + push must not land at night.
+    expect(SCRIPT).toMatch(/^\s*\[identity-reconcile\]="\*-\*-\* 02:05:00 UTC"$/m)
+    expect(SCRIPT).toContain('[ "$job" = identity-reconcile ] && TARGET="eno.vn 3001"')
+    // The default spread — only licence-holds fires to the second.
+    expect(SCRIPT).not.toMatch(/\[ "\$job" = identity-reconcile \] && \{ DELAY=/)
+    // Never replayed at boot: a missed 09:05 run must not fire at night (Persistent=false for this job only).
+    expect(SCRIPT).toContain('[ "$job" = identity-reconcile ] && PERSIST=false')
+    expect(SCRIPT).toContain('Persistent=$PERSIST')
+  })
+
   it('in_list (the loop the branches use) answers yes and no under set -euo pipefail', () => {
     expect(IN_LIST).not.toBe('')
     const r = bash(`${list('MANUAL').line}\n${IN_LIST}\nin_list teacher-match-emails "\${MANUAL[@]}" && echo yes\nin_list weekly-digest "\${MANUAL[@]}" || echo no`)
