@@ -21,6 +21,7 @@ import { blockStateBetween } from '@/lib/user-blocks'
 import { appReviewGate } from '@/lib/app-review-gates'
 import { iosHideVisaFor } from '@/lib/ios-hide-visa'
 import { isEVisaProductListing } from '@/lib/evisa-listing'
+import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -167,7 +168,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
       // server's refusal will disagree and the buyer gets a hidden strip on a revealable listing.
       // Belt: the server is authoritative either way, so the failure is a missing affordance, not
       // a leak.
-      seller: { select: { id: true, ownerId: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true, officialPartner: true, owner: { select: { lastSeenAt: true, locale: true } } } },
+      seller: { select: { id: true, ownerId: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true, officialPartner: true, owner: { select: { lastSeenAt: true, locale: true, avatarUrl: true, accountType: true } } } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true, lastSeenAt: true, locale: true } },
       // Bounded (audit P2): the full history shipped on EVERY call × a 15s poll per
       // open tab. Last 200 in reverse, un-reversed below — covers any realistic
@@ -442,7 +443,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     // name, a listing, or an IP, because a wrong guess translates a message that did not
     // need it and hides the words the other person actually chose.
     counterpart: iAmBuyer
-      ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl, sellerId: counterpartSellerId, storefront: counterpartStorefront, trust: counterpartTrust, locale: convo.seller.owner?.locale ?? null }
+      ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: storefrontAvatarUrl(convo.seller), sellerId: counterpartSellerId, storefront: counterpartStorefront, trust: counterpartTrust, locale: convo.seller.owner?.locale ?? null }
       : { name: convo.buyer.displayName || maskEmailHandle(convo.buyer.email) || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl, sellerId: counterpartSellerId, storefront: counterpartStorefront, trust: counterpartTrust, locale: convo.buyer.locale ?? null },
     // The e-Visa case this thread is bound to, and the desk state the cards render against
     // (mode · the picked product · the server-issued USD quote · which providers are live).

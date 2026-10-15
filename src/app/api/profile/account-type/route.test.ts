@@ -30,6 +30,8 @@ const h = vi.hoisted(() => ({
   /** Sign in with Apple D14: CAPI configured, and the caller's token says Apple-linked. */
   capiOn: false,
   appleLinked: false,
+  /** refreshShopPicturePdps calls — a switch changes the shop picture a person's listing pages print. */
+  photoRefreshes: [] as unknown[][],
 }))
 
 vi.mock('next/server', async (orig) => ({
@@ -56,7 +58,10 @@ vi.mock('@/lib/phone-unique', () => ({ phoneTakenByOther: async () => false }))
 vi.mock('@/lib/handle', () => ({ consolidateSellerHandle: async () => {}, revertToPersonalHandle: async () => {} }))
 vi.mock('@/lib/compliance/seller-publish-gate', () => ({ claimGuestStorefront: async () => ({ claimed: false }) }))
 vi.mock('@/lib/trust', () => ({ initialSellerTrust: async () => ({}) }))
-vi.mock('@/lib/seller-pdp-refresh', () => ({ refreshSellerPdps: async () => {} }))
+vi.mock('@/lib/seller-pdp-refresh', () => ({
+  refreshSellerPdps: async () => {},
+  refreshShopPicturePdps: async (...a: unknown[]) => { h.photoRefreshes.push(a) },
+}))
 vi.mock('@/lib/meta-capi', async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   metaCapiConfigured: () => h.capiOn,
@@ -73,6 +78,7 @@ beforeEach(() => {
   h.capi = []
   h.capiOn = false
   h.appleLinked = false
+  h.photoRefreshes = []
 })
 
 describe('account-type — first-touch attribution needs the Analytics purpose', () => {
@@ -231,5 +237,25 @@ describe('POST /api/profile/account-type — the Terms acceptance stamp', () => 
       vi.doUnmock('@/lib/compliance/legal-amendment')
       vi.resetModules()
     }
+  })
+})
+
+// Owner, 2026-10-15: a person's shop shows their photo, a business's never (src/lib/storefront-avatar.ts) — on listing
+// pages cached for 30 days, so a switch must refresh them; re-sending the same type must not.
+describe('account-type — a switch refreshes the shop picture on the listing pages', () => {
+  const send = (body: Record<string, unknown>) => POST(new Request('https://eno.vn/api/profile/account-type', {
+    method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json' },
+  }))
+
+  it('business → individual: refreshed, with the profile as it was', async () => {
+    h.accountType = 'business'
+    expect((await send({ accountType: 'individual', displayName: 'Lan' })).status).toBe(200)
+    expect(h.photoRefreshes).toEqual([['p1', { avatarUrl: null, accountType: 'business' }, 'accountType.photo']])
+  })
+
+  it('no switch, no refresh', async () => {
+    h.accountType = 'individual'
+    expect((await send({ accountType: 'individual', displayName: 'Lan' })).status).toBe(200)
+    expect(h.photoRefreshes).toEqual([])
   })
 })

@@ -9,7 +9,7 @@ import { consolidateSellerHandle, revertToPersonalHandle } from '@/lib/handle'
 import { ApiError, route } from '@/lib/api/handler'
 import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
 import { initialSellerTrust } from '@/lib/trust'
-import { refreshSellerPdps } from '@/lib/seller-pdp-refresh'
+import { refreshSellerPdps, refreshShopPicturePdps } from '@/lib/seller-pdp-refresh'
 import { cutText } from '@/lib/feed-text'
 
 export const runtime = 'nodejs'
@@ -209,6 +209,11 @@ export const POST = route(
   // address off every listing page now, not in a month. Never throws (src/lib/seller-pdp-refresh.ts).
   if (ownSellerId && (profile.accountType !== accountType || Object.keys(legalData).length > 0)) {
     await refreshSellerPdps(ownSellerId, 'accountType.sellerInfo')
+  }
+  // …and a person's shop shows their photo, a business's never (src/lib/storefront-avatar.ts): a switch changes the shop
+  // picture those pages print. Purges only when it really changed. Never throws.
+  if (profile.accountType !== accountType) {
+    await refreshShopPicturePdps(profile.id, { avatarUrl: profile.avatarUrl ?? null, accountType: profile.accountType ?? null }, 'accountType.photo')
   }
 
   // First-touch acquisition channel for THIS signup (from the eno_attr cookie set on

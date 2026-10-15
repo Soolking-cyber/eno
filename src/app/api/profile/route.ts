@@ -7,6 +7,7 @@ import { containsContactInfo } from '@/lib/publish-guard'
 import { rateLimit } from '@/lib/ratelimit'
 import { ApiError, route } from '@/lib/api/handler'
 import { cutText } from '@/lib/feed-text'
+import { refreshShopPicturePdps } from '@/lib/seller-pdp-refresh'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -82,6 +83,11 @@ export const PATCH = route({ auth: 'profile' }, async ({ req, profile }) => {
   } catch (e) {
     if ((e as { code?: string })?.code === 'P2002') throw new ApiError('phone_taken', 409)
     throw e
+  }
+  // A person's photo is their shop's picture on their listing pages (src/lib/storefront-avatar.ts), which are ISR for 30
+  // days: a changed or removed photo purges them now. Never throws.
+  if (data.avatarUrl !== undefined && data.avatarUrl !== profile.avatarUrl) {
+    await refreshShopPicturePdps(profile.id, { avatarUrl: profile.avatarUrl, accountType: profile.accountType }, 'profile.photo')
   }
   return { ok: true }
 })

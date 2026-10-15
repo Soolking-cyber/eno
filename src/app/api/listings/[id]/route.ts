@@ -60,7 +60,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // turns an excluded row into the same 404 a missing one gets, so nothing downstream changes.
   const listing = await db.listing.findFirst({
     where: await scopedListingWhere({ id }),
-    include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+    include: { category: true, seller: { include: { owner: { select: { accountType: true, avatarUrl: true } } } } },
   })
   if (!listing || !listing.verified || listing.status !== 'active') {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })

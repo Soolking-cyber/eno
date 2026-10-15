@@ -5,6 +5,7 @@ import { isUnratedStorefront, partnerShown } from './linked-seller'
 import { isCommissionLink } from './affiliate-commission'
 import { categoryDescriptionFor, takesOffers } from './taxonomy'
 import type { SerializedListing, SerializedListingCard, SerializedCategory, CategoryColor } from './types'
+import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
 
 export function safeParse<T>(value: string | null, fallback: T): T {
   if (!value) return fallback
@@ -36,7 +37,7 @@ function fixMockImage(u: string): string {
 }
 
 export function serializeListing(
-  l: Listing & { category: Category; seller: Seller & { owner?: { accountType: string | null } | null } },
+  l: Listing & { category: Category; seller: Seller & { owner?: { accountType: string | null; avatarUrl?: string | null } | null } },
 ): SerializedListing {
   // The partner flag AS THIS LISTING SHOWS IT — never on a row that links out (linked-seller.ts partnerShown).
   const officialPartner = partnerShown(l.seller.officialPartner, !!l.affiliateUrl)
@@ -100,7 +101,9 @@ export function serializeListing(
       // sellers depending on which page you were on (owner 2026-07-24: "product page store
       // name image to be exact"). avatarColor alone is only the FALLBACK; without the url
       // beside it the fallback is all anyone ever saw.
-      avatarUrl: l.seller.avatarUrl,
+      // A person's shop has no photo of its own — it shows its owner's, where the query read it (the PDP's does):
+      // src/lib/storefront-avatar.ts (owner, 2026-10-15).
+      avatarUrl: storefrontAvatarUrl(l.seller),
       rating: l.seller.rating,
       reviewCount: l.seller.reviewCount,
       verifiedSeller: l.seller.verifiedSeller,

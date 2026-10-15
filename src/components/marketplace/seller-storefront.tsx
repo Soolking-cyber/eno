@@ -41,6 +41,7 @@ import { buildSellerInfo } from '@/lib/seller-info'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { isStorefrontGone } from '@/lib/storefront-gone'
 import { getInitials } from '@/lib/utils'
+import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
 
 // Shared storefront body — rendered by BOTH the canonical clean-handle URL
 // (src/app/[lang]/[handle]/page.tsx → eno.vn/<handle>) and the legacy /sellers/[id] route.
@@ -104,8 +105,9 @@ export const loadSeller = cache(async (id: string) => {
       _count: { select: { listings: { where: await scopedListingWhere({ verified: true, status: 'active' }) } } },
       handle: { select: { handle: true } }, // public shopname → the shareable eno.vn/<name> link
       // accountType → SellerCard's Business chip; lastSeenAt → the presence bucket
-      // (consumed server-side by sellerMetrics — only the day-coarse value escapes).
-      owner: { select: { accountType: true, lastSeenAt: true } },
+      // (consumed server-side by sellerMetrics — only the day-coarse value escapes);
+      // avatarUrl → a person's storefront shows its owner's photo (src/lib/storefront-avatar.ts).
+      owner: { select: { accountType: true, lastSeenAt: true, avatarUrl: true } },
     },
   })
   /**
@@ -211,7 +213,7 @@ export function storefrontCard(seller: NonNullable<Awaited<ReturnType<typeof loa
     id: seller.id,
     name: seller.name,
     avatarColor: seller.avatarColor,
-    avatarUrl: seller.avatarUrl,
+    avatarUrl: storefrontAvatarUrl(seller),
     isBusiness: seller.owner?.accountType === 'business',
     // The verified-business badge — the identity-hash-derived gate (>=2 channels).
     // seller has every scalar column (loadSeller uses include, no explicit select).

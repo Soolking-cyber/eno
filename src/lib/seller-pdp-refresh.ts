@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { revalidatePublicPath } from '@/lib/revalidate-lang'
 import { REVALIDATE_CAP } from '@/lib/listing-surfaces'
 import { logError } from '@/lib/log'
+import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
 
 /**
  * A SELLER'S IDENTITY OR ACCOUNT TYPE CHANGED → PURGE THEIR LISTING PAGES (review, 2026-10-01).
@@ -27,6 +28,36 @@ export async function refreshSellerPdps(sellerId: string, op = 'sellerPdps'): Pr
   // seller with a big catalogue cold-start the WHOLE PDP cache on every save (opus, 2026-10-01). Same as
   // before this block existed.
   if (!SELLER_INFO_NOTICE_SINCE) return
+  await purgeSellerPdps(sellerId, op)
+}
+
+/**
+ * THE SHOP PICTURE A LISTING PAGE PRINTS CHANGED (owner, 2026-10-15 — src/lib/storefront-avatar.ts): a person's shop shows
+ * their profile photo, and the PDP is ISR for 30 days, so a person who removes or changes their photo, or switches to a
+ * business account, would keep the old face on their listing pages for a month. `was` is the profile BEFORE the write;
+ * the storefront is read after it. Purges only when the picture the shop shows really changed — a shop with its own
+ * picture, or a photo change on a business account, changes no page and purges nothing. Never throws.
+ * Callers: PATCH /api/profile (the photo) and /api/profile/account-type (the type).
+ */
+export async function refreshShopPicturePdps(
+  profileId: string,
+  was: { avatarUrl: string | null; accountType: string | null },
+  op = 'shopPicture',
+): Promise<void> {
+  try {
+    const seller = await db.seller.findUnique({
+      where: { ownerId: profileId },
+      select: { id: true, avatarUrl: true, owner: { select: { avatarUrl: true, accountType: true } } },
+    })
+    if (!seller) return
+    if (storefrontAvatarUrl({ avatarUrl: seller.avatarUrl, owner: was }) === storefrontAvatarUrl(seller)) return
+    await purgeSellerPdps(seller.id, op)
+  } catch (e) {
+    logError(e, { op, profileId })
+  }
+}
+
+async function purgeSellerPdps(sellerId: string, op: string): Promise<void> {
   try {
     // edition-lint-allow: ONE seller's own ids, used only as cache keys to purge — nothing read here is
     // rendered, listed or fed anywhere, so no edition's surface can gain a row from it.

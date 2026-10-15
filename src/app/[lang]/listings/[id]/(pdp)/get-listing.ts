@@ -73,6 +73,7 @@ export const getListing = cache(async (id: string) =>
     where: await scopedListingWhere({ id }, { teachers: true }),
     // owner.lastSeenAt: presence for the seller strip — consumed server-side into a
     // day-coarse bucket input (sellerMetrics), the raw timestamp never serializes.
-    include: { category: true, seller: { include: { owner: { select: { accountType: true, lastSeenAt: true } } } } },
+    // owner.avatarUrl: a person's shop link shows their photo, as their storefront does (src/lib/storefront-avatar.ts).
+    include: { category: true, seller: { include: { owner: { select: { accountType: true, lastSeenAt: true, avatarUrl: true } } } } },
   }),
 )

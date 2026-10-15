@@ -8,6 +8,7 @@ import { topSellerReviews, sellerMetrics } from '@/lib/seller-metrics'
 import { lastSeenBucket } from '@/lib/last-seen'
 import { isBusinessVerified } from '@/lib/business-verification'
 import { isStorefrontGone } from '@/lib/storefront-gone'
+import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const seller = await db.seller.findUnique({
     where: { id },
     include: {
-      owner: { select: { accountType: true, lastSeenAt: true } },
+      owner: { select: { accountType: true, lastSeenAt: true, avatarUrl: true } },
       handle: { select: { handle: true } },
       listings: {
         // Nested-include reads are invisible to a Prisma client extension and to edition-lint's
@@ -90,7 +91,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     seller: {
       id: seller.id,
       name: seller.name,
-      avatarUrl: seller.avatarUrl,
+      avatarUrl: storefrontAvatarUrl(seller),
       avatarColor: seller.avatarColor,
       bio: seller.bio,
       location: seller.location,

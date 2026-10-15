@@ -4,6 +4,7 @@ import { getCurrentProfile } from '@/lib/admin'
 import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
 import { forumAuthorSelect, serializeForumPost } from '@/lib/forum/serialize'
 import { liveStorefrontWhere } from '@/lib/storefront-gone'
+import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
 
 // Server-side reads for the Help Center at /help.
 //
@@ -118,7 +119,7 @@ export async function loadHelpCenter(): Promise<HelpCenterData> {
         authorProfileId: true,
         conversationId: true,
         createdAt: true,
-        seller: { select: { name: true, avatarUrl: true, avatarColor: true, verified: true, verifiedSeller: true } },
+        seller: { select: { name: true, avatarUrl: true, avatarColor: true, verified: true, verifiedSeller: true, owner: { select: { avatarUrl: true, accountType: true } } } },
       },
     }),
   ])
@@ -130,7 +131,7 @@ export async function loadHelpCenter(): Promise<HelpCenterData> {
       id: review.id,
       sellerId: review.sellerId,
       sellerName: review.seller.name,
-      sellerAvatarUrl: review.seller.avatarUrl,
+      sellerAvatarUrl: storefrontAvatarUrl(review.seller),
       sellerAvatarColor: review.seller.avatarColor,
       sellerVerified: review.seller.verifiedSeller || review.seller.verified,
       rating: review.rating,

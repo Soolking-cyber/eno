@@ -26,6 +26,7 @@ import { startVisaDmFlow } from '@/lib/visa/dm-flow'
 import { cutText } from '@/lib/feed-text'
 import { IOS_APP_UNAVAILABLE, iosHideVisaFor } from '@/lib/ios-hide-visa'
 import { isEVisaProductListing } from '@/lib/evisa-listing'
+import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
 
 /** A guarded opener the guard refused under the thread's lock — the route answers with the thread, nothing sent. */
 class TeacherOpenedOnly extends Error {
@@ -743,7 +744,8 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
       buyerProfileId: true, buyerUnread: true, sellerUnread: true,
       buyerDeletedAt: true, sellerDeletedAt: true,
       listing: { select: { id: true, title: true, images: true } },
-      seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true } },
+      // owner → a person's storefront shows their photo (src/lib/storefront-avatar.ts), as the thread header does.
+      seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true, owner: { select: { avatarUrl: true, accountType: true } } } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true } },
       // Latest message — to show offer direction/status in the inbox row.
       messages: { orderBy: { createdAt: 'desc' }, take: 1, select: { senderProfileId: true, kind: true, offerStatus: true, offerAmount: true } },
@@ -788,7 +790,7 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
       kind: kinds[i],
       // The OTHER party's display identity.
       counterpart: iAmBuyer
-        ? { name: c.seller.name, avatarColor: c.seller.avatarColor, avatarUrl: c.seller.avatarUrl }
+        ? { name: c.seller.name, avatarColor: c.seller.avatarColor, avatarUrl: storefrontAvatarUrl(c.seller) }
         : { name: c.buyer.displayName || maskEmailHandle(c.buyer.email) || 'Buyer', avatarColor: c.buyer.avatarColor, avatarUrl: c.buyer.avatarUrl },
     }
   })
