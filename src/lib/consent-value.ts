@@ -151,14 +151,18 @@ export function resolveConsent(src: ConsentSources, nowS: number): ConsentAnswer
   return null
 }
 
-/** The two production sites, apex and www. */
-const PRODUCTION_HOSTS = new Set(['eno.vn', 'www.eno.vn', 'eno.forum', 'www.eno.forum'])
+/**
+ * The two production sites, apex and www — and eno.forum's teacher sign-up page, which the storefront pattern below
+ * cannot match (it is `.eno.vn` only; teacher.eno.vn already passes through it). Without it a choice made on
+ * teacher.eno.forum was never recorded once the proxy let it through (2026-10-15, src/proxy.ts teacherSelfWrite).
+ */
+const PRODUCTION_HOSTS = new Set(['eno.vn', 'www.eno.vn', 'eno.forum', 'www.eno.forum', 'teacher.eno.forum'])
 /** A shop storefront: exactly one DNS label under eno.vn (`<handle>.eno.vn` — see storefront-host.ts). */
 const STOREFRONT_HOST_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.eno\.vn$/
 
 /**
  * Is this Host header one of the real production sites? (eno.vn, www.eno.vn, eno.forum,
- * www.eno.forum, or a `<shop>.eno.vn` storefront.)
+ * www.eno.forum, teacher.eno.forum, or a `<shop>.eno.vn` storefront — teacher.eno.vn among them.)
  *
  * ⛔ THIS IS HOW /api/consent TELLS PRODUCTION FROM A LOCAL RUN THAT IS WIRED TO PRODUCTION. A local
  * `npm run preview:vn` is a production build (NODE_ENV=production) and its DATABASE_URL is the SSH

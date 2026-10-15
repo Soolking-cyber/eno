@@ -255,6 +255,98 @@ describe('fixed-language guides', () => {
 })
 
 /**
+ * ⛔ teacher.<base> MAY WRITE TO ITSELF — POSTS TO FOUR NAMED ANONYMOUS ENDPOINTS AND NOTHING ELSE (2026-10-15). Every
+ * background POST from the teacher sign-up page used to 403 here, so its paid-ad visitors were never counted and their
+ * consent choices never recorded. ⚠️ A CARVE-OUT FROM A SECURITY BOUNDARY, so most of these cases pin what it still
+ * REFUSES. (CSP reports are their own rule: any origin — see the next describe.)
+ */
+describe('teacher host self-writes', () => {
+  const run = async (host: string | null, path: string, origin: string | null, app = 'https://eno.vn', method = 'POST') => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', app)
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    const headers: Record<string, string> = {}
+    if (host !== null) headers.host = host
+    if (origin !== null) headers.origin = origin
+    return proxy(new NextRequest(`https://${host ?? 'teacher.eno.vn'}${path}`, { method, headers })).status
+  }
+  const PATHS = ['/api/site-stats', '/api/translate', '/api/consent', '/api/signup-prompt']
+  const FORUM = 'https://www.eno.forum'
+
+  it('lets the teacher page post its background calls to its own host, on both editions', async () => {
+    for (const p of PATHS) {
+      expect(await run('teacher.eno.vn', p, 'https://teacher.eno.vn'), p).toBe(200)
+      expect(await run('teacher.eno.forum', p, 'https://teacher.eno.forum', FORUM), p).toBe(200)
+    }
+  })
+
+  it('⛔ every other path from the teacher page is still refused — exact paths, not a prefix', async () => {
+    for (const p of ['/api/teachers/profile', '/api/listings', '/api/conversations', '/api/consent/', '/api/consent/x', '/API/consent', '/api/site-stats-x', '/']) {
+      expect(await run('teacher.eno.vn', p, 'https://teacher.eno.vn'), p).toBe(403)
+    }
+  })
+
+  it('⛔ the teacher origin cannot write to the apex, www, or a shop', async () => {
+    for (const host of ['eno.vn', 'www.eno.vn', 'apple.eno.vn']) {
+      expect(await run(host, '/api/consent', 'https://teacher.eno.vn'), host).toBe(403)
+    }
+    expect(await run('www.eno.forum', '/api/consent', 'https://teacher.eno.forum', FORUM)).toBe(403)
+  })
+
+  it('⛔ a storefront still cannot write to itself, even on the four paths', async () => {
+    for (const p of PATHS) expect(await run('apple.eno.vn', p, 'https://apple.eno.vn'), p).toBe(403)
+  })
+
+  it('⛔ POST only — a PUT, PATCH or DELETE from the teacher page is refused, whatever the route would do', async () => {
+    for (const method of ['PUT', 'PATCH', 'DELETE']) {
+      for (const p of PATHS) expect(await run('teacher.eno.vn', p, 'https://teacher.eno.vn', 'https://eno.vn', method), `${method} ${p}`).toBe(403)
+    }
+  })
+
+  it('⛔ host and origin must BOTH be THIS edition\'s teacher host, exactly', async () => {
+    const origins = ['https://evil.example', 'http://teacher.eno.vn', 'https://teacher.eno.vn.evil.com', 'https://teacher.eno.forum', 'null', 'https://teacher.eno.vn:8443']
+    for (const o of origins) expect(await run('teacher.eno.vn', '/api/consent', o), o).toBe(403)
+    // The other edition's teacher host is not this build's: an eno.vn image never answers for teacher.eno.forum.
+    expect(await run('teacher.eno.forum', '/api/consent', 'https://teacher.eno.forum')).toBe(403)
+  })
+
+  it('⛔ no Host header, or an unconfigured build, is refused rather than thrown on', async () => {
+    expect(await run(null, '/api/consent', 'https://teacher.eno.vn')).toBe(403)
+    // No NEXT_PUBLIC_APP_URL: the guard as a whole stands down (it invents no boundary), so nothing here can be 403.
+    expect(await run('teacher.eno.vn', '/api/consent', 'https://teacher.eno.vn', '')).toBe(200)
+  })
+})
+
+/**
+ * ⛔ A BROWSER'S OWN CSP REPORT IS NEVER REFUSED (2026-10-15). On eno.vn itself 626 of 788 reports in 24 h were 403'd
+ * here — the browser does not stamp them with the page's origin — so the evidence for promoting CSP from Report-Only was
+ * mostly lost. The sink reads no session and writes one rate-limited log line.
+ */
+describe('CSP reports', () => {
+  const run = async (host: string, origin: string, method = 'POST', path = '/api/csp-report') => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    const { NextRequest } = await import('next/server')
+    const { proxy } = await import('./proxy')
+    return proxy(new NextRequest(`https://${host}${path}`, { method, headers: { host, origin } })).status
+  }
+
+  it('accepts a report POSTed from any origin, on the apex, the teacher page and a storefront', async () => {
+    for (const host of ['eno.vn', 'teacher.eno.vn', 'apple.eno.vn']) {
+      for (const origin of ['null', 'https://eno.vn', 'https://teacher.eno.vn', 'https://apple.eno.vn', 'https://evil.example']) {
+        expect(await run(host, origin), `${host} ← ${origin}`).toBe(200)
+      }
+    }
+  })
+
+  it('⛔ only a POST to that exact path — not another method, not a look-alike path', async () => {
+    for (const method of ['PUT', 'PATCH', 'DELETE']) expect(await run('eno.vn', 'https://evil.example', method), method).toBe(403)
+    for (const path of ['/api/csp-report/', '/api/csp-report/x', '/api/csp-reports', '/API/csp-report']) {
+      expect(await run('eno.vn', 'https://evil.example', 'POST', path), path).toBe(403)
+    }
+  })
+})
+
+/**
  * ⛔ AN UNDERSCORE HOST IS NEVER THE SITE (SEO wave B, I2b). Measured live 2026-09-29: https://sdc_store.eno.vn/
  * and its /llms.txt answered 200 with the whole marketplace (canonical eno.vn, no noindex) — a duplicate host
  * Search Console had crawled. Owner, 2026-09-28: a storefront's subdomain is its handle without underscores.

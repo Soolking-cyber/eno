@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { isTeacherHost, apexOrigin } from '@/lib/teachers/host'
+import { isTeacherHost, apexOrigin, teacherOrigin } from '@/lib/teachers/host'
 import { isSchoolsHost, schoolsRedirectUrl } from '@/lib/schools/host'
 import { IS_SERVICES } from '@/lib/edition'
 import { storefrontBaseHost, storefrontHandleFromHost, storefrontLabelUrl, underscoreHost } from '@/lib/storefront-host'
@@ -149,11 +149,49 @@ function writeOrigins(): Set<string> | null {
   }
 }
 
+/**
+ * ⛔ teacher.<base> MAY WRITE TO ITSELF — BUT ONLY ITS PAGE'S ANONYMOUS BACKGROUND CALLS (2026-10-15).
+ * "Nothing on this host writes" was the design, and the PAGE honours it: the form hands its draft to the apex in a URL
+ * fragment. But the app shell around it still makes background POSTs to its own host, and this guard refused every one.
+ * Measured on teacher.eno.vn over 7 days (Cloudflare, all origin 403): 3,226 machine-translation calls, 2,301 visitor
+ * heartbeats, 107 cookie-banner consent records and 12 sign-in-gate counts (and 1,147 CSP reports — see
+ * isCspReport) — so the paid-ad visitors that page exists for were never counted, their consent choices never reached
+ * the evidence log, and their translations failed.
+ * ⚠️ EXACT PATHS, NOT "SAME-ORIGIN ON THIS HOST". None of the four reads a session (and this host has none: cookies are
+ * host-scoped), so letting them through hands a page nothing it could act with. A blanket rule would also admit every
+ * FUTURE route here without anyone deciding it should be — a new background write from this page is a 403 until it is
+ * named below, which is the failure this list was found by, and the safe one.
+ * ⚠️ POST ONLY, HOST *AND* ORIGIN BOTH THE TEACHER HOST. Every one of these is a POST beacon, so a PUT/PATCH/DELETE from
+ * the page stays refused rather than leaning on each route to reject the method. A teacher-origin write to the apex, any
+ * other path, and a storefront writing to itself all stay refused; `teacher` is a reserved handle, so no shop can be
+ * this host.
+ */
+const TEACHER_HOST_WRITES = new Set(['/api/site-stats', '/api/translate', '/api/consent', '/api/signup-prompt'])
+
+function teacherSelfWrite(req: NextRequest, origin: string): boolean {
+  if (req.method !== 'POST' || !TEACHER_HOST_WRITES.has(req.nextUrl.pathname)) return false
+  const app = process.env.NEXT_PUBLIC_APP_URL
+  const own = teacherOrigin(app)
+  return own !== '' && origin === own && isTeacherHost(req.headers.get('host'), app)
+}
+
+/**
+ * ⛔ A CSP REPORT IS NOT A WRITE THIS GUARD PROTECTS — ANY ORIGIN MAY POST ONE (2026-10-15). The browser files the report
+ * itself, and the Origin it puts on it is not the page's: on eno.vn ITSELF 626 of 788 reports in 24 h were refused here
+ * (only 162 got their 204), and every report from teacher.eno.vn and the storefronts — so the data CSP was meant to be
+ * promoted from Report-Only on was mostly thrown away. The route reads no session and writes one rate-limited log line;
+ * anyone with curl could already send it one, so refusing a browser's own report protected nothing.
+ */
+function isCspReport(req: NextRequest): boolean {
+  return req.method === 'POST' && req.nextUrl.pathname === '/api/csp-report'
+}
+
 function crossOriginWrite(req: NextRequest): boolean {
   if (!MUTATING.has(req.method)) return false
   const origin = req.headers.get('origin')
   if (!origin) return false // non-browser caller — see the note above
   if (APP_ORIGINS.has(origin)) return false // native shell, Bearer-authed, no cookies
+  if (isCspReport(req)) return false
   /**
    * ⛔ A LOCAL PREVIEW MAY WRITE TO ITSELF, AND WITHOUT THIS NOTHING CAN BE TESTED LOCALLY AT ALL.
    * `NEXT_PUBLIC_APP_URL` is a real host even in a preview, so a browser on `http://localhost:3101`
@@ -167,9 +205,11 @@ function crossOriginWrite(req: NextRequest): boolean {
    * value the guard can ever see — this is not a flag anyone can flip, it is a shape that does not
    * occur there.
    * ⛔ AND IT IS NOT A GENERAL SAME-ORIGIN RULE. Allowing same-origin everywhere would re-open the
-   * exact hole this guard exists for: a storefront host writing as its own visitor. Loopback only.
+   * exact hole this guard exists for: a storefront host writing as its own visitor. Loopback only —
+   * the one other self-write is teacher.<base>'s, POSTs to four named anonymous endpoints (teacherSelfWrite).
    */
   if (isLoopbackSelfOrigin(req, origin)) return false
+  if (teacherSelfWrite(req, origin)) return false
 
   const allowed = writeOrigins()
   if (!allowed) return false // unconfigured build: do not invent a boundary that can lock the app

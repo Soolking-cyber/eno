@@ -3,6 +3,7 @@ import {
   CONSENT_MAX_AGE_S,
   consentModeState,
   cookieFromHeader,
+  isProductionEnoHost,
   parseConsentV2,
   resolveConsent,
   serializeConsent,
@@ -124,6 +125,25 @@ describe('serverConsent — the server gate (fails closed)', () => {
 
   it('no cookie header grants nothing', () => {
     expect(serverConsent(req(), NOW * 1000)).toEqual({ p: false, a: false, d: false })
+  })
+})
+
+/**
+ * ⛔ ONLY A LIVE SITE MAY WRITE TO THE CONSENT LOG — and both editions' teacher sign-up pages are live sites. The
+ * storefront pattern is `.eno.vn` only, so teacher.eno.forum needed naming or its visitors' choices were never
+ * recorded (2026-10-15).
+ */
+describe('isProductionEnoHost', () => {
+  it('accepts the live hosts, both teacher pages included, port and case aside', () => {
+    for (const h of ['eno.vn', 'www.eno.vn', 'eno.forum', 'www.eno.forum', 'teacher.eno.vn', 'teacher.eno.forum', 'apple.eno.vn', 'TEACHER.ENO.FORUM:443']) {
+      expect(isProductionEnoHost(h), h).toBe(true)
+    }
+  })
+
+  it('⛔ refuses a local run and look-alikes — no forum storefronts, no suffix tricks', () => {
+    for (const h of ['localhost:3000', '127.0.0.1', 'apple.eno.forum', 'teacher.eno.forum.evil.com', 'evil-teacher.eno.forum', 'eno.vn.evil.com', 'a.b.eno.vn', '', null, undefined]) {
+      expect(isProductionEnoHost(h), String(h)).toBe(false)
+    }
   })
 })
 
