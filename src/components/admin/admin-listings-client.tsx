@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { Tooltip } from '@/components/ui/tooltip'
 import {
@@ -27,6 +28,32 @@ import { useLatestRequest } from '@/hooks/use-latest-request'
 type Row = {
   id: string; title: string; price: number; currency: string; image: string | null
   status: string; verified: boolean; featured: boolean; sellerName: string; category: string; createdAt: string
+  subcategory: string | null
+  /**
+   * ⛔ THE LICENCE CHECK (owner, 2026-10-14) — present only on e-Visa / Legal & permits rows from anyone but eno's desk
+   * (api/admin/listings GET, licence-stamp.ts licenceStateOf): where the row stands with the check, and the provider's
+   * two values AS STORED, printed verbatim. `enterpriseCode`: the number is the bare 10-digit form, the same shape as a
+   * phone number. Such a row is approved under Licence checks, never by Publish here.
+   */
+  licence?: { state: 'approved' | 'grandfathered' | 'pending' | 'missing'; legalName: string; licenceNo: string; enterpriseCode: boolean }
+}
+
+/**
+ * What the status column says about a licence-aisle row instead of the generic "held": the hold has ONE way out (an
+ * admin's approval under Licence checks), and a generic badge sent operators to Publish, which skips these rows. A
+ * waiting row that is nevertheless LIVE breaks the rule and says so in the destructive tone (the 00:00 ICT sweep pulls
+ * it). An approved row has no badge of its own: if it is held, it is held for an ordinary reason.
+ */
+function licenceBadge(r: Row, grandfatherUntil: string | undefined): { text: string; variant: 'warning' | 'destructive' } | null {
+  const state = r.licence?.state
+  if (state === 'pending' || state === 'missing') {
+    // Verified but hidden or sold is not "live" to a buyer — it is one relist away, which is why the sweep pulls it (gate).
+    if (r.verified) return { text: r.status === 'active' ? 'Live without a licence check' : 'Verified without a licence check', variant: 'destructive' }
+    return { text: state === 'pending' ? 'Licence check' : 'Licence details missing', variant: 'warning' }
+  }
+  // Only a live row is grandfathered (licence-stamp.ts licenceGrandfathered) — guarded here too, so a held row never reads as live.
+  if (state === 'grandfathered' && r.verified) return { text: grandfatherUntil ? `No licence · until ${grandfatherUntil}` : 'No licence · grandfathered', variant: 'warning' }
+  return null
 }
 
 const STATUS = [
@@ -58,17 +85,25 @@ const VERIFIED = [
  * EFFECT rather than restating the label.
  */
 const ACTION_HINT = {
-  activate: 'Sets status to active — undoes Hide. On its own this does NOT publish: a listing still needs Publish.',
+  // ⛔ R1 (plan review, 2026-10-14): a verified row goes public by status alone, so Activate skips an e-Visa / Legal &
+  // permits listing that is waiting for its licence check, exactly as Publish does, and the toast says how many.
+  activate: 'Sets status to active — undoes Hide. On its own this does NOT publish: a listing still needs Publish. e-Visa and Legal & permits listings waiting for a licence check are skipped.',
   hide: 'Sets status to hidden — pulls it from the feed, search and its product page without deleting anything. Reversible with Activate.',
   feature: 'Boosts ranking in browse. Not a badge and not a pinned slot — worth about as much as being brand new. Reversible.',
-  verify: 'Makes the listing publicly live (sets verified). Until then its product page 404s and it is absent from feed, search and the digest. This is also what clears a listing held by the duplicate/illegal-content guard.',
+  // ⛔ THE LICENCE AISLES ARE NOT PUBLISHED HERE (owner, 2026-10-14): Publish skips every one still waiting for eno's
+  // licence check and reports how many; Licence checks (catalogue ?tab=licences) is the only thing that approves them.
+  verify: 'Makes the listing publicly live (sets verified). Until then its product page 404s and it is absent from feed, search and the digest. This is also what clears a listing held by the duplicate/illegal-content guard. e-Visa and Legal & permits listings from anyone but eno\'s desk are approved under Licence checks instead: Publish skips them and says how many.',
   // ⛔ NOT A DELETE SINCE 2026-10-01 (Law 122/2025 keeps posted information ≥ 1 year): the action keeps
   // its API name but writes a tombstone — see src/lib/listing-removed.ts.
   // Its open reports close as upheld in the same write (no trust charge) — api/admin/listings 'delete'.
   delete: 'Removes the listing for good: off the site and out of the seller\'s dashboard, and the seller cannot relist it. The record, its photos, reports and chats are kept as evidence (audit-logged under your name). Its open reports close as upheld, without a trust charge, and the reporters are told. Use Hide for anything you may want back.',
 } as const
 
-export function AdminListingsClient() {
+/**
+ * `licenceGrandfatherUntil`: when VietKite's grandfather ends ("21 Oct 2026, 00:00 ICT"), for the badge of its rows —
+ * handed down by the catalogue page, because this client module cannot import licence-stamp.ts (node:crypto).
+ */
+export function AdminListingsClient({ licenceGrandfatherUntil }: { licenceGrandfatherUntil?: string } = {}) {
   const { lang } = useLanguage() // admin chrome stays English; amounts follow the viewer's language
   const [rows, setRows] = useState<Row[]>([])
   const [total, setTotal] = useState(0)
@@ -133,6 +168,9 @@ export function AdminListingsClient() {
       if (d.alreadyHeld > 0) toast.info(`${d.alreadyHeld} were already held for the seller's identity check — still waiting for them to verify.`)
       // Remove only: the open reports on the removed listings, closed as upheld with them.
       if (d.resolved > 0) toast.info(`${d.resolved} open report(s) on them closed as upheld — the reporters were told.`)
+      // ⛔ The licence aisles (owner, 2026-10-14): Publish (and Activate, R1) skip every e-Visa / Legal & permits listing
+      // still waiting for eno's licence check and count them here, so "published 10" never hides the 2 it did not touch.
+      if (d.licenceCheck > 0) toast.warning(`${d.licenceCheck} need a licence check — approve them under Licence checks`)
       load()
     } catch { toast.error('Action failed') } finally { setBusy(false) }
   }
@@ -183,6 +221,19 @@ export function AdminListingsClient() {
               <div className="min-w-0">
                 <div className="max-w-[24rem] truncate text-sm font-semibold text-foreground">{r.title}</div>
                 <div className="max-w-[24rem] truncate text-xs text-muted-foreground">{formatMoneyFull(r.price, r.currency, moneyLocale(lang))} · {r.category}</div>
+                {/* The provider's two values, VERBATIM and in translate="no" — what an approval stamps and the listing
+                    page prints — with the way to the tab that approves them. The link stops the row's select toggle. */}
+                {r.licence && (
+                  <div className="flex max-w-[24rem] flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+                    {r.licence.legalName ? <span translate="no" className="break-words font-medium text-body">{r.licence.legalName}</span> : <span>no registered name</span>}
+                    <span aria-hidden="true">·</span>
+                    {r.licence.licenceNo ? <span translate="no" className="break-all font-mono">{r.licence.licenceNo}</span> : <span>no licence no.</span>}
+                    {r.licence.enterpriseCode && <span className="text-warning">(phone-shaped: compare with the certificate)</span>}
+                    <Link href="/admin/catalogue?tab=licences" onClick={(e) => e.stopPropagation()} className="font-semibold text-primary hover:underline">
+                      Licence checks
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           )
@@ -200,10 +251,15 @@ export function AdminListingsClient() {
         header: () => 'Status',
         cell: ({ row }) => {
           const r = row.original
+          const licence = licenceBadge(r, licenceGrandfatherUntil)
           return (
             <div className="flex items-center gap-1.5">
               {r.featured && <Badge variant="neutral">★</Badge>}
-              {!r.verified && <Badge variant="warning" className="capitalize">held</Badge>}
+              {licence ? (
+                <Badge variant={licence.variant} className="whitespace-nowrap">{licence.text}</Badge>
+              ) : (
+                !r.verified && <Badge variant="warning" className="capitalize">held</Badge>
+              )}
               <Badge variant={r.status === 'active' ? 'success' : 'neutral'} className="capitalize">{r.status}</Badge>
             </div>
           )
@@ -242,7 +298,7 @@ export function AdminListingsClient() {
         ),
       },
     ]
-  }, [lang, sel, allSelected, busy, rows])
+  }, [lang, sel, allSelected, busy, rows, licenceGrandfatherUntil])
 
   const table = useReactTable({
     data: rows,
