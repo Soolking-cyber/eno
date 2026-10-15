@@ -1,4 +1,8 @@
 import { Resend } from 'resend'
+import * as nodemailer from 'nodemailer'
+import { SITE_NAME } from '@/lib/edition'
+
+type Transporter = nodemailer.Transporter
 
 // One Resend client per process. If RESEND_API_KEY is unset — local/dev, or in prod
 // BEFORE the key is uploaded — sending is a NO-OP that logs, so the digest cron still
@@ -30,6 +34,140 @@ export function fromHeader(fromName?: string | null): string {
   return clean ? `"${clean}" <${FROM_ADDRESS}>` : FROM
 }
 const resend = KEY ? new Resend(KEY) : null
+
+// ──────────────────────────────────────────────────────────────────────────────────────────────
+// FALLBACK TRANSPORT — our own mailcow SMTP (mx.eno.vn), used ONLY by sendMail when Resend is DOWN.
+//
+// Resend stays PRIMARY. Only the INTERACTIVE, low-volume sendMail path (sign-in, visa result, KYC,
+// payout) fails over, so a Resend quota cap can't 502 sign-in. The BULK paths deliberately do NOT
+// fail over: sendMailBatch (weekly digest) and sendMailOnce (the teacher-match / -message cron LOOPS)
+// would push hundreds of messages through this un-warmed, no-PTR IP and the 2-connection pool —
+// burning the sending reputation sign-in leans on and starving interactive sign-in behind the queue.
+// They stay Resend-only (their crons already gate on mailEnabled() = Resend) and simply pause until
+// quota recovers. Enabled only when host+user+pass are set AND the From is on THIS edition's domain.
+const SMTP_HOST = process.env.MAIL_SMTP_HOST
+const SMTP_PORT = Number(process.env.MAIL_SMTP_PORT || 465)
+const SMTP_USER = process.env.MAIL_SMTP_USER
+const SMTP_PASS = process.env.MAIL_SMTP_PASS
+// The SMTP From. Its ADDRESS must be a mailbox the authenticated user owns (mailcow rejects a
+// sender-login mismatch), so it defaults to MAIL_SMTP_USER with NO display name — a display naming a
+// different domain than the address trips spam filters. A per-message fromName is still honoured.
+const SMTP_FROM = process.env.MAIL_SMTP_FROM || SMTP_USER || ''
+const SMTP_FROM_ADDRESS = (SMTP_FROM.match(/<([^>]+)>/)?.[1] ?? SMTP_FROM).trim()
+// ⛔ LICENSING GUARD: BOTH the authenticated account (MAIL_SMTP_USER) AND the visible From must be on
+// THIS edition's own domain. eno.vn is a licensed VN marketplace and must never be the sender — or the
+// relaying account — of eno.forum's visa/itinerary mail. So MAIL_SMTP_* copied into the OTHER
+// edition's env (the "ship to both sites" reflex) pointed at this box's eno.vn mailbox leaves SMTP OFF
+// (Resend-only) rather than relaying forum mail through eno.vn. Per-edition failover needs a mailbox
+// on that edition's own domain. (Checking both closes the user≠From gap: eno.vn creds + eno.forum From.)
+// On-edition = the host/address is this edition's own domain (apex, a subdomain, or an @address on
+// it). The WHOLE SMTP identity — relay host, auth account, AND From — must pass, so no part of
+// eno.forum's mail (its MX in Received/HELO included) is ever eno.vn, and vice versa.
+const onThisEdition = (v: string) => {
+  const s = v.toLowerCase()
+  return s === SITE_NAME || s.endsWith('@' + SITE_NAME) || s.endsWith('.' + SITE_NAME)
+}
+const smtpConfigured = !!(
+  SMTP_HOST && SMTP_USER && SMTP_PASS &&
+  onThisEdition(SMTP_HOST) && onThisEdition(SMTP_USER) && onThisEdition(SMTP_FROM_ADDRESS)
+)
+// Loud once at module load when the fallback is CONFIGURED but the licensing guard rejected it — so a
+// misconfigured env (e.g. eno.vn creds copied into the forum) is visible instead of silently leaving
+// sign-in on Resend only until the first quota outage.
+if (SMTP_HOST && !smtpConfigured) {
+  console.warn(`[mail] MAIL_SMTP_* set but the SMTP fallback is DISABLED — host, user and From must all be on ${SITE_NAME}. Using Resend only.`)
+}
+
+let smtpTransport: Transporter | null = null
+function smtpTransporter(): Transporter | null {
+  if (!smtpConfigured) return null
+  if (!smtpTransport) {
+    smtpTransport = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_PORT === 465, // implicit TLS on 465; STARTTLS upgrade on 587
+      requireTLS: true, // on 587, refuse to send if STARTTLS can't be negotiated (no plaintext creds)
+      auth: { user: SMTP_USER, pass: SMTP_PASS },
+      pool: true,
+      maxConnections: 2,
+      connectionTimeout: 5_000,
+      greetingTimeout: 5_000,
+      socketTimeout: 15_000,
+    })
+    // A pooled transport is a long-lived EventEmitter; an unhandled 'error' event would take down the
+    // Node process (which runs both edition containers). Swallow + log — nodemailer recycles the
+    // failed pool connection itself on the next send, so the cached transporter stays usable.
+    smtpTransport.on('error', (e: unknown) => console.error('[mail] smtp pool error', (e as { message?: string })?.message ?? e))
+  }
+  return smtpTransport
+}
+
+/** From header for the SMTP path — fromName as the display, address forced to the authenticated
+ *  mailbox (SMTP_FROM). Mirrors fromHeader's sanitising. */
+function smtpFromHeader(fromName?: string | null): string {
+  const clean = (fromName ?? '').replace(/["<>\\\r\n]/g, '').replace(/\s+/g, ' ').trim().slice(0, 64)
+  return clean ? `"${clean}" <${SMTP_FROM_ADDRESS}>` : SMTP_FROM
+}
+
+/**
+ * Wait at most `ms` for a promise, then reject. The Resend SDK sets no fetch timeout, and
+ * nodemailer's socketTimeout is a per-step IDLE timeout — without an overall cap a black-holed box or
+ * a slow trickle could hang a sign-in. The underlying request is NOT aborted (it may still complete),
+ * which for this fire-and-forget path is at worst a rare duplicate, never a lost sign-in.
+ */
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms)
+    p.then((v) => { clearTimeout(timer); resolve(v) }, (e) => { clearTimeout(timer); reject(e) })
+  })
+}
+const RESEND_TIMEOUT_MS = 8_000
+const SMTP_TIMEOUT_MS = 20_000
+
+/** One SMTP fallback send. Returns true on accept, false on any failure (logged). Never throws — a
+ *  thrown transporter build is caught too, so sendMail's catch can't double-invoke it. Attachments:
+ *  Resend passes base64 TEXT, nodemailer wants raw bytes. */
+async function smtpSend(msg: MailMessage): Promise<boolean> {
+  const who = maskEmail(msg.to)
+  try {
+    const t = smtpTransporter()
+    if (!t) return false
+    await withTimeout(
+      t.sendMail({
+        from: smtpFromHeader(msg.fromName),
+        to: msg.to,
+        subject: msg.subject,
+        html: msg.html,
+        text: msg.text,
+        headers: msg.headers,
+        attachments: msg.attachments?.map((a) => ({
+          filename: a.filename,
+          content: Buffer.from(a.content, 'base64'),
+          contentType: a.contentType,
+        })),
+      }),
+      SMTP_TIMEOUT_MS,
+    )
+    return true
+  } catch (e) {
+    const err = e as { code?: string; command?: string; responseCode?: number }
+    console.error('[mail] smtp fallback failed', who, err.command ?? err.code ?? err.responseCode ?? e)
+    return false
+  }
+}
+
+/** A Resend failure that is about Resend being UNAVAILABLE (quota/rate/5xx/network/bad key) rather
+ *  than the message being invalid — the only failures sendMail fails over to SMTP. */
+const AVAILABILITY_NAMES = new Set([
+  'rate_limit_exceeded', 'daily_quota_exceeded', 'monthly_quota_exceeded',
+  'internal_server_error', 'application_error',
+  'invalid_api_key', 'missing_api_key', 'restricted_api_key', 'invalid_access',
+])
+function resendUnavailable(name: string, statusCode: number | null | undefined): boolean {
+  if (statusCode == null) return true // network / no response
+  if (statusCode === 429 || statusCode >= 500) return true
+  return AVAILABILITY_NAMES.has(name)
+}
 
 /** True once RESEND_API_KEY is set — cron can short-circuit instead of looping recipients. */
 export function mailEnabled(): boolean {
@@ -222,29 +360,52 @@ export async function sendMailOnce(
   }
 }
 
-/** Send one email. Returns true on success; never throws (logs + returns false). */
+/**
+ * Send one email. Returns true on success; never throws (logs + returns false).
+ *
+ * Fire-and-forget, low-volume, no caller retry — when Resend is UNAVAILABLE it falls over to SMTP so
+ * sign-in / visa / KYC / payout keep flowing. ⚠️ withTimeout does not abort the Resend request, so a
+ * Resend 5xx/timeout that in fact delivered, followed by the SMTP send, can duplicate — acceptable
+ * here (a second magic link carries the same token; a dead sign-in does not). The BULK paths
+ * (sendMailBatch, sendMailOnce) do NOT fall over — see the fallback-transport note above.
+ */
 export async function sendMail(msg: MailMessage): Promise<boolean> {
   const who = maskEmail(msg.to)
   if (!resend) {
+    if (smtpConfigured) return smtpSend(msg)
     console.warn('[mail] RESEND_API_KEY not set — email disabled (skipped', who + ')')
     return false
   }
   try {
-    const { error } = await resend.emails.send({
-      from: fromHeader(msg.fromName),
-      to: msg.to,
-      subject: msg.subject,
-      html: msg.html,
-      text: msg.text,
-      headers: msg.headers,
-      attachments: msg.attachments,
-    })
+    const { error } = await withTimeout(
+      resend.emails.send({
+        from: fromHeader(msg.fromName),
+        to: msg.to,
+        subject: msg.subject,
+        html: msg.html,
+        text: msg.text,
+        headers: msg.headers,
+        attachments: msg.attachments,
+      }),
+      RESEND_TIMEOUT_MS,
+    )
     if (error) {
+      // Resend unavailable (quota/rate/5xx/bad key) → fall over to SMTP. A message Resend rejects as
+      // INVALID stays Resend-only — SMTP can't fix a bad message.
+      if (smtpConfigured && resendUnavailable(error.name, error.statusCode)) {
+        console.warn('[mail] resend unavailable — falling over to smtp', who, error.name)
+        return smtpSend(msg)
+      }
       console.error('[mail] send failed', who, error)
       return false
     }
     return true
   } catch (e) {
+    // Timeout or network throw — prefer a possible duplicate over a lost sign-in.
+    if (smtpConfigured) {
+      console.warn('[mail] resend threw — falling over to smtp', who)
+      return smtpSend(msg)
+    }
     console.error('[mail] send threw', who, e)
     return false
   }
