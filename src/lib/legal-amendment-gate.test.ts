@@ -533,41 +533,58 @@ describe('legal-amendment-gate.sh', () => {
   })
 
   // ⛔ /prohibited's OWN RECORD (owner, 2026-10-14: the e-Visa rules on eno.vn, "dated amendment, 5-day notice").
-  // Windowed, so its publishing deploy needs no ack on its own day; the box's deployed commit has no such object yet.
+  // The box carries it WINDOWED (published 15/10, in force 21/10 — ae9d91c1d); the working tree makes it IMMEDIATE (owner,
+  // 2026-10-15: "also remove this warning … apply from now no need for warning"). So its deploy waives the notice and
+  // needs the owner's ack for its own day: LEGAL_AMENDMENT_IMMEDIATE=2026-10-15.
   describe('the /prohibited record (PROHIBITED_AMENDMENT), moved on its own', () => {
-    const PRE = without(SOURCE, 'PROHIBITED_AMENDMENT') // the box today: the record does not exist yet
-    const D = PROHIBITED_AMENDMENT.published
     const shift = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
+    const D = PROHIBITED_AMENDMENT.published
+    const WINDOWED = setRecord(SOURCE, 'PROHIBITED_AMENDMENT', [D, shift(D, 6)]) // the box today
+    const PRE = without(SOURCE, 'PROHIBITED_AMENDMENT') // before it existed
 
-    it('publishes on its own day with no ack, the Terms and Quy chế records staying routine', () => {
-      const r = gate(boxSrc(SOURCE, PRE), D)
+    it('is immediate on 15/10/2026, over the windowed record the box carries', () => {
+      expect(PROHIBITED_AMENDMENT).toEqual({ published: '2026-10-15', inForce: '2026-10-15', immediate: true })
+    })
+
+    it('publishes on its own day ONLY with LEGAL_AMENDMENT_IMMEDIATE=<its date>, the Terms and Quy chế records staying routine', () => {
+      const bare = gate(boxSrc(SOURCE, WINDOWED), D)
+      expect(bare.status).toBe(1)
+      expect(bare.out).toContain(`published AND in force ${D}, with NO notice window`)
+      expect(bare.out).toContain(`LEGAL_AMENDMENT_IMMEDIATE=${D} bash eno-deploy.sh`)
+      // The ack is scoped to the date: another day's, or the late-publication ack, unlocks nothing.
+      expect(gate(boxSrc(SOURCE, WINDOWED), D, { LEGAL_AMENDMENT_IMMEDIATE: shift(D, -1) }).status).toBe(1)
+      expect(gate(boxSrc(SOURCE, WINDOWED), D, { LEGAL_AMENDMENT_ACK: D }).status).toBe(1)
+      const r = gate(boxSrc(SOURCE, WINDOWED), D, { LEGAL_AMENDMENT_IMMEDIATE: D })
       expect(r.status, r.out).toBe(0)
-      expect(r.out).toContain(`publishes the /prohibited amendment (PROHIBITED_AMENDMENT) today (${D}); in force ${PROHIBITED_AMENDMENT.inForce}`)
+      expect(r.out).toContain(`publishes an IMMEDIATE /prohibited amendment (PROHIBITED_AMENDMENT): published and in force ${D} (today)`)
       expect(r.out).toContain(`legal amendment published ${LEGAL_AMENDMENT.published} (in force ${LEGAL_AMENDMENT.inForce}, immediate) is already live`)
       expect(r.out).toContain(`Quy chế amendment (REGULATIONS_AMENDMENT) published ${REGULATIONS_AMENDMENT.published} (in force ${REGULATIONS_AMENDMENT.inForce}, immediate) is already live`)
     })
 
-    it('refuses the day after — even with an immediate ack — and says to re-date it', () => {
-      const late = gate(boxSrc(SOURCE, PRE), shift(D, 1), { LEGAL_AMENDMENT_IMMEDIATE: D })
+    it('refuses the day after — even acknowledged — and says to re-date both dates to that day', () => {
+      const late = gate(boxSrc(SOURCE, WINDOWED), shift(D, 1), { LEGAL_AMENDMENT_IMMEDIATE: D })
       expect(late.status).toBe(1)
-      expect(late.out).toContain('/prohibited and /regulations would print a false publication date')
-      expect(late.out).toContain(`set published: '${shift(D, 1)}' and inForce: at least '+6 days' in ${F} (PROHIBITED_AMENDMENT)`)
+      expect(late.out).toContain(`set published: '${shift(D, 1)}' and inForce: '${shift(D, 1)}' in ${F} (PROHIBITED_AMENDMENT)`)
+      // No bell was ever sent for it, so no retract hint.
+      expect(late.out).not.toContain('--retract')
     })
 
-    it('refuses the day before: a publication date that has not happened yet', () => {
-      expect(gate(boxSrc(SOURCE, PRE), shift(D, -1)).out).toContain('has not happened yet')
+    it('refuses the day before, acknowledged or not: a date that has not happened yet', () => {
+      const early = gate(boxSrc(SOURCE, WINDOWED), shift(D, -1), { LEGAL_AMENDMENT_IMMEDIATE: D })
+      expect(early.status).toBe(1)
+      expect(early.out).toContain('The pages would print a false date')
     })
 
     it('passes every later deploy once deployed, with no ack', () => {
       const live = boxSrc(SOURCE, SOURCE)
-      for (const day of [D, shift(D, 1), PROHIBITED_AMENDMENT.inForce, '2027-03-01']) {
+      for (const day of [D, shift(D, 1), shift(D, 6), '2027-03-01']) {
         const r = gate(live, day)
         expect(r.status, day).toBe(0)
-        expect(r.out, day).toContain(`/prohibited amendment (PROHIBITED_AMENDMENT) published ${D} (in force ${PROHIBITED_AMENDMENT.inForce}) is already live`)
+        expect(r.out, day).toContain(`/prohibited amendment (PROHIBITED_AMENDMENT) published ${D} (in force ${D}, immediate) is already live`)
       }
     })
 
-    it('holds it to the default 6 days', () => {
+    it('holds a windowed one to the default 6 days', () => {
       const short = gate(boxSrc(setRecord(SOURCE, 'PROHIBITED_AMENDMENT', [D, shift(D, 5)]), PRE), D)
       expect(short.status).toBe(1)
       expect(short.out).toContain(`${F} (PROHIBITED_AMENDMENT): in force ${shift(D, 5)} is only 5 day(s) after publication ${D}`)

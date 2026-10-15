@@ -164,8 +164,9 @@ describe('the amendment notice to registered users', () => {
     expect(retract.indexOf('if (!apply) {')).toBeLessThan(retract.indexOf('DELETE FROM'))
   })
 
-  // ⛔ Owner, 2026-10-14: the e-Visa rules join eno.vn's /prohibited — "dated amendment, 5-day notice". Its own
-  // record, with a window, so its notice is really sent (scripts/notify-legal-amendment.ts --record=prohibited).
+  // ⛔ Owner, 2026-10-14: the e-Visa rules join eno.vn's /prohibited — "dated amendment, 5-day notice". Its own record,
+  // shipped with a window (scripts/notify-legal-amendment.ts --record=prohibited) — and made immediate the day it went
+  // live (owner, 2026-10-15: "apply from now no need for warning"), before any notice was sent.
   describe('the /prohibited amendment (PROHIBITED_AMENDMENT)', () => {
     it('says exactly what the strip says on eno.vn, and links the e-Visa section the amendment adds', () => {
       const strip = readFileSync(join(ROOT, 'src/components/marketplace/tos-change-notice.tsx'), 'utf8')
@@ -198,14 +199,14 @@ describe('the amendment notice to registered users', () => {
       expect(AMENDMENT_NOTICE_ID_PREFIX.startsWith(PROHIBITED_NOTICE_ID_PREFIX)).toBe(false)
     })
 
-    it('may be sent only inside its window, in Vietnam time — and never retracted', () => {
+    it('is never sendable — immediate, there is no window and nothing to announce', () => {
+      expect(PROHIBITED_AMENDMENT.immediate).toBe(true)
       const published = Date.parse(`${PROHIBITED_AMENDMENT.published}T00:00:00+07:00`)
-      const effective = Date.parse(`${PROHIBITED_AMENDMENT.inForce}T00:00:00+07:00`)
-      expect(noticeSendable(new Date(published - 1), PROHIBITED_AMENDMENT).ok).toBe(false)
-      expect(noticeSendable(new Date(published), PROHIBITED_AMENDMENT).ok).toBe(true)
-      expect(noticeSendable(new Date(effective - 1), PROHIBITED_AMENDMENT).ok).toBe(true)
-      expect(noticeSendable(new Date(effective), PROHIBITED_AMENDMENT).ok).toBe(false)
-      expect(retractable(PROHIBITED_AMENDMENT).ok).toBe(false)
+      for (const t of [published - 1, published, published + 12 * 3_600_000, Date.parse('2026-10-20T12:00:00+07:00')]) {
+        const r = noticeSendable(new Date(t), PROHIBITED_AMENDMENT)
+        expect(r.ok, new Date(t).toISOString()).toBe(false)
+        if (!r.ok) expect(r.reason).toMatch(/immediate/)
+      }
     })
 
     it('the script sends it with --record=prohibited, and --retract refuses it', () => {

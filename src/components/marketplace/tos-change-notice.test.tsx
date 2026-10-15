@@ -16,9 +16,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * publication day, no window, no announcement; the 2026-10-01 precedent), so the strip says nothing about it —
  * pinned below against the real LEGAL_AMENDMENT, and October's immediate amendment against its own dates. The
  * Terms window behaviour is tested against a fixture amendment (the dates 110295be shipped).
- * ⛔ /prohibited's OWN AMENDMENT HAS A WINDOW (owner, 2026-10-14 — PROHIBITED_AMENDMENT): announced on eno.vn only,
- * tested on the same fixture window and against the real record. The edition is stubbed per load (default: eno.forum,
- * where nothing about /prohibited shows).
+ * /prohibited's OWN AMENDMENT (owner, 2026-10-14 — PROHIBITED_AMENDMENT) shipped with a window, announced on eno.vn only —
+ * tested on the same fixture window — and was made IMMEDIATE the day it went live (owner, 2026-10-15: "apply from now no
+ * need for warning"), pinned against the real record. The edition is stubbed per load (default: eno.forum, where nothing
+ * about /prohibited shows).
  */
 
 const h = vi.hoisted(() => ({ lang: 'en' as 'en' | 'vi', pathname: '/' }))
@@ -200,11 +201,13 @@ describe('TosChangeNotice — the /prohibited amendment, on eno.vn', () => {
     expect(el.querySelector('#tos-change-notice')?.textContent).toContain(SENTENCE)
   })
 
-  it('against the real record: shown on eno.vn from its publication day, gone from its in-force day', async () => {
+  it('against the real record: immediate (owner, 2026-10-15) — nothing on eno.vn at any instant', async () => {
     const { PROHIBITED_AMENDMENT } = await import('@/lib/compliance/legal-amendment')
+    expect(PROHIBITED_AMENDMENT.immediate).toBe(true)
     const Notice = await load(false, { edition: 'marketplace' })
-    expect((await mountAt(Notice, Date.parse(`${PROHIBITED_AMENDMENT.published}T12:00:00+07:00`))).querySelector('#tos-change-notice')).not.toBeNull()
-    cleanup()
-    expect((await mountAt(Notice, Date.parse(`${PROHIBITED_AMENDMENT.inForce}T00:00:00+07:00`))).querySelector('#tos-change-notice')).toBeNull()
+    for (const at of [`${PROHIBITED_AMENDMENT.published}T00:00:00+07:00`, `${PROHIBITED_AMENDMENT.published}T12:00:00+07:00`, '2026-10-20T12:00:00+07:00']) {
+      expect((await mountAt(Notice, Date.parse(at))).querySelector('#tos-change-notice'), at).toBeNull()
+      cleanup()
+    }
   })
 })

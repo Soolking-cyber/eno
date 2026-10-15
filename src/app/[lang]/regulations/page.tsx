@@ -19,7 +19,7 @@ import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { LEGAL_BASIS } from '@/lib/compliance/legal-basis'
 import { RENTAL_CHECK_MAX_ITEMS } from '@/lib/rental-check/shared'
 import { FEED_DIVERSITY_WINDOW } from '@/lib/feed-diversity'
-import { PROHIBITED_AMENDED, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT } from '@/lib/compliance/legal-amendment'
+import { PROHIBITED_AMENDED, PROHIBITED_AMENDMENT, REGULATIONS_AMENDED, REGULATIONS_AMENDMENT } from '@/lib/compliance/legal-amendment'
 import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_PATHS, V2_SUPERSEDED, archivedPath } from '@/lib/compliance/legal-archive'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -837,7 +837,8 @@ const ARTICLES: Article[] = [
     // (Articles 9 and 16) and Article 15 dates every amendment here, so the list's own amendment is logged — with
     // its window, from PROHIBITED_AMENDMENT — while Articles 1–16 and the version number stay as they are (codex +
     // opus, plan review). eno.forum's list carried these rules since August: its copy changed only editorially (the
-    // curated Vietnamese, the note about eno.vn), so it logs nothing. ⛔ Before PROHIBITED_AMENDMENT is re-used,
+    // curated Vietnamese, the note about eno.vn), so it logs nothing. Made immediate on its publication day (owner,
+    // 2026-10-15: "apply from now no need for warning"), so it carries one date. ⛔ Before PROHIBITED_AMENDMENT is re-used,
     // type this entry's dates as literals (the record's own note says the same of /prohibited).
     id: 'changelog',
     rail: '17. Change history',
@@ -854,10 +855,16 @@ const ARTICLES: Article[] = [
       },
       ...(IS_MARKETPLACE
         ? [
-            {
-              vi: `Sửa đổi, bổ sung Danh mục hàng hoá, dịch vụ cấm đăng — một phần không tách rời của Quy chế này theo Điều 9 và Điều 16 — được công bố ngày ${PROHIBITED_AMENDED.publishedVi} và có hiệu lực từ ngày ${PROHIBITED_AMENDED.inForceVi}: bổ sung mục “Dịch vụ thị thực và xuất nhập cảnh — quy định bổ sung” tại /prohibited, gồm các quy định riêng đối với tin đăng dịch vụ thị thực và xuất nhập cảnh. Trước ngày có hiệu lực, Danh mục được áp dụng mà không có các quy định này. Các điều khoản của Quy chế này và số phiên bản không thay đổi.`,
-              en: `An amendment to the list of prohibited goods and services — an inseparable part of these Regulations under Articles 9 and 16 — published on ${PROHIBITED_AMENDED.publishedEn} and in force from ${PROHIBITED_AMENDED.inForceEn}: it adds the section “Visa & immigration services — extra rules” at /prohibited, the rules that apply to visa and immigration service listings. Before it takes effect, the list applies without those rules. The articles of these Regulations and their version number are unchanged.`,
-            },
+            // Immediate since the owner's "apply from now" (2026-10-15): one date, the shape the version entries have.
+            PROHIBITED_AMENDMENT.immediate
+              ? {
+                  vi: `Sửa đổi, bổ sung Danh mục hàng hoá, dịch vụ cấm đăng — một phần không tách rời của Quy chế này theo Điều 9 và Điều 16 — được công bố và có hiệu lực từ ngày ${PROHIBITED_AMENDED.inForceVi}: bổ sung mục “Dịch vụ thị thực và xuất nhập cảnh — quy định bổ sung” tại /prohibited, gồm các quy định riêng đối với tin đăng dịch vụ thị thực và xuất nhập cảnh. Các điều khoản của Quy chế này và số phiên bản không thay đổi.`,
+                  en: `An amendment to the list of prohibited goods and services — an inseparable part of these Regulations under Articles 9 and 16 — published on and in force from ${PROHIBITED_AMENDED.inForceEn}: it adds the section “Visa & immigration services — extra rules” at /prohibited, the rules that apply to visa and immigration service listings. The articles of these Regulations and their version number are unchanged.`,
+                }
+              : {
+                  vi: `Sửa đổi, bổ sung Danh mục hàng hoá, dịch vụ cấm đăng — một phần không tách rời của Quy chế này theo Điều 9 và Điều 16 — được công bố ngày ${PROHIBITED_AMENDED.publishedVi} và có hiệu lực từ ngày ${PROHIBITED_AMENDED.inForceVi}: bổ sung mục “Dịch vụ thị thực và xuất nhập cảnh — quy định bổ sung” tại /prohibited, gồm các quy định riêng đối với tin đăng dịch vụ thị thực và xuất nhập cảnh. Trước ngày có hiệu lực, Danh mục được áp dụng mà không có các quy định này. Các điều khoản của Quy chế này và số phiên bản không thay đổi.`,
+                  en: `An amendment to the list of prohibited goods and services — an inseparable part of these Regulations under Articles 9 and 16 — published on ${PROHIBITED_AMENDED.publishedEn} and in force from ${PROHIBITED_AMENDED.inForceEn}: it adds the section “Visa & immigration services — extra rules” at /prohibited, the rules that apply to visa and immigration service listings. Before it takes effect, the list applies without those rules. The articles of these Regulations and their version number are unchanged.`,
+                },
           ]
         : []),
     ],

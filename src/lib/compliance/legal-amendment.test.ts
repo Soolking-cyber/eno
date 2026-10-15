@@ -143,13 +143,12 @@ describe('legal-amendment', () => {
   // OWN record — windowed, announced by the strip (eno.vn) and the bell — moving neither the Terms' switch nor the
   // Quy chế's record.
   describe('the /prohibited amendment (PROHIBITED_AMENDMENT)', () => {
-    it('has its notice window: at least 5 clear days, publication day not counted', () => {
-      expect(PROHIBITED_AMENDMENT.immediate).toBeUndefined()
-      expect(PROHIBITED_AMENDMENT.published).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-      expect(PROHIBITED_AMENDMENT.inForce).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-      expect(daysBetween(PROHIBITED_AMENDMENT.published, PROHIBITED_AMENDMENT.inForce)).toBeGreaterThanOrEqual(MIN_NOTICE_DAYS + 1)
-      // The decision is of 2026-10-14; its publication cannot be earlier.
-      expect(PROHIBITED_AMENDMENT.published >= '2026-10-14').toBe(true)
+    // ⛔ Owner, 2026-10-15 — the day it went live with a window to 21/10: "also remove this warning … apply from now
+    // no need for warning". Immediate: in force on its publication day, nothing announced (no strip, no bell).
+    it('is immediate since the owner’s “apply from now”: published and in force 15/10/2026', () => {
+      expect(PROHIBITED_AMENDMENT).toEqual({ published: '2026-10-15', inForce: '2026-10-15', immediate: true })
+      expect(amendmentDatesProblem(PROHIBITED_AMENDMENT)).toBeNull()
+      expect(daysBetween(PROHIBITED_AMENDMENT.published, PROHIBITED_AMENDMENT.inForce)).toBe(0)
     })
 
     it('moves neither the Terms’ runtime switch nor the Quy chế’s record', () => {

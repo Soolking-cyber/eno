@@ -27,7 +27,6 @@ import { AppSplash } from "@/components/marketplace/app-splash";
 import { InstallHint } from "@/components/marketplace/install-hint";
 import { ImageShield } from "@/components/marketplace/image-shield";
 import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
-import { TosChangeNotice } from "@/components/marketplace/tos-change-notice";
 import { AccountPanelShell } from "@/components/marketplace/account-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NativeBootstrap } from "@/components/native/native-bootstrap";
@@ -58,12 +57,11 @@ export function Providers({
               ThemeProvider, so status-bar theming is unchanged. */}
           <NativeBootstrap />
           <SkipLink />
-          {/* THE AMENDMENT STRIP — mounted again since /prohibited's own amendment (PROHIBITED_AMENDMENT, owner
-              2026-10-14: the e-Visa rules on eno.vn, with 5 days' notice), whose window it announces on eno.vn.
-              It renders nothing outside any window (the Terms' version 3 is immediate and has none). After
-              SkipLink so the skip link stays the first tab stop, inside LanguageProvider because it renders the
-              visitor's language. legal-amendment.test.ts holds the mount to "some record has a window". */}
-          <TosChangeNotice />
+          {/* THE AMENDMENT STRIP (tos-change-notice.tsx) IS NOT MOUNTED: every amendment is immediate — the Terms'
+              version 3 (2026-10-07) and, since the owner's "apply from now no need for warning" (2026-10-15),
+              /prohibited's own — so there is no window to announce. legal-amendment.test.ts holds the mount to
+              "some record has a window"; a windowed amendment mounts it here again, after SkipLink (the skip link
+              stays the first tab stop) and inside LanguageProvider (it renders the visitor's language). */}
           <CurrencyProvider>
           <AuthProvider>
             {/* Native push registration — no-op on web + until the plugin is wired (dormant). */}

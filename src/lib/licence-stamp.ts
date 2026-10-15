@@ -159,7 +159,9 @@ export const LICENCE_GRANDFATHER = {
   handle: 'vietkite',
   ownerEmail: 'info@vietkite.com.vn',
   subcategorySlug: 'visa-legal',
-  until: '2026-10-21',
+  // Re-dated with the /prohibited amendment, made immediate on 2026-10-15 (owner: "apply from now"): over the day it
+  // began. LICENCE_WHITELIST exempts VietKite's e-Visa rows instead.
+  until: '2026-10-15',
 } as const
 
 /** The instant the grandfather ends: 00:00 in Vietnam (UTC+7) on `until`. */

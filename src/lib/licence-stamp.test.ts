@@ -245,7 +245,8 @@ describe("VietKite's grandfather", () => {
 
   it('ends at 00:00 ICT on `until`', () => {
     expect(new Date(end).toISOString()).toBe(new Date(`${LICENCE_GRANDFATHER.until}T00:00:00+07:00`).toISOString())
-    expect(new Date(end).toISOString()).toBe('2026-10-20T17:00:00.000Z')
+    // Re-dated with the immediate /prohibited amendment (owner, 2026-10-15): it ended the day it began.
+    expect(new Date(end).toISOString()).toBe('2026-10-14T17:00:00.000Z')
   })
 
   it('holds only for VietKite + e-Visa + live + no values, before the end', () => {

@@ -262,15 +262,25 @@ export default async function ProhibitedPage({ params }: { params: Promise<{ lan
       ))}
       <ContentSection id="visa-services" title={VISA_RULES.title} titleVi={VISA_RULES.titleVi}>
         {/* eno.vn only: the rules apply there from PROHIBITED_AMENDMENT.inForce (eno.forum has had them since
-            August). Typed dates, so the sentence stays true before and after that day on this static prerender. */}
+            August). Typed dates, so the sentence stays true before and after that day on this static prerender.
+            Immediate (owner, 2026-10-15: "apply from now"): one date — published and in force the same day. */}
         {IS_MARKETPLACE && (
           <p className="text-sm leading-relaxed text-body">
-            <Bilingual
-              en="These rules were published on {published} and apply on {site} from {inForce}, including to listings posted before that date."
-              vi="Các quy định này được công bố ngày {published} và áp dụng trên {site} từ ngày {inForce}, kể cả đối với tin đã đăng trước ngày đó."
-              values={{ site: SITE_NAME, published: vi ? PROHIBITED_AMENDED.publishedVi : PROHIBITED_AMENDED.publishedEn, inForce: vi ? PROHIBITED_AMENDED.inForceVi : PROHIBITED_AMENDED.inForceEn }}
-              datesIso={{ published: PROHIBITED_AMENDMENT.published, inForce: PROHIBITED_AMENDMENT.inForce }}
-            />
+            {PROHIBITED_AMENDMENT.immediate ? (
+              <Bilingual
+                en="These rules were published on {published} and apply on {site} from that day, including to listings posted before it."
+                vi="Các quy định này được công bố ngày {published} và áp dụng trên {site} từ ngày đó, kể cả đối với tin đã đăng trước đó."
+                values={{ site: SITE_NAME, published: vi ? PROHIBITED_AMENDED.publishedVi : PROHIBITED_AMENDED.publishedEn }}
+                datesIso={{ published: PROHIBITED_AMENDMENT.published }}
+              />
+            ) : (
+              <Bilingual
+                en="These rules were published on {published} and apply on {site} from {inForce}, including to listings posted before that date."
+                vi="Các quy định này được công bố ngày {published} và áp dụng trên {site} từ ngày {inForce}, kể cả đối với tin đã đăng trước ngày đó."
+                values={{ site: SITE_NAME, published: vi ? PROHIBITED_AMENDED.publishedVi : PROHIBITED_AMENDED.publishedEn, inForce: vi ? PROHIBITED_AMENDED.inForceVi : PROHIBITED_AMENDED.inForceEn }}
+                datesIso={{ published: PROHIBITED_AMENDMENT.published, inForce: PROHIBITED_AMENDMENT.inForce }}
+              />
+            )}
           </p>
         )}
         <p className="text-sm leading-relaxed text-body">{say(VISA_RULES.intro)}</p>

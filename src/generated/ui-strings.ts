@@ -2888,6 +2888,7 @@ export const UI_STRINGS: string[] = [
   "These are the places I can teach",
   "These features send what you type, or the photo you choose, to Google. Each one asks you the first time; you can change your answer here.",
   "These listings are also on the",
+  "These rules were published on {published} and apply on {site} from that day, including to listings posted before it.",
   "These rules were published on {published} and apply on {site} from {inForce}, including to listings posted before that date.",
   "These two lines don't match what is printed on your passport yet — please check them character by character.",
   "They are also counted in Thu Duc City.",

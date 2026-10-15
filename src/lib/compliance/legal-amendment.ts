@@ -55,7 +55,8 @@
 // on the day it is published, no notice window, no announcement": inForce MUST equal published, nothing
 // is announced (no strip, no bell notice), and the deploy gate wants LEGAL_AMENDMENT_IMMEDIATE=<published>
 // on top of the publication-day rule. The October 2026 amendment was one, and so are the Quy chế's version 3
-// and — owner, 2026-10-07 — the Terms' version 3 (both below). The next amendment drops the flag and gets its
+// and — owner, 2026-10-07 — the Terms' version 3 (both below), and — owner, 2026-10-15 — /prohibited's own amendment
+// (PROHIBITED_AMENDMENT, made immediate the day it went live with a window). The next amendment drops the flag and gets its
 // 6 days again unless the owner decides otherwise for THAT amendment. Quy chế Article 15's 5-day promise stays
 // in the text for every amendment after these.
 //
@@ -137,19 +138,24 @@ export const REGULATIONS_AMENDMENT: LegalAmendment = {
  * (tos-change-notice.tsx, eno.vn only) and the bell (legal-amendment-notice.ts PROHIBITED_NOTICE*,
  * scripts/notify-legal-amendment.ts --record=prohibited). Held by infra/vn-node/legal-amendment-gate.sh.
  *
- * ⛔ NOT IMMEDIATE: inForce ≥ published + 6. Both are the PLANNED deploy day, not yet a fact — the deployer re-dates
- * them to the real deploy day (Vietnam time) in the commit that ships it, and the gate refuses any other day.
+ * ⛔ IMMEDIATE — THE OWNER'S DECISION (2026-10-15, the day it went live with a window to 21/10: "also remove this warning
+ * … apply from now no need for warning"): in force on its publication day — no notice window, no strip, no bell; the
+ * 2026-10-01 and 2026-10-07 precedents. Scoped to THIS amendment. The deploy that ships it runs with
+ * LEGAL_AMENDMENT_IMMEDIATE=2026-10-15 (infra/vn-node/legal-amendment-gate.sh); a deploy on a later day must re-date
+ * BOTH dates to its own day first, as the gate says. (It first shipped windowed: published 15/10, in force 21/10.)
  * ⛔ BEFORE THIS RECORD IS RE-USED for a later /prohibited amendment, type its two dates into
  * src/app/[lang]/prohibited/page.tsx and the Article 17 entry in src/app/[lang]/regulations/page.tsx as literals,
  * or both print the next amendment's dates for this one's rules.
  * ⛔ AND VIETKITE'S LICENCE GRANDFATHER ENDS ON THIS `inForce` (owner, 2026-10-14): LICENCE_GRANDFATHER.until in
  * src/lib/licence-stamp.ts is the same date, and the daily licence sweep pulls VietKite's unapproved e-Visa listings at
  * 00:00 ICT that day. licence-stamp.test.ts holds the two equal only until that date passes (then it skips), so a
- * re-date on the deploy day must move BOTH, in the same commit.
+ * re-date on the deploy day must move BOTH, in the same commit. (Moot since LICENCE_WHITELIST exempts VietKite's e-Visa
+ * rows — 2026-10-15; the immediate re-date ended the grandfather the day it was published.)
  */
 export const PROHIBITED_AMENDMENT: LegalAmendment = {
   published: '2026-10-15',
-  inForce: '2026-10-21',
+  inForce: '2026-10-15',
+  immediate: true,
 }
 
 /** The advance notice the texts promise (Quy chế Art 15, Terms "Changes"). */

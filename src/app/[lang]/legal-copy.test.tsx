@@ -374,15 +374,19 @@ describe('/prohibited', () => {
     expect(html).toContain('đang được luật sư rà soát')
   })
 
-  // ⛔ Owner, 2026-10-14: "eno.vn's /prohibited gets the same visa rules (dated amendment, 5-day notice)".
-  it('eno.vn publishes the e-Visa rules, in curated Vietnamese, with the dates they apply from', async () => {
+  // ⛔ Owner, 2026-10-14: "eno.vn's /prohibited gets the same visa rules (dated amendment, 5-day notice)" — made
+  // immediate the day it went live (2026-10-15: "apply from now no need for warning"), so the line carries one date.
+  it('eno.vn publishes the e-Visa rules, in curated Vietnamese, with the date they apply from', async () => {
     const vi = await renderLang('./prohibited/page', 'vi')
     expect(vi).toMatch(/<section id="visa-services"><h2>Dịch vụ thị thực và xuất nhập cảnh — quy định bổ sung<\/h2>/)
     expect(vi).toContain('<a href="#visa-services">Quy định về thị thực</a>')
     expect(vi).toContain('Chỉ doanh nghiệp có giấy phép mới được đăng.')
-    expect(vi).toContain(`Các quy định này được công bố ngày ${PROHIBITED_AMENDED.publishedVi} và áp dụng trên eno.vn từ ngày ${PROHIBITED_AMENDED.inForceVi}, kể cả đối với tin đã đăng trước ngày đó.`)
+    expect(vi).toContain(`Các quy định này được công bố ngày ${PROHIBITED_AMENDED.publishedVi} và áp dụng trên eno.vn từ ngày đó, kể cả đối với tin đã đăng trước đó.`)
     const en = text(await renderLang('./prohibited/page', 'en'))
-    expect(en).toContain(`These rules were published on ${PROHIBITED_AMENDED.publishedEn} and apply on eno.vn from ${PROHIBITED_AMENDED.inForceEn}, including to listings posted before that date.`)
+    expect(en).toContain(`These rules were published on ${PROHIBITED_AMENDED.publishedEn} and apply on eno.vn from that day, including to listings posted before it.`)
+    // Not the windowed sentence, which named the in-force date a second time.
+    expect(en).not.toContain(`and apply on eno.vn from ${PROHIBITED_AMENDED.inForceEn}`)
+    expect(vi).not.toContain(`và áp dụng trên eno.vn từ ngày ${PROHIBITED_AMENDED.inForceVi}`)
     expect(en).toContain('Only a licensed business may list them.')
     // eno.forum's note about eno.vn is not on eno.vn (the alias stub in a build; the IS_SERVICES gate here).
     expect(en).not.toContain('related classifieds marketplace')
@@ -517,12 +521,15 @@ describe('/regulations', () => {
   })
 
   // ⛔ /prohibited is an inseparable part of the Quy chế (Articles 9, 16) and Article 15 dates every amendment in
-  // Article 17 (codex + opus, plan review, 2026-10-14): eno.vn's list amendment is logged there, with its window and no
-  // new version; eno.forum's list changed only editorially, so its log does not move.
-  it('Article 17 logs eno.vn’s /prohibited amendment with its window — not a version — and eno.forum’s does not', async () => {
+  // Article 17 (codex + opus, plan review, 2026-10-14): eno.vn's list amendment is logged there, with no new version;
+  // eno.forum's list changed only editorially, so its log does not move. Immediate since 2026-10-15 (owner: "apply from
+  // now"), so the entry has one date, the shape the version entries have.
+  it('Article 17 logs eno.vn’s /prohibited amendment with its one date — not a version — and eno.forum’s does not', async () => {
     const log = text(section(await regs(), 'changelog'))
-    expect(log).toContain(`Sửa đổi, bổ sung Danh mục hàng hoá, dịch vụ cấm đăng — một phần không tách rời của Quy chế này theo Điều 9 và Điều 16 — được công bố ngày ${PROHIBITED_AMENDED.publishedVi} và có hiệu lực từ ngày ${PROHIBITED_AMENDED.inForceVi}`)
-    expect(log).toContain(`An amendment to the list of prohibited goods and services — an inseparable part of these Regulations under Articles 9 and 16 — published on ${PROHIBITED_AMENDED.publishedEn} and in force from ${PROHIBITED_AMENDED.inForceEn}`)
+    expect(log).toContain(`Sửa đổi, bổ sung Danh mục hàng hoá, dịch vụ cấm đăng — một phần không tách rời của Quy chế này theo Điều 9 và Điều 16 — được công bố và có hiệu lực từ ngày ${PROHIBITED_AMENDED.inForceVi}: bổ sung mục`)
+    expect(log).toContain(`An amendment to the list of prohibited goods and services — an inseparable part of these Regulations under Articles 9 and 16 — published on and in force from ${PROHIBITED_AMENDED.inForceEn}: it adds`)
+    expect(log).not.toContain('Before it takes effect, the list applies without those rules.')
+    expect(log).not.toContain('Trước ngày có hiệu lực, Danh mục được áp dụng mà không có các quy định này.')
     // Newest last (append-only): after version 3's entry.
     expect(log.indexOf('(phiên bản 2)')).toBeLessThan(log.indexOf('Sửa đổi, bổ sung Danh mục hàng hoá'))
     expect(REGULATIONS_VERSION).toBe('3')
