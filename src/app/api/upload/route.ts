@@ -1,3 +1,4 @@
+import { recordImageOwner } from '@/lib/image-owner'
 import { NextRequest, NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { getCurrentProfileId } from '@/lib/admin'
@@ -77,6 +78,8 @@ export async function POST(req: NextRequest) {
         failed++; reasons.push(file.size === 0 ? 'empty' : 'size'); continue
       }
       const url = await storeListingImage(Buffer.from(await file.arrayBuffer()), { watermark })
+      // A signed-in headshot records its uploader (image-owner.ts): the teacher photo check spends checks only on yours.
+      if (url && profileId && !watermark) await recordImageOwner(url, profileId)
       if (url) urls.push(url)
       else {
         // sharp could not decode it despite an allowed mime — a mislabelled or corrupt file.

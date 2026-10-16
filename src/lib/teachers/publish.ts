@@ -21,7 +21,8 @@ import {
   copyPrivateVideoToPublic, copyPublicVideoToPrivate, ownsPublicVideo, privateVideoPathFor, publicVideoKeyFor,
   removeUnreferencedPrivateVideos,
 } from '@/lib/teachers/video-store'
-import { IDENTITY_MARK_NOTICE_VERSION, TEACHERS_CATEGORY_SLUG, TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
+import { IDENTITY_MARK_NOTICE_VERSION, TEACHERS_CATEGORY_SLUG, TEACHER_LISTING_TYPE, videoRequiredSince } from '@/lib/teachers/constants'
+import { PhotoCheckUnavailable, recordPhotoRefusal, teacherPhotoKey, teacherPhotoVerdict } from '@/lib/teachers/photo-verdict'
 import { districtPagesOf, revalidateTeacherPages } from '@/lib/teachers/revalidate'
 import { IDENTITY_MARK_TP_SELECT, identityMarkShownFor, identityMarkState, type IdentityMarkState } from '@/lib/teachers/identity-mark'
 import { writeIdentityMarkCard } from '@/lib/teachers/identity-mark-card'
@@ -163,6 +164,20 @@ export class TeacherVideoStoreError extends Error {
   constructor() {
     super('video_store_failed')
     this.name = 'TeacherVideoStoreError'
+  }
+}
+/** The profile photo check could not run (photo-verdict.ts) → 503 photo_check_unavailable: "try again", never the photo's fault. */
+export class TeacherPhotoCheckUnavailableError extends Error {
+  constructor(why: string) {
+    super(`photo_check_unavailable:${why}`)
+    this.name = 'TeacherPhotoCheckUnavailableError'
+  }
+}
+/** A profile created since TEACHER_VIDEO_REQUIRED_FROM keeps its intro video → 409 video_required (replace, never remove). */
+export class TeacherVideoRequiredError extends Error {
+  constructor() {
+    super('video_required')
+    this.name = 'TeacherVideoRequiredError'
   }
 }
 
@@ -311,7 +326,7 @@ export function screenTeacherTexts(t: TeacherInput) {
  *  inputs (the years a band may keep, the teach areas a confirmation stamp compares). And the "Identity verified" switch
  *  — READ, never written, here: the card's tick follows the name this save writes (below). */
 const LOCKED_SELECT = {
-  id: true, listingId: true, ...STORED_COVER_SELECT, videoVersion: true, yearsExperience: true, teachAreas: true, teachAreasConfirmedAt: true,
+  id: true, listingId: true, createdAt: true, ...STORED_COVER_SELECT, videoVersion: true, yearsExperience: true, teachAreas: true, teachAreasConfirmedAt: true,
   currentDistrictKey: true, currentDistrict: true,
   consentPublicVersion: true, consentPublicAt: true,
   matchEmailOptIn: true, matchEmailOptInAt: true, matchEmailNoticeVersion: true, matchEmailWithdrawnAt: true,
@@ -366,9 +381,35 @@ export async function saveTeacherProfile(
   const [seller, category, existing] = await Promise.all([
     sellerFor(profile.id, t.fullName),
     teachersCategory(),
-    db.teacherProfile.findUnique({ where: { profileId: profile.id }, select: { id: true, listingId: true, status: true } }),
+    db.teacherProfile.findUnique({ where: { profileId: profile.id }, select: { id: true, listingId: true, status: true, photoUrl: true, createdAt: true } }),
   ])
   if (seller.trustTier === 'restricted') throw new PublishBlockedError('account_restricted')
+
+  // ── THE PROFILE PHOTO (owner, 2026-10-16: "check uploaded profile pictures so it clearly shows face of the teacher") ──
+  // A NEW photo — a first publish, or a URL other than the one saved — needs a passing verdict: the form asked already
+  // (POST /api/teachers/me/photo-check), so this is usually the cache; else the check runs now. ⛔ FAIL CLOSED: a check
+  // that cannot run refuses the save with "try again" (plan review, 2026-10-16) — only a server with no Vertex client at
+  // all ('off') saves unchecked. A photo already saved is never re-judged here: existing teachers keep editing, and a
+  // flagged one is asked to change it (/api/cron/teacher-photo-recheck). Before the video's bucket copy: a refusal costs none.
+  if (!existing || existing.photoUrl !== t.photoUrl) {
+    let photo: Awaited<ReturnType<typeof teacherPhotoVerdict>>
+    try {
+      // (A URL that is not a listing image was refused above as photoUrl 'required'.)
+      // The save's own budget (photo-verdict.ts): the form's early check, which any account can call, never drains it.
+      photo = await teacherPhotoVerdict(profile.id, t.photoUrl ?? '', 'save')
+    } catch (e) {
+      if (e instanceof PhotoCheckUnavailable) throw new TeacherPhotoCheckUnavailableError(e.why)
+      throw e
+    }
+    // 'off' — no Vertex client on this server: saved unchecked, as the CV door is off, but SAID (gate review, 2026-10-16).
+    if (photo === 'off') logError(new Error('teacher photo check off: no Vertex client'), { op: 'teachers.photo.checkOff' })
+    if (photo !== 'off' && !photo.ok) {
+      // Recorded for the admin queue, so a wrong refusal can be approved by a person (gate review, 2026-10-16).
+      const key = teacherPhotoKey(t.photoUrl)
+      if (key) await recordPhotoRefusal(profile.id, key, photo.reason)
+      throw new TeacherValidationError({ photoUrl: photo.reason })
+    }
+  }
 
   // ── THE INTRO VIDEO (2026-10-07): plan against the stored state; any bucket copy runs BEFORE the transaction ──────
   const rawBody = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
@@ -387,6 +428,13 @@ export async function saveTeacherProfile(
     if (plan.code === 'video_not_owned') throw new TeacherValidationError({ videoUrl: 'not_owned' })
     throw new TeacherVideoConflictError()
   }
+  // ⛔ THE INTRO VIDEO "FROM NOW ON" (owner, 2026-10-16): a new profile publishes with one, and a profile created since
+  // TEACHER_VIDEO_REQUIRED_FROM keeps one (replaced, never removed) — public or private, either counts. Judged here on the
+  // read before the lock, before any bucket copy; again under the lock, where it is known whether a profile exists.
+  // ⚠️ An existing profile is held to it only while it HAS a video (gate review, 2026-10-16): one made after the cutoff
+  // under the old code — a deploy that slipped past the date — never had one, and an edit must never demand one now.
+  const preHadVideo = !!(preStored?.videoUrl || preStored?.videoPath)
+  if (plan.home.kind === 'none' && (!existing || (videoRequiredSince(existing.createdAt) && preHadVideo))) throw new TeacherValidationError({ videoUrl: 'required' })
   let finalVideoUrl: string | null = plan.home.kind === 'public' ? plan.home.url : null
   let finalVideoPath: string | null = plan.home.kind === 'private' ? plan.home.path : null
   // The copy's destination is tombstoned FIRST: a crash after the upload then cannot orphan it (the sweep deletes it
@@ -423,6 +471,8 @@ export async function saveTeacherProfile(
     // The video plan was made from a read BEFORE the lock (its copy cannot run inside it). Every video change bumps the
     // version, so an unchanged version proves nothing moved in between; otherwise refuse (the copy's tombstone collects it).
     if ((locked?.videoVersion ?? null) !== (pre?.videoVersion ?? null)) throw new TeacherVideoConflictError()
+    // (The video state read before the lock still holds: the version check just above proves nothing moved.)
+    if (plan.home.kind === 'none' && (!locked || (videoRequiredSince(locked.createdAt) && preHadVideo))) throw new TeacherValidationError({ videoUrl: 'required' })
     // Facets and search text read the video from the FINAL state — only a public video says "has a video" (video.ts).
     const tc: TeacherInput = { ...t, videoUrl: finalVideoUrl, videoOnRequest: plan.videoOnRequest }
     // ⛔ NOTHING TO BE FOUND FOR (no job goal, no public cover): a CREATE is refused; an EDIT saves and HIDES the profile —
@@ -805,13 +855,15 @@ export async function saveTeacherIdentityMark(
 export async function deleteTeacherVideo(profileId: string, base: number | null, expectTeacherProfileId: string): Promise<SavedVideoState | null> {
   const result = await db.$transaction(async (tx) => {
     await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${'teacher:' + profileId}))`
-    const tp = await tx.teacherProfile.findUnique({ where: { profileId }, select: { id: true, listingId: true, videoOnRequest: true, videoVersion: true, private: { select: { videoPath: true } } } })
+    const tp = await tx.teacherProfile.findUnique({ where: { profileId }, select: { id: true, listingId: true, createdAt: true, videoOnRequest: true, videoVersion: true, private: { select: { videoPath: true } } } })
     // ⛔ Under the lock, with the write — the DELETE route's own read is only a fast path (gate review, 2026-10-08). A
     // profile re-made since the form loaded starts its versions low, so `base` alone could match it.
     if (tp && tp.id !== expectTeacherProfileId) throw new TeacherVideoConflictError()
     const path = tp?.private?.videoPath
     if (!tp || !path) return null
     if (base === null || base !== tp.videoVersion) throw new TeacherVideoConflictError()
+    // A profile created since TEACHER_VIDEO_REQUIRED_FROM keeps its intro video: replaced by a save, never removed here.
+    if (videoRequiredSince(tp.createdAt)) throw new TeacherVideoRequiredError()
     await writeTombstones(tx, [{ bucket: TEACHER_VIDEOS_BUCKET, path }], 'teacher_video_replaced')
     await tx.teacherPrivate.update({ where: { teacherProfileId: tp.id }, data: { videoPath: null } })
     const saved = await tx.teacherProfile.update({ where: { id: tp.id }, data: { videoVersion: { increment: 1 } }, select: { videoVersion: true, videoOnRequest: true } })

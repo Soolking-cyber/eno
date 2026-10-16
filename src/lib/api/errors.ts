@@ -395,6 +395,11 @@ export type NicheApiErrorCode =
   | 'import_too_long' // too many pages / too much to read for a CV
   | 'import_unreadable' // the model refused the file itself (Vertex 400)
   | 'import_failed' // the model failed to answer (both attempts)
+  // Teacher profile photo check (2026-10-16 — src/lib/teachers/photo-verdict.ts):
+  | 'photo_check_unavailable' // the check could not run (both models, storage or the day's budget) — "try again", never the photo's fault
+  | 'photo_check_rate' // this account's photo checks for the hour or the day are used
+  | 'photo_check_invalid' // not a photo stored on eno
+  | 'video_required' // a profile created since TEACHER_VIDEO_REQUIRED_FROM keeps an intro video — replace it, never remove it
   | 'share_required'
   | 'teacher_thread_cap'
   | 'profile_hidden'
@@ -815,6 +820,10 @@ const ALL = [
   'import_too_long',
   'import_unreadable',
   'import_failed',
+  'photo_check_unavailable',
+  'photo_check_rate',
+  'photo_check_invalid',
+  'video_required',
   'share_required',
   'teacher_thread_cap',
   'profile_hidden',

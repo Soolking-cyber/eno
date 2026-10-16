@@ -60,6 +60,8 @@ describe('Admin › Catalogue — the Licence checks tab', () => {
     expect(tabs).toEqual([
       ['Listings', '/admin/catalogue?tab=listings', null],
       ['Licence checks', '/admin/catalogue?tab=licences', 'page'],
+      // Teacher photos (2026-10-16): the profile-photo check's refusals and asks, with the "Photo is fine" override.
+      ['Teacher photos', '/admin/catalogue?tab=teacher-photos', null],
       ['Brands', '/admin/catalogue?tab=brands', null],
     ])
     expect(doc.querySelector('[data-licence-checks]')).not.toBeNull()

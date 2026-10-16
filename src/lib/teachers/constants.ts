@@ -39,6 +39,25 @@ export const HOME_HIDDEN_TEACHER_LISTING_IDS = ['cmuzccru60000wvq4mojalida'] as 
 export const TEACHER_DRAFT_HASH_KEY = 'd'
 
 /**
+ * THE INTRO VIDEO IS REQUIRED "FROM NOW ON" (owner, 2026-10-16: "make short intor video mandatory from now on"). Every NEW
+ * profile needs one to publish, and a profile created from this moment on keeps one — it can be replaced, never removed.
+ * Profiles created before it keep the old rule (optional): 67 of the 84 live on 2026-10-16 had none.
+ * ⛔ THE DAY AFTER THE DEPLOY, 00:00 ICT — and re-dated if the deploy slips, like PRIVACY_TEXT_PUBLISHED: a profile made
+ * on the deploy day under the OLD code (no video) must never be held to "keep it" (plan review, 2026-10-16). Creating
+ * always needs the video, whatever this date; it decides only who may later remove one.
+ */
+export const TEACHER_VIDEO_REQUIRED_FROM = '2026-10-17T00:00:00+07:00'
+/**
+ * Must this SAVED profile keep its intro video — was it created since the cutoff? (A new profile always needs one: the
+ * caller says "no profile yet" itself.) An unknown creation time is an old profile: an edit is never blocked on a guess.
+ */
+export function videoRequiredSince(createdAt: Date | string | null | undefined): boolean {
+  if (createdAt === null || createdAt === undefined) return false
+  const t = new Date(createdAt).getTime()
+  return Number.isFinite(t) && t >= Date.parse(TEACHER_VIDEO_REQUIRED_FROM)
+}
+
+/**
  * ⛔ THE "IDENTITY VERIFIED" NOTICE (owner, 2026-10-15) — the version of the words shown beside the teacher's switch
  * (the IdentityMarkNote on Photo & publish): what the mark shows, where (the profile, its card in lists, the chip a school
  * or member sees in chat), to whom, on which conditions, and that it never shows the document. Switching it ON is the

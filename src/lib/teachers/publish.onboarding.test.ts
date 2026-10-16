@@ -87,7 +87,8 @@ const body = (o: Row = {}) => ({
   degreeLevel: null, degreeMajor: '', degreeInstitution: '', degreeYear: null, certificates: [],
   fullName: 'Jane Doe', nationality: 'GB', englishLevel: 'native', languages: [], headline: 'CELTA-certified English teacher', bio: '',
   coverOpen: false, coverSlots: [], coverRateVnd: null, coverConsent: false, coverNotice: COVER_CONSENT_VERSION,
-  photoUrl: 'https://sb.eno.vn/storage/v1/object/public/listings/a.webp', videoUrl: null, videoOnRequest: false, videoBase: 0,
+  // A new profile publishes with its intro video (owner, 2026-10-16), so the complete body carries one, shown publicly.
+  photoUrl: 'https://sb.eno.vn/storage/v1/object/public/listings/a.webp', videoUrl: 'https://sb.eno.vn/storage/v1/object/public/listing-videos/1700000000001-abcd12.mp4', videoOnRequest: false, videoBase: 0,
   phone: '', matchEmailOptIn: false, staffContactOptIn: false, publishNotice: PUBLISH_NOTICE_VERSION, aiNotice: AI_NOTICE_VERSION,
   ...o,
 })

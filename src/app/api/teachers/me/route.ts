@@ -4,6 +4,7 @@ import { after, NextResponse } from 'next/server'
 import { pendingOnboardingStep } from '@/lib/auth-policy'
 import { afterIndividualOnboarding, individualOnboardingWrite } from '@/lib/core/first-onboarding'
 import { route, ApiError } from '@/lib/api/handler'
+import { photoOverridden, teacherPhotoKey } from '@/lib/teachers/photo-verdict'
 import { db } from '@/lib/db'
 import { isCurrentUserAppleLinkedByClaims } from '@/lib/admin'
 import { sendMetaCapiEvent, metaUserDataFromHeaders, metaCapiConfigured } from '@/lib/meta-capi'
@@ -19,7 +20,7 @@ import { sendTikTokEvent, tiktokConsent, tiktokEventsConfigured, tiktokUserFromH
 import { consentRecordNamesTikTok } from '@/lib/tiktok-consent-record'
 import {
   saveTeacherProfile, deleteTeacherProfile, TeacherCoverConflictError, TeacherNoticeChangedError, TeacherProfileChangedError,
-  TeacherValidationError, TeacherVideoConflictError, TeacherVideoStoreError,
+  TeacherValidationError, TeacherVideoConflictError, TeacherVideoStoreError, TeacherPhotoCheckUnavailableError,
 } from '@/lib/teachers/publish'
 
 export const runtime = 'nodejs'
@@ -90,8 +91,25 @@ export const GET = route({ auth: 'profile' }, async ({ profile }) => {
   const listingLive = !!listing && listing.status === 'active' && listing.verified
   // The owner's own phone + whether a CV or a private intro video exists — never either path (neither is a URL anyone
   // needs; the private video is watched only through a school's signed link). videoVersion is the form's video base.
-  return { teacher: { ...rest, listingLive, phone: priv?.phone ?? '', cvFileName: priv?.cvFileName ?? null, hasPrivateVideo: !!priv?.videoPath }, publishGate, identityMark, identityMarkStamps }
+  // The saved photo was asked about (Admin's re-check, 2026-10-16 — /api/cron/teacher-photo-recheck) and not approved since:
+  // the edit form says why, beside the photo. ADVISORY like publishGate: a failed read is null (no line), never a failed page.
+  const photoAsk = await savedPhotoAsk(profile.id, tp.photoUrl).catch((e) => { logError(e, { op: 'teachers.me.photoAsk' }); return null })
+  return { teacher: { ...rest, listingLive, phone: priv?.phone ?? '', cvFileName: priv?.cvFileName ?? null, hasPrivateVideo: !!priv?.videoPath }, publishGate, identityMark, identityMarkStamps, photoAsk }
 })
+
+/** The reason the saved photo was asked about — none once an admin approved it, or for a photo changed since. */
+async function savedPhotoAsk(profileId: string, url: string | null): Promise<{ reason: string } | null> {
+  const key = teacherPhotoKey(url)
+  if (!key) return null
+  const ask = await db.complianceAudit.findFirst({
+    where: { action: 'teacher.photo.ask', subjectType: 'profile', subjectId: profileId, detail: { path: ['key'], equals: key } },
+    orderBy: { occurredAt: 'desc' },
+    select: { detail: true },
+  })
+  if (!ask || (await photoOverridden(profileId, key))) return null
+  const reason = (ask.detail as { reason?: unknown } | null)?.reason
+  return typeof reason === 'string' ? { reason } : null
+}
 
 export const PUT = route(
   { auth: 'profile', rateLimit: { bucket: 'teacher-profile', limit: 30, window: '1 h', strict: true } },
@@ -252,6 +270,8 @@ export const PUT = route(
       if (e instanceof TeacherVideoConflictError) return NextResponse.json({ error: 'video_changed' }, { status: 409 })
       // A bucket move failed before anything was written (the copy's tombstone collects any half-made copy).
       if (e instanceof TeacherVideoStoreError) return NextResponse.json({ error: 'video_store_failed' }, { status: 502 })
+      // The profile photo check could not run (publish.ts): "try again" — the answers stay in the form.
+      if (e instanceof TeacherPhotoCheckUnavailableError) return NextResponse.json({ error: 'photo_check_unavailable' }, { status: 503 })
       // `detail` is the KEY of the refused field ('bio', 'experience.2') — never the word (publish.ts screenTeacherTexts).
       if (e instanceof PublishBlockedError) {
         return NextResponse.json({ error: e.code, detail: e.detail ?? null }, { status: e.code.startsWith('identity_') ? 403 : 422 })

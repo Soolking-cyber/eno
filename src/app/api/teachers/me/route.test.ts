@@ -59,6 +59,8 @@ vi.mock('@/lib/db', () => ({ db: {
   complianceAudit: { findMany: async () => { if (h.consentRowFails) throw new Error('compliance_audit: connection reset'); return h.consentRows } },
 } }))
 vi.mock('@/lib/publish-guard', () => ({ PublishBlockedError: class extends Error {} }))
+// The saved photo's ask line (2026-10-16): none here — its own tests are photo-verdict.test.ts and the re-check's.
+vi.mock('@/lib/teachers/photo-verdict', () => ({ teacherPhotoKey: () => null, photoOverridden: async () => false }))
 vi.mock('@/lib/compliance/seller-publish-gate', () => ({
   sellerPublishDecision: async () => { if (h.decisionFails) throw new Error('identity_verifications: connection reset'); return h.decision },
 }))

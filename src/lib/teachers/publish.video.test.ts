@@ -26,6 +26,12 @@ const h = vi.hoisted(() => ({
   profileWrites: [] as Row[],
   listingWrites: [] as Row[],
   copies: [] as Row[],
+  // The profile photo check (owner, 2026-10-16) — what photo-verdict.ts answers, and who asked.
+  photo: 'ok' as 'ok' | 'no_face' | 'not_photo' | 'off' | 'unavailable',
+  photoAsked: [] as string[],
+  refusals: [] as Array<{ key: string; reason: string }>,
+  storedPhoto: 'https://sb.eno.vn/storage/v1/object/public/listings/1700000000000-abcd12.webp' as string | null,
+  createdAt: new Date('2026-10-01T00:00:00Z') as Date,
 }))
 
 vi.mock('server-only', () => ({}))
@@ -41,6 +47,20 @@ vi.mock('@/lib/listing-image', () => ({
   isListingImageUrl: () => true,
   listingObjectKey: (url: string) => (url.includes('/listing-videos/') ? { bucket: 'listing-videos', key: url.split('/').pop(), url } : null),
 }))
+vi.mock('@/lib/teachers/photo-verdict', () => {
+  class PhotoCheckUnavailable extends Error { why = 'model' }
+  return {
+    PhotoCheckUnavailable,
+    teacherPhotoKey: (u: unknown) => (typeof u === 'string' ? u.split('/').pop() : null),
+    recordPhotoRefusal: async (_p: string, key: string, reason: string) => { h.refusals.push({ key, reason }) },
+    teacherPhotoVerdict: async (_p: string, url: string) => {
+      h.photoAsked.push(url)
+      if (h.photo === 'unavailable') throw new PhotoCheckUnavailable('photo_check_unavailable:model')
+      if (h.photo === 'off') return 'off'
+      return h.photo === 'ok' ? { ok: true } : { ok: false, reason: h.photo }
+    },
+  }
+})
 vi.mock('@/lib/core/storage-purge', () => ({ purgeStorageObjects: async () => ({ settled: [] }) }))
 vi.mock('@/lib/core/storage-tombstones', () => ({
   writeTombstones: async (_tx: unknown, refs: Row[], reason: string) => { h.tombstones.push(...refs.map((r) => ({ ...r, reason }))); return refs.length },
@@ -58,7 +78,7 @@ vi.mock('@/lib/teachers/video-store', () => ({
 const tx = {
   $executeRaw: vi.fn(),
   teacherProfile: {
-    findUnique: async () => (h.pre && h.lockedId !== null ? { listingId: 'L1', coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, coverConsentAt: null, coverConsentVersion: null, coverConfirmedAt: null, coverWithdrawnAt: null, videoVersion: h.lockedVersion ?? h.pre.videoVersion, id: h.lockedId, videoOnRequest: h.pre.videoOnRequest, private: h.pre.private } : null),
+    findUnique: async () => (h.pre && h.lockedId !== null ? { listingId: 'L1', coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, coverConsentAt: null, coverConsentVersion: null, coverConfirmedAt: null, coverWithdrawnAt: null, videoVersion: h.lockedVersion ?? h.pre.videoVersion, id: h.lockedId, videoOnRequest: h.pre.videoOnRequest, private: h.pre.private, createdAt: h.createdAt } : null),
     upsert: async (args: Row) => { h.profileWrites.push(args); return { id: h.upsertId, coverOpen: false, coverSlots: [], coverAreas: [], coverRateVnd: null, coverConfirmedAt: null, coverConsentVersion: null, videoVersion: 4, videoOnRequest: true } },
     update: async (args: Row) => { h.profileWrites.push(args); return { videoVersion: 4, videoOnRequest: true } },
   },
@@ -75,7 +95,7 @@ const tx = {
 }
 vi.mock('@/lib/db', () => ({
   db: {
-    teacherProfile: { findUnique: async ({ select }: Row) => (select?.videoVersion ? h.pre : h.pre ? { id: 'tp1', listingId: 'L1', status: 'live' } : null) },
+    teacherProfile: { findUnique: async ({ select }: Row) => (select?.videoVersion ? h.pre : h.pre ? { id: 'tp1', listingId: 'L1', status: 'live', photoUrl: h.storedPhoto, createdAt: h.createdAt } : null) },
     seller: { findUnique: async () => ({ id: 's1', trustTier: 'standard', trustScore: 50 }) },
     category: { findUnique: async () => ({ id: 'cat-teachers', name: 'Teachers', nameVi: 'Giáo viên' }) },
     listing: { findUnique: async () => ({ status: 'active', verified: true }) },
@@ -95,7 +115,7 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
-const { saveTeacherProfile, deleteTeacherVideo, TeacherProfileChangedError, TeacherVideoConflictError, TeacherVideoStoreError, TeacherValidationError } = await import('./publish')
+const { saveTeacherProfile, deleteTeacherVideo, TeacherProfileChangedError, TeacherVideoConflictError, TeacherVideoStoreError, TeacherValidationError, TeacherPhotoCheckUnavailableError, TeacherVideoRequiredError } = await import('./publish')
 const { PUBLISH_NOTICE_VERSION } = await import('./profile')
 const { COVER_CONSENT_VERSION } = await import('./cover')
 
@@ -118,6 +138,7 @@ const stored = (o: Row = {}) => ({ videoOnRequest: false, videoUrl: null, videoV
 beforeEach(() => {
   h.pre = stored(); h.lockedVersion = null; h.lockedId = 'tp1'; h.upsertId = 'tp1'; h.owned = true; h.copyOk = true
   h.tombstones = []; h.deletedPending = []; h.revoked = []; h.privateWrites = []; h.profileWrites = []; h.listingWrites = []; h.copies = []
+  h.photo = 'ok'; h.photoAsked = []; h.refusals = []; h.storedPhoto = body().photoUrl; h.createdAt = new Date('2026-10-01T00:00:00Z')
 })
 
 describe('saving a video kept private', () => {
@@ -231,12 +252,18 @@ describe('saveTeacherProfile — the profile the form was loaded for', () => {
   })
   it('a "none" claim with no profile under the lock CREATES one — no second look after the upsert', async () => {
     h.pre = null; h.upsertId = 'tp-fresh' // no profile at all: nothing stored, nothing locked — the upsert makes a new row
-    const r = await expectTp(null)
+    // A new profile publishes with its intro video (owner, 2026-10-16) — this one shown publicly.
+    const r = await expectTp(null, body({ videoUrl: V }))
     expect(r.created).toBe(true)
     expect(r.teacherProfileId).toBe('tp-fresh')
     expect(h.listingWrites[0].data.status).toBe('active') // listing.create (an update carries no status)
     expect(h.profileWrites[0].create.profileId).toBe('p1')
     expect(h.privateWrites).toHaveLength(1)
+  })
+  it('⛔ a NEW profile with no intro video is refused before anything is copied or written (owner, 2026-10-16)', async () => {
+    h.pre = null; h.upsertId = 'tp-fresh'
+    await expect(expectTp(null)).rejects.toMatchObject({ errors: { videoUrl: 'required' } })
+    nothingWritten()
   })
   it('absent (callers outside the PUT route): no check, the ordinary rules apply', async () => {
     h.lockedId = 'tp-new'; h.upsertId = 'tp-new'
@@ -270,5 +297,73 @@ describe('deleteTeacherVideo', () => {
     // …checked before "nothing to remove": a different profile is a conflict, not a 404.
     h.pre = stored()
     await expect(deleteTeacherVideo('p1', 3, 'tp1')).rejects.toBeInstanceOf(TeacherVideoConflictError)
+  })
+})
+
+/**
+ * THE PROFILE PHOTO AT SAVE (owner, 2026-10-16: "check uploaded profile pictures so it clearly shows face of the teacher").
+ * A NEW photo needs a passing verdict, judged before any bucket copy; a check that cannot run refuses with "try again"
+ * (fail closed); a photo already saved is never re-judged by an edit.
+ */
+describe('saveTeacherProfile — the profile photo', () => {
+  const NEW_PHOTO = 'https://sb.eno.vn/storage/v1/object/public/listings/1700000000005-zzzz99.webp'
+  const create = (b: Row) => saveTeacherProfile({ id: 'p1', email: 'jane@example.com' }, b, { expectTeacherProfileId: null })
+  beforeEach(() => { h.pre = null; h.lockedId = null; h.upsertId = 'tp-fresh' })
+  it('a new profile whose photo shows no face is refused with the reason — nothing copied, nothing written', async () => {
+    h.photo = 'no_face'
+    await expect(create(body({ videoUrl: V }))).rejects.toMatchObject({ errors: { photoUrl: 'no_face' } })
+    expect(h.copies).toEqual([]); expect(h.profileWrites).toEqual([]); expect(h.listingWrites).toEqual([])
+    // …recorded for the admin queue, so a person can approve it if the check got it wrong.
+    expect(h.refusals).toEqual([{ key: '1700000000000-abcd12.webp', reason: 'no_face' }])
+  })
+  it('a drawing or a game character: not_photo', async () => {
+    h.photo = 'not_photo'
+    await expect(create(body({ videoUrl: V }))).rejects.toBeInstanceOf(TeacherValidationError)
+  })
+  it('⛔ a check that cannot run refuses the save ("try again") — never publishes unchecked', async () => {
+    h.photo = 'unavailable'
+    await expect(create(body({ videoUrl: V }))).rejects.toBeInstanceOf(TeacherPhotoCheckUnavailableError)
+    expect(h.profileWrites).toEqual([]); expect(h.listingWrites).toEqual([])
+  })
+  it('no Vertex client on this server ("off"): saved, as the CV door is off', async () => {
+    h.photo = 'off'
+    expect((await create(body({ videoUrl: V }))).created).toBe(true)
+  })
+  it('an edit that keeps the saved photo is never re-judged; a new photo is', async () => {
+    h.pre = stored(); h.lockedId = 'tp1'; h.upsertId = 'tp1'
+    await save(body())
+    expect(h.photoAsked).toEqual([])
+    await save(body({ photoUrl: NEW_PHOTO }))
+    expect(h.photoAsked).toEqual([NEW_PHOTO])
+  })
+})
+
+/**
+ * THE INTRO VIDEO "FROM NOW ON" (owner, 2026-10-16): a new profile publishes with one; a profile created since
+ * TEACHER_VIDEO_REQUIRED_FROM keeps one (replaced, never removed); an older profile keeps the old rule (optional).
+ */
+describe('saveTeacherProfile + deleteTeacherVideo — the intro video is required from the cutoff', () => {
+  const AFTER = new Date('2026-10-20T00:00:00Z')
+  it('an older profile may still save without a video (or remove its public one)', async () => {
+    h.pre = stored({ videoUrl: U }); h.createdAt = new Date('2026-10-01T00:00:00Z')
+    await expect(save(body({ videoUrl: null }))).resolves.toBeTruthy()
+  })
+  it('⛔ a profile created since the cutoff cannot remove its public video by a save', async () => {
+    h.pre = stored({ videoUrl: U }); h.createdAt = AFTER
+    await expect(save(body({ videoUrl: null }))).rejects.toMatchObject({ errors: { videoUrl: 'required' } })
+    expect(h.profileWrites).toEqual([])
+  })
+  it('⚠️ a profile made after the cutoff under the OLD code (a slipped deploy) has no video — an edit never demands one', async () => {
+    h.pre = stored(); h.createdAt = AFTER
+    await expect(save(body({ videoUrl: null }))).resolves.toBeTruthy()
+  })
+  it('…but may replace it', async () => {
+    h.pre = stored({ videoUrl: U }); h.createdAt = AFTER
+    await expect(save(body({ videoUrl: V }))).resolves.toBeTruthy()
+  })
+  it('⛔ nor remove its private one (DELETE /api/teachers/me/video → 409 video_required)', async () => {
+    h.pre = stored({ private: { videoPath: P } }); h.createdAt = AFTER
+    await expect(deleteTeacherVideo('p1', 3, 'tp1')).rejects.toBeInstanceOf(TeacherVideoRequiredError)
+    expect(h.privateWrites).toEqual([])
   })
 })

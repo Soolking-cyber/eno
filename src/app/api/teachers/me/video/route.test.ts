@@ -22,8 +22,10 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/teachers/video-store', () => ({ signTeacherVideo: async (p: string) => { h.signedPaths.push(p); return h.signed } }))
 vi.mock('@/lib/teachers/publish', () => {
   class TeacherVideoConflictError extends Error {}
+  class TeacherVideoRequiredError extends Error {}
   return {
     TeacherVideoConflictError,
+    TeacherVideoRequiredError,
     deleteTeacherVideo: async (profileId: string, base: number | null, tp: string) => {
       h.deleted.push({ profileId, base, tp })
       if (h.conflict) throw new TeacherVideoConflictError()
