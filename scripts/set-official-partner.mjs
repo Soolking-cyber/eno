@@ -130,7 +130,7 @@ try {
     // partner accounts before they have listings, so there are no stale PDPs to fix. REVOKING from a
     // seller with live listings is the case to plan around.
     console.log(`\nDone — the flag is live. Pages are not, yet:`)
-    console.log(`  · purge Cloudflare (purge_everything, never by URL) for the storefront HTML`)
+    console.log(`  · purge Cloudflare (a tag purge of eno-html,eno-public, never by URL) for the storefront HTML`)
     console.log(`  · / is ISR 6h and /listings/[id] is ISR 30d — deploy, or edit each listing, to`)
     console.log(`    refresh the card seal and the PDP badge. Flipping the flag alone will NOT.`)
   }

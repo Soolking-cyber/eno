@@ -130,6 +130,13 @@ CPU spread across the week, and any one visitor pays a single ~505ms cold encode
 ⛔ **THIS IS A BOUND, NOT A PURGE, AND THE PURGE IS STILL OWED.** A moderation takedown of illegal
 or personal content should stop serving *immediately*, not within seven days. The real fix is a
 hook on the takedown path that drops the matching cache-key directories (and purges the edge, which
-`max-age=31536000` means has never been invalidated by a takedown either — only by the deploy's
-`purge_everything`). That is a separate commit against the moderation path, deliberately not
-bundled into a performance change. Do not treat the seven days as closing it.
+`max-age=31536000` means has never been invalidated by a takedown either — only, until 2026-10-16, by
+the deploy's `purge_everything`). That is a separate commit against the moderation path, deliberately
+not bundled into a performance change. Do not treat the seven days as closing it.
+
+⚠️ **SINCE 2026-10-16 A DEPLOY NO LONGER PURGES IMAGES** (it purges the HTML tags only — speed plan
+item 2). The edge copy of a withdrawn photo is now bounded by `eno-edge-nightly-purge.sh` instead:
+every night at 04:10 ICT it purges tag `eno-img` (every `/_next/image` variant, tagged by
+nginx/static-<edition>.conf) on both zones and host `sb.eno.vn` (the storage objects). Edge ≤ 1 day,
+origin ≤ 7 days (this pruner) — the same bounds as a day without a deploy used to give. Still a
+bound, not the purge.

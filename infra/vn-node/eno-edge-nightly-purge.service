@@ -1,0 +1,10 @@
+[Unit]
+Description=eno · nightly Cloudflare purge of photos (image variants + storage objects) — the erasure bound
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/eno/bin/eno-edge-nightly-purge.sh
+StandardOutput=journal
+StandardError=journal

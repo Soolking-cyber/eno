@@ -205,6 +205,31 @@ describe('edge Worker — what may be stored', () => {
   })
 })
 
+describe('edge Worker — the deploy purges stored HTML by tag (speed plan item 2)', () => {
+  it('every stored document carries Cache-Tag eno-html — the tag eno-deploy.sh purges instead of everything', async () => {
+    await call('/terms', { 'accept-language': 'vi' })
+    expect(h.store.size).toBe(1)
+    expect([...h.store.values()][0].headers.get('cache-tag')).toBe('eno-html')
+  })
+
+  it('the tag never reaches a reader — MISS, HIT and STALE alike', async () => {
+    const now = Date.now()
+    const miss = await call('/terms')
+    const hit = await call('/terms')
+    vi.spyOn(Date, 'now').mockReturnValue(now + 301_000)
+    const stale = await call('/terms')
+    await Promise.all(h.waits)
+    expect([miss, hit, stale].map((r) => r.headers.get('x-eno-cache'))).toEqual(['MISS', 'HIT', 'STALE'])
+    for (const r of [miss, hit, stale]) expect(r.headers.get('cache-tag')).toBeNull()
+  })
+
+  it('the tag in eno-deploy.sh is the tag the Worker stores (a rename breaks the purge silently)', async () => {
+    const { readFileSync } = await import('node:fs')
+    const deploy = readFileSync(new URL('../../infra/vn-node/eno-deploy.sh', import.meta.url), 'utf8')
+    expect(deploy).toMatch(/EDGE_DEPLOY_TAGS="[^"]*\beno-html\b/)
+  })
+})
+
 describe('edge Worker — markdown negotiation reaches the origin (audit #88)', () => {
   it('Accept: text/markdown bypasses the cache even when an HTML entry exists', async () => {
     await call('/') // plant an HTML entry for the default key

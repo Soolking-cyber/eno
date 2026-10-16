@@ -159,9 +159,11 @@ function gateNoDiacritics(src: string, hyp: string): string | null {
  *     ⚠️ ONLY WORKS WHERE THE APP READS TOMBSTONES — ENO_ISR_PG=1 (apps.compose.yml). Before that
  *     switch existed this write was a silent no-op on the box, which is how
  *     scripts/purge-isr-listings.mjs "purged" every product page on 2026-09-14 and changed nothing.
- *  2. CLOUDFLARE. `/` and the legal pages are edge-cached for 6h. purge_everything per ZONE, never
- *     by URL: the Cache Rule's `vary: normalize` keys each encoding variant separately, so a
- *     purge-by-file answers success:true and removes nothing (eno-deploy-cache-invisible).
+ *  2. CLOUDFLARE. `/` and the legal pages are edge-cached for 6h by the HTML Worker. A tag purge per ZONE
+ *     (eno-html: the Worker's stored documents; eno-public: everything else an app location answers), never
+ *     by URL: the Worker's `__k=` keys cannot be matched by a purge-by-file, which answers success:true and
+ *     removes nothing. ⛔ Never purge_everything: it evicts every chunk, font and image variant too
+ *     (speed plan item 2, 2026-10-16; eno-deploy.sh purge_edge).
  *     Needs CF_TOKEN; without it the script says so loudly instead of implying the site is updated.
  */
 async function purgeCaches() {
@@ -183,14 +185,14 @@ async function purgeCaches() {
   const token = process.env.CF_TOKEN
   if (!token) {
     console.log('⚠️  CLOUDFLARE NOT PURGED (no CF_TOKEN): the home page keeps the old titles for up to 6h.')
-    console.log('    Purge eno.vn and eno.forum with purge_everything, or re-run with CF_TOKEN set and --purge.')
+    console.log('    Purge tags eno-html,eno-public on eno.vn and eno.forum, or re-run with CF_TOKEN set and --purge.')
     return
   }
   // The same two zones eno-deploy.sh purges.
   for (const [name, zone] of [['eno.vn', '55e558b62f68a44f8177d7d98cb5369e'], ['eno.forum', 'cc81e3ff1d792c0aa5384e8feab21efa']]) {
     const res = await fetch(`https://api.cloudflare.com/client/v4/zones/${zone}/purge_cache`, {
       method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ purge_everything: true }),
+      body: JSON.stringify({ tags: ['eno-html', 'eno-public'] }),
     })
     const j = await res.json() as { success?: boolean }
     console.log(`Cloudflare ${name}: ${j.success ? 'purged' : `FAILED (HTTP ${res.status})`}`)

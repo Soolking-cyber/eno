@@ -80,13 +80,23 @@ const FRESH_TTL = 300;
  * Keep an entry this long so there is something to serve stale from (seconds).
  * ⚠️ THIS IS THE WORST-CASE AGE OF ANYTHING THE EDGE CAN SERVE, so it is a risk budget, not a
  * performance dial. It was 86400 for one day and a reviewer was right that turning a 5-minute
- * worst case into a 24-hour one is a real change: a reader arriving after a deploy gets one stale
- * document referencing `/_next/static` chunks the new container no longer has, and that page will
- * not hydrate. `eno-deploy.sh` purges both zones with `purge_everything` (purge-by-URL cannot
- * match a `__k=` key), which is the actual mitigation; six hours is the backstop for when that
- * purge is skipped or fails. Raising it again means accepting a longer un-hydratable window.
+ * worst case into a 24-hour one is a real change. A document that outlives a deploy references the
+ * old build's `/_next/static` chunks; since 2026-10-16 nginx keeps every recent build's files on disk
+ * (infra/vn-node/eno-static-sync.sh, ≥30 days), so such a page still hydrates — but it is still the
+ * OLD page. `eno-deploy.sh` evicts every stored document at once by purging HTML_TAG (purge-by-URL
+ * cannot match a `__k=` key; tag, host and everything purges do reach Cache API entries); six hours is
+ * the backstop for when that purge is skipped or fails.
  */
 const SWR_TTL = 21600;
+
+/**
+ * ⛔ EVERY STORED DOCUMENT CARRIES THIS Cache-Tag, AND THE DEPLOY PURGES IT (speed plan item 2,
+ * 2026-10-16). It replaced purge_everything, which also evicted every content-hashed chunk, font and
+ * image variant several times a day. Cloudflare strips an ORIGIN's Cache-Tag before a Worker sees the
+ * response, so this file must set its own; `cache.put()` honours it. Stripped again before a reader
+ * sees the response (forClient). Renaming it breaks the deploy's purge — grep eno-deploy.sh first.
+ */
+const HTML_TAG = "eno-html";
 
 /** Mirror of src/lib/i18n/langs.ts LANGS — the drift test fails if they differ. */
 const LANGS = ["en", "vi", "zh-Hans", "ko", "ja", "ru", "km", "ms", "th", "fr", "hi"];
@@ -242,6 +252,7 @@ function toStored(res, now) {
   store.headers.delete("set-cookie");
   store.headers.delete("vary");
   store.headers.set("cache-control", `public, s-maxage=${SWR_TTL}`);
+  store.headers.set("cache-tag", HTML_TAG);
   store.headers.set("x-eno-stored", String(now));
   return store;
 }
@@ -249,6 +260,7 @@ function toStored(res, now) {
 /** What the reader gets: the app's own freshness window, never the SWR window. */
 function forClient(body, init, state, storedAt) {
   const r = new Response(body, init);
+  r.headers.delete("cache-tag");   // ours, for the deploy's purge — not the reader's business
   r.headers.set("cache-control", `public, max-age=${FRESH_TTL}, s-maxage=${FRESH_TTL}`);
   r.headers.set("x-eno-cache", state);
   if (storedAt) r.headers.set("x-eno-age", String(Math.round((Date.now() - storedAt) / 1000)));
@@ -318,8 +330,8 @@ export default {
                * site that is a trust and edition-boundary problem, not stale copy — a visa page
                * pulled from eno.vn would go on being served. `revalidatePublicPath()` cannot save
                * us either, because this key carries `__k=` and purge-by-URL never matches it;
-               * only a zone-wide purge_everything would. So delete it here and let the next
-               * reader take a normal MISS.
+               * only a purge of HTML_TAG (every document, every data centre) would. So delete it
+               * here and let the next reader take a normal MISS.
                * ⚠️ ONLY "GONE OR MOVED" EVICTS — 404, 410 and 3xx. 5xx must not empty the cache,
                * because an origin blip is exactly when serving stale matters most; and the other
                * 4xx are excluded for the same reason, since a 403 from a WAF challenge or a 429

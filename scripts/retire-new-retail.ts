@@ -77,7 +77,7 @@
  *   alone, with or without --ignore-journal: the 255 are live and `used`, which the 04:08 rollback refuses.
  *
  * ⚠️ AFTER A WRITE: the script runs scripts/purge-isr-listings.mjs (the listing route's ISR tombstone);
- * Cloudflare `purge_everything` on both zones is the main session's step.
+ * Cloudflare a tag purge of eno-html,eno-public on both zones is the main session's step.
  */
 import { spawnSync } from 'node:child_process'
 import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, realpathSync, unlinkSync, writeFileSync, writeSync } from 'node:fs'
@@ -128,7 +128,7 @@ function purgeIsr() {
   // show the rows, so the exit code must not say "done".
   if (r.status !== 0) { console.error('⛔ purge-isr-listings.mjs FAILED — run it by hand: node scripts/purge-isr-listings.mjs'); process.exitCode = 1 }
   console.log('NEXT: npx tsx scripts/recount-brand-listings.ts (dry run, then --apply --journal-dir <durable dir>) — Brand.listingCount')
-  console.log('      never drops on a hide; then Cloudflare purge_everything on BOTH zones (eno.vn, eno.forum) — the main session\'s step.')
+  console.log('      never drops on a hide; then Cloudflare a tag purge of eno-html,eno-public on BOTH zones (eno.vn, eno.forum) — the main session\'s step.')
 }
 
 function durableDir(dir: string): string {

@@ -57,6 +57,11 @@ rows of the table: **identical as of that date. It is a check, not a guarantee**
 | `../cloudflared/eno-tunnel.conf` | `/etc/nginx/sites-enabled/eno-tunnel.conf`: the Cloudflare Tunnel listener (`../cloudflared/README.md`) |
 | `proxy-params.conf` | `/etc/nginx/snippets/eno-proxy.conf` |
 | `ssl-params.conf` | `/etc/nginx/snippets/eno-ssl.conf` |
+| `static-marketplace.conf` | `/etc/nginx/snippets/eno-static-marketplace.conf` — `/_next/static/` from disk (`/var/www/eno-static/marketplace`, filled by `../eno-static-sync.sh` at each deploy, step 6b) with fallback to :3001, and `/_next/image` tagged `eno-img`. ⛔ Included ONLY by :3001 server blocks |
+| `static-services.conf` | `/etc/nginx/snippets/eno-static-services.conf` — the same for :3002. ⛔ Included ONLY by :3002 server blocks |
+| `static-common.conf` | `/etc/nginx/snippets/eno-static-common.conf` — edition-neutral headers, `gzip_static`, `open_file_cache` |
+| `check-static-boundary.sh` | `/opt/eno/bin/check-static-boundary.sh` — READ-ONLY; run before every reload that touches the files above |
+| `static-parity-test.sh` | run on the box after a reload: header parity app vs disk, the licensing boundary, fallbacks (GET only) |
 | `logrotate-nginx.conf` | `/etc/logrotate.d/eno-nginx` — keeps nginx logs 400 days instead of the package's 14, **per counsel review, pending lawyer confirmation**, of [Decree 333/2026/ND-CP, Art 20](https://english.luatvietnam.vn/decree-no-333-2026-nd-cp-dated-august-19-2026-of-the-government-detailing-a-number-of-articles-and-measures-for-implementation-of-the-law-on-cyberse-445089-doc1.html) (Art. 20(3): system logs ≥ 12 months). It sits **beside** the package's `/etc/logrotate.d/nginx` and never edits it: that file is a dpkg conffile, and an edited conffile makes unattended-upgrades hold nginx security updates back ("has conffile prompt and needs to be upgraded manually"). `ignoreduplicates` on the eno stanza, which logrotate reads first (`eno-nginx` sorts before `nginx`), is what keeps the package's stanza from claiming the same files — needs logrotate ≥ 3.21.0 (Ubuntu 24.04 ships 3.21.0). Install and verify with `bash infra/vn-node/install-logrotate.sh` (`--check` changes nothing). Keep every `access_log`/`error_log` directly under `/var/log/nginx/` with a `.log` name — the glob does not recurse, and the installer fails on any path it would miss. |
 
 `teacher.eno.vn` has no `server_name` of its own on the box: the `*.eno.vn` vhost hands it to :3001, and the
@@ -85,6 +90,12 @@ $SSH 'chmod +x /opt/eno/bin/gen-cloudflare-realip.sh && /opt/eno/bin/gen-cloudfl
 # 2. snippets and vhosts
 $SCP proxy-params.conf $H:/etc/nginx/snippets/eno-proxy.conf
 $SCP ssl-params.conf   $H:/etc/nginx/snippets/eno-ssl.conf
+#    /_next/static from disk (speed plan item 2, 2026-10-16). Safe before the directories exist:
+#    try_files falls back to the app for a missing file, so nothing changes until a deploy fills them.
+$SCP static-marketplace.conf $H:/etc/nginx/snippets/eno-static-marketplace.conf
+$SCP static-services.conf    $H:/etc/nginx/snippets/eno-static-services.conf
+$SCP static-common.conf      $H:/etc/nginx/snippets/eno-static-common.conf
+$SCP check-static-boundary.sh static-parity-test.sh $H:/opt/eno/bin/
 $SCP eno.conf          $H:/etc/nginx/sites-available/eno.conf
 $SSH 'ln -sfn /etc/nginx/sites-available/eno.conf /etc/nginx/sites-enabled/eno.conf && rm -f /etc/nginx/sites-enabled/default'
 $SCP partner.eno.vn.conf $H:/etc/nginx/sites-enabled/partner.eno.vn.conf
@@ -109,8 +120,8 @@ $SSH 'openssl x509 -noout -modulus -in /etc/nginx/ssl/origin.crt | sha256sum;
 #    aop-runbook.md). nginx -t fails without it. Restore it from backup; the older global
 #    cf-origin-pull-ca.pem is no longer referenced.
 
-# 4. test THEN reload, always as one command
-$SSH 'nginx -t && systemctl reload nginx'
+# 4. test THEN reload, always as one command — after the edition pairing check
+$SSH 'bash /opt/eno/bin/check-static-boundary.sh && nginx -t && systemctl reload nginx'
 ```
 
 ⚠️ `nginx -t` before `reload`, in the same command, every time. A bad config fails

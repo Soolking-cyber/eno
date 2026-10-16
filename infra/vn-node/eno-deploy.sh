@@ -46,9 +46,14 @@ fi
 trap 'rm -f "${ENO_DEPLOY_SELF:-}" "${MAN_ERR:-}"' EXIT
 COMPOSE=$APP/infra/vn-node/apps.compose.yml
 LOCK=/var/lock/eno-deploy.lock
-PULL=1; ROLLBACK=0; SKIP_PURGE=0; EXPECT=""
+PULL=1; ROLLBACK=0; SKIP_PURGE=0; PURGE_ALL=0; NO_STATIC=0; EXPECT=""
 for a in "$@"; do case "$a" in
   --no-pull) PULL=0;; --rollback) ROLLBACK=1;; --skip-purge) SKIP_PURGE=1;;
+  # ⚠️ EMERGENCY ONLY: the pre-2026-10-16 behaviour, evicting every chunk, font and image variant too.
+  --purge-everything) PURGE_ALL=1;;
+  # Skips step 6b (old builds' static on disk). Without those files old HTML cannot hydrate, so it
+  # implies --purge-everything — exactly the old behaviour, never less safe than it.
+  --no-static) NO_STATIC=1; PURGE_ALL=1;;
   --expect=*) EXPECT="${a#--expect=}";;
 esac; done
 say(){ printf '\n\033[1;36m== %s\033[0m\n' "$*"; }
@@ -347,21 +352,70 @@ untag_bad(){
   bad ":local restored to :prev so nothing can start the rejected image"
 }
 
-purge_edge(){
-  local z out fail=0
+# ⛔ A DEPLOY PURGES TAGS, NOT EVERYTHING (speed plan item 2, 2026-10-16). purge_everything also evicted
+# every content-hashed chunk, font and /_next/image variant on both zones several times a day (static miss
+# ratio 70–94% after a deploy, human image edge-hit 48%, measured 2026-10-15). What actually changes with a
+# deploy is tagged instead (the tag table at the top of nginx/eno.conf):
+#   eno-html    every document the Worker stores (the Worker sets it: Cloudflare strips origin tags a Worker
+#               sees) — purge-by-URL can never match its `__k=` keys, a tag purge does (Cache API honours it)
+#   eno-public  everything an app `location /` answers through nginx: public/ files, robots, cached APIs, 404s
+# NOT purged: eno-static (content-hashed; step 6b keeps every recent build's files on disk, so old HTML still
+# hydrates) and eno-img (purged nightly by eno-edge-nightly-purge.sh — the erasure bound for photos).
+# ⚠️ Cloudflare answers success:true without proving eviction; step 8 reads `/` back to check.
+EDGE_DEPLOY_TAGS="eno-html,eno-public"
+cf_purge(){   # $1 = JSON body, $2 = what it is, for the log
+  local z out fail=0 try
   [ -n "${CF_TOKEN:-}" ] || { bad "CF_TOKEN unset"; return 1; }
   for z in 55e558b62f68a44f8177d7d98cb5369e cc81e3ff1d792c0aa5384e8feab21efa; do
-    out=$(curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/$z/purge_cache" \
-      -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
-      --data '{"purge_everything":true}' 2>&1)
-    if grep -q '"success":[[:space:]]*true' <<<"$out"; then ok "purged $z"
-    else bad "purge rejected for $z: $(printf '%s' "$out" | head -c 200)"; fail=1; fi
+    # One retry: tag/host/everything purges share a 5-per-minute account bucket on Free, so a deploy right
+    # after a rollback (or a data script's purge) can briefly hit it.
+    for try in 1 2; do
+      out=$(curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/$z/purge_cache" \
+        -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
+        --data "$1" 2>&1)
+      grep -q '"success":[[:space:]]*true' <<<"$out" && break
+      [ "$try" = 1 ] && sleep 15
+    done
+    if grep -q '"success":[[:space:]]*true' <<<"$out"; then ok "purged $2 on $z"
+    else bad "purge ($2) rejected for $z: $(printf '%s' "$out" | head -c 200)"; fail=1; fi
   done
   return $fail
+}
+purge_edge(){
+  if [ "$PURGE_ALL" = 1 ]; then cf_purge '{"purge_everything":true}' "EVERYTHING"; return; fi
+  cf_purge "{\"tags\":[\"${EDGE_DEPLOY_TAGS//,/\",\"}\"]}" "tags $EDGE_DEPLOY_TAGS"
+}
+# Read-back: does `/` (en, through the edge, NO cache-buster) now carry the NEW build's id? Next embeds the BUILD_ID in
+# every document's RSC payload (`"b":"<id>"`, measured on both sites 2026-10-16), so this is exact — no timing guess
+# (both reviewers refuted an age-based version). Only one data centre is visible from here.
+edge_html_fresh(){
+  local host=$1 bid=$2 body i
+  [ -n "$bid" ] || { warn "no BUILD_ID to compare for $host — edge freshness not checked"; return 0; }
+  for i in 1 2 3 4; do
+    body=$(curl -sS --max-time 20 -H 'accept-language: en' -A 'eno-deploy/edge-check' "https://$host/" 2>/dev/null) || body=
+    if grep -qF -- "$bid" <<<"$body"; then ok "$host/ at the edge is the new build ($bid)"; return 0; fi
+    sleep 5
+  done
+  bad "$host/ at the edge still does not carry the new build id $bid"
+  return 1
+}
+
+# Files ONLY the refused build(s) shipped leave the disk tree (eno-static-sync.sh drop keeps anything another
+# retained build lists). No-op before step 6b or when the new build IS the previous one (a redeploy).
+drop_new_static(){
+  [ -n "${SS:-}" ] || return 0
+  if [ -n "${NEWBID_VN:-}" ] && [ "$NEWBID_VN" != "${PREVBID_VN:-}" ]; then "$SS" drop marketplace "$NEWBID_VN" || bad "could not drop $NEWBID_VN from disk"; fi
+  if [ -n "${NEWBID_FO:-}" ] && [ "$NEWBID_FO" != "${PREVBID_FO:-}" ]; then "$SS" drop services "$NEWBID_FO" || bad "could not drop $NEWBID_FO from disk"; fi
+  return 0
 }
 
 restore(){
   bad "rolling back to the previously-serving images"
+  # ⛔ A ROLLBACK PURGES EVERYTHING AND DROPS THE REFUSED BUILD'S FILES (codex, gate round 2). A refused build may
+  # have been refused for WHAT it serves (probe() checks the licensing routes too); its chunks must stop being
+  # servable from disk, and any edge copy of them must go. Rollbacks are rare; the full refill is the right price.
+  PURGE_ALL=1
+  drop_new_static
   # ⛔ BOTH OR NEITHER. Rolling back only one edition leaves the marketplace and the
   # services build on DIFFERENT commits — and the boundary between them is exactly what
   # differs between commits. A half rollback that reports success is worse than none.
@@ -561,6 +615,34 @@ if ! install -m 755 "$APP/infra/vn-node/eno-build.sh" /opt/eno/bin/eno-build.sh;
   bad "could not install eno-build.sh from the repo — refusing to build with an unknown helper"; exit 1
 fi
 ok "eno-build.sh synced from $(git log --oneline -1 -- infra/vn-node/eno-build.sh | cut -c1-40)"
+# Same rule for the static helper step 6b runs: the copy that runs is the copy in this commit.
+if ! install -m 755 "$APP/infra/vn-node/eno-static-sync.sh" /opt/eno/bin/eno-static-sync.sh; then
+  bad "could not install eno-static-sync.sh from the repo — refusing (step 6b needs it)"; exit 1
+fi
+# ⚠️ NON-FATAL, like the image-cache janitor below: the nightly image purge is the erasure bound for photos
+# now that a deploy no longer purges everything, so a failure here is loud — but it must not abort a deploy.
+# ⛔ …AND IF IT IS NOT RUNNING, THIS DEPLOY PURGES EVERYTHING (codex, gate review): a tag-only deploy with no
+# nightly image purge would leave an erased photo at the edge for months, so the old purge stays the fallback.
+install -m 0755 "$APP/infra/vn-node/eno-edge-nightly-purge.sh" /opt/eno/bin/ \
+  && install -m 0644 "$APP/infra/vn-node/eno-edge-nightly-purge.service" \
+                     "$APP/infra/vn-node/eno-edge-nightly-purge.timer" /etc/systemd/system/ \
+  && systemctl daemon-reload \
+  && systemctl enable --now eno-edge-nightly-purge.timer >/dev/null \
+  || bad "⚠️ could not install eno-edge-nightly-purge.timer (infra/vn-node/image-serving.md)"
+# ⛔ A TIMER THAT FIRES A FAILING SERVICE IS STILL "active" (both reviewers, gate round 2): gate on the SERVICE's
+# last run — Result=success and finished within 26 h. On the first deploy after install it has never run, so that
+# deploy purges everything, exactly as before; the night after, tag-only deploys begin.
+NIGHT_RES=$(systemctl show -p Result --value eno-edge-nightly-purge.service 2>/dev/null)
+NIGHT_END=$(systemctl show -p ExecMainExitTimestampMonotonic --value eno-edge-nightly-purge.service 2>/dev/null)
+NOW_MONO=$(awk '{printf "%d", $1 * 1000000}' /proc/uptime)
+if systemctl is-active --quiet eno-edge-nightly-purge.timer && [ "$NIGHT_RES" = success ] \
+   && [ "${NIGHT_END:-0}" -gt 0 ] && [ $(( (NOW_MONO - NIGHT_END) / 1000000 )) -lt 93600 ]; then
+  ok "nightly photo purge ran OK $(( (NOW_MONO - NIGHT_END) / 3600000000 )) h ago — this deploy purges by tag"
+else
+  bad "nightly photo purge has not succeeded in the last 26 h (timer/Result=${NIGHT_RES:-none}) — this deploy purges EVERYTHING"
+  PURGE_ALL=1
+fi
+SS=/opt/eno/bin/eno-static-sync.sh
 
 say "5. build (sequential — 4 cores shared with the containers still serving)"
 # ⚠️ The install scripts pull ~85MB from GitHub (libvips + a 78MB ffmpeg binary) and
@@ -822,6 +904,37 @@ if ! grep -qE '"(/\[lang\])?/itinerary/page"' <<<"$FMAN"; then
 fi
 ok "forum: services edition confirmed (/itinerary/page present)"
 
+say "6b. publish static from disk — old builds stay servable (speed plan item 2)"
+# ⛔ BEFORE THE SWAP, AFTER EVERY EDITION GATE ABOVE. A build that failed step 6 never reaches disk, and once the
+# new container serves HTML its chunks are already on disk — so neither old HTML (browser max-age, the Worker's
+# stale window, a WebView) nor new HTML ever asks for a file nginx cannot serve. :prev is ingested too, which is
+# a no-op except on the first deploy after the tree was created.
+# ⛔ FATAL ON FAILURE, AND NOTHING HAS CHANGED YET. Without the files on disk a tag-only purge would leave old
+# HTML pointing at chunks the new container lacks. `--no-static` deploys the old way (purge everything).
+NEWBID_VN=; NEWBID_FO=; PREVBID_VN=; PREVBID_FO=
+if [ "$NO_STATIC" = 1 ]; then
+  warn "--no-static: step 6b skipped; this deploy purges EVERYTHING at step 8 (the old behaviour)"
+else
+  for e in "eno-vn marketplace eno.vn" "eno-forum services www.eno.forum"; do
+    read -r img ed host <<<"$e"
+    pb=$("$SS" ingest "$ed" "$img:prev") || { bad "static ingest of $img:prev FAILED — nothing swapped"; untag_bad; exit 1; }
+    nb=$("$SS" ingest "$ed" "$img:local") || { bad "static ingest of $img:local FAILED — nothing swapped"; untag_bad; exit 1; }
+    if [ "$ed" = marketplace ]; then PREVBID_VN=$pb; NEWBID_VN=$nb; else PREVBID_FO=$pb; NEWBID_FO=$nb; fi
+    # nginx, not the app: the RUNNING container cannot serve the new build's manifest, so a 200 with a strong
+    # (non-W/) ETag proves the disk tree is live behind this vhost. Through the tunnel listener on loopback,
+    # never through the edge — a probe through Cloudflare would cache the new build before the swap.
+    h=$(curl -sS -o /dev/null -D - --max-time 15 -H "Host: $host" "http://127.0.0.1:8181/_next/static/$nb/_buildManifest.js" 2>/dev/null) || h=
+    code=$(head -1 <<<"$h" | awk '{print $2}'); etag=$(grep -i '^etag:' <<<"$h" | tr -d '\r' | cut -d' ' -f2-)
+    if [ "$code" = 200 ] && [ -n "$etag" ] && [ "${etag#W/}" = "$etag" ]; then
+      ok "$host: build $nb served from disk by nginx (previous: $pb)"
+    else
+      bad "$host: nginx did not serve /_next/static/$nb/_buildManifest.js from disk (HTTP ${code:-none}, ETag ${etag:-none})."
+      bad "Is snippets/eno-static-$ed.conf installed (infra/vn-node/nginx/README.md)? Or deploy with --no-static."
+      untag_bad; exit 1
+    fi
+  done
+fi
+
 say "7. swap"
 # ⛔ ONE EDITION AT A TIME. `up -d --force-recreate` on both recreates eno-vn and
 # eno-forum simultaneously, so every deploy took BOTH domains down together for the
@@ -927,16 +1040,16 @@ else
   bad "BUILD_IDs not readable or unexpected (vn='$BID_VN' forum='$BID_FO') — skipped the stale ISR cleanup"
 fi
 
-say "8. purge Cloudflare — BEFORE verifying, not after"
+say "8. purge Cloudflare (tags $EDGE_DEPLOY_TAGS) — BEFORE verifying, not after"
 # ⛔ ORDER MATTERS AND IT WAS WRONG. All three reviewers caught it: this ran AFTER the
 # health probe, so the probe could be answered from cache by the PRE-DEPLOY build and
 # pass — including the licensing 404s, which are just as cacheable as anything else.
 # Purge first, then verify, so what the probe sees is what visitors get.
-# ⛔ A DEPLOY IS NOT LIVE UNTIL THIS RUNS. `/` carries a Cache Rule at s-maxage=21600,
-# so without a purge real visitors keep the pre-deploy HTML for up to SIX HOURS — and
-# your own curl reads that same stale page, which is how a good deploy gets diagnosed
-# as broken. purge_everything only: purge-by-file returns success:true and silently
-# does nothing to cached HTML, because the vary:normalize key includes the encoding.
+# ⛔ A DEPLOY IS NOT LIVE UNTIL THIS RUNS. The Worker serves stored HTML for up to SIX HOURS
+# (SWR), so without a purge real visitors keep the pre-deploy page — and your own curl reads
+# that same stale page, which is how a good deploy gets diagnosed as broken. Purge-by-URL
+# cannot reach the Worker's `__k=` keys; the tag purge (purge_edge above) does, and leaves
+# chunks, fonts and images cached — old HTML still hydrates from step 6b's files on disk.
 if [ "$SKIP_PURGE" = 1 ]; then
   bad "--skip-purge: CACHE NOT PURGED. Visitors may see the old page for up to 6 hours."
   bad "Purge by hand now, from the machine that holds the token."
@@ -952,12 +1065,31 @@ elif ! purge_edge; then
   bad "images as the rollback. Remove it once you have purged and checked the site."
   exit 1
 fi
+# ⛔ READ IT BACK, AND FALL BACK TO THE OLD PURGE IF THE TAGS DID NOT TAKE (both reviewers, gate review): Cloudflare's
+# success:true proves nothing about eviction, and a tag purge that missed would leave the pre-deploy page up for six
+# hours with this deploy reporting green. The edge's `/` must carry the BUILD_ID the containers report (step 7).
+if [ "$SKIP_PURGE" != 1 ] && [ "$PURGE_ALL" != 1 ]; then
+  if ! { edge_html_fresh eno.vn "$BID_VN" && edge_html_fresh www.eno.forum "$BID_FO"; }; then
+    bad "the tag purge did not refresh the edge — falling back to purge_everything"
+    PURGE_ALL=1
+    if ! purge_edge; then
+      # ⛔ FATAL, as a failed purge always was (codex, gate round 2): green with the old page live is the failure
+      # this whole step exists to prevent.
+      bad "fallback purge_everything FAILED — visitors may still get the pre-deploy page. Purge by hand, check the"
+      bad "site, then remove /opt/eno/deploy-incomplete (left in place so the next run cannot pin these images)."
+      exit 1
+    fi
+    edge_html_fresh eno.vn "$BID_VN"; edge_html_fresh www.eno.forum "$BID_FO"
+  fi
+fi
 
 say "9. verify through the edge"
 if ! probe; then restore; exit 1; fi
 # ⛔ AFTER probe() AND OUTSIDE IT — see route_name_leak_live: a rollback re-runs probe() alone.
 if ! route_name_leak_live; then
   bad "eno.vn's 404 still names eno.forum's routes — rolling back (Dockerfile prune: scripts/marketplace-route-prune.mjs)"
+  # ⛔ A BUILD REFUSED FOR WHAT IT SERVES MUST STOP BEING SERVABLE: restore() drops its own files from the disk
+  # tree and purges EVERYTHING (not just tags), so no edge copy of it outlives the rollback.
   restore; exit 1
 fi
 ok "serving $(git log --oneline -1)"
@@ -973,6 +1105,13 @@ rm -f /opt/eno/deploy-incomplete
 
 say "10. state"
 docker ps --format '  {{.Names}}\t{{.Image}}\t{{.Status}}' | grep -E 'eno-(vn|forum)-app'
+# ⚠️ ADVISORY. Keeps the live and previous builds explicitly, plus the 10 newest and anything ingested within
+# 30 days (eno-static-sync.sh); a failure only means the tree grows until the next deploy prunes it.
+if [ "$NO_STATIC" != 1 ]; then
+  "$SS" prune marketplace $NEWBID_VN $PREVBID_VN || warn "static prune (marketplace) failed — advisory"
+  "$SS" prune services $NEWBID_FO $PREVBID_FO || warn "static prune (services) failed — advisory"
+  "$SS" status marketplace 2>/dev/null | sed 's/^/  /'; "$SS" status services 2>/dev/null | sed 's/^/  /'
+fi
 
 say "11. warm the caches (advisory: nothing here can fail or roll back this deploy)"
 # ⛔ WARN-ONLY, AND THAT IS WHY IT RUNS HERE. The deploy is verified, recorded and unmarked above,

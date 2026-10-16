@@ -292,11 +292,17 @@ copy; that is most of why it exists.
 
 ### After a deploy the owner DID authorise
 
-⚠️ **Purge Cloudflare with `purge_everything`, not by URL.** Purge-by-file returns
-`success: true` and silently does nothing on the cached HTML routes — the `vary: normalize`
-cache key includes the encoding variant. Measured 2026-08-02: `age: 850` a minute after a
-"successful" purge, which is how eno.forum picked up a commit while eno.vn served pre-deploy
-HTML from the SAME green build. Without it, a deploy is invisible for up to 6h.
+⚠️ **Purge Cloudflare by TAG — never `purge_everything`, never by URL** (speed plan item 2,
+2026-10-16). `eno-deploy.sh` purges `{"tags":["eno-html","eno-public"]}` on both zones: `eno-html`
+is every document the HTML Worker stores (purge-by-URL can never match its `__k=` keys —
+measured 2026-08-02: `age: 850` a minute after a "successful" URL purge, which is how eno.forum
+picked up a commit while eno.vn served pre-deploy HTML), `eno-public` everything an app
+`location /` answers through nginx (tag table: infra/vn-node/nginx/eno.conf). `/_next/static`
+stays cached — every recent build's files stay on disk (`eno-static-sync.sh`), so old HTML still
+hydrates — and `/_next/image` + sb.eno.vn are purged nightly (`eno-edge-nightly-purge.sh`, the
+erasure bound). `purge_everything` evicted every chunk, font and image variant several times a
+day; use it only for a licensing leak (the script does). Without a purge, a deploy is invisible
+for up to 6h.
 
 ## Shipping
 

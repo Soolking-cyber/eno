@@ -545,7 +545,7 @@ Authority system ──mTLS + signed request──▶ POST /api/v1/compliance/ta
                             ▼  ⚠️ THE PART THAT IS ALWAYS FORGOTTEN
               purge from every surface that CACHED or COPIED it:
               Vertex AI Search index · Google Merchant feed · Meta catalog
-              · sitemap · ISR cache · Cloudflare (purge_everything)
+              · sitemap · ISR cache · Cloudflare (tags — see below)
 ```
 
 > ⚠️ **AN UNPUBLISHED LISTING IS NOT A REMOVED LISTING.** This platform copies listings into
@@ -554,8 +554,10 @@ Authority system ──mTLS + signed request──▶ POST /api/v1/compliance/ta
 > JSON-LD and the Google/Meta feeds because they are ordinary `Listing` rows). A takedown that
 > only flips a column leaves the illegal content live in Google Shopping and the Meta catalog,
 > discoverable, with our name on it. **Fan-out is part of the takedown, not a follow-up task.**
-> Purge Cloudflare with `purge_everything` — purge-by-URL silently no-ops on `vary: normalize`
-> cache keys.
+> Purge Cloudflare by tag: `eno-html` + `eno-public` for the pages (purge-by-URL cannot match the
+> HTML Worker's keys), and the photo's own `/_next/image` variants and sb.eno.vn object. Until a
+> takedown hook purges those, the nightly `eno-edge-nightly-purge.sh` (tag `eno-img`, host
+> sb.eno.vn) bounds them to a day at the edge — a bound, not the purge (2026-10-16).
 
 ### 3.2 Endpoint blueprint
 

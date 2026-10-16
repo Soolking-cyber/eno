@@ -1,0 +1,11 @@
+[Unit]
+Description=Nightly Cloudflare photo purge on the VN box (erasure/takedown bound, see the script header)
+
+[Timer]
+# 04:10 local (ICT) — the quietest hour; off eno-docker-prune (04:30) and eno-backup (01:15).
+OnCalendar=*-*-* 04:10:00
+# Missed while the box was off: run at boot. A skipped night lengthens the erasure bound.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -51,11 +51,14 @@ fi
 # six hours, which is precisely the silent-success failure this whole deploy path was
 # rebuilt to eliminate. Verify against BOTH zones — a token scoped to one is a trap
 # that works in testing and half-fails in production.
+# ⚠️ A TAG NOTHING CARRIES, NOT purge_everything (2026-10-16). The check used to empty both zones — every chunk,
+# font and image variant — just to prove a permission; a tag purge goes through the same endpoint and the same
+# Cache Purge scope, and evicts nothing. (Deploys purge tags too now: eno-deploy.sh purge_edge.)
 echo "verifying the token can actually purge, on both zones…"
 for Z in "${ZONES[@]}"; do
   OUT=$(curl -sS -X POST "https://api.cloudflare.com/client/v4/zones/$Z/purge_cache" \
     -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-    --data '{"purge_everything":true}' 2>&1)
+    --data '{"tags":["eno-token-check"]}' 2>&1)
   if printf '%s' "$OUT" | grep -q '"success":[[:space:]]*true'; then
     echo "  ok   $Z"
   else

@@ -89,8 +89,8 @@
  *   again AFTER the commit, because a page rendered while the transaction was open would otherwise keep the old
  *   text for its whole ISR window (30 days for a listing). Stamped by the database clock. Effective only where
  *   the app reads tombstones (ENO_ISR_PG=1, see scripts/purge-isr-listings.mjs).
- * · Cloudflare: when a card column changed and CF_TOKEN is set, purge_everything on both zones (the two
- *   eno-deploy.sh purges). Without it the script says so; the edge Worker serves / and /c/* fresh for 300 s and
+ * · Cloudflare: when a card column changed and CF_TOKEN is set, a tag purge of eno-html,eno-public on both zones
+ *   (what eno-deploy.sh purges; never purge_everything, which evicts every chunk and image too). Without it the script says so; the edge Worker serves / and /c/* fresh for 300 s and
  *   then revalidates, so they follow within minutes anyway (infra/cloudflare/eno-html-edge-cache.js).
  * · Not done, printed as NEXT: Vertex documents (the AI concierge) keep the old text until
  *   scripts/vertex-backfill.mjs runs; a changed title's translations warm on demand, or ahead of time with
@@ -630,14 +630,14 @@ async function purgeCloudflare(cardsChanged) {
   const token = process.env.CF_TOKEN
   if (!token) {
     console.log('Cloudflare: NOT purged (no CF_TOKEN). / and /c/* show the old card text until the edge revalidates (300 s fresh window).')
-    console.log('            To make it immediate: purge_everything on eno.vn and eno.forum.')
+    console.log('            To make it immediate: purge tags eno-html,eno-public on eno.vn and eno.forum.')
     return
   }
   for (const [name, zone] of CF_ZONES) {
     try {
       const res = await fetch(`https://api.cloudflare.com/client/v4/zones/${zone}/purge_cache`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ purge_everything: true }), signal: AbortSignal.timeout(30_000),
+        body: JSON.stringify({ tags: ['eno-html', 'eno-public'] }), signal: AbortSignal.timeout(30_000),
       })
       const j = await res.json().catch(() => ({}))
       console.log(`Cloudflare ${name}: ${j.success ? 'purged' : `FAILED (HTTP ${res.status})`}`)
