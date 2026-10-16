@@ -8,7 +8,7 @@ import { minPhotosFor } from './publish-guard'
 import { imageVerdict } from './import-photo-check'
 import {
   NHATOT_CITIES, NHATOT_GAP_MS_DEFAULT, NHATOT_GAP_MS_MIN, NHATOT_MIN_PHOTOS, NHATOT_PHOTO_FLOOR, NHATOT_UA_TOKEN,
-  classifyNhatotLiveness, isNhatotAffiliateUrl, isNhatotImageUrl, mapNhatotAd, nhatotAffiliateUrl, nhatotAreaM2,
+  classifyNhatotLiveness, isNhatotAffiliateUrl, isNhatotImageUrl, mapNhatotAd, noBrokerTripwire, NO_BROKER_MIN_SAMPLE, nhatotAffiliateUrl, nhatotAreaM2,
   nhatotBedroomFacet, nhatotCoords, nhatotDistrict, nhatotJournalDirProblem, nhatotListIdOf, nhatotMonthlyPrice,
   nhatotPhotoPlan, nhatotPostedAt, nhatotRateArg, nhatotRobotsAllows, nhatotSellerRefusal, nhatotShouldRetire,
   nhatotStageAgeProblem, nhatotStartingRank, nhatotStopReason, nhatotStreetName, nhatotWardLabel, parseNhatotCaps,
@@ -68,7 +68,7 @@ const RAW = {
   latitude: 10.836352,
   longitude: 106.62907,
   list_time: NOW - 3 * 60_000,
-  company_ad: true,
+  // ⛔ owner shape: Chợ Tốt OMITS company_ad for individuals (staged → null); it is never literal false in the wild.
   images: [IMG('a'), IMG('b'), IMG('c'), 'https://cdn.chotot.com/SIG/preset:listing/plain/thumb.jpg', 'https://evil.example/x.jpg'],
   feature_params: {
     compare: { items: [
@@ -249,6 +249,7 @@ describe('mapNhatotAd', () => {
     const reason = (over: Partial<NhatotStagedAd>) => { const m = mapped(over); return m.ok ? 'kept' : m.reason }
     expect(reason({ type: 's' })).toBe('notRent')
     expect(reason({ status: 'hidden' })).toBe('notActive')
+    expect(reason({ company_ad: true })).toBe('broker')
     expect(reason({ region_v2: 2010 })).toBe('unknownRegion')
     expect(reason({ category: 1000 })).toBe('unknownCategory')
     expect(reason({ price_string: '1,12 triệu/m²' })).toBe('pricePerM2')
@@ -259,6 +260,23 @@ describe('mapNhatotAd', () => {
   it('⛔ a missing list_time FAILS the freshness test instead of passing it (NaN < max is false)', () => {
     const m = mapped({ list_time: null })
     expect(m.ok ? 'kept' : m.reason).toBe('stale')
+  })
+
+  it('⛔ OWNER-ONLY: company_ad===true (broker/shop) is dropped; an owner (false or absent) is kept', () => {
+    // The platform flag is the owner/broker truth, and the predicate is absence-of-flag: Chợ Tốt emits
+    // company_ad:true for pros and omits it (staged null) for individuals — it never emits literal false
+    // in the wild, so BOTH null and false must be kept, and only === true drops.
+    expect(mapped({ company_ad: true }).ok).toBe(false)
+    expect(mapped({ company_ad: false }).ok).toBe(true)
+    expect(mapped({ company_ad: null }).ok).toBe(true)
+  })
+
+  it('⛔ noBrokerTripwire fails closed on TOTAL or PARTIAL loss of company_ad (broker share below the floor)', () => {
+    expect(noBrokerTripwire(NO_BROKER_MIN_SAMPLE, 0)).toMatch(/no-broker tripwire/)   // total loss: 0 brokers
+    expect(noBrokerTripwire(5000, 1)).toMatch(/no-broker tripwire/)                    // 1 broker among thousands = partial loss
+    expect(noBrokerTripwire(100, 30)).toMatch(/no-broker tripwire/)                    // 30% < 40% floor
+    expect(noBrokerTripwire(100, 90)).toBeNull()                                       // ~normal 90% broker → healthy
+    expect(noBrokerTripwire(NO_BROKER_MIN_SAMPLE - 1, 0)).toBeNull()                   // sample too small to conclude
   })
 
   it('caps and de-duplicates photos', () => {

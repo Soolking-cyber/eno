@@ -68,11 +68,24 @@ try {
   const rel = await client.query(`SELECT relrowsecurity, relpersistence FROM pg_class WHERE oid = 'public.rum_daily'::regclass`)
   if (!rel.rows[0]?.relrowsecurity) throw new Error('RLS did not switch on for rum_daily — rolled back.')
   if (rel.rows[0]?.relpersistence !== 'p') throw new Error(`rum_daily is not a logged table (relpersistence=${rel.rows[0]?.relpersistence}) — rolled back.`)
-  const grants = await client.query(
-    `SELECT grantee, privilege_type FROM information_schema.role_table_grants
-     WHERE table_schema = 'public' AND table_name = 'rum_daily' AND grantee IN ('anon', 'authenticated', 'PUBLIC')`,
+  // ⚠️ has_table_privilege, NOT information_schema.role_table_grants: that view lists only grants involving the CURRENT
+  // role, so run as anyone but the owner it could pass while anon still holds a grant (commit-gate review, opus). This
+  // asks Postgres directly, whoever runs it — and PUBLIC through aclexplode (grantee 0), which no role name can name.
+  // …and COLUMN grants (has_any_column_privilege — a table-level check never sees `GRANT SELECT (col)`), and MAINTAIN on
+  // Postgres 17+ (it allows LOCK TABLE; the keyword errors on 16 and older, so it is added only where it exists).
+  const v17 = Number((await client.query(`SELECT current_setting('server_version_num') AS v`)).rows[0].v) >= 170000
+  const tablePrivs = `SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER${v17 ? ',MAINTAIN' : ''}`
+  const priv = await client.query(
+    `SELECT r.rolname FROM pg_roles r
+      WHERE r.rolname IN ('anon', 'authenticated')
+        AND (has_table_privilege(r.rolname, 'public.rum_daily', $1)
+             OR has_any_column_privilege(r.rolname, 'public.rum_daily', 'SELECT,INSERT,UPDATE,REFERENCES'))
+     UNION ALL
+     SELECT 'PUBLIC' FROM pg_class c, aclexplode(coalesce(c.relacl, acldefault('r', c.relowner))) a
+      WHERE c.oid = 'public.rum_daily'::regclass AND a.grantee = 0`,
+    [tablePrivs],
   )
-  if (grants.rows.length) throw new Error(`rum_daily still grants ${JSON.stringify(grants.rows)} — rolled back.`)
+  if (priv.rows.length) throw new Error(`rum_daily still grants ${JSON.stringify(priv.rows)} — rolled back.`)
   await client.query('COMMIT')
   console.log('✓ committed')
 } catch (e) {

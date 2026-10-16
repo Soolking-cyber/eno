@@ -523,6 +523,10 @@ export function nhatotBuildFreshSet(input: {
   let skipped = 0
   for (const ad of input.ads) {
     if (ad.category !== NHATOT_APARTMENT_CG) continue
+    // ⛔ NO-BROKER: the fresh set is owners-only, the SAME predicate mapNhatotAd drops on (company_ad===true =
+    // shop/agency/pro). Without this the set would call brokers "fresh", so the weekly expiry would never retire
+    // existing broker rows and a --fresh retire could not target them. (owner 2026-10-16, see [[eno-nobroker-apartments]])
+    if (ad.company_ad === true) continue
     const id = `nhatot:${ad.list_id}`
     if (shape && !shape.test(id)) { skipped++; continue }
     if (ad.list_time === null) { unknown.add(id); continue }
