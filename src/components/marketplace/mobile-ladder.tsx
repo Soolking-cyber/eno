@@ -12,6 +12,7 @@ import type { DimensionCounts } from '@/lib/facet-counts'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { cn } from '@/lib/utils'
 import { formatCount, moneyLocale, type MoneyLocale } from '@/lib/vnd'
+import { countChipLabel } from './count-chip'
 
 /**
  * The breadcrumb separator, as a CONST rather than a literal in JSX.
@@ -566,6 +567,12 @@ function Chip({
   active: boolean
   onSelect: () => void
 }) {
+  // ⚠️ The count's DIGITS are aria-hidden and the accessible name carries "N listings" instead — a bare
+  // number appended to a label reads as part of the product name ("Honda 412"), the exact a11y defect
+  // count-chip.tsx documents. Same contract as the shared CountChip; the visible digits stay the compact
+  // formatCount this chip deliberately uses.
+  const { lang, tr } = useLanguage()
+  const srCount = count !== null ? `, ${countChipLabel(count, lang, tr)}` : null
   return (
     <Button
       type="button"
@@ -614,7 +621,12 @@ function Chip({
           ("1,2k"), which is the right tool on a chip — result-line.tsx uses groupVnd instead
           precisely because the exact total is its whole point. `count === null` = this rail has
           no counts, which is a different thing from zero and renders nothing at all. */}
-      {count !== null && <span className="shrink-0 text-3xs font-semibold text-ink-4">{formatCount(count, locale)}</span>}
+      {count !== null && (
+        <>
+          <span aria-hidden="true" className="shrink-0 text-3xs font-semibold text-ink-4">{formatCount(count, locale)}</span>
+          <span className="sr-only">{srCount}</span>
+        </>
+      )}
     </Button>
   )
 }

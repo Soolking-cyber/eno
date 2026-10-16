@@ -10,6 +10,9 @@ import { CountChip, offeredKeys, optionCount, railDimension } from './count-chip
 import { MoreOverflow } from './more-overflow'
 import { ModelCascade, hasCascade } from './model-cascade'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
+import { IconButton } from '@/components/ui/icon-button'
+import { ChevronRight } from '@/components/ui/icons'
+import { STROKE_UI } from '@/lib/icon-tokens'
 // Type only — erased at compile time, so the client bundle never reaches for the module's
 // Prisma/`server-only` chain. Imported rather than restated so the rail's prop and the payload
 // the route ships are literally the same type.
@@ -435,11 +438,16 @@ export function BrandRail({
               wrapper would reserve a different width and simply move the jump one step later.
             */}
             {isActive && modelsLoading && models.length === 0 && (
-              <div className="flex shrink-0 items-center gap-2" aria-hidden="true">
-                <span className="h-12 w-px shrink-0 bg-border" />
-                <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5">
+              <div className="flex shrink-0 items-stretch gap-2" aria-hidden="true">
+                <span className="my-1 w-px shrink-0 self-stretch bg-border" />
+                {/* Match the real model grid's BOX HEIGHT and CHIP height so the skeleton→models swap
+                    doesn't jump vertically: same min-h/row-template/content-center box, h-7 (28px) chips
+                    (the real chip height, not h-6). ⚠️ WIDTH can't be matched — the skeleton draws 9 cells
+                    (3 columns); a brand that loads with ≤2 models collapses to 1 column, so sparse brands
+                    still shift horizontally on load. The box HEIGHT — the owner's complaint — does not. */}
+                <div className="grid min-h-[6.25rem] grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5 [grid-template-rows:repeat(3,min-content)]">
                   {Array.from({ length: 9 }, (_, i) => (
-                    <Skeleton key={i} className="h-6 w-20 rounded-lg" />
+                    <Skeleton key={i} className="h-7 w-20 rounded-lg" />
                   ))}
                 </div>
               </div>
@@ -460,25 +468,33 @@ export function BrandRail({
               />
             )}
             {isActive && models.length > 0 && !(onPickLine && hasCascade(b.slug, models)) && (
-              <div className="flex shrink-0 items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-                <span className="h-12 w-px shrink-0 bg-border" />
-                {/* 3×3 grid (column-fill): All first, 7 most-used in between, More last. */}
-                <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5">
+              <div className="flex shrink-0 items-stretch gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                <span className="my-1 w-px shrink-0 self-stretch bg-border" />
+                {/* ⛔ A CONSTANT-HEIGHT 3-ROW BOX (owner, 2026-10-16 — same fix as the subcategory plate).
+                    `grid-rows-3` is `repeat(3,minmax(0,1fr))`, which in this auto-height flex child collapsed
+                    to content: a 1–2-model brand drew a ~2-row box and an 8-model brand a 3-row one, so the
+                    rail re-centred on every brand→brand tap. `[grid-template-rows:repeat(3,min-content)]` +
+                    `min-h-[6.25rem]` (3×28 + 2×2 + p-1.5 ≈ 100px) + `content-center` reserve a stable 3-row
+                    height and centre the chips, so every brand's model box is the same size; `items-stretch`
+                    + the self-stretch divider match the plate. (column-fill: All first, 7 most-used, More last.) */}
+                <div role="group" aria-label={tr('Models', 'Mẫu')} className="grid min-h-[6.25rem] grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5 [grid-template-rows:repeat(3,min-content)]">
                   {/* justify-start: the base CENTRES, these chips are full-width text-left rows.
                       gap-0 for the same reason as the model chips below — the count's spacing is
-                      its own ml-1, and the base gap-2 would double it.
+                      its own ml-auto, and the base gap-2 would fight it.
                       "All" = the model rail released with the brand still applied, so it is the
                       chosen brand's total under the current filters — legitimately larger than
                       the model chips sum to, since a listing with no `model` set comes back when
                       the rail is cleared. Never rendered as a sum of what is on screen. */}
                   <Button variant="bare" size="none" aria-pressed={activeModel === 'all'} onClick={() => onPickModel('all')} className={cn(modelChip(activeModel === 'all'), 'justify-start gap-0')}>
                     {tr('All', 'Tất cả')}
-                    <CountChip count={modelDim?.all} className="ml-1" />
+                    {/* ml-auto right-aligns the count to the chip's edge, so the model grid's counts line
+                        up in a column — matching the subcategory plate and this rail's own "More" overflow. */}
+                    <CountChip count={modelDim?.all} className="ml-auto pl-2" />
                   </Button>
                   {visibleModels.map((m) => {
                     const mActive = activeModel === m.model
                     return (
-                      // gap-0 too: the count's spacing comes from its own ml-1; the base gap-2 would double it.
+                      // gap-0 too: the count is pushed right with ml-auto; the base gap-2 would fight it.
                       <Button
                         key={m.model}
                         variant="bare"
@@ -505,7 +521,7 @@ export function BrandRail({
                             rather than undefined for a real miss, so a genuine dead end still
                             reads "0". The one exception is a caller that has not been wired for
                             counts at all — see `legacyModelCount`. */}
-                        <CountChip count={optionCount(modelDim, m.model) ?? legacyModelCount(m)} className="ml-1" />
+                        <CountChip count={optionCount(modelDim, m.model) ?? legacyModelCount(m)} className="ml-auto pl-2" />
                       </Button>
                     )
                   })}
@@ -541,6 +557,22 @@ export function BrandRail({
       })}
     </div>
       <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} tight />
+      {/* The phone swipe affordance — the brand strip (with a model box extending it far right) overflows
+          at every phone width, but <ScrollArrows> is pc-only (≥1024px + fine pointer). Same control the
+          category rail carries (owner: "a pleasant arrow here on the right to indicate users can swipe");
+          shows only while `canRight`, scrolls by the desktop arrows' own step. */}
+      {canRight && (
+        <IconButton
+          size="sm"
+          onClick={() => page(1)}
+          // ⚠️ NOT "More" — this rail ALSO has a MoreOverflow whose button is tr('More','Thêm'); two
+          // same-named buttons are ambiguous to a screen-reader / voice-control user. This one scrolls.
+          aria-label={tr('Scroll right', 'Cuộn sang phải')}
+          className="material absolute right-0 top-1/2 z-10 -translate-y-1/2 bg-card/70 text-body shadow-sm ring-1 ring-border/60 backdrop-blur-sm pc:hidden"
+        >
+          <ChevronRight className="h-5 w-5" strokeWidth={STROKE_UI} />
+        </IconButton>
+      )}
     </div>
   )
 }

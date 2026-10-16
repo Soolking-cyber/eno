@@ -708,37 +708,60 @@ export function CategoryRail({
                  * a class.
                  */
                 style={{ '--sub-col-m': layout.subCol.m, '--sub-col-d': layout.subCol.d } as CSSProperties}
-                className="[grid-row:1/-1] [grid-column:var(--sub-col-m)] md:[grid-column:var(--sub-col-d)] flex shrink-0 items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200"
+                className="[grid-row:1/-1] [grid-column:var(--sub-col-m)] md:[grid-column:var(--sub-col-d)] flex shrink-0 items-stretch gap-2 animate-in fade-in slide-in-from-left-2 duration-200"
               >
-                <span className="h-12 w-px shrink-0 bg-border" aria-hidden="true" />
-                {/* Column-filled chips: EIGHT rows on a phone, FIVE on desktop (owner, 2026-09-18:
-                    "desktop make it 4 rows not 2 subcats" … "also mobile 8 rows" … "also make it 5
-                    rows for desktop"). A chip is 28px
-                    where a tile is 73-130, so these stack far denser than the tiles beside them and
-                    the box holds a category's whole taxonomy in a few columns instead of nine —
-                    Electronics' seventeen fit five columns on desktop and three on a phone.
-                    ⚠️ THE ROW COUNT IS BOUNDED BY THE BOX, WHICH IS THE RAIL'S HEIGHT, and the fifth
-                    desktop row is what spent the slack: 5 × 28px plus 12px of padding is 152px inside
-                    a 154px box, so the desktop rows drop their 2px gap (`md:gap-y-0`) to fit. A phone
-                    keeps its gap: 8 × 28 + 7 × 2 + 12 = 250 inside 263. A SIXTH row does not fit —
-                    re-measure before adding one; the plate does not scroll vertically.
-                    `auto-cols-max` keeps each chip its own width and lets the box grow to the
-                    right, which is what the visitor swipes through. */}
-                <div className="grid grid-flow-col grid-rows-8 auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5 md:grid-rows-5 md:gap-y-0 md:py-1">
-                  <Button variant="bare" size="none" aria-pressed={activeSubcategory === 'all'} onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>
+                {/* ⛔ `items-stretch` + the plate's `min-h-full`/`content-center` below are the fix for
+                    "different categories have different-sized plates" (owner, 2026-10-16). The grey
+                    box used to hug its chips and sit `items-center`, so a 3-chip category drew a short
+                    box floating mid-rail and a 17-chip one a tall one — it resized on every category
+                    tap. Stretched to the rail's height, every category's box is the same size; the row
+                    cap below keeps its content from exceeding the tiles (which would grow the rail — see
+                    that note). The divider stretches with it (was a fixed `h-12`). */}
+                <span className="my-1 w-px shrink-0 self-stretch bg-border" aria-hidden="true" />
+                {/* ⛔ ROW TRACKS ARE `min-content`, CAPPED AT SIX ON PHONE / FIVE ON DESKTOP (owner,
+                    2026-09-18 "mobile 8 rows / desktop 5 rows", phone REVISED to SIX 2026-10-16).
+                    `grid-rows-N` is `repeat(N,minmax(0,1fr))`, whose fr tracks collapse to content in an
+                    auto-height box, so the box was exactly (filled rows × chip) tall — Jobs (3) a 3-row
+                    box, Electronics a 5-row one, resizing per category. `[grid-template-rows:repeat(N,
+                    min-content)]` still caps the column at N rows (grid-flow-col wraps after N), but with
+                    `min-h-full` + `content-center` the box fills the rail's height and centres its chips.
+                    ⚠️ THE PLATE SPANS `[grid-row:1/-1]`, so if its content is TALLER than the tiles it
+                    GROWS the rail (fr tracks expand to a spanning item's max-content). That is why the
+                    phone cap dropped 8→6: a full EIGHT-row column ≈250px > the ~201px tile rail, so a full
+                    category's plate stayed taller than a sparse one — the owner's bug, which survived on
+                    the phone until this. SIX rows (6×28 + 5×2 + 12 ≈ 190px) sit under the ~201px rail and
+                    FIVE desktop rows (≈148px) under the ~150px rail, so at normal text sizes the tiles
+                    always drive the height and every plate matches. ⚠️ TWO HONEST LIMITS: (1) the desktop
+                    margin is only ~2px, so a much larger default font / OS text scaling can still push a
+                    full plate past the tiles — it then GROWS (never clips), degrading to the old resize
+                    only at extreme sizes; (2) fewer rows means WIDER plates — "All" + the teacher door are
+                    cells too, so e.g. 17 subcategories (≈19 cells) wrap to ⌈19/6⌉=4 columns, not 3. The
+                    extra width is swiped through (`auto-cols-max` + horizontal scroll), the trade for a
+                    constant height. Re-measure the 190/201 headroom before changing the cap. */}
+                <div role="group" aria-label={tr('Subcategories', 'Danh mục con')} className="grid min-h-full grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5 [grid-template-rows:repeat(6,min-content)] md:gap-y-0 md:py-1 md:[grid-template-rows:repeat(5,min-content)]">
+                  {/* ⚠️ `flex items-center justify-start gap-0` OVERRIDES ui/button's base
+                      `inline-flex … justify-center gap-2` — without `justify-start` the row would centre,
+                      without `gap-0` the base 8px gap would double the icon/count margins. An empty
+                      icon-slot spacer keeps "All" left-aligned with the chips below it (which carry an
+                      icon); the count is pushed to the right edge (`ml-auto`) so every count lines up. */}
+                  <Button variant="bare" size="none" aria-pressed={activeSubcategory === 'all'} onClick={() => onSubcategory('all')} className={cn('flex items-center justify-start gap-0', subChip(activeSubcategory === 'all'))}>
+                    <span className="mr-2 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     {tr('All', 'Tất cả')}
-                    <CountChip pending={countsPending} count={subDim?.all} className="ml-1" />
+                    <CountChip pending={countsPending} count={subDim?.all} className="ml-auto pl-2" />
                   </Button>
                   {/* ⛔ NO "MORE" DROPDOWN. Every subcategory is a chip; the rail scrolls. */}
                   {subs.map((sub) => {
                     const subActive = activeSubcategory === sub.slug
                     return (
-                      <Button key={sub.slug} variant="bare" size="none" data-subcat={sub.slug} aria-pressed={subActive} onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('block', subChip(subActive))}>
-                        {/* At 14px the baked display stroke goes wispy — re-tier the ink line to the
-                            UI weight (icon-language §2). */}
-                        <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="mr-1 h-3.5 w-3.5 shrink-0 align-[-2px]" />
+                      <Button key={sub.slug} variant="bare" size="none" data-subcat={sub.slug} aria-pressed={subActive} onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('flex items-center justify-start gap-0', subChip(subActive))}>
+                        {/* ⚠️ `flex items-center` CENTRES the icon on the label — it used to be an inline
+                            `align-[-2px]` nudge that sat the glyph low ("icon below its text", owner
+                            2026-10-16). `justify-start gap-0` override ui/button's base (see the All chip).
+                            At 14px the baked display stroke goes wispy — re-tier the ink line to the UI
+                            weight (icon-language §2). */}
+                        <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="mr-2 h-3.5 w-3.5 shrink-0" />
                         <Bilingual en={sub.name} vi={sub.nameVi || sub.name} />
-                        <CountChip pending={countsPending} count={subCount(sub.slug)} className="ml-1" />
+                        <CountChip pending={countsPending} count={subCount(sub.slug)} className="ml-auto pl-2" />
                       </Button>
                     )
                   })}
@@ -750,22 +773,22 @@ export function CategoryRail({
                       JOBS carries the same door, last (owner, 2026-10-12 — TEACHER_DOOR_CATEGORIES): a teacher browsing
                       work had posted themselves as a job ad. */}
                   {TEACHER_DOOR_CATEGORIES.includes(cat.slug) && (
-                    <Button variant="bare" size="none" asChild className={cn('block', subChip(false), 'text-accent-foreground')}>
+                    <Button variant="bare" size="none" asChild className={cn('flex items-center justify-start gap-0', subChip(false), 'text-accent-foreground')}>
                       {/* A teacher who already has a profile: theirs, on this host (owner, 2026-10-09 — "apply recommended"). */}
                       {teacherProfile ? (
                         <a href={localizedHref('/teachers/edit', lang)} data-cross-link="teacher-profile-edit">
-                          <UserRound className="mr-1 size-3.5 shrink-0 align-[-2px]" aria-hidden />
+                          <UserRound className="mr-2 size-3.5 shrink-0" aria-hidden />
                           {tr('Your teacher profile', 'Hồ sơ giáo viên của bạn')}
                         </a>
                       ) : teacherDraft ? (
                         // An unfinished one, saved to this account (owner, 2026-10-11): back into it, on THIS host.
                         <a href={localizedHref('/teachers/join', lang)} data-cross-link="teacher-profile-continue">
-                          <UserRound className="mr-1 size-3.5 shrink-0 align-[-2px]" aria-hidden />
+                          <UserRound className="mr-2 size-3.5 shrink-0" aria-hidden />
                           {tr('Continue your teacher profile', 'Tiếp tục hồ sơ giáo viên')}
                         </a>
                       ) : (
                         <a href={teacherJoinUrl()} data-cross-link="teacher-profile" onClick={(e) => keepTeacherJoinInApp(e, lang)}>
-                          <Plus className="mr-1 size-3.5 shrink-0 align-[-2px]" aria-hidden />
+                          <Plus className="mr-2 size-3.5 shrink-0" aria-hidden />
                           {tr('Create a teacher profile', 'Tạo hồ sơ giáo viên')}
                         </a>
                       )}

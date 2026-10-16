@@ -1610,6 +1610,7 @@ export const UI_STRINGS: string[] = [
   "Missing a school? Suggest it",
   "MobiFone",
   "Model",
+  "Models",
   "Moderator note:",
   "Monday",
   "Monthly",
