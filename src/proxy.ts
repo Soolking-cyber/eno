@@ -162,7 +162,8 @@ function writeOrigins(): Set<string> | null {
  * cookie-banner consent records, 12 sign-in-gate counts (and 1,147 CSP reports — see isCspReport). On the storefronts the
  * only heartbeats that EVER got through in 3 days were Meta's crawler (no Origin; zeroed as a bot): a real shop visitor
  * was never counted, never had a consent choice recorded, never got a translation.
- * ⚠️ EXACT PATHS, NOT "SAME-ORIGIN ON THESE HOSTS". These four act as nobody: three never read a session, and /api/consent
+ * ⚠️ EXACT PATHS, NOT "SAME-ORIGIN ON THESE HOSTS". These five act as nobody: four never read a session (/api/page-speed,
+ * the page-speed totals, joined 2026-10-16 — speed plan item 5), and /api/consent
  * takes its record's actorId ONLY on the apex/www (`isCanonicalEnoHost` in that route) — so a subdomain record is
  * anonymous even after the planned cookie widening that the guard above exists for. src/proxy.test.ts pins that. A
  * blanket rule would admit every FUTURE route without anyone deciding it should be — a new background write from these
@@ -173,9 +174,9 @@ function writeOrigins(): Set<string> | null {
  * is the host's SHAPE (no database here), so a shop that does not exist counts too — it is still our page, showing our
  * 404, read by a real visitor.
  * ⛔ WHOEVER WIDENS THE SESSION COOKIE TO THE SUBDOMAINS must re-prove "acts as nobody" with a request carrying that cookie
- * to each of the four paths on a storefront host. The source scan in src/proxy.test.ts is a tripwire, not a proof.
+ * to each of the five paths on a storefront host. The source scan in src/proxy.test.ts is a tripwire, not a proof.
  */
-export const SUBDOMAIN_SELF_WRITES: ReadonlySet<string> = new Set(['/api/site-stats', '/api/translate', '/api/consent', '/api/signup-prompt'])
+export const SUBDOMAIN_SELF_WRITES: ReadonlySet<string> = new Set(['/api/site-stats', '/api/translate', '/api/consent', '/api/signup-prompt', '/api/page-speed'])
 
 function subdomainSelfWrite(req: NextRequest, origin: string): boolean {
   if (req.method !== 'POST' || !SUBDOMAIN_SELF_WRITES.has(req.nextUrl.pathname)) return false

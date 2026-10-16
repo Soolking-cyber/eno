@@ -403,3 +403,84 @@ describe('edge Worker — the /vi pilot (V4)', () => {
     }
   })
 })
+
+describe('edge Worker — Server-Timing for the page-speed totals (speed plan item 5)', () => {
+  /** A Workers request carries `cf`; the test Request does not, so it is attached here. */
+  const callCf = (path: string, headers: Record<string, string> = {}, colo = 'HKG') => {
+    const req = new Request(`https://eno.vn${path}`, { headers })
+    Object.defineProperty(req, 'cf', { value: { colo } })
+    return worker.fetch(req, {}, ctx) as Promise<Response>
+  }
+  const timing = (r: Response) => (r.headers.get('server-timing') || '').split(/\s*,\s*/).filter(Boolean)
+  /** What nginx adds to every app answer (infra/vn-node/nginx/eno.conf — the eno_st_* maps). */
+  const NGINX = 'edge;desc="SIN", app;dur=12, ncache;desc="MISS"'
+
+  it('MISS: the origin\'s own entries, the edge state and the Worker\'s wait — and the STORED copy carries none of it', async () => {
+    h.respond = () => ({ headers: { 'server-timing': NGINX } })
+    const r = await callCf(ADAPTIVE)
+    const t = timing(r)
+    expect(t).toEqual(expect.arrayContaining(['edge;desc="SIN"', 'app;dur=12', 'ncache;desc="MISS"', 'ecache;desc="MISS"']))
+    expect(t.find((e) => e.startsWith('origin;dur='))).toMatch(/^origin;dur=\d+$/)
+    // nginx already named the data centre: the Worker does not add a second edge entry.
+    expect(t.filter((e) => e.startsWith('edge;'))).toHaveLength(1)
+    expect([...h.store.values()][0].headers.get('server-timing')).toBeNull()
+  })
+
+  it('HIT and STALE: the reader\'s own colo and state, never the fill\'s numbers', async () => {
+    h.respond = () => ({ headers: { 'server-timing': NGINX } })
+    await callCf(ADAPTIVE)
+    const hit = await callCf(ADAPTIVE, {}, 'HKG')
+    expect(timing(hit)).toEqual(['edge;desc="HKG"', 'ecache;desc="HIT"'])
+    const key = [...h.store.keys()][0]
+    const old = h.store.get(key)!
+    const aged = new Response(old.body, old)
+    aged.headers.set('x-eno-stored', String(Date.now() - 3_600_000))
+    h.store.set(key, aged)
+    const stale = await callCf(ADAPTIVE, {}, 'SIN')
+    expect(stale.headers.get('x-eno-cache')).toBe('STALE')
+    expect(timing(stale)).toEqual(['edge;desc="SIN"', 'ecache;desc="STALE"'])
+    await Promise.all(h.waits)
+  })
+
+  /** Workers hand back fetch() responses with IMMUTABLE headers: setting one throws (the visitor would get a 1101). */
+  const immutable = (res: Response): Response => {
+    const headers = new Proxy(res.headers, {
+      get(t, p) {
+        if (p === 'set' || p === 'append' || p === 'delete') return () => { throw new TypeError("Can't modify immutable headers.") }
+        const v = Reflect.get(t, p, t)
+        return typeof v === 'function' ? v.bind(t) : v
+      },
+    })
+    Object.defineProperty(res, 'headers', { value: headers })
+    return res
+  }
+
+  it('DYN (an origin page the edge may not keep) and PASS (signed in) are COPIED before timing — never a throw', async () => {
+    vi.stubGlobal('fetch', async () => immutable(new Response('<html lang="en">x</html>', {
+      headers: { 'content-type': 'text/html', 'content-language': 'en', 'cache-control': 'private, no-store', 'server-timing': NGINX },
+    })))
+    const dyn = await callCf('/sellers/s1')
+    expect(await dyn.text()).toBe('<html lang="en">x</html>')
+    expect(timing(dyn)).toEqual(expect.arrayContaining(['app;dur=12', 'ecache;desc="DYN"']))
+    expect(h.store.size).toBe(0)
+    const pass = await callCf(ADAPTIVE, { cookie: 'sb-x-auth-token=abc' })
+    expect(timing(pass)).toEqual(expect.arrayContaining(['ecache;desc="PASS"', 'app;dur=12']))
+    expect(timing(pass).find((e) => e.startsWith('origin;dur='))).toBeTruthy()
+  })
+
+  it('no nginx timing (not installed yet): the Worker still names the colo; a colo that is not 3 letters is left out', async () => {
+    const r = await callCf(ADAPTIVE)
+    expect(timing(r)).toEqual(expect.arrayContaining(['edge;desc="HKG"', 'ecache;desc="MISS"']))
+    h.store.clear()
+    const odd = await callCf(ADAPTIVE, {}, 'hkg"; evil')
+    expect(timing(odd).some((e) => e.startsWith('edge;'))).toBe(false)
+  })
+
+  it('markdown, RSC, API and non-GET requests are passed through untouched (no timing added)', async () => {
+    for (const r of [
+      await callCf(ADAPTIVE, { accept: 'text/markdown' }),
+      await callCf(ADAPTIVE, { rsc: '1' }),
+      await callCf('/api/x'),
+    ]) expect(r.headers.get('server-timing')).toBeNull()
+  })
+})

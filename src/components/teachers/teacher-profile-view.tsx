@@ -209,7 +209,8 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
   ] : []
 
   return (
-    <div className="flex min-h-page flex-col">
+    // data-rum: the page-speed totals tell a teacher profile from any other listing page (src/lib/rum/shared.ts).
+    <div className="flex min-h-page flex-col" data-rum="teacher">
       {indexable && ld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(ld) }} />}
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">

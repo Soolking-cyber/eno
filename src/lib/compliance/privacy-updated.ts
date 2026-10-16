@@ -49,6 +49,11 @@
  * the consent purpose — page.test.tsx fails until it equals `effective`); then the fingerprint below. ⚠️ The deploy gate
  * cannot catch a forgotten re-date this time: production (efc3e64c9) already carries 2026-10-16, so an unchanged value
  * passes as "already live" and the page would print a stale "Last updated".
+ * And 2026-10-16 (planned — the deploy day of speed plan item 5, owner 2026-10-16: "Anonymous, no consent", live with
+ * the deploy): the "Page speed measurements" paragraph — anonymous daily totals of load and response times, counted
+ * whatever the Analytics choice, like the sign-up reminder counts. ⛔ The value below did NOT change for it — and the
+ * deploy gate only checks the day when the value DIFFERS from the deployed commit's (already 2026-10-16 there) — so it
+ * cannot notice a slip: if item 5 deploys on a later Vietnamese day, re-date this to THAT day (and retake the fingerprint).
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -66,4 +71,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-16'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '708f522881e47f9d'
+export const PRIVACY_TEXT_FINGERPRINT = '4eac7f96c875b984'
