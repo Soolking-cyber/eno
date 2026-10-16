@@ -52,7 +52,9 @@ describe('src/instrumentation-client.ts', () => {
   it('stays tiny: it is in every page\'s first JavaScript — the signal and the page-speed starter, nothing else', () => {
     const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
     const from = (src: string) => [...src.matchAll(/^import (?!type ).* from '([^']+)'/gm)].map((m) => m[1])
-    expect(from(read('src/instrumentation-client.ts'))).toEqual(['@/lib/nav-progress', '@/lib/rum/early'])
+    // …and mt-client, for the Vietnamese dictionary kickoff (item 7) — already in every page's first JavaScript, since
+    // tr() is; the dictionary itself stays a lazy chunk (the import inside loadViOverrides).
+    expect(from(read('src/instrumentation-client.ts'))).toEqual(['@/lib/nav-progress', '@/lib/rum/early', '@/lib/i18n/mt-client'])
     // The starter (speed plan item 5) brings only in-app-browser — already on every page — and the import-free shared
     // constants. web-vitals is a lazy chunk, loaded after the page's own requests (src/lib/rum/vitals.ts).
     const early = read('src/lib/rum/early.ts')
@@ -60,6 +62,10 @@ describe('src/instrumentation-client.ts', () => {
     expect(early).toContain("import('./vitals')")
     expect(early).not.toMatch(/from 'web-vitals'/)
     expect(read('src/lib/rum/shared.ts')).not.toMatch(/^import /m)
+    // mt-client now evaluates before hydration too (item 7): it must stay import-light — a type, and detect-lang, which
+    // imports nothing. A heavy import added here would grow every page's earliest script without any other test noticing.
+    expect(from(read('src/lib/i18n/mt-client.ts'))).toEqual(['@/lib/detect-lang'])
+    expect(read('src/lib/detect-lang.ts')).not.toMatch(/^import (?!type )/m)
     expect(read('src/lib/in-app-browser.ts')).not.toMatch(/^import (?!type )/m)
   })
 })
