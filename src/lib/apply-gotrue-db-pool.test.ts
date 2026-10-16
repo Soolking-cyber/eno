@@ -22,7 +22,7 @@ const SOURCE = readFileSync(SCRIPT, 'utf8')
 const ENV = {
   ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(ENO_|DRY_RUN|ROLLBACK)/.test(k))),
   ENO_HOST: 'nobody@127.0.0.1', ENO_SSH_PORT: '1', ENO_SSH_KEY: '/dev/null',
-} as NodeJS.ProcessEnv
+} as unknown as NodeJS.ProcessEnv
 
 const requireHere = createRequire(import.meta.url)
 const yamlLoad: ((s: string) => unknown) | null = (() => {
@@ -70,7 +70,7 @@ describe('the override merge', () => {
   })
 
   it.skipIf(!yamlLoad)('parses as YAML with the values GoTrue reads', () => {
-    const doc = yamlLoad(merge(OVERRIDE).after) as { services: { auth: { environment: Record<string, string> }; storage: unknown } }
+    const doc = yamlLoad!(merge(OVERRIDE).after) as { services: { auth: { environment: Record<string, string> }; storage: unknown } }
     expect(doc.services.auth.environment).toMatchObject({
       GOTRUE_DB_MAX_IDLE_POOL_SIZE: '5', GOTRUE_DB_CONN_MAX_IDLE_TIME: '10m', GOTRUE_DB_CONN_MAX_LIFETIME: '1h',
       GOTRUE_MAILER_OTP_EXP: '3600',
