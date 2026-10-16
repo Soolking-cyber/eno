@@ -36,6 +36,19 @@
  * Vietnamese) — and the teacher's opt-in "Identity verified" mark on the profile, its card in lists and the chats about
  * it (the teacher paragraph and its consent purpose). If the two deploys fall on different days, this is the LATER one.
  * ⛔ If that deploy slips past 2026-10-16, re-date this (the deploy gate refuses until it matches the day).
+ * And 2026-10-17 (planned — the deploy day of teacher onboarding v3, owner 2026-10-16: "remove linkedin login and
+ * profile read only from cv is enough … check uploaded profile pictures so it clearly shows face of the teacher … the cv
+ * info like number and cv itself stays as default"): Sign in with LinkedIn is GONE (its recipients row, the account
+ * information, the D14 mentions, the cookie note and the withdrawal paragraph — it was never switched on, so nobody's data
+ * is affected); the CV reader no longer names a LinkedIn PDF, fills the phone into an empty field and attaches a PDF as
+ * the private CV; and the teacher profile photo check (Google Gemini: a real photo showing a face) — the Google row, the
+ * teacher paragraph and an automated-decision paragraph with its human route. And "Continue with Facebook" (owner, the same
+ * day: "if needed add sign in with facebook"): its Meta recipients row, the account information, and Facebook among the
+ * sign-in choices the sign-up counters name — dark until GoTrue has it on, so it describes a choice nobody can make
+ * before the owner configures it — and the sign-up counters now also total the teacher profile form's first step and its
+ * publishes (the same anonymous daily totals; signup-prompt.ts TEACHER_FORM_EVENTS). Live with the deploy — the photo check is the moderation of a listing photo the policy
+ * already names (purpose 2, performance of contract); the rest removes, describes or adds an optional way to sign in.
+ * ⛔ Re-date with the deploy, as above.
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -44,7 +57,7 @@
  * line, `export const PRIVACY_TEXT_PUBLISHED: string = 'YYYY-MM-DD'`: that is the shape the gate reads.
  * ⚠️ Typed, never read from the clock: the page prerenders, and a build-time date would move with every rebuild.
  */
-export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-16'
+export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-17'
 
 /**
  * ⛔ THE TEXT THAT DATE DATES — a fingerprint of /privacy as rendered (both editions, English and Vietnamese), checked
@@ -53,4 +66,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-16'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '6f8dfd81112f41b5'
+export const PRIVACY_TEXT_FINGERPRINT = '1f226570d6dd86de'

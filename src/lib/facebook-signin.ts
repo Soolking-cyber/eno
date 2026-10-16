@@ -21,6 +21,18 @@ import { inAppHost, isNativeTabs } from './in-app-browser'
  */
 export const FACEBOOK_PROVIDER = 'facebook'
 
+/**
+ * The account has a Facebook identity: `app_metadata.providers` (or the first `provider`) names it, in any case (GoTrue
+ * keeps a provider as the authorize request spelled it). ⛔ Its email is then Platform Data under Meta's Platform Terms,
+ * which bar passing it to another ad network — so TikTok never gets it (api/teachers/me, the D14 rule widened).
+ */
+export function isFacebookLinked(appMetadata: unknown): boolean {
+  if (!appMetadata || typeof appMetadata !== 'object') return false
+  const m = appMetadata as { provider?: unknown; providers?: unknown }
+  const is = (p: unknown) => typeof p === 'string' && p.trim().toLowerCase() === FACEBOOK_PROVIDER
+  return is(m.provider) || (Array.isArray(m.providers) && m.providers.some(is))
+}
+
 /** Meta's own apps — the in-app browsers Facebook Login is expected to work inside (see facebookAvailableHere). */
 const META_HOSTS: ReadonlySet<string> = new Set(['facebook', 'messenger', 'instagram'])
 

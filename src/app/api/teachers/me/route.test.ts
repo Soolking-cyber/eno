@@ -31,6 +31,8 @@ const h = vi.hoisted(() => ({
   capi: [] as Row[],
   capiOn: true,
   appleLinked: false,
+  facebookLinked: false,
+  facebookThrows: false,
   appleAsked: 0,
   markState: { shown: false, reason: 'off' } as Row, // what identityMarkState answers (the "Identity verified" state line)
   markThrows: false,
@@ -52,7 +54,7 @@ vi.mock('@/lib/meta-capi', async (orig) => ({
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/log', () => ({ logError: (e: unknown) => { h.logged.push(e) } }))
-vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => h.me, getCurrentProfileId: async () => h.me.id, getAdmin: async () => null, isAdminEmail: () => false, isCurrentUserAppleLinkedByClaims: async () => { h.appleAsked++; if (h.appleThrows) throw new Error('claims unreadable'); return h.appleLinked } }))
+vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => h.me, getCurrentProfileId: async () => h.me.id, getAdmin: async () => null, isAdminEmail: () => false, isCurrentUserAppleLinkedByClaims: async () => { h.appleAsked++; if (h.appleThrows) throw new Error('claims unreadable'); return h.appleLinked }, isCurrentUserFacebookLinkedByClaims: async () => { if (h.facebookThrows) throw new Error('claims unreadable'); return h.facebookLinked } }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true, resetSec: 0 }), kv: { set: async () => 'OK', get: async () => null } }))
 vi.mock('@/lib/db', () => ({ db: {
   teacherProfile: { findUnique: async () => h.mine },
@@ -103,7 +105,7 @@ const get = async () => (await GET(new Request('https://eno.vn/api/teachers/me')
 beforeEach(() => {
   h.mine = { id: 'tp-b' }; h.saved = []; h.opts = []; h.changedUnderLock = false; h.noticeChanged = null; h.decision = { ok: true }
   h.decisionFails = false; h.logged = []
-  h.created = false; h.live = true; h.afterWork = []; h.capi = []; h.capiOn = true; h.appleLinked = false; h.appleAsked = 0; h.appleThrows = false; h.sendRejects = false; h.afterThrows = false; h.tiktok = []; h.ttOn = false; h.ttRejects = false; h.consentRows = []; h.consentRowFails = false; h.metaStalls = null
+  h.created = false; h.live = true; h.afterWork = []; h.capi = []; h.capiOn = true; h.appleLinked = false; h.facebookLinked = false; h.facebookThrows = false; h.appleAsked = 0; h.appleThrows = false; h.sendRejects = false; h.afterThrows = false; h.tiktok = []; h.ttOn = false; h.ttRejects = false; h.consentRows = []; h.consentRowFails = false; h.metaStalls = null
   h.me = { id: 'p-b', accountType: 'individual', email: 'b@example.com' }
   h.markState = { shown: false, reason: 'off' }; h.markThrows = false; h.markInputs = []
   fo.after = []; fo.committed = true
@@ -323,6 +325,24 @@ describe('PUT /api/teachers/me — the TikTok conversion for a NEW profile', () 
     h.me = { id: 'p-b', accountType: 'individual', email: 'b@example.com', phone: '+84901234567' }
   })
   afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
+
+  it('⛔ a Facebook-linked account: TikTok gets the event WITHOUT the email (Meta\'s Platform Terms); Meta\'s own event keeps it', async () => {
+    h.facebookLinked = true
+    const res = await create(NAMED, {}, { 'user-agent': 'UA/1' })
+    expect(res.status).toBe(200)
+    await flush()
+    expect(h.tiktok).toHaveLength(1)
+    expect(h.tiktok[0].user.appleLinked).toBe(true) // so tiktok.ts hashes no email
+    expect(h.capi).toHaveLength(1)
+    expect(h.capi[0].userData.appleLinked).toBe(false)
+  })
+
+  it('⛔ claims that cannot be read count as Facebook-linked: TikTok still gets no email', async () => {
+    h.facebookThrows = true
+    expect((await create(NAMED, {}, { 'user-agent': 'UA/1' })).status).toBe(200)
+    await flush()
+    expect(h.tiktok[0].user.appleLinked).toBe(true)
+  })
 
   it('the first save tells TikTok ONE CompleteRegistration, after the response — the named page, who, and the listing', async () => {
     const res = await create(NAMED, { ttclid: 'E.C.P.abc-123_x' }, { 'user-agent': 'UA/1', referer: 'https://eno.vn/teachers/join?utm_source=tiktok&ttclid=E.C.P.abc-123_x' })

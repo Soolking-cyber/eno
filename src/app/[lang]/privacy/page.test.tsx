@@ -231,8 +231,8 @@ describe('/privacy — the facts it states match the code', () => {
       expect(text, site).toContain('left open when the page was hidden or closed')
       expect(text, site).toContain('the kind of browser (a regular one, Facebook’s, Zalo’s or another app’s built-in browser, the home-screen app or the eno app), phone or computer, and Vietnamese or English')
       // Sign in with Apple (2026-10-08): `apple_click` / gate action `apple` are counted too (src/lib/signup-prompt.ts).
-      expect(text, site).toContain('how many times sign-in was opened there, Google, Apple or email was chosen, and a sign-in followed')
-      expect(text, site).toContain('answered with Google, Apple or email')
+      expect(text, site).toContain('how many times sign-in was opened there, Google, Apple, Facebook or email was chosen, and a sign-in followed')
+      expect(text, site).toContain('answered with Google, Apple, Facebook or email')
       expect(text, site).not.toContain('browser details or page')
       expect(text, site).toContain('counted whatever you choose for Analytics')
       const vi = await policy(site, 'vi')
@@ -360,41 +360,50 @@ describe('/privacy — Sign in with Apple', () => {
     expect(text).toContain('Cloudflare, Microsoft, Google, Apple, Anthropic, Resend')
   })
 
-  it('⛔ D14: the Meta row and the Advertising paragraph say the email hash is never sent for an Apple or LinkedIn account or a relay address', async () => {
+  it('⛔ D14: the Meta row and the Advertising paragraph say the email hash is never sent for an Apple account or a relay address', async () => {
     const en = await policy('marketplace')
-    expect(en).toContain('never your email address if you use Sign in with Apple or Sign in with LinkedIn, or if it is an Apple private relay address')
-    expect(en).toContain('with your email address (never if you use Sign in with Apple or Sign in with LinkedIn, or for an Apple private relay address), phone number and account identifier scrambled (hashed) first')
+    expect(en).toContain('never your email address if you use Sign in with Apple, or if it is an Apple private relay address')
+    expect(en).toContain('with your email address (never if you use Sign in with Apple, or for an Apple private relay address), phone number and account identifier scrambled (hashed) first')
     cleanup()
     const vi = await policy('marketplace', 'vi')
-    expect(vi).toContain('không bao giờ gửi email của bạn nếu bạn dùng Đăng nhập bằng Apple hoặc Đăng nhập bằng LinkedIn')
+    expect(vi).toContain('không bao giờ gửi email của bạn nếu bạn dùng Đăng nhập bằng Apple, hoặc nếu')
   })
 
-  // Teacher CV import + Sign in with LinkedIn (owner, 2026-10-15) — both editions (one codebase, one database).
-  it.each(['marketplace', 'services'] as const)('%s: LinkedIn is a recipient — what it sends, what we keep, and that the photo is never shown', async (site) => {
+  // Sign in with LinkedIn — removed 2026-10-16 (owner: "remove linkedin login"), never switched on: no row, no sign-in data,
+  // no withdrawal route. LinkedIn stays only as our own social page.
+  it.each(['marketplace', 'services'] as const)('%s: LinkedIn is no sign-in recipient any more', async (site) => {
     const en = await policy(site)
-    expect(en).toContain('LinkedIn (Sign in with LinkedIn)')
-    expect(en).toContain('sends us an identifier for your LinkedIn account, your name, your email address (and whether LinkedIn has confirmed it), a link to your LinkedIn profile photo and your language')
-    expect(en).toContain('never LinkedIn’s access token')
-    expect(en).toContain('LinkedIn does not send us your jobs, education or skills')
-    expect(en).toContain('if you use Sign in with LinkedIn, an identifier for your LinkedIn account, your name, email address, language and a link to your LinkedIn profile photo (which we never show)')
-    expect(en).toContain('under LinkedIn › Settings › Data privacy › Permitted services')
+    expect(en).not.toContain('Sign in with LinkedIn')
+    expect(en).not.toContain('LinkedIn profile saved as a PDF')
+    cleanup()
+    expect(await policy(site, 'vi')).not.toContain('Đăng nhập bằng LinkedIn')
   })
-  it.each(['marketplace', 'services'] as const)('%s: the CV reading — Google reads the whole file, we keep neither the file nor its text, and it decides nothing', async (site) => {
+  // Teacher CV import (owner, 2026-10-15; autofill 2026-10-16) — both editions (one codebase, one database).
+  it.each(['marketplace', 'services'] as const)('%s: the CV reading — Google reads the whole file, its text is never kept, the phone and a PDF fill in, and it decides nothing', async (site) => {
     const en = await policy(site)
-    expect(en).toContain('only when you choose “Fill it in from my CV” in the teacher profile form, the CV you choose — or your LinkedIn profile saved as a PDF; for a Word file, the text your browser reads from it — which the AI reads in full; we keep neither the file nor its text, Google does not use it to train its AI')
+    expect(en).toContain('only when you choose “Fill it in from my CV” in the teacher profile form, the CV you choose — for a Word file, the text your browser reads from it — which the AI reads in full; we never keep its text (a PDF is kept only as the private CV attached to your profile, which you can remove)')
     expect(en).toContain('filling in a teacher profile from a CV you choose')
-    expect(en).toContain('A phone number in the file is only offered to you on the last step.')
+    expect(en).toContain('The phone number in your CV fills an empty phone field, and a CV that is a PDF is attached to your profile as your private CV unless you already have one')
     expect(en).toContain('Filling in a teacher profile from a CV: when you ask, an AI model (Google Gemini) reads the CV you choose')
     cleanup()
-    const vi = await policy(site, 'vi')
-    expect(vi).toContain('Điền hồ sơ giáo viên từ CV')
-    expect(vi).toContain('LinkedIn (Đăng nhập bằng LinkedIn)')
+    expect(await policy(site, 'vi')).toContain('Điền hồ sơ giáo viên từ CV')
+  })
+  // The teacher profile photo check (owner, 2026-10-16) — what is sent, what is kept, what it decides, the human route.
+  it.each(['marketplace', 'services'] as const)('%s: the profile photo check — Google sees the photo, only the result is kept, a person can approve it', async (site) => {
+    const en = await policy(site)
+    expect(en).toContain('And the profile photo you choose for a teacher profile — and, once, the photos already on teacher profiles — to check that it is a real photo showing a face — on the same terms.')
+    expect(en).toContain('checking that a teacher’s profile photo is a real photo showing a face')
+    expect(en).toContain('it does not identify you or judge your looks, Google does not use it to train its AI and keeps it only briefly — for up to 90 days if its automated checks flag the request as misuse — and we keep only the result, for up to 180 days')
+    expect(en).toContain('Teacher profile photos: an AI model (Google Gemini) checks that the photo you choose for a teacher profile is a real photo showing a face')
+    expect(en).toContain('ask from the Help page for a member of our team to look at it — they can approve it')
+    cleanup()
+    expect(await policy(site, 'vi')).toContain('Ảnh hồ sơ giáo viên: một mô hình AI (Google Gemini) kiểm tra ảnh bạn chọn')
   })
 
   it('the sign-up reminder lists Apple among the methods it remembers choosing', async () => {
     const text = await policy('marketplace')
-    expect(text).toContain('when you last chose Google, Apple or email in it')
-    expect(text).toContain('For any sign-in window: when you choose Google, Apple or email in it')
+    expect(text).toContain('when you last chose Google, Apple, Facebook or email in it')
+    expect(text).toContain('For any sign-in window: when you choose Google, Apple, Facebook or email in it')
   })
 
   it('the teacher-profile paragraph rides the same dated update', async () => {
@@ -816,5 +825,48 @@ describe('/privacy — a verified identity, the trust score and the teacher’s 
       'Chỉ khi giáo viên đồng ý bằng công tắc riêng trong hồ sơ giáo viên',
     ]) expect(vi, s).toContain(s)
     expect(vi).not.toMatch(/xác thực/)
+  })
+})
+
+describe('the teacher form\'s own counts (2026-10-16)', () => {
+  it('the sign-up counts name the teacher profile form — as a place that asks, and its first step and publishes', async () => {
+    for (const site of ['marketplace', 'services'] as const) {
+      const text = await policy(site)
+      expect(text, site).toContain('posting, the teacher profile form, the header or tab bar')
+      expect(text, site).toContain('and for the teacher profile form, how many times its first step was ready to use, answered, and continued — or stopped by a missing answer — and how many new teacher profiles were published')
+    }
+    expect(await policy('marketplace', 'vi')).toContain('và với biểu mẫu hồ sơ giáo viên: số lần bước đầu tiên sẵn sàng để dùng')
+  })
+})
+
+describe('Continue with Facebook (2026-10-16)', () => {
+  it('Meta is named as the recipient, on both editions — never its access token, never its picture, no account without an email', async () => {
+    for (const site of ['marketplace', 'services'] as const) {
+      const text = await policy(site)
+      expect(text, site).toContain('Meta (Continue with Facebook)')
+      expect(text, site).toContain('never Facebook’s access token')
+      expect(text, site).toContain('we never show or copy your Facebook picture or post anything to Facebook')
+      expect(text, site).toContain('If Facebook has no email address for you, no account is created')
+      expect(text, site).toContain('Facebook is never added to an account that already exists here')
+      expect(text, site).toContain('if you use Continue with Facebook, your name and email address from Facebook')
+      expect(text, site).toContain('You can remove eno from your Facebook settings (Apps and websites) at any time, and deleting your eno account deletes what Facebook sent us.')
+      // Meta's Platform Terms: an email Facebook gave us never reaches another ad network.
+      expect(text, site).toContain('never your email address if you use Sign in with Apple or Continue with Facebook')
+    }
+    const vi = await policy('marketplace', 'vi')
+    expect(vi).toContain('Meta (Tiếp tục với Facebook)')
+    expect(vi).toContain('không bao giờ lưu mã truy cập của Facebook')
+  })
+})
+
+describe('the teacher photo check says what it does (gate review, 2026-10-16)', () => {
+  it('Google\'s retention as the Google row puts it, the young-children rule, and the one-time check of photos already up', async () => {
+    const text = await policy('marketplace')
+    expect(text).not.toContain('Google does not keep the photo')
+    expect(text).toContain('Google does not use it to train its AI and keeps it only briefly — for up to 90 days if its automated checks flag the request as misuse')
+    expect(text).toContain('or one where only young children can be seen does not')
+    expect(text).toContain('and, once, the photos already on teacher profiles')
+    const vi = await policy('marketplace', 'vi')
+    expect(vi).toContain('hay ảnh chỉ thấy trẻ nhỏ là không đạt')
   })
 })

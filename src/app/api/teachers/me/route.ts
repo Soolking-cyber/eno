@@ -6,7 +6,7 @@ import { afterIndividualOnboarding, individualOnboardingWrite } from '@/lib/core
 import { route, ApiError } from '@/lib/api/handler'
 import { photoOverridden, teacherPhotoKey } from '@/lib/teachers/photo-verdict'
 import { db } from '@/lib/db'
-import { isCurrentUserAppleLinkedByClaims } from '@/lib/admin'
+import { isCurrentUserAppleLinkedByClaims, isCurrentUserFacebookLinkedByClaims } from '@/lib/admin'
 import { sendMetaCapiEvent, metaUserDataFromHeaders, metaCapiConfigured } from '@/lib/meta-capi'
 import { PublishBlockedError } from '@/lib/publish-guard'
 import { isListingImageUrl } from '@/lib/listing-image'
@@ -168,7 +168,7 @@ export const PUT = route(
     // Then the Apple answer (the locally verified token), because the email is handed over only WITH it (D14) — and
     // an answer that cannot be read is treated as "linked": the events still go, WITHOUT the email (fail closed on the
     // email alone, the helper's own rule). A failure here never costs the save: null = report nothing.
-    let conversion: { appleLinked: boolean; meta: boolean; tiktok: boolean } | null = null
+    let conversion: { appleLinked: boolean; facebookLinked: boolean; meta: boolean; tiktok: boolean } | null = null
     if (expected === null) {
       let meta = false
       let tiktok = false
@@ -189,7 +189,17 @@ export const PUT = route(
         } catch (e) {
           logError(e, { op: 'teachers.me.conversion.ask.apple' })
         }
-        conversion = { appleLinked, meta, tiktok }
+        // ⛔ A Facebook-linked account's email never goes to TikTok (Meta's Platform Terms bar passing an email Facebook gave
+        // us to another ad network — 2026-10-16); Meta's own event keeps it. Unreadable → treated as linked, like Apple's.
+        let facebookLinked = true
+        if (tiktok) {
+          try {
+            facebookLinked = await isCurrentUserFacebookLinkedByClaims()
+          } catch (e) {
+            logError(e, { op: 'teachers.me.conversion.ask.facebook' })
+          }
+        }
+        conversion = { appleLinked, facebookLinked, meta, tiktok }
       }
     }
     try {
@@ -210,7 +220,7 @@ export const PUT = route(
       // the campaign that brought the teacher (the teacher.eno.vn hand-off) — /privacy sends a campaign to Meta only
       // when Analytics is on as well. No event id built from the account: its id leaves hashed or not at all.
       if (saved.created && saved.live && conversion) {
-        const { appleLinked, meta, tiktok } = conversion
+        const { appleLinked, facebookLinked, meta, tiktok } = conversion
         const listingId = saved.listingId
         // Scheduling it is contained too: after the commit, not even this may reach the save's error handling below.
         try {
@@ -241,7 +251,7 @@ export const PUT = route(
                 await sendTikTokEvent('CompleteRegistration', {
                   recordNamesTikTok: tiktok, // true only when consentRecordNamesTikTok said so, above
                   pageUrl: page,
-                  user: tiktokUserFromHeaders(req.headers, { email: profile.email, phone: profile.phone, externalId: profile.id, appleLinked }),
+                  user: tiktokUserFromHeaders(req.headers, { email: profile.email, phone: profile.phone, externalId: profile.id, appleLinked: appleLinked || facebookLinked }),
                   properties: { content_type: 'product', contents: [{ content_id: listingId, content_category: TEACHERS_CATEGORY_NAME }] },
                 })
               } catch (e) {

@@ -10,6 +10,7 @@ import type { Profile } from '@/generated/prisma/client'
 import { normalizePhone } from '@/lib/phone'
 import { logError } from '@/lib/log'
 import { isAppleLinked } from '@/lib/apple-signin'
+import { isFacebookLinked } from '@/lib/facebook-signin'
 
 /**
  * Comma-separated allowlist from ADMIN_EMAILS (server-only env).
@@ -254,6 +255,16 @@ export async function isCurrentUserAdminByClaims(): Promise<boolean> {
 export async function isCurrentUserAppleLinkedByClaims(): Promise<boolean> {
   const claims = await currentClaims()
   return claims ? isAppleLinked(claims.app_metadata) : true
+}
+
+/**
+ * Does the caller's account carry a Facebook identity? The same locally verified claims and the same rule as the Apple
+ * question above: it only REMOVES something — the email from a TikTok event (Meta's Platform Terms: an email Facebook
+ * gave us is not passed to another ad network) — so no verified claims answer TRUE.
+ */
+export async function isCurrentUserFacebookLinkedByClaims(): Promise<boolean> {
+  const claims = await currentClaims()
+  return claims ? isFacebookLinked(claims.app_metadata) : true
 }
 
 /**
