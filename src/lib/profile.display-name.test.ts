@@ -39,3 +39,22 @@ describe('ensureProfile — the seeded name', () => {
     expect(h.created!.displayName).toBeTruthy()
   })
 })
+
+describe('ensureProfile — a LinkedIn sign-up (2026-10-15)', () => {
+  const withProvider = (provider: string) =>
+    ({ id: 'u-2', email: 'li@example.com', phone: null, phone_confirmed_at: null, user_metadata: { name: 'Li Nguyen', avatar_url: 'https://media.licdn.com/p.jpg' }, app_metadata: { provider, providers: [provider] } }) as never
+  it('⛔ starts with the marketing digest OFF (its email is LinkedIn Content — API Terms 3.1(10))', async () => {
+    await ensureProfile(withProvider('linkedin_oidc'))
+    expect(h.created!.weeklyDigestOptIn).toBe(false)
+    expect(h.created!.displayName).toBe('Li Nguyen')
+  })
+  it('every other sign-up keeps the schema default', async () => {
+    await ensureProfile(withProvider('google'))
+    expect(h.created).not.toHaveProperty('weeklyDigestOptIn')
+    expect(h.created!.avatarUrl).toBe('https://media.licdn.com/p.jpg')
+  })
+  it('⛔ never takes a LinkedIn photo as the account photo (the notice: "we never show your LinkedIn photo")', async () => {
+    await ensureProfile(withProvider('linkedin_oidc'))
+    expect(h.created!.avatarUrl).toBeNull()
+  })
+})

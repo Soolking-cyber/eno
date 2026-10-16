@@ -171,7 +171,7 @@ function LineChip({ line, lineKeys, activeLine, activeModel, onPick }: {
         className={cn(chipCls, on ? chipOn : chipOff)}
       >
         {line.label}
-        <CountChip count={line.count} className="ml-1" />
+        <CountChip count={line.count} className="ml-auto pl-2" />
       </Button>
     )
   }
@@ -197,7 +197,7 @@ function LineChip({ line, lineKeys, activeLine, activeModel, onPick }: {
             className={cn(chipCls, on ? chipOn : chipOff)}
           >
             {line.label}
-            <CountChip count={line.count} className="ml-1" />
+            <CountChip count={line.count} className="ml-auto pl-2" />
             <ChevronDown className={cn('ml-0.5 h-3.5 w-3.5 shrink-0 transition-transform', open && 'rotate-180')} />
           </Button>
         }
@@ -240,7 +240,7 @@ function LineChip({ line, lineKeys, activeLine, activeModel, onPick }: {
                 the brand's own line name are separate nodes.
               */}
               {tr('All', 'Tất cả')} {line.label}
-              <CountChip count={line.count} className="ml-1" />
+              <CountChip count={line.count} className="ml-auto pl-2" />
             </Button>
           }
         />
@@ -265,7 +265,7 @@ function LineChip({ line, lineKeys, activeLine, activeModel, onPick }: {
                 className={cn(menuRowCls, activeModel === m.model ? menuRowOn : menuRowOff)}
               >
                 {m.model}
-                <CountChip count={m.count} className="ml-1" />
+                <CountChip count={m.count} className="ml-auto pl-2" />
               </Button>
             }
           />
@@ -345,8 +345,8 @@ export function ModelCascade({ brandSlug, rows, activeLine, activeModel, onPick 
   if (!lines) return null
 
   return (
-    <div className="flex shrink-0 items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
-      <span className="h-12 w-px shrink-0 bg-border" aria-hidden />
+    <div className="flex shrink-0 items-stretch gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+      <span className="my-1 w-px shrink-0 self-stretch bg-border" aria-hidden />
       {/*
         ⚠️ A GROUP OF TOGGLES, NOT A LISTBOX. An earlier version used role="listbox"/"option", which
         promises arrow-key roving focus this row does not implement — a screen-reader user would be
@@ -356,7 +356,12 @@ export function ModelCascade({ brandSlug, rows, activeLine, activeModel, onPick 
       <div
         role="group"
         aria-label={tr('Product line', 'Dòng sản phẩm')}
-        className="grid max-h-[7.5rem] grid-flow-col grid-rows-3 auto-cols-max gap-x-1.5 gap-y-0.5 overflow-x-auto rounded-2xl bg-brand-50 p-1.5"
+        // ⛔ A CONSTANT-HEIGHT 3-ROW BOX (owner, 2026-10-16 — same fix as the subcategory plate / model grid).
+        // `grid-rows-3` (1fr) + an unused `max-h` let the box collapse to content, so a 2-line brand drew a
+        // 1-row box and a 4-line brand a 3-row one — the rail jittered between hierarchy-rich and shallow
+        // brands. `[grid-template-rows:repeat(3,min-content)]` + `min-h-[6.25rem]` + `content-center` reserve a
+        // stable 3-row height; `overflow-x-auto` still scrolls the extra columns a deep hierarchy needs.
+        className="grid min-h-[6.25rem] grid-flow-col auto-cols-max content-center gap-x-1.5 gap-y-0.5 overflow-x-auto scrollbar-none rounded-2xl bg-brand-50 p-1.5 [grid-template-rows:repeat(3,min-content)]"
       >
         {lines.map((l) => (
           <LineChip key={l.key} line={l} lineKeys={lineKeys} activeLine={activeLine} activeModel={activeModel} onPick={onPick} />

@@ -10,7 +10,7 @@ import { moderateListingById } from '@/lib/ai-moderation'
 import { initialSellerTrust } from '@/lib/trust'
 import { assertSellerMayPublish } from '@/lib/compliance/seller-publish-gate'
 import { assertCleanContactName, assertCleanTexts, PublishBlockedError } from '@/lib/publish-guard'
-import { fold } from '@/lib/fold'
+import { teacherVisaMention } from '@/lib/teachers/visa-mention'
 import { deleteListingCore, parseVideoField } from '@/lib/core/listings'
 import { clearTombstones, writeTombstones, type TombstoneRef } from '@/lib/core/storage-tombstones'
 import { purgeStorageObjects } from '@/lib/core/storage-purge'
@@ -207,20 +207,8 @@ async function sellerFor(profileId: string, name: string) {
   }
 }
 
-/**
- * A visa MENTION in a person's own words. ⚠️ NOT job-listing's `hasVisaWord`, which is a fail-closed
- * SUBSTRING test built for scraped ads — on a teacher's profile it blocked real people: "Western
- * Visayas", "Visayas State University", the name "Visakha" (Opus, commit gate 09-30). Here "visa" must
- * stand as its own word (visa, visas, e-visa, #visa). "thị thực" is also the tail of "siêu thị thực
- * phẩm" (a food supermarket), so that one reading is excluded; CJK/Cyrillic words match as before.
- */
-export function teacherVisaMention(raw: string): boolean {
-  const folded = fold(raw)
-  // Only SPELLED-OUT letters are collapsed (v.i.s.a → visa). Stripping every joiner was a bypass:
-  // "visa-sponsored" became "visasponsored" and no longer stood as a word (Opus, commit gate 09-30).
-  const spelled = folded.replace(/(?<![a-z])(?:[a-z][._*-]){2,}[a-z](?![a-z])/g, (m) => m.replace(/[._*-]/g, ''))
-  return /(^|[^a-z])(e-?)?visas?([^a-z]|$)/.test(spelled) || /(?<!sieu\s)thi[\s._*-]*thuc/.test(folded) || /비자|签证|簽證|ビザ|виза/i.test(raw)
-}
+// The visa-word screen lives in a pure module so the CV import drops exactly what Publish refuses.
+export { teacherVisaMention } from '@/lib/teachers/visa-mention'
 
 // The listing's searchable text, city, district, location and tokens: ONE builder for every writer —
 // src/lib/teachers/projection.ts (teacherListingProjection / teacherSearchText), shared with the backfill.

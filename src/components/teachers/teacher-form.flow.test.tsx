@@ -212,10 +212,11 @@ describe('teacher.eno.vn → eno.vn', () => {
     expect(await screen.findByText('Where are you now?')).toBeTruthy() // the host is "Your plans" only (2026-10-11)
     await user.click(action('Continue on eno.vn'))
     expect(assign).toHaveBeenCalledTimes(1)
-    // The whole address, parsed: eno.vn's join page, exactly the three tags, and one `#d=` draft after them.
+    // The whole address, parsed: eno.vn's join page — the form, never the start screen's doors again (`start=self`) —
+    // exactly the three tags, and one `#d=` draft after them.
     const to = new URL(String(assign.mock.calls[0][0]))
     expect(to.origin + to.pathname).toBe('https://eno.vn/teachers/join')
-    expect(to.search).toBe('?utm_source=meta&utm_medium=paid_social&utm_campaign=teacher_profiles')
+    expect(to.search).toBe('?start=self&utm_source=meta&utm_medium=paid_social&utm_campaign=teacher_profiles')
     expect(to.hash.startsWith('#d=')).toBe(true)
     expect((unb64url(to.hash.slice(3)) as { v: number }).v).toBe(2)
   })
@@ -227,7 +228,7 @@ describe('teacher.eno.vn → eno.vn', () => {
     expect(await screen.findByText('Where are you now?')).toBeTruthy()
     await user.click(action('Continue on eno.vn'))
     const to = new URL(String(assign.mock.calls[0][0]))
-    expect(to.search).toBe('?goal=cover&utm_source=meta&utm_campaign=cover')
+    expect(to.search).toBe('?start=self&goal=cover&utm_source=meta&utm_campaign=cover')
   })
   it('teacher.eno.vn: “Your plans” + “Finish on eno.vn”; Continue checks step 1 and hands over a v2 fragment with no consent', async () => {
     const assign = vi.fn()
@@ -243,7 +244,7 @@ describe('teacher.eno.vn → eno.vn', () => {
     await user.click(action('Continue on eno.vn'))
     expect(assign).toHaveBeenCalledTimes(1)
     const url = String(assign.mock.calls[0][0])
-    expect(url.startsWith('https://eno.vn/teachers/join#d=')).toBe(true)
+    expect(url.startsWith('https://eno.vn/teachers/join?start=self#d=')).toBe(true)
     const payload = unb64url(url.split('#d=')[1]) as { v: number; t: Record<string, unknown> }
     expect(payload.v).toBe(2)
     // ⛔ Only the fields of the step the host SHOWS cross (commit gate, round 10): never what the tab kept behind it — on a
@@ -262,7 +263,7 @@ describe('teacher.eno.vn → eno.vn', () => {
     const { user } = mount({ draftHost: true, goal: 'cover' })
     expect(await screen.findByText('Where are you now?')).toBeTruthy()
     await user.click(action('Continue on eno.vn'))
-    expect(String(assign.mock.calls[0][0]).startsWith('https://eno.vn/teachers/join?goal=cover#d=')).toBe(true)
+    expect(String(assign.mock.calls[0][0]).startsWith('https://eno.vn/teachers/join?start=self&goal=cover#d=')).toBe(true)
   })
 
   it('teacher.eno.vn refuses the hand-off while step 1 is unanswered, on it', async () => {

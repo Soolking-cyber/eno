@@ -256,12 +256,16 @@ export function mergeReview(saved: TeacherInput, t: TeacherInput): TeacherInput 
   const same = (k: keyof TeacherInput) => JSON.stringify(saved[k]) === JSON.stringify(t[k])
   const answered = (k: keyof TeacherInput) => JSON.stringify(t[k]) !== JSON.stringify(EMPTY_TEACHER[k])
   const step1 = TEACHER_STEP_FIELDS.plans as readonly (keyof TeacherInput)[]
+  // ⛔ STEP 1 ONLY WHEN THESE ANSWERS GAVE ONE (2026-10-15, plan review of the CV import): an import fills steps 3-4 while
+  // step 1 is still empty, and "Use the answers I just gave" over a saved draft would otherwise copy that EMPTY step 1 —
+  // and the areas with it — over the saved one, then save it. Unreachable before the import: step 1 came first.
+  const step1Answered = step1.some(answered)
   // The teaching areas and their confirmation go together and FOLLOW STEP 1 (commit gate, opus rounds 15-16): a new home
   // or new work brings its own areas — none, then the teacher picks them again — never the old city's confirmed ones;
   // the same step 1 keeps the saved areas unless these answers name some.
-  const areas: (keyof TeacherInput)[] = !step1.every(same) || answered('teachAreas') ? ['teachAreas', 'teachAreasConfirmed'] : []
+  const areas: (keyof TeacherInput)[] = (step1Answered && !step1.every(same)) || answered('teachAreas') ? ['teachAreas', 'teachAreasConfirmed'] : []
   const later = DRAFT_FIELDS.filter((k) => !step1.includes(k) && k !== 'teachAreas' && k !== 'teachAreasConfirmed' && answered(k))
-  return { ...saved, ...(Object.fromEntries([...step1, ...areas, ...later].map((k) => [k, t[k]])) as Partial<TeacherInput>) }
+  return { ...saved, ...(Object.fromEntries([...(step1Answered ? step1 : []), ...areas, ...later].map((k) => [k, t[k]])) as Partial<TeacherInput>) }
 }
 /** `t` cut to what a signed-out visitor gives (HANDOFF_FIELDS), every other field EMPTY. */
 export const handoffPart = (t: TeacherInput): TeacherInput =>

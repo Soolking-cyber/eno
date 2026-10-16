@@ -185,13 +185,18 @@ export function IdentityMarkSection({ mark }: { mark: FinishIdentityMark }) {
   )
 }
 
-export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGate, prefillAvatar, prefillPhone, media, edit, optInsNoticeChanged, identityMark }: Pick<StepProps, 't' | 'set' | 'errors' | 'errText' | 'mode'> & {
+export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGate, prefillAvatar, prefillPhone, imported = null, media, edit, optInsNoticeChanged, identityMark }: Pick<StepProps, 't' | 'set' | 'errors' | 'errText' | 'mode'> & {
   signedIn: boolean
   publishGate: { ok: boolean; code: string | null } | null
   /** The account's photo when it is stored on eno.vn (a listing photo must be) — offered, never used unasked. */
   prefillAvatar: string | null
   /** The account's verified phone — offered, never used unasked. */
   prefillPhone: string | null
+  /**
+   * What "Fill it in from my CV" read (teacher CV import, 2026-10-15), OFFERED here and never used unasked: the phone
+   * number in the file (the notice beside the reading said so), and the PDF itself as the private CV schools may be sent.
+   */
+  imported?: { phone: string | null; file: File | null } | null
   media: FinishMedia
   edit: FinishEdit | null
   /** The stored opt-ins were given under an older AI notice, so they load OFF: say so beside the switches. */
@@ -340,6 +345,13 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
             </Button>
           )}
         </div>
+        {/* The file the form was filled from, offered as the CV — a pick like any other (uploaded only by Publish). */}
+        {imported?.file && !media.cvFile && !media.cvName && signedIn && (
+          // max-w-full + a shrinking name: a long file name is cut, never wider than a 375px screen (review, 2026-10-16).
+          <Chip size="sm" tone="neutral" className="relative tap-44 max-w-full self-start" onClick={() => media.onCvPick(imported.file!)}>
+            <FileText className="size-3.5 shrink-0" /><span className="shrink-0">{tr('Attach the CV you used earlier:', 'Đính kèm CV bạn đã dùng:')}</span><span className="min-w-0 truncate">{imported.file.name}</span>
+          </Chip>
+        )}
       </section>
 
       <Field invalid={!!errors.phone}>
@@ -348,6 +360,11 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
         {prefillPhone && !t.phone && (
           <Chip size="sm" tone="neutral" className="relative tap-44 self-start" onClick={() => set('phone', prefillPhone)}>
             {tr('Use my number:', 'Dùng số của tôi:')} {prefillPhone}
+          </Chip>
+        )}
+        {imported?.phone && !t.phone && imported.phone !== prefillPhone && (
+          <Chip size="sm" tone="neutral" className="relative tap-44 self-start" onClick={() => set('phone', imported.phone!)}>
+            {tr('Use the number from my CV:', 'Dùng số trong CV:')} {imported.phone}
           </Chip>
         )}
         <FieldDescription className="text-muted-foreground">{tr('Never shown publicly. The person you are chatting with gets it only when you tap the Share button in that chat — and our staff use it only if you let them call you.', 'Không bao giờ công khai. Người bạn đang trò chuyện chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ — và nhân viên của chúng tôi chỉ dùng khi bạn cho phép gọi.')}</FieldDescription>

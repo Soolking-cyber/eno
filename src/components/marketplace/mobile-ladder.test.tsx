@@ -261,7 +261,9 @@ describe('the counts contract', () => {
       />,
     )
     const chips = within(rail('brand')).getAllByRole('button')
-    expect(chips.map((c) => c.textContent)).toEqual(['All9', 'Honda5', 'Yamaha3'])
+    // textContent now also carries the sr-only ", N listings" the chip announces (a11y: a bare number
+    // reads as part of the product name — see count-chip.tsx). All stays 9, NOT 5+3.
+    expect(chips.map((c) => c.textContent)).toEqual(['All9, 9 listings', 'Honda5, 5 listings', 'Yamaha3, 3 listings'])
   })
 
   it('renders chips from the OPTIONS and never from Object.keys(counts.values)', () => {
@@ -285,7 +287,7 @@ describe('the counts contract', () => {
       />,
     )
     const chips = within(rail('type')).getAllByRole('button')
-    expect(chips.map((c) => c.textContent)).toEqual(['All12', 'For sale12', 'Wanted0'])
+    expect(chips.map((c) => c.textContent)).toEqual(['All12, 12 listings', 'For sale12, 12 listings', 'Wanted0, 0 listings'])
     expect(rail('type').textContent).not.toMatch(/4/)
   })
 
@@ -334,7 +336,7 @@ describe('the counts contract', () => {
       'en',
       <MobileLadder levels={[level({ id: 'brand', options: [{ value: 'honda', label: 'Honda' }], counts: partial })]} />,
     )
-    expect(within(rail('brand')).getAllByRole('button').map((c) => c.textContent)).toEqual(['All12', 'Honda0'])
+    expect(within(rail('brand')).getAllByRole('button').map((c) => c.textContent)).toEqual(['All12, 12 listings', 'Honda0, 0 listings'])
   })
 
   it('allChipCount: absent rail is null, and a hostile number is clamped rather than printed', () => {

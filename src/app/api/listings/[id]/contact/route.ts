@@ -9,7 +9,7 @@ import { phoneForSeller, telHref, zaloHref } from '@/lib/contact'
 import { rateLimit } from '@/lib/ratelimit'
 import { bumpListingCounter } from '@/lib/listing-counters'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
-import { isAppleLinked } from '@/lib/apple-signin'
+import { adEmailWithheld } from '@/lib/ad-email'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -188,11 +188,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     ])
     // New buyer lead → Meta CAPI Contact (server-side, after response flushes — zero
     // client cost; no-ops until CAPI env is set). Only on a NEW reveal (this try block).
-    // `appleLinked`: an Apple-linked account's email never becomes `em` (D14 — meta-capi.ts).
+    // `appleLinked`: an Apple- or LinkedIn-linked account's email never becomes `em` (D14 widened — src/lib/ad-email.ts).
     after(() =>
       sendMetaCapiEvent('Contact', {
         eventSourceUrl: req.headers.get('referer') || undefined,
-        userData: metaUserDataFromHeaders(req.headers, { email: user.email, phone: user.phone, externalId: user.id, appleLinked: isAppleLinked(user.app_metadata) }),
+        userData: metaUserDataFromHeaders(req.headers, { email: user.email, phone: user.phone, externalId: user.id, appleLinked: adEmailWithheld(user.app_metadata) }),
         customData: { content_ids: [listing.id], content_type: 'product' },
       }),
     )

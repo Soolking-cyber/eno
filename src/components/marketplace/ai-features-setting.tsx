@@ -57,6 +57,14 @@ export function AiFeaturesSetting() {
             'Ảnh bạn chọn được gửi đến Google (Gemini) để nhận diện món đồ. Khi tắt: không dùng được tìm bằng ảnh; bạn vẫn có thể gõ để tìm.',
           )}
         />
+        <AiFamilySwitchRow
+          family="teacher_cv"
+          label={tr('Reading your CV', 'Đọc CV của bạn')}
+          description={tr(
+            'The CV you choose in the teacher profile form is sent to Google (Gemini) to fill in your profile; eno does not keep it. Off: you fill in your profile yourself.',
+            'CV bạn chọn trong biểu mẫu hồ sơ giáo viên được gửi đến Google (Gemini) để điền hồ sơ; eno không lưu tệp. Khi tắt: bạn tự điền hồ sơ.',
+          )}
+        />
         <TripAiSetting />
         <VisaPhotoCheckAiSetting />
       </div>

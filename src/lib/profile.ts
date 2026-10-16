@@ -9,6 +9,7 @@ import { recordNewAccount, recordPhoneVerified, recomputeTrust } from './trust'
 import { autoClaimHandle, consolidateSellerHandle } from './handle'
 import { logError } from '@/lib/log'
 import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
+import { LINKEDIN_PROVIDER } from '@/lib/linkedin-signin'
 
 /**
  * Idempotent: ensure the authenticated user has exactly one Profile row
@@ -32,13 +33,21 @@ export async function ensureProfile(user: User) {
     cleanDisplayName(user.user_metadata?.full_name) ||
     cleanDisplayName(user.user_metadata?.name) ||
     maskEmailHandle(email)
-  const avatarUrl = (user.user_metadata?.avatar_url as string | undefined) ?? null
+  // ⛔ A LINKEDIN SIGN-UP'S EMAIL IS LINKEDIN CONTENT (2026-10-15): the marketing digest, on by default for everyone
+  // else, starts OFF — LinkedIn's API Terms bar using it "to generate mass messages, promotions or offers" (3.1(10)) —
+  // and is theirs to switch on in Settings. Only at creation: a Google or email account that later signs in with LinkedIn
+  // keeps the email (and the choice) it already had.
+  const linkedinSignUp = String(user.app_metadata?.provider ?? '').toLowerCase() === LINKEDIN_PROVIDER
+  const digest = linkedinSignUp ? { weeklyDigestOptIn: false } : {}
+  // ⛔ …and its photo is never the account's (the LinkedIn notice says "we never show your LinkedIn photo"): LinkedIn
+  // sends `picture`, not `avatar_url`, today — this holds if GoTrue ever maps one onto the other. Its links expire anyway.
+  const avatarUrl = linkedinSignUp ? null : (user.user_metadata?.avatar_url as string | undefined) ?? null
 
   let profile
   try {
     profile = await db.profile.upsert({
       where: { id: user.id },
-      create: { id: user.id, email, phone: verifiedPhone, displayName, avatarUrl },
+      create: { id: user.id, email, phone: verifiedPhone, displayName, avatarUrl, ...digest },
       // Don't clobber a user-edited displayName/avatar with provider data on every
       // login — only backfill email/phone (identity), leave profile-owned fields.
       update: { email, ...(verifiedPhone ? { phone: verifiedPhone } : {}) },
@@ -49,7 +58,7 @@ export async function ensureProfile(user: User) {
     if ((e as { code?: string })?.code === 'P2002') {
       profile = await db.profile.upsert({
         where: { id: user.id },
-        create: { id: user.id, email, displayName, avatarUrl },
+        create: { id: user.id, email, displayName, avatarUrl, ...digest },
         update: { email },
       })
     } else throw e

@@ -56,6 +56,12 @@ export function getGemini(): GoogleGenAI | null {
     client = new GoogleGenAI({ apiKey })
     return client
   }
+  client = buildVertexClient()
+  return client
+}
+
+/** The Vertex AI client (service-account credentials or Cloud Run ADC) — getGemini()'s non-key path, and getGeminiVertex()'s only one. */
+function buildVertexClient(): GoogleGenAI | null {
   const project = process.env.GEMINI_PROJECT || process.env.GOOGLE_VERTEX_PROJECT
   const location = process.env.GEMINI_LOCATION || 'global'
   // ⚠️ `.trim()` ON EACH SIDE, MATCHING geminiDiag() EXACTLY. Without it a whitespace-only
@@ -81,14 +87,14 @@ export function getGemini(): GoogleGenAI | null {
   // ⚠️ DO NOT collapse this to `if (!rawCreds) use ADC` — see adcEnabled() for why the env flag
   // alone is not sufficient and why it is additionally pinned to the Cloud Run runtime.
   const useAdc = adcEnabled()
-  if (!project || (!rawCreds && !useAdc)) { client = null; return null }
+  if (!project || (!rawCreds && !useAdc)) return null
   try {
     if (rawCreds) {
       // Accept the SA key as raw JSON OR base64-encoded JSON. base64 is paste-safe
       // (no quotes/newlines to mangle in the Vercel dashboard) — preferred.
       const json = rawCreds.trim().startsWith('{') ? rawCreds : Buffer.from(rawCreds.trim(), 'base64').toString('utf8')
       const credentials = JSON.parse(json) as { client_email: string; private_key: string }
-      client = new GoogleGenAI({
+      return new GoogleGenAI({
         vertexai: true,
         project,
         location,
@@ -100,13 +106,26 @@ export function getGemini(): GoogleGenAI | null {
       // No `credentials`: google-auth-library walks the ADC chain, which on Cloud Run is the
       // metadata server. projectId is still passed explicitly — ADC infers the project the
       // CREDENTIAL belongs to, which is not necessarily the one billing these calls.
-      client = new GoogleGenAI({ vertexai: true, project, location, googleAuthOptions: { projectId: project } })
+      return new GoogleGenAI({ vertexai: true, project, location, googleAuthOptions: { projectId: project } })
     }
   } catch (e) {
     console.error('[gemini] client init failed', e)
-    client = null
+    return null
   }
-  return client
+}
+
+let vertexClient: GoogleGenAI | null | undefined
+
+/**
+ * VERTEX ONLY — never the GEMINI_API_KEY (Developer API) path getGemini() prefers. For the teacher CV import (owner,
+ * 2026-10-15): its notice promises Google Cloud processing that is not used to train models (Vertex AI's Service
+ * Specific Terms), which the Developer API's unpaid tier does not promise. Null without Vertex credentials — the import
+ * then says it is unavailable rather than sending a CV down the other path.
+ */
+export function getGeminiVertex(): GoogleGenAI | null {
+  if (vertexClient !== undefined) return vertexClient
+  vertexClient = buildVertexClient()
+  return vertexClient
 }
 
 export const aiEnabled = () => getGemini() !== null

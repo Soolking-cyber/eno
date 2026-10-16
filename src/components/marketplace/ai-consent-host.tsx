@@ -135,6 +135,18 @@ function AiConsentHostOn() {
           off,
         }
       }
+      case 'teacher_cv': {
+        const off = tr('Reading your CV is off. Fill in your profile yourself, or turn it on in Settings → Preferences.', 'Đọc CV đang tắt. Bạn tự điền hồ sơ, hoặc bật lại trong Cài đặt → Tùy chọn.')
+        return {
+          title: tr('Use Google AI to read your CV?', 'Dùng Google AI để đọc CV?'),
+          body: tr(
+            '“Fill it in from my CV” sends the CV you choose to Google (Gemini) to fill in your teacher profile. Nothing is sent until you choose a file, and eno does not keep the file. Not now: you fill in your profile yourself.',
+            '“Điền tự động từ CV của tôi” gửi CV bạn chọn đến Google (Gemini) để điền hồ sơ giáo viên. Không có gì được gửi cho đến khi bạn chọn tệp, và eno không lưu tệp. Để sau: bạn tự điền hồ sơ.',
+          ),
+          declined: off,
+          off,
+        }
+      }
       default:
         return undefined // trip: its words travel with the call (trip-cards.tsx) — they may not ship in eno.vn's build
     }

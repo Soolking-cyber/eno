@@ -1,4 +1,5 @@
-import { getGemini, geminiDiag, GEMINI_MODEL } from '@/lib/gemini'
+import { getGemini, getGeminiVertex, geminiDiag, GEMINI_MODEL } from '@/lib/gemini'
+import { documentContents, readTeacherDocument } from '@/lib/teachers/import-ai'
 import { route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
@@ -40,6 +41,23 @@ export const GET = route({ auth: 'admin' }, async ({ req }) => {
   const diag = geminiDiag()
   const params = new URL(req.url).searchParams
   if (params.get('probe') !== '1') return diag
+
+  // ?probe=1&client=vertex — the TEACHER CV READER's own path (2026-10-15): the Vertex-only client (never the API key
+  // getGemini() prefers), the real response schema and model pair, on a tiny synthetic CV (no person's data). The door
+  // shows wherever a Vertex client is configured (teachers/join/page.tsx: getGeminiVertex()); a green probe proves it reads.
+  if (params.get('client') === 'vertex') {
+    const vertex = getGeminiVertex()
+    if (!vertex) return { ...diag, vertexProbe: { ok: false, error: 'client_null — no Vertex project/credentials (GEMINI_PROJECT + GEMINI_CREDENTIALS)' } }
+    const t0 = Date.now()
+    try {
+      const { raw, model } = await readTeacherDocument(vertex, documentContents({ kind: 'text', text: 'Sam Example — ESL teacher at Example School, Hanoi, 2021 – present. CELTA, 2020. Bachelor of Arts, 2018.' }))
+      const r = raw as { isCv?: unknown; jobs?: unknown[] }
+      return { ...diag, vertexProbe: { ok: r.isCv === true && Array.isArray(r.jobs), ms: Date.now() - t0, model } }
+    } catch (e) {
+      const status = (e as { status?: number })?.status ?? null
+      return { ...diag, vertexProbe: { ok: false, ms: Date.now() - t0, status, error: String((e as Error)?.message || e).slice(0, 240) } }
+    }
+  }
 
   const ai = getGemini()
   if (!ai) return { ...diag, probe: { ok: false, error: 'client_null — no project/credentials resolved' } }
