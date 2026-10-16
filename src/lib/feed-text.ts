@@ -22,6 +22,41 @@ const NAMED: Record<string, string> = {
   Agrave: 'À', Aacute: 'Á', Acirc: 'Â', Atilde: 'Ã', Egrave: 'È', Eacute: 'É', Ecirc: 'Ê',
   Igrave: 'Ì', Iacute: 'Í', Ograve: 'Ò', Oacute: 'Ó', Ocirc: 'Ô', Otilde: 'Õ',
   Ugrave: 'Ù', Uacute: 'Ú', Yacute: 'Ý', Dstrok: 'Đ',
+  // The accented letters with no base-plus-mark name (ACCENTED below builds the rest).
+  aelig: 'æ', AElig: 'Æ', oelig: 'œ', OElig: 'Œ', oslash: 'ø', Oslash: 'Ø', szlig: 'ß', eth: 'ð', ETH: 'Ð',
+  thorn: 'þ', THORN: 'Þ', lstrok: 'ł', Lstrok: 'Ł', hstrok: 'ħ', Hstrok: 'Ħ', tstrok: 'ŧ', Tstrok: 'Ŧ', imath: 'ı',
+}
+
+/**
+ * ANY OTHER ACCENTED LETTER — HTML names them as the letter plus the mark ("ccedil" ç, "uuml" ü, "ntilde" ñ, "scaron"
+ * š, "gbreve" ğ, "aogon" ą, "Idot" İ): a teacher's CV read by a model came back "Institut fran&ccedil;ais" (eval,
+ * 2026-10-16). Built from the mark and the letter instead of a two-hundred-line table — but ONLY for the letters HTML
+ * itself names with that mark, matched case for case: "&sdot;" (⋅), "&odot;" (⊙) and "&eDot;" (≑) are real names for
+ * other characters, never ṡ, ȯ or ė (gate review, 2026-10-16), and a name HTML does not have ("&wacute;") stays as it is.
+ */
+const MARKED: Record<string, readonly [mark: string, letters: string]> = {
+  grave: ['̀', 'AaEeIiOoUu'],
+  acute: ['́', 'AaCcEegIiLlNnOoRrSsUuYyZz'],
+  circ: ['̂', 'AaCcEeGgHhIiJjOoSsUuWwYy'],
+  tilde: ['̃', 'AaIiNnOoUu'],
+  macr: ['̄', 'AaEeIiOoUu'],
+  breve: ['̆', 'AaGgUu'],
+  dot: ['̇', 'CcEeGgIZz'],
+  uml: ['̈', 'AaEeIiOoUuYy'],
+  ring: ['̊', 'AaUu'],
+  dblac: ['̋', 'OoUu'],
+  caron: ['̌', 'CcDdEeLlNnRrSsTtZz'],
+  cedil: ['̧', 'CcGKkLlNnRrSsTt'],
+  ogon: ['̨', 'AaEeIiUu'],
+}
+const ACCENTED = /^([A-Za-z])(grave|acute|circ|tilde|macr|breve|dot|uml|ring|dblac|caron|cedil|ogon)$/
+function accented(name: string): string | undefined {
+  const m = ACCENTED.exec(name)
+  if (!m) return undefined
+  const [mark, letters] = MARKED[m[2]]
+  if (!letters.includes(m[1])) return undefined
+  const letter = (m[1] + mark).normalize('NFC')
+  return letter.length === 1 ? letter : undefined
 }
 
 const ENTITY = /&(#x[0-9a-f]{1,6}|#\d{1,7}|[a-z][a-z0-9]{1,7});/gi
@@ -49,7 +84,7 @@ function decodeOnce(s: string): string {
       const code = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10)
       return Number.isFinite(code) && code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff) ? String.fromCodePoint(code) : m
     }
-    return NAMED[e] ?? NAMED[e.toLowerCase()] ?? m
+    return NAMED[e] ?? accented(e) ?? NAMED[e.toLowerCase()] ?? m
   })
 }
 

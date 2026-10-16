@@ -24,6 +24,7 @@ import { ALL_COUNTRY_CODES } from '@/lib/teachers/countries'
 import { LANGUAGES, type LanguageEntry } from '@/components/teachers/language-list'
 import { containsContactInfo, findBannedWord } from '@/lib/publish-guard'
 import { containsPhoneNumber, extractPhoneNumber } from '@/lib/phone'
+import { decodeEntities } from '@/lib/feed-text'
 import { teacherVisaMention } from '@/lib/teachers/visa-mention'
 
 /** The form answers an import may fill — steps 3 and 4 only (TEACHER_STEP_FIELDS.teaching + .about). */
@@ -60,6 +61,17 @@ const YM = /^(\d{4})-(0[1-9]|1[0-2])$/
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {})
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
 const oneLine = (v: unknown): string => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : '')
+/**
+ * The model's answer with every text DECODED — a model can answer in HTML entities: the fallback model read "Clémence
+ * Aubert, Institut français" as "Cl&eacute;mence Aubert, Institut fran&ccedil;ais" (real-model eval, 2026-10-16), which the
+ * form would print as typed. Before any check, so the screens see the real text ("&#48;&#57;…" is a phone number too).
+ */
+const decoded = (v: unknown, depth = 0): unknown => {
+  if (typeof v === 'string') return decodeEntities(v)
+  if (depth > 4 || !v || typeof v !== 'object') return v
+  if (Array.isArray(v)) return v.map((x) => decoded(x, depth + 1))
+  return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, decoded(x, depth + 1)]))
+}
 const int = (v: unknown): number | null => {
   const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN
   return Number.isFinite(n) ? Math.round(n) : null
@@ -318,7 +330,7 @@ const pickAllowed = (values: readonly unknown[], allowed: readonly string[]): st
  * photo of a menu, an ID card…) — the caller says so and imports nothing.
  */
 export function mapTeacherImport(raw: unknown, opts: { now: Date }): TeacherImport | null {
-  const r = obj(raw)
+  const r = obj(decoded(raw))
   if (r.isCv !== true) return null
   const { now } = opts
   const fields: ImportedAnswers = {}
@@ -358,25 +370,32 @@ export function mapTeacherImport(raw: unknown, opts: { now: Date }): TeacherImpo
   if (certificates.length) fields.certificates = certificates
 
   const source: ImportSource = r.documentKind === 'linkedin-profile' ? 'linkedin-pdf' : 'cv'
-  return { source, fields, phone: phoneOf(r.phone), skippedJobs: skipped }
+  return { source, fields, phone: phoneOf(r.phone, r.phoneCountry), skippedJobs: skipped }
 }
 
 /**
  * The number in the file, OFFERED on the last step — only when it can be dialled as written: with its country code
  * (+44 7700…, 0044…), or an unmistakable Vietnamese mobile (0 + 3/5/7/8/9 + 8 digits). ⛔ Never a local number from
  * elsewhere turned Vietnamese: "07700 900123" (a UK mobile) through the app's VN normalisation became +847700900123,
- * one tap from being saved as the teacher's private phone (review, 2026-10-16). ⚠️ A 10-digit 08… number is ambiguous
- * (a VN mobile, or South Africa's local form): it is offered as Vietnamese — the chip shows the +84, and nothing is
- * used until the teacher taps it.
+ * one tap from being saved as the teacher's private phone (review, 2026-10-16). ⚠️ A 10-digit 08… or 07… number is
+ * ambiguous (a VN mobile, or an Irish, South African or French one written locally): offered as Vietnamese only when
+ * the file does not place it in another country (`country`, the model's phoneCountry — "Mobile (Ireland): 087 123 4567"
+ * was offered as +84 87 123 4567 in the real-model eval, 2026-10-16). The chip shows the +84, and nothing is used until
+ * the teacher taps it.
  */
-function phoneOf(v: unknown): string | null {
+function phoneOf(v: unknown, country: unknown): string | null {
   // The number as written, without a label around it ("Mobile: …", "Tel …").
   const written = /(?:\+|\b00)?\d[\d\s().\-·]{6,}\d/.exec(oneLine(v))?.[0]
   if (!written) return null
   // "+44 (0)7700 900123": the (0) is the trunk digit dialled at home only — never part of the number from abroad.
   const compact = written.replace(/\(0\)/g, '').replace(/[\s().\-·]/g, '')
   const international = /^(?:\+|00)[1-9]\d{6,14}$/.test(compact)
-  const vnMobile = /^0[35789]\d{8}$/.test(compact)
+  // Placed in another country — an ISO code other than VN; "", "unknown", a word or anything else places it nowhere (a
+  // stand-in must never hide a Vietnam-based teacher's real number — gate review, 2026-10-16): not offered. A missed offer
+  // costs the teacher one typed number on the last step; a wrong one can become their private phone.
+  const placed = typeof country === 'string' ? country.trim().toUpperCase() : ''
+  const elsewhere = COUNTRIES.has(placed) && placed !== 'VN'
+  const vnMobile = /^0[35789]\d{8}$/.test(compact) && !elsewhere
   if (!international && !vnMobile) return null
   const digits = extractPhoneNumber(international ? compact.replace(/^00/, '+') : compact)
   return digits ? `+${digits}` : null
