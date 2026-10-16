@@ -134,19 +134,32 @@ export const CRITICAL_GLYPHS = [
    * Listing pages, /c/rentals and /c/teachers fetched no deferred glyph at all, scrolled or not.
    */
   'Briefcase', 'FileText', 'PencilLine', 'Bookmark', 'Wrench', 'Smartphone', 'Plane', 'UtensilsCrossed', 'Sofa',
+  /**
+   * ⛔ RE-DERIVED 2026-10-17, after teacher onboarding v3+v4 (8a07f0b55) replaced the start screen above with step 1 of
+   * the form. Measured GET-only headless against production, 390×844, after hydration + 3 s: the form's step rail
+   * (teacher-form.tsx STEP_ICON) paints `BookOpen` (Your teaching) and `Camera` (Photo & publish) on eno.vn/teachers/join,
+   * and `ExternalLink` (Finish on eno.vn) on teacher.eno.vn — the Meta ads' landing — and each landing fetched the whole
+   * deferred file again for them (one request, 191 KB gzip). Nothing else either landing drew for that signed-out phone
+   * visitor came from it (desktop and a signed-in teacher resuming a later step were not measured). The rail
+   * is guarded (src/lib/critical-glyphs.guard.test.ts), so a new step glyph fails a test. `PencilLine` lost its only
+   * on-arrival use with the start screen and stays, by the never-drop-on-one-sweep rule below.
+   */
+  'BookOpen', 'Camera', 'ExternalLink',
 ]
 
 /** Measured so a later reader can tell whether the split still earns its complexity. */
 export const CRITICAL_MEASUREMENT = {
   derivedOn: '2026-09-06',
   /**
-   * 2026-10-16 (speed plan item 7, the last re-derivation above): the core file 126,935 → 154,741 B raw, 38.3 → 46.9 KB
-   * gzip — once per visitor (content-hashed, immutable), against ~188 KB for the deferred file on the teacher landing,
-   * search and a scrolled home page.
+   * 2026-10-16 (speed plan item 7): the core file 126,935 → 154,741 B raw, 38.3 → 46.9 KB gzip — once per visitor
+   * (content-hashed, immutable), against ~188 KB for the deferred file on the teacher landing, search and a scrolled
+   * home page. 2026-10-17 (the step rail, the last re-derivation above): 154,741 → 163,036 B raw (BookOpen 3,010 +
+   * Camera 3,088 + ExternalLink 2,197, both weights), 46.9 → 49.5 KB gzip, against the deferred file's 191 KB gzip on
+   * both teacher landings.
    */
-  coreBytes: { raw: 154_741, gzip: 46_881, on: '2026-10-16' },
+  coreBytes: { raw: 163_036, gzip: 49_528, on: '2026-10-17' },
   /** The latest re-derivation (the routes and counts below are still the 2026-09-06 sweep's). */
-  rederivedOn: '2026-10-16',
+  rederivedOn: '2026-10-17',
   /**
    * ⚠️ FIVE ROUTES ACROSS BOTH EDITIONS, not four on one — the 2026-08-17 note above records why a
    * marketplace-only derivation silently deferred the forum's above-the-fold tiles.
