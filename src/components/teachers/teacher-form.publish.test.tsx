@@ -25,6 +25,12 @@ vi.mock('@/components/marketplace/push-opt-in-card', () => ({ PushOptInCard: () 
 // App Store gate `ios-hide-kyc` — off (the web) unless a test turns it on.
 const ios = vi.hoisted(() => ({ on: false }))
 vi.mock('@/hooks/use-ios-hide-kyc', () => ({ useIosHideKyc: () => ios.on }))
+// THE INTRO VIDEO IS REQUIRED for a new profile (owner, 2026-10-16) — jsdom reads no video metadata, so the preparation
+// (video-prep.ts, tested in the browser path it copies) and the upload are stood in for.
+const VIDEO = 'https://sb.eno.vn/storage/v1/object/public/listing-videos/1700000000001-efgh34.mp4'
+vi.mock('@/lib/teachers/video-prep', () => ({ prepareTeacherVideo: async (file: File) => ({ file, hevc: false }) }))
+vi.mock('@/lib/video-upload-client', () => ({ uploadListingVideo: async () => VIDEO }))
+vi.mock('@/lib/normalize-image', () => ({ compressImageFile: async (f: File) => f }))
 
 import { TeacherForm } from './teacher-form'
 
@@ -41,6 +47,8 @@ let gate: { ok: boolean; code: string | null } = { ok: true, code: null }
 // GET /api/teachers/me's "Identity verified" state for an account with no profile yet (identity-mark.ts: no name to judge)
 // — not known (null, no line) unless a test says otherwise.
 let markState: { shown: boolean; reason: string | null } | null = null
+// The account's own name, photo and phone — FILLED into empty answers since 2026-10-16 ("autofill as much as possible").
+let prefill: { displayName: string | null; avatarUrl: string | null; phone: string | null } = { displayName: 'Bea Smith', avatarUrl: 'x', phone: '+84901234567' }
 
 beforeEach(() => {
   stubBrowser()
@@ -51,10 +59,11 @@ beforeEach(() => {
   history.replaceState(null, '', '/teachers/join')
   gate = { ok: true, code: null }
   markState = null
+  prefill = { displayName: 'Bea Smith', avatarUrl: PHOTO, phone: '+84901234567' }
   ios.on = false
   putReply = () => ({ json: { listingId: 'L1', teacherProfileId: 'tp1', live: true, noGoal: false, cover: null, video: null } })
   const f = fakeFetch({
-    'GET /api/teachers/me': () => ({ json: { teacher: null, publishGate: gate, prefill: { displayName: 'Bea Smith', avatarUrl: PHOTO, phone: '+84901234567' }, identityMark: markState, identityMarkStamps: { at: null, withdrawnAt: null } } }),
+    'GET /api/teachers/me': () => ({ json: { teacher: null, publishGate: gate, prefill, identityMark: markState, identityMarkStamps: { at: null, withdrawnAt: null } } }),
     'PUT /api/teachers/me': (b) => putReply(b),
   })
   calls = f.calls
@@ -72,6 +81,12 @@ function mount() {
 }
 const action = (name: string | RegExp) => screen.getAllByRole('button', { name })[0]
 const lastPut = () => calls.filter((c) => c.method === 'PUT').at(-1)?.body as Record<string, unknown> | undefined
+/** The account photo is on the page by itself (prefill); the intro video is added — what every Publish below needs. */
+async function addVideo(user: ReturnType<typeof userEvent.setup>) {
+  await waitFor(() => expect(document.querySelector('img[src="' + PHOTO + '"]')).toBeTruthy())
+  await user.upload(document.querySelector<HTMLInputElement>('input[accept="video/mp4,video/quicktime,video/webm"]')!, new File(['v'], 'hello.mp4', { type: 'video/mp4' }))
+  await screen.findByText('Replace video')
+}
 
 describe('step 5 · Cover lessons', () => {
   it('the switch IS the consent — no tick box — with its notice beside it; on, it shows where schools find the teacher', async () => {
@@ -134,12 +149,13 @@ describe('step 6 · Photo & publish', () => {
   })
 
   it('the phone is optional — until "Our staff may call me" is on', async () => {
+    prefill = { ...prefill, phone: null }
     putDraft({ ...COMPLETE, photoUrl: PHOTO }, 'finish')
     const user = mount()
     expect(await screen.findByRole('textbox', { name: 'Phone number (optional)' })).toBeTruthy()
     await user.click(screen.getByRole('switch', { name: 'Our staff may call me' }))
     expect(screen.getByRole('textbox', { name: 'Phone number' })).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     await user.click(action('Publish profile'))
     expect(await screen.findByText(/Please add your phone number/)).toBeTruthy()
     expect(lastPut()).toBeUndefined()
@@ -154,19 +170,31 @@ describe('step 6 · Photo & publish', () => {
     await user.click(cv.getByRole('button', { name: 'Remove' }))
     expect(cv.queryByText('my-cv.pdf')).toBeNull()
     expect(cv.getByText('Choose PDF')).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     await user.click(action('Publish profile'))
     await waitFor(() => expect(lastPut()).toBeTruthy())
     expect(calls.some((c) => c.url.startsWith('/api/teachers/me/cv'))).toBe(false)
   })
 
-  it('the account photo and phone are OFFERED, never filled in unasked', async () => {
+  it('⛔ the account photo and phone FILL empty answers (owner, 2026-10-16: "autofill as much as possible") — never over one given', async () => {
     putDraft(COMPLETE, 'finish')
     const user = mount()
-    expect(await screen.findByRole('button', { name: 'Use my account photo' })).toBeTruthy()
-    expect((screen.getByRole('textbox', { name: 'Phone number (optional)' }) as HTMLInputElement).value).toBe('')
-    await user.click(screen.getByRole('button', { name: /Use my number/ }))
-    expect((screen.getByRole('textbox', { name: 'Phone number (optional)' }) as HTMLInputElement).value).toBe('+84901234567')
+    await waitFor(() => expect((screen.getByRole('textbox', { name: 'Phone number (optional)' }) as HTMLInputElement).value).toBe('+84901234567'))
+    expect(document.querySelector(`img[src="${PHOTO}"]`)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Use my account photo' })).toBeNull()
+    // Cleared by the teacher: offered again, never refilled unasked.
+    await user.clear(screen.getByRole('textbox', { name: 'Phone number (optional)' }))
+    expect(screen.getByRole('button', { name: /Use my number/ })).toBeTruthy()
+  })
+
+  it('⛔ a new profile needs its intro video — Publish without one is refused on the video (owner, 2026-10-16)', async () => {
+    putDraft(COMPLETE, 'finish')
+    const user = mount()
+    expect(await screen.findByRole('heading', { name: 'Intro video' })).toBeTruthy()
+    await waitFor(() => expect(document.querySelector(`img[src="${PHOTO}"]`)).toBeTruthy())
+    await user.click(action('Publish profile'))
+    expect(await screen.findByText(/Please add a short intro video/)).toBeTruthy()
+    expect(lastPut()).toBeUndefined()
   })
 
   it('an identity check the account still needs shows at the TOP of the step, not as a refusal at the last tap', async () => {
@@ -217,7 +245,7 @@ describe('Publish', () => {
     await user.click(screen.getByRole('button', { name: 'Monday evening' }))
     await user.click(screen.getByRole('button', { name: /300,000/ }))
     await user.click(action('Next'))
-    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     await user.click(screen.getByRole('switch', { name: 'Email me jobs that match my profile' }))
     await user.click(action('Publish profile'))
     await waitFor(() => expect(lastPut()).toBeTruthy())
@@ -234,9 +262,10 @@ describe('Publish', () => {
   })
 
   it('without cover and without an opt-in, neither notice is sent — publishNotice always is', async () => {
+    prefill = { ...prefill, phone: null }
     putDraft({ ...COMPLETE, photoUrl: null }, 'finish')
     const user = mount()
-    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     await user.click(action('Publish profile'))
     await waitFor(() => expect(lastPut()).toBeTruthy())
     const body = lastPut()!
@@ -245,7 +274,8 @@ describe('Publish', () => {
     expect('aiNotice' in body).toBe(false)
     expect(await screen.findByText('Your profile is live')).toBeTruthy()
     expect(screen.queryByTestId('push-card')).toBeNull() // no cover: no push prompt
-    expect(screen.getByRole('link', { name: 'Add an intro video' }).getAttribute('href')).toBe('/teachers/edit?step=finish')
+    // Published with its intro video (required since 2026-10-16): the done screen no longer suggests adding one.
+    expect(screen.queryByRole('link', { name: 'Add an intro video' })).toBeNull()
     // The chat's Share button by the name the teacher will see: no phone on file → "Share my email & CV" (WP3, A3).
     expect(screen.getByText(/“Share my email & CV”/)).toBeTruthy()
   })
@@ -253,7 +283,7 @@ describe('Publish', () => {
   it('with a phone on file, the done screen names the button "Share my phone, email & CV"', async () => {
     putDraft({ ...COMPLETE, phone: '+84901234567' }, 'finish')
     const user = mount()
-    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     await user.click(action('Publish profile'))
     expect(await screen.findByText(/“Share my phone, email & CV”/)).toBeTruthy()
   })
@@ -262,7 +292,7 @@ describe('Publish', () => {
     putReply = () => ({ status: 422, json: { error: 'contact_in_text', detail: 'bio' } })
     putDraft({ ...COMPLETE, bio: 'call me' }, 'finish')
     const user = mount()
-    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     await user.click(action('Publish profile'))
     expect(await screen.findByRole('textbox', { name: 'About you (optional)' })).toBeTruthy()
     expect(screen.getAllByText(/Please remove phone numbers, emails and links/).length).toBeGreaterThan(0)
@@ -282,7 +312,7 @@ describe('Publish for an account that has not chosen its type yet', () => {
     const user = mount()
     const terms = (await screen.findAllByTestId('publish-terms'))[0]
     expect(terms.textContent).toBe('By publishing you agree to our Terms of Service, Operating regulations and Privacy Policy.')
-    await user.click(screen.getByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     await user.click(action('Publish profile'))
     await waitFor(() => expect(lastPut()).toBeTruthy())
     expect(lastPut()!.acceptTerms).toBe(true)
@@ -301,7 +331,7 @@ describe('Publish for an account that has not chosen its type yet', () => {
     }
     putDraft(COMPLETE, 'finish')
     const user = mount()
-    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     expect(screen.queryAllByTestId('publish-terms')).toHaveLength(0)
     await user.click(action('Publish profile'))
     expect(await screen.findByText('Please read the line below, then tap Publish again.')).toBeTruthy()
@@ -315,7 +345,7 @@ describe('Publish for an account that has not chosen its type yet', () => {
   it('an onboarded account sees no Terms line and sends no acceptTerms', async () => {
     putDraft(COMPLETE, 'finish')
     const user = mount()
-    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     expect(screen.queryAllByTestId('publish-terms')).toHaveLength(0)
     await user.click(action('Publish profile'))
     await waitFor(() => expect(lastPut()).toBeTruthy())
@@ -330,7 +360,7 @@ describe('sharing the profile (owner, 2026-10-11: "easy to share on facebook and
     vi.stubGlobal('open', open)
     putDraft({ ...COMPLETE, photoUrl: null }, 'finish')
     const user = mount()
-    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     await user.click(action('Publish profile'))
     expect(await screen.findByText('Your profile is live')).toBeTruthy()
     const share = within(screen.getByRole('region', { name: 'Share your profile' }))
@@ -350,7 +380,7 @@ describe('sharing the profile (owner, 2026-10-11: "easy to share on facebook and
     putReply = () => ({ json: { listingId: 'L1', teacherProfileId: 'tp1', live: false, noGoal: false, cover: null, video: null } })
     putDraft({ ...COMPLETE, photoUrl: null }, 'finish')
     const user = mount()
-    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     await user.click(action('Publish profile'))
     expect(await screen.findByText('Profile saved')).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Share your profile' })).toBeNull()
@@ -381,7 +411,7 @@ describe('the "Identity verified" switch on a NEW profile', () => {
   it('⛔ Publish never carries the switch or its notice', async () => {
     putDraft(COMPLETE, 'finish')
     const user = mount()
-    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     await user.click(action('Publish profile'))
     await waitFor(() => expect(lastPut()).toBeTruthy())
     for (const k of Object.keys(lastPut()!)) expect(k, k).not.toMatch(/identity/i)
@@ -391,7 +421,7 @@ describe('the "Identity verified" switch on a NEW profile', () => {
     markState = { shown: false, reason: 'off' }
     putDraft({ ...COMPLETE, photoUrl: null }, 'finish')
     let user = mount()
-    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     await user.click(action('Publish profile'))
     expect(await screen.findByText('Your profile is live')).toBeTruthy()
     expect(screen.getByRole('link', { name: MARK_NAME }).getAttribute('href')).toBe('/teachers/edit?step=finish')
@@ -399,7 +429,7 @@ describe('the "Identity verified" switch on a NEW profile', () => {
     markState = { shown: false, reason: 'unverified' }
     putDraft({ ...COMPLETE, photoUrl: null }, 'finish')
     user = mount()
-    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     await user.click(action('Publish profile'))
     expect(await screen.findByText('Your profile is live')).toBeTruthy()
     expect(screen.queryByRole('link', { name: MARK_NAME })).toBeNull()
@@ -415,11 +445,44 @@ describe('the "Identity verified" switch on a NEW profile', () => {
     }
     putDraft({ ...COMPLETE, photoUrl: null }, 'finish')
     const user = mount()
-    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await addVideo(user)
     await user.click(action('Publish profile'))
     expect(await screen.findByText('Your profile is live')).toBeTruthy()
     expect((await screen.findByRole('link', { name: MARK_NAME })).getAttribute('href')).toBe('/teachers/edit?step=finish')
     const putAt = calls.findIndex((c) => c.method === 'PUT')
     expect(calls.slice(putAt + 1).some((c) => c.method === 'GET')).toBe(true)
+  })
+})
+
+describe('the photo check waits for "Photo & publish" (gate review, 2026-10-16)', () => {
+  const photoChecks = () => calls.filter((c) => c.url === '/api/teachers/me/photo-check')
+  it('⛔ the account photo filled in for the teacher is never sent for checking while they answer step 1', async () => {
+    putDraft({ ...COMPLETE, photoUrl: null }, 'plans')
+    mount()
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    // The prefill has run (the account answered) — and still nothing went to the check.
+    await waitFor(() => expect(calls.some((c) => c.url === '/api/teachers/me')).toBe(true))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(photoChecks()).toEqual([])
+  })
+  it('on "Photo & publish" the account photo still waits for Publish; a photo the teacher uploads is checked at once, once', async () => {
+    const UPLOADED = 'https://sb.eno.vn/storage/v1/object/public/listings/1791898094623-rh7bov.webp'
+    const f = fakeFetch({
+      'GET /api/teachers/me': () => ({ json: { teacher: null, publishGate: { ok: true, code: null }, prefill, identityMark: null, identityMarkStamps: { at: null, withdrawnAt: null } } }),
+      'POST /api/upload': () => ({ json: { urls: [UPLOADED] } }),
+      'POST /api/teachers/me/photo-check': () => ({ json: { checked: true, ok: true } }),
+    })
+    vi.stubGlobal('fetch', f.fn)
+    putDraft({ ...COMPLETE, photoUrl: null }, 'finish')
+    const user = mount()
+    await waitFor(() => expect(document.querySelector('img[src="' + PHOTO + '"]')).toBeTruthy())
+    await new Promise((r) => setTimeout(r, 50))
+    const checks = () => f.calls.filter((c) => c.url === '/api/teachers/me/photo-check')
+    expect(checks()).toEqual([])
+    await user.upload(document.querySelector<HTMLInputElement>('input[accept="image/jpeg,image/png,image/webp,.heic,.heif"]')!, new File(['p'], 'me.jpg', { type: 'image/jpeg' }))
+    await waitFor(() => expect(checks()).toHaveLength(1))
+    expect(checks()[0].body).toEqual({ url: UPLOADED })
+    await new Promise((r) => setTimeout(r, 50))
+    expect(checks()).toHaveLength(1)
   })
 })

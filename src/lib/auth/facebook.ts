@@ -44,5 +44,16 @@ export async function facebookSignInEnabled(): Promise<boolean> {
   return refill
 }
 
+/**
+ * The cached answer WITHOUT WAITING — null when there is none yet (a refill starts, and the caller's page asks for itself:
+ * src/lib/facebook-flag.ts). For a page's render path, which must never wait on GoTrue (gate review, 2026-10-16: the teacher
+ * join page is the hand-off's landing).
+ */
+export function facebookSignInCached(): boolean | null {
+  if (cached && cached.until > Date.now()) return cached.on
+  refill ??= probe().finally(() => { refill = null })
+  return null
+}
+
 /** Tests only. */
 export function resetFacebookProbeForTests() { cached = null; refill = null }

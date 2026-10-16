@@ -14,13 +14,19 @@
 
 export type NoticeText = { readonly en: string; readonly vi: string }
 
-export const TEACHER_IMPORT_NOTICE_VERSION = '2026-10-16'
+/**
+ * '2026-10-16' was the reader as first deployed (the file never kept; the phone only offered). '2026-10-16b' (owner,
+ * 2026-10-16: "the cv info like number and cv itself stays as default they dont have to click again") says what the
+ * reading now does with them: the phone is filled into an empty field, and a PDF is attached as the private CV. A distinct
+ * string, never the same day again: the server refuses any version but this one, and each consent row must name its text.
+ */
+export const TEACHER_IMPORT_NOTICE_VERSION = '2026-10-16b'
 
 /** Beside the button — the facts that decide the consent. */
 export const IMPORT_NOTICE_LEAD: NoticeText = {
   // ⛔ EVERY KIND OF ANSWER THE READING FILLS (import-map.ts IMPORT_FIELDS) is named here — the consent is to these.
-  en: "Google's Gemini AI reads your CV on Google Cloud, outside Vietnam, and fills in the answers you have not given yet: what and who you teach, your teaching jobs and experience, degree, certificates, name, nationality, English level, other languages, headline and summary. We don't keep the file. You check every answer — nothing is public until you publish.",
-  vi: 'AI Gemini của Google đọc CV của bạn trên Google Cloud (ngoài Việt Nam) rồi điền những câu trả lời bạn chưa nhập: môn dạy và đối tượng học viên, công việc giảng dạy và kinh nghiệm, bằng cấp, chứng chỉ, họ tên, quốc tịch, trình độ tiếng Anh, ngôn ngữ khác, tiêu đề và phần giới thiệu. Chúng tôi không lưu tệp. Bạn kiểm tra từng câu trả lời — chưa có gì được công khai cho đến khi bạn đăng hồ sơ.',
+  en: "Google's Gemini AI reads your CV on Google Cloud, outside Vietnam, and fills in the answers you have not given yet: what and who you teach, your teaching jobs and experience, degree, certificates, name, nationality, English level, other languages, headline and summary — and your phone number, kept private, if you have not given one. If your CV is a PDF of up to 10 MB, it is also attached to your profile as your private CV when you publish (unless you already have one): schools get it only when you share it in a chat, and you can remove it on the last step. Otherwise we don't keep the file. You check every answer — nothing is public until you publish.",
+  vi: 'AI Gemini của Google đọc CV của bạn trên Google Cloud (ngoài Việt Nam) rồi điền những câu trả lời bạn chưa nhập: môn dạy và đối tượng học viên, công việc giảng dạy và kinh nghiệm, bằng cấp, chứng chỉ, họ tên, quốc tịch, trình độ tiếng Anh, ngôn ngữ khác, tiêu đề và phần giới thiệu — và số điện thoại của bạn (được giữ riêng tư) nếu bạn chưa nhập. Nếu CV là tệp PDF tối đa 10 MB, CV cũng được đính kèm vào hồ sơ dưới dạng CV riêng tư khi bạn đăng (trừ khi bạn đã có CV): các trường chỉ nhận được khi bạn chia sẻ trong tin nhắn, và bạn có thể xoá ở bước cuối. Ngoài ra chúng tôi không lưu tệp. Bạn kiểm tra từng câu trả lời — chưa có gì được công khai cho đến khi bạn đăng hồ sơ.',
 }
 
 /** The second layer ("How we read your CV"), always in the page (a mounted collapsible) — part of the same notice. */
@@ -40,8 +46,8 @@ export const IMPORT_NOTICE_DETAILS: readonly NoticeText[] = [
     vi: 'Google không dùng tệp của bạn để huấn luyện AI. Google có thể giữ tệp trong thời gian ngắn để trả kết quả, và tối đa 90 ngày nếu hệ thống tự động của Google đánh dấu yêu cầu là lạm dụng.',
   },
   {
-    en: 'What we fill in is saved to your account as a private draft until you publish or start over (or after 90 days without changes). The phone number on your CV is only offered to you on the last step; sharing a CV with schools is a separate choice there.',
-    vi: 'Những gì chúng tôi điền được lưu vào tài khoản dưới dạng bản nháp riêng tư cho đến khi bạn đăng hồ sơ hoặc bắt đầu lại (hoặc sau 90 ngày không thay đổi). Số điện thoại trong CV chỉ được gợi ý cho bạn ở bước cuối; chia sẻ CV với các trường là một lựa chọn riêng ở bước đó.',
+    en: 'What we fill in is saved to your account as a private draft until you publish or start over (or after 90 days without changes). Your phone number and the attached CV are kept only on this page until you publish, and are never shown publicly: someone you are chatting with gets them only when you tap Share in that chat.',
+    vi: 'Những gì chúng tôi điền được lưu vào tài khoản dưới dạng bản nháp riêng tư cho đến khi bạn đăng hồ sơ hoặc bắt đầu lại (hoặc sau 90 ngày không thay đổi). Số điện thoại và CV đính kèm chỉ được giữ trên trang này cho đến khi bạn đăng hồ sơ, và không bao giờ được công khai: người đang trò chuyện với bạn chỉ nhận được khi bạn bấm Chia sẻ trong tin nhắn với họ.',
   },
 ]
 

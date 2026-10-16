@@ -9,6 +9,8 @@ import { apexOrigin, isTeacherHost, teacherOrigin } from '@/lib/teachers/host'
 import { getGeminiVertex } from '@/lib/gemini'
 import { NATIVE_UA_RE } from '@/lib/consent-value'
 import { campaignQuery } from '@/components/teachers/teacher-form-rules'
+import { facebookSignInCached } from '@/lib/auth/facebook'
+import { FacebookSignInSeed } from '@/components/marketplace/facebook-signin-seed'
 import type { TeacherStartProps } from '@/components/teachers/teacher-start'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL
@@ -25,11 +27,9 @@ export const metadata: Metadata = {
 // `?goal=cover` — arrived from the cover-lessons page (/teachers/cover): the work question reads "Also looking for a
 // job? (optional)" and HCMC opens on its districts. Read here, on the server, so the first paint already says it (the
 // page is dynamic anyway: it reads the Host header).
-// THE START SCREEN (owner, 2026-10-15: "Fill it in from my CV" / "Fill it in myself"; LinkedIn removed 2026-10-16) is
-// decided HERE, for the first paint — never swapped in after hydration over a step 1 a finger is already on
-// (teacher-start.tsx): `?import=cv` opens the reading panel (eno.vn only — the teacher host has no session to read
-// under), `?start=self` (the "myself" door, the hand-off) skips the doors, and a session cookie means "wait for the
-// account" rather than the signed-out doors.
+// The form opens on step 1 (owner, 2026-10-16: no start screen — teacher-start.tsx); `?import=cv` (a link to the CV
+// reader) opens the reading panel instead, decided HERE for the first paint — eno.vn only: the teacher host has no session
+// to read under. A session cookie makes that panel wait for the account.
 type JoinParams = Record<string, string | string[] | undefined>
 const one = (v: string | string[] | undefined) => (typeof v === 'string' ? v : undefined)
 export default async function TeacherJoinPage({ searchParams }: { searchParams: Promise<JoinParams> }) {
@@ -40,10 +40,13 @@ export default async function TeacherJoinPage({ searchParams }: { searchParams: 
   const ua = h.get('user-agent') ?? ''
   const imp = one(q.import)
   const cvImport = getGeminiVertex() !== null
+  // The sign-in this page opens on its own after the hand-off knows "Continue with Facebook" before it mounts, when the
+  // server already has the answer (src/lib/facebook-flag.ts) — never waited for: this render is the hand-off's landing. No
+  // answer cached yet: the page asks for itself. Not on the teacher host: nobody signs in there.
+  const facebookOn = draftHost ? null : facebookSignInCached()
   const start: TeacherStartProps = {
     // No reader configured: no panel either — a stale link opens the doors (or the form), never a dead end.
     importIntent: !draftHost && cvImport && imp === 'cv' ? 'cv' : null,
-    startSelf: one(q.start) === 'self',
     // Supabase's session cookie (`sb-<ref>-auth-token`, or its `.0` chunk — never the PKCE verifier), or the app.
     sessionHint: /(?:^|;\s*)sb-[^=;]*-auth-token(?:\.\d+)?=/.test(h.get('cookie') ?? '') || NATIVE_UA_RE.test(ua),
     cvImport,
@@ -54,8 +57,9 @@ export default async function TeacherJoinPage({ searchParams }: { searchParams: 
       {draftHost ? <TeacherHostHeader apexOrigin={apexOrigin(APP_URL)} /> : <Header />}
       {/* `data-teacher-host`: on teacher.<base> the phone tab bar is hidden (globals.css) — every tab there led off the
           host, and its Account tab opened a sign-in that cannot hold on it. Decided here, on the server, from the Host
-          header (this page is dynamic anyway), so the first paint is already right. */}
-      <main id="main" tabIndex={-1} data-teacher-host={draftHost ? '' : undefined} className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
+          header (this page is dynamic anyway), so the first paint is already right. `data-teacher-form` (both hosts): the
+          floating support button stands down over the form (globals.css). */}
+      <main id="main" tabIndex={-1} data-teacher-host={draftHost ? '' : undefined} data-teacher-form="" className="flex-1 max-w-3xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         <noscript>
           {/* No JS ⇒ no client i18n — deliberately static bilingual copy. */}
           {/* eslint-disable react/jsx-no-literals */}
@@ -65,6 +69,7 @@ export default async function TeacherJoinPage({ searchParams }: { searchParams: 
           </div>
           {/* eslint-enable react/jsx-no-literals */}
         </noscript>
+        {facebookOn !== null && <FacebookSignInSeed on={facebookOn} />}
         <TeacherForm mode="join" draftHost={draftHost} apexOrigin={apexOrigin(APP_URL)} goal={goal} start={start} />
       </main>
       <Footer />

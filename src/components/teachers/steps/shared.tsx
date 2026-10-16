@@ -81,6 +81,8 @@ export function makeErrText(tr: (en: string, vi: string) => string) {
         case 'experienceBand': return tr('Please pick how long you have been teaching.', 'Vui lòng chọn số năm bạn đã dạy.')
         case 'englishLevel': return tr('Please pick your English level.', 'Vui lòng chọn trình độ tiếng Anh của bạn.')
         case 'photoUrl': return tr('Please add a profile photo.', 'Vui lòng thêm ảnh hồ sơ.')
+        // Required for a new profile since 2026-10-16 (owner: "make short intor video mandatory from now on").
+        case 'videoUrl': return tr('Please add a short intro video (up to 60 seconds) — say hello and show how you teach.', 'Vui lòng thêm một video giới thiệu ngắn (tối đa 60 giây) — chào hỏi và cho thấy cách bạn dạy.')
         case 'phone': return tr('Please add your phone number — our staff need it to call you.', 'Vui lòng thêm số điện thoại — nhân viên cần số này để gọi cho bạn.')
         case 'coverSlots': return tr('Please tap at least one period you are usually free.', 'Vui lòng bấm chọn ít nhất một buổi bạn thường rảnh.')
         case 'coverRateVnd': return tr('Please set your hourly rate.', 'Vui lòng đặt mức phí theo giờ.')
@@ -89,6 +91,9 @@ export function makeErrText(tr: (en: string, vi: string) => string) {
     // A certificate row with NO TYPE — only a draft from the previous form holds one (it added a row before its type
     // was picked; the chips here add typed rows): the generic `incomplete` is the teaching-job words ("Fill in the role
     // and the school"), which told the teacher nothing they could do (gate review, 2026-10-08).
+    // The profile photo check (owner, 2026-10-16) — what was found, what is fine, and the human route.
+    if (field === 'photoUrl' && code === 'no_face') return tr('We can’t see your face in this photo. Choose one where your face shows — a photo of you teaching your class is fine. Think we got it wrong? Tell us from the Help page.', 'Chúng tôi không thấy khuôn mặt của bạn trong ảnh này. Hãy chọn ảnh thấy rõ khuôn mặt — ảnh bạn đang dạy lớp cũng được. Bạn cho rằng chúng tôi nhầm? Hãy báo cho chúng tôi từ trang Trợ giúp.')
+    if (field === 'photoUrl' && code === 'not_photo') return tr('This looks like a drawing, a character or a graphic. Choose a real photo of yourself. Think we got it wrong? Tell us from the Help page.', 'Ảnh này trông giống hình vẽ, nhân vật hoặc hình đồ họa. Hãy chọn một ảnh thật của bạn. Bạn cho rằng chúng tôi nhầm? Hãy báo cho chúng tôi từ trang Trợ giúp.')
     if (code === 'incomplete' && field.startsWith('certificates.')) return tr('It has no type — remove it, then tap the right certificate above.', 'Chưa có loại chứng chỉ — hãy xoá mục này rồi bấm chọn chứng chỉ đúng ở trên.')
     return generic(code)
   }

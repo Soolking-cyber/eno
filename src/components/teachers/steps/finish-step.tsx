@@ -3,8 +3,11 @@
 // ── STEP 6 · PHOTO & PUBLISH (eno.vn, signed in — teacher onboarding redesign, 2026-10-08) ───────────────────────────
 //   · An identity check the account still needs shows AT THE TOP (api/teachers/me `publishGate`) — never as a refusal
 //     at the last tap.
-//   · Profile photo (required) — "Use my account photo" when the account's photo is stored on eno.vn.
-//   · Intro video (optional) — "Who can watch it?" appears only once there IS a video. The video's homes and moves are
+//   · Profile photo (required) — "Use my account photo" when the account's photo is stored on eno.vn. CHECKED (owner,
+//     2026-10-16): Gemini says whether it is a real photo showing a face — the answer, or the re-check's ask, is said here.
+//   · Intro video — REQUIRED for a new profile and one created since TEACHER_VIDEO_REQUIRED_FROM (owner, 2026-10-16:
+//     "make short intor video mandatory from now on"), optional for older ones; such a profile can replace its video,
+//     never remove it. "Who can watch it?" appears only once there IS a video. The video's homes and moves are
 //     src/lib/teachers/video.ts; the form never holds a private video's address (teacher-form.tsx owns those calls).
 //   · CV (optional, private) · Phone (private; required only while "Our staff may call me" is on — owner, 2026-10-08).
 //   · Job seekers only: "Email me jobs that match my profile" and "Our staff may call me" — LABELLED SWITCHES, OFF by
@@ -31,7 +34,7 @@ import { Button } from '@/components/ui/button'
 import { Chip } from '@/components/ui/chip'
 import { Field, FieldControl, FieldDescription, FieldError } from '@/components/ui/field'
 import { Fieldset } from '@/components/ui/fieldset'
-import { Camera, FileText, Loader2, Lock, Play, ShieldAlert, Trash2, Video, X } from '@/components/ui/icons'
+import { Camera, Check, FileText, Loader2, Lock, Play, ShieldAlert, Trash2, Video, X } from '@/components/ui/icons'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Radio, RadioDot, RadioGroup } from '@/components/ui/radio-group'
@@ -185,12 +188,21 @@ export function IdentityMarkSection({ mark }: { mark: FinishIdentityMark }) {
   )
 }
 
-export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGate, prefillAvatar, prefillPhone, imported = null, media, edit, optInsNoticeChanged, identityMark }: Pick<StepProps, 't' | 'set' | 'errors' | 'errText' | 'mode'> & {
+export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGate, prefillAvatar, prefillPhone, imported = null, media, edit, optInsNoticeChanged, identityMark, photoCheck = null, photoAsk = null, videoRequired = false, videoProgress = null }: Pick<StepProps, 't' | 'set' | 'errors' | 'errText' | 'mode'> & {
   signedIn: boolean
+  /** The photo check's answer for the photo on the page (teacher-form.tsx) — null: not asked, or no check on this server. */
+  photoCheck?: { state: 'checking' | 'ok' | 'fail' | 'unavailable'; reason?: 'not_photo' | 'no_face' } | null
+  /** Edit: the saved photo was asked about by the re-check (and not approved since) — the reason. */
+  photoAsk?: { reason: string } | null
+  /** A new profile, or one created since the cutoff: the video is required, and can be replaced but never removed. */
+  videoRequired?: boolean
+  /** A clip over the storage ceiling being made smaller: its progress, 0–1. */
+  videoProgress?: number | null
   publishGate: { ok: boolean; code: string | null } | null
-  /** The account's photo when it is stored on eno.vn (a listing photo must be) — offered, never used unasked. */
+  /** The account's photo when it is stored on eno.vn (a listing photo must be) — filled in for a new profile when its photo
+   *  is empty (owner, 2026-10-16: "autofill as much as possible"), offered here once the teacher has chosen another. */
   prefillAvatar: string | null
-  /** The account's verified phone — offered, never used unasked. */
+  /** The account's verified phone — filled in when the phone is empty and the form accepts it, offered here otherwise. */
   prefillPhone: string | null
   /**
    * What "Fill it in from my CV" read (teacher CV import, 2026-10-15), OFFERED here and never used unasked: the phone
@@ -229,7 +241,7 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
       <section className="space-y-3" {...(errors.photoUrl ? { 'data-invalid': '' } : {})}>
         <div>
           <h2 className="text-base font-semibold text-foreground">{tr('Profile photo', 'Ảnh hồ sơ')}</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">{tr('A clear, friendly headshot.', 'Ảnh chân dung rõ mặt, thân thiện.')}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{tr('A clear photo of you, with your face showing — a photo of you teaching your class is fine too.', 'Ảnh rõ nét của bạn, thấy được khuôn mặt — ảnh bạn đang dạy lớp cũng được.')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-4">
           <span className="relative flex size-20 items-center justify-center overflow-hidden rounded-full bg-muted">
@@ -239,26 +251,36 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
             <label className={pickerCls}>
               {media.busy === 'photo' ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
               {t.photoUrl ? tr('Change photo', 'Đổi ảnh') : tr('Upload photo', 'Tải ảnh lên')}
-              <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="sr-only" disabled={!signedIn} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) media.onPhoto(f) }} />
+              <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="sr-only" disabled={!signedIn || !!media.busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) media.onPhoto(f) }} />
             </label>
             {prefillAvatar && t.photoUrl !== prefillAvatar && (
               <Button variant="ghost" size="sm" type="button" onClick={() => set('photoUrl', prefillAvatar)}>{tr('Use my account photo', 'Dùng ảnh tài khoản')}</Button>
             )}
           </div>
         </div>
-        {errors.photoUrl && <p role="alert" className="text-sm text-destructive">{errText('photoUrl', errors.photoUrl)}</p>}
+        {/* What the photo check said (owner, 2026-10-16) — a refusal as the field's own error; "checking" and "checked"
+            as quiet status lines; "could not check" says nothing here (the save decides, and says so if it must). */}
+        {errors.photoUrl ? <p role="alert" className="text-sm text-destructive">{errText('photoUrl', errors.photoUrl)}</p>
+          : photoCheck?.state === 'fail' && photoCheck.reason ? <p role="alert" className="text-sm text-destructive">{errText('photoUrl', photoCheck.reason)}</p>
+          : photoAsk ? <p role="alert" className="text-sm text-warning">{errText('photoUrl', photoAsk.reason)}</p>
+          : photoCheck?.state === 'checking' ? <p role="status" className="flex items-center gap-1.5 text-sm text-muted-foreground"><Loader2 className="size-3.5 animate-spin" />{tr('Checking your photo…', 'Đang kiểm tra ảnh…')}</p>
+          : photoCheck?.state === 'ok' ? <p role="status" className="flex items-center gap-1.5 text-sm text-muted-foreground"><Check className="size-3.5 text-success" />{tr('Looks good.', 'Ảnh đạt yêu cầu.')}</p>
+          : null}
+        <p className="text-xs text-muted-foreground">{tr('Google’s Gemini AI, on Google Cloud outside Vietnam, checks that your photo shows a face — it doesn’t identify you. Google doesn’t use it to train its AI and keeps it only if its abuse checks flag the request (up to 90 days); we keep only the answer.', 'AI Gemini của Google, trên Google Cloud ngoài Việt Nam, kiểm tra ảnh của bạn có khuôn mặt hay không — AI không nhận diện bạn là ai. Google không dùng ảnh để huấn luyện AI và chỉ giữ ảnh nếu hệ thống chống lạm dụng của Google đánh dấu yêu cầu (tối đa 90 ngày); chúng tôi chỉ lưu kết quả.')}</p>
       </section>
 
-      <section className="space-y-3">
+      <section className="space-y-3" {...(errors.videoUrl ? { 'data-invalid': '' } : {})}>
         <div>
-          <h2 className="text-base font-semibold text-foreground">{tr('Intro video (optional)', 'Video giới thiệu (không bắt buộc)')}</h2>
+          <h2 className="text-base font-semibold text-foreground">{videoRequired ? tr('Intro video', 'Video giới thiệu') : tr('Intro video (optional)', 'Video giới thiệu (không bắt buộc)')}</h2>
           <p className="mt-0.5 text-sm text-muted-foreground">{tr('Up to 60 seconds: say hello and show how you teach.', 'Tối đa 60 giây: chào hỏi và cho thấy cách bạn dạy.')}</p>
         </div>
         {t.videoUrl ? (
           // Wraps on a phone: at h-40 a 16:9 player is ~284px wide, and "Remove" beside it overflowed 375px (preview check).
           <div className="flex flex-wrap items-center gap-3">
             <video src={t.videoUrl} controls className="h-40 max-w-full rounded-xl bg-black" />
-            <Button variant="ghost" size="sm" type="button" onClick={() => set('videoUrl', null)}><X className="size-4" />{tr('Remove', 'Xoá')}</Button>
+            {/* Required (a new profile, or one created since the cutoff): replaced, never removed — the server refuses it. A
+                new upload over a saved PRIVATE video still has its Remove: it only drops this upload, never the video. */}
+            {(!videoRequired || media.privateVideo) && <Button variant="ghost" size="sm" type="button" onClick={() => set('videoUrl', null)}><X className="size-4" />{tr('Remove', 'Xoá')}</Button>}
             {/* A new upload over a private video: say what Save will do — Remove brings the private one's card back. */}
             {media.privateVideo && <p className="w-full text-xs text-muted-foreground">{tr('Saving replaces your private intro video with this one. Anyone you sent the old one to will need you to send it again.', 'Khi lưu, video này sẽ thay video giới thiệu riêng tư của bạn. Những người đã nhận video cũ sẽ cần bạn gửi lại.')}</p>}
           </div>
@@ -270,7 +292,7 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
               ? tr('Your intro video is saved privately. The person you are chatting with sees it only when you send it in that chat.', 'Video giới thiệu của bạn được lưu riêng tư. Người bạn đang trò chuyện chỉ xem được khi bạn gửi trong tin nhắn với họ.')
               : tr('Your private intro video will be shown on your profile when you save.', 'Video giới thiệu riêng tư sẽ được hiển thị trên hồ sơ khi bạn lưu.')}</p>
             {!media.ownVideoUrl && <Button variant="ghost" size="sm" type="button" onClick={media.onWatchOwnVideo} loading={media.ownVideoBusy}><Play className="size-4" />{tr('Watch', 'Xem')}</Button>}
-            {media.confirmVideoRemove ? (
+            {videoRequired ? null : media.confirmVideoRemove ? (
               <span className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">{tr('Anyone you sent it to will lose access.', 'Những người bạn đã gửi sẽ không xem được nữa.')}</span>
                 <Button variant="destructive" size="sm" type="button" onClick={media.onRemovePrivateVideo} loading={media.videoRemoving}>{tr('Remove for good', 'Xoá vĩnh viễn')}</Button>
@@ -289,9 +311,9 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
         ) : null}
         <label className={pickerCls}>
           {media.busy === 'video' ? <Loader2 className="size-4 animate-spin" /> : <Video className="size-4" />}
-          {media.busy === 'video' ? tr('Uploading…', 'Đang tải…') : hasVideo ? tr('Replace video', 'Thay video') : tr('Upload video', 'Tải video lên')}
+          {media.busy === 'video' ? (videoProgress !== null ? `${tr('Making it smaller…', 'Đang thu nhỏ…')} ${Math.floor(videoProgress * 100)}%` : tr('Uploading…', 'Đang tải…')) : hasVideo ? tr('Replace video', 'Thay video') : tr('Upload video', 'Tải video lên')}
           {/* Cleared after each pick: choosing the same file again (a retry after a failed upload) must fire again. */}
-          <input type="file" accept="video/mp4,video/quicktime,video/webm" className="sr-only" disabled={!signedIn} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) media.onVideo(f) }} />
+          <input type="file" accept="video/mp4,video/quicktime,video/webm" className="sr-only" disabled={!signedIn || !!media.busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) media.onVideo(f) }} />
         </label>
         {/* WHO WATCHES IT — asked only once there is a video (plan, 2026-10-08), saved with the profile. Private: kept out
             of the profile and sent per school, in chat. */}

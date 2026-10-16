@@ -6,7 +6,7 @@ vi.mock('server-only', () => ({}))
 const warn = vi.fn()
 vi.mock('@/lib/log', () => ({ logWarn: (...a: unknown[]) => warn(...a) }))
 
-const { facebookSignInEnabled, resetFacebookProbeForTests } = await import('./facebook')
+const { facebookSignInCached, facebookSignInEnabled, resetFacebookProbeForTests } = await import('./facebook')
 let answers: Array<() => Promise<Response>> = []
 const fetchMock = vi.fn((_u: string, _i?: RequestInit) => (answers.shift() ?? (() => Promise.reject(new Error('no answer'))))())
 const settings = (external: Record<string, boolean>) => () => Promise.resolve(new Response(JSON.stringify({ external }), { status: 200 }))
@@ -60,6 +60,15 @@ describe('facebookSignInEnabled', () => {
     answers = [settings({ facebook: true })]
     expect(await Promise.all([facebookSignInEnabled(), facebookSignInEnabled(), facebookSignInEnabled()])).toEqual([true, true, true])
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('the render path never waits: nothing cached → null, and a refill starts; then the cached answer', async () => {
+    answers = [settings({ facebook: true })]
+    expect(facebookSignInCached()).toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await facebookSignInEnabled() // the refill already out — no second request
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(facebookSignInCached()).toBe(true)
   })
 
   it('no Supabase env (a build, a test): off, and nothing is fetched', async () => {

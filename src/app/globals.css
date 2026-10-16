@@ -4444,3 +4444,12 @@ body:has([data-teacher-host]) .bottom-nav-spacer {
 body:has([data-teacher-host]) {
   --teacher-tabbar-offset: 0px;
 }
+
+/* ⛔ NO FLOATING SUPPORT BUTTON OVER THE TEACHER FORM (owner, 2026-10-16 — a screenshot from Facebook's in-app browser: the
+   mark sat on step 1's city chips). The form's pages (teachers/join on both hosts, teachers/edit) mark <main
+   data-teacher-form>, so this is right from the first paint. Like the post flow (O-30, back-to-top.tsx isPostFlowPath):
+   help on a form is the form's own guidance. The back-to-top chevron stays — it is not chrome that sits on a step's
+   controls until the visitor has scrolled. Hidden, not unmounted: a sheet already open stays usable. */
+body:has([data-teacher-form]) .support-mark {
+  display: none;
+}

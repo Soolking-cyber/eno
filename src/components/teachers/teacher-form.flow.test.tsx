@@ -21,6 +21,9 @@ import { COMPLETE, b64url, fakeFetch, putDraft, storedDraft, stubBrowser, unb64u
 const auth = vi.hoisted(() => ({ user: null as null | { id: string }, loading: false, openSignIn: vi.fn() }))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
 vi.mock('@/components/marketplace/push-opt-in-card', () => ({ PushOptInCard: () => null }))
+// The form's own funnel counts (signup-prompt.ts TEACHER_FORM_EVENTS), recorded rather than sent.
+const funnel = vi.hoisted(() => [] as string[])
+vi.mock('@/lib/signup-counters', async (orig) => ({ ...(await orig<typeof import('@/lib/signup-counters')>()), countTeacherFormEvent: (e: string) => { funnel.push(e) } }))
 
 import { TeacherForm } from './teacher-form'
 
@@ -210,13 +213,13 @@ describe('teacher.eno.vn → eno.vn', () => {
     putDraft({ ...COMPLETE, phone: '+84901234567' }, 'about', 5, null) // written signed out (the host has no session)
     const { user } = mount({ draftHost: true })
     expect(await screen.findByText('Where are you now?')).toBeTruthy() // the host is "Your plans" only (2026-10-11)
-    await user.click(action('Continue on eno.vn'))
+    await user.click(action('Continue'))
     expect(assign).toHaveBeenCalledTimes(1)
-    // The whole address, parsed: eno.vn's join page — the form, never the start screen's doors again (`start=self`) —
-    // exactly the three tags, and one `#d=` draft after them.
+    // The whole address, parsed: eno.vn's join page — exactly the three tags (no `start=self`: the start screen it
+    // skipped is gone, 2026-10-16), and one `#d=` draft after them.
     const to = new URL(String(assign.mock.calls[0][0]))
     expect(to.origin + to.pathname).toBe('https://eno.vn/teachers/join')
-    expect(to.search).toBe('?start=self&utm_source=meta&utm_medium=paid_social&utm_campaign=teacher_profiles')
+    expect(to.search).toBe('?utm_source=meta&utm_medium=paid_social&utm_campaign=teacher_profiles')
     expect(to.hash.startsWith('#d=')).toBe(true)
     expect((unb64url(to.hash.slice(3)) as { v: number }).v).toBe(2)
   })
@@ -226,9 +229,9 @@ describe('teacher.eno.vn → eno.vn', () => {
     putDraft(COMPLETE, 'plans', 5, null)
     const { user } = mount({ draftHost: true, goal: 'cover' })
     expect(await screen.findByText('Where are you now?')).toBeTruthy()
-    await user.click(action('Continue on eno.vn'))
+    await user.click(action('Continue'))
     const to = new URL(String(assign.mock.calls[0][0]))
-    expect(to.search).toBe('?start=self&goal=cover&utm_source=meta&utm_campaign=cover')
+    expect(to.search).toBe('?goal=cover&utm_source=meta&utm_campaign=cover')
   })
   it('teacher.eno.vn: “Your plans” + “Finish on eno.vn”; Continue checks step 1 and hands over a v2 fragment with no consent', async () => {
     const assign = vi.fn()
@@ -240,11 +243,11 @@ describe('teacher.eno.vn → eno.vn', () => {
     expect(screen.queryByRole('textbox', { name: 'Full name' })).toBeNull()
     expect(railCount()).toBe(2)
     expect(screen.getByRole('img', { name: 'Finish on eno.vn' })).toBeTruthy()
-    expect(screen.getByText(/Next you continue on eno.vn: sign in there, and your answers are saved to your account/)).toBeTruthy()
-    await user.click(action('Continue on eno.vn'))
+    expect(screen.getByText(/Next: sign in on eno.vn — it takes a few seconds, your answers come with you/)).toBeTruthy()
+    await user.click(action('Continue'))
     expect(assign).toHaveBeenCalledTimes(1)
     const url = String(assign.mock.calls[0][0])
-    expect(url.startsWith('https://eno.vn/teachers/join?start=self#d=')).toBe(true)
+    expect(url.startsWith('https://eno.vn/teachers/join#d=')).toBe(true)
     const payload = unb64url(url.split('#d=')[1]) as { v: number; t: Record<string, unknown> }
     expect(payload.v).toBe(2)
     // ⛔ Only the fields of the step the host SHOWS cross (commit gate, round 10): never what the tab kept behind it — on a
@@ -262,8 +265,8 @@ describe('teacher.eno.vn → eno.vn', () => {
     putDraft(COMPLETE, 'plans', 5, null)
     const { user } = mount({ draftHost: true, goal: 'cover' })
     expect(await screen.findByText('Where are you now?')).toBeTruthy()
-    await user.click(action('Continue on eno.vn'))
-    expect(String(assign.mock.calls[0][0]).startsWith('https://eno.vn/teachers/join?start=self&goal=cover#d=')).toBe(true)
+    await user.click(action('Continue'))
+    expect(String(assign.mock.calls[0][0]).startsWith('https://eno.vn/teachers/join?goal=cover#d=')).toBe(true)
   })
 
   it('teacher.eno.vn refuses the hand-off while step 1 is unanswered, on it', async () => {
@@ -272,7 +275,7 @@ describe('teacher.eno.vn → eno.vn', () => {
     putDraft({ ...COMPLETE, livesIn: 'abroad', currentCity: '', currentDistrictKey: '', jobTypes: [], relocate: '' }, 'plans', 5, null)
     const { user } = mount({ draftHost: true })
     expect(await screen.findByText('Where are you now?')).toBeTruthy()
-    await user.click(action('Continue on eno.vn'))
+    await user.click(action('Continue'))
     expect(assign).not.toHaveBeenCalled()
     expect(await screen.findByText('Please pick the work you are looking for.')).toBeTruthy()
   })
@@ -385,5 +388,84 @@ describe('eno.vn, the sign-in after “Your plans” (2026-10-11)', () => {
     await user.click(action('Next'))
     const finish = await screen.findByText('Profile photo')
     expect(within(finish.closest('section')!).queryByRole('img')).toBeNull() // no photo restored
+  })
+})
+
+describe('the form’s own funnel (signup-prompt.ts TEACHER_FORM_EVENTS — owner, 2026-10-16: "find out" why people bounce)', () => {
+  it('teacher.eno.vn: "ready" once it works; the first answer; Continue stopped by a missing answer, then given', async () => {
+    funnel.length = 0
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign, hash: '', pathname: '/', search: '' })
+    const { user } = mount({ draftHost: true })
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    await waitFor(() => expect(funnel).toContain('step1_ready'))
+    expect(funnel).not.toContain('step1_answered')
+    await user.click(action('Continue'))
+    expect(funnel).toContain('step1_blocked')
+    expect(funnel).not.toContain('step1_continue')
+    await user.click(screen.getByRole('radio', { name: 'Not in Vietnam yet' }))
+    expect(funnel).toContain('step1_answered')
+    await user.click(screen.getByRole('button', { name: 'Full-time' }))
+    await user.click(screen.getByRole('radio', { name: /^Anywhere/ }))
+    await user.click(action('Continue'))
+    expect(funnel).toContain('step1_continue')
+    expect(assign).toHaveBeenCalledTimes(1)
+  })
+
+  it('a restored draft is never counted as an answer', async () => {
+    funnel.length = 0
+    vi.stubGlobal('location', { ...window.location, assign: vi.fn(), hash: '', pathname: '/', search: '' })
+    putDraft(COMPLETE, 'plans', 5, null)
+    mount({ draftHost: true })
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    await waitFor(() => expect(funnel).toContain('step1_ready'))
+    expect(funnel).not.toContain('step1_answered')
+  })
+
+  it('⛔ a visitor arriving with teacher.eno.vn\'s answers is not counted again on eno.vn (one visitor, one step 1)', async () => {
+    funnel.length = 0
+    history.replaceState(null, '', `/teachers/join#d=${b64url({ v: 2, t: COMPLETE })}`)
+    const { user } = mount()
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    await waitFor(() => expect(auth.openSignIn).toHaveBeenCalledTimes(1))
+    // The visitor closes the sign-in and presses the step's own "Sign in": still the same step 1, done over there.
+    await user.click(action('Sign in'))
+    expect(funnel.filter((e) => e.startsWith('step1_'))).toEqual([])
+  })
+
+  it('signed in on eno.vn: step 1\'s Next counts as its Continue', async () => {
+    funnel.length = 0
+    signedIn()
+    const { user } = mount()
+    await screen.findByText('Where are you now?')
+    await user.click(action('Next'))
+    expect(funnel).toContain('step1_blocked')
+  })
+})
+
+describe('a session still being read (gate review, 2026-10-16 — the start screen used to hold this)', () => {
+  it('⛔ waits: never the signed-out step 1 ("Sign in") for a request that came with a session cookie', async () => {
+    auth.loading = true
+    mount({ start: { importIntent: null, sessionHint: true, cvImport: false, campaign: '' } })
+    await new Promise((r) => setTimeout(r, 50))
+    expect(screen.queryByText('Where are you now?')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Sign in' })).toBeNull()
+  })
+  it('…and a signed-in account waits for /api/teachers/me (it may already have a profile)', async () => {
+    let answer: (v: unknown) => void = () => {}
+    auth.user = { id: 'u1' }
+    vi.stubGlobal('fetch', vi.fn((u: string) => (String(u).startsWith('/api/teachers/me/draft')
+      ? Promise.resolve(new Response(JSON.stringify({ draft: null }), { status: 200 }))
+      : new Promise((r) => { answer = r }))))
+    mount()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(screen.queryByText('Where are you now?')).toBeNull()
+    answer(new Response(JSON.stringify({ teacher: null, publishGate: { ok: true, code: null }, prefill: null }), { status: 200 }))
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+  })
+  it('teacher.eno.vn never waits (it has no session): step 1 at once', async () => {
+    auth.loading = true
+    mount({ draftHost: true, start: { importIntent: null, sessionHint: true, cvImport: false, campaign: '' } })
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
   })
 })

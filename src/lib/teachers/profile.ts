@@ -291,6 +291,8 @@ const month = (v: unknown): string | null => {
 }
 const ISO_COUNTRY = /^[A-Z]{2}$/
 const PHONE = /^\+?[0-9 ().-]{8,20}$/
+/** A phone number the form would accept as typed (validateTeacherInput's own rule) — for a value the form fills itself. */
+export const isTeacherPhone = (v: string): boolean => PHONE.test(v.trim())
 const CERT_TYPES = values('cert')
 const DEGREES = values('degree')
 const SUBJECTS = values('subject')

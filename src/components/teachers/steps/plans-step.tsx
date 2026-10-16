@@ -158,7 +158,7 @@ export function PlansStep({ t, update, errors, errText, coverIntent, signedIn, d
       {/* ⛔ SIGN-IN COMES AFTER THIS STEP (owner, 2026-10-11): from then on every answer is saved to the account as it is
           given, so the profile can be finished later, on any device — and the dashboard offers "Continue". */}
       {draftHost ? (
-        <p className="text-sm text-muted-foreground">{tr('Next you continue on eno.vn: sign in there, and your answers are saved to your account at every step — finish any time.', 'Tiếp theo bạn tiếp tục trên eno.vn: đăng nhập ở đó, và câu trả lời được lưu vào tài khoản ở mỗi bước — hoàn tất bất cứ lúc nào.')}</p>
+        <p className="text-sm text-muted-foreground">{tr('Next: sign in on eno.vn — it takes a few seconds, your answers come with you, and they are saved to your account at every step.', 'Tiếp theo: đăng nhập trên eno.vn — chỉ mất vài giây, câu trả lời của bạn được giữ nguyên và được lưu vào tài khoản ở mỗi bước.')}</p>
       ) : !signedIn ? (
         <p className="text-sm text-muted-foreground">{tr('Next you sign in: your answers are kept, and saved to your account at every step — finish any time, on any device.', 'Tiếp theo bạn đăng nhập: câu trả lời được giữ lại và lưu vào tài khoản ở mỗi bước — hoàn tất bất cứ lúc nào, trên mọi thiết bị.')}</p>
       ) : null}

@@ -30,8 +30,12 @@ export type ImportResult = { source: ImportSource; fields: ImportedAnswers; phon
 export type LastImport = ImportResult & {
   filled: ImportField[]
   before: Partial<TeacherInput>
-  /** A PDF the Photo & publish step can offer to attach as the CV schools may be sent (≤ 10 MB, teachers/me/cv). */
+  /** The PDF (≤ 10 MB, teachers/me/cv's cap) — attached as the CV schools may be sent, and offered again if removed. */
   file: File | null
+  /** The CV's phone number went into the empty phone field (owner, 2026-10-16: autofilled, not offered). */
+  phoneAdded: boolean
+  /** The PDF was attached as the profile's CV (none was attached or saved). */
+  cvAttached: boolean
 }
 
 /** The CV route's own cap (api/teachers/me/cv) — a larger PDF is read, but not offered there. */
@@ -124,7 +128,7 @@ type Props = {
   /** The steps still to answer once this reading is in — for the summary. */
   stillToAnswer: TeacherStep[]
   stepLabel: (s: TeacherStep) => string
-  /** The doors exist on this page: "Other ways to start" leads back to them. */
+  /** "Back to the form" — the step the panel was opened from (2026-10-16: no start screen any more). */
   canGoBack: boolean
   onBack: () => void
   onSignIn: () => void
@@ -270,14 +274,18 @@ export function TeacherImportPanel(p: Props) {
             </dl>
           </section>
         ))}
-        {(li.skippedJobs > 0 || li.phone) && (
+        {(li.skippedJobs > 0 || li.phoneAdded || li.cvAttached) && (
           <ul className="list-disc space-y-1 pl-5 text-sm text-body">
             {li.skippedJobs > 0 && (
               <li>{li.skippedJobs === 1
                 ? tr('One past job had no end date, so we left it out — add it on “Your teaching” if you want it.', 'Một công việc trước đây không có ngày kết thúc nên chúng tôi đã bỏ qua — hãy thêm ở bước “Việc giảng dạy” nếu bạn muốn.')
                 : `${li.skippedJobs} ${tr('past jobs had no end date, so we left them out — add them on “Your teaching” if you want them.', 'công việc trước đây không có ngày kết thúc nên chúng tôi đã bỏ qua — hãy thêm ở bước “Việc giảng dạy” nếu bạn muốn.')}`}</li>
             )}
-            {li.phone && <li>{tr('Your CV has a phone number — we only offer it to you on the last step.', 'CV của bạn có số điện thoại — chúng tôi chỉ gợi ý cho bạn ở bước cuối.')}</li>}
+            {/* Autofilled, not offered (owner, 2026-10-16) — so said here, with where to change it. */}
+            {li.phoneAdded && li.phone && <li>{tr('We added the phone number from your CV:', 'Chúng tôi đã thêm số điện thoại trong CV:')} {li.phone} — {tr('it stays private. Change it on the last step.', 'số này được giữ riêng tư. Bạn có thể đổi ở bước cuối.')}</li>}
+            {/* "When you publish", not "attached" (gate review, 2026-10-16): the file waits in this page until Publish uploads
+                it — a reload before then drops it, and the last step shows whether it is still there. */}
+            {li.cvAttached && <li>{tr('Your CV will be attached to your profile when you publish. It stays private — schools get it only when you share it in a chat. Remove it on the last step if you prefer.', 'CV của bạn sẽ được đính kèm vào hồ sơ khi bạn đăng. CV được giữ riêng tư — các trường chỉ nhận được khi bạn chia sẻ trong tin nhắn. Bạn có thể xoá ở bước cuối nếu muốn.')}</li>}
           </ul>
         )}
         {p.stillToAnswer.length > 0 && (
@@ -301,7 +309,7 @@ export function TeacherImportPanel(p: Props) {
     <div className="mx-auto max-w-xl space-y-5" data-testid="import-panel">
       {p.canGoBack && !reading && (
         <Button variant="link" size="none" type="button" className="-mb-2 inline-flex min-h-11 items-center gap-1 text-sm font-semibold" onClick={p.onBack}>
-          <ChevronLeft className="size-4" aria-hidden />{tr('Other ways to start', 'Cách bắt đầu khác')}
+          <ChevronLeft className="size-4" aria-hidden />{tr('Back to the form', 'Quay lại biểu mẫu')}
         </Button>
       )}
       <div>

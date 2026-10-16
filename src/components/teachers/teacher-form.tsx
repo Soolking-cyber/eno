@@ -11,9 +11,10 @@
 // FRAGMENT (`#d=`, v2: step 1's fields only), which no server ever sees. On eno.vn the sign-in comes right after step 1,
 // so the cover switch, the two opt-ins and Publish — each one act, with its notice beside it — happen once, on eno.vn,
 // and nothing is lost in the hand-off or a Google sign-in.
-// Before step 1 of a NEW profile: THE START SCREEN (owner, 2026-10-15 — teacher-start.tsx): the CV, or "myself" (LinkedIn
-// removed 2026-10-16). The CV door ends in the reading panel (teacher-import-panel.tsx), which fills only EMPTY answers from
-// the teacher's own file (import-map.ts mergeImport), saves them to the account's draft and says what it filled, with Undo.
+// A NEW profile opens on step 1 (owner, 2026-10-16: "start with this page and move cv read for later pages before its
+// needed" — teacher-start.tsx). The CV reader is offered on "Your teaching" and "About you" once signed in (cvHandy), and
+// its panel (teacher-import-panel.tsx) fills only EMPTY answers from the teacher's own file (import-map.ts mergeImport),
+// saves them to the account's draft and says what it filled, with Undo — then goes back to the step it was opened from.
 // Validation is src/lib/teachers/profile.ts — the same functions the server runs; the screens are ./steps/*.tsx; the
 // form's own derivations (one answer re-deriving another, the edit warnings, the hand-off) are teacher-form-rules.ts.
 
@@ -28,14 +29,15 @@ import {
   AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Drawer, DrawerContent, DrawerDescription, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
-import { BookOpen, CalendarDays, Camera, Check, Compass, ExternalLink, Loader2, MapPin, User } from '@/components/ui/icons'
+import { BookOpen, CalendarDays, Camera, Check, Compass, ExternalLink, FileText, Loader2, MapPin, User } from '@/components/ui/icons'
 import { compressImageFile } from '@/lib/normalize-image'
 import { uploadListingVideo } from '@/lib/video-upload-client'
+import { prepareTeacherVideo, type TeacherVideoPrepError } from '@/lib/teachers/video-prep'
 import {
-  AI_NOTICE_VERSION, DRAFT_STEPS, EMPTY_TEACHER, PRE_SIGNIN_STEPS, PUBLISH_NOTICE_VERSION, TEACHER_STEPS, TEACHER_STEP_FIELDS, teacherFreeTextFields, hasTeachingGoal, normalizeForSave,
-  normalizeTeacherInput, splitGoalErrors, teacherSteps, type TeacherErrors, type TeacherInput, type TeacherStep,
+  AI_NOTICE_VERSION, DRAFT_STEPS, EMPTY_TEACHER, LIMITS, PRE_SIGNIN_STEPS, PUBLISH_NOTICE_VERSION, TEACHER_STEPS, TEACHER_STEP_FIELDS, teacherFreeTextFields, hasTeachingGoal, normalizeForSave,
+  normalizeTeacherInput, splitGoalErrors, teacherSteps, isTeacherPhone, type TeacherErrors, type TeacherInput, type TeacherStep,
 } from '@/lib/teachers/profile'
-import { TEACHER_DRAFT_HASH_KEY } from '@/lib/teachers/constants'
+import { TEACHER_DRAFT_HASH_KEY, videoRequiredSince } from '@/lib/teachers/constants'
 import { COVER_CONSENT_VERSION, coverStamp, mergeStaleCover, type SavedCover } from '@/lib/teachers/cover'
 import { HCMC, coverReachOf, placeLabel } from '@/lib/teachers/places'
 import { type CoverPatch } from '@/components/teachers/cover-fields'
@@ -56,7 +58,8 @@ import { scrollBehavior } from '@/lib/reduced-motion'
 import { PushOptInCard } from '@/components/marketplace/push-opt-in-card'
 import { revalidateDashboard } from '@/hooks/use-dashboard'
 import { ShareButton, ShareChannels } from '@/components/marketplace/share-button'
-import { TeacherStart, doorsOffered, initialDoor, type Door, type TeacherStartProps } from '@/components/teachers/teacher-start'
+import { initialDoor, type Door, type TeacherStartProps } from '@/components/teachers/teacher-start'
+import { countTeacherFormEvent } from '@/lib/signup-counters'
 import { TeacherImportPanel, type ImportResult, type LastImport } from '@/components/teachers/teacher-import-panel'
 import { untouchedImport, undoImport } from '@/components/teachers/import-summary'
 import { mergeImport } from '@/lib/teachers/import-map'
@@ -253,7 +256,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   // The step BY KEY, never by index: when an answer adds or removes a step (a home with cover, "Online only"), the rail
   // re-counts around the step the teacher is on — it never moves them silently.
   const [stepKey, setStepKey] = useState<TeacherStep>('plans')
-  // THE START SCREEN'S DOOR (teacher-start.tsx): the doors, the form ("myself"), or the reading panel (the CV).
+  // The form, or the reading panel (the CV) in its place — teacher-start.tsx.
   const [door, setDoorState] = useState<Door>(() => (mode === 'join' ? initialDoor(start, draftHost) : 'self'))
   // The last reading the form applied (teacher-import-panel.tsx): what it filled, what was there before (Undo), the file.
   const [lastImport, setLastImport] = useState<LastImport | null>(null)
@@ -276,6 +279,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   // Join: answers ARRIVED — a teacher.eno.vn hand-off or a restored draft (or typed here before signing in) — so a
   // signed-in account that already has a profile is offered to review them in it, rather than having them thrown away.
   const [arrived, setArrived] = useState(false)
+  /** This page opened with teacher.eno.vn's hand-off (`#d=`): its step 1 was done — and counted — over there. */
+  const viaHandoff = useRef(false)
   const [handoffArrived, setHandoffArrived] = useState(false)
   const [listingLive, setListingLive] = useState(true)
   // Edit: the profile's public page (its Listing) — what "Share my profile" shares while schools can see it.
@@ -392,6 +397,16 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   const [confirmVideoRemove, setConfirmVideoRemove] = useState(false)
   // The public video AS SAVED: hiding THAT one cannot recall copies of its link (the note under the choice says so).
   const [savedPublicUrl, setSavedPublicUrl] = useState<string | null>(null)
+  // A video being prepared: the compression's progress (0–1) while a clip over the storage ceiling is made smaller.
+  const [videoProgress, setVideoProgress] = useState<number | null>(null)
+  // THE PROFILE PHOTO CHECK (owner, 2026-10-16): asked as soon as a photo is on the last step (POST /api/teachers/me/
+  // photo-check), so a refusal is said beside the photo, not at Publish. The save judges it again itself.
+  const [photoCheck, setPhotoCheck] = useState<{ url: string; state: 'checking' | 'ok' | 'fail' | 'unavailable'; reason?: 'not_photo' | 'no_face' } | null>(null)
+  // Edit: the saved photo, when it was created (the video rule) and whether the re-check asked the teacher to change it.
+  const [savedPhotoUrl, setSavedPhotoUrl] = useState<string | null>(null)
+  const [profileCreatedAt, setProfileCreatedAt] = useState<string | null>(null)
+  const [savedHadVideo, setSavedHadVideo] = useState(false)
+  const [photoAsk, setPhotoAsk] = useState<{ reason: string } | null>(null)
   // The TeacherProfile this form loaded — Save and Remove name it, and the server refuses another account's (409).
   const [teacherProfileId, setTeacherProfileId] = useState<string | null>(null)
   // The teacher's own look at their private video — a 10-minute link from GET /api/teachers/me/video.
@@ -430,7 +445,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   useEffect(() => { if (done) window.scrollTo({ top: 0, behavior: scrollBehavior() }) }, [done])
   // A screen of this page replaced by another in place (a door, Continue, Undo): focus goes to the new screen's heading.
   const screenSwitched = useRef(false)
-  /** A door chosen: the address follows (`?import=` / `?start=self`), so a reload — or Google's round trip — reopens it. */
+  /** The reading panel opened or closed: the address follows (`?import=cv`), so a reload — or Google's round trip — reopens
+   *  it. (`start=self` belonged to the start screen's "myself" door, gone 2026-10-16: an old link's is simply dropped.) */
   const setDoor = useCallback((d: Door) => {
     setDoorState(d)
     screenSwitched.current = true
@@ -438,7 +454,6 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       const u = new URL(window.location.href)
       for (const k of ['import', 'start']) u.searchParams.delete(k)
       if (d === 'cv') u.searchParams.set('import', d)
-      else if (d === 'self') u.searchParams.set('start', 'self')
       history.replaceState(history.state, '', `${u.pathname}${u.search}${u.hash}`)
     } catch { /* no history API: the screen still switches */ }
     window.scrollTo({ top: 0, behavior: scrollBehavior() })
@@ -446,10 +461,45 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
 
   // ── The steps this teacher sees — re-derived from their answers (profile.ts teacherSteps) ─────────────────────────
   const steps = useMemo(() => teacherSteps(t, { draftHost }), [t, draftHost])
+  // THE INTRO VIDEO "FROM NOW ON" (owner, 2026-10-16): every new profile, and a profile created since the cutoff
+  // (constants.ts TEACHER_VIDEO_REQUIRED_FROM) that has one — the server's own rule (publish.ts): a profile made after the
+  // cutoff under the old code (a slipped deploy) never had one, and its edits never demand one.
+  const videoRequired = mode === 'join' || (videoRequiredSince(profileCreatedAt) && savedHadVideo)
+
   const step: TeacherStep = steps.includes(stepKey)
     ? stepKey
     : steps.find((s) => TEACHER_STEPS.indexOf(s) > TEACHER_STEPS.indexOf(stepKey)) ?? steps[steps.length - 1]
   const stepIdx = steps.indexOf(step)
+
+  // ── The profile photo check (owner, 2026-10-16): asked once per photo, on the step that shows it ────────────────────
+  // A NEW photo only: on an edit, the saved one is never re-judged (the server does not either). The answer is for that
+  // URL alone — a photo changed meanwhile drops it. "Could not check" is no verdict: the save decides then.
+  // ⛔ ONLY A PHOTO THE TEACHER CHOSE, ONLY ON "PHOTO & PUBLISH" (gate review, 2026-10-16): the account's own photo, filled
+  // in by the autofill below, goes to the check only when the teacher taps Publish (the server checks every new photo
+  // there) — never on its own; one the teacher uploads is checked at once, beside its notice. Publish checks it either way. The RENDERED step, not stepKey: answers that remove
+  // the step the teacher was on move the screen forward without changing stepKey.
+  const photoChecked = useRef<string | null>(null)
+  useEffect(() => {
+    const url = t.photoUrl
+    if (step !== 'finish' || !uid || !url || url === prefilledPhoto.current || (mode === 'edit' && url === savedPhotoUrl) || photoChecked.current === url) return
+    photoChecked.current = url
+    let alive = true
+    // Settled answers are kept for that photo: going Back and forward again never asks twice (gate review, 2026-10-16).
+    let settled = false
+    setPhotoCheck({ url, state: 'checking' })
+    fetch('/api/teachers/me/photo-check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url }) })
+      .then(async (r) => ({ ok: r.ok, d: (await r.json().catch(() => ({}))) as { checked?: boolean; ok?: boolean; reason?: string } }))
+      .then(({ ok, d }) => {
+        if (!alive) return
+        settled = true
+        if (ok && d.checked === false) setPhotoCheck(null)
+        else if (ok && d.ok === true) setPhotoCheck({ url, state: 'ok' })
+        else if (ok && d.ok === false && (d.reason === 'not_photo' || d.reason === 'no_face')) setPhotoCheck({ url, state: 'fail', reason: d.reason })
+        else { photoChecked.current = null; setPhotoCheck({ url, state: 'unavailable' }) }
+      })
+      .catch(() => { if (alive) { photoChecked.current = null; setPhotoCheck({ url, state: 'unavailable' }) } })
+    return () => { alive = false; if (!settled && photoChecked.current === url) photoChecked.current = null }
+  }, [t.photoUrl, uid, mode, savedPhotoUrl, step])
   // ⛔ THE PUBLISH NOTE'S PLACE — every step of an edit (Save changes publishes too), the last step of a new profile on
   // eno.vn — and the Terms line inside it renders EXACTLY when `needsTerms` is true, so `acceptTerms` is never sent for a
   // line the screen did not show (commit gate, opus 2026-10-11). Join: known untyped. Any mode: once the server asked
@@ -532,6 +582,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       // the redesign is mapped at this boundary (plan review D2).
       const handed = decodeHandoff(m[1])
       if (handed) {
+        viaHandoff.current = true
         setT(handed)
         setArrived(true)
         // The pre-sign-in step answered (a fragment from a teacher.eno.vn tab from before 2026-10-11 carries all four draft
@@ -1082,13 +1133,28 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   /**
    * A reading arrived: ⛔ ONLY EMPTY ANSWERS ARE FILLED (mergeImport) — whatever the teacher gave, now or in their saved
    * draft, stays — and what it filled is saved at once (the reading was the teacher's act; the line under the title and
-   * the summary say whether the save landed). The phone and the file are only OFFERED, on Photo & publish.
+   * the summary say whether the save landed).
+   * ⛔ THE PHONE AND THE FILE ARE FILLED TOO, NOT OFFERED (owner, 2026-10-16: "the cv info like number and cv itself
+   * stays as default they dont have to click again to use it just autofill as much as possible"): the CV's number into
+   * an EMPTY phone field (never over the account's own, or one typed), and the PDF as the profile's private CV when none
+   * is attached or saved — the reading notice says both, the summary names them, and the last step changes or removes
+   * either. The phone never reaches the draft (draft.ts); the file is uploaded only by Publish.
    */
+  /** A PDF, by type or — an empty type from some pickers — by name: the only CV the upload takes. */
+  const isPdfFile = (f: File) => f.type === 'application/pdf' || (!f.type && /\.pdf$/i.test(f.name))
   const applyImport = (r: ImportResult, file: File | null) => {
     const before = tRef.current
-    const { next, filled } = mergeImport(before, r.fields)
-    setLastImport({ ...r, filled, before: Object.fromEntries(filled.map((k) => [k, before[k]])) as Partial<TeacherInput>, file })
-    if (!filled.length) return
+    const merged = mergeImport(before, r.fields)
+    const filled = merged.filled
+    // Only a number the form itself would accept (gate review: a malformed one would stop Publish on a field the teacher
+    // never typed in), and only a PDF as the CV — the CV upload takes PDFs alone. (The panel hands over a file only for a
+    // PDF already — prepareImport's `keep`; this holds whatever a later caller passes.)
+    const phoneAdded = !!r.phone && isTeacherPhone(r.phone) && !before.phone.trim()
+    const cvAttached = !!file && isPdfFile(file) && !cvFile && !cvName
+    setLastImport({ ...r, filled, before: Object.fromEntries(filled.map((k) => [k, before[k]])) as Partial<TeacherInput>, file, phoneAdded, cvAttached })
+    if (cvAttached) setCvFile(file)
+    const next = phoneAdded ? { ...merged.next, phone: r.phone ?? '' } : merged.next
+    if (!filled.length) { if (phoneAdded) setT(next); return }
     setT(next)
     clearErrorsFor(filled)
     // Saved now — unless answers the account has not taken are on the page (heldBack): then, as for any answers, when the
@@ -1106,7 +1172,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   const undoLastImport = async () => {
     const li = lastImport
     if (!li || busy) return
-    const back = undoImport(tRef.current, li.fields, li.filled, li.before)
+    let back = undoImport(tRef.current, li.fields, li.filled, li.before)
+    // The phone and the CV the reading added go back with it — unless the teacher changed them since.
+    if (li.phoneAdded && back.phone === li.phone) back = { ...back, phone: '' }
+    if (li.cvAttached && cvFile === li.file) setCvFile(null)
     if (nothingToSave(back)) {
       setBusy('saving')
       setUndoing(true)
@@ -1209,6 +1278,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
         setPrivateVideo(tp.hasPrivateVideo === true)
         setVideoBase(typeof tp.videoVersion === 'number' ? tp.videoVersion : null)
         setSavedPublicUrl(tp.videoUrl ?? null)
+        setSavedPhotoUrl(typeof tp.photoUrl === 'string' ? tp.photoUrl : null)
+        setProfileCreatedAt(typeof tp.createdAt === 'string' ? tp.createdAt : null)
+        setSavedHadVideo(!!tp.videoUrl || tp.hasPrivateVideo === true)
+        setPhotoAsk(d?.photoAsk && typeof d.photoAsk.reason === 'string' ? d.photoAsk : null)
         setTeacherProfileId(typeof tp.id === 'string' ? tp.id : null)
         setStatus(tp.status === 'hidden' ? 'hidden' : 'live')
         setListingLive(tp.listingLive !== false)
@@ -1260,6 +1333,31 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     return () => { alive = false; clearTimeout(slow) }
   }, [mode, uid])
 
+  // ── Join: the account's own name, phone and photo fill EMPTY answers (owner, 2026-10-16: "autofill as much as possible
+  // … make teacher onboarding with less clicks") ─────────────────────────────────────────────────────────────────────
+  // Once, when the form itself is on screen (after a CV reading, whose answers come first) and the saved draft is in:
+  // only what is still empty, never over an answer. The name only when it reads as a person's name (an account named by
+  // its email or a handle is left to the teacher); the photo only when it is stored on eno (prefill) — and it then goes
+  // through the photo check like any photo. All three stay the teacher's to change on their step.
+  const prefillApplied = useRef(false)
+  /** The account photo this autofill put in — never sent for the early check (it is checked by Publish, the teacher's act). */
+  const prefilledPhoto = useRef<string | null>(null)
+  useEffect(() => {
+    // After the saved draft has loaded (or failed to — the tab's own copy then stands): a draft arriving later would
+    // replace the answers this fills.
+    if (mode !== 'join' || !prefill || prefillApplied.current || door !== 'self' || (!!uid && !draftLoaded && !loadFailed)) return
+    prefillApplied.current = true
+    const cur = tRef.current
+    const patch: Partial<TeacherInput> = {}
+    const name = (prefill.displayName ?? '').replace(/\s+/g, ' ').trim()
+    if (!cur.fullName.trim() && /^[\p{L}\p{M}][\p{L}\p{M}'’.-]*(?: [\p{L}\p{M}][\p{L}\p{M}'’.-]*)+$/u.test(name)) patch.fullName = name.slice(0, LIMITS.name)
+    // Only a number the form itself accepts — an old stored one in another shape would stop Publish on a field the teacher
+    // never typed in (gate review, 2026-10-16).
+    if (!cur.phone.trim() && prefill.phone && isTeacherPhone(prefill.phone)) patch.phone = prefill.phone
+    if (!cur.photoUrl && prefill.avatarUrl) { patch.photoUrl = prefill.avatarUrl; prefilledPhoto.current = prefill.avatarUrl }
+    if (Object.keys(patch).length) setT({ ...cur, ...patch })
+  }, [mode, prefill, door, uid, draftLoaded, loadFailed, setT])
+
   const publishErrText = (code: string): string => {
     if (code === 'contact_in_text' || code === 'contact_in_name') return tr('Please remove phone numbers, emails and links from your profile text — the person you are chatting with gets your contact only when you share it in that chat.', 'Vui lòng xoá số điện thoại, email và liên kết khỏi hồ sơ — người đang trò chuyện với bạn chỉ nhận được liên hệ khi bạn chia sẻ trong tin nhắn với họ.')
     if (code === 'banned_words') return tr('Your profile contains a word we do not allow. Please rephrase.', 'Hồ sơ có từ không được phép. Vui lòng viết lại.')
@@ -1273,6 +1371,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     // Join mode loaded no saved video either: the server refuses a change over a stored one (video.ts, no base).
     if (code === 'video_changed' && mode === 'join') return tr('You already have a teacher profile. Open it from your account (Teacher profile) to make changes.', 'Bạn đã có hồ sơ giáo viên. Hãy mở hồ sơ trong tài khoản (Hồ sơ giáo viên) để chỉnh sửa.')
     if (code === 'video_store_failed') return tr('Your intro video could not be saved just now. Please try again.', 'Chưa lưu được video giới thiệu. Vui lòng thử lại.')
+    // The profile photo check could not run just now (2026-10-16): never the photo's fault — the answers stay.
+    if (code === 'photo_check_unavailable') return tr('We couldn’t check your photo just now. Please try again in a minute.', 'Chưa kiểm tra được ảnh của bạn. Vui lòng thử lại sau một phút.')
     // Join mode loaded no saved cover, so the server will not let it overwrite one that is ON (publish.ts assertCoverBase).
     if (code === 'cover_changed' && mode === 'join') return tr('You already have a teacher profile that offers cover lessons. Open it from your account (Teacher profile) to make changes.', 'Bạn đã có hồ sơ giáo viên đang nhận dạy thay. Hãy mở hồ sơ trong tài khoản (Hồ sơ giáo viên) để chỉnh sửa.')
     return tr('Something went wrong. Please try again.', 'Đã có lỗi. Vui lòng thử lại.')
@@ -1312,6 +1412,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
 
   // ── Media ───────────────────────────────────────────────────────────────────────────────────────
   const uploadPhoto = async (file: File) => {
+    if (busy !== '') return // one upload at a time — see uploadVideo
     setBusy('photo'); setFormError('')
     try {
       const small = await compressImageFile(file)
@@ -1325,17 +1426,37 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       setFormError(tr('Photo upload failed. Try a JPG or PNG under 12 MB.', 'Tải ảnh thất bại. Thử ảnh JPG hoặc PNG dưới 12 MB.'))
     } finally { setBusy('') }
   }
+  const videoPrepText = (e: TeacherVideoPrepError): string => {
+    switch (e) {
+      case 'type': return tr('Choose an MP4, MOV or WebM video.', 'Hãy chọn video MP4, MOV hoặc WebM.')
+      case 'too_big': return tr('That video is too large. Record a shorter one (up to 60 seconds).', 'Video quá lớn. Hãy quay video ngắn hơn (tối đa 60 giây).')
+      case 'too_long': return tr('Your intro video must be 60 seconds or less.', 'Video giới thiệu phải dài tối đa 60 giây.')
+      case 'unreadable': return tr('We couldn’t read that video — try another one.', 'Không đọc được video này — hãy thử video khác.')
+      case 'cannot_compress': return tr('That video is over 50 MB and this browser can’t make it smaller. Record it in 720p, or open eno.vn in Chrome or Safari.', 'Video trên 50 MB và trình duyệt này không thu nhỏ được. Hãy quay ở 720p, hoặc mở eno.vn bằng Chrome hoặc Safari.')
+      default: return tr('We couldn’t make that video smaller — try a shorter or lower-quality one.', 'Không thu nhỏ được video — hãy thử video ngắn hơn hoặc chất lượng thấp hơn.')
+    }
+  }
+  /**
+   * The intro video (required for a new profile since 2026-10-16): read its length, make a clip over the 50 MB storage
+   * ceiling smaller in the browser, flag an iPhone (HEVC) clip so its transcode fails closed — video-prep.ts, the post
+   * wizard's rules — then upload.
+   */
   const uploadVideo = async (file: File) => {
+    // One upload at a time (gate review, 2026-10-16): a second pick while a video — or the photo — is compressing or
+    // uploading would race it (one `busy` for both) and leave an upload nobody chose. The pickers are disabled meanwhile.
+    if (busy !== '') return
     setBusy('video'); setFormError('')
     try {
-      if (file.size > 50 * 1024 * 1024) throw new Error('size')
-      const url = await uploadListingVideo(file)
+      const prepared = await prepareTeacherVideo(file, { onCompress: (f) => setVideoProgress(f) })
+      if ('error' in prepared) { setFormError(videoPrepText(prepared.error)); return }
+      setVideoProgress(null)
+      const url = await uploadListingVideo(prepared.file, { hevc: prepared.hevc })
       if (!url) throw new Error('video')
       setConfirmVideoRemove(false)
       set('videoUrl', url)
     } catch {
-      setFormError(tr('Video upload failed. Keep it under 60 seconds and 50 MB (MP4 or MOV).', 'Tải video thất bại. Giữ dưới 60 giây và 50 MB (MP4 hoặc MOV).'))
-    } finally { setBusy('') }
+      setFormError(tr('Video upload failed. Please try again — keep it under 60 seconds.', 'Tải video thất bại. Vui lòng thử lại — giữ dưới 60 giây.'))
+    } finally { setBusy(''); setVideoProgress(null) }
   }
   const uploadCv = async (file: File): Promise<boolean> => {
     const form = new FormData(); form.append('file', file)
@@ -1353,7 +1474,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   /** The pre-sign-in step must hold before the account half: what a hand-off or "Sign in" checks first. */
   const preSignInOk = (): boolean => {
     const e = checkSteps(t, PRE_SIGNIN_STEPS)
-    if (!Object.keys(e).length) return true
+    // The form's own funnel (signup-prompt.ts TEACHER_FORM_EVENTS): step 1's Continue / Sign in, given or stopped — by a
+    // visitor doing step 1 HERE (one who arrived with the hand-off's answers was counted on teacher.eno.vn).
+    if (!Object.keys(e).length) { if (!viaHandoff.current) countTeacherFormEvent('step1_continue'); return true }
+    if (!viaHandoff.current) countTeacherFormEvent('step1_blocked')
     refuse(e)
     return false
   }
@@ -1362,8 +1486,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     // teacher.eno.vn → eno.vn: the fragment carries the draft steps' answers (v2), never a consent; no server sees it.
     // The query: a teacher who came for cover keeps that intent (`goal=cover`), and the campaign tags this address holds
     // (source, medium, campaign) cross with it — the first-visit record is per host.
-    // `start=self`: the teacher already chose how to start — eno.vn opens the form, never the doors again.
-    const query = ['start=self', coverIntent ? 'goal=cover' : '', campaignQuery(window.location.search).slice(1)].filter(Boolean).join('&')
+    const query = [coverIntent ? 'goal=cover' : '', campaignQuery(window.location.search).slice(1)].filter(Boolean).join('&')
     window.location.assign(`${apexOrigin}/teachers/join${query ? `?${query}` : ''}#${TEACHER_DRAFT_HASH_KEY}=${encodeHandoff(t)}`)
   }
   const signInToContinue = () => {
@@ -1393,6 +1516,11 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     // requires inventing a goal (plan review D6). A new profile with no goal is refused, as the server refuses it.
     const checked = checkSteps(t, TEACHER_STEPS)
     const all = mode === 'edit' ? splitGoalErrors(checked).other : checked
+    // ⛔ THE INTRO VIDEO "FROM NOW ON" (owner, 2026-10-16): a new profile, or one created since the cutoff, has one — a
+    // public or a private video — as the server requires (publish.ts). Older profiles keep the old rule.
+    if (videoRequired && !t.videoUrl && !privateVideo) all.videoUrl = 'required'
+    // A photo the check already refused is said there, never sent (the server would refuse it the same way).
+    if (photoCheck && photoCheck.url === t.photoUrl && photoCheck.state === 'fail' && photoCheck.reason) all.photoUrl = photoCheck.reason
     if (Object.keys(all).length) { refuse(all); return }
     // ⛔ A SAVE THAT HIDES A SHOWN PROFILE IS ASKED FIRST (gate review, 2026-10-08). With no work wanted and no public
     // cover the server saves and HIDES (D6, publish.ts noGoal) — and "Save changes" is on every step, while the
@@ -1528,6 +1656,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       // profile" follows it on a return to the form (commit gate, codex + opus 2026-10-12).
       setListingLive(d.live === true)
       published = true
+      if (mode === 'join') countTeacherFormEvent('published')
       // The publish deleted the saved draft in its own transaction: the dashboard row now leads to the profile.
       if (mode === 'join' && uid) revalidateDashboard(uid)
     } catch {
@@ -1678,6 +1807,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   // raw React one: a save after a 409 reload sends the reloaded video, not the stale window's.
   const applySavedVideo = (v: { onRequest?: boolean; version?: number; hasPrivate?: boolean; url?: string | null }) => {
     setPrivateVideo(v.hasPrivate === true)
+    // A video saved now counts as the profile's at once (the required-video rule for a profile made since the cutoff),
+    // not only after a reload (gate review, 2026-10-16).
+    if (v.url || v.hasPrivate === true) setSavedHadVideo(true)
     setVideoBase(typeof v.version === 'number' ? v.version : null)
     setSavedPublicUrl(v.url ?? null)
     setConfirmVideoRemove(false) // never a "Remove for good" left armed over the NEXT video
@@ -1735,6 +1867,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       }
       else if (d.error === 'video_changed') { setConfirmVideoRemove(false); setFormError(staleVideoLine(await reloadSavedVideo())); revealFirstError({ formLineFirst: true }) }
       else if (d.error === 'video_missing') { setConfirmVideoRemove(false); const r = await reloadSavedVideo(); if (r !== 'ok') setFormError(staleVideoLine(r)) }
+      // A profile created since the cutoff keeps its intro video (2026-10-16): replace it instead.
+      else if (d.error === 'video_required') { setConfirmVideoRemove(false); setFormError(tr('Your profile needs an intro video — upload a new one to replace it.', 'Hồ sơ của bạn cần có video giới thiệu — hãy tải video mới lên để thay.')) }
       else setFormError(tr('Could not remove your video. Please try again.', 'Không xoá được video. Vui lòng thử lại.'))
     } catch {
       setFormError(tr('Could not remove your video. Please try again.', 'Không xoá được video. Vui lòng thử lại.'))
@@ -1886,6 +2020,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   const isLast = stepIdx === steps.length - 1
   const next = () => {
     const e = checkSteps(t, [step])
+    // Step 1's Next for a teacher already signed in on eno.vn — the same funnel step as Continue / Sign in (preSignInOk).
+    if (mode === 'join' && !existing && !viaHandoff.current && step === LAST_PRE_SIGNIN) countTeacherFormEvent(Object.keys(e).length ? 'step1_blocked' : 'step1_continue')
     if (Object.keys(e).length) {
       setErrors(e)
       revealFirstError()
@@ -1902,7 +2038,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   const primary = mode === 'edit'
     ? { label: busy === 'saving' ? savingLabel : tr('Save changes', 'Lưu thay đổi'), onClick: () => { void publish() }, disabled: busy !== '' }
     : draftHost && step === LAST_PRE_SIGNIN
-      ? { label: tr('Continue on eno.vn', 'Tiếp tục trên eno.vn'), onClick: handOff }
+      // "Continue", not "Continue on eno.vn" (2026-10-16 — 85% of these visitors are in Facebook's in-app browser, and a
+      // button that announces leaving reads as leaving): the line above it says where the next step happens.
+      ? { label: tr('Continue', 'Tiếp tục'), onClick: handOff }
       : !user && step === LAST_PRE_SIGNIN
         // "Sign in", not "Sign in": the longer label wrapped to two lines in the 375px action bar (and the
         // Vietnamese is longer still) — the line above the bar already says sign-in comes next (browser run, 2026-10-09).
@@ -2025,10 +2163,18 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       ?.focus({ preventScroll: true, focusVisible: !byPointer } as FocusOptions & { focusVisible?: boolean }))
   })
   const draftPending = ownedPending || (mode === 'join' && !draftHost && !!uid && !authLoading && !existing && !draftLoaded && !loadFailed)
-  // ⛔ NO DOOR, NO PANEL, NO STEP 1 FOR A SESSION STILL BEING READ (2026-10-15): a request that came with a session cookie
-  // waits for the account — never the signed-out doors first, then something else under the finger — and a signed-in
-  // account waits for /api/teachers/me before any door (it may already have a profile).
-  const doorWaits = mode === 'join' && door !== 'self' && ((!!start?.sessionHint && authLoading) || (door === 'start' && !!uid && !meKnown))
+  // ⛔ NO PANEL AND NO STEP 1 FOR A SESSION STILL BEING READ (2026-10-15; with no start screen since 2026-10-16, gate
+  // review): a request that came with a session cookie waits for the account — never the signed-out step 1 ("Sign in")
+  // for someone signed in, then something else under the finger — and a signed-in account waits for /api/teachers/me (it
+  // may already have a profile). Never long: that request's own timer lets the form show (meKnown).
+  const doorWaits = mode === 'join' && !draftHost && ((!!start?.sessionHint && authLoading) || (!!uid && !meKnown))
+  // The form's own funnel (signup-prompt.ts TEACHER_FORM_EVENTS): step 1 of a new profile on screen AND working — this
+  // runs only once the page has hydrated, which is the point (half of Facebook's Android visitors never got that far,
+  // 10-13 → 10-16). Once per page, and never for a visitor who arrived with the hand-off's answers (counted on
+  // teacher.eno.vn already — gate review, 2026-10-16: one visitor, two "ready"s).
+  const step1Working = mode === 'join' && !existing && !done && step === 'plans' && door === 'self' && loaded && !draftPending && !doorWaits
+  // The ref is read INSIDE the effect: the hand-off's restore effect (declared above) has run by then, on the same mount.
+  useEffect(() => { if (step1Working && !viaHandoff.current) countTeacherFormEvent('step1_ready') }, [step1Working])
   if (!loaded || draftPending || doorWaits) {
     return <div className="flex justify-center py-24"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
   }
@@ -2157,12 +2303,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     )
   }
 
-  // ── Before step 1: the start screen, and the reading panel ──────────────────────────────────────────────────────
-  // The doors only for a NEW profile with nothing on the page yet (a hand-off, this tab's copy or a saved draft opens the
-  // form where it was), and only when there is a door worth a screen (doorsOffered).
-  if (mode === 'join' && door === 'start' && start && doorsOffered(start) && t === EMPTY_TEACHER && !arrived && !handoffArrived) {
-    return <TeacherStart start={start} draftHost={draftHost} apexOrigin={apexOrigin} coverIntent={coverIntent} onDoor={setDoor} />
-  }
+  // ── The reading panel, in the form's place (the CV — offered on "Your teaching" and "About you", or `?import=cv`) ──
   if (mode === 'join' && !draftHost && door === 'cv') {
     // Answers the account has not taken (heldBack — left in this tab signed out) are not the teacher's yet: their step
     // is still to answer, and Continue opens on it.
@@ -2186,8 +2327,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
             : draftState === 'saving' || sentStep.current === null ? 'saving' : 'later'}
           stillToAnswer={stillToAnswer}
           stepLabel={stepLabel}
-          canGoBack={!!start && doorsOffered(start) && t === EMPTY_TEACHER && !arrived}
-          onBack={() => setDoor('start')}
+          canGoBack
+          onBack={() => setDoor('self')}
           onSignIn={() => openSignIn({ note: tr('Sign in to read your file — it takes a few seconds, and your answers are then saved to your account as you go.', 'Đăng nhập để đọc tệp — chỉ mất vài giây, sau đó câu trả lời được lưu vào tài khoản khi bạn điền.') })}
           onImported={applyImport}
           onUndo={() => { void undoLastImport() }}
@@ -2202,6 +2343,15 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   }
 
   const stepProps: StepProps = { t, set, patch, update, errors, errText, mode }
+  // Step 1's own answers count once as "answered" (signup-prompt.ts TEACHER_FORM_EVENTS) — only the visitor's choices
+  // there, never a restored draft or an autofill (those go through setT, not these), and never after the hand-off.
+  const countAnswer = () => { if (mode === 'join' && !viaHandoff.current) countTeacherFormEvent('step1_answered') }
+  const plansProps: StepProps = {
+    ...stepProps,
+    set: (k, v) => { countAnswer(); set(k, v) },
+    patch: (p) => { countAnswer(); patch(p) },
+    update: (n, touched, direct) => { countAnswer(); update(n, touched, direct) },
+  }
   const droppedWords = (f: DroppedField): string => {
     switch (f) {
       case 'expectedSalaryM': return tr('your expected salary', 'mức lương mong muốn')
@@ -2287,9 +2437,13 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
             </div>
             {importLine}
             {cvHandy && (
-              <Button variant="link" size="none" type="button" className="inline-flex min-h-11 items-center text-sm font-semibold" onClick={() => setDoor('cv')} data-testid="cv-handy">
-                {tr('Have your CV? Fill these steps in from it', 'Có CV? Điền tự động các bước này từ CV')}
-              </Button>
+              // Where a CV helps (owner, 2026-10-16: "move cv read for later pages before its needed"): a card, not a door
+              // in front of step 1 — one tap opens the reading panel, which comes back to this step.
+              <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-tint p-3.5" data-testid="cv-handy">
+                <FileText aria-hidden className="size-5 shrink-0 text-body" />
+                <p className="min-w-0 flex-1 text-sm text-body">{tr('Have your CV? We can fill in this step and the next ones from it — you check every answer.', 'Có CV? Chúng tôi điền giúp bước này và các bước tiếp theo từ CV — bạn kiểm tra từng câu trả lời.')}</p>
+                <Button variant="secondary" size="sm" type="button" onClick={() => setDoor('cv')}>{tr('Use my CV', 'Dùng CV của tôi')}</Button>
+              </div>
             )}
             {mode === 'edit' && applied && (
               <div role="status" className="space-y-1 rounded-xl bg-tint px-3.5 py-2.5 text-sm text-body">
@@ -2313,7 +2467,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
         }
       >
         <div className="space-y-8 pb-6">
-          {step === 'plans' && <PlansStep {...stepProps} coverIntent={coverIntent} signedIn={!!user} draftHost={draftHost} districtNotSaying={districtNotSaying} onDistrictNotSaying={setDistrictNotSaying} />}
+          {step === 'plans' && <PlansStep {...plansProps} coverIntent={coverIntent} signedIn={!!user} draftHost={draftHost} districtNotSaying={districtNotSaying} onDistrictNotSaying={setDistrictNotSaying} />}
           {step === 'where' && <WhereStep {...stepProps} coverIntent={coverIntent} onGoTo={goTo} />}
           {step === 'teaching' && <TeachingStep {...stepProps} />}
           {step === 'about' && <AboutStep {...stepProps} prefillName={prefill?.displayName ?? null} />}
@@ -2328,6 +2482,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
               imported={mode === 'join' && lastImport ? { phone: lastImport.phone, file: lastImport.file } : null}
               optInsNoticeChanged={reconfirm.optIns}
               identityMark={{ ...mark, canSave: mode === 'edit' && !!teacherProfileId, busy: markBusy, message: markMessage, onToggle: (on) => { void toggleMark(on) } }}
+              photoCheck={photoCheck && photoCheck.url === t.photoUrl ? photoCheck : null}
+              photoAsk={mode === 'edit' && photoAsk && t.photoUrl === savedPhotoUrl ? photoAsk : null}
+              videoRequired={videoRequired}
+              videoProgress={videoProgress}
               media={{
                 busy, onPhoto: uploadPhoto, onVideo: uploadVideo, privateVideo, savedPublicUrl, ownVideoUrl, ownVideoBusy, videoRemoving,
                 confirmVideoRemove, setConfirmVideoRemove, onWatchOwnVideo: watchOwnVideo, onCloseOwnVideo: () => setOwnVideoUrl(null),

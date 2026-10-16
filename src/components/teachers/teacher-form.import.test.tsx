@@ -10,7 +10,7 @@
  *   · every refusal says what to do next, and "Fill it in myself" is always there.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, configure, fireEvent, getConfig, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, configure, fireEvent, getConfig, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { LanguageProvider } from '@/context/language-context'
 import { EMPTY_TEACHER } from '@/lib/teachers/profile'
@@ -39,7 +39,9 @@ vi.setConfig({ testTimeout: 60_000 })
 afterAll(() => { configure({ asyncUtilTimeout }); vi.resetConfig() })
 beforeAll(() => { Element.prototype.scrollIntoView ??= function () {} })
 
-const START: TeacherStartProps = { importIntent: null, startSelf: false, sessionHint: false, cvImport: true, campaign: '' }
+const START: TeacherStartProps = { importIntent: null, sessionHint: false, cvImport: true, campaign: '' }
+/** `?import=cv` — a link straight to the reading panel (eno.vn). */
+const PANEL: TeacherStartProps = { ...START, importIntent: 'cv' }
 const IMPORT = {
   source: 'cv',
   fields: {
@@ -91,88 +93,62 @@ const pdf = (name = 'cv.pdf', size = 2_000) => new File([new Uint8Array(size)], 
 const fileInput = () => document.querySelector<HTMLInputElement>('input[type="file"]')!
 const draftPuts = () => calls.filter((c) => c.method === 'PUT' && c.url === '/api/teachers/me/draft').map((c) => c.body as { t: Record<string, unknown>; step: string })
 const importPosts = () => calls.filter((c) => c.method === 'POST' && c.url === '/api/teachers/me/import')
-const door = (id: string) => screen.getByTestId(`door-${id}`) as HTMLAnchorElement
-/** Signed in on the CV panel, its draft loaded: the button that agrees and opens the picker. */
-async function onCvPanel(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByTestId('door-cv'))
+/** The panel, opened by `?import=cv` (mount with PANEL): its button that agrees and opens the picker, once usable. */
+async function onCvPanel(_user: ReturnType<typeof userEvent.setup>) {
   const choose = await screen.findByTestId('import-choose')
   await waitFor(() => expect((choose as HTMLButtonElement).disabled).toBe(false))
   return choose
 }
 
-describe('the start screen', () => {
-  it('the CV first, then "myself" — real links, and a line about the photo and video the last step needs', () => {
+describe('how a new profile opens (owner, 2026-10-16: "start with this page and move cv read for later pages")', () => {
+  it('⛔ step 1 first — no screen of choices before it, no LinkedIn', async () => {
     mount()
-    expect(screen.getByRole('heading', { name: 'How would you like to start?' })).toBeTruthy()
-    expect(door('cv').getAttribute('href')).toBe('?import=cv')
-    expect(door('self').getAttribute('href')).toBe('?start=self')
-    const order = [...document.querySelectorAll('[data-testid^="door-"]')].map((a) => a.getAttribute('data-testid'))
-    expect(order).toEqual(['door-cv', 'door-self'])
-    expect(screen.getByText(/short intro video \(up to 60 seconds\)/)).toBeTruthy()
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    expect(screen.queryByText('How would you like to start?')).toBeNull()
+    expect(screen.queryByTestId('door-cv')).toBeNull()
     expect(screen.queryByText(/LinkedIn/)).toBeNull()
+    // Not offered before sign-in: the reader needs an account, and step 1 asks none of what a CV answers.
+    expect(screen.queryByTestId('cv-handy')).toBeNull()
   })
 
-  it('the doors carry the cover intent and the campaign tags; on teacher.eno.vn they lead to eno.vn', () => {
-    mount({ draftHost: true, goal: 'cover', start: { ...START, campaign: 'utm_source=meta&utm_campaign=teachers' } })
-    expect(door('cv').getAttribute('href')).toBe('https://eno.vn/teachers/join?import=cv&goal=cover&utm_source=meta&utm_campaign=teachers')
-    // "Myself" stays on the teacher host: its step 1 needs no account.
-    expect(door('self').getAttribute('href')).toBe('?start=self&goal=cover&utm_source=meta&utm_campaign=teachers')
-  })
-
-  it('no reader — or ?start=self, or no start screen at all — opens step 1 as before', async () => {
-    mount({ start: { ...START, cvImport: false } })
+  it('on teacher.eno.vn too, whatever the campaign — and `?import=cv` never opens a panel there (no session to read under)', async () => {
+    mount({ draftHost: true, goal: 'cover', start: { ...PANEL, campaign: 'utm_source=meta&utm_campaign=teachers' } })
     expect(await screen.findByText('Where are you now?')).toBeTruthy()
-    cleanup()
-    mount({ start: { ...START, startSelf: true } })
-    expect(await screen.findByText('Where are you now?')).toBeTruthy()
-    cleanup()
-    mount({ start: undefined })
-    expect(await screen.findByText('Where are you now?')).toBeTruthy()
-    expect(screen.queryByTestId('teacher-start')).toBeNull()
+    expect(screen.queryByTestId('import-panel')).toBeNull()
   })
 
-  it('"Fill it in myself" opens step 1 in place, and the address remembers it', async () => {
-    const user = mount()
-    await user.click(door('self'))
+  it('no reader configured: `?import=cv` opens the form, never a dead end', async () => {
+    mount({ start: { ...PANEL, cvImport: false } })
     expect(await screen.findByText('Where are you now?')).toBeTruthy()
-    expect(window.location.search).toBe('?start=self')
   })
 
-  it('a door moves the focus to the new screen’s heading (nothing is left focused on a control that went away)', async () => {
-    const user = mount()
-    await user.click(door('cv'))
-    const heading = await screen.findByRole('heading', { name: 'Fill it in from your CV' })
-    await waitFor(() => expect(document.activeElement).toBe(heading))
+  it('`?import=cv` (a link from a guide or an ad) opens the reading panel', async () => {
+    mount({ start: PANEL })
+    expect(await screen.findByRole('heading', { name: 'Fill it in from your CV' })).toBeTruthy()
   })
 
-  it('⛔ a request that came with a session waits for the account — neither the doors nor step 1 first', async () => {
+  it('⛔ a request that came with a session waits for the account before the panel', async () => {
     auth.loading = true
-    mount({ start: { ...START, sessionHint: true } })
-    expect(screen.queryByTestId('teacher-start')).toBeNull()
-    expect(screen.queryByText('Where are you now?')).toBeNull()
+    mount({ start: { ...PANEL, sessionHint: true } })
+    expect(screen.queryByTestId('import-panel')).toBeNull()
   })
 
-  it('signed in with nothing saved: the doors, once the account is known', async () => {
+  it('signed in on "Your teaching": the CV card opens the panel, and "Back to the form" returns to that step', async () => {
     signIn()
-    mount({ start: { ...START, sessionHint: true } })
-    expect((await screen.findByTestId('door-cv')).getAttribute('href')).toBe('?import=cv')
-  })
-
-  it('signed in with a saved draft: the form opens where it was — no doors', async () => {
-    signIn()
-    saved = { t: { ...EMPTY_TEACHER, livesIn: 'abroad', jobTypes: ['fulltime'], relocate: 'anywhere' }, step: 'plans', rev: 3, gen: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b', updatedAt: '2026-10-15T09:00:00.000Z' }
-    mount({ start: { ...START, sessionHint: true } })
-    expect(await screen.findByText('Where are you now?')).toBeTruthy()
-    expect(screen.queryByTestId('teacher-start')).toBeNull()
+    saved = { t: { ...EMPTY_TEACHER, livesIn: 'abroad', jobTypes: ['fulltime'], relocate: 'anywhere', teachAreas: ['online'], teachAreasConfirmed: true }, step: 'teaching', rev: 3, gen: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b', updatedAt: '2026-10-15T09:00:00.000Z' }
+    const user = mount({ start: { ...START, sessionHint: true } })
+    const card = await screen.findByTestId('cv-handy', {}, { timeout: 15_000 })
+    await user.click(within(card).getByRole('button', { name: 'Use my CV' }))
+    expect(await screen.findByRole('heading', { name: 'Fill it in from your CV' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: /Back to the form/ }))
+    expect(await screen.findByText('What do you teach?')).toBeTruthy()
   })
 })
 
 describe('the reading panel', () => {
   it('signed out: the notice, and "Sign in to choose your CV" — nothing is read without an account', async () => {
-    const user = mount()
-    await user.click(door('cv'))
+    const user = mount({ start: PANEL })
     expect(await screen.findByRole('heading', { name: 'Fill it in from your CV' })).toBeTruthy()
-    expect(window.location.search).toBe('?import=cv')
     expect(screen.getByText(/Google's Gemini AI reads your CV on Google Cloud, outside Vietnam/)).toBeTruthy()
     await user.click(screen.getByTestId('import-sign-in'))
     expect(auth.openSignIn).toHaveBeenCalledTimes(1)
@@ -201,7 +177,9 @@ describe('the reading panel', () => {
     expect(screen.getByText("Bachelor's · English · University of Leeds · 2016")).toBeTruthy()
     expect(screen.getByText('Worked out from your file — check it.')).toBeTruthy()
     expect(screen.getByText(/One past job had no end date/)).toBeTruthy()
-    expect(screen.getByText(/Your CV has a phone number — we only offer it to you on the last step/)).toBeTruthy()
+    // ⛔ AUTOFILLED, NOT OFFERED (owner, 2026-10-16): the CV's phone into the empty field, the PDF as the private CV — said.
+    expect(screen.getByText(/We added the phone number from your CV:/).textContent).toContain('+447700900123')
+    expect(screen.getByText(/Your CV will be attached to your profile when you publish\. It stays private/)).toBeTruthy()
     expect(screen.queryByText('Jane Smith')).toBeNull() // not filled: the teacher's own name stays
 
     // Saved to the account's draft at once — the imported answers, the teacher's own name, never the phone — and the
@@ -214,7 +192,8 @@ describe('the reading panel', () => {
 
     await user.click(screen.getByTestId('import-continue'))
     expect(await screen.findByText('Where are you now?')).toBeTruthy()
-    expect(window.location.search).toBe('?start=self')
+    // The address drops `import=cv`, so a reload opens the form, not the panel (and never the retired `start=self`).
+    expect(window.location.search).toBe('')
     expect(screen.getByTestId('import-line').textContent).toMatch(/Your CV filled in later steps/)
   })
 
@@ -227,7 +206,7 @@ describe('the reading panel', () => {
       'POST /api/teachers/me/import': () => ({ json: { import: IMPORT } }),
     })
     vi.stubGlobal('fetch', f.fn)
-    const user = mount()
+    const user = mount({ start: PANEL })
     await onCvPanel(user)
     fireEvent.change(fileInput(), { target: { files: [pdf()] } })
     await screen.findByTestId('import-summary')
@@ -280,7 +259,7 @@ describe('the reading panel', () => {
       return f.fn(input, init)
     })
     vi.stubGlobal('fetch', slowDelete)
-    const user = mount()
+    const user = mount({ start: PANEL })
     await onCvPanel(user)
     fireEvent.change(fileInput(), { target: { files: [pdf()] } })
     await screen.findByTestId('import-summary')
@@ -309,7 +288,7 @@ describe('the reading panel', () => {
 
   it('⛔ Undo of a first reading deletes the saved draft and goes back to choosing', async () => {
     signIn()
-    const user = mount()
+    const user = mount({ start: PANEL })
     await onCvPanel(user)
     fireEvent.change(fileInput(), { target: { files: [pdf()] } })
     await screen.findByTestId('import-summary')
@@ -319,9 +298,22 @@ describe('the reading panel', () => {
     expect(await screen.findByTestId('import-choose')).toBeTruthy()
   })
 
+  it('⛔ only a PDF becomes the attached CV, and only a phone the form would accept is filled in (gate review, 2026-10-16)', async () => {
+    signIn()
+    importReply = () => ({ json: { import: { ...IMPORT, phone: 'ext. 12 (office)' } } })
+    const user = mount({ start: PANEL })
+    await onCvPanel(user)
+    fireEvent.change(fileInput(), { target: { files: [new File([new Uint8Array(2_000)], 'cv.jpg', { type: 'image/jpeg' })] } })
+    expect(await screen.findByTestId('import-summary')).toBeTruthy()
+    // A photo of a CV is read, never attached (the panel keeps only a PDF, and the form takes only a PDF) — and a number
+    // the form would refuse is not filled into a field the teacher never typed in.
+    expect(screen.queryByText(/Your CV will be attached to your profile/)).toBeNull()
+    expect(screen.queryByText(/We added the phone number from your CV/)).toBeNull()
+  })
+
   it('a Word file is read in the browser and sent as text; an old .doc is refused with the way out', async () => {
     signIn()
-    const user = mount()
+    const user = mount({ start: PANEL })
     await onCvPanel(user)
     fireEvent.change(fileInput(), { target: { files: [new File(['x'], 'cv.doc', { type: 'application/msword' })] } })
     expect((await screen.findByRole('alert')).textContent).toMatch(/older document format/)
@@ -339,7 +331,7 @@ describe('the reading panel', () => {
   ])('a refusal says what to do next: %j', async (reply, line) => {
     signIn()
     importReply = () => reply
-    const user = mount()
+    const user = mount({ start: PANEL })
     await onCvPanel(user)
     fireEvent.change(fileInput(), { target: { files: [pdf()] } })
     expect((await screen.findByRole('alert')).textContent).toMatch(line)
@@ -350,7 +342,7 @@ describe('the reading panel', () => {
   it('409 teacher_exists: the account has a profile — the form says where it is', async () => {
     signIn()
     importReply = () => ({ status: 409, json: { error: 'teacher_exists' } })
-    const user = mount()
+    const user = mount({ start: PANEL })
     await onCvPanel(user)
     fireEvent.change(fileInput(), { target: { files: [pdf()] } })
     expect(await screen.findByRole('heading', { name: 'You already have a teacher profile' })).toBeTruthy()
@@ -359,7 +351,7 @@ describe('the reading panel', () => {
   it('in the apps with the review gate on: Google AI is asked about first, and the next tap opens the picker', async () => {
     signIn()
     gate.needed = true
-    const user = mount()
+    const user = mount({ start: PANEL })
     const choose = await onCvPanel(user)
     const click = vi.spyOn(fileInput(), 'click')
     await user.click(choose)

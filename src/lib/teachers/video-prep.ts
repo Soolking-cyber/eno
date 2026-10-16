@@ -1,0 +1,66 @@
+'use client'
+
+import { compressVideo, videoCompressionSupported } from '@/lib/video-compress'
+import { hasHevcTrack, VIDEO_UPLOAD_MAX_BYTES } from '@/lib/video-upload-client'
+
+/**
+ * A TEACHER'S INTRO VIDEO, READY TO UPLOAD (owner, 2026-10-16: "make short intor video mandatory from now on"). Now that
+ * no new profile publishes without one, the teacher form gets the post wizard's protections (src/hooks/use-post-media.ts
+ * addVideo — the same rules, kept beside it rather than refactored out of the post wizard): a phone's minute of 1080p is
+ * 100–400 MB, far over the 50 MB storage ceiling, so a clip over it is COMPRESSED in the browser instead of refused; the
+ * length is read from the file (≤ 60 s, 61 for rounding); and an HEVC (iPhone) clip is flagged so its server transcode
+ * fails CLOSED rather than keeping a clip that plays black on most Android phones.
+ */
+export const TEACHER_VIDEO_PICK_MAX_BYTES = 400 * 1024 * 1024
+const MAX_SECONDS = 61
+
+export type TeacherVideoPrepError = 'type' | 'too_big' | 'too_long' | 'unreadable' | 'cannot_compress' | 'compress_failed'
+
+export async function prepareTeacherVideo(file: File, opts: { onCompress?: (fraction: number) => void } = {}): Promise<{ file: File; hevc: boolean } | { error: TeacherVideoPrepError }> {
+  // Some iOS picker paths hand over an EMPTY type: the name is then the only signal.
+  const typeOk = /^video\/(mp4|webm|quicktime|x-m4v)$/.test(file.type) || (!file.type && /\.(mp4|webm|mov|m4v)$/i.test(file.name))
+  if (!typeOk) return { error: 'type' }
+  if (file.size > TEACHER_VIDEO_PICK_MAX_BYTES) return { error: 'too_big' }
+  const url = URL.createObjectURL(file)
+  try {
+    const seconds = await new Promise<number>((resolve) => {
+      const v = document.createElement('video')
+      let timer = 0
+      // Settled once: the timer cleared and the probe let go of the file (no decoder kept on a 400 MB clip).
+      const done = (n: number) => {
+        window.clearTimeout(timer)
+        v.onloadedmetadata = null
+        v.onerror = null
+        v.removeAttribute('src')
+        v.load()
+        resolve(n)
+      }
+      v.preload = 'metadata'
+      v.onloadedmetadata = () => done(v.duration)
+      v.onerror = () => done(NaN)
+      // Metadata that never arrives (a WKWebView blob hiccup) must not hang the step on "Checking…".
+      timer = window.setTimeout(() => done(NaN), 10_000)
+      v.src = url
+    })
+    if (!Number.isFinite(seconds)) {
+      // The length could not be read HERE (a WebM a browser recorded reports Infinity; an iPhone HEVC .mov fails in a browser
+      // without HEVC) — and the video is required now (gate review, 2026-10-16): a clip that needs no shrinking goes up as
+      // it is (flagged HEVC or not, the server's transcode decides); only one that must be made smaller cannot be, unread.
+      if (file.size > VIDEO_UPLOAD_MAX_BYTES) return { error: 'unreadable' }
+      return { file, hevc: await hasHevcTrack(file).catch(() => false) }
+    }
+    if (seconds > MAX_SECONDS) return { error: 'too_long' }
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+  if (file.size > VIDEO_UPLOAD_MAX_BYTES) {
+    if (!videoCompressionSupported()) return { error: 'cannot_compress' }
+    try {
+      // The output is H.264 MP4 (Safari) or VP8/9 WebM (Chromium) — never HEVC.
+      return { file: await compressVideo(file, { targetBytes: VIDEO_UPLOAD_MAX_BYTES, onProgress: opts.onCompress }), hevc: false }
+    } catch {
+      return { error: 'compress_failed' }
+    }
+  }
+  return { file, hevc: await hasHevcTrack(file).catch(() => false) }
+}
