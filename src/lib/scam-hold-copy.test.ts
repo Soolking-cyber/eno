@@ -71,6 +71,14 @@ describe('Help Center — "What the trust labels mean"', () => {
 
   it('exists', () => { expect(article).toBeTruthy() })
 
+  // Owner, 2026-10-15: a verified identity counts while it is current — business verification never moved the score.
+  it('the score moves on a verified identity while it is current, never business verification — "xác minh"', () => {
+    expect(article.body).toContain('Verified phone, verified identity (while it is current), account age')
+    expect(article.body).not.toMatch(/business verification/i)
+    expect(article.bodyVi).toContain('danh tính đã xác minh (khi còn hiệu lực)')
+    expect(article.bodyVi).not.toMatch(/xác thực/)
+  })
+
   it('no longer promises the self-reported exit, in either language', () => {
     expect(article.body).not.toMatch(/clean deals?/i)
     expect(article.bodyVi).not.toMatch(/giao dịch sạch/)

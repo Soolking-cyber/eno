@@ -99,7 +99,8 @@ export async function notifyIdentityOutcome(
           ? (lang === 'vi' ? 'Nhãn “Đã xác minh danh tính” chưa hiển thị trên hồ sơ giáo viên của bạn — xem lý do trong bước Ảnh & đăng.' : '“Identity verified” is not showing on your teacher profile yet — see why in Photo & publish.')
           : (lang === 'vi' ? 'Giờ bạn có thể hiển thị “Đã xác minh danh tính” trên hồ sơ giáo viên — bật trong bước Ảnh & đăng.' : 'You can now show “Identity verified” on your teacher profile — switch it on in Photo & publish.'))
       : approved
-        ? (lang === 'vi' ? 'Bạn sẽ không phải làm lại bước này.' : 'You will not be asked to do this again.')
+        // Not "ever again": a document that expires, or is replaced, is verified again (the email says the same).
+        ? (lang === 'vi' ? 'Bạn sẽ không phải làm lại bước này trừ khi giấy tờ hết hạn hoặc được thay mới.' : 'You will not be asked to do this again unless your document expires or is replaced.')
         : (clip(why, 140) || (lang === 'vi' ? 'Nhân viên chưa thể chấp nhận giấy tờ của bạn.' : 'A reviewer could not accept your documents.'))
     /**
      * ⚠️ THE PUSH NEVER CARRIES THE REVIEWER'S NOTE. It transits a third-party push service and lands

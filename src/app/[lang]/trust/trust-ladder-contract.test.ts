@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { TRUST } from '../../../lib/trust-math'
+import { VI_OVERRIDES } from '@/generated/vi-overrides'
 
 /**
  * ⛔ /trust PUBLISHES ONLY BANDS A SCORE CAN REACH.
@@ -44,5 +45,34 @@ describe('/trust ladder matches the score range', () => {
   it('the unreachable Elite band is not published', () => {
     expect(src).not.toMatch(/name="Elite"/)
     expect(src).not.toMatch(/160 and up/)
+  })
+})
+
+/**
+ * ⛔ THE VERIFICATION ROW STATES TRUST'S OWN GATES (owner, 2026-10-15): a verified identity counts +V_KYC while it is
+ * current — not "one-time", and never business verification — and its curated Vietnamese says the same, with "xác minh"
+ * (Decree 69/2024 reserves "xác thực"). The pattern of scam-hold-copy.test.ts: the page's own literal, then its override.
+ */
+describe('/trust Verification row states TRUST’s gates', () => {
+  const src = readFileSync('src/app/[lang]/trust/page.tsx', 'utf8').replace(/\/\*[\s\S]*?\*\/|(^|[^:])\/\/[^\n]*/g, '$1')
+  const row = src.match(/\['Verification', (\d+), '([^']+)'\]/)
+  const sub = row?.[2] ?? ''
+
+  it('finds the row (the scan is not vacuous)', () => { expect(row).toBeTruthy() })
+
+  it('its points and every gate are TRUST’s', () => {
+    expect(Number(row?.[1])).toBe(TRUST.V_PHONE + TRUST.V_KYC + TRUST.V_AGE)
+    expect(sub).toContain(`verified phone +${TRUST.V_PHONE}`)
+    expect(sub).toContain(`+${TRUST.V_KYC} while it is current`)
+    expect(sub).toContain(`older than ${TRUST.V_AGE_DAYS} days +${TRUST.V_AGE}`)
+    expect(sub).not.toMatch(/business identity|\(KYC\)|One-time/)
+  })
+
+  it('its curated Vietnamese says the same — "xác minh", never "xác thực"', () => {
+    const vi = VI_OVERRIDES[sub]
+    expect(vi).toBeTruthy()
+    expect(vi).toContain(`+${TRUST.V_KYC} khi còn hiệu lực`)
+    expect(vi).toContain('xác minh')
+    expect(vi).not.toContain('xác thực')
   })
 })

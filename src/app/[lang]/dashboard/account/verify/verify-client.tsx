@@ -968,9 +968,18 @@ export function VerifyClient() {
             so HERE, on that tier only. */}
         <p className="text-body">
           {tr(
-            'Vietnamese law requires sellers to verify their identity before publishing. A person on our team reviews your document and selfie, usually within a working day, and you do this once.',
-            'Theo quy định của pháp luật Việt Nam, người bán phải xác minh danh tính trước khi đăng tin. Nhân viên của chúng tôi xem xét giấy tờ và ảnh chân dung của bạn, thường trong một ngày làm việc, và bạn chỉ cần làm một lần.',
+            'Vietnamese law requires sellers to verify their identity before publishing. A person on our team reviews your document and selfie, usually within a working day, and you do this once — again only if your document expires or is replaced.',
+            'Theo quy định của pháp luật Việt Nam, người bán phải xác minh danh tính trước khi đăng tin. Nhân viên của chúng tôi xem xét giấy tờ và ảnh chân dung của bạn, thường trong một ngày làm việc, và bạn chỉ cần làm một lần — chỉ làm lại khi giấy tờ hết hạn hoặc được thay mới.',
           )}
+        </p>
+        {/* ⛔ WHAT THE RESULT DOES BEYOND THE LAW (owner, 2026-10-15): a live verified identity is TRUST.V_KYC points
+            (verify-copy.test.ts pins the number), and a teacher may show it on their profile — the opt-in "Identity
+            verified" mark, never the document. Web only under ios-hide-kyc (page.tsx sends the app to the hub); never
+            put this on the hub (verification-client.tsx), which the iOS app shows. */}
+        <p className="text-body">
+          {tr('A verified identity also adds 10 points to your trust score — one of the factors in the order of browse results — while your verification is current.', 'Danh tính đã xác minh còn cộng 10 điểm vào điểm uy tín của bạn — một trong các yếu tố sắp xếp kết quả khi duyệt tin — trong thời gian kết quả xác minh còn hiệu lực.')}
+          {' '}
+          {tr('If you have a teacher profile, you can choose to show “Identity verified” on it — never your document or anything on it.', 'Nếu có hồ sơ giáo viên, bạn có thể chọn hiển thị “Đã xác minh danh tính” trên hồ sơ — không bao giờ hiển thị giấy tờ hay thông tin trên giấy tờ.')}
         </p>
         <p className="text-xs text-muted-foreground">
           {/* Statute citations are shown as published, never machine-translated — a translator can mangle

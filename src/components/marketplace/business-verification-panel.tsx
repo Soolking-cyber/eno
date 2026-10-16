@@ -311,8 +311,8 @@ export function BusinessVerificationPanel({ showPersonSteps = true }: { showPers
                 {personVerified
                   ? tr('Done. Your identity is verified.', 'Hoàn tất. Danh tính của bạn đã được xác minh.')
                   : tr(
-                      'A named person has to stand behind a business storefront. This takes a few minutes and only has to be done once.',
-                      'Một cá nhân có danh tính phải đứng sau gian hàng doanh nghiệp. Việc này mất vài phút và chỉ cần làm một lần.',
+                      'A named person has to stand behind a business storefront. This takes a few minutes and only has to be done again if your document expires or is replaced.',
+                      'Một cá nhân có danh tính phải đứng sau gian hàng doanh nghiệp. Việc này mất vài phút và chỉ cần làm lại khi giấy tờ hết hạn hoặc được thay mới.',
                     )}
               </p>
               {!personVerified && uploadsElsewhere && <IosVerifyElsewhereNote kind="identity" className="mt-2" />}

@@ -186,7 +186,7 @@ describe('notifyIdentityOutcome — a teacher\'s approval', () => {
     h.s.profile = { email: 'anna@example.com', locale: 'en', teacherProfile: TP }
     h.s.markState = { shown: false, reason: 'revoked' }
     await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'B' })
-    expect(h.s.bells[0]).toMatchObject({ body: 'You will not be asked to do this again.', url: '/dashboard/verification' })
+    expect(h.s.bells[0]).toMatchObject({ body: 'You will not be asked to do this again unless your document expires or is replaced.', url: '/dashboard/verification' })
     expect(JSON.stringify([h.s.bells, h.s.pushes, h.s.mails])).not.toContain('Identity verified')
   })
 
@@ -219,7 +219,7 @@ describe('notifyIdentityOutcome — a teacher\'s approval', () => {
     h.s.profile = { email: 'anna@example.com', locale: 'en', teacherProfile: TP }
     h.s.markThrows = true
     await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'B' })
-    expect(h.s.bells[0]).toMatchObject({ body: 'You will not be asked to do this again.', url: '/dashboard/verification' })
+    expect(h.s.bells[0]).toMatchObject({ body: 'You will not be asked to do this again unless your document expires or is replaced.', url: '/dashboard/verification' })
     expect(h.s.pushes[0].payload.url).toBe('/dashboard/verification')
     expect(h.s.mails).toHaveLength(1)
     expect(JSON.stringify([h.s.bells, h.s.pushes, h.s.mails])).not.toContain('Identity verified')
@@ -237,7 +237,7 @@ describe('notifyIdentityOutcome — a teacher\'s approval', () => {
   it('no teacher profile: exactly the old copy and the hub — and no read', async () => {
     h.s.profile = { email: 'anna@example.com', locale: 'en', teacherProfile: null }
     await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'B' })
-    expect(h.s.bells[0]).toMatchObject({ body: 'You will not be asked to do this again.', url: '/dashboard/verification' })
+    expect(h.s.bells[0]).toMatchObject({ body: 'You will not be asked to do this again unless your document expires or is replaced.', url: '/dashboard/verification' })
     expect(h.s.mails[0].text).toContain('Thanks for selling on eno.forum.')
     expect(h.s.markCalls).toEqual([])
   })

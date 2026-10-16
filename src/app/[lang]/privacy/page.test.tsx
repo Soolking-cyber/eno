@@ -744,3 +744,77 @@ describe('/privacy — every paragraph is a real pair', () => {
     expect(untranslated).toEqual([])
   })
 })
+
+/**
+ * ⚖️ THE IDENTITY CHANGE (owner, 2026-10-15 — not material, live with the deploy): a verified identity counts in the
+ * trust score while it is current, every account, both editions; the selfie holds no code since 2026-09-04; one
+ * Vietnamese term for the trust score (Quy chế Art 17); and the teacher's opt-in "Identity verified" mark — where it
+ * shows, its conditions, never the document, the consent record, switching it off, its own purpose. Decree 69/2024
+ * reserves "xác thực": eno's own check is "xác minh".
+ */
+describe('/privacy — a verified identity, the trust score and the teacher’s “Identity verified”', () => {
+  it.each(['marketplace', 'services'] as const)('%s: ⛔ the selfie holds no code since 2026-09-04', async (site) => {
+    const en = await policy(site)
+    expect(en).not.toContain('a selfie holding a one-time code')
+    expect(en).toContain('and a selfie, together with the details printed on the document')
+    cleanup()
+    const vi = await policy(site, 'vi')
+    expect(vi).not.toContain('cầm mã dùng một lần')
+    expect(vi).toContain('và một ảnh chân dung, cùng các thông tin in trên giấy tờ')
+  })
+
+  it.each(['marketplace', 'services'] as const)('%s: ⛔ the score counts a verified identity while it is current — never business verification', async (site) => {
+    const en = await policy(site)
+    expect(en).toContain('from a verified phone number, a verified identity (while it is current), account age')
+    expect(en).toContain('A verified identity also counts toward the account’s trust score for as long as it is current')
+    expect(en).not.toContain('business verification, account age')
+    // The score is public and its rule is published, so it can show a verified identity — said, not left to infer
+    // (commit gate, 2026-10-16: the opt-in mark must not read as the only place it shows).
+    expect(en).toContain('so a score can show that an account’s identity is verified even where nothing else says so')
+    expect(en).toContain('Whether or not you show it, a verified identity counts toward your trust score, which is public')
+    cleanup()
+    const vi = await policy(site, 'vi')
+    expect(vi).toContain('danh tính đã xác minh (khi còn hiệu lực)')
+    expect(vi).toContain('Danh tính đã xác minh còn được tính vào điểm uy tín của tài khoản')
+    expect(vi).toContain('nên điểm số có thể cho thấy danh tính của tài khoản đã được xác minh')
+    expect(vi).toContain('Dù bạn có hiển thị nhãn hay không, danh tính đã xác minh vẫn được tính vào điểm uy tín của bạn')
+  })
+
+  it.each(['marketplace', 'services'] as const)('%s: ⛔ one Vietnamese term for the trust score — "điểm uy tín", never "tín nhiệm"', async (site) => {
+    const vi = await policy(site, 'vi')
+    expect(vi).not.toMatch(/tín nhiệm/)
+    expect(vi).toContain('Điểm uy tín:')
+  })
+
+  it.each(['marketplace', 'services'] as const)('%s: ⛔ the opt-in mark — where, when, never the document, the record, switching off, its purpose', async (site) => {
+    const en = await policy(site)
+    for (const s of [
+      'A teacher may also choose to show “Identity verified” on their teacher profile',
+      'on your profile’s card wherever it appears in a list',
+      'the people who message you about your profile',
+      'It is off until you switch it on',
+      'only while your verification is current and the name on your profile matches the name on your verified document',
+      'it never shows your document or anything printed on it',
+      'We record when you switched it on, the version of the notice you saw, and when you switched it off',
+      'those conversations within a few minutes',
+      'switch cover lessons or “Identity verified” off',
+      'With a teacher’s consent only, given in the teacher profile with its own switch',
+    ]) expect(en, s).toContain(s)
+    expect(en).not.toMatch(/Verified by eno|Verified teacher|vetted/i)
+    cleanup()
+    const vi = await policy(site, 'vi')
+    for (const s of [
+      'Giáo viên cũng có thể chọn hiển thị “Đã xác minh danh tính” trên hồ sơ giáo viên của mình',
+      'trên thẻ hồ sơ ở mọi danh sách có hồ sơ của bạn',
+      'với những người nhắn tin cho bạn về hồ sơ',
+      'Nhãn này tắt cho đến khi bạn bật',
+      'chỉ hiển thị khi việc xác minh của bạn còn hiệu lực và họ tên trên hồ sơ khớp với họ tên trên giấy tờ đã xác minh',
+      'nhãn không bao giờ hiển thị giấy tờ hay bất kỳ thông tin nào in trên đó',
+      'phiên bản thông báo bạn đã xem',
+      'các cuộc trò chuyện đó trong vòng vài phút',
+      'tắt dạy thay hoặc nhãn “Đã xác minh danh tính”',
+      'Chỉ khi giáo viên đồng ý bằng công tắc riêng trong hồ sơ giáo viên',
+    ]) expect(vi, s).toContain(s)
+    expect(vi).not.toMatch(/xác thực/)
+  })
+})

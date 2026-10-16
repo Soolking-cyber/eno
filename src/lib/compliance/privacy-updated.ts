@@ -30,6 +30,11 @@
  * LinkedIn sign-in too", "Gemini on Vertex"): Google reading a CV the teacher chooses (its recipients row, the teacher
  * paragraph, automated decisions), LinkedIn as a recipient (its row, the account information, withdrawing it), and the
  * email hash never sent for a LinkedIn account (D14). Live with the deploy — they describe new, opt-in features.
+ * And 2026-10-16 as well (planned — the deploy day of the KYC trust input and the teacher's "Identity verified" mark,
+ * owner 2026-10-15: not material, live with the deploy): a verified identity counts toward the trust score while it is
+ * current — every account, both editions (the identity and trust paragraphs; "a selfie"; "điểm uy tín" throughout the
+ * Vietnamese) — and the teacher's opt-in "Identity verified" mark on the profile, its card in lists and the chats about
+ * it (the teacher paragraph and its consent purpose). If the two deploys fall on different days, this is the LATER one.
  * ⛔ If that deploy slips past 2026-10-16, re-date this (the deploy gate refuses until it matches the day).
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
@@ -48,4 +53,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-16'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = 'e944c8bdd3ff370b'
+export const PRIVACY_TEXT_FINGERPRINT = '6f8dfd81112f41b5'

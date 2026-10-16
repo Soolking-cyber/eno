@@ -273,34 +273,34 @@ indexed in §2.2 — a nightly job walks it.
 
 ### 1.5 How this ties into the Public Trust Score
 
-The trust model is **evidence-based (Trust v2)** and drift was deliberately removed. So
-verification enters as **evidence**, exactly like any other TrustEvent — not as a multiplier,
-not as a decay, and not as a separate badge system.
+⛔ **Owner decision 2026-10-15 supersedes the event table that stood here** (+12 / +10 / −10 / −25 / +8 — never built).
 
-⚠️ **Do not reintroduce anything that looks like drift.** A "verification freshness" term that
-quietly lowers scores over time is drift wearing a compliance hat.
+- **Identity is an INPUT, not a TrustEvent.** `kycVerified` = `deriveVerification` over `identity_verifications`
+  (`computeTrustV2` → `verifiedProfileIds`, `src/lib/kyc/identity.ts`): revocation wins; a valid verification survives a
+  later rejection; a document is good through its expiry day (ICT); a CCCD with no expiry never lapses. Never the
+  `Profile` cache, never a ledger event (`recordKyc` is gone).
+- **A flat +10** (`TRUST.V_KYC`) inside V (capped at 25), for every account on both editions, Tier A and Tier B alike.
+- It stops counting when the document lapses or the verification is revoked — at the next recompute; the nightly
+  `identity-reconcile` (09:05 ICT) recomputes every account with an identity row. The identity's step is never
+  daily-capped; the phone path's one-time lift already was not (`uncapped` — it lands everything pending); nothing
+  else became uncapped (`recomputeTrust`).
+- **Business verification is not an input.**
 
-```ts
-// Additions to the TrustEvent kinds — awarded once, idempotent on (profileId, kind).
-IDENTITY_VERIFIED_TIER_A  +12   // state-backed assertion; strongest identity evidence we can hold
-IDENTITY_VERIFIED_TIER_B  +10   // document-backed; slightly weaker (no live issuer check)
-IDENTITY_EXPIRED          -10   // reverses the award; NOT a penalty below the pre-award baseline
-IDENTITY_REVOKED          -25   // authority-ordered or fraud-confirmed; this one IS a penalty
-BUSINESS_REGISTERED       + 8   // verified business registration number
-```
+⚠️ **Do not reintroduce anything that looks like drift.** A "verification freshness" term that quietly lowers scores
+over time is drift wearing a compliance hat. Lapsing on a dated event — the document's own expiry — is not drift.
 
 Three rules that keep this honest:
 
-1. **Reversal, not punishment.** `IDENTITY_EXPIRED` must not drop a seller below where they
-   sat before verifying — otherwise verifying early is a trap. Implement as a paired reversal
-   event, and assert it in `trust-math.test.ts`.
-2. **The badge is derived, never stored as truth.** `Seller.verified` today is a raw boolean;
-   after this it must be **computed** from the live verification row, or it will drift out of
-   sync the first time a document expires. Keep the column as a denormalised cache written
-   only by `recomputeTrust`, the same discipline as `trustTier`.
-3. **Verification does not buy ranking on its own** — it moves `trustScore`, which is 0.60 of
-   browse rank and 0.40 of search rank (§4.1). That indirection is what makes the disclosure
-   text in §4.1 true.
+1. **Lapse, never punishment.** An expired or revoked identity takes its +10 away and nothing more; fraud is sanctioned
+   through Conduct (confirmed reports), never through the identity input.
+2. **The mark is derived, never stored as truth.** The teacher's opt-in "Identity verified" is computed from consent
+   under `IDENTITY_MARK_NOTICE_VERSION` + `deriveVerification` = `verified` + the profile's name within the document's
+   (`src/lib/teachers/identity-mark.ts`). `Listing.identityMarkNotice` is a display cache with one writer
+   (`identity-mark-card.ts`), re-derived on every identity recompute and at 00:05 ICT (`identity-marks`). Only a boolean
+   leaves the server; nothing in JSON-LD; no effect on rank.
+3. **Verification does not buy ranking on its own** — no sort, pin, filter or tie-break uses it. It moves `trustScore`
+   only (+10 ≈ +0.086 of browse rankScore: 0.60 × 10/70 inside the trust band), which is 0.60 of browse rank and 0.40 of
+   search rank (§4.1). That indirection keeps the disclosure text in §4.1 and /legal/ranking true.
 
 ### 1.6 Enforcement ramp (do not flip a switch on 2027-01-01)
 

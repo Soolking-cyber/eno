@@ -543,6 +543,10 @@ There are **two** tier vocabularies and they do not have the same arity:
 
 Constants at `trust.ts:71-89`:
 
+> ⚠️ The numbers below are the v1 ledger (baseline 100, −40, phone +15). Scores are Trust v2: `src/lib/trust-math.ts`
+> (base 60; V = phone +10 · a LIVE verified identity +10 · account age ≥ 90 days +5, capped at 25; Q 40; T 25; C −90).
+> Only the KYC row below is kept current.
+
 | Reason | Delta | Cap / gate | Wired in |
 |---|---|---|---|
 | Completed transaction | `+5` | **UNCAPPED** (gated by a real-money fee) | `recordTransaction` — **defined, not yet wired** |
@@ -551,11 +555,11 @@ Constants at `trust.ts:71-89`:
 | Fast response | `+1` | capped | `fast_response` type — **not wired** |
 | Phone verified | `+15` | one-time | `lib/profile.ts` (ensureProfile) + `lib/admin.ts` |
 | Zalo linked | `+10` | one-time | `recordZaloLinked` — **defined, not yet wired** |
-| KYC | `+15` | one-time | `recordKyc` — **defined, not yet wired** |
+| Identity verified (KYC) | `+10` — Trust v2 `TRUST.V_KYC` | while live: `deriveVerification` over `identity_verifications`; lapses on expiry or revocation, never daily-capped | **live with the KYC deploy (planned 2026-10-16)** — `computeTrustV2` reads `verifiedProfileIds()`, not this ledger; `recordKyc` deleted |
 | Profile complete | `+5` | one-time | `/api/seller` route (when name/bio/location/avatar/phone all set) |
 | New-account deficit | `-40` | one-time | `lib/profile.ts` |
 
-So today only **new-account, phone-verified, profile-complete, and engagement** are live; transaction/review/KYC/Zalo/fast-response are implemented engine-side but await their respective flows (checkout, identity, Zalo OAuth). A reviewer should not assume the full earn loop is active.
+So today only **new-account, phone-verified, profile-complete, and engagement** are live in this ledger — and a live verified identity counts through Trust v2 (the row above); transaction/review/Zalo/fast-response are implemented engine-side but await their respective flows (checkout, Zalo OAuth). A reviewer should not assume the full earn loop is active.
 
 ### Report flow + severity penalties
 

@@ -57,7 +57,7 @@ function Band({ score, name, range, note }: { score: number; name: string; range
 // Clear action → points table. Green for rewards, red for penalties — and the SIGN carries the
 // meaning too (a true minus, U+2212), so hue is never the only difference (WCAG 1.4.1).
 //
-// ⚠️ THE SUB-LINE IS THE RULE, NOT METADATA. "Verified phone +10, business identity +10, account
+// ⚠️ THE SUB-LINE IS THE RULE, NOT METADATA. "Verified phone +10, verified identity +10 while it is current, account
 // older than 90 days +5" is the method this page exists to publish, and it was set at 12px in ink-4
 // like a caption (C-TRUST, measured 2026-09-29). It reads as body copy now: 14px, relaxed, body ink.
 function Points({ rows }: { rows: [string, number, string][] }) {
@@ -115,7 +115,10 @@ export default function TrustPage() {
           <p className="text-sm leading-relaxed text-body"><Tr text="The score starts at 60 and adds four components, each with a hard ceiling — so no single tactic can be farmed to the top. Everything except verification is windowed: only recent behavior moves it." /></p>
           <div className="mt-1">
             <Points rows={[
-              ['Verification', 25, 'One-time gates: verified phone +10, business identity (KYC) +10, account older than 90 days +5'],
+              // ⛔ MIRRORS TRUST.V_PHONE / V_KYC / V_AGE / V_AGE_DAYS (trust-math.ts); trust-ladder-contract.test.ts holds the
+              // numbers and the curated Vietnamese (vi-overrides.ts). The identity counts while deriveVerification says
+              // 'verified' (owner, 2026-10-15) — not one-time, and not business verification.
+              ['Verification', 25, 'Gates: verified phone +10, verified identity (an ID document and a selfie checked by eno’s team) +10 while it is current, account older than 90 days +5'],
               ['Quality', 40, 'Verified-buyer reviews (up to 25), proven reply speed (up to 10), fresh availability on your listings (up to 5)'],
               ['Track record', 25, 'Completed deals in the last 12 months — with diminishing returns, so volume alone can\'t buy the top'],
               ['Conduct', -90, 'Confirmed reports subtract, weighted by severity and by who reported — and fade only as described below'],
@@ -148,7 +151,7 @@ export default function TrustPage() {
 
       <ContentSection id="fair" title="Fair by design" titleVi="Công bằng ngay từ thiết kế">
           <p className="text-sm leading-relaxed text-body">
-            <Tr text="One hostile buyer can never sink a seller alone: reports only pull a tier down when they come from at least two different people AND exceed 2% of the seller's deals — or when a scam is confirmed. Penalties scale with your volume in practice, judgments are windowed so an old mistake doesn't mark you forever, and nothing heals by waiting: scores rise only through verification, real deals, real reviews, and fast replies. Daily gains are capped, so trust can only be built the slow, honest way — and higher trust ranks higher in search and the feed, so being reliable directly earns more views, chats, and sales." />
+            <Tr text="One hostile buyer can never sink a seller alone: reports only pull a tier down when they come from at least two different people AND exceed 2% of the seller's deals — or when a scam is confirmed. Penalties scale with your volume in practice, judgments are windowed so an old mistake doesn't mark you forever, and nothing heals by waiting: scores rise only through verification, real deals, real reviews, and fast replies. Daily gains are capped — only a newly verified phone or identity counts in full at once — so trust can only be built the slow, honest way — and higher trust ranks higher in search and the feed, so being reliable directly earns more views, chats, and sales." />
           </p>
       </ContentSection>
     </ContentPage>
