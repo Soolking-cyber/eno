@@ -123,7 +123,10 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
           announcement for no gain. The NAME carries the accessible link. */}
       {/* `title` here, not on the Link: the Link is aria-hidden, and a tooltip is for the
           sighted reader who needs the gold ring explained — see the note in seller-card.tsx. */}
-      <Link href={href} aria-hidden tabIndex={-1} className="shrink-0 rounded-full active:opacity-60" title={officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}>
+      {/* prefetch={false} on all three links to the shop (speed plan item 7, measured on production 2026-10-16): the
+          row is on every PDP, twice, and /sellers/<id> is a real render (`private, no-store`) — auto prefetch cost
+          two origin renders per listing view, for a link most visitors never take. */}
+      <Link href={href} prefetch={false} aria-hidden tabIndex={-1} className="shrink-0 rounded-full active:opacity-60" title={officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}>
         <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg"  />
       </Link>
       <div className="min-w-0 flex-1">
@@ -134,7 +137,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
               so on the link itself the 44px area would exist in the stylesheet and nowhere on screen.
               The link keeps `min-w-0` (what `overflow:hidden` used to give it for free) so a long name
               still shrinks to the row and ellipsises inside the span. */}
-          <Link href={href} className="relative min-w-0 tap-44 text-sm font-bold text-foreground hover:underline active:opacity-60"><span className="block truncate">{name}</span></Link>
+          <Link href={href} prefetch={false} className="relative min-w-0 tap-44 text-sm font-bold text-foreground hover:underline active:opacity-60"><span className="block truncate">{name}</span></Link>
           {/* ⚠️ THE RING IS DECORATION; THIS IS THE ACTUAL LABEL. The worded badge was removed
               (owner, 2026-08-11) in favour of the gold ring on the avatar above — but a ring
               has no accessible name and no meaning to anyone who cannot separate that gold
@@ -181,6 +184,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
       </div>
       <Link
         href={href}
+        prefetch={false}
         // A job board is not a shop: on a linked job the storefront is the BOARD's other postings
         // (import-jobs.ts), never the employer's, so the label says what the link actually opens.
         aria-label={linked === 'job' ? tr('More jobs from this board', 'Việc làm khác từ trang tuyển dụng này') : tr('Visit shop', 'Vào gian hàng')}

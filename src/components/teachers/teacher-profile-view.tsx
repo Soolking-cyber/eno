@@ -7,7 +7,9 @@
 // derivation, tested there). ⛔ The old columns (preferredCities, openToOnline, coverAreas, nativeSpeaker,
 // yearsExperience, currentDistrict) are WRITTEN MIRRORS now and are never read back here as answers (plan review D1).
 import { Fragment } from 'react'
+import Image from 'next/image'
 import { db } from '@/lib/db'
+import { isListingImageUrl, isMockImageUrl } from '@/lib/listing-image'
 import { Tr } from '@/context/language-context'
 import { LocalizedText } from '@/components/marketplace/listing-content'
 import { Header } from '@/components/marketplace/header'
@@ -217,8 +219,14 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
         <div className="grid gap-8 lg:grid-cols-[1fr_20rem]">
           <div className="space-y-8">
             <header className="flex items-start gap-4">
+              {/* ⚠️ THROUGH THE OPTIMIZER, PRELOADED AT HIGH PRIORITY (speed plan item 7, 2026-10-16). The raw <img> sent
+                  the uploaded original — 71 KB for a 96px circle on the measured profile, ~2 KB as AVIF — at the
+                  default image priority. `priority` is the preload and `fetchPriority`
+                  is what makes it high (listing-gallery.tsx's note). A URL the optimizer does not serve (anything
+                  but a canonical listing-bucket image) is passed through as before. The JSON-LD, the share card
+                  and TeacherContact keep the original URL (`photo`). */}
               {photo
-                ? <img src={photo} alt="" width={96} height={96} className="size-24 shrink-0 rounded-full object-cover" />
+                ? <Image src={photo} alt="" width={96} height={96} quality={60} priority fetchPriority="high" unoptimized={!isListingImageUrl(photo) || isMockImageUrl(photo)} className="size-24 shrink-0 rounded-full object-cover" />
                 : <span className="size-24 shrink-0 rounded-full bg-muted" />}
               <div className="min-w-0">
                 <h1 className="text-2xl font-semibold text-foreground">{name}</h1>

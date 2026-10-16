@@ -101,6 +101,23 @@ function PurposeRow({ title, desc, checked, onChange, locked = false }: { title:
  * loads each) — and a block per sentence costs the half-empty last line of each block: +1 line (161 → 180 px) on
  * the Vietnamese desktop bar. On a 320–360px phone the same lines are the price of the photo LCP (+19 px of bar,
  * 7–8.5 s → 0.8 s LCP at 360); cutting them needs shorter words, which wait for counsel (see the bar's copy).
+ *
+ * ⛔ AND ONE BOX PER WORD, SINCE 2026-10-16 (speed plan item 7). A page without a card photo had nothing bigger than a
+ * sentence block: on a teacher profile (a 96px photo) the phone LCP was this bar's first sentence, at 10.5–10.9 s in
+ * the mid-phone lab. Each word is now its own inline-block (WordBoxes), so no candidate of the bar is bigger than a
+ * word. Measured in Chromium at 390px, a late bar under a 1,958 px² heading: a sentence block, 17,985 px²; a box per
+ * word with plain spaces BETWEEN the boxes, still 13,585 px² (the spaces are text of the enclosing block, which
+ * Chromium unions into one candidate); the space INSIDE each box but a plain Privacy Policy link, 11,305 px² (the link
+ * wrapping across lines); the link's words boxed too — the heading stays the LCP. Hence the rules: EVERY word's box
+ * ends with its space (an NBSP, the same advance), no loose text sits between boxes, and the tail link boxes its words
+ * the same way (BoxedLink).
+ * ⚠️ AND THE PARAGRAPH IS ONE SPACE WIDER (`WORD_BOX_SLACK` on the <p>). A space inside a box, unlike a text space,
+ * does not hang at the end of a line, so every line held one space less and broke earlier — the first cut gave a
+ * Vietnamese sentence an extra line. With the paragraph widened by exactly one space, a line fits what plain text fits.
+ * Measured against plain text with the real fonts: the same line breaks at 320–430px, en and vi, Chromium and WebKit
+ * (28/28), and no sideways scroll in the overflow-y-auto card.
+ * ⚠️ THE BOXES ARE aria-hidden AND ONE sr-only COPY CARRIES THE TEXT: a run of inline-blocks can read as one stop per
+ * word. The copy is the same sentences joined by spaces, so textContent still reads "choose. Change".
  */
 function SentenceBlocks({ text, tail }: { text: string; tail?: ReactNode }) {
   // ⛔ NO LOOKBEHIND (codex + opus, gate 2026-10-05): a `(?<=…)` regex literal is a SyntaxError when the chunk is
@@ -111,15 +128,49 @@ function SentenceBlocks({ text, tail }: { text: string; tail?: ReactNode }) {
   if (!parts.length) return tail ? <span className="block md:inline">{tail}</span> : null
   return (
     <>
+      <span className="sr-only">{parts.join(' ')}</span>
       {parts.map((sentence, i) => (
         <span key={i} className="block md:inline">
-          {sentence}
-          {/* The space a sentence break had, kept: screen readers and textContent read "choose. Change", and a
-              trailing space at the end of a block line paints nothing. */}
-          {i < parts.length - 1 ? ' ' : tail ? <>{' '}{tail}</> : null}
+          <WordBoxes text={sentence} />
+          {i === parts.length - 1 ? tail : null}
         </span>
       ))}
     </>
+  )
+}
+
+/** The paragraph's extra inline-end room for WordBoxes: one space of Open Runde Regular (792/2816 em) — SentenceBlocks. */
+const WORD_BOX_SLACK = '-me-[0.28125em]'
+
+/**
+ * `text` as one aria-hidden inline-block per word, each ENDING WITH ITS SPACE (SentenceBlocks says why). `underline`
+ * underlines the word and the space between two words, never the space after the last one.
+ */
+function WordBoxes({ text, underline }: { text: string; underline?: boolean }) {
+  const words = text.split(/\s+/).filter(Boolean)
+  return (
+    <span aria-hidden>
+      {words.map((w, i) => {
+        const last = i === words.length - 1
+        return (
+          <span key={i} className="inline-block">
+            {underline ? <span className="underline underline-offset-2">{last ? w : `${w}\u00A0`}</span> : `${w}\u00A0`}
+            {underline && last ? '\u00A0' : null}
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
+/** SentenceBlocks' tail link, its words boxed the same way. Its name is the sr-only copy; the underline is inside each
+ *  box, because a text decoration does not reach into an inline-block. */
+function BoxedLink({ href, label, className }: { href: string; label: string; className?: string }) {
+  return (
+    <Link href={href} prefetch={false} className={className}>
+      <span className="sr-only">{label}</span>
+      <WordBoxes text={label} underline />
+    </Link>
   )
 }
 
@@ -722,7 +773,7 @@ export function CookieConsent() {
                 * ⚠️ No trailing space inside tr(): the warm cron trims, so a padded string never
                 * matched its cached translation. The space before the link is JSX.
                 */}
-              <p className="mt-1 text-sm leading-snug text-muted-foreground">
+              <p className={cn('mt-1 text-sm leading-snug text-muted-foreground', WORD_BOX_SLACK)}>
                 <SentenceBlocks
                   text={isNative
                   ? tr(
@@ -733,7 +784,7 @@ export function CookieConsent() {
                       'Can we use cookies for listing suggestions, analytics (Google Analytics) and ad measurement (Meta, TikTok, Google)? Your activity is sensitive personal data under Vietnamese law, so all stay off until you choose. Change anytime in Cookie settings.',
                       'Bạn cho phép eno dùng cookie để gợi ý tin đăng, phân tích (Google Analytics) và đo lường quảng cáo (Meta, TikTok, Google) không? Theo luật Việt Nam, hoạt động của bạn là dữ liệu cá nhân nhạy cảm, nên tất cả đều tắt đến khi bạn chọn. Đổi bất cứ lúc nào trong Cài đặt cookie.',
                     )}
-                  tail={<Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')}</Link>}
+                  tail={<BoxedLink href="/privacy" label={tr('Privacy Policy', 'Chính sách bảo vệ dữ liệu cá nhân')} className="font-semibold text-accent-foreground" />}
                 />
               </p>
               </div>

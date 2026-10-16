@@ -80,7 +80,9 @@ export default async function CategoryIndexLayout({
               {/* `relative tap-44`: a 44px touch target around the short crumb, no layout change (home-06). */}
               {/* ⛔ THE ROOT IS SITE_NAME, NOT "Home" (NAV-10): on /c/furniture-appliances in English the trail
                   read "Home / Home". The JSON-LD's root name follows it (crumbNames, category-copy.ts). */}
-              <BreadcrumbLink render={<Link href={localizedHref('/', lang)} />} className="relative tap-44 hover:text-accent-foreground">{SITE_NAME}</BreadcrumbLink>
+              {/* prefetch={false}, the PDP crumbs' rule: above the fold on every category page, so auto prefetch fired a
+                  home request per category view for a link few take (speed plan item 7, measured 2026-10-16). */}
+              <BreadcrumbLink render={<Link href={localizedHref('/', lang)} prefetch={false} />} className="relative tap-44 hover:text-accent-foreground">{SITE_NAME}</BreadcrumbLink>
             </BreadcrumbItem>
             {/* Literal "/" separator, and the colour stays pinned to --line-strong: the
                 primitive's default is a chevron in text-muted-foreground. */}

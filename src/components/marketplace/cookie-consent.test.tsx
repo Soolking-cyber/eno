@@ -440,6 +440,35 @@ describe('CookieConsent — the bar', () => {
     expect(document.querySelector('img[src*="consent-team"]')).toBeNull()
   })
 
+  it('⛔ no text candidate bigger than a word (speed plan item 7): every visible word is its own aria-hidden inline-block, no loose text between them, one sr-only copy reads it whole', async () => {
+    await openFirstVisitBar()
+    const copy = [...bar()!.querySelectorAll('.sr-only')].find((e) => /listing suggestions/.test(e.textContent ?? ''))!
+    expect(copy.textContent).toMatch(/^Can we use cookies .*all stay off until you choose\. Change anytime in Cookie settings\.$/)
+    // Chromium unions every loose text node of a block — even a lone space — into ONE candidate (measured: 13,585 px²
+    // with plain spaces between the boxes), so anything visible outside a box brings the bar back as the LCP.
+    const walker = document.createTreeWalker(copy.parentElement!, NodeFilter.SHOW_TEXT)
+    const loose: string[] = []
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const el = n.parentElement!
+      if (!n.textContent || el.closest('.sr-only')) continue
+      // Its box (the nearest inline-block) is what Chromium aggregates it into.
+      if (!el.closest('.inline-block') || !el.closest('[aria-hidden]')) loose.push(JSON.stringify(n.textContent))
+    }
+    expect(loose).toEqual([])
+    // Every box ends with its space, and the paragraph is one space wider so a line still fits what plain text fits.
+    const words = [...copy.parentElement!.querySelectorAll('[aria-hidden] > .inline-block')].map((b) => b.textContent)
+    expect(words.length).toBeGreaterThan(20)
+    for (const w of words) expect(w).toMatch(/\S\u00A0$/)
+    expect(tokens(copy.parentElement!)).toContain('-me-[0.28125em]')
+    const link = screen.getByRole('link', { name: 'Privacy Policy' })
+    expect(link.getAttribute('href')).toBe('/privacy')
+    const boxes = [...link.querySelectorAll('[aria-hidden] > span')]
+    expect(boxes.map((b) => b.textContent)).toEqual(['Privacy\u00A0', 'Policy\u00A0'])
+    // A text decoration does not reach into an inline-block, so the underline is inside each box — under the word and
+    // the space between words, never under the space after the last one.
+    expect(boxes.map((b) => b.querySelector('.underline')?.textContent)).toEqual(['Privacy\u00A0', 'Policy'])
+  })
+
   it('⛔ Sounds good, No thanks and Choose carry EQUAL weight — identical classes, only the word differs', async () => {
     await openFirstVisitBar()
     const [a, d, s] = ['Sounds good', 'No thanks', 'Choose'].map((n) => screen.getByRole('button', { name: new RegExp(`^${n}`) }))

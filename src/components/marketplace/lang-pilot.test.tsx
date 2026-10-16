@@ -178,7 +178,8 @@ describe('localizedHref at each link site (source contract)', () => {
     ['src/components/marketplace/header.tsx', [/href=\{localizedHref\('\/', variantOfLanguage\(lang\)\)\}\s*prefetch=\{false\}\s*data-header-logo/]],
     ['src/components/marketplace/mobile-nav.tsx', [/<Link href=\{localizedHref\('\/', variantOfLanguage\(lang\)\)\} prefetch=\{at\('\/'\)/]],
     ['src/components/marketplace/footer.tsx', [/<a href=\{localizedHref\(`\/c\/\$\{cat\.slug\}`, variantOfLanguage\(lang\)\)\}/]],
-    ['src/app/[lang]/c/[category]/(index)/layout.tsx', [/<Link href=\{localizedHref\('\/', lang\)\} \/>/]],
+    // prefetch={false} since speed plan item 7 (the PDP crumbs' rule).
+    ['src/app/[lang]/c/[category]/(index)/layout.tsx', [/<Link href=\{localizedHref\('\/', lang\)\} prefetch=\{false\} \/>/]],
     ['src/app/[lang]/c/[category]/[district]/page.tsx', [/<Link href=\{localizedHref\('\/', lang\)\} \/>/, /<Link href=\{localizedHref\(`\/c\/\$\{cat\.slug\}`, lang\)\} \/>/, /<Link href=\{localizedHref\(`\/c\/\$\{cat\.slug\}`, lang\)\} className=/]],
     // The category crumb goes through categoryBrowsePath since 2026-10-03 (a retired shelf crumbs to the explorer).
     ['src/app/[lang]/listings/[id]/(pdp)/page.tsx', [/<Link href=\{localizedHref\('\/', pageVariant\)\}/, /<Link href=\{localizedHref\(categoryBrowsePath\(rawListing\.category\.slug\), pageVariant\)\}/]],

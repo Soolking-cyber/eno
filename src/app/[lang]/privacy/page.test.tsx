@@ -608,7 +608,10 @@ describe('/privacy — round-2 corrections hold', () => {
     // ⚠️ Built with join(), never a literal `tr` + `('` in this file: scripts/gen-ui-strings.mjs walks test
     // files too and would harvest a placeholder key into the shipped catalogue (it did, 2026-10-01).
     const call = ['{tr', `('${en}', '${vi}')}`].join('')
-    expect(card).toContain(`<Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">${call}</Link>`)
+    // Since speed plan item 7 the link's words are boxed (BoxedLink — cookie-consent.tsx says why): the label is the
+    // same tr() pair, and the link itself still never prefetches.
+    expect(card).toContain(`<BoxedLink href="/privacy" label=${call} className="font-semibold text-accent-foreground" />`)
+    expect(card).toContain('<Link href={href} prefetch={false} className={className}>')
   })
 
   it('⛔ every other "Privacy Policy" link and label names the page by its own Vietnamese title (2026-10-15: sign-in, onboarding, the rental check and the help center said "Chính sách bảo mật" / "Chính sách quyền riêng tư")', async () => {
