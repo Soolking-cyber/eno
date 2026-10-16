@@ -1001,7 +1001,7 @@ writeFileSync(join(OUT, 'glyphs-rest.svg'), wrap(restGlyphs, restHash))
  * the split pair.
  *
  * ⚠️ REMOVING IT IS A SEPARATE, LATER COMMIT. Safe once no cached HTML references it — i.e. at
- * least 6 hours after the deploy that ships the split, and after a Cloudflare `purge_everything`.
+ * least 6 hours after the deploy that ships the split, and after a Cloudflare tag purge of eno-public.
  * Until then it costs 185 KB of disk in the image and ZERO bytes to any visitor, because nothing
  * in the current build points at it.
  */

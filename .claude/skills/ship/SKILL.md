@@ -205,12 +205,15 @@ Roll back at any time with `eno-deploy.sh --rollback` (instant, offline, uses th
 
 ## 6. Confirm the purge actually happened
 
-`eno-deploy.sh` purges both zones itself and **exits non-zero if the purge fails**, so a green
-deploy already implies a purged edge. Verify rather than repeat it — the check is cheap and the
-failure it catches is invisible:
+`eno-deploy.sh` purges both zones itself — by TAG (`eno-html`, `eno-public`; step 8) — and **exits
+non-zero if the purge fails**, so a green deploy already implies a refreshed edge. It also reads `/`
+back and prints whether the edge serves a post-purge document. Verify rather than repeat it — the
+check is cheap and the failure it catches is invisible:
 
 ```bash
-curl -s -D- -o /dev/null https://eno.vn/ | grep -iE 'cf-cache-status|^age'   # expect MISS, then age: 0
+curl -s -D- -o /dev/null https://eno.vn/ | grep -iE 'x-eno-cache|x-eno-age'   # expect MISS, or an age younger than the deploy
+# …and the point of the tag purge — chunks and images were NOT evicted (age keeps growing across the deploy):
+curl -s -D- -o /dev/null "https://eno.vn$(curl -s https://eno.vn/ | grep -o '/_next/static/chunks/[^"]*\.js' | head -1)" | grep -iE 'cf-cache-status|^age'
 ```
 
 ⛔ **`/` IS EDGE-CACHED FOR 6 HOURS, SO A NAIVE POST-DEPLOY CHECK READS THE OLD BUILD.** There is
@@ -219,10 +222,12 @@ token looked MISSING from production because `curl https://eno.vn/` returned `cf
 HIT` with `age: 20514` — a 5.7-hour-old page naming 5.7-hour-old content-hashed chunks. The
 deploy was fine. Always read the header that tells you which you got.
 
-⚠️ **`purge_everything` only.** Purge-by-file returns `success: true` and silently does nothing
-to cached HTML, because the `vary: normalize` cache key includes the encoding variant. The
-script also reads Cloudflare's `"success"` field rather than trusting HTTP 200 — a rejected
-purge comes back 200 with `"success": false`.
+⚠️ **Tags, never `purge_everything`, never by URL.** Purge-by-file returns `success: true` and
+silently does nothing to the Worker's stored HTML (its keys carry `__k=`); `purge_everything` also
+evicts every chunk and image variant. A hand purge after a data change is
+`{"tags":["eno-html","eno-public"]}` on both zones. `--purge-everything` exists for emergencies and
+the script uses it on a licensing-leak rollback. The script also reads Cloudflare's `"success"`
+field rather than trusting HTTP 200 — a rejected purge comes back 200 with `"success": false`.
 
 ## 7. Prod smoke — BOTH domains
 

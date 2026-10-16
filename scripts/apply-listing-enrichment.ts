@@ -150,7 +150,7 @@ async function restore() {
   // titles, and a brand with no listings is already invisible — every buyer-facing brand list shows only brands with
   // LIVE listings (src/lib/live-brands.ts: brands/page.tsx, api/brands, api/search/suggest). Tracking "who created it" across crashes and shared
   // brands proved more fragile than the harmless row it would delete (four review rounds).
-  if (APPLY && restored) console.log('\nNEXT: purge the listing ISR tags (scripts/purge-isr-listings.mjs) and Cloudflare (purge_everything on both zones).')
+  if (APPLY && restored) console.log('\nNEXT: purge the listing ISR tags (scripts/purge-isr-listings.mjs) and Cloudflare (a tag purge of eno-html,eno-public on both zones — never purge_everything).')
 }
 
 async function apply() {
@@ -350,7 +350,7 @@ async function apply() {
   console.log(`  ${n.unchanged} nothing to change, ${n.stale} changed since the export (skipped), ${n.moved} changed during the write (skipped), ${n.refused} refused at apply, ${n.oldVersion} from another prompt version, ${n.malformed} malformed lines`)
   if (n.failed) { console.error(`\n${n.failed} WRITES FAILED with a database error — see above; re-run to retry them.`); process.exitCode = 1 }
   if (APPLY && touchedBrands.size) console.log(`recounted ${await recountBrands(touchedBrands)} brands`)
-  if (APPLY) console.log('\nNEXT: purge the listing ISR tags (scripts/purge-isr-listings.mjs) and Cloudflare (purge_everything on both zones), or pages keep the old text for hours.')
+  if (APPLY) console.log('\nNEXT: purge the listing ISR tags (scripts/purge-isr-listings.mjs) and Cloudflare (a tag purge of eno-html,eno-public on both zones — never purge_everything), or pages keep the old text for hours.')
 }
 
 ;(RECOUNT ? (async () => { const all = await db.brand.findMany({ select: { slug: true } }); console.log(`${APPLY ? 'recounted' : 'would recount'} ${APPLY ? await recountBrands(all.map((b) => b.slug)) : all.length} brands`) })() : RESTORE ? restore() : apply())

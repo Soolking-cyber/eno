@@ -233,7 +233,7 @@ async function expire() {
   if (done.length !== rows.length && SWEEP) console.log(`${rows.length - done.length} row(s) changed meanwhile (a refresh re-dated or revived them) — left as they are`)
   else if (done.length !== rows.length) { console.error(`INCOMPLETE — ${rows.length - done.length} row(s) changed meanwhile; re-run the dry run.`); process.exitCode = 2 }
   if (SWEEP) console.log('every expired PDP is tombstoned; /c/rentals reads live listings client-side and the hubs re-render on their own ISR window — no purge needed for a daily sweep.')
-  else console.log('NEXT: root layout ISR tag (eno:isrtag:_N_T_/layout + _N_T_/[lang]/layout — /c/rentals, district and hub pages) + Cloudflare purge_everything on BOTH zones.')
+  else console.log('NEXT: root layout ISR tag (eno:isrtag:_N_T_/layout + _N_T_/[lang]/layout — /c/rentals, district and hub pages) + Cloudflare a tag purge of eno-html,eno-public on BOTH zones (never purge_everything).')
 }
 
 /** Re-write the tombstones of every journal id (a tombstone only forces a re-render — right after an expiry AND after a rollback). */
@@ -264,7 +264,7 @@ async function rollback(path: string) {
   }
   console.log(`  ${restorable} still exactly as the expiry left them → restorable · ${j.rows.length - restorable} changed since → LEFT ALONE`)
   if (!APPLY) { console.log('DRY RUN — nothing written.'); return }
-  console.log(`RESTORED ${restored.length}. NEXT: root layout ISR tag + Cloudflare purge_everything on BOTH zones.`)
+  console.log(`RESTORED ${restored.length}. NEXT: root layout ISR tag + Cloudflare a tag purge of eno-html,eno-public on BOTH zones (never purge_everything).`)
 }
 
 ;(ROLLBACK ? rollback(ROLLBACK) : RETOMB ? retombstone(RETOMB) : expire())

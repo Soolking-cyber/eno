@@ -21,7 +21,7 @@
 //   2. Check: SELECT id, name FROM "Seller" WHERE "officialPartner";  returns ONLY VietKite, GMBR, Luật Hoàng Phi.
 //   3. Deploy RIGHT AFTER (infra/vn-node/eno-deploy.sh, on the box). The new BUILD_ID drops every ISR entry. Keep
 //      the gap short: between 1 and 3 the OLD code shows those unowned shops' default trust score (100) as a chip.
-//   4. Purge Cloudflare with purge_everything, on BOTH zones (eno.vn and eno.forum) — never by URL.
+//   4. Purge Cloudflare with a tag purge of eno-html,eno-public, on BOTH zones (eno.vn and eno.forum) — never by URL.
 // Belt and braces, not a substitute: partnerShown (src/lib/linked-seller.ts) keeps the badge off any listing or
 // storefront whose rows link out, so a missed revoke cannot print the claim there. The stored flag still answers
 // the contact route and /api/sellers/[id], so step 1 is not optional.
@@ -125,7 +125,7 @@ try {
     [changing.map((r) => r.id)],
   )
   console.log(`\n✓ ${res.rowCount} storefront(s) now carry the partner badge`)
-  console.log('⚠️ Storefront and card HTML is edge-cached — purge Cloudflare (purge_everything) for the badge to appear.')
+  console.log('⚠️ Storefront and card HTML is edge-cached — purge Cloudflare (a tag purge of eno-html,eno-public) for the badge to appear.')
 } finally {
   await c.end()
 }

@@ -301,7 +301,7 @@ async function main() {
   console.log('   1. specs — re-run `npx tsx scripts/enrich-electronics.ts --seller <Seller.id>` for the new placements;')
   console.log('   2. ISR — the category pages still serve the OLD shelf contents. Purge via')
   console.log('      revalidatePublicPath() (CLAUDE.md: a bare revalidatePath purges nothing under')
-  console.log('      src/app/[lang]), then purge Cloudflare with purge_everything — purge-by-URL')
+  console.log('      src/app/[lang]), then purge Cloudflare by tags eno-html,eno-public — purge-by-URL')
   console.log('      silently no-ops on cached HTML.')
   await db.$disconnect()
 }

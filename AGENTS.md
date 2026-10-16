@@ -6,7 +6,7 @@
   only path to users. An edition flag inlined at BUILD time decides which surfaces exist in each
   image; see the "Shipping" section of CLAUDE.md for the legal boundary and its leak modes.
 - **A push is not a deploy.** Nothing deploys automatically from `main`. The owner runs the deploy
-  script on the box; it purges Cloudflare itself. Vercel and Cloud Run are retired (July/August
+  script on the box; it purges Cloudflare's HTML itself (by tag — never purge_everything). Vercel and Cloud Run are retired (July/August
   2026) — a doc that says a push deploys, or names a Vercel project, is describing history.
 - **`apps/forum/` is a dormant, separate app.** It was the eno.forum source until the 2026-07-31
   reversal (visa/itinerary/PayPal moved to a services EDITION of the root, not a second codebase)

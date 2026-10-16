@@ -16,6 +16,18 @@ describe('decodeEntities', () => {
     expect(decodeEntities('&amp;lt;b&amp;gt;')).toBe('<b>')
     expect(decodeEntities('&amp;amp;amp;amp;amp;lt;')).toBe('<')
     expect(decodeEntities('Th&abreve;ng')).toBe('Thăng')
+    // Any accented letter HTML names as letter + mark (a CV read by a model, 2026-10-16), and the few it names otherwise.
+    expect(decodeEntities('Institut fran&ccedil;ais, Universit&eacute; Lumi&egrave;re Lyon 2')).toBe('Institut français, Université Lumière Lyon 2')
+    expect(decodeEntities('M&uuml;ller, Pe&ntilde;a, &Aring;sa, Dvo&rcaron;&aacute;k, &Lstrok;ukasz, &Ouml;zg&uuml;r &Scedil;ahin, &Idot;zmir')).toBe('Müller, Peña, Åsa, Dvořák, Łukasz, Özgür Şahin, İzmir')
+    expect(decodeEntities('Bj&oslash;rn, Stra&szlig;e, &AElig;sir')).toBe('Bjørn, Straße, Æsir')
+    // Case decides the letter. A real name for ANOTHER character is never made a letter (gate review, 2026-10-16), and
+    // a name HTML does not have stays as it is — even one Unicode could compose.
+    expect(decodeEntities('&Eacute;cole &eacute;cole')).toBe('École école')
+    expect(decodeEntities('a &sdot; b, &odot;, &tdot;, &eDot;, &EDot;')).toBe('a &sdot; b, &odot;, &tdot;, &eDot;, &EDot;')
+    expect(decodeEntities('&wacute; &qacute; &xcedil; &Gacute; &idot;')).toBe('&wacute; &qacute; &xcedil; &Gacute; &idot;')
+    expect(decodeEntities('&Cdot;&cdot; &Edot;&edot; &Zdot;&zdot; &gacute; &Gcedil;')).toBe('Ċċ Ėė Żż ǵ Ģ')
+    // An all-capitals name is not HTML's either; it keeps the old lower-case fallback for the named letters only.
+    expect(decodeEntities('&EACUTE;')).toBe('é')
     for (const t of ['&amp;amp;amp;', 'Fun &amp; Online', '&amp;lt;b&amp;gt;']) expect(decodeEntities(decodeEntities(t)), t).toBe(decodeEntities(t))
     expect(decodeEntities('R&D, Q&A & AT&T')).toBe('R&D, Q&A & AT&T')
     expect(decodeEntities('&unknownname; &#0; &#xD800;')).toBe('&unknownname; &#0; &#xD800;')

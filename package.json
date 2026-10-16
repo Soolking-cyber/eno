@@ -91,8 +91,8 @@
     "heic-to": "^1.5.2",
     "input-otp": "^1.4.2",
     "lottie-web": "^5.13.0",
-    "next": "^16.3.6",
-    "nodemailer": "^9.1.1",
+    "next": "^16.3.8",
+    "nodemailer": "^10.0.16",
     "papaparse": "^5.5.4",
     "pg": "^8.22.0",
     "qrcode-generator": "^2.0.4",
@@ -100,7 +100,7 @@
     "react-dom": "^19.0.0",
     "react-easy-crop": "^6.2.2",
     "resend": "^6.17.1",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "simple-icons": "^16.24.0",
     "sonner": "^2.0.6",
     "standardwebhooks": "^1.0.0",
@@ -128,7 +128,7 @@
     "@vitest/coverage-v8": "^4.1.10",
     "bun-types": "^1.3.4",
     "eslint": "^9",
-    "eslint-config-next": "^16.3.6",
+    "eslint-config-next": "^16.3.8",
     "jsdom": "^29.1.1",
     "prisma": "^7.8.0",
     "semver": "^7.8.5",
@@ -139,7 +139,7 @@
     "vitest": "^4.1.9"
   },
   "overrides": {
-    "fast-uri": "^3.1.7",
+    "fast-uri": "^3.1.8",
     "mysql2": "^3.24.3",
     "deepmerge-ts": "^8.0.2"
   }

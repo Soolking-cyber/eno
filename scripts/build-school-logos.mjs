@@ -23,7 +23,7 @@
  * data/schools/logo-sources.json records what each tile was made from (website, url, selector, use, crop, bg); src/lib/schools/logos.test.ts holds it to the overrides, so an override edited
  * without a rebuild fails CI. The raw captures live outside the repo (default ~/eno-school-logos) and are
  * reproducible: the harvester makes them again. Taking a logo down: `use: "none"` with a why, rebuild, deploy,
- * then Cloudflare `purge_everything` — the tiles carry a one-year immutable cache, so the edge keeps a copy.
+ * then a Cloudflare tag purge of eno-public — the tiles carry a one-year immutable cache, so the edge keeps a copy.
  *
  * --sheet writes a labelled contact sheet of every tile for a person to check before committing.
  */

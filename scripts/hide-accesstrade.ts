@@ -22,7 +22,7 @@
  * removal it has nothing left to refresh.
  *
  * ⚠️ AFTER --apply the script tombstones each hidden PDP (both languages); home, /c/* and the iPhone price pages
- * still need the root layout tag or their ISR window, and Cloudflare a purge_everything on BOTH zones.
+ * still need the root layout tag or their ISR window, and Cloudflare a tag purge of eno-html,eno-public on BOTH zones.
  */
 import { copyFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
@@ -161,7 +161,7 @@ async function scan() {
     process.exitCode = 2
     return
   }
-  console.log('NEXT: root layout ISR tag (home, /c/*, iPhone pages) + Cloudflare purge_everything on BOTH zones.')
+  console.log('NEXT: root layout ISR tag (home, /c/*, iPhone pages) + Cloudflare a tag purge of eno-html,eno-public on BOTH zones (never purge_everything).')
 }
 
 ;(ROLLBACK ? rollback(ROLLBACK) : RETOMBSTONE ? retombstone(RETOMBSTONE) : scan())

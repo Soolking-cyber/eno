@@ -176,6 +176,35 @@ describe('mapTeacherImport', () => {
     expect(map({ isCv: true, phone: '+44 (0)7700 900123' })!.phone).toBe('+447700900123') // the UK's trunk (0)
   })
 
+  it('an answer in HTML entities is read as the letters it names (the fallback model, real-model eval 2026-10-16)', () => {
+    const r = map({
+      isCv: true, fullName: 'Cl&eacute;mence Aubert', taughtLanguages: ['Fran&ccedil;ais'],
+      jobs: [{ role: 'French Teacher', employer: 'Institut fran&ccedil;ais de Hanoi', city: 'Hanoi', from: '2019-09', to: '', current: true, teaching: true, subjects: [], ageGroups: [] }],
+      education: [{ level: 'master', field: 'FLE (Fran&ccedil;ais Langue &Eacute;trang&egrave;re)', institution: 'Universit&eacute; Lumi&egrave;re Lyon 2', year: 2018 }],
+    })!
+    expect(r.fields.fullName).toBe('Clémence Aubert')
+    expect(r.fields.experience?.[0].employer).toBe('Institut français de Hanoi')
+    expect(r.fields.degreeMajor).toBe('FLE (Français Langue Étrangère)')
+    expect(r.fields.degreeInstitution).toBe('Université Lumière Lyon 2')
+    // Decoded BEFORE the screens: a phone number written as character references is still a phone number.
+    expect(map({ isCv: true, summary: 'Call me on &#48;&#57;&#48;&#49; 234 567 any time.' })!.fields.bio).toBeUndefined()
+  })
+
+  it('⛔ a local number the file places in another country is never offered as Vietnamese (real-model eval, 2026-10-16)', () => {
+    // An Irish mobile written locally has a VN mobile's shape — "Mobile (Ireland): 087 123 4567" became +84 87 123 4567.
+    expect(map({ isCv: true, phone: '087 123 4567', phoneCountry: 'IE' })!.phone).toBeNull()
+    expect(map({ isCv: true, phone: '082 123 4567', phoneCountry: 'za' })!.phone).toBeNull()
+    expect(map({ isCv: true, phone: '0912 345 678', phoneCountry: 'VN' })!.phone).toBe('+84912345678')
+    // Placed nowhere — "", or anything that is not an ISO code: the VN mobile shape is offered, as before (a stand-in like
+    // "unknown" or "N/A" must never hide a Vietnam-based teacher's real number — gate review, 2026-10-16).
+    for (const none of ['unknown', '', 'N/A', 'Viet Nam', undefined]) {
+      expect(map({ isCv: true, phone: '0912 345 678', phoneCountry: none })!.phone, String(none)).toBe('+84912345678')
+    }
+    // A country code written with the number decides it, whatever the country field says.
+    expect(map({ isCv: true, phone: '+353 87 123 4567', phoneCountry: 'IE' })!.phone).toBe('+353871234567')
+    expect(map({ isCv: true, phone: '+84 912 345 678', phoneCountry: 'IE' })!.phone).toBe('+84912345678')
+  })
+
   it('⛔ a name Publish would refuse (a link, a banned word) is never imported', () => {
     expect(map({ isCv: true, fullName: 'Jane Smith www.janesmith.com' })!.fields.fullName).toBeUndefined()
   })

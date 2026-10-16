@@ -19,7 +19,7 @@
  *      after the dry run), ends it with STOP and exit code 1 (gate review, 2026-10-09): the new code has no adapter for
  *      an unmigrated row, so the deploy waits — dry run again, review, --apply the new plan.
  *   5. deploy (the owner's word); then: npx tsx scripts/teachers-backfill.ts --purge
- *      (the deploy changed how the pages render — tombstone them again) and Cloudflare purge_everything on BOTH zones.
+ *      (the deploy changed how the pages render — tombstone them again) and Cloudflare a tag purge of eno-html,eno-public on BOTH zones.
  *   6. re-run the dry run: it must say "nothing to migrate" (a profile the old code created in between is listed).
  *
  *   set -a; . ./.env; set +a   (DIRECT_URL — the BUILD's env, never verify:local's)
@@ -242,7 +242,7 @@ export async function applyReviewedPlan(
     log('STOP — the rows are migrated, but their page tombstones were NOT written: run --purge first (it tombstones every teacher page), then deploy.')
     return 1
   }
-  log('NEXT: deploy on the owner\'s word; then --purge, Cloudflare purge_everything on BOTH zones, and the dry run again.')
+  log('NEXT: deploy on the owner\'s word; then --purge, Cloudflare a tag purge of eno-html,eno-public on BOTH zones, and the dry run again.')
   return 0
 }
 
@@ -260,7 +260,7 @@ async function main() {
       // After the deploy: every teacher page renders with the new code — tombstone them all again.
       const ids = (await c.query(`select "listingId" from "TeacherProfile" where "listingId" is not null`)).rows.map((r) => r.listingId as string)
       console.log(await tombstone(c, ids))
-      console.log('NEXT: Cloudflare purge_everything on BOTH zones (eno.vn and eno.forum share the rows).')
+      console.log('NEXT: Cloudflare a tag purge of eno-html,eno-public on BOTH zones (eno.vn and eno.forum share the rows).')
       return
     }
 
