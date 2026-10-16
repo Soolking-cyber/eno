@@ -8,6 +8,8 @@ import { trackSignUp } from '@/lib/analytics'
 import { mayGateOnboarding } from '@/lib/onboarding-gate'
 import { clearAccountDeviceStorage } from '@/lib/sign-out-storage'
 import { createSignOutFlush } from '@/lib/api/acting-account'
+// The replayable "a Supabase client exists" signal — NEVER `@/lib/supabase/browser` statically (that is the 66 KB chunk).
+import { onClientCreated } from '@/lib/supabase/client-signal'
 import { classifyGate, noteGateOpen, pressedInChrome, settleGateSignIn, type PressInfo } from '@/lib/signin-gates'
 import { armIntent, dropIntent, markIntentRouted, pathnameOf, readIntent, type PendingIntent } from '@/lib/pending-intent'
 import type { SignInGate, SignInMethod } from '@/lib/signup-prompt'
@@ -225,17 +227,26 @@ type AuthCtx = {
  *    patch here. This gate is read ONCE, from a `[]`-dep effect on a provider that lives in the
  *    root layout and never remounts, so a CLIENT-SIDE arrival at /signin — e.g. a guest deep-links
  *    to /dashboard/listings and its `!user` guard does `router.replace('/signin?next=…')` — never
- *    re-tests the pathname. The interaction backstop below is what covers it: reaching a sign-in
- *    form and not touching it is not a state anyone is in. Re-testing on every navigation would
- *    mean subscribing the root layout to `usePathname()`, re-rendering the whole tree on each
- *    route change — a real cost, paid on every visitor, to buy back a case the backstop already
- *    holds.
+ *    re-tests the pathname. What covers it is the client signal below: the form there creates the
+ *    Supabase client before its first sign-in call, and that wakes this provider. Re-testing on
+ *    every navigation would mean subscribing the root layout to `usePathname()`, re-rendering the
+ *    whole tree on each route change — a real cost, paid on every visitor, to buy back a case the
+ *    signal already holds.
  *
- * ⚠️ AND THE INTERACTION TRIGGERS STAY ARMED EVEN WHEN THIS RETURNS FALSE — that is the backstop
- * that makes the gate safe to be wrong about. Nobody signs in without a pointerdown, keydown or
- * touchstart in the document, so any auth surface this list forgets still wakes the client the
- * moment it is touched. What the gate removes is only the *unconditional idle boot*, which is
- * precisely what the lab measurement above is charging us for.
+ * ⚠️ WHAT MAKES THE GATE SAFE TO BE WRONG ABOUT — narrowed by speed plan item 7 (2026-10-16). Until
+ * then every anonymous visitor's first pointerdown/keydown/touchstart/scroll booted the client
+ * anyway: the 66 KB chunk and 141–388 ms of evaluation at 4× CPU (mid-phone lab), landing on that
+ * very touch, for a visitor with nothing to find. For the visitor this returns false, three things
+ * stand in for it now:
+ *   · the CLIENT SIGNAL (src/lib/supabase/client-signal.ts) — whatever creates the Supabase client
+ *     in this document (the sign-in form before its first call, the handoff page) wakes this
+ *     provider; replayable, so a client created before this provider's effect ran still counts;
+ *   · `openSignIn()` and `eno:require-signin` boot it outright, before the dialog mounts the form;
+ *   · a RE-PROBE of this predicate on pointerdown, keydown, window focus, pageshow and a return to
+ *     visible — a session minted in ANOTHER tab or window lands in the shared cookie jar, and the
+ *     next touch or glance here picks it up (as does a bfcache restore after an OAuth round-trip).
+ * Every other way in arrives as a new document that carries the cookie: OAuth and the magic link
+ * return through the /auth/callback server route, and the password route reloads in place.
  *
  * Exported for `auth-context.test.tsx`, which pins both directions shape by shape.
  */
@@ -403,25 +414,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false
     let started = false
     let unsub: (() => void) | undefined
-    const events: (keyof WindowEventMap)[] = ['pointerdown', 'keydown', 'touchstart', 'scroll']
+    // ⚠️ ONE MORE FAIL-OPEN WRAPPER over probeAuthBoot's own: a throw anywhere in the probe must
+    // land on "boot", because the alternative is silently telling a signed-in visitor they are not.
+    const probe = () => { try { return shouldBootAuth(probeAuthBoot()) } catch { return true } }
+    const boot = probe()
+    /**
+     * ⛔ THE INTERACTION BOOT IS FOR THE VISITOR THE GATE BOOTS ANYWAY (speed plan item 7 — the note
+     * on shouldBootAuth). With a session, the first touch only brings the idle boot forward. Without
+     * one, a touch, a key, window focus and pageshow RE-PROBE instead (`recheck` — a regex over
+     * document.cookie, microseconds) and boot only once a session has appeared.
+     */
+    const events: (keyof WindowEventMap)[] = boot ? ['pointerdown', 'keydown', 'touchstart', 'scroll'] : ['pointerdown', 'keydown', 'focus', 'pageshow']
+    const recheck = () => { if (probe()) init() }
+    const trigger = boot ? init : recheck
 
-    // ⚠️ THE ONE PATH THE INTERACTION BACKSTOP DOES NOT COVER: A SIGN-IN IN ANOTHER TAB.
-    // An idle anonymous tab now skips Supabase entirely, so it holds no `onAuthStateChange`
-    // subscription and cannot hear that the user just signed in somewhere else — it would sit
-    // visibly signed out until something happened to touch it. A reviewer caught this; the four
-    // events above genuinely do not fire in a tab nobody returns to.
+    // ⚠️ A SIGN-IN IN ANOTHER TAB: an idle anonymous tab holds no `onAuthStateChange` subscription,
+    // so it cannot hear that the user just signed in somewhere else — it would sit visibly signed
+    // out until something touched it. A reviewer caught this.
     //
     // Re-becoming VISIBLE is the moment that matters, because that is when a stale signed-out
     // header is actually looked at. It costs nothing on a cold load: the tab is already visible, so
-    // this never fires during the first paint that the whole gate exists to protect — only on a
-    // switch back, by which time the idle boot has long since happened anyway for anyone who stayed.
-    const onVisible = () => { if (document.visibilityState === 'visible') init() }
+    // this never fires during the first paint that the whole gate exists to protect. Without a
+    // session it re-probes like the triggers above.
+    const onVisible = () => { if (document.visibilityState === 'visible') trigger() }
     let idleId: number | undefined
     let timerId: ReturnType<typeof setTimeout> | undefined
+    let offClient: (() => void) | undefined
 
     const cleanupTriggers = () => {
-      events.forEach((e) => window.removeEventListener(e, init))
+      events.forEach((e) => window.removeEventListener(e, trigger))
       document.removeEventListener('visibilitychange', onVisible)
+      offClient?.()
       const cic = (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback
       if (idleId != null && cic) cic(idleId)
       if (timerId) clearTimeout(timerId)
@@ -436,16 +459,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cleanupTriggers()
       // Any failure (chunk-load on a flaky link, getSession reject) must resolve
       // to the safe logged-out default — never leave loading=true forever.
-      const fail = () => { if (!cancelled) { setUser(null); setLoading(false) } }
+      // ⚠️ `heard`: once an auth event has spoken, a getSession() answer resolving after it must not
+      // overwrite it. A boot woken by the sign-in form itself (client-signal.ts) can start its
+      // getSession() just before verifyOtp's SIGNED_IN lands, and a stale null there would show a
+      // signed-in user as signed out (opus, plan review 2026-10-16).
+      let heard = false
+      const fail = () => { if (!cancelled) { if (!heard) setUser(null); setLoading(false) } }
       import('@/lib/supabase/browser').then(({ createSupabaseBrowser }) => {
         if (cancelled) return
         const supabase = createSupabaseBrowser()
         supabase.auth.getSession().then(({ data }) => {
           if (cancelled) return
-          setUser(data.session?.user ?? null)
+          if (!heard) setUser(data.session?.user ?? null)
           setLoading(false)
         }).catch(fail)
         const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+          heard = true
           setUser(session?.user ?? null)
           if (session?.user) {
             // ⚠️ UX3 J5 — A SESSION THAT ARRIVES WHILE A GATE'S POPUP IS OPEN IS THAT GATE'S SIGN-IN (the
@@ -496,13 +525,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }).catch(fail)
     }
 
-    /**
-     * ⚠️ ARMED UNCONDITIONALLY, INCLUDING FOR THE VISITOR THE GATE BELOW SKIPS. These four events
-     * are what makes the gate safe to be wrong about: every path that mints a session — the modal,
-     * /signin, OAuth, the password route — needs at least one of them in this document first, so a
-     * surface the gate does not know about still gets a client the instant it is touched.
-     */
-    events.forEach((e) => window.addEventListener(e, init, { once: true, passive: true }))
+    // With a session `once`: the first touch only brings the idle boot forward. Without, no `once`:
+    // each re-probes until one finds a session, and init() removes them all.
+    events.forEach((e) => window.addEventListener(e, trigger, boot ? { once: true, passive: true } : { passive: true }))
     // NOT `{ once: true }`: the first visibilitychange in a tab's life is usually the user leaving
     // (state 'hidden'), which onVisible correctly ignores — consuming the listener there would
     // spend it on the one transition that must not act.
@@ -517,10 +542,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
      * to the logged-out default, which is not a guess: it is the same answer `getSession()` would
      * have returned a second later, since a session can only live in a cookie this code just read.
      */
-    // ⚠️ ONE MORE FAIL-OPEN WRAPPER over probeAuthBoot's own: a throw anywhere in the probe must
-    // land on "boot", because the alternative is silently telling a signed-in visitor they are not.
-    let boot = true
-    try { boot = shouldBootAuth(probeAuthBoot()) } catch { boot = true }
     if (boot) {
       const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback
       if (ric) idleId = ric(() => init(), { timeout: 2000 })
@@ -529,6 +550,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null)
       setLoading(false)
     }
+
+    // ⛔ A SUPABASE CLIENT CREATED ANYWHERE IN THIS DOCUMENT WAKES THIS PROVIDER — the sign-in form
+    // before its first call above all (client-signal.ts; replayable, so a client created before this
+    // effect ran still counts). Registered LAST: when the client already exists, init() runs right
+    // here, with every trigger above in place for it to remove.
+    offClient = onClientCreated(init)
 
     return () => { cancelled = true; bootAuth.current = null; cleanupTriggers(); unsub?.() }
   }, [])

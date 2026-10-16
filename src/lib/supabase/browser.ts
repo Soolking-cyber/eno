@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 // flag set only on the server leaves the copy a signed-in reader actually carries unprotected. The
 // long note on why `httpOnly` is NOT among these options lives with the constant.
 import { authCookieOptions } from './cookie-options'
+import { noteClientCreated } from './client-signal'
 
 // Client-side Supabase (publishable/anon key — safe in the browser). SINGLETON:
 // one stable instance per tab so Realtime keeps a single socket and auth stays
@@ -25,5 +26,8 @@ export function createSupabaseBrowser(): SupabaseClient {
   const arm = (token?: string) => { if (token) client!.realtime.setAuth(token) }
   client.auth.getSession().then(({ data }) => arm(data.session?.access_token))
   client.auth.onAuthStateChange((_event, session) => arm(session?.access_token))
+  // ⛔ AND WAKE auth-context (speed plan item 7): an anonymous visitor's touch no longer boots it, so whatever creates
+  // this client — the sign-in form above all — is what makes sure a session minted here is heard (client-signal.ts).
+  noteClientCreated()
   return client
 }
