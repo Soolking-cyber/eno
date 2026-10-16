@@ -36,7 +36,7 @@ import { fileURLToPath } from 'node:url'
 /** Written into the patched file so a second run is a no-op. Bump the suffix if AFTER changes. */
 export const MARK = 'eno-patch: vercel/next.js#98168 backport v1'
 
-/** The 16.3.x block, byte for byte (identical in 16.3.1 and 16.3.6). */
+/** The 16.3.x block, byte for byte (identical in 16.3.1, 16.3.6 and 16.3.8). */
 export const BEFORE = `        const mocked = (0, _mockrequest.createRequestResponseMocks)({
             url: href,
             method,
