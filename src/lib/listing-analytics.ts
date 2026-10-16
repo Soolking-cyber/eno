@@ -101,10 +101,12 @@ export async function rollupListingDailyStats(): Promise<number> {
   // someone adds a `${...}` here it concatenates silently and nothing complains; the
   // tagged template makes that same edit a parameterised bind instead. Keeping the
   // safe form costs nothing while the statement is static and costs everything later.
+  // ⛔ NO `.catch(() => 0)` (speed plan item 9, 2026-10-17): a failed rollup must reach the cron, which logs it. Swallowed
+  // here, a missing day in the partner analytics series showed up only as a flat line, with nothing in any log.
   return db.$executeRaw`
       INSERT INTO "ListingDailyStat" ("id", "listingId", "day", "views", "leads", "createdAt")
       SELECT gen_random_uuid()::text, "id", CURRENT_DATE, "views", "contactCount", now()
       FROM "Listing" WHERE "verified" = true AND "status" = 'active'
       ON CONFLICT ("listingId", "day") DO UPDATE SET "views" = EXCLUDED."views", "leads" = EXCLUDED."leads"
-    `.catch(() => 0)
+    `
 }

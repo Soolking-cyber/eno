@@ -49,6 +49,12 @@
 //                    per index, never all at once; nothing overrides the replacement check, the sequential-scan stop, or
 //                    a verify shape still planned on the index.
 //   add --dry-run to print the SQL a phase would run and change nothing.
+//   ⚠️ 2026-10-17 on production: the 16 REPLACED full indexes were retired early, on the owner's word, because the
+//   planner TIES half the hot shapes between a full index and its identical copy and keeps the older one — so the
+//   week-long evidence could never accrue. Instead: every copy checked valid and labelled; all 16 dropped inside one
+//   transaction, every VERIFY shape planned, rolled back (54 ms of table lock; no shape read "Listing" sequentially);
+//   then DROP INDEX CONCURRENTLY each, restore definitions logged (~/eno-perf-2026-10/item9/retire-apply.txt). 218.5 MB;
+//   "Listing" indexes 493 → 274 MB. This phase now reports them "already gone".
 //
 // RUN — on the box, inside the app container, with the app's own DATABASE_URL (no secret is read or printed here):
 //   ssh … root@162.4.176.233 'cat > /tmp/eno-index-diet.mjs' < scripts/listing-index-diet-ddl.mjs
@@ -129,6 +135,9 @@ export const DROP_UNUSED = [
   // 2026-10-17), but a database where that script ran would keep a second full copy of what this diet removed.
   'listing_searchtext_trgm',
 ]
+
+/** The per-table autovacuum the create phase sets (see there). */
+export const AUTOVACUUM = 'autovacuum_vacuum_scale_factor = 0.02, autovacuum_analyze_scale_factor = 0.02'
 
 /** Never touched: FK targets, upsert keys, and the indexes any-status queries still need. */
 export const KEEP = [
@@ -332,6 +341,12 @@ async function main(phase, dryRun, force) {
       }
       await q('ANALYZE "Listing"')
       if (!dryRun) console.log('  ANALYZE "Listing" done')
+      // Autovacuum at 2% for this table (owner, 2026-10-17). The default 20% waits for ~28k dead rows in a table whose
+      // live part is 1.5%: measured before, 23,367 dead rows and 40% of pages not all-visible, so index-only scans of
+      // the live copies fell back to the heap (category total 6,235 pages; after one vacuum, 6). Takes SHARE UPDATE
+      // EXCLUSIVE — no read or write waits. Undo: ALTER TABLE "Listing" RESET (both keys).
+      await q(`ALTER TABLE public."Listing" SET (${AUTOVACUUM})`)
+      if (!dryRun) console.log(`  "Listing" autovacuum: ${AUTOVACUUM}`)
     }
     // ⚠️ The drop phase reads the scan record BEFORE verify runs: whatever verify itself reads must never be what the
     // decision judges (gate review).

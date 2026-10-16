@@ -1,12 +1,14 @@
 import { PrismaClient } from '@/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
 import { Pool } from 'pg'
+import { poolConfig } from '@/lib/db-pool-config'
 
 // Prisma 7: the Rust query engine is gone — the client talks to Postgres through a
-// driver adapter. We use node-postgres against the POOLED Supabase url (Supavisor,
-// port 6543, transaction mode); node-postgres uses unnamed prepared statements, which
-// are compatible with the transaction pooler. DDL/migrations use the DIRECT url via
-// prisma.config.ts instead.
+// driver adapter (node-postgres, unnamed prepared statements). On the VN box DATABASE_URL
+// is a DIRECT connection (measured 2026-10-17 in both app containers: a statement_timeout
+// startup parameter is accepted); the Supabase-cloud era used the Supavisor transaction
+// pooler (port 6543), which src/lib/db-pool-config.ts still recognises. DDL/migrations use
+// the DIRECT url via prisma.config.ts.
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
   /** The pool the live client queries through — read by src/lib/runtime-stats.ts (speed plan item 5). */
@@ -19,7 +21,9 @@ const globalForPrisma = globalThis as unknown as {
 // edition died on "too many clients already" mid-prerender. 3 per worker keeps the build under ~45;
 // the running app (any other phase) keeps the default.
 const isBuild = process.env.NEXT_PHASE === 'phase-production-build'
-const buildPool = isBuild ? { max: 3 } : {}
+// ⚠️ READ AS THIS LITERAL: Next substitutes `process.env.NEXT_RUNTIME` into its server bundles at build time
+// (next/dist/build/define-env.js) — it is not in the running process's environment, so an alias would read undefined.
+const isServer = process.env.NEXT_RUNTIME === 'nodejs' && !isBuild
 
 /**
  * The adapter. At RUNTIME it is handed a pool we build ourselves — the same options it would have built from (the
@@ -32,9 +36,11 @@ const buildPool = isBuild ? { max: 3 } : {}
  * ⚠️ The build keeps the config form: its workers exit when done, and a pool the adapter does not own is never ended.
  */
 function makeAdapter(): { adapter: PrismaPg; pool: Pool | null } {
-  const config = { connectionString: process.env.DATABASE_URL, ...buildPool }
+  const config = poolConfig({ url: process.env.DATABASE_URL, build: isBuild, server: isServer })
   if (isBuild) return { adapter: new PrismaPg(config), pool: null }
   const pool = new Pool(config)
+  // The one proof the server limit is on (see db-pool-config.ts): printed once, never the connection string.
+  if ('statement_timeout' in config) console.info(`[db] pool limits: statement_timeout=${config.statement_timeout}`)
   // ⛔ An EventEmitter 'error' with no listener throws — an idle client dropped by Supavisor would take the process
   // down. The adapter attaches its own listener when it first connects; this one is there from the start.
   pool.on('error', (e) => console.error('[db] idle pg client error', e instanceof Error ? e.message : e))
