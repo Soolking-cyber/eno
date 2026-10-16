@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { authCookieOptions } from './cookie-options'
+import { supabaseServerFetch } from './server-fetch'
 
 // Server-side Supabase (reads/writes the auth session cookies). Use in
 // server components / route handlers to read the logged-in user.
@@ -11,6 +12,9 @@ export async function createSupabaseServer() {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
       cookieOptions: authCookieOptions(),
+      // The per-request auth calls over the container network, not through Cloudflare — server-fetch.ts says which, and why
+      // supabaseUrl itself stays public (the cookie name is built from it).
+      global: { fetch: supabaseServerFetch },
       cookies: {
         getAll() {
           return cookieStore.getAll()

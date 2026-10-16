@@ -1,6 +1,6 @@
 import 'server-only'
 import { db } from '@/lib/db'
-import { getCurrentProfile } from '@/lib/admin'
+import { getCurrentProfileId } from '@/lib/admin'
 import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
 import { forumAuthorSelect, serializeForumPost } from '@/lib/forum/serialize'
 import { liveStorefrontWhere } from '@/lib/storefront-gone'
@@ -76,10 +76,13 @@ function postSelect(viewerId: string) {
 }
 
 export async function loadHelpCenter(): Promise<HelpCenterData> {
-  const profile = await getCurrentProfile().catch(() => null)
+  // ⚠️ THE VIEWER IS NEEDED ONLY TO MARK THEIR OWN VOTES AND BOOKMARKS, so it comes from the locally verified token, not
+  // getCurrentProfile() — an auth-server round trip plus a provision and a heartbeat on every render (speed plan item 6).
+  // Accepted: a session revoked elsewhere keeps seeing its own vote marks until its token expires; /api/me, on the same
+  // page load, still provisions and still asks the auth server. Profile.id IS the auth user id.
   // A UUID column cannot be compared against an arbitrary string, so signed-out reads
   // use the nil UUID — a value no Profile can hold — rather than skipping the relation.
-  const viewerId = profile?.id ?? '00000000-0000-0000-0000-000000000000'
+  const viewerId = (await getCurrentProfileId().catch(() => null)) ?? '00000000-0000-0000-0000-000000000000'
   const select = postSelect(viewerId)
 
   const [answers, questions, reviews] = await Promise.all([
@@ -177,8 +180,8 @@ export async function loadRelatedHelp(community: string, excludeId: string, take
  * The topic declaration is the only lever the code owns.
  */
 export async function loadHelpThread(id: string) {
-  const profile = await getCurrentProfile().catch(() => null)
-  const viewerId = profile?.id ?? '00000000-0000-0000-0000-000000000000'
+  // The same viewer read as loadHelpCenter: the locally verified token, only to mark their own vote and bookmark.
+  const viewerId = (await getCurrentProfileId().catch(() => null)) ?? '00000000-0000-0000-0000-000000000000'
 
   const post = await db.forumPost.findFirst({
     where: { id, status: 'published', communitySlug: { in: HELP_TOPIC_SLUGS } },

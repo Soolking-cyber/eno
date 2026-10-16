@@ -1,4 +1,4 @@
-import { getAdmin } from '@/lib/admin'
+import { getAdmin, isCurrentUserAdminByClaims } from '@/lib/admin'
 import { SUPPORT_SELLER_ID } from '@/lib/support-thread'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 import { isQuietGap, notifyTeacherOfSchoolMessage } from '@/lib/teachers/notify'
@@ -18,7 +18,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { conversationGate } from '@/lib/enforcement'
 import { maskEmailHandle } from '@/lib/utils'
 import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
-import { threadKind } from '@/lib/thread-kind'
+import { threadKind, threadKindResolver } from '@/lib/thread-kind'
 import { getVisaShopSeller, isVisaShopListing } from '@/lib/visa-shop'
 import { VISA_SUBCATEGORY_SLUG, takesOffers, paysSalary } from '@/lib/taxonomy'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
@@ -714,7 +714,12 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
    * false here, so `unread` already reads `sellerUnread` (the desk's side) and `counterpart`
    * already resolves to the CUSTOMER — which is the name an operator needs to see.
    */
-  const isSupportOperator = !!(await getAdmin())
+  // ⚠️ THE CLAIMS CHECK ONLY PRE-FILTERS (speed plan item 6). getAdmin() is getUser() — an auth-server round trip — and
+  // this route runs on every signed-in page load, for every user, to answer a question that is "no" for all but the
+  // operators. The locally verified token's email says "not an admin" for everyone else at no network cost; anyone it
+  // calls an admin is still confirmed by getAdmin(), so this never grants more than before. A stale email claim (an
+  // email changed INTO ADMIN_EMAILS within the token's life) can only withhold the desk until the token refreshes.
+  const isSupportOperator = (await isCurrentUserAdminByClaims()) && !!(await getAdmin())
   /**
    * ⚠️ THE SCOPE IS APPLIED PER BRANCH, NOT AT THE TOP LEVEL, AND THE DESK IS EXEMPT. A top-level
    * `...sellerScope` ANDs with the whole OR, so on an edition with an ALLOW-list it would filter
@@ -763,10 +768,11 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
   // Seller row, so "which seller is this?" cannot tell them apart; the anchor listing can, and
   // threadKind is where that knowledge lives.
   //
-  // Cheap despite the loop: both resolvers inside threadKind are React-cache()d, so the whole page
-  // of conversations costs ONE desk lookup and one catalogue lookup, then in-memory comparisons.
-  // threadKind already answers for a null listing — a support thread simply has no listing kind.
-  const kinds = await Promise.all(visible.map((c) => threadKind({ listingId: c.listing?.id ?? null })))
+  // ⚠️ threadKindResolver, NOT threadKind per row: React's cache() does nothing in a route handler, so per-row calls re-ran
+  // the desk and catalogue lookups for every one of up to 100 threads (speed plan item 6). The resolver is the same
+  // predicate with its lookups run once; a page with no listing thread (support threads only) skips them entirely.
+  const kindOf = visible.some((c) => c.listing) ? await threadKindResolver() : () => 'listing' as const
+  const kinds = visible.map((c) => kindOf(c.listing?.id ?? null))
 
   const conversations = visible.map((c, i) => {
     const iAmBuyer = c.buyerProfileId === meId

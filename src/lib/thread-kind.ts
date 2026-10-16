@@ -57,8 +57,9 @@ export const ITINERARY_THREADS_ENABLED = IS_SERVICES || process.env.ITINERARY_TH
  * stranger's conversation; guessing 'listing' only withholds one. This is the same direction
  * threadHostsWizard has always failed, kept deliberately.
  *
- * Both resolvers are React-cached, so the surfaces that ask this during one request — the customer
- * thread list, the thread page, the admin queue — share one pair of lookups between them.
+ * Both resolvers are React-cached, so a PAGE RENDER that asks this more than once shares one pair of
+ * lookups. ⚠️ A ROUTE HANDLER DOES NOT: React's cache() has no request scope there and runs the lookups
+ * on every call — which is why the inbox, asking for up to 100 threads at once, uses threadKindResolver.
  */
 export async function threadKind(convo: { listingId: string | null }): Promise<ThreadKind> {
   /**
@@ -108,5 +109,33 @@ export async function threadKind(convo: { listingId: string | null }): Promise<T
     // A desk-lookup outage must not relabel every ordinary conversation as a product thread.
     console.error('[thread-kind] lookup', e)
     return 'listing'
+  }
+}
+
+/**
+ * threadKind for a whole PAGE of threads: the enabled services' lookups ONCE, then a synchronous answer per thread.
+ *
+ * ⚠️ WHY IT EXISTS (speed plan item 6, 2026-10-16): React's cache() does nothing in a route handler, so GET
+ * /api/conversations calling threadKind() for each row re-ran both desk lookups for every one of up to 100 threads
+ * — ~4 queries a thread, all at once into a 10-connection pool, on every eno.forum inbox load. Same flags, same
+ * lookups, same fail-closed 'listing' on any error as threadKind() above: only how often the lookups run changes.
+ */
+export async function threadKindResolver(): Promise<(listingId: string | null | undefined) => ThreadKind> {
+  if (!VISA_THREADS_ENABLED && !ITINERARY_THREADS_ENABLED) return () => 'listing'
+  try {
+    const [tripAnchorId, visaListings] = await Promise.all([
+      ITINERARY_THREADS_ENABLED ? getTripAssistanceListingId() : Promise.resolve(null),
+      VISA_THREADS_ENABLED ? getVisaShopListings() : Promise.resolve([]),
+    ])
+    // A Set, not an object: an inherited key used as a listing id ('constructor', '__proto__') is never a member.
+    const visaIds = new Set(visaListings.map((listing) => listing.id))
+    return (listingId) => {
+      if (!listingId) return 'listing'
+      if (tripAnchorId && listingId === tripAnchorId) return 'itinerary'
+      return visaIds.has(listingId) ? 'visa' : 'listing'
+    }
+  } catch (e) {
+    console.error('[thread-kind] lookup', e)
+    return () => 'listing'
   }
 }

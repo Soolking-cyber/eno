@@ -1,6 +1,8 @@
 import 'server-only'
 import { cache } from 'react'
 import { db } from '@/lib/db'
+// Next's per-request store: the key of the read-path memo below (a fresh object per request — never shared across two).
+import { workUnitAsyncStorage } from 'next/dist/server/app-render/work-unit-async-storage.external'
 import { IS_SERVICES } from '@/lib/edition'
 import { VISA_SHOP_OWNER_EMAILS } from '@/lib/visa-shop'
 import { TRIP_DESK_OWNER_EMAILS } from '@/lib/trips/dm-thread'
@@ -226,8 +228,8 @@ const servicesAllowedSellerIds = async (): Promise<string[] | null> => {
   // error (a reviewer's catch). The partner list must resolve IN FULL before the desks are added.
   let partners: string[], desks: string[]
   try {
-    partners = await sellerIdsForEmails(MARKETPLACE_ALLOWED_OWNER_EMAILS)
-    desks = await sellerIdsForEmails([...VISA_SHOP_OWNER_EMAILS, ...TRIP_DESK_OWNER_EMAILS])
+    partners = await readSellerIdsForEmails(MARKETPLACE_ALLOWED_OWNER_EMAILS)
+    desks = await readSellerIdsForEmails([...VISA_SHOP_OWNER_EMAILS, ...TRIP_DESK_OWNER_EMAILS])
   } catch (e) {
     // A database error is not a reason to take the forum down over a catalogue preference.
     console.error('[edition-scope] eno.forum allow-list lookup failed — showing every seller', e)
@@ -256,7 +258,7 @@ export const editionAllowedSellerIds = cache(async (): Promise<string[] | null> 
   // eno.forum: the same list, plus eno's desks, failing open — see servicesAllowedSellerIds.
   if (IS_SERVICES) return servicesAllowedSellerIds()
   if (!MARKETPLACE_ALLOWED_OWNER_EMAILS.length) return null
-  const ids = await sellerIdsForEmails(MARKETPLACE_ALLOWED_OWNER_EMAILS)
+  const ids = await readSellerIdsForEmails(MARKETPLACE_ALLOWED_OWNER_EMAILS)
   /**
    * ⚠️ PARTIAL RESOLUTION THROWS TOO, not just total failure — reviewer-caught, and the partial
    * case is the likelier one. With two partners configured and one address mistyped, renamed or
@@ -351,6 +353,59 @@ const sellerIdsForEmails = async (emails: readonly string[]): Promise<string[]> 
 }
 
 /**
+ * ⚠️ A PER-REQUEST MEMO UNDER THE READ SCOPES (speed plan item 6, 2026-10-16) — the dedupe the `cache()` wrappers here
+ * were written to give, and do give in a page render, but not in a route handler: React's cache() has no request scope
+ * there, so every scoped listing query an API route made re-ran this lookup — 11–19 times for one /api/listings page,
+ * 1.33 M of them since 09-20 (pg_stat_statements).
+ * ⛔ PER REQUEST, NEVER ACROSS REQUESTS: keyed on Next's own store for the request being served (workUnitAsyncStorage —
+ * a fresh object per route-handler request, createRequestStoreForAPI, and per page render), so an answer lives exactly
+ * as long as cache() would have kept it in a page render. The plan and gate reviews refused a cross-request TTL (30 s,
+ * then 1 s): an allow or hide mapping that changes at runtime must show on the very next request.
+ * ⛔ ONLY A COMPLETE ANSWER IS KEPT — every email resolved to its seller (Profile.email and Seller.ownerId are both unique,
+ * so that is `ids.length === emails.length`). An empty or partial answer — the marketplace's throw, the forum's fail-open
+ * — is asked again on the next call, as before; a failure is never kept (callers already waiting on the one in-flight
+ * lookup share it). Callers get a copy, never the shared array.
+ * ⛔ READ PATHS ONLY. `deskSellerIds()` and every exemption, admin, enforcement and Vertex-ingest caller keep a fresh query.
+ * Outside a request (scripts, the test suite) there is no store, so every call asks.
+ */
+const sellerIdsByRequest = new WeakMap<object, Map<string, { at: number; pending: Promise<string[]> }>>()
+/**
+ * ⚠️ AND NO ENTRY OUTLIVES 5 s, WHATEVER STORE IT HANGS ON (gate review, 2026-10-16). AsyncLocalStorage follows timers and
+ * promises created inside a request, so a poller or stream started during one would keep that request's store — and its
+ * answers — forever. No request runs that long; a context that does gets a fresh lookup every 5 s at most.
+ */
+const SELLER_IDS_MAX_AGE_MS = 5000
+
+const readSellerIdsForEmails = async (emails: readonly string[]): Promise<string[]> => {
+  const store = workUnitAsyncStorage.getStore()
+  if (!store) return sellerIdsForEmails(emails)
+  const list = [...new Set(emails)]
+  if (!list.length) return []
+  const key = [...list].sort().join('\n')
+  let memo = sellerIdsByRequest.get(store)
+  if (!memo) sellerIdsByRequest.set(store, (memo = new Map()))
+  let entry = memo.get(key)
+  if (!entry || Date.now() - entry.at >= SELLER_IDS_MAX_AGE_MS) {
+    const kept = memo
+    const started = { at: Date.now(), pending: null as unknown as Promise<string[]> }
+    // Only THIS entry is ever removed — a newer one under the same key (after the age cap) is left alone.
+    const drop = () => { if (kept.get(key) === started) kept.delete(key) }
+    started.pending = sellerIdsForEmails(list).then(
+      (ids) => {
+        if (ids.length !== list.length) drop() // incomplete: the next call asks again
+        return ids
+      },
+      (e: unknown) => {
+        drop() // a failure is never kept
+        throw e
+      },
+    )
+    memo.set(key, (entry = started))
+  }
+  return [...(await entry.pending)]
+}
+
+/**
  * The seller ids the CURRENT edition hides from its own surfaces.
  *
  * Use this for seller-level gates (storefront 404s, the inbox, unread counts). It replaces the
@@ -360,7 +415,7 @@ const sellerIdsForEmails = async (emails: readonly string[]): Promise<string[]> 
  * and leaving it in would have kept the forum's new exclusions from ever applying.
  */
 export const editionHiddenSellerIds = cache(async (): Promise<string[]> => {
-  const ids = await sellerIdsForEmails(editionHiddenEmails())
+  const ids = await readSellerIdsForEmails(editionHiddenEmails())
   /**
    * ⛔ eno.vn ALSO HIDES eno.forum's RENTAL DESK — a fixed id, not an owner email, because the desk is
    * unowned (rental-check/desk-ids.ts). One requester has one availability-check thread PER EDITION;
@@ -430,7 +485,7 @@ export async function marketplaceListingScope(): Promise<{ sellerId?: { in?: str
     if (allowed) return { sellerId: { in: allowed, notIn: hidden } }
     return hidden.length ? { sellerId: { notIn: hidden } } : {}
   }
-  const notIn = await requiredDeskSellerIds()
+  const notIn = await requiredReadDeskSellerIds()
   const allowed = await editionAllowedSellerIds()
   // ⚠️ BOTH IN ONE FILTER, not two spread objects — Prisma reads `{ in, notIn }` as a conjunction,
   // and the two answer different questions: `notIn` is the licensing exclusion that must always
@@ -448,6 +503,17 @@ export async function marketplaceListingScope(): Promise<{ sellerId?: { in?: str
 async function requiredDeskSellerIds(action?: string): Promise<string[]> {
   const ids = await deskSellerIds()
   if (!ids.length) throw new DeskResolutionError('no desk seller could be resolved', action)
+  return ids
+}
+
+/**
+ * `requiredDeskSellerIds()` for the READ scope only (`marketplaceListingScope`): the same lookup as `deskSellerIds()`
+ * (HIDDEN_DESK_OWNER_EMAILS → their sellers) and the same throw when nothing resolves, through the per-request memo above.
+ * The ingest helpers below keep `requiredDeskSellerIds()` — a fresh query on every call.
+ */
+async function requiredReadDeskSellerIds(): Promise<string[]> {
+  const ids = await readSellerIdsForEmails(HIDDEN_DESK_OWNER_EMAILS)
+  if (!ids.length) throw new DeskResolutionError('no desk seller could be resolved')
   return ids
 }
 

@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
  */
 const h = vi.hoisted(() => ({ reviewWhere: undefined as unknown }))
 
-vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => null }))
+vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => null, getCurrentProfileId: async () => null }))
 vi.mock('@/lib/db', () => ({
   db: {
     forumPost: { findMany: async () => [] },
