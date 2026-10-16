@@ -49,9 +49,17 @@ describe('src/instrumentation-client.ts', () => {
     expect(seen).toHaveBeenCalledTimes(1)
   })
 
-  it('stays tiny: it is in every page\'s first JavaScript, so it imports the signal and nothing else', () => {
-    const SRC = readFileSync(join(process.cwd(), 'src/instrumentation-client.ts'), 'utf8')
-    expect([...SRC.matchAll(/^import /gm)]).toHaveLength(1)
-    expect(SRC).toContain("from '@/lib/nav-progress'")
+  it('stays tiny: it is in every page\'s first JavaScript — the signal and the page-speed starter, nothing else', () => {
+    const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
+    const from = (src: string) => [...src.matchAll(/^import (?!type ).* from '([^']+)'/gm)].map((m) => m[1])
+    expect(from(read('src/instrumentation-client.ts'))).toEqual(['@/lib/nav-progress', '@/lib/rum/early'])
+    // The starter (speed plan item 5) brings only in-app-browser — already on every page — and the import-free shared
+    // constants. web-vitals is a lazy chunk, loaded after the page's own requests (src/lib/rum/vitals.ts).
+    const early = read('src/lib/rum/early.ts')
+    expect(from(early)).toEqual(['@/lib/in-app-browser', './shared'])
+    expect(early).toContain("import('./vitals')")
+    expect(early).not.toMatch(/from 'web-vitals'/)
+    expect(read('src/lib/rum/shared.ts')).not.toMatch(/^import /m)
+    expect(read('src/lib/in-app-browser.ts')).not.toMatch(/^import (?!type )/m)
   })
 })

@@ -36,6 +36,11 @@
  * Vietnamese) — and the teacher's opt-in "Identity verified" mark on the profile, its card in lists and the chats about
  * it (the teacher paragraph and its consent purpose). If the two deploys fall on different days, this is the LATER one.
  * ⛔ If that deploy slips past 2026-10-16, re-date this (the deploy gate refuses until it matches the day).
+ * And 2026-10-16 (planned — the deploy day of speed plan item 5, owner 2026-10-16: "Anonymous, no consent", live with
+ * the deploy): the "Page speed measurements" paragraph — anonymous daily totals of load and response times, counted
+ * whatever the Analytics choice, like the sign-up reminder counts. ⛔ The value below did NOT change for it — and the
+ * deploy gate only checks the day when the value DIFFERS from the deployed commit's (already 2026-10-16 there) — so it
+ * cannot notice a slip: if item 5 deploys on a later Vietnamese day, re-date this to THAT day (and retake the fingerprint).
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -53,4 +58,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-16'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '6f8dfd81112f41b5'
+export const PRIVACY_TEXT_FINGERPRINT = '62f57505ae2b8c6b'

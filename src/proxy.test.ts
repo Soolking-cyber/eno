@@ -270,7 +270,7 @@ describe('subdomain self-writes', () => {
     if (origin !== null) headers.origin = origin
     return proxy(new NextRequest(`https://${host ?? 'teacher.eno.vn'}${path}`, { method, headers })).status
   }
-  const PATHS = ['/api/site-stats', '/api/translate', '/api/consent', '/api/signup-prompt']
+  const PATHS = ['/api/site-stats', '/api/translate', '/api/consent', '/api/signup-prompt', '/api/page-speed']
   const FORUM = 'https://www.eno.forum'
 
   const VN_PAGES = ['teacher.eno.vn', 'apple.eno.vn', 'eno-trading.eno.vn', 'sdcstore.eno.vn', 'luathoangphi.eno.vn']

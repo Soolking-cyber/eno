@@ -251,6 +251,9 @@ function toStored(res, now) {
   store.headers.delete("cdn-cache-control");
   store.headers.delete("set-cookie");
   store.headers.delete("vary");
+  // Speed plan item 5: the origin's Server-Timing describes the request that FILLED this entry — a HIT must never
+  // replay it (timingFor below writes the reader's own).
+  store.headers.delete("server-timing");
   store.headers.set("cache-control", `public, s-maxage=${SWR_TTL}`);
   store.headers.set("cache-tag", HTML_TAG);
   store.headers.set("x-eno-stored", String(now));
@@ -258,13 +261,51 @@ function toStored(res, now) {
 }
 
 /** What the reader gets: the app's own freshness window, never the SWR window. */
-function forClient(body, init, state, storedAt) {
+function forClient(body, init, state, storedAt, timing) {
   const r = new Response(body, init);
   r.headers.delete("cache-tag");   // ours, for the deploy's purge — not the reader's business
   r.headers.set("cache-control", `public, max-age=${FRESH_TTL}, s-maxage=${FRESH_TTL}`);
   r.headers.set("x-eno-cache", state);
   if (storedAt) r.headers.set("x-eno-age", String(Math.round((Date.now() - storedAt) / 1000)));
+  if (timing) r.headers.set("server-timing", timing);
   return r;
+}
+
+/**
+ * SERVER-TIMING FOR THE PAGE-SPEED TOTALS (speed plan item 5, 2026-10-16) — read in the visitor's browser by
+ * src/lib/rum/early.ts, which turns it into anonymous bucket totals (nothing per visitor is kept).
+ *   edge;desc="HKG"      the data centre (unless the origin's nginx already named it, from CF-Ray)
+ *   ecache;desc="HIT"    what answered: HIT · STALE · MISS (fetched, stored) · DYN (fetched, not storable) · PASS
+ *                        (a signed-in reader, never cached)
+ *   origin;dur=123       ONLY when THIS request waited for the origin: the Worker's wall time around fetch() — edge →
+ *                        box → first byte. (Workers' Date.now() advances across I/O, which is exactly what is timed.)
+ * …plus, on those same waits, the origin's own entries (nginx: `edge`, `app;dur` = the app's time at the box, `ncache`).
+ * Nothing new is disclosed: x-eno-cache, x-nextjs-cache and cf-ray (with its colo) are already on every response.
+ */
+function timingFor(request, state, upstream, originMs) {
+  const parts = [];
+  const up = upstream ? upstream.headers.get("server-timing") || "" : "";
+  if (up) parts.push(up);
+  const colo = request.cf && typeof request.cf.colo === "string" ? request.cf.colo : "";
+  if (/^[A-Z]{3}$/.test(colo) && !/(^|,)\s*edge\s*(;|,|$)/.test(up)) parts.push(`edge;desc="${colo}"`);
+  parts.push(`ecache;desc="${state}"`);
+  if (typeof originMs === "number") parts.push(`origin;dur=${Math.max(0, Math.round(originMs))}`);
+  return parts.join(", ");
+}
+
+/**
+ * ⛔ A fetch() RESPONSE'S HEADERS ARE IMMUTABLE IN WORKERS — setting one on it throws, and the visitor gets a Worker
+ * error page instead of the document. So copy first (the body streams through untouched); if even the copy fails,
+ * the untimed original beats an error.
+ */
+function withTiming(res, timing) {
+  try {
+    const out = new Response(res.body, res);
+    out.headers.set("server-timing", timing);
+    return out;
+  } catch {
+    return res;
+  }
 }
 
 export default {
@@ -275,7 +316,11 @@ export default {
     if (PASS.test(url.pathname)) return fetch(request);
     /** ⚠️ Signed-in readers bypass entirely — a personalised document must never enter a shared key. */
     const cookie = request.headers.get("cookie") || "";
-    if (cookie.includes("-auth-token")) return fetch(request);
+    if (cookie.includes("-auth-token")) {
+      const t0 = Date.now();
+      const passed = await fetch(request);
+      return withTiming(passed, timingFor(request, "PASS", passed, Date.now() - t0));
+    }
     /**
      * ⛔ AN AGENT ASKING FOR MARKDOWN MUST REACH THE ORIGIN (audit #88). `/`, `/terms` and `/privacy`
      * negotiate on Accept (next.config.ts rewrites them to /md/*), and the key does not carry Accept,
@@ -293,7 +338,7 @@ export default {
     if (hit) {
       const storedAt = Number(hit.headers.get("x-eno-stored") || 0);
       const ageSec = storedAt ? (Date.now() - storedAt) / 1000 : Infinity;
-      if (ageSec <= FRESH_TTL) return forClient(hit.body, hit, "HIT", storedAt);
+      if (ageSec <= FRESH_TTL) return forClient(hit.body, hit, "HIT", storedAt, timingFor(request, "HIT", null, null));
 
       /**
        * ⛔ STALE, SO ANSWER NOW AND REFRESH BEHIND THE READER. Returning before the origin fetch
@@ -344,11 +389,13 @@ export default {
           }
         })(),
       );
-      return forClient(hit.body, hit, "STALE", storedAt);
+      return forClient(hit.body, hit, "STALE", storedAt, timingFor(request, "STALE", null, null));
     }
 
+    const t0 = Date.now();
     const res = await fetch(request);
-    if (!storable(res, variant)) return res;
+    const originMs = Date.now() - t0;
+    if (!storable(res, variant)) return withTiming(res, timingFor(request, "DYN", res, originMs));
 
     const now = Date.now();
     const store = toStored(res, now);
@@ -360,7 +407,7 @@ export default {
     } catch (e) {
       diag = "put-threw:" + String(e && e.message).slice(0, 90);
     }
-    const out = forClient(store.body, store, "MISS", now);
+    const out = forClient(store.body, store, "MISS", now, timingFor(request, "MISS", res, originMs));
     /**
      * ⛔ THE READER STILL GETS THEIR Set-Cookie. `toStored` strips it so a per-visitor cookie can
      * never be written into a SHARED entry and handed to the next person — that part is not
