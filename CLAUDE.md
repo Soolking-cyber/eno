@@ -109,7 +109,10 @@ from memory.
      `ADD COLUMN`s. Assert on the whole statement, and reject **any** `DROP`, not a list of kinds.
      ⚠️ A `CREATE INDEX` on an EXISTING table does NOT go in the transaction: plain, it blocks
      every write to that table while it builds. Run it as `CREATE INDEX CONCURRENTLY`, alone —
-     e.g. `scripts/listing-count-index-ddl.mjs` owns `Listing_verified_status_categoryId_sellerId_idx`.
+     e.g. `scripts/listing-index-diet-ddl.mjs` owns every partial `Listing` index (`WHERE verified AND status =
+     'active'`, speed plan item 9) — Prisma cannot declare one, so `migrate diff` lists them as DROPs: refuse them.
+     ⛔ `prisma db push` / `migrate dev` would DROP them outright (on top of the tables above); after any reset,
+     `npm run db:ddl` rebuilds them (`search-index.mjs` for pg_trgm, then `listing-index-diet-ddl.mjs --phase=create`).
   4. Apply with `psql -v ON_ERROR_STOP=1` inside `BEGIN/COMMIT`, restore both FKs, then
      `node scripts/compliance-ddl.mjs` and the other DDL scripts, then `prisma generate`.
   5. **Migrate the DB BEFORE deploying.** Prisma selects every scalar column, so a new revision

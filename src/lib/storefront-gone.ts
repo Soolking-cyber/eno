@@ -71,7 +71,9 @@ export function storefrontIsGone(seller: { ownerId: string | null }, hasPublicLi
  * `Listing_verified_status_categoryId_sellerId_idx`, 518 buffers, 2–5ms warm (~11ms cold) — NOT
  * index-only: it selects `id`, which that index does not hold. Its row estimate (5,045) is stale since
  * the bulk hide. The support desk (0 rows) 0.08ms and Việc Làm 24h (12 hidden) 0.13ms on
- * `Listing_sellerId_saleConfirmedAt_idx`.
+ * `Listing_sellerId_saleConfirmedAt_idx`. (2026-10-17: the first index was replaced by the partial live indexes of
+ * scripts/listing-index-diet-ddl.mjs; the public-row probe now walks Listing_live_seller_rank_idx, which holds no hidden
+ * row at all, and the any-row probe still uses Listing_sellerId_saleConfirmedAt_idx.)
  *
  * ⚠️ EDITION-BLIND, DELIBERATELY. "Gone" is a fact about the shop, not about this edition: what an
  * edition may not show is `isSellerHiddenHere`'s job, and every caller runs that first. Scoping this
