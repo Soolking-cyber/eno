@@ -67,11 +67,19 @@ describe('teacherExportOf', () => {
     expect(out).toMatchObject({ matchEmailOptIn: true, matchEmailOptInAt: GRANT, matchEmailNoticeVersion: '2026-10-08', matchEmailWithdrawnAt: null })
   })
 
-  // The "Identity verified" switch (2026-10-16) is its own consent: its grant, notice version and withdrawal are the
-  // teacher's record of what they agreed to show, so the access copy carries all four columns.
-  it('carries the "Identity verified" switch and its consent record — grant, notice version, withdrawal', async () => {
+  // "Identity verified" (AUTOMATIC since 2026-10-16): its four columns are the record of the teacher's own acts on its
+  // switch — the last show, the last hide, the words beside it — never an opt-in consent (that is the identity
+  // declaration). The access copy carries all four as stored, and LABELS them for what they record now.
+  it('carries the "Identity verified" columns as stored — and labels them: hidden, shown again at, hidden at, words version', async () => {
     const out = await teacherExportOf('p1')
     expect(out).toMatchObject({ identityMarkOn: false, identityMarkAt: GRANT, identityMarkNoticeVersion: '2026-10-16', identityMarkWithdrawnAt: WITHDRAWN })
+    expect(out?.identityMark).toEqual({ hidden: true, shownAgainAt: GRANT, hiddenAt: WITHDRAWN, wordsVersion: '2026-10-16' })
+  })
+  it('the label says what the rule says: untouched (false, NULL) is NOT hidden; shown again after a hide is not hidden', async () => {
+    h.row = { ...h.row, identityMarkOn: false, identityMarkAt: null, identityMarkNoticeVersion: null, identityMarkWithdrawnAt: null }
+    expect((await teacherExportOf('p1'))?.identityMark).toEqual({ hidden: false, shownAgainAt: null, hiddenAt: null, wordsVersion: null })
+    h.row = { ...h.row, identityMarkOn: true, identityMarkAt: GRANT, identityMarkNoticeVersion: '2026-10-16-auto', identityMarkWithdrawnAt: WITHDRAWN }
+    expect((await teacherExportOf('p1'))?.identityMark).toMatchObject({ hidden: false, shownAgainAt: GRANT, hiddenAt: WITHDRAWN })
   })
 
   it('no teacher profile: null', async () => {

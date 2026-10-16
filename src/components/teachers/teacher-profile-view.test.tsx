@@ -5,6 +5,7 @@ import { renderToString } from 'react-dom/server'
 import { act, cleanup, render } from '@testing-library/react'
 import { LanguageProvider } from '@/context/language-context'
 import { COVER_CONSENT_VERSION } from '@/lib/teachers/cover'
+import { IDENTITY_MARK_NOTICE_VERSION } from '@/lib/teachers/constants'
 import { TEACHER_OPTIONS } from '@/lib/teachers/profile'
 
 // The server component reads one TeacherProfile row; the header, footer and contact block are their own suites.
@@ -15,10 +16,13 @@ const h = vi.hoisted(() => ({
   shown: false,
   shownThrows: false,
   markCalls: [] as unknown[][],
+  /** What the profile's ONE query was asked (the card cache rides in it — no round-trip of its own). */
+  queries: [] as Array<Record<string, unknown>>,
 }))
-vi.mock('@/lib/db', () => ({ db: { teacherProfile: { findUnique: async () => h.row } } }))
+vi.mock('@/lib/db', () => ({ db: { teacherProfile: { findUnique: async (q: Record<string, unknown>) => { h.queries.push(q); return h.row } } } }))
 vi.mock('@/lib/teachers/identity-mark', () => ({
-  identityMarkShownFor: async (...args: unknown[]) => {
+  // The public surface's predicate: gated on the card cache it is handed, then judged live (identity-mark.ts).
+  identityMarkShownOnCard: async (...args: unknown[]) => {
     h.markCalls.push(args)
     if (h.shownThrows) throw new Error('identity read down')
     return h.shown
@@ -45,8 +49,9 @@ const ROW = {
   teachAreas: ['online', 'd4', 'd7', 'ha-noi'], teachLanguages: [], englishLevel: 'native', experienceBand: '5-10-years',
   coverOpen: false, coverSlots: [], coverRateVnd: null, coverConfirmedAt: null, coverConsentVersion: null,
   videoOnRequest: false, private: { videoPath: null },
-  // the account and the mark's inputs — read for one boolean, never rendered
-  profileId: 'acct-7f3a9c2e-uuid', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16',
+  // the account, the mark's inputs and the listing's card cache (loaded in the same query) — read for one boolean, never
+  // rendered. Untouched switch columns (false, null): NOT hidden — the mark is automatic since 2026-10-16.
+  profileId: 'acct-7f3a9c2e-uuid', identityMarkOn: false, identityMarkWithdrawnAt: null, listing: { identityMarkNotice: IDENTITY_MARK_NOTICE_VERSION },
   // ⛔ the OLD columns — written mirrors, which the page must never read back as answers
   preferredCities: ['ho-chi-minh-city', 'da-nang'], openToOnline: false, coverAreas: ['d1'], nativeSpeaker: false, yearsExperience: 0, currentDistrict: 'Quận 1',
 }
@@ -72,7 +77,7 @@ async function page(lang: 'en' | 'vi', over: Record<string, unknown> = {}, index
 }
 
 beforeEach(() => { Object.defineProperty(navigator, 'languages', { configurable: true, get: () => ['en-US'] }) })
-afterEach(() => { Reflect.deleteProperty(navigator, 'languages'); h.row = null; h.shown = false; h.shownThrows = false; h.markCalls = [] })
+afterEach(() => { Reflect.deleteProperty(navigator, 'languages'); h.row = null; h.shown = false; h.shownThrows = false; h.markCalls = []; h.queries = [] })
 
 describe('the header line — nationality · English · experience · where they live', () => {
   it('HCMC, District 7: the curated district name, then the city — from the v2 answers, never the old mirrors', async () => {
@@ -281,11 +286,12 @@ describe('sharing the profile (owner, 2026-10-11)', () => {
 
 
 /**
- * "IDENTITY VERIFIED" — THE PROFILE LINE (owner, 2026-10-15): full width under the header while the predicate says so
- * (src/lib/teachers/identity-mark.ts identityMarkShownFor — the switch under today's notice, a LIVE identity check, the
- * name within the ID): the label and one sentence on what was and was not checked, in English and Vietnamese. A failed
- * read hides it (fails closed). Nothing of it reaches the JSON-LD, and the account id the predicate is asked about never
- * reaches the HTML.
+ * "IDENTITY VERIFIED" — THE PROFILE LINE (owner, 2026-10-15; AUTOMATIC since 2026-10-16): full width under the header
+ * while the predicate says so (src/lib/teachers/identity-mark.ts identityMarkShownOnCard — the listing's card cache this
+ * page's query already loaded, then a LIVE identity check, the name within the ID, and not hidden by the teacher): the
+ * label and one sentence on what was and was not checked, in English and Vietnamese. A failed read hides it (fails
+ * closed). Nothing of it reaches the JSON-LD, and neither the account id the predicate is asked about, nor whether the
+ * teacher hid the mark, nor the card cache ever reaches the HTML.
  */
 describe('the "Identity verified" line', () => {
   const line = (el: HTMLElement) => el.querySelector('[data-identity-line]')
@@ -306,12 +312,22 @@ describe('the "Identity verified" line', () => {
     expect(l.textContent).toContain('Đội ngũ eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên này; tên ở trên khớp với giấy tờ đó. Quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai — hãy đề nghị xem giấy tờ trước khi tuyển dụng.')
     expect(p.el.innerHTML).not.toContain('xác thực')
   })
-  it('the predicate is asked about THIS teacher, with exactly the four inputs it decides from', async () => {
+  it('the predicate is asked about THIS teacher, with exactly the four inputs it decides from and the card cache', async () => {
     h.shown = true
     await page('en')
     expect(h.markCalls).toHaveLength(1)
-    expect(h.markCalls[0][0]).toEqual({ profileId: 'acct-7f3a9c2e-uuid', fullName: 'Jane Doe', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16' })
-    expect(h.markCalls[0][1]).toBeInstanceOf(Date)
+    expect(h.markCalls[0][0]).toEqual({ profileId: 'acct-7f3a9c2e-uuid', fullName: 'Jane Doe', identityMarkOn: false, identityMarkWithdrawnAt: null })
+    expect(h.markCalls[0][1]).toBe(IDENTITY_MARK_NOTICE_VERSION)
+    expect(h.markCalls[0][2]).toBeInstanceOf(Date)
+    // A hidden mark's inputs go as stored — the predicate, not the page, decides (identity-mark.ts identityMarkHidden).
+    h.markCalls = []
+    const hiddenAt = new Date('2026-10-16T02:00:00.000Z')
+    await page('en', { identityMarkOn: false, identityMarkWithdrawnAt: hiddenAt })
+    expect(h.markCalls[0][0]).toEqual({ profileId: 'acct-7f3a9c2e-uuid', fullName: 'Jane Doe', identityMarkOn: false, identityMarkWithdrawnAt: hiddenAt })
+    // A listing with no card cache: handed on as null (the predicate answers false with zero reads).
+    h.markCalls = []
+    await page('en', { listing: { identityMarkNotice: null } })
+    expect(h.markCalls[0][1]).toBeNull()
   })
   it('not shown, or a failed read: no line (fails closed) — the page renders as before', async () => {
     h.shown = false
@@ -322,13 +338,18 @@ describe('the "Identity verified" line', () => {
     expect(line(p.el)).toBeNull()
     expect(p.text).toContain('Jane Doe')
   })
-  it('⛔ nothing in the JSON-LD, and no account id (nor the switch) anywhere in the HTML', async () => {
+  it('⛔ nothing in the JSON-LD, and no account id (nor the switch, a hide or the card cache) anywhere in the HTML', async () => {
     h.shown = true
     const p = await page('en')
     expect(JSON.stringify(p.ld)).not.toMatch(/Identity verified|identityMark|verified/i)
     expect(p.el.innerHTML).not.toContain('acct-7f3a9c2e-uuid')
-    expect(p.el.innerHTML).not.toContain('2026-10-16')
-    expect(p.el.innerHTML).not.toMatch(/identityMarkOn|profileId/)
+    expect(p.el.innerHTML).not.toContain(IDENTITY_MARK_NOTICE_VERSION)
+    expect(p.el.innerHTML).not.toMatch(/identityMarkOn|identityMarkWithdrawnAt|identityMarkNotice|profileId/)
+    // Whether the teacher HID it is theirs, never the page's: the hide's stamp never reaches the HTML either.
+    h.shown = false
+    const hidden = await page('en', { identityMarkWithdrawnAt: new Date('2026-10-16T02:00:00.000Z') })
+    expect(hidden.el.innerHTML).not.toContain('2026-10-16T02:00')
+    expect(hidden.el.innerHTML).not.toMatch(/identityMark|hidden_at|withdrawn/i)
   })
   it('no profile row behind the listing: no line, and no read', async () => {
     h.row = null
@@ -336,5 +357,20 @@ describe('the "Identity verified" line', () => {
     const html = renderToString(<LanguageProvider initialLang="en" initialViDict={{}}>{node}</LanguageProvider>)
     expect(html).not.toContain('data-identity-line')
     expect(h.markCalls).toEqual([])
+  })
+  // ⛔ No extra round-trip (spec 2026-10-16): the card cache is selected through the row's own listing in the page's ONE
+  // TeacherProfile query, beside the mark's four inputs — never a read of its own, and never the old notice column.
+  it('⛔ the card cache rides in the profile\'s OWN query — one query, the mark\'s inputs and the listing\'s cache in it', async () => {
+    await page('en')
+    expect(h.queries).toHaveLength(1)
+    expect(h.queries[0]).toMatchObject({
+      where: { listingId: 'L1' },
+      select: { profileId: true, fullName: true, identityMarkOn: true, identityMarkWithdrawnAt: true, listing: { select: { identityMarkNotice: true } } },
+    })
+    expect(h.queries[0].select).not.toHaveProperty('identityMarkNoticeVersion')
+  })
+  it('a row whose listing relation is gone hands the predicate no cache (null) — it then reads nothing and says false', async () => {
+    await page('en', { listing: null })
+    expect(h.markCalls[0][1]).toBeNull()
   })
 })

@@ -5,7 +5,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { sendMail } from '@/lib/mail'
 import { sendPushToProfile } from '@/lib/push'
 import { identityMarkState, type IdentityMarkState } from '@/lib/teachers/identity-mark'
-import { identityRejectionSentence, renderIdentityOutcomeEmail, type TeacherMarkLine } from '@/lib/emails/identity-verification'
+import { identityRejectionSentence, renderIdentityOutcomeEmail, teacherMarkSentence, type TeacherMarkLine } from '@/lib/emails/identity-verification'
 
 /**
  * TELL THE SELLER WHAT THE REVIEWER DECIDED — bell, push and email.
@@ -25,26 +25,27 @@ import { identityRejectionSentence, renderIdentityOutcomeEmail, type TeacherMark
  * security alert this is not a message where a wrong guess costs money, and a bilingual wall makes
  * a two-sentence outcome hard to read. The hub the CTA opens is bilingual regardless.
  *
- * ⚖️ A TEACHER'S APPROVAL TELLS THEM ABOUT "IDENTITY VERIFIED" (owner, 2026-10-15): the account with a teacher profile
- * hears, in the bell, the push and the email alike, either that the mark now shows on their profile (switched on under
- * today's notice, the name within the ID — src/lib/teachers/identity-mark.ts, judged LIVE: the approval's recompute has
- * already run, so this is current), that the NAME holds it back (the form says why), or that only the switch does —
- * chosen by teacherMarkLine from the very reason Photo & publish shows — and every one of the three links to the switch
+ * ⚖️ A TEACHER'S APPROVAL TELLS THEM ABOUT "IDENTITY VERIFIED" (owner, 2026-10-15; AUTOMATIC since 2026-10-16): the
+ * account with a teacher profile hears, in the bell, the push and the email alike — one sentence, the email module's
+ * (teacherMarkSentence) — either that the mark now shows on their profile and can be hidden there (the name within the
+ * ID — src/lib/teachers/identity-mark.ts, judged LIVE: the approval's recompute has already run, so this is current),
+ * that they HID it and can show it again, or that the NAME holds it back (the form says why) — chosen by teacherMarkLine
+ * from the very reason Photo & publish shows — and every one of the three links to the switch
  * (/teachers/edit?step=finish), ⛔ never to the verify flow. A failed read says nothing about the mark (below).
  * A refusal, and every account without a teacher profile, is told exactly what it was told before.
  */
 /**
  * What a teacher's approval says about "Identity verified" — from the REASON the form itself shows (identity-mark.ts
- * identityMarkStateOf: identity, then name, then switch), never from a yes/no (commit gate, 2026-10-16: a boolean told
- * a teacher whose NAME held the mark back to "switch it on"):
- *   · shown → 'now'
- *   · held back only by the switch — off, or on under an older notice → 'can' ("switch it on")
- *   · held back by the NAME — none on the ID, or not within it — switch on or off → 'notYet' ("see why")
- *   · an identity-side reason (the approval raced a revocation, say) → null: nothing about the mark
+ * identityMarkStateOf: identity, then name, then the profile, then the teacher's hide), never from a yes/no (commit
+ * gate, 2026-10-16: a boolean told a teacher whose NAME held the mark back to "switch it on"):
+ *   · shown → 'now' ("now shows — you can hide it")
+ *   · held back only by the teacher's own hide → 'can' ("you have hidden it — you can show it again")
+ *   · held back by the NAME — none on the ID, or not within it — hidden or not → 'notYet' ("see why")
+ *   · an identity-side reason (the approval raced a revocation, say), or no profile → null: nothing about the mark
  */
 export function teacherMarkLine(s: IdentityMarkState): TeacherMarkLine | null {
   if (s.shown) return 'now'
-  if (s.reason === 'off' || s.reason === 'notice_changed') return 'can'
+  if (s.reason === 'hidden') return 'can'
   if (s.reason === 'no_name' || s.reason === 'name_mismatch') return 'notYet'
   return null
 }
@@ -66,8 +67,9 @@ export async function notifyIdentityOutcome(
   try {
     const profile = await db.profile.findUnique({
       where: { id: profileId },
-      // The teacher profile's three mark inputs — read for one boolean (`markShown`), never sent anywhere.
-      select: { email: true, locale: true, teacherProfile: { select: { fullName: true, identityMarkOn: true, identityMarkNoticeVersion: true } } },
+      // The teacher profile's three mark inputs (the name and the hide's two columns) — read for the one line below, never
+      // sent anywhere.
+      select: { email: true, locale: true, teacherProfile: { select: { fullName: true, identityMarkOn: true, identityMarkWithdrawnAt: true, status: true, listing: { select: { status: true, verified: true } } } } },
     })
     // ⚠️ NO STORED LOCALE: a CCCD holder is a Vietnamese citizen, so tier A defaults to Vietnamese;
     // a passport holder to English. A stored preference always wins.
@@ -79,12 +81,17 @@ export async function notifyIdentityOutcome(
     // A teacher's approval (above): what the mark does now, judged as the form judges it.
     const tp = approved ? profile?.teacherProfile ?? null : null
     const mark = tp
-      ? await identityMarkState({ profileId, fullName: tp.fullName, identityMarkOn: tp.identityMarkOn, identityMarkNoticeVersion: tp.identityMarkNoticeVersion }, new Date())
+      ? await identityMarkState({ profileId, fullName: tp.fullName, identityMarkOn: tp.identityMarkOn, identityMarkWithdrawnAt: tp.identityMarkWithdrawnAt }, new Date())
         .catch(() => null)
       : null
-    // ⛔ A FAILED READ SAYS NOTHING ABOUT THE MARK (commit gate, 2026-10-16): "now shows", "not yet" and "switch it on" are
-    // all unknown — the plain approval and the hub, as for any account.
-    const line = mark ? teacherMarkLine(mark) : null
+    // ⛔ A FAILED READ SAYS NOTHING ABOUT THE MARK (commit gate, 2026-10-16): "now shows", "not yet" and "you have hidden
+    // it" are all unknown — the plain approval and the hub, as for any account.
+    // ⛔ "NOW SHOWS" ONLY ON A PROFILE THE PUBLIC CAN SEE (commit gate, opus round 3): the mark's rule never looks at the
+    // profile's own visibility, so a teacher whose profile is hidden (or not yet published to the feed — the same rule as
+    // GET /api/teachers/me `listingLive`) would be told it shows where nobody sees it. Then: the plain approval and the hub.
+    const live = tp?.status === 'live' && tp.listing?.status === 'active' && tp.listing.verified === true
+    const raw = mark ? teacherMarkLine(mark) : null
+    const line = raw === 'now' && !live ? null : raw
     const teacher = line ? { line } : null
     // Where all three channels lead: a teacher to the switch (Photo & publish), never the verify flow; everyone else the hub.
     const url = teacher ? '/teachers/edit?step=finish' : '/dashboard/verification'
@@ -93,11 +100,7 @@ export async function notifyIdentityOutcome(
       ? (lang === 'vi' ? 'Danh tính đã được xác minh' : 'Your identity is verified')
       : (lang === 'vi' ? 'Xác minh danh tính chưa được chấp nhận' : 'Identity verification not accepted')
     const bellBody = teacher
-      ? (teacher.line === 'now'
-        ? (lang === 'vi' ? 'Nhãn “Đã xác minh danh tính” đã hiển thị trên hồ sơ giáo viên của bạn.' : '“Identity verified” now shows on your teacher profile.')
-        : teacher.line === 'notYet'
-          ? (lang === 'vi' ? 'Nhãn “Đã xác minh danh tính” chưa hiển thị trên hồ sơ giáo viên của bạn — xem lý do trong bước Ảnh & đăng.' : '“Identity verified” is not showing on your teacher profile yet — see why in Photo & publish.')
-          : (lang === 'vi' ? 'Giờ bạn có thể hiển thị “Đã xác minh danh tính” trên hồ sơ giáo viên — bật trong bước Ảnh & đăng.' : 'You can now show “Identity verified” on your teacher profile — switch it on in Photo & publish.'))
+      ? teacherMarkSentence(lang, teacher.line)
       : approved
         // Not "ever again": a document that expires, or is replaced, is verified again (the email says the same).
         ? (lang === 'vi' ? 'Bạn sẽ không phải làm lại bước này trừ khi giấy tờ hết hạn hoặc được thay mới.' : 'You will not be asked to do this again unless your document expires or is replaced.')

@@ -6,10 +6,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // recomputes them ONE AT A TIME with the run's clock; counts a throw, effects that did not run and a failed effects step
 // as failures and keeps going; reports an illegal cache move without failing; and a dry run READS ONLY — the database
 // below throws on anything that is not one of its reads, and recomputeVerification must never be called.
-// And the CARD-TICK PASS (C4): after the loop, every teacher whose switch is on or whose card cache carries a value —
-// minus those the loop handled cleanly — is synced one at a time (syncIdentityMarkCard, faked here), purged when the
-// cache changed or when a revoked teacher's switch is still on, each failure counted into `failed`; its dry run judges
-// with identityMarkState (faked) against the stored cache and writes, syncs and purges NOTHING.
+// And the CARD-TICK PASS (C4; the mark AUTOMATIC since 2026-10-16): after the loop, every teacher whose account holds an
+// identity row, whose card cache carries a value, or who hid the mark in the last 7 days — minus those the loop handled
+// cleanly — is synced one at a time (syncIdentityMarkCard, faked here), purged when the cache changed, when an identity
+// holder has NOT HIDDEN it (never "when shown": a lapsed or revoked mark whose cache was already NULL is exactly the purge
+// to retry), and after a recent hide, each failure counted into `failed`; its dry run judges with identityMarkState
+// (faked) against the stored cache — counting the ticks the automatic rule turns on — and writes, syncs and purges
+// NOTHING.
 
 type Row = Record<string, any>
 const h = vi.hoisted(() => ({
@@ -27,12 +30,12 @@ const h = vi.hoisted(() => ({
   results: new Map<string, Row | Error>(),
   inFlight: 0,
   maxInFlight: 0,
-  /** The card pass's selection (switch on, or a card cache carrying a value), as the TeacherProfile read returns it. */
+  /** The card pass's selection (identity holders, card caches carrying a value, recent hides), as the TeacherProfile read returns it. */
   marked: [] as Row[],
   markedThrows: false,
   /** Per profile: what syncIdentityMarkCard answers (null: no listing), or an Error to throw. Missing → in sync. */
   syncs: new Map<string, Row | null | Error>(),
-  /** Per profile: what identityMarkState answers in a dry run, or an Error. Missing → not shown, 'off'. */
+  /** Per profile: what identityMarkState answers in a dry run, or an Error. Missing → not shown, 'unverified'. */
   states: new Map<string, Row | Error>(),
   syncInFlight: 0,
   syncMaxInFlight: 0,
@@ -104,7 +107,7 @@ vi.mock('@/lib/teachers/identity-mark-card', () => ({
     h.syncMaxInFlight = Math.max(h.syncMaxInFlight, h.syncInFlight)
     try {
       await new Promise((r) => setTimeout(r, 1))
-      const r = h.syncs.has(profileId) ? h.syncs.get(profileId) : { listingId: `L-${profileId}`, districts: ['d7'], changed: false, shown: false, reason: 'off', on: false }
+      const r = h.syncs.has(profileId) ? h.syncs.get(profileId) : { listingId: `L-${profileId}`, districts: ['d7'], changed: false, shown: false, reason: 'unverified', hidden: false }
       if (r instanceof Error) throw r
       return r
     } finally {
@@ -116,7 +119,7 @@ vi.mock('@/lib/teachers/identity-mark', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/teachers/identity-mark')>()),
   identityMarkState: async (m: Row, now: Date) => {
     h.calls.push({ m: 'identityMarkState', args: [m, now] })
-    const r = h.states.get(m.profileId as string) ?? { shown: false, reason: 'off' }
+    const r = h.states.get(m.profileId as string) ?? { shown: false, reason: 'unverified' }
     if (r instanceof Error) throw r
     return r
   },
@@ -140,12 +143,17 @@ const writes = () => h.calls.filter((c) => c.m.startsWith('WRITE'))
 const synced = () => h.calls.filter((c) => c.m === 'syncIdentityMarkCard').map((c) => c.args[0])
 const purgedPages = () => h.calls.filter((c) => c.m === 'revalidateTeacherPages').map((c) => c.args)
 const NO_MARKS = { checked: 0, changed: 0, purged: 0, failed: 0 }
-/** A selected teacher, as the card pass's TeacherProfile read returns it. */
+/**
+ * A selected teacher, as the card pass's TeacherProfile read returns it — by default an IDENTITY HOLDER (one row's id
+ * through the account) who never touched the switch (the automatic default: not hidden).
+ */
+const HOLDER = { identityVerifications: [{ id: 'iv-1' }] }
+const NOT_HOLDER = { identityVerifications: [] }
 const marked = (profileId: string, over: Row = {}): Row => ({
-  profileId, fullName: 'Anna Eriksson', identityMarkOn: true, identityMarkNoticeVersion: IDENTITY_MARK_NOTICE_VERSION,
-  identityMarkWithdrawnAt: null, listing: { identityMarkNotice: null, status: 'active' }, ...over,
+  profileId, fullName: 'Anna Eriksson', identityMarkOn: false, identityMarkWithdrawnAt: null,
+  listing: { identityMarkNotice: null, status: 'active' }, profile: HOLDER, ...over,
 })
-const sync = (over: Row = {}) => ({ listingId: 'L1', districts: ['d7'], changed: false, shown: false, reason: 'off', on: true, ...over })
+const sync = (over: Row = {}) => ({ listingId: 'L1', districts: ['d7'], changed: false, shown: false, reason: 'unverified', hidden: false, ...over })
 const ivRow = (profileId: string, over: Row = {}) => ({
   id: `iv-${profileId}-${h.rows.length}`, profileId, tier: 'B', method: 'passport_mrz', status: 'verified',
   decidedAt: new Date('2026-06-01T00:00:00+07:00'), documentExpiresAt: new Date('2030-01-01T00:00:00+07:00'), assuranceLevel: null, ...over,
@@ -288,15 +296,21 @@ describe('reconcileIdentities — ⛔ the dry run READS ONLY', () => {
 })
 
 describe('reconcileIdentities — the card-tick pass (C4)', () => {
-  it('selects every teacher whose switch is ON or whose card cache carries a value — reading the switch, the name and the cache', async () => {
+  it('⛔ selects every IDENTITY HOLDER, every card cache carrying a value and every hide of the last 7 days — reading the hide, the name, the cache and whether the account holds an identity row', async () => {
     await reconcileIdentities({ now: NOW })
     const sel = h.calls.find((c) => c.m === 'teacherProfile.findMany(marks)')!.args
     expect(sel.where).toEqual({ OR: [
-      { identityMarkOn: true },
+      { profile: { is: { identityVerifications: { some: {} } } } },
       { listing: { is: { identityMarkNotice: { not: null } } } },
       { identityMarkWithdrawnAt: { gte: new Date(NOW.getTime() - 7 * 86_400_000) } },
     ] })
-    expect(sel.select).toEqual({ profileId: true, fullName: true, identityMarkOn: true, identityMarkNoticeVersion: true, identityMarkWithdrawnAt: true, listing: { select: { identityMarkNotice: true, status: true } } })
+    expect(sel.select).toEqual({
+      profileId: true, fullName: true, identityMarkOn: true, identityMarkWithdrawnAt: true,
+      listing: { select: { identityMarkNotice: true, status: true } },
+      profile: { select: { identityVerifications: { select: { id: true }, take: 1 } } },
+    })
+    // ⛔ no arm on the old opt-in's switch: the mark is automatic, the switch only says whether it was HIDDEN
+    expect(JSON.stringify(sel.where)).not.toContain('identityMarkOn')
   })
 
   it('⛔ skips the profiles the loop handled CLEANLY; a recompute that threw, or whose effects failed or never ran, gets its own sync', async () => {
@@ -304,18 +318,20 @@ describe('reconcileIdentities — the card-tick pass (C4)', () => {
     h.results.set('threw', new Error('db hiccup'))
     h.results.set('failed', { status: 'verified', sourceId: 'x', changed: false, effects: effects({ failed: true }) })
     h.results.set('noeffects', { status: 'verified', sourceId: 'y', changed: false })
-    h.marked = ['clean', 'threw', 'failed', 'noeffects', 'no-identity'].map((id) => marked(id))
+    h.marked = [...['clean', 'threw', 'failed', 'noeffects'].map((id) => marked(id)), marked('no-identity', { profile: NOT_HOLDER, listing: { identityMarkNotice: IDENTITY_MARK_NOTICE_VERSION, status: 'active' } })]
     const r = await reconcileIdentities({ now: NOW })
     expect(synced()).toEqual(['threw', 'failed', 'noeffects', 'no-identity'])
     expect(h.calls.filter((c) => c.m === 'syncIdentityMarkCard').every((c) => c.args[1] === NOW)).toBe(true)
-    expect(r.marks).toEqual({ checked: 4, changed: 0, purged: 0, failed: 0 })
+    // The three identity holders the pass synced are purged (not hidden); the card-only teacher, unchanged, is not.
+    expect(purgedPages().map(([l]) => l)).toEqual(['L-threw', 'L-failed', 'L-noeffects'])
+    expect(r.marks).toEqual({ checked: 4, changed: 0, purged: 3, failed: 0 })
     expect(r.failed).toBe(3) // the loop's three — the pass itself failed nothing
   })
 
-  it('changed → purged with the sync\'s own listing and districts; unchanged with the switch OFF → no purge', async () => {
-    h.marked = [marked('a'), marked('b')]
-    h.syncs.set('a', sync({ listingId: 'L-a', districts: ['d7', null], changed: true, shown: false, reason: 'off', on: false }))
-    h.syncs.set('b', sync({ listingId: 'L-b', changed: false, shown: false, reason: 'off', on: false }))
+  it('changed → purged with the sync\'s own listing and districts; unchanged and NOT an identity holder → no purge', async () => {
+    h.marked = [marked('a'), marked('b', { profile: NOT_HOLDER })]
+    h.syncs.set('a', sync({ listingId: 'L-a', districts: ['d7', null], changed: true, shown: false, reason: 'unverified' }))
+    h.syncs.set('b', sync({ listingId: 'L-b', changed: false, shown: false, reason: 'unverified' }))
     const r = await reconcileIdentities({ now: NOW })
     expect(purgedPages()).toEqual([['L-a', ['d7', null]]])
     expect(r.marks).toEqual({ checked: 2, changed: 1, purged: 1, failed: 0 })
@@ -324,21 +340,32 @@ describe('reconcileIdentities — the card-tick pass (C4)', () => {
 
   // Commit gate, 2026-10-16: a purge that threw after its sync committed was never retried — the next night found the
   // cache right and purged nothing, so a 30-day ISR page kept a claim the cache had dropped.
-  it('⚖️ the switch ON → purged every night, even in sync — a purge that failed the night before is retried', async () => {
-    h.marked = [marked('on')]
-    h.syncs.set('on', sync({ listingId: 'L-on', changed: false, shown: true, reason: null, on: true }))
+  it('⚖️ an identity holder who has NOT HIDDEN it → purged every night, even in sync — a purge that failed the night before is retried', async () => {
+    h.marked = [marked('shown')]
+    h.syncs.set('shown', sync({ listingId: 'L-shown', changed: false, shown: true, reason: null, hidden: false }))
     const r = await reconcileIdentities({ now: NOW })
-    expect(purgedPages()).toEqual([['L-on', ['d7']]])
+    expect(purgedPages()).toEqual([['L-shown', ['d7']]])
     expect(r.marks).toEqual({ checked: 1, changed: 0, purged: 1, failed: 0 })
   })
 
-  it('⛔ revoked while the switch is still ON → purged even with the cache unchanged; revoked with it OFF → not', async () => {
-    h.marked = [marked('on'), marked('off')]
-    h.syncs.set('on', sync({ listingId: 'L-on', changed: false, reason: 'revoked', on: true }))
-    h.syncs.set('off', sync({ listingId: 'L-off', changed: false, reason: 'revoked', on: false }))
+  // The rule is "not hidden", NEVER "shown": after a revocation (or a lapse) the mark is not shown and the cache may have
+  // been NULL already — the sync then reports no change, and exactly that page's failed purge must still be retried.
+  it('⛔ revoked, NOT shown, cache already NULL (no change) → STILL purged while not hidden; hidden long ago → not', async () => {
+    const LONG_AGO = new Date(NOW.getTime() - 30 * 86_400_000)
+    h.marked = [marked('revoked'), marked('revoked-hidden', { identityMarkWithdrawnAt: LONG_AGO })]
+    h.syncs.set('revoked', sync({ listingId: 'L-r', changed: false, shown: false, reason: 'revoked', hidden: false }))
+    h.syncs.set('revoked-hidden', sync({ listingId: 'L-rh', changed: false, shown: false, reason: 'revoked', hidden: true }))
     const r = await reconcileIdentities({ now: NOW })
-    expect(purgedPages()).toEqual([['L-on', ['d7']]])
+    expect(purgedPages()).toEqual([['L-r', ['d7']]])
     expect(r.marks).toMatchObject({ checked: 2, changed: 0, purged: 1 })
+  })
+
+  it('the hide decided under the lock wins over the selection\'s copy: a teacher who hid it since the read is not purged as a holder', async () => {
+    h.marked = [marked('a')] // selected as not hidden …
+    h.syncs.set('a', sync({ listingId: 'L-a', changed: false, hidden: true })) // … hidden by the time the sync locked the row
+    const r = await reconcileIdentities({ now: NOW })
+    expect(purgedPages()).toEqual([])
+    expect(r.marks).toMatchObject({ checked: 1, purged: 0 })
   })
 
   it('a sync that finds no listing (or no profile any more) is checked, and nothing more', async () => {
@@ -376,13 +403,13 @@ describe('reconcileIdentities — the card-tick pass (C4)', () => {
   })
 
   describe('⛔ its dry run judges and compares — ZERO syncs, ZERO purges, ZERO writes', () => {
-    it('every selected teacher judged with the stored switch and name; changed / purged / shown counted against the stored cache', async () => {
+    it('every selected teacher judged with the stored hide and name; changed / purged / shown counted against the stored cache', async () => {
       h.owners = [{ profileId: 'clean' }] // a dry run skips nobody: no loop ran
       h.marked = [
         marked('clean', { listing: { identityMarkNotice: null } }), // would show, cache empty → would change
-        marked('stale', { listing: { identityMarkNotice: '2026-01-01' } }), // a notice bump left the old version → would clear
-        marked('insync', { listing: { identityMarkNotice: IDENTITY_MARK_NOTICE_VERSION } }), // in sync — but the switch is on → purged nightly
-        marked('revoked', { listing: { identityMarkNotice: null } }), // revoked, switch on → would purge though in sync
+        marked('stale', { listing: { identityMarkNotice: '2026-01-01' } }), // a bump left the old version → would clear
+        marked('insync', { listing: { identityMarkNotice: IDENTITY_MARK_NOTICE_VERSION } }), // in sync — an identity holder, not hidden → purged nightly
+        marked('revoked', { listing: { identityMarkNotice: null } }), // revoked, not hidden → would purge though in sync
         marked('nolisting', { listing: null }), // no card at all
       ]
       h.states.set('clean', { shown: true, reason: null })
@@ -393,8 +420,30 @@ describe('reconcileIdentities — the card-tick pass (C4)', () => {
       expect(r.marks).toEqual({ checked: 5, changed: 2, purged: 4, failed: 0, shown: 2 })
       const judged = h.calls.filter((c) => c.m === 'identityMarkState').map((c) => c.args)
       expect(judged.map(([m]) => m.profileId)).toEqual(['clean', 'stale', 'insync', 'revoked', 'nolisting'])
-      expect(judged[0]).toEqual([{ profileId: 'clean', fullName: 'Anna Eriksson', identityMarkOn: true, identityMarkNoticeVersion: IDENTITY_MARK_NOTICE_VERSION }, NOW])
+      expect(judged[0]).toEqual([{ profileId: 'clean', fullName: 'Anna Eriksson', identityMarkOn: false, identityMarkWithdrawnAt: null }, NOW])
       expect([synced(), purgedPages(), writes(), recomputed()]).toEqual([[], [], [], []])
+    })
+    it('⛔ the deploy-day preview counts the AUTOMATIC ticks: a verified holder with a NULL card — and the old opt-in\'s value — would change', async () => {
+      h.marked = [
+        marked('never-opted', { listing: { identityMarkNotice: null, status: 'active' } }),
+        marked('opted-in', { identityMarkOn: true, listing: { identityMarkNotice: '2026-10-16', status: 'active' } }),
+      ]
+      h.states.set('never-opted', { shown: true, reason: null })
+      h.states.set('opted-in', { shown: true, reason: null })
+      const r = await reconcileIdentities({ now: NOW, dryRun: true })
+      expect(r.marks).toEqual({ checked: 2, changed: 2, purged: 2, failed: 0, shown: 2 })
+    })
+    it('the dry run purges by the real pass\'s rule: a hidden holder in sync is not counted, a recent hide is', async () => {
+      const LONG_AGO = new Date(NOW.getTime() - 30 * 86_400_000)
+      const YESTERDAY = new Date(NOW.getTime() - 86_400_000)
+      h.marked = [
+        marked('hidden-long-ago', { identityMarkWithdrawnAt: LONG_AGO }),
+        marked('hidden-yesterday', { identityMarkWithdrawnAt: YESTERDAY }),
+        marked('not-holder', { profile: NOT_HOLDER, listing: { identityMarkNotice: null, status: 'active' } }),
+      ]
+      for (const id of ['hidden-long-ago', 'hidden-yesterday']) h.states.set(id, { shown: false, reason: 'hidden' })
+      const r = await reconcileIdentities({ now: NOW, dryRun: true })
+      expect(r.marks).toEqual({ checked: 3, changed: 0, purged: 1, failed: 0, shown: 0 })
     })
     it('a judgement that cannot be read is a failure (in `failed` too) — and still nothing is written', async () => {
       h.marked = [marked('a'), marked('b')]
@@ -409,39 +458,49 @@ describe('reconcileIdentities — the card-tick pass (C4)', () => {
 
 // ── reconcileIdentityMarks — THE SAME PASS ALONE, AT 00:05 ICT (review, 2026-10-16) ──────────────────────────────────────
 // A document lapses at 00:00 ICT and the mark with it, but the reconcile runs at 09:05: this run (/api/cron/identity-marks)
-// re-derives every selected teacher's card cache five minutes after midnight. Pinned: the same selection; EVERY selected
-// teacher synced (no loop ran, nobody skipped), one at a time, with the run's clock; purged when the cache changed or a
-// revoked teacher's switch is on; and NOTHING ELSE — no identity-owner read, no recompute (trust and enforcement, which can
-// notify, stay at 09:05). Its dry run judges and writes nothing.
+// re-derives every selected teacher's card cache five minutes after midnight. Pinned: the same selection — every identity
+// holder among it, so this run alone is also the AUTOMATIC rule's backfill; EVERY selected teacher synced (no loop ran,
+// nobody skipped), one at a time, with the run's clock; purged when the cache changed, for an identity holder who has not
+// hidden it, and after a recent hide; and NOTHING ELSE — no identity-owner read, no recompute (trust and enforcement,
+// which can notify, stay at 09:05). Its dry run judges and writes nothing.
 describe('reconcileIdentityMarks — the card-tick pass ALONE, at 00:05 ICT', () => {
   const MIDNIGHT = new Date('2026-10-17T00:05:00+07:00')
+  const LONG_AGO = new Date(MIDNIGHT.getTime() - 30 * 86_400_000)
 
   it('⛔ syncs EVERY selected teacher, one at a time, with its clock — and does nothing else: no owner read, no recompute', async () => {
     h.owners = [{ profileId: 'a' }] // the full reconcile would recompute 'a' — this run never does
     h.marked = ['a', 'b', 'c'].map((id) => marked(id))
     const r = await reconcileIdentityMarks({ now: MIDNIGHT })
-    expect(h.calls.map((c) => c.m)).toEqual(['teacherProfile.findMany(marks)', 'syncIdentityMarkCard', 'syncIdentityMarkCard', 'syncIdentityMarkCard', 'clearOrphanIdentityMarks'])
+    expect(h.calls.filter((c) => c.m !== 'revalidateTeacherPages').map((c) => c.m)).toEqual(['teacherProfile.findMany(marks)', 'syncIdentityMarkCard', 'syncIdentityMarkCard', 'syncIdentityMarkCard', 'clearOrphanIdentityMarks'])
     expect(h.calls.filter((c) => c.m === 'syncIdentityMarkCard').map((c) => c.args)).toEqual([['a', MIDNIGHT], ['b', MIDNIGHT], ['c', MIDNIGHT]])
     expect(h.syncMaxInFlight).toBe(1)
     expect(recomputed()).toEqual([])
-    expect(r).toEqual({ checked: 3, changed: 0, purged: 0, failed: 0 })
+    // three identity holders, none hidden: each purged (the retry of any purge that failed)
+    expect(r).toEqual({ checked: 3, changed: 0, purged: 3, failed: 0 })
   })
 
-  it('the same selection as the reconcile\'s pass: the switch on, or a card cache carrying a value', async () => {
+  it('the same selection as the reconcile\'s pass: identity holders, a card cache carrying a value, a hide of the last 7 days', async () => {
     await reconcileIdentityMarks({ now: MIDNIGHT })
     const sel = h.calls.find((c) => c.m === 'teacherProfile.findMany(marks)')!.args
     expect(sel.where).toEqual({ OR: [
-      { identityMarkOn: true },
+      { profile: { is: { identityVerifications: { some: {} } } } },
       { listing: { is: { identityMarkNotice: { not: null } } } },
       { identityMarkWithdrawnAt: { gte: new Date(MIDNIGHT.getTime() - 7 * 86_400_000) } },
     ] })
   })
 
-  // Commit gate, 2026-10-16: a withdrawal's own purge that failed left its teacher outside every later selection (the
-  // switch off, the cache clear) — recent withdrawals now stay selected for 7 nights and are purged each.
-  it('⚖️ a withdrawal in the last 7 days is purged again each night — a failed purge of the save is retried', async () => {
-    h.marked = [marked('w', { identityMarkOn: false, identityMarkWithdrawnAt: new Date(MIDNIGHT.getTime() - 86_400_000) })]
-    h.syncs.set('w', sync({ listingId: 'L-w', changed: false, shown: false, reason: 'off', on: false }))
+  it('⛔ THE BACKFILL: a verified holder whose card is still NULL (the automatic rule\'s first night) gets the tick and the purge', async () => {
+    h.marked = [marked('verified-before-the-deploy')]
+    h.syncs.set('verified-before-the-deploy', sync({ listingId: 'L-v', changed: true, shown: true, reason: null }))
+    expect(await reconcileIdentityMarks({ now: MIDNIGHT })).toEqual({ checked: 1, changed: 1, purged: 1, failed: 0 })
+    expect(purgedPages()).toEqual([['L-v', ['d7']]])
+  })
+
+  // Commit gate, 2026-10-16: a hide's own purge that failed left its teacher outside every later selection (hidden, the
+  // cache clear) — recent hides stay selected for 7 nights and are purged each.
+  it('⚖️ a hide in the last 7 days is purged again each night — a failed purge of the save is retried', async () => {
+    h.marked = [marked('w', { identityMarkWithdrawnAt: new Date(MIDNIGHT.getTime() - 86_400_000) })]
+    h.syncs.set('w', sync({ listingId: 'L-w', changed: false, shown: false, reason: 'hidden', hidden: true }))
     const r = await reconcileIdentityMarks({ now: MIDNIGHT })
     expect(purgedPages()).toEqual([['L-w', ['d7']]])
     expect(r).toMatchObject({ checked: 1, changed: 0, purged: 1, failed: 0 })
@@ -459,12 +518,15 @@ describe('reconcileIdentityMarks — the card-tick pass ALONE, at 00:05 ICT', ()
     expect(await reconcileIdentityMarks({ now: MIDNIGHT })).toMatchObject({ failed: 1 })
   })
 
-  it('⛔ a lapse at midnight: the cache it clears is purged at once; unchanged and off → no purge; revoked with the switch on → purged, off → not', async () => {
-    h.marked = ['lapsed', 'insync', 'revoked-on', 'revoked-off'].map((id) => marked(id))
+  it('⛔ a lapse at midnight: the cache it clears is purged at once; hidden long ago and unchanged → no purge; revoked and not hidden → purged, hidden → not', async () => {
+    h.marked = [
+      marked('lapsed'), marked('hidden-insync', { identityMarkWithdrawnAt: LONG_AGO }),
+      marked('revoked-shown'), marked('revoked-hidden', { identityMarkWithdrawnAt: LONG_AGO }),
+    ]
     h.syncs.set('lapsed', sync({ listingId: 'L-lapsed', districts: ['d7', null], changed: true, shown: false, reason: 'expired' }))
-    h.syncs.set('insync', sync({ listingId: 'L-insync', changed: false, shown: false, reason: 'off', on: false }))
-    h.syncs.set('revoked-on', sync({ listingId: 'L-ron', changed: false, reason: 'revoked', on: true }))
-    h.syncs.set('revoked-off', sync({ listingId: 'L-roff', changed: false, reason: 'revoked', on: false }))
+    h.syncs.set('hidden-insync', sync({ listingId: 'L-insync', changed: false, shown: false, reason: 'hidden', hidden: true }))
+    h.syncs.set('revoked-shown', sync({ listingId: 'L-ron', changed: false, reason: 'revoked', hidden: false }))
+    h.syncs.set('revoked-hidden', sync({ listingId: 'L-roff', changed: false, reason: 'revoked', hidden: true }))
     const r = await reconcileIdentityMarks({ now: MIDNIGHT })
     expect(purgedPages()).toEqual([['L-lapsed', ['d7', null]], ['L-ron', ['d7']]])
     expect(r).toEqual({ checked: 4, changed: 1, purged: 2, failed: 0 })
@@ -489,7 +551,7 @@ describe('reconcileIdentityMarks — the card-tick pass ALONE, at 00:05 ICT', ()
     h.states.set('lapsed', { shown: false, reason: 'expired' })
     h.states.set('insync', { shown: true, reason: null })
     const r = await reconcileIdentityMarks({ now: MIDNIGHT, dryRun: true })
-    expect(r).toEqual({ checked: 2, changed: 1, purged: 2, failed: 0, shown: 1, dryRun: true }) // in sync, switch on → purged too
+    expect(r).toEqual({ checked: 2, changed: 1, purged: 2, failed: 0, shown: 1, dryRun: true }) // in sync, a holder not hidden → purged too
     expect(h.calls.filter((c) => c.m === 'identityMarkState').map((c) => c.args[1])).toEqual([MIDNIGHT, MIDNIGHT])
     expect([synced(), purgedPages(), writes(), recomputed()]).toEqual([[], [], [], []])
   })

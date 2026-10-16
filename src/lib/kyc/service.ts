@@ -316,6 +316,9 @@ export async function submitKycForReview(
        * declaration is current NOW, which may not be the wording this person actually read if a new
        * version shipped mid-flow. `null` when the challenge predates the field — absent is not
        * refused, which is what the schema comment on these columns says.
+       * From identity-v2 (2026-10-16) it is ALSO the record of a teacher's consent to "Identity
+       * verified" on their profile (its clause 5 — src/lib/compliance/declaration-text.ts). Nothing
+       * reads it to decide the mark: v1 identities show too (owner) — src/lib/teachers/identity-mark.ts.
        */
       declarationVersion: challenge.declaration?.version ?? null,
       declarationHash: challenge.declaration?.hash ?? null,

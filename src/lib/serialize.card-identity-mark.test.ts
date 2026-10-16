@@ -3,10 +3,12 @@ import { LISTING_CARD_SELECT, serializeListingCard } from './serialize'
 import { IDENTITY_MARK_NOTICE_VERSION } from '@/lib/teachers/constants'
 
 /**
- * THE CARD'S "IDENTITY VERIFIED" — A BOOLEAN, ON A TEACHER CARD UNDER TODAY'S NOTICE ONLY (owner, 2026-10-15). The card
- * reads the display cache (Listing.identityMarkNotice — the notice version src/lib/teachers/identity-mark-card.ts last
- * computed the mark SHOWN under) and ships `identityMark: true` or nothing: never `false`, never the version, never a
- * reason. A notice bump hides every older grant at once; another listing type never carries it, whatever the column says.
+ * THE CARD'S "IDENTITY VERIFIED" — A BOOLEAN, ON A TEACHER CARD HOLDING TODAY'S VALUE ONLY (owner, 2026-10-15; AUTOMATIC
+ * since 2026-10-16). The card reads the display cache (Listing.identityMarkNotice — the IDENTITY_MARK_NOTICE_VERSION, the
+ * rule's version, src/lib/teachers/identity-mark-card.ts last computed the mark SHOWN under) and ships `identityMark: true`
+ * or nothing: never `false`, never the version, never a reason. A bump takes every older value off at once — the opt-in's
+ * '2026-10-16' among them, until the card pass re-derives it; another listing type never carries it, whatever the column
+ * says.
  */
 const row = (patch: Record<string, unknown> = {}) => serializeListingCard({
   sellerId: 's-1', id: 'L1', title: 'Anna Eriksson', titleVi: null, price: 35_000_000, priceUnit: 'VND/month',
@@ -25,12 +27,13 @@ describe('serializeListingCard — identityMark', () => {
     expect(LISTING_CARD_SELECT.identityMarkNotice).toBe(true)
   })
 
-  it('a teacher card cached under TODAY\'s notice: identityMark === true', () => {
+  it('a teacher card holding TODAY\'s value: identityMark === true', () => {
     expect(row().identityMark).toBe(true)
   })
 
-  it('an older notice, NULL or a row without the column: no key at all — never false', () => {
-    for (const identityMarkNotice of ['2026-01-01', null, undefined, '', 'true']) {
+  it('an older value — the opt-in\'s \'2026-10-16\' included — NULL or a row without the column: no key at all — never false', () => {
+    expect(IDENTITY_MARK_NOTICE_VERSION).not.toBe('2026-10-16') // the automatic rule's own value, distinct from the opt-in's
+    for (const identityMarkNotice of ['2026-10-16', '2026-01-01', null, undefined, '', 'true']) {
       const card = row({ identityMarkNotice })
       expect(card, String(identityMarkNotice)).not.toHaveProperty('identityMark')
     }

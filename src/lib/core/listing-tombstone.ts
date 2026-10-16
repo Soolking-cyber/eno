@@ -58,8 +58,9 @@ export const TOMBSTONE_DATA = { status: LISTING_REMOVED, verified: false, identi
  * licence number — blanked with the `attributes` that carried them. TOMBSTONE_DATA leaves them: a tombstone is never
  * revived, so a stamp left on one can publish nothing.
  * ⚠️ AND THE TEACHER CARD'S "IDENTITY VERIFIED" CACHE (2026-10-16): `identityMarkNotice` records that eno checked this
- * person's identity and that they chose to show it (src/lib/teachers/identity-mark-card.ts) — a statement about the
- * person, so an erasure blanks it with the rest. NULL is also its "not shown" value, so a cleared row claims nothing.
+ * person's identity and that they did not hide the mark (src/lib/teachers/identity-mark-card.ts — automatic since
+ * 2026-10-16) — a statement about the person, so an erasure blanks it with the rest. NULL is also its "not shown" value,
+ * so a cleared row claims nothing.
  */
 export const PERSONAL_SCRUB_DATA = {
   title: '[removed]', titleVi: null, description: '', descriptionVi: null,

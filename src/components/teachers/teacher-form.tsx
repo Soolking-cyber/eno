@@ -356,15 +356,21 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   // Edit: a stored consent given under an OLDER notice — loaded OFF, so it is given again under today's words (D5).
   const [reconfirm, setReconfirm] = useState({ cover: false, optIns: false })
   /**
-   * ⛔ "IDENTITY VERIFIED" (owner, 2026-10-15) — THE SWITCH'S OWN STATE, NEVER IN `t` (plan review R2): it is not part of
-   * the profile, a draft or the profile save's body, and it saves ON TOGGLE through PUT /api/teachers/me/identity-mark
-   * (toggleMark). `mark` is always the server's last word — the GET, or the last toggle's answer; never ahead of it. Its
-   * notice-changed line is its own too: a full save never re-consents to it (nor withdraws it), so `reconfirm` does not
-   * carry it. The rules: identity-mark-switch.ts.
+   * ⛔ "IDENTITY VERIFIED" (owner, 2026-10-15; AUTOMATIC since 2026-10-16) — THE SWITCH'S OWN STATE, NEVER IN `t` (plan
+   * review R2): it is not part of the profile or a draft. The mark shows by itself once the identity is verified; the switch
+   * HIDES it (and shows it again). With a profile it saves ON TOGGLE through PUT /api/teachers/me/identity-mark
+   * (toggleMark), and an edit's profile save never carries it (nor un-hides it), so `reconfirm` has nothing to do with it.
+   * `mark` is always the server's last word — the GET, or the last toggle's answer; never ahead of it. The rules:
+   * identity-mark-switch.ts.
    */
   const [mark, setMark] = useState<MarkSwitch>(NO_MARK)
   const [markBusy, setMarkBusy] = useState(false)
   const [markMessage, setMarkMessage] = useState<FinishIdentityMark['message']>('')
+  // A NEW profile (join): the teacher's hide, held on this page until Publish — owner, 2026-10-16: the teacher keeps a way
+  // to hide it "BEFORE publishing too". Sent with the first Publish as the create-only `identityMarkHidden: true`
+  // (publish), never anywhere else: not `t`, not a draft (a reload starts from the default again, as the draft line on
+  // this step says), not an edit's save.
+  const [joinMarkHidden, setJoinMarkHidden] = useState(false)
   // Every read and toggle takes a ticket, and an answer for an older one is dropped. A re-read asked for while a toggle
   // is on its way waits for it (markRefreshDue): a toggle's answer is never dropped for a read that began before it.
   const markSeq = useRef(0)
@@ -1172,7 +1178,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       .then((d) => {
         if (!alive) return
         if (d?.publishGate) setPublishGate(d.publishGate)
-        // The "Identity verified" switch as stored — ON only under today's notice (markFromMe).
+        // The "Identity verified" switch as stored — ON unless the teacher hid it (markFromMe: the server's own flag).
         if (ticket === markSeq.current) setMark(markFromMe(d))
         const tp = d?.teacher
         if (!tp) {
@@ -1268,7 +1274,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     fetch('/api/teachers/me').then((r) => r.json()).then((d) => {
       if (!alive) return
       if (d?.publishGate) setPublishGate(d.publishGate)
-      // No profile yet: the switch cannot be saved (its endpoint needs one), but the line says what would hold it back.
+      // No profile yet: the switch is held on this page (joinMarkHidden — its endpoint needs a profile), and the line says
+      // what would hold the mark back.
       if (ticket === markSeq.current) setMark(markFromMe(d))
       if (d?.teacher) setExisting(true)
       else if (d?.prefill) setPrefill(d.prefill)
@@ -1441,6 +1448,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
         ...(t.matchEmailOptIn || t.staffContactOptIn ? { aiNotice: AI_NOTICE_VERSION } : {}),
         // The Terms line was on screen beside this Publish (`needsTerms`): the server records the one-time account step.
         ...(needsTerms ? { acceptTerms: true } : {}),
+        // ⛔ "IDENTITY VERIFIED" HIDDEN BEFORE THE PROFILE EXISTED (owner, 2026-10-16): a NEW profile's Publish carries the
+        // teacher's hide as the CREATE-ONLY `identityMarkHidden: true` — recorded with the profile, in the same transaction,
+        // before its card is derived (publish.ts saveTeacherProfile), so the mark never shows for a moment first. Only
+        // `true`, only from join: once a profile exists the switch's own endpoint owns the hide, and the server ignores the
+        // field on an edit.
+        ...(mode === 'join' && !teacherProfileId && joinMarkHidden ? { identityMarkHidden: true } : {}),
         // `coverBase`: the cover state this form loaded — the server refuses (409 cover_changed) if another window changed it.
         coverBase: mode === 'edit' && savedCover ? coverStamp(savedCover) : null,
         videoBase: mode === 'edit' ? videoBase : null,
@@ -1537,8 +1550,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       // ⚖️ THE NAME IS WHAT "IDENTITY VERIFIED" VOUCHES FOR: a save that renamed the teacher had the mark re-judged on the
       // server (saveTeacherProfile), so the switch's line is re-read — never left saying what was true of the old name.
       // ⚠️ AND A FIRST PUBLISH ALWAYS RE-READS (commit gate, 2026-10-16): the state was read before the profile existed
-      // (no name to judge → unknown), so the done screen's "Show “Identity verified”" pointer could never appear for a
-      // verified teacher who has just published.
+      // (no name to judge), and since the mark is AUTOMATIC this Publish is what made it public for a verified teacher —
+      // the done screen says so ("now shows on your profile", with the way to hide it) only from this read, never guessed.
       if (mode !== 'edit' || (publicAs?.fullName ?? null) !== t.fullName) void refreshMark()
       setPublicAs({ fullName: t.fullName, headline: t.headline })
       // What schools can see NOW, as the save left it (a moderation or identity hold, the profile hidden): "Share my
@@ -1569,8 +1582,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   const refreshMark = async (then?: (fresh: MarkSwitch) => void) => {
     if (markBusyRef.current) { markRefreshDue.current = true; return }
     const ticket = ++markSeq.current
-    // ⚠️ A READ THAT FAILS LEAVES THE STATE UNKNOWN, NEVER STALE (commit gate, 2026-10-16): after a rename or a switch-off
-    // the old line could be false — "adds 10 points" for an identity revoked meanwhile, no mismatch line for a new name —
+    // ⚠️ A READ THAT FAILS LEAVES THE STATE UNKNOWN, NEVER STALE (commit gate, 2026-10-16): after a rename or a hide the
+    // old line could be false — "adds 10 points" for an identity revoked meanwhile, no mismatch line for a new name —
     // so a failed read clears it (no state line, no trust line). The switch position and the base stay: they are the
     // server's last answer, and a stale base is refused by the server (409) rather than trusted.
     const unknown = () => {
@@ -1590,13 +1603,13 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   }
   /**
    * ⛔ THE "IDENTITY VERIFIED" SWITCH SAVES ON TOGGLE, THROUGH ITS OWN ENDPOINT (plan review R2) — never with the profile,
-   * so a withdrawal is never held up by anything else the profile save could refuse. Edit only: the endpoint needs a
-   * profile (a new one publishes first).
-   *   · ON sends today's notice — the words on screen beside the switch — and the consent stamps this form loaded as the
-   *     compare-and-set base (identity-mark-switch.ts markRequest); OFF sends nothing else and is never refused.
-   *   · The switch moves only on the server's answer (never an optimistic ON); the answer's stamps are the next base.
-   *   · 409 notice_changed (the words changed since this page loaded) or identity_mark_changed (another window moved the
-   *     switch): a calm line and a fresh read — never a retry over a state the teacher has not seen. 429 (ON only): said.
+   * so a hide is never held up by anything else the profile save could refuse. Edit only: the endpoint needs a profile
+   * (before one exists the choice is held on the page — joinMarkHidden — and rides the first Publish).
+   *   · OFF = HIDE: sends nothing else and is never refused. ON = SHOW AGAIN: sends the stamps this form loaded as the
+   *     compare-and-set base, and no notice (identity-mark-switch.ts markRequest).
+   *   · The switch moves only on the server's answer (never optimistic, either way); the answer's stamps are the next base.
+   *   · 409 identity_mark_changed (another window moved the switch): a calm line and a fresh read — never a retry over a
+   *     state the teacher has not seen. 429 (a show only — a hide is never rate-limited): said.
    * ⛔ A LINE ABOUT WHAT THE SWITCH SHOWS COMES FROM A FRESH READ, NEVER AHEAD OF ONE (commit gate, 2026-10-16). After
    *   anything but a clean answer — a 409, a failure, an answer that is not the endpoint's — the form re-reads the server
    *   and the line is said from THAT read: the 409's line once the switch shows what is saved; "could not save" only when
@@ -1619,18 +1632,17 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
         const next = markAfterSave(mark, on, d)
         if (!next) return unsure() // an answer that is not the endpoint's: read the truth, and say what it shows
         if (ticket === markSeq.current) setMark(next)
-        // ⚠️ AN OFF'S ANSWER CANNOT SPEAK FOR THE IDENTITY (it reads none — publish.ts), so the lines it keeps are only a
+        // ⚠️ A HIDE'S ANSWER CANNOT SPEAK FOR THE IDENTITY (it reads none — publish.ts), so the lines it keeps are only a
         // placeholder until a fresh read lands (commit gate): the identity may have changed while this page was open.
         if (!on) reread = true
         return
       }
-      if (res.status === 409 && (d.error === 'notice_changed' || d.error === 'identity_mark_changed')) {
-        const line = d.error === 'notice_changed' ? 'reload' : 'changed'
+      if (res.status === 409 && d.error === 'identity_mark_changed') {
         reread = true
-        then = () => setMarkMessage(line)
+        then = () => setMarkMessage('changed')
         return
       }
-      // Refused before anything was written (ON only): the switch still shows the server's last answer.
+      // Refused before anything was written (a show only): the switch still shows the server's last answer.
       if (res.status === 429) return setMarkMessage('rate_limited')
       unsure()
     } catch {
@@ -2095,10 +2107,15 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       ...(!t.bio ? [{ step: 'about' as const, label: tr('Say more about yourself', 'Giới thiệu thêm về bạn') }] : []),
       ...(!t.certificates.length ? [{ step: 'teaching' as const, label: tr('Add your certificates', 'Thêm chứng chỉ') }] : []),
       ...(!t.experience.length ? [{ step: 'teaching' as const, label: tr('Add your teaching jobs', 'Thêm công việc giảng dạy') }] : []),
-      // A new profile whose identity check is already live (`off`: verified, the switch not on): the switch can be saved
-      // now that the profile exists — on Photo & publish in Edit. Never a nudge to verify; never in Edit (the switch is there).
-      ...(mode === 'join' && mark.state?.reason === 'off' ? [{ step: 'finish' as const, label: tr('Show “Identity verified” on my profile', 'Hiển thị “Đã xác minh danh tính” trên hồ sơ') }] : []),
+      // (No "Identity verified" pointer any more — owner, 2026-10-16: the mark is automatic, so there is nothing to switch
+      // on; the line below says when it went public, with the way to hide it.)
     ]
+    // ⛔ "IDENTITY VERIFIED" WENT PUBLIC WITH THIS PUBLISH (owner, 2026-10-16 — automatic): a verified teacher's first
+    // Publish is when the mark first shows, and no earlier message told them (an approval before the profile existed has
+    // nothing to say it on), so the done screen does — with the way to hide it. From the re-read after the save (publish),
+    // never guessed: unknown, hidden or held back says nothing. A new profile only (an edit has the switch on its own step),
+    // and only while schools can see the profile at all.
+    const markWentPublic = mode === 'join' && done.live && mark.state?.shown === true
     // The chat's Share button, by the name the teacher will actually see there (teacher-thread-strip.tsx, amendment A3):
     // with no phone on file it reads "Share my email & CV".
     const shareWords = t.phone ? tr('Share my phone, email & CV', 'Chia sẻ số điện thoại, email và CV') : tr('Share my email & CV', 'Chia sẻ email và CV')
@@ -2138,6 +2155,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
             <p className="mt-2 text-sm text-warning">{tr('Your profile is hidden: schools can’t find it or open it.', 'Hồ sơ của bạn đang bị ẩn: các trường không tìm thấy và không mở được hồ sơ.')}</p>
             <Button variant="cta" type="button" className="mt-4" loading={showing} onClick={() => { setFormError(''); void showProfile(setFormError) }}>{tr('Show my profile to schools', 'Hiển thị hồ sơ cho các trường')}</Button>
           </>
+        )}
+        {markWentPublic && (
+          <p className="mt-3 text-sm text-body" data-testid="identity-mark-done">
+            {tr('“Identity verified” now shows on your profile.', 'Nhãn “Đã xác minh danh tính” đã hiển thị trên hồ sơ của bạn.')}{' '}
+            <Link href="/teachers/edit?step=finish" className="font-semibold text-brand underline">{tr('You can hide it in Photo & publish.', 'Bạn có thể ẩn nhãn trong bước Ảnh & đăng.')}</Link>
+          </p>
         )}
         {formError && <p role="alert" data-form-error className="mt-3 text-sm text-destructive">{formError}</p>}
         {done.live && !done.noGoal && (
@@ -2356,7 +2379,14 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
               prefillPhone={mode === 'join' ? prefill?.phone ?? null : null}
               imported={mode === 'join' && lastImport ? { phone: lastImport.phone, file: lastImport.file } : null}
               optInsNoticeChanged={reconfirm.optIns}
-              identityMark={{ ...mark, canSave: mode === 'edit' && !!teacherProfileId, busy: markBusy, message: markMessage, onToggle: (on) => { void toggleMark(on) } }}
+              // A new profile: the switch is the choice held on this page (ON unless hidden here), still blocked while the
+              // Publish that carries it is on its way (a tap then could never reach the profile). Once a profile EXISTS — an
+              // edit, or a join form after its first Publish (still mounted, teacherProfileId now set) — the server's word,
+              // saved on toggle through its own endpoint (commit gate, opus round 4: a join form past its Publish must never
+              // hold a hide on the page that no save could deliver — its next save names no profile and is refused).
+              identityMark={mode === 'join' && !teacherProfileId
+                ? { ...mark, on: !joinMarkHidden, canSave: true, local: true, busy: busy === 'saving', message: '', onToggle: (on) => setJoinMarkHidden(!on) }
+                : { ...mark, canSave: !!teacherProfileId, local: false, busy: markBusy, message: markMessage, onToggle: (on) => { void toggleMark(on) } }}
               media={{
                 busy, onPhoto: uploadPhoto, onVideo: uploadVideo, privateVideo, savedPublicUrl, ownVideoUrl, ownVideoBusy, videoRemoving,
                 confirmVideoRemove, setConfirmVideoRemove, onWatchOwnVideo: watchOwnVideo, onCloseOwnVideo: () => setOwnVideoUrl(null),
@@ -2450,9 +2480,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
                 <li>{tr('The work you want, when you can start and your expected salary', 'Công việc bạn muốn, thời gian có thể bắt đầu và mức lương mong muốn')}</li>
                 <li>{tr('Your intro video — only if you choose to show it', 'Video giới thiệu — chỉ khi bạn chọn hiển thị')}</li>
                 <li>{tr('Cover lessons — your free periods, hourly rate and where schools find you — only while cover is on', 'Dạy thay — các buổi rảnh, mức phí theo giờ và nơi các trường tìm bạn — chỉ khi đang bật dạy thay')}</li>
-                {/* ⛔ NOT "Identity verified" (commit gate, 2026-10-16): this list is the text PUBLISH_NOTICE_VERSION stands for,
-                    and changing it without a bump breaks the consent rule (profile.ts). The mark is published only by its own
-                    switch, under its own notice beside it (finish-step.tsx IdentityMarkNote). */}
+                {/* ⛔ "IDENTITY VERIFIED" IS PUBLISHED WITH THE PROFILE SINCE 2026-10-16 (owner: automatic once verified), so it
+                    is on this list — the text PUBLISH_NOTICE_VERSION stands for, bumped with it (profile.ts). Its meaning
+                    must stay the switch's notice (finish-step.tsx IdentityMarkNote) and the identity declaration's clause. */}
+                <li>{tr('“Identity verified” — while your identity check is current and the name on your profile matches your ID (never your document); you can hide it', 'Nhãn “Đã xác minh danh tính” — khi việc xác minh còn hiệu lực và họ tên trên hồ sơ khớp với giấy tờ (không bao giờ hiển thị giấy tờ); bạn có thể ẩn nhãn')}</li>
               </ul>
             </div>
             <div className="space-y-2">

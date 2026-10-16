@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { route, ApiError } from '@/lib/api/handler'
 import { challengeInstruction, issueChallenge } from '@/lib/identity/challenge'
 import { clientIp } from '@/lib/client-ip'
-import { declarationHash } from '@/lib/compliance/declaration'
+import { CURRENT_DECLARATION, declarationHash } from '@/lib/compliance/declaration'
 
 /**
  * ⛔ ISSUING A CHALLENGE NOW REQUIRES THE DECLARATION, AND THAT IS WHAT PUTS CONSENT BEFORE
@@ -15,6 +15,22 @@ import { declarationHash } from '@/lib/compliance/declaration'
  * ⚠️ THE VERSION COMES FROM THE CLIENT because it must be the text they ACTUALLY RENDERED. If a new
  * declaration shipped between page load and click, stamping `CURRENT_DECLARATION` here would
  * attribute to them a wording they never saw. An unrecognised id is refused, never coerced.
+ * ⛔ AND A SUPERSEDED ONE IS REFUSED TOO (identity-v2, owner 2026-10-16): only CURRENT_DECLARATION is
+ * issuable. identity-v2 added the teacher's consent to "Identity verified" (clause 5); a tab rendered
+ * before it shipped — or any client that hard-codes 'identity-v1', like the shelved SwiftUI app — would
+ * otherwise keep minting records under the old words for as long as it stays open, and the cohort the
+ * owner showed WITHOUT that clause would never close. Neither stamped nor coerced: 409 `notice_changed`
+ * with notice 'declaration'. A verify page rendered by THIS build or later says "reload" (it renders the
+ * current text to be read and ticked again). ⚠️ A page rendered BEFORE this build — the one case this
+ * refusal exists for — runs the old code, which has no 409 branch: it shows its generic "We could not start
+ * verification. Please try again." on every try, and its next LOAD is the new page (commit gate, opus
+ * round 1: answered, not changed — no deploy can teach a page already in a tab a new answer; accepting v1
+ * instead would keep the cohort open, and the identities ever verified number two). Nothing is recorded
+ * (no challenge, no declaration). An old version stays in
+ * DECLARATIONS because its records still point at it; it is just never issued again.
+ * ⚠️ Residual, by construction: a v1 challenge minted in the 10 minutes before the deploy
+ * (CHALLENGE_TTL_SECONDS) can still be consumed after it, and a v1 case pending at the deploy is approved
+ * as v1 — both join the v1 cohort (docs/compliance/pdpl-dossier-draft.md, purpose 8b).
  */
 const bodySchema = z.object({
   version: z.string().min(1).max(40),
@@ -48,6 +64,14 @@ export const POST = route(
     const hash = declarationHash(version)
     // ⚠️ AN UNKNOWN VERSION IS A 400, NOT A 500 — a stale tab after a deploy, which has a clear fix.
     if (!hash) throw new ApiError('invalid_body', 400)
+    // ⛔ A KNOWN BUT SUPERSEDED VERSION IS A 409 THE PAGE TURNS INTO "RELOAD" (see the header) — checked BEFORE
+    // issueChallenge, so the refusal writes nothing and starts no cooldown.
+    if (version !== CURRENT_DECLARATION) {
+      return Response.json(
+        { error: 'notice_changed', notice: 'declaration' },
+        { status: 409, headers: { 'cache-control': 'no-store' } },
+      )
+    }
 
     const issued = await issueChallenge(userId, {
       version,

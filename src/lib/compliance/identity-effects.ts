@@ -86,12 +86,16 @@ export async function applyIdentityEffects(profileId: string, derived: Verificat
     null,
   )
   if (!tp) return out
-  // 4. THE CARD'S "IDENTITY VERIFIED" TICK (owner, 2026-10-15) — re-derived from the LIVE identity, the stored switch
-  // and the stored name, under the teacher saves' own lock, by the card cache's one writer (identity-mark-card.ts). An
-  // approval can turn it on, a revocation or a lapse off. BEFORE the purge, which carries its change: the pages then
-  // regenerate from a cache that already says what the identity says. Its own guard: a failed sync (logged as
-  // identity.effects.mark, `failed`) still purges — the trust and the order moved anyway — and the nightly reconcile
-  // re-runs it. The sync never purges itself.
+  // 4. THE CARD'S "IDENTITY VERIFIED" TICK (owner, 2026-10-15; AUTOMATIC since 2026-10-16) — re-derived from the LIVE
+  // identity, the teacher's stored hide and the stored name, under the teacher saves' own lock, by the card cache's one
+  // writer (identity-mark-card.ts). An approval TURNS IT ON — there is no switch to wait for: the identity declaration
+  // is the consent (identity-mark.ts) — unless the teacher hid it or the name is not within the ID's; a revocation or a
+  // lapse takes it off. BEFORE the purge, which carries its change: the pages then regenerate from a cache that already
+  // says what the identity says. Its own guard: a failed sync (logged as identity.effects.mark, `failed`) still purges —
+  // the trust and the order moved anyway — and the card pass re-runs it (00:05 and 09:05 ICT: it selects every identity
+  // holder — identity-reconcile.ts). The sync never purges itself. ⚠️ An account with no TeacherProfile has no card to
+  // write (step 3 returned): a teacher verified first and published later gets the tick from that first Publish
+  // (publish.ts saveTeacherProfile judges every save live).
   const s = await step('mark', () => syncIdentityMarkCard(profileId, now), null)
   out.markChanged = s?.changed === true
   await step('purge', () => {

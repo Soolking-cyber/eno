@@ -15,14 +15,16 @@ export const maxDuration = 300
 // profile with an identity row actually BE recomputed, nightly: the Profile.verification* cache (so a document that
 // lapsed is recorded `expired`), the trust score and rank, the enforcement state, and a teacher's pages — catching
 // lapses of any age, revocations, and any decision whose own effects failed. Idempotent.
-// ⚖️ AND THE TEACHER CARD'S "IDENTITY VERIFIED" TICK (C4, owner 2026-10-15): every identity recompute re-derives it
-// (identity-effects.ts), and a card-tick pass after the loop syncs every teacher whose switch is on or whose card cache
-// carries a value, skipping those the loop handled cleanly — a teacher with no identity row, the stale caches a notice bump
-// leaves, a recompute that failed — purging when the cache changed or a revoked teacher's switch is still on
-// (src/lib/compliance/identity-reconcile.ts). ⚠️ That pass ALSO runs alone at 00:05 ICT (/api/cron/identity-marks, its
-// own timer): a document lapses at midnight, and the tick may not wait for this 09:05 run. After an
-// IDENTITY_MARK_NOTICE_VERSION bump deploy, run that one by hand: it clears the old version from every card and purges
-// the HTML that baked it in.
+// ⚖️ AND THE TEACHER CARD'S "IDENTITY VERIFIED" TICK (C4, owner 2026-10-15; AUTOMATIC since 2026-10-16): every identity
+// recompute re-derives it (identity-effects.ts — an approval turns it on), and a card-tick pass after the loop syncs every
+// teacher whose account holds an identity row, whose card cache carries a value, or who hid the mark in the last 7 days,
+// skipping those the loop handled cleanly — a teacher with no identity row whose card still carries a value, the stale
+// caches a bump of IDENTITY_MARK_NOTICE_VERSION leaves, a recompute that failed — purging when the cache changed, for an
+// identity holder who has not hidden the mark, and after a recent hide (src/lib/compliance/identity-reconcile.ts).
+// ⚠️ That pass ALSO runs alone at 00:05 ICT (/api/cron/identity-marks, its own timer): a document lapses at midnight, and
+// the tick may not wait for this 09:05 run. ⚠️ THE MARK'S BACKFILL — after the deploy that made it automatic, and after
+// any IDENTITY_MARK_NOTICE_VERSION bump: run that one by hand (?dryRun=1 first), or this one — either writes every card
+// the rule now shows and purges the HTML that baked the old state in.
 //
 // ⏰ 02:05 UTC = 09:05 ICT, daily — NOT AT MIDNIGHT, ON PURPOSE (infra/vn-node/cron/install-cron-timers.sh). A document
 // lapses at 00:00 ICT the day after its expiry date, but what this run causes can reach the seller: losing the +10 can
@@ -45,7 +47,8 @@ export const maxDuration = 300
 // `?dryRun=1` reads only: per profile, the status the rows derive, the cached one, whether a real run would write or
 // refuse the cache move, and whether it is a teacher — zero recomputes, zero writes, zero purges. The deploy-day check.
 // Its card-tick pass judges each selected teacher's mark against the stored cache — zero syncs, zero purges — and says
-// how many caches would change, how many pages would be purged, and how many cards would show the tick.
+// how many caches would change, how many pages would be purged, and how many cards would show the tick (with every
+// identity holder selected, the ticks the automatic rule turns on are counted too).
 //
 // Response — eno-cron.sh marks any non-200 FAILED, and keeps only the first 200 bytes, so the counts come first:
 //   · 200 `{ ok: true, checked, recomputed, changed, failed: 0, illegal, trustMoved, purged,

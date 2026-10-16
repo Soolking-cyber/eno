@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The card cache's ONE writer (src/lib/teachers/identity-mark-card.ts). Pinned: ONE raw UPDATE carrying IS DISTINCT FROM
-// — today's notice version while the mark is shown, NULL otherwise — and never tx.listing.update (a display cache is not
-// an edit: Listing.updatedAt must not move); `changed` is the row count; the sync takes the teacher saves' own lock
-// FIRST, then reads the stored switch and name and judges the LIVE identity on the same transaction (the real predicate
-// and identity facts run here, over faked rows); no profile or no listing writes nothing; and it never purges.
+// — today's IDENTITY_MARK_NOTICE_VERSION while the mark is shown, NULL otherwise — and never tx.listing.update (a display
+// cache is not an edit: Listing.updatedAt must not move); `changed` is the row count; the sync takes the teacher saves' own
+// lock FIRST, then reads the stored hide and name and judges the LIVE identity on the same transaction (the real predicate
+// and identity facts run here, over faked rows) — AUTOMATIC since 2026-10-16: an untouched teacher who is verified gets
+// the tick; it reports `hidden`, never a switch; no profile or no listing writes nothing; and it never purges.
 type Row = Record<string, any>
 const h = vi.hoisted(() => ({
   tp: null as Row | null,
@@ -37,8 +38,10 @@ const VERIFIED = {
   documentExpiresAt: new Date('2030-01-01T00:00:00+07:00'), assuranceLevel: 'manual_review',
   evidence: { decisionInput: { surname: 'ERIKSSON', givenNames: 'ANNA MARIA' } },
 }
+const HID = new Date('2026-10-12T02:00:00.000Z')
+/** A teacher nobody ever touched the switch of (the column defaults) — the automatic default: shown when verified. */
 const TP = {
-  profileId: 'p1', fullName: 'Anna Eriksson', identityMarkOn: true, identityMarkNoticeVersion: IDENTITY_MARK_NOTICE_VERSION,
+  profileId: 'p1', fullName: 'Anna Eriksson', identityMarkOn: false, identityMarkWithdrawnAt: null as Date | null,
   listingId: 'L1', currentDistrictKey: 'd7', currentDistrict: 'Quận 7',
 }
 /** The raw UPDATEs made, as { text, values }. */
@@ -89,35 +92,45 @@ describe('syncIdentityMarkCard', () => {
     expect(strings.join('?')).toBe('select pg_advisory_xact_lock(hashtext(?))')
     expect(key).toBe('teacher:p1')
   })
-  it('reads exactly the mark\'s columns plus the listing and its districts — the switch and the name AS STORED', async () => {
+  it('reads exactly the mark\'s columns plus the listing and its districts — the hide and the name AS STORED', async () => {
     await syncIdentityMarkCard('p1', NOW)
     expect(tx.teacherProfile.findUnique.mock.calls[0]).toEqual([{
       where: { profileId: 'p1' },
-      select: { profileId: true, fullName: true, identityMarkOn: true, identityMarkNoticeVersion: true, listingId: true, currentDistrictKey: true, currentDistrict: true },
+      select: { profileId: true, fullName: true, identityMarkOn: true, identityMarkWithdrawnAt: true, listingId: true, currentDistrictKey: true, currentDistrict: true },
     }])
   })
-  it('shown (verified, the name within the ID, on under today\'s notice): writes the version and says so — with the switch, the listing and its districts', async () => {
-    expect(await syncIdentityMarkCard('p1', NOW)).toEqual({ listingId: 'L1', districts: districtPagesOf(TP), changed: true, shown: true, reason: null, on: true })
+  it('⛔ shown BY DEFAULT (verified, the name within the ID, never touched): writes the version and says so — with `hidden: false`, the listing and its districts', async () => {
+    expect(await syncIdentityMarkCard('p1', NOW)).toEqual({ listingId: 'L1', districts: districtPagesOf(TP), changed: true, shown: true, reason: null, hidden: false })
     expect(updates()[0].values[0]).toBe(IDENTITY_MARK_NOTICE_VERSION)
   })
-  it('not shown — revoked, a renamed profile, switched off, an older notice — writes NULL, with the reason and the stored switch', async () => {
+  it('a switch-on under the old opt-in, or a show-again after a hide, shows the same way — the last act was a show', async () => {
+    for (const tp of [{ ...TP, identityMarkOn: true }, { ...TP, identityMarkOn: true, identityMarkWithdrawnAt: HID }]) {
+      h.tp = tp
+      expect(await syncIdentityMarkCard('p1', NOW)).toMatchObject({ shown: true, reason: null, hidden: false })
+    }
+  })
+  it('not shown — revoked, a renamed profile, hidden by the teacher — writes NULL, with the reason and the stored hide', async () => {
     h.identity = [{ ...VERIFIED, status: 'revoked' }]
-    expect(await syncIdentityMarkCard('p1', NOW)).toMatchObject({ shown: false, reason: 'revoked', on: true })
+    expect(await syncIdentityMarkCard('p1', NOW)).toMatchObject({ shown: false, reason: 'revoked', hidden: false })
     h.identity = [VERIFIED]
     h.tp = { ...TP, fullName: 'Dr Anna Eriksson' }
-    expect(await syncIdentityMarkCard('p1', NOW)).toMatchObject({ shown: false, reason: 'name_mismatch', on: true })
-    h.tp = { ...TP, identityMarkOn: false }
-    expect(await syncIdentityMarkCard('p1', NOW)).toMatchObject({ shown: false, reason: 'off', on: false })
-    h.tp = { ...TP, identityMarkNoticeVersion: '2026-10-01' }
-    expect(await syncIdentityMarkCard('p1', NOW)).toMatchObject({ shown: false, reason: 'notice_changed', on: true })
+    expect(await syncIdentityMarkCard('p1', NOW)).toMatchObject({ shown: false, reason: 'name_mismatch', hidden: false })
+    h.tp = { ...TP, identityMarkWithdrawnAt: HID }
+    expect(await syncIdentityMarkCard('p1', NOW)).toMatchObject({ shown: false, reason: 'hidden', hidden: true })
+    // A revoked teacher who also hid it: the identity reason, and the hide reported as stored.
+    h.identity = [{ ...VERIFIED, status: 'revoked' }]
+    expect(await syncIdentityMarkCard('p1', NOW)).toMatchObject({ shown: false, reason: 'revoked', hidden: true })
     expect(updates().map((u) => u.values[0])).toEqual([null, null, null, null])
+  })
+  it('never an `on` in the result — a sync reports the hide, not a switch', async () => {
+    expect(await syncIdentityMarkCard('p1', NOW)).not.toHaveProperty('on')
   })
   it('⛔ a document good through 16 Oct: the 23:59 sync keeps the tick — the 00:05 ICT sync (/api/cron/identity-marks) clears it', async () => {
     // The real derivation (deriveVerification, through identityMarkFacts): good through its expiry DAY, lapsed at 00:00
     // ICT the day after — which is why the card pass runs alone at 00:05 and not only after the 09:05 reconcile.
     h.identity = [{ ...VERIFIED, documentExpiresAt: new Date('2026-10-16T00:00:00+07:00') }]
     expect(await syncIdentityMarkCard('p1', new Date('2026-10-16T23:59:59+07:00'))).toMatchObject({ shown: true, reason: null })
-    expect(await syncIdentityMarkCard('p1', new Date('2026-10-17T00:05:00+07:00'))).toMatchObject({ changed: true, shown: false, reason: 'expired', on: true })
+    expect(await syncIdentityMarkCard('p1', new Date('2026-10-17T00:05:00+07:00'))).toMatchObject({ changed: true, shown: false, reason: 'expired', hidden: false })
     expect(updates().map((u) => u.values[0])).toEqual([IDENTITY_MARK_NOTICE_VERSION, null])
   })
   it('already in sync: `changed: false` (the count of the guarded UPDATE)', async () => {

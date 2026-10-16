@@ -39,21 +39,26 @@ export const HOME_HIDDEN_TEACHER_LISTING_IDS = ['cmuzccru60000wvq4mojalida'] as 
 export const TEACHER_DRAFT_HASH_KEY = 'd'
 
 /**
- * ⛔ THE "IDENTITY VERIFIED" NOTICE (owner, 2026-10-15) — the version of the words shown beside the teacher's switch
- * (the IdentityMarkNote on Photo & publish): what the mark shows, where (the profile, its card in lists, the chip a school
- * or member sees in chat), to whom, on which conditions, and that it never shows the document. Switching it ON is the
- * consent, and counts only under the version the page showed (publish.ts saveTeacherIdentityMark: 409 notice_changed
- * otherwise); TeacherProfile.identityMarkNoticeVersion records it.
- * ⛔ BUMP IT WHEN THAT NOTICE'S MEANING CHANGES — and know what a bump does: it hides EVERY older grant at once, because
- * src/lib/teachers/identity-mark.ts identityMarkStateOf shows the mark only under THIS version, and a card shows the tick
- * only while Listing.identityMarkNotice (the card cache) equals it. Each teacher sees the switch OFF with a re-confirm
- * line until they switch it on again under the new words.
- * ⚠️ AFTER A BUMP DEPLOY, run /api/cron/identity-marks once (or wait for its 00:05 ICT run): the card pass clears the
- * old version from every card cache and purges the HTML that baked the tick in (the ISR cache survives a deploy).
+ * ⛔ THE "IDENTITY VERIFIED" RULE AND NOTICE VERSION (owner, 2026-10-15; AUTOMATIC since 2026-10-16) — the version of the
+ * words shown beside the teacher's switch (the IdentityMarkNote on Photo & publish: what the mark shows, where — the
+ * profile, its card in lists, the chip a school or member sees in chat — to whom, on which conditions, that it never shows
+ * the document, and that it can be hidden), AND the value a card's display cache carries (Listing.identityMarkNotice).
+ * Since 2026-10-16 the mark is AUTOMATIC (src/lib/teachers/identity-mark.ts): the consent is the identity declaration,
+ * so this version no longer gates whether the mark shows — a SHOW-again records it (TeacherProfile.
+ * identityMarkNoticeVersion: the words on screen when the teacher last chose to show it), and the card cache carries it.
+ * '2026-10-16' was the opt-in's notice; '2026-10-16-auto' is the automatic rule's — distinct, so a record says which
+ * words a teacher saw.
+ * ⛔ BUMP IT WHEN THOSE WORDS' MEANING, OR THE RULE, CHANGES — and know what a bump does: a card shows the tick only while
+ * its cache equals THIS value (serialize.ts), and the public surfaces skip the live read unless it does
+ * (identityMarkShownOnCard), so a bump takes the tick off EVERY card and profile line at once until re-derived.
+ * ⚠️ AFTER A BUMP DEPLOY, run /api/cron/identity-marks once (`?dryRun=1` first) — its card pass selects every identity
+ * holder, re-derives each card and purges the pages (the ISR cache survives a deploy) — or /api/cron/identity-reconcile,
+ * whose loop does the same with the full recompute. Either is the backfill; unattended, the 00:05 ICT identity-marks run
+ * does it (and the 09:05 reconcile again).
  * Here, not in profile.ts, because this file is import-free (the card serializer reads it); profile.ts re-exports it
  * beside PUBLISH_NOTICE_VERSION.
  */
-export const IDENTITY_MARK_NOTICE_VERSION = '2026-10-16'
+export const IDENTITY_MARK_NOTICE_VERSION = '2026-10-16-auto'
 
 /**
  * ⛔ HOW MANY NEW TEACHERS AN ACCOUNT MAY START A CHAT WITH PER DAY (owner, 2026-10-13: "an account without

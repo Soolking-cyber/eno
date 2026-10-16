@@ -74,7 +74,7 @@ beforeEach(() => {
   h.teacherThrows = false
   h.purgeThrows = false
   h.logThrows = false
-  h.mark = { listingId: 'lst-1', districts: ['d7'], changed: false, shown: false, reason: 'off', on: false }
+  h.mark = { listingId: 'lst-1', districts: ['d7'], changed: false, shown: false, reason: 'unverified', hidden: false }
   h.markThrows = false
 })
 
@@ -148,12 +148,21 @@ describe('applyIdentityEffects', () => {
     })
     it('`markChanged` is the sync\'s own `changed` — and the purge runs either way (no "nothing changed" skip)', async () => {
       h.teacher = TEACHER
-      h.mark = { ...h.mark, changed: true, shown: false, reason: 'revoked', on: true }
+      h.mark = { ...h.mark, changed: true, shown: false, reason: 'revoked', hidden: false }
       expect(await applyIdentityEffects('p1', 'revoked', NOW)).toEqual({ trustMoved: true, markChanged: true, purged: true, failed: false })
       h.calls = []
       h.mark = { ...h.mark, changed: false }
       expect(await applyIdentityEffects('p1', 'revoked', NOW)).toEqual({ trustMoved: true, markChanged: false, purged: true, failed: false })
       expect(callsOf('revalidateTeacherPages')).toHaveLength(1)
+    })
+    // AUTOMATIC since 2026-10-16: an approval's own recompute WRITES the tick (the sync re-derives it — no switch to wait
+    // for), and the purge that follows publishes it.
+    it('⛔ an approval turns the tick ON by itself — the sync\'s change, then the purge that publishes it', async () => {
+      h.teacher = TEACHER
+      h.mark = { ...h.mark, changed: true, shown: true, reason: null, hidden: false }
+      expect(await applyIdentityEffects('p1', 'verified', NOW)).toEqual({ trustMoved: true, markChanged: true, purged: true, failed: false })
+      const n = names()
+      expect(n.indexOf('syncIdentityMarkCard')).toBeLessThan(n.indexOf('revalidateTeacherPages'))
     })
     it('a sync that finds nothing to write (no listing) is no change, and still purges', async () => {
       h.teacher = { ...TEACHER, listingId: null }

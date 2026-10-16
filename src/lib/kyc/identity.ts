@@ -441,8 +441,11 @@ export async function verifiedProfileIds(profileIds: readonly string[], now: Dat
 }
 
 /**
- * What the teacher's "Identity verified" mark is decided from (src/lib/teachers/identity-mark.ts) — three facts, and
- * NOTHING ELSE leaves this module: no name, no tier, no method, no expiry, no document fact.
+ * What the teacher's "Identity verified" mark is decided from (src/lib/teachers/identity-mark.ts — AUTOMATIC since
+ * 2026-10-16: these facts and the teacher's own hide) — three facts, and NOTHING ELSE leaves this module: no name, no
+ * tier, no method, no expiry, no document fact. ⚠️ The declaration a row was made under is NOT one of them, on purpose:
+ * identities verified under identity-v1 (which never mentioned the mark) show on the same terms as those under
+ * identity-v2, whose clause 5 is the consent (owner, 2026-10-16: "Show theirs too" — a risk the owner accepted).
  *   · `status` — deriveVerification over the profile's whole history at `now` (revoked outranks everything, a standing
  *     verification survives a later rejection, a document is good through its expiry day — the ONE derivation);
  *   · `resubmitted` — a pending submission is in flight (an expired identity being renewed reads "pending", not "expired");
@@ -470,8 +473,8 @@ export const NO_IDENTITY_MARK_FACTS: IdentityMarkFacts = { status: 'unverified',
  * state never looks at the name then).
  * ⛔ NEVER SPLIT `fullName` INTO A SURNAME. service.ts says why, at the `decisionInput` it writes: splitting turned
  * "VAN DER BILT" into the surname "BILT" — which is why review.ts re-runs the decision from the carried input too. A row
- * without decisionInput (written before it existed, or by hand) has no name to compare: 'none', and the mark stays off
- * — fail closed.
+ * without decisionInput (written before it existed, or by hand) has no name to compare: 'none', and the mark does not
+ * show — fail closed.
  * ⚠️ `client`: a transaction passes itself, so a save judges the identity in the same transaction that writes the
  * card's cache (src/lib/teachers/identity-mark-card.ts). UNCACHED, like verifiedProfileIds: an approval or a revocation
  * must be seen by the very next read. ⚠️ `evidence` is read here and never leaves — the rule in this module's header.

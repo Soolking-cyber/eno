@@ -176,8 +176,9 @@ function ListingCardImpl({
   const fullTitleId = useId()
   const titleShortened = lineTitle !== displayTitle
   /**
-   * "IDENTITY VERIFIED" (owner, 2026-10-15) — the SERVER's boolean only (serialize.ts serializeListingCard: a teacher card
-   * under today's notice, from the display cache identity-mark-card.ts keeps true), never a client clock or a guess; a
+   * "IDENTITY VERIFIED" (owner, 2026-10-15; AUTOMATIC since 2026-10-16) — the SERVER's boolean only (serialize.ts
+   * serializeListingCard: a teacher card whose teacher's identity check is live, the name within the ID's and the mark
+   * not hidden by them, from the display cache identity-mark-card.ts keeps true), never a client clock or a guess; a
    * card that is not a teacher's never draws it, whatever its payload says. It is a SIBLING of the h3 — the h3 still reads
    * exactly the link's accessible name (WCAG 2.5.3, above) — and the link carries it as a description.
    * ⛔ AN UNMARKED CARD RENDERS BYTE-FOR-BYTE AS BEFORE: no wrapper, no description, the same h3 (TITLE_LINE).

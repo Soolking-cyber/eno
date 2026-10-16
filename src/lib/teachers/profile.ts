@@ -100,12 +100,19 @@ const RELOCATE_ABROAD: readonly Relocate[] = ['anywhere', 'some', 'online-only']
  * 2026-10-13: any account may message a teacher (the daily ladder), so the notice names other members beside schools
  * and search engines, and "What's public?" says the person the teacher is chatting with — not "a school" — gets what
  * they share.
+ * 2026-10-16: "Identity verified" shows AUTOMATICALLY once the identity is verified (owner: "if they verify it should be
+ * auto"), so publishing now makes it public too — "What's public?" lists it (while the check is current and the name
+ * matches the ID; never the document; it can be hidden). ⚠️ Every form open across the deploy gets one 409 notice_changed
+ * on its next save ("reload"), and a profile's consentPublicVersion moves only on its next save — expected.
  */
-export const PUBLISH_NOTICE_VERSION = '2026-10-13'
+export const PUBLISH_NOTICE_VERSION = '2026-10-16'
 /**
- * The "Identity verified" switch's own notice (constants.ts, where its rules are) — re-exported here beside the other
- * notices. ⛔ ITS OWN CONSENT, ITS OWN ENDPOINT (plan review R2, 2026-10-15): nothing in TeacherInput, a draft or the
- * profile save carries the switch, and PUBLISH_NOTICE_VERSION does not cover it.
+ * The "Identity verified" notice's version (constants.ts, where its rules are) — re-exported here beside the other
+ * notices. Since 2026-10-16 the mark is AUTOMATIC: it is no consent of its own (the identity declaration is), and that it
+ * goes public with the profile is in the words PUBLISH_NOTICE_VERSION stands for ("What's public?"). Its own version is
+ * the words beside the switch, which HIDES it and shows it again on its own endpoint. ⛔ Nothing in TeacherInput or a
+ * draft carries the switch; the profile save carries only a NEW profile's hide (the create-only `identityMarkHidden:
+ * true`, outside TeacherInput — publish.ts saveTeacherProfile).
  */
 export { IDENTITY_MARK_NOTICE_VERSION } from '@/lib/teachers/constants'
 /**

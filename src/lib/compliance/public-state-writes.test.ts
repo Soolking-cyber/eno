@@ -155,14 +155,14 @@ const STAMP_WRITERS: Record<string, { count: number; why: string }> = {
 }
 
 /**
- * ⛔ THE ONE WRITER OF THE TEACHER CARD'S "IDENTITY VERIFIED" TICK (owner, 2026-10-15). Listing.identityMarkNotice is a
- * display cache, and a non-null value in it makes a teacher's card tell every reader "eno checked this person's ID" — so
- * only the file that derives it from the ONE predicate (src/lib/teachers/identity-mark.ts: a live identity, the name
- * within the ID, the teacher's own switch under today's notice) may write one. Every other writer only clears it (null —
- * the erasure scrub, PERSONAL_SCRUB_DATA). The count is exact: a second non-null write is a second source of truth.
+ * ⛔ THE ONE WRITER OF THE TEACHER CARD'S "IDENTITY VERIFIED" TICK (owner, 2026-10-15; AUTOMATIC since 2026-10-16).
+ * Listing.identityMarkNotice is a display cache, and a non-null value in it makes a teacher's card tell every reader "eno
+ * checked this person's ID" — so only the file that derives it from the ONE predicate (src/lib/teachers/identity-mark.ts:
+ * a live identity, the name within the ID, not hidden by the teacher) may write one. Every other writer only clears it
+ * (null — the erasure scrub, PERSONAL_SCRUB_DATA). The count is exact: a second non-null write is a second source of truth.
  */
 const MARK_WRITERS: Record<string, { count: number; why: string }> = {
-  'src/lib/teachers/identity-mark-card.ts': { count: 1, why: 'writeIdentityMarkCard — the raw, IS DISTINCT FROM-guarded UPDATE of today’s IDENTITY_MARK_NOTICE_VERSION while identityMarkState says shown (NULL otherwise; never a value onto a tombstone), inside the caller’s transaction under the teacher lock; its callers are the switch, the profile save, the identity effects and the nightly reconcile (and the profile delete, NULL only)' },
+  'src/lib/teachers/identity-mark-card.ts': { count: 1, why: 'writeIdentityMarkCard — the raw, IS DISTINCT FROM-guarded UPDATE of today’s IDENTITY_MARK_NOTICE_VERSION while identityMarkState says shown (NULL otherwise; never a value onto a tombstone), inside the caller’s transaction under the teacher lock; its callers are the switch (hide / show again), every profile save, the identity effects and the nightly card passes (and the profile delete, NULL only)' },
 }
 
 // ── The scanner ──────────────────────────────────────────────────────────────────────────────────
@@ -509,8 +509,8 @@ const ANY_WRITE_CALL = /\b\w+\.(\w+\.(?:create|createMany|createManyAndReturn|up
  * cache of "Identity verified" (src/lib/teachers/identity-mark-card.ts), so a value written to it is a public claim: a
  * Prisma write on any model (reads blanked — a `where`/`select` naming it is a read) with `identityMarkNotice:` anything
  * but `null`, or its `{ identityMarkNotice }` shorthand — through a nested relation write included — or a raw
- * `UPDATE "Listing" SET "identityMarkNotice" =` anything but NULL. TeacherProfile.identityMarkNoticeVersion (the
- * consent's record) is another column and is not matched. Clearing it (`null`, the erasure scrub) is not counted. A raw
+ * `UPDATE "Listing" SET "identityMarkNotice" =` anything but NULL. TeacherProfile.identityMarkNoticeVersion (the words a
+ * show-again records) is another column and is not matched. Clearing it (`null`, the erasure scrub) is not counted. A raw
  * INSERT is not read (its values are positional); none writes the column.
  */
 export function markWrites(source: string): string[] {
@@ -763,7 +763,10 @@ describe('the scanner itself — so a refactor of it cannot quietly make it blin
     expect(markWrites('UPDATE "Listing" SET "identityMarkNotice" = NULL WHERE "id" = $1')).toEqual([])
     expect(markWrites(`db.teacherProfile.findMany({ where: { listing: { is: { identityMarkNotice: { not: null } } } } })`)).toEqual([])
     expect(markWrites(`db.listing.updateManyAndReturn({ where: { identityMarkNotice: { not: null } }, data: { featured: false }, select: { identityMarkNotice: true } })`)).toEqual([])
-    expect(markWrites(`tx.teacherProfile.update({ where: { id }, data: { identityMarkOn: true, identityMarkNoticeVersion: version } })`)).toEqual([])
+    // the switch's own columns — a show-again, a hide — are not the card's claim
+    expect(markWrites(`tx.teacherProfile.update({ where: { id }, data: { identityMarkOn: true, identityMarkAt: now, identityMarkNoticeVersion: IDENTITY_MARK_NOTICE_VERSION } })`)).toEqual([])
+    expect(markWrites(`tx.teacherProfile.update({ where: { id: tp.id }, data: write })`)).toEqual([])
+    expect(markWrites(`tx.teacherProfile.update({ where: { id }, data: { identityMarkOn: false, identityMarkWithdrawnAt: now } })`)).toEqual([])
     expect(markWrites(`// db.listing.update({ data: { identityMarkNotice: v } })`)).toEqual([])
   })
   it('flags a non-null stamp write, Prisma or raw — and never a cleared one', () => {

@@ -197,9 +197,9 @@ export const LISTING_CARD_SELECT = {
   attributes: true,
   /**
    * ⛔ READ FOR ONE BOOLEAN, NEVER SHIPPED (owner, 2026-10-15): the teacher card's "Identity verified" display cache —
-   * the IDENTITY_MARK_NOTICE_VERSION under which src/lib/teachers/identity-mark-card.ts last computed the mark SHOWN, or
-   * NULL. serializeListingCard turns it into `identityMark: true` on a teacher card under today's notice and drops it
-   * otherwise; the version string never leaves the server. Null on every other listing.
+   * the IDENTITY_MARK_NOTICE_VERSION (the rule's version) under which src/lib/teachers/identity-mark-card.ts last computed
+   * the mark SHOWN, or NULL. serializeListingCard turns it into `identityMark: true` on a teacher card holding today's
+   * value and drops it otherwise; the version string never leaves the server. Null on every other listing.
    */
   identityMarkNotice: true,
   category: { select: { id: true, name: true, nameVi: true, slug: true, icon: true, color: true } },
@@ -270,10 +270,11 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     // Only a job carries it, so no other card's payload grows (see LISTING_CARD_SELECT.attributes).
     ...(l.listingType === 'job' ? { jobType: cardJobType(l.attributes) } : {}),
     /**
-     * ⛔ "IDENTITY VERIFIED" — A BOOLEAN, AND ONLY ON A TEACHER CARD UNDER TODAY'S NOTICE (owner, 2026-10-15). The cache
-     * holds the notice version the mark was last computed SHOWN under (identity-mark-card.ts, its one writer); an older
-     * version — a notice bump — or NULL shows nothing, with no data migration. Never `false` (an absent key costs no
-     * other card a byte), and never the version, a reason or anything about the document.
+     * ⛔ "IDENTITY VERIFIED" — A BOOLEAN, AND ONLY ON A TEACHER CARD HOLDING TODAY'S VALUE (owner, 2026-10-15; AUTOMATIC
+     * since 2026-10-16). The cache holds the rule version the mark was last computed SHOWN under (identity-mark-card.ts,
+     * its one writer — live identity, the name within the ID, not hidden by the teacher); an older version — a bump, the
+     * opt-in's '2026-10-16' among them — or NULL shows nothing, with no data migration. Never `false` (an absent key costs
+     * no other card a byte), and never the version, a reason or anything about the document.
      * ⚖️ THE NAME IT VOUCHES FOR: the card prints this row's `title`, and a teacher row's title IS the TeacherProfile's
      * fullName — written only by the teacher save (publish.ts saveTeacherProfile), in the transaction that re-derives
      * this cache from that same name under the teacher lock. Every generic editor refuses a teacher row

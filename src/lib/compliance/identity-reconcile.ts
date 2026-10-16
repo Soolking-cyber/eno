@@ -3,7 +3,7 @@ import type { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { logError } from '@/lib/log'
 import { IDENTITY_MARK_NOTICE_VERSION } from '@/lib/teachers/constants'
-import { IDENTITY_MARK_TP_SELECT, identityMarkState } from '@/lib/teachers/identity-mark'
+import { IDENTITY_MARK_TP_SELECT, identityMarkHidden, identityMarkState } from '@/lib/teachers/identity-mark'
 import { clearOrphanIdentityMarks, countOrphanIdentityMarks, syncIdentityMarkCard } from '@/lib/teachers/identity-mark-card'
 import { revalidateTeacherPages } from '@/lib/teachers/revalidate'
 import { canTransition, type VerificationStatus } from './account-state'
@@ -34,16 +34,25 @@ import { recomputeVerification } from './recompute-verification'
 // teachers — no recompute, no cache write, no trust or enforcement write, no purge. Its test pins zero writes.
 //
 // ── AND THE CARD-TICK PASS (C4, owner 2026-10-15 — the teacher card's "Identity verified", identity-mark-card.ts) ────
-// After the loop, every teacher whose switch is ON or whose card cache still carries a value is synced once more —
-// skipping those whose recompute above ran its effects clean (those effects already synced the card and purged the
-// pages). It is what puts right what no identity recompute ever revisits: a teacher with no identity row at all, the
-// stale caches a notice bump leaves (IDENTITY_MARK_NOTICE_VERSION — the pass clears them), and any teacher whose
-// recompute threw or whose effects failed tonight. One at a time, each its own guard; a failure is counted into the
-// run's `failed` (the unit goes red) and the pass goes on.
-// ⚖️ IT PURGES WHEN IT REWROTE THE CACHE, AND EVERY NIGHT FOR EVERY TEACHER WHOSE SWITCH IS ON OR WHO WITHDREW IN THE
-// LAST 7 DAYS (commit gate, 2026-10-16): a purge that threw after its sync committed — a lapse's, a revocation's, a
-// withdrawal's own — is otherwise never retried, because the next night finds the cache already right, and a 30-day ISR
-// page keeps a claim the cache dropped. Bounded by the teachers who use the switch; a cheap, idempotent revalidation each.
+// AUTOMATIC since 2026-10-16 (identity-mark.ts): the mark shows by itself while the identity check is live and the name
+// is within the ID's, unless the teacher hid it. After the loop, the pass syncs once more every teacher who may need it
+// — skipping those whose recompute above ran its effects clean (those effects already synced the card and purged the
+// pages):
+//   · every teacher whose account holds ANY identity row — the mark may have to APPEAR (an approval whose own sync
+//     failed, a deploy that changed the rule — the automatic rule's own deploy among them: this IS its backfill);
+//   · every teacher whose card cache carries a value — it may have to GO (a lapse, a revocation, a rename, the stale
+//     values a bump of IDENTITY_MARK_NOTICE_VERSION leaves — the pass clears them);
+//   · every teacher who HID it in the last 7 days (TeacherProfile.identityMarkWithdrawnAt — the purge retry below).
+// It is what puts right what no identity recompute ever revisits — a teacher with no identity row whose card still
+// carries a value — and any teacher whose recompute threw or whose effects failed tonight. One at a time, each its own
+// guard; a failure is counted into the run's `failed` (the unit goes red) and the pass goes on.
+// ⚖️ IT PURGES WHEN IT REWROTE THE CACHE, AND EVERY NIGHT FOR EVERY IDENTITY HOLDER WHO HAS NOT HIDDEN THE MARK AND EVERY
+// TEACHER WHO HID IT IN THE LAST 7 DAYS (commit gate, 2026-10-16): a purge that threw after its sync committed — a
+// lapse's, a revocation's, a hide's own — is otherwise never retried, because the next night finds the cache already
+// right, and a 30-day ISR page keeps a claim the cache dropped. ⚠️ "Not hidden", NEVER "shown": after a lapse or a
+// revocation the mark is no longer shown, and the cache may already have been NULL (the sync then reports no change) —
+// a purge rule on `shown` would never retry exactly the purge that takes the claim off. Bounded by the teachers who hold
+// an identity row; a cheap, idempotent revalidation each.
 // ⚖️ AND IT CLEARS ORPHANED CACHES: a teacher listing deleted outside the teacher form (the dashboard, /api/v1, MCP — all
 // deleteListingCore) can be HIDDEN instead of scrubbed when a report is open, and nothing selected through TeacherProfile
 // reaches it again; any cache left on a listing with no TeacherProfile behind it is nulled (and its pages purged), so a
@@ -51,16 +60,18 @@ import { recomputeVerification } from './recompute-verification'
 // revalidatePath records the purge in-process, so it has no I/O of its own to fail on; the count keeps a failure loud.
 // ⛔ ITS DRY RUN WRITES NOTHING EITHER (plan review codex #5): it judges each selected teacher's mark with the same
 // predicate (identityMarkState, read-only) and compares it with the stored cache — no sync, no cache write, no purge —
-// over EVERY selected teacher, since no loop ran before it.
+// over EVERY selected teacher, since no loop ran before it. With every identity holder selected, a deploy-day
+// `?dryRun=1` counts the ticks the automatic rule will turn on (`shown`, and `changed` for each card still NULL).
 //
 // ── AND THE SAME PASS ALONE, AT 00:05 ICT (review, 2026-10-16 — reconcileIdentityMarks, /api/cron/identity-marks) ──────
 // A document lapses at 00:00 ICT the day after its expiry date (deriveVerification), and the mark with it: "only while the
 // identity check is LIVE" (owner). But a lapse is a CLOCK, not an event — no decision, no save, no recompute happens at
 // midnight — and this reconcile runs at 09:05. Left to it, a card would keep "Identity verified" for nine hours after
 // every lapse (a day and more when its timer misses a morning: it is not replayed at boot), and so would the profile line
-// an ISR page baked in. So the card-tick pass ALSO runs alone, five minutes after midnight, on its own timer: every
-// teacher whose switch is on or whose card cache carries a value, synced — and purged — exactly as above (nobody is
-// skipped: no loop ran). The chat chip needs none of this: it judges the live identity on every poll.
+// an ISR page baked in. So the card-tick pass ALSO runs alone, five minutes after midnight, on its own timer: the same
+// selection, synced — and purged — exactly as above (nobody is skipped: no loop ran), which also makes it a complete
+// backfill on its own. The chat chip needs none of this for a lapse: it judges the live identity on every poll of a
+// teacher whose card carries the tick (identity-mark.ts identityMarkShownOnCard).
 // ⛔ IT DOES NOTHING ELSE — no recompute, no verification cache, no trust, no enforcement — so it sends nothing in the
 // night; the rest of a lapse still lands at 09:05 (the route's header says why then). Idempotent, so it IS replayed at
 // boot when its timer was missed (a sync and a purge are silent at any hour).
@@ -197,32 +208,46 @@ export async function reconcileIdentityMarks(opts: { now?: Date; dryRun?: boolea
 const noMarks = (): IdentityMarkPass => ({ checked: 0, changed: 0, purged: 0, failed: 0 })
 
 /**
- * The card pass's selection: a teacher whose switch is ON (the mark may have to appear), or whose card cache carries a
- * value (it may have to go). Anyone else's card is NULL and stays NULL — the mark cannot show with the switch off. A
- * TeacherProfile read, the listing reached through its relation (by primary key); never a read of db.listing.
+ * The card pass's selection (the header): a teacher whose account holds ANY identity row (the mark may have to appear),
+ * whose card cache carries a value (it may have to go), or who hid the mark in the last 7 days (its purge is retried).
+ * Anyone else's card is NULL and stays NULL — with no identity row the mark cannot show. A TeacherProfile read, the
+ * account's identity rows and the listing reached through their relations; never a read of db.listing.
  */
 const WITHDRAWAL_RETRY_DAYS = 7
-const recentWithdrawalSince = (now: Date) => new Date(now.getTime() - WITHDRAWAL_RETRY_DAYS * 86_400_000)
+const recentHideSince = (now: Date) => new Date(now.getTime() - WITHDRAWAL_RETRY_DAYS * 86_400_000)
 const markSelection = (now: Date): Prisma.TeacherProfileWhereInput => ({
   OR: [
-    { identityMarkOn: true },
+    // Typed against the generated client: TeacherProfile.profile → Profile.identityVerifications (schema.prisma) — tsc
+    // refuses a relation that does not exist, so this arm cannot silently fail to compile into a working query.
+    { profile: { is: { identityVerifications: { some: {} } } } },
     { listing: { is: { identityMarkNotice: { not: null } } } },
-    // A withdrawal in the last 7 days: its pages are purged again each night, in case the save's own purge failed.
-    { identityMarkWithdrawnAt: { gte: recentWithdrawalSince(now) } },
+    // A hide in the last 7 days (the hide's stamp — identity-mark.ts): its pages are purged again each night, in case
+    // the save's own purge failed.
+    { identityMarkWithdrawnAt: { gte: recentHideSince(now) } },
   ],
 })
 
-/** The selected teachers, with what a dry run judges from: the mark's inputs, the withdrawal and the stored cache. */
+/**
+ * The selected teachers, with what a dry run judges from: the mark's inputs (the hide's two columns among them), the
+ * stored cache — and whether the account holds an identity row (one row's id is enough to say so; nothing of it leaves).
+ */
 function selectMarked(now: Date) {
   return db.teacherProfile.findMany({
     where: markSelection(now),
-    select: { ...IDENTITY_MARK_TP_SELECT, identityMarkWithdrawnAt: true, listing: { select: { identityMarkNotice: true, status: true } } },
+    select: {
+      ...IDENTITY_MARK_TP_SELECT,
+      listing: { select: { identityMarkNotice: true, status: true } },
+      profile: { select: { identityVerifications: { select: { id: true }, take: 1 } } },
+    },
     orderBy: { profileId: 'asc' },
   })
 }
 
-const withdrewRecently = (t: { identityMarkWithdrawnAt: Date | null }, now: Date) =>
-  t.identityMarkWithdrawnAt !== null && t.identityMarkWithdrawnAt >= recentWithdrawalSince(now)
+/** The account holds an identity row (the selection's first arm) — whatever its status. */
+const holdsIdentity = (t: { profile: { identityVerifications: unknown[] } | null }) => (t.profile?.identityVerifications.length ?? 0) > 0
+
+const hidRecently = (t: { identityMarkWithdrawnAt: Date | null }, now: Date) =>
+  t.identityMarkWithdrawnAt !== null && t.identityMarkWithdrawnAt >= recentHideSince(now)
 
 const logMark = (e: unknown, profileId?: string) => {
   try { logError(e, { op: 'identity.reconcile.mark', ...(profileId ? { profileId } : {}) }) } catch { /* the logger never throws; belt and braces */ }
@@ -230,10 +255,10 @@ const logMark = (e: unknown, profileId?: string) => {
 
 /**
  * THE CARD-TICK PASS (header): sync each selected teacher the loop did not handle (run alone at 00:05, `handled` is
- * empty), one at a time; purge when the cache changed, or when a revoked teacher's switch is still on. Never throws — a
- * failure is counted and logged.
- * The sync re-reads the switch, the name and the identity under the teacher lock (syncIdentityMarkCard), so `r.on` —
- * not the selection's copy — decides the revoked purge.
+ * empty), one at a time; purge when the cache changed, when an identity holder has not hidden the mark, or when they hid
+ * it in the last 7 days. Never throws — a failure is counted and logged.
+ * The sync re-reads the hide, the name and the identity under the teacher lock (syncIdentityMarkCard), so `r.hidden` —
+ * not the selection's copy — decides the holder's purge.
  */
 async function markPass(handled: ReadonlySet<string>, now: Date): Promise<IdentityMarkPass> {
   const marks = noMarks()
@@ -252,11 +277,12 @@ async function markPass(handled: ReadonlySet<string>, now: Date): Promise<Identi
       const r = await syncIdentityMarkCard(t.profileId, now)
       if (!r) continue // no profile any more, or no listing: no card to write, no page of its own
       if (r.changed) marks.changed++
-      // ⚖️ PURGED WHEN THE CACHE CHANGED, AND EVERY NIGHT WHILE THE SWITCH IS ON (commit gate, 2026-10-16): a purge that
-      // threw after its sync committed is otherwise never retried — the next night finds the cache already right — and
-      // the 30-day ISR profile page keeps a claim the cache dropped (a lapse, a revocation). Bounded by the teachers who
-      // switched the mark on; a cheap, idempotent revalidation each.
-      if (r.changed || r.on || withdrewRecently(t, now)) {
+      // ⚖️ PURGED WHEN THE CACHE CHANGED, AND EVERY NIGHT FOR AN IDENTITY HOLDER WHO HAS NOT HIDDEN IT (commit gate,
+      // 2026-10-16): a purge that threw after its sync committed is otherwise never retried — the next night finds the
+      // cache already right — and the 30-day ISR profile page keeps a claim the cache dropped (a lapse, a revocation).
+      // ⛔ NOT `r.shown`: a lapsed or revoked mark is not shown, and its cache may already be NULL (`changed` false) —
+      // exactly the page whose failed purge must be retried. And a recent hide, for its own failed purge.
+      if (r.changed || (holdsIdentity(t) && !r.hidden) || hidRecently(t, now)) {
         revalidateTeacherPages(r.listingId, r.districts)
         marks.purged++
       }
@@ -306,7 +332,7 @@ async function markPreview(now: Date): Promise<IdentityMarkPass> {
     marks.checked++
     try {
       const state = await identityMarkState(
-        { profileId: t.profileId, fullName: t.fullName, identityMarkOn: t.identityMarkOn, identityMarkNoticeVersion: t.identityMarkNoticeVersion },
+        { profileId: t.profileId, fullName: t.fullName, identityMarkOn: t.identityMarkOn, identityMarkWithdrawnAt: t.identityMarkWithdrawnAt },
         now,
       )
       if (!t.listing) continue // as the real pass: no listing, nothing to write or purge
@@ -315,7 +341,8 @@ async function markPreview(now: Date): Promise<IdentityMarkPass> {
       const target = state.shown && t.listing.status !== 'removed' ? IDENTITY_MARK_NOTICE_VERSION : null
       const changed = (t.listing.identityMarkNotice ?? null) !== target
       if (changed) marks.changed++
-      if (changed || t.identityMarkOn || withdrewRecently(t, now)) marks.purged++
+      // The real pass's rule (markPass), on the selection's copy of the hide.
+      if (changed || (holdsIdentity(t) && !identityMarkHidden(t)) || hidRecently(t, now)) marks.purged++
     } catch (e) {
       marks.failed++
       logMark(e, t.profileId)

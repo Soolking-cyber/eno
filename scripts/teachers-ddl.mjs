@@ -5,7 +5,7 @@
 // Run AFTER the teacher tables exist (the safe flow in prisma/CLAUDE.md creates them from
 // schema.prisma). Adds CHECK constraints (TeacherJobMatch's owner rule; TeacherProfile's cover-lesson bounds,
 // 2026-10-07; its teach-area bounds, 2026-10-08), the later TeacherProfile columns (cover lessons, the intro video, the
-// onboarding redesign, the "Identity verified" opt-in of 2026-10-16), TeacherContactShare.phoneShared (2026-10-09), the
+// onboarding redesign, the "Identity verified" switch of 2026-10-16), TeacherContactShare.phoneShared (2026-10-09), the
 // TeacherDraft table (2026-10-11), the two message-email tables (2026-10-12) and the PRIVATE
 // storage buckets. Nothing existing
 // is altered or dropped.
@@ -196,12 +196,16 @@ console.log('ok  TeacherProfile_teach_bounds')
 await client.query(`alter table "TeacherContactShare" add column if not exists "phoneShared" boolean not null default true`)
 console.log('ok  TeacherContactShare.phoneShared')
 
-// ⛔ "IDENTITY VERIFIED" — THE TEACHER'S OPT-IN (owner, 2026-10-15) — the switch and its consent evidence: when and
-// under which IDENTITY_MARK_NOTICE_VERSION it was last switched on, and when it was last switched off (PDP Law 91/2025:
-// a separate, specific, provable consent). EXACTLY the four `ADD COLUMN`s `prisma migrate diff` prints for
-// schema.prisma's TeacherProfile.identityMark* fields, made idempotent and ADDITIVE ONLY. Every existing row reads the
-// switch OFF (`not null default false` — on Postgres 11+ a constant default is catalogue-only, no table rewrite) and
-// the three records NULL: the consent is never backfilled — a teacher who has not switched it on has not consented.
+// ⛔ "IDENTITY VERIFIED" — THE TEACHER'S SWITCH (owner, 2026-10-15; AUTOMATIC since 2026-10-16) — the switch and its
+// record: when it was last switched on (or, since the mark became automatic, shown again) and under which
+// IDENTITY_MARK_NOTICE_VERSION, and when it was last switched off (since: hidden). EXACTLY the four `ADD COLUMN`s
+// `prisma migrate diff` prints for schema.prisma's TeacherProfile.identityMark* fields, made idempotent and ADDITIVE
+// ONLY. Every existing row reads the switch false (`not null default false` — on Postgres 11+ a constant default is
+// catalogue-only, no table rewrite) and the three records NULL, and NOTHING IS BACKFILLED — the automatic rule needs no
+// DDL either: src/lib/teachers/identity-mark.ts reads "hidden" as the switch false WITH a hide time, so an untouched
+// row (false, NULL) is not hidden and shows the mark while the identity check is live, and a row switched off under the
+// opt-in (false, a time) stays hidden. ⛔ Never flip this default or backfill the switch: under the opt-in a false meant
+// "never chose", and a true written by a script would claim an act nobody made.
 // The card's display cache is Listing."identityMarkNotice" — scripts/listing-identity-mark-ddl.mjs (see the header).
 // ⚠️ RUN THIS ON PRODUCTION BEFORE THE DEPLOY: GET /api/teachers/me and every teacher save read every TeacherProfile
 // column, so the new code against the old table answers 42703. The old code is unaffected by the new columns.
