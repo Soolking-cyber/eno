@@ -116,17 +116,45 @@ die() { echo "── $1"; notify "$1"; exit 1; }
 # a refresh run with one dies, alerting.
 CONFIG_PROBLEM=""
 case "$PLACES" in
-  # ⛔ batdongsan DROPPED from the default sources 2026-10-16 (owner "skip batdongsan"): no longer auto-refreshed.
-  #    ⚠️ Its existing live rows do NOT age out on their own — once last-success-batdongsan is older than
-  #    SWEEP_STALE_IMPORT_DAYS the daily sweep's mass-expiry guard holds its rows back (a stopped source reads like a
-  #    broken refresh) and alerts daily. So a ONE-OFF retires them (scripts/retire-stale-batdongsan.ts, or a sweep with
-  #    --allow-mass-expiry) and the stale last-success-batdongsan stamp is removed. Its importer/scraper/BDS_DIR code
-  #    stay — name `batdongsan` in APT_SOURCES to run it by hand. The 7-day window is unchanged.
-  0) SOURCES_DEFAULT="nhatot muaban honeycomb rever" ;;
-  1) SOURCES_DEFAULT="nhatot muaban honeycomb rever nhatot-places muaban-places" ;;
+  # ⛔ NO-BROKER APARTMENT POLICY (owner, 2026-10-16: "go with nha tot only ... no broker policy which we will
+  #    enforce harshly"). Nhà Tốt is the ONLY apartment source: its gateway carries a per-ad platform flag
+  #    (company_ad) so mapNhatotAd (src/lib/nhatot-listing.ts, reason:'broker') drops every shop/agency/pro and
+  #    keeps only individual owners — a VERIFIED owner-only catalogue. The platform flag beats a "chính chủ"
+  #    text filter, which brokers game (one Chợ Tốt account is literally named "Chính chủ" yet flagged company_ad).
+  #    The other feeds are broker-dominated with NO reliable owner signal, so they are OUT of the apartment
+  #    import: batdongsan (no poster-type field at all, Cloudflare-gated detail page), muaban (is_company is
+  #    company-vs-individual, NOT owner-vs-broker — brokers post as individuals; one account = 62% of the feed),
+  #    honeycomb + rever (brokerage catalogues).
+  #    ⚠️ Dropping a source does NOT age its live rows out — the daily sweep's mass-expiry guard HOLDS a stopped
+  #    source's rows back (a stopped source reads like a broken refresh) and alerts daily. So the existing broker
+  #    apartments are retired by a ONE-OFF pass, not by the sweep. Importer/scraper code for the dropped feeds
+  #    stays — name one in APT_SOURCES to run it by hand (nhatot still gets the owner filter either way).
+  0) SOURCES_DEFAULT="nhatot" ;;
+  1) SOURCES_DEFAULT="nhatot nhatot-places" ;;
   *) CONFIG_PROBLEM="APT_PLACES must be 0 or 1, not \"$PLACES\" — this run did nothing"; SOURCES_DEFAULT="" ;;
 esac
 SOURCES="${APT_SOURCES:-$SOURCES_DEFAULT}"
+# ⛔ NO-BROKER ENFORCEMENT (owner 2026-10-16 "enforce harshly"): only Nhà Tốt (company_ad owner-filtered) may run
+#    from a routine invocation. A dropped broker source named via APT_SOURCES — muaban/honeycomb/rever/batdongsan
+#    and their -places — has NO owner filter, so it is REFUSED unless APT_ALLOW_BROKER=1 is set deliberately. This
+#    stops an accidental or stale-env override from repopulating broker inventory; a knowing operator can still
+#    run one by hand with the override.
+if [ "${APT_ALLOW_BROKER:-0}" != "1" ]; then
+  kept=""; refused=""
+  for s in $SOURCES; do
+    case "$s" in
+      nhatot|nhatot-places) kept="${kept:+$kept }$s" ;;
+      *) refused="${refused:+$refused }$s" ;;
+    esac
+  done
+  # ⛔ FILTER, do not die: dropping the broker source(s) must NOT stop the daily sweep (freshness) or the allowed
+  #    sources. A stale/accidental APT_SOURCES=muaban is refused loudly; the sweep + nhatot still run.
+  if [ -n "$refused" ]; then
+    echo "⚠️ no-broker: refused broker source(s) \"$refused\" (no owner filter; set APT_ALLOW_BROKER=1 to run by hand) — continuing with \"${kept:-none}\" + the sweep"
+    notify "no-broker: refused source(s) \"$refused\" without APT_ALLOW_BROKER=1; ran \"${kept:-none}\" + the sweep"
+    SOURCES="$kept"
+  fi
+fi
 # ⛔ THE PLACES UNITS RUN LAST WHATEVER ORDER APT_SOURCES GIVES: a ≈20 h houses/rooms/offices apply must never hold the
 # apartments' refresh (and their sets) back.
 ordered=""; places=""
