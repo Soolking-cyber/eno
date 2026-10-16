@@ -2,7 +2,22 @@ import 'server-only'
 import { createHash, randomInt } from 'node:crypto'
 import { kv } from '@/lib/ratelimit'
 
-// ── THE ON-THE-SPOT PROOF, AND THE ONLY PART OF IT THAT IS REAL ─────────────────────────────────
+// ── THE CHALLENGE: SINCE 2026-09-04 A CONSENT RECEIPT, AN UPLOAD GATE AND A SINGLE-USE TOKEN ──────────
+//
+// ⛔ THE CODE LEFT THE SELFIE ON 2026-09-04 (4ac85c0da). No applicant is shown it or asked to write it anywhere, and
+// nobody looks for it in a photograph — the reviewer compares the face with the document's (871b1a9ba). What the
+// challenge still IS, and why everything below about secrecy, the cooldown and one live code still matters:
+//   · the CONSENT RECEIPT — issuing one requires the affirmed identity declaration (POST /api/seller/identity/challenge),
+//     and that affirmation rides on the record to the verification row (StoredChallenge.decl);
+//   · the UPLOAD GATE — /documents refuses without a live one (hasLiveChallenge), so consent precedes collection;
+//   · a SINGLE-USE SUBMIT TOKEN — consumeChallenge burns it at submission; the spent code is stored
+//     (evidence.challengeCode) as the receipt that this submission went through a challenge issued on the affirmed
+//     declaration. Never DISPLAYED — the page receives it to submit it — and it binds no image to a moment (since
+//     2026-09-04 nothing does: kyc-capture.tsx).
+// The rest of this header is the original selfie-code design (until 2026-09-04), kept because the code's properties
+// — server-invented, hashed, single-use, one live at a time — are the ones a token and a receipt need too.
+//
+// THE ON-THE-SPOT PROOF, AS IT WAS:
 //
 // The seller is asked to photograph their passport and then photograph themselves holding it. The
 // obvious way to require "on the spot" is the HTML `capture` attribute — and it does nothing.
@@ -89,16 +104,18 @@ export type IssueResult =
   | { ok: false; reason: 'cooldown'; retryAfterSeconds: number }
 
 /**
- * Mint a challenge for one seller. The plaintext is returned ONCE, to be shown to that seller and
- * never stored.
+ * Mint a challenge for one seller. The plaintext is returned ONCE — to the page that submits it (it has not been
+ * shown to anyone since 2026-09-04, see the header) — and never stored.
  *
- * ⛔ ONLY THE HASH IS PERSISTED. A challenge sitting in the store in plaintext is a credential: it
- * is the one secret that ties a photograph to a moment, and anyone who reads the store could mint a
- * matching image. Hashing costs nothing here because verification is an equality check on a value
- * the reviewer types, not a search.
+ * ⛔ ONLY THE HASH IS PERSISTED. A challenge sitting in the store in plaintext is a credential: today
+ * it is the key to this account's upload gate and its one submission (until 2026-09-04 it was also the
+ * secret that tied a photograph to a moment), and anyone who reads the store could spend it. Hashing
+ * costs nothing here because verification is an equality check on a value the page submits, not a
+ * search.
  *
- * ⚠️ Re-issuing REPLACES the outstanding code rather than adding one. Two live codes would mean a
- * photo matching EITHER is accepted, which doubles the attacker's odds for free.
+ * ⚠️ Re-issuing REPLACES the outstanding code rather than adding one. Two live codes would mean two
+ * live upload gates and two spendable submit tokens for one declaration (until 2026-09-04 also a photo
+ * matching EITHER code accepted, which doubled an attacker's odds for free).
  */
 export async function issueChallenge(
   profileId: string,
@@ -188,16 +205,14 @@ export async function consumeChallenge(
   const normalised = String(submitted || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase()
   if (normalised.length !== CODE_LENGTH) return { ok: false, reason: 'mismatch' }
   // Both sides are fixed-length hex digests of the same length, so a plain comparison leaks no
-  // useful timing signal — and the reviewer types this by hand, so a timing oracle is not the
-  // threat here anyway.
+  // useful timing signal — and the record is single-use (burned above), so a timing oracle is not
+  // the threat here anyway. (Until 2026-09-04 a reviewer also typed it by hand.)
   if (hashCode(profileId, normalised) !== rec.h) return { ok: false, reason: 'mismatch' }
-  // ⛔ RETURNED SO THE REVIEWER CAN ACTUALLY COMPARE IT TO THE PHOTO, and this was the hole that
-  // made the whole mechanism decorative. The original design hashed the code, burned it, and told
-  // the reviewer to look for "a handwritten code" — ANY handwritten code. So an attacker could hold
-  // up a selfie taken last year with any string on the paper, request a fresh code, and submit it
-  // in the JSON: the server saw a valid code, the reviewer saw handwriting, and nothing ever
-  // compared the two. Caught by external review.
-  //
+  // ⛔ RETURNED AND STORED AS THE SPENT RECEIPT OF THIS ATTEMPT (evidence.challengeCode) — never shown to anyone
+  // since 2026-09-04: the reviewer compares the face with the document (871b1a9ba), not a code with a photo. Until
+  // then it was returned so the reviewer could compare it with the code in the selfie — the hole it closed was that
+  // the original design told the reviewer to look for ANY handwritten code, so nothing compared the two (caught by
+  // external review).
   // ⚠️ Persisting it is safe BECAUSE IT IS ALREADY SPENT. Secrecy mattered only up to submission —
   // the record was destroyed one line above, so this value can never authorise anything again. It
   // is now evidence, not a credential.
@@ -214,14 +229,6 @@ export async function consumeChallenge(
     declaration: rec.decl
       ? { version: rec.decl.v, hash: rec.decl.h, declaredAt: new Date(rec.decl.at), ip: rec.decl.ip }
       : null,
-  }
-}
-
-/** What the seller is told to do. Bilingual, because the copy lives server-side. */
-export function challengeInstruction(code: string): { vi: string; en: string } {
-  return {
-    vi: `Viết mã ${code} lên một tờ giấy và cầm cùng hộ chiếu trong ảnh chụp.`,
-    en: `Write the code ${code} on a piece of paper and hold it together with your passport in the photo.`,
   }
 }
 

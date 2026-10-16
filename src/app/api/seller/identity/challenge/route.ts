@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { route, ApiError } from '@/lib/api/handler'
-import { challengeInstruction, issueChallenge } from '@/lib/identity/challenge'
+import { issueChallenge } from '@/lib/identity/challenge'
 import { clientIp } from '@/lib/client-ip'
 import { CURRENT_DECLARATION, declarationHash } from '@/lib/compliance/declaration'
 
@@ -42,16 +42,20 @@ const bodySchema = z.object({
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// Mint the on-the-spot code a foreign seller writes on paper and holds in their selfie.
+// Mint the challenge for ONE capture attempt — since 2026-09-04 three things and no longer a photo proof: the CONSENT
+// RECEIPT (issued only on the affirmed declaration, which rides on it to the verification row), the UPLOAD GATE
+// (/documents refuses without a live one) and the SINGLE-USE TOKEN the submission burns. ⛔ Nobody writes it on paper
+// or holds it in a selfie any more (4ac85c0da; the reviewer compares the face with the document — 871b1a9ba), so the
+// answer carries no instruction (A3, 2026-10-16): the page keeps the code only to submit it.
 //
 // ⛔ THE CODE IS RETURNED ONCE AND NEVER STORED IN PLAINTEXT. Only its hash reaches the store, so
 // there is no "show me my code again" — the seller asks for a new one. That is deliberate: a code
 // retrievable after the fact is a credential sitting in a database.
 //
 // ⚠️ TWO LIMITS, AND THEY GUARD DIFFERENT THINGS. The 60-second cooldown inside issueChallenge stops
-// CODE-FARMING (requesting codes until one matches a photo already held, never submitting until it
-// does — which a submission-only limit never sees). The hourly limiter here stops someone burning
-// database writes. Neither substitutes for the other.
+// CODE-FARMING — minting tokens in a loop, which a submission-only limit never sees (it dates from the selfie code,
+// when a farm could request codes until one matched a photo already held; it still bounds issuance). The hourly
+// limiter here stops someone burning database writes. Neither substitutes for the other.
 export const POST = route(
   {
     auth: 'userId',
@@ -88,9 +92,9 @@ export const POST = route(
       )
     }
     return Response.json(
-      { code: issued.code, expiresAt: issued.expiresAt.toISOString(), instruction: challengeInstruction(issued.code) },
-      // ⛔ no-store, and it matters more here than on most routes: this body contains the one
-      // secret that ties a photograph to a moment. A cached copy in a proxy defeats the mechanism.
+      { code: issued.code, expiresAt: issued.expiresAt.toISOString() },
+      // ⛔ no-store, and it matters more here than on most routes: this body carries a LIVE single-use token — the
+      // key to this account's upload gate and submission. A cached copy in a proxy could be spent by someone else.
       { headers: { 'cache-control': 'no-store' } },
     )
   },

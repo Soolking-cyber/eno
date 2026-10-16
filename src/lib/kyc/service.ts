@@ -21,7 +21,8 @@ import { parsePassportMrz } from '@/lib/visa/mrz'
 // that verifies whoever asks.
 
 export const kycSubmitSchema = z.object({
-  /** The code the seller wrote on paper and held in the selfie. */
+  /** The challenge code of this capture attempt — its single-use submit token (since 2026-09-04 never shown to be
+   *  written or photographed: src/lib/identity/challenge.ts). */
   challengeCode: z.string().min(1).max(32),
   /**
    * ⛔ REQUIRED AND EXPLICIT — NEVER DEFAULTED. `decideTierB` reads `input.tier ?? 'B'`, and both
@@ -367,10 +368,11 @@ export async function submitKycForReview(
         },
         consentVersion: input.consentVersion,
         consentAt: now.toISOString(),
-        // ⛔ THE CODE ITSELF, so the reviewer can compare it to the paper in the photo. Storing
-        // only `challengeSatisfied: true` — which is what this used to do — meant nobody ever
-        // checked that the handwriting matched THIS submission's code, and a year-old selfie with
-        // any string on it passed. Spent at this point, so it is evidence rather than a secret.
+        // ⛔ THE SPENT CODE ITSELF — the receipt that this submission went through a challenge issued on the affirmed
+        // declaration; evidence rather than a secret, never DISPLAYED, and it binds no image to a moment: since
+        // 2026-09-04 the reviewer compares the face with the document, not a code with a photo (871b1a9ba). (Until
+        // then it let the reviewer compare the paper in the selfie with THIS submission's code — storing only
+        // `challengeSatisfied: true` had meant nobody checked, and a year-old selfie with any string on it passed.)
         challengeCode: challenge.code,
         challengeSatisfied: true,
         checksPassed: decision.checksPassed,

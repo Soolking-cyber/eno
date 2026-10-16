@@ -647,14 +647,12 @@ function KycCaptureCamera({
     if (!cameraBlocked) void start()
   }, [cameraBlocked, shot, start])
 
-  // ⚠️ SELFIE COPY IS DOCUMENT-AGNOSTIC. This component does not know the tier, and the selfie's
-  // anti-fraud proof is the PAPER CODE held beside the face — NOT the document, which was captured in
-  // its own step. Saying "passport" here would tell a tier-A (CCCD) user to hold a document they never
   // ⚠️ NO INTERNAL TITLE/HINT. This component is TIER-AGNOSTIC, so any copy it owned would say
   // "passport" to a tier-A (CCCD) user (codex). The tier-correct heading + instructions live in the
   // consumer's per-step body (verify-client), above this component; the only copy that must exist
   // here is the preview's alt text, which the caller supplies via `alt` (falls back to a generic
-  // name). The live-view alignment frame + selfie code overlay carry the in-camera guidance.
+  // name). The live-view alignment frame carries the in-camera guidance (the selfie code overlay left with the code,
+  // 2026-09-04).
   const effAlt = alt ?? (kind === 'document'
     ? tr('Your document photo', 'Ảnh giấy tờ của bạn')
     : tr('Your selfie', 'Ảnh chân dung của bạn'))

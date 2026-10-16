@@ -25,7 +25,6 @@ vi.mock('@/lib/ratelimit', () => ({
 vi.mock('@/lib/log', () => ({ logError: () => {} }))
 vi.mock('@/lib/identity/challenge', () => ({
   issueChallenge: async (profileId: string, decl: Row) => { h.issued.push({ profileId, decl }); return h.issue },
-  challengeInstruction: (code: string) => ({ vi: `Viết ${code}`, en: `Write ${code}` }),
 }))
 
 const { POST } = await import('./route')
@@ -57,7 +56,8 @@ describe('POST /api/seller/identity/challenge', () => {
     const r = await post({ version: CURRENT_DECLARATION, accepted: true }, { 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '198.51.100.9' })
     expect(r.status).toBe(200)
     expect(r.headers.get('cache-control')).toBe('no-store')
-    expect(r.body).toEqual({ code: 'K7M3XA', expiresAt: '2026-10-16T10:10:00.000Z', instruction: { vi: 'Viết K7M3XA', en: 'Write K7M3XA' } })
+    // ⛔ No `instruction` (A3, 2026-10-16): nobody is asked to write the code anywhere since 2026-09-04 — exactly two keys.
+    expect(r.body).toEqual({ code: 'K7M3XA', expiresAt: '2026-10-16T10:10:00.000Z' })
     expect(h.issued).toHaveLength(1)
     const { profileId, decl } = h.issued[0]
     expect(profileId).toBe('p1')

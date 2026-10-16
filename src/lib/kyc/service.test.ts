@@ -200,9 +200,9 @@ describe('submitKycForReview', () => {
   })
 
   // ⛔ THE FINDING THAT QUIETLY UNDID THE FRESHNESS FIX. Accepting either kind in either field let
-  // a client send its PASSPORT photo as both paths: no selfie was ever taken, so no handwritten
-  // code was ever in frame, and the reviewer compares the stored code against a photo that cannot
-  // contain it. The code check becomes theatre one round after it was made real.
+  // a client send its PASSPORT photo as both paths: no selfie was ever taken. Then the code check
+  // became theatre; since 2026-09-04 the review IS a face match of the selfie against the document
+  // (871b1a9ba), and a document photo submitted as the selfie matches itself perfectly.
   it('⛔ REFUSES A DOCUMENT PHOTO SUBMITTED AS THE SELFIE', async () => {
     const doc = `p1/identity/document-11111111-2222-4333-8444-555555555555.jpg`
     const r = await submitKycForReview('p1', 'Anna Maria Eriksson', input({ selfiePath: doc }), NOW)
@@ -222,9 +222,11 @@ describe('submitKycForReview', () => {
     expect(r).toEqual({ ok: false, code: 'path_not_owned' })
   })
 
-  // ⛔ THE CODE IS EVIDENCE NOW, NOT JUST A BOOLEAN. `challengeSatisfied: true` alone gave the
-  // reviewer nothing to compare against, so any handwriting in any photo passed.
-  it('⛔ RECORDS THE CODE THE REVIEWER MUST FIND IN THE PHOTO', async () => {
+  // ⛔ THE SPENT CODE IS EVIDENCE, NOT JUST A BOOLEAN — the receipt of the challenge this submission went
+  // through (it binds no image to a moment). Since 2026-09-04
+  // no reviewer looks for it in a photo (871b1a9ba); until then `challengeSatisfied: true` alone
+  // gave the reviewer nothing to compare against, so any handwriting in any photo passed.
+  it('⛔ RECORDS THE SPENT CODE AS THE SUBMISSION\'S CHALLENGE RECEIPT', async () => {
     await submitKycForReview('p1', 'Anna Maria Eriksson', input(), NOW)
     expect((h.s.created[0].evidence as Record<string, unknown>).challengeCode).toBe('ACD349')
   })

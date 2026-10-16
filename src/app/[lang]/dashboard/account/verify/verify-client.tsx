@@ -1278,7 +1278,7 @@ export function VerifyClient() {
               </div>
             )}
 
-            {/* ── STEP 2: selfie — the code shown large AND overlaid beside the face in the camera ── */}
+            {/* ── STEP 2: selfie — a face the reviewer compares with the document's photograph (no code since 2026-09-04) ── */}
             {wizardStep === 'selfie' && (
               <div>
                 <h3 className="font-bold text-foreground">{tr('Take a selfie', 'Chụp ảnh chân dung')}</h3>

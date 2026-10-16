@@ -15,10 +15,10 @@ import { MAX_INTAKE_BYTES, normalizeVisaImage, VISA_MIN_DIMENSIONS } from '@/lib
 // JPEG re-encode. All of it was hard-won on real applicant uploads.
 //
 // ⚠️ AND THE SELFIE IS NOT A 'portrait'. The visa `portrait` kind means a passport-style headshot;
-// ours is a person at arm's length holding a document AND a handwritten code, which needs enough
-// resolution to read six characters off paper. Mapping it to `portrait` would import a 240x320
-// floor that is far too low to review. It maps to `passport` for the floor and carries its own,
-// higher minimum below.
+// ours is a person at arm's length — since 2026-09-04 a face the reviewer compares with the
+// document's photograph (until then also holding a handwritten code to be read off paper).
+// Mapping it to `portrait` would import a 240x320 floor that is far too low for that comparison.
+// It maps to `passport` for the floor and carries its own, higher minimum below.
 
 /**
  * ⚠️ THE ARRAY IS THE SOURCE OF TRUTH, AND THE TYPE IS DERIVED FROM IT. store.ts builds the
@@ -38,10 +38,12 @@ const VISA_KIND: Record<KycImageKind, 'passport' | 'supporting'> = {
 }
 
 /**
- * ⚠️ HIGHER THAN THE VISA FLOORS, ON PURPOSE. A reviewer has to read a passport number off the
- * document and six handwritten characters off a sheet of paper in the selfie. VISA_MIN_DIMENSIONS
- * .passport is 320x480 — legible for a machine reading an MRZ, not for a human reading handwriting
- * in a photo taken at arm's length. These are the numbers a review can actually be done at.
+ * ⚠️ HIGHER THAN THE VISA FLOORS, ON PURPOSE. A reviewer has to read a document number (a passport's,
+ * or a citizen ID card's) off the document and compare the face in a selfie taken at arm's length with the document's photograph
+ * (the six handwritten characters this floor was first sized for left the selfie on 2026-09-04;
+ * the floor stays — a face at arm's length needs it as much). VISA_MIN_DIMENSIONS.passport is
+ * 320x480 — legible for a machine reading an MRZ, not for a human judging a face. These are the
+ * numbers a review can actually be done at.
  */
 export const KYC_MIN_DIMENSIONS: Record<KycImageKind, { short: number; long: number }> = {
   document: { short: 640, long: 960 },

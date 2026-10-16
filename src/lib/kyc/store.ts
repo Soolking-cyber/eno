@@ -112,9 +112,10 @@ export function ownsKycPath(profileId: string, path: string, kind?: KycImageKind
   if (!path.startsWith(prefix)) return false
   const name = path.slice(prefix.length)
   // ⛔ WITH A KIND, THE KIND IS BINDING — and the first version accepted EITHER kind in EITHER
-  // field, which quietly undid the freshness fix. A client could send its passport photo as BOTH
-  // documentPath and selfiePath: no selfie was ever taken, so no handwritten code was ever in
-  // frame, and the reviewer compares the stored code against a photo that cannot contain it.
+  // field. A client could send its passport photo as BOTH documentPath and selfiePath: no selfie
+  // was ever taken, and (until 2026-09-04) no handwritten code was ever in frame. It matters MORE
+  // since the code left the selfie: the review is now a face match of the selfie against the
+  // document (871b1a9ba), and a "selfie" that IS the document matches itself perfectly.
   // Caught by external review one round after the code-comparison fix landed.
   if (kind) return FILENAME[kind].test(name)
   return Object.values(FILENAME).some((re) => re.test(name))
