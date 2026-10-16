@@ -17,7 +17,13 @@ const h = vi.hoisted(() => ({
   flow: vi.fn(async (_code: string): Promise<{ provider: string; userId: string | null } | null> => { h.events.push('flow'); return { provider: 'apple', userId: 'u-1' } }),
   signOut: vi.fn(async (_o: { scope: string }) => { h.events.push('sign-out'); return { error: null } }),
   appleOnOffer: true,
+  /** GoTrue has Facebook on (src/lib/auth/facebook.ts) — off unless a test says so. */
+  facebookOn: false,
+  /** ADMIN_EMAILS, as src/lib/admin.ts reads it. */
+  admins: [] as string[],
 }))
+vi.mock('@/lib/auth/facebook', () => ({ facebookSignInEnabled: async () => h.facebookOn }))
+vi.mock('@/lib/admin', () => ({ isAdminEmail: (e: string | null | undefined) => !!e && h.admins.includes(e.toLowerCase()) }))
 vi.mock('@/lib/supabase/server', () => ({
   createSupabaseServer: async () => ({ auth: { exchangeCodeForSession: () => { h.events.push('exchange'); return h.exchange!() }, setSession: h.setSession, signOut: h.signOut } }),
 }))
@@ -49,6 +55,8 @@ beforeEach(() => {
   h.exchange = async () => ({ data: { user: APPLE_USER, session: SESSION }, error: null })
   h.setSession.mockClear(); h.store.mockClear(); h.finish.mockClear(); h.flow.mockClear(); h.signOut.mockClear()
   h.appleOnOffer = true
+  h.facebookOn = false
+  h.admins = []
   h.store.mockImplementation(async () => { h.events.push('store'); return 'stored' })
   h.flow.mockImplementation(async () => { h.events.push('flow'); return { provider: 'apple', userId: 'u-1' } })
   errorLog = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -291,5 +299,136 @@ describe('the code branch', () => {
     h.exchange = async () => ({ data: { user: null, session: null }, error: { message: 'bad code', status: 400 } })
     expect((await call('?code=c&p=apple')).headers.get('location')).toBe('https://eno.vn/?auth_error=exchange')
     expect(h.store).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * CONTINUE WITH FACEBOOK (2026-10-16): Facebook's access token never stays in the JS-readable session cookie — normally
+ * there is none (the flow_state trigger), and when one arrives the session is rewritten without it, FAIL CLOSED: a
+ * rewrite that keeps failing undoes the sign-in. A Facebook account without an email gets its own code, never prose.
+ */
+describe('Continue with Facebook', () => {
+  const FB_USER = { id: 'u-9', identities: [{ provider: 'facebook', id: '10229' }], app_metadata: { provider: 'facebook', providers: ['facebook'] } }
+  const withToken = { access_token: 'at', refresh_token: 'rt', provider_token: 'EAAB-fb-token' }
+  beforeEach(() => {
+    h.facebookOn = true
+    h.flow.mockImplementation(async () => { h.events.push('flow'); return { provider: 'facebook', userId: 'u-9' } })
+  })
+
+  it('no token in the session (the trigger kept it out): exchange, finish — no rewrite', async () => {
+    h.exchange = async () => ({ data: { user: FB_USER, session: { access_token: 'at', refresh_token: 'rt' } }, error: null })
+    expect((await call('?code=c&p=facebook&next=%2Fteachers%2Fjoin')).headers.get('location')).toBe('https://eno.vn/teachers/join')
+    expect(h.events).toEqual(['flow', 'exchange', 'finish'])
+  })
+
+  it('a token in the session: rewritten without it, THEN finished — also with no p marker (GoTrue\'s word is enough)', async () => {
+    h.exchange = async () => ({ data: { user: FB_USER, session: withToken }, error: null })
+    for (const qs of ['?code=c&p=facebook&next=%2Fx', '?code=c&next=%2Fx']) {
+      h.events = []
+      expect((await call(qs)).headers.get('location')).toBe('https://eno.vn/x')
+      expect(h.events).toEqual(['flow', 'exchange', 'set-session', 'finish'])
+    }
+    expect(h.setSession).toHaveBeenCalledWith({ access_token: 'at', refresh_token: 'rt' })
+    expect(h.store).not.toHaveBeenCalled()
+  })
+
+  it('⛔ a flow GoTrue could not vouch for, marked p=facebook, is stripped too', async () => {
+    h.flow.mockImplementation(async () => { h.events.push('flow'); return null })
+    h.exchange = async () => ({ data: { user: FB_USER, session: withToken }, error: null })
+    expect((await call('?code=c&p=facebook&next=%2Fx')).headers.get('location')).toBe('https://eno.vn/x')
+    expect(h.events).toEqual(['flow', 'exchange', 'set-session', 'finish'])
+  })
+
+  it('⛔ FAIL CLOSED: a rewrite that keeps failing undoes the sign-in — signed out, the session cookies expired on the answer, never finished', async () => {
+    h.exchange = async () => ({ data: { user: FB_USER, session: withToken }, error: null })
+    h.setSession.mockImplementation(async () => { h.events.push('set-session'); return { error: { status: 500 } } as never })
+    try {
+      const res = await GET(new Request('https://eno.vn/auth/callback?code=c&p=facebook&next=%2Fteachers%2Fjoin', { headers: { cookie: 'sb-sb-auth-token.0=abc; sb-sb-auth-token.1=def; lang=en' } }))
+      expect(res.headers.get('location')).toBe('https://eno.vn/teachers/join?auth_error=oauth')
+      expect(h.events).toEqual(['flow', 'exchange', 'set-session', 'set-session', 'sign-out'])
+      expect(h.finish).not.toHaveBeenCalled()
+      const cleared = res.cookies.getAll().filter((c) => c.maxAge === 0).map((c) => c.name).sort()
+      expect(cleared).toEqual(['sb-sb-auth-token.0', 'sb-sb-auth-token.1'])
+    } finally {
+      h.setSession.mockImplementation(async () => { h.events.push('set-session'); return { error: null } })
+    }
+  })
+
+  it('a stalled flow read on an unmarked return that still carries a provider token: the cookie is rewritten without it, best effort', async () => {
+    h.flow.mockImplementation(async () => { h.events.push('flow'); return null })
+    h.exchange = async () => ({ data: { user: FB_USER, session: withToken }, error: null })
+    expect((await call('?code=c&next=%2Fx')).headers.get('location')).toBe('https://eno.vn/x')
+    expect(h.events).toEqual(['flow', 'exchange', 'set-session', 'finish'])
+    // …and a rewrite that fails there does not stop the sign-in (it is not known to be Facebook's).
+    h.events = []
+    h.setSession.mockImplementation(async () => { h.events.push('set-session'); return { error: { status: 500 } } as never })
+    try {
+      expect((await call('?code=c&next=%2Fx')).headers.get('location')).toBe('https://eno.vn/x')
+      expect(h.events).toEqual(['flow', 'exchange', 'set-session', 'set-session', 'finish'])
+    } finally {
+      h.setSession.mockImplementation(async () => { h.events.push('set-session'); return { error: null } })
+    }
+  })
+
+  it('⛔ with Apple and Facebook both off, nothing is asked and nothing changes — a Google return keeps its old path', async () => {
+    h.appleOnOffer = false
+    h.facebookOn = false
+    h.exchange = async () => ({ data: { user: { id: 'u-3', identities: [{ provider: 'google', id: 'g' }] }, session: { access_token: 'at', refresh_token: 'rt', provider_token: 'g-at' } }, error: null })
+    expect((await call('?code=c&next=%2Fy')).headers.get('location')).toBe('https://eno.vn/y')
+    expect(h.events).toEqual(['exchange', 'finish'])
+    expect(h.setSession).not.toHaveBeenCalled()
+  })
+
+  it('⛔ with Apple off, Facebook on is reason enough to read GoTrue\'s flow (its strip depends on it)', async () => {
+    h.appleOnOffer = false
+    h.exchange = async () => ({ data: { user: FB_USER, session: withToken }, error: null })
+    expect((await call('?code=c&next=%2Fx')).headers.get('location')).toBe('https://eno.vn/x')
+    expect(h.events).toEqual(['flow', 'exchange', 'set-session', 'finish'])
+    // …and with both off, nobody pays for the read.
+    h.facebookOn = false
+    h.events = []
+    h.exchange = async () => ({ data: { user: { id: 'u-3' }, session: { access_token: 'at', refresh_token: 'rt' } }, error: null })
+    expect((await call('?code=c&next=%2Fx')).headers.get('location')).toBe('https://eno.vn/x')
+    expect(h.events).toEqual(['exchange', 'finish'])
+  })
+
+  it('no email from Facebook: GoTrue\'s fixed refusal becomes auth_error=no_email on the page it came from — never its prose', async () => {
+    const qs = '?error=server_error&error_code=unexpected_failure&error_description=Error+getting+user+email+from+external+provider&p=facebook'
+    expect((await call(`${qs}&next=%2Fteachers%2Fjoin`)).headers.get('location')).toBe('https://eno.vn/teachers/join?auth_error=no_email')
+    expect((await call(qs)).headers.get('location')).toBe('https://eno.vn/?auth_error=no_email')
+    // Not marked as our Facebook button's return: the words name Facebook, so it is the generic failure instead.
+    expect((await call('?error=server_error&error_code=unexpected_failure&error_description=Error+getting+user+email+from+external+provider&p=google')).headers.get('location')).toBe('https://eno.vn/?auth_error=oauth')
+    // Any other server error stays the generic one.
+    expect((await call('?error=server_error&error_code=unexpected_failure&error_description=Error+getting+user+profile')).headers.get('location')).toBe('https://eno.vn/?auth_error=oauth')
+  })
+
+  it('the database guard\'s refusal (GoTrue: "Error creating identity") becomes auth_error=facebook_linked — for a Facebook return only', async () => {
+    const qs = '?error=server_error&error_code=unexpected_failure&error_description=Error+creating+identity'
+    expect((await call(`${qs}&p=facebook&next=%2Fteachers%2Fjoin`)).headers.get('location')).toBe('https://eno.vn/teachers/join?auth_error=facebook_linked')
+    expect((await call(`${qs}&p=google`)).headers.get('location')).toBe('https://eno.vn/?auth_error=oauth')
+  })
+
+  it('⛔ never into an operator\'s account: a Facebook sign-in landing on an ADMIN_EMAILS address is undone — Google\'s is not', async () => {
+    h.admins = ['support@eno.vn']
+    h.exchange = async () => ({ data: { user: { ...FB_USER, email: 'Support@eno.vn' }, session: { access_token: 'at', refresh_token: 'rt' } }, error: null })
+    const res = await GET(new Request('https://eno.vn/auth/callback?code=c&p=facebook&next=%2Fx', { headers: { cookie: 'sb-sb-auth-token=abc' } }))
+    expect(res.headers.get('location')).toBe('https://eno.vn/?auth_error=oauth')
+    expect(h.events).toEqual(['flow', 'exchange', 'sign-out'])
+    expect(res.cookies.getAll().filter((c) => c.maxAge === 0).map((c) => c.name)).toEqual(['sb-sb-auth-token'])
+    // The same address through Google's flow signs in as before.
+    h.events = []
+    h.flow.mockImplementation(async () => { h.events.push('flow'); return { provider: 'google', userId: 'u-9' } })
+    h.exchange = async () => ({ data: { user: { id: 'u-9', email: 'support@eno.vn', identities: [{ provider: 'google', id: 'g' }] }, session: { access_token: 'at', refresh_token: 'rt' } }, error: null })
+    expect((await call('?code=c&next=%2Fx')).headers.get('location')).toBe('https://eno.vn/x')
+    expect(h.events).toEqual(['flow', 'exchange', 'finish'])
+  })
+
+  it('a cancel at Facebook\'s dialog (GoTrue forwards a bare access_denied) is a silent /signin, logged as facebook', async () => {
+    const log = vi.mocked(console.log)
+    log.mockClear()
+    expect((await call('?error=access_denied&error_description=Permissions+error&p=facebook&next=%2Fx')).headers.get('location')).toBe('https://eno.vn/signin?next=%2Fx')
+    const [, detail] = log.mock.calls.find(([m]) => m === '[auth] oauth cancelled') ?? []
+    expect(detail).toMatchObject({ provider: 'facebook', error: 'access_denied' })
+    expect(errorLog).not.toHaveBeenCalled()
   })
 })

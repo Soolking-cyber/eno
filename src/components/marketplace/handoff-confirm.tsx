@@ -47,7 +47,8 @@ export function HandoffConfirm({ nonce, parked, via = null }: { nonce: string | 
    * in the real browser, which cannot see where the visitor started, so the app that opened it says so
    * (`via`, allow-listed). Named: "go back to Zalo". Unknown (a raw WebView, a home-screen app, an old
    * link): neutral words — "where you started". The question also stopped quoting a button label: the
-   * in-app form's Google control is a link now ("Use Google instead"), not "Continue with Google".
+   * in-app form's Google control has been a link ("Use Google instead", 2026-10-05) and a button again ("Continue with
+   * Google", 2026-10-16) — no label here to drift.
    * Placeholders + .replace, never a template literal: gen-ui-strings harvests literals only.
    */
   const app = inAppHostName(via === 'pwa' ? null : via)

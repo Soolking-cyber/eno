@@ -11,6 +11,23 @@ import { logError } from '@/lib/log'
 import { claimGuestStorefront } from '@/lib/compliance/seller-publish-gate'
 
 /**
+ * A sign-in provider's picture, kept as the new account's photo only from a host whose links last: Google's
+ * (`*.googleusercontent.com`). ⛔ Facebook's picture link (2026-10-16 — `platform-lookaside.fbsbx.com` / `*.fbcdn.net`)
+ * EXPIRES (its `ext` + `hash` parameters) and is not an image host this site serves, so a Facebook sign-up starts with no
+ * photo rather than one that breaks within weeks. Any other or malformed value: none.
+ */
+export function providerAvatarUrl(raw: unknown): string | null {
+  if (typeof raw !== 'string' || raw.length > 2048) return null
+  try {
+    const u = new URL(raw)
+    if (u.protocol !== 'https:' || u.username || u.password || u.port) return null
+    return u.hostname === 'googleusercontent.com' || u.hostname.endsWith('.googleusercontent.com') ? raw : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Idempotent: ensure the authenticated user has exactly one Profile row
  * (Profile.id == auth.users.id). Called from the auth callback and lazily from
  * any server action needing a profile. Mirrors email/phone/displayName from the
@@ -32,7 +49,7 @@ export async function ensureProfile(user: User) {
     cleanDisplayName(user.user_metadata?.full_name) ||
     cleanDisplayName(user.user_metadata?.name) ||
     maskEmailHandle(email)
-  const avatarUrl = (user.user_metadata?.avatar_url as string | undefined) ?? null
+  const avatarUrl = providerAvatarUrl(user.user_metadata?.avatar_url)
 
   let profile
   try {

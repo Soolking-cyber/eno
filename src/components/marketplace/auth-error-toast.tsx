@@ -53,6 +53,20 @@ export function AuthErrorToast() {
             'New sign-ups are closed at the moment, so we could not create your account. If you already have one, sign in with the email you used before.',
             'Hiện chưa mở đăng ký tài khoản mới nên chúng tôi chưa tạo được tài khoản cho bạn. Nếu bạn đã có tài khoản, hãy đăng nhập bằng email đã dùng trước đó.',
           )
+        // The provider shared no email address (Facebook: a phone-registered account, or email declined in its dialog) —
+        // /auth/callback's `no_email`. Every account here keeps an email, so the way in is the emailed code.
+        : code === 'no_email'
+        ? tr(
+            'Facebook didn’t share an email address with us, so we could not create your account. Sign in with your email instead — we send you a code.',
+            'Facebook không chia sẻ địa chỉ email với chúng tôi nên chưa tạo được tài khoản cho bạn. Hãy đăng nhập bằng email — chúng tôi gửi mã cho bạn.',
+          )
+        // A Facebook identity is never added to an account that already exists (the database guard — /auth/callback's
+        // `facebook_linked`): that account keeps the way in it was made with.
+        : code === 'facebook_linked'
+        ? tr(
+            'We could not finish signing you in with Facebook. If this email address already has an account here, sign in the way you did before — with your email code, Google or Apple; Facebook is not added to it.',
+            'Chúng tôi chưa hoàn tất đăng nhập bằng Facebook. Nếu địa chỉ email này đã có tài khoản ở đây, hãy đăng nhập như lần trước — bằng mã qua email, Google hoặc Apple; Facebook không được thêm vào tài khoản đó.',
+          )
         : tr(
             'We could not finish signing you in. Please try again.',
             'Chúng tôi chưa hoàn tất đăng nhập được. Vui lòng thử lại.',

@@ -19,6 +19,8 @@ import { HANDOFF_NEXT_KEY, handoffNonce } from '@/lib/auth/handoff-client'
 import { isNativeApp, nativeAppleSignIn, nativeAuthErrorCode, nativeOAuth, type NativeOAuthProvider } from '@/lib/native-auth'
 import { appReviewGate, inAppSheetDocument, IN_APP_SHEET_PARAM, nativeAppGate } from '@/lib/app-review-gates'
 import { appleAvailableHere, appleFlagSet, appleSignInTokens, appleWebEnabled, iosGoogleHidden, iosNativeAppleReady, iosSignInPluginPresent } from '@/lib/apple-signin'
+import { facebookAvailableHere } from '@/lib/facebook-signin'
+import { useFacebookSignInOn } from '@/lib/facebook-flag'
 import { googleFirstPartyEnabled } from '@/lib/google-identity'
 import { useTurnstile } from './turnstile'
 import { canonicalEmail } from '@/lib/email-alias'
@@ -94,6 +96,8 @@ export type SignInErrorCode =
   /** Sign in with Apple cannot run here: no Apple Account on the device (ASAuthorizationError 1000), or this
    *  deployment is not configured for it (the server's 503). */
   | 'apple_unavailable'
+  /** "Continue with Facebook" could not start (GoTrue refused the authorize request). */
+  | 'facebook_failed'
 
 export type SignInError =
   /** `detail` is Cloudflare's widget-error code on a captcha failure — see signInErrorText.
@@ -160,6 +164,8 @@ export function signInErrorText(e: SignInError, t: (en: string, vi?: string) => 
     // "Sign in with Apple" is Apple's own name for the feature, and "Đăng nhập bằng Apple" its own Vietnamese.
     case 'apple_failed':
       return t('Sign in with Apple didn’t finish. Try again, or use another way to sign in.', 'Đăng nhập bằng Apple chưa hoàn tất. Hãy thử lại hoặc dùng cách đăng nhập khác.')
+    case 'facebook_failed':
+      return t('Facebook sign-in didn’t start. Try again, or use another way to sign in.', 'Chưa bắt đầu được đăng nhập bằng Facebook. Hãy thử lại hoặc dùng cách đăng nhập khác.')
     case 'apple_unavailable':
       return t('Sign in with Apple isn’t available right now. Check that this device is signed in to an Apple Account, or use another way to sign in.', 'Hiện chưa thể Đăng nhập bằng Apple. Hãy kiểm tra thiết bị đã đăng nhập Tài khoản Apple, hoặc dùng cách đăng nhập khác.')
   }
@@ -375,8 +381,14 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   // binary never needed it (`native-siwa` decides the first frame there).
   const [showApple, setShowApple] = useState(appleSsr)
   const [appleWebHere, setAppleWebHere] = useState(false)
-  // Either provider is offered here. The divider, and the join presentation's fold, key on this.
-  const providersShown = !hideGoogle || showApple
+  // CONTINUE WITH FACEBOOK (src/lib/facebook-signin.ts): GoTrue has it on (src/lib/facebook-flag.ts — the server's answer,
+  // or one GET per page) AND this context can run it (never inside the eno apps). Both read false on the server and the
+  // first render, so no server node can disagree with the mount; the button joins once both are known.
+  const facebookOn = useFacebookSignInOn()
+  const [facebookHere, setFacebookHere] = useState(false)
+  const showFacebook = facebookOn && facebookHere
+  // Any provider is offered here. The divider, and the join presentation's fold, key on this.
+  const providersShown = !hideGoogle || showApple || showFacebook
   // The join presentation's fold — see `collapseEmail`. Opening it is one-way for this form's life.
   const [emailOpened, setEmailOpened] = useState(false)
   const emailCollapsed = collapseEmail && !emailOpened && providersShown && !oauthBlocked
@@ -439,6 +451,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
     setHideGoogle((isNativeTabs() && !isNativeApp()) || iosGoogleHidden() || inAppSheetDocument())
     const appleHere = appleAvailableHere()
     setShowApple(appleHere)
+    setFacebookHere(facebookAvailableHere())
     setAppleWebHere(appleWebEnabled())
     // ⛔ RECONCILE THE PRE-PAINT CLASS (commit gate, codex + opus): `no-apple-web` is set once per document
     // (src/lib/apple-web-head.ts), but the in-app sheet's marker belongs to ONE URL — a client-side navigation away
@@ -634,6 +647,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   // `disabled`; only the busy state (the button's `loading` spinner) is per provider.
   const [googleBusy, setGoogleBusy] = useState(false)
   const [appleBusy, setAppleBusy] = useState(false)
+  const [facebookBusy, setFacebookBusy] = useState(false)
 
   // ⛔ BACK FROM GOOGLE (OR APPLE) RESTORES THIS PAGE WITH ITS JS STATE INTACT. Both web flows are a
   // full-page navigation, so a visitor who reaches the provider's account chooser and presses Back gets
@@ -647,6 +661,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
       setLoading(false)
       setGoogleBusy(false)
       setAppleBusy(false)
+      setFacebookBusy(false)
     }
     window.addEventListener('pageshow', onShow)
     return () => window.removeEventListener('pageshow', onShow)
@@ -831,6 +846,28 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   const pressGoogle = () => { onMethod?.('google'); reportGateMethod('google'); void oauth('google') }
   /** Apple pressed — the same accounting as Google. */
   const pressApple = () => { onMethod?.('apple'); reportGateMethod('apple'); void oauth('apple') }
+
+  /**
+   * CONTINUE WITH FACEBOOK — GoTrue's Facebook web flow, a full-page navigation like Apple's, in every browser it is
+   * offered in (in-app browsers included: Facebook does not refuse its own, or any other, webview). `&p=facebook` labels
+   * the return for the callback's logs and its strip of Facebook's token (/auth/callback stripFacebookToken). The
+   * teacher form's answers survive the round trip like Google's and Apple's (its stored draft + return marker).
+   */
+  const startFacebook = async () => {
+    if (loading) return
+    setError(null)
+    setLoading(true)
+    setFacebookBusy(true)
+    const sb = await getSupabase()
+    if (!sb) { setFacebookBusy(false); return } // getSupabase already cleared loading and set the error
+    // Same instant as Google's and Apple's: clear what abandoned attempts left, immediately before the new flow.
+    clearStalePkceCookies()
+    const { error } = await sb.auth.signInWithOAuth({ provider: 'facebook', options: { redirectTo: `${redirectTo}&p=facebook` } })
+    // On success supabase-js navigates to Facebook — the busy state stays for the navigation.
+    if (error) { setError({ code: 'facebook_failed' }); setLoading(false); setFacebookBusy(false) }
+  }
+  /** Facebook pressed — the same accounting as Google and Apple. */
+  const pressFacebook = () => { onMethod?.('facebook'); reportGateMethod('facebook'); void startFacebook() }
 
   // Magic link goes through OUR endpoint, not supabase.auth.signInWithOtp — see the
   // header of api/auth/email-link for why (Supabase's SMTP credentials silently expired
@@ -1374,7 +1411,7 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
                 screen reader, as it did. `ios-nosiwa-hidden` (was `ios-app-hidden`): hidden in the iOS app
                 before hydration unless the head script marked it `native-siwa` — Google only beside Apple. */}
             {!hideGoogle && (
-              <Button variant="bare" size="none" disabled={loading} loading={googleBusy} onClick={pressGoogle} className={cn(restyleGoogle ? GOOGLE_BUTTON : 'flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-popover px-4 text-sm font-bold text-foreground transition-colors hover:bg-tint disabled:opacity-50 cursor-pointer', gateGoogle && 'ios-nosiwa-hidden')}>
+              <Button variant="bare" size="none" disabled={loading} loading={googleBusy} onClick={pressGoogle} className={cn(restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY, gateGoogle && 'ios-nosiwa-hidden')}>
                 <GoogleIcon />
                 {googleBusy ? t('Signing you in…', 'Đang đăng nhập…') : t('Continue with Google', 'Tiếp tục với Google')}
               </Button>
@@ -1396,6 +1433,15 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
               </Button>
             )}
           </ProviderPair>
+          {/* CONTINUE WITH FACEBOOK, after Google and Apple in a real browser (src/lib/facebook-signin.ts: offered, not
+              leading, until it is seen to finish in Facebook's own browser). Google's shape and type, so no provider
+              outweighs another (D6); Facebook's own blue "f" on it. Never in the eno apps, so no first-frame hook. */}
+          {showFacebook && (
+            <Button variant="bare" size="none" disabled={loading} loading={facebookBusy} onClick={pressFacebook} className={restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY} data-provider="facebook">
+              <FacebookIcon />
+              {t('Continue with Facebook', 'Tiếp tục với Facebook')}
+            </Button>
+          )}
 
           {/* The divider shows whenever a provider does, with Google's own first-frame hook: under the gate
               in the iOS app, a provider can only paint with `native-siwa`. */}
@@ -1735,37 +1781,52 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
 
       {error && <p role="alert" className="text-center text-xs font-semibold text-destructive">{signInErrorText(error, t)}</p>}
 
-      {/* ⛔ IN AN IN-APP BROWSER GOOGLE IS THE QUIET ALTERNATIVE, BELOW THE CODE (UX3 J2, 2026-10-05). It was
-          the first, focused button — and from Facebook or Zalo it starts a 9–11-screen hand-off (a menu
-          step, two app switches, a pairing code), while the emailed code finishes right here in four.
-          Google refuses webviews outright, so this link still opens the real browser; it says so, and
-          says the visitor will bring a code back, before they tap. A text link (a real 44px target),
-          never a second CTA beside "Send code". */}
-      {!hideGoogle && emailFirst && (
+      {/* ⛔ IN AN IN-APP BROWSER THE EMAILED CODE LEADS, AND THE PROVIDERS FOLLOW AS REAL BUTTONS (UX3 J2, 2026-10-05;
+          owner 2026-10-16: "in facebook browser sign in doesnt show google sign in … we have to fix it"). The code finishes
+          right here in four screens; Google refuses webviews outright, so its button opens the real browser — the note
+          under it says so, and that the visitor brings a code back, before they tap. Until 2026-10-16 Google was a quiet
+          text link here, which the owner could not see as a way to sign in at all. Facebook (src/lib/facebook-signin.ts)
+          runs in place, and sits first under the code: it is offered, not leading, until it is seen to finish in
+          Facebook's own browser. No Apple here (D7): inside a webview Apple's web sign-in means typing the Apple Account
+          password, and the browser hand-off cannot carry it (Apple's refresh token is kept only by the server-side
+          callback exchange — TN3194). */}
+      {emailFirst && (showFacebook || !hideGoogle) && (
         // `ios-hide-google`: the server-rendered first frame must not show Google in the iOS app either — the same
-        // `ios-nosiwa-hidden` hook as the main button. No Apple here: in-app browsers get none (D7).
-        <div className={cn('space-y-1 pt-1 text-center', gateGoogle && 'ios-nosiwa-hidden')}>
-          <div className="flex items-center gap-3 pb-1">
+        // `ios-nosiwa-hidden` hook as the main button. Facebook is never in the apps, so it needs no hook.
+        <div className="space-y-2.5 pt-1">
+          <div className={cn('flex items-center gap-3 pb-1', !showFacebook && gateGoogle && 'ios-nosiwa-hidden')}>
             <span className="h-px flex-1 bg-border" />
             <span className="text-xs text-ink-4">{t('or', 'hoặc')}</span>
             <span className="h-px flex-1 bg-border" />
           </div>
-          <Button
-            variant="bare"
-            size="none"
-            disabled={loading}
-            onClick={pressGoogle}
-            aria-describedby={googleNoteId}
-            className="relative inline-flex min-h-11 items-center justify-center gap-1.5 px-2 text-sm font-semibold text-accent-foreground hover:underline disabled:opacity-50 cursor-pointer"
-          >
-            {googleBusy ? t('Signing you in…', 'Đang đăng nhập…') : t('Use Google instead', 'Dùng Google')}
-            <ExternalLink className="size-3.5" aria-hidden />
-          </Button>
-          <p id={googleNoteId} className="text-2xs leading-relaxed text-muted-foreground">
-            {iosHint
-              ? t('Tap ••• at the top and choose “Open in Safari/Browser” to continue with Google. Or use the code above — it works right here.', 'Chạm ••• ở trên rồi chọn “Mở trong Safari” để tiếp tục với Google. Hoặc dùng mã ở trên — vẫn hoạt động ngay tại đây.')
-              : t('Opens your browser — then you bring a short code back here.', 'Sẽ mở trình duyệt — sau đó bạn mang một mã ngắn về đây.')}
-          </p>
+          {showFacebook && (
+            <Button variant="bare" size="none" disabled={loading} loading={facebookBusy} onClick={pressFacebook} className={restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY} data-provider="facebook">
+              <FacebookIcon />
+              {t('Continue with Facebook', 'Tiếp tục với Facebook')}
+            </Button>
+          )}
+          {!hideGoogle && (
+            <div className={cn('space-y-1 text-center', gateGoogle && 'ios-nosiwa-hidden')}>
+              <Button
+                variant="bare"
+                size="none"
+                disabled={loading}
+                loading={googleBusy}
+                onClick={pressGoogle}
+                aria-describedby={googleNoteId}
+                className={restyleGoogle ? GOOGLE_BUTTON : OAUTH_BUTTON_LEGACY}
+                data-provider="google"
+              >
+                <GoogleIcon />
+                {t('Continue with Google', 'Tiếp tục với Google')}
+              </Button>
+              <p id={googleNoteId} className="text-2xs leading-relaxed text-muted-foreground">
+                {iosHint
+                  ? t('Tap ••• at the top and choose “Open in Safari/Browser” to continue with Google. Or use the code above — it works right here.', 'Chạm ••• ở trên rồi chọn “Mở trong Safari” để tiếp tục với Google. Hoặc dùng mã ở trên — vẫn hoạt động ngay tại đây.')
+                  : t('Google opens your browser — then you bring a short code back here.', 'Google sẽ mở trình duyệt — sau đó bạn mang một mã ngắn về đây.')}
+              </p>
+            </div>
+          )}
         </div>
       )}
       {/* Invisible Turnstile — renders a visible challenge only if one is required. Only the email/phone
@@ -1911,6 +1972,8 @@ const PROVIDER_BUTTON = 'flex min-h-11 w-full items-center justify-center whites
 /** Google beside Apple (only while NEXT_PUBLIC_APPLE_SIGNIN has a token — plan B3/B4): the shared look, the G 10px
  *  from its label, and Apple's title typography on the label. */
 const GOOGLE_BUTTON = `${PROVIDER_BUTTON} gap-2.5 ${PROVIDER_TITLE}`
+/** Google's button with the flag EMPTY (byte-for-byte the old classes, B4) — and Facebook's beside it, the same shape. */
+const OAUTH_BUTTON_LEGACY = 'flex min-h-11 w-full items-center justify-center gap-2.5 rounded-xl border border-line-strong bg-popover px-4 text-sm font-bold text-foreground transition-colors hover:bg-tint disabled:opacity-50 cursor-pointer'
 /**
  * Apple (HIG, Sign in with Apple → Creating a custom button): the shared look; the logo file's height equals the
  * button's, so no vertical padding (AppleIcon's frame carries the logo's own margins, hence `gap-0`).
@@ -1930,6 +1993,16 @@ const APPLE_BUTTON = `${PROVIDER_BUTTON} gap-0`
 function AppleIcon() {
   return (
     <svg className="h-11 w-[31px] shrink-0" viewBox="0 0 31 44" fill="currentColor" aria-hidden="true"><path d="M15.7099491,14.8846154 C16.5675461,14.8846154 17.642562,14.3048315 18.28274,13.5317864 C18.8625238,12.8312142 19.2852829,11.852829 19.2852829,10.8744437 C19.2852829,10.7415766 19.2732041,10.6087095 19.2490464,10.5 C18.2948188,10.5362365 17.1473299,11.140178 16.4588366,11.9494596 C15.9152893,12.56548 15.4200572,13.5317864 15.4200572,14.5222505 C15.4200572,14.6671964 15.4442149,14.8121424 15.4562937,14.8604577 C15.5166879,14.8725366 15.6133185,14.8846154 15.7099491,14.8846154 Z M12.6902416,29.5 C13.8618881,29.5 14.3812778,28.7148761 15.8428163,28.7148761 C17.3285124,28.7148761 17.6546408,29.4758423 18.9591545,29.4758423 C20.2395105,29.4758423 21.0971074,28.2919142 21.9063891,27.1321538 C22.8123013,25.8034827 23.1867451,24.4989691 23.2109027,24.4385749 C23.1263509,24.4144173 20.6743484,23.4119966 20.6743484,20.5972773 C20.6743484,18.1573535 22.6069612,17.0579 22.7156707,16.9733482 C21.4353147,15.1382709 19.4906239,15.0899556 18.9591545,15.0899556 C17.5217737,15.0899556 16.3501271,15.9596309 15.6133185,15.9596309 C14.8161157,15.9596309 13.7652575,15.1382709 12.521138,15.1382709 C10.1532818,15.1382709 7.74950381,17.0941365 7.74950381,20.7905386 C7.74950381,23.0855165 8.64333654,25.513591 9.74278991,27.0838388 C10.6849473,28.4126271 11.5063073,29.5 12.6902416,29.5 Z" /></svg>
+  )
+}
+
+/**
+ * Facebook's logo (Meta brand resources, 2023: the blue #0866FF circle, its "f" white): the path is the circle with the
+ * "f" cut out, laid over a white disc so the "f" stays white on a dark button too. Never recoloured, never cropped.
+ */
+function FacebookIcon() {
+  return (
+    <svg className="size-5 shrink-0" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#fff" /><path fill="#0866FF" d="M9.101 23.691v-7.98H6.627v-3.667h2.474v-1.58c0-4.085 1.848-5.978 5.858-5.978.401 0 .955.042 1.468.103a8.68 8.68 0 0 1 1.141.195v3.325a8.623 8.623 0 0 0-.653-.036 26.805 26.805 0 0 0-.733-.009c-.707 0-1.259.096-1.675.309a1.686 1.686 0 0 0-.679.622c-.258.42-.374.995-.374 1.752v1.297h3.919l-.386 2.103-.287 1.564h-3.246v8.245C19.396 23.238 24 18.179 24 12.044c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.628 3.874 10.35 9.101 11.647Z" /></svg>
   )
 }
 

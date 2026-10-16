@@ -11,7 +11,11 @@ import { normalizePhone } from '@/lib/phone'
 import { logError } from '@/lib/log'
 import { isAppleLinked } from '@/lib/apple-signin'
 
-/** Comma-separated allowlist from ADMIN_EMAILS (server-only env). */
+/**
+ * Comma-separated allowlist from ADMIN_EMAILS (server-only env).
+ * ⛔ CHANGED IT? Re-run infra/vn-node/apply-facebook-signin.sh once "Continue with Facebook" is on: it copies this list
+ * into the database guard that keeps a Facebook identity off an operator's address (auth.eno_facebook_refused_emails).
+ */
 function adminEmails(): string[] {
   return (process.env.ADMIN_EMAILS || '')
     .split(',')

@@ -89,21 +89,24 @@ describe('on the teacher sign-up form, any browser: the emailed CODE, typed in p
 })
 
 describe('in an in-app browser (Zalo), the emailed code leads', () => {
-  it('⛔ the email field and "Send code" come FIRST; Google is a quiet link below that says what it does', async () => {
+  it('⛔ the email field and "Send code" come FIRST; Google follows as a real button that says what it does (owner, 2026-10-16)', async () => {
     popup()
     await act(async () => {})
     const dialog = screen.getByRole('dialog')
     const field = screen.getByRole('textbox', { name: 'Email' })
     const send = screen.getByRole('button', { name: 'Send code' })
-    const google = screen.getByRole('button', { name: /^Use Google instead/ })
+    // A real "Continue with Google" button — the owner could not see the old quiet text link as a way to sign in.
+    const google = screen.getByRole('button', { name: 'Continue with Google' })
     // Document order: field → Send code → Google.
     expect(field.compareDocumentPosition(google) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(send.compareDocumentPosition(google) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    // The link is described: it opens the browser, and they bring a code back.
+    // The button is described: Google opens the browser, and they bring a code back.
     const note = document.getElementById(google.getAttribute('aria-describedby')!)
-    expect(note?.textContent).toBe('Opens your browser — then you bring a short code back here.')
-    // No full-width Google button, no "Open Google in your browser" lead.
-    expect(screen.queryByRole('button', { name: /Continue with Google|Open Google in your browser/ })).toBeNull()
+    expect(note?.textContent).toBe('Google opens your browser — then you bring a short code back here.')
+    // Neither the old quiet link nor an "Open Google in your browser" lead.
+    expect(screen.queryByRole('button', { name: /Use Google instead|Open Google in your browser/ })).toBeNull()
+    // No Apple in an in-app browser (D7), and no Facebook while GoTrue has it off (this fetch answers {}).
+    expect(screen.queryByRole('button', { name: /Apple|Facebook/ })).toBeNull()
     // ⛔ Truth: nothing promises phone sign-in while it is off — only the tab label "Phone · soon" names it.
     const text = (dialog.textContent ?? '').replace('Phone · soon', '')
     expect(text).not.toMatch(/phone|SĐT/i)
@@ -115,18 +118,18 @@ describe('in an in-app browser (Zalo), the emailed code leads', () => {
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Email' }))
   })
 
-  it('in Vietnamese: "Gửi mã" first, "Dùng Google" below', async () => {
+  it('in Vietnamese: "Gửi mã" first, "Tiếp tục với Google" below', async () => {
     popup('vi')
     await act(async () => {})
     expect(screen.getByRole('button', { name: 'Gửi mã' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /^Dùng Google/ })).toBeTruthy()
-    expect(screen.getByText('Sẽ mở trình duyệt — sau đó bạn mang một mã ngắn về đây.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Tiếp tục với Google' })).toBeTruthy()
+    expect(screen.getByText('Google sẽ mở trình duyệt — sau đó bạn mang một mã ngắn về đây.')).toBeTruthy()
   })
 
-  it('⛔ the Google link hands off with `next` carrying resume= and the host app named for the real browser', async () => {
+  it('⛔ the Google button hands off with `next` carrying resume= and the host app named for the real browser', async () => {
     popup()
     await act(async () => {})
-    fireEvent.click(screen.getByRole('button', { name: /^Use Google instead/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Google' }))
     expect(localStorage.getItem('eno:handoff:next')).toBe('/listings/l1?resume=chat')
     // Android: the escape page opens in the system browser through an intent: URL, with `via=zalo`.
     expect(loc.href).toMatch(/^intent:\/\/localhost:3000\/auth\/escape\?h=[^&]+&via=zalo#Intent;/)

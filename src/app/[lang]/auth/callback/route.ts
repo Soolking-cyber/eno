@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import type { Session, User } from '@supabase/supabase-js'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { authRedirect, finishSignIn } from '@/lib/auth-finish'
@@ -7,6 +8,8 @@ import { safeNextPath } from '@/lib/url'
 import { NATIVE_OAUTH_REDIRECT } from '@/lib/native-auth'
 import { IS_SERVICES } from '@/lib/edition'
 import { serverAuthUsesRequestOrigin, isLoopbackHost, loopbackOrigin } from '@/lib/auth-origin'
+import { FACEBOOK_PROVIDER } from '@/lib/facebook-signin'
+import { isAdminEmail } from '@/lib/admin'
 
 /**
  * What a provider's `?error=` means for the visitor — a CODE, never the provider's prose.
@@ -15,28 +18,45 @@ import { serverAuthUsesRequestOrigin, isLoopbackHost, loopbackOrigin } from '@/l
  *                     forwards `cancel`. GoTrue's OAuth errors carry no `error_code`, so `access_denied` WITH one
  *                     (signup_disabled) is not a cancel.
  *   signup_disabled — the project refuses new accounts (the 2026-08-17 production finding below).
+ *   no_email        — the provider shared no email address, which GoTrue requires (Facebook, 2026-10-16: an account
+ *                     registered with a phone number, or the email permission declined in Facebook's dialog). Matched
+ *                     on GoTrue's own fixed message (v2.189.0 external.go), never echoed.
+ *   facebook_linked — GoTrue could not add the Facebook identity: eno's database guard refuses one for an account that
+ *                     already has another way in, or for an operator's address (apply-facebook-signin.sh
+ *                     eno_refuse_facebook_identity) — GoTrue's createNewIdentity answers "Error creating identity".
  *   oauth           — anything else.
+ * The two Facebook codes are kept only for a return our Facebook button marked (`p=facebook`); see the error branch.
  */
-type CallbackError = 'cancel' | 'signup_disabled' | 'oauth'
-function callbackError(error: string, errorCode: string): CallbackError {
+type CallbackError = 'cancel' | 'signup_disabled' | 'no_email' | 'facebook_linked' | 'oauth'
+function callbackError(error: string, errorCode: string, description = ''): CallbackError {
   if (error === 'user_cancelled_authorize' || error === 'cancel') return 'cancel'
   if (errorCode === 'signup_disabled' || error === 'signup_disabled') return 'signup_disabled'
+  if (/^error getting user email from external provider$/i.test(description.trim())) return 'no_email'
+  if (/^error creating identity$/i.test(description.trim())) return 'facebook_linked'
   if (error === 'access_denied' && !errorCode) return 'cancel'
   return 'oauth'
 }
 
-/** GoTrue's record of which provider minted this PKCE code (auth.flow_state), or null — read BEFORE the exchange. */
-type CodeFlow = { provider: string; userId: string | null } | null
+/**
+ * GoTrue's record of which provider minted this PKCE code (auth.flow_state) — read BEFORE the exchange. null: asked, and
+ * GoTrue could not say (the read failed or stalled); undefined: not asked (neither Apple nor Facebook can be on here).
+ */
+type CodeFlow = { provider: string; userId: string | null } | null | undefined
 /** A stalled read must never hold a sign-in (commit gate round 5, codex): past this, the flow is unknown. */
 const CODE_FLOW_TIMEOUT_MS = 1_500
 
-async function codeFlow(code: string): Promise<CodeFlow> {
+async function codeFlow(code: string, facebookMarked: boolean): Promise<CodeFlow> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     const { appleOnOffer, pkceCodeProvider } = await import('@/lib/auth/apple-siwa')
-    // ⛔ Only where Apple can have been used (commit gate round 8, opus): before Apple is configured on this server, no
-    // sign-in pays for the read — the dark deploy changes nothing for Google and email sign-ins.
-    if (!appleOnOffer()) return null
+    // ⛔ Only where Apple — or Facebook (2026-10-16) — can have been used (commit gate round 8, opus): before either is
+    // configured on this server, no sign-in pays for the read. ⚠️ Facebook's strip depends on this read, so its gate is
+    // its own fact, never Apple's: with Apple off, a Facebook token would otherwise stay in the JS-readable cookie. GoTrue's
+    // settings are asked only then — with Apple on (production) the read runs anyway and no sign-in waits on the probe.
+    if (!appleOnOffer() && !facebookMarked) {
+      const { facebookSignInEnabled } = await import('@/lib/auth/facebook')
+      if (!(await facebookSignInEnabled().catch(() => false))) return undefined
+    }
     const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), CODE_FLOW_TIMEOUT_MS) })
     return await Promise.race([pkceCodeProvider(code), timeout])
   } catch {
@@ -96,6 +116,46 @@ async function keepAppleToken(supabase: Awaited<ReturnType<typeof createSupabase
       console.warn('[auth] apple_session_rewrite_failed', { name: (e as Error)?.name, attempt })
     }
   }
+}
+
+/**
+ * CONTINUE WITH FACEBOOK (2026-10-16): rewrite the session cookie WITHOUT Facebook's access token — a bearer token
+ * (email + public profile, up to 60 days) that eno never uses. ⛔ FAIL CLOSED, UNLIKE APPLE'S BEST EFFORT: Apple's
+ * refresh token is useless without eno's signed client secret, Facebook's is not. Normally there is nothing to strip —
+ * the trigger infra/vn-node/apply-facebook-signin.sh installs on auth.flow_state keeps GoTrue from storing it, so the
+ * exchange never returns it — and this is the second line: if the rewrite fails twice the sign-in is undone on this
+ * device and the visitor tries again. (The reviewed LinkedIn strip's shape, removed with LinkedIn on 2026-10-16.)
+ */
+async function stripFacebookToken(supabase: Awaited<ReturnType<typeof createSupabaseServer>>, session: Session | null): Promise<boolean> {
+  if (!session) return false
+  if (!session.provider_token && !session.provider_refresh_token) return true
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const { error } = await supabase.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token })
+      if (!error) return true
+      console.warn('[auth] facebook_session_rewrite_failed', { status: error.status, attempt })
+    } catch (e) {
+      console.warn('[auth] facebook_session_rewrite_failed', { name: (e as Error)?.name, attempt })
+    }
+  }
+  return false
+}
+
+/**
+ * A sign-in refused after the exchange: signed out here, and the session cookies expired on the answer itself, whatever
+ * the sign-out managed — the names the request carried AND those the exchange just wrote into the request's store (a
+ * first sign-in arrives with none), deleted in both places, so no later write can put the session back.
+ */
+async function undoSignIn(supabase: Awaited<ReturnType<typeof createSupabaseServer>>, request: Request, res: NextResponse): Promise<NextResponse> {
+  await supabase.auth.signOut({ scope: 'local' }).catch((e) => console.warn('[auth] refused_signout_failed', { name: (e as Error)?.name }))
+  const names = new Set((request.headers.get('cookie') ?? '').split(/;\s*/).map((c) => c.split('=')[0]))
+  let store: Awaited<ReturnType<typeof cookies>> | null = null
+  try { store = await cookies(); for (const c of store.getAll()) names.add(c.name) } catch { /* no request scope (tests) */ }
+  for (const name of [...names].filter((n) => /^sb-.+-auth-token(?:\.\d+)?$/.test(n))) {
+    try { store?.delete(name) } catch { /* read-only outside a route: the answer's own expiry still goes */ }
+    res.cookies.set(name, '', { path: '/', maxAge: 0 })
+  }
+  return res
 }
 
 // OAuth / magic-link callback — exchanges the code for a session, then redirects.
@@ -233,7 +293,10 @@ export async function GET(request: Request) {
   const oauthError = url.searchParams.get('error')
   if (oauthError) {
     const errorCode = url.searchParams.get('error_code') || ''
-    const kind = callbackError(oauthError, errorCode)
+    const mapped = callbackError(oauthError, errorCode, url.searchParams.get('error_description') ?? '')
+    // `no_email`'s and `facebook_linked`'s words name Facebook (auth-error-toast.tsx) — so only a return our Facebook
+    // button marked carries them; any other is the generic failure (gate review, 2026-10-16).
+    const kind = (mapped === 'no_email' || mapped === 'facebook_linked') && url.searchParams.get('p') !== FACEBOOK_PROVIDER ? 'oauth' : mapped
     // ⚠️ A CANCEL IS A DECISION, NOT A FAILURE: back to the form, silently, with `next` kept — no toast. (The
     // first-party Google callback learned the same lesson: treating a refusal as an error sent people round in
     // a loop.) Logged for the post-flip monitoring — with which of the three cancels it was and a capped description
@@ -242,7 +305,7 @@ export async function GET(request: Request) {
     if (kind === 'cancel') {
       const p = url.searchParams.get('p')
       console.log('[auth] oauth cancelled', {
-        provider: p === 'apple' || p === 'google' ? p : 'unknown',
+        provider: p === 'apple' || p === 'google' || p === FACEBOOK_PROVIDER ? p : 'unknown',
         error: oauthError, // one of the three cancel codes: callbackError returned 'cancel'
         description: url.searchParams.get('error_description')?.slice(0, 120) ?? null,
       })
@@ -267,13 +330,33 @@ export async function GET(request: Request) {
      * is GoTrue's to say, and its flow state is deleted BY the exchange: read it first, for every code (one indexed
      * read). `p` now only labels the return for the UI.
      */
-    const flow = await codeFlow(code)
+    const p = url.searchParams.get('p')
+    const flow = await codeFlow(code, p === FACEBOOK_PROVIDER)
     const supabase = await createSupabaseServer()
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
       // Keep Apple's refresh token for revocation (when GoTrue confirms Apple) and strip Apple's provider tokens from the
-      // cookie; every other provider is unchanged.
+      // cookie; Facebook's are stripped below; every other provider is unchanged.
       await keepAppleToken(supabase, data.user, data.session, flow)
+      // Facebook: GoTrue says so, or (its flow unreadable) our own button marked the return. ⛔ Either way a failed strip
+      // UNDOES the sign-in: the cost of a wrong marker is one more "try again" — never a kept token.
+      const facebookFlow = flow?.provider === FACEBOOK_PROVIDER || (flow === null && p === FACEBOOK_PROVIDER)
+      if (facebookFlow) {
+        const stripped = await stripFacebookToken(supabase, data.session)
+        // ⛔ NEVER A WAY INTO AN OPERATOR'S ACCOUNT (gate review, 2026-10-16). The BOUNDARY is the database — GoTrue's own
+        // flow can be run without this route, so apply-facebook-signin.sh's trigger refuses a Facebook identity for an
+        // account that already has another way in, and for an ADMIN_EMAILS address. This is the second line, for a list
+        // changed since the script last ran: such a sign-in is undone here.
+        const operator = isAdminEmail(data.user?.email)
+        if (operator) console.warn('[auth] facebook_operator_refused')
+        if (!stripped || operator) return undoSignIn(supabase, request, redirect(`${origin}${authFailurePath(next, 'oauth')}`))
+      } else if (flow === null && p !== 'apple' && (data.session?.provider_token || data.session?.provider_refresh_token)) {
+        // GoTrue was asked and could not say whose code this was (its flow read failed or stalled — never "not asked": with
+        // neither Apple nor Facebook on, every provider is left exactly as before) and nothing marked it Facebook — a flow
+        // run by hand, say — yet a provider token came back: rewrite the cookie without it, best effort (gate review,
+        // 2026-10-16). Nothing here is kept, so nothing is lost; an Apple return is left to keepAppleToken's own rules.
+        await stripFacebookToken(supabase, data.session)
+      }
       // Profile provisioning + the onboarding hop are shared with /auth/confirm.
       return finishSignIn(data.user, origin, next)
     }
