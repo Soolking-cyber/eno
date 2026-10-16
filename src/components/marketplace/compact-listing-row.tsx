@@ -13,6 +13,7 @@ import { Price } from './price'
 import { priceUnitSuffix } from '@/lib/price-unit'
 import { CategoryIcon } from './category-icons'
 import { FavoriteHeart } from './favorite-heart'
+import { IdentityVerifiedMark } from './identity-verified-mark'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useLocalized } from './listing-content'
 import { timeAgo, type SerializedListingCard } from '@/lib/types'
@@ -47,13 +48,16 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
   const { lang, tr } = useLanguage()
   const router = useRouter()
   const cover = l.images[0]
+  const teacher = l.listingType === TEACHER_LISTING_TYPE
   // Embedded per-language title (titleI18n, warmed at post time) → instant, no
   // API call; falls back to lazy MT for langs without an embedded value.
-  const displayTitle = useLocalized(l.title, l.titleVi, l.titleI18n)
+  // ⛔ …EXCEPT A TEACHER'S, WHICH IS THEIR NAME: never machine-translated, in any language (ListingCard's rule, 2026-10-16
+  // — the "Identity verified" tick sits beside it). The hook runs with '', its no-op; the name prints as stored.
+  const localizedTitle = useLocalized(teacher ? '' : l.title, teacher ? null : l.titleVi, teacher ? null : l.titleI18n)
+  const displayTitle = teacher ? l.title : localizedTitle
   // Where it is: the district, else the city. ⚠️ A TEACHER ABROAD HAS NEITHER (teacher onboarding redesign, 2026-10-08 —
   // city '' by design, projection.ts teacherHome): their location is the fact ("Not in Vietnam yet · Online"), so it
   // stands in; and a row with no place at all draws no divider beside nothing.
-  const teacher = l.listingType === TEACHER_LISTING_TYPE
   const place = l.district || l.city || (teacher ? l.location : '')
   // Quick-offer: pressing the Tag rolls a discount slider open to the LEFT of the
   // action icons; confirm hands off to the composer's offer mode (?offer=N#contact).
@@ -161,9 +165,15 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             mid-phrase — usually before the district or the spec that tells two listings apart.
             `items-start` pins the trust chip beside the FIRST line when the title wraps. */}
         <div className="flex min-w-0 items-start gap-x-2">
-          <h4 className="line-clamp-2 text-sm font-medium leading-snug text-foreground group-hover:underline">
+          {/* min-w-0: beside a teacher's "Identity verified" tick (a non-shrinking flex sibling) a long name must clamp,
+              not push the row's chips out — commit gate, 2026-10-16. Harmless on every other row. */}
+          <h4 className="line-clamp-2 min-w-0 text-sm font-medium leading-snug text-foreground group-hover:underline">
             {displayTitle}
           </h4>
+          {/* "Identity verified" (owner, 2026-10-15) — the card's tick, right after the name it vouches for, on the first
+              line (`items-start` + the glyph's 2px drop); a marked TEACHER row only, from the server's boolean. Before the
+              chips, which hang `ml-auto` off the right edge as before. */}
+          {teacher && l.identityMark === true && <IdentityVerifiedMark className="mt-0.5" />}
           {/* ⚠️ THE RING NEEDS A NAME, AND THIS ROW SHIPPED WITHOUT ONE. The gold ring on the
               thumbnail is an `::after` overlay, and pseudo-element content is never announced —
               so for a screen-reader user, and for the ~8% of men who read this gold as a

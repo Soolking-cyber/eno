@@ -29,6 +29,11 @@ const h = vi.hoisted(() => ({
   tiers: {} as Record<string, string>,
   tierReads: [] as string[],
   tierThrows: false,
+  // "Identity verified" (src/lib/teachers/identity-mark.ts identityMarkShownFor): its answer, whether it throws, and the
+  // input each read was for.
+  markShown: false,
+  markThrows: false,
+  markReads: [] as Array<Record<string, unknown>>,
 }))
 
 vi.mock('next/server', async (orig) => {
@@ -51,6 +56,16 @@ vi.mock('@/lib/messages', () => ({ MESSAGE_ROW_SELECT: {}, serializeMessage: (m:
 vi.mock('@/lib/storefront-gone', () => ({ isPublicListing: () => true, isStorefrontGone: async () => false }))
 // The writer's public verification (its own rules — a revoked identity, the badge — are writer-verified.test.ts's) — what
 // the TEACHER's side shows as `writerVerified`.
+// The teacher's opt-in "Identity verified" (its rules — the zero-read short-circuit, the live check — are
+// identity-mark.test.ts's) — what the SCHOOL's side shows as `teacherIdentityVerified`.
+vi.mock('@/lib/teachers/identity-mark', () => ({
+  IDENTITY_MARK_TP_SELECT: { profileId: true, fullName: true, identityMarkOn: true, identityMarkNoticeVersion: true },
+  identityMarkShownFor: async (m: Record<string, unknown>) => {
+    h.markReads.push(m)
+    if (h.markThrows) throw new Error('identity read down')
+    return h.markShown
+  },
+}))
 vi.mock('@/lib/teachers/writer-verified', () => ({
   writerVerified: async (profileId: string) => {
     h.tierReads.push(profileId)
@@ -105,6 +120,9 @@ beforeEach(() => {
   h.tiers = {}
   h.tierReads = []
   h.tierThrows = false
+  h.markShown = false
+  h.markThrows = false
+  h.markReads = []
 })
 
 describe('?opened=1 clears this thread\'s bell — and only the caller\'s rows', () => {
@@ -356,5 +374,69 @@ describe('the answer names the account it was read for (F5)', () => {
         expect(body.me).toBe(who)
       }
     }
+  })
+})
+
+/**
+ * …AND THE MIRROR, FOR THE SCHOOL (owner, 2026-10-15): the TEACHER's opt-in "Identity verified", asked of the one
+ * predicate (identityMarkShownFor) about the teacher's own four inputs — never the caller's. Only a boolean leaves: no
+ * reason, name, version or account id. The teacher's own read carries no such key and pays no read; nor does any other
+ * thread, nor a stranger. A failed read is false, and the thread still opens.
+ */
+describe('a teacher thread — teacherIdentityVerified, for the school only', () => {
+  const TP = { status: 'live', videoOnRequest: false, private: { videoPath: null, phone: null }, profileId: 'seller-1', fullName: 'Anna Eriksson', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16' }
+  const teacherThread = () => thread({ listing: { ...thread().listing as Row, listingType: 'teacher', teacherProfile: { ...TP } } })
+  beforeEach(() => { h.convo = teacherThread() })
+
+  it('the school gets the predicate\'s boolean — read about the TEACHER, with exactly the four inputs', async () => {
+    for (const shown of [true, false]) {
+      h.markShown = shown
+      h.markReads = []
+      const { status, body } = await get()
+      expect(status).toBe(200)
+      expect(body.teacher.teacherIdentityVerified).toBe(shown)
+      expect(h.markReads).toEqual([{ profileId: 'seller-1', fullName: 'Anna Eriksson', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16' }])
+    }
+    // The writer's own verification is the teacher's view, and it is not paid for here.
+    expect(h.tierReads).toEqual([])
+  })
+  it('⛔ only a boolean leaves: no reason, name, version or account id of the teacher', async () => {
+    h.markShown = true
+    const { body } = await get()
+    expect(typeof body.teacher.teacherIdentityVerified).toBe('boolean')
+    const json = JSON.stringify(body)
+    expect(json).not.toContain('Anna Eriksson')
+    // The version as a WHOLE JSON value — a bare '2026-10-16' also matches any timestamp of that day (`seenAsOf`), which
+    // failed this test on the version's own date.
+    expect(json).not.toContain('"2026-10-16"')
+    expect(json).not.toMatch(/identityMarkOn|identityMarkNoticeVersion|"reason"|notice_changed|name_mismatch/)
+  })
+  it('a failed read fails soft: false, and the thread opens', async () => {
+    h.markThrows = true
+    const { status, body } = await get()
+    expect(status).toBe(200)
+    expect(body.teacher.teacherIdentityVerified).toBe(false)
+  })
+  it('the teacher\'s own read carries no such key — and pays no read', async () => {
+    h.me = 'seller-1'
+    h.markShown = true
+    const { status, body } = await get()
+    expect(status).toBe(200)
+    expect('teacherIdentityVerified' in body.teacher).toBe(false)
+    expect(h.markReads).toEqual([])
+  })
+  it('an ordinary thread pays no read on either side', async () => {
+    for (const who of ['buyer-1', 'seller-1']) {
+      h.me = who
+      h.convo = thread()
+      const { body } = await get()
+      expect(body.teacher).toBeNull()
+    }
+    expect(h.markReads).toEqual([])
+  })
+  it('a stranger is refused (403) before any read', async () => {
+    h.me = 'stranger-9'
+    expect((await get()).status).toBe(403)
+    expect(h.markReads).toEqual([])
   })
 })

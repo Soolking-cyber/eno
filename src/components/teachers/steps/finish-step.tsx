@@ -12,8 +12,13 @@
 //     transfer abroad. ⛔ Its meaning is AI_NOTICE_VERSION (profile.ts): the form sends it as `aiNotice` whenever an
 //     opt-in is on, and the server stamps it on the opt-in — change what the note says the AI receives, who runs it or
 //     where, and that version must be bumped in the same change.
+//   · Every teacher: "Show “Identity verified” on my profile" (owner, 2026-10-15) — a SWITCH WITH ITS OWN CONSENT, OFF by
+//     default, beside its notice (IdentityMarkNote — ⛔ its meaning is IDENTITY_MARK_NOTICE_VERSION). It saves ON TOGGLE
+//     through its own endpoint, never with the profile (teacher-form.tsx; the rules: ../identity-mark-switch.ts), so it
+//     can be switched on only once a profile exists. One line says what holds the mark back, from the server's reason.
 //   · Edit only: "Show my profile to schools" (saves at once) and Delete.
 // Publish itself — the tap that is the consent — and its notice live in the action bar (teacher-form.tsx).
+// ⛔ iOS (`ios-hide-kyc`): every "Verify my identity" here is plain text naming the website, never a link.
 
 import Link from 'next/link'
 import { useLanguage } from '@/context/language-context'
@@ -34,6 +39,9 @@ import { SwitchRow } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { IDENTITY_VERIFY_PATH, identityBlockAction, identityBlockMessage } from '@/lib/identity-block-copy'
 import { RADIO_CARD, type StepProps } from '@/components/teachers/steps/shared'
+import { IosVerifyElsewhereNote, iosVerifyElsewhereText } from '@/components/marketplace/ios-browser-only-note'
+import { useIosHideKyc } from '@/hooks/use-ios-hide-kyc'
+import { markLineReason, markNoticeLine, markTrustLine, type MarkSwitch } from '@/components/teachers/identity-mark-switch'
 
 export type FinishMedia = {
   busy: '' | 'photo' | 'video' | 'saving'
@@ -68,6 +76,17 @@ export type FinishEdit = {
   onDelete: () => void
 }
 
+/** The "Identity verified" switch as the form holds it (teacher-form.tsx), with its save. */
+export type FinishIdentityMark = MarkSwitch & {
+  /** A profile exists, so the switch can be saved — its endpoint needs one (edit mode). A new profile publishes first. */
+  canSave: boolean
+  /** A toggle is on its way: the switch shows the last answer until the next one lands (never an optimistic ON). */
+  busy: boolean
+  /** The line after a refusal or a failure — '' for none. */
+  message: '' | 'reload' | 'changed' | 'rate_limited' | 'failed' | 'unknown'
+  onToggle: (next: boolean) => void
+}
+
 /**
  * THE AI NOTE — ⛔ ITS MEANING IS AI_NOTICE_VERSION (src/lib/teachers/profile.ts): what it says the AI receives, who runs
  * it and where is what the opt-ins are stamped with, so changing that means bumping the version in the same change. The
@@ -85,7 +104,88 @@ export function AiNote() {
   )
 }
 
-export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGate, prefillAvatar, prefillPhone, media, edit, optInsNoticeChanged }: Pick<StepProps, 't' | 'set' | 'errors' | 'errText' | 'mode'> & {
+/**
+ * THE "IDENTITY VERIFIED" NOTICE — ⛔ ITS MEANING IS IDENTITY_MARK_NOTICE_VERSION (src/lib/teachers/constants.ts): this is
+ * the text the switch-on consents to, and the version the save stamps (publish.ts saveTeacherIdentityMark). It names what
+ * shows, WHERE — the profile, its card in lists, and to the people who message the teacher about the profile — to whom,
+ * on which conditions, that the document never shows, and what switching it off does. Change any of that and the version
+ * must be bumped in the same change (a bump hides every older grant until it is given again). Wording: the copy review's
+ * M7, with the plan review's R5 — "within a few minutes", never "at once": the profile's HTML is edge-cached (fresh 300 s,
+ * then served stale while it revalidates) and /api/listings for 60 s plus 300 s stale.
+ * The switch's DESCRIPTION (SwitchRow — read with it, never a tap target), as the cover switch's notice is.
+ */
+export function IdentityMarkNote() {
+  const { tr } = useLanguage()
+  return (
+    <span data-testid="identity-mark-note">
+      {tr('Off unless you switch it on. While it’s on, “Identity verified” shows on your profile and on its card in lists — to anyone who can see them, schools, other members and search engines included — and to the people who message you about your profile, but only while your check is current and the name on your profile matches your ID. Never your document or anything on it. Switching it off removes it within a few minutes; search engines may show the old page until they visit again.', 'Mặc định tắt. Khi bật, nhãn “Đã xác minh danh tính” hiển thị trên hồ sơ và trên thẻ hồ sơ trong các danh sách — với bất kỳ ai xem được, kể cả các trường, các thành viên khác và công cụ tìm kiếm — và với những người nhắn tin cho bạn về hồ sơ, nhưng chỉ khi việc xác minh còn hiệu lực và họ tên trên hồ sơ khớp với giấy tờ. Không bao giờ hiển thị giấy tờ hay bất kỳ thông tin nào trên đó. Khi bạn tắt, nhãn được gỡ trong vòng vài phút; công cụ tìm kiếm có thể vẫn hiển thị trang cũ cho đến lần truy cập tiếp theo.')}
+    </span>
+  )
+}
+
+/**
+ * The switch, its notice and the ONE line that says what holds the mark back (owner, 2026-10-15). Every line comes from
+ * the server's reason (src/lib/teachers/identity-mark.ts — the identity first: no switch can make an expired ID current)
+ * and none is guessed when the reason is not known. The trust line only while the identity check is LIVE: the +10 is
+ * the account's whether or not the mark shows.
+ * ⛔ The words are only ever "Identity verified" / "Đã xác minh danh tính" and "xác minh" — never "xác thực".
+ */
+export function IdentityMarkSection({ mark }: { mark: FinishIdentityMark }) {
+  const { tr } = useLanguage()
+  const hideKyc = useIosHideKyc()
+  const reason = markLineReason(mark)
+  /** "Verify my identity" — a new tab on the web (the form stays open), plain text naming the website in the iOS app. */
+  const verify = (line: string) => hideKyc
+    ? <><p className="text-sm text-body">{line}</p><IosVerifyElsewhereNote kind="identity" /></>
+    : <p className="text-sm text-body">{line}{' '}<a href={IDENTITY_VERIFY_PATH} target="_blank" rel="noopener" className="font-semibold underline">{tr('Verify my identity', 'Xác minh danh tính')}</a></p>
+  const message = mark.message === 'reload'
+    ? tr('Some of the wording on this page has changed since you opened it. Reload the page to read it, then switch it on again.', 'Một số nội dung trên trang đã thay đổi kể từ khi bạn mở. Hãy tải lại trang để đọc, rồi bật lại.')
+    : mark.message === 'changed'
+      ? tr('This switch was changed in another window. It now shows what is saved — switch it on again if you want to.', 'Công tắc này đã được thay đổi ở một cửa sổ khác. Công tắc giờ hiển thị trạng thái đã lưu — hãy bật lại nếu bạn muốn.')
+      : mark.message === 'rate_limited'
+        ? tr('Too many requests — please try again in a few minutes.', 'Quá nhiều yêu cầu — vui lòng thử lại sau vài phút.')
+        : mark.message === 'failed'
+          ? tr('Could not save the switch. Please try again.', 'Không lưu được công tắc. Vui lòng thử lại.')
+          // The fresh read after a conflict or a failure did not land either: nothing is claimed about the switch.
+          : mark.message === 'unknown'
+            ? tr('Could not check the switch. Reload the page to see what is saved.', 'Không kiểm tra được công tắc. Hãy tải lại trang để xem trạng thái đã lưu.')
+            : ''
+  return (
+    <section className="space-y-3" data-identity-mark-section="">
+      <SwitchRow
+        id="tf-identity-mark"
+        checked={mark.on}
+        // Never disabled once there is a profile: a switch-off (a withdrawal) is never blocked. A toggle while one is on
+        // its way is dropped — the switch flips only when the server has answered.
+        onChange={mark.canSave ? (next) => { if (!mark.busy) mark.onToggle(next) } : undefined}
+        disabled={!mark.canSave}
+        label={tr('Show “Identity verified” on my profile', 'Hiển thị “Đã xác minh danh tính” trên hồ sơ')}
+        description={<IdentityMarkNote />}
+      />
+      {!mark.canSave && <p className="text-sm text-muted-foreground">{tr('You can switch this on after you publish your profile.', 'Bạn có thể bật mục này sau khi đăng hồ sơ.')}</p>}
+      {mark.busy && <p role="status" className="text-xs text-muted-foreground">{tr('Saving…', 'Đang lưu…')}</p>}
+      {message && (mark.message === 'failed' || mark.message === 'unknown'
+        ? <p role="alert" className="text-sm text-destructive">{message}</p>
+        : <p role="status" className="rounded-xl bg-tint px-3.5 py-2.5 text-sm text-body">{message}</p>)}
+      {markNoticeLine(mark) && (
+        <p role="status" className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">
+          {tr('What this switch does has changed since you turned it on. Switch it on again to keep showing it.', 'Nội dung của tùy chọn này đã thay đổi kể từ khi bạn bật. Hãy bật lại để tiếp tục hiển thị.')}
+        </p>
+      )}
+      {reason === 'unverified' && verify(tr('Verify your identity first — eno’s team checks an ID document and a selfie.', 'Hãy xác minh danh tính trước — đội ngũ eno kiểm tra giấy tờ tùy thân và ảnh chân dung.'))}
+      {reason === 'pending' && <p className="text-sm text-body">{tr('eno’s team is checking your ID. It shows once approved.', 'Đội ngũ eno đang kiểm tra giấy tờ của bạn. Nhãn sẽ hiển thị khi được duyệt.')}</p>}
+      {reason === 'expired' && verify(tr('Not showing: your verified ID has expired. Verify your renewed document to show it again.', 'Chưa hiển thị: giấy tờ đã xác minh của bạn đã hết hạn. Hãy xác minh giấy tờ mới để hiển thị lại.'))}
+      {reason === 'no_name' && verify(tr('Not showing: we have no name on record from your ID. Verify your document again to show it.', 'Chưa hiển thị: chúng tôi chưa có họ tên từ giấy tờ của bạn. Hãy xác minh lại giấy tờ để hiển thị.'))}
+      {reason === 'name_mismatch' && <p className="text-sm text-body">{tr('Not showing: the name on your profile doesn’t match your verified ID. Use your name as it is on your ID — you can leave out middle names.', 'Chưa hiển thị: tên trên hồ sơ không khớp với giấy tờ đã xác minh. Hãy dùng tên như trên giấy tờ — có thể bỏ tên đệm.')}</p>}
+      {reason === 'revoked' && <p className="text-sm text-body">{tr('Not available for this account. Contact support if you think this is a mistake.', 'Không khả dụng cho tài khoản này. Hãy liên hệ bộ phận hỗ trợ nếu bạn cho rằng có nhầm lẫn.')}</p>}
+      {markTrustLine(mark) && (
+        <p className="text-xs text-muted-foreground">{tr('Your verified identity also adds 10 points to your trust score — one of the factors in the order of teacher lists — whether or not you show it.', 'Danh tính đã xác minh cũng cộng 10 điểm vào điểm uy tín của bạn — một trong các yếu tố sắp xếp danh sách giáo viên — dù bạn có hiển thị nhãn hay không.')}</p>
+      )}
+    </section>
+  )
+}
+
+export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGate, prefillAvatar, prefillPhone, media, edit, optInsNoticeChanged, identityMark }: Pick<StepProps, 't' | 'set' | 'errors' | 'errText' | 'mode'> & {
   signedIn: boolean
   publishGate: { ok: boolean; code: string | null } | null
   /** The account's photo when it is stored on eno.vn (a listing photo must be) — offered, never used unasked. */
@@ -96,8 +196,11 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
   edit: FinishEdit | null
   /** The stored opt-ins were given under an older AI notice, so they load OFF: say so beside the switches. */
   optInsNoticeChanged: boolean
+  /** The "Identity verified" switch — its own state and save (teacher-form.tsx). */
+  identityMark: FinishIdentityMark
 }) {
   const { tr } = useLanguage()
+  const hideKyc = useIosHideKyc()
   const gateLine = publishGate && !publishGate.ok ? identityBlockMessage(publishGate.code, tr) : null
   const gateAction = publishGate && !publishGate.ok ? identityBlockAction(publishGate.code) : null
   const jobSeeker = t.jobTypes.length > 0
@@ -109,10 +212,12 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
       {gateLine && (
         <Alert tone="warning" appearance="flat" size="md" icon={<ShieldAlert className="size-4" />}>
           <span className="block">{gateLine}</span>
-          {gateAction === 'verify' && (
+          {gateAction === 'verify' && (hideKyc
+            // ⛔ In the iOS app with `ios-hide-kyc` on: plain text naming the website, never a link (teacher-contact.tsx's
+            // rule; src/lib/ios-hide-kyc.ts) — this link ignored the gate until 2026-10-16.
+            ? <span className="mt-1 block">{iosVerifyElsewhereText('identity', tr)}</span>
             // A new tab: the form — its uploads included — stays open while the teacher verifies (the post wizard's rule).
-            <a href={IDENTITY_VERIFY_PATH} target="_blank" rel="noopener" className="mt-1 inline-block font-semibold underline">{tr('Verify my identity', 'Xác minh danh tính')}</a>
-          )}
+            : <a href={IDENTITY_VERIFY_PATH} target="_blank" rel="noopener" className="mt-1 inline-block font-semibold underline">{tr('Verify my identity', 'Xác minh danh tính')}</a>)}
         </Alert>
       )}
 
@@ -248,6 +353,9 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
         <FieldDescription className="text-muted-foreground">{tr('Never shown publicly. The person you are chatting with gets it only when you tap the Share button in that chat — and our staff use it only if you let them call you.', 'Không bao giờ công khai. Người bạn đang trò chuyện chỉ nhận được khi bạn bấm nút Chia sẻ trong tin nhắn với họ — và nhân viên của chúng tôi chỉ dùng khi bạn cho phép gọi.')}</FieldDescription>
         {errors.phone && <FieldError>{errText('phone', errors.phone)}</FieldError>}
       </Field>
+
+      {/* "IDENTITY VERIFIED" — for every teacher, job seeker or cover only (owner, 2026-10-15). */}
+      <IdentityMarkSection mark={identityMark} />
 
       {jobSeeker && (
         <Fieldset legend={tr('Job matches (optional)', 'Gợi ý việc làm (không bắt buộc)')} className="space-y-3">

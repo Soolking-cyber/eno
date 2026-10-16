@@ -425,6 +425,20 @@ describe('⛔ the "Identity verified" switch is never the profile save\'s — bu
     expect(cardValues()).toEqual([[null, 'L1', null, null, 'removed']])
     expect(Object.keys(profileWrite().update).filter((k) => k.startsWith('identityMark'))).toEqual([])
   })
+  // ⚖️ THE NAME THE TICK VOUCHES FOR (2026-10-16): a card prints its listing's `title` beside the tick (serialize.ts), and
+  // this save is the ONE writer of a teacher row's title (every generic editor refuses it — core/listings.ts
+  // updateListingCore, listings.teacher-edit.test.ts). So the title it writes must BE the name it judged the tick on.
+  it('⚖️ the listing title written IS the profile name the tick was judged on — shown, and after a rename the ID carries', async () => {
+    h.existing = existing(switchedOn)
+    h.identity = [{ ...VERIFIED, evidence: { decisionInput: { surname: 'DOE', givenNames: 'JANE MARY' } } }]
+    for (const fullName of ['Jane Doe', 'Jane Mary Doe']) {
+      h.listingWrites = []; h.profileWrites = []; tx.$executeRaw.mockClear()
+      await edit(body({ fullName }))
+      expect(listingData().title, fullName).toBe(fullName)
+      expect(profileWrite().update.fullName, fullName).toBe(fullName)
+      expect(cardValues(), fullName).toEqual([[IDENTITY_MARK_NOTICE_VERSION, 'L1', IDENTITY_MARK_NOTICE_VERSION, IDENTITY_MARK_NOTICE_VERSION, 'removed']])
+    }
+  })
   it('the switch on under an OLDER notice shows nothing — no identity read, the card cleared', async () => {
     h.existing = existing({ ...switchedOn, identityMarkNoticeVersion: '2026-10-01' })
     h.identity = [VERIFIED]

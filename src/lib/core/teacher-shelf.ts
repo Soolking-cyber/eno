@@ -30,8 +30,10 @@ import type { SerializedListingCard } from '@/lib/types'
  * others, `en` included — no translation is embedded and no client request is made (review, 2026-10-13).
  * localizeListingTitles is not called (it could only add translations to overwrite), and a stored titleVi is overwritten
  * too: no teacher code writes one (projection.ts), so it could only be a bulk title translation.
- * ⚠️ /c/teachers renders the same cards UNPINNED (pre-existing): the fix there belongs in ListingCard, a landmine file —
- * a separate change.
+ * Since 2026-10-16 the card itself pins every teacher's name as well (listing-card.tsx and compact-listing-row.tsx read
+ * a teacher card's `title` as stored and ask useLocalized for nothing), so /c/teachers, Show-more, the explorer and the
+ * storefronts print the name as typed too — the "Identity verified" tick sits beside it. The embed here stays, the
+ * same pin from the server's side.
  * Cost: one findMany of at most TAKE + 2 rows on the [verified, status, categoryId, sellerId] index; ten more copies of
  * each name in the page's RSC payload (eight cards ≈ 2 KB, less the cached translations it no longer carries).
  */

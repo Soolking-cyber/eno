@@ -6,6 +6,7 @@ import { isCommissionLink } from './affiliate-commission'
 import { categoryDescriptionFor, takesOffers } from './taxonomy'
 import type { SerializedListing, SerializedListingCard, SerializedCategory, CategoryColor } from './types'
 import { storefrontAvatarUrl } from '@/lib/storefront-avatar'
+import { IDENTITY_MARK_NOTICE_VERSION, TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
 
 export function safeParse<T>(value: string | null, fallback: T): T {
   if (!value) return fallback
@@ -194,6 +195,13 @@ export const LISTING_CARD_SELECT = {
    * already reads. Every other listing's attributes stop here.
    */
   attributes: true,
+  /**
+   * ⛔ READ FOR ONE BOOLEAN, NEVER SHIPPED (owner, 2026-10-15): the teacher card's "Identity verified" display cache —
+   * the IDENTITY_MARK_NOTICE_VERSION under which src/lib/teachers/identity-mark-card.ts last computed the mark SHOWN, or
+   * NULL. serializeListingCard turns it into `identityMark: true` on a teacher card under today's notice and drops it
+   * otherwise; the version string never leaves the server. Null on every other listing.
+   */
+  identityMarkNotice: true,
   category: { select: { id: true, name: true, nameVi: true, slug: true, icon: true, color: true } },
   // `ownerId` is read for ONE boolean (`unrated`, src/lib/linked-seller.ts) and never leaves the server:
   // it is a real person's account UUID on every storefront a human owns.
@@ -215,6 +223,9 @@ type ListingCardRow = {
   listingType?: string
   /** Raw attributes JSON — read for a job's `jobtype` only. Optional: a hand-built row without it shows today's label. */
   attributes?: string | null
+  /** The "Identity verified" display cache (see LISTING_CARD_SELECT) — read for `identityMark` only. Optional: a
+   *  hand-built row without it shows no tick (fails closed). */
+  identityMarkNotice?: string | null
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
   /** `ownerId` REQUIRED, so a card query that forgets it fails to compile instead of showing every
    *  ownerless storefront's default 100 as a trust chip. */
@@ -258,6 +269,19 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     listingType: l.listingType,
     // Only a job carries it, so no other card's payload grows (see LISTING_CARD_SELECT.attributes).
     ...(l.listingType === 'job' ? { jobType: cardJobType(l.attributes) } : {}),
+    /**
+     * ⛔ "IDENTITY VERIFIED" — A BOOLEAN, AND ONLY ON A TEACHER CARD UNDER TODAY'S NOTICE (owner, 2026-10-15). The cache
+     * holds the notice version the mark was last computed SHOWN under (identity-mark-card.ts, its one writer); an older
+     * version — a notice bump — or NULL shows nothing, with no data migration. Never `false` (an absent key costs no
+     * other card a byte), and never the version, a reason or anything about the document.
+     * ⚖️ THE NAME IT VOUCHES FOR: the card prints this row's `title`, and a teacher row's title IS the TeacherProfile's
+     * fullName — written only by the teacher save (publish.ts saveTeacherProfile), in the transaction that re-derives
+     * this cache from that same name under the teacher lock. Every generic editor refuses a teacher row
+     * (core/listings.ts updateListingCore — dashboard, /api/v1, sync, MCP), and the card shows that title as stored,
+     * never a translation of it (listing-card.tsx, compact-listing-row.tsx). So the tick never sits beside a name the
+     * mark was not judged on.
+     */
+    ...(l.listingType === TEACHER_LISTING_TYPE && l.identityMarkNotice === IDENTITY_MARK_NOTICE_VERSION ? { identityMark: true as const } : {}),
     currency: l.currency,
     negotiable: takesOffers(l), // never on a job — see serializeListing
     prevPrice: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price),

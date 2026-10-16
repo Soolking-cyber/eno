@@ -64,3 +64,51 @@ describe('renderIdentityOutcomeEmail', () => {
     expect(m.html).toContain('https://eno.forum/dashboard/verification')
   })
 })
+
+// ⚖️ A TEACHER'S APPROVAL (owner, 2026-10-15): one sentence about the opt-in "Identity verified" mark, a button to the
+// switch (/teachers/edit?step=finish — never the verify flow), and no "selling" signoff. Everyone else: unchanged.
+describe('renderIdentityOutcomeEmail — a teacher', () => {
+  it('the mark shows: the sentence, the button to the switch, no signoff', () => {
+    const m = renderIdentityOutcomeEmail({ ...base, outcome: 'approved', reason: null, note: null, lang: 'en', teacher: { line: 'now' } })
+    expect(m.text).toContain('“Identity verified” now shows on your teacher profile.')
+    expect(m.html).toContain('https://eno.forum/teachers/edit?step=finish')
+    expect(m.html).toContain('Update my teacher profile')
+    expect(m.html).not.toContain('/dashboard/verification')
+    expect(m.text).not.toContain('Thanks for selling')
+    expect(m.html).not.toContain('Thanks for selling')
+    expect(m.subject).toBe('Your identity is verified on eno.forum')
+  })
+  it('not shown: "You can now show … — switch it on in Photo & publish."', () => {
+    const m = renderIdentityOutcomeEmail({ ...base, outcome: 'approved', reason: null, note: null, lang: 'en', teacher: { line: 'can' } })
+    expect(m.text).toContain('You can now show “Identity verified” on your teacher profile — switch it on in Photo & publish.')
+    expect(m.text).toContain('https://eno.forum/teachers/edit?step=finish')
+  })
+  // Commit gate, 2026-10-16: the NAME holds it back (not within the ID, say) — never "switch it on".
+  it('the name holds it back: "… is not showing on your teacher profile yet — see why in Photo & publish."', () => {
+    const m = renderIdentityOutcomeEmail({ ...base, outcome: 'approved', reason: null, note: null, lang: 'en', teacher: { line: 'notYet' } })
+    expect(m.text).toContain('“Identity verified” is not showing on your teacher profile yet — see why in Photo & publish.')
+    expect(m.text).not.toContain('switch it on')
+    expect(m.text).toContain('https://eno.forum/teachers/edit?step=finish')
+    const vi = renderIdentityOutcomeEmail({ ...base, outcome: 'approved', reason: null, note: null, lang: 'vi', teacher: { line: 'notYet' } })
+    expect(vi.text).toContain('Nhãn “Đã xác minh danh tính” chưa hiển thị trên hồ sơ giáo viên của bạn — xem lý do trong bước Ảnh & đăng.')
+  })
+  it('in Vietnamese: the curated sentence and button — "xác minh", never "xác thực"', () => {
+    const m = renderIdentityOutcomeEmail({ ...base, outcome: 'approved', reason: null, note: null, lang: 'vi', teacher: { line: 'can' } })
+    expect(m.text).toContain('Giờ bạn có thể hiển thị “Đã xác minh danh tính” trên hồ sơ giáo viên — bật trong bước Ảnh & đăng.')
+    expect(m.html).toContain('Cập nhật hồ sơ giáo viên')
+    expect(m.text).not.toContain('Cảm ơn bạn đã bán hàng')
+    expect(m.html + m.text).not.toContain('xác thực')
+  })
+  it('a refusal ignores it — and every non-teacher email is what it was', () => {
+    const refused = renderIdentityOutcomeEmail({ ...base, outcome: 'rejected', reason: 'manual', note: 'Blurred', lang: 'en', teacher: { line: 'now' } })
+    expect(refused.text).not.toContain('Identity verified')
+    expect(refused.html).toContain('https://eno.forum/dashboard/verification')
+    expect(refused.text).toContain('Thanks for selling on eno.forum.')
+    const plain = renderIdentityOutcomeEmail({ ...base, outcome: 'approved', reason: null, note: null, lang: 'en' })
+    const nulled = renderIdentityOutcomeEmail({ ...base, outcome: 'approved', reason: null, note: null, lang: 'en', teacher: null })
+    expect(nulled).toEqual(plain)
+    expect(plain.text).toContain('Thanks for selling on eno.forum.')
+    expect(plain.html).toContain('Open verification')
+    expect(plain.text).not.toContain('Identity verified')
+  })
+})

@@ -88,6 +88,9 @@ const ON_ARRIVAL = [
   // The home page's "Find a teacher" shelf (2026-10-13): in the SSR HTML of '/', so its header glyph and door arrow paint
   // on arrival — User and ArrowRight, never the plate's UserRound or a GraduationCap.
   'src/components/marketplace/teacher-shelf.tsx',
+  // The teacher card's "Identity verified" tick (2026-10-16): drawn by ListingCard (and the compact row) beside a marked
+  // teacher's name, so on the home shelf, /c/teachers and the storefronts it paints on arrival — BadgeCheck, core.
+  'src/components/marketplace/identity-verified-mark.tsx',
 ]
 
 function iconImports(file: string): string[] {

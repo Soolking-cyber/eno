@@ -24,7 +24,9 @@ import { availableStart, homeLocationName, livesInLine, publicSituation, teachAr
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Check, Lock } from '@/components/ui/icons'
+import { Badge } from '@/components/ui/badge'
+import { BadgeCheck, Check, Lock } from '@/components/ui/icons'
+import { identityMarkShownFor } from '@/lib/teachers/identity-mark'
 import { COVER_CONSENT_VERSION, COVER_DAYS, COVER_PARTS, COVER_PART_LABELS, coverAreaLabel, coverSlotLabel } from '@/lib/teachers/cover'
 import { CoverDayShort } from '@/components/teachers/cover-day'
 import { formatCalendarDay } from '@/lib/calendar-day'
@@ -104,12 +106,32 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
       teachLanguages: true, englishLevel: true, experienceBand: true,
       coverOpen: true, coverSlots: true, coverRateVnd: true, coverConfirmedAt: true, coverConsentVersion: true,
       videoOnRequest: true, private: { select: { videoPath: true } },
+      // "Identity verified" (owner, 2026-10-15): read for ONE boolean below (identityMarkShownFor), never rendered —
+      // split off with `private`, so `tp` never carries them (the account id least of all).
+      profileId: true, identityMarkOn: true, identityMarkNoticeVersion: true,
     },
   })
   // ⛔ Only THAT a private intro video exists leaves this query (2026-10-07) — its storage path is never rendered, put in
-  // the JSON-LD or handed to a client component, so it is split off here, before `tp` is used anywhere.
-  const { private: tpPrivate, ...tpPublic } = tpRow ?? { private: null }
-  const tp = tpRow ? (tpPublic as Omit<NonNullable<typeof tpRow>, 'private'>) : null
+  // the JSON-LD or handed to a client component, so it is split off here, before `tp` is used anywhere. The mark's three
+  // inputs go the same way.
+  const { private: tpPrivate, profileId: _profileId, identityMarkOn: _markOn, identityMarkNoticeVersion: _markVersion, ...tpPublic } = tpRow ?? { private: null, profileId: null, identityMarkOn: false, identityMarkNoticeVersion: null }
+  const tp = tpRow ? (tpPublic as Omit<NonNullable<typeof tpRow>, 'private' | 'profileId' | 'identityMarkOn' | 'identityMarkNoticeVersion'>) : null
+  /**
+   * "IDENTITY VERIFIED" — THE PROFILE LINE (owner, 2026-10-15): shown while the teacher has switched the mark on under
+   * today's notice, their identity check is LIVE and the name above is within the ID's (src/lib/teachers/identity-mark.ts
+   * — the one predicate every surface asks). Zero identity reads unless the switch is on. Only the boolean leaves.
+   * ⛔ THE ONE CLOCK READ ON THIS ISR PAGE — correct only because every input that moves it purges the page: the switch
+   * (saveTeacherIdentityMark), a rename (saveTeacherProfile), approval and revocation (identity-effects), and the clock
+   * itself — a document lapses at 00:00 ICT and the card pass at 00:05 ICT purges every teacher whose switch is on
+   * (/api/cron/identity-marks; the 09:05 reconcile again). ⚠️ FAILS CLOSED: a read that throws hides the line.
+   * ⛔ Nothing of it goes into the JSON-LD.
+   */
+  const identityShown = tpRow
+    ? await identityMarkShownFor({
+      profileId: tpRow.profileId, fullName: tpRow.fullName,
+      identityMarkOn: tpRow.identityMarkOn, identityMarkNoticeVersion: tpRow.identityMarkNoticeVersion,
+    }, new Date()).catch(() => false)
+    : false
   // ⛔ PRIVACY WINS (video.ts, the planner's both-homes rule) — on the teacher's CHOICE alone: a teacher who keeps their video
   // private is shown no public player even if a stale public URL survives somewhere (only a deploy window can leave one),
   // with or without a private video stored (gate review, 2026-10-07). The on-request line needs one stored.
@@ -214,6 +236,24 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
                 />
               )}
             </header>
+
+            {/* "IDENTITY VERIFIED" (owner, 2026-10-15) — full width under the header, never beside the h1 (at 320px the
+                name column is ~128px). The label and ONE sentence on exactly what was checked and what was not; never the
+                tier, the document, its number or its expiry. BadgeCheck: the card's own glyph — one claim, one glyph. */}
+            {identityShown && (
+              <div data-identity-line="" className="flex flex-col gap-2 rounded-2xl bg-tint p-4 sm:flex-row sm:items-start sm:gap-3">
+                <Badge variant="success" size="md" className="self-start">
+                  <BadgeCheck aria-hidden className="h-3.5 w-3.5" />
+                  <Bilingual en="Identity verified" vi="Đã xác minh danh tính" />
+                </Badge>
+                <p className="text-sm text-body">
+                  <Bilingual
+                    en="eno’s team checked this teacher’s ID document and a selfie, and the name above matches that ID. Nationality, qualifications and work permits are as the teacher states. Ask to see documents before hiring."
+                    vi="Đội ngũ eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên này; tên ở trên khớp với giấy tờ đó. Quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai — hãy đề nghị xem giấy tờ trước khi tuyển dụng."
+                  />
+                </p>
+              </div>
+            )}
 
             {/* COVER LESSONS — first after the name, because a school arriving from the cover filter came for exactly
                 this. ⛔ The rate is display only, never JSON-LD (a person is not an Offer — jsonld.ts). Dates are a plain

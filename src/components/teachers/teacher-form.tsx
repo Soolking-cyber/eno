@@ -46,7 +46,8 @@ import { WhereStep } from '@/components/teachers/steps/where-step'
 import { TeachingStep } from '@/components/teachers/steps/teaching-step'
 import { AboutStep } from '@/components/teachers/steps/about-step'
 import { CoverStep } from '@/components/teachers/steps/cover-step'
-import { FinishStep } from '@/components/teachers/steps/finish-step'
+import { FinishStep, type FinishIdentityMark } from '@/components/teachers/steps/finish-step'
+import { NO_MARK, markAfterSave, markFromMe, markRequest, type MarkSwitch } from '@/components/teachers/identity-mark-switch'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import { PushOptInCard } from '@/components/marketplace/push-opt-in-card'
 import { revalidateDashboard } from '@/hooks/use-dashboard'
@@ -330,6 +331,21 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   const failedWhy = useRef<'session' | 'refused'>('refused')
   // Edit: a stored consent given under an OLDER notice — loaded OFF, so it is given again under today's words (D5).
   const [reconfirm, setReconfirm] = useState({ cover: false, optIns: false })
+  /**
+   * ⛔ "IDENTITY VERIFIED" (owner, 2026-10-15) — THE SWITCH'S OWN STATE, NEVER IN `t` (plan review R2): it is not part of
+   * the profile, a draft or the profile save's body, and it saves ON TOGGLE through PUT /api/teachers/me/identity-mark
+   * (toggleMark). `mark` is always the server's last word — the GET, or the last toggle's answer; never ahead of it. Its
+   * notice-changed line is its own too: a full save never re-consents to it (nor withdraws it), so `reconfirm` does not
+   * carry it. The rules: identity-mark-switch.ts.
+   */
+  const [mark, setMark] = useState<MarkSwitch>(NO_MARK)
+  const [markBusy, setMarkBusy] = useState(false)
+  const [markMessage, setMarkMessage] = useState<FinishIdentityMark['message']>('')
+  // Every read and toggle takes a ticket, and an answer for an older one is dropped. A re-read asked for while a toggle
+  // is on its way waits for it (markRefreshDue): a toggle's answer is never dropped for a read that began before it.
+  const markSeq = useRef(0)
+  const markBusyRef = useRef(false)
+  const markRefreshDue = useRef(false)
   // Edit: a hand-off's answers were filled in over the saved profile ("Review these answers in my profile"), unsaved —
   // and what saving them would clear from the saved profile, said up front (the edit warning's list, for the batch).
   const [applied, setApplied] = useState<{ fields: DroppedField[]; places: string[] } | null>(null)
@@ -1033,11 +1049,14 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
     if (mode !== 'edit' || authLoading) return
     if (!uid) { setLoaded(true); return }
     let alive = true
+    const ticket = ++markSeq.current
     fetch('/api/teachers/me')
       .then((r) => r.json())
       .then((d) => {
         if (!alive) return
         if (d?.publishGate) setPublishGate(d.publishGate)
+        // The "Identity verified" switch as stored — ON only under today's notice (markFromMe).
+        if (ticket === markSeq.current) setMark(markFromMe(d))
         const tp = d?.teacher
         if (!tp) {
           setNoProfile(true)
@@ -1126,9 +1145,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
   useEffect(() => {
     if (mode !== 'join' || !uid) return
     let alive = true
+    const ticket = ++markSeq.current
     fetch('/api/teachers/me').then((r) => r.json()).then((d) => {
       if (!alive) return
       if (d?.publishGate) setPublishGate(d.publishGate)
+      // No profile yet: the switch cannot be saved (its endpoint needs one), but the line says what would hold it back.
+      if (ticket === markSeq.current) setMark(markFromMe(d))
       if (d?.teacher) setExisting(true)
       else if (d?.prefill) setPrefill(d.prefill)
     }).catch(() => {})
@@ -1391,6 +1413,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
       // No job goal and no cover left: the save went through and HID the profile (plan review D6) — the done screen says so.
       if (d.noGoal === true) setStatus('hidden')
       setDone({ listingId: d.listingId, live: d.live === true, noGoal: d.noGoal === true })
+      // ⚖️ THE NAME IS WHAT "IDENTITY VERIFIED" VOUCHES FOR: a save that renamed the teacher had the mark re-judged on the
+      // server (saveTeacherProfile), so the switch's line is re-read — never left saying what was true of the old name.
+      // ⚠️ AND A FIRST PUBLISH ALWAYS RE-READS (commit gate, 2026-10-16): the state was read before the profile existed
+      // (no name to judge → unknown), so the done screen's "Show “Identity verified”" pointer could never appear for a
+      // verified teacher who has just published.
+      if (mode !== 'edit' || (publicAs?.fullName ?? null) !== t.fullName) void refreshMark()
       setPublicAs({ fullName: t.fullName, headline: t.headline })
       // What schools can see NOW, as the save left it (a moderation or identity hold, the profile hidden): "Share my
       // profile" follows it on a return to the form (commit gate, codex + opus 2026-10-12).
@@ -1409,6 +1437,87 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
         halted.current = false
         if (!refused.current && (tRef.current !== savedT.current || draftStepRef.current !== savedStep.current)) void saveDraftRef.current()
       }
+    }
+  }
+
+  /**
+   * A fresh read of the "Identity verified" switch (GET /api/teachers/me — only its mark fields are taken). `then` speaks
+   * for a toggle waiting on this read (toggleMark): it gets the fresh switch, and only while no later toggle or read has
+   * superseded it; if the read fails, that toggle's line becomes 'unknown' — "could not check, reload" — instead.
+   */
+  const refreshMark = async (then?: (fresh: MarkSwitch) => void) => {
+    if (markBusyRef.current) { markRefreshDue.current = true; return }
+    const ticket = ++markSeq.current
+    // ⚠️ A READ THAT FAILS LEAVES THE STATE UNKNOWN, NEVER STALE (commit gate, 2026-10-16): after a rename or a switch-off
+    // the old line could be false — "adds 10 points" for an identity revoked meanwhile, no mismatch line for a new name —
+    // so a failed read clears it (no state line, no trust line). The switch position and the base stay: they are the
+    // server's last answer, and a stale base is refused by the server (409) rather than trusted.
+    const unknown = () => {
+      if (ticket !== markSeq.current) return
+      setMark((m) => ({ ...m, state: null }))
+      if (then) setMarkMessage('unknown')
+    }
+    try {
+      const r = await fetch('/api/teachers/me')
+      const d = await r.json().catch(() => null)
+      if (!r.ok || !d) return unknown()
+      if (ticket !== markSeq.current) return
+      const fresh = markFromMe(d)
+      setMark(fresh)
+      then?.(fresh)
+    } catch { unknown() }
+  }
+  /**
+   * ⛔ THE "IDENTITY VERIFIED" SWITCH SAVES ON TOGGLE, THROUGH ITS OWN ENDPOINT (plan review R2) — never with the profile,
+   * so a withdrawal is never held up by anything else the profile save could refuse. Edit only: the endpoint needs a
+   * profile (a new one publishes first).
+   *   · ON sends today's notice — the words on screen beside the switch — and the consent stamps this form loaded as the
+   *     compare-and-set base (identity-mark-switch.ts markRequest); OFF sends nothing else and is never refused.
+   *   · The switch moves only on the server's answer (never an optimistic ON); the answer's stamps are the next base.
+   *   · 409 notice_changed (the words changed since this page loaded) or identity_mark_changed (another window moved the
+   *     switch): a calm line and a fresh read — never a retry over a state the teacher has not seen. 429 (ON only): said.
+   * ⛔ A LINE ABOUT WHAT THE SWITCH SHOWS COMES FROM A FRESH READ, NEVER AHEAD OF ONE (commit gate, 2026-10-16). After
+   *   anything but a clean answer — a 409, a failure, an answer that is not the endpoint's — the form re-reads the server
+   *   and the line is said from THAT read: the 409's line once the switch shows what is saved; "could not save" only when
+   *   the server really differs from the request (a response lost after the save committed is no failure — the switch
+   *   simply shows it); and if the read fails too, "could not check — reload", never a claim about a switch nobody read.
+   */
+  const toggleMark = async (on: boolean) => {
+    if (markBusyRef.current || mode !== 'edit') return
+    markBusyRef.current = true
+    const ticket = ++markSeq.current
+    setMarkBusy(true); setMarkMessage('')
+    let reread = false
+    let then: ((fresh: MarkSwitch) => void) | undefined
+    // Not saved — or not KNOWN to be: the fresh read decides whether the server holds what was asked.
+    const unsure = () => { reread = true; then = (fresh) => setMarkMessage(fresh.on === on ? '' : 'failed') }
+    try {
+      const res = await fetch('/api/teachers/me/identity-mark', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(markRequest(on, mark.base)) })
+      const d = await res.json().catch(() => ({}))
+      if (res.ok) {
+        const next = markAfterSave(mark, on, d)
+        if (!next) return unsure() // an answer that is not the endpoint's: read the truth, and say what it shows
+        if (ticket === markSeq.current) setMark(next)
+        // ⚠️ AN OFF'S ANSWER CANNOT SPEAK FOR THE IDENTITY (it reads none — publish.ts), so the lines it keeps are only a
+        // placeholder until a fresh read lands (commit gate): the identity may have changed while this page was open.
+        if (!on) reread = true
+        return
+      }
+      if (res.status === 409 && (d.error === 'notice_changed' || d.error === 'identity_mark_changed')) {
+        const line = d.error === 'notice_changed' ? 'reload' : 'changed'
+        reread = true
+        then = () => setMarkMessage(line)
+        return
+      }
+      // Refused before anything was written (ON only): the switch still shows the server's last answer.
+      if (res.status === 429) return setMarkMessage('rate_limited')
+      unsure()
+    } catch {
+      unsure()
+    } finally {
+      markBusyRef.current = false
+      setMarkBusy(false)
+      if (reread || markRefreshDue.current) { markRefreshDue.current = false; void refreshMark(then) }
     }
   }
 
@@ -1844,6 +1953,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
       ...(!t.bio ? [{ step: 'about' as const, label: tr('Say more about yourself', 'Giới thiệu thêm về bạn') }] : []),
       ...(!t.certificates.length ? [{ step: 'teaching' as const, label: tr('Add your certificates', 'Thêm chứng chỉ') }] : []),
       ...(!t.experience.length ? [{ step: 'teaching' as const, label: tr('Add your teaching jobs', 'Thêm công việc giảng dạy') }] : []),
+      // A new profile whose identity check is already live (`off`: verified, the switch not on): the switch can be saved
+      // now that the profile exists — on Photo & publish in Edit. Never a nudge to verify; never in Edit (the switch is there).
+      ...(mode === 'join' && mark.state?.reason === 'off' ? [{ step: 'finish' as const, label: tr('Show “Identity verified” on my profile', 'Hiển thị “Đã xác minh danh tính” trên hồ sơ') }] : []),
     ]
     // The chat's Share button, by the name the teacher will actually see there (teacher-thread-strip.tsx, amendment A3):
     // with no phone on file it reads "Share my email & CV".
@@ -2024,6 +2136,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
               prefillAvatar={mode === 'join' ? prefill?.avatarUrl ?? null : null}
               prefillPhone={mode === 'join' ? prefill?.phone ?? null : null}
               optInsNoticeChanged={reconfirm.optIns}
+              identityMark={{ ...mark, canSave: mode === 'edit' && !!teacherProfileId, busy: markBusy, message: markMessage, onToggle: (on) => { void toggleMark(on) } }}
               media={{
                 busy, onPhoto: uploadPhoto, onVideo: uploadVideo, privateVideo, savedPublicUrl, ownVideoUrl, ownVideoBusy, videoRemoving,
                 confirmVideoRemove, setConfirmVideoRemove, onWatchOwnVideo: watchOwnVideo, onCloseOwnVideo: () => setOwnVideoUrl(null),
@@ -2117,6 +2230,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, resto
                 <li>{tr('The work you want, when you can start and your expected salary', 'Công việc bạn muốn, thời gian có thể bắt đầu và mức lương mong muốn')}</li>
                 <li>{tr('Your intro video — only if you choose to show it', 'Video giới thiệu — chỉ khi bạn chọn hiển thị')}</li>
                 <li>{tr('Cover lessons — your free periods, hourly rate and where schools find you — only while cover is on', 'Dạy thay — các buổi rảnh, mức phí theo giờ và nơi các trường tìm bạn — chỉ khi đang bật dạy thay')}</li>
+                {/* ⛔ NOT "Identity verified" (commit gate, 2026-10-16): this list is the text PUBLISH_NOTICE_VERSION stands for,
+                    and changing it without a bump breaks the consent rule (profile.ts). The mark is published only by its own
+                    switch, under its own notice beside it (finish-step.tsx IdentityMarkNote). */}
               </ul>
             </div>
             <div className="space-y-2">

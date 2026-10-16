@@ -669,7 +669,11 @@ export async function updateListingCore(
   // ⛔ A tombstone cannot be edited back to life (src/lib/listing-removed.ts).
   if (!current || current.status === LISTING_REMOVED) return { ok: false, code: 404, error: 'not_found' }
   // ⛔ A teacher profile is edited through the teacher form only; to every generic editor it does not exist.
-  if (!isPostableCategory(current.category.slug)) return { ok: false, code: 404, error: 'not_found' }
+  // ⛔ …BY ITS TYPE AS WELL AS ITS CATEGORY (2026-10-16): a teacher card draws "Identity verified" (serialize.ts) beside
+  // the row's title, judged on the name the teacher save writes there in the same transaction (teachers/publish.ts). A
+  // generic edit of that title — dashboard, /api/v1, sync, MCP: they all end here — would put the tick beside a name
+  // nobody checked, so a teacher-typed row is refused however it is filed.
+  if (!isPostableCategory(current.category.slug) || current.listingType === TEACHER_LISTING_TYPE) return { ok: false, code: 404, error: 'not_found' }
   const data: Record<string, unknown> = {}
 
   // ⛔ THE INTENT THIS LISTING WILL HAVE AFTER THE EDIT (validated exactly as the listingType block

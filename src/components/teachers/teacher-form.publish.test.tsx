@@ -22,6 +22,9 @@ const auth = vi.hoisted(() => ({
 }))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
 vi.mock('@/components/marketplace/push-opt-in-card', () => ({ PushOptInCard: () => <div data-testid="push-card" /> }))
+// App Store gate `ios-hide-kyc` — off (the web) unless a test turns it on.
+const ios = vi.hoisted(() => ({ on: false }))
+vi.mock('@/hooks/use-ios-hide-kyc', () => ({ useIosHideKyc: () => ios.on }))
 
 import { TeacherForm } from './teacher-form'
 
@@ -35,6 +38,9 @@ const PHOTO = 'https://sb.eno.vn/storage/v1/object/public/listings/me.webp'
 let calls: Call[] = []
 let putReply: (body: unknown) => { status?: number; json: unknown } = () => ({ json: { listingId: 'L1', teacherProfileId: 'tp1', live: true, noGoal: false, cover: null, video: null } })
 let gate: { ok: boolean; code: string | null } = { ok: true, code: null }
+// GET /api/teachers/me's "Identity verified" state for an account with no profile yet (identity-mark.ts: no name to judge)
+// — not known (null, no line) unless a test says otherwise.
+let markState: { shown: boolean; reason: string | null } | null = null
 
 beforeEach(() => {
   stubBrowser()
@@ -44,9 +50,11 @@ beforeEach(() => {
   auth.markOnboarded = vi.fn()
   history.replaceState(null, '', '/teachers/join')
   gate = { ok: true, code: null }
+  markState = null
+  ios.on = false
   putReply = () => ({ json: { listingId: 'L1', teacherProfileId: 'tp1', live: true, noGoal: false, cover: null, video: null } })
   const f = fakeFetch({
-    'GET /api/teachers/me': () => ({ json: { teacher: null, publishGate: gate, prefill: { displayName: 'Bea Smith', avatarUrl: PHOTO, phone: '+84901234567' } } }),
+    'GET /api/teachers/me': () => ({ json: { teacher: null, publishGate: gate, prefill: { displayName: 'Bea Smith', avatarUrl: PHOTO, phone: '+84901234567' }, identityMark: markState, identityMarkStamps: { at: null, withdrawnAt: null } } }),
     'PUT /api/teachers/me': (b) => putReply(b),
   })
   calls = f.calls
@@ -177,6 +185,20 @@ describe('step 6 · Photo & publish', () => {
     await user.click(screen.getAllByRole('button', { name: 'What’s public?' })[0])
     expect(await screen.findByText('Never public')).toBeTruthy()
     expect(screen.getByText(/Cover lessons — your free periods, hourly rate and where schools find you — only while cover is on/)).toBeTruthy()
+    // The opt-in mark, informational (plan review Q3: its own switch and notice — PUBLISH_NOTICE_VERSION does not cover it).
+    // ⛔ The mark is NOT in this list (commit gate, 2026-10-16): the list is the text PUBLISH_NOTICE_VERSION stands for, and
+    // the mark has its own switch and notice beside it — adding it here would change the publish consent without a bump.
+    expect(screen.getAllByRole('listitem').some((li) => /Identity verified/.test(li.textContent ?? ''))).toBe(false)
+  })
+
+  it('⛔ iOS (`ios-hide-kyc`): the identity check at the top names the website — never a "Verify my identity" link', async () => {
+    ios.on = true
+    gate = { ok: false, code: 'identity_unverified' }
+    putDraft(COMPLETE, 'finish')
+    mount()
+    expect(await screen.findByText(/Vietnamese law requires sellers to verify their identity/)).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Verify my identity' })).toBeNull()
+    expect(screen.getAllByText(/Identity verification is available on our website, in a web browser:/).length).toBeGreaterThan(0)
   })
 
   it('no notice under the earlier steps of a NEW profile — only beside Publish', async () => {
@@ -332,5 +354,72 @@ describe('sharing the profile (owner, 2026-10-11: "easy to share on facebook and
     await user.click(action('Publish profile'))
     expect(await screen.findByText('Profile saved')).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Share your profile' })).toBeNull()
+  })
+})
+
+// "IDENTITY VERIFIED" ON A NEW PROFILE (owner, 2026-10-15; plan review R2): the switch has its own endpoint, which needs a
+// profile — so before the first Publish it is shown with its notice and its line, DISABLED, and says when it can be
+// switched on; nothing is sent, and Publish carries none of it. Once published, an account whose identity check is
+// already live is pointed at it (Edit › Photo & publish) — never one that has yet to verify.
+describe('the "Identity verified" switch on a NEW profile', () => {
+  const MARK_NAME = 'Show “Identity verified” on my profile'
+  it('shown with its notice and line, disabled, saying when — and a tap sends nothing', async () => {
+    markState = { shown: false, reason: 'unverified' }
+    putDraft(COMPLETE, 'finish')
+    const user = mount()
+    const sw = await screen.findByRole('switch', { name: MARK_NAME })
+    expect(sw.getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByTestId('identity-mark-note').textContent).toMatch(/^Off unless you switch it on\./)
+    expect(screen.getByText('You can switch this on after you publish your profile.')).toBeTruthy()
+    // The account has not verified yet: the line says so, with the way there.
+    expect(screen.getByText(/^Verify your identity first/)).toBeTruthy()
+    await user.click(sw).catch(() => {})
+    expect(sw.getAttribute('aria-checked')).toBe('false')
+    expect(calls.some((c) => c.url.startsWith('/api/teachers/me/identity-mark'))).toBe(false)
+  })
+
+  it('⛔ Publish never carries the switch or its notice', async () => {
+    putDraft(COMPLETE, 'finish')
+    const user = mount()
+    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await user.click(action('Publish profile'))
+    await waitFor(() => expect(lastPut()).toBeTruthy())
+    for (const k of Object.keys(lastPut()!)) expect(k, k).not.toMatch(/identity/i)
+  })
+
+  it('published with a LIVE identity check: the done screen points at the switch; still to verify: it does not', async () => {
+    markState = { shown: false, reason: 'off' }
+    putDraft({ ...COMPLETE, photoUrl: null }, 'finish')
+    let user = mount()
+    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await user.click(action('Publish profile'))
+    expect(await screen.findByText('Your profile is live')).toBeTruthy()
+    expect(screen.getByRole('link', { name: MARK_NAME }).getAttribute('href')).toBe('/teachers/edit?step=finish')
+    cleanup()
+    markState = { shown: false, reason: 'unverified' }
+    putDraft({ ...COMPLETE, photoUrl: null }, 'finish')
+    user = mount()
+    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await user.click(action('Publish profile'))
+    expect(await screen.findByText('Your profile is live')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: MARK_NAME })).toBeNull()
+  })
+
+  // Commit gate, 2026-10-16: the state read on load had no profile to judge (no name → not known), so the pointer can only
+  // come from a re-read AFTER the first publish — the hand-set state above never exercised that.
+  it('a FIRST publish re-reads the mark: unknown before the profile existed, the pointer once the server can judge it', async () => {
+    markState = null
+    putReply = () => {
+      markState = { shown: false, reason: 'off' }
+      return { json: { listingId: 'L1', teacherProfileId: 'tp1', live: true, noGoal: false, cover: null, video: null } }
+    }
+    putDraft({ ...COMPLETE, photoUrl: null }, 'finish')
+    const user = mount()
+    await user.click(await screen.findByRole('button', { name: 'Use my account photo' }))
+    await user.click(action('Publish profile'))
+    expect(await screen.findByText('Your profile is live')).toBeTruthy()
+    expect((await screen.findByRole('link', { name: MARK_NAME })).getAttribute('href')).toBe('/teachers/edit?step=finish')
+    const putAt = calls.findIndex((c) => c.method === 'PUT')
+    expect(calls.slice(putAt + 1).some((c) => c.method === 'GET')).toBe(true)
   })
 })

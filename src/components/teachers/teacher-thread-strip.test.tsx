@@ -654,3 +654,61 @@ describe('TeacherThreadStrip — who is writing (writerVerified)', () => {
     }
   })
 })
+
+// ── "Identity verified" about the TEACHER, for the school (owner, 2026-10-15) ──────────────────────────────────────────
+// The mirror of writerVerified: the teacher's own opt-in mark, from the server's boolean — the same pill and words as the
+// profile line and the card tick ("xác minh", never "xác thực"). Only ever positive; never on the teacher's own side
+// (writerVerified is the teacher's chip, and it never shows to the school); never on a closed thread.
+describe('TeacherThreadStrip — the teacher\'s "Identity verified", for the school', () => {
+  const CHIPS = ['Verified business', 'Identity verified', 'Not verified yet']
+  const chipsIn = (el: HTMLElement) => CHIPS.filter((c) => el.textContent?.includes(c))
+  const school = (props: Partial<React.ComponentProps<typeof TeacherThreadStrip>>, lang: 'en' | 'vi' = 'en') => render(
+    <LanguageProvider initialLang={lang} initialViDict={{}}>
+      <TeacherThreadStrip conversationId="c1" iAmTeacher={false} shared={false} shareSignal={0} {...props} />
+    </LanguageProvider>,
+  )
+  beforeEach(() => { fetchMock.mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: 'share_required' }) }) })
+
+  it('the school sees exactly ["Identity verified"] — in Vietnamese "Đã xác minh danh tính"', async () => {
+    const { container } = school({ teacherIdentityVerified: true })
+    await act(async () => {})
+    expect(chipsIn(container)).toEqual(['Identity verified'])
+    cleanup()
+    const vi = school({ teacherIdentityVerified: true }, 'vi')
+    await act(async () => {})
+    expect(vi.container.textContent).toContain('Đã xác minh danh tính')
+    expect(vi.container.textContent).not.toContain('xác thực')
+  })
+
+  it('false or absent shows nothing — there is never a negative label about a teacher', async () => {
+    for (const props of [{ teacherIdentityVerified: false }, {}]) {
+      const { container } = school(props)
+      await act(async () => {})
+      expect(chipsIn(container), JSON.stringify(props)).toEqual([])
+      expect(container.textContent).not.toMatch(/Not verified|Chưa xác minh/)
+      cleanup()
+    }
+  })
+
+  it('writerVerified is the teacher\'s chip: ignored on the school\'s side, whatever it says', async () => {
+    for (const writerVerified of ['business', 'identity', 'unverified'] as const) {
+      const { container } = school({ teacherIdentityVerified: false, writerVerified })
+      await act(async () => {})
+      expect(chipsIn(container), writerVerified).toEqual([])
+      cleanup()
+    }
+  })
+
+  it('the prop is ignored on the teacher\'s own side — they see only the writer\'s rung', () => {
+    const { container } = mount({ shared: false, teacherIdentityVerified: true })
+    expect(chipsIn(container)).toEqual([])
+    cleanup()
+    const r = mount({ shared: false, teacherIdentityVerified: true, writerVerified: 'unverified' })
+    expect(chipsIn(r.container)).toEqual(['Not verified yet'])
+  })
+
+  it('a closed thread shows the school nothing', () => {
+    const { container } = school({ closed: true, teacherIdentityVerified: true })
+    expect(container.textContent).toBe('')
+  })
+})

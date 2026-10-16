@@ -12,6 +12,7 @@ import { PartnerBadge } from './partner-badge'
 import { ImageMark } from './image-mark'
 import { TrustScore } from './trust-score'
 import { CardBadges } from './card-badges'
+import { IdentityVerifiedMark } from './identity-verified-mark'
 import { RentalCheckToggle } from './rental-check-toggle'
 import Image from 'next/image'
 import type { SerializedListingCard } from '@/lib/types'
@@ -115,6 +116,12 @@ type Props = {
 }
 
 
+/**
+ * The card's one-line title (the h3 below). ONE string for both shapes of the line — the bare h3, and the marked teacher
+ * card's row, which adds only `min-w-0` — so the two can never drift apart.
+ */
+const TITLE_LINE = 'truncate text-sm font-medium leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2'
+
 /** The travel (px) after which a card's touch is judged sideways (the strip follows) or not (the page scrolls). */
 const CARD_DRAG_LOCK_PX = 8
 /** Sideways travel (px) at which a gesture that still leads horizontally locks sideways, however diagonal it is. */
@@ -132,7 +139,18 @@ function ListingCardImpl({
 }: Props) {
   const { lang, t, tr } = useLanguage()
   const images = listing.images
-  const displayTitle = useLocalized(listing.title, listing.titleVi, listing.titleI18n)
+  /**
+   * ⛔ A TEACHER'S NAME IS NEVER MACHINE-TRANSLATED, IN ANY LANGUAGE (2026-10-16) — "a name translated is a different
+   * name" (seller-info.tsx), and the "Identity verified" tick sits beside it: a translated name under the tick would show
+   * the tick beside a name nobody checked. A teacher row's title IS the TeacherProfile's name (projection.ts), so it is
+   * printed as stored: the hook still runs (hooks are unconditional) with '', its no-op — no embedded translation is read
+   * (a stored titleVi on a teacher row can only be a bulk translation) and no request is made. The home shelf pinned
+   * its own cards this way first (src/lib/core/teacher-shelf.ts); this covers /c/teachers, Show-more, the explorer and
+   * the storefronts too.
+   */
+  const isTeacher = listing.listingType === TEACHER_LISTING_TYPE
+  const localizedTitle = useLocalized(isTeacher ? '' : listing.title, isTeacher ? null : listing.titleVi, isTeacher ? null : listing.titleI18n)
+  const displayTitle = isTeacher ? listing.title : localizedTitle
   /**
    * ⚠️ THE VISIBLE ONE-LINE TITLE — and therefore also the card link's accessible name (WCAG 2.5.3 Label in
    * Name: a voice-control user says what they SEE, so the name must contain the visible text; commit-gate review
@@ -157,6 +175,15 @@ function ListingCardImpl({
   // screen-reader user still hears the seller's whole title (commit-gate review 2026-10-04).
   const fullTitleId = useId()
   const titleShortened = lineTitle !== displayTitle
+  /**
+   * "IDENTITY VERIFIED" (owner, 2026-10-15) — the SERVER's boolean only (serialize.ts serializeListingCard: a teacher card
+   * under today's notice, from the display cache identity-mark-card.ts keeps true), never a client clock or a guess; a
+   * card that is not a teacher's never draws it, whatever its payload says. It is a SIBLING of the h3 — the h3 still reads
+   * exactly the link's accessible name (WCAG 2.5.3, above) — and the link carries it as a description.
+   * ⛔ AN UNMARKED CARD RENDERS BYTE-FOR-BYTE AS BEFORE: no wrapper, no description, the same h3 (TITLE_LINE).
+   */
+  const identityMarked = isTeacher && listing.identityMark === true
+  const identityMarkId = useId()
   /**
    * ⚠️ ABBREVIATED ON THE CARD ONLY, AND ONLY FOR THE ONE CITY THAT NEEDS IT. Measured on the feed:
    * below `sm` this row renders just "New · Hồ Chí Minh", which needs 96px and had 67px at 320px
@@ -421,7 +448,7 @@ function ListingCardImpl({
       <a
         href={`/listings/${listing.id}`}
         aria-label={lineTitle}
-        aria-describedby={titleShortened ? fullTitleId : undefined}
+        aria-describedby={[titleShortened ? fullTitleId : null, identityMarked ? identityMarkId : null].filter(Boolean).join(' ') || undefined}
         data-card-link
         draggable={false}
         onClick={(e) => {
@@ -1278,9 +1305,22 @@ function ListingCardImpl({
             still reserves the second line's leading in some engines, and one line is the spec. The
             full title is the h3's `title`, the card link's accessible name, and on the PDP; the line
             itself prints the card-title.ts shortening (`lineTitle`). */}
-        <h3 title={displayTitle} className="truncate text-sm font-medium leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">
-          {lineTitle}
-        </h3>
+        {/* "Identity verified" (owner, 2026-10-15): on a MARKED teacher card only, the line becomes a row — the truncating
+            h3 (`min-w-0`, so the name ellipsises before the tick) and the tick after it, ~18px of the line. Same height:
+            the 14px glyph sits inside the h3's 19px line box, so the skeleton's one-line reserve holds. Every other card
+            keeps the bare h3 below, byte-for-byte. */}
+        {identityMarked ? (
+          <div className="flex min-w-0 items-center gap-1">
+            <h3 title={displayTitle} className={cn(TITLE_LINE, 'min-w-0')}>
+              {lineTitle}
+            </h3>
+            <IdentityVerifiedMark id={identityMarkId} />
+          </div>
+        ) : (
+          <h3 title={displayTitle} className={TITLE_LINE}>
+            {lineTitle}
+          </h3>
+        )}
         {/* `hidden`, not sr-only: aria-describedby still reads a hidden element's text, and hidden keeps it out of the
             browse-mode reading flow (sr-only would read the title a second time after the h3). */}
         {titleShortened && <span id={fullTitleId} hidden>{displayTitle}</span>}

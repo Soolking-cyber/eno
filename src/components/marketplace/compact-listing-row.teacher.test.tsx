@@ -4,6 +4,8 @@
  * and no district (projection.ts teacherHome writes city '' — never the old Hồ Chí Minh fallback), so the row says
  * where they are with their location ("Not in Vietnam yet · Online") instead of a divider beside nothing; and since a
  * teacher is never a map pin (map-pin-rows.ts), a teacher row offers no "Show on map".
+ * 2026-10-16: a teacher's name is never machine-translated (ListingCard's rule — useLocalized gets '', the name prints as
+ * stored), and a MARKED teacher's row draws the "Identity verified" tick right after the name.
  */
 import React from 'react'
 import { cleanup, render } from '@testing-library/react'
@@ -17,13 +19,17 @@ vi.mock('next/image', () => ({
 }))
 vi.mock('@/components/ui/icons', () => {
   const Icon = (props: React.SVGProps<SVGSVGElement>) => <svg {...props} />
-  return { ArrowRight: Icon, MapPin: Icon, MessageCircle: Icon, Tag: Icon, Zap: Icon }
+  return { ArrowRight: Icon, MapPin: Icon, MessageCircle: Icon, Tag: Icon, Zap: Icon, BadgeCheck: Icon }
 })
+const loc = vi.hoisted(() => ({ calls: [] as unknown[][] }))
 vi.mock('@/context/language-context', () => ({
   useLanguage: () => ({ lang: 'en', t: (k: string) => k, tr: (en: string) => en }),
   Tr: ({ text }: { text: string }) => text,
 }))
-vi.mock('./listing-content', () => ({ useLocalized: (title: string) => title }))
+// A fake that "translates" what it is handed ('' — the no-op — stays ''), so a translated teacher name would show.
+vi.mock('./listing-content', () => ({
+  useLocalized: (...args: unknown[]) => { loc.calls.push(args); const t = String(args[0] ?? ''); return t ? `MT(${t})` : '' },
+}))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => ({ user: null, loading: false, openSignIn: vi.fn() }) }))
 vi.mock('./partner-badge', () => ({ PartnerBadge: () => <span data-partner-chip="" /> }))
 vi.mock('./trust-score', () => ({ TrustScore: () => <span data-trust-chip="" /> }))
@@ -62,7 +68,7 @@ const BASE = {
 const row = (patch: Record<string, unknown>) =>
   render(<CompactListingRow listing={{ ...BASE, ...patch } as SerializedListingCard} index={0} onOpen={vi.fn()} onPrefetch={vi.fn()} onLocate={vi.fn()} />).container
 
-afterEach(cleanup)
+afterEach(() => { cleanup(); loc.calls = [] })
 
 const TEACHER = {
   title: 'Jane Doe', listingType: 'teacher', price: 0, isPartnerBooking: false, isSponsored: false, sellerId: 's1',
@@ -115,5 +121,40 @@ describe('CompactListingRow — every other row is as it was', () => {
     const c = row({ city: '', district: null, location: '12 Nguyễn Huệ, Quận 1' })
     expect(c.textContent).not.toContain('Nguyễn Huệ')
     expect(divider(c)).toBeNull()
+  })
+})
+
+// ⛔ A TEACHER'S NAME, AS STORED (2026-10-16) — the row asks useLocalized for nothing, in any language.
+describe('CompactListingRow — a teacher\'s name is never machine-translated', () => {
+  it('the h4 and the photo alt are the stored name; the hook gets \'\', no Vietnamese column, no embed', () => {
+    const c = row({ ...TEACHER, title: 'Nguyễn Thị Minh Khai', titleVi: 'Khai (bản dịch máy)', titleI18n: { ko: 'x' }, city: 'Hà Nội', district: null, location: 'Hà Nội' })
+    expect(c.querySelector('h4')!.textContent).toBe('Nguyễn Thị Minh Khai')
+    expect(c.querySelector('img')!.getAttribute('alt')).toBe('Nguyễn Thị Minh Khai')
+    expect(c.innerHTML).not.toMatch(/MT\(|bản dịch máy/)
+    expect(loc.calls.length).toBeGreaterThan(0)
+    for (const call of loc.calls) expect(call).toEqual(['', null, null])
+  })
+  it('any other row is localized as before', () => {
+    const c = row({ title: 'Máy tính Dell', titleVi: null, city: 'Hồ Chí Minh', district: null })
+    expect(c.querySelector('h4')!.textContent).toBe('MT(Máy tính Dell)')
+    for (const call of loc.calls) expect(call[0]).toBe('Máy tính Dell')
+  })
+})
+
+// "IDENTITY VERIFIED" (owner, 2026-10-15): the row's tick follows the name — on a MARKED teacher's row only.
+describe('CompactListingRow — the "Identity verified" tick', () => {
+  const marks = (c: HTMLElement) => c.querySelectorAll('[data-identity-mark]')
+  it('a marked teacher: exactly one, right after the h4, named "Identity verified"', () => {
+    const c = row({ ...TEACHER, identityMark: true, city: 'Hồ Chí Minh', district: null, location: 'Ho Chi Minh City' })
+    expect(marks(c)).toHaveLength(1)
+    expect(c.querySelector('h4')!.nextElementSibling).toBe(marks(c)[0])
+    expect(marks(c)[0].getAttribute('aria-label')).toBe('Identity verified')
+    // The trust chip (the row draws one per breakpoint) still hangs off the right edge after it, as before.
+    expect(c.querySelectorAll('[data-trust-chip]').length).toBeGreaterThan(0)
+  })
+  it('an unmarked teacher, and any other row whatever its payload says: none', () => {
+    expect(marks(row({ ...TEACHER, city: 'Hồ Chí Minh', district: null, location: 'x' }))).toHaveLength(0)
+    cleanup()
+    expect(marks(row({ identityMark: true, city: 'Hồ Chí Minh', district: null }))).toHaveLength(0)
   })
 })

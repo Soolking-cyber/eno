@@ -8,8 +8,22 @@ import { COVER_CONSENT_VERSION } from '@/lib/teachers/cover'
 import { TEACHER_OPTIONS } from '@/lib/teachers/profile'
 
 // The server component reads one TeacherProfile row; the header, footer and contact block are their own suites.
-const h = vi.hoisted(() => ({ row: null as Record<string, unknown> | null }))
+const h = vi.hoisted(() => ({
+  row: null as Record<string, unknown> | null,
+  // "Identity verified" (src/lib/teachers/identity-mark.ts — its own rules are its own suite's): what the predicate
+  // answers, whether it throws, and what each call was asked about.
+  shown: false,
+  shownThrows: false,
+  markCalls: [] as unknown[][],
+}))
 vi.mock('@/lib/db', () => ({ db: { teacherProfile: { findUnique: async () => h.row } } }))
+vi.mock('@/lib/teachers/identity-mark', () => ({
+  identityMarkShownFor: async (...args: unknown[]) => {
+    h.markCalls.push(args)
+    if (h.shownThrows) throw new Error('identity read down')
+    return h.shown
+  },
+}))
 vi.mock('@/components/marketplace/header', () => ({ Header: () => null }))
 vi.mock('@/components/marketplace/footer', () => ({ Footer: () => null }))
 vi.mock('@/components/teachers/teacher-contact', () => ({ TeacherContact: () => null, TeacherContactJump: () => null }))
@@ -31,6 +45,8 @@ const ROW = {
   teachAreas: ['online', 'd4', 'd7', 'ha-noi'], teachLanguages: [], englishLevel: 'native', experienceBand: '5-10-years',
   coverOpen: false, coverSlots: [], coverRateVnd: null, coverConfirmedAt: null, coverConsentVersion: null,
   videoOnRequest: false, private: { videoPath: null },
+  // the account and the mark's inputs — read for one boolean, never rendered
+  profileId: 'acct-7f3a9c2e-uuid', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16',
   // ⛔ the OLD columns — written mirrors, which the page must never read back as answers
   preferredCities: ['ho-chi-minh-city', 'da-nang'], openToOnline: false, coverAreas: ['d1'], nativeSpeaker: false, yearsExperience: 0, currentDistrict: 'Quận 1',
 }
@@ -56,7 +72,7 @@ async function page(lang: 'en' | 'vi', over: Record<string, unknown> = {}, index
 }
 
 beforeEach(() => { Object.defineProperty(navigator, 'languages', { configurable: true, get: () => ['en-US'] }) })
-afterEach(() => { Reflect.deleteProperty(navigator, 'languages'); h.row = null })
+afterEach(() => { Reflect.deleteProperty(navigator, 'languages'); h.row = null; h.shown = false; h.shownThrows = false; h.markCalls = [] })
 
 describe('the header line — nationality · English · experience · where they live', () => {
   it('HCMC, District 7: the curated district name, then the city — from the v2 answers, never the old mirrors', async () => {
@@ -263,3 +279,62 @@ describe('sharing the profile (owner, 2026-10-11)', () => {
   })
 })
 
+
+/**
+ * "IDENTITY VERIFIED" — THE PROFILE LINE (owner, 2026-10-15): full width under the header while the predicate says so
+ * (src/lib/teachers/identity-mark.ts identityMarkShownFor — the switch under today's notice, a LIVE identity check, the
+ * name within the ID): the label and one sentence on what was and was not checked, in English and Vietnamese. A failed
+ * read hides it (fails closed). Nothing of it reaches the JSON-LD, and the account id the predicate is asked about never
+ * reaches the HTML.
+ */
+describe('the "Identity verified" line', () => {
+  const line = (el: HTMLElement) => el.querySelector('[data-identity-line]')
+  it('shown: the label and the sentence, in English — under the header, before the rest of the page', async () => {
+    h.shown = true
+    const p = await page('en')
+    const l = line(p.el)!
+    expect(l).toBeTruthy()
+    expect(l.textContent).toContain('Identity verified')
+    expect(l.textContent).toContain('eno’s team checked this teacher’s ID document and a selfie, and the name above matches that ID. Nationality, qualifications and work permits are as the teacher states. Ask to see documents before hiring.')
+    expect(l.previousElementSibling?.tagName).toBe('HEADER')
+  })
+  it('in Vietnamese — "xác minh", never "xác thực"', async () => {
+    h.shown = true
+    const p = await page('vi')
+    const l = line(p.el)!
+    expect(l.textContent).toContain('Đã xác minh danh tính')
+    expect(l.textContent).toContain('Đội ngũ eno đã kiểm tra giấy tờ tùy thân và ảnh chân dung của giáo viên này; tên ở trên khớp với giấy tờ đó. Quốc tịch, bằng cấp và giấy phép lao động do giáo viên tự khai — hãy đề nghị xem giấy tờ trước khi tuyển dụng.')
+    expect(p.el.innerHTML).not.toContain('xác thực')
+  })
+  it('the predicate is asked about THIS teacher, with exactly the four inputs it decides from', async () => {
+    h.shown = true
+    await page('en')
+    expect(h.markCalls).toHaveLength(1)
+    expect(h.markCalls[0][0]).toEqual({ profileId: 'acct-7f3a9c2e-uuid', fullName: 'Jane Doe', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16' })
+    expect(h.markCalls[0][1]).toBeInstanceOf(Date)
+  })
+  it('not shown, or a failed read: no line (fails closed) — the page renders as before', async () => {
+    h.shown = false
+    expect(line((await page('en')).el)).toBeNull()
+    h.shown = true
+    h.shownThrows = true
+    const p = await page('en')
+    expect(line(p.el)).toBeNull()
+    expect(p.text).toContain('Jane Doe')
+  })
+  it('⛔ nothing in the JSON-LD, and no account id (nor the switch) anywhere in the HTML', async () => {
+    h.shown = true
+    const p = await page('en')
+    expect(JSON.stringify(p.ld)).not.toMatch(/Identity verified|identityMark|verified/i)
+    expect(p.el.innerHTML).not.toContain('acct-7f3a9c2e-uuid')
+    expect(p.el.innerHTML).not.toContain('2026-10-16')
+    expect(p.el.innerHTML).not.toMatch(/identityMarkOn|profileId/)
+  })
+  it('no profile row behind the listing: no line, and no read', async () => {
+    h.row = null
+    const node = await TeacherProfileView({ listing: LISTING, canonicalUrl: 'https://eno.vn/listings/L1', indexable: true, lang: 'en' })
+    const html = renderToString(<LanguageProvider initialLang="en" initialViDict={{}}>{node}</LanguageProvider>)
+    expect(html).not.toContain('data-identity-line')
+    expect(h.markCalls).toEqual([])
+  })
+})

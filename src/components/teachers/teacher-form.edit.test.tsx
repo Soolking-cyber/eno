@@ -8,12 +8,15 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { cleanup, configure, getConfig, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { LanguageProvider } from '@/context/language-context'
-import { AI_NOTICE_VERSION, PUBLISH_NOTICE_VERSION } from '@/lib/teachers/profile'
+import { AI_NOTICE_VERSION, IDENTITY_MARK_NOTICE_VERSION, PUBLISH_NOTICE_VERSION } from '@/lib/teachers/profile'
 import { COVER_CONSENT_VERSION, coverStamp } from '@/lib/teachers/cover'
 import { COMPLETE, DRAFT_KEY, fakeFetch, putDraft, stubBrowser, type Call } from './teacher-form.fixtures'
 
 const auth = vi.hoisted(() => ({ user: { id: 'u1' } as null | { id: string }, loading: false, openSignIn: vi.fn() }))
 vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
+// App Store gate `ios-hide-kyc` — off (the web) unless a test turns it on.
+const ios = vi.hoisted(() => ({ on: false }))
+vi.mock('@/hooks/use-ios-hide-kyc', () => ({ useIosHideKyc: () => ios.on }))
 vi.mock('@/components/marketplace/push-opt-in-card', () => ({ PushOptInCard: () => null }))
 
 import { TeacherForm } from './teacher-form'
@@ -56,7 +59,7 @@ beforeEach(() => {
   calls = f.calls
   vi.stubGlobal('fetch', f.fn)
 })
-afterEach(() => { cleanup(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); ios.on = false })
 
 function mount(mode: 'edit' | 'join' = 'edit') {
   render(
@@ -492,5 +495,233 @@ describe('sharing the profile (owner, 2026-10-11)', () => {
     mount()
     expect(await screen.findByText('Where are you now?')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Share my profile' })).toBeNull()
+  })
+})
+
+/**
+ * ⛔ "IDENTITY VERIFIED" — ITS OWN SWITCH, ITS OWN ENDPOINT (owner, 2026-10-15; plan review R2). On Photo & publish, for a
+ * saved profile: it loads ON only under today's notice; it saves ON TOGGLE through PUT /api/teachers/me/identity-mark —
+ * ON with today's notice and the stamps the form loaded, OFF with nothing else — and moves only on the server's answer,
+ * whose stamps are the next base; a 409 (the words changed, or another window moved the switch) says so calmly and
+ * re-reads; a 429 says so. The profile save NEVER carries it, and a rename re-reads its line.
+ */
+describe('⛔ the "Identity verified" switch — saved on toggle, never with the profile', () => {
+  const MARK_NAME = 'Show “Identity verified” on my profile'
+  const STAMPS0 = { at: '2026-10-16T01:00:00.000Z', withdrawnAt: null }
+  type Reply = { status?: number; json: unknown }
+  let marked: { on: boolean; version: string | null }
+  let state: { shown: boolean; reason: string | null } | null
+  let stamps: { at: string | null; withdrawnAt: string | null }
+  let markReply: (body: unknown) => Reply | Promise<Reply>
+  let f: ReturnType<typeof fakeFetch>
+  const markPuts = () => f.calls.filter((c) => c.url === '/api/teachers/me/identity-mark')
+  const gets = () => f.calls.filter((c) => c.method === 'GET' && c.url === '/api/teachers/me')
+  const profilePut = () => f.calls.filter((c) => c.method === 'PUT' && c.url === '/api/teachers/me').at(-1)?.body as Record<string, unknown> | undefined
+  const sw = () => screen.getByRole('switch', { name: MARK_NAME })
+
+  beforeEach(() => {
+    marked = { on: false, version: null }
+    state = { shown: false, reason: 'off' }
+    stamps = { at: null, withdrawnAt: null }
+    markReply = (body) => {
+      const on = (body as { on: boolean }).on
+      stamps = on ? STAMPS0 : { at: stamps.at, withdrawnAt: '2026-10-16T02:00:00.000Z' }
+      marked = { on, version: on ? IDENTITY_MARK_NOTICE_VERSION : marked.version }
+      state = on ? { shown: true, reason: null } : { shown: false, reason: 'off' }
+      return { json: { identityMark: state, stamps } }
+    }
+    f = fakeFetch({
+      'GET /api/teachers/me': () => ({ json: { teacher: { ...row, identityMarkOn: marked.on, identityMarkNoticeVersion: marked.version, identityMarkAt: stamps.at, identityMarkWithdrawnAt: stamps.withdrawnAt }, publishGate: { ok: true, code: null }, identityMark: state, identityMarkStamps: stamps } }),
+      'PUT /api/teachers/me': () => ({ json: { listingId: 'L1', teacherProfileId: 'tp1', live: true, noGoal: false, cover: null, video: { onRequest: false, version: 0, hasPrivate: false, url: null } } }),
+      // The fixture's fetch fake answers synchronously; a Promise here is awaited by the form, so a test can hold it.
+      'PUT /api/teachers/me/identity-mark': (b) => markReply(b) as Reply,
+    })
+    const plain = f.fn.getMockImplementation()!
+    f.fn.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/teachers/me/identity-mark') {
+        const body = JSON.parse(String(init?.body))
+        f.calls.push({ url: String(input), method: 'PUT', body })
+        const r = await markReply(body)
+        return new Response(JSON.stringify(r.json), { status: r.status ?? 200, headers: { 'Content-Type': 'application/json' } })
+      }
+      return plain(input, init)
+    })
+    vi.stubGlobal('fetch', f.fn)
+    history.replaceState(null, '', '/teachers/edit?step=finish')
+  })
+
+  it('loads ON under today\'s notice; an older grant loads OFF and says why', async () => {
+    marked = { on: true, version: IDENTITY_MARK_NOTICE_VERSION }
+    state = { shown: true, reason: null }
+    mount()
+    expect((await screen.findByRole('switch', { name: MARK_NAME })).getAttribute('aria-checked')).toBe('true')
+    cleanup()
+    marked = { on: true, version: '2026-01-01' }
+    state = { shown: false, reason: 'notice_changed' }
+    mount()
+    expect((await screen.findByRole('switch', { name: MARK_NAME })).getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByText('What this switch does has changed since you turned it on. Switch it on again to keep showing it.')).toBeTruthy()
+  })
+
+  it('ON sends today\'s notice and the loaded stamps — and flips only when the server has answered (never optimistic)', async () => {
+    stamps = { at: '2026-10-01T00:00:00.000Z', withdrawnAt: '2026-10-02T00:00:00.000Z' }
+    let release!: () => void
+    const held = new Promise<void>((r) => { release = r })
+    const answer = markReply
+    markReply = async (body) => { await held; return answer(body) }
+    const user = mount()
+    await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
+    await waitFor(() => expect(markPuts()).toHaveLength(1))
+    expect(markPuts()[0].body).toEqual({ on: true, notice: IDENTITY_MARK_NOTICE_VERSION, base: { at: '2026-10-01T00:00:00.000Z', withdrawnAt: '2026-10-02T00:00:00.000Z' } })
+    // On its way: still OFF on screen, and saying so.
+    expect(sw().getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByText('Saving…')).toBeTruthy()
+    release()
+    await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('true'))
+  })
+
+  it('OFF sends { on: false } alone; the answer\'s stamps are the next ON\'s base', async () => {
+    marked = { on: true, version: IDENTITY_MARK_NOTICE_VERSION }
+    state = { shown: true, reason: null }
+    stamps = STAMPS0
+    const user = mount()
+    await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
+    await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('false'))
+    expect(markPuts()[0].body).toEqual({ on: false })
+    await user.click(sw())
+    await waitFor(() => expect(markPuts()).toHaveLength(2))
+    expect(markPuts()[1].body).toEqual({ on: true, notice: IDENTITY_MARK_NOTICE_VERSION, base: { at: STAMPS0.at, withdrawnAt: '2026-10-16T02:00:00.000Z' } })
+    await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('true'))
+  })
+
+  it('409 identity_mark_changed: a calm line, a fresh read — and the switch shows what is saved', async () => {
+    markReply = () => {
+      // Another window switched it on meanwhile: the stored state moved.
+      marked = { on: true, version: IDENTITY_MARK_NOTICE_VERSION }
+      state = { shown: true, reason: null }
+      stamps = STAMPS0
+      return { status: 409, json: { error: 'identity_mark_changed' } }
+    }
+    const user = mount()
+    await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
+    expect(await screen.findByText('This switch was changed in another window. It now shows what is saved — switch it on again if you want to.')).toBeTruthy()
+    await waitFor(() => expect(gets()).toHaveLength(2))
+    await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('true'))
+  })
+
+  it('409 notice_changed: "reload the page" — and a fresh read; the switch stays as saved', async () => {
+    markReply = () => ({ status: 409, json: { error: 'notice_changed', notice: 'identity' } })
+    const user = mount()
+    await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
+    expect(await screen.findByText('Some of the wording on this page has changed since you opened it. Reload the page to read it, then switch it on again.')).toBeTruthy()
+    await waitFor(() => expect(gets()).toHaveLength(2))
+    expect(sw().getAttribute('aria-checked')).toBe('false')
+  })
+
+  it('429 (ON only): said — the switch stays as it was', async () => {
+    markReply = () => ({ status: 429, json: { error: 'rate_limited' } })
+    const user = mount()
+    await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
+    expect(await screen.findByText('Too many requests — please try again in a few minutes.')).toBeTruthy()
+    expect(sw().getAttribute('aria-checked')).toBe('false')
+  })
+
+  // ⛔ Commit gate, 2026-10-16: every line about what the switch shows comes from a FRESH READ, never ahead of one.
+  it('a failed save is said only when the fresh read shows the server does not hold it — the switch stays as saved', async () => {
+    markReply = () => { throw new TypeError('network down') }
+    const user = mount()
+    await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
+    expect(await screen.findByText('Could not save the switch. Please try again.')).toBeTruthy()
+    expect(gets()).toHaveLength(2)
+    expect(sw().getAttribute('aria-checked')).toBe('false')
+  })
+
+  it('a save whose answer was LOST is no failure: the fresh read shows it saved, and nothing is said', async () => {
+    markReply = () => {
+      // The server committed the switch-on; its answer never arrived.
+      marked = { on: true, version: IDENTITY_MARK_NOTICE_VERSION }
+      state = { shown: true, reason: null }
+      stamps = STAMPS0
+      throw new TypeError('connection reset')
+    }
+    const user = mount()
+    await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
+    await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('true'))
+    expect(gets()).toHaveLength(2)
+    expect(screen.queryByText('Could not save the switch. Please try again.')).toBeNull()
+  })
+
+  it('a 409 whose fresh read FAILS claims nothing about the switch: "could not check — reload"', async () => {
+    markReply = () => {
+      marked = { on: true, version: IDENTITY_MARK_NOTICE_VERSION }
+      state = { shown: true, reason: null }
+      stamps = STAMPS0
+      return { status: 409, json: { error: 'identity_mark_changed' } }
+    }
+    const impl = f.fn.getMockImplementation()!
+    let n = 0
+    f.fn.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/teachers/me' && (init?.method ?? 'GET') === 'GET' && ++n > 1) {
+        f.calls.push({ url: '/api/teachers/me', method: 'GET', body: undefined })
+        throw new TypeError('network down')
+      }
+      return impl(input, init)
+    })
+    const user = mount()
+    await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
+    expect(await screen.findByText('Could not check the switch. Reload the page to see what is saved.')).toBeTruthy()
+    expect(gets()).toHaveLength(2)
+    expect(screen.queryByText(/It now shows what is saved/)).toBeNull()
+  })
+
+  it('⛔ the profile save never carries the switch — not after a toggle, not ever', async () => {
+    const user = mount()
+    await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
+    await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('true'))
+    await user.click(action('Save changes'))
+    await waitFor(() => expect(profilePut()).toBeTruthy())
+    const body = profilePut()!
+    for (const k of Object.keys(body)) expect(k, k).not.toMatch(/identity/i)
+    expect(JSON.stringify(body)).not.toContain(IDENTITY_MARK_NOTICE_VERSION)
+  })
+
+  it('a save that RENAMED the teacher re-reads the line (the name is what the mark vouches for); one that did not, does not', async () => {
+    const user = mount()
+    expect(await screen.findByRole('switch', { name: MARK_NAME })).toBeTruthy()
+    await user.click(action('Save changes'))
+    expect(await screen.findByText('Profile saved')).toBeTruthy()
+    expect(gets()).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'Keep editing' }))
+    await user.click(rail('About you'))
+    const name = await screen.findByRole('textbox', { name: 'Full name' })
+    await user.clear(name)
+    await user.type(name, 'Jane Q Doe')
+    state = { shown: false, reason: 'name_mismatch' }
+    await user.click(action('Save changes'))
+    expect(await screen.findByText('Profile saved')).toBeTruthy()
+    await waitFor(() => expect(gets()).toHaveLength(2))
+    await user.click(screen.getByRole('button', { name: 'Keep editing' }))
+    await user.click(rail('Photo & publish'))
+    expect(await screen.findByText(/Not showing: the name on your profile doesn’t match your verified ID/)).toBeTruthy()
+  })
+
+  it('each reason\'s line is on the step; the trust line only while the check is live', async () => {
+    state = { shown: false, reason: 'pending' }
+    mount()
+    expect(await screen.findByText('eno’s team is checking your ID. It shows once approved.')).toBeTruthy()
+    expect(screen.queryByText(/adds 10 points to your trust score/)).toBeNull()
+    cleanup()
+    state = { shown: false, reason: 'off' }
+    mount()
+    expect(await screen.findByText(/adds 10 points to your trust score/)).toBeTruthy()
+  })
+
+  it('⛔ iOS (`ios-hide-kyc`): "verify first" names the website — never a link', async () => {
+    ios.on = true
+    state = { shown: false, reason: 'unverified' }
+    mount()
+    expect(await screen.findByText('Verify your identity first — eno’s team checks an ID document and a selfie.')).toBeTruthy()
+    expect(screen.queryByRole('link', { name: 'Verify my identity' })).toBeNull()
+    expect(screen.getByText(/Identity verification is available on our website, in a web browser:/)).toBeTruthy()
   })
 })

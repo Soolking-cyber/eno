@@ -45,6 +45,11 @@ const COPY = {
     afterNote: 'Once you have addressed this, you can verify again from your dashboard.',
     cta: 'Open verification',
     signoff: (site: string) => `Thanks for selling on ${site}.`,
+    // A TEACHER's approval (owner, 2026-10-15): the opt-in "Identity verified" mark — shown now, or theirs to switch on.
+    teacherNow: '“Identity verified” now shows on your teacher profile.',
+    teacherCan: 'You can now show “Identity verified” on your teacher profile — switch it on in Photo & publish.',
+    teacherNotYet: '“Identity verified” is not showing on your teacher profile yet — see why in Photo & publish.',
+    teacherCta: 'Update my teacher profile',
   },
   vi: {
     approvedSubject: (site: string) => `Danh tính của bạn đã được xác minh trên ${site}`,
@@ -72,6 +77,10 @@ const COPY = {
     afterNote: 'Sau khi xử lý xong, bạn có thể xác minh lại từ bảng điều khiển.',
     cta: 'Mở phần xác minh',
     signoff: (site: string) => `Cảm ơn bạn đã bán hàng trên ${site}.`,
+    teacherNow: 'Nhãn “Đã xác minh danh tính” đã hiển thị trên hồ sơ giáo viên của bạn.',
+    teacherCan: 'Giờ bạn có thể hiển thị “Đã xác minh danh tính” trên hồ sơ giáo viên — bật trong bước Ảnh & đăng.',
+    teacherNotYet: 'Nhãn “Đã xác minh danh tính” chưa hiển thị trên hồ sơ giáo viên của bạn — xem lý do trong bước Ảnh & đăng.',
+    teacherCta: 'Cập nhật hồ sơ giáo viên',
   },
 } as const
 
@@ -87,6 +96,9 @@ export function identityRejectionSentence(lang: Lang, reason: IdentityRejectReas
   return null
 }
 
+/** What a teacher's approval says about "Identity verified" (notify-outcome.ts teacherMarkLine). */
+export type TeacherMarkLine = 'now' | 'notYet' | 'can'
+
 export function renderIdentityOutcomeEmail(opts: {
   outcome: 'approved' | 'rejected'
   reason: IdentityRejectReason | null
@@ -96,10 +108,19 @@ export function renderIdentityOutcomeEmail(opts: {
   lang: Lang
   origin: string
   siteName: string
+  /**
+   * The account has a TEACHER profile (notify-outcome.ts teacherMarkLine; an approval only): the email adds one sentence
+   * about the opt-in "Identity verified" mark — 'now': it shows; 'notYet': the name holds it back (the form says why);
+   * 'can': only the switch does — its button opens the switch (/teachers/edit?step=finish, ⛔ never the verify flow), and
+   * the "selling" signoff goes. Absent: unchanged.
+   */
+  teacher?: { line: TeacherMarkLine } | null
 }): IdentityOutcomeEmail {
   const c = COPY[opts.lang]
   const approved = opts.outcome === 'approved'
-  const url = `${opts.origin}/dashboard/verification`
+  const teacher = approved ? opts.teacher ?? null : null
+  const url = teacher ? `${opts.origin}/teachers/edit?step=finish` : `${opts.origin}/dashboard/verification`
+  const markLine = teacher ? { now: c.teacherNow, notYet: c.teacherNotYet, can: c.teacherCan }[teacher.line] : null
   const why = approved ? null : identityRejectionSentence(opts.lang, opts.reason, opts.note)
   // ⚠️ THE COLON EXISTS ONLY WHEN SOMETHING FOLLOWS IT. A refusal with neither note nor known
   // reason ends the sentence with a full stop, not a colon into nothing.
@@ -112,24 +133,27 @@ export function renderIdentityOutcomeEmail(opts: {
   const whyHtml = why
     ? `<p style="margin:0 0 16px;padding:12px 14px;border:1px solid ${BORDER};border-radius:10px;color:${INK};font-size:15px;line-height:1.55">${esc(why)}</p>`
     : ''
+  // A teacher is not "selling": their email ends at the button.
+  const signoffHtml = teacher ? '' : `<p style="margin:0;color:${MUTED};font-size:13px;line-height:1.6">${esc(c.signoff(opts.siteName))}</p>`
   const bodyHtml = `
     <h1 style="margin:0 0 12px;color:${INK};font-size:22px;line-height:1.3">${esc(approved ? c.approvedHeading : c.rejectedHeading)}</h1>
     <p style="margin:0 0 16px;color:${INK};font-size:15px;line-height:1.6">${esc(body)}</p>
+    ${markLine ? `<p style="margin:0 0 20px;color:${INK};font-size:15px;line-height:1.6">${esc(markLine)}</p>` : ''}
     ${whyHtml}
     ${approved ? '' : `<p style="margin:0 0 20px;color:${INK};font-size:15px;line-height:1.6">${esc(next)}</p>`}
-    <p style="margin:0 0 24px"><a href="${esc(url)}" style="display:inline-block;background:${BLUE};color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:11px 18px;border-radius:10px">${esc(c.cta)}</a></p>
-    <p style="margin:0;color:${MUTED};font-size:13px;line-height:1.6">${esc(c.signoff(opts.siteName))}</p>
+    <p style="margin:0 0 24px"><a href="${esc(url)}" style="display:inline-block;background:${BLUE};color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:11px 18px;border-radius:10px">${esc(teacher ? c.teacherCta : c.cta)}</a></p>
+    ${signoffHtml}
   `
   const text = [
     approved ? c.approvedHeading : c.rejectedHeading,
     '',
     body,
+    ...(markLine ? ['', markLine] : []),
     ...(why ? ['', why] : []),
     ...(approved ? [] : ['', next]),
     '',
     url,
-    '',
-    c.signoff(opts.siteName),
+    ...(teacher ? [] : ['', c.signoff(opts.siteName)]),
   ].join('\n')
   return {
     subject: approved ? c.approvedSubject(opts.siteName) : c.rejectedSubject,

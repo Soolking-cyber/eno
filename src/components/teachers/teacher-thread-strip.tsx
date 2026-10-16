@@ -10,7 +10,8 @@
 //   · teacher: "Send my intro video" / "Stop sharing video", with the school's ask shown when there is one;
 //   · school: "Ask for their intro video" → asked (a day later: "Ask again") → "Watch intro video", inline, on a 10-minute link.
 // Any account the teacher shares with — the teacher DM ladder (owner, 2026-10-13) opened teacher chats to every account; the
-// 2026-10-08 business-only video rule went with it. The teacher sees whether the writer is verified (`writerVerified`).
+// 2026-10-08 business-only video rule went with it. The teacher sees whether the writer is verified (`writerVerified`);
+// the school sees the teacher's own opt-in "Identity verified" (`teacherIdentityVerified`, owner 2026-10-15).
 // The server re-derives every rule from the conversation row (src/lib/teachers/share.ts).
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { useLanguage } from '@/context/language-context'
@@ -44,8 +45,12 @@ const REMINT_WITHIN_MS = 60_000
  * `writerVerified` — TEACHER ONLY (the thread payload's `teacher.writerVerified`): whether the account writing is a
  * verified business, has a live identity check, or is not verified yet — said before the teacher taps Share (the DM
  * ladder, owner 2026-10-13). Null/absent shows nothing.
+ * `teacherIdentityVerified` — SCHOOL ONLY (the thread payload's `teacher.teacherIdentityVerified`, owner 2026-10-15): the
+ * TEACHER's own opt-in "Identity verified" mark (src/lib/teachers/identity-mark.ts), shown to the school or member
+ * writing to them. Only ever a positive chip — false or absent shows nothing, and there is never a negative label about
+ * a teacher. Ignored on the teacher's own side and on a closed thread.
  */
-export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedProp, live = true, shareSignal, closed = false, video: videoProp = null, videoReadAt, videoSignal = 0, hasPhone = true, phoneShared: phoneSharedProp = true, writerVerified = null }: { conversationId: string; iAmTeacher: boolean; shared: boolean; live?: boolean; shareSignal: number; closed?: boolean; video?: TeacherVideoFlags | null; videoReadAt?: number; videoSignal?: number; hasPhone?: boolean; phoneShared?: boolean; writerVerified?: 'business' | 'identity' | 'unverified' | null }) {
+export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedProp, live = true, shareSignal, closed = false, video: videoProp = null, videoReadAt, videoSignal = 0, hasPhone = true, phoneShared: phoneSharedProp = true, writerVerified = null, teacherIdentityVerified = false }: { conversationId: string; iAmTeacher: boolean; shared: boolean; live?: boolean; shareSignal: number; closed?: boolean; video?: TeacherVideoFlags | null; videoReadAt?: number; videoSignal?: number; hasPhone?: boolean; phoneShared?: boolean; writerVerified?: 'business' | 'identity' | 'unverified' | null; teacherIdentityVerified?: boolean }) {
   const { tr } = useLanguage()
   const [shared, setShared] = useState(sharedProp)
   const [phoneShared, setPhoneShared] = useState(phoneSharedProp)
@@ -411,6 +416,11 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
             : writerVerified === 'identity' ? tr('Identity verified', 'Đã xác minh danh tính')
             : tr('Not verified yet', 'Chưa xác minh')}
         </span>
+      )}
+      {/* …and the mirror, about the TEACHER, for the school (owner, 2026-10-15): the teacher's own opt-in mark, from the
+          server's boolean — the same pill, the same words as the profile line and the card tick. Positive only. */}
+      {!iAmTeacher && !closed && teacherIdentityVerified && (
+        <span className="rounded-full bg-tint px-2.5 py-1 text-2xs font-semibold text-body">{tr('Identity verified', 'Đã xác minh danh tính')}</span>
       )}
       {closed && !shared ? null : iAmTeacher ? (
         shared ? (

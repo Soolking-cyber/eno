@@ -17,6 +17,8 @@ const h = vi.hoisted(() => ({
   blockReads: 0,
   // writerVerified (src/lib/teachers/writer-verified.ts): whose verification each read was for.
   tierReads: [] as string[],
+  // The teacher's "Identity verified" (src/lib/teachers/identity-mark.ts): each read's input.
+  markReads: [] as Array<Record<string, unknown>>,
 }))
 
 vi.mock('next/server', async (orig) => {
@@ -38,6 +40,11 @@ vi.mock('@/lib/reaction-tally', () => ({ globalTopReactions: async () => [] }))
 vi.mock('@/lib/native-push', () => ({ syncBadgeToProfile: async () => {} }))
 vi.mock('@/lib/messages', () => ({ MESSAGE_ROW_SELECT: {}, serializeMessage: (m: Row) => m }))
 vi.mock('@/lib/storefront-gone', () => ({ isPublicListing: () => true, isStorefrontGone: async () => false }))
+// The teacher's opt-in mark — what the SCHOOL's side shows as `teacherIdentityVerified` (shown, whenever it is asked).
+vi.mock('@/lib/teachers/identity-mark', () => ({
+  IDENTITY_MARK_TP_SELECT: { profileId: true, fullName: true, identityMarkOn: true, identityMarkNoticeVersion: true },
+  identityMarkShownFor: async (m: Record<string, unknown>) => { h.markReads.push(m); return true },
+}))
 // The writer's public verification — what the TEACHER's side shows as `writerVerified`.
 vi.mock('@/lib/teachers/writer-verified', () => ({
   writerVerified: async (profileId: string) => {
@@ -86,6 +93,7 @@ beforeEach(() => {
   h.blocks = []
   h.blockReads = 0
   h.tierReads = []
+  h.markReads = []
 })
 afterEach(() => vi.unstubAllEnvs())
 
@@ -238,5 +246,40 @@ describe('a teacher thread — phoneShared, for the teacher only', () => {
     const { body } = await get()
     expect(body.teacher.shared).toBe(true)
     expect('phoneShared' in body.teacher).toBe(false)
+  })
+})
+
+// "Identity verified" about the TEACHER (owner, 2026-10-15): a thread closed by a block tells the school nothing — the
+// boolean is false, with no read, whichever side blocked; an open one asks the predicate; the teacher's side never does.
+describe('a teacher thread — teacherIdentityVerified and a block', () => {
+  const teacherThread = (): Row => thread({
+    listing: { ...thread().listing, listingType: 'teacher', teacherProfile: { status: 'live', videoOnRequest: false, private: { videoPath: null, phone: null }, profileId: 'seller-1', fullName: 'Anna Eriksson', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16' } },
+  })
+  beforeEach(() => { vi.stubEnv('NEXT_PUBLIC_APP_REVIEW_GATES', 'ugc-safety'); h.convo = teacherThread() })
+
+  it('⛔ a block either way: the school gets false — and nothing is read', async () => {
+    for (const block of [{ blockerProfileId: 'seller-1', blockedProfileId: 'buyer-1' }, { blockerProfileId: 'buyer-1', blockedProfileId: 'seller-1' }]) {
+      h.blocks = [block]
+      h.me = 'buyer-1'
+      const { status, body } = await get()
+      expect(status).toBe(200)
+      expect('closed' in body).toBe(true)
+      expect(body.teacher.teacherIdentityVerified).toBe(false)
+    }
+    expect(h.markReads).toEqual([])
+  })
+  it('no block: true (the predicate\'s answer), asked about the teacher', async () => {
+    const { body } = await get()
+    expect(body.teacher.teacherIdentityVerified).toBe(true)
+    expect(h.markReads).toEqual([{ profileId: 'seller-1', fullName: 'Anna Eriksson', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16' }])
+  })
+  it('the teacher\'s side never reads it — open or closed', async () => {
+    h.me = 'seller-1'
+    for (const blocks of [[], [{ blockerProfileId: 'seller-1', blockedProfileId: 'buyer-1' }]]) {
+      h.blocks = blocks
+      const { body } = await get()
+      expect('teacherIdentityVerified' in body.teacher).toBe(false)
+    }
+    expect(h.markReads).toEqual([])
   })
 })
