@@ -1,7 +1,7 @@
 import 'server-only'
 import { kv } from '@/lib/ratelimit'
 import { EDITION } from '@/lib/edition'
-import { counterKey, gateCounterKey, vnDay, type GateAction, type SignInGate, type SignupPromptCounterEvent } from '@/lib/signup-prompt'
+import { counterKey, gateCounterKey, teacherCounterKey, vnDay, type GateAction, type SignInGate, type SignupPromptCounterEvent, type TeacherFormEvent } from '@/lib/signup-prompt'
 
 // ── The "Join eno" prompt's anonymous daily totals ────────────────────────────────────────────────
 //
@@ -30,6 +30,11 @@ const COUNTER_TTL_SEC = 400 * 24 * 60 * 60
 /** +1 on today's total. Throws on a database fault — the route swallows it (a counter never errors). */
 export async function recordSignupPromptEvent(event: SignupPromptCounterEvent, ctx: string, now: number = Date.now()): Promise<void> {
   await kv.incrby(counterKey(vnDay(now), EDITION, event, ctx), 1, COUNTER_TTL_SEC)
+}
+
+/** +1 on today's total for one step of the teacher sign-up form (2026-10-16). Same contract as above. */
+export async function recordTeacherFormEvent(event: TeacherFormEvent, ctx: string, now: number = Date.now()): Promise<void> {
+  await kv.incrby(teacherCounterKey(vnDay(now), EDITION, event, ctx), 1, COUNTER_TTL_SEC)
 }
 
 /** +1 on today's total for one sign-in gate's action (UX3 J1). Same contract as above. */

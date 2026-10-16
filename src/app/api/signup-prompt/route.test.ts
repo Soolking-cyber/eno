@@ -98,6 +98,19 @@ describe('POST /api/signup-prompt', () => {
     for (const i of h.incr) expect(i.key).not.toContain('203.0.113.7')
   })
 
+  it('the teacher sign-up form\'s steps (2026-10-16): one +1 per known event, from either host; anything else is dropped', async () => {
+    await call({ t: 'step1_ready', c: 'inapp-fb.phone.en' }, { host: 'teacher.eno.vn', origin: 'https://teacher.eno.vn' })
+    await call({ t: 'published' })
+    await call({ t: 'step2_ready' })
+    await call({ t: 'step1_ready', c: 'evil' })
+    const day = vnDay(Date.now())
+    expect(h.incr.map((i) => i.key)).toEqual([
+      `teacher-form:${day}:${EDITION}:step1_ready:inapp-fb.phone.en`,
+      `teacher-form:${day}:${EDITION}:published:unknown`,
+      `teacher-form:${day}:${EDITION}:step1_ready:unknown`,
+    ])
+  })
+
   it('⛔ a local preview (not the live host) or a dev build writes nothing — not even the limiter', async () => {
     await call({ e: 'shown' }, { host: 'localhost:3000', origin: 'http://localhost:3000' })
     vi.stubEnv('NODE_ENV', 'development')

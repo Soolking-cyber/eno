@@ -3,8 +3,8 @@ import { rateLimit } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
 import { isProductionEnoHost } from '@/lib/consent-value'
 import { isBotUserAgent } from '@/lib/bot-ua'
-import { isCountedGate, isGateAction, isSignupPromptEvent, parseContextClass } from '@/lib/signup-prompt'
-import { recordSignInGateEvent, recordSignupPromptEvent } from '@/lib/signup-prompt-counter'
+import { isCountedGate, isGateAction, isSignupPromptEvent, isTeacherFormEvent, parseContextClass } from '@/lib/signup-prompt'
+import { recordSignInGateEvent, recordSignupPromptEvent, recordTeacherFormEvent } from '@/lib/signup-prompt-counter'
 import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
@@ -15,7 +15,9 @@ export const dynamic = 'force-dynamic'
  * J1) for one sign-in gate's action (src/lib/signup-prompt-counter.ts says what is kept: a number,
  * nothing about the caller).
  *   { e: <prompt event>, c?: <context class> }
- *   { g: <gate>, a: open|google|apple|email|completed, c?: <context class> }
+ *   { g: <gate>, a: open|google|apple|facebook|email|completed, c?: <context class> }
+ *   { t: <teacher-form event>, c?: <context class> } — the teacher sign-up form's steps (2026-10-16; teacher.eno.vn posts
+ *     here to itself — proxy.ts SUBDOMAIN_SELF_WRITES)
  * `c` is one of a closed set of 24 coarse classes; anything else is stored as "unknown", never as sent.
  *
  * ⚠️ ALWAYS A BODYLESS 204, whatever happens. It is a beacon; nothing reads the reply, and an error
@@ -48,7 +50,7 @@ export async function POST(req: NextRequest) {
   }
   if (isBotUserAgent(req.headers.get('user-agent') || '')) return noContent()
   if (Number(req.headers.get('content-length') || 0) > MAX_BODY_BYTES) return noContent()
-  let body: { e?: unknown; g?: unknown; a?: unknown; c?: unknown } | null
+  let body: { e?: unknown; g?: unknown; a?: unknown; t?: unknown; c?: unknown } | null
   try {
     const text = await req.text()
     if (text.length > MAX_BODY_BYTES) return noContent()
@@ -58,7 +60,8 @@ export async function POST(req: NextRequest) {
   const { e: event, g: gate, a: action } = body
   const isPrompt = isSignupPromptEvent(event)
   const isGate = !isPrompt && isCountedGate(gate) && isGateAction(action)
-  if (!isPrompt && !isGate) return noContent()
+  const teacherEvent = !isPrompt && !isGate && isTeacherFormEvent(body.t) ? body.t : null
+  if (!isPrompt && !isGate && !teacherEvent) return noContent()
   const ctx = parseContextClass(body.c)
 
   const rl = await rateLimit('signup-prompt', clientIp(req), PER_MINUTE, '1 m').catch(() => ({ success: true }))
@@ -66,5 +69,6 @@ export async function POST(req: NextRequest) {
   // The caller still gets its 204 — a counter never errors to a visitor — but a failing write is logged.
   if (isPrompt) await recordSignupPromptEvent(event, ctx).catch((e) => logError(e, { op: 'signup-prompt.count' }))
   else if (isCountedGate(gate) && isGateAction(action)) await recordSignInGateEvent(gate, action, ctx).catch((e) => logError(e, { op: 'signin-gate.count' }))
+  else if (teacherEvent) await recordTeacherFormEvent(teacherEvent, ctx).catch((e) => logError(e, { op: 'teacher-form.count' }))
   return noContent()
 }

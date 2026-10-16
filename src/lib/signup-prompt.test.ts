@@ -38,6 +38,9 @@ import {
   parseTestOverride,
   signupPromptRates,
   summariseSignupPrompt,
+  summariseTeacherForm,
+  teacherCounterKey,
+  parseTeacherCounterKey,
   vnDay,
   zeroTotals,
 } from './signup-prompt'
@@ -370,22 +373,51 @@ describe('signup-prompt — per-gate sign-in counters (UX3 J1)', () => {
       { key: counterKey('2026-10-05', 'marketplace', 'shown', 'browser.desktop.en'), n: 9 },
     ]
     const g = summariseGates(rows, { site: 'marketplace', days })
-    expect(g.byGate.chat).toEqual({ open: 7, google: 0, apple: 0, email: 3, completed: 2 })
-    expect(g.byGateContext.chat['inapp-zalo.phone.vi']).toEqual({ open: 6, google: 0, apple: 0, email: 3, completed: 2 })
+    expect(g.byGate.chat).toEqual({ open: 7, google: 0, apple: 0, facebook: 0, email: 3, completed: 2 })
+    expect(g.byGateContext.chat['inapp-zalo.phone.vi']).toEqual({ open: 6, google: 0, apple: 0, facebook: 0, email: 3, completed: 2 })
     expect(g.byGate.offer).toBeUndefined()
   })
 
   it('the timed prompt reads as a gate row from its own events', () => {
-    expect(promptAsGate({ ...zeroTotals(), shown: 10, google_click: 2, apple_click: 3, email_click: 1, signup_completed: 1 })).toEqual({ open: 10, google: 2, apple: 3, email: 1, completed: 1 })
+    expect(promptAsGate({ ...zeroTotals(), shown: 10, google_click: 2, apple_click: 3, facebook_click: 4, email_click: 1, signup_completed: 1 })).toEqual({ open: 10, google: 2, apple: 3, facebook: 4, email: 1, completed: 1 })
   })
 
   it('an Apple choice is counted and read back like the others (Sign in with Apple)', () => {
     const k = gateCounterKey('2026-10-08', 'marketplace', 'chat', 'apple', 'browser.phone.vi')
     expect(parseGateCounterKey(k)).toEqual({ day: '2026-10-08', site: 'marketplace', gate: 'chat', action: 'apple', ctx: 'browser.phone.vi' })
     expect(parseCounterKey(counterKey('2026-10-08', 'marketplace', 'apple_click', 'native.phone.en'))).toEqual({ day: '2026-10-08', site: 'marketplace', event: 'apple_click', ctx: 'native.phone.en' })
-    expect(PROMPT_METHOD_EVENT).toEqual({ google: 'google_click', apple: 'apple_click', email: 'email_click' })
+    expect(PROMPT_METHOD_EVENT).toEqual({ google: 'google_click', apple: 'apple_click', facebook: 'facebook_click', email: 'email_click' })
     // apple counts as a start, so the rates stay shares of the same asks
     const r = signupPromptRates({ ...zeroTotals(), shown: 10, google_click: 1, apple_click: 2, email_click: 1, signup_completed: 2 })
+    expect(r.startRate).toBeCloseTo(0.4)
+    expect(r.completionRate).toBeCloseTo(0.5)
+  })
+
+  it('the teacher form\'s steps: keyed, read back and summed per class; foreign or out-of-window keys never count (2026-10-16)', () => {
+    const k = teacherCounterKey('2026-10-17', 'marketplace', 'step1_continue', 'inapp-fb.phone.en')
+    expect(k).toBe('teacher-form:2026-10-17:marketplace:step1_continue:inapp-fb.phone.en')
+    expect(parseTeacherCounterKey(k)).toEqual({ day: '2026-10-17', site: 'marketplace', event: 'step1_continue', ctx: 'inapp-fb.phone.en' })
+    expect(parseTeacherCounterKey('teacher-form:2026-10-17:marketplace:step9:browser.phone.en')).toBeNull()
+    expect(teacherCounterKey('2026-10-17', 'marketplace', 'published', 'made-up')).toBe('teacher-form:2026-10-17:marketplace:published:unknown')
+    const s = summariseTeacherForm([
+      { key: 'teacher-form:2026-10-17:marketplace:step1_ready:inapp-fb.phone.en', n: '40' },
+      { key: 'teacher-form:2026-10-17:marketplace:step1_continue:inapp-fb.phone.en', n: 3 },
+      { key: 'teacher-form:2026-10-17:services:step1_ready:inapp-fb.phone.en', n: 9 },
+      { key: 'teacher-form:2026-10-01:marketplace:step1_ready:browser.phone.en', n: 7 },
+      { key: 'signin-gate:2026-10-17:marketplace:teacher:open:inapp-fb.phone.en', n: 5 },
+    ], { site: 'marketplace', days: ['2026-10-17'] })
+    expect(s.total).toEqual({ step1_ready: 40, step1_answered: 0, step1_blocked: 0, step1_continue: 3, published: 0 })
+    expect(Object.keys(s.byContext)).toEqual(['inapp-fb.phone.en'])
+    // …and the form is a sign-in gate of its own.
+    expect(parseGateCounterKey(gateCounterKey('2026-10-17', 'marketplace', 'teacher', 'facebook', 'inapp-fb.phone.en'))).toMatchObject({ gate: 'teacher', action: 'facebook' })
+  })
+
+  it('a Facebook choice is counted and read back like the others (Continue with Facebook, 2026-10-16)', () => {
+    const k = gateCounterKey('2026-10-17', 'marketplace', 'other', 'facebook', 'inapp-fb.phone.en')
+    expect(parseGateCounterKey(k)).toEqual({ day: '2026-10-17', site: 'marketplace', gate: 'other', action: 'facebook', ctx: 'inapp-fb.phone.en' })
+    expect(parseCounterKey(counterKey('2026-10-17', 'marketplace', 'facebook_click', 'browser.phone.en'))).toEqual({ day: '2026-10-17', site: 'marketplace', event: 'facebook_click', ctx: 'browser.phone.en' })
+    // facebook counts as a start, so the rates stay shares of the same asks
+    const r = signupPromptRates({ ...zeroTotals(), shown: 10, google_click: 1, facebook_click: 2, email_click: 1, signup_completed: 2 })
     expect(r.startRate).toBeCloseTo(0.4)
     expect(r.completionRate).toBeCloseTo(0.5)
   })

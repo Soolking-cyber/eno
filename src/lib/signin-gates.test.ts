@@ -51,6 +51,14 @@ describe('classifyGate — which gate asked', () => {
     expect(classifyGate({ ...base, pathname: '/postcards' })).toBe('other')
   })
 
+  it('the teacher profile form is its own gate (2026-10-16) — the header\'s Sign in there too; a named gate still wins', () => {
+    expect(classifyGate({ ...base, pathname: '/teachers/join' })).toBe('teacher')
+    expect(classifyGate({ ...base, pathname: '/teachers/edit' })).toBe('teacher')
+    expect(classifyGate({ ...base, pathname: '/teachers/join', press: { at: T0 - 500, inChrome: true } })).toBe('teacher')
+    expect(classifyGate({ ...base, pathname: '/teachers/join', explicit: 'chat' })).toBe('chat')
+    expect(classifyGate({ ...base, pathname: '/teachers' })).toBe('other')
+  })
+
   it('a press in the header or the tab bar within 10 s is the "nav" gate; an old one is not', () => {
     expect(classifyGate({ ...base, press: { at: T0 - 500, inChrome: true } })).toBe('nav')
     expect(classifyGate({ ...base, press: { at: T0 - NAV_PRESS_WINDOW_MS - 1, inChrome: true } })).toBe('other')
