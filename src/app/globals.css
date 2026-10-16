@@ -99,9 +99,10 @@
 
   /* ⚠️ THE APP SHIPS TWO WEIGHTS — 400 AND 700 — AND EVERY OTHER TIER IS RETARGETED ONTO THEM.
      Owner, 2026-08-13: "drop font weights to 2 bold for prices and bold parts and normal else".
-     Open Runde is STATIC cuts, not a variable font, so every weight is a separate ~64 KB file that
+     Open Runde is STATIC cuts, not a variable font, so every weight is a separate file that
      next/font preloads at priority HIGH — i.e. ahead of the LCP image. Four of them put 257 KB in
-     front of the thing the visitor is waiting to see. Two put 124 KB there.
+     front of the thing the visitor is waiting to see. Two put 124 KB there — and 55 KB since the
+     2026-10-16 re-subset (scripts/gen-fonts.sh, speed plan item 7).
 
      ⚠️ THE RETARGET DOES NOT CHANGE WHICH FACE PAINTS — IT MAKES THE FILE SAY SO. Checked with
      codex at plan time, which refuted the opposite claim this comment first carried: CSS Fonts 4

@@ -1,13 +1,17 @@
 // @vitest-environment jsdom
 /**
- * PHOTO & PUBLISH — THE "IDENTITY VERIFIED" SWITCH (owner, 2026-10-15), drawn by IdentityMarkSection from the form's state
- * (the save itself is teacher-form.tsx's — teacher-form.edit.test.tsx):
- *   · the switch's DESCRIPTION is the notice — IdentityMarkNote, whose meaning is IDENTITY_MARK_NOTICE_VERSION: it names
- *     the three places the mark shows, the conditions, never the document, and "within a few minutes" (never "at once");
- *   · ONE state line per reason, from the server's reason; "Verify my identity" a link on the web and, in the iOS app
- *     with `ios-hide-kyc` on, plain text naming the website;
+ * PHOTO & PUBLISH — THE "IDENTITY VERIFIED" SWITCH (owner, 2026-10-15; AUTOMATIC since 2026-10-16), drawn by
+ * IdentityMarkSection from the form's state (the save itself is teacher-form.tsx's — teacher-form.edit.test.tsx and, for a
+ * new profile, teacher-form.publish.test.tsx):
+ *   · the switch's DESCRIPTION is the notice — IdentityMarkNote, whose meaning is IDENTITY_MARK_NOTICE_VERSION: on by
+ *     default, the three places the mark shows, the conditions, never the document, and "within a few minutes" (never
+ *     "at once") once it is switched off to hide it;
+ *   · ON by default — checked means NOT hidden; a new profile's switch is enabled and held on the page (its line says the
+ *     choice is saved at Publish); disabled only when an edit's profile did not load;
+ *   · ONE state line per reason, from the server's reason; a line that promises the mark will show only while it is ON;
+ *     "Verify my identity" a link on the web and, in the iOS app with `ios-hide-kyc` on, plain text naming the website;
  *   · the trust line only while the identity check is LIVE;
- *   · a new profile (no profile yet) cannot save it — disabled, and the line says when it can;
+ *   · no opt-in nudge any more: no "switch it on" line, no notice-changed warning, no "reload" line;
  *   · ⛔ "xác minh" throughout — never "xác thực", never "Verified by eno".
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -22,67 +26,103 @@ import { IdentityMarkNote, IdentityMarkSection, type FinishIdentityMark } from '
 
 const STAMPS = { at: null, withdrawnAt: null }
 const mark = (reason: IdentityMarkReason | null | 'unknown', over: Partial<FinishIdentityMark> = {}): FinishIdentityMark => ({
-  on: false, noticeChanged: false, base: STAMPS, canSave: true, busy: false, message: '', onToggle: vi.fn(),
+  on: true, base: STAMPS, canSave: true, local: false, busy: false, message: '', onToggle: vi.fn(),
   state: reason === 'unknown' ? null : reason === null ? { shown: true, reason: null } : { shown: false, reason },
   ...over,
 })
-const mount = (m: FinishIdentityMark, lang: 'en' | 'vi' = 'en') =>
-  render(<LanguageProvider initialLang={lang} initialViDict={{}}><main><IdentityMarkSection mark={m} /></main></LanguageProvider>).container
+const mount = (m: FinishIdentityMark, lang: 'en' | 'vi' = 'en') => {
+  // jsdom's device language is English, so the provider "reloads" a Vietnamese page once and, the next time in this tab,
+  // swaps it to English (language-context.tsx reconcile): each Vietnamese mount here starts that guard afresh, or every
+  // one after the first would quietly be checked in English.
+  if (lang === 'vi') try { sessionStorage.removeItem('lang-reload:en') } catch { /* no storage: never swapped */ }
+  return render(<LanguageProvider initialLang={lang} initialViDict={{}}><main><IdentityMarkSection mark={m} /></main></LanguageProvider>).container
+}
 
-const NOTICE_EN = 'Off unless you switch it on. While it’s on, “Identity verified” shows on your profile and on its card in lists — to anyone who can see them, schools, other members and search engines included — and to the people who message you about your profile, but only while your check is current and the name on your profile matches your ID. Never your document or anything on it. Switching it off removes it within a few minutes; search engines may show the old page until they visit again.'
-const NOTICE_VI = 'Mặc định tắt. Khi bật, nhãn “Đã xác minh danh tính” hiển thị trên hồ sơ và trên thẻ hồ sơ trong các danh sách — với bất kỳ ai xem được, kể cả các trường, các thành viên khác và công cụ tìm kiếm — và với những người nhắn tin cho bạn về hồ sơ, nhưng chỉ khi việc xác minh còn hiệu lực và họ tên trên hồ sơ khớp với giấy tờ. Không bao giờ hiển thị giấy tờ hay bất kỳ thông tin nào trên đó. Khi bạn tắt, nhãn được gỡ trong vòng vài phút; công cụ tìm kiếm có thể vẫn hiển thị trang cũ cho đến lần truy cập tiếp theo.'
+// The spec's words (auto-spec.md, 2026-10-16), word for word.
+const NOTICE_EN = 'On by default once your identity is verified. While it’s on, “Identity verified” shows on your profile and on its card in lists — to anyone who can see them, schools, other members and search engines included — and to the people who message you about your profile, but only while your check is current and the name on your profile matches your ID. Never your document or anything on it. Switch it off to hide it — it is removed within a few minutes, though search engines may show the old page until they visit again.'
+const NOTICE_VI = 'Tự động bật khi danh tính của bạn đã được xác minh. Khi bật, nhãn “Đã xác minh danh tính” hiển thị trên hồ sơ và trên thẻ hồ sơ trong các danh sách — với bất kỳ ai xem được, kể cả các trường, các thành viên khác và công cụ tìm kiếm — và với những người nhắn tin cho bạn về hồ sơ, nhưng chỉ khi việc xác minh còn hiệu lực và họ tên trên hồ sơ khớp với giấy tờ. Không bao giờ hiển thị giấy tờ hay bất kỳ thông tin nào trên đó. Tắt để ẩn nhãn — nhãn được gỡ trong vòng vài phút, dù công cụ tìm kiếm có thể vẫn hiển thị trang cũ cho đến lần truy cập tiếp theo.'
+const MARK_NAME = 'Show “Identity verified” on my profile'
+const LOCAL_LINE = 'Your choice is saved when you publish.'
 
 beforeEach(() => { ios.on = false })
 afterEach(cleanup)
 
-describe('IdentityMarkNote — the consent, word for word', () => {
+describe('IdentityMarkNote — what the teacher is told, word for word', () => {
   it.each([['en', NOTICE_EN], ['vi', NOTICE_VI]] as const)('%s', (lang, text) => {
     const c = render(<LanguageProvider initialLang={lang} initialViDict={{}}><IdentityMarkNote /></LanguageProvider>).container
     expect(c.querySelector('[data-testid="identity-mark-note"]')!.textContent).toBe(text)
   })
-  it('names the three places, the conditions and the timing — never "at once", "xác thực" or "Verified by eno"', () => {
+  it('on by default; names the three places, the conditions, how to hide it and the timing — never opt-in words, "at once", "xác thực" or "Verified by eno"', () => {
+    expect(NOTICE_EN).toMatch(/^On by default once your identity is verified\./)
     expect(NOTICE_EN).toMatch(/on your profile/)
     expect(NOTICE_EN).toMatch(/on its card in lists/)
     expect(NOTICE_EN).toMatch(/to the people who message you about your profile/)
     expect(NOTICE_EN).toMatch(/only while your check is current and the name on your profile matches your ID/)
     expect(NOTICE_EN).toMatch(/Never your document/)
+    expect(NOTICE_EN).toMatch(/Switch it off to hide it/)
     expect(NOTICE_EN).toMatch(/within a few minutes/)
+    expect(NOTICE_EN).not.toMatch(/Off unless|switch it on/i)
+    expect(NOTICE_VI).not.toMatch(/Mặc định tắt/)
     expect(NOTICE_EN + NOTICE_VI).not.toMatch(/at once|ngay;|xác thực|Verified by eno/)
   })
 })
 
 describe('IdentityMarkSection — the switch', () => {
-  it('a labelled switch whose DESCRIPTION is the notice — not part of its name', () => {
-    mount(mark('off'))
-    const sw = screen.getByRole('switch', { name: 'Show “Identity verified” on my profile' })
-    expect(sw.getAttribute('aria-checked')).toBe('false')
+  it('a labelled switch, ON by default, whose DESCRIPTION is the notice — not part of its name', () => {
+    mount(mark(null))
+    const sw = screen.getByRole('switch', { name: MARK_NAME })
+    expect(sw.getAttribute('aria-checked')).toBe('true')
     const desc = (sw.getAttribute('aria-describedby') ?? '').split(' ').map((id) => document.getElementById(id)?.textContent ?? '').join(' ')
     expect(desc).toBe(NOTICE_EN)
   })
-  it('shows the server\'s word: on is on', () => {
-    mount(mark(null, { on: true }))
-    expect(screen.getByRole('switch', { name: 'Show “Identity verified” on my profile' }).getAttribute('aria-checked')).toBe('true')
+  it('shows the server\'s word: hidden is off', () => {
+    mount(mark('hidden', { on: false }))
+    expect(screen.getByRole('switch', { name: MARK_NAME }).getAttribute('aria-checked')).toBe('false')
   })
-  it('a toggle asks the form to save; a toggle while one is on its way is dropped', () => {
+  it('a toggle asks the form to save — off is a hide; a toggle while one is on its way is dropped', () => {
     const onToggle = vi.fn()
-    mount(mark('off', { onToggle }))
+    mount(mark(null, { onToggle }))
     fireEvent.click(screen.getByRole('switch'))
-    expect(onToggle).toHaveBeenCalledWith(true)
+    expect(onToggle).toHaveBeenCalledWith(false)
     cleanup()
     const busyToggle = vi.fn()
-    mount(mark('off', { onToggle: busyToggle, busy: true }))
+    mount(mark(null, { onToggle: busyToggle, busy: true }))
     expect(screen.getByText('Saving…')).toBeTruthy()
     fireEvent.click(screen.getByRole('switch'))
     expect(busyToggle).not.toHaveBeenCalled()
   })
-  it('a new profile (no profile yet): disabled, never toggled, and the line says when it can be', () => {
+  it('a NEW profile (no profile yet): ENABLED and held on the page — the line says when the choice is saved', () => {
     const onToggle = vi.fn()
-    mount(mark('unverified', { canSave: false, onToggle }))
+    mount(mark('no_profile', { local: true, onToggle }))
+    const sw = screen.getByRole('switch', { name: MARK_NAME })
+    expect(sw.getAttribute('aria-checked')).toBe('true')
+    expect(sw.getAttribute('aria-disabled') === 'true' || sw.hasAttribute('disabled') || sw.hasAttribute('data-disabled')).toBe(false)
+    expect(screen.getByText(LOCAL_LINE)).toBeTruthy()
+    fireEvent.click(sw)
+    expect(onToggle).toHaveBeenCalledWith(false)
+    // While the Publish carrying it is on its way: a tap is dropped, and the switch says nothing of its own save.
+    cleanup()
+    const publishing = vi.fn()
+    mount(mark('no_profile', { local: true, busy: true, onToggle: publishing }))
+    fireEvent.click(screen.getByRole('switch'))
+    expect(publishing).not.toHaveBeenCalled()
+    expect(screen.queryByText('Saving…')).toBeNull()
+  })
+  it('an edit whose profile did not load: disabled, never toggled — and no line promising a later switch-on', () => {
+    const onToggle = vi.fn()
+    mount(mark('unknown', { canSave: false, onToggle }))
     const sw = screen.getByRole('switch')
     expect(sw.getAttribute('aria-disabled') === 'true' || sw.hasAttribute('disabled') || sw.hasAttribute('data-disabled')).toBe(true)
     fireEvent.click(sw)
     expect(onToggle).not.toHaveBeenCalled()
-    expect(screen.getByText('You can switch this on after you publish your profile.')).toBeTruthy()
+    expect(screen.queryByText(LOCAL_LINE)).toBeNull()
+  })
+  it('⛔ no opt-in nudge is left: no "switch this on", no notice-changed warning', () => {
+    for (const m of [mark(null), mark('hidden', { on: false }), mark('no_profile', { local: true }), mark('unknown', { canSave: false })]) {
+      const c = mount(m)
+      expect(c.textContent).not.toMatch(/switch (this|it) on|What this switch does has changed/i)
+      cleanup()
+    }
   })
 })
 
@@ -95,24 +135,44 @@ describe('IdentityMarkSection — one line per reason', () => {
     name_mismatch: /^Not showing: the name on your profile doesn’t match your verified ID\. Use your name as it is on your ID — you can leave out middle names\.$/,
     revoked: /^Not available for this account\. Contact support if you think this is a mistake\.$/,
   }
+  // ⚠️ Beside a HIDDEN mark (switch off), a line never promises it will show: the hide outlasts any approval.
+  const HIDDEN_LINES: Record<string, RegExp> = {
+    unverified: LINES.unverified,
+    pending: /^eno’s team is checking your ID\.$/,
+    expired: /^Your verified ID has expired\. Verify my identity$/,
+    no_name: /^We have no name on record from your ID\. Verify my identity$/,
+    name_mismatch: LINES.name_mismatch,
+    revoked: LINES.revoked,
+  }
+  const ALL = [...Object.values(LINES), ...Object.values(HIDDEN_LINES)]
   const lineTexts = (c: HTMLElement) => [...c.querySelectorAll('section > p')].map((p) => p.textContent ?? '')
 
   it.each(Object.keys(LINES))('%s', (reason) => {
     const c = mount(mark(reason as IdentityMarkReason))
-    const lines = lineTexts(c).filter((t) => Object.values(LINES).some((re) => re.test(t)))
+    const lines = lineTexts(c).filter((t) => ALL.some((re) => re.test(t)))
     expect(lines).toHaveLength(1)
     expect(lines[0]).toMatch(LINES[reason])
   })
 
+  it.each(Object.keys(HIDDEN_LINES))('%s, beside a hidden mark: no promise that it shows', (reason) => {
+    const c = mount(mark(reason as IdentityMarkReason, { on: false }))
+    const lines = lineTexts(c).filter((t) => ALL.some((re) => re.test(t)))
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toMatch(HIDDEN_LINES[reason])
+    expect(lines[0]).not.toMatch(/It shows once approved|to show it/)
+  })
+
   it('the link opens the verify page in a new tab, where it is offered', () => {
     for (const reason of ['unverified', 'expired', 'no_name'] as const) {
-      mount(mark(reason))
-      const link = screen.getByRole('link', { name: 'Verify my identity' })
-      expect(link.getAttribute('href')).toBe('/dashboard/account/verify')
-      expect(link.getAttribute('target')).toBe('_blank')
-      cleanup()
+      for (const on of [true, false]) {
+        mount(mark(reason, { on }))
+        const link = screen.getByRole('link', { name: 'Verify my identity' })
+        expect(link.getAttribute('href')).toBe('/dashboard/account/verify')
+        expect(link.getAttribute('target')).toBe('_blank')
+        cleanup()
+      }
     }
-    for (const reason of ['pending', 'name_mismatch', 'revoked', 'off', null] as const) {
+    for (const reason of ['pending', 'name_mismatch', 'revoked', 'hidden', 'no_profile', null] as const) {
       mount(mark(reason))
       expect(screen.queryByRole('link', { name: 'Verify my identity' })).toBeNull()
       cleanup()
@@ -129,40 +189,38 @@ describe('IdentityMarkSection — one line per reason', () => {
     }
   })
 
-  it('shown, off, or not known: no state line', () => {
-    for (const reason of [null, 'off', 'unknown'] as const) {
-      const c = mount(mark(reason))
-      expect(lineTexts(c).filter((t) => Object.values(LINES).some((re) => re.test(t))), String(reason)).toEqual([])
+  it('shown, hidden, no profile yet, or not known: no state line', () => {
+    for (const reason of [null, 'hidden', 'no_profile', 'unknown'] as const) {
+      const c = mount(mark(reason, { on: reason !== 'hidden' }))
+      expect(lineTexts(c).filter((t) => ALL.some((re) => re.test(t))), String(reason)).toEqual([])
       cleanup()
     }
-  })
-
-  it('switched on under older words: the warning line — unless the identity stands in the way first', () => {
-    mount(mark('notice_changed', { noticeChanged: true }))
-    expect(screen.getByText('What this switch does has changed since you turned it on. Switch it on again to keep showing it.')).toBeTruthy()
-    cleanup()
-    const c = mount(mark('expired', { noticeChanged: true }))
-    expect(c.textContent).not.toContain('What this switch does has changed')
-    expect(c.textContent).toContain('your verified ID has expired')
   })
 
   it('in Vietnamese: the curated lines — "xác minh", never "xác thực"', () => {
     const c = mount(mark('unverified'), 'vi')
     expect(c.textContent).toContain('Hãy xác minh danh tính trước — đội ngũ eno kiểm tra giấy tờ tùy thân và ảnh chân dung.')
     expect(screen.getByRole('link', { name: 'Xác minh danh tính' })).toBeTruthy()
-    for (const reason of ['pending', 'expired', 'no_name', 'name_mismatch', 'revoked', 'notice_changed'] as const) {
-      cleanup()
-      const v = mount(mark(reason, { noticeChanged: reason === 'notice_changed' }), 'vi')
-      expect(v.innerHTML, reason).not.toContain('xác thực')
+    for (const on of [true, false]) {
+      for (const reason of ['pending', 'expired', 'no_name', 'name_mismatch', 'revoked', 'hidden', 'no_profile'] as const) {
+        cleanup()
+        const v = mount(mark(reason, { on, local: reason === 'no_profile' }), 'vi')
+        expect(v.textContent, `${reason} ${on}`).toContain('Hiển thị “Đã xác minh danh tính” trên hồ sơ') // really Vietnamese
+        expect(v.innerHTML, `${reason} ${on}`).not.toContain('xác thực')
+      }
     }
+    cleanup()
+    expect(mount(mark('pending', { on: false }), 'vi').textContent).toContain('Đội ngũ eno đang kiểm tra giấy tờ của bạn.')
+    cleanup()
+    expect(mount(mark('no_profile', { local: true }), 'vi').textContent).toContain('Lựa chọn của bạn được lưu khi bạn đăng hồ sơ.')
   })
 })
 
 describe('IdentityMarkSection — the trust line', () => {
   const TRUST = 'Your verified identity also adds 10 points to your trust score — one of the factors in the order of teacher lists — whether or not you show it.'
-  it('only while the identity check is LIVE', () => {
-    for (const reason of [null, 'off', 'notice_changed', 'no_name', 'name_mismatch'] as const) {
-      expect(mount(mark(reason)).textContent, String(reason)).toContain(TRUST)
+  it('only while the identity check is LIVE — a hide, the name or no profile yet holding the mark back included', () => {
+    for (const reason of [null, 'hidden', 'no_profile', 'no_name', 'name_mismatch'] as const) {
+      expect(mount(mark(reason, { on: reason !== 'hidden' })).textContent, String(reason)).toContain(TRUST)
       cleanup()
     }
     for (const reason of ['unverified', 'pending', 'expired', 'revoked', 'unknown'] as const) {
@@ -174,14 +232,19 @@ describe('IdentityMarkSection — the trust line', () => {
 
 describe('IdentityMarkSection — after a refusal', () => {
   it.each([
-    ['reload', 'Some of the wording on this page has changed since you opened it. Reload the page to read it, then switch it on again.', 'status'],
-    ['changed', 'This switch was changed in another window. It now shows what is saved — switch it on again if you want to.', 'status'],
+    ['changed', 'This switch was changed in another window. It now shows what is saved — change it again if you want to.', 'status'],
     ['rate_limited', 'Too many requests — please try again in a few minutes.', 'status'],
     ['failed', 'Could not save the switch. Please try again.', 'alert'],
     ['unknown', 'Could not check the switch. Reload the page to see what is saved.', 'alert'],
   ] as const)('%s: a calm line', (message, text, role) => {
-    mount(mark('off', { message }))
+    mount(mark('hidden', { on: false, message }))
     const el = screen.getByText(text)
     expect(el.getAttribute('role')).toBe(role)
+  })
+  it('no "reload the page to read it" line any more — the mark has no notice to re-read (2026-10-16)', () => {
+    for (const message of ['', 'changed', 'rate_limited', 'failed', 'unknown'] as const) {
+      expect(mount(mark(null, { message })).textContent, message).not.toMatch(/Reload the page to read it|switch it on again/)
+      cleanup()
+    }
   })
 })

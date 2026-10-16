@@ -1,12 +1,20 @@
 import 'server-only'
 import { db } from '@/lib/db'
+import { identityMarkHidden } from '@/lib/teachers/identity-mark'
 
 /**
  * A teacher's part of the account export (PDPL access right; src/app/api/account/export).
  * Teacher profile (2026-09-30) + cover lessons (2026-10-07): what the teacher entered and what eno recorded about it
- * (cover consent and withdrawal timestamps; since 2026-10-08 also each opt-in's grant, AI notice version and withdrawal;
- * since 2026-10-16 the "Identity verified" switch and its own grant, notice version and withdrawal — they come along with
- * the row), and their own private contact row. The CV is named, not its storage path (a bucket key is not their data).
+ * (cover consent and withdrawal timestamps; since 2026-10-08 also each opt-in's grant, AI notice version and withdrawal —
+ * they come along with the row), and their own private contact row. The CV is named, not its storage path (a bucket key
+ * is not their data).
+ * ⚖️ "IDENTITY VERIFIED" (AUTOMATIC since 2026-10-16 — src/lib/teachers/identity-mark.ts): its four columns come along
+ * with the row too, and are LABELLED in `identityMark` for what they record now — the teacher's own hide and show-again,
+ * never an opt-in consent (the consent is the identity declaration — identity_verifications.declarationVersion):
+ *   · `hidden` — hidden by the teacher right now (identityMarkHidden: the last act on the switch was a hide);
+ *   · `shownAgainAt` — identityMarkAt: when they last chose to show it (before 2026-10-16, when they switched it on);
+ *   · `hiddenAt` — identityMarkWithdrawnAt: when they last hid it (before 2026-10-16, when they switched it off);
+ *   · `wordsVersion` — identityMarkNoticeVersion: the words beside the switch when they last chose to show it.
  * ⛔ THE JOB MATCHES ARE IN IT (2026-10-08): what the AI judge (Claude Haiku 5.5, Anthropic) concluded about a teacher —
  * score, reasons, concerns, the judge's version — and what eno did with it (emailed, the staff status) is that teacher's
  * personal data, so the access copy carries every TeacherJobMatch row of theirs, with the job's public title.
@@ -38,6 +46,12 @@ export async function teacherExportOf(profileId: string) {
   ])
   return {
     ...rest,
+    identityMark: {
+      hidden: identityMarkHidden(rest),
+      shownAgainAt: rest.identityMarkAt,
+      hiddenAt: rest.identityMarkWithdrawnAt,
+      wordsVersion: rest.identityMarkNoticeVersion,
+    },
     private: priv ? { phone: priv.phone, email: priv.email, cvFileName: priv.cvFileName, updatedAt: priv.updatedAt, hasPrivateVideo: !!priv.videoPath } : null,
     videoShares,
     matches: matches.map(({ listing, ...m }) => ({ ...m, jobTitle: listing.title })),

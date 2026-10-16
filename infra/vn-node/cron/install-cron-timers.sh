@@ -105,10 +105,13 @@ declare -A SCHED=(
   # src/app/api/cron/identity-marks/route.ts): identity-reconcile's card-tick pass run ALONE. A document lapses at 00:00
   # ICT and the mark with it ("only while the identity check is LIVE" — owner), but a lapse is a clock, not an event, and
   # the reconcile above runs at 09:05 — so without this run a card and a baked profile line would keep the tick for nine
-  # hours after every lapse. It syncs every teacher whose switch is on or whose card carries the tick, and purges their
-  # pages when it changed; no recompute, no trust, no enforcement — it sends nothing at night. 17:05 UTC = 00:05 ICT,
-  # five minutes after licence-holds. Deploy day: `?dryRun=1` first, then `ENO_CRON_ONLY=identity-marks bash
-  # install-cron-timers.sh`.
+  # hours after every lapse. It syncs every teacher whose account holds an identity row (the mark is AUTOMATIC since
+  # 2026-10-16), whose card carries the tick, or who hid it in the last 7 days, and purges their pages when the card
+  # changed, for an identity holder who has not hidden it, and after a recent hide; no recompute, no trust, no
+  # enforcement — it sends nothing at night. 17:05 UTC = 00:05 ICT, five minutes after licence-holds. Deploy day:
+  # `?dryRun=1` first, then `ENO_CRON_ONLY=identity-marks bash install-cron-timers.sh` — and, right after the deploy
+  # that made the mark automatic (or any IDENTITY_MARK_NOTICE_VERSION bump), run the route once by hand: its selection
+  # covers every identity holder, so that run IS the backfill (identity-reconcile's loop does it too).
   [identity-marks]="*-*-* 17:05:00 UTC"
 )
 # ⚠️ affiliate-prices reaches OUT to api.accesstrade.vn and can run for minutes. It writes only price/affiliateUrl
@@ -163,8 +166,9 @@ declare -A SCHED=(
 # until the deploy lands, harmlessly. One edition is enough: the database is shared.
 # ⚠️ identity-marks is SAFE to enable (review, 2026-10-16 — SAFE, so any full re-run enables it): it rewrites only the
 # teacher card's display cache (Listing.identityMarkNotice, through its one writer, src/lib/teachers/identity-mark-card.ts)
-# to what the live identity, the teacher's own switch and their name already say, and purges those teachers' pages. It is
-# idempotent, emails and notifies nobody, and touches only teachers whose switch is on or whose card carries the tick. So,
+# to what the live identity, the teacher's own hide and their name already say, and purges those teachers' pages. It is
+# idempotent, emails and notifies nobody, and touches only teachers who hold an identity row, whose card carries the
+# tick, or who hid it in the last 7 days (a handful). So,
 # unlike identity-reconcile, it IS replayed at boot when missed (the default Persistent=true): a sync and a purge are
 # silent at any hour. Installed before the deploy, its unit fails (the route 404s) until the deploy lands, harmlessly. One
 # edition is enough: the database and the ISR invalidations are shared.

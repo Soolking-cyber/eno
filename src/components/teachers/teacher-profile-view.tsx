@@ -7,7 +7,9 @@
 // derivation, tested there). ⛔ The old columns (preferredCities, openToOnline, coverAreas, nativeSpeaker,
 // yearsExperience, currentDistrict) are WRITTEN MIRRORS now and are never read back here as answers (plan review D1).
 import { Fragment } from 'react'
+import Image from 'next/image'
 import { db } from '@/lib/db'
+import { isListingImageUrl, isMockImageUrl } from '@/lib/listing-image'
 import { Tr } from '@/context/language-context'
 import { LocalizedText } from '@/components/marketplace/listing-content'
 import { Header } from '@/components/marketplace/header'
@@ -26,7 +28,7 @@ import { Bilingual } from '@/components/marketplace/bilingual'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { BadgeCheck, Check, Lock } from '@/components/ui/icons'
-import { identityMarkShownFor } from '@/lib/teachers/identity-mark'
+import { identityMarkShownOnCard } from '@/lib/teachers/identity-mark'
 import { COVER_CONSENT_VERSION, COVER_DAYS, COVER_PARTS, COVER_PART_LABELS, coverAreaLabel, coverSlotLabel } from '@/lib/teachers/cover'
 import { CoverDayShort } from '@/components/teachers/cover-day'
 import { formatCalendarDay } from '@/lib/calendar-day'
@@ -106,31 +108,39 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
       teachLanguages: true, englishLevel: true, experienceBand: true,
       coverOpen: true, coverSlots: true, coverRateVnd: true, coverConfirmedAt: true, coverConsentVersion: true,
       videoOnRequest: true, private: { select: { videoPath: true } },
-      // "Identity verified" (owner, 2026-10-15): read for ONE boolean below (identityMarkShownFor), never rendered —
-      // split off with `private`, so `tp` never carries them (the account id least of all).
-      profileId: true, identityMarkOn: true, identityMarkNoticeVersion: true,
+      // "Identity verified" (owner, 2026-10-15): read for ONE boolean below (identityMarkShownOnCard), never rendered —
+      // the mark's inputs and the listing's card cache (Listing.identityMarkNotice, through the row's own listing relation,
+      // in this same read: no query of its own — at most one primary-key lookup more, once per ISR render) are split off
+      // with `private`, so `tp` never carries them (the account id least of all).
+      profileId: true, identityMarkOn: true, identityMarkWithdrawnAt: true, listing: { select: { identityMarkNotice: true } },
     },
   })
   // ⛔ Only THAT a private intro video exists leaves this query (2026-10-07) — its storage path is never rendered, put in
-  // the JSON-LD or handed to a client component, so it is split off here, before `tp` is used anywhere. The mark's three
-  // inputs go the same way.
-  const { private: tpPrivate, profileId: _profileId, identityMarkOn: _markOn, identityMarkNoticeVersion: _markVersion, ...tpPublic } = tpRow ?? { private: null, profileId: null, identityMarkOn: false, identityMarkNoticeVersion: null }
-  const tp = tpRow ? (tpPublic as Omit<NonNullable<typeof tpRow>, 'private' | 'profileId' | 'identityMarkOn' | 'identityMarkNoticeVersion'>) : null
+  // the JSON-LD or handed to a client component, so it is split off here, before `tp` is used anywhere. The mark's
+  // inputs and the card cache go the same way: whether a teacher HID the mark is theirs, never the page's.
+  const {
+    private: tpPrivate, profileId: _profileId, identityMarkOn: _markOn, identityMarkWithdrawnAt: _markHiddenAt, listing: _markCard, ...tpPublic
+  } = tpRow ?? { private: null, profileId: null, identityMarkOn: false, identityMarkWithdrawnAt: null, listing: null }
+  const tp = tpRow ? (tpPublic as Omit<NonNullable<typeof tpRow>, 'private' | 'profileId' | 'identityMarkOn' | 'identityMarkWithdrawnAt' | 'listing'>) : null
   /**
-   * "IDENTITY VERIFIED" — THE PROFILE LINE (owner, 2026-10-15): shown while the teacher has switched the mark on under
-   * today's notice, their identity check is LIVE and the name above is within the ID's (src/lib/teachers/identity-mark.ts
-   * — the one predicate every surface asks). Zero identity reads unless the switch is on. Only the boolean leaves.
-   * ⛔ THE ONE CLOCK READ ON THIS ISR PAGE — correct only because every input that moves it purges the page: the switch
-   * (saveTeacherIdentityMark), a rename (saveTeacherProfile), approval and revocation (identity-effects), and the clock
-   * itself — a document lapses at 00:00 ICT and the card pass at 00:05 ICT purges every teacher whose switch is on
-   * (/api/cron/identity-marks; the 09:05 reconcile again). ⚠️ FAILS CLOSED: a read that throws hides the line.
-   * ⛔ Nothing of it goes into the JSON-LD.
+   * "IDENTITY VERIFIED" — THE PROFILE LINE (owner, 2026-10-15; AUTOMATIC since 2026-10-16): shown while the teacher's
+   * identity check is LIVE and the name above is within the ID's, unless they hid it (src/lib/teachers/identity-mark.ts
+   * — the one predicate every surface asks). Only the boolean leaves.
+   * ⛔ GATED ON THE CARD CACHE this query already loaded (identityMarkShownOnCard): zero identity reads unless the
+   * listing's cache holds today's value — the card and the line can never disagree in the line's favour — and then judged
+   * LIVE, so a lapse or a revocation since the cache was written never shows. ⚠️ FAILS CLOSED: a cache wrongly empty (a
+   * sync that failed) or a read that throws hides the line.
+   * ⛔ THE ONE CLOCK READ ON THIS ISR PAGE — correct only because every input that moves it purges the page: a hide or a
+   * show-again (saveTeacherIdentityMark), every save — the first Publish and a rename (saveTeacherProfile) — approval and
+   * revocation (identity-effects), and the clock itself — a document lapses at 00:00 ICT and the card pass at 00:05 ICT
+   * re-derives the cache and purges every identity holder who has not hidden it (/api/cron/identity-marks; the 09:05
+   * reconcile again). ⛔ Nothing of it goes into the JSON-LD.
    */
   const identityShown = tpRow
-    ? await identityMarkShownFor({
+    ? await identityMarkShownOnCard({
       profileId: tpRow.profileId, fullName: tpRow.fullName,
-      identityMarkOn: tpRow.identityMarkOn, identityMarkNoticeVersion: tpRow.identityMarkNoticeVersion,
-    }, new Date()).catch(() => false)
+      identityMarkOn: tpRow.identityMarkOn, identityMarkWithdrawnAt: tpRow.identityMarkWithdrawnAt,
+    }, tpRow.listing?.identityMarkNotice ?? null, new Date()).catch(() => false)
     : false
   // ⛔ PRIVACY WINS (video.ts, the planner's both-homes rule) — on the teacher's CHOICE alone: a teacher who keeps their video
   // private is shown no public player even if a stale public URL survives somewhere (only a deploy window can leave one),
@@ -201,15 +211,22 @@ export async function TeacherProfileView({ listing, canonicalUrl, indexable, lan
   ] : []
 
   return (
-    <div className="flex min-h-page flex-col">
+    // data-rum: the page-speed totals tell a teacher profile from any other listing page (src/lib/rum/shared.ts).
+    <div className="flex min-h-page flex-col" data-rum="teacher">
       {indexable && ld && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ldJson(ld) }} />}
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-5xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
         <div className="grid gap-8 lg:grid-cols-[1fr_20rem]">
           <div className="space-y-8">
             <header className="flex items-start gap-4">
+              {/* ⚠️ THROUGH THE OPTIMIZER, PRELOADED AT HIGH PRIORITY (speed plan item 7, 2026-10-16). The raw <img> sent
+                  the uploaded original — 71 KB for a 96px circle on the measured profile, ~2 KB as AVIF — at the
+                  default image priority. `priority` is the preload and `fetchPriority`
+                  is what makes it high (listing-gallery.tsx's note). A URL the optimizer does not serve (anything
+                  but a canonical listing-bucket image) is passed through as before. The JSON-LD, the share card
+                  and TeacherContact keep the original URL (`photo`). */}
               {photo
-                ? <img src={photo} alt="" width={96} height={96} className="size-24 shrink-0 rounded-full object-cover" />
+                ? <Image src={photo} alt="" width={96} height={96} quality={60} priority fetchPriority="high" unoptimized={!isListingImageUrl(photo) || isMockImageUrl(photo)} className="size-24 shrink-0 rounded-full object-cover" />
                 : <span className="size-24 shrink-0 rounded-full bg-muted" />}
               <div className="min-w-0">
                 <h1 className="text-2xl font-semibold text-foreground">{name}</h1>

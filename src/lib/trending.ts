@@ -62,7 +62,11 @@ export async function logSearch(raw: string, actor?: string): Promise<void> {
   const member = normalizeQuery(raw)
   if (!member) return
   try {
-    await db.$queryRaw`select trend_log(${member}, ${actor ?? null})`
+    // ⚠️ $executeRaw, NOT $queryRaw: trend_log() `returns void`, and $queryRaw deserializes the result column — Postgres
+    // `void` has no Prisma type, so EVERY search threw "Failed to deserialize column of type 'void'" AFTER the row was
+    // written, and Prisma logged it as prisma:error on every search in production (seen 2026-10-16 while probing speed
+    // plan item 5). The kv_del trap in ratelimit.ts, again.
+    await db.$executeRaw`select trend_log(${member}, ${actor ?? null})`
   } catch {
     /* fail-open: trending logging must never surface an error to search */
   }

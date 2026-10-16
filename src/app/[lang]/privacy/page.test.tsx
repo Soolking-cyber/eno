@@ -617,7 +617,10 @@ describe('/privacy — round-2 corrections hold', () => {
     // ⚠️ Built with join(), never a literal `tr` + `('` in this file: scripts/gen-ui-strings.mjs walks test
     // files too and would harvest a placeholder key into the shipped catalogue (it did, 2026-10-01).
     const call = ['{tr', `('${en}', '${vi}')}`].join('')
-    expect(card).toContain(`<Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">${call}</Link>`)
+    // Since speed plan item 7 the link's words are boxed (BoxedLink — cookie-consent.tsx says why): the label is the
+    // same tr() pair, and the link itself still never prefetches.
+    expect(card).toContain(`<BoxedLink href="/privacy" label=${call} className="font-semibold text-accent-foreground" />`)
+    expect(card).toContain('<Link href={href} prefetch={false} className={className}>')
   })
 
   it('⛔ every other "Privacy Policy" link and label names the page by its own Vietnamese title (2026-10-15: sign-in, onboarding, the rental check and the help center said "Chính sách bảo mật" / "Chính sách quyền riêng tư")', async () => {
@@ -757,9 +760,12 @@ describe('/privacy — every paragraph is a real pair', () => {
 /**
  * ⚖️ THE IDENTITY CHANGE (owner, 2026-10-15 — not material, live with the deploy): a verified identity counts in the
  * trust score while it is current, every account, both editions; the selfie holds no code since 2026-09-04; one
- * Vietnamese term for the trust score (Quy chế Art 17); and the teacher's opt-in "Identity verified" mark — where it
- * shows, its conditions, never the document, the consent record, switching it off, its own purpose. Decree 69/2024
- * reserves "xác thực": eno's own check is "xác minh".
+ * Vietnamese term for the trust score (Quy chế Art 17); and the teacher's "Identity verified" mark — AUTOMATIC since
+ * 2026-10-16 (owner: "if they verify it should be auto"; "On deploy", not material): where it shows, its conditions,
+ * never the document, the identity declaration as its consent and record (identity-v2's clause 5), the identity-v1
+ * cohort shown on the same terms, said, hiding it at any time (before publishing too), what is recorded, its own
+ * purpose, and the general "off until you turn it on" carving it out. Decree 69/2024 reserves "xác thực": eno's own
+ * check is "xác minh".
  */
 describe('/privacy — a verified identity, the trust score and the teacher’s “Identity verified”', () => {
   it.each(['marketplace', 'services'] as const)('%s: ⛔ the selfie holds no code since 2026-09-04', async (site) => {
@@ -778,15 +784,15 @@ describe('/privacy — a verified identity, the trust score and the teacher’s 
     expect(en).toContain('A verified identity also counts toward the account’s trust score for as long as it is current')
     expect(en).not.toContain('business verification, account age')
     // The score is public and its rule is published, so it can show a verified identity — said, not left to infer
-    // (commit gate, 2026-10-16: the opt-in mark must not read as the only place it shows).
+    // (commit gate, 2026-10-16: the mark — which the teacher can hide — must not read as the only place it shows).
     expect(en).toContain('so a score can show that an account’s identity is verified even where nothing else says so')
-    expect(en).toContain('Whether or not you show it, a verified identity counts toward your trust score, which is public')
+    expect(en).toContain('Whether or not it shows, a verified identity counts toward your trust score, which is public')
     cleanup()
     const vi = await policy(site, 'vi')
     expect(vi).toContain('danh tính đã xác minh (khi còn hiệu lực)')
     expect(vi).toContain('Danh tính đã xác minh còn được tính vào điểm uy tín của tài khoản')
     expect(vi).toContain('nên điểm số có thể cho thấy danh tính của tài khoản đã được xác minh')
-    expect(vi).toContain('Dù bạn có hiển thị nhãn hay không, danh tính đã xác minh vẫn được tính vào điểm uy tín của bạn')
+    expect(vi).toContain('Dù nhãn có hiển thị hay không, danh tính đã xác minh vẫn được tính vào điểm uy tín của bạn')
   })
 
   it.each(['marketplace', 'services'] as const)('%s: ⛔ one Vietnamese term for the trust score — "điểm uy tín", never "tín nhiệm"', async (site) => {
@@ -795,36 +801,81 @@ describe('/privacy — a verified identity, the trust score and the teacher’s 
     expect(vi).toContain('Điểm uy tín:')
   })
 
-  it.each(['marketplace', 'services'] as const)('%s: ⛔ the opt-in mark — where, when, never the document, the record, switching off, its purpose', async (site) => {
+  it.each(['marketplace', 'services'] as const)('%s: ⛔ the AUTOMATIC mark — where, when, never the document, the declaration, the earlier cohort, hiding, the record, its purpose, the carve-out', async (site) => {
     const en = await policy(site)
     for (const s of [
-      'A teacher may also choose to show “Identity verified” on their teacher profile',
-      'on your profile’s card wherever it appears in a list',
-      'the people who message you about your profile',
+      // the identity paragraph's pointer
+      'A teacher’s profile also shows “Identity verified” while their verification is current, unless they hide it (see “Teacher profiles”).',
+      // the teacher paragraph: where, when, never the document
+      'If you have verified your identity, your profile shows “Identity verified” — on the profile, on your profile’s card wherever it appears in a list, and to the people who message you about your profile —',
+      'while your verification is current and the name on your profile matches the name on your verified document; it never shows your document or anything printed on it.',
+      // …the consent and its record, and the cohort that never gave it — said, not hidden
+      'You agree to this in the declaration you confirm before you upload an identity document, and we keep a record of which version you confirmed, when, and the IP address you confirmed it from.',
+      'If your identity was verified under the earlier declaration (used until 16 October 2026), which did not mention “Identity verified”, it shows on the same terms and you can hide it the same way.',
+      // …hiding it, before publishing too, and what is recorded
+      'You can hide it at any time — before you publish your profile, too — and show it again later.',
+      'Whether or not it shows, a verified identity counts toward your trust score',
+      'We record when you last hid it, and when you last showed it again together with the version of the words shown beside the switch at that time;',
+      'hiding it takes it off your profile, your card and those conversations within a few minutes',
+      'You can switch cover lessons off, hide “Identity verified”, hide your profile or delete it at any time from “Teacher profile” in your account.',
+      // the purpose — and the cohort again, so "with a teacher’s consent" does not claim it for them
+      'With a teacher’s consent, given in the declaration they confirm before uploading an identity document: to show “Identity verified” on their teacher profile, on its card in lists and to the people who message them about it, while their verification is current — they can hide it at any time in the teacher profile.',
+      'Teachers whose identity was verified under the earlier declaration (used until 16 October 2026), which did not ask for this, show it on the same terms and can hide it the same way.',
+      // ⛔ the general promise carves it out by name — nothing else would have caught that sentence going false
+      'each optional use has its own switch, and each is off until you turn it on — except “Identity verified” on a teacher profile: its consent is part of the identity declaration you confirm before uploading, together with the verification itself (an identity verified under the earlier declaration, which did not mention it, shows too — see “Teacher profiles”), so it shows once your identity is verified, and you can hide it at any time (see above).',
+    ]) expect(en, s).toContain(s)
+    // ⛔ The opt-in (2026-10-15) is gone from every passage: nothing may promise a switch-on the code no longer asks for.
+    for (const s of [
+      'choose to show “Identity verified”',
       'It is off until you switch it on',
-      'only while your verification is current and the name on your profile matches the name on your verified document',
-      'it never shows your document or anything printed on it',
-      'We record when you switched it on, the version of the notice you saw, and when you switched it off',
-      'those conversations within a few minutes',
+      'We record when you switched it on',
+      'switching it off takes it off',
       'switch cover lessons or “Identity verified” off',
       'With a teacher’s consent only, given in the teacher profile with its own switch',
-    ]) expect(en, s).toContain(s)
+      // the OLD unqualified promise (the carve-out above is pinned positively): nothing may say every use is off until switched on
+      'each is off until you turn it on — and withdrawable',
+    ]) expect(en, s).not.toContain(s)
     expect(en).not.toMatch(/Verified by eno|Verified teacher|vetted/i)
     cleanup()
     const vi = await policy(site, 'vi')
     for (const s of [
-      'Giáo viên cũng có thể chọn hiển thị “Đã xác minh danh tính” trên hồ sơ giáo viên của mình',
-      'trên thẻ hồ sơ ở mọi danh sách có hồ sơ của bạn',
-      'với những người nhắn tin cho bạn về hồ sơ',
+      'Hồ sơ giáo viên cũng hiển thị “Đã xác minh danh tính” trong thời gian kết quả xác minh còn hiệu lực, trừ khi giáo viên ẩn nhãn (xem mục “Hồ sơ giáo viên”).',
+      'Nếu bạn đã xác minh danh tính, hồ sơ của bạn hiển thị “Đã xác minh danh tính” — trên hồ sơ, trên thẻ hồ sơ ở mọi danh sách có hồ sơ của bạn, và với những người nhắn tin cho bạn về hồ sơ —',
+      'trong thời gian việc xác minh của bạn còn hiệu lực và họ tên trên hồ sơ khớp với họ tên trên giấy tờ đã xác minh; nhãn không bao giờ hiển thị giấy tờ hay bất kỳ thông tin nào in trên đó.',
+      'Bạn đồng ý với việc này trong bản cam đoan mà bạn xác nhận trước khi tải giấy tờ tùy thân lên, và chúng tôi lưu bản ghi về phiên bản bạn đã xác nhận, thời điểm xác nhận và địa chỉ IP bạn dùng khi xác nhận.',
+      'Nếu danh tính của bạn được xác minh theo bản cam đoan trước đó (dùng đến ngày 16 tháng 10 năm 2026), vốn không đề cập đến nhãn “Đã xác minh danh tính”, nhãn vẫn hiển thị theo cùng điều kiện và bạn có thể ẩn nhãn theo cùng cách.',
+      'Bạn có thể ẩn nhãn bất cứ lúc nào — kể cả trước khi đăng hồ sơ — và hiển thị lại sau đó.',
+      'Chúng tôi ghi lại thời điểm gần nhất bạn ẩn nhãn, và thời điểm gần nhất bạn hiển thị lại nhãn cùng phiên bản nội dung hiển thị cạnh công tắc lúc đó;',
+      'khi bạn ẩn, nhãn được gỡ khỏi hồ sơ, thẻ hồ sơ và các cuộc trò chuyện đó trong vòng vài phút',
+      'Bạn có thể tắt dạy thay, ẩn nhãn “Đã xác minh danh tính”, ẩn hoặc xóa hồ sơ bất cứ lúc nào tại mục “Hồ sơ giáo viên” trong tài khoản.',
+      'Với sự đồng ý của giáo viên, được đưa ra trong bản cam đoan mà giáo viên xác nhận trước khi tải giấy tờ tùy thân lên: để hiển thị “Đã xác minh danh tính”',
+      'Với giáo viên có danh tính được xác minh theo bản cam đoan trước đó (dùng đến ngày 16 tháng 10 năm 2026), vốn không hỏi điều này, nhãn cũng hiển thị theo cùng điều kiện và có thể ẩn theo cùng cách.',
+      'mỗi mục tùy chọn có công tắc riêng và đều tắt cho đến khi bạn bật — trừ nhãn “Đã xác minh danh tính” trên hồ sơ giáo viên: sự đồng ý cho nhãn này nằm trong bản cam đoan danh tính mà bạn xác nhận trước khi tải giấy tờ lên, cùng với việc xác minh (danh tính đã được xác minh theo bản cam đoan trước đây, vốn không nhắc đến nhãn này, cũng hiển thị — xem mục “Hồ sơ giáo viên”), nên nhãn hiển thị khi danh tính của bạn đã được xác minh, và bạn có thể ẩn nhãn bất cứ lúc nào (xem ở trên).',
+    ]) expect(vi, s).toContain(s)
+    for (const s of [
+      'chọn hiển thị “Đã xác minh danh tính”',
       'Nhãn này tắt cho đến khi bạn bật',
-      'chỉ hiển thị khi việc xác minh của bạn còn hiệu lực và họ tên trên hồ sơ khớp với họ tên trên giấy tờ đã xác minh',
-      'nhãn không bao giờ hiển thị giấy tờ hay bất kỳ thông tin nào in trên đó',
-      'phiên bản thông báo bạn đã xem',
-      'các cuộc trò chuyện đó trong vòng vài phút',
+      'Chúng tôi ghi lại thời điểm bạn bật',
       'tắt dạy thay hoặc nhãn “Đã xác minh danh tính”',
       'Chỉ khi giáo viên đồng ý bằng công tắc riêng trong hồ sơ giáo viên',
-    ]) expect(vi, s).toContain(s)
+      'đều tắt cho đến khi bạn bật — và có thể rút lại',
+    ]) expect(vi, s).not.toContain(s)
     expect(vi).not.toMatch(/xác thực/)
+  })
+
+  it('⛔ the day the policy gives as the earlier declaration’s last is the day identity-v2 took effect (declaration-text.ts)', async () => {
+    // A slipped deploy re-dates identity-v2's `effective` (not hashed) — and this holds the policy's sentence to it, in
+    // both languages and both places it is said (the teacher paragraph and the purpose).
+    const { DECLARATIONS, CURRENT_DECLARATION } = await import('@/lib/compliance/declaration-text')
+    const { dateEn } = await import('@/lib/compliance/legal-amendment')
+    expect(CURRENT_DECLARATION).toBe('identity-v2')
+    const iso = DECLARATIONS['identity-v2'].effective
+    const [y, m, d] = iso.split('-').map(Number)
+    const en = await policy('marketplace')
+    expect(en.split(`the earlier declaration (used until ${dateEn(iso)})`)).toHaveLength(3)
+    cleanup()
+    const vi = await policy('marketplace', 'vi')
+    expect(vi.split(`bản cam đoan trước đó (dùng đến ngày ${d} tháng ${m} năm ${y})`)).toHaveLength(3)
   })
 })
 

@@ -119,11 +119,34 @@ export const CRITICAL_GLYPHS = [
    * seller's own view) were not measured and may still reach for another deferred glyph.
    */
   'Send',
+  /**
+   * ⛔ RE-DERIVED 2026-10-16 (speed plan item 7). Measured GET-only headless against production, 412×915, the rule
+   * above (the DOM 2.5 s after DOMContentLoaded), and again after six seconds and a scroll:
+   *  · teacher.eno.vn — the Meta ads' landing — paints `Briefcase`, `FileText`, `PencilLine` ON ARRIVAL: the start
+   *    screen's three doors (teacher-start.tsx — LinkedIn / my CV / fill it in myself, shipped 10-16), so every ad
+   *    visitor's first view fetched the whole deferred sprite (~188 KB over the wire) for three glyphs.
+   *  · /?q=… — the search result line's "Save search" (`Bookmark`, result-line.tsx), on arrival.
+   *  · the home page draws `Briefcase`, `Wrench`, `Smartphone`, `Plane`, `UtensilsCrossed`, `Sofa` (the category glyphs of
+   *    category-icons.tsx) once the visitor scrolls far enough — eno.vn in both languages, and the forum home too on the
+   *    deeper of two scroll depths tried — not on arrival, but nearly every home visit scrolls, and each one then paid the
+   *    full deferred file for six glyphs. Promoted on that measured cost, the exception the "after an interaction" rule
+   *    above allows when the interaction is the page's normal use.
+   * Listing pages, /c/rentals and /c/teachers fetched no deferred glyph at all, scrolled or not.
+   */
+  'Briefcase', 'FileText', 'PencilLine', 'Bookmark', 'Wrench', 'Smartphone', 'Plane', 'UtensilsCrossed', 'Sofa',
 ]
 
 /** Measured so a later reader can tell whether the split still earns its complexity. */
 export const CRITICAL_MEASUREMENT = {
   derivedOn: '2026-09-06',
+  /**
+   * 2026-10-16 (speed plan item 7, the last re-derivation above): the core file 126,935 → 154,741 B raw, 38.3 → 46.9 KB
+   * gzip — once per visitor (content-hashed, immutable), against ~188 KB for the deferred file on the teacher landing,
+   * search and a scrolled home page.
+   */
+  coreBytes: { raw: 154_741, gzip: 46_881, on: '2026-10-16' },
+  /** The latest re-derivation (the routes and counts below are still the 2026-09-06 sweep's). */
+  rederivedOn: '2026-10-16',
   /**
    * ⚠️ FIVE ROUTES ACROSS BOTH EDITIONS, not four on one — the 2026-08-17 note above records why a
    * marketplace-only derivation silently deferred the forum's above-the-fold tiles.

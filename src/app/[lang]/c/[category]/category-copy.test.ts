@@ -458,7 +458,8 @@ describe('crumbNames (V2-7, V2-11, V2-12)', () => {
     const read = (f: string) => readFileSync(join(process.cwd(), 'src/app/[lang]/c/[category]', f), 'utf8')
     for (const f of ['(index)/layout.tsx', '[district]/page.tsx']) {
       const s = read(f)
-      expect(s, f).toMatch(/<BreadcrumbLink render=\{<Link href=\{localizedHref\('\/', lang\)\} \/>\} className="[^"]*">\{SITE_NAME\}<\/BreadcrumbLink>/)
+      // The category index's crumb carries prefetch={false} since speed plan item 7 (2026-10-16).
+      expect(s, f).toMatch(/<BreadcrumbLink render=\{<Link href=\{localizedHref\('\/', lang\)\}(?: prefetch=\{false\})? \/>\} className="[^"]*">\{SITE_NAME\}<\/BreadcrumbLink>/)
       expect(s, f).not.toContain('<Tr text="Home" />')
     }
   })

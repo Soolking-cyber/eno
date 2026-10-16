@@ -10,8 +10,8 @@ import { isIOS } from '@/lib/in-app-browser'
  *    <html> class are maintained on EVERY page (the chat shell needs them even where the
  *    bottom-nav isn't rendered).
  * 2. Measures the pre-launch banner into `--banner-h` on <html> so fixed-height surfaces
- *    (the messenger) can fit BELOW it instead of overflowing — and it's 0 when the banner
- *    is gone, so the app is full-height and launch-ready the moment PRELAUNCH flips off.
+ *    (the messenger) can fit BELOW it instead of overflowing — and it's UNSET when the banner
+ *    is gone (readers fall back to 0px), so the app is full-height the moment PRELAUNCH flips off.
  */
 export function KeyboardViewportSync() {
   useEffect(() => {
@@ -37,8 +37,17 @@ export function KeyboardViewportSync() {
 
     const root = document.documentElement
     const banner = document.getElementById('prelaunch-banner')
-    if (!banner) { root.style.setProperty('--banner-h', '0px'); return }
-    const set = () => root.style.setProperty('--banner-h', `${banner.offsetHeight}px`)
+    // ⛔ NO BANNER, NO WRITE (speed plan item 7): every reader falls back to 0 (`var(--banner-h,0px)`), and a custom
+    // property set on <html> restyles the WHOLE document — it was one of three such mount-time writes on every page.
+    // A value left from earlier is REMOVED (removing a property that is not set changes nothing, so it costs nothing).
+    if (!banner) { root.style.removeProperty('--banner-h'); return }
+    // …and with a banner, only a CHANGED height is written (the observer also fires for same-size layouts) — compared
+    // with what <html> carries, so a value removed elsewhere is restored.
+    const set = () => {
+      const next = `${banner.offsetHeight}px`
+      if (root.style.getPropertyValue('--banner-h') === next) return
+      root.style.setProperty('--banner-h', next)
+    }
     set()
     // The bilingual banner wraps to 2–3 lines on narrow screens, so its height is dynamic.
     const ro = new ResizeObserver(set)

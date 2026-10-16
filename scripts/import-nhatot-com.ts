@@ -171,7 +171,7 @@ import {
   NHATOT_API, NHATOT_CATEGORIES, NHATOT_CITIES, NHATOT_DEFAULT_CATEGORIES, NHATOT_GAP_MS_DEFAULT,
   NHATOT_GAP_MS_MIN, NHATOT_LOGO_FALLBACK_URL, NHATOT_LOGO_URL, NHATOT_MIN_PHOTOS, NHATOT_PAGE_MAX,
   NHATOT_PHOTO_FLOOR, NHATOT_SELLER_ID, NHATOT_SELLER_NAME, NHATOT_TOTAL_CAP, NHATOT_UA, NHATOT_UA_TOKEN,
-  classifyNhatotLiveness, isNhatotAffiliateUrl, mapNhatotAd, nhatotJournalDirProblem, nhatotListIdOf,
+  classifyNhatotLiveness, isNhatotAffiliateUrl, mapNhatotAd, noBrokerTripwire, nhatotJournalDirProblem, nhatotListIdOf,
   nhatotPhotoPlan, nhatotRateArg, nhatotRobotsAllows, nhatotSellerRefusal, nhatotShouldRetire,
   nhatotStageAgeProblem, nhatotStartingRank, nhatotStopReason, parseNhatotCaps, readNewestAcross,
   nhatotApplyExitCode, nhatotCapsProblem, nhatotHostHalt, nhatotRunReadsNetwork, nhatotSliceEnd, sliceQuotas, stageNhatotAd, stageNhatotLiveness,
@@ -1038,6 +1038,15 @@ async function importMain() {
   }
   console.log(`staged ads        ${staged.ads.length} unique (personal fields stripped; a street is kept only as a bare street NAME)${SAVE ? ` → saved ${SAVE}` : ''}`)
   console.log(`dropped           ${JSON.stringify(drop)}`)
+  /** ⛔ no-broker tripwire — fail closed if company_ad (the owner signal) vanishes. See nhatot-listing.ts.
+   *  APARTMENT crawls only (the share floor is calibrated on apartments; places are owner-let far more often),
+   *  and the denominator is the ads that REACHED the broker gate (not the out-of-scope / notRent / notActive ones). */
+  const brokerGateEligible = staged.ads.length - (drop.outOfScope ?? 0) - (drop.notRent ?? 0) - (drop.notActive ?? 0)
+  // Apartments-ONLY crawl (cg 1010 alone) — a mixed crawl (e.g. --cg 1010,1020) would dilute the broker share with
+  // owner-let houses/rooms and false-refuse; the scheduled apartment unit always runs --cg 1010 on its own.
+  const apartmentsOnlyCrawl = CGS.length === 1 && CGS[0] === NHATOT_APARTMENT_CG
+  const brokerTripwire = apartmentsOnlyCrawl ? noBrokerTripwire(brokerGateEligible, drop.broker ?? 0) : null
+  if (brokerTripwire) console.log(`  ⛔ --apply would REFUSE: ${brokerTripwire}`)
   screen.report()
   console.log(`TO IMPORT         ${batch.length}  (would create ${newRows.length - datePlans.lateCreate}${datePlans.lateCreate ? ` — and leave ${datePlans.lateCreate} too late (below)` : ''}, refresh ${batch.length - newRows.length})`)
   console.log(`7-day rule        would REVIVE ${datePlans.revive} place row(s) (apartment/house/office/room, expired/stale, listed within ${FRESH_DAYS} d of the stage's fetch) · move postedAt forward on ${datePlans.repost} re-listed row(s)`)
@@ -1104,6 +1113,7 @@ async function importMain() {
   // ─── APPLY ──────────────────────────────────────────────────────────────────────────────────
   /** ⛔ Before storage is even opened: no upload may happen for a seller we will not write to. */
   if (refusal) throw new Error(refusal)
+  if (brokerTripwire) throw new Error(brokerTripwire)
   /** ⛔ BEFORE THE FIRST STATUS WRITE (the screen's hides included): without the tag table a revived page
    *  keeps serving its cached 404 for 30 days. Same refusal as scripts/expire-apartment-rentals.ts. */
   const isrTable = await isrTagTablePresent(db)

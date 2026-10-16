@@ -62,7 +62,7 @@ vi.mock('@/lib/edition', () => ({
 }))
 
 /** `loadHelpCenter`/`loadHelpThread` resolve the viewer for their per-viewer vote columns. */
-vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => null }))
+vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => null, getCurrentProfileId: async () => null }))
 
 /** The sitemap's listing predicate is exercised by src/lib/edition-scope.test.ts, not here. */
 vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (where: unknown) => where }))

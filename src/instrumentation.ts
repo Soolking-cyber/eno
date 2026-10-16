@@ -21,12 +21,21 @@ import { logError } from '@/lib/log'
  * endpoint to POST to, which is an unauthenticated write surface and therefore its own decision
  * (rate limiting, payload caps, abuse) rather than a line in this file.
  *
- * `register()` is exported empty on purpose: Next warns when an instrumentation module has only
- * `onRequestError`, and an empty registration is cheaper than a warning everyone learns to ignore.
+ * `register()` starts the `[eno-runtime]` stats line (src/lib/runtime-stats.ts, speed plan item 5): event-loop
+ * delay, memory and the database pool's queue, every 10 minutes. Node runtime only — the import sits behind the
+ * NEXT_RUNTIME check so the edge bundle never sees `node:perf_hooks` — and never while `next build` prerenders.
  */
 
-export function register(): void {
-  // Nothing to initialise. See the note above.
+export async function register(): Promise<void> {
+  // ⚠️ Next's documented shape — the import INSIDE the `=== 'nodejs'` branch — is what lets the edge compile drop it.
+  if (process.env.NEXT_RUNTIME === 'nodejs' && process.env.NEXT_PHASE !== 'phase-production-build') {
+    try {
+      const { startRuntimeStats } = await import('./lib/runtime-stats')
+      startRuntimeStats()
+    } catch {
+      // A stats line is never worth a failed boot.
+    }
+  }
 }
 
 export const onRequestError: Instrumentation.onRequestError = (err, request, context) => {

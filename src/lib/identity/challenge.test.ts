@@ -49,8 +49,9 @@ describe('identity challenge', () => {
   })
 
   // ⛔ THE SPENT PLAINTEXT COMES BACK, and that is load-bearing rather than convenience: the caller
-  // persists it as evidence so the REVIEWER can compare it against the paper in the selfie. Without
-  // it nobody ever checks that the handwriting matches this submission, and a year-old photo passes.
+  // persists it as the receipt of this attempt (evidence.challengeCode). Until 2026-09-04 the
+  // REVIEWER also compared it with the paper in the selfie — without it nobody checked that the
+  // handwriting matched this submission; since then the review is a face match (871b1a9ba).
   it('⛔ RETURNS THE NORMALISED CODE SO IT CAN BECOME EVIDENCE', async () => {
     const issued = await issueChallenge('p-evidence', DECL, clock)
     if (!issued.ok) throw new Error('expected a code')

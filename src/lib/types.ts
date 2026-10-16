@@ -78,10 +78,11 @@ export type SerializedListingCard = {
    *  instead of "Salary: see details" (src/lib/card-title.ts jobCardMeta). */
   jobType?: string | null
   /**
-   * "IDENTITY VERIFIED" (owner, 2026-10-15) — a TEACHER card whose teacher switched the mark on and whose identity check
-   * is live with the profile's name within the ID's (src/lib/teachers/identity-mark.ts), as serializeListingCard reads it
-   * from the card's display cache (Listing.identityMarkNotice under today's notice). `true` or ABSENT — never false, never
-   * a reason, a version or a document fact. The card draws the tick beside the name (identity-verified-mark.tsx).
+   * "IDENTITY VERIFIED" (owner, 2026-10-15; AUTOMATIC since 2026-10-16) — a TEACHER card whose teacher's identity check
+   * is live with the profile's name within the ID's, and who has not hidden the mark (src/lib/teachers/identity-mark.ts),
+   * as serializeListingCard reads it from the card's display cache (Listing.identityMarkNotice holding today's
+   * IDENTITY_MARK_NOTICE_VERSION). `true` or ABSENT — never false, never a reason, a version or a document fact. The card
+   * draws the tick beside the name (identity-verified-mark.tsx).
    */
   identityMark?: true
   // Active price-drop anchor (server-normalized): the struck-through "was" price

@@ -10,7 +10,7 @@ vi.mock('@/lib/compliance/seller-publish-gate', () => ({ assertSellerMayPublish:
 vi.mock('@/lib/trust', () => ({ initialSellerTrust: async () => ({}) }))
 
 const { teacherVisaMention, screenTeacherTexts, optInWrites } = await import('./publish')
-const { AI_NOTICE_VERSION, IDENTITY_MARK_NOTICE_VERSION, normalizeTeacherInput } = await import('./profile')
+const { AI_NOTICE_VERSION, normalizeTeacherInput } = await import('./profile')
 const { PublishBlockedError } = await import('@/lib/publish-guard')
 
 describe('teacherVisaMention', () => {
@@ -78,26 +78,14 @@ describe('optInWrites — one opt-in, its own evidence (plan review C2)', () => 
   })
 })
 
-// The same rule under another notice (2026-10-16): the "Identity verified" switch stamps IDENTITY_MARK_NOTICE_VERSION
-// (publish.ts saveTeacherIdentityMark). The default stays the AI notice, so the two opt-ins' calls are unchanged.
-describe('optInWrites — `version`: the notice the switch stands beside', () => {
+// The "Identity verified" switch borrowed this rule, with its own notice, under the opt-in of 2026-10-16. The mark is
+// AUTOMATIC since (its switch only hides it or shows it again — publish.identity-mark.test.ts), so the rule is the two
+// AI opt-ins' alone again: always the AI notice, no other version to stamp.
+describe('optInWrites — the AI opt-ins\' rule only', () => {
   const now = new Date('2026-10-16T12:00:00Z')
   const at = new Date('2026-10-16T01:00:00Z')
-  it('a fresh grant stamps the identity notice\'s version', () => {
-    expect(optInWrites(true, null, now, IDENTITY_MARK_NOTICE_VERSION)).toEqual({ on: true, at: now, version: IDENTITY_MARK_NOTICE_VERSION, withdrawnAt: null })
-    expect(optInWrites(true, { on: false, at, version: IDENTITY_MARK_NOTICE_VERSION, withdrawnAt: at }, now, IDENTITY_MARK_NOTICE_VERSION))
-      .toEqual({ on: true, at: now, version: IDENTITY_MARK_NOTICE_VERSION, withdrawnAt: at })
-  })
-  it('a grant under an OLDER version is re-stamped; one under this version stands', () => {
-    expect(optInWrites(true, { on: true, at, version: '2026-10-01', withdrawnAt: null }, now, IDENTITY_MARK_NOTICE_VERSION)).toMatchObject({ at: now, version: IDENTITY_MARK_NOTICE_VERSION })
-    expect(optInWrites(true, { on: true, at, version: IDENTITY_MARK_NOTICE_VERSION, withdrawnAt: null }, now, IDENTITY_MARK_NOTICE_VERSION)).toMatchObject({ at, version: IDENTITY_MARK_NOTICE_VERSION })
-  })
-  it('off records the withdrawal and keeps the grant as history', () => {
-    expect(optInWrites(false, { on: true, at, version: IDENTITY_MARK_NOTICE_VERSION, withdrawnAt: null }, now, IDENTITY_MARK_NOTICE_VERSION))
-      .toEqual({ on: false, at, version: IDENTITY_MARK_NOTICE_VERSION, withdrawnAt: now })
-  })
-  it('the default is still the AI notice — an AI-notice grant is not "older" under it', () => {
-    expect(optInWrites(true, null, now).version).toBe(AI_NOTICE_VERSION)
+  it('a grant under any other version (the identity switch\'s old notice among them) is re-stamped under the AI notice', () => {
+    expect(optInWrites(true, { on: true, at, version: '2026-10-16', withdrawnAt: null }, now)).toMatchObject({ at: now, version: AI_NOTICE_VERSION })
     expect(optInWrites(true, { on: true, at, version: AI_NOTICE_VERSION, withdrawnAt: null }, now)).toMatchObject({ at })
   })
 })

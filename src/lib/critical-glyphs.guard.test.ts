@@ -91,6 +91,11 @@ const ON_ARRIVAL = [
   // The teacher card's "Identity verified" tick (2026-10-16): drawn by ListingCard (and the compact row) beside a marked
   // teacher's name, so on the home shelf, /c/teachers and the storefronts it paints on arrival — BadgeCheck, core.
   'src/components/marketplace/identity-verified-mark.tsx',
+  // Speed plan item 7 (2026-10-16): the search result line's "Save search", painted on arrival. ⚠️ The teacher landing's
+  // start screen (teacher-start.tsx — Briefcase/FileText/PencilLine, promoted the same day) is NOT listed: an unmerged
+  // branch (feature/teacher-photo-video) deletes that screen, and a guard entry would fail its merge on a missing file.
+  // Re-derive the landing's glyphs when that lands.
+  'src/components/marketplace/result-line.tsx',
 ]
 
 function iconImports(file: string): string[] {
@@ -118,5 +123,9 @@ describe('glyphs painted on arrival stay in the core sprite', () => {
 
   it('carries the two glyphs that pulled it onto / (Award) and every /c page (SlidersHorizontal)', () => {
     expect(CRITICAL_GLYPHS).toEqual(expect.arrayContaining(['Award', 'SlidersHorizontal']))
+  })
+
+  it('carries the six category glyphs the home page draws on its first scroll (speed plan item 7, measured 2026-10-16)', () => {
+    expect(CRITICAL_GLYPHS).toEqual(expect.arrayContaining(['Briefcase', 'Wrench', 'Smartphone', 'Plane', 'UtensilsCrossed', 'Sofa']))
   })
 })

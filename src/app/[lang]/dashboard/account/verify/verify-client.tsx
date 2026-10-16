@@ -241,6 +241,14 @@ export function VerifyClient() {
   // buttons are disabled until it reaches 0 so an impatient re-click can't extend a strict window.
   const [retryAt, setRetryAt] = useState<number | null>(null)
   const [retrySecs, setRetrySecs] = useState(0)
+  /**
+   * ⛔ THIS TAB SHOWS A DECLARATION THAT IS NO LONGER IN FORCE. Since identity-v2 (2026-10-16) the challenge route
+   * issues only CURRENT_DECLARATION and answers an older one with 409 `notice_changed` / notice 'declaration' — nothing
+   * recorded. This bundle's CURRENT_DECLARATION is the old one, so every retry would send the same version and get the
+   * same answer: only a reload renders the text in force. Once set it stays set (the page itself is stale), the tier
+   * buttons stay disabled, and the "Reload the page" button is the way on — the teacher-import panel's pattern.
+   */
+  const [declarationChanged, setDeclarationChanged] = useState(false)
   // ⚠️ ONE STEP AT A TIME (owner, 2026-09-02: "show one step at a time so user can follow"). Once a
   // tier is chosen the flow is a wizard — document → selfie → details — never the old wall of every
   // step at once. Reset to 'document' whenever a tier (re)starts.
@@ -529,7 +537,8 @@ export function VerifyClient() {
   /**
    * ⚠️ ONE CALL, AND IT CARRIES THE VERSION THE PAGE ACTUALLY RENDERED — not whatever is current
    * server-side when it lands. If a new declaration shipped between page load and click, stamping
-   * the current one would attribute to this person a wording they never read.
+   * the current one would attribute to this person a wording they never read — so since identity-v2
+   * the server refuses the older one instead (409 → "reload", see `declarationChanged`).
    */
   const start = useCallback(async (chosen: 'A' | 'B') => {
     attemptRef.current += 1 // a (re)started attempt — any in-flight decode from the prior one is now abandoned
@@ -566,6 +575,14 @@ export function VerifyClient() {
           const secs = Math.max(1, data?.retryAfterSeconds ?? (Number(r.headers.get('Retry-After')) || 30))
           setError(null)
           setRetryAt(Date.now() + secs * 1000)
+        // The body is read ONCE per answer: the 429 branch above reads its own and stops; this condition runs only otherwise.
+        } else if (r.status === 409 && ((await r.json().catch(() => null)) as { error?: string } | null)?.error === 'notice_changed') {
+          // ⛔ The declaration on this page was superseded (see `declarationChanged`): "try again" would loop forever.
+          setDeclarationChanged(true)
+          setError(tr(
+            'The declaration has changed since you opened this page. Reload the page to read the new one, then tick the box again.',
+            'Nội dung cam đoan đã thay đổi kể từ khi bạn mở trang này. Hãy tải lại trang để đọc nội dung mới, rồi đánh dấu lại ô xác nhận.',
+          ))
         } else {
           setError(tr('We could not start verification. Please try again.', 'Không thể bắt đầu xác minh. Vui lòng thử lại.'))
         }
@@ -973,13 +990,15 @@ export function VerifyClient() {
           )}
         </p>
         {/* ⛔ WHAT THE RESULT DOES BEYOND THE LAW (owner, 2026-10-15): a live verified identity is TRUST.V_KYC points
-            (verify-copy.test.ts pins the number), and a teacher may show it on their profile — the opt-in "Identity
-            verified" mark, never the document. Web only under ios-hide-kyc (page.tsx sends the app to the hub); never
-            put this on the hub (verification-client.tsx), which the iOS app shows. */}
+            (verify-copy.test.ts pins the number), and a teacher profile shows "Identity verified" — AUTOMATIC since
+            2026-10-16 (owner: "if they verify it should be auto"; the consent is clause 5 of the declaration below,
+            identity-v2), never the document, and the teacher can hide it in their teacher profile. Web only under
+            ios-hide-kyc (page.tsx sends the app to the hub); never put this on the hub (verification-client.tsx), which
+            the iOS app shows. */}
         <p className="text-body">
           {tr('A verified identity also adds 10 points to your trust score — one of the factors in the order of browse results — while your verification is current.', 'Danh tính đã xác minh còn cộng 10 điểm vào điểm uy tín của bạn — một trong các yếu tố sắp xếp kết quả khi duyệt tin — trong thời gian kết quả xác minh còn hiệu lực.')}
           {' '}
-          {tr('If you have a teacher profile, you can choose to show “Identity verified” on it — never your document or anything on it.', 'Nếu có hồ sơ giáo viên, bạn có thể chọn hiển thị “Đã xác minh danh tính” trên hồ sơ — không bao giờ hiển thị giấy tờ hay thông tin trên giấy tờ.')}
+          {tr('If you have a teacher profile, it shows “Identity verified” once your identity is verified — never your document or anything on it. You can hide it in your teacher profile.', 'Nếu có hồ sơ giáo viên, hồ sơ sẽ hiển thị nhãn “Đã xác minh danh tính” khi danh tính của bạn đã được xác minh — không bao giờ hiển thị giấy tờ hay thông tin trên giấy tờ. Bạn có thể ẩn nhãn này trong hồ sơ giáo viên.')}
         </p>
         <p className="text-xs text-muted-foreground">
           {/* Statute citations are shown as published, never machine-translated — a translator can mangle
@@ -1015,8 +1034,8 @@ export function VerifyClient() {
           <Checkbox checked={accepted} onChange={setAccepted} className="mt-0.5 h-5 w-5 shrink-0" />
           <span className="text-sm font-medium text-foreground">
             {tr(
-              'I have read the above and I confirm it is true. I accept legal responsibility for this declaration.',
-              'Tôi đã đọc nội dung trên và xác nhận là đúng sự thật. Tôi chịu trách nhiệm trước pháp luật về nội dung cam đoan này.',
+              'I have read the above, I confirm it is true and I agree to it. I accept legal responsibility for this declaration.',
+              'Tôi đã đọc nội dung trên, xác nhận là đúng sự thật và đồng ý với nội dung này. Tôi chịu trách nhiệm trước pháp luật về nội dung cam đoan này.',
             )}
           </span>
         </label>
@@ -1037,7 +1056,7 @@ export function VerifyClient() {
           <Button
             type="button"
             variant={tier === 'A' ? 'cta' : 'outline'}
-            disabled={!accepted || retrySecs > 0}
+            disabled={!accepted || retrySecs > 0 || declarationChanged}
             onClick={() => void start('A')}
             aria-busy={starting && tier === 'A'}
             className="h-auto flex-col items-start gap-1 rounded-2xl p-4 text-left"
@@ -1053,7 +1072,7 @@ export function VerifyClient() {
           <Button
             type="button"
             variant={tier === 'B' ? 'cta' : 'outline'}
-            disabled={!accepted || retrySecs > 0}
+            disabled={!accepted || retrySecs > 0 || declarationChanged}
             onClick={() => void start('B')}
             aria-busy={starting && tier === 'B'}
             className="h-auto flex-col items-start gap-1 rounded-2xl p-4 text-left"
@@ -1089,6 +1108,14 @@ export function VerifyClient() {
         )}
 
         {error && <p role="alert" className="text-sm font-semibold text-destructive">{error}</p>}
+
+        {/* ⛔ A SUPERSEDED DECLARATION'S ONLY WAY ON — see `declarationChanged`: the reload renders the text in force,
+            to be read and ticked again; the tier buttons above stay disabled until then. */}
+        {declarationChanged && (
+          <Button type="button" variant="outline" size="sm" onClick={() => window.location.reload()}>
+            {tr('Reload the page', 'Tải lại trang')}
+          </Button>
+        )}
 
         {/* Live rate-limit countdown — exact seconds left, not a vague "try later" (owner). Ticks via
             the effect above; the tier buttons stay disabled until it hits 0. Built in JS (design-lint
@@ -1251,7 +1278,7 @@ export function VerifyClient() {
               </div>
             )}
 
-            {/* ── STEP 2: selfie — the code shown large AND overlaid beside the face in the camera ── */}
+            {/* ── STEP 2: selfie — a face the reviewer compares with the document's photograph (no code since 2026-09-04) ── */}
             {wizardStep === 'selfie' && (
               <div>
                 <h3 className="font-bold text-foreground">{tr('Take a selfie', 'Chụp ảnh chân dung')}</h3>

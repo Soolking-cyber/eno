@@ -26,6 +26,7 @@ import { cleanup, render, screen, act } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider, shouldBootAuth, useAuth, type AuthBootProbe } from './auth-context'
 import { BEFORE_SIGN_OUT_EVENT, SIGN_OUT_FLUSH_WAIT_MS, type BeforeSignOutDetail } from '@/lib/api/acting-account'
+import { __resetClientSignalForTests, noteClientCreated } from '@/lib/supabase/client-signal'
 
 /** The live project ref, so the shapes below are byte-identical to production cookie names. */
 const KEY = 'sb-xihiryllwmjoouipkyhw-auth-token'
@@ -78,6 +79,7 @@ beforeEach(() => {
   createSupabaseBrowser.mockReset()
   createSupabaseBrowser.mockImplementation(fakeClient)
   resetCookies()
+  __resetClientSignalForTests()
 })
 
 afterEach(() => {
@@ -102,12 +104,67 @@ describe('AuthProvider — anonymous visitors never boot supabase-js', () => {
     expect(screen.getByRole('button').textContent).toBe('out')
   })
 
-  it('still boots on the first interaction — the backstop that makes the gate safe', async () => {
+  it('⛔ a touch, a key, a scroll alone no longer boot it (speed plan item 7: 66 KB + 141–388 ms landed on that touch)', async () => {
+    document.cookie = 'lang=en; path=/'
+    await mountAndIdle()
+    for (const type of ['pointerdown', 'keydown', 'touchstart', 'scroll', 'focus', 'pageshow']) {
+      await act(async () => { window.dispatchEvent(new Event(type)) })
+    }
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
+    expect(createSupabaseBrowser).not.toHaveBeenCalled()
+    expect(screen.getByRole('button').textContent).toBe('out')
+  })
+
+  it.each(['pointerdown', 'keydown', 'focus', 'pageshow'])('…but once a session cookie appears (signed in in another tab), a %s boots it', async (type) => {
+    document.cookie = 'lang=en; path=/'
+    await mountAndIdle()
+    await act(async () => { window.dispatchEvent(new Event(type)) })
+    expect(createSupabaseBrowser).not.toHaveBeenCalled()
+    document.cookie = `${KEY}=base64-aaa; path=/`
+    await act(async () => { window.dispatchEvent(new Event(type)) })
+    expect(createSupabaseBrowser).toHaveBeenCalledTimes(1)
+  })
+
+  it('…and so does returning to the tab', async () => {
+    document.cookie = 'lang=en; path=/'
+    await mountAndIdle()
+    document.cookie = `${KEY}=base64-aaa; path=/`
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
+    expect(createSupabaseBrowser).toHaveBeenCalledTimes(1)
+  })
+
+  it('⛔ a Supabase client created anywhere in the document boots it — the sign-in form before its first call', async () => {
     document.cookie = 'lang=en; path=/'
     await mountAndIdle()
     expect(createSupabaseBrowser).not.toHaveBeenCalled()
-    await act(async () => { window.dispatchEvent(new Event('pointerdown')) })
+    await act(async () => { noteClientCreated() })
     expect(createSupabaseBrowser).toHaveBeenCalledTimes(1)
+  })
+
+  it('⛔ …even one created BEFORE the provider mounted (a child effect runs first): the signal replays', async () => {
+    document.cookie = 'lang=en; path=/'
+    noteClientCreated()
+    await mountAndIdle()
+    expect(createSupabaseBrowser).toHaveBeenCalledTimes(1)
+  })
+
+  it('⛔ a getSession() that answers null AFTER SIGNED_IN does not sign the visitor back out', async () => {
+    document.cookie = 'lang=en; path=/'
+    let resolveSession: (v: { data: { session: null } }) => void = () => {}
+    createSupabaseBrowser.mockImplementation(() => ({
+      auth: {
+        getSession: () => new Promise((r) => { resolveSession = r }),
+        onAuthStateChange: (cb: (event: string, session: unknown) => void) => {
+          queueMicrotask(() => cb('SIGNED_IN', { user: { id: 'u1' } }))
+          return { data: { subscription: { unsubscribe: () => {} } } }
+        },
+      },
+    }))
+    await mountAndIdle()
+    await act(async () => { noteClientCreated() })
+    expect(screen.getByRole('button').textContent).toBe('in')
+    await act(async () => { resolveSession({ data: { session: null } }) })
+    expect(screen.getByRole('button').textContent).toBe('in')
   })
 
   it('boots when the sign-in dialog is opened, so onAuthStateChange exists before the OTP lands', async () => {

@@ -693,7 +693,6 @@ export const VI_OVERRIDES: Record<string, string> = {
   "I can come and see it today at 6pm — does that work for you?": "Mình có thể qua xem lúc 6h tối nay — bạn có tiện không?",
   "I can come and see it tomorrow at 10am — does that work for you?": "Mình có thể qua xem lúc 10h sáng mai — bạn có tiện không?",
   "I have one — refresh": "Tôi đã có — làm mới",
-  "I have read the above and I confirm it is true. I accept legal responsibility for this declaration.": "Tôi đã đọc nội dung trên và xác nhận là đúng sự thật. Tôi chịu trách nhiệm pháp lý cho cam kết này.",
   "I would like to book this for tomorrow — do you still have a slot?": "Mình muốn đặt lịch vào ngày mai — bạn còn chỗ không?",
   "I would like to join this — how do I sign up?": "Mình muốn tham gia — làm sao để đăng ký?",
   "I've saved it": "Tôi đã lưu lại",

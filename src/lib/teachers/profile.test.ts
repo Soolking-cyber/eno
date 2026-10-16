@@ -304,11 +304,15 @@ describe('steps', () => {
     expect([...all].sort()).toEqual(Object.keys(EMPTY_TEACHER).sort())
     expect(Object.keys(TEACHER_STEP_FIELDS).slice(0, 4)).toEqual([...DRAFT_STEPS])
   })
-  // ⛔ THE "IDENTITY VERIFIED" SWITCH IS NOT A PROFILE FIELD (plan review R2, 2026-10-15): it has its own endpoint and its
-  // own consent, so no step owns it, no draft can hold it, and a body that carries it never brings it into TeacherInput.
+  // ⛔ THE "IDENTITY VERIFIED" SWITCH IS NOT A PROFILE FIELD (plan review R2, 2026-10-15; automatic since 2026-10-16): it
+  // has its own endpoint, so no step owns it, no draft can hold it, and a body that carries it never brings it into
+  // TeacherInput — not even a new profile's create-only hide (`identityMarkHidden`), which the save reads beside it.
   it('⛔ no step owns the "Identity verified" switch, and a body carrying it never brings it into TeacherInput', () => {
     expect(Object.values(TEACHER_STEP_FIELDS).flat().some((f) => String(f).startsWith('identityMark'))).toBe(false)
-    const t = normalizeTeacherInput({ identityMarkOn: true, identityMarkAt: '2026-10-16T00:00:00Z', identityMarkNoticeVersion: '2026-10-16', identityNotice: '2026-10-16' })
+    const t = normalizeTeacherInput({
+      identityMarkHidden: true, identityMarkOn: true, identityMarkAt: '2026-10-16T00:00:00Z', identityMarkWithdrawnAt: '2026-10-16T01:00:00Z',
+      identityMarkNoticeVersion: '2026-10-16-auto', identityNotice: '2026-10-16',
+    })
     expect(Object.keys(t).filter((k) => k.startsWith('identity'))).toEqual([])
   })
 })

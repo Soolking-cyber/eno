@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
 import { TEACHER_LISTING_TYPE } from '@/lib/teachers/constants'
-import { IDENTITY_MARK_TP_SELECT, identityMarkShownFor } from '@/lib/teachers/identity-mark'
+import { IDENTITY_MARK_TP_SELECT, identityMarkShownOnCard } from '@/lib/teachers/identity-mark'
 import { teacherVideoState } from '@/lib/teachers/share'
 import { writerVerified as writerVerification } from '@/lib/teachers/writer-verified'
 import { getAdmin } from '@/lib/admin'
@@ -149,9 +149,11 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
       // every visa card is validated against server-side, and the client needs it to tell a
       // LIVE card from the inert history a rebound thread leaves behind.
       visaApplicationId: true,
-      // The teacher's four "Identity verified" inputs (IDENTITY_MARK_TP_SELECT) are read for the school's ONE boolean below
-      // (`teacherIdentityVerified`) and never sent — not the account id, the name, the switch or its notice version.
-      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, status: true, listingType: true, verified: true, subcategorySlug: true, category: { select: { slug: true } }, teacherProfile: { select: { status: true, videoOnRequest: true, ...IDENTITY_MARK_TP_SELECT, private: { select: { videoPath: true, phone: true } } } } } },
+      // The teacher's four "Identity verified" inputs (IDENTITY_MARK_TP_SELECT) and the listing's card cache
+      // (`identityMarkNotice` — a scalar of the row already read, so no round-trip of its own) are read for the school's
+      // ONE boolean below (`teacherIdentityVerified`) and never sent — not the account id, the name, the hide or the
+      // cached version (the `listing` below is built field by field).
+      listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, status: true, listingType: true, verified: true, subcategorySlug: true, identityMarkNotice: true, category: { select: { slug: true } }, teacherProfile: { select: { status: true, videoOnRequest: true, ...IDENTITY_MARK_TP_SELECT, private: { select: { videoPath: true, phone: true } } } } } },
       // Teachers (2026-09-30): the teacher's revocable share — decides the thread's contact strip.
       teacherContactShare: { select: { revokedAt: true, phoneShared: true } },
       // …and the intro video sent on request (2026-10-07): its own grant, and the school's ask.
@@ -363,21 +365,25 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     ? await writerVerification(convo.buyerProfileId).catch(() => null)
     : null
   /**
-   * …AND THE MIRROR, FOR THE SCHOOL (owner, 2026-10-15): "Identity verified" about the TEACHER, to the school or member
-   * writing to them — the teacher's own opt-in mark (src/lib/teachers/identity-mark.ts, the ONE predicate the profile
-   * line and the card tick ask too): shown only while the teacher has switched it on under today's notice, the identity
-   * check is LIVE and the profile's name is within the ID's. Only the boolean leaves; never a reason, a name or a version.
-   * ⚠️ THE MOST-POLLED ROUTE: no read at all unless that teacher has the switch on (identityMarkShownFor), and none on the
-   * teacher's own side, on any other thread, or on a thread closed by a block (false — the school is told nothing there).
-   * For an opted-in teacher, one indexed identity read per poll — the set is tiny, and a revocation must show on the next
-   * poll (no memo). Follows the switch, not the profile's visibility. ⚠️ FAILS SOFT: a failed read is false.
+   * …AND THE MIRROR, FOR THE SCHOOL (owner, 2026-10-15; AUTOMATIC since 2026-10-16): "Identity verified" about the
+   * TEACHER, to the school or member writing to them (src/lib/teachers/identity-mark.ts, the ONE predicate the profile
+   * line and the card tick ask too): shown while the teacher's identity check is LIVE and the profile's name is within the
+   * ID's, unless the teacher hid it. Only the boolean leaves; never a reason, a name or a version.
+   * ⚠️ THE MOST-POLLED ROUTE (a 15 s poll per open thread), and the mark is no longer an opt-in a handful of teachers
+   * switch on — so it is GATED ON THE CARD CACHE the listing row already carries (identityMarkShownOnCard): no read at all
+   * unless that cache holds today's value, which only a teacher the mark was last judged SHOWN for has — nearly every
+   * teacher's is NULL. Then one indexed identity read per poll, no memo: a revocation or a lapse since the cache was
+   * written shows on the very next poll. Fails closed: a cache wrongly empty (a sync that failed) hides the chip until
+   * the next card pass. None on the teacher's own side, on any other thread, or on a thread closed by a block (false —
+   * the school is told nothing there). Follows the mark, not the profile's visibility. ⚠️ FAILS SOFT: a failed read is
+   * false.
    */
   const teacherRow = convo.listing?.listingType === TEACHER_LISTING_TYPE ? convo.listing.teacherProfile : null
   const teacherIdentityVerified = iAmBuyer && blockState === 'none' && teacherRow
-    ? await identityMarkShownFor({
+    ? await identityMarkShownOnCard({
       profileId: teacherRow.profileId, fullName: teacherRow.fullName,
-      identityMarkOn: teacherRow.identityMarkOn, identityMarkNoticeVersion: teacherRow.identityMarkNoticeVersion,
-    }, new Date()).catch(() => false)
+      identityMarkOn: teacherRow.identityMarkOn, identityMarkWithdrawnAt: teacherRow.identityMarkWithdrawnAt,
+    }, convo.listing?.identityMarkNotice ?? null, new Date()).catch(() => false)
     : false
   /**
    * ⚠️ APP STORE GATE `ios-hide-visa` (D5 = b; src/lib/ios-hide-visa.ts) — off by default: no read, no field, the

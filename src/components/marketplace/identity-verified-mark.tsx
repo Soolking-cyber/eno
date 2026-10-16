@@ -7,8 +7,8 @@ import { cn } from '@/lib/utils'
 /**
  * THE TEACHER CARD'S "IDENTITY VERIFIED" TICK (owner, 2026-10-15 — "on their CARD in lists": the card and the phone's
  * compact row). Drawn only where the card payload says `identityMark: true` (serialize.ts serializeListingCard — a
- * teacher card whose teacher switched the mark on, under today's notice, while the identity check is live and the
- * profile's name is within the ID's); the rules are src/lib/teachers/identity-mark.ts.
+ * teacher card whose teacher has not hidden the mark — AUTOMATIC since 2026-10-16 — while the identity check is live and
+ * the profile's name is within the ID's); the rules are src/lib/teachers/identity-mark.ts.
  *
  * ⛔ A NAMED IMAGE, NOT A CONTROL. role="img" with the label as its name (and `title`, as the Business glyph beside it
  * carries) — no tabIndex, no tooltip, no link: on ListingCard it sits under the card's stretched link, which owns every

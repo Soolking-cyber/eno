@@ -27,10 +27,14 @@
 //     COMMIT;
 //
 // No DROP, no rewrite: a NULLABLE column with NO DEFAULT is a catalogue-only change — existing rows read NULL without
-// being touched. NULL is exactly "the tick is not shown" (src/lib/teachers/identity-mark-card.ts writes the notice
-// version while it is), so no row needs a backfill: a teacher's tick appears when its first sync runs — their switch
-// (POST-deploy, opt-in), the identity effects of a KYC decision, or the card pass (00:05 ICT, and after the 09:05
-// reconcile).
+// being touched. NULL is exactly "the tick is not shown" (src/lib/teachers/identity-mark-card.ts writes the rule's
+// version while it is), so no row needs a backfill BY SQL: a teacher's tick appears when its first sync runs — their
+// own show-again, any profile save, the identity effects of a KYC decision, or the card pass (00:05 ICT, and after the
+// 09:05 reconcile). ⚠️ BUT THE MARK IS AUTOMATIC SINCE 2026-10-16, so every teacher already verified is owed a tick
+// the moment that rule deploys, and no event of theirs will come: run /api/cron/identity-marks once by hand right after
+// the deploy (`?dryRun=1` first — its selection covers every identity holder, so it IS the backfill; or
+// /api/cron/identity-reconcile, whose loop does the same). Until then their cards carry no tick, and their 30-day ISR
+// profile pages keep the HTML from before the deploy (the ISR cache survives a deploy).
 //
 // ⚠️ BUT IT STILL TAKES AN ACCESS EXCLUSIVE LOCK, however briefly. Queued behind one long
 // transaction, it would block every Listing read that arrives after it — a site-wide stall. The

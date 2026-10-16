@@ -499,17 +499,22 @@ describe('sharing the profile (owner, 2026-10-11)', () => {
 })
 
 /**
- * ⛔ "IDENTITY VERIFIED" — ITS OWN SWITCH, ITS OWN ENDPOINT (owner, 2026-10-15; plan review R2). On Photo & publish, for a
- * saved profile: it loads ON only under today's notice; it saves ON TOGGLE through PUT /api/teachers/me/identity-mark —
- * ON with today's notice and the stamps the form loaded, OFF with nothing else — and moves only on the server's answer,
- * whose stamps are the next base; a 409 (the words changed, or another window moved the switch) says so calmly and
- * re-reads; a 429 says so. The profile save NEVER carries it, and a rename re-reads its line.
+ * ⛔ "IDENTITY VERIFIED" — AUTOMATIC, HIDDEN BY ITS OWN SWITCH ON ITS OWN ENDPOINT (owner, 2026-10-15; automatic since
+ * 2026-10-16; plan review R2). On Photo & publish, for a saved profile: the switch loads ON unless the server says the
+ * teacher hid it (`identityMarkHidden` — never re-derived from the row's columns); it saves ON TOGGLE through PUT
+ * /api/teachers/me/identity-mark — a HIDE with nothing else, a SHOW-again with the stamps the form loaded as its base and
+ * no notice — and moves only on the server's answer, whose stamps are the next base; a 409 (another window moved the
+ * switch) says so calmly and re-reads; a 429 (a show only) says so. The profile save NEVER carries it, and a rename
+ * re-reads its line.
  */
-describe('⛔ the "Identity verified" switch — saved on toggle, never with the profile', () => {
+describe('⛔ the "Identity verified" switch — automatic, hidden on toggle, never with the profile', () => {
   const MARK_NAME = 'Show “Identity verified” on my profile'
-  const STAMPS0 = { at: '2026-10-16T01:00:00.000Z', withdrawnAt: null }
+  const SHOWN_AT = '2026-10-16T01:00:00.000Z'
+  const HIDDEN_AT = '2026-10-16T02:00:00.000Z'
   type Reply = { status?: number; json: unknown }
-  let marked: { on: boolean; version: string | null }
+  let hidden: boolean
+  // The row's raw switch columns as the GET spreads them — what the form must NOT judge the switch from.
+  let raw: Record<string, unknown>
   let state: { shown: boolean; reason: string | null } | null
   let stamps: { at: string | null; withdrawnAt: string | null }
   let markReply: (body: unknown) => Reply | Promise<Reply>
@@ -518,20 +523,25 @@ describe('⛔ the "Identity verified" switch — saved on toggle, never with the
   const gets = () => f.calls.filter((c) => c.method === 'GET' && c.url === '/api/teachers/me')
   const profilePut = () => f.calls.filter((c) => c.method === 'PUT' && c.url === '/api/teachers/me').at(-1)?.body as Record<string, unknown> | undefined
   const sw = () => screen.getByRole('switch', { name: MARK_NAME })
+  /** Another window (or the server) moved the switch: the stored state the next read and the CAS see. */
+  const storeHidden = (h: boolean) => {
+    hidden = h
+    state = h ? { shown: false, reason: 'hidden' } : { shown: true, reason: null }
+    stamps = h ? { at: stamps.at, withdrawnAt: HIDDEN_AT } : { at: SHOWN_AT, withdrawnAt: stamps.withdrawnAt }
+  }
 
   beforeEach(() => {
-    marked = { on: false, version: null }
-    state = { shown: false, reason: 'off' }
+    hidden = false
+    raw = {}
+    state = { shown: true, reason: null }
     stamps = { at: null, withdrawnAt: null }
+    // As the endpoint answers: a hide stamps the hide (the show stamp kept as history), a show-again stamps the show.
     markReply = (body) => {
-      const on = (body as { on: boolean }).on
-      stamps = on ? STAMPS0 : { at: stamps.at, withdrawnAt: '2026-10-16T02:00:00.000Z' }
-      marked = { on, version: on ? IDENTITY_MARK_NOTICE_VERSION : marked.version }
-      state = on ? { shown: true, reason: null } : { shown: false, reason: 'off' }
+      storeHidden(!(body as { on: boolean }).on)
       return { json: { identityMark: state, stamps } }
     }
     f = fakeFetch({
-      'GET /api/teachers/me': () => ({ json: { teacher: { ...row, identityMarkOn: marked.on, identityMarkNoticeVersion: marked.version, identityMarkAt: stamps.at, identityMarkWithdrawnAt: stamps.withdrawnAt }, publishGate: { ok: true, code: null }, identityMark: state, identityMarkStamps: stamps } }),
+      'GET /api/teachers/me': () => ({ json: { teacher: { ...row, identityMarkAt: stamps.at, identityMarkWithdrawnAt: stamps.withdrawnAt, ...raw }, publishGate: { ok: true, code: null }, identityMark: state, identityMarkStamps: stamps, identityMarkHidden: hidden } }),
       'PUT /api/teachers/me': () => ({ json: { listingId: 'L1', teacherProfileId: 'tp1', live: true, noGoal: false, cover: null, video: { onRequest: false, version: 0, hasPrivate: false, url: null } } }),
       // The fixture's fetch fake answers synchronously; a Promise here is awaited by the form, so a test can hold it.
       'PUT /api/teachers/me/identity-mark': (b) => markReply(b) as Reply,
@@ -550,20 +560,28 @@ describe('⛔ the "Identity verified" switch — saved on toggle, never with the
     history.replaceState(null, '', '/teachers/edit?step=finish')
   })
 
-  it('loads ON under today\'s notice; an older grant loads OFF and says why', async () => {
-    marked = { on: true, version: IDENTITY_MARK_NOTICE_VERSION }
-    state = { shown: true, reason: null }
+  it('loads ON unless the server says the teacher hid it — from its flag, never from the row\'s raw columns', async () => {
+    // An untouched row (never switched): ON — the default — even though its raw `identityMarkOn` is false.
+    raw = { identityMarkOn: false, identityMarkWithdrawnAt: null }
     mount()
     expect((await screen.findByRole('switch', { name: MARK_NAME })).getAttribute('aria-checked')).toBe('true')
     cleanup()
-    marked = { on: true, version: '2026-01-01' }
-    state = { shown: false, reason: 'notice_changed' }
+    // Columns that LOOK hidden, but the server's flag says not: still ON.
+    raw = { identityMarkOn: false, identityMarkWithdrawnAt: HIDDEN_AT }
+    mount()
+    expect((await screen.findByRole('switch', { name: MARK_NAME })).getAttribute('aria-checked')).toBe('true')
+    cleanup()
+    raw = {}
+    storeHidden(true)
     mount()
     expect((await screen.findByRole('switch', { name: MARK_NAME })).getAttribute('aria-checked')).toBe('false')
-    expect(screen.getByText('What this switch does has changed since you turned it on. Switch it on again to keep showing it.')).toBeTruthy()
+    // No opt-in nudge of any kind beside it.
+    expect(screen.queryByText(/What this switch does has changed|switch (this|it) on/i)).toBeNull()
   })
 
-  it('ON sends today\'s notice and the loaded stamps — and flips only when the server has answered (never optimistic)', async () => {
+  it('a SHOW-again sends the loaded stamps as its base and no notice — and flips only when the server has answered (never optimistic)', async () => {
+    hidden = true
+    state = { shown: false, reason: 'hidden' }
     stamps = { at: '2026-10-01T00:00:00.000Z', withdrawnAt: '2026-10-02T00:00:00.000Z' }
     let release!: () => void
     const held = new Promise<void>((r) => { release = r })
@@ -572,7 +590,8 @@ describe('⛔ the "Identity verified" switch — saved on toggle, never with the
     const user = mount()
     await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
     await waitFor(() => expect(markPuts()).toHaveLength(1))
-    expect(markPuts()[0].body).toEqual({ on: true, notice: IDENTITY_MARK_NOTICE_VERSION, base: { at: '2026-10-01T00:00:00.000Z', withdrawnAt: '2026-10-02T00:00:00.000Z' } })
+    expect(markPuts()[0].body).toEqual({ on: true, base: { at: '2026-10-01T00:00:00.000Z', withdrawnAt: '2026-10-02T00:00:00.000Z' } })
+    expect(JSON.stringify(markPuts()[0].body)).not.toContain(IDENTITY_MARK_NOTICE_VERSION)
     // On its way: still OFF on screen, and saying so.
     expect(sw().getAttribute('aria-checked')).toBe('false')
     expect(screen.getByText('Saving…')).toBeTruthy()
@@ -580,45 +599,41 @@ describe('⛔ the "Identity verified" switch — saved on toggle, never with the
     await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('true'))
   })
 
-  it('OFF sends { on: false } alone; the answer\'s stamps are the next ON\'s base', async () => {
-    marked = { on: true, version: IDENTITY_MARK_NOTICE_VERSION }
-    state = { shown: true, reason: null }
-    stamps = STAMPS0
+  it('a HIDE sends { on: false } alone, and moves only on the answer — whose stamps are the next show\'s base', async () => {
+    stamps = { at: SHOWN_AT, withdrawnAt: null }
+    let release!: () => void
+    const held = new Promise<void>((r) => { release = r })
+    const answer = markReply
+    markReply = async (body) => { await held; return answer(body) }
     const user = mount()
     await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
-    await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('false'))
+    await waitFor(() => expect(markPuts()).toHaveLength(1))
     expect(markPuts()[0].body).toEqual({ on: false })
+    expect(sw().getAttribute('aria-checked')).toBe('true')
+    release()
+    await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('false'))
     await user.click(sw())
     await waitFor(() => expect(markPuts()).toHaveLength(2))
-    expect(markPuts()[1].body).toEqual({ on: true, notice: IDENTITY_MARK_NOTICE_VERSION, base: { at: STAMPS0.at, withdrawnAt: '2026-10-16T02:00:00.000Z' } })
+    expect(markPuts()[1].body).toEqual({ on: true, base: { at: SHOWN_AT, withdrawnAt: HIDDEN_AT } })
     await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('true'))
   })
 
   it('409 identity_mark_changed: a calm line, a fresh read — and the switch shows what is saved', async () => {
+    storeHidden(true)
     markReply = () => {
-      // Another window switched it on meanwhile: the stored state moved.
-      marked = { on: true, version: IDENTITY_MARK_NOTICE_VERSION }
-      state = { shown: true, reason: null }
-      stamps = STAMPS0
+      // Another window showed it meanwhile: the stored stamps moved, so this tab's base is stale.
+      storeHidden(false)
       return { status: 409, json: { error: 'identity_mark_changed' } }
     }
     const user = mount()
     await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
-    expect(await screen.findByText('This switch was changed in another window. It now shows what is saved — switch it on again if you want to.')).toBeTruthy()
+    expect(await screen.findByText('This switch was changed in another window. It now shows what is saved — change it again if you want to.')).toBeTruthy()
     await waitFor(() => expect(gets()).toHaveLength(2))
     await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('true'))
   })
 
-  it('409 notice_changed: "reload the page" — and a fresh read; the switch stays as saved', async () => {
-    markReply = () => ({ status: 409, json: { error: 'notice_changed', notice: 'identity' } })
-    const user = mount()
-    await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
-    expect(await screen.findByText('Some of the wording on this page has changed since you opened it. Reload the page to read it, then switch it on again.')).toBeTruthy()
-    await waitFor(() => expect(gets()).toHaveLength(2))
-    expect(sw().getAttribute('aria-checked')).toBe('false')
-  })
-
-  it('429 (ON only): said — the switch stays as it was', async () => {
+  it('429 (a show only — a hide is never rate-limited): said — the switch stays as it was', async () => {
+    storeHidden(true)
     markReply = () => ({ status: 429, json: { error: 'rate_limited' } })
     const user = mount()
     await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
@@ -627,35 +642,32 @@ describe('⛔ the "Identity verified" switch — saved on toggle, never with the
   })
 
   // ⛔ Commit gate, 2026-10-16: every line about what the switch shows comes from a FRESH READ, never ahead of one.
-  it('a failed save is said only when the fresh read shows the server does not hold it — the switch stays as saved', async () => {
+  it('a failed hide is said only when the fresh read shows the server does not hold it — the switch stays as saved', async () => {
     markReply = () => { throw new TypeError('network down') }
     const user = mount()
     await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
     expect(await screen.findByText('Could not save the switch. Please try again.')).toBeTruthy()
     expect(gets()).toHaveLength(2)
-    expect(sw().getAttribute('aria-checked')).toBe('false')
+    expect(sw().getAttribute('aria-checked')).toBe('true')
   })
 
-  it('a save whose answer was LOST is no failure: the fresh read shows it saved, and nothing is said', async () => {
+  it('a hide whose answer was LOST is no failure: the fresh read shows it saved, and nothing is said', async () => {
     markReply = () => {
-      // The server committed the switch-on; its answer never arrived.
-      marked = { on: true, version: IDENTITY_MARK_NOTICE_VERSION }
-      state = { shown: true, reason: null }
-      stamps = STAMPS0
+      // The server committed the hide; its answer never arrived.
+      storeHidden(true)
       throw new TypeError('connection reset')
     }
     const user = mount()
     await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
-    await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('true'))
+    await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('false'))
     expect(gets()).toHaveLength(2)
     expect(screen.queryByText('Could not save the switch. Please try again.')).toBeNull()
   })
 
   it('a 409 whose fresh read FAILS claims nothing about the switch: "could not check — reload"', async () => {
+    storeHidden(true)
     markReply = () => {
-      marked = { on: true, version: IDENTITY_MARK_NOTICE_VERSION }
-      state = { shown: true, reason: null }
-      stamps = STAMPS0
+      storeHidden(false)
       return { status: 409, json: { error: 'identity_mark_changed' } }
     }
     const impl = f.fn.getMockImplementation()!
@@ -674,14 +686,15 @@ describe('⛔ the "Identity verified" switch — saved on toggle, never with the
     expect(screen.queryByText(/It now shows what is saved/)).toBeNull()
   })
 
-  it('⛔ the profile save never carries the switch — not after a toggle, not ever', async () => {
+  it('⛔ the profile save never carries the switch — not after a hide, not ever (no `identityMarkHidden` on an edit)', async () => {
     const user = mount()
     await user.click(await screen.findByRole('switch', { name: MARK_NAME }))
-    await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('true'))
+    await waitFor(() => expect(sw().getAttribute('aria-checked')).toBe('false'))
     await user.click(action('Save changes'))
     await waitFor(() => expect(profilePut()).toBeTruthy())
     const body = profilePut()!
     for (const k of Object.keys(body)) expect(k, k).not.toMatch(/identity/i)
+    expect('identityMarkHidden' in body).toBe(false)
     expect(JSON.stringify(body)).not.toContain(IDENTITY_MARK_NOTICE_VERSION)
   })
 
@@ -691,6 +704,8 @@ describe('⛔ the "Identity verified" switch — saved on toggle, never with the
     await user.click(action('Save changes'))
     expect(await screen.findByText('Profile saved')).toBeTruthy()
     expect(gets()).toHaveLength(1)
+    // An edit's done screen never says the mark "now shows" — the switch is on its own step.
+    expect(screen.queryByTestId('identity-mark-done')).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Keep editing' }))
     await user.click(rail('About you'))
     const name = await screen.findByRole('textbox', { name: 'Full name' })
@@ -705,13 +720,13 @@ describe('⛔ the "Identity verified" switch — saved on toggle, never with the
     expect(await screen.findByText(/Not showing: the name on your profile doesn’t match your verified ID/)).toBeTruthy()
   })
 
-  it('each reason\'s line is on the step; the trust line only while the check is live', async () => {
+  it('each reason\'s line is on the step; the trust line only while the check is live — a hide included', async () => {
     state = { shown: false, reason: 'pending' }
     mount()
     expect(await screen.findByText('eno’s team is checking your ID. It shows once approved.')).toBeTruthy()
     expect(screen.queryByText(/adds 10 points to your trust score/)).toBeNull()
     cleanup()
-    state = { shown: false, reason: 'off' }
+    storeHidden(true)
     mount()
     expect(await screen.findByText(/adds 10 points to your trust score/)).toBeTruthy()
   })

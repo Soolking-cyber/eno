@@ -293,11 +293,22 @@ Three rules that keep this honest:
 
 1. **Lapse, never punishment.** An expired or revoked identity takes its +10 away and nothing more; fraud is sanctioned
    through Conduct (confirmed reports), never through the identity input.
-2. **The mark is derived, never stored as truth.** The teacher's opt-in "Identity verified" is computed from consent
-   under `IDENTITY_MARK_NOTICE_VERSION` + `deriveVerification` = `verified` + the profile's name within the document's
-   (`src/lib/teachers/identity-mark.ts`). `Listing.identityMarkNotice` is a display cache with one writer
-   (`identity-mark-card.ts`), re-derived on every identity recompute and at 00:05 ICT (`identity-marks`). Only a boolean
-   leaves the server; nothing in JSON-LD; no effect on rank.
+2. **The mark is derived, never stored as truth.** The teacher's "Identity verified" is **automatic since 2026-10-16**
+   (owner: *"if they verify it should be auto not need to ask they consent by uploading kyc"*): it shows while
+   `deriveVerification` = `verified` (live — a lapse or a revocation takes it off) + the profile's name within the
+   document's + the teacher has not hidden it (`src/lib/teachers/identity-mark.ts`; hidden = their last act on the switch
+   was a hide — no new column, no backfill). The consent is clause (5) of the identity declaration, `identity-v2`
+   (`src/lib/compliance/declaration-text.ts`), affirmed before any upload and recorded on the identity row
+   (`declarationVersion` / `declarationHash` / `declaredAt` / `declarationIp`). ⚠️ The rule does **not** read the
+   declaration version: identities verified under `identity-v1`, which never mentioned display, show on the same terms —
+   the owner's call (*"Show theirs too"*), an accepted risk recorded in the PDPL dossier (purpose 8b). From v2 on the
+   challenge route issues only the current declaration (409 `notice_changed`, notice `declaration` — "reload").
+   `Listing.identityMarkNotice` is a display cache with one writer (`identity-mark-card.ts`), carrying
+   `IDENTITY_MARK_NOTICE_VERSION`; a public surface reads the identity live only when the cache carries today's value
+   (`identityMarkShownOnCard`), so the cache can skip a read but never grant a tick. It is re-derived on every identity
+   recompute (approval, refusal, revocation; the 09:05 ICT `identity-reconcile` walks every identity holder) and at
+   00:05 ICT (`identity-marks`: every teacher with an identity row, every card carrying a value, and the hides of the last
+   7 days). Only a boolean leaves the server; nothing in JSON-LD; no effect on rank.
 3. **Verification does not buy ranking on its own** — no sort, pin, filter or tie-break uses it. It moves `trustScore`
    only (+10 ≈ +0.086 of browse rankScore: 0.60 × 10/70 inside the trust band), which is 0.60 of browse rank and 0.40 of
    search rank (§4.1). That indirection keeps the disclosure text in §4.1 and /legal/ranking true.

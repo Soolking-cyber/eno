@@ -146,9 +146,12 @@ function VehicleHire({ vehicles }: Pick<RentalsFacts, 'vehicles'>) {
     'car-rental': { en: '/car-rental-ho-chi-minh-city', vi: '/thue-xe-tu-lai-tphcm' },
     'motorbike-rental': { en: '/motorbike-rental-ho-chi-minh-city', vi: '/thue-xe-may-tphcm' },
   }
+  // prefetch={false}: in view on arrival on a desktop /c/rentals, so auto prefetch fired both hubs on every view
+  // (speed plan item 7, measured on production 2026-10-16).
   const link = (sub: string, label: string) => (
     <Link
       href={IS_SERVICES ? `/?category=rentals&subcategory=${sub}` : HUB[sub][lang === 'vi' ? 'vi' : 'en']}
+      prefetch={false}
       className="font-semibold text-accent-foreground hover:underline"
     >
       {label}

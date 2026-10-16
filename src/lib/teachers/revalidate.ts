@@ -5,7 +5,8 @@ import { legacyDistrictKey } from '@/lib/teachers/profile'
 
 /**
  * THE PUBLIC PAGES A TEACHER ROW IS ON — one list, shared by the writers that own a teacher row: the teacher publish core
- * (src/lib/teachers/publish.ts — the full save, the cover save, the "Identity verified" switch, hide/show and delete),
+ * (src/lib/teachers/publish.ts — the full save, the cover save, the "Identity verified" hide and show-again, hide/show
+ * and delete),
  * the generic listing cores when the listing is a teacher's (src/lib/core/listings.ts purgeTeacherPages — the dashboard
  * row's Hide / Relist / Delete, /api/v1 and MCP reach setStatusCore and deleteListingCore), the account erasure
  * (src/lib/core/account-erasure.ts)
@@ -14,7 +15,8 @@ import { legacyDistrictKey } from '@/lib/teachers/profile'
  * identity moves trust, which the pages bake into the order and the score, so the purge follows unconditionally — and
  * the card-tick pass (src/lib/compliance/identity-reconcile.ts — after the 09:05 reconcile, and alone at 00:05 ICT,
  * /api/cron/identity-marks, when a document lapses), which purges a teacher whose "Identity verified" card cache it
- * rewrote, or whose identity is revoked while their switch is still on.
+ * rewrote, every identity holder who has not hidden the mark (automatic since 2026-10-16 — a failed purge of a lapse or a
+ * revocation is retried), and a teacher who hid it in the last 7 days.
  * Moved out of publish.ts on 2026-10-13, when the home page gained its "Find a teacher" shelf.
  * ⚠️ NOT EVERY WRITER: moderation (reject, unpublish, a confirmed report, an approval), an enforcement hold and the AI /
  * provenance auto-holds purge a teacher's listing page and the home page, but not /c/teachers or the district page, which
@@ -47,7 +49,8 @@ export const districtPagesOf = (row: { currentDistrictKey?: string | null; curre
  * cache.js). A SIGNED-IN one bypasses it, so a write followed by a reload of '/' costs one regeneration — what a
  * signed-in reload of any force-dynamic page already costs, with no write needed (and the write is no free action: the
  * generic status door also purges the listing's page, reindexes it and fires its webhook; the teacher routes are capped
- * per account: 30 saves, 60 cover saves, 60 "Identity verified" switches, 60 visibility changes, 10 deletes an hour).
+ * per account: 30 saves, 60 cover saves, 60 "Identity verified" show-agains — a hide, the takedown direction, is never
+ * capped — 60 visibility changes, 10 deletes an hour).
  * So the purge opens no new way to make the origin work, and a cap would only leave a takedown past it on the home shelf
  * for six hours (review,
  * 2026-10-13: one was tried on the status door and withdrawn, as was skipping a re-send that "changed nothing" — judged

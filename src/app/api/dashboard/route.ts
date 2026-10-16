@@ -120,7 +120,10 @@ export async function GET() {
       // Session email, not Profile.email — an email change resyncs the JWT immediately
       // but existing Profile rows are not re-synced, and the rail must agree with the
       // server's own getAdmin() verdict.
-      isAdmin: !!(await getAdmin()),
+      // ⚠️ PRE-FILTERED BY THE LOCALLY VERIFIED CLAIMS (speed plan item 6): getAdmin() is an auth-server round trip
+      // on a route the home page, storefronts and every dashboard page fire; `includeSupportDesk` (the claims check
+      // above) is "no" for everyone but the operators, and those are still confirmed by getAdmin().
+      isAdmin: includeSupportDesk && !!(await getAdmin()),
       // Gates the "My e-Visa" rail row to people who have actually applied (chat-only flow).
       hasVisa: await userHasVisaApplication(profile.id),
       hasTeacher: !!teacher,

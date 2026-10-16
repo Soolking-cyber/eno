@@ -24,7 +24,7 @@ import {
 import { IDENTITY_MARK_NOTICE_VERSION, TEACHERS_CATEGORY_SLUG, TEACHER_LISTING_TYPE, videoRequiredSince } from '@/lib/teachers/constants'
 import { PhotoCheckUnavailable, recordPhotoRefusal, teacherPhotoKey, teacherPhotoVerdict } from '@/lib/teachers/photo-verdict'
 import { districtPagesOf, revalidateTeacherPages } from '@/lib/teachers/revalidate'
-import { IDENTITY_MARK_TP_SELECT, identityMarkShownFor, identityMarkState, type IdentityMarkState } from '@/lib/teachers/identity-mark'
+import { IDENTITY_MARK_TP_SELECT, identityMarkHidden, identityMarkShownFor, identityMarkState, type IdentityMarkState } from '@/lib/teachers/identity-mark'
 import { writeIdentityMarkCard } from '@/lib/teachers/identity-mark-card'
 import {
   AI_NOTICE_VERSION, COVER_FIELDS, PUBLISH_NOTICE_VERSION, TEACHER_SITUATION_VERSION, coverIsPublic, hasTeachingGoal,
@@ -111,11 +111,12 @@ const noticeShown = (raw: unknown) => noticeIs(raw, 'coverNotice', COVER_CONSENT
  * The page showed an older notice than the one in force (409 `notice_changed` — "This page was updated, reload to
  * save"). ⛔ Never a silent downgrade: an opt-in or the cover switch quietly saved OFF would drop a choice the teacher
  * just made, and saved ON it would record consent to words they never saw (teacher onboarding redesign, 2026-10-08).
- * `identity` (2026-10-16): the "Identity verified" switch, turned on beside an older IDENTITY_MARK_NOTICE_VERSION — or
- * with none (saveTeacherIdentityMark).
+ * ⚠️ NOT the "Identity verified" switch any more: under its opt-in (2026-10-16) a switch-on beside older words answered
+ * `identity`; since the mark is AUTOMATIC (owner, 2026-10-16) a show-again consents to nothing and names no notice
+ * (saveTeacherIdentityMark), so nothing raises that variant.
  */
 export class TeacherNoticeChangedError extends Error {
-  constructor(public notice: 'publish' | 'cover' | 'ai' | 'identity') {
+  constructor(public notice: 'publish' | 'cover' | 'ai') {
     super('notice_changed')
     this.name = 'TeacherNoticeChangedError'
   }
@@ -281,16 +282,16 @@ export type StoredOptIn = { on: boolean; at: Date | null; version: string | null
  *     `aiNotice`, checked by the save), which is how a Gemini-era opt-in becomes one the matcher may use (D5);
  *   · switched OFF — the withdrawal's time; the last grant stays on record (a re-grant shows as a later At).
  * Pure: the same rule for the form's save and for any future one-click unsubscribe.
- * `version` (2026-10-16): the notice the switch stands beside — the AI notice for the two opt-ins (the default), and
- * IDENTITY_MARK_NOTICE_VERSION for the "Identity verified" switch (saveTeacherIdentityMark): the same rule, its own words.
+ * ⚠️ NOT the "Identity verified" switch's rule (it borrowed this one, with its own notice, under the opt-in of
+ * 2026-10-16): the mark is AUTOMATIC since, and its switch only HIDES it or shows it again — saveTeacherIdentityMark.
  */
-export function optInWrites(on: boolean, stored: StoredOptIn | null, now: Date, version: string = AI_NOTICE_VERSION): StoredOptIn {
+export function optInWrites(on: boolean, stored: StoredOptIn | null, now: Date): StoredOptIn {
   const wasOn = stored?.on === true
-  const fresh = on && (!wasOn || stored?.version !== version)
+  const fresh = on && (!wasOn || stored?.version !== AI_NOTICE_VERSION)
   return {
     on,
     at: fresh ? now : (stored?.at ?? null),
-    version: fresh ? version : (stored?.version ?? null),
+    version: fresh ? AI_NOTICE_VERSION : (stored?.version ?? null),
     withdrawnAt: wasOn && !on ? now : (stored?.withdrawnAt ?? null),
   }
 }
@@ -323,16 +324,27 @@ export function screenTeacherTexts(t: TeacherInput) {
 }
 
 /** The stored columns a save reads under the account lock: cover, video version, the consent records, and the mirrors'
- *  inputs (the years a band may keep, the teach areas a confirmation stamp compares). And the "Identity verified" switch
- *  — READ, never written, here: the card's tick follows the name this save writes (below). */
+ *  inputs (the years a band may keep, the teach areas a confirmation stamp compares). And the "Identity verified" hide
+ *  (identity-mark.ts identityMarkHidden — its two columns) — READ, never written, by an edit: the card's tick follows the
+ *  name this save writes (below). */
 const LOCKED_SELECT = {
   id: true, listingId: true, createdAt: true, ...STORED_COVER_SELECT, videoVersion: true, yearsExperience: true, teachAreas: true, teachAreasConfirmedAt: true,
   currentDistrictKey: true, currentDistrict: true,
   consentPublicVersion: true, consentPublicAt: true,
   matchEmailOptIn: true, matchEmailOptInAt: true, matchEmailNoticeVersion: true, matchEmailWithdrawnAt: true,
   staffContactOptIn: true, staffContactOptInAt: true, staffContactNoticeVersion: true, staffContactWithdrawnAt: true,
-  identityMarkOn: true, identityMarkNoticeVersion: true,
+  identityMarkOn: true, identityMarkWithdrawnAt: true,
 } as const
+
+/**
+ * The join form's "Identity verified" choice as a first Publish carries it (owner, 2026-10-16: the teacher may hide the
+ * mark "before publishing too"): a top-level `identityMarkHidden` that is exactly `true` — any other value, or none, is
+ * not a hide. ⛔ CREATE-ONLY (saveTeacherProfile): honoured only by the save that CREATES the TeacherProfile, and ignored
+ * by an edit — the switch's own endpoint owns the hide there (saveTeacherIdentityMark), so a profile save that refuses can
+ * never hold a hide back. Never in TeacherInput (normalizeTeacherInput never reads it), never in a draft, never echoed.
+ */
+const hiddenAtPublish = (raw: unknown): boolean =>
+  !!raw && typeof raw === 'object' && (raw as Record<string, unknown>).identityMarkHidden === true
 
 /**
  * Create or update the caller's teacher profile and its listing. Returns the listing id.
@@ -343,6 +355,8 @@ const LOCKED_SELECT = {
  * absent = no check (callers outside the PUT route). The PUT route always passes one (gate review, 2026-10-08).
  * `noGoal` in the result: the save went through on a profile with neither a job goal nor public cover, which it HID
  * (plan review D6) — the form says so.
+ * `identityMarkHidden: true` in the body (hiddenAtPublish): the join form's "Identity verified" switch, turned off before
+ * the first Publish — recorded as a hide by the save that CREATES the profile, ignored by every other.
  */
 export async function saveTeacherProfile(
   profile: { id: string; email: string | null },
@@ -502,6 +516,10 @@ export async function saveTeacherProfile(
     // The Publish tap under PUBLISH_NOTICE_VERSION: a first save, or one under a notice the last grant did not see, is a
     // fresh public consent (its time moves); otherwise the grant stands and only the last-saved time does.
     const freshPublic = !locked || locked.consentPublicVersion !== PUBLISH_NOTICE_VERSION
+    // "Identity verified" hidden before the first Publish (hiddenAtPublish): only when THIS save creates the profile — no
+    // row under the lock — and recorded exactly as the switch's own hide records one (saveTeacherIdentityMark): the
+    // switch off, the hide's time. Written in the create below, so the card is judged on it in this same transaction.
+    const hideAtPublish = !locked && hiddenAtPublish(raw)
     const profileData = {
       // ⛔ ONE HOME: the profile row's public URL is the PLAN's final one — exactly the listing's (null for a private or no
       // video), never the body's. publish.video.test.ts pins both writes (gate reviews, 2026-10-07).
@@ -555,7 +573,10 @@ export async function saveTeacherProfile(
     }
     const tp = await tx.teacherProfile.upsert({
       where: { profileId: profile.id },
-      create: { ...profileData, ...cover, profileId: profile.id, listingId: id, consentPublicAt: now, consentAt: now, videoVersion: plan.changed ? 1 : 0 },
+      create: {
+        ...profileData, ...cover, profileId: profile.id, listingId: id, consentPublicAt: now, consentAt: now, videoVersion: plan.changed ? 1 : 0,
+        ...(hideAtPublish ? { identityMarkOn: false, identityMarkWithdrawnAt: now } : {}),
+      },
       update: {
         ...profileData, ...cover, listingId: id, consentAt: now,
         ...(freshPublic ? { consentPublicAt: now } : {}),
@@ -569,24 +590,30 @@ export async function saveTeacherProfile(
     // A `null` claim needs no second look: only this locked save creates a row, and a delete cannot create one.
     if (typeof expected === 'string' && tp.id !== expected) throw new TeacherProfileChangedError()
     // ⚖️ THE CARD'S "IDENTITY VERIFIED" TICK FOLLOWS THE NAME (owner, 2026-10-15: shown only while the profile's name is
-    // within the ID's). ⛔ THIS SAVE NEVER CARRIES OR CHANGES THE SWITCH — its own endpoint does (saveTeacherIdentityMark,
-    // plan review R2): no body field, no TeacherInput field, and none of the four identityMark* columns is in profileData.
-    // But it writes the NAME the tick vouches for, so the card cache is re-derived here from the STORED switch and the
-    // new name, under this lock, in this transaction — a rename to anything not within the ID takes the tick off the
-    // card with the rename, never a day later at the nightly reconcile; the purge after the commit carries it.
-    // ZERO identity reads unless the switch is on under today's notice (identityMarkShownFor); otherwise the guarded
-    // UPDATE of NULL is a no-op for every card that never had the tick.
+    // within the ID's) — AND IS WRITTEN BY EVERY SAVE, a first one included (owner, 2026-10-16: AUTOMATIC once the
+    // identity check is live). ⛔ AN EDIT NEVER CARRIES OR CHANGES THE HIDE — the switch's own endpoint does
+    // (saveTeacherIdentityMark, plan review R2): no TeacherInput field, and no identityMark* column in profileData; the
+    // one exception is the CREATE's hide above (hideAtPublish), so a teacher who switched it off on the join form is never
+    // shown for a moment. This save writes the NAME the tick vouches for, so the card cache is re-derived here, LIVE, from
+    // the stored hide (or the create's) and the new name, under this lock, in this transaction: a teacher verified BEFORE
+    // they had a profile gets the tick with their first Publish (the approval's own sync found no profile to write), and a
+    // rename to anything not within the ID takes it off with the rename, never a day later at the nightly reconcile; the
+    // purge after the commit carries either. ⛔ JUDGED LIVE (identityMarkShownFor), NEVER GATED ON THE CARD CACHE: this is
+    // a writer of that cache (identityMarkShownOnCard is for the public surfaces). Zero identity reads only for a hidden
+    // mark; every other save makes one indexed read.
     // ⚠️ FAIL CLOSED, NEVER FAIL THE SAVE (commit gate, 2026-10-16): the identity read runs on THIS transaction, inside a
     // SAVEPOINT — a read that fails rolls back to the savepoint (a failed statement would otherwise poison the whole
     // transaction), hides the tick (NULL) instead of refusing an ordinary profile edit, and the nightly card passes
-    // re-derive it. Not a second connection: one waiting on a busy pool while this transaction holds its own (and the
-    // teacher lock) would time the save out instead (round 7).
+    // re-derive it (they select every identity holder — identity-reconcile.ts). Not a second connection: one waiting on a
+    // busy pool while this transaction holds its own (and the teacher lock) would time the save out instead (round 7).
     let markShown = false
     await tx.$executeRaw`SAVEPOINT identity_mark`
     try {
       markShown = await identityMarkShownFor({
         profileId: profile.id, fullName: tc.fullName,
-        identityMarkOn: locked?.identityMarkOn === true, identityMarkNoticeVersion: locked?.identityMarkNoticeVersion ?? null,
+        // The row as this save leaves it: an edit's stored hide (never written here), or the create's.
+        identityMarkOn: locked ? locked.identityMarkOn : false,
+        identityMarkWithdrawnAt: locked ? locked.identityMarkWithdrawnAt : (hideAtPublish ? now : null),
       }, now, tx)
       await tx.$executeRaw`RELEASE SAVEPOINT identity_mark`
     } catch (e) {
@@ -741,9 +768,9 @@ export async function saveTeacherCover(profileId: string, raw: unknown): Promise
 
 /**
  * The "Identity verified" switch changed in another window since this form loaded it → 409 `identity_mark_changed`
- * ("This changed elsewhere — reload"). ⛔ THE STALE-TAB RULE FOR THIS CONSENT (plan review R2, codex #2): switching ON is
- * a compare-and-set against the consent stamps the form loaded — tab A loaded it ON, tab B switched it OFF (recording the
- * withdrawal), and tab A must never be able to re-grant it with a "fresh" consent the teacher did not give again.
+ * ("This changed elsewhere — reload"). ⛔ THE STALE-TAB RULE FOR SHOWING IT AGAIN (plan review R2, codex #2): a show is a
+ * compare-and-set against the stamps the form loaded — tab A loaded it hidden, tab B showed it and hid it again, and tab A
+ * must never be able to un-hide it over that newer hide. A hide carries no base: it is never refused.
  */
 export class TeacherIdentityMarkConflictError extends Error {
   constructor() {
@@ -752,92 +779,97 @@ export class TeacherIdentityMarkConflictError extends Error {
   }
 }
 
-/** The "Identity verified" consent stamps as the wire carries them (ISO 8601 or null): the switch-on's CAS base. */
+/**
+ * The "Identity verified" switch's stamps as the wire carries them (ISO 8601 or null) — a show-again's CAS base:
+ * `at` = the last SHOW (TeacherProfile.identityMarkAt — a show-again; under the opt-in before 2026-10-16, a switch-on),
+ * `withdrawnAt` = the last HIDE (identityMarkWithdrawnAt). History, both: whether it is hidden is identityMarkHidden's.
+ */
 export type IdentityMarkStamps = { at: string | null; withdrawnAt: string | null }
 
 /** One stamp as sent against one as stored: both absent, or the same instant (by epoch ms, so the ISO spelling is free). */
 const sameStamp = (sent: string | null, stored: Date | null) =>
   sent === null ? stored === null : stored !== null && Date.parse(sent) === stored.getTime()
 
-/** What the switch's save reads under the lock: the mark's inputs, its consent record, and where its pages are. */
+/** What the switch's save reads under the lock: the mark's inputs (the hide's two columns among them), the last show,
+ *  and where its pages are. */
 const IDENTITY_MARK_LOCKED_SELECT = {
   id: true, listingId: true, currentDistrictKey: true, currentDistrict: true,
-  ...IDENTITY_MARK_TP_SELECT, identityMarkAt: true, identityMarkWithdrawnAt: true,
+  ...IDENTITY_MARK_TP_SELECT, identityMarkAt: true,
 } as const
 
 /**
- * Save ONLY the caller's "Identity verified" switch (owner, 2026-10-15; plan review R2) — PUT /api/teachers/me/identity-mark.
- * Returns the mark's state after the save (`{ shown, reason }` — the teacher's own form shows it) and the consent stamps
- * as stored (the form's next CAS base); null when the caller has no TeacherProfile.
+ * Save ONLY the caller's "Identity verified" switch (owner, 2026-10-15; AUTOMATIC since 2026-10-16) — PUT
+ * /api/teachers/me/identity-mark. The mark shows by itself while the identity check is live and the name is within the
+ * ID's (identity-mark.ts); this switch is the teacher's way to HIDE it, and to show it again. Returns the mark's state
+ * after the save (`{ shown, reason }` — the teacher's own form shows it) and the stamps as stored (the form's next CAS
+ * base); null when the caller has no TeacherProfile (the join form holds its choice and sends it with the first Publish —
+ * saveTeacherProfile hiddenAtPublish).
  *
  * ⛔ ITS OWN ENDPOINT, NEVER THE PROFILE SAVE (Opus #1, codex #2): a switch saved with the whole profile could not be
- * withdrawn whenever anything else in the profile refused to save — a bio that trips a screen added since it was written,
+ * hidden whenever anything else in the profile refused to save — a bio that trips a screen added since it was written,
  * a video conflict, an older Publish notice. So, as saveTeacherCover (D6: "a withdrawal is never blocked"):
  *   · NOTHING ELSE IS SCREENED OR VALIDATED HERE — not the profile, not its texts, not the publish gates;
- *   · OFF ALWAYS SUCCEEDS: the switch off, the withdrawal stamped (the last grant kept as history — optInWrites), the
- *     card's tick cleared in the same transaction, the pages purged after the commit;
- *   · ON is a consent, so it must name the notice it was given under (`notice` === IDENTITY_MARK_NOTICE_VERSION, else
- *     TeacherNoticeChangedError('identity') → 409 notice_changed) AND carry the stamps the form loaded (`base`) that still
- *     match the stored ones (else TeacherIdentityMarkConflictError → 409 identity_mark_changed, NOTHING written) — so a
- *     stale tab can never re-grant a withdrawal. ON under the same notice over an ON row records no new grant; ON over an
- *     older notice's grant re-stamps it (optInWrites — one rule for every opt-in).
- * ON is never refused for the identity itself: the teacher may consent before or while their check is pending — the
- * mark then simply is not shown, and the returned `reason` says why (identity-mark.ts).
+ *   · A HIDE (`on: false`) ALWAYS SUCCEEDS: no base, no notice, no identity read. It writes the switch off and the hide's
+ *     time WHENEVER the mark is not hidden already — the untouched default (false, NULL) included, which is SHOWN
+ *     (identityMarkHidden) — keeping the last show as history; the card's tick is cleared in the same transaction and
+ *     the pages purged after the commit;
+ *   · A SHOW (`on: true`) carries the stamps the form loaded (`base`), which must still match the stored ones (else
+ *     TeacherIdentityMarkConflictError → 409 identity_mark_changed, NOTHING written) — so a stale tab can never un-hide
+ *     over a newer hide. Over a hide it writes the switch on, the show's time and the words on screen
+ *     (IDENTITY_MARK_NOTICE_VERSION — a record of which words, never a gate), the hide kept as history; over a mark that
+ *     is not hidden it writes nothing. ⛔ IT CONSENTS TO NOTHING: the consent is the identity declaration (identity-mark.ts
+ *     header), so a show names no notice — the route ignores one an older form still sends.
+ * A show is never refused for the identity itself: the teacher may show it again before or while their check is pending
+ * — the mark then simply is not shown, and the returned `reason` says why (identity-mark.ts).
  * ⛔ UNDER THE SAVES' PER-ACCOUNT LOCK, taken FIRST, with the row read under it: a full save, a cover save, an identity
- * sync (identity-mark-card.ts) and this never interleave. After the write, inside the same transaction, the mark's state
- * is judged on the LIVE identity (on `tx`) and the card cache written from it (writeIdentityMarkCard); after the commit
- * the teacher's pages are purged (revalidateTeacherPages — the profile line, the cards and the home shelf bake it in).
+ * sync (identity-mark-card.ts) and this never interleave. A show is then judged on the LIVE identity (on `tx`) — always,
+ * so a show over a mark that was not hidden re-syncs a card that drifted — and the card cache written from it
+ * (writeIdentityMarkCard); after the commit the teacher's pages are purged when anything moved (revalidateTeacherPages —
+ * the profile line, the cards and the home shelf bake it in).
  * ⚠️ The purge is NOT swallowed (saveTeacherCover does not swallow its own either): if it throws, the request fails
- * AFTER the commit and the teacher sees an error. A retried OFF is then a no-op (consent and card already clear — no
- * purge, by design: withdrawals are never rate-limited); what retries the purge is the nightly card passes, which keep a
- * withdrawal of the last 7 days selected and purge it at 00:05 and 09:05 ICT (compliance/identity-reconcile.ts). So a
- * failed purge leaves a withdrawn tick on a cached page for at most until the next pass — never indefinitely.
+ * AFTER the commit and the teacher sees an error. A retried hide is then a no-op (hidden and card already clear — no
+ * purge, by design: hides are never rate-limited); what retries the purge is the nightly card passes, which keep a hide
+ * of the last 7 days selected and purge it at 00:05 and 09:05 ICT (compliance/identity-reconcile.ts). So a failed purge
+ * leaves a hidden tick on a cached page for at most until the next pass — never indefinitely.
  */
 export async function saveTeacherIdentityMark(
   profileId: string,
-  req: { on: boolean; notice?: string | null; base?: IdentityMarkStamps | null },
+  req: { on: boolean; base?: IdentityMarkStamps | null },
 ): Promise<{ identityMark: IdentityMarkState; stamps: IdentityMarkStamps } | null> {
-  // A consent counts only under the words the page showed — checked before anything is read or written.
-  if (req.on && req.notice !== IDENTITY_MARK_NOTICE_VERSION) throw new TeacherNoticeChangedError('identity')
   const result = await db.$transaction(async (tx) => {
     // The same per-account lock as every teacher save, FIRST.
     await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${'teacher:' + profileId}))`
     const tp = await tx.teacherProfile.findUnique({ where: { profileId }, select: IDENTITY_MARK_LOCKED_SELECT })
     if (!tp) return null
-    // ⛔ THE CAS, ON only and under the lock: a grant is made over exactly the state the form showed, or not at all. A
-    // body with no base cannot say what it was given over — refused the same way (fail closed).
+    // ⛔ THE CAS, A SHOW only and under the lock: a show is made over exactly the state the form showed, or not at all. A
+    // body with no base cannot say what it was made over — refused the same way (fail closed).
     if (req.on && !(req.base && sameStamp(req.base.at, tp.identityMarkAt) && sameStamp(req.base.withdrawnAt, tp.identityMarkWithdrawnAt))) {
       throw new TeacherIdentityMarkConflictError()
     }
     const now = new Date()
-    const mark = optInWrites(
-      req.on,
-      { on: tp.identityMarkOn, at: tp.identityMarkAt, version: tp.identityMarkNoticeVersion, withdrawnAt: tp.identityMarkWithdrawnAt },
-      now,
-      IDENTITY_MARK_NOTICE_VERSION,
-    )
-    // OFF over OFF moves no consent column (optInWrites records no second withdrawal), so it writes no row either.
-    const consentMoved = req.on || tp.identityMarkOn
-    if (consentMoved) {
-      await tx.teacherProfile.update({
-        where: { id: tp.id },
-        data: { identityMarkOn: mark.on, identityMarkAt: mark.at, identityMarkNoticeVersion: mark.version, identityMarkWithdrawnAt: mark.withdrawnAt },
-      })
-    }
-    // ⛔ OFF READS NOTHING ABOUT THE IDENTITY (commit gate, 2026-10-16): a switched-off mark is never shown, so there is
-    // nothing to judge — and an identity read that failed would have rolled the WITHDRAWAL back. ON is judged on the
-    // live identity in THIS transaction, and the card's cache is written from it.
+    const hidden = identityMarkHidden(tp)
+    // ⛔ EVERY ACT WRITES THE LAST ACT, AND ONLY WHEN IT CHANGES ONE (identity-mark.ts: hidden is read from the two switch
+    // columns): a hide over a mark that is not hidden — the untouched default included — and a show over a hide. A hide
+    // over a hide and a show over a shown mark write nothing (no second hide time, no second show time).
+    const write = req.on
+      ? (hidden ? { identityMarkOn: true, identityMarkAt: now, identityMarkNoticeVersion: IDENTITY_MARK_NOTICE_VERSION } : null)
+      : (hidden ? null : { identityMarkOn: false, identityMarkWithdrawnAt: now })
+    if (write) await tx.teacherProfile.update({ where: { id: tp.id }, data: write })
+    const row = { ...tp, ...(write ?? {}) }
+    // ⛔ A HIDE READS NOTHING ABOUT THE IDENTITY (commit gate, 2026-10-16): a hidden mark is never shown, so there is
+    // nothing to judge — and an identity read that failed would have rolled the HIDE back. A show is judged on the live
+    // identity in THIS transaction, and the card's cache is written from it.
     const identityMark: IdentityMarkState = req.on
-      ? await identityMarkState({ profileId, fullName: tp.fullName, identityMarkOn: mark.on, identityMarkNoticeVersion: mark.version }, now, tx)
-      : { shown: false, reason: 'off' }
+      ? await identityMarkState({ profileId, fullName: row.fullName, identityMarkOn: row.identityMarkOn, identityMarkWithdrawnAt: row.identityMarkWithdrawnAt }, now, tx)
+      : { shown: false, reason: 'hidden' }
     const cardMoved = tp.listingId ? await writeIdentityMarkCard(tx, tp.listingId, identityMark.shown) : false
     return {
       listingId: tp.listingId, districts: districtPagesOf(tp), identityMark,
-      // ⚠️ A REPEATED OFF IS A NO-OP — no purge (commit gate): withdrawals are never rate-limited, so an OFF over a mark
-      // that is already off and a card already clear must not cost the teacher's pages and '/' a revalidation each.
-      // A withdrawal whose purge failed is retried by the nightly card passes (recent withdrawals stay selected).
-      purge: consentMoved || cardMoved,
-      stamps: { at: mark.at?.toISOString() ?? null, withdrawnAt: mark.withdrawnAt?.toISOString() ?? null },
+      // ⚠️ A REPEATED HIDE IS A NO-OP — no purge (commit gate): hides are never rate-limited, so a hide over a mark that is
+      // already hidden and a card already clear must not cost the teacher's pages and '/' a revalidation each. A hide
+      // whose purge failed is retried by the nightly card passes (recent hides stay selected).
+      purge: write !== null || cardMoved,
+      stamps: { at: row.identityMarkAt?.toISOString() ?? null, withdrawnAt: row.identityMarkWithdrawnAt?.toISOString() ?? null },
     }
   })
   if (!result) return null

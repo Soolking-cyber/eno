@@ -363,8 +363,8 @@ export type NicheApiErrorCode =
   | 'teacher_profile_missing'
   | 'cover_changed' // cover lessons: the cover state changed in another window since the form loaded (2026-10-07)
   | 'profile_changed' // a teacher form loaded for one TeacherProfile, saved under a session that is now another's (2026-10-07)
-  | 'notice_changed' // a teacher save under an older publish / cover / AI notice than the one now in force (2026-10-08); `identity`: the "Identity verified" switch (2026-10-16)
-  | 'identity_mark_changed' // PUT /api/teachers/me/identity-mark: the switch changed in another window since the form loaded it — a switch-ON over a stale base is refused, never a re-grant of a withdrawal (409, 2026-10-16)
+  | 'notice_changed' // a teacher save under an older publish / cover / AI notice than the one now in force (2026-10-08); `declaration`: POST /api/seller/identity/challenge under a superseded identity declaration — reload (409, 2026-10-16)
+  | 'identity_mark_changed' // PUT /api/teachers/me/identity-mark: the switch changed in another window since the form loaded it — a show-again over a stale base is refused, never an un-hide over a newer hide (409, 2026-10-16)
   | 'resubscribe_in_profile' // /api/unsubscribe: teacher job-match emails are turned back ON only in the profile, under the AI notice (2026-10-08)
   | 'no_teaching_goal' // PATCH /api/teachers/me/status → live: no work picked and cover off, so nothing to show schools (D6, 2026-10-09)
   | 'terms_required' // PUT /api/teachers/me: a new account's first profile published without the Terms line on screen (2026-10-11)

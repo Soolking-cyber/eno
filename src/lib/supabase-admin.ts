@@ -1,5 +1,6 @@
 import 'server-only'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { supabaseServerFetch } from '@/lib/supabase/server-fetch'
 
 export const LISTINGS_BUCKET = 'listings'
 // PRIVATE bucket for dispute evidence (receipts, chat screenshots — often carries
@@ -36,6 +37,7 @@ export function getSupabaseAdmin(): SupabaseClient {
   if (!url || !key) {
     throw new Error('Supabase admin not configured: set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY')
   }
-  _admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
+  // global.fetch: getUser(jwt) and the other allowlisted auth calls stay on the box (src/lib/supabase/server-fetch.ts).
+  _admin = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: supabaseServerFetch } })
   return _admin
 }

@@ -333,7 +333,13 @@ export function StickyActionBar({
 
   const write = React.useCallback(() => {
     if (panelRef.current) {
-      document.documentElement.style.setProperty(HEIGHT_VAR, `${panelRef.current.offsetHeight}px`)
+      const next = `${panelRef.current.offsetHeight}px`
+      // An unchanged height writes nothing — a custom property set on <html> restyles the whole document, and this
+      // re-measures after EVERY render (see below; speed plan item 7). Compared with what <html> CARRIES, not with what
+      // this bar last wrote, so a value someone else removed is put back on the next render.
+      const root = document.documentElement.style
+      if (root.getPropertyValue(HEIGHT_VAR) === next) return
+      root.setProperty(HEIGHT_VAR, next)
     }
   }, [])
 

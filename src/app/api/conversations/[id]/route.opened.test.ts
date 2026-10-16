@@ -29,9 +29,9 @@ const h = vi.hoisted(() => ({
   tiers: {} as Record<string, string>,
   tierReads: [] as string[],
   tierThrows: false,
-  // "Identity verified" (src/lib/teachers/identity-mark.ts identityMarkShownFor): its answer, whether it throws, and the
-  // input each read was for.
-  markShown: false,
+  // "Identity verified" — the REAL predicate (src/lib/teachers/identity-mark.ts identityMarkShownOnCard) over a faked
+  // identity table: its rows, whether the read throws, and each read's arguments (the cost the chat poll pays).
+  identityRows: [] as Array<Record<string, unknown>>,
   markThrows: false,
   markReads: [] as Array<Record<string, unknown>>,
 }))
@@ -56,16 +56,9 @@ vi.mock('@/lib/messages', () => ({ MESSAGE_ROW_SELECT: {}, serializeMessage: (m:
 vi.mock('@/lib/storefront-gone', () => ({ isPublicListing: () => true, isStorefrontGone: async () => false }))
 // The writer's public verification (its own rules — a revoked identity, the badge — are writer-verified.test.ts's) — what
 // the TEACHER's side shows as `writerVerified`.
-// The teacher's opt-in "Identity verified" (its rules — the zero-read short-circuit, the live check — are
-// identity-mark.test.ts's) — what the SCHOOL's side shows as `teacherIdentityVerified`.
-vi.mock('@/lib/teachers/identity-mark', () => ({
-  IDENTITY_MARK_TP_SELECT: { profileId: true, fullName: true, identityMarkOn: true, identityMarkNoticeVersion: true },
-  identityMarkShownFor: async (m: Record<string, unknown>) => {
-    h.markReads.push(m)
-    if (h.markThrows) throw new Error('identity read down')
-    return h.markShown
-  },
-}))
+// The teacher's "Identity verified" is the REAL predicate (src/lib/teachers/identity-mark.ts — its rules are
+// identity-mark.test.ts's): what the SCHOOL's side shows as `teacherIdentityVerified`, read through the identity table
+// faked below, so a read this route makes — or does not make — on the most-polled path is counted, not assumed.
 vi.mock('@/lib/teachers/writer-verified', () => ({
   writerVerified: async (profileId: string) => {
     h.tierReads.push(profileId)
@@ -76,6 +69,13 @@ vi.mock('@/lib/teachers/writer-verified', () => ({
 vi.mock('@/lib/db', () => ({
   db: {
     conversation: { findUnique: async () => h.convo, update: async () => { h.convoUpdates += 1; return {} } },
+    identityVerification: {
+      findMany: async (args: Row) => {
+        h.markReads.push(args)
+        if (h.markThrows) throw new Error('identity read down')
+        return h.identityRows
+      },
+    },
     seller: { findUnique: async () => null },
     review: { findUnique: async () => null },
     notification: {
@@ -89,6 +89,7 @@ vi.mock('@/lib/db', () => ({
 }))
 
 const { GET } = await import('./route')
+const { IDENTITY_MARK_NOTICE_VERSION } = await import('@/lib/teachers/constants')
 
 function thread(over: Row = {}): Row {
   return {
@@ -120,7 +121,7 @@ beforeEach(() => {
   h.tiers = {}
   h.tierReads = []
   h.tierThrows = false
-  h.markShown = false
+  h.identityRows = []
   h.markThrows = false
   h.markReads = []
 })
@@ -378,38 +379,68 @@ describe('the answer names the account it was read for (F5)', () => {
 })
 
 /**
- * …AND THE MIRROR, FOR THE SCHOOL (owner, 2026-10-15): the TEACHER's opt-in "Identity verified", asked of the one
- * predicate (identityMarkShownFor) about the teacher's own four inputs — never the caller's. Only a boolean leaves: no
- * reason, name, version or account id. The teacher's own read carries no such key and pays no read; nor does any other
- * thread, nor a stranger. A failed read is false, and the thread still opens.
+ * …AND THE MIRROR, FOR THE SCHOOL (owner, 2026-10-15; AUTOMATIC since 2026-10-16): the TEACHER's "Identity verified",
+ * asked of the one predicate about the teacher's own inputs — never the caller's — and GATED ON THE CARD CACHE the
+ * listing row already carries (identityMarkShownOnCard): ⛔ ZERO identity reads on this 15 s poll unless that cache holds
+ * today's value, and then the live rule decides. Only a boolean leaves: no reason, name, version or account id. The
+ * teacher's own read carries no such key and pays no read; nor does any other thread, nor a stranger. A failed read is
+ * false, and the thread still opens.
  */
 describe('a teacher thread — teacherIdentityVerified, for the school only', () => {
-  const TP = { status: 'live', videoOnRequest: false, private: { videoPath: null, phone: null }, profileId: 'seller-1', fullName: 'Anna Eriksson', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16' }
-  const teacherThread = () => thread({ listing: { ...thread().listing as Row, listingType: 'teacher', teacherProfile: { ...TP } } })
-  beforeEach(() => { h.convo = teacherThread() })
+  const VERIFIED = {
+    id: 'iv-1', profileId: 'seller-1', tier: 'B', method: 'passport_mrz', status: 'verified', decidedAt: new Date('2026-09-01T00:00:00+07:00'),
+    documentExpiresAt: new Date('2030-01-01T00:00:00+07:00'), assuranceLevel: 'manual_review',
+    evidence: { decisionInput: { surname: 'ERIKSSON', givenNames: 'ANNA' } },
+  }
+  const TP = { status: 'live', videoOnRequest: false, private: { videoPath: null, phone: null }, profileId: 'seller-1', fullName: 'Anna Eriksson', identityMarkOn: false, identityMarkWithdrawnAt: null as Date | null }
+  const teacherThread = (card: string | null = IDENTITY_MARK_NOTICE_VERSION, tp: Row = {}) =>
+    thread({ listing: { ...thread().listing as Row, listingType: 'teacher', identityMarkNotice: card, teacherProfile: { ...TP, ...tp } } })
+  beforeEach(() => { h.convo = teacherThread(); h.identityRows = [VERIFIED] })
 
-  it('the school gets the predicate\'s boolean — read about the TEACHER, with exactly the four inputs', async () => {
-    for (const shown of [true, false]) {
-      h.markShown = shown
+  it('the school gets the live boolean — read about the TEACHER (never the caller), once per poll, when the card carries the tick', async () => {
+    for (const [rows, shown] of [[[VERIFIED], true], [[{ ...VERIFIED, status: 'revoked' }], false]] as const) {
+      h.identityRows = [...rows]
       h.markReads = []
       const { status, body } = await get()
       expect(status).toBe(200)
       expect(body.teacher.teacherIdentityVerified).toBe(shown)
-      expect(h.markReads).toEqual([{ profileId: 'seller-1', fullName: 'Anna Eriksson', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16' }])
+      expect(h.markReads).toHaveLength(1)
+      expect(h.markReads[0].where).toEqual({ profileId: { in: ['seller-1'] } })
     }
     // The writer's own verification is the teacher's view, and it is not paid for here.
     expect(h.tierReads).toEqual([])
   })
+  it('⛔ ZERO identity reads — and false — for a teacher whose card carries no tick: NULL, absent, or the opt-in\'s old value', async () => {
+    for (const card of [null, 'absent', '2026-10-16']) {
+      h.convo = teacherThread(card === 'absent' ? null : card)
+      if (card === 'absent') delete (h.convo.listing as Row).identityMarkNotice // a row read without the column
+      const { status, body } = await get()
+      expect(status).toBe(200)
+      expect(body.teacher.teacherIdentityVerified, String(card)).toBe(false)
+    }
+    expect(h.markReads).toEqual([])
+  })
+  it('⛔ the card never decides alone: a tick cached before a lapse, a revocation or a rename shows nothing — judged live', async () => {
+    h.identityRows = [{ ...VERIFIED, documentExpiresAt: new Date('2026-01-01T00:00:00+07:00') }]
+    expect((await get()).body.teacher.teacherIdentityVerified).toBe(false)
+    h.identityRows = [VERIFIED]
+    h.convo = teacherThread(IDENTITY_MARK_NOTICE_VERSION, { fullName: 'Dr Anna Eriksson' })
+    expect((await get()).body.teacher.teacherIdentityVerified).toBe(false)
+  })
+  it('a teacher who HID it: false with no read, even with a cache that still carries the tick', async () => {
+    h.convo = teacherThread(IDENTITY_MARK_NOTICE_VERSION, { identityMarkWithdrawnAt: new Date('2026-10-12T00:00:00Z') })
+    expect((await get()).body.teacher.teacherIdentityVerified).toBe(false)
+    expect(h.markReads).toEqual([])
+  })
   it('⛔ only a boolean leaves: no reason, name, version or account id of the teacher', async () => {
-    h.markShown = true
     const { body } = await get()
-    expect(typeof body.teacher.teacherIdentityVerified).toBe('boolean')
+    expect(body.teacher.teacherIdentityVerified).toBe(true)
     const json = JSON.stringify(body)
     expect(json).not.toContain('Anna Eriksson')
-    // The version as a WHOLE JSON value — a bare '2026-10-16' also matches any timestamp of that day (`seenAsOf`), which
-    // failed this test on the version's own date.
+    expect(json).not.toContain(IDENTITY_MARK_NOTICE_VERSION)
+    // The old version as a WHOLE JSON value — a bare '2026-10-16' also matches any timestamp of that day (`seenAsOf`).
     expect(json).not.toContain('"2026-10-16"')
-    expect(json).not.toMatch(/identityMarkOn|identityMarkNoticeVersion|"reason"|notice_changed|name_mismatch/)
+    expect(json).not.toMatch(/identityMark|"reason"|notice_changed|name_mismatch|"hidden"/)
   })
   it('a failed read fails soft: false, and the thread opens', async () => {
     h.markThrows = true
@@ -419,7 +450,6 @@ describe('a teacher thread — teacherIdentityVerified, for the school only', ()
   })
   it('the teacher\'s own read carries no such key — and pays no read', async () => {
     h.me = 'seller-1'
-    h.markShown = true
     const { status, body } = await get()
     expect(status).toBe(200)
     expect('teacherIdentityVerified' in body.teacher).toBe(false)

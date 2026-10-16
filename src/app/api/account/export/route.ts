@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { teacherExportOf } from '@/lib/teachers/export'
 import { teacherDraftExportOf } from '@/lib/teachers/draft'
+import { identityVerificationExportOf } from '@/lib/kyc/export'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
@@ -105,6 +106,12 @@ export async function GET() {
     .then((rows) => rows.map((r) => ({ action: r.action, at: r.occurredAt, detail: r.detail })))
     .catch(() => null)
 
+  // Identity checks (2026-10-16) — src/lib/kyc/export.ts: the facts of each check and the declaration affirmed before
+  // uploading, with its exact words (since identity-v2 also the consent for a teacher's "Identity verified"). Never the
+  // document: the module selects the safe columns one by one. Null when it cannot be read — said, not hidden, and never
+  // the whole export lost to one section (commit gate, opus round 2), as with the consent records above.
+  const identityVerifications = await identityVerificationExportOf(profile.id).catch(() => null)
+
   // The Profile row minus purely-internal fields the user didn't provide and that
   // aren't "their" personal data (denormalized trust internals stay out).
   const { trustScore, trustTier, positiveInteractions, falseReportStrikes, enforcementState, ...profilePublicish } = profile
@@ -136,6 +143,7 @@ export async function GET() {
     teacherProfileDraft: teacherDraft,
     signInMethods,
     consentRecords,
+    identityVerifications,
     schools: { votes: schoolVotes, voteLog: schoolVoteLog, reviews: schoolReviews, helpfulVotes: schoolHelpfulVotes, proofsOfEmployment: schoolProofs, reportsFiled: schoolReports, suggestions: schoolSuggestions },
   }
 

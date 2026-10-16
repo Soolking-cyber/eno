@@ -4,6 +4,7 @@ import type { Profile } from '@/generated/prisma/client'
 import { getCurrentProfile } from '@/lib/admin'
 import { db } from '@/lib/db'
 import { ensureProfile } from '@/lib/profile'
+import { supabaseServerFetch } from '@/lib/supabase/server-fetch'
 
 export type ForumAuth = {
   profile: Profile
@@ -35,6 +36,8 @@ export async function getForumAuth(request: Request): Promise<ForumAuth | null> 
 
   const supabase = createClient(url, publishableKey, {
     auth: { autoRefreshToken: false, persistSession: false },
+    // getUser(token) over the container network, not through Cloudflare (src/lib/supabase/server-fetch.ts).
+    global: { fetch: supabaseServerFetch },
   })
   const { data, error } = await supabase.auth.getUser(token)
   if (error || !data.user) return null

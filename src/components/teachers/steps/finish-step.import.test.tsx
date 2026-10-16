@@ -10,8 +10,9 @@ import { NO_MARK } from '@/components/teachers/identity-mark-switch'
 
 afterEach(() => cleanup())
 
-// A new profile (join): the "Identity verified" switch cannot be saved yet, and nothing about it is known.
-const JOIN_MARK: FinishIdentityMark = { ...NO_MARK, canSave: false, busy: false, message: '', onToggle: vi.fn() }
+// A new profile (join): the "Identity verified" switch is held on the page (ON by default — a hide rides the first
+// Publish), and nothing about the mark is known.
+const JOIN_MARK: FinishIdentityMark = { ...NO_MARK, canSave: true, local: true, busy: false, message: '', onToggle: vi.fn() }
 
 function mount(o: { t?: Partial<TeacherInput>; imported?: { phone: string | null; file: File | null } | null; prefillPhone?: string | null; cvName?: string | null; cvFile?: File | null } = {}) {
   const set = vi.fn()

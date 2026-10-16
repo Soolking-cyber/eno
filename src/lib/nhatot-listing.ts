@@ -413,8 +413,32 @@ export const NHATOT_INTRO_EN = 'Listed on Nhatot.com.'
 export const NHATOT_INTRO_VI = 'Tin đăng trên Nhatot.com.'
 
 export type NhatotDropReason =
-  | 'notRent' | 'notActive' | 'unknownRegion' | 'unknownCategory' | NhatotPriceDrop | 'noImages' | 'tooFewImages'
+  | 'notRent' | 'notActive' | 'broker' | 'unknownRegion' | 'unknownCategory' | NhatotPriceDrop | 'noImages' | 'tooFewImages'
   | 'stale' | 'contactInText' | 'bannedWords'
+
+/** Below this many gate-eligible ads a low broker share proves nothing (a tiny slice may be mostly owners). */
+export const NO_BROKER_MIN_SAMPLE = 25
+/**
+ * ⛔ APARTMENT-CALIBRATED: Nhà Tốt APARTMENTS run ~80–94% broker (measured: ~90% combined). This floor is well
+ * under that, so a healthy apartment crawl never trips it — but rooms/houses/offices are let by owners far more
+ * often, so the caller MUST only apply this to apartment (cg 1010) crawls, never to a places crawl.
+ */
+export const NO_BROKER_MIN_SHARE = 0.4
+/**
+ * ⛔ NO-BROKER TRIPWIRE (owner 2026-10-16 "we will enforce harshly"). mapNhatotAd keeps only individual owners
+ * by dropping `company_ad === true`. If Chợ Tốt renames/removes the flag — wholly, or for most ads — brokers
+ * pass as owners, so the importer must FAIL CLOSED rather than pollute the catalogue. `adsAtGate` is the count
+ * that actually REACHED the broker check (staged minus out-of-scope / notRent / notActive — rows that can never
+ * be counted as 'broker'), so the share is honest. Refuses when ≥ NO_BROKER_MIN_SAMPLE reached the gate yet
+ * fewer than NO_BROKER_MIN_SHARE of them dropped as 'broker'. Apartment crawls only (see NO_BROKER_MIN_SHARE).
+ */
+export function noBrokerTripwire(adsAtGate: number, brokerDrops: number): string | null {
+  if (adsAtGate >= NO_BROKER_MIN_SAMPLE && brokerDrops < NO_BROKER_MIN_SHARE * adsAtGate) {
+    const pct = ((brokerDrops / adsAtGate) * 100).toFixed(1)
+    return `no-broker tripwire: only ${brokerDrops}/${adsAtGate} (${pct}%) of an apartment crawl reached the broker gate and dropped as 'broker', below the ${NO_BROKER_MIN_SHARE * 100}% floor — the company_ad owner signal looks (partly) gone (a gateway change, or a stage saved before the owner filter existed); refusing so brokers are not imported as owners`
+  }
+  return null
+}
 
 /**
  * ⛔ THE PUBLISH FLOOR APPLIES TO IMPORTS TOO. Every rentals subcategory lives in the `rentals`
@@ -483,6 +507,11 @@ export type NhatotMapOptions = { now: number; maxAgeDays: number; maxPhotos: num
 export function mapNhatotAd(ad: NhatotStagedAd, opts: NhatotMapOptions): { ok: true; row: NhatotMapped } | { ok: false; reason: NhatotDropReason } {
   if (ad.type !== 'u') return { ok: false, reason: 'notRent' }
   if (ad.status !== null && ad.status !== 'active') return { ok: false, reason: 'notActive' }
+  // ⛔ OWNER-ONLY no-broker catalogue (owner, 2026-10-16 "import from owner only apartments"). Chợ Tốt's
+  // platform flag is authoritative: company_ad === true is a shop/agency/pro (môi giới); an individual
+  // owner has it absent (staged null) or false. This BEATS a "chính chủ" text filter — brokers write that
+  // phrase (one Chợ Tốt account is literally named "Chính chủ") yet still carry company_ad:true.
+  if (ad.company_ad === true) return { ok: false, reason: 'broker' }
   const city = ad.region_v2 === null ? undefined : CITY_BY_REGION.get(ad.region_v2)
   if (!city) return { ok: false, reason: 'unknownRegion' }
   const cat = NHATOT_CATEGORIES[ad.category]

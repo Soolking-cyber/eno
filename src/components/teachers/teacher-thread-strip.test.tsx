@@ -656,9 +656,10 @@ describe('TeacherThreadStrip — who is writing (writerVerified)', () => {
 })
 
 // ── "Identity verified" about the TEACHER, for the school (owner, 2026-10-15) ──────────────────────────────────────────
-// The mirror of writerVerified: the teacher's own opt-in mark, from the server's boolean — the same pill and words as the
-// profile line and the card tick ("xác minh", never "xác thực"). Only ever positive; never on the teacher's own side
-// (writerVerified is the teacher's chip, and it never shows to the school); never on a closed thread.
+// The mirror of writerVerified: the teacher's mark (automatic since 2026-10-16, unless they hid it), from the server's
+// boolean — the same pill and words as the profile line and the card tick ("xác minh", never "xác thực"). Only ever
+// positive; never on the teacher's own side (writerVerified is the teacher's chip, and it never shows to the school);
+// never on a closed thread.
 describe('TeacherThreadStrip — the teacher\'s "Identity verified", for the school', () => {
   const CHIPS = ['Verified business', 'Identity verified', 'Not verified yet']
   const chipsIn = (el: HTMLElement) => CHIPS.filter((c) => el.textContent?.includes(c))

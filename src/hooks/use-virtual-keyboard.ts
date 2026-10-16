@@ -104,22 +104,31 @@ function syncVars() {
   if (!vv) return
   const root = document.documentElement
   const open = keyboardOpen(vv)
-  // ⚠️ --vvh ONLY WHILE THE KEYBOARD IS UP. This runs on every visualViewport resize/scroll app-wide —
-  // including iOS Safari's toolbar collapse during ordinary scrolling — and a custom property changed
-  // on <html> invalidates style for the whole document. Its readers (the chat footer, ui/dialog,
-  // ui/drawer) are all gated on kb-open and fall back to 100dvh, so while closed it is removed once
-  // and stays gone. (--vvt / --kb-h below are written as unchanged 0px while closed.)
-  if (open) root.style.setProperty('--vvh', `${vv.height}px`)
-  else root.style.removeProperty('--vvh')
-  // Only apply the scroll offset while the keyboard is up; on close snap back to 0 so a
-  // stale offsetTop (iOS 26 regression, WebKit #297779) can't strand the shell.
-  root.style.setProperty('--vvt', `${open ? vv.offsetTop : 0}px`)
-  // The slice of the LAYOUT viewport that is not visible below the visual viewport = exactly
-  // how far a `position: fixed; bottom: 0` bar has to rise to sit on the keyboard. Clamped at
-  // 0 and forced to 0 while closed (a stale offsetTop must never leave a phantom lift).
-  root.style.setProperty('--kb-h', `${open ? Math.max(0, window.innerHeight - vv.offsetTop - vv.height) : 0}px`)
+  // ⛔ NOTHING IS WRITTEN ON <html> WHILE THE KEYBOARD IS CLOSED — not even the "unchanged" 0px (speed plan item 7).
+  // A custom property set on <html> is inherited by every element, so each write invalidates style for the WHOLE
+  // document: the mount-time sync alone (writing --vvt/--kb-h = 0px over their defaults) cost a 146–173 ms style
+  // recalc on the mid-phone lab, on every page, and the same writes ran on every frame of iOS Safari's toolbar collapse
+  // during ordinary scrolling. Closed is the resting state the CSS already describes — every reader falls back to it:
+  // `var(--vvt, 0px)`, `var(--kb-h, 0px)` / the `:root { --kb-h: 0px }` default, `var(--vvh, 100dvh)` (globals.css,
+  // ui/dialog, ui/drawer, the chat shell). So the three are SET while open and REMOVED once on close — the snap-back
+  // to 0 (a stale offsetTop, iOS 26 / WebKit #297779, must never strand the shell) is the fallback itself.
+  if (open) {
+    root.style.setProperty('--vvh', `${vv.height}px`)
+    root.style.setProperty('--vvt', `${vv.offsetTop}px`)
+    // The slice of the LAYOUT viewport that is not visible below the visual viewport = exactly how far a
+    // `position: fixed; bottom: 0` bar has to rise to sit on the keyboard. Clamped at 0.
+    root.style.setProperty('--kb-h', `${Math.max(0, window.innerHeight - vv.offsetTop - vv.height)}px`)
+  } else if (root.style.getPropertyValue('--vvh') || root.style.getPropertyValue('--vvt') || root.style.getPropertyValue('--kb-h')) {
+    // Asked of <html> itself, not of a flag in this module: a re-evaluated module (Fast Refresh) or another writer cannot
+    // leave a phantom lift behind. Reading an inline declaration forces no style or layout work.
+    root.style.removeProperty('--vvh')
+    root.style.removeProperty('--vvt')
+    root.style.removeProperty('--kb-h')
+  }
+  // A no-op while the class is already in that state: classList.toggle(x, false) on an absent class mutates nothing.
   root.classList.toggle('kb-open', open)
 }
+
 
 function scheduleSync() {
   if (rafId) cancelAnimationFrame(rafId)

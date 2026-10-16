@@ -156,11 +156,14 @@ const APP_DOWNLOAD_OFF_JS = IOS_APP_URL
  * cosmetic: the note in globals.css shows why CSS font-matching alone would have moved 500 down and
  * 600 up, i.e. by accident instead of by decision.
  *
- * ⚠️ SUBSET TO LATIN + VIETNAMESE, WHICH IS 62% OF THE BYTES. The upstream release ships the full
- * charset at ~155 KB per weight — 310 KB for two. Subset with pyftsubset to
- * U+0000-024F, U+0300-036F, U+1E00-1EFF (the Vietnamese block) plus punctuation and currency,
- * they are 124 KB total, and the coverage check above was re-run ON THE SUBSET to prove nothing
- * was dropped. Regenerate with scripts/gen-fonts.sh if the upstream release moves.
+ * ⚠️ SUBSET TO WHAT THE SCREEN DRAWS — 55 KB FOR THE TWO WEIGHTS. The upstream release ships the full
+ * charset at ~155 KB per weight — 310 KB for two. Subset with pyftsubset to Latin-1, Vietnamese
+ * (the precomposed vowels and the combining tone marks), punctuation, and the currency signs and
+ * symbols the app and its listings use; scripts/gen-fonts.sh holds the exact ranges, the measurement
+ * behind each, and a cmap check that proves nothing needed was dropped. It was 124 KB until speed plan
+ * item 7 (2026-10-16) cut Latin Extended-A/B and the unused symbol ranges — one live listing of 2,121
+ * used a letter from them, and it renders in the metric-matched fallback. Regenerate with
+ * scripts/gen-fonts.sh if the upstream release moves.
  *
  * Licence: OFL-1.1, same as Inter (src/fonts/OFL-OpenRunde.txt).
  */

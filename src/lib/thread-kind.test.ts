@@ -24,22 +24,27 @@ const h = vi.hoisted(() => ({
   // passed against the bug.
   throwOnTrip: false,
   throwOnVisa: false,
+  // How many times each desk lookup ran — threadKindResolver's whole point is "once per page".
+  tripCalls: 0,
+  visaCalls: 0,
 }))
 
 vi.mock('./trips/dm-thread', () => ({
   getTripAssistanceListingId: async () => {
+    h.tripCalls++
     if (h.throwOnLookup || h.throwOnTrip) throw new Error('desk lookup down')
     return h.tripAnchorId
   },
 }))
 vi.mock('./visa-shop', () => ({
   getVisaShopListings: async () => {
+    h.visaCalls++
     if (h.throwOnLookup || h.throwOnVisa) throw new Error('catalogue lookup down')
     return h.visaListings
   },
 }))
 
-const { threadKind } = await import('./thread-kind')
+const { threadKind, threadKindResolver } = await import('./thread-kind')
 
 /** Every fixture shares ONE seller, which is the whole point — see the header. */
 const SAME_SELLER = 'seller-shared-by-both-desks'
@@ -201,5 +206,87 @@ describe('marketplace edition — one flag per service', () => {
     expect(m.ITINERARY_THREADS_ENABLED).toBe(true)
     await expect(m.threadKind(convo('visa-1'))).resolves.toBe('visa')
     await expect(m.threadKind(convo('trip-anchor'))).resolves.toBe('itinerary')
+  })
+})
+
+/**
+ * threadKindResolver is threadKind for a PAGE of threads (the inbox, up to 100): the same answer for every thread, the
+ * desk lookups run once instead of once per thread (React's cache() does nothing in a route handler).
+ */
+describe('threadKindResolver — the same answers, one pair of lookups', () => {
+  const IDS = ['listing-trip-anchor', 'listing-visa-standard', 'listing-visa-urgent', 'listing-ordinary', null, undefined, '', 'toString', '__proto__', 'constructor']
+
+  beforeEach(() => {
+    h.tripAnchorId = 'listing-trip-anchor'
+    h.visaListings = [{ id: 'listing-visa-standard' }, { id: 'listing-visa-urgent' }]
+    h.throwOnLookup = false
+    h.throwOnTrip = false
+    h.throwOnVisa = false
+  })
+
+  it('agrees with threadKind on every listing id, including a missing one and inherited Object keys', async () => {
+    const kindOf = await threadKindResolver()
+    for (const id of IDS) expect(kindOf(id)).toBe(await threadKind({ listingId: id ?? null }))
+  })
+
+  it('runs each desk lookup ONCE for a page of 100 threads — threadKind runs them per thread', async () => {
+    h.tripCalls = 0; h.visaCalls = 0
+    const kindOf = await threadKindResolver()
+    const kinds = Array.from({ length: 100 }, (_, i) => kindOf(i % 2 ? 'listing-trip-anchor' : 'listing-visa-urgent'))
+    expect(kinds.filter((k) => k === 'itinerary')).toHaveLength(50)
+    expect(kinds.filter((k) => k === 'visa')).toHaveLength(50)
+    expect([h.tripCalls, h.visaCalls]).toEqual([1, 1])
+  })
+
+  it.each([['the trip desk', 'throwOnTrip'], ['the visa catalogue', 'throwOnVisa']] as const)(
+    'with both services on, when %s alone throws, it answers exactly what threadKind answers — listing for both kinds',
+    async (_name, flag) => {
+      h[flag] = true
+      const kindOf = await threadKindResolver()
+      for (const id of IDS) {
+        const expected = await threadKind({ listingId: id ?? null })
+        expect(kindOf(id)).toBe(expected)
+        expect(expected).toBe('listing')
+      }
+    },
+  )
+
+  it('fails CLOSED for every thread when a lookup throws', async () => {
+    h.throwOnLookup = true
+    const kindOf = await threadKindResolver()
+    for (const id of IDS) expect(kindOf(id)).toBe('listing')
+  })
+
+  it('on the marketplace with both flags off: no lookup at all, every thread is a listing thread', async () => {
+    vi.resetModules()
+    const prev = process.env.NEXT_PUBLIC_ENO_EDITION
+    process.env.NEXT_PUBLIC_ENO_EDITION = 'marketplace'
+    try {
+      const m = await import('./thread-kind')
+      h.tripCalls = 0; h.visaCalls = 0
+      const kindOf = await m.threadKindResolver()
+      expect(kindOf('listing-trip-anchor')).toBe('listing')
+      expect(kindOf('listing-visa-urgent')).toBe('listing')
+      expect([h.tripCalls, h.visaCalls]).toEqual([0, 0])
+    } finally {
+      if (prev === undefined) delete process.env.NEXT_PUBLIC_ENO_EDITION; else process.env.NEXT_PUBLIC_ENO_EDITION = prev
+    }
+  })
+
+  it('a DISABLED service that throws cannot kill the ENABLED one (itinerary on, visa off, on the marketplace)', async () => {
+    vi.resetModules()
+    const keys = ['NEXT_PUBLIC_ENO_EDITION', 'ITINERARY_THREADS_ENABLED'] as const
+    const prev = keys.map((k) => process.env[k])
+    process.env.NEXT_PUBLIC_ENO_EDITION = 'marketplace'
+    process.env.ITINERARY_THREADS_ENABLED = 'true'
+    try {
+      const m = await import('./thread-kind')
+      h.throwOnVisa = true
+      const kindOf = await m.threadKindResolver()
+      expect(kindOf('listing-trip-anchor')).toBe('itinerary')
+      expect(kindOf('listing-visa-urgent')).toBe('listing')
+    } finally {
+      keys.forEach((k, i) => { if (prev[i] === undefined) delete process.env[k]; else process.env[k] = prev[i] })
+    }
   })
 })

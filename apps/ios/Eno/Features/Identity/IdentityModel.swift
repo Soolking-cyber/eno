@@ -28,7 +28,9 @@ final class IdentityModel {
 
     /// ⚠️ MIRRORS `CURRENT_DECLARATION` in src/lib/compliance/declaration-text.ts. The version the
     /// seller ACCEPTED is what gets recorded, so this constant and that one must move together.
-    static let declarationVersion = "identity-v1"
+    /// ⛔ identity-v2 since 2026-10-16 (clause 5, the teacher's "Identity verified"): the server refuses any
+    /// other version (409 notice_changed), so a stale constant here can only fail — never record wrong words.
+    static let declarationVersion = "identity-v2"
 
     var step: Step = .tier
     var tier: Tier?

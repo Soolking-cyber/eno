@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { renderIdentityOutcomeEmail, identityRejectionSentence } from './identity-verification'
+import { renderIdentityOutcomeEmail, identityRejectionSentence, teacherMarkSentence } from './identity-verification'
 
 const base = { origin: 'https://eno.forum', siteName: 'eno.forum', tier: 'B' } as const
 
@@ -65,12 +65,14 @@ describe('renderIdentityOutcomeEmail', () => {
   })
 })
 
-// ⚖️ A TEACHER'S APPROVAL (owner, 2026-10-15): one sentence about the opt-in "Identity verified" mark, a button to the
-// switch (/teachers/edit?step=finish — never the verify flow), and no "selling" signoff. Everyone else: unchanged.
+// ⚖️ A TEACHER'S APPROVAL (owner, 2026-10-15; AUTOMATIC since 2026-10-16): one sentence about "Identity verified" — it
+// shows (and can be hidden), the teacher hid it (and can show it again), or the name holds it back — a button to the
+// switch (/teachers/edit?step=finish — never the verify flow), and no "selling" signoff. Never "switch it on": there is
+// nothing to opt into. Everyone else: unchanged.
 describe('renderIdentityOutcomeEmail — a teacher', () => {
-  it('the mark shows: the sentence, the button to the switch, no signoff', () => {
+  it('the mark shows: the sentence — with the way to hide it — the button to the switch, no signoff', () => {
     const m = renderIdentityOutcomeEmail({ ...base, outcome: 'approved', reason: null, note: null, lang: 'en', teacher: { line: 'now' } })
-    expect(m.text).toContain('“Identity verified” now shows on your teacher profile.')
+    expect(m.text).toContain('“Identity verified” now shows on your teacher profile. You can hide it there at any time.')
     expect(m.html).toContain('https://eno.forum/teachers/edit?step=finish')
     expect(m.html).toContain('Update my teacher profile')
     expect(m.html).not.toContain('/dashboard/verification')
@@ -78,10 +80,11 @@ describe('renderIdentityOutcomeEmail — a teacher', () => {
     expect(m.html).not.toContain('Thanks for selling')
     expect(m.subject).toBe('Your identity is verified on eno.forum')
   })
-  it('not shown: "You can now show … — switch it on in Photo & publish."', () => {
+  it('hidden by the teacher: "You have hidden … — you can show it again there." — never "switch it on"', () => {
     const m = renderIdentityOutcomeEmail({ ...base, outcome: 'approved', reason: null, note: null, lang: 'en', teacher: { line: 'can' } })
-    expect(m.text).toContain('You can now show “Identity verified” on your teacher profile — switch it on in Photo & publish.')
+    expect(m.text).toContain('You have hidden “Identity verified” on your teacher profile — you can show it again there.')
     expect(m.text).toContain('https://eno.forum/teachers/edit?step=finish')
+    expect(m.html + m.text).not.toMatch(/switch it on|You can now show/)
   })
   // Commit gate, 2026-10-16: the NAME holds it back (not within the ID, say) — never "switch it on".
   it('the name holds it back: "… is not showing on your teacher profile yet — see why in Photo & publish."', () => {
@@ -92,12 +95,22 @@ describe('renderIdentityOutcomeEmail — a teacher', () => {
     const vi = renderIdentityOutcomeEmail({ ...base, outcome: 'approved', reason: null, note: null, lang: 'vi', teacher: { line: 'notYet' } })
     expect(vi.text).toContain('Nhãn “Đã xác minh danh tính” chưa hiển thị trên hồ sơ giáo viên của bạn — xem lý do trong bước Ảnh & đăng.')
   })
-  it('in Vietnamese: the curated sentence and button — "xác minh", never "xác thực"', () => {
+  it('in Vietnamese: the curated sentences and button — "xác minh", never "xác thực"', () => {
+    const now = renderIdentityOutcomeEmail({ ...base, outcome: 'approved', reason: null, note: null, lang: 'vi', teacher: { line: 'now' } })
+    expect(now.text).toContain('Nhãn “Đã xác minh danh tính” đã hiển thị trên hồ sơ giáo viên của bạn. Bạn có thể ẩn nhãn này trong hồ sơ bất cứ lúc nào.')
     const m = renderIdentityOutcomeEmail({ ...base, outcome: 'approved', reason: null, note: null, lang: 'vi', teacher: { line: 'can' } })
-    expect(m.text).toContain('Giờ bạn có thể hiển thị “Đã xác minh danh tính” trên hồ sơ giáo viên — bật trong bước Ảnh & đăng.')
+    expect(m.text).toContain('Bạn đã ẩn nhãn “Đã xác minh danh tính” trên hồ sơ giáo viên — bạn có thể hiển thị lại trong hồ sơ.')
     expect(m.html).toContain('Cập nhật hồ sơ giáo viên')
     expect(m.text).not.toContain('Cảm ơn bạn đã bán hàng')
     expect(m.html + m.text).not.toContain('xác thực')
+  })
+  it('teacherMarkSentence is the email\'s own line — the one copy the bell and the push use too', () => {
+    for (const lang of ['en', 'vi'] as const) {
+      for (const line of ['now', 'can', 'notYet'] as const) {
+        const m = renderIdentityOutcomeEmail({ ...base, outcome: 'approved', reason: null, note: null, lang, teacher: { line } })
+        expect(m.text, `${lang} ${line}`).toContain(teacherMarkSentence(lang, line))
+      }
+    }
   })
   it('a refusal ignores it — and every non-teacher email is what it was', () => {
     const refused = renderIdentityOutcomeEmail({ ...base, outcome: 'rejected', reason: 'manual', note: 'Blurred', lang: 'en', teacher: { line: 'now' } })

@@ -45,9 +45,10 @@ const COPY = {
     afterNote: 'Once you have addressed this, you can verify again from your dashboard.',
     cta: 'Open verification',
     signoff: (site: string) => `Thanks for selling on ${site}.`,
-    // A TEACHER's approval (owner, 2026-10-15): the opt-in "Identity verified" mark — shown now, or theirs to switch on.
-    teacherNow: '“Identity verified” now shows on your teacher profile.',
-    teacherCan: 'You can now show “Identity verified” on your teacher profile — switch it on in Photo & publish.',
+    // A TEACHER's approval (owner, 2026-10-15; AUTOMATIC since 2026-10-16): "Identity verified" — shown now (and theirs to
+    // hide), hidden by their own choice (theirs to show again), or held back by the name.
+    teacherNow: '“Identity verified” now shows on your teacher profile. You can hide it there at any time.',
+    teacherCan: 'You have hidden “Identity verified” on your teacher profile — you can show it again there.',
     teacherNotYet: '“Identity verified” is not showing on your teacher profile yet — see why in Photo & publish.',
     teacherCta: 'Update my teacher profile',
   },
@@ -77,8 +78,8 @@ const COPY = {
     afterNote: 'Sau khi xử lý xong, bạn có thể xác minh lại từ bảng điều khiển.',
     cta: 'Mở phần xác minh',
     signoff: (site: string) => `Cảm ơn bạn đã bán hàng trên ${site}.`,
-    teacherNow: 'Nhãn “Đã xác minh danh tính” đã hiển thị trên hồ sơ giáo viên của bạn.',
-    teacherCan: 'Giờ bạn có thể hiển thị “Đã xác minh danh tính” trên hồ sơ giáo viên — bật trong bước Ảnh & đăng.',
+    teacherNow: 'Nhãn “Đã xác minh danh tính” đã hiển thị trên hồ sơ giáo viên của bạn. Bạn có thể ẩn nhãn này trong hồ sơ bất cứ lúc nào.',
+    teacherCan: 'Bạn đã ẩn nhãn “Đã xác minh danh tính” trên hồ sơ giáo viên — bạn có thể hiển thị lại trong hồ sơ.',
     teacherNotYet: 'Nhãn “Đã xác minh danh tính” chưa hiển thị trên hồ sơ giáo viên của bạn — xem lý do trong bước Ảnh & đăng.',
     teacherCta: 'Cập nhật hồ sơ giáo viên',
   },
@@ -96,8 +97,20 @@ export function identityRejectionSentence(lang: Lang, reason: IdentityRejectReas
   return null
 }
 
-/** What a teacher's approval says about "Identity verified" (notify-outcome.ts teacherMarkLine). */
+/**
+ * What a teacher's approval says about "Identity verified" (notify-outcome.ts teacherMarkLine): 'now' — it shows (and
+ * can be hidden); 'can' — the teacher HID it, and can show it again; 'notYet' — the name holds it back.
+ */
 export type TeacherMarkLine = 'now' | 'notYet' | 'can'
+
+/**
+ * The one sentence a teacher's approval says about the mark, in `lang` — the email's line, and the bell's and the push's
+ * body (notify-outcome.ts): one copy, so the three channels can never say two things.
+ */
+export function teacherMarkSentence(lang: Lang, line: TeacherMarkLine): string {
+  const c = COPY[lang]
+  return { now: c.teacherNow, notYet: c.teacherNotYet, can: c.teacherCan }[line]
+}
 
 export function renderIdentityOutcomeEmail(opts: {
   outcome: 'approved' | 'rejected'
@@ -110,9 +123,9 @@ export function renderIdentityOutcomeEmail(opts: {
   siteName: string
   /**
    * The account has a TEACHER profile (notify-outcome.ts teacherMarkLine; an approval only): the email adds one sentence
-   * about the opt-in "Identity verified" mark — 'now': it shows; 'notYet': the name holds it back (the form says why);
-   * 'can': only the switch does — its button opens the switch (/teachers/edit?step=finish, ⛔ never the verify flow), and
-   * the "selling" signoff goes. Absent: unchanged.
+   * about "Identity verified" (AUTOMATIC since 2026-10-16) — 'now': it shows, and can be hidden; 'notYet': the name holds
+   * it back (the form says why); 'can': the teacher hid it, and can show it again — its button opens the switch
+   * (/teachers/edit?step=finish, ⛔ never the verify flow), and the "selling" signoff goes. Absent: unchanged.
    */
   teacher?: { line: TeacherMarkLine } | null
 }): IdentityOutcomeEmail {
@@ -120,7 +133,7 @@ export function renderIdentityOutcomeEmail(opts: {
   const approved = opts.outcome === 'approved'
   const teacher = approved ? opts.teacher ?? null : null
   const url = teacher ? `${opts.origin}/teachers/edit?step=finish` : `${opts.origin}/dashboard/verification`
-  const markLine = teacher ? { now: c.teacherNow, notYet: c.teacherNotYet, can: c.teacherCan }[teacher.line] : null
+  const markLine = teacher ? teacherMarkSentence(opts.lang, teacher.line) : null
   const why = approved ? null : identityRejectionSentence(opts.lang, opts.reason, opts.note)
   // ⚠️ THE COLON EXISTS ONLY WHEN SOMETHING FOLLOWS IT. A refusal with neither note nor known
   // reason ends the sentence with a full stop, not a colon into nothing.

@@ -155,7 +155,7 @@ describe('PERSONAL_SCRUB_DATA fits the Listing columns', () => {
   })
 
   // The teacher card's "Identity verified" cache (2026-10-16, src/lib/teachers/identity-mark-card.ts) is a statement
-  // about the person — eno checked their identity and they chose to show it — so an erasure blanks it with the rest.
+  // about the person — eno checked their identity and they did not hide the mark — so an erasure blanks it with the rest.
   it('blanks the card\'s "Identity verified" cache — nullable, and NULL is its "not shown"', () => {
     expect(PERSONAL_SCRUB_DATA).toMatchObject({ identityMarkNotice: null })
     expect(fields.get('identityMarkNotice')).toEqual({ type: 'String', optional: true })

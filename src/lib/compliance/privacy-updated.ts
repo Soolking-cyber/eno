@@ -30,12 +30,30 @@
  * LinkedIn sign-in too", "Gemini on Vertex"): Google reading a CV the teacher chooses (its recipients row, the teacher
  * paragraph, automated decisions), LinkedIn as a recipient (its row, the account information, withdrawing it), and the
  * email hash never sent for a LinkedIn account (D14). Live with the deploy — they describe new, opt-in features.
- * And 2026-10-16 as well (planned — the deploy day of the KYC trust input and the teacher's "Identity verified" mark,
- * owner 2026-10-15: not material, live with the deploy): a verified identity counts toward the trust score while it is
- * current — every account, both editions (the identity and trust paragraphs; "a selfie"; "điểm uy tín" throughout the
- * Vietnamese) — and the teacher's opt-in "Identity verified" mark on the profile, its card in lists and the chats about
- * it (the teacher paragraph and its consent purpose). If the two deploys fall on different days, this is the LATER one.
- * ⛔ If that deploy slips past 2026-10-16, re-date this (the deploy gate refuses until it matches the day).
+ * And 2026-10-16 as well (the deploy day of the KYC trust input and the teacher's "Identity verified" mark — efc3e64c9,
+ * LIVE 2026-10-16; owner 2026-10-15: not material, live with the deploy): a verified identity counts toward the trust
+ * score while it is current — every account, both editions (the identity and trust paragraphs; "a selfie"; "điểm uy tín"
+ * throughout the Vietnamese) — and the teacher's "Identity verified" mark on the profile, its card in lists and the chats
+ * about it (the teacher paragraph and its consent purpose), an OPT-IN in that deploy and automatic since (next).
+ * And 2026-10-16 again (planned — the deploy day of the AUTOMATIC mark; owner 2026-10-16: "if they verify it should be
+ * auto not need to ask they consent by uploading kyc", the identity-v1 cohort "Show theirs too", and the 5-day
+ * material-change promise "On deploy" — treated as NOT material, the owner's call, recorded with counsel's questions in
+ * docs/compliance/pdpl-dossier-draft.md): the identity paragraph's pointer; the teacher paragraph (shown while current
+ * and the name matches, never the document, the identity declaration — identity-v2's clause 5 — as its consent and
+ * record, the identity-v1 cohort shown on the same terms and told so, hidden at any time — before publishing too — and
+ * what is recorded); the consent purpose; and the general "each is off until you turn it on", which now carves the mark
+ * out by name. Live with its deploy.
+ * ⛔ If that deploy is not on 2026-10-16, re-date in its commit: this; identity-v2's `effective`
+ * (src/lib/compliance/declaration-text.ts — not hashed, so no record moves); the day /privacy gives as the earlier
+ * declaration's last ("used until 16 October 2026" / "dùng đến ngày 16 tháng 10 năm 2026", in the teacher paragraph and
+ * the consent purpose — page.test.tsx fails until it equals `effective`); then the fingerprint below. ⚠️ The deploy gate
+ * cannot catch a forgotten re-date this time: production (efc3e64c9) already carries 2026-10-16, so an unchanged value
+ * passes as "already live" and the page would print a stale "Last updated".
+ * And 2026-10-16 (planned — the deploy day of speed plan item 5, owner 2026-10-16: "Anonymous, no consent", live with
+ * the deploy): the "Page speed measurements" paragraph — anonymous daily totals of load and response times, counted
+ * whatever the Analytics choice, like the sign-up reminder counts. ⛔ The value below did NOT change for it — and the
+ * deploy gate only checks the day when the value DIFFERS from the deployed commit's (already 2026-10-16 there) — so it
+ * cannot notice a slip: if item 5 deploys on a later Vietnamese day, re-date this to THAT day (and retake the fingerprint).
  * And 2026-10-17 (planned — the deploy day of teacher onboarding v3, owner 2026-10-16: "remove linkedin login and
  * profile read only from cv is enough … check uploaded profile pictures so it clearly shows face of the teacher … the cv
  * info like number and cv itself stays as default"): Sign in with LinkedIn is GONE (its recipients row, the account
@@ -66,4 +84,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-17'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '1f226570d6dd86de'
+export const PRIVACY_TEXT_FINGERPRINT = '8e3b79d9e851d24d'

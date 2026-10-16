@@ -11,7 +11,8 @@
 //   · school: "Ask for their intro video" → asked (a day later: "Ask again") → "Watch intro video", inline, on a 10-minute link.
 // Any account the teacher shares with — the teacher DM ladder (owner, 2026-10-13) opened teacher chats to every account; the
 // 2026-10-08 business-only video rule went with it. The teacher sees whether the writer is verified (`writerVerified`);
-// the school sees the teacher's own opt-in "Identity verified" (`teacherIdentityVerified`, owner 2026-10-15).
+// the school sees the teacher's "Identity verified" (`teacherIdentityVerified`, owner 2026-10-15 — automatic once verified
+// since 2026-10-16, unless the teacher hid it).
 // The server re-derives every rule from the conversation row (src/lib/teachers/share.ts).
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
 import { useLanguage } from '@/context/language-context'
@@ -46,9 +47,10 @@ const REMINT_WITHIN_MS = 60_000
  * verified business, has a live identity check, or is not verified yet — said before the teacher taps Share (the DM
  * ladder, owner 2026-10-13). Null/absent shows nothing.
  * `teacherIdentityVerified` — SCHOOL ONLY (the thread payload's `teacher.teacherIdentityVerified`, owner 2026-10-15): the
- * TEACHER's own opt-in "Identity verified" mark (src/lib/teachers/identity-mark.ts), shown to the school or member
- * writing to them. Only ever a positive chip — false or absent shows nothing, and there is never a negative label about
- * a teacher. Ignored on the teacher's own side and on a closed thread.
+ * TEACHER's "Identity verified" mark (src/lib/teachers/identity-mark.ts — automatic since 2026-10-16 while their check is
+ * live and their name matches, unless they hid it), shown to the school or member writing to them. Only ever a positive
+ * chip — false or absent shows nothing, and there is never a negative label about a teacher. Ignored on the teacher's own
+ * side and on a closed thread.
  */
 export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedProp, live = true, shareSignal, closed = false, video: videoProp = null, videoReadAt, videoSignal = 0, hasPhone = true, phoneShared: phoneSharedProp = true, writerVerified = null, teacherIdentityVerified = false }: { conversationId: string; iAmTeacher: boolean; shared: boolean; live?: boolean; shareSignal: number; closed?: boolean; video?: TeacherVideoFlags | null; videoReadAt?: number; videoSignal?: number; hasPhone?: boolean; phoneShared?: boolean; writerVerified?: 'business' | 'identity' | 'unverified' | null; teacherIdentityVerified?: boolean }) {
   const { tr } = useLanguage()
@@ -417,8 +419,9 @@ export function TeacherThreadStrip({ conversationId, iAmTeacher, shared: sharedP
             : tr('Not verified yet', 'Chưa xác minh')}
         </span>
       )}
-      {/* …and the mirror, about the TEACHER, for the school (owner, 2026-10-15): the teacher's own opt-in mark, from the
-          server's boolean — the same pill, the same words as the profile line and the card tick. Positive only. */}
+      {/* …and the mirror, about the TEACHER, for the school (owner, 2026-10-15): the teacher's mark (automatic unless they
+          hid it), from the server's boolean — the same pill, the same words as the profile line and the card tick. Positive
+          only. */}
       {!iAmTeacher && !closed && teacherIdentityVerified && (
         <span className="rounded-full bg-tint px-2.5 py-1 text-2xs font-semibold text-body">{tr('Identity verified', 'Đã xác minh danh tính')}</span>
       )}

@@ -374,7 +374,7 @@ type Thread = {
   /** A thread about a teacher profile (2026-09-30); optional — pending stubs and cached threads omit it. */
   // `hasPhone` reaches the TEACHER side only (A3, 2026-10-08) — what their Share button names; so does `phoneShared`
   // (gate review, 2026-10-09) — whether the standing share included the phone.
-  // `teacherIdentityVerified` reaches the SCHOOL side only (2026-10-16) — the teacher's opt-in "Identity verified" chip.
+  // `teacherIdentityVerified` reaches the SCHOOL side only (2026-10-16) — the teacher's "Identity verified" chip (automatic unless the teacher hid it).
   teacher?: { shared: boolean; live?: boolean; hasPhone?: boolean; phoneShared?: boolean; video?: TeacherVideoFlags | null; writerVerified?: 'business' | 'identity' | 'unverified' | null; teacherIdentityVerified?: boolean } | null
   /**
    * App Store gate `ugc-safety`: the thread is CLOSED by a block between its two people — 'you_blocked'

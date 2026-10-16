@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-type Tp = { fullName: string; identityMarkOn: boolean; identityMarkNoticeVersion: string | null }
+type Tp = { fullName: string; identityMarkOn: boolean; identityMarkWithdrawnAt: Date | null; status?: string; listing?: { status: string; verified: boolean } | null }
 const h = vi.hoisted(() => ({
   s: {
     profile: { email: 'anna@example.com', locale: 'en' } as { email: string | null; locale: string | null; teacherProfile?: Tp | null } | null,
-    // "Identity verified" (src/lib/teachers/identity-mark.ts identityMarkShownFor): its answer, a failure, and its calls.
-    markState: { shown: false, reason: 'off' } as { shown: boolean; reason: string | null },
+    // "Identity verified" (src/lib/teachers/identity-mark.ts identityMarkState): its answer, a failure, and its calls.
+    markState: { shown: false, reason: 'unverified' } as { shown: boolean; reason: string | null },
     markThrows: false,
     markCalls: [] as unknown[],
     bells: [] as Record<string, unknown>[],
@@ -59,7 +59,7 @@ beforeEach(() => {
   h.s.bells = []; h.s.bellFails = false
   h.s.pushes = []; h.s.pushFails = false
   h.s.mails = []
-  h.s.markState = { shown: false, reason: 'off' }; h.s.markThrows = false; h.s.markCalls = []
+  h.s.markState = { shown: false, reason: 'unverified' }; h.s.markThrows = false; h.s.markCalls = []
 })
 
 describe('notifyIdentityOutcome', () => {
@@ -122,64 +122,70 @@ describe('notifyIdentityOutcome', () => {
 })
 
 /**
- * ⚖️ A TEACHER'S APPROVAL TELLS THEM ABOUT "IDENTITY VERIFIED" (owner, 2026-10-15): the bell, the push and the email say
- * that the mark now shows, that the NAME holds it back ("see why"), or that only the switch does ("switch it on") — from
- * the very reason the form shows (teacherMarkLine) — and every one leads to the switch (/teachers/edit?step=finish),
- * never the verify flow. A failed read, or an identity-side reason, says nothing about the mark. A refusal, and every
- * account without a teacher profile, is unchanged.
+ * ⚖️ A TEACHER'S APPROVAL TELLS THEM ABOUT "IDENTITY VERIFIED" (owner, 2026-10-15; AUTOMATIC since 2026-10-16): the bell,
+ * the push and the email say — in ONE sentence (the email module's teacherMarkSentence) — that the mark now shows and can
+ * be hidden, that the teacher HID it and can show it again, or that the NAME holds it back ("see why") — from the very
+ * reason the form shows (teacherMarkLine) — and every one leads to the switch (/teachers/edit?step=finish), never the
+ * verify flow. Never "switch it on": there is nothing to opt into. A failed read, an identity-side reason or no profile
+ * says nothing about the mark. A refusal, and every account without a teacher profile, is unchanged.
  */
 describe('notifyIdentityOutcome — a teacher\'s approval', () => {
-  const TP: Tp = { fullName: 'Anna Eriksson', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16' }
+  /** Never touched: the automatic default — not hidden. */
+  const TP: Tp = { fullName: 'Anna Eriksson', identityMarkOn: false, identityMarkWithdrawnAt: null, status: 'live', listing: { status: 'active', verified: true } }
+  const HID = new Date('2026-10-12T02:00:00.000Z')
   const URL = '/teachers/edit?step=finish'
+  const NOW_EN = '“Identity verified” now shows on your teacher profile. You can hide it there at any time.'
+  const NOW_VI = 'Nhãn “Đã xác minh danh tính” đã hiển thị trên hồ sơ giáo viên của bạn. Bạn có thể ẩn nhãn này trong hồ sơ bất cứ lúc nào.'
+  const CAN_EN = 'You have hidden “Identity verified” on your teacher profile — you can show it again there.'
+  const CAN_VI = 'Bạn đã ẩn nhãn “Đã xác minh danh tính” trên hồ sơ giáo viên — bạn có thể hiển thị lại trong hồ sơ.'
+  const NOT_YET_EN = '“Identity verified” is not showing on your teacher profile yet — see why in Photo & publish.'
+  const NOT_YET_VI = 'Nhãn “Đã xác minh danh tính” chưa hiển thị trên hồ sơ giáo viên của bạn — xem lý do trong bước Ảnh & đăng.'
 
-  it('the mark shows: "“Identity verified” now shows on your teacher profile." — bell, push and email, all to the switch', async () => {
+  it('⛔ the mark shows (automatically): "now shows … You can hide it there at any time." — bell, push and email, all to the switch', async () => {
     h.s.profile = { email: 'anna@example.com', locale: 'en', teacherProfile: TP }
     h.s.markState = { shown: true, reason: null }
     await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'B' })
-    expect(h.s.bells[0]).toMatchObject({ title: 'Your identity is verified', body: '“Identity verified” now shows on your teacher profile.', url: URL })
-    expect(h.s.pushes[0].payload).toMatchObject({ body: '“Identity verified” now shows on your teacher profile.', url: URL })
-    expect(h.s.mails[0].text).toContain('“Identity verified” now shows on your teacher profile.')
+    expect(h.s.bells[0]).toMatchObject({ title: 'Your identity is verified', body: NOW_EN, url: URL })
+    expect(h.s.pushes[0].payload).toMatchObject({ body: NOW_EN, url: URL })
+    expect(h.s.mails[0].text).toContain(NOW_EN)
     expect(h.s.mails[0].html).toContain('https://eno.forum/teachers/edit?step=finish')
-    // The predicate is asked about THIS account's teacher profile, with its own inputs.
-    expect(h.s.markCalls).toEqual([{ profileId: 'p1', fullName: 'Anna Eriksson', identityMarkOn: true, identityMarkNoticeVersion: '2026-10-16' }])
+    // The predicate is asked about THIS account's teacher profile, with its own inputs — the name and the hide.
+    expect(h.s.markCalls).toEqual([{ profileId: 'p1', fullName: 'Anna Eriksson', identityMarkOn: false, identityMarkWithdrawnAt: null }])
   })
 
-  it('not (yet) shown: "You can now show … — switch it on in Photo & publish." — the same three, the same link', async () => {
-    h.s.profile = { email: 'anna@example.com', locale: 'en', teacherProfile: { ...TP, identityMarkOn: false, identityMarkNoticeVersion: null } }
-    h.s.markState = { shown: false, reason: 'off' }
-    await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'B' })
-    const can = 'You can now show “Identity verified” on your teacher profile — switch it on in Photo & publish.'
-    expect(h.s.bells[0]).toMatchObject({ body: can, url: URL })
-    expect(h.s.pushes[0].payload).toMatchObject({ body: can, url: URL })
-    expect(h.s.mails[0].text).toContain(can)
+  it('⛔ "now shows" never for a profile the public cannot see (hidden, or not in the feed): the plain approval and the hub', async () => {
+    for (const tp of [{ ...TP, status: 'hidden' }, { ...TP, listing: { status: 'hidden', verified: true } }, { ...TP, listing: { status: 'active', verified: false } }, { ...TP, listing: null }]) {
+      h.s.bells.length = 0; h.s.pushes.length = 0; h.s.mails.length = 0
+      h.s.profile = { email: 'anna@example.com', locale: 'en', teacherProfile: tp }
+      h.s.markState = { shown: true, reason: null }
+      await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'B' })
+      expect(h.s.bells[0], JSON.stringify(tp)).toMatchObject({ body: 'You will not be asked to do this again unless your document expires or is replaced.', url: '/dashboard/verification' })
+      expect(h.s.mails[0].text).not.toContain(NOW_EN)
+    }
   })
 
-  // Commit gate, 2026-10-16: the NAME holds the mark back (not within the ID) — "switch it on" would be an impossible
-  // instruction for a teacher whose switch is on, and an empty one for a teacher whose switch is off.
-  it('the NAME holds it back, switch ON: "not showing … yet — see why in Photo & publish", never "switch it on"', async () => {
-    h.s.profile = { email: 'anna@example.com', locale: 'en', teacherProfile: TP }
-    h.s.markState = { shown: false, reason: 'name_mismatch' }
+  it('HIDDEN by the teacher: "You have hidden … — you can show it again there." — the same three, the same link', async () => {
+    h.s.profile = { email: 'anna@example.com', locale: 'en', teacherProfile: { ...TP, identityMarkWithdrawnAt: HID } }
+    h.s.markState = { shown: false, reason: 'hidden' }
     await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'B' })
-    const notYet = '“Identity verified” is not showing on your teacher profile yet — see why in Photo & publish.'
-    expect(h.s.bells[0]).toMatchObject({ body: notYet, url: URL })
-    expect(h.s.pushes[0].payload).toMatchObject({ body: notYet, url: URL })
-    expect(h.s.mails[0].text).toContain(notYet)
-    expect(JSON.stringify([h.s.bells, h.s.pushes, h.s.mails])).not.toContain('switch it on')
+    expect(h.s.bells[0]).toMatchObject({ body: CAN_EN, url: URL })
+    expect(h.s.pushes[0].payload).toMatchObject({ body: CAN_EN, url: URL })
+    expect(h.s.mails[0].text).toContain(CAN_EN)
+    expect(h.s.markCalls).toEqual([{ profileId: 'p1', fullName: 'Anna Eriksson', identityMarkOn: false, identityMarkWithdrawnAt: HID }])
   })
 
-  it('the NAME holds it back, switch OFF: "not showing … yet — see why" too — never "you can now show"', async () => {
-    h.s.profile = { email: 'anna@example.com', locale: 'en', teacherProfile: { ...TP, identityMarkOn: false, identityMarkNoticeVersion: null } }
-    h.s.markState = { shown: false, reason: 'no_name' }
-    await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'B' })
-    expect(h.s.bells[0]).toMatchObject({ body: '“Identity verified” is not showing on your teacher profile yet — see why in Photo & publish.' })
-    expect(JSON.stringify([h.s.bells, h.s.pushes, h.s.mails])).not.toContain('You can now show')
-  })
-
-  it('switched on under an OLDER notice counts as not switched on: "you can … switch it on"', async () => {
-    h.s.profile = { email: 'anna@example.com', locale: 'en', teacherProfile: { ...TP, identityMarkNoticeVersion: '2026-01-01' } }
-    h.s.markState = { shown: false, reason: 'notice_changed' }
-    await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'B' })
-    expect(h.s.bells[0]).toMatchObject({ body: 'You can now show “Identity verified” on your teacher profile — switch it on in Photo & publish.' })
+  // Commit gate, 2026-10-16: the NAME holds the mark back (not within the ID) — no switch can fix that.
+  it('the NAME holds it back: "not showing … yet — see why in Photo & publish" — never "switch it on", never "you have hidden"', async () => {
+    for (const [tp, reason] of [[TP, 'name_mismatch'], [{ ...TP, identityMarkWithdrawnAt: HID }, 'no_name']] as const) {
+      h.s.bells = []; h.s.pushes = []; h.s.mails = []
+      h.s.profile = { email: 'anna@example.com', locale: 'en', teacherProfile: tp }
+      h.s.markState = { shown: false, reason }
+      await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'B' })
+      expect(h.s.bells[0], reason).toMatchObject({ body: NOT_YET_EN, url: URL })
+      expect(h.s.pushes[0].payload).toMatchObject({ body: NOT_YET_EN, url: URL })
+      expect(h.s.mails[0].text).toContain(NOT_YET_EN)
+      expect(JSON.stringify([h.s.bells, h.s.pushes, h.s.mails])).not.toMatch(/switch it on|You have hidden|You can now show/)
+    }
   })
 
   it('an identity-side reason (the approval raced a revocation) says NOTHING about the mark: the plain approval', async () => {
@@ -192,29 +198,40 @@ describe('notifyIdentityOutcome — a teacher\'s approval', () => {
 
   it('teacherMarkLine — every reason the form can show maps to one line, or to none', () => {
     expect(teacherMarkLine({ shown: true, reason: null })).toBe('now')
-    expect(teacherMarkLine({ shown: false, reason: 'off' })).toBe('can')
-    expect(teacherMarkLine({ shown: false, reason: 'notice_changed' })).toBe('can')
+    expect(teacherMarkLine({ shown: false, reason: 'hidden' })).toBe('can')
     expect(teacherMarkLine({ shown: false, reason: 'no_name' })).toBe('notYet')
     expect(teacherMarkLine({ shown: false, reason: 'name_mismatch' })).toBe('notYet')
-    for (const reason of ['unverified', 'pending', 'expired', 'revoked'] as const) expect(teacherMarkLine({ shown: false, reason }), reason).toBeNull()
+    for (const reason of ['unverified', 'pending', 'expired', 'revoked', 'no_profile'] as const) expect(teacherMarkLine({ shown: false, reason }), reason).toBeNull()
   })
 
   it('in Vietnamese — "xác minh", never "xác thực"; never the verify flow', async () => {
     h.s.profile = { email: 'a@b.c', locale: 'vi', teacherProfile: TP }
     h.s.markState = { shown: true, reason: null }
     await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'A' })
-    expect(h.s.bells[0].body).toBe('Nhãn “Đã xác minh danh tính” đã hiển thị trên hồ sơ giáo viên của bạn.')
+    expect(h.s.bells[0].body).toBe(NOW_VI)
+    expect(h.s.mails[0].text).toContain(NOW_VI)
     h.s.bells = []; h.s.mails = []; h.s.markState = { shown: false, reason: 'name_mismatch' }
     await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'A' })
-    expect(h.s.bells[0].body).toBe('Nhãn “Đã xác minh danh tính” chưa hiển thị trên hồ sơ giáo viên của bạn — xem lý do trong bước Ảnh & đăng.')
-    h.s.bells = []; h.s.markState = { shown: false, reason: 'off' }
-    h.s.profile = { email: 'a@b.c', locale: 'vi', teacherProfile: { ...TP, identityMarkOn: false, identityMarkNoticeVersion: null } }
+    expect(h.s.bells[0].body).toBe(NOT_YET_VI)
+    h.s.bells = []; h.s.markState = { shown: false, reason: 'hidden' }
+    h.s.profile = { email: 'a@b.c', locale: 'vi', teacherProfile: { ...TP, identityMarkWithdrawnAt: HID } }
     await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'A' })
-    expect(h.s.bells[0].body).toBe('Giờ bạn có thể hiển thị “Đã xác minh danh tính” trên hồ sơ giáo viên — bật trong bước Ảnh & đăng.')
+    expect(h.s.bells[0].body).toBe(CAN_VI)
     expect(JSON.stringify([h.s.bells, h.s.pushes, h.s.mails])).not.toMatch(/xác thực|dashboard\/account\/verify|dashboard\/verification/)
   })
 
-  // A failure leaves "now shows", "not yet" and "switch it on" all unknown (commit gate, 2026-10-16).
+  it('⛔ the bell, the push and the email say the SAME sentence — one copy (teacherMarkSentence)', async () => {
+    for (const [state, sentence] of [[{ shown: true, reason: null }, NOW_EN], [{ shown: false, reason: 'hidden' }, CAN_EN], [{ shown: false, reason: 'no_name' }, NOT_YET_EN]] as const) {
+      h.s.bells = []; h.s.pushes = []; h.s.mails = []
+      h.s.profile = { email: 'anna@example.com', locale: 'en', teacherProfile: TP }
+      h.s.markState = { ...state }
+      await notifyIdentityOutcome('p1', 'approved', { reason: null, note: null, tier: 'B' })
+      expect([h.s.bells[0].body, h.s.pushes[0].payload.body]).toEqual([sentence, sentence])
+      expect(h.s.mails[0].text).toContain(sentence)
+    }
+  })
+
+  // A failure leaves "now shows", "not yet" and "you have hidden it" all unknown (commit gate, 2026-10-16).
   it('a failed read says NOTHING about the mark: the plain approval and the hub — and the notification still goes', async () => {
     h.s.profile = { email: 'anna@example.com', locale: 'en', teacherProfile: TP }
     h.s.markThrows = true

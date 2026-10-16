@@ -28,8 +28,8 @@ describe('normalizeKycImage', () => {
   }, 30_000)
 
   it('the selfie floor is HIGHER than the document floor, and both are enforced', async () => {
-    // 700 short edge: fine for the document, too small for a selfie where six handwritten
-    // characters have to be legible at arm's length.
+    // 700 short edge: fine for the document, too small for a selfie whose face has to be compared
+    // with the document's photograph at arm's length (the floor was first sized for a handwritten code).
     const img = await photo(1000, 700)
     await expect(normalizeKycImage(img, 'selfie')).rejects.toThrow('image_too_small_to_review')
     await expect(normalizeKycImage(img, 'document')).resolves.toBeTruthy()

@@ -55,7 +55,11 @@ const ONBOARDING = [
   'staffContactOptInAt', 'staffContactNoticeVersion', 'staffContactWithdrawnAt',
 ]
 const EARLIER = ['coverOpen', 'coverSlots', 'coverAreas', 'coverRateVnd', 'coverConfirmedAt', 'coverConsentAt', 'coverConsentVersion', 'coverWithdrawnAt', 'videoOnRequest', 'videoVersion']
-/** The "Identity verified" opt-in (owner, 2026-10-15): the switch and its three server-written consent records. */
+/**
+ * The "Identity verified" switch (owner, 2026-10-15; AUTOMATIC since 2026-10-16): the switch and its three server-written
+ * records (last show, its words, last hide). The automatic rule needed NO column — identity-mark.ts reads "hidden" from
+ * these two — so the DDL is exactly what the opt-in added, and must stay so.
+ */
 const IDENTITY_MARK = ['identityMarkOn', 'identityMarkAt', 'identityMarkNoticeVersion', 'identityMarkWithdrawnAt']
 /** TeacherContactShare's later columns: whether the share's tap included the phone (gate review, 2026-10-09). */
 const CONTACT_SHARE = ['phoneShared']
@@ -72,7 +76,7 @@ describe('scripts/teachers-ddl.mjs ↔ prisma/schema.prisma', () => {
     expect([...added.keys()].sort()).toEqual([...ONBOARDING, ...EARLIER, ...IDENTITY_MARK].sort())
     for (const [name, sql] of added) expect(sql, name).toBe(sqlFor(model.get(name)!))
   })
-  it('adds the identity-mark opt-in exactly as the schema declares it: the switch OFF for every existing row, its records NULL (never backfilled)', () => {
+  it('adds the identity-mark columns exactly as the schema declares them: every existing row untouched (false, NULL — NOT hidden: the mark is automatic), never backfilled', () => {
     for (const f of IDENTITY_MARK) {
       expect(model.has(f), `schema.prisma has ${f}`).toBe(true)
       expect(added.get(f), `the DDL adds ${f}`).toBe(sqlFor(model.get(f)!))
