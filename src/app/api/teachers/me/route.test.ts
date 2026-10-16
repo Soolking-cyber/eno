@@ -52,7 +52,7 @@ vi.mock('@/lib/meta-capi', async (orig) => ({
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/log', () => ({ logError: (e: unknown) => { h.logged.push(e) } }))
-vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => h.me, getCurrentProfileId: async () => h.me.id, getAdmin: async () => null, isAdminEmail: () => false, isCurrentUserAdEmailWithheldByClaims: async () => { h.appleAsked++; if (h.appleThrows) throw new Error('claims unreadable'); return h.appleLinked } }))
+vi.mock('@/lib/admin', () => ({ getCurrentProfile: async () => h.me, getCurrentProfileId: async () => h.me.id, getAdmin: async () => null, isAdminEmail: () => false, isCurrentUserAppleLinkedByClaims: async () => { h.appleAsked++; if (h.appleThrows) throw new Error('claims unreadable'); return h.appleLinked } }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true, resetSec: 0 }), kv: { set: async () => 'OK', get: async () => null } }))
 vi.mock('@/lib/db', () => ({ db: {
   teacherProfile: { findUnique: async () => h.mine },

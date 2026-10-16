@@ -2,7 +2,7 @@ import 'server-only'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { tosAcceptanceStamp } from '@/lib/site-legal'
-import { isCurrentUserAdEmailWithheldByClaims } from '@/lib/admin'
+import { isCurrentUserAppleLinkedByClaims } from '@/lib/admin'
 import { sendMetaCapiEvent, metaUserDataFromHeaders, metaCapiConfigured } from '@/lib/meta-capi'
 import { parseAttributionCookie } from '@/lib/attribution'
 import { serverConsent } from '@/lib/consent-value'
@@ -44,8 +44,7 @@ export async function firstOnboardingEffects(req: Request, profile: OnboardingPr
   // latency) and no-ops until CAPI env is set.
   // ⛔ An Apple-linked account's email never becomes `em` (Sign in with Apple D14 — meta-capi.ts); asked only when CAPI is
   // configured, from the locally verified token — no auth-server round trip.
-  // D14, widened to LinkedIn (src/lib/ad-email.ts): the field keeps its name; it means "this email is withheld".
-  const appleLinked = metaCapiConfigured() ? await isCurrentUserAdEmailWithheldByClaims() : false
+  const appleLinked = metaCapiConfigured() ? await isCurrentUserAppleLinkedByClaims() : false
   after(() =>
     sendMetaCapiEvent('CompleteRegistration', {
       eventSourceUrl: req.headers.get('referer') || undefined,

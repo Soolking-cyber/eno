@@ -10,7 +10,6 @@ import type { Profile } from '@/generated/prisma/client'
 import { normalizePhone } from '@/lib/phone'
 import { logError } from '@/lib/log'
 import { isAppleLinked } from '@/lib/apple-signin'
-import { adEmailWithheld } from '@/lib/ad-email'
 
 /** Comma-separated allowlist from ADMIN_EMAILS (server-only env). */
 function adminEmails(): string[] {
@@ -248,15 +247,6 @@ export async function isCurrentUserAdminByClaims(): Promise<boolean> {
  * event (Sign in with Apple D14, src/lib/meta-capi.ts) — never open a door. So NO VERIFIED CLAIMS ANSWER TRUE
  * (commit gate round 2, O5): "cannot tell" removes the hash too, rather than sending it for an account that is linked.
  */
-/**
- * May the caller's account email reach an ad platform? FALSE only when the locally verified claims say the account has
- * neither an Apple nor a LinkedIn identity (src/lib/ad-email.ts); no claims → withheld (fail closed, as D14 always was).
- */
-export async function isCurrentUserAdEmailWithheldByClaims(): Promise<boolean> {
-  const claims = await currentClaims()
-  return claims ? adEmailWithheld(claims.app_metadata) : true
-}
-
 export async function isCurrentUserAppleLinkedByClaims(): Promise<boolean> {
   const claims = await currentClaims()
   return claims ? isAppleLinked(claims.app_metadata) : true

@@ -28,11 +28,9 @@ import { RADIO_CHIP, type StepProps } from '@/components/teachers/steps/shared'
 
 // ⚠️ No "sign in next" note here any more (2026-10-11): sign-in comes right after "Your plans" (PRE_SIGNIN_STEPS), so this
 // step is only ever shown signed in on eno.vn — the plans step says what comes next instead.
-export function AboutStep({ t, set, errors, errText, prefillName, prefillNameFromLinkedIn = false }: StepProps & {
+export function AboutStep({ t, set, errors, errText, prefillName }: StepProps & {
   /** The account's display name, offered — never filled in unasked (api/teachers/me `prefill`). */
   prefillName: string | null
-  /** The account was made with LinkedIn, so that name is LinkedIn's — the offer says so (LinkedIn API Terms 3.1(4)). */
-  prefillNameFromLinkedIn?: boolean
 }) {
   const { tr, lang } = useLanguage()
   const levelLabel = (l: EnglishLevel) => (l === 'native' ? tr('Native', 'Bản ngữ') : l === 'fluent' ? tr('Fluent', 'Lưu loát') : tr('Working level', 'Đủ dùng trong công việc'))
@@ -47,7 +45,7 @@ export function AboutStep({ t, set, errors, errText, prefillName, prefillNameFro
           <FieldControl id="tf-name" render={<Input id="tf-name" autoComplete="name" value={t.fullName} maxLength={LIMITS.name} onChange={(e) => set('fullName', e.target.value)} />} />
           {prefillName && !t.fullName && (
             <Chip size="sm" tone="neutral" className="relative tap-44 self-start" onClick={() => set('fullName', prefillName.slice(0, LIMITS.name))}>
-              {prefillNameFromLinkedIn ? tr('Use my LinkedIn name:', 'Dùng tên LinkedIn:') : tr('Use my account name:', 'Dùng tên tài khoản:')} {prefillName}
+              {tr('Use my account name:', 'Dùng tên tài khoản:')} {prefillName}
             </Chip>
           )}
           {errors.fullName && <FieldError>{errText('fullName', errors.fullName)}</FieldError>}

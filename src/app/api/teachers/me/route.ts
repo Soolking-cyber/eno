@@ -5,7 +5,7 @@ import { pendingOnboardingStep } from '@/lib/auth-policy'
 import { afterIndividualOnboarding, individualOnboardingWrite } from '@/lib/core/first-onboarding'
 import { route, ApiError } from '@/lib/api/handler'
 import { db } from '@/lib/db'
-import { isCurrentUserAdEmailWithheldByClaims } from '@/lib/admin'
+import { isCurrentUserAppleLinkedByClaims } from '@/lib/admin'
 import { sendMetaCapiEvent, metaUserDataFromHeaders, metaCapiConfigured } from '@/lib/meta-capi'
 import { PublishBlockedError } from '@/lib/publish-guard'
 import { isListingImageUrl } from '@/lib/listing-image'
@@ -167,8 +167,7 @@ export const PUT = route(
       if (meta || tiktok) {
         let appleLinked = true
         try {
-          // D14, widened to LinkedIn (src/lib/ad-email.ts): `appleLinked` means "this email is withheld".
-          appleLinked = await isCurrentUserAdEmailWithheldByClaims()
+          appleLinked = await isCurrentUserAppleLinkedByClaims()
         } catch (e) {
           logError(e, { op: 'teachers.me.conversion.ask.apple' })
         }

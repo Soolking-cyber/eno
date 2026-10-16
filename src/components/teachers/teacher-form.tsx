@@ -11,9 +11,9 @@
 // FRAGMENT (`#d=`, v2: step 1's fields only), which no server ever sees. On eno.vn the sign-in comes right after step 1,
 // so the cover switch, the two opt-ins and Publish — each one act, with its notice beside it — happen once, on eno.vn,
 // and nothing is lost in the hand-off or a Google sign-in.
-// Before step 1 of a NEW profile: THE START SCREEN (owner, 2026-10-15 — teacher-start.tsx): LinkedIn, the CV, or "myself".
-// The LinkedIn and CV doors end in the reading panel (teacher-import-panel.tsx), which fills only EMPTY answers from the
-// teacher's own file (import-map.ts mergeImport), saves them to the account's draft and says what it filled, with Undo.
+// Before step 1 of a NEW profile: THE START SCREEN (owner, 2026-10-15 — teacher-start.tsx): the CV, or "myself" (LinkedIn
+// removed 2026-10-16). The CV door ends in the reading panel (teacher-import-panel.tsx), which fills only EMPTY answers from
+// the teacher's own file (import-map.ts mergeImport), saves them to the account's draft and says what it filled, with Undo.
 // Validation is src/lib/teachers/profile.ts — the same functions the server runs; the screens are ./steps/*.tsx; the
 // form's own derivations (one answer re-deriving another, the edit warnings, the hand-off) are teacher-form-rules.ts.
 
@@ -56,11 +56,10 @@ import { scrollBehavior } from '@/lib/reduced-motion'
 import { PushOptInCard } from '@/components/marketplace/push-opt-in-card'
 import { revalidateDashboard } from '@/hooks/use-dashboard'
 import { ShareButton, ShareChannels } from '@/components/marketplace/share-button'
-import { TeacherStart, doorsFor, initialDoor, liLine, type Door, type TeacherStartProps } from '@/components/teachers/teacher-start'
+import { TeacherStart, doorsOffered, initialDoor, type Door, type TeacherStartProps } from '@/components/teachers/teacher-start'
 import { TeacherImportPanel, type ImportResult, type LastImport } from '@/components/teachers/teacher-import-panel'
 import { untouchedImport, undoImport } from '@/components/teachers/import-summary'
 import { mergeImport } from '@/lib/teachers/import-map'
-import { signedUpWithLinkedIn } from '@/lib/linkedin-signin'
 
 const DRAFT_KEY = 'eno.teacherDraft.v1'
 
@@ -254,15 +253,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   // The step BY KEY, never by index: when an answer adds or removes a step (a home with cover, "Online only"), the rail
   // re-counts around the step the teacher is on — it never moves them silently.
   const [stepKey, setStepKey] = useState<TeacherStep>('plans')
-  // THE START SCREEN'S DOOR (teacher-start.tsx): the doors, the form ("myself"), or the reading panel (CV / LinkedIn).
+  // THE START SCREEN'S DOOR (teacher-start.tsx): the doors, the form ("myself"), or the reading panel (the CV).
   const [door, setDoorState] = useState<Door>(() => (mode === 'join' ? initialDoor(start, draftHost) : 'self'))
   // The last reading the form applied (teacher-import-panel.tsx): what it filled, what was there before (Undo), the file.
   const [lastImport, setLastImport] = useState<LastImport | null>(null)
   // Join, signed in: GET /api/teachers/me has answered — no door shows before it is known whether a profile exists.
   const [meKnown, setMeKnown] = useState(false)
-  // ⛔ HOW A LINKEDIN SIGN-IN CAME BACK IS SAID WHEREVER THE PAGE OPENS (review, 2026-10-16) — the doors, the reading
-  // panel or the form itself (a sign-in from step 1's popup returns to the form): never stripped from the address unread.
-  const [liOutcome, setLiOutcome] = useState(start?.li && start.li !== 'signed_in' ? start.li : null)
   // Undo of a reading is on its way: the summary's buttons wait for it (a Continue meanwhile would be wiped by it).
   const [undoing, setUndoing] = useState(false)
   const [errors, setErrors] = useState<TeacherErrors>({})
@@ -437,29 +433,16 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   /** A door chosen: the address follows (`?import=` / `?start=self`), so a reload — or Google's round trip — reopens it. */
   const setDoor = useCallback((d: Door) => {
     setDoorState(d)
-    setLiOutcome(null)
     screenSwitched.current = true
     try {
       const u = new URL(window.location.href)
-      for (const k of ['import', 'start', 'li']) u.searchParams.delete(k)
-      if (d === 'cv' || d === 'linkedin') u.searchParams.set('import', d)
+      for (const k of ['import', 'start']) u.searchParams.delete(k)
+      if (d === 'cv') u.searchParams.set('import', d)
       else if (d === 'self') u.searchParams.set('start', 'self')
       history.replaceState(history.state, '', `${u.pathname}${u.search}${u.hash}`)
     } catch { /* no history API: the screen still switches */ }
     window.scrollTo({ top: 0, behavior: scrollBehavior() })
   }, [])
-  // Signed in since: the outcome of an earlier LinkedIn attempt is no longer news.
-  useEffect(() => { if (uid) setLiOutcome(null) }, [uid])
-  // How a LinkedIn sign-in ended is said once (liOutcome keeps the line): a reload or a shared link never repeats it.
-  useEffect(() => {
-    if (!start?.li) return
-    try {
-      const u = new URL(window.location.href)
-      if (!u.searchParams.has('li')) return
-      u.searchParams.delete('li')
-      history.replaceState(history.state, '', `${u.pathname}${u.search}${u.hash}`)
-    } catch { /* no history API */ }
-  }, [start?.li])
 
   // ── The steps this teacher sees — re-derived from their answers (profile.ts teacherSteps) ─────────────────────────
   const steps = useMemo(() => teacherSteps(t, { draftHost }), [t, draftHost])
@@ -2176,18 +2159,17 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
 
   // ── Before step 1: the start screen, and the reading panel ──────────────────────────────────────────────────────
   // The doors only for a NEW profile with nothing on the page yet (a hand-off, this tab's copy or a saved draft opens the
-  // form where it was), and only when there is a door worth a screen (doorsFor).
-  if (mode === 'join' && door === 'start' && start && doorsFor(start, !!uid) && t === EMPTY_TEACHER && !arrived && !handoffArrived) {
-    return <TeacherStart start={start} draftHost={draftHost} apexOrigin={apexOrigin} coverIntent={coverIntent} signedIn={!!uid} outcome={liOutcome && liLine(liOutcome, tr)} onDoor={setDoor} />
+  // form where it was), and only when there is a door worth a screen (doorsOffered).
+  if (mode === 'join' && door === 'start' && start && doorsOffered(start) && t === EMPTY_TEACHER && !arrived && !handoffArrived) {
+    return <TeacherStart start={start} draftHost={draftHost} apexOrigin={apexOrigin} coverIntent={coverIntent} onDoor={setDoor} />
   }
-  if (mode === 'join' && !draftHost && (door === 'cv' || door === 'linkedin')) {
+  if (mode === 'join' && !draftHost && door === 'cv') {
     // Answers the account has not taken (heldBack — left in this tab signed out) are not the teacher's yet: their step
     // is still to answer, and Continue opens on it.
     const stillToAnswer = steps.filter((s) => Object.keys(checkSteps(t, [s])).length > 0 || (heldBack.current && PRE_SIGNIN_STEPS.includes(s)))
     return (
       <>
         <TeacherImportPanel
-          source={door}
           userId={uid}
           ready={draftOn}
           // Why reading cannot start yet, when waiting is not the answer (the form's draft line, said here).
@@ -2195,9 +2177,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
             : draftState === 'stale' || draftState === 'gone' ? 'conflict'
             : draftState === 'failed' && failedWhy.current === 'session' ? 'signed_out'
             : loadFailed ? 'retrying' : 'loading'}
-          outcome={liOutcome && liLine(liOutcome, tr)}
           undoing={undoing}
-          linkedinEmail={user && signedUpWithLinkedIn(user.app_metadata) ? user.email ?? '' : null}
           lastImport={lastImport}
           saveState={draftState === 'saved' && t === savedT.current ? 'saved'
             : draftState === 'stale' || draftState === 'gone' ? 'conflict'
@@ -2206,7 +2186,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
             : draftState === 'saving' || sentStep.current === null ? 'saving' : 'later'}
           stillToAnswer={stillToAnswer}
           stepLabel={stepLabel}
-          canGoBack={!!start && doorsFor(start, !!uid) && t === EMPTY_TEACHER && !arrived}
+          canGoBack={!!start && doorsOffered(start) && t === EMPTY_TEACHER && !arrived}
           onBack={() => setDoor('start')}
           onSignIn={() => openSignIn({ note: tr('Sign in to read your file — it takes a few seconds, and your answers are then saved to your account as you go.', 'Đăng nhập để đọc tệp — chỉ mất vài giây, sau đó câu trả lời được lưu vào tài khoản khi bạn điền.') })}
           onImported={applyImport}
@@ -2247,23 +2227,15 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   // yet, the line asks them to check those; before those steps, it says they are coming.
   const importedLeft = lastImport && mode === 'join' ? untouchedImport(t, lastImport.fields, lastImport.filled) : []
   const importedHere = importedLeft.filter((k) => (TEACHER_STEP_FIELDS[step] as readonly string[]).includes(k))
-  const fromLinkedInPdf = lastImport?.source === 'linkedin-pdf'
   const importLine = importedHere.length > 0 ? (
     <p role="status" className="rounded-xl bg-tint px-3.5 py-2.5 text-sm text-body" data-testid="import-line">
-      {fromLinkedInPdf
-        ? tr('Some answers on this step came from your LinkedIn profile — check each one, and change anything that isn’t right.', 'Một số câu trả lời ở bước này lấy từ hồ sơ LinkedIn của bạn — hãy kiểm tra từng câu và sửa nếu chưa đúng.')
-        : tr('Some answers on this step came from your CV — check each one, and change anything that isn’t right.', 'Một số câu trả lời ở bước này lấy từ CV của bạn — hãy kiểm tra từng câu và sửa nếu chưa đúng.')}
+      {tr('Some answers on this step came from your CV — check each one, and change anything that isn’t right.', 'Một số câu trả lời ở bước này lấy từ CV của bạn — hãy kiểm tra từng câu và sửa nếu chưa đúng.')}
     </p>
   ) : importedLeft.length > 0 && (step === 'plans' || step === 'where') ? (
     <p role="status" className="rounded-xl bg-tint px-3.5 py-2.5 text-sm text-body" data-testid="import-line">
-      {fromLinkedInPdf
-        ? tr('Your LinkedIn profile filled in later steps — answer these questions first, then check those answers.', 'Hồ sơ LinkedIn đã điền các bước sau — hãy trả lời các câu hỏi này trước, rồi kiểm tra những câu trả lời đó.')
-        : tr('Your CV filled in later steps — answer these questions first, then check those answers.', 'CV của bạn đã điền các bước sau — hãy trả lời các câu hỏi này trước, rồi kiểm tra những câu trả lời đó.')}
+      {tr('Your CV filled in later steps — answer these questions first, then check those answers.', 'CV của bạn đã điền các bước sau — hãy trả lời các câu hỏi này trước, rồi kiểm tra những câu trả lời đó.')}
     </p>
   ) : null
-  // "Use my LinkedIn name" only for a name that IS LinkedIn's: an account made with LinkedIn whose name was not changed.
-  const linkedinName = String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').replace(/\s+/g, ' ').trim()
-  const nameIsLinkedIns = !!user && signedUpWithLinkedIn(user.app_metadata) && !!linkedinName && prefill?.displayName === linkedinName
   // The reader offered again where a CV helps most — for a teacher who chose "myself" first.
   const cvHandy = mode === 'join' && !draftHost && !!start?.cvImport && !lastImport && !!uid && draftOn && (step === 'teaching' || step === 'about')
 
@@ -2313,7 +2285,6 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
               {draftLine}
               <p className="mt-1 text-sm text-muted-foreground">{tr('Free. Schools across Vietnam see your profile; your phone, email and CV stay private until you share them.', 'Miễn phí. Các trường trên toàn Việt Nam xem được hồ sơ; số điện thoại, email và CV được giữ kín đến khi bạn chia sẻ.')}</p>
             </div>
-            {liOutcome && <p role="alert" className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">{liLine(liOutcome, tr)}</p>}
             {importLine}
             {cvHandy && (
               <Button variant="link" size="none" type="button" className="inline-flex min-h-11 items-center text-sm font-semibold" onClick={() => setDoor('cv')} data-testid="cv-handy">
@@ -2345,7 +2316,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
           {step === 'plans' && <PlansStep {...stepProps} coverIntent={coverIntent} signedIn={!!user} draftHost={draftHost} districtNotSaying={districtNotSaying} onDistrictNotSaying={setDistrictNotSaying} />}
           {step === 'where' && <WhereStep {...stepProps} coverIntent={coverIntent} onGoTo={goTo} />}
           {step === 'teaching' && <TeachingStep {...stepProps} />}
-          {step === 'about' && <AboutStep {...stepProps} prefillName={prefill?.displayName ?? null} prefillNameFromLinkedIn={nameIsLinkedIns} />}
+          {step === 'about' && <AboutStep {...stepProps} prefillName={prefill?.displayName ?? null} />}
           {step === 'cover' && <CoverStep t={t} errors={errors} errText={errText} onCover={setCover} onGoTo={goTo} reconsentLine={reconfirm.cover} hidesProfile={mode === 'edit' && !t.coverOpen && !t.jobTypes.length} />}
           {step === 'finish' && (
             <FinishStep

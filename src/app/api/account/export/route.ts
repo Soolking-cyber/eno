@@ -82,10 +82,9 @@ export async function GET() {
   // when no profile was published.
   const teacherDraft = await teacherDraftExportOf(profile.id)
 
-  // Sign-in methods (2026-10-15): the providers this account signs in with and what each SHARED with us — for Sign in
-  // with LinkedIn, the name, email, photo link, language and member id GoTrue keeps (LinkedIn API Terms 5.1/5.2; PDPL
-  // access right). Never a token: identity_data holds none, and anything named like one is dropped anyway. Null when the
-  // auth schema cannot be read here (a role without the grant) — said, not hidden.
+  // Sign-in methods (2026-10-15): the providers this account signs in with and what each SHARED with us (PDPL access
+  // right). Never a token: identity_data holds none, and anything named like one is dropped anyway. Null when the auth
+  // schema cannot be read here (a role without the grant) — said, not hidden.
   const signInMethods = await db.$queryRaw<Array<{ provider: string; created_at: Date | null; last_sign_in_at: Date | null; identity_data: Record<string, unknown> | null }>>`
       SELECT provider, created_at, last_sign_in_at, identity_data FROM auth.identities WHERE user_id = ${profile.id}::uuid ORDER BY created_at`
     .then((rows) => rows.map((r) => ({
@@ -95,21 +94,16 @@ export async function GET() {
       shared: Object.fromEntries(Object.entries(r.identity_data ?? {}).filter(([k]) => !/token|secret/i.test(k))),
     })))
     .catch(() => null)
-  // Consent records this account acted under (2026-10-15): reading a CV with the AI, and Sign in with LinkedIn — the
-  // notice version and its hash, never a value from the CV (src/app/api/teachers/me/import). A LinkedIn consent is
-  // written before the account is known and linked to it after the sign-in; both rows are listed.
-  const consentRecords = await (async () => {
-    const own = await db.complianceAudit.findMany({
-      where: { actorId: profile.id, action: { in: ['teacher.import.consent', 'teacher.import.result', 'auth.linkedin.consent.linked'] } },
-      orderBy: { occurredAt: 'asc' },
-      select: { action: true, occurredAt: true, subjectId: true, detail: true },
-    })
-    const linkedIds = own.filter((r) => r.action === 'auth.linkedin.consent.linked').map((r) => r.subjectId)
-    const linkedin = linkedIds.length
-      ? await db.complianceAudit.findMany({ where: { action: 'auth.linkedin.consent', subjectId: { in: linkedIds } }, orderBy: { occurredAt: 'asc' }, select: { action: true, occurredAt: true, subjectId: true, detail: true } })
-      : []
-    return [...linkedin, ...own].map((r) => ({ action: r.action, at: r.occurredAt, detail: r.detail }))
-  })().catch(() => null)
+  // Consent records this account acted under (2026-10-15): reading a CV with the AI — the notice version and its hash,
+  // never a value from the CV (src/app/api/teachers/me/import). (Sign in with LinkedIn, removed 2026-10-16, was never
+  // switched on, so no LinkedIn consent row exists to list.)
+  const consentRecords = await db.complianceAudit.findMany({
+    where: { actorId: profile.id, action: { in: ['teacher.import.consent', 'teacher.import.result'] } },
+    orderBy: { occurredAt: 'asc' },
+    select: { action: true, occurredAt: true, detail: true },
+  })
+    .then((rows) => rows.map((r) => ({ action: r.action, at: r.occurredAt, detail: r.detail })))
+    .catch(() => null)
 
   // The Profile row minus purely-internal fields the user didn't provide and that
   // aren't "their" personal data (denormalized trust internals stay out).

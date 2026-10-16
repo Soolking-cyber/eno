@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 /**
- * THE START SCREEN AND THE CV READER, whole-form (owner, 2026-10-15: "at the beginning add the connect linkedin feature …
- * alternatively when they upload their cv it should read … all necessary parts of teacher profile"):
+ * THE START SCREEN AND THE CV READER, whole-form (owner, 2026-10-15: "when they upload their cv it should read … all
+ * necessary parts of teacher profile"; LinkedIn removed 2026-10-16 — "profile read only from cv is enough"):
  *   · the doors are real links, decided by the server for the first paint (teacher-start.tsx); none when there is no
- *     reader and no LinkedIn, when the teacher chose "myself", or when answers are already on the page;
+ *     reader, when the teacher chose "myself", or when answers are already on the page;
  *   · ⛔ a session still being read shows neither doors nor step 1;
  *   · ⛔ the reading fills ONLY empty answers, is saved to the account's draft at once, and says what it filled; Undo of a
  *     first reading deletes the saved draft; the phone and the file are only OFFERED on Photo & publish;
@@ -26,8 +26,6 @@ vi.mock('@/context/auth-context', () => ({ useAuth: () => auth }))
 vi.mock('@/components/marketplace/push-opt-in-card', () => ({ PushOptInCard: () => null }))
 vi.mock('@/hooks/use-dashboard', () => ({ revalidateDashboard: () => {} }))
 const gate = vi.hoisted(() => ({ needed: false, answer: true, asked: 0 }))
-const li = vi.hoisted(() => ({ here: true }))
-vi.mock('@/lib/linkedin-signin', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/lib/linkedin-signin')>()), linkedinAvailableHere: () => li.here }))
 vi.mock('@/lib/ai-consent', () => ({
   aiConsentNeeded: () => gate.needed,
   askAiConsent: async () => { gate.asked++; return gate.answer },
@@ -41,7 +39,7 @@ vi.setConfig({ testTimeout: 60_000 })
 afterAll(() => { configure({ asyncUtilTimeout }); vi.resetConfig() })
 beforeAll(() => { Element.prototype.scrollIntoView ??= function () {} })
 
-const START: TeacherStartProps = { importIntent: null, startSelf: false, li: null, sessionHint: false, cvImport: true, linkedin: 'on', mobile: false, campaign: '' }
+const START: TeacherStartProps = { importIntent: null, startSelf: false, sessionHint: false, cvImport: true, campaign: '' }
 const IMPORT = {
   source: 'cv',
   fields: {
@@ -66,10 +64,9 @@ beforeEach(() => {
   saved = null
   importReply = () => ({ json: { import: IMPORT } })
   Object.assign(gate, { needed: false, answer: true, asked: 0 })
-  li.here = true
   let rev = 0
   const f = fakeFetch({
-    'GET /api/teachers/me': () => ({ json: { teacher: null, publishGate: { ok: true, code: null }, prefill: { displayName: 'Jane LinkedIn', avatarUrl: null, phone: null } } }),
+    'GET /api/teachers/me': () => ({ json: { teacher: null, publishGate: { ok: true, code: null }, prefill: { displayName: 'Jane Account', avatarUrl: null, phone: null } } }),
     'GET /api/teachers/me/draft': () => ({ json: { draft: saved } }),
     'PUT /api/teachers/me/draft': () => ({ json: { rev: ++rev, gen: '6f1c2a3b-4d5e-4f60-8a7b-9c0d1e2f3a4b', updatedAt: '2026-10-15T10:00:00.000Z' } }),
     'DELETE /api/teachers/me/draft': () => ({ json: { ok: true } }),
@@ -104,37 +101,26 @@ async function onCvPanel(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('the start screen', () => {
-  it('signed out: LinkedIn first — a link to the sign-in with its notice beside it — then the CV, then "myself"', () => {
+  it('the CV first, then "myself" — real links, and a line about the photo and video the last step needs', () => {
     mount()
     expect(screen.getByRole('heading', { name: 'How would you like to start?' })).toBeTruthy()
-    const li = door('linkedin')
-    expect(li.textContent).toContain('Continue with LinkedIn')
-    // The start route checks the notice version; the way back is the reading panel for the LinkedIn PDF.
-    const url = new URL(li.href, 'https://eno.vn')
-    expect(url.pathname).toBe('/auth/linkedin/start')
-    expect(url.searchParams.get('n')).toBe('2026-10-15')
-    expect(url.searchParams.get('next')).toBe('/teachers/join?import=linkedin')
-    // ⛔ The notice is read before the act (LinkedIn API Terms 5.2): on screen, and the link points at it.
-    expect(document.getElementById(li.getAttribute('aria-describedby')!)?.textContent).toMatch(/LinkedIn doesn’t share your jobs or education/)
     expect(door('cv').getAttribute('href')).toBe('?import=cv')
     expect(door('self').getAttribute('href')).toBe('?start=self')
-    // Order on the page: LinkedIn, CV, myself.
     const order = [...document.querySelectorAll('[data-testid^="door-"]')].map((a) => a.getAttribute('data-testid'))
-    expect(order).toEqual(['door-linkedin', 'door-cv', 'door-self'])
+    expect(order).toEqual(['door-cv', 'door-self'])
+    expect(screen.getByText(/short intro video \(up to 60 seconds\)/)).toBeTruthy()
+    expect(screen.queryByText(/LinkedIn/)).toBeNull()
   })
 
   it('the doors carry the cover intent and the campaign tags; on teacher.eno.vn they lead to eno.vn', () => {
     mount({ draftHost: true, goal: 'cover', start: { ...START, campaign: 'utm_source=meta&utm_campaign=teachers' } })
     expect(door('cv').getAttribute('href')).toBe('https://eno.vn/teachers/join?import=cv&goal=cover&utm_source=meta&utm_campaign=teachers')
-    const li = new URL(door('linkedin').href)
-    expect(li.origin + li.pathname).toBe('https://eno.vn/auth/linkedin/start')
-    expect(li.searchParams.get('next')).toBe('/teachers/join?import=linkedin&goal=cover&utm_source=meta&utm_campaign=teachers')
     // "Myself" stays on the teacher host: its step 1 needs no account.
     expect(door('self').getAttribute('href')).toBe('?start=self&goal=cover&utm_source=meta&utm_campaign=teachers')
   })
 
-  it('no reader and no LinkedIn — or ?start=self, or no start screen at all — opens step 1 as before', async () => {
-    mount({ start: { ...START, cvImport: false, linkedin: 'off' } })
+  it('no reader — or ?start=self, or no start screen at all — opens step 1 as before', async () => {
+    mount({ start: { ...START, cvImport: false } })
     expect(await screen.findByText('Where are you now?')).toBeTruthy()
     cleanup()
     mount({ start: { ...START, startSelf: true } })
@@ -152,45 +138,6 @@ describe('the start screen', () => {
     expect(window.location.search).toBe('?start=self')
   })
 
-  it('in Facebook or Zalo: no LinkedIn door at all (a phone, and "Save to PDF" needs a computer) — the way to it is said instead', () => {
-    mount({ start: { ...START, linkedin: 'browser' } })
-    expect(screen.queryByTestId('door-linkedin')).toBeNull()
-    const order = [...document.querySelectorAll('[data-testid^="door-"]')].map((a) => a.getAttribute('data-testid'))
-    expect(order).toEqual(['door-cv', 'door-self'])
-    expect(screen.getByText(/Open this page in your phone’s browser/)).toBeTruthy()
-  })
-
-  it('on a phone with LinkedIn sign-in off, the CV door comes before the LinkedIn PDF (which needs a computer)', () => {
-    mount({ start: { ...START, linkedin: 'off', mobile: true } })
-    const order = [...document.querySelectorAll('[data-testid^="door-"]')].map((a) => a.getAttribute('data-testid'))
-    expect(order).toEqual(['door-cv', 'door-linkedin', 'door-self'])
-    expect(door('linkedin').textContent).toMatch(/On a computer, save your LinkedIn profile as a PDF/)
-  })
-
-  it('⛔ where the browser says LinkedIn cannot finish (an iOS home-screen app), the door stays put and a tap says why', async () => {
-    li.here = false
-    const user = mount()
-    const before = window.location.href
-    await user.click(door('linkedin'))
-    expect((await screen.findByRole('alert')).textContent).toMatch(/LinkedIn sign-in can’t finish in this app/)
-    expect(window.location.href).toBe(before)
-  })
-
-  it('a LinkedIn sign-in that came back cancelled is said, once — the address forgets it', () => {
-    history.replaceState(null, '', '/teachers/join?li=cancelled')
-    mount({ start: { ...START, li: 'cancelled' } })
-    expect(screen.getByRole('alert').textContent).toMatch(/LinkedIn sign-in was cancelled/)
-    expect(window.location.search).toBe('')
-  })
-
-  it('⛔ a LinkedIn sign-in that failed back to the FORM itself (step 1’s popup) is said there too — never stripped unread', async () => {
-    history.replaceState(null, '', '/teachers/join?start=self&li=email')
-    mount({ start: { ...START, startSelf: true, li: 'email' } })
-    expect(await screen.findByText('Where are you now?')).toBeTruthy()
-    expect(screen.getByRole('alert').textContent).toMatch(/LinkedIn email address isn’t confirmed/)
-    expect(window.location.search).toBe('?start=self')
-  })
-
   it('a door moves the focus to the new screen’s heading (nothing is left focused on a control that went away)', async () => {
     const user = mount()
     await user.click(door('cv'))
@@ -205,12 +152,10 @@ describe('the start screen', () => {
     expect(screen.queryByText('Where are you now?')).toBeNull()
   })
 
-  it('signed in with nothing saved: the doors, once the account is known — LinkedIn as the PDF, not a second sign-in', async () => {
+  it('signed in with nothing saved: the doors, once the account is known', async () => {
     signIn()
     mount({ start: { ...START, sessionHint: true } })
-    const li = await screen.findByTestId('door-linkedin')
-    expect(li.textContent).toContain('Use my LinkedIn profile')
-    expect(li.getAttribute('href')).toBe('?import=linkedin')
+    expect((await screen.findByTestId('door-cv')).getAttribute('href')).toBe('?import=cv')
   })
 
   it('signed in with a saved draft: the form opens where it was — no doors', async () => {
@@ -423,20 +368,5 @@ describe('the reading panel', () => {
     expect(await screen.findByText('Thanks — now choose your file.')).toBeTruthy()
     await user.click(choose)
     expect(click).toHaveBeenCalledTimes(1)
-  })
-
-  it('⛔ an account only LINKED to LinkedIn later (made with Google) is never told it signed up with LinkedIn', async () => {
-    signIn({ email: 'jane@gmail.com', app_metadata: { provider: 'google', providers: ['google', 'linkedin_oidc'] } })
-    mount({ start: { ...START, importIntent: 'linkedin', sessionHint: true } })
-    expect(await screen.findByRole('heading', { name: 'Bring in your LinkedIn profile' })).toBeTruthy()
-    expect(screen.queryByText(/signed up with LinkedIn/)).toBeNull()
-  })
-
-  it('back from LinkedIn: the panel names the account, and step 4 offers the LinkedIn name', async () => {
-    signIn({ email: 'jane@example.com', app_metadata: { provider: 'linkedin_oidc', providers: ['linkedin_oidc'] } })
-    mount({ start: { ...START, importIntent: 'linkedin', sessionHint: true } })
-    expect(await screen.findByRole('heading', { name: 'Bring in your LinkedIn profile' })).toBeTruthy()
-    expect(screen.getByText(/You signed up with LinkedIn/).textContent).toContain('jane@example.com')
-    expect(screen.getByText(/Save to PDF/)).toBeTruthy()
   })
 })

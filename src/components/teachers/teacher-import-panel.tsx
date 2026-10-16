@@ -1,8 +1,8 @@
 'use client'
 
 // ── "FILL IT IN FROM MY CV" — THE READING PANEL (owner, 2026-10-15) ───────────────────────────────────────────────────
-// The CV door and the LinkedIn door both end here: the teacher chooses a file (their CV, or LinkedIn's "Save to PDF"),
-// POST /api/teachers/me/import reads it with Gemini on Vertex, and the form fills ONLY the answers still empty
+// The CV door ends here: the teacher chooses a file (their CV — a PDF, a Word file or a photo of it), POST
+// /api/teachers/me/import reads it with Gemini on Vertex, and the form fills ONLY the answers still empty
 // (import-map.ts mergeImport) — then this panel says what it filled, step by step, with Undo. Nothing is published:
 // the answers go into the account's private draft and the teacher checks each step.
 // ⛔ THE NOTICE IS BESIDE THE ACT (PDP Law 91/2025 Art 9; Decree 356/2025 Art 6): its lead is always on screen, the rest
@@ -14,7 +14,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Check, ChevronDown, ChevronLeft, ExternalLink, Loader2 } from '@/components/ui/icons'
+import { Check, ChevronDown, ChevronLeft, Loader2 } from '@/components/ui/icons'
 import { aiConsentNeeded, askAiConsent } from '@/lib/ai-consent'
 import { compressImageFile } from '@/lib/normalize-image'
 import { readDocxText } from '@/lib/teachers/docx-text'
@@ -105,7 +105,6 @@ export async function prepareImport(file: File, lang: string, shown = ''): Promi
 }
 
 type Props = {
-  source: 'cv' | 'linkedin'
   userId: string | null
   /** The account's saved draft has loaded (and saving works): the reading fills ITS empty answers. */
   ready: boolean
@@ -114,12 +113,8 @@ type Props = {
    * session ended (sign in again), or the saved answers changed or went elsewhere (the form holds the choice).
    */
   blocked: 'loading' | 'retrying' | 'signed_out' | 'conflict' | null
-  /** How a LinkedIn sign-in came back, if it did not sign anyone in (teacher-start.tsx liLine). */
-  outcome: string | null
   /** Undo of the last reading is on its way: the summary's buttons wait. */
   undoing: boolean
-  /** The account was made with LinkedIn (signedUpWithLinkedIn) — the landing line names its email. */
-  linkedinEmail: string | null
   lastImport: LastImport | null
   /**
    * ⛔ NEVER "SAVED" FOR ANSWERS THAT ARE NOT (the form's draft line, commit gate 2026-10-11): what the account's draft
@@ -213,7 +208,6 @@ export function TeacherImportPanel(p: Props) {
   }
   const cancel = () => { seq.current++; abort.current?.abort(); setState({ kind: 'idle' }); heading.current?.focus() }
 
-  const fromLinkedIn = p.source === 'linkedin'
   const fileInput = (
     <input
       ref={input}
@@ -236,7 +230,7 @@ export function TeacherImportPanel(p: Props) {
     const li = p.lastImport
     const groups = importSummary(li.fields, li.filled, tr, lang)
     const n = groups.reduce((sum, g) => sum + g.rows.length, 0)
-    const fromWhat = li.source === 'linkedin-pdf' ? tr('from your LinkedIn profile', 'từ hồ sơ LinkedIn của bạn') : tr('from your CV', 'từ CV của bạn')
+    const fromWhat = tr('from your CV', 'từ CV của bạn')
     return (
       <div className="mx-auto max-w-xl space-y-5" data-testid="import-summary">
         <div>
@@ -305,7 +299,6 @@ export function TeacherImportPanel(p: Props) {
   const agreeLabel = tr(IMPORT_AGREE_LABEL.en, IMPORT_AGREE_LABEL.vi)
   return (
     <div className="mx-auto max-w-xl space-y-5" data-testid="import-panel">
-      {p.outcome && !reading && <p role="alert" className="rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">{p.outcome}</p>}
       {p.canGoBack && !reading && (
         <Button variant="link" size="none" type="button" className="-mb-2 inline-flex min-h-11 items-center gap-1 text-sm font-semibold" onClick={p.onBack}>
           <ChevronLeft className="size-4" aria-hidden />{tr('Other ways to start', 'Cách bắt đầu khác')}
@@ -313,41 +306,18 @@ export function TeacherImportPanel(p: Props) {
       )}
       <div>
         <h1 ref={heading} data-screen-heading tabIndex={-1} className="h-title text-foreground outline-none">
-          {fromLinkedIn ? tr('Bring in your LinkedIn profile', 'Thêm hồ sơ LinkedIn của bạn') : tr('Fill it in from your CV', 'Điền tự động từ CV')}
+          {tr('Fill it in from your CV', 'Điền tự động từ CV')}
         </h1>
-        {p.linkedinEmail !== null && (
-          <p className="mt-1 text-sm text-body">
-            {tr('You signed up with LinkedIn — your eno account uses', 'Bạn đã đăng ký bằng LinkedIn — tài khoản eno của bạn dùng')} <span className="font-semibold text-foreground">{p.linkedinEmail}</span>.
-          </p>
-        )}
       </div>
 
-      {fromLinkedIn ? (
-        <div className="space-y-2 text-sm text-body">
-          <p>{tr('LinkedIn doesn’t share your jobs or education with apps — but it saves your profile as a PDF, and we can read that:', 'LinkedIn không chia sẻ công việc hay học vấn của bạn với ứng dụng — nhưng LinkedIn lưu được hồ sơ dưới dạng PDF, và chúng tôi đọc được tệp đó:')}</p>
-          <ol className="list-decimal space-y-1 pl-5">
-            <li>
-              {tr('On a computer, open', 'Trên máy tính, mở')}{' '}
-              <a href="https://www.linkedin.com/in/me/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-accent-foreground underline underline-offset-2">
-                {tr('your LinkedIn profile', 'hồ sơ LinkedIn của bạn')}<ExternalLink className="size-3.5" aria-hidden />
-              </a>.
-            </li>
-            {/* LinkedIn's own English labels in both languages: the PDF is saved from the English profile. */}
-            <li>{tr('Select “More” (or “Resources”) under your name, then “Save to PDF”.', 'Chọn “More” (hoặc “Resources”) dưới tên của bạn, rồi chọn “Save to PDF”.')}</li>
-            <li>{tr('Choose that PDF here.', 'Chọn tệp PDF đó tại đây.')}</li>
-          </ol>
-          <p className="text-muted-foreground">{tr('On your phone? LinkedIn saves the PDF only on a computer — choose your CV instead, it works the same.', 'Đang dùng điện thoại? LinkedIn chỉ lưu PDF trên máy tính — hãy chọn CV của bạn, cách làm giống hệt.')}</p>
-        </div>
-      ) : (
-        // What is filled, and what happens to the file, is the notice's to say (below, beside the button) — said once.
-        <p className="text-sm text-body">{tr('Choose your CV — a PDF, a Word file (.docx) or a clear photo of it.', 'Chọn CV của bạn — tệp PDF, Word (.docx) hoặc ảnh chụp rõ nét.')}</p>
-      )}
+      {/* What is filled, and what happens to the file, is the notice's to say (below, beside the button) — said once. */}
+      <p className="text-sm text-body">{tr('Choose your CV — a PDF, a Word file (.docx) or a clear photo of it.', 'Chọn CV của bạn — tệp PDF, Word (.docx) hoặc ảnh chụp rõ nét.')}</p>
 
       {reading ? (
         <div role="status" aria-live="polite" className="space-y-3 rounded-2xl bg-tint p-4">
           <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <Loader2 className="size-4 animate-spin" aria-hidden />
-            {fromLinkedIn ? tr('Reading your LinkedIn profile…', 'Đang đọc hồ sơ LinkedIn…') : tr('Reading your CV…', 'Đang đọc CV…')}
+            {tr('Reading your CV…', 'Đang đọc CV…')}
           </p>
           <p className="break-all text-xs text-muted-foreground">{state.name}</p>
           <p className="text-sm text-body">{slow
@@ -359,7 +329,7 @@ export function TeacherImportPanel(p: Props) {
         <>
           {state.kind === 'error' && (
             <div role="alert" className="space-y-2 rounded-xl bg-warning/10 px-3.5 py-2.5 text-sm text-warning">
-              <p>{errorLine(state.code, fromLinkedIn, tr)}</p>
+              <p>{errorLine(state.code, tr)}</p>
               {state.code === 'session' && (
                 <Button variant="link" size="none" type="button" className="inline-flex min-h-11 items-center text-sm font-semibold" onClick={p.onSignIn}>{tr('Sign in again', 'Đăng nhập lại')}</Button>
               )}
@@ -395,7 +365,7 @@ export function TeacherImportPanel(p: Props) {
             ) : (
               <>
                 <Button variant="cta" type="button" className="w-full sm:w-auto sm:self-start" onClick={p.onSignIn} data-testid="import-sign-in">
-                  {fromLinkedIn ? tr('Sign in to choose the PDF', 'Đăng nhập để chọn tệp PDF') : tr('Sign in to choose your CV', 'Đăng nhập để chọn CV')}
+                  {tr('Sign in to choose your CV', 'Đăng nhập để chọn CV')}
                 </Button>
                 <p className="text-xs text-muted-foreground">{tr('A few seconds — then your answers are saved to your account as you go.', 'Chỉ vài giây — sau đó câu trả lời được lưu vào tài khoản khi bạn điền.')}</p>
               </>
@@ -426,7 +396,7 @@ export function TeacherImportPanel(p: Props) {
 }
 
 /** Each refusal as the teacher's next step — and "Fill it in myself" is always beside it. */
-function errorLine(code: ReadError, fromLinkedIn: boolean, tr: (en: string, vi: string) => string): string {
+function errorLine(code: ReadError, tr: (en: string, vi: string) => string): string {
   switch (code) {
     case 'import_unavailable': return tr('Reading files isn’t available right now. Fill in your profile yourself — it takes about 5 minutes.', 'Hiện chưa thể đọc tệp. Hãy tự điền hồ sơ — chỉ mất khoảng 5 phút.')
     case 'import_capacity': return tr('We’re reading a lot of files right now. Try again later today, or fill it in yourself.', 'Hiện có quá nhiều tệp đang được đọc. Hãy thử lại sau trong ngày, hoặc tự điền.')
@@ -439,9 +409,7 @@ function errorLine(code: ReadError, fromLinkedIn: boolean, tr: (en: string, vi: 
     case 'import_locked': return tr('That PDF is password-protected. Save a copy without the password, then choose it.', 'Tệp PDF này có mật khẩu. Hãy lưu một bản không có mật khẩu rồi chọn lại.')
     case 'import_too_long': return tr('That file is too long to be a CV. Choose a shorter one — a CV is a few pages.', 'Tệp quá dài so với một CV. Hãy chọn tệp ngắn hơn — CV thường chỉ vài trang.')
     case 'import_unreadable': return tr('We couldn’t read that file. Try a PDF of your CV, or a sharper photo of it.', 'Chúng tôi không đọc được tệp này. Hãy thử CV dạng PDF, hoặc ảnh chụp rõ nét hơn.')
-    case 'not_cv': return fromLinkedIn
-      ? tr('That doesn’t look like a LinkedIn profile or a CV. Choose the PDF LinkedIn saved for you, or your CV.', 'Tệp này không giống hồ sơ LinkedIn hay CV. Hãy chọn tệp PDF LinkedIn đã lưu cho bạn, hoặc CV của bạn.')
-      : tr('That doesn’t look like a CV. Choose your CV, or your LinkedIn profile saved as a PDF.', 'Tệp này không giống một CV. Hãy chọn CV của bạn, hoặc hồ sơ LinkedIn đã lưu dưới dạng PDF.')
+    case 'not_cv': return tr('That doesn’t look like a CV. Choose your CV — a PDF, a Word file or a clear photo of it.', 'Tệp này không giống một CV. Hãy chọn CV của bạn — tệp PDF, Word hoặc ảnh chụp rõ nét.')
     case 'empty': return tr('We read the file but found nothing we could fill in. Try another file, or fill it in yourself.', 'Chúng tôi đã đọc tệp nhưng không tìm thấy thông tin nào để điền. Hãy thử tệp khác, hoặc tự điền.')
     case 'session': return tr('You’re signed out — sign in again to read your file.', 'Bạn đã đăng xuất — hãy đăng nhập lại để đọc tệp.')
     case 'notice': return tr('The words on this page changed since you opened it. Reload the page to read them, then try again.', 'Nội dung trên trang đã thay đổi kể từ khi bạn mở. Hãy tải lại trang để đọc, rồi thử lại.')

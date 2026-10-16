@@ -1,11 +1,8 @@
 import { NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
 import type { Session, User } from '@supabase/supabase-js'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { authRedirect, finishSignIn } from '@/lib/auth-finish'
-import { authFailurePath, nextPathname } from '@/lib/auth-landing'
-import { resumesInPlace } from '@/lib/onboarding-gate'
-import { LINKEDIN_CONSENT_COOKIE, LINKEDIN_PROVIDER } from '@/lib/linkedin-signin'
+import { authFailurePath } from '@/lib/auth-landing'
 import { safeNextPath } from '@/lib/url'
 import { NATIVE_OAUTH_REDIRECT } from '@/lib/native-auth'
 import { IS_SERVICES } from '@/lib/edition'
@@ -20,14 +17,10 @@ import { serverAuthUsesRequestOrigin, isLoopbackHost, loopbackOrigin } from '@/l
  *   signup_disabled — the project refuses new accounts (the 2026-08-17 production finding below).
  *   oauth           — anything else.
  */
-type CallbackError = 'cancel' | 'signup_disabled' | 'email_unverified' | 'oauth'
+type CallbackError = 'cancel' | 'signup_disabled' | 'oauth'
 function callbackError(error: string, errorCode: string): CallbackError {
-  // LinkedIn has TWO cancels (2026-10-15): `user_cancelled_login` (backed out of LinkedIn's sign-in) and
-  // `user_cancelled_authorize` (refused the permissions) — GoTrue forwards both unchanged.
-  if (error === 'user_cancelled_authorize' || error === 'user_cancelled_login' || error === 'cancel') return 'cancel'
+  if (error === 'user_cancelled_authorize' || error === 'cancel') return 'cancel'
   if (errorCode === 'signup_disabled' || error === 'signup_disabled') return 'signup_disabled'
-  // The provider shared no VERIFIED email (LinkedIn marks email_verified optional) — GoTrue refuses the sign-in.
-  if (errorCode === 'provider_email_needs_verification') return 'email_unverified'
   if (error === 'access_denied' && !errorCode) return 'cancel'
   return 'oauth'
 }
@@ -37,14 +30,13 @@ type CodeFlow = { provider: string; userId: string | null } | null
 /** A stalled read must never hold a sign-in (commit gate round 5, codex): past this, the flow is unknown. */
 const CODE_FLOW_TIMEOUT_MS = 1_500
 
-async function codeFlow(code: string, linkedinPossible: boolean): Promise<CodeFlow> {
+async function codeFlow(code: string): Promise<CodeFlow> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     const { appleOnOffer, pkceCodeProvider } = await import('@/lib/auth/apple-siwa')
-    // ⛔ Only where Apple — or LinkedIn (2026-10-15) — can have been used (commit gate round 8, opus): before either is
-    // configured on this server, no sign-in pays for the read. ⚠️ LinkedIn's strip depends on this read, so its gate is
-    // its own fact, never Apple's: with Apple off, a LinkedIn token would otherwise stay in the JS-readable cookie.
-    if (!appleOnOffer() && !linkedinPossible) return null
+    // ⛔ Only where Apple can have been used (commit gate round 8, opus): before Apple is configured on this server, no
+    // sign-in pays for the read — the dark deploy changes nothing for Google and email sign-ins.
+    if (!appleOnOffer()) return null
     const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), CODE_FLOW_TIMEOUT_MS) })
     return await Promise.race([pkceCodeProvider(code), timeout])
   } catch {
@@ -104,60 +96,6 @@ async function keepAppleToken(supabase: Awaited<ReturnType<typeof createSupabase
       console.warn('[auth] apple_session_rewrite_failed', { name: (e as Error)?.name, attempt })
     }
   }
-}
-
-/**
- * SIGN IN WITH LINKEDIN (2026-10-15): rewrite the session cookie WITHOUT LinkedIn's access token. ⛔ FAIL CLOSED, UNLIKE
- * APPLE'S: an Apple refresh token is useless without eno's signed client secret, but LinkedIn's is a 60-day BEARER token
- * anyone holding it can use, and we promise never to keep it (LinkedIn API Terms 4.4; the notice). If the rewrite fails
- * twice, the sign-in is undone on this device and the visitor tries again. Nothing is kept: LinkedIn gives no refresh
- * token to self-serve apps, and the member id lives in GoTrue's own identity row.
- */
-async function stripLinkedInToken(supabase: Awaited<ReturnType<typeof createSupabaseServer>>, session: Session | null): Promise<boolean> {
-  if (!session) return false
-  if (!session.provider_token && !session.provider_refresh_token) return true
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const { error } = await supabase.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token })
-      if (!error) return true
-      console.warn('[auth] linkedin_session_rewrite_failed', { status: error.status, attempt })
-    } catch (e) {
-      console.warn('[auth] linkedin_session_rewrite_failed', { name: (e as Error)?.name, attempt })
-    }
-  }
-  return false
-}
-
-/** Link the consent row the start route wrote (actor unknown then) to the account this sign-in landed on. Best effort. */
-async function linkLinkedInConsent(request: Request, user: User | null): Promise<void> {
-  const raw = request.headers.get('cookie') ?? ''
-  const consentId = raw.split(/;\s*/).find((c) => c.startsWith(`${LINKEDIN_CONSENT_COOKIE}=`))?.slice(LINKEDIN_CONSENT_COOKIE.length + 1) ?? ''
-  if (!user || !/^[0-9a-f-]{36}$/.test(consentId)) return
-  try {
-    const [{ db }, { appendAudit }] = await Promise.all([import('@/lib/db'), import('@/lib/compliance/audit')])
-    await db.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT set_config('lock_timeout', '1000ms', true)`
-      await appendAudit(tx, { actorType: 'user', actorId: user.id, action: 'auth.linkedin.consent.linked', subjectType: 'consent', subjectId: consentId, detail: { provider: LINKEDIN_PROVIDER } })
-    }, { maxWait: 1_000 })
-  } catch (e) {
-    console.warn('[auth] linkedin_consent_link_failed', { name: (e as Error)?.name })
-  }
-}
-
-/** The consent cookie names one attempt: any end of it — landed, refused, cancelled — spends it. */
-function spendLinkedInConsent(res: NextResponse): NextResponse {
-  res.cookies.set(LINKEDIN_CONSENT_COOKIE, '', { path: '/', maxAge: 0 })
-  return res
-}
-
-/** A LinkedIn sign-in from a page that keeps its place (the teacher form) goes back to it with `li=<why>`, never to /signin. */
-function linkedinBack(origin: string, next: string, li: string): string | null {
-  if (!resumesInPlace(nextPathname(next))) return null
-  const to = new URL(next, origin)
-  to.searchParams.set('li', li)
-  to.searchParams.delete('import')
-  to.searchParams.delete('auth_error')
-  return `${origin}${to.pathname}${to.search}`
 }
 
 // OAuth / magic-link callback — exchanges the code for a session, then redirects.
@@ -301,18 +239,14 @@ export async function GET(request: Request) {
     // a loop.) Logged for the post-flip monitoring — with which of the three cancels it was and a capped description
     // (commit gate round 11, opus): a refusal that ever arrived as a bare access_denied (a database trigger raising
     // PT403 — none exists today) would otherwise look exactly like a person backing out.
-    const p = url.searchParams.get('p')
     if (kind === 'cancel') {
+      const p = url.searchParams.get('p')
       console.log('[auth] oauth cancelled', {
-        provider: p === 'apple' || p === 'google' || p === 'linkedin' ? p : 'unknown',
-        error: oauthError, // one of the four cancel codes: callbackError returned 'cancel'
+        provider: p === 'apple' || p === 'google' ? p : 'unknown',
+        error: oauthError, // one of the three cancel codes: callbackError returned 'cancel'
         description: url.searchParams.get('error_description')?.slice(0, 120) ?? null,
       })
-      // A teacher who backed out at LinkedIn goes back to the doors they started from, not to /signin (which has none).
-      const back = p === 'linkedin' ? linkedinBack(origin, next, 'cancelled') : null
-      // Only a LinkedIn attempt spends the LinkedIn consent cookie — a cancelled Google sign-in leaves a pending one be.
-      const res = redirect(back ?? `${origin}/signin?next=${encodeURIComponent(next)}`)
-      return p === 'linkedin' ? spendLinkedInConsent(res) : res
+      return redirect(`${origin}/signin?next=${encodeURIComponent(next)}`)
     }
     console.error('[auth] oauth callback error', {
       error: oauthError,
@@ -323,9 +257,7 @@ export async function GET(request: Request) {
     // arriving in a query string; reflecting it into the page would be a content-injection vector
     // and would also show a visitor a sentence written for a developer. The client maps this to its
     // own copy.
-    const back = p === 'linkedin' ? linkedinBack(origin, next, kind === 'email_unverified' ? 'email' : 'failed') : null
-    const res = redirect(back ?? `${origin}${authFailurePath(next, kind)}`)
-    return p === 'linkedin' ? spendLinkedInConsent(res) : res
+    return redirect(`${origin}${authFailurePath(next, kind)}`)
   }
 
   if (code) {
@@ -335,49 +267,13 @@ export async function GET(request: Request) {
      * is GoTrue's to say, and its flow state is deleted BY the exchange: read it first, for every code (one indexed
      * read). `p` now only labels the return for the UI.
      */
-    const p = url.searchParams.get('p')
-    let linkedinPossible = p === 'linkedin'
-    if (!linkedinPossible) {
-      const { linkedinSignInEnabled } = await import('@/lib/auth/linkedin')
-      linkedinPossible = await linkedinSignInEnabled().catch(() => false)
-    }
-    const flow = await codeFlow(code, linkedinPossible)
+    const flow = await codeFlow(code)
     const supabase = await createSupabaseServer()
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
       // Keep Apple's refresh token for revocation (when GoTrue confirms Apple) and strip Apple's provider tokens from the
-      // cookie; LinkedIn's are stripped below; every other provider is unchanged.
+      // cookie; every other provider is unchanged.
       await keepAppleToken(supabase, data.user, data.session, flow)
-      // LinkedIn: GoTrue says so, or (its flow unreadable) our own start route marked the return. ⛔ Either way a failed
-      // strip UNDOES the sign-in (review, 2026-10-16: on GoTrue's word alone, a slow flow read let a LinkedIn bearer token
-      // land in the JS-readable cookie). The cost of a wrong marker is one more "try again" — never a kept token.
-      const linkedinFlow = flow?.provider === LINKEDIN_PROVIDER || (flow === null && p === 'linkedin')
-      if (linkedinFlow) {
-        const stripped = await stripLinkedInToken(supabase, data.session)
-        if (!stripped) {
-          await supabase.auth.signOut({ scope: 'local' }).catch((e) => console.warn('[auth] linkedin_signout_failed', { name: (e as Error)?.name }))
-          // ⛔ …and the session cookies are expired on this answer itself, whatever the sign-out managed (gate review,
-          // 2026-10-16): the cookie holding LinkedIn's token never outlives a refused sign-in.
-          const res = redirect(linkedinBack(origin, next, 'failed') ?? `${origin}${authFailurePath(next, 'oauth')}`)
-          // The names the request carried AND those this very response wrote (the exchange set the session cookies here —
-          // a first sign-in arrives with none).
-          // Deleted in BOTH places a cookie can come from — the request's store (which the exchange wrote, and which a
-          // failed sign-out leaves holding the session) and this answer — so no later write can put the token back.
-          const names = new Set((request.headers.get('cookie') ?? '').split(/;\s*/).map((c) => c.split('=')[0]))
-          let store: Awaited<ReturnType<typeof cookies>> | null = null
-          try { store = await cookies(); for (const c of store.getAll()) names.add(c.name) } catch { /* no request scope (tests) */ }
-          for (const name of [...names].filter((n) => /^sb-.+-auth-token(?:\.\d+)?$/.test(n))) {
-            try { store?.delete(name) } catch { /* read-only outside a route: the answer's own expiry still goes */ }
-            res.cookies.set(name, '', { path: '/', maxAge: 0 })
-          }
-          res.cookies.set(LINKEDIN_CONSENT_COOKIE, '', { path: '/', maxAge: 0 })
-          return res
-        }
-        await linkLinkedInConsent(request, data.user)
-        const res = await finishSignIn(data.user, origin, next)
-        res.cookies.set(LINKEDIN_CONSENT_COOKIE, '', { path: '/', maxAge: 0 })
-        return res
-      }
       // Profile provisioning + the onboarding hop are shared with /auth/confirm.
       return finishSignIn(data.user, origin, next)
     }

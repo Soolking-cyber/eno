@@ -1,7 +1,8 @@
 /**
- * THE WORDS BESIDE "READ MY CV" AND "SIGN IN WITH LINKEDIN" (owner, 2026-10-15) — authored once here, rendered by the
- * teacher form and the sign-in form, and hashed by the server into the consent record, so the record says which words
- * the teacher acted on (PDP Law 91/2025 Art 9; Decree 356/2025 Art 6; LinkedIn API Terms 5.2).
+ * THE WORDS BESIDE "READ MY CV" (owner, 2026-10-15) — authored once here, rendered by the teacher form, and hashed by the
+ * server into the consent record, so the record says which words the teacher acted on (PDP Law 91/2025 Art 9; Decree
+ * 356/2025 Art 6). (Sign in with LinkedIn and its notice were removed on 2026-10-16, never having been switched on; its
+ * text is in git history.)
  *
  * ⛔ BUMP THE VERSION WHEN THE MEANING CHANGES — who reads the file, where, what is kept, for how long. The client echoes
  * the version it showed; the import route refuses any other (409 notice_changed), as the publish notice does
@@ -47,31 +48,7 @@ export const IMPORT_NOTICE_DETAILS: readonly NoticeText[] = [
 /** The act itself carries the agreement (Law 91 Art 9: clear and specific). */
 export const IMPORT_AGREE_LABEL: NoticeText = { en: 'Agree & choose my CV', vi: 'Đồng ý và chọn CV' }
 
-export const LINKEDIN_NOTICE_VERSION = '2026-10-15'
-
-/** Beside every "Sign in with LinkedIn" button — before the redirect (LinkedIn API Terms 5.2; PDP Law 91 Art 9). */
-export const LINKEDIN_NOTICE_LEAD: NoticeText = {
-  en: 'Signs you in and suggests your name — LinkedIn doesn’t share your jobs or education with apps. Each time you sign in with it, LinkedIn sends us your name, email, profile-photo link and language.',
-  vi: 'Giúp bạn đăng nhập và gợi ý tên — LinkedIn không chia sẻ công việc hay học vấn của bạn với ứng dụng. Mỗi lần bạn đăng nhập bằng LinkedIn, LinkedIn gửi cho chúng tôi tên, email, liên kết ảnh hồ sơ và ngôn ngữ của bạn.',
-}
-
-export const LINKEDIN_NOTICE_DETAILS: readonly NoticeText[] = [
-  {
-    en: 'Your LinkedIn name and email become your eno account’s name, @handle and sign-in email; you can change the name any time. We keep LinkedIn’s member id and these details with your account — never LinkedIn’s access token — and we never show your LinkedIn photo or post to LinkedIn.',
-    vi: 'Tên và email LinkedIn trở thành tên, @tên người dùng và email đăng nhập của tài khoản eno; bạn có thể đổi tên bất cứ lúc nào. Chúng tôi lưu mã thành viên LinkedIn và các thông tin này cùng tài khoản — không bao giờ lưu mã truy cập của LinkedIn — và không bao giờ hiển thị ảnh LinkedIn của bạn hay đăng gì lên LinkedIn.',
-  },
-  {
-    en: 'To stop: remove eno under LinkedIn › Settings › Data privacy › Permitted services. To delete what LinkedIn sent us: delete your eno account, or write to the address in our Privacy Policy.',
-    vi: 'Để dừng: gỡ eno trong LinkedIn › Cài đặt › Quyền riêng tư dữ liệu › Dịch vụ được cho phép. Để xoá dữ liệu LinkedIn đã gửi: xoá tài khoản eno, hoặc gửi yêu cầu tới địa chỉ trong Chính sách bảo vệ dữ liệu cá nhân.',
-  },
-  {
-    en: 'eno is not affiliated with or endorsed by LinkedIn.',
-    vi: 'eno không liên kết với và không được LinkedIn bảo trợ.',
-  },
-]
-
 /** The exact text of a notice, both languages, in display order — what the consent record's hash covers. */
 export const noticeBody = (parts: readonly NoticeText[]): string => parts.map((p) => `${p.en}\n${p.vi}`).join('\n')
 
 export const IMPORT_NOTICE_PARTS: readonly NoticeText[] = [IMPORT_NOTICE_LEAD, ...IMPORT_NOTICE_DETAILS, IMPORT_AGREE_LABEL]
-export const LINKEDIN_NOTICE_PARTS: readonly NoticeText[] = [LINKEDIN_NOTICE_LEAD, ...LINKEDIN_NOTICE_DETAILS]
