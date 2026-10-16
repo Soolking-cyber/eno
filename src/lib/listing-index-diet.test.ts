@@ -40,6 +40,23 @@ describe('the plan', () => {
     }
   })
 
+  it('a copy has EXACTLY the columns of every index it replaces, in order — or the planner keeps choosing the full one', () => {
+    // Postgres models heap order from an index's first column (measured: verified 1.000, rankScore −0.25). A copy led
+    // by another column looked costlier than its full index for the same rows, so the full index stayed in use; a
+    // dropped or reordered later column changes which queries it serves.
+    const columns = (def: string) => def.match(/^public\."Listing" \(([^)]*)\)/)?.[1].split(',').map((c) => c.trim().replace(/"/g, ''))
+    // Prisma's default names list every column: Model_col1_col2_…_idx (camelCase, no underscores inside a column). A
+    // 63-character name MAY be truncated (…_postedA_idx): accepted only when every column it names is a real field.
+    const fields = new Set((SCHEMA.match(/\nmodel Listing \{([\s\S]*?)\n\}/)?.[1] ?? '').split('\n').map((l) => l.trim().split(/\s+/)[0]))
+    const columnsOfName = (name: string) => {
+      const cols = name.split('_').slice(1, -1)
+      return cols.every((c) => fields.has(c)) ? cols : null
+    }
+    for (const ix of CREATES as { name: string; def: string; replaces: string[] }[]) {
+      for (const old of ix.replaces) expect(columns(ix.def), `${ix.name} replaces ${old}`).toEqual(columnsOfName(old))
+    }
+  })
+
   it('no index carries a counter column — a bumped indexed column makes every bump a non-HOT update again', () => {
     for (const ix of CREATES) expect(ix.def, ix.name).not.toMatch(/"(views|contactCount|savedCount)"/)
   })

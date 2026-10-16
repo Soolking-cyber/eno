@@ -11,8 +11,8 @@
 //     reads every status, and measured 150–800 ms per query without it (1–20 ms with): it stays (KEEP), and public search
 //     gets a live copy.
 // What changes:
-//   1. Every index whose queries ALWAYS ask for live rows becomes PARTIAL `WHERE verified AND status = 'active'` — the
-//      same columns, ~1.5% of the entries; a new row version of a non-live row (imports, hides, the 98.5%) gets no entry
+//   1. Every index whose queries ALWAYS ask for live rows gets a PARTIAL copy `WHERE verified AND status = 'active'` — the
+//      same columns, leading ones included (see CREATES), ~1.5% of the entries; a new row version of a non-live row (imports, hides, the 98.5%) gets no entry
 //      in it. ⚠️ That does NOT make those updates HOT: Postgres blocks HOT for any column in any index's key, INCLUDE list
 //      or predicate, live row or not — so rankScore, status and verified changes stay non-HOT. HOT comes back only where
 //      the index on the changed column is DROPPED: `views` (every counted view) and `sellerTrustScore`.
@@ -67,21 +67,33 @@ import pg from 'pg'
 
 export const LIVE = `verified AND status = 'active'`
 
-/** name → definition (after `ON`), and the old indexes it replaces (dropped by --phase=drop only once it is valid). */
+/**
+ * name → definition (after `ON`), and the old indexes it replaces (dropped by --phase=drop only once it is valid).
+ * ⛔ A PARTIAL COPY HAS EXACTLY THE COLUMNS OF THE INDEX IT REPLACES — leading `verified, status` included, although the
+ * predicate makes them constant. MEASURED 2026-10-17: copies without them were built and the planner kept choosing the
+ * FULL indexes for the feed, category, subcategory, brand and range shapes. Postgres estimates an index's heap order from
+ * its FIRST column's correlation: `verified` (near-constant) has 1.000, `rankScore` −0.25, `categoryId` 0.61 — so the
+ * full index looked like sequential heap reads and the copy like random ones, for the same rows. With the same leading
+ * column the smaller copy wins (probe-aligned.txt: feed page and feed total moved to it), the full index goes unscanned,
+ * and the drop phase's week-long evidence can retire it. A copy that led with another column would keep its full index
+ * scanned — and so kept — forever. src/lib/listing-index-diet.test.ts pins the full column list against each replaced
+ * index's name. ⚠️ A DEFINITION CHANGE UNDER AN EXISTING NAME is refused by --phase=create wherever the old one was built
+ * (its label differs): drop that copy by hand first — it only ever duplicated a full index that still exists.
+ */
 export const CREATES = [
-  { name: 'Listing_live_rankScore_idx', def: `public."Listing" ("rankScore") WHERE ${LIVE}`, replaces: ['Listing_verified_status_rankScore_idx'] },
-  { name: 'Listing_live_categoryId_rankScore_idx', def: `public."Listing" ("categoryId", "rankScore") WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_rankScore_idx'] },
-  { name: 'Listing_live_categoryId_sellerId_idx', def: `public."Listing" ("categoryId", "sellerId") WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_sellerId_idx'] },
-  { name: 'Listing_live_categoryId_subcategorySlug_postedAt_idx', def: `public."Listing" ("categoryId", "subcategorySlug", "postedAt") WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_subcategorySlug_postedAt_idx'] },
-  { name: 'Listing_live_categoryId_listingType_postedAt_idx', def: `public."Listing" ("categoryId", "listingType", "postedAt") WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_listingType_postedAt_idx'] },
-  { name: 'Listing_live_categoryId_postedAt_idx', def: `public."Listing" ("categoryId", "postedAt") WHERE ${LIVE}`, replaces: ['Listing_verified_categoryId_postedAt_idx'] },
-  { name: 'Listing_live_brandSlug_model_idx', def: `public."Listing" ("brandSlug", model) WHERE ${LIVE}`, replaces: ['Listing_verified_status_brandSlug_model_idx'] },
-  { name: 'Listing_live_brandSlug_postedAt_idx', def: `public."Listing" ("brandSlug", "postedAt") WHERE ${LIVE}`, replaces: ['Listing_verified_status_brandSlug_postedAt_idx'] },
-  { name: 'Listing_live_price_idx', def: `public."Listing" (price) WHERE ${LIVE}`, replaces: ['Listing_verified_price_idx'] },
-  { name: 'Listing_live_categoryId_year_idx', def: `public."Listing" ("categoryId", year) WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_year_idx'] },
-  { name: 'Listing_live_categoryId_salaryM_idx', def: `public."Listing" ("categoryId", "salaryM") WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_salaryM_idx'] },
-  { name: 'Listing_live_categoryId_mileageKm_idx', def: `public."Listing" ("categoryId", "mileageKm") WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_mileageKm_idx'] },
-  { name: 'Listing_live_categoryId_areaM2_idx', def: `public."Listing" ("categoryId", "areaM2") WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_areaM2_idx'] },
+  { name: 'Listing_live_rankScore_idx', def: `public."Listing" (verified, status, "rankScore") WHERE ${LIVE}`, replaces: ['Listing_verified_status_rankScore_idx'] },
+  { name: 'Listing_live_categoryId_rankScore_idx', def: `public."Listing" (verified, status, "categoryId", "rankScore") WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_rankScore_idx'] },
+  { name: 'Listing_live_categoryId_sellerId_idx', def: `public."Listing" (verified, status, "categoryId", "sellerId") WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_sellerId_idx'] },
+  { name: 'Listing_live_categoryId_subcategorySlug_postedAt_idx', def: `public."Listing" (verified, status, "categoryId", "subcategorySlug", "postedAt") WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_subcategorySlug_postedAt_idx'] },
+  { name: 'Listing_live_categoryId_listingType_postedAt_idx', def: `public."Listing" (verified, status, "categoryId", "listingType", "postedAt") WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_listingType_postedAt_idx'] },
+  { name: 'Listing_live_categoryId_postedAt_idx', def: `public."Listing" (verified, "categoryId", "postedAt") WHERE ${LIVE}`, replaces: ['Listing_verified_categoryId_postedAt_idx'] },
+  { name: 'Listing_live_brandSlug_model_idx', def: `public."Listing" (verified, status, "brandSlug", model) WHERE ${LIVE}`, replaces: ['Listing_verified_status_brandSlug_model_idx'] },
+  { name: 'Listing_live_brandSlug_postedAt_idx', def: `public."Listing" (verified, status, "brandSlug", "postedAt") WHERE ${LIVE}`, replaces: ['Listing_verified_status_brandSlug_postedAt_idx'] },
+  { name: 'Listing_live_price_idx', def: `public."Listing" (verified, price) WHERE ${LIVE}`, replaces: ['Listing_verified_price_idx'] },
+  { name: 'Listing_live_categoryId_year_idx', def: `public."Listing" (verified, status, "categoryId", year) WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_year_idx'] },
+  { name: 'Listing_live_categoryId_salaryM_idx', def: `public."Listing" (verified, status, "categoryId", "salaryM") WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_salaryM_idx'] },
+  { name: 'Listing_live_categoryId_mileageKm_idx', def: `public."Listing" (verified, status, "categoryId", "mileageKm") WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_mileageKm_idx'] },
+  { name: 'Listing_live_categoryId_areaM2_idx', def: `public."Listing" (verified, status, "categoryId", "areaM2") WHERE ${LIVE}`, replaces: ['Listing_verified_status_categoryId_areaM2_idx'] },
   // The keystroke search: every public search WHERE carries the live predicate (search-match, concierge, recommendations,
   // saved-search alerts), and this copy holds 1.5% of the rows the full GIN does. It REPLACES NOTHING: admin search reads
   // every status ('all' by default), and MEASURED 2026-10-17 costs 1–20 ms per query on the full GIN, 150–800 ms without
@@ -89,7 +101,7 @@ export const CREATES = [
   // stays declared in prisma/schema.prisma. ~/eno-perf-2026-10/item9/probe-admin-dup.txt
   { name: 'Listing_live_searchText_trgm_idx', def: `public."Listing" USING gin ("searchText" gin_trgm_ops) WHERE ${LIVE}`, replaces: [] },
   { name: 'Listing_live_lat_lng_idx', def: `public."Listing" (lat, lng) WHERE lat IS NOT NULL AND lng IS NOT NULL AND ${LIVE}`, replaces: ['Listing_lat_lng_idx'] },
-  { name: 'Listing_live_buildingKey_idx', def: `public."Listing" ("buildingKey") WHERE "buildingKey" IS NOT NULL AND ${LIVE}`, replaces: ['Listing_buildingKey_status_idx'] },
+  { name: 'Listing_live_buildingKey_idx', def: `public."Listing" ("buildingKey", status) WHERE "buildingKey" IS NOT NULL AND ${LIVE}`, replaces: ['Listing_buildingKey_status_idx'] },
   // Not a live query (status 'sold'): partial on the only rows it ever reads.
   { name: 'Listing_soldToProfileId_pending_idx', def: `public."Listing" ("soldToProfileId", "saleConfirmedAt", "saleDeclinedAt") WHERE "soldToProfileId" IS NOT NULL`, replaces: ['Listing_soldToProfileId_saleConfirmedAt_saleDeclinedAt_idx'] },
   // New: the feed's per-seller reads (diversity window, storefront own listings) walk ~6 entries instead of the feed.
