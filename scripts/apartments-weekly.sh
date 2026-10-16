@@ -116,8 +116,14 @@ die() { echo "── $1"; notify "$1"; exit 1; }
 # a refresh run with one dies, alerting.
 CONFIG_PROBLEM=""
 case "$PLACES" in
-  0) SOURCES_DEFAULT="nhatot muaban honeycomb rever batdongsan" ;;
-  1) SOURCES_DEFAULT="nhatot muaban honeycomb rever batdongsan nhatot-places muaban-places" ;;
+  # ⛔ batdongsan DROPPED from the default sources 2026-10-16 (owner "skip batdongsan"): no longer auto-refreshed.
+  #    ⚠️ Its existing live rows do NOT age out on their own — once last-success-batdongsan is older than
+  #    SWEEP_STALE_IMPORT_DAYS the daily sweep's mass-expiry guard holds its rows back (a stopped source reads like a
+  #    broken refresh) and alerts daily. So a ONE-OFF retires them (scripts/retire-stale-batdongsan.ts, or a sweep with
+  #    --allow-mass-expiry) and the stale last-success-batdongsan stamp is removed. Its importer/scraper/BDS_DIR code
+  #    stay — name `batdongsan` in APT_SOURCES to run it by hand. The 7-day window is unchanged.
+  0) SOURCES_DEFAULT="nhatot muaban honeycomb rever" ;;
+  1) SOURCES_DEFAULT="nhatot muaban honeycomb rever nhatot-places muaban-places" ;;
   *) CONFIG_PROBLEM="APT_PLACES must be 0 or 1, not \"$PLACES\" — this run did nothing"; SOURCES_DEFAULT="" ;;
 esac
 SOURCES="${APT_SOURCES:-$SOURCES_DEFAULT}"

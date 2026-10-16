@@ -96,9 +96,10 @@ const stamps = (box: string) => readdirSync(join(box, 'journal/state')).filter((
 const stampOf = (box: string, src: string) => readFileSync(join(box, 'journal/state', `last-success-${src}`), 'utf8')
 const idx = (calls: string[], needle: string) => calls.findIndex((c) => c.includes(needle))
 /** The gate units run by default (APT_PLACES=0: apartments only), sorted — each its own success stamp. */
-const SOURCES = ['batdongsan', 'honeycomb', 'muaban', 'nhatot', 'rever']
+// batdongsan dropped from the default sources 2026-10-16 (owner "skip batdongsan"); still runnable when named in APT_SOURCES.
+const SOURCES = ['honeycomb', 'muaban', 'nhatot', 'rever']
 /** …and with APT_PLACES=1: Nhà Tốt's and Muaban's houses, rooms and offices as their own units. */
-const ALL_SOURCES = ['batdongsan', 'honeycomb', 'muaban', 'muaban-places', 'nhatot', 'nhatot-places', 'rever']
+const ALL_SOURCES = ['honeycomb', 'muaban', 'muaban-places', 'nhatot', 'nhatot-places', 'rever']
 /** A live process whose command line names the job — what a running refresh looks like to `ps` (a reused pid does not). */
 const holder = () => spawn('bash', ['-c', 'exec -a apartments-weekly-holder sleep 120'], { stdio: 'ignore' })
 
@@ -111,7 +112,7 @@ describe('the job, run end to end on stubs — a first --apply run (every source
 
   it('runs every apartment source, classify, then the sweep — and exits 0', () => {
     expect(first.code, first.out).toBe(0)
-    for (const step of ['import-nhatot-com.ts --cg 1010', 'import-muaban-net.ts --types apartment', 'import-honeycomb-com-vn.ts --since-days', 'retire-rever-rentals.ts --save', 'scraper.py', 'import-batdongsan-rentals.ts', 'classify-apartment-rentals.ts']) {
+    for (const step of ['import-nhatot-com.ts --cg 1010', 'import-muaban-net.ts --types apartment', 'import-honeycomb-com-vn.ts --since-days', 'retire-rever-rentals.ts --save', 'classify-apartment-rentals.ts']) {
       expect(idx(first.calls, step), step).toBeGreaterThan(-1)
     }
     const sweep = idx(first.calls, 'expire-rentals.ts --sweep')
@@ -119,12 +120,13 @@ describe('the job, run end to end on stubs — a first --apply run (every source
     expect(idx(first.calls, 'classify-apartment-rentals.ts')).toBeLessThan(sweep)
   })
 
-  it('⛔ APT_PLACES unset = APARTMENTS ONLY: no houses/rooms/offices unit runs, Batdongsan reads its two apartment lists', () => {
+  it('⛔ APT_PLACES unset = APARTMENTS ONLY: no houses/rooms/offices unit runs; Batdongsan is NOT in the default sources (dropped 2026-10-16)', () => {
     expect(first.out).toMatch(/houses, rooms and offices are not imported \(APT_PLACES=0/)
     expect(idx(first.calls, '--cg 1020,1030,1050')).toBe(-1)
     expect(idx(first.calls, '--types house,room,office')).toBe(-1)
-    expect(first.calls.find((x) => x.includes('bds-python scraper.py'))).toBe('bds-python scraper.py --apartments --to-end --new')
-    expect(first.calls.find((x) => x.includes('import-batdongsan-rentals.ts'))).toContain('--max-age-days 7 --subcat apartment-rental --fresh-out ')
+    // "skip batdongsan" (owner 2026-10-16): neither its scraper nor its importer runs in a default job.
+    expect(idx(first.calls, 'bds-python scraper.py')).toBe(-1)
+    expect(idx(first.calls, 'import-batdongsan-rentals.ts')).toBe(-1)
   })
 
   it('⛔ writes a success stamp per gate unit holding the run START, and points the sweep at them', () => {
@@ -150,8 +152,7 @@ describe('the job, run end to end on stubs — a first --apply run (every source
     expect(first.calls.filter((x) => x.includes('import-muaban-net.ts --src')).length).toBe(1)
     expect(c('import-honeycomb-com-vn.ts --since-days')).toMatch(/--since-days 30 --save \S+ --fresh-out \S+$/)      // the set: its 30-day window
     expect(c('import-honeycomb-com-vn.ts --src')).toContain('--since-days 7 --journal-dir ')                          // the apply: 7 days
-    expect(c('import-batdongsan-rentals.ts')).toContain('--max-age-days 7 ')
-    expect(first.calls.filter((x) => x.includes('expire-apartment-rentals.ts --seller') && x.includes('--backstop')).length).toBe(5)   // per seller, not per unit
+    expect(first.calls.filter((x) => x.includes('expire-apartment-rentals.ts --seller') && x.includes('--backstop')).length).toBe(4)   // per apartment seller (batdongsan dropped), not per unit
   })
 
   it('⛔ the next morning nothing is due: the imports are skipped and ONLY the sweep runs', () => {
@@ -177,20 +178,40 @@ describe('the job with APT_PLACES=1 — houses, rooms and offices too (the owner
     expect(r.code, r.out).toBe(0)
     expect(r.out).not.toMatch(/are not imported/)
     const places = [idx(r.calls, 'import-nhatot-com.ts --cg 1020,1030,1050'), idx(r.calls, 'import-muaban-net.ts --types house,room,office')]
-    for (const at of places) expect(at).toBeGreaterThan(idx(r.calls, 'import-batdongsan-rentals.ts'))
+    for (const at of places) expect(at).toBeGreaterThan(idx(r.calls, 'retire-rever-rentals.ts --save'))   // places run after every apartment source (rever last; batdongsan dropped)
     const c = (needle: string) => r.calls.find((x) => x.includes(needle)) ?? ''
     expect(c('import-nhatot-com.ts --cg 1020,1030,1050')).toMatch(/--cg 1020,1030,1050 --max-age-days 7 --save \S+nhatot-places-stage\.json --fresh-crawl$/)
     expect(r.calls.filter((x) => x.includes('import-nhatot-com.ts --src')).map((x) => /--src (\S+)/.exec(x)![1].split('/').pop())).toEqual(['nhatot-stage.json', 'nhatot-places-stage.json'])
     expect(c('import-muaban-net.ts --types house,room,office')).toMatch(/--stage \S+muaban-places-stage\.jsonl --fresh-crawl$/)
     expect(r.calls.filter((x) => x.includes('import-muaban-net.ts --src')).length).toBe(2)
-    expect(c('bds-python scraper.py')).toBe('bds-python scraper.py --to-end --new')                    // the whole list
-    expect(c('import-batdongsan-rentals.ts')).not.toContain('--subcat')
+    expect(idx(r.calls, 'bds-python scraper.py')).toBe(-1)              // batdongsan dropped from the default sources ("skip batdongsan"), even with APT_PLACES=1
+    expect(idx(r.calls, 'import-batdongsan-rentals.ts')).toBe(-1)
     // no set, no expiry and no second backstop for a places unit
-    expect(r.calls.filter((x) => x.includes('expire-apartment-rentals.ts --seller') && x.includes('--fresh ')).length).toBe(5)
-    expect(r.calls.filter((x) => x.includes('expire-apartment-rentals.ts --seller') && x.includes('--backstop')).length).toBe(5)
+    expect(r.calls.filter((x) => x.includes('expire-apartment-rentals.ts --seller') && x.includes('--fresh ')).length).toBe(4)
+    expect(r.calls.filter((x) => x.includes('expire-apartment-rentals.ts --seller') && x.includes('--backstop')).length).toBe(4)
   })
   it('stamps every unit, the places units included', () => {
     expect(stamps(box)).toEqual(ALL_SOURCES.map((s) => `last-success-${s}`))
+  })
+})
+
+describe('batdongsan — dropped from the defaults, still runs when named (owner 2026-10-16 "skip batdongsan")', SLOW, () => {
+  it('APT_SOURCES=batdongsan runs its scraper + apartment importer with the apartment args (the default-run path is unchanged, just not default)', () => {
+    const box = sandbox()
+    const r = run(box, ['--apply'], { env: { APT_SOURCES: 'batdongsan' } })
+    expect(r.code, r.out).toBe(0)
+    const c = (needle: string) => r.calls.find((x) => x.includes(needle)) ?? ''
+    expect(c('bds-python scraper.py')).toBe('bds-python scraper.py --apartments --to-end --new')
+    expect(c('import-batdongsan-rentals.ts')).toContain('--max-age-days 7 --subcat apartment-rental --fresh-out ')
+    expect(stamps(box)).toEqual(['last-success-batdongsan'])
+  })
+  it('APT_SOURCES=batdongsan with APT_PLACES=1 reads the whole list (scraper --to-end --new, importer without --subcat)', () => {
+    const box = sandbox()
+    const r = run(box, ['--apply'], { env: { APT_SOURCES: 'batdongsan', APT_PLACES: '1' } })
+    expect(r.code, r.out).toBe(0)
+    const c = (needle: string) => r.calls.find((x) => x.includes(needle)) ?? ''
+    expect(c('bds-python scraper.py')).toBe('bds-python scraper.py --to-end --new')
+    expect(c('import-batdongsan-rentals.ts')).not.toContain('--subcat')
   })
 })
 
