@@ -20,9 +20,19 @@
 // So payloads live in an in-process LRU (L1) and the network carries invalidations:
 //   · L1 answers reads with ZERO round trips, and — unlike Next's L1 — it checks the
 //     tombstones first, which is the whole reason cacheMaxMemorySize had to be 0.
-//   · The tag table is small enough to hold ENTIRELY in memory, refreshed at most
-//     every TAG_REFRESH_MS. One tiny query every few seconds per instance, whatever
-//     the traffic. Traffic no longer touches Postgres at all on the hot path.
+//   · ⛔ ONLY THE TOMBSTONES THAT CAN STILL MATTER ARE READ (speed plan item 4, 2026-10-16). This used
+//     to say "the tag table is small enough to hold ENTIRELY in memory" and re-read all of it every
+//     TAG_REFRESH_MS. It was 6 rows then and 86,795 rows / 5.4 MB on 2026-10-16 (import jobs tombstone
+//     every listing they touch, 40-day TTL): the #1 query in pg_stat_statements (382,872 calls, 11% of
+//     all database time) and, worse, an awaited 250–450 ms parse inside get() — measured on the box,
+//     origin cache HITs p50 14 ms but p90 268 / p95 308 ms, one request in six stalled. A tombstone
+//     can only kill an entry THIS process holds, and only if it is not older than that entry, so a
+//     sync now asks for exactly those tags (`tag = any($1)`, `stamp >=` the oldest L1 entry): the rows
+//     RETURNED are bounded by L1, not by the table (measured: a few rows; Postgres picks the primary
+//     key below ~1,000 tags and a 1,072-buffer seq scan above, 21–25 ms — both off the request path).
+//     It runs on its own TAG_REFRESH_MS timer, so a read never waits for it unless the timer has fallen
+//     behind by TAG_WAIT_MS. Correct whatever clock a writer stamped with and however long its
+//     transaction stayed open, which a "rows newer than X" read would not be.
 //   · Postgres keeps the payloads as L2 so a NEW instance (scale-up, new revision)
 //     starts warm instead of re-rendering everything. That read now happens about
 //     once per key per instance, not once per request.
@@ -85,12 +95,24 @@ const TAG_REFRESH_MS = 3000
 // instance's view of what's been invalidated for as long as the outage lasts —
 // serving purged pages is a worse failure than re-rendering them.
 const TAG_MAX_STALE_MS = 30_000
+// …and a read WAITS for a sync once the snapshot is this old (2026-10-16 gate review, codex + opus). A timer
+// refreshes it every TAG_REFRESH_MS whatever the traffic (constructor), so cross-process lag stays ~3 s and
+// no read waits; this is the fallback for a timer that has fallen behind (a blocked event loop), when a read
+// waits for one bounded query rather than trusting a snapshot up to TAG_MAX_STALE_MS old. The wait itself is
+// capped at TAG_WAIT_CAP_MS (the pool already times queries and connections out at TIMEOUT_MS).
+const TAG_WAIT_MS = 5000
+const TAG_WAIT_CAP_MS = 2 * TIMEOUT_MS
 
-// L1 bounds. The live build's whole working set measured ~3MB (73 entries), so these
-// are far above need — they exist to cap a pathological key space, not to ration.
-// Container is 1GiB; entries hold Buffers, not the +33% base64 form used in transport.
-const L1_MAX_ENTRIES = 1000
-const L1_MAX_BYTES = 96 * 1024 * 1024
+// L1 bounds. ⚠️ RAISED 2026-10-16 (speed plan item 4): at 1,000 entries / 96 MB only ~400 product pages
+// fit (234 kB each) against ~37k public listing pages in en+vi, and 14/14 sampled long-tail product pages
+// were a MISS at the origin (render 89–399 ms). The byte cap binds first (~1,000 product pages, ~3% of
+// them — this helps repeat views and crawlers, not one-off first views). Entries hold the html as a V8
+// string and the RSC as Buffers. Memory, MEASURED 2026-10-16 (the old "Container is 1GiB" was Cloud Run):
+// both app containers have NO memory limit (docker inspect HostConfig.Memory = 0), the V8 heap limit is
+// 4,288 MB, the apps used 1.1–1.4 GB RSS, and the box had 7.4 GB available. The [eno-isr-cache] stats line
+// (every 10 min) says whether this is still too small — read its `evict` before raising it again.
+const L1_MAX_ENTRIES = 3000
+const L1_MAX_BYTES = 256 * 1024 * 1024
 
 let buildId = 'unknown'
 try { buildId = readFileSync(join(process.cwd(), '.next', 'BUILD_ID'), 'utf8').trim() } catch { /* dev server */ }
@@ -144,31 +166,52 @@ function decodeValue(value) {
   return out
 }
 
-// Rough byte cost of an entry, for the L1 budget. Buffers dominate by orders of
-// magnitude; everything else gets a flat allowance rather than a walk of the object.
+// Rough byte cost of an entry, for the L1 budget. Payloads dominate by orders of magnitude; everything
+// else gets a flat allowance rather than a walk of the object.
+// ⚠️ (2026-10-16 review, measured on real prerenders): Next hands set() the html as a JS STRING, and a
+// Vietnamese page is a two-byte string on the V8 heap — counting 1 byte per char under-counted the vi home
+// by 27%. Strings count 2 bytes per char now. segmentData's `/_full` is the SAME buffer as rscData
+// (collect-segment-data) — counted once.
 function sizeOf(value) {
   let n = 2048
   if (!value || typeof value !== 'object') return n
+  const rsc = Buffer.isBuffer(value.rscData) ? value.rscData : null
   for (const f of ['html', 'rscData', 'body', 'segmentData']) {
     const v = value[f]
     if (Buffer.isBuffer(v)) n += v.length
-    else if (v instanceof Map) { for (const b of v.values()) n += Buffer.isBuffer(b) ? b.length : 64 }
-    else if (typeof v === 'string') n += v.length
+    else if (v instanceof Map) {
+      for (const b of v.values()) {
+        if (!Buffer.isBuffer(b)) n += 64
+        else if (!(rsc && b.buffer === rsc.buffer && b.byteOffset === rsc.byteOffset && b.length <= rsc.length)) n += b.length
+      }
+    }
+    else if (typeof v === 'string') n += v.length * 2
   }
   return n
 }
 
 // ── L1: payloads, in-process, LRU by insertion order ───────────────────────────────
 // Module-level so every handler instance in the process shares one cache.
-const l1 = new Map() // K(key) → { lastModified, tags, value, bytes }
+const l1 = new Map() // K(key) → { lastModified, tags, ttags, value, bytes }
 let l1Bytes = 0
+// T(tag) → how many L1 entries carry it. Kept incrementally so a sync never walks L1 to find out which
+// tags matter (walking 3,000 entries and prefixing every tag measured 13 ms of event loop per sync).
+const tagRefs = new Map()
 
 function l1Delete(k) {
   const e = l1.get(k)
-  if (e) { l1Bytes -= e.bytes; l1.delete(k) }
+  if (!e) return
+  l1Bytes -= e.bytes
+  l1.delete(k)
+  for (const t of e.ttags) {
+    const n = (tagRefs.get(t) || 0) - 1
+    if (n > 0) tagRefs.set(t, n); else tagRefs.delete(t)
+  }
 }
 function l1Set(k, entry) {
   l1Delete(k)
+  entry.ttags = [...new Set((entry.tags || []).map(T))]
+  for (const t of entry.ttags) tagRefs.set(t, (tagRefs.get(t) || 0) + 1)
   l1.set(k, entry)
   l1Bytes += entry.bytes
   // Map iterates in insertion order, so the first key is the least recently written.
@@ -176,6 +219,7 @@ function l1Set(k, entry) {
     const oldest = l1.keys().next().value
     if (oldest === undefined) break
     l1Delete(oldest)
+    stats.evict++
   }
 }
 function l1Get(k) {
@@ -185,15 +229,38 @@ function l1Get(k) {
   return e
 }
 
-// ── Tag snapshot: the whole tombstone table, in memory ─────────────────────────────
+// ── Tag snapshot: the tombstones that can still kill an L1 entry ──────────────────────
 const tagStamps = new Map() // T(tag) → stamp (ms)
+// T(tag) → when THIS process wrote it through (revalidateTag). A sync never deletes a local write younger than
+// LOCAL_GRACE_MS, whatever its stamp: the tombstone INSERT can commit after a sync's snapshot even when its stamp
+// predates the sync (gate round 6) — only a later sync that can see the row may judge it.
+const localTouched = new Map()
+const LOCAL_GRACE_MS = 2 * TAG_REFRESH_MS
 let tagsLoadedAt = 0
 let tagsInflight = null
 
+// ── Counters: one JSON line every STATS_EVERY_MS to stdout (docker logs), then reset ─────
+const STATS_EVERY_MS = 10 * 60_000
+let syncTimer = null
+const stats = { hit: 0, miss: 0, tombstoned: 0, set: 0, evict: 0, syncs: 0, syncFail: 0, syncTags: 0, syncRows: 0, syncMsMax: 0, waited: 0 }
+let statsTimer = null
+function startStats() {
+  if (statsTimer) return
+  statsTimer = setInterval(() => { try {
+    const reads = stats.hit + stats.miss
+    console.log('[eno-isr-cache] ' + JSON.stringify({
+      edition, l1: l1.size, l1MB: Math.round(l1Bytes / 1048576), tags: tagStamps.size,
+      hitRate: reads ? Math.round((stats.hit / reads) * 1000) / 1000 : null, ...stats,
+    }))
+    for (const key of Object.keys(stats)) stats[key] = 0
+  } catch { /* a stats line must never take the process down */ } }, STATS_EVERY_MS)
+  statsTimer.unref?.() // never keeps a process (or `next build`) alive
+}
+
 /** True when the entry's own tags have been tombstoned since it was stored. */
 function tombstoned(entry) {
-  for (const tag of entry.tags || []) {
-    const s = tagStamps.get(T(tag))
+  for (const t of entry.ttags || (entry.tags || []).map(T)) {
+    const s = tagStamps.get(t)
     if (s != null && s >= entry.lastModified) return true
   }
   return false
@@ -217,6 +284,19 @@ module.exports = class EnoCacheHandler {
      * So payloads go to Postgres only on Cloud Run (K_SERVICE) or when explicitly asked for.
      */
     this.pgPayloads = this.pg && Boolean(process.env.K_SERVICE || process.env.ENO_ISR_PG_PAYLOADS === '1')
+    if (this.pg) {
+      startStats()
+      // ⛔ THE SYNC RUNS ON A TIMER, NOT ON TRAFFIC (2026-10-16 review: a sync started only by reads let a quiet
+      // process answer from a snapshot up to 30 s old). Every TAG_REFRESH_MS, whatever the traffic, so another
+      // process's purge is seen within ~3 s and no read pays for the query. One timer per process, however many
+      // handler instances Next constructs; unref'd so it never keeps a process alive.
+      if (!syncTimer) {
+        // try/catch: a synchronous throw in a timer is an uncaughtException that kills the process (opus,
+        // gate round 3) — a failed sync must only ever cost freshness.
+        syncTimer = setInterval(() => { try { this.maybeStartTagSync() } catch { stats.syncFail++ } }, TAG_REFRESH_MS)
+        syncTimer.unref?.()
+      }
+    }
   }
 
   // One small pool per process, lazily created — Supavisor (pooled DATABASE_URL,
@@ -241,44 +321,89 @@ module.exports = class EnoCacheHandler {
   }
 
   /**
-   * Refresh the tag snapshot if it's older than TAG_REFRESH_MS. Concurrent callers
-   * share one in-flight query. Returns false when the snapshot is too stale to trust.
+   * Is the tombstone snapshot fresh enough to trust L1? Starts a background refresh once it is older
+   * than TAG_REFRESH_MS and returns at once; a read WAITS for that refresh only when the snapshot is
+   * older than TAG_WAIT_MS (the first read after a quiet spell or after start), and then for at most the
+   * pool/statement timeouts. If the database has failed for TAG_MAX_STALE_MS, L1 is not trusted at all.
+   * Returns a boolean or a promise of one.
    */
-  async syncTags() {
+  syncTags() {
     if (!this.pg) return true
     const age = Date.now() - tagsLoadedAt
-    if (age < TAG_REFRESH_MS) return true
-    if (!tagsInflight) {
-      // ⚠️ MERGE, never clear (fixed 2026-07-25, confirmed by codex + Gemini). This SELECT
-      // takes its snapshot at queryStart; a revalidateTag() running while it is in flight
-      // commits its tombstone AFTER that snapshot and write-throughs to tagStamps. The old
-      // tagStamps.clear() then deleted that just-written stamp when the query resolved, so
-      // THIS instance served stale L1 for the tag it had just revalidated — breaking the
-      // "instant on the calling instance" promise documented at the top of this file, and
-      // lasting until a later sync happened to succeed.
-      const queryStart = Date.now()
-      tagsInflight = EnoCacheHandler.getPool()
-        .query('select tag, stamp from next_cache_tag where expires_at > now()')
-        .then(({ rows }) => {
-          const seen = new Set()
-          for (const r of rows) {
-            seen.add(r.tag)
-            const stamp = Number(r.stamp)
-            if (stamp > (tagStamps.get(r.tag) || 0)) tagStamps.set(r.tag, stamp)
-          }
-          // Still evict tags the DB no longer has (expired tombstones) — that is what the
-          // clear() was really for — but keep any stamp written locally after the snapshot,
-          // because its row simply wasn't visible yet.
-          for (const [tag, stamp] of tagStamps) {
-            if (!seen.has(tag) && stamp < queryStart) tagStamps.delete(tag)
-          }
-          tagsLoadedAt = Date.now()
-        })
-        .catch(() => { /* keep the previous snapshot; staleness is bounded below */ })
-        .finally(() => { tagsInflight = null })
+    if (age >= TAG_REFRESH_MS) { try { this.maybeStartTagSync() } catch { stats.syncFail++ } }
+    if (age < TAG_WAIT_MS) return true
+    stats.waited++
+    // Race the WAIT, never the query: the query keeps its pool slot and lands in tagStamps whenever it ends.
+    let cap
+    const capped = new Promise((r) => { cap = setTimeout(r, TAG_WAIT_CAP_MS); cap.unref?.() })
+    return Promise.race([tagsInflight || Promise.resolve(), capped])
+      .then(() => { clearTimeout(cap); return Date.now() - tagsLoadedAt < TAG_MAX_STALE_MS })
+  }
+
+  /**
+   * Start a sync unless one is running. ⚠️ ONE AT A TIME, NEVER ABANDONED (gate rounds 3–5: abandoning a stuck
+   * query and starting another leaked pool slots and let a late answer undo a newer one). The pool settles
+   * every query within TIMEOUT_MS (query_timeout / statement_timeout / connectionTimeoutMillis). If one ever
+   * did not settle, syncs stop, and after TAG_MAX_STALE_MS L1 is simply not trusted — every read re-renders:
+   * slower, never stale — until the process restarts; `syncs` stops growing in the stats line.
+   */
+  maybeStartTagSync() {
+    if (tagsInflight) return
+    this.startTagSync()
+  }
+
+  /**
+   * Read the current stamp of every tag an L1 entry carries, but only stamps not older than the oldest
+   * entry — nothing older can kill anything held here (tombstoned(): stamp >= lastModified). Concurrent
+   * callers share one in-flight query.
+   */
+  startTagSync() {
+    const queryStart = Date.now()
+    const wanted = new Set(tagRefs.keys())
+    let oldest = Infinity
+    for (const e of l1.values()) if (e.lastModified < oldest) oldest = e.lastModified
+    // A malformed lastModified (NaN from a bad L2 row) must not turn every sync into a failed query.
+    if (!Number.isFinite(oldest)) oldest = 0
+    for (const [tag, at] of localTouched) if (at < queryStart - LOCAL_GRACE_MS) localTouched.delete(tag)
+    if (!wanted.size) {
+      // Nothing cached, nothing to invalidate. Keep only write-throughs too new to have reached the table.
+      for (const [tag, stamp] of tagStamps) if (stamp < queryStart - TAG_REFRESH_MS && !localTouched.has(tag)) tagStamps.delete(tag)
+      tagsLoadedAt = queryStart
+      return
     }
-    await tagsInflight
-    return Date.now() - tagsLoadedAt < TAG_MAX_STALE_MS
+    stats.syncs++
+    stats.syncTags += wanted.size
+    const inflight = EnoCacheHandler.getPool()
+      .query('select tag, stamp from next_cache_tag where tag = any($1::text[]) and stamp >= $2 and expires_at > now()',
+        [[...wanted], Math.floor(oldest)])
+      .then(({ rows }) => {
+        stats.syncRows += rows.length
+        const seen = new Set()
+        for (const r of rows) {
+          seen.add(r.tag)
+          const stamp = Number(r.stamp)
+          if (stamp > (tagStamps.get(r.tag) || 0)) tagStamps.set(r.tag, stamp)
+        }
+        // ⚠️ MERGE, never clear (2026-07-25, codex + Gemini): a revalidateTag() that ran while this query
+        // was in flight write-through'd a stamp its snapshot cannot contain — keep anything written locally
+        // after queryStart, and any local write younger than LOCAL_GRACE_MS (its INSERT may not have committed
+        // before this snapshot). Otherwise keep only what this query vouched for: a tag it asked about, found,
+        // and not older than every L1 entry.
+        // And a tag no L1 entry carries any more is dropped too (opus, gate round 7): an entry set() later is newer
+        // than any stamp held now, and an L2 load checks committed tombstones in its own SQL — keeping such stamps
+        // only let the map grow back toward the table it was meant to stop mirroring.
+        for (const [tag, stamp] of tagStamps) {
+          if (stamp >= queryStart || localTouched.has(tag)) continue
+          if (!wanted.has(tag) || !seen.has(tag) || stamp < oldest) tagStamps.delete(tag)
+        }
+        // The snapshot is the table as of queryStart, not as of when the answer landed (opus, gate round 4) —
+        // so TAG_WAIT_MS / TAG_MAX_STALE_MS bound the real age, query time included.
+        tagsLoadedAt = queryStart
+        stats.syncMsMax = Math.max(stats.syncMsMax, Date.now() - queryStart)
+      })
+      .catch(() => { stats.syncFail++ /* keep the previous snapshot; staleness is bounded by TAG_MAX_STALE_MS */ })
+      .finally(() => { tagsInflight = null })
+    tagsInflight = inflight
   }
 
   async get(key) {
@@ -290,13 +415,17 @@ module.exports = class EnoCacheHandler {
     if (tagsFresh) {
       const hit = l1Get(k)
       if (hit) {
-        if (!tombstoned(hit)) return { lastModified: hit.lastModified, value: hit.value }
+        if (!tombstoned(hit)) { stats.hit++; return { lastModified: hit.lastModified, value: hit.value } }
+        stats.tombstoned++
         l1Delete(k) // invalidated — drop it and try L2, which may already hold the new one
       }
     }
+    stats.miss++
 
-    // L2 read only where payloads are stored at all (see pgPayloads). Tombstones were already consulted
-    // above through syncTags(), which is what makes a cross-process purge work without it.
+    // L2 read only where payloads are stored at all (see pgPayloads). It checks the table's tombstones in
+    // its own SQL (`not exists … stamp >= lastModified`), because the in-memory snapshot covers only the
+    // tags of entries already in L1 — an L2 payload is valid at the moment it is read, and later
+    // invalidations reach it through the next sync like any other L1 entry.
     if (!this.pgPayloads) return null
 
     try {
@@ -317,8 +446,14 @@ module.exports = class EnoCacheHandler {
       if (!entry) return null
       const value = decodeValue(entry.value)
       const lastModified = Number(entry.lastModified)
+      // A row without a usable lastModified could never be tombstoned (`stamp >= NaN` is false) — a miss.
+      if (!Number.isFinite(lastModified)) return null
       const tags = Array.isArray(entry.tags) ? entry.tags : []
-      l1Set(k, { lastModified, tags, value, bytes: sizeOf(value) })
+      const loaded = { lastModified, tags, value, bytes: sizeOf(value) }
+      l1Set(k, loaded)
+      // ⚠️ AND THIS PROCESS'S OWN UNCOMMITTED PURGES (gate round 6): the SQL above sees only COMMITTED tombstones, so a
+      // revalidateTag() here whose INSERT has not landed yet would otherwise be served straight past.
+      if (tombstoned(loaded)) { l1Delete(k); stats.tombstoned++; return null }
       return { lastModified, value }
     } catch { return null }
   }
@@ -330,6 +465,7 @@ module.exports = class EnoCacheHandler {
       ...(typeof value?.headers?.['x-next-cache-tags'] === 'string' ? value.headers['x-next-cache-tags'].split(',') : []),
     ])].filter(Boolean)
     const lastModified = Date.now()
+    stats.set++
 
     // L1 first and unconditionally: the instance that just rendered this should never
     // have to fetch it back over the network.
@@ -364,6 +500,7 @@ module.exports = class EnoCacheHandler {
     for (const tag of list) {
       const t = T(tag)
       tagStamps.set(t, Math.max(tagStamps.get(t) || 0, stamp))
+      localTouched.set(t, stamp)
     }
     // Drop anything the new tombstones just killed, so a purged page can't be served
     // from L1 during the window before its own tombstone check would catch it.
