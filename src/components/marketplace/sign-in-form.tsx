@@ -218,7 +218,7 @@ function handoffVia(): string | null {
 /** All sign-in logic + UI, with NO outer chrome — rendered by both the modal
  *  (SignInDialog) and the dedicated /signin page so they share identical
  *  handlers (Google OAuth, email magic-link, phone OTP). */
-export function SignInForm({ className, collapseEmail = false, onMethod, gate = 'page', resume = null }: {
+export function SignInForm({ className, collapseEmail = false, onMethod, gate = 'page', resume = null, emailLead = false }: {
   className?: string
   /**
    * THE JOIN PRESENTATION (the "Join eno" prompt, signup-prompt.tsx): Google (and Apple, where it runs)
@@ -240,6 +240,8 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   gate?: SignInGate
   /** The action a gate asked to finish after sign-in (UX3 J5) — rides the `next` as `resume=<kind>`. */
   resume?: PendingIntent | null
+  /** Facebook just shared no email — no Facebook button here (see SignInContext.emailLead in auth-context.tsx). */
+  emailLead?: boolean
 }) {
   const { tr, lang } = useLanguage()
   const t = (en: string, vi?: string) => tr(en, vi)
@@ -386,7 +388,8 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   // first render, so no server node can disagree with the mount; the button joins once both are known.
   const facebookOn = useFacebookSignInOn()
   const [facebookHere, setFacebookHere] = useState(false)
-  const showFacebook = facebookOn && facebookHere
+  // ⛔ NOT RIGHT AFTER FACEBOOK SHARED NO EMAIL (`emailLead`): a second tap ends the same way.
+  const showFacebook = facebookOn && facebookHere && !emailLead
   // Any provider is offered here. The divider, and the join presentation's fold, key on this.
   const providersShown = !hideGoogle || showApple || showFacebook
   // The join presentation's fold — see `collapseEmail`. Opening it is one-way for this form's life.

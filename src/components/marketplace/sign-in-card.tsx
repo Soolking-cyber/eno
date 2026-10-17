@@ -37,6 +37,7 @@ export function SignInCard({
   join,
   gate,
   resume,
+  emailLead,
 }: {
   className?: string
   /**
@@ -66,6 +67,8 @@ export function SignInCard({
   gate?: SignInGate
   /** The action to finish after sign-in (UX3 J5) — see SignInForm's `resume`. */
   resume?: PendingIntent | null
+  /** Facebook just shared no email — lead with the emailed code (SignInContext.emailLead). Only the dialog passes it. */
+  emailLead?: boolean
 }) {
   const { tr } = useLanguage()
   const seller = sellerName || tr('the seller', 'người bán')
@@ -140,7 +143,7 @@ export function SignInCard({
       {!listingTitle && note ? (
         <p data-sign-in-note="" className="mt-1.5 text-center text-xs text-muted-foreground">{note}</p>
       ) : null}
-      <SignInForm className="mt-4" gate={gate} resume={resume} />
+      <SignInForm className="mt-4" gate={gate} resume={resume} emailLead={emailLead} />
     </div>
   )
 }

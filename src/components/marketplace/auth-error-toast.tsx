@@ -32,7 +32,7 @@ export function AuthErrorToast() {
   const pathname = usePathname()
   const router = useRouter()
   const { tr } = useLanguage()
-  const { user, openSignIn } = useAuth()
+  const { user, loading, openSignIn } = useAuth()
   // ⚠️ StrictMode double-invokes effects in development, and a toast is a side effect the user can
   // SEE — without this the message appears twice locally and someone "fixes" it by weakening the
   // dependency array. The ref keys on the value, so a genuine second failure still announces.
@@ -45,8 +45,31 @@ export function AuthErrorToast() {
     // in this page's lifetime announces again. Without this the ref kept the code and swallowed it: the comment
     // above promised the opposite (review, 2026-10-07). StrictMode's double run still sees the flag, so it stays one.
     if (!code) { shown.current = null; return }
+    // `no_email` is a popup for someone signed out and a sentence for someone signed in — so it waits until that is
+    // known: a session reads as signed out until the idle boot (an anonymous visitor resolves at once). Review, 2026-10-17.
+    if (code === 'no_email' && loading) return
     if (shown.current === code) return
     shown.current = code
+    const rest = new URLSearchParams(params.toString())
+    rest.delete('auth_error')
+    const qs = rest.toString()
+    /**
+     * ⛔ FACEBOOK SHARED NO EMAIL AND THE VISITOR IS SIGNED OUT: THE POPUP ITSELF, not a toast with a button to it —
+     * the emailed code is the way on (SignInContext.emailLead: its field focused, no Facebook button to tap into
+     * the same refusal again). The note says why in one line. Owner, 2026-10-17: "if no email register with
+     * number", then — with the Quy chế's verified phone or email in front of them — "Email code now".
+     */
+    if (code === 'no_email' && !user) {
+      openSignIn({
+        note: tr(
+          'Facebook didn’t share your email address. Continue with your email instead — we’ll send you a code.',
+          'Facebook không chia sẻ địa chỉ email của bạn. Hãy tiếp tục bằng email — chúng tôi sẽ gửi mã cho bạn.',
+        ),
+        emailLead: true,
+      })
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
+      return
+    }
     const message =
       code === 'signup_disabled'
         ? tr(
@@ -54,11 +77,13 @@ export function AuthErrorToast() {
             'Hiện chưa mở đăng ký tài khoản mới nên chúng tôi chưa tạo được tài khoản cho bạn. Nếu bạn đã có tài khoản, hãy đăng nhập bằng email đã dùng trước đó.',
           )
         // The provider shared no email address (Facebook: a phone-registered account, or email declined in its dialog) —
-        // /auth/callback's `no_email`. Every account here keeps an email, so the way in is the emailed code.
+        // /auth/callback's `no_email`. Only a visitor who is ALREADY signed in reads this one — signed out, the popup
+        // above opens instead — so it says what happened and nothing about creating an account or signing in (review,
+        // 2026-10-17: the old sentence told a signed-in visitor to sign in).
         : code === 'no_email'
         ? tr(
-            'Facebook didn’t share an email address with us, so we could not create your account. Sign in with your email instead — we send you a code.',
-            'Facebook không chia sẻ địa chỉ email với chúng tôi nên chưa tạo được tài khoản cho bạn. Hãy đăng nhập bằng email — chúng tôi gửi mã cho bạn.',
+            'Facebook didn’t share an email address with us, so that sign-in didn’t go through.',
+            'Facebook không chia sẻ địa chỉ email với chúng tôi nên lần đăng nhập đó chưa thực hiện được.',
           )
         // A Facebook identity is never added to an account that already exists (the database guard — /auth/callback's
         // `facebook_linked`): that account keeps the way in it was made with.
@@ -76,12 +101,8 @@ export function AuthErrorToast() {
     // finding the button themselves.
     // The step only for someone signed out — a callback error reaching a signed-in visitor has nothing to retry.
     refusalToast(message, { id: 'auth-error', step: user ? null : { label: tr('Sign in', 'Đăng nhập'), onClick: () => openSignIn() } })
-
-    const rest = new URLSearchParams(params.toString())
-    rest.delete('auth_error')
-    const qs = rest.toString()
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-  }, [code, params, pathname, router, tr, openSignIn, user])
+  }, [code, params, pathname, router, tr, openSignIn, user, loading])
 
   return null
 }

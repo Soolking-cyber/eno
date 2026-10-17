@@ -110,6 +110,15 @@ export type SignInContext = {
    * any pending intent.
    */
   resume?: PendingIntent | null
+  /**
+   * FACEBOOK JUST SHARED NO EMAIL (AuthErrorToast's `no_email`): lead with the emailed code — its field
+   * takes the focus, and the Facebook button stays out of this popup, because a second tap ends the same
+   * way (Meta withholds the email until the app's `email` permission passes App Review; a phone-registered
+   * Facebook account has none). Every account keeps a verified email: the filed Quy chế has sellers
+   * register with a verified phone or email, phone codes are not live, so the code IS the fallback (owner,
+   * 2026-10-17: "Email code now" — over an unverified phone number).
+   */
+  emailLead?: boolean
 }
 
 /** The join presentation's two hooks back to the prompt that opened it. */
@@ -912,6 +921,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           prompt={signInCtx?.prompt}
           gate={signInCtx?.gate}
           resume={signInCtx?.resume ?? null}
+          emailLead={signInCtx?.emailLead}
         />
       )}
     </AuthContext.Provider>

@@ -251,3 +251,37 @@ describe('pressing it', () => {
     expect((screen.getByRole('button', { name: 'Continue with Facebook' }) as HTMLButtonElement).disabled).toBe(false)
   })
 })
+
+// Owner, 2026-10-17: "Email code now" — after Facebook shared no email (AuthErrorToast's `no_email`), the popup leads
+// with the emailed code: its field focused, and no Facebook button to tap into the same refusal again.
+describe('right after Facebook shared no email (emailLead)', () => {
+  const leadPopup = () =>
+    render(
+      <LanguageProvider initialLang="en" initialViDict={VI_DICT}>
+        <SignInDialog open onOpenChange={() => {}} note="Facebook didn’t share your email address." emailLead resume={null} />
+      </LanguageProvider>,
+    )
+
+  it('no Facebook button, Google stays, the note says why, and the email field has the focus', async () => {
+    leadPopup()
+    await settle()
+    expect(screen.queryByRole('button', { name: /Facebook/ })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeTruthy()
+    expect(screen.getByText('Facebook didn’t share your email address.')).toBeTruthy()
+    expect((document.activeElement as HTMLInputElement | null)?.type).toBe('email')
+  })
+
+  it('in Facebook\'s in-app browser too: the emailed code leads, no Facebook button', async () => {
+    ua = FB_ANDROID
+    leadPopup()
+    await settle()
+    expect(screen.getByRole('button', { name: 'Send code' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Facebook/ })).toBeNull()
+  })
+
+  it('any other popup still offers Facebook (the flag is per opening, not sticky)', async () => {
+    popup()
+    await settle()
+    expect(screen.getByRole('button', { name: 'Continue with Facebook' })).toBeTruthy()
+  })
+})

@@ -25,9 +25,9 @@ vi.mock('@/lib/analytics', () => ({ trackSignUp: vi.fn() }))
 vi.mock('@/lib/post-draft-photos', () => ({ clearDraftPhotos: () => Promise.resolve() }))
 vi.mock('next/dynamic', () => ({
   default: () =>
-    function Popup(p: { open: boolean; onOpenChange: (o: boolean) => void; prompt?: unknown; note?: string }) {
+    function Popup(p: { open: boolean; onOpenChange: (o: boolean) => void; prompt?: unknown; note?: string; emailLead?: boolean }) {
       return (
-        <div data-testid="popup" data-open={p.open ? 'yes' : 'no'} data-join={p.prompt ? 'yes' : 'no'}>
+        <div data-testid="popup" data-open={p.open ? 'yes' : 'no'} data-join={p.prompt ? 'yes' : 'no'} data-email-lead={p.emailLead ? 'yes' : 'no'}>
           <button type="button" onClick={() => p.onOpenChange(false)}>visitor closes</button>
         </div>
       )
@@ -47,6 +47,7 @@ function Probe() {
       <button type="button" onClick={() => openSignIn({ prompt: { onDismiss, onMethod } })}>join</button>
       <button type="button" onClick={() => openSignIn()}>plain</button>
       <button type="button" onClick={() => openSignIn({ note: 'Last step: sign in to publish.', onDismiss: onPlainDismiss })}>gate</button>
+      <button type="button" onClick={() => openSignIn({ note: 'Facebook didn’t share your email address.', emailLead: true })}>no email</button>
     </>
   )
 }
@@ -113,5 +114,29 @@ describe('AuthProvider — onDismiss on a plain sign-in', () => {
     await click('plain')
     await click('visitor closes')
     expect(onPlainDismiss).toHaveBeenCalledTimes(1)
+  })
+})
+
+// Owner, 2026-10-17: "Email code now". AuthErrorToast opens the popup with `emailLead` after Facebook shared no email — no
+// Facebook button, the email field focused. ⛔ It is per OPENING: the next open, of either kind, never inherits it (review,
+// 2026-10-17 — asked twice, so pinned here rather than argued).
+describe('AuthProvider — emailLead is per opening', () => {
+  it('reaches THE popup, survives its own close (exit frame), and is gone from the next plain open', async () => {
+    await click('no email')
+    expect(popup().dataset.emailLead).toBe('yes')
+    await click('visitor closes')
+    expect(popup().dataset.open).toBe('no')
+    expect(popup().dataset.emailLead).toBe('yes')
+    await click('plain')
+    expect(popup().dataset.open).toBe('yes')
+    expect(popup().dataset.emailLead).toBe('no')
+  })
+
+  it('and from an eno:require-signin open (an async 401)', async () => {
+    await click('no email')
+    await click('visitor closes')
+    await act(async () => { window.dispatchEvent(new Event('eno:require-signin')) })
+    expect(popup().dataset.open).toBe('yes')
+    expect(popup().dataset.emailLead).toBe('no')
   })
 })

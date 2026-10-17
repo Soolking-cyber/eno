@@ -26,6 +26,8 @@ type Props = {
   gate?: SignInGate
   /** The action a gate asked to finish after sign-in (UX3 J5). */
   resume?: PendingIntent | null
+  /** Facebook just shared no email — the email field takes the focus (see SignInContext.emailLead). */
+  emailLead?: boolean
 }
 
 /**
@@ -69,7 +71,7 @@ const JOIN_FRAME = [
  * "Continue with email or phone", both of which only opened this dialog — a whole extra tap and a
  * second decision in front of a visitor who had already decided.
  */
-export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, sellerName, note, prompt, gate, resume }: Props) {
+export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, sellerName, note, prompt, gate, resume, emailLead }: Props) {
   // A new prompt object is a new ask (signup-prompt.tsx builds one per ask) — a fresh key per ask.
   const askKey = useMemo(() => (prompt ? `ask-${Math.random().toString(36).slice(2)}` : 'none'), [prompt])
   // Whether the join presentation acts on presses yet. Starts false and drops back on every close, so
@@ -86,12 +88,13 @@ export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, s
    * ⛔ IN AN IN-APP BROWSER THE EMAIL FIELD TAKES THE FOCUS (UX3 J2) — the code is how a Facebook or Zalo
    * visitor finishes here, and the form leads with it (SignInForm's `emailFirst`). Base UI's default on a
    * TOUCH open is to focus the popup itself (to keep the keyboard down); for a sign-in the visitor asked
-   * for, the field they are about to type in is the right place. Everywhere else: the default.
+   * for, the field they are about to type in is the right place. Everywhere else: the default — except
+   * right after Facebook shared no email (`emailLead`), where the emailed code is the way on.
    * Only the visitor-opened popup — the join presentation appears on its own and never grabs a field.
    */
   const popupRef = useRef<HTMLDivElement>(null)
   const initialFocus = () => {
-    if (!googleOauthBlocked() || isNativeApp()) return true
+    if ((!googleOauthBlocked() || isNativeApp()) && !emailLead) return true
     return popupRef.current?.querySelector<HTMLInputElement>('input[type="email"]') ?? true
   }
   if (prompt) {
@@ -142,6 +145,7 @@ export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, s
           note={note}
           gate={gate}
           resume={resume}
+          emailLead={emailLead}
         />
       </DialogContent>
     </Dialog>
