@@ -36,9 +36,21 @@
  *      ⚠️ It guards storing, not serving: a reader whose headers the Worker misjudges still gets the
  *      copy for the variant it computed. Guard 1 is what keeps that from happening.
  *
- * ROUTES (zone-level, NOT part of this script — `deploy-worker.sh` leaves them alone). Read from
- * the API 2026-09-23, identical on both zones, apex AND www:
- *   /   /c/*   /privacy*   /safety*   /sellers/*   /terms*
+ * ROUTES (zone-level, NOT part of this script — `deploy-worker.sh` leaves them alone).
+ * ⛔ SINCE 2026-10-17 (speed plan item 10) THE CANONICAL HOSTS CARRY A CATCH-ALL — `eno.vn/*` and `www.eno.forum/*` —
+ * plus NO-SCRIPT routes for `/_next/*`, `/api/*`, `/icons/*` and `/listings/*` on the same hosts (more specific, so they
+ * win: those requests never invoke the Worker). Cloudflare matches a route against the WHOLE URL, query string
+ * included, and only a pattern that ends in `*` can match a query (developers.cloudflare.com/workers/configuration/
+ * routing/routes/) — so the home page's own route, `eno.vn/`, never saw `/?fbclid=…`, `/?utm_…`, `/?zarsrc=…`,
+ * `/?category=…` or `/?q=…`: every one went to the origin (measured at cacheablePath below). With the catch-all this
+ * Worker RECEIVES paths it must not touch, and cacheablePath() is what hands them back untouched.
+ * The OTHER host of each zone gets no catch-all, because it is one hop from the canonical one: www.eno.vn has a Single
+ * Redirect to the apex at the edge (every path, query kept — next.config.ts redirects() is the same rule at the
+ * origin), and the forum apex 308s its pages to www at the origin (that rule keeps api/, _next/, .well-known/, feeds/,
+ * listing-images/ and sw.js on the apex on purpose, so it is not copied into a zone rule).
+ * The routes from before it — read from the API 2026-10-17, identical on both zones, apex AND www:
+ *   /   /c/*   /privacy*   /safety*   /sellers/*   /terms*   (+ /vi and /vi/* on eno.vn, the pilot below)
+ * stay in place (more specific than the catch-all, same script) and are exactly what cacheablePath() mirrors.
  * `/sellers/*` is force-dynamic at the origin (`private, no-store`), so it is passed through
  * uncached — see storable(); the others send `s-maxage` and cache.
  * ⚠️ THE `/vi` PILOT (SEO wave B, V4/V5) ADDS `/vi` AND `/vi/*` ON THE eno.vn ZONE ONLY, apex and www,
@@ -72,8 +84,65 @@
  * freshness is computed from it. A missing stamp is treated as stale — fail toward a refresh.
  */
 
-/** Never cached: assets and APIs have their own headers, and RSC payloads are per-navigation. */
-const PASS = /^\/(_next|api|icons|assets|img)\//;
+/**
+ * ⛔ THE ONLY PATHS THIS WORKER MAY CACHE — ANY OTHER IS HANDED TO THE ORIGIN EXACTLY AS IT CAME (speed plan item 10).
+ * Measured 2026-10-17, before the catch-all route (ROUTES above): `/?fbclid=…`, `/?utm_…` and `/?zarsrc=…` answered
+ * BYPASS from the origin every time (300–700 ms to the first byte from Vietnam, against 100–150 ms for an edge HIT),
+ * and the page-speed totals (rum_daily, 10-16/17) put at most ~15% of real home views on the edge — about half arrived
+ * with a query string, a third signed in. The catch-all fixes the first half, and it also sends this Worker every
+ * page it never used to see (/dashboard, /messages, /teachers/…), so this allowlist is the safety property: it is the
+ * old route list, with each pattern's meaning — `/safety*` is any path that STARTS with `/safety` (`/safety-tips`
+ * too), and the home page is `/` with ANY query, which is the point. ⛔ `/vi` exact or `/vi/…`, NEVER a `/vi` prefix:
+ * that would take `/vietnam-evisa` (see the pilot note above). Assets, APIs and listing pages never get here at all
+ * (no-script routes), and RSC payloads are per-navigation (passed through below).
+ */
+function cacheablePath(p) {
+  return (
+    p === "/" ||
+    p.startsWith("/c/") ||
+    p.startsWith("/privacy") ||
+    p.startsWith("/safety") ||
+    p.startsWith("/terms") ||
+    p.startsWith("/sellers/") ||
+    p === "/vi" ||
+    p.startsWith("/vi/")
+  );
+}
+
+/**
+ * ⛔ CLICK IDS AND CAMPAIGN TAGS DESCRIBE THE VISIT, NOT THE DOCUMENT, SO THE KEY DROPS THEM (speed plan item 10).
+ * Every Facebook click carries a fresh `fbclid`, every Zalo share `zarsrc`/`gidzl`, every campaign `utm_*` — and the
+ * key held the whole query string, so each of those first visits was a MISS (measured 2026-10-17: `/c/rentals?fbclid=…`
+ * MISS on every request). Nothing at the origin reads them for a page this Worker may store: that page is ISR, which
+ * cannot read its query at all, and the readers are in the browser (src/lib/attribution.ts and src/lib/reco-signals.ts
+ * read `location.search`). ONLY THE KEY changes: the request reaches the origin exactly as it came, and the reader's
+ * address bar keeps every parameter. Exact names (any case) plus the `utm_` prefix; a name not on the list stays in the
+ * key — an unknown parameter is assumed to change the page.
+ */
+const TRACKING_PARAMS = new Set([
+  "fbclid", "fb_action_ids", "fb_action_types", "fb_source", "fb_ref", // Meta
+  "gclid", "gbraid", "wbraid", "dclid", "srsltid", "_gl", "_ga", // Google: ads, Merchant listings, cross-domain linker
+  "msclkid", "ttclid", "twclid", "li_fat_id", "rdt_cid", "yclid", // Microsoft, TikTok, X, LinkedIn, Reddit, Yandex
+  "igshid", "igsh", // Instagram shares
+  "zarsrc", "gidzl", // Zalo shares
+  "mc_cid", "mc_eid", // Mailchimp
+]);
+
+/**
+ * The query the KEY carries: the reader's, minus tracking, in the reader's order. Serialised through URLSearchParams
+ * whenever there is a query, so `?q=a%20b` and `?q=a+b&fbclid=x` (the same parameters to Next, which parses the query
+ * the same way) share one entry; the serialisation is one-to-one, so two queries the origin reads differently never do.
+ */
+function keySearch(url) {
+  if (!url.search) return "";
+  const params = new URLSearchParams(url.search);
+  for (const name of [...new Set(params.keys())]) {
+    const n = name.toLowerCase();
+    if (n.startsWith("utm_") || TRACKING_PARAMS.has(n)) params.delete(name);
+  }
+  const s = params.toString();
+  return s ? "?" + s : "";
+}
 /** Serve from cache without revalidating for this long (seconds). Matches the app's ISR window. */
 const FRESH_TTL = 300;
 /**
@@ -235,7 +304,8 @@ function refreshHeaders(request) {
 }
 
 function cacheKeyFor(url, variant) {
-  const keyUrl = url.origin + url.pathname + (url.search ? url.search + "&" : "?") + "__k=" + variant;
+  const search = keySearch(url);
+  const keyUrl = url.origin + url.pathname + (search ? search + "&" : "?") + "__k=" + variant;
   return new Request(keyUrl, { method: "GET" });
 }
 
@@ -311,9 +381,17 @@ function withTiming(res, timing) {
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if (!cacheablePath(url.pathname)) return fetch(request);
     if (request.method !== "GET") return fetch(request);
     if (request.headers.get("rsc")) return fetch(request);
-    if (PASS.test(url.pathname)) return fetch(request);
+    /**
+     * ⛔ FAIL OPEN, BUT ONLY FOR THE READS THIS WORKER CACHES (speed plan item 10). An exception in the cache logic
+     * below hands the request to the origin instead of a Cloudflare error page. ⚠️ Not set before the returns above:
+     * passing through RE-SENDS the request, and the catch-all routes server-action POSTs and every other write through
+     * here — a pass-through fetch that throws after the origin acted would repeat the write (gate review). A GET
+     * replayed costs one more render; the early returns hold no logic that could throw.
+     */
+    if (typeof ctx.passThroughOnException === "function") ctx.passThroughOnException();
     /** ⚠️ Signed-in readers bypass entirely — a personalised document must never enter a shared key. */
     const cookie = request.headers.get("cookie") || "";
     if (cookie.includes("-auth-token")) {
@@ -399,14 +477,16 @@ export default {
 
     const now = Date.now();
     const store = toStored(res, now);
-    let diag;
-    try {
-      await cache.put(key, store.clone());
-      /** Read straight back: separates "put silently refused" from "put fine, later read misses". */
-      diag = (await cache.match(key)) ? "put-ok,readback-ok" : "put-ok,READBACK-MISSING";
-    } catch (e) {
-      diag = "put-threw:" + String(e && e.message).slice(0, 90);
-    }
+    /**
+     * ⛔ THE READER DOES NOT WAIT FOR THE STORE (speed plan item 10, 2026-10-17). `await cache.put()` drained the WHOLE
+     * body into the cache before the first byte went out, and a read-back after it (`x-eno-diag`, the 2026-09-20 Vary
+     * trap's probe — see toStored) cost one more cache round trip: measured, a MISS reached the reader 30–140 ms after
+     * the origin's own first byte. Now the store runs behind the reader and the body streams to both; a failed put
+     * costs what a skipped one does — the next reader MISSes again. ⚠️ So a put that ALWAYS fails would look like a
+     * cold cache: the signal is x-eno-cache / the page-speed `ecache` totals never reaching HIT, and this warning in
+     * the Worker's logs (`wrangler tail eno-html-edge-cache`).
+     */
+    ctx.waitUntil(cache.put(key, store.clone()).catch((e) => console.warn("eno-html-edge-cache: cache.put failed:", String(e && e.message).slice(0, 120))));
     const out = forClient(store.body, store, "MISS", now, timingFor(request, "MISS", res, originMs));
     /**
      * ⛔ THE READER STILL GETS THEIR Set-Cookie. `toStored` strips it so a per-visitor cookie can
@@ -423,7 +503,6 @@ export default {
      *  simplest case. This is the one header the Headers iterator cannot represent. */
     const setCookies = typeof res.headers.getSetCookie === "function" ? res.headers.getSetCookie() : [];
     for (const c of setCookies) out.headers.append("set-cookie", c);
-    out.headers.set("x-eno-diag", diag);
     return out;
   },
 };

@@ -11,7 +11,7 @@ import { join } from 'node:path'
  * the older DDL scripts can rebuild an index the diet removed.
  */
 const ROOT = join(__dirname, '..', '..')
-const { CREATES, DROPS, DROP_UNUSED, KEEP, LIVE, VERIFY, UNUSED_DAYS, keepReason, isPoolerUrl, defLabel, forcedNames } = await import('../../scripts/listing-index-diet-ddl.mjs')
+const { CREATES, DROPS, DROP_UNUSED, KEEP, LIVE, VERIFY, UNUSED_DAYS, keepReason, isPoolerUrl, defLabel, forcedNames, AUTOVACUUM } = await import('../../scripts/listing-index-diet-ddl.mjs')
 const SCHEMA = readFileSync(join(ROOT, 'prisma/schema.prisma'), 'utf8')
 
 /** The index names Prisma derives for a model's @@index / @@unique lines (default naming, 63-character truncation). */
@@ -203,6 +203,14 @@ describe('create builds every index it can', () => {
   it('one failed build is reported and the loop goes on — the rest are not left unbuilt', () => {
     const src = readFileSync(join(ROOT, 'scripts/listing-index-diet-ddl.mjs'), 'utf8')
     expect(src).toMatch(/try \{\n\s+await q\(`CREATE INDEX CONCURRENTLY IF NOT EXISTS[^\n]*\n\s+\} catch \(e\) \{[\s\S]{0,200}process\.exitCode = 1\n\s+continue/)
+  })
+})
+
+describe('create also sets the table\'s autovacuum (owner, 2026-10-17)', () => {
+  it('2% instead of the 20% default — a rebuilt database gets it from db:ddl like the indexes', () => {
+    expect(AUTOVACUUM).toBe('autovacuum_vacuum_scale_factor = 0.02, autovacuum_analyze_scale_factor = 0.02')
+    const src = readFileSync(join(ROOT, 'scripts/listing-index-diet-ddl.mjs'), 'utf8')
+    expect(src).toMatch(/await q\(`ALTER TABLE public\."Listing" SET \(\$\{AUTOVACUUM\}\)`\)/)
   })
 })
 

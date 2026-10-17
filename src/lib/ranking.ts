@@ -44,9 +44,43 @@ export async function recomputeRankScoreForSeller(sellerId: string): Promise<voi
     .catch((e) => logError(e, { op: 'ranking.recomputeForSeller' }))
 }
 
-/** Daily re-decay sweep: refresh rankScore for every live listing. Returns rows touched. */
+/** Live rows the nightly sweep re-scores per statement. */
+export const SWEEP_BATCH = 500
+
+/**
+ * Daily re-decay sweep: refresh rankScore for every live listing. Returns rows touched.
+ *
+ * ⚠️ IN BATCHES, EACH ITS OWN STATEMENT (speed plan item 9, 2026-10-17). One UPDATE over every live row held every row's
+ * lock until the whole statement committed. Measured on production (pg_stat_statements since 2026-09-20): 34 s mean,
+ * 58 s max while ~65k rows were live — and the view counter, description and attribute writes on those rows waited
+ * behind it, up to 40 s. Now the ids are read first (the live partial indexes answer that) and re-scored 500 at a time,
+ * so a write waits for one batch at most. A row that leaves the live set meanwhile is skipped by the WHERE; one that
+ * joins it was scored when it was published.
+ * ⚠️ A FAILED BATCH (a deadlock, the server's 30 s statement limit) does not stop the others — every later batch would
+ * otherwise keep yesterday's score — and the sweep then throws, naming how many failed, so the cron logs it.
+ * ⛔ NO `.catch(() => 0)`: swallowed here, a sweep that re-scored nothing looked exactly like a quiet night.
+ * (Every live row's score changes nightly — the recency term decays continuously — so there is nothing to skip.)
+ */
 export async function recomputeRankScoreAllActive(): Promise<number> {
-  return db
-    .$executeRaw(Prisma.sql`UPDATE "Listing" SET ${SET_RANK_SCORE} WHERE "verified" = true AND "status" = 'active'`)
-    .catch(() => 0)
+  const rows = await db.$queryRaw<{ id: string }[]>(
+    Prisma.sql`SELECT "id" FROM "Listing" WHERE "verified" = true AND "status" = 'active' ORDER BY "id"`,
+  )
+  const ids = rows.map((r) => r.id)
+  let touched = 0
+  const failed: unknown[] = []
+  for (let i = 0; i < ids.length; i += SWEEP_BATCH) {
+    try {
+      touched += await db.$executeRaw(
+        Prisma.sql`UPDATE "Listing" SET ${SET_RANK_SCORE}
+          WHERE "id" IN (${Prisma.join(ids.slice(i, i + SWEEP_BATCH))}) AND "verified" = true AND "status" = 'active'`,
+      )
+    } catch (e) {
+      failed.push(e)
+    }
+  }
+  if (failed.length) {
+    const batches = Math.ceil(ids.length / SWEEP_BATCH)
+    throw new Error(`rank sweep: ${failed.length} of ${batches} batches failed (${touched} rows re-scored)`, { cause: failed[0] })
+  }
+  return touched
 }
