@@ -296,7 +296,7 @@ export const isGateAction = (v: unknown): v is GateAction => typeof v === 'strin
  *   step_<step>        — a later step (where / teaching / about / cover / finish) came on screen
  *   video_picked       — an intro video was chosen
  *   video_refused      — this browser's check turned it down before uploading (too long, too big, cannot compress…)
- *   video_failed       — the upload itself failed
+ *   video_failed       — an error while preparing it in this browser or uploading it (not the check's refusal above)
  *   video_uploaded     — the video was uploaded (it is on the profile only once Publish goes through)
  *   publish_tap        — Publish tapped (signed in)
  *   publish_refused_*  — the form refused it, for: the video / the photo (missing, or the photo check's refusal) / the goal

@@ -69,7 +69,7 @@
  * ⛔ Re-date with the deploy, as above.
  * And 2026-10-17 again (the deploy day of the teacher funnel's measurement — owner 2026-10-17: "rest recommended", the
  * bounce study's "count what is invisible", then "deploy" that evening): the "Sign-up reminder counts" paragraph now also
- * names the teacher form's later steps reached, the intro video chosen / turned down in the browser / failed / uploaded,
+ * names the teacher form's later steps reached, the intro video chosen / turned down in the browser / not prepared or uploaded / uploaded,
  * Publish tapped / refused (for the video, the photo, the kind of work or another answer) / did not go through, "Open in
  * Safari" or "Open in your browser" tapped, and — with step 1's Continue — the coarse source of the link (an ad's, a
  * Facebook group's, Zalo's, another, none; read from the page's own address, never stored apart from the total). The
@@ -93,4 +93,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-17'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '94218b6436993387'
+export const PRIVACY_TEXT_FINGERPRINT = '83c886fc31028c88'

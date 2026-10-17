@@ -1354,7 +1354,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       setMeKnown(true)
       if (answered) setMeReadFor(uid)
     }).catch(() => { if (alive) setMeKnown(true) })
-    return () => { alive = false; clearTimeout(slow) }
+    // A new read (a sign-out, a sign-in — even back into the same account) forgets the last answer: only THIS one counts.
+    return () => { alive = false; clearTimeout(slow); setMeReadFor(null) }
   }, [mode, uid])
 
   // ── Join: the account's own name, phone and photo fill EMPTY answers (owner, 2026-10-16: "autofill as much as possible
@@ -2233,8 +2234,9 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   // …and every later step of a NEW profile as it comes on screen (step_<step>), so a stop between sign-in and Publish shows
   // WHERE (2026-10-17: 81% of starters published before 10-16, 31% after, and nothing said at which step the rest stopped).
   // ⛔ On screen, as step 1 is (review, 2026-10-17): never behind the spinner a restored later-step draft waits under, and
-  // for a signed-in account only once /api/teachers/me has said there is no profile yet — its slow timer is not an answer.
-  const stepShown = mode === 'join' && !existing && !done && door === 'self' && loaded && !draftPending && !doorWaits && (!uid || meRead)
+  // only once /api/teachers/me has said this account has no profile yet (meRead) — its slow timer is not an answer, and
+  // every later step is a signed-in step, so no account means nothing to count.
+  const stepShown = mode === 'join' && !existing && !done && door === 'self' && loaded && !draftPending && !doorWaits && meRead
   useEffect(() => {
     if (!stepShown) return
     const ev = STEP_REACHED[step]
