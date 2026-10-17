@@ -572,3 +572,25 @@ describe('<ResultLine> count, ladder and save-search', () => {
     expect(screen.getByRole('button', { name: 'Clear all' })).toBeDefined()
   })
 })
+
+/**
+ * ⛔ ONE CHIP STYLE (owner, 2026-10-18): an applied filter wears the browse chip's ON look — 36px, the brand tint and
+ * accent ink, no hairline — like the applied pills on the strip above it. And the explorer can hide the live count
+ * visually on its undirected phone row (`countClassName`), where the title's line pictures the number instead.
+ */
+describe('ResultLine — the browse chip, and the count\'s own classes', () => {
+  it('an applied filter is a 36px brand pill with no border', () => {
+    renderIn('en', <ResultLine count={3} filters={[chip('district', 'Thảo Điền')]} />)
+    const pill = screen.getByText('Thảo Điền').closest('[data-slot="removable-badge"]')!
+    const cls = (pill.getAttribute('class') ?? '').split(/\s+/)
+    expect(cls).toEqual(expect.arrayContaining(['min-h-9', 'border-0', 'text-sm', 'bg-brand-50', 'text-accent-foreground', 'rounded-full']))
+    expect(cls).not.toContain('min-h-7')
+  })
+
+  it('`countClassName` lands on the live count — and only there', () => {
+    renderIn('en', <ResultLine count={3} filters={[]} countClassName="max-sm:sr-only" />)
+    const live = document.querySelector('[data-slot="result-line"] p[aria-live]')!
+    expect(live.getAttribute('class')).toContain('max-sm:sr-only')
+    expect(live.textContent).toBe('3 listings')
+  })
+})

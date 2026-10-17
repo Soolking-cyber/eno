@@ -8,9 +8,12 @@ import { ListingCard } from './listing-card'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 import { LISTING_GRID } from './listing-grid'
 import { sortTabClass } from './sort-tab-class'
+import { CustomSelect } from './custom-select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { PILL_BOX, PILL_ON, PILL_OPEN_ATTR, PILL_REST } from '@/components/ui/chip-style'
+import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/ui/empty-state'
 import { fold } from '@/lib/fold'
 import { hapticSelection } from '@/lib/haptics'
@@ -251,6 +254,71 @@ export function SellerListings({
   }
 
   const salary = priceLabel === 'salary'
+
+  /** Server mode's own note: what is on screen, out of the scope's true size. */
+  const resultTotal = serverMode ? (remote?.key === queryKey ? remote.total : serverScope!.total) : 0
+  /**
+   * ⛔ THE GRID IS EMPTY WHILE A NEW QUERY IS IN FLIGHT, AND THE NOTE MUST NOT REPORT THAT AS AN
+   * ANSWER. `shown` is deliberately `[]` between asking for a sort and receiving it — showing the
+   * previous rows would present the newest 60 as "cheapest first". But the count line then read
+   * "Showing 0 of 9,726" over a blank grid, which on a slow connection is several seconds of a shop
+   * that looks empty. Announcing a zero through `aria-live` is worse still. So while it is loading
+   * the surface says it is loading, and skeletons stand in for the cards (external review).
+   */
+  const awaitingFirstRows = serverMode && loading && shown.length === 0
+  const grouped = (n: number) => n.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US')
+
+  /**
+   * ⛔ THE PHONE SORTS WITH A PILL, NOT THE TABS (owner, 2026-10-18: the home's sort/filter pattern on /c pages and
+   * storefronts). Below sm the underline tabs were a scroller that cut "Most contacted" at the Filters link; the
+   * row is now the explorer's phone row — the sort pill (the same five orders through the same Base UI select),
+   * then `stripEnd` (/c's Filters, a chip there), then the count. From sm the tablist is unchanged.
+   * The pill rests on the tint while the page's own order is on, and takes the brand tint for any other.
+   */
+  const sortOptions: { value: SortKey; label: string }[] = [
+    { value: 'relevance', label: tr('Relevance', 'Liên quan') },
+    { value: 'recent', label: tr('Newest', 'Mới nhất') },
+    { value: 'popular', label: tr('Most contacted', 'Được quan tâm') },
+    { value: 'price-low', label: salary ? tr('Salary: low to high', 'Lương: thấp đến cao') : tr('Price: low to high', 'Giá: thấp đến cao') },
+    { value: 'price-high', label: salary ? tr('Salary: high to low', 'Lương: cao đến thấp') : tr('Price: high to low', 'Giá: cao đến thấp') },
+  ]
+  // The tab's own words, so the pill stays as narrow as a tab ("Price" + its arrow, not the menu's long label).
+  const sortPillLabel = priceSortActive
+    ? (salary ? tr('Salary', 'Lương') : tr('Price', 'Giá'))
+    : (sortOptions.find((o) => o.value === sort)?.label ?? tr('Sort by', 'Sắp xếp'))
+  const SortGlyph = sort === 'price-low' ? ArrowUp : sort === 'price-high' ? ArrowDown : ArrowUpDown
+  const sortPill = (
+    <CustomSelect
+      value={sort}
+      onChange={(v) => { hapticSelection(); setSort(v as SortKey) }}
+      options={sortOptions}
+      label={tr('Sort by', 'Sắp xếp theo')}
+      triggerLabel={sortPillLabel}
+      icon={<SortGlyph className={cn('size-3.5 shrink-0', sort === initialSort && 'text-ink-4')} />}
+      indicator="down"
+      searchable={false}
+      className={cn(PILL_BOX, PILL_OPEN_ATTR)}
+      // CustomSelect paints every value but 'all' / 'newest' as applied; here "applied" means "not the page's own order".
+      activeClassName={sort === initialSort ? PILL_REST : PILL_ON}
+      wrapperClassName="w-auto shrink-0 sm:hidden"
+    />
+  )
+  /**
+   * ⛔ THE COUNT RIDES THE PHONE'S SORT ROW (owner, 2026-10-18: "Showing N of M" into the toolbar line) — in short
+   * form, "48 of 736" / "736 listings", so the row holds it; from sm the sentence below the strip is unchanged.
+   * Exactly one of the two is displayed at any width (`sm:hidden` / `max-sm:hidden` on its twin), so a screen reader
+   * hears one live count. It truncates last, and drops to its own line before it would cut the pill or Filters.
+   */
+  const phoneNote = serverMode && !loadError && (
+    <p className="ml-auto min-w-0 truncate text-xs text-muted-foreground sm:hidden" aria-live="polite">
+      {awaitingFirstRows
+        ? tr('Searching…', 'Đang tìm…')
+        : shown.length >= resultTotal
+          ? `${grouped(resultTotal)} ${resultTotal === 1 ? tr('listing', 'tin đăng') : tr('listings', 'tin đăng')}`
+          : tr('{shown} of {total}', '{shown}/{total} tin').replace('{shown}', grouped(shown.length)).replace('{total}', grouped(resultTotal))}
+    </p>
+  )
+
   // Same tab visuals as the explorer's results strip (kept in sync deliberately),
   // minus the sticky/header-hide coupling — this landing page is short.
   // ⚠️ THE HAIRLINE SITS ON THE CONTENT BOX, like the home toolbar's and the canon's (§4: no doubled
@@ -258,12 +326,14 @@ export function SellerListings({
   // under it at 1440 (C1-HAIRLINE). Tab label x positions are unchanged: the bleed's padding undid it.
   // `data-horizontal:flex-row` restates the base's `data-horizontal:flex-col` with its own modifier so
   // tailwind-merge drops it; the base's gap-2 is what separates `stripEnd` from the last tab.
+  // `max-sm:py-1`: the phone pills' air above the hairline and the room their 44px hit area needs (ui/chip-style PILL_BOX).
   const sortStrip = (
     <Tabs
       value={tabValue}
       onValueChange={(v) => onTabValueChange(String(v))}
-      className="flex items-center border-b border-border data-horizontal:flex-row"
+      className="flex items-center border-b border-border data-horizontal:flex-row max-sm:flex-wrap max-sm:gap-y-1 max-sm:py-1"
     >
+      {sortPill}
       {/* activateOnFocus=false = MANUAL activation: arrows move focus, Enter/Space commits.
           Auto-activation would double-fire Price — focus activates it (asc), then the same
           click's onClick sees it active and cycles straight on to desc.
@@ -276,7 +346,8 @@ export function SellerListings({
       <TabsList
         variant="line"
         activateOnFocus={false}
-        className="scrollbar-none -mb-px flex min-w-0 flex-1 flex-nowrap items-center justify-start gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-none bg-transparent p-0 group-data-horizontal/tabs:h-auto"
+        // `max-sm:hidden`: a phone sorts with the pill above (2026-10-18).
+        className="scrollbar-none -mb-px flex min-w-0 flex-1 flex-nowrap items-center justify-start gap-1 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-none bg-transparent p-0 group-data-horizontal/tabs:h-auto max-sm:hidden"
       >
         <TabsTrigger value="relevance" className={sortTabClass(sort === 'relevance')}>
           {tr('Relevance', 'Liên quan')}
@@ -307,41 +378,25 @@ export function SellerListings({
           )}
         </TabsTrigger>
       </TabsList>
-      {/* A short rule between the reel and `stripEnd`, on a phone only: at 390px the tabs overflow
-          and scroll under it, and without an edge "Most contacted" read as cut off by the link
-          rather than passing behind a separate control. From sm the row fits and the link sits at
-          the far end on its own. */}
-      {stripEnd && (
-        <div className="flex shrink-0 items-center gap-3">
-          <span aria-hidden className="h-5 w-px bg-border sm:hidden" />
-          {stripEnd}
-        </div>
-      )}
+      {/* At the far end from sm (the tablist takes the rest); right after the pill on a phone. The short rule
+          that stood before it on a phone — an edge for the tabs scrolling under the link — went with the tabs. */}
+      {stripEnd && <div className="flex shrink-0 items-center">{stripEnd}</div>}
+      {phoneNote}
     </Tabs>
   )
 
-  /** Server mode's own note: what is on screen, out of the scope's true size. */
-  const resultTotal = serverMode ? (remote?.key === queryKey ? remote.total : serverScope!.total) : 0
-  /**
-   * ⛔ THE GRID IS EMPTY WHILE A NEW QUERY IS IN FLIGHT, AND THE NOTE MUST NOT REPORT THAT AS AN
-   * ANSWER. `shown` is deliberately `[]` between asking for a sort and receiving it — showing the
-   * previous rows would present the newest 60 as "cheapest first". But the count line then read
-   * "Showing 0 of 9,726" over a blank grid, which on a slow connection is several seconds of a shop
-   * that looks empty. Announcing a zero through `aria-live` is worse still. So while it is loading
-   * the surface says it is loading, and skeletons stand in for the cards (external review).
-   */
-  const awaitingFirstRows = serverMode && loading && shown.length === 0
   // Not over a failed query either: "Showing 0 of 63,652" above "Couldn't load listings." reported
   // the failure as an empty answer.
+  // `max-sm:hidden` beside a strip: there the phone reads the short twin on the sort row (`phoneNote`).
   const serverNote = serverMode && !loadError && (
-    <p className="text-xs text-muted-foreground" aria-live="polite">
+    <p className={cn('text-xs text-muted-foreground', sortable && 'max-sm:hidden')} aria-live="polite">
       {awaitingFirstRows
         ? tr('Searching all listings…', 'Đang tìm trong tất cả tin đăng…')
         : (shown.length >= resultTotal
             ? plural(resultTotal, tr('{total} listing.', '{total} tin đăng.'), tr('{total} listings.', '{total} tin đăng.'))
             : tr('Showing {shown} of {total} listings.', 'Đang hiển thị {shown} trong {total} tin đăng.'))
-            .replace('{shown}', shown.length.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US'))
-            .replace('{total}', resultTotal.toLocaleString(lang === 'vi' ? 'vi-VN' : 'en-US'))}
+            .replace('{shown}', grouped(shown.length))
+            .replace('{total}', grouped(resultTotal))}
     </p>
   )
 

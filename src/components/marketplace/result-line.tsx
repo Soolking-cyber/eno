@@ -125,6 +125,12 @@ export type ResultLineProps = {
    * half renders exactly as before — one scroller, no wrapper.
    */
   countTrailing?: React.ReactNode
+  /**
+   * Extra classes for the count itself — the live `<p>`. The explorer's undirected phone row hides it visually
+   * (sr-only, behind the E-SSR mask gate) because the same number is drawn on the title's line there (owner,
+   * 2026-10-18: one compact line); the live region itself never moves or doubles.
+   */
+  countClassName?: string
   className?: string
 }
 
@@ -258,6 +264,7 @@ export function ResultLine({
   term,
   appliedCount,
   countTrailing,
+  countClassName,
 }: ResultLineProps) {
   const { lang, tr } = useLanguage()
   const ladder = crumbs ?? []
@@ -469,7 +476,7 @@ export function ResultLine({
             user is mid-gesture and will hear it at the next pause.
             `tabIndex={-1}` makes it a programmatic focus destination only (never in the tab
             order) for the last-chip-removed case above. */}
-        <p ref={countRef} tabIndex={-1} aria-live="polite" className="text-xs font-bold text-ink sm:text-sm">
+        <p ref={countRef} tabIndex={-1} aria-live="polite" className={cn('text-xs font-bold text-ink sm:text-sm', countClassName)}>
           {count === null ? null : term?.trim() ? resultsForLabel(count, term, lang, tr) : resultCountLabel(count, lang, tr)}
         </p>
 
@@ -602,6 +609,11 @@ export function ResultLine({
                     onReopen={f.onReopen}
                     // No `reopenLabel`: the button's accessible name is its visible text, which
                     // is what WCAG 2.5.3 wants and pairs cleanly with "Remove <label>" beside it.
+                    // ⛔ THE BROWSE CHIP'S "ON" LOOK (owner, 2026-10-18: one chip style): 36px like every chip on
+                    // the page (ui/chip `md`), brand tint and accent ink (PILL_ON), no hairline — the applied
+                    // pills above it carry none either. The ✕ (24px) and its vertical extender sit inside the
+                    // 36px pill; the list's `py-2.5` room is unchanged.
+                    className="min-h-9 border-0 pl-3.5 text-sm text-accent-foreground"
                   />
                 </li>
               ))}

@@ -3,6 +3,7 @@
 import { useSyncExternalStore, type ReactNode } from 'react'
 import { useLanguage, Tr } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
+import { PILL_BOX, PILL_REST } from '@/components/ui/chip-style'
 import { Toggle } from '@/components/ui/toggle'
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ChevronDown, LayoutGrid, Plus, UserRound } from '@/components/ui/icons'
@@ -99,11 +100,15 @@ export function LadderCompactRow({
   const teacherDoor = !!active && TEACHER_DOOR_CATEGORIES.includes(active.slug)
   const subRow = subs.length > 0 || teacherDoor
 
-  // One chip look for every rung. 44px tall so the whole visible pill is the hit area (the facet
-  // pills directly below are 48px); pressed = the same brand-50 tint the rail uses for "chosen".
-  const chipCls =
-    'min-h-11 shrink-0 whitespace-nowrap rounded-full px-3.5 text-sm font-semibold transition-[background-color,color,scale] duration-150 ease-[var(--ease-out-strong)] active:scale-[0.97] motion-reduce:transition-none ' +
-    'bg-tint text-body data-pressed:bg-brand-50 data-pressed:text-accent-foreground'
+  // One chip look for every rung — the browse chip (ui/chip-style PILL_*, owner 2026-10-18: one chip style), the same
+  // 36px tinted pill as the facet pills directly below, with an invisible 44px hit area (`tap-44`, which the
+  // scroller's `py-1` leaves room for); pressed = the brand tint the rail uses for "chosen".
+  const chipCls = cn(
+    PILL_BOX,
+    PILL_REST,
+    'shrink-0 whitespace-nowrap transition-[background-color,color,scale] duration-150 ease-[var(--ease-out-strong)] active:scale-[0.97] motion-reduce:transition-none',
+    'data-pressed:bg-brand-50 data-pressed:text-accent-foreground',
+  )
 
   return (
     <div className="flex items-center gap-2" data-slot="ladder-compact-row">
@@ -111,7 +116,7 @@ export function LadderCompactRow({
           concatenated, not merged, so only the primitive's own className beats its base classes
           (CLAUDE.md — the same shape custom-select.tsx uses). */}
       <CollapsibleTrigger
-        render={<Button variant="bare" size="none" className="min-h-11 shrink-0 gap-1.5 rounded-full bg-brand-50 pl-3 pr-2.5 text-sm font-bold text-accent-foreground" />}
+        render={<Button variant="bare" size="none" className="relative tap-44 min-h-9 shrink-0 gap-1.5 rounded-full bg-brand-50 pl-3 pr-2.5 text-sm font-bold text-accent-foreground" />}
       >
         {active
           ? <CategoryIcon name={active.icon} stroke={STROKE_UI} selected className="h-4 w-4 shrink-0" />
@@ -131,7 +136,8 @@ export function LadderCompactRow({
           aria-label={subRow ? tr('Subcategories', 'Danh mục con') : tr('Categories', 'Danh mục')}
           // Bleeds to the page's right gutter so the last chip is cut by the screen edge, not by an
           // invisible box — which is what says "this row scrolls".
-          className="-mr-3 flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain scrollbar-none pr-3 sm:-mr-6 sm:pr-6"
+          // `-my-1 py-1`: room inside the scroller's clip for the chips' 44px hit area, without moving the row.
+          className="-my-1 -mr-3 flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto overscroll-x-contain scrollbar-none py-1 pr-3 sm:-mr-6 sm:pr-6"
         >
           {subRow ? (
             <>

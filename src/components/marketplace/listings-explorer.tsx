@@ -47,7 +47,7 @@ import { peekWard, provinceByCode, rememberWard, resolveWard } from '@/lib/vn-ar
 import { useDropStaleDistrict } from './use-drop-stale-district'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch, hasSavableSearch } from './use-explorer'
-import { ViewToggles, SortStrip } from './explorer-toolbar'
+import { ViewToggles, ViewSwitch, SortStrip } from './explorer-toolbar'
 import { ResultLine, resultCountLabel, shouldOfferSaveSearch } from './result-line'
 import { Spinner } from '@/components/ui/spinner'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
@@ -300,7 +300,7 @@ function releaseFeedEntry() {
 // and the FacetBar is no longer "filter-only", because home and search are one view and the
 // facets sit above the feed on both. FacetBar is therefore now a cold-path chunk that mounts
 // AFTER hydration directly above the grid, which is why its slot is height-reserved at the
-// call site (min-h-12 — the reasoning is spelled out there). ForYouRail + BusinessRail stay STATIC: they SSR their
+// call site (min-h-9 today — the reasoning is spelled out there). ForYouRail + BusinessRail stay STATIC: they SSR their
 // shimmer skeleton (reserving the rail's height) so they don't pop in and shift the feed
 // — `ssr:false` here caused the CLS "layout shift culprits". They're tiny (reuse the
 // already-bundled ListingCard), so the JS cost is negligible.
@@ -4632,8 +4632,10 @@ export function ListingsExplorer({
               className="recents-row h-11 items-center gap-2 overflow-x-auto overscroll-x-contain scrollbar-none"
             >
               <Clock className="h-4 w-4 shrink-0 text-ink-4" aria-hidden />
+              {/* The browse chip, `md` (owner, 2026-10-18: one chip style). 36px inside the reserved 44px row, so
+                  its `tap-44` hit area fits the row's own box, which this scroller clips to. */}
               {recentTerms.map((term) => (
-                <Chip key={term} size="sm" tone="neutral" onClick={() => handleLandingSearch(term)} className="relative tap-44 max-w-[14rem]">
+                <Chip key={term} size="md" tone="neutral" onClick={() => handleLandingSearch(term)} className="relative tap-44 max-w-[14rem]">
                   <span className="truncate">{term}</span>
                 </Chip>
               ))}
@@ -4643,13 +4645,13 @@ export function ListingsExplorer({
           {/* Category-aware facet bar (replaces the old sidebar). Now on the HOME view too —
               area, price, condition and intent are what "home is also a search page" means in
               practice, and they were previously unreachable without first leaving the landing.
-              ⚠️ min-h-12 IS A RESERVATION, NOT DECORATION. <FacetBar> is a `ssr:false` dynamic
+              ⚠️ THE `min-h-*` ON ITS SLOT IS A RESERVATION, NOT DECORATION. <FacetBar> is a `ssr:false` dynamic
               (see the import), so it is absent from the ISR HTML and mounts after hydration —
               directly ABOVE the feed. Without a reserved row the whole grid would be pushed down
               on every cold load, which is precisely the CLS class this page paid 0.142 → 0.002 to
-              get rid of. 44px (48 until 2026-09-30) is the bar's own single-row height, not a guess: every
-              pill is a <CustomSelect> whose trigger carries facet-bar's `min-h-11` `cls`, and the bar is
-              one `flex items-center` row (flex-nowrap + overflow-x-auto on mobile, so it can
+              get rid of. 36px (44 from 2026-09-30, 48 before) is the bar's own single-row height, not a guess:
+              every pill is ui/chip-style's 36px PILL_BOX (facet-bar's `cls` — the one chip style, owner 2026-10-18),
+              and the bar is one `flex items-center` row (flex-nowrap + overflow-x-auto on mobile, so it can
               never wrap there). It can wrap to a second row on a narrow DESKTOP window, which
               costs one late row of shift; re-measure here if that becomes visible. */}
 
@@ -4675,7 +4677,7 @@ export function ListingsExplorer({
           {/* ⛔ ONE LINE: FILTERS LEFT, SORT RIGHT (owner, 2026-08-12: "clean 2 lines fit all").
               The facet bar is passed INTO the sort strip rather than rendered above it, because
               the strip is the sticky bar and its top offsets carry the safe-area / Capacitor /
-              edge-bleed behaviour — see the `leading` prop's note. `min-h-12` rides along: the
+              edge-bleed behaviour — see the `leading` prop's note. The `min-h-9` reservation rides along: the
               FacetBar is a ssr:false dynamic, so without a reserved row the grid below shifts on
               every cold load, which is the CLS class this page paid 0.142 → 0.002 to remove.
               ⛔ LOCAL TRY, 2026-09-30 — THE OWNER ASKED TO TRY ONE ROW ON PHONES, reversing "clean 2 lines
@@ -4695,7 +4697,7 @@ export function ListingsExplorer({
             goodPriceOffered={offeredKeys(facetCounts.deal, ['good'], null, { hideNoOp: true }).length > 0}
             headerHidden={headerHidden}
             leading={
-              <div className="min-h-11">
+              <div className="min-h-9">
                 <FacetBar
                   openFilterSignal={openFilterSignal}
                   facetCounts={facetCounts}
@@ -4741,8 +4743,10 @@ export function ListingsExplorer({
               </div>
             }
           />
-          {/* ⚠️ The reservation above is `min-h-11` since 2026-09-30: the facet pills went 48 → 44 (the
-              44px floor) as the "filter" half of the home-fold trim. It must equal the pills' height. */}
+          {/* ⚠️ The reservation above is `min-h-9` since 2026-10-18: the facet pills became 36px tinted chips
+              with an invisible 44px hit area (owner: one chip style; they went 48 → 44 on 2026-09-30). It must
+              equal the pills' height. On a phone the row around it adds `py-1` for the hit area, so the strip
+              is the 44px it was (explorer-toolbar.tsx). */}
 
           {/* THE RESULTS HEADER — one row that serves both states, which is the point.
               Undirected it is the feed's section heading, styled like every other home section
@@ -4822,7 +4826,10 @@ export function ListingsExplorer({
               NOT `#listings` — that section opens with the category rail and the toolbar, the ~30 Tab
               stops the skip exists to pass; from here the next stops are this row's own controls and
               then the first card. `scroll-mt-*` lands it below the sticky header + toolbar. */}
-          {/* ⛔ ON THE UNDIRECTED HOME THE COUNT SITS ON THE HEADING ROW AGAIN, UNDER THE TITLE (E-FOLD
+          {/* ⚠️ SUPERSEDED ON PHONES 2026-10-18 (owner: fold the results row into one compact line) — the count
+              now rides the title's own line and the four icons are one view pill; see the heading box below.
+              The grid this note describes still lays that line out. ⬇ The 2026-09-30 history:
+              ⛔ ON THE UNDIRECTED HOME THE COUNT SITS ON THE HEADING ROW AGAIN, UNDER THE TITLE (E-FOLD
               option C, owner O-10, 2026-09-30). The phone split above gave the count a whole 22px row
               of its own to keep it from being clipped beside a 132px title and 172px of view toggles
               (46px left for a 91px string, measured at 390). It is not squeezed back in beside them:
@@ -4855,11 +4862,29 @@ export function ListingsExplorer({
                 heading is sr-only. */}
             {/* `data-feed-heading`: masked with the seed on a cold deep link (E-SSR, globals.css) — the
                 ISR copy says "Recommended" over a feed the URL has directed elsewhere. */}
-            <div data-feed-heading="" className="order-1 flex min-w-0 shrink-0 items-center gap-2">
+            {/* ⛔ ON A PHONE THE UNDIRECTED ROW IS ONE 36px LINE: "Recommended  1,080 listings … [▦⌄]" (owner,
+                2026-10-18: fold the results row into one compact line). It was the title over its count with the
+                four view icons centred across both (44px, E-FOLD option C); the icons are now ONE view pill
+                (ViewSwitch, the cluster below) and the count rides the title's line. `max-sm:min-h-9` makes this
+                box the pill's height, so the title centres on it in the home grid (globals.css
+                `#results[data-home-row]`, untouched: title cell, view cell — and the count cell, emptied below).
+                ⚠️ THE COUNT ON THIS LINE IS A PICTURE (aria-hidden). The number a screen reader hears stays
+                <ResultLine>'s live count, which on this row goes sr-only rather than away (`countClassName`
+                below) — one live region, as ever. Both are gated so a cold DIRECTED link paints its own row
+                from the first frame (see the CLS note above): the sr-only only under
+                `html:not([data-explorer-directed])`, and this picture only in the undirected branch, under the
+                seed's mask until then. From sm nothing changed: this span is phone-only and the line's count
+                is visible. */}
+            <div data-feed-heading="" className="order-1 flex min-w-0 shrink-0 items-center gap-2 max-sm:min-h-9">
               {showDiscovery ? (
                 <>
                   {sort === 'recent' && <Clock className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />}
                   <h2 className={SECTION_TITLE}>{homeFeedHeading}</h2>
+                  {resultLineCount !== null && (
+                    <span aria-hidden className="min-w-0 truncate text-xs font-semibold text-ink-4 sm:hidden">
+                      {resultCountLabel(resultLineCount, lang, tr)}
+                    </span>
+                  )}
                 </>
               ) : (
                 /* ⚠️ THE HEADING GOES SR-ONLY RATHER THAN AWAY. The results need A heading for the
@@ -4923,6 +4948,10 @@ export function ListingsExplorer({
               // itself, where their own `max-sm:order-*` (see result-line.tsx) can place them.
               // It stays a real flex box at sm+, where one row is the right answer.
               className="order-2 min-w-0 flex-1 max-sm:contents"
+              // The undirected phone row's count is the picture on the title's line (see the heading box above);
+              // this live one stays for screen readers, sr-only — and only once the URL is known undirected, so a
+              // cold directed link keeps its count line from the first frame (the E-SSR mask gate).
+              countClassName={showDiscovery ? 'max-sm:[html:not([data-explorer-directed])_&]:sr-only' : undefined}
               // The phone's "Save search" pill (JOIN-SAVE, see `phoneSaveOffered`): at the end of the count row,
               // outside its scroller. `sm:hidden` — from sm the offer is the labelled button beside the view modes.
               // `outline`, never `cta`: an offer on the filter row is not the page's one brand CTA (canon).
@@ -4979,7 +5008,13 @@ export function ListingsExplorer({
                 </Button>
               )}
               {/* ⛔ No Map tab over the teachers feed — `mapOffered` (gate review, 2026-10-09). */}
-              <ViewToggles viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} showMap={mapOffered} />
+              {/* The four icons from sm; a phone gets the ONE view pill instead (owner, 2026-10-18 — see the
+                  heading box above). Same views, same gates. The pill holds this row's first line at 36px in the
+                  directed state too, so a cold deep link's row keeps its height when the heading leaves it. */}
+              <div className="flex items-center gap-1 max-sm:hidden">
+                <ViewToggles viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} showMap={mapOffered} />
+              </div>
+              <ViewSwitch viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} showMap={mapOffered} className="sm:hidden" />
             </div>
           </div>
 
@@ -5241,7 +5276,8 @@ export function ListingsExplorer({
                    the 60dvh inset with the list below is a recorded decision (2026-07-14, see below). */
                 <div
                   className="grid grid-cols-1 lg:grid-cols-12 lg:items-start gap-4"
-                  style={{ '--map-top': headerHidden ? '1rem' : `calc(4rem + max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px)) + ${toolbarH}px + 1rem)` } as CSSProperties}
+                  // 3.5rem = the site header's 56px (h-14 since 2026-10-18 — owner: "slimmer + calm"; it was 4rem).
+                  style={{ '--map-top': headerHidden ? '1rem' : `calc(3.5rem + max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px)) + ${toolbarH}px + 1rem)` } as CSSProperties}
                 >
                   {/* Left: the result list — one column at lg, two from xl, in the page's own scroll. */}
                   <div ref={mapListRef} className="min-w-0 lg:col-span-5 xl:col-span-6 grid grid-cols-1 xl:grid-cols-2 gap-4 content-start order-2 lg:order-1">
@@ -5432,7 +5468,7 @@ export function ListingsExplorer({
                       re-measures itself when its box resizes (its ResizeObserver). */}
                   <div
                     ref={mapWrapRef}
-                    className="min-w-0 h-[60dvh] rounded-2xl overflow-hidden order-1 lg:order-2 lg:col-span-7 xl:col-span-6 scroll-mt-[calc(4rem+env(safe-area-inset-top))] lg:scroll-mt-24 lg:sticky lg:self-start lg:top-[var(--map-top)] lg:h-[calc(100dvh-var(--map-top)-1rem)] lg:transition-[top,height] lg:duration-[var(--duration-sticky,250ms)] lg:ease-out motion-reduce:transition-none">
+                    className="min-w-0 h-[60dvh] rounded-2xl overflow-hidden order-1 lg:order-2 lg:col-span-7 xl:col-span-6 scroll-mt-[calc(3.5rem+env(safe-area-inset-top))] lg:scroll-mt-24 lg:sticky lg:self-start lg:top-[var(--map-top)] lg:h-[calc(100dvh-var(--map-top)-1rem)] lg:transition-[top,height] lg:duration-[var(--duration-sticky,250ms)] lg:ease-out motion-reduce:transition-none">
                     <ListingsMap
                       listings={mapListings}
                       buildings={buildingPins}

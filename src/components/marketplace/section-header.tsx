@@ -66,9 +66,10 @@ export function SectionHeader({ title, action, fallbackHref = '/dashboard/listin
         // dual-path inset like #app-header (globals.css): env(safe-area-inset-top) on iOS, and the
         // native-set var(--safe-area-inset-top) on Android where env() is 0 — env()-only would drop
         // the bar under the Android status bar the moment the site header hides.
+        // +3.5rem = the site header's 56px (h-14 since 2026-10-18 — owner: "slimmer + calm"; it was 4rem).
         headerHidden
           ? 'top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]'
-          : 'top-[calc(max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))+4rem)]',
+          : 'top-[calc(max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))+3.5rem)]',
       )}
     >
       <IconButton

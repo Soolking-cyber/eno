@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Badge } from '@/components/ui/badge'
+import { chipVariants } from '@/components/ui/chip'
 import { Input } from '@/components/ui/input'
 import { NotificationBell } from './notification-bell'
 import { AppDownload } from './app-download'
@@ -386,15 +387,16 @@ export function Header() {
 
   /**
    * ⛔ THE PHONE PANEL HANGS FROM THE HEADER'S REAL BOTTOM EDGE, MEASURED — NOT FROM "THE HEADER IS AT y=0".
-   * Below 640px the search window is `fixed`, and its top used to be the constant safe-area + 3.75rem: the
-   * header's 64px less the 4px it tucks under the hairline. That holds only while nothing sits above the
+   * Below 640px the search window is `fixed`, and its top used to be the constant safe-area + 3.25rem: the
+   * header's 56px (64px until 2026-10-18 — owner: "slimmer + calm") less the 4px it tucks under the
+   * hairline. That holds only while nothing sits above the
    * header. An in-flow strip above it (the Terms-amendment notice, tos-change-notice.tsx, whenever an
    * amendment has a notice window and it is mounted; the pre-launch banner before it) pushes the sticky
    * header down by its own height at scroll-top, so the panel opened at
    * y=60 OVER the header's own search field — z-50 over z-40 — and a visitor who tapped search on landing
    * typed into an input the panel hid (2026-10-01 review). The window now publishes the measured edge as
-   * `--search-panel-top`, and its top and max-height read that; the old constant stays as the fallback, so
-   * with nothing above the header the geometry is byte-for-byte what it was (bottom 64 − 4 = 60) — the
+   * `--search-panel-top`, and its top and max-height read that; the constant stays as the fallback, so
+   * with nothing above the header the measured edge and the fallback agree (bottom 56 − 4 = 52) — the
    * state since 2026-10-01, when the strip was unmounted (an immediate amendment has nothing to announce).
    * Kept rather than reverted: it is exact with or without a strip, and the next one needs it.
    * Re-measured on scroll and resize while open: the header is sticky, so scrolling past the strip moves
@@ -507,7 +509,7 @@ export function Header() {
       if (!el) { setShowSearch(true); return } // no hero on this page → show search now
       io = new IntersectionObserver(
         ([entry]) => setShowSearch(!entry.isIntersecting),
-        { rootMargin: '-72px 0px 0px 0px' }, // reveal once the hero passes under the header
+        { rootMargin: '-64px 0px 0px 0px' }, // reveal once the hero passes under the header (56px bar + 8px)
       )
       io.observe(el)
     }
@@ -612,7 +614,7 @@ export function Header() {
         // Tailwind v4 compiles `-translate-y-full` / `translate-y-0` to the STANDALONE `translate`
         // property (verified in the built CSS: `--tw-translate-y:-100%; translate:var(--tw-translate-x)
         // var(--tw-translate-y)`), not to `transform`. So this list subscribed to a property nothing
-        // writes: the 64px bar jumped its whole height in ONE frame on every scroll-direction
+        // writes: the bar (64px then) jumped its whole height in ONE frame on every scroll-direction
         // reversal while only `opacity` tweened over 250ms. That mismatch is what the owner reported
         // as jitter, and it is the same v4 trap already documented at pdp-shop-link.tsx:135-137 and
         // in globals.css §motion — the note there computing a sub-pixel overshoot budget for this
@@ -651,7 +653,12 @@ export function Header() {
           (`max-w-7xl px-3 sm:px-6 lg:px-8`, docs/design-language.md) makes the two edges
           share one line at every breakpoint. Do not restore the flush variant without the
           owner: it is the older instruction, not the current one. */}
-      <div className="relative mx-auto flex h-16 w-full max-w-7xl items-center gap-2 px-3 sm:gap-3 sm:px-6 lg:px-8">
+      {/* ⛔ 56px (h-14), NOT 64 — owner, 2026-10-18: "slimmer + calm". The 40px logo and the 40px search
+          field it frames sit in it with 8px of air each side (a 64px bar holding 48px controls was heavier
+          than FB Marketplace, Carousell or Shopee). Every offset that stacks under the bar reads 3.5rem
+          (explorer-toolbar.tsx, section-header.tsx, listings-explorer.tsx's `--map-top`), the phone search
+          panel's fallback 3.25rem (56 − its 4px tuck, below) — move them with it. */}
+      <div className="relative mx-auto flex h-14 w-full max-w-7xl items-center gap-2 px-3 sm:gap-3 sm:px-6 lg:px-8">
         {/* ⚠️ THE HAIRLINE IS INSET TO THE CONTENT EDGES, not drawn on the padded box
             (owner, 2026-08-07: "match the line between top navbar and the banner — the line
             is sticking out"). A `border-b` on this container spans its BORDER box, which is
@@ -716,11 +723,12 @@ export function Header() {
 
               Square: 1024×1024 intrinsic with h-8 w-8, so it reserves a 32×32 box before load (no
               CLS) and hands the header search back the ~65px the .vn lockup was taking on mobile. */}
-          {/* h-12 = 48px, matching the header search pill's measured height exactly (owner,
-              2026-08-02: "make logo mark as tall as the searchbar next to it"), so the two line up
-              as one row instead of the mark floating small beside it. Square, so it costs 16px of
-              width — the search form is `min-w-0 flex-1` and absorbs it. */}
-          <img src="/logo-mark.svg?v=2b609517" alt={SITE_NAME} width={1024} height={1024} className="h-12 w-12" />
+          {/* h-10 = 40px, matching the header search pill's height exactly (owner, 2026-08-02: "make logo
+              mark as tall as the searchbar next to it"), so the two line up as one row instead of the mark
+              floating small beside it. Both came down from 48 together with the bar (owner, 2026-10-18:
+              "slimmer + calm") — the match is the rule, not the number. Square, so it costs its width —
+              the search form is `min-w-0 flex-1` and absorbs it. */}
+          <img src="/logo-mark.svg?v=2b609517" alt={SITE_NAME} width={1024} height={1024} className="h-10 w-10" />
           {/* ⚠️ NO TEXT WORDMARK BESIDE THE MARK — removed 2026-08-02 at the owner's request, one
               hour after being added. It was added on the theory that Google's "app name does not
               match" needed the name as PAINTED text somewhere above the fold (an <img alt> is never
@@ -812,11 +820,11 @@ export function Header() {
                 // and NO bg swap on focus (a white focus fill would merge into the bg-card header).
                 // The only focus cue is the text caret. It's distinguished from the header solely by
                 // the tint, exactly as requested.
-                // `search-beam` — a brand-blue glow breathing inward from the edge while idle (globals.css).
-                // ⚠️ IDLE ONLY, and that is why it is on this branch rather than the shared string:
-                // once the panel is open the reader is already engaged and a moving edge competes
-                // with the suggestions they came for.
-                : 'search-beam rounded-2xl bg-tint',
+                // ⛔ NO GLOW. The orange `search-beam` that breathed three times on every load (and again
+                // on every close of the panel) is gone — owner, 2026-10-18: "slimmer + calm"; a pulsing
+                // edge read as promotion, not as a search box. Gone means bare tint: the beam's own note
+                // ruled out leaving a static ring in its place, so do not add a border here instead.
+                : 'rounded-2xl bg-tint',
             )}
             >
               <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-ink-4" strokeWidth={STROKE} />
@@ -867,7 +875,9 @@ export function Header() {
                 // `forced-color-adjust-none` on it: in Windows High Contrast a forced text colour must
                 // not paint it back UNDER the overlay (Chromium keeps the transparency; this makes
                 // that the rule for every engine, not a behaviour we happened to measure).
-                className="peer w-full min-w-0 bg-transparent py-3 pl-2 pr-2 text-base text-ellipsis text-foreground outline-none placeholder:text-transparent placeholder:forced-color-adjust-none"
+                // ⚠️ `py-2`: a 24px line + 16px = the 40px field the logo matches (owner, 2026-10-18). The type
+                // stays `text-base` — anything under 16px and iOS Safari zooms the page on focus.
+                className="peer w-full min-w-0 bg-transparent py-2 pl-2 pr-2 text-base text-ellipsis text-foreground outline-none placeholder:text-transparent placeholder:forced-color-adjust-none"
               />
               {/* ⛔ THE PLACEHOLDER NEVER TRUNCATES (G-SEARCH-lite, main thread 2026-09-29).
                   ⚠️ SINCE O-03 (2026-09-30) ✨ AND MAP ARE OUT OF THE PILL BELOW 640px, so the numbers in the
@@ -1009,7 +1019,8 @@ export function Header() {
                 against a keyboard top near 508 on a 390×844 phone). `--kb-h` is the app-wide
                 keyboard height (globals.css, KEYBOARD GEOMETRY; 0 when there is none), subtracted with
                 the panel's own top (`--search-panel-top`, measured from the header — see headerRef —
-                falling back to 3.75rem) plus a 12px gap; the rest scrolls inside the panel.
+                falling back to 3.25rem, the 56px bar less its 4px tuck) plus a 12px gap; the rest
+                scrolls inside the panel.
                 ⛔ ONE WINDOW FOR BOTH PANELS, NOT ONE EACH. It used to be two sibling elements, each with its
                 own entrance keyframe — so the 2nd typed character (or a backspace to 1) unmounted one and
                 mounted the other, and the whole window faded + slid in again MID-TYPING. A keystroke never
@@ -1024,7 +1035,7 @@ export function Header() {
               <div
                 ref={searchWindowRef}
                 className={cn(
-                  'fixed inset-x-2 top-[var(--search-panel-top,calc(env(safe-area-inset-top)+3.75rem))] z-50 max-h-[min(70vh,calc(100dvh-var(--kb-h,0px)-var(--search-panel-top,calc(env(safe-area-inset-top)+3.75rem))-0.75rem))] overflow-y-auto rounded-2xl bg-popover shadow-pop transition-none animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl',
+                  'fixed inset-x-2 top-[var(--search-panel-top,calc(env(safe-area-inset-top)+3.25rem))] z-50 max-h-[min(70vh,calc(100dvh-var(--kb-h,0px)-var(--search-panel-top,calc(env(safe-area-inset-top)+3.25rem))-0.75rem))] overflow-y-auto rounded-2xl bg-popover shadow-pop transition-none animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl',
                   suggestOpen ? 'space-y-4 p-4' : 'p-3',
                 )}
               >
@@ -1122,15 +1133,17 @@ export function Header() {
                         <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
                         <Button variant="bare" size="none" type="button" onClick={() => { localStorage.removeItem(RECENT_LOCATIONS_KEY); setRecentLocations([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</Button>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
+                      {/* The browse chip (ui/chip `md` + its 44px hit area, owner 2026-10-18 — one chip style).
+                          `gap-2`: wrapped rows 8px apart, so two rows' 4px hit-area overhangs meet and never overlap. */}
+                      <div className="flex flex-wrap gap-2">
                         {recentLocations.map((loc, i) => (
                           <Button
                             key={i}
-                            variant="soft"
+                            variant="bare"
                             size="none"
                             type="button"
                             onClick={() => { applyArea({ province: loc.province, ward: loc.ward, nearby: null }); setShowSuggestions(false) }}
-                            className="whitespace-normal gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:text-accent-foreground cursor-pointer"
+                            className={cn(chipVariants({ size: 'md', tone: 'neutral' }), 'relative tap-44 whitespace-normal')}
                           >
                             <MapPin className="h-3.5 w-3.5" />
                             {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}
@@ -1153,7 +1166,7 @@ export function Header() {
                   {shortcutCategories.length > 0 && (
                     <div className="space-y-1.5">
                       <span id={CATEGORIES_LABEL_ID} className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><LayoutGrid className="h-3 w-3" />{tr('Categories', 'Danh mục')}</span>
-                      <ul aria-labelledby={CATEGORIES_LABEL_ID} className="flex flex-wrap gap-1.5">
+                      <ul aria-labelledby={CATEGORIES_LABEL_ID} className="flex flex-wrap gap-2">
                         {/* A way in, so Teachers reads "Find a teacher" (category-entry-label.ts) — applied HERE,
                             not in /api/search/trending, so the route's payload and its edge-cached copies keep
                             the category's own name for any other reader. */}
@@ -1165,7 +1178,7 @@ export function Header() {
                                 Vietnam" under a VI banner). `localizedHref` gives the `/vi` twin of a piloted
                                 path and leaves every other path as it is — the server variant, like the logo's
                                 href (the panel only renders after a focus, so this never meets hydration). */}
-                            <Button asChild variant="soft" size="none" className="whitespace-normal rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:text-accent-foreground cursor-pointer">
+                            <Button asChild variant="bare" size="none" className={cn(chipVariants({ size: 'md', tone: 'neutral' }), 'relative tap-44 whitespace-normal')}>
                               <Link href={localizedHref(`/c/${c.slug}`, variant)} prefetch={false} onClick={() => { releaseSearchPanel(); setShowSuggestions(false) }}>
                                 {tr(c.name, c.nameVi)}
                               </Link>

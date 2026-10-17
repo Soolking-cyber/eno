@@ -697,9 +697,9 @@
      (`-translate-y-full` → `translate-y-0`) and `.mobile-nav` (`translate-y-full` →
      `translate-y-0`) both slide to rest EXACTLY on an edge, so an overshoot does not settle
      — it travels PAST the dock and opens a gap that shows the page sliding underneath.
-     Computed from the stops: spring peaks at 1.011 and snappy at 1.030, i.e. a 0.70px gap on
-     the 64px header and 0.80px on the 73px nav with `--ease-spring`, and 1.9–2.2px with
-     snappy — 2 to 6 DEVICE pixels at dpr 2–3, along a colour boundary, on every scroll-up.
+     Computed from the stops: spring peaks at 1.011 and snappy at 1.030, i.e. a 0.62px gap on
+     the 56px header (0.70px at its old 64px) and 0.80px on the 73px nav with `--ease-spring`, and
+     1.7–2.2px with snappy — 2 to 6 DEVICE pixels at dpr 2–3, along a colour boundary, on every scroll-up.
      Both bars therefore keep `ease-out` deliberately; that is not an oversight to "fix".
      (The 73px nav in those numbers was the flush bar. Since 2026-09-26 it is a floating pill
      resting 12px+ above the edge, so its overshoot would bob rather than gap — still `ease-out`.)
@@ -1242,8 +1242,11 @@
  * wash; `html` and `body` carry it everywhere since, so the header sits over the gradient's STRONG
  * band — its first 64px — on every route. Scoping it to home meant the navbar matched the page it
  * sat on there and contradicted it everywhere else.
- * ⚠️ 64px IS BOTH NUMBERS ON PURPOSE: it is the header's height AND the depth the strong stop holds
- * to in `--wash-image`. They were chosen to agree; change one and the header becomes a seam again.
+ * ⚠️ THE HEADER IS 56px SINCE 2026-10-18 (owner: "slimmer + calm"; header.tsx `h-14`), AND THE 64px
+ * ABOVE IS HISTORY. It was both numbers on purpose — the bar's height AND the depth the wash's strong
+ * stop held to — and nothing holds it now: `--wash-image` is `none` (the fade was removed, owner
+ * 2026-09-19) and the bar wears `--wash-tail`, the page's own colour, so there is no band to line up.
+ * ⚠️ If a gradient ever comes back, its strong stop ends at the header's 56px, or the bar is a seam again.
  */
 #app-header {
   /* ⚠️ THE SAME COLOUR AS THE PAGE, not a stronger stop — see `--wash-image`. A distinct header shade
@@ -3794,130 +3797,13 @@ html:not(.native) #app-splash {
        member), and it has exactly TWO call sites, both in support-button.tsx and both verified.
    ⚠️ Add a second duotone icon and this initial value silently becomes its default. That is the
    intended default — but it will no longer be true that nothing else is affected. */
-/* ── THE SEARCH BEAM ───────────────────────────────────────────────────────────────────────────
-   A soft brand-blue ring that breathes on the idle search bar. Owner, 2026-08-27: search and post
-   are the two things a classifieds site is for, so the search bar should say so without shouting —
-   then, on seeing the first version, "lower opacity and use pulse version".
-
-   ⛔ THIS DELIBERATELY BREAKS THE BAR'S "ZERO BORDER, ZERO RING" RULE, and header.tsx states that
-   rule out loud — the idle bar is pure `bg-tint` precisely so nothing competes with the header. The
-   beam is the agreed exception. If it is ever removed, the bar goes back to bare tint; do not leave
-   a static border behind.
-
-   ⚠️ IDLE ONLY. It stops the moment the panel opens — something still pulsing while someone reads
-   suggestions is noise, and by then it has done its job.
-
-   ⛔ A PULSE, NOT A TRAVELLING LIGHT — TRIED TWICE, REJECTED TWICE. First as the conic arc below;
-   then again on 2026-08-27 ("try rotate one with same settings"), rebuilt as a radial hotspot
-   orbiting inside the bar, measured, and turned down in favour of this. Two things that build
-   attempt learned, so a third does not have to: a conic gradient sweeps at a constant ANGLE, which
-   on an 18:1 bar means the lit arc covers half the border at the short ends and a smudge at the
-   long-edge midpoints — it visibly lurches; and a filled radial on this `::after` washes over the
-   placeholder and the icons, measured at 23/255 on the glyph ink. The inset shadows below have
-   neither problem because they never leave the edge.
-   ⛔ The travelling version also cost a `prefers-reduced-motion` guard — deleted by accident while
-   rewriting this block, caught by two reviewers. Whatever replaces this, keep that guard.
-
-   ⛔ THE ORIGINAL SIMPLIFICATION, STILL THE REASON THIS IS OPACITY AND NOT GEOMETRY. The
-   first version swept a conic gradient round the edge, which needs a two-layer `mask` with
-   `mask-composite: exclude` to become a border rather than a filled block. A reviewer pointed out
-   that where `mask-composite` is unsupported the fallback is not "no beam", it is a SOLID SPINNING
-   RECTANGLE over the search bar. Opacity on a ring has no such failure mode: unsupported means
-   invisible, never broken.
-   ⛔ So do not reintroduce the conic version without checking the built CSS for the WebKit form
-   first — the standard property alone is not enough to rely on there.
-
-   ⚠️ `box-shadow: inset` ON A FULL-SIZE `::after` rather than a border on the bar itself: a border
-   would change the bar's box and shift the input by 3px on mount. The pseudo-element takes no
-   layout at all. It also sits above the bar's static children, so nothing crops it.
-   ⚠️ TWO INSET SHADOWS, AND BOTH DO A JOB: a 1px line that draws the edge, and a blurred, spread
-   inset that feathers the light INWARD so the bar reads as lit rather than outlined. Owner picked
-   "pulse inner ... not outside" at half strength — blur without the line is a smudge, the line
-   without blur is just a border.
-   ⚠️ THE GEOMETRY WAS CHALLENGED AND MEASURED: a reviewer argued 14px of blur plus 3px of spread
-   from all four edges would wash a 49px-tall bar top to bottom rather than edge it. Sampled down
-   the middle of the rendered bar at peak: only 27% of its height carries a quarter of the peak
-   intensity, and the centre row measures 0% of peak. The light stays on the edges. ⛔ Raise the blur
-   or the spread and that stops being true — re-measure the profile, do not eyeball it. */
-.search-beam::after {
-  content: '';
-  position: absolute;
-  /* ⚠️ Relies on `.search-beam` carrying `relative`, which its shared class string in header.tsx
-     already sets. Measured: the glow's box matches the bar exactly. */
-  inset: 0;
-  border-radius: inherit;
-  /* ⚠️ 15%, SETTLED BY EYE FROM A 50 → 30 → 10 → 15 WALK (owner, 2026-08-27, off an 8/10/14 peak
-     comparison). The LINE moves with the glow, 40% → 12%, holding the 0.8 ratio the original was
-     judged at — the owner sets ONE strength, not two, and leaving the line high while the glow fell
-     would quietly turn this back into the static border the bar's design rules out.
-     ⚠️ So "make the beam more/less visible" means moving BOTH numbers together, not just one. */
-  /* ⛔ THE COMMERCE ORANGE, NOT THE ACCENT BLUE (owner, 2026-09-18: "glow inside should be orange to
-     indicate importance of search bar"). Search is the one thing this page wants a visitor to do, and
-     the orange is the app's "this is the action" colour — the same one the Post button and the price
-     carry. It is a GLOW, not ink: nothing reads against it, so the contrast rules that pin --cta-ink
-     do not apply here. */
-  /* ⚠️ `--cta-ink`, NOT `--cta`: the FILL token deliberately keeps its dark light-theme value in both
-     themes so white labels stay legible on it (see its note), which would leave this glow as dark
-     orange on a dark bar — invisible, as a reviewer pointed out. The ink token is the one that
-     lightens for dark, which is exactly what a glow needs. */
-  box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--color-cta-ink) 12%, transparent),
-    inset 0 0 14px 3px color-mix(in oklab, var(--color-cta-ink) 15%, transparent);
-  pointer-events: none;
-  /* ⛔ THREE BREATHS, THEN REST — NOT `infinite` (owner, O-06 G-BEAM, 2026-09-30: "play 3 times, then
-     rest", strict WCAG 2.2.2). 2.2.2 lets motion that auto-starts run past 5s only with a way to stop
-     it; reduced motion is that way for people who set it, but everyone else got a bar that breathed
-     for as long as the tab was open. 3 × 3.2s = 9.6s says "this is the thing to use" and then stops.
-     ⚠️ TWO ANIMATIONS, AND THE SECOND IS WHY THE REST IS BARE TINT: the pulse's last frame is its
-     0.22 trough, and `forwards` on it would leave a STATIC ring — the one state the note above rules
-     out ("do not leave a static border behind"). `search-beam-rest` starts exactly when the third
-     breath ends, fades that trough to 0 over 600ms and HOLDS 0 (`forwards`). It is later in the
-     list, so while it is filling it wins over the finished pulse.
-     ⚠️ IT REPLAYS WHEN THE BAR RETURNS TO IDLE, and that is fine: `search-beam` is on the idle
-     branch only (header.tsx), so closing the panel re-adds the class and the three breaths run
-     again. That is a response to the reader's own action, which 2.2.2 does not govern; the
-     auto-start on page load is what it does, and that one now ends. */
-  animation:
-    search-beam-pulse 3.2s ease-in-out 3,
-    search-beam-rest 600ms ease-out 9.6s forwards;
-}
-
-/**
- * ⛔ AND THE GLOW HAS TO BE SQUIRCLED ITSELF — `corner-shape` DOES NOT INHERIT (owner: "match
- * squircle corner to its inner search bar"). `border-radius: inherit` above copies the RADIUS, so
- * the ring has the bar's 1rem corner; but the superellipse comes from `corner-shape: squircle` in
- * the block below, which applies to elements matching those class selectors — a `::after` matches
- * none of them. The result is a circular-arc glow tracing a squircled bar: the two corners visibly
- * disagree, which is exactly what the owner spotted. Same @supports guard as the block below, so
- * browsers without it keep arcs on both.
- */
-@supports (corner-shape: squircle) {
-  .search-beam::after { corner-shape: squircle; }
-}
-
-@keyframes search-beam-pulse {
-  0%, 100% { opacity: 0.22; }
-  50%      { opacity: 1; }
-}
-
-/* The rest after the third breath: from the pulse's trough to nothing. `from` is spelled out rather
-   than left to the underlying value, so no engine has to decide what "underneath" a finished
-   animation means. */
-@keyframes search-beam-rest {
-  from { opacity: 0.22; }
-  to   { opacity: 0; }
-}
-
-/* ⚠️ WCAG 2.2.2 ASKS FOR A WAY OUT OF MOTION THAT AUTO-STARTS AND RUNS PAST FIVE SECONDS. Since
-   O-06 the pulse no longer runs indefinitely — it stops by itself after three breaths (9.6s) — and
-   `prefers-reduced-motion` still removes it outright for anyone who asked for less motion. There is
-   no pause control because the effect carries no information, so stopping it costs the reader nothing.
-   ⚠️ If this ever becomes something the reader must watch to understand, it needs a real pause.
-   ⚠️ Removed entirely, not frozen: a stopped pulse is a static ring on a bar whose whole design is
-   not having one. Someone asking for less motion gets the bar as it was. */
-@media (prefers-reduced-motion: reduce) {
-  .search-beam::after { display: none; }
-}
+/* ── THE SEARCH BEAM — REMOVED (owner, 2026-10-18: "slimmer + calm") ───────────────────────────
+   The orange inset glow that breathed three times on the idle header search bar (2026-08-27 → O-06)
+   is gone with its keyframes: on a calm 56px header a pulsing edge read as promotion, and no top
+   marketplace's search field moves. The bar is bare `bg-tint` again — exactly the state the beam's
+   own note required on removal ("do not leave a static border behind"), so nothing replaces it.
+   Its history (the conic and orbiting versions tried and rejected, the WCAG 2.2.2 three-breath rest,
+   the squircled `::after`) is in git with this commit, should a highlight ever be asked for again. */
 
 /* ── THE FIRST-RUN TOUR'S TARGET RING ──────────────────────────────────────────────────────────
    ⛔ A RING ON THE TARGET, NOT A SCRIM OVER THE PAGE, AND THE DIFFERENCE IS EXPENSIVE. The obvious

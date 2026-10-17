@@ -465,8 +465,13 @@ export function CategoryRail({
 
 
 
+  // ⛔ A FLAT PILL, NOT A RAISED PLATE (owner, 2026-10-18: one chip style). The chosen subcategory used to lift off the
+  // plate as a white card with `shadow-sm` — the one raised chip on the page, and the canon keeps shadows for things
+  // that float (§3b). It is now the browse chip's pill shape, chosen = the plate's white fill without the shadow.
+  // ⚠️ THE ROW STAYS 28px (`py-1`), NOT the chip's 36: the plate's six-row cap is measured against the tile rail's
+  // height (the note on its grid below — 6×28 + gaps ≈ 190px under a ~201px rail); a taller chip grows the rail.
   const subChip = (active: boolean) =>
-    cn('w-full shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
+    cn('w-full shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
 
   /**
    * ⛔ THE SUBCATEGORY PLATE IS COMPUTED ONCE FOR THE ACTIVE CATEGORY AND RENDERED BELOW THE GRID.

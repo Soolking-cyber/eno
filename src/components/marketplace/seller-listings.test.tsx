@@ -290,6 +290,65 @@ describe('SellerListings on a category page', () => {
   })
 })
 
+/**
+ * ⛔ A PHONE SORTS WITH THE HOME'S PILL, NOT THE TAB REEL (owner, 2026-10-18: the home's sort/filter pattern on /c pages
+ * and storefronts). Below sm the underline tabs scrolled under the Filters link and cut "Most contacted"; the row is now
+ * a sort pill (a Base UI select, ui/chip-style's 36px pill), `stripEnd`, and the count in short form. From sm the tabs
+ * and the sentence under the strip are unchanged. jsdom has no media queries — both halves are in the DOM, and the
+ * classes that pick one per width are the contract.
+ */
+describe('SellerListings on a phone: a sort pill, the Filters chip and the count on one row', () => {
+  function renderCategory() {
+    return render(
+      <SellerListings
+        listings={PAGE}
+        sortable
+        serverScope={{ params: { category: 'electronics' }, total: 63730, pageSize: 48 }}
+        stripEnd={<a href="/?category=electronics" rel="nofollow" aria-label="Filters" />}
+      />,
+    )
+  }
+  const tokens = (el: Element) => (el.getAttribute('class') ?? '').split(/\s+/)
+  const pill = () => screen.getByRole('combobox', { name: /Sort by/ })
+
+  it('one strip: the pill (phone only), the tablist (sm up), then stripEnd and the short count', () => {
+    renderCategory()
+    const strip = pill().closest('[data-slot="tabs"]')!
+    expect(pill().parentElement!.className).toContain('sm:hidden')
+    expect(tokens(screen.getByRole('tablist'))).toContain('max-sm:hidden')
+    expect(strip.contains(screen.getByRole('link', { name: 'Filters' }))).toBe(true)
+    expect(tokens(strip)).toContain('max-sm:py-1') // the pills' air above the hairline, and their hit area's room
+    const short = screen.getByText('60 of 63,730')
+    expect(strip.contains(short)).toBe(true)
+    expect(tokens(short)).toContain('sm:hidden')
+    // The sentence keeps its place from sm, and stands down on a phone where the short twin speaks.
+    expect(tokens(screen.getByText('Showing 60 of 63,730 listings.'))).toContain('max-sm:hidden')
+  })
+
+  it('the pill rests on the tint on the page\'s own order, and is the same scoped query as the tabs for any other', async () => {
+    const user = userEvent.setup()
+    const urls = stubFetch(() => ({ listings: [CHEAPEST], total: 63730 }))
+    renderCategory()
+    expect(tokens(pill())).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'relative', 'tap-44', 'bg-tint']))
+    expect(pill().textContent).toContain('Relevance')
+    await user.click(pill())
+    const options = (await screen.findAllByRole('option')).map((o) => o.textContent)
+    expect(options).toEqual(['Relevance', 'Newest', 'Most contacted', 'Price: low to high', 'Price: high to low'])
+    await user.click(screen.getByRole('option', { name: 'Most contacted' }))
+    await waitFor(() => expect(urls.length).toBe(1))
+    expect(urls[0].searchParams.get('category')).toBe('electronics')
+    expect(urls[0].searchParams.get('sort')).toBe('popular')
+    await waitFor(() => expect(tokens(pill())).toContain('bg-brand-50'))
+    expect(pill().textContent).toContain('Most contacted')
+  })
+
+  it('a grid with no strip keeps its one sentence at every width', () => {
+    render(<SellerListings listings={PAGE} initialSort="relevance" serverScope={{ params: { excludeSeller: 's1' }, total: 76000, pageSize: 60 }} />)
+    expect(screen.queryByRole('combobox')).toBeNull()
+    expect(tokens(screen.getByText('Showing 60 of 76,000 listings.'))).not.toContain('max-sm:hidden')
+  })
+})
+
 describe('SellerListings as a paged continuation with no controls', () => {
   // The "More on eno.vn" grid under a storefront opts out of search and sort. Before the fix the
   // no-controls shortcut returned a bare grid and silently dropped Show-more, capping it at page one.

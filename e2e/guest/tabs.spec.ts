@@ -28,6 +28,8 @@ test.describe('Guest · sort tabs — a11y semantics', () => {
   // So: one tablist, exactly one price tab, no `?sort=` links anywhere, and choosing Price asks
   // /api/listings for this category's cheapest while the pathname stays put.
   test('a category page sorts the whole category in place', async ({ page }) => {
+    // Phones sort /c through the home's sort pill since 2026-10-18 (owner) — the tablist is sm-up there (next-but-one).
+    test.skip(test.info().project.name.includes('mobile'), 'phones sort /c via the sort pill (its own test below)')
     await page.goto('/c/electronics')
     // The strip is server-rendered and inert until React hydrates — a tap before then is swallowed
     // (seller-listings.tsx `data-listings-ready`). On a Pixel 5 that window was long enough to lose it.
@@ -99,12 +101,48 @@ test.describe('Guest · sort tabs — a11y semantics', () => {
     await page.goto('/?category=electronics')
     const pill = page.getByRole('combobox', { name: /sort|sắp xếp/i }).first()
     await expect(pill).toBeVisible()
-    const box = await pill.boundingBox()
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44)
+    await expectChipHitArea(pill)
     const sorted = page.waitForRequest((r) => new URL(r.url()).searchParams.get('sort') === 'price-low')
     await pill.click()
-    await page.getByRole('option', { name: /low to high|thấp đến cao/i }).first().click()
+    // By its words, not its role: the picker's phone surface is the select's to choose (a menu or a sheet).
+    await page.getByText(/^(Price: low to high|Giá: thấp đến cao)$/).first().click()
     await sorted
     await expect(page).toHaveURL(/sort=price-low/)
   })
+
+  // ⛔ /c AND STOREFRONTS SORT LIKE THE HOME ON A PHONE (owner, 2026-10-18): the underline tabs scrolled under the Filters
+  // link and cut "Most contacted"; the row is now the sort pill, the Filters chip and the count — and a sort is still the
+  // same scoped query, in place.
+  test('on a phone a category page sorts through the pill, in place', async ({ page }) => {
+    test.skip(!test.info().project.name.includes('mobile'), 'phone layout only')
+    await page.goto('/c/electronics')
+    await expect(page.locator('[data-listings-ready="true"]').first()).toBeAttached()
+    await expect(page.getByRole('tablist').first()).toBeHidden()
+    const pill = page.getByRole('combobox', { name: /sort|sắp xếp/i }).first()
+    await expect(pill).toBeVisible()
+    await expectChipHitArea(pill)
+    const sorted = page.waitForRequest((r) => {
+      const u = new URL(r.url())
+      return u.pathname === '/api/listings' && u.searchParams.get('category') === 'electronics' && u.searchParams.get('sort') === 'price-low'
+    })
+    await pill.click()
+    await page.getByText(/^(Price: low to high|Giá: thấp đến cao)$/).first().click()
+    await sorted
+    expect(new URL(page.url()).pathname).toBe('/c/electronics')
+  })
 })
+
+/**
+ * The browse chip's geometry (owner, 2026-10-18: one chip style): a 36px pill whose 44px tap target is the invisible
+ * `tap-44` ::before around it — the pill's own box is 36, so its bounding box alone no longer says "44".
+ */
+async function expectChipHitArea(pill: import('@playwright/test').Locator) {
+  const box = await pill.boundingBox()
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(35.5)
+  const hit = await pill.evaluate((el) => {
+    const s = getComputedStyle(el, '::before')
+    return { minHeight: s.minHeight, position: getComputedStyle(el).position }
+  })
+  expect(hit.minHeight).toBe('44px')
+  expect(hit.position).not.toBe('static') // tap-44's ::before needs a positioned host
+}

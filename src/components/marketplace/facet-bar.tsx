@@ -10,6 +10,7 @@ import { AreaFilter, type Nearby, type Geo } from './area-filter'
 import { DISTRICTS_PROVINCE_CODE, districtSlugLabel, districtSurvivesArea } from './listings-explorer.constants'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { PILL_BOX, PILL_ON, PILL_OPEN, PILL_OPEN_ATTR, PILL_REST } from '@/components/ui/chip-style'
 import { IconButton } from '@/components/ui/icon-button'
 import { CloseButton } from '@/components/ui/close-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -367,16 +368,17 @@ export function FacetBar({
       return n
     })
 
-  // ⛔ 44px, NOT CustomSelect's 48px default (home fold, 2026-09-30, owner: "try a little from both
-  // categ and filter"). These pills are the facet ROW, and the row is half of the sticky strip above the
-  // home feed; 44 is the house tap-target floor (WCAG 2.5.8 / our 44px rule) and it gave the fold 4px at
-  // every width. The Area, Filter and Price triggers carry the same `min-h-11`, and so does
-  // FacetBarFallback's picture of the row and the explorer's reservation around it — change all or none.
-  const cls = 'min-h-11'
-  const active = 'text-accent-foreground'
-  // Content-sized pills (no fixed min-width) so they pack into one swipable
-  // row on mobile; widen a touch on desktop where they wrap.
-  const wrap = 'w-auto shrink-0 lg:min-w-[7.5rem]'
+  // ⛔ 36px TINTED PILLS WITH A 44px HIT AREA — ui/chip-style's PILL_* (owner, 2026-10-18: one chip style; on a phone
+  // the old flush 44px pills read as a row of bold links, not filters). The 44px house floor is now the invisible
+  // `tap-44` area rather than the visible box (it was `min-h-11` since the home-fold trim of 2026-09-30, 48 before).
+  // A select pill rests on the tint and turns brand once a value is picked; open, it takes the muted fill (`cls`).
+  // The Area, Filter and Price triggers wear the same three states, and FacetBarFallback's picture of the row and
+  // the explorer's 36px reservation around it match them — change all or none.
+  const cls = (on: boolean) => cn(PILL_BOX, !on && PILL_REST, PILL_OPEN_ATTR)
+  const active = PILL_ON
+  // Content-sized pills (no min-width) so they pack into one swipable row on a phone — and, tinted, a pill as wide
+  // as its words at every width: the old `lg:min-w-[7.5rem]` floor left an empty tinted run between label and ⌄.
+  const wrap = 'w-auto shrink-0'
 
   // Intent (listingType) options — those valid for the active category, or the
   // full set on "all". Surfaced as the first facet so Rent/Buy/Free/etc. is one tap.
@@ -426,7 +428,7 @@ export function FacetBar({
         triggerLabel={typeLabels.find(([v]) => v === listingType)?.[1]}
         // ⌄, like Price and Area beside it — ⇅ is the Price SORT tab's glyph on the row below (E-TOOLBAR).
         indicator="down"
-        className={cls}
+        className={cls(listingType !== 'all')}
         activeClassName={active}
         wrapperClassName={wrap}
       />,
@@ -441,7 +443,7 @@ export function FacetBar({
       query={histogramQuery}
       countsApproximate={histogramApproximate}
       onOpenChange={setPriceOpen}
-      className="text-body hover:bg-muted"
+      className={PILL_REST}
       activeClassName={active}
       wrapperClassName={wrap}
     />,
@@ -470,10 +472,11 @@ export function FacetBar({
       aria-expanded={areaOpen}
       onClick={() => setAreaOpen((o) => !o)}
       className={cn(
-        // min-h-11 (44px) — the facet row's height, see `cls`; flat, borderless (bg-muted only on hover).
-        'flex min-h-11 shrink-0 items-center justify-between gap-1.5 rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96] cursor-pointer',
+        // The facet row's pill (see `cls`): tinted at rest, brand once a place is applied, muted while its panel is open.
+        PILL_BOX,
+        'flex shrink-0 items-center justify-between gap-1.5 transition-[background-color,color,scale] duration-100 active:scale-[0.96] cursor-pointer',
         wrap,
-        areaOpen ? 'text-foreground' : areaActive ? active : 'text-body hover:bg-muted',
+        areaOpen ? PILL_OPEN : areaActive ? active : PILL_REST,
       )}
     >
       <span className="flex items-center gap-1.5 truncate">
@@ -524,7 +527,7 @@ export function FacetBar({
         placeholder={tr('Condition', 'Tình trạng')}
         triggerLabel={conditionLabels.find(([v]) => v === conditionFilter)?.[1]}
         indicator="down"
-        className={cls}
+        className={cls(conditionFilter !== 'all')}
         activeClassName={active}
         wrapperClassName={wrap}
       />,
@@ -696,7 +699,7 @@ export function FacetBar({
           label={title}
           placeholder={title}
           indicator="down"
-          className={cls}
+          className={cls(value !== 'all')}
           activeClassName={active}
           wrapperClassName={wrap}
         />
@@ -742,7 +745,7 @@ export function FacetBar({
           label={title}
           placeholder={title}
           indicator="down"
-          className={cls}
+          className={cls(value !== 'all')}
           activeClassName={active}
           wrapperClassName={wrap}
         />
@@ -757,9 +760,10 @@ export function FacetBar({
       size="none"
       type="button"
       className={cn(
-        // min-h-11 (44px) to match the Area pill — flat, borderless.
-        'flex min-h-11 shrink-0 items-center justify-start gap-1.5 rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96] cursor-pointer',
-        advOpen || activeAdvCount > 0 ? active : 'text-body hover:bg-muted',
+        // The facet row's pill, like Area (see `cls`): brand while any of its filters is applied, muted while open.
+        PILL_BOX,
+        'flex shrink-0 items-center justify-start gap-1.5 transition-[background-color,color,scale] duration-100 active:scale-[0.96] cursor-pointer',
+        advOpen ? PILL_OPEN : activeAdvCount > 0 ? active : PILL_REST,
       )}
     >
       <SlidersHorizontal className={cn('h-3.5 w-3.5', activeAdvCount > 0 ? 'text-accent-foreground' : 'text-ink-4')} />
@@ -920,7 +924,10 @@ export function FacetBar({
           the sort pill, this row and Good price on ONE phone line and that line is the scroller, so this
           row is content-sized there (`max-sm:overflow-visible`, no bleed of its own). Two nested scrollers
           would trap the swipe in whichever one the thumb landed on (explorer-toolbar.tsx). sm–lg unchanged. */}
-      <div className="flex items-center gap-2 flex-nowrap overflow-x-auto overscroll-x-contain scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible max-sm:mx-0 max-sm:overflow-visible max-sm:px-0">
+      {/* ⚠️ `-my-1 py-1`: room inside this row's clip for the pills' 44px hit area (ui/chip-style PILL_BOX — a 36px pill,
+          4px of `tap-44` above and below), without moving the row. sm–lg is where it bites: there this row is the
+          scroller, and a scroller clips both axes. FacetBarFallback carries the same pair. */}
+      <div className="-my-1 flex items-center gap-2 flex-nowrap overflow-x-auto overscroll-x-contain scrollbar-none -mx-3 px-3 py-1 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible max-sm:mx-0 max-sm:overflow-visible max-sm:px-0">
         {/* Advanced per-category filter form — leftmost. Only when the category has facets.
             A Base UI Popover from `sm` up and a bottom sheet (ui/drawer) on a phone — see `filterPanel`. */}
         {hasAdvanced && filterPanel}

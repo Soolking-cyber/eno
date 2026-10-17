@@ -14,7 +14,8 @@
  * "show on map" leaving for the marketplace map.
  */
 import React from 'react'
-import { act, cleanup, configure, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, configure, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
@@ -390,5 +391,44 @@ describe('the rail is told who already has a teacher profile (the dashboard stor
     mount(client())
     await waitFor(() => expect(gridIds()).toEqual(TEACHER_IDS))
     expect(document.querySelector('[data-teacher-profile]')?.getAttribute('data-teacher-profile')).toBe('true')
+  })
+})
+
+/**
+ * ⛔ THE PHONE'S RESULTS ROW IS ONE LINE (owner, 2026-10-18): "Recommended  N listings … [▦⌄]". The four view icons are
+ * the toggles from sm; below it ONE view pill (ViewSwitch) offers the same views behind the same gates — so over the
+ * teachers feed it offers no Map either. On the undirected home the count is drawn on the title's line (aria-hidden),
+ * and the live count goes sr-only behind the E-SSR mask gate, so a cold directed link keeps its count line.
+ * jsdom has no media queries: both halves are in the DOM, and the classes that pick one per width are the contract.
+ */
+describe('the phone results row: one view pill, the count on the title line', () => {
+  const cluster = () => document.querySelector('[data-view-cluster]') as HTMLElement
+  const pill = () => within(cluster()).getByRole('combobox', { name: /View/ })
+
+  it('the undirected home: the toggles from sm, the pill below it, the count pictured beside the title', async () => {
+    freshTop('/')
+    mount(client(), ALL.slice(0, 12))
+    await waitFor(() => expect(gridIds()).toHaveLength(12))
+    expect(pill().parentElement!.className).toContain('sm:hidden')
+    expect(within(cluster()).getByRole('button', { name: 'List view' }).closest('[class*="max-sm:hidden"]')).not.toBeNull()
+    const picture = document.querySelector('[data-feed-heading] span[aria-hidden]')!
+    expect(picture.textContent).toMatch(/^\d[\d,]* listings$/)
+    expect(picture.className).toContain('sm:hidden')
+    const live = document.querySelector('[data-slot="result-line"] p[aria-live]')!
+    expect(live.className).toContain('max-sm:[html:not([data-explorer-directed])_&]:sr-only')
+  })
+
+  it('a directed feed keeps its live count on screen (no sr-only), and the teachers pill offers no Map', async () => {
+    const user = userEvent.setup()
+    freshTop('/?category=teachers')
+    mount(client())
+    await waitFor(() => expect(gridIds()).toEqual(TEACHER_IDS))
+    expect(document.querySelector('[data-feed-heading] span[aria-hidden]')).toBeNull()
+    expect(document.querySelector('[data-slot="result-line"] p[aria-live]')!.className).not.toContain('sr-only')
+    await user.click(pill())
+    const options = (await screen.findAllByRole('option')).map((o) => o.textContent)
+    expect(options).toEqual(['List view', 'Grid view', 'Video view'].filter((o) => options.includes(o)))
+    expect(options).not.toContain('Map view')
+    expect(options).toEqual(expect.arrayContaining(['List view', 'Grid view']))
   })
 })

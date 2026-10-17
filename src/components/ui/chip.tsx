@@ -26,8 +26,10 @@ import { cn } from '@/lib/utils'
  * Geometry is `min-h-*` + `py-1.5`, never a fixed `h-*`: the OS text-size preference scales the line
  * box (see ui/button's size note), and a fixed height would clip a chip label at 150%.
  *   size xs  28px — dense horizontal scrollers above a composer (quick replies, openers)
- *        sm  32px · md 36px — filter rows and checklists (no call site yet; the facet and post-wizard
- *            chips move here when their owning packages next touch them)
+ *        sm  32px — compact link rows (the district and vehicle-hub filter rows)
+ *        md  36px — THE browse chip (owner, 2026-10-18: one chip style): the search panel's chips and every
+ *            pill on the browse surfaces. A control that cannot be a <Chip> (a select's trigger, a popover
+ *            trigger, a link on a server page) wears the same look from ui/chip-style.ts (PILL_*).
  *   tone ghost   — transparent at rest, muted fill on hover (the composer chips)
  *        neutral — a tint pill; pressed = the accent capsule
  *        warning — the caution tint, for "still needed" style prompts

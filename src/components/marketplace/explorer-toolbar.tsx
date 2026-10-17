@@ -6,6 +6,7 @@ import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Toggle } from '@/components/ui/toggle'
+import { PILL_BOX, PILL_ON, PILL_OPEN_ATTR, PILL_REST } from '@/components/ui/chip-style'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { sortTabClass } from './sort-tab-class'
@@ -85,6 +86,46 @@ export function ViewToggles({ viewMode, onViewMode, showVideo = true, showMap = 
         </Tooltip>
       )}
     </>
+  )
+}
+
+/**
+ * THE PHONE'S ONE VIEW SWITCH (owner, 2026-10-18: fold the phone's results row into one compact line). The four
+ * view icons were what made that row two lines — "Recommended" over its count, with 172px of icons centred across
+ * both (44px). One pill now offers the same views, behind the same gates as ViewToggles (`showMap`, `showVideo`),
+ * so every view is still one tap and a pick away, and the row is a single 36px line. From sm the four icons stay.
+ * A <CustomSelect>, so it is the same Base UI select as the sort and facet pills beside it, and goes wherever they
+ * go on a phone.
+ * ⚠️ ICON-ONLY ON SCREEN, NAMED IN FULL: the pill shows the current view's glyph and ⌄, and the view's name rides
+ * the trigger as sr-only text, so a screen reader hears "View, Grid view" — and a voice user can say what it is.
+ * ⚠️ A view is never "applied" the way a filter is, so the pill keeps the resting tint whichever is picked
+ * (CustomSelect would otherwise paint any value but 'all' / 'newest' as active).
+ */
+export function ViewSwitch({ viewMode, onViewMode, showVideo = true, showMap = true, className }: { viewMode: ViewMode; onViewMode: (m: ViewMode) => void; showVideo?: boolean; showMap?: boolean; className?: string }) {
+  const { tr } = useLanguage()
+  // The order and the words of ViewToggles' own labels.
+  const options: { value: ViewMode; label: string }[] = [
+    { value: 'compact', label: tr('List view', 'Danh sách') },
+    { value: 'grid', label: tr('Grid view', 'Lưới') },
+    ...(showMap ? [{ value: 'map' as const, label: tr('Map view', 'Bản đồ') }] : []),
+    ...(showVideo ? [{ value: 'video' as const, label: tr('Video view', 'Video') }] : []),
+  ]
+  const Glyph = viewMode === 'compact' ? Rows3 : viewMode === 'map' ? Map : viewMode === 'video' ? Play : LayoutGrid
+  return (
+    <CustomSelect
+      value={viewMode}
+      onChange={(v) => onViewMode(v as ViewMode)}
+      options={options}
+      label={tr('View', 'Chế độ xem')}
+      triggerLabel={options.find((o) => o.value === viewMode)?.label}
+      labelClassName="sr-only"
+      icon={<Glyph className="size-4 shrink-0" />}
+      indicator="down"
+      searchable={false}
+      className={cn(PILL_BOX, PILL_OPEN_ATTR)}
+      activeClassName={PILL_REST}
+      wrapperClassName={cn('w-auto shrink-0', className)}
+    />
   )
 }
 
@@ -230,7 +271,7 @@ export function SortStrip({
         // ⚠️ THIS BAR LEAVES WITH THE HEADER NOW, IT DOES NOT TAKE ITS PLACE (owner, 2026-08-12:
         // "on mobile and desktop when scroll up make these disappear and appear together with top
         // navbar" … "otherwise it should be there on home screen"). It used to swap `top` between
-        // 4rem and 0 — so scrolling down replaced one pinned bar with another and the sort strip
+        // the header's height and 0 — so scrolling down replaced one pinned bar with another and the sort strip
         // followed you down the whole page. Both are chrome; both go.
         //
         // ⛔ IT IS DONE WITH `top` ALONE. NOT opacity, NOT transform — BOTH WERE TRIED AND BOTH ARE
@@ -265,15 +306,16 @@ export function SortStrip({
         // and Android WebView ≥ 140, Capacitor's injected custom property on older Android. Both
         // are 0 on the web, so it is a no-op in a browser.
         //
-        // ⚠️ `focus-within:` PUTS IT BACK, AND IT PINS AT THE INSET — **NOT** at inset+4rem. That
-        // is the branch where the header is HIDDEN, so 4rem would reserve a 64px void for a bar
+        // ⚠️ `focus-within:` PUTS IT BACK, AND IT PINS AT THE INSET — **NOT** at inset+3.5rem. That
+        // is the branch where the header is HIDDEN, so 3.5rem would reserve a 56px void for a bar
         // that is not on screen and show page content sliding through it (agy, opus). It is not
         // only a keyboard path either: clicking a sort tab focuses it, so a pointer user who
         // clicks and then scrolls down lands in exactly this state. Tabbing into a bar parked
         // 9rem above the viewport would otherwise move focus somewhere the user cannot see.
+        // ⛔ +3.5rem IS THE HEADER'S 56px (h-14 since 2026-10-18 — owner: "slimmer + calm"; 4rem before).
         headerHidden
           ? 'top-[-9rem] focus-within:top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]'
-          : 'top-[calc(max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))+4rem)]',
+          : 'top-[calc(max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))+3.5rem)]',
         // Edge bleed coupled to the page gutter (max-w-7xl px-3 sm:px-6 lg:px-8).
         '-mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8',
       )}
@@ -286,12 +328,18 @@ export function SortStrip({
           (`-mx-3 px-3`, the facet row's own bleed) so pills slide out under the edge rather than being
           sliced at the gutter. From sm the scroller classes are inert and the row is the old one. */}
       <div className="relative border-b border-border">
+      {/* ⚠️ `max-sm:py-1` IS THE PILLS' HIT AREA AND THEIR AIR. Since the one chip style (owner, 2026-10-18) the
+          phone pills are 36px tinted chips with a 44px `tap-44` hit area; this row is their scroller, and a
+          scroller clips both axes, so without 4px above and below them the hit area is cut back to 36. It also
+          keeps the tinted pills off the hairline. 36 + 8 = the 44px row the old flush pills drew — the strip,
+          the reservation around FacetBar (listings-explorer.tsx) and FacetBarFallback did not move. */}
       <div
         ref={phoneRowRef}
-        className="flex flex-wrap items-center justify-between gap-x-4 max-sm:-mx-3 max-sm:flex-nowrap max-sm:justify-start max-sm:gap-x-2 max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:overscroll-x-contain max-sm:px-3 scrollbar-none"
+        className="flex flex-wrap items-center justify-between gap-x-4 max-sm:-mx-3 max-sm:flex-nowrap max-sm:justify-start max-sm:gap-x-2 max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:overscroll-x-contain max-sm:px-3 max-sm:py-1 scrollbar-none"
       >
-      {/* THE PHONE SORT PILL — first in the row so the order is visible without a swipe. A facet pill's
-          box (min-h-11, ⌄), with the order's glyph in front (⇅, or the price direction). */}
+      {/* THE PHONE SORT PILL — first in the row so the order is visible without a swipe. A facet pill
+          (ui/chip-style PILL_*, ⌄), with the order's glyph in front (⇅, or the price direction). Tinted at rest like
+          every pill on the row; the brand tint once an order other than Relevance is picked. */}
       <CustomSelect
         value={sort}
         onChange={(v) => onPickSort(v as SortKey)}
@@ -301,8 +349,8 @@ export function SortStrip({
         icon={<SortGlyph className={cn('size-3.5 shrink-0', sort === 'newest' && 'text-ink-4')} />}
         indicator="down"
         searchable={false}
-        className="min-h-11"
-        activeClassName="text-accent-foreground"
+        className={cn(PILL_BOX, sort === 'newest' && PILL_REST, PILL_OPEN_ATTR)}
+        activeClassName={PILL_ON}
         wrapperClassName="w-auto shrink-0 sm:hidden"
       />
       {leading ? <div className="min-w-0 basis-full max-sm:shrink-0 max-sm:basis-auto sm:flex-1 sm:basis-auto">{leading}</div> : null}
@@ -439,20 +487,19 @@ export function SortStrip({
         className={cn(
           // ⚠️ IT WEARS THE FACET PILLS' CLOTHES, NOT ITS OWN (owner, 2026-09-16: "match the good price
           // style to other dropdowns so it wont pop out just on press turns green"). It sat in this row
-          // as a bordered rounded-full chip, which read as a fifth, louder control beside Any type /
-          // Price / Area / Any condition. These are those pills' exact classes from facet-bar.tsx —
-          // borderless, rounded-xl, px-4, h-12 tap target, muted hover, same press scale and duration —
-          // minus their chevron, because this one opens nothing. Keep the two in step if that file moves.
-          // ⚠️ THE HEIGHT IS THE TABS', NOT THE FACET PILLS'. facet-bar's own pills are min-h-11 (44px, 48 until 2026-09-30)
-          // because they sit on their own row; measured here, 48 beside 42px tabs grew this row to 48
-          // and left the toggle overhanging the tab strip's baseline (agy). It matches its neighbours.
+          // as a bordered chip, which read as a fifth, louder control beside Any type / Price / Area /
+          // Any condition. Since 2026-10-18 (owner: one chip style) those pills are ui/chip-style's PILL_* —
+          // a 36px tinted pill with a 44px hit area — and so is this, minus their chevron, because this
+          // one opens nothing. Keep the two in step if facet-bar.tsx moves.
+          // ⚠️ From sm it sits beside the 42px tabs instead: a 36px pill centred in their row, which the
+          // tabs keep at 42 (the old note here grew this toggle to the tabs' height to stop a 48px pill
+          // overhanging their baseline — a pill shorter than the tabs cannot).
           // `snap-start` so it is a stop on the same reel as the tabs, not a straggler after them.
-          'flex h-[42px] w-auto shrink-0 snap-start items-center justify-between rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96]',
-          // Below sm it sits among the facet pills, not the tabs (2026-09-30 one-row try), so it takes
-          // THEIR 44px — the tap-target floor — rather than the tabs' 42.
-          'max-sm:h-11',
-          'text-body hover:bg-muted',
-          // GREEN ONLY WHEN PRESSED, and it is the whole affordance now that the border is gone.
+          PILL_BOX,
+          'flex w-auto shrink-0 snap-start items-center transition-[background-color,color,scale] duration-100 active:scale-[0.96]',
+          PILL_REST,
+          // GREEN ONLY WHEN PRESSED (owner, 2026-09-15: "good price button should be green when tapped") —
+          // the one pill on the row whose ON look is not the brand tint, kept on purpose.
           // `--success` is green-800 in light and green-400 in dark, so the ink flips with it: the page
           // background colour reads on both (white on green-800, near-black on green-400) where a fixed
           // white would fail contrast on the dark theme's light green.

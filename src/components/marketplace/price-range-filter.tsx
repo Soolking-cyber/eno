@@ -8,6 +8,7 @@ import { compactPrice, formatInteger, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { barInRange, countInRange, histogramBars, parseHistogram, positionOf, type PriceHistogram } from '@/lib/price-histogram'
 import { Button } from '@/components/ui/button'
+import { PILL_BOX, PILL_ON, PILL_OPEN, PILL_REST } from '@/components/ui/chip-style'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { RangeSlider } from '@/components/ui/range-slider'
@@ -53,7 +54,7 @@ function parseBound(s: string | undefined): number | null {
  *     stop is "no max"; neither writes a bound into the URL.
  */
 export function PriceRangeFilter({
-  value, onChange, query, countsApproximate = false, className, activeClassName, wrapperClassName, onOpenChange,
+  value, onChange, query, countsApproximate = false, className = PILL_REST, activeClassName = PILL_ON, wrapperClassName, onOpenChange,
 }: {
   value: string
   onChange: (v: string) => void
@@ -216,9 +217,11 @@ export function PriceRangeFilter({
       className={cn(
         // active:scale-100 is load-bearing: this button is the popover anchor and
         // floating-ui reads its rect — a press transform would move the panel off it.
-        // min-h-11 (44px) to match the other facet pills (facet-bar.tsx `cls`) — flat, borderless.
-        'flex min-h-11 w-full shrink-0 items-center justify-between gap-1.5 rounded-xl px-4 text-sm font-semibold transition-colors duration-150 active:scale-100 cursor-pointer',
-        open ? 'text-foreground' : active ? activeClassName : className,
+        // The facet row's pill (facet-bar.tsx `cls`; ui/chip-style PILL_* since 2026-10-18 — owner: one chip style):
+        // a 36px pill with a 44px hit area, tinted at rest, brand with a range applied, muted while open.
+        PILL_BOX,
+        'flex w-full shrink-0 items-center justify-between gap-1.5 transition-colors duration-150 active:scale-100 cursor-pointer',
+        open ? PILL_OPEN : active ? activeClassName : className,
       )}
     >
       <span className="truncate">{triggerText}</span>

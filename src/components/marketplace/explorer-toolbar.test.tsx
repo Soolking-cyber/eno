@@ -25,7 +25,8 @@ vi.mock('@/context/language-context', () => ({
   LanguageProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))
 
-import { SortStrip, ViewToggles } from './explorer-toolbar'
+import userEvent from '@testing-library/user-event'
+import { SortStrip, ViewSwitch, ViewToggles } from './explorer-toolbar'
 import { CategoryRail } from './category-rail'
 
 /** Every scroller overflows: 300px wide, 1000px of content — so each row has more to its right. */
@@ -131,5 +132,70 @@ describe('ViewToggles: the Map tab is offered unless the feed has no map', () =>
     view.unmount()
     render(<ViewToggles viewMode="grid" onViewMode={() => {}} showMap={false} showVideo={false} />)
     expect(views()).toEqual(['List view', 'Grid view'])
+  })
+})
+
+/**
+ * ⛔ ONE CHIP STYLE ON THE STRIP (owner, 2026-10-18). The strip's pills were flush text that read as a row of bold links
+ * on a phone; they are ui/chip-style's PILL_* now — a 36px tinted pill with an invisible 44px hit area (`tap-44`, which
+ * needs `relative`), the brand tint once something is applied, the muted fill while open. jsdom has no layout, so the
+ * classes are the contract.
+ */
+const tokens = (el: Element) => (el.getAttribute('class') ?? '').split(/\s+/)
+
+describe('the strip\'s pills: 36px, tinted, a 44px hit area', () => {
+  it('the phone sort pill rests on the tint while the order is Relevance', () => {
+    render(strip('newest'))
+    const pill = screen.getByRole('combobox', { name: /Sort by/ })
+    expect(tokens(pill)).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'px-3.5', 'relative', 'tap-44', 'bg-tint', 'data-popup-open:bg-muted']))
+    expect(tokens(pill)).not.toContain('min-h-11')
+  })
+
+  it('…and takes the brand tint for any other order', () => {
+    render(strip('recent'))
+    const pill = screen.getByRole('combobox', { name: /Sort by/ })
+    expect(tokens(pill)).toEqual(expect.arrayContaining(['bg-brand-50', 'text-accent-foreground']))
+    expect(tokens(pill)).not.toContain('bg-tint')
+  })
+
+  it('the phone row leaves the 4px above and below the pills that their hit area needs inside its clip', () => {
+    render(strip('newest'))
+    const row = screen.getByRole('combobox', { name: /Sort by/ }).closest('[class*="max-sm:overflow-x-auto"]')!
+    expect(tokens(row)).toContain('max-sm:py-1')
+  })
+
+  it('Good price wears the same pill and keeps its green pressed state', () => {
+    render(strip('newest'))
+    const good = screen.getByRole('button', { name: 'Good price' })
+    expect(tokens(good)).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'relative', 'tap-44', 'bg-tint', 'data-pressed:bg-success', 'data-pressed:text-background']))
+    expect(tokens(good)).not.toContain('h-[42px]')
+  })
+})
+
+/**
+ * ⛔ THE PHONE'S ONE VIEW SWITCH (owner, 2026-10-18: the results row folded into one compact line). The four icons cost
+ * that row a second line; one pill offers the same views behind the same gates, named in full for a screen reader.
+ */
+describe('ViewSwitch: one pill for every view', () => {
+  it('names the current view, rests on the tint whatever is picked, and offers the four views in the toggles\' order', async () => {
+    const user = userEvent.setup()
+    const onViewMode = vi.fn()
+    render(<ViewSwitch viewMode="grid" onViewMode={onViewMode} />)
+    const pill = screen.getByRole('combobox', { name: /View/ })
+    expect(pill.textContent).toContain('Grid view') // sr-only on screen; the glyph is what shows
+    expect(tokens(pill)).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'tap-44', 'bg-tint']))
+    expect(tokens(pill)).not.toContain('bg-brand-50')
+    await user.click(pill)
+    const options = (await screen.findAllByRole('option')).map((o) => o.textContent)
+    expect(options).toEqual(['List view', 'Grid view', 'Map view', 'Video view'])
+    await user.click(screen.getByRole('option', { name: 'Map view' }))
+    expect(onViewMode).toHaveBeenCalledWith('map')
+  })
+
+  it('takes away Map and Video behind the same gates as the toggles', async () => {
+    const user = userEvent.setup()
+    render(<ViewSwitch viewMode="compact" onViewMode={() => {}} showMap={false} showVideo={false} />)
+    await user.click(screen.getByRole('combobox', { name: /View/ }))
+    expect((await screen.findAllByRole('option')).map((o) => o.textContent)).toEqual(['List view', 'Grid view'])
   })
 })

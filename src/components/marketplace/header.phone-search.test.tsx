@@ -139,28 +139,59 @@ describe('O-03: ✨ and Map on a phone', () => {
  */
 describe('the phone panel follows the header, wherever the header is', () => {
   it('publishes the header bottom − 4 as --search-panel-top, and re-measures on scroll', async () => {
-    let bottom = 130 // a 66px notice above a 64px header, at scroll-top
+    // The header is 56px since 2026-10-18 (owner: "slimmer + calm" — header.tsx `h-14`).
+    let bottom = 122 // a 66px notice above a 56px header, at scroll-top
     const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      return { top: bottom - 64, bottom, left: 0, right: 390, width: 390, height: 64, x: 0, y: bottom - 64, toJSON: () => ({}) } as DOMRect
+      return { top: bottom - 56, bottom, left: 0, right: 390, width: 390, height: 56, x: 0, y: bottom - 56, toJSON: () => ({}) } as DOMRect
     })
     try {
       render(<Header />)
       act(() => field().focus())
       await waitFor(() => expect(panel()).not.toBeNull())
       const win = panel() as HTMLElement
-      expect(win.style.getPropertyValue('--search-panel-top')).toBe('126px')
-      // The class reads the variable, with the old constant as its fallback — top AND the height cap.
-      expect(win.className).toContain('top-[var(--search-panel-top,calc(env(safe-area-inset-top)+3.75rem))]')
-      expect(win.className).toContain('-var(--search-panel-top,calc(env(safe-area-inset-top)+3.75rem))-0.75rem')
+      expect(win.style.getPropertyValue('--search-panel-top')).toBe('118px')
+      // The class reads the variable, with the 56px bar's constant (56 − 4 = 52px = 3.25rem) as its fallback — top
+      // AND the height cap.
+      expect(win.className).toContain('top-[var(--search-panel-top,calc(env(safe-area-inset-top)+3.25rem))]')
+      expect(win.className).toContain('-var(--search-panel-top,calc(env(safe-area-inset-top)+3.25rem))-0.75rem')
       // Scrolled past the strip: the sticky header is at y=0 again, and the panel follows it up.
-      bottom = 64
+      bottom = 56
       await act(async () => {
         window.dispatchEvent(new Event('scroll'))
         await new Promise((r) => requestAnimationFrame(() => r(null)))
       })
-      expect(win.style.getPropertyValue('--search-panel-top')).toBe('60px')
+      expect(win.style.getPropertyValue('--search-panel-top')).toBe('52px')
     } finally {
       rect.mockRestore()
     }
+  })
+})
+
+/**
+ * ⛔ "SLIMMER + CALM" (owner, 2026-10-18): a 56px bar, a 40px logo mark that still matches the 40px search field
+ * beside it (the owner's 2026-08-02 rule), and no glow — the field idles as bare tint, with no static ring left in
+ * the glow's place. jsdom has no layout, so the classes that make the geometry are what is pinned.
+ */
+describe('the header bar: 56px, a 40px logo the height of the 40px field, no glow', () => {
+  it('h-14 bar, h-10 logo, a py-2 field that keeps text-base (iOS zooms under 16px)', () => {
+    render(<Header />)
+    const header = document.getElementById('app-header')!
+    const bar = header.querySelector(':scope > div') as HTMLElement
+    expect(bar.className.split(/\s+/)).toContain('h-14')
+    expect(bar.className.split(/\s+/)).not.toContain('h-16')
+    const logo = header.querySelector('[data-header-logo] img') as HTMLImageElement
+    expect(logo.className.split(/\s+/)).toEqual(expect.arrayContaining(['h-10', 'w-10']))
+    const input = field().className.split(/\s+/)
+    expect(input).toEqual(expect.arrayContaining(['py-2', 'text-base']))
+    expect(input).not.toContain('py-3')
+  })
+
+  it('the idle pill is bare tint: no search-beam, no ring or border in its place', () => {
+    render(<Header />)
+    const pill = field().closest('form')!.querySelector('div.relative.z-50') as HTMLElement
+    const cls = pill.className.split(/\s+/)
+    expect(cls).toEqual(expect.arrayContaining(['rounded-2xl', 'bg-tint']))
+    expect(cls).not.toContain('search-beam')
+    expect(cls.some((c) => /^(ring|border|shadow)(-|$)/.test(c))).toBe(false)
   })
 })

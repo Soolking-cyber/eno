@@ -5,7 +5,10 @@ import { cn } from '@/lib/utils'
  * (explorer-toolbar.tsx) and SellerListings' (the /c/<category> landings and storefronts) each carried
  * a copy, and the copies drifted: the second one also styled plain <Link>s, which lack TabsTrigger's
  * `whitespace-nowrap`, so "Most contacted" broke onto two lines at 390px (62px tall against 42). Both
- * strips now render `variant="line"` lists whose tabs carry exactly this string.
+ * strips now render `variant="line"` lists whose tabs carry exactly this string — FROM sm UP. Below sm
+ * neither draws tabs any more: both sort with the same pill, a <CustomSelect> wearing ui/chip-style's PILL_*
+ * (the explorer since 2026-09-30, SellerListings since 2026-10-18 — owner: the home's sort/filter pattern
+ * on /c pages and storefronts, where the tab reel cut "Most contacted" at the Filters link).
  * ⚠️ `whitespace-nowrap` restates the TabsTrigger base on purpose: a caller that renders a non-trigger
  * with this class (a link, a skeleton) must not wrap either.
  * ⚠️ ITS OWN MODULE, NOT AN EXPORT OF explorer-toolbar.tsx: SellerListings ships on the /c/* and
