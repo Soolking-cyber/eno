@@ -47,10 +47,9 @@ const ready = (page: import('@playwright/test').Page) =>
  * segment layout, above the boundary. e2e/ci/crawler-html.spec.ts (H2) pins it on /c/electronics with
  * the reveal held until the text is typed, and asserts one header and one search box in the server
  * HTML of home, category and listing pages.
- * ⚠️ THE CATEGORY-PAGE TESTS BELOW RAN ON /c/vehicles UNTIL 2026-10-03, which now 308s to the motorbike-rental
- * hub (second-hand focus, src/lib/retired-categories.ts). They run on /c/electronics with the laptop and phone
- * fixtures; the scooter and bicycle stay in `vehicles` on purpose — a retired shelf leaves navigation, its
- * rows stay public, and the feed and search tests below are what hold that.
+ * ⚠️ THE CATEGORY-PAGE TESTS BELOW RAN ON /c/vehicles UNTIL 2026-10-03, when it was retired (it 308'd to the
+ * motorbike-rental hub until 2026-10-17, when it became a shelf again). They run on /c/electronics with the laptop
+ * and phone fixtures; the scooter and bicycle are the vehicles shelf's (the /c/vehicles test finds the scooter).
  */
 const streamed = (page: import('@playwright/test').Page) =>
   page.waitForFunction(() => !document.querySelector('template[id^="B:"], div[hidden][id^="S:"]'))
@@ -100,7 +99,7 @@ function dropAll(baseURL: string, variants: { path: string; accept: string }[]) 
   })))
 }
 
-/** Every fixture the home feed renders. The scooter and bicycle are in the RETIRED `vehicles` category: still public. */
+/** Every fixture the home feed renders. The scooter and bicycle are the `vehicles` shelf's. */
 const FIXTURES = ['Fixture laptop', 'Fixture phone', 'Fixture desk lamp', 'Fixture studio flat', 'Fixture city scooter', 'Fixture bicycle']
 
 test.describe('marketplace, against known fixtures', () => {
@@ -208,27 +207,32 @@ test.describe('marketplace, against known fixtures', () => {
     await expect(page.getByText('Fixture bicycle')).toHaveCount(0)
   })
 
-  // A retired shelf's row is still found by search (it left navigation, not the marketplace).
   test('search finds a fixture by title', async ({ page }) => {
     await page.goto('/?q=bicycle')
     await expect(page.getByText('Fixture bicycle').first()).toBeVisible()
   })
 
   /**
-   * ⛔ THE RETIRED VEHICLES SHELF IS A REAL 308, NOT A 200 AND NOT A CLIENT REDIRECT (second-hand focus, owner
-   * 2026-10-03; the rules are src/lib/retired-categories.ts, wired in next.config.ts). The category page, a
-   * district page under it and the for-sale landing all go to the HCMC motorbike-rental hub. Not followed, so
-   * the status byte and the Location are what is asserted — and then the hub itself, which must answer 200
-   * even with no rental rows (it serves `noindex` then; a browser-cached 308 into a 404 could not be taken back).
+   * ⛔ THE MOTORBIKE FOR-SALE LANDING IS A REAL 308, NOT A 200 AND NOT A CLIENT REDIRECT (the rules are
+   * src/lib/retired-categories.ts, wired in next.config.ts) — to /c/vehicles since 2026-10-17 (owner: "yes vehicles"),
+   * the shelf a person's motorbike for sale is on. It went to the HCMC motorbike-rental hub from 2026-10-03, so the hub
+   * must still answer 200 even with no rental rows: a browser that cached that 308 lands there, and a cached 308 into a
+   * 404 could not be taken back.
+   * ⛔ AND /c/vehicles IS A SHELF AGAIN (owner, 2026-10-17: a person's motorbike for sale had nowhere to be found):
+   * no redirect, the category page itself.
    */
-  test('the retired vehicles shelf and the motorbike for-sale landing 308 to the motorbike-rental hub', async ({ page }) => {
-    for (const path of ['/c/vehicles', '/c/vehicles/hanoi', '/motorbikes-for-sale-vietnam']) {
-      const res = await page.request.get(path, { maxRedirects: 0, failOnStatusCode: false })
-      expect(res.status(), `${path} must be a permanent redirect`).toBe(308)
-      expect(res.headers()['location'] ?? '', `${path} must land on the motorbike-rental hub`).toMatch(/^(https?:\/\/[^/]+)?\/motorbike-rental-ho-chi-minh-city$/)
-    }
+  test('the motorbike for-sale landing 308s to /c/vehicles, a shelf again; the old target still renders', async ({ page }) => {
+    const res = await page.request.get('/motorbikes-for-sale-vietnam', { maxRedirects: 0, failOnStatusCode: false })
+    expect(res.status(), 'the landing must be a permanent redirect').toBe(308)
+    expect(res.headers()['location'] ?? '', 'it must land on the Vehicles shelf').toMatch(/^(https?:\/\/[^/]+)?\/c\/vehicles$/)
     const hub = await page.request.get('/motorbike-rental-ho-chi-minh-city', { maxRedirects: 0, failOnStatusCode: false })
-    expect(hub.status(), 'the redirect target renders').toBe(200)
+    expect(hub.status(), 'the old target renders, for browsers that cached the old 308').toBe(200)
+    const shelf = await page.request.get('/c/vehicles', { maxRedirects: 0, failOnStatusCode: false })
+    expect(shelf.status(), '/c/vehicles renders, no redirect').toBe(200)
+    // …and shows its own listings: the shelf a person's motorbike for sale is found on.
+    await page.goto('/c/vehicles')
+    await expect(page.getByText('Fixture city scooter').first()).toBeVisible()
+    await expect(page.getByText('Fixture laptop')).toHaveCount(0)
   })
 
   // ⛔ AUDIT #3, REPRODUCED LIVE ON /c/rentals: the header sent search, map, brand and area picks

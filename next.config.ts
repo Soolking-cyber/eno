@@ -993,9 +993,9 @@ const nextConfig: NextConfig = {
           ]
         : []),
       /**
-       * `/c/vehicles` (+ district pages) and `/motorbikes-for-sale-vietnam` → the HCMC motorbike-rental
-       * hub, 308, BOTH EDITIONS (second-hand focus, owner 2026-10-03). The rules, and why there is no
-       * language twin, are in src/lib/retired-categories.ts.
+       * `/motorbikes-for-sale-vietnam` → /c/vehicles, 308, BOTH EDITIONS (owner, 2026-10-17; the HCMC motorbike-
+       * rental hub from 2026-10-03, with /c/vehicles itself redirected until it became a shelf again). The rules,
+       * and why there is no language twin, are in src/lib/retired-categories.ts.
        */
       ...retiredCategoryRedirects(),
     ];

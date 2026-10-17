@@ -41,7 +41,8 @@ describe('post picker — category order (sell-06)', () => {
   it('puts the unlinked shelves behind More…, keeps them postable, and loses nothing', () => {
     for (const c of more) expect(UNLINKED_CATEGORIES.has(c.slug), c.slug).toBe(true)
     for (const c of primary.slice(POST_CATEGORY_RANK.length)) expect(UNLINKED_CATEGORIES.has(c.slug), c.slug).toBe(false)
-    expect(more.map((c) => c.slug)).toEqual(expect.arrayContaining(['vehicles', 'property', 'pets']))
+    expect(more.map((c) => c.slug)).toEqual(expect.arrayContaining(['property', 'pets']))
+    expect(primary.map((c) => c.slug)).toContain('vehicles') // a shelf again (owner, 2026-10-17)
     expect([...primary, ...more].map((c) => c.slug).sort()).toEqual(postable.map((c) => c.slug).sort())
   })
 

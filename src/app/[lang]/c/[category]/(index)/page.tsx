@@ -211,7 +211,7 @@ export default async function CategoryPage({ params }: Props) {
     // rows into this page's 6h ISR HTML. Every other category keeps the memo.
     diverseFeedWindow(scopedWhere, [{ rankScore: 'desc' }, { id: 'desc' }], LISTING_CARD_SELECT, { sharedSeats, teachers: true, fresh: cat.slug === TEACHERS_CATEGORY_SLUG }),
     // ⛔ Not the shelves no browse surface links (src/lib/retired-categories.ts — the footer reads the same
-    // set): /c/vehicles redirects to a rental hub, and the empty ones are noindex dead ends.
+    // set): the retired and the empty ones are noindex dead ends.
     db.category.findMany({ where: { NOT: { id: cat.id }, slug: { notIn: [...UNLINKED_CATEGORIES] } }, orderBy: { name: 'asc' } }),
     // ⚠️ CANONICAL CHIPS (category-data.ts): one per place, linking the one URL that place has — the
     // stored spellings (`quan-2`, `huyen-cu-chi`) now 308 there instead of standing beside it — and

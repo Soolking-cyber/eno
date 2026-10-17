@@ -231,12 +231,13 @@ describe('/llms.txt on the marketplace', () => {
     expect(section).not.toContain('/c/community-events')
   })
 
-  // ⛔ SECOND-HAND FOCUS, 2026-10-03: the retired shelves are not offered — /c/vehicles redirects to a rental hub,
-  // and pets, books and hobbies are out of every browse surface (src/lib/retired-categories.ts) — and the
-  // services blurb no longer names the AppleCare+/Samsung Care+ plans that were CellphoneS products.
+  // ⛔ SECOND-HAND FOCUS, 2026-10-03: the retired shelves are not offered — pets, books and hobbies are out of every
+  // browse surface (src/lib/retired-categories.ts) — and the services blurb no longer names the AppleCare+/Samsung
+  // Care+ plans that were CellphoneS products. Vehicles is a shelf again (owner, 2026-10-17), listed like any other.
   it('lists no retired shelf, whatever its count, and no device protection plans', async () => {
     const section = (await bodyOf()).split('## Categories')[1].split('## Guides')[0]
-    for (const slug of ['vehicles', 'pets', 'books-stationery', 'hobbies-sports']) expect(section, slug).not.toContain(`/c/${slug})`)
+    for (const slug of ['pets', 'books-stationery', 'hobbies-sports']) expect(section, slug).not.toContain(`/c/${slug})`)
+    expect(section).toContain('/c/vehicles)')
     expect(section).toContain('- [Services](https://eno.vn/c/services): eSIMs, SIM cards and expat services')
     expect(section).not.toMatch(/protection plan/i)
   })

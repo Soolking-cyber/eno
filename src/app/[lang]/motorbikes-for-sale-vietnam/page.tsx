@@ -19,9 +19,9 @@ export const revalidate = 3600
  * an ownerless storefront shows none, nothing measures fewer fakes, and "eno.vn" was printed by
  * eno.forum about itself. Each is now the owner's approved report sentence, verbatim (category-copy.ts
  * REPORT_SENTENCE): the listing page always carries the Report button, and the report route takes it
- * from any signed-in member. The route 308s to the motorbike-rental hub on both editions
- * (src/lib/retired-categories.ts), but this file still compiles into both builds, so its copy is held
- * to the same standard.
+ * from any signed-in member. The route 308s on both editions — to /c/vehicles since 2026-10-17, the
+ * motorbike-rental hub before (src/lib/retired-categories.ts) — but this file still compiles into both
+ * builds, so its copy is held to the same standard.
  */
 const BASE_METADATA: Metadata = {
   title: `Motorbikes for Sale & Rent in Vietnam | ${SITE_NAME}`,

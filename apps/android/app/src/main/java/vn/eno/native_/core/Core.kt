@@ -430,7 +430,8 @@ object Categories {
     // ⛔ SHELVES THE WEB NO LONGER OFFERS IN BROWSE NAVIGATION (second-hand focus, owner 2026-10-03;
     // src/lib/retired-categories.ts RETIRED_NAV_CATEGORIES). books-stationery has never been in `all`; it
     // is listed so the set reads exactly like the web's.
-    val retiredFromBrowse = setOf("vehicles", "pets", "books-stationery", "hobbies-sports")
+    // Vehicles came back on 2026-10-17 (the web's RETIRED_NAV_CATEGORIES): a person's bike for sale needs a shelf.
+    val retiredFromBrowse = setOf("pets", "books-stationery", "hobbies-sports")
 
     // What the Quick-find rail offers. ⚠️ `all` STAYS THE FULL LIST, ON PURPOSE: the web keeps these
     // shelves POSTABLE, so the Post picker and the home-rail lookup still read `all` (mirror of

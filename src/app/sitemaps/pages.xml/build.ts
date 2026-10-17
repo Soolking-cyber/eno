@@ -452,7 +452,7 @@ export async function buildPagesSitemap(opts: { rentIndex: RentIndexMode }): Pro
     // (`iPhone 18 Pro` → /iphone-18-pro-vietnam), and sitemap.test.ts pins that each page prices it.
     ...[...IPHONE_18_MODELS, IPHONE_DUO_MODEL].map((m) => priceLanding(iphoneModelPath(m), [m])),
     railLanding('jobs-vietnam-expats', JOBS_TARGET, true),
-    // ⛔ NO /motorbikes-for-sale-vietnam (2026-10-03): it 308s to the motorbike-rental hub on both editions
+    // ⛔ NO /motorbikes-for-sale-vietnam (2026-10-03): it 308s on both editions (to /c/vehicles since 2026-10-17)
     // (src/lib/retired-categories.ts).
     railLanding('moving-sales-vietnam', MOVING_SALES_TARGET),
     // Marketplace commerce copy, not a licensed service — both editions, no IS_SERVICES gate.

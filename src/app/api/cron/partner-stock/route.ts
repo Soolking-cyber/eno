@@ -64,7 +64,18 @@ const BUDGET_MS = 12 * 60 * 1000
 /** Which shop to start from tonight — a plain day counter, so the rotation is even and stateless. */
 const rotationOffset = (count: number) => (count ? Math.floor(Date.now() / 86_400_000) % count : 0)
 
-export const GET = route({ auth: 'cron' }, async () => {
+export const GET = route({ auth: 'cron' }, async ({ req }) => {
+  /**
+   * ⛔ FENCED OFF WHILE THE SECOND-HAND SHOWCASE STANDS (owner, 2026-10-16: five live listings per shop; 2026-10-17: "have
+   * a 2nd hand run weekly to check"). This job restocks every `sold` row a shop lists again — Di Động Việt alone holds
+   * 1,562 — which would push shops far past the owner's five, and with only five live rows its reconcile falls back to
+   * the fraction test and may retire two of them on absence alone. /api/cron/secondhand-showcase checks availability,
+   * moves prices and replaces sold rows now; two copies of that logic would drift. The installer keeps this job in POLICY
+   * (never enabled by a re-run), and this guard holds even if someone calls it: only `?force=1` runs it — after the owner
+   * lifts the cap.
+   */
+  // Exactly `force=1` — `?force=0` or a bare `?force` must not run a restock nobody meant (review, 2026-10-17).
+  if (new URL(req.url).searchParams.get('force') !== '1') return { ok: true, skipped: 'superseded_by_secondhand_showcase' }
   const results: Record<string, unknown>[] = []
   const startedAt = Date.now()
   /**

@@ -434,8 +434,9 @@ export const PARTNER_STORES: StoreConfig[] = [
     "city": "Hồ Chí Minh",
     "adapter": "woocommerce",
     "endpoint": "https://dienmaysaigon.com/wp-json/wc/store/v1/products?category=2572&per_page=100&page={page}",
-    "note": "category 2572 = 'Sản phẩm đã qua sử dụng', the used section the owner's URL (/hang-thanh-ly-hang-da-qua-su-dung/) points at. Woo's tax_query includes descendants, so the children come with it — 7573 Máy Giặt Thanh Lý, 7574 Máy Lạnh Thanh Lý, 8298 Tivi cũ. X-WP-Total 79, and the page returns all 79. Measured 2026-09-10: 6-12 images per product and real prices, though at least one row prices at 0 (a 55\" LG) which feedPrice refuses — that is the guard working, not a gap.",
-    "condition": "used"
+    "note": "category 2572 = 'Sản phẩm đã qua sử dụng', the used section the owner's URL (/hang-thanh-ly-hang-da-qua-su-dung/) points at. Woo's tax_query includes descendants, so the children come with it — 7573 Máy Giặt Thanh Lý, 7574 Máy Lạnh Thanh Lý, 8298 Tivi cũ. X-WP-Total 79, and the page returns all 79. Measured 2026-09-10: 6-12 images per product and real prices, though at least one row prices at 0 (a 55\" LG) which feedPrice refuses — that is the guard working, not a gap. ⛔ MEASURED 2026-10-17: the Store API now answers 401 {code: tglh_login_required} ('Cần đăng nhập…') to every request — the importer and the feed read get nothing. Its product pages are public: Product JSON-LD with availability (InStock, 'Còn 100 trong kho' — model-level stock) and the price inside priceSpecification. The weekly showcase check reads those pages instead (showcase.pageFallback).",
+    "condition": "used",
+    "showcase": { "pageFallback": true }
   },
   {
     "domain": "phuongtin.vn",
@@ -479,8 +480,9 @@ export const PARTNER_STORES: StoreConfig[] = [
     "city": "Hồ Chí Minh",
     "adapter": "woocommerce",
     "endpoint": "https://banghethanhly.vn/wp-json/wc/store/v1/products?category=16,17,18,19,20,21,22,23,198,210,211,219,221,222&per_page=100&page={page}",
-    "note": "⚠️ THE FILTER IS AN EXCLUSION, NOT AN INCLUSION. The whole shop is liquidation stock, so the useful question is not 'which category is used' but 'which is already SOLD' — category 15 'Đã bán' holds 7,286 of the 11,124. These 14 ids are everything else: 3,764 still available. robots.txt Disallows ?sort= and ?order=; this importer sends neither.",
-    "condition": "used"
+    "note": "⚠️ THE FILTER IS AN EXCLUSION, NOT AN INCLUSION. The whole shop is liquidation stock, so the useful question is not 'which category is used' but 'which is already SOLD' — category 15 'Đã bán' holds 7,286 of the 11,124. These 14 ids are everything else: 3,764 still available. robots.txt Disallows ?sort= and ?order=; this importer sends neither. ⛔ MEASURED 2026-10-17 (showcase check): a sold item first shows is_in_stock=false, then is filed under 15 'Đã bán' (slug chua-phan-loai — WooCommerce's renamed Uncategorized; 7,373 products), and the Store API NEVER lists 15 in a product's categories — 19 of 20 sampled Đã bán products show categories [], 9 of them still is_in_stock=true, and one (58532) keeps a used category and sits in this feed as in stock. Membership is read with ?category=15&include=<ids> (showcase.soldCategoryId); an empty categories array means Đã bán only (showcase.emptyCategoriesMeansSold).",
+    "condition": "used",
+    "showcase": { "soldCategoryId": 15, "emptyCategoriesMeansSold": true }
   },
   {
     "domain": "laptopgiare.vn",

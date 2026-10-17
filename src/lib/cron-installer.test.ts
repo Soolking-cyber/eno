@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -96,6 +96,77 @@ describe('install-cron-timers.sh — the teacher job-match emails are never on a
     // The default spread AND the default Persistent=true: no override names this job.
     expect(SCRIPT).not.toMatch(/\[ "\$job" = identity-marks \] && (\{ )?(DELAY|ACCURACY|PERSIST)=/)
     expect(SCRIPT).toMatch(/^\s*DELAY=120; ACCURACY=1min; PERSIST=true$/m)
+  })
+
+  it('⛔ secondhand-showcase (2026-10-17) is SAFE — weekly, Monday 07:00 ICT, once, on eno.vn, a 30-minute curl, its answer kept', () => {
+    // The owner's "have a 2nd hand run weekly to check": it may not drift into a list a re-run leaves off, nor into EMAIL.
+    expect(list('SAFE').words).toContain('secondhand-showcase')
+    for (const name of ['EMAIL', 'MANUAL', 'POLICY']) expect(list(name).words, `${name} holds it`).not.toContain('secondhand-showcase')
+    expect(SCRIPT).toMatch(/^\s*\[secondhand-showcase\]="Mon \*-\*-\* 00:00:00 UTC"$/m)
+    expect(SCRIPT).toContain(`[ "$job" = secondhand-showcase ] && { TARGET="eno.vn 3001 1800"; EXTRA=$'Environment=ENO_CRON_KEEP_DIR=/var/lib/eno/cron-journals\\nTimeoutStartSec=2400'; }`)
+  })
+
+  it('⛔ the keep directory reaches secondhand-showcase’s unit ONLY — EXTRA is reset for every job, and the unit writes it', () => {
+    // The loop's own lines, run for this job and then another (bash-3.2-safe: no associative array between them).
+    const loop = SCRIPT.indexOf('for job in "${!SCHED[@]}"; do')
+    const cat = SCRIPT.indexOf('  cat > "/etc/systemd/system/eno-cron-$job.service" <<UNIT', loop)
+    const setup = SCRIPT.slice(SCRIPT.indexOf('  EXTRA=""', loop), cat)
+    const unit = SCRIPT.slice(cat, SCRIPT.indexOf('\nUNIT\n', cat) + 6).replace('cat > "/etc/systemd/system/eno-cron-$job.service" <<UNIT', 'cat <<UNIT')
+    expect(unit).toMatch(/^\$EXTRA$/m)
+    const r = bash(`HOST_HEADER=eno.vn; PORT=3001\nfor job in secondhand-showcase visa-retention; do\n${setup}${unit}echo ---\ndone`)
+    expect(r.status).toBe(0)
+    const [mine, next] = r.out.split('---\n')
+    expect(mine).toContain('ExecStart=/opt/eno/bin/eno-cron.sh secondhand-showcase eno.vn 3001 1800')
+    expect(mine).toMatch(/^Environment=ENO_CRON_KEEP_DIR=\/var\/lib\/eno\/cron-journals$/m)
+    expect(mine).toMatch(/^TimeoutStartSec=2400$/m) // its own line: nothing cuts the 1800 s curl
+    expect(next).toContain('ExecStart=/opt/eno/bin/eno-cron.sh visa-retention eno.vn 3001')
+    expect(next).not.toContain('ENO_CRON_KEEP_DIR') // the job after it inherits nothing
+  })
+
+  it('⛔ partner-stock is POLICY while the five-per-shop showcase stands — its restock of sold rows would break the cap', () => {
+    expect(list('POLICY').words).toContain('partner-stock')
+    for (const name of ['SAFE', 'EMAIL', 'MANUAL']) expect(list(name).words, `${name} holds it`).not.toContain('partner-stock')
+  })
+
+  it('eno-cron.sh takes a per-job curl limit (4th argument, 900 s by default) and keeps an answer only where a unit asks', () => {
+    const run = SCRIPT.slice(SCRIPT.indexOf("cat > /opt/eno/bin/eno-cron.sh <<'RUN'"), SCRIPT.indexOf('\nRUN\n'))
+    expect(run).toContain('MAXT="${4:-900}"')
+    expect(run).toContain('--max-time "$MAXT"')
+    expect(run).not.toContain('--max-time 900')
+    expect(run).toMatch(/if \[ -n "\$\{ENO_CRON_KEEP_DIR:-\}" \]; then/)
+    // Run the keep block with the installer's strictness: it copies the answer, named by job, time and status.
+    const keep = run.slice(run.indexOf('if [ -n "${ENO_CRON_KEEP_DIR:-}" ]; then'), run.indexOf('\nfi', run.indexOf('if [ -n "${ENO_CRON_KEEP_DIR:-}" ]; then')) + 3)
+    const dir = `/tmp/eno-cron-keep-test-${process.pid}`
+    const r = bash(`JOB=secondhand-showcase; code=200; echo '{"ok":true}' > /tmp/eno-cron-$JOB.out; ENO_CRON_KEEP_DIR=${dir}\n${keep}\nls ${dir}; rm -rf ${dir}`)
+    expect(r.status).toBe(0)
+    expect(r.out).toMatch(/^secondhand-showcase-\d{8}T\d{6}Z-200\.json$/m)
+  })
+
+  it('⛔ a curl that gives up (exit 28) still reaches the echo and the keep, keeps no stale answer, and fails the unit', () => {
+    const run = SCRIPT.slice(SCRIPT.indexOf("cat > /opt/eno/bin/eno-cron.sh <<'RUN'"), SCRIPT.indexOf('\nRUN\n'))
+    const body = run.slice(run.indexOf('\n') + 1)
+    const job = `keep-test-${process.pid}`
+    const dir = `/tmp/eno-cron-keep-test-${process.pid}-b`
+    // docker and curl stubbed: curl writes what it got (or nothing), prints its status and exits as told — 28 at --max-time.
+    const go = (partial: boolean, status = '000', exit = 28) => spawnSync('bash', ['-c',
+      `docker() { echo s3cret; }\ncurl() { local o=''; while [ $# -gt 0 ]; do [ "$1" = -o ] && o=$2; shift; done; ${partial ? `printf '{"ok":tr' > "$o";` : ''} printf ${status}; return ${exit}; }\n${body}`,
+      'eno-cron.sh', job, 'eno.vn', '3001', '1800'], { encoding: 'utf8', env: { ...process.env, ENO_CRON_KEEP_DIR: dir } })
+    try {
+      writeFileSync(`/tmp/eno-cron-${job}.out`, '{"stale":"last week"}')
+      const cut = go(false)
+      expect(cut.status).toBe(1)
+      expect(cut.stdout).toContain(`${job} -> 000`)
+      expect(existsSync(dir) ? readdirSync(dir) : []).toEqual([]) // last week's answer removed — never kept as this one's
+      const part = go(true)
+      expect(part.status).toBe(1)
+      expect(readdirSync(dir)).toEqual([expect.stringMatching(new RegExp(`^${job}-\\d{8}T\\d{6}Z-000\\.json$`))])
+      // ⛔ A 200 whose body was cut off (curl 56, connection reset) fails the unit too — never green on a truncated answer.
+      const reset = go(true, '200', 56)
+      expect(reset.status).toBe(1)
+      expect(reset.stdout).toContain(`${job} -> 200 (curl 56)`)
+    } finally {
+      rmSync(dir, { recursive: true, force: true }); rmSync(`/tmp/eno-cron-${job}.out`, { force: true })
+    }
   })
 
   it('in_list (the loop the branches use) answers yes and no under set -euo pipefail', () => {

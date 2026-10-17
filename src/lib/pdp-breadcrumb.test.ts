@@ -148,7 +148,7 @@ describe('pdpBreadcrumbLd — in step with the visible trail', () => {
   })
 
   it('a retired shelf keeps no category crumb in the markup (its browse link is the explorer)', () => {
-    expect(names({ category: { slug: 'vehicles', name: 'Vehicles', nameVi: 'Xe cộ' } })).toEqual(['eno.vn', 'Sofa'])
+    expect(names({ category: { slug: 'pets', name: 'Pets', nameVi: 'Thú cưng' } })).toEqual(['eno.vn', 'Sofa'])
   })
 })
 

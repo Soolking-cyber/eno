@@ -52,9 +52,9 @@ const listing = (images: string[]) => ({
   titleVi: 'Xe đạp đua',
   images,
   sellerId: 's1',
-  subcategorySlug: 'bicycles',
+  subcategorySlug: 'supplies',
   brandSlug: null,
-  category: { slug: 'vehicles' },
+  category: { slug: 'pets' },
 }) as unknown as SerializedListing
 const cards = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `c${i}` })) as unknown as SerializedListingCard[]
 const renderSold = (images: string[], more: number, lang?: string, titleI18n?: Record<string, string>) =>
@@ -157,8 +157,8 @@ describe('SoldListing', () => {
       const hrefs = (r: ReturnType<typeof at>, text: string) => r.getAllByText(text).map((el) => el.closest('a')!.getAttribute('href'))
       const vi_ = at('vi')
       expect(hrefs(vi_, 'Home')).toEqual(['/vi', '/vi'])
-      // Vehicles is a retired shelf: it browses in the explorer (`/?category=`), whose Vietnamese twin is /vi.
-      expect(hrefs(vi_, 'Browse this category')).toEqual(['/vi?category=vehicles', '/vi?category=vehicles'])
+      // Pets is a retired shelf: it browses in the explorer (`/?category=`), whose Vietnamese twin is /vi.
+      expect(hrefs(vi_, 'Browse this category')).toEqual(['/vi?category=pets', '/vi?category=pets'])
       cleanup()
       expect(hrefs(at('en'), 'Home')).toEqual(['/', '/'])
     } finally {

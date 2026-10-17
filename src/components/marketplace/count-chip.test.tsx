@@ -686,8 +686,9 @@ describe('<BrandRail> — counts at the call site', () => {
   })
 })
 
-// ⛔ SECOND-HAND FOCUS, 2026-10-03: vehicles (2 live), books (6) and hobbies (4) clear the "not zero" test, so
-// they are dropped by name — unless the visitor is already in one, which must stay readable and leavable.
+// ⛔ SECOND-HAND FOCUS, 2026-10-03: books (6 live) and hobbies (4) clear the "not zero" test, so they are dropped by
+// name — unless the visitor is already in one, which must stay readable and leavable. Vehicles (2) is a shelf again
+// since 2026-10-17 (owner: a person's motorbike for sale had nowhere to be found), so it is a tile like any other.
 describe('offeredCategories — the retired shelves', () => {
   const all = [
     { slug: 'rentals', verifiedCount: 23_314 },
@@ -697,11 +698,11 @@ describe('offeredCategories — the retired shelves', () => {
     { slug: 'pets', verifiedCount: 0 },
     { slug: 'electronics', verifiedCount: 4_647 },
   ]
-  it('drops vehicles, books, hobbies and pets from the tiles', () => {
-    expect(offeredCategories(all, undefined, '').map((c) => c.slug)).toEqual(['rentals', 'electronics'])
+  it('drops books, hobbies and pets from the tiles — and offers vehicles again', () => {
+    expect(offeredCategories(all, undefined, '').map((c) => c.slug)).toEqual(['rentals', 'vehicles', 'electronics'])
   })
   it('keeps the active one, retired or not', () => {
-    expect(offeredCategories(all, undefined, 'vehicles').map((c) => c.slug)).toEqual(['rentals', 'vehicles', 'electronics'])
+    expect(offeredCategories(all, undefined, 'books-stationery').map((c) => c.slug)).toEqual(['rentals', 'vehicles', 'books-stationery', 'electronics'])
   })
 })
 
@@ -718,7 +719,7 @@ describe('browseInsteadCategories — the "Or browse" chips under an empty resul
     { slug: 'teachers', verifiedCount: 2 },
     { slug: 'electronics', verifiedCount: 63_932 },
     { slug: 'moving-sale', verifiedCount: 0 },
-    { slug: 'vehicles', verifiedCount: 2 },
+    { slug: 'hobbies-sports', verifiedCount: 4 },
     { slug: 'furniture-appliances', verifiedCount: 6_308 },
   ]
   const slugs = (xs: Array<{ slug: string }>) => xs.map((x) => x.slug)

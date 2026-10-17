@@ -134,7 +134,7 @@ struct DeepLinkRouterTests {
 }
 
 struct CategoriesTests {
-    private let retired: Set<String> = ["vehicles", "pets", "books-stationery", "hobbies-sports"]
+    private let retired: Set<String> = ["pets", "books-stationery", "hobbies-sports"]
 
     // The browse grids drop the shelves the web retired from navigation (2026-10-03, the web's
     // RETIRED_NAV_CATEGORIES)…
@@ -147,8 +147,9 @@ struct CategoriesTests {
 
     // …but the Quick-find rail keeps a retired shelf while it is the active filter, as the web rail does.
     @Test func railKeepsAnActiveRetiredShelf() {
-        #expect(Categories.browse(keeping: "vehicles").contains { $0.slug == "vehicles" })
-        #expect(!Categories.browse(keeping: "vehicles").contains { $0.slug == "pets" })
+        #expect(Categories.browse(keeping: "pets").contains { $0.slug == "pets" })
+        #expect(!Categories.browse(keeping: "pets").contains { $0.slug == "hobbies-sports" })
+        #expect(Categories.browse.contains { $0.slug == "vehicles" }) // a shelf again since 2026-10-17
         #expect(Categories.browse(keeping: nil).map(\.slug) == Categories.browse.map(\.slug))
         #expect(Categories.browse(keeping: "electronics").map(\.slug) == Categories.browse.map(\.slug))
     }

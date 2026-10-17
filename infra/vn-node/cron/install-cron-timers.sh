@@ -71,7 +71,17 @@ declare -A SCHED=(
   # outbound jobs never overlap, and squarely outside VN shopping hours because this one re-reads
   # thirteen small shops on shared hosting rather than calling one datafeed API.
   # ⚠️ Retired new-goods shops (StoreConfig.retired, 2026-10-03) are skipped without a fetch.
+  # ⛔ POLICY SINCE 2026-10-17, AND THE ROUTE ITSELF ANSWERS {skipped} WITHOUT ?force=1: it restocks every sold row a shop
+  # lists again, which would push the second-hand shops past the owner's five (2026-10-16) — secondhand-showcase below
+  # does the availability, price and replacement work now. It was never installed on this box (none of its units existed
+  # on 2026-10-17).
   [partner-stock]="*-*-* 19:00:00 UTC"
+  # The SECOND-HAND SHOWCASE (owner, 2026-10-17: "check out 2nd hand deals some of them are no longer available replace
+  # with available options have a 2nd hand run weekly to check" — src/app/api/cron/secondhand-showcase/route.ts): each
+  # partner shop's five live second-hand listings (the owner's cap, 2026-10-16) are read at the shop; one the shop no longer
+  # sells goes `sold` and is replaced from the rows the cap hid, each proven on sale, the same item and sanely priced first.
+  # Monday 00:00 UTC = 07:00 ICT, out of VN shopping hours. Its curl gets 30 minutes (below): ~17 small shops, politely.
+  [secondhand-showcase]="Mon *-*-* 00:00:00 UTC"
   # Sign in with Apple (2026-10-08): retry the Apple tokens an account erasure could not revoke (daily, at most 14
   # days — TN3194) and probe both Apple clients (src/app/api/cron/apple-revocations/route.ts). 09:15 UTC: after the
   # 09:00 storage sweep, outside VN peak. A non-200 (a client refused, a token given up on) fails the unit.
@@ -172,7 +182,14 @@ declare -A SCHED=(
 # unlike identity-reconcile, it IS replayed at boot when missed (the default Persistent=true): a sync and a purge are
 # silent at any hour. Installed before the deploy, its unit fails (the route 404s) until the deploy lands, harmlessly. One
 # edition is enough: the database and the ISR invalidations are shared.
-SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations partner-stock indexnow listing-tombstone-retention school-proof-retention apple-revocations teacher-draft-retention licence-holds identity-reconcile identity-marks)
+# ⚠️ secondhand-showcase is SAFE (owner, 2026-10-17 — "have a 2nd hand run weekly"): it reaches OUT to the ~17 partner
+# shops (honest user-agent, one request per host per 1.2 s) and writes only their OWNERLESS storefronts' second-hand rows —
+# `sold` on per-row evidence the shop no longer sells one, a price inside ±50%, and a restore of a row the 2026-10-16 cap
+# hid (untouched since, verified, clear, screened, proven on sale) while the storefront has fewer than five live. It emails
+# nobody; a dry run is ?dryRun=1. A broken read retires nothing (unknown keeps its slot), half the showcase at once is
+# refused (500 mass_retire), and every write is in the response, kept under /var/lib/eno/cron-journals (rollback:
+# scripts/secondhand-showcase.ts --rollback <file>). Installed before the deploy, its unit fails (404) until it lands.
+SAFE=(visa-retention storage-tombstones price-stats video-gc warm-translations secondhand-showcase indexnow listing-tombstone-retention school-proof-retention apple-revocations teacher-draft-retention licence-holds identity-reconcile identity-marks)
 # Installed, NOT enabled: these send email to real people. They are enabled at cutover, by the line printed at the end.
 EMAIL=(daily-reminders saved-search-alerts weekly-digest)
 # ⛔ STARTED BY HAND, NEVER ON A SCHEDULE: a SERVICE and NO TIMER (gate review, 2026-10-08 — codex + Opus). The teacher
@@ -198,7 +215,9 @@ in_list(){ local x=$1 j; shift; for j in "$@"; do [ "$j" = "$x" ] && return 0; d
 # maps to a storefront, so there is nothing to refresh; a SAFE job would be re-enabled by every installer re-run. Enable
 # it only if the owner brings AccessTrade back (map the campaign in affiliate-price-refresh.ts and set the env first):
 #   systemctl enable --now eno-cron-affiliate-prices.timer
-POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices)
+# partner-stock (2026-10-17): POLICY while the owner's five-per-shop second-hand showcase stands — its restock of sold rows
+# would push shops past five, and the route answers {skipped} without ?force=1 anyway. Enable only after the cap is lifted.
+POLICY=(business-verification-retention school-awards teacher-message-emails affiliate-prices partner-stock)
 
 # ⚠️ ONE JOB ONLY: `ENO_CRON_ONLY=<job> bash install-cron-timers.sh` writes, reloads and enables just
 # that job's units (if it is in SAFE) and leaves every other unit as it is. A full re-run DISABLES the
@@ -215,16 +234,29 @@ cat > /opt/eno/bin/eno-cron.sh <<'RUN'
 # drift from what the app actually validates against — which is precisely the failure
 # that left every Cloud Scheduler job returning UNAUTHENTICATED for weeks.
 set -euo pipefail
-JOB="${1:?job name}"; HOST="${2:-eno.vn}"; PORT="${3:-3001}"
+JOB="${1:?job name}"; HOST="${2:-eno.vn}"; PORT="${3:-3001}"; MAXT="${4:-900}"
 S=$(docker exec "$([ "$HOST" = eno.forum ] && echo eno-forum-app || echo eno-vn-app)" printenv CRON_SECRET)
 [ -n "$S" ] || { echo "no CRON_SECRET in the container"; exit 1; }
-code=$(curl -s -o /tmp/eno-cron-$JOB.out -w '%{http_code}' --max-time 900 \
-        -H "Authorization: Bearer $S" -H "Host: $HOST" "http://127.0.0.1:$PORT/api/cron/$JOB")
-echo "$JOB -> $code $(head -c 200 /tmp/eno-cron-$JOB.out)"
-# ⛔ NON-ZERO ON A NON-200, so `systemctl list-units --failed` and the journal show it.
+# Last run's answer gone first: a call that never answers must not leave last week's to be read (or kept) as this one's.
+rm -f /tmp/eno-cron-$JOB.out
+# ⚠️ `|| rc=$?`: under `set -e` a curl that gives up (exit 28 at MAXT) would end the script on this line, before the echo
+# and the keep below. Its exit code is kept: a 200 whose body was cut off (exit 18/56) fails the unit like a non-200.
+rc=0
+code=$(curl -s -o /tmp/eno-cron-$JOB.out -w '%{http_code}' --max-time "$MAXT" \
+        -H "Authorization: Bearer $S" -H "Host: $HOST" "http://127.0.0.1:$PORT/api/cron/$JOB") || rc=$?
+echo "$JOB -> ${code:-000} (curl $rc) $(head -c 200 /tmp/eno-cron-$JOB.out 2>/dev/null)"
+# A job whose answer is its journal (secondhand-showcase: every write with its prior state, what a rollback replays) sets
+# ENO_CRON_KEEP_DIR in its unit, and every run's answer is kept there for 180 days — /tmp is overwritten by the next run.
+# (A cut-short answer is kept as far as it got; the job's container log has each landed write — its route says how.)
+if [ -n "${ENO_CRON_KEEP_DIR:-}" ]; then
+  install -d -m 0750 "$ENO_CRON_KEEP_DIR"
+  [ -f /tmp/eno-cron-$JOB.out ] && cp /tmp/eno-cron-$JOB.out "$ENO_CRON_KEEP_DIR/$JOB-$(date -u +%Y%m%dT%H%M%SZ)-${code:-000}.json"
+  find "$ENO_CRON_KEEP_DIR" -name "$JOB-*.json" -mtime +180 -delete
+fi
+# ⛔ NON-ZERO ON A NON-200 OR A CURL ERROR, so `systemctl list-units --failed` and the journal show it.
 # A cron that logs a failure as success is the silent failure this whole exercise exists
 # to remove.
-[ "$code" = "200" ]
+[ "$code" = "200" ] && [ "$rc" = 0 ]
 RUN
 chmod +x /opt/eno/bin/eno-cron.sh
 
@@ -261,6 +293,10 @@ for job in "${!SCHED[@]}"; do
   [ "$job" = identity-reconcile ] && TARGET="eno.vn 3001"
   # ⚠️ identity-marks too: the card caches and the ISR invalidations are in the shared database — once, on eno.vn.
   [ "$job" = identity-marks ] && TARGET="eno.vn 3001"
+  # ⚠️ secondhand-showcase runs ONCE, on eno.vn (the listings and the ISR invalidations are shared), with a 30-minute curl
+  # (eno-cron.sh's 4th argument) — it reads ~17 shops politely — and its answer, the run's journal, kept for a rollback.
+  # TimeoutStartSec spelled out (a oneshot unit has none by default) so nothing cuts the curl before its own 1800 s.
+  [ "$job" = secondhand-showcase ] && { TARGET="eno.vn 3001 1800"; EXTRA=$'Environment=ENO_CRON_KEEP_DIR=/var/lib/eno/cron-journals\nTimeoutStartSec=2400'; }
   cat > "/etc/systemd/system/eno-cron-$job.service" <<UNIT
 [Unit]
 Description=eno cron: $job

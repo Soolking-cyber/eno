@@ -71,7 +71,8 @@ describe('post wizard — the category grid (sell-06)', () => {
   })
 
   it('keeps the unlinked shelves behind "More…" until it is opened', () => {
-    for (const hidden of ['pets', 'property', 'vehicles']) expect(order).not.toContain(hidden)
+    for (const hidden of ['pets', 'property']) expect(order).not.toContain(hidden)
+    expect(order).toContain('vehicles') // a shelf again (owner, 2026-10-17)
     expect(page).toContain('More…')
   })
 

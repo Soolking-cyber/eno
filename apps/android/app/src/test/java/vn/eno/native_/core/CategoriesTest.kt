@@ -9,7 +9,7 @@ import org.junit.Test
 // web's RETIRED_NAV_CATEGORIES), keeps one while it is the active filter (the web rail's rule), and posting
 // keeps them all — the web keeps those shelves postable (src/lib/retired-categories.ts).
 class CategoriesTest {
-    private val retired = setOf("vehicles", "pets", "books-stationery", "hobbies-sports")
+    private val retired = setOf("pets", "books-stationery", "hobbies-sports")
 
     @Test
     fun browseOmitsRetiredShelves() {
@@ -20,8 +20,9 @@ class CategoriesTest {
 
     @Test
     fun railKeepsAnActiveRetiredShelf() {
-        assertTrue(Categories.browseKeeping("vehicles").any { it.slug == "vehicles" })
-        assertFalse(Categories.browseKeeping("vehicles").any { it.slug == "pets" })
+        assertTrue(Categories.browseKeeping("pets").any { it.slug == "pets" })
+        assertFalse(Categories.browseKeeping("pets").any { it.slug == "hobbies-sports" })
+        assertTrue(Categories.browse.any { it.slug == "vehicles" }) // a shelf again since 2026-10-17
         assertEquals(Categories.browse.map { it.slug }, Categories.browseKeeping(null).map { it.slug })
     }
 

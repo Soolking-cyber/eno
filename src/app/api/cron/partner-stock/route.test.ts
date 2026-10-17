@@ -60,7 +60,8 @@ vi.mock('@/lib/db', () => ({
 }))
 
 const { GET } = await import('./route')
-const run = async () => (await GET(new Request('https://eno.vn/api/cron/partner-stock', { headers: { authorization: 'Bearer cron-secret' } }))).json()
+// `?force=1`: the job is fenced off while the second-hand showcase stands (its own describe below).
+const run = async () => (await GET(new Request('https://eno.vn/api/cron/partner-stock?force=1', { headers: { authorization: 'Bearer cron-secret' } }))).json()
 const status = (id: string) => h.rows.find((r) => r.id === id)?.status
 
 beforeEach(() => {
@@ -72,6 +73,22 @@ beforeEach(() => {
   h.complete = false
   h.writes = []
   h.afterRead = {}
+})
+
+describe('GET /api/cron/partner-stock — fenced off while the second-hand showcase stands (owner, 2026-10-16/17)', () => {
+  it('⛔ without ?force=1 it fetches nothing and writes nothing — its restock would push shops past five', async () => {
+    h.rows = [{ id: 'ok', externalId: 'e-ok', price: 100, status: 'sold', title: 'Áo thun nam cotton' }]
+    h.products = [{ externalId: 'e-ok', price: 100, inStock: true }]
+    const out = await (await GET(new Request('https://eno.vn/api/cron/partner-stock', { headers: { authorization: 'Bearer cron-secret' } }))).json()
+    expect(out).toMatchObject({ ok: true, skipped: 'superseded_by_secondhand_showcase' })
+    for (const q of ['?force', '?force=0', '?force=false', '?force=true']) {
+      const again = await (await GET(new Request(`https://eno.vn/api/cron/partner-stock${q}`, { headers: { authorization: 'Bearer cron-secret' } }))).json()
+      expect(again, q).toMatchObject({ skipped: 'superseded_by_secondhand_showcase' })
+    }
+    expect(h.fetched).toEqual([])
+    expect(h.writes).toEqual([])
+    expect(status('ok')).toBe('sold')
+  })
 })
 
 describe('GET /api/cron/partner-stock — restocks are screened', () => {
