@@ -610,3 +610,65 @@ describe('edge Worker — the catch-all route (speed plan item 10)', () => {
     expect(r.headers.get('server-timing')).toBeNull()
   })
 })
+
+describe('edge Worker — signed-in readers read the shared copy, never write it (speed plan item 10)', () => {
+  const AUTH = 'sb-sbenovn-auth-token=base64-session; eno-consent-v2=v2.010.1.abcdefgh'
+  const age = (key: string, secondsAgo: number) => {
+    const old = h.store.get(key)!
+    const aged = new Response(old.body, old)
+    aged.headers.set('x-eno-stored', String(Date.now() - secondsAgo * 1000))
+    h.store.set(key, aged)
+  }
+
+  it('a HIT serves a signed-in reader the copy an anonymous reader stored — no origin call', async () => {
+    const anon = await call('/terms', { 'accept-language': 'en-US' })
+    const stored = await anon.text()
+    const r = await call('/terms', { 'accept-language': 'en-US', cookie: AUTH })
+    expect(r.headers.get('x-eno-cache')).toBe('HIT')
+    expect(await r.text()).toBe(stored)
+    expect(h.origin).toHaveLength(1)
+  })
+
+  it('a signed-in MISS is passed through WITH their cookies and never stored — even when the page is storable', async () => {
+    const r = await call('/terms', { 'accept-language': 'en-US', cookie: AUTH })
+    expect(r.headers.get('server-timing')).toContain('ecache;desc="PASS"')
+    expect(h.origin).toHaveLength(1)
+    expect(h.origin[0].headers.get('cookie')).toBe(AUTH)
+    expect(h.store.size).toBe(0)
+  })
+
+  it('a STALE behind a signed-in reader refreshes WITHOUT the session — only the lang cookie goes', async () => {
+    await call('/terms', { cookie: 'lang=vi' })
+    const key = [...h.store.keys()][0]
+    age(key, 3600)
+    h.origin = []
+    const r = await call('/terms', { cookie: `lang=vi; ${AUTH}` })
+    expect(r.headers.get('x-eno-cache')).toBe('STALE')
+    await Promise.all(h.waits)
+    expect(h.origin).toHaveLength(1)
+    expect(h.origin[0].headers.get('cookie')).toBe('lang=vi')
+    expect(h.store.get(key)!.headers.get('content-language')).toBe('vi')
+  })
+
+  it('an anonymous refresh carries the lang cookie alone too (consent and the rest stay with the reader)', async () => {
+    await call('/terms', { 'accept-language': 'en-US' })
+    const key = [...h.store.keys()][0]
+    age(key, 3600)
+    h.origin = []
+    const before = Number(h.store.get(key)!.headers.get('x-eno-stored'))
+    await call('/terms', { 'accept-language': 'en-US', cookie: 'eno-consent-v2=v2.010.1.abcdefgh; eno_attr=x' })
+    await Promise.all(h.waits)
+    expect(h.origin[0].headers.get('cookie')).toBeNull()
+    // …and the cookie-less answer was storable: the entry was replaced, not left to age.
+    expect(Number(h.store.get(key)!.headers.get('x-eno-stored'))).toBeGreaterThan(before)
+  })
+
+  it('a signed-in reader\'s language still picks the key — lang=vi reads the vi copy', async () => {
+    await call('/terms', { cookie: 'lang=vi' })
+    h.matched = []
+    const r = await call('/terms', { cookie: `lang=vi; ${AUTH}`, 'accept-language': 'en-US' })
+    expect(keyVariant()).toBe('vi')
+    expect(r.headers.get('x-eno-cache')).toBe('HIT')
+    expect(r.headers.get('content-language')).toBe('vi')
+  })
+})
