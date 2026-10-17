@@ -1,3 +1,5 @@
+import { mayReachFrameworkPath } from '@/lib/deep-link'
+
 /**
  * Sanitize a ?next= redirect target to a SAME-ORIGIN, root-relative path.
  *
@@ -26,6 +28,8 @@ export function safeNextPath(raw: string | null | undefined, origin: string): st
     // `next` bounces the user straight back into the auth flow — a redirect loop the reporter hit.
     // These are interstitials, never a place to "return to"; fall back to home.
     if (/^\/(signin|auth|onboard)(\/|$)/.test(u.pathname)) return '/'
+    // ⛔ ...nor a path under "/_": Capacitor ≤8.4.2's HTTP proxy lives there (GHSA-rvm3-566m-v7fv — mayReachFrameworkPath).
+    if (mayReachFrameworkPath(u.pathname)) return '/'
     return path
   } catch {
     return '/'

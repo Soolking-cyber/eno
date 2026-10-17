@@ -31,7 +31,7 @@ describe('/.well-known/apple-app-site-association', () => {
     expect((await GET()).status).toBe(404)
   })
 
-  it('on eno.vn: 200 JSON for <team>.vn.eno.app, auth + sign-in excluded BEFORE the catch-all', async () => {
+  it('on eno.vn: 200 JSON for <team>.vn.eno.app, auth, sign-in and framework paths excluded BEFORE the catch-all', async () => {
     vi.stubEnv('APPLE_TEAM_ID', 'DTP9SKVFMQ')
     vi.stubEnv('APPLE_BUNDLE_ID', '')
     const res = await GET()
@@ -44,6 +44,7 @@ describe('/.well-known/apple-app-site-association', () => {
     expect(body.applinks.details[0].components).toEqual([
       { '/': '/auth*', exclude: true },
       { '/': '/signin*', exclude: true },
+      { '/': '/_*', exclude: true },
       { '/': '/*' },
     ])
   })

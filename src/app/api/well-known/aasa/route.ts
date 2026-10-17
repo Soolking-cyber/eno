@@ -64,6 +64,10 @@ export async function GET() {
               // `/auth/callback` — otherwise a bare `/auth` would fall through to `/*` and open the app.
               { "/": "/auth*", exclude: true },
               { "/": "/signin*", exclude: true },
+              // Framework paths stay in Safari too — defence in depth for GHSA-rvm3-566m-v7fv (Capacitor ≤8.4.2 proxies any
+              // URL from /_capacitor_http_interceptor_ on the app's origin). The guard that counts is canonicalAppPath's
+              // mayReachFrameworkPath, which also refuses the ENCODED spellings this literal glob may not match.
+              { "/": "/_*", exclude: true },
               // Everything else first-party deep-links into the app (storefronts, profiles,
               // dashboard, messages, post, listings, categories, brands …).
               { "/": "/*" },
