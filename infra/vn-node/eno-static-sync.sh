@@ -33,7 +33,7 @@ set -euo pipefail
 
 cmd=${1:-}
 ed=${2:-}
-case "$cmd" in ingest|prune|drop|status) ;; *) echo "usage: $0 ingest|prune|drop|status <marketplace|services> [...]" >&2; exit 2;; esac
+case "$cmd" in ingest|prune|drop|status|backfill) ;; *) echo "usage: $0 ingest|prune|drop|status|backfill <marketplace|services> [...]" >&2; exit 2;; esac
 [[ $ed =~ ^(marketplace|services)$ ]] || { echo "eno-static-sync: edition must be marketplace or services" >&2; exit 2; }
 shift 2
 
@@ -41,6 +41,17 @@ ROOT=${ENO_STATIC_ROOT:-/var/www/eno-static}
 LEDGER=${ENO_STATIC_LEDGER:-/var/lib/eno-static}
 RETAIN_DAYS=${ENO_STATIC_RETAIN_DAYS:-30}   # open tabs and native WebViews have no upper bound; 30 d is generous
 KEEP_BUILDS=${ENO_STATIC_KEEP_BUILDS:-10}   # …and the 10 newest builds whatever their age
+# Parallel brotli -q11 workers (ingest's delta + backfill). ⛔ VALIDATED positive int: `xargs -P 0` is
+# UNLIMITED — it would uncap q11 across every core on the box that serves BOTH prod containers during a deploy
+# — so 0 / blank / non-digit falls back to 3 (conservative; the box has 16 cores but carries live traffic).
+BROTLI_JOBS=${ENO_BROTLI_JOBS:-3}
+case $BROTLI_JOBS in ''|*[!0-9]*|0) BROTLI_JOBS=3;; esac
+# …and never MORE than cores. The length test is FIRST and short-circuits the arithmetic `-gt`, so a value too
+# long to be a real job count (≥100 digits, or anything that would overflow a shell integer compare) is capped
+# without ever running `-gt` on it. `xargs -P 0` is UNLIMITED and a huge -P spawns a q11 storm on the box that
+# serves both prod containers during a deploy.
+_bjmax=$(nproc 2>/dev/null || echo 4)
+if [ "${#BROTLI_JOBS}" -gt 2 ] || [ "$BROTLI_JOBS" -gt "$_bjmax" ]; then BROTLI_JOBS=$_bjmax; fi
 LOCK=${ENO_STATIC_LOCK:-/var/lock/eno-static-$ed.lock}
 dst=$ROOT/$ed/_next/static
 led=$LEDGER/$ed
@@ -81,10 +92,12 @@ ingest() {
   [ -z "$(find "$st/s" -type l -print -quit)" ] || { log "$src ships a symlink under .next/static — refused"; return 1; }
   (cd "$st/s" && find . -type f | sed 's|^\./||' | LC_ALL=C sort) > "$st/list"
 
-  # Precompress only what is not on disk yet (gzip -9 is ~0.5 s for the whole build; brotli -q11 took minutes,
-  # so it is NOT done here — see nginx/static-common.conf). touch -r keeps the .gz mtime equal to the original,
-  # which gzip_static's docs recommend.
-  : > "$st/collisions"
+  # Precompress only what is not on disk yet. gzip -9 (~0.5 s over a whole build) is done inline; brotli -q11
+  # is CPU-heavy, so the compressible paths are COLLECTED into $st/tobr and compressed in PARALLEL after the
+  # collision check — and only the DELTA, because content-hashed names mean a file already on disk is skipped
+  # above (a first full build is ~1 k files; a routine deploy, a handful). touch -r keeps each sibling's mtime
+  # equal to the original, which the gzip_static / brotli_static docs recommend (speed plan item 2 brotli-11).
+  : > "$st/collisions"; : > "$st/tobr"
   while IFS= read -r f; do
     if [ -e "$dst/$f" ]; then
       cmp -s "$st/s/$f" "$dst/$f" && continue
@@ -96,12 +109,37 @@ ingest() {
       *.js|*.mjs|*.css|*.svg|*.ico|*.json|*.txt|*.map|*.html)
         gzip -9 -n -k -f "$st/s/$f"; touch -r "$st/s/$f" "$st/s/$f.gz";;
     esac
+    # brotli q11 only the worth-it types — .map is EXCLUDED (multi-MB source maps, rarely fetched, the
+    # costliest to q11); .ico/.txt are too small to matter. These ride $st/tobr for the parallel pass below.
+    case $f in
+      *.js|*.mjs|*.css|*.svg|*.json) printf '%s\n' "$f" >> "$st/tobr";;
+    esac
   done < "$st/list"
 
   if [ "$coll" -gt 0 ] && [ "${ENO_STATIC_ALLOW_COLLISION:-0}" != 1 ]; then
     log "refusing: $coll same-name file(s) with different bytes (listed above). Names are supposed to be content"
     log "hashes; find out why before re-running with ENO_STATIC_ALLOW_COLLISION=1, which overwrites them."
     return 1
+  fi
+  # Brotli -q11 siblings for the new/changed compressible files, in PARALLEL across cores (q11 is slow), only
+  # the delta collected above. Guarded: no `brotli` on the box → skip with a warning, NEVER fail the deploy
+  # (nginx still serves .gz; brotli_static just finds no .br until this runs). New files' .br ride the rsync
+  # below; collisions' .br are installed in the collision loop.
+  if [ -s "$st/tobr" ]; then
+    if command -v brotli >/dev/null 2>&1; then
+      # q11 is CPU/memory-heavy and this box runs BOTH prod containers during a deploy, so CAP the jobs and
+      # `nice` them (ENO_BROTLI_JOBS overrides; default 3, not one-per-core). Each worker writes to a .part and
+      # RENAMES on success, so a kill/OOM at q11 never leaves a half-written .br to be served; a file that fails
+      # simply gets no .br (nginx serves its .gz). Compression NEVER fails the deploy — brotli_static is an
+      # optimisation, not a gate (the worker exits 0 on its own failure; the outer `|| log` catches an xargs/nice
+      # fault). Only the DELTA runs here; a first full pass is the separate `backfill` command.
+      ( cd "$st/s" && nice -n 19 xargs -r -P "$BROTLI_JOBS" -I{} sh -c \
+          'brotli -q 11 -c -- "$1" > "$1.br.part" && mv -f "$1.br.part" "$1.br" && touch -r "$1" "$1.br" || { rm -f "$1.br.part"; exit 0; }' \
+          _ {} < "$st/tobr" ) || log "brotli: an xargs/nice fault occurred — some files ship gzip-only (deploy continues)"
+      log "brotli: submitted $(wc -l < "$st/tobr" | tr -d ' ') new file(s) to q11 (jobs=$BROTLI_JOBS, niced); any that failed ship gzip-only"
+    else
+      log "brotli NOT installed — .br siblings skipped (gzip .gz still written; install brotli to enable brotli_static)"
+    fi
   fi
   chown -R root:root "$st/s"
   chmod -R u=rwX,go=rX "$st/s"
@@ -112,7 +150,7 @@ ingest() {
     [ -n "$f" ] || continue
     install -m 0644 -o root -g root "$st/s/$f" "$dst/$f"
     if [ -e "$st/s/$f.gz" ]; then install -m 0644 -o root -g root "$st/s/$f.gz" "$dst/$f.gz"; else rm -f "$dst/$f.gz"; fi
-    rm -f "$dst/$f.br"
+    if [ -e "$st/s/$f.br" ]; then install -m 0644 -o root -g root "$st/s/$f.br" "$dst/$f.br"; else rm -f "$dst/$f.br"; fi
   done < "$st/collisions"
 
   install -m 0644 "$st/list" "$led/$bid.list"   # (re)written on every ingest: its mtime is "last seen"
@@ -151,6 +189,9 @@ prune() {
   while IFS= read -r f; do rm -f "$dst/$f" "$dst/$f.gz" "$dst/$f.br"; done < "$st/gone"
   # Siblings whose original is gone (a hand-deleted file) are never servable on their own.
   find "$dst" -type f \( -name '*.gz' -o -name '*.br' \) | while IFS= read -r f; do [ -e "${f%.*}" ] || rm -f "$f"; done
+  # .br.part is a brotli write-then-rename temp; a stale one means a worker was SIGKILL/OOM-killed mid-write. It
+  # is never served (nginx brotli_static opens .br, not .part), so sweep them here — runs every deploy.
+  find "$dst" -name '*.br.part' -delete 2>/dev/null || true
   find "$dst" -mindepth 1 -type d -empty -delete
   # Ledgers of builds no longer retained.
   orphans=0
@@ -175,6 +216,24 @@ drop() {
   rm -f "$led/$bid.list"
   find "$dst" -mindepth 1 -type d -empty -delete
   log "dropped build $bid: $gone files only it shipped"
+}
+
+backfill() {
+  # One-time, AFTER brotli is installed: write a .br for every on-disk compressible file that lacks one.
+  # ⛔ WHY IT IS NEEDED (reviewer codex+opus): ingest keeps NEW builds covered, but a chunk that shipped
+  # unchanged BEFORE brotli existed keeps its content-hashed name and is skipped by ingest's `cmp && continue`
+  # forever — so enabling brotli_static without this would serve those (often the big, stable framework)
+  # chunks as gzip indefinitely. Same guards as ingest: capped + niced, temp-then-rename, never a partial .br.
+  # ⚠️ Holds the per-edition flock (top of this script), so DON'T run it in a deploy window — a first full pass
+  # over every retained build at q11 can take minutes and would make a concurrent deploy's flock (300 s) time out.
+  command -v brotli >/dev/null 2>&1 || { log "backfill: brotli not installed on this box"; return 1; }
+  local n
+  n=$(find "$dst" -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.css' -o -name '*.svg' -o -name '*.json' \) \
+        | while IFS= read -r f; do [ -e "$f.br" ] || printf '%s\n' "$f"; done \
+        | nice -n 19 xargs -r -P "$BROTLI_JOBS" -I{} sh -c \
+            'brotli -q 11 -c -- "$1" > "$1.br.part" && mv -f "$1.br.part" "$1.br" && touch -r "$1" "$1.br" && chown root:root "$1.br" && chmod 0644 "$1.br" && echo done || { rm -f "$1.br.part"; }' \
+            _ {} | grep -c done || true)
+  log "backfill: wrote $n .br sibling(s) for existing files that lacked them"
 }
 
 status() {
