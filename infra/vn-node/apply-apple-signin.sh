@@ -22,7 +22,8 @@
 # fingerprints. The script refuses to run under `bash -x`, which would print every expansion.
 #
 # ⛔ THE APP'S NAMES, NEVER APPLE_TEAM_ID. The app reads APPLE_SIWA_* (src/lib/auth/apple-siwa.ts); the team-id
-# variable without the infix switches on the AASA route (applinks, P7 — on hold). Nothing here writes it.
+# variable without the infix switches on the AASA route (applinks, P7 — released by the owner 2026-10-17: eno-vn.env
+# carries it, eno-forum.env never may). Nothing here writes it.
 #
 # ⚠️ GoTrue IS RECREATED, AND BOTH EDITIONS SIGN IN THROUGH IT. install, rotate and restore each cost a few
 # seconds of failed sign-ins and token refreshes on eno.vn AND eno.forum: run them at 19:00–22:00 UTC.
@@ -1018,8 +1019,9 @@ cmd_install() {
   r=$(py merge-override "$SB_OVERRIDE" --check --require GOTRUE_EXTERNAL_GOOGLE_ENABLED) \
     || refuse "the override cannot be merged safely (above) — nothing was changed"
   ok "override: $r"
-  [ "$(py env-state "$VN_ENV" APPLE_TEAM_ID)" = absent ] && [ "$(py env-state "$FORUM_ENV" APPLE_TEAM_ID)" = absent ] \
-    || warn "APPLE_TEAM_ID is set in an app env file — it publishes the AASA (P7, on hold). This script never writes it."
+  # eno-vn.env carries it since P7 (2026-10-17); the forum never may (D18 — the route 404s there anyway).
+  [ "$(py env-state "$FORUM_ENV" APPLE_TEAM_ID)" = absent ] \
+    || warn "APPLE_TEAM_ID is set in eno-forum.env — only eno.vn publishes the AASA (D18). This script never writes it."
 
   # The .p8: the file I6 piped, or — a re-run with the same key id — the value the first run wrote.
   if [ -f "$P8_FILE" ]; then

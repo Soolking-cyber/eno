@@ -174,7 +174,7 @@ describe('apply-apple-signin.sh', { timeout: 30_000 }, () => {
     expect(r.stderr).toMatch(/refusing to run under xtrace/)
   })
 
-  it('never writes APPLE_TEAM_ID (it publishes the AASA, P7 — on hold); writes the app’s APPLE_SIWA_* names', () => {
+  it('never writes APPLE_TEAM_ID (it publishes the AASA — P7, set by the owner in eno-vn.env); writes the app’s APPLE_SIWA_* names', () => {
     expect(SOURCE).not.toMatch(/APPLE_TEAM_ID=/)
     for (const k of ['APPLE_SIWA_TEAM_ID', 'APPLE_SIWA_KEY_ID', 'APPLE_SIWA_PRIVATE_KEY', 'APPLE_SIWA_SERVICES_ID', 'APPLE_SIWA_BUNDLE_ID', 'APPLE_TOKEN_ENC_KEY']) {
       expect(SOURCE).toMatch(new RegExp(`${k}=(%s|@)`))
@@ -997,6 +997,22 @@ describe('the box flows, in a sandbox (stub docker, curl, flock, shred, systemct
     GOLD = makeBox()
     goldRun = run_(GOLD, INSTALL)
   }, 120_000)
+
+  it('APPLE_TEAM_ID (P7, 2026-10-17) in eno-vn.env is expected and silent; in eno-forum.env it is warned about — never written either way', () => {
+    const vn = makeBox()
+    writeFileSync(at(vn, 'secrets/eno-vn.env'), read(vn, 'secrets/eno-vn.env') + 'APPLE_TEAM_ID=DTP9SKVFMQ\n')
+    const a = run_(vn, INSTALL)
+    expect(a.status, a.out).toBe(0)
+    expect(a.out).not.toMatch(/APPLE_TEAM_ID is set/)
+    expect(read(vn, 'secrets/eno-vn.env').match(/^APPLE_TEAM_ID=/gm)).toHaveLength(1)
+    const forum = makeBox()
+    writeFileSync(at(forum, 'secrets/eno-forum.env'), read(forum, 'secrets/eno-forum.env') + 'APPLE_TEAM_ID=DTP9SKVFMQ\n')
+    const b = run_(forum, INSTALL)
+    expect(b.status, b.out).toBe(0)
+    expect(b.out).toMatch(/APPLE_TEAM_ID is set in eno-forum\.env — only eno\.vn publishes the AASA/)
+    expect(read(forum, 'secrets/eno-forum.env').match(/^APPLE_TEAM_ID=/gm)).toHaveLength(1)
+    expect(read(forum, 'secrets/eno-vn.env')).not.toMatch(/^APPLE_TEAM_ID=/m)
+  })
 
   it('install: backs up first, writes both app env files, GoTrue env and the ONE auth block, recreates auth once, proves it, shreds the token key — and prints only key id, expiry and fingerprint', () => {
     expect(goldRun.status, goldRun.out).toBe(0)
