@@ -22,7 +22,8 @@ import { YIELDED } from '@/lib/fab-clearance'
  * solves every hard part of being a floating control here, and each one was a bug first: it clears
  * the mobile bottom-nav with the `max(env, var)` pairing Android WebView needs, it disappears under
  * any dialog/sheet/alert (at z-[60] it used to sit ON TOP of the report dialog's submit button), and
- * it stands down entirely on /messages, which owns the bottom-right corner with its composer. A
+ * it stands down entirely on /messages, which owns the bottom-right corner with its composer — and, on a
+ * phone, on every browse page (owner, 2026-10-18: "no floaters"; Help is in the Account sheet there). A
  * second fixed element would have to re-derive all of that and would drift from it. Being a sibling
  * in the same flex column is also what makes "must not overlap the back-to-top arrow" true by
  * construction rather than by a magic offset.

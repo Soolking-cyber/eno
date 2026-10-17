@@ -7,6 +7,7 @@ import { ArtImage } from '@/components/marketplace/art-image'
 import { X } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { isIOS } from '@/lib/in-app-browser'
+import { consentAnswered } from '@/lib/consent'
 import { askHidden, askShown, mayAsk, notePageView } from '@/lib/page-asks'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -49,6 +50,16 @@ export function InstallHint() {
   useEffect(() => {
     notePageView(pathname)
     if (!due || mode) return
+    /**
+     * ⛔ ONE INTERRUPTION PER VISIT (owner, 2026-10-18: "one per visit, no floaters" — src/lib/page-asks.ts). `mayAsk`
+     * now also says no once the cookie bar or the "Join eno" prompt has had this session. And the card never asks
+     * while the cookie consent is UNANSWERED: the bar is then due in this session (it arrives 4s in, the card's own
+     * returning-visitor delay too), and the bar is the law's — it would show regardless, making two. A card that
+     * cannot ask simply stays due; the next session is its turn.
+     */
+    let consented = false
+    try { consented = consentAnswered() } catch { consented = false }
+    if (!consented) return
     if (!mayAsk('install', pathname)) return
     askShown('install', pathname)
     setMode(due)

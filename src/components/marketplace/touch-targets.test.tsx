@@ -120,10 +120,11 @@ describe('the controls that commit or undo a filter are ≥ the size of what the
   /**
    * The bar's own "Clear" is GONE (E-ACTIVE, 2026-09-29): it was a third reset on one screen beside the
    * result line's "Clear all" and the Filter panel's. What stays true is that nothing in the row is
-   * smaller than the pills — so this now pins the absence, and the pills' 44px (48 until the home-fold
-   * trim of 2026-09-30; 44 is the floor, so this may not go lower).
+   * smaller than the pills — so this now pins the absence, and the pills' 44px HIT AREA: since the one chip
+   * style (owner, 2026-10-18) a pill is a 36px tinted chip (`min-h-9`) whose 44px floor is the invisible
+   * `tap-44` area, which needs `relative` (48 until 2026-09-30, a visible 44 until 2026-10-18; 44 is the floor).
    */
-  it('facet bar carries no "Clear" of its own, and its pills stay 44px', () => {
+  it('facet bar carries no "Clear" of its own, and its pills keep a 44px hit area around a 36px chip', () => {
     const props: FacetBarProps = {
       activeCategory: 'electronics', activeSubcategory: 'all',
       province: null, setProvince: vi.fn(), ward: null, setWard: vi.fn(), nearby: null, setNearby: vi.fn(),
@@ -133,7 +134,13 @@ describe('the controls that commit or undo a filter are ≥ the size of what the
     }
     wrap(<FacetBar {...props} />)
     expect(screen.queryByRole('button', { name: /^(Clear|Xóa lọc)$/ })).toBeNull()
-    expect(tokens(screen.getByRole('button', { name: /^Area/ }))).toEqual(expect.arrayContaining(['min-h-11']))
+    for (const pill of [screen.getByRole('button', { name: /^Area/ }), screen.getByRole('button', { name: 'Price' })]) {
+      expect(tokens(pill)).toEqual(expect.arrayContaining(['min-h-9', 'rounded-full', 'relative', 'tap-44', 'bg-tint']))
+      expect(tokens(pill)).not.toContain('min-h-11')
+    }
+    // The row is a scroller below lg: it leaves the 4px above and below the pills that their hit area needs.
+    const row = screen.getByRole('button', { name: /^Area/ }).parentElement!
+    expect(tokens(row)).toEqual(expect.arrayContaining(['py-1', '-my-1']))
   })
 
   it('price panel Reset and Done are 44px (were 34×16 and 63×28)', async () => {

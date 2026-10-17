@@ -885,8 +885,13 @@ export default async function ListingPage({ params }: Props) {
               generated poster (scripts/import-jobs.ts), which on a PDP spent a full-width square — the
               whole phone fold — on a picture of the words printed below it. Cards keep the poster; the
               PDP opens on the compact job header in the buy box instead (see `isJob` there). */}
+          {/* ⛔ FLUSH UNDER THE HEADER (owner, 2026-10-18 — the first screen's photo, like FB Marketplace and Carousell):
+              `-mt-4` takes back <main>'s `pt-4`, the 16px strip of page colour that sat between the header and this
+              full-bleed square. It is the first block of the phone's order (order-2; nothing above it shows below md),
+              and only it pulls up: a page without a gallery (`noGallery`) keeps the padding over its buy box. This one
+              wrapper covers both gallery branches — the single photo and the carousel render inside it. */}
           {!noGallery && (
-          <div className="relative order-2 -mx-3 sm:-mx-6 md:hidden">
+          <div className="relative order-2 -mx-3 -mt-4 sm:-mx-6 md:hidden">
             <ListingGallery variant="mobile" images={listing.images} title={displayTitle} video={listing.video} showAllLabel="View all photos" />
             <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
               <ShareButton url={canonicalUrl} title={displayTitle} price={listing.listingType === 'job' ? undefined : listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact />

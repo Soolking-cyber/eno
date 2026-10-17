@@ -5,6 +5,7 @@ import { SlidersHorizontal } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { localizedHref } from '@/lib/lang-pinned'
 import { variantOfLanguage } from '@/lib/lang-variant'
+import { cn } from '@/lib/utils'
 
 /**
  * /c/<category>'s way into the explorer's facets, at the end of its sort strip (SellerListings
@@ -25,7 +26,12 @@ import { variantOfLanguage } from '@/lib/lang-variant'
  * its category/district there; only /api/listings reads `homes`. The param rides along anyway: it is the
  * page's true scope, harmless where it is ignored, and right the day B1 teaches the explorer to read it.
  */
-export function CategoryFiltersLink({ slug, query }: { slug: string; query?: Record<string, string> }) {
+export function CategoryFiltersLink({ slug, query, className }: {
+  slug: string
+  query?: Record<string, string>
+  /** Merged last — the /c sort strip draws this link as its Filters chip ((index)/page.tsx). */
+  className?: string
+}) {
   const { tr, lang } = useLanguage()
   const params = new URLSearchParams({ category: slug })
   for (const [k, v] of Object.entries(query ?? {})) if (v) params.set(k, v)
@@ -34,7 +40,7 @@ export function CategoryFiltersLink({ slug, query }: { slug: string; query?: Rec
       href={localizedHref(`/?${params.toString()}`, variantOfLanguage(lang))}
       rel="nofollow"
       prefetch={false}
-      className="relative tap-44 inline-flex items-center gap-1.5 whitespace-nowrap py-2.5 text-sm font-semibold text-accent-foreground hover:underline"
+      className={cn('relative tap-44 inline-flex items-center gap-1.5 whitespace-nowrap py-2.5 text-sm font-semibold text-accent-foreground hover:underline', className)}
     >
       <SlidersHorizontal className="h-4 w-4" aria-hidden />
       {tr('Filters', 'Bộ lọc')}

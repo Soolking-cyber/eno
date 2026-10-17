@@ -77,24 +77,22 @@ describe('signup-prompt — when it is due', () => {
     expect(isDue(at(60_000), freshDevice(), T0)).toBe(true)
   })
 
-  it('after a close (×, Esc, backdrop), again after 3 MORE minutes of visible browsing — counted from the dismissal', () => {
+  it('after a close (×, Esc, backdrop) the schedule still moves 3 minutes on — but the tab asks no second time', () => {
     expect(AGAIN_AFTER_MS).toBe(180_000)
     const shown = afterShown(at(60_000), freshDevice(), T0)
     // The prompt stayed open for 20s of visible time before the visitor closed it.
     const later = afterDismissed({ ...shown.tab, ms: 80_000 }, shown.device, T0 + 20_000)
     expect(later.tab.nextAt).toBe(80_000 + AGAIN_AFTER_MS)
     const wall = T0 + 20_000 + AGAIN_AFTER_MS
-    expect(isDue({ ...later.tab, ms: 80_000 + AGAIN_AFTER_MS - 1 }, later.device, wall)).toBe(false)
-    expect(isDue({ ...later.tab, ms: 80_000 + AGAIN_AFTER_MS }, later.device, wall)).toBe(true)
+    // One ask per tab session since 2026-10-18 (owner: "one per visit") — it used to come back here.
+    expect(isDue({ ...later.tab, ms: 80_000 + AGAIN_AFTER_MS }, later.device, wall)).toBe(false)
   })
 
-  it('⛔ at most twice per tab session', () => {
-    expect(MAX_PER_TAB).toBe(2)
+  it('⛔ at most ONCE per tab session (owner, 2026-10-18: "one per visit, no floaters"; it was twice)', () => {
+    expect(MAX_PER_TAB).toBe(1)
     let s = afterShown(at(60_000), freshDevice(), T0)
     s = afterDismissed(s.tab, s.device, T0)
-    s = afterShown({ ...s.tab, ms: 240_000 }, s.device, T0 + 300_000)
-    s = afterDismissed(s.tab, s.device, T0 + 300_000)
-    expect(s.tab.shown).toBe(2)
+    expect(s.tab.shown).toBe(1)
     expect(isDue({ ...s.tab, ms: 10 * 60 * 60 * 1000 }, s.device, T0 + 10 * 60 * 60 * 1000)).toBe(false)
   })
 

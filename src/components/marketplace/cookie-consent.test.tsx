@@ -6,6 +6,7 @@ import { LanguageProvider } from '@/context/language-context'
 import { CookieConsent } from './cookie-consent'
 import { consentAnswered, hasAdConsent, hasAnalyticsConsent, personalizationAllowed, readConsent, setConsent } from '@/lib/consent'
 import { CONSENT_COPY_VERSION } from '@/lib/consent-value'
+import { __resetPageAsksForTests, mayAsk, sessionAsk } from '@/lib/page-asks'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -646,6 +647,36 @@ describe('CookieConsent — the bar', () => {
     document.documentElement.classList.remove('kb-open')
     await advance(1_000)
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+/**
+ * ⛔ ONE INTERRUPTION PER VISIT (owner, 2026-10-18: "one per visit, no floaters" — src/lib/page-asks.ts). The bar is the
+ * law's, so it is never the one held back: it only RECORDS that it appeared, and in that session the install card and
+ * the "Join eno" prompt stand down. The footer's "Cookie settings" is the reader's own request and records nothing.
+ */
+describe('CookieConsent — the visit\'s one interruption', () => {
+  beforeEach(() => { __resetPageAsksForTests() })
+
+  it('the bar that appears on its own takes the session — the other two asks then may not', async () => {
+    mount()
+    await advance(3_000)
+    expect(sessionAsk()).toBeNull()
+    expect(mayAsk('install', '/')).toBe(true)
+    await advance(1_000)
+    expect(bar()).not.toBeNull()
+    expect(sessionAsk()).toBe('consent')
+    expect(mayAsk('install', '/')).toBe(false)
+    expect(mayAsk('join', '/c/phones')).toBe(false) // not on the next page either: the whole session
+  })
+
+  it('the footer\'s "Cookie settings" is a request, not an interruption: the session stays free', async () => {
+    setConsent({ p: false, a: false, d: false }, META)
+    mount()
+    await act(async () => { window.dispatchEvent(new CustomEvent('eno:open-consent')) })
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(sessionAsk()).toBeNull()
+    expect(mayAsk('join', '/')).toBe(true)
   })
 })
 

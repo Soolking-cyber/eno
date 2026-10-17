@@ -3,7 +3,10 @@ import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/', useRouter: () => ({ push: vi.fn() }) }))
+// ⚠️ NOT '/' BY DEFAULT ANY MORE: since 2026-10-18 a phone's browse pages carry no floaters at all (owner: "no
+// floaters" — see the last describe), so the cluster's own behaviour is pinned on a page that keeps it.
+const nav = vi.hoisted(() => ({ pathname: '/dashboard/listings' }))
+vi.mock('next/navigation', () => ({ usePathname: () => nav.pathname, useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/context/language-context', () => ({
   useLanguage: () => ({ lang: 'en', tr: (en: string) => en }),
   Tr: ({ text }: { text: string }) => <>{text}</>,
@@ -40,6 +43,7 @@ beforeEach(() => {
   vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('64rem') ? desktop : false, media: q, addEventListener() {}, removeEventListener() {} }))
   y = 0
   desktop = false
+  nav.pathname = '/dashboard/listings'
   Object.defineProperty(window, 'scrollY', { configurable: true, get: () => y })
   Object.defineProperty(window, 'innerHeight', { configurable: true, value: 844 })
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 })
@@ -411,5 +415,57 @@ describe('BackToTop — the phone rental-check pill yields at rest (rentals-04)'
     expect(pill()).toBeNull()
     act(() => { addToBasket(rental(2)) }) // …and a new one in
     expect(yielded(pill()!)).toBe(false)
+  })
+})
+
+/**
+ * ⛔ NO FLOATERS ON A PHONE'S BROWSE PAGES (owner, 2026-10-18: "one per visit, no floaters"). Below `pc` the support
+ * bubble and the chevron do not render on the pages Explore lights for — home and its search results, /c/*, a listing,
+ * a seller, a storefront, /brands, and their `/vi` twins. They stay on the dashboard, Help and every other page, and
+ * on a desktop everywhere. Help stays reachable on a phone from the Account sheet and the footer.
+ */
+describe('BackToTop — no floaters on a phone\'s browse pages', () => {
+  const chevronEl = () => document.querySelector('.back-to-top-chevron')
+  const supportEl = () => document.querySelector('.support-mark')
+
+  it.each(['/', '/vi', '/c/rentals', '/c/rentals/thao-dien', '/vi/c/furniture-appliances', '/listings/abc123', '/s/apple_store', '/sellers/abc123', '/brands'])(
+    'a phone on %s: neither the chevron nor the support mark',
+    (path) => {
+      nav.pathname = path
+      render(<BackToTop />)
+      expect(chevronEl()).toBeNull()
+      expect(supportEl()).toBeNull()
+    },
+  )
+
+  it.each(['/dashboard', '/dashboard/listings', '/help', '/help/abc', '/saved', '/listings/abc123/edit'])(
+    'a phone on %s keeps the chevron (and the support mark off the post flow)',
+    (path) => {
+      nav.pathname = path
+      render(<BackToTop />)
+      expect(chevronEl()).not.toBeNull()
+      // The post flow (a listing's edit page) never had the mark (O-30); every other page here keeps it.
+      expect(supportEl() !== null).toBe(!path.endsWith('/edit'))
+    },
+  )
+
+  it('a desktop keeps both on a browse page', () => {
+    desktop = true
+    nav.pathname = '/'
+    render(<BackToTop />)
+    expect(chevronEl()).not.toBeNull()
+    expect(supportEl()).not.toBeNull()
+  })
+
+  it('the rental-check pill is not a floater: a phone on a browse page still gets it', () => {
+    const memory = () => { const m = new Map<string, string>(); return { get length() { return m.size }, key: (i: number) => [...m.keys()][i] ?? null, getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => { m.set(k, String(v)) }, removeItem: (k: string) => { m.delete(k) }, clear: () => m.clear() } as Storage }
+    vi.stubGlobal('localStorage', memory())
+    vi.stubGlobal('sessionStorage', memory())
+    __resetRentalCheckStoreForTests()
+    nav.pathname = '/c/rentals'
+    render(<BackToTop />)
+    act(() => { addToBasket({ id: 'r1', title: 'Flat 1', titleVi: null, images: [], price: 9_000_000, currency: 'VND', priceUnit: 'VND/month', category: { slug: 'rentals' } }) })
+    expect(document.querySelector('[data-rental-check-pill]')).not.toBeNull()
+    expect(chevronEl()).toBeNull()
   })
 })

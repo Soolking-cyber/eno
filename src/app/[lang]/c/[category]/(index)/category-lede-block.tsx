@@ -1,5 +1,8 @@
+import Link from 'next/link'
 import { CategoryLede, TeacherCoverLink } from '@/components/marketplace/category-lede'
+import { Bilingual } from '@/components/marketplace/bilingual'
 import { RentalCheckHint } from '@/components/marketplace/rental-check-toggle'
+import { RENTAL_CHECK_PATH } from '@/lib/rental-check/shared'
 import { loadCategory } from '../load-category'
 import { loadLinkedCount, loadRentalsFacts, loadTopSubcategories } from '../category-data'
 import { linkedTier } from '../category-copy'
@@ -56,8 +59,20 @@ export async function CategoryLedeBlock({ slug }: { slug: string }) {
           </>
         )}
       </ClampedLede>
-      {/* The availability check is invisible until something says it exists — one line, rentals only. */}
-      {cat.slug === 'rentals' && <RentalCheckHint className="mt-2 max-w-prose" />}
+      {/* The availability check is invisible until something says it exists — rentals only.
+          ⛔ ONE LINE ON A PHONE, WITH ITS LINK (owner, 2026-10-18: products first on a phone's first screen). The
+          promise wrapped to four lines at 390px; below sm it now truncates to one, and "Check availability" beside it
+          opens /rentals/check, whose empty list says the rest (how to pick, up to 5, free). The whole sentence stays
+          in the HTML, and from sm it reads in full as before, without the link. */}
+      {cat.slug === 'rentals' && (
+        <div className="mt-2 flex max-w-prose items-center gap-2">
+          <RentalCheckHint className="min-w-0 flex-1 max-sm:items-center max-sm:[&>span]:min-w-0 max-sm:[&>span]:truncate" />
+          {/* `-my-1 py-1`, not `tap-44`: "Show more" sits 10px above (ClampedLede says why the extender went). */}
+          <Link href={RENTAL_CHECK_PATH} prefetch={false} className="-my-1 shrink-0 py-1 text-sm font-semibold text-accent-foreground hover:underline sm:hidden">
+            <Bilingual en="Check availability" vi="Kiểm tra phòng trống" />
+          </Link>
+        </div>
+      )}
       {/* Cover lessons: the schools' door, outside the clamped lede so a phone shows it (category-lede.tsx). */}
       {cat.slug === 'teachers' && <TeacherCoverLink className="mt-2 max-w-prose text-sm" />}
     </>

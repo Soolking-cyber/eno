@@ -11,6 +11,7 @@ import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { SupportButton } from '@/components/marketplace/support-button'
 import { isPostFlowPath } from '@/lib/post-flow-path'
+import { isBrowseSurface } from '@/lib/browse-surface'
 import { RentalCheckPill } from '@/components/marketplace/rental-check-pill'
 import { useRentalBasketCount } from '@/lib/rental-check/store'
 import { scrollBehavior } from '@/lib/reduced-motion'
@@ -100,6 +101,17 @@ export function BackToTop() {
    */
   const scrolledAway = useHideOnScroll()
   const desktop = useSyncExternalStore(subscribeDesktop, isDesktop, () => false)
+  /**
+   * ⛔ NO FLOATERS ON A PHONE'S BROWSE PAGES (owner, 2026-10-18: "one per visit, no floaters"). Over a two-column feed
+   * and the PDP the support bubble and the chevron sat on product photos, the price row and the hearts — with the tab
+   * bar, two floating layers where Facebook Marketplace and Chợ Tốt have none. So below `pc` (the tab bar's world,
+   * DESKTOP above) neither renders on a browse surface — home and search results, /c/*, a listing, a seller, a
+   * storefront, /brands: exactly the pages Explore lights for (src/lib/browse-surface.ts, `/vi` twins included).
+   * They stay on /dashboard*, /help* and every other page, and on a desktop everywhere (the /messages exit below is
+   * unchanged). Help stays one tap away on a phone: the guest Account sheet's "Help center" row, the signed-in
+   * dashboard menu's, and the footer's. The rental-check pill is not a floater — it is the basket's own feedback.
+   */
+  const floatersOff = !desktop && isBrowseSurface(pathname)
   const supportAway = scrolledAway && !desktop
   const show = up && deep
   const { rise, standDown } = plan
@@ -451,8 +463,8 @@ export function BackToTop() {
         {/* Back to top — bare glyph, no circle: same treatment as the search-bar
             icons (quiet ink → brand blue on hover) with a subtle drop-shadow so it
             stays distinct over card imagery. Fades in once scrolled (slot reserved
-            so the ? never shifts); transform/opacity only. */}
-        <Button
+            so the ? never shifts); transform/opacity only. Not on a phone's browse pages (`floatersOff`). */}
+        {!floatersOff && <Button
           variant="bare"
           size="none"
           type="button"
@@ -504,7 +516,7 @@ export function BackToTop() {
               but it now falls from the plate rather than from the strokes, which is why it can be
               lighter than it was. */}
           <ChevronUp className="icon-plate h-7 w-7 text-white dark:text-neutral-900 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.22))]" strokeWidth={STROKE_FLOAT} />
-        </Button>
+        </Button>}
 
         {/* ⛔ SUPPORT SITS BELOW THE CHEVRON, CLOSEST TO THE BOTTOM NAV — owner, 2026-08-26, swapping
             the original order. It is the element that moves WITH the bar on scroll, so it belongs
@@ -523,7 +535,7 @@ export function BackToTop() {
             Post button (lib/post-flow-path.ts) — and this cluster only mounts after hydration anyway, so
             there is no server HTML to disagree with. The chevron stays: it is not chrome that competes
             with Publish, and a long form is exactly where "back to top" earns its slot. */}
-        {!isPostFlowPath(pathname) && <SupportButton className="pointer-events-auto" hidden={supportAway} yielded={supportYields} />}
+        {!isPostFlowPath(pathname) && !floatersOff && <SupportButton className="pointer-events-auto" hidden={supportAway} yielded={supportYields} />}
 
       </div>
 

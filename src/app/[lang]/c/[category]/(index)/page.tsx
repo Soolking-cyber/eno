@@ -36,6 +36,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Mascot } from '@/components/marketplace/mascot'
+import { PILL_BOX, PILL_REST } from '@/components/ui/chip-style'
+import { cn } from '@/lib/utils'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Tr } from '@/context/language-context'
@@ -46,6 +48,13 @@ type Props = { params: Promise<{ lang: string; category: string }> }
 
 /** "By area" chips on the category page — every canonical place at the indexing floor, busiest first. */
 const DISTRICT_CHIPS = 80
+
+/**
+ * The "Other categories" chips — the browse chip (ui/chip-style PILL_*; owner, 2026-10-18: one chip style): 36px,
+ * tinted, a 44px hit area (rows are `gap-2` apart, so two rows' hit areas meet and never overlap). Badge's own
+ * `interactive` hover (the brand tint) and press stay.
+ */
+const OTHER_CATEGORY_CHIP = cn(PILL_BOX, PILL_REST, 'py-1.5 hover:bg-accent hover:text-accent-foreground')
 
 /**
  * ⛔ THIS PAGE LIVES IN THE `(index)` ROUTE GROUP, WITH ITS `loading.tsx`, SO THAT THE SKELETON DOES
@@ -357,7 +366,8 @@ export default async function CategoryPage({ params }: Props) {
                 total: homes?.total ?? rentals?.total ?? total,
                 pageSize: PAGE_SIZE,
               }}
-              stripEnd={<CategoryFiltersLink slug={cat.slug} query={homesQuery} />}
+              // The strip's Filters, as the browse chip (owner, 2026-10-18: the home's sort pill + Filters chip on /c).
+              stripEnd={<CategoryFiltersLink slug={cat.slug} query={homesQuery} className={cn(PILL_BOX, PILL_REST, 'py-0 hover:no-underline')} />}
               priceLabel={cat.slug === 'jobs' ? 'salary' : 'price'}
               sortable={(homes?.total ?? total) > 1}
             />
@@ -381,7 +391,7 @@ export default async function CategoryPage({ params }: Props) {
             <h2 className="h-section text-foreground"><Tr text="Other categories" /></h2>
             <div className="mt-4 flex flex-wrap gap-2">
               {otherCats.map((c) => (
-                <Badge key={c.slug} size="md" interactive render={<Link href={localizedHref(`/c/${c.slug}`, pageLang(lang))} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+                <Badge key={c.slug} size="md" interactive render={<Link href={localizedHref(`/c/${c.slug}`, pageLang(lang))} />} className={OTHER_CATEGORY_CHIP}>
                   <Bilingual en={c.name} vi={c.nameVi || c.name} />
                 </Badge>
               ))}
@@ -434,7 +444,7 @@ export default async function CategoryPage({ params }: Props) {
                   <span className="text-xs font-semibold text-ink-4"><Tr text="Explore other categories" /></span>
                   <div className="flex flex-wrap justify-center gap-2">
                     {otherCats.map((c) => (
-                      <Badge key={c.slug} size="md" interactive render={<Link href={localizedHref(`/c/${c.slug}`, pageLang(lang))} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+                      <Badge key={c.slug} size="md" interactive render={<Link href={localizedHref(`/c/${c.slug}`, pageLang(lang))} />} className={OTHER_CATEGORY_CHIP}>
                         <Bilingual en={c.name} vi={c.nameVi || c.name} />
                       </Badge>
                     ))}

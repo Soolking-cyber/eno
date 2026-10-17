@@ -66,9 +66,13 @@ export default function HomeLayout({ children, params }: { children: React.React
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
         <h1 className="sr-only">{SITE_NAME}</h1>
-        {PILOTED && <div className="flex justify-end"><LangPilotSwitch path="/" params={params} /></div>}
         <script dangerouslySetInnerHTML={{ __html: PREPAINT_SCRIPT }} />
         {children}
+        {/* ⛔ THE `/vi` PILOT'S SWITCHER LEFT THE FIRST SCREEN (owner, 2026-10-18: products first on a phone) — it was a
+            16px row of its own above the category tiles. It stays a server-rendered `<a hreflang>` to the twin (CS-3
+            V3b-4: crawlers and readers without JavaScript keep the link), now at the end of the page; on a phone the
+            Account sheet's Language row and the footer's picker go to the twin as well (setLang → pinnedPair). */}
+        {PILOTED && <div className="flex justify-end pb-6 pt-2"><LangPilotSwitch path="/" params={params} /></div>}
       </main>
       {PILOTED && <LangSuggestionBanner />}
       <Footer />

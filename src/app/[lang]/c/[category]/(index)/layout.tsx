@@ -71,8 +71,8 @@ export default async function CategoryIndexLayout({
   return (
     <div className="flex min-h-page flex-col blob-bg">
       <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
-        {piloted && <div className="mb-2 flex justify-end"><LangPilotSwitch path={`/c/${cat.slug}`} params={params} /></div>}
+      {/* `pt-4`, the home page's and the PDP's top (owner, 2026-10-18: one top padding; this was pt-6). */}
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
         <Breadcrumb className="mb-4">
           <BreadcrumbList>
             <BreadcrumbItem>
@@ -93,11 +93,24 @@ export default async function CategoryIndexLayout({
           </BreadcrumbList>
         </Breadcrumb>
 
-        <h1 className="h-display text-foreground">
+        {/* ⛔ ONE LINE ON A PHONE (owner, 2026-10-18: the products are the first screen's job). Below sm the H1
+            takes the title step of the ramp — `--text-display` re-pointed at `--text-title` on this element, so
+            the class (and design-lint's heading ramp) stays `.h-display`; an unlayered `.h-display` would beat a
+            `text-*` utility outright (globals.css) — and holds one line, the rest of a long rentals headline
+            truncated with an ellipsis (the whole H1 stays in the HTML). From sm it is the display heading it was.
+            `max-sm:py-0.5`: `truncate` clips at the padding box, and the display cut's 1.12 line box sits tight on a
+            Vietnamese stacked accent or a descender — 2px each side keeps them whole.
+            The phone exception is written into docs/design-language.md §1. */}
+        <h1 className="h-display text-foreground max-sm:truncate max-sm:py-0.5 max-sm:[--text-display:var(--text-title)]">
           {headline ? <RentalsHeading headline={headline} /> : <><Bilingual en={cat.name} vi={cat.nameVi || cat.name} /> <Tr text="in Vietnam" /></>}
         </h1>
         {LEDE_PLACEMENT === 'layout' && <CategoryLedeBlock slug={cat.slug} />}
         {children}
+        {/* ⛔ THE `/vi` PILOT'S SWITCHER LEFT THE FIRST SCREEN (owner, 2026-10-18: products first on a phone). It was
+            a row of its own above the breadcrumb. It stays a server-rendered `<a hreflang>` to the twin (crawlers and
+            readers without JavaScript keep the link, CS-3 V3b-4), now at the end of the page; on a phone the
+            Account sheet's Language row and the footer's picker switch to the twin as well (setLang → pinnedPair). */}
+        {piloted && <div className="mt-8 flex justify-end"><LangPilotSwitch path={`/c/${cat.slug}`} params={params} /></div>}
       </main>
       {piloted && <LangSuggestionBanner />}
       <Footer />

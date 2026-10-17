@@ -67,6 +67,12 @@ meta line + actions) rather than hand-typing `text-xl font-bold`; that is how ei
 h1 styles happened. The PDP headline is the one owner exception (price-first). design-lint
 ratchets the rest (`h1-off-ramp`).
 
+**Phone exception — the category page's H1 is one line (owner, 2026-10-18: products first on a
+phone's first screen).** Below `sm` the `/c/*` H1 keeps `.h-display` but takes the title step's
+size — `--text-display` re-pointed at `--text-title` on the element (`(index)/layout.tsx`), never a
+`text-*` utility, which the unlayered class would beat — and holds one line, a long headline
+truncated (the whole H1 stays in the HTML). Its lede is one line there too, with "Show more".
+
 **No kicker eyebrows.** A small uppercase label that restates the heading under it ("Error
 404", "New") is retired (owner, 2026-08-05). The survivors are the SEO *topic · place* lines
 ("Housing · Vietnam"), which carry the place the heading does not; design-lint allowlists
@@ -254,6 +260,12 @@ globals.css, so `z-overlay` etc. are real utilities and tailwind-merge knows the
 | `z-map-overlay` / `z-nested-popover` | 1100 / 1201 | inside a map (panes top out near 1000) |
 
 A new floating thing picks its row; it does not invent a number between two.
+
+**The header is 56px** (`h-14`, owner 2026-10-18: "slimmer + calm"): a 40px logo mark the same
+height as the 40px search field beside it (the owner's 2026-08-02 rule — the match, not the number),
+and no glow on the field. Everything that sticks under it offsets by `3.5rem` + the safe-area inset
+(the explorer's filter strip, the dashboard's SectionHeader, the desktop map's `--map-top`); the phone
+search panel hangs from its measured bottom, falling back to `3.25rem`. Move them with it.
 
 ## 5. Primitives — reuse, don't re-roll
 

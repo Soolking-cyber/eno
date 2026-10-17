@@ -15,8 +15,11 @@ import { IS_SERVICES } from '@/lib/edition'
 //     the count survives client navigations and reloads (sessionStorage = this tab's session); since
 //     UX3 J7a (2026-10-05) time is only counted once the cookie consent has been answered (the controller
 //     reads consentAnswered(); nothing here changed);
-//   · after it is closed (×, Esc, backdrop), again after AGAIN_AFTER_MS more visible browsing — at most MAX_PER_TAB asks
-//     per tab session; a NEW tab session starts again from FIRST_AFTER_MS;
+//   · ONE ask per tab session (MAX_PER_TAB) — owner, 2026-10-18: "one per visit, no floaters". It used to ask again
+//     after AGAIN_AFTER_MS more visible browsing (twice per tab session); "returns" now means the NEXT session, which
+//     starts again from FIRST_AFTER_MS. And the visit's one interruption is shared with the cookie bar and the
+//     install card (src/lib/page-asks.ts): a session either of them appeared in gets no ask at all — the controller's
+//     `mayAsk('join')` says so;
 //   · the DISMISSALS_BEFORE_PAUSE-th dismissal on this device pauses it for PAUSE_MS (then the count
 //     starts over);
 //   · two tabs never ask within AGAIN_AFTER_MS of each other (wall clock, `lastShownAt`) — five open
@@ -35,10 +38,13 @@ import { IS_SERVICES } from '@/lib/edition'
 
 /** Visible browsing before the first ask. */
 export const FIRST_AFTER_MS = 60_000
-/** Visible browsing after a close (×, Esc, backdrop) before asking again. Also the cross-tab spacing. */
+/**
+ * Visible browsing after a close (×, Esc, backdrop) before asking again — moot within one tab session since
+ * MAX_PER_TAB is 1, and still the cross-tab spacing (two tabs never ask within this of each other).
+ */
 export const AGAIN_AFTER_MS = 180_000
-/** Asks per tab session. */
-export const MAX_PER_TAB = 2
+/** Asks per tab session — ONE (owner, 2026-10-18: "one per visit, no floaters"; it was 2). */
+export const MAX_PER_TAB = 1
 /** The dismissal that pauses it… */
 export const DISMISSALS_BEFORE_PAUSE = 3
 /** …for this long. */

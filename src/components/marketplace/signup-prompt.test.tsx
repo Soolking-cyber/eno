@@ -5,7 +5,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import '@/lib/bot-ua' // in the module cache, so the controller's lazy import settles inside a tick
 import { AGAIN_AFTER_MS, DEVICE_KEY, PAUSE_MS, TAB_KEY, TEST_KEY } from '@/lib/signup-prompt'
 import type { SignInContext } from '@/context/auth-context'
-import { __resetPageAsksForTests, askHidden, askShown } from '@/lib/page-asks'
+import { __resetPageAsksForTests, askHidden, askShown, noteSessionAsk } from '@/lib/page-asks'
 
 /** The cookie consent's legacy refusal key — an ANSWER (consent.ts), which starts the prompt's clock (UX3 J7a). */
 const CONSENT_KEY = 'eno-cookie-consent'
@@ -162,31 +162,31 @@ describe('SignupPrompt — when', () => {
     expect(opens()).toBe(1)
   })
 
-  it('⛔ closed (×, Esc, backdrop): again after 3 more minutes of visible browsing — and at most twice per tab', async () => {
+  it('⛔ closed (×, Esc, backdrop): ONCE per tab session — it returns in the next session, not this one', async () => {
+    // Owner, 2026-10-18: "one per visit, no floaters" — MAX_PER_TAB went 2 → 1 (src/lib/signup-prompt.ts).
     mount()
     await advance(61_000)
     await act(async () => { ctx(1).prompt!.onDismiss!() })
     expect(track).toHaveBeenCalledWith('dismissed', { count: 1 })
-    await advance(AGAIN_AFTER_MS - 2_000)
+    await advance(AGAIN_AFTER_MS + 60 * 60_000)
     expect(opens()).toBe(1)
-    await advance(3_000)
-    expect(opens()).toBe(2)
-    expect(track).toHaveBeenCalledWith('shown', { count: 2 })
-    await act(async () => { ctx(2).prompt!.onDismiss!() })
-    await advance(60 * 60_000)
-    expect(opens()).toBe(2)
   })
 
   it('⛔ a new tab session asks once more after 60s; the 3rd dismissal overall pauses it for 7 days', async () => {
     mount()
     await advance(61_000)
     await act(async () => { ctx(1).prompt!.onDismiss!() })
-    await advance(AGAIN_AFTER_MS + 1_000)
+
+    newTabSession()
+    vi.setSystemTime(Date.now() + 24 * 60 * 60_000) // a later session: the next day
+    mount()
+    await advance(61_000)
+    expect(opens()).toBe(2)
     await act(async () => { ctx(2).prompt!.onDismiss!() })
     expect(device().dismissals).toBe(2)
 
     newTabSession()
-    vi.setSystemTime(Date.now() + 24 * 60 * 60_000) // a later session: the next day
+    vi.setSystemTime(Date.now() + 24 * 60 * 60_000) // and the day after
     mount()
     await advance(61_000)
     expect(opens()).toBe(3)
@@ -284,6 +284,11 @@ describe('SignupPrompt — who', () => {
     expect(opens()).toBe(1)
     await act(async () => { ctx(1).prompt!.onDismiss!() })
     await advance(2_000)
+    expect(opens()).toBe(1) // one ask per tab session (owner, 2026-10-18)
+    newTabSession() // the next session: the override is its first delay and the cross-tab spacing too
+    __resetPageAsksForTests()
+    mount()
+    await advance(2_000)
     expect(opens()).toBe(2)
   })
 
@@ -320,18 +325,31 @@ describe('SignupPrompt — who', () => {
   })
 })
 
-describe('SignupPrompt — never two asks in one page view (UX3 J7f)', () => {
-  it('⛔ waits while the app-install card is up, and in the page view it appeared in — then asks on the next page', async () => {
+describe('SignupPrompt — never two asks in one page view (UX3 J7f), and one per visit (2026-10-18)', () => {
+  it('⛔ an app-install card in this SESSION: no ask in it at all — not on the next page either; a new session asks', async () => {
+    // Owner, 2026-10-18: "one per visit, no floaters" (src/lib/page-asks.ts). Until then the prompt asked on the next
+    // page view after the card; now the card has had the visit.
     askShown('install', '/')
     mount()
     await advance(3 * 60_000)
     expect(opens()).toBe(0)
-    askHidden('install') // dismissed — but it appeared in THIS page view
-    await advance(60_000)
-    expect(opens()).toBe(0)
+    askHidden('install') // dismissed — but it had this session
     goTo('/c/phones') // the next page view
-    await advance(1_000)
+    await advance(5 * 60_000)
+    expect(opens()).toBe(0)
+    newTabSession() // a later visit
+    __resetPageAsksForTests()
+    vi.setSystemTime(Date.now() + 24 * 60 * 60_000)
+    mount()
+    await advance(61_000)
     expect(opens()).toBe(1)
+  })
+
+  it('⛔ a session the cookie bar appeared in gets no ask, even once the consent is answered', async () => {
+    noteSessionAsk('consent') // the bar showed in this session (cookie-consent.tsx records it); the visitor answered it
+    mount()
+    await advance(10 * 60_000)
+    expect(opens()).toBe(0)
   })
 
   it('an install card still up across a navigation keeps the next page view too', async () => {
@@ -492,14 +510,18 @@ describe('SignupPrompt — the anonymous daily totals (owner: "how many pressed 
     expect(await counts()).toEqual(['shown', 'email_click'])
   })
 
-  it('UX3 review: a prompt whose popup another sign-in took over is off the screen — no left_open, and the install card may ask', async () => {
+  it('UX3 review: a prompt whose popup another sign-in took over is off the screen — no left_open, and the page view is free', async () => {
     mount()
     await advance(61_000)
     await act(async () => { ctx().prompt!.onReplaced!() })
     await setVisible('hidden')
     expect(await counts()).toEqual(['shown'])
-    const { mayAsk } = await import('@/lib/page-asks')
+    const { mayAsk, SESSION_ASK_KEY } = await import('@/lib/page-asks')
     goTo('/c/phones')
+    // One per visit (owner, 2026-10-18): the prompt had this session, so the install card waits for a later one…
+    expect(mayAsk('install', '/c/phones')).toBe(false)
+    // …while the page-view rule itself let go of the prompt the moment it was replaced (askHidden).
+    sessionStorage.removeItem(SESSION_ASK_KEY)
     expect(mayAsk('install', '/c/phones')).toBe(true)
   })
 

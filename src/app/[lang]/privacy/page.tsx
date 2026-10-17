@@ -471,6 +471,10 @@ const ON_DEVICE: Table = {
       // before its release — written only while NEXT_PUBLIC_APPLE_SIGNIN has `web-test`, by ?siwa_test=1; 7 days)
       // · apple-deletion-notice.tsx APPLE_NOTICE_KEY 'eno:apple-deletion-notice' (sessionStorage: the Apple notice a
       // deletion hands to the page it lands on — 'queued' | 'manual'; removed when the notice is closed)
+      // · page-asks.ts SESSION_ASK_KEY 'eno:session-ask' (sessionStorage: which one of the cookie bar, the app card and
+      // the "Join eno" reminder this visit has already shown — {k: 'consent' | 'install' | 'join', t: when the visit
+      // was last in use, so 30 minutes away starts a new one}; owner 2026-10-18, one per visit; never sent anywhere;
+      // gone with the tab) — "whether you … already saw it" below.
       { en: 'Small reminders', vi: 'Ghi nhớ nhỏ' },
       { en: 'Whether you dismissed a prompt or already saw it, whether chat translation is on for a conversation, where to take you back to after signing in, and similar flags.', vi: 'Bạn đã đóng hay đã xem một lời nhắc chưa, dịch tin nhắn có đang bật cho từng cuộc trò chuyện không, trang cần đưa bạn quay lại sau khi đăng nhập, và các ghi nhớ tương tự.' },
       { en: 'When you clear this site’s data in your browser.', vi: 'Khi bạn xóa dữ liệu của website trong trình duyệt.' },
