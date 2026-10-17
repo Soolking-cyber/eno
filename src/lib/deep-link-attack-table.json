@@ -1,0 +1,120 @@
+{
+  "//": "Deep-link attack table (speed plan item 11): ONE table, three validators — src/lib/deep-link.ts canonicalAppPath (src/lib/native-deep-link-parity.test.ts, every CI run), AppDelegate.isRoutablePath and MainActivity.isRoutablePath (scripts/native-deep-link-check.mjs, before every native release). routable = may this path be handed to the WebView.",
+  "cases": [
+    {
+      "path": "/listings/abc",
+      "routable": true,
+      "why": "an ordinary page"
+    },
+    {
+      "path": "/c/nh%C3%A0-%C4%91%E1%BA%A5t",
+      "routable": true,
+      "why": "a Vietnamese slug in escapes"
+    },
+    {
+      "path": "/brands/100%25",
+      "routable": true,
+      "why": "an encoded percent sign"
+    },
+    {
+      "path": "/listings/50%-off",
+      "routable": true,
+      "why": "a stray percent sign"
+    },
+    {
+      "path": "/listings/a_b",
+      "routable": true,
+      "why": "an underscore later in the path"
+    },
+    {
+      "path": "/brands/a+b",
+      "routable": true,
+      "why": "a plus sign"
+    },
+    {
+      "path": "/_capacitor_http_interceptor_",
+      "routable": false,
+      "why": "Capacitor's proxy (GHSA-rvm3-566m-v7fv)"
+    },
+    {
+      "path": "/%5Fcapacitor_http_interceptor_",
+      "routable": false,
+      "why": "%5F is _"
+    },
+    {
+      "path": "/%255Fcapacitor",
+      "routable": false,
+      "why": "double-encoded"
+    },
+    {
+      "path": "/%5Fcapacitor_http_interceptor_/%ZZ",
+      "routable": false,
+      "why": "a malformed escape beside a readable one"
+    },
+    {
+      "path": "/%5F%E0capacitor",
+      "routable": false,
+      "why": "a broken UTF-8 byte in the same run"
+    },
+    {
+      "path": "/%5%46capacitor_http_interceptor_",
+      "routable": false,
+      "why": "an escape built across a broken % (Chromium: /%5F…; Uri.decode alone misses it)"
+    },
+    {
+      "path": "/%%35Fcapacitor_http_interceptor_",
+      "routable": false,
+      "why": "the same, the broken % first"
+    },
+    {
+      "path": "/x/%2e%2e/_cap",
+      "routable": false,
+      "why": "encoded dot segments"
+    },
+    {
+      "path": "/x/%252e%252e/_cap",
+      "routable": false,
+      "why": "dot segments minted by a decode"
+    },
+    {
+      "path": "/%2F_capacitor",
+      "routable": false,
+      "why": "decodes to //… (another origin)"
+    },
+    {
+      "path": "/%25252525255Fcap",
+      "routable": false,
+      "why": "still changing after the last round"
+    },
+    {
+      "path": "/x%5C..%5C_cap",
+      "routable": false,
+      "why": "backslashes"
+    },
+    {
+      "path": "/auth/callback",
+      "routable": false,
+      "why": "auth flow"
+    },
+    {
+      "path": "/%2561uth/callback",
+      "routable": false,
+      "why": "auth flow, double-encoded"
+    },
+    {
+      "path": "/signin",
+      "routable": false,
+      "why": "sign-in"
+    },
+    {
+      "path": "//evil.example",
+      "routable": false,
+      "why": "protocol-relative"
+    },
+    {
+      "path": "/a/../auth",
+      "routable": false,
+      "why": "dot segments to auth"
+    }
+  ]
+}

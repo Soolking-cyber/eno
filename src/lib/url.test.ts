@@ -38,4 +38,17 @@ describe('safeNextPath', () => {
     expect(safeNextPath('/signin-help', ORIGIN)).toBe('/signin-help')
     expect(safeNextPath('/authors/jane', ORIGIN)).toBe('/authors/jane')
   })
+
+  it('never lands under "/_" — Capacitor ≤8.4.2 proxies any URL from there on our origin (GHSA-rvm3-566m-v7fv)', () => {
+    expect(safeNextPath('/_capacitor_http_interceptor_?u=https://evil.example/', ORIGIN)).toBe('/')
+    expect(safeNextPath('/%5Fcapacitor_http_interceptor_?u=https://evil.example/', ORIGIN)).toBe('/')
+    expect(safeNextPath('https://eno.vn/_capacitor_http_interceptor_', ORIGIN)).toBe('/')
+    expect(safeNextPath('/x/../_next/data', ORIGIN)).toBe('/')
+    expect(safeNextPath('/x/%252e%252e/_capacitor_http_interceptor_', ORIGIN)).toBe('/')
+    // A malformed escape beside it doesn't hide the readable one.
+    expect(safeNextPath('/%5Fcapacitor_http_interceptor_/%ZZ', ORIGIN)).toBe('/')
+    // An underscore later in the path, or an encoded percent sign, is an ordinary path.
+    expect(safeNextPath('/listings/a_b?x=_y', ORIGIN)).toBe('/listings/a_b?x=_y')
+    expect(safeNextPath('/brands/100%25', ORIGIN)).toBe('/brands/100%25')
+  })
 })

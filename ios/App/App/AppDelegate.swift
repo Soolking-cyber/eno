@@ -285,24 +285,65 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         value.contains(where: { $0 == "\\" || $0 == "\t" || $0 == "\n" || $0 == "\r" })
     }
 
-    /// Decode to a bounded fixpoint so double-encoded input can't slip past the prefix checks, then
-    /// refuse backslash smuggling, dot-segment traversal and the auth routes (mirrors
-    /// canonicalAppPath's blockAuthPaths — a crafted link must never be able to drive sign-in/OAuth).
+    /// Decode to a bounded fixpoint so double-encoded input can't slip past the prefix checks, and check
+    /// EVERY spelling on the way: refuse backslash smuggling, dot-segment traversal, framework paths and
+    /// the auth routes (mirrors canonicalAppPath in src/lib/deep-link.ts — a crafted link must never be able
+    /// to drive sign-in/OAuth). Still changing after the last round = no stable spelling = refused.
     private static func isRoutablePath(_ rawPath: String) -> Bool {
         var probe = rawPath
-        for _ in 0..<3 {
-            guard let decoded = probe.removingPercentEncoding, decoded != probe else { break }
+        for _ in 0..<5 {
+            guard isRoutableSpelling(probe) else { return false }
+            let decoded = decodedLeniently(probe)
+            if decoded == probe { return true }
             probe = decoded
         }
-        if hasParserSplitChars(probe) { return false }
+        return false
+    }
+
+    private static func isRoutableSpelling(_ spelling: String) -> Bool {
+        if hasParserSplitChars(spelling) { return false }
         // `/a/../auth` reaches /auth once the network stack normalises it, but sails past a
         // `hasPrefix` test — the JS side never had this hole because `new URL()` normalises dot
         // segments before it checks. Nothing legitimate here has a `.` or `..` segment, so refuse
         // them rather than normalise a string we would then load un-normalised.
-        if probe.split(separator: "/", omittingEmptySubsequences: false).contains(where: { $0 == "." || $0 == ".." }) {
+        if spelling.split(separator: "/", omittingEmptySubsequences: false).contains(where: { $0 == "." || $0 == ".." }) {
             return false
         }
-        let lower = probe.lowercased()
+        let lower = spelling.lowercased()
+        // ⛔ "/_" is framework territory: Capacitor ≤8.4.2 answers /_capacitor_http_interceptor_ on the app's
+        // own origin by fetching any URL it is handed (GHSA-rvm3-566m-v7fv). 8.4.3 refuses that navigation
+        // itself; this keeps every link shape away from it anyway. "//" would leave the origin once appended.
+        if lower.hasPrefix("/_") || lower.hasPrefix("//") { return false }
         return !(lower.hasPrefix("/auth") || lower.hasPrefix("/signin"))
+    }
+
+    /// %-decoding the way WebKit does it: every escape that decodes is decoded and a malformed one stays as
+    /// written (a broken UTF-8 byte becomes U+FFFD). ⚠️ Not `removingPercentEncoding`: it returns nil for the
+    /// WHOLE string when one escape is bad, so a `%ZZ` would hide the readable `%5F` beside it.
+    private static func decodedLeniently(_ value: String) -> String {
+        let source = Array(value.utf8)
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(source.count)
+        var i = 0
+        while i < source.count {
+            if source[i] == UInt8(ascii: "%"), i + 2 < source.count,
+               let high = hexDigit(source[i + 1]), let low = hexDigit(source[i + 2]) {
+                bytes.append(high << 4 | low)
+                i += 3
+            } else {
+                bytes.append(source[i])
+                i += 1
+            }
+        }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
+    private static func hexDigit(_ c: UInt8) -> UInt8? {
+        switch c {
+        case UInt8(ascii: "0")...UInt8(ascii: "9"): return c - UInt8(ascii: "0")
+        case UInt8(ascii: "a")...UInt8(ascii: "f"): return c - UInt8(ascii: "a") + 10
+        case UInt8(ascii: "A")...UInt8(ascii: "F"): return c - UInt8(ascii: "A") + 10
+        default: return nil
+        }
     }
 }
