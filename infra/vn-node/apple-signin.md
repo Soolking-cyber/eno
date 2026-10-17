@@ -31,7 +31,8 @@ must be able to revoke its token too.
 
 ## ⛔ Rules
 
-- **Never `APPLE_TEAM_ID`.** That name switches on the AASA route (applinks, P7 — on hold). The app reads
+- **Never `APPLE_TEAM_ID` from here.** That name switches on the AASA route (applinks, P7 — released by the owner
+  2026-10-17: `APPLE_TEAM_ID=DTP9SKVFMQ` in eno-vn.env only; never eno-forum.env). The app reads
   `APPLE_SIWA_*`; the script never writes the other.
 - **No secret on a screen, in a log or in an argv.** Never `cat`, `grep` or `less` the env files, never
   `docker compose config` (it prints them interpolated), never `docker inspect` the auth container to the terminal.

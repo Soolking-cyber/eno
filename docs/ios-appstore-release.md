@@ -565,19 +565,19 @@ npx tsx scripts/sync-help-center.ts             # the prod write
 whatever the `help-center-seed.json` beside it holds (`import.meta.dirname`), so a checkout on an older commit syncs
 the OLD answers back over the new ones; and the release worktree has no `.env` for the line above to source.
 
-**P7. ⛔ HOLD — Universal links (OWNER-APPROVED prod env write).** Hold until a device test: with the app installed,
-sign in on eno.vn in Safari with an emailed code (and with Google) — if the app opens mid-redirect (the AASA's `/*`
-claim can take the post-sign-in 307 that `authRedirect` in `src/lib/auth-finish.ts` issues), fix `authRedirect` first.
-⚠️ OPEN: the claim acts only once eno.vn serves the AASA — which is P7 itself — so decide how that test runs before
-releasing the hold. One option: the route's `APPLE_BUNDLE_ID` override (`src/app/api/well-known/aasa/route.ts`,
-"overridable so a TestFlight/dev bundle can be associated") can associate a THROWAWAY dev bundle on team
-`DTP9SKVFMQ` — `APPLE_TEAM_ID=DTP9SKVFMQ` + `APPLE_BUNDLE_ID=<the dev bundle>` in eno-vn.env (an owner-approved env
-write + recreate) — and a development-signed build of that bundle carries `applinks:eno.vn?mode=developer` (the
-device then reads the AASA from eno.vn itself, not Apple's CDN; Developer Mode and Settings → Developer → Associated
-Domains Development on). The post-sign-in 307 is then tested without the production `vn.eno.app` ever claiming
-eno.vn; afterwards the env goes back to unset (or to the values below) — Apple's CDN can keep serving the dev
-association for hours, so finish it well before the real P7. Owner's pick: ⏳ OPEN — record it here.
-When released: `APPLE_TEAM_ID=DTP9SKVFMQ` in `/opt/eno/secrets/eno-vn.env` ONLY (D18 — the app claims
+**P7. ⚠️ LIVE 2026-10-17 on the owner's word ("set apple team id") — NOT YET DEVICE-TESTED.** `APPLE_TEAM_ID=DTP9SKVFMQ`
+is in eno-vn.env and eno-vn was recreated; https://eno.vn/.well-known/apple-app-site-association answers 200
+(`DTP9SKVFMQ.vn.eno.app`, /auth* and /signin* excluded, `/*` claimed); the forum still 404s. The owner chose to go live
+without the dev-bundle rehearsal this section used to propose (the production association is now the test).
+⏳ STILL OWED — the test the hold existed for: with the app installed (reinstalled after the AASA went live), sign in
+on eno.vn in Safari with an emailed code and with Google. If the app opens mid-redirect (the `/*` claim taking the
+post-sign-in 307 that `authRedirect` in `src/lib/auth-finish.ts` issues), fix `authRedirect` at once. ⚠️ Unsetting the
+env is NOT a fast undo: installed devices keep the association they fetched from Apple's CDN (refreshed on install,
+update and periodically — days, not hours), so a broken redirect is fixed in the app, not by withdrawing the file.
+Every sign-in LANDING is under the excluded prefixes (/auth/callback, /auth/confirm, /auth/google/callback,
+/auth/escape/confirm, /signin; Google returns via sb.eno.vn, a host the app does not claim) — the open case is only
+the same-site 307 to the `next` page after it.
+As set on 2026-10-17: `APPLE_TEAM_ID=DTP9SKVFMQ` in `/opt/eno/secrets/eno-vn.env` ONLY (D18 — the app claims
 `applinks:eno.vn` alone; the route answers 404 on the services edition whatever its env says, so `eno-forum.env`
 gets nothing). `APPLE_BUNDLE_ID` stays unset while the bundle id is `vn.eno.app` (the route's default). The route
 reads the env per request (`force-dynamic`), so no rebuild — it takes effect when the `eno-vn` container is recreated
