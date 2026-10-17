@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ lang: str
   return homeMetadata(lang)
 }
 
-async function getData(): Promise<{ categories: SerializedCategory[]; listings: SerializedListingCard[]; total: number; businesses: Awaited<ReturnType<typeof topBusinessListings>>; trending: Awaited<ReturnType<typeof trendingRailListings>>; teachers: SerializedListingCard[] }> {
+async function getData(onlyTitleLang: string | undefined): Promise<{ categories: SerializedCategory[]; listings: SerializedListingCard[]; total: number; businesses: Awaited<ReturnType<typeof topBusinessListings>>; trending: Awaited<ReturnType<typeof trendingRailListings>>; teachers: SerializedListingCard[] }> {
   try {
     // verified:true AND status:'active' matches the /api/listings response (GET
     // forces verified+active-only), so this SSR data can seed React Query's
@@ -114,7 +114,11 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
       homeTeacherShelf().catch((e) => { logError(e, { op: 'home.teacherShelf' }); return [] }),
     ])
 
-    const serializedListings: SerializedListingCard[] = await localizeListingTitles(firstPage.map(serializeListingCard))
+    // ⚡ PAYLOAD (speed plan item 8): on the /vi ISR entry embed NO titleI18n — a vi reader renders from
+    // the row's titleVi, never titleI18n, so the 9 MT title variants are dead weight (and passing 'vi' also
+    // skips the translation query). /en keeps all 9: the 9 MT UI languages are served the /en variant and
+    // swap titles client-side. (generateStaticParams prerenders en + vi as separate entries.)
+    const serializedListings: SerializedListingCard[] = await localizeListingTitles(firstPage.map(serializeListingCard), onlyTitleLang)
 
     return { categories: serializedCategories, listings: serializedListings, total, businesses, trending, teachers }
   } catch (e) {
@@ -132,7 +136,7 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
   }
 }
 
-export default async function Home() {
+export default async function Home({ params }: { params: Promise<{ lang: string }> }) {
   /**
    * ⛔ NO SEPARATE PARTNER BANNER STRIP HERE — <PromoBanner> INSIDE ListingsExplorer IS THE ONE
    * BANNER SLOT, and a second one above it would stack two banners over the feed. The strip built
@@ -144,7 +148,8 @@ export default async function Home() {
    * 8f78172 if a data-driven strip is ever wanted — the part worth re-reading there is that the
    * deny-list and allow-list must be one `id` object, not two spreads that overwrite each other.
    */
-  const { categories, listings, total, businesses, trending, teachers } = await getData()
+  const { lang } = await params
+  const { categories, listings, total, businesses, trending, teachers } = await getData(lang === 'vi' ? 'vi' : undefined)
 
   /**
    * ⛔ THE WRAPPER, HEADER, `<main>`, H1 AND FOOTER ARE IN `(home)/layout.tsx` SINCE SEO WAVE B, H1c,
