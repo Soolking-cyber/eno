@@ -1,6 +1,11 @@
 import 'server-only'
 import { spawn } from 'node:child_process'
-import { chmod } from 'node:fs/promises'
+import { createWriteStream } from 'node:fs'
+import { chmod, mkdtemp, rm, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { Readable, Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import ffmpegPath from 'ffmpeg-static'
 import { logError } from '@/lib/log'
 
@@ -9,16 +14,22 @@ import { logError } from '@/lib/log'
  * Built 2026-10-17 for /api/cron/video-reupload-ask: until db7eac156 every clip the browser compressed went up with an
  * AAC track of DIGITAL SILENCE (−91 dB measured, or −inf for exact zero), and only a measurement tells such a clip from one
  * that has sound (−10 to −35 dB for speech, measured on the site's 51 good clips).
- * ⛔ ONLY eno's OWN VIDEO STORAGE, OVER HTTPS (gate review, 2026-10-17): the URL comes from a listing row, and ffmpeg will
- * open anything it is handed — file:, concat:, an internal host, an HLS playlist pointing at one. Anything else is null.
- * `null` — the clip could not be read (not ours, gone, ffmpeg failed or timed out): never a guess.
+ * ⛔ ONLY eno's OWN VIDEO STORAGE, OVER HTTPS (gate review, 2026-10-17): the URL comes from a listing row. Anything else is
+ * null.
+ * ⛔ NODE FETCHES IT, ffmpeg READS A LOCAL FILE — never a URL: the box's ffmpeg-static (7.0.2, johnvansickle's fully static
+ * build) SEGFAULTS on any hostname lookup inside the container (static glibc has no working DNS; measured 2026-10-17, the
+ * first dry run came back unchecked: 4). The transcode route already works this way (src/app/api/upload/video/transcode).
+ * `null` — the clip could not be read (not ours, gone, too big, ffmpeg failed or timed out): never a guess.
  */
 export type ClipAudioLevel = { hasAudio: false } | { hasAudio: true; meanDb: number }
 
 /** At or below this mean the track is silence: the broken uploads measured −91 dB / −inf, the quietest real speech −35 dB. */
 export const SILENT_MEAN_DB = -80
 
-const TIMEOUT_MS = 60_000
+/** The download and ffmpeg get 30 s each — a clip's whole measurement stays within a minute (gate review, 2026-10-17). */
+const TIMEOUT_MS = 30_000
+/** A stored listing video is ≤ 50 MB (the upload ceiling); anything bigger is not one of ours — stop reading it. */
+const MAX_DOWNLOAD_BYTES = 60 * 1024 * 1024
 let chmodDone = false
 
 /**
@@ -39,18 +50,41 @@ export async function clipAudioLevel(url: string): Promise<ClipAudioLevel | null
     // done, so one transient failure does not leave every later run of this process unable to start ffmpeg (gate review).
     await chmod(ffmpegPath, 0o755).then(() => { chmodDone = true }, (e) => logError(e, { op: 'video-audio-level.chmod' }))
   }
-  // And at the ffmpeg level: https only, and only the video containers we store — a file that is secretly a playlist (HLS,
-  // concat) is refused as a format, so its entries can never send ffmpeg to another host (gate review, 2026-10-17).
-  const args = ['-nostdin', '-hide_banner', '-protocol_whitelist', 'https,tls,tcp', '-format_whitelist', 'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm', '-t', '62', '-i', url, '-map', '0:a:0?', '-af', 'volumedetect', '-f', 'null', '-']
-  const out = await new Promise<{ code: number; stderr: string }>((resolve) => {
-    let stderr = ''
-    const p = spawn(ffmpegPath!, args, { stdio: ['ignore', 'ignore', 'pipe'] })
-    p.stderr?.on('data', (d: Buffer) => { if (stderr.length < 200_000) stderr += d.toString('utf8') })
-    const kill = setTimeout(() => { try { p.kill('SIGKILL') } catch { /* gone */ } }, TIMEOUT_MS)
-    p.on('error', () => { clearTimeout(kill); resolve({ code: -1, stderr }) })
-    p.on('close', (c) => { clearTimeout(kill); resolve({ code: c ?? -1, stderr }) })
-  })
-  return parseVolumedetect(out.code, out.stderr)
+  let dir: string | null = null
+  try {
+    dir = await mkdtemp(join(tmpdir(), 'alevel-'))
+    const inPath = join(dir, 'in')
+    // ⛔ redirect: 'error' — the storage check covers the URL asked for; a 30x could send Node anywhere (an internal host,
+    // a metadata address). eno's public storage never redirects, so a redirect is refused outright (gate review).
+    const res = await fetch(url, { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(TIMEOUT_MS) })
+    if (!res.ok || !res.body) return null
+    let seen = 0
+    const cap = new Transform({
+      transform(chunk: Buffer, _enc, done) {
+        seen += chunk.length
+        done(seen > MAX_DOWNLOAD_BYTES ? new Error('too_big') : null, chunk)
+      },
+    })
+    await pipeline(Readable.fromWeb(res.body as import('stream/web').ReadableStream), cap, createWriteStream(inPath))
+    if ((await stat(inPath)).size === 0) return null
+    // A local file only, and only the video containers we store — a file that is secretly a playlist (HLS, concat) is
+    // refused as a format, so nothing in it can send ffmpeg anywhere (gate review, 2026-10-17).
+    const args = ['-nostdin', '-hide_banner', '-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm', '-t', '62', '-i', inPath, '-map', '0:a:0?', '-af', 'volumedetect', '-f', 'null', '-']
+    const out = await new Promise<{ code: number; stderr: string }>((resolve) => {
+      let stderr = ''
+      const p = spawn(ffmpegPath!, args, { stdio: ['ignore', 'ignore', 'pipe'] })
+      p.stderr?.on('data', (d: Buffer) => { if (stderr.length < 200_000) stderr += d.toString('utf8') })
+      const kill = setTimeout(() => { try { p.kill('SIGKILL') } catch { /* gone */ } }, TIMEOUT_MS)
+      p.on('error', () => { clearTimeout(kill); resolve({ code: -1, stderr }) })
+      p.on('close', (c) => { clearTimeout(kill); resolve({ code: c ?? -1, stderr }) })
+    })
+    return parseVolumedetect(out.code, out.stderr)
+  } catch (e) {
+    logError(e, { op: 'video-audio-level.read' })
+    return null
+  } finally {
+    if (dir) await rm(dir, { recursive: true, force: true }).catch((e) => logError(e, { op: 'video-audio-level.rm' }))
+  }
 }
 
 /**
