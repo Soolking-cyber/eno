@@ -6,7 +6,7 @@
  *
  * Bans (in all src .tsx files, comments stripped):
  *   1. Arbitrary font sizes:     text-[13px], and em/rem → use the canon scale
- *   2. Off-tier radii:           rounded / -sm / -md   → lg / xl / 2xl / full
+ *   2. Off-tier radii:           rounded / -sm / -md   → lg / xl / 2xl / full (+ media: photo tiles)
  *   3. Raw 6-digit hex colors outside the allowlist    → use tokens
  *   4. Raw Tailwind palette colours (bg-red-600 …)     → use the semantic tokens
  *   5. Off-scale headings above the 3xl/30px cap       → use the fluid .h-display class
@@ -106,7 +106,7 @@ const RAW_CONTROL_ALLOW = [
 
   // B. Nested interactive content. A <button> may not contain another button/input — the
   //    HTML parser reparents it and hydration breaks.
-  { file: 'src/components/marketplace/dashboard-listing-row.tsx', match: 'aspect-square w-full overflow-hidden rounded-t-2xl', reason: 'the grid cover HOSTS the select checkbox (Base UI span + its hidden input), so it must stay a raw button/div — nested interactive content, and a <button> inside a <button> is reparented by the parser' },
+  { file: 'src/components/marketplace/dashboard-listing-row.tsx', match: 'aspect-square w-full overflow-hidden rounded-t-media', reason: 'the grid cover HOSTS the select checkbox (Base UI span + its hidden input), so it must stay a raw button/div — nested interactive content, and a <button> inside a <button> is reparented by the parser' },
 
   // C. No stylesheet exists here.
   { file: 'src/app/global-error.tsx', match: '<button', reason: 'renders its own <html> WITHOUT globals.css — no Tailwind, no tokens, no primitives; inline styles only' },
@@ -905,7 +905,9 @@ const RULES = [
     re: /text-\[(?:length:)?\d*\.?\d+(?:px|r?em)\]/g,
   },
   {
-    name: 'off-tier radius (use rounded-lg/xl/2xl/full — docs/design-language.md §2)',
+    // `rounded-media` (listing/product photo tiles, owner 2026-10-18) is a tier too: the regex only bans the
+    // bare/xs/sm/md forms, so it passes untouched — the canon row says where it belongs.
+    name: 'off-tier radius (use rounded-lg/xl/2xl/full, or rounded-media for a photo tile — docs/design-language.md §2)',
     re: /(?<![-\w])rounded(?:-[trbl])?(?:-(?:xs|sm|md))?(?![-\w])/g,
   },
   {

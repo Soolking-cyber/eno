@@ -27,7 +27,7 @@ import { BrandRail } from './brand-rail'
 import { CategoryRail } from './category-rail'
 import { customFilterChipLabel } from './facet-chip-label'
 import { FacetBarFallback } from './facet-bar-fallback'
-import { LISTING_GRID } from './listing-grid'
+import { LISTING_GRID, MAP_CARD_SIZES } from './listing-grid'
 import { LadderCompactRow, LadderSlot, useMdUp } from './ladder-compact-row'
 import { ForYouRail } from './for-you-rail'
 import { RecentlyViewedRail } from './recently-viewed-rail'
@@ -4270,6 +4270,16 @@ export function ListingsExplorer({
     // overflow-x-CLIP (not hidden): hidden would make this section the sort strip's
     // scroll box and position:sticky would never pin; clip contains the horizontal
     // bleed without creating a scroll container.
+    // ⚠️ ON A PHONE THE CLIP SITS AT THE SCREEN EDGE, NOT AT THE GUTTER (`max-sm:-mx-3 max-sm:px-3`, owner
+    // 2026-10-18 — the Facebook-spaced grid). The feed grid and every rail now bleed 8px out of the 12px
+    // gutter (LISTING_GRID / RAIL_SCROLLER), and a clip at the content box cut the outer 8px off both
+    // columns. The section steps out over <main>'s px-3 and pads itself back by the same 12px, so its
+    // content box — everything inside — stays exactly where it was; only the clip edge moves, to the
+    // viewport edge, so nothing in here can scroll the page sideways (there is no page-level guard).
+    // It also stops cutting the bar that was always meant to run edge to edge on a phone: the sticky
+    // sort strip's frosted background and its pill scroller (explorer-toolbar.tsx, both `-mx-3 px-3`).
+    // Exactly 12px: both mounts (home, /s/[handle]) render this section straight inside that px-3 <main>.
+    // From sm nothing bleeds and the clip is back at the gutter.
     // ⚠️ THE OLD LANDING BRANCH USED `overflow-hidden` AND THAT IS NOW A TRAP: it could afford
     // to, because the sticky sort strip lived only in the other branch. The strip is on every
     // view now, so `overflow-hidden` here would silently un-stick it and nothing would fail.
@@ -4301,7 +4311,7 @@ export function ListingsExplorer({
     // ⛔ A `{/* … */}` COMMENT CANNOT LIVE HERE — right after `return (` is expression position,
     // where JSX comment syntax is a syntax error (tsc TS1005). This is the second time in one
     // night; CLAUDE.md records the rule.
-    <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-0 pb-5 sm:pt-2 sm:pb-8">
+    <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-0 pb-5 max-sm:-mx-3 max-sm:px-3 sm:pt-2 sm:pb-8">
       {/* Width + edge gutter are owned by the parent page <main> (canonical
           max-w-7xl px-3 sm:px-6 lg:px-8) so the feed lines up with Header/Footer. */}
       <div className="relative w-full">
@@ -5101,8 +5111,16 @@ export function ListingsExplorer({
                 /* Grid Mode (Standard Cards) — the home feed's presentation, and now the DEFAULT
                    everywhere (see the viewMode useState).
                    `data-feed-restoring`: every restored card renders at its REAL size while the
-                   back-nav restore aligns — see the rule beside `[data-feed-card]` in globals.css. */
-                <div data-feed-restoring={restoring || undefined} className={cn('feed-grid', LISTING_GRID)}>
+                   back-nav restore aligns — see the rule beside `[data-feed-card]` in globals.css.
+                   `max-sm:[&>.col-span-full]:px-2`: on a phone LISTING_GRID bleeds 8px past the page gutter
+                   (owner 2026-10-18), so a FULL-WIDTH row inside it — the teacher shelf, the guest capture
+                   row — would start its text 4px from the screen edge. 8px of padding puts its content back
+                   on the 12px gutter while its hairlines keep the grid's width, the cards' own edges (the
+                   shelf's rail bleeds back out with RAIL_SCROLLER, so its cards stay on the grid columns).
+                   On the grid, not on each row: the capture row renders null for a signed-in reader, and a
+                   wrapper would leave an empty full-width cell; the rows' own selectors in globals.css
+                   (`.feed-grid > [data-teacher-shelf] + …`) need them to stay direct children too. */
+                <div data-feed-restoring={restoring || undefined} className={cn('feed-grid', LISTING_GRID, 'max-sm:[&>.col-span-full]:px-2')}>
                   {gridListings.map((l, index) => (
                     <Fragment key={l.id}>
                       {/* data-feed-card = the back-nav restore ANCHOR. The return-to-feed
@@ -5350,13 +5368,16 @@ export function ListingsExplorer({
                         className={cn(
                           // The pin handler scrolls the WINDOW to this card now (E-MAP): land it
                           // below the pinned header + toolbar, where the map's own top line is.
-                          'rounded-xl lg:scroll-mt-[var(--map-top)]',
+                          // `rounded-media`: the card photo's corner (owner 2026-10-18), not a tier of its own.
+                          'rounded-media lg:scroll-mt-[var(--map-top)]',
                           // Highlight the IMAGE only (user-picked 2026-07-14):
                           // ringing the whole card incl. the text block read badly.
                           hoveredId === l.id && '[&_[data-protected]]:ring-2 [&_[data-protected]]:ring-inset [&_[data-protected]]:ring-brand/40',
                         )}
                       >
-                        <ListingCard listing={l} onOpen={handleOpen} onLocate={locateListing} />
+                        {/* MAP_CARD_SIZES: this list is one full-width column below lg, so the grid's
+                            half-width default under-resolved every phone photo here. */}
+                        <ListingCard listing={l} onOpen={handleOpen} onLocate={locateListing} sizes={MAP_CARD_SIZES} />
                       </div>
                     ))}
                     {/* The list's infinite-scroll sentinel — observed against the WINDOW since E-MAP (the

@@ -12,6 +12,7 @@ import React from 'react'
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { formatMoney } from '@/lib/currencies'
+import { RATE_COMPACT_VND } from '@/lib/vnd'
 import { Price } from './price'
 
 const state = vi.hoisted(() => ({ currency: 'VND', rates: {} as Record<string, number> }))
@@ -107,5 +108,32 @@ describe('<Price native compact>', () => {
   it('never draws "≈ $0" for a one-đồng "contact me" price', () => {
     state.rates = { USD: 1 / 26_000 }
     expect(text(<Price native price={1} currency="₫" priceUnit="VND" />)).toBe('1 đ')
+  })
+})
+
+/**
+ * A CARD'S PER-UNIT PRICE IN MILLIONS (owner, 2026-10-18): the card hands `compactAbove={RATE_COMPACT_VND}` for a
+ * rent, a hire or a monthly salary (vnd.ts cardCompactAbove), so "8,500,000 đ / month ≈ $332" — two lines on every
+ * phone — becomes "8.5M đ / month ≈ $332". The đồng figure still leads and keeps its mark, the unit and the "≈ $"
+ * stay, and a figure that is not a whole thousand is marked approximate, never stated as exact.
+ */
+describe('<Price native compact compactAbove={RATE_COMPACT_VND}>', () => {
+  it('reads a rent in millions — đồng first, the unit and the "≈ $" kept', () => {
+    state.rates = { USD: 1 / 25_600 }
+    expect(text(<Price native compact compactAbove={RATE_COMPACT_VND} price={8_500_000} currency="₫" priceUnit="VND/month" />)).toBe('8.5M đ / month≈ $332')
+  })
+  it('marks a figure that is not a whole thousand as approximate', () => {
+    expect(text(<Price native compact compactAbove={RATE_COMPACT_VND} dual={false} price={8_555_500} currency="₫" priceUnit="VND/month" />)).toBe('≈ 8.556M đ / month')
+  })
+  it("the struck was-price, under the card's one threshold, reads in the same millions", () => {
+    expect(text(<Price native compact compactAbove={RATE_COMPACT_VND} dual={false} price={9_500_000} currency="₫" priceUnit="VND" />)).toBe('9.5M đ')
+  })
+  it('keeps every digit under a million, and the default threshold still starts at 10 tỷ', () => {
+    expect(text(<Price native compact compactAbove={RATE_COMPACT_VND} dual={false} price={950_000} currency="₫" priceUnit="VND/month" />)).toBe('950,000 đ / month')
+    cleanup()
+    expect(text(<Price native compact dual={false} price={8_500_000} currency="₫" priceUnit="VND/month" />)).toBe('8,500,000 đ / month')
+  })
+  it('a tỷ and up under the same threshold is the tỷ words, unchanged', () => {
+    expect(text(<Price native compact compactAbove={RATE_COMPACT_VND} dual={false} price={1_200_000_000} currency="₫" priceUnit="VND/month" />)).toBe('1.2 billion đ / month')
   })
 })

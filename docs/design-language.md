@@ -79,12 +79,13 @@ consumed by CSS rules in `globals.css` only — never as utilities in markup
 
 ## 2. Radius
 
-Four tiers. Pick by element role, not by taste.
+Four tiers and one photo-tile corner. Pick by element role, not by taste.
 
 | Utility | Value | Use for |
 |---|---|---|
 | `rounded-full` | pill | circles, pills, chips, badges, avatars, icon buttons |
-| `rounded-2xl` | 18px | cards, panels, dialogs, popovers, menus, **and all media ≥ ~96px, including `<ListingCard>`'s image container** |
+| `rounded-media` | 8px round / 14px squircle | **listing & product photo tiles at every size** — `<ListingCard>`'s photo (and its root + card link, so press and focus follow it), its skeleton, the SEO tile, the post wizard's Preview, the map-mode list, the dashboard grid cover (`rounded-t-media`, with its frame) and the native shell's `.ph` (owner, 2026-10-18: "minimal squircle corners") |
+| `rounded-2xl` | 18px | cards, panels, dialogs, popovers, menus, **and all other media ≥ ~96px** (the PDP gallery, banners) |
 | `rounded-xl` | 12px | buttons, inputs, selects, textareas, medium controls, **and media between ~64px and ~96px** |
 | `rounded-lg` | 10px | small thumbnails/media ≤ ~64px, tiny nested boxes, and compact controls ≤ ~28px tall in dense surfaces (admin tables, menu items) |
 
@@ -99,6 +100,19 @@ opposite answers about the single most-repeated surface in the product. The carv
 won in code, which is how the app's most-seen photo ended up at the same 9px corner as a
 menu item. **The size rule is the rule; there is no per-component exception.** If a
 component ever needs one, it needs a reason written next to it, not a second row here.
+
+⚠️ **`rounded-media` is a ROLE row, not a per-component exception — and it reverses the
+2026-08-09 placement of the card photo on the 2xl tier, on the owner's word** (2026-10-18:
+"the product cards should have minimal squircle corners … facebook marketplace style").
+Facebook's mobile grid clips its photos at 8px; at 18px eno's tile read soft and app-like.
+It is the one corner every listing/product photo tile wears, whatever its size, so a tile
+never changes shape between its skeleton, its loaded card, its preview and its offline shell.
+It is also the one **compensated** radius: an `@theme static` token (never `@theme inline`,
+which would bake 8px in), 8px round everywhere and raised to a 14px squircle inside
+globals.css's `@supports (corner-shape: squircle)` block — the same visible corner
+(≤ 0.16px apart, measured 2026-10-18), so Safari/iOS show 8px round today and switch to the
+squircle by themselves when WebKit ships `corner-shape`. Floating panels, the PDP gallery and
+every other media surface stay on their tiers. `lib/utils.ts` teaches tailwind-merge the name.
 
 ⚠️ **The values are authored, not derived, and `xl` has a measured ceiling.** They were
 `--radius ± 1/2/4/8` (5/6/7/9/11/15px) until 2026-08-09 — a scale 10px wide that shipped
@@ -215,6 +229,15 @@ costs conversions. It stays a separate, owner-reviewed decision.
   overlay offsets, media aspect boxes) — never for font size, radius, or color.
 - Page frame: `max-w-7xl px-3 sm:px-6 lg:px-8` (header/footer edge-aligned);
   explorer fills parent `main` — no double containers.
+- Listing grid (`LISTING_GRID`, listing-grid.ts) — Facebook-Marketplace spacing (owner, 2026-10-18:
+  "minimal wasted space around cards and a bit larger"): on a phone it **bleeds 8px out of the
+  page gutter** (`-mx-2`), so photos sit 4px from the screen edge, 4px apart, 12px between rows
+  (189px cards at 390); the card's text is inset back onto the 12px gutter (`px-2 sm:px-0.5`).
+  From `sm` the grid keeps the gutter: 8px apart, 16px between rows, 2 / 3 / 4 columns (never 5 —
+  a page is 12 cards). Rails match it card for card (`RAIL_CARD_W` / `RAIL_SCROLLER` in shelf.tsx;
+  listing-grid.test.ts checks the arithmetic). The bleed needs the `px-3` frame and no clip at the
+  content box: the explorer's `#listings` moves its `overflow-x-clip` to the screen edge, and the
+  feed grid pads a full-width row (teacher shelf, guest capture) back onto the gutter.
 
 **Layers — the z ladder.** One ordered scale, named by role (`@theme { --z-index-* }` in
 globals.css, so `z-overlay` etc. are real utilities and tailwind-merge knows them):

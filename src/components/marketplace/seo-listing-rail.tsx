@@ -9,7 +9,8 @@ import { categoryFor, subcategoryFor } from '@/lib/feed-taxonomy'
 import { ArrowRight } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { ImageMark } from './image-mark'
-import { LISTING_GRID } from './listing-grid'
+import { cardCompactAbove } from '@/lib/vnd'
+import { LISTING_CARD_SIZES, LISTING_GRID } from './listing-grid'
 import { Price } from './price'
 import { seoLandingWhere, type SeoLandingTarget } from './seo-landing-where'
 import { seoBrowseHref, type SeoBrowseTarget } from './seo-landing-href'
@@ -139,7 +140,10 @@ export function SeoListingGrid({
       <div className={LISTING_GRID}>
         {listings.map((l) => (
           <Link key={l.id} href={`/listings/${l.id}`} className="group flex flex-col">
-            <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-tint">
+            {/* The card photo's own corner, hairline and sizes (owner, 2026-10-18 — see ListingCard's media
+                box): `rounded-media`, `media-hairline` over an `isolate` box so its z-1 line stays inside
+                the tile, and the grid's derived `sizes`. */}
+            <div className="media-hairline relative isolate aspect-square w-full overflow-hidden rounded-media bg-tint">
               {l.images[0] && (
                 // ⛔ NO HOVER ZOOM. This photo carried `group-hover:scale-[1.03]`, against the owner's
                 // rule that a listing photo never scales on hover — every other card obeys it; the
@@ -149,16 +153,18 @@ export function SeoListingGrid({
                   alt={l.title}
                   fill
                   unoptimized={isMockImageUrl(l.images[0]) || undefined}
-                  sizes="(max-width:640px) 50vw, (max-width:1024px) 33vw, 25vw"
+                  sizes={LISTING_CARD_SIZES}
                   quality={60}
                   className="object-cover"
                 />
               )}
               <ImageMark src={l.images[0]} />
             </div>
-            {/* Same shape as <ListingCard>: price → one-line title → location (owner, 2026-09-13). */}
-            <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2">
-              <Price native price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} className="text-base leading-tight sm:text-lg" />
+            {/* Same shape as <ListingCard>: price → one-line title → location (owner, 2026-09-13), inset
+                onto the page gutter on a phone like the card's text, and the card's price form
+                (`compact` + `cardCompactAbove`: a rent reads "8.5M đ / month", owner 2026-10-18). */}
+            <div className="flex flex-1 flex-col gap-0.5 px-2 pt-2 sm:px-0.5">
+              <Price native compact compactAbove={cardCompactAbove(l)} price={l.price} currency={l.currency} priceUnit={l.priceUnit} listingType={l.listingType} linked={l.isPartnerBooking} className="text-base leading-tight sm:text-lg" />
               <span className="truncate text-sm leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2">{l.title}</span>
               <span className="truncate text-xs text-muted-foreground">{l.location}</span>
             </div>

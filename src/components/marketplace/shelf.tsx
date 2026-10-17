@@ -63,7 +63,12 @@ export const SECTION_SEE_ALL =
 
 /** Card width — pixel-matches the feed grid (2 cols mobile / 3 sm / 4 lg), so a rail card
  *  equals exactly one feed column and the rail reads as one family with the grid below.
- *  Was a copy-pasted literal in every rail. */
+ *  Was a copy-pasted literal in every rail.
+ *  Each calc subtracts (columns − 1) × the column gap of LISTING_GRID (listing-grid.ts) at that
+ *  breakpoint — 4px on a phone, 8px from sm since the owner's Facebook-spaced grid (2026-10-18) —
+ *  and the percentage resolves against RAIL_SCROLLER's box, which bleeds exactly like the grid, so
+ *  at 390 a rail card is (382 − 4) / 2 = 189px, the grid's own column. listing-grid.test.ts parses
+ *  both strings and fails if they drift. */
 /**
  * ⛔ NO `snap-start` HERE, AND THIS CONSTANT IS WHY IT MATTERED EVERYWHERE (owner, 2026-09-21:
  * "make springy action much less now its too much friction and frustrating to swipe").
@@ -78,9 +83,14 @@ export const SECTION_SEE_ALL =
  * ⚠️ The VIDEO feed keeps `snap-mandatory` on purpose — a full-screen pager must land on one video.
  */
 export const RAIL_CARD_W =
-  'w-[calc((100%-0.5rem)/2)] shrink-0 sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]'
+  'w-[calc((100%-0.25rem)/2)] shrink-0 sm:w-[calc((100%-1rem)/3)] lg:w-[calc((100%-1.5rem)/4)]'
 
-/** Horizontal snap scroller, gaps matched to the feed grid (gap-2 / sm:gap-4).
+/** Horizontal snap scroller, gaps AND bleed matched to the feed grid: `-mx-2 … gap-1` on a phone (the
+ *  grid's 8px bleed out of the `px-3` frame and its 4px column gap — owner, 2026-10-18), `sm:mx-0
+ *  sm:gap-2` from sm. Every rail sits directly in the page frame (the explorer's #listings section, the
+ *  PDP's <main>, the sold/gone pages' px-3 wrapper; the teacher shelf is a full-width row of the bled
+ *  feed grid, which pads it back onto the gutter), so the bleed lands 4px from the screen edge, never
+ *  past it.
  *  `overscroll-x-contain` keeps a sideways overscroll INSIDE the rail: without it, flicking
  *  a rail that is already at either end CHAINS the scroll out to the nearest scrollable
  *  ancestor (and, in the iOS WebView, hands the gesture to the swipe-back navigation).
@@ -88,7 +98,7 @@ export const RAIL_CARD_W =
  *  edge-swipe — a drag that STARTS in the screen-edge gutter is claimed by the system
  *  before the page sees it, and `touch-action` can't refuse it either
  *  (w3c/pointerevents#358). Containment is a real improvement, not a guarantee. */
-export const RAIL_SCROLLER = 'flex gap-2 overflow-x-auto overscroll-x-contain scrollbar-none snap-x sm:gap-4'
+export const RAIL_SCROLLER = '-mx-2 flex gap-1 overflow-x-auto overscroll-x-contain scrollbar-none snap-x sm:mx-0 sm:gap-2'
 
 /**
  * ⛔ THE SWIPE HINT — A COMPONENT, NOT A LINE OF JSX IN `Shelf`, AND THAT WAS THE WHOLE BUG.

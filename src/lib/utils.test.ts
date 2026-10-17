@@ -49,6 +49,32 @@ describe('cn — the house curves', () => {
 })
 
 /**
+ * THE PHOTO-TILE CORNER IS A tailwind-merge RADIUS TOO (owner, 2026-10-18). `rounded-media` is a theme token
+ * (`@theme static { --radius-media }`); without `theme.radius` in utils.ts, `cn()` kept a primitive's tier
+ * beside it and stylesheet order chose the corner.
+ */
+describe('cn — the photo-tile corner', () => {
+  it('rounded-media replaces a tier, a tier replaces it, and the directional forms merge alike', () => {
+    expect(cn('rounded-2xl', 'rounded-media')).toBe('rounded-media')
+    expect(cn('rounded-media', 'rounded-xl')).toBe('rounded-xl')
+    expect(cn('rounded-t-2xl', 'rounded-t-media')).toBe('rounded-t-media')
+    expect(cn('aspect-square rounded-xl bg-tint', 'rounded-media')).toBe('aspect-square bg-tint rounded-media')
+  })
+
+  it('is a STATIC token with a squircle override — inline would bake 8px in and the override would do nothing', () => {
+    const css = readFileSync(join(__dirname, '..', 'app', 'globals.css'), 'utf8')
+    expect(css).toMatch(/@theme static \{\s*--radius-media: 8px;\s*\}/)
+    const inline = css.match(/@theme inline \{([\s\S]*?)\n\}/)
+    expect(inline, 'the @theme inline block').not.toBeNull()
+    expect(inline![1]).not.toMatch(/^\s*--radius-media:/m)
+    const squircle = css.match(/@supports \(corner-shape: squircle\) \{([\s\S]*?)\n\}/)
+    expect(squircle, 'the squircle block').not.toBeNull()
+    expect(squircle![1]).toMatch(/:root \{ --radius-media: 14px; \}/)
+    for (const d of ['', 't-', 'b-', 'l-', 'r-']) expect(squircle![1]).toContain(`[class*="rounded-${d}media"]`)
+  })
+})
+
+/**
  * AVATAR INITIALS (break-ui, 2026-10-05): first + last word, whole graphemes, never an emoji half.
  * Every value is a real naming shape from the break-ui catalog, not filler.
  */

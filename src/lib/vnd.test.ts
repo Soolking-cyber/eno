@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseVnd, formatMoneyFull, formatVndIso, compactPrice, formatCount, formatInteger, formatRating, groupVnd, hugeVnd, HUGE_VND } from './vnd'
+import { parseVnd, formatMoneyFull, formatVndIso, compactPrice, formatCount, formatInteger, formatRating, groupVnd, hugeVnd, HUGE_VND, compactVnd, compactVndStep, cardCompactAbove, RATE_COMPACT_VND } from './vnd'
 
 // Money is always displayed grouped + suffixed "đ"; parseVnd is the inverse used
 // on every price input. They must round-trip.
@@ -96,5 +96,57 @@ describe('hugeVnd', () => {
     expect(hugeVnd(12_345_000_000, 'th')).toBe(`${new Intl.NumberFormat('th-TH', { notation: 'compact', compactDisplay: 'long', maximumFractionDigits: 6 }).format(12_345_000_000)} đ`)
     expect(hugeVnd(12_345_000_000, 'th')).toContain('1.2345') // three digits rounded this to 1.235
     expect(hugeVnd(999_999_000_000, 'hi')).not.toBe(hugeVnd(1_000_000_000_000, 'hi'))
+  })
+})
+
+/**
+ * A CARD'S PER-UNIT PRICE READS IN MILLIONS (owner, 2026-10-18 — a rent on one line): the đồng figure still leads
+ * and keeps its mark, and it is never falsely exact — the label is exact to its step in every language.
+ */
+describe('compactVnd', () => {
+  it('reads millions in each server language, the mark kept', () => {
+    expect(RATE_COMPACT_VND).toBe(1_000_000)
+    expect(compactVnd(8_500_000, 'en')).toBe('8.5M đ')
+    expect(compactVnd(8_500_000, 'vi')).toBe('8,5 triệu đ')
+    expect(compactVnd(1_000_000, 'en')).toBe('1M đ')
+    expect(compactVnd(12_000_000, 'vi')).toBe('12 triệu đ')
+  })
+  it("a tỷ and up is hugeVnd's words, unchanged", () => {
+    expect(compactVnd(2_300_000_000, 'vi')).toBe(hugeVnd(2_300_000_000, 'vi'))
+    expect(compactVnd(95_000_000_000, 'en')).toBe('95 billion đ')
+  })
+  it('is exact to its step — a thousand in millions, a million in tỷ — in every UI language', () => {
+    expect(compactVndStep(8_555_000)).toBe(1_000)
+    expect(compactVndStep(999_999_999)).toBe(1_000)
+    expect(compactVndStep(1_500_000_000)).toBe(1_000_000)
+    expect(compactVnd(8_555_000, 'en')).toBe('8.555M đ')
+    expect(compactVnd(8_555_000, 'vi')).toBe('8,555 triệu đ')
+    expect(compactVnd(8_500_000, 'zh-Hans')).toBe('850万 đ')
+    for (const lang of ['zh-Hans', 'ko', 'ja', 'ru', 'km', 'ms', 'th', 'fr', 'hi']) {
+      // A thousand apart never reads the same — CJK's 亿 (1e8) and Hindi's करोड़ (1e7) included: with three
+      // decimals 999,999,000 printed "10亿".
+      expect(compactVnd(999_999_000, lang), lang).not.toBe(compactVnd(999_998_000, lang))
+      expect(compactVnd(8_555_000, lang), lang).not.toBe(compactVnd(8_556_000, lang))
+      expect(compactVnd(8_500_000, lang).endsWith(' đ'), lang).toBe(true)
+    }
+  })
+})
+
+describe('cardCompactAbove — ONE threshold for a card\'s price and its struck was-price', () => {
+  it('a per-unit price of a million or more → millions (a rent, a hire, a monthly salary)', () => {
+    expect(cardCompactAbove({ price: 8_500_000, priceUnit: 'VND/month' })).toBe(RATE_COMPACT_VND)
+    expect(cardCompactAbove({ price: 1_000_000, priceUnit: 'VND/day', prevPrice: 1_200_000 })).toBe(RATE_COMPACT_VND)
+    expect(cardCompactAbove({ price: 15_000_000, priceUnit: 'VND/month', prevPrice: null })).toBe(RATE_COMPACT_VND)
+  })
+  it('a sale price, a "/ service" price and a rent under a million keep the narrow-surface default', () => {
+    expect(cardCompactAbove({ price: 41_990_000, priceUnit: '' })).toBe(HUGE_VND)
+    expect(cardCompactAbove({ price: 41_990_000, priceUnit: 'VND' })).toBe(HUGE_VND)
+    expect(cardCompactAbove({ price: 3_030_000, priceUnit: 'VND/service' })).toBe(HUGE_VND)
+    expect(cardCompactAbove({ price: 950_000, priceUnit: 'VND/month' })).toBe(HUGE_VND)
+  })
+  it('a real drop across 10 tỷ whose new price is still a tỷ or more → both in tỷ, as before', () => {
+    expect(cardCompactAbove({ price: 9_990_000_000, prevPrice: 12_000_000_000, priceUnit: '' })).toBe(1_000_000_000)
+    expect(cardCompactAbove({ price: 900_000_000, prevPrice: 12_000_000_000, priceUnit: '' })).toBe(HUGE_VND)
+    expect(cardCompactAbove({ price: 9_990_000_000, prevPrice: null, priceUnit: '' })).toBe(HUGE_VND)
   })
 })

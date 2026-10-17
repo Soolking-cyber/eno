@@ -181,6 +181,8 @@
   --radius-xl: 12px;  /* buttons, inputs, selects — capped by the pill cliff above */
   --radius-2xl: 18px; /* cards, panels, dialogs, popovers, images ≥96px */
   --radius-3xl: 26px; /* sheets and drawers (no consumer in src/ today — headroom) */
+  /* `--radius-media` (listing/product photo tiles) is NOT here: an inline token cannot be overridden at runtime,
+     and that one is (8px round → 14px squircle). See its own `@theme static` block below. */
 
   /* Micro type steps below Tailwind's `xs` — the ONLY sanctioned sizes for dense
      card meta and badge labels (docs/design-language.md). They replace the ad-hoc
@@ -263,6 +265,22 @@
   --ease-spring: linear(0, 0.007, 0.029, 0.063, 0.108, 0.219, 0.354, 0.5, 0.638, 0.756, 0.85, 0.919, 0.965, 0.992, 1.006, 1.011, 1.009, 1.005, 1.001, 1);
   --ease-spring-snappy: linear(0, 0.026, 0.101, 0.219, 0.375, 0.559, 0.727, 0.859, 0.949, 1.001, 1.025, 1.03, 1.024, 1.014, 1.005, 0.999, 0.998, 1);
   --ease-bounce: linear(0, 0.004, 0.036, 0.098, 0.19, 0.417, 0.685, 0.912, 1.062, 1.13, 1.147, 1.13, 1.098, 1.062, 1.033, 1.013, 1.002, 0.998, 0.999, 1);
+}
+
+/* ── THE PHOTO-TILE CORNER — `rounded-media` (owner, 2026-10-18: "the product cards should have minimal squircle
+   corners") ──────────────────────────────────────────────────────────────────────────────────────────────────
+   One corner for every listing/product photo tile: the card photo, its skeleton, the SEO tile, the wizard Preview,
+   the dashboard cover. 8px round here; the `@supports (corner-shape: squircle)` block further down raises it to a
+   14px SQUIRCLE, which reads as the same corner (14px squircle vs 8px arc differ by ≤ 0.16px, measured in Chrome
+   155 and Playwright WebKit, 2026-10-18) — so Safari/iOS and Firefox show 8px round, Chromium/Samsung the
+   squircle, and iOS switches by itself the day Safari ships corner-shape.
+   ⛔ `static`, NEVER `@theme inline`. Inline bakes the value into the utility, and the @supports override below
+   would compile to nothing — the exact trap the squircle block records for the tiers. Declared here, Tailwind
+   4.3.3 emits `.rounded-media{border-radius:var(--radius-media)}` (and the t/b/l/r forms) with the variable on
+   :root in `@layer theme`, which the block's UNLAYERED :root beats. Checked against this repo's own compile.
+   ⚠️ After the curves block, not before it: utils.test.ts reads the FIRST `@theme static` for the curves. */
+@theme static {
+  --radius-media: 8px;
 }
 
 /* ── THE Z LADDER (D-Z, 2026-09-29) ──────────────────────────────────────────────────────────────
@@ -1355,6 +1373,18 @@
    than a Safari one is a difference nobody can see without the two side by side. Two sets
    of numbers to keep in sync would have been the real cost.
 
+   ⚠️ ONE TOKEN IS COMPENSATED, ON PURPOSE: `--radius-media`, the photo-tile corner (owner,
+   2026-10-18: "minimal squircle corners"). It is declared in `@theme static`, not inline, so
+   the utility reads `var(--radius-media)` at runtime and the `:root` below really does move
+   it: 8px round everywhere, a 14px squircle here — the same visible corner (≤ 0.16px apart,
+   measured 2026-10-18). At a minimal 8px the uncompensated choice would have been visible —
+   an 8px squircle reads ~6px beside Safari's 8px arc — and it is ONE number, on the one
+   surface the brief is about. The tiers above stay uncompensated; never do this for lg/xl,
+   whose 1.75× squircle value would cross the pill cliff (see `@theme inline`).
+   Support, re-checked 2026-10-18: Chrome/Edge 139+, Samsung 30+, Android WebView; WebKit
+   turned it on in main (2026-08-14, STP 251) but no shipping Safari has it yet; Firefox
+   Nightly only.
+
    ⚠️ THE TIER NAME IS MATCHED AS A SUBSTRING, BUT NEVER A BARE `[class*="rounded-"]`.
    The distinction is the whole safety argument. A bare prefix match also catches
    `rounded-t-none` (2 live uses) and would catch `rounded-*-full` the day one appears —
@@ -1384,12 +1414,17 @@
    Per-corner (`rounded-tl-*`) and logical (`rounded-s-*`) families have ZERO uses today;
    add them here if that changes. */
 @supports (corner-shape: squircle) {
+  /* The photo-tile corner's squircle value (see the ⚠️ above). Unlayered, so it beats the 8px that
+     `@theme static` puts on :root inside `@layer theme`. In the list below, `rounded-media` is not a
+     substring of `rounded-t-media`, so each direction of it is listed. */
+  :root { --radius-media: 14px; }
   :is(
     [class*="rounded-lg"], [class*="rounded-xl"], [class*="rounded-2xl"], [class*="rounded-3xl"],
     [class*="rounded-t-lg"], [class*="rounded-t-xl"], [class*="rounded-t-2xl"], [class*="rounded-t-3xl"],
     [class*="rounded-b-lg"], [class*="rounded-b-xl"], [class*="rounded-b-2xl"], [class*="rounded-b-3xl"],
     [class*="rounded-l-lg"], [class*="rounded-l-xl"], [class*="rounded-l-2xl"], [class*="rounded-l-3xl"],
-    [class*="rounded-r-lg"], [class*="rounded-r-xl"], [class*="rounded-r-2xl"], [class*="rounded-r-3xl"]
+    [class*="rounded-r-lg"], [class*="rounded-r-xl"], [class*="rounded-r-2xl"], [class*="rounded-r-3xl"],
+    [class*="rounded-media"], [class*="rounded-t-media"], [class*="rounded-b-media"], [class*="rounded-l-media"], [class*="rounded-r-media"]
   ):not([class*="rounded-full"]) {
     corner-shape: squircle;
   }
@@ -2623,6 +2658,36 @@ html.dark .leaflet-tile-pane {
   .partner-ring-media::after {
     border-color: Highlight;
   }
+}
+
+/* ── THE CARD-PHOTO HAIRLINE (owner, 2026-10-18: Facebook-Marketplace spacing) ──────────────────────────────────
+   At a 4px gap, white packshots (the linked shops' stock, the AirPods on /c/electronics) merge with each other and
+   with the canvas into one pale blob; Facebook frames every grid photo with a 1px line for the same reason. This is
+   that line — black at 6% on light, white at 8% on dark — on the feed card photo and the SEO tile.
+   ⛔ A PSEUDO-ELEMENT OVER THE PHOTO, NOT AN INSET outline/box-shadow ON THE BOX: those paint UNDER next/image's
+   absolutely positioned `fill` photo (proven for the partner ring above). `z-index: 1` lifts it over the photo and
+   the card video (both z-auto) and keeps it under every overlay (badges, heart, chips: z-10). The host must be a
+   stacking context (`isolate`) so that 1 stays inside the tile — both hosts are.
+   ⚠️ `::before`, because `::after` is `.partner-ring-media`'s (off the card since 2026-08-13, but the class is still
+   here and must not collide if it returns). The skeleton photo already spends BOTH pseudos (wordmark + shimmer), so
+   it does not take this class — and it is not a photo. Nothing is set on the host itself: an unlayered `position`
+   would beat its Tailwind `relative` (the .hairline-t lesson). The directed-link mask hides it with the photo. */
+.media-hairline::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  corner-shape: inherit;
+  border: 1px solid rgb(0 0 0 / 0.06);
+}
+.dark .media-hairline::before {
+  border-color: rgb(255 255 255 / 0.08);
+}
+/* Forced colours would turn a 6% hint into a solid system-colour frame on every photo; it is decoration. */
+@media (forced-colors: active) {
+  .media-hairline::before { content: none; }
 }
 
 /* ── THE OVER-CONTENT ICON PLATE ──────────────────────────────────────────────────────────────
@@ -4183,9 +4248,18 @@ html[data-has-recents] .recents-row {
    ⚠️ `contain-intrinsic-size: auto <fallback>` IS NOT OPTIONAL. Without it a skipped card reports
    zero height, the page collapses, and the scrollbar jumps as cards enter the viewport. The `auto`
    keyword tells the browser to REMEMBER each card's last rendered size, so the fallback is only
-   used before a card has ever been rendered — which is exactly the first-paint case. 320px is the
-   measured median card height in the 2-column mobile grid; being wrong here costs a small scroll
-   correction, not a broken layout.
+   used before a card has ever been rendered — which is exactly the first-paint case. The fallback is
+   the card's REAL height at every width since the owner's Facebook-spaced grid (2026-10-18): the
+   column formulas of LISTING_CARD_SIZES (listing-grid.ts) plus the body under the square photo —
+   71px on a phone (pt-2 8 + price 20 + 2 + title 19.25 + 2 + meta pt-1 4 + 16), 73px from sm (the
+   sm text sizes). MEASURED on the preview build: 260px at 390, 265 at 640, 307 at 768 and at 1024,
+   392 at 1023, 371 from 1280 (the 7xl frame caps the column at 298). ⛔ ONE NUMBER CANNOT FIT A
+   COLUMN THAT RUNS 154–320px: the first cut, 260 everywhere, guessed a desktop card ~110px short
+   (gate review, 2026-10-18) — every never-rendered card past the first twelve, so a deep scroll and
+   a Back into the feed drifted further than under the old single guess. A rent that still wraps
+   (Vietnamese at 390) adds 20, as does most prices at 320. The 320px this replaced was measured on
+   the old two-title-line card and was already ~50px tall by 2026-09-29 (the restore note below).
+   Being wrong here costs a small scroll correction, not a broken layout.
 
    ⚠️ IT DOES NOT REDUCE DOM NODE COUNT, and that is fine: the PageSpeed "Optimize DOM size" audit
    scores 1 at 1,830 elements — there are no points available there. What it reduces is Style &
@@ -4210,14 +4284,24 @@ html[data-has-recents] .recents-row {
    buy is Style & Layout time on a feed several pages deep.
    ⚠️ 2026-09-29: the 320px GUESS is observable, and costs something — a Back into a deep feed laid
    never-rendered cards out at it and threw the restore off by ~300px for a frame. See the
-   `data-feed-restoring` rule below, which switches it off for exactly that window. */
+   `data-feed-restoring` rule below, which switches it off for exactly that window. (Per-breakpoint
+   since 2026-10-18 — see the derivation above; the restore rule stays, a guess is still a guess.) */
 [data-feed-card] {
   content-visibility: auto;
-  contain-intrinsic-size: auto 320px;
+  contain-intrinsic-size: auto calc(50vw + 65px);
+}
+@media (min-width: 640px) {
+  [data-feed-card] { contain-intrinsic-size: auto calc((100vw - 64px) / 3 + 73px); }
+}
+@media (min-width: 1024px) {
+  [data-feed-card] { contain-intrinsic-size: auto calc((100vw - 88px) / 4 + 73px); }
+}
+@media (min-width: 1280px) {
+  [data-feed-card] { contain-intrinsic-size: auto 371px; }
 }
 
 /* The first screen must never be skipped: a card that has not been rendered yet has no remembered
-   size, so letting the LCP row start as a 320px guess would move the fold on first paint. Twelve
+   size, so letting the LCP row start as the intrinsic-size guess would move the fold on first paint. Twelve
    is the first page (FIRST_PAGE_SIZE): three full rows at the widest breakpoint. The guest-capture
    row comes AFTER it since 2026-09-29 (E-ORPHAN), so these twelve children are all listing cards. */
 .feed-grid > *:nth-child(-n + 12) [data-feed-card],

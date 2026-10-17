@@ -78,7 +78,7 @@ const TEACHER = {
   model: null,
 } as unknown as SerializedListingCard
 
-const TITLE_CLASS = 'truncate text-sm font-medium leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2'
+const TITLE_CLASS = 'truncate text-sm font-normal leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2'
 const card = (patch: Record<string, unknown> = {}) =>
   render(<ListingCard listing={{ ...TEACHER, ...patch } as SerializedListingCard} onOpen={vi.fn()} />).container
 

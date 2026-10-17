@@ -75,7 +75,7 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
       {/* ⚠️ THE SWIPE BEAM BELONGS HERE TOO — this rail does NOT go through <Shelf>, which is
           exactly why the first version of the hint missed Services, Travel, Home and Fashion. */}
       <RailBeam scrollerRef={scrollerRef} canRight={canRight} />
-      {/* Cards pixel-match the feed grid (gap-2 / sm:gap-4; one card == one grid column) + snap. */}
+      {/* Cards pixel-match the feed grid (RAIL_SCROLLER / RAIL_CARD_W: its bleed and gaps, one card == one grid column). */}
       <div className="relative">
         <div ref={scrollerRef} className={RAIL_SCROLLER}>
           {show

@@ -272,9 +272,13 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   if (variant === 'grid') {
     // No overflow-hidden on the card — it would clip the Share popover. The image
     // rounds its own top corners instead.
+    // ⚠️ THE COVER WEARS THE LISTING-PHOTO CORNER (`rounded-t-media`, owner 2026-10-18: "minimal squircle
+    // corners") AND THE FRAME MUST WEAR IT TOO. With no clip on the card, the cover's corner IS the frame's
+    // top corner: an 8px cover inside the old 18px border would poke its photo corners out past the
+    // border's curve. So the seller's tile takes the buyer's card corner, frame and cover together.
     return (
-      <div className={cn('flex flex-col rounded-2xl border bg-card transition-colors', selected ? 'border-brand ring-1 ring-brand' : 'border-border/70 hover:border-line-strong')} onMouseEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
-        <button onClick={open} className="relative aspect-square w-full overflow-hidden rounded-t-2xl bg-tint cursor-pointer" aria-label={title}>
+      <div className={cn('flex flex-col rounded-media border bg-card transition-colors', selected ? 'border-brand ring-1 ring-brand' : 'border-border/70 hover:border-line-strong')} onMouseEnter={prefetch} onTouchStart={prefetch} onFocus={prefetch}>
+        <button onClick={open} className="relative aspect-square w-full overflow-hidden rounded-t-media bg-tint cursor-pointer" aria-label={title}>
           {img && (
             <Image src={img} alt="" fill sizes="(min-width: 640px) 25vw, 50vw" quality={60} unoptimized={imgUnoptimized} className="object-cover" />
           )}

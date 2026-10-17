@@ -1,4 +1,5 @@
 import { intlLocale, isMtLanguage } from '@/lib/i18n/langs'
+import { priceUnitSuffix } from '@/lib/price-unit'
 // Money formatting. Across the app we show the FULL grouped amount everywhere
 // (cards, detail, input, offers) — but the SEPARATORS follow the viewer's
 // language. Vietnamese convention is the exact reverse of English: DOT for
@@ -151,14 +152,71 @@ export const HUGE_VND = 10_000_000_000
  * = 1e10 and Hindi in खरब = 1e11). Price calls this only for a whole number of millions; an odd figure is
  * rounded first and marked "≈" there.
  */
-const BILLIONS = { vi: new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 }), en: new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 }) }
+// Three decimals of the scale unit — hugeVnd's tỷ/billion and compactVnd's millions share them.
+const SCALED = { vi: new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 3 }), en: new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 }) }
 const HUGE_FORMATS = new Map<string, Intl.NumberFormat>()
 export function hugeVnd(n: number, lang: string = 'en'): string {
-  if (lang === 'vi' || lang === 'en') return `${BILLIONS[lang].format(n / 1_000_000_000)} ${lang === 'vi' ? 'tỷ' : 'billion'} đ`
+  if (lang === 'vi' || lang === 'en') return `${SCALED[lang].format(n / 1_000_000_000)} ${lang === 'vi' ? 'tỷ' : 'billion'} đ`
   const locale = intlLocale(lang, 'en-GB') // the MT languages' own locale (the same helper vndWords uses)
   let f = HUGE_FORMATS.get(locale)
   if (!f) { f = new Intl.NumberFormat(locale, { notation: 'compact', compactDisplay: 'long', maximumFractionDigits: 6 }); HUGE_FORMATS.set(locale, f) }
   return `${f.format(n)} đ`
+}
+
+/**
+ * THE THIRD SANCTIONED EXCEPTION — A RENT ON A CARD READS IN MILLIONS (owner, 2026-10-18: "make it look super
+ * professional … so we look like top marketplace"). A price quoted PER UNIT — a rent, a salary, a hire: anything
+ * `priceUnitSuffix` names a unit for — of a million đồng or more prints in millions on a feed card,
+ * "8.5M đ / month" / "8,5 triệu đ / tháng" (Chợ Tốt and Nhà Tốt print "8,5 triệu/tháng"). Summed from the shipped
+ * Open Runde woff2's advance widths (Bold 16px figure, 12px "≈ $" + its 6px margin; kerning ignored):
+ * "8,500,000 đ / month ≈ $332" is 211px against the 173px text column of a 390px phone, which is why all 48 of
+ * 48 rental cards on /c/rentals wrapped; "8.5M đ / month ≈ $332" is 166px and fits.
+ * The đồng figure still LEADS and keeps its mark, the "≈ $" still follows (ND 340/2025 order, owner 2026-09-13),
+ * and the PDP keeps every digit.
+ * ⚠️ PER-UNIT ONLY. A sale price keeps the full figure the owner chose from Facebook's grid ("2,250,000 đ",
+ * 2026-09-13): a goods price already fits its line — it is the "/ month" that pushed rents onto two.
+ * ⚠️ VIETNAMESE FITS ONLY A WHOLE SINGLE-DIGIT RENT AT 390px ("9 triệu đ / tháng ≈ $351", 169px); "8,5 triệu đ"
+ * (187px) and "15 triệu đ" (178px) still wrap. One line there needs Chợ Tốt's mark-less "8,5 triệu" (173px) or
+ * the pins' "8,5tr" (159px) — wording, not formatting, so it is left to the owner.
+ */
+export const RATE_COMPACT_VND = 1_000_000
+const MILLION_FORMATS = new Map<string, Intl.NumberFormat>()
+/**
+ * A narrow surface's compact đồng label: a tỷ and up in `hugeVnd`'s scale words; a million and up in millions,
+ * "8.5M đ" / "8,5 triệu đ" — the pins' "M" in English (compactPrice), `vndWords`' "triệu" in Vietnamese, the
+ * mark kept in both. The nine MT languages take Intl's SHORT scale ("850万 đ", "8,5 Mio. đ") for the reason
+ * hugeVnd gives; short, because the long "millions"/"Millionen" is as wide as the digits it replaces.
+ * Exact to `compactVndStep(n)` — a thousand đồng — in every scale: three decimals of a million; FIVE for Intl,
+ * because Chinese, Japanese and Korean switch to 亿/億/억 (1e8) above a hundred million and Hindi to करोड़ (1e7) —
+ * with three, 999,999,000 printed "10亿". Price rounds an odd figure to the step first and marks it "≈".
+ */
+export function compactVnd(n: number, lang: string = 'en'): string {
+  if (n >= 1_000_000_000) return hugeVnd(n, lang)
+  if (lang === 'vi') return `${SCALED.vi.format(n / 1_000_000)} triệu đ`
+  if (lang === 'en') return `${SCALED.en.format(n / 1_000_000)}M đ`
+  const locale = intlLocale(lang, 'en-GB')
+  let f = MILLION_FORMATS.get(locale)
+  if (!f) { f = new Intl.NumberFormat(locale, { notation: 'compact', compactDisplay: 'short', maximumFractionDigits: 5 }); MILLION_FORMATS.set(locale, f) }
+  return `${f.format(n)} đ`
+}
+/** The step compactVnd is exact to: three decimals of a million is a thousand đồng; of a tỷ, a million. */
+export function compactVndStep(n: number): number {
+  return n >= 1_000_000_000 ? 1_000_000 : 1_000
+}
+
+/**
+ * The `compactAbove` a listing CARD hands <Price> — ONE value for its price AND its struck "was" price, so the
+ * pair always reads in one form (price.tsx `compactAbove`):
+ *   · a per-unit price of RATE_COMPACT_VND or more → RATE_COMPACT_VND: "8.5M đ / month", and the was-price
+ *     (higher by definition) in the same millions;
+ *   · a drop across HUGE_VND whose new price is still a tỷ or more → a tỷ, so both read in tỷ (break-ui, 2026-10-05);
+ *   · anything else → HUGE_VND, the narrow-surface default.
+ * Here, not in price.tsx: that module is 'use client', and the server-rendered SEO tile calls this too.
+ */
+export function cardCompactAbove(l: { price: number; prevPrice?: number | null; priceUnit: string | null | undefined }): number {
+  if (priceUnitSuffix(l.priceUnit) && l.price >= RATE_COMPACT_VND) return RATE_COMPACT_VND
+  const hasDrop = l.prevPrice != null && !!dropPercent(l.prevPrice, l.price)
+  return hasDrop && l.prevPrice! >= HUGE_VND && l.price >= 1_000_000_000 ? 1_000_000_000 : HUGE_VND
 }
 
 /** Readable helper under the price input: "12 million đ" / "12 triệu đ".

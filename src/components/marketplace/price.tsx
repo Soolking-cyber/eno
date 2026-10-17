@@ -2,7 +2,7 @@
 
 import { useLanguage, useTr } from '@/context/language-context'
 import { useCurrency, vndPerUsd } from '@/context/currency-context'
-import { formatMoneyFull, hugeVnd, HUGE_VND, moneyLocale } from '@/lib/vnd'
+import { compactVnd, compactVndStep, formatMoneyFull, HUGE_VND, moneyLocale } from '@/lib/vnd'
 import { formatMoney } from '@/lib/currencies'
 import { priceUnitSuffix } from '@/lib/price-unit'
 import { cn } from '@/lib/utils'
@@ -55,12 +55,14 @@ type Props = {
   currency: string
   priceUnit: string
   /** NARROW SURFACES ONLY (cards, dashboard rows, the chat strip): an amount of HUGE_VND or more shows
-   *  in the reader's scale words — "95 tỷ đ" / "95 billion đ" / "950亿 đ" (src/lib/vnd.ts hugeVnd). Below that, and everywhere
+   *  in the reader's scale words — "95 tỷ đ" / "95 billion đ" / "950亿 đ" (src/lib/vnd.ts compactVnd). Below that, and everywhere
    *  without the prop (the PDP), every digit shows as before. */
   compact?: boolean
   /** With `compact`: the threshold, default HUGE_VND. A PAIR shown together (the card's price and its struck
    *  "was" price) passes one shared threshold so a drop across 10 tỷ never mixes "10,04 tỷ đ" with
-   *  "9.990.000.000 đ". */
+   *  "9.990.000.000 đ". A CARD passes `cardCompactAbove(listing)` (src/lib/vnd.ts): RATE_COMPACT_VND for a
+   *  per-unit price, so a rent reads "8.5M đ / month" / "8,5 triệu đ / tháng" (owner 2026-10-18); below a tỷ
+   *  the amount reads in millions. */
   compactAbove?: number
   /** Dual-currency approximation (user decision 2026-07-13): true = always show,
    *  'sm' = only at sm+ (one-line rows that fight for phone width), false = off.
@@ -159,6 +161,7 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
   const noFigure = isFree && (listingType === 'job' || listingType === 'teacher')
   // A LINKED job only — an employer's own job keeps "Salary: negotiable" (see `jobMeta`).
   const jobSlot = noFigure && listingType === 'job' && linked !== false && jobMeta !== undefined
+  const step = compactVndStep(price)
   const amount = isFree
     // A teacher profile (2026-09-30) has no price: it is a person, never "Free".
     ? (listingType === 'teacher' ? tr('Teacher profile', 'Hồ sơ giáo viên')
@@ -167,11 +170,12 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
       : tr('Free', 'Miễn phí'))
     // `compact`: a narrow surface shows HUGE_VND+ in words ("95 tỷ đ") — only while the figure shown is
     // đồng (`native`, or a VND viewer). A viewer in USD/EUR/KRW/… keeps their own currency (opus, 2026-10-05).
-    // hugeVnd prints a whole number of millions exactly; an odd figure is rounded to the million and MARKED "≈",
-    // so a card never states a falsely exact amount, yet still never paints a 12-digit run into the next card
-    // (opus, two rounds, 2026-10-05). The PDP shows the exact digits either way.
+    // compactVnd prints a whole number of its step exactly — a million in tỷ, a thousand in millions (a card's
+    // per-unit price, `compactAbove` RATE_COMPACT_VND — owner 2026-10-18); an odd figure is rounded to the step
+    // and MARKED "≈", so a card never states a falsely exact amount, yet still never paints a 12-digit run into
+    // the next card (opus, two rounds, 2026-10-05). The PDP shows the exact digits either way.
     : compact && currency === '₫' && price >= compactAbove && (native || displayCur === 'VND')
-      ? (price % 1_000_000 === 0 ? hugeVnd(price, lang) : `≈ ${hugeVnd(Math.round(price / 1_000_000) * 1_000_000, lang)}`)
+      ? (price % step === 0 ? compactVnd(price, lang) : `≈ ${compactVnd(Math.round(price / step) * step, lang)}`)
     : currency === '₫' && !native ? format(price, locale) : formatMoneyFull(price, currency, locale)
   // ⚠️ NO LEADING SPACE — the space that separates the suffix from the amount is rendered as its
   // own text node OUTSIDE both nowrap spans, because that space is the ONLY break opportunity the

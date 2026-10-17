@@ -55,10 +55,16 @@
       .chips { display:flex; gap:8px; padding:2px 12px 12px; }
       .chip { height:30px; border-radius:9999px; background:var(--tint); }
       .chip:nth-child(1){ width:84px } .chip:nth-child(2){ width:64px } .chip:nth-child(3){ width:96px } .chip:nth-child(4){ width:72px }
-      .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:0 12px; }
-      .card { border-radius:12px; overflow:hidden; background:var(--card); border:1px solid var(--ring); }
-      .ph { aspect-ratio:1; background:var(--tint); }
-      .meta { padding:10px; }
+      /* The web feed's phone grid and card (owner, 2026-10-18 — Facebook-Marketplace spacing; listing-grid.ts,
+         listing-card.tsx): photos 4px from the screen edge and 4px apart, 12px between rows; a flat card (no
+         border, no surface) whose PHOTO carries the corner — 8px round, a 14px squircle where corner-shape
+         exists (the web's `rounded-media`) — and text inset 8px onto the 12px gutter. The radius sits on .ph,
+         not .card: the real card rounds its photo on all four corners, not the tile's top two. */
+      .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px 4px; padding:0 4px; }
+      .card { border:0; background:transparent; }
+      .ph { aspect-ratio:1; background:var(--tint); border-radius:8px; }
+      @supports (corner-shape: squircle) { .ph { border-radius:14px; corner-shape:squircle; } }
+      .meta { padding:8px 8px 0; }
       .bar { height:12px; border-radius:6px; background:var(--tint); margin-bottom:8px; }
       .bar.b1 { width:55%; height:16px } .bar.b2 { width:90% } .bar.b3 { width:40%; margin-bottom:0 }
       .shimmer { position:relative; overflow:hidden; }

@@ -405,7 +405,9 @@ export function Preview({ cover, title, price, priceUnit, area, categoryIcon, em
   const { lang } = useLanguage() // preview price mirrors what buyers in this language will see
   return (
     <div className="w-full">
-      <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-tint">
+      {/* `rounded-media` — the buyer's card photo corner (owner, 2026-10-18: "minimal squircle corners"), so the
+          preview shows the corner the listing will be seen with. */}
+      <div className="relative aspect-square w-full overflow-hidden rounded-media bg-tint">
         {cover ? (
           <img src={cover} alt="" className="h-full w-full object-cover" />
         ) : (

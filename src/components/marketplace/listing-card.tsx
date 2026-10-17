@@ -21,7 +21,8 @@ import { isBookingCategory } from '@/lib/affiliate-kind'
 import { cardHidesTrust } from '@/lib/linked-seller'
 import { rentalCheckApplies } from '@/lib/rental-check/shared'
 import { Badge as UiBadge } from '@/components/ui/badge'
-import { formatMoneyFull, moneyLocale, dropPercent, HUGE_VND } from '@/lib/vnd'
+import { formatMoneyFull, moneyLocale, dropPercent, cardCompactAbove } from '@/lib/vnd'
+import { LISTING_CARD_SIZES } from './listing-grid'
 import { CategoryIcon } from './category-icons'
 import { cardSlots, isSwipe } from '@/lib/card-slots'
 import { rubberBand } from '@/hooks/use-swipe-dismiss'
@@ -106,7 +107,8 @@ type Props = {
   // real `priority` so Next emits a <link rel=preload> for its image.
   lcp?: boolean
   // Accurate per-context sizing so the browser downloads card-sized images, not
-  // full-width. Default = the result grid (2/3/4 cols); CardRow passes fixed px.
+  // full-width. Default = the result grid's own geometry (LISTING_CARD_SIZES, derived in
+  // listing-grid.ts — a rail card is one grid column, so rails share it); map mode passes its own.
   sizes?: string
   // When set, a "locate on map" pin shows at the image bottom-right (mirrors the
   // heart) → jump to the map focused on this listing. Receives the listing so the
@@ -119,8 +121,12 @@ type Props = {
 /**
  * The card's one-line title (the h3 below). ONE string for both shapes of the line — the bare h3, and the marked teacher
  * card's row, which adds only `min-w-0` — so the two can never drift apart.
+ * `font-normal` (owner, 2026-10-18 — "look like top marketplace"): a regular title under the bold price, the contrast
+ * Facebook Marketplace, eBay and Chợ Tốt all draw. It was `font-medium`, which globals.css retargets to 400 anyway
+ * (two shipped cuts, 2026-08-13), so nothing repaints today; the class now says what the card means, and keeps
+ * meaning it if a 500 cut ever ships.
  */
-const TITLE_LINE = 'truncate text-sm font-medium leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2'
+const TITLE_LINE = 'truncate text-sm font-normal leading-snug text-foreground group-hover:underline decoration-1 underline-offset-2'
 
 /** The travel (px) after which a card's touch is judged sideways (the strip follows) or not (the page scrolls). */
 const CARD_DRAG_LOCK_PX = 8
@@ -134,7 +140,7 @@ function ListingCardImpl({
   onOpen,
   priority = false,
   lcp = false,
-  sizes = '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw',
+  sizes = LISTING_CARD_SIZES,
   onLocate,
 }: Props) {
   const { lang, t, tr } = useLanguage()
@@ -373,7 +379,10 @@ function ListingCardImpl({
   // new one is still 1 tỷ+, both read in tỷ (price.tsx `compactAbove`) — so a drop across 10 tỷ does not set
   // words beside digits. A drop below 1 tỷ (in practice a typo fix) keeps each figure in its own form. Only
   // with a visible drop — a stale prevPrice must not change how a lone price reads.
-  const pairCompactAbove = hasDrop && listing.prevPrice! >= HUGE_VND && listing.price >= 1_000_000_000 ? 1_000_000_000 : HUGE_VND
+  // ⚠️ AND A PER-UNIT PRICE OF A MILLION OR MORE READS IN MILLIONS, its was-price with it — "8.5M đ / month"
+  // (owner, 2026-10-18; vnd.ts RATE_COMPACT_VND). The rule lives in vnd.ts `cardCompactAbove` because the SEO
+  // tile, a server component, prints the same card price.
+  const pairCompactAbove = cardCompactAbove(listing)
 
   /**
    * ⛔ A TAPPED CARD HOLDS ITS PRESS UNTIL THE NEXT SCREEN PAINTS. `onOpen` is a router push, and
@@ -432,7 +441,7 @@ function ListingCardImpl({
       // = 0.946) and raising the card to 0.97 made it louder, which is how a reviewer found
       // it. Only `button` is exempted, NOT `a`: the card's stretched link IS the card's own
       // press, so exempting anchors would delete the feedback this line exists to provide.
-      className="reveal-on-scroll group relative flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.97] has-[button:active]:scale-100 data-pending:scale-[0.97] [touch-action:manipulation]"
+      className="reveal-on-scroll group relative flex flex-col h-full w-full text-left rounded-media cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.97] has-[button:active]:scale-100 data-pending:scale-[0.97] [touch-action:manipulation]"
     >
       {/* Card = link, actions = siblings. The whole card navigates via this ONE real,
           keyboard-focusable stretched <a> (the card link). Every IconButton below is a
@@ -445,7 +454,9 @@ function ListingCardImpl({
           the image container's own onClick, below (a plain div, NOT an interactive ancestor),
           which also lets a swipe suppress the release tap. The whole-card focus ring lives
           here now (it was on the old wrapper). Enter navigates; a modifier/middle click falls
-          through to the real href → open-in-new-tab, which a div role=button never allowed. */}
+          through to the real href → open-in-new-tab, which a div role=button never allowed.
+          `rounded-media`, the photo's own corner (and the root's above), so the focus ring and the press
+          shape follow the photo instead of pinching against it at the corners. */}
       <a
         href={`/listings/${listing.id}`}
         aria-label={lineTitle}
@@ -457,7 +468,7 @@ function ListingCardImpl({
           e.preventDefault()
           open()
         }}
-        className="absolute inset-0 z-0 rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="absolute inset-0 z-0 rounded-media focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       />
       {/* Image carousel / placeholder.
           transform-gpu/isolate force a compositing layer so the rounded
@@ -466,26 +477,30 @@ function ListingCardImpl({
       <div
         data-protected
         data-rail-media
-        // ⚠️ `rounded-2xl`, NOT `xl` — canon §2's size rule ("all media ≥ ~96px"), which this
-        // 179px surface always satisfied. It sat at `xl` because the table used to carve
-        // listing-card media out by name; that contradiction was resolved 2026-08-09 and the
-        // carve-out deleted. Do not "restore" it: at the old xl this was a 9px corner on the
-        // most-repeated photo in the product, which is most of why the feed read as generic.
-        // ⚠️ `partner-ring-media` REPLACES THE PARTNER SEAL THAT USED TO SIT IN THE META ROW
-        // (owner, 2026-08-11: ring on the products, remove the badge). It is an `::after` overlay
-        // that hugs this rounded-2xl corner and takes no layout.
-        // ⛔ THE EARLIER COMMENT HERE SAID IT WAS "an outline with a negative offset [that] paints
+        // ⛔ `rounded-media`, NOT `rounded-2xl` — AND THIS REVERSES THE 2026-08-09 RULE THAT STOOD HERE ON THE
+        // OWNER'S OWN WORD (2026-10-18: "the product cards should have minimal squircle corners"). That rule
+        // put this photo on canon §2's 2xl size tier (18px) and forbade going back to a smaller corner; the
+        // owner now asks for Facebook Marketplace's minimal one (FB m-web clips its photos at 8px). The token is
+        // 8px round, raised to a 14px squircle where corner-shape exists — the same visible corner (globals.css,
+        // `--radius-media`) — and it is canon §2's one role-based row: every listing/product photo tile wears
+        // it (the skeleton, the SEO tile, the wizard Preview, the map list), so a tile's corner never jumps
+        // between its loading and loaded states. Do not "restore" 2xl here without the owner.
+        // `media-hairline` (owner, same day): the 1px inner edge that keeps white packshots from merging at a 4px
+        // gap — a ::before ABOVE the photo, under the overlays; see globals.css for why it is not an inset ring.
+        // ⚠️ `partner-ring-media` is NOT on this box any more (the gold ring left the card 2026-08-13; the
+        // partner's accessible name is the meta row's sr-only); its `::after` overlay is still defined in
+        // globals.css, which is why the hairline took `::before`.
+        // ⛔ THE EARLIER COMMENT HERE SAID THE RING WAS "an outline with a negative offset [that] paints
         // OVER the photo". THAT WAS FALSE and it is why the ring shipped invisible three times: an
         // inset outline is painted UNDER an absolutely-positioned child, and next/image `fill`
         // makes the photo exactly that. An inset box-shadow fails the same way. Proven with a 6px
         // red probe on the live page — see `.partner-ring-media` in globals.css for the full
         // measurement before reaching for either again.
-        // The accessible name moved to the meta row; see the sr-only there.
         className={cn(
-          'relative aspect-square w-full overflow-hidden rounded-2xl bg-tint transform-gpu isolate [transition:box-shadow_200ms_ease-out,opacity_150ms_var(--ease-out-strong)] group-hover:shadow-[var(--shadow-card)] group-data-pending:opacity-80',
+          'media-hairline relative aspect-square w-full overflow-hidden rounded-media bg-tint transform-gpu isolate [transition:box-shadow_200ms_ease-out,opacity_150ms_var(--ease-out-strong)] group-hover:shadow-[var(--shadow-card)] group-data-pending:opacity-80',
         )}
         onClick={(e) => {
-          // Image-area click → open the listing. It bubbles up from the photo, scrims,
+          // Image-area click → open the listing. It bubbles up from the photo,
           // badges and dots (none of which stopPropagation); the action buttons DO
           // stopPropagation, so they never reach here. A swipe sets suppressClick so the
           // release tap doesn't also open it. This div carries no role/tabindex → it is NOT
@@ -828,7 +843,7 @@ function ListingCardImpl({
                 )}
                 <span aria-hidden className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-black/55 text-white">
                   {/* Black + white, not tokens: this sits ON a photo, so it must not follow the
-                      theme — same rule as the legibility scrims and the save heart below. */}
+                      theme — the rule every over-photo plate follows. */}
                   <span className="text-lg font-bold leading-none tabular-nums">+{moreCount}</span>
                   <span className="text-2xs font-medium">{tr('photos', 'ảnh')}</span>
                 </span>
@@ -871,27 +886,15 @@ function ListingCardImpl({
             photo carousel suspends it — the clip belongs to the cover slide. */}
         {listing.video && <CardVideo src={listing.video} hover={hoverVideo} suspend={idx !== 0} />}
 
-        {/* Legibility scrims — faint top+bottom gradients so the white heart / locate
-            pin / dots survive pale photos (sky, sand). Theme-neutral by design: they
-            sit ON the photo, so black works in both light and dark.
-            ⚠️ black/10, HALVED FROM black/20 (owner 2026-08-26: "product image sits behind shadow
-            ... too dark"). These are 48px full-width bands, so they darken the whole top and bottom
-            of every photo in the feed while only the four CORNERS carry a glyph — the cost was paid
-            across the entire image for a benefit needed in a fraction of it. Measured under the
-            overlay glyphs on the live feed: the photo went 0.749 luminance at /20 to 0.852 at /10,
-            against 0.962 unscrimmed.
-            ⛔ THE SCRIM WAS NEVER WHAT MADE THESE GLYPHS LEGIBLE, which is why halving it is safe.
-            Measured worst-case white-glyph-to-surround contrast on this feed at the SHIPPED /20 was
-            1.23:1 — nowhere near the 3:1 non-text threshold. What actually carries them is the
-            per-glyph `icon-shadow-brand` drop-shadow, so the legibility work moved there: the
-            overlay trio now uses the `-strong` variant (82% of brand-deeper, up from 62%) that the
-            design system already defined for exactly this case. Contrast up, photo lighter. */}
-        {images.length > 0 && (
-          <>
-            <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/10 to-transparent" />
-            <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/10 to-transparent" />
-          </>
-        )}
+        {/* ⛔ NO LEGIBILITY SCRIMS (owner, 2026-10-18: "look super professional … like top marketplace").
+            Two 48px black/10 gradients darkened the top and bottom of EVERY photo, and on a white packshot
+            they read as dirt; Facebook and Chợ Tốt draw nothing over a grid photo. They never carried the
+            glyphs either — worst-case glyph contrast with them in place measured 1.23:1 (2026-08-26). Every
+            overlay brings its own plate instead: the heart and the hover actions the translucent
+            `plate-host` disc (globals.css), the one top-left badge a solid chip with `shadow-sm`
+            (card-badges.tsx), the video / saved / rental-check chips a `bg-foreground/70` plate, the
+            eno.vn mark ink measured per photo (image-mark.tsx), and the slot dots `shadow-onmedia` (they
+            are `sm`-and-up only now, below). Do not bring a full-width band back for one corner glyph. */}
 
         {/* eno.vn watermark — hidden until a save/copy/drag attempt (ImageShield) */}
         {images.length > 0 && <span className="img-watermark" aria-hidden />}
@@ -1184,15 +1187,18 @@ function ListingCardImpl({
           <>
             {/* Slot indicator. Counts SLOTS, not photos: with nine photos this is four pips, not
                 nine. Nine pips would promise a strip that does not exist and shrink each one below
-                the point of being countable. */}
-            <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1">
+                the point of being countable.
+                `max-sm:hidden` (owner, 2026-10-18 — a calmer photo, as on Facebook's grid): a phone card
+                is heart + one badge. The swipe still pages the strip, and the fourth slot's "+N photos"
+                doorway still says there is more; from sm, where hover-scan lives, the pips stay. */}
+            <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 max-sm:hidden">
               {Array.from({ length: segments }, (_, i) => (
                 <span
                   key={i}
                   className={cn(
                     // `shadow-onmedia` replaces an inline `0 0 2px rgba(0,0,0,0.4)` halo (2026-08-09).
-                    // Same legibility job on pale photos — the scrim alone does NOT cover it, see the
-                    // token — but lit from above like every other shadow in the app, and no raw
+                    // Same legibility job on pale photos — and since the scrims went (2026-10-18) it is the
+                    // whole job, see the token — but lit from above like every other shadow in the app, and no raw
                     // colour literal in a `style` prop (design-lint bans those in className; an
                     // rgba() in `style` slipped the rule).
                     // ⚠️ `transition-[width,opacity]`, NOT `transition-all` — name what moves.
@@ -1226,8 +1232,14 @@ function ListingCardImpl({
           and the trust/partner chip all stay exactly as documented at the TERTIARY block below.
           What the rework DID remove: the second title line and the "Good price" chip (the market band
           still renders on the PDP). The "≈ $x" approximation stays after the đồng price — owner, same
-          day: "approximate price in usd disappeared add it back after d price". */}
-      <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2">
+          day: "approximate price in usd disappeared add it back after d price".
+          ⚠️ `px-2 sm:px-0.5` — INSET TEXT ON A PHONE (owner, 2026-10-18, Facebook-spaced grid): the photo now
+          sits 4px from the screen edge (LISTING_GRID bleeds out of the 12px page gutter), so text flush
+          with it would start 6px in; 8px puts the left column's price, title and info line back on the
+          12px gutter the header and section titles use — FB's own inset text. Text width barely moves
+          (173px at 390 against 175 before), so the width budgets measured below still hold. From sm the
+          grid keeps the gutter and the text stays flush. The skeleton mirrors it. */}
+      <div className="flex flex-1 flex-col gap-0.5 px-2 pt-2 sm:px-0.5">
         {/* PRIMARY — price. `flex-wrap` so a struck "was" price takes its own line, complete,
             instead of being clipped mid-number beside a price that already fills the row.
             ⛔ THE "≈ $" ESTIMATE STAYS ON EVERY WIDTH — owner, 2026-09-13 ("approximate price in usd
@@ -1262,14 +1274,20 @@ function ListingCardImpl({
               property price with its unit — neither category had live cards to measure.
               ⚠️ RENTALS HAVE BEEN MEASURED SINCE (2026-09-29): 48 of 48 rental cards on /c/rentals
               wrap to two lines at 390px ("… đ / month" then "≈ $…"), one line from sm up. The estimate
-              stays (owner, 2026-09-13 — see the row note above), so that wrap stays too. The skeleton
-              still reserves one; see listing-card-skeleton.tsx for why that is held. */}
+              stays (owner, 2026-09-13 — see the row note above), so the cure was the FIGURE: since
+              2026-10-18 a per-unit price of a million or more reads in millions (`pairCompactAbove`,
+              vnd.ts RATE_COMPACT_VND) — "8.5M đ / month ≈ $332" is 166px against the 173px column, one
+              line. ⚠️ Vietnamese fits only a whole single-digit rent at 390 ("9 triệu đ / tháng ≈ $351",
+              169px); "8,5 triệu đ / tháng ≈ $332" (187px) still wraps — one line there is a wording call
+              (dropping the mark after "triệu", Chợ Tốt's form) left to the owner. The skeleton reserves
+              one line; see listing-card-skeleton.tsx. */}
           {/* `jobMeta`: a price-0 LINKED job prints its type and city here instead of "Lương: xem chi
               tiết" (rentals-09) — truncating, so the row stays one line and the card keeps its height.
               `fabAvoid`: the floating support mark fades over the figure rather than covering it
               (home-03; the owner's 09-25 yield model) — on the figure, never the full-width row. */}
           {/* `compact` (break-ui, 2026-10-05): 10 billion đồng and up reads "95 tỷ đ" here — at 320px the
-              API's ceiling, 1e12, painted its digits straight into the neighbouring card's price. */}
+              API's ceiling, 1e12, painted its digits straight into the neighbouring card's price. A
+              per-unit price reads in millions from a million (`pairCompactAbove`, above). */}
           <Price
             native
             compact

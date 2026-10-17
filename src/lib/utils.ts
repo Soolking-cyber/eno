@@ -18,11 +18,17 @@ import { extendTailwindMerge } from "tailwind-merge"
  * 200ms `ease-out` entrance on <Button>, the theme Switch thumb in preferences-inline). `theme.ease`
  * is the key tailwind-merge's `ease` group reads, i.e. the same namespace as Tailwind's `--ease-*`.
  * Keep this list equal to the `--ease-*` names in that block; utils.test.ts reads both.
+ *
+ * ⚠️ AND THE PHOTO-TILE CORNER, `rounded-media` (`@theme static { --radius-media }`, owner 2026-10-18). The stock
+ * radius scale stops at the tier names, so without `theme.radius` `cn('rounded-2xl', 'rounded-media')` kept both and
+ * stylesheet order picked the corner (measured on tailwind-merge 3.6.0). `radius` is the key every `rounded-*`
+ * group reads, so the t/b/l/r forms merge too.
  */
 const twMerge = extendTailwindMerge({
   extend: {
     theme: {
       ease: ['out-strong', 'spring', 'spring-snappy', 'bounce'],
+      radius: ['media'],
     },
     classGroups: {
       z: [{ z: ['raised', 'sticky', 'nav', 'fab', 'overlay', 'tooltip', 'splash', 'consent', 'map-overlay', 'nested-popover'] }],
