@@ -67,6 +67,15 @@
  * publishes (the same anonymous daily totals; signup-prompt.ts TEACHER_FORM_EVENTS). Live with the deploy — the photo check is the moderation of a listing photo the policy
  * already names (purpose 2, performance of contract); the rest removes, describes or adds an optional way to sign in.
  * ⛔ Re-date with the deploy, as above.
+ * And 2026-10-17 again (the deploy day of the teacher funnel's measurement — owner 2026-10-17: "rest recommended", the
+ * bounce study's "count what is invisible", then "deploy" that evening): the "Sign-up reminder counts" paragraph now also
+ * names the teacher form's later steps reached, the intro video chosen / turned down in the browser / failed / uploaded,
+ * Publish tapped / refused (for the video, the photo, the kind of work or another answer) / did not go through, "Open in
+ * Safari" or "Open in your browser" tapped, and — with step 1's Continue — the coarse source of the link (an ad's, a
+ * Facebook group's, Zalo's, another, none; read from the page's own address, never stored apart from the total). The
+ * same anonymous daily totals and classes; live with the deploy (it describes counting, no new recipient or purpose).
+ * ⚠️ Production already carries 2026-10-17 (onboarding v3's deploy), so the gate passes this as "already live": if this
+ * deploy slips past 2026-10-17 in Vietnam, re-date it to its day by hand and retake the fingerprint.
  *
  * ⛔ THE DAY THE DEPLOY THAT CARRIES THOSE PARAGRAPHS ACTUALLY RUNS — set in THAT deploy's commit. The value below is
  * the PLANNED day, not a fact, and infra/vn-node/legal-amendment-gate.sh holds it to the truth: a deploy whose value
@@ -84,4 +93,4 @@ export const PRIVACY_TEXT_PUBLISHED: string = '2026-10-17'
  * decides its date: outside a legal amendment, re-date PRIVACY_TEXT_PUBLISHED to the day it deploys; then paste the
  * fingerprint the failure prints here, in the same commit.
  */
-export const PRIVACY_TEXT_FINGERPRINT = '8e3b79d9e851d24d'
+export const PRIVACY_TEXT_FINGERPRINT = '94218b6436993387'

@@ -14,6 +14,12 @@ const signInWithOAuth = vi.fn()
 vi.mock('@/lib/supabase/browser', () => ({ createSupabaseBrowser: () => ({ auth: { signInWithOAuth: (a: unknown) => signInWithOAuth(a) } }) }))
 const clearStalePkceCookies = vi.fn()
 vi.mock('@/lib/auth-pkce', () => ({ clearStalePkceCookies: () => clearStalePkceCookies() }))
+// The hold-back (facebookHeldBack, 2026-10-17) is real by default; `lifted` pins the order for the day it is deleted.
+const hold = vi.hoisted(() => ({ lifted: false }))
+vi.mock('@/lib/facebook-signin', async (orig) => {
+  const m = await orig<typeof import('@/lib/facebook-signin')>()
+  return { ...m, facebookHeldBack: (gate: string | undefined) => (hold.lifted ? false : m.facebookHeldBack(gate)) }
+})
 
 import { SignInDialog } from './sign-in-dialog'
 import { resetFacebookFlagForTests, seedFacebookSignIn } from '@/lib/facebook-flag'
@@ -54,6 +60,7 @@ const after = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node
 
 beforeEach(() => {
   ua = CHROME
+  hold.lifted = false
   providers = { facebook: true }
   beacons = []
   fetchCalls.length = 0
@@ -176,7 +183,7 @@ describe('Continue with Facebook — dark until GoTrue has it on', () => {
     expect(screen.getByRole('button', { name: 'Continue with Facebook' })).toBeTruthy()
   })
 
-  it('⛔ not in another app\'s Android webview (Meta ended Facebook Login there, 2021-10-05) — Meta\'s own apps keep it', async () => {
+  it('⛔ not in another app\'s Android webview (Meta ended Facebook Login there, 2021-10-05) — and held back in Meta\'s own apps until Facebook returns an email (facebookHeldBack)', async () => {
     ua = 'Mozilla/5.0 (Linux; Android 14; SM-A546E Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/141.0.0.0 Mobile Safari/537.36 Zalo android/12210160 ZaloTheme/light ZaloLanguage/vn'
     popup()
     await settle()
@@ -186,7 +193,19 @@ describe('Continue with Facebook — dark until GoTrue has it on', () => {
     ua = 'Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/141.0.0.0 Mobile Safari/537.36 Instagram 350.0.0.0.0 Android'
     popup()
     await settle()
-    expect(screen.getByRole('button', { name: 'Continue with Facebook' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Facebook/ })).toBeNull()
+  })
+
+  it('⛔ held back at the teacher form\'s sign-in, even in a real browser (facebookHeldBack)', async () => {
+    render(
+      <LanguageProvider initialLang="en" initialViDict={VI_DICT}>
+        <SignInDialog open onOpenChange={() => {}} gate="teacher" resume={null} />
+      </LanguageProvider>,
+    )
+    await settle()
+    expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Facebook/ })).toBeNull()
   })
 
   it('never in the eno apps, even when on', async () => {
@@ -208,7 +227,19 @@ describe('where it sits', () => {
     expect(after(facebook, field)).toBe(true)
   })
 
-  it('⛔ Facebook\'s own in-app browser: the emailed code first (offered, not leading), then Facebook, then Google — no Apple', async () => {
+  it('⛔ Facebook\'s own in-app browser: the emailed code first, then Google — no Apple, and no Facebook while it is held back', async () => {
+    ua = FB_ANDROID
+    popup()
+    await settle()
+    const send = screen.getByRole('button', { name: 'Send code' })
+    const google = screen.getByRole('button', { name: 'Continue with Google' })
+    expect(after(send, google)).toBe(true)
+    expect(screen.queryByRole('button', { name: /Facebook/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Apple/ })).toBeNull()
+  })
+
+  it('…and once the hold-back is lifted: the emailed code, then Facebook, then Google — no Apple', async () => {
+    hold.lifted = true
     ua = FB_ANDROID
     popup()
     await settle()
@@ -221,7 +252,6 @@ describe('where it sits', () => {
   })
 
   it('in Vietnamese', async () => {
-    ua = FB_ANDROID
     popup('vi')
     await settle()
     expect(screen.getByRole('button', { name: 'Tiếp tục với Facebook' })).toBeTruthy()
@@ -230,12 +260,22 @@ describe('where it sits', () => {
 
 describe('pressing it', () => {
   it('GoTrue\'s Facebook flow, back to this page through /auth/callback marked p=facebook — after clearing stale PKCE cookies — and counted', async () => {
-    ua = FB_ANDROID
     popup()
     await settle()
     fireEvent.click(screen.getByRole('button', { name: 'Continue with Facebook' }))
     await settle()
     expect(clearStalePkceCookies).toHaveBeenCalledTimes(1)
+    expect(signInWithOAuth).toHaveBeenCalledWith({ provider: 'facebook', options: { redirectTo: 'http://localhost:3000/auth/callback?next=%2Flistings%2Fl1&p=facebook' } })
+    expect(beacons).toContainEqual({ g: 'chat', a: 'facebook', c: 'browser.desktop.en' })
+  })
+
+  it('…and inside Facebook\'s browser once the hold-back is lifted, counted as that browser', async () => {
+    hold.lifted = true
+    ua = FB_ANDROID
+    popup()
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with Facebook' }))
+    await settle()
     expect(signInWithOAuth).toHaveBeenCalledWith({ provider: 'facebook', options: { redirectTo: 'http://localhost:3000/auth/callback?next=%2Flistings%2Fl1&p=facebook' } })
     expect(beacons).toContainEqual({ g: 'chat', a: 'facebook', c: 'inapp-fb.desktop.en' })
   })

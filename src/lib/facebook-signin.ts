@@ -1,5 +1,5 @@
 import { inAppSheetDocument } from './app-review-gates'
-import { inAppHost, isNativeTabs } from './in-app-browser'
+import { META_IN_APP_HOSTS, inAppHost, isNativeTabs } from './in-app-browser'
 
 /**
  * CONTINUE WITH FACEBOOK (owner, 2026-10-16: "in facebook browser sign in doesnt show google sign in or apple sign in … if
@@ -33,8 +33,11 @@ export function isFacebookLinked(appMetadata: unknown): boolean {
   return is(m.provider) || (Array.isArray(m.providers) && m.providers.some(is))
 }
 
-/** Meta's own apps — the in-app browsers Facebook Login is expected to work inside (see facebookAvailableHere). */
-const META_HOSTS: ReadonlySet<string> = new Set(['facebook', 'messenger', 'instagram'])
+/**
+ * Meta's own apps — the in-app browsers Facebook Login is expected to work inside (see facebookAvailableHere). ONE list
+ * with the teacher landing's "Open in your browser" (in-app-browser.ts), so the hold-back and the escape never disagree.
+ */
+const META_HOSTS: ReadonlySet<string> = META_IN_APP_HOSTS
 
 /**
  * May "Continue with Facebook" show in THIS context? Every real browser; never inside the eno apps (the Capacitor shell,
@@ -57,4 +60,18 @@ export function facebookAvailableHere(): boolean {
     if (host ? !META_HOSTS.has(host) : /\bwv\b/.test(ua)) return false
   }
   return true
+}
+
+/**
+ * ⛔ HELD BACK WHERE IT CANNOT FINISH TODAY (owner, 2026-10-17 — the bounce study's "now" list): Meta returns no email
+ * until its App Review passes, so no attempt has ever produced an account (15 on 10-17, 0 Facebook identities). Most
+ * came from the teacher form's sign-in and Meta's own built-in browsers, where it was the second button. Kept on the
+ * /signin page in a real browser — where Meta's reviewer is told to test it. Lift this (delete the call) once a Facebook
+ * identity exists, then show it FIRST inside Facebook's browser.
+ */
+export function facebookHeldBack(gate: string | undefined): boolean {
+  if (gate === 'teacher') return true
+  if (typeof navigator === 'undefined') return false
+  const host = inAppHost(navigator.userAgent || '')
+  return host !== null && META_HOSTS.has(host)
 }

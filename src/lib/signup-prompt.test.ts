@@ -2,6 +2,9 @@
 import { describe, expect, it } from 'vitest'
 import {
   AGAIN_AFTER_MS,
+  zeroTeacherFormTotals,
+  continueSourceEvent,
+  isTeacherFormEvent,
   COMPLETION_WINDOW_MS,
   DISMISSALS_BEFORE_PAUSE,
   FIRST_AFTER_MS,
@@ -406,7 +409,7 @@ describe('signup-prompt — per-gate sign-in counters (UX3 J1)', () => {
       { key: 'teacher-form:2026-10-01:marketplace:step1_ready:browser.phone.en', n: 7 },
       { key: 'signin-gate:2026-10-17:marketplace:teacher:open:inapp-fb.phone.en', n: 5 },
     ], { site: 'marketplace', days: ['2026-10-17'] })
-    expect(s.total).toEqual({ step1_ready: 40, step1_answered: 0, step1_blocked: 0, step1_continue: 3, published: 0 })
+    expect(s.total).toEqual({ ...zeroTeacherFormTotals(), step1_ready: 40, step1_continue: 3 })
     expect(Object.keys(s.byContext)).toEqual(['inapp-fb.phone.en'])
     // …and the form is a sign-in gate of its own.
     expect(parseGateCounterKey(gateCounterKey('2026-10-17', 'marketplace', 'teacher', 'facebook', 'inapp-fb.phone.en'))).toMatchObject({ gate: 'teacher', action: 'facebook' })
@@ -427,5 +430,33 @@ describe('isExcludedPath — the teacher sign-up form (owner, 2026-10-11)', () =
   it('never over /teachers/join: the form asks for sign-in itself, in place', () => {
     expect(isExcludedPath('/teachers/join')).toBe(true)
     expect(isExcludedPath('/teachers/join/')).toBe(true)
+  })
+})
+
+// ── The rest of a new teacher profile's way to Publish (2026-10-17) ──────────────────────────────────────────────────
+describe('teacher form events after step 1, and the coarse source of step 1’s visitors', () => {
+  it('continueSourceEvent: five words, nothing finer — an ad only by what only an ad\'s link carries', () => {
+    // Our ads' own tags (ads A/B: meta + paid_social; boosts and C: Meta's {{site_source_name}} + paid).
+    expect(continueSourceEvent('?utm_source=meta&utm_medium=paid_social&utm_content=reel_v3_benefits')).toBe('continue_ad')
+    expect(continueSourceEvent('?utm_source=fb&utm_medium=paid&utm_content=120248535661920534')).toBe('continue_ad')
+    for (const s of ['fb', 'ig', 'an', 'msg']) expect(continueSourceEvent(`?utm_source=${s}`)).toBe('continue_ad')
+    expect(continueSourceEvent('?utm_source=tiktok&utm_medium=paid')).toBe('continue_ad')
+    expect(continueSourceEvent('?ttclid=E.C.P.abc')).toBe('continue_ad')
+    expect(continueSourceEvent('?gclid=abc&utm_source=google')).toBe('continue_ad')
+    // ⛔ A bare platform name is anyone's post, not an ad (review, 2026-10-17).
+    for (const s of ['facebook', 'Instagram', 'tiktok']) expect(continueSourceEvent(`?utm_source=${s}`)).toBe('continue_other')
+    expect(continueSourceEvent('?utm_source=fbgroups&utm_medium=dm&utm_campaign=t4')).toBe('continue_groups')
+    expect(continueSourceEvent('?utm_source=zalo')).toBe('continue_zalo')
+    expect(continueSourceEvent('?utm_source=newsletter')).toBe('continue_other')
+    // A link opened from Facebook (fbclid alone) is not an ad's tag.
+    expect(continueSourceEvent('?fbclid=abc')).toBe('continue_none')
+    expect(continueSourceEvent('')).toBe('continue_none')
+  })
+  it('every new event is a counted teacher-form event and round-trips through its key', () => {
+    for (const e of ['step_finish', 'video_refused', 'publish_refused_goal', 'publish_failed', 'continue_groups', 'escape_tap'] as const) {
+      expect(isTeacherFormEvent(e)).toBe(true)
+      expect(parseTeacherCounterKey(teacherCounterKey('2026-10-18', 'marketplace', e, 'inapp-fb.phone.en'))?.event).toBe(e)
+    }
+    expect(isTeacherFormEvent('continue_meta')).toBe(false)
   })
 })

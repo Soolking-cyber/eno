@@ -441,6 +441,44 @@ describe('the form’s own funnel (signup-prompt.ts TEACHER_FORM_EVENTS — owne
     await user.click(action('Next'))
     expect(funnel).toContain('step1_blocked')
   })
+
+  it('⛔ a later step counts once it is ON SCREEN for a new profile — not while /api/teachers/me is unread (review, 2026-10-17)', async () => {
+    funnel.length = 0
+    const f = signedIn()
+    let answerMe = () => {}
+    const meAnswered = new Promise<void>((r) => { answerMe = r })
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).split('?')[0] === '/api/teachers/me' && (init?.method ?? 'GET') === 'GET') await meAnswered
+      return f.fn(input, init)
+    }))
+    putDraft({ ...COMPLETE, teachAreasConfirmed: false }, 'where')
+    mount()
+    // The restored later step waits behind the spinner (it may be an existing profile's owner): nothing counted.
+    await new Promise((r) => setTimeout(r, 300))
+    expect(screen.queryByText('Where can you teach?')).toBeNull()
+    expect(funnel.filter((e) => e.startsWith('step_'))).toEqual([])
+    answerMe()
+    expect(await screen.findByText('Where can you teach?')).toBeTruthy()
+    await waitFor(() => expect(funnel).toContain('step_where'))
+  })
+})
+
+describe('"Open in your browser" inside Meta\'s built-in browsers (owner, 2026-10-17)', () => {
+  it('⛔ shown before any answer, gone with the first — the real browser opens the bare address, the answers would not follow', async () => {
+    const { user } = mount({ escape: { host: 'facebook', os: 'android' } })
+    expect(await screen.findByText('Where are you now?')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Open in your browser' })).toBeTruthy()
+    await user.click(screen.getByRole('radio', { name: 'Ho Chi Minh City' }))
+    expect(screen.queryByRole('button', { name: 'Open in your browser' })).toBeNull()
+  })
+
+  it('never on a later step', async () => {
+    signedIn()
+    putDraft({ ...COMPLETE, teachAreasConfirmed: false }, 'where')
+    mount({ escape: { host: 'facebook', os: 'ios' } })
+    expect(await screen.findByText('Where can you teach?')).toBeTruthy()
+    expect(screen.queryByTestId('open-in-browser')).toBeNull()
+  })
 })
 
 describe('a session still being read (gate review, 2026-10-16 — the start screen used to hold this)', () => {

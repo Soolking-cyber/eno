@@ -171,3 +171,34 @@ export function openInSystemBrowser(url: string): boolean {
   window.open(url, '_blank', 'noopener,noreferrer')
   return false
 }
+
+/** Meta's own built-in browsers — where "Open in your browser" is offered on the teacher landing (2026-10-17). */
+export const META_IN_APP_HOSTS: ReadonlySet<InAppHost> = new Set<InAppHost>(['facebook', 'messenger', 'instagram'])
+
+/** The phone's OS from a user agent, coarsely — what the escape below can do differs by it. */
+export function uaOs(ua: string): 'android' | 'ios' | 'other' {
+  if (/Android/.test(ua)) return 'android'
+  if (/iPhone|iPod|iPad/.test(ua)) return 'ios'
+  return 'other'
+}
+
+/**
+ * LEAVE META'S BUILT-IN BROWSER FOR THE REAL ONE, FROM A TAP (owner, 2026-10-17: "drive them to actual website not in
+ * facebook browser" — the bounce study: inside Facebook's browser 2 of 10 teacher sign-ins completed, in a real browser
+ * 9 of 10; Google cannot finish there at all). Android: the VIEW intent of openInSystemBrowser. iOS: Facebook and
+ * Messenger open `x-safari-https://` only through window.open from a user gesture (they ask "Open in Safari?" first);
+ * Instagram has its own `instagram://extbrowser/`.
+ * ⚠️ BEST EFFORT, AND IT HAS BROKEN BEFORE (an app update dropped x-safari for weeks in 2026-03): the caller keeps the
+ * visitor on the page and, when the page is still in front a moment later, shows the app's own "⋯ → Open in browser".
+ * ⛔ ONLY FROM A TAP, AND NEVER WITH ANSWERS IN THE ADDRESS: Facebook drops a scripted escape on load, leaving
+ * uninvited loses the visitor, and an Android intent cannot carry the `#d=` fragment the hand-off uses — so this is
+ * offered on step 1 BEFORE anything is answered, with the page's own address (its campaign tags ride along).
+ */
+export function escapeInAppBrowser(url: string, host: InAppHost | null): void {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return
+  const os = uaOs(navigator.userAgent || '')
+  if (os === 'android') { openInSystemBrowser(url); return }
+  if (os !== 'ios') return
+  if (host === 'instagram') { window.location.href = `instagram://extbrowser/?url=${encodeURIComponent(url)}`; return }
+  window.open(url.replace(/^https:\/\//, 'x-safari-https://'), '_blank')
+}

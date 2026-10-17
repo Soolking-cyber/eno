@@ -12,6 +12,8 @@ import { campaignQuery } from '@/components/teachers/teacher-form-rules'
 import { facebookSignInCached } from '@/lib/auth/facebook'
 import { FacebookSignInSeed } from '@/components/marketplace/facebook-signin-seed'
 import type { TeacherStartProps } from '@/components/teachers/teacher-start'
+import type { EscapeOffer } from '@/components/teachers/open-in-browser'
+import { META_IN_APP_HOSTS, inAppHost, uaOs } from '@/lib/in-app-browser'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL
 
@@ -44,6 +46,13 @@ export default async function TeacherJoinPage({ searchParams }: { searchParams: 
   // server already has the answer (src/lib/facebook-flag.ts) — never waited for: this render is the hand-off's landing. No
   // answer cached yet: the page asks for itself. Not on the teacher host: nobody signs in there.
   const facebookOn = draftHost ? null : facebookSignInCached()
+  // teacher.eno.vn inside Facebook's, Messenger's or Instagram's built-in browser on a phone: step 1 offers the real
+  // browser (owner, 2026-10-17: "drive them to actual website not in facebook browser"). Decided from the user agent
+  // HERE so the first paint already has it (open-in-browser.tsx). eno.vn's half is never offered it: the hand-off's
+  // answers ride in a fragment an Android intent cannot carry.
+  const appHost = inAppHost(ua)
+  const os = uaOs(ua)
+  const escape: EscapeOffer | null = draftHost && appHost && META_IN_APP_HOSTS.has(appHost) && os !== 'other' ? { host: appHost, os } : null
   const start: TeacherStartProps = {
     // No reader configured: no panel either — a stale link opens the doors (or the form), never a dead end.
     importIntent: !draftHost && cvImport && imp === 'cv' ? 'cv' : null,
@@ -70,7 +79,7 @@ export default async function TeacherJoinPage({ searchParams }: { searchParams: 
           {/* eslint-enable react/jsx-no-literals */}
         </noscript>
         {facebookOn !== null && <FacebookSignInSeed on={facebookOn} />}
-        <TeacherForm mode="join" draftHost={draftHost} apexOrigin={apexOrigin(APP_URL)} goal={goal} start={start} />
+        <TeacherForm mode="join" draftHost={draftHost} apexOrigin={apexOrigin(APP_URL)} goal={goal} start={start} escape={escape} />
       </main>
       <Footer />
     </div>

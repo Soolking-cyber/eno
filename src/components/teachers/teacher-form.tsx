@@ -44,8 +44,10 @@ import { type CoverPatch } from '@/components/teachers/cover-fields'
 import { CoverSummary } from '@/components/teachers/cover-summary'
 import {
   ACCOUNT_STEPS, campaignQuery, checkSteps, decodeHandoff, draftPart, draftResumeStep, droppedAnswers, encodeHandoff, firstStepWithError,
-  forDraft, fromDraft, handoffPart, isTeacherStep, mergeReview, nothingDropped, nothingToSave, sameDraftAnswers, type DroppedField,
+  forDraft, fromDraft, handoffPart, isTeacherStep, mergeReview, nothingDropped, nothingToSave, refusalEvents, sameDraftAnswers, step1Answered, type DroppedField,
 } from '@/components/teachers/teacher-form-rules'
+import { continueSourceEvent, type TeacherFormEvent } from '@/lib/signup-prompt'
+import { OpenInBrowser, type EscapeOffer } from '@/components/teachers/open-in-browser'
 import { makeErrText, type StepProps } from '@/components/teachers/steps/shared'
 import { PlansStep } from '@/components/teachers/steps/plans-step'
 import { WhereStep } from '@/components/teachers/steps/where-step'
@@ -212,7 +214,16 @@ function newDraftGen(): string {
 }
 
 /** `start`: the join page's first-paint decisions for the start screen (teachers/join/page.tsx) — absent, no doors. */
-type TeacherFormProps = { mode: Mode; draftHost: boolean; apexOrigin: string; goal?: 'cover' | null; start?: TeacherStartProps }
+type TeacherFormProps = {
+  mode: Mode; draftHost: boolean; apexOrigin: string; goal?: 'cover' | null; start?: TeacherStartProps
+  /** teacher.eno.vn inside Meta's built-in browser on a phone: step 1 offers the real browser (open-in-browser.tsx). */
+  escape?: EscapeOffer | null
+}
+
+/** The later steps of a NEW profile, as the form counts them (signup-prompt.ts step_<step>). */
+const STEP_REACHED: Partial<Record<TeacherStep, TeacherFormEvent>> = {
+  where: 'step_where', teaching: 'step_teaching', about: 'step_about', cover: 'step_cover', finish: 'step_finish',
+}
 
 /**
  * How many times a SIGNED-IN account has left this page — a sign-out, or another account. A sign-in (none → an account) is
@@ -247,7 +258,7 @@ export function TeacherForm(props: TeacherFormProps) {
 
 type PendingChange = { next: TeacherInput; touched: readonly (keyof TeacherInput)[]; fields: DroppedField[]; places: string[] }
 
-function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start, restoreDraft = true }: TeacherFormProps & { restoreDraft?: boolean }) {
+function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start, escape = null, restoreDraft = true }: TeacherFormProps & { restoreDraft?: boolean }) {
   const { tr, lang } = useLanguage()
   const { user, loading: authLoading, openSignIn, accountType, identityLoaded, markOnboarded } = useAuth()
   const uid = user?.id ?? null
@@ -262,6 +273,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   const [lastImport, setLastImport] = useState<LastImport | null>(null)
   // Join, signed in: GET /api/teachers/me has answered — no door shows before it is known whether a profile exists.
   const [meKnown, setMeKnown] = useState(false)
+  // …and REALLY answered, for THIS account: the counters treat a profile as new only on that answer — never on the slow
+  // timer, an error (unknown is not new) or another account's answer after a switch (review, 2026-10-17).
+  const [meReadFor, setMeReadFor] = useState<string | null>(null)
+  const meRead = uid !== null && meReadFor === uid
   // Undo of a reading is on its way: the summary's buttons wait for it (a Continue meanwhile would be wiped by it).
   const [undoing, setUndoing] = useState(false)
   const [errors, setErrors] = useState<TeacherErrors>({})
@@ -1327,7 +1342,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     const ticket = ++markSeq.current
     // The doors wait for this answer (doorWaits) — never for long: a slow one lets them show (the answer still lands).
     const slow = setTimeout(() => { if (alive) setMeKnown(true) }, DRAFT_LOAD_TIMEOUT_MS)
-    fetch('/api/teachers/me').then((r) => r.json()).then((d) => {
+    let answered = false
+    fetch('/api/teachers/me').then((r) => { answered = r.ok; return r.json() }).then((d) => {
       if (!alive) return
       if (d?.publishGate) setPublishGate(d.publishGate)
       // No profile yet: the switch is held on this page (joinMarkHidden — its endpoint needs a profile), and the line says
@@ -1336,6 +1352,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       if (d?.teacher) setExisting(true)
       else if (d?.prefill) setPrefill(d.prefill)
       setMeKnown(true)
+      if (answered) setMeReadFor(uid)
     }).catch(() => { if (alive) setMeKnown(true) })
     return () => { alive = false; clearTimeout(slow) }
   }, [mode, uid])
@@ -1452,16 +1469,22 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     // One upload at a time (gate review, 2026-10-16): a second pick while a video — or the photo — is compressing or
     // uploading would race it (one `busy` for both) and leave an upload nobody chose. The pickers are disabled meanwhile.
     if (busy !== '') return
+    // The new profile's way to Publish, counted (signup-prompt.ts video_*): chosen → turned down here / failed / uploaded —
+    // only once /api/teachers/me has said this account has no profile yet (meRead).
+    const counting = mode === 'join' && !existing && meRead
+    if (counting) countTeacherFormEvent('video_picked')
     setBusy('video'); setFormError('')
     try {
       const prepared = await prepareTeacherVideo(file, { onCompress: (f) => setVideoProgress(f) })
-      if ('error' in prepared) { setFormError(videoPrepText(prepared.error)); return }
+      if ('error' in prepared) { if (counting) countTeacherFormEvent('video_refused'); setFormError(videoPrepText(prepared.error)); return }
       setVideoProgress(null)
       const url = await uploadListingVideo(prepared.file, { hevc: prepared.hevc })
       if (!url) throw new Error('video')
       setConfirmVideoRemove(false)
       set('videoUrl', url)
+      if (counting) countTeacherFormEvent('video_uploaded')
     } catch {
+      if (counting) countTeacherFormEvent('video_failed')
       setFormError(tr('Video upload failed. Please try again — keep it under 60 seconds.', 'Tải video thất bại. Vui lòng thử lại — giữ dưới 60 giây.'))
     } finally { setBusy(''); setVideoProgress(null) }
   }
@@ -1483,7 +1506,11 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     const e = checkSteps(t, PRE_SIGNIN_STEPS)
     // The form's own funnel (signup-prompt.ts TEACHER_FORM_EVENTS): step 1's Continue / Sign in, given or stopped — by a
     // visitor doing step 1 HERE (one who arrived with the hand-off's answers was counted on teacher.eno.vn).
-    if (!Object.keys(e).length) { if (!viaHandoff.current) countTeacherFormEvent('step1_continue'); return true }
+    // …and, with it, the coarse source of the link that brought this page (continue_<source>, from its own address).
+    if (!Object.keys(e).length) {
+      if (!viaHandoff.current) { countTeacherFormEvent('step1_continue'); countTeacherFormEvent(continueSourceEvent(window.location.search)) }
+      return true
+    }
     if (!viaHandoff.current) countTeacherFormEvent('step1_blocked')
     refuse(e)
     return false
@@ -1518,6 +1545,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     // ⛔ SIGN-IN FIRST: photo, video and CV can only be uploaded signed in, so validating the whole form before this would
     // stop a signed-out teacher on "photo required" with no way forward (agy, commit gate 09-30).
     if (!user) { signInToContinue(); return }
+    // A NEW profile's Publish, counted (signup-prompt.ts publish_*): the tap, what the form refused it for, one that did not
+    // go through — only once /api/teachers/me has said this account has no profile yet (meRead).
+    const counting = mode === 'join' && !existing && meRead
+    if (counting) countTeacherFormEvent('publish_tap')
     // Validated as the server will validate it: what a save keeps, every step (profile.ts). ⛔ On an EDIT the goal rule
     // (no work wanted and cover off) never blocks: the save goes through and HIDES the profile — a withdrawal never
     // requires inventing a goal (plan review D6). A new profile with no goal is refused, as the server refuses it.
@@ -1528,7 +1559,11 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     if (videoRequired && !t.videoUrl && !privateVideo) all.videoUrl = 'required'
     // A photo the check already refused is said there, never sent (the server would refuse it the same way).
     if (photoCheck && photoCheck.url === t.photoUrl && photoCheck.state === 'fail' && photoCheck.reason) all.photoUrl = photoCheck.reason
-    if (Object.keys(all).length) { refuse(all); return }
+    if (Object.keys(all).length) {
+      if (counting) for (const ev of refusalEvents(all)) countTeacherFormEvent(ev)
+      refuse(all)
+      return
+    }
     // ⛔ A SAVE THAT HIDES A SHOWN PROFILE IS ASKED FIRST (gate review, 2026-10-08). With no work wanted and no public
     // cover the server saves and HIDES (D6, publish.ts noGoal) — and "Save changes" is on every step, while the
     // warnings sat on two of them: a cover-only teacher whose cover loaded OFF under a newer notice, in on
@@ -1541,6 +1576,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
     setBusy('saving'); setFormError('')
     // No draft save while this publish is on its way (the publish deletes the draft); resumed if it does not go through.
     let published = false
+    // The server took the profile (res.ok): whatever throws after it — the CV upload — is not a Publish that failed.
+    let saved = false
     if (mode === 'join') {
       // Paused first, so a draft save on its way lands BEFORE the publish (which deletes the draft) and starts nothing
       // after it (commit gate, opus 2026-10-11).
@@ -1572,8 +1609,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
         teacherProfileId: mode === 'edit' ? teacherProfileId : null,
       }
       const res = await fetch('/api/teachers/me', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      saved = res.ok
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
+        if (counting) countTeacherFormEvent('publish_failed')
         if (d.error === 'invalid_teacher_profile' && d.fields) {
           // An upload that is not (or no longer) provably theirs: the form goes back to what is STORED and the line asks for a
           // new upload. ⛔ Never null: null over a stored PUBLIC video is the explicit Remove — the next save would delete the
@@ -1673,6 +1712,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       // The publish deleted the saved draft in its own transaction: the dashboard row now leads to the profile.
       if (mode === 'join' && uid) revalidateDashboard(uid)
     } catch {
+      if (counting && !saved) countTeacherFormEvent('publish_failed')
       setFormError(publishErrText(''))
       revealFirstError()
     } finally {
@@ -2033,7 +2073,10 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   const next = () => {
     const e = checkSteps(t, [step])
     // Step 1's Next for a teacher already signed in on eno.vn — the same funnel step as Continue / Sign in (preSignInOk).
-    if (mode === 'join' && !existing && !viaHandoff.current && step === LAST_PRE_SIGNIN) countTeacherFormEvent(Object.keys(e).length ? 'step1_blocked' : 'step1_continue')
+    if (mode === 'join' && !existing && !viaHandoff.current && step === LAST_PRE_SIGNIN) {
+      if (Object.keys(e).length) countTeacherFormEvent('step1_blocked')
+      else { countTeacherFormEvent('step1_continue'); countTeacherFormEvent(continueSourceEvent(window.location.search)) }
+    }
     if (Object.keys(e).length) {
       setErrors(e)
       revealFirstError()
@@ -2187,6 +2230,16 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   const step1Working = mode === 'join' && !existing && !done && step === 'plans' && door === 'self' && loaded && !draftPending && !doorWaits
   // The ref is read INSIDE the effect: the hand-off's restore effect (declared above) has run by then, on the same mount.
   useEffect(() => { if (step1Working && !viaHandoff.current) countTeacherFormEvent('step1_ready') }, [step1Working])
+  // …and every later step of a NEW profile as it comes on screen (step_<step>), so a stop between sign-in and Publish shows
+  // WHERE (2026-10-17: 81% of starters published before 10-16, 31% after, and nothing said at which step the rest stopped).
+  // ⛔ On screen, as step 1 is (review, 2026-10-17): never behind the spinner a restored later-step draft waits under, and
+  // for a signed-in account only once /api/teachers/me has said there is no profile yet — its slow timer is not an answer.
+  const stepShown = mode === 'join' && !existing && !done && door === 'self' && loaded && !draftPending && !doorWaits && (!uid || meRead)
+  useEffect(() => {
+    if (!stepShown) return
+    const ev = STEP_REACHED[step]
+    if (ev) countTeacherFormEvent(ev)
+  }, [step, stepShown])
   if (!loaded || draftPending || doorWaits) {
     return <div className="flex justify-center py-24"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
   }
@@ -2448,6 +2501,12 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
                   : null}
               />
             )}
+            {/* Inside Facebook's, Messenger's or Instagram's built-in browser, before any answer: the way out to the real
+                browser, where sign-in works (owner, 2026-10-17; open-in-browser.tsx). The browser is judged on the server, so
+                a signed-out first paint already has it; behind a session it shows with the form, after the draft is read.
+                ⛔ Gone with the first answer (review, 2026-10-17): the real browser opens the bare address, so step 1's
+                answers would not follow — a restored draft hides it too. */}
+            {escape && mode === 'join' && step === 'plans' && !step1Answered(t) && <OpenInBrowser offer={escape} />}
             <div>
               <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
                 <h1 data-screen-heading tabIndex={-1} className="h-title text-foreground outline-none">{mode === 'edit' ? tr('Your teacher profile', 'Hồ sơ giáo viên của bạn') : tr('Create your teacher profile', 'Tạo hồ sơ giáo viên')}</h1>
@@ -2457,6 +2516,11 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
               </div>
               {draftLine}
               <p className="mt-1 text-sm text-muted-foreground">{tr('Free. Schools across Vietnam see your profile; your phone, email and CV stay private until you share them.', 'Miễn phí. Các trường trên toàn Việt Nam xem được hồ sơ; số điện thoại, email và CV được giữ kín đến khi bạn chia sẻ.')}</p>
+              {/* What Publish will ask for, said before the first answer (2026-10-17 — the bounce study's "say the video up
+                  front": since the video became required on 10-16, half of those who reached the last step stopped there). */}
+              {mode === 'join' && !existing && step === 'plans' && (
+                <p className="mt-1 text-sm text-muted-foreground">{tr('You will add a clear photo of yourself and a short intro video (20–30 seconds is enough). Once you sign in, your answers are saved, so you can finish on a laptop.', 'Bạn sẽ thêm một ảnh rõ mặt và một video giới thiệu ngắn (20–30 giây là đủ). Sau khi đăng nhập, câu trả lời được lưu, nên bạn có thể hoàn tất trên máy tính.')}</p>
+              )}
             </div>
             {importLine}
             {cvHandy && (
