@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { poolConfig } from './db-pool-config'
+import { poolConfig, SERVER_POOL_MAX } from './db-pool-config'
 
 /**
  * The pg.Pool options src/lib/db.ts builds (speed plan item 9). What these pin: Next's running server bounds every
@@ -12,8 +12,13 @@ import { poolConfig } from './db-pool-config'
 const DIRECT = 'postgresql://app:secret@db.internal:5432/postgres'
 
 describe('poolConfig', () => {
-  it("Next's server: 30 s per statement — and no cap on the wait for a connection", () => {
-    expect(poolConfig({ url: DIRECT, build: false, server: true })).toEqual({ connectionString: DIRECT, statement_timeout: 30_000 })
+  it("Next's server: 30 s per statement, 20 connections — and no cap on the wait for a connection", () => {
+    expect(poolConfig({ url: DIRECT, build: false, server: true })).toEqual({ connectionString: DIRECT, max: 20, statement_timeout: 30_000 })
+  })
+
+  it('the build keeps its 3-connection pool even if both flags were set (speed plan item 12)', () => {
+    expect(SERVER_POOL_MAX).toBe(20)
+    expect(poolConfig({ url: DIRECT, build: true, server: true })).toMatchObject({ max: 3 })
   })
 
   it('scripts and tests (no Next runtime): no limits — an import or a backfill runs as long as it needs', () => {
@@ -26,7 +31,7 @@ describe('poolConfig', () => {
 
   it('a transaction pooler never gets the statement_timeout startup parameter it would reject', () => {
     for (const url of ['postgresql://u:p@pooler.example:6543/postgres', 'postgresql://u:p@db.example:5432/postgres?pgbouncer=true']) {
-      expect(poolConfig({ url, build: false, server: true }), url).toEqual({ connectionString: url })
+      expect(poolConfig({ url, build: false, server: true }), url).toEqual({ connectionString: url, max: 20 })
     }
     // A port that merely starts with 6543 is not the pooler.
     expect(poolConfig({ url: 'postgresql://u:p@db.example:65432/postgres', build: false, server: true })).toHaveProperty('statement_timeout', 30_000)
@@ -36,8 +41,9 @@ describe('poolConfig', () => {
 describe('src/lib/db.ts says at boot whether the limits are on', () => {
   // NEXT_RUNTIME is substituted at build time, which no unit test sees — the boot line is the production proof.
   const src = readFileSync(join(__dirname, 'db.ts'), 'utf8')
-  it('prints `[db] pool limits` once, when the config carries the limit', () => {
-    expect(src).toMatch(/if \('statement_timeout' in config\) console\.info\(`\[db\] pool limits: statement_timeout=\$\{config\.statement_timeout\}`\)/)
+  it('prints `[db] pool limits` once on every server boot', () => {
+    // Every server boot says it — a pooled URL too, where there is no statement limit to report.
+    expect(src).toMatch(/if \(isServer\) console\.info\(`\[db\] pool limits: statement_timeout=\$\{'statement_timeout' in config \? config\.statement_timeout : 'none \(pooled\)'\} max=\$\{config\.max\}`\)/)
   })
   it('reads NEXT_RUNTIME as the literal Next substitutes, and never logs the connection string', () => {
     expect(src).toMatch(/const isServer = process\.env\.NEXT_RUNTIME === 'nodejs' && !isBuild/)

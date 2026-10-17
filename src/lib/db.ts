@@ -39,8 +39,8 @@ function makeAdapter(): { adapter: PrismaPg; pool: Pool | null } {
   const config = poolConfig({ url: process.env.DATABASE_URL, build: isBuild, server: isServer })
   if (isBuild) return { adapter: new PrismaPg(config), pool: null }
   const pool = new Pool(config)
-  // The one proof the server limit is on (see db-pool-config.ts): printed once, never the connection string.
-  if ('statement_timeout' in config) console.info(`[db] pool limits: statement_timeout=${config.statement_timeout}`)
+  // The one proof the server limits are on (see db-pool-config.ts): printed once, never the connection string.
+  if (isServer) console.info(`[db] pool limits: statement_timeout=${'statement_timeout' in config ? config.statement_timeout : 'none (pooled)'} max=${config.max}`)
   // ⛔ An EventEmitter 'error' with no listener throws — an idle client dropped by Supavisor would take the process
   // down. The adapter attaches its own listener when it first connects; this one is there from the start.
   pool.on('error', (e) => console.error('[db] idle pg client error', e instanceof Error ? e.message : e))
