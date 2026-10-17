@@ -29,6 +29,16 @@ case "$SEC" in *[!0-9a-f]*) echo "App Secret must be 32 lowercase hex characters
 [ "${#SEC}" -eq 32 ] || { echo "App Secret is ${#SEC} characters — Meta's is 32"; exit 1; }
 echo "  note: the App Secret is on App settings › Basic, NOT the Client Token on Advanced — both are 32 hex"
 
+# ⛔ THE PUBLIC PATH, FROM THIS MACHINE, BEFORE THE BOX IS TOUCHED (gate review, 2026-10-17). The box-side checks read
+# each app on its own port; these read what a visitor gets — Cloudflare, nginx, then the app — so a stale route or edge
+# copy cannot pass for deployed. Both editions: they share the GoTrue this switches on.
+for H in eno.vn www.eno.forum; do
+  PP=$(curl -s --max-time 20 "https://$H/api/auth/providers" || true)
+  case "$PP" in *'"facebook":'*) echo "  https://$H/api/auth/providers answers ✅" ;; *) echo "  ⛔ https://$H/api/auth/providers does not answer (got: ${PP:0:80}) — deploy first."; exit 3 ;; esac
+  PV=$(curl -s --max-time 20 -H 'Cookie: lang=en' "https://$H/privacy" || true)
+  case "$PV" in *'Meta (Continue with Facebook)'*) echo "  https://$H/privacy names Facebook sign-in ✅" ;; *) echo "  ⛔ https://$H/privacy does not name Facebook sign-in — deploy the /privacy update (or purge its edge copy) first."; exit 3 ;; esac
+done
+
 # ⛔ THE SECRET TRAVELS ON STDIN, ahead of the script — never in a command line, where `ps` shows it on either machine.
 # printf is a shell builtin: no process of its own carries it either.
 { printf 'FB_AID=%q\nFB_SEC=%q\nFB_DRY=%q\n' "$AID" "$SEC" "$DRY"; cat <<'REMOTE'
@@ -63,13 +73,23 @@ EO=$(docker exec "$AUTHC" printenv GOTRUE_EXTERNAL_FACEBOOK_EMAIL_OPTIONAL 2>/de
 case "$EO" in ''|false|False|0) echo "  facebook email optional: off ✅" ;; *) echo "  ⛔ GOTRUE_EXTERNAL_FACEBOOK_EMAIL_OPTIONAL=$EO — stop."; exit 3 ;; esac
 # ⛔ THE CODE FIRST. Enabling the provider before the deploy would let a Facebook sign-in reach a callback that cannot
 # strip Facebook's token, and a profile that would take Facebook's expiring picture link — refused until it can.
-P=$(curl -sk --max-time 20 --resolve eno.vn:443:127.0.0.1 'https://eno.vn/api/auth/providers' || true)
-case "$P" in *'"facebook":'*) echo "  deployed app has /api/auth/providers ✅" ;; *) echo "  ⛔ /api/auth/providers is not deployed (got: ${P:0:80}) — deploy first."; exit 3 ;; esac
+# ⛔ STRAIGHT TO THE APPS' OWN PORTS (apps.compose.yml binds eno-vn-app to 127.0.0.1:3001 and eno-forum-app to :3002; nginx
+# proxies to exactly those), never nginx's :443 — the origin takes only Cloudflare's client certificate ("400 No required
+# SSL certificate was sent": the first real run, 2026-10-17). An /api/ route also needs the edge pin's x-eno-edge
+# (src/proxy.ts 403s without it), read from each app's own env and handed to curl on stdin (-H @-), never on a command
+# line. Both editions (gate review, 2026-10-17): they are built separately and share this GoTrue.
+for AP in eno-vn-app:eno.vn:3001 eno-forum-app:www.eno.forum:3002; do
+  C=${AP%%:*}; R=${AP#*:}; H=${R%%:*}
+  ES=$(docker exec "$C" printenv EDGE_SECRET 2>/dev/null </dev/null || true)
+  P=$(printf 'x-eno-edge: %s\n' "$ES" | curl -s --max-time 20 -H @- -H "Host: $H" "http://127.0.0.1:${R#*:}/api/auth/providers" || true)
+  case "$P" in *'"facebook":'*) echo "  $C has /api/auth/providers ✅" ;; *) echo "  ⛔ $C: /api/auth/providers did not answer (got: ${P:0:80}) — 'Forbidden' is the x-eno-edge pin (EDGE_SECRET unreadable from $C); anything else: deploy first."; exit 3 ;; esac
+done
 # ⛔ …AND THE NOTICE: Facebook becomes a source of personal data the moment it is on, so the deployed /privacy must already
 # name it (gate review, 2026-10-16) — on both editions, which share this GoTrue.
 # (www.eno.forum: the forum's canonical host — its apex only redirects there.)
-for H in eno.vn www.eno.forum; do
-  PV=$(curl -sk --max-time 20 --resolve "$H:443:127.0.0.1" "https://$H/privacy" -H 'Cookie: lang=en' || true)
+for HP in eno.vn:3001 www.eno.forum:3002; do
+  H=${HP%:*}
+  PV=$(curl -s --max-time 20 "http://127.0.0.1:${HP#*:}/privacy" -H "Host: $H" -H 'Cookie: lang=en' || true)
   case "$PV" in *'Meta (Continue with Facebook)'*) echo "  $H/privacy names Facebook sign-in ✅" ;; *) echo "  ⛔ $H/privacy does not name Facebook sign-in yet — deploy the /privacy update first."; exit 3 ;; esac
 done
 # Facebook reachable FROM THE BOX: GoTrue trades the code and reads /me on graph.facebook.com.
@@ -102,7 +122,8 @@ OPS_FORUM=$(docker exec eno-forum-app printenv ADMIN_EMAILS 2>/dev/null </dev/nu
 [ -n "$OPS_VN" ] && [ -n "$OPS_FORUM" ] || { echo "  ⛔ ADMIN_EMAILS not readable from both eno-vn-app and eno-forum-app — the operator guard would miss someone. Stop."; exit 3; }
 OPS=$(printf '%s\n%s\n' "$OPS_VN" "$OPS_FORUM" | tr ',' '\n' | tr -d ' \r' | tr 'A-Z' 'a-z' | grep -E '^[^@[:space:]]+@[^@[:space:]]+\.[a-z]+$' | sort -u | paste -sd, - || true)
 [ -n "$OPS" ] || { echo "  ⛔ ADMIN_EMAILS held no address — the operator guard would hold nobody. Stop."; exit 3; }
-echo "  operators the guard keeps Facebook away from: $(printf '%s' "$OPS" | tr ',' '\n' | wc -l | tr -d ' ') address(es) ✅"
+# (A trailing newline, so wc counts the last address too — without it one address printed as "0", 2026-10-17.)
+echo "  operators the guard keeps Facebook away from: $(printf '%s\n' "$OPS" | tr ',' '\n' | wc -l | tr -d ' ') address(es) ✅"
 MISSING=0
 for T in eno_drop_facebook_provider_tokens:flow_state eno_refuse_facebook_identity:identities; do
   N=$(psqlq "select count(*) from pg_trigger where tgname = '${T%%:*}' and tgrelid = 'auth.${T##*:}'::regclass and tgenabled <> 'D'" 2>/dev/null || echo 0)
