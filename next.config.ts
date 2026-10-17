@@ -497,6 +497,8 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["ffmpeg-static"],
   outputFileTracingIncludes: {
     "/api/upload/video/transcode": ["./node_modules/ffmpeg-static/ffmpeg"],
+    // The silent-video re-upload ask measures each clip's sound with the same binary (src/lib/core/video-audio-level.ts).
+    "/api/cron/video-reupload-ask": ["./node_modules/ffmpeg-static/ffmpeg"],
   },
   // Pin the workspace root so Turbopack doesn't pick up a stray lockfile higher
   // up the tree (e.g. ~/package-lock.json) as the project root.

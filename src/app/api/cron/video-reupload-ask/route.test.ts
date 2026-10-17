@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   status: {} as Record<string, string>,
   owner: {} as Record<string, string>,
   ownerNow: {} as Record<string, unknown>,
+  scopes: [] as boolean[],
   asked: new Map<string, Record<string, unknown>>(),
   order: [] as string[],
   notifications: [] as Array<Record<string, unknown>>,
@@ -29,11 +30,13 @@ vi.mock('@/lib/mail', () => ({
 }))
 vi.mock('@/lib/compliance/audit', () => ({ appendAudit: async (_tx: unknown, input: Record<string, unknown>) => { h.order.push('audit'); h.audits.push(input) } }))
 vi.mock('@/lib/core/video-audio-level', () => ({ SILENT_MEAN_DB: -80, clipAudioLevel: async (url: string) => h.levels[url] ?? null }))
+// The marketplace scope: the predicate passed through, teachers included — asserted below.
+vi.mock('@/lib/edition-scope', () => ({ scopedListingWhere: async (where: Record<string, unknown>, opts?: { teachers?: boolean }) => { h.scopes.push(opts?.teachers === true); return where } }))
 vi.mock('@/lib/db', () => ({
   db: {
     listing: {
       findMany: async ({ where }: { where: { id: { in: string[] } } }) => h.listings.filter((l) => where.id.in.includes(l.id as string)),
-      findUnique: async ({ where }: { where: { id: string } }) => {
+      findFirst: async ({ where }: { where: { id: string } }) => {
         const l = h.listings.find((x) => x.id === where.id) as { video: string; seller: { ownerId: string | null; owner: unknown }; teacherProfile: unknown } | undefined
         return { video: h.current[where.id] ?? l?.video ?? null, status: h.status[where.id] ?? 'active', seller: { ownerId: h.owner[where.id] ?? l?.seller.ownerId ?? null, owner: h.ownerNow[where.id] ?? l?.seller.owner ?? null }, teacherProfile: l?.teacherProfile ?? null }
       },
@@ -62,7 +65,7 @@ const run = async (keys: string[], dry = false) => (await (GET as unknown as (r:
 ))
 
 beforeEach(() => {
-  Object.assign(h, { listings: [], levels: {}, current: {}, status: {}, owner: {}, ownerNow: {}, order: [], notifications: [], audits: [], mails: [] })
+  Object.assign(h, { listings: [], levels: {}, current: {}, status: {}, owner: {}, ownerNow: {}, scopes: [], order: [], notifications: [], audits: [], mails: [] })
   h.asked.clear()
 })
 
@@ -102,6 +105,9 @@ describe('/api/cron/video-reupload-ask', () => {
     expect(h.mails[0].text).toContain('Hi Teacher t,')
     expect(h.notifications[0]).toMatchObject({ recipientId: 'p-t', type: 'system', title: 'Please upload your video again', listingId: ID('t'), url: '/teachers/edit?step=finish' })
     expect(h.audits[0]).toMatchObject({ action: 'listing.video.reupload_ask', subjectType: 'listing', subjectId: ID('t'), detail: { key: V('t'), meanDb: -91, mail: 'sent' } })
+    // ⛔ Every listing read under the marketplace scope (edition-lint Rule A), teachers included.
+    expect(h.scopes.length).toBeGreaterThanOrEqual(2)
+    expect(h.scopes.every(Boolean)).toBe(true)
   })
 
   it('any other listing leads to its own editor; Vietnamese for a Vietnamese account', async () => {

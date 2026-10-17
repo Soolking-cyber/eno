@@ -6,6 +6,7 @@ import { appendAudit } from '@/lib/compliance/audit'
 import { sendMailOnce, mailEnabled } from '@/lib/mail'
 import { pickLocale } from '@/lib/admin-macros'
 import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { clipAudioLevel, SILENT_MEAN_DB } from '@/lib/core/video-audio-level'
 import { VIDEO_REUPLOAD_ASK, renderVideoReuploadAsk, videoReuploadBody, videoReuploadPath } from '@/lib/emails/video-reupload-ask'
 
@@ -63,8 +64,10 @@ export const GET = route({ auth: 'cron' }, async ({ req }) => {
   const dryRun = params.get('dryRun') === '1'
   const ids = [...new Set((params.get('ids') ?? '').split(',').map((x) => x.trim()).filter((x) => /^[a-z0-9]{20,40}$/.test(x)))]
   if (!ids.length || ids.length > MAX_IDS) return { ok: false, error: 'ids_required', max: MAX_IDS }
+  // The marketplace scope (edition-lint Rule A — the e-visa desk's rows never reach eno.vn's code), teachers INCLUDED: two
+  // of the silent videos are teacher intros, and scopedListingWhere leaves teachers out unless asked.
   const listings = await db.listing.findMany({
-    where: { id: { in: ids }, video: { not: null }, status: { not: 'removed' } },
+    where: await scopedListingWhere({ id: { in: ids }, video: { not: null }, status: { not: 'removed' } }, { teachers: true }),
     select: {
       id: true,
       video: true,
@@ -104,8 +107,8 @@ export const GET = route({ auth: 'cron' }, async ({ req }) => {
         if (now && MAIL_DONE.has(now.mail)) { already++; continue }
         // …and the listing must still be the same owner's, and not removed: a measurement can take a minute (gate review).
         // The address and language are read HERE too, not from before the measurement: one changed meanwhile is the one used.
-        const current = await db.listing.findUnique({
-          where: { id: l.id },
+        const current = await db.listing.findFirst({
+          where: await scopedListingWhere({ id: l.id }, { teachers: true }),
           select: { video: true, status: true, seller: { select: { ownerId: true, owner: { select: { email: true, locale: true } } } }, teacherProfile: { select: { private: { select: { email: true } } } } },
         })
         if (current?.video !== key || current.status === 'removed' || current.seller?.ownerId !== ownerId) { replaced++; continue }
