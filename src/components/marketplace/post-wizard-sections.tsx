@@ -40,6 +40,7 @@ import { Mascot } from './mascot'
 import { ShareButton } from './share-button'
 import { PushOptInCard } from './push-opt-in-card'
 import { SquareCropDialog } from './square-crop-dialog'
+import { unlockCompressionAudio } from '@/lib/compression-audio'
 
 type T = (vi: string, en: string) => string
 
@@ -316,6 +317,8 @@ export function MediaSection({
               capture="environment"
               className="hidden"
               disabled={videoBusy}
+              // The tap that opens the camera starts the sound a compressed clip carries on iOS (src/lib/compression-audio.ts).
+              onClick={unlockCompressionAudio}
               onChange={(e) => { addVideo(e.target.files); e.currentTarget.value = '' }}
             />
           </label>
@@ -357,7 +360,7 @@ export function MediaSection({
               <span className="px-1 text-center text-2xs leading-tight text-ink-4">{t('tùy chọn · 60 giây', 'optional · 60s')}</span>
               {/* disabled, not just pointer-events-none: the label can also be reached by
                   keyboard, and only a disabled input refuses to open the picker. */}
-              <input type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v" className="hidden" disabled={videoBusy} onChange={(e) => { addVideo(e.target.files); e.currentTarget.value = '' }} />
+              <input type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v" className="hidden" disabled={videoBusy} onClick={unlockCompressionAudio} onChange={(e) => { addVideo(e.target.files); e.currentTarget.value = '' }} />
             </label>
           )}
         </div>

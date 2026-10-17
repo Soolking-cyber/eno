@@ -48,6 +48,7 @@ import { RADIO_CARD, type StepProps } from '@/components/teachers/steps/shared'
 import { IosVerifyElsewhereNote, iosVerifyElsewhereText } from '@/components/marketplace/ios-browser-only-note'
 import { useIosHideKyc } from '@/hooks/use-ios-hide-kyc'
 import { markLineReason, markTrustLine, type MarkSwitch } from '@/components/teachers/identity-mark-switch'
+import { unlockCompressionAudio } from '@/lib/compression-audio'
 
 export type FinishMedia = {
   busy: '' | 'photo' | 'video' | 'saving'
@@ -331,7 +332,8 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
           {media.busy === 'video' ? <Loader2 className="size-4 animate-spin" /> : <Video className="size-4" />}
           {media.busy === 'video' ? (videoProgress !== null ? `${tr('Making it smaller…', 'Đang thu nhỏ…')} ${Math.floor(videoProgress * 100)}%` : tr('Uploading…', 'Đang tải…')) : hasVideo ? tr('Replace video', 'Thay video') : tr('Upload video', 'Tải video lên')}
           {/* Cleared after each pick: choosing the same file again (a retry after a failed upload) must fire again. */}
-          <input type="file" accept="video/mp4,video/quicktime,video/webm" className="sr-only" disabled={!signedIn || !!media.busy} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) media.onVideo(f) }} />
+          {/* The tap that opens the picker starts the sound a compressed clip carries on iOS (src/lib/compression-audio.ts). */}
+          <input type="file" accept="video/mp4,video/quicktime,video/webm" className="sr-only" disabled={!signedIn || !!media.busy} onClick={unlockCompressionAudio} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) media.onVideo(f) }} />
         </label>
         {/* WHO WATCHES IT — asked only once there is a video (plan, 2026-10-08), saved with the profile. Private: kept out
             of the profile and sent per school, in chat. */}
