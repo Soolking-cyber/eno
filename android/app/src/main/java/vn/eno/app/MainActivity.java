@@ -21,8 +21,8 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
@@ -467,35 +467,79 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
-     * Decode to a bounded fixpoint so double-encoded input can't slip past the prefix checks, then
-     * refuse backslash smuggling, dot-segment traversal and the auth routes (mirrors
-     * canonicalAppPath's blockAuthPaths — a crafted link must never drive sign-in/OAuth).
+     * Decode to a bounded fixpoint so double-encoded input can't slip past the prefix checks, and check
+     * EVERY spelling on the way: refuse backslash smuggling, dot-segment traversal, framework paths and
+     * the auth routes (mirrors canonicalAppPath in src/lib/deep-link.ts — a crafted link must never drive
+     * sign-in/OAuth). Still changing after the last round = no stable spelling = refused.
+     * ⚠️ A PATH MEETS TWO DECODERS BEFORE CAPACITOR SEES IT, and must settle routable under BOTH: the WebView's
+     * own URL parser (Chromium unescapes what it can and leaves a broken `%` alone — decodedLeniently), then
+     * Uri.getPath() (Uri.decode, which swallows the character after a broken `%`). `/%5%46…` and `/%%35F…`
+     * read harmless to Uri.decode alone, yet Chromium turns them into `/%5F…`, which getPath() reads as `/_`.
+     * (URLDecoder, used here before, threw on any malformed escape and the old loop then checked the
+     * still-encoded string.)
      */
     private static boolean isRoutablePath(String rawPath) {
         if (rawPath == null) return false;
+        return settlesRoutable(rawPath, true) && settlesRoutable(rawPath, false);
+    }
+
+    /** One decoder's chain: every spelling checked, until it stops changing (true) — refused, or never settling, is false. */
+    private static boolean settlesRoutable(String rawPath, boolean chromium) {
         String probe = rawPath;
-        for (int i = 0; i < 3; i++) {
-            String decoded;
-            try {
-                decoded = URLDecoder.decode(probe, "UTF-8");
-            } catch (UnsupportedEncodingException | IllegalArgumentException e) {
-                break;
-            }
-            if (decoded.equals(probe)) break;
+        for (int i = 0; i < 5; i++) {
+            if (!isRoutableSpelling(probe)) return false;
+            String decoded = chromium ? decodedLeniently(probe) : Uri.decode(probe);
+            if (decoded.equals(probe)) return true;
             probe = decoded;
         }
+        return false;
+    }
+
+    /**
+     * %-decoding the way Chromium reads a URL: every escape that decodes is decoded, a malformed `%` stays as
+     * written and takes nothing with it; a broken UTF-8 sequence becomes U+FFFD. The same rules as iOS's
+     * decodedLeniently and src/lib/deep-link.ts decodeLeniently.
+     */
+    private static String decodedLeniently(String value) {
+        byte[] source = value.getBytes(StandardCharsets.UTF_8);
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream(source.length);
+        for (int i = 0; i < source.length; i++) {
+            int high = source[i] == '%' && i + 2 < source.length ? hexDigit(source[i + 1]) : -1;
+            int low = high >= 0 ? hexDigit(source[i + 2]) : -1;
+            if (low >= 0) {
+                bytes.write(high << 4 | low);
+                i += 2;
+            } else {
+                bytes.write(source[i]);
+            }
+        }
+        return new String(bytes.toByteArray(), StandardCharsets.UTF_8);
+    }
+
+    private static int hexDigit(byte c) {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    }
+
+    private static boolean isRoutableSpelling(String spelling) {
         // Same reason as marketUrlForPath: after decoding, a smuggled `%5C`/`%09` is a live
         // parser-splitting character again.
-        if (hasParserSplitChars(probe)) return false;
+        if (hasParserSplitChars(spelling)) return false;
         // `/a/../auth` reaches /auth once the network stack normalises it, but sails past a
         // startsWith test — the JS side never had this hole because `new URL()` normalises dot
         // segments before it checks, while Uri.getPath() does not. Nothing legitimate here has a
         // `.` or `..` segment, so refuse them rather than normalise a string we then load
         // un-normalised.
-        for (String segment : probe.split("/", -1)) {
+        for (String segment : spelling.split("/", -1)) {
             if (".".equals(segment) || "..".equals(segment)) return false;
         }
-        String lower = probe.toLowerCase(Locale.ROOT);
+        String lower = spelling.toLowerCase(Locale.ROOT);
+        // ⛔ "/_" is framework territory: Capacitor ≤8.4.2 answers /_capacitor_http_interceptor_ on the app's
+        // own origin by fetching any URL it is handed (GHSA-rvm3-566m-v7fv). 8.4.3 refuses that navigation
+        // itself; this keeps every link shape away from it anyway. "//" would leave the origin once appended.
+        if (lower.startsWith("/_") || lower.startsWith("//")) return false;
         return !(lower.startsWith("/auth") || lower.startsWith("/signin"));
     }
 
