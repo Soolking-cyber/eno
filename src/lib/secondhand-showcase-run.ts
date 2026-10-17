@@ -51,6 +51,8 @@ export type JournalEntry = {
 export type ShopResult = {
   store: string
   skipped?: string
+  /** Its pool could not be read (no top-up from it) — fails the run. */
+  poolError?: boolean
   live: number
   available: number
   unknown: { id: string; reason: string }[]
@@ -262,6 +264,7 @@ async function loadShop(cfg: StoreConfig, deps: RunDeps): Promise<ShopBase | Sho
   // The pool table is the cap's own record; without it nothing may be published (fail closed), checks still run.
   const pool = await deps.db.$queryRawUnsafe<PoolRow[]>(POOL_SQL, seller.id).catch((e) => {
     result.notes.push(`pool unreadable (${(e as Error).message.slice(0, 80)}) — no top-up`)
+    result.poolError = true
     return [] as PoolRow[]
   })
   return { cfg, sellerId: seller.id, result, live, pool }
@@ -431,6 +434,8 @@ async function planShelf(key: string, placed: Placed[], shops: ShopRead[], deps:
   for (const k of keepAvail) {
     const v = k.shop.verdicts.get(k.row.id)!
     if (v.state !== 'available') continue
+    // On sale with no one price read (variants at several prices, a price field missing): nothing written — said.
+    if (v.price === undefined) k.shop.result.priceRefused.push({ id: k.row.id, why: 'on sale, but no one price read at the shop — none written' })
     const d = priceDecision(k.row.price, v.price)
     if (d.next !== undefined) plan.reprice.push({ ...k, to: d.next })
     if (d.refused) k.shop.result.priceRefused.push({ id: k.row.id, why: d.refused })
@@ -515,62 +520,69 @@ async function writeShelf(plan: ShelfPlan, deps: RunDeps, ctx: Ctx) {
   const { db } = deps
   const r = plan.result
   const applied = { retire: [] as ShelfResult['retire'], trim: [] as string[], reprice: [] as ShelfResult['reprice'], restore: [] as ShelfResult['restore'] }
-  for (const { row, shop, v } of plan.retire) {
-    if (ctx.journalError) break
-    const n = await journaled(ctx, entry(ctx, 'retire', plan.key, shop, row, { status: 'active', price: row.price, upd: row.upd }, 'sold', row.price, v.reason), () => db.$executeRawUnsafe(
-      `UPDATE "Listing" SET status = 'sold', "updatedAt" = $2::timestamp WHERE id = $1 AND status = 'active' AND "updatedAt"::text = $3 AND ${OWNERLESS_SQL}`,
-      row.id, ctx.stamp, row.upd))
-    if (n) applied.retire.push({ id: row.id, reason: v.reason })
-    else if (!ctx.journalError) r.notes.push(`retire skipped, row changed since the read: ${row.id}`)
+  // The shelf's result names the writes CONFIRMED landed, even when one throws mid-shelf; a write whose confirmation was
+  // lost is still in the write-ahead record (onJournal), which a rollback replays conditionally.
+  try {
+    for (const { row, shop, v } of plan.retire) {
+      if (ctx.journalError) break
+      const n = await journaled(ctx, entry(ctx, 'retire', plan.key, shop, row, { status: 'active', price: row.price, upd: row.upd }, 'sold', row.price, v.reason), () => db.$executeRawUnsafe(
+        `UPDATE "Listing" SET status = 'sold', "updatedAt" = $2::timestamp WHERE id = $1 AND status = 'active' AND "updatedAt"::text = $3 AND ${OWNERLESS_SQL}`,
+        row.id, ctx.stamp, row.upd))
+      if (n) applied.retire.push({ id: row.id, reason: v.reason })
+      else if (!ctx.journalError) r.notes.push(`retire skipped, row changed since the read: ${row.id}`)
+    }
+    for (const { row, shop } of plan.trim) {
+      if (ctx.journalError) break
+      // Hidden INTO the pool, in one transaction: a later week may bring it back if its shelf empties (provenance as above).
+      const n = await journaled(ctx, entry(ctx, 'trim', plan.key, shop, row, { status: 'active', price: row.price, upd: row.upd }, 'hidden', row.price, 'one per category'), () => db.$transaction(async (tx) => {
+        const hid = await tx.$executeRawUnsafe(
+          `UPDATE "Listing" SET status = 'hidden', "updatedAt" = $2::timestamp WHERE id = $1 AND status = 'active' AND "updatedAt"::text = $3 AND ${OWNERLESS_SQL}`,
+          row.id, ctx.stamp, row.upd)
+        // hidden_at FROM THE SAME STAMP as updatedAt — one clock: the pool's provenance test (updatedAt ≤ hidden_at + 1 s)
+        // must not depend on the app's and the database's clocks agreeing (review, 2026-10-17).
+        if (hid) await tx.$executeRawUnsafe(`INSERT INTO "${CAP_POOL_TABLE}" (id, hidden_at) VALUES ($1, $2::timestamp AT TIME ZONE 'UTC') ON CONFLICT (id) DO UPDATE SET hidden_at = EXCLUDED.hidden_at`, row.id, ctx.stamp)
+        return hid
+      }))
+      if (n) applied.trim.push(row.id)
+      else if (!ctx.journalError) r.notes.push(`trim skipped, row changed since the read: ${row.id}`)
+    }
+    for (const { row, shop, to } of plan.reprice) {
+      if (ctx.journalError) break
+      const n = await journaled(ctx, entry(ctx, 'reprice', plan.key, shop, row, { status: 'active', price: row.price, upd: row.upd }, 'active', to, 'shop price'), () => db.$executeRawUnsafe(
+        `UPDATE "Listing" SET price = $2, "updatedAt" = $3::timestamp WHERE id = $1 AND status = 'active' AND "updatedAt"::text = $4 AND ${OWNERLESS_SQL}`,
+        row.id, to, ctx.stamp, row.upd))
+      if (n) applied.reprice.push({ id: row.id, from: row.price, to })
+      else if (!ctx.journalError) r.notes.push(`reprice skipped, row changed since the read: ${row.id}`)
+    }
+    for (const { row, shop, price, v } of plan.restore) {
+      if (ctx.journalError) break
+      const n = await journaled(ctx, entry(ctx, 'restore', plan.key, shop, row, { status: 'hidden', price: row.price, upd: row.upd }, 'active', price, v.reason), () => db.$transaction(async (tx) => {
+        // One writer per shelf, and the shelf's live rows counted in the statement that publishes — never past its target.
+        // ⛔ The pool read's conditions are re-checked HERE, in the publishing statement — moderation, the storefront, the cap's
+        // provenance and no compliance decision since:
+        // a report filed during the run's minutes of shop reads leaves updatedAt alone, so the conditional write alone would
+        // miss it (review, 2026-10-17).
+        // ⚠️ $executeRaw, not $queryRaw: pg_advisory_xact_lock returns `void`, a column Prisma cannot deserialize.
+        await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `secondhand-showcase:${plan.key}`)
+        return tx.$executeRawUnsafe(
+          `UPDATE "Listing" SET status = 'active', price = $2, "updatedAt" = $3::timestamp
+            WHERE id = $1 AND status = 'hidden' AND "updatedAt"::text = $4 AND ${licenceClearedSql()}
+              AND ${STILL_PUBLISHABLE_SQL} AND condition = 'used' AND ${OWNERLESS_SQL}
+              AND EXISTS (SELECT 1 FROM "${CAP_POOL_TABLE}" h WHERE h.id = "Listing".id AND "Listing"."updatedAt" <= (h.hidden_at AT TIME ZONE 'UTC') + interval '1 second'
+                            AND ${noDecisionSinceSql(`(h.hidden_at AT TIME ZONE 'UTC')`)})
+              AND (SELECT count(*) FROM "Listing" x WHERE x."sellerId" = ANY($5::text[]) AND x.status = 'active' AND x."listingType" = 'sell'
+                     AND x."categoryId" IS NOT DISTINCT FROM "Listing"."categoryId" AND x."subcategorySlug" IS NOT DISTINCT FROM "Listing"."subcategorySlug") < $6`,
+          row.id, price, ctx.stamp, row.upd, ctx.partnerIds, r.target)
+      }))
+      if (n) applied.restore.push({ id: row.id, price, store: shop.cfg.domain })
+      else if (!ctx.journalError) r.notes.push(`restore skipped (row changed, or the shelf is already full): ${row.id}`)
+    }
+  } finally {
+    r.retire = applied.retire
+    r.trim = applied.trim
+    r.reprice = applied.reprice
+    r.restore = applied.restore
   }
-  for (const { row, shop } of plan.trim) {
-    if (ctx.journalError) break
-    // Hidden INTO the pool, in one transaction: a later week may bring it back if its shelf empties (provenance as above).
-    const n = await journaled(ctx, entry(ctx, 'trim', plan.key, shop, row, { status: 'active', price: row.price, upd: row.upd }, 'hidden', row.price, 'one per category'), () => db.$transaction(async (tx) => {
-      const hid = await tx.$executeRawUnsafe(
-        `UPDATE "Listing" SET status = 'hidden', "updatedAt" = $2::timestamp WHERE id = $1 AND status = 'active' AND "updatedAt"::text = $3 AND ${OWNERLESS_SQL}`,
-        row.id, ctx.stamp, row.upd)
-      if (hid) await tx.$executeRawUnsafe(`INSERT INTO "${CAP_POOL_TABLE}" (id, hidden_at) VALUES ($1, now()) ON CONFLICT (id) DO UPDATE SET hidden_at = EXCLUDED.hidden_at`, row.id)
-      return hid
-    }))
-    if (n) applied.trim.push(row.id)
-    else if (!ctx.journalError) r.notes.push(`trim skipped, row changed since the read: ${row.id}`)
-  }
-  for (const { row, shop, to } of plan.reprice) {
-    if (ctx.journalError) break
-    const n = await journaled(ctx, entry(ctx, 'reprice', plan.key, shop, row, { status: 'active', price: row.price, upd: row.upd }, 'active', to, 'shop price'), () => db.$executeRawUnsafe(
-      `UPDATE "Listing" SET price = $2, "updatedAt" = $3::timestamp WHERE id = $1 AND status = 'active' AND "updatedAt"::text = $4 AND ${OWNERLESS_SQL}`,
-      row.id, to, ctx.stamp, row.upd))
-    if (n) applied.reprice.push({ id: row.id, from: row.price, to })
-    else if (!ctx.journalError) r.notes.push(`reprice skipped, row changed since the read: ${row.id}`)
-  }
-  for (const { row, shop, price, v } of plan.restore) {
-    if (ctx.journalError) break
-    const n = await journaled(ctx, entry(ctx, 'restore', plan.key, shop, row, { status: 'hidden', price: row.price, upd: row.upd }, 'active', price, v.reason), () => db.$transaction(async (tx) => {
-      // One writer per shelf, and the shelf's live rows counted in the statement that publishes — never past its target.
-      // ⛔ The pool read's conditions are re-checked HERE, in the publishing statement — moderation, the storefront, the cap's
-      // provenance and no compliance decision since:
-      // a report filed during the run's minutes of shop reads leaves updatedAt alone, so the conditional write alone would
-      // miss it (review, 2026-10-17).
-      // ⚠️ $executeRaw, not $queryRaw: pg_advisory_xact_lock returns `void`, a column Prisma cannot deserialize.
-      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `secondhand-showcase:${plan.key}`)
-      return tx.$executeRawUnsafe(
-        `UPDATE "Listing" SET status = 'active', price = $2, "updatedAt" = $3::timestamp
-          WHERE id = $1 AND status = 'hidden' AND "updatedAt"::text = $4 AND ${licenceClearedSql()}
-            AND ${STILL_PUBLISHABLE_SQL} AND condition = 'used' AND ${OWNERLESS_SQL}
-            AND EXISTS (SELECT 1 FROM "${CAP_POOL_TABLE}" h WHERE h.id = "Listing".id AND "Listing"."updatedAt" <= (h.hidden_at AT TIME ZONE 'UTC') + interval '1 second'
-                          AND ${noDecisionSinceSql(`(h.hidden_at AT TIME ZONE 'UTC')`)})
-            AND (SELECT count(*) FROM "Listing" x WHERE x."sellerId" = ANY($5::text[]) AND x.status = 'active' AND x."listingType" = 'sell'
-                   AND x."categoryId" IS NOT DISTINCT FROM "Listing"."categoryId" AND x."subcategorySlug" IS NOT DISTINCT FROM "Listing"."subcategorySlug") < $6`,
-        row.id, price, ctx.stamp, row.upd, ctx.partnerIds, r.target)
-    }))
-    if (n) applied.restore.push({ id: row.id, price, store: shop.cfg.domain })
-    else if (!ctx.journalError) r.notes.push(`restore skipped (row changed, or the shelf is already full): ${row.id}`)
-  }
-  r.retire = applied.retire
-  r.trim = applied.trim
-  r.reprice = applied.reprice
-  r.restore = applied.restore
 }
 
 /** The dry run's journal: what --apply would write, in the same shape. */
@@ -652,7 +664,6 @@ export type RunResult = {
 
 export async function runShowcase(deps: RunDeps, opts: RunOptions): Promise<RunResult> {
   const started = deps.now()
-  const stamp = stampOf(started)
   const forced = new Map((opts.retire ?? []).map((r) => [r.id, r.reason]))
   const pins = new Set(opts.keep ?? [])
   const budget = opts.budgetMs ?? 12 * 60_000
@@ -662,7 +673,7 @@ export async function runShowcase(deps: RunDeps, opts: RunOptions): Promise<RunR
   const strangers = (opts.stores ?? []).filter((d) => !liveShops(started).some((s) => s.domain === d))
   if (strangers.length) {
     return {
-      ok: false, apply: false, refused: `unknown_store: ${strangers.join(', ')} is not a live second-hand shop`, writeErrors: [], stamp,
+      ok: false, apply: false, refused: `unknown_store: ${strangers.join(', ')} is not a live second-hand shop`, writeErrors: [], stamp: stampOf(started),
       totals: { live: 0, shelves: 0, retire: 0, trim: 0, reprice: 0, restore: 0, unknown: 0, short: 0, capTrim: 0 },
       notReached: [], unmatchedRetire: [], shelves: [], shops: [], caps: [], journal: [],
     }
@@ -714,7 +725,10 @@ export async function runShowcase(deps: RunDeps, opts: RunOptions): Promise<RunR
   for (const [key, placed] of [...byShelf].sort(([a], [b]) => a.localeCompare(b))) plans.push(await planShelf(key, placed, shops, deps, pins, consumed, deadline))
 
   // ⛔ The restore's live count spans EVERY partner storefront, checked or not — the shelf's real state.
-  const ctx: Ctx = { stamp, partnerIds: bases.map((b) => b.sellerId), journal: [], touched: [], onJournal: deps.onJournal }
+  // The stamp is taken as the writing starts (seconds before the writes land), not at the run's start up to twenty minutes
+  // earlier — a row's updatedAt then says when it changed. One stamp for the run: what a rollback matches. (No reader
+  // syncs on an updatedAt cursor today; the trims' hidden_at is written from this same stamp.)
+  const ctx: Ctx = { stamp: stampOf(deps.now()), partnerIds: bases.map((b) => b.sellerId), journal: [], touched: [], onJournal: deps.onJournal }
   const liveTotal = shops.reduce((a, s) => a + s.live.length, 0)
   // A whole shop's held rows count as the retirements they would have been: a global outage is still refused.
   const retireTotal = plans.reduce((a, p) => a + p.retire.length + p.held.length, 0)
@@ -773,11 +787,12 @@ export async function runShowcase(deps: RunDeps, opts: RunOptions): Promise<RunR
     short: shelves.reduce((a, s) => a + s.short, 0),
     capTrim: caps.reduce((a, c) => a + c.trim.length, 0),
   }
-  const failed = shopResults.some((s) => s.skipped?.startsWith('error')) || writeErrors.length > 0
+  // A pool that cannot be read (a dropped table, a broken column) drains every shelf week after week: a FAILED run, not a note.
+  const failed = shopResults.some((s) => s.skipped?.startsWith('error') || s.poolError) || writeErrors.length > 0
   // A stated retirement that matched no live row did nothing — say so rather than let it read as done.
   const matched = new Set(plans.flatMap((p) => p.retire.map((r) => r.row.id)))
   const unmatchedRetire = [...forced.keys()].filter((id) => !matched.has(id))
-  return { ok: !refused && !failed, apply: writing, refused, writeErrors, stamp, totals, notReached, unmatchedRetire, shelves, shops: shopResults, caps, journal: ctx.journal }
+  return { ok: !refused && !failed, apply: writing, refused, writeErrors, stamp: ctx.stamp, totals, notReached, unmatchedRetire, shelves, shops: shopResults, caps, journal: ctx.journal }
 }
 
 // ── The network side, shared by the route and the CLI ──────────────────────────────────────────────────────────────
@@ -906,7 +921,12 @@ export async function fetchFeedFacts(cfg: StoreConfig, ids: string[], sleep: (ms
       const prices = (r.prices ?? {}) as Record<string, unknown>
       const price = Number(prices.price ?? NaN) / 10 ** (Number(prices.currency_minor_unit ?? 0) || 0)
       if (!(price > 0)) continue // a "Liên hệ" product: listed, nothing to publish or reprice
-      facts.byId.set(id, { inStock: r.is_in_stock !== false, backorder: r.is_on_backorder === true, price: Math.round(price), name: clean(String(r.name ?? '')) })
+      // ⛔ A variable product's `prices.price` is its CHEAPEST variation: written only when the range is one price (the
+      // onePrice rule of secondhand-page.ts) — on sale either way.
+      const range = prices.price_range as { min_amount?: unknown; max_amount?: unknown } | null | undefined
+      // One price only on PROOF: no range at all, or both bounds there and equal (an empty range object proves nothing).
+      const one = !range || (range.min_amount != null && range.max_amount != null && String(range.min_amount) === String(range.max_amount))
+      facts.byId.set(id, { inStock: r.is_in_stock !== false, backorder: r.is_on_backorder === true, price: one ? Math.round(price) : undefined, name: clean(String(r.name ?? '')) })
     }
     if (soldEndpoint) {
       const soldRows = await ask(soldEndpoint, chunk)

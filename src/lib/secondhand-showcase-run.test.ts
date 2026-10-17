@@ -12,7 +12,7 @@ import type { FeedFacts, PageRead } from './secondhand-showcase'
 const h = vi.hoisted(() => ({ stores: [] as StoreConfig[] }))
 vi.mock('./partner-stores', () => ({ get PARTNER_STORES() { return h.stores } }))
 
-const { runShowcase, fetchPageHonest, shopAddress } = await import('./secondhand-showcase-run')
+const { runShowcase, fetchPageHonest, shopAddress, fetchFeedFacts } = await import('./secondhand-showcase-run')
 
 type L = {
   id: string; sellerId: string; status: string; listingType: string; price: number; title: string; titleVi: string | null
@@ -24,6 +24,8 @@ let poolTable = new Set<string>()
 let writes: string[] = []
 let sellers: { id: string; name: string; ownerId: string | null }[] = []
 let beforeRestore: (() => void) | null = null
+/** hidden_at as the trims wrote it. */
+const poolStamps = new Map<string, string>()
 /** Listings with an open report (the restore's NOT EXISTS). */
 let reported = new Set<string>()
 
@@ -45,7 +47,7 @@ const fakeDb = {
   },
   async $executeRawUnsafe(sql: string, ...v: unknown[]): Promise<number> {
     if (sql.includes('pg_advisory_xact_lock')) return 1
-    if (sql.startsWith('INSERT INTO "_hide_secondhand_20261016"')) { poolTable.add(String(v[0])); return 1 }
+    if (sql.startsWith('INSERT INTO "_hide_secondhand_20261016"')) { poolTable.add(String(v[0])); poolStamps.set(String(v[0]), String(v[1])); return 1 }
     writes.push(sql)
     const r = rows.find((x) => x.id === v[0])
     // The storefront guard every write carries (OWNERLESS_SQL).
@@ -137,7 +139,7 @@ const opts = { apply: true, skipShelfCaps: true, allowMass: true }
 beforeEach(() => {
   h.stores = [shopA(), shopB()]
   sellers = [{ id: 'sa', name: 'Shop A', ownerId: null }, { id: 'sb', name: 'Shop B', ownerId: null }]
-  writes = []; pages = {}; beforeRestore = null; reported = new Set()
+  writes = []; pages = {}; beforeRestore = null; reported = new Set(); poolStamps.clear()
   for (const k of Object.keys(hits)) delete hits[k]
   seed()
 })
@@ -489,4 +491,88 @@ describe('fetchPageHonest — the shop’s own hosts only', () => {
       expect(await fetchPageHonest('https://b.example/p/hop', 'b.example', sleep)).toMatchObject({ status: 200, finalUrl: 'https://b.example/p/here', html: '<html>ok</html>' })
     } finally { vi.unstubAllGlobals() }
   }, 15_000)
+})
+
+describe('runShowcase — what the answer and the rows say', () => {
+  it('⛔ a pool that cannot be read FAILS the run (a dropped table would drain every shelf, week after week)', async () => {
+    const real = fakeDb.$queryRawUnsafe
+    fakeDb.$queryRawUnsafe = (async (sql: string, ...v: unknown[]) => {
+      if (sql.includes('_hide_secondhand_20261016')) throw new Error('relation "_hide_secondhand_20261016" does not exist')
+      return real(sql, ...v)
+    }) as typeof real
+    try {
+      gone('b1')
+      const r = await runShowcase(deps(), opts)
+      expect(r.ok).toBe(false)
+      expect(R('b1').status).toBe('sold') // the retirements still land
+      expect(r.shops.some((x) => x.poolError)).toBe(true)
+    } finally { fakeDb.$queryRawUnsafe = real }
+  })
+
+  it('the stamp is taken as the writing starts — never dated back to the run’s start, minutes earlier', async () => {
+    let t = Date.parse('2026-10-19T00:00:00Z')
+    const d = { ...deps(), now: () => new Date((t += 60_000)) } // a minute passes at every look at the clock
+    gone('b1')
+    const r = await runShowcase(d, opts)
+    expect(r.stamp > '2026-10-19 00:01:00.000').toBe(true)
+    expect(R('b1').upd).toBe(r.stamp)
+  })
+
+  it('a shelf’s result names what LANDED when a write throws mid-shelf', async () => {
+    const real = fakeDb.$executeRawUnsafe
+    let n = 0
+    fakeDb.$executeRawUnsafe = (async (sql: string, ...v: unknown[]) => {
+      // Hides in shelf order: electronics/- (b2), then the phone shelf's two — the second of those throws.
+      if (sql.includes(`SET status = 'hidden'`) && ++n === 3) throw new Error('connection lost')
+      return real(sql, ...v)
+    }) as typeof real
+    try {
+      R('b1').subcategory = 'phones-tablets' // the phone shelf now has a1 a2 a3 b1: two trims there
+      const r = await runShowcase(deps(), opts)
+      const phones = r.shelves.find((x) => x.shelf === 'electronics/phones-tablets')!
+      expect(phones.trim.length).toBe(1) // the first trim landed and is reported; the second threw
+      expect(r.writeErrors.join(' ')).toMatch(/connection lost/)
+    } finally { fakeDb.$executeRawUnsafe = real }
+  })
+})
+
+describe('fetchFeedFacts — a WooCommerce variable product', () => {
+  it('⛔ a price RANGE writes no price (its `price` is the cheapest variation); one price is written', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify([
+      { id: 11, name: 'Ghế A', is_in_stock: true, prices: { price: '900000', currency_minor_unit: 0, price_range: { min_amount: '900000', max_amount: '1500000' } } },
+      { id: 12, name: 'Ghế B', is_in_stock: true, prices: { price: '700000', currency_minor_unit: 0, price_range: null } },
+      { id: 13, name: 'Ghế C', is_in_stock: true, prices: { price: '500000', currency_minor_unit: 0, price_range: {} } },
+    ]), { status: 200 })))
+    try {
+      const cfg = shopA({ adapter: 'woocommerce', endpoint: 'https://a.example/wp-json/wc/store/v1/products?per_page=100&page={page}' })
+      const f = await fetchFeedFacts(cfg, ['11', '12', '13'], async () => {})
+      expect(f.byId.get('11')).toMatchObject({ inStock: true, price: undefined })
+      expect(f.byId.get('12')).toMatchObject({ inStock: true, price: 700000 })
+      expect(f.byId.get('13')).toMatchObject({ inStock: true, price: undefined }) // an empty range proves nothing
+    } finally { vi.unstubAllGlobals() }
+  }, 15_000)
+})
+
+describe('runShowcase — a product on sale at several prices', () => {
+  it('⛔ is kept on sale but never repriced, never restored without a price, never retired — and said', async () => {
+    h.stores = [shopA({ adapter: 'woocommerce', endpoint: 'https://a.example/wp-json/wc/store/v1/products?per_page=100&page={page}' })]
+    sellers = [{ id: 'sa', name: 'Shop A', ownerId: null }]
+    const feed: FeedFacts = {
+      complete: true,
+      seen: new Set(['a1', 'a2', 'a3', 'a4', 'ap1', 'ap2']),
+      byId: new Map(['a1', 'a2', 'a3', 'a4', 'ap1', 'ap2'].map((id) => [id, { inStock: true, price: undefined, name: R(id).titleVi! }])),
+    }
+    R('a4').status = 'sold' // the laptop shelf asks its pool: ap1 is on sale, priced by nothing
+    const r = await runShowcase(deps(feed), opts)
+    expect(R('a2')).toMatchObject({ status: 'active', price: 1000000 })
+    expect(R('ap1').status).toBe('hidden')
+    expect(rows.filter((x) => x.status === 'sold').map((x) => x.id)).toEqual(['a4'])
+    expect(r.shops[0].priceRefused.map((x) => x.why)).toContain('on sale, but no one price read at the shop — none written')
+  })
+
+  it('a trim writes hidden_at from the run’s own stamp — one clock for the pool’s provenance test', async () => {
+    const r = await runShowcase(deps(), opts)
+    expect(poolStamps.get('a1')).toBe(r.stamp)
+    expect(R('a1').upd).toBe(r.stamp)
+  })
 })

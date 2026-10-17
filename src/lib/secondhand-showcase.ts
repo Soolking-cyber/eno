@@ -151,7 +151,8 @@ export function classifyFollowUp(domain: string, page: PageRead, data: PageRead)
 export type FeedFacts = {
   /** Every requested product was answered for (a feed page or an `include` query that failed makes this false). */
   complete: boolean
-  byId: Map<string, { inStock: boolean; price: number; name: string; backorder?: boolean }>
+  /** `price` only where the shop names ONE price for the product (a variable product's range is not one). */
+  byId: Map<string, { inStock: boolean; price?: number; name: string; backorder?: boolean }>
   /** Listed, priced or not (a "Liên hệ" product is listed without a usable price). */
   seen: Set<string>
   /** Products the shop has filed under its sold category (ShowcaseSignals.soldCategoryId). */
