@@ -91,10 +91,9 @@ const ON_ARRIVAL = [
   // The teacher card's "Identity verified" tick (2026-10-16): drawn by ListingCard (and the compact row) beside a marked
   // teacher's name, so on the home shelf, /c/teachers and the storefronts it paints on arrival — BadgeCheck, core.
   'src/components/marketplace/identity-verified-mark.tsx',
-  // Speed plan item 7 (2026-10-16): the search result line's "Save search", painted on arrival. ⚠️ The teacher landing's
-  // start screen (teacher-start.tsx — Briefcase/FileText/PencilLine, promoted the same day) is NOT listed: an unmerged
-  // branch (feature/teacher-photo-video) deletes that screen, and a guard entry would fail its merge on a missing file.
-  // Re-derive the landing's glyphs when that lands.
+  // Speed plan item 7 (2026-10-16): the search result line's "Save search", painted on arrival. The teacher landing's
+  // start screen (teacher-start.tsx) was never listed — teacher onboarding v3+v4 deleted it; the step 1 that replaced it
+  // is guarded by its rail below.
   'src/components/marketplace/result-line.tsx',
 ]
 
@@ -127,5 +126,41 @@ describe('glyphs painted on arrival stay in the core sprite', () => {
 
   it('carries the six category glyphs the home page draws on its first scroll (speed plan item 7, measured 2026-10-16)', () => {
     expect(CRITICAL_GLYPHS).toEqual(expect.arrayContaining(['Briefcase', 'Wrench', 'Smartphone', 'Plane', 'UtensilsCrossed', 'Sofa']))
+  })
+})
+
+/**
+ * ⛔ THE TEACHER FORM'S STEP RAIL PAINTS ON ARRIVAL (re-derived on production 2026-10-17). Since teacher onboarding v3+v4
+ * both teacher landings — teacher.eno.vn, the Meta ads' landing, and eno.vn/teachers/join, where its "Finish on eno.vn"
+ * leads — open on step 1, and the rail draws a STEP_ICON glyph for every step; three of them pulled the deferred file.
+ * teacher-form.tsx cannot join ON_ARRIVAL as a whole: it also imports glyphs drawn only after an interaction (Loader2 on
+ * a busy button), which belong in the deferred file. So the rail's own map is read, from the file.
+ */
+const TEACHER_FORM = 'src/components/teachers/teacher-form.tsx'
+
+function stepRailGlyphs(): string[] {
+  const src = readFileSync(join(process.cwd(), TEACHER_FORM), 'utf8')
+  const m = src.match(/const STEP_ICON\b[^=]*=\s*\{/)
+  if (m?.index === undefined) throw new Error('STEP_ICON not found in teacher-form.tsx — update this guard')
+  // The map's own closing brace, by depth — a multi-line object inside an entry cannot end the block early.
+  const open = m.index + m[0].length - 1
+  let end = open
+  for (let depth = 0; end < src.length; end++) {
+    if (src[end] === '{') depth++
+    else if (src[end] === '}' && --depth === 0) break
+  }
+  const block = src.slice(open, end + 1)
+  // Every glyph the file imports that the map names, however it names it (<Camera />, Camera, createElement(Camera)).
+  return iconImports(TEACHER_FORM).filter((g) => new RegExp(`\\b${g}\\b`).test(block))
+}
+
+describe("the teacher form's step rail stays inside the core sprite", () => {
+  it('finds the rail it is guarding', () => {
+    expect(stepRailGlyphs().length).toBeGreaterThanOrEqual(6)
+  })
+
+  it('draws no glyph that lives in the deferred sprite', () => {
+    const critical = new Set(CRITICAL_GLYPHS)
+    expect(stepRailGlyphs().filter((g) => !critical.has(g))).toEqual([])
   })
 })

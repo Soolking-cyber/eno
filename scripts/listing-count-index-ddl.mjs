@@ -1,3 +1,5 @@
+// ⛔ SUPERSEDED 2026-10-17 — this script builds NOTHING and exits 1 (so an old runbook line fails, never reports
+// success); the note at the end says where the index went. Everything above that note is history.
 // ONE ADDITIVE INDEX for the feed's COUNTs (2026-09-23, audit M2). IDEMPOTENT — safe to re-run.
 //
 // Run:  node scripts/listing-count-index-ddl.mjs
@@ -26,42 +28,10 @@
 // CONCURRENTLY build that fails leaves an INVALID index behind, and `IF NOT EXISTS` would then skip
 // the rebuild and report success over an index the planner never uses — so an INVALID leftover is
 // dropped first and rebuilt in the same run, and validity is checked again at the end.
-import 'dotenv/config'
-import pg from 'pg'
-
-const url = process.env.DIRECT_URL || process.env.DATABASE_URL
-if (!url) {
-  console.error('Set DIRECT_URL (or DATABASE_URL) — read from .env')
-  process.exit(1)
-}
-const NAME = 'Listing_verified_status_categoryId_sellerId_idx'
-const c = new pg.Client({ connectionString: url })
-await c.connect()
-try {
-  // A server-side statement_timeout would kill the build half-way and leave it INVALID every run.
-  await c.query('SET statement_timeout = 0')
-  // …but the build WAITS for every open transaction that can see Listing, and one idle-in-transaction
-  // session would hold it forever. Bound the wait instead: a timeout leaves an INVALID index, which
-  // the next run drops and rebuilds (above) — re-run it in a quieter moment.
-  await c.query(`SET lock_timeout = '2min'`)
-  const IN_PUBLIC = `ic.relname = $1 AND ic.relnamespace = 'public'::regnamespace`
-  const existing = await c.query(`SELECT i.indisvalid FROM pg_class ic JOIN pg_index i ON i.indexrelid = ic.oid WHERE ${IN_PUBLIC}`, [NAME])
-  if (existing.rows[0] && !existing.rows[0].indisvalid) {
-    console.warn(`${NAME} exists but is INVALID (a failed earlier build) — dropping it and rebuilding`)
-    await c.query(`DROP INDEX CONCURRENTLY IF EXISTS public."${NAME}"`)
-  }
-  await c.query(`CREATE INDEX CONCURRENTLY IF NOT EXISTS "${NAME}" ON public."Listing" ("verified", "status", "categoryId", "sellerId")`)
-  const after = await c.query(
-    `SELECT i.indisvalid, pg_size_pretty(pg_relation_size(ic.oid)) AS size
-       FROM pg_class ic JOIN pg_index i ON i.indexrelid = ic.oid WHERE ${IN_PUBLIC}`,
-    [NAME],
-  )
-  if (!after.rows[0]?.indisvalid) {
-    console.error(`${NAME} is not valid after the build — re-run this script (it drops and rebuilds an INVALID index)`)
-    process.exitCode = 1 // not process.exit(): let `finally` close the connection
-  } else {
-    console.log(`${NAME} ready (${after.rows[0].size})`)
-  }
-} finally {
-  await c.end()
-}
+//
+// ⛔ SUPERSEDED 2026-10-17 (speed plan item 9). Listing_verified_status_categoryId_sellerId_idx was replaced by the partial Listing_live_categoryId_sellerId_idx
+// (… AND verified AND status = 'active') in scripts/listing-index-diet-ddl.mjs, which also DROPS Listing_verified_status_categoryId_sellerId_idx.
+// Running the old body would rebuild a full index over 141k rows to serve 2k live ones — so this file now does nothing
+// but say where the index lives. The history above stays because it explains WHY the index exists.
+console.error('Listing_verified_status_categoryId_sellerId_idx is superseded by Listing_live_categoryId_sellerId_idx: node scripts/listing-index-diet-ddl.mjs --phase=create')
+process.exitCode = 1

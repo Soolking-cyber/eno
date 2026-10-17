@@ -1,6 +1,5 @@
-// Trigram GIN index on Listing.searchText so the keystroke search
-// ({ searchText: { contains } } → ILIKE '%term%') uses a bitmap index scan
-// instead of a sequential scan. Raw SQL because Prisma can't model GIN/trgm.
+// The pg_trgm extension the keystroke search's trigram index needs ({ searchText: { contains } } → LIKE '%term%').
+// The index itself moved to scripts/listing-index-diet-ddl.mjs (partial, live rows only — see below).
 // Idempotent; re-run after any DB reset. Run over DIRECT_URL (not the pooler):
 //   set -a; . ./.env; set +a; node scripts/search-index.mjs
 
@@ -16,13 +15,8 @@ await client.connect()
 // in autocommit, so these are fine sequentially.
 await client.query('create extension if not exists pg_trgm')
 console.log('✓ pg_trgm extension')
-await client.query(
-  'create index concurrently if not exists listing_searchtext_trgm on "Listing" using gin ("searchText" gin_trgm_ops)',
-)
-console.log('✓ listing_searchtext_trgm GIN index')
-
-const { rows } = await client.query(
-  "select indexname from pg_indexes where tablename = 'Listing' and indexname = 'listing_searchtext_trgm'",
-)
-console.log(rows.length ? '\n✓ trigram search index in place.' : '\n✗ MISSING')
+// ⛔ NO INDEX HERE ANY MORE (speed plan item 9, 2026-10-17). A FULL trigram GIN was 148 MB for 1.5% of rows any public
+// search can match; the search index is now the partial Listing_live_searchText_trgm_idx (WHERE verified AND status =
+// 'active'), built by scripts/listing-index-diet-ddl.mjs --phase=create. Creating a full one here would undo that.
+console.log('  the search index: node scripts/listing-index-diet-ddl.mjs --phase=create')
 await client.end()

@@ -659,7 +659,8 @@ model ListingDailyStat {
   createdAt DateTime @default(now())
 
   @@unique([listingId, day])
-  @@index([listingId])
+  // (No separate listingId index: the unique key above leads with listingId and serves those reads. Dropped
+  // 2026-10-17 by scripts/listing-index-diet-ddl.mjs.)
 }
 
 model Review {
@@ -937,51 +938,24 @@ model Listing {
 
   // Partner sync upserts by (sellerId, externalId) — unique per shop.
   @@unique([sellerId, externalId])
-  // Composite indexes for the hot feed paths (verified is always an equality
-  // predicate on public reads). [verified, postedAt] supersedes the standalone
-  // postedAt index for the default sort.
-  @@index([verified, postedAt])
+  // ── Indexes ─────────────────────────────────────────────────────────────────────────────────────────────────
+  // ⛔ MOST OF THIS MODEL'S INDEXES ARE PARTIAL AND LIVE IN scripts/listing-index-diet-ddl.mjs (speed plan item 9,
+  // 2026-10-17): Prisma cannot declare a partial index. Measured 2026-10-16: 141,032 rows, 2,122 live; 32 FULL
+  // indexes = 500 MB, nearly all of it rows no public query returns, and every write to a non-live row (imports,
+  // hides — 98.5% of the table) paid for all of them. Every index whose queries always ask for live rows is now
+  // `WHERE verified AND status = 'active'` there: rank, category × rank, category × seller (the counts), the
+  // subcategory / listingType / date feeds, brand, price, the range facets (year, areaM2, salaryM, mileageKm),
+  // buildingKey, lat/lng, a live copy of the trigram search on searchText (public search), and per-seller rank. Unused:
+  // views, complianceStatus, city, condition, featured, the two sellerTrustScore composites, verified + postedAt — each
+  // dropped by the script only once Postgres records no scan of it for a week.
+  // `prisma migrate diff` therefore lists the partial indexes as DROP INDEX — the safe flow (CLAUDE.md) refuses every
+  // DROP, so it never applies one. ⚠️ Do not add a FULL index here for a column the script covers: its write cost on
+  // 98% non-live rows is what the change removed. What stays below serves queries of ANY status.
+  // Any-status reads: the admin console's listing table, the tombstone cron.
   @@index([verified, status, postedAt])
-  @@index([verified, categoryId, postedAt])
-  @@index([complianceStatus])
-  // Balanced "Recommended" feed: ORDER BY rankScore desc (trust⊕recency blend, src/lib/
-  // ranking.ts). A local denormalized column means the ORDER BY is an index scan, not a
-  // Seller join + external sort. One for the all-categories feed, one by-category.
-  @@index([verified, status, rankScore])
-  @@index([verified, status, categoryId, rankScore])
-  // The feed's COUNTs (audit M2): every public count carries `sellerId NOT IN (desk)`, and no other
-  // index holds sellerId, so each one read the 366 MB heap — the whole-feed total was a 187 ms
-  // sequential scan and 13% of all database time. With sellerId in the key both the whole-feed and
-  // the per-category count stay INDEX-ONLY (an index-only count measured 36 ms). Applied by
-  // scripts/listing-count-index-ddl.mjs (CONCURRENTLY); nothing breaks if it is not there yet.
-  // ⚠️ APPLY IT WITH THAT SCRIPT, NEVER FROM `prisma migrate diff`: the diff emits a plain CREATE
-  // INDEX, which blocks every write to Listing while it builds, and inside the safe flow's BEGIN/COMMIT.
-  @@index([verified, status, categoryId, sellerId])
-  // Legacy trust-only ranked indexes (kept for the explicit price/popular tiebreaks).
-  @@index([verified, status, sellerTrustScore, postedAt])
-  @@index([verified, status, categoryId, sellerTrustScore, postedAt])
-  // Feed path filtered by category + intent (e.g. Vehicles · For rent), recency-sorted.
-  @@index([verified, status, categoryId, listingType, postedAt])
-  @@index([verified, status, categoryId, subcategorySlug, postedAt])
-  @@index([verified, status, brandSlug, postedAt])
-  @@index([verified, status, brandSlug, model])
-  @@index([verified, price])
-  // Vehicle range facets — narrow to the category, then range-scan the trailing
-  // numeric column (year/mileage apply to all vehicles). A B-tree uses leading
-  // equality cols + ONE trailing range col, so each range column gets its own.
-  @@index([verified, status, categoryId, year])
-  @@index([verified, status, categoryId, areaM2])
-  @@index([verified, status, categoryId, salaryM])
-  @@index([verified, status, categoryId, mileageKm])
-  /// Building grouping for the map: count units per project against the live feed filters.
-  /// Status is in the key because every such query is scoped to `status: 'active'`.
-  @@index([buildingKey, status])
+  // The Category foreign-key check, and category-wide admin reads.
   @@index([categoryId])
-  @@index([featured])
-  @@index([city])
-  @@index([condition])
-  @@index([views])
-  // ── Trade loop (three indexes, each written for ONE named query) ───────────────
+  // ── Trade loop (each index written for ONE named query) ───────────────────────
   // ⚠️ THE COLUMN ORDER IS THE POINT. A B-tree serves leading equality predicates and then
   // ONE trailing range; `IS NULL` is an equality-class predicate and is indexable, so the
   // "not answered yet" columns sit in the equality prefix, not after the range.
@@ -1009,16 +983,12 @@ model Listing {
   //         AND "complianceStatus" <> 'taken_down'
   //     (status/soldChannel/soldAt matter: without them the badge counts prompts on
   //     reactivated listings and on sales whose confirm window has already closed.)
-  //     soldToProfileId had NO index at all before this line (measured: pg_indexes on
+  //     soldToProfileId had NO index at all before 2026-09 (measured: pg_indexes on
   //     "Listing" matched nothing containing 'sold'), so this query was a seq scan.
-  @@index([soldToProfileId, saleConfirmedAt, saleDeclinedAt])
-  // (2) The re-prompt sweep (a cron nudging buyers who never answered):
-  //       WHERE "soldChannel" = 'eno' AND status = 'sold' AND "soldToProfileId" IS NOT NULL
-  //         AND "saleConfirmedAt" IS NULL AND "saleDeclinedAt" IS NULL
-  //         AND "soldAt" >= $windowCutoff
-  //         AND "complianceStatus" <> 'taken_down'
-  //     Three equality/IS NULL columns then the one range column, in that order.
-  @@index([soldChannel, saleConfirmedAt, saleDeclinedAt, soldAt])
+  //     ⚠️ Its index is PARTIAL since 2026-10-17 — `Listing_soldToProfileId_pending_idx`, WHERE
+  //     "soldToProfileId" IS NOT NULL — and so lives in scripts/listing-index-diet-ddl.mjs.
+  // (2) A re-prompt sweep was planned with its own index; it was never built, and the index (0 scans in
+  //     26 days) is retired by scripts/listing-index-diet-ddl.mjs (2026-10-17). Give a sweep an index when one exists.
   // (3) Trust's transaction count, which after this wave reads CONFIRMED sales instead of
   //     approximating from Listing.updatedAt (src/lib/trust.ts):
   //       WHERE "sellerId" = $seller AND status = 'sold' AND "soldChannel" = 'eno'
@@ -1032,9 +1002,10 @@ model Listing {
   // NOTE — deliberately NO index for sold-price guidance. Its consumer is the nightly
   // /api/cron/price-stats aggregate, which reads the whole table by brand+model in one
   // pass; a row-level index does not serve a full aggregate and would only cost writes.
-  // Accelerates the accent-folded search (`searchText LIKE '%term%'`). Requires the
-  // pg_trgm extension (already installed). Trivial at current row counts but keeps
-  // search from sequential-scanning as the catalog grows.
+  // Accelerates the accent-folded search (`searchText LIKE '%term%'`). Requires the pg_trgm extension. Since 2026-10-17
+  // public search reads a PARTIAL live copy (Listing_live_searchText_trgm_idx, scripts/listing-index-diet-ddl.mjs); this
+  // FULL one stays for admin search, which reads every status ('all' by default): measured without it 150–800 ms per
+  // query (a sequential read of the whole table), with it 1–20 ms.
   @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
 }
 
@@ -1680,7 +1651,8 @@ model Translation {
   createdAt DateTime @default(now())
 
   @@unique([hash, target])
-  @@index([target])
+  // (No target index: every lookup carries hash — the unique key serves it. Dropped 2026-10-17 by
+  // scripts/listing-index-diet-ddl.mjs.)
 }
 
 // ── eno.forum ────────────────────────────────────────────────────────────────

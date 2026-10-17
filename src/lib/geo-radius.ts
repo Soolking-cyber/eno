@@ -113,7 +113,8 @@ export function parseRadiusParams(sp: URLSearchParams): RadiusQuery | null {
  * ⚠️ `not: null` ON BOTH COLUMNS IS EXPLICIT, not left to the range test. A row with no coordinate
  * cannot be in the box, and 69% of this table has none (33,621 of 108,810 rows carry one), so
  * saying it out loud keeps it a decision rather than a side effect of three-valued logic — and it
- * matches the partial index in scripts/geo-index-ddl.mjs, which is built on exactly that predicate.
+ * matches the partial Listing_live_lat_lng_idx (scripts/listing-index-diet-ddl.mjs), which is built on exactly that
+ * predicate plus the live one (`verified AND status = 'active'`) every caller adds through the scoped feed `where`.
  */
 export function radiusWhere(q: RadiusQuery) {
   const b = radiusBoundingBox(q)

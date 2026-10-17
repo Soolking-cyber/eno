@@ -40,12 +40,12 @@ if (!url) {
   process.exit(1)
 }
 
+// ⛔ THE INDEX MOVED (speed plan item 9, 2026-10-17): the full ("buildingKey", status) index was replaced by the partial
+// Listing_live_buildingKey_idx (WHERE "buildingKey" IS NOT NULL AND verified AND status = 'active') in
+// scripts/listing-index-diet-ddl.mjs — every building query is scoped to live rows. Re-creating the old one here would
+// put back the write cost the diet removed, so this script now adds the column only.
 const STATEMENTS = [
   ['Listing.buildingKey', 'ALTER TABLE "Listing" ADD COLUMN IF NOT EXISTS "buildingKey" TEXT'],
-  [
-    'Listing_buildingKey_status_idx',
-    'CREATE INDEX CONCURRENTLY IF NOT EXISTS "Listing_buildingKey_status_idx" ON "Listing" ("buildingKey", "status")',
-  ],
 ]
 
 const client = new pg.Client({ connectionString: url })
@@ -64,18 +64,7 @@ try {
   )
   console.log('\n  verify column:', rows[0] ?? 'MISSING')
 
-  // ⚠️ An index that failed to build is left INVALID and is silently NOT USED by the planner.
-  const { rows: idx } = await client.query(
-    `SELECT i.relname AS name, ix.indisvalid AS valid
-       FROM pg_class i
-       JOIN pg_index ix ON ix.indexrelid = i.oid
-      WHERE i.relname = 'Listing_buildingKey_status_idx'`,
-  )
-  console.log('  verify index: ', idx[0] ?? 'MISSING')
-  if (idx[0] && idx[0].valid === false) {
-    console.error('\n  ⛔ INDEX IS INVALID — drop it and re-run, or queries will seq-scan Listing.')
-    process.exitCode = 1
-  }
+  console.log('  (the building index is scripts/listing-index-diet-ddl.mjs → Listing_live_buildingKey_idx)')
 } finally {
   await client.end()
 }
