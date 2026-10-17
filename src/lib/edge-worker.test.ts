@@ -357,15 +357,30 @@ describe('edge Worker — the /vi pilot (V4)', () => {
     }
   })
 
-  it('pilot on: every other path still negotiates — /vietnam-evisa, /c/rentals, /privacy, a sub-path, a slash', async () => {
+  it('pilot on: every other path still negotiates — /c/rentals, /privacy, a sub-path, a slash', async () => {
     const w = await workerWith(PILOT)
     await pilotOrigin()
-    for (const path of ['/vietnam-evisa', '/vietnam', '/video', '/c/rentals', '/privacy', '/c/furniture-appliances/binh-trung', '/c/furniture-appliances/', '/C/furniture-appliances']) {
+    for (const path of ['/c/rentals', '/privacy', '/c/furniture-appliances/binh-trung', '/c/furniture-appliances/']) {
       for (const headers of combos) {
         h.matched = []
         await callOn(w, `https://eno.vn${path}`, headers)
         const expected = langVariantFor(new RequestCookies(new Headers(headers)).get(LANG_COOKIE)?.value, headers['accept-language'] ?? null)
         expect(keyVariant(), `${path} ${JSON.stringify(headers)}`).toBe(expected)
+      }
+    }
+  })
+
+  it('pilot on: a path that only LOOKS like the pilot\'s is never keyed at all — /vietnam-evisa, /video, a capital /C/ (speed plan item 10)', async () => {
+    // These were never routed (`/vi*` is the forbidden pattern; route paths are case-sensitive). Under the catch-all they
+    // reach the Worker, and cacheablePath hands them straight to the origin: never keyed, so never pinned either way.
+    const w = await workerWith(PILOT)
+    await pilotOrigin()
+    for (const path of ['/vietnam-evisa', '/vietnam', '/video', '/C/furniture-appliances']) {
+      for (const headers of combos) {
+        h.matched = []; h.store.clear()
+        await callOn(w, `https://eno.vn${path}`, headers)
+        expect(h.matched, `${path} ${JSON.stringify(headers)}`).toEqual([])
+        expect(h.store.size).toBe(0)
       }
     }
   })
@@ -482,5 +497,116 @@ describe('edge Worker — Server-Timing for the page-speed totals (speed plan it
       await callCf(ADAPTIVE, { rsc: '1' }),
       await callCf('/api/x'),
     ]) expect(r.headers.get('server-timing')).toBeNull()
+  })
+})
+
+describe('edge Worker — the catch-all route (speed plan item 10)', () => {
+  /** Every request the cache logic handles reads the cache first; a pass-through never does. */
+  const throughCache = async (path: string) => {
+    h.matched = []
+    await call(path)
+    return h.matched.length > 0
+  }
+
+  it('a path the old routes did not cover is handed to the origin untouched — no cache read, no timing, same URL', async () => {
+    for (const path of ['/listings/abc', '/dashboard', '/teachers/join', '/messages/x', '/vietnam-evisa', '/vi-en', '/c', '/sellers',
+      '/robots.txt', '/manifest.webmanifest', '/saved?x=1']) {
+      h.matched = []; h.origin = []
+      const r = await call(path)
+      expect(h.matched, path).toEqual([])
+      expect(r.headers.get('server-timing'), path).toBeNull()
+      expect(h.origin.map((q) => q.url), path).toEqual([`https://eno.vn${path}`])
+    }
+  })
+
+  it('every path the old routes covered still goes through the cache — and the home page now WITH a query', async () => {
+    for (const path of ['/', '/?q=fridge', '/?category=rentals', '/c/rentals', '/c/rentals?q=studio', '/privacy', '/safety', '/safety-tips',
+      '/terms', '/terms/old', '/sellers/s1', '/vi', '/vi/c/rentals']) {
+      expect(await throughCache(path), path).toBe(true)
+    }
+  })
+
+  it('a click id or campaign tag does not split the entry: the tagged visit HITs what the plain one stored', async () => {
+    const plain = await call('/c/rentals')
+    expect(plain.headers.get('x-eno-cache')).toBe('MISS')
+    for (const q of ['fbclid=IwAR123', 'utm_source=facebook&utm_medium=paid&utm_campaign=c1', 'zarsrc=31&utm_source=zalo&gidzl=abc', 'FBCLID=x&UTM_TERM=y',
+      'gclid=a&gbraid=b&srsltid=c&ttclid=d&msclkid=e&igshid=f&_gl=g&mc_cid=h']) {
+      const tagged = await call(`/c/rentals?${q}`)
+      expect(tagged.headers.get('x-eno-cache'), q).toBe('HIT')
+    }
+    expect(h.origin).toHaveLength(1)
+  })
+
+  it('the key drops only the tags — the rest of the query keeps its own entry, in the reader\'s order', async () => {
+    const keyOf = async (path: string) => { h.matched = []; await call(path); return h.matched[0] }
+    expect(await keyOf('/?fbclid=1')).toBe('https://eno.vn/?__k=en')
+    expect(await keyOf('/?category=rentals&fbclid=1&sort=new')).toBe('https://eno.vn/?category=rentals&sort=new&__k=en')
+    // Not tags: an unknown name is assumed to change the page.
+    expect(await keyOf('/c/rentals?ref=abc&utm=1')).toBe('https://eno.vn/c/rentals?ref=abc&utm=1&__k=en')
+    // The same parameters to Next share one entry, whatever the spelling.
+    expect(await keyOf('/c/rentals?q=a%20b')).toBe(await keyOf('/c/rentals?q=a+b&fbclid=x'))
+  })
+
+  it('the origin still gets the reader\'s whole URL — only the KEY drops the tags', async () => {
+    await call('/c/rentals?q=x&fbclid=IwAR9&utm_source=zalo')
+    expect(h.origin.map((q) => q.url)).toEqual(['https://eno.vn/c/rentals?q=x&fbclid=IwAR9&utm_source=zalo'])
+  })
+
+  it('a MISS answers without waiting for the store — a put that never settles cannot hold the reader', async () => {
+    vi.stubGlobal('caches', {
+      default: {
+        match: async () => undefined,
+        put: () => new Promise(() => {}),
+        delete: async () => true,
+      },
+    })
+    const r = await call('/terms', { 'accept-language': 'vi' })
+    expect(r.headers.get('x-eno-cache')).toBe('MISS')
+    expect(await r.text()).toBe('<html lang="vi">x</html>')
+    expect(r.headers.get('x-eno-diag')).toBeNull()
+    expect(h.waits).toHaveLength(1)
+  })
+
+  it('a put that REJECTS still answers the reader, and says so in the Worker log', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.stubGlobal('caches', {
+      default: {
+        match: async () => undefined,
+        put: async () => { throw new Error('quota') },
+        delete: async () => true,
+      },
+    })
+    const r = await call('/terms')
+    expect(r.status).toBe(200)
+    expect(r.headers.get('x-eno-cache')).toBe('MISS')
+    await Promise.all(h.waits)
+    expect(warn).toHaveBeenCalledWith('eno-html-edge-cache: cache.put failed:', 'quota')
+  })
+
+  it('fails open only for the GETs it caches — a write or a passed-through page is never re-sent by the runtime', async () => {
+    const pass = vi.fn()
+    const failOpen = { waitUntil: ctx.waitUntil, passThroughOnException: pass }
+    await worker.fetch(new Request('https://eno.vn/terms'), {}, failOpen)
+    expect(pass).toHaveBeenCalledTimes(1)
+    await worker.fetch(new Request('https://eno.vn/dashboard'), {}, failOpen)
+    await worker.fetch(new Request('https://eno.vn/post', { method: 'POST', body: 'x' }), {}, failOpen)
+    await worker.fetch(new Request('https://eno.vn/', { method: 'POST', body: 'x' }), {}, failOpen)
+    await worker.fetch(new Request('https://eno.vn/c/rentals', { headers: { rsc: '1' } }), {}, failOpen)
+    expect(pass).toHaveBeenCalledTimes(1)
+  })
+
+  it('the forum\'s canonical host behaves the same — and its entries never answer eno.vn (the key carries the host)', async () => {
+    const at = (url: string) => worker.fetch(new Request(url, { headers: { 'accept-language': 'vi' } }), {}, ctx) as Promise<Response>
+    expect((await at('https://www.eno.forum/')).headers.get('x-eno-cache')).toBe('MISS')
+    expect((await at('https://www.eno.forum/?fbclid=IwAR1&utm_source=zalo')).headers.get('x-eno-cache')).toBe('HIT')
+    expect([...h.store.keys()]).toEqual(['https://www.eno.forum/?__k=vi'])
+    // The same path on eno.vn is its own entry.
+    expect((await at('https://eno.vn/privacy')).headers.get('x-eno-cache')).toBe('MISS')
+    expect((await at('https://www.eno.forum/privacy')).headers.get('x-eno-cache')).toBe('MISS')
+    // A forum page the Worker does not cache is handed through.
+    h.matched = []
+    const r = await at('https://www.eno.forum/brands')
+    expect(h.matched).toEqual([])
+    expect(r.headers.get('server-timing')).toBeNull()
   })
 })
