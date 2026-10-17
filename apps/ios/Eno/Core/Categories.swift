@@ -48,7 +48,8 @@ enum Categories {
     // all but empty, so the web's category rail, footer and shortcuts dropped them — while this app's
     // grids still led with Vehicles. books-stationery has never been in `all`; it is listed so the set
     // reads exactly like the web's.
-    static let retiredFromBrowse: Set<String> = ["vehicles", "pets", "books-stationery", "hobbies-sports"]
+    // Vehicles came back on 2026-10-17 (the web's RETIRED_NAV_CATEGORIES): a person's bike for sale needs a shelf.
+    static let retiredFromBrowse: Set<String> = ["pets", "books-stationery", "hobbies-sports"]
 
     // The categories the BROWSE surfaces offer: the home grid, the Quick-find rail and the search
     // screen's "Popular" chips. ⚠️ `all` STAYS THE FULL LIST, ON PURPOSE: the web keeps these shelves

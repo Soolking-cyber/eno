@@ -12,13 +12,19 @@
  * renders; only the browse surfaces stop offering an empty shelf. (Blocking posting is a separate
  * owner decision — `isPostableCategory` is untouched.)
  *
- * ⛔ A LEAF MODULE WITH NO IMPORTS: next.config.ts imports it for the vehicles redirects, and next.config
- * resolves no `@/` alias.
+ * ⛔ A LEAF MODULE WITH NO IMPORTS: next.config.ts imports it for the retired-category redirects (today only
+ * /motorbikes-for-sale-vietnam), and next.config resolves no `@/` alias.
  */
-export const RETIRED_NAV_CATEGORIES: ReadonlySet<string> = new Set(['vehicles', 'pets', 'books-stationery', 'hobbies-sports'])
+/**
+ * ⛔ VEHICLES CAME BACK (owner, 2026-10-17: "someone uploaded motorbike for sale but i cant see vehicles category"). A
+ * person's bike for sale had no shelf to be found on: Vehicles holds only goods FOR SALE (rentals live under rentals/*),
+ * so with it retired the category simply vanished for the people posting in it. It is a browse shelf again, and
+ * /c/vehicles renders instead of redirecting (REDIRECTED_CATEGORY_SLUGS).
+ */
+export const RETIRED_NAV_CATEGORIES: ReadonlySet<string> = new Set(['pets', 'books-stationery', 'hobbies-sports'])
 
 /**
- * Every category NO browse surface links: the four above, plus the ones measured empty — `property`,
+ * Every category NO browse surface links: the three retired above, plus the ones measured empty — `property`,
  * `moving-sale`, `community-events` (0 live, 2026-09-27) and `sports` (0 live since SuperSports was hidden,
  * 2026-10-02). The footer grid (FOOTER_HIDDEN_CATEGORIES) and the "Other categories" chips on every
  * /c/<slug> page both read this, so the two can never disagree about which shelves are dead ends.
@@ -27,7 +33,7 @@ export const RETIRED_NAV_CATEGORIES: ReadonlySet<string> = new Set(['vehicles', 
  */
 export const UNLINKED_CATEGORIES: ReadonlySet<string> = new Set(['property', 'moving-sale', 'community-events', 'sports', ...RETIRED_NAV_CATEGORIES])
 
-/** True when `slug` is one of the four the browse surfaces no longer offer. */
+/** True when `slug` is one of the shelves the browse surfaces no longer offer. */
 export const isRetiredNavCategory = (slug: string | null | undefined): boolean => !!slug && RETIRED_NAV_CATEGORIES.has(slug)
 
 /**
@@ -47,12 +53,15 @@ type Redirect = { source: string; destination: string; permanent: boolean }
  * The categories whose /c/ pages (and district pages) redirect, on both editions. Pets, books and hobbies
  * keep their pages, reachable by URL but `noindex` and out of the sitemap (isRetiredNavCategory, read by
  * c/[category]/(index)/page.tsx, c/[category]/[district]/page.tsx and pages.xml/build.ts).
+ * ⛔ EMPTY SINCE 2026-10-17: /c/vehicles was the one (2026-10-03 → 10-17, to the motorbike-rental hub); it is a
+ * shelf again (RETIRED_NAV_CATEGORIES above). ⚠️ Browsers that cached the permanent 308 keep following it until
+ * their cache lets go — a 308 cannot be recalled; the page and every link to it are right from the deploy on.
  */
-export const REDIRECTED_CATEGORY_SLUGS: readonly string[] = ['vehicles']
+export const REDIRECTED_CATEGORY_SLUGS: readonly string[] = []
 
 /**
- * `/c/vehicles` (and its district pages) and `/motorbikes-for-sale-vietnam` → the HCMC motorbike-rental
- * hub, permanently (308) — the mapping the owner's brief named (2026-10-03). Vehicles held 2 live rows after
+ * `/motorbikes-for-sale-vietnam` (and, 2026-10-03 → 10-17, `/c/vehicles` with its district pages) → the HCMC
+ * motorbike-rental hub, permanently (308) — the mapping the owner's brief named (2026-10-03). Vehicles held 2 live rows after
  * the hide and the for-sale landing 0 motorbikes, while the rental hubs carry thousands of live bikes.
  *
  * ⛔ ONE TARGET FOR EVERY VISITOR — NO LANGUAGE TWIN (commit-gate review, 2026-10-03). A first cut sent a

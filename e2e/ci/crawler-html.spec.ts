@@ -212,7 +212,8 @@ test('text typed into the category search box before hydration is searched, and 
   const chunks = new Promise<void>((resolve) => { release = resolve })
   await page.route(/\/_next\/static\/chunks\/.+\.js(\?|$)/, async (route) => { await chunks; await route.continue().catch(() => {}) })
   try {
-    // ⚠️ /c/electronics, NOT /c/vehicles (second-hand focus, 2026-10-03): /c/vehicles now 308s to the motorbike-rental hub.
+    // ⚠️ /c/electronics, NOT /c/vehicles: /c/vehicles 308'd to the motorbike-rental hub from 2026-10-03 to 10-17, and
+    // holds a handful of rows since — electronics is the shelf with stock.
     await page.goto(CATEGORY, { waitUntil: 'domcontentloaded' })
     // One `$RC("B:n","S:n")` per pending boundary, so count the boundaries' placeholders (held, so none has completed).
     const pending = await page.locator(PLACEHOLDER).count()

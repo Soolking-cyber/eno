@@ -677,11 +677,11 @@ describe('the pages child: lastmod from what each page shows', () => {
 
   /**
    * ⛔ SECOND-HAND FOCUS, 2026-10-03 (src/lib/retired-categories.ts): a retired shelf is never submitted, on
-   * either edition, however many live rows it holds. /c/vehicles (and its district pages) and
-   * /motorbikes-for-sale-vietnam 308 to the motorbike-rental hub on BOTH editions — a submitted URL that
-   * redirects is a Search Console error; /c/pets, /c/books-stationery and /c/hobbies-sports serve noindex — a
-   * submitted noindex URL is the other one. Each shelf here holds enough rows for its category page AND a
-   * district page to qualify, so only the retirement rule can keep them out.
+   * either edition, however many live rows it holds. /motorbikes-for-sale-vietnam 308s to the motorbike-rental hub
+   * on BOTH editions — a submitted URL that redirects is a Search Console error; /c/pets, /c/books-stationery and
+   * /c/hobbies-sports serve noindex — a submitted noindex URL is the other one. Each shelf here holds enough rows for
+   * its category page AND a district page to qualify, so only the retirement rule can keep them out.
+   * /c/vehicles is a shelf again (owner, 2026-10-17): with the same rows it IS submitted, a second control.
    */
   it('never submits a retired shelf or its district pages, nor /motorbikes-for-sale-vietnam, on either edition', async () => {
     h.rows = [
@@ -692,13 +692,15 @@ describe('the pages child: lastmod from what each page shows', () => {
       // The control: a live shelf with the same rows IS submitted, page and district.
       ...many(MIN_INDEXABLE_LISTINGS, 'coat', { categoryId: 'cat-fashion', district: 'Quận 5' }),
     ]
-    const RETIRED = ['vehicles', 'books-stationery', 'hobbies-sports', 'pets']
+    const RETIRED = ['books-stationery', 'hobbies-sports', 'pets']
     for (const services of [false, true]) {
       h.services = services
       const urls = locs(await (await pagesGET()).text())
       for (const slug of RETIRED) expect(urls.filter((u) => u.includes(`/c/${slug}`)), `${slug}, services=${services}`).toEqual([])
       expect(urls).not.toContain(`${HOST}/motorbikes-for-sale-vietnam`)
       expect(urls).toContain(`${HOST}/c/fashion-beauty`)
+      expect(urls).toContain(`${HOST}/c/vehicles`)
+      expect(urls.some((u) => u.startsWith(`${HOST}/c/vehicles/`)), `vehicles district, services=${services}`).toBe(true)
       expect(urls.some((u) => u.startsWith(`${HOST}/c/fashion-beauty/`)), `control district, services=${services}`).toBe(true)
     }
   })

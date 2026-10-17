@@ -58,10 +58,11 @@ afterEach(() => {
 })
 
 const EDITIONS: Edition[] = ['marketplace', 'services']
-// + the shelves the second-hand focus emptied (2026-10-03) and sports (0 live since 2026-10-02).
+// + the shelves the second-hand focus emptied (2026-10-03) and sports (0 live since 2026-10-02). Not /c/vehicles
+// since 2026-10-17: a shelf again (owner), holding people's listings (2 live, measured that day), so the grid links it.
 const DEAD = [
   '/motorbikes-for-sale-vietnam', '/c/property', '/c/moving-sale', '/c/community-events',
-  '/c/vehicles', '/c/pets', '/c/books-stationery', '/c/hobbies-sports', '/c/sports',
+  '/c/pets', '/c/books-stationery', '/c/hobbies-sports', '/c/sports',
 ]
 
 describe('Footer links', () => {

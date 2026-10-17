@@ -79,20 +79,21 @@ describe('GET /api/category-rails', () => {
   })
 
   it('keeps MAX_RAILS full when a retired category would have ranked inside it', async () => {
-    // Vehicles ranks 2nd and pets last; ten live categories remain. Cutting to MAX_RAILS (10) BEFORE dropping
-    // vehicles would have cut `sports` (11th) and then shown nine rails.
+    // Books ranks 2nd and pets last; ten live categories remain. Cutting to MAX_RAILS (10) BEFORE dropping
+    // books would have cut `sports` (11th) and then shown nine rails. (Books, not vehicles as this read before
+    // 2026-10-17: Vehicles is a shelf again.)
     // ⚠️ `sports`, not `teachers` as this read before 2026-10-10: teachers is in the lead now, and teacher
     // profiles never reach this groupBy on production (scopedListingWhere keeps them out of listing shelves).
-    h.categories.push({ id: 'id-vehicles', slug: 'vehicles' }, { id: 'id-pets', slug: 'pets' }, { id: 'id-sports', slug: 'sports' })
+    h.categories.push({ id: 'id-pets', slug: 'pets' }, { id: 'id-sports', slug: 'sports' })
     h.groups = [
-      { categoryId: 'id-vehicles', _count: { _all: 9 }, _sum: { views: 995, contactCount: 0 } },
+      { categoryId: 'id-books-stationery', _count: { _all: 9 }, _sum: { views: 995, contactCount: 0 } },
       ...h.groups.filter((g) => !['id-hobbies-sports', 'id-books-stationery'].includes(g.categoryId)),
       { categoryId: 'id-sports', _count: { _all: 4 }, _sum: { views: 2, contactCount: 0 } },
       { categoryId: 'id-pets', _count: { _all: 5 }, _sum: { views: 1, contactCount: 0 } },
     ]
     const slugs = await rails()
     expect(slugs).toHaveLength(10)
-    expect(slugs).not.toContain('vehicles')
+    expect(slugs).not.toContain('books-stationery')
     expect(slugs).not.toContain('pets')
     expect(slugs.at(-1)).toBe('sports')
   })
