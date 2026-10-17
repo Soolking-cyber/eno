@@ -16,6 +16,8 @@
  * IT. A guessed endpoint that 404s is worse than an honest gap — see each entry's `note` for what
  * was measured and what it cost.
  */
+import type { ShowcaseSignals } from './secondhand-showcase'
+
 export type StoreConfig = {
   domain: string
   name: string
@@ -75,6 +77,11 @@ export type StoreConfig = {
    * claim about the goods; how to tell these shops' used stock apart is the owner's call (plan D4).
    */
   refreshOnly?: string
+  /**
+   * The weekly second-hand showcase check's evidence rules for this shop (owner, 2026-10-17 — src/lib/secondhand-showcase.ts):
+   * what its "sold" and "removed" pages look like, each rule measured on real pages and cited in the shop's `note`.
+   */
+  showcase?: ShowcaseSignals
 }
 
 /** The one shape every adapter normalises to — deliberately the same fields the AccessTrade feed
@@ -103,9 +110,9 @@ export type PartnerProduct = {
  * this is and, if they object, block it. Spoofing a browser to look like a person is the thing that
  * turns an integration into an incident.
  */
-const UA = 'Mozilla/5.0 (compatible; eno-partner-fetch/1.0; +https://eno.vn)'
+export const UA = 'Mozilla/5.0 (compatible; eno-partner-fetch/1.0; +https://eno.vn)'
 /** Politeness gap between requests to the SAME host. These are small shops on shared hosting. */
-const DELAY_MS = 1200
+export const DELAY_MS = 1200
 /** Owner asked for at least 5; the cap keeps a 40-photo gallery from costing 40 uploads. */
 const MAX_IMAGES = 5
 /**
@@ -166,7 +173,7 @@ const newReadLog = (): ReadLog => ({ attempted: 0, failed: 0, fatal: false })
 const ENTITIES: Record<string, string> = {
   amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', hellip: '…', ndash: '–', mdash: '—',
 }
-function clean(html: string): string {
+export function clean(html: string): string {
   return html
     .replace(/<[^>]+>/g, ' ')
     .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
@@ -315,7 +322,7 @@ async function fetchHaravan(cfg: StoreConfig, LIMIT: number, log: ReadLog): Prom
  * @graph array containing one, and a top-level array. Handling only the first finds nothing on
  * roughly half of them.
  */
-function findProductNode(json: unknown): Record<string, unknown> | null {
+export function findProductNode(json: unknown): Record<string, unknown> | null {
   /**
    * ⛔ `@type` IS OFTEN THE FULLY-QUALIFIED URI, NOT THE BARE WORD. schema.org permits both, and
    * comparing against the string 'Product' silently rejects every shop that emits the URI form.
