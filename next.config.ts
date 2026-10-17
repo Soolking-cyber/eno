@@ -1304,7 +1304,11 @@ const nextConfig: NextConfig = {
       // data: URL that the loader fetch()es into an ArrayBuffer. Without this, connect-src blocks that
       // fetch; Chrome has a fallback path but iOS Safari does not, so the engine silently fails to init
       // and passport autofill never runs on iPhone. data: is inline (no network egress), so this is safe.
-      `connect-src 'self' data: capacitor: ${SUPABASE_ORIGIN} ${SUPABASE_WS} https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com` + gsiConnect,
+      // GA4 also posts hits to analytics.google.com / region1.analytics.google.com (blocked in the console,
+      // 2026-10-17). ⛔ NOT www.google.com or www.google.<country>: those are Google Signals / ga-audiences
+      // beacons, switched off at the source instead (analytics-tags.tsx) — eno runs no Google Ads, and
+      // admitting them would open connect-src to all of www.google.com plus one host per visitor country.
+      `connect-src 'self' data: capacitor: ${SUPABASE_ORIGIN} ${SUPABASE_WS} https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com https://region1.analytics.google.com https://www.googletagmanager.com` + gsiConnect,
       "frame-src 'self' https://td.doubleclick.net https://challenges.cloudflare.com" + gsiFrame + xmFrame,
       "worker-src 'self' blob:",
       "manifest-src 'self'",
