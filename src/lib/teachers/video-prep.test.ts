@@ -4,11 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // The required intro video's preparation (2026-10-16): the post wizard's rules (type, ≤ 60 s with 61 for rounding,
 // compression over the 50 MB ceiling, HEVC flagged) — and, because a profile cannot publish without one, a clip whose
 // length this browser cannot read still goes up when it needs no shrinking.
-const h = vi.hoisted(() => ({ duration: 30 as number, compressOk: true, compressSupported: true, hevc: false }))
+const h = vi.hoisted(() => ({ duration: 30 as number, compressOk: true, compressSupported: true, hevc: false, compressReason: undefined as string | undefined }))
 vi.mock('@/lib/video-compress', () => ({
   VIDEO_PICK_MAX_BYTES: 150 * 1024 * 1024,
   videoCompressionSupported: () => h.compressSupported,
-  compressVideo: async (f: File) => { if (!h.compressOk) throw new Error('x'); return new File([new Uint8Array(10)], f.name.replace(/\.\w+$/, '.mp4'), { type: 'video/mp4' }) },
+  compressVideo: async (f: File) => { if (!h.compressOk) throw Object.assign(new Error('x'), { reason: h.compressReason }); return new File([new Uint8Array(10)], f.name.replace(/\.\w+$/, '.mp4'), { type: 'video/mp4' }) },
 }))
 vi.mock('@/lib/video-upload-client', () => ({ VIDEO_UPLOAD_MAX_BYTES: 50 * 1024 * 1024, hasHevcTrack: async () => h.hevc }))
 
@@ -22,7 +22,7 @@ const clip = (bytes: number, name = 'hello.mp4', type = 'video/mp4') => {
 
 const realCreate = document.createElement.bind(document)
 beforeEach(() => {
-  Object.assign(h, { duration: 30, compressOk: true, compressSupported: true, hevc: false })
+  Object.assign(h, { duration: 30, compressOk: true, compressSupported: true, hevc: false, compressReason: undefined })
   vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => {} }))
   vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
     if (tag !== 'video') return realCreate(tag)
@@ -59,6 +59,15 @@ describe('prepareTeacherVideo', () => {
     expect(await prepareTeacherVideo(clip(120 * MB))).toEqual({ error: 'cannot_compress' })
     h.compressSupported = true
     h.compressOk = false
+    expect(await prepareTeacherVideo(clip(120 * MB))).toEqual({ error: 'compress_failed' })
+  })
+  it('a picture this browser cannot read, or the page left mid-run, says so — its remedy differs; any other failure is compress_failed', async () => {
+    h.compressOk = false
+    h.compressReason = 'no_picture'
+    expect(await prepareTeacherVideo(clip(120 * MB))).toEqual({ error: 'no_picture' })
+    h.compressReason = 'interrupted'
+    expect(await prepareTeacherVideo(clip(120 * MB))).toEqual({ error: 'interrupted' })
+    h.compressReason = 'timeout'
     expect(await prepareTeacherVideo(clip(120 * MB))).toEqual({ error: 'compress_failed' })
   })
   it('⛔ a length this browser cannot read (a recorded WebM\'s Infinity, an HEVC .mov it cannot open): under 50 MB it still goes up; over, it is refused', async () => {

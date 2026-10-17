@@ -193,9 +193,15 @@ export function usePostMedia({
           const compressedUrl = trackBlobUrl(URL.createObjectURL(compressed))
           setVideo((prev) => { if (prev?.url.startsWith('blob:')) URL.revokeObjectURL(prev.url); return { url: compressedUrl, file: compressed, hevc: false } })
           toast.success(t(`Video đã được nén còn ${Math.round(compressed.size / 1024 / 1024)}MB.`, `Video compressed to ${Math.round(compressed.size / 1024 / 1024)}MB.`), { id: toastId })
-        } catch {
+        } catch (e) {
           URL.revokeObjectURL(url)
-          toast.error(t('Không thể nén video này — hãy thử video ngắn hơn hoặc chất lượng thấp hơn.', 'Could not compress this video — try a shorter or lower-quality clip.'), { id: toastId })
+          // A picture this browser cannot read, or the page left mid-run, has its own remedy (VideoCompressError's reason).
+          const reason = (e as { reason?: unknown } | null)?.reason
+          toast.error(reason === 'no_picture'
+            ? t('Trình duyệt này không đọc được hình ảnh trong video nên không nén được — hãy quay ở 720p hoặc thử trình duyệt khác.', 'This browser can’t read the picture in this video, so it can’t be compressed — record it in 720p or try another browser.')
+            : reason === 'interrupted'
+              ? t('Đã dừng nén video vì bạn rời khỏi trang — hãy giữ trang này mở đến khi xong.', 'Compressing stopped because the page was left — keep this page open until it’s done.')
+              : t('Không thể nén video này — hãy thử video ngắn hơn hoặc chất lượng thấp hơn.', 'Could not compress this video — try a shorter or lower-quality clip.'), { id: toastId })
         }
         return
       }

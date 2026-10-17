@@ -15,7 +15,7 @@ import { hasHevcTrack, VIDEO_UPLOAD_MAX_BYTES } from '@/lib/video-upload-client'
 export const TEACHER_VIDEO_PICK_MAX_BYTES = VIDEO_PICK_MAX_BYTES
 const MAX_SECONDS = 61
 
-export type TeacherVideoPrepError = 'type' | 'too_big' | 'too_long' | 'unreadable' | 'cannot_compress' | 'compress_failed'
+export type TeacherVideoPrepError = 'type' | 'too_big' | 'too_long' | 'unreadable' | 'cannot_compress' | 'compress_failed' | 'no_picture' | 'interrupted'
 
 export async function prepareTeacherVideo(file: File, opts: { onCompress?: (fraction: number) => void } = {}): Promise<{ file: File; hevc: boolean } | { error: TeacherVideoPrepError }> {
   // Some iOS picker paths hand over an EMPTY type: the name is then the only signal.
@@ -59,8 +59,11 @@ export async function prepareTeacherVideo(file: File, opts: { onCompress?: (frac
     try {
       // The output is H.264 MP4 (Safari) or VP8/9 WebM (Chromium) — never HEVC.
       return { file: await compressVideo(file, { targetBytes: VIDEO_UPLOAD_MAX_BYTES, onProgress: opts.onCompress }), hevc: false }
-    } catch {
-      return { error: 'compress_failed' }
+    } catch (e) {
+      // A picture this browser cannot read, or the page left mid-run, has its own remedy (VideoCompressError's reason, read
+      // duck-typed); anything else is the shrinking itself failing.
+      const reason = (e as { reason?: unknown } | null)?.reason
+      return { error: reason === 'no_picture' || reason === 'interrupted' ? reason : 'compress_failed' }
     }
   }
   return { file, hevc: await hasHevcTrack(file).catch(() => false) }

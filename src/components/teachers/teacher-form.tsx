@@ -1440,6 +1440,8 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       case 'too_long': return tr('Your intro video must be 60 seconds or less.', 'Video giới thiệu phải dài tối đa 60 giây.')
       case 'unreadable': return tr('We couldn’t read that video — try another one.', 'Không đọc được video này — hãy thử video khác.')
       case 'cannot_compress': return tr('That video is over 50 MB and this browser can’t make it smaller. Record it in 720p, or open eno.vn in Chrome or Safari.', 'Video trên 50 MB và trình duyệt này không thu nhỏ được. Hãy quay ở 720p, hoặc mở eno.vn bằng Chrome hoặc Safari.')
+      case 'no_picture': return tr('This browser can’t read the picture in that video, so it can’t make it smaller. Record it in 720p, or try another browser.', 'Trình duyệt này không đọc được hình ảnh trong video nên không thể thu nhỏ. Hãy quay ở 720p, hoặc thử trình duyệt khác.')
+      case 'interrupted': return tr('Making the video smaller stopped because the page was left. Keep this page open on screen until it’s done — it takes about as long as the video.', 'Việc thu nhỏ video đã dừng vì bạn rời khỏi trang. Hãy giữ trang này mở trên màn hình cho đến khi xong — mất khoảng bằng độ dài video.')
       default: return tr('We couldn’t make that video smaller — try a shorter or lower-quality one.', 'Không thu nhỏ được video — hãy thử video ngắn hơn hoặc chất lượng thấp hơn.')
     }
   }

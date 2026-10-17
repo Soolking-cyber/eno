@@ -20,7 +20,7 @@
 import { mediaElementCaptureSupported, takeCompressionAudioContext } from '@/lib/compression-audio'
 
 export class VideoCompressError extends Error {
-  constructor(public reason: 'unsupported' | 'decode_failed' | 'record_failed' | 'still_too_large' | 'timeout') {
+  constructor(public reason: 'unsupported' | 'decode_failed' | 'record_failed' | 'still_too_large' | 'timeout' | 'no_picture' | 'interrupted') {
     super(`video_compress_${reason}`)
   }
 }
@@ -95,6 +95,32 @@ async function planAudio(video: HTMLVideoElement, file: File): Promise<AudioPlan
  */
 const DECODE_AUDIO_TIMEOUT_MS = 20_000
 
+const u32 = (b: Uint8Array, i: number) => ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0
+const fourcc = (b: Uint8Array, i: number) => String.fromCharCode(b[i], b[i + 1], b[i + 2], b[i + 3])
+
+/**
+ * ⛔ AN iPHONE CLIP IS A QUICKTIME .MOV, AND WEBKIT'S decodeAudioData REFUSES ONE (harness, 2026-10-17): EncodingError for
+ * every ftyp 'qt  ' file tried — H.264, HEVC, ProRes, MJPEG, sound only — and WebKit has no element captureStream either, so
+ * a compressed iPhone clip in Safari went up with NO sound at all. The same bytes with the brand rewritten to 'mp42' decode
+ * (measured on macOS WebKit; an iPhone is still to be checked). Rewrites, in place, every 'qt  ' brand in a leading ftyp
+ * box — never minor_version (offset 12), never past the box; anything else is left untouched.
+ */
+export function unbrandQuickTime(buf: ArrayBuffer): boolean {
+  const b = new Uint8Array(buf)
+  if (b.length < 16 || fourcc(b, 4) !== 'ftyp') return false
+  // Every size form a box may use (gate review): 32-bit, 1 = a 64-bit size after the type, 0 = to the end of the file. A
+  // brand list is a few words: read no further than 256 bytes whatever the size says.
+  let len = u32(b, 0)
+  let at = 8
+  if (len === 1) { len = u32(b, 8) * 2 ** 32 + u32(b, 12); at = 16 } else if (len === 0) len = b.length
+  const end = Math.min(b.length, len, at + 256)
+  let changed = false
+  for (let i = at; i + 4 <= end; i += 4) {
+    if (i !== at + 4 && fourcc(b, i) === 'qt  ') { b.set([0x6d, 0x70, 0x34, 0x32], i); changed = true } // 'qt  ' → 'mp42'; at + 4 is minor_version
+  }
+  return changed
+}
+
 /** The decoded path — null when it cannot run (no context, one that stays suspended, a clip with no audio track, too slow). */
 async function decodeAudio(file: File): Promise<Extract<AudioPlan, { kind: 'decode' }> | null> {
   const ctx = takeCompressionAudioContext()
@@ -104,8 +130,12 @@ async function decodeAudio(file: File): Promise<Extract<AudioPlan, { kind: 'deco
     const state = () => ctx.state as string
     if (state() !== 'running') await Promise.race([ctx.resume().catch(() => undefined), sleep(1_000)])
     if (state() !== 'running') throw new Error('not running')
-    // Throws for a clip with no audio track (EncodingError) — no sound to carry, which is fine.
-    const buffer = await ctx.decodeAudioData(await file.arrayBuffer())
+    // Throws for a clip with no audio track (EncodingError) — no sound to carry, which is fine. ONE full read (review: a
+    // 150 MB clip read twice could cost an iPhone tab ~300 MB): a QuickTime .mov is rewritten before its only decode — the
+    // three engines decode the rewritten file at the source's own level (measured, −24.1 dB).
+    const bytes = await file.arrayBuffer()
+    unbrandQuickTime(bytes)
+    const buffer = await ctx.decodeAudioData(bytes)
     return { kind: 'decode', ctx, buffer, sink: ctx.createMediaStreamDestination() }
   }
   try {
@@ -125,6 +155,155 @@ async function decodeAudio(file: File): Promise<Extract<AudioPlan, { kind: 'deco
 async function captureAudioTracks(stream: MediaStream): Promise<MediaStreamTrack[]> {
   for (let i = 0; i < 6 && !stream.getAudioTracks().length; i++) await sleep(50)
   return stream.getAudioTracks()
+}
+
+/** Bytes [start, end) of the recording — a Blob slice in the browser, an array in tests. */
+export type ReadBytes = (start: number, end: number) => Promise<Uint8Array>
+
+/** The ISO-BMFF boxes in b[start, end) as [type, payload start, box end]; null when a size does not fit (malformed). */
+function boxes(b: Uint8Array, start: number, end: number): Array<[string, number, number]> | null {
+  const out: Array<[string, number, number]> = []
+  for (let i = start; i + 8 <= end; ) {
+    let len = u32(b, i)
+    let head = 8
+    if (len === 1) {
+      if (i + 16 > end) return null
+      len = u32(b, i + 8) * 2 ** 32 + u32(b, i + 12)
+      head = 16
+    } else if (len === 0) len = end - i
+    if (len < head || i + len > end) return null
+    out.push([fourcc(b, i + 4), i + head, i + len])
+    i += len
+  }
+  return out
+}
+
+/** moov › trak › mdia › hdlr: a handler of type 'vide' (a full box: version/flags and pre_defined come first). */
+function moovDeclaresVideo(m: Uint8Array, payload: number): boolean | null {
+  const traks = boxes(m, payload, m.length)
+  if (!traks) return null
+  // A trak whose handler cannot be read leaves the answer unknown (null), never "no picture" (gate review).
+  let unreadable = false
+  for (const [type, from, to] of traks) {
+    if (type !== 'trak') continue
+    const mdia = boxes(m, from, to)?.find(([t]) => t === 'mdia')
+    const hdlr = mdia && boxes(m, mdia[1], mdia[2])?.find(([t]) => t === 'hdlr')
+    if (!hdlr || hdlr[1] + 12 > hdlr[2]) { unreadable = true; continue }
+    if (fourcc(m, hdlr[1] + 8) === 'vide') return true
+  }
+  return unreadable ? null : false
+}
+
+/** The top-level boxes walked by their sizes — an mdat is stepped over, never read — to the moov. */
+async function mp4DeclaresVideo(read: ReadBytes, size: number): Promise<boolean | null> {
+  for (let at = 0, n = 0; at + 8 <= size && n < 1_000; n++) {
+    const h = await read(at, Math.min(size, at + 16))
+    if (h.length < 8) return null
+    let len = u32(h, 0)
+    let head = 8
+    if (len === 1) {
+      if (h.length < 16) return null
+      len = u32(h, 8) * 2 ** 32 + u32(h, 12)
+      head = 16
+    } else if (len === 0) len = size - at
+    if (len < head || at + len > size) return null
+    if (fourcc(h, 4) === 'moov') return len > 8 * 1024 * 1024 ? null : moovDeclaresVideo(await read(at, at + len), head)
+    at += len
+  }
+  return null
+}
+
+/** An EBML variable-length integer at b[i]: [value, length] — an ID keeps its marker bits; a size of all ones is −1 (unknown). */
+function vint(b: Uint8Array, i: number, id: boolean): [number, number] | null {
+  const first = b[i]
+  if (first === undefined || first === 0) return null
+  let len = 1
+  while (!(first & (0x80 >> (len - 1)))) len++
+  if (i + len > b.length) return null
+  let v = id ? first : first & (0xff >> len)
+  let ones = v === 0xff >> len
+  for (let k = 1; k < len; k++) {
+    v = v * 256 + b[i + k]
+    if (b[i + k] !== 0xff) ones = false
+  }
+  return [!id && ones ? -1 : v, len]
+}
+
+function ebml(b: Uint8Array, at: number): { id: number; size: number; data: number } | null {
+  const id = vint(b, at, true)
+  const size = id && vint(b, at + id[1], false)
+  return id && size ? { id: id[0], size: size[0], data: at + id[1] + size[1] } : null
+}
+
+/** EBML header › Segment › Tracks › TrackEntry: TrackType 1 (video) or a CodecID "V_…". Read from the first 64 KB, where every
+ * recorder writes its Tracks; a Cluster — or anything of unknown size — before them is not judged. */
+async function webmDeclaresVideo(read: ReadBytes, size: number): Promise<boolean | null> {
+  const b = await read(0, Math.min(size, 64 * 1024))
+  const head = ebml(b, 0)
+  if (!head || head.id !== 0x1a45dfa3 || head.size < 0) return null
+  const segment = ebml(b, head.data + head.size)
+  if (!segment || segment.id !== 0x18538067) return null
+  const segmentEnd = segment.size < 0 ? b.length : Math.min(b.length, segment.data + segment.size)
+  for (let at = segment.data; at < segmentEnd; ) {
+    const e = ebml(b, at)
+    if (!e || e.size < 0 || e.id === 0x1f43b675) return null
+    if (e.id === 0x1654ae6b) {
+      if (e.data + e.size > b.length) return null
+      let entries = 0
+      for (let t = e.data; t < e.data + e.size; ) {
+        const entry = ebml(b, t)
+        if (!entry || entry.size < 0 || entry.data + entry.size > e.data + e.size) return null
+        if (entry.id === 0xae) {
+          entries++
+          for (let f = entry.data; f < entry.data + entry.size; ) {
+            const field = ebml(b, f)
+            if (!field || field.size < 0 || field.data + field.size > entry.data + entry.size) return null
+            if (field.id === 0x83 && field.size >= 1 && field.size <= 8) {
+              let type = 0
+              for (let k = 0; k < field.size; k++) type = type * 256 + b[field.data + k]
+              if (type === 1) return true
+            }
+            if (field.id === 0x86 && field.size >= 2 && b[field.data] === 0x56 && b[field.data + 1] === 0x5f) return true
+            f = field.data + field.size
+          }
+        }
+        t = entry.data + entry.size
+      }
+      return entries ? false : null
+    }
+    at = e.data + e.size
+  }
+  return null
+}
+
+/**
+ * WHETHER A RECORDING DECLARES A PICTURE TRACK — read from its STRUCTURE, never a byte pattern (gate review, 2026-10-17):
+ * WebKit FINISHES an MP4 with sound only when no frame reached its canvas track — the shape of a 2026-10-16 upload that had
+ * no picture at all. MP4: the boxes walked to the moov wherever it is (an mdat is skipped, not read), then trak › mdia ›
+ * hdlr 'vide'; WebM: the Segment to its Tracks, then a TrackEntry of TrackType 1 / CodecID "V_". `null` when the structure
+ * cannot be read (another container, malformed, a header not where a recorder writes it): never a guess against the clip.
+ */
+export async function declaresVideoTrack(read: ReadBytes, size: number): Promise<boolean | null> {
+  const start = await read(0, Math.min(size, 8))
+  if (start.length >= 8 && fourcc(start, 4) === 'ftyp') return mp4DeclaresVideo(read, size)
+  if (start.length >= 4 && u32(start, 0) === 0x1a45dfa3) return webmDeclaresVideo(read, size)
+  return null
+}
+
+/** A browser that hides canvas reads (anti-fingerprinting) must never fail a clip: the painted check runs only where a read reads back. */
+function canvasReadsBack(): boolean {
+  try {
+    const c = document.createElement('canvas')
+    c.width = 1
+    c.height = 1
+    const x = c.getContext('2d')
+    if (!x) return false
+    x.fillStyle = '#000'
+    x.fillRect(0, 0, 1, 1)
+    return x.getImageData(0, 0, 1, 1).data[3] === 255
+  } catch {
+    return false
+  }
 }
 
 export function videoCompressionSupported(): boolean {
@@ -153,7 +332,13 @@ export async function compressVideo(file: File, opts: {
 
   let audioContext: AudioContext | null = null
   let bufferSource: AudioBufferSourceNode | null = null
+  let onPageHidden: (() => void) | null = null
+  let wakeLock: { release: () => Promise<void> } | null = null
+  let finished = false
   const cleanup = () => {
+    finished = true
+    if (onPageHidden) document.removeEventListener('visibilitychange', onPageHidden)
+    void wakeLock?.release().catch(() => undefined)
     video.onplaying = null
     video.onwaiting = null
     video.onseeked = null
@@ -175,6 +360,26 @@ export async function compressVideo(file: File, opts: {
 
     const duration = video.duration
     if (!Number.isFinite(duration) || duration <= 0) throw new VideoCompressError('decode_failed')
+    // ⛔ A PICTURE THIS BROWSER CANNOT DECODE reads 0×0 while its sound plays on (Chromium and Firefox — an iPhone's 10-bit
+    // HEVC, ProRes, MPEG-4 Part 2: measured 2026-10-17) — and was then recorded for the clip's whole length into a failure,
+    // or a picture-less upload. Refused here, before the sound is decoded. A decodable picture reports its size at metadata
+    // in all three engines (measured); one still without data gets 10 s for its first frame (gate review: a slow phone).
+    if (!video.videoWidth || !video.videoHeight) {
+      if (video.readyState < 2) {
+        await new Promise<void>((resolve) => {
+          const go = () => {
+            window.clearTimeout(t)
+            for (const type of ['loadeddata', 'resize', 'error']) video.removeEventListener(type, go)
+            resolve()
+          }
+          const t = window.setTimeout(go, 10_000)
+          for (const type of ['loadeddata', 'resize', 'error']) video.addEventListener(type, go)
+        })
+      }
+      // A file that broke while it was awaited is unreadable — not "this browser cannot read the picture" (review).
+      if (video.error) throw new VideoCompressError('decode_failed')
+      if (!video.videoWidth || !video.videoHeight) throw new VideoCompressError('no_picture')
+    }
 
     // Output geometry: fit within 1280×720, even dimensions (encoder requirement).
     const scale = Math.min(1, 1280 / Math.max(video.videoWidth, 1), 720 / Math.max(video.videoHeight, 1))
@@ -211,8 +416,8 @@ export async function compressVideo(file: File, opts: {
     // A run that throws before awaiting it (play() refused) must not leave an unhandled rejection behind (review, 2026-10-17).
     void done.catch(() => undefined)
     let stopTimer = 0
-    const startRecorder = () => {
-      const r = new MediaRecorder(stream, { mimeType, videoBitsPerSecond, audioBitsPerSecond })
+    const startRecorder = (type = mimeType) => {
+      const r = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond, audioBitsPerSecond })
       r.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data) }
       r.onstop = () => resolveDone()
       r.onerror = () => rejectDone(new VideoCompressError('record_failed'))
@@ -220,16 +425,26 @@ export async function compressVideo(file: File, opts: {
       return r
     }
     let recorder: MediaRecorder | null = null
+    /**
+     * The recorder, first that starts: the preferred type; then — with sound — the bare container (Firefox: 'video/webm;
+     * codecs=vp8' with a sound track throws NotSupportedError, and every Firefox compression had gone up silent — harness,
+     * 2026-10-17); then the frames alone, a silent clip rather than a failed upload (review, 2026-10-17). None → record_failed.
+     */
     const record = () => {
-      try {
-        recorder = startRecorder()
-      } catch {
-        // An engine that will not record this container WITH sound (review, 2026-10-17): the frames alone — a silent clip,
-        // as before the sound was carried, never a failed upload. A throw without sound is a real failure, as it always was.
+      const tries: Array<() => MediaRecorder> = [() => startRecorder()]
+      if (stream.getAudioTracks().length) tries.push(() => startRecorder(mimeType.split(';')[0]))
+      tries.push(() => {
         for (const track of stream.getAudioTracks()) stream.removeTrack(track)
+        return startRecorder()
+      })
+      for (const attempt of tries) {
         chunks.length = 0
-        try { recorder = startRecorder() } catch { throw new VideoCompressError('record_failed') }
+        try {
+          recorder = attempt()
+          break
+        } catch { /* the next */ }
       }
+      if (!recorder) throw new VideoCompressError('record_failed')
     }
     /**
      * ⛔ THE ELEMENT'S OWN TRACK CARRIES NO SAMPLES UNTIL PLAYBACK RUNS, so with it the recorder starts AFTER play() — started
@@ -289,9 +504,40 @@ export async function compressVideo(file: File, opts: {
     // Draw loop — rVFC ties draws to real decoded frames (Safari 15.4+/Chromium);
     // rAF fallback for anything older.
     let stopped = false
-    const draw = () => { ctx.drawImage(video, 0, 0, width, height) }
+    /**
+     * DID A FRAME LAND ON THE CANVAS? It starts transparent and a drawn video frame — black included — is opaque; five
+     * points, so a clip with a transparent middle still counts. Read ONLY when no frame was presented (below) — then the
+     * canvas holds the only draws there were — so an ordinary clip costs no canvas read at all (review: reads can move a
+     * canvas off the GPU in Chromium).
+     */
+    const readsBack = canvasReadsBack()
+    const painted = () => {
+      if (!readsBack) return true
+      try {
+        const at = [[width >> 1, height >> 1], [width >> 2, height >> 2], [(3 * width) >> 2, height >> 2], [width >> 2, (3 * height) >> 2], [(3 * width) >> 2, (3 * height) >> 2]]
+        return at.some(([x, y]) => ctx.getImageData(x, y, 1, 1).data[3] !== 0)
+      } catch {
+        return true
+      }
+    }
+    let drewWithData = false
+    const draw = () => {
+      if (video.readyState >= 2) drewWithData = true
+      ctx.drawImage(video, 0, 0, width, height)
+    }
+    /**
+     * ⛔ NO PICTURE = BOTH SIGNALS SAY SO (gate review, four rounds on the pixels alone): the frames the engine PRESENTED
+     * (requestVideoFrameCallback — each one is drawn) and the pixels that LANDED. Either one alone refused real clips — a
+     * transparent clip with its subject off the five points still presents frames; a phone that presents none still paints
+     * the first frame — so a clip is refused only when neither saw a picture, and only after a draw that had frame data to
+     * draw (a recorder that fails before any data must not read as "no picture" — review). Without the callback nothing is
+     * concluded from the canvas; the size check and the structure check still apply.
+     */
+    let framesPresented = 0
+    const noPicture = () => hasFrameCallback && framesPresented === 0 && drewWithData && !painted()
     const scheduleDraw = (_now?: number, frame?: { mediaTime?: number }) => {
       if (stopped) return
+      if (frame) framesPresented++
       if (frame && syncSound) syncSound(frame.mediaTime ?? video.currentTime)
       draw()
       opts.onProgress?.(Math.min(0.99, video.currentTime / duration))
@@ -322,6 +568,30 @@ export async function compressVideo(file: File, opts: {
     // Watchdog: a stalled decode must never strand the wizard mid-"compressing".
     const watchdog = window.setTimeout(finish, (duration + 30) * 1000)
 
+    /**
+     * ⛔ A PAGE LEFT MID-RUN IS NOT A RESULT (harness, 2026-10-17): hidden, Chromium presents no frame while the muted element
+     * plays on — a run hidden throughout came back as 2 frames, 0.04 s and no sound, and passed every other check; a few
+     * hidden seconds froze the picture and moved the sound off it. Stopped at once, 'interrupted' — and the screen is held
+     * awake meanwhile (best effort) so a phone's auto-lock is not what leaves it.
+     */
+    let interrupted = false
+    onPageHidden = () => {
+      // Hidden once the run is already stopping (the clip ended, the recorder finishing its file): the recording is whole.
+      if (document.visibilityState !== 'hidden' || stopped) return
+      interrupted = true
+      finish()
+    }
+    document.addEventListener('visibilitychange', onPageHidden)
+    if (document.visibilityState === 'hidden') {
+      // Left while the sound was being read: the recorder (started before play() on the decoded and silent paths) stops too.
+      window.clearTimeout(watchdog)
+      const r = recorder as MediaRecorder | null
+      try { if (r && r.state !== 'inactive') r.stop() } catch { /* already stopped */ }
+      throw new VideoCompressError('interrupted')
+    }
+    const wake = (navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<{ release: () => Promise<void> }> } }).wakeLock
+    void wake?.request('screen').then((lock) => { if (finished) void lock.release().catch(() => undefined); else wakeLock = lock }, () => undefined)
+
     draw()
     try {
       await video.play()
@@ -343,18 +613,32 @@ export async function compressVideo(file: File, opts: {
         })
         video.onseeked = null
       }
-      if (stopped) { window.clearTimeout(watchdog); throw new VideoCompressError('timeout') }
+      if (stopped) { window.clearTimeout(watchdog); throw new VideoCompressError(interrupted ? 'interrupted' : 'timeout') }
       record()
     }
     scheduleDraw()
-    try { await done } finally { window.clearTimeout(stopTimer) }
-    window.clearTimeout(watchdog)
+    try {
+      await done
+    } catch (e) {
+      // A recorder that failed with no picture ever seen failed for want of one: say so, not "try a shorter clip".
+      if (interrupted) throw new VideoCompressError('interrupted')
+      if (noPicture()) throw new VideoCompressError('no_picture')
+      throw e
+    } finally {
+      // Both timers, whichever way `done` settled (gate review): a watchdog left behind would finish() a cleaned-up run.
+      window.clearTimeout(stopTimer)
+      window.clearTimeout(watchdog)
+    }
+    if (interrupted) throw new VideoCompressError('interrupted')
+    if (noPicture()) throw new VideoCompressError('no_picture')
 
     // A watchdog-stopped run produced a truncated clip — treat as failure, not a result.
     if (video.currentTime < duration - 2) throw new VideoCompressError('timeout')
 
     const blob = new Blob(chunks, { type: mimeType.split(';')[0] })
     if (!blob.size) throw new VideoCompressError('record_failed')
+    const readBlob: ReadBytes = async (start, end) => new Uint8Array(await blob.slice(start, end).arrayBuffer())
+    if ((await declaresVideoTrack(readBlob, blob.size)) === false) throw new VideoCompressError('no_picture')
     if (blob.size > opts.targetBytes) throw new VideoCompressError('still_too_large')
     opts.onProgress?.(1)
     const baseName = file.name.replace(/\.[a-z0-9]+$/i, '') || 'video'
