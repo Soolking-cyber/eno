@@ -92,6 +92,8 @@ export type NicheApiErrorCode =
   // A delayed write (an undo window) whose session now belongs to a different account than the one that
   // tapped it — src/lib/api/acting-account.ts. Conversation delete, listing delete, offer answer.
   | 'account_changed'
+  // The silent-video re-upload ask (2026-10-17, /api/cron/video-reupload-ask): no ids sent, or more than its batch cap
+  | 'ids_required'
   // The /api/schools routes (2026-10-04): who may vote or review, and why a review was refused
   | 'business_account'
   | 'phone_required'
@@ -582,6 +584,7 @@ export function apiErrorCode(body: unknown): ApiErrorCode | null {
  */
 const ALL = [
   'account_changed',
+  'ids_required',
   'business_account',
   'phone_required',
   'links_not_allowed',
