@@ -16,9 +16,10 @@ import { appReviewGate, inAppSheetDocument, isNativeAppClient } from '@/lib/app-
 // CONSENT (v2): GA loads ONLY with the Analytics purpose (`a`), reactively the instant it is
 // granted — never inside the native apps. It boots with Google Consent Mode set to all-denied and
 // is immediately updated from the visitor's answer: analytics_storage follows `a`, the three ad
-// signals follow Advertising (`d`). That is the BASIC implementation on purpose: the "advanced" one
-// loads the tag before consent and sends cookieless pings, which is still processing IP and device
-// data without consent. No `a` → zero Google Analytics JS.
+// consent states follow Advertising (`d`). Google Signals and ad-personalisation signals stay OFF
+// even with `d` granted (GA_CONFIG below): only less is ever sent. That is the BASIC implementation
+// on purpose: the "advanced" one loads the tag before consent and sends cookieless pings, which is
+// still processing IP and device data without consent. No `a` → zero Google Analytics JS.
 // ⚠️ This component is also where consent is ENFORCED on every page: it syncs the stored answer and
 // runs the cleanup (src/lib/consent-runtime.ts) on mount, on every `eno:consent`, and when a choice
 // made in ANOTHER TAB reaches this one (see the effect below).
@@ -44,7 +45,12 @@ const CONSENT_DEFAULT = `{ad_storage:'denied',ad_user_data:'denied',ad_personali
  * `gtag('event', …)` from analytics.ts, which names no `send_to`) reaches each property. Both commands come
  * after the denied default and the stored answer, so the second property is gated exactly like the first.
  */
-const GA_CONFIG = GA_IDS.map((id) => `gtag('config','${id}');`).join('')
+// ⛔ Google Signals and ad-personalisation signals are OFF (2026-10-17). They send hits to www.google.com/g/collect
+// and remarketing beacons to www.google.<visitor's country>/ads/ga-audiences — the console showed both blocked by
+// the CSP on every page view. eno runs no Google Ads, so they buy nothing; turning them off here (`set`, before
+// every `config`, so it covers each property) is narrower than admitting all of www.google.com plus one Google
+// host per visitor country in next.config.ts.
+const GA_CONFIG = `gtag('set','allow_google_signals',false);gtag('set','allow_ad_personalization_signals',false);` + GA_IDS.map((id) => `gtag('config','${id}');`).join('')
 
 /**
  * GOOGLE TAG MANAGER — eno.forum's container, and the reason the Meta Pixel comes back as a TAG

@@ -103,6 +103,22 @@ describe('AnalyticsTags on eno.vn — two GA4 properties, one consent gate', () 
     for (const c of configs) expect(c.i).toBeGreaterThan(iDefault)
   })
 
+  it('⛔ Google Signals + ad-personalisation signals are set OFF before every property is configured', async () => {
+    // With them on, gtag beacons www.google.com/g/collect and www.google.<country>/ads/ga-audiences, which the
+    // CSP blocks (no Google Ads here — next.config.ts connect-src) and the console filled with errors.
+    await grant(false, true, true)
+    await mount()
+    await interact()
+    const pushed = runBootstrap(scriptText('ga-init'), { analytics_storage: 'granted', ad_storage: 'granted' })
+    const iSignals = pushed.findIndex((e) => e[0] === 'set' && e[1] === 'allow_google_signals' && e[2] === false)
+    const iAdSignals = pushed.findIndex((e) => e[0] === 'set' && e[1] === 'allow_ad_personalization_signals' && e[2] === false)
+    const configs = pushed.flatMap((e, i) => (e[0] === 'config' ? [{ id: e[1], i }] : []))
+    expect(configs.map((c) => c.id)).toEqual(['G-CKTZK62B0X', 'G-0EXQ7Q17YN'])
+    expect(iSignals).toBeGreaterThan(-1)
+    expect(iAdSignals).toBeGreaterThan(-1)
+    for (const c of configs) expect(Math.max(iSignals, iAdSignals)).toBeLessThan(c.i)
+  })
+
   it('⛔ the kill switch covers BOTH properties — off with consent, on when it is withdrawn', async () => {
     await grant(false, true, false)
     await mount()
