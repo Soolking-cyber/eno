@@ -36,12 +36,15 @@ const RECORDER_TYPES = [
 ]
 
 /**
- * The largest clip whose sound WebKit decodes whole. decodeAudioData takes the ENTIRE file in memory (plus ~23 MB of decoded
- * sound a minute, beside the video decoder and the recorder) — and a tab iOS kills for memory is worse than a silent clip, so
- * the cap is conservative (plan review, 2026-10-17): a phone's default 1080p minute is 60–100 MB; a 4K one goes up without
- * sound.
+ * THE LARGEST CLIP A VIDEO PICKER ACCEPTS — the teacher form (src/lib/teachers/video-prep.ts) and the post wizard
+ * (src/hooks/use-post-media.ts) — and the largest whose sound is decoded: ONE number, so every clip that goes up keeps its
+ * sound (owner, 2026-10-17: "put 150mb limit so we have all clips with sound"). decodeAudioData takes the ENTIRE file in
+ * memory (plus ~23 MB of decoded sound a minute, beside the video decoder and the recorder), and a tab a phone kills for
+ * memory is worse than a refused pick — so the cap is conservative: a phone's default 1080p minute is 60–100 MB; a 4K one
+ * is refused with "record in 1080p".
  */
-const DECODE_AUDIO_MAX_BYTES = 150 * 1024 * 1024
+export const VIDEO_PICK_MAX_BYTES = 150 * 1024 * 1024
+const DECODE_AUDIO_MAX_BYTES = VIDEO_PICK_MAX_BYTES
 
 const sleep = (ms: number) => new Promise<void>((resolve) => { window.setTimeout(resolve, ms) })
 

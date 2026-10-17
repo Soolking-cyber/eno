@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { compressVideo, videoCompressionSupported } from '@/lib/video-compress'
+import { compressVideo, VIDEO_PICK_MAX_BYTES, videoCompressionSupported } from '@/lib/video-compress'
 import { hasHevcTrack, VIDEO_UPLOAD_MAX_BYTES } from '@/lib/video-upload-client'
 import { compressImageFile } from '@/lib/normalize-image'
 import { centerCropSquare } from '@/lib/square-crop'
@@ -127,11 +127,13 @@ export function usePostMedia({
   // magic bytes and the bucket re-checks type/size at upload.
   // Two caps since 2026-07-18 (the iOS "video error"): a 60s iPhone HEVC clip is 60–400MB,
   // but 50MB is the Supabase PROJECT-WIDE upload ceiling (probed; owner-raisable only in
-  // the dashboard). So SELECT accepts up to 200MB and anything over the 50MB upload
+  // the dashboard). So SELECT accepts up to 150MB and anything over the 50MB upload
   // ceiling is COMPRESSED in-browser (src/lib/video-compress.ts) down to fit before
   // upload. VIDEO_UPLOAD_MAX_BYTES mirrors the server's VIDEO_MAX_BYTES (core/media.ts,
   // server-only — keep in lockstep) and the bucket limit (scripts/setup-storage.mjs).
-  const VIDEO_MAX_MB = 200
+  // ⛔ 150MB, not 200 (owner, 2026-10-17: "put 150mb limit so we have all clips with sound"): the
+  // compressor carries a clip's sound only up to its decode cap — VIDEO_PICK_MAX_BYTES is that cap.
+  const VIDEO_MAX_MB = VIDEO_PICK_MAX_BYTES / 1024 / 1024
   // HEVC detector + the upload ceiling now live in lib/video-upload-client.ts, shared with bulk
   // import — see the note there on why bulk needs the same rule.
   const addVideo = async (files: FileList | null) => {
@@ -142,7 +144,7 @@ export function usePostMedia({
     // EMPTY type — the name is then the only signal, and rejecting outright loses the clip.
     const typeOk = /^video\/(mp4|webm|quicktime|x-m4v)$/.test(f.type) || (!f.type && /\.(mp4|webm|mov|m4v)$/i.test(f.name))
     if (!typeOk) { toast.error(t('Chỉ nhận video MP4, WebM hoặc MOV.', 'Only MP4, WebM or MOV videos.')); return }
-    if (f.size > VIDEO_MAX_MB * 1024 * 1024) { toast.error(t(`Video quá lớn (tối đa ${VIDEO_MAX_MB}MB).`, `Video is too large (${VIDEO_MAX_MB}MB max).`)); return }
+    if (f.size > VIDEO_PICK_MAX_BYTES) { toast.error(t(`Video quá lớn (tối đa ${VIDEO_MAX_MB}MB) — hãy quay ở 1080p.`, `Video is too large (${VIDEO_MAX_MB}MB max) — record in 1080p.`)); return }
     setVideoBusy(true)
     const url = trackBlobUrl(URL.createObjectURL(f))
     try {

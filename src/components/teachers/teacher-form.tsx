@@ -1436,7 +1436,7 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   const videoPrepText = (e: TeacherVideoPrepError): string => {
     switch (e) {
       case 'type': return tr('Choose an MP4, MOV or WebM video.', 'Hãy chọn video MP4, MOV hoặc WebM.')
-      case 'too_big': return tr('That video is too large. Record a shorter one (up to 60 seconds).', 'Video quá lớn. Hãy quay video ngắn hơn (tối đa 60 giây).')
+      case 'too_big': return tr('That video is over 150 MB. Record it in 1080p (not 4K), up to 60 seconds.', 'Video trên 150 MB. Hãy quay ở 1080p (không phải 4K), tối đa 60 giây.')
       case 'too_long': return tr('Your intro video must be 60 seconds or less.', 'Video giới thiệu phải dài tối đa 60 giây.')
       case 'unreadable': return tr('We couldn’t read that video — try another one.', 'Không đọc được video này — hãy thử video khác.')
       case 'cannot_compress': return tr('That video is over 50 MB and this browser can’t make it smaller. Record it in 720p, or open eno.vn in Chrome or Safari.', 'Video trên 50 MB và trình duyệt này không thu nhỏ được. Hãy quay ở 720p, hoặc mở eno.vn bằng Chrome hoặc Safari.')

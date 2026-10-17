@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // length this browser cannot read still goes up when it needs no shrinking.
 const h = vi.hoisted(() => ({ duration: 30 as number, compressOk: true, compressSupported: true, hevc: false }))
 vi.mock('@/lib/video-compress', () => ({
+  VIDEO_PICK_MAX_BYTES: 150 * 1024 * 1024,
   videoCompressionSupported: () => h.compressSupported,
   compressVideo: async (f: File) => { if (!h.compressOk) throw new Error('x'); return new File([new Uint8Array(10)], f.name.replace(/\.\w+$/, '.mp4'), { type: 'video/mp4' }) },
 }))
@@ -43,10 +44,13 @@ describe('prepareTeacherVideo', () => {
     expect(await prepareTeacherVideo(clip(MB, 'a.avi', 'video/x-msvideo'))).toEqual({ error: 'type' })
     expect('file' in (await prepareTeacherVideo(clip(MB, 'a.mov', '')))).toBe(true)
   })
-  it('over 60 seconds (61 for rounding) is refused; over 400 MB is refused before reading', async () => {
+  it('over 60 seconds (61 for rounding) is refused; over 150 MB — the compressor\'s sound limit — is refused before reading', async () => {
     h.duration = 61.5
     expect(await prepareTeacherVideo(clip(MB))).toEqual({ error: 'too_long' })
-    expect(await prepareTeacherVideo(clip(401 * MB))).toEqual({ error: 'too_big' })
+    h.duration = 30
+    expect(await prepareTeacherVideo(clip(151 * MB))).toEqual({ error: 'too_big' })
+    // Owner, 2026-10-17: "put 150mb limit so we have all clips with sound" — 150 MB itself still goes (made smaller).
+    expect('file' in (await prepareTeacherVideo(clip(150 * MB)))).toBe(true)
   })
   it('over 50 MB is made smaller — or says this browser cannot', async () => {
     const r = await prepareTeacherVideo(clip(120 * MB, 'big.mov', 'video/quicktime'))

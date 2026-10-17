@@ -1,6 +1,6 @@
 'use client'
 
-import { compressVideo, videoCompressionSupported } from '@/lib/video-compress'
+import { compressVideo, VIDEO_PICK_MAX_BYTES, videoCompressionSupported } from '@/lib/video-compress'
 import { hasHevcTrack, VIDEO_UPLOAD_MAX_BYTES } from '@/lib/video-upload-client'
 
 /**
@@ -11,7 +11,8 @@ import { hasHevcTrack, VIDEO_UPLOAD_MAX_BYTES } from '@/lib/video-upload-client'
  * length is read from the file (≤ 60 s, 61 for rounding); and an HEVC (iPhone) clip is flagged so its server transcode
  * fails CLOSED rather than keeping a clip that plays black on most Android phones.
  */
-export const TEACHER_VIDEO_PICK_MAX_BYTES = 400 * 1024 * 1024
+/** 150 MB — the compressor's own limit, so every intro video keeps its sound (owner, 2026-10-17; src/lib/video-compress.ts). */
+export const TEACHER_VIDEO_PICK_MAX_BYTES = VIDEO_PICK_MAX_BYTES
 const MAX_SECONDS = 61
 
 export type TeacherVideoPrepError = 'type' | 'too_big' | 'too_long' | 'unreadable' | 'cannot_compress' | 'compress_failed'
@@ -26,7 +27,7 @@ export async function prepareTeacherVideo(file: File, opts: { onCompress?: (frac
     const seconds = await new Promise<number>((resolve) => {
       const v = document.createElement('video')
       let timer = 0
-      // Settled once: the timer cleared and the probe let go of the file (no decoder kept on a 400 MB clip).
+      // Settled once: the timer cleared and the probe let go of the file (no decoder kept on a 150 MB clip).
       const done = (n: number) => {
         window.clearTimeout(timer)
         v.onloadedmetadata = null
