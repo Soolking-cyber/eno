@@ -213,18 +213,20 @@ test.describe('marketplace, against known fixtures', () => {
   })
 
   /**
-   * ⛔ THE MOTORBIKE FOR-SALE LANDING IS A REAL 308, NOT A 200 AND NOT A CLIENT REDIRECT (second-hand focus, owner
-   * 2026-10-03; the rules are src/lib/retired-categories.ts, wired in next.config.ts) — to the HCMC motorbike-rental
-   * hub, which must answer 200 even with no rental rows (a browser-cached 308 into a 404 could not be taken back).
+   * ⛔ THE MOTORBIKE FOR-SALE LANDING IS A REAL 308, NOT A 200 AND NOT A CLIENT REDIRECT (the rules are
+   * src/lib/retired-categories.ts, wired in next.config.ts) — to /c/vehicles since 2026-10-17 (owner: "yes vehicles"),
+   * the shelf a person's motorbike for sale is on. It went to the HCMC motorbike-rental hub from 2026-10-03, so the hub
+   * must still answer 200 even with no rental rows: a browser that cached that 308 lands there, and a cached 308 into a
+   * 404 could not be taken back.
    * ⛔ AND /c/vehicles IS A SHELF AGAIN (owner, 2026-10-17: a person's motorbike for sale had nowhere to be found):
    * no redirect, the category page itself.
    */
-  test('the motorbike for-sale landing 308s to the rental hub; /c/vehicles is a shelf again', async ({ page }) => {
+  test('the motorbike for-sale landing 308s to /c/vehicles, a shelf again; the old target still renders', async ({ page }) => {
     const res = await page.request.get('/motorbikes-for-sale-vietnam', { maxRedirects: 0, failOnStatusCode: false })
     expect(res.status(), 'the landing must be a permanent redirect').toBe(308)
-    expect(res.headers()['location'] ?? '', 'it must land on the motorbike-rental hub').toMatch(/^(https?:\/\/[^/]+)?\/motorbike-rental-ho-chi-minh-city$/)
+    expect(res.headers()['location'] ?? '', 'it must land on the Vehicles shelf').toMatch(/^(https?:\/\/[^/]+)?\/c\/vehicles$/)
     const hub = await page.request.get('/motorbike-rental-ho-chi-minh-city', { maxRedirects: 0, failOnStatusCode: false })
-    expect(hub.status(), 'the redirect target renders').toBe(200)
+    expect(hub.status(), 'the old target renders, for browsers that cached the old 308').toBe(200)
     const shelf = await page.request.get('/c/vehicles', { maxRedirects: 0, failOnStatusCode: false })
     expect(shelf.status(), '/c/vehicles renders, no redirect').toBe(200)
     // …and shows its own listings: the shelf a person's motorbike for sale is found on.

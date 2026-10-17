@@ -44,8 +44,8 @@ describe('retiredCategoryRedirects', () => {
     expect(cfg).toMatch(/\.\.\.retiredCategoryRedirects\(\),/)
   })
 
-  it('/motorbikes-for-sale-vietnam → the motorbike-rental hub', () => {
-    expect(resolve(rules, '/motorbikes-for-sale-vietnam')!.destination).toBe('/motorbike-rental-ho-chi-minh-city')
+  it('/motorbikes-for-sale-vietnam → the Vehicles shelf, where motorbikes FOR SALE are (owner, 2026-10-17)', () => {
+    expect(resolve(rules, '/motorbikes-for-sale-vietnam')!.destination).toBe('/c/vehicles')
   })
 
   it('⛔ /c/vehicles and its district pages are a shelf again — no redirect (owner, 2026-10-17)', () => {

@@ -677,7 +677,7 @@ describe('the pages child: lastmod from what each page shows', () => {
 
   /**
    * ⛔ SECOND-HAND FOCUS, 2026-10-03 (src/lib/retired-categories.ts): a retired shelf is never submitted, on
-   * either edition, however many live rows it holds. /motorbikes-for-sale-vietnam 308s to the motorbike-rental hub
+   * either edition, however many live rows it holds. /motorbikes-for-sale-vietnam 308s (to /c/vehicles since 2026-10-17)
    * on BOTH editions — a submitted URL that redirects is a Search Console error; /c/pets, /c/books-stationery and
    * /c/hobbies-sports serve noindex — a submitted noindex URL is the other one. Each shelf here holds enough rows for
    * its category page AND a district page to qualify, so only the retirement rule can keep them out.

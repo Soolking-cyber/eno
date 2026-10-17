@@ -19,7 +19,7 @@
  * ⛔ VEHICLES CAME BACK (owner, 2026-10-17: "someone uploaded motorbike for sale but i cant see vehicles category"). A
  * person's bike for sale had no shelf to be found on: Vehicles holds only goods FOR SALE (rentals live under rentals/*),
  * so with it retired the category simply vanished for the people posting in it. It is a browse shelf again, and
- * /c/vehicles renders instead of redirecting (REDIRECTED_CATEGORY_SLUGS).
+ * /c/vehicles renders instead of redirecting (REDIRECTED_CATEGORIES).
  */
 export const RETIRED_NAV_CATEGORIES: ReadonlySet<string> = new Set(['pets', 'books-stationery', 'hobbies-sports'])
 
@@ -56,13 +56,17 @@ type Redirect = { source: string; destination: string; permanent: boolean }
  * ⛔ EMPTY SINCE 2026-10-17: /c/vehicles was the one (2026-10-03 → 10-17, to the motorbike-rental hub); it is a
  * shelf again (RETIRED_NAV_CATEGORIES above). ⚠️ Browsers that cached the permanent 308 keep following it until
  * their cache lets go — a 308 cannot be recalled; the page and every link to it are right from the deploy on.
+ * ⛔ EACH SHELF NAMES ITS OWN DESTINATION: a map, so a shelf retired later can never inherit the for-sale landing's
+ * target and 308 permanently to Vehicles (review, 2026-10-17).
  */
-export const REDIRECTED_CATEGORY_SLUGS: readonly string[] = []
+export const REDIRECTED_CATEGORIES: Readonly<Record<string, string>> = {}
 
 /**
- * `/motorbikes-for-sale-vietnam` (and, 2026-10-03 → 10-17, `/c/vehicles` with its district pages) → the HCMC
- * motorbike-rental hub, permanently (308) — the mapping the owner's brief named (2026-10-03). Vehicles held 2 live rows after
- * the hide and the for-sale landing 0 motorbikes, while the rental hubs carry thousands of live bikes.
+ * `/motorbikes-for-sale-vietnam` → `/c/vehicles`, permanently (308) — owner, 2026-10-17 ("yes vehicles"): a person's
+ * motorbike FOR SALE lives on the Vehicles shelf, which is browsable again, so the for-sale landing leads there. From
+ * 2026-10-03 to 10-17 it (and `/c/vehicles` with its district pages) went to the HCMC motorbike-rental hub — the
+ * mapping the owner's brief named then, when Vehicles held 2 live rows and the landing 0 motorbikes. ⚠️ A browser that
+ * cached that permanent 308 keeps landing on the rental hub until its cache lets go; the hub stays a 200 for them.
  *
  * ⛔ ONE TARGET FOR EVERY VISITOR — NO LANGUAGE TWIN (commit-gate review, 2026-10-03). A first cut sent a
  * `lang=vi` cookie or a Vietnamese Accept-Language to /thue-xe-may-tphcm. That made the destination depend
@@ -81,7 +85,11 @@ export const REDIRECTED_CATEGORY_SLUGS: readonly string[] = []
  * ⚠️ NO `subcategory=car` RULE: nothing links `/c/vehicles?subcategory=…` (the category page reads no
  * query, car chips link the home explorer), so it would never fire (review, 2026-10-03).
  */
+/** The for-sale landing's own rule — the Vehicles shelf (owner, 2026-10-17). No retired shelf inherits it. */
+const LANDING_REDIRECT = { source: '/motorbikes-for-sale-vietnam', destination: '/c/vehicles' }
+
 export function retiredCategoryRedirects(): Redirect[] {
-  const sources = [...REDIRECTED_CATEGORY_SLUGS.flatMap((slug) => [`/c/${slug}`, `/c/${slug}/:district`]), '/motorbikes-for-sale-vietnam']
-  return sources.map((source) => ({ source, destination: '/motorbike-rental-ho-chi-minh-city', permanent: true }))
+  const shelves = Object.entries(REDIRECTED_CATEGORIES)
+    .flatMap(([slug, destination]) => [`/c/${slug}`, `/c/${slug}/:district`].map((source) => ({ source, destination })))
+  return [...shelves, LANDING_REDIRECT].map((r) => ({ ...r, permanent: true }))
 }
