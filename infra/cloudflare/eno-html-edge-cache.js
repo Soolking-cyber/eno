@@ -291,8 +291,12 @@ function storable(res, variant) {
  * nothing because 304 is not 200 — and the entry stays stale until SWR_TTL runs out, refusing to
  * update however many people ask for it. Both reviewers caught this independently.
  * ⚠️ What the refresh DOES need is whatever `variantFor` reads, or it would fetch the wrong
- * language — and storable() would then refuse it, so the entry would just go on ageing. Accept-Language and the cookie carry that, and the cookie
- * is safe here because a signed-in reader never reaches this code (see the -auth-token bypass).
+ * language — and storable() would then refuse it, so the entry would just go on ageing. Accept-Language and the
+ * `lang` cookie carry that — and ⛔ ONLY the `lang` cookie goes (speed plan item 10, 2026-10-17): a signed-in reader
+ * now reads shared copies too, so a refresh behind one must never carry a session to the origin. The document is the
+ * same without it (ISR cannot read cookies — measured, below); the session belongs to the reader's own requests.
+ * Measured 2026-10-17: a cookie-less request to /, /c/rentals, /privacy and /vi gets no Set-Cookie, so a refresh stays
+ * storable.
  */
 function refreshHeaders(request) {
   const h = new Headers(request.headers);
@@ -300,6 +304,9 @@ function refreshHeaders(request) {
   h.delete("if-modified-since");
   h.delete("range");
   h.delete("authorization");
+  const lang = cookieValue(request.headers.get("cookie"), "lang");
+  if (lang !== null) h.set("cookie", "lang=" + encodeURIComponent(lang));
+  else h.delete("cookie");
   return h;
 }
 
@@ -346,7 +353,7 @@ function forClient(body, init, state, storedAt, timing) {
  * src/lib/rum/early.ts, which turns it into anonymous bucket totals (nothing per visitor is kept).
  *   edge;desc="HKG"      the data centre (unless the origin's nginx already named it, from CF-Ray)
  *   ecache;desc="HIT"    what answered: HIT · STALE · MISS (fetched, stored) · DYN (fetched, not storable) · PASS
- *                        (a signed-in reader, never cached)
+ *                        (a signed-in reader's MISS: fetched with their cookies, never stored)
  *   origin;dur=123       ONLY when THIS request waited for the origin: the Worker's wall time around fetch() — edge →
  *                        box → first byte. (Workers' Date.now() advances across I/O, which is exactly what is timed.)
  * …plus, on those same waits, the origin's own entries (nginx: `edge`, `app;dur` = the app's time at the box, `ncache`).
@@ -392,13 +399,22 @@ export default {
      * replayed costs one more render; the early returns hold no logic that could throw.
      */
     if (typeof ctx.passThroughOnException === "function") ctx.passThroughOnException();
-    /** ⚠️ Signed-in readers bypass entirely — a personalised document must never enter a shared key. */
+    /**
+     * ⛔ A SIGNED-IN READER READS THE SHARED COPY BUT NEVER WRITES ONE (speed plan item 10, 2026-10-17). Every page this
+     * Worker stores is ISR (storable() demands s-maxage, no private/no-store/no-cache, no Set-Cookie), and an ISR page
+     * cannot read a cookie — so the origin already answers a signed-in reader with the same document. Measured on
+     * production, an auth-cookie request vs an anonymous one: `/`, `/c/rentals`, `/privacy`, `/vi` byte-identical but
+     * for Cloudflare's own per-request bot-check snippet, no Set-Cookie either way (src/proxy.ts holds no session code;
+     * the app has no draft mode). Bypassing only cost them the origin round trip: ~a third of home views (rum_daily,
+     * 10-16/17). So a HIT or STALE serves them like anyone; on a MISS they are passed through with their cookies and
+     * the answer is NOT stored — the cache is filled only by anonymous requests, and a refresh behind a signed-in
+     * reader carries no session (refreshHeaders). A page that ever reads a cookie is dynamic (Next sends no-store), so
+     * storable() can never let one in — the guarantee holds for routes not written yet. ⚠️ THE TRADE: signed-in readers
+     * now see the same ≤ FRESH_TTL-old shells as everyone (/, /c/*, the legal pages); their own listing pages, store
+     * pages and dashboard are not edge-cached, so an edit still shows where they look for it.
+     */
     const cookie = request.headers.get("cookie") || "";
-    if (cookie.includes("-auth-token")) {
-      const t0 = Date.now();
-      const passed = await fetch(request);
-      return withTiming(passed, timingFor(request, "PASS", passed, Date.now() - t0));
-    }
+    const signedIn = cookie.includes("-auth-token");
     /**
      * ⛔ AN AGENT ASKING FOR MARKDOWN MUST REACH THE ORIGIN (audit #88). `/`, `/terms` and `/privacy`
      * negotiate on Accept (next.config.ts rewrites them to /md/*), and the key does not carry Accept,
@@ -473,6 +489,8 @@ export default {
     const t0 = Date.now();
     const res = await fetch(request);
     const originMs = Date.now() - t0;
+    // A signed-in reader's MISS: their answer, never the shared one (see above).
+    if (signedIn) return withTiming(res, timingFor(request, "PASS", res, originMs));
     if (!storable(res, variant)) return withTiming(res, timingFor(request, "DYN", res, originMs));
 
     const now = Date.now();

@@ -223,6 +223,18 @@ async function main() {
   for (const [kind, t] of [...tfByKind.entries()].sort((a, b) => b[1].step1_ready - a[1].step1_ready)) tline(kind, t)
   if (tfByKind.size > 1) tline('all', tf.total)
 
+  // ── …and the rest of a new profile's way to Publish (2026-10-17): the steps after sign-in, the video, the Publish tap,
+  // where step 1's visitors came from, and "Open in your browser" inside Meta's apps. Window totals, all kinds summed.
+  // ⚠️ PAGE LOADS, NOT TAPS: each event counts once per page load (signup-counters.ts), so three Publish taps that were
+  // refused for the photo are ONE "photo", and a refusal for the photo then the video is one of each.
+  const T = tf.total
+  console.log(`\n  After sign-in (${days}-day, page loads): where → teaching → about → cover → finish reached`)
+  console.log(`  ${num(T.step_where, 8)} ${num(T.step_teaching, 9)} ${num(T.step_about, 7)} ${num(T.step_cover, 7)} ${num(T.step_finish, 8)}`)
+  console.log(`  Intro video: picked ${T.video_picked} · turned down in the browser ${T.video_refused} · failed (preparing or uploading) ${T.video_failed} · uploaded (not yet published) ${T.video_uploaded}`)
+  console.log(`  Publish: tapped ${T.publish_tap} · refused for video ${T.publish_refused_video} · photo (missing or no face) ${T.publish_refused_photo} · goal ${T.publish_refused_goal} · other ${T.publish_refused_other} · did not go through (server or network) ${T.publish_failed} · published ${T.published}`)
+  console.log(`  Step 1 continued, by source: ad ${T.continue_ad} · groups ${T.continue_groups} · zalo ${T.continue_zalo} · other ${T.continue_other} · none ${T.continue_none}`)
+  console.log(`  "Open in your browser" tapped (Meta's built-in browsers): ${T.escape_tap}`)
+
   console.log(`
   Notes: counts are anonymous and per tab-event, not per person; "signed in" (a sign-in within an hour of a
   prompt click) includes returning accounts that signed in from the prompt. Everyone, consent or not, is

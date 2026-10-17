@@ -884,9 +884,12 @@ describe('the teacher form\'s own counts (2026-10-16)', () => {
     for (const site of ['marketplace', 'services'] as const) {
       const text = await policy(site)
       expect(text, site).toContain('posting, the teacher profile form, the header or tab bar')
-      expect(text, site).toContain('and for the teacher profile form, how many times its first step was ready to use, answered, and continued — or stopped by a missing answer — and how many new teacher profiles were published')
+      expect(text, site).toContain('and for the teacher profile form, how many times its first step was ready to use, answered, and continued — or stopped by a missing answer — and, with each Continue, whether the link that brought you was an ad’s, a Facebook group’s, Zalo’s, another or none;')
+      // 2026-10-17: the rest of a new profile's way to Publish, and "Open in your browser" (signup-prompt.ts TEACHER_FORM_EVENTS).
+      expect(text, site).toContain('how many times each later step was reached, an intro video was chosen, turned down by the check in your browser, could not be prepared or uploaded, or was uploaded, and Publish was tapped, refused for the video, the photo, the kind of work or another answer, or did not go through; how many times “Open in Safari” or “Open in your browser” was tapped; and how many new teacher profiles were published')
     }
     expect(await policy('marketplace', 'vi')).toContain('và với biểu mẫu hồ sơ giáo viên: số lần bước đầu tiên sẵn sàng để dùng')
+    expect(await policy('marketplace', 'vi')).toContain('số lần bấm “Mở bằng Safari” hoặc “Mở bằng trình duyệt”')
   })
 })
 

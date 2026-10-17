@@ -290,10 +290,54 @@ export const isGateAction = (v: unknown): v is GateAction => typeof v === 'strin
  *   step1_continue  — Continue / Sign in / Next pressed on step 1 with every answer given
  *   published       — a new profile published
  * Sign-in in between is the `teacher` gate's own open / method / completed (SIGNIN_GATES).
+ *
+ * And the rest of a NEW profile's way to Publish (2026-10-17, owner: "rest recommended" — the bounce study found 81% of
+ * starters published before 10-16 and 31% after, with nothing counting where in between they stopped):
+ *   step_<step>        — a later step (where / teaching / about / cover / finish) came on screen
+ *   video_picked       — an intro video was chosen
+ *   video_refused      — this browser's check turned it down before uploading (too long, too big, cannot compress…)
+ *   video_failed       — an error while preparing it in this browser or uploading it (not the check's refusal above)
+ *   video_uploaded     — the video was uploaded (it is on the profile only once Publish goes through)
+ *   publish_tap        — Publish tapped (signed in)
+ *   publish_refused_*  — the form refused it, for: the video / the photo (missing, or the photo check's refusal) / the goal
+ *                        (no work wanted and cover off) / anything else — each that applies, once per page
+ *   publish_failed     — did not go through: the server refused it or did not answer
+ *   continue_<source>  — with step 1's Continue: where the link that brought this page came from (ad / groups / zalo /
+ *                        other / none — continueSourceEvent), read from this page's own address, never stored
+ *   escape_tap         — "Open in your browser" tapped inside Facebook's, Messenger's or Instagram's built-in browser
  */
-export const TEACHER_FORM_EVENTS = ['step1_ready', 'step1_answered', 'step1_blocked', 'step1_continue', 'published'] as const
+export const TEACHER_FORM_EVENTS = [
+  'step1_ready', 'step1_answered', 'step1_blocked', 'step1_continue', 'published',
+  'step_where', 'step_teaching', 'step_about', 'step_cover', 'step_finish',
+  'video_picked', 'video_refused', 'video_failed', 'video_uploaded',
+  'publish_tap', 'publish_refused_video', 'publish_refused_photo', 'publish_refused_goal', 'publish_refused_other', 'publish_failed',
+  'continue_ad', 'continue_groups', 'continue_zalo', 'continue_other', 'continue_none',
+  'escape_tap',
+] as const
 export type TeacherFormEvent = (typeof TEACHER_FORM_EVENTS)[number]
 export const isTeacherFormEvent = (v: unknown): v is TeacherFormEvent => typeof v === 'string' && (TEACHER_FORM_EVENTS as readonly string[]).includes(v)
+
+/**
+ * The coarse word for where step 1's visitor came from, read from this page's own address — never a click id's value, a
+ * campaign or anything finer (the /privacy "Sign-up reminder counts" paragraph names these five). An AD is what only an
+ * ad's link carries: a paid `utm_medium` (paid, paid_social, cpc…), Meta's ad-only source codes ({{site_source_name}}: fb,
+ * ig, an, msg — and `meta`, our own ads' tag) or an ad platform's click id (ttclid, gclid…). ⛔ A bare
+ * `utm_source=facebook` / `tiktok` is anyone's post, so it reads as another source (review, 2026-10-17); `fbclid` alone
+ * (any link opened from Facebook) as none.
+ */
+export function continueSourceEvent(search: string): TeacherFormEvent {
+  let p: URLSearchParams
+  try { p = new URLSearchParams(search) } catch { return 'continue_none' }
+  const s = (p.get('utm_source') ?? '').trim().toLowerCase()
+  const medium = (p.get('utm_medium') ?? '').trim().toLowerCase()
+  if (/^(paid|paid[_-]?social|cpc|ppc|cpm|ads?)$/.test(medium) || /^(meta|fb|ig|an|msg)$/.test(s) || AD_CLICK_IDS.some((k) => p.has(k))) return 'continue_ad'
+  if (!s) return 'continue_none'
+  if (s === 'fbgroups') return 'continue_groups'
+  if (s === 'zalo') return 'continue_zalo'
+  return 'continue_other'
+}
+/** Click ids only an ad platform's paid click adds (TikTok, Google) — read for their presence, never their value. */
+const AD_CLICK_IDS = ['ttclid', 'gclid', 'gbraid', 'wbraid'] as const
 
 // ── Keys ─────────────────────────────────────────────────────────────────────────────────────────
 

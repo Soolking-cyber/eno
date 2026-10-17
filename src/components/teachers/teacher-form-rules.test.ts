@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { EMPTY_TEACHER, normalizeTeacherInput, type TeacherInput } from '@/lib/teachers/profile'
-import {
+import { refusalEvents, step1Answered,
   CAMPAIGN_TAG_MAX, DRAFT_FIELDS, campaignQuery, decodeHandoff, draftPart, draftResumeStep, droppedAnswers, encodeHandoff, handoffPart,
   mergeReview, nothingToSave, HANDOFF_FIELDS, forDraft, homeDefaultAreas, nextMonths, startChoice,
   suggestHeadline, withJobTypes, withRelocate, withSituation,
@@ -269,3 +269,26 @@ describe('"Review these answers in my profile" / "Use the answers I just gave in
   })
 })
 
+
+// A refused Publish, in the counters' words (2026-10-17): each missing kind once.
+describe('refusalEvents', () => {
+  it('names the video, the photo, the goal and anything else — each that applies, once', () => {
+    expect(refusalEvents({ videoUrl: 'required' })).toEqual(['publish_refused_video'])
+    expect(refusalEvents({ photoUrl: 'no_face' })).toEqual(['publish_refused_photo'])
+    expect(refusalEvents({ coverOpen: 'goal_required' })).toEqual(['publish_refused_goal'])
+    expect(refusalEvents({ jobTypes: 'required' })).toEqual(['publish_refused_goal'])
+    expect(refusalEvents({ coverOpen: 'reach_required' })).toEqual(['publish_refused_other'])
+    expect(refusalEvents({ videoUrl: 'required', subjects: 'required', fullName: 'required' }).sort()).toEqual(['publish_refused_other', 'publish_refused_video'])
+    expect(refusalEvents({})).toEqual([])
+  })
+})
+
+// "Open in your browser" leaves with the first step-1 answer — the real browser opens the bare address (2026-10-17).
+describe('step1Answered', () => {
+  it('any step-1 answer counts; later steps and the account autofill do not', () => {
+    expect(step1Answered(base())).toBe(false)
+    expect(step1Answered(base({ livesIn: 'abroad' }))).toBe(true)
+    expect(step1Answered(base({ currentCity: 'ha-noi' }))).toBe(true)
+    expect(step1Answered(base({ fullName: 'An', bio: 'From my CV.', phone: '+84901234567', photoUrl: 'https://x/p.webp' }))).toBe(false)
+  })
+})

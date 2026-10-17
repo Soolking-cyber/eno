@@ -19,7 +19,7 @@ import { HANDOFF_NEXT_KEY, handoffNonce } from '@/lib/auth/handoff-client'
 import { isNativeApp, nativeAppleSignIn, nativeAuthErrorCode, nativeOAuth, type NativeOAuthProvider } from '@/lib/native-auth'
 import { appReviewGate, inAppSheetDocument, IN_APP_SHEET_PARAM, nativeAppGate } from '@/lib/app-review-gates'
 import { appleAvailableHere, appleFlagSet, appleSignInTokens, appleWebEnabled, iosGoogleHidden, iosNativeAppleReady, iosSignInPluginPresent } from '@/lib/apple-signin'
-import { facebookAvailableHere } from '@/lib/facebook-signin'
+import { facebookAvailableHere, facebookHeldBack } from '@/lib/facebook-signin'
 import { useFacebookSignInOn } from '@/lib/facebook-flag'
 import { googleFirstPartyEnabled } from '@/lib/google-identity'
 import { useTurnstile } from './turnstile'
@@ -454,7 +454,8 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
     setHideGoogle((isNativeTabs() && !isNativeApp()) || iosGoogleHidden() || inAppSheetDocument())
     const appleHere = appleAvailableHere()
     setShowApple(appleHere)
-    setFacebookHere(facebookAvailableHere())
+    // Not at the teacher form's sign-in nor inside Meta's own browsers until Facebook can finish (facebookHeldBack).
+    setFacebookHere(facebookAvailableHere() && !facebookHeldBack(gate))
     setAppleWebHere(appleWebEnabled())
     // ⛔ RECONCILE THE PRE-PAINT CLASS (commit gate, codex + opus): `no-apple-web` is set once per document
     // (src/lib/apple-web-head.ts), but the in-app sheet's marker belongs to ONE URL — a client-side navigation away

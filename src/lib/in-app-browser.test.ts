@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { browserContext, deviceClass, googleOauthBlocked, inAppHost, inAppHostName, isInAppHost } from './in-app-browser'
+import { META_IN_APP_HOSTS, browserContext, deviceClass, escapeInAppBrowser, googleOauthBlocked, inAppHost, inAppHostName, isInAppHost, uaOs } from './in-app-browser'
 import { parseHandoffVia } from './auth/handoff-client'
 
 // ── UX3 J1/J2: which app's built-in browser, and the counters' coarse context class ───────────────
@@ -88,5 +88,32 @@ describe('the hand-off’s `via` — an allow-listed word, never text', () => {
     expect(parseHandoffVia('other')).toBe('other')
     for (const bad of ['Zalo', 'evil<script>', '', null, undefined, 'eno app']) expect(parseHandoffVia(bad)).toBeNull()
     expect(isInAppHost('pwa')).toBe(false)
+  })
+})
+
+// ── The way out of Meta's built-in browsers (2026-10-17, owner: "drive them to actual website not in facebook browser") ──
+describe('escaping Facebook, Messenger and Instagram for the real browser', () => {
+  afterEach(() => { vi.restoreAllMocks() })
+  it('uaOs reads the phone, coarsely', () => {
+    expect(uaOs(UA.fbAndroid)).toBe('android')
+    expect(uaOs(UA.fbIOS)).toBe('ios')
+    expect(uaOs(UA.instagram)).toBe('ios')
+    expect(uaOs('Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15')).toBe('other')
+  })
+  it('is offered in Meta\'s own browsers only — never Zalo, TikTok or another app', () => {
+    for (const h of ['facebook', 'messenger', 'instagram'] as const) expect(META_IN_APP_HOSTS.has(h)).toBe(true)
+    for (const h of ['zalo', 'tiktok', 'line', 'google', 'other'] as const) expect(META_IN_APP_HOSTS.has(h)).toBe(false)
+  })
+  it('iOS Facebook hands the page to Safari through window.open(x-safari-https://…), the address otherwise unchanged', () => {
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => UA.fbIOS })
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    escapeInAppBrowser('https://teacher.eno.vn/?utm_source=meta&utm_content=reel_v3_benefits', 'facebook')
+    expect(open).toHaveBeenCalledWith('x-safari-https://teacher.eno.vn/?utm_source=meta&utm_content=reel_v3_benefits', '_blank')
+  })
+  it('does nothing on a desktop browser', () => {
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => 'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15' })
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    escapeInAppBrowser('https://teacher.eno.vn/', 'facebook')
+    expect(open).not.toHaveBeenCalled()
   })
 })

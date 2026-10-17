@@ -38,6 +38,28 @@ export function checkSteps(t: TeacherInput, steps: readonly TeacherStep[]): Teac
   return validateTeacherInput(normalizeForSave(t), steps)
 }
 
+/**
+ * What a refused Publish was missing, in the counters' words (signup-prompt.ts publish_refused_*): the video, the photo,
+ * the goal (no work wanted and cover off — profile.ts splitGoalErrors' pair), anything else — each that applies.
+ */
+export function refusalEvents(errs: TeacherErrors): Array<'publish_refused_video' | 'publish_refused_photo' | 'publish_refused_goal' | 'publish_refused_other'> {
+  const out = new Set<'publish_refused_video' | 'publish_refused_photo' | 'publish_refused_goal' | 'publish_refused_other'>()
+  for (const [k, v] of Object.entries(errs)) {
+    if (k === 'videoUrl') out.add('publish_refused_video')
+    else if (k === 'photoUrl') out.add('publish_refused_photo')
+    else if ((k === 'jobTypes' && v === 'required') || (k === 'coverOpen' && v === 'goal_required')) out.add('publish_refused_goal')
+    else out.add('publish_refused_other')
+  }
+  return [...out]
+}
+
+/**
+ * Whether step 1 holds ANY answer (a visitor's, a restored draft's or the hand-off's). "Open in your browser" shows only
+ * while it holds none: the system browser opens the bare address, so an answer given here would be lost (review, 2026-10-17).
+ */
+export const step1Answered = (t: TeacherInput): boolean =>
+  (TEACHER_STEP_FIELDS.plans as readonly (keyof TeacherInput)[]).some((k) => JSON.stringify(t[k]) !== JSON.stringify(EMPTY_TEACHER[k]))
+
 // ── THE PLACES PRE-SELECTED FOR A HOME (plan review B6) ───────────────────────────────────────────────────────────────
 
 /**
