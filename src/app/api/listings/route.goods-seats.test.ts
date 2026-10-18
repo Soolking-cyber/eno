@@ -196,7 +196,7 @@ async function apiPage(qs: string): Promise<Row[]> {
 }
 /** What the home page server-renders: the real page component's seed for the explorer. */
 async function ssrPage(): Promise<Row[]> {
-  const el = (await Home()) as { props: { initialListings: Row[] } }
+  const el = (await Home({ params: Promise.resolve({ lang: 'en' }) })) as { props: { initialListings: Row[] } }
   return el.props.initialListings
 }
 /** The explorer scrolling the API from page 2 until it runs dry. */

@@ -334,7 +334,8 @@ export default async function CategoryDistrictPage({ params }: Props) {
   // The rent block (D2): rentals, in HCMC, on the marketplace. Otherwise, or on a miss, the plain link.
   // Started before the title localisation so a cold snapshot read overlaps it (review).
   const rentP = rentals && data.inHcmc && !IS_SERVICES ? districtRent(district) : Promise.resolve(null)
-  const listings = await localizeListingTitles(matched.map(serializeListingCard))
+  // ⚡ PAYLOAD (speed plan item 8): /vi embeds no titleI18n (vi renders from titleVi); /en keeps all 9.
+  const listings = await localizeListingTitles(matched.map(serializeListingCard), lang === 'vi' ? 'vi' : undefined)
   const rent = await rentP
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   // All three crumb names follow the page's language, equal to the visible crumbs below (V2; the

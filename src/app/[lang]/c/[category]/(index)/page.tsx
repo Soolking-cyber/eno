@@ -234,7 +234,9 @@ export default async function CategoryPage({ params }: Props) {
   // The page's own category is not a chip, so on /c/rentals Find a teacher is the third chip, not the fourth.
   const otherCats = leadFirst(otherCatRows).map((c) => ({ ...c, ...categoryEntryLabel(c) }))
   // Reorder THEN slice (the window's fallback paths hand back a plain top-N nobody interleaved).
-  const listings = await localizeListingTitles(diversifyBySeller(raw, { sharedSeats }).slice(0, PAGE_SIZE).map(serializeListingCard))
+  // ⚡ PAYLOAD (speed plan item 8): /vi embeds no titleI18n (vi renders from titleVi); /en keeps all 9 MT
+  // title variants for the client-side language swap. Same slim as the home + district ISR feeds.
+  const listings = await localizeListingTitles(diversifyBySeller(raw, { sharedSeats }).slice(0, PAGE_SIZE).map(serializeListingCard), lang === 'vi' ? 'vi' : undefined)
   // ⚠️ "BY AREA" ONLY WHERE THERE ARE AREAS TO BROWSE (byAreaChips: three places with five or more).
   const districts = byAreaChips(chips, DISTRICT_CHIPS)
   // Registry-driven (src/lib/category-guides.ts) and only over real stock: a guide rail under an
