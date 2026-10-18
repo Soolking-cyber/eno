@@ -169,24 +169,38 @@ describe('…in a tab that cannot store the hand-off — the in-place notice sur
   })
 })
 
-describe('the typed word — as the iOS keyboard types it', () => {
-  it.each(['Delete', ' delete ', 'DELETE'])('`%s` enables the button and sends the exact word', async (word) => {
-    h.apple = 'revoked'
-    await mountSignedIn()
-    fireEvent.click(screen.getByRole('button', { name: 'Delete my account' }))
-    const field = await screen.findByPlaceholderText('DELETE')
-    expect(field.getAttribute('autocapitalize')).toBe('characters')
-    fireEvent.change(field, { target: { value: word } })
-    fireEvent.click(screen.getByRole('button', { name: 'Permanently delete' }))
-    await vi.waitFor(() => expect(window.location.href).toBe('/'))
-    const call = vi.mocked(fetch).mock.calls.find(([url]) => String(url) === '/api/account/delete')
-    expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({ confirm: 'DELETE' })
-  })
+/** Opens the delete dialog in `lang` and types `word` into its field; returns the confirm button. */
+async function typeIn(lang: 'en' | 'vi', word: string) {
+  localStorage.setItem('lang', lang)
+  render(<LanguageProvider initialLang={lang} initialViDict={{}}><AuthProvider><SettingsClient embedded section="account" /></AuthProvider></LanguageProvider>)
+  await act(async () => { window.dispatchEvent(new Event('pointerdown')) })
+  fireEvent.click(await screen.findByRole('button', { name: lang === 'vi' ? 'Xóa tài khoản của tôi' : 'Delete my account' }))
+  const field = await screen.findByPlaceholderText(lang === 'vi' ? 'XÓA' : 'DELETE')
+  expect(field.getAttribute('autocapitalize')).toBe('characters')
+  fireEvent.change(field, { target: { value: word } })
+  return screen.getByRole('button', { name: lang === 'vi' ? 'Xóa vĩnh viễn' : 'Permanently delete' }) as HTMLButtonElement
+}
 
-  it('any other word keeps the button off', async () => {
-    await mountSignedIn()
-    fireEvent.click(screen.getByRole('button', { name: 'Delete my account' }))
-    fireEvent.change(await screen.findByPlaceholderText('DELETE'), { target: { value: 'Delet' } })
-    expect((screen.getByRole('button', { name: 'Permanently delete' }) as HTMLButtonElement).disabled).toBe(true)
+describe('the typed word — each dialog takes its own, as iOS keyboards type it', () => {
+  // "Delete": iOS capitalises the first letter. XÓA: Vietnamese Telex eats DELETE's second E, so that dialog asks for XÓA.
+  it.each([['en', 'Delete'], ['en', ' delete '], ['en', 'DELETE'], ['vi', 'XÓA'], ['vi', 'xoá'], ['vi', 'Xoa']] as const)(
+    '%s `%s` enables the button and sends the exact word', async (lang, word) => {
+      h.apple = 'revoked'
+      const button = await typeIn(lang, word)
+      expect(button.disabled).toBe(false)
+      fireEvent.click(button)
+      await vi.waitFor(() => expect(window.location.href).toBe('/'))
+      const call = vi.mocked(fetch).mock.calls.find(([url]) => String(url) === '/api/account/delete')
+      expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({ confirm: 'DELETE' })
+    })
+
+  it.each([['en', 'Delet'], ['en', 'DE LETE'], ['en', 'XÓA'], ['vi', 'DÊLTE'], ['vi', 'DELETE']] as const)(
+    '%s `%s` keeps the button off', async (lang, word) => {
+      expect((await typeIn(lang, word)).disabled).toBe(true)
+    })
+
+  it('the Vietnamese dialog asks for XÓA', async () => {
+    await typeIn('vi', '')
+    expect(screen.getByText('Nhập XÓA để xác nhận')).toBeTruthy()
   })
 })

@@ -66,7 +66,8 @@ async function deleteAs(lang: 'en' | 'vi', status?: string) {
   render(<LanguageProvider initialLang={lang} initialViDict={{}}><DeleteAccount /></LanguageProvider>)
   await act(async () => {})
   fireEvent.click(screen.getByRole('button', { name: lang === 'vi' ? 'Xóa tài khoản của tôi' : 'Delete my account' }))
-  fireEvent.change(await screen.findByPlaceholderText('DELETE'), { target: { value: 'DELETE' } })
+  const word = lang === 'vi' ? 'XÓA' : 'DELETE' // the word each dialog asks for
+  fireEvent.change(await screen.findByPlaceholderText(word), { target: { value: word } })
   fireEvent.click(screen.getByRole('button', { name: lang === 'vi' ? 'Xóa vĩnh viễn' : 'Permanently delete' }))
   await act(async () => { await new Promise((r) => setTimeout(r, 0)) })
 }

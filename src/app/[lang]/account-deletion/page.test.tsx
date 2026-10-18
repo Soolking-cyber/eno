@@ -112,16 +112,16 @@ describe('/account-deletion — the steps are the app’s own path', () => {
   })
 
   it('the word to type is the word the confirm button waits for, quoted from the dialog in both languages', () => {
-    // The button waits for the field as typed, or for it with case and the spaces around it dropped (`confirm.trim().toUpperCase()`).
-    const waitsFor = new Set(['confirm', ...nodes(DELETE).filter(ts.isVariableDeclaration)
-      .filter((d) => d.initializer?.getText().replace(/\s/g, '') === 'confirm.trim().toUpperCase()').map((d) => d.name.getText())])
-    const typed = nodes(DELETE).filter(ts.isBinaryExpression).some((b) =>
-      b.operatorToken.kind === ts.SyntaxKind.ExclamationEqualsEqualsToken && waitsFor.has(b.left.getText()) && plain(b.right) === 'DELETE')
-    expect(typed).toBe(true)
+    // The word each dialog takes: CONFIRM_WORD_EN, CONFIRM_WORD_VI.
+    const constant = (name: string) => plain(nodes(DELETE).filter(ts.isVariableDeclaration).find((d) => d.name.getText() === name)?.initializer)
+    const words = [constant('CONFIRM_WORD_EN'), constant('CONFIRM_WORD_VI')]
+    expect(words.filter(Boolean)).toHaveLength(2)
     // The field's own label, not the error line under it.
     const field = nodes(DELETE).find((n): n is ts.JsxElement => ts.isJsxElement(n) && n.openingElement.tagName.getText() === 'FieldLabel')
     const label = field && nodes(field).map(trPair).find(Boolean)
-    expect(label?.[0]).toMatch(/\bDELETE\b/)
+    // The capitalised word each language's label asks for is that language's word.
+    const asked = (label ?? []).map((s) => s.split(/\s+/).find((w) => w.length >= 3 && w === w.toUpperCase() && /\p{Lu}/u.test(w)))
+    expect(asked).toEqual(words)
     expect(STEPS.some((p) => p.en.includes(label![0]) && p.vi.includes(label![1]))).toBe(true)
   })
 

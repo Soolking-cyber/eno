@@ -65,7 +65,7 @@ const SECTIONS: [id: string, title: string, paras: Copy[], link?: { href: string
       },
       {
         en: 'In Settings, open the Account tab and, under "Danger zone", select "Delete my account". Type DELETE to confirm and select "Permanently delete". Deletion then runs immediately — you do not need to contact us and you do not need to wait for approval. Only if your account has an open report or review does the screen say so and ask you to write to us instead.',
-        vi: 'Trong Cài đặt, mở thẻ Tài khoản, rồi ở mục "Vùng nguy hiểm", chọn "Xóa tài khoản của tôi". Nhập DELETE để xác nhận và chọn "Xóa vĩnh viễn". Tài khoản sẽ bị xóa ngay lập tức — bạn không cần liên hệ với chúng tôi và cũng không cần chờ phê duyệt. Chỉ khi tài khoản của bạn đang có báo cáo hoặc đang được xem xét, màn hình sẽ thông báo và đề nghị bạn viết thư cho chúng tôi.',
+        vi: 'Trong Cài đặt, mở thẻ Tài khoản, rồi ở mục "Vùng nguy hiểm", chọn "Xóa tài khoản của tôi". Nhập XÓA để xác nhận và chọn "Xóa vĩnh viễn". Tài khoản sẽ bị xóa ngay lập tức — bạn không cần liên hệ với chúng tôi và cũng không cần chờ phê duyệt. Chỉ khi tài khoản của bạn đang có báo cáo hoặc đang được xem xét, màn hình sẽ thông báo và đề nghị bạn viết thư cho chúng tôi.',
       },
       'This is the fastest route and the one we recommend. The same screen also lets you export a copy of your data first, which is worth doing before you delete anything, because deletion cannot be undone.',
     ],

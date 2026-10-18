@@ -34,20 +34,32 @@ async function signOutLocally(): Promise<void> {
   } catch {}
 }
 
+/**
+ * The word each dialog asks for, and the only one it takes: XÓA in Vietnamese — Telex eats the second E of DELETE
+ * ("DÊLTE") — and DELETE in English and the machine-translated languages. Two constants, not an `{ en, vi }` pair: a
+ * pair is harvested as copy to machine-translate (gen-ui-strings), and the word to type must never be translated.
+ */
+const CONFIRM_WORD_EN = 'DELETE'
+const CONFIRM_WORD_VI = 'XÓA'
+/** Case, accents and the spaces around a word dropped: Telex and VNI place XÓA's tone as XÓA or XOÁ. */
+const bare = (s: string) => s.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
+
 // Danger zone — self-service account deletion (PDPL right, /privacy documents the
 // schedule). The typed "DELETE" confirmation is required server-side too; this UI
 // just keeps honest users from tapping through. Irreversible.
 export function DeleteAccount() {
-  const { tr } = useLanguage()
+  const { lang, tr } = useLanguage()
   const [open, setOpen] = useState(false)
   const [confirm, setConfirm] = useState('')
   /**
-   * ⛔ THE WORD IN ANY CASE. iOS capitalises the first letter of a field, so a tester typing DELETE gets "Delete" and a
-   * button that never enables (App Review recording, 2026-10-09). The field asks for capitals (autoCapitalize) and the
-   * check ignores case and the spaces around the word (not inside it); the server still takes only the exact word, so
-   * the dialog sends it normalised.
+   * ⛔ THE WORD IN ANY CASE (CONFIRM_WORD_*, through bare()). iOS capitalises the first letter of a field, so a tester
+   * typing DELETE got "Delete" and a button that never enabled (App Review recording, 2026-10-09); the field asks for
+   * capitals (autoCapitalize). The server takes only the exact word DELETE: a confirmed dialog sends it whichever word
+   * was typed, and anything else goes as typed, so the server's check still stops a call that got round the button.
    */
-  const typed = confirm.trim().toUpperCase()
+  // i18n-invariant: the word to type is each dialog's own (CONFIRM_WORD_*), never machine-translated
+  const word = lang === 'vi' ? CONFIRM_WORD_VI : CONFIRM_WORD_EN
+  const confirmed = bare(confirm) === bare(word)
   const [busy, setBusy] = useState(false)
   /**
    * ⛔ SIGN IN WITH APPLE — WHEN APPLE MAY STILL LIST eno AFTER THE DELETION (D9, TN3194): the notice and why it is
@@ -91,7 +103,7 @@ export function DeleteAccount() {
       const res = await fetch('/api/account/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirm: typed }),
+        body: JSON.stringify({ confirm: confirmed ? 'DELETE' : confirm }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -99,7 +111,7 @@ export function DeleteAccount() {
         // the race/tamper path) — that is a per-field failure, and its EN-only server string is
         // replaced by our bilingual copy.
         if (res.status === 400 && d.error === 'Confirmation required') {
-          setConfirmErr(tr('Type DELETE to confirm.', 'Nhập DELETE để xác nhận.'))
+          setConfirmErr(tr('Type DELETE to confirm.', 'Nhập XÓA để xác nhận.'))
         } else {
           // The server's sentences are English-only; each known code gets the reader's language here, and
           // anything unrecognised falls back to the generic line rather than printing raw English.
@@ -199,7 +211,7 @@ export function DeleteAccount() {
           <div className="space-y-1.5">
             <Field invalid={!!confirmErr} className="gap-1.5">
               <FieldLabel render={<Label />}>
-                {tr('Type DELETE to confirm', 'Nhập DELETE để xác nhận')}
+                {tr('Type DELETE to confirm', 'Nhập XÓA để xác nhận')}
               </FieldLabel>
               <FieldControl id="delete-account-confirm"
                 render={
@@ -207,7 +219,8 @@ export function DeleteAccount() {
                     id="delete-account-confirm"
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
-                    placeholder="DELETE"
+                    // i18n-invariant: the word to type (CONFIRM_WORD_*) — machine translation must never rewrite it
+                    placeholder={word}
                     autoComplete="off"
                     autoCapitalize="characters"
                     autoCorrect="off"
@@ -226,7 +239,7 @@ export function DeleteAccount() {
             <AlertDialogCancel>{tr('Cancel', 'Hủy')}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              disabled={typed !== 'DELETE' || busy}
+              disabled={!confirmed || busy}
               onClick={run}
               className="font-bold"
             >
