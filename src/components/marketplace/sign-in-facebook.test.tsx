@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import * as React from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { LanguageProvider } from '@/context/language-context'
 import { VI_OVERRIDES } from '@/generated/vi-overrides'
 
@@ -308,7 +308,8 @@ describe('right after Facebook shared no email (emailLead)', () => {
     expect(screen.queryByRole('button', { name: /Facebook/ })).toBeNull()
     expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeTruthy()
     expect(screen.getByText('Facebook didn’t share your email address.')).toBeTruthy()
-    expect((document.activeElement as HTMLInputElement | null)?.type).toBe('email')
+    // The dialog moves focus on its own schedule — one tick (settle) was a race a slow CI runner lost (2026-10-18).
+    await waitFor(() => expect((document.activeElement as HTMLInputElement | null)?.type).toBe('email'))
   })
 
   it('in Facebook\'s in-app browser too: the emailed code leads, no Facebook button', async () => {
