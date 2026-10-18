@@ -1,3 +1,5 @@
+import type { VideoUploadKind } from '@/lib/video-length'
+
 /**
  * PUT ONE LISTING CLIP IN THE `listing-videos` BUCKET AND RETURN ITS PUBLIC URL.
  *
@@ -8,8 +10,11 @@
  * HEVC rule, one poll deadline and one set of error codes.
  *
  * ⚠️ THE ERROR CODES ARE PART OF THE CONTRACT: it throws `Error('video')` or `Error('video_hevc')`,
- * which the wizard's submit catch already maps to user-facing copy. Do not "improve" them into
- * messages — the caller decides the wording, in two languages.
+ * which the wizard's submit catch already maps to user-facing copy — and, for a teacher's intro video
+ * only, `Error('video_too_long')`: a clip whose length the browser could not read turned out longer
+ * than its kind keeps (the server refuses it rather than cutting it) — and `Error('video_busy')`: this
+ * account tried too often this hour, or the server asked it to try again (try again later). Do not
+ * "improve" them into messages — the caller decides the wording, in two languages.
  */
 
 /**
@@ -52,18 +57,72 @@ export async function hasHevcTrack(f: Blob): Promise<boolean> {
   return false
 }
 
+/**
+ * How long the client waits for the server's encode, by kind: its wall plus two minutes for the download and the upload
+ * (src/lib/core/video-transcode.ts TRANSCODE_PLAN) — and, for an intro video, past the route's lease (wall + 150 s), so a
+ * job that died answers 404 before the client stops asking. Pinned against both in src/lib/video-length.test.ts.
+ */
+export const TRANSCODE_WAIT_MS: Record<VideoUploadKind, number> = { listing: 330_000, teacher_intro: 720_000 }
+
 export type VideoUploadOptions = {
   /** True when the source is HEVC, which fails CLOSED — see the transcode note below. */
   hevc?: boolean
   /**
    * How long to wait for the server-side encode. The wizard gives it the full 330s; a bulk import
    * passes something smaller, because a row that cannot produce a clip must not hold up 199 others.
+   * A teacher's intro video waits 720s by default: its encode may run 540s (src/lib/core/video-transcode.ts).
    */
   deadlineMs?: number
+  /**
+   * Which clip this is — what the server's transcode keeps of it (src/lib/video-length.ts): a listing's
+   * minute (the default) or a teacher's five-minute intro video. Client-supplied, and that is enough:
+   * the cut only shortens what an honest client already gated; see the transcode route.
+   */
+  kind?: VideoUploadKind
 }
 
 export async function uploadListingVideo(file: File, opts: VideoUploadOptions = {}): Promise<string | null> {
-  const deadlineMs = opts.deadlineMs ?? 330_000
+  const kind: VideoUploadKind = opts.kind ?? 'listing'
+  // An intro video's upload and encode can take minutes: the screen is held on meanwhile where the browser allows (a
+  // locked phone suspends the page, and its upload with it) — and held again when the page comes back, since a browser
+  // drops the lock whenever the page is hidden (gate review, 2026-10-18). Best effort — never a failed upload.
+  if (kind !== 'teacher_intro' || typeof document === 'undefined') return upload(file, opts, kind)
+  let done = false
+  let lock = await requestScreenLock()
+  const relock = () => {
+    if (document.visibilityState !== 'visible') return
+    void requestScreenLock().then((next) => {
+      if (!next) return
+      if (done) { void next.release().catch(() => undefined); return }
+      // The one it replaces is let go — never two held (gate review); the browser has usually released it on hide already.
+      if (lock && lock !== next) void lock.release().catch(() => undefined)
+      lock = next
+    })
+  }
+  document.addEventListener('visibilitychange', relock)
+  try {
+    return await upload(file, opts, kind)
+  } finally {
+    done = true
+    document.removeEventListener('visibilitychange', relock)
+    void lock?.release().catch(() => undefined)
+  }
+}
+
+async function requestScreenLock(): Promise<{ release: () => Promise<void> } | null> {
+  try {
+    const wake = (navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<{ release: () => Promise<void> }> } }).wakeLock
+    return (await wake?.request('screen')) ?? null
+  } catch {
+    return null
+  }
+}
+
+async function upload(file: File, opts: VideoUploadOptions, kind: VideoUploadKind): Promise<string | null> {
+  const long = kind === 'teacher_intro'
+  const deadlineMs = opts.deadlineMs ?? TRANSCODE_WAIT_MS[kind]
+  // A long encode is polled less often: 144 polls at worst instead of 240, inside the poll limit (600/h).
+  const pollMs = long ? 5_000 : 3_000
   // Loaded on demand: only a caller that actually has a CLIP needs supabase-js, so it must not sit
   // in /post's first-load bundle for the photo-only majority. Fetched BEFORE the signing call on
   // purpose — the signed token is short-lived, and downloading ~242 kB after minting it would burn
@@ -96,31 +155,43 @@ export async function uploadListingVideo(file: File, opts: VideoUploadOptions = 
   const xc = await fetch('/api/upload/video/transcode', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, hevc: opts.hevc === true }),
+    body: JSON.stringify({ path, hevc: opts.hevc === true, kind }),
   })
-  if (xc.status === 422) throw new Error('video_hevc')
+  if (xc.status === 422) {
+    // A listing's 422 is the HEVC clip failing closed; an intro video fails closed whatever its codec, so its own is 'video'.
+    const failed = (await xc.json().catch(() => ({}))) as { error?: string }
+    throw new Error(failed.error === 'video_too_long' ? 'video_too_long' : long ? 'video' : 'video_hevc')
+  }
+  // A listing's clip keeps its old code for these ('video'); an intro video says why.
+  if (long && (xc.status === 429 || xc.status === 503)) throw new Error('video_busy')
   if (!xc.ok && xc.status !== 202) throw new Error('video')
   let xj = (await xc.json()) as { url?: string; status?: string }
   if (!xj.url && xj.status === 'running') {
     const deadline = Date.now() + deadlineMs
-    while (Date.now() < deadline && !xj.url) {
-      await new Promise((r) => setTimeout(r, 3000))
+    const poll = async () => {
       try {
         const st = await fetch(`/api/upload/video/transcode?path=${encodeURIComponent(path)}`, {
           signal: AbortSignal.timeout(10_000),
         })
         if (!st.ok) {
           if (st.status === 404) throw new Error(opts.hevc ? 'video_hevc' : 'video') // job lost
-          continue // transient (429/5xx) — keep polling until the deadline
+          return // transient (429/5xx) — keep polling until the deadline
         }
-        const sj = (await st.json()) as { status?: string; url?: string }
-        if (sj.status === 'failed') throw new Error(opts.hevc ? 'video_hevc' : 'video')
+        const sj = (await st.json()) as { status?: string; url?: string; reason?: string }
+        if (sj.status === 'failed') throw new Error(sj.reason === 'too_long' ? 'video_too_long' : opts.hevc ? 'video_hevc' : 'video')
         if (sj.status === 'done' && sj.url) xj = sj
       } catch (err) {
-        if (err instanceof Error && (err.message === 'video' || err.message === 'video_hevc')) throw err
+        if (err instanceof Error && ['video', 'video_hevc', 'video_too_long', 'video_busy'].includes(err.message)) throw err
         // network blip / poll timeout — keep polling until the deadline
       }
     }
+    while (Date.now() < deadline && !xj.url) {
+      await new Promise((r) => setTimeout(r, pollMs))
+      await poll()
+    }
+    // An intro video is asked once more past the deadline (gate review, 2026-10-18): a phone that slept through its long wait
+    // wakes with the loop over, and the encode may well have finished meanwhile. A listing's clip ends as it always did.
+    if (!xj.url && long) await poll()
   }
   return xj.url ?? null
 }

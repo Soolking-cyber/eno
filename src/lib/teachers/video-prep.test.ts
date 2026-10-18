@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-// The required intro video's preparation (2026-10-16): the post wizard's rules (type, ≤ 60 s with 61 for rounding,
-// compression over the 50 MB ceiling, HEVC flagged) — and, because a profile cannot publish without one, a clip whose
+// The required intro video's preparation (2026-10-16): the post wizard's rules (type, a length limit with one second over
+// for rounding — five minutes since 2026-10-18 —, compression over the 50 MB ceiling, HEVC flagged) — and, because a profile cannot publish without one, a clip whose
 // length this browser cannot read still goes up when it needs no shrinking.
-const h = vi.hoisted(() => ({ duration: 30 as number, compressOk: true, compressSupported: true, hevc: false, compressReason: undefined as string | undefined }))
+const h = vi.hoisted(() => ({ duration: 30 as number, compressOk: true, compressSupported: true, hevc: false, compressReason: undefined as string | undefined, recorded: 120 as number | null }))
 vi.mock('@/lib/video-compress', () => ({
   VIDEO_PICK_MAX_BYTES: 150 * 1024 * 1024,
   videoCompressionSupported: () => h.compressSupported,
   compressVideo: async (f: File) => { if (!h.compressOk) throw Object.assign(new Error('x'), { reason: h.compressReason }); return new File([new Uint8Array(10)], f.name.replace(/\.\w+$/, '.mp4'), { type: 'video/mp4' }) },
+  recordedSeconds: async () => h.recorded,
 }))
 vi.mock('@/lib/video-upload-client', () => ({ VIDEO_UPLOAD_MAX_BYTES: 50 * 1024 * 1024, hasHevcTrack: async () => h.hevc }))
 
@@ -22,7 +23,7 @@ const clip = (bytes: number, name = 'hello.mp4', type = 'video/mp4') => {
 
 const realCreate = document.createElement.bind(document)
 beforeEach(() => {
-  Object.assign(h, { duration: 30, compressOk: true, compressSupported: true, hevc: false, compressReason: undefined })
+  Object.assign(h, { duration: 30, compressOk: true, compressSupported: true, hevc: false, compressReason: undefined, recorded: 120 })
   vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL: () => {} }))
   vi.spyOn(document, 'createElement').mockImplementation(((tag: string) => {
     if (tag !== 'video') return realCreate(tag)
@@ -44,9 +45,14 @@ describe('prepareTeacherVideo', () => {
     expect(await prepareTeacherVideo(clip(MB, 'a.avi', 'video/x-msvideo'))).toEqual({ error: 'type' })
     expect('file' in (await prepareTeacherVideo(clip(MB, 'a.mov', '')))).toBe(true)
   })
-  it('over 60 seconds (61 for rounding) is refused; over 150 MB — the compressor\'s sound limit — is refused before reading', async () => {
-    h.duration = 61.5
+  it('over five minutes (301 s for rounding) is refused; over 150 MB — the compressor\'s sound limit — is refused before reading', async () => {
+    // Owner, 2026-10-18: "the teacher profile video is at 1 minute now make it 5 but the size limit stays the same".
+    h.duration = 301.5
     expect(await prepareTeacherVideo(clip(MB))).toEqual({ error: 'too_long' })
+    for (const seconds of [61.5, 180, 300, 300.9]) {
+      h.duration = seconds
+      expect('file' in (await prepareTeacherVideo(clip(MB)))).toBe(true)
+    }
     h.duration = 30
     expect(await prepareTeacherVideo(clip(151 * MB))).toEqual({ error: 'too_big' })
     // Owner, 2026-10-17: "put 150mb limit so we have all clips with sound" — 150 MB itself still goes (made smaller).
@@ -61,6 +67,16 @@ describe('prepareTeacherVideo', () => {
     h.compressOk = false
     expect(await prepareTeacherVideo(clip(120 * MB))).toEqual({ error: 'compress_failed' })
   })
+  it('⛔ a recording that stalled past the server\'s 330 s cut is refused before upload — it would come back "too long"', async () => {
+    h.duration = 290
+    h.recorded = 331
+    expect(await prepareTeacherVideo(clip(120 * MB))).toEqual({ error: 'compress_failed' })
+    h.recorded = 329
+    expect('file' in (await prepareTeacherVideo(clip(120 * MB)))).toBe(true)
+    h.recorded = null // a recording whose length cannot be read (a WebM) goes on — the server's check still stands
+    expect('file' in (await prepareTeacherVideo(clip(120 * MB)))).toBe(true)
+  })
+
   it('a picture this browser cannot read, or the page left mid-run, says so — its remedy differs; any other failure is compress_failed', async () => {
     h.compressOk = false
     h.compressReason = 'no_picture'
@@ -68,6 +84,9 @@ describe('prepareTeacherVideo', () => {
     h.compressReason = 'interrupted'
     expect(await prepareTeacherVideo(clip(120 * MB))).toEqual({ error: 'interrupted' })
     h.compressReason = 'timeout'
+    expect(await prepareTeacherVideo(clip(120 * MB))).toEqual({ error: 'compress_failed' })
+    // A recording the browser cut short (2026-10-18, video-compress.ts recordedSeconds): "try a shorter or lower-quality one".
+    h.compressReason = 'truncated'
     expect(await prepareTeacherVideo(clip(120 * MB))).toEqual({ error: 'compress_failed' })
   })
   it('⛔ a length this browser cannot read (a recorded WebM\'s Infinity, an HEVC .mov it cannot open): under 50 MB it still goes up; over, it is refused', async () => {

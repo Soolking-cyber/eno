@@ -82,7 +82,7 @@ export function makeErrText(tr: (en: string, vi: string) => string) {
         case 'englishLevel': return tr('Please pick your English level.', 'Vui lòng chọn trình độ tiếng Anh của bạn.')
         case 'photoUrl': return tr('Please add a profile photo.', 'Vui lòng thêm ảnh hồ sơ.')
         // Required for a new profile since 2026-10-16 (owner: "make short intor video mandatory from now on").
-        case 'videoUrl': return tr('Please add a short intro video (up to 60 seconds) — say hello and show how you teach.', 'Vui lòng thêm một video giới thiệu ngắn (tối đa 60 giây) — chào hỏi và cho thấy cách bạn dạy.')
+        case 'videoUrl': return tr('Please add a short intro video (up to 5 minutes) — say hello and show how you teach.', 'Vui lòng thêm một video giới thiệu ngắn (tối đa 5 phút) — chào hỏi và cho thấy cách bạn dạy.')
         case 'phone': return tr('Please add your phone number — our staff need it to call you.', 'Vui lòng thêm số điện thoại — nhân viên cần số này để gọi cho bạn.')
         case 'coverSlots': return tr('Please tap at least one period you are usually free.', 'Vui lòng bấm chọn ít nhất một buổi bạn thường rảnh.')
         case 'coverRateVnd': return tr('Please set your hourly rate.', 'Vui lòng đặt mức phí theo giờ.')

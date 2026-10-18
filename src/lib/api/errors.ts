@@ -524,6 +524,7 @@ export type NicheApiErrorCode =
   | 'too_many_webhooks'
   | 'too_short'
   | 'transcode_failed'
+  | 'video_too_long'                    // api/upload/video/transcode — an intro video longer than its five minutes (src/lib/video-length.ts)
   | 'translate_timeout'
   | 'translate_unavailable'
   | 'trial_address_not_allowed'          // weekly-digest ?trial= to an address outside ADMIN_EMAILS
@@ -868,6 +869,7 @@ const ALL = [
   'too_many_webhooks',
   'too_short',
   'transcode_failed',
+  'video_too_long',
   'translate_timeout',
   'translate_unavailable',
   'trial_address_not_allowed',

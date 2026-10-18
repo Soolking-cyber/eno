@@ -13,14 +13,15 @@
 //   into a MediaStreamDestination — never to the speakers) → MediaRecorder (H.264 MP4 on
 //   Safari/WebKit and current Chromium, else VP9/VP8 WebM — first supported type wins).
 //
-// Realtime by nature (a 60s clip takes ~60s to re-encode) — callers surface onProgress.
+// Realtime by nature (a 60s clip takes ~60s to re-encode; a teacher's five-minute intro video,
+// five minutes — src/lib/video-length.ts) — callers surface onProgress.
 // Every failure path throws VideoCompressError with a compact reason; callers fall back
-// to an honest "too large" toast, never a hang (hard watchdog at duration + 30s).
+// to an honest "too large" toast, never a hang (hard watchdog at duration × 1.25 + 30s).
 
 import { mediaElementCaptureSupported, takeCompressionAudioContext } from '@/lib/compression-audio'
 
 export class VideoCompressError extends Error {
-  constructor(public reason: 'unsupported' | 'decode_failed' | 'record_failed' | 'still_too_large' | 'timeout' | 'no_picture' | 'interrupted') {
+  constructor(public reason: 'unsupported' | 'decode_failed' | 'record_failed' | 'still_too_large' | 'timeout' | 'no_picture' | 'interrupted' | 'truncated') {
     super(`video_compress_${reason}`)
   }
 }
@@ -290,6 +291,121 @@ export async function declaresVideoTrack(read: ReadBytes, size: number): Promise
   return null
 }
 
+/** A big-endian unsigned 64-bit field as a number (exact to 2^53 — a media time in any real timescale). */
+const u64 = (b: Uint8Array, i: number) => u32(b, i) * 2 ** 32 + u32(b, i + 4)
+
+/**
+ * HOW MANY SECONDS OF PICTURE A RECORDING HOLDS — read from its MP4 structure (2026-10-18, for the five-minute intro video).
+ * ⛔ WebKit's recorder can stop writing partway and still finish a valid file: measured in WebKit 26.5 (Playwright), a
+ * 1 s-timeslice MP4 recording of a 150 s and a 300 s clip held 72 fragments — 78 s — each, while the element played to its
+ * end and every other check here passed; Safari 26.0–26.1 lost the end of MP4 recordings outright (WebKit bug 299164,
+ * fixed in 26.2). A clip under 78 s never showed it; a teacher's five-minute intro video went up as its first 78 s. The
+ * picture track's end: an unfragmented file's mdhd duration, else its fragments' decode times (tfdt — or the running
+ * total where one has none) plus their samples' durations (trun, else tfhd's default, else trex's). ⚠️ WebKit ends a
+ * recording with a NEGATIVE sample duration written unsigned (≈ 2^32 — ffmpeg reads that 60 s clip as 7,158,338 s,
+ * measured): a duration with its top bit set counts nothing, or every recording would read as complete. `null` when the
+ * structure cannot be read, WebM included — never a guess against the clip.
+ */
+export async function recordedSeconds(read: ReadBytes, size: number): Promise<number | null> {
+  const start = await read(0, Math.min(size, 8))
+  if (start.length < 8 || fourcc(start, 4) !== 'ftyp') return null
+  let moov: { b: Uint8Array; head: number } | null = null
+  const moofs: Array<{ b: Uint8Array; head: number }> = []
+  for (let at = 0, n = 0; at + 8 <= size; n++) {
+    // Past this many boxes the file is not walked to its end — unread, never a short reading (gate review, 2026-10-18).
+    if (n >= 20_000) return null
+    const h = await read(at, Math.min(size, at + 16))
+    if (h.length < 8) return null
+    let len = u32(h, 0)
+    let head = 8
+    if (len === 1) {
+      if (h.length < 16) return null
+      len = u64(h, 8)
+      head = 16
+    } else if (len === 0) len = size - at
+    if (len < head || at + len > size) return null
+    const type = fourcc(h, 4)
+    if (type === 'moov') {
+      if (len > 8 * 1024 * 1024) return null
+      moov = { b: await read(at, at + len), head }
+    } else if (type === 'moof') {
+      if (len > 1024 * 1024) return null
+      moofs.push({ b: await read(at, at + len), head })
+    }
+    at += len
+  }
+  if (!moov) return null
+  const m = moov.b
+  // moov › trak: the picture track's id, timescale and duration; mvex › trex: each track's default sample duration.
+  let video: { id: number; scale: number; duration: number } | null = null
+  const trexDuration = new Map<number, number>()
+  const top = boxes(m, moov.head, m.length)
+  if (!top) return null
+  for (const [type, from, to] of top) {
+    if (type === 'trak') {
+      const kids = boxes(m, from, to)
+      const tkhd = kids?.find(([t]) => t === 'tkhd')
+      const mdia = kids?.find(([t]) => t === 'mdia')
+      const inner = mdia ? boxes(m, mdia[1], mdia[2]) : null
+      const hdlr = inner?.find(([t]) => t === 'hdlr')
+      const mdhd = inner?.find(([t]) => t === 'mdhd')
+      if (!tkhd || !hdlr || !mdhd || hdlr[1] + 12 > hdlr[2] || fourcc(m, hdlr[1] + 8) !== 'vide') continue
+      const v1 = m[mdhd[1]] === 1
+      if (mdhd[1] + (v1 ? 32 : 20) > mdhd[2] || tkhd[1] + 24 > tkhd[2]) return null
+      video = {
+        id: u32(m, tkhd[1] + (m[tkhd[1]] === 1 ? 20 : 12)),
+        scale: u32(m, mdhd[1] + (v1 ? 20 : 12)),
+        duration: v1 ? u64(m, mdhd[1] + 24) : u32(m, mdhd[1] + 16),
+      }
+    } else if (type === 'mvex') {
+      for (const [t, f, e] of boxes(m, from, to) ?? []) if (t === 'trex' && f + 16 <= e) trexDuration.set(u32(m, f + 4), u32(m, f + 12))
+    }
+  }
+  if (!video || !video.scale) return null
+  let end = video.duration // an unfragmented file's own length; 0 in a fragmented one
+  let running = 0
+  for (const { b, head } of moofs) {
+    const trafs = boxes(b, head, b.length)
+    if (!trafs) return null
+    for (const [type, from, to] of trafs) {
+      if (type !== 'traf') continue
+      const kids = boxes(b, from, to)
+      const tfhd = kids?.find(([t]) => t === 'tfhd')
+      if (!kids || !tfhd || tfhd[1] + 8 > tfhd[2] || u32(b, tfhd[1] + 4) !== video.id) continue
+      const flags = u32(b, tfhd[1]) & 0xffffff
+      const durAt = tfhd[1] + 8 + (flags & 0x1 ? 8 : 0) + (flags & 0x2 ? 4 : 0)
+      const fallback = flags & 0x8 && durAt + 4 <= tfhd[2] ? u32(b, durAt) : trexDuration.get(video.id) ?? 0
+      const tfdt = kids.find(([t]) => t === 'tfdt')
+      const base = tfdt && tfdt[1] + 8 <= tfdt[2] ? (b[tfdt[1]] === 1 && tfdt[1] + 12 <= tfdt[2] ? u64(b, tfdt[1] + 4) : u32(b, tfdt[1] + 4)) : running
+      let span = 0
+      for (const [t, f, e] of kids) {
+        if (t !== 'trun' || f + 8 > e) continue
+        const tf = u32(b, f) & 0xffffff
+        const count = u32(b, f + 4)
+        if (!(tf & 0x100)) { span += count * fallback; continue }
+        const stride = 4 * [0x100, 0x200, 0x400, 0x800].filter((bit) => tf & bit).length
+        let p = f + 8 + (tf & 0x1 ? 4 : 0) + (tf & 0x4 ? 4 : 0)
+        for (let i = 0; i < count && p + 4 <= e; i++, p += stride) { const d = u32(b, p); if (d < 2 ** 31) span += d }
+      }
+      running = base + span
+      end = Math.max(end, running)
+    }
+  }
+  // Nothing read (no fragment of the picture track, no durations): unread, never 0 s (gate review, 2026-10-18).
+  return end > 0 ? end / video.scale : null
+}
+
+/**
+ * WAS THE RECORDING CUT SHORT? Its picture against the SHORTER of the source's own picture track (where its structure reads
+ * — every phone's MP4/MOV) and the length the element plays (gate review, 2026-10-18): the element's is the LONGEST track,
+ * so a clip whose sound runs on past its picture would read as cut against it; the stored picture can run past what plays,
+ * so a trimmed clip keeping its cut-off lead-in (an edit list) would read as cut against that. 3 s of slack for the
+ * recorder's start and its last fragment; a recording whose length cannot be read is never called cut.
+ */
+export function recordingCutShort(recorded: number | null, sourcePicture: number | null, played: number): boolean {
+  return recorded !== null && recorded < Math.min(sourcePicture ?? played, played) - 3
+}
+
 /** A browser that hides canvas reads (anti-fingerprinting) must never fail a clip: the painted check runs only where a read reads back. */
 function canvasReadsBack(): boolean {
   try {
@@ -393,9 +509,13 @@ export async function compressVideo(file: File, opts: {
 
     // Bitrate budget: fill ~85% of the target across the clip's real duration, clamped
     // to a sane 720p range (a 60s clip at 4.5Mbps + 128k audio ≈ 35MB — well under 50MB).
+    // ⚠️ The floor is 0.8 Mbps, not the 1.2 it was (2026-10-18): a teacher's five-minute intro video budgets 1.06 Mbps of
+    // picture into 50 MB, and the old floor lifted it to 1.2 — 49.97 MB, 95% of the target, so a recorder running a little
+    // over its rate failed 'still_too_large' after the whole five-minute wait. Below 0.8 only past 6.4 minutes, which no
+    // caller allows; a minute's clip never comes near either (its budget is over the 4.5 cap).
     const totalBudgetBits = (opts.targetBytes * 8 * 0.85) / duration
     const audioBitsPerSecond = 128_000
-    const videoBitsPerSecond = Math.min(4_500_000, Math.max(1_200_000, Math.floor(totalBudgetBits - audioBitsPerSecond)))
+    const videoBitsPerSecond = Math.min(4_500_000, Math.max(800_000, Math.floor(totalBudgetBits - audioBitsPerSecond)))
 
     const stream = canvas.captureStream()
     // "Making it smaller… 0%" from here, not "Uploading…": the decode below can take a few seconds before the first frame.
@@ -565,8 +685,10 @@ export async function compressVideo(file: File, opts: {
       }
     }
     video.onended = finish
-    // Watchdog: a stalled decode must never strand the wizard mid-"compressing".
-    const watchdog = window.setTimeout(finish, (duration + 30) * 1000)
+    // Watchdog: a stalled decode must never strand the wizard mid-"compressing". A quarter of the clip's length on top of the
+    // 30 s (plan review, 2026-10-18): over a teacher's five-minute intro video a phone's stalls add up, and a fixed 30 s would
+    // end a slow but healthy run — the truncation check below still refuses a run that did not reach the end.
+    const watchdog = window.setTimeout(finish, (duration * 1.25 + 30) * 1000)
 
     /**
      * ⛔ A PAGE LEFT MID-RUN IS NOT A RESULT (harness, 2026-10-17): hidden, Chromium presents no frame while the muted element
@@ -639,6 +761,14 @@ export async function compressVideo(file: File, opts: {
     if (!blob.size) throw new VideoCompressError('record_failed')
     const readBlob: ReadBytes = async (start, end) => new Uint8Array(await blob.slice(start, end).arrayBuffer())
     if ((await declaresVideoTrack(readBlob, blob.size)) === false) throw new VideoCompressError('no_picture')
+    // ⛔ THE RECORDING MUST HOLD THE CLIP (2026-10-18): a recorder that stopped writing partway finished a valid, shorter file
+    // that passed everything above — see recordedSeconds and recordingCutShort. Refused, never uploaded short.
+    const recorded = await recordedSeconds(readBlob, blob.size)
+    if (recorded !== null) {
+      const readSource: ReadBytes = async (start, end) => new Uint8Array(await file.slice(start, end).arrayBuffer())
+      const picture = await recordedSeconds(readSource, file.size).catch(() => null)
+      if (recordingCutShort(recorded, picture, duration)) throw new VideoCompressError('truncated')
+    }
     if (blob.size > opts.targetBytes) throw new VideoCompressError('still_too_large')
     opts.onProgress?.(1)
     const baseName = file.name.replace(/\.[a-z0-9]+$/i, '') || 'video'

@@ -11,12 +11,13 @@ import { ApiError, route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { getSupabaseAdmin, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { VIDEO_PATH_RE, VIDEO_MAX_BYTES } from '@/lib/core/media'
-import { transcodeToMp4 } from '@/lib/core/video-transcode'
+import { TRANSCODE_PLAN, transcodeToMp4 } from '@/lib/core/video-transcode'
 import { logError } from '@/lib/log'
 import { recordVideoOwner, videoOwner } from '@/lib/core/video-owner'
+import { isVideoUploadKind, type VideoUploadKind } from '@/lib/video-length'
 
 export const runtime = 'nodejs'
-export const maxDuration = 300 // Vercel Pro ceiling — a ≤60s clip transcodes in well under this
+export const maxDuration = 300 // Vercel Pro ceiling, from the Vercel days — nothing enforces it on the box; the encode's own wall does (TRANSCODE_PLAN)
 
 // Third step of the video upload (self-hosted transcode). After the raw clip is verified in the
 // bucket (/complete), this downloads it server-side, re-encodes to a lean, universally-playable
@@ -33,15 +34,34 @@ export const maxDuration = 300 // Vercel Pro ceiling — a ≤60s clip transcode
 // Fail policy (computed server-side into the job's final state): for an H.264 source, a failure
 // FALLS OPEN to the raw clip (already compatible — never block a publish on an ffmpeg hiccup).
 // For an HEVC source it FAILS CLOSED — the raw clip plays black on most Android buyers, so we
-// surface a retry instead. The `hevc` flag is the client's fourcc probe.
+// surface a retry instead. The `hevc` flag is the client's fourcc probe. A teacher's intro video
+// FAILS CLOSED on any failure, whatever its codec — never published raw (gate review, 2026-10-18):
+// the raw may be the over-long clip the encode exists to refuse (`too_long`), and its own length
+// cannot be trusted to say — ffmpeg reads a WebKit recording's header as 7,158,338 s for 60 s
+// (src/lib/core/video-transcode.ts) — so the teacher is asked to try again instead. An intro
+// video never runs synchronously (below). ⛔ No per-account lock and no slot queue (gate rounds 2–5
+// found a new edge in each, every round — see TRANSCODE_PLAN): an account's share is this route's
+// strict 30/h, each encode's wall, and nice.
+//
+// KINDS (owner, 2026-10-18 — a teacher's intro video up to five minutes): the body's `kind` picks
+// what the encode keeps (src/lib/core/video-transcode.ts TRANSCODE_PLAN) — a listing's clip is cut
+// at 62 s as before; an intro video at 330 s, on four threads at nice 10. The client names
+// the kind, and that is enough: the cut never held a listing to a minute — a listing save takes
+// any canonical listing-videos URL (src/lib/core/listings.ts parseVideoField → media.ts
+// isCanonicalVideoUrl: a minted name is all it asks), and the sign route mints a raw upload's name
+// the same way, so a client that skips this route keeps a raw clip of any length today. A caller
+// naming 'teacher_intro' gains only a longer encode of the same ≤50 MB file — under this route's
+// strict 30/h, on four threads at nice 10 (TRANSCODE_PLAN).
 
 type JobState =
   | { state: 'running'; startedAt: number; token?: string }
   | { state: 'done'; url: string; fallback?: boolean }
-  | { state: 'failed' }
+  | { state: 'failed'; reason?: 'too_long' }
 
 const jobKey = (path: string) => `xc:${path}`
-const CLAIM_TTL_S = 360 // > the 210s encode wall + upload margin; a crashed job frees in ≤6min
+// > the encode wall + a download/upload margin; a crashed job frees in ≤6 min (a listing's clip) or 11.5 min (an intro
+// video's — inside the client's 12-minute wait, so its poll gets a definite 404 rather than giving up first).
+const claimTtlS = (kind: VideoUploadKind) => TRANSCODE_PLAN[kind].wallMs / 1000 + 150
 const DONE_TTL_S = 7200
 
 // `persist` (async mode only) durably records the final state BEFORE the raw source is
@@ -49,11 +69,12 @@ const DONE_TTL_S = 7200
 // re-submit would re-fetch an already-deleted path and the seller's clip would be lost
 // with no usable replacement (external review, 2026-07-19). Raw kept on persist failure —
 // the GC cron sweeps it later; a resubmit then simply re-encodes.
-async function runTranscode(path: string, hevc: boolean, persist?: (s: JobState) => Promise<boolean>, owner?: string | null): Promise<JobState> {
+async function runTranscode(path: string, hevc: boolean, persist?: (s: JobState) => Promise<boolean>, owner?: string | null, kind: VideoUploadKind = 'listing'): Promise<JobState> {
   const admin = getSupabaseAdmin()
   const rawUrl = admin.storage.from(LISTING_VIDEOS_BUCKET).getPublicUrl(path).data.publicUrl
-  // H.264 falls open to the raw playable clip; HEVC fails closed (see header comment).
-  const fallback = (): JobState => (hevc ? { state: 'failed' } : { state: 'done', url: rawUrl, fallback: true })
+
+  // H.264 falls open to the raw playable clip; HEVC fails closed, and so does an intro video, always (see header comment).
+  const fallback = (): JobState => (hevc || kind === 'teacher_intro' ? { state: 'failed' } : { state: 'done', url: rawUrl, fallback: true })
 
   // STREAM the raw object to a temp file (never the whole ≤50MB clip on the heap — an
   // arrayBuffer() would double-copy it and risk OOM alongside the ffmpeg child).
@@ -66,7 +87,8 @@ async function runTranscode(path: string, hevc: boolean, persist?: (s: JobState)
     const { size } = await stat(inPath)
     if (size === 0 || size > VIDEO_MAX_BYTES) return fallback()
 
-    const out = await transcodeToMp4(inPath)
+    const out = await transcodeToMp4(inPath, kind)
+    if (out === 'too_long') return { state: 'failed', reason: 'too_long' }
     if (!out) return fallback()
 
     const newPath = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp4`
@@ -105,7 +127,9 @@ const respond = (job: JobState) =>
   job.state === 'running'
     ? NextResponse.json({ status: 'running' }, { status: 202 })
     : job.state === 'failed'
-      ? NextResponse.json({ error: 'transcode_failed' }, { status: 422 })
+      ? job.reason === 'too_long'
+        ? NextResponse.json({ error: 'video_too_long' }, { status: 422 })
+        : NextResponse.json({ error: 'transcode_failed' }, { status: 422 })
       : NextResponse.json({ url: job.url, ...(job.fallback ? { fallback: true } : {}) })
 
 // ⚠️ WS6 MIGRATION (POST) — auth AND the rate limit are both wrapper options: the old preamble ran in
@@ -125,16 +149,18 @@ export const POST = route(
   {
     auth: 'userId',
     // ⚠️ strict: FAIL CLOSED. This is the most expensive request in the app — up to 50MB of billed
-    // egress plus ~210s of full-CPU Cloud Run per call. Video is optional on a listing and the
-    // wizard already tolerates a transcode failure, so failing closed costs an optional attachment
-    // during a limiter outage rather than an unbounded compute bill.
+    // egress plus ~210s of full-CPU Cloud Run per call (an intro video's: up to 540 s on four
+    // threads). Video is optional on a listing and the wizard already tolerates a transcode
+    // failure, so failing closed costs an optional attachment during a limiter outage rather than
+    // an unbounded compute bill.
     rateLimit: { bucket: 'upload-video-transcode', limit: 30, window: '1 h', strict: true },
   },
   async ({ req, userId }) => {
     try {
-      const body = (await req.json().catch(() => ({}))) as { path?: unknown; hevc?: unknown }
+      const body = (await req.json().catch(() => ({}))) as { path?: unknown; hevc?: unknown; kind?: unknown }
       const path = String(body.path || '')
       const hevc = body.hevc === true
+      const kind: VideoUploadKind = isVideoUploadKind(body.kind) ? body.kind : 'listing'
       if (!VIDEO_PATH_RE.test(path)) return NextResponse.json({ error: 'bad_path' }, { status: 400 })
 
       const admin = getSupabaseAdmin()
@@ -160,11 +186,14 @@ export const POST = route(
       const claim: JobState = { state: 'running', startedAt: Date.now(), token }
       let won: unknown
       try {
-        won = await kv.set(jobKey(path), JSON.stringify(claim), { nx: true, ex: CLAIM_TTL_S })
+        won = await kv.set(jobKey(path), JSON.stringify(claim), { nx: true, ex: claimTtlS(kind) })
       } catch (e) {
-        // A kv outage must not lose the old fail-open behavior — run synchronously instead.
+        // A kv outage must not lose the old fail-open behavior — run synchronously instead. (Rare by construction: the strict
+        // limiter above reads the same Postgres store and refuses the request when it is down.) Never an intro video: its
+        // encode runs minutes, past any proxy's patience (Cloudflare's ~100 s) — the client is told to try again.
         console.error('[transcode] claim', e)
-        return respond(await runTranscode(path, hevc, undefined, owner))
+        if (kind === 'teacher_intro') return NextResponse.json({ error: 'retry' }, { status: 503 })
+        return respond(await runTranscode(path, hevc, undefined, owner, kind))
       }
       if (won !== 'OK') {
         const existing = await kv.get<string | JobState>(jobKey(path))
@@ -177,7 +206,7 @@ export const POST = route(
         const persist = async (s: JobState) => {
           try {
             // Fence: only the claim holder may write. (GET→SET is a narrow window, but the
-            // hazard it guards — a lease lost DURING a ≤300s job under a 360s TTL — needs
+            // hazard it guards — a lease lost DURING a job under a TTL 150 s past its wall — needs
             // minutes-scale drift, so best-effort fencing is proportionate here.)
             const cur = await kv.get<string | JobState>(jobKey(path))
             const curJob = cur == null ? null : typeof cur === 'string' ? (JSON.parse(cur) as JobState) : cur
@@ -186,7 +215,7 @@ export const POST = route(
             return true
           } catch (e) { console.error('[transcode] state write', e); return false }
         }
-        const final = await runTranscode(path, hevc, persist, owner)
+        const final = await runTranscode(path, hevc, persist, owner, kind)
         // Success already persisted pre-delete (idempotent re-write); this records the
         // failure/fallback outcomes, which have no destructive step to order against.
         await persist(final)
@@ -213,7 +242,8 @@ export const POST = route(
 // `unknown` exactly as before.
 export const GET = route(
   { auth: 'userId', rateLimit: { bucket: 'upload-video-transcode-poll', limit: 600, window: '1 h' } },
-  // A full poll window is ≤80 requests (3s × 4min); 600/h covers several clips per hour.
+  // A full poll window is ≤110 requests for a listing's clip (3 s × 330 s) and ≤144 for an intro video's (5 s × 720 s); 600/h
+  // covers several clips per hour.
   async ({ req }) => {
     const path = new URL(req.url).searchParams.get('path') || ''
     if (!VIDEO_PATH_RE.test(path)) throw new ApiError('bad_path', 400)
@@ -223,7 +253,7 @@ export const GET = route(
     return job.state === 'running'
       ? { status: 'running' }
       : job.state === 'failed'
-        ? { status: 'failed' }
+        ? { status: 'failed', ...(job.reason ? { reason: job.reason } : {}) }
         : { status: 'done', url: job.url, ...(job.fallback ? { fallback: true } : {}) }
   },
 )

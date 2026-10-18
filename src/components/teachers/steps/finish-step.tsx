@@ -291,7 +291,7 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
       <section className="space-y-3" {...(errors.videoUrl ? { 'data-invalid': '' } : {})}>
         <div>
           <h2 className="text-base font-semibold text-foreground">{videoRequired ? tr('Intro video', 'Video giới thiệu') : tr('Intro video (optional)', 'Video giới thiệu (không bắt buộc)')}</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">{tr('Up to 60 seconds: say hello and show how you teach.', 'Tối đa 60 giây: chào hỏi và cho thấy cách bạn dạy.')}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{tr('Up to 5 minutes: say hello and show how you teach.', 'Tối đa 5 phút: chào hỏi và cho thấy cách bạn dạy.')}</p>
         </div>
         {t.videoUrl ? (
           // Wraps on a phone: at h-40 a 16:9 player is ~284px wide, and "Remove" beside it overflowed 375px (preview check).
@@ -335,6 +335,9 @@ export function FinishStep({ t, set, errors, errText, mode, signedIn, publishGat
           {/* The tap that opens the picker starts the sound a compressed clip carries on iOS (src/lib/compression-audio.ts). */}
           <input type="file" accept="video/mp4,video/quicktime,video/webm" className="sr-only" disabled={!signedIn || !!media.busy} onClick={unlockCompressionAudio} onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) media.onVideo(f) }} />
         </label>
+        {/* Said while it runs (2026-10-18): a five-minute video takes minutes to shrink and send, and a page left meanwhile loses it
+            (the compressor holds a screen wake lock meanwhile — src/lib/video-compress.ts — where the browser grants one). */}
+        {media.busy === 'video' && <p role="status" className="text-sm text-muted-foreground">{tr('Keep this page open until it’s done — a long video can take a few minutes.', 'Hãy giữ trang này mở cho đến khi xong — video dài có thể mất vài phút.')}</p>}
         {/* WHO WATCHES IT — asked only once there is a video (plan, 2026-10-08), saved with the profile. Private: kept out
             of the profile and sent per school, in chat. */}
         {hasVideo && (

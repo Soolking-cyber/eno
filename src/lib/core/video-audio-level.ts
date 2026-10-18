@@ -8,9 +8,12 @@ import { Readable, Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import ffmpegPath from 'ffmpeg-static'
 import { logError } from '@/lib/log'
+import { VIDEO_CUT_SECONDS } from '@/lib/video-length'
 
 /**
- * HOW LOUD A CLIP'S SOUND IS — ffmpeg's volumedetect over the whole clip (a listing video is ≤ 60 s; capped at 62), by URL.
+ * HOW LOUD A CLIP'S SOUND IS — ffmpeg's volumedetect over the whole clip (a listing video is ≤ 60 s, a teacher's intro video
+ * ≤ 5 minutes since 2026-10-18 — read to 330 s, its transcode's cut, so a long intro is never judged on its first minute
+ * alone: 0.6 s for five minutes of sound, measured), by URL.
  * Built 2026-10-17 for /api/cron/video-reupload-ask: until db7eac156 every clip the browser compressed went up with an
  * AAC track of DIGITAL SILENCE (−91 dB measured, or −inf for exact zero), and only a measurement tells such a clip from one
  * that has sound (−10 to −35 dB for speech, measured on the site's 51 good clips).
@@ -69,7 +72,7 @@ export async function clipAudioLevel(url: string): Promise<ClipAudioLevel | null
     if ((await stat(inPath)).size === 0) return null
     // A local file only, and only the video containers we store — a file that is secretly a playlist (HLS, concat) is
     // refused as a format, so nothing in it can send ffmpeg anywhere (gate review, 2026-10-17).
-    const args = ['-nostdin', '-hide_banner', '-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm', '-t', '62', '-i', inPath, '-map', '0:a:0?', '-af', 'volumedetect', '-f', 'null', '-']
+    const args = ['-nostdin', '-hide_banner', '-protocol_whitelist', 'file', '-format_whitelist', 'mov,mp4,m4a,3gp,3g2,mj2,matroska,webm', '-t', String(VIDEO_CUT_SECONDS.teacher_intro), '-i', inPath, '-map', '0:a:0?', '-af', 'volumedetect', '-f', 'null', '-']
     const out = await new Promise<{ code: number; stderr: string }>((resolve) => {
       let stderr = ''
       const p = spawn(ffmpegPath!, args, { stdio: ['ignore', 'ignore', 'pipe'] })

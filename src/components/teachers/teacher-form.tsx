@@ -1454,8 +1454,11 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
   const videoPrepText = (e: TeacherVideoPrepError): string => {
     switch (e) {
       case 'type': return tr('Choose an MP4, MOV or WebM video.', 'Hãy chọn video MP4, MOV hoặc WebM.')
-      case 'too_big': return tr('That video is over 150 MB. Record it in 1080p (not 4K), up to 60 seconds.', 'Video trên 150 MB. Hãy quay ở 1080p (không phải 4K), tối đa 60 giây.')
-      case 'too_long': return tr('Your intro video must be 60 seconds or less.', 'Video giới thiệu phải dài tối đa 60 giây.')
+      // A phone's default 1080p minute is 60–100 MB (src/lib/video-compress.ts), so 150 MB holds 1½–2½ minutes of it; 720p
+      // roughly doubles that. A full five minutes from a phone's camera is over the limit either way (owner, 2026-10-18: the
+      // size limit stays) — it fits once an app has made it smaller.
+      case 'too_big': return tr('That video is over 150 MB. Make it shorter, or record it in 720p.', 'Video trên 150 MB. Hãy làm video ngắn hơn, hoặc quay ở 720p.')
+      case 'too_long': return tr('Your intro video must be 5 minutes or less.', 'Video giới thiệu phải dài tối đa 5 phút.')
       case 'unreadable': return tr('We couldn’t read that video — try another one.', 'Không đọc được video này — hãy thử video khác.')
       case 'cannot_compress': return tr('That video is over 50 MB and this browser can’t make it smaller. Record it in 720p, or open eno.vn in Chrome or Safari.', 'Video trên 50 MB và trình duyệt này không thu nhỏ được. Hãy quay ở 720p, hoặc mở eno.vn bằng Chrome hoặc Safari.')
       case 'no_picture': return tr('This browser can’t read the picture in that video, so it can’t make it smaller. Record it in 720p, or try another browser.', 'Trình duyệt này không đọc được hình ảnh trong video nên không thể thu nhỏ. Hãy quay ở 720p, hoặc thử trình duyệt khác.')
@@ -1481,14 +1484,27 @@ function TeacherFormForAccount({ mode, draftHost, apexOrigin, goal = null, start
       const prepared = await prepareTeacherVideo(file, { onCompress: (f) => setVideoProgress(f) })
       if ('error' in prepared) { if (counting) countTeacherFormEvent('video_refused'); setFormError(videoPrepText(prepared.error)); return }
       setVideoProgress(null)
-      const url = await uploadListingVideo(prepared.file, { hevc: prepared.hevc })
+      const url = await uploadListingVideo(prepared.file, { hevc: prepared.hevc, kind: 'teacher_intro' })
       if (!url) throw new Error('video')
       setConfirmVideoRemove(false)
       set('videoUrl', url)
       if (counting) countTeacherFormEvent('video_uploaded')
-    } catch {
+    } catch (e) {
+      // A clip whose length this browser could not read, found over five minutes by the server (video-upload-client.ts).
+      if (e instanceof Error && e.message === 'video_too_long') {
+        if (counting) countTeacherFormEvent('video_refused')
+        setFormError(videoPrepText('too_long'))
+        return
+      }
+      // Too many tries this hour, or the server asked to try again (video-upload-client.ts) — "later", not "in a few minutes":
+      // the hour's limit can hold for up to an hour (gate review, 2026-10-18).
+      if (e instanceof Error && e.message === 'video_busy') {
+        if (counting) countTeacherFormEvent('video_failed')
+        setFormError(tr('Video uploads are busy right now — please try again later.', 'Hệ thống tải video đang bận — vui lòng thử lại sau.'))
+        return
+      }
       if (counting) countTeacherFormEvent('video_failed')
-      setFormError(tr('Video upload failed. Please try again — keep it under 60 seconds.', 'Tải video thất bại. Vui lòng thử lại — giữ dưới 60 giây.'))
+      setFormError(tr('Video upload failed. Please try again — keep it under 5 minutes.', 'Tải video thất bại. Vui lòng thử lại — giữ dưới 5 phút.'))
     } finally { setBusy(''); setVideoProgress(null) }
   }
   const uploadCv = async (file: File): Promise<boolean> => {
