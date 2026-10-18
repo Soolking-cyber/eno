@@ -41,6 +41,13 @@ export function DeleteAccount() {
   const { tr } = useLanguage()
   const [open, setOpen] = useState(false)
   const [confirm, setConfirm] = useState('')
+  /**
+   * ⛔ THE WORD IN ANY CASE. iOS capitalises the first letter of a field, so a tester typing DELETE gets "Delete" and a
+   * button that never enables (App Review recording, 2026-10-09). The field asks for capitals (autoCapitalize) and the
+   * check ignores case and the spaces around the word (not inside it); the server still takes only the exact word, so
+   * the dialog sends it normalised.
+   */
+  const typed = confirm.trim().toUpperCase()
   const [busy, setBusy] = useState(false)
   /**
    * ⛔ SIGN IN WITH APPLE — WHEN APPLE MAY STILL LIST eno AFTER THE DELETION (D9, TN3194): the notice and why it is
@@ -84,7 +91,7 @@ export function DeleteAccount() {
       const res = await fetch('/api/account/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirm }),
+        body: JSON.stringify({ confirm: typed }),
       })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -202,6 +209,9 @@ export function DeleteAccount() {
                     onChange={(e) => setConfirm(e.target.value)}
                     placeholder="DELETE"
                     autoComplete="off"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
                     className="focus:ring-destructive/30"
                   />
                 }
@@ -216,7 +226,7 @@ export function DeleteAccount() {
             <AlertDialogCancel>{tr('Cancel', 'Hủy')}</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              disabled={confirm !== 'DELETE' || busy}
+              disabled={typed !== 'DELETE' || busy}
               onClick={run}
               className="font-bold"
             >

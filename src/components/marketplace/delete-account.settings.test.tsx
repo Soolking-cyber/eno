@@ -168,3 +168,25 @@ describe('…in a tab that cannot store the hand-off — the in-place notice sur
     await vi.waitFor(() => expect(h.signOuts).toBe(1))
   })
 })
+
+describe('the typed word — as the iOS keyboard types it', () => {
+  it.each(['Delete', ' delete ', 'DELETE'])('`%s` enables the button and sends the exact word', async (word) => {
+    h.apple = 'revoked'
+    await mountSignedIn()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete my account' }))
+    const field = await screen.findByPlaceholderText('DELETE')
+    expect(field.getAttribute('autocapitalize')).toBe('characters')
+    fireEvent.change(field, { target: { value: word } })
+    fireEvent.click(screen.getByRole('button', { name: 'Permanently delete' }))
+    await vi.waitFor(() => expect(window.location.href).toBe('/'))
+    const call = vi.mocked(fetch).mock.calls.find(([url]) => String(url) === '/api/account/delete')
+    expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({ confirm: 'DELETE' })
+  })
+
+  it('any other word keeps the button off', async () => {
+    await mountSignedIn()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete my account' }))
+    fireEvent.change(await screen.findByPlaceholderText('DELETE'), { target: { value: 'Delet' } })
+    expect((screen.getByRole('button', { name: 'Permanently delete' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+})
