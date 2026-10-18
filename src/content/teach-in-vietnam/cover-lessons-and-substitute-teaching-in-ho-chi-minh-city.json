@@ -247,14 +247,14 @@
    "blocks": [
     {
      "type": "p",
-     "text": "eno.vn teacher profiles are free and include a cover-lesson setting. Only business accounts (schools, centres and companies) can message you there."
+     "text": "eno.vn teacher profiles are free and include a cover-lesson setting. Anyone signed in to eno.vn can message you there, each account within a daily limit on new chats, but only business accounts (schools, centres and companies) can ask you about a cover lesson."
     },
     {
      "type": "steps",
      "items": [
       {
        "title": "Start your profile",
-       "text": "Fill in the short form at [teacher.eno.vn](https://teacher.eno.vn), then finish on eno.vn: sign in, add an optional intro video and your CV, give your consents and publish. The profile shows your subjects, the ages you teach, your experience, where you live and can teach, and your qualifications as typed information."
+       "text": "Fill in the short form at [teacher.eno.vn](https://teacher.eno.vn), then finish on eno.vn: sign in, add a short intro video (up to 60 seconds) and your CV, give your consents and publish. The video is required to publish a new profile, but you can keep it private and send it only to the people you choose. The profile shows your subjects, the ages you teach, your experience, where you live and can teach, and your qualifications as typed information."
       },
       {
        "title": "Mark your cover periods",
@@ -266,7 +266,7 @@
       },
       {
        "title": "Answer messages and share contact details when ready",
-       "text": "You are notified when a school messages you. Your phone number, email and CV stay hidden until you tap 'Share my contact' in that chat, and you can withdraw it."
+       "text": "You are notified when someone starts a chat with you. Your phone number, email and CV stay hidden until you choose to share them in that chat, and you can stop sharing them later."
       }
      ]
     },
@@ -340,7 +340,7 @@
   },
   {
    "q": "Can parents find and book me for cover or tutoring through eno.vn?",
-   "a": "No. Only business accounts such as schools, centres and companies can message teachers on eno.vn, and your contact details stay hidden until you choose to share them."
+   "a": "They can message you, but nothing is booked through eno.vn. Anyone signed in can write to you, each account within a daily limit on new chats, while only business accounts can ask you about a cover lesson; your contact details stay hidden until you choose to share them. Paid lessons you arrange with a family yourself are not a legal option, because paid work needs a work permit tied to an employer."
   },
   {
    "q": "Does a weekend job at a second centre count as cover or as a second job?",

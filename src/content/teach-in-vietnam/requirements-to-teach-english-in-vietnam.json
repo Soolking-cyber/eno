@@ -16,7 +16,7 @@
  "sections": [
   {
    "id": "requirements-at-a-glance",
-   "title": "The requirements at a glance: the law vs what employers ask",
+   "title": "Requirements for foreign teachers at a glance: the law vs what employers ask",
    "blocks": [
     {
      "type": "p",
@@ -385,6 +385,14 @@
   }
  ],
  "faqs": [
+  {
+   "q": "Is there an age limit to teach English in Vietnam?",
+   "a": "There is no upper age limit in the law: Labour Code Art 151 sets a minimum age of 18, and neither the Labour Code nor Decree 219 sets a maximum for a work permit. Any upper limit you meet comes from employers or insurers, such as a 2026 Ho Chi Minh City kindergarten ad asking for teachers aged 23 to 40; at every age, the legal test is the work-permit health check, which in practice is done in Vietnam."
+  },
+  {
+   "q": "Can I teach without IELTS or a native passport?",
+   "a": "No law requires IELTS or a particular passport: Decree 219 sets no nationality or native-speaker condition for the work permit. At a language centre, a teacher whose first language is not English needs Level 5 (about C1) English proof, such as an IELTS, TOEFL or Cambridge result, unless their degree is in English or English teaching, and a teaching certificate unless it is in English teaching. Employers can be stricter: ILA lists 'Native' English as a requirement, while VUS says it considers non-native applicants who send an intro video."
+  },
   {
    "q": "Do I need my degree recognised by Vietnam's Ministry of Education for the work permit?",
    "a": "No. Ministry of Education recognition is not on the Decree 219 dossier list. The authority checks your degree with an apostille (or legalisation) and a certified Vietnamese translation."
