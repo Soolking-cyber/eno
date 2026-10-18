@@ -13,6 +13,10 @@ import { priceUnitSuffix } from '@/lib/price-unit'
 // a card price line that its own comments document as being at its width limit.
 // Only the MARK changed — English keeps comma grouping ("12,000,000 đ"), Vietnamese keeps dots
 // ("12.000.000 đ"). parseVnd still accepts "VND" because pasted and legacy text carries it.
+// ⚠️ ONE PRICE LINE DROPS THE MARK: a Vietnamese card's per-unit price in millions, "8,5 triệu / tháng"
+// (owner, 2026-10-18 — compactVnd, RATE_COMPACT_VND below). It is the owner's explicit exception for that
+// form, not a retreat from this rule: every full figure, the tỷ scale ("1,2 tỷ đ") and every other language
+// keep "đ". (The map pins' "51tr" / "51M", compactPrice, never carried a mark.)
 
 export type MoneyLocale = 'en' | 'vi'
 
@@ -167,32 +171,53 @@ export function hugeVnd(n: number, lang: string = 'en'): string {
  * THE THIRD SANCTIONED EXCEPTION — A RENT ON A CARD READS IN MILLIONS (owner, 2026-10-18: "make it look super
  * professional … so we look like top marketplace"). A price quoted PER UNIT — a rent, a salary, a hire: anything
  * `priceUnitSuffix` names a unit for — of a million đồng or more prints in millions on a feed card,
- * "8.5M đ / month" / "8,5 triệu đ / tháng" (Chợ Tốt and Nhà Tốt print "8,5 triệu/tháng"). Summed from the shipped
+ * "8.5M đ / month" / "8,5 triệu / tháng" (Chợ Tốt and Nhà Tốt print "8,5 triệu/tháng"). Summed from the shipped
  * Open Runde woff2's advance widths (Bold 16px figure, 12px "≈ $" + its 6px margin; kerning ignored):
  * "8,500,000 đ / month ≈ $332" is 211px against the 173px text column of a 390px phone, which is why all 48 of
  * 48 rental cards on /c/rentals wrapped; "8.5M đ / month ≈ $332" is 166px and fits.
- * The đồng figure still LEADS and keeps its mark, the "≈ $" still follows (ND 340/2025 order, owner 2026-09-13),
- * and the PDP keeps every digit.
+ * The đồng figure still LEADS, the "≈ $" still follows (ND 340/2025 order, owner 2026-09-13), and the PDP keeps
+ * every digit.
  * ⚠️ PER-UNIT ONLY. A sale price keeps the full figure the owner chose from Facebook's grid ("2,250,000 đ",
  * 2026-09-13): a goods price already fits its line — it is the "/ month" that pushed rents onto two.
- * ⚠️ VIETNAMESE FITS ONLY A WHOLE SINGLE-DIGIT RENT AT 390px ("9 triệu đ / tháng ≈ $351", 169px); "8,5 triệu đ"
- * (187px) and "15 triệu đ" (178px) still wrap. One line there needs Chợ Tốt's mark-less "8,5 triệu" (173px) or
- * the pins' "8,5tr" (159px) — wording, not formatting, so it is left to the owner.
+ * ⛔ VIETNAMESE PRINTS NO "đ" AFTER "triệu" — "8,5 triệu / tháng" — AND THAT IS THE OWNER'S EXPLICIT EXCEPTION
+ * (2026-10-18: "go on apply all recommended", accepting the before/after report's "'8,5 triệu / tháng' — fits
+ * most rents at 390px, all at 412px (Chợ Tốt's form)"). The 2026-09-13 rule that a price carries "đ" holds
+ * everywhere else: English "8.5M đ", the tỷ scale ("1,2 tỷ đ", hugeVnd), the nine MT languages, the price
+ * input's "8,5 triệu đ" (vndWords) and every full figure, the PDP's included. Do not "restore" the mark here
+ * for consistency. "triệu" already says đồng to a Vietnamese reader — the sites above, and muaban.net's
+ * price_display the importers read ("25 triệu/tháng"), print none — so " đ" was 14px of Bold and no meaning.
+ * Assistive tech gets the same plain text (<Price> puts no aria-label on the figure, and its "≈ $" stays
+ * aria-hidden), so a Vietnamese screen reader hears "8,5 triệu / tháng", the way the market says it.
+ * MEASURED in the preview, "≈ $332" after it: "8,5 triệu đ / tháng" wrapped at 390; "8,5 triệu / tháng" and
+ * "15 triệu / tháng" fit the 173px column; "12,5 triệu / tháng" wraps at 390 and fits at 412 (a 184px column).
+ * Summed as above: 173 / 165 / 180px — 187 / 179 / 194 with the mark, when one line at 390 held only a whole
+ * single-digit rent ("9 triệu đ / tháng ≈ $351", 169px).
+ * ⚠️ NOT ALL AT 412px — THE REPORT'S "ALL" WAS LOOSE (gate review, 2026-10-18). Swept over the one-decimal,
+ * whole-thousand rents 1,0–99,9 triệu at ₫25,600 per $ (summed as above): at 390 the rents under 10 triệu and the
+ * whole ones to 25 triệu fit ("31 triệu" too; seven, "8,8 triệu" among them, sum 0.1–0.5px over — unmeasured,
+ * kerning may save them); a two-digit rent with a decimal does not ("10,5 triệu", 179px), nor, mostly, one whose
+ * "≈ $" reaches four figures ("26 triệu ≈ $1,016", 175px). At 412 (a 184px column) every rent with both a decimal
+ * and a four-figure "≈ $" wraps — "25,6 triệu ≈ $1,000" (192px) and up — and so does any of 100 triệu or more
+ * ("100 triệu ≈ $3,906", 188px). Outside the sweep a second decimal costs ~10px ("8,55 triệu" wraps at 390,
+ * "12,35 triệu" at 412) and an odd figure's "≈ " ~14px ("≈ 7,5 triệu" wraps at 412). Those put the estimate on a
+ * second line — two truthful lines, never a hidden one.
  */
 export const RATE_COMPACT_VND = 1_000_000
 const MILLION_FORMATS = new Map<string, Intl.NumberFormat>()
 /**
- * A narrow surface's compact đồng label: a tỷ and up in `hugeVnd`'s scale words; a million and up in millions,
- * "8.5M đ" / "8,5 triệu đ" — the pins' "M" in English (compactPrice), `vndWords`' "triệu" in Vietnamese, the
- * mark kept in both. The nine MT languages take Intl's SHORT scale ("850万 đ", "8,5 Mio. đ") for the reason
- * hugeVnd gives; short, because the long "millions"/"Millionen" is as wide as the digits it replaces.
+ * A narrow surface's compact đồng label: a tỷ and up in `hugeVnd`'s scale words ("1,2 tỷ đ", mark kept); a million
+ * and up in millions, "8.5M đ" / "8,5 triệu" — the pins' "M" in English (compactPrice), `vndWords`' "triệu" in
+ * Vietnamese. English keeps the mark; Vietnamese drops it after "triệu", the owner's exception of 2026-10-18
+ * (RATE_COMPACT_VND above), so Price's rounded odd figure reads "≈ 8,5 triệu". The nine MT languages take Intl's
+ * SHORT scale ("850万 đ", "8,5 Mio. đ"), mark kept, for the reason hugeVnd gives; short, because the long
+ * "millions"/"Millionen" is as wide as the digits it replaces.
  * Exact to `compactVndStep(n)` — a thousand đồng — in every scale: three decimals of a million; FIVE for Intl,
  * because Chinese, Japanese and Korean switch to 亿/億/억 (1e8) above a hundred million and Hindi to करोड़ (1e7) —
  * with three, 999,999,000 printed "10亿". Price rounds an odd figure to the step first and marks it "≈".
  */
 export function compactVnd(n: number, lang: string = 'en'): string {
   if (n >= 1_000_000_000) return hugeVnd(n, lang)
-  if (lang === 'vi') return `${SCALED.vi.format(n / 1_000_000)} triệu đ`
+  if (lang === 'vi') return `${SCALED.vi.format(n / 1_000_000)} triệu` // no " đ": the owner's exception, above
   if (lang === 'en') return `${SCALED.en.format(n / 1_000_000)}M đ`
   const locale = intlLocale(lang, 'en-GB')
   let f = MILLION_FORMATS.get(locale)
@@ -211,6 +236,10 @@ export function compactVndStep(n: number): number {
  *     (higher by definition) in the same millions;
  *   · a drop across HUGE_VND whose new price is still a tỷ or more → a tỷ, so both read in tỷ (break-ui, 2026-10-05);
  *   · anything else → HUGE_VND, the narrow-surface default.
+ * ⚠️ ONE PAIR STILL MIXES FORMS, ACCEPTED AS RARE (gate review, 2026-10-18): a per-unit price that drops from a tỷ
+ * or more to below one prints a struck "1,2 tỷ đ" beside "900 triệu / tháng" — different scale words (accepted with
+ * the million form, 5a7d13cca) and, in Vietnamese, the mark on one side only (the tỷ words keep it, RATE_COMPACT_VND).
+ * It needs a rent of a tỷ a month.
  * Here, not in price.tsx: that module is 'use client', and the server-rendered SEO tile calls this too.
  */
 export function cardCompactAbove(l: { price: number; prevPrice?: number | null; priceUnit: string | null | undefined }): number {
@@ -222,7 +251,9 @@ export function cardCompactAbove(l: { price: number; prevPrice?: number | null; 
 /** Readable helper under the price input: "12 million đ" / "12 triệu đ".
  *  en and vi are hand-written; the nine machine-translated languages spell the magnitude in their own
  *  words through Intl's long compact notation ("12 миллионов đ", "1200万 đ", "1.2 करोड़ đ") — the English
- *  "million" used to be the one untranslated word under the price box. */
+ *  "million" used to be the one untranslated word under the price box.
+ *  ⚠️ It keeps its "đ": the card's mark-less "8,5 triệu" (compactVnd) is the owner's exception for one price
+ *  line (2026-10-18), not a rule for the word. */
 export function vndWords(n: number, lang: string): string {
   if (!n) return ''
   if (isMtLanguage(lang) && n >= 1_000) {

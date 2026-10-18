@@ -379,9 +379,9 @@ function ListingCardImpl({
   // new one is still 1 tỷ+, both read in tỷ (price.tsx `compactAbove`) — so a drop across 10 tỷ does not set
   // words beside digits. A drop below 1 tỷ (in practice a typo fix) keeps each figure in its own form. Only
   // with a visible drop — a stale prevPrice must not change how a lone price reads.
-  // ⚠️ AND A PER-UNIT PRICE OF A MILLION OR MORE READS IN MILLIONS, its was-price with it — "8.5M đ / month"
-  // (owner, 2026-10-18; vnd.ts RATE_COMPACT_VND). The rule lives in vnd.ts `cardCompactAbove` because the SEO
-  // tile, a server component, prints the same card price.
+  // ⚠️ AND A PER-UNIT PRICE OF A MILLION OR MORE READS IN MILLIONS, its was-price with it — "8.5M đ / month",
+  // "8,5 triệu / tháng" with no "đ" after "triệu" (owner, 2026-10-18; vnd.ts RATE_COMPACT_VND). The rule lives
+  // in vnd.ts `cardCompactAbove` because the SEO tile, a server component, prints the same card price.
   const pairCompactAbove = cardCompactAbove(listing)
 
   /**
@@ -1277,10 +1277,12 @@ function ListingCardImpl({
               stays (owner, 2026-09-13 — see the row note above), so the cure was the FIGURE: since
               2026-10-18 a per-unit price of a million or more reads in millions (`pairCompactAbove`,
               vnd.ts RATE_COMPACT_VND) — "8.5M đ / month ≈ $332" is 166px against the 173px column, one
-              line. ⚠️ Vietnamese fits only a whole single-digit rent at 390 ("9 triệu đ / tháng ≈ $351",
-              169px); "8,5 triệu đ / tháng ≈ $332" (187px) still wraps — one line there is a wording call
-              (dropping the mark after "triệu", Chợ Tốt's form) left to the owner. The skeleton reserves
-              one line; see listing-card-skeleton.tsx. */}
+              line. ⛔ Vietnamese reads "8,5 triệu / tháng ≈ $332", NO "đ" after "triệu" — the owner's
+              explicit exception (2026-10-18, "go on apply all recommended"; Chợ Tốt's form). With the
+              mark only a whole single-digit rent fit at 390 ("8,5 triệu đ / tháng ≈ $332" was 187px).
+              Measured in the preview: that line and "15 triệu / tháng" fit at 390; "12,5 triệu / tháng"
+              wraps there and fits at 412 — the full record is in vnd.ts. The skeleton reserves one
+              line; see listing-card-skeleton.tsx. */}
           {/* `jobMeta`: a price-0 LINKED job prints its type and city here instead of "Lương: xem chi
               tiết" (rentals-09) — truncating, so the row stays one line and the card keeps its height.
               `fabAvoid`: the floating support mark fades over the figure rather than covering it

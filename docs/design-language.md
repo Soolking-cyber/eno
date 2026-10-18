@@ -371,4 +371,7 @@ spring even on a call site that also carries `transition-colors`.
 - Every user-facing string through `t()` / `tr(en, vi)` / `<Tr>`; regenerate
   `src/generated/ui-strings.ts` after adding copy.
 - Money: locale-aware via `src/lib/vnd.ts` formatters — vi renders
-  `12.000.000 đ`. Never hand-format numbers.
+  `12.000.000 đ`. Never hand-format numbers. A card's per-unit price of a million or more reads in
+  millions (`RATE_COMPACT_VND`): `8.5M đ / month`, and in Vietnamese `8,5 triệu / tháng` — no `đ` after
+  `triệu`, the owner's explicit exception to the mark (2026-10-18). The tỷ words (`1,2 tỷ đ`), every full
+  figure (the PDP keeps every digit) and every other language keep `đ`.

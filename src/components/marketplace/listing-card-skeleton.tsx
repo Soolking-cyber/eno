@@ -45,11 +45,15 @@ export function ListingCardSkeleton({ className }: { className?: string }) {
             line with it (48 of 48 on /c/electronics at 390px, 2026-09-29).
             ⚠️ A PER-UNIT PRICE USED NOT TO: "9,000,000 đ / month ≈ $351" wrapped to two lines (40px) on
             every rental card at 390px (48 of 48 on /c/rentals). Since 2026-10-18 the card prints it in
-            millions ("9M đ / month ≈ $351", vnd.ts RATE_COMPACT_VND), one line in English at 390; in
-            Vietnamese only a whole single-digit rent fits ("9 triệu đ / tháng", 169px of 173) and
-            "8,5 triệu đ / tháng" still wraps until the owner settles its wording. This bar reserves one
-            line regardless — a two-line reserve would collide with the owner's "price 1 line" card spec
-            (2026-09-13). */}
+            millions ("9M đ / month ≈ $351", vnd.ts RATE_COMPACT_VND) — one line in English at 390 for a rent
+            like that one (a two-digit rent with a decimal, "10.2M đ / month ≈ $398", still wraps); in
+            Vietnamese with no "đ" after "triệu" (the owner's exception, same day — with the mark only a
+            whole single-digit rent fit): "8,5 triệu / tháng" and "15 triệu / tháng" fit at 390 (173 and
+            165px of 173), "12,5 triệu / tháng" (180px) wraps there and fits at 412. What still wraps —
+            at 390 a two-digit rent with a decimal or a four-figure "≈ $", at 412 a rent with both and any
+            of 100 triệu or more, at either a second decimal or an odd figure's "≈ " (vnd.ts has the sweep)
+            — takes 40px. This bar reserves one line regardless — a two-line reserve would
+            collide with the owner's "price 1 line" card spec (2026-09-13). */}
         <Skeleton className="h-5 w-1/2 sm:h-[22.5px]" />
         {/* TITLE — `truncate` text-sm/leading-snug: one 19.25px line. */}
         <Skeleton className="h-[19.25px] w-4/5" />

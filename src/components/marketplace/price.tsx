@@ -61,8 +61,11 @@ type Props = {
   /** With `compact`: the threshold, default HUGE_VND. A PAIR shown together (the card's price and its struck
    *  "was" price) passes one shared threshold so a drop across 10 tỷ never mixes "10,04 tỷ đ" with
    *  "9.990.000.000 đ". A CARD passes `cardCompactAbove(listing)` (src/lib/vnd.ts): RATE_COMPACT_VND for a
-   *  per-unit price, so a rent reads "8.5M đ / month" / "8,5 triệu đ / tháng" (owner 2026-10-18); below a tỷ
-   *  the amount reads in millions. */
+   *  per-unit price, so a rent reads "8.5M đ / month" / "8,5 triệu / tháng" (owner 2026-10-18); below a tỷ
+   *  the amount reads in millions. ⚠️ No "đ" after "triệu": the owner's explicit exception for that one form
+   *  (2026-10-18, Chợ Tốt's wording — at 390px it puts the "≈ $" back on the line for most rents under 10 triệu and
+   *  the whole ones to 25 triệu; vnd.ts RATE_COMPACT_VND has the sweep and its exceptions); the tỷ words and
+   *  every other language keep the mark. The record and the measurements are in vnd.ts RATE_COMPACT_VND. */
   compactAbove?: number
   /** Dual-currency approximation (user decision 2026-07-13): true = always show,
    *  'sm' = only at sm+ (one-line rows that fight for phone width), false = off.
@@ -343,7 +346,13 @@ export function Price({ price, currency, priceUnit, compact = false, compactAbov
           neighbouring card. The digits never split, and nothing is ever truncated.
           ⚠️ SPLIT AT THE LAST SPACE, not the first: "103,000,000 VND" and the vi form
           "12.000.000 đ" both put the currency last, and a thousands separator is never a space in
-          either locale. */}
+          either locale. The compact forms keep it so — "8.5M đ", "1,2 tỷ đ", "95 billion đ" cut before
+          the mark — except a card's Vietnamese millions, which carry none (owner, 2026-10-18; vnd.ts
+          RATE_COMPACT_VND): "8,5 triệu" and "≈ 8,556 triệu" cut before the scale word. Still never
+          inside the digits, and used only when the figure and "triệu" cannot share a line — under OS
+          text size: at 1.75× an odd "≈ 8,556 triệu" sums to 178px against the 173px column at 390 —
+          where the old "… triệu đ" left "≈ 8,556 triệu" unbreakable. Two truthful lines, as with
+          "103,000,000" / "VND". */}
       <FigureRun fabAvoid={fabAvoid}>
       {(() => {
         const cut = amount.lastIndexOf(' ')

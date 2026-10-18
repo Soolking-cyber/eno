@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseVnd, formatMoneyFull, formatVndIso, compactPrice, formatCount, formatInteger, formatRating, groupVnd, hugeVnd, HUGE_VND, compactVnd, compactVndStep, cardCompactAbove, RATE_COMPACT_VND } from './vnd'
+import { parseVnd, formatMoneyFull, formatVndIso, compactPrice, formatCount, formatInteger, formatRating, groupVnd, hugeVnd, HUGE_VND, compactVnd, compactVndStep, cardCompactAbove, RATE_COMPACT_VND, vndWords } from './vnd'
 
 // Money is always displayed grouped + suffixed "đ"; parseVnd is the inverse used
 // on every price input. They must round-trip.
@@ -100,16 +100,27 @@ describe('hugeVnd', () => {
 })
 
 /**
- * A CARD'S PER-UNIT PRICE READS IN MILLIONS (owner, 2026-10-18 — a rent on one line): the đồng figure still leads
- * and keeps its mark, and it is never falsely exact — the label is exact to its step in every language.
+ * A CARD'S PER-UNIT PRICE READS IN MILLIONS (owner, 2026-10-18 — a rent on one line): the đồng figure still leads,
+ * and it is never falsely exact — the label is exact to its step in every language. Vietnamese prints no "đ" after
+ * "triệu" ("8,5 triệu", Chợ Tốt's form): the owner's explicit exception the same day ("go on apply all
+ * recommended"), so "8,5 triệu / tháng ≈ $332" fits a 390px phone's card. Every other form keeps the mark.
  */
 describe('compactVnd', () => {
-  it('reads millions in each server language, the mark kept', () => {
+  it('reads millions in each server language — English with the mark, Vietnamese without one after "triệu"', () => {
     expect(RATE_COMPACT_VND).toBe(1_000_000)
     expect(compactVnd(8_500_000, 'en')).toBe('8.5M đ')
-    expect(compactVnd(8_500_000, 'vi')).toBe('8,5 triệu đ')
+    expect(compactVnd(8_500_000, 'vi')).toBe('8,5 triệu')
     expect(compactVnd(1_000_000, 'en')).toBe('1M đ')
-    expect(compactVnd(12_000_000, 'vi')).toBe('12 triệu đ')
+    expect(compactVnd(12_000_000, 'vi')).toBe('12 triệu')
+    expect(compactVnd(999_999_000, 'vi')).toBe('999,999 triệu')
+  })
+  it('drops the mark on that ONE form — the tỷ scale, English, the MT languages and the full figures keep "đ"', () => {
+    expect(compactVnd(1_200_000_000, 'vi')).toBe('1,2 tỷ đ') // a tỷ and up: hugeVnd, unchanged
+    expect(compactVnd(95_000_000_000, 'vi')).toBe('95 tỷ đ')
+    expect(compactVnd(8_500_000, 'en')).toBe('8.5M đ')
+    expect(compactVnd(8_500_000, 'zh-Hans')).toBe('850万 đ')
+    expect(vndWords(8_500_000, 'vi')).toBe('8,5 triệu đ') // the price input's helper, not a card line
+    expect(formatMoneyFull(8_500_000, '₫', 'vi')).toBe('8.500.000 đ') // the PDP, every digit
   })
   it("a tỷ and up is hugeVnd's words, unchanged", () => {
     expect(compactVnd(2_300_000_000, 'vi')).toBe(hugeVnd(2_300_000_000, 'vi'))
@@ -120,7 +131,7 @@ describe('compactVnd', () => {
     expect(compactVndStep(999_999_999)).toBe(1_000)
     expect(compactVndStep(1_500_000_000)).toBe(1_000_000)
     expect(compactVnd(8_555_000, 'en')).toBe('8.555M đ')
-    expect(compactVnd(8_555_000, 'vi')).toBe('8,555 triệu đ')
+    expect(compactVnd(8_555_000, 'vi')).toBe('8,555 triệu')
     expect(compactVnd(8_500_000, 'zh-Hans')).toBe('850万 đ')
     for (const lang of ['zh-Hans', 'ko', 'ja', 'ru', 'km', 'ms', 'th', 'fr', 'hi']) {
       // A thousand apart never reads the same — CJK's 亿 (1e8) and Hindi's करोड़ (1e7) included: with three

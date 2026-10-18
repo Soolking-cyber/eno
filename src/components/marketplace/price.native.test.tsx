@@ -15,11 +15,12 @@ import { formatMoney } from '@/lib/currencies'
 import { RATE_COMPACT_VND } from '@/lib/vnd'
 import { Price } from './price'
 
-const state = vi.hoisted(() => ({ currency: 'VND', rates: {} as Record<string, number> }))
+const state = vi.hoisted(() => ({ currency: 'VND', rates: {} as Record<string, number>, lang: 'en' }))
 
 vi.mock('@/context/language-context', () => ({
-  useLanguage: () => ({ lang: 'en', tr: (en: string) => en }),
-  useTr: (s: string) => s,
+  useLanguage: () => ({ lang: state.lang, tr: (en: string, viText?: string) => (state.lang === 'vi' && viText ? viText : en) }),
+  // The unit as the real useTr prints it in Vietnamese — the curated "month" → "tháng" (vi-overrides.ts).
+  useTr: (s: string) => (state.lang === 'vi' && s === 'month' ? 'tháng' : s),
 }))
 vi.mock('@/context/currency-context', async () => {
   const real = await vi.importActual<typeof import('@/context/currency-context')>('@/context/currency-context')
@@ -34,7 +35,7 @@ vi.mock('@/context/currency-context', async () => {
   }
 })
 
-afterEach(() => { cleanup(); state.currency = 'VND'; state.rates = {} })
+afterEach(() => { cleanup(); state.currency = 'VND'; state.rates = {}; state.lang = 'en' })
 
 const text = (el: React.ReactElement) => render(el).container.textContent?.replace(/\s+/g, ' ').trim()
 
@@ -114,8 +115,9 @@ describe('<Price native compact>', () => {
 /**
  * A CARD'S PER-UNIT PRICE IN MILLIONS (owner, 2026-10-18): the card hands `compactAbove={RATE_COMPACT_VND}` for a
  * rent, a hire or a monthly salary (vnd.ts cardCompactAbove), so "8,500,000 đ / month ≈ $332" — two lines on every
- * phone — becomes "8.5M đ / month ≈ $332". The đồng figure still leads and keeps its mark, the unit and the "≈ $"
- * stay, and a figure that is not a whole thousand is marked approximate, never stated as exact.
+ * phone — becomes "8.5M đ / month ≈ $332". The đồng figure still leads (with its mark in English; Vietnamese drops
+ * it after "triệu" — the block below), the unit and the "≈ $" stay, and a figure that is not a whole thousand is
+ * marked approximate, never stated as exact.
  */
 describe('<Price native compact compactAbove={RATE_COMPACT_VND}>', () => {
   it('reads a rent in millions — đồng first, the unit and the "≈ $" kept', () => {
@@ -125,7 +127,7 @@ describe('<Price native compact compactAbove={RATE_COMPACT_VND}>', () => {
   it('marks a figure that is not a whole thousand as approximate', () => {
     expect(text(<Price native compact compactAbove={RATE_COMPACT_VND} dual={false} price={8_555_500} currency="₫" priceUnit="VND/month" />)).toBe('≈ 8.556M đ / month')
   })
-  it("the struck was-price, under the card's one threshold, reads in the same millions", () => {
+  it("the struck was-price as the card renders it (listing-card.tsx: the card's one threshold, no unit) reads in the same millions", () => {
     expect(text(<Price native compact compactAbove={RATE_COMPACT_VND} dual={false} price={9_500_000} currency="₫" priceUnit="VND" />)).toBe('9.5M đ')
   })
   it('keeps every digit under a million, and the default threshold still starts at 10 tỷ', () => {
@@ -135,5 +137,54 @@ describe('<Price native compact compactAbove={RATE_COMPACT_VND}>', () => {
   })
   it('a tỷ and up under the same threshold is the tỷ words, unchanged', () => {
     expect(text(<Price native compact compactAbove={RATE_COMPACT_VND} dual={false} price={1_200_000_000} currency="₫" priceUnit="VND/month" />)).toBe('1.2 billion đ / month')
+  })
+})
+
+/**
+ * VIETNAMESE CARD RENTS PRINT NO "đ" AFTER "triệu" (owner, 2026-10-18: "go on apply all recommended" — Chợ Tốt's
+ * "8,5 triệu/tháng"). "8,5 triệu đ / tháng ≈ $332" pushed the estimate onto a second line on a 390px phone;
+ * "8,5 triệu / tháng ≈ $332" fits (the measurements are in vnd.ts RATE_COMPACT_VND). That form only: the tỷ words,
+ * the full figure, English and the MT languages keep their mark.
+ */
+describe('<Price native compact compactAbove={RATE_COMPACT_VND}> in Vietnamese', () => {
+  const cardPrice = (price: number, priceUnit = 'VND/month', dual = false) => (
+    <Price native compact compactAbove={RATE_COMPACT_VND} dual={dual} price={price} currency="₫" priceUnit={priceUnit} />
+  )
+
+  it('reads a rent "8,5 triệu / tháng" — no mark after "triệu" — with the "≈ $" kept', () => {
+    state.lang = 'vi'
+    state.rates = { USD: 1 / 25_600 }
+    expect(text(cardPrice(8_500_000, 'VND/month', true))).toBe('8,5 triệu / tháng≈ $332')
+  })
+  it('rounds an odd figure to the thousand and marks it "≈" — still no mark', () => {
+    state.lang = 'vi'
+    expect(text(cardPrice(8_499_600))).toBe('≈ 8,5 triệu / tháng')
+  })
+  it('the struck was-price as the card renders it (the same threshold, no unit) reads in the same millions', () => {
+    state.lang = 'vi'
+    expect(text(cardPrice(9_500_000, 'VND'))).toBe('9,5 triệu')
+  })
+  it('a tỷ and up keeps "tỷ đ"; under a million, and on the PDP, every digit keeps its mark', () => {
+    state.lang = 'vi'
+    expect(text(cardPrice(1_200_000_000))).toBe('1,2 tỷ đ / tháng')
+    cleanup()
+    expect(text(cardPrice(950_000))).toBe('950.000 đ / tháng')
+    cleanup()
+    expect(text(<Price native dual={false} price={8_500_000} currency="₫" priceUnit="VND/month" />)).toBe('8.500.000 đ / tháng')
+  })
+  it('English keeps "8.5M đ", and an MT language its own scale with the mark', () => {
+    expect(text(cardPrice(8_500_000))).toBe('8.5M đ / month')
+    cleanup()
+    state.lang = 'zh-Hans'
+    expect(text(cardPrice(8_500_000))).toBe('850万 đ / month')
+  })
+  it('assistive tech gets the figure as printed — no label over it, the estimate hidden', () => {
+    state.lang = 'vi'
+    state.rates = { USD: 1 / 25_600 }
+    const { container } = render(cardPrice(8_500_000, 'VND/month', true))
+    const exposed = container.cloneNode(true) as HTMLElement
+    exposed.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove())
+    expect(exposed.textContent?.replace(/\s+/g, ' ').trim()).toBe('8,5 triệu / tháng')
+    expect(container.querySelector('[aria-label]')).toBeNull()
   })
 })
