@@ -85,5 +85,13 @@ export function useFacebookSignInOn(): boolean {
   )
 }
 
+/**
+ * Warm the flag on PAGE LOAD (auth-context mounts this app-wide), so the shared module `state` is known before any
+ * sign-in popup opens — the popup's form then reads it synchronously from `state` at first paint instead of starting the
+ * GET when it mounts and showing Facebook ~1s later (the "Facebook joins late" jitter). Same `ask()` path, so the TTL,
+ * sessionStorage and seed rules all still hold; a no-op after the first call in the TTL window.
+ */
+export function warmFacebookSignIn(): void { ask() }
+
 /** Tests only. */
 export function resetFacebookFlagForTests() { state = null; askedAt = 0; seeded = false; subscribers.clear() }

@@ -265,7 +265,7 @@ describe('pressing it', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue with Facebook' }))
     await settle()
     expect(clearStalePkceCookies).toHaveBeenCalledTimes(1)
-    expect(signInWithOAuth).toHaveBeenCalledWith({ provider: 'facebook', options: { redirectTo: 'http://localhost:3000/auth/callback?next=%2Flistings%2Fl1&p=facebook' } })
+    expect(signInWithOAuth).toHaveBeenCalledWith({ provider: 'facebook', options: { redirectTo: 'http://localhost:3000/auth/callback?next=%2Flistings%2Fl1&p=facebook', queryParams: { auth_type: 'rerequest' } } })
     expect(beacons).toContainEqual({ g: 'chat', a: 'facebook', c: 'browser.desktop.en' })
   })
 
@@ -276,7 +276,7 @@ describe('pressing it', () => {
     await settle()
     fireEvent.click(screen.getByRole('button', { name: 'Continue with Facebook' }))
     await settle()
-    expect(signInWithOAuth).toHaveBeenCalledWith({ provider: 'facebook', options: { redirectTo: 'http://localhost:3000/auth/callback?next=%2Flistings%2Fl1&p=facebook' } })
+    expect(signInWithOAuth).toHaveBeenCalledWith({ provider: 'facebook', options: { redirectTo: 'http://localhost:3000/auth/callback?next=%2Flistings%2Fl1&p=facebook', queryParams: { auth_type: 'rerequest' } } })
     expect(beacons).toContainEqual({ g: 'chat', a: 'facebook', c: 'inapp-fb.desktop.en' })
   })
 

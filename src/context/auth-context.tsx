@@ -13,6 +13,7 @@ import { onClientCreated } from '@/lib/supabase/client-signal'
 import { classifyGate, noteGateOpen, pressedInChrome, settleGateSignIn, type PressInfo } from '@/lib/signin-gates'
 import { armIntent, dropIntent, markIntentRouted, pathnameOf, readIntent, type PendingIntent } from '@/lib/pending-intent'
 import type { SignInGate, SignInMethod } from '@/lib/signup-prompt'
+import { warmFacebookSignIn } from '@/lib/facebook-flag'
 /**
  * ⚠️ THE IDENTITY RULES LIVE IN A PURE MODULE — see auth-identity.ts for why (they shipped wrong
  * once, and testing them must not drag next/navigation and the Supabase browser client along).
@@ -398,6 +399,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [accountId, user])
   useEffect(() => { signInOpenRef.current = signInOpen }, [signInOpen])
   useEffect(() => { signInCtxRef.current = signInCtx }, [signInCtx])
+  // Warm "is Facebook sign-in on?" at app load (src/lib/facebook-flag.ts), so the shared flag is known before a sign-in
+  // popup opens — Facebook then renders alongside Google/Apple at first paint instead of joining ~1s later.
+  useEffect(() => { warmFacebookSignIn() }, [])
   /** A new open while the "Join eno" ask is still up takes the popup over: tell the prompt (onReplaced). */
   const replacingPrompt = useCallback((next: SignInPrompt | null) => {
     const prev = signInCtxRef.current?.prompt

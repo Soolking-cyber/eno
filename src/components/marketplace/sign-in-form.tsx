@@ -383,11 +383,15 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
   // binary never needed it (`native-siwa` decides the first frame there).
   const [showApple, setShowApple] = useState(appleSsr)
   const [appleWebHere, setAppleWebHere] = useState(false)
-  // CONTINUE WITH FACEBOOK (src/lib/facebook-signin.ts): GoTrue has it on (src/lib/facebook-flag.ts — the server's answer,
-  // or one GET per page) AND this context can run it (never inside the eno apps). Both read false on the server and the
-  // first render, so no server node can disagree with the mount; the button joins once both are known.
+  // CONTINUE WITH FACEBOOK (src/lib/facebook-signin.ts): GoTrue has it on (src/lib/facebook-flag.ts — warmed app-wide on
+  // page load by auth-context, so `state` is known before this popup opens) AND this context can run it (never inside the
+  // eno apps). `facebookHere` seeds from navigator at mount: on the client-only popup that is the real answer at first
+  // paint (no late jump); on the SSR'd /signin form navigator is undefined → false, matching the server, and the effect
+  // below fills it in — so no server node disagrees with the mount.
   const facebookOn = useFacebookSignInOn()
-  const [facebookHere, setFacebookHere] = useState(false)
+  const [facebookHere, setFacebookHere] = useState(
+    () => typeof navigator !== 'undefined' && facebookAvailableHere() && !facebookHeldBack(gate),
+  )
   // ⛔ NOT RIGHT AFTER FACEBOOK SHARED NO EMAIL (`emailLead`): a second tap ends the same way.
   const showFacebook = facebookOn && facebookHere && !emailLead
   // Any provider is offered here. The divider, and the join presentation's fold, key on this.
@@ -866,7 +870,12 @@ export function SignInForm({ className, collapseEmail = false, onMethod, gate = 
     if (!sb) { setFacebookBusy(false); return } // getSupabase already cleared loading and set the error
     // Same instant as Google's and Apple's: clear what abandoned attempts left, immediately before the new flow.
     clearStalePkceCookies()
-    const { error } = await sb.auth.signInWithOAuth({ provider: 'facebook', options: { redirectTo: `${redirectTo}&p=facebook` } })
+    // ⚠️ auth_type=rerequest: once a visitor has authorised the app, Facebook does a SILENT re-login and returns only the
+    // scopes already granted — so anyone who connected during the pre-App-Review window (when `email` could not be granted)
+    // keeps coming back with no email, GoTrue 500s "Error getting user email from external provider", and the account can
+    // never be made. rerequest forces the consent to re-ask for the still-missing email; a visitor who already granted it
+    // is not re-prompted. (email itself is requested via GoTrue's default facebook scope + EMAIL_OPTIONAL=off.)
+    const { error } = await sb.auth.signInWithOAuth({ provider: 'facebook', options: { redirectTo: `${redirectTo}&p=facebook`, queryParams: { auth_type: 'rerequest' } } })
     // On success supabase-js navigates to Facebook — the busy state stays for the navigation.
     if (error) { setError({ code: 'facebook_failed' }); setLoading(false); setFacebookBusy(false) }
   }
