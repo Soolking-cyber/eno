@@ -41,6 +41,14 @@ export type TeachGuideEntry = {
   published: string
   updated?: string
   /**
+   * YYYY-MM-DD — the day the guide FIRST went live, written by integrate.py only when a later re-approval moved
+   * `reviewed` past it. A guide corrected and re-approved after going live was UPDATED that day, not first published:
+   * without this, `releaseDate` (the later of wave and review) would forward-date its `datePublished` to the
+   * re-approval (wave 1a, 2026-10-18 — eight live guides re-approved after fixes). `releaseDate` prefers it, and
+   * `teachGuideDates` reports the re-approval as the update.
+   */
+  released?: string
+  /**
    * YYYY-MM-DD — the day a PERSON on the eno.vn team fact-checked this guide, titles and description
    * included. ⛔ NO DATE, NO RELEASE, whatever `published` says (`isReleased`). Google's guidance on
    * AI-assisted content (developers.google.com/search/docs/fundamentals/using-gen-ai-content, updated
@@ -143,8 +151,12 @@ export function isReleased(e: { published: string; reviewed?: string }, now: Dat
   return e.published <= today && e.reviewed <= today
 }
 
-/** The day a guide actually went live: the later of its wave date and its review — its `datePublished`. */
-export function releaseDate(e: { published: string; reviewed?: string }): string {
+/**
+ * The day a guide actually went live — its `datePublished`: the recorded first-live day when it has one (`released`,
+ * set once a re-approval followed), else the later of its wave date and its review.
+ */
+export function releaseDate(e: { published: string; reviewed?: string; released?: string }): string {
+  if (e.released) return e.released
   return e.reviewed && e.reviewed > e.published ? e.reviewed : e.published
 }
 
@@ -178,12 +190,22 @@ export function isLiveTeachHref(href: string, now: Date = new Date()): boolean {
 /**
  * Sitemap `<lastmod>` and JSON-LD dates for a guide. `published` is the RELEASE date (`releaseDate`): a
  * guide reviewed after its wave date went live on the review day, and saying otherwise backdates it.
+ * ⚠️ A RE-APPROVAL AFTER RELEASE IS AN UPDATE: a guide with `released` was corrected and approved again on its
+ * `reviewed` day, which readers saw as changed prose — that day is its `updated` (dateModified, "Updated …"),
+ * whichever of it and an explicit `updated` is later.
  */
 export function teachGuideDates(slug: string): { published: string; updated?: string } {
   const e = guideEntry(slug)
   if (!e) throw new Error(`teach-guides: no registry entry for "${slug}"`)
+  return guideDates(e)
+}
+
+/** teachGuideDates for one entry — the rule itself, so it can be tested on dates no live guide carries. */
+export function guideDates(e: { published: string; reviewed?: string; updated?: string; released?: string }): { published: string; updated?: string } {
   const published = releaseDate(e)
-  return { published, ...(e.updated && e.updated > published ? { updated: e.updated } : {}) }
+  const reapproved = e.released && e.reviewed ? e.reviewed : undefined
+  const updated = [e.updated, reapproved].filter((d): d is string => !!d).sort().at(-1)
+  return { published, ...(updated && updated > published ? { updated } : {}) }
 }
 
 /** The hub's "Start here", by the reader's situation. A slug that is not live yet is skipped there. */

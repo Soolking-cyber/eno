@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { forEachInline, forEachPlain, teachGuideSchema, type TeachGuide } from './schema'
 import { inlineHrefs, inlineText, parseInline } from './inline'
-import { TEACH_GUIDES, TEACH_SITE_PATHS, TEACH_START_PATHS, isLive, isLiveTeachHref, isReleased, releaseDate, TEACH_BASE, teachGuideDates } from './registry'
+import { TEACH_GUIDES, TEACH_SITE_PATHS, TEACH_START_PATHS, guideDates, isLive, isLiveTeachHref, isReleased, releaseDate, TEACH_BASE, teachGuideDates } from './registry'
 import { contentSlugs, renderIndex } from '../../../scripts/gen-teach-guides.mjs'
 import { contentDigest } from './digest'
 import { TEACH_CONTENT } from './content.generated'
@@ -248,12 +248,28 @@ describe('teach guides: the release gate', () => {
     expect(releaseDate({ published: '2026-10-12', reviewed: '2026-10-01' })).toBe('2026-10-12')
     for (const e of TEACH_GUIDES) expect(teachGuideDates(e.slug).published, e.slug).toBe(releaseDate(e))
   })
+  it('a re-approval after release is an UPDATE: the first-live day stays the publication date (wave 1a, 2026-10-18)', () => {
+    const reapproved = { published: '2026-10-11', reviewed: '2026-10-19', released: '2026-10-11' }
+    expect(releaseDate(reapproved)).toBe('2026-10-11')
+    expect(guideDates(reapproved)).toEqual({ published: '2026-10-11', updated: '2026-10-19' })
+    // …and the later of an explicit edit date and the re-approval wins; a guide never re-approved is unchanged.
+    expect(guideDates({ ...reapproved, updated: '2026-10-25' })).toEqual({ published: '2026-10-11', updated: '2026-10-25' })
+    expect(guideDates({ published: '2026-10-11', reviewed: '2026-10-11' })).toEqual({ published: '2026-10-11' })
+    // Without `released`, a late review still moves the publication date (the guide was not live before it).
+    expect(guideDates({ published: '2026-10-12', reviewed: '2026-10-20' })).toEqual({ published: '2026-10-20' })
+  })
+  it('a recorded first-live day sits between the wave date and the re-approval — never forward- or back-dating', () => {
+    for (const e of TEACH_GUIDES.filter((x) => x.released)) {
+      expect(e.reviewed, `${e.slug}: released without a review`).toBeDefined()
+      expect(e.published <= e.released! && e.released! <= e.reviewed!, `${e.slug}: ${e.published} ≤ ${e.released} ≤ ${e.reviewed}`).toBe(true)
+    }
+  })
   it('a guide whose content is missing is never live, whatever its dates', () => {
     expect(isLive({ slug: 'no-such-guide', published: '2000-01-01', reviewed: '2000-01-01' })).toBe(false)
   })
   it('every registry date is a real YYYY-MM-DD date (a typo must not release a guide early)', () => {
     for (const e of TEACH_GUIDES)
-      for (const d of [e.published, e.reviewed, e.updated].filter((x): x is string => !!x)) {
+      for (const d of [e.published, e.reviewed, e.updated, e.released].filter((x): x is string => !!x)) {
         expect(d, e.slug).toMatch(/^\d{4}-\d{2}-\d{2}$/)
         expect(new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10), `${e.slug}: ${d}`).toBe(d)
       }
