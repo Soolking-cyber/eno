@@ -38,7 +38,7 @@ import { withShare } from '@/lib/site-identity'
 import { IS_MARKETPLACE, IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { linkifyLegal } from '@/components/marketplace/legal-linkify'
-import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, PRELAUNCH } from '@/lib/site-legal'
+import { AFFILIATION, COMPANY as LIVE_COMPANY, OPERATOR_REGISTERED, PRELAUNCH } from '@/lib/site-legal'
 import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { LEGAL_BASIS } from '@/lib/compliance/legal-basis'
 import { V1, V1_PATHS, V1_SUPERSEDED, V2, V2_SUPERSEDED, V2_SUPERSEDED_BY } from '@/lib/compliance/legal-archive'
@@ -47,6 +47,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 // ⚠️ FROZEN AT THE VALUES VERSION 2 PRINTED (see the header) — not the live constants of the same names.
 const FEED_DIVERSITY_WINDOW = 60
 const RENTAL_CHECK_MAX_ITEMS = 5
+/**
+ * The operator as version 2 printed it. Operator fields stay live (the header), EXCEPT a field that has changed
+ * since: eno.vn's legal representative — the amended certificate (đăng ký thay đổi lần thứ 1, 28/09/2026) names
+ * Nguyễn Quốc Lập, but the site still said Trần Văn Chương when version 2 was published (01/10/2026) and until
+ * 18/10/2026; the content manager followed him. The archive keeps what its readers saw (gate review, 2026-10-18).
+ * ⛔ MARKETPLACE ONLY: eno.forum's operator is another (pending) entity — never the licensed company's people.
+ * A later change to any other operator field gets pinned here the same way.
+ */
+const COMPANY = IS_MARKETPLACE ? { ...LIVE_COMPANY, legalRep: 'Trần Văn Chương', contentManager: 'Trần Văn Chương' } : LIVE_COMPANY
 /** Version 2's dates — published and in force 01/10/2026 — as its Article 17 printed them (AMENDED there). */
 const AMENDED = V1_SUPERSEDED
 

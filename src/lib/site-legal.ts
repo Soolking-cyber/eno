@@ -113,10 +113,14 @@ const ENO_VN: LegalOperator = {
   phone: '0772007921',
   email: 'support@eno.vn',
   privacyEmail: 'support@eno.vn',
-  legalRep: 'Trần Văn Chương',
+  // Đăng ký thay đổi lần thứ 1, ngày 28/09/2026 (owner, 2026-10-18 — the amended certificate): the owner and
+  // legal representative (Tổng giám đốc) is now Nguyễn Quốc Lập; before, Trần Văn Chương — which the site still
+  // printed until 18/10/2026. The Quy chế v2 archive pins the name it printed (regulations/v2); the live pages,
+  // the footer and /contact read this. A future v3 archive must pin what v3 printed for its dates.
+  legalRep: 'Nguyễn Quốc Lập',
   // The certificate names the same person as owner and as legal representative (Tổng giám đốc), so
   // he is also who answers for content. Split them the day someone else does.
-  contentManager: 'Trần Văn Chương',
+  contentManager: 'Nguyễn Quốc Lập',
   registered: true,
 }
 

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { LEGAL_AMENDMENT, REGULATIONS_AMENDMENT } from './legal-amendment'
@@ -90,6 +90,32 @@ describe('legal archive', () => {
     }
   })
 
+  it('the Quy chế v2 archive keeps the legal representative it printed — on eno.vn only', () => {
+    // The amended certificate (28/09/2026) moved eno.vn's legal representative to Nguyễn Quốc Lập; version 2 printed
+    // Trần Văn Chương. Its archive pins that, gated to the marketplace: eno.forum's operator is another entity.
+    const src = readFileSync(pageFile('regulations', V2), 'utf8')
+    expect(src).toContain("const COMPANY = IS_MARKETPLACE ? { ...LIVE_COMPANY, legalRep: 'Trần Văn Chương', contentManager: 'Trần Văn Chương' } : LIVE_COMPANY")
+    expect(src).toMatch(/COMPANY as LIVE_COMPANY/)
+  })
+  it('only these files read the legal representative or the content manager — any new archive reader must pin', () => {
+    // An archive that read them live would name, after the 28/09/2026 change, a representative it never printed.
+    const readers: string[] = []
+    const walk = (dir: string) => {
+      for (const name of readdirSync(dir)) {
+        const f = join(dir, name)
+        if (statSync(f).isDirectory()) walk(f)
+        else if (/\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) && /\.(legalRep|contentManager)\b/.test(readFileSync(f, 'utf8'))) readers.push(f.slice(ROOT.length + 1))
+      }
+    }
+    walk(join(ROOT, 'src'))
+    expect(readers.sort()).toEqual([
+      'src/app/[lang]/contact/page.tsx', // live
+      'src/app/[lang]/regulations/page.tsx', // live
+      'src/app/[lang]/regulations/v2/page.tsx', // archive — pinned above
+      'src/app/md/privacy/route.ts', // live
+      'src/components/marketplace/footer.tsx', // live
+    ])
+  })
   it('archives are noindex and canonical to themselves', () => {
     for (const [doc, v] of [['terms', V1], ['terms', V2], ['regulations', V1], ['regulations', V2]] as const) {
       const src = readFileSync(pageFile(doc, v), 'utf8')
