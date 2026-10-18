@@ -356,8 +356,11 @@ untag_bad(){
 # every content-hashed chunk, font and /_next/image variant on both zones several times a day (static miss
 # ratio 70–94% after a deploy, human image edge-hit 48%, measured 2026-10-15). What actually changes with a
 # deploy is tagged instead (the tag table at the top of nginx/eno.conf):
-#   eno-html    every document the Worker stores (the Worker sets it: Cloudflare strips origin tags a Worker
-#               sees) — purge-by-URL can never match its `__k=` keys, a tag purge does (Cache API honours it)
+#   eno-html    every document AND RSC payload the Worker stores (the Worker sets it: Cloudflare strips origin
+#               tags a Worker sees) — purge-by-URL can never match its `__k=` keys, a tag purge does (Cache API
+#               honours it). ⚠️ Between step 7's swap and this purge a new-build tab can still be handed a stored
+#               old-build payload; the Worker caches only navigations (an old one makes Next reload the page) and
+#               route trees (no modules), never segment prefetches, so the window costs a reload at worst.
 #   eno-public  everything an app `location /` answers through nginx: public/ files, robots, cached APIs, 404s
 # NOT purged: eno-static (content-hashed; step 6b keeps every recent build's files on disk, so old HTML still
 # hydrates) and eno-img (purged nightly by eno-edge-nightly-purge.sh — the erasure bound for photos).

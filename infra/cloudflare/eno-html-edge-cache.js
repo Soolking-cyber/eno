@@ -6,14 +6,14 @@
  * 2026-09-22 is kept verbatim beside this one as `.BACKUP-2026-09-22.js`.
  * Deploy with `deploy-worker.sh` beside this file; it is the only supported path and its header
  * carries the traps (a PUT drops unsent bindings; routes are zone-level and survive).
- * ⚠️ NO CREDENTIAL HERE CAN BOTH DEPLOY AND READ BACK, so "is the deployed copy this file?" is
- * currently UNANSWERABLE and the two can drift silently. Measured 2026-09-22:
+ * ✅ THE DEPLOYED COPY CAN BE READ BACK — through `GET .../scripts/<name>/content/v2` (measured 2026-10-17/18 with the
+ * Cloudflare MCP credential: the module, sha256 162bdd02… = git a435a639b). Compare its sha with this file's after every
+ * PUT. Measured 2026-09-22, and still true of the other paths:
  *   · the box's `/opt/eno/secrets/cf-token` is purge-scoped — a Workers PUT answers
  *     `No access to the specified resource.`, which reads like a wrong account id and is not;
- *   · the Cloudflare MCP credential CAN PUT but is refused on `GET .../scripts/<name>/content`
- *     with `10405 Method not allowed for this authentication scheme`.
- * ✅ THE FIX IS ONE TOKEN WITH Workers Scripts:Edit + Read, put in `$CF_TOKEN_FILE`; then
- * `deploy-worker.sh` works from the box and a sha diff against this file becomes a real check.
+ *   · the Cloudflare MCP credential CAN PUT but is refused on the plain `GET .../scripts/<name>/content`
+ *     with `10405 Method not allowed for this authentication scheme` (`/content/v2` is the one that answers).
+ * ONE TOKEN WITH Workers Scripts:Edit + Read, put in `$CF_TOKEN_FILE`, would let `deploy-worker.sh` do both from the box.
  *
  * ⛔ WHY IT EXISTS AT ALL: one public URL serves TWO server-rendered languages (`/` is ~39 KB br in
  * `en` and a different document in `vi`), and the Cloudflare cache cannot key on language. So the
@@ -94,7 +94,7 @@
  * old route list, with each pattern's meaning — `/safety*` is any path that STARTS with `/safety` (`/safety-tips`
  * too), and the home page is `/` with ANY query, which is the point. ⛔ `/vi` exact or `/vi/…`, NEVER a `/vi` prefix:
  * that would take `/vietnam-evisa` (see the pilot note above). Assets, APIs and listing pages never get here at all
- * (no-script routes), and RSC payloads are per-navigation (passed through below).
+ * (no-script routes); RSC payloads on these paths are cached by their `_rsc` (see fetch).
  */
 function cacheablePath(p) {
   return (
@@ -143,7 +143,11 @@ function keySearch(url) {
   const s = params.toString();
   return s ? "?" + s : "";
 }
-/** Serve from cache without revalidating for this long (seconds). Matches the app's ISR window. */
+/**
+ * Serve from cache without revalidating for this long (seconds). Matches the app's ISR window. ⛔ It is also the OLDEST
+ * an RSC payload is ever served: payloads are never served stale (see fetch), so an in-app tap shows what a hard load
+ * of the page would — the bound the takedown and hide code counts on ("within the edge cache's five minutes").
+ */
 const FRESH_TTL = 300;
 /**
  * Keep an entry this long so there is something to serve stale from (seconds).
@@ -159,7 +163,7 @@ const FRESH_TTL = 300;
 const SWR_TTL = 21600;
 
 /**
- * ⛔ EVERY STORED DOCUMENT CARRIES THIS Cache-Tag, AND THE DEPLOY PURGES IT (speed plan item 2,
+ * ⛔ EVERY STORED DOCUMENT — AND RSC PAYLOAD — CARRIES THIS Cache-Tag, AND THE DEPLOY PURGES IT (speed plan item 2,
  * 2026-10-16). It replaced purge_everything, which also evicted every content-hashed chunk, font and
  * image variant several times a day. Cloudflare strips an ORIGIN's Cache-Tag before a Worker sees the
  * response, so this file must set its own; `cache.put()` honours it. Stripped again before a reader
@@ -252,12 +256,13 @@ function variantOf(url, request) {
  *     page sends `s-maxage` (measured on both zones, 2026-09-23), so requiring it costs nothing and
  *     means a page can only enter the edge cache because the origin said so.
  */
-function originShareable(res) {
+function originShareable(res, rsc) {
   const ct = res.headers.get("content-type") || "";
   const cc = res.headers.get("cache-control") || "";
   return (
     res.status === 200 &&
-    ct.includes("text/html") &&
+    // A document must be HTML and an RSC payload must be one — never the other under the other's key.
+    ct.includes(rsc ? "text/x-component" : "text/html") &&
     /\bs-maxage=[1-9]/i.test(cc) &&
     !/\b(private|no-store|no-cache)\b/i.test(cc)
   );
@@ -276,9 +281,9 @@ function originShareable(res) {
  *     whatever the document said about that visitor. No routed page sets one today (24 origin
  *     responses, both zones, both variants, 2026-09-23; src/proxy.test.ts pins the proxy side).
  */
-function storable(res, variant) {
+function storable(res, variant, rsc) {
   return (
-    originShareable(res) &&
+    originShareable(res, rsc) &&
     (res.headers.get("content-language") || "").toLowerCase() === variant &&
     !res.headers.has("set-cookie")
   );
@@ -297,6 +302,9 @@ function storable(res, variant) {
  * same without it (ISR cannot read cookies — measured, below); the session belongs to the reader's own requests.
  * Measured 2026-10-17: a cookie-less request to /, /c/rentals, /privacy and /vi gets no Set-Cookie, so a refresh stays
  * storable.
+ * ⛔ ONLY A DOCUMENT IS EVER REFRESHED (RSC payloads are never served stale — see fetch), so the ROUTER HEADERS go too
+ * (review, 2026-10-18): a reader who sent them with a page request would have the origin answer the refresh with a
+ * payload, and the eviction in fetch would read "no longer HTML" and empty the entry for everyone.
  */
 function refreshHeaders(request) {
   const h = new Headers(request.headers);
@@ -304,15 +312,76 @@ function refreshHeaders(request) {
   h.delete("if-modified-since");
   h.delete("range");
   h.delete("authorization");
+  for (const name of ["rsc", "next-router-prefetch", "next-router-segment-prefetch", "next-router-state-tree", "next-url"]) h.delete(name);
   const lang = cookieValue(request.headers.get("cookie"), "lang");
   if (lang !== null) h.set("cookie", "lang=" + encodeURIComponent(lang));
   else h.delete("cookie");
   return h;
 }
 
-function cacheKeyFor(url, variant) {
+/**
+ * ⛔ THE `_rsc` NEXT ITSELF WOULD ACCEPT FOR THESE ROUTER HEADERS — computed here, never taken on trust (speed plan
+ * item 10, 2026-10-18). Copied from Next 16.3.8 (next/dist/shared/lib/router/utils/cache-busting-search-param.js and the
+ * check in next/dist/server/base-server.js): SHA-256 of "<prefetch>,<segment prefetch>,<state tree>,<next-url>" — '0' for
+ * a header not sent, a prefetch value other than 1/2/3 counts as not sent — first 12 bytes, base64url; "" when none of
+ * the four is sent. ⚠️ An EMPTY segment prefetch is "not sent" EXCEPT when the prefetch header is exactly "1": base-server
+ * then falls back to the same header kept as request meta and hashes "" (base-server.js handleRSCRequest + the check's
+ * `headers[seg] || meta`; review 2026-10-18 — the first copy said "not sent" always, and its drift test copied that).
+ * The origin checks the same and 307s a mismatch, but only while `experimental.validateRSCRequestHeaders` stays on
+ * (Next's default): checking it here means a payload stored under one `_rsc` was rendered for exactly the headers that
+ * hash to it, whatever a later Next does. Next also accepts a 5-character legacy hash (pages without crypto.subtle —
+ * never https): those are passed through, never cached. src/lib/edge-worker.test.ts pins this copy against Next's own
+ * function fed the way base-server feeds it, and pins the Next version it was copied from.
+ */
+async function expectedRscParam(headers) {
+  const p = headers.get("next-router-prefetch");
+  const prefetch = p === "1" || p === "2" || p === "3" ? p : null;
+  const rawSegment = headers.get("next-router-segment-prefetch");
+  const segment = rawSegment || (p === "1" && rawSegment !== null ? rawSegment : null);
+  const tree = headers.get("next-router-state-tree");
+  const nextUrl = headers.get("next-url");
+  if (prefetch === null && segment === null && tree === null && nextUrl === null) return "";
+  const input = [prefetch ?? "0", segment ?? "0", tree ?? "0", nextUrl ?? "0"].join(",");
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input)));
+  let bin = "";
+  for (let i = 0; i < 12; i++) bin += String.fromCharCode(digest[i]);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * ⛔ ONLY TWO KINDS OF RSC REQUEST ARE EVER CACHED — every other request that carries `rsc` goes to the origin exactly as
+ * it came (review, 2026-10-18):
+ *   · `rsc` is exactly "1" — Next's own test (is-rsc-request.js). Any other value is not an RSC request to the origin:
+ *     it skips its `_rsc` check and may answer the page's HTML, which must never be keyed as a payload.
+ *   · it carries a `next-url` (a path). Every navigation and prefetch the 16.3.8 client sends has one (measured 10-18 on
+ *     production: all nine of a home visit plus a tap, and the prefetches around a refresh). router.refresh() does NOT
+ *     (refresh-reducer: null unless an intercepting route is on screen; this app has none) — measured: two refreshes of
+ *     /c/rentals sent the same `_rsc` with no next-url. A refresh asks for the newest page by definition (the native
+ *     pull-to-refresh, the app's resume refresh, a refresh after a server action), so it always reaches the origin.
+ *   · it is a NAVIGATION (no prefetch header, no segment header) or a ROUTE-TREE prefetch (prefetch "1", segment
+ *     `/_tree`). ⛔ NOT a segment or full prefetch: across a deploy, a NEW build's tab can be handed an OLD build's
+ *     prefetched segment before the purge lands, and the flight client loads the old chunks and registers their
+ *     modules under the ids the new build shares while it decodes — before the build check rejects the payload, with
+ *     nothing to reload the tab (reproduced with two Turbopack builds, review 10-18). An old navigation payload makes
+ *     Next reload the page instead (fetch-server-response.js: build id mismatch → doMpaNavigation), and a route tree
+ *     carries no module rows (measured: /_tree of / and /c/teachers is one model row + CSS/font preload hints).
+ */
+function rscCacheable(headers) {
+  if (headers.get("rsc") !== "1") return false;
+  if (!(headers.get("next-url") || "").startsWith("/")) return false;
+  const prefetch = headers.get("next-router-prefetch");
+  const segment = headers.get("next-router-segment-prefetch");
+  if (prefetch === null) return segment === null;
+  return prefetch === "1" && segment === "/_tree";
+}
+
+/**
+ * ⛔ AN RSC PAYLOAD AND A DOCUMENT NEVER SHARE A KEY (speed plan item 10): `/c/x?_rsc=…` asked for as a page is HTML and
+ * asked for by the router is a payload — `__r=1` keeps them apart, whatever the query says.
+ */
+function cacheKeyFor(url, variant, rsc) {
   const search = keySearch(url);
-  const keyUrl = url.origin + url.pathname + (search ? search + "&" : "?") + "__k=" + variant;
+  const keyUrl = url.origin + url.pathname + (search ? search + "&" : "?") + "__k=" + variant + (rsc ? "&__r=1" : "");
   return new Request(keyUrl, { method: "GET" });
 }
 
@@ -321,9 +390,14 @@ function cacheKeyFor(url, variant) {
  * ⚠️ `vary` is DELETED, and that is load-bearing: `cache.put()` returns OK while every later read
  * misses if the stored response carries `Vary: Accept-Encoding` — three hours went into finding
  * that once. The language key is already in the cache key, so Vary has no job here.
+ * An RSC payload is kept for FRESH_TTL only: it is never served stale (see fetch), so there is nothing to keep it for.
  */
-function toStored(res, now) {
+function toStored(res, now, rsc) {
   const store = new Response(res.body, res);
+  // Kept aside for an RSC reader, who gets the origin's Vary back (forClient): Next's router reads it to file a route
+  // that can be intercepted, and the stored copy cannot carry it. A document's reader never needed it.
+  const vary = res.headers.get("vary");
+  if (rsc && vary) store.headers.set("x-eno-vary", vary);
   store.headers.delete("cloudflare-cdn-cache-control");
   store.headers.delete("cdn-cache-control");
   store.headers.delete("set-cookie");
@@ -331,17 +405,38 @@ function toStored(res, now) {
   // Speed plan item 5: the origin's Server-Timing describes the request that FILLED this entry — a HIT must never
   // replay it (timingFor below writes the reader's own).
   store.headers.delete("server-timing");
-  store.headers.set("cache-control", `public, s-maxage=${SWR_TTL}`);
+  // Likewise the middleware's rewrite target, which carries the filler's WHOLE query — the click ids and campaign tags
+  // keySearch() leaves out of the key — to every later reader (review 2026-10-18; live: `/en/c/rentals?fbclid=…`). Nothing
+  // reads it in the browser: the app router takes x-nextjs-rewritten-path/-query, and only the pages router (unused
+  // here) reads a rewrite header at all.
+  store.headers.delete("x-middleware-rewrite");
+  store.headers.set("cache-control", `public, s-maxage=${rsc ? FRESH_TTL : SWR_TTL}`);
   store.headers.set("cache-tag", HTML_TAG);
   store.headers.set("x-eno-stored", String(now));
   return store;
 }
 
-/** What the reader gets: the app's own freshness window, never the SWR window. */
-function forClient(body, init, state, storedAt, timing) {
+/** What the reader gets: a document, the app's own freshness window (never the SWR window); an RSC payload, no browser caching at all. */
+function forClient(body, init, state, storedAt, timing, rsc) {
   const r = new Response(body, init);
   r.headers.delete("cache-tag");   // ours, for the deploy's purge — not the reader's business
-  r.headers.set("cache-control", `public, max-age=${FRESH_TTL}, s-maxage=${FRESH_TTL}`);
+  if (rsc) {
+    /**
+     * ⛔ `private, no-cache`, NOT the origin's `s-maxage=…, stale-while-revalidate=31514400` (review 2026-10-18). Next
+     * fetches payloads with the browser's default cache mode, and that header has no max-age, so a browser that
+     * implements stale-while-revalidate answers a REPEATED payload URL from its own copy — of any age up to a year —
+     * and refetches behind it (measured in Chromium: same state tree + next-url = same URL, so the same tap from the
+     * same page next week). From here a repeat costs one edge round trip and is never older than FRESH_TTL. Next's
+     * router reads `Vary` (a route that can be intercepted says next-url there, and the router files the payload
+     * differently), so the origin's is restored; x-nextjs-stale-time / -postponed / -deployment-id stay as they came.
+     */
+    r.headers.set("cache-control", "private, no-cache");
+    const vary = r.headers.get("x-eno-vary");
+    if (vary) r.headers.set("vary", vary);
+  } else {
+    r.headers.set("cache-control", `public, max-age=${FRESH_TTL}, s-maxage=${FRESH_TTL}`);
+  }
+  r.headers.delete("x-eno-vary");
   r.headers.set("x-eno-cache", state);
   if (storedAt) r.headers.set("x-eno-age", String(Math.round((Date.now() - storedAt) / 1000)));
   if (timing) r.headers.set("server-timing", timing);
@@ -390,7 +485,32 @@ export default {
     const url = new URL(request.url);
     if (!cacheablePath(url.pathname)) return fetch(request);
     if (request.method !== "GET") return fetch(request);
-    if (request.headers.get("rsc")) return fetch(request);
+    /**
+     * ⛔ RSC PAYLOADS ARE CACHED TOO, KEYED BY THEIR `_rsc` (speed plan item 10c, 2026-10-18). An in-app navigation asks
+     * for the page's RSC payload, and the payload varies on four router headers (prefetch, segment prefetch, state tree,
+     * next-url) that Next hashes into `_rsc` — so once the Worker has checked that `_rsc` IS that hash
+     * (expectedRscParam), the URL names everything the payload varies on but the language, which the key adds with the
+     * request kind (cacheKeyFor). storable() then holds a payload to the document's rules — shareable ISR only, the right
+     * language, text/x-component, never from a signed-in MISS. Measured: every payload request was DYNAMIC at Cloudflare
+     * (0.33–1.15 s a tap in the 10-16 lab); on 10-18 a phone's tap from / to /c/teachers asked for a 149 KB payload (200
+     * text/x-component, `s-maxage=21600`, Content-Language set, no Set-Cookie, 141–258 ms to first byte), and replayed
+     * through this Worker it was stored and HIT. In-app navigations to /, /c/* and the legal pages are 41% of those
+     * measured (233 of 568, rum_daily `nav`, 10-16/17) — destinations, not hits: `next-url` and the state tree are in the
+     * hash, so a key is shared only by readers tapping from the SAME page (/ and each /c/* page are the shared ones).
+     * Only navigations and route-tree prefetches, never a refresh (rscCacheable). A request that is neither, or whose
+     * `_rsc` does not check out — missing, wrong, or the legacy hash — is passed through untouched: the origin redirects
+     * a wrong or missing one to the right one (which comes back here) and answers a legacy one itself.
+     */
+    const rsc = request.headers.has("rsc");
+    if (rsc) {
+      let verified = false;
+      try {
+        verified = rscCacheable(request.headers) && url.searchParams.get("_rsc") === (await expectedRscParam(request.headers));
+      } catch {
+        /* not verified — passed through below */
+      }
+      if (!verified) return fetch(request);
+    }
     /**
      * ⛔ FAIL OPEN, BUT ONLY FOR THE READS THIS WORKER CACHES (speed plan item 10). An exception in the cache logic
      * below hands the request to the origin instead of a Cloudflare error page. ⚠️ Not set before the returns above:
@@ -425,15 +545,21 @@ export default {
     if (/markdown/i.test(request.headers.get("accept") || "")) return fetch(request);
 
     const variant = variantOf(url, request);
-    const key = cacheKeyFor(url, variant);
+    const key = cacheKeyFor(url, variant, rsc);
     const cache = caches.default;
     const hit = await cache.match(key);
+    const storedAt = hit ? Number(hit.headers.get("x-eno-stored") || 0) : 0;
+    const ageSec = storedAt ? (Date.now() - storedAt) / 1000 : Infinity;
+    if (hit && ageSec <= FRESH_TTL) return forClient(hit.body, hit, "HIT", storedAt, timingFor(request, "HIT", null, null), rsc);
 
-    if (hit) {
-      const storedAt = Number(hit.headers.get("x-eno-stored") || 0);
-      const ageSec = storedAt ? (Date.now() - storedAt) / 1000 : Infinity;
-      if (ageSec <= FRESH_TTL) return forClient(hit.body, hit, "HIT", storedAt, timingFor(request, "HIT", null, null));
-
+    /**
+     * ⛔ AN RSC PAYLOAD PAST FRESH_TTL IS NEVER SERVED — it goes to the origin like a MISS (review, 2026-10-18). Served
+     * stale it could be six hours old: a tap from a quiet page would show a listing taken down hours ago, and payload
+     * keys are per source page, so most of them ARE quiet. (A document's stale copy goes to one reader per location,
+     * then the refresh behind it lands.) With no stale serving there is no refresh behind a payload either, so nothing a
+     * reader sends can steer one into evicting the shared copy — the review found four ways to do that.
+     */
+    if (hit && !rsc) {
       /**
        * ⛔ STALE, SO ANSWER NOW AND REFRESH BEHIND THE READER. Returning before the origin fetch
        * is the entire win; awaiting it here would reproduce exactly the 2.4 s this replaces.
@@ -447,8 +573,8 @@ export default {
               headers: refreshHeaders(request),
               redirect: "manual",
             }));
-            if (storable(fresh, variant)) {
-              await cache.put(key, toStored(fresh, Date.now()));
+            if (storable(fresh, variant, rsc)) {
+              await cache.put(key, toStored(fresh, Date.now(), rsc));
             } else if (
               fresh.status === 404 || fresh.status === 410 ||
               // 304 is "unchanged", not "moved" — never a reason to drop the copy we hold.
@@ -459,7 +585,7 @@ export default {
                * originShareable() just refused. A 200 refused only for its language or its
                * Set-Cookie keeps the copy (see storable()).
                */
-              (fresh.status === 200 && !originShareable(fresh))
+              (fresh.status === 200 && !originShareable(fresh, rsc))
             ) {
               /**
                * ⛔ A GONE PAGE MUST LEAVE THE CACHE, NOT JUST FAIL TO UPDATE. Storing only 200s
@@ -483,7 +609,7 @@ export default {
           }
         })(),
       );
-      return forClient(hit.body, hit, "STALE", storedAt, timingFor(request, "STALE", null, null));
+      return forClient(hit.body, hit, "STALE", storedAt, timingFor(request, "STALE", null, null), rsc);
     }
 
     const t0 = Date.now();
@@ -491,10 +617,10 @@ export default {
     const originMs = Date.now() - t0;
     // A signed-in reader's MISS: their answer, never the shared one (see above).
     if (signedIn) return withTiming(res, timingFor(request, "PASS", res, originMs));
-    if (!storable(res, variant)) return withTiming(res, timingFor(request, "DYN", res, originMs));
+    if (!storable(res, variant, rsc)) return withTiming(res, timingFor(request, "DYN", res, originMs));
 
     const now = Date.now();
-    const store = toStored(res, now);
+    const store = toStored(res, now, rsc);
     /**
      * ⛔ THE READER DOES NOT WAIT FOR THE STORE (speed plan item 10, 2026-10-17). `await cache.put()` drained the WHOLE
      * body into the cache before the first byte went out, and a read-back after it (`x-eno-diag`, the 2026-09-20 Vary
@@ -505,7 +631,7 @@ export default {
      * the Worker's logs (`wrangler tail eno-html-edge-cache`).
      */
     ctx.waitUntil(cache.put(key, store.clone()).catch((e) => console.warn("eno-html-edge-cache: cache.put failed:", String(e && e.message).slice(0, 120))));
-    const out = forClient(store.body, store, "MISS", now, timingFor(request, "MISS", res, originMs));
+    const out = forClient(store.body, store, "MISS", now, timingFor(request, "MISS", res, originMs), rsc);
     /**
      * ⛔ THE READER STILL GETS THEIR Set-Cookie. `toStored` strips it so a per-visitor cookie can
      * never be written into a SHARED entry and handed to the next person — that part is not

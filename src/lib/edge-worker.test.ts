@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { RequestCookies } from 'next/dist/compiled/@edge-runtime/cookies'
 import { langVariantFor, LANG_COOKIE } from '@/lib/lang-variant'
 import { LANGS } from '@/lib/i18n/langs'
+import { computeCacheBustingSearchParam, computeLegacyCacheBustingSearchParam } from 'next/dist/shared/lib/router/utils/cache-busting-search-param'
 
 /**
  * infra/cloudflare/eno-html-edge-cache.js — the edge Worker that caches HTML per language.
@@ -14,7 +15,9 @@ import { LANGS } from '@/lib/i18n/langs'
  * that drifts fails here, not in the cache.
  *
  * Also pinned: markdown requests reach the origin (audit #88); a force-dynamic page is never stored
- * and is evicted on refresh (#402); a response in the wrong language is never stored.
+ * and is evicted on refresh (#402); a response in the wrong language is never stored; an RSC payload is cached only
+ * under an `_rsc` the Worker checked against Next's OWN hash function, only for a navigation or a route-tree prefetch,
+ * and is never served stale (speed plan item 10c).
  */
 
 import worker from '../../infra/cloudflare/eno-html-edge-cache.js'
@@ -24,7 +27,7 @@ const h = {
   store: new Map<string, Response>(),
   matched: [] as string[],
   origin: [] as Request[],
-  respond: (_req: Request): Origin => ({}),
+  respond: (_req: Request): Origin | Promise<Origin> => ({}),
   waits: [] as Promise<unknown>[],
 }
 
@@ -49,7 +52,7 @@ beforeEach(() => {
     h.origin.push(req)
     // The origin renders whatever the app's own rule says for these headers.
     const variant = langVariantFor(new RequestCookies(req.headers).get(LANG_COOKIE)?.value, req.headers.get('accept-language'))
-    return originResponse(h.respond(req), variant)
+    return originResponse(await h.respond(req), variant)
   })
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
@@ -670,5 +673,337 @@ describe('edge Worker — signed-in readers read the shared copy, never write it
     expect(keyVariant()).toBe('vi')
     expect(r.headers.get('x-eno-cache')).toBe('HIT')
     expect(r.headers.get('content-language')).toBe('vi')
+  })
+})
+
+describe('edge Worker — RSC payloads are cached under a CHECKED `_rsc` (speed plan item 10c, 2026-10-18)', () => {
+  /**
+   * Next's own hash, fed exactly the way next/dist/server/base-server.js (16.3.8) feeds it: the prefetch value only if it
+   * is 1/2/3; the segment header — or, prefetch exactly "1", the same header kept as request meta by handleRSCRequest, so
+   * an EMPTY one hashes as "" there and as absent otherwise. The Worker must agree with THIS, not with a copy of itself
+   * (review 2026-10-18: the first helper copied the Worker's own rule, so nine combinations agreed by construction).
+   */
+  const baseServer = (hd: Record<string, string>) => {
+    const p = hd['next-router-prefetch']
+    const sg = hd['next-router-segment-prefetch']
+    return [p === '1' || p === '2' || p === '3' ? p : undefined,
+      sg || (p === '1' && sg !== undefined ? sg : undefined), hd['next-router-state-tree'], hd['next-url']] as const
+  }
+  const nextRsc = (hd: Record<string, string>) => computeCacheBustingSearchParam(...baseServer(hd))
+  const TREE = encodeURIComponent('["",{"children":[["lang","en","d",null],{"children":["__PAGE__",{}]}]},null,null,true]')
+  /** The two shapes the Worker caches, as the 16.3.8 client sends them (captured on production, 10-18): a tap… */
+  const NAV = { rsc: '1', 'next-router-state-tree': TREE, 'next-url': '/en' }
+  /** …and the route-tree prefetch of a visible link. */
+  const TREE_PREFETCH = { rsc: '1', 'next-router-prefetch': '1', 'next-router-segment-prefetch': '/_tree', 'next-url': '/en' }
+  const AUTH = 'sb-sbenovn-auth-token=base64-session'
+  const PAYLOAD = '0:{"b":"build-1","f":[]}\n'
+  const ORIGIN_VARY = 'rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch, Accept-Encoding'
+  /**
+   * The origin as measured on /c/rentals, running base-server's own check: `rsc: 1` with the `_rsc` its headers hash to
+   * (or the legacy one) gets the payload and these headers; a mismatch gets the 307 to the right one; anything else the
+   * page. Its rewrite header echoes the whole query, as the live one does.
+   */
+  const rscOrigin = async (req: Request): Promise<Origin> => {
+    if (req.headers.get('rsc') !== '1') return {}
+    const hd = Object.fromEntries(req.headers)
+    const u = new URL(req.url)
+    const sent = u.searchParams.get('_rsc')
+    const right = await nextRsc(hd)
+    if (sent !== right && (sent === null || sent !== computeLegacyCacheBustingSearchParam(...baseServer(hd)))) {
+      u.searchParams.set('_rsc', right)
+      return { status: 307, html: '', headers: { location: u.pathname + u.search } }
+    }
+    return { html: PAYLOAD, headers: { 'content-type': 'text/x-component', 'cache-control': 's-maxage=21600, stale-while-revalidate=31514400',
+      vary: ORIGIN_VARY, 'x-nextjs-stale-time': '300', 'x-nextjs-deployment-id': 'build-1', 'x-middleware-rewrite': `/en${u.pathname}${u.search}` } }
+  }
+  const withHeaders = (extra: Record<string, string>, html?: string) => async (req: Request): Promise<Origin> => {
+    const o = await rscOrigin(req)
+    return { ...o, ...(html ? { html } : {}), headers: { ...o.headers, ...extra } }
+  }
+  const rscCall = async (path: string, hd: Record<string, string>, extra: Record<string, string> = {}) =>
+    call(`${path}${path.includes('?') ? '&' : '?'}_rsc=${await nextRsc(hd)}`, { ...hd, ...extra })
+  const age = (key: string, ms: number) => {
+    const old = h.store.get(key)!
+    const aged = new Response(old.body, old)
+    aged.headers.set('x-eno-stored', String(Date.now() - ms))
+    h.store.set(key, aged)
+  }
+  beforeEach(() => { h.respond = rscOrigin })
+
+  it('pins the values production answered (2026-10-18) — Next\'s function fed the way base-server feeds it', async () => {
+    // The live origin's 307 targets for a bare prefetch, and for the same with an EMPTY segment header — "" in the hash,
+    // not "0", the case the first copy got wrong.
+    expect(await nextRsc({ rsc: '1', 'next-router-prefetch': '1' })).toBe('HEAvJdHAQJrUAe2K')
+    expect(await nextRsc({ rsc: '1', 'next-router-prefetch': '1', 'next-router-segment-prefetch': '' })).toBe('OqDmGSecg0TLFAKA')
+    // The route-tree prefetch an English home page fires for /c/teachers: cached under exactly that value.
+    expect(await nextRsc(TREE_PREFETCH)).toBe('ry-B8umWgNEV4JR9')
+    expect((await call('/c/teachers?_rsc=ry-B8umWgNEV4JR9', TREE_PREFETCH)).headers.get('x-eno-cache')).toBe('MISS')
+    expect((await call('/c/teachers?_rsc=ry-B8umWgNEV4JR9', TREE_PREFETCH)).headers.get('x-eno-cache')).toBe('HIT')
+  })
+
+  it('⛔ pins the Next version the Worker\'s copy was checked against — an upgrade must re-check it, not inherit it', async () => {
+    // expectedRscParam and rscCacheable copy Next 16.3.8: what base-server.js hashes into `_rsc` and how it normalises
+    // the headers, is-rsc-request.js, and the client's next-url rule (a refresh sends none). After an upgrade, re-read
+    // those and re-capture a home visit, a tap and a router.refresh() against the preview, then bump this.
+    const { createRequire } = await import('node:module')
+    expect(createRequire(import.meta.url)('next/package.json').version).toBe('16.3.8')
+  })
+
+  it('⛔ drift: the Worker takes exactly Next\'s own `_rsc`, and only for its two shapes — every combination of the four router headers', async () => {
+    const cacheable = (hd: Record<string, string>) =>
+      (hd['next-url'] ?? '').startsWith('/') &&
+      (hd['next-router-prefetch'] === undefined
+        ? hd['next-router-segment-prefetch'] === undefined
+        : hd['next-router-prefetch'] === '1' && hd['next-router-segment-prefetch'] === '/_tree')
+    let checked = 0
+    let cached = 0
+    for (const p of [undefined, '0', '1', '2', '3', 'x', ''])
+      for (const sg of [undefined, '', '0', '/_tree', '/$d$lang/!KGhvbWUp/__PAGE__'])
+        for (const t of [undefined, '', TREE])
+          for (const u of [undefined, '', '0', '/en/c/rentals']) {
+            const hd: Record<string, string> = { rsc: '1' }
+            if (p !== undefined) hd['next-router-prefetch'] = p
+            if (sg !== undefined) hd['next-router-segment-prefetch'] = sg
+            if (t !== undefined) hd['next-router-state-tree'] = t
+            if (u !== undefined) hd['next-url'] = u
+            const right = await nextRsc(hd)
+            const wrong = right ? right.replace(/^./, (c) => (c === 'A' ? 'B' : 'A')) : 'AAAAAAAAAAAAAAAA'
+            h.matched = []
+            await call(`/c/rentals?_rsc=${right}`, hd)
+            expect(h.matched.length > 0, JSON.stringify(hd)).toBe(cacheable(hd))
+            h.matched = []
+            await call(`/c/rentals?_rsc=${wrong}`, hd)
+            expect(h.matched, JSON.stringify(hd)).toEqual([])
+            checked++
+            if (cacheable(hd)) cached++
+          }
+    expect([checked, cached]).toEqual([420, 6])
+  })
+
+  it('⛔ drift: the HASH alone is Next\'s for every combination — run through a copy of the Worker that checks every `rsc: 1` request', async () => {
+    // The real Worker never gets as far as hashing most of these (rscCacheable turns them away first), so the shape
+    // filter would hide a hash that drifted — the empty segment the first copy got wrong is one of them. Widen it here.
+    const { readFileSync, writeFileSync, mkdtempSync, rmSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const src = readFileSync(new URL('../../infra/cloudflare/eno-html-edge-cache.js', import.meta.url), 'utf8')
+    const head = 'function rscCacheable(headers) {'
+    expect(src.includes(head), 'rscCacheable not found in the Worker').toBe(true)
+    const dir = mkdtempSync(join(tmpdir(), 'eno-rsc-hash-'))
+    try {
+      const file = join(dir, 'worker.mjs')
+      writeFileSync(file, src.replace(head, `${head} return headers.get("rsc") === "1";`))
+      const hashOnly = (await import(/* @vite-ignore */ file)).default as typeof worker
+      let checked = 0
+      for (const p of [undefined, '0', '1', '2', '3', 'x', ''])
+        for (const sg of [undefined, '', '0', '/_tree', '/$d$lang/!KGhvbWUp/__PAGE__'])
+          for (const t of [undefined, '', TREE])
+            for (const u of [undefined, '', '0', '/en/c/rentals']) {
+              const hd: Record<string, string> = { rsc: '1' }
+              if (p !== undefined) hd['next-router-prefetch'] = p
+              if (sg !== undefined) hd['next-router-segment-prefetch'] = sg
+              if (t !== undefined) hd['next-router-state-tree'] = t
+              if (u !== undefined) hd['next-url'] = u
+              const right = await nextRsc(hd)
+              const wrong = right ? right.replace(/^./, (c) => (c === 'A' ? 'B' : 'A')) : 'AAAAAAAAAAAAAAAA'
+              for (const [q, want] of [[right, true], [wrong, false]] as const) {
+                h.matched = []
+                await hashOnly.fetch(new Request(`https://eno.vn/c/rentals?_rsc=${q}`, { headers: hd }), {}, ctx)
+                expect(h.matched.length > 0, `${JSON.stringify(hd)} _rsc=${q}`).toBe(want)
+              }
+              checked++
+            }
+      expect(checked).toBe(420)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('a payload is stored under its own key — its `_rsc`, the language, `__r=1` — and the next tap HITs it without the origin', async () => {
+    const miss = await rscCall('/c/rentals', NAV, { 'accept-language': 'vi' })
+    expect(miss.headers.get('x-eno-cache')).toBe('MISS')
+    expect(await miss.text()).toBe(PAYLOAD)
+    expect([...h.store.keys()]).toEqual([`https://eno.vn/c/rentals?_rsc=${await nextRsc(NAV)}&__k=vi&__r=1`])
+    const hit = await rscCall('/c/rentals', NAV, { 'accept-language': 'vi' })
+    expect(hit.headers.get('x-eno-cache')).toBe('HIT')
+    expect(await hit.text()).toBe(PAYLOAD)
+    expect(h.origin).toHaveLength(1)
+    // A click id does not split it either; `_rsc` and the rest of the query stay in the key.
+    expect((await rscCall('/c/rentals?fbclid=IwAR1&utm_source=zalo', NAV, { 'accept-language': 'vi' })).headers.get('x-eno-cache')).toBe('HIT')
+    expect((await rscCall('/c/rentals?q=studio', NAV, { 'accept-language': 'vi' })).headers.get('x-eno-cache')).toBe('MISS')
+  })
+
+  it('⛔ the payload never answers the page, nor the page the payload — the same URL holds two entries', async () => {
+    const url = `/c/rentals?_rsc=${await nextRsc(NAV)}`
+    await call(url, NAV)
+    const doc = await call(url)
+    expect(doc.headers.get('x-eno-cache')).toBe('MISS')
+    expect(doc.headers.get('content-type')).toContain('text/html')
+    expect(h.store.size).toBe(2)
+    const again = await call(url, NAV)
+    expect(again.headers.get('x-eno-cache')).toBe('HIT')
+    expect(again.headers.get('content-type')).toBe('text/x-component')
+    const docAgain = await call(url)
+    expect(docAgain.headers.get('x-eno-cache')).toBe('HIT')
+    expect(docAgain.headers.get('content-type')).toContain('text/html')
+  })
+
+  it('a payload goes out `private, no-cache` — never the origin\'s stale-while-revalidate — with the origin\'s Vary and Next\'s own headers', async () => {
+    const miss = await rscCall('/c/rentals', TREE_PREFETCH)
+    const hit = await rscCall('/c/rentals', TREE_PREFETCH)
+    for (const r of [miss, hit]) {
+      expect(r.headers.get('content-type')).toBe('text/x-component')
+      expect(r.headers.get('cache-control')).toBe('private, no-cache')
+      expect(r.headers.get('vary')).toBe(ORIGIN_VARY)
+      expect(r.headers.get('x-nextjs-stale-time')).toBe('300')
+      expect(r.headers.get('x-nextjs-deployment-id')).toBe('build-1')
+      for (const ours of ['x-eno-vary', 'cache-tag', 'x-middleware-rewrite']) expect(r.headers.get(ours), ours).toBeNull()
+    }
+    const stored = [...h.store.values()][0]
+    expect(stored.headers.get('vary')).toBeNull() // the Cache API would never match it…
+    expect(stored.headers.get('x-eno-vary')).toBe(ORIGIN_VARY) // …so it rides beside the copy
+    expect(stored.headers.get('cache-tag')).toBe('eno-html') // the deploy's purge evicts payloads too
+    expect(stored.headers.get('cache-control')).toBe('public, s-maxage=300') // kept no longer than it may be served
+    expect(stored.headers.get('x-middleware-rewrite')).toBeNull() // the filler's query is not replayed
+  })
+
+  it('a DOCUMENT keeps the app\'s freshness window, no Vary and the stale window — and no longer replays the filler\'s query', async () => {
+    h.respond = () => ({ headers: { vary: 'rsc, Accept-Encoding', 'x-middleware-rewrite': '/en/terms?fbclid=VISITOR_A' } })
+    await call('/terms?fbclid=VISITOR_A')
+    const r = await call('/terms')
+    expect(r.headers.get('x-eno-cache')).toBe('HIT')
+    expect(r.headers.get('cache-control')).toBe('public, max-age=300, s-maxage=300')
+    expect(r.headers.get('vary')).toBeNull()
+    expect(r.headers.get('x-middleware-rewrite')).toBeNull()
+    const stored = [...h.store.values()][0]
+    expect(stored.headers.get('cache-control')).toBe('public, s-maxage=21600')
+    expect(stored.headers.get('x-eno-vary')).toBeNull()
+  })
+
+  it('an answer that is not a payload is never stored as one — HTML to an RSC request, a payload to a page request, a 307', async () => {
+    h.respond = () => ({})
+    expect((await rscCall('/c/rentals', NAV)).headers.get('server-timing')).toContain('ecache;desc="DYN"')
+    h.respond = () => ({ html: PAYLOAD, headers: { 'content-type': 'text/x-component' } })
+    await call('/c/rentals')
+    h.respond = () => ({ status: 307, html: '', headers: { location: '/c/rentals?_rsc=other' } })
+    expect((await rscCall('/c/rentals', NAV)).status).toBe(307)
+    expect(h.store.size).toBe(0)
+  })
+
+  it('a payload in the wrong language, or one that sets a cookie, is never stored — the document\'s guards hold for payloads', async () => {
+    h.respond = withHeaders({ 'content-language': 'vi' })
+    expect((await rscCall('/c/rentals', NAV, { 'accept-language': 'en' })).headers.get('server-timing')).toContain('ecache;desc="DYN"')
+    h.respond = withHeaders({ 'set-cookie': 'visitor=1; Path=/' })
+    expect((await rscCall('/c/rentals', NAV)).headers.get('server-timing')).toContain('ecache;desc="DYN"')
+    expect(h.store.size).toBe(0)
+  })
+
+  it('the pinned home page keys its payload `en` whatever the browser says — the language the origin renders there', async () => {
+    h.respond = withHeaders({ 'content-language': 'en' })
+    for (const hd of [{ 'accept-language': 'vi' }, { cookie: 'lang=vi' }] as Record<string, string>[]) await rscCall('/', NAV, hd)
+    expect([...h.store.keys()]).toEqual([`https://eno.vn/?_rsc=${await nextRsc(NAV)}&__k=en&__r=1`])
+    expect(h.origin).toHaveLength(1)
+  })
+
+  it('anything else carrying `rsc` is passed through untouched — a refresh, a segment or full prefetch, an `rsc` that is not "1", an `_rsc` that does not check out', async () => {
+    const v = await nextRsc(NAV)
+    const legacy = computeLegacyCacheBustingSearchParam(...baseServer(NAV))
+    expect(legacy).not.toBe(v)
+    const REFRESH = { rsc: '1', 'next-router-state-tree': TREE } // router.refresh(): no next-url (measured)
+    const SEGMENT = { ...TREE_PREFETCH, 'next-router-segment-prefetch': '/$d$lang/!KGhvbWUp/__PAGE__' }
+    const FULL = { rsc: '1', 'next-router-prefetch': '1', 'next-url': '/en' }
+    const NOT_A_PATH = { ...NAV, 'next-url': '0' }
+    const cases: [string, string, Record<string, string>][] = [
+      ['missing', '/c/rentals', NAV],
+      ['wrong', `/c/rentals?_rsc=${v.replace(/^./, (c) => (c === 'A' ? 'B' : 'A'))}`, NAV],
+      ['legacy', `/c/rentals?_rsc=${legacy}`, NAV],
+      ['another request\'s', `/c/rentals?_rsc=${await nextRsc(TREE_PREFETCH)}`, NAV],
+      ['empty', '/c/rentals?_rsc=', NAV],
+      ['a refresh', `/c/rentals?_rsc=${await nextRsc(REFRESH)}`, REFRESH],
+      ['a next-url that is not a path', `/c/rentals?_rsc=${await nextRsc(NOT_A_PATH)}`, NOT_A_PATH],
+      ['a segment prefetch', `/?_rsc=${await nextRsc(SEGMENT)}`, SEGMENT],
+      ['a full prefetch', `/c/rentals?_rsc=${await nextRsc(FULL)}`, FULL],
+      ['rsc: 0', `/c/rentals?_rsc=${v}`, { ...NAV, rsc: '0' }],
+      ['rsc: true', `/c/rentals?_rsc=${v}`, { ...NAV, rsc: 'true' }],
+      ['two rsc lines', `/c/rentals?_rsc=${v}`, { ...NAV, rsc: '1, 1' }],
+    ]
+    for (const [label, path, hd] of cases) {
+      h.matched = []; h.origin = []
+      const r = await call(path, hd)
+      expect(h.matched, label).toEqual([])
+      expect(r.headers.get('server-timing'), label).toBeNull()
+      expect(h.origin.map((q) => q.url), label).toEqual([`https://eno.vn${path}`])
+    }
+    expect(h.store.size).toBe(0)
+  })
+
+  it('⛔ a payload past FRESH_TTL is never served — the origin answers, the copy is replaced, nothing is refreshed behind the reader', async () => {
+    await rscCall('/c/rentals', NAV)
+    const key = [...h.store.keys()][0]
+    age(key, 301_000)
+    h.origin = []; h.waits = []
+    h.respond = withHeaders({}, '0:{"b":"build-1","f":["new"]}\n')
+    const r = await rscCall('/c/rentals', NAV)
+    expect(r.headers.get('x-eno-cache')).toBe('MISS')
+    expect(await r.text()).toContain('"new"')
+    expect(h.origin).toHaveLength(1)
+    await Promise.all(h.waits)
+    expect(h.origin).toHaveLength(1) // the reader's own fetch, and no refresh behind it
+    expect(Number(h.store.get(key)!.headers.get('x-eno-stored'))).toBeGreaterThan(Date.now() - 60_000)
+    // A signed-in reader is passed through instead, like any signed-in MISS: not the old copy, and nothing stored.
+    age(key, 301_000)
+    const pass = await rscCall('/c/rentals', NAV, { cookie: AUTH })
+    expect(pass.headers.get('server-timing')).toContain('ecache;desc="PASS"')
+    expect(Number(h.store.get(key)!.headers.get('x-eno-stored'))).toBeLessThan(Date.now() - 300_000)
+  })
+
+  it('⛔ nothing a reader sends reaches a stored payload — the review\'s eviction levers pass through and the copy stays', async () => {
+    await rscCall('/c/rentals', NAV)
+    const key = [...h.store.keys()][0]
+    age(key, 301_000)
+    const v = await nextRsc(NAV)
+    for (const hd of [{ ...NAV, rsc: '0' }, { ...NAV, 'next-router-segment-prefetch': '0' }, { ...NAV, 'next-router-segment-prefetch': '' }]) {
+      h.matched = []
+      await call(`/c/rentals?_rsc=${v}`, hd)
+      expect(h.matched, JSON.stringify(hd)).toEqual([])
+    }
+    await Promise.all(h.waits)
+    expect(h.store.has(key)).toBe(true)
+  })
+
+  it('a STALE document refreshes without the reader\'s router headers — sent with a page request, they cannot turn the refresh into a payload and evict the page', async () => {
+    h.respond = (req) => (req.headers.get('next-router-segment-prefetch') ? { html: PAYLOAD, headers: { 'content-type': 'text/x-component' } } : {})
+    await call('/c/rentals')
+    const key = [...h.store.keys()][0]
+    age(key, 3_600_000)
+    h.origin = []
+    const r = await call('/c/rentals', { 'next-router-prefetch': '1', 'next-router-segment-prefetch': '/_tree', 'next-url': '/en', 'next-router-state-tree': TREE })
+    expect(r.headers.get('x-eno-cache')).toBe('STALE')
+    await Promise.all(h.waits)
+    for (const name of ['rsc', 'next-router-prefetch', 'next-router-segment-prefetch', 'next-router-state-tree', 'next-url'])
+      expect(h.origin[0].headers.get(name), name).toBeNull()
+    const fresh = h.store.get(key)!
+    expect(fresh.headers.get('content-type')).toContain('text/html')
+    expect(Number(fresh.headers.get('x-eno-stored'))).toBeGreaterThan(Date.now() - 60_000)
+  })
+
+  it('signed in: a payload HIT is served, a MISS is PASS and never stored', async () => {
+    const pass = await rscCall('/c/rentals', NAV, { cookie: AUTH })
+    expect(pass.headers.get('server-timing')).toContain('ecache;desc="PASS"')
+    expect(h.origin[0].headers.get('cookie')).toBe(AUTH)
+    expect(h.store.size).toBe(0)
+    await rscCall('/c/rentals', NAV)
+    const hit = await rscCall('/c/rentals', NAV, { cookie: AUTH })
+    expect(hit.headers.get('x-eno-cache')).toBe('HIT')
+    expect(h.origin).toHaveLength(2)
+  })
+
+  it('fails open for a checked payload read like a page; an unchecked one never gets that far', async () => {
+    const pass = vi.fn()
+    const failOpen = { waitUntil: ctx.waitUntil, passThroughOnException: pass }
+    await worker.fetch(new Request(`https://eno.vn/c/rentals?_rsc=${await nextRsc(NAV)}`, { headers: NAV }), {}, failOpen)
+    expect(pass).toHaveBeenCalledTimes(1)
+    await worker.fetch(new Request('https://eno.vn/c/rentals?_rsc=nope', { headers: NAV }), {}, failOpen)
+    expect(pass).toHaveBeenCalledTimes(1)
   })
 })

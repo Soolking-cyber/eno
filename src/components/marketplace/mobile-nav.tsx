@@ -88,7 +88,9 @@ const TAB = 'relative flex flex-1 cursor-pointer rounded-full after:absolute aft
 // opposite of what a bottom bar is for. They now use Next's DEFAULT (auto) prefetch, deliberately
 // NOT `prefetch={true}`:
 //   · auto warms the route's static shell / loading boundary, so the tap paints instantly, while
-//     dynamic data is still fetched fresh on navigation (staleTimes.dynamic = 0). On a marketplace
+//     dynamic data is still fetched fresh on navigation (staleTimes.dynamic = 0) — for /, /c/* and the
+//     legal pages that fetch can be the edge's copy, never older than 5 minutes, the same as a hard load
+//     (speed plan item 10c, infra/cloudflare/eno-html-edge-cache.js). On a marketplace
 //     that difference is a correctness one — `prefetch={true}` would park the payload under
 //     staleTimes.static (5 min), and a 5-minute-old inbox or price is a bug, not a cache hit.
 //   · the bar is on every mobile page and always in the viewport, so `true` would also fire five

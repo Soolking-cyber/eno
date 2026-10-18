@@ -487,6 +487,11 @@ const nextConfig: NextConfig = {
     //     there is nothing to gain by restating it (and lowering it only costs refetches).
     // The latency win we DO take is prefetch: the bottom-nav tabs dropped `prefetch={false}`
     // (see mobile-nav.tsx), which warms the shell without ever serving stale data.
+    // ⚠️ SINCE 2026-10-18 (speed plan item 10c) A FORWARD NAVIGATION TO `/`, `/c/*` OR A LEGAL PAGE CAN BE
+    // ANSWERED BY THE EDGE: infra/cloudflare/eno-html-edge-cache.js caches those payloads like their documents,
+    // never older than FRESH_TTL (5 min) and never served stale — the bound a hard load of the same page
+    // already has, and the one the takedown/hide code counts on. That is not this lever: staleTimes keeps a
+    // copy per device with no bound a takedown can reach. router.refresh() always reaches the origin.
   },
   // ffmpeg-static must NOT be bundled: its exported binary path is `path.join(__dirname,
   // 'ffmpeg')`, so if Next bundles it into the route chunk, __dirname resolves to the compiled
