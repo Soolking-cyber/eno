@@ -6,11 +6,8 @@
  * catches this except actually starting the app. Note the neighbouring `./fold` import, which is
  * relative for exactly the same reason.
  */
-// ⚡ PAYLOAD (speed plan item 8): the reserved guide slugs come from the import-free literal module, NOT
-// phone-guides/expat-guides — importing their derived `GUIDES.map(g=>g.slug)` consts dragged the whole
-// guide-content arrays into the client bundle (~15.7 KB raw off home/floor). guide-slugs.test.ts guards
-// the literals against drift. Relative import, per the ⛔ note above (config-time transpile, no @/ alias).
-import { PHONE_GUIDE_SLUGS, EXPAT_GUIDE_SLUGS, MARKETPLACE_GUIDE_SLUGS } from './guide-slugs'
+import { PHONE_GUIDE_PATHS } from './phone-guides'
+import { EXPAT_GUIDE_SLUGS, MARKETPLACE_GUIDE_SLUGS } from './expat-guides'
 import { fold } from './fold'
 
 // Pure @handle rules — client-safe (no db / server-only), shared by the server lib
@@ -113,20 +110,18 @@ const RESERVED = new Set([
   // simply stops existing with no error anywhere.
   'iphone-18-pro-vietnam', 'iphone-18-pro-max-vietnam', 'iphone-duo-vietnam', 'itinerary',
   /**
-   * ⚠️ THE GUIDE SLUGS COME FROM THE IMPORT-FREE `guide-slugs.ts` LITERALS, not from phone-guides/
-   * expat-guides directly — importing their derived `GUIDES.map(g=>g.slug)` dragged the whole
-   * guide-content arrays into this CLIENT module (speed plan item 8). A mistyped/stale reservation
-   * fails SILENTLY (the route works until a member claims the handle, then `/[handle]` renders their
-   * storefront over the article), so `guide-slugs.test.ts` asserts the literals equal the registries
-   * and FAILS CI the moment a guide is added, removed or renamed without the literal being updated.
+   * ⚠️ THE PHONE-GUIDE CLUSTER, READ FROM ITS OWN REGISTRY rather than retyped. Sixteen slugs is
+   * sixteen chances to mistype one, and a mistyped reservation fails SILENTLY — the route keeps
+   * working until the day a member claims the handle, and then `/[handle]` renders their storefront
+   * in place of the article with no error anywhere.
    */
-  ...PHONE_GUIDE_SLUGS,
+  ...PHONE_GUIDE_PATHS,
   /**
-   * ⛔ HAND-COPIED IN `guide-slugs.ts`, GUARDED BY `guide-slugs.test.ts`. These once lived inline here
-   * and drifted when seven guides landed on 2026-09-23 (a silent miss the test caught). They now sit in
-   * the import-free literal module so this client file does not pull the guide content; the drift test
-   * fails CI if they fall out of sync with the registries — adding a guide means adding its slug there,
-   * in the same edit.
+   * ⛔ FROM THE REGISTRY, NOT HAND-COPIED. `furnishing-a-home-in-vietnam` and
+   * `selling-up-before-you-leave-vietnam` used to be typed into the literal above; when seven more
+   * guides landed on 2026-09-23 nobody updated it and handle-format.test.ts failed on the first
+   * new slug. Reading the registry means adding a guide reserves its handle in the same edit —
+   * the same reason PHONE_GUIDE_PATHS is spread rather than transcribed.
    */
   ...MARKETPLACE_GUIDE_SLUGS,
   ...EXPAT_GUIDE_SLUGS,
