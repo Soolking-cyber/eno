@@ -2986,7 +2986,19 @@ html.dark .leaflet-tile-pane {
    * button and see exactly the same 1px line as at rest — an accessibility rule quietly deleting an
    * accessibility affordance, for the same person. Focus takes the element back.
    */
-  .material:not(:focus-visible) {
+  /**
+   * ⛔ …AND NOT ON AN IN-FLOW BAR (`.material-bar`, owner 2026-10-18: "on mobile there is a line box around filters …
+   * on iphone chrome there is make sure you remove that box"). The explorer's sticky sort/filter strip is `material`
+   * only for its frosted fill once stuck; it is a full-width bar in the page, not a surface floating over it, and it
+   * already has its edge — the hairline under its row. With iOS's Increase Contrast on (prefers-contrast: more) this
+   * rule drew a 1px currentColor box round the whole strip, edge to edge: white on the dark theme (measured under the
+   * emulated preference: 390×45 on a phone, 1280×42 on a desktop). Desktop Chrome's phone view does not report the
+   * preference unless DevTools emulates it (Rendering › prefers-contrast), which is why it went unseen there.
+   * Floating materials — the tab bar, the over-photo chips, the lightbox controls — keep their edge, and the bar's
+   * fill still goes solid below; its boundary stays the hairline, as at normal contrast — a brighter underline would
+   * be the same box's bottom edge back.
+   */
+  .material:not(:focus-visible):not(.material-bar) {
     outline: 1px solid currentColor;
     outline-offset: -1px;
   }
