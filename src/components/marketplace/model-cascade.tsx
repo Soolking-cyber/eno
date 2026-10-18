@@ -206,6 +206,9 @@ function LineChip({ line, lineKeys, activeLine, activeModel, onPick }: {
         align="start"
         side="bottom"
         sideOffset={6}
+        // A phone sheet titled with the line (ui/dropdown-menu, owner 2026-10-18) — the trigger's own text also
+        // carries its count.
+        sheetTitle={line.label}
         // bg-brand-100: one step deeper than the brand-50 row it opens from, so the dropdown reads
         // as going a level IN rather than as a detached white menu floating over the rail.
         // ⚠️ THE HEIGHT IS CAPPED BY WHAT THE POSITIONER MEASURED, not by 60vh alone — the same cap

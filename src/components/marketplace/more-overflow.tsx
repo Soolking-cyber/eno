@@ -5,7 +5,7 @@ import { Menu } from '@base-ui/react/menu'
 import { ChevronDown } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, useInMenuSheet } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
 /** A "More +N" chip that reveals overflow items in a dropdown — opens on HOVER on
@@ -13,7 +13,10 @@ import { cn } from '@/lib/utils'
  *  primitive supplies role="menu"/menuitem, roving focus, typeahead, Escape and
  *  focus-return, and portals the popup out of the rails' overflow-x-auto clipping.
  *  Children are the overflow rows (the caller renders + wires their onClick); each is
- *  rendered AS a menu item, and selecting one closes the menu. */
+ *  rendered AS a menu item, and selecting one closes the menu.
+ *  On a phone (below `sm`) ui/dropdown-menu opens it as an action sheet titled with the chip's own
+ *  words (owner, 2026-10-18) — which is why a row goes through `DropdownMenuItem` there (`OverflowRow`),
+ *  never a raw Base UI `Menu.Item`: only the wrapper knows how to draw a row inside the sheet. */
 export function MoreOverflow({ count, children, label }: { count: number; children: ReactNode; label?: string }) {
   const { tr } = useLanguage()
   // Open is held in React so the chip's open-state styling (filled card + rotated
@@ -58,6 +61,7 @@ export function MoreOverflow({ count, children, label }: { count: number; childr
         align="start"
         side="bottom"
         sideOffset={6}
+        sheetTitle={label || tr('More', 'Thêm')}
         // bg-brand-50 (not bg-popover): the same blue tint as the subcategory / model grid this
         // overflows from, so the "More" popup reads as a continuation of that grid — one fluid
         // surface — rather than a detached white menu. p-1.5 mirrors the grid's padding too.
@@ -70,16 +74,27 @@ export function MoreOverflow({ count, children, label }: { count: number; childr
             // real <button> (ui/button). Its className is untouched (the pointer :hover
             // styling stays the caller's); only the KEYBOARD cursor is painted here, and
             // data-highlighted:* carries its own modifier so it can't collide with the child.
-            <Menu.Item
-              nativeButton
-              render={child as ReactElement}
-              className="data-highlighted:bg-card/70 data-highlighted:text-accent-foreground"
-            />
+            <OverflowRow row={child as ReactElement} />
           ) : (
             child
           ),
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+  )
+}
+
+/** One overflow row. In the popup it is the raw Base UI item it always was (the desktop menu is unchanged); in the
+ *  phone action sheet it goes through ui/dropdown-menu, which alone can draw a row there (a Menu.Item cannot render
+ *  outside a Menu popup). */
+function OverflowRow({ row }: { row: ReactElement }) {
+  const inSheet = useInMenuSheet()
+  if (inSheet) return <DropdownMenuItem render={row} />
+  return (
+    <Menu.Item
+      nativeButton
+      render={row}
+      className="data-highlighted:bg-card/70 data-highlighted:text-accent-foreground"
+    />
   )
 }

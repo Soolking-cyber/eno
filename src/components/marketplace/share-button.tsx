@@ -5,7 +5,7 @@ import { useState, useSyncExternalStore } from 'react'
 import { Share2, Check, Link2, Mail, MoreHorizontal, MessageCircle } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { copyText } from '@/lib/copy-text'
@@ -112,6 +112,10 @@ function useShare(url: string, shareText: string) {
  * the user's real targets (pinned Zalo/Messenger threads, AirDrop, every installed app), which
  * a fixed six-icon grid cannot. The popover is kept only as the fallback for a shell where the
  * sheet can't be presented.
+ *
+ * PHONE BROWSER (below `sm`): the curated panel opens as a bottom sheet (`mobileSheet`, owner
+ * 2026-10-18: "also mobile all dropdowns should be bottom up card style like the filter card"),
+ * titled with the same heading; the channels, Copy link and More… are unchanged inside it.
  */
 export function ShareButton({ url, title, price, currency, priceUnit, className, compact = false, subject = 'listing' }: {
   url: string; title: string; price?: number; currency?: string
@@ -161,7 +165,7 @@ export function ShareButton({ url, title, price, currency, priceUnit, className,
   }
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover mobileSheet open={open} onOpenChange={onOpenChange}>
       {/* Base UI supplies toggle-on-click + aria-expanded/haspopup on the rendered button. In the
           native shell onOpenChange diverts that same click to the OS sheet and leaves `open` false,
           so aria-expanded stays honest — the popup the trigger promises is the system one. */}
@@ -202,9 +206,11 @@ export function ShareButton({ url, title, price, currency, priceUnit, className,
         }
       />
 
-      {/* Portaled by the primitive — survives overflow-x-auto table containers un-clipped. */}
-      <PopoverContent align="end" side="bottom" sideOffset={8} className="w-64 gap-0 p-3">
-        <p className="px-1 pb-2 text-xs font-bold text-foreground">{heading}</p>
+      {/* Portaled by the primitive — survives overflow-x-auto table containers un-clipped. On a phone the
+          sheet's title is the heading, so the popover's own (a PopoverTitle, which also names the card) is
+          dropped there. */}
+      <PopoverContent align="end" side="bottom" sideOffset={8} className="w-64 gap-0 p-3" sheetTitle={heading}>
+        <PopoverTitle render={<p />} className="px-1 pb-2 text-xs font-bold text-foreground">{heading}</PopoverTitle>
         <div className="grid grid-cols-3 gap-1">
           {channels.map(({ key, label, href, Icon }) => (
             // Buttons (not <a href="share-url">) so ad/social blockers (EasyList

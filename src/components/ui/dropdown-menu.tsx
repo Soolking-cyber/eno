@@ -5,7 +5,72 @@ import { Menu as MenuPrimitive } from "@base-ui/react/menu"
 
 import { cn } from "@/lib/utils"
 import { ChevronRightIcon, CheckIcon } from "@/components/ui/icons"
+import { Button } from "@/components/ui/button"
 import { useScrollDismissedRoot } from "@/components/ui/use-dismiss-on-user-scroll"
+import {
+  LazyPickerSheet,
+  SHEET_ACTION_ROW,
+  SHEET_GROUP_LABEL,
+  SHEET_LEAD_ICON,
+  SHEET_LIST,
+  SHEET_SEPARATOR,
+  accessibleNameOf,
+  chainHandlers,
+  firstFocusable,
+  sheetChangeDetails,
+  sheetTriggerHandlers,
+  useSheetHistory,
+  useSheetSurface,
+  type PickerSurface,
+} from "@/components/ui/picker-sheet-kit"
+import { useLanguage } from "@/context/language-context"
+
+type MenuChangeDetails = MenuPrimitive.Root.ChangeEventDetails
+
+/**
+ * ── ON A PHONE A MENU IS AN ACTION SHEET (owner, 2026-10-18: "also mobile all dropdowns should be bottom up card
+ * style like the filter card") ───────────────────────────────────────────────────────────────────────────────────────
+ *
+ * Below `sm` every consumer menu opens as the filter card (ui/picker-sheet) holding a column of 48px action rows —
+ * Base UI's own Drawer action-sheet demo, and iOS: a dialog with a list of buttons, never role="menu" inside it.
+ * Items are JSX children, not data, and a Base UI Menu.Item cannot render outside a Menu popup, so each part reads
+ * whether it is drawn inside this menu's sheet (`InMenuSheetContext`) and renders its sheet form there. Call sites do
+ * not change; the trigger is the same element at every width (see picker-sheet-kit.tsx).
+ *
+ *   · A row runs its `onClick` and closes the sheet (`closeOnClick={false}` keeps it open), destructive rows stay red,
+ *     a separator is a hairline, a label is the quiet group heading — and it never throws outside a Group the way
+ *     Base UI's GroupLabel does (trip-cards.tsx records that throw).
+ *   · ⛔ BACK CLOSES IT (useSheetHistory). A row that LEAVES the page must release the sheet's history entry first or
+ *     the sheet's own `history.back()` would race the navigation: links do it automatically, an `onClick` that
+ *     routes says so with `navigates`.
+ *   · `sheet={false}` keeps the anchored popover at every width — admin (EN-only, desktop-first, and the moderation
+ *     queue uses a submenu, which a sheet does not do).
+ */
+type MenuSheet = {
+  isPhone: boolean
+  surface: PickerSurface
+  sheetOpen: boolean
+  /** Opened from a key: focus goes to the first row rather than resting on the sheet. */
+  keyboard: boolean
+  /** The trigger's name — the sheet's title unless the content names one (`sheetTitle`). */
+  title: string
+  triggerRef: React.RefObject<HTMLElement | null>
+  openFrom: (e: React.SyntheticEvent<HTMLElement>, keyboard: boolean) => void
+  close: (event?: Event) => void
+  release: () => void
+}
+const MenuSheetContext = React.createContext<MenuSheet | null>(null)
+/** True for the parts drawn INSIDE a menu's sheet: they render as action rows, not as Base UI menu parts. */
+const InMenuSheetContext = React.createContext(false)
+const SheetRadioContext = React.createContext<{ value: unknown; onValueChange?: (value: unknown, details: never) => void } | null>(null)
+
+/**
+ * Is this part being drawn inside a menu's phone action sheet? For a call site that renders raw Base UI menu parts in
+ * the popup (more-overflow.tsx) and must route them through the wrapper in the sheet.
+ */
+function useInMenuSheet(): boolean {
+  return React.useContext(InMenuSheetContext)
+}
 
 /**
  * `closeOnScroll` matters most on the one call site that opts out of modality: `more-overflow.tsx`
@@ -35,42 +100,111 @@ function DropdownMenu({
   defaultOpen,
   onOpenChange,
   modal,
+  sheet = true,
   actionsRef: _ownedInternally,
   ...props
 }: Omit<MenuPrimitive.Root.Props, "actionsRef"> & {
   closeOnScroll?: boolean
+  /** Open as an action sheet below `sm` (the default). `false` keeps the popover at every width — admin only. */
+  sheet?: boolean
   /** Never passed — declared only so the runtime destructure above can strip it. @deprecated */
   actionsRef?: never
 }) {
+  // ONE open state for both surfaces, held here (controlled or not) so the sheet's rows can close it. Base UI's root
+  // only ever sees the popover half: on a phone it stays closed, so its popup and scroll lock never run.
+  const [localOpen, setLocalOpen] = React.useState(defaultOpen ?? false)
+  const isOpen = open ?? localOpen
+  const { isPhone, surface } = useSheetSurface(isOpen, sheet)
+  const setOpen = React.useCallback((next: boolean, details: MenuChangeDetails) => {
+    onOpenChange?.(next, details)
+    if (details.isCanceled) return
+    setLocalOpen(next)
+  }, [onOpenChange])
   const { actionsRef, handleOpenChange } = useScrollDismissedRoot<
     MenuPrimitive.Root.Actions,
-    MenuPrimitive.Root.ChangeEventDetails
-  >({ closeOnScroll: closeOnScroll && modal === false, open, defaultOpen, onOpenChange })
+    MenuChangeDetails
+  >({ closeOnScroll: closeOnScroll && modal === false, open: isOpen && surface === "popover", defaultOpen: undefined, onOpenChange: setOpen })
+
+  const sheetOpen = isOpen && surface === "sheet"
+  const close = React.useCallback((event?: Event) => setOpen(false, sheetChangeDetails<MenuChangeDetails>("close-press", event)), [setOpen])
+  const { release } = useSheetHistory(sheetOpen, close, "menu")
+  const triggerRef = React.useRef<HTMLElement | null>(null)
+  const [opened, setOpened] = React.useState({ keyboard: false, title: "" })
+  const ctx = React.useMemo<MenuSheet>(() => ({
+    isPhone,
+    surface,
+    sheetOpen,
+    keyboard: opened.keyboard,
+    title: opened.title,
+    triggerRef,
+    close,
+    release,
+    openFrom: (e, keyboard) => {
+      triggerRef.current = e.currentTarget
+      setOpened({ keyboard, title: accessibleNameOf(e.currentTarget) })
+      setOpen(true, sheetChangeDetails<MenuChangeDetails>("trigger-press", e.nativeEvent, e.currentTarget))
+    },
+  }), [isPhone, surface, sheetOpen, opened, close, release, setOpen])
 
   return (
-    <MenuPrimitive.Root
-      data-slot="dropdown-menu"
-      actionsRef={actionsRef}
-      open={open}
-      defaultOpen={defaultOpen}
-      onOpenChange={handleOpenChange}
-      /* ⚠️ FORWARDED BACK DELIBERATELY. `modal` is destructured above so the gate can read it, which
-         also removes it from `...props` — leaving this line out would drop `more-overflow`'s
-         `modal={false}` on the floor and turn a deliberately non-modal rail menu into a
-         scroll-locking one. Undefined here is not the same as absent: Base UI applies its own
-         `modal = true` default for undefined, which is the pre-existing behaviour. */
-      modal={modal}
-      {...props}
-    />
+    <MenuSheetContext.Provider value={ctx}>
+      <MenuPrimitive.Root
+        data-slot="dropdown-menu"
+        actionsRef={actionsRef}
+        open={isOpen && surface === "popover"}
+        onOpenChange={(next, details) => {
+          // Phone: the trigger's CLICK opens the sheet (picker-sheet-kit `sheetTriggerHandlers`); a hover never does.
+          // And a close the closed root reports while the sheet is up is not the sheet's to obey.
+          if (next ? isPhone : surface === "sheet") return
+          handleOpenChange(next, details)
+        }}
+        /* ⚠️ FORWARDED BACK DELIBERATELY. `modal` is destructured above so the gate can read it, which
+           also removes it from `...props` — leaving this line out would drop `more-overflow`'s
+           `modal={false}` on the floor and turn a deliberately non-modal rail menu into a
+           scroll-locking one. Undefined here is not the same as absent: Base UI applies its own
+           `modal = true` default for undefined, which is the pre-existing behaviour. */
+        modal={modal}
+        {...props}
+      />
+    </MenuSheetContext.Provider>
   )
 }
 
 function DropdownMenuPortal({ ...props }: MenuPrimitive.Portal.Props) {
+  if (React.useContext(InMenuSheetContext)) return <>{props.children}</>
   return <MenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />
 }
 
 function DropdownMenuTrigger({ ...props }: MenuPrimitive.Trigger.Props) {
-  return <MenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />
+  const sheet = React.useContext(MenuSheetContext)
+  return (
+    <MenuPrimitive.Trigger
+      data-slot="dropdown-menu-trigger"
+      {...chainHandlers(props, sheet?.isPhone ? sheetTriggerHandlers(sheet.openFrom) : null)}
+      // Base UI's own popup is closed behind a phone sheet, so it would report `false` here.
+      {...(sheet?.sheetOpen ? { "aria-expanded": true } : {})}
+    />
+  )
+}
+
+/** The action sheet: the filter card holding the menu's rows (see the note on `MenuSheet`). */
+function MenuSheetBody({ sheet, title, children }: { sheet: MenuSheet; title?: React.ReactNode; children?: React.ReactNode }) {
+  const { tr } = useLanguage()
+  const listRef = React.useRef<HTMLDivElement>(null)
+  return (
+    <InMenuSheetContext.Provider value>
+      <LazyPickerSheet
+        open={sheet.sheetOpen}
+        onOpenChange={(next) => { if (!next) sheet.close() }}
+        title={title ?? (sheet.title || tr("More actions", "Thêm thao tác"))}
+        finalFocus={sheet.triggerRef}
+        initialFocus={sheet.keyboard ? () => firstFocusable(listRef.current) ?? true : undefined}
+        onNavigate={sheet.release}
+      >
+        <div ref={listRef} className={SHEET_LIST}>{children}</div>
+      </LazyPickerSheet>
+    </InMenuSheetContext.Provider>
+  )
 }
 
 function DropdownMenuContent({
@@ -79,12 +213,18 @@ function DropdownMenuContent({
   side = "bottom",
   sideOffset = 4,
   className,
+  sheetTitle,
   ...props
 }: MenuPrimitive.Popup.Props &
   Pick<
     MenuPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset"
-  >) {
+  > & {
+    /** The phone sheet's title. Omitted: the trigger's own name (its aria-label or text). */
+    sheetTitle?: React.ReactNode
+  }) {
+  const sheet = React.useContext(MenuSheetContext)
+  if (sheet && sheet.surface === "sheet") return <MenuSheetBody sheet={sheet} title={sheetTitle}>{props.children as React.ReactNode}</MenuSheetBody>
   return (
     <MenuPrimitive.Portal>
       {/* ⚠️ THE SCRIM IS PART OF THE FLOATING LAYER, NOT DECORATION ON THE MODAL ONES ONLY.
@@ -136,7 +276,11 @@ function DropdownMenuContent({
   )
 }
 
+/** A Base UI part's className, which may be a state function, as a plain string for a sheet row. */
+const sheetClass = (className: unknown): string | undefined => (typeof className === "string" ? className : undefined)
+
 function DropdownMenuGroup({ ...props }: MenuPrimitive.Group.Props) {
+  if (React.useContext(InMenuSheetContext)) return <div data-slot="dropdown-menu-group" className={sheetClass(props.className)}>{props.children}</div>
   return <MenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />
 }
 
@@ -147,6 +291,9 @@ function DropdownMenuLabel({
 }: MenuPrimitive.GroupLabel.Props & {
   inset?: boolean
 }) {
+  if (React.useContext(InMenuSheetContext)) {
+    return <div data-slot="dropdown-menu-label" className={cn(SHEET_GROUP_LABEL, sheetClass(className))}>{props.children}</div>
+  }
   return (
     <MenuPrimitive.GroupLabel
       data-slot="dropdown-menu-label"
@@ -160,15 +307,90 @@ function DropdownMenuLabel({
   )
 }
 
+type SheetRowProps = {
+  className?: unknown
+  disabled?: boolean
+  onClick?: (event: React.MouseEvent<HTMLElement>) => void
+  render?: unknown
+  children?: React.ReactNode
+  id?: string
+}
+
+/**
+ * One action row of the sheet. Honours the item's `render` (a <Link>, a caller's own <Button>): the row's props are
+ * merged onto that element, its own onClick still runs. Releases the sheet's history entry before an action that
+ * leaves the page — a link, or an item marked `navigates` — so the sheet's close never races the navigation.
+ */
+function SheetRow({
+  sheet, row, closeOnClick, navigates, pressed, trailing, onActivate,
+}: {
+  sheet: MenuSheet
+  row: SheetRowProps
+  closeOnClick: boolean
+  navigates?: boolean
+  pressed?: boolean
+  trailing?: React.ReactNode
+  onActivate?: () => void
+}) {
+  const { className, disabled, onClick, render, children, id } = row
+  const run = (e: React.MouseEvent<HTMLElement>, theirs?: (e: React.MouseEvent<HTMLElement>) => void) => {
+    // A rendered element (a <Link>) has no native `disabled` to stop the click: refuse it here.
+    if (disabled) { e.preventDefault(); return }
+    if (navigates || (e.currentTarget as Element).closest("a[href]")) sheet.release()
+    theirs?.(e)
+    onClick?.(e)
+    onActivate?.()
+    if (closeOnClick) sheet.close(e.nativeEvent)
+  }
+  const cls = cn(SHEET_ACTION_ROW, sheetClass(className))
+  const body = trailing ? <>{children}{trailing}</> : children
+  if (React.isValidElement(render)) {
+    const el = render as React.ReactElement<{ className?: string; onClick?: (e: React.MouseEvent<HTMLElement>) => void; children?: React.ReactNode }>
+    return React.cloneElement(el, {
+      id,
+      className: cn(cls, el.props.className),
+      onClick: (e: React.MouseEvent<HTMLElement>) => run(e, el.props.onClick),
+      children: el.props.children ?? body,
+      ...(pressed !== undefined ? { "aria-pressed": pressed } : {}),
+      ...(disabled ? { "aria-disabled": true, disabled: true } : {}),
+    } as Record<string, unknown>)
+  }
+  return (
+    <Button type="button" variant="bare" size="none" id={id} disabled={disabled} aria-pressed={pressed} onClick={(e) => run(e)} className={cls}>
+      {body}
+    </Button>
+  )
+}
+
 function DropdownMenuItem({
   className,
   inset,
   variant = "default",
+  navigates,
   ...props
 }: MenuPrimitive.Item.Props & {
   inset?: boolean
   variant?: "default" | "destructive"
+  /**
+   * The row's `onClick` LEAVES the page (a router.push). In a phone sheet it releases the sheet's history entry first,
+   * so the sheet's own `history.back()` cannot undo the navigation (src/lib/back-to-close.ts). Links need no flag.
+   */
+  navigates?: boolean
 }) {
+  const sheet = React.useContext(MenuSheetContext)
+  if (React.useContext(InMenuSheetContext) && sheet) {
+    return (
+      <SheetRow
+        sheet={sheet}
+        navigates={navigates}
+        closeOnClick={props.closeOnClick !== false}
+        row={{
+          ...(props as SheetRowProps),
+          className: cn(variant === "destructive" ? "text-destructive [&_svg]:text-destructive" : SHEET_LEAD_ICON, sheetClass(className)),
+        }}
+      />
+    )
+  }
   return (
     <MenuPrimitive.Item
       data-slot="dropdown-menu-item"
@@ -183,7 +405,10 @@ function DropdownMenuItem({
   )
 }
 
+// A sheet has no submenus: inside one, a submenu's trigger becomes a heading and its items join the list (no consumer
+// sheet menu has one — the admin moderation menu that does keeps `sheet={false}`).
 function DropdownMenuSub({ ...props }: MenuPrimitive.SubmenuRoot.Props) {
+  if (React.useContext(InMenuSheetContext)) return <>{props.children}</>
   return <MenuPrimitive.SubmenuRoot data-slot="dropdown-menu-sub" {...props} />
 }
 
@@ -195,6 +420,7 @@ function DropdownMenuSubTrigger({
 }: MenuPrimitive.SubmenuTrigger.Props & {
   inset?: boolean
 }) {
+  if (React.useContext(InMenuSheetContext)) return <div className={SHEET_GROUP_LABEL}>{children}</div>
   return (
     // MenuSubmenuTrigger emits ONLY data-popup-open / data-highlighted / data-disabled
     // (see MenuSubmenuTriggerDataAttributes). data-open belongs to the Popup+Positioner,
@@ -223,6 +449,7 @@ function DropdownMenuSubContent({
   className,
   ...props
 }: React.ComponentProps<typeof DropdownMenuContent>) {
+  if (React.useContext(InMenuSheetContext)) return <>{props.children as React.ReactNode}</>
   // ⚠️ NO SHADOW CLASS HERE ON PURPOSE — it INHERITS the parent menu's `shadow-pop`.
   // This renders DropdownMenuContent and its className is twMerge'd on top, so until 2026-08-11
   // the list below named a stock Tailwind t-shirt shadow one step HEAVIER than the parent's, which
@@ -254,6 +481,20 @@ function DropdownMenuCheckboxItem({
 }: MenuPrimitive.CheckboxItem.Props & {
   inset?: boolean
 }) {
+  const sheet = React.useContext(MenuSheetContext)
+  if (React.useContext(InMenuSheetContext) && sheet) {
+    // A toggle row: aria-pressed carries the state (the ✓ is decoration), and it stays open, as Base UI's does.
+    return (
+      <SheetRow
+        sheet={sheet}
+        closeOnClick={props.closeOnClick === true}
+        pressed={!!checked}
+        trailing={checked ? <CheckIcon className="ml-auto size-4" /> : null}
+        onActivate={() => props.onCheckedChange?.(!checked, sheetChangeDetails<MenuPrimitive.CheckboxItem.ChangeEventDetails>("item-press"))}
+        row={{ ...(props as SheetRowProps), className: cn(SHEET_LEAD_ICON, sheetClass(className)), children }}
+      />
+    )
+  }
   return (
     <MenuPrimitive.CheckboxItem
       data-slot="dropdown-menu-checkbox-item"
@@ -280,6 +521,13 @@ function DropdownMenuCheckboxItem({
 }
 
 function DropdownMenuRadioGroup({ ...props }: MenuPrimitive.RadioGroup.Props) {
+  if (React.useContext(InMenuSheetContext)) {
+    return (
+      <SheetRadioContext.Provider value={{ value: props.value, onValueChange: props.onValueChange as never }}>
+        <div role="group" className={sheetClass(props.className)}>{props.children}</div>
+      </SheetRadioContext.Provider>
+    )
+  }
   return (
     <MenuPrimitive.RadioGroup
       data-slot="dropdown-menu-radio-group"
@@ -296,6 +544,21 @@ function DropdownMenuRadioItem({
 }: MenuPrimitive.RadioItem.Props & {
   inset?: boolean
 }) {
+  const sheet = React.useContext(MenuSheetContext)
+  const radio = React.useContext(SheetRadioContext)
+  if (React.useContext(InMenuSheetContext) && sheet) {
+    const on = radio?.value === props.value
+    return (
+      <SheetRow
+        sheet={sheet}
+        closeOnClick={props.closeOnClick === true}
+        pressed={on}
+        trailing={on ? <CheckIcon className="ml-auto size-4" /> : null}
+        onActivate={() => radio?.onValueChange?.(props.value, sheetChangeDetails<never>("item-press"))}
+        row={{ ...(props as SheetRowProps), className: cn(SHEET_LEAD_ICON, sheetClass(className)), children }}
+      />
+    )
+  }
   return (
     <MenuPrimitive.RadioItem
       data-slot="dropdown-menu-radio-item"
@@ -324,6 +587,7 @@ function DropdownMenuSeparator({
   className,
   ...props
 }: MenuPrimitive.Separator.Props) {
+  if (React.useContext(InMenuSheetContext)) return <div role="separator" data-slot="dropdown-menu-separator" className={cn(SHEET_SEPARATOR, sheetClass(className))} />
   return (
     <MenuPrimitive.Separator
       data-slot="dropdown-menu-separator"
@@ -337,6 +601,8 @@ function DropdownMenuShortcut({
   className,
   ...props
 }: React.ComponentProps<"span">) {
+  // A key hint means nothing on a touch sheet.
+  if (React.useContext(InMenuSheetContext)) return null
   return (
     <span
       data-slot="dropdown-menu-shortcut"
@@ -350,6 +616,7 @@ function DropdownMenuShortcut({
 }
 
 export {
+  useInMenuSheet,
   DropdownMenu,
   DropdownMenuPortal,
   DropdownMenuTrigger,

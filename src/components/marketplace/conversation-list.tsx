@@ -440,7 +440,8 @@ export function ConversationList() {
                           </IconButton>
                         }
                       />
-                      <DropdownMenuContent align="end" side="bottom" sideOffset={6} className="min-w-44">
+                      {/* A phone action sheet titled with who the chat is with (ui/dropdown-menu, owner 2026-10-18). */}
+                      <DropdownMenuContent align="end" side="bottom" sideOffset={6} className="min-w-44" sheetTitle={c.counterpart.name || undefined}>
                         <DropdownMenuItem variant="destructive" onClick={() => setConfirmId(c.id)}>
                           <Trash2 /> {tr('Delete conversation', 'Xóa cuộc trò chuyện')}
                         </DropdownMenuItem>

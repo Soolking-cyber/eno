@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { CloseButton } from '@/components/ui/close-button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverContent, PopoverHeader, PopoverTrigger, useInPopoverSheet } from '@/components/ui/popover'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage, Tr } from '@/context/language-context'
 import { timeAgo } from '@/lib/types'
@@ -25,7 +25,12 @@ import { notificationTextAsWritten } from '@/lib/notification-text'
  *  aria-expanded/haspopup/controls, Escape-to-close, focus move-in + return, portaling
  *  (so the panel escapes the sticky header's stacking context), outside-dismiss, and the
  *  exit animation — all of which the old hand-rolled useState + document-mousedown panel
- *  lacked. */
+ *  lacked.
+ *
+ *  ⛔ ON A PHONE IT IS A BOTTOM SHEET (`mobileSheet`, owner 2026-10-18: "also mobile all dropdowns should
+ *  be bottom up card style like the filter card"): the filter card titled "Notifications", with Mark all
+ *  read / Clear all beside the title and the list filling the body. The panel's own header row is a
+ *  `PopoverHeader`, which the sheet drops (it draws its own). */
 export function NotificationBell() {
   const { user, openSignIn } = useAuth()
   const { items, unread, markRead, markAllRead, remove, clearAll } = useNotifications()
@@ -44,8 +49,35 @@ export function NotificationBell() {
   // Reset the clear-all confirm whenever the panel closes (avoids a stale armed state).
   useEffect(() => { if (!open) setConfirmClear(false) }, [open])
 
+  // The panel's two actions — in its header row on the popover, beside the title on the phone sheet.
+  const actions = (unread > 0 || items.length > 0) ? (
+    <div className="flex shrink-0 items-center gap-3">
+      {unread > 0 && (
+        <Button
+          variant="bare"
+          size="none"
+          onClick={() => markAllRead()}
+          className="text-xs font-semibold text-ink-4 transition-colors hover:text-accent-foreground cursor-pointer"
+        >
+          {tr('Mark all read', 'Đánh dấu đã đọc')}
+        </Button>
+      )}
+      {items.length > 0 && (
+        <Button
+          variant="bare"
+          size="none"
+          onClick={() => { if (confirmClear) { clearAll(); setConfirmClear(false) } else setConfirmClear(true) }}
+          className={cn('text-xs font-semibold transition-colors cursor-pointer', confirmClear ? 'text-destructive' : 'text-ink-4 hover:text-accent-foreground')}
+        >
+          {confirmClear ? tr('Tap to delete all', 'Nhấn để xóa hết') : tr('Clear all', 'Xóa tất cả')}
+        </Button>
+      )}
+    </div>
+  ) : null
+
   return (
     <Popover
+      mobileSheet
       open={open}
       // Auth gate lives here, not on a trigger onClick: when a signed-out visitor presses
       // the bell, Base UI asks to open (next === true) — we send them to sign-in instead and
@@ -84,46 +116,26 @@ export function NotificationBell() {
         }
       />
 
-      {/* side=bottom align=end anchors the desktop dropdown under the bell. On mobile the width
-          is calc(100vw-1rem), so Base UI's shift() collision middleware clamps it into the
-          viewport with ~8px gutters — a full-bleed sheet WITHOUT position:fixed. (A max-sm:fixed
-          override can't span the viewport here: the Positioner carries floating-ui's inline
-          transform, making it the containing block for any fixed child, so insets would resolve
-          against that tiny box, not the screen.) p-0/gap-0 + overflow-hidden restore the
-          edge-to-edge rows and clip them to the rounded corners. */}
+      {/* side=bottom align=end anchors the dropdown under the bell — from `sm` up only: below it the
+          content opens in the phone sheet instead (`mobileSheet`), which retired the full-bleed
+          `w-[calc(100vw-1rem)]` card this used to fake a sheet with. p-0/gap-0 + overflow-hidden
+          restore the edge-to-edge rows and clip them to the rounded corners. In the sheet the rows
+          keep their own gutter (`px-0` body) and the sheet's header carries the title + actions. */}
       <PopoverContent
         side="bottom"
         align="end"
         sideOffset={8}
         aria-label={tr('Notifications', 'Thông báo')}
-        className="w-[calc(100vw-1rem)] gap-0 overflow-hidden p-0 shadow-pop ring-0 sm:w-80"
+        className="w-80 gap-0 overflow-hidden p-0 shadow-pop ring-0"
+        sheetTitle={tr('Notifications', 'Thông báo')}
+        sheetMeta={actions}
+        sheetBodyClassName="px-0 pt-1"
       >
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
+        <PopoverHeader className="flex-row items-center justify-between gap-3 px-4 py-3">
           <span className="text-sm font-bold text-foreground">{tr('Notifications', 'Thông báo')}</span>
-          <div className="flex shrink-0 items-center gap-3">
-            {unread > 0 && (
-              <Button
-                variant="bare"
-                size="none"
-                onClick={() => markAllRead()}
-                className="text-xs font-semibold text-ink-4 transition-colors hover:text-accent-foreground cursor-pointer"
-              >
-                {tr('Mark all read', 'Đánh dấu đã đọc')}
-              </Button>
-            )}
-            {items.length > 0 && (
-              <Button
-                variant="bare"
-                size="none"
-                onClick={() => { if (confirmClear) { clearAll(); setConfirmClear(false) } else setConfirmClear(true) }}
-                className={cn('text-xs font-semibold transition-colors cursor-pointer', confirmClear ? 'text-destructive' : 'text-ink-4 hover:text-accent-foreground')}
-              >
-                {confirmClear ? tr('Tap to delete all', 'Nhấn để xóa hết') : tr('Clear all', 'Xóa tất cả')}
-              </Button>
-            )}
-          </div>
-        </div>
-        <div className="max-h-[60vh] overflow-y-auto scroll-thin">
+          {actions}
+        </PopoverHeader>
+        <PanelScroll>
           {items.length === 0 ? (
             // Compact designed empty state (popover-scale) — says what lands here
             // and points somewhere useful, instead of a bare one-liner.
@@ -219,8 +231,14 @@ export function NotificationBell() {
               )
             })
           )}
-        </div>
+        </PanelScroll>
       </PopoverContent>
     </Popover>
   )
+}
+
+/** The list's own scroller on the popover; in the phone sheet the sheet's body scrolls, so it steps aside. */
+function PanelScroll({ children }: { children: React.ReactNode }) {
+  const inSheet = useInPopoverSheet()
+  return <div className={inSheet ? undefined : 'max-h-[60vh] overflow-y-auto scroll-thin'}>{children}</div>
 }

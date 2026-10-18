@@ -302,11 +302,13 @@ until load → strips it from SSR → costs the LCP; reason in the file).
 | Horizontal shelf | `<Shelf>` (marketplace) |
 | Loading | `<Skeleton>` / `<Spinner>` |
 | Modal | `ui/dialog` (Base UI); destructive confirms → `ui/alert-dialog` |
-| Menus | `ui/dropdown-menu` (never a hand-rolled absolute-positioned div) |
-| Floating panels | `ui/popover` |
+| Menus | `ui/dropdown-menu` (never a hand-rolled absolute-positioned div) — an action sheet on a phone (below) |
+| Floating panels | `ui/popover`; a panel that is a dropdown (the bell, Share) passes `mobileSheet` + `sheetTitle` |
 | Hover/focus hint | `ui/tooltip` (Base UI; `TooltipProvider` in layout — never native `title=`) |
 | Side panels / mobile filters | `ui/sheet` (side) / `ui/drawer` (bottom, Base UI Drawer) |
-| Select (desktop/admin) | `ui/select` — native `<select>` stays fine on mobile consumer surfaces |
+| Select (consumer) | `CustomSelect` (marketplace) — the anchored popover from `sm`, a bottom sheet below; searchable past 5 options |
+| Select (admin) | `ui/select` |
+| **Every phone picker / menu** | **A bottom sheet, the filter card's (owner, 2026-10-18: "also mobile all dropdowns should be bottom up card style like the filter card").** Below `sm` (`useIsPhone`), CustomSelect, `ui/dropdown-menu`, `ui/combobox` and `ui/popover mobileSheet` open in `ui/picker-sheet` — ui/drawer with the filter card's header, ✕, scrolling body, 48px rows with a ✓ on the current one, the search field on top of a long list, swipe-down / scrim / Escape / Back to close. The trigger stays the same element at every width (never swap it on the viewport — it renders on the server). There is no native `<select>` on mobile. Exceptions: native date/month inputs, the header search typeahead (keyboard-attached), the chat long-press reaction bar (a toolbar), and admin (`sheet={false}`). |
 | Tabs | `ui/tabs` — every tab strip, including the explorer's 4-tab sort model, the dashboard's listing filters and the sign-in phone/email switch. A strip of `<Button>`s is NOT a tab strip: it reports no `role="tablist"`, no `aria-selected`, and the arrow keys do nothing. |
 | Tables (dashboard/admin) | `ui/table` + TanStack `@tanstack/react-table` (data-table pattern); mobile gets stacked cards or an `overflow-x-auto` container |
 | Content panel | `ui/card` (rounded-2xl surface tier) |

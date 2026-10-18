@@ -223,7 +223,8 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
             </Button>
           }
         />
-        <DropdownMenuContent align="end" side="bottom" sideOffset={6} className="min-w-44">
+        {/* On a phone this is an action sheet titled with the listing (ui/dropdown-menu, owner 2026-10-18). */}
+        <DropdownMenuContent align="end" side="bottom" sideOffset={6} className="min-w-44" sheetTitle={title}>
           {canDiscount && (
             <DropdownMenuItem onClick={() => setDiscountOpen(true)}><TrendingDown /> {tr('Discount', 'Giảm giá')}</DropdownMenuItem>
           )}
@@ -236,7 +237,8 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
           {isPublic && (
             <DropdownMenuItem onClick={() => void copyLink()}><Link2 /> {tr('Copy link', 'Sao chép liên kết')}</DropdownMenuItem>
           )}
-          <DropdownMenuItem onClick={open}><ExternalLink /> {tr('View listing', 'Xem tin')}</DropdownMenuItem>
+          {/* `navigates`: it routes (router.push), so a phone sheet releases its Back entry first. */}
+          <DropdownMenuItem navigates onClick={open}><ExternalLink /> {tr('View listing', 'Xem tin')}</DropdownMenuItem>
           {/* Hide = pulled from the public feed, kept here (api/listings/[id]/status). Relist brings it back. */}
           {status === 'active' && (
             <DropdownMenuItem onClick={() => setStatus('hidden')}><EyeOff /> {tr('Hide', 'Ẩn')}</DropdownMenuItem>

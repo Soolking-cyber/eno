@@ -2,11 +2,129 @@
 
 import * as React from "react"
 import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox"
-import { CheckIcon, ChevronDownIcon, XIcon } from "@/components/ui/icons"
+import { CheckIcon, ChevronDownIcon, Search, XIcon } from "@/components/ui/icons"
+import {
+  LazyPickerSheet,
+  SHEET_LIST,
+  SHEET_SEARCH,
+  SHEET_SEARCH_INPUT,
+  accessibleNameOf,
+  chainHandlers,
+  sheetChangeDetails,
+  sheetTriggerHandlers,
+  useSheetHistory,
+  useSheetSurface,
+  type PickerSurface,
+} from "@/components/ui/picker-sheet-kit"
 
 import { cn } from "@/lib/utils"
 
-const Combobox = ComboboxPrimitive.Root
+type ComboboxChangeDetails = ComboboxPrimitive.Root.ChangeEventDetails
+
+/**
+ * ── ON A PHONE THE LIST OPENS AS A BOTTOM SHEET, ITS SEARCH FIELD ON TOP (owner, 2026-10-18: "also mobile all dropdowns
+ * should be bottom up card style like the filter card") ──────────────────────────────────────────────────────────────
+ *
+ * A list anchored under a field you type in sat under the phone's own keyboard. Below `sm`, when the combobox has rows
+ * to offer, the page field becomes a TAP TARGET (`readOnly`, same element, same id — a `<label htmlFor>` and a Field's
+ * data-invalid still reach it) and the list opens in the filter card: the search field pinned at the TOP of the sheet,
+ * the rows scrolling under it. Inside, it is Base UI's documented "Combobox.Root > Dialog" composition — an `inline`
+ * root mirroring this one's list props (items, value, inputValue, filter, labels…), so the caller's rules hold
+ * unchanged: what typing does, what a pick commits, and what its own `onOpenChange` refuses (the teacher form's
+ * closed-list "Enter with no row highlighted keeps the list open" cancels the close here too). Call sites do not change.
+ *
+ *   · No rows (the post wizard's Model field before its brand has suggestions), and the field stays a plain field you
+ *     type in. A field already being typed in when rows arrive stays typeable until it is left — it never turns
+ *     read-only under the keyboard.
+ *   · ⚠️ The sheet's input owns the QUERY the way the desktop popup's field did, with one guard: Base UI clears an
+ *     inline input as the sheet finishes closing (`input-clear`), and for a field whose typed text IS its value (the
+ *     post wizard's Brand: "we will use the name you typed") that clear would erase the answer. It is not forwarded.
+ *   · ⛔ Back closes the sheet (useSheetHistory).
+ *   · `sheet={false}` keeps the anchored popup at every width.
+ */
+type ComboboxSheet = {
+  /** A phone, and this combobox has rows to offer: the page field is a tap target and the list opens in the sheet. */
+  isPhone: boolean
+  surface: PickerSurface
+  sheetOpen: boolean
+  keyboard: boolean
+  title: string
+  placeholder: string
+  /** The page field — the sheet's title is its label, and focus returns to it. */
+  inputRef: React.RefObject<HTMLInputElement | null>
+  /** The root's list props, mirrored into the sheet's inline root. */
+  listProps: Record<string, unknown>
+  openFrom: (e: React.SyntheticEvent<HTMLElement>, keyboard: boolean) => void
+  setOpen: (next: boolean, details: ComboboxChangeDetails) => void
+  close: (event?: Event) => void
+  release: () => void
+}
+const ComboboxSheetContext = React.createContext<ComboboxSheet | null>(null)
+/** True for the parts drawn INSIDE the phone sheet (the list, its rows, its empty state). */
+const InComboboxSheetContext = React.createContext(false)
+
+function Combobox<Value, Multiple extends boolean | undefined = false>({
+  open,
+  defaultOpen,
+  onOpenChange,
+  sheet: sheetEnabled = true,
+  ...props
+}: ComboboxPrimitive.Root.Props<Value, Multiple> & {
+  /** Open the list as a bottom sheet below `sm` (the default) — see the note above. */
+  sheet?: boolean
+}) {
+  // ONE open state for both surfaces (controlled or not); the page root only ever sees the popup half.
+  const [localOpen, setLocalOpen] = React.useState(defaultOpen ?? false)
+  const isOpen = open ?? localOpen
+  const hasRows = Array.isArray(props.items) && props.items.length > 0
+  const { isPhone, surface } = useSheetSurface(isOpen, sheetEnabled && hasRows)
+  const setOpen = React.useCallback((next: boolean, details: ComboboxChangeDetails) => {
+    onOpenChange?.(next, details)
+    if (details.isCanceled) return
+    setLocalOpen(next)
+  }, [onOpenChange])
+  const sheetOpen = isOpen && surface === "sheet"
+  const close = React.useCallback((event?: Event) => setOpen(false, sheetChangeDetails<ComboboxChangeDetails>("close-press", event)), [setOpen])
+  const { release } = useSheetHistory(sheetOpen, close, "picker")
+  const inputRef = React.useRef<HTMLInputElement | null>(null)
+  const [opened, setOpened] = React.useState({ keyboard: false, title: "", placeholder: "" })
+  // Everything that describes the LIST, for the sheet's inline root — never the field's identity (its id, name and
+  // form wiring stay on the page field: a second id would duplicate it) and never the open state (the sheet owns it).
+  const { id: _id, name: _name, form: _form, required: _required, inputRef: _inputRef, actionsRef: _actionsRef, onOpenChangeComplete: _complete, inline: _inline, modal: _modal, children: _children, ...listProps } = props
+  const ctx = React.useMemo<ComboboxSheet>(() => ({
+    isPhone,
+    surface,
+    sheetOpen,
+    keyboard: opened.keyboard,
+    title: opened.title,
+    placeholder: opened.placeholder,
+    inputRef,
+    listProps: listProps as Record<string, unknown>,
+    setOpen,
+    close,
+    release,
+    openFrom: (e, keyboard) => {
+      const field = inputRef.current
+      setOpened({ keyboard, title: accessibleNameOf(field ?? e.currentTarget), placeholder: field?.placeholder ?? "" })
+      setOpen(true, sheetChangeDetails<ComboboxChangeDetails>("trigger-press", e.nativeEvent, e.currentTarget))
+    },
+  }), [isPhone, surface, sheetOpen, opened, setOpen, close, release, props])
+
+  return (
+    <ComboboxSheetContext.Provider value={ctx}>
+      <ComboboxPrimitive.Root
+        {...(props as ComboboxPrimitive.Root.Props<Value, Multiple>)}
+        open={isOpen && surface === "popover"}
+        onOpenChange={(next, details) => {
+          // Phone (with rows): the field's tap opens the sheet; Base UI's own opens (a press, typing) are not obeyed,
+          // and a close the closed page root reports while the sheet is up is not the sheet's to obey.
+          if (next ? isPhone : surface === "sheet") return
+          setOpen(next, details)
+        }}
+      />
+    </ComboboxSheetContext.Provider>
+  )
+}
 
 function ComboboxInputGroup({ className, ...props }: ComboboxPrimitive.InputGroup.Props) {
   return (
@@ -37,15 +155,50 @@ function ComboboxInputGroup({ className, ...props }: ComboboxPrimitive.InputGrou
   )
 }
 
-function ComboboxInput({ className, ...props }: ComboboxPrimitive.Input.Props) {
+function ComboboxInput({ className, ref, ...props }: ComboboxPrimitive.Input.Props) {
+  const sheet = React.useContext(ComboboxSheetContext)
+  // A field already being typed in when the sheet becomes possible (rows arrived mid-typing) stays typeable until it
+  // is left: it must never turn read-only under the keyboard.
+  const [typing, setTyping] = React.useState(false)
+  const tapTarget = !!sheet?.isPhone && !typing
+  const setRef = React.useCallback((el: HTMLInputElement | null) => {
+    if (sheet) sheet.inputRef.current = el
+    if (typeof ref === "function") ref(el)
+    else if (ref) (ref as React.RefObject<HTMLInputElement | null>).current = el
+  }, [sheet, ref])
+  const handlers = tapTarget && sheet
+    ? {
+        ...sheetTriggerHandlers(sheet.openFrom),
+        // A read-only field has no click on Enter or Space (only a button does): open from the key itself.
+        onKeyDown: (e: React.KeyboardEvent<HTMLElement> & { preventBaseUIHandler?: () => void }) => {
+          if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ") {
+            e.preventBaseUIHandler?.()
+            e.preventDefault()
+            sheet.openFrom(e, true)
+          }
+        },
+      }
+    : null
   return (
     <ComboboxPrimitive.Input
       data-slot="combobox-input"
+      ref={setRef}
       className={cn(
         "h-full min-w-0 flex-1 bg-transparent px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed",
+        // The tap target reads as the field it is — the pointer, not the text caret.
+        tapTarget && "cursor-pointer",
         className,
       )}
-      {...props}
+      {...chainHandlers(
+        {
+          ...props,
+          onFocus: (e: React.FocusEvent<HTMLInputElement>) => { if (!sheet?.isPhone) setTyping(true); props.onFocus?.(e as never) },
+          onBlur: (e: React.FocusEvent<HTMLInputElement>) => { setTyping(false); props.onBlur?.(e as never) },
+        },
+        handlers,
+      )}
+      {...(tapTarget ? { readOnly: true } : {})}
+      {...(sheet?.sheetOpen ? { "aria-expanded": true } : {})}
     />
   )
 }
@@ -68,6 +221,7 @@ function ComboboxClear({ className, children, ...props }: ComboboxPrimitive.Clea
 }
 
 function ComboboxTrigger({ className, children, ...props }: ComboboxPrimitive.Trigger.Props) {
+  const sheet = React.useContext(ComboboxSheetContext)
   return (
     <ComboboxPrimitive.Trigger
       data-slot="combobox-trigger"
@@ -78,10 +232,66 @@ function ComboboxTrigger({ className, children, ...props }: ComboboxPrimitive.Tr
         "group flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-body outline-none transition-[color,background-color,scale] duration-150 ease-spring-snappy hover:bg-tint hover:text-foreground active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-ring/40",
         className,
       )}
-      {...props}
+      // Phone sheet: the chevron opens the sheet too (picker-sheet-kit `sheetTriggerHandlers`).
+      {...chainHandlers(props, sheet?.isPhone ? sheetTriggerHandlers(sheet.openFrom) : null)}
     >
       {children ?? <ChevronDownIcon className="size-4 transition-transform duration-200 ease-spring-snappy group-data-popup-open:rotate-180" />}
     </ComboboxPrimitive.Trigger>
+  )
+}
+
+/**
+ * The phone sheet: the filter card with an inline root mirroring the page one, its search field pinned on top and the
+ * caller's own list (ComboboxEmpty + ComboboxList and its rows) in the body.
+ */
+function ComboboxSheetBody({ sheet, title, children }: { sheet: ComboboxSheet; title?: React.ReactNode; children?: React.ReactNode }) {
+  const searchRef = React.useRef<HTMLInputElement>(null)
+  const { onInputValueChange, ...listProps } = sheet.listProps as { onInputValueChange?: (value: string, details: ComboboxChangeDetails) => void }
+  const name = title ?? sheet.title
+  return (
+    <InComboboxSheetContext.Provider value>
+      <LazyPickerSheet
+        open={sheet.sheetOpen}
+        onOpenChange={(next) => { if (!next) sheet.close() }}
+        title={name}
+        finalFocus={sheet.inputRef}
+        initialFocus={sheet.keyboard ? searchRef : undefined}
+        onNavigate={sheet.release}
+        // The inline root wraps the search field AND the list, inside the drawer — its hidden form input too.
+        contentWrapper={(inner) => (
+          <ComboboxPrimitive.Root
+            {...(listProps as ComboboxPrimitive.Root.Props<unknown, false>)}
+            inline
+            open={sheet.sheetOpen}
+            onOpenChange={(next, details) => { if (!next) sheet.setOpen(false, details) }}
+            onInputValueChange={(value, details) => {
+              // Base UI's end-of-close clear of an inline field — never the person's own edit (see the note above).
+              if (details.reason === "input-clear") return
+              onInputValueChange?.(value, details)
+            }}
+          >
+            {inner}
+          </ComboboxPrimitive.Root>
+        )}
+        search={
+          <label className={SHEET_SEARCH}>
+            <Search className="h-4 w-4 shrink-0 text-ink-4" aria-hidden="true" />
+            <ComboboxPrimitive.Input
+              ref={searchRef}
+              placeholder={sheet.placeholder}
+              aria-label={typeof name === "string" ? name : undefined}
+              autoComplete="off"
+              enterKeyHint="search"
+              // The saved answer is in the field; a tap selects it, so typing replaces it as a search.
+              onFocus={(e) => e.currentTarget.select()}
+              className={SHEET_SEARCH_INPUT}
+            />
+          </label>
+        }
+      >
+        {children}
+      </LazyPickerSheet>
+    </InComboboxSheetContext.Provider>
   )
 }
 
@@ -91,8 +301,14 @@ function ComboboxContent({
   side = "bottom",
   sideOffset = 6,
   align = "start",
+  sheetTitle,
   ...props
-}: ComboboxPrimitive.Popup.Props & Pick<ComboboxPrimitive.Positioner.Props, "align" | "side" | "sideOffset">) {
+}: ComboboxPrimitive.Popup.Props & Pick<ComboboxPrimitive.Positioner.Props, "align" | "side" | "sideOffset"> & {
+  /** The phone sheet's title. Omitted: the page field's label. */
+  sheetTitle?: React.ReactNode
+}) {
+  const sheet = React.useContext(ComboboxSheetContext)
+  if (sheet && sheet.surface === "sheet") return <ComboboxSheetBody sheet={sheet} title={sheetTitle}>{children as React.ReactNode}</ComboboxSheetBody>
   return (
     <ComboboxPrimitive.Portal>
       {/* ⚠️ THE SCRIM IS PART OF THE FLOATING LAYER, NOT DECORATION ON THE MODAL ONES ONLY.
@@ -142,7 +358,9 @@ function ComboboxContent({
 }
 
 function ComboboxList({ className, ...props }: ComboboxPrimitive.List.Props) {
-  return <ComboboxPrimitive.List data-slot="combobox-list" className={cn("max-h-72 overflow-y-auto p-1.5", className)} {...props} />
+  // In the phone sheet the sheet's body is the scroller: no box of its own, rows on the sheet's gutter.
+  const inSheet = React.useContext(InComboboxSheetContext)
+  return <ComboboxPrimitive.List data-slot="combobox-list" className={cn(inSheet ? SHEET_LIST : "max-h-72 overflow-y-auto p-1.5", className)} {...props} />
 }
 
 function ComboboxGroup({ className, ...props }: ComboboxPrimitive.Group.Props) {
@@ -154,12 +372,15 @@ function ComboboxGroupLabel({ className, ...props }: ComboboxPrimitive.GroupLabe
 }
 
 function ComboboxItem({ className, children, ...props }: ComboboxPrimitive.Item.Props) {
+  const inSheet = React.useContext(InComboboxSheetContext)
   return (
     <ComboboxPrimitive.Item
       data-slot="combobox-item"
       className={cn(
         // No transition: the highlight moves on arrow keys, and a keyboard-driven change never animates.
         "relative flex min-h-11 cursor-pointer items-center rounded-xl py-2.5 pr-10 pl-3 text-sm leading-5 outline-none select-none data-highlighted:bg-accent data-highlighted:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50",
+        // The sheet's row: the 48px box and the press / keyboard highlight of every other sheet list.
+        inSheet && "min-h-12 active:bg-muted data-highlighted:bg-muted data-highlighted:text-foreground data-selected:font-semibold data-selected:text-accent-foreground",
         className,
       )}
       {...props}

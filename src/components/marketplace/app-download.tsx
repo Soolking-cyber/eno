@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
+import { Popover, PopoverTrigger, PopoverContent, PopoverTitle } from '@/components/ui/popover'
 import { IconButton } from '@/components/ui/icon-button'
 import { Button } from '@/components/ui/button'
 import { Download, Smartphone, Clock } from '@/components/ui/icons'
@@ -113,7 +113,9 @@ export function AppDownload() {
   const row = 'flex items-center gap-2.5 px-4 py-2.5 text-left text-sm'
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    // `mobileSheet`: a narrow window with a mouse (below `sm`) gets the filter card's bottom sheet, like every
+    // other dropdown there (owner, 2026-10-18) — a phone itself never reaches this branch (`fine` above).
+    <Popover mobileSheet open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
           <IconButton
@@ -136,8 +138,11 @@ export function AppDownload() {
         sideOffset={8}
         aria-label={tr('Download the eno app', 'Tải ứng dụng eno')}
         className="w-60 gap-0 overflow-hidden p-0 shadow-pop ring-0"
+        sheetTitle={label}
+        // The rows carry their own 16px gutter; the sheet's title replaces this heading (a PopoverTitle).
+        sheetBodyClassName="px-0"
       >
-        <p className="px-4 pb-2 pt-3 text-sm font-bold text-foreground">{tr('Download the eno app', 'Tải ứng dụng eno')}</p>
+        <PopoverTitle render={<p />} className="px-4 pb-2 pt-3 text-sm font-bold text-foreground">{tr('Download the eno app', 'Tải ứng dụng eno')}</PopoverTitle>
         {/* The QR reserves its box whether or not the encoder has landed, so opening the panel does not
             shift the rows under it. A white plate under the code, always: a QR inverted by dark mode
             does not scan on many readers. */}

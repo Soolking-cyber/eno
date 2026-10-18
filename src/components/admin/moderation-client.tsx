@@ -168,7 +168,8 @@ function MacroSender({ recipientId, label, listingId, conversationId }: { recipi
 function SeverityMenu({ value, onPick }: { value: string; onPick: (s: string) => void }) {
   return (
     <span className="inline-block" onClick={(e) => e.stopPropagation()}> {/* design-lint-allow */}
-      <DropdownMenu>
+      {/* Admin keeps the popover at every width — see MoreMenu. */}
+      <DropdownMenu sheet={false}>
         <DropdownMenuTrigger title="Penalty applied on Confirm" className="inline-flex items-center gap-1 rounded-lg border border-line-strong px-2 py-1 text-2xs font-bold capitalize text-foreground hover:bg-muted cursor-pointer">
           {value} {PENALTY[value]} <ChevronDown className="h-3 w-3 text-ink-4" />
         </DropdownMenuTrigger>
@@ -189,7 +190,9 @@ function SeverityMenu({ value, onPick }: { value: string; onPick: (s: string) =>
 function MoreMenu({ children }: { children: ReactNode }) {
   return (
     <span className="inline-block" onClick={(e) => e.stopPropagation()}> {/* design-lint-allow */}
-      <DropdownMenu>
+      {/* Admin keeps the popover at every width (EN-only, desktop-first), and this menu nests a submenu (NotifyMenu),
+          which ui/dropdown-menu's phone action sheet does not do. */}
+      <DropdownMenu sheet={false}>
         <DropdownMenuTrigger title="More actions" className="inline-flex items-center gap-1 rounded-lg border border-line-strong px-2 py-1 text-2xs font-semibold text-muted-foreground hover:bg-muted cursor-pointer">
           <MoreHorizontal className="h-3.5 w-3.5" /> More
         </DropdownMenuTrigger>

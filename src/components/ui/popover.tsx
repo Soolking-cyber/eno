@@ -5,6 +5,54 @@ import { Popover as PopoverPrimitive } from "@base-ui/react/popover"
 
 import { cn } from "@/lib/utils"
 import { useScrollDismissedRoot } from "@/components/ui/use-dismiss-on-user-scroll"
+import {
+  LazyPickerSheet,
+  accessibleNameOf,
+  chainHandlers,
+  firstFocusable,
+  sheetChangeDetails,
+  sheetTriggerHandlers,
+  useSheetHistory,
+  useSheetSurface,
+  type PickerSurface,
+} from "@/components/ui/picker-sheet-kit"
+
+type PopoverChangeDetails = PopoverPrimitive.Root.ChangeEventDetails
+
+/**
+ * ── `mobileSheet`: A PANEL A PHONE GETS AS THE FILTER CARD (owner, 2026-10-18: "also mobile all dropdowns should be
+ * bottom up card style like the filter card") ───────────────────────────────────────────────────────────────────────
+ *
+ * Opt-in, unlike ui/dropdown-menu, because popovers vary too much to switch all of them: the chat reaction bar is a
+ * toolbar pinned to a message, and the explorer's Filter / Price panels already branch to their own sheets. A panel
+ * that IS a dropdown (the bell, Share, Get the app) passes `mobileSheet` + a `sheetTitle` on its content, and below
+ * `sm` the same trigger opens its content inside ui/picker-sheet instead of the anchored card:
+ *   · the sheet draws its own header (title + ✕), so a `PopoverHeader` / `PopoverTitle` inside the content is dropped
+ *     there — wrap the popover's own heading in them and it is never shown twice; `sheetMeta` puts header actions
+ *     (the bell's "Mark all read") beside the title;
+ *   · ⛔ Back closes it (useSheetHistory), and a link inside releases that entry first so the sheet's own
+ *     `history.back()` never races the navigation (PickerSheet `onNavigate`).
+ */
+type PopoverSheet = {
+  isPhone: boolean
+  surface: PickerSurface
+  sheetOpen: boolean
+  keyboard: boolean
+  title: string
+  triggerRef: React.RefObject<HTMLElement | null>
+  openFrom: (e: React.SyntheticEvent<HTMLElement>, keyboard: boolean) => void
+  close: (event?: Event) => void
+  release: () => void
+}
+const PopoverSheetContext = React.createContext<PopoverSheet | null>(null)
+/** True for content drawn INSIDE a popover's phone sheet. */
+const InPopoverSheetContext = React.createContext(false)
+
+/** Is this content being drawn inside its popover's phone sheet (`mobileSheet`)? — to drop a scroller the sheet
+ *  replaces, or a heading the sheet already shows. */
+function useInPopoverSheet(): boolean {
+  return React.useContext(InPopoverSheetContext)
+}
 
 /**
  * ⚠️ THIS IS THE PRIMITIVE THE "STUCK DROPDOWN" REPORT WAS ABOUT. Popover is the one floating layer
@@ -32,13 +80,47 @@ function Popover({
   defaultOpen,
   onOpenChange,
   modal,
+  mobileSheet = false,
   actionsRef: _ownedInternally,
   ...props
 }: Omit<PopoverPrimitive.Root.Props, "actionsRef"> & {
   closeOnScroll?: boolean
+  /** Below `sm`, open the content as a bottom sheet (ui/picker-sheet) — see the note on `PopoverSheet`. */
+  mobileSheet?: boolean
   /** Never passed — declared only so the runtime destructure above can strip it. @deprecated */
   actionsRef?: never
 }) {
+  // ONE open state for both surfaces (controlled or not), so the sheet can be closed from inside; Base UI's root only
+  // sees the popover half. Without `mobileSheet` the surface is always the popover and nothing else changes.
+  const [localOpen, setLocalOpen] = React.useState(defaultOpen ?? false)
+  const isOpen = open ?? localOpen
+  const { isPhone, surface } = useSheetSurface(isOpen, mobileSheet)
+  const setOpen = React.useCallback((next: boolean, details: PopoverChangeDetails) => {
+    onOpenChange?.(next, details)
+    if (details.isCanceled) return
+    setLocalOpen(next)
+  }, [onOpenChange])
+  const sheetOpen = isOpen && surface === "sheet"
+  const close = React.useCallback((event?: Event) => setOpen(false, sheetChangeDetails<PopoverChangeDetails>("close-press", event)), [setOpen])
+  const { release } = useSheetHistory(sheetOpen, close, "panel")
+  const triggerRef = React.useRef<HTMLElement | null>(null)
+  const [opened, setOpened] = React.useState({ keyboard: false, title: "" })
+  const sheet = React.useMemo<PopoverSheet>(() => ({
+    isPhone,
+    surface,
+    sheetOpen,
+    keyboard: opened.keyboard,
+    title: opened.title,
+    triggerRef,
+    close,
+    release,
+    openFrom: (e, keyboard) => {
+      triggerRef.current = e.currentTarget
+      setOpened({ keyboard, title: accessibleNameOf(e.currentTarget) })
+      setOpen(true, sheetChangeDetails<PopoverChangeDetails>("trigger-press", e.nativeEvent, e.currentTarget))
+    },
+  }), [isPhone, surface, sheetOpen, opened, close, release, setOpen])
+
   /**
    * ⚠️ `modal !== true`, THE MIRROR OF ui/dropdown-menu's `modal === false` — and the asymmetry is
    * the defaults, not an inconsistency. Popover's `modal` defaults to FALSE, which is precisely the
@@ -50,27 +132,65 @@ function Popover({
    */
   const { actionsRef, handleOpenChange } = useScrollDismissedRoot<
     PopoverPrimitive.Root.Actions,
-    PopoverPrimitive.Root.ChangeEventDetails
-  >({ closeOnScroll: closeOnScroll && modal !== true, open, defaultOpen, onOpenChange })
+    PopoverChangeDetails
+  >({ closeOnScroll: closeOnScroll && modal !== true, open: isOpen && surface === "popover", defaultOpen: undefined, onOpenChange: setOpen })
 
   return (
-    <PopoverPrimitive.Root
-      data-slot="popover"
-      actionsRef={actionsRef}
-      open={open}
-      defaultOpen={defaultOpen}
-      onOpenChange={handleOpenChange}
-      /* Forwarded back: destructuring `modal` for the gate above also removed it from `...props`,
-         and dropping it would silently change modality for any call site that sets it. Same trap,
-         and same fix, as ui/dropdown-menu. */
-      modal={modal}
-      {...props}
-    />
+    <PopoverSheetContext.Provider value={sheet}>
+      <PopoverPrimitive.Root
+        data-slot="popover"
+        actionsRef={actionsRef}
+        open={isOpen && surface === "popover"}
+        onOpenChange={(next, details) => {
+          // Phone (mobileSheet): the trigger's click opens the sheet; a close the closed root reports while the sheet
+          // is up is not the sheet's to obey.
+          if (next ? isPhone : surface === "sheet") return
+          handleOpenChange(next, details)
+        }}
+        /* Forwarded back: destructuring `modal` for the gate above also removed it from `...props`,
+           and dropping it would silently change modality for any call site that sets it. Same trap,
+           and same fix, as ui/dropdown-menu. */
+        modal={modal}
+        {...props}
+      />
+    </PopoverSheetContext.Provider>
   )
 }
 
 function PopoverTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {
-  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
+  const sheet = React.useContext(PopoverSheetContext)
+  return (
+    <PopoverPrimitive.Trigger
+      data-slot="popover-trigger"
+      {...chainHandlers(props, sheet?.isPhone ? sheetTriggerHandlers(sheet.openFrom) : null)}
+      // Base UI's own popup is closed behind a phone sheet, so it would report `false` here.
+      {...(sheet?.sheetOpen ? { "aria-expanded": true } : {})}
+    />
+  )
+}
+
+/** The phone sheet holding a `mobileSheet` popover's content. */
+function PopoverSheetBody({ sheet, title, meta, bodyClassName, children }: {
+  sheet: PopoverSheet; title?: React.ReactNode; meta?: React.ReactNode; bodyClassName?: string; children?: React.ReactNode
+}) {
+  const contentRef = React.useRef<HTMLDivElement>(null)
+  return (
+    <InPopoverSheetContext.Provider value>
+      <LazyPickerSheet
+        open={sheet.sheetOpen}
+        onOpenChange={(next) => { if (!next) sheet.close() }}
+        title={title ?? sheet.title}
+        meta={meta}
+        bodyClassName={bodyClassName}
+        finalFocus={sheet.triggerRef}
+        initialFocus={sheet.keyboard ? () => firstFocusable(contentRef.current) ?? true : undefined}
+        onNavigate={sheet.release}
+      >
+        {/* `contents`: a handle for the keyboard's first stop that adds no box of its own. */}
+        <div ref={contentRef} className="contents">{children}</div>
+      </LazyPickerSheet>
+    </InPopoverSheetContext.Provider>
+  )
 }
 
 function PopoverContent({
@@ -99,6 +219,9 @@ function PopoverContent({
   backdrop = false,
   backdropClassName,
   positionerClassName,
+  sheetTitle,
+  sheetMeta,
+  sheetBodyClassName,
   ...props
 }: PopoverPrimitive.Popup.Props &
   Pick<
@@ -126,7 +249,21 @@ function PopoverContent({
      * colour — belongs on `className`, which lands on the popup where tailwind-merge can resolve it.
      */
     positionerClassName?: string
+    /** `mobileSheet` only: the phone sheet's title (its dialog name). Omitted: the trigger's own name. */
+    sheetTitle?: React.ReactNode
+    /** `mobileSheet` only: header actions beside the sheet's title. */
+    sheetMeta?: React.ReactNode
+    /** `mobileSheet` only: the sheet body's box (`px-0` for a panel whose rows carry their own gutter). */
+    sheetBodyClassName?: string
   }) {
+  const sheet = React.useContext(PopoverSheetContext)
+  if (sheet && sheet.surface === "sheet") {
+    return (
+      <PopoverSheetBody sheet={sheet} title={sheetTitle} meta={sheetMeta} bodyClassName={sheetBodyClassName}>
+        {props.children as React.ReactNode}
+      </PopoverSheetBody>
+    )
+  }
   return (
     <PopoverPrimitive.Portal>
       {backdrop && (
@@ -183,7 +320,9 @@ function PopoverContent({
   )
 }
 
+// The sheet draws its own header row (title + ✕): a popover's own heading is dropped there, never shown twice.
 function PopoverHeader({ className, ...props }: React.ComponentProps<"div">) {
+  if (React.useContext(InPopoverSheetContext)) return null
   return (
     <div
       data-slot="popover-header"
@@ -194,6 +333,7 @@ function PopoverHeader({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 function PopoverTitle({ className, ...props }: PopoverPrimitive.Title.Props) {
+  if (React.useContext(InPopoverSheetContext)) return null
   return (
     <PopoverPrimitive.Title
       data-slot="popover-title"
@@ -217,6 +357,7 @@ function PopoverDescription({
 }
 
 export {
+  useInPopoverSheet,
   Popover,
   PopoverContent,
   PopoverDescription,

@@ -277,7 +277,8 @@ export function AdminListingsClient({ licenceGrandfatherUntil }: { licenceGrandf
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => (
           <div className="flex justify-end">
-            <DropdownMenu>
+            {/* Admin keeps the popover at every width (EN-only, desktop-first) — ui/dropdown-menu's phone sheet is consumer chrome. */}
+            <DropdownMenu sheet={false}>
               <DropdownMenuTrigger render={<IconButton size="xs" tapTarget={false} aria-label="More actions" className="rounded-lg text-ink-4 transition-colors hover:bg-muted hover:text-foreground" />}>
                 <MoreHorizontal className="h-4 w-4" />
               </DropdownMenuTrigger>
