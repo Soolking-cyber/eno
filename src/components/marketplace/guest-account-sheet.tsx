@@ -19,8 +19,9 @@ import { CurrencySelect, LanguageSelect } from './footer-preferences'
  * The tab now opens this sheet: Sign in first (it is still the main thing the tab is for), then
  * Language, Currency, Help, Safety.
  *
- * ⚠️ NO DESKTOP GLOBE (owner, same row): desktop keeps the footer's switcher and the header's Sign in.
- * This sheet is reached only from the tab bar, which is `lg:hidden`.
+ * ⚠️ NO DESKTOP GLOBE (owner, same row): desktop keeps the footer's switcher and the header's Sign in — and, since
+ * 2026-10-18 (owner: "go on apply all recommended"), the header's language button, a text control, still no globe.
+ * This sheet is reached only from the tab bar, which is `pc:hidden` (the button shows from `pc`, on browse pages).
  * ⚠️ THE PICKERS ARE THE FOOTER'S OWN (footer-preferences.tsx `LanguageSelect` / `CurrencySelect`), so
  * the two places cannot disagree about what an option is called or what choosing it does — including
  * the full reload a language change across the en/vi variant needs (language-context.tsx `setLang`).

@@ -92,6 +92,50 @@ describe('LanguageProvider under the /vi pilot (lists on)', () => {
     expect(store.lang).toBe('en')
   })
 
+  it("⛔ on a shop's own host, setLang('vi') on `/` reloads in place — never `/vi`, which the proxy 308s to the apex (gate 2026-10-18)", () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    try {
+      Object.defineProperty(window, 'location', { configurable: true, value: { pathname: '/', hostname: 'apple.eno.vn', search: '', hash: '', reload, assign } })
+      render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+      act(() => setLangRef!('vi'))
+      expect(assign).not.toHaveBeenCalled()
+      expect(reload).toHaveBeenCalledTimes(1)
+      expect(store.lang).toBe('vi')
+      expect(document.cookie).toContain('lang=vi')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("…and with cookies blocked there it switches IN PLACE — never a dead tap (codex, gate 2026-10-18)", () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    Object.defineProperty(document, 'cookie', { configurable: true, get: () => '', set: () => {} })
+    try {
+      Object.defineProperty(window, 'location', { configurable: true, value: { pathname: '/', hostname: 'apple.eno.vn', search: '', hash: '', reload, assign } })
+      render(<LanguageProvider initialLang="en" initialViDict={{}}><Probe /></LanguageProvider>)
+      act(() => setLangRef!('vi'))
+      expect(assign).not.toHaveBeenCalled()
+      expect(reload).not.toHaveBeenCalled()
+      expect(shown()).toBe('vi')
+    } finally {
+      vi.unstubAllEnvs()
+      Reflect.deleteProperty(document, 'cookie')
+    }
+  })
+
+  it('…while on the apex, with the app URL set, the same tap still goes to the twin', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://eno.vn')
+    try {
+      at('/')
+      render(<LanguageProvider initialLang="en"><Probe /></LanguageProvider>)
+      act(() => setLangRef!('vi'))
+      expect(assign).toHaveBeenCalledWith('/vi')
+      expect(reload).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('setLang on `/vi/c/furniture-appliances` goes to the plain category', () => {
     at('/vi/c/furniture-appliances')
     render(<LanguageProvider initialLang="vi" initialViDict={{}}><Probe /></LanguageProvider>)

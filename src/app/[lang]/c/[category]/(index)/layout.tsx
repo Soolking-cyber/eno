@@ -109,7 +109,8 @@ export default async function CategoryIndexLayout({
         {/* ⛔ THE `/vi` PILOT'S SWITCHER LEFT THE FIRST SCREEN (owner, 2026-10-18: products first on a phone). It was
             a row of its own above the breadcrumb. It stays a server-rendered `<a hreflang>` to the twin (crawlers and
             readers without JavaScript keep the link, CS-3 V3b-4), now at the end of the page; on a phone the
-            Account sheet's Language row and the footer's picker switch to the twin as well (setLang → pinnedPair). */}
+            Account sheet's Language row, on a desktop the header's language button (owner, same day), and the footer's
+            picker switch to the twin as well (setLang → pinnedPair). */}
         {piloted && <div className="mt-8 flex justify-end"><LangPilotSwitch path={`/c/${cat.slug}`} params={params} /></div>}
       </main>
       {piloted && <LangSuggestionBanner />}

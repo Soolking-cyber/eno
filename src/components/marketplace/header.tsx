@@ -13,6 +13,8 @@ import { useFavoriteCount } from '@/context/favorites-context'
 import { useSafeBack } from '@/lib/safe-back'
 import { useBackToClose } from '@/lib/back-to-close'
 import { LANG_VARIANTS, variantOfLanguage } from '@/lib/lang-variant'
+import { isBrowseSurface } from '@/lib/browse-surface'
+import { LANGUAGES } from '@/lib/i18n/langs'
 import { hereVariant, localizedHref } from '@/lib/lang-pinned'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { isPostFlowPath } from '@/lib/post-flow-path'
@@ -105,7 +107,7 @@ const HOME_PATHS = new Set(['/', ...LANG_VARIANTS.map((v) => `/${v}`)])
 export { isPostFlowPath }
 
 export function Header() {
-  const { t, tr, lang } = useLanguage()
+  const { t, tr, lang, setLang } = useLanguage()
   // The server variant this page renders in: every explorer-bound link goes to its `/vi` twin on a
   // Vietnamese page, so a search, brand pick or map tap never lands on the English-pinned `/?…`
   // (A1-LANG, field-01). Identity for English and for any target outside the live pilot list.
@@ -588,6 +590,38 @@ export function Header() {
       : lang === 'en'
         ? { overlay: 'peer-placeholder-shown:@min-[4.55em]/q:flex', long: '@min-[8.6em]/q:block', short: '@min-[8.6em]/q:hidden' }
         : { overlay: 'peer-placeholder-shown:@min-[15em]/q:flex', long: 'block', short: 'hidden' }
+
+  /**
+   * The desktop language button's one tap (it opens the actions row, below): the OTHER server-rendered language —
+   * Vietnamese from English, English from Vietnamese, and English from each of the nine machine-translated languages
+   * (back to the source language; the full picker stays in the footer) — named in its own language.
+   * ⚠️ READ FROM `lang` AT RENDER WITH NO HYDRATION GATE, SAFE FOR THE SAME REASON AS `placeholderFit` ABOVE. On the
+   * server AND on the first client render `lang` is the variant the server rendered (LanguageProvider's
+   * `useState(initialLang)`; initialLang is the `[lang]` segment, en | vi), so the label is a function of the variant
+   * and the edge-cached HTML, one copy per variant, names no visitor. A machine-translated reader is served the English
+   * variant, hydrates "Tiếng Việt" like every English reader, and reads "English" once the provider's mount effect has
+   * adopted their stored language — a state update after hydration, not a mismatch. header.lang-switch.test.tsx
+   * hydrates exactly that through the real provider; `hydrated` would add nothing here.
+   */
+  const switchTo = lang === 'en' ? 'vi' : 'en'
+  const switchToName = LANGUAGES.find((l) => l.code === switchTo)!.native
+  /** The language button's latch (its notes, below): idle → switching (a tap) → leaving (a navigation began). */
+  const langSwitch = useRef<'idle' | 'switching' | 'leaving'>('idle')
+  // ⛔ A PAGE BROUGHT BACK FROM THE BACK-FORWARD CACHE IS STILL `leaving` (gate review, 2026-10-18): a pilot-page switch
+  // navigates with location.assign, and Back restores that frozen page with the latch set — a dead button. Its
+  // `pageshow` (persisted) frees it.
+  useEffect(() => {
+    const onShow = (e: PageTransitionEvent) => { if (e.persisted) langSwitch.current = 'idle' }
+    window.addEventListener('pageshow', onShow)
+    return () => window.removeEventListener('pageshow', onShow)
+  }, [])
+  /**
+   * The language button shows on BROWSE pages only (its notes, below). A test that agrees on both sides of the proxy's
+   * rewrite, like post-flow-path.ts: the server may render the internal `/en/c/rentals`, the browser reads the public
+   * `/c/rentals`, so the variant prefix comes off first — and the button is in the SSR HTML exactly where the client
+   * keeps it, with no hydration gate and no jump. (`/vi` alone is the pilot's home twin: it strips to `/`.)
+   */
+  const langButtonHere = isBrowseSurface(pathname?.replace(new RegExp(`^/(?:${LANG_VARIANTS.join('|')})(?=/|$)`), '') || '/')
 
   return (
     <header
@@ -1212,6 +1246,87 @@ export function Header() {
         {/* Actions. The notification bell shows on ALL sizes (top-right, per the
             Chợ Tốt pattern); account + Post are desktop-only (mobile uses the bottom nav). */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          {/* ⛔ THE DESKTOP LANGUAGE BUTTON (owner, 2026-10-18: "go on apply all recommended" — the before/after
+              report's "add a small language button to the desktop header"). The same day the `/vi` pilot's "Tiếng
+              Việt" link left the first screen for the end of home and category pages (lang-pilot-switch.tsx).
+              Vietnamese browsers still get Vietnamese on their own and a phone switches in Account › Language, but a
+              desktop's only switch was then at the end of a long feed. One tap, both ways: "Tiếng Việt" on an English
+              page, "English" on a Vietnamese or machine-translated one (`switchTo`, above).
+              · IT IS `setLang`, the one way to switch (language-context.tsx): the choice is stored (localStorage, the
+                `lang` cookie, the choice cookie), a pilot page on the apex goes to its twin (a shop's own host reloads
+                in place instead — its `/vi` would 308 to the apex and out of the shop: setLang asks `pilotOnHost`),
+                a switch across the en/vi variant reloads where the cookie holds, and machine-translated → English is
+                an in-place swap except on a pinned page (the `/vi` pilot paths, the guides), where every choice reloads.
+              · A BUTTON, NOT A LINK: the header is on every page and only the live pilot paths have a `/vi` address —
+                everywhere else the language is a cookie, so there is no href to give. The crawlable `<a hreflang>` is
+                still the pilot switcher at the end of <main>.
+              · NO aria-label: the visible word is the name (WCAG 2.5.3), marked with its own `lang` (3.1.2) — as
+                lang-pilot-link.tsx.
+              · `hidden pc:flex` — EXACTLY WHERE THERE IS NO ACCOUNT TAB. The tab bar is `pc:hidden` (mobile-nav.tsx) and
+                `pc` is ≥64rem AND a fine pointer (globals.css): phones and touch tablets keep Account › Language, every
+                desktop gets this — never both, never neither. Guests and members alike (a member's rail has a picker
+                too, but only while it is expanded).
+              · FIRST IN THE ROW, between the search pill and the glyphs: "Get the app" keeps both of the owner's
+                placements (right of the bell on a phone, immediately left of Post on a member's desktop — 2026-09-16),
+                the heart, bell and app glyphs stay one group, and Sign in + Post keep the end.
+              · THE SIGN IN LINK'S BOX (h-9 rounded-xl px-2.5, text-sm font-semibold text-body, hover:bg-accent) through
+                ui/button, whose base carries the same press (scale 0.97, 60ms) and a focus ring; `relative tap-48` as
+                there, since a 2-in-1 laptop matches `pc` and takes taps.
+              · TEXT ONLY. `Globe` exists in the generated set, but in the DEFERRED sprite: drawn here it would put
+                glyphs-rest.svg (~188 KB) back on every desktop page (scripts/critical-icons.mjs; this file is in
+                src/lib/critical-glyphs.guard.test.ts). A language's own name says what the control is.
+              · ⚠️ ONE SWITCH PER PAGE, HELD UNTIL THE PAGE GOES (`langSwitch`). setLang sets the state before it
+                reloads, so the label flips under the pointer and a second press chose again: English → Vietnamese →
+                English, the page reloading into the language it started in. A `detail > 1` check stopped only a mouse
+                double-click, and a 3s timer lost to a reload slower than 3s (gate review, 2026-10-18, two rounds) — so
+                a tap latches, a `beforeunload` (the reload or the twin's navigation beginning) holds it while the page
+                goes, and a switch that navigated nowhere (cookies blocked, machine-translated → English: an in-place
+                swap) frees it after 1s, so a deliberate switch back still works. A page Back restores from the
+                back-forward cache frees it (`pageshow`, persisted), and so does a page still alive 10s after its
+                navigation began (cancelled, or stalled past any patience) — never a dead button.
+              · ⛔ BROWSE PAGES ONLY (`langButtonHere`: home, /c/*, a listing, a seller, a storefront, /brands — the
+                pages Explore lights for, src/lib/browse-surface.ts) — where the switch sat before the first-screen
+                pass, and where nothing is half-typed. A switch RELOADS the page: on the post flow, a chat thread (its
+                composer keeps no draft), the dashboard's forms, contact or appeal it would wipe the reader's unsaved
+                input with one tap at the top of the page (gate review, 2026-10-18). Those keep the footer's picker,
+                and a member's rail its own; a phone keeps Account › Language everywhere, as before.
+              · ⚠️ THE WIDTH IT COSTS AT THE NARROWEST DESKTOP (1024px). "Tiếng Việt" / "English" measure 70.4 / 50.4px
+                (HarfBuzz, the shipped Open Runde Bold at 14px), so the button is 90 / 70px plus an 8px gap. A guest's
+                row is then 447px in English and 509px in Vietnamese ("Đăng nhập", "Đăng tin miễn phí"), leaving the
+                search form 449 / 387px and its field slot 307 / 245px — the long placeholder needs 139px. A member
+                (rail, no logo): form 513 / 479px, 345 / 311px while the rail is expanded. A classic Windows scrollbar
+                takes ~15px more. ⚠️ A machine-translated reader loses the PLACEHOLDER text sooner (placeholderFit needs
+                a 240px field for translated copy): a guest at 1024–~1060px with typical Latin translations ("Se
+                connecter", "Publication gratuite"), and a member while the rail is expanded. The field itself still
+                works — magnifier, its accessible name, Enter. */}
+          {langButtonHere && (
+            <Button
+              type="button"
+              variant="bare"
+              size="none"
+              lang={switchTo}
+              onClick={() => {
+                if (langSwitch.current !== 'idle') return
+                langSwitch.current = 'switching'
+                const leaving = () => {
+                langSwitch.current = 'leaving'
+                // Still here 10s on: the navigation was cancelled or has stalled — the button works again.
+                window.setTimeout(() => { if (langSwitch.current === 'leaving') langSwitch.current = 'idle' }, 10_000)
+              }
+                window.addEventListener('beforeunload', leaving, { once: true })
+                setLang(switchTo)
+                // Navigated nowhere within a second (an in-place swap): free the button for a deliberate switch back.
+                window.setTimeout(() => {
+                  window.removeEventListener('beforeunload', leaving)
+                  if (langSwitch.current === 'switching') langSwitch.current = 'idle'
+                }, 1000)
+              }}
+              data-header-lang=""
+              className="relative hidden h-9 rounded-xl px-2.5 text-sm font-semibold text-body tap-48 hover:bg-accent hover:text-accent-foreground pc:flex"
+            >
+              {switchToName}
+            </Button>
+          )}
           {/* Saved + Messages live in the LEFT nav rail (desktop) / bottom nav (mobile) for signed-in
               users — removed from here (owner 2026-07-18) so the top bar doesn't duplicate them. */}
           {/* ⛔ …BUT A DESKTOP GUEST HAD NO WAY TO SAVED BUT THE FOOTER (UX3 NAV-7, nav audit N7): no rail (it is

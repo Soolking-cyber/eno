@@ -21,7 +21,7 @@ import {
   seedViDict,
 } from '@/lib/i18n/mt-client'
 import { LANG_COOKIE, variantOfLanguage } from '@/lib/lang-variant'
-import { pinnedPair, pinnedVariant } from '@/lib/lang-pinned'
+import { pilotOnHost, pinnedPair, pinnedVariant } from '@/lib/lang-pinned'
 
 // Re-exported so the many existing importers of the roster keep working
 // (the canonical definition now lives in the isomorphic @/lib/i18n/langs).
@@ -502,7 +502,19 @@ function LanguageProviderInner({
      * ⚠️ THE QUERY STRING GOES ALONG to the pair (a campaign tag, say); the hash does not, because section
      * ids are written in each article's own language and do not match across the pair.
      */
-    if (typeof window !== 'undefined' && pinnedHere(serverVariant)) {
+    /**
+     * ⛔ PINNED ONLY WHERE THE HOST HAS THE PILOT (gate review, 2026-10-18 — the desktop header's language button made
+     * this one tap). On a shop's own host (`<shop>.eno.vn`) the path `/` is the SHOP, yet it is a pilot path, so this
+     * branch took it for pinned and `pinnedPair('/')` said `/vi` — which the proxy answers there with a 308 to the
+     * apex (proxy.vi-pilot.test.ts): "Tiếng Việt" on a shop's home page sent the reader out of the shop to eno.vn/vi.
+     * The proxy pins NOTHING on a shop's host, so there the page is an ordinary one and takes the path below — the
+     * choice shows at once, and reloads where the cookie holds (the proxy then serves the shop in Vietnamese); with
+     * cookies blocked it stays the in-place swap (a first fix skipped only the twin, which left that reader with a
+     * dead tap: no twin, no reload, no swap — codex, the same day). `pilotOnHost` is the click-time host test
+     * lang-pinned.ts keeps for exactly this (hereVariant uses it); the mount's `pinnedHere` stays host-blind, as noted
+     * there.
+     */
+    if (typeof window !== 'undefined' && pinnedHere(serverVariant) && pilotOnHost(window.location.hostname, process.env.NEXT_PUBLIC_APP_URL)) {
       const pair = variantOfLanguage(newLang) !== serverVariant ? pinnedPair(window.location.pathname) : null
       if (pair) { window.location.assign(pair + window.location.search); return }
       if (cookieHeld) { window.location.reload(); return }

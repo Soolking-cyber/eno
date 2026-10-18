@@ -267,6 +267,13 @@ and no glow on the field. Everything that sticks under it offsets by `3.5rem` + 
 (the explorer's filter strip, the dashboard's SectionHeader, the desktop map's `--map-top`); the phone
 search panel hangs from its measured bottom, falling back to `3.25rem`. Move them with it.
 
+**The desktop header carries a language button** (owner, 2026-10-18): first in its actions row, one tap —
+"Tiếng Việt" on an English page, "English" on a Vietnamese or machine-translated one (back to the source; the full
+picker stays in the footer) — `hidden pc:flex`, exactly where the tab bar's Account › Language is not, and on BROWSE
+pages only (home, /c/*, a listing, a seller, a storefront, /brands): a switch reloads the page, so it never sits above
+a form, a chat composer or the post flow. The `/vi` pilot's "Tiếng Việt" link left the first screen for the end of
+`<main>` the same day.
+
 ## 5. Primitives — reuse, don't re-roll
 
 All in `src/components/ui/` unless noted. Hand-rolling one of these in a page

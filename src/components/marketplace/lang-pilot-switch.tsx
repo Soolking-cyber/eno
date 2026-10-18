@@ -8,6 +8,10 @@ import { LangPilotLink } from './lang-pilot-link'
  * and readers without JavaScript have the link; its label is the target language's own name
  * (`LANGUAGES.native`: "Tiếng Việt" / "English") with that `lang`, which is also its accessible name
  * (WCAG 3.1.2), so it carries no aria-label.
+ * ⚠️ NOT THE ONLY WAY ACROSS, AND OFF THE FIRST SCREEN (owner, 2026-10-18). It sits at the end of `<main>`; the desktop
+ * header's language button (header.tsx), the phone's Account › Language and the footer's picker all call `setLang`,
+ * which on a pilot page goes to this same twin (pinnedPair). This is the one a crawler, or a reader without
+ * JavaScript, can follow.
  *
  * ⛔ BUILT FROM THE PAGE'S OWN KNOWN PATH, NEVER `usePathname`, and RENDERED ONLY FOR A LIVE PILOT PATH:
  * `(index)/layout.tsx` wraps every category, and a "Tiếng Việt" link from /c/rentals would open a 404
