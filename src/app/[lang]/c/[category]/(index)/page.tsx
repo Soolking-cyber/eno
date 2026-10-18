@@ -11,7 +11,7 @@ import { byAreaChips, categoryMetadata, crumbNames, linkedTier, pageLang, rental
 import { CategoryGuides, OtherRentalsLink, PlaceName, RentalsDistricts } from '../category-text'
 import { CategoryFiltersLink } from '../category-filters-link'
 import { JobCityChips } from '../job-city-chips'
-import { TeacherProfileLink, TeachingJobsLink } from '../teaching-links'
+import { TeacherProfileLink, TeachGuideLink, TeachingJobsLink } from '../teaching-links'
 import { OfferServiceLink } from '../services-links'
 import { categoryEntryLabel } from '@/lib/category-entry-label'
 import { leadFirst } from '@/lib/category-lead'
@@ -326,6 +326,9 @@ export default async function CategoryPage({ params }: Props) {
           jobs at the profile form — one line each, above the grid or the empty state (teaching-links.tsx). */}
       {isTeachers && <TeachingJobsLink count={teachingJobs} href={teachingJobsHref} />}
       {cat.slug === TEACHING_JOBS.category && <TeacherProfileLink href={teacherJoinHref} />}
+      {/* …and both point at the teacher library's hub (teacher visibility plan, 2026-10-18). Marketplace only: eno.forum
+          308s the library to eno.vn. */}
+      {!IS_SERVICES && (isTeachers || cat.slug === TEACHING_JOBS.category) && <TeachGuideLink />}
       {/* Owner, 2026-10-14: a provider's way in — "Post your service", Services already picked. */}
       {cat.slug === 'services' && <OfferServiceLink href={postHereHref} />}
 

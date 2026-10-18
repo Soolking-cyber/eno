@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { pageShare } from '@/lib/site-identity'
-import { SITE_NAME } from '@/lib/edition'
+import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
+import { TEACH_HUB_PATH } from '@/lib/teach-guides/hub-path'
 import { Bilingual } from '@/components/marketplace/bilingual'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
@@ -61,6 +62,12 @@ export default async function SchoolsPage({ params }: { params: Promise<{ lang: 
             <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
               <a href="#how-it-works" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="How the ranking works" vi="Cách xếp hạng hoạt động" /></a>
               <Link href="/c/jobs" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Browse all jobs" vi="Xem mọi việc làm" /></Link>
+              {/* The teacher library's hub (teacher visibility plan, 2026-10-18 — src/lib/teach-guides/site-links.ts): the
+                  page teachers reach to vet a school linked nothing in it. English-only guides, so `hrefLang` and the
+                  Vietnamese label says so. Marketplace only: eno.forum 308s the library to eno.vn. */}
+              {!IS_SERVICES && (
+                <Link href={TEACH_HUB_PATH} hrefLang="en" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Guide to teaching in Vietnam" vi="Cẩm nang dạy học ở Việt Nam (tiếng Anh)" /></Link>
+              )}
               <Link href="/schools/suggest" className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Missing a school? Suggest it" vi="Thiếu trường? Đề xuất ngay" /></Link>
               <Link href={AWARDS_PATH} className="font-semibold text-accent-foreground hover:underline"><Bilingual en="Teachers' Choice {y}" vi="Giáo viên bình chọn {y}" values={{ y: String(currentAwardYear()) }} /></Link>
             </p>

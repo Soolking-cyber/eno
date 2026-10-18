@@ -1,5 +1,6 @@
-import { SITE_NAME } from '@/lib/edition'
+import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { teachGuideLinks } from '@/lib/teach-guides/site-links'
 import { pageShare } from '@/lib/site-identity'
 import Link from 'next/link'
 import { DISTRICTS } from '@/components/marketplace/listings-explorer.constants'
@@ -130,10 +131,17 @@ const CONTENT: SeoContent = {
   ],
 }
 
+/**
+ * …and, after them, the two teacher guides built on the same rent data (teacher visibility plan, 2026-10-18 — the
+ * library's measurement is in src/lib/teach-guides/site-links.ts). Per render from the teach registry, so an unreleased
+ * guide drops out rather than linking a 404. Marketplace only: eno.forum 308s the library to eno.vn.
+ */
+const TEACH_RELATED = ['where-to-live-in-ho-chi-minh-city-as-a-teacher', 'cost-of-living-in-ho-chi-minh-city-for-teachers']
+
 export default function Page() {
   return (
     <SeoLanding
-      content={CONTENT}
+      content={IS_SERVICES ? CONTENT : { ...CONTENT, related: [...(CONTENT.related ?? []), ...teachGuideLinks(TEACH_RELATED)] }}
       lede={
         // ⛔ THE ONE SENTENCE ON THIS PAGE THAT STATES A NUMBER, AND IT IS COMPUTED. "Every one of them
         // in Ho Chi Minh City" renders only while every live rental IS there; the first Hanoi flat

@@ -7,7 +7,7 @@ import { cleanup } from '@testing-library/react'
 import { renderToString } from 'react-dom/server'
 import { LanguageProvider } from '@/context/language-context'
 import { localizedHref, VI_PREFIX_PATHS } from '@/lib/lang-pinned'
-import { TeacherProfileLink, TeachingJobsLink } from './teaching-links'
+import { TeacherProfileLink, TeachGuideLink, TeachingJobsLink } from './teaching-links'
 
 // category-data.ts reads the database; the count's predicate is what is asserted, so the reads are captured.
 const h = vi.hoisted(() => ({ countArgs: [] as unknown[], scopeArgs: [] as unknown[][] }))
@@ -106,5 +106,34 @@ describe('/c/[category] wires both links through localizedHref, each on its own 
   it('the jobs line is on /c/teachers, the profile line on /c/jobs', () => {
     expect(page).toMatch(/\{isTeachers && <TeachingJobsLink count=\{teachingJobs\} href=\{teachingJobsHref\} \/>\}/)
     expect(page).toMatch(/\{cat\.slug === TEACHING_JOBS\.category && <TeacherProfileLink href=\{teacherJoinHref\} \/>\}/)
+  })
+
+  it('the guide line is on both teaching pages, and only on the marketplace', () => {
+    expect(page).toMatch(/\{!IS_SERVICES && \(isTeachers \|\| cat\.slug === TEACHING_JOBS\.category\) && <TeachGuideLink \/>\}/)
+  })
+
+  // guidesForCategory itself is edition-blind (its tests run as eno.forum); the PAGE keeps the Guides block — the teach
+  // library's links among them — off eno.forum, where the library is a 308 to eno.vn.
+  it('the Guides block, teach links included, is computed only on the marketplace', () => {
+    expect(page).toMatch(/const guides = total > 0 && !IS_SERVICES \? guidesForCategory\(/)
+  })
+})
+
+/**
+ * ⛔ THE TEACHER LIBRARY, ONE LINE UNDER /c/teachers' AND /c/jobs' LEDE (teacher visibility plan, 2026-10-18): neither page
+ * linked the hub. The guides are English-only — the Vietnamese line says so, and the link declares the target's language.
+ */
+describe('<TeachGuideLink> — on /c/teachers and /c/jobs', () => {
+  it('points at the hub, in each language', async () => {
+    const { TEACH_BASE } = await import('@/lib/teach-guides/registry')
+    expect(text('en', <TeachGuideLink />)).toBe('New to teaching in Vietnam? Start with the guide')
+    expect(text('vi', <TeachGuideLink />)).toBe('Mới dạy học ở Việt Nam? Đọc cẩm nang (tiếng Anh)')
+    for (const lang of ['en', 'vi'] as const) {
+      const a = anchor(lang, <TeachGuideLink />)
+      expect(a?.getAttribute('href')).toBe(TEACH_BASE)
+      expect(a?.getAttribute('hreflang')).toBe('en')
+      // `lang` would describe the link TEXT, which is Vietnamese on a Vietnamese page.
+      expect(a?.hasAttribute('lang')).toBe(false)
+    }
   })
 })

@@ -137,4 +137,40 @@ describe('TeacherShelf', () => {
       expect(within(root).getByRole('link', { name: /Tạo hồ sơ giáo viên/ }).closest('p')!.textContent).toMatch(/^Muốn trường học tìm đến bạn\?/)
     })
   })
+
+  /**
+   * ⛔ THE TEACHER LIBRARY'S HUB (teacher visibility plan, 2026-10-18): the home page linked nothing in it. The edition is a
+   * module-level constant and vitest runs as eno.forum, so the marketplace render re-imports the shelf with the edition set.
+   */
+  describe('the guide line', () => {
+    const marketplaceShelf = async () => {
+      vi.resetModules()
+      vi.stubEnv('NEXT_PUBLIC_ENO_EDITION', 'marketplace')
+      const { TeacherShelf: Shelf } = await import('./teacher-shelf')
+      return (props: Partial<React.ComponentProps<typeof TeacherShelf>> = {}) =>
+        render(<Shelf listings={teachers(3)} onOpen={vi.fn()} teacherProfile={false} teacherDraft={false} {...props} />)
+    }
+
+    it('on eno.vn: links the hub in every door state, with the target declared English', async () => {
+      const draw = await marketplaceShelf()
+      for (const state of [{}, { teacherDraft: true }, { teacherProfile: true }]) {
+        const { container } = draw(state)
+        const a = container.querySelector('a[data-cross-link="home-teach-guide"]')!
+        expect(a.getAttribute('href')).toBe('/teach-in-vietnam')
+        expect(a.getAttribute('hreflang')).toBe('en')
+        expect(a.closest('p')!.textContent).toMatch(/^New to teaching in Vietnam\? Start with the guide/)
+        cleanup()
+      }
+    })
+
+    it('in Vietnamese the line says the guide is in English', async () => {
+      h.lang = 'vi'
+      const { container } = (await marketplaceShelf())()
+      expect(container.querySelector('a[data-cross-link="home-teach-guide"]')!.closest('p')!.textContent).toMatch(/^Mới dạy học ở Việt Nam\? Đọc cẩm nang \(tiếng Anh\)/)
+    })
+
+    it('not on eno.forum, which 308s the library to eno.vn', () => {
+      expect(shelf().root()!.querySelector('a[href^="/teach-in-vietnam"]')).toBeNull()
+    })
+  })
 })

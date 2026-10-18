@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { CATEGORY_GUIDE_LIMIT, guidesForCategory } from './category-guides'
 import { MARKETPLACE_GUIDES } from './expat-guides'
 import { PHONE_GUIDES } from './phone-guides'
+import { TEACH_BASE, guideEntry, isLiveTeachHref, teachPath } from './teach-guides/registry'
 
 const slugs = (category: string, lang: 'en' | 'vi') => guidesForCategory(category, lang).map((g) => g.href.slice(1))
 
@@ -49,9 +50,69 @@ describe('guidesForCategory', () => {
   })
 
   it('returns nothing for a category no guide is written for', () => {
-    expect(guidesForCategory('jobs', 'en')).toEqual([])
+    expect(guidesForCategory('vehicles', 'en')).toEqual([])
     expect(guidesForCategory('property', 'vi')).toEqual([])
     expect(guidesForCategory('rentals', 'en', 0)).toEqual([])
+  })
+
+  /**
+   * ⛔ THE TEACH-IN-VIETNAM LIBRARY ON /c/jobs AND /c/teachers (teacher visibility plan, 2026-10-18): neither linked it.
+   * The guides for that page's question — never the hub, which the line under the lede links (TeachGuideLink) — English
+   * on both renders (the library is English-only).
+   */
+  describe('the teacher library on the two teaching categories', () => {
+    const LIVE = new Date('2026-10-18T05:00:00Z')
+    const hrefs = (category: string, lang: 'en' | 'vi', now = LIVE) => guidesForCategory(category, lang, CATEGORY_GUIDE_LIMIT, now).map((g) => g.href)
+
+    it('/c/jobs: finding a job, the requirements, the salary and the work-permit guide', () => {
+      expect(hrefs('jobs', 'en')).toEqual([
+        teachPath('finding-a-teaching-job-in-vietnam'),
+        teachPath('requirements-to-teach-english-in-vietnam'),
+        teachPath('english-teacher-salary-in-vietnam'),
+        teachPath('vietnam-work-permit-for-english-teachers'),
+      ])
+    })
+
+    it('/c/teachers: cover lessons, the CV guide, international schools and private tutoring', () => {
+      expect(hrefs('teachers', 'en')).toEqual([
+        teachPath('cover-lessons-and-substitute-teaching-in-ho-chi-minh-city'),
+        teachPath('english-teacher-cv-and-demo-lesson-in-vietnam'),
+        teachPath('international-school-jobs-in-vietnam'),
+        teachPath('private-tutoring-and-online-teaching-in-vietnam'),
+      ])
+    })
+
+    it('never the hub — the line under the lede already links it', () => {
+      for (const category of ['jobs', 'teachers']) expect(hrefs(category, 'en')).not.toContain(TEACH_BASE)
+    })
+
+    it('a Vietnamese page gets the same English guides, marked English', () => {
+      for (const category of ['jobs', 'teachers']) {
+        expect(hrefs(category, 'vi')).toEqual(hrefs(category, 'en'))
+        expect(guidesForCategory(category, 'vi', CATEGORY_GUIDE_LIMIT, LIVE).every((g) => g.lang === 'en')).toBe(true)
+      }
+    })
+
+    it('each guide carries its registry label and blurb', () => {
+      for (const category of ['jobs', 'teachers']) {
+        for (const g of guidesForCategory(category, 'en', CATEGORY_GUIDE_LIMIT, LIVE)) {
+          const entry = guideEntry(g.href.slice(TEACH_BASE.length + 1))!
+          expect([g.label, g.blurb]).toEqual([entry.label, entry.blurb])
+        }
+      }
+    })
+
+    it('links nothing before the library is released', () => {
+      expect(hrefs('jobs', 'en', new Date('2026-10-01T05:00:00Z'))).toEqual([])
+      expect(hrefs('teachers', 'vi', new Date('2026-10-01T05:00:00Z'))).toEqual([])
+    })
+
+    it('every link is a released guide with content, on the guide route', () => {
+      expect(existsSync('src/app/[lang]/teach-in-vietnam/[slug]/page.tsx')).toBe(true)
+      for (const category of ['jobs', 'teachers']) {
+        for (const href of hrefs(category, 'en')) expect(isLiveTeachHref(href, LIVE), href).toBe(true)
+      }
+    })
   })
 
   it('carries the guide\'s own label and blurb — link text in the guide\'s language', () => {

@@ -1,4 +1,5 @@
 import { TEACH_CONTENT } from './content.generated'
+import { TEACH_HUB_PATH } from './hub-path'
 
 /**
  * THE TEACH-IN-VIETNAM LIBRARY — one registry for the hub, the route, the sitemap and "Keep reading".
@@ -60,7 +61,7 @@ export type TeachGuideEntry = {
   cornerstone?: boolean
 }
 
-export const TEACH_BASE = '/teach-in-vietnam'
+export const TEACH_BASE = TEACH_HUB_PATH
 
 export const TEACH_CLUSTERS: readonly { id: TeachCluster; title: string; lede: string }[] = [
   { id: 'decide', title: 'Decide', lede: 'Whether teaching in Vietnam suits you, and where.' },

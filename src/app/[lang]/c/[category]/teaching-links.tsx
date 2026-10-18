@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { ArrowRight } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
+import { TEACH_HUB_PATH } from '@/lib/teach-guides/hub-path'
 import { formatCountFull } from './category-copy'
 
 /**
@@ -32,6 +33,25 @@ export function TeachingJobsLink({ count, href }: { count: number; href: string 
       {tr('Looking for a teaching job?', 'Tìm việc dạy học?')}{' '}
       <Link href={href} rel="nofollow" prefetch={false} data-cross-link="teaching-jobs" className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
         {tr('Jobs › Teaching', 'Việc làm › Giảng dạy')} ({formatCountFull(count, lang)}) <ArrowRight className="h-4 w-4 shrink-0" />
+      </Link>
+    </p>
+  )
+}
+
+/**
+ * ⛔ THE TEACHER LIBRARY, ONE LINE UNDER A TEACHING PAGE'S LEDE (teacher visibility plan, 2026-10-18). /c/teachers and
+ * /c/jobs are where teachers arrive, and neither linked the hub — the library was reachable only from the sitemap and
+ * its own guides (src/lib/teach-guides/site-links.ts has the measurement).
+ * ⚠️ THE GUIDES ARE ENGLISH-ONLY, so the Vietnamese line says so in its own words and the link declares `hrefLang="en"`
+ * (never `lang="en"`: that attribute describes the link TEXT, which is Vietnamese on a Vietnamese page).
+ */
+export function TeachGuideLink({ className }: { className?: string }) {
+  const { tr } = useLanguage()
+  return (
+    <p className={cn('mt-3 max-w-prose text-sm text-body', className)}>
+      {tr('New to teaching in Vietnam?', 'Mới dạy học ở Việt Nam?')}{' '}
+      <Link href={TEACH_HUB_PATH} hrefLang="en" data-cross-link="teach-guide" className="inline-flex items-center gap-1 font-semibold text-accent-foreground hover:underline">
+        {tr('Start with the guide', 'Đọc cẩm nang (tiếng Anh)')} <ArrowRight className="h-4 w-4 shrink-0" />
       </Link>
     </p>
   )

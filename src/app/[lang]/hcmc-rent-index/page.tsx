@@ -6,6 +6,8 @@ import { notFound } from 'next/navigation'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { moneyLocale } from '@/lib/vnd'
 import { Tr } from '@/context/language-context'
+import { Bilingual } from '@/components/marketplace/bilingual'
+import { teachGuideLinks } from '@/lib/teach-guides/site-links'
 import { VI_OVERRIDES } from '@/generated/vi-overrides'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
@@ -148,6 +150,7 @@ export default async function HcmcRentIndexPage({ params }: { params: Promise<{ 
   if (IS_SERVICES) notFound()
   const { lang } = await params
   const locale = moneyLocale(lang)
+  const teachGuides = teachGuideLinks(['where-to-live-in-ho-chi-minh-city-as-a-teacher', 'cost-of-living-in-ho-chi-minh-city-for-teachers'])
   const lookup = await loadRentIndex()
   const index = lookup.known ? lookup.index : null
   /**
@@ -249,6 +252,22 @@ export default async function HcmcRentIndexPage({ params }: { params: Promise<{ 
             <Tr text="Housing and apartment rentals for expats in Vietnam" />
           </Link>
         </p>
+        {/* The two teacher guides built on this index (teacher visibility plan, 2026-10-18 — measurement in
+            src/lib/teach-guides/site-links.ts): it is the page most cited for HCMC rent, and it linked neither. English
+            guides, so the link text is the guide's own English label, marked `lang` on a Vietnamese page. */}
+        {teachGuides.length > 0 && (
+          <p className="mt-3 max-w-3xl text-sm text-body">
+            <Bilingual en="Teaching in Ho Chi Minh City?" vi="Dạy học ở TP.HCM?" />{' '}
+            {teachGuides.map((g, i) => (
+              <span key={g.href}>
+                {i > 0 && ' · '}
+                <Link href={g.href} hrefLang="en" lang={lang === 'en' ? undefined : 'en'} className="font-semibold text-accent-foreground hover:underline">
+                  {g.label}
+                </Link>
+              </span>
+            ))}
+          </p>
+        )}
       </main>
       <Footer />
     </div>

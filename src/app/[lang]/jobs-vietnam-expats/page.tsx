@@ -1,8 +1,11 @@
-import { SITE_NAME } from '@/lib/edition'
+import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { pageShare } from '@/lib/site-identity'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { seoLandingRobots } from '@/components/marketplace/seo-landing-robots'
+import { teachLinks } from '@/lib/teach-guides/site-links'
+import { localizedHref } from '@/lib/lang-pinned'
+import { TeacherProfileLink } from '../c/[category]/teaching-links'
 import { LANDING_TARGET } from './landing-target'
 
 // 1h, not 7d. The copy IS static, but the page also renders a LIVE 8-listing rail and an
@@ -71,8 +74,32 @@ const CONTENT: SeoContent = {
   ],
 }
 
-export default function Page() {
-  return <SeoLanding content={CONTENT} />
+/**
+ * ⛔ THE TEACHING GUIDES, FROM THE PAGE BUILT FOR PEOPLE LOOKING FOR TEACHING WORK (teacher visibility plan, 2026-10-18).
+ * Every job here is a teaching job (measured that day: 38 of 38), yet the page linked no guide — the library's
+ * measurement is in src/lib/teach-guides/site-links.ts. Built per render from the teach registry, so an unreleased or
+ * withdrawn guide drops out instead of linking a 404. Marketplace only: eno.forum 308s the library to eno.vn.
+ */
+const TEACH_RELATED = [
+  'finding-a-teaching-job-in-vietnam',
+  'requirements-to-teach-english-in-vietnam',
+  'vietnam-work-permit-for-english-teachers',
+  'english-teacher-salary-in-vietnam',
+  'teaching-job-scams-in-vietnam',
+]
+
+export default async function Page({ params }: { params: Promise<{ lang: string }> }) {
+  const { lang } = await params
+  return (
+    <SeoLanding
+      // Added to whatever `related` the content carries (none today), never replacing it.
+      content={IS_SERVICES ? CONTENT : { ...CONTENT, related: [...(CONTENT.related ?? []), ...teachLinks(TEACH_RELATED)] }}
+      // The profile prompt /c/jobs carries (teaching-links.tsx), with the href built the way /c/jobs builds it: this was
+      // the one jobs page without it, and a teacher reading jobs may rather be found. Both editions, like /c/jobs' — the
+      // profile form exists on both.
+      lede={<TeacherProfileLink href={localizedHref('/teachers/join', lang)} className="mt-4" />}
+    />
+  )
 }
 
 /**

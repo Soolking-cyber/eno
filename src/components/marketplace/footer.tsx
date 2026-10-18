@@ -26,6 +26,7 @@ import { SOCIALS, formatFollowers, type Social } from '@/lib/socials'
 import { SERVICES_FOOTER_LINKS } from '@/lib/edition-services-copy'
 import { IS_MARKETPLACE, IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { POSTING_IS_FREE } from '@/lib/site-identity'
+import { TEACH_HUB_PATH } from '@/lib/teach-guides/hub-path'
 
 /**
  * One footer entry.
@@ -43,6 +44,8 @@ type FooterLink = {
   rel?: string
   /** eno.forum links only — routes the click through goToForum(): a plain same-tab hop that leaves the apps for the system browser. */
   forumPath?: string
+  /** The target page's language where it is not the reader's choice — the English-only teacher library. */
+  hrefLang?: string
 }
 
 // ── Social brand marks — the mono single-path pattern ─────────────────────────────
@@ -255,6 +258,13 @@ function FooterBody() {
         { label: tr('Jobs in Vietnam for expats', 'Việc làm cho người nước ngoài'), href: '/jobs-vietnam-expats' },
         // The teacher-ranked school directory (2026-10-04). Marketplace only, for the duplicate reason above.
         ...(IS_SERVICES ? [] : [{ label: tr('Saigon schools ranked by teachers', 'Trường ở Sài Gòn do giáo viên xếp hạng'), href: '/schools' }]),
+        /* ⛔ THE TEACHER LIBRARY'S HUB HAD NO LINK FROM ANY PAGE OUTSIDE ITS OWN GUIDES (teacher visibility plan,
+           2026-10-18 — src/lib/teach-guides/site-links.ts has the measurement). English-only, so both renders link the
+           same page — and, as on every other surface linking the library, the Vietnamese label says so and the link
+           declares `hrefLang`. Marketplace only: eno.forum 308s the library to eno.vn, so there it would be a redirect.
+           The path comes from the import-free hub-path module, never the registry: the registry imports all 41 guides'
+           content, and this component ships on every page (footer.test.tsx). */
+        ...(IS_SERVICES ? [] : [{ label: tr('Teach English in Vietnam', 'Dạy tiếng Anh tại Việt Nam (tiếng Anh)'), href: TEACH_HUB_PATH, hrefLang: 'en' }]),
         { label: tr('Moving sales in Vietnam', 'Thanh lý chuyển nhà tại Việt Nam'), href: '/moving-sales-vietnam' },
         { label: tr('Wholesale green coffee', 'Cà phê nhân xanh bán sỉ'), href: '/wholesale-green-coffee-vietnam' },
         ...(IS_SERVICES
@@ -639,6 +649,7 @@ function FooterBody() {
                         <a
                           href={link.href}
                           rel={link.rel}
+                          hrefLang={link.hrefLang}
                           onClick={link.forumPath
                             ? (e) => {
                                 if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return

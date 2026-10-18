@@ -92,6 +92,11 @@ describe('Footer links', () => {
       // The teacher-ranked school directory (2026-10-04).
       expect(hrefs).toContain('/schools')
       expect(container.textContent).toContain(lang === 'vi' ? 'Trường ở Sài Gòn do giáo viên xếp hạng' : 'Saigon schools ranked by teachers')
+      // The teacher library's hub, linked from nowhere outside its own guides until 2026-10-18 (teacher visibility plan).
+      // English-only: the Vietnamese label says so, and the link declares the target's language.
+      const hub = container.querySelector('a[href="/teach-in-vietnam"]')
+      expect(hub?.textContent).toBe(lang === 'vi' ? 'Dạy tiếng Anh tại Việt Nam (tiếng Anh)' : 'Teach English in Vietnam')
+      expect(hub?.getAttribute('hreflang')).toBe('en')
     })
 
     // ⚠️ Not on eno.forum: there they would promote eno.forum's duplicate copies of eno.vn's pages
@@ -102,6 +107,8 @@ describe('Footer links', () => {
       for (const href of ['/renting-an-apartment-vietnam-foreigner', '/buying-a-used-iphone-vietnam', '/kinh-nghiem-mua-iphone-cu', '/schools']) {
         expect(hrefs).not.toContain(href)
       }
+      // eno.forum 308s the teacher library to eno.vn (next.config.ts): a footer link there would be a redirect.
+      expect(hrefs.filter((h) => h.startsWith('/teach-in-vietnam'))).toEqual([])
     })
 
     // ⛔ Harder than the copies above: /hcmc-rent-index is notFound() on eno.forum, so this would be a 404.
@@ -271,5 +278,15 @@ describe('Footer links', () => {
       expect(group?.textContent).toContain('₫')
       cleanup()
     }
+  })
+
+  // The hub's path comes from an import-free module: importing the teach registry instead would pull all 41 guides'
+  // content (1.4 MB of JSON) into a component that ships on every page. site-links.test.ts scans every client module.
+  it('links the teacher hub through the import-free hub-path module', async () => {
+    const { TEACH_BASE } = await import('@/lib/teach-guides/registry')
+    const { TEACH_HUB_PATH } = await import('@/lib/teach-guides/hub-path')
+    expect(TEACH_HUB_PATH).toBe(TEACH_BASE)
+    expect(readFileSync(join(__dirname, '../../lib/teach-guides/hub-path.ts'), 'utf8')).not.toMatch(/^\s*import\b/m)
+    expect(readFileSync(join(__dirname, 'footer.tsx'), 'utf8')).toMatch(/import \{ TEACH_HUB_PATH \} from '@\/lib\/teach-guides\/hub-path'/)
   })
 })

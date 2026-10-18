@@ -9,6 +9,8 @@ import { CATEGORY_ENTRY_LABELS } from '@/lib/category-entry-label'
 import { localizedHref } from '@/lib/lang-pinned'
 import { teacherJoinUrl } from '@/lib/teachers/host'
 import { keepTeacherJoinInApp } from '@/components/teachers/teacher-join-click'
+import { TEACH_HUB_PATH } from '@/lib/teach-guides/hub-path'
+import { IS_SERVICES } from '@/lib/edition'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { MIN_RAIL_ITEMS, RAIL_CARD_W, Shelf } from './shelf'
@@ -38,6 +40,11 @@ const DOOR_LINK = 'relative tap-44 inline-flex items-center gap-1 font-semibold 
  * swap happens after hydration, a page below the fold.
  * ⚠️ NO NEW COPY: the title is the category's entry label ("Find a teacher" — category-entry-label.ts), the door lines are
  * the plate's and /c/jobs' own. No counts, and no "free" (POSTING_IS_FREE governs that word).
+ * ⚠️ ONE EXCEPTION, THE OWNER'S (teacher visibility plan, approved 2026-10-18): a second line to the teacher library's hub,
+ * the same words as /c/jobs' and /c/teachers' (teaching-links.tsx `TeachGuideLink`). The home page earned 121 of eno.vn's
+ * 280 Google clicks over three months and linked nothing in the library (src/lib/teach-guides/site-links.ts). A plain
+ * <a> like the doors, `hrefLang` because the guides are English-only; the path comes from the import-free hub-path module,
+ * never the registry — the registry imports every guide's content, and this row is client code.
  */
 export function TeacherShelf({
   listings,
@@ -89,6 +96,15 @@ export function TeacherShelf({
           </>
         )}
       </p>
+      {/* Marketplace only: eno.forum 308s the library to eno.vn, so there this would be a redirect. */}
+      {!IS_SERVICES && (
+        <p className="mt-1 max-w-prose text-sm text-body">
+          {tr('New to teaching in Vietnam?', 'Mới dạy học ở Việt Nam?')}{' '}
+          <a href={TEACH_HUB_PATH} hrefLang="en" data-cross-link="home-teach-guide" className={DOOR_LINK}>
+            {tr('Start with the guide', 'Đọc cẩm nang (tiếng Anh)')} <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
+          </a>
+        </p>
+      )}
     </div>
   )
 }
