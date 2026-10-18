@@ -324,14 +324,68 @@ export type MappedJob = {
 }
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
+/** The English residence phrases (hasVisaWord): words glued or joined by space, hyphen or underscore only. */
+const JOIN = String.raw`[\s_-]*`
+const RESIDENCE_PHRASE = new RegExp(
+  `\\b(temporary|permanent)${JOIN}residen(ce|cy|t(?!ial))|\\btemporary${JOIN}stay|\\bstay${JOIN}permits?\\b|\\bresidents?['’]?${JOIN}(card|permit|status)` +
+    `|\\bresiden(ce|cy)${JOIN}(card|permit|status|sponsor|authori|applic|renew|extens)`,
+)
+/**
+ * Vietnamese, toned (NFC, lower case): thẻ thường trú, or tạm trú as a word of its own unless đăng ký / đăng kí / khai báo
+ * comes right before it (hasVisaWord's comment). ⛔ NO LOOKBEHIND: the browserslist admits Safari 16.0–16.3, where a
+ * `(?<…)` literal is a SyntaxError for the whole chunk (cookie-consent.tsx, gate 2026-10-05) — so each forward match
+ * checks the text before it instead.
+ */
+function hasForeignerStayWord(vi: string): boolean {
+  if (/thẻ[^\p{L}\p{N}]*thường[^\p{L}\p{N}]*trú(?![\p{L}\p{N}])/u.test(vi)) return true
+  for (const m of vi.matchAll(/(^|[^\p{L}\p{N}])tạm[^\p{L}\p{N}]*trú(?![\p{L}\p{N}])/gu)) {
+    if (!/(đăng k[ýí]|khai báo)[^\p{L}\p{N}]*$/u.test(vi.slice(0, (m.index ?? 0) + m[1].length))) return true
+  }
+  return false
+}
 /**
  * ONE visa test for every field — a SUBSTRING test, fail-closed. The text is folded (lower case, no accents) and
  * stripped of everything but a–z/0–9, then any "visa" (visa, e-visa, #VisaSponsorship) or "thithuc" (thị thực,
  * thi-thuc, "thi  thuc") drops it, as do the Korean/Chinese/Japanese/Russian words. ⛔ Word-boundary matching was
  * tried and every review round found a new way past it (2026-09-27). A false match — "revisa", "siêu thị thực
  * phẩm" — only drops a posting, which is the safe direction for a licensed edition that carries no visa wording.
+ * ⛔ …AND RESIDENCE, THE SAME PERMISSION-TO-STAY LINE (2026-10-18: a live title on /c/jobs read "…Work Permit and TRC
+ * Sponsorship — Via English Academy"). Seven review rounds shaped how each kind of word is matched — the lesson is what
+ * FOLDING AND STRIPPING THROW AWAY:
+ *  · English residence PHRASES — temporary/permanent residence/resident/residency, temporary stay, stay permit(s),
+ *    residence/residency + card, permit, status, sponsorship, authorisation, application, renewal, extension, and
+ *    resident(s) + card, permit, status — with the words glued (a hashtag) or joined by space, hyphen or
+ *    underscore, never across other punctuation: "the staff residence. Support with lesson planning" is two sentences.
+ *    Each phrase starts a word ("contemporary residence", "President Card"); no support/assistance/help after residence
+ *    or resident ("Residence Assistant", "Resident Assistant", "Residents Support Officer" are boarding-school jobs);
+ *    "residential" never counts (a residential summer camp); "stay permit" must be its own words ("homestay permitted").
+ *  · TRC is an ACRONYM: "TRC" or "T.R.C" anywhere in the RAW text (#WorkPermitTRCSupport, visa/TRC, WP_TRC), or, in lower
+ *    case, at either edge of a word, or as dotted letters, once punctuation runs are spaces (trc support, #trcsponsorship,
+ *    workpermittrc, t.r.c) — never "TRCN", Nigeria's teacher registration ("TRCN-certified teachers welcome"). Never a bare substring of the stripped text: there "Language Ctr, Cần Thơ", "Nguyen Trai Str,
+ *    Cau Giay" and "Distr. Cầu Giấy" all hold "trc", and real centres' addresses would drop — nor a lone dot ("STR.CAU
+ *    GIAY" holds "TR.C"). ⚠️ Known gap: "trc" glued INSIDE a word in lower or mixed case (#wptrcsupport, #WPTrcSupport)
+ *    passes; no staged or live job spells it so.
+ *  · Vietnamese is matched WITH ITS TONES (NFC): folded, tạm trú is tâm trụ ("trụ sở", head office), thường trú is thưởng
+ *    trừ ("+ thưởng, trừ BHXH", a routine pay line) and thường trực ("on standing duty"). And only the FOREIGNER'S forms:
+ *    tạm trú as a word of its own ("giấy phép lao động và tạm trú"), except after đăng ký (or đăng kí) / khai báo — the police
+ *    registration every resident makes — and thường trú only as thẻ thường trú (the card): a Vietnamese teacher's "hộ
+ *    khẩu thường trú tại TP.HCM" or "cư trú tại Hà Nội" is household registration, not a visa. Separators between the
+ *    syllables are free (tạm-trú, #tạmtrú) and "trú" must end the word (a name like "Thường Trúc" stays). Unaccented,
+ *    only "the tam tru" and "ho tro tam tru" count, with "tru" ending the word.
+ *  · The CJK and Russian words beside "visa": 在留, 居留, 체류, вид на жительство, ВНЖ, РВП.
+ * ⚠️ FAIL-CLOSED, KNOWINGLY, like "revisa": informal Vietnamese "trc" (= trước, "gửi CV trc 30/10") drops a posting
+ * too. Measured 2026-10-18 on every job ever staged (174) and the 38 live ones — 360 distinct titles,
+ * employers, pay lines and descriptions, EN/VI: the new terms match only the TRC posting. "Work permit" stays allowed: it
+ * is a labour document (src/lib/teach-guides/registry.ts header).
  */
-export const hasVisaWord = (raw: string) => /visa|thithuc/.test(fold(raw).replace(/[^a-z0-9]+/g, '')) || /비자|签证|簽證|ビザ|виза/i.test(raw)
+export const hasVisaWord = (raw: string) => {
+  const folded = fold(raw)
+  const spaced = ` ${folded.replace(/[^a-z0-9]+/g, ' ')} `
+  return /visa|thithuc/.test(folded.replace(/[^a-z0-9]+/g, '')) || RESIDENCE_PHRASE.test(folded) ||
+    /TRC(?!N)|T\.R\.C/.test(raw) || / trc(?!n)|trc | t r c |(the|ho ?tro) ?tam ?tru /.test(spaced) ||
+    hasForeignerStayWord(raw.normalize('NFC').toLowerCase()) ||
+    /비자|签证|簽證|ビザ|виза|在留|居留|체류|вид на жительство|ВНЖ|РВП/i.test(raw)
+}
 /** Today's date in Vietnam, YYYY-MM-DD — every apply-by is a Vietnamese calendar day. */
 export const vnToday = (now: number) => new Date(now).toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' })
 const vnDay = (d: Date) => d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' })

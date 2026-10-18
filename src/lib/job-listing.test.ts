@@ -117,6 +117,48 @@ describe('mapStagedJob — refusals', () => {
     expect(map({ title: 'ESL Teacher #VisaSponsorship' })).toEqual({ ok: false, reason: 'visaMention' })
     expect(map({ title: 'Korean Teacher (비자 지원)' })).toEqual({ ok: false, reason: 'visaMention' })
     expect(map({ title: 'ESL teacher, revisa el horario' })).toEqual({ ok: false, reason: 'visaMention' })
+    // The temporary residence card is the same line (2026-10-18: a live title read "…Work Permit and TRC Sponsorship").
+    expect(map({ title: 'English Teacher - Danang - Work Permit and TRC Sponsorship' })).toEqual({ ok: false, reason: 'visaMention' })
+    for (const title of ['ESL Teacher #TRCSponsorship', 'ESL Teacher (work permit + TRCs)', 'ESL Teacher, visa/TRC', 'ESL Teacher, WP_TRC',
+      'ESL Teacher #WorkPermitTRC', 'ESL Teacher #WorkPermitTRCSupport', 'ESL Teacher, T.R.C provided', 'ESL Teacher, work permit and trc support',
+      'ESL teacher #trcsponsorship', 'ESL teacher #workpermittrc', 'ESL teacher, t.r.c support', 
+      'ESL Teacher, residence permit renewal',
+      'ESL Teacher, Temporary Residence Card provided', 'ESL Teacher — WP & Temporary Resident Card provided', 'ESL Teacher, residence-card support',
+      'ESL Teacher, residency permit help', 'ESL Teacher, residency sponsorship',
+      'ESL Teacher, residence authorization', "ESL Teacher, Residents' card", 'ESL Teacher, resident status', 'ESL Teacher, permanent residence support',
+      'ESL Teacher, temporary stay card',
+      'ESL Teacher, stay permit', 'ESL Teacher #ResidentCard', 'Giáo viên tiếng Anh, hỗ trợ thẻ tạm trú', 'Giao vien, ho tro tam tru',
+      'Giáo viên, hỗ trợ tạm trú'.normalize('NFD'), 'Giáo viên, hỗ trợ tạm-trú', 'Giáo viên, thẻ tạm_trú', 'Giáo viên #hotrotamtru', 'Giáo viên, thẻ thường trú',
+      'Giáo viên tiếng Anh – hỗ trợ giấy phép lao động và tạm trú', 'Giáo viên tiếng Anh, GPLĐ, tạm trú', 'English teacher (在留カード)', 'English teacher, 居留许可', 'English teacher, 체류 지원',
+      'Учитель английского, вид на жительство', 'Учитель английского, ВНЖ', 'Учитель английского, РВП']) {
+      expect(map({ title }), title).toEqual({ ok: false, reason: 'visaMention' })
+    }
+    // Fail-closed, knowingly, like "revisa": informal Vietnamese "trc" (trước) drops too.
+    expect(map({ title: 'Tuyển giáo viên, gửi CV trc 30/10' })).toEqual({ ok: false, reason: 'visaMention' })
+    // …in a pay line it drops the LINE, as a visa does; "work permit" alone stays — a labour document.
+    const trcPay = map({ salary: '$20/hour; work permit and TRC support' })
+    expect(trcPay.ok && trcPay.job.attributes.salaryText).toBeUndefined()
+    const permitPay = map({ salary: '$20/hour; work permit support' })
+    expect(permitPay.ok && permitPay.job.attributes.salaryText).toBe('$20/hour; work permit support')
+    // What folding would confuse stays: Vietnamese is matched with its tones ("tâm trực", "Trường Sơn", "thương trường",
+    // "trụ sở" are not tạm/thường trú), and TRC is an upper-case acronym — "Ctr, Cần Thơ", "Str, Cau Giay", "Distr. Cầu
+    // Giấy" and "Smart RC" hold "trc" once stripped and folded.
+    for (const title of ['Giáo viên trung tâm trực tuyến', 'Giáo viên Trung tâm Trường Sơn', 'Giáo viên có kinh nghiệm thương trường',
+      'Giáo viên tiếng Anh — Trung tâm, trụ sở tại Q1', 'Giáo viên có thể thường trực tại trung tâm', 'Giáo viên, hỗ trợ thường trực',
+      'Giao vien co the thuong truc tai trung tam', 'Giáo viên tiếng Anh — cô Thường Trúc', 'ESL teacher, homestay permitted',
+      'Resident Assistant and ESL Teacher (boarding)', 'Residents Support Officer — international school', "ESL teacher, President's Support Office",
+      'Permanent residential teacher (boarding school)', 'Temporary residential summer-camp ESL teacher',
+      'ESL teacher — housing in the staff residence. Support with lesson planning', 'Ưu tiên giáo viên có hộ khẩu thường trú tại TP.HCM',
+      'Giáo viên tiếng Anh cư trú tại Hà Nội', 'English trainer for a Vice President, Card Services', 'Giáo viên có đăng ký tạm trú tại TP.HCM',
+      'ESL tutor for a contemporary residence hall', 'ESL teacher, President Card holders welcome', 'TRCN-certified teachers welcome',
+      'Residence Assistant — boarding ESL', 'Residence Support Officer and ESL tutor', 'Yêu cầu có đăng kí tạm trú tại TP.HCM',
+      'ESL TEACHER, 12 NGUYEN TRAI STR.CAU GIAY', 'ESL teacher — Language Ctr, Cần Thơ', 'ESL teacher, 12 Nguyen Trai Str, Cau Giay',
+      'ESL teacher, Distr. Cầu Giấy', 'ESL teacher — Smart RC club']) {
+      expect(map({ title }).ok, title).toBe(true)
+    }
+    // …and a routine Vietnamese pay line keeps its text: "thưởng, trừ BHXH" (bonus, minus social insurance) is not thường trú.
+    const bonusPay = map({ salary: 'Lương 25.000.000 + thưởng, trừ BHXH' })
+    expect(bonusPay.ok && bonusPay.job.attributes.salaryText).toBe('Lương 25.000.000 + thưởng, trừ BHXH')
     // A fee demand in a dropped pay line still drops the job.
     expect(map({ salary: '15,000,000 VND / month, visa support, training fee required' })).toEqual({ ok: false, reason: 'fee' })
     expect(map({ title: 'Giáo viên tiếng Anh, hỗ trợ thị thực' })).toEqual({ ok: false, reason: 'visaMention' })

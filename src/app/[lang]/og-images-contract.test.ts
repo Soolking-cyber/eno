@@ -67,6 +67,17 @@ describe('page previews are built whole', () => {
     expect(guides.filter((f) => !/\b(pageShare|withShare|modelMeta)\(/.test(f.text)).map((f) => f.path)).toEqual([])
   })
 
+  // ⛔ teacher.eno.vn — what the Facebook-group invites and every guide's "Make a free teacher profile" link — previewed as
+  // the layout's "eno.vn — free classifieds for expats and locals in Vietnam" until 2026-10-18 (measured live that day).
+  it('the teacher sign-up form previews as itself', () => {
+    const join = FILES.find((f) => f.path === 'teachers/join/page.tsx')
+    expect(join?.text).toMatch(/export const metadata: Metadata = withShare\(/)
+    // …and withShare keeps that page's ABSOLUTE canonical — the teacher host — as og:url, beside its own title and card.
+    const m = withShare({ title: 'Teach in Vietnam — create your teacher profile | eno.vn', description: 'Free teacher profile.', alternates: { canonical: 'https://teacher.eno.vn/' } })
+    expect(m.openGraph).toMatchObject({ url: 'https://teacher.eno.vn/', title: 'Teach in Vietnam — create your teacher profile | eno.vn', images: [expect.objectContaining({ url: SHARE_CARD.url })] })
+    expect(m.twitter).toMatchObject({ title: 'Teach in Vietnam — create your teacher profile | eno.vn' })
+  })
+
   it('a page that sets openGraph any other way sets twitter too, or the layout’s title rides along', () => {
     const hits = FILES.filter((f) => /\bopenGraph:/.test(f.text) && !/\btwitter:/.test(f.text)).map((f) => f.path)
     expect(hits).toEqual([])

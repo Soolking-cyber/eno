@@ -20,7 +20,11 @@ import { SITE_NAME } from '@/lib/edition'
  * ⚠️ EVERYTHING ELSE IS BYTE-FOR-BYTE THE PREVIOUS FILE, deliberately — the Disallow list, the
  * AI-crawler groups and their comments all carry reasoning that was expensive to establish (see
  * the note about /messages and /saved carrying meta-noindex, and the `Allow: /api/v1/status`
- * exception). Only the Sitemap line varies.
+ * exception). Only the Sitemap lines vary.
+ *
+ * ⚠️ TWO SITEMAP LINES SINCE 2026-10-18 (teacher visibility plan): the index, and the page sitemap it lists — which holds
+ * the guides, the hub and every landing. Measured in Cloudflare's sampled logs over 7 days: Claude-SearchBot fetched
+ * /sitemap.xml 93 times and /sitemaps/pages.xml never. Google's robots.txt spec allows several Sitemap lines.
  */
 
 const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}`
@@ -129,6 +133,8 @@ Disallow: /
 # ${SITE_ORIGIN}/.well-known/ai-catalog.json is the primary mechanism, it already works, and every
 # ARD client checks it. Do not re-add this for a score.
 Sitemap: ${SITE_ORIGIN}/sitemap.xml
+# The page sitemap is also named directly, for crawlers that read a sitemap index without opening its children.
+Sitemap: ${SITE_ORIGIN}/sitemaps/pages.xml
 `
 
 export const revalidate = 86400

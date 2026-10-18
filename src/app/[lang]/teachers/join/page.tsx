@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
 import { SITE_NAME } from '@/lib/edition'
+import { withShare } from '@/lib/site-identity'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { TeacherForm } from '@/components/teachers/teacher-form'
@@ -20,11 +21,14 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL
 // The teacher sign-up form (owner, 2026-09-30). Served at teacher.eno.vn/ (proxy.ts rewrite) and at
 // eno.vn/teachers/join, which is where the teacher.eno.vn half hands its draft over (URL fragment).
 // ONE canonical — the teacher host — so the two URLs never compete in search.
-export const metadata: Metadata = {
+// ⛔ withShare: its OWN Open Graph + X card (staged 2026-10-12, shipped 2026-10-18 with the teacher visibility plan).
+// Without them every teacher.eno.vn link — the Facebook-group invites, the guides' "Make a free teacher profile", partner
+// kits — previewed as the layout's "eno.vn — free classifieds for expats and locals in Vietnam" (measured live 2026-10-18).
+export const metadata: Metadata = withShare({
   title: `Teach in Vietnam — create your teacher profile | ${SITE_NAME}`,
   description: 'Free teacher profile for English and subject teachers in Vietnam: experience, qualifications and an intro video. Schools and others looking for a teacher can message you; your contact stays private until you share it.',
   alternates: { canonical: teacherOrigin(APP_URL) ? `${teacherOrigin(APP_URL)}/` : '/teachers/join' },
-}
+})
 
 // `?goal=cover` — arrived from the cover-lessons page (/teachers/cover): the work question reads "Also looking for a
 // job? (optional)" and HCMC opens on its districts. Read here, on the server, so the first paint already says it (the

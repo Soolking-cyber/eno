@@ -51,6 +51,8 @@ describe('/robots.txt', () => {
       'Disallow: /',
       '',
       'Sitemap: https://eno.vn/sitemap.xml',
+      // The page sitemap, named directly (2026-10-18): a crawler that reads the index need not open it.
+      'Sitemap: https://eno.vn/sitemaps/pages.xml',
       '',
     ])
   })
@@ -75,6 +77,7 @@ describe('/robots.txt', () => {
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://www.eno.forum')
     const body = await bodyOf()
     expect(body).toContain('Sitemap: https://www.eno.forum/sitemap.xml')
+    expect(body).toContain('Sitemap: https://www.eno.forum/sitemaps/pages.xml')
     expect(body).not.toContain('https://eno.vn')
   })
 })
