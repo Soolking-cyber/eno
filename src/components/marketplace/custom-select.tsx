@@ -1,12 +1,14 @@
 'use client'
 
-import { Fragment, useId, useState } from 'react'
+import { Fragment, Suspense, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Select as SelectPrimitive } from '@base-ui/react/select'
 import { Combobox as ComboboxPrimitive } from '@base-ui/react/combobox'
 import { ChevronsUpDown, ChevronDown, Check, Search } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
+import { retryingLazy, sheetTriggerHandlers, useSheetHistory, useSheetSurface } from '@/components/ui/picker-sheet-kit'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import type { OptionSheetProps } from './custom-select-sheet'
 
 /** Above this many options the picker becomes type-to-filter (owner, 2026-07-22:
  *  "dropdowns with more than 5 options should have type and search"). Five is the point
@@ -38,12 +40,12 @@ export interface SelectOption {
 }
 
 /** A run of consecutive options under one heading (`label` undefined = no heading). */
-type OptionGroup = { label: string | undefined; items: SelectOption[] }
+export type OptionGroup = { label: string | undefined; items: SelectOption[] }
 
 /** The options as consecutive runs of the same `group`, in order — or null when no option has a group (the flat
  *  list every picker has always drawn). The run objects hold the SAME option objects as `options`, so the
  *  Combobox's selected value (found in `options`) is still one of its items by identity. */
-function groupRuns(options: SelectOption[]): OptionGroup[] | null {
+export function groupRuns(options: SelectOption[]): OptionGroup[] | null {
   if (!options.some((o) => o.group)) return null
   const runs: OptionGroup[] = []
   for (const o of options) {
@@ -55,7 +57,7 @@ function groupRuns(options: SelectOption[]): OptionGroup[] | null {
 }
 
 /** A group's heading — the same quiet uppercase label the Filter panel puts over its facets. */
-const GROUP_LABEL = 'px-3 pb-1 pt-2.5 text-2xs font-bold uppercase tracking-wider text-muted-foreground'
+export const GROUP_LABEL = 'px-3 pb-1 pt-2.5 text-2xs font-bold uppercase tracking-wider text-muted-foreground'
 
 /** ⚠️ DIACRITIC- AND CASE-BLIND, BECAUSE NOBODY TYPES THE ACCENTS. Someone looking for "Ngân hàng
  *  TMCP Á Châu" types "ngan hang a chau". NFD splits each letter from its combining mark and the
@@ -65,12 +67,12 @@ const GROUP_LABEL = 'px-3 pb-1 pt-2.5 text-2xs font-bold uppercase tracking-wide
  *  ⚠️ THIS IS ONLY USED WHEN AN OPTION CARRIES A `description` (see the filter below). Base UI's
  *  own filter is already accent-insensitive (`sensitivity: 'base'`); what it cannot do is see a
  *  field it was never given. */
-const fold = (s: string) =>
+export const fold = (s: string) =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase()
 
 /** The row's text. Two lines when the option carries a description, one when it does not — so
  *  every existing call site renders exactly as before. A `count` follows the label as " · n". */
-function OptionLabel({ label, description, count }: { label: string; description?: string; count?: string }) {
+export function OptionLabel({ label, description, count }: { label: string; description?: string; count?: string }) {
   const counted = count != null ? <>{label} · {count}</> : label
   if (!description) return <span className="min-w-0 flex-1 truncate">{counted}</span>
   return (
@@ -87,6 +89,9 @@ interface CustomSelectProps {
   value: string
   onChange: (value: string) => void
   options: SelectOption[]
+  /** The trigger's id, for a visible `<label htmlFor>` elsewhere on the form (it names the field and a tap on it
+   *  opens the picker, like a native select's label). Unset, the trigger gets a generated one. */
+  id?: string
   /** REQUIRED accessible name — WHICH facet this is ("Transmission", "Sort by", …),
    *  bilingual via tr(). Without it the trigger's only name is its current value, so a
    *  screen-reader user hears "All, combobox" with no idea what it filters. It is NOT an
@@ -171,6 +176,9 @@ function itemClassName(isActive: boolean) {
 // portals its panel at z-[100] over a z-[99] scrim and facet-bar's advanced panel at
 // z-[1100] over z-[1099], so a menu opened from inside either one has to clear both or it
 // renders UNDERNEATH the scrim that owns the click. Both variants use this same stack.
+// ⚠️ FROM `sm` UP ONLY (owner, 2026-10-18). On a phone the picker is a bottom sheet (`OptionSheet`) and a
+// select inside the Filter, Area or guest Account sheet is a NESTED drawer, which Base UI stacks above its
+// parent on its own — no z-index of ours is involved there.
 /* ⚠️ NOW PAINTS, VIA THE SHARED SCRIM. These two backdrops existed purely to own a z-layer and
    absorb the dismissing tap; they rendered nothing, so a CustomSelect opened over a page left it
    undimmed while every other overlay scrimmed it. `.overlay-scrim` is the one definition (see
@@ -202,6 +210,12 @@ const POPUP_CARD =
  *  (same width, floored at 176px so a narrow pill's menu stays readable), portaled to
  *  <body> so a scrolling facet row can't clip it. Props-only; no app coupling.
  *
+ *  ⛔ ON A PHONE (below `sm`, useIsPhone) IT OPENS AS A BOTTOM SHEET, the filter card's (owner,
+ *  2026-10-18: "also mobile all dropdowns should be bottom up card style like the filter card"). The
+ *  TRIGGER IS THE SAME ELEMENT at every width and on the server — only what opens differs (see
+ *  `usePickerOpen`) — and the sheet keeps the listbox semantics, the groups, the counts and, past
+ *  SEARCHABLE_FROM, the search (pinned at the top of the sheet): custom-select-sheet.tsx.
+ *
  *  ⚠️ This is BASE UI SELECT under the skin, not a hand-rolled menu — that is the whole
  *  point of the component and must not be unwound. The primitive is what supplies
  *  role="combobox" + aria-expanded/haspopup/controls on the trigger, role="listbox" on the
@@ -230,6 +244,83 @@ export function CustomSelect(props: CustomSelectProps) {
   return searchable ? <SearchableSelect {...props} /> : <PlainSelect {...props} />
 }
 
+/* ── the phone sheet ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The sheet's code arrives on the first phone open — this file is on every page (the footer's language
+ * and currency pickers), and Base UI Drawer has no business in every route's first load. The trigger's
+ * press warms it, so the tap that follows rarely waits.
+ */
+const loadOptionSheet = () => import('./custom-select-sheet')
+let optionSheetLoading: Promise<unknown> | null = null
+function preloadOptionSheet() {
+  LazyOptionSheet.retry() // a failed load gets a fresh try on this tap (picker-sheet-kit `retryingLazy`)
+  optionSheetLoading ??= loadOptionSheet().catch(() => { optionSheetLoading = null })
+}
+/** A failed load (offline) closes the picker instead of throwing into an error boundary; the next tap retries
+ *  (picker-sheet-kit `retryingLazy` — React.lazy alone would keep this fallback for the rest of the page life). */
+function OptionSheetUnavailable({ open, onClose }: OptionSheetProps) {
+  useEffect(() => { if (open) onClose() }, [open, onClose])
+  return null
+}
+const LazyOptionSheet = retryingLazy<OptionSheetProps>(() => loadOptionSheet().then((m) => m.OptionSheet), OptionSheetUnavailable)
+
+/**
+ * ONE OPEN STATE, TWO SURFACES — shared by both variants. `open` is "the picker is open"; `surface` is
+ * WHERE, decided on the render it opens and kept through its close (picker-sheet-kit `useSheetSurface`).
+ *
+ *   · The Base UI root only ever sees `popoverOpen`. On a phone it stays closed, so its popup, scroll lock
+ *     and dismiss logic never run; a request from it to open is ignored (the trigger's click opens the
+ *     sheet — `sheetTriggerHandlers`, which also explains why never the press), and a close it reports
+ *     while the sheet is up is not the sheet's to obey.
+ *   · The trigger is untouched markup at every width. Its `aria-expanded` is the primitive's — `false`
+ *     behind a phone sheet, since Base UI's own popup is closed — so it is set by hand while the sheet is
+ *     up. (Inert behind the modal anyway; the sheet is the named dialog.)
+ *   · A pick commits AFTER the sheet's history entry is popped (`useSheetHistory` afterClose): a language
+ *     change reloads the page, and must never race the sheet's `history.back()`.
+ */
+function usePickerOpen(value: string, onChange: (value: string) => void) {
+  const [open, setOpen] = useState(false)
+  const { isPhone, surface } = useSheetSurface(open)
+  const sheetOpen = open && surface === 'sheet'
+  const [keyboard, setKeyboard] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  // The pick lands a beat later (after the pop): call the newest handler, not the one from the render
+  // the sheet was opened in.
+  const onChangeRef = useRef(onChange)
+  useEffect(() => { onChangeRef.current = onChange })
+  const close = useCallback(() => setOpen(false), [])
+  const { afterClose } = useSheetHistory(sheetOpen, close, 'picker')
+
+  return {
+    open,
+    surface,
+    sheetOpen,
+    popoverOpen: open && surface === 'popover',
+    triggerRef,
+    onRootOpenChange: (next: boolean) => {
+      if (next ? isPhone : surface === 'sheet') return
+      setOpen(next)
+    },
+    triggerProps: isPhone
+      ? {
+          ...sheetTriggerHandlers((_e, kb) => { setKeyboard(kb); setOpen(true) }, preloadOptionSheet),
+          ...(sheetOpen ? { 'aria-expanded': true as const } : {}),
+        }
+      : {},
+    sheet: {
+      open: sheetOpen,
+      onClose: close,
+      keyboard,
+      finalFocus: triggerRef,
+      onPick: (next: string) => {
+        if (next !== value) afterClose(() => onChangeRef.current(next))
+        setOpen(false)
+      },
+    },
+  }
+}
+
 /** The type-to-filter variant: Base UI COMBOBOX, with the input inside the popup.
  *
  *  ⚠️ It has to be a different primitive, not a text field bolted into the Select popup.
@@ -242,11 +333,11 @@ export function CustomSelect(props: CustomSelectProps) {
  *  Base UI recognises natively — it filters on `label` and needs no itemToStringLabel.
  */
 function SearchableSelect({
-  value, onChange, options, label, placeholder, className, activeClassName, icon, wrapperClassName, labelClassName, triggerLabel, indicator,
+  id, value, onChange, options, label, placeholder, className, activeClassName, icon, wrapperClassName, labelClassName, triggerLabel, indicator,
 }: CustomSelectProps) {
   const uid = useId()
   const { tr } = useLanguage()
-  const [open, setOpen] = useState(false)
+  const picker = usePickerOpen(value, onChange)
   const selectedOption = options.find((o) => o.value === value) ?? null
   /**
    * ⛔ ONLY OVERRIDDEN WHEN A DESCRIPTION EXISTS — `undefined` otherwise, which leaves Base UI's
@@ -290,8 +381,8 @@ function SearchableSelect({
         items={groups ?? options}
         value={selectedOption}
         onValueChange={(v) => { if (v && typeof v === 'object' && 'value' in v) onChange((v as { value: string }).value) }}
-        open={open}
-        onOpenChange={setOpen}
+        open={picker.popoverOpen}
+        onOpenChange={picker.onRootOpenChange}
         filter={
           searchesDescription
             ? (item: SelectOption, query: string) =>
@@ -303,16 +394,20 @@ function SearchableSelect({
       >
         <span id={`${uid}-label`} className="sr-only" aria-hidden="true">{label}</span>
         <ComboboxPrimitive.Trigger
-          id={`${uid}-trigger`}
-          aria-labelledby={`${uid}-label ${uid}-trigger`}
+          ref={picker.triggerRef}
+          id={id ?? `${uid}-trigger`}
+          aria-labelledby={`${uid}-label ${id ?? `${uid}-trigger`}`}
           nativeButton
-          render={<Button type="button" variant="bare" size="none" className={triggerClassName(open, value, activeClassName, className)} />}
+          {...picker.triggerProps}
+          // `popoverOpen`: behind a phone sheet the pill keeps its resting shape (the open state flattens it into
+          // the anchored card, which is not there).
+          render={<Button type="button" variant="bare" size="none" className={triggerClassName(picker.popoverOpen, value, activeClassName, className)} />}
         >
           <span className="flex items-center gap-1.5 truncate">
             {icon}
             <span className={cn('truncate', labelClassName)}>{triggerLabel ?? (selectedOption ? selectedOption.label : placeholder)}</span>
           </span>
-          <TriggerGlyph indicator={indicator} open={open} />
+          <TriggerGlyph indicator={indicator} open={picker.open} />
         </ComboboxPrimitive.Trigger>
 
         <ComboboxPrimitive.Portal>
@@ -366,12 +461,18 @@ function SearchableSelect({
           </ComboboxPrimitive.Positioner>
         </ComboboxPrimitive.Portal>
       </ComboboxPrimitive.Root>
+      {/* The phone surface — mounted from the first phone open on, so later opens animate in from a closed sheet. */}
+      {picker.surface === 'sheet' && (
+        <Suspense fallback={null}>
+          <LazyOptionSheet {...picker.sheet} title={label} options={options} value={value} searchable />
+        </Suspense>
+      )}
     </div>
   )
 }
 
 function PlainSelect({
-  value, onChange, options, label, placeholder, className, activeClassName, icon, wrapperClassName, labelClassName, triggerLabel, indicator,
+  id, value, onChange, options, label, placeholder, className, activeClassName, icon, wrapperClassName, labelClassName, triggerLabel, indicator,
 }: CustomSelectProps) {
   const uid = useId()
   // `open` is held in React rather than read off the trigger's data-popup-open, because the
@@ -380,7 +481,7 @@ function PlainSelect({
   // `text-foreground` has to keep beating the caller's colour. A data-popup-open:* variant
   // would carry an attribute selector — (0,2,0) — and silently win BOTH fights, inverting the
   // precedence that tailwind-merge gives us here.
-  const [open, setOpen] = useState(false)
+  const picker = usePickerOpen(value, onChange)
 
   const selectedOption = options.find((o) => o.value === value)
   // Grouped options (`group`): each NAMED run is a Select.Group under its GroupLabel (a named role="group"); the
@@ -444,8 +545,8 @@ function PlainSelect({
       <SelectPrimitive.Root
         value={value}
         onValueChange={(v) => { if (typeof v === 'string') onChange(v) }}
-        open={open}
-        onOpenChange={setOpen}
+        open={picker.popoverOpen}
+        onOpenChange={picker.onRootOpenChange}
       >
         {/* aria-hidden, yet still the label: an aria-labelledby reference is resolved even when
             the referenced node is hidden (AccName §Step2B), so the name still computes — but the
@@ -455,8 +556,10 @@ function PlainSelect({
             "Transmission All Transmissions, combobox"). Verified with a real AX-tree snapshot. */}
         <span id={`${uid}-label`} className="sr-only" aria-hidden="true">{label}</span>
         <SelectPrimitive.Trigger
-          id={`${uid}-trigger`}
-          aria-labelledby={`${uid}-label ${uid}-trigger`}
+          ref={picker.triggerRef}
+          id={id ?? `${uid}-trigger`}
+          aria-labelledby={`${uid}-label ${id ?? `${uid}-trigger`}`}
+          {...picker.triggerProps}
           // ui/button (variant="bare" size="none") owns nothing but focus ring + icon rule
           // here; the box, colours and radius stay exactly as hand-rolled. It is passed via
           // `render` (Base UI's composition prop — never asChild), so the trigger's
@@ -475,7 +578,7 @@ function PlainSelect({
               type="button"
               variant="bare"
               size="none"
-              className={triggerClassName(open, value, activeClassName, className)}
+              className={triggerClassName(picker.popoverOpen, value, activeClassName, className)}
             />
           }
         >
@@ -485,7 +588,7 @@ function PlainSelect({
           </span>
           {/* Select-trigger convention (shadcn/macOS): stacked chevrons = value picker — unless the
               caller asked for the facet pills' ⌄ (`indicator`). */}
-          <TriggerGlyph indicator={indicator} open={open} />
+          <TriggerGlyph indicator={indicator} open={picker.open} />
         </SelectPrimitive.Trigger>
 
       <SelectPrimitive.Portal>
@@ -541,6 +644,12 @@ function PlainSelect({
         </SelectPrimitive.Positioner>
       </SelectPrimitive.Portal>
       </SelectPrimitive.Root>
+      {/* The phone surface — see the searchable variant. A short list: no search field, the listbox takes focus. */}
+      {picker.surface === 'sheet' && (
+        <Suspense fallback={null}>
+          <LazyOptionSheet {...picker.sheet} title={label} options={options} value={value} searchable={false} />
+        </Suspense>
+      )}
     </div>
   )
 }

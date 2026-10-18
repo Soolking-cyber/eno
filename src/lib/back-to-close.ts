@@ -12,9 +12,12 @@ import { useCallback, useEffect, useRef } from 'react'
  * state-only entry while it is open, so Back closes it — the PDP lightbox and the video takeover already
  * do this by hand (listing-gallery.tsx, listings-video-feed.tsx); this is the shared version.
  *
- * ⛔ SCOPE IS DELIBERATE (plan §R): only those four layers. Not every ui/dialog or ui/drawer — the sign-in
- * dialog and friends contain links, and a generic version would have to solve "the close was a navigation"
- * for every dialog in the app.
+ * ⛔ SCOPE IS DELIBERATE (plan §R): those four layers — and, since the owner's 2026-10-18 request ("also mobile all
+ * dropdowns should be bottom up card style like the filter card"), every phone PICKER SHEET, which is the filter card
+ * by construction (ui/picker-sheet-kit.tsx `useSheetHistory`: CustomSelect, ui/dropdown-menu, ui/combobox and
+ * ui/popover `mobileSheet`). Those solve "the close was a navigation" the way this module asks: a pick commits after
+ * the pop, a link or a routing row calls `release()` first. Still not every ui/dialog or ui/drawer — the sign-in
+ * dialog and friends contain links, and a generic version would have to solve that for every dialog in the app.
  *
  * THE RULES, each one a measured or reviewed failure mode:
  *  · PUSH ONLY FROM A GESTURE. Chrome marks an entry added without user activation as skippable (the

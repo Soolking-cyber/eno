@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CustomSelect } from '@/components/marketplace/custom-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/context/auth-context'
@@ -16,6 +16,12 @@ type Mine = { id: string; name: string; kind: string; status: 'pending' | 'added
 type Found = { kind: 'listed' | 'possible'; slug: string; name: string }
 
 const NONE = '__none__'
+/**
+ * The form's select box: the house picker (CustomSelect — a bottom sheet on a phone, owner 2026-10-18: "also mobile all
+ * dropdowns should be bottom up card style like the filter card") in the filled-field idiom of the inputs beside it.
+ * The same string goes in `activeClassName`, so a picked value never takes the facet pills' accent fill.
+ */
+const FIELD_SELECT = 'min-h-11 rounded-xl bg-tint px-4 font-normal text-foreground hover:bg-muted'
 const label = 'text-sm font-semibold text-foreground'
 
 /**
@@ -92,20 +98,26 @@ export function SuggestForm() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <span className={label}>{tr('What kind of place', 'Loại hình')}</span>
-            <Select items={Object.fromEntries(SCHOOL_KINDS.map((k) => [k, tr(KIND_LABEL[k].en, KIND_LABEL[k].vi)]))} value={kind} onValueChange={(v) => typeof v === 'string' && setKind(v as SchoolKind)}>
-              <SelectTrigger aria-label={tr('What kind of place', 'Loại hình')} className="min-h-11 w-full rounded-xl bg-card"><SelectValue /></SelectTrigger>
-              <SelectContent>{SCHOOL_KINDS.map((k) => <SelectItem key={k} value={k}>{tr(KIND_LABEL[k].en, KIND_LABEL[k].vi)}</SelectItem>)}</SelectContent>
-            </Select>
+            <CustomSelect
+              value={kind}
+              onChange={(v) => setKind(v as SchoolKind)}
+              options={SCHOOL_KINDS.map((k) => ({ value: k, label: tr(KIND_LABEL[k].en, KIND_LABEL[k].vi) }))}
+              label={tr('What kind of place', 'Loại hình')}
+              className={FIELD_SELECT}
+              activeClassName={FIELD_SELECT}
+            />
           </div>
           <div className="flex flex-col gap-2">
             <span className={label}>{tr('Area (optional)', 'Khu vực (không bắt buộc)')}</span>
-            <Select items={Object.fromEntries([[NONE, tr('Not specified', 'Không nêu')], ...HCMC_AREAS.map((a) => [a, a])])} value={district} onValueChange={(v) => setDistrict(typeof v === 'string' ? v : NONE)}>
-              <SelectTrigger aria-label={tr('Area', 'Khu vực')} className="min-h-11 w-full rounded-xl bg-card"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>{tr('Not specified', 'Không nêu')}</SelectItem>
-                {HCMC_AREAS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {/* 24 places: CustomSelect makes it searchable on its own (SEARCHABLE_FROM). */}
+            <CustomSelect
+              value={district}
+              onChange={setDistrict}
+              options={[{ value: NONE, label: tr('Not specified', 'Không nêu') }, ...HCMC_AREAS.map((a) => ({ value: a, label: a }))]}
+              label={tr('Area', 'Khu vực')}
+              className={FIELD_SELECT}
+              activeClassName={FIELD_SELECT}
+            />
           </div>
         </div>
         <div className="flex flex-col gap-2">

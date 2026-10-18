@@ -13,7 +13,7 @@ import { useLanguage } from '@/context/language-context'
 import { Field } from '@/components/ui/field'
 import { Label } from '@/components/ui/label'
 import { Fieldset } from '@/components/ui/fieldset'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CustomSelect } from '@/components/marketplace/custom-select'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { VndInput } from '@/components/marketplace/vnd-input'
 import { compactPrice, moneyLocale } from '@/lib/vnd'
@@ -70,19 +70,19 @@ export function WhereStep({ t, set, patch, errors, errText, coverIntent, onGoTo 
           {start.kind === 'month' && (
             <Field>
               <Label htmlFor={`${uid}-month`}>{tr('From', 'Từ')}</Label>
-              <Select
+              {/* The house picker — a bottom sheet on a phone (owner, 2026-10-18) — in the form's filled-field idiom, a
+                  44px box. `id` is the trigger's, so the label names it; months are ORDERED, so no search field. */}
+              <CustomSelect
+                id={`${uid}-month`}
                 value={start.month}
-                onValueChange={(v) => { if (typeof v === 'string' && v) set('availableFrom', `${v}-01`) }}
-                items={monthOptions.map((m) => ({ value: m, label: monthName(m) }))}
-              >
-                {/* The form's filled-field idiom and a 44px tap target (the trigger's own default is a 32px desktop box). */}
-                <SelectTrigger id={`${uid}-month`} className="min-h-11 w-full rounded-xl border-0 bg-tint px-4 sm:w-64">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {monthOptions.map((m) => <SelectItem key={m} value={m}>{monthName(m)}</SelectItem>)}
-                </SelectContent>
-              </Select>
+                onChange={(v) => { if (v) set('availableFrom', `${v}-01`) }}
+                options={monthOptions.map((m) => ({ value: m, label: monthName(m) }))}
+                label={tr('From', 'Từ')}
+                searchable={false}
+                className="min-h-11 rounded-xl bg-tint px-4 font-normal text-foreground hover:bg-muted"
+                activeClassName="min-h-11 rounded-xl bg-tint px-4 font-normal text-foreground hover:bg-muted"
+                wrapperClassName="w-full sm:w-64"
+              />
             </Field>
           )}
         </Fieldset>

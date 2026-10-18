@@ -11,9 +11,8 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { CloseButton } from '@/components/ui/close-button'
 import { Label } from '@/components/ui/label'
-import { Drawer, DrawerContent, DrawerFooter, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
+import { PickerSheet } from '@/components/ui/picker-sheet'
 import { useIsPhone } from '@/hooks/use-is-phone'
 import { useBackToClose } from '@/lib/back-to-close'
 import { offeredKeys, railDimension } from './count-chip'
@@ -76,11 +75,12 @@ function DisabledField({ label }: { label: string }) {
  * Area filter: Province/City → Ward/Commune (Vietnam's 2025 admin structure, live
  * from /api/geo) plus "Search near you" (geolocation + radius). Controlled — the
  * parent owns the applied province/ward/nearby, the trigger button and its ref, and
- * the open state. The floating shell is a Base UI Popover in controlled mode anchored
+ * the open state. From `sm` up the floating shell is a Base UI Popover in controlled mode anchored
  * to the parent's trigger (`anchor={anchorRef}`): the primitive brings the dialog
  * role, Escape, focus move + return and collision-aware anchoring that the old
  * hand-rolled portal omitted. Non-modal (no scroll lock, no focus trap) so the nested
  * Base UI Selects — which portal their own listbox — keep working untouched.
+ * On a phone it is the filter card's bottom sheet in both modes (see the note above the sheet).
  */
 export function AreaFilter({
   open, anchorRef, onClose, province, ward, district = 'all', onPickDistrict, nearby, onApply, onReset, mode = 'search', hideLocate = false,
@@ -131,11 +131,11 @@ export function AreaFilter({
 }) {
   const { lang, tr } = useLanguage()
   const isPhone = useIsPhone()
-  // ⛔ BACK CLOSES THE PHONE AREA SHEET (UX3 NAV-1, src/lib/back-to-close.ts). Search mode only — the sheet
-  // (below); the post wizard's picker is a popover and keeps its own flow. Apply, a district chip and Clear
-  // change the explorer's URL in the same commit, so the entry stays as that step (Back undoes the place);
-  // a dismissed sheet pops it.
-  useBackToClose(mode === 'search' && isPhone && open, onClose, 'area')
+  // ⛔ BACK CLOSES THE PHONE AREA SHEET (UX3 NAV-1, src/lib/back-to-close.ts) — in BOTH modes since the post
+  // wizard's picker became the same sheet (owner, 2026-10-18; see the note on the sheet below). In the explorer,
+  // Apply, a district chip and Clear change the URL in the same commit, so the entry stays as that step (Back
+  // undoes the place); in the wizard nothing touches the URL, so every close pops it; a dismissed sheet pops it.
+  useBackToClose(isPhone && open, onClose, mode === 'pick' ? 'location' : 'area')
   const [provinces, setProvinces] = useState<Unit[]>([])
   const [wards, setWards] = useState<Unit[]>([])
   const [loadingWards, setLoadingWards] = useState(false)
@@ -503,28 +503,30 @@ export function AreaFilter({
   )
 
   /**
-   * ⛔ ON A PHONE THE EXPLORER'S AREA PANEL IS A BOTTOM SHEET (E-FILTER-SHEET, 2026-09-29; canon §5
+   * ⛔ ON A PHONE THE AREA PANEL IS A BOTTOM SHEET (E-FILTER-SHEET, 2026-09-29; canon §5
    * "mobile filters → ui/drawer"). Anchored under its pill at 390px it was a 360px card whose Apply sat
    * at the end of an inner scroll, and it hung where the pill had been once a pick folded the ladder.
    * The sheet keeps the same body — the side-by-side province/ward selects (owner, 2026-07-13) and the
    * Clear/Apply pair, now its footer — so nothing about HOW an area is picked changed.
-   * ⚠️ SEARCH MODE ONLY. The post wizard (`mode: 'pick'`) keeps its popover: that flow and its e2e
-   * spec (post-location.spec.ts) belong to the wizard, and W-LOCATION's redesign of it is the owner's.
+   * ⛔ BOTH MODES (owner, 2026-10-18: "also mobile all dropdowns should be bottom up card style like the
+   * filter card"). The post wizard's picker (`mode: 'pick'`) kept its anchored popover on phones until then,
+   * on a note that its redesign was the owner's to make — this is it. Same footer, same `finalFocus` back to
+   * the wizard's trigger; desktop keeps the popover below in both modes. The Province / Ward fields inside
+   * open their own sheets on a phone (CustomSelect), nested over this one.
+   * It is ui/picker-sheet — the filter card's shell, extracted from this file's own copy and facet-bar's.
    */
-  if (mode === 'search' && isPhone) {
+  if (isPhone) {
     return (
-      <Drawer open={open} onOpenChange={(next) => { if (!next) onClose() }}>
-        {/* Named by its DrawerTitle (Base UI wires aria-labelledby), which outranks any aria-label. */}
-        <DrawerContent finalFocus={anchorRef}>
-          <DrawerHeader className="flex-row items-center justify-between gap-3 pb-1 text-left">
-            <DrawerTitle className="text-base font-bold">{title ?? tr('Area', 'Khu vực')}</DrawerTitle>
-            {/* The 24px box the header row was laid out for — CloseButton's `2xs` (D-CLOSE). */}
-            <CloseButton size="2xs" onClick={onClose} className="-mr-1 hover:bg-muted" />
-          </DrawerHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4 pt-3 scroll-thin">{content}</div>
-          <DrawerFooter className="flex-row gap-3 border-t border-border pt-3">{actions}</DrawerFooter>
-        </DrawerContent>
-      </Drawer>
+      // Named by its title (Base UI wires aria-labelledby), which outranks any aria-label.
+      <PickerSheet
+        open={open}
+        onOpenChange={(next) => { if (!next) onClose() }}
+        title={title ?? (mode === 'pick' ? tr('Location', 'Khu vực') : tr('Area', 'Khu vực'))}
+        finalFocus={anchorRef}
+        footer={actions}
+      >
+        {content}
+      </PickerSheet>
     )
   }
 

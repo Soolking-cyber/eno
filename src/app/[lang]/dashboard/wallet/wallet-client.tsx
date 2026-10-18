@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CustomSelect } from '@/components/marketplace/custom-select'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2, Check, Copy } from '@/components/ui/icons'
@@ -486,20 +486,19 @@ export function WalletClient({ embedded = false }: { embedded?: boolean } = {}) 
                     inverse of the base-unit rule the balance parser follows — so nothing here
                     converts, and a number input that could produce "25.001" is deliberately not used.
                   */}
-                  {/* Base UI via the ui/* primitive — a raw <select> is a hand-roll the standing
-                      policy refuses, and this control had no reason to be the exception. */}
-                  <Select value={topupAmount} onValueChange={(v) => setTopupAmount(v as string)}>
-                    <SelectTrigger aria-label={tr('Amount in USD', 'Số tiền USD')} className="h-9 w-28">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* A currency amount is a value, not copy — `usd()` formats it rather than
-                          translating it, which is also what keeps it out of the string catalogue. */}
-                      {['10', '25', '50', '100', '200'].map((v) => (
-                        <SelectItem key={v} value={v}>{usd(v)}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {/* The house picker (Base UI under CustomSelect — a raw <select> is a hand-roll the standing
+                      policy refuses): a bottom sheet on a phone (owner, 2026-10-18), and a 44px box where the
+                      old trigger was 36px. A currency amount is a value, not copy — `usd()` formats it rather
+                      than translating it, which is also what keeps it out of the string catalogue. */}
+                  <CustomSelect
+                    value={topupAmount}
+                    onChange={setTopupAmount}
+                    options={['10', '25', '50', '100', '200'].map((v) => ({ value: v, label: usd(v) }))}
+                    label={tr('Amount in USD', 'Số tiền USD')}
+                    className="min-h-11 rounded-xl bg-tint px-4 font-normal text-foreground hover:bg-muted"
+                    activeClassName="min-h-11 rounded-xl bg-tint px-4 font-normal text-foreground hover:bg-muted"
+                    wrapperClassName="w-32"
+                  />
                   <Button
                     variant="cta"
                     size="sm"

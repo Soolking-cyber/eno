@@ -12,7 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Chip } from '@/components/ui/chip'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/segmented'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CustomSelect } from '@/components/marketplace/custom-select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuth } from '@/context/auth-context'
@@ -33,6 +33,12 @@ type Mine = {
 }
 
 const NONE = 'none'
+/**
+ * The form's select box: the house picker (CustomSelect — a bottom sheet on a phone, owner 2026-10-18: "also mobile all
+ * dropdowns should be bottom up card style like the filter card") in the filled-field idiom of the inputs beside it.
+ * The same string goes in `activeClassName`, so a picked value never takes the facet pills' accent fill.
+ */
+const FIELD_SELECT = 'min-h-11 rounded-xl bg-tint px-4 font-normal text-foreground hover:bg-muted'
 /** The tenure labels are lower-case for the review line ("Former teacher · under 1 year"); a control starts a sentence. */
 const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1)
 
@@ -279,13 +285,17 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
       {current === 'former' && (
         <div className="flex flex-col gap-2">
           <span className={label}>{tr('Year you left (optional)', 'Năm bạn nghỉ (không bắt buộc)')}</span>
-          <Select items={Object.fromEntries([[NONE, tr('Prefer not to say', 'Không muốn nêu')], ...YEARS.map((y) => [y, y])])} value={leftYear} onValueChange={(v) => setLeftYear(typeof v === 'string' ? v : NONE)}>
-            <SelectTrigger aria-label={tr('Year you left', 'Năm bạn nghỉ')} className="min-h-11 w-full rounded-xl bg-card sm:w-60"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>{tr('Prefer not to say', 'Không muốn nêu')}</SelectItem>
-              {YEARS.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <CustomSelect
+            value={leftYear}
+            onChange={setLeftYear}
+            options={[{ value: NONE, label: tr('Prefer not to say', 'Không muốn nêu') }, ...YEARS.map((y) => ({ value: y, label: y }))]}
+            label={tr('Year you left', 'Năm bạn nghỉ')}
+            // Years are an ORDERED list: scrolling is the point, a search field would not help.
+            searchable={false}
+            className={FIELD_SELECT}
+            activeClassName={FIELD_SELECT}
+            wrapperClassName="w-full sm:w-60"
+          />
           {leftYear !== NONE && (
             <label className="flex items-start gap-3 text-sm text-foreground">
               <Checkbox checked={showLeftYear} onChange={setShowLeftYear} className="mt-0.5" />
@@ -304,20 +314,26 @@ function ReviewFormForAccount({ schoolId, slug, schoolName }: { schoolId: string
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <span className={label}>{tr('Your role', 'Vai trò của bạn')}</span>
-          <Select items={Object.fromEntries(ROLES.map((r) => [r, tr(ROLE_LABEL[r].en, ROLE_LABEL[r].vi)]))} value={role} onValueChange={(v) => typeof v === 'string' && setRole(v as SchoolRole)}>
-            <SelectTrigger aria-label={tr('Your role', 'Vai trò của bạn')} className="min-h-11 w-full rounded-xl bg-card"><SelectValue /></SelectTrigger>
-            <SelectContent>{ROLES.map((r) => <SelectItem key={r} value={r}>{tr(ROLE_LABEL[r].en, ROLE_LABEL[r].vi)}</SelectItem>)}</SelectContent>
-          </Select>
+          <CustomSelect
+            value={role}
+            onChange={(v) => setRole(v as SchoolRole)}
+            options={ROLES.map((r) => ({ value: r, label: tr(ROLE_LABEL[r].en, ROLE_LABEL[r].vi) }))}
+            label={tr('Your role', 'Vai trò của bạn')}
+            className={FIELD_SELECT}
+            activeClassName={FIELD_SELECT}
+          />
         </div>
         <div className="flex flex-col gap-2">
           <span className={label}>{tr('Campus area (optional)', 'Khu vực cơ sở (không bắt buộc)')}</span>
-          <Select items={Object.fromEntries([[NONE, tr('Not specified', 'Không nêu')], ...HCMC_AREAS.map((a) => [a, a])])} value={district} onValueChange={(v) => setDistrict(typeof v === 'string' ? v : NONE)}>
-            <SelectTrigger aria-label={tr('Campus area', 'Khu vực cơ sở')} className="min-h-11 w-full rounded-xl bg-card"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>{tr('Not specified', 'Không nêu')}</SelectItem>
-              {HCMC_AREAS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          {/* 24 places: CustomSelect makes it searchable on its own (SEARCHABLE_FROM). */}
+          <CustomSelect
+            value={district}
+            onChange={setDistrict}
+            options={[{ value: NONE, label: tr('Not specified', 'Không nêu') }, ...HCMC_AREAS.map((a) => ({ value: a, label: a }))]}
+            label={tr('Campus area', 'Khu vực cơ sở')}
+            className={FIELD_SELECT}
+            activeClassName={FIELD_SELECT}
+          />
         </div>
       </div>
 

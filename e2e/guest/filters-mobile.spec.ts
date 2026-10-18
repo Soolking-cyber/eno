@@ -66,4 +66,38 @@ test.describe('Guest · phone filter sheets', () => {
   test('the toolbar carries no reset of its own — the result line\'s "Clear all" is the one', async ({ page }) => {
     await expect(page.locator('#explorer-toolbar').getByRole('button', { name: /^(Clear|Xóa lọc)$/ })).toHaveCount(0)
   })
+
+  /**
+   * EVERY PHONE DROPDOWN IS THE FILTER CARD TOO (owner, 2026-10-18: "also mobile all dropdowns should be bottom up card
+   * style like the filter card"). The sort pill is a CustomSelect: the same trigger, now opening a full-width sheet on
+   * the bottom edge that holds the options as a listbox. A pick sorts, closes the sheet, and leaves focus on the pill.
+   */
+  test('the sort pill opens a full-width sheet of options on the bottom edge; a pick sorts and closes it', async ({ page }) => {
+    const pill = page.getByRole('combobox', { name: /sort|sắp xếp/i }).first()
+    await pill.click()
+    const sheet = page.getByRole('dialog', { name: /^(Sort by|Sắp xếp theo)$/ })
+    await expect(sheet).toBeVisible()
+    const popup = page.locator('[data-slot=drawer-popup]')
+    const vp = page.viewportSize()!
+    await expect.poll(async () => { const b = await popup.boundingBox(); return b && Math.round(b.y + b.height) }).toBe(vp.height)
+    expect(Math.round((await popup.boundingBox())!.width)).toBe(vp.width)
+    // A 48px row per option, the current one selected.
+    const first = sheet.getByRole('option').first()
+    expect((await first.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    await expect(sheet.getByRole('option', { selected: true })).toHaveCount(1)
+    await sheet.getByRole('option', { name: /low to high|thấp đến cao/i }).click()
+    await expect(page).toHaveURL(/sort=price-low/)
+    await expect(sheet).toBeHidden()
+    await expect(pill).toBeFocused()
+  })
+
+  test('Back closes a picker sheet and leaves the page where it was', async ({ page }) => {
+    const url = page.url()
+    await page.getByRole('combobox', { name: /sort|sắp xếp/i }).first().click()
+    const sheet = page.getByRole('dialog', { name: /^(Sort by|Sắp xếp theo)$/ })
+    await expect(sheet).toBeVisible()
+    await page.evaluate(() => window.history.back())
+    await expect(sheet).toBeHidden()
+    expect(page.url()).toBe(url)
+  })
 })

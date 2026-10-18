@@ -25,7 +25,9 @@ import { CurrencySelect, LanguageSelect } from './footer-preferences'
  * the two places cannot disagree about what an option is called or what choosing it does — including
  * the full reload a language change across the en/vi variant needs (language-context.tsx `setLang`).
  * ⚠️ `ui/drawer`, the canon's bottom sheet (Base UI Drawer): swipe-to-dismiss, the scrim, focus trap
- * and return. CustomSelect's menus sit at z-[1200], above the drawer's `z-overlay`, by design.
+ * and return. The Language / Currency pickers open their own sheets over this one (CustomSelect's phone
+ * sheet, owner 2026-10-18) — Base UI nests them: this sheet steps back while one is up, Escape and Back
+ * close only the top one, and focus comes back to the picker.
  *
  * ⛔ SIGN IN HANDS OVER TO THE ONE SIGN-IN CARD, IT DOES NOT REPLACE IT. The sheet closes and the
  * standard dialog opens (auth-context `openSignIn`, with this tab's context line). `finalFocus` is

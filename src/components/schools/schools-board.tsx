@@ -6,7 +6,7 @@ import { Briefcase, MessageSquareText, Search } from '@/components/ui/icons'
 import { Chip } from '@/components/ui/chip'
 import { Input } from '@/components/ui/input'
 import { Segmented } from '@/components/ui/segmented'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CustomSelect } from '@/components/marketplace/custom-select'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useLanguage } from '@/context/language-context'
 import { fold } from '@/lib/fold'
@@ -117,13 +117,18 @@ function Board({ rows, areas }: { rows: BoardRow[]; areas: string[] }) {
             enterKeyHint="search"
           />
         </label>
-        <Select items={Object.fromEntries([[ALL, tr('All areas', 'Mọi khu vực')], ...areas.map((a) => [a, a])])} value={area} onValueChange={(v) => setArea(typeof v === 'string' ? v : ALL)}>
-          <SelectTrigger aria-label={tr('Area', 'Khu vực')} className="min-h-11 w-full rounded-xl bg-card sm:w-56"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>{tr('All areas', 'Mọi khu vực')}</SelectItem>
-            {areas.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {/* The house picker (a bottom sheet on a phone — owner, 2026-10-18), in the filled idiom of the search
+            field beside it; searchable once the list passes SEARCHABLE_FROM. `activeClassName` repeats the box, so a
+            picked area reads as a value, not as the facet pills' accent fill. */}
+        <CustomSelect
+          value={area}
+          onChange={setArea}
+          options={[{ value: ALL, label: tr('All areas', 'Mọi khu vực') }, ...areas.map((a) => ({ value: a, label: a }))]}
+          label={tr('Area', 'Khu vực')}
+          className="min-h-11 rounded-xl bg-tint px-4 font-normal text-foreground hover:bg-muted"
+          activeClassName="min-h-11 rounded-xl bg-tint px-4 font-normal text-foreground hover:bg-muted"
+          wrapperClassName="w-full sm:w-56"
+        />
       </div>
 
       <div className="-mx-3 mt-3 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label={tr('Type', 'Loại')}>
