@@ -58,6 +58,10 @@ export type ImportSellerId = (typeof IMPORT_SELLERS)[number]
  * scripts/reorder-import-covers.ts. Each seller's own stored photos then decide whether it carries a
  * centred stamp at all (src/lib/import-photo-mark.ts): a seller whose marks sit elsewhere, or who has
  * none, learns no stamp and none of its rows move.
+ * ⛔ GOPLUS IS DELIBERATELY IN NEITHER LIST (2026-10-19). Its rooms (scripts/import-goplus.ts) belong to a PARTNER's own
+ * OWNED storefront — resolved by its handle and owner email, never a fixed id — that renters message; no "all imports"
+ * script (hide-imageless, the rank recompute, the daily rental sweep, expire-apartment-rentals) may act on a real
+ * account's shop, and its importer expires its own rows. Do not add it here.
  */
 export const RENTAL_IMPORT_SELLERS = [
   'bds-vn-import-seller-0001',

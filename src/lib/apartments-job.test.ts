@@ -37,6 +37,7 @@ case "$*" in
   *windowDaysFor*) echo 30 ;;
   *"expire-rentals.ts --sweep"*) echo "SWEEP stub $*" ;;
   *"import-nhatot-com.ts --src"*) echo "APPLY COMPLETED" ;;
+  *"import-goplus.ts"*) echo "source            stub"; echo "APPLY COMPLETED" ;;
 esac
 exit 0
 `
@@ -44,6 +45,15 @@ const STUB_TUNNEL = `#!/bin/bash
 echo "tunnel $*" >> "$SANDBOX/calls.log"
 [ -f "$SANDBOX/tunnel-fails" ] && exit 1
 touch "$SANDBOX/tunnel-up"
+`
+/** The box, for goplus_identity_gate: the container's IDENTITY_GATE_ENFORCED from $SANDBOX/gate-value (none = unset =
+ *  off), or a failed read ($SANDBOX/ssh-fails), or a stopped container ($SANDBOX/container-down: no end marker). */
+const STUB_SSH = `#!/bin/bash
+echo "ssh $*" >> "$SANDBOX/ssh.log"
+[ -f "$SANDBOX/ssh-fails" ] && exit 255
+[ -f "$SANDBOX/container-down" ] && exit 0
+printf 'VALUE=%s\\n' "$(cat "$SANDBOX/gate-value" 2>/dev/null)"
+echo GATE-READ-END
 `
 const STUB_NC = `#!/bin/bash
 [ -f "$SANDBOX/tunnel-up" ]
@@ -67,6 +77,7 @@ function sandbox(): string {
   exe(join(box, 'repo/scripts/db-tunnel.sh'), STUB_TUNNEL)
   exe(join(box, 'bin/npx'), STUB_NPX)
   exe(join(box, 'bin/nc'), STUB_NC)
+  exe(join(box, 'bin/ssh'), STUB_SSH)
   exe(join(box, 'bin/psql'), STUB_PSQL)
   exe(join(box, 'bds/.venv/bin/python'), STUB_BDS_PY)
   const archive = join(box, 'bds/all_rentals.2026-10-01-123808.json')
@@ -99,13 +110,19 @@ const stamps = (box: string) => readdirSync(join(box, 'journal/state')).filter((
 const stampOf = (box: string, src: string) => readFileSync(join(box, 'journal/state', `last-success-${src}`), 'utf8')
 const idx = (calls: string[], needle: string) => calls.findIndex((c) => c.includes(needle))
 /** The gate units run by default (APT_PLACES=0: apartments only), sorted — each its own success stamp. */
-// ⛔ NO-BROKER POLICY 2026-10-16 (owner "go with nha tot only ... no broker policy which we will enforce harshly"):
-// Nhà Tốt is the SOLE default source — its company_ad platform flag lets mapNhatotAd keep only individual owners.
-// batdongsan, muaban, honeycomb and rever are broker-dominated with no reliable owner signal and are OUT of the
-// default import; each stays runnable by hand when named in APT_SOURCES (nhatot still gets the owner filter either way).
-const SOURCES = ['nhatot']
+// ⛔ 2026-10-19 (owner: "remove all apartments and fetch all apartments from https://goplus.com.vn/ once a week …
+// they will become our strategic partner"): GoPlus is the SOLE default source, WEEKLY. Nhà Tốt's apartments are out of
+// the default (still runnable by name — its machinery is tested below with APT_SOURCES=nhatot); batdongsan, muaban,
+// honeycomb and rever stay out since the 2026-10-16 no-broker policy.
+const SOURCES = ['goplus']
 /** …and with APT_PLACES=1: Nhà Tốt's houses, rooms and offices as its own unit. */
-const ALL_SOURCES = ['nhatot', 'nhatot-places']
+const ALL_SOURCES = ['goplus', 'nhatot-places']
+/** A success stamp `hoursAgo` old for `unit`, written as the job writes one. */
+const stampAgo = (box: string, unit: string, hoursAgo: number) => {
+  mkdirSync(join(box, 'journal/state'), { recursive: true })
+  const at = Math.floor(Date.now() / 1000 - hoursAgo * 3600)
+  writeFileSync(join(box, 'journal/state', `last-success-${unit}`), `${at} ${new Date(at * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z')}\n`)
+}
 /** A live process whose command line names the job — what a running refresh looks like to `ps` (a reused pid does not). */
 const holder = () => spawn('bash', ['-c', 'exec -a apartments-weekly-holder sleep 120'], { stdio: 'ignore' })
 
@@ -116,13 +133,13 @@ describe('the job, run end to end on stubs — a first --apply run (every source
   const box = sandbox()
   const first = run(box, ['--apply'])
 
-  it('runs Nhà Tốt (the only source), classify, then the sweep — and no broker feed runs — and exits 0', () => {
+  it('runs GoPlus (the only source), classify, then the sweep — and neither Nhà Tốt\'s apartments nor a broker feed runs — and exits 0', () => {
     expect(first.code, first.out).toBe(0)
-    for (const step of ['import-nhatot-com.ts --cg 1010', 'classify-apartment-rentals.ts']) {
+    for (const step of ['import-goplus.ts', 'classify-apartment-rentals.ts']) {
       expect(idx(first.calls, step), step).toBeGreaterThan(-1)
     }
-    // ⛔ no-broker policy: the dropped broker feeds never run in a default job.
-    for (const step of ['import-muaban-net.ts', 'import-honeycomb-com-vn.ts', 'retire-rever-rentals.ts', 'import-batdongsan-rentals.ts']) {
+    // ⛔ 2026-10-19: the apartments are GoPlus's — Nhà Tốt never runs in a default job; nor (no-broker policy) the broker feeds.
+    for (const step of ['import-nhatot-com.ts', 'import-muaban-net.ts', 'import-honeycomb-com-vn.ts', 'retire-rever-rentals.ts', 'import-batdongsan-rentals.ts']) {
       expect(idx(first.calls, step), step).toBe(-1)
     }
     const sweep = idx(first.calls, 'expire-rentals.ts --sweep')
@@ -141,14 +158,25 @@ describe('the job, run end to end on stubs — a first --apply run (every source
 
   it('⛔ writes a success stamp per gate unit holding the run START, and points the sweep at them', () => {
     expect(stamps(box)).toEqual(SOURCES.map((s) => `last-success-${s}`))
-    const [epoch] = stampOf(box, 'nhatot').trim().split(' ')
-    expect(new Set(SOURCES.map((s) => stampOf(box, s)))).toEqual(new Set([stampOf(box, 'nhatot')]))   // one START for all
+    const [epoch] = stampOf(box, 'goplus').trim().split(' ')
+    expect(new Set(SOURCES.map((s) => stampOf(box, s)))).toEqual(new Set([stampOf(box, 'goplus')]))   // one START for all
     expect(Math.abs(Number(epoch) * 1000 - Date.now())).toBeLessThan(10 * 60_000)
     expect(first.calls.at(-1)).toContain(`expire-rentals.ts --sweep --stamps-dir ${join(box, 'journal/state')} --journal-dir `)
     expect(first.calls.at(-1)).toMatch(/ --apply$/)
   })
 
-  it('asks each source for its apartments, at 7 days — and Nhà Tốt for its SET in a second read, after the apply, right before the expiry', () => {
+  it('⛔ GoPlus is ONE step — the importer with the run\'s journal and --apply; no fresh set, no expiry script, no backstop (an owned storefront)', () => {
+    const goplus = first.calls.filter((x) => x.includes('import-goplus.ts'))
+    // ⛔ The identity gate is STATED — read from production by `auto` (here the ssh stub's unset value → off); the
+    // importer refuses an --apply without it.
+    expect(goplus).toEqual([expect.stringMatching(/^npx tsx scripts\/import-goplus\.ts --journal-dir \S+\/journal --identity-gate off --apply$/)])
+    expect(first.calls.filter((x) => x.includes('expire-apartment-rentals.ts'))).toEqual([])
+    expect(first.out).toMatch(/\[goplus\] source\s+stub/)
+  })
+
+  it('by name (APT_SOURCES=nhatot), Nhà Tốt still asks for its apartments at 7 days — and for its SET in a second read, after the apply, right before the expiry', () => {
+    const first = run(sandbox(), ['--apply'], { env: { APT_SOURCES: 'nhatot' } })
+    expect(first.code, first.out).toBe(0)
     const c = (needle: string) => first.calls.find((x) => x.includes(needle)) ?? ''
     expect(c('import-nhatot-com.ts --cg 1010 --max-age-days 7 --save')).toMatch(/--save \S+nhatot-stage\.json --fresh-crawl$/)
     expect(c('import-nhatot-com.ts --src')).toContain('--max-age-days 7 --journal-dir ')
@@ -165,14 +193,68 @@ describe('the job, run end to end on stubs — a first --apply run (every source
     const next = run(box, ['--apply'])
     expect(next.code, next.out).toBe(0)
     expect(next.calls.filter((c) => c.startsWith('npx'))).toEqual([expect.stringContaining('expire-rentals.ts --sweep --stamps-dir ')])
-    expect(next.out).toMatch(/── nhatot: last success .* — under 66 h ago, not due/)
+    expect(next.out).toMatch(/── goplus: last success .* — under 162 h ago, not due/)
     expect(next.out).toMatch(/no source due — the imports are skipped today; the sweep still runs/)
   })
 
   it('--force-imports runs the source anyway, though it just ran and is not due', () => {
     const forced = run(box, ['--apply', '--force-imports'])
     expect(forced.code, forced.out).toBe(0)
-    expect(idx(forced.calls, 'import-nhatot-com.ts --cg 1010')).toBeGreaterThan(-1)
+    expect(idx(forced.calls, 'import-goplus.ts')).toBeGreaterThan(-1)
+  })
+})
+
+describe('GoPlus — weekly, its own exits (owner 2026-10-19)', SLOW, () => {
+  it('⛔ WEEKLY: a success 100 h ago is not due (the others\' 66 h would be); 163 h ago it is', () => {
+    const box = sandbox()
+    stampAgo(box, 'goplus', 100)
+    const not = run(box, ['--apply'])
+    expect(not.code, not.out).toBe(0)
+    expect(idx(not.calls, 'import-goplus.ts')).toBe(-1)
+    expect(not.out).toMatch(/── goplus: last success .* — under 162 h ago, not due/)
+    stampAgo(box, 'goplus', 163)
+    const due = run(box, ['--apply'])
+    expect(idx(due.calls, 'import-goplus.ts')).toBeGreaterThan(-1)
+    expect(stampOf(box, 'goplus').split(' ')[0]).not.toBe(String(Math.floor(Date.now() / 1000 - 163 * 3600)))   // re-stamped
+  })
+
+  it('GOPLUS_GATE_HOURS sets its gate (a malformed one falls back to weekly — the typo test below)', () => {
+    const box = sandbox()
+    stampAgo(box, 'goplus', 30)
+    expect(idx(run(box, ['--apply'], { env: { GOPLUS_GATE_HOURS: '24' } }).calls, 'import-goplus.ts')).toBeGreaterThan(-1)
+  })
+
+  it('⛔ passes the no-broker gate WITHOUT APT_ALLOW_BROKER — the owner\'s named partner — while a broker feed beside it is still refused', () => {
+    const r = run(sandbox(), ['--apply'], { env: { APT_SOURCES: 'goplus muaban', APT_ALLOW_BROKER: '' } })
+    expect(r.code, r.out).toBe(0)
+    expect(idx(r.calls, 'import-goplus.ts')).toBeGreaterThan(-1)
+    expect(idx(r.calls, 'import-muaban-net.ts')).toBe(-1)
+    expect(r.out).toMatch(/refused broker source\(s\) "muaban"/)
+  })
+
+  it('exit 3 (rows written, its expiry guard refused): the unit fails, NO stamp, the sweep still runs', () => {
+    const box = sandbox()
+    const r = run(box, ['--apply'], { exits: ['import-goplus.ts=3'] })
+    expect(r.code).toBe(1)
+    expect(r.out).toMatch(/✗ goplus FAILED at: its expiry guard refused \(the rows were written; nothing was expired\)/)
+    expect(stamps(box)).toEqual([])
+    expect(r.calls.at(-1)).toContain('expire-rentals.ts --sweep')
+  })
+
+  it('exit 1 after APPLY COMPLETED = row errors (flagged, no stamp); exit 1 without it = the import failed', () => {
+    const box = sandbox()
+    writeFileSync(join(box, 'bin/npx'), readFileSync(join(box, 'bin/npx'), 'utf8').replace('*"import-goplus.ts"*) echo "source            stub"; echo "APPLY COMPLETED" ;;', '*"import-goplus.ts"*) echo "APPLY COMPLETED"; exit 1 ;;'))
+    const e = run(box, ['--apply'])
+    expect(e.out).toMatch(/✗ goplus-row-errors FAILED at: the import finished with row errors — retried tomorrow/)
+    expect(stamps(box)).toEqual([])
+    const died = run(sandbox(), ['--apply'], { exits: ['import-goplus.ts=1'] })
+    expect(died.out).toMatch(/✗ goplus FAILED at: import/)
+  })
+
+  it('a dry run calls the importer with neither --apply nor a journal (it writes nothing)', () => {
+    const r = run(sandbox(), [])
+    // The gate is stated on a dry run too (the importer's dry run shows its plan under it); no journal, no --apply.
+    expect(r.calls.find((c) => c.includes('import-goplus.ts'))).toBe('npx tsx scripts/import-goplus.ts --identity-gate off')
   })
 })
 
@@ -180,20 +262,20 @@ describe('the job with APT_PLACES=1 — houses, rooms and offices too (the owner
   const box = sandbox()
   const r = run(box, ['--apply'], { env: { APT_PLACES: '1' } })
 
-  it('runs the Nhà Tốt places unit LAST, after the apartment apply, with its time-bounded set-less read', () => {
+  it('runs the Nhà Tốt places unit LAST, after GoPlus, with its time-bounded set-less read — and no Nhà Tốt apartments', () => {
     expect(r.code, r.out).toBe(0)
     expect(r.out).not.toMatch(/are not imported/)
     const c = (needle: string) => r.calls.find((x) => x.includes(needle)) ?? ''
-    expect(idx(r.calls, 'import-nhatot-com.ts --cg 1020,1030,1050')).toBeGreaterThan(idx(r.calls, 'import-nhatot-com.ts --src'))  // places after the apartment apply
+    expect(idx(r.calls, 'import-nhatot-com.ts --cg 1020,1030,1050')).toBeGreaterThan(idx(r.calls, 'import-goplus.ts'))  // places after GoPlus
     expect(c('import-nhatot-com.ts --cg 1020,1030,1050')).toMatch(/--cg 1020,1030,1050 --max-age-days 7 --save \S+nhatot-places-stage\.json --fresh-crawl$/)
-    expect(r.calls.filter((x) => x.includes('import-nhatot-com.ts --src')).map((x) => /--src (\S+)/.exec(x)![1].split('/').pop())).toEqual(['nhatot-stage.json', 'nhatot-places-stage.json'])
+    expect(r.calls.filter((x) => x.includes('import-nhatot-com.ts --src')).map((x) => /--src (\S+)/.exec(x)![1].split('/').pop())).toEqual(['nhatot-places-stage.json'])
+    expect(idx(r.calls, 'import-nhatot-com.ts --cg 1010')).toBe(-1)
     // ⛔ no broker feed runs, even with APT_PLACES=1 (no-broker policy)
     for (const step of ['import-muaban-net.ts', 'import-honeycomb-com-vn.ts', 'retire-rever-rentals.ts', 'bds-python scraper.py', 'import-batdongsan-rentals.ts']) {
       expect(idx(r.calls, step), step).toBe(-1)
     }
-    // no set, no expiry and no second backstop for a places unit — one apartment seller (Nhà Tốt)
-    expect(r.calls.filter((x) => x.includes('expire-apartment-rentals.ts --seller') && x.includes('--fresh ')).length).toBe(1)
-    expect(r.calls.filter((x) => x.includes('expire-apartment-rentals.ts --seller') && x.includes('--backstop')).length).toBe(1)
+    // no set, no expiry, no backstop: a places unit has none, and GoPlus expires its own rows
+    expect(r.calls.filter((x) => x.includes('expire-apartment-rentals.ts'))).toEqual([])
   })
   it('stamps every unit, the places units included', () => {
     expect(stamps(box)).toEqual(ALL_SOURCES.map((s) => `last-success-${s}`))
@@ -554,7 +636,9 @@ describe('the job script — wiring', () => {
     expect(code).not.toMatch(/\/usr\/bin\/python3/)
   })
   it('the gate only holds --apply runs back, and the stamp is written only on success', () => {
-    expect(code).toMatch(/if \[ -n "\$APPLY" \] && \[ -z "\$FORCE" \] && ! source_due "\$STATE\/last-success-\$src" "\$START_EPOCH"; then/)
+    expect(code).toMatch(/hours="\$\(gate_hours_of "\$src"\)"\n\s*if \[ -n "\$APPLY" \] && \[ -z "\$FORCE" \] && ! source_due "\$STATE\/last-success-\$src" "\$START_EPOCH" "\$hours"; then/)
+    expect(code).toMatch(/gate_hours_of\(\) \{ case "\$1" in goplus\) echo "\$GOPLUS_GATE_HOURS" ;; \*\) echo "\$GATE_HOURS" ;; esac; \}/)
+    expect(code).toMatch(/^GOPLUS_GATE_HOURS="\$\{GOPLUS_GATE_HOURS:-162\}"$/m)
     expect(code).toMatch(/if \[ -n "\$APPLY" \] && \[ "\$SRC_OK" = 1 \]; then\n\s*stamp_write "\$STATE\/last-success-\$src" "\$START_EPOCH"/)
   })
   it('⛔ the sweep agent\'s plist: its own label, DAILY 05:30, --apply --sweep-only, the same job worktree', () => {
@@ -580,5 +664,64 @@ describe('the job script — wiring', () => {
     expect(body).toMatch(/<string>vn\.eno\.apartments-weekly<\/string>/)
     expect(body).toMatch(/<string>\/Users\/mk1e3\/eno-apartments-job\/scripts\/apartments-weekly\.sh<\/string>\s*<string>--apply<\/string>/)
     expect(body).toMatch(/eno-import-journals\/apartments\/weekly\.log/)
+  })
+})
+
+/**
+ * ⛔ PRODUCTION'S IDENTITY GATE IS READ FROM THE BOX, NEVER GUESSED (both reviewers, 2026-10-19). `auto` (the default)
+ * reads IDENTITY_GATE_ENFORCED over SSH; on/off override; a failed read or any other value fails the goplus unit alone —
+ * the day's sweep still runs.
+ */
+describe('the GoPlus unit and production\'s identity gate', SLOW, () => {
+  const goplusCall = (r: Run) => r.calls.find((x) => x.includes('import-goplus.ts'))
+  it('auto, production unset → --identity-gate off', () => {
+    const r = run(sandbox(), ['--apply'])
+    expect(goplusCall(r)).toMatch(/--identity-gate off --apply$/)
+  })
+  it('auto, the container\'s IDENTITY_GATE_ENFORCED=1 → --identity-gate on; 0 → off', () => {
+    const box = sandbox()
+    writeFileSync(join(box, 'gate-value'), '1')
+    expect(goplusCall(run(box, ['--apply']))).toMatch(/--identity-gate on --apply$/)
+    const zero = sandbox()
+    writeFileSync(join(zero, 'gate-value'), '0')
+    expect(goplusCall(run(zero, ['--apply']))).toMatch(/--identity-gate off --apply$/)
+  })
+  it('auto, a value the job cannot read safely, or a stopped container → no import, the unit FAILS', () => {
+    const odd = sandbox()
+    writeFileSync(join(odd, 'gate-value'), 'true')
+    expect(goplusCall(run(odd, ['--apply']))).toBeUndefined()
+    const down = sandbox()
+    writeFileSync(join(down, 'container-down'), '')
+    const r = run(down, ['--apply'])
+    expect(goplusCall(r)).toBeUndefined()
+    expect(r.calls.some((x) => x.includes('expire-rentals.ts --sweep'))).toBe(true)
+  })
+  it('auto, the box unreachable → no import, the unit FAILS, the sweep still runs', () => {
+    const box = sandbox()
+    writeFileSync(join(box, 'ssh-fails'), '')
+    const r = run(box, ['--apply'])
+    expect(goplusCall(r)).toBeUndefined()
+    expect(r.code).not.toBe(0)
+    expect(r.out).toMatch(/production's identity gate unknown/)
+    expect(r.calls.some((x) => x.includes('expire-rentals.ts --sweep'))).toBe(true)
+  })
+  it('on/off override without asking the box; any other value fails the unit alone', () => {
+    const box = sandbox()
+    expect(goplusCall(run(box, ['--apply'], { env: { GOPLUS_IDENTITY_GATE: 'on' } }))).toMatch(/--identity-gate on --apply$/)
+    expect(existsSync(join(box, 'ssh.log'))).toBe(false)
+    const bad = run(sandbox(), ['--apply'], { env: { GOPLUS_IDENTITY_GATE: 'maybe' } })
+    expect(goplusCall(bad)).toBeUndefined()
+    expect(bad.calls.some((x) => x.includes('expire-rentals.ts --sweep'))).toBe(true)
+  })
+  it('a GOPLUS_GATE_HOURS typo falls back to weekly and never costs the sweep', () => {
+    const r = run(sandbox(), ['--apply'], { env: { GOPLUS_GATE_HOURS: 'weekly' } })
+    expect(r.out).toMatch(/using 162/)
+    expect(goplusCall(r)).toBeDefined()
+    expect(r.calls.some((x) => x.includes('expire-rentals.ts --sweep'))).toBe(true)
+  })
+  it('⛔ Nhà Tốt\'s apartments by name need the broker override now (their retired rows would be revived)', () => {
+    const r = run(sandbox(), ['--apply'], { env: { APT_ALLOW_BROKER: '', APT_SOURCES: 'nhatot goplus' } })
+    expect(r.calls.some((x) => x.includes('import-nhatot-com.ts'))).toBe(false)
+    expect(goplusCall(r)).toBeDefined()
   })
 })

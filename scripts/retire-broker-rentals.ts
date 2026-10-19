@@ -12,14 +12,23 @@
  * restores it per row (active→active, hidden→hidden), never blanket. (`expired`/`sold` are left alone: already
  * invisible, and only an importer's 7-day revive touches them — and these sources are dropped from the job.)
  *
- * ⛔ Nhà Tốt is NOT here. It keeps individual owners (company_ad filter), so its brokers are removed by the
- * set-difference pass instead:  expire-apartment-rentals.ts --seller nhatot-import-seller-0001 --fresh
+ * ⛔ Nhà Tốt is NOT in the default set. It keeps individual owners (company_ad filter), so its BROKERS were removed by
+ * the set-difference pass instead:  expire-apartment-rentals.ts --seller nhatot-import-seller-0001 --fresh
  * <owner-set> --state-dir <dir> --force --apply  (the shrink from all-Nhà Tốt to owners is a legitimate
  * --force one-off; the share guard would otherwise refuse it).
+ * ⛔ --nhatot-apartments — THE ONE WAY NHÀ TỐT IS RETIRED HERE, AND ONLY ITS APARTMENTS (owner, 2026-10-19: "remove all
+ * apartments and fetch all apartments from https://goplus.com.vn/ once a week … they will become our strategic
+ * partner"). Every `active`/`hidden` apartment-rental row of the Nhà Tốt import seller → 'stale', with the same journal
+ * and per-row rollback. EXPLICIT AND ALONE: the flag takes no --seller, a --seller naming Nhà Tốt without it is refused,
+ * and it never rides along with the broker set — retiring a whole source's apartments is its own decision. Its
+ * houses/rooms/offices (the APT_PLACES=1 unit) are not touched. ⚠️ 'stale' is what the Nhà Tốt importer's 7-day rule
+ * revives, so a by-name `APT_SOURCES=nhatot` run of scripts/apartments-weekly.sh would bring back the owners it sees
+ * listed within 7 days — the job no longer runs it by default (2026-10-19), and must not be asked to.
  *
  *   DRY (read-only session):  set -a; . ./.env; set +a; npx tsx scripts/retire-broker-rentals.ts
  *   WRITE (journal first):     … scripts/retire-broker-rentals.ts --journal-dir <durable dir> --apply
  *   Scope to some sellers:     … --seller muaban-net-import-seller-0001 --seller honeycomb-import-seller-0001
+ *   Nhà Tốt's apartments:      … scripts/retire-broker-rentals.ts --nhatot-apartments [--journal-dir <durable dir> --apply]
  *
  * ⛔ STATUS 'stale', NOT 'hidden', AND THE DIFFERENCE IS LOAD-BEARING: `hide-imageless-imports.ts --restore`
  * re-activates every hidden import row that has a photo, so it would republish these. 'stale' is publicly
@@ -39,13 +48,23 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { journalDirProblem } from '../src/lib/honeycomb-listing'
 
+/** What a target retires: every rental row of a whole-broker seller, or only a seller's APARTMENTS (Nhà Tốt's opt-in). */
+type Target = { id: string; name: string; scope: 'rentals' | 'apartments' }
 /** The whole-broker rental sellers, pinned by id and verified by name. NOT Nhà Tốt (owner-filtered). */
-const BROKER_SELLERS: ReadonlyArray<{ id: string; name: string }> = [
-  { id: 'bds-vn-import-seller-0001', name: 'Batdongsan.com.vn' },
-  { id: 'muaban-net-import-seller-0001', name: 'Muaban.net' },
-  { id: 'honeycomb-import-seller-0001', name: 'Honeycomb House' },
-  { id: 'cmub0wead0000zrq418bqq27m', name: 'Rever.vn' },
+const BROKER_SELLERS: ReadonlyArray<Target> = [
+  { id: 'bds-vn-import-seller-0001', name: 'Batdongsan.com.vn', scope: 'rentals' },
+  { id: 'muaban-net-import-seller-0001', name: 'Muaban.net', scope: 'rentals' },
+  { id: 'honeycomb-import-seller-0001', name: 'Honeycomb House', scope: 'rentals' },
+  { id: 'cmub0wead0000zrq418bqq27m', name: 'Rever.vn', scope: 'rentals' },
 ]
+/** ⛔ OPT-IN ONLY (--nhatot-apartments, the header): Nhà Tốt's apartment-rental rows, pinned like the others. */
+const NHATOT_APARTMENTS: Target = { id: 'nhatot-import-seller-0001', name: 'Nhatot.com', scope: 'apartments' }
+/** The rows a target retires — repeated in the WRITE, so the write can never touch a row the read did not mean. */
+const scopeWhere = (t: Target) => t.scope === 'apartments'
+  ? { subcategorySlug: 'apartment-rental' }
+  // ⛔ RENTALS ONLY: any *-rental subcategory, plus unclassified (null) rows of these rental-only sellers — never a
+  //    non-rental classified row, even for a pinned seller (codex).
+  : { OR: [{ subcategorySlug: { endsWith: '-rental' } }, { subcategorySlug: null }] }
 const STALE = 'stale'
 /** The statuses a routine op could still make public: `active` (already live) and `hidden` (hide-imageless --restore). */
 const RETIRE_STATUSES = ['active', 'hidden'] as const
@@ -56,6 +75,7 @@ const APPLY = argv.includes('--apply')
 const strs = (f: string) => argv.flatMap((a, i) => (argv[i - 1] === f ? [a] : []))
 const JOURNAL_DIR = (() => { const i = argv.indexOf('--journal-dir'); return i >= 0 ? argv[i + 1] ?? null : null })()
 const SCOPE = strs('--seller')
+const NHATOT_FLAG = argv.includes('--nhatot-apartments')
 
 function recordDurably(file: string, line: string) {
   const fd = openSync(file, 'a')
@@ -83,9 +103,11 @@ async function main() {
   if (APPLY && !JOURNAL_DIR) throw new Error('--apply needs --journal-dir <durable dir>')
   if (JOURNAL_DIR && JOURNAL_DIR.startsWith('--')) throw new Error(`--journal-dir needs a path, got the flag "${JOURNAL_DIR}" (did you write "--journal-dir --apply"?)`)
   if (argv.includes('--seller') && SCOPE.length === 0) throw new Error('--seller needs a seller id value (a bare --seller must NOT silently fall back to all sellers)')
+  if (SCOPE.includes(NHATOT_APARTMENTS.id)) throw new Error(`--seller ${NHATOT_APARTMENTS.id}: Nhà Tốt is retired only with --nhatot-apartments (alone), never by --seller`)
+  if (NHATOT_FLAG && SCOPE.length) throw new Error('--nhatot-apartments is its own run: pass it alone, without --seller (retiring a whole source\'s apartments is its own decision)')
   const unknown = SCOPE.filter((id) => !BROKER_SELLERS.some((s) => s.id === id))
   if (unknown.length) throw new Error(`--seller ${unknown.join(', ')} is not a known whole-broker rental seller (known: ${BROKER_SELLERS.map((s) => s.id).join(', ')})`)
-  const targets = SCOPE.length ? BROKER_SELLERS.filter((s) => SCOPE.includes(s.id)) : BROKER_SELLERS
+  const targets: ReadonlyArray<Target> = NHATOT_FLAG ? [NHATOT_APARTMENTS] : SCOPE.length ? BROKER_SELLERS.filter((s) => SCOPE.includes(s.id)) : BROKER_SELLERS
   const journalDir = APPLY ? ensureJournalDir(JOURNAL_DIR!) : null
 
   const db = new PrismaClient({
@@ -106,20 +128,21 @@ async function main() {
         continue
       }
       const rows = await db.listing.findMany({
-        // ⛔ RENTALS ONLY: any *-rental subcategory, plus unclassified (null) rows of these rental-only sellers —
-        //    never a non-rental classified row, even for a pinned seller (codex). The seller is also verified above.
-        where: { sellerId: target.id, status: { in: [...RETIRE_STATUSES] }, OR: [{ subcategorySlug: { endsWith: '-rental' } }, { subcategorySlug: null }] },
+        // The target's rows (scopeWhere): every rental of a whole-broker seller, or Nhà Tốt's apartments. The seller is
+        // also verified above.
+        where: { sellerId: target.id, status: { in: [...RETIRE_STATUSES] }, ...scopeWhere(target) },
         select: { id: true, status: true, subcategorySlug: true }, orderBy: { id: 'asc' },
       })
       const nActive = rows.filter((r) => r.status === 'active').length
       grandTotal += rows.length
-      console.log(`${target.name.padEnd(18)} ${String(rows.length).padStart(6)} rental rows → '${STALE}'   (${nActive} active + ${rows.length - nActive} hidden)   [${bySubcat(rows)}]`)
+      console.log(`${target.name.padEnd(18)} ${String(rows.length).padStart(6)} ${target.scope === 'apartments' ? 'apartment' : 'rental'} rows → '${STALE}'   (${nActive} active + ${rows.length - nActive} hidden)   [${bySubcat(rows)}]`)
       if (!APPLY) continue
 
       const stamp = new Date().toISOString().replace(/[:.]/g, '-')
       const safeId = target.id.replace(/[^a-z0-9-]/gi, '_')
-      const JOURNAL = join(journalDir!, `broker-${safeId}-stale-${stamp}.ids`)
-      const ROLLBACK = join(journalDir!, `broker-${safeId}-stale-${stamp}.rollback.sql`)
+      const kind = target.scope === 'apartments' ? 'apartments' : 'broker'
+      const JOURNAL = join(journalDir!, `${kind}-${safeId}-stale-${stamp}.ids`)
+      const ROLLBACK = join(journalDir!, `${kind}-${safeId}-stale-${stamp}.rollback.sql`)
       recordDurably(ROLLBACK, `-- rollback ${target.name} (${target.id}): replay with psql, THEN purge ISR (scripts/purge-isr-listings.mjs) + Cloudflare tags {eno-html,eno-public} on both zones.`)
       let done = 0
       for (let i = 0; i < rows.length; i += BATCH) {
@@ -134,8 +157,8 @@ async function main() {
         }
         const res = await db.listing.updateMany({
           // seller.ownerId null re-checked in the write too — closes the find→update race against a seller being claimed.
-          // The rentals-only predicate is repeated here so the write can never touch a non-rental row.
-          where: { id: { in: ids }, sellerId: target.id, status: { in: [...RETIRE_STATUSES] }, seller: { ownerId: null }, OR: [{ subcategorySlug: { endsWith: '-rental' } }, { subcategorySlug: null }] },
+          // The target's row predicate is repeated here so the write can never touch a row outside it.
+          where: { id: { in: ids }, sellerId: target.id, status: { in: [...RETIRE_STATUSES] }, seller: { ownerId: null }, ...scopeWhere(target) },
           data: { status: STALE },
         })
         done += res.count

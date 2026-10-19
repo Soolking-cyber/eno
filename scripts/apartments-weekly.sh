@@ -7,6 +7,21 @@
 # 7 day old ones no older than 7 days". (2026-10-01: "only 7 days old apartments fetched weekly, remove else".)
 # The rule and its layers are in src/lib/apartment-freshness.ts (header, "SINCE 2026-10-13").
 #
+# ⛔ SINCE 2026-10-19 THE APARTMENTS ARE GOPLUS'S, AND THEY REFRESH WEEKLY (owner: "remove all apartments and fetch all
+# apartments from https://goplus.com.vn/ once a week for availability they will become our strategic partner for
+# property rental sector"). The default source is the gate unit `goplus` ALONE — Nhà Tốt's apartments are OUT of the
+# default (their rows were retired to 'stale' the same day: scripts/retire-broker-rentals.ts --nhatot-apartments) and
+# must not come back from a routine run. GoPlus is not an import storefront but a PARTNER with its own eno account
+# (scripts/register-partner-seller.mjs goplus): its rows carry no affiliateUrl (renters MESSAGE GoPlus), the daily
+# sweep and expire-apartment-rentals.ts never touch them, and scripts/import-goplus.ts does its own availability
+# expiry — so `goplus` is one step (run_goplus), with no fresh set and no backstop, gated at GOPLUS_GATE_HOURS (162 h:
+# a week less six hours of slack, as 66 h is three days less six) instead of the 66 h. Its FIRST import creates ~2,500
+# rows photo by photo and uploads ~9.5 GB of photos and videos (hours): the go-live runbook runs it by hand, then
+# retires Nhà Tốt's apartments right after — but if this job gets there first (no `last-success-goplus` yet = due), it
+# simply does the same import under its own lock; nothing else waits on it except the next morning's refresh, and the
+# 05:30 sweep agent runs regardless. The rest of this header describes the Nhà Tốt/Muaban/… machinery,
+# which stays runnable by name (APT_SOURCES) but runs by default only with APT_PLACES=1 (nhatot-places).
+#
 # ⛔ SCHEDULE: launchd starts this DAILY at 06:00 (scripts/vn.eno.apartments-weekly.plist), and — so a refresh that
 # outlasts a day cannot cost the daily sweep (launchd never starts a second instance of a running job) — its own
 # `--sweep-only` agent daily at 05:30 (scripts/vn.eno.rentals-sweep.plist), which also alerts on a refresh stuck for
@@ -69,12 +84,17 @@
 #                  origin/main; ~/eno.vn is a working tree and may be dirty or behind)
 #   APT_ENV_FILE   env file for DB + storage (default ~/eno.vn/.env; "none" = caller's environment, no tunnel)
 #   APT_PLACES     1 = also import houses, rooms and offices (above — the owner's call); 0 or unset = apartments only
-#   APT_SOURCES    space-separated subset of the gate units: nhatot muaban honeycomb rever batdongsan, and — only with
-#                  APT_PLACES=1 — the places units nhatot-places muaban-places (default: the first five, + the places
-#                  units with APT_PLACES=1; nhatot/muaban = apartments + their set, *-places = houses/rooms/offices)
+#   APT_SOURCES    space-separated subset of the gate units: goplus nhatot muaban honeycomb rever batdongsan, and — only
+#                  with APT_PLACES=1 — the places units nhatot-places muaban-places (default: goplus, + nhatot-places with
+#                  APT_PLACES=1; nhatot/muaban = apartments + their set, *-places = houses/rooms/offices)
 #   BDS_DIR        Batdongsan dataset dir (default ~/batdongsan_rentals_hcmc)
 #   BDS_PY         its interpreter (default $BDS_DIR/.venv/bin/python — playwright lives there, not in /usr/bin/python3)
 #   GATE_HOURS     the success gate (default 66)
+#   GOPLUS_GATE_HOURS  the `goplus` unit's gate (default 162 — weekly)
+#   GOPLUS_IDENTITY_GATE  auto (default) | on | off — production's seller identity gate for the GoPlus import. `auto`
+#                  READS production's IDENTITY_GATE_ENFORCED from the running eno-vn-app container over the job's SSH key
+#                  (run_goplus → goplus_identity_gate); on/off override it by hand. A failed read is never a guess: the goplus
+#                  unit fails and imports nothing (the importer itself refuses an --apply without a stated gate).
 #   LOCK_ALERT_HOURS  alert when a refresh has held the lock this long (default 36)
 #   APT_NOTIFY     0 = no macOS notification (dry proofs, the job's unit test)
 #
@@ -116,6 +136,8 @@ die() { echo "── $1"; notify "$1"; exit 1; }
 # a refresh run with one dies, alerting.
 CONFIG_PROBLEM=""
 case "$PLACES" in
+  # (2026-10-16 → 10-19 — the apartment source until GoPlus replaced it; the policy text stays, it still governs which
+  #  OTHER feeds may run.)
   # ⛔ NO-BROKER APARTMENT POLICY (owner, 2026-10-16: "go with nha tot only ... no broker policy which we will
   #    enforce harshly"). Nhà Tốt is the ONLY apartment source: its gateway carries a per-ad platform flag
   #    (company_ad) so mapNhatotAd (src/lib/nhatot-listing.ts, reason:'broker') drops every shop/agency/pro and
@@ -129,13 +151,15 @@ case "$PLACES" in
   #    source's rows back (a stopped source reads like a broken refresh) and alerts daily. So the existing broker
   #    apartments are retired by a ONE-OFF pass, not by the sweep. Importer/scraper code for the dropped feeds
   #    stays — name one in APT_SOURCES to run it by hand (nhatot still gets the owner filter either way).
-  0) SOURCES_DEFAULT="nhatot" ;;
-  1) SOURCES_DEFAULT="nhatot nhatot-places" ;;
+  # ⛔ 2026-10-19: GoPlus is THE apartment source (the header) — Nhà Tốt's apartments are out of the default; its
+  #    houses/rooms/offices unit stays the APT_PLACES=1 switch it always was.
+  0) SOURCES_DEFAULT="goplus" ;;
+  1) SOURCES_DEFAULT="goplus nhatot-places" ;;
   *) CONFIG_PROBLEM="APT_PLACES must be 0 or 1, not \"$PLACES\" — this run did nothing"; SOURCES_DEFAULT="" ;;
 esac
 SOURCES="${APT_SOURCES:-$SOURCES_DEFAULT}"
-# ⛔ NO-BROKER ENFORCEMENT (owner 2026-10-16 "enforce harshly"): only Nhà Tốt (company_ad owner-filtered) may run
-#    from a routine invocation. A dropped broker source named via APT_SOURCES — muaban/honeycomb/rever/batdongsan
+# ⛔ NO-BROKER ENFORCEMENT (owner 2026-10-16 "enforce harshly"): only Nhà Tốt (company_ad owner-filtered) — and, since
+#    2026-10-19, GoPlus, the owner's named partner — may run from a routine invocation. A dropped broker source named via APT_SOURCES — muaban/honeycomb/rever/batdongsan
 #    and their -places — has NO owner filter, so it is REFUSED unless APT_ALLOW_BROKER=1 is set deliberately. This
 #    stops an accidental or stale-env override from repopulating broker inventory; a knowing operator can still
 #    run one by hand with the override.
@@ -143,7 +167,12 @@ if [ "${APT_ALLOW_BROKER:-0}" != "1" ]; then
   kept=""; refused=""
   for s in $SOURCES; do
     case "$s" in
-      nhatot|nhatot-places) kept="${kept:+$kept }$s" ;;
+      # goplus: the owner's named strategic partner (2026-10-19) — a partner's own storefront, which renters message;
+      # the exception is the owner's, by name, and covers nothing else.
+      # ⛔ Nhà Tốt's APARTMENTS (`nhatot`) left with the GoPlus switch (2026-10-19): they were retired to 'stale', which its
+      # 7-day rule revives — so naming it now needs the same deliberate override as a broker feed. Its houses/rooms/
+      # offices (`nhatot-places`, APT_PLACES=1) are untouched by the switch.
+      nhatot-places|goplus) kept="${kept:+$kept }$s" ;;
       *) refused="${refused:+$refused }$s" ;;
     esac
   done
@@ -228,6 +257,13 @@ cd "$ENO" || die "repo $ENO missing — install the job worktree"
 # shellcheck source=scripts/apartments-gate.sh
 . "$ENO/scripts/apartments-gate.sh" || die "cannot read $ENO/scripts/apartments-gate.sh — this run did nothing"
 case "$GATE_HOURS" in ''|*[!0-9]*) die "GATE_HOURS must be a whole number of hours, not \"$GATE_HOURS\" — this run did nothing" ;; esac
+GOPLUS_GATE_HOURS="${GOPLUS_GATE_HOURS:-162}"
+GOPLUS_IDENTITY_GATE="${GOPLUS_IDENTITY_GATE:-auto}"
+# ⚠️ A GoPlus-only typo must not cost the day's sweep (a reviewer's catch): a bad gate-hours value falls back to the
+# weekly default, loudly; a bad GOPLUS_IDENTITY_GATE fails the goplus unit alone (run_goplus).
+case "$GOPLUS_GATE_HOURS" in ''|*[!0-9]*) echo "── GOPLUS_GATE_HOURS \"$GOPLUS_GATE_HOURS\" is not a whole number of hours — using 162"; GOPLUS_GATE_HOURS=162 ;; esac
+# gate_hours_of <unit> — the success gate a unit runs on: GoPlus weekly (the owner's "once a week"), the rest every 3 days.
+gate_hours_of() { case "$1" in goplus) echo "$GOPLUS_GATE_HOURS" ;; *) echo "$GATE_HOURS" ;; esac; }
 if [ "$ENVF" != "none" ]; then
   set -a; . "$ENVF" || die "env file $ENVF unreadable — this run did nothing"; set +a
 fi
@@ -481,8 +517,53 @@ run_batdongsan() {
   summary batdongsan
 }
 
+# run_goplus — GoPlus, eno's rental PARTNER (gate unit `goplus`, weekly; the header): ONE step. scripts/import-goplus.ts
+# reads the whole catalogue (it refuses a read that is not whole), creates / refreshes / revives, and expires the rooms
+# no longer vacant itself — the rows are the partner's own storefront, which the sweep and expire-apartment-rentals.ts
+# never touch — so there is no stage file, no fresh set and no backstop. Exit 3 = the rows were written but its expiry
+# guard refused (a short read or a broken mapper): failed, no stamp, retried tomorrow. Exit 1 with `APPLY COMPLETED` =
+# finished with row errors (an upload blip): flagged, no stamp. A dry run reads and plans (no journal: it writes nothing).
+# goplus_identity_gate — production's seller identity gate, as `on`/`off`. ⛔ READ FROM THE BOX, NOT GUESSED (both
+# reviewers, 2026-10-19): production's IDENTITY_GATE_ENFORCED lives in the marketplace container's environment, which this
+# Mac's ~/eno.vn/.env does not carry — a default here would publish GoPlus's rooms under an unverified account the day
+# production turns the gate on. `auto` (the default) reads that one line over the job's own SSH key; on/off state it by
+# hand (an override). The read failing, or any other value, is NOT a guess: the goplus unit fails and imports nothing.
+goplus_identity_gate() {
+  case "$GOPLUS_IDENTITY_GATE" in on|off) echo "$GOPLUS_IDENTITY_GATE"; return 0 ;; auto) ;; *) return 1 ;; esac
+  local out v
+  # The RUNNING marketplace container's own environment (`eno-vn-app`) — what the app itself reads, however it got there
+  # (env file, compose, -e); an env-file grep could miss an `export`-prefixed line or a value set elsewhere and quietly
+  # answer "off" (a reviewer's catch). ⛔ BOTH LINES ARE PRINTED INSIDE THE CONTAINER: an exec that fails (a deploy
+  # swapping it) prints neither, so it can never read as an empty value = "off" (a reviewer's catch).
+  out="$(ssh -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=15 -i "$KEY" -p 24700 root@162.4.176.233 \
+    "docker exec eno-vn-app sh -c 'printf \"VALUE=%s\\n\" \"\${IDENTITY_GATE_ENFORCED-}\"; echo GATE-READ-END'" 2>/dev/null)" || return 1
+  case "$out" in *GATE-READ-END*) ;; *) return 1 ;; esac
+  v="$(printf '%s\n' "$out" | grep -E '^VALUE=' | tail -1 | cut -d= -f2- | tr -d '\r')"
+  # account-state.ts identityGateEnforced(): the marketplace edition AND exactly "1". Unset/empty or "0" = off; any
+  # other value is not something this job can read safely — the unit fails rather than guess.
+  case "$v" in 1) echo on ;; ''|0) echo off ;; *) return 1 ;; esac
+}
+run_goplus() {
+  local rc gate
+  if ! gate="$(goplus_identity_gate)"; then
+    fail goplus "production's identity gate unknown (GOPLUS_IDENTITY_GATE=$GOPLUS_IDENTITY_GATE; auto reads it from the box) — nothing imported"
+    return
+  fi
+  echo "  [goplus] identity gate $gate (GOPLUS_IDENTITY_GATE=$GOPLUS_IDENTITY_GATE)"
+  dbrun "$RUN/goplus.log" npx tsx scripts/import-goplus.ts ${JOURNAL[@]+"${JOURNAL[@]}"} --identity-gate "$gate" $APPLY; rc=$?
+  grep -E "^(source|vacant|PLAN|storefront|expiry|  EXPIRED|  expiry|⛔)" "$RUN/goplus.log" | sed 's/^/  [goplus] /'
+  case "$rc" in
+    0) ;;
+    3) fail goplus "its expiry guard refused (the rows were written; nothing was expired)" ;;
+    1) if grep -qx "APPLY COMPLETED" "$RUN/goplus.log"; then fail goplus-row-errors "the import finished with row errors — retried tomorrow"; else fail goplus import; fi ;;
+    *) fail goplus "import (exit $rc)" ;;
+  esac
+}
+
 seller_of() {
   case "$1" in
+    # Not a fixed id: the partner's storefront is resolved by its handle AND owner email inside the importer.
+    goplus) echo "handle:goplus" ;;
     nhatot|nhatot-places) echo nhatot-import-seller-0001 ;;
     muaban|muaban-places) echo muaban-net-import-seller-0001 ;;
     honeycomb) echo honeycomb-import-seller-0001 ;; rever) echo cmub0wead0000zrq418bqq27m ;;
@@ -495,9 +576,11 @@ RAN=()
 if [ -z "$SWEEP_ONLY" ]; then
   for src in $SOURCES; do
     seller="$(seller_of "$src")" || { echo "unknown source $src"; FAILED+=("$src"); continue; }
-    # ⛔ THE 66 h GATE (scripts/apartments-gate.sh): only --apply runs are gated; a dry run reads every source asked for.
-    if [ -n "$APPLY" ] && [ -z "$FORCE" ] && ! source_due "$STATE/last-success-$src" "$START_EPOCH"; then
-      echo "── $src: last success $(epoch_iso "$(stamp_read "$STATE/last-success-$src")") — under ${GATE_HOURS} h ago, not due"
+    # ⛔ THE GATE (scripts/apartments-gate.sh): 66 h, or a week for GoPlus (gate_hours_of); only --apply runs are gated —
+    # a dry run reads every source asked for.
+    hours="$(gate_hours_of "$src")"
+    if [ -n "$APPLY" ] && [ -z "$FORCE" ] && ! source_due "$STATE/last-success-$src" "$START_EPOCH" "$hours"; then
+      echo "── $src: last success $(epoch_iso "$(stamp_read "$STATE/last-success-$src")") — under ${hours} h ago, not due"
       continue
     fi
     echo "── $(date '+%T') $src"
@@ -507,8 +590,10 @@ if [ -z "$SWEEP_ONLY" ]; then
     SRC_OK=1
     RAN+=("$src")
     "run_$(printf '%s' "$src" | tr '-' '_')"
-    # The backstop is per SELLER: Nhà Tốt's and Muaban's run with their apartment units, not again with their places.
-    case "$src" in *-places) ;; *) backstop "$src" "$seller" ;; esac
+    # The backstop is per SELLER: Nhà Tốt's and Muaban's run with their apartment units, not again with their places —
+    # and never for GoPlus, whose rows are an owned storefront's (expire-apartment-rentals.ts refuses one; its own
+    # importer expires them).
+    case "$src" in *-places|goplus) ;; *) backstop "$src" "$seller" ;; esac
     # ⛔ The success stamp — only after the source's whole refresh succeeded, and only for --apply runs.
     if [ -n "$APPLY" ] && [ "$SRC_OK" = 1 ]; then
       stamp_write "$STATE/last-success-$src" "$START_EPOCH" || { echo "  ✗ could not write $STATE/last-success-$src"; FAILED+=("$src-stamp"); }

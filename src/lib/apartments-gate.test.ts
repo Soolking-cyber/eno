@@ -54,6 +54,13 @@ describe('scripts/apartments-gate.sh — the daily trigger runs a source only wh
     expect([1, 2, 3].map((d) => due(late, ranAt + d * 24 * H))).toEqual([false, false, true])   // 67 h by day 3's 06:00
   })
 
+  it('⛔ the WEEKLY cadence (GoPlus — owner 2026-10-19 "once a week"; GOPLUS_GATE_HOURS 162) on the same 06:00 trigger: due on the 7th morning, a late start included', () => {
+    const f = stamp(`${NOW}`)
+    expect([1, 2, 3, 4, 5, 6, 7].map((d) => due(f, NOW + d * 24 * H, 162))).toEqual([false, false, false, false, false, false, true])
+    const late = stamp(`${NOW + 5 * H}`)     // fired on wake at 11:00
+    expect([6, 7].map((d) => due(late, NOW + d * 24 * H, 162))).toEqual([false, true])   // 163 h by day 7's 06:00
+  })
+
   it('a failed run writes no stamp, so the next morning runs it again', () => {
     const f = stamp(`${NOW - 30 * H}`)        // the last success, before yesterday's failure
     expect(due(f, NOW)).toBe(false)
