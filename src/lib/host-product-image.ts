@@ -49,8 +49,16 @@ export function makeImageHost(deps: {
    * the overlay (e.g. set-vinwonders-covers.ts).
    * ⚠️ Scripts run from the box's app checkout, which moves only with a deploy, so the importers and
    * the renderer that marks their output always ship together.
+   * `'none'` (GoPlus, 2026-10-19): store the photo CLEAN and UNMARKED — nothing burned in, and NOT under
+   * `affiliate/m/`, so overlayMarkFromUrl() draws nothing over it either. For a PARTNER's own photos that
+   * already carry the partner's watermark (GoPlus burns its logo into every shot); the owner chose to copy
+   * them without a second, eno mark on top. ⛔ ITS OBJECT KEY IS DETERMINISTIC — `<prefix>/<slug>-h<dHash>.webp`
+   * (cleanImagePath) — so the CALLER'S `slug` MUST IDENTIFY THE SOURCE (scripts/import-goplus.ts passes a
+   * hash of the source URL): a re-run that meets the same photo lands on the same key, and an upload refused
+   * as "already exists" IS that photo (same source, same pixels → same dHash) and is reused, never stored a
+   * second time. A random slug would defeat that and keep every copy.
    */
-  mark?: 'burned' | 'overlay'
+  mark?: 'burned' | 'overlay' | 'none'
 }) {
   const { storage, storageUrl, bucket, edge = 1200, quality = 80, prefix = 'affiliate', mark = 'overlay' } = deps
 
@@ -81,6 +89,15 @@ export function makeImageHost(deps: {
         .flatten({ background: '#ffffff' })
         .png()
         .toBuffer()
+      if (mark === 'none') {
+        const hash = await dHashPng(sharp, png)
+        const out = await sharp(png).webp({ quality }).toBuffer()
+        const path = cleanImagePath(prefix, slug, hash)
+        const { error } = await storage.upload(path, out, { contentType: 'image/webp', upsert: false, cacheControl: '31536000' })
+        // The deterministic key already holds this photo (a re-run, or a run that died before its row was written).
+        if (error && !isAlreadyExists(error)) return null
+        return { url: `${storageUrl}/storage/v1/object/public/${bucket}/${path}`, hash }
+      }
       if (mark === 'overlay') {
         // Two inks, because the mark lands on different pixels in the two frame shapes: the centred
         // square's corner on a cover card, the photo's own corner in a contain gallery.
@@ -136,6 +153,29 @@ export function makeImageHost(deps: {
   }
 
   return Object.assign(hostImage, { fromBuffer: hostBuffer, detailed: hostImageDetailed })
+}
+
+/**
+ * The object key `mark: 'none'` stores a photo under: `<prefix>/<slug>[-h<dHash>].webp`. Exported so a caller can
+ * read its own names back (src/lib/goplus-listing.ts goplusStoredPhotoKey). Segments in the first-party key alphabet
+ * (listing-image.ts isListingImageUrl), so the stored URL is a canonical listing image; the `-h<hash>` tail is the one
+ * countDistinctAngles reads (image-hash-url.ts), so the publish gate still counts distinct photos.
+ */
+export function cleanImagePath(prefix: string, slug: string, hash: string | null): string {
+  const dir = prefix.split('/').map((p) => p.replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^[^A-Za-z0-9]+/, '')).filter(Boolean).join('/')
+  const safe = slug.replace(/[^a-z0-9-]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'img'
+  const h = hash && /^[0-9a-f]{16}$/i.test(hash) ? `-h${hash.toLowerCase()}` : ''
+  return `${dir ? `${dir}/` : ''}${safe}${h}.webp`
+}
+
+/** Supabase storage's answer to an `upsert: false` upload onto a key that exists (HTTP 409, "Duplicate"). */
+function isAlreadyExists(error: unknown): boolean {
+  const e = error as { statusCode?: unknown; status?: unknown; message?: unknown; error?: unknown } | null
+  if (String(e?.statusCode) === '409' || e?.status === 409) return true
+  // The words alone count only when nothing says it was a server failure — a 5xx that mentions "duplicate" is not proof
+  // the object is there (a reviewer's catch, 2026-10-19).
+  const status = Number(e?.statusCode ?? e?.status)
+  return !(status >= 500) && /already exists|duplicate/i.test(`${e?.message ?? ''} ${e?.error ?? ''}`)
 }
 
 /**
