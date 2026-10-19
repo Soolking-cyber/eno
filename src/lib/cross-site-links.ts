@@ -128,11 +128,14 @@ export const MARKETPLACE_LINKS: CrossSiteLink[] = [
   {
     key: 'jobs',
     href: `${MARKETPLACE_ORIGIN}/jobs-vietnam-expats`,
-    labelEn: 'Jobs in Vietnam for internationals',
-    labelVi: 'Việc làm tại Việt Nam cho người nước ngoài',
-    // It listed "hospitality, marketing, design and tech": all 42 live jobs were teaching (2026-09-27).
-    blurbEn: 'Roles where English is required, mostly teaching.',
-    blurbVi: 'Các vị trí cần tiếng Anh, phần lớn là giảng dạy.',
+    // ⚠️ The English TEACHING jobs board since 2026-10-18 (teacher visibility plan B2): the landing lists Jobs › Teaching
+    // only. It once listed "hospitality, marketing, design and tech" (all 42 live jobs were teaching on 2026-09-27), then
+    // "Roles where English is required, mostly teaching". The blurb is the page's own intro in short — sorted by city,
+    // the pay where the posting states it — which holds for a job posted directly on eno.vn as much as a linked one.
+    labelEn: 'English teaching jobs in Vietnam',
+    labelVi: 'Việc làm giáo viên tiếng Anh tại Việt Nam',
+    blurbEn: 'By city, with the pay where the posting states it.',
+    blurbVi: 'Theo từng thành phố, kèm mức lương nếu tin tuyển dụng có ghi.',
   },
   {
     key: 'moving-sales',

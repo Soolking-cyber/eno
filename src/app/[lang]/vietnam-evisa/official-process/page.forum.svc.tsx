@@ -54,6 +54,8 @@ const CONTENT: ArticleContent = {
     'A Vietnam e-visa is issued by the Immigration Department through one government portal, for a fee the government sets. Everything else on the market is a service layered on top of that process. This page describes the official route in full, states what it costs, and is specific about the things an agent genuinely helps with and the things nobody can sell you.',
   canonical: '/vietnam-evisa/official-process',
   published: '2026-08-01',
+  // 2026-10-18: the jobs link describes the English teaching jobs board it opens (plan B2).
+  updated: '2026-10-18',
   disclosure: PROVIDER_OF_RECORD.en,
   jsonLd: [visaServiceLd()],
   sections: [
@@ -283,10 +285,13 @@ const CONTENT: ArticleContent = {
             <HereLink href="/moving-to-vietnam">what to arrange before you fly</HereLink> — the
             documents only your home country can issue, and what not to ship — and{' '}
             <HereLink href="/first-month-in-vietnam">the first-month checklist</HereLink>, which
-            covers registering your stay and the two deadlines that have consequences. If you are
-            arriving with work to find,{' '}
-            <VnLink href={marketplaceHref('jobs')}>roles that ask for English</VnLink> are a
-            reasonable place to calibrate salaries against the rents you have been quoted.
+            covers registering your stay and the two deadlines that have consequences. If you plan to
+            teach,{' '}
+            <VnLink href={marketplaceHref('jobs')}>English teaching jobs on eno.vn</VnLink> show the
+            pay where a posting states it, so you can set it against the rents you have been quoted.
+            {/* ⚠️ THE LINK IS THE ENGLISH TEACHING JOBS BOARD SINCE 2026-10-18 (teacher visibility plan B2): "roles that ask
+                for English" described a general jobs page; it lists Jobs › Teaching only. cross-site-links.test.ts holds
+                every caller of marketplaceHref('jobs') to this. */}
           </P>
         </>
       ),

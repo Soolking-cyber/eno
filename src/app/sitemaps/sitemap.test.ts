@@ -670,10 +670,23 @@ describe('the pages child: lastmod from what each page shows', () => {
 
   it('submits a gated landing once it has a listing, dated by it', async () => {
     h.rows = [
-      row({ id: 'job', categoryId: 'cat-empty', postedAt: new Date('2026-09-10T00:00:00Z') }),
+      row({ id: 'job', categoryId: 'cat-empty', subcategorySlug: 'teaching', listingType: 'job', postedAt: new Date('2026-09-10T00:00:00Z') }),
     ]
     const xml = await (await pagesGET()).text()
     expect(lastmodOf(xml, `${HOST}/jobs-vietnam-expats`)).toBe('2026-09-10T00:00:00.000Z')
+  })
+
+  // ⛔ The jobs landing is the TEACHING jobs board since B2 (2026-10-18): only a live teaching job post submits and dates
+  // it, with the page's own predicate — a newer job in another aisle, or a Wanted ad in Teaching, is not on its board.
+  it('the jobs landing counts and dates by teaching job posts only', async () => {
+    const other = [
+      row({ id: 'barista', categoryId: 'cat-empty', subcategorySlug: 'hospitality', listingType: 'job', postedAt: new Date('2026-09-12T00:00:00Z') }),
+      row({ id: 'seeking', categoryId: 'cat-empty', subcategorySlug: 'teaching', listingType: 'wanted', postedAt: new Date('2026-09-13T00:00:00Z') }),
+    ]
+    h.rows = other
+    expect(locs(await (await pagesGET()).text())).not.toContain(`${HOST}/jobs-vietnam-expats`)
+    h.rows = [...other, row({ id: 'teach', categoryId: 'cat-empty', subcategorySlug: 'teaching', listingType: 'job', postedAt: new Date('2026-09-10T00:00:00Z') })]
+    expect(lastmodOf(await (await pagesGET()).text(), `${HOST}/jobs-vietnam-expats`)).toBe('2026-09-10T00:00:00.000Z')
   })
 
   /**

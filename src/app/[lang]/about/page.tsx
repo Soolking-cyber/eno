@@ -203,11 +203,19 @@ const SERVICES_MARKETPLACE_LINKS = [
     label: 'furnishing a home in Vietnam',
     tail: '— what the landlord supplies, what is worth buying new, and what is better bought secondhand.',
   },
+  /* ⚠️ THE ENGLISH TEACHING JOBS BOARD SINCE 2026-10-18 (teacher visibility plan B2): /jobs-vietnam-expats lists
+     Jobs › Teaching only, so "jobs for expats and internationals … teaching, hospitality, marketing, design and tech
+     roles" promised work the page no longer lists.
+     ⛔ "LINKED TO THE ORIGINAL POSTING WHERE THERE IS ONE", NEVER "EACH LINKED" (the one linked-jobs rule of the teacher
+     visibility work — the review's recommendation, approved by the owner on 2026-10-18): on that day all 38 teaching jobs
+     were linked from job boards and schools' careers pages, whose posting the listing's Apply button opens — but a school
+     can post directly on eno.vn, and that job has no posting elsewhere, so "each" would turn false with the first one.
+     The page's own copy names both kinds. */
   {
     path: '/jobs-vietnam-expats',
     lead: 'Staying on to work?',
-    label: 'jobs for expats and internationals in Vietnam',
-    tail: '— teaching, hospitality, marketing, design and tech roles where English is required.',
+    label: 'English teaching jobs in Vietnam',
+    tail: '— by city, linked to the original posting where there is one.',
   },
 ]
 

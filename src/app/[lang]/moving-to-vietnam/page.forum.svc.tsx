@@ -227,15 +227,20 @@ const CONTENT: ArticleContent = {
       body: (
         <>
           <P>
-            Teaching, hospitality, tech, design and marketing are where most international hires
-            land, and the market rewards being here — but a signed offer before you fly is what makes
-            the work permit possible, because the company applies for it, not you. Ask the specific
-            question early: will you sponsor the work permit, and who pays for the documents?
+            Whatever the work, a signed offer before you fly is what makes the work permit possible,
+            because the company applies for it, not you. Ask the specific question early: will you
+            sponsor the work permit, and who pays for the documents?
           </P>
           <P>
-            <VnLink href={marketplaceHref('jobs')}>Roles in Vietnam that ask for English</VnLink> are worth watching
-            for a few weeks before you move, if only to calibrate what salaries look like against the
-            rent numbers you have been quoted.
+            If you plan to teach,{' '}
+            <VnLink href={marketplaceHref('jobs')}>English teaching jobs in Vietnam</VnLink> are worth
+            watching for a few weeks before you move, if only to compare the pay the postings state
+            with the rent numbers you have been quoted.
+            {/* ⚠️ THE LINK IS THE ENGLISH TEACHING JOBS BOARD SINCE 2026-10-18 (teacher visibility plan B2): the section
+                opened on "teaching, hospitality, tech, design and marketing are where most international hires land, and
+                the market rewards being here" and linked "roles in Vietnam that ask for English" — a general jobs page
+                the link no longer opens (it lists Jobs › Teaching only), after two claims nothing here measured (review,
+                2026-10-18). cross-site-links.test.ts holds every caller of marketplaceHref('jobs') to this. */}
           </P>
         </>
       ),

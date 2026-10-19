@@ -118,7 +118,8 @@ export const SERVICES_FOOTER_GROUPS: ServicesFooterGroup[] = [
       { labelEn: 'Housing and apartment rentals in Vietnam', labelVi: 'Thuê nhà và căn hộ tại Việt Nam', href: '/housing-vietnam-expats' },
       // ⛔ /motorbikes-for-sale-vietnam IS NOT LINKED (2026-09-27): 0 motorbikes on either edition and
       // the landing serves noindex — the same reason the shared "Popular searches" column dropped it.
-      { labelEn: 'Jobs in Vietnam for internationals', labelVi: 'Việc làm tại Việt Nam cho người nước ngoài', href: '/jobs-vietnam-expats' },
+      // The English teaching jobs board since 2026-10-18 (teacher visibility plan B2) — the footer's own label for it.
+      { labelEn: 'English teaching jobs in Vietnam', labelVi: 'Việc làm giáo viên tiếng Anh tại Việt Nam', href: '/jobs-vietnam-expats' },
       { labelEn: 'Moving sales and secondhand furniture', labelVi: 'Thanh lý chuyển nhà và nội thất cũ', href: '/moving-sales-vietnam' },
     ],
   },

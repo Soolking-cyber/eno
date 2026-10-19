@@ -124,6 +124,19 @@ describe('Footer links', () => {
     expect(container.textContent).toContain('Kinh nghiệm thuê căn hộ cho người nước ngoài')
   })
 
+  // ⚠️ /jobs-vietnam-expats is the English teaching jobs board since 2026-10-18 (teacher visibility plan B2): the anchor
+  // names what it lists, on both editions — "Jobs in Vietnam for expats" promised work the page no longer lists.
+  for (const edition of EDITIONS) {
+    for (const lang of ['en', 'vi'] as const) {
+      it(`${edition}/${lang}: names the jobs landing for what it lists — English teaching jobs`, async () => {
+        const { container } = await renderFooter(edition, lang)
+        const anchors = [...container.querySelectorAll('a[href="/jobs-vietnam-expats"]')].map((a) => a.textContent)
+        expect(anchors).toEqual([lang === 'vi' ? 'Việc làm giáo viên tiếng Anh tại Việt Nam' : 'English teaching jobs in Vietnam'])
+        expect(container.textContent).not.toMatch(/Jobs in Vietnam for expats|Việc làm cho người nước ngoài/)
+      })
+    }
+  }
+
   it('still links every category that is not deliberately hidden', async () => {
     const { FOOTER_HIDDEN_CATEGORIES } = await import('./footer')
     const { hrefs } = await renderFooter('marketplace', 'en')

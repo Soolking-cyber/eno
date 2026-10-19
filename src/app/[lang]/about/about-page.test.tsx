@@ -230,6 +230,21 @@ describe('/about on eno.forum', () => {
     expect(html).not.toMatch(/something to ride|departing expat is selling/i)
     expect(html).toContain('/furnishing-a-home-in-vietnam')
   })
+
+  // ⚠️ /jobs-vietnam-expats is the English teaching jobs board since 2026-10-18 (teacher visibility plan B2).
+  it('describes the jobs landing as the teaching jobs board it is — no hospitality, marketing, design or tech roles', async () => {
+    const html = await render('services')
+    expect(html).toMatch(/<a href="[^"]*\/jobs-vietnam-expats"[^>]*>English teaching jobs in Vietnam<\/a> — by city, linked to the original posting where there is one\./)
+    expect(html).not.toMatch(/jobs for expats and internationals|hospitality, marketing, design and tech/i)
+  })
+})
+
+// ⛔ THE ONE LINKED-JOBS RULE (2026-10-18): linked jobs open the original posting — never "each" job, since a school can
+// post directly and its job has no posting elsewhere.
+describe('the linked-jobs claim', () => {
+  it.each(['services', 'marketplace'] as const)('%s: never says every job is linked to the original posting', async (edition) => {
+    expect(await render(edition)).not.toMatch(/\b(?:each|every)(?: one| job| listing| posting)?(?: is)? link(?:s|ed)? to (?:the|its) original/i)
+  })
 })
 
 describe('the rail', () => {

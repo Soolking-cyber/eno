@@ -193,13 +193,26 @@ export type SeoContent = SeoContentFields & SeoCta
  *  prop needs no alias to be correct). It also keeps the placement decision at the call site, where
  *  "which pages carry the promo" is a question somebody can answer by grepping for the component.
  */
-export async function SeoLanding({ content, lede, after }: { content: SeoContent; lede?: ReactNode; after?: ReactNode }) {
+export async function SeoLanding({ content, lede, after, inventory }: {
+  content: SeoContent
+  lede?: ReactNode
+  after?: ReactNode
+  /**
+   * ⚠️ A PAGE THAT LISTS ITS WHOLE INVENTORY ITSELF — the teaching jobs board, jobs-vietnam-expats/teaching-board.tsx —
+   * hands its block over INSTEAD of the rail: `node` renders where the rail would (after the masthead hairline), and
+   * what the page's OWN read found decides the empty state below (`known` false = could not look, exactly as the
+   * rail's). No rail query runs: eight cards over the same rows would repeat the first eight lines of the list.
+   */
+  inventory?: { known: boolean; count: number; node: ReactNode }
+}) {
   // ⚠️ `inventoryKnown`, NOT `listings.length === 0` — loadSeoRail ALSO returns an empty array when the
   // database is unreachable at build time, and those two states must not share a UI. Treating a
   // transient build failure as "nobody has listed one" would put "Be the first to list one" on a
   // page with a hundred listings until the next ISR regen, a week later. `known` is set only after
   // the query genuinely returns, so an outage falls back to today's behaviour.
-  const { listings, known: inventoryKnown } = await railFor(content, () => loadSeoRail(content))
+  const { listings, known: inventoryKnown } = inventory
+    ? { listings: [], known: inventory.known }
+    : await railFor(content, () => loadSeoRail(content))
   // The plain browse URL: its CTAs below are LocalizedLinks, which turn it into the reader's own — the
   // `/vi` twin of a pilot path on a Vietnamese page (A1-LANG). This server component has no `params` to
   // read the language from; the client context starts at the variant the server rendered, so the href
@@ -208,7 +221,7 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
 
   // Nothing to browse, and we know it rather than merely failing to look. The predicate lives in
   // its own module so it can be unit-tested — this file imports Prisma, so a test cannot.
-  const noInventory = hasNoInventory(inventoryKnown, listings.length)
+  const noInventory = hasNoInventory(inventoryKnown, inventory ? inventory.count : listings.length)
   // App Store gate `ios-hide-visa` — CSS hooks, never the user agent: this page is ISR and the edge cache shares its
   // HTML between the app and the web (see `appInfoOnly`).
   const iosInfoOnly = content.appInfoOnly === true && appReviewGate('ios-hide-visa')
@@ -373,6 +386,7 @@ export async function SeoLanding({ content, lede, after }: { content: SeoContent
           <SeoListingGrid listings={listings} title={content.railTitle ?? 'Listed now'} cta={content.cta} links={content.browseLinks} href={browseHref} />
           </IosAppHidden>
         )}
+        {inventory && <IosAppHidden when={iosInfoOnly}>{inventory.node}</IosAppHidden>}
 
         {/* Editorial / keyword sections — wide container, readable measure.
             web-only: long-form SEO prose for Google, hidden in the native apps

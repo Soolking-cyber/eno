@@ -32,6 +32,16 @@ const EN_LABEL: Record<string, string> = { '79': 'Ho Chi Minh City', '01': 'Hano
 export const JOB_CITY_CHIPS = 8
 
 /**
+ * One stored `city` → its province and the chip's labels, or null when it names no province (never guessed). The
+ * lookup the chips below count by — exported for the teaching jobs board (jobs-vietnam-expats/board.ts), so a city
+ * section there and a chip here cannot place the same job in two different provinces.
+ */
+export function jobCityOf(city: string | null | undefined): Omit<JobCity, 'count'> | null {
+  const u = city ? BY_KEY.get(placeKey(city)) : undefined
+  return u ? { geo: { code: u.code, name: u.name, nameEn: u.nameEn }, label: { en: EN_LABEL[u.code] ?? u.nameEn, vi: u.name } } : null
+}
+
+/**
  * Grouped `city` counts → one chip per province (every spelling of a place merged), largest first,
  * ties by name; a value that names no province is dropped rather than guessed. The row is worth drawing
  * only with two or more cities, which the caller checks.
@@ -39,12 +49,12 @@ export const JOB_CITY_CHIPS = 8
 export function jobCityChips(groups: readonly { city: string | null; count: number }[], max = JOB_CITY_CHIPS): JobCity[] {
   const byCode = new Map<string, JobCity>()
   for (const g of groups) {
-    if (!g.city || g.count <= 0) continue
-    const u = BY_KEY.get(placeKey(g.city))
-    if (!u) continue
-    const hit = byCode.get(u.code)
+    if (g.count <= 0) continue
+    const place = jobCityOf(g.city)
+    if (!place) continue
+    const hit = byCode.get(place.geo.code)
     if (hit) { hit.count += g.count; continue }
-    byCode.set(u.code, { geo: { code: u.code, name: u.name, nameEn: u.nameEn }, label: { en: EN_LABEL[u.code] ?? u.nameEn, vi: u.name }, count: g.count })
+    byCode.set(place.geo.code, { ...place, count: g.count })
   }
   return [...byCode.values()]
     .sort((a, b) => b.count - a.count || a.geo.name.localeCompare(b.geo.name, 'vi'))

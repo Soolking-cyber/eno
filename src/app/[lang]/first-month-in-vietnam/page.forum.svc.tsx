@@ -254,10 +254,18 @@ const CONTENT: ArticleContent = {
             arrived a year before you did.
           </P>
           <P>
-            <VnLink href={marketplaceHref('jobs')}>Work listings aimed at internationals</VnLink> are
-            a decent barometer of which industries are hiring if your plans are still open, and the
-            marketplace’s housing and secondhand sections are, in practice, where a lot of that
-            local knowledge gets exchanged one message at a time.
+            For the practical side, eno.vn lists apartments for rent and secondhand furniture. And if
+            teaching is one of your options,
+            the same site lists <VnLink href={marketplaceHref('jobs')}>English teaching jobs</VnLink> by
+            city, with the pay where a posting states it.
+            {/* ⚠️ THE LINK IS THE ENGLISH TEACHING JOBS BOARD SINCE 2026-10-18 (teacher visibility plan B2): it said "work
+                listings aimed at internationals … a decent barometer of which industries are hiring", and the page now
+                lists Jobs › Teaching only — by city, with the pay where the posting states it (its own blurb,
+                cross-site-links.ts). Not "which schools are hiring": a posting may name a recruiter, or no employer at
+                all (review, 2026-10-18). The housing sentence states only what the site lists — it used to call eno.vn "in
+                practice" where local knowledge is exchanged, which nothing measured (review, 2026-10-19). It names eno.vn
+                because no link names it before. cross-site-links.test.ts
+                holds every caller of marketplaceHref('jobs') to this. */}
           </P>
         </>
       ),

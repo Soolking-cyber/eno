@@ -255,7 +255,10 @@ function FooterBody() {
                 href: lang === 'vi' ? '/thue-xe-tu-lai-tphcm' : '/car-rental-ho-chi-minh-city',
               },
             ]),
-        { label: tr('Jobs in Vietnam for expats', 'Việc làm cho người nước ngoài'), href: '/jobs-vietnam-expats' },
+        /* ⚠️ THE ENGLISH TEACHING JOBS BOARD SINCE 2026-10-18 (teacher visibility plan B2): /jobs-vietnam-expats lists
+           Jobs › Teaching only, so "Jobs in Vietnam for expats" promised work the page no longer lists. Both editions —
+           each serves the same board (footer.test.tsx). */
+        { label: tr('English teaching jobs in Vietnam', 'Việc làm giáo viên tiếng Anh tại Việt Nam'), href: '/jobs-vietnam-expats' },
         // The teacher-ranked school directory (2026-10-04). Marketplace only, for the duplicate reason above.
         ...(IS_SERVICES ? [] : [{ label: tr('Saigon schools ranked by teachers', 'Trường ở Sài Gòn do giáo viên xếp hạng'), href: '/schools' }]),
         /* ⛔ THE TEACHER LIBRARY'S HUB HAD NO LINK FROM ANY PAGE OUTSIDE ITS OWN GUIDES (teacher visibility plan,

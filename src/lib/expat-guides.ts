@@ -82,7 +82,8 @@ export const EXPAT_GUIDES: readonly ExpatGuide[] = [
   {
     slug: 'moving-to-vietnam',
     published: '2026-08-01',
-    updated: '2026-09-27',
+    // 2026-10-18: the "work" section's jobs link describes the English teaching jobs board it opens (plan B2).
+    updated: '2026-10-18',
     label: 'Moving to Vietnam: what to arrange before you fly',
     blurb:
       'The paperwork that has to be done at home, what to ship and what to buy secondhand, and how much cash the first month really takes.',
@@ -90,7 +91,9 @@ export const EXPAT_GUIDES: readonly ExpatGuide[] = [
   {
     slug: 'first-month-in-vietnam',
     published: '2026-08-01',
-    updated: '2026-09-27',
+    // 2026-10-18: the jobs link describes the English teaching jobs board it opens (plan B2). 2026-10-19: the housing
+    // sentence beside it states only what eno.vn lists.
+    updated: '2026-10-19',
     label: 'Your first month in Vietnam: the checklist',
     blurb:
       'Registering your stay, a phone number that works with banking apps, reading a lease, and the deadlines that have real consequences.',

@@ -71,6 +71,93 @@ describe('cross-site links', () => {
     expect(CROSS_SITE_REL).toBe('noopener')
   })
 
+  // ⚠️ /jobs-vietnam-expats is the English teaching jobs board since 2026-10-18 (teacher visibility plan B2): the link
+  // names what it lists — not "jobs for internationals", not "mostly teaching".
+  it('names the jobs landing for what it lists: English teaching jobs', () => {
+    const jobs = MARKETPLACE_LINKS.find((l) => l.key === 'jobs')
+    expect(jobs).toMatchObject({
+      href: 'https://eno.vn/jobs-vietnam-expats',
+      labelEn: 'English teaching jobs in Vietnam',
+      labelVi: 'Việc làm giáo viên tiếng Anh tại Việt Nam',
+    })
+    expect(`${jobs?.blurbEn} ${jobs?.blurbVi}`).not.toMatch(/mostly|phần lớn|hospitality|internationals/i)
+  })
+
+  /**
+   * ⚠️ …AND SO DOES EVERY SENTENCE THAT LINKS IT. The eno.forum guides link the landing inside their own prose
+   * (`<VnLink href={marketplaceHref('jobs')}>`), which the entry above never reaches. Three still described a general
+   * jobs page (review, 2026-10-18): first-month-in-vietnam's "work listings aimed at internationals … a decent barometer
+   * of which industries are hiring", moving-to-vietnam's "roles in Vietnam that ask for English" a paragraph after
+   * "teaching, hospitality, tech, design and marketing are where most international hires land", and the official e-visa
+   * process page's "roles that ask for English". Read from the source, like source-site-wording.test.ts — the guides are
+   * services-only pages — with comments stripped, since those quote the retired wording to say why it went. The scope is
+   * the guide SECTION holding the link, so a framing sentence a paragraph up is caught too.
+   */
+  describe("every caller of marketplaceHref('jobs') names the teaching jobs it opens", () => {
+    const uncomment = (src: string) => src.replace(/\{?\/\*[\s\S]*?\*\/\}?/g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    // Every non-test source, read ONCE for the four checks below (each used to walk src/ again; one timed out under load).
+    const SOURCES = tsFiles('src')
+      .filter((file) => !/\.test\.tsx?$/.test(file))
+      .map((file) => {
+        const raw = readFileSync(file, 'utf8')
+        return { file, raw, code: uncomment(raw) }
+      })
+    const callers = SOURCES
+      .flatMap(({ file, code: src }) => {
+        // Any quoting or spacing of the key, so a caller written another way is not skipped.
+        return [...src.matchAll(/marketplaceHref\(\s*(['"`])jobs\1\s*\)(?:\}>([^<]*)<\/VnLink>)?/g)].map((m) => (
+          { file, src, at: m.index ?? -1, anchor: m[2]?.replace(/\s+/g, ' ').trim() }
+        ))
+      })
+    /** The guide section (`{ id: '…', title, body }`) the call sits in: from its `id:` to the next one, or the list's end. */
+    const sectionOf = ({ src, at }: { src: string; at: number }) => {
+      const start = src.lastIndexOf("\n      id: '", at)
+      const ends = [src.indexOf("\n      id: '", at), src.indexOf('\n  ],', at)].filter((i) => i >= 0)
+      return start < 0 || !ends.length ? null : src.slice(start, Math.min(...ends))
+    }
+
+    it('finds the guides that link it (the check is not vacuous)', () => {
+      expect(new Set(callers.map((c) => c.file)).size).toBeGreaterThanOrEqual(3)
+    })
+
+    // A key held in a variable, cast or passed beside a second argument would hide a jobs link from the scan above, so
+    // every call names its key as one plain literal — the helper's own definition (seo-article.tsx) aside.
+    it('every marketplaceHref call names its key as one string literal, so none escapes the scan', () => {
+      const calls = SOURCES
+        .flatMap(({ file, code }) => [...code.matchAll(/marketplaceHref\(([^)]*)\)/g)].map((m) => `${file}: ${m[0]}`))
+        .filter((call) => !call.endsWith('marketplaceHref(key: string)'))
+      expect(calls.length).toBeGreaterThanOrEqual(3)
+      for (const call of calls) expect(call).toMatch(/marketplaceHref\(\s*(['"`])[a-z-]+\1\s*\)$/)
+    })
+
+    // …and the ways around the helper: importing it under another name, or typing the landing's URL by hand (the
+    // guides' own rule — every eno.vn href comes from marketplaceHref()). No source but this module (which owns the
+    // entry) spells the absolute URL, and no services-only page (`.svc.`) spells even the path, which there would open
+    // eno.forum's own copy of the page.
+    it('the helper is never renamed on import, and the jobs landing’s URL is never typed where the helper belongs', () => {
+      const renamed = SOURCES.filter(({ raw }) => /\bmarketplaceHref\s+as\b/.test(raw)).map(({ file }) => file)
+      expect(renamed).toEqual([])
+      const typed = SOURCES
+        .filter(({ file }) => file !== join('src', 'lib', 'cross-site-links.ts'))
+        .filter(({ file, code }) => /eno\.vn\/jobs-vietnam-expats/.test(code) || (/\.svc\.tsx?$/.test(file) && code.includes('/jobs-vietnam-expats')))
+        .map(({ file }) => file)
+      expect(typed).toEqual([])
+    })
+
+    it.each(callers.map((c) => [`${c.file} — "${c.anchor ?? 'no <VnLink> text'}"`, c] as const))('%s', (_where, c) => {
+      expect(c.anchor, 'the link text').toMatch(/^English teaching jobs\b/)
+      const section = sectionOf(c)
+      expect(section, 'no guide section found around the call').not.toBeNull()
+      expect(section).toMatch(/marketplaceHref\(\s*(['"`])jobs\1\s*\)/)
+      // The words a reader sees: tags (and the paths in their attributes, "/housing-vietnam-expats") are not prose. Only
+      // words that frame a general jobs page — not "foreigners" or "sector", which a work-permit sentence may need.
+      const prose = section!.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ')
+      expect(prose).not.toMatch(
+        /industr(y|ies)|hospitality|tourism|internationals|international hires|for expats|(?:expat|hotel) (?:jobs|roles|work)|ask(s)? for English|requires? English|jobs in Vietnam for|tech roles|tech, design|marketing|for English speakers|roles for/i,
+      )
+    })
+  })
+
   /**
    * ⛔ THE PROMO MAY ONLY PROMISE WHAT eno.vn ACTUALLY HOLDS (measured 2026-09-27). It advertised
    * "housing, jobs and motorbikes … listed by the people who own the things", linked a motorbike

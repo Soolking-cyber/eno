@@ -721,7 +721,6 @@ export const VI_OVERRIDES: Record<string, string> = {
   "I’m an individual": "Tôi là cá nhân",
   "Job": "Việc làm",
   "Jobs": "Việc làm",
-  "Jobs in Vietnam for expats": "Việc làm tại Việt Nam cho người nước ngoài",
   "Jump straight to listings from the brands people search for most.": "Đi thẳng tới tin đăng của những thương hiệu được tìm kiếm nhiều nhất.",
   "Just sent one — try again in {n} seconds.": "Vừa gửi — thử lại sau {n} giây.",
   "Keep full photo": "Giữ nguyên ảnh",
