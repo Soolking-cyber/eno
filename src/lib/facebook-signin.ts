@@ -14,6 +14,8 @@ import { META_IN_APP_HOSTS, inAppHost, isNativeTabs } from './in-app-browser'
  * has watched it happen on a real phone yet. Until the owner has, and the counters (signup-prompt.ts `facebook`) show
  * Facebook sign-ins finishing there, the emailed code — measured, it works in place — stays first in in-app browsers,
  * and Facebook sits beside Google under it; in a real browser it follows Google and Apple.
+ * The 2026-10-17 hold-back (no button at the teacher form's sign-in nor inside Meta's own browsers, while Meta returned
+ * no email) was lifted 2026-10-19: on the new Consumer Meta app the first Facebook account signed up end to end.
  *
  * Facebook's picture link expires (fbcdn/fbsbx `ext` + `hash`), so it never becomes the account photo (profile.ts
  * providerAvatarUrl). Facebook's access token is never kept: GoTrue's flow state is blanked by a trigger the apply
@@ -35,7 +37,7 @@ export function isFacebookLinked(appMetadata: unknown): boolean {
 
 /**
  * Meta's own apps — the in-app browsers Facebook Login is expected to work inside (see facebookAvailableHere). ONE list
- * with the teacher landing's "Open in your browser" (in-app-browser.ts), so the hold-back and the escape never disagree.
+ * with the teacher landing's "Open in your browser" (in-app-browser.ts), so the two never disagree on which apps are Meta's.
  */
 const META_HOSTS: ReadonlySet<string> = META_IN_APP_HOSTS
 
@@ -60,18 +62,4 @@ export function facebookAvailableHere(): boolean {
     if (host ? !META_HOSTS.has(host) : /\bwv\b/.test(ua)) return false
   }
   return true
-}
-
-/**
- * ⛔ HELD BACK WHERE IT CANNOT FINISH TODAY (owner, 2026-10-17 — the bounce study's "now" list): Meta returns no email
- * until its App Review passes, so no attempt has ever produced an account (15 on 10-17, 0 Facebook identities). Most
- * came from the teacher form's sign-in and Meta's own built-in browsers, where it was the second button. Kept on the
- * /signin page in a real browser — where Meta's reviewer is told to test it. Lift this (delete the call) once a Facebook
- * identity exists, then show it FIRST inside Facebook's browser.
- */
-export function facebookHeldBack(gate: string | undefined): boolean {
-  if (gate === 'teacher') return true
-  if (typeof navigator === 'undefined') return false
-  const host = inAppHost(navigator.userAgent || '')
-  return host !== null && META_HOSTS.has(host)
 }

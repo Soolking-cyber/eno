@@ -8,11 +8,17 @@ Facebook's in-app browser, where Google refuses to run. The code ships DARK: no 
 ## 1. The Meta app (developers.facebook.com, as the eno business admin)
 
 1. **My Apps → Create app.** Use case: **Authenticate and request data from users with Facebook Login**. App type, if
-   asked: **Consumer**. Name: `eno.vn`. Contact email: `support@eno.vn`. Business portfolio: the one that owns the
-   eno.forum ad account (optional, not required for Login).
+   asked: **Consumer**. Name: `eno.vn`. Contact email: `support@eno.vn`. Business portfolio: **the VERIFIED `eno.vn`
+   portfolio (2004804040427884) — required**, although Meta's form calls it optional: step 2's Advanced access is
+   granted only through business verification. (The live app, `eno.vn Login` 1079252418272870, sits in it.)
 2. **Use cases → Authentication and account creation → Customize → Permissions:** `public_profile` (always on) and
    **`email` → Add**. Nothing else — both need NO App Review (Meta, Login Review: "If your app requests more than
    public_profile and email, it must be reviewed").
+   ⛔ **…but BOTH need Advanced access before the app goes Live:** App Review › Permissions and Features → `public_profile`
+   and `email` must each read "Advanced access granted" (Request advanced access — it needs step 1's verified portfolio,
+   and `email` also asks Meta's self-serve data-handling questions). 2026-10-19: Live with `public_profile` still on
+   Standard access, Facebook showed "Feature unavailable … we are updating additional details for this app" instead of
+   its dialog.
 3. **Facebook Login → Settings:**
    - Client OAuth login: **Yes** · Web OAuth login: **Yes** · Enforce HTTPS: **Yes**
    - Use Strict Mode for redirect URIs: **Yes**
